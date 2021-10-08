@@ -28,7 +28,7 @@ struct ELFNote {
 
   std::string n_name;
 
-  ELFNote() {}
+  ELFNote() = default;
 
   /// Parse an ELFNote entry from the given DataExtractor starting at position
   /// \p offset.
@@ -86,8 +86,6 @@ public:
 
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
 
   // LLVM RTTI support
   static char ID;

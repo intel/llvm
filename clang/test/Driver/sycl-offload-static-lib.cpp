@@ -48,33 +48,32 @@
 
 /// test behaviors of -foffload-static-lib=<lib> from source
 // RUN: touch %t.a
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl-use-footer -fsycl -fno-sycl-device-lib=all -foffload-static-lib=%t.a -ccc-print-phases %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -foffload-static-lib=%t.a -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_SRC
 
 // FOFFLOAD_STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 3: append-footer, {2}, c++, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 5: input, "[[INPUTC]]", c++, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 6: preprocessor, {5}, c++-cpp-output, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 7: compiler, {6}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {4}, "device-sycl (spir64-unknown-unknown-sycldevice)" {7}, c++-cpp-output
-// FOFFLOAD_STATIC_LIB_SRC: 9: compiler, {8}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 10: backend, {9}, assembler, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 11: assembler, {10}, object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 11}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 13: linker, {0, 11}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-deps, {13}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 15: input, "[[INPUTA]]", archive
-// FOFFLOAD_STATIC_LIB_SRC: 16: clang-offload-unbundler, {15}, archive
-// FOFFLOAD_STATIC_LIB_SRC: 17: linker, {7, 14, 16}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 21: file-table-tform, {18, 20}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {12}, "device-sycl (spir64-unknown-unknown-sycldevice)" {22}, imag
+// FOFFLOAD_STATIC_LIB_SRC: 2: append-footer, {1}, c++, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 3: preprocessor, {2}, c++-cpp-output, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 4: input, "[[INPUTC]]", c++, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 6: compiler, {5}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown)" {6}, c++-cpp-output
+// FOFFLOAD_STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 10}, host_dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 14: input, "[[INPUTA]]", archive
+// FOFFLOAD_STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, archive
+// FOFFLOAD_STATIC_LIB_SRC: 16: linker, {6, 13, 15}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown)" {21}, image
 
 /// ###########################################################################
 
@@ -133,7 +132,7 @@
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_NOSRC_PHASES
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 1: linker, {0}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 2: linker, {0}, image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 2: linker, {0}, host_dep_image, (host-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 3: clang-offload-deps, {2}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 4: input, "[[INPUTA]]", archive
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 5: clang-offload-unbundler, {4}, archive
@@ -143,7 +142,7 @@
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 9: llvm-spirv, {8}, tempfilelist, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 10: file-table-tform, {7, 9}, tempfiletable, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 11: clang-offload-wrapper, {10}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 12: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {11}, image
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 12: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown)" {11}, image
 
 /// ###########################################################################
 
@@ -156,10 +155,10 @@
 // RUN: touch %t.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
 // STATIC_ARCHIVE_UNBUNDLE: clang-offload-bundler{{.*}}

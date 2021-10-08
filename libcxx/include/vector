@@ -144,7 +144,7 @@ public:
     public:
         reference(const reference&) noexcept;
         operator bool() const noexcept;
-        reference& operator=(const bool x) noexcept;
+        reference& operator=(bool x) noexcept;
         reference& operator=(const reference& x) noexcept;
         iterator operator&() const noexcept;
         void flip() noexcept;
@@ -275,10 +275,13 @@ erase_if(vector<T, Allocator>& c, Predicate pred);    // C++20
 #include <__bit_reference>
 #include <__debug>
 #include <__functional_base>
+#include <__iterator/wrap_iter.h>
 #include <__split_buffer>
+#include <__utility/forward.h>
 #include <algorithm>
 #include <climits>
 #include <compare>
+#include <cstdlib>
 #include <cstring>
 #include <initializer_list>
 #include <iosfwd> // for forward declaration of vector
@@ -388,6 +391,25 @@ protected:
             is_nothrow_move_assignable<allocator_type>::value)
         {__move_assign_alloc(__c, integral_constant<bool,
                       __alloc_traits::propagate_on_container_move_assignment::value>());}
+
+    _LIBCPP_NORETURN _LIBCPP_HIDE_FROM_ABI
+    void __throw_length_error() const {
+#ifndef _LIBCPP_NO_EXCEPTIONS
+        __vector_base_common<true>::__throw_length_error();
+#else
+        _VSTD::abort();
+#endif
+    }
+
+    _LIBCPP_NORETURN _LIBCPP_HIDE_FROM_ABI
+    void __throw_out_of_range() const {
+#ifndef _LIBCPP_NO_EXCEPTIONS
+        __vector_base_common<true>::__throw_out_of_range();
+#else
+        _VSTD::abort();
+#endif
+    }
+
 private:
     _LIBCPP_INLINE_VISIBILITY
     void __copy_assign_alloc(const __vector_base& __c, true_type)
@@ -557,7 +579,7 @@ public:
     }
 
     vector(const vector& __x);
-    vector(const vector& __x, const allocator_type& __a);
+    vector(const vector& __x, const __identity_t<allocator_type>& __a);
     _LIBCPP_INLINE_VISIBILITY
     vector& operator=(const vector& __x);
 
@@ -577,7 +599,7 @@ public:
 #endif
 
     _LIBCPP_INLINE_VISIBILITY
-    vector(vector&& __x, const allocator_type& __a);
+    vector(vector&& __x, const __identity_t<allocator_type>& __a);
     _LIBCPP_INLINE_VISIBILITY
     vector& operator=(vector&& __x)
         _NOEXCEPT_((__noexcept_move_assign_container<_Allocator, __alloc_traits>::value));
@@ -929,17 +951,17 @@ private:
   }
 };
 
-#ifndef _LIBCPP_HAS_NO_DEDUCTION_GUIDES
+#if _LIBCPP_STD_VER >= 17
 template<class _InputIterator,
          class _Alloc = allocator<__iter_value_type<_InputIterator>>,
-         class = _EnableIf<__is_allocator<_Alloc>::value>
+         class = enable_if_t<__is_allocator<_Alloc>::value>
          >
 vector(_InputIterator, _InputIterator)
   -> vector<__iter_value_type<_InputIterator>, _Alloc>;
 
 template<class _InputIterator,
          class _Alloc,
-         class = _EnableIf<__is_allocator<_Alloc>::value>
+         class = enable_if_t<__is_allocator<_Alloc>::value>
          >
 vector(_InputIterator, _InputIterator, _Alloc)
   -> vector<__iter_value_type<_InputIterator>, _Alloc>;
@@ -1027,7 +1049,7 @@ vector<_Tp, _Allocator>::__recommend(size_type __new_size) const
     const size_type __cap = capacity();
     if (__cap >= __ms / 2)
         return __ms;
-    return _VSTD::max<size_type>(2*__cap, __new_size);
+    return _VSTD::max<size_type>(2 * __cap, __new_size);
 }
 
 //  Default constructs __n objects starting at __end_
@@ -1041,7 +1063,7 @@ vector<_Tp, _Allocator>::__construct_at_end(size_type __n)
 {
     _ConstructTransaction __tx(*this, __n);
     const_pointer __new_end = __tx.__new_end_;
-    for (pointer __pos = __tx.__pos_; __pos != __new_end; ++__pos, __tx.__pos_ = __pos) {
+    for (pointer __pos = __tx.__pos_; __pos != __new_end; __tx.__pos_ = ++__pos) {
         __alloc_traits::construct(this->__alloc(), _VSTD::__to_address(__pos));
     }
 }
@@ -1059,7 +1081,7 @@ vector<_Tp, _Allocator>::__construct_at_end(size_type __n, const_reference __x)
 {
     _ConstructTransaction __tx(*this, __n);
     const_pointer __new_end = __tx.__new_end_;
-    for (pointer __pos = __tx.__pos_; __pos != __new_end; ++__pos, __tx.__pos_ = __pos) {
+    for (pointer __pos = __tx.__pos_; __pos != __new_end; __tx.__pos_ = ++__pos) {
         __alloc_traits::construct(this->__alloc(), _VSTD::__to_address(__pos), __x);
     }
 }
@@ -1261,7 +1283,7 @@ vector<_Tp, _Allocator>::vector(const vector& __x)
 }
 
 template <class _Tp, class _Allocator>
-vector<_Tp, _Allocator>::vector(const vector& __x, const allocator_type& __a)
+vector<_Tp, _Allocator>::vector(const vector& __x, const __identity_t<allocator_type>& __a)
     : __base(__a)
 {
 #if _LIBCPP_DEBUG_LEVEL == 2
@@ -1299,7 +1321,7 @@ vector<_Tp, _Allocator>::vector(vector&& __x)
 
 template <class _Tp, class _Allocator>
 inline _LIBCPP_INLINE_VISIBILITY
-vector<_Tp, _Allocator>::vector(vector&& __x, const allocator_type& __a)
+vector<_Tp, _Allocator>::vector(vector&& __x, const __identity_t<allocator_type>& __a)
     : __base(__a)
 {
 #if _LIBCPP_DEBUG_LEVEL == 2
@@ -1753,7 +1775,7 @@ vector<_Tp, _Allocator>::__move_range(pointer __from_s, pointer __from_e, pointe
       pointer __i = __from_s + __n;
       _ConstructTransaction __tx(*this, __from_e - __i);
       for (pointer __pos = __tx.__pos_; __i < __from_e;
-           ++__i, ++__pos, __tx.__pos_ = __pos) {
+           ++__i, (void) ++__pos, __tx.__pos_ = __pos) {
           __alloc_traits::construct(this->__alloc(),
                                     _VSTD::__to_address(__pos),
                                     _VSTD::move(*__i));
@@ -2261,7 +2283,7 @@ public:
 #else
         _NOEXCEPT_(is_nothrow_move_constructible<allocator_type>::value);
 #endif
-    vector(vector&& __v, const allocator_type& __a);
+    vector(vector&& __v, const __identity_t<allocator_type>& __a);
     _LIBCPP_INLINE_VISIBILITY
     vector& operator=(vector&& __v)
         _NOEXCEPT_((__noexcept_move_assign_container<_Allocator, __alloc_traits>::value));
@@ -2573,7 +2595,7 @@ vector<bool, _Allocator>::__recommend(size_type __new_size) const
     const size_type __cap = capacity();
     if (__cap >= __ms / 2)
         return __ms;
-    return _VSTD::max(2*__cap, __align_it(__new_size));
+    return _VSTD::max(2 * __cap, __align_it(__new_size));
 }
 
 //  Default constructs __n objects starting at __end_
@@ -2887,7 +2909,7 @@ inline _LIBCPP_INLINE_VISIBILITY vector<bool, _Allocator>::vector(vector&& __v)
 }
 
 template <class _Allocator>
-vector<bool, _Allocator>::vector(vector&& __v, const allocator_type& __a)
+vector<bool, _Allocator>::vector(vector&& __v, const __identity_t<allocator_type>& __a)
     : __begin_(nullptr),
       __size_(0),
       __cap_alloc_(0, __a)

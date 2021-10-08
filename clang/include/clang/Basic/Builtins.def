@@ -24,7 +24,8 @@
 //  c -> char
 //  s -> short
 //  i -> int
-//  h -> half
+//  h -> half (__fp16, OpenCL)
+//  x -> half (_Float16)
 //  f -> float
 //  d -> double
 //  z -> size_t
@@ -1656,6 +1657,9 @@ BUILTIN(__xray_typedevent, "vzcC*z", "")
 BUILTIN(__builtin_ms_va_start, "vc*&.", "nt")
 BUILTIN(__builtin_ms_va_end, "vc*&", "n")
 BUILTIN(__builtin_ms_va_copy, "vc*&c*&", "n")
+
+// Arithmetic Fence: to prevent FP reordering and reassociation optimizations
+LANGBUILTIN(__arithmetic_fence, "v.", "t", ALL_LANGUAGES)
 
 // Builtins for Intel FPGA
 BUILTIN(__builtin_intel_fpga_reg, "v.", "nt")

@@ -28,7 +28,7 @@
 // CHECK:           %[[VAL_8:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32x16xf32>
 // CHECK:           %[[VAL_9:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_10:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_9]], %[[VAL_10]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_9]], %[[VAL_10]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           scf.for %[[VAL_11:.*]] = %[[VAL_5]] to %[[VAL_3]] step %[[VAL_6]] {
 // CHECK:             scf.for %[[VAL_12:.*]] = %[[VAL_5]] to %[[VAL_4]] step %[[VAL_6]] {
 // CHECK:               %[[VAL_13:.*]] = muli %[[VAL_11]], %[[VAL_4]] : index
@@ -65,7 +65,7 @@ func @add_dd(%arga: tensor<32x16xf32, #Tdd>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK:           %[[VAL_8:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32x16xf32>
 // CHECK:           %[[VAL_9:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_10:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_9]], %[[VAL_10]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_9]], %[[VAL_10]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           scf.for %[[VAL_11:.*]] = %[[VAL_5]] to %[[VAL_3]] step %[[VAL_6]] {
 // CHECK:             scf.for %[[VAL_12:.*]] = %[[VAL_5]] to %[[VAL_4]] step %[[VAL_6]] {
 // CHECK:               %[[VAL_13:.*]] = muli %[[VAL_11]], %[[VAL_4]] : index
@@ -94,18 +94,18 @@ func @mul_dd(%arga: tensor<32x16xf32, #Tdd>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK-SAME:                 %[[VAL_0:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                 %[[VAL_1:.*]]: tensor<32x16xf32>,
 // CHECK-SAME:                 %[[VAL_2:.*]]: tensor<32x16xf32>) -> tensor<32x16xf32> {
-// CHECK:           %[[VAL_3:.*]] = constant 32 : index
-// CHECK:           %[[VAL_4:.*]] = constant 16 : index
-// CHECK:           %[[VAL_5:.*]] = constant 0 : index
-// CHECK:           %[[VAL_6:.*]] = constant true
-// CHECK:           %[[VAL_7:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 32 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 16 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_6:.*]] = constant true
+// CHECK-DAG:           %[[VAL_7:.*]] = constant 1 : index
 // CHECK:           %[[VAL_8:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_7]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_9:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_7]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_10:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_11:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32x16xf32>
 // CHECK:           %[[VAL_12:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_13:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_12]], %[[VAL_13]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_12]], %[[VAL_13]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           scf.for %[[VAL_14:.*]] = %[[VAL_5]] to %[[VAL_3]] step %[[VAL_7]] {
 // CHECK:             %[[VAL_15:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_14]]] : memref<?xindex>
 // CHECK:             %[[VAL_16:.*]] = addi %[[VAL_14]], %[[VAL_7]] : index
@@ -158,16 +158,16 @@ func @add_ds(%arga: tensor<32x16xf32, #Tds>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK-SAME:                 %[[VAL_0:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                 %[[VAL_1:.*]]: tensor<32x16xf32>,
 // CHECK-SAME:                 %[[VAL_2:.*]]: tensor<32x16xf32>) -> tensor<32x16xf32> {
-// CHECK:           %[[VAL_3:.*]] = constant 32 : index
-// CHECK:           %[[VAL_4:.*]] = constant 0 : index
-// CHECK:           %[[VAL_5:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 32 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = constant 1 : index
 // CHECK:           %[[VAL_6:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_5]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_7:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_5]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_8:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_9:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32x16xf32>
 // CHECK:           %[[VAL_10:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_11:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_10]], %[[VAL_11]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_10]], %[[VAL_11]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           scf.for %[[VAL_12:.*]] = %[[VAL_4]] to %[[VAL_3]] step %[[VAL_5]] {
 // CHECK:             %[[VAL_13:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_12]]] : memref<?xindex>
 // CHECK:             %[[VAL_14:.*]] = addi %[[VAL_12]], %[[VAL_5]] : index
@@ -198,18 +198,18 @@ func @mul_ds(%arga: tensor<32x16xf32, #Tds>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK-SAME:                 %[[VAL_0:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                 %[[VAL_1:.*]]: tensor<32x16xf32>,
 // CHECK-SAME:                 %[[VAL_2:.*]]: tensor<32x16xf32>) -> tensor<32x16xf32> {
-// CHECK:           %[[VAL_3:.*]] = constant 32 : index
-// CHECK:           %[[VAL_4:.*]] = constant 16 : index
-// CHECK:           %[[VAL_5:.*]] = constant true
-// CHECK:           %[[VAL_6:.*]] = constant 0 : index
-// CHECK:           %[[VAL_7:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 32 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 16 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = constant true
+// CHECK-DAG:           %[[VAL_6:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_7:.*]] = constant 1 : index
 // CHECK:           %[[VAL_8:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_6]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_9:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_6]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_10:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_11:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32x16xf32>
 // CHECK:           %[[VAL_12:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_13:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_12]], %[[VAL_13]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_12]], %[[VAL_13]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           %[[VAL_14:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_6]]] : memref<?xindex>
 // CHECK:           %[[VAL_15:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_7]]] : memref<?xindex>
 // CHECK:           %[[VAL_16:.*]]:2 = scf.while (%[[VAL_17:.*]] = %[[VAL_14]], %[[VAL_18:.*]] = %[[VAL_6]]) : (index, index) -> (index, index) {
@@ -267,16 +267,16 @@ func @add_sd(%arga: tensor<32x16xf32, #Tsd>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK-SAME:                 %[[VAL_0:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                 %[[VAL_1:.*]]: tensor<32x16xf32>,
 // CHECK-SAME:                 %[[VAL_2:.*]]: tensor<32x16xf32>) -> tensor<32x16xf32> {
-// CHECK:           %[[VAL_3:.*]] = constant 16 : index
-// CHECK:           %[[VAL_4:.*]] = constant 0 : index
-// CHECK:           %[[VAL_5:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 16 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = constant 1 : index
 // CHECK:           %[[VAL_6:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_4]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_7:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_4]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_8:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_9:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32x16xf32>
 // CHECK:           %[[VAL_10:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_11:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_10]], %[[VAL_11]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_10]], %[[VAL_11]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           %[[VAL_12:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           %[[VAL_13:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_5]]] : memref<?xindex>
 // CHECK:           scf.for %[[VAL_14:.*]] = %[[VAL_12]] to %[[VAL_13]] step %[[VAL_5]] {
@@ -308,11 +308,11 @@ func @mul_sd(%arga: tensor<32x16xf32, #Tsd>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK-SAME:                 %[[VAL_0:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                 %[[VAL_1:.*]]: tensor<32x16xf32>,
 // CHECK-SAME:                 %[[VAL_2:.*]]: tensor<32x16xf32>) -> tensor<32x16xf32> {
-// CHECK:           %[[VAL_3:.*]] = constant 32 : index
-// CHECK:           %[[VAL_4:.*]] = constant 16 : index
-// CHECK:           %[[VAL_5:.*]] = constant true
-// CHECK:           %[[VAL_6:.*]] = constant 0 : index
-// CHECK:           %[[VAL_7:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 32 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 16 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = constant true
+// CHECK-DAG:           %[[VAL_6:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_7:.*]] = constant 1 : index
 // CHECK:           %[[VAL_8:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_6]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_9:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_6]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_10:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_7]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
@@ -321,7 +321,7 @@ func @mul_sd(%arga: tensor<32x16xf32, #Tsd>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK:           %[[VAL_13:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32x16xf32>
 // CHECK:           %[[VAL_14:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_15:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_14]], %[[VAL_15]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_14]], %[[VAL_15]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           %[[VAL_16:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_6]]] : memref<?xindex>
 // CHECK:           %[[VAL_17:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_7]]] : memref<?xindex>
 // CHECK:           %[[VAL_18:.*]]:2 = scf.while (%[[VAL_19:.*]] = %[[VAL_16]], %[[VAL_20:.*]] = %[[VAL_6]]) : (index, index) -> (index, index) {
@@ -413,7 +413,7 @@ func @add_ss(%arga: tensor<32x16xf32, #Tss>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK:           %[[VAL_10:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32x16xf32>
 // CHECK:           %[[VAL_11:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_12:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_11]], %[[VAL_12]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_11]], %[[VAL_12]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           %[[VAL_13:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_3]]] : memref<?xindex>
 // CHECK:           %[[VAL_14:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           scf.for %[[VAL_15:.*]] = %[[VAL_13]] to %[[VAL_14]] step %[[VAL_4]] {
@@ -461,7 +461,7 @@ func @mul_ss(%arga: tensor<32x16xf32, #Tss>, %argb: tensor<32x16xf32>, %argx: te
 // CHECK:           %[[VAL_14:.*]] = sparse_tensor.values %[[VAL_1]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_15:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_16:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_15]], %[[VAL_16]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_15]], %[[VAL_16]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           %[[VAL_17:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_3]]] : memref<?xindex>
 // CHECK:           %[[VAL_18:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           %[[VAL_19:.*]] = memref.load %[[VAL_10]]{{\[}}%[[VAL_3]]] : memref<?xindex>
@@ -626,7 +626,7 @@ func @add_ss_ss(%arga: tensor<32x16xf32, #Tss>, %argb: tensor<32x16xf32, #Tss>, 
 // CHECK:           %[[VAL_14:.*]] = sparse_tensor.values %[[VAL_1]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_15:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_16:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_15]], %[[VAL_16]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_15]], %[[VAL_16]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           %[[VAL_17:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_3]]] : memref<?xindex>
 // CHECK:           %[[VAL_18:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           %[[VAL_19:.*]] = memref.load %[[VAL_10]]{{\[}}%[[VAL_3]]] : memref<?xindex>
@@ -709,11 +709,11 @@ func @mul_ss_ss(%arga: tensor<32x16xf32, #Tss>, %argb: tensor<32x16xf32, #Tss>, 
 // CHECK-SAME:                    %[[VAL_0:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                    %[[VAL_2:.*]]: tensor<32x16xf32>) -> tensor<32x16xf32> {
-// CHECK:           %[[VAL_3:.*]] = constant 32 : index
-// CHECK:           %[[VAL_4:.*]] = constant 16 : index
-// CHECK:           %[[VAL_5:.*]] = constant 0 : index
-// CHECK:           %[[VAL_6:.*]] = constant true
-// CHECK:           %[[VAL_7:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 32 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 16 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_6:.*]] = constant true
+// CHECK-DAG:           %[[VAL_7:.*]] = constant 1 : index
 // CHECK:           %[[VAL_8:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_5]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_9:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_5]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_10:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
@@ -722,7 +722,7 @@ func @mul_ss_ss(%arga: tensor<32x16xf32, #Tss>, %argb: tensor<32x16xf32, #Tss>, 
 // CHECK:           %[[VAL_13:.*]] = sparse_tensor.values %[[VAL_1]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_14:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_15:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_14]], %[[VAL_15]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_14]], %[[VAL_15]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           %[[VAL_16:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_5]]] : memref<?xindex>
 // CHECK:           %[[VAL_17:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_7]]] : memref<?xindex>
 // CHECK:           %[[VAL_18:.*]]:2 = scf.while (%[[VAL_19:.*]] = %[[VAL_16]], %[[VAL_20:.*]] = %[[VAL_5]]) : (index, index) -> (index, index) {
@@ -816,9 +816,9 @@ func @add_sd_ds(%arga: tensor<32x16xf32, #Tsd>, %argb: tensor<32x16xf32, #Tds>, 
 // CHECK-SAME:                    %[[VAL_0:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                    %[[VAL_1:.*]]: tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                    %[[VAL_2:.*]]: tensor<32x16xf32>) -> tensor<32x16xf32> {
-// CHECK:           %[[VAL_3:.*]] = constant 16 : index
-// CHECK:           %[[VAL_4:.*]] = constant 0 : index
-// CHECK:           %[[VAL_5:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 16 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = constant 1 : index
 // CHECK:           %[[VAL_6:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_4]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_7:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_4]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_8:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "dense" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
@@ -827,7 +827,7 @@ func @add_sd_ds(%arga: tensor<32x16xf32, #Tsd>, %argb: tensor<32x16xf32, #Tds>, 
 // CHECK:           %[[VAL_11:.*]] = sparse_tensor.values %[[VAL_1]] : tensor<32x16xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_12:.*]] = memref.buffer_cast %[[VAL_2]] : memref<32x16xf32>
 // CHECK:           %[[VAL_13:.*]] = memref.alloc() : memref<32x16xf32>
-// CHECK:           linalg.copy(%[[VAL_12]], %[[VAL_13]]) : memref<32x16xf32>, memref<32x16xf32>
+// CHECK:           memref.copy %[[VAL_12]], %[[VAL_13]] : memref<32x16xf32> to memref<32x16xf32>
 // CHECK:           %[[VAL_14:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           %[[VAL_15:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_5]]] : memref<?xindex>
 // CHECK:           scf.for %[[VAL_16:.*]] = %[[VAL_14]] to %[[VAL_15]] step %[[VAL_5]] {
@@ -873,16 +873,16 @@ func @mul_sd_ds(%arga: tensor<32x16xf32, #Tsd>, %argb: tensor<32x16xf32, #Tds>, 
 // CHECK-SAME:                 %[[VAL_0:.*]]: tensor<16x32xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                 %[[VAL_1:.*]]: tensor<32xf32>,
 // CHECK-SAME:                 %[[VAL_2:.*]]: tensor<16xf32>) -> tensor<16xf32> {
-// CHECK:           %[[VAL_3:.*]] = constant 16 : index
-// CHECK:           %[[VAL_4:.*]] = constant 0 : index
-// CHECK:           %[[VAL_5:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 16 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = constant 1 : index
 // CHECK:           %[[VAL_6:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_5]] : tensor<16x32xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_7:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_5]] : tensor<16x32xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_8:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<16x32xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_9:.*]] = memref.buffer_cast %[[VAL_1]] : memref<32xf32>
 // CHECK:           %[[VAL_10:.*]] = memref.buffer_cast %[[VAL_2]] : memref<16xf32>
 // CHECK:           %[[VAL_11:.*]] = memref.alloc() : memref<16xf32>
-// CHECK:           linalg.copy(%[[VAL_10]], %[[VAL_11]]) : memref<16xf32>, memref<16xf32>
+// CHECK:           memref.copy %[[VAL_10]], %[[VAL_11]] : memref<16xf32> to memref<16xf32>
 // CHECK:           scf.for %[[VAL_12:.*]] = %[[VAL_4]] to %[[VAL_3]] step %[[VAL_5]] {
 // CHECK:             %[[VAL_13:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_12]]] : memref<?xindex>
 // CHECK:             %[[VAL_14:.*]] = addi %[[VAL_12]], %[[VAL_5]] : index
@@ -925,14 +925,14 @@ func @matvec(%argA: tensor<16x32xf32, #Tds>, %argb: tensor<32xf32>, %argx: tenso
 // CHECK-LABEL:   func @sum_reduction(
 // CHECK-SAME:                        %[[VAL_0:.*]]: tensor<10x20xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                        %[[VAL_1:.*]]: tensor<f32>) -> tensor<f32> {
-// CHECK:           %[[VAL_2:.*]] = constant 10 : index
-// CHECK:           %[[VAL_3:.*]] = constant 0 : index
-// CHECK:           %[[VAL_4:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_2:.*]] = constant 10 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 1 : index
 // CHECK:           %[[VAL_5:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_4]] : tensor<10x20xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_6:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<10x20xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_7:.*]] = memref.buffer_cast %[[VAL_1]] : memref<f32>
 // CHECK:           %[[VAL_8:.*]] = memref.alloc() : memref<f32>
-// CHECK:           linalg.copy(%[[VAL_7]], %[[VAL_8]]) : memref<f32>, memref<f32>
+// CHECK:           memref.copy %[[VAL_7]], %[[VAL_8]] : memref<f32> to memref<f32>
 // CHECK:           scf.for %[[VAL_9:.*]] = %[[VAL_3]] to %[[VAL_2]] step %[[VAL_4]] {
 // CHECK:             %[[VAL_10:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_9]]] : memref<?xindex>
 // CHECK:             %[[VAL_11:.*]] = addi %[[VAL_9]], %[[VAL_4]] : index
@@ -971,17 +971,17 @@ func @sum_reduction(%arga: tensor<10x20xf32, #Tds>, %argx: tensor<f32>) -> tenso
 // CHECK-LABEL:   func @scale(
 // CHECK-SAME:                %[[VAL_0:.*]]: tensor<?x?xf64, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>>,
 // CHECK-SAME:                %[[VAL_1:.*]]: tensor<?x?xf64>) -> tensor<?x?xf64> {
-// CHECK:           %[[VAL_2:.*]] = constant 2.000000e+00 : f64
-// CHECK:           %[[VAL_3:.*]] = constant 0 : index
-// CHECK:           %[[VAL_4:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_2:.*]] = constant 2.000000e+00 : f64
+// CHECK-DAG:           %[[VAL_3:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = constant 1 : index
 // CHECK:           %[[VAL_5:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_4]] : tensor<?x?xf64, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_6:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_4]] : tensor<?x?xf64, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_7:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<?x?xf64, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf64>
-// CHECK:           %[[VAL_8:.*]] = memref.dim %[[VAL_1]], %[[VAL_3]] : tensor<?x?xf64>
-// CHECK:           %[[VAL_9:.*]] = memref.dim %[[VAL_1]], %[[VAL_4]] : tensor<?x?xf64>
+// CHECK:           %[[VAL_8:.*]] = tensor.dim %[[VAL_1]], %[[VAL_3]] : tensor<?x?xf64>
+// CHECK:           %[[VAL_9:.*]] = tensor.dim %[[VAL_1]], %[[VAL_4]] : tensor<?x?xf64>
 // CHECK:           %[[VAL_10:.*]] = memref.buffer_cast %[[VAL_1]] : memref<?x?xf64>
 // CHECK:           %[[VAL_11:.*]] = memref.alloc(%[[VAL_8]], %[[VAL_9]]) : memref<?x?xf64>
-// CHECK:           linalg.copy(%[[VAL_10]], %[[VAL_11]]) : memref<?x?xf64>, memref<?x?xf64>
+// CHECK:           memref.copy %[[VAL_10]], %[[VAL_11]] : memref<?x?xf64> to memref<?x?xf64>
 // CHECK:           scf.for %[[VAL_12:.*]] = %[[VAL_3]] to %[[VAL_8]] step %[[VAL_4]] {
 // CHECK:             %[[VAL_13:.*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_12]]] : memref<?xindex>
 // CHECK:             %[[VAL_14:.*]] = addi %[[VAL_12]], %[[VAL_4]] : index
@@ -1032,36 +1032,37 @@ func @scale(%arga: tensor<?x?xf64, #Tds>, %argx: tensor<?x?xf64>) -> tensor<?x?x
 // CHECK:           %[[VAL_9:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_5]] : tensor<?x?xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_10:.*]] = sparse_tensor.values %[[VAL_0]] : tensor<?x?xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_11:.*]] = memref.buffer_cast %[[VAL_1]] : memref<?x?xf32>
-// CHECK:           %[[VAL_12:.*]] = memref.dim %[[VAL_2]], %[[VAL_4]] : tensor<?x?xf32>
+// CHECK:           %[[VAL_12:.*]] = tensor.dim %[[VAL_2]], %[[VAL_4]] : tensor<?x?xf32>
 // CHECK:           %[[VAL_13:.*]] = memref.buffer_cast %[[VAL_2]] : memref<?x?xf32>
-// CHECK:           %[[VAL_14:.*]] = memref.dim %[[VAL_3]], %[[VAL_4]] : tensor<?x?xf32>
-// CHECK:           %[[VAL_15:.*]] = memref.dim %[[VAL_3]], %[[VAL_5]] : tensor<?x?xf32>
+// CHECK:           %[[VAL_14:.*]] = tensor.dim %[[VAL_3]], %[[VAL_4]] : tensor<?x?xf32>
+// CHECK:           %[[VAL_15:.*]] = tensor.dim %[[VAL_3]], %[[VAL_5]] : tensor<?x?xf32>
 // CHECK:           %[[VAL_16:.*]] = memref.buffer_cast %[[VAL_3]] : memref<?x?xf32>
 // CHECK:           %[[VAL_17:.*]] = memref.alloc(%[[VAL_14]], %[[VAL_15]]) : memref<?x?xf32>
-// CHECK:           linalg.copy(%[[VAL_16]], %[[VAL_17]]) : memref<?x?xf32>, memref<?x?xf32>
+// CHECK:           memref.copy %[[VAL_16]], %[[VAL_17]] : memref<?x?xf32> to memref<?x?xf32>
 // CHECK:           %[[VAL_18:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_4]]] : memref<?xindex>
 // CHECK:           %[[VAL_19:.*]] = memref.load %[[VAL_6]]{{\[}}%[[VAL_5]]] : memref<?xindex>
 // CHECK:           scf.for %[[VAL_20:.*]] = %[[VAL_18]] to %[[VAL_19]] step %[[VAL_5]] {
 // CHECK:             %[[VAL_21:.*]] = memref.load %[[VAL_7]]{{\[}}%[[VAL_20]]] : memref<?xindex>
-// CHECK:             scf.for %[[VAL_22:.*]] = %[[VAL_4]] to %[[VAL_12]] step %[[VAL_5]] {
-// CHECK:               %[[VAL_23:.*]] = memref.load %[[VAL_11]]{{\[}}%[[VAL_21]], %[[VAL_22]]] : memref<?x?xf32>
-// CHECK:               %[[VAL_24:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_20]]] : memref<?xindex>
-// CHECK:               %[[VAL_25:.*]] = addi %[[VAL_20]], %[[VAL_5]] : index
-// CHECK:               %[[VAL_26:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_25]]] : memref<?xindex>
-// CHECK:               scf.for %[[VAL_27:.*]] = %[[VAL_24]] to %[[VAL_26]] step %[[VAL_5]] {
-// CHECK:                 %[[VAL_28:.*]] = memref.load %[[VAL_9]]{{\[}}%[[VAL_27]]] : memref<?xindex>
-// CHECK:                 %[[VAL_29:.*]] = memref.load %[[VAL_17]]{{\[}}%[[VAL_21]], %[[VAL_28]]] : memref<?x?xf32>
-// CHECK:                 %[[VAL_30:.*]] = memref.load %[[VAL_10]]{{\[}}%[[VAL_27]]] : memref<?xf32>
-// CHECK:                 %[[VAL_31:.*]] = memref.load %[[VAL_13]]{{\[}}%[[VAL_22]], %[[VAL_28]]] : memref<?x?xf32>
-// CHECK:                 %[[VAL_32:.*]] = mulf %[[VAL_23]], %[[VAL_31]] : f32
-// CHECK:                 %[[VAL_33:.*]] = mulf %[[VAL_30]], %[[VAL_32]] : f32
-// CHECK:                 %[[VAL_34:.*]] = addf %[[VAL_29]], %[[VAL_33]] : f32
-// CHECK:                 memref.store %[[VAL_34]], %[[VAL_17]]{{\[}}%[[VAL_21]], %[[VAL_28]]] : memref<?x?xf32>
+// CHECK:             %[[VAL_22:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_20]]] : memref<?xindex>
+// CHECK:             %[[VAL_23:.*]] = addi %[[VAL_20]], %[[VAL_5]] : index
+// CHECK:             %[[VAL_24:.*]] = memref.load %[[VAL_8]]{{\[}}%[[VAL_23]]] : memref<?xindex>
+// CHECK:             scf.for %[[VAL_25:.*]] = %[[VAL_22]] to %[[VAL_24]] step %[[VAL_5]] {
+// CHECK:               %[[VAL_26:.*]] = memref.load %[[VAL_9]]{{\[}}%[[VAL_25]]] : memref<?xindex>
+// CHECK:               %[[VAL_27:.*]] = memref.load %[[VAL_10]]{{\[}}%[[VAL_25]]] : memref<?xf32>
+// CHECK:               %[[VAL_28:.*]] = memref.load %[[VAL_17]]{{\[}}%[[VAL_21]], %[[VAL_26]]] : memref<?x?xf32>
+// CHECK:               %[[VAL_29:.*]] = scf.for %[[VAL_30:.*]] = %[[VAL_4]] to %[[VAL_12]] step %[[VAL_5]] iter_args(%[[VAL_31:.*]] = %[[VAL_28]]) -> (f32) {
+// CHECK:                 %[[VAL_32:.*]] = memref.load %[[VAL_11]]{{\[}}%[[VAL_21]], %[[VAL_30]]] : memref<?x?xf32>
+// CHECK:                 %[[VAL_33:.*]] = memref.load %[[VAL_13]]{{\[}}%[[VAL_30]], %[[VAL_26]]] : memref<?x?xf32>
+// CHECK:                 %[[VAL_34:.*]] = mulf %[[VAL_32]], %[[VAL_33]] : f32
+// CHECK:                 %[[VAL_35:.*]] = mulf %[[VAL_27]], %[[VAL_34]] : f32
+// CHECK:                 %[[VAL_36:.*]] = addf %[[VAL_31]], %[[VAL_35]] : f32
+// CHECK:                 scf.yield %[[VAL_36]] : f32
 // CHECK:               }
+// CHECK:               memref.store %[[VAL_37:.*]], %[[VAL_17]]{{\[}}%[[VAL_21]], %[[VAL_26]]] : memref<?x?xf32>
 // CHECK:             }
 // CHECK:           }
-// CHECK:           %[[VAL_35:.*]] = memref.tensor_load %[[VAL_17]] : memref<?x?xf32>
-// CHECK:           return %[[VAL_35]] : tensor<?x?xf32>
+// CHECK:           %[[VAL_38:.*]] = memref.tensor_load %[[VAL_17]] : memref<?x?xf32>
+// CHECK:           return %[[VAL_38]] : tensor<?x?xf32>
 // CHECK:         }
 func @sampled_dense_dense(%args: tensor<?x?xf32, #Tss>,
                           %arga: tensor<?x?xf32>,
@@ -1099,9 +1100,9 @@ func @sampled_dense_dense(%args: tensor<?x?xf32, #Tss>,
 // CHECK-SAME:                              %[[VAL_3:.*3]]: tensor<?xf32>,
 // CHECK-SAME:                              %[[VAL_4:.*4]]: tensor<f32>,
 // CHECK-SAME:                              %[[VAL_5:.*5]]: tensor<?xf32>) -> tensor<?xf32> {
-// CHECK:           %[[VAL_6:.*]] = constant 0 : index
-// CHECK:           %[[VAL_7:.*]] = constant true
-// CHECK:           %[[VAL_8:.*]] = constant 1 : index
+// CHECK-DAG:           %[[VAL_6:.*]] = constant 0 : index
+// CHECK-DAG:           %[[VAL_7:.*]] = constant true
+// CHECK-DAG:           %[[VAL_8:.*]] = constant 1 : index
 // CHECK:           %[[VAL_9:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_6]] : tensor<?x?xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_10:.*]] = sparse_tensor.indices %[[VAL_0]], %[[VAL_6]] : tensor<?x?xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
 // CHECK:           %[[VAL_11:.*]] = sparse_tensor.pointers %[[VAL_0]], %[[VAL_8]] : tensor<?x?xf32, #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xindex>
@@ -1115,10 +1116,10 @@ func @sampled_dense_dense(%args: tensor<?x?xf32, #Tss>,
 // CHECK:           %[[VAL_19:.*]] = sparse_tensor.values %[[VAL_2]] : tensor<?x?xf32, #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ], pointerBitWidth = 0, indexBitWidth = 0 }>> to memref<?xf32>
 // CHECK:           %[[VAL_20:.*]] = memref.buffer_cast %[[VAL_3]] : memref<?xf32>
 // CHECK:           %[[VAL_21:.*]] = memref.buffer_cast %[[VAL_4]] : memref<f32>
-// CHECK:           %[[VAL_22:.*]] = memref.dim %[[VAL_5]], %[[VAL_6]] : tensor<?xf32>
+// CHECK:           %[[VAL_22:.*]] = tensor.dim %[[VAL_5]], %[[VAL_6]] : tensor<?xf32>
 // CHECK:           %[[VAL_23:.*]] = memref.buffer_cast %[[VAL_5]] : memref<?xf32>
 // CHECK:           %[[VAL_24:.*]] = memref.alloc(%[[VAL_22]]) : memref<?xf32>
-// CHECK:           linalg.copy(%[[VAL_23]], %[[VAL_24]]) : memref<?xf32>, memref<?xf32>
+// CHECK:           memref.copy %[[VAL_23]], %[[VAL_24]] : memref<?xf32> to memref<?xf32>
 // CHECK:           %[[VAL_25:.*]] = memref.load %[[VAL_21]][] : memref<f32>
 // CHECK:           %[[VAL_26:.*]] = memref.load %[[VAL_9]]{{\[}}%[[VAL_6]]] : memref<?xindex>
 // CHECK:           %[[VAL_27:.*]] = memref.load %[[VAL_9]]{{\[}}%[[VAL_8]]] : memref<?xindex>

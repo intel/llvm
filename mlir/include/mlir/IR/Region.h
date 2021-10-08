@@ -191,7 +191,7 @@ public:
   Region *getParentRegion();
 
   /// Return the parent operation this region is attached to.
-  Operation *getParentOp();
+  Operation *getParentOp() { return container; }
 
   /// Find the first parent operation of the given type, or nullptr if there is
   /// no ancestor operation.
@@ -296,7 +296,7 @@ public:
 
   /// Displays the CFG in a window. This is for use from the debugger and
   /// depends on Graphviz to generate the graph.
-  /// This function is defined in ViewRegionGraph and only works with that
+  /// This function is defined in ViewOpGraph.cpp and only works with that
   /// target linked.
   void viewGraph(const Twine &regionName);
   void viewGraph();

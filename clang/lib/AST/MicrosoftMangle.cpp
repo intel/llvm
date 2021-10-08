@@ -2184,6 +2184,21 @@ void MicrosoftCXXNameMangler::mangleAddressSpaceType(QualType T,
     case LangAS::cuda_device:
       Extra.mangleSourceName("_ASCUdevice");
       break;
+    case LangAS::sycl_global:
+      Extra.mangleSourceName("_ASSYglobal");
+      break;
+    case LangAS::sycl_global_device:
+      Extra.mangleSourceName("_ASSYdevice");
+      break;
+    case LangAS::sycl_global_host:
+      Extra.mangleSourceName("_ASSYhost");
+      break;
+    case LangAS::sycl_local:
+      Extra.mangleSourceName("_ASSYlocal");
+      break;
+    case LangAS::sycl_private:
+      Extra.mangleSourceName("_ASSYprivate");
+      break;
     case LangAS::cuda_constant:
       Extra.mangleSourceName("_ASCUconstant");
       break;
@@ -2473,6 +2488,7 @@ void MicrosoftCXXNameMangler::mangleType(const BuiltinType *T, Qualifiers,
   case BuiltinType::SatUFract:
   case BuiltinType::SatULongFract:
   case BuiltinType::BFloat16:
+  case BuiltinType::Ibm128:
   case BuiltinType::Float128: {
     DiagnosticsEngine &Diags = Context.getDiags();
     unsigned DiagID = Diags.getCustomDiagID(
@@ -2735,6 +2751,8 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
   //                      ::= J # __export __fastcall
   //                      ::= Q # __vectorcall
   //                      ::= S # __attribute__((__swiftcall__)) // Clang-only
+  //                      ::= T # __attribute__((__swiftasynccall__))
+  //                            // Clang-only
   //                      ::= w # __regcall
   // The 'export' calling conventions are from a bygone era
   // (*cough*Win16*cough*) when functions were declared for export with
@@ -2754,6 +2772,7 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
     case CC_X86FastCall: Out << 'I'; break;
     case CC_X86VectorCall: Out << 'Q'; break;
     case CC_Swift: Out << 'S'; break;
+    case CC_SwiftAsync: Out << 'W'; break;
     case CC_PreserveMost: Out << 'U'; break;
     case CC_X86RegCall: Out << 'w'; break;
   }
@@ -3606,7 +3625,7 @@ void MicrosoftMangleContextImpl::mangleCXXCatchableType(
   // FIXME: It is known that the Ctor is present in 2013, and in 2017.7
   // (_MSC_VER 1914) and newer, and that it's omitted in 2015 and 2017.4
   // (_MSC_VER 1911), but it's unknown when exactly it reappeared (1914?
-  // Or 1912, 1913 aleady?).
+  // Or 1912, 1913 already?).
   bool OmitCopyCtor = getASTContext().getLangOpts().isCompatibleWithMSVC(
                           LangOptions::MSVC2015) &&
                       !getASTContext().getLangOpts().isCompatibleWithMSVC(
@@ -3683,7 +3702,7 @@ void MicrosoftMangleContextImpl::mangleCXXRTTICompleteObjectLocator(
   assert(VFTableMangling.startswith("??_7") ||
          VFTableMangling.startswith("??_S"));
 
-  Out << "??_R4" << StringRef(VFTableMangling).drop_front(4);
+  Out << "??_R4" << VFTableMangling.str().drop_front(4);
 }
 
 void MicrosoftMangleContextImpl::mangleSEHFilterExpression(
@@ -3887,7 +3906,7 @@ void MicrosoftMangleContextImpl::mangleStringLiteral(const StringLiteral *SL,
     // - ?[A-Z]: The range from \xc1 to \xda.
     // - ?[0-9]: The set of [,/\:. \n\t'-].
     // - ?$XX: A fallback which maps nibbles.
-    if (isIdentifierBody(Byte, /*AllowDollar=*/true)) {
+    if (isAsciiIdentifierContinue(Byte, /*AllowDollar=*/true)) {
       Mangler.getStream() << Byte;
     } else if (isLetter(Byte & 0x7f)) {
       Mangler.getStream() << '?' << static_cast<char>(Byte & 0x7f);

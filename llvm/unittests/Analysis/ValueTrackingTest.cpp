@@ -12,6 +12,7 @@
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
@@ -813,6 +814,35 @@ TEST(ValueTracking, propagatesPoison) {
       "declare {i32, i1} @llvm.uadd.with.overflow.i32(i32 %a, i32 %b)\n"
       "declare {i32, i1} @llvm.usub.with.overflow.i32(i32 %a, i32 %b)\n"
       "declare {i32, i1} @llvm.umul.with.overflow.i32(i32 %a, i32 %b)\n"
+      "declare float @llvm.sqrt.f32(float)\n"
+      "declare float @llvm.powi.f32.i32(float, i32)\n"
+      "declare float @llvm.sin.f32(float)\n"
+      "declare float @llvm.cos.f32(float)\n"
+      "declare float @llvm.pow.f32(float, float)\n"
+      "declare float @llvm.exp.f32(float)\n"
+      "declare float @llvm.exp2.f32(float)\n"
+      "declare float @llvm.log.f32(float)\n"
+      "declare float @llvm.log10.f32(float)\n"
+      "declare float @llvm.log2.f32(float)\n"
+      "declare float @llvm.fma.f32(float, float, float)\n"
+      "declare float @llvm.fabs.f32(float)\n"
+      "declare float @llvm.minnum.f32(float, float)\n"
+      "declare float @llvm.maxnum.f32(float, float)\n"
+      "declare float @llvm.minimum.f32(float, float)\n"
+      "declare float @llvm.maximum.f32(float, float)\n"
+      "declare float @llvm.copysign.f32(float, float)\n"
+      "declare float @llvm.floor.f32(float)\n"
+      "declare float @llvm.ceil.f32(float)\n"
+      "declare float @llvm.trunc.f32(float)\n"
+      "declare float @llvm.rint.f32(float)\n"
+      "declare float @llvm.nearbyint.f32(float)\n"
+      "declare float @llvm.round.f32(float)\n"
+      "declare float @llvm.roundeven.f32(float)\n"
+      "declare i32 @llvm.lround.f32(float)\n"
+      "declare i64 @llvm.llround.f32(float)\n"
+      "declare i32 @llvm.lrint.f32(float)\n"
+      "declare i64 @llvm.llrint.f32(float)\n"
+      "declare float @llvm.fmuladd.f32(float, float, float)\n"
       "define void @f(i32 %x, i32 %y, float %fx, float %fy, "
       "i1 %cond, i8* %p) {\n";
   std::string AsmTail = "  ret void\n}";
@@ -822,6 +852,12 @@ TEST(ValueTracking, propagatesPoison) {
       {true, "add nsw nuw i32 %x, %y"},
       {true, "ashr i32 %x, %y"},
       {true, "lshr exact i32 %x, 31"},
+      {true, "fadd float %fx, %fy"},
+      {true, "fsub float %fx, %fy"},
+      {true, "fmul float %fx, %fy"},
+      {true, "fdiv float %fx, %fy"},
+      {true, "frem float %fx, %fy"},
+      {true, "fneg float %fx"},
       {true, "fcmp oeq float %fx, %fy"},
       {true, "icmp eq i32 %x, %y"},
       {true, "getelementptr i8, i8* %p, i32 %x"},
@@ -839,7 +875,36 @@ TEST(ValueTracking, propagatesPoison) {
       {true, "call {i32, i1} @llvm.smul.with.overflow.i32(i32 %x, i32 %y)"},
       {true, "call {i32, i1} @llvm.uadd.with.overflow.i32(i32 %x, i32 %y)"},
       {true, "call {i32, i1} @llvm.usub.with.overflow.i32(i32 %x, i32 %y)"},
-      {true, "call {i32, i1} @llvm.umul.with.overflow.i32(i32 %x, i32 %y)"}};
+      {true, "call {i32, i1} @llvm.umul.with.overflow.i32(i32 %x, i32 %y)"},
+      {false, "call float @llvm.sqrt.f32(float %fx)"},
+      {false, "call float @llvm.powi.f32.i32(float %fx, i32 %x)"},
+      {false, "call float @llvm.sin.f32(float %fx)"},
+      {false, "call float @llvm.cos.f32(float %fx)"},
+      {false, "call float @llvm.pow.f32(float %fx, float %fy)"},
+      {false, "call float @llvm.exp.f32(float %fx)"},
+      {false, "call float @llvm.exp2.f32(float %fx)"},
+      {false, "call float @llvm.log.f32(float %fx)"},
+      {false, "call float @llvm.log10.f32(float %fx)"},
+      {false, "call float @llvm.log2.f32(float %fx)"},
+      {false, "call float @llvm.fma.f32(float %fx, float %fx, float %fy)"},
+      {false, "call float @llvm.fabs.f32(float %fx)"},
+      {false, "call float @llvm.minnum.f32(float %fx, float %fy)"},
+      {false, "call float @llvm.maxnum.f32(float %fx, float %fy)"},
+      {false, "call float @llvm.minimum.f32(float %fx, float %fy)"},
+      {false, "call float @llvm.maximum.f32(float %fx, float %fy)"},
+      {false, "call float @llvm.copysign.f32(float %fx, float %fy)"},
+      {false, "call float @llvm.floor.f32(float %fx)"},
+      {false, "call float @llvm.ceil.f32(float %fx)"},
+      {false, "call float @llvm.trunc.f32(float %fx)"},
+      {false, "call float @llvm.rint.f32(float %fx)"},
+      {false, "call float @llvm.nearbyint.f32(float %fx)"},
+      {false, "call float @llvm.round.f32(float %fx)"},
+      {false, "call float @llvm.roundeven.f32(float %fx)"},
+      {false, "call i32 @llvm.lround.f32(float %fx)"},
+      {false, "call i64 @llvm.llround.f32(float %fx)"},
+      {false, "call i32 @llvm.lrint.f32(float %fx)"},
+      {false, "call i64 @llvm.llrint.f32(float %fx)"},
+      {false, "call float @llvm.fmuladd.f32(float %fx, float %fx, float %fy)"}};
 
   std::string AssemblyStr = AsmHead;
   for (auto &Itm : Data)
@@ -1533,6 +1598,32 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsAddWithRange) {
   EXPECT_EQ(Known.getMaxValue(), 131071);
 }
 
+TEST_F(ComputeKnownBitsTest, ComputeKnownBitsUnknownVScale) {
+  Module M("", Context);
+  IRBuilder<> Builder(Context);
+  Function *TheFn =
+      Intrinsic::getDeclaration(&M, Intrinsic::vscale, {Builder.getInt32Ty()});
+  CallInst *CI = Builder.CreateCall(TheFn, {}, {}, "");
+
+  KnownBits Known = computeKnownBits(CI, M.getDataLayout(), /* Depth */ 0);
+  // There is no parent function so we cannot look up the vscale_range
+  // attribute to determine the number of bits.
+  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+  EXPECT_EQ(Known.Zero.getZExtValue(), 0u);
+
+  BasicBlock *BB = BasicBlock::Create(Context);
+  BB->getInstList().push_back(CI);
+  Known = computeKnownBits(CI, M.getDataLayout(), /* Depth */ 0);
+  // There is no parent function so we cannot look up the vscale_range
+  // attribute to determine the number of bits.
+  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+  EXPECT_EQ(Known.Zero.getZExtValue(), 0u);
+
+  CI->removeFromParent();
+  delete CI;
+  delete BB;
+}
+
 // 512 + [32, 64) doesn't produce overlapping bits.
 // Make sure we get all the individual bits properly.
 TEST_F(ComputeKnownBitsTest, ComputeKnownBitsAddWithRangeNoOverlap) {
@@ -2009,7 +2100,7 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     //  * x.1 >= 5
     //  * x.2 < x.1
     //
-    // stride = [0, 5)
+    // stride = [0, -1)
     auto M = parseModule(R"(
   declare void @llvm.assume(i1)
 
@@ -2024,17 +2115,45 @@ TEST_F(ValueTrackingTest, ComputeConstantRange) {
     Function *F = M->getFunction("test");
 
     AssumptionCache AC(*F);
+    Value *X1 = &*(F->arg_begin());
+    Value *X2 = &*std::next(F->arg_begin());
+
+    Instruction *I = &findInstructionByName(F, "stride.plus.one");
+    ConstantRange CR1 = computeConstantRange(X1, true, &AC, I);
+    ConstantRange CR2 = computeConstantRange(X2, true, &AC, I);
+
+    EXPECT_EQ(5, CR1.getLower());
+    EXPECT_EQ(0, CR1.getUpper());
+
+    EXPECT_EQ(0, CR2.getLower());
+    EXPECT_EQ(0xffffffff, CR2.getUpper());
+
+    // Check the depth cutoff results in a conservative result (full set) by
+    // passing Depth == MaxDepth == 6.
+    ConstantRange CR3 = computeConstantRange(X2, true, &AC, I, nullptr, 6);
+    EXPECT_TRUE(CR3.isFullSet());
+  }
+  {
+    // Assumptions:
+    //  * x.2 <= x.1
+    auto M = parseModule(R"(
+  declare void @llvm.assume(i1)
+
+  define i32 @test(i32 %x.1, i32 %x.2) {
+    %lt = icmp ule i32 %x.2, %x.1
+    call void @llvm.assume(i1 %lt)
+    %stride.plus.one = add nsw nuw i32 %x.1, 1
+    ret i32 %stride.plus.one
+  })");
+    Function *F = M->getFunction("test");
+
+    AssumptionCache AC(*F);
     Value *X2 = &*std::next(F->arg_begin());
 
     Instruction *I = &findInstructionByName(F, "stride.plus.one");
     ConstantRange CR1 = computeConstantRange(X2, true, &AC, I);
-    EXPECT_EQ(0, CR1.getLower());
-    EXPECT_EQ(5, CR1.getUpper());
-
-    // Check the depth cutoff results in a conservative result (full set) by
-    // passing Depth == MaxDepth == 6.
-    ConstantRange CR2 = computeConstantRange(X2, true, &AC, I, 6);
-    EXPECT_TRUE(CR2.isFullSet());
+    // If we don't know the value of x.2, we don't know the value of x.1.
+    EXPECT_TRUE(CR1.isFullSet());
   }
 }
 
@@ -2161,6 +2280,22 @@ const FindAllocaForValueTestParams FindAllocaForValueTests[] = {
         br i1 %cond, label %bb1, label %exit
 
       exit:
+        ret void
+      })",
+     false, false},
+    {R"(
+      declare i32* @retptr(i32* returned)
+      define void @test(i1 %cond) {
+        %a = alloca i32
+        %r = call i32* @retptr(i32* %a)
+        ret void
+      })",
+     true, true},
+    {R"(
+      declare i32* @fun(i32*)
+      define void @test(i1 %cond) {
+        %a = alloca i32
+        %r = call i32* @fun(i32* %a)
         ret void
       })",
      false, false},

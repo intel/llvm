@@ -16,6 +16,7 @@ set(SANITIZER_SOURCES_NOTERMINATION
   sanitizer_linux.cpp
   sanitizer_linux_s390.cpp
   sanitizer_mac.cpp
+  sanitizer_mutex.cpp
   sanitizer_netbsd.cpp
   sanitizer_persistent_allocator.cpp
   sanitizer_platform_limits_freebsd.cpp
@@ -31,7 +32,6 @@ set(SANITIZER_SOURCES_NOTERMINATION
   sanitizer_procmaps_linux.cpp
   sanitizer_procmaps_mac.cpp
   sanitizer_procmaps_solaris.cpp
-  sanitizer_rtems.cpp
   sanitizer_solaris.cpp
   sanitizer_stoptheworld_fuchsia.cpp
   sanitizer_stoptheworld_mac.cpp
@@ -167,7 +167,6 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_quarantine.h
   sanitizer_report_decorator.h
   sanitizer_ring_buffer.h
-  sanitizer_rtems.h
   sanitizer_signal_interceptors.inc
   sanitizer_stackdepot.h
   sanitizer_stackdepotbase.h
@@ -180,7 +179,6 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_symbolizer_internal.h
   sanitizer_symbolizer_libbacktrace.h
   sanitizer_symbolizer_mac.h
-  sanitizer_symbolizer_rtems.h
   sanitizer_syscall_generic.inc
   sanitizer_syscall_linux_aarch64.inc
   sanitizer_syscall_linux_arm.inc
@@ -188,6 +186,7 @@ set(SANITIZER_IMPL_HEADERS
   sanitizer_syscall_linux_riscv64.inc
   sanitizer_syscalls_netbsd.inc
   sanitizer_thread_registry.h
+  sanitizer_thread_safety.h
   sanitizer_tls_get_addr.h
   sanitizer_vector.h
   sanitizer_win.h
@@ -202,6 +201,10 @@ set(SANITIZER_COMMON_DEFINITIONS
   HAVE_RPC_XDR_H=${HAVE_RPC_XDR_H})
 
 set(SANITIZER_CFLAGS ${SANITIZER_COMMON_CFLAGS})
+
+# Too many existing bugs, needs cleanup.
+append_list_if(COMPILER_RT_HAS_WNO_FORMAT -Wno-format SANITIZER_CFLAGS)
+
 append_rtti_flag(OFF SANITIZER_CFLAGS)
 
 append_list_if(SANITIZER_LIMIT_FRAME_SIZE -Wframe-larger-than=570

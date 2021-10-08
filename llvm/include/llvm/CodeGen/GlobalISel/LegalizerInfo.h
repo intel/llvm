@@ -110,9 +110,17 @@ struct LegalityQuery {
   ArrayRef<LLT> Types;
 
   struct MemDesc {
-    uint64_t SizeInBits;
+    LLT MemoryTy;
     uint64_t AlignInBits;
     AtomicOrdering Ordering;
+
+    MemDesc() = default;
+    MemDesc(LLT MemoryTy, uint64_t AlignInBits, AtomicOrdering Ordering)
+        : MemoryTy(MemoryTy), AlignInBits(AlignInBits), Ordering(Ordering) {}
+    MemDesc(const MachineMemOperand &MMO)
+        : MemoryTy(MMO.getMemoryType()),
+          AlignInBits(MMO.getAlign().value() * 8),
+          Ordering(MMO.getSuccessOrdering()) {}
   };
 
   /// Operations which require memory can use this to place requirements on the
@@ -196,13 +204,12 @@ namespace LegalityPredicates {
 struct TypePairAndMemDesc {
   LLT Type0;
   LLT Type1;
-  uint64_t MemSize;
+  LLT MemTy;
   uint64_t Align;
 
   bool operator==(const TypePairAndMemDesc &Other) const {
     return Type0 == Other.Type0 && Type1 == Other.Type1 &&
-           Align == Other.Align &&
-           MemSize == Other.MemSize;
+           Align == Other.Align && MemTy == Other.MemTy;
   }
 
   /// \returns true if this memory access is legal with for the access described
@@ -210,7 +217,9 @@ struct TypePairAndMemDesc {
   bool isCompatible(const TypePairAndMemDesc &Other) const {
     return Type0 == Other.Type0 && Type1 == Other.Type1 &&
            Align >= Other.Align &&
-           MemSize == Other.MemSize;
+           // FIXME: This perhaps should be stricter, but the current legality
+           // rules are written only considering the size.
+           MemTy.getSizeInBits() == Other.MemTy.getSizeInBits();
   }
 };
 
@@ -292,6 +301,10 @@ LegalityPredicate scalarOrEltNarrowerThan(unsigned TypeIdx, unsigned Size);
 /// type that's wider than the given size.
 LegalityPredicate scalarOrEltWiderThan(unsigned TypeIdx, unsigned Size);
 
+/// True iff the specified type index is a scalar whose size is not a multiple
+/// of Size.
+LegalityPredicate sizeNotMultipleOf(unsigned TypeIdx, unsigned Size);
+
 /// True iff the specified type index is a scalar whose size is not a power of
 /// 2.
 LegalityPredicate sizeNotPow2(unsigned TypeIdx);
@@ -346,6 +359,11 @@ LegalizeMutation changeElementSizeTo(unsigned TypeIdx, unsigned FromTypeIdx);
 /// Widen the scalar type or vector element type for the given type index to the
 /// next power of 2.
 LegalizeMutation widenScalarOrEltToNextPow2(unsigned TypeIdx, unsigned Min = 0);
+
+/// Widen the scalar type or vector element type for the given type index to
+/// next multiple of \p Size.
+LegalizeMutation widenScalarOrEltToNextMultipleOf(unsigned TypeIdx,
+                                                  unsigned Size);
 
 /// Add more elements to the type for the given type index to the next power of
 /// 2.
@@ -827,6 +845,16 @@ public:
         LegalizeMutations::widenScalarOrEltToNextPow2(TypeIdx, MinSize));
   }
 
+  /// Widen the scalar to the next multiple of Size. No effect if the
+  /// type is not a scalar or is a multiple of Size.
+  LegalizeRuleSet &widenScalarToNextMultipleOf(unsigned TypeIdx,
+                                               unsigned Size) {
+    using namespace LegalityPredicates;
+    return actionIf(
+        LegalizeAction::WidenScalar, sizeNotMultipleOf(typeIdx(TypeIdx), Size),
+        LegalizeMutations::widenScalarOrEltToNextMultipleOf(TypeIdx, Size));
+  }
+
   /// Widen the scalar or vector element type to the next power of two that is
   /// at least MinSize.  No effect if the scalar size is a power of two.
   LegalizeRuleSet &widenScalarOrEltToNextPow2(unsigned TypeIdx,
@@ -1021,7 +1049,7 @@ public:
         [=](const LegalityQuery &Query) {
           LLT VecTy = Query.Types[TypeIdx];
           return std::make_pair(
-              TypeIdx, LLT::vector(MinElements, VecTy.getElementType()));
+              TypeIdx, LLT::fixed_vector(MinElements, VecTy.getElementType()));
         });
   }
   /// Limit the number of elements in EltTy vectors to at most MaxElements.
@@ -1038,7 +1066,8 @@ public:
         },
         [=](const LegalityQuery &Query) {
           LLT VecTy = Query.Types[TypeIdx];
-          LLT NewTy = LLT::scalarOrVector(MaxElements, VecTy.getElementType());
+          LLT NewTy = LLT::scalarOrVector(ElementCount::getFixed(MaxElements),
+                                          VecTy.getElementType());
           return std::make_pair(TypeIdx, NewTy);
         });
   }

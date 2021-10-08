@@ -39,7 +39,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 }
 
 sampler_impl::~sampler_impl() {
-  std::lock_guard<mutex_class> Lock(MMutex);
+  std::lock_guard<std::mutex> Lock(MMutex);
   for (auto &Iter : MContextToSampler) {
     // TODO catch an exception and add it to the list of asynchronous exceptions
     const detail::plugin &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
@@ -49,7 +49,7 @@ sampler_impl::~sampler_impl() {
 
 RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
   {
-    std::lock_guard<mutex_class> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MMutex);
     auto It = MContextToSampler.find(Context);
     if (It != MContextToSampler.end())
       return It->second;
@@ -76,7 +76,7 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
                                 errcode_ret);
 
   Plugin.checkPiResult(errcode_ret);
-  std::lock_guard<mutex_class> Lock(MMutex);
+  std::lock_guard<std::mutex> Lock(MMutex);
   MContextToSampler[Context] = resultSampler;
 
   return resultSampler;

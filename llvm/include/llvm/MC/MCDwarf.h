@@ -20,6 +20,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCSection.h"
+#include "llvm/MC/StringTableBuilder.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MD5.h"
 #include <cassert>
@@ -34,7 +35,6 @@ namespace llvm {
 template <typename T> class ArrayRef;
 class MCAsmBackend;
 class MCContext;
-class MCDwarfLineStr;
 class MCObjectStreamer;
 class MCStreamer;
 class MCSymbol;
@@ -46,6 +46,24 @@ namespace mcdwarf {
 // Emit the common part of the DWARF 5 range/locations list tables header.
 MCSymbol *emitListsTableHeaderStart(MCStreamer &S);
 } // namespace mcdwarf
+
+/// Manage the .debug_line_str section contents, if we use it.
+class MCDwarfLineStr {
+  MCSymbol *LineStrLabel = nullptr;
+  StringTableBuilder LineStrings{StringTableBuilder::DWARF};
+  bool UseRelocs = false;
+
+public:
+  /// Construct an instance that can emit .debug_line_str (for use in a normal
+  /// v5 line table).
+  explicit MCDwarfLineStr(MCContext &Ctx);
+
+  /// Emit a reference to the string.
+  void emitRef(MCStreamer *MCOS, StringRef Path);
+
+  /// Emit the .debug_line_str section if appropriate.
+  void emitSection(MCStreamer *MCOS);
+};
 
 /// Instances of this class represent the name of the dwarf .file directive and
 /// its associated dwarf file number in the MC file. MCDwarfFile's are created
@@ -317,6 +335,11 @@ public:
   void emitCU(MCStreamer *MCOS, MCDwarfLineTableParams Params,
               Optional<MCDwarfLineStr> &LineStr) const;
 
+  // This emits a single line table associated with a given Section.
+  static void
+  emitOne(MCStreamer *MCOS, MCSection *Section,
+          const MCLineSection::MCDwarfLineEntryCollection &LineEntries);
+
   Expected<unsigned> tryGetFile(StringRef &Directory, StringRef &FileName,
                                 Optional<MD5::MD5Result> Checksum,
                                 Optional<StringRef> Source,
@@ -386,13 +409,6 @@ public:
   /// Utility function to encode a Dwarf pair of LineDelta and AddrDeltas.
   static void Encode(MCContext &Context, MCDwarfLineTableParams Params,
                      int64_t LineDelta, uint64_t AddrDelta, raw_ostream &OS);
-
-  /// Utility function to encode a Dwarf pair of LineDelta and AddrDeltas using
-  /// fixed length operands. Returns (Offset, Size, SetDelta).
-  static std::tuple<uint32_t, uint32_t, bool> fixedEncode(MCContext &Context,
-                                                          int64_t LineDelta,
-                                                          uint64_t AddrDelta,
-                                                          raw_ostream &OS);
 
   /// Utility function to emit the encoding to a streamer.
   static void Emit(MCStreamer *MCOS, MCDwarfLineTableParams Params,
@@ -667,8 +683,7 @@ public:
   static void Emit(MCObjectStreamer &streamer, MCAsmBackend *MAB, bool isEH);
   static void EmitAdvanceLoc(MCObjectStreamer &Streamer, uint64_t AddrDelta);
   static void EncodeAdvanceLoc(MCContext &Context, uint64_t AddrDelta,
-                               raw_ostream &OS, uint32_t *Offset = nullptr,
-                               uint32_t *Size = nullptr);
+                               raw_ostream &OS);
 };
 
 } // end namespace llvm

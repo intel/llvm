@@ -59,10 +59,6 @@ ARMBaseRegisterInfo::ARMBaseRegisterInfo()
   ARM_MC::initLLVMToCVRegMapping(this);
 }
 
-static unsigned getFramePointerReg(const ARMSubtarget &STI) {
-  return STI.useR7AsFramePointer() ? ARM::R7 : ARM::R11;
-}
-
 const MCPhysReg*
 ARMBaseRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   const ARMSubtarget &STI = MF->getSubtarget<ARMSubtarget>();
@@ -206,7 +202,7 @@ getReservedRegs(const MachineFunction &MF) const {
   markSuperRegs(Reserved, ARM::FPSCR);
   markSuperRegs(Reserved, ARM::APSR_NZCV);
   if (TFI->hasFP(MF))
-    markSuperRegs(Reserved, getFramePointerReg(STI));
+    markSuperRegs(Reserved, STI.getFramePointerReg());
   if (hasBasePointer(MF))
     markSuperRegs(Reserved, BasePtr);
   // Some targets reserve R9.
@@ -243,7 +239,7 @@ bool ARMBaseRegisterInfo::isInlineAsmReadOnlyReg(const MachineFunction &MF,
   BitVector Reserved(getNumRegs());
   markSuperRegs(Reserved, ARM::PC);
   if (TFI->hasFP(MF))
-    markSuperRegs(Reserved, getFramePointerReg(STI));
+    markSuperRegs(Reserved, STI.getFramePointerReg());
   if (hasBasePointer(MF))
     markSuperRegs(Reserved, BasePtr);
   assert(checkAllSuperRegsMarked(Reserved));
@@ -267,6 +263,13 @@ ARMBaseRegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
     case ARM::QQQQPRRegClassID:
       if (MF.getSubtarget<ARMSubtarget>().hasNEON())
         return Super;
+      break;
+    case ARM::MQPRRegClassID:
+    case ARM::MQQPRRegClassID:
+    case ARM::MQQQQPRRegClassID:
+      if (MF.getSubtarget<ARMSubtarget>().hasMVEIntegerOps())
+        return Super;
+      break;
     }
     Super = *I++;
   } while (Super);
@@ -444,6 +447,7 @@ bool ARMBaseRegisterInfo::hasBasePointer(const MachineFunction &MF) const {
 bool ARMBaseRegisterInfo::canRealignStack(const MachineFunction &MF) const {
   const MachineRegisterInfo *MRI = &MF.getRegInfo();
   const ARMFrameLowering *TFI = getFrameLowering(MF);
+  const ARMSubtarget &STI = MF.getSubtarget<ARMSubtarget>();
   // We can't realign the stack if:
   // 1. Dynamic stack realignment is explicitly disabled,
   // 2. There are VLAs in the function and the base pointer is disabled.
@@ -451,7 +455,7 @@ bool ARMBaseRegisterInfo::canRealignStack(const MachineFunction &MF) const {
     return false;
   // Stack realignment requires a frame pointer.  If we already started
   // register allocation with frame pointer elimination, it is too late now.
-  if (!MRI->canReserveReg(getFramePointerReg(MF.getSubtarget<ARMSubtarget>())))
+  if (!MRI->canReserveReg(STI.getFramePointerReg()))
     return false;
   // We may also need a base pointer if there are dynamic allocas or stack
   // pointer adjustments around calls.
@@ -477,7 +481,7 @@ ARMBaseRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const ARMFrameLowering *TFI = getFrameLowering(MF);
 
   if (TFI->hasFP(MF))
-    return getFramePointerReg(STI);
+    return STI.getFramePointerReg();
   return ARM::SP;
 }
 

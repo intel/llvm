@@ -85,6 +85,17 @@ bool MachOLinkGraphBuilder::isDebugSection(const NormalizedSection &NSec) {
           strcmp(NSec.SegName, "__DWARF") == 0);
 }
 
+bool MachOLinkGraphBuilder::isZeroFillSection(const NormalizedSection &NSec) {
+  switch (NSec.Flags & MachO::SECTION_TYPE) {
+  case MachO::S_ZEROFILL:
+  case MachO::S_GB_ZEROFILL:
+  case MachO::S_THREAD_LOCAL_ZEROFILL:
+    return true;
+  default:
+    return false;
+  }
+}
+
 unsigned
 MachOLinkGraphBuilder::getPointerSize(const object::MachOObjectFile &Obj) {
   return Obj.is64Bit() ? 8 : 4;
@@ -154,17 +165,12 @@ Error MachOLinkGraphBuilder::createNormalizedSections() {
     });
 
     // Get the section data if any.
-    {
-      unsigned SectionType = NSec.Flags & MachO::SECTION_TYPE;
-      if (SectionType != MachO::S_ZEROFILL &&
-          SectionType != MachO::S_GB_ZEROFILL) {
+    if (!isZeroFillSection(NSec)) {
+      if (DataOffset + NSec.Size > Obj.getData().size())
+        return make_error<JITLinkError>(
+            "Section data extends past end of file");
 
-        if (DataOffset + NSec.Size > Obj.getData().size())
-          return make_error<JITLinkError>(
-              "Section data extends past end of file");
-
-        NSec.Data = Obj.getData().data() + DataOffset;
-      }
+      NSec.Data = Obj.getData().data() + DataOffset;
     }
 
     // Get prot flags.
@@ -293,8 +299,9 @@ Error MachOLinkGraphBuilder::createNormalizedSymbols() {
         return NSec.takeError();
 
       if (Value < NSec->Address || Value > NSec->Address + NSec->Size)
-        return make_error<JITLinkError>("Symbol address does not fall within "
-                                        "section");
+        return make_error<JITLinkError>("Address " + formatv("{0:x}", Value) +
+                                        " for symbol " + *Name +
+                                        " does not fall within section");
 
       if (!NSec->GraphSection) {
         LLVM_DEBUG({
@@ -691,6 +698,120 @@ Error MachOLinkGraphBuilder::graphifyCStringSection(
       BlockStart += BlockSize;
     }
 
+  return Error::success();
+}
+
+Error CompactUnwindSplitter::operator()(LinkGraph &G) {
+  auto *CUSec = G.findSectionByName(CompactUnwindSectionName);
+  if (!CUSec)
+    return Error::success();
+
+  if (!G.getTargetTriple().isOSBinFormatMachO())
+    return make_error<JITLinkError>(
+        "Error linking " + G.getName() +
+        ": compact unwind splitting not supported on non-macho target " +
+        G.getTargetTriple().str());
+
+  unsigned CURecordSize = 0;
+  unsigned PersonalityEdgeOffset = 0;
+  unsigned LSDAEdgeOffset = 0;
+  switch (G.getTargetTriple().getArch()) {
+  case Triple::aarch64:
+  case Triple::x86_64:
+    // 64-bit compact-unwind record format:
+    // Range start: 8 bytes.
+    // Range size:  4 bytes.
+    // CU encoding: 4 bytes.
+    // Personality: 8 bytes.
+    // LSDA:        8 bytes.
+    CURecordSize = 32;
+    PersonalityEdgeOffset = 16;
+    LSDAEdgeOffset = 24;
+    break;
+  default:
+    return make_error<JITLinkError>(
+        "Error linking " + G.getName() +
+        ": compact unwind splitting not supported on " +
+        G.getTargetTriple().getArchName());
+  }
+
+  std::vector<Block *> OriginalBlocks(CUSec->blocks().begin(),
+                                      CUSec->blocks().end());
+  LLVM_DEBUG({
+    dbgs() << "In " << G.getName() << " splitting compact unwind section "
+           << CompactUnwindSectionName << " containing "
+           << OriginalBlocks.size() << " initial blocks...\n";
+  });
+
+  while (!OriginalBlocks.empty()) {
+    auto *B = OriginalBlocks.back();
+    OriginalBlocks.pop_back();
+
+    if (B->getSize() == 0) {
+      LLVM_DEBUG({
+        dbgs() << "  Skipping empty block at "
+               << formatv("{0:x16}", B->getAddress()) << "\n";
+      });
+      continue;
+    }
+
+    LLVM_DEBUG({
+      dbgs() << "  Splitting block at " << formatv("{0:x16}", B->getAddress())
+             << " into " << (B->getSize() / CURecordSize)
+             << " compact unwind record(s)\n";
+    });
+
+    if (B->getSize() % CURecordSize)
+      return make_error<JITLinkError>(
+          "Error splitting compact unwind record in " + G.getName() +
+          ": block at " + formatv("{0:x}", B->getAddress()) + " has size " +
+          formatv("{0:x}", B->getSize()) +
+          " (not a multiple of CU record size of " +
+          formatv("{0:x}", CURecordSize) + ")");
+
+    unsigned NumBlocks = B->getSize() / CURecordSize;
+    LinkGraph::SplitBlockCache C;
+
+    for (unsigned I = 0; I != NumBlocks; ++I) {
+      auto &CURec = G.splitBlock(*B, CURecordSize, &C);
+      bool AddedKeepAlive = false;
+
+      for (auto &E : CURec.edges()) {
+        if (E.getOffset() == 0) {
+          LLVM_DEBUG({
+            dbgs() << "    Updating compact unwind record at "
+                   << formatv("{0:x16}", CURec.getAddress()) << " to point to "
+                   << (E.getTarget().hasName() ? E.getTarget().getName()
+                                               : StringRef())
+                   << " (at " << formatv("{0:x16}", E.getTarget().getAddress())
+                   << ")\n";
+          });
+
+          if (E.getTarget().isExternal())
+            return make_error<JITLinkError>(
+                "Error adding keep-alive edge for compact unwind record at " +
+                formatv("{0:x}", CURec.getAddress()) + ": target " +
+                E.getTarget().getName() + " is an external symbol");
+          auto &TgtBlock = E.getTarget().getBlock();
+          auto &CURecSym =
+              G.addAnonymousSymbol(CURec, 0, CURecordSize, 0, false);
+          TgtBlock.addEdge(Edge::KeepAlive, 0, CURecSym, 0);
+          AddedKeepAlive = true;
+        } else if (E.getOffset() != PersonalityEdgeOffset &&
+                   E.getOffset() != LSDAEdgeOffset)
+          return make_error<JITLinkError>("Unexpected edge at offset " +
+                                          formatv("{0:x}", E.getOffset()) +
+                                          " in compact unwind record at " +
+                                          formatv("{0:x}", CURec.getAddress()));
+      }
+
+      if (!AddedKeepAlive)
+        return make_error<JITLinkError>(
+            "Error adding keep-alive edge for compact unwind record at " +
+            formatv("{0:x}", CURec.getAddress()) +
+            ": no outgoing target edge at offset 0");
+    }
+  }
   return Error::success();
 }
 

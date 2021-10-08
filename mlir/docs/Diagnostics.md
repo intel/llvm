@@ -26,7 +26,7 @@ the diagnostic should be propagated to any previously registered handlers. It
 can be interfaced with via an `MLIRContext` instance.
 
 ```c++
-DiagnosticEngine engine = ctx->getDiagEngine();
+DiagnosticEngine& engine = ctx->getDiagEngine();
 
 /// Handle the reported diagnostic.
 // Return success to signal that the diagnostic has either been fully processed,
@@ -155,7 +155,7 @@ operation that may be invalid, especially when debugging verifier failures. An
 example output is shown below:
 
 ```shell
-test.mlir:3:3: error: 'module_terminator' op expects parent op 'module'
+test.mlir:3:3: error: 'module_terminator' op expects parent op 'builtin.module'
   "module_terminator"() : () -> ()
   ^
 test.mlir:3:3: note: see current operation: "module_terminator"() : () -> ()
@@ -172,7 +172,7 @@ diagnostic. This option is useful for understanding which part of the compiler
 generated certain diagnostics. An example output is shown below:
 
 ```shell
-test.mlir:3:3: error: 'module_terminator' op expects parent op 'module'
+test.mlir:3:3: error: 'module_terminator' op expects parent op 'builtin.module'
   "module_terminator"() : () -> ()
   ^
 test.mlir:3:3: note: diagnostic emitted with trace:
@@ -242,6 +242,45 @@ SourceMgr sourceMgr;
 MLIRContext context;
 SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);
 ```
+
+#### Filtering Locations
+
+In some situations, a diagnostic may be emitted with a callsite location in a
+very deep call stack in which many frames are unrelated to the user source code.
+These situations often arise when the user source code is intertwined with that
+of a large framework or library. The context of the diagnostic in these cases is
+often obfuscated by the unrelated framework source locations. To help alleviate
+this obfuscation, the `SourceMgrDiagnosticHandler` provides support for
+filtering which locations are shown to the user. To enable filtering, a user
+must simply provide a filter function to the `SourceMgrDiagnosticHandler` on
+construction that indicates which locations should be shown. A quick example is
+shown below:
+
+```c++
+// Here we define the functor that controls which locations are shown to the
+// user. This functor should return true when a location should be shown, and
+// false otherwise. When filtering a container location, such as a NameLoc, this
+// function should not recurse into the child location. Recursion into nested
+// location is performed as necessary by the caller.
+auto shouldShowFn = [](Location loc) -> bool {
+  FileLineColLoc fileLoc = loc.dyn_cast<FileLineColLoc>();
+
+  // We don't perform any filtering on non-file locations.
+  // Reminder: The caller will recurse into any necessary child locations.
+  if (!fileLoc)
+    return true;
+
+  // Don't show file locations that contain our framework code.
+  return !fileLoc.getFilename().strref().contains("my/framework/source/");
+};
+
+SourceMgr sourceMgr;
+MLIRContext context;
+SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context, shouldShowFn);
+```
+
+Note: In the case where all locations are filtered out, the first location in
+the stack will still be shown.
 
 ### SourceMgr Diagnostic Verifier Handler
 

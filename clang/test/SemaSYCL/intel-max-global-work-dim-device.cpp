@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
-// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-sycl-2017-compat -triple spir64 -DTRIGGER_ERROR -verify
+// RUN: %clang_cc1 %s -fsyntax-only -ast-dump -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -triple spir64 | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -28,8 +28,7 @@ struct FuncObj {
 };
 
 struct Func {
-  // expected-warning@+2 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::max_global_work_dim' instead?}}
+  // expected-warning@+1 {{unknown attribute 'max_global_work_dim' ignored}}
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
@@ -166,9 +165,7 @@ struct TRIFuncObjBad5 {
 };
 
 struct TRIFuncObjBad6 {
-  [[intel::reqd_work_group_size(4)]]   // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}} \
-                                       // expected-warning {{attribute 'intel::reqd_work_group_size' is deprecated}} \
-                                       // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+  [[sycl::reqd_work_group_size(4)]]   // expected-error{{all 'reqd_work_group_size' attribute arguments must be '1' when the 'max_global_work_dim' attribute argument is '0'}}
   [[intel::max_global_work_dim(0)]] void
   operator()() const {}
 };
@@ -247,10 +244,8 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // expected-warning@+3 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
-    // expected-note@+2 {{did you mean to use 'intel::max_global_work_dim' instead?}}
     h.single_task<class test_kernel2>(
-        []() [[intelfpga::max_global_work_dim(2)]]{});
+        []() [[intel::max_global_work_dim(2)]]{});
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}

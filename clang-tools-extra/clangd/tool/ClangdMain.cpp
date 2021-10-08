@@ -10,7 +10,7 @@
 #include "CodeComplete.h"
 #include "Config.h"
 #include "ConfigProvider.h"
-#include "Features.inc"
+#include "Feature.h"
 #include "PathMapping.h"
 #include "Protocol.h"
 #include "TidyProvider.h"
@@ -26,7 +26,6 @@
 #include "support/Shutdown.h"
 #include "support/ThreadsafeFS.h"
 #include "support/Trace.h"
-#include "clang/Basic/Version.h"
 #include "clang/Format/Format.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
@@ -562,10 +561,13 @@ const char TestScheme::TestDir[] = "/clangd-test";
 std::unique_ptr<SymbolIndex>
 loadExternalIndex(const Config::ExternalIndexSpec &External,
                   AsyncTaskRunner *Tasks) {
+  static const trace::Metric RemoteIndexUsed("used_remote_index",
+                                             trace::Metric::Value, "address");
   switch (External.Kind) {
   case Config::ExternalIndexSpec::None:
     break;
   case Config::ExternalIndexSpec::Server:
+    RemoteIndexUsed.record(1, External.Location);
     log("Associating {0} with remote index at {1}.", External.MountPoint,
         External.Location);
     return remote::getClient(External.Location, External.MountPoint);
@@ -679,7 +681,9 @@ int main(int argc, char *argv[]) {
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
   llvm::sys::SetInterruptFunction(&requestShutdown);
   llvm::cl::SetVersionPrinter([](llvm::raw_ostream &OS) {
-    OS << clang::getClangToolFullVersion("clangd") << "\n";
+    OS << versionString() << "\n"
+       << "Features: " << featureString() << "\n"
+       << "Platform: " << platformString() << "\n";
   });
   const char *FlagsEnvVar = "CLANGD_FLAGS";
   const char *Overview =
@@ -784,7 +788,8 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
   StreamLogger Logger(llvm::errs(), LogLevel);
   LoggingSession LoggingSession(Logger);
   // Write some initial logs before we start doing any real work.
-  log("{0}", clang::getClangToolFullVersion("clangd"));
+  log("{0}", versionString());
+  log("Features: {0}", featureString());
   log("PID: {0}", llvm::sys::Process::getProcessId());
   {
     SmallString<128> CWD;
@@ -909,7 +914,11 @@ clangd accepts flags on the commandline, and in the CLANGD_FLAGS environment var
 
   if (CheckFile.getNumOccurrences()) {
     llvm::SmallString<256> Path;
-    llvm::sys::fs::real_path(CheckFile, Path, /*expand_tilde=*/true);
+    if (auto Error =
+            llvm::sys::fs::real_path(CheckFile, Path, /*expand_tilde=*/true)) {
+      elog("Failed to resolve path {0}: {1}", CheckFile, Error.message());
+      return 1;
+    }
     log("Entering check mode (no LSP server)");
     uint32_t Begin = 0, End = std::numeric_limits<uint32_t>::max();
     if (!CheckFileLines.empty()) {

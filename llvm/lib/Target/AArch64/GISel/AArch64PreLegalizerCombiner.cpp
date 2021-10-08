@@ -146,8 +146,8 @@ static bool matchFoldGlobalOffset(MachineInstr &MI, MachineRegisterInfo &MRI,
   for (auto &UseInstr : MRI.use_nodbg_instructions(Dst)) {
     if (UseInstr.getOpcode() != TargetOpcode::G_PTR_ADD)
       return false;
-    auto Cst =
-        getConstantVRegValWithLookThrough(UseInstr.getOperand(2).getReg(), MRI);
+    auto Cst = getIConstantVRegValWithLookThrough(
+        UseInstr.getOperand(2).getReg(), MRI);
     if (!Cst)
       return false;
     MinOffset = std::min(MinOffset, Cst->Value.getZExtValue());
@@ -272,6 +272,8 @@ bool AArch64PreLegalizerCombinerInfo::combine(GISelChangeObserver &Observer,
     return Helper.tryCombineConcatVectors(MI);
   case TargetOpcode::G_SHUFFLE_VECTOR:
     return Helper.tryCombineShuffleVector(MI);
+  case TargetOpcode::G_MEMCPY_INLINE:
+    return Helper.tryEmitMemcpyInline(MI);
   case TargetOpcode::G_MEMCPY:
   case TargetOpcode::G_MEMMOVE:
   case TargetOpcode::G_MEMSET: {

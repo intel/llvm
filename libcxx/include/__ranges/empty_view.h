@@ -11,13 +11,11 @@
 
 #include <__config>
 #include <__ranges/view_interface.h>
+#include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -28,18 +26,16 @@ namespace ranges {
     requires is_object_v<_Tp>
   class empty_view : public view_interface<empty_view<_Tp>> {
   public:
-    static constexpr _Tp* begin() noexcept { return nullptr; }
-    static constexpr _Tp* end() noexcept { return nullptr; }
-    static constexpr _Tp* data() noexcept { return nullptr; }
-    static constexpr size_t size() noexcept { return 0; }
-    static constexpr bool empty() noexcept { return true; }
+    _LIBCPP_HIDE_FROM_ABI static constexpr _Tp* begin() noexcept { return nullptr; }
+    _LIBCPP_HIDE_FROM_ABI static constexpr _Tp* end() noexcept { return nullptr; }
+    _LIBCPP_HIDE_FROM_ABI static constexpr _Tp* data() noexcept { return nullptr; }
+    _LIBCPP_HIDE_FROM_ABI static constexpr size_t size() noexcept { return 0; }
+    _LIBCPP_HIDE_FROM_ABI static constexpr bool empty() noexcept { return true; }
   };
 } // namespace ranges
 
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___RANGES_EMPTY_VIEW_H

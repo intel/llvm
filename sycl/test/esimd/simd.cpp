@@ -15,11 +15,35 @@ bool test_simd_ctors() SYCL_ESIMD_FUNCTION {
   return v0[0] + v1[1] + v2[2] + v3[3] == 1 + 1 + 2 + 6;
 }
 
+void test_simd_class_traits() SYCL_ESIMD_FUNCTION {
+  static_assert(std::is_default_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_trivially_default_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_copy_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(!std::is_trivially_copy_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_move_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(!std::is_trivially_move_constructible<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_copy_assignable<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_trivially_copy_assignable<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_move_assignable<simd<int, 4>>::value,
+                "type trait mismatch");
+  static_assert(std::is_trivially_move_assignable<simd<int, 4>>::value,
+                "type trait mismatch");
+}
+
 void test_conversion() SYCL_ESIMD_FUNCTION {
   simd<int, 32> v = 3;
   simd<float, 32> f = v;
   simd<char, 32> c = f;
   simd<char, 16> c1 = f.select<16, 1>(0);
+  c.select<32, 1>(0) = f;
   f = v + static_cast<simd<int, 32>>(c);
 }
 
@@ -41,16 +65,24 @@ bool test_simd_format() SYCL_ESIMD_FUNCTION {
          (decltype(ref3)::getSizeX() == 4) && (decltype(ref3)::getSizeY() == 8);
 }
 
-bool test_simd_select() SYCL_ESIMD_FUNCTION {
-  simd<int, 16> v(0, 1);
-  auto ref0 = v.select<4, 2>(1);     // r{1, 3, 5, 7}
-  auto ref1 = v.bit_cast_view<int, 4, 4>(); // 0,1,2,3;
-                                            // 4,5,6,7;
-                                            // 8,9,10,11;
-                                            // 12,13,14,15
-  auto ref2 = ref1.select<2, 1, 2, 2>(0, 1);
-  return ref0[0] == 1 && decltype(ref2)::getSizeX() == 2 &&
-         decltype(ref2)::getStrideY() == 1;
+bool test_simd_select(int a) SYCL_ESIMD_FUNCTION {
+  {
+    simd<float, 32> f = a;
+    simd<char, 32> c1 = 2;
+    c1.select<16, 1>(0) = f.select<16, 1>(0);
+    c1.select<16, 1>(0).select<16, 1>(0) = f.select<16, 1>(0).select<16, 1>(0);
+  }
+  {
+    simd<int, 16> v(0, 1);
+    auto ref0 = v.select<4, 2>(1);            // r{1, 3, 5, 7}
+    auto ref1 = v.bit_cast_view<int, 4, 4>(); // 0,1,2,3;
+                                              // 4,5,6,7;
+                                              // 8,9,10,11;
+                                              // 12,13,14,15
+    auto ref2 = ref1.select<2, 1, 2, 2>(0, 1);
+    return ref0[0] == 1 && decltype(ref2)::getSizeX() == 2 &&
+           decltype(ref2)::getStrideY() == 1;
+  }
 }
 
 bool test_2d_offset() SYCL_ESIMD_FUNCTION {
@@ -88,7 +120,6 @@ bool test_simd_unary_ops() SYCL_ESIMD_FUNCTION {
   v0 <<= v1;
   v1 = -v0;
   v0 = ~v1;
-  v1 = !v0;
   return v1[0] == 1;
 }
 
@@ -236,7 +267,18 @@ bool test_simd_iselect() SYCL_ESIMD_FUNCTION {
   simd<ushort, 8> a(0, 2);
   auto data = v.iselect(a);
   data += 16;
-  v.iupdate(a, data, 1);
+  v.iupdate(a, data, simd_mask<8>(1));
   auto ref = v.select<8, 2>(0);
   return ref[0] == 16 && ref[14] == 32;
+}
+
+void test_simd_binop_honor_int_promo() SYCL_ESIMD_FUNCTION {
+  simd<short, 32> a;
+  simd<unsigned short, 32> b;
+  simd<char, 32> c;
+  simd<unsigned char, 32> d;
+  static_assert(std::is_same<decltype(a + a), simd<int, 32>>::value, "");
+  static_assert(std::is_same<decltype(b + b), simd<int, 32>>::value, "");
+  static_assert(std::is_same<decltype(c + c), simd<int, 32>>::value, "");
+  static_assert(std::is_same<decltype(d + d), simd<int, 32>>::value, "");
 }

@@ -433,11 +433,18 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   // OpenCL v1.0/1.1 s6.9, v1.2/2.0 s6.10: Preprocessor Directives and Macros.
   if (LangOpts.OpenCL) {
     if (LangOpts.CPlusPlus) {
-      if (LangOpts.OpenCLCPlusPlusVersion == 100)
+      switch (LangOpts.OpenCLCPlusPlusVersion) {
+      case 100:
         Builder.defineMacro("__OPENCL_CPP_VERSION__", "100");
-      else
+        break;
+      case 202100:
+        Builder.defineMacro("__OPENCL_CPP_VERSION__", "202100");
+        break;
+      default:
         llvm_unreachable("Unsupported C++ version for OpenCL");
+      }
       Builder.defineMacro("__CL_CPP_VERSION_1_0__", "100");
+      Builder.defineMacro("__CL_CPP_VERSION_2021__", "202100");
     } else {
       // OpenCL v1.0 and v1.1 do not have a predefined macro to indicate the
       // language standard with which the program is compiled. __OPENCL_VERSION__
@@ -488,7 +495,7 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
 
     if (LangOpts.SYCLValueFitInMaxInt)
-      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__", "1");
+      Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__");
 
     // Set __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
     // both host and device compilations if -fsycl-disable-range-rounding
@@ -611,8 +618,10 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
     Builder.defineMacro("__cpp_using_enum", "201907L");
   }
   // C++2b features.
-  if (LangOpts.CPlusPlus2b)
+  if (LangOpts.CPlusPlus2b) {
+    Builder.defineMacro("__cpp_implicit_move", "202011L");
     Builder.defineMacro("__cpp_size_t_suffix", "202011L");
+  }
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "201811L");
   Builder.defineMacro("__cpp_impl_destroying_delete", "201806L");
@@ -1176,15 +1185,20 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   // Define a macro indicating that the source file is being compiled with a
   // SYCL device compiler which doesn't produce host binary.
   if (LangOpts.SYCLIsDevice) {
-    Builder.defineMacro("__SYCL_DEVICE_ONLY__", "1");
+    Builder.defineMacro("__SYCL_DEVICE_ONLY__");
     Builder.defineMacro("SYCL_EXTERNAL", "__attribute__((sycl_device))");
 
-    if (TI.getTriple().isNVPTX()) {
-        Builder.defineMacro("__SYCL_NVPTX__", "1");
-    }
+    const llvm::Triple &DeviceTriple = TI.getTriple();
+    const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
+    if (DeviceTriple.isSPIR() &&
+        DeviceSubArch != llvm::Triple::SPIRSubArch_fpga)
+      Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
+    // Enable generation of USM address spaces for FPGA.
+    if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga)
+      Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
   }
   if (LangOpts.SYCLUnnamedLambda)
-    Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__", "1");
+    Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");
 
   // OpenCL definitions.
   if (LangOpts.OpenCL) {

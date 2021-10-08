@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/AffineStructures.h"
+#include "mlir/IR/IntegerSet.h"
+#include "mlir/IR/MLIRContext.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -14,6 +16,8 @@
 #include <numeric>
 
 namespace mlir {
+
+using testing::ElementsAre;
 
 enum class TestFunction { Sample, Empty };
 
@@ -54,8 +58,8 @@ static FlatAffineConstraints
 makeFACFromConstraints(unsigned ids, ArrayRef<SmallVector<int64_t, 4>> ineqs,
                        ArrayRef<SmallVector<int64_t, 4>> eqs,
                        unsigned syms = 0) {
-  FlatAffineConstraints fac(ineqs.size(), eqs.size(), ids + 1, ids - syms,
-                            syms);
+  FlatAffineConstraints fac(ineqs.size(), eqs.size(), ids + 1, ids - syms, syms,
+                            /*numLocals=*/0);
   for (const auto &eq : eqs)
     fac.addEquality(eq);
   for (const auto &ineq : ineqs)
@@ -459,7 +463,7 @@ TEST(FlatAffineConstraintsTest, removeRedundantConstraintsTest) {
   // The second inequality is redundant and should have been removed. The
   // remaining inequality should be the first one.
   EXPECT_EQ(fac2.getNumInequalities(), 1u);
-  EXPECT_THAT(fac2.getInequality(0), testing::ElementsAre(1, 0, -3));
+  EXPECT_THAT(fac2.getInequality(0), ElementsAre(1, 0, -3));
   EXPECT_EQ(fac2.getNumEqualities(), 1u);
 
   FlatAffineConstraints fac3 =
@@ -545,6 +549,250 @@ TEST(FlatAffineConstraintsTest, removeRedundantConstraintsTest) {
     // Ensure that the removed constraint was the redundant constraint [3].
     EXPECT_NE(fac5.getInequality(i), ArrayRef<int64_t>(redundantConstraint));
   }
+}
+
+TEST(FlatAffineConstraintsTest, addConstantUpperBound) {
+  FlatAffineConstraints fac = makeFACFromConstraints(2, {}, {});
+  fac.addBound(FlatAffineConstraints::UB, 0, 1);
+  EXPECT_EQ(fac.atIneq(0, 0), -1);
+  EXPECT_EQ(fac.atIneq(0, 1), 0);
+  EXPECT_EQ(fac.atIneq(0, 2), 1);
+
+  fac.addBound(FlatAffineConstraints::UB, {1, 2, 3}, 1);
+  EXPECT_EQ(fac.atIneq(1, 0), -1);
+  EXPECT_EQ(fac.atIneq(1, 1), -2);
+  EXPECT_EQ(fac.atIneq(1, 2), -2);
+}
+
+TEST(FlatAffineConstraintsTest, addConstantLowerBound) {
+  FlatAffineConstraints fac = makeFACFromConstraints(2, {}, {});
+  fac.addBound(FlatAffineConstraints::LB, 0, 1);
+  EXPECT_EQ(fac.atIneq(0, 0), 1);
+  EXPECT_EQ(fac.atIneq(0, 1), 0);
+  EXPECT_EQ(fac.atIneq(0, 2), -1);
+
+  fac.addBound(FlatAffineConstraints::LB, {1, 2, 3}, 1);
+  EXPECT_EQ(fac.atIneq(1, 0), 1);
+  EXPECT_EQ(fac.atIneq(1, 1), 2);
+  EXPECT_EQ(fac.atIneq(1, 2), 2);
+}
+
+TEST(FlatAffineConstraintsTest, removeInequality) {
+  FlatAffineConstraints fac =
+      makeFACFromConstraints(1, {{0, 0}, {1, 1}, {2, 2}, {3, 3}, {4, 4}}, {});
+
+  fac.removeInequalityRange(0, 0);
+  EXPECT_EQ(fac.getNumInequalities(), 5u);
+
+  fac.removeInequalityRange(1, 3);
+  EXPECT_EQ(fac.getNumInequalities(), 3u);
+  EXPECT_THAT(fac.getInequality(0), ElementsAre(0, 0));
+  EXPECT_THAT(fac.getInequality(1), ElementsAre(3, 3));
+  EXPECT_THAT(fac.getInequality(2), ElementsAre(4, 4));
+
+  fac.removeInequality(1);
+  EXPECT_EQ(fac.getNumInequalities(), 2u);
+  EXPECT_THAT(fac.getInequality(0), ElementsAre(0, 0));
+  EXPECT_THAT(fac.getInequality(1), ElementsAre(4, 4));
+}
+
+TEST(FlatAffineConstraintsTest, removeEquality) {
+  FlatAffineConstraints fac =
+      makeFACFromConstraints(1, {}, {{0, 0}, {1, 1}, {2, 2}, {3, 3}, {4, 4}});
+
+  fac.removeEqualityRange(0, 0);
+  EXPECT_EQ(fac.getNumEqualities(), 5u);
+
+  fac.removeEqualityRange(1, 3);
+  EXPECT_EQ(fac.getNumEqualities(), 3u);
+  EXPECT_THAT(fac.getEquality(0), ElementsAre(0, 0));
+  EXPECT_THAT(fac.getEquality(1), ElementsAre(3, 3));
+  EXPECT_THAT(fac.getEquality(2), ElementsAre(4, 4));
+
+  fac.removeEquality(1);
+  EXPECT_EQ(fac.getNumEqualities(), 2u);
+  EXPECT_THAT(fac.getEquality(0), ElementsAre(0, 0));
+  EXPECT_THAT(fac.getEquality(1), ElementsAre(4, 4));
+}
+
+TEST(FlatAffineConstraintsTest, clearConstraints) {
+  FlatAffineConstraints fac = makeFACFromConstraints(1, {}, {});
+
+  fac.addInequality({1, 0});
+  EXPECT_EQ(fac.atIneq(0, 0), 1);
+  EXPECT_EQ(fac.atIneq(0, 1), 0);
+
+  fac.clearConstraints();
+
+  fac.addInequality({1, 0});
+  EXPECT_EQ(fac.atIneq(0, 0), 1);
+  EXPECT_EQ(fac.atIneq(0, 1), 0);
+}
+
+/// Check if the expected division representation of local variables matches the
+/// computed representation. The expected division representation is given as
+/// a vector of expressions set in `divisions` and the corressponding
+/// denominator in `denoms`. If expected denominator for a variable is
+/// non-positive, the local variable is expected to not have a computed
+/// representation.
+static void checkDivisionRepresentation(
+    FlatAffineConstraints &fac,
+    const std::vector<SmallVector<int64_t, 8>> &divisions,
+    const SmallVector<int64_t, 8> &denoms) {
+
+  assert(divisions.size() == fac.getNumLocalIds() &&
+         "Size of expected divisions does not match number of local variables");
+  assert(
+      denoms.size() == fac.getNumLocalIds() &&
+      "Size of expected denominators does not match number of local variables");
+
+  std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> res(
+      fac.getNumLocalIds(), llvm::None);
+  fac.getLocalReprLbUbPairs(res);
+
+  // Check if all expected divisions are computed.
+  for (unsigned i = 0, e = fac.getNumLocalIds(); i < e; ++i)
+    if (denoms[i] > 0)
+      EXPECT_TRUE(res[i].hasValue());
+    else
+      EXPECT_FALSE(res[i].hasValue());
+
+  unsigned divOffset = fac.getNumDimAndSymbolIds();
+  for (unsigned i = 0, e = fac.getNumLocalIds(); i < e; ++i) {
+    if (!res[i])
+      continue;
+
+    // Check if the bounds are of the form:
+    //      0 <= expr - divisor * id <= divisor - 1
+    // Rearranging, we have:
+    //       divisor * id - expr + (divisor - 1) >= 0  <-- Lower bound for 'id'
+    //      -divisor * id + expr                 >= 0  <-- Upper bound for 'id'
+    // where `id = expr floordiv divisor`.
+    unsigned ubPos = res[i]->first, lbPos = res[i]->second;
+    const SmallVector<int64_t, 8> &expr = divisions[i];
+
+    // Check if lower bound is of the correct form.
+    int64_t computedDivisorLb = fac.atIneq(lbPos, i + divOffset);
+    EXPECT_EQ(computedDivisorLb, denoms[i]);
+    for (unsigned c = 0, f = fac.getNumLocalIds(); c < f; ++c) {
+      if (c == i + divOffset)
+        continue;
+      EXPECT_EQ(fac.atIneq(lbPos, c), -expr[c]);
+    }
+    // Check if constant term of lower bound matches expected constant term.
+    EXPECT_EQ(fac.atIneq(lbPos, fac.getNumCols() - 1),
+              -expr.back() + (denoms[i] - 1));
+
+    // Check if upper bound is of the correct form.
+    int64_t computedDivisorUb = fac.atIneq(ubPos, i + divOffset);
+    EXPECT_EQ(computedDivisorUb, -denoms[i]);
+    for (unsigned c = 0, f = fac.getNumLocalIds(); c < f; ++c) {
+      if (c == i + divOffset)
+        continue;
+      EXPECT_EQ(fac.atIneq(ubPos, c), expr[c]);
+    }
+    // Check if constant term of upper bound matches expected constant term.
+    EXPECT_EQ(fac.atIneq(ubPos, fac.getNumCols() - 1), expr.back());
+  }
+}
+
+TEST(FlatAffineConstraintsTest, computeLocalReprSimple) {
+  FlatAffineConstraints fac = makeFACFromConstraints(1, {}, {});
+
+  fac.addLocalFloorDiv({1, 4}, 10);
+  fac.addLocalFloorDiv({1, 0, 100}, 10);
+
+  std::vector<SmallVector<int64_t, 8>> divisions = {{1, 0, 0, 4},
+                                                    {1, 0, 0, 100}};
+  SmallVector<int64_t, 8> denoms = {10, 10};
+
+  // Check if floordivs can be computed when no other inequalities exist
+  // and floor divs do not depend on each other.
+  checkDivisionRepresentation(fac, divisions, denoms);
+}
+
+TEST(FlatAffineConstraintsTest, computeLocalReprConstantFloorDiv) {
+  FlatAffineConstraints fac = makeFACFromConstraints(4, {}, {});
+
+  fac.addInequality({1, 0, 3, 1, 2});
+  fac.addInequality({1, 2, -8, 1, 10});
+  fac.addEquality({1, 2, -4, 1, 10});
+
+  fac.addLocalFloorDiv({0, 0, 0, 0, 10}, 30);
+  fac.addLocalFloorDiv({0, 0, 0, 0, 0, 99}, 101);
+
+  std::vector<SmallVector<int64_t, 8>> divisions = {{0, 0, 0, 0, 0, 0, 10},
+                                                    {0, 0, 0, 0, 0, 0, 99}};
+  SmallVector<int64_t, 8> denoms = {30, 101};
+
+  // Check if floordivs with constant numerator can be computed.
+  checkDivisionRepresentation(fac, divisions, denoms);
+}
+
+TEST(FlatAffineConstraintsTest, computeLocalReprRecursive) {
+  FlatAffineConstraints fac = makeFACFromConstraints(4, {}, {});
+  fac.addInequality({1, 0, 3, 1, 2});
+  fac.addInequality({1, 2, -8, 1, 10});
+  fac.addEquality({1, 2, -4, 1, 10});
+
+  fac.addLocalFloorDiv({0, -2, 7, 2, 10}, 3);
+  fac.addLocalFloorDiv({3, 0, 9, 2, 2, 10}, 5);
+  fac.addLocalFloorDiv({0, 1, -123, 2, 0, -4, 10}, 3);
+
+  fac.addInequality({1, 2, -2, 1, -5, 0, 6, 100});
+  fac.addInequality({1, 2, -8, 1, 3, 7, 0, -9});
+
+  std::vector<SmallVector<int64_t, 8>> divisions = {{0, -2, 7, 2, 0, 0, 0, 10},
+                                                    {3, 0, 9, 2, 2, 0, 0, 10},
+                                                    {0, 1, -123, 2, 0, -4, 10}};
+  SmallVector<int64_t, 8> denoms = {3, 5, 3};
+
+  // Check if floordivs which may depend on other floordivs can be computed.
+  checkDivisionRepresentation(fac, divisions, denoms);
+}
+
+TEST(FlatAffineConstraintsTest, removeIdRange) {
+  FlatAffineConstraints fac(3, 2, 1);
+
+  fac.addInequality({10, 11, 12, 20, 21, 30, 40});
+  fac.removeId(FlatAffineConstraints::IdKind::Symbol, 1);
+  EXPECT_THAT(fac.getInequality(0),
+              testing::ElementsAre(10, 11, 12, 20, 30, 40));
+
+  fac.removeIdRange(FlatAffineConstraints::IdKind::Dimension, 0, 2);
+  EXPECT_THAT(fac.getInequality(0), testing::ElementsAre(12, 20, 30, 40));
+
+  fac.removeIdRange(FlatAffineConstraints::IdKind::Local, 1, 1);
+  EXPECT_THAT(fac.getInequality(0), testing::ElementsAre(12, 20, 30, 40));
+
+  fac.removeIdRange(FlatAffineConstraints::IdKind::Local, 0, 1);
+  EXPECT_THAT(fac.getInequality(0), testing::ElementsAre(12, 20, 40));
+}
+
+TEST(FlatAffineConstraintsTest, simplifyLocalsTest) {
+  // (x) : (exists y: 2x + y = 1 and y = 2).
+  FlatAffineConstraints fac(1, 0, 1);
+  fac.addEquality({2, 1, -1});
+  fac.addEquality({0, 1, -2});
+
+  EXPECT_TRUE(fac.isEmpty());
+
+  // (x) : (exists y, z, w: 3x + y = 1 and 2y = z and 3y = w and z = w).
+  FlatAffineConstraints fac2(1, 0, 3);
+  fac2.addEquality({3, 1, 0, 0, -1});
+  fac2.addEquality({0, 2, -1, 0, 0});
+  fac2.addEquality({0, 3, 0, -1, 0});
+  fac2.addEquality({0, 0, 1, -1, 0});
+
+  EXPECT_TRUE(fac2.isEmpty());
+
+  // (x) : (exists y: x >= y + 1 and 2x + y = 0 and y >= -1).
+  FlatAffineConstraints fac3(1, 0, 1);
+  fac3.addInequality({1, -1, -1});
+  fac3.addInequality({0, 1, 1});
+  fac3.addEquality({2, 1, 0});
+
+  EXPECT_TRUE(fac3.isEmpty());
 }
 
 } // namespace mlir

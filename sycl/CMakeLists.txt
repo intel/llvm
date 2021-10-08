@@ -13,7 +13,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 
 set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 2)
+set(SYCL_MINOR_VERSION 4)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
@@ -90,6 +90,9 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
 option(SYCL_BUILD_PI_CUDA
   "Enables the CUDA backend for the Plugin Interface" OFF)
 
+option(SYCL_BUILD_PI_HIP
+  "Enables the HIP backend for the Plugin Interface" OFF)
+
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
@@ -98,13 +101,29 @@ string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
 
-# Copy SYCL headers from sources to build directory
-add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
-COMMENT "Copying SYCL headers ...")
+# This is workaround to detect changes (add or modify) in subtree which
+# are not detected by copy_directory command.
+# TODO: detect and process remove header/directory case
+file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
+file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 
-# Copy SYCL headers from sources to install directory
+# Copy SYCL headers from sources to build directory
+add_custom_target(sycl-headers
+  DEPENDS ${SYCL_INCLUDE_BUILD_DIR}/sycl
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL)
+
+add_custom_command(
+  OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  DEPENDS ${HEADERS_IN_SYCL_DIR}
+          ${HEADERS_IN_CL_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  COMMENT "Copying SYCL headers ...")
+
+# Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
 
@@ -144,7 +163,7 @@ function( add_common_options LIB_NAME)
   endif()
 endfunction(add_common_options)
 
-if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS)
+if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS AND NOT WIN32)
   if(SYCL_USE_LIBCXX)
     add_definitions(-D_LIBCPP_DEBUG=1)
     set(SYCL_CLANG_EXTRA_FLAGS "${SYCL_CLANG_EXTRA_FLAGS} -D_LIBCPP_DEBUG=1")
@@ -169,13 +188,12 @@ if (NOT WIN32)
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  set(XPTIFW_LIBS xptifw)
+  set(XPTIFW_LIBS xpti xptifw)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
-add_custom_target( sycl-toolchain
-  DEPENDS ${SYCL_RT_LIBS}
-          append-file
+add_custom_target(sycl-compiler
+  DEPENDS append-file
           clang
           clang-offload-wrapper
           clang-offload-bundler
@@ -190,8 +208,12 @@ add_custom_target( sycl-toolchain
           llvm-link
           llvm-objcopy
           sycl-post-link
-          sycl-ls
           opencl-aot
+)
+add_custom_target( sycl-toolchain
+  DEPENDS ${SYCL_RT_LIBS}
+          sycl-compiler
+          sycl-ls
           ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
@@ -213,6 +235,10 @@ add_subdirectory( plugins )
 add_subdirectory(tools)
 
 if(SYCL_INCLUDE_TESTS)
+  if(NOT LLVM_INCLUDE_TESTS)
+      message(FATAL_ERROR
+        "Can't build SYCL tests without LLVM_INCLUDE_TESTS enabled.")
+  endif()
   if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include/gtest/gtest.h)
     add_subdirectory(unittests)
     list(APPEND SYCL_TEST_DEPS SYCLUnitTests)
@@ -249,7 +275,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl
      pi_opencl
      pi_level_zero
-     pi_esimd_cpu
      libsycldevice
      ${XPTIFW_LIBS}
 )
@@ -268,6 +293,31 @@ if(SYCL_BUILD_PI_CUDA)
 
   add_dependencies(sycl-toolchain libspirv-builtins pi_cuda)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
+endif()
+
+if(SYCL_BUILD_PI_HIP)
+  # Ensure that libclc is enabled.
+  list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
+  if( LIBCLC_FOUND EQUAL -1 )
+    message(FATAL_ERROR
+      "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+  endif()
+
+  add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
+endif()
+
+# TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
+# environment
+if (NOT MSVC)
+  if (SYCL_BUILD_PI_ESIMD_CPU)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
+    if (MSVC)
+      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
+    else()
+      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
+    endif()
+  endif()
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

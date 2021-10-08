@@ -159,7 +159,7 @@ def ExpOp : ComplexUnaryOp<"exp", [SameOperandsAndResultType]> {
   let summary = "computes exponential of a complex number";
   let description = [{
     The `exp` op takes a single complex number and computes the exponential of
-    it, i.e. `exp(x)` or `e^(x)`, where `x` is the input tensor.
+    it, i.e. `exp(x)` or `e^(x)`, where `x` is the input value.
     `e` denotes Euler's number and is approximately equal to 2.718281.
 
     Example:
@@ -196,6 +196,49 @@ def ImOp : ComplexUnaryOp<"im",
 }
 
 //===----------------------------------------------------------------------===//
+// LogOp
+//===----------------------------------------------------------------------===//
+
+def LogOp : ComplexUnaryOp<"log", [SameOperandsAndResultType]> {
+  let summary = "computes natural logarithm of a complex number";
+  let description = [{
+    The `log` op takes a single complex number and computes the natural
+    logarithm of it, i.e. `log(x)` or `log_e(x)`, where `x` is the input value.
+    `e` denotes Euler's number and is approximately equal to 2.718281.
+
+    Example:
+
+    ```mlir
+    %a = complex.log %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
+// Log1pOp
+//===----------------------------------------------------------------------===//
+
+def Log1pOp : ComplexUnaryOp<"log1p", [SameOperandsAndResultType]> {
+  let summary = "computes natural logarithm of a complex number";
+  let description = [{
+    The `log` op takes a single complex number and computes the natural
+    logarithm of one plus the given value, i.e. `log(1 + x)` or `log_e(1 + x)`,
+    where `x` is the input value. `e` denotes Euler's number and is
+    approximately equal to 2.718281.
+
+    Example:
+
+    ```mlir
+    %a = complex.log1p %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
+
+//===----------------------------------------------------------------------===//
 // MulOp
 //===----------------------------------------------------------------------===//
 
@@ -208,6 +251,25 @@ def MulOp : ComplexArithmeticOp<"mul"> {
     %a = complex.mul %b, %c : complex<f32>
     ```
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// NegOp
+//===----------------------------------------------------------------------===//
+
+def NegOp : ComplexUnaryOp<"neg", [SameOperandsAndResultType]> {
+  let summary = "Negation operator";
+  let description = [{
+    The `neg` op takes a single complex number `complex` and returns `-complex`.
+
+    Example:
+
+    ```mlir
+    %a = complex.neg %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
 }
 
 //===----------------------------------------------------------------------===//
@@ -261,6 +323,25 @@ def ReOp : ComplexUnaryOp<"re",
   let hasFolder = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// SignOp
+//===----------------------------------------------------------------------===//
+
+def SignOp : ComplexUnaryOp<"sign", [SameOperandsAndResultType]> {
+  let summary = "computes sign of a complex number";
+  let description = [{
+    The `sign` op takes a single complex number and computes the sign of
+    it, i.e. `y = sign(x) = x / |x|` if `x != 0`, otherwise `y = 0`.
+
+    Example:
+
+    ```mlir
+    %a = complex.sign %b : complex<f32>
+    ```
+  }];
+
+  let results = (outs Complex<AnyFloat>:$result);
+}
 
 //===----------------------------------------------------------------------===//
 // SubOp

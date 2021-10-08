@@ -10,6 +10,7 @@ from libcxx.test.dsl import *
 import re
 import shutil
 import sys
+import subprocess
 
 _isClang      = lambda cfg: '__clang__' in compilerMacros(cfg) and '__apple_build_version__' not in compilerMacros(cfg)
 _isAppleClang = lambda cfg: '__apple_build_version__' in compilerMacros(cfg)
@@ -37,20 +38,11 @@ DEFAULT_FEATURES = [
   Feature(name='fdelayed-template-parsing',     when=lambda cfg: hasCompileFlag(cfg, '-fdelayed-template-parsing')),
   Feature(name='libcpp-no-if-constexpr',        when=lambda cfg: '__cpp_if_constexpr' not in featureTestMacros(cfg)),
   Feature(name='libcpp-no-structured-bindings', when=lambda cfg: '__cpp_structured_bindings' not in featureTestMacros(cfg)),
-  Feature(name='libcpp-no-deduction-guides',    when=lambda cfg: featureTestMacros(cfg).get('__cpp_deduction_guides', 0) < 201611),
   Feature(name='libcpp-no-concepts',            when=lambda cfg: featureTestMacros(cfg).get('__cpp_concepts', 0) < 201907),
   Feature(name='has-fobjc-arc',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc') and
                                                                  sys.platform.lower().strip() == 'darwin'), # TODO: this doesn't handle cross-compiling to Apple platforms.
   Feature(name='objective-c++',                 when=lambda cfg: hasCompileFlag(cfg, '-xobjective-c++ -fobjc-arc')),
-
-  # Note: We use a custom modules cache path to make sure that we don't reuse
-  #       the default one, which can be shared across builds. This is important
-  #       because we define macros in headers files, and a change in these macros
-  #       doesn't seem to invalidate modules cache entries, which means we could
-  #       build against now-invalid cached headers from a previous build.
-  Feature(name='modules-support',
-          when=lambda cfg: hasCompileFlag(cfg, '-fmodules'),
-          actions=lambda cfg: [AddCompileFlag('-fmodules-cache-path=%t/ModuleCache')]),
+  Feature(name='no-noexcept-function-type',     when=lambda cfg: featureTestMacros(cfg).get('__cpp_noexcept_function_type', 0) < 201510),
 
   Feature(name='non-lockfree-atomics',
           when=lambda cfg: sourceBuilds(cfg, """
@@ -74,7 +66,8 @@ DEFAULT_FEATURES = [
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}.{__clang_minor__}'.format(**compilerMacros(cfg)),                        when=_isAppleClang),
   Feature(name=lambda cfg: 'apple-clang-{__clang_major__}.{__clang_minor__}.{__clang_patchlevel__}'.format(**compilerMacros(cfg)), when=_isAppleClang),
 
-  Feature(name='clang',                                                                                                            when=_isClang),
+  Feature(name='clang',                                                                                                            when=_isClang,
+          actions=[AddCompileFlag('-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER')]),
   Feature(name=lambda cfg: 'clang-{__clang_major__}'.format(**compilerMacros(cfg)),                                                when=_isClang),
   Feature(name=lambda cfg: 'clang-{__clang_major__}.{__clang_minor__}'.format(**compilerMacros(cfg)),                              when=_isClang),
   Feature(name=lambda cfg: 'clang-{__clang_major__}.{__clang_minor__}.{__clang_patchlevel__}'.format(**compilerMacros(cfg)),       when=_isClang),
@@ -97,11 +90,7 @@ DEFAULT_FEATURES = [
 # `libcpp-xxx-yyy-zzz`. When a macro is defined to a specific value
 # (e.g. `_LIBCPP_ABI_VERSION=2`), the feature is `libcpp-xxx-yyy-zzz=<value>`.
 macros = {
-  '_LIBCPP_HAS_NO_GLOBAL_FILESYSTEM_NAMESPACE': 'libcpp-has-no-global-filesystem-namespace',
   '_LIBCPP_HAS_NO_MONOTONIC_CLOCK': 'libcpp-has-no-monotonic-clock',
-  '_LIBCPP_HAS_NO_STDIN': 'libcpp-has-no-stdin',
-  '_LIBCPP_HAS_NO_STDOUT': 'libcpp-has-no-stdout',
-  '_LIBCPP_HAS_NO_THREAD_UNSAFE_C_FUNCTIONS': 'libcpp-has-no-thread-unsafe-c-functions',
   '_LIBCPP_HAS_NO_THREADS': 'libcpp-has-no-threads',
   '_LIBCPP_HAS_THREAD_API_EXTERNAL': 'libcpp-has-thread-api-external',
   '_LIBCPP_HAS_THREAD_API_PTHREAD': 'libcpp-has-thread-api-pthread',
@@ -111,6 +100,9 @@ macros = {
   '_LIBCPP_HAS_NO_FILESYSTEM_LIBRARY': 'libcpp-has-no-filesystem-library',
   '_LIBCPP_HAS_NO_RANDOM_DEVICE': 'libcpp-has-no-random-device',
   '_LIBCPP_HAS_NO_LOCALIZATION': 'libcpp-has-no-localization',
+  '_LIBCPP_HAS_NO_INCOMPLETE_FORMAT': 'libcpp-has-no-incomplete-format',
+  '_LIBCPP_HAS_NO_INCOMPLETE_RANGES': 'libcpp-has-no-incomplete-ranges',
+  '_LIBCPP_HAS_NO_UNICODE': 'libcpp-has-no-unicode',
 }
 for macro, feature in macros.items():
   DEFAULT_FEATURES += [
@@ -159,11 +151,46 @@ DEFAULT_FEATURES += [
   Feature(name='freebsd', when=lambda cfg: '__FreeBSD__' in compilerMacros(cfg))
 ]
 
-
-# Detect whether GDB is on the system, and if so add a substitution to access it.
+# Add features representing the build host platform name.
+# The build host could differ from the target platform for cross-compilation.
 DEFAULT_FEATURES += [
-  Feature(name='host-has-gdb',
-    when=lambda cfg: shutil.which('gdb') is not None,
+  Feature(name='buildhost={}'.format(sys.platform.lower().strip())),
+  # sys.platform can be represented by "sub-system" on Windows host, such as 'win32', 'cygwin', 'mingw' & etc.
+  # Here is a consolidated feature for the build host plaform name on Windows.
+  Feature(name='buildhost=windows', when=lambda cfg: platform.system().lower().startswith('windows'))
+]
+
+# Detect whether GDB is on the system, has Python scripting and supports
+# adding breakpoint commands. If so add a substitution to access it.
+def check_gdb(cfg):
+  gdb_path = shutil.which('gdb')
+  if gdb_path is None:
+    return False
+
+  # Check that we can set breakpoint commands, which was added in 8.3.
+  # Using the quit command here means that gdb itself exits, not just
+  # the "python <...>" command.
+  test_src = """\
+try:
+  gdb.Breakpoint(\"main\").commands=\"foo\"
+except AttributeError:
+  gdb.execute(\"quit 1\")
+gdb.execute(\"quit\")"""
+
+  try:
+    stdout = subprocess.check_output(
+              [gdb_path, "-ex", "python " + test_src, "--batch"],
+              stderr=subprocess.DEVNULL, universal_newlines=True)
+  except subprocess.CalledProcessError:
+    # We can't set breakpoint commands
+    return False
+
+  # Check we actually ran the Python
+  return not "Python scripting is not supported" in stdout
+
+DEFAULT_FEATURES += [
+  Feature(name='host-has-gdb-with-python',
+    when=check_gdb,
     actions=[AddSubstitution('%{gdb}', lambda cfg: shutil.which('gdb'))]
   )
 ]

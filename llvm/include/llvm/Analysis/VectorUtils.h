@@ -31,7 +31,7 @@ enum class VFParamKind {
   OMP_LinearPos,     // declare simd linear(i:c) uniform(c)
   OMP_LinearValPos,  // declare simd linear(val(i:c)) uniform(c)
   OMP_LinearRefPos,  // declare simd linear(ref(i:c)) uniform(c)
-  OMP_LinearUValPos, // declare simd linear(uval(i:c)) uniform(c
+  OMP_LinearUValPos, // declare simd linear(uval(i:c)) uniform(c)
   OMP_Uniform,       // declare simd uniform(i)
   GlobalPredicate,   // Global logical predicate that acts on all lanes
                      // of the input and output mask concurrently. For
@@ -80,13 +80,11 @@ struct VFParameter {
 /// represent vector functions. in particular, it is not attached to
 /// any target-specific ABI.
 struct VFShape {
-  unsigned VF;     // Vectorization factor.
-  bool IsScalable; // True if the function is a scalable function.
+  ElementCount VF;                        // Vectorization factor.
   SmallVector<VFParameter, 8> Parameters; // List of parameter information.
   // Comparison operator.
   bool operator==(const VFShape &Other) const {
-    return std::tie(VF, IsScalable, Parameters) ==
-           std::tie(Other.VF, Other.IsScalable, Other.Parameters);
+    return std::tie(VF, Parameters) == std::tie(Other.VF, Other.Parameters);
   }
 
   /// Update the parameter in position P.ParamPos to P.
@@ -115,7 +113,7 @@ struct VFShape {
       Parameters.push_back(
           VFParameter({CI.arg_size(), VFParamKind::GlobalPredicate}));
 
-    return {EC.getKnownMinValue(), EC.isScalable(), Parameters};
+    return {EC, Parameters};
   }
   /// Sanity check on the Parameters in the VFShape.
   bool hasValidParameterList() const;
@@ -316,6 +314,11 @@ bool isTriviallyVectorizable(Intrinsic::ID ID);
 
 /// Identifies if the vector form of the intrinsic has a scalar operand.
 bool hasVectorInstrinsicScalarOpd(Intrinsic::ID ID, unsigned ScalarOpdIdx);
+
+/// Identifies if the vector form of the intrinsic has a scalar operand that has
+/// an overloaded type.
+bool hasVectorInstrinsicOverloadedScalarOpd(Intrinsic::ID ID,
+                                            unsigned ScalarOpdIdx);
 
 /// Returns intrinsic ID for call.
 /// For the input call instruction it finds mapping intrinsic and returns
@@ -683,10 +686,8 @@ public:
     if (getMember(getFactor() - 1))
       return false;
 
-    // We have a group with gaps. It therefore cannot be a group of stores,
-    // and it can't be a reversed access, because such groups get invalidated.
-    assert(!getMember(0)->mayWriteToMemory() &&
-           "Group should have been invalidated");
+    // We have a group with gaps. It therefore can't be a reversed access,
+    // because such groups get invalidated (TODO).
     assert(!isReverse() && "Group should have been invalidated");
 
     // This is a group of loads, with gaps, and without a last-member

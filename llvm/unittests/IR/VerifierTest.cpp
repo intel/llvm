@@ -99,14 +99,13 @@ TEST(VerifierTest, InvalidRetAttribute) {
   FunctionType *FTy = FunctionType::get(Type::getInt32Ty(C), /*isVarArg=*/false);
   Function *F = Function::Create(FTy, Function::ExternalLinkage, "foo", M);
   AttributeList AS = F->getAttributes();
-  F->setAttributes(
-      AS.addAttribute(C, AttributeList::ReturnIndex, Attribute::UWTable));
+  F->setAttributes(AS.addRetAttribute(C, Attribute::UWTable));
 
   std::string Error;
   raw_string_ostream ErrorOS(Error);
   EXPECT_TRUE(verifyModule(M, &ErrorOS));
   EXPECT_TRUE(StringRef(ErrorOS.str()).startswith(
-      "Attribute 'uwtable' only applies to functions!"));
+      "Attribute 'uwtable' does not apply to function return values"));
 }
 
 TEST(VerifierTest, CrossModuleRef) {

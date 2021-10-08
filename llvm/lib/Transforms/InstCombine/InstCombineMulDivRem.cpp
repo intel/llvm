@@ -31,7 +31,6 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Transforms/InstCombine/InstCombineWorklist.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
 #include "llvm/Transforms/Utils/BuildLibCalls.h"
 #include <cassert>
@@ -39,10 +38,11 @@
 #include <cstdint>
 #include <utility>
 
+#define DEBUG_TYPE "instcombine"
+#include "llvm/Transforms/Utils/InstructionWorklist.h"
+
 using namespace llvm;
 using namespace PatternMatch;
-
-#define DEBUG_TYPE "instcombine"
 
 /// The specific integer value is used in a context where it is known to be
 /// non-zero.  If this allows us to simplify the computation, do so and return
@@ -328,7 +328,7 @@ Instruction *InstCombinerImpl::visitMul(BinaryOperator &I) {
   if (((match(Op0, m_ZExt(m_Value(X))) && match(Op1, m_ZExt(m_Value(Y)))) ||
        (match(Op0, m_SExt(m_Value(X))) && match(Op1, m_SExt(m_Value(Y))))) &&
       X->getType()->isIntOrIntVectorTy(1) && X->getType() == Y->getType() &&
-      (Op0->hasOneUse() || Op1->hasOneUse())) {
+      (Op0->hasOneUse() || Op1->hasOneUse() || X == Y)) {
     Value *And = Builder.CreateAnd(X, Y, "mulbool");
     return CastInst::Create(Instruction::ZExt, And, I.getType());
   }
@@ -564,6 +564,16 @@ Instruction *InstCombinerImpl::visitFMul(BinaryOperator &I) {
         return replaceInstUsesWith(I, NewPow);
       }
 
+      // powi(x, y) * powi(x, z) -> powi(x, y + z)
+      if (match(Op0, m_Intrinsic<Intrinsic::powi>(m_Value(X), m_Value(Y))) &&
+          match(Op1, m_Intrinsic<Intrinsic::powi>(m_Specific(X), m_Value(Z))) &&
+          Y->getType() == Z->getType()) {
+        auto *YZ = Builder.CreateAdd(Y, Z);
+        auto *NewPow = Builder.CreateIntrinsic(
+            Intrinsic::powi, {X->getType(), YZ->getType()}, {X, YZ}, &I);
+        return replaceInstUsesWith(I, NewPow);
+      }
+
       // exp(X) * exp(Y) -> exp(X + Y)
       if (match(Op0, m_Intrinsic<Intrinsic::exp>(m_Value(X))) &&
           match(Op1, m_Intrinsic<Intrinsic::exp>(m_Value(Y)))) {
@@ -706,11 +716,11 @@ static bool isMultiple(const APInt &C1, const APInt &C2, APInt &Quotient,
   assert(C1.getBitWidth() == C2.getBitWidth() && "Constant widths not equal");
 
   // Bail if we will divide by zero.
-  if (C2.isNullValue())
+  if (C2.isZero())
     return false;
 
   // Bail if we would divide INT_MIN by -1.
-  if (IsSigned && C1.isMinSignedValue() && C2.isAllOnesValue())
+  if (IsSigned && C1.isMinSignedValue() && C2.isAllOnes())
     return false;
 
   APInt Remainder(C1.getBitWidth(), /*val=*/0ULL, IsSigned);
@@ -778,11 +788,12 @@ Instruction *InstCombinerImpl::commonIDivTransforms(BinaryOperator &I) {
     }
 
     if ((IsSigned && match(Op0, m_NSWShl(m_Value(X), m_APInt(C1))) &&
-         *C1 != C1->getBitWidth() - 1) ||
-        (!IsSigned && match(Op0, m_NUWShl(m_Value(X), m_APInt(C1))))) {
+         C1->ult(C1->getBitWidth() - 1)) ||
+        (!IsSigned && match(Op0, m_NUWShl(m_Value(X), m_APInt(C1))) &&
+         C1->ult(C1->getBitWidth()))) {
       APInt Quotient(C1->getBitWidth(), /*val=*/0ULL, IsSigned);
       APInt C1Shifted = APInt::getOneBitSet(
-          C1->getBitWidth(), static_cast<unsigned>(C1->getLimitedValue()));
+          C1->getBitWidth(), static_cast<unsigned>(C1->getZExtValue()));
 
       // (X << C1) / C2 -> X / (C2 >> C1) if C2 is a multiple of 1 << C1.
       if (isMultiple(*C2, C1Shifted, Quotient, IsSigned)) {
@@ -803,7 +814,7 @@ Instruction *InstCombinerImpl::commonIDivTransforms(BinaryOperator &I) {
       }
     }
 
-    if (!C2->isNullValue()) // avoid X udiv 0
+    if (!C2->isZero()) // avoid X udiv 0
       if (Instruction *FoldedDiv = foldBinOpIntoSelectOrPhi(I))
         return FoldedDiv;
   }
@@ -1300,7 +1311,7 @@ static Instruction *foldFDivPowDivisor(BinaryOperator &I,
     Args.push_back(II->getArgOperand(0));
     Args.push_back(Builder.CreateFNegFMF(II->getArgOperand(1), &I));
     break;
-  case Intrinsic::powi:
+  case Intrinsic::powi: {
     // Require 'ninf' assuming that makes powi(X, -INT_MIN) acceptable.
     // That is, X ** (huge negative number) is 0.0, ~1.0, or INF and so
     // dividing by that is INF, ~1.0, or 0.0. Code that uses powi allows
@@ -1310,7 +1321,10 @@ static Instruction *foldFDivPowDivisor(BinaryOperator &I,
       return nullptr;
     Args.push_back(II->getArgOperand(0));
     Args.push_back(Builder.CreateNeg(II->getArgOperand(1)));
-    break;
+    Type *Tys[] = {I.getType(), II->getArgOperand(1)->getType()};
+    Value *Pow = Builder.CreateIntrinsic(IID, Tys, Args, &I);
+    return BinaryOperator::CreateFMulFMF(Op0, Pow, &I);
+  }
   case Intrinsic::exp:
   case Intrinsic::exp2:
     Args.push_back(Builder.CreateFNegFMF(II->getArgOperand(0), &I));

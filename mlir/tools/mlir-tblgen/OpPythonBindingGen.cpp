@@ -36,6 +36,8 @@ try:
 except ImportError:
   _ods_ext_module = None
 
+import builtins
+
 )Py";
 
 /// Template for dialect class:
@@ -82,7 +84,7 @@ constexpr const char *opClassRegionSpecTemplate = R"Py(
 ///   {1} is either 'operand' or 'result';
 ///   {2} is the position in the element list.
 constexpr const char *opSingleTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     return self.operation.{1}s[{2}]
 )Py";
@@ -95,7 +97,7 @@ constexpr const char *opSingleTemplate = R"Py(
 /// This works for both a single variadic group (non-negative length) and an
 /// single optional element (zero length if the element is absent).
 constexpr const char *opSingleAfterVariableTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     _ods_variadic_group_length = len(self.operation.{1}s) - {2} + 1
     return self.operation.{1}s[{3} + _ods_variadic_group_length - 1]
@@ -107,7 +109,7 @@ constexpr const char *opSingleAfterVariableTemplate = R"Py(
 ///   {2} is the total number of element groups;
 ///   {3} is the position of the current group in the group list.
 constexpr const char *opOneOptionalTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     return self.operation.{1}s[{3}] if len(self.operation.{1}s) > {2} else None
 )Py";
@@ -118,7 +120,7 @@ constexpr const char *opOneOptionalTemplate = R"Py(
 ///   {2} is the total number of element groups;
 ///   {3} is the position of the current group in the group list.
 constexpr const char *opOneVariadicTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     _ods_variadic_group_length = len(self.operation.{1}s) - {2} + 1
     return self.operation.{1}s[{3}:{3} + _ods_variadic_group_length]
@@ -131,7 +133,7 @@ constexpr const char *opOneVariadicTemplate = R"Py(
 ///   {3} is the number of non-variadic groups preceding the current group;
 ///   {3} is the number of variadic groups preceding the current group.
 constexpr const char *opVariadicEqualPrefixTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     start, pg = _ods_equally_sized_accessor(operation.{1}s, {2}, {3}, {4}))Py";
 
@@ -156,7 +158,7 @@ constexpr const char *opVariadicEqualVariadicTemplate = R"Py(
 ///   {3} is a return suffix (expected [0] for single-element, empty for
 ///       variadic, and opVariadicSegmentOptionalTrailingTemplate for optional).
 constexpr const char *opVariadicSegmentTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     {1}_range = _ods_segmented_accessor(
          self.operation.{1}s,
@@ -175,7 +177,7 @@ constexpr const char *opVariadicSegmentOptionalTrailingTemplate =
 ///   {1} is the Python type of the attribute;
 ///   {2} os the original name of the attribute.
 constexpr const char *attributeGetterTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     return {1}(self.operation.attributes["{2}"])
 )Py";
@@ -185,7 +187,7 @@ constexpr const char *attributeGetterTemplate = R"Py(
 ///   {1} is the Python type of the attribute;
 ///   {2} is the original name of the attribute.
 constexpr const char *optionalAttributeGetterTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     if "{2}" not in self.operation.attributes:
       return None
@@ -198,7 +200,7 @@ constexpr const char *optionalAttributeGetterTemplate = R"Py(
 ///    {0} is the name of the attribute sanitized for Python,
 ///    {1} is the original name of the attribute.
 constexpr const char *unitAttributeGetterTemplate = R"Py(
-  @property
+  @builtins.property
   def {0}(self):
     return "{1}" in self.operation.attributes
 )Py";
@@ -473,7 +475,8 @@ static void emitAttributeAccessors(const Operator &op,
 /// Template for the default auto-generated builder.
 ///   {0} is a comma-separated list of builder arguments, including the trailing
 ///       `loc` and `ip`;
-///   {1} is the code populating `operands`, `results` and `attributes` fields.
+///   {1} is the code populating `operands`, `results` and `attributes`,
+///       `successors` fields.
 constexpr const char *initTemplate = R"Py(
   def __init__(self, {0}):
     operands = []
@@ -482,7 +485,7 @@ constexpr const char *initTemplate = R"Py(
     {1}
     super().__init__(self.build_generic(
       attributes=attributes, results=results, operands=operands,
-      loc=loc, ip=ip))
+      successors=_ods_successors, loc=loc, ip=ip))
 )Py";
 
 /// Template for appending a single element to the operand/result list.
@@ -516,6 +519,16 @@ constexpr const char *initUnitAttributeTemplate =
     R"Py(if bool({1}): attributes["{0}"] = _ods_ir.UnitAttr.get(
       _ods_get_default_loc_context(loc)))Py";
 
+/// Template to initialize the successors list in the builder if there are any
+/// successors.
+///   {0} is the value to initialize the successors list to.
+constexpr const char *initSuccessorsTemplate = R"Py(_ods_successors = {0})Py";
+
+/// Template to append or extend the list of successors in the builder.
+///   {0} is the list method ('append' or 'extend');
+///   {1} is the value to add.
+constexpr const char *addSuccessorTemplate = R"Py(_ods_successors.{0}({1}))Py";
+
 /// Populates `builderArgs` with the Python-compatible names of builder function
 /// arguments, first the results, then the intermixed attributes and operands in
 /// the same order as they appear in the `arguments` field of the op definition.
@@ -524,7 +537,8 @@ constexpr const char *initUnitAttributeTemplate =
 static void
 populateBuilderArgs(const Operator &op,
                     llvm::SmallVectorImpl<std::string> &builderArgs,
-                    llvm::SmallVectorImpl<std::string> &operandNames) {
+                    llvm::SmallVectorImpl<std::string> &operandNames,
+                    llvm::SmallVectorImpl<std::string> &successorArgNames) {
   for (int i = 0, e = op.getNumResults(); i < e; ++i) {
     std::string name = op.getResultName(i).str();
     if (name.empty()) {
@@ -547,6 +561,16 @@ populateBuilderArgs(const Operator &op,
     builderArgs.push_back(name);
     if (!op.getArg(i).is<NamedAttribute *>())
       operandNames.push_back(name);
+  }
+
+  for (int i = 0, e = op.getNumSuccessors(); i < e; ++i) {
+    NamedSuccessor successor = op.getSuccessor(i);
+    std::string name = std::string(successor.name);
+    if (name.empty())
+      name = llvm::formatv("_gen_successor_{0}", i);
+    name = sanitizeName(name);
+    builderArgs.push_back(name);
+    successorArgNames.push_back(name);
   }
 }
 
@@ -576,6 +600,27 @@ populateBuilderLinesAttr(const Operator &op,
                                              ? initOptionalAttributeTemplate
                                              : initAttributeTemplate,
                                          attribute->name, argNames[i]));
+  }
+}
+
+/// Populates `builderLines` with additional lines that are required in the
+/// builder to set up successors. successorArgNames is expected to correspond
+/// to the Python argument name for each successor on the op.
+static void populateBuilderLinesSuccessors(
+    const Operator &op, llvm::ArrayRef<std::string> successorArgNames,
+    llvm::SmallVectorImpl<std::string> &builderLines) {
+  if (successorArgNames.empty()) {
+    builderLines.push_back(llvm::formatv(initSuccessorsTemplate, "None"));
+    return;
+  }
+
+  builderLines.push_back(llvm::formatv(initSuccessorsTemplate, "[]"));
+  for (int i = 0, e = successorArgNames.size(); i < e; ++i) {
+    auto &argName = successorArgNames[i];
+    const NamedSuccessor &successor = op.getSuccessor(i);
+    builderLines.push_back(
+        llvm::formatv(addSuccessorTemplate,
+                      successor.isVariadic() ? "extend" : "append", argName));
   }
 }
 
@@ -627,12 +672,14 @@ static void emitDefaultOpBuilder(const Operator &op, raw_ostream &os) {
   if (op.skipDefaultBuilders())
     return;
 
-  llvm::SmallVector<std::string, 8> builderArgs;
-  llvm::SmallVector<std::string, 8> builderLines;
-  llvm::SmallVector<std::string, 4> operandArgNames;
+  llvm::SmallVector<std::string> builderArgs;
+  llvm::SmallVector<std::string> builderLines;
+  llvm::SmallVector<std::string> operandArgNames;
+  llvm::SmallVector<std::string> successorArgNames;
   builderArgs.reserve(op.getNumOperands() + op.getNumResults() +
-                      op.getNumNativeAttributes());
-  populateBuilderArgs(op, builderArgs, operandArgNames);
+                      op.getNumNativeAttributes() + op.getNumSuccessors());
+  populateBuilderArgs(op, builderArgs, operandArgNames, successorArgNames);
+
   populateBuilderLines(
       op, "result",
       llvm::makeArrayRef(builderArgs).take_front(op.getNumResults()),
@@ -642,6 +689,7 @@ static void emitDefaultOpBuilder(const Operator &op, raw_ostream &os) {
   populateBuilderLinesAttr(
       op, llvm::makeArrayRef(builderArgs).drop_front(op.getNumResults()),
       builderLines);
+  populateBuilderLinesSuccessors(op, successorArgNames, builderLines);
 
   builderArgs.push_back("*");
   builderArgs.push_back("loc=None");
@@ -723,9 +771,6 @@ static bool emitAllOps(const llvm::RecordKeeper &records, raw_ostream &os) {
 
   os << llvm::formatv(fileHeader, clDialectName.getValue());
   os << llvm::formatv(dialectClassTemplate, clDialectName.getValue());
-
-  if (clDialectName == "builtin")
-    clDialectName = "";
 
   for (const llvm::Record *rec : records.getAllDerivedDefinitions("Op")) {
     Operator op(rec);

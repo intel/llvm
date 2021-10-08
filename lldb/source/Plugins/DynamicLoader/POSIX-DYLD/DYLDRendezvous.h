@@ -44,8 +44,14 @@ class DYLDRendezvous {
     uint64_t state = 0;
     lldb::addr_t ldbase = 0;
 
-    Rendezvous() {}
+    Rendezvous() = default;
   };
+
+  /// Locates the address of the rendezvous structure.  It updates
+  /// m_executable_interpreter if address is extracted from _r_debug.
+  ///
+  /// \returns address on success and LLDB_INVALID_ADDRESS on failure.
+  lldb::addr_t ResolveRendezvousAddress();
 
 public:
   // Various metadata supplied by the inferior's threading library to describe
@@ -183,6 +189,9 @@ protected:
   /// Location of the r_debug structure in the inferiors address space.
   lldb::addr_t m_rendezvous_addr;
 
+  // True if the main program is the dynamic linker/loader/program interpreter.
+  bool m_executable_interpreter;
+
   /// Current and previous snapshots of the rendezvous structure.
   Rendezvous m_current;
   Rendezvous m_previous;
@@ -245,6 +254,8 @@ protected:
   bool RemoveSOEntries();
 
   void UpdateBaseAddrIfNecessary(SOEntry &entry, std::string const &file_path);
+
+  void UpdateFileSpecIfNecessary(SOEntry &entry);
 
   bool SOEntryIsMainExecutable(const SOEntry &entry);
 

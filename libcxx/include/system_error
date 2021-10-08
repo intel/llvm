@@ -144,7 +144,8 @@ template <> struct hash<std::error_condition>;
 
 #include <__config>
 #include <__errc>
-#include <__functional_base> // unary_function
+#include <__functional/unary_function.h>
+#include <__functional_base>
 #include <compare>
 #include <stdexcept>
 #include <string>
@@ -164,7 +165,7 @@ struct _LIBCPP_TEMPLATE_VIS is_error_code_enum
 
 #if _LIBCPP_STD_VER > 14
 template <class _Tp>
-_LIBCPP_INLINE_VAR constexpr size_t is_error_code_enum_v = is_error_code_enum<_Tp>::value;
+inline constexpr size_t is_error_code_enum_v = is_error_code_enum<_Tp>::value;
 #endif
 
 // is_error_condition_enum
@@ -175,7 +176,7 @@ struct _LIBCPP_TEMPLATE_VIS is_error_condition_enum
 
 #if _LIBCPP_STD_VER > 14
 template <class _Tp>
-_LIBCPP_INLINE_VAR constexpr size_t is_error_condition_enum_v = is_error_condition_enum<_Tp>::value;
+inline constexpr size_t is_error_condition_enum_v = is_error_condition_enum<_Tp>::value;
 #endif
 
 template <>
@@ -291,8 +292,7 @@ public:
     string message() const;
 
     _LIBCPP_INLINE_VISIBILITY
-        _LIBCPP_EXPLICIT
-        operator bool() const _NOEXCEPT {return __val_ != 0;}
+    explicit operator bool() const _NOEXCEPT {return __val_ != 0;}
 };
 
 inline _LIBCPP_INLINE_VISIBILITY
@@ -368,8 +368,7 @@ public:
     string message() const;
 
     _LIBCPP_INLINE_VISIBILITY
-        _LIBCPP_EXPLICIT
-        operator bool() const _NOEXCEPT {return __val_ != 0;}
+    explicit operator bool() const _NOEXCEPT {return __val_ != 0;}
 };
 
 inline _LIBCPP_INLINE_VISIBILITY

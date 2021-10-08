@@ -71,12 +71,11 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
   EventImplPtr NewEvent = nullptr;
-  const bool IsKernel = CommandGroup->getType() == CG::KERNEL;
+  const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
-  const bool IsHostKernel = CommandGroup->getType() == CG::RUN_ON_HOST_INTEL;
-  vector_class<StreamImplPtr> Streams;
+  std::vector<StreamImplPtr> Streams;
 
-  if (IsKernel) {
+  if (Type == CG::Kernel) {
     Streams = ((CGExecKernel *)CommandGroup.get())->getStreams();
     // Stream's flush buffer memory is mainly initialized in stream's __init
     // method. However, this method is not available on host device.
@@ -86,6 +85,59 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
         initStream(Stream, Queue);
       }
     }
+
+    if (CommandGroup->MRequirements.size() + CommandGroup->MEvents.size() ==
+        0) {
+      ExecCGCommand *NewCmd(
+          new ExecCGCommand(std::move(CommandGroup), std::move(Queue)));
+      if (!NewCmd)
+        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+      NewEvent = NewCmd->getEvent();
+
+      auto CleanUp = [&]() {
+        NewEvent->setCommand(nullptr);
+        delete NewCmd;
+      };
+
+      if (MGraphBuilder
+              .MPrintOptionsArray[GraphBuilder::PrintOptions::BeforeAddCG])
+        MGraphBuilder.printGraphAsDot("before_addCG");
+      if (MGraphBuilder
+              .MPrintOptionsArray[GraphBuilder::PrintOptions::AfterAddCG])
+        MGraphBuilder.printGraphAsDot("after_addCG");
+
+      try {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        NewCmd->emitInstrumentation(xpti::trace_task_begin, nullptr);
+#endif
+
+        cl_int Res = NewCmd->enqueueImp();
+
+        // Emit this correlation signal before the task end
+        NewCmd->emitEnqueuedEventSignal(NewEvent->getHandleRef());
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+        NewCmd->emitInstrumentation(xpti::trace_task_end, nullptr);
+#endif
+
+        if (CL_SUCCESS != Res)
+          throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+          NewEvent->setComplete();
+      } catch (...) {
+        // enqueueImp() func and if statement above may throw an exception,
+        // so destroy required resources to avoid memory leak
+        CleanUp();
+        std::rethrow_exception(std::current_exception());
+      }
+
+      CleanUp();
+
+      for (auto StreamImplPtr : Streams) {
+        StreamImplPtr->flush();
+      }
+
+      return NewEvent;
+    }
   }
 
   {
@@ -93,12 +145,12 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     acquireWriteLock(Lock);
 
     Command *NewCmd = nullptr;
-    switch (CommandGroup->getType()) {
-    case CG::UPDATE_HOST:
+    switch (Type) {
+    case CG::UpdateHost:
       NewCmd = MGraphBuilder.addCGUpdateHost(std::move(CommandGroup),
                                              DefaultHostQueue, AuxiliaryCmds);
       break;
-    case CG::CODEPLAY_HOST_TASK:
+    case CG::CodeplayHostTask:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), DefaultHostQueue,
                                    AuxiliaryCmds);
       break;
@@ -119,7 +171,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (IsHostKernel)
+        if (Type == CG::RunOnHostIntel)
           static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
 
         NewEvent->setCommand(nullptr);
@@ -260,27 +312,22 @@ void Scheduler::removeMemoryObject(detail::SYCLMemObjI *MemObj) {
 
   {
     MemObjRecord *Record = nullptr;
-    WriteLockT Lock(MGraphLock, std::defer_lock);
 
     {
-      acquireWriteLock(Lock);
+      // This only needs a shared mutex as it only involves enqueueing and
+      // awaiting for events
+      ReadLockT Lock(MGraphLock);
 
       Record = MGraphBuilder.getMemObjRecord(MemObj);
       if (!Record)
         // No operations were performed on the mem object
         return;
 
-      Lock.unlock();
-    }
-
-    {
-      // This only needs a shared mutex as it only involves enqueueing and
-      // awaiting for events
-      ReadLockT Lock(MGraphLock);
       waitForRecordToFinish(Record, Lock);
     }
 
     {
+      WriteLockT Lock(MGraphLock, std::defer_lock);
       acquireWriteLock(Lock);
       MGraphBuilder.decrementLeafCountersForRecord(Record);
       MGraphBuilder.cleanupCommandsForRecord(Record, StreamsToDeallocate);
@@ -367,8 +414,10 @@ void Scheduler::deallocateStreamBuffers(stream_impl *Impl) {
 
 Scheduler::Scheduler() {
   sycl::device HostDevice;
+  sycl::context HostContext{HostDevice};
   DefaultHostQueue = QueueImplPtr(
-      new queue_impl(detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
+      new queue_impl(detail::getSyclObjImpl(HostDevice),
+                     detail::getSyclObjImpl(HostContext), /*AsyncHandler=*/{},
                      /*PropList=*/{}));
 }
 

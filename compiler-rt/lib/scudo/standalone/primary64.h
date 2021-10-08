@@ -59,6 +59,7 @@ public:
   static bool canAllocate(uptr Size) { return Size <= SizeClassMap::MaxSize; }
 
   void init(s32 ReleaseToOsInterval) {
+    DCHECK(isAligned(reinterpret_cast<uptr>(this), alignof(ThisT)));
     DCHECK_EQ(PrimaryBase, 0U);
     // Reserve the space required for the Primary.
     PrimaryBase = reinterpret_cast<uptr>(
@@ -163,9 +164,9 @@ public:
       PoppedBlocks += Region->Stats.PoppedBlocks;
       PushedBlocks += Region->Stats.PushedBlocks;
     }
-    Str->append("Stats: SizeClassAllocator64: %zuM mapped (%zuM rss) in %zu "
+    Str->append("Stats: SizeClassAllocator64: %zuM mapped (%uM rss) in %zu "
                 "allocations; remains %zu\n",
-                TotalMapped >> 20, 0, PoppedBlocks,
+                TotalMapped >> 20, 0U, PoppedBlocks,
                 PoppedBlocks - PushedBlocks);
 
     for (uptr I = 0; I < NumClasses; I++)

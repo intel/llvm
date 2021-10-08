@@ -1,9 +1,12 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-SPV-LLVM
+; RUN: llvm-spirv %t.rev.bc -o %t.back.spv
+; RUN: llvm-spirv %t.back.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-LLVM: opencl.image2d_array_ro_t = type opaque
 ; CHECK-LLVM: define spir_kernel void @sample_kernel(%opencl.image2d_array_ro_t addrspace(1)
@@ -16,10 +19,15 @@
 ; CHECK-LLVM: declare spir_func <2 x i32> @_Z13get_image_dim20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)
 ; CHECK-LLVM: declare spir_func i64 @_Z20get_image_array_size20ocl_image2d_array_ro(%opencl.image2d_array_ro_t addrspace(1)
 
-; CHECK-SPV-LLVM: call spir_func <3 x i32> @_Z32__spirv_ImageQuerySizeLod_Ruint320ocl_image2d_array_roi(%opencl.image2d_array_ro_t addrspace(1)
-; CHECK-SPV-LLVM: call spir_func <3 x i64> @_Z33__spirv_ImageQuerySizeLod_Rulong320ocl_image2d_array_roi(%opencl.image2d_array_ro_t addrspace(1)
-; CHECK-SPV-LLVM: declare spir_func <3 x i32> @_Z32__spirv_ImageQuerySizeLod_Ruint320ocl_image2d_array_roi(%opencl.image2d_array_ro_t addrspace(1)
-; CHECK-SPV-LLVM: declare spir_func <3 x i64> @_Z33__spirv_ImageQuerySizeLod_Rulong320ocl_image2d_array_roi(%opencl.image2d_array_ro_t addrspace(1)
+; CHECK-SPV-LLVM: call spir_func <3 x i32> @_Z32__spirv_ImageQuerySizeLod_Ruint3PU3AS133__spirv_Image__void_1_0_1_0_0_0_0i(%spirv.Image._void_1_0_1_0_0_0_0 addrspace(1)
+; CHECK-SPV-LLVM: call spir_func <3 x i64> @_Z33__spirv_ImageQuerySizeLod_Rulong3PU3AS133__spirv_Image__void_1_0_1_0_0_0_0i(%spirv.Image._void_1_0_1_0_0_0_0 addrspace(1)
+; CHECK-SPV-LLVM: declare spir_func <3 x i32> @_Z32__spirv_ImageQuerySizeLod_Ruint3PU3AS133__spirv_Image__void_1_0_1_0_0_0_0i(%spirv.Image._void_1_0_1_0_0_0_0 addrspace(1)
+; CHECK-SPV-LLVM: declare spir_func <3 x i64> @_Z33__spirv_ImageQuerySizeLod_Rulong3PU3AS133__spirv_Image__void_1_0_1_0_0_0_0i(%spirv.Image._void_1_0_1_0_0_0_0 addrspace(1)
+
+; CHECK-SPIRV: TypeImage [[IMAGE_TYPE:[0-9]+]]
+; CHECK-SPIRV: FunctionParameter [[IMAGE_TYPE]] [[IMAGE_ARG:[0-9]+]]
+; CHECK-SPIRV: ImageQuerySizeLod {{[0-9]+}} {{[0-9]+}} [[IMAGE_ARG]]
+; CHECK-SPIRV: ImageQuerySizeLod {{[0-9]+}} {{[0-9]+}} [[IMAGE_ARG]]
 
 ; CHECK-LLVM-DAG: [[AQ]] = !{!"read_only"}
 ; CHECK-LLVM-DAG: [[TYPE]] = !{!"image2d_array_t"}

@@ -274,9 +274,18 @@ bool PEI::runOnMachineFunction(MachineFunction &MF) {
   MachineFrameInfo &MFI = MF.getFrameInfo();
   uint64_t StackSize = MFI.getStackSize();
 
-  unsigned Threshold = MF.getFunction().getParent()->getWarnStackSize();
+  unsigned Threshold = UINT_MAX;
+  if (MF.getFunction().hasFnAttribute("warn-stack-size")) {
+    bool Failed = MF.getFunction()
+                      .getFnAttribute("warn-stack-size")
+                      .getValueAsString()
+                      .getAsInteger(10, Threshold);
+    // Verifier should have caught this.
+    assert(!Failed && "Invalid warn-stack-size fn attr value");
+    (void)Failed;
+  }
   if (StackSize > Threshold) {
-    DiagnosticInfoStackSize DiagStackSize(F, StackSize);
+    DiagnosticInfoStackSize DiagStackSize(F, StackSize, Threshold, DS_Warning);
     F.getContext().diagnose(DiagStackSize);
   }
   ORE->emit([&]() {
@@ -386,12 +395,28 @@ static void assignCalleeSavedSpillSlots(MachineFunction &F,
 
   const TargetRegisterInfo *RegInfo = F.getSubtarget().getRegisterInfo();
   const MCPhysReg *CSRegs = F.getRegInfo().getCalleeSavedRegs();
+  BitVector CSMask(SavedRegs.size());
+
+  for (unsigned i = 0; CSRegs[i]; ++i)
+    CSMask.set(CSRegs[i]);
 
   std::vector<CalleeSavedInfo> CSI;
   for (unsigned i = 0; CSRegs[i]; ++i) {
     unsigned Reg = CSRegs[i];
-    if (SavedRegs.test(Reg))
-      CSI.push_back(CalleeSavedInfo(Reg));
+    if (SavedRegs.test(Reg)) {
+      bool SavedSuper = false;
+      for (const MCPhysReg &SuperReg : RegInfo->superregs(Reg)) {
+        // Some backends set all aliases for some registers as saved, such as
+        // Mips's $fp, so they appear in SavedRegs but not CSRegs.
+        if (SavedRegs.test(SuperReg) && CSMask.test(SuperReg)) {
+          SavedSuper = true;
+          break;
+        }
+      }
+
+      if (!SavedSuper)
+        CSI.push_back(CalleeSavedInfo(Reg));
+    }
   }
 
   const TargetFrameLowering *TFI = F.getSubtarget().getFrameLowering();

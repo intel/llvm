@@ -176,17 +176,17 @@ public:
 /// VectorizerParams::VectorizationFactor and VectorizationCostTy.
 /// We need to streamline them.
 
-/// Information about vectorization costs
+/// Information about vectorization costs.
 struct VectorizationFactor {
-  // Vector width with best cost
+  /// Vector width with best cost.
   ElementCount Width;
-  // Cost of the loop with that width
+  /// Cost of the loop with that width.
   InstructionCost Cost;
 
   VectorizationFactor(ElementCount Width, InstructionCost Cost)
       : Width(Width), Cost(Cost) {}
 
-  // Width 1 means no vectorization, cost 0 means uncomputed cost.
+  /// Width 1 means no vectorization, cost 0 means uncomputed cost.
   static VectorizationFactor Disabled() {
     return {ElementCount::getFixed(1), 0};
   }
@@ -351,12 +351,14 @@ private:
   /// legal to vectorize the loop. This method creates VPlans using VPRecipes.
   void buildVPlansWithVPRecipes(ElementCount MinVF, ElementCount MaxVF);
 
-  /// Adjust the recipes for any inloop reductions. The chain of instructions
-  /// leading from the loop exit instr to the phi need to be converted to
-  /// reductions, with one operand being vector and the other being the scalar
-  /// reduction chain.
-  void adjustRecipesForInLoopReductions(VPlanPtr &Plan,
-                                        VPRecipeBuilder &RecipeBuilder);
+  // Adjust the recipes for reductions. For in-loop reductions the chain of
+  // instructions leading from the loop exit instr to the phi need to be
+  // converted to reductions, with one operand being vector and the other being
+  // the scalar reduction chain. For other reductions, a select is introduced
+  // between the phi and live-out recipes when folding the tail.
+  void adjustRecipesForReductions(VPBasicBlock *LatchVPBB, VPlanPtr &Plan,
+                                  VPRecipeBuilder &RecipeBuilder,
+                                  ElementCount MinVF);
 };
 
 } // namespace llvm

@@ -46,13 +46,13 @@ int main() {
 }
 
 // CHECK-PROP: [SYCL/specialization constants]
-// CHECK-PROP-NEXT: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL5Val23EEE
-// CHECK-PROP-NEXT: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL10ConstantIdEEE
-// CHECK-PROP-NEXT: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL11SecondValueEEE
-// CHECK-PROP-NEXT: _ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL11SpecConst42EEE
+// CHECK-PROP-NEXT: [[UNIQUE_PREFIX:[a-z0-9]+]]____ZL5Val23
+// CHECK-PROP-NEXT: [[UNIQUE_PREFIX]]____ZL10ConstantId
+// CHECK-PROP-NEXT: [[UNIQUE_PREFIX]]____ZL11SecondValue
+// CHECK-PROP-NEXT: [[UNIQUE_PREFIX]]____ZL11SpecConst42
 //
 // CHECK-IR: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]], ![[#MD2:]], ![[#MD3:]]}
-// CHECK-IR: ![[#MD0]] = !{!"_ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL5Val23EEE", i32 [[#ID:]]
-// CHECK-IR: ![[#MD1]] = !{!"_ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL10ConstantIdEEE", i32 [[#ID+1]]
-// CHECK-IR: ![[#MD2]] = !{!"_ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL11SecondValueEEE", i32 [[#ID+2]]
-// CHECK-IR: ![[#MD3]] = !{!"_ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL11SpecConst42EEE", i32 [[#ID+3]]
+// CHECK-IR: ![[#MD0]] = !{!"[[UNIQUE_PREFIX:[a-z0-9]+]]____ZL5Val23", i32 [[#ID:]]
+// CHECK-IR: ![[#MD1]] = !{!"[[UNIQUE_PREFIX]]____ZL10ConstantId", i32 [[#ID+1]]
+// CHECK-IR: ![[#MD2]] = !{!"[[UNIQUE_PREFIX]]____ZL11SecondValue", i32 [[#ID+2]]
+// CHECK-IR: ![[#MD3]] = !{!"[[UNIQUE_PREFIX]]____ZL11SpecConst42", i32 [[#ID+3]]

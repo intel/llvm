@@ -199,13 +199,21 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
       Type *IdxTy = IC.getDataLayout().getIntPtrType(AI.getType());
       Value *NullIdx = Constant::getNullValue(IdxTy);
       Value *Idx[2] = {NullIdx, NullIdx};
-      Instruction *GEP = GetElementPtrInst::CreateInBounds(
+      Instruction *NewI = GetElementPtrInst::CreateInBounds(
           NewTy, New, Idx, New->getName() + ".sub");
-      IC.InsertNewInstBefore(GEP, *It);
+      IC.InsertNewInstBefore(NewI, *It);
+
+      // Gracefully handle allocas in other address spaces.
+      if (AI.getType()->getPointerAddressSpace() !=
+          NewI->getType()->getPointerAddressSpace()) {
+        NewI =
+            CastInst::CreatePointerBitCastOrAddrSpaceCast(NewI, AI.getType());
+        IC.InsertNewInstBefore(NewI, *It);
+      }
 
       // Now make everything use the getelementptr instead of the original
       // allocation.
-      return IC.replaceInstUsesWith(AI, GEP);
+      return IC.replaceInstUsesWith(AI, NewI);
     }
   }
 
@@ -253,8 +261,8 @@ private:
 
 bool PointerReplacer::collectUsers(Instruction &I) {
   for (auto U : I.users()) {
-    Instruction *Inst = cast<Instruction>(&*U);
-    if (LoadInst *Load = dyn_cast<LoadInst>(Inst)) {
+    auto *Inst = cast<Instruction>(&*U);
+    if (auto *Load = dyn_cast<LoadInst>(Inst)) {
       if (Load->isVolatile())
         return false;
       Worklist.insert(Load);
@@ -262,8 +270,12 @@ bool PointerReplacer::collectUsers(Instruction &I) {
       Worklist.insert(Inst);
       if (!collectUsers(*Inst))
         return false;
-    } else if (isa<MemTransferInst>(Inst)) {
+    } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
+      if (MI->isVolatile())
+        return false;
       Worklist.insert(Inst);
+    } else if (Inst->isLifetimeStartOrEnd()) {
+      continue;
     } else {
       LLVM_DEBUG(dbgs() << "Cannot handle pointer user: " << *U << '\n');
       return false;
@@ -325,8 +337,7 @@ void PointerReplacer::replace(Instruction *I) {
         MemCpy->getIntrinsicID(), MemCpy->getRawDest(), MemCpy->getDestAlign(),
         SrcV, MemCpy->getSourceAlign(), MemCpy->getLength(),
         MemCpy->isVolatile());
-    AAMDNodes AAMD;
-    MemCpy->getAAMetadata(AAMD);
+    AAMDNodes AAMD = MemCpy->getAAMetadata();
     if (AAMD)
       NewI->setAAMetadata(AAMD);
 
@@ -463,11 +474,11 @@ LoadInst *InstCombinerImpl::combineLoadToNewType(LoadInst &LI, Type *NewTy,
 
   Value *Ptr = LI.getPointerOperand();
   unsigned AS = LI.getPointerAddressSpace();
+  Type *NewPtrTy = NewTy->getPointerTo(AS);
   Value *NewPtr = nullptr;
   if (!(match(Ptr, m_BitCast(m_Value(NewPtr))) &&
-        NewPtr->getType()->getPointerElementType() == NewTy &&
-        NewPtr->getType()->getPointerAddressSpace() == AS))
-    NewPtr = Builder.CreateBitCast(Ptr, NewTy->getPointerTo(AS));
+        NewPtr->getType() == NewPtrTy))
+    NewPtr = Builder.CreateBitCast(Ptr, NewPtrTy);
 
   LoadInst *NewLoad = Builder.CreateAlignedLoad(
       NewTy, NewPtr, LI.getAlign(), LI.isVolatile(), LI.getName() + Suffix);
@@ -637,9 +648,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
     if (NumElements == 1) {
       LoadInst *NewLoad = IC.combineLoadToNewType(LI, ST->getTypeAtIndex(0U),
                                                   ".unpack");
-      AAMDNodes AAMD;
-      LI.getAAMetadata(AAMD);
-      NewLoad->setAAMetadata(AAMD);
+      NewLoad->setAAMetadata(LI.getAAMetadata());
       return IC.replaceInstUsesWith(LI, IC.Builder.CreateInsertValue(
         UndefValue::get(T), NewLoad, 0, Name));
     }
@@ -668,9 +677,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
           ST->getElementType(i), Ptr,
           commonAlignment(Align, SL->getElementOffset(i)), Name + ".unpack");
       // Propagate AA metadata. It'll still be valid on the narrowed load.
-      AAMDNodes AAMD;
-      LI.getAAMetadata(AAMD);
-      L->setAAMetadata(AAMD);
+      L->setAAMetadata(LI.getAAMetadata());
       V = IC.Builder.CreateInsertValue(V, L, i);
     }
 
@@ -683,9 +690,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
     auto NumElements = AT->getNumElements();
     if (NumElements == 1) {
       LoadInst *NewLoad = IC.combineLoadToNewType(LI, ET, ".unpack");
-      AAMDNodes AAMD;
-      LI.getAAMetadata(AAMD);
-      NewLoad->setAAMetadata(AAMD);
+      NewLoad->setAAMetadata(LI.getAAMetadata());
       return IC.replaceInstUsesWith(LI, IC.Builder.CreateInsertValue(
         UndefValue::get(T), NewLoad, 0, Name));
     }
@@ -717,9 +722,7 @@ static Instruction *unpackLoadToAggregate(InstCombinerImpl &IC, LoadInst &LI) {
       auto *L = IC.Builder.CreateAlignedLoad(AT->getElementType(), Ptr,
                                              commonAlignment(Align, Offset),
                                              Name + ".unpack");
-      AAMDNodes AAMD;
-      LI.getAAMetadata(AAMD);
-      L->setAAMetadata(AAMD);
+      L->setAAMetadata(LI.getAAMetadata());
       V = IC.Builder.CreateInsertValue(V, L, i);
       Offset += EltSize;
     }
@@ -981,10 +984,10 @@ Instruction *InstCombinerImpl::visitLoadInst(LoadInst &LI) {
     // that this code is not reachable.  We do this instead of inserting
     // an unreachable instruction directly because we cannot modify the
     // CFG.
-    StoreInst *SI = new StoreInst(UndefValue::get(LI.getType()),
+    StoreInst *SI = new StoreInst(PoisonValue::get(LI.getType()),
                                   Constant::getNullValue(Op->getType()), &LI);
     SI->setDebugLoc(LI.getDebugLoc());
-    return replaceInstUsesWith(LI, UndefValue::get(LI.getType()));
+    return replaceInstUsesWith(LI, PoisonValue::get(LI.getType()));
   }
 
   if (Op->hasOneUse()) {
@@ -1196,9 +1199,7 @@ static bool unpackStoreToAggregate(InstCombinerImpl &IC, StoreInst &SI) {
       auto *Val = IC.Builder.CreateExtractValue(V, i, EltName);
       auto EltAlign = commonAlignment(Align, SL->getElementOffset(i));
       llvm::Instruction *NS = IC.Builder.CreateAlignedStore(Val, Ptr, EltAlign);
-      AAMDNodes AAMD;
-      SI.getAAMetadata(AAMD);
-      NS->setAAMetadata(AAMD);
+      NS->setAAMetadata(SI.getAAMetadata());
     }
 
     return true;
@@ -1244,9 +1245,7 @@ static bool unpackStoreToAggregate(InstCombinerImpl &IC, StoreInst &SI) {
       auto *Val = IC.Builder.CreateExtractValue(V, i, EltName);
       auto EltAlign = commonAlignment(Align, Offset);
       Instruction *NS = IC.Builder.CreateAlignedStore(Val, Ptr, EltAlign);
-      AAMDNodes AAMD;
-      SI.getAAMetadata(AAMD);
-      NS->setAAMetadata(AAMD);
+      NS->setAAMetadata(SI.getAAMetadata());
       Offset += EltSize;
     }
 
@@ -1332,7 +1331,7 @@ static bool removeBitcastsFromLoadStoreOnMinMax(InstCombinerImpl &IC,
     IC.Builder.SetInsertPoint(USI);
     combineStoreToNewValue(IC, *USI, NewLI);
   }
-  IC.replaceInstUsesWith(*LI, UndefValue::get(LI->getType()));
+  IC.replaceInstUsesWith(*LI, PoisonValue::get(LI->getType()));
   IC.eraseInstFromFunction(*LI);
   return true;
 }
@@ -1439,8 +1438,8 @@ Instruction *InstCombinerImpl::visitStoreInst(StoreInst &SI) {
   // store X, null    -> turns into 'unreachable' in SimplifyCFG
   // store X, GEP(null, Y) -> turns into 'unreachable' in SimplifyCFG
   if (canSimplifyNullStoreOrGEP(SI)) {
-    if (!isa<UndefValue>(Val))
-      return replaceOperand(SI, 0, UndefValue::get(Val->getType()));
+    if (!isa<PoisonValue>(Val))
+      return replaceOperand(SI, 0, PoisonValue::get(Val->getType()));
     return nullptr;  // Do not modify these!
   }
 
@@ -1557,12 +1556,9 @@ bool InstCombinerImpl::mergeStoreIntoSuccessor(StoreInst &SI) {
   NewSI->setDebugLoc(MergedLoc);
 
   // If the two stores had AA tags, merge them.
-  AAMDNodes AATags;
-  SI.getAAMetadata(AATags);
-  if (AATags) {
-    OtherStore->getAAMetadata(AATags, /* Merge = */ true);
-    NewSI->setAAMetadata(AATags);
-  }
+  AAMDNodes AATags = SI.getAAMetadata();
+  if (AATags)
+    NewSI->setAAMetadata(AATags.merge(OtherStore->getAAMetadata()));
 
   // Nuke the old stores.
   eraseInstFromFunction(SI);

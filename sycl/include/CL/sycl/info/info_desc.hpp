@@ -25,11 +25,13 @@ namespace info {
 // Information descriptors
 // A.1 Platform information descriptors
 enum class platform {
-  profile     = PI_PLATFORM_INFO_PROFILE,
-  version     = PI_PLATFORM_INFO_VERSION,
-  name        = PI_PLATFORM_INFO_NAME,
-  vendor      = PI_PLATFORM_INFO_VENDOR,
-  extensions  = PI_PLATFORM_INFO_EXTENSIONS,
+  profile = PI_PLATFORM_INFO_PROFILE,
+  version = PI_PLATFORM_INFO_VERSION,
+  name = PI_PLATFORM_INFO_NAME,
+  vendor = PI_PLATFORM_INFO_VENDOR,
+  extensions __SYCL2020_DEPRECATED(
+      "platform::extensions is deprecated, use device::get_info() with"
+      " info::device::aspects instead.") = PI_PLATFORM_INFO_EXTENSIONS,
 };
 
 // A.2 Context information desctiptors
@@ -37,6 +39,8 @@ enum class context : cl_context_info {
   reference_count = CL_CONTEXT_REFERENCE_COUNT,
   platform = CL_CONTEXT_PLATFORM,
   devices = CL_CONTEXT_DEVICES,
+  atomic_memory_order_capabilities =
+      PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
 };
 
 // A.3 Device information descriptors
@@ -87,8 +91,11 @@ enum class device : cl_device_info {
   global_mem_cache_line_size = CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,
   global_mem_cache_size = CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
   global_mem_size = CL_DEVICE_GLOBAL_MEM_SIZE,
-  max_constant_buffer_size = CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
-  max_constant_args = CL_DEVICE_MAX_CONSTANT_ARGS,
+  max_constant_buffer_size __SYCL2020_DEPRECATED(
+      "max_constant_buffer_size is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
+  max_constant_args __SYCL2020_DEPRECATED("max_constant_args is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_ARGS,
   local_mem_type = CL_DEVICE_LOCAL_MEM_TYPE,
   local_mem_size = CL_DEVICE_LOCAL_MEM_SIZE,
   error_correction_support = CL_DEVICE_ERROR_CORRECTION_SUPPORT,
@@ -108,7 +115,9 @@ enum class device : cl_device_info {
   profile = CL_DEVICE_PROFILE,
   version = CL_DEVICE_VERSION,
   opencl_c_version = CL_DEVICE_OPENCL_C_VERSION,
-  extensions = CL_DEVICE_EXTENSIONS,
+  extensions __SYCL2020_DEPRECATED(
+      "device::extensions is deprecated, use info::device::aspects"
+      " instead.") = CL_DEVICE_EXTENSIONS,
   printf_buffer_size = CL_DEVICE_PRINTF_BUFFER_SIZE,
   preferred_interop_user_sync = CL_DEVICE_PREFERRED_INTEROP_USER_SYNC,
   parent_device = CL_DEVICE_PARENT_DEVICE,
@@ -130,7 +139,9 @@ enum class device : cl_device_info {
   usm_host_allocations = PI_USM_HOST_SUPPORT,
   usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
-  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocations = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocator __SYCL2020_DEPRECATED(
+      "use usm_system_allocations instead") = usm_system_allocations,
 
   // intel extensions
   ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
@@ -141,7 +152,12 @@ enum class device : cl_device_info {
   ext_intel_gpu_eu_count_per_subslice =
       PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
   ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
-  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL
+  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
+  ext_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,
+  ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
+  atomic64 = PI_DEVICE_INFO_ATOMIC_64,
+  atomic_memory_order_capabilities =
+      PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
 };
 
 enum class device_type : pi_uint64 {
@@ -209,7 +225,9 @@ enum class kernel : cl_kernel_info {
   attributes = CL_KERNEL_ATTRIBUTES
 };
 
-enum class kernel_work_group : cl_kernel_work_group_info {
+enum class __SYCL2020_DEPRECATED(
+    "kernel_work_group enumeration is deprecated, use SYCL 2020 requests"
+    " instead") kernel_work_group : cl_kernel_work_group_info {
   global_work_size = CL_KERNEL_GLOBAL_WORK_SIZE,
   work_group_size = CL_KERNEL_WORK_GROUP_SIZE,
   compile_work_group_size = CL_KERNEL_COMPILE_WORK_GROUP_SIZE,

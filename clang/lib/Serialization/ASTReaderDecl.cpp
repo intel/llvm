@@ -332,7 +332,7 @@ namespace clang {
     RedeclarableResult VisitTagDecl(TagDecl *TD);
     void VisitEnumDecl(EnumDecl *ED);
     RedeclarableResult VisitRecordDeclImpl(RecordDecl *RD);
-    void VisitRecordDecl(RecordDecl *RD) { VisitRecordDeclImpl(RD); }
+    void VisitRecordDecl(RecordDecl *RD);
     RedeclarableResult VisitCXXRecordDeclImpl(CXXRecordDecl *D);
     void VisitCXXRecordDecl(CXXRecordDecl *D) { VisitCXXRecordDeclImpl(D); }
     RedeclarableResult VisitClassTemplateSpecializationDeclImpl(
@@ -806,6 +806,34 @@ ASTDeclReader::VisitRecordDeclImpl(RecordDecl *RD) {
   RD->setParamDestroyedInCallee(Record.readInt());
   RD->setArgPassingRestrictions((RecordDecl::ArgPassingKind)Record.readInt());
   return Redecl;
+}
+
+void ASTDeclReader::VisitRecordDecl(RecordDecl *RD) {
+  VisitRecordDeclImpl(RD);
+
+  // Maintain the invariant of a redeclaration chain containing only
+  // a single definition.
+  if (RD->isCompleteDefinition()) {
+    RecordDecl *Canon = static_cast<RecordDecl *>(RD->getCanonicalDecl());
+    RecordDecl *&OldDef = Reader.RecordDefinitions[Canon];
+    if (!OldDef) {
+      // This is the first time we've seen an imported definition. Look for a
+      // local definition before deciding that we are the first definition.
+      for (auto *D : merged_redecls(Canon)) {
+        if (!D->isFromASTFile() && D->isCompleteDefinition()) {
+          OldDef = D;
+          break;
+        }
+      }
+    }
+    if (OldDef) {
+      Reader.MergedDeclContexts.insert(std::make_pair(RD, OldDef));
+      RD->setCompleteDefinition(false);
+      Reader.mergeDefinitionVisibility(OldDef, RD);
+    } else {
+      OldDef = RD;
+    }
+  }
 }
 
 void ASTDeclReader::VisitValueDecl(ValueDecl *VD) {
@@ -1736,7 +1764,7 @@ void ASTDeclReader::ReadCXXDefinitionData(
   Data.HasODRHash = true;
 
   if (Record.readInt()) {
-    Reader.DefinitionSource[D] = 
+    Reader.DefinitionSource[D] =
         Loc.F->Kind == ModuleKind::MK_MainFile ||
         Reader.getContext().getLangOpts().BuildingPCHWithObjectFile;
   }
@@ -2645,7 +2673,7 @@ static bool allowODRLikeMergeInC(NamedDecl *ND) {
   if (!ND)
     return false;
   // TODO: implement merge for other necessary decls.
-  if (isa<EnumConstantDecl>(ND))
+  if (isa<EnumConstantDecl, FieldDecl, IndirectFieldDecl>(ND))
     return true;
   return false;
 }
@@ -3067,7 +3095,7 @@ static bool hasSameOverloadableAttrs(const FunctionDecl *A,
   return true;
 }
 
-/// Determine whether the two declarations refer to the same entity.pr
+/// Determine whether the two declarations refer to the same entity.
 static bool isSameEntity(NamedDecl *X, NamedDecl *Y) {
   assert(X->getDeclName() == Y->getDeclName() && "Declaration name mismatch!");
 
@@ -3261,10 +3289,19 @@ static bool isSameEntity(NamedDecl *X, NamedDecl *Y) {
     return isSameQualifier(UX->getQualifier(), UY->getQualifier()) &&
            UX->isAccessDeclaration() == UY->isAccessDeclaration();
   }
-  if (const auto *UX = dyn_cast<UnresolvedUsingTypenameDecl>(X))
+  if (const auto *UX = dyn_cast<UnresolvedUsingTypenameDecl>(X)) {
     return isSameQualifier(
         UX->getQualifier(),
         cast<UnresolvedUsingTypenameDecl>(Y)->getQualifier());
+  }
+
+  // Using-pack declarations are only created by instantiation, and match if
+  // they're instantiated from matching UnresolvedUsing...Decls.
+  if (const auto *UX = dyn_cast<UsingPackDecl>(X)) {
+    return declaresSameEntity(
+        UX->getInstantiatedFromUsingDecl(),
+        cast<UsingPackDecl>(Y)->getInstantiatedFromUsingDecl());
+  }
 
   // Namespace alias definitions with the same target match.
   if (const auto *NAX = dyn_cast<NamespaceAliasDecl>(X)) {
@@ -3305,6 +3342,9 @@ DeclContext *ASTDeclReader::getPrimaryContextForMerging(ASTReader &Reader,
 
     return DD->Definition;
   }
+
+  if (auto *RD = dyn_cast<RecordDecl>(DC))
+    return RD->getDefinition();
 
   if (auto *ED = dyn_cast<EnumDecl>(DC))
     return ED->getASTContext().getLangOpts().CPlusPlus? ED->getDefinition()
@@ -3389,6 +3429,9 @@ ASTDeclReader::getPrimaryDCForAnonymousDecl(DeclContext *LexicalDC) {
     if (auto *MD = dyn_cast<ObjCMethodDecl>(D))
       if (MD->isThisDeclarationADefinition())
         return MD;
+    if (auto *RD = dyn_cast<RecordDecl>(D))
+      if (RD->isThisDeclarationADefinition())
+        return RD;
   }
 
   // No merged definition yet.

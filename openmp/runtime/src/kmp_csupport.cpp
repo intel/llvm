@@ -39,6 +39,7 @@ void __kmpc_begin(ident_t *loc, kmp_int32 flags) {
   if ((env = getenv("KMP_INITIAL_THREAD_BIND")) != NULL &&
       __kmp_str_match_true(env)) {
     __kmp_middle_initialize();
+    __kmp_assign_root_init_mask();
     KC_TRACE(10, ("__kmpc_begin: middle initialization called\n"));
   } else if (__kmp_ignore_mppbeg() == FALSE) {
     // By default __kmp_ignore_mppbeg() returns TRUE.
@@ -577,9 +578,6 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
     __kmp_free(top);
   }
 
-  // if( serial_team -> t.t_serialized > 1 )
-  serial_team->t.t_level--;
-
   /* pop dispatch buffers stack */
   KMP_DEBUG_ASSERT(serial_team->t.t_dispatch->th_disp_buffer);
   {
@@ -604,6 +602,7 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
     }
 #endif /* KMP_ARCH_X86 || KMP_ARCH_X86_64 */
 
+    __kmp_pop_current_task_from_thread(this_thr);
 #if OMPD_SUPPORT
     if (ompd_state & OMPD_ENABLE_BP)
       ompd_bp_parallel_end();
@@ -621,8 +620,6 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
     /* TODO the below shouldn't need to be adjusted for serialized teams */
     this_thr->th.th_dispatch =
         &this_thr->th.th_team->t.t_dispatch[serial_team->t.t_master_tid];
-
-    __kmp_pop_current_task_from_thread(this_thr);
 
     KMP_ASSERT(this_thr->th.th_current_task->td_flags.executing == 0);
     this_thr->th.th_current_task->td_flags.executing = 1;
@@ -644,6 +641,7 @@ void __kmpc_end_serialized_parallel(ident_t *loc, kmp_int32 global_tid) {
     }
   }
 
+  serial_team->t.t_level--;
   if (__kmp_env_consistency_check)
     __kmp_pop_parallel(global_tid, NULL);
 #if OMPT_SUPPORT
@@ -685,7 +683,7 @@ void __kmpc_flush(ident_t *loc) {
   if (!__kmp_cpuinfo.initialized) {
     __kmp_query_cpuid(&__kmp_cpuinfo);
   }
-  if (!__kmp_cpuinfo.sse2) {
+  if (!__kmp_cpuinfo.flags.sse2) {
     // CPU cannot execute SSE2 instructions.
   } else {
 #if KMP_COMPILER_ICC
@@ -1358,7 +1356,7 @@ static __forceinline kmp_dyna_lockseq_t __kmp_map_hint_to_lock(uintptr_t hint) {
 #endif
 
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
-#define KMP_CPUINFO_RTM (__kmp_cpuinfo.rtm)
+#define KMP_CPUINFO_RTM (__kmp_cpuinfo.flags.rtm)
 #else
 #define KMP_CPUINFO_RTM 0
 #endif
@@ -1996,8 +1994,7 @@ int ompc_get_team_size(int level) {
 }
 
 /* OpenMP 5.0 Affinity Format API */
-
-void ompc_set_affinity_format(char const *format) {
+void KMP_EXPAND_NAME(ompc_set_affinity_format)(char const *format) {
   if (!__kmp_init_serial) {
     __kmp_serial_initialize();
   }
@@ -2005,7 +2002,7 @@ void ompc_set_affinity_format(char const *format) {
                          format, KMP_STRLEN(format) + 1);
 }
 
-size_t ompc_get_affinity_format(char *buffer, size_t size) {
+size_t KMP_EXPAND_NAME(ompc_get_affinity_format)(char *buffer, size_t size) {
   size_t format_size;
   if (!__kmp_init_serial) {
     __kmp_serial_initialize();
@@ -2018,23 +2015,25 @@ size_t ompc_get_affinity_format(char *buffer, size_t size) {
   return format_size;
 }
 
-void ompc_display_affinity(char const *format) {
+void KMP_EXPAND_NAME(ompc_display_affinity)(char const *format) {
   int gtid;
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   gtid = __kmp_get_gtid();
   __kmp_aux_display_affinity(gtid, format);
 }
 
-size_t ompc_capture_affinity(char *buffer, size_t buf_size,
-                             char const *format) {
+size_t KMP_EXPAND_NAME(ompc_capture_affinity)(char *buffer, size_t buf_size,
+                                              char const *format) {
   int gtid;
   size_t num_required;
   kmp_str_buf_t capture_buf;
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   gtid = __kmp_get_gtid();
   __kmp_str_buf_init(&capture_buf);
   num_required = __kmp_aux_capture_affinity(gtid, format, &capture_buf);
@@ -2093,6 +2092,7 @@ int kmpc_set_affinity_mask_proc(int proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_set_affinity_mask_proc(proc, mask);
 #endif
 }
@@ -2104,6 +2104,7 @@ int kmpc_unset_affinity_mask_proc(int proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_unset_affinity_mask_proc(proc, mask);
 #endif
 }
@@ -2115,6 +2116,7 @@ int kmpc_get_affinity_mask_proc(int proc, void **mask) {
   if (!TCR_4(__kmp_init_middle)) {
     __kmp_middle_initialize();
   }
+  __kmp_assign_root_init_mask();
   return __kmp_aux_get_affinity_mask_proc(proc, mask);
 #endif
 }
@@ -2514,12 +2516,6 @@ void __kmpc_destroy_lock(ident_t *loc, kmp_int32 gtid, void **user_lock) {
   if (!codeptr)
     codeptr = OMPT_GET_RETURN_ADDRESS(0);
   if (ompt_enabled.ompt_callback_lock_destroy) {
-    kmp_user_lock_p lck;
-    if (KMP_EXTRACT_D_TAG(user_lock) == 0) {
-      lck = ((kmp_indirect_lock_t *)KMP_LOOKUP_I_LOCK(user_lock))->lock;
-    } else {
-      lck = (kmp_user_lock_p)user_lock;
-    }
     ompt_callbacks.ompt_callback(ompt_callback_lock_destroy)(
         ompt_mutex_lock, (ompt_wait_id_t)(uintptr_t)user_lock, codeptr);
   }
@@ -4395,3 +4391,67 @@ void __kmpc_error(ident_t *loc, int severity, const char *message) {
 
   __kmp_str_free(&src_loc);
 }
+
+// Mark begin of scope directive.
+void __kmpc_scope(ident_t *loc, kmp_int32 gtid, void *reserved) {
+// reserved is for extension of scope directive and not used.
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  if (ompt_enabled.enabled && ompt_enabled.ompt_callback_work) {
+    kmp_team_t *team = __kmp_threads[gtid]->th.th_team;
+    int tid = __kmp_tid_from_gtid(gtid);
+    ompt_callbacks.ompt_callback(ompt_callback_work)(
+        ompt_work_scope, ompt_scope_begin,
+        &(team->t.ompt_team_info.parallel_data),
+        &(team->t.t_implicit_task_taskdata[tid].ompt_task_info.task_data), 1,
+        OMPT_GET_RETURN_ADDRESS(0));
+  }
+#endif // OMPT_SUPPORT && OMPT_OPTIONAL
+}
+
+// Mark end of scope directive
+void __kmpc_end_scope(ident_t *loc, kmp_int32 gtid, void *reserved) {
+// reserved is for extension of scope directive and not used.
+#if OMPT_SUPPORT && OMPT_OPTIONAL
+  if (ompt_enabled.enabled && ompt_enabled.ompt_callback_work) {
+    kmp_team_t *team = __kmp_threads[gtid]->th.th_team;
+    int tid = __kmp_tid_from_gtid(gtid);
+    ompt_callbacks.ompt_callback(ompt_callback_work)(
+        ompt_work_scope, ompt_scope_end,
+        &(team->t.ompt_team_info.parallel_data),
+        &(team->t.t_implicit_task_taskdata[tid].ompt_task_info.task_data), 1,
+        OMPT_GET_RETURN_ADDRESS(0));
+  }
+#endif // OMPT_SUPPORT && OMPT_OPTIONAL
+}
+
+#ifdef KMP_USE_VERSION_SYMBOLS
+// For GOMP compatibility there are two versions of each omp_* API.
+// One is the plain C symbol and one is the Fortran symbol with an appended
+// underscore. When we implement a specific ompc_* version of an omp_*
+// function, we want the plain GOMP versioned symbol to alias the ompc_* version
+// instead of the Fortran versions in kmp_ftn_entry.h
+extern "C" {
+// Have to undef these from omp.h so they aren't translated into
+// their ompc counterparts in the KMP_VERSION_OMPC_SYMBOL macros below
+#ifdef omp_set_affinity_format
+#undef omp_set_affinity_format
+#endif
+#ifdef omp_get_affinity_format
+#undef omp_get_affinity_format
+#endif
+#ifdef omp_display_affinity
+#undef omp_display_affinity
+#endif
+#ifdef omp_capture_affinity
+#undef omp_capture_affinity
+#endif
+KMP_VERSION_OMPC_SYMBOL(ompc_set_affinity_format, omp_set_affinity_format, 50,
+                        "OMP_5.0");
+KMP_VERSION_OMPC_SYMBOL(ompc_get_affinity_format, omp_get_affinity_format, 50,
+                        "OMP_5.0");
+KMP_VERSION_OMPC_SYMBOL(ompc_display_affinity, omp_display_affinity, 50,
+                        "OMP_5.0");
+KMP_VERSION_OMPC_SYMBOL(ompc_capture_affinity, omp_capture_affinity, 50,
+                        "OMP_5.0");
+} // extern "C"
+#endif

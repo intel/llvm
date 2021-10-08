@@ -51,7 +51,15 @@ bool SPIRVToOCL20Legacy::runOnModule(Module &Module) {
 bool SPIRVToOCL20Base::runSPIRVToOCL(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
+
+  // Lower builtin variables to builtin calls first.
+  lowerBuiltinVariablesToCalls(M);
+  translateOpaqueTypes();
+
   visit(*M);
+
+  postProcessBuiltinsReturningStruct(M);
+  postProcessBuiltinsWithArrayArguments(M);
 
   eraseUselessFunctions(&Module);
 
@@ -89,8 +97,6 @@ void SPIRVToOCL20Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
 
 void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Attrs = Attrs.addAttribute(CI->getContext(), AttributeList::FunctionIndex,
-                             Attribute::Convergent);
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
@@ -153,7 +159,7 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
     break;
   case OpAtomicCompareExchange:
   case OpAtomicCompareExchangeWeak:
-    NewCI = visitCallSPIRVAtomicCmpExchg(CIG, OC);
+    NewCI = visitCallSPIRVAtomicCmpExchg(CIG);
     break;
   default:
     NewCI = mutateAtomicName(CIG, OC);
@@ -226,8 +232,7 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
-                                                            Op OC) {
+Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Instruction *PInsertBefore = CI;
@@ -236,7 +241,7 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
         // OpAtomicCompareExchange[Weak] semantics is different from
-        // atomic_compare_exchange_[strong|weak] semantics as well as
+        // atomic_compare_exchange_strong semantics as well as
         // arguments order.
         // OCL built-ins returns boolean value and stores a new/original
         // value by pointer passed as 2nd argument (aka expected) while SPIR-V
@@ -257,7 +262,9 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
         std::swap(Args[3], Args[4]);
         std::swap(Args[2], Args[3]);
         RetTy = Type::getInt1Ty(*Ctx);
-        return OCLSPIRVBuiltinMap::rmap(OC);
+        // OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
+        // the same semantics as OpAtomicCompareExchange.
+        return "atomic_compare_exchange_strong_explicit";
       },
       [=](CallInst *CI) -> Instruction * {
         // OCL built-ins atomic_compare_exchange_[strong|weak] return boolean

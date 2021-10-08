@@ -6,8 +6,10 @@ import("//llvm/utils/gn/build/libs/pthread/enable.gni")
 import("//llvm/utils/gn/build/libs/xar/enable.gni")
 import("//llvm/utils/gn/build/libs/xml/enable.gni")
 import("//llvm/utils/gn/build/libs/zlib/enable.gni")
+import("//llvm/utils/gn/build/mac_sdk.gni")
 import("//llvm/utils/gn/build/write_cmake_config.gni")
 import("//llvm/utils/llvm-lit/lit_path_function.gni")
+import("//llvm/version.gni")
 import("llvm_lit_site_cfg_files.gni")
 
 template("write_lit_config") {
@@ -65,6 +67,8 @@ write_lit_config("lit_site_cfg") {
     "LLVM_NATIVE_ARCH=$native_target",
     "LLVM_USE_INTEL_JITEVENTS=0",
     "LLVM_USE_SANITIZER=",
+    "LLVM_VERSION_MAJOR=$llvm_version_major",
+    "LLVM_VERSION_SUFFIX=git",
     "Python3_EXECUTABLE=$python_path",
     "TARGETS_TO_BUILD=$llvm_targets_to_build_string",
     "TARGET_TRIPLE=$llvm_target_triple",
@@ -150,9 +154,15 @@ write_lit_config("lit_site_cfg") {
     extra_values += [ "GOLD_EXECUTABLE=" ]
   }
   if (host_os == "mac") {
-    extra_values += [ "LD64_EXECUTABLE=ld" ]
+    extra_values += [
+      "CMAKE_OSX_SYSROOT=" + rebase_path(mac_sdk_path, dir),
+      "LD64_EXECUTABLE=ld",
+    ]
   } else {
-    extra_values += [ "LD64_EXECUTABLE=" ]
+    extra_values += [
+      "CMAKE_OSX_SYSROOT=",
+      "LD64_EXECUTABLE=",
+    ]
   }
 
   if (llvm_enable_assertions) {
@@ -239,7 +249,6 @@ group("test") {
     "//llvm/tools/llvm-dis",
     "//llvm/tools/llvm-dwarfdump",
     "//llvm/tools/llvm-dwp",
-    "//llvm/tools/llvm-elfabi",
     "//llvm/tools/llvm-exegesis",
     "//llvm/tools/llvm-extract",
     "//llvm/tools/llvm-gsymutil:llvm-gsymutil",
@@ -269,8 +278,10 @@ group("test") {
     "//llvm/tools/llvm-readobj:symlinks",
     "//llvm/tools/llvm-reduce",
     "//llvm/tools/llvm-rtdyld",
+    "//llvm/tools/llvm-sim",
     "//llvm/tools/llvm-size",
     "//llvm/tools/llvm-split",
+    "//llvm/tools/llvm-stress",
     "//llvm/tools/llvm-strings",
     "//llvm/tools/llvm-symbolizer:symlinks",
     "//llvm/tools/llvm-tapi-diff",

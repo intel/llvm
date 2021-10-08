@@ -50,8 +50,7 @@ multiclass VOP3PInst<string OpName, VOPProfile P,
 
 // Non-packed instructions that use the VOP3P encoding.
 // VOP3 neg/abs and VOP3P opsel/opsel_hi modifiers are allowed.
-multiclass VOP3_VOP3PInst<string OpName, VOP3P_Mix_Profile P,
-                          SDPatternOperator node = null_frag> {
+multiclass VOP3_VOP3PInst<string OpName, VOP3P_Mix_Profile P> {
   def NAME : VOP3P_Pseudo<OpName, P> {
     let Constraints = !if(P.UseTiedOutput, "$vdst = $vdst_in", "");
     let DisableEncoding = !if(P.UseTiedOutput, "$vdst_in", "");
@@ -113,7 +112,6 @@ def : VOP3PSatPat<ssubsat, V_PK_SUB_I16>;
 } // End SubtargetPredicate = HasVOP3PInsts
 
 multiclass MadFmaMixPats<SDPatternOperator fma_like,
-                         Instruction mix_inst,
                          Instruction mixlo_inst,
                          Instruction mixhi_inst> {
   def : GCNPat <
@@ -192,7 +190,7 @@ defm V_MAD_MIXHI_F16 : VOP3_VOP3PInst<"v_mad_mixhi_f16", VOP3P_Mix_Profile<VOP_F
 } // End FPDPRounding = 1
 }
 
-defm : MadFmaMixPats<fmad, V_MAD_MIX_F32, V_MAD_MIXLO_F16, V_MAD_MIXHI_F16>;
+defm : MadFmaMixPats<fmad, V_MAD_MIXLO_F16, V_MAD_MIXHI_F16>;
 } // End SubtargetPredicate = HasMadMixInsts
 
 
@@ -211,7 +209,7 @@ defm V_FMA_MIXHI_F16 : VOP3_VOP3PInst<"v_fma_mixhi_f16", VOP3P_Mix_Profile<VOP_F
 } // End FPDPRounding = 1
 }
 
-defm : MadFmaMixPats<fma, V_FMA_MIX_F32, V_FMA_MIXLO_F16, V_FMA_MIXHI_F16>;
+defm : MadFmaMixPats<fma, V_FMA_MIXLO_F16, V_FMA_MIXHI_F16>;
 }
 
 // Defines patterns that extract signed 4bit from each Idx[0].
@@ -504,6 +502,7 @@ multiclass VOP3P_Real_vi<bits<7> op> {
             VOP3Pe <op, !cast<VOP3_Pseudo>(NAME).Pfl> {
     let AssemblerPredicate = HasVOP3PInsts;
     let DecoderNamespace = "GFX8";
+    let VOP3P = 1;
   }
 }
 
@@ -646,12 +645,12 @@ let SubtargetPredicate = HasPackedFP32Ops in {
 // GFX10.
 //===----------------------------------------------------------------------===//
 
-let AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10" in {
+let AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10", VOP3P = 1 in {
   multiclass VOP3P_Real_gfx10<bits<7> op> {
     def _gfx10 : VOP3P_Real<!cast<VOP3P_Pseudo>(NAME), SIEncodingFamily.GFX10>,
                  VOP3Pe_gfx10 <op, !cast<VOP3P_Pseudo>(NAME).Pfl>;
   }
-} // End AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10"
+} // End AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10", VOP3P = 1
 
 defm V_PK_MAD_I16     : VOP3P_Real_gfx10<0x00>;
 defm V_PK_MUL_LO_U16  : VOP3P_Real_gfx10<0x01>;

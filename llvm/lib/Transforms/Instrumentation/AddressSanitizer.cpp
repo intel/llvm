@@ -117,13 +117,6 @@ static const uint64_t kPS4CPU_ShadowOffset64 = 1ULL << 40;
 static const uint64_t kWindowsShadowOffset32 = 3ULL << 28;
 static const uint64_t kEmscriptenShadowOffset = 0;
 
-static const uint64_t kMyriadShadowScale = 5;
-static const uint64_t kMyriadMemoryOffset32 = 0x80000000ULL;
-static const uint64_t kMyriadMemorySize32 = 0x20000000ULL;
-static const uint64_t kMyriadTagShift = 29;
-static const uint64_t kMyriadDDRTag = 4;
-static const uint64_t kMyriadCacheBitMask32 = 0x40000000ULL;
-
 // The shadow memory space is dynamically allocated.
 static const uint64_t kWindowsShadowOffset64 = kDynamicShadowSentinel;
 
@@ -184,6 +177,14 @@ const char kAMDGPUAddressPrivateName[] = "llvm.amdgcn.is.private";
 static const size_t kNumberOfAccessSizes = 5;
 
 static const unsigned kAllocaRzSize = 32;
+
+// ASanAccessInfo implementation constants.
+constexpr size_t kCompileKernelShift = 0;
+constexpr size_t kCompileKernelMask = 0x1;
+constexpr size_t kAccessSizeIndexShift = 1;
+constexpr size_t kAccessSizeIndexMask = 0xf;
+constexpr size_t kIsWriteShift = 5;
+constexpr size_t kIsWriteMask = 0x1;
 
 // Command-line flags.
 
@@ -355,6 +356,10 @@ static cl::opt<uint64_t>
 static cl::opt<bool> ClOpt("asan-opt", cl::desc("Optimize instrumentation"),
                            cl::Hidden, cl::init(true));
 
+static cl::opt<bool> ClOptimizeCallbacks("asan-optimize-callbacks",
+                                         cl::desc("Optimize callbacks"),
+                                         cl::Hidden, cl::init(false));
+
 static cl::opt<bool> ClOptSameTemp(
     "asan-opt-same-temp", cl::desc("Instrument the same temp just once"),
     cl::Hidden, cl::init(true));
@@ -449,7 +454,7 @@ struct ShadowMapping {
 
 } // end anonymous namespace
 
-static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
+static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
                                       bool IsKasan) {
   bool IsAndroid = TargetTriple.isAndroid();
   bool IsIOS = TargetTriple.isiOS() || TargetTriple.isWatchOS();
@@ -469,17 +474,12 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
   bool IsRISCV64 = TargetTriple.getArch() == Triple::riscv64;
   bool IsWindows = TargetTriple.isOSWindows();
   bool IsFuchsia = TargetTriple.isOSFuchsia();
-  bool IsMyriad = TargetTriple.getVendor() == llvm::Triple::Myriad;
   bool IsEmscripten = TargetTriple.isOSEmscripten();
   bool IsAMDGPU = TargetTriple.isAMDGPU();
 
-  // Asan support for AMDGPU assumes X86 as the host right now.
-  if (IsAMDGPU)
-    IsX86_64 = true;
-
   ShadowMapping Mapping;
 
-  Mapping.Scale = IsMyriad ? kMyriadShadowScale : kDefaultShadowScale;
+  Mapping.Scale = kDefaultShadowScale;
   if (ClMappingScale.getNumOccurrences() > 0) {
     Mapping.Scale = ClMappingScale;
   }
@@ -499,11 +499,7 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       Mapping.Offset = kWindowsShadowOffset32;
     else if (IsEmscripten)
       Mapping.Offset = kEmscriptenShadowOffset;
-    else if (IsMyriad) {
-      uint64_t ShadowOffset = (kMyriadMemoryOffset32 + kMyriadMemorySize32 -
-                               (kMyriadMemorySize32 >> Mapping.Scale));
-      Mapping.Offset = ShadowOffset - (kMyriadMemoryOffset32 >> Mapping.Scale);
-    } else
+    else
       Mapping.Offset = kDefaultShadowOffset32;
   } else {  // LongSize == 64
     // Fuchsia is always PIE, which means that the beginning of the address
@@ -544,6 +540,9 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
       Mapping.Offset = kAArch64_ShadowOffset64;
     else if (IsRISCV64)
       Mapping.Offset = kRISCV64_ShadowOffset64;
+    else if (IsAMDGPU)
+      Mapping.Offset = (kSmallX86_64ShadowOffsetBase &
+                        (kSmallX86_64ShadowOffsetAlignMask << Mapping.Scale));
     else
       Mapping.Offset = kDefaultShadowOffset64;
   }
@@ -571,6 +570,32 @@ static ShadowMapping getShadowMapping(Triple &TargetTriple, int LongSize,
 
   return Mapping;
 }
+
+namespace llvm {
+void getAddressSanitizerParams(const Triple &TargetTriple, int LongSize,
+                               bool IsKasan, uint64_t *ShadowBase,
+                               int *MappingScale, bool *OrShadowOffset) {
+  auto Mapping = getShadowMapping(TargetTriple, LongSize, IsKasan);
+  *ShadowBase = Mapping.Offset;
+  *MappingScale = Mapping.Scale;
+  *OrShadowOffset = Mapping.OrShadowOffset;
+}
+
+ASanAccessInfo::ASanAccessInfo(int32_t Packed)
+    : Packed(Packed),
+      AccessSizeIndex((Packed >> kAccessSizeIndexShift) & kAccessSizeIndexMask),
+      IsWrite((Packed >> kIsWriteShift) & kIsWriteMask),
+      CompileKernel((Packed >> kCompileKernelShift) & kCompileKernelMask) {}
+
+ASanAccessInfo::ASanAccessInfo(bool IsWrite, bool CompileKernel,
+                               uint8_t AccessSizeIndex)
+    : Packed((IsWrite << kIsWriteShift) +
+             (CompileKernel << kCompileKernelShift) +
+             (AccessSizeIndex << kAccessSizeIndexShift)),
+      AccessSizeIndex(AccessSizeIndex), IsWrite(IsWrite),
+      CompileKernel(CompileKernel) {}
+
+} // namespace llvm
 
 static uint64_t getRedzoneSizeForScale(int MappingScale) {
   // Redzone used for stack and globals is at least 32 bytes.
@@ -636,6 +661,8 @@ struct AddressSanitizer {
     C = &(M.getContext());
     LongSize = M.getDataLayout().getPointerSizeInBits();
     IntptrTy = Type::getIntNTy(*C, LongSize);
+    Int8PtrTy = Type::getInt8PtrTy(*C);
+    Int32Ty = Type::getInt32Ty(*C);
     TargetTriple = Triple(M.getTargetTriple());
 
     Mapping = getShadowMapping(TargetTriple, LongSize, this->CompileKernel);
@@ -726,6 +753,8 @@ private:
   bool UseAfterScope;
   AsanDetectStackUseAfterReturnMode UseAfterReturn;
   Type *IntptrTy;
+  Type *Int8PtrTy;
+  Type *Int32Ty;
   ShadowMapping Mapping;
   FunctionCallee AsanHandleNoReturnFunc;
   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
@@ -945,7 +974,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   SmallVector<AllocaInst *, 16> AllocaVec;
   SmallVector<AllocaInst *, 16> StaticAllocasToMoveUp;
   SmallVector<Instruction *, 8> RetVec;
-  unsigned StackAlignment;
 
   FunctionCallee AsanStackMallocFunc[kMaxAsanStackMallocSizeClass + 1],
       AsanStackFreeFunc[kMaxAsanStackMallocSizeClass + 1];
@@ -977,7 +1005,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
       : F(F), ASan(ASan), DIB(*F.getParent(), /*AllowUnresolved*/ false),
         C(ASan.C), IntptrTy(ASan.IntptrTy),
         IntptrPtrTy(PointerType::get(IntptrTy, 0)), Mapping(ASan.Mapping),
-        StackAlignment(1 << Mapping.Scale),
         PoisonStack(ClStack &&
                     !Triple(F.getParent()->getTargetTriple()).isAMDGPU()) {}
 
@@ -1101,7 +1128,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
       return;
     }
 
-    StackAlignment = std::max(StackAlignment, AI.getAlignment());
     if (!AI.isStaticAlloca())
       DynamicAllocaVec.push_back(&AI);
     else
@@ -1228,20 +1254,14 @@ GlobalsMetadata ASanGlobalsMetadataAnalysis::run(Module &M,
   return GlobalsMetadata(M);
 }
 
-AddressSanitizerPass::AddressSanitizerPass(
-    bool CompileKernel, bool Recover, bool UseAfterScope,
-    AsanDetectStackUseAfterReturnMode UseAfterReturn)
-    : CompileKernel(CompileKernel), Recover(Recover),
-      UseAfterScope(UseAfterScope), UseAfterReturn(UseAfterReturn) {}
-
 PreservedAnalyses AddressSanitizerPass::run(Function &F,
                                             AnalysisManager<Function> &AM) {
   auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
   Module &M = *F.getParent();
   if (auto *R = MAMProxy.getCachedResult<ASanGlobalsMetadataAnalysis>(M)) {
     const TargetLibraryInfo *TLI = &AM.getResult<TargetLibraryAnalysis>(F);
-    AddressSanitizer Sanitizer(M, R, CompileKernel, Recover, UseAfterScope,
-                               UseAfterReturn);
+    AddressSanitizer Sanitizer(M, R, Options.CompileKernel, Options.Recover,
+                               Options.UseAfterScope, Options.UseAfterReturn);
     if (Sanitizer.instrumentFunction(F, TLI))
       return PreservedAnalyses::none();
     return PreservedAnalyses::all();
@@ -1251,6 +1271,26 @@ PreservedAnalyses AddressSanitizerPass::run(Function &F,
       "The ASanGlobalsMetadataAnalysis is required to run before "
       "AddressSanitizer can run");
   return PreservedAnalyses::all();
+}
+
+void AddressSanitizerPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<AddressSanitizerPass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+  OS << "<";
+  if (Options.CompileKernel)
+    OS << "kernel";
+  OS << ">";
+}
+
+void ModuleAddressSanitizerPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<ModuleAddressSanitizerPass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+  OS << "<";
+  if (CompileKernel)
+    OS << "kernel";
+  OS << ">";
 }
 
 ModuleAddressSanitizerPass::ModuleAddressSanitizerPass(
@@ -1495,7 +1535,7 @@ void AddressSanitizer::getInterestingMemoryOperands(
       Value *Mask = CI->getOperand(2 + OpOffset);
       Interesting.emplace_back(I, OpOffset, IsWrite, Ty, Alignment, Mask);
     } else {
-      for (unsigned ArgNo = 0; ArgNo < CI->getNumArgOperands(); ArgNo++) {
+      for (unsigned ArgNo = 0; ArgNo < CI->arg_size(); ArgNo++) {
         if (!ClInstrumentByval || !CI->isByValArgument(ArgNo) ||
             ignoreAccess(CI->getArgOperand(ArgNo)))
           continue;
@@ -1746,8 +1786,6 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
                                          uint32_t TypeSize, bool IsWrite,
                                          Value *SizeArgument, bool UseCalls,
                                          uint32_t Exp) {
-  bool IsMyriad = TargetTriple.getVendor() == llvm::Triple::Myriad;
-
   if (TargetTriple.isAMDGPU()) {
     InsertBefore = instrumentAMDGPUAddress(OrigIns, InsertBefore, Addr,
                                            TypeSize, IsWrite, SizeArgument);
@@ -1756,9 +1794,20 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
   }
 
   IRBuilder<> IRB(InsertBefore);
-  Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   size_t AccessSizeIndex = TypeSizeToSizeIndex(TypeSize);
+  const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
 
+  if (UseCalls && ClOptimizeCallbacks) {
+    const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
+    Module *M = IRB.GetInsertBlock()->getParent()->getParent();
+    IRB.CreateCall(
+        Intrinsic::getDeclaration(M, Intrinsic::asan_check_memaccess),
+        {IRB.CreatePointerCast(Addr, Int8PtrTy),
+         ConstantInt::get(Int32Ty, AccessInfo.Packed)});
+    return;
+  }
+
+  Value *AddrLong = IRB.CreatePointerCast(Addr, IntptrTy);
   if (UseCalls) {
     if (Exp == 0)
       IRB.CreateCall(AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex],
@@ -1767,24 +1816,6 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
       IRB.CreateCall(AsanMemoryAccessCallback[IsWrite][1][AccessSizeIndex],
                      {AddrLong, ConstantInt::get(IRB.getInt32Ty(), Exp)});
     return;
-  }
-
-  if (IsMyriad) {
-    // Strip the cache bit and do range check.
-    // AddrLong &= ~kMyriadCacheBitMask32
-    AddrLong = IRB.CreateAnd(AddrLong, ~kMyriadCacheBitMask32);
-    // Tag = AddrLong >> kMyriadTagShift
-    Value *Tag = IRB.CreateLShr(AddrLong, kMyriadTagShift);
-    // Tag == kMyriadDDRTag
-    Value *TagCheck =
-        IRB.CreateICmpEQ(Tag, ConstantInt::get(IntptrTy, kMyriadDDRTag));
-
-    Instruction *TagCheckTerm =
-        SplitBlockAndInsertIfThen(TagCheck, InsertBefore, false,
-                                  MDBuilder(*C).createBranchWeights(1, 100000));
-    assert(cast<BranchInst>(TagCheckTerm)->isUnconditional());
-    IRB.SetInsertPoint(TagCheckTerm);
-    InsertBefore = TagCheckTerm;
   }
 
   Type *ShadowTy =
@@ -1952,7 +1983,7 @@ bool ModuleAddressSanitizer::shouldInstrumentGlobal(GlobalVariable *G) const {
     switch (C->getSelectionKind()) {
     case Comdat::Any:
     case Comdat::ExactMatch:
-    case Comdat::NoDuplicates:
+    case Comdat::NoDeduplicate:
       break;
     case Comdat::Largest:
     case Comdat::SameSize:
@@ -2139,7 +2170,7 @@ void ModuleAddressSanitizer::SetComdatForGlobalMetadata(
     // linkage to internal linkage so that a symbol table entry is emitted. This
     // is necessary in order to create the comdat group.
     if (TargetTriple.isOSBinFormatCOFF()) {
-      C->setSelectionKind(Comdat::NoDuplicates);
+      C->setSelectionKind(Comdat::NoDeduplicate);
       if (G->hasPrivateLinkage())
         G->setLinkage(GlobalValue::InternalLinkage);
     }
@@ -2169,8 +2200,9 @@ Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor(Module &M) {
   AsanDtorFunction = Function::createWithDefaultAttr(
       FunctionType::get(Type::getVoidTy(*C), false),
       GlobalValue::InternalLinkage, 0, kAsanModuleDtorName, &M);
-  AsanDtorFunction->addAttribute(AttributeList::FunctionIndex,
-                                 Attribute::NoUnwind);
+  AsanDtorFunction->addFnAttr(Attribute::NoUnwind);
+  // Ensure Dtor cannot be discarded, even if in a comdat.
+  appendToUsed(M, {AsanDtorFunction});
   BasicBlock *AsanDtorBB = BasicBlock::Create(*C, "", AsanDtorFunction);
 
   return ReturnInst::Create(*C, AsanDtorBB);
@@ -2787,7 +2819,7 @@ void AddressSanitizer::markEscapedLocalAllocas(Function &F) {
     IntrinsicInst *II = dyn_cast<IntrinsicInst>(&I);
     if (II && II->getIntrinsicID() == Intrinsic::localescape) {
       // We found a call. Mark all the allocas passed in as uninteresting.
-      for (Value *Arg : II->arg_operands()) {
+      for (Value *Arg : II->args()) {
         AllocaInst *AI = dyn_cast<AllocaInst>(Arg->stripPointerCasts());
         assert(AI && AI->isStaticAlloca() &&
                "non-static alloca arg to localescape");
@@ -2950,7 +2982,8 @@ bool AddressSanitizer::LooksLikeCodeInBug11395(Instruction *I) {
   if (LongSize != 32) return false;
   CallInst *CI = dyn_cast<CallInst>(I);
   if (!CI || !CI->isInlineAsm()) return false;
-  if (CI->getNumArgOperands() <= 5) return false;
+  if (CI->arg_size() <= 5)
+    return false;
   // We have inline assembly with quite a few arguments.
   return true;
 }

@@ -23,6 +23,7 @@
 #include "llvm/Object/IRSymtab.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/thread.h"
+#include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include "llvm/Transforms/IPO/FunctionImport.h"
 
 namespace llvm {
@@ -38,7 +39,7 @@ class ToolOutputFile;
 
 /// Resolve linkage for prevailing symbols in the \p Index. Linkage changes
 /// recorded in the index and the ThinLTO backends must apply the changes to
-/// the module via thinLTOResolvePrevailingInModule.
+/// the module via thinLTOFinalizeInModule.
 ///
 /// This is done for correctness (if value exported, ensure we always
 /// emit a copy), and compile-time optimization (allow drop of duplicates).
@@ -119,7 +120,7 @@ private:
 
   StringRef TargetTriple, SourceFileName, COFFLinkerOpts;
   std::vector<StringRef> DependentLibraries;
-  std::vector<StringRef> ComdatTable;
+  std::vector<std::pair<StringRef, Comdat::SelectionKind>> ComdatTable;
 
 public:
   ~InputFile();
@@ -172,7 +173,9 @@ public:
   StringRef getSourceFileName() const { return SourceFileName; }
 
   // Returns a table with all the comdats used by this file.
-  ArrayRef<StringRef> getComdatTable() const { return ComdatTable; }
+  ArrayRef<std::pair<StringRef, Comdat::SelectionKind>> getComdatTable() const {
+    return ComdatTable;
+  }
 
   // Returns the only BitcodeModule from InputFile.
   BitcodeModule &getSingleBitcodeModule();
@@ -442,6 +445,9 @@ private:
   // Identify symbols exported dynamically, and that therefore could be
   // referenced by a shared library not visible to the linker.
   DenseSet<GlobalValue::GUID> DynamicExportSymbols;
+
+  // Diagnostic optimization remarks file
+  std::unique_ptr<ToolOutputFile> DiagnosticOutputFile;
 };
 
 /// The resolution for a symbol. The linker must provide a SymbolResolution for

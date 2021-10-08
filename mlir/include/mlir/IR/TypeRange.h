@@ -16,6 +16,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/Sequence.h"
 
 namespace mlir {
 class OperandRange;
@@ -89,6 +90,35 @@ inline raw_ostream &operator<<(raw_ostream &os, const TypeRange &types) {
 }
 
 //===----------------------------------------------------------------------===//
+// TypeRangeRange
+
+using TypeRangeRangeIterator =
+    llvm::mapped_iterator<llvm::iota_range<unsigned>::iterator,
+                          std::function<TypeRange(unsigned)>>;
+
+/// This class provides an abstraction for a range of TypeRange. This is useful
+/// when accessing the types of a range of ranges, such as when using
+/// OperandRangeRange.
+class TypeRangeRange : public llvm::iterator_range<TypeRangeRangeIterator> {
+public:
+  template <typename RangeT>
+  TypeRangeRange(const RangeT &range)
+      : TypeRangeRange(llvm::seq<unsigned>(0, range.size()), range) {}
+
+private:
+  template <typename RangeT>
+  TypeRangeRange(llvm::iota_range<unsigned> sizeRange, const RangeT &range)
+      : llvm::iterator_range<TypeRangeRangeIterator>(
+            {sizeRange.begin(), getRangeFn(range)},
+            {sizeRange.end(), nullptr}) {}
+
+  template <typename RangeT>
+  static std::function<TypeRange(unsigned)> getRangeFn(const RangeT &range) {
+    return [=](unsigned index) -> TypeRange { return TypeRange(range[index]); };
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // ValueTypeRange
 
 /// This class implements iteration on the types of a given range of values.
@@ -98,8 +128,6 @@ class ValueTypeIterator final
   static Type unwrap(Value value) { return value.getType(); }
 
 public:
-  using reference = Type;
-
   /// Provide a const dereference method.
   Type operator*() const { return unwrap(*this->I); }
 

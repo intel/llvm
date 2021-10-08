@@ -53,9 +53,18 @@
 #include <sys/user.h>
 #include <sys/wait.h>
 
+#ifdef __aarch64__
+#include <asm/hwcap.h>
+#include <sys/auxv.h>
+#endif
+
 // Support hardware breakpoints in case it has not been defined
 #ifndef TRAP_HWBKPT
 #define TRAP_HWBKPT 4
+#endif
+
+#ifndef HWCAP2_MTE
+#define HWCAP2_MTE (1 << 18)
 #endif
 
 using namespace lldb;
@@ -283,8 +292,17 @@ NativeProcessLinux::Factory::Attach(
 
 NativeProcessLinux::Extension
 NativeProcessLinux::Factory::GetSupportedExtensions() const {
-  return Extension::multiprocess | Extension::fork | Extension::vfork |
-         Extension::pass_signals | Extension::auxv | Extension::libraries_svr4;
+  NativeProcessLinux::Extension supported =
+      Extension::multiprocess | Extension::fork | Extension::vfork |
+      Extension::pass_signals | Extension::auxv | Extension::libraries_svr4;
+
+#ifdef __aarch64__
+  // At this point we do not have a process so read auxv directly.
+  if ((getauxval(AT_HWCAP2) & HWCAP2_MTE))
+    supported |= Extension::memory_tagging;
+#endif
+
+  return supported;
 }
 
 // Public Instance Methods
@@ -1411,6 +1429,132 @@ llvm::Error NativeProcessLinux::DeallocateMemory(lldb::addr_t addr) {
 
   m_allocated_memory.erase(it);
   return llvm::Error::success();
+}
+
+Status NativeProcessLinux::ReadMemoryTags(int32_t type, lldb::addr_t addr,
+                                          size_t len,
+                                          std::vector<uint8_t> &tags) {
+  llvm::Expected<NativeRegisterContextLinux::MemoryTaggingDetails> details =
+      GetCurrentThread()->GetRegisterContext().GetMemoryTaggingDetails(type);
+  if (!details)
+    return Status(details.takeError());
+
+  // Ignore 0 length read
+  if (!len)
+    return Status();
+
+  // lldb will align the range it requests but it is not required to by
+  // the protocol so we'll do it again just in case.
+  // Remove non address bits too. Ptrace calls may work regardless but that
+  // is not a guarantee.
+  MemoryTagManager::TagRange range(details->manager->RemoveNonAddressBits(addr),
+                                   len);
+  range = details->manager->ExpandToGranule(range);
+
+  // Allocate enough space for all tags to be read
+  size_t num_tags = range.GetByteSize() / details->manager->GetGranuleSize();
+  tags.resize(num_tags * details->manager->GetTagSizeInBytes());
+
+  struct iovec tags_iovec;
+  uint8_t *dest = tags.data();
+  lldb::addr_t read_addr = range.GetRangeBase();
+
+  // This call can return partial data so loop until we error or
+  // get all tags back.
+  while (num_tags) {
+    tags_iovec.iov_base = dest;
+    tags_iovec.iov_len = num_tags;
+
+    Status error = NativeProcessLinux::PtraceWrapper(
+        details->ptrace_read_req, GetID(), reinterpret_cast<void *>(read_addr),
+        static_cast<void *>(&tags_iovec), 0, nullptr);
+
+    if (error.Fail()) {
+      // Discard partial reads
+      tags.resize(0);
+      return error;
+    }
+
+    size_t tags_read = tags_iovec.iov_len;
+    assert(tags_read && (tags_read <= num_tags));
+
+    dest += tags_read * details->manager->GetTagSizeInBytes();
+    read_addr += details->manager->GetGranuleSize() * tags_read;
+    num_tags -= tags_read;
+  }
+
+  return Status();
+}
+
+Status NativeProcessLinux::WriteMemoryTags(int32_t type, lldb::addr_t addr,
+                                           size_t len,
+                                           const std::vector<uint8_t> &tags) {
+  llvm::Expected<NativeRegisterContextLinux::MemoryTaggingDetails> details =
+      GetCurrentThread()->GetRegisterContext().GetMemoryTaggingDetails(type);
+  if (!details)
+    return Status(details.takeError());
+
+  // Ignore 0 length write
+  if (!len)
+    return Status();
+
+  // lldb will align the range it requests but it is not required to by
+  // the protocol so we'll do it again just in case.
+  // Remove non address bits too. Ptrace calls may work regardless but that
+  // is not a guarantee.
+  MemoryTagManager::TagRange range(details->manager->RemoveNonAddressBits(addr),
+                                   len);
+  range = details->manager->ExpandToGranule(range);
+
+  // Not checking number of tags here, we may repeat them below
+  llvm::Expected<std::vector<lldb::addr_t>> unpacked_tags_or_err =
+      details->manager->UnpackTagsData(tags);
+  if (!unpacked_tags_or_err)
+    return Status(unpacked_tags_or_err.takeError());
+
+  llvm::Expected<std::vector<lldb::addr_t>> repeated_tags_or_err =
+      details->manager->RepeatTagsForRange(*unpacked_tags_or_err, range);
+  if (!repeated_tags_or_err)
+    return Status(repeated_tags_or_err.takeError());
+
+  // Repack them for ptrace to use
+  llvm::Expected<std::vector<uint8_t>> final_tag_data =
+      details->manager->PackTags(*repeated_tags_or_err);
+  if (!final_tag_data)
+    return Status(final_tag_data.takeError());
+
+  struct iovec tags_vec;
+  uint8_t *src = final_tag_data->data();
+  lldb::addr_t write_addr = range.GetRangeBase();
+  // unpacked tags size because the number of bytes per tag might not be 1
+  size_t num_tags = repeated_tags_or_err->size();
+
+  // This call can partially write tags, so we loop until we
+  // error or all tags have been written.
+  while (num_tags > 0) {
+    tags_vec.iov_base = src;
+    tags_vec.iov_len = num_tags;
+
+    Status error = NativeProcessLinux::PtraceWrapper(
+        details->ptrace_write_req, GetID(),
+        reinterpret_cast<void *>(write_addr), static_cast<void *>(&tags_vec), 0,
+        nullptr);
+
+    if (error.Fail()) {
+      // Don't attempt to restore the original values in the case of a partial
+      // write
+      return error;
+    }
+
+    size_t tags_written = tags_vec.iov_len;
+    assert(tags_written && (tags_written <= num_tags));
+
+    src += tags_written * details->manager->GetTagSizeInBytes();
+    write_addr += details->manager->GetGranuleSize() * tags_written;
+    num_tags -= tags_written;
+  }
+
+  return Status();
 }
 
 size_t NativeProcessLinux::UpdateThreads() {

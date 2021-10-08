@@ -35,6 +35,34 @@ accepted if enabled by command-line options.
 * We are not strict on the contents of `BLOCK DATA` subprograms
   so long as they contain no executable code, no internal subprograms,
   and allocate no storage outside a named `COMMON` block.  (C1415)
+* Delimited list-directed (and NAMELIST) character output is required
+  to emit contiguous doubled instances of the delimiter character
+  when it appears in the output value.  When fixed-size records
+  are being emitted, as is the case with internal output, this
+  is not possible when the problematic character falls on the last
+  position of a record.  No two other Fortran compilers do the same
+  thing in this situation so there is no good precedent to follow.
+  Because it seems least wrong, we emit one copy of the delimiter as
+  the last character of the current record and another as the first
+  character of the next record.  (The second-least-wrong alternative
+  might be to flag a runtime error, but that seems harsh since it's
+  not an explicit error in the standard, and the output may not have
+  to be usable later as input anyway.)
+  Consequently, the output is not suitable for use as list-directed or
+  NAMELIST input.  If a later standard were to clarify this case, this
+  behavior will change as needed to conform.
+```
+character(11) :: buffer(3)
+character(10) :: quotes = '""""""""""'
+write(buffer,*,delim="QUOTE") quotes
+print "('>',a10,'<')", buffer
+end
+```
+* The name of the control variable in an implied DO loop in an array
+  constructor or DATA statement has a scope over the value-list only,
+  not the bounds of the implied DO loop.  It is not advisable to use
+  an object of the same name as the index variable in a bounds
+  expression, but it will work, instead of being needlessly undefined.
 
 ## Extensions, deletions, and legacy features supported by default
 
@@ -110,6 +138,7 @@ accepted if enabled by command-line options.
   the arguments as if they were operands to an intrinsic `+` operator,
   and defining the result type accordingly.
 * DOUBLE COMPLEX intrinsics DREAL, DCMPLX, DCONJG, and DIMAG.
+* The DFLOAT intrinsic function.
 * INT_PTR_KIND intrinsic returns the kind of c_intptr_t.
 * Restricted specific conversion intrinsics FLOAT, SNGL, IDINT, IFIX, DREAL,
   and DCMPLX accept arguments of any kind instead of only the default kind or
@@ -138,6 +167,7 @@ accepted if enabled by command-line options.
   as default INTEGER if IMPLICIT NONE(TYPE) were absent.
 * OPEN(ACCESS='APPEND') is interpreted as OPEN(POSITION='APPEND')
   to ease porting from Sun Fortran.
+* Intrinsic subroutines EXIT([status]) and ABORT()
 
 ### Extensions supported when enabled by options
 
@@ -223,3 +253,13 @@ accepted if enabled by command-line options.
   from `COS(3.14159)`, for example.  f18 will complain when a
   generic intrinsic function's inferred result type does not
   match an explicit declaration.  This message is a warning.
+
+## Standard features that might as well not be
+
+* f18 supports designators with constant expressions, properly
+  constrained, as initial data targets for data pointers in
+  initializers of variable and component declarations and in
+  `DATA` statements; e.g., `REAL, POINTER :: P => T(1:10:2)`.
+  This Fortran 2008 feature might as well be viewed like an
+  extension; no other compiler that we've tested can handle
+  it yet.

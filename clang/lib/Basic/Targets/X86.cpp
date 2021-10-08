@@ -117,7 +117,20 @@ bool X86TargetInfo::initFeatureMap(
   for (auto &F : CPUFeatures)
     setFeatureEnabled(Features, F, true);
 
-  if (!TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec))
+  std::vector<std::string> UpdatedFeaturesVec;
+  for (const auto &Feature : FeaturesVec) {
+    // Expand general-regs-only to -x86, -mmx and -sse
+    if (Feature == "+general-regs-only") {
+      UpdatedFeaturesVec.push_back("-x87");
+      UpdatedFeaturesVec.push_back("-mmx");
+      UpdatedFeaturesVec.push_back("-sse");
+      continue;
+    }
+
+    UpdatedFeaturesVec.push_back(Feature);
+  }
+
+  if (!TargetInfo::initFeatureMap(Features, Diags, CPU, UpdatedFeaturesVec))
     return false;
 
   // Can't do this earlier because we need to be able to explicitly enable
@@ -126,21 +139,27 @@ bool X86TargetInfo::initFeatureMap(
   // Enable popcnt if sse4.2 is enabled and popcnt is not explicitly disabled.
   auto I = Features.find("sse4.2");
   if (I != Features.end() && I->getValue() &&
-      llvm::find(FeaturesVec, "-popcnt") == FeaturesVec.end())
+      llvm::find(UpdatedFeaturesVec, "-popcnt") == UpdatedFeaturesVec.end())
     Features["popcnt"] = true;
 
   // Additionally, if SSE is enabled and mmx is not explicitly disabled,
   // then enable MMX.
   I = Features.find("sse");
   if (I != Features.end() && I->getValue() &&
-      llvm::find(FeaturesVec, "-mmx") == FeaturesVec.end())
+      llvm::find(UpdatedFeaturesVec, "-mmx") == UpdatedFeaturesVec.end())
     Features["mmx"] = true;
 
   // Enable xsave if avx is enabled and xsave is not explicitly disabled.
   I = Features.find("avx");
   if (I != Features.end() && I->getValue() &&
-      llvm::find(FeaturesVec, "-xsave") == FeaturesVec.end())
+      llvm::find(UpdatedFeaturesVec, "-xsave") == UpdatedFeaturesVec.end())
     Features["xsave"] = true;
+
+  // Enable CRC32 if SSE4.2 is enabled and CRC32 is not explicitly disabled.
+  I = Features.find("sse4.2");
+  if (I != Features.end() && I->getValue() &&
+      llvm::find(UpdatedFeaturesVec, "-crc32") == UpdatedFeaturesVec.end())
+    Features["crc32"] = true;
 
   return true;
 }
@@ -218,6 +237,9 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasAVX512BF16 = true;
     } else if (Feature == "+avx512er") {
       HasAVX512ER = true;
+    } else if (Feature == "+avx512fp16") {
+      HasAVX512FP16 = true;
+      HasFloat16 = true;
     } else if (Feature == "+avx512pf") {
       HasAVX512PF = true;
     } else if (Feature == "+avx512dq") {
@@ -314,6 +336,8 @@ bool X86TargetInfo::handleTargetFeatures(std::vector<std::string> &Features,
       HasTSXLDTRK = true;
     } else if (Feature == "+uintr") {
       HasUINTR = true;
+    } else if (Feature == "+crc32") {
+      HasCRC32 = true;
     }
 
     X86SSEEnum Level = llvm::StringSwitch<X86SSEEnum>(Feature)
@@ -655,6 +679,8 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__AVX512BF16__");
   if (HasAVX512ER)
     Builder.defineMacro("__AVX512ER__");
+  if (HasAVX512FP16)
+    Builder.defineMacro("__AVX512FP16__");
   if (HasAVX512PF)
     Builder.defineMacro("__AVX512PF__");
   if (HasAVX512DQ)
@@ -740,6 +766,8 @@ void X86TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__TSXLDTRK__");
   if (HasUINTR)
     Builder.defineMacro("__UINTR__");
+  if (HasCRC32)
+    Builder.defineMacro("__CRC32__");
 
   // Each case falls through to the previous one here.
   switch (SSELevel) {
@@ -843,6 +871,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("avx512vnni", true)
       .Case("avx512bf16", true)
       .Case("avx512er", true)
+      .Case("avx512fp16", true)
       .Case("avx512pf", true)
       .Case("avx512dq", true)
       .Case("avx512bitalg", true)
@@ -859,6 +888,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("clflushopt", true)
       .Case("clwb", true)
       .Case("clzero", true)
+      .Case("crc32", true)
       .Case("cx16", true)
       .Case("enqcmd", true)
       .Case("f16c", true)
@@ -866,6 +896,7 @@ bool X86TargetInfo::isValidFeatureName(StringRef Name) const {
       .Case("fma4", true)
       .Case("fsgsbase", true)
       .Case("fxsr", true)
+      .Case("general-regs-only", true)
       .Case("gfni", true)
       .Case("hreset", true)
       .Case("invpcid", true)
@@ -934,6 +965,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("avx512vnni", HasAVX512VNNI)
       .Case("avx512bf16", HasAVX512BF16)
       .Case("avx512er", HasAVX512ER)
+      .Case("avx512fp16", HasAVX512FP16)
       .Case("avx512pf", HasAVX512PF)
       .Case("avx512dq", HasAVX512DQ)
       .Case("avx512bitalg", HasAVX512BITALG)
@@ -949,6 +981,7 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
       .Case("clflushopt", HasCLFLUSHOPT)
       .Case("clwb", HasCLWB)
       .Case("clzero", HasCLZERO)
+      .Case("crc32", HasCRC32)
       .Case("cx8", HasCX8)
       .Case("cx16", HasCX16)
       .Case("enqcmd", HasENQCMD)
@@ -1020,33 +1053,20 @@ bool X86TargetInfo::hasFeature(StringRef Feature) const {
 // X86TargetInfo::hasFeature for a somewhat comprehensive list).
 bool X86TargetInfo::validateCpuSupports(StringRef FeatureStr) const {
   return llvm::StringSwitch<bool>(FeatureStr)
-#define X86_FEATURE_COMPAT(ENUM, STR) .Case(STR, true)
+#define X86_FEATURE_COMPAT(ENUM, STR, PRIORITY) .Case(STR, true)
 #include "llvm/Support/X86TargetParser.def"
       .Default(false);
 }
 
 static llvm::X86::ProcessorFeatures getFeature(StringRef Name) {
   return llvm::StringSwitch<llvm::X86::ProcessorFeatures>(Name)
-#define X86_FEATURE_COMPAT(ENUM, STR) .Case(STR, llvm::X86::FEATURE_##ENUM)
+#define X86_FEATURE_COMPAT(ENUM, STR, PRIORITY)                                \
+  .Case(STR, llvm::X86::FEATURE_##ENUM)
+
 #include "llvm/Support/X86TargetParser.def"
       ;
   // Note, this function should only be used after ensuring the value is
   // correct, so it asserts if the value is out of range.
-}
-
-static unsigned getFeaturePriority(llvm::X86::ProcessorFeatures Feat) {
-  enum class FeatPriority {
-#define FEATURE(FEAT) FEAT,
-#include "clang/Basic/X86Target.def"
-  };
-  switch (Feat) {
-#define FEATURE(FEAT)                                                          \
-  case llvm::X86::FEAT:                                                        \
-    return static_cast<unsigned>(FeatPriority::FEAT);
-#include "clang/Basic/X86Target.def"
-  default:
-    llvm_unreachable("No Feature Priority for non-CPUSupports Features");
-  }
 }
 
 unsigned X86TargetInfo::multiVersionSortPriority(StringRef Name) const {
@@ -1068,21 +1088,21 @@ bool X86TargetInfo::validateCPUSpecificCPUDispatch(StringRef Name) const {
   return llvm::StringSwitch<bool>(Name)
 #define CPU_SPECIFIC(NAME, MANGLING, FEATURES) .Case(NAME, true)
 #define CPU_SPECIFIC_ALIAS(NEW_NAME, NAME) .Case(NEW_NAME, true)
-#include "clang/Basic/X86Target.def"
+#include "llvm/Support/X86TargetParser.def"
       .Default(false);
 }
 
 static StringRef CPUSpecificCPUDispatchNameDealias(StringRef Name) {
   return llvm::StringSwitch<StringRef>(Name)
 #define CPU_SPECIFIC_ALIAS(NEW_NAME, NAME) .Case(NEW_NAME, NAME)
-#include "clang/Basic/X86Target.def"
+#include "llvm/Support/X86TargetParser.def"
       .Default(Name);
 }
 
 char X86TargetInfo::CPUSpecificManglingCharacter(StringRef Name) const {
   return llvm::StringSwitch<char>(CPUSpecificCPUDispatchNameDealias(Name))
 #define CPU_SPECIFIC(NAME, MANGLING, FEATURES) .Case(NAME, MANGLING)
-#include "clang/Basic/X86Target.def"
+#include "llvm/Support/X86TargetParser.def"
       .Default(0);
 }
 
@@ -1091,7 +1111,7 @@ void X86TargetInfo::getCPUSpecificCPUDispatchFeatures(
   StringRef WholeList =
       llvm::StringSwitch<StringRef>(CPUSpecificCPUDispatchNameDealias(Name))
 #define CPU_SPECIFIC(NAME, MANGLING, FEATURES) .Case(NAME, FEATURES)
-#include "clang/Basic/X86Target.def"
+#include "llvm/Support/X86TargetParser.def"
           .Default("");
   WholeList.split(Features, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
 }

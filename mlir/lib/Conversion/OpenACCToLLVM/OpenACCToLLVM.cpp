@@ -7,9 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "../PassDetail.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/OpenACCToLLVM/ConvertOpenACCToLLVM.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/OpenACC/OpenACC.h"
+#include "mlir/IR/Builders.h"
 
 using namespace mlir;
 
@@ -77,7 +79,7 @@ class LegalizeDataOpForLLVMTranslation : public ConvertOpToLLVMPattern<Op> {
   using ConvertOpToLLVMPattern<Op>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(Op op, ArrayRef<Value> operands,
+  matchAndRewrite(Op op, typename Op::Adaptor adaptor,
                   ConversionPatternRewriter &builder) const override {
     Location loc = op.getLoc();
     TypeConverter *converter = ConvertToLLVMPattern::getTypeConverter();
@@ -85,8 +87,8 @@ class LegalizeDataOpForLLVMTranslation : public ConvertOpToLLVMPattern<Op> {
     unsigned numDataOperand = op.getNumDataOperands();
 
     // Keep the non data operands without modification.
-    auto nonDataOperands =
-        operands.take_front(operands.size() - numDataOperand);
+    auto nonDataOperands = adaptor.getOperands().take_front(
+        adaptor.getOperands().size() - numDataOperand);
     SmallVector<Value> convertedOperands;
     convertedOperands.append(nonDataOperands.begin(), nonDataOperands.end());
 
@@ -99,9 +101,9 @@ class LegalizeDataOpForLLVMTranslation : public ConvertOpToLLVMPattern<Op> {
               originalDataOperand.getType().dyn_cast<MemRefType>()) {
         Type structType = converter->convertType(memRefType);
         Value memRefDescriptor = builder
-                                     .create<LLVM::DialectCastOp>(
+                                     .create<UnrealizedConversionCastOp>(
                                          loc, structType, originalDataOperand)
-                                     .getResult();
+                                     .getResult(0);
 
         // Calculate the size of the memref and get the pointer to the allocated
         // buffer.
@@ -162,6 +164,7 @@ void ConvertOpenACCToLLVMPass::runOnOperation() {
 
   ConversionTarget target(*context);
   target.addLegalDialect<LLVM::LLVMDialect>();
+  target.addLegalOp<UnrealizedConversionCastOp>();
 
   auto allDataOperandsAreConverted = [](ValueRange operands) {
     for (Value operand : operands) {

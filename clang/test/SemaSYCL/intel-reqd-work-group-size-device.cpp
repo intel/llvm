@@ -1,5 +1,7 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -fsyntax-only -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -fsyntax-only -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+
+// Test for AST of reqd_work_group_size kernel attribute in SYCL 1.2.1.
 
 #include "sycl.hpp"
 
@@ -30,20 +32,13 @@ void bar() {
 [[sycl::reqd_work_group_size(32, 32)]] void f32x32x1() {}      // expected-note {{conflicting attribute is here}}
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {} // expected-note {{conflicting attribute is here}}
 
-#ifdef TRIGGER_ERROR
-class Functor32 {
-public:
-  [[cl::reqd_work_group_size(32)]] void operator()() const {} // expected-error {{'reqd_work_group_size' attribute requires exactly 3 arguments}} \
-                                                              // expected-warning {{attribute 'cl::reqd_work_group_size' is deprecated}} \
-                                                              // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
-};
-#endif // TRIGGER_ERROR
-
 class Functor33 {
 public:
   // expected-warning@+1{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}
   [[sycl::reqd_work_group_size(32, -4)]] void operator()() const {}
 };
+
+[[intel::reqd_work_group_size(4, 2, 9)]] void unknown() {} // expected-warning{{unknown attribute 'reqd_work_group_size' ignored}}
 
 class Functor30 {
 public:
@@ -63,8 +58,7 @@ public:
 
 class Functor16x16x16 {
 public:
-  [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() const {} // expected-warning {{attribute 'intel::reqd_work_group_size' is deprecated}} \
-                                                                         // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+  [[sycl::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
 };
 
 class Functor8 { // expected-error {{conflicting attributes applied to a SYCL kernel}}
@@ -83,8 +77,7 @@ public:
 
 class FunctorAttr {
 public:
-  __attribute__((reqd_work_group_size(128, 128, 128))) void operator()() const {} // expected-warning {{attribute 'reqd_work_group_size' is deprecated}} \
-                                                                                  // expected-note {{did you mean to use '[[sycl::reqd_work_group_size]]' instead?}}
+  [[sycl::reqd_work_group_size(128, 128, 128)]] void operator()() const {}
 };
 
 int main() {

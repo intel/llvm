@@ -402,6 +402,7 @@ TEST_F(FormatTestCSharp, CSharpRegions) {
 }
 
 TEST_F(FormatTestCSharp, CSharpKeyWordEscaping) {
+  // AfterEnum is true by default.
   verifyFormat("public enum var\n"
                "{\n"
                "    none,\n"
@@ -640,6 +641,122 @@ class MyClass
     };
 })",
                MicrosoftStyle);
+
+  verifyFormat("void bar()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           {\n"
+               "                               lock (mylock)\n"
+               "                               {\n"
+               "                                   if (true)\n"
+               "                                   {\n"
+               "                                       A.Remove(item);\n"
+               "                                   }\n"
+               "                               }\n"
+               "                           }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void baz()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           {\n"
+               "                               using (var a = new Lock())\n"
+               "                               {\n"
+               "                                   if (true)\n"
+               "                                   {\n"
+               "                                       A.Remove(item);\n"
+               "                                   }\n"
+               "                               }\n"
+               "                           }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void baz()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           {\n"
+               "                               if (true)\n"
+               "                               {\n"
+               "                                   A.Remove(item);\n"
+               "                               }\n"
+               "                           }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void baz()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           {\n"
+               "                               do\n"
+               "                               {\n"
+               "                                   A.Remove(item);\n"
+               "                               } while (true)\n"
+               "                           }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void baz()\n"
+               "{\n"
+               "    Function(Val, (Action)(() =>\n"
+               "                           { A.Remove(item); }));\n"
+               "}",
+               MicrosoftStyle);
+
+  verifyFormat("void bar()\n"
+               "{\n"
+               "    Function(Val, (() =>\n"
+               "                   {\n"
+               "                       lock (mylock)\n"
+               "                       {\n"
+               "                           if (true)\n"
+               "                           {\n"
+               "                               A.Remove(item);\n"
+               "                           }\n"
+               "                       }\n"
+               "                   }));\n"
+               "}",
+               MicrosoftStyle);
+  verifyFormat("void bar()\n"
+               "{\n"
+               "    Function((() =>\n"
+               "              {\n"
+               "                  lock (mylock)\n"
+               "                  {\n"
+               "                      if (true)\n"
+               "                      {\n"
+               "                          A.Remove(item);\n"
+               "                      }\n"
+               "                  }\n"
+               "              }));\n"
+               "}",
+               MicrosoftStyle);
+
+  MicrosoftStyle.IndentWidth = 2;
+  verifyFormat("void bar()\n"
+               "{\n"
+               "  Function((() =>\n"
+               "            {\n"
+               "              lock (mylock)\n"
+               "              {\n"
+               "                if (true)\n"
+               "                {\n"
+               "                  A.Remove(item);\n"
+               "                }\n"
+               "              }\n"
+               "            }));\n"
+               "}",
+               MicrosoftStyle);
+  verifyFormat("void bar() {\n"
+               "  Function((() => {\n"
+               "    lock (mylock) {\n"
+               "      if (true) {\n"
+               "        A.Remove(item);\n"
+               "      }\n"
+               "    }\n"
+               "  }));\n"
+               "}",
+               GoogleStyle);
 }
 
 TEST_F(FormatTestCSharp, CSharpObjectInitializers) {
@@ -982,6 +1099,219 @@ class A {
   int f(int where) {}
 };)",
                getGoogleStyle(FormatStyle::LK_Cpp));
+}
+
+TEST_F(FormatTestCSharp, CSharpAfterEnum) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.AfterEnum = false;
+  Style.AllowShortEnumsOnASingleLine = false;
+
+  verifyFormat("enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("internal enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("public enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("protected enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("private enum MyEnum {\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+
+  Style.BraceWrapping.AfterEnum = true;
+  Style.AllowShortEnumsOnASingleLine = false;
+
+  verifyFormat("enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("internal enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("public enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("protected enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("private enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("/* Foo */ private enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+  verifyFormat("/* Foo */ /* Bar */ private enum MyEnum\n"
+               "{\n"
+               "  Foo,\n"
+               "  Bar,\n"
+               "}",
+               Style);
+}
+
+TEST_F(FormatTestCSharp, CSharpAfterClass) {
+  FormatStyle Style = getGoogleStyle(FormatStyle::LK_CSharp);
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.AfterClass = false;
+
+  verifyFormat("class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("internal class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("public class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("protected class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("private class MyClass {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+
+  verifyFormat("interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("internal interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("public interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("protected interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("private interface Interface {\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+
+  Style.BraceWrapping.AfterClass = true;
+
+  verifyFormat("class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("internal class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("public class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("protected class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("private class MyClass\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+
+  verifyFormat("interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("internal interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("public interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("protected interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("private interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("/* Foo */ private interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
+  verifyFormat("/* Foo */ /* Bar */ private interface MyInterface\n"
+               "{\n"
+               "  int a;\n"
+               "  int b;\n"
+               "}",
+               Style);
 }
 
 } // namespace format

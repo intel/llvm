@@ -17,12 +17,94 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
+#include "llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h"
+#include "llvm/ExecutionEngine/Orc/Shared/SimplePackedSerialization.h"
+#include "llvm/ExecutionEngine/Orc/Shared/WrapperFunctionUtils.h"
+#include "llvm/Support/Memory.h"
 
 #include <vector>
 
 namespace llvm {
 namespace orc {
 namespace tpctypes {
+
+enum WireProtectionFlags : uint8_t {
+  WPF_None = 0,
+  WPF_Read = 1U << 0,
+  WPF_Write = 1U << 1,
+  WPF_Exec = 1U << 2,
+  LLVM_MARK_AS_BITMASK_ENUM(WPF_Exec)
+};
+
+/// Convert from sys::Memory::ProtectionFlags
+inline WireProtectionFlags
+toWireProtectionFlags(sys::Memory::ProtectionFlags PF) {
+  WireProtectionFlags WPF = WPF_None;
+  if (PF & sys::Memory::MF_READ)
+    WPF |= WPF_Read;
+  if (PF & sys::Memory::MF_WRITE)
+    WPF |= WPF_Write;
+  if (PF & sys::Memory::MF_EXEC)
+    WPF |= WPF_Exec;
+  return WPF;
+}
+
+inline sys::Memory::ProtectionFlags
+fromWireProtectionFlags(WireProtectionFlags WPF) {
+  int PF = 0;
+  if (WPF & WPF_Read)
+    PF |= sys::Memory::MF_READ;
+  if (WPF & WPF_Write)
+    PF |= sys::Memory::MF_WRITE;
+  if (WPF & WPF_Exec)
+    PF |= sys::Memory::MF_EXEC;
+  return static_cast<sys::Memory::ProtectionFlags>(PF);
+}
+
+inline std::string getWireProtectionFlagsStr(WireProtectionFlags WPF) {
+  std::string Result;
+  Result += (WPF & WPF_Read) ? 'R' : '-';
+  Result += (WPF & WPF_Write) ? 'W' : '-';
+  Result += (WPF & WPF_Exec) ? 'X' : '-';
+  return Result;
+}
+
+struct SupportFunctionCall {
+  using FnTy = shared::detail::CWrapperFunctionResult(const char *ArgData,
+                                                      size_t ArgSize);
+  ExecutorAddr Func;
+  ExecutorAddr ArgData;
+  uint64_t ArgSize;
+
+  Error run() {
+    shared::WrapperFunctionResult WFR(
+        Func.toPtr<FnTy *>()(ArgData.toPtr<const char *>(), ArgSize));
+    if (const char *ErrMsg = WFR.getOutOfBandError())
+      return make_error<StringError>(ErrMsg, inconvertibleErrorCode());
+    if (!WFR.empty())
+      return make_error<StringError>("Unexpected result bytes from "
+                                     "support function call",
+                                     inconvertibleErrorCode());
+    return Error::success();
+  }
+};
+
+struct AllocationActionsPair {
+  SupportFunctionCall Finalize;
+  SupportFunctionCall Deallocate;
+};
+
+struct SegFinalizeRequest {
+  WireProtectionFlags Prot;
+  ExecutorAddr Addr;
+  uint64_t Size;
+  ArrayRef<char> Content;
+};
+
+struct FinalizeRequest {
+  std::vector<SegFinalizeRequest> Segments;
+  std::vector<AllocationActionsPair> Actions;
+};
 
 template <typename T> struct UIntWrite {
   UIntWrite() = default;
@@ -61,104 +143,182 @@ using DylibHandle = JITTargetAddress;
 
 using LookupResult = std::vector<JITTargetAddress>;
 
-/// Either a uint8_t array or a uint8_t*.
-union CWrapperFunctionResultData {
-  uint8_t Value[8];
-  uint8_t *ValuePtr;
-};
-
-/// C ABI compatible wrapper function result.
-///
-/// This can be safely returned from extern "C" functions, but should be used
-/// to construct a WrapperFunctionResult for safety.
-struct CWrapperFunctionResult {
-  uint64_t Size;
-  CWrapperFunctionResultData Data;
-  void (*Destroy)(CWrapperFunctionResultData Data, uint64_t Size);
-};
-
-/// C++ wrapper function result: Same as CWrapperFunctionResult but
-/// auto-releases memory.
-class WrapperFunctionResult {
-public:
-  /// Create a default WrapperFunctionResult.
-  WrapperFunctionResult() { zeroInit(R); }
-
-  /// Create a WrapperFunctionResult from a CWrapperFunctionResult. This
-  /// instance takes ownership of the result object and will automatically
-  /// call the Destroy member upon destruction.
-  WrapperFunctionResult(CWrapperFunctionResult R) : R(R) {}
-
-  WrapperFunctionResult(const WrapperFunctionResult &) = delete;
-  WrapperFunctionResult &operator=(const WrapperFunctionResult &) = delete;
-
-  WrapperFunctionResult(WrapperFunctionResult &&Other) {
-    zeroInit(R);
-    std::swap(R, Other.R);
-  }
-
-  WrapperFunctionResult &operator=(WrapperFunctionResult &&Other) {
-    CWrapperFunctionResult Tmp;
-    zeroInit(Tmp);
-    std::swap(Tmp, Other.R);
-    std::swap(R, Tmp);
-    return *this;
-  }
-
-  ~WrapperFunctionResult() {
-    if (R.Destroy)
-      R.Destroy(R.Data, R.Size);
-  }
-
-  /// Relinquish ownership of and return the CWrapperFunctionResult.
-  CWrapperFunctionResult release() {
-    CWrapperFunctionResult Tmp;
-    zeroInit(Tmp);
-    std::swap(R, Tmp);
-    return Tmp;
-  }
-
-  /// Get an ArrayRef covering the data in the result.
-  ArrayRef<uint8_t> getData() const {
-    if (R.Size <= 8)
-      return ArrayRef<uint8_t>(R.Data.Value, R.Size);
-    return ArrayRef<uint8_t>(R.Data.ValuePtr, R.Size);
-  }
-
-  /// Create a WrapperFunctionResult from the given integer, provided its
-  /// size is no greater than 64 bits.
-  template <typename T,
-            typename _ = std::enable_if_t<std::is_integral<T>::value &&
-                                          sizeof(T) <= sizeof(uint64_t)>>
-  static WrapperFunctionResult from(T Value) {
-    CWrapperFunctionResult R;
-    R.Size = sizeof(T);
-    memcpy(&R.Data.Value, Value, R.Size);
-    R.Destroy = nullptr;
-    return R;
-  }
-
-  /// Create a WrapperFunctionResult from the given string.
-  static WrapperFunctionResult from(StringRef S);
-
-  /// Always free Data.ValuePtr by calling free on it.
-  static void destroyWithFree(CWrapperFunctionResultData Data, uint64_t Size);
-
-  /// Always free Data.ValuePtr by calling delete[] on it.
-  static void destroyWithDeleteArray(CWrapperFunctionResultData Data,
-                                     uint64_t Size);
-
-private:
-  static void zeroInit(CWrapperFunctionResult &R) {
-    R.Size = 0;
-    R.Data.ValuePtr = nullptr;
-    R.Destroy = nullptr;
-  }
-
-  CWrapperFunctionResult R;
-};
-
 } // end namespace tpctypes
+
+namespace shared {
+
+class SPSMemoryProtectionFlags {};
+
+using SPSSupportFunctionCall =
+    SPSTuple<SPSExecutorAddr, SPSExecutorAddr, uint64_t>;
+
+using SPSSegFinalizeRequest =
+    SPSTuple<SPSMemoryProtectionFlags, SPSExecutorAddr, uint64_t,
+             SPSSequence<char>>;
+
+using SPSAllocationActionsPair =
+    SPSTuple<SPSSupportFunctionCall, SPSSupportFunctionCall>;
+
+using SPSFinalizeRequest = SPSTuple<SPSSequence<SPSSegFinalizeRequest>,
+                                    SPSSequence<SPSAllocationActionsPair>>;
+
+template <typename T>
+using SPSMemoryAccessUIntWrite = SPSTuple<SPSExecutorAddr, T>;
+
+using SPSMemoryAccessUInt8Write = SPSMemoryAccessUIntWrite<uint8_t>;
+using SPSMemoryAccessUInt16Write = SPSMemoryAccessUIntWrite<uint16_t>;
+using SPSMemoryAccessUInt32Write = SPSMemoryAccessUIntWrite<uint32_t>;
+using SPSMemoryAccessUInt64Write = SPSMemoryAccessUIntWrite<uint64_t>;
+
+using SPSMemoryAccessBufferWrite = SPSTuple<SPSExecutorAddr, SPSSequence<char>>;
+
+template <>
+class SPSSerializationTraits<SPSMemoryProtectionFlags,
+                             tpctypes::WireProtectionFlags> {
+public:
+  static size_t size(const tpctypes::WireProtectionFlags &WPF) {
+    return SPSArgList<uint8_t>::size(static_cast<uint8_t>(WPF));
+  }
+
+  static bool serialize(SPSOutputBuffer &OB,
+                        const tpctypes::WireProtectionFlags &WPF) {
+    return SPSArgList<uint8_t>::serialize(OB, static_cast<uint8_t>(WPF));
+  }
+
+  static bool deserialize(SPSInputBuffer &IB,
+                          tpctypes::WireProtectionFlags &WPF) {
+    uint8_t Val;
+    if (!SPSArgList<uint8_t>::deserialize(IB, Val))
+      return false;
+    WPF = static_cast<tpctypes::WireProtectionFlags>(Val);
+    return true;
+  }
+};
+
+template <>
+class SPSSerializationTraits<SPSSupportFunctionCall,
+                             tpctypes::SupportFunctionCall> {
+  using AL = SPSSupportFunctionCall::AsArgList;
+
+public:
+  static size_t size(const tpctypes::SupportFunctionCall &SFC) {
+    return AL::size(SFC.Func, SFC.ArgData, SFC.ArgSize);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB,
+                        const tpctypes::SupportFunctionCall &SFC) {
+    return AL::serialize(OB, SFC.Func, SFC.ArgData, SFC.ArgSize);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB,
+                          tpctypes::SupportFunctionCall &SFC) {
+    return AL::deserialize(IB, SFC.Func, SFC.ArgData, SFC.ArgSize);
+  }
+};
+
+template <>
+class SPSSerializationTraits<SPSAllocationActionsPair,
+                             tpctypes::AllocationActionsPair> {
+  using AL = SPSAllocationActionsPair::AsArgList;
+
+public:
+  static size_t size(const tpctypes::AllocationActionsPair &AAP) {
+    return AL::size(AAP.Finalize, AAP.Deallocate);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB,
+                        const tpctypes::AllocationActionsPair &AAP) {
+    return AL::serialize(OB, AAP.Finalize, AAP.Deallocate);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB,
+                          tpctypes::AllocationActionsPair &AAP) {
+    return AL::deserialize(IB, AAP.Finalize, AAP.Deallocate);
+  }
+};
+
+template <>
+class SPSSerializationTraits<SPSSegFinalizeRequest,
+                             tpctypes::SegFinalizeRequest> {
+  using SFRAL = SPSSegFinalizeRequest::AsArgList;
+
+public:
+  static size_t size(const tpctypes::SegFinalizeRequest &SFR) {
+    return SFRAL::size(SFR.Prot, SFR.Addr, SFR.Size, SFR.Content);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB,
+                        const tpctypes::SegFinalizeRequest &SFR) {
+    return SFRAL::serialize(OB, SFR.Prot, SFR.Addr, SFR.Size, SFR.Content);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB,
+                          tpctypes::SegFinalizeRequest &SFR) {
+    return SFRAL::deserialize(IB, SFR.Prot, SFR.Addr, SFR.Size, SFR.Content);
+  }
+};
+
+template <>
+class SPSSerializationTraits<SPSFinalizeRequest, tpctypes::FinalizeRequest> {
+  using FRAL = SPSFinalizeRequest::AsArgList;
+
+public:
+  static size_t size(const tpctypes::FinalizeRequest &FR) {
+    return FRAL::size(FR.Segments, FR.Actions);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB,
+                        const tpctypes::FinalizeRequest &FR) {
+    return FRAL::serialize(OB, FR.Segments, FR.Actions);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, tpctypes::FinalizeRequest &FR) {
+    return FRAL::deserialize(IB, FR.Segments, FR.Actions);
+  }
+};
+
+template <typename T>
+class SPSSerializationTraits<SPSMemoryAccessUIntWrite<T>,
+                             tpctypes::UIntWrite<T>> {
+public:
+  static size_t size(const tpctypes::UIntWrite<T> &W) {
+    return SPSTuple<SPSExecutorAddr, T>::AsArgList::size(W.Address, W.Value);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB, const tpctypes::UIntWrite<T> &W) {
+    return SPSTuple<SPSExecutorAddr, T>::AsArgList::serialize(OB, W.Address,
+                                                              W.Value);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, tpctypes::UIntWrite<T> &W) {
+    return SPSTuple<SPSExecutorAddr, T>::AsArgList::deserialize(IB, W.Address,
+                                                                W.Value);
+  }
+};
+
+template <>
+class SPSSerializationTraits<SPSMemoryAccessBufferWrite,
+                             tpctypes::BufferWrite> {
+public:
+  static size_t size(const tpctypes::BufferWrite &W) {
+    return SPSTuple<SPSExecutorAddr, SPSSequence<char>>::AsArgList::size(
+        W.Address, W.Buffer);
+  }
+
+  static bool serialize(SPSOutputBuffer &OB, const tpctypes::BufferWrite &W) {
+    return SPSTuple<SPSExecutorAddr, SPSSequence<char>>::AsArgList ::serialize(
+        OB, W.Address, W.Buffer);
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, tpctypes::BufferWrite &W) {
+    return SPSTuple<SPSExecutorAddr,
+                    SPSSequence<char>>::AsArgList ::deserialize(IB, W.Address,
+                                                                W.Buffer);
+  }
+};
+
+
+} // end namespace shared
 } // end namespace orc
 } // end namespace llvm
 

@@ -56,7 +56,7 @@ using IdentifierLocPair = std::pair<IdentifierInfo *, SourceLocation>;
 /// of a pointer to one of these classes.
 enum { IdentifierInfoAlignment = 8 };
 
-static constexpr int ObjCOrBuiltinIDBits = 15;
+static constexpr int ObjCOrBuiltinIDBits = 16;
 
 /// One of these records is kept for each identifier that
 /// is lexed.  This contains information about whether the token was \#define'd,
@@ -121,7 +121,16 @@ class alignas(IdentifierInfoAlignment) IdentifierInfo {
   // True if this is a mangled OpenMP variant name.
   unsigned IsMangledOpenMPVariantName : 1;
 
-  // 28 bits left in a 64-bit word.
+  // True if this is a deprecated macro.
+  unsigned IsDeprecatedMacro : 1;
+
+  // True if this macro is unsafe in headers.
+  unsigned IsRestrictExpansion : 1;
+
+  // True if this macro is final.
+  unsigned IsFinal : 1;
+
+  // 22 bits left in a 64-bit word.
 
   // Managed by the language front-end.
   void *FETokenInfo = nullptr;
@@ -134,7 +143,8 @@ class alignas(IdentifierInfoAlignment) IdentifierInfo {
         IsPoisoned(false), IsCPPOperatorKeyword(false),
         NeedsHandleIdentifier(false), IsFromAST(false), ChangedAfterLoad(false),
         FEChangedAfterLoad(false), RevertedTokenID(false), OutOfDate(false),
-        IsModulesImport(false), IsMangledOpenMPVariantName(false) {}
+        IsModulesImport(false), IsMangledOpenMPVariantName(false),
+        IsDeprecatedMacro(false), IsRestrictExpansion(false), IsFinal(false) {}
 
 public:
   IdentifierInfo(const IdentifierInfo &) = delete;
@@ -182,6 +192,14 @@ public:
       NeedsHandleIdentifier = true;
       HadMacro = true;
     } else {
+      // If this is a final macro, make the deprecation and header unsafe bits
+      // stick around after the undefinition so they apply to any redefinitions.
+      if (!IsFinal) {
+        // Because calling the setters of these calls recomputes, just set them
+        // manually to avoid recomputing a bunch of times.
+        IsDeprecatedMacro = false;
+        IsRestrictExpansion = false;
+      }
       RecomputeNeedsHandleIdentifier();
     }
   }
@@ -191,6 +209,34 @@ public:
   bool hadMacroDefinition() const {
     return HadMacro;
   }
+
+  bool isDeprecatedMacro() const { return IsDeprecatedMacro; }
+
+  void setIsDeprecatedMacro(bool Val) {
+    if (IsDeprecatedMacro == Val)
+      return;
+    IsDeprecatedMacro = Val;
+    if (Val)
+      NeedsHandleIdentifier = true;
+    else
+      RecomputeNeedsHandleIdentifier();
+  }
+
+  bool isRestrictExpansion() const { return IsRestrictExpansion; }
+
+  void setIsRestrictExpansion(bool Val) {
+    if (IsRestrictExpansion == Val)
+      return;
+    IsRestrictExpansion = Val;
+    if (Val)
+      NeedsHandleIdentifier = true;
+    else
+      RecomputeNeedsHandleIdentifier();
+  }
+
+  bool isFinal() const { return IsFinal; }
+
+  void setIsFinal(bool Val) { IsFinal = Val; }
 
   /// If this is a source-language token (e.g. 'for'), this API
   /// can be used to cause the lexer to map identifiers to source-language

@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <CL/sycl/aspects.hpp>
+#include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
@@ -25,6 +27,9 @@ namespace detail {
 class platform_impl;
 }
 
+// Feature test macro for Default Context
+#define SYCL_EXT_ONEAPI_DEFAULT_CONTEXT 1
+
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
@@ -39,8 +44,9 @@ public:
   /// construction.
   ///
   /// \param PlatformId is an OpenCL cl_platform_id instance.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   explicit platform(cl_platform_id PlatformId);
+#endif
 
   /// Constructs a SYCL platform instance using device selector.
   ///
@@ -66,14 +72,17 @@ public:
   /// Returns an OpenCL interoperability platform.
   ///
   /// \return an instance of OpenCL cl_platform_id.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_platform_id get() const;
+#endif
 
   /// Checks if platform supports specified extension.
   ///
   /// \param ExtensionName is a string containing extension name.
   /// \return true if specified extension is supported by this SYCL platform.
-  bool has_extension(const string_class &ExtensionName) const;
+  __SYCL2020_DEPRECATED(
+      "use platform::has() function with aspects APIs instead")
+  bool has_extension(const std::string &ExtensionName) const;
 
   /// Checks if this SYCL platform is a host platform.
   ///
@@ -88,7 +97,7 @@ public:
   ///
   /// \param DeviceType is a SYCL device type.
   /// \return a vector of SYCL devices.
-  vector_class<device>
+  std::vector<device>
   get_devices(info::device_type DeviceType = info::device_type::all) const;
 
   /// Queries this SYCL platform for info.
@@ -103,7 +112,7 @@ public:
   /// The resulting vector always contains a single SYCL host platform instance.
   ///
   /// \return a vector of all available SYCL platforms.
-  static vector_class<platform> get_platforms();
+  static std::vector<platform> get_platforms();
 
   /// Returns the backend associated with this platform.
   ///
@@ -114,6 +123,7 @@ public:
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   auto get_native() const -> typename interop<BackendName, platform>::type {
     return reinterpret_cast<typename interop<BackendName, platform>::type>(
         getNative());
@@ -129,11 +139,16 @@ public:
   /// given feature.
   bool has(aspect Aspect) const;
 
+  /// Return this platform's default context
+  ///
+  /// \return the default context
+  context ext_oneapi_get_default_context() const;
+
 private:
   pi_native_handle getNative() const;
 
-  shared_ptr_class<detail::platform_impl> impl;
-  platform(shared_ptr_class<detail::platform_impl> impl) : impl(impl) {}
+  std::shared_ptr<detail::platform_impl> impl;
+  platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -147,7 +162,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::platform> {
   size_t operator()(const cl::sycl::platform &p) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::platform_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::platform_impl>>()(
         cl::sycl::detail::getSyclObjImpl(p));
   }
 };

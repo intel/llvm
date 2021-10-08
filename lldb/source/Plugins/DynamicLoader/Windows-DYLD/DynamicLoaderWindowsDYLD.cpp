@@ -28,7 +28,7 @@ LLDB_PLUGIN_DEFINE(DynamicLoaderWindowsDYLD)
 DynamicLoaderWindowsDYLD::DynamicLoaderWindowsDYLD(Process *process)
     : DynamicLoader(process) {}
 
-DynamicLoaderWindowsDYLD::~DynamicLoaderWindowsDYLD() {}
+DynamicLoaderWindowsDYLD::~DynamicLoaderWindowsDYLD() = default;
 
 void DynamicLoaderWindowsDYLD::Initialize() {
   PluginManager::RegisterPlugin(GetPluginNameStatic(),
@@ -177,8 +177,6 @@ Status DynamicLoaderWindowsDYLD::CanLoadImage() { return Status(); }
 ConstString DynamicLoaderWindowsDYLD::GetPluginName() {
   return GetPluginNameStatic();
 }
-
-uint32_t DynamicLoaderWindowsDYLD::GetPluginVersion() { return 1; }
 
 ThreadPlanSP
 DynamicLoaderWindowsDYLD::GetStepThroughTrampolinePlan(Thread &thread,

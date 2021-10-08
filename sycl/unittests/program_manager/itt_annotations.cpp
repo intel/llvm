@@ -153,6 +153,25 @@ static pi_result redefinedEventsWait(pi_uint32 num_events,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                                             pi_kernel_group_info param_name,
+                                             size_t param_value_size,
+                                             void *param_value,
+                                             size_t *param_value_size_ret) {
+  if (param_name == PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE) {
+    if (param_value_size_ret) {
+      *param_value_size_ret = 3 * sizeof(size_t);
+    } else if (param_value) {
+      auto size = static_cast<size_t *>(param_value);
+      size[0] = 0;
+      size[1] = 0;
+      size[2] = 0;
+    }
+  }
+
+  return PI_SUCCESS;
+}
+
 bool HasITTEnabled = false;
 
 static pi_result
@@ -196,6 +215,7 @@ static void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
       redefinedProgramSetSpecializationConstant);
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(redefinedEnqueueKernelLaunch);
+  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
 }
 
 static sycl::unittest::PiImage generateDefaultImage() {
@@ -219,7 +239,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 }
 
 sycl::unittest::PiImage Img = generateDefaultImage();
-sycl::unittest::PiImageArray ImgArray{Img};
+sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(ITTNotify, UseKernelBundle) {
   set_env(ITTProfileEnvVarName, "1");
@@ -234,6 +254,11 @@ TEST(ITTNotify, UseKernelBundle) {
 
   if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
@@ -270,6 +295,11 @@ TEST(ITTNotify, VarNotSet) {
 
   if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 

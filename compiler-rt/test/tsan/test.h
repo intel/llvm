@@ -17,7 +17,7 @@
 // TSan-invisible barrier.
 // Tests use it to establish necessary execution order in a way that does not
 // interfere with tsan (does not establish synchronization between threads).
-typedef unsigned long long invisible_barrier_t;
+typedef unsigned invisible_barrier_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -88,8 +88,10 @@ void AnnotateIgnoreSyncEnd(const char *f, int l);
 void AnnotateHappensBefore(const char *f, int l, void *addr);
 void AnnotateHappensAfter(const char *f, int l, void *addr);
 
-void AnnotateBenignRaceSized(const char *f, int l, void *mem, unsigned int size, const char *desc);
-void WTFAnnotateBenignRaceSized(const char *f, int l, void *mem, unsigned int size, const char *desc);
+void AnnotateBenignRaceSized(const char *f, int l, const volatile void *mem,
+                             unsigned int size, const char *desc);
+void WTFAnnotateBenignRaceSized(const char *f, int l, const volatile void *mem,
+                                unsigned int size, const char *desc);
 
 #ifdef __cplusplus
 }

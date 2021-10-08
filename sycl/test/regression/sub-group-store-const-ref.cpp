@@ -13,4 +13,4 @@
 #include <CL/sycl.hpp>
 using namespace sycl;
 
-void test(ONEAPI::sub_group sg, global_ptr<int> ptr) { sg.store(ptr, 1); }
+void test(ext::oneapi::sub_group sg, global_ptr<int> ptr) { sg.store(ptr, 1); }

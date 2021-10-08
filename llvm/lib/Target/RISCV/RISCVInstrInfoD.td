@@ -331,6 +331,16 @@ def : Pat<(f64 (fpimm0)), (FCVT_D_W (i32 X0))>;
 def : Pat<(i32 (fp_to_sint FPR64:$rs1)), (FCVT_W_D FPR64:$rs1, 0b001)>;
 def : Pat<(i32 (fp_to_uint FPR64:$rs1)), (FCVT_WU_D FPR64:$rs1, 0b001)>;
 
+// Saturating double->[u]int32.
+def : Pat<(i32 (riscv_fcvt_x_rtz FPR64:$rs1)), (FCVT_W_D $rs1, 0b001)>;
+def : Pat<(i32 (riscv_fcvt_xu_rtz FPR64:$rs1)), (FCVT_WU_D $rs1, 0b001)>;
+
+// float->int32 with current rounding mode.
+def : Pat<(i32 (lrint FPR64:$rs1)), (FCVT_W_D $rs1, 0b111)>;
+
+// float->int32 rounded to nearest with ties rounded away from zero.
+def : Pat<(i32 (lround FPR64:$rs1)), (FCVT_W_D $rs1, 0b100)>;
+
 // [u]int->double.
 def : Pat<(sint_to_fp (i32 GPR:$rs1)), (FCVT_D_W GPR:$rs1)>;
 def : Pat<(uint_to_fp (i32 GPR:$rs1)), (FCVT_D_WU GPR:$rs1)>;
@@ -345,19 +355,31 @@ def : Pat<(f64 (fpimm0)), (FMV_D_X (i64 X0))>;
 def : Pat<(bitconvert (i64 GPR:$rs1)), (FMV_D_X GPR:$rs1)>;
 def : Pat<(i64 (bitconvert FPR64:$rs1)), (FMV_X_D FPR64:$rs1)>;
 
-// FP->[u]int32 is mostly handled by the FP->[u]int64 patterns. This is safe
-// because fpto[u|s]i produce poison if the value can't fit into the target.
-// We match the single case below because fcvt.wu.d sign-extends its result so
-// is cheaper than fcvt.lu.d+sext.w.
-def : Pat<(sext_inreg (assertzexti32 (fp_to_uint FPR64:$rs1)), i32),
-          (FCVT_WU_D $rs1, 0b001)>;
+// Use target specific isd nodes to help us remember the result is sign
+// extended. Matching sext_inreg+fptoui/fptosi may cause the conversion to be
+// duplicated if it has another user that didn't need the sign_extend.
+def : Pat<(riscv_fcvt_w_rtz_rv64 FPR64:$rs1),  (FCVT_W_D $rs1, 0b001)>;
+def : Pat<(riscv_fcvt_wu_rtz_rv64 FPR64:$rs1), (FCVT_WU_D $rs1, 0b001)>;
 
 // [u]int32->fp
 def : Pat<(sint_to_fp (i64 (sexti32 (i64 GPR:$rs1)))), (FCVT_D_W $rs1)>;
 def : Pat<(uint_to_fp (i64 (zexti32 (i64 GPR:$rs1)))), (FCVT_D_WU $rs1)>;
 
+// Saturating double->[u]int64.
+def : Pat<(i64 (riscv_fcvt_x_rtz FPR64:$rs1)), (FCVT_L_D $rs1, 0b001)>;
+def : Pat<(i64 (riscv_fcvt_xu_rtz FPR64:$rs1)), (FCVT_LU_D $rs1, 0b001)>;
+
+// double->[u]int64. Round-to-zero must be used.
 def : Pat<(i64 (fp_to_sint FPR64:$rs1)), (FCVT_L_D FPR64:$rs1, 0b001)>;
 def : Pat<(i64 (fp_to_uint FPR64:$rs1)), (FCVT_LU_D FPR64:$rs1, 0b001)>;
+
+// double->int64 with current rounding mode.
+def : Pat<(i64 (lrint FPR64:$rs1)), (FCVT_L_D $rs1, 0b111)>;
+def : Pat<(i64 (llrint FPR64:$rs1)), (FCVT_L_D $rs1, 0b111)>;
+
+// double->int64 rounded to nearest with ties rounded away from zero.
+def : Pat<(i64 (lround FPR64:$rs1)), (FCVT_L_D $rs1, 0b100)>;
+def : Pat<(i64 (llround FPR64:$rs1)), (FCVT_L_D $rs1, 0b100)>;
 
 // [u]int64->fp. Match GCC and default to using dynamic rounding mode.
 def : Pat<(sint_to_fp (i64 GPR:$rs1)), (FCVT_D_L GPR:$rs1, 0b111)>;

@@ -109,8 +109,6 @@ public:
   // PluginInterface protocol
   ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
   ObjCRuntimeVersions GetRuntimeVersion() const override {
     return ObjCRuntimeVersions::eAppleObjC_V1;
   }
@@ -126,7 +124,7 @@ protected:
 
   class HashTableSignature {
   public:
-    HashTableSignature() {}
+    HashTableSignature() = default;
 
     bool NeedsUpdate(uint32_t count, uint32_t num_buckets,
                      lldb::addr_t buckets_ptr) {

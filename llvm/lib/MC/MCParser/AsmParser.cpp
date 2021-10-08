@@ -258,9 +258,9 @@ public:
     return LTODiscardSymbols.contains(Name);
   }
 
-  bool parseMSInlineAsm(void *AsmLoc, std::string &AsmString,
-                        unsigned &NumOutputs, unsigned &NumInputs,
-                        SmallVectorImpl<std::pair<void *,bool>> &OpDecls,
+  bool parseMSInlineAsm(std::string &AsmString, unsigned &NumOutputs,
+                        unsigned &NumInputs,
+                        SmallVectorImpl<std::pair<void *, bool>> &OpDecls,
                         SmallVectorImpl<std::string> &Constraints,
                         SmallVectorImpl<std::string> &Clobbers,
                         const MCInstrInfo *MII, const MCInstPrinter *IP,
@@ -749,6 +749,8 @@ namespace llvm {
 extern MCAsmParserExtension *createDarwinAsmParser();
 extern MCAsmParserExtension *createELFAsmParser();
 extern MCAsmParserExtension *createCOFFAsmParser();
+extern MCAsmParserExtension *createGOFFAsmParser();
+extern MCAsmParserExtension *createXCOFFAsmParser();
 extern MCAsmParserExtension *createWasmAsmParser();
 
 } // end namespace llvm
@@ -781,12 +783,14 @@ AsmParser::AsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
   case MCContext::IsELF:
     PlatformParser.reset(createELFAsmParser());
     break;
+  case MCContext::IsGOFF:
+    PlatformParser.reset(createGOFFAsmParser());
+    break;
   case MCContext::IsWasm:
     PlatformParser.reset(createWasmAsmParser());
     break;
   case MCContext::IsXCOFF:
-    report_fatal_error(
-        "Need to implement createXCOFFAsmParser for XCOFF format.");
+    PlatformParser.reset(createXCOFFAsmParser());
     break;
   }
 
@@ -948,7 +952,7 @@ bool AsmParser::Run(bool NoInitialTextSection, bool NoFinalize) {
 
   // Create the initial section, if requested.
   if (!NoInitialTextSection)
-    Out.InitSections(false);
+    Out.initSections(false, getTargetParser().getSTI());
 
   // Prime the lexer.
   Lex();
@@ -1050,18 +1054,21 @@ bool AsmParser::Run(bool NoInitialTextSection, bool NoFinalize) {
       }
     }
   }
-
   // Finalize the output stream if there are no errors and if the client wants
   // us to.
-  if (!HadError && !NoFinalize)
+  if (!HadError && !NoFinalize) {
+    if (auto *TS = Out.getTargetStreamer())
+      TS->emitConstantPools();
+
     Out.Finish(Lexer.getLoc());
+  }
 
   return HadError || getContext().hadError();
 }
 
 bool AsmParser::checkForValidSection() {
   if (!ParsingMSInlineAsm && !getStreamer().getCurrentSectionOnly()) {
-    Out.InitSections(false);
+    Out.initSections(false, getTargetParser().getSTI());
     return Error(getTok().getLoc(),
                  "expected section directive before assembly directive");
   }
@@ -1231,7 +1238,8 @@ bool AsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc,
 
     MCSymbol *Sym = getContext().getInlineAsmLabel(SymbolName);
     if (!Sym)
-      Sym = getContext().getOrCreateSymbol(SymbolName);
+      Sym = getContext().getOrCreateSymbol(
+          MAI.shouldEmitLabelsInUpperCase() ? SymbolName.upper() : SymbolName);
 
     // If this is an absolute variable reference, substitute it now to preserve
     // semantics in the face of reassignment.
@@ -3238,9 +3246,10 @@ bool AsmParser::parseRealValue(const fltSemantics &Semantics, APInt &Res) {
   APFloat Value(Semantics);
   StringRef IDVal = getTok().getString();
   if (getLexer().is(AsmToken::Identifier)) {
-    if (!IDVal.compare_lower("infinity") || !IDVal.compare_lower("inf"))
+    if (!IDVal.compare_insensitive("infinity") ||
+        !IDVal.compare_insensitive("inf"))
       Value = APFloat::getInf(Semantics);
-    else if (!IDVal.compare_lower("nan"))
+    else if (!IDVal.compare_insensitive("nan"))
       Value = APFloat::getNaN(Semantics, false, ~0);
     else
       return TokError("invalid floating point literal");
@@ -3447,7 +3456,8 @@ bool AsmParser::parseDirectiveAlign(bool IsPow2, unsigned ValueSize) {
   bool UseCodeAlign = Section->UseCodeAlign();
   if ((!HasFillExpr || Lexer.getMAI().getTextAlignFillValue() == FillExpr) &&
       ValueSize == 1 && UseCodeAlign) {
-    getStreamer().emitCodeAlignment(Alignment, MaxBytesToFill);
+    getStreamer().emitCodeAlignment(Alignment, &getTargetParser().getSTI(),
+                                    MaxBytesToFill);
   } else {
     // FIXME: Target specific behavior about how the "extra" bytes are filled.
     getStreamer().emitValueToAlignment(Alignment, FillExpr, ValueSize,
@@ -5925,8 +5935,8 @@ static int rewritesSort(const AsmRewrite *AsmRewriteA,
 }
 
 bool AsmParser::parseMSInlineAsm(
-    void *AsmLoc, std::string &AsmString, unsigned &NumOutputs,
-    unsigned &NumInputs, SmallVectorImpl<std::pair<void *, bool>> &OpDecls,
+    std::string &AsmString, unsigned &NumOutputs, unsigned &NumInputs,
+    SmallVectorImpl<std::pair<void *, bool>> &OpDecls,
     SmallVectorImpl<std::string> &Constraints,
     SmallVectorImpl<std::string> &Clobbers, const MCInstrInfo *MII,
     const MCInstPrinter *IP, MCAsmParserSemaCallback &SI) {
@@ -6212,8 +6222,10 @@ bool HLASMAsmParser::parseAsHLASMLabel(ParseStatementInfo &Info,
     return Error(LabelLoc,
                  "Cannot have just a label for an HLASM inline asm statement");
 
-  // FIXME: Later on, ensure emitted labels are case-insensitive.
-  MCSymbol *Sym = getContext().getOrCreateSymbol(LabelVal);
+  MCSymbol *Sym = getContext().getOrCreateSymbol(
+      getContext().getAsmInfo()->shouldEmitLabelsInUpperCase()
+          ? LabelVal.upper()
+          : LabelVal);
 
   getTargetParser().doBeforeLabelEmit(Sym);
 
@@ -6298,8 +6310,12 @@ bool HLASMAsmParser::parseStatement(ParseStatementInfo &Info,
   if (ShouldParseAsHLASMLabel) {
     // If there were any errors while handling and emitting the label,
     // early return.
-    if (parseAsHLASMLabel(Info, SI))
+    if (parseAsHLASMLabel(Info, SI)) {
+      // If we know we've failed in parsing, simply eat until end of the
+      // statement. This ensures that we don't process any other statements.
+      eatToEndOfStatement();
       return true;
+    }
   }
 
   return parseAsMachineInstruction(Info, SI);

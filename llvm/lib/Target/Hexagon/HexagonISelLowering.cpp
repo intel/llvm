@@ -35,6 +35,8 @@
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InlineAsm.h"
@@ -1912,24 +1914,57 @@ const char* HexagonTargetLowering::getTargetNodeName(unsigned Opcode) const {
   return nullptr;
 }
 
-void
-HexagonTargetLowering::validateConstPtrAlignment(SDValue Ptr, const SDLoc &dl,
-      unsigned NeedAlign) const {
+bool
+HexagonTargetLowering::validateConstPtrAlignment(SDValue Ptr, Align NeedAlign,
+      const SDLoc &dl, SelectionDAG &DAG) const {
   auto *CA = dyn_cast<ConstantSDNode>(Ptr);
   if (!CA)
-    return;
+    return true;
   unsigned Addr = CA->getZExtValue();
-  unsigned HaveAlign = Addr != 0 ? 1u << countTrailingZeros(Addr) : NeedAlign;
-  if (HaveAlign < NeedAlign) {
-    std::string ErrMsg;
-    raw_string_ostream O(ErrMsg);
-    O << "Misaligned constant address: " << format_hex(Addr, 10)
-      << " has alignment " << HaveAlign
-      << ", but the memory access requires " << NeedAlign;
-    if (DebugLoc DL = dl.getDebugLoc())
-      DL.print(O << ", at ");
-    report_fatal_error(O.str());
-  }
+  Align HaveAlign =
+      Addr != 0 ? Align(1ull << countTrailingZeros(Addr)) : NeedAlign;
+  if (HaveAlign >= NeedAlign)
+    return true;
+
+  static int DK_MisalignedTrap = llvm::getNextAvailablePluginDiagnosticKind();
+
+  struct DiagnosticInfoMisalignedTrap : public DiagnosticInfo {
+    DiagnosticInfoMisalignedTrap(StringRef M)
+      : DiagnosticInfo(DK_MisalignedTrap, DS_Remark), Msg(M) {}
+    void print(DiagnosticPrinter &DP) const override {
+      DP << Msg;
+    }
+    static bool classof(const DiagnosticInfo *DI) {
+      return DI->getKind() == DK_MisalignedTrap;
+    }
+    StringRef Msg;
+  };
+
+  std::string ErrMsg;
+  raw_string_ostream O(ErrMsg);
+  O << "Misaligned constant address: " << format_hex(Addr, 10)
+    << " has alignment " << HaveAlign.value()
+    << ", but the memory access requires " << NeedAlign.value();
+  if (DebugLoc DL = dl.getDebugLoc())
+    DL.print(O << ", at ");
+  O << ". The instruction has been replaced with a trap.";
+
+  DAG.getContext()->diagnose(DiagnosticInfoMisalignedTrap(O.str()));
+  return false;
+}
+
+SDValue
+HexagonTargetLowering::replaceMemWithUndef(SDValue Op, SelectionDAG &DAG)
+      const {
+  const SDLoc &dl(Op);
+  auto *LS = cast<LSBaseSDNode>(Op.getNode());
+  assert(!LS->isIndexed() && "Not expecting indexed ops on constant address");
+
+  SDValue Chain = LS->getChain();
+  SDValue Trap = DAG.getNode(ISD::TRAP, dl, MVT::Other, Chain);
+  if (LS->getOpcode() == ISD::LOAD)
+    return DAG.getMergeValues({DAG.getUNDEF(ty(Op)), Trap}, dl);
+  return Trap;
 }
 
 // Bit-reverse Load Intrinsic: Check if the instruction is a bit reverse load
@@ -2521,7 +2556,7 @@ HexagonTargetLowering::extractVector(SDValue VecV, SDValue IdxV,
       // Extracting the lowest bit is a no-op, but it changes the type,
       // so it must be kept as an operation to avoid errors related to
       // type mismatches.
-      if (IdxN->isNullValue() && ValTy.getSizeInBits() == 1)
+      if (IdxN->isZero() && ValTy.getSizeInBits() == 1)
         return DAG.getNode(HexagonISD::TYPECAST, dl, MVT::i1, VecV);
     }
 
@@ -2900,8 +2935,10 @@ HexagonTargetLowering::LowerLoad(SDValue Op, SelectionDAG &DAG) const {
     LN = cast<LoadSDNode>(NL.getNode());
   }
 
-  unsigned ClaimAlign = LN->getAlignment();
-  validateConstPtrAlignment(LN->getBasePtr(), dl, ClaimAlign);
+  Align ClaimAlign = LN->getAlign();
+  if (!validateConstPtrAlignment(LN->getBasePtr(), ClaimAlign, dl, DAG))
+    return replaceMemWithUndef(Op, DAG);
+
   // Call LowerUnalignedLoad for all loads, it recognizes loads that
   // don't need extra aligning.
   SDValue LU = LowerUnalignedLoad(SDValue(LN, 0), DAG);
@@ -2932,12 +2969,12 @@ HexagonTargetLowering::LowerStore(SDValue Op, SelectionDAG &DAG) const {
     SN = cast<StoreSDNode>(NS.getNode());
   }
 
-  unsigned ClaimAlign = SN->getAlignment();
-  SDValue Ptr = SN->getBasePtr();
-  validateConstPtrAlignment(Ptr, dl, ClaimAlign);
+  Align ClaimAlign = SN->getAlign();
+  if (!validateConstPtrAlignment(SN->getBasePtr(), ClaimAlign, dl, DAG))
+    return replaceMemWithUndef(Op, DAG);
 
   MVT StoreTy = SN->getMemoryVT().getSimpleVT();
-  unsigned NeedAlign = Subtarget.getTypeAlignment(StoreTy);
+  Align NeedAlign = Subtarget.getTypeAlignment(StoreTy);
   if (ClaimAlign < NeedAlign)
     return expandUnalignedStore(SN, DAG);
   return SDValue(SN, 0);
@@ -2948,8 +2985,8 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
       const {
   LoadSDNode *LN = cast<LoadSDNode>(Op.getNode());
   MVT LoadTy = ty(Op);
-  unsigned NeedAlign = Subtarget.getTypeAlignment(LoadTy);
-  unsigned HaveAlign = LN->getAlignment();
+  unsigned NeedAlign = Subtarget.getTypeAlignment(LoadTy).value();
+  unsigned HaveAlign = LN->getAlign().value();
   if (HaveAlign >= NeedAlign)
     return Op;
 
@@ -3017,7 +3054,7 @@ HexagonTargetLowering::LowerUnalignedLoad(SDValue Op, SelectionDAG &DAG)
     WideMMO = MF.getMachineMemOperand(
         MMO->getPointerInfo(), MMO->getFlags(), 2 * LoadLen, Align(LoadLen),
         MMO->getAAInfo(), MMO->getRanges(), MMO->getSyncScopeID(),
-        MMO->getOrdering(), MMO->getFailureOrdering());
+        MMO->getSuccessOrdering(), MMO->getFailureOrdering());
   }
 
   SDValue Load0 = DAG.getLoad(LoadTy, dl, Chain, Base0, WideMMO);
@@ -3555,25 +3592,24 @@ bool HexagonTargetLowering::shouldReduceLoadWidth(SDNode *Load,
 }
 
 Value *HexagonTargetLowering::emitLoadLinked(IRBuilderBase &Builder,
-                                             Value *Addr,
+                                             Type *ValueTy, Value *Addr,
                                              AtomicOrdering Ord) const {
   BasicBlock *BB = Builder.GetInsertBlock();
   Module *M = BB->getParent()->getParent();
-  auto PT = cast<PointerType>(Addr->getType());
-  Type *Ty = PT->getElementType();
-  unsigned SZ = Ty->getPrimitiveSizeInBits();
+  unsigned SZ = ValueTy->getPrimitiveSizeInBits();
   assert((SZ == 32 || SZ == 64) && "Only 32/64-bit atomic loads supported");
   Intrinsic::ID IntID = (SZ == 32) ? Intrinsic::hexagon_L2_loadw_locked
                                    : Intrinsic::hexagon_L4_loadd_locked;
   Function *Fn = Intrinsic::getDeclaration(M, IntID);
 
-  PointerType *NewPtrTy
-    = Builder.getIntNTy(SZ)->getPointerTo(PT->getAddressSpace());
+  auto PtrTy = cast<PointerType>(Addr->getType());
+  PointerType *NewPtrTy =
+      Builder.getIntNTy(SZ)->getPointerTo(PtrTy->getAddressSpace());
   Addr = Builder.CreateBitCast(Addr, NewPtrTy);
 
   Value *Call = Builder.CreateCall(Fn, Addr, "larx");
 
-  return Builder.CreateBitCast(Call, Ty);
+  return Builder.CreateBitCast(Call, ValueTy);
 }
 
 /// Perform a store-conditional operation to Addr. Return the status of the

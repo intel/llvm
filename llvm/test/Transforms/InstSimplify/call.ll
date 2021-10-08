@@ -494,14 +494,24 @@ declare noalias i8* @malloc(i64)
 
 declare <8 x i32> @llvm.masked.load.v8i32.p0v8i32(<8 x i32>*, i32, <8 x i1>, <8 x i32>)
 
-declare double @llvm.powi.f64(double, i32)
-declare <2 x double> @llvm.powi.v2f64(<2 x double>, i32)
+declare double @llvm.powi.f64.i16(double, i16)
+declare <2 x double> @llvm.powi.v2f64.i16(<2 x double>, i16)
+declare double @llvm.powi.f64.i32(double, i32)
+declare <2 x double> @llvm.powi.v2f64.i32(<2 x double>, i32)
 
 define double @constant_fold_powi() {
 ; CHECK-LABEL: @constant_fold_powi(
 ; CHECK-NEXT:    ret double 9.000000e+00
 ;
-  %t0 = call double @llvm.powi.f64(double 3.00000e+00, i32 2)
+  %t0 = call double @llvm.powi.f64.i32(double 3.00000e+00, i32 2)
+  ret double %t0
+}
+
+define double @constant_fold_powi_i16() {
+; CHECK-LABEL: @constant_fold_powi_i16(
+; CHECK-NEXT:    ret double 9.000000e+00
+;
+  %t0 = call double @llvm.powi.f64.i16(double 3.00000e+00, i16 2)
   ret double %t0
 }
 
@@ -509,7 +519,15 @@ define <2 x double> @constant_fold_powi_vec() {
 ; CHECK-LABEL: @constant_fold_powi_vec(
 ; CHECK-NEXT:    ret <2 x double> <double 9.000000e+00, double 2.500000e+01>
 ;
-  %t0 = call <2 x double> @llvm.powi.v2f64(<2 x double> <double 3.00000e+00, double 5.00000e+00>, i32 2)
+  %t0 = call <2 x double> @llvm.powi.v2f64.i32(<2 x double> <double 3.00000e+00, double 5.00000e+00>, i32 2)
+  ret <2 x double> %t0
+}
+
+define <2 x double> @constant_fold_powi_vec_i16() {
+; CHECK-LABEL: @constant_fold_powi_vec_i16(
+; CHECK-NEXT:    ret <2 x double> <double 9.000000e+00, double 2.500000e+01>
+;
+  %t0 = call <2 x double> @llvm.powi.v2f64.i16(<2 x double> <double 3.00000e+00, double 5.00000e+00>, i16 2)
   ret <2 x double> %t0
 }
 
@@ -940,6 +958,38 @@ define i9 @fshr_ops_poison6() {
   ret i9 %r
 }
 
+define i8 @fshl_zero(i8 %shamt) {
+; CHECK-LABEL: @fshl_zero(
+; CHECK-NEXT:    ret i8 0
+;
+  %r = call i8 @llvm.fshl.i8(i8 0, i8 0, i8 %shamt)
+  ret i8 %r
+}
+
+define <2 x i8> @fshr_zero_vec(<2 x i8> %shamt) {
+; CHECK-LABEL: @fshr_zero_vec(
+; CHECK-NEXT:    ret <2 x i8> zeroinitializer
+;
+  %r = call <2 x i8> @llvm.fshr.v2i8(<2 x i8> zeroinitializer, <2 x i8> <i8 0, i8 undef>, <2 x i8> %shamt)
+  ret <2 x i8> %r
+}
+
+define <2 x i7> @fshl_ones_vec(<2 x i7> %shamt) {
+; CHECK-LABEL: @fshl_ones_vec(
+; CHECK-NEXT:    ret <2 x i7> <i7 -1, i7 -1>
+;
+  %r = call <2 x i7> @llvm.fshl.v2i7(<2 x i7> <i7 undef, i7 -1>, <2 x i7> <i7 -1, i7 undef>, <2 x i7> %shamt)
+  ret <2 x i7> %r
+}
+
+define i9 @fshr_ones(i9 %shamt) {
+; CHECK-LABEL: @fshr_ones(
+; CHECK-NEXT:    ret i9 -1
+;
+  %r = call i9 @llvm.fshr.i9(i9 -1, i9 -1, i9 %shamt)
+  ret i9 %r
+}
+
 declare double @llvm.fma.f64(double,double,double)
 declare double @llvm.fmuladd.f64(double,double,double)
 
@@ -953,7 +1003,7 @@ define double @fma_undef_op0(double %x, double %y) {
 
 define double @fma_poison_op0(double %x, double %y) {
 ; CHECK-LABEL: @fma_poison_op0(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fma.f64(double poison, double %x, double %y)
   ret double %r
@@ -969,7 +1019,7 @@ define double @fma_undef_op1(double %x, double %y) {
 
 define double @fma_poison_op1(double %x, double %y) {
 ; CHECK-LABEL: @fma_poison_op1(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fma.f64(double %x, double poison, double %y)
   ret double %r
@@ -985,9 +1035,25 @@ define double @fma_undef_op2(double %x, double %y) {
 
 define double @fma_poison_op2(double %x, double %y) {
 ; CHECK-LABEL: @fma_poison_op2(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fma.f64(double %x, double %y, double poison)
+  ret double %r
+}
+
+define double @fma_undef_op0_poison_op1(double %x) {
+; CHECK-LABEL: @fma_undef_op0_poison_op1(
+; CHECK-NEXT:    ret double poison
+;
+  %r = call double @llvm.fma.f64(double undef, double poison, double %x)
+  ret double %r
+}
+
+define double @fma_undef_op0_poison_op2(double %x) {
+; CHECK-LABEL: @fma_undef_op0_poison_op2(
+; CHECK-NEXT:    ret double poison
+;
+  %r = call double @llvm.fma.f64(double undef, double %x, double poison)
   ret double %r
 }
 
@@ -1001,7 +1067,7 @@ define double @fmuladd_undef_op0(double %x, double %y) {
 
 define double @fmuladd_poison_op0(double %x, double %y) {
 ; CHECK-LABEL: @fmuladd_poison_op0(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fmuladd.f64(double poison, double %x, double %y)
   ret double %r
@@ -1017,7 +1083,7 @@ define double @fmuladd_undef_op1(double %x, double %y) {
 
 define double @fmuladd_poison_op1(double %x, double %y) {
 ; CHECK-LABEL: @fmuladd_poison_op1(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fmuladd.f64(double %x, double poison, double %y)
   ret double %r
@@ -1033,9 +1099,25 @@ define double @fmuladd_undef_op2(double %x, double %y) {
 
 define double @fmuladd_poison_op2(double %x, double %y) {
 ; CHECK-LABEL: @fmuladd_poison_op2(
-; CHECK-NEXT:    ret double 0x7FF8000000000000
+; CHECK-NEXT:    ret double poison
 ;
   %r = call double @llvm.fmuladd.f64(double %x, double %y, double poison)
+  ret double %r
+}
+
+define double @fmuladd_nan_op0_poison_op1(double %x) {
+; CHECK-LABEL: @fmuladd_nan_op0_poison_op1(
+; CHECK-NEXT:    ret double poison
+;
+  %r = call double @llvm.fmuladd.f64(double 0x7ff8000000000000, double poison, double %x)
+  ret double %r
+}
+
+define double @fmuladd_nan_op1_poison_op2(double %x) {
+; CHECK-LABEL: @fmuladd_nan_op1_poison_op2(
+; CHECK-NEXT:    ret double poison
+;
+  %r = call double @llvm.fmuladd.f64(double %x, double 0x7ff8000000000000, double poison)
   ret double %r
 }
 

@@ -30,6 +30,24 @@ template <info::context param> struct get_context_info {
   }
 };
 
+// Specialization for atomic_memory_order_capabilities, PI returns a bitfield
+template <>
+struct get_context_info<info::context::atomic_memory_order_capabilities> {
+  using RetType = typename info::param_traits<
+      info::context,
+      info::context::atomic_memory_order_capabilities>::return_type;
+
+  static RetType get(RT::PiContext ctx, const plugin &Plugin) {
+    pi_memory_order_capabilities Result;
+    Plugin.call<PiApiKind::piContextGetInfo>(
+        ctx,
+        pi::cast<pi_context_info>(
+            info::context::atomic_memory_order_capabilities),
+        sizeof(Result), &Result, nullptr);
+    return readMemoryOrderBitfield(Result);
+  }
+};
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

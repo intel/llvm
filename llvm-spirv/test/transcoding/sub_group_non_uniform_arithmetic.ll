@@ -314,7 +314,9 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-COMMON,CHECK-SPV-IR
 
 ; CHECK-SPIRV-DAG: {{[0-9]*}} Capability GroupNonUniformArithmetic
 
@@ -357,7 +359,8 @@ target triple = "spir64"
 ; CHECK-SPIRV: GroupNonUniformSMax [[char]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[char_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticChar
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_addc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_mulc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_minc(i8 0)
@@ -370,6 +373,19 @@ target triple = "spir64"
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_mulc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_minc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_maxc(i8 0)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIAddiic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIMuliic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformSMiniic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformSMaxiic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIAddiic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIMuliic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformSMiniic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformSMaxiic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIAddiic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIMuliic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformSMiniic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformSMaxiic(i32 3, i32 2, i8 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
@@ -462,7 +478,8 @@ declare dso_local spir_func signext i8 @_Z40sub_group_non_uniform_scan_exclusive
 ; CHECK-SPIRV: GroupNonUniformUMax [[char]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[char_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticUChar
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticUChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_addc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_mulc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_minh(i8 0)
@@ -475,6 +492,19 @@ declare dso_local spir_func signext i8 @_Z40sub_group_non_uniform_scan_exclusive
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_mulc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_minh(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_maxh(i8 0)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIAddiic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIMuliic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformUMiniih(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformUMaxiih(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIAddiic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIMuliic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformUMiniih(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformUMaxiih(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIAddiic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformIMuliic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformUMiniih(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_GroupNonUniformUMaxiih(i32 3, i32 2, i8 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticUChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !10 !kernel_arg_base_type !10 !kernel_arg_type_qual !6 {
@@ -567,7 +597,8 @@ declare dso_local spir_func zeroext i8 @_Z40sub_group_non_uniform_scan_exclusive
 ; CHECK-SPIRV: GroupNonUniformSMax [[short]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[short_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticShort
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_adds(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_muls(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_mins(i16 0)
@@ -580,6 +611,19 @@ declare dso_local spir_func zeroext i8 @_Z40sub_group_non_uniform_scan_exclusive
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_muls(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_mins(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_maxs(i16 0)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIAddiis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIMuliis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformSMiniis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformSMaxiis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIAddiis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIMuliis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformSMiniis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformSMaxiis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIAddiis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIMuliis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformSMiniis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformSMaxiis(i32 3, i32 2, i16 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !6 {
@@ -672,7 +716,8 @@ declare dso_local spir_func signext i16 @_Z40sub_group_non_uniform_scan_exclusiv
 ; CHECK-SPIRV: GroupNonUniformUMax [[short]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[short_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticUShort
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticUShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_adds(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_muls(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_mint(i16 0)
@@ -685,6 +730,19 @@ declare dso_local spir_func signext i16 @_Z40sub_group_non_uniform_scan_exclusiv
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_muls(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_mint(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_maxt(i16 0)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIAddiis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIMuliis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformUMiniit(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformUMaxiit(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIAddiis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIMuliis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformUMiniit(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformUMaxiit(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIAddiis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformIMuliis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformUMiniit(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z27__spirv_GroupNonUniformUMaxiit(i32 3, i32 2, i16 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticUShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !14 !kernel_arg_base_type !14 !kernel_arg_type_qual !6 {
@@ -777,7 +835,8 @@ declare dso_local spir_func zeroext i16 @_Z40sub_group_non_uniform_scan_exclusiv
 ; CHECK-SPIRV: GroupNonUniformSMax [[int]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticInt
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_addi(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_muli(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_mini(i32 0)
@@ -790,6 +849,19 @@ declare dso_local spir_func zeroext i16 @_Z40sub_group_non_uniform_scan_exclusiv
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_muli(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_mini(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_maxi(i32 0)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIAddiii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIMuliii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformSMiniii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformSMaxiii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIAddiii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIMuliii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformSMiniii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformSMaxiii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIAddiii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIMuliii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformSMiniii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformSMaxiii(i32 3, i32 2, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {
@@ -882,7 +954,8 @@ declare dso_local spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_maxi(i
 ; CHECK-SPIRV: GroupNonUniformUMax [[int]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticUInt
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticUInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_addi(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_muli(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_minj(i32 0)
@@ -895,6 +968,19 @@ declare dso_local spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_maxi(i
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_muli(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_minj(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_maxj(i32 0)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIAddiii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIMuliii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformUMiniij(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformUMaxiij(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIAddiii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIMuliii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformUMiniij(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformUMaxiij(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIAddiii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformIMuliii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformUMiniij(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_GroupNonUniformUMaxiij(i32 3, i32 2, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticUInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !18 !kernel_arg_base_type !18 !kernel_arg_type_qual !6 {
@@ -987,7 +1073,8 @@ declare dso_local spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_maxj(i
 ; CHECK-SPIRV: GroupNonUniformSMax [[long]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[long_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticLong
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticLong
+
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_addl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_mull(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_minl(i64 0)
@@ -1000,6 +1087,19 @@ declare dso_local spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_maxj(i
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_mull(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_minl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_maxl(i64 0)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIAddiil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIMuliil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformSMiniil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformSMaxiil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIAddiil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIMuliil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformSMiniil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformSMaxiil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIAddiil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIMuliil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformSMiniil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformSMaxiil(i32 3, i32 2, i64 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticLong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !19 !kernel_arg_base_type !19 !kernel_arg_type_qual !6 {
@@ -1092,7 +1192,8 @@ declare dso_local spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_maxl(i
 ; CHECK-SPIRV: GroupNonUniformUMax [[long]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[long_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticULong
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticULong
+
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_addl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_mull(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_minm(i64 0)
@@ -1105,6 +1206,19 @@ declare dso_local spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_maxl(i
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_mull(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_minm(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_maxm(i64 0)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIAddiil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIMuliil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformUMiniim(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformUMaxiim(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIAddiil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIMuliil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformUMiniim(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformUMaxiim(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIAddiil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformIMuliil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformUMiniim(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_GroupNonUniformUMaxiim(i32 3, i32 2, i64 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticULong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !22 !kernel_arg_base_type !22 !kernel_arg_type_qual !6 {
@@ -1197,7 +1311,8 @@ declare dso_local spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_maxm(i
 ; CHECK-SPIRV: GroupNonUniformFMax [[float]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[float_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticFloat
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticFloat
+
 ; CHECK-LLVM: call spir_func float @_Z32sub_group_non_uniform_reduce_addf(float 0.000000e+00)
 ; CHECK-LLVM: call spir_func float @_Z32sub_group_non_uniform_reduce_mulf(float 0.000000e+00)
 ; CHECK-LLVM: call spir_func float @_Z32sub_group_non_uniform_reduce_minf(float 0.000000e+00)
@@ -1210,6 +1325,19 @@ declare dso_local spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_maxm(i
 ; CHECK-LLVM: call spir_func float @_Z40sub_group_non_uniform_scan_exclusive_mulf(float 0.000000e+00)
 ; CHECK-LLVM: call spir_func float @_Z40sub_group_non_uniform_scan_exclusive_minf(float 0.000000e+00)
 ; CHECK-LLVM: call spir_func float @_Z40sub_group_non_uniform_scan_exclusive_maxf(float 0.000000e+00)
+
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFAddiif(i32 3, i32 0, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMuliif(i32 3, i32 0, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMiniif(i32 3, i32 0, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMaxiif(i32 3, i32 0, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFAddiif(i32 3, i32 1, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMuliif(i32 3, i32 1, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMiniif(i32 3, i32 1, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMaxiif(i32 3, i32 1, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFAddiif(i32 3, i32 2, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMuliif(i32 3, i32 2, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMiniif(i32 3, i32 2, float 0.000000e+00)
+; CHECK-SPV-IR: call spir_func float @_Z27__spirv_GroupNonUniformFMaxiif(i32 3, i32 2, float 0.000000e+00)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticFloat(float addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !23 !kernel_arg_base_type !23 !kernel_arg_type_qual !6 {
@@ -1302,7 +1430,8 @@ declare dso_local spir_func float @_Z40sub_group_non_uniform_scan_exclusive_maxf
 ; CHECK-SPIRV: GroupNonUniformFMax [[half]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[half_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticHalf
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticHalf
+
 ; CHECK-LLVM: call spir_func half @_Z32sub_group_non_uniform_reduce_addDh(half 0xH0000)
 ; CHECK-LLVM: call spir_func half @_Z32sub_group_non_uniform_reduce_mulDh(half 0xH0000)
 ; CHECK-LLVM: call spir_func half @_Z32sub_group_non_uniform_reduce_minDh(half 0xH0000)
@@ -1315,6 +1444,19 @@ declare dso_local spir_func float @_Z40sub_group_non_uniform_scan_exclusive_maxf
 ; CHECK-LLVM: call spir_func half @_Z40sub_group_non_uniform_scan_exclusive_mulDh(half 0xH0000)
 ; CHECK-LLVM: call spir_func half @_Z40sub_group_non_uniform_scan_exclusive_minDh(half 0xH0000)
 ; CHECK-LLVM: call spir_func half @_Z40sub_group_non_uniform_scan_exclusive_maxDh(half 0xH0000)
+
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFAddiiDh(i32 3, i32 0, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMuliiDh(i32 3, i32 0, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMiniiDh(i32 3, i32 0, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMaxiiDh(i32 3, i32 0, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFAddiiDh(i32 3, i32 1, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMuliiDh(i32 3, i32 1, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMiniiDh(i32 3, i32 1, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMaxiiDh(i32 3, i32 1, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFAddiiDh(i32 3, i32 2, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMuliiDh(i32 3, i32 2, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMiniiDh(i32 3, i32 2, half 0xH0000)
+; CHECK-SPV-IR: call spir_func half @_Z27__spirv_GroupNonUniformFMaxiiDh(i32 3, i32 2, half 0xH0000)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticHalf(half addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !26 !kernel_arg_base_type !26 !kernel_arg_type_qual !6 {
@@ -1407,7 +1549,8 @@ declare dso_local spir_func half @_Z40sub_group_non_uniform_scan_exclusive_maxDh
 ; CHECK-SPIRV: GroupNonUniformFMax [[double]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[double_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformArithmeticDouble
+; CHECK-COMMON-LABEL: @testNonUniformArithmeticDouble
+
 ; CHECK-LLVM: call spir_func double @_Z32sub_group_non_uniform_reduce_addd(double 0.000000e+00)
 ; CHECK-LLVM: call spir_func double @_Z32sub_group_non_uniform_reduce_muld(double 0.000000e+00)
 ; CHECK-LLVM: call spir_func double @_Z32sub_group_non_uniform_reduce_mind(double 0.000000e+00)
@@ -1420,6 +1563,19 @@ declare dso_local spir_func half @_Z40sub_group_non_uniform_scan_exclusive_maxDh
 ; CHECK-LLVM: call spir_func double @_Z40sub_group_non_uniform_scan_exclusive_muld(double 0.000000e+00)
 ; CHECK-LLVM: call spir_func double @_Z40sub_group_non_uniform_scan_exclusive_mind(double 0.000000e+00)
 ; CHECK-LLVM: call spir_func double @_Z40sub_group_non_uniform_scan_exclusive_maxd(double 0.000000e+00)
+
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFAddiid(i32 3, i32 0, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMuliid(i32 3, i32 0, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMiniid(i32 3, i32 0, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMaxiid(i32 3, i32 0, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFAddiid(i32 3, i32 1, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMuliid(i32 3, i32 1, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMiniid(i32 3, i32 1, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMaxiid(i32 3, i32 1, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFAddiid(i32 3, i32 2, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMuliid(i32 3, i32 2, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMiniid(i32 3, i32 2, double 0.000000e+00)
+; CHECK-SPV-IR: call spir_func double @_Z27__spirv_GroupNonUniformFMaxiid(i32 3, i32 2, double 0.000000e+00)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformArithmeticDouble(double addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !29 !kernel_arg_base_type !29 !kernel_arg_type_qual !6 {
@@ -1509,7 +1665,8 @@ declare dso_local spir_func double @_Z40sub_group_non_uniform_scan_exclusive_max
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[char]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[char_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBitwiseChar
+; CHECK-COMMON-LABEL: @testNonUniformBitwiseChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_andc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z31sub_group_non_uniform_reduce_orc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_xorc(i8 0)
@@ -1519,6 +1676,16 @@ declare dso_local spir_func double @_Z40sub_group_non_uniform_scan_exclusive_max
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_andc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z39sub_group_non_uniform_scan_exclusive_orc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_xorc(i8 0)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseAndiic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBitwiseOriic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseXoriic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseAndiic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBitwiseOriic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseXoriic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseAndiic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBitwiseOriic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseXoriic(i32 3, i32 2, i8 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBitwiseChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
@@ -1590,7 +1757,8 @@ declare dso_local spir_func signext i8 @_Z40sub_group_non_uniform_scan_exclusive
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[char]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[char_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBitwiseUChar
+; CHECK-COMMON-LABEL: @testNonUniformBitwiseUChar
+
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_andc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z31sub_group_non_uniform_reduce_orc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z32sub_group_non_uniform_reduce_xorc(i8 0)
@@ -1600,6 +1768,16 @@ declare dso_local spir_func signext i8 @_Z40sub_group_non_uniform_scan_exclusive
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_andc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z39sub_group_non_uniform_scan_exclusive_orc(i8 0)
 ; CHECK-LLVM: call spir_func i8 @_Z40sub_group_non_uniform_scan_exclusive_xorc(i8 0)
+
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseAndiic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBitwiseOriic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseXoriic(i32 3, i32 0, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseAndiic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBitwiseOriic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseXoriic(i32 3, i32 1, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseAndiic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z32__spirv_GroupNonUniformBitwiseOriic(i32 3, i32 2, i8 0)
+; CHECK-SPV-IR: call spir_func i8 @_Z33__spirv_GroupNonUniformBitwiseXoriic(i32 3, i32 2, i8 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBitwiseUChar(i8 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !10 !kernel_arg_base_type !10 !kernel_arg_type_qual !6 {
@@ -1671,7 +1849,8 @@ declare dso_local spir_func zeroext i8 @_Z40sub_group_non_uniform_scan_exclusive
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[short]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[short_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBitwiseShort
+; CHECK-COMMON-LABEL: @testNonUniformBitwiseShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_ands(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z31sub_group_non_uniform_reduce_ors(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_xors(i16 0)
@@ -1681,6 +1860,16 @@ declare dso_local spir_func zeroext i8 @_Z40sub_group_non_uniform_scan_exclusive
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_ands(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z39sub_group_non_uniform_scan_exclusive_ors(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_xors(i16 0)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseAndiis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBitwiseOriis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseXoriis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseAndiis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBitwiseOriis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseXoriis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseAndiis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBitwiseOriis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseXoriis(i32 3, i32 2, i16 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBitwiseShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !11 !kernel_arg_base_type !11 !kernel_arg_type_qual !6 {
@@ -1752,7 +1941,8 @@ declare dso_local spir_func signext i16 @_Z40sub_group_non_uniform_scan_exclusiv
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[short]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[short_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBitwiseUShort
+; CHECK-COMMON-LABEL: @testNonUniformBitwiseUShort
+
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_ands(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z31sub_group_non_uniform_reduce_ors(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z32sub_group_non_uniform_reduce_xors(i16 0)
@@ -1762,6 +1952,16 @@ declare dso_local spir_func signext i16 @_Z40sub_group_non_uniform_scan_exclusiv
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_ands(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z39sub_group_non_uniform_scan_exclusive_ors(i16 0)
 ; CHECK-LLVM: call spir_func i16 @_Z40sub_group_non_uniform_scan_exclusive_xors(i16 0)
+
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseAndiis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBitwiseOriis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseXoriis(i32 3, i32 0, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseAndiis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBitwiseOriis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseXoriis(i32 3, i32 1, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseAndiis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z32__spirv_GroupNonUniformBitwiseOriis(i32 3, i32 2, i16 0)
+; CHECK-SPV-IR: call spir_func i16 @_Z33__spirv_GroupNonUniformBitwiseXoriis(i32 3, i32 2, i16 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBitwiseUShort(i16 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !14 !kernel_arg_base_type !14 !kernel_arg_type_qual !6 {
@@ -1833,7 +2033,8 @@ declare dso_local spir_func zeroext i16 @_Z40sub_group_non_uniform_scan_exclusiv
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[int]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBitwiseInt
+; CHECK-COMMON-LABEL: @testNonUniformBitwiseInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_andi(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z31sub_group_non_uniform_reduce_ori(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_xori(i32 0)
@@ -1843,6 +2044,17 @@ declare dso_local spir_func zeroext i16 @_Z40sub_group_non_uniform_scan_exclusiv
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_andi(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z39sub_group_non_uniform_scan_exclusive_ori(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_xori(i32 0)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseAndiii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBitwiseOriii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseXoriii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseAndiii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBitwiseOriii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseXoriii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseAndiii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBitwiseOriii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseXoriii(i32 3, i32 2, i32 0)
+
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBitwiseInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {
@@ -1914,7 +2126,8 @@ declare dso_local spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_xori(i
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[int]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[int_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBitwiseUInt
+; CHECK-COMMON-LABEL: @testNonUniformBitwiseUInt
+
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_andi(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z31sub_group_non_uniform_reduce_ori(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z32sub_group_non_uniform_reduce_xori(i32 0)
@@ -1924,6 +2137,16 @@ declare dso_local spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_xori(i
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_andi(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z39sub_group_non_uniform_scan_exclusive_ori(i32 0)
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_xori(i32 0)
+
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseAndiii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBitwiseOriii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseXoriii(i32 3, i32 0, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseAndiii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBitwiseOriii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseXoriii(i32 3, i32 1, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseAndiii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z32__spirv_GroupNonUniformBitwiseOriii(i32 3, i32 2, i32 0)
+; CHECK-SPV-IR: call spir_func i32 @_Z33__spirv_GroupNonUniformBitwiseXoriii(i32 3, i32 2, i32 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBitwiseUInt(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !18 !kernel_arg_base_type !18 !kernel_arg_type_qual !6 {
@@ -1995,7 +2218,8 @@ declare dso_local spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_xorj(i
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[long]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[long_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBitwiseLong
+; CHECK-COMMON-LABEL: @testNonUniformBitwiseLong
+
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_andl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z31sub_group_non_uniform_reduce_orl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_xorl(i64 0)
@@ -2005,6 +2229,16 @@ declare dso_local spir_func i32 @_Z40sub_group_non_uniform_scan_exclusive_xorj(i
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_andl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z39sub_group_non_uniform_scan_exclusive_orl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_xorl(i64 0)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseAndiil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBitwiseOriil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseXoriil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseAndiil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBitwiseOriil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseXoriil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseAndiil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBitwiseOriil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseXoriil(i32 3, i32 2, i64 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBitwiseLong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !19 !kernel_arg_base_type !19 !kernel_arg_type_qual !6 {
@@ -2076,7 +2310,8 @@ declare dso_local spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_xorl(i
 ; CHECK-SPIRV: GroupNonUniformBitwiseXor [[long]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[long_0]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformBitwiseULong
+; CHECK-COMMON-LABEL: @testNonUniformBitwiseULong
+
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_andl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z31sub_group_non_uniform_reduce_orl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z32sub_group_non_uniform_reduce_xorl(i64 0)
@@ -2086,6 +2321,16 @@ declare dso_local spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_xorl(i
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_andl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z39sub_group_non_uniform_scan_exclusive_orl(i64 0)
 ; CHECK-LLVM: call spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_xorl(i64 0)
+
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseAndiil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBitwiseOriil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseXoriil(i32 3, i32 0, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseAndiil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBitwiseOriil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseXoriil(i32 3, i32 1, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseAndiil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z32__spirv_GroupNonUniformBitwiseOriil(i32 3, i32 2, i64 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_GroupNonUniformBitwiseXoriil(i32 3, i32 2, i64 0)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformBitwiseULong(i64 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !22 !kernel_arg_base_type !22 !kernel_arg_type_qual !6 {
@@ -2157,7 +2402,8 @@ declare dso_local spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_xorm(i
 ; CHECK-SPIRV: GroupNonUniformLogicalXor [[bool]] {{[0-9]+}} [[ScopeSubgroup]] 2 [[false]]
 ; CHECK-SPIRV: FunctionEnd
 
-; CHECK-LLVM-LABEL: @testNonUniformLogical
+; CHECK-COMMON-LABEL: @testNonUniformLogical
+
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_reduce_logical_andi(i32 {{.*}})
 ; CHECK-LLVM: call spir_func i32 @_Z39sub_group_non_uniform_reduce_logical_ori(i32 {{.*}})
 ; CHECK-LLVM: call spir_func i32 @_Z40sub_group_non_uniform_reduce_logical_xori(i32 {{.*}})
@@ -2167,6 +2413,16 @@ declare dso_local spir_func i64 @_Z40sub_group_non_uniform_scan_exclusive_xorm(i
 ; CHECK-LLVM: call spir_func i32 @_Z48sub_group_non_uniform_scan_exclusive_logical_andi(i32 {{.*}})
 ; CHECK-LLVM: call spir_func i32 @_Z47sub_group_non_uniform_scan_exclusive_logical_ori(i32 {{.*}})
 ; CHECK-LLVM: call spir_func i32 @_Z48sub_group_non_uniform_scan_exclusive_logical_xori(i32 {{.*}})
+
+; CHECK-SPV-IR: call spir_func i1 @_Z33__spirv_GroupNonUniformLogicalAndiib(i32 3, i32 0, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z32__spirv_GroupNonUniformLogicalOriib(i32 3, i32 0, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z33__spirv_GroupNonUniformLogicalXoriib(i32 3, i32 0, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z33__spirv_GroupNonUniformLogicalAndiib(i32 3, i32 1, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z32__spirv_GroupNonUniformLogicalOriib(i32 3, i32 1, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z33__spirv_GroupNonUniformLogicalXoriib(i32 3, i32 1, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z33__spirv_GroupNonUniformLogicalAndiib(i32 3, i32 2, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z32__spirv_GroupNonUniformLogicalOriib(i32 3, i32 2, i1 false)
+; CHECK-SPV-IR: call spir_func i1 @_Z33__spirv_GroupNonUniformLogicalXoriib(i32 3, i32 2, i1 false)
 
 ; Function Attrs: convergent nounwind
 define dso_local spir_kernel void @testNonUniformLogical(i32 addrspace(1)* nocapture) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !15 !kernel_arg_base_type !15 !kernel_arg_type_qual !6 {

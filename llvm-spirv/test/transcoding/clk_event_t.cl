@@ -28,12 +28,12 @@
 // CHECK-LLVM-OCL: ret
 
 // CHECK-LLVM-SPV-LABEL: @clk_event_t_test
-// CHECK-LLVM-SPV: call spir_func %opencl.clk_event_t* @_Z23__spirv_CreateUserEventv()
-// CHECK-LLVM-SPV: call spir_func i1 @_Z20__spirv_IsValidEvent12ocl_clkevent
-// CHECK-LLVM-SPV: call spir_func void @_Z19__spirv_RetainEvent12ocl_clkevent
-// CHECK-LLVM-SPV: call spir_func void @_Z26__spirv_SetUserEventStatus12ocl_clkeventi(%opencl.clk_event_t* %{{[a-z]+}}, i32 -42)
-// CHECK-LLVM-SPV: call spir_func void @_Z33__spirv_CaptureEventProfilingInfo12ocl_clkeventiPU3AS1c(%opencl.clk_event_t* %{{[a-z]+}}, i32 1, i8 addrspace(1)* %prof)
-// CHECK-LLVM-SPV: call spir_func void @_Z20__spirv_ReleaseEvent12ocl_clkevent
+// CHECK-LLVM-SPV: call spir_func %spirv.DeviceEvent* @_Z23__spirv_CreateUserEventv()
+// CHECK-LLVM-SPV: call spir_func i1 @_Z20__spirv_IsValidEventP19__spirv_DeviceEvent
+// CHECK-LLVM-SPV: call spir_func void @_Z19__spirv_RetainEventP19__spirv_DeviceEvent
+// CHECK-LLVM-SPV: call spir_func void @_Z26__spirv_SetUserEventStatusP19__spirv_DeviceEventi(%spirv.DeviceEvent* %{{[a-z]+}}, i32 -42)
+// CHECK-LLVM-SPV: call spir_func void @_Z33__spirv_CaptureEventProfilingInfoP19__spirv_DeviceEventiPU3AS1c(%spirv.DeviceEvent* %{{[a-z]+}}, i32 1, i8 addrspace(1)* %prof)
+// CHECK-LLVM-SPV: call spir_func void @_Z20__spirv_ReleaseEventP19__spirv_DeviceEvent
 // CHECK-LLVM-SPV: ret
 
 kernel void clk_event_t_test(global int *res, global void *prof) {

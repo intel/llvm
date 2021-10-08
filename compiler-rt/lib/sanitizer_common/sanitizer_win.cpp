@@ -16,6 +16,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #define NOGDI
+#include <direct.h>
 #include <windows.h>
 #include <io.h>
 #include <psapi.h>
@@ -43,6 +44,9 @@ TRACELOGGING_DEFINE_PROVIDER(g_asan_provider, "AddressSanitizerLoggingProvider",
 #else
 #define TraceLoggingUnregister(x)
 #endif
+
+// For WaitOnAddress
+#  pragma comment(lib, "synchronization.lib")
 
 // A macro to tell the compiler that this part of the code cannot be reached,
 // if the compiler supports this feature. Since we're using this in
@@ -541,13 +545,7 @@ bool IsAbsolutePath(const char *path) {
          IsPathSeparator(path[2]);
 }
 
-void SleepForSeconds(int seconds) {
-  Sleep(seconds * 1000);
-}
-
-void SleepForMillis(int millis) {
-  Sleep(millis);
-}
+void internal_usleep(u64 useconds) { Sleep(useconds / 1000); }
 
 u64 NanoTime() {
   static LARGE_INTEGER frequency = {};
@@ -567,6 +565,8 @@ u64 MonotonicNanoTime() { return NanoTime(); }
 void Abort() {
   internal__exit(3);
 }
+
+bool CreateDir(const char *pathname) { return _mkdir(pathname) == 0; }
 
 #if !SANITIZER_GO
 // Read the file to extract the ImageBase field from the PE header. If ASLR is
@@ -819,27 +819,15 @@ uptr GetRSS() {
 void *internal_start_thread(void *(*func)(void *arg), void *arg) { return 0; }
 void internal_join_thread(void *th) { }
 
-// ---------------------- BlockingMutex ---------------- {{{1
-
-BlockingMutex::BlockingMutex() {
-  CHECK(sizeof(SRWLOCK) <= sizeof(opaque_storage_));
-  internal_memset(this, 0, sizeof(*this));
+void FutexWait(atomic_uint32_t *p, u32 cmp) {
+  WaitOnAddress(p, &cmp, sizeof(cmp), INFINITE);
 }
 
-void BlockingMutex::Lock() {
-  AcquireSRWLockExclusive((PSRWLOCK)opaque_storage_);
-  CHECK_EQ(owner_, 0);
-  owner_ = GetThreadSelf();
-}
-
-void BlockingMutex::Unlock() {
-  CheckLocked();
-  owner_ = 0;
-  ReleaseSRWLockExclusive((PSRWLOCK)opaque_storage_);
-}
-
-void BlockingMutex::CheckLocked() {
-  CHECK_EQ(owner_, GetThreadSelf());
+void FutexWake(atomic_uint32_t *p, u32 count) {
+  if (count == 1)
+    WakeByAddressSingle(p);
+  else
+    WakeByAddressAll(p);
 }
 
 uptr GetTlsSize() {

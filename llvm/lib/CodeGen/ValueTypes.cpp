@@ -167,6 +167,7 @@ std::string EVT::getEVTString() const {
   case MVT::Glue:      return "glue";
   case MVT::x86mmx:    return "x86mmx";
   case MVT::x86amx:    return "x86amx";
+  case MVT::i64x8:     return "i64x8";
   case MVT::Metadata:  return "Metadata";
   case MVT::Untyped:   return "Untyped";
   case MVT::funcref:   return "funcref";
@@ -198,6 +199,11 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
   case MVT::ppcf128: return Type::getPPC_FP128Ty(Context);
   case MVT::x86mmx:  return Type::getX86_MMXTy(Context);
   case MVT::x86amx:  return Type::getX86_AMXTy(Context);
+  case MVT::i64x8:   return IntegerType::get(Context, 512);
+  case MVT::externref:
+    return PointerType::get(StructType::create(Context), 10);
+  case MVT::funcref:
+    return PointerType::get(StructType::create(Context), 20);
   case MVT::v1i1:
     return FixedVectorType::get(Type::getInt1Ty(Context), 1);
   case MVT::v2i1:
@@ -300,6 +306,8 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
     return FixedVectorType::get(Type::getInt64Ty(Context), 1);
   case MVT::v2i64:
     return FixedVectorType::get(Type::getInt64Ty(Context), 2);
+  case MVT::v3i64:
+    return FixedVectorType::get(Type::getInt64Ty(Context), 3);
   case MVT::v4i64:
     return FixedVectorType::get(Type::getInt64Ty(Context), 4);
   case MVT::v8i64:
@@ -390,6 +398,8 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
     return FixedVectorType::get(Type::getDoubleTy(Context), 1);
   case MVT::v2f64:
     return FixedVectorType::get(Type::getDoubleTy(Context), 2);
+  case MVT::v3f64:
+    return FixedVectorType::get(Type::getDoubleTy(Context), 3);
   case MVT::v4f64:
     return FixedVectorType::get(Type::getDoubleTy(Context), 4);
   case MVT::v8f64:

@@ -22,6 +22,8 @@
 using namespace mlir;
 using namespace arm_sve;
 
+#include "mlir/Dialect/ArmSVE/ArmSVEDialect.cpp.inc"
+
 static Type getI1SameShape(Type type);
 static void buildScalableCmpIOp(OpBuilder &build, OperationState &result,
                                 CmpIPredicate predicate, Value lhs, Value rhs);
@@ -53,8 +55,7 @@ Type ArmSVEDialect::parseType(DialectAsmParser &parser) const {
   llvm::SMLoc typeLoc = parser.getCurrentLocation();
   {
     Type genType;
-    auto parseResult = generatedTypeParser(parser.getBuilder().getContext(),
-                                           parser, "vector", genType);
+    auto parseResult = generatedTypeParser(parser, "vector", genType);
     if (parseResult.hasValue())
       return genType;
   }

@@ -9,6 +9,7 @@
 #include "OutputSegment.h"
 #include "ConcatOutputSection.h"
 #include "InputSection.h"
+#include "Symbols.h"
 #include "SyntheticSections.h"
 
 #include "lld/Common/ErrorHandler.h"
@@ -100,6 +101,8 @@ static int sectionOrder(OutputSection *osec) {
     // sections can be zerofills, we end up putting all TLV data sections at the
     // end of the segment.
     switch (sectionType(osec->flags)) {
+    case S_THREAD_LOCAL_VARIABLE_POINTERS:
+      return std::numeric_limits<int>::max() - 3;
     case S_THREAD_LOCAL_REGULAR:
       return std::numeric_limits<int>::max() - 2;
     case S_THREAD_LOCAL_ZEROFILL:
@@ -115,37 +118,59 @@ static int sectionOrder(OutputSection *osec) {
     }
   } else if (segname == segment_names::linkEdit) {
     return StringSwitch<int>(osec->name)
-        .Case(section_names::rebase, -9)
-        .Case(section_names::binding, -8)
-        .Case(section_names::weakBinding, -7)
-        .Case(section_names::lazyBinding, -6)
-        .Case(section_names::export_, -5)
-        .Case(section_names::functionStarts, -4)
+        .Case(section_names::rebase, -10)
+        .Case(section_names::binding, -9)
+        .Case(section_names::weakBinding, -8)
+        .Case(section_names::lazyBinding, -7)
+        .Case(section_names::export_, -6)
+        .Case(section_names::functionStarts, -5)
+        .Case(section_names::dataInCode, -4)
         .Case(section_names::symbolTable, -3)
         .Case(section_names::indirectSymbolTable, -2)
         .Case(section_names::stringTable, -1)
         .Case(section_names::codeSignature, std::numeric_limits<int>::max())
         .Default(osec->inputOrder);
   }
-  // ZeroFill sections must always be the at the end of their segments,
-  // otherwise subsequent sections may get overwritten with zeroes at runtime.
+  // ZeroFill sections must always be the at the end of their segments:
+  // dyld checks if a segment's file size is smaller than its in-memory
+  // size to detect if a segment has zerofill sections, and if so it maps
+  // the missing tail as zerofill.
   if (sectionType(osec->flags) == S_ZEROFILL)
     return std::numeric_limits<int>::max();
   return osec->inputOrder;
 }
 
 void OutputSegment::sortOutputSections() {
-  llvm::sort(sections, compareByOrder<OutputSection *>(sectionOrder));
+  // Must be stable_sort() to keep special sections such as
+  // S_THREAD_LOCAL_REGULAR in input order.
+  llvm::stable_sort(sections, compareByOrder<OutputSection *>(sectionOrder));
+}
+
+void OutputSegment::assignAddressesToStartEndSymbols() {
+  for (Defined *d : segmentStartSymbols)
+    d->value = addr;
+  for (Defined *d : segmentEndSymbols)
+    d->value = addr + vmSize;
 }
 
 void macho::sortOutputSegments() {
-  llvm::sort(outputSegments, compareByOrder<OutputSegment *>(segmentOrder));
+  llvm::stable_sort(outputSegments,
+                    compareByOrder<OutputSegment *>(segmentOrder));
 }
 
 static DenseMap<StringRef, OutputSegment *> nameToOutputSegment;
 std::vector<OutputSegment *> macho::outputSegments;
 
+static StringRef maybeRenameSegment(StringRef name) {
+  auto newName = config->segmentRenameMap.find(name);
+  if (newName != config->segmentRenameMap.end())
+    return newName->second;
+  return name;
+}
+
 OutputSegment *macho::getOrCreateOutputSegment(StringRef name) {
+  name = maybeRenameSegment(name);
+
   OutputSegment *&segRef = nameToOutputSegment[name];
   if (segRef)
     return segRef;

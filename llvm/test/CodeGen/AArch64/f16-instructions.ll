@@ -144,9 +144,9 @@ define half @test_call(half %a, half %b) #0 {
 ; CHECK-COMMON-LABEL: test_call_flipped:
 ; CHECK-COMMON-NEXT: stp x29, x30, [sp, #-16]!
 ; CHECK-COMMON-NEXT: mov  x29, sp
-; CHECK-COMMON-NEXT: mov.16b  v2, v0
-; CHECK-COMMON-NEXT: mov.16b  v0, v1
-; CHECK-COMMON-NEXT: mov.16b  v1, v2
+; CHECK-COMMON-NEXT: fmov  s2, s0
+; CHECK-COMMON-NEXT: fmov  s0, s1
+; CHECK-COMMON-NEXT: fmov  s1, s2
 ; CHECK-COMMON-NEXT: bl {{_?}}test_callee
 ; CHECK-COMMON-NEXT: ldp x29, x30, [sp], #16
 ; CHECK-COMMON-NEXT: ret
@@ -156,9 +156,9 @@ define half @test_call_flipped(half %a, half %b) #0 {
 }
 
 ; CHECK-COMMON-LABEL: test_tailcall_flipped:
-; CHECK-COMMON-NEXT: mov.16b  v2, v0
-; CHECK-COMMON-NEXT: mov.16b  v0, v1
-; CHECK-COMMON-NEXT: mov.16b  v1, v2
+; CHECK-COMMON-NEXT: fmov  s2, s0
+; CHECK-COMMON-NEXT: fmov  s0, s1
+; CHECK-COMMON-NEXT: fmov  s1, s2
 ; CHECK-COMMON-NEXT: b {{_?}}test_callee
 define half @test_tailcall_flipped(half %a, half %b) #0 {
   %r = tail call half @test_callee(half %b, half %a)
@@ -517,20 +517,14 @@ define void @test_fccmp(half %in, half* %out) {
 ; CHECK-CVT-NEXT: fcvt s1, h1
 ; CHECK-CVT-NEXT: fcvt s0, h0
 ; CHECK-CVT-NEXT: fcmp s0, s1
-; CHECK-CVT-NEXT: b.mi [[BRCC_ELSE:.?LBB[0-9_]+]]
-; CHECK-CVT-NEXT: str  wzr, [x0]
-; CHECK-CVT-NEXT: ret
-; CHECK-CVT-NEXT: [[BRCC_ELSE]]:
-; CHECK-CVT-NEXT: str  wzr, [x1]
+; CHECK-CVT-NEXT: csel x8, x0, x1, pl
+; CHECK-CVT-NEXT: str wzr, [x8]
 ; CHECK-CVT-NEXT: ret
 
 ; CHECK-FP16-LABEL: test_br_cc:
 ; CHECK-FP16-NEXT: fcmp h0, h1
-; CHECK-FP16-NEXT: b.mi [[BRCC_ELSE:.?LBB[0-9_]+]]
-; CHECK-FP16-NEXT: str  wzr, [x0]
-; CHECK-FP16-NEXT: ret
-; CHECK-FP16-NEXT: [[BRCC_ELSE]]:
-; CHECK-FP16-NEXT: str  wzr, [x1]
+; CHECK-FP16-NEXT: csel x8, x0, x1, pl
+; CHECK-FP16-NEXT: str wzr, [x8]
 ; CHECK-FP16-NEXT: ret
 
 define void @test_br_cc(half %a, half %b, i32* %p1, i32* %p2) #0 {
@@ -548,11 +542,11 @@ else:
 ; CHECK-COMMON: mov  x[[PTR:[0-9]+]], x0
 ; CHECK-COMMON: ldr  h[[AB:[0-9]+]], [x0]
 ; CHECK-COMMON: [[LOOP:LBB[0-9_]+]]:
-; CHECK-COMMON: mov.16b  v[[R:[0-9]+]], v[[AB]]
+; CHECK-COMMON: fmov  s[[R:[0-9]+]], s[[AB]]
 ; CHECK-COMMON: ldr  h[[AB]], [x[[PTR]]]
 ; CHECK-COMMON: mov  x0, x[[PTR]]
 ; CHECK-COMMON: bl {{_?}}test_dummy
-; CHECK-COMMON: mov.16b  v0, v[[R]]
+; CHECK-COMMON: fmov  s0, s[[R]]
 ; CHECK-COMMON: ret
 define half @test_phi(half* %p1) #0 {
 entry:
@@ -772,7 +766,7 @@ define half @test_bitcast_i16tohalf(i16 %a) #0 {
 
 
 declare half @llvm.sqrt.f16(half %a) #0
-declare half @llvm.powi.f16(half %a, i32 %b) #0
+declare half @llvm.powi.f16.i32(half %a, i32 %b) #0
 declare half @llvm.sin.f16(half %a) #0
 declare half @llvm.cos.f16(half %a) #0
 declare half @llvm.pow.f16(half %a, half %b) #0
@@ -835,7 +829,7 @@ define half @test_sqrt(half %a) #0 {
 ; CHECK-COMMON-NEXT: ldp x29, x30, [sp], #16
 ; CHECK-COMMON-NEXT: ret
 define half @test_powi(half %a, i32 %b) #0 {
-  %r = call half @llvm.powi.f16(half %a, i32 %b)
+  %r = call half @llvm.powi.f16.i32(half %a, i32 %b)
   ret half %r
 }
 

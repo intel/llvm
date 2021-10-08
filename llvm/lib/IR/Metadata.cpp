@@ -195,16 +195,22 @@ bool MetadataTracking::isReplaceable(const Metadata &MD) {
   return ReplaceableMetadataImpl::isReplaceable(MD);
 }
 
-SmallVector<Metadata *, 4> ReplaceableMetadataImpl::getAllArgListUsers() {
-  SmallVector<Metadata *, 4> MDUsers;
+SmallVector<Metadata *> ReplaceableMetadataImpl::getAllArgListUsers() {
+  SmallVector<std::pair<OwnerTy, uint64_t> *> MDUsersWithID;
   for (auto Pair : UseMap) {
     OwnerTy Owner = Pair.second.first;
     if (!Owner.is<Metadata *>())
       continue;
     Metadata *OwnerMD = Owner.get<Metadata *>();
     if (OwnerMD->getMetadataID() == Metadata::DIArgListKind)
-      MDUsers.push_back(OwnerMD);
+      MDUsersWithID.push_back(&UseMap[Pair.first]);
   }
+  llvm::sort(MDUsersWithID, [](auto UserA, auto UserB) {
+    return UserA->second < UserB->second;
+  });
+  SmallVector<Metadata *> MDUsers;
+  for (auto UserWithID : MDUsersWithID)
+    MDUsers.push_back(UserWithID->first.get<Metadata *>());
   return MDUsers;
 }
 
@@ -1359,6 +1365,15 @@ void Instruction::addAnnotationMetadata(StringRef Name) {
 
   MDNode *MD = MDTuple::get(getContext(), Names);
   setMetadata(LLVMContext::MD_annotation, MD);
+}
+
+AAMDNodes Instruction::getAAMetadata() const {
+  AAMDNodes Result;
+  Result.TBAA = getMetadata(LLVMContext::MD_tbaa);
+  Result.TBAAStruct = getMetadata(LLVMContext::MD_tbaa_struct);
+  Result.Scope = getMetadata(LLVMContext::MD_alias_scope);
+  Result.NoAlias = getMetadata(LLVMContext::MD_noalias);
+  return Result;
 }
 
 void Instruction::setAAMetadata(const AAMDNodes &N) {

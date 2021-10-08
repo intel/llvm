@@ -12,16 +12,15 @@
 #include <__config>
 #include <__iterator/concepts.h>
 #include <__iterator/iterator_traits.h>
+#include <__memory/pointer_traits.h>
 #include <__ranges/access.h>
+#include <__utility/forward.h>
 #include <concepts>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -52,6 +51,7 @@ namespace __data {
   struct __fn {
     template <__member_data _Tp>
       requires __can_borrow<_Tp>
+    _LIBCPP_HIDE_FROM_ABI
     constexpr __ptr_to_object auto operator()(_Tp&& __t) const
         noexcept(noexcept(__t.data())) {
       return __t.data();
@@ -59,6 +59,7 @@ namespace __data {
 
     template<__ranges_begin_invocable _Tp>
       requires __can_borrow<_Tp>
+    _LIBCPP_HIDE_FROM_ABI
     constexpr __ptr_to_object auto operator()(_Tp&& __t) const
         noexcept(noexcept(_VSTD::to_address(ranges::begin(_VSTD::forward<_Tp>(__t))))) {
       return _VSTD::to_address(ranges::begin(_VSTD::forward<_Tp>(__t)));
@@ -67,7 +68,7 @@ namespace __data {
 } // end namespace __data
 
 inline namespace __cpo {
-  inline constexpr const auto data = __data::__fn{};
+  inline constexpr auto data = __data::__fn{};
 } // namespace __cpo
 } // namespace ranges
 
@@ -76,7 +77,5 @@ inline namespace __cpo {
 #endif // !defined(_LIBCPP_HAS_NO_RANGES)
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___RANGES_DATA_H

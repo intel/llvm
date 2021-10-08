@@ -176,6 +176,18 @@ Use *Value::getSingleUndroppableUse() {
   return Result;
 }
 
+User *Value::getUniqueUndroppableUser() {
+  User *Result = nullptr;
+  for (auto *U : users()) {
+    if (!U->isDroppable()) {
+      if (Result && Result != U)
+        return nullptr;
+      Result = U;
+    }
+  }
+  return Result;
+}
+
 bool Value::hasNUndroppableUses(unsigned int N) const {
   return hasNItems(user_begin(), user_end(), N, isUnDroppableUser);
 }
@@ -531,6 +543,9 @@ void Value::replaceUsesWithIf(Value *New,
   assert(New->getType() == getType() &&
          "replaceUses of value with new value of different type!");
 
+  SmallVector<TrackingVH<Constant>, 8> Consts;
+  SmallPtrSet<Constant *, 8> Visited;
+
   for (use_iterator UI = use_begin(), E = use_end(); UI != E;) {
     Use &U = *UI;
     ++UI;
@@ -540,11 +555,18 @@ void Value::replaceUsesWithIf(Value *New,
     // constant because they are uniqued.
     if (auto *C = dyn_cast<Constant>(U.getUser())) {
       if (!isa<GlobalValue>(C)) {
-        C->handleOperandChange(this, New);
+        if (Visited.insert(C).second)
+          Consts.push_back(TrackingVH<Constant>(C));
         continue;
       }
     }
     U.set(New);
+  }
+
+  while (!Consts.empty()) {
+    // FIXME: handleOperandChange() updates all the uses in a given Constant,
+    //        not just the one passed to ShouldReplace
+    Consts.pop_back_val()->handleOperandChange(this, New);
   }
 }
 
@@ -842,10 +864,9 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       CanBeNull = true;
     }
   } else if (const auto *Call = dyn_cast<CallBase>(this)) {
-    DerefBytes = Call->getDereferenceableBytes(AttributeList::ReturnIndex);
+    DerefBytes = Call->getRetDereferenceableBytes();
     if (DerefBytes == 0) {
-      DerefBytes =
-          Call->getDereferenceableOrNullBytes(AttributeList::ReturnIndex);
+      DerefBytes = Call->getRetDereferenceableOrNullBytes();
       CanBeNull = true;
     }
   } else if (const LoadInst *LI = dyn_cast<LoadInst>(this)) {
@@ -887,6 +908,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       // CanBeNull flag.
       DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedSize();
       CanBeNull = false;
+      CanBeFreed = false;
     }
   }
   return DerefBytes;
@@ -1003,8 +1025,7 @@ bool Value::isTransitiveUsedByMetadataOnly() const {
   llvm::SmallPtrSet<const User *, 32> Visited;
   WorkList.insert(WorkList.begin(), user_begin(), user_end());
   while (!WorkList.empty()) {
-    const User *U = WorkList.back();
-    WorkList.pop_back();
+    const User *U = WorkList.pop_back_val();
     Visited.insert(U);
     // If it is transitively used by a global value or a non-constant value,
     // it's obviously not only used by metadata.

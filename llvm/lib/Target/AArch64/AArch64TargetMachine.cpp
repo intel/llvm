@@ -158,8 +158,20 @@ static cl::opt<bool> EnableFalkorHWPFFix("aarch64-enable-falkor-hwpf-fix",
 
 static cl::opt<bool>
     EnableBranchTargets("aarch64-enable-branch-targets", cl::Hidden,
-                        cl::desc("Enable the AAcrh64 branch target pass"),
+                        cl::desc("Enable the AArch64 branch target pass"),
                         cl::init(true));
+
+static cl::opt<unsigned> SVEVectorBitsMaxOpt(
+    "aarch64-sve-vector-bits-max",
+    cl::desc("Assume SVE vector registers are at most this big, "
+             "with zero meaning no maximum size is assumed."),
+    cl::init(0), cl::Hidden);
+
+static cl::opt<unsigned> SVEVectorBitsMinOpt(
+    "aarch64-sve-vector-bits-min",
+    cl::desc("Assume SVE vector registers are at least this big, "
+             "with zero meaning no minimum size is assumed."),
+    cl::init(0), cl::Hidden);
 
 extern cl::opt<bool> EnableHomogeneousPrologEpilog;
 
@@ -183,6 +195,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAArch64Target() {
   initializeAArch64DeadRegisterDefinitionsPass(*PR);
   initializeAArch64ExpandPseudoPass(*PR);
   initializeAArch64LoadStoreOptPass(*PR);
+  initializeAArch64MIPeepholeOptPass(*PR);
   initializeAArch64SIMDInstrOptPass(*PR);
   initializeAArch64O0PreLegalizerCombinerPass(*PR);
   initializeAArch64PreLegalizerCombinerPass(*PR);
@@ -349,14 +362,54 @@ AArch64TargetMachine::getSubtargetImpl(const Function &F) const {
   std::string FS =
       FSAttr.isValid() ? FSAttr.getValueAsString().str() : TargetFS;
 
-  auto &I = SubtargetMap[CPU + FS];
+  SmallString<512> Key;
+
+  unsigned MinSVEVectorSize = 0;
+  unsigned MaxSVEVectorSize = 0;
+  Attribute VScaleRangeAttr = F.getFnAttribute(Attribute::VScaleRange);
+  if (VScaleRangeAttr.isValid()) {
+    std::tie(MinSVEVectorSize, MaxSVEVectorSize) =
+        VScaleRangeAttr.getVScaleRangeArgs();
+    MinSVEVectorSize *= 128;
+    MaxSVEVectorSize *= 128;
+  } else {
+    MinSVEVectorSize = SVEVectorBitsMinOpt;
+    MaxSVEVectorSize = SVEVectorBitsMaxOpt;
+  }
+
+  assert(MinSVEVectorSize % 128 == 0 &&
+         "SVE requires vector length in multiples of 128!");
+  assert(MaxSVEVectorSize % 128 == 0 &&
+         "SVE requires vector length in multiples of 128!");
+  assert((MaxSVEVectorSize >= MinSVEVectorSize || MaxSVEVectorSize == 0) &&
+         "Minimum SVE vector size should not be larger than its maximum!");
+
+  // Sanitize user input in case of no asserts
+  if (MaxSVEVectorSize == 0)
+    MinSVEVectorSize = (MinSVEVectorSize / 128) * 128;
+  else {
+    MinSVEVectorSize =
+        (std::min(MinSVEVectorSize, MaxSVEVectorSize) / 128) * 128;
+    MaxSVEVectorSize =
+        (std::max(MinSVEVectorSize, MaxSVEVectorSize) / 128) * 128;
+  }
+
+  Key += "SVEMin";
+  Key += std::to_string(MinSVEVectorSize);
+  Key += "SVEMax";
+  Key += std::to_string(MaxSVEVectorSize);
+  Key += CPU;
+  Key += FS;
+
+  auto &I = SubtargetMap[Key];
   if (!I) {
     // This needs to be done before we create a new subtarget since any
     // creation will depend on the TM and the code generation flags on the
     // function that reside in TargetOptions.
     resetTargetOptions(F);
     I = std::make_unique<AArch64Subtarget>(TargetTriple, CPU, FS, *this,
-                                            isLittle);
+                                           isLittle, MinSVEVectorSize,
+                                           MaxSVEVectorSize);
   }
   return I.get();
 }
@@ -419,6 +472,7 @@ public:
 
   void addIRPasses()  override;
   bool addPreISel() override;
+  void addCodeGenPrepare() override;
   bool addInstSelector() override;
   bool addIRTranslator() override;
   void addPreLegalizeMachineIR() override;
@@ -427,6 +481,7 @@ public:
   bool addRegBankSelect() override;
   void addPreGlobalInstructionSelect() override;
   bool addGlobalInstructionSelect() override;
+  void addMachineSSAOptimization() override;
   bool addILPOpts() override;
   void addPreRegAlloc() override;
   void addPostRegAlloc() override;
@@ -545,6 +600,12 @@ bool AArch64PassConfig::addPreISel() {
   return false;
 }
 
+void AArch64PassConfig::addCodeGenPrepare() {
+  if (getOptLevel() != CodeGenOpt::None)
+    addPass(createTypePromotionPass());
+  TargetPassConfig::addCodeGenPrepare();
+}
+
 bool AArch64PassConfig::addInstSelector() {
   addPass(createAArch64ISelDag(getAArch64TargetMachine(), getOptLevel()));
 
@@ -595,6 +656,14 @@ bool AArch64PassConfig::addGlobalInstructionSelect() {
   if (getOptLevel() != CodeGenOpt::None)
     addPass(createAArch64PostSelectOptimize());
   return false;
+}
+
+void AArch64PassConfig::addMachineSSAOptimization() {
+  // Run default MachineSSAOptimization first.
+  TargetPassConfig::addMachineSSAOptimization();
+
+  if (TM->getOptLevel() != CodeGenOpt::None)
+    addPass(createAArch64MIPeepholeOptPass());
 }
 
 bool AArch64PassConfig::addILPOpts() {

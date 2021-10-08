@@ -17,6 +17,9 @@ check_library_exists(c fopen "" COMPILER_RT_HAS_LIBC)
 if (COMPILER_RT_USE_BUILTINS_LIBRARY)
   include(HandleCompilerRT)
   find_compiler_rt_library(builtins "" COMPILER_RT_BUILTINS_LIBRARY)
+  # TODO(PR51389): We should check COMPILER_RT_BUILTINS_LIBRARY and report an
+  # error if the value is NOTFOUND rather than silenty continuing but we first
+  # need to fix find_compiler_rt_library on Darwin.
 else()
   if (ANDROID)
     check_library_exists(gcc __gcc_personality_v0 "" COMPILER_RT_HAS_GCC_LIB)
@@ -32,7 +35,10 @@ if (COMPILER_RT_HAS_NODEFAULTLIBS_FLAG)
     list(APPEND CMAKE_REQUIRED_LIBRARIES c)
   endif ()
   if (COMPILER_RT_USE_BUILTINS_LIBRARY)
-    list(APPEND CMAKE_REQUIRED_LIBRARIES "${COMPILER_RT_BUILTINS_LIBRARY}")
+    # TODO: remote this check once we address PR51389.
+    if (${COMPILER_RT_BUILTINS_LIBRARY})
+      list(APPEND CMAKE_REQUIRED_LIBRARIES "${COMPILER_RT_BUILTINS_LIBRARY}")
+    endif()
   elseif (COMPILER_RT_HAS_GCC_S_LIB)
     list(APPEND CMAKE_REQUIRED_LIBRARIES gcc_s)
   elseif (COMPILER_RT_HAS_GCC_LIB)
@@ -55,6 +61,7 @@ endif ()
 
 # CodeGen options.
 check_c_compiler_flag(-ffreestanding         COMPILER_RT_HAS_FFREESTANDING_FLAG)
+check_c_compiler_flag(-fomit-frame-pointer   COMPILER_RT_HAS_OMIT_FRAME_POINTER_FLAG)
 check_c_compiler_flag(-std=c11               COMPILER_RT_HAS_STD_C11_FLAG)
 check_cxx_compiler_flag(-fPIC                COMPILER_RT_HAS_FPIC_FLAG)
 check_cxx_compiler_flag(-fPIE                COMPILER_RT_HAS_FPIE_FLAG)
@@ -108,6 +115,8 @@ check_cxx_compiler_flag("-Werror -Wunused-parameter"   COMPILER_RT_HAS_WUNUSED_P
 check_cxx_compiler_flag("-Werror -Wcovered-switch-default" COMPILER_RT_HAS_WCOVERED_SWITCH_DEFAULT_FLAG)
 check_cxx_compiler_flag("-Werror -Wsuggest-override"   COMPILER_RT_HAS_WSUGGEST_OVERRIDE_FLAG)
 check_cxx_compiler_flag(-Wno-pedantic COMPILER_RT_HAS_WNO_PEDANTIC)
+check_cxx_compiler_flag(-Wno-format COMPILER_RT_HAS_WNO_FORMAT)
+check_cxx_compiler_flag(-Wno-format-pedantic COMPILER_RT_HAS_WNO_FORMAT_PEDANTIC)
 
 check_cxx_compiler_flag(/W4 COMPILER_RT_HAS_W4_FLAG)
 check_cxx_compiler_flag(/WX COMPILER_RT_HAS_WX_FLAG)
@@ -242,7 +251,35 @@ function(get_test_cflags_for_apple_platform platform arch cflags_out)
   endif()
   set(test_cflags "")
   get_target_flags_for_arch(${arch} test_cflags)
-  list(APPEND test_cflags ${DARWIN_${platform}_CFLAGS})
+
+  if (NOT "${arch}" STREQUAL "arm64e")
+    list(APPEND test_cflags ${DARWIN_${platform}_CFLAGS})
+  else()
+    # arm64e is not currently ABI stable so we need to build for the
+    # OS version being tested. Rather than querying the device under test
+    # we use the SDK version which "should" be the same as the
+    # device under test (it is a configuration error for these not to match).
+    # FIXME(dliew): We can remove this if we build the runtimes with the appropriate
+    # deployment target for arm64e.
+    foreach (flag ${DARWIN_${platform}_CFLAGS})
+      if ("${flag}" MATCHES "^${DARWIN_${platform}_MIN_VER_FLAG}=.+")
+        # Find the SDK version
+        get_xcrun_platform_from_apple_platform("${platform}" xcrun_platform_name)
+        # TODO(dliew): Remove this check once get_xcrun_platform_from_apple_platform
+        # emits a fatal error for unrecognised platforms.
+        if (NOT "${xcrun_platform_name}" STREQUAL "")
+          find_darwin_sdk_version(platform_sdk_version "${xcrun_platform_name}")
+          # Patch flag with correct deployment target
+          set(replacement_flag "${DARWIN_${platform}_MIN_VER_FLAG}=${platform_sdk_version}")
+          list(APPEND test_cflags "${replacement_flag}")
+        endif()
+      else()
+        # Copy through
+        list(APPEND test_cflags "${flag}")
+      endif()
+    endforeach()
+  endif()
+
   string(REPLACE ";" " " test_cflags_str "${test_cflags}")
   string(APPEND test_cflags_str "${COMPILER_RT_TEST_COMPILER_CFLAGS}")
   set(${cflags_out} "${test_cflags_str}" PARENT_SCOPE)
@@ -271,81 +308,32 @@ function(is_valid_apple_platform platform is_valid_out)
   set(${is_valid_out} ${is_valid} PARENT_SCOPE)
 endfunction()
 
-set(ARM64 aarch64)
-set(ARM32 arm armhf)
-set(HEXAGON hexagon)
-set(X86 i386)
-set(X86_64 x86_64)
-set(MIPS32 mips mipsel)
-set(MIPS64 mips64 mips64el)
-set(PPC32 powerpc)
-set(PPC64 powerpc64 powerpc64le)
-set(RISCV32 riscv32)
-set(RISCV64 riscv64)
-set(S390X s390x)
-set(SPARC sparc)
-set(SPARCV9 sparcv9)
-set(WASM32 wasm32)
-set(WASM64 wasm64)
-set(VE ve)
+# Maps the Apple platform name used in Compiler-rt's CMake code
+# to the name recognised by xcrun's `--sdk` argument
+function(get_xcrun_platform_from_apple_platform platform out_var)
+  set(xcrun_platform "")
+  if ("${platform}" STREQUAL "osx")
+    set(xcrun_platform "macosx")
+  elseif ("${platform}" STREQUAL "iossim")
+    set(xcrun_platform "iphonesimulator")
+  elseif ("${platform}" STREQUAL "ios")
+    set(xcrun_platform "iphoneos")
+  elseif ("${platform}" STREQUAL "watchossim")
+    set(xcrun_platform "watchsimulator")
+  elseif ("${platform}" STREQUAL "watchos")
+    set(xcrun_platform "watchos")
+  elseif ("${platform}" STREQUAL "tvossim")
+    set(xcrun_platform "appletvsimulator")
+  elseif ("${platform}" STREQUAL "tvos")
+    set(xcrun_platform "appletvos")
+  else()
+    # TODO(dliew): Make this an error.
+    message(WARNING "\"${platform}\" is not a handled apple platform")
+  endif()
+  set(${out_var} ${xcrun_platform} PARENT_SCOPE)
+endfunction()
 
-if(APPLE)
-  set(ARM64 arm64)
-  set(ARM32 armv7 armv7s armv7k)
-  set(X86_64 x86_64 x86_64h)
-endif()
-
-set(ALL_SANITIZER_COMMON_SUPPORTED_ARCH ${X86} ${X86_64} ${PPC64} ${RISCV64}
-    ${ARM32} ${ARM64} ${MIPS32} ${MIPS64} ${S390X} ${SPARC} ${SPARCV9})
-set(ALL_ASAN_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV64}
-    ${MIPS32} ${MIPS64} ${PPC64} ${S390X} ${SPARC} ${SPARCV9})
-set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV32} ${RISCV64} ${VE})
-set(ALL_DFSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64})
-
-if(ANDROID)
-  set(OS_NAME "Android")
-else()
-  set(OS_NAME "${CMAKE_SYSTEM_NAME}")
-endif()
-
-if(OS_NAME MATCHES "Linux")
-  set(ALL_FUZZER_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM64} ${S390X})
-elseif (OS_NAME MATCHES "Windows")
-  set(ALL_FUZZER_SUPPORTED_ARCH ${X86} ${X86_64})
-elseif(OS_NAME MATCHES "Android")
-  set(ALL_FUZZER_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64})
-else()
-  set(ALL_FUZZER_SUPPORTED_ARCH ${X86_64} ${ARM64})
-endif()
-
-set(ALL_GWP_ASAN_SUPPORTED_ARCH ${X86} ${X86_64})
-if(APPLE)
-  set(ALL_LSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${MIPS64} ${ARM64})
-else()
-  set(ALL_LSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${MIPS64} ${ARM64} ${ARM32} ${PPC64} ${S390X} ${RISCV64})
-endif()
-set(ALL_MSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64} ${PPC64} ${S390X})
-set(ALL_HWASAN_SUPPORTED_ARCH ${X86_64} ${ARM64})
-set(ALL_MEMPROF_SUPPORTED_ARCH ${X86_64})
-set(ALL_PROFILE_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${PPC32} ${PPC64}
-    ${MIPS32} ${MIPS64} ${S390X} ${SPARC} ${SPARCV9})
-set(ALL_TSAN_SUPPORTED_ARCH ${X86_64} ${MIPS64} ${ARM64} ${PPC64})
-set(ALL_UBSAN_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${RISCV64}
-    ${MIPS32} ${MIPS64} ${PPC64} ${S390X} ${SPARC} ${SPARCV9})
-set(ALL_SAFESTACK_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM64} ${MIPS32} ${MIPS64})
-set(ALL_CFI_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${MIPS64})
-set(ALL_SCUDO_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${MIPS32} ${MIPS64} ${PPC64})
-set(ALL_SCUDO_STANDALONE_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${MIPS32} ${MIPS64} ${PPC64})
-if(APPLE)
-set(ALL_XRAY_SUPPORTED_ARCH ${X86_64})
-else()
-set(ALL_XRAY_SUPPORTED_ARCH ${X86_64} ${ARM32} ${ARM64} ${MIPS32} ${MIPS64} powerpc64le)
-endif()
-set(ALL_SHADOWCALLSTACK_SUPPORTED_ARCH ${ARM64})
-
-if (UNIX)
-set(ALL_ORC_SUPPORTED_ARCH ${X86_64})
-endif()
+include(AllSupportedArchDefs)
 
 if(APPLE)
   include(CompilerRTDarwinUtils)
@@ -528,7 +516,7 @@ if(APPLE)
     endforeach()
   endif()
 
-  # Explictly disable unsupported Sanitizer configurations.
+  # Explicitly disable unsupported Sanitizer configurations.
   list(REMOVE_ITEM FUZZER_SUPPORTED_OS "watchos")
   list(REMOVE_ITEM FUZZER_SUPPORTED_OS "watchossim")
 
@@ -630,8 +618,19 @@ else()
 endif()
 
 if (MSVC)
+  # Allow setting clang-cl's /winsysroot flag.
+  set(LLVM_WINSYSROOT "" CACHE STRING
+    "If set, argument to clang-cl's /winsysroot")
+
+  if (LLVM_WINSYSROOT)
+    set(MSVC_DIA_SDK_DIR "${LLVM_WINSYSROOT}/DIA SDK" CACHE PATH
+        "Path to the DIA SDK")
+  else()
+    set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK" CACHE PATH
+        "Path to the DIA SDK")
+  endif()
+
   # See if the DIA SDK is available and usable.
-  set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK")
   if (IS_DIRECTORY ${MSVC_DIA_SDK_DIR})
     set(CAN_SYMBOLIZE 1)
   else()
@@ -711,7 +710,7 @@ else()
 endif()
 
 if (COMPILER_RT_HAS_SANITIZER_COMMON AND HWASAN_SUPPORTED_ARCH AND
-    OS_NAME MATCHES "Linux|Android")
+    OS_NAME MATCHES "Linux|Android|Fuchsia")
   set(COMPILER_RT_HAS_HWASAN TRUE)
 else()
   set(COMPILER_RT_HAS_HWASAN FALSE)
@@ -774,7 +773,7 @@ else()
 endif()
 
 if (COMPILER_RT_HAS_SANITIZER_COMMON AND SCUDO_SUPPORTED_ARCH AND
-    OS_NAME MATCHES "Linux|Android|Fuchsia")
+    OS_NAME MATCHES "Linux|Fuchsia")
   set(COMPILER_RT_HAS_SCUDO TRUE)
 else()
   set(COMPILER_RT_HAS_SCUDO FALSE)
@@ -812,7 +811,7 @@ endif()
 # calling malloc on first use.
 # TODO(hctim): Enable this on Android again. Looks like it's causing a SIGSEGV
 # for Scudo and GWP-ASan, further testing needed.
-if (COMPILER_RT_HAS_SANITIZER_COMMON AND GWP_ASAN_SUPPORTED_ARCH AND
+if (GWP_ASAN_SUPPORTED_ARCH AND COMPILER_RT_BUILD_GWP_ASAN AND
     OS_NAME MATCHES "Linux")
   set(COMPILER_RT_HAS_GWP_ASAN TRUE)
 else()

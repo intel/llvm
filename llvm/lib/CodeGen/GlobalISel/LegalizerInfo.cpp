@@ -88,7 +88,7 @@ raw_ostream &LegalityQuery::print(raw_ostream &OS) const {
 
   OS << Opcode << ", MMOs={";
   for (const auto &MMODescr : MMODescrs) {
-    OS << MMODescr.SizeInBits << ", ";
+    OS << MMODescr.MemoryTy << ", ";
   }
   OS << "}";
 
@@ -352,8 +352,7 @@ LegalizerInfo::getAction(const MachineInstr &MI,
 
   SmallVector<LegalityQuery::MemDesc, 2> MemDescrs;
   for (const auto &MMO : MI.memoperands())
-    MemDescrs.push_back({MMO->getSizeInBits(),
-                         8 * MMO->getAlign().value(), MMO->getOrdering()});
+    MemDescrs.push_back({*MMO});
 
   return getAction({MI.getOpcode(), Types, MemDescrs});
 }

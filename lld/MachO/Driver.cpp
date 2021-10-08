@@ -8,6 +8,7 @@
 
 #include "Driver.h"
 #include "Config.h"
+#include "ICF.h"
 #include "InputFiles.h"
 #include "LTO.h"
 #include "MarkLive.h"
@@ -18,6 +19,7 @@
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
+#include "UnwindInfoSection.h"
 #include "Writer.h"
 
 #include "lld/Common/Args.h"
@@ -193,51 +195,39 @@ getFrameworkSearchPaths(InputArgList &args,
                         {"/Library/Frameworks", "/System/Library/Frameworks"});
 }
 
-namespace {
-struct ArchiveMember {
-  MemoryBufferRef mbref;
-  uint32_t modTime;
-};
-} // namespace
-
-// Returns slices of MB by parsing MB as an archive file.
-// Each slice consists of a member file in the archive.
-static std::vector<ArchiveMember> getArchiveMembers(MemoryBufferRef mb) {
-  std::unique_ptr<Archive> file =
-      CHECK(Archive::create(mb),
-            mb.getBufferIdentifier() + ": failed to parse archive");
-  Archive *archive = file.get();
-  make<std::unique_ptr<Archive>>(std::move(file)); // take ownership
-
-  std::vector<ArchiveMember> v;
-  Error err = Error::success();
-
-  // Thin archives refer to .o files, so --reproduce needs the .o files too.
-  bool addToTar = archive->isThin() && tar;
-
-  for (const Archive::Child &c : archive->children(err)) {
-    MemoryBufferRef mbref =
-        CHECK(c.getMemoryBufferRef(),
-              mb.getBufferIdentifier() +
-                  ": could not get the buffer for a child of the archive");
-    if (addToTar)
-      tar->append(relativeToRoot(check(c.getFullName())), mbref.getBuffer());
-    uint32_t modTime = toTimeT(
-        CHECK(c.getLastModified(), mb.getBufferIdentifier() +
-                                       ": could not get the modification "
-                                       "time for a child of the archive"));
-    v.push_back({mbref, modTime});
+static llvm::CachePruningPolicy getLTOCachePolicy(InputArgList &args) {
+  SmallString<128> ltoPolicy;
+  auto add = [&ltoPolicy](Twine val) {
+    if (!ltoPolicy.empty())
+      ltoPolicy += ":";
+    val.toVector(ltoPolicy);
+  };
+  for (const Arg *arg :
+       args.filtered(OPT_thinlto_cache_policy, OPT_prune_interval_lto,
+                     OPT_prune_after_lto, OPT_max_relative_cache_size_lto)) {
+    switch (arg->getOption().getID()) {
+    case OPT_thinlto_cache_policy: add(arg->getValue()); break;
+    case OPT_prune_interval_lto:
+      if (!strcmp("-1", arg->getValue()))
+        add("prune_interval=87600h"); // 10 years
+      else
+        add(Twine("prune_interval=") + arg->getValue() + "s");
+      break;
+    case OPT_prune_after_lto:
+      add(Twine("prune_after=") + arg->getValue() + "s");
+      break;
+    case OPT_max_relative_cache_size_lto:
+      add(Twine("cache_size=") + arg->getValue() + "%");
+      break;
+    }
   }
-  if (err)
-    fatal(mb.getBufferIdentifier() +
-          ": Archive::children failed: " + toString(std::move(err)));
-
-  return v;
+  return CHECK(parseCachePruningPolicy(ltoPolicy), "invalid LTO cache policy");
 }
 
+static DenseMap<StringRef, ArchiveFile *> loadedArchives;
+
 static InputFile *addFile(StringRef path, bool forceLoadArchive,
-                          bool isExplicit = true,
-                          bool isBundleLoader = false) {
+                          bool isExplicit = true, bool isBundleLoader = false) {
   Optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer)
     return nullptr;
@@ -247,46 +237,60 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
   file_magic magic = identify_magic(mbref.getBuffer());
   switch (magic) {
   case file_magic::archive: {
-    std::unique_ptr<object::Archive> file = CHECK(
+    // Avoid loading archives twice. If the archives are being force-loaded,
+    // loading them twice would create duplicate symbol errors. In the
+    // non-force-loading case, this is just a minor performance optimization.
+    // We don't take a reference to cachedFile here because the
+    // loadArchiveMember() call below may recursively call addFile() and
+    // invalidate this reference.
+    if (ArchiveFile *cachedFile = loadedArchives[path])
+      return cachedFile;
+
+    std::unique_ptr<object::Archive> archive = CHECK(
         object::Archive::create(mbref), path + ": failed to parse archive");
 
-    if (!file->isEmpty() && !file->hasSymbolTable())
+    if (!archive->isEmpty() && !archive->hasSymbolTable())
       error(path + ": archive has no index; run ranlib to add one");
 
+    auto *file = make<ArchiveFile>(std::move(archive));
     if (config->allLoad || forceLoadArchive) {
       if (Optional<MemoryBufferRef> buffer = readFile(path)) {
-        for (const ArchiveMember &member : getArchiveMembers(*buffer)) {
-          if (Optional<InputFile *> file = loadArchiveMember(
-                  member.mbref, member.modTime, path, /*objCOnly=*/false)) {
-            inputFiles.insert(*file);
-            printArchiveMemberLoad(
-                (forceLoadArchive ? "-force_load" : "-all_load"),
-                inputFiles.back());
-          }
+        Error e = Error::success();
+        for (const object::Archive::Child &c : file->getArchive().children(e)) {
+          StringRef reason = forceLoadArchive ? "-force_load" : "-all_load";
+          if (Error e = file->fetch(c, reason))
+            error(toString(file) + ": " + reason +
+                  " failed to load archive member: " + toString(std::move(e)));
         }
+        if (e)
+          error(toString(file) +
+                ": Archive::children failed: " + toString(std::move(e)));
       }
     } else if (config->forceLoadObjC) {
-      for (const object::Archive::Symbol &sym : file->symbols())
+      for (const object::Archive::Symbol &sym : file->getArchive().symbols())
         if (sym.getName().startswith(objc::klass))
-          symtab->addUndefined(sym.getName(), /*file=*/nullptr,
-                               /*isWeakRef=*/false);
+          file->fetch(sym);
 
       // TODO: no need to look for ObjC sections for a given archive member if
-      // we already found that it contains an ObjC symbol. We should also
-      // consider creating a LazyObjFile class in order to avoid double-loading
-      // these files here and below (as part of the ArchiveFile).
+      // we already found that it contains an ObjC symbol.
       if (Optional<MemoryBufferRef> buffer = readFile(path)) {
-        for (const ArchiveMember &member : getArchiveMembers(*buffer)) {
-          if (Optional<InputFile *> file = loadArchiveMember(
-                  member.mbref, member.modTime, path, /*objCOnly=*/true)) {
-            inputFiles.insert(*file);
-            printArchiveMemberLoad("-ObjC", inputFiles.back());
-          }
+        Error e = Error::success();
+        for (const object::Archive::Child &c : file->getArchive().children(e)) {
+          Expected<MemoryBufferRef> mb = c.getMemoryBufferRef();
+          if (!mb || !hasObjCSection(*mb))
+            continue;
+          if (Error e = file->fetch(c, "-ObjC"))
+            error(toString(file) + ": -ObjC failed to load archive member: " +
+                  toString(std::move(e)));
         }
+        if (e)
+          error(toString(file) +
+                ": Archive::children failed: " + toString(std::move(e)));
       }
     }
 
-    newFile = make<ArchiveFile>(std::move(file));
+    file->addLazySymbols();
+    newFile = loadedArchives[path] = file;
     break;
   }
   case file_magic::macho_object:
@@ -295,14 +299,14 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
   case file_magic::macho_dynamically_linked_shared_lib:
   case file_magic::macho_dynamically_linked_shared_lib_stub:
   case file_magic::tapi_file:
-    if (DylibFile * dylibFile = loadDylib(mbref)) {
+    if (DylibFile *dylibFile = loadDylib(mbref)) {
       if (isExplicit)
         dylibFile->explicitlyLinked = true;
       newFile = dylibFile;
     }
     break;
   case file_magic::bitcode:
-    newFile = make<BitcodeFile>(mbref);
+    newFile = make<BitcodeFile>(mbref, "", 0);
     break;
   case file_magic::macho_executable:
   case file_magic::macho_bundle:
@@ -512,6 +516,14 @@ static void initLLVM() {
 }
 
 static void compileBitcodeFiles() {
+  // FIXME: Remove this once LTO.cpp honors config->exportDynamic.
+  if (config->exportDynamic)
+    for (InputFile *file : inputFiles)
+      if (isa<BitcodeFile>(file)) {
+        warn("the effect of -export_dynamic on LTO is not yet implemented");
+        break;
+      }
+
   TimeTraceScope timeScope("LTO");
   auto *lto = make<BitcodeCompiler>();
   for (InputFile *file : inputFiles)
@@ -528,25 +540,28 @@ static void compileBitcodeFiles() {
 // any CommonSymbols.
 static void replaceCommonSymbols() {
   TimeTraceScope timeScope("Replace common symbols");
+  ConcatOutputSection *osec = nullptr;
   for (Symbol *sym : symtab->getSymbols()) {
     auto *common = dyn_cast<CommonSymbol>(sym);
     if (common == nullptr)
       continue;
 
-    auto *isec =
-        make<ConcatInputSection>(segment_names::data, section_names::common);
-    isec->file = common->getFile();
-    isec->align = common->align;
     // Casting to size_t will truncate large values on 32-bit architectures,
     // but it's not really worth supporting the linking of 64-bit programs on
     // 32-bit archs.
-    isec->data = {nullptr, static_cast<size_t>(common->size)};
-    isec->flags = S_ZEROFILL;
+    ArrayRef<uint8_t> data = {nullptr, static_cast<size_t>(common->size)};
+    auto *isec = make<ConcatInputSection>(
+        segment_names::data, section_names::common, common->getFile(), data,
+        common->align, S_ZEROFILL);
+    if (!osec)
+      osec = ConcatOutputSection::getOrCreateForInput(isec);
+    isec->parent = osec;
     inputSections.push_back(isec);
 
     // FIXME: CommonSymbol should store isReferencedDynamically, noDeadStrip
     // and pass them on here.
-    replaceSymbol<Defined>(sym, sym->getName(), isec->file, isec, /*value=*/0,
+    replaceSymbol<Defined>(sym, sym->getName(), isec->getFile(), isec,
+                           /*value=*/0,
                            /*size=*/0,
                            /*isWeakDef=*/false,
                            /*isExternal=*/true, common->privateExtern,
@@ -689,6 +704,24 @@ getUndefinedSymbolTreatment(const ArgList &args) {
   return treatment;
 }
 
+static ICFLevel getICFLevel(const ArgList &args) {
+  StringRef icfLevelStr = args.getLastArgValue(OPT_icf_eq);
+  auto icfLevel = StringSwitch<ICFLevel>(icfLevelStr)
+                      .Cases("none", "", ICFLevel::none)
+                      .Case("safe", ICFLevel::safe)
+                      .Case("all", ICFLevel::all)
+                      .Default(ICFLevel::unknown);
+  if (icfLevel == ICFLevel::unknown) {
+    warn(Twine("unknown --icf=OPTION `") + icfLevelStr +
+         "', defaulting to `none'");
+    icfLevel = ICFLevel::none;
+  } else if (icfLevel == ICFLevel::safe) {
+    warn(Twine("`--icf=safe' is not yet implemented, reverting to `none'"));
+    icfLevel = ICFLevel::none;
+  }
+  return icfLevel;
+}
+
 static void warnIfDeprecatedOption(const Option &opt) {
   if (!opt.getGroup().isValid())
     return;
@@ -806,7 +839,33 @@ static std::vector<SectionAlign> parseSectAlign(const opt::InputArgList &args) {
   return sectAligns;
 }
 
+PlatformKind macho::removeSimulator(PlatformKind platform) {
+  switch (platform) {
+  case PlatformKind::iOSSimulator:
+    return PlatformKind::iOS;
+  case PlatformKind::tvOSSimulator:
+    return PlatformKind::tvOS;
+  case PlatformKind::watchOSSimulator:
+    return PlatformKind::watchOS;
+  default:
+    return platform;
+  }
+}
+
 static bool dataConstDefault(const InputArgList &args) {
+  static const std::vector<std::pair<PlatformKind, VersionTuple>> minVersion = {
+      {PlatformKind::macOS, VersionTuple(10, 15)},
+      {PlatformKind::iOS, VersionTuple(13, 0)},
+      {PlatformKind::tvOS, VersionTuple(13, 0)},
+      {PlatformKind::watchOS, VersionTuple(6, 0)},
+      {PlatformKind::bridgeOS, VersionTuple(4, 0)}};
+  PlatformKind platform = removeSimulator(config->platformInfo.target.Platform);
+  auto it = llvm::find_if(minVersion,
+                          [&](const auto &p) { return p.first == platform; });
+  if (it != minVersion.end())
+    if (config->platformInfo.minimum < it->second)
+      return false;
+
   switch (config->outputType) {
   case MH_EXECUTE:
     return !args.hasArg(OPT_no_pie);
@@ -845,7 +904,7 @@ bool SymbolPatterns::matchLiteral(StringRef symbolName) const {
 }
 
 bool SymbolPatterns::matchGlob(StringRef symbolName) const {
-  for (const llvm::GlobPattern &glob : globs)
+  for (const GlobPattern &glob : globs)
     if (glob.match(symbolName))
       return true;
   return false;
@@ -935,6 +994,69 @@ void createFiles(const InputArgList &args) {
   }
 }
 
+static void gatherInputSections() {
+  TimeTraceScope timeScope("Gathering input sections");
+  int inputOrder = 0;
+  for (const InputFile *file : inputFiles) {
+    for (const SubsectionMap &map : file->subsections) {
+      ConcatOutputSection *osec = nullptr;
+      for (const SubsectionEntry &entry : map) {
+        if (auto *isec = dyn_cast<ConcatInputSection>(entry.isec)) {
+          if (isec->isCoalescedWeak())
+            continue;
+          if (isec->getSegName() == segment_names::ld) {
+            assert(isec->getName() == section_names::compactUnwind);
+            in.unwindInfo->addInput(isec);
+            continue;
+          }
+          isec->outSecOff = inputOrder++;
+          if (!osec)
+            osec = ConcatOutputSection::getOrCreateForInput(isec);
+          isec->parent = osec;
+          inputSections.push_back(isec);
+        } else if (auto *isec = dyn_cast<CStringInputSection>(entry.isec)) {
+          if (in.cStringSection->inputOrder == UnspecifiedInputOrder)
+            in.cStringSection->inputOrder = inputOrder++;
+          in.cStringSection->addInput(isec);
+        } else if (auto *isec = dyn_cast<WordLiteralInputSection>(entry.isec)) {
+          if (in.wordLiteralSection->inputOrder == UnspecifiedInputOrder)
+            in.wordLiteralSection->inputOrder = inputOrder++;
+          in.wordLiteralSection->addInput(isec);
+        } else {
+          llvm_unreachable("unexpected input section kind");
+        }
+      }
+    }
+  }
+  assert(inputOrder <= UnspecifiedInputOrder);
+}
+
+static void foldIdenticalLiterals() {
+  // We always create a cStringSection, regardless of whether dedupLiterals is
+  // true. If it isn't, we simply create a non-deduplicating CStringSection.
+  // Either way, we must unconditionally finalize it here.
+  in.cStringSection->finalizeContents();
+  if (in.wordLiteralSection)
+    in.wordLiteralSection->finalizeContents();
+}
+
+static void referenceStubBinder() {
+  bool needsStubHelper = config->outputType == MH_DYLIB ||
+                         config->outputType == MH_EXECUTE ||
+                         config->outputType == MH_BUNDLE;
+  if (!needsStubHelper || !symtab->find("dyld_stub_binder"))
+    return;
+
+  // dyld_stub_binder is used by dyld to resolve lazy bindings. This code here
+  // adds a opportunistic reference to dyld_stub_binder if it happens to exist.
+  // dyld_stub_binder is in libSystem.dylib, which is usually linked in. This
+  // isn't needed for correctness, but the presence of that symbol suppresses
+  // "no symbols" diagnostics from `nm`.
+  // StubHelperSection::setup() adds a reference and errors out if
+  // dyld_stub_binder doesn't exist in case it is actually needed.
+  symtab->addUndefined("dyld_stub_binder", /*file=*/nullptr, /*isWeak=*/false);
+}
+
 bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
                  raw_ostream &stdoutOS, raw_ostream &stderrOS) {
   lld::stdoutOS = &stdoutOS;
@@ -1011,10 +1133,13 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   }
 
   for (const Arg *arg : args.filtered(OPT_U))
-    symtab->addDynamicLookup(arg->getValue());
+    config->explicitDynamicLookups.insert(arg->getValue());
 
   config->mapFile = args.getLastArgValue(OPT_map);
+  config->optimize = args::getInteger(args, OPT_O, 1);
   config->outputFile = args.getLastArgValue(OPT_o, "a.out");
+  config->finalOutput =
+      args.getLastArgValue(OPT_final_output, config->outputFile);
   config->astPaths = args.getAllArgValues(OPT_add_ast_path);
   config->headerPad = args::getHex(args, OPT_headerpad, /*Default=*/32);
   config->headerPadMaxInstallNames =
@@ -1030,20 +1155,39 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     addFile(arg->getValue(), /*forceLoadArchive=*/false, /*isExplicit=*/false,
             /*isBundleLoader=*/true);
   }
+  if (const Arg *arg = args.getLastArg(OPT_umbrella)) {
+    if (config->outputType != MH_DYLIB)
+      warn("-umbrella used, but not creating dylib");
+    config->umbrella = arg->getValue();
+  }
   config->ltoObjPath = args.getLastArgValue(OPT_object_path_lto);
   config->ltoNewPassManager =
       args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
                    LLVM_ENABLE_NEW_PASS_MANAGER);
+  config->ltoo = args::getInteger(args, OPT_lto_O, 2);
+  if (config->ltoo > 3)
+    error("--lto-O: invalid optimization level: " + Twine(config->ltoo));
+  config->thinLTOCacheDir = args.getLastArgValue(OPT_cache_path_lto);
+  config->thinLTOCachePolicy = getLTOCachePolicy(args);
   config->runtimePaths = args::getStrings(args, OPT_rpath);
   config->allLoad = args.hasArg(OPT_all_load);
+  config->archMultiple = args.hasArg(OPT_arch_multiple);
+  config->applicationExtension = args.hasFlag(
+      OPT_application_extension, OPT_no_application_extension, false);
+  config->exportDynamic = args.hasArg(OPT_export_dynamic);
   config->forceLoadObjC = args.hasArg(OPT_ObjC);
   config->forceLoadSwift = args.hasArg(OPT_force_load_swift_libs);
   config->deadStripDylibs = args.hasArg(OPT_dead_strip_dylibs);
   config->demangle = args.hasArg(OPT_demangle);
   config->implicitDylibs = !args.hasArg(OPT_no_implicit_dylibs);
-  config->emitFunctionStarts = !args.hasArg(OPT_no_function_starts);
+  config->emitFunctionStarts =
+      args.hasFlag(OPT_function_starts, OPT_no_function_starts, true);
   config->emitBitcodeBundle = args.hasArg(OPT_bitcode_bundle);
-  config->dedupLiterals = args.hasArg(OPT_deduplicate_literals);
+  config->emitDataInCodeInfo =
+      args.hasFlag(OPT_data_in_code_info, OPT_no_data_in_code_info, true);
+  config->icfLevel = getICFLevel(args);
+  config->dedupLiterals = args.hasArg(OPT_deduplicate_literals) ||
+                          config->icfLevel != ICFLevel::none;
 
   // FIXME: Add a commandline flag for this too.
   config->zeroModTime = getenv("ZERO_AR_DATE");
@@ -1065,7 +1209,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     else
       config->installName = arg->getValue();
   } else if (config->outputType == MH_DYLIB) {
-    config->installName = config->outputFile;
+    config->installName = config->finalOutput;
   }
 
   if (args.hasArg(OPT_mark_dead_strippable_dylib)) {
@@ -1233,24 +1377,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     if (!orderFile.empty())
       parseOrderFile(orderFile);
 
-    if (config->entry)
-      if (auto *undefined = dyn_cast<Undefined>(config->entry))
-        treatUndefinedSymbol(*undefined, "the entry point");
-
-    // FIXME: This prints symbols that are undefined both in input files and
-    // via -u flag twice.
-    for (const Symbol *sym : config->explicitUndefineds) {
-      if (const auto *undefined = dyn_cast<Undefined>(sym))
-        treatUndefinedSymbol(*undefined, "-u");
-    }
-    // Literal exported-symbol names must be defined, but glob
-    // patterns need not match.
-    for (const CachedHashStringRef &cachedName :
-         config->exportedSymbols.literals) {
-      if (const Symbol *sym = symtab->find(cachedName))
-        if (const auto *undefined = dyn_cast<Undefined>(sym))
-          treatUndefinedSymbol(*undefined, "-exported_symbol(s_list)");
-    }
+    referenceStubBinder();
 
     // FIXME: should terminate the link early based on errors encountered so
     // far?
@@ -1264,8 +1391,8 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
           StringRef symbolName = defined->getName();
           if (config->exportedSymbols.match(symbolName)) {
             if (defined->privateExtern) {
-              error("cannot export hidden symbol " + symbolName +
-                    "\n>>> defined in " + toString(defined->getFile()));
+              warn("cannot export hidden symbol " + symbolName +
+                   "\n>>> defined in " + toString(defined->getFile()));
             }
           } else {
             defined->privateExtern = true;
@@ -1288,23 +1415,16 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
         inputFiles.insert(make<OpaqueFile>(*buffer, segName, sectName));
     }
 
-    {
-      TimeTraceScope timeScope("Gathering input sections");
-      // Gather all InputSections into one vector.
-      for (const InputFile *file : inputFiles) {
-        for (const SubsectionMap &map : file->subsections) {
-          for (const SubsectionEntry &entry : map) {
-            if (auto concatIsec = dyn_cast<ConcatInputSection>(entry.isec))
-              if (concatIsec->isCoalescedWeak())
-                continue;
-            inputSections.push_back(entry.isec);
-          }
-        }
-      }
-    }
+    gatherInputSections();
 
     if (config->deadStrip)
       markLive();
+
+    // ICF assumes that all literals have been folded already, so we must run
+    // foldIdenticalLiterals before foldIdenticalSections.
+    foldIdenticalLiterals();
+    if (config->icfLevel != ICFLevel::none)
+      foldIdenticalSections();
 
     // Write to an output file.
     if (target->wordSize == 8)
@@ -1316,12 +1436,9 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   }
 
   if (config->timeTraceEnabled) {
-    if (auto E = timeTraceProfilerWrite(
-            args.getLastArgValue(OPT_time_trace_file_eq).str(),
-            config->outputFile)) {
-      handleAllErrors(std::move(E),
-                      [&](const StringError &SE) { error(SE.getMessage()); });
-    }
+    checkError(timeTraceProfilerWrite(
+        args.getLastArgValue(OPT_time_trace_file_eq).str(),
+        config->outputFile));
 
     timeTraceProfilerCleanup();
   }

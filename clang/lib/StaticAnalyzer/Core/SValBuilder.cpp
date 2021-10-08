@@ -49,6 +49,16 @@ using namespace ento;
 
 void SValBuilder::anchor() {}
 
+SValBuilder::SValBuilder(llvm::BumpPtrAllocator &alloc, ASTContext &context,
+                         ProgramStateManager &stateMgr)
+    : Context(context), BasicVals(context, alloc),
+      SymMgr(context, BasicVals, alloc), MemMgr(context, alloc),
+      StateMgr(stateMgr),
+      AnOpts(
+          stateMgr.getOwningEngine().getAnalysisManager().getAnalyzerOptions()),
+      ArrayIndexTy(context.LongLongTy),
+      ArrayIndexWidth(context.getTypeSize(ArrayIndexTy)) {}
+
 DefinedOrUnknownSVal SValBuilder::makeZeroVal(QualType type) {
   if (Loc::isLocType(type))
     return makeNull();
@@ -192,12 +202,19 @@ SValBuilder::getConjuredHeapSymbolVal(const Expr *E,
                                       const LocationContext *LCtx,
                                       unsigned VisitCount) {
   QualType T = E->getType();
-  assert(Loc::isLocType(T));
-  assert(SymbolManager::canSymbolicate(T));
-  if (T->isNullPtrType())
-    return makeZeroVal(T);
+  return getConjuredHeapSymbolVal(E, LCtx, T, VisitCount);
+}
 
-  SymbolRef sym = SymMgr.conjureSymbol(E, LCtx, T, VisitCount);
+DefinedOrUnknownSVal
+SValBuilder::getConjuredHeapSymbolVal(const Expr *E,
+                                      const LocationContext *LCtx,
+                                      QualType type, unsigned VisitCount) {
+  assert(Loc::isLocType(type));
+  assert(SymbolManager::canSymbolicate(type));
+  if (type->isNullPtrType())
+    return makeZeroVal(type);
+
+  SymbolRef sym = SymMgr.conjureSymbol(E, LCtx, type, VisitCount);
   return loc::MemRegionVal(MemMgr.getSymbolicHeapRegion(sym));
 }
 
@@ -398,9 +415,7 @@ SVal SValBuilder::makeSymExprValNN(BinaryOperator::Opcode Op,
 
   // TODO: When the Max Complexity is reached, we should conjure a symbol
   // instead of generating an Unknown value and propagate the taint info to it.
-  const unsigned MaxComp = StateMgr.getOwningEngine()
-                               .getAnalysisManager()
-                               .options.MaxSymbolComplexity;
+  const unsigned MaxComp = AnOpts.MaxSymbolComplexity;
 
   if (symLHS && symRHS &&
       (symLHS->computeComplexity() + symRHS->computeComplexity()) <  MaxComp)
@@ -712,9 +727,19 @@ SVal SValBuilder::evalCastSubKind(loc::MemRegionVal V, QualType CastTy,
           // symbols to use, only content metadata.
           return nonloc::SymbolVal(SymMgr.getExtentSymbol(FTR));
 
-    if (const SymbolicRegion *SymR = R->getSymbolicBase())
-      return makeNonLoc(SymR->getSymbol(), BO_NE,
-                        BasicVals.getZeroWithPtrWidth(), CastTy);
+    if (const SymbolicRegion *SymR = R->getSymbolicBase()) {
+      SymbolRef Sym = SymR->getSymbol();
+      QualType Ty = Sym->getType();
+      // This change is needed for architectures with varying
+      // pointer widths. See the amdgcn opencl reproducer with
+      // this change as an example: solver-sym-simplification-ptr-bool.cl
+      // FIXME: Cleanup remainder of `getZeroWithPtrWidth ()`
+      //        and `getIntWithPtrWidth()` functions to prevent future
+      //        confusion
+      if (!Ty->isReferenceType())
+        return makeNonLoc(Sym, BO_NE, BasicVals.getZeroWithTypeSize(Ty),
+                          CastTy);
+    }
     // Non-symbolic memory regions are always true.
     return makeTruthVal(true, CastTy);
   }

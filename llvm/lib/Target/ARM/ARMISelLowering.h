@@ -139,6 +139,10 @@ class VectorType;
     PREDICATE_CAST,  // Predicate cast for MVE i1 types
     VECTOR_REG_CAST, // Reinterpret the current contents of a vector register
 
+    MVESEXT,  // Legalization aids for extending a vector into two/four vectors.
+    MVEZEXT,  //  or truncating two/four vectors into one. Eventually becomes
+    MVETRUNC, //  stack store/load sequence, if not optimized to anything else.
+
     VCMP,  // Vector compare.
     VCMPZ, // Vector compare to zero.
     VTST,  // Vector test bits.
@@ -277,6 +281,10 @@ class VectorType;
     QSUB8b,
     QADD16b,
     QSUB16b,
+    UQADD8b,
+    UQSUB8b,
+    UQADD16b,
+    UQSUB16b,
 
     // Operands of the standard BUILD_VECTOR node are not legalized, which
     // is fine if BUILD_VECTORs are always lowered to shuffles or other
@@ -417,6 +425,8 @@ class VectorType;
     SDValue PerformBRCONDCombine(SDNode *N, SelectionDAG &DAG) const;
     SDValue PerformCMOVToBFICombine(SDNode *N, SelectionDAG &DAG) const;
     SDValue PerformIntrinsicCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+    SDValue PerformMVEExtCombine(SDNode *N, DAGCombinerInfo &DCI) const;
+    SDValue PerformMVETruncCombine(SDNode *N, DAGCombinerInfo &DCI) const;
     SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
     bool SimplifyDemandedBitsForTargetNode(SDValue Op,
@@ -615,7 +625,8 @@ class VectorType;
     /// Returns true if an argument of type Ty needs to be passed in a
     /// contiguous block of registers in calling convention CallConv.
     bool functionArgumentNeedsConsecutiveRegisters(
-        Type *Ty, CallingConv::ID CallConv, bool isVarArg) const override;
+        Type *Ty, CallingConv::ID CallConv, bool isVarArg,
+        const DataLayout &DL) const override;
 
     /// If a physical register, this returns the register that receives the
     /// exception address on entry to an EH pad.
@@ -628,7 +639,7 @@ class VectorType;
     getExceptionSelectorRegister(const Constant *PersonalityFn) const override;
 
     Instruction *makeDMB(IRBuilderBase &Builder, ARM_MB::MemBOpt Domain) const;
-    Value *emitLoadLinked(IRBuilderBase &Builder, Value *Addr,
+    Value *emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy, Value *Addr,
                           AtomicOrdering Ord) const override;
     Value *emitStoreConditional(IRBuilderBase &Builder, Value *Val, Value *Addr,
                                 AtomicOrdering Ord) const override;
@@ -669,7 +680,7 @@ class VectorType;
                                    unsigned &Cost) const override;
 
     bool canMergeStoresTo(unsigned AddressSpace, EVT MemVT,
-                          const SelectionDAG &DAG) const override {
+                          const MachineFunction &MF) const override {
       // Do not merge to larger than i32.
       return (MemVT.getSizeInBits() <= 32);
     }
@@ -700,6 +711,9 @@ class VectorType;
     bool isLegalInterleavedAccessType(unsigned Factor, FixedVectorType *VecTy,
                                       Align Alignment,
                                       const DataLayout &DL) const;
+
+    bool isMulAddWithConstProfitable(const SDValue &AddNode,
+                                     const SDValue &ConstNode) const override;
 
     bool alignLoopsWithOptSize() const override;
 
@@ -745,7 +759,7 @@ class VectorType;
 
     bool HasStandaloneRem = true;
 
-    void addTypeForNEON(MVT VT, MVT PromotedLdStVT, MVT PromotedBitwiseVT);
+    void addTypeForNEON(MVT VT, MVT PromotedLdStVT);
     void addDRTypeForNEON(MVT VT);
     void addQRTypeForNEON(MVT VT);
     std::pair<SDValue, SDValue> getARMXALUOOp(SDValue Op, SelectionDAG &DAG, SDValue &ARMcc) const;

@@ -7,6 +7,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
@@ -15,7 +16,9 @@
 //                            size_t num_args = 0) noexcept
 
 #include <format>
+
 #include <cassert>
+#include <string_view>
 #include <type_traits>
 
 #include "test_macros.h"

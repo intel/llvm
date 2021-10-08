@@ -142,6 +142,7 @@ static pi_result redefinedProgramCreateWithSource(pi_context context,
 static pi_result redefinedProgramCreateWithBinary(
     pi_context context, pi_uint32 num_devices, const pi_device *device_list,
     const size_t *lengths, const unsigned char **binaries,
+    size_t num_metadata_entries, const pi_device_binary_property *metadata,
     pi_int32 *binary_status, pi_program *ret_program) {
   return PI_SUCCESS;
 }
@@ -208,7 +209,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 }
 
 sycl::unittest::PiImage Img = generateDefaultImage();
-sycl::unittest::PiImageArray ImgArray{Img};
+sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::platform Plt{sycl::default_selector()};
@@ -219,6 +220,11 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
 
   if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 
@@ -254,6 +260,11 @@ TEST(KernelBuildOptions, Program) {
 
   if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 

@@ -121,6 +121,9 @@ HANDLE_TARGET_OPCODE(LIFETIME_END)
 /// Pseudo probe
 HANDLE_TARGET_OPCODE(PSEUDO_PROBE)
 
+/// Arithmetic fence.
+HANDLE_TARGET_OPCODE(ARITH_FENCE)
+
 /// A Stackmap instruction captures the location of live variables at its
 /// position in the instruction stream. It is followed by a shadow of bytes
 /// that must lie within the function and not contain another stackmap.
@@ -649,6 +652,9 @@ HANDLE_TARGET_OPCODE(G_UMAX)
 /// Generic integer absolute value.
 HANDLE_TARGET_OPCODE(G_ABS)
 
+HANDLE_TARGET_OPCODE(G_LROUND)
+HANDLE_TARGET_OPCODE(G_LLROUND)
+
 /// Generic BRANCH instruction. This is an unconditional branch.
 HANDLE_TARGET_OPCODE(G_BR)
 
@@ -735,6 +741,9 @@ HANDLE_TARGET_OPCODE(G_WRITE_REGISTER)
 
 /// llvm.memcpy intrinsic
 HANDLE_TARGET_OPCODE(G_MEMCPY)
+
+/// llvm.memcpy.inline intrinsic
+HANDLE_TARGET_OPCODE(G_MEMCPY_INLINE)
 
 /// llvm.memmove intrinsic
 HANDLE_TARGET_OPCODE(G_MEMMOVE)

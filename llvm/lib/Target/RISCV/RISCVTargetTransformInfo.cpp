@@ -27,7 +27,7 @@ InstructionCost RISCVTTIImpl::getIntImmCost(const APInt &Imm, Type *Ty,
   // Otherwise, we check how many instructions it will take to materialise.
   const DataLayout &DL = getDataLayout();
   return RISCVMatInt::getIntMatCost(Imm, DL.getTypeSizeInBits(Ty),
-                                    getST()->is64Bit());
+                                    getST()->getFeatureBits());
 }
 
 InstructionCost RISCVTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
@@ -52,8 +52,15 @@ InstructionCost RISCVTTIImpl::getIntImmCostInst(unsigned Opcode, unsigned Idx,
     // split up large offsets in GEP into better parts than ConstantHoisting
     // can.
     return TTI::TCC_Free;
-  case Instruction::Add:
   case Instruction::And:
+    // zext.h
+    if (Imm == UINT64_C(0xffff) && ST->hasStdExtZbb())
+      return TTI::TCC_Free;
+    // zext.w
+    if (Imm == UINT64_C(0xffffffff) && ST->hasStdExtZbb())
+      return TTI::TCC_Free;
+    LLVM_FALLTHROUGH;
+  case Instruction::Add:
   case Instruction::Or:
   case Instruction::Xor:
   case Instruction::Mul:

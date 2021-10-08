@@ -79,6 +79,8 @@ public:
 
   using ImplType = TypeStorage;
 
+  using AbstractTy = AbstractType;
+
   constexpr Type() : impl(nullptr) {}
   /* implicit */ Type(const ImplType *impl)
       : impl(const_cast<ImplType *>(impl)) {}
@@ -109,7 +111,7 @@ public:
   MLIRContext *getContext() const;
 
   /// Get the dialect this type is registered to.
-  Dialect &getDialect() const;
+  Dialect &getDialect() const { return impl->getAbstractType().getDialect(); }
 
   // Convenience predicates.  This is only for floating point types,
   // derived types should use isa/dyn_cast.
@@ -154,8 +156,8 @@ public:
   bool isIntOrIndexOrFloat() const;
 
   /// Print the current type.
-  void print(raw_ostream &os);
-  void dump();
+  void print(raw_ostream &os) const;
+  void dump() const;
 
   friend ::llvm::hash_code hash_value(Type arg);
 
@@ -167,8 +169,14 @@ public:
     return Type(reinterpret_cast<ImplType *>(const_cast<void *>(pointer)));
   }
 
+  /// Returns true if the type was registered with a particular trait.
+  template <template <typename T> class Trait>
+  bool hasTrait() {
+    return getAbstractType().hasTrait<Trait>();
+  }
+
   /// Return the abstract type descriptor for this type.
-  const AbstractType &getAbstractType() { return impl->getAbstractType(); }
+  const AbstractTy &getAbstractType() { return impl->getAbstractType(); }
 
 protected:
   ImplType *impl;

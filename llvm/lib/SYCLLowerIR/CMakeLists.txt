@@ -13,13 +13,12 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     message(STATUS "vc-intrinsics are missing. Will try to download them from github.com")
-    # FIXME: temporarily use a fork of intel/vc-intrinsics.git with getAnyName function
-    # disabled as it is not compatible with https://reviews.llvm.org/D99173.
-    set(LLVMGenXIntrinsics_GIT_TAG c3ecb918fc00913b0dc9b1bef1912df0361b74b0)
+
+    set( LLVMGenXIntrinsics_GIT_TAG b1db3e55bac23670be4ffbd0da85a9fd0110f593 )
 
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
-      GIT_REPOSITORY https://github.com/abhinavgaba/vc-intrinsics.git
+      GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
       GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
     )
     FetchContent_MakeAvailable(vc-intrinsics)

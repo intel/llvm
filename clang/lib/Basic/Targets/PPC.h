@@ -74,6 +74,10 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   bool HasP10Vector = false;
   bool HasPCRelativeMemops = false;
   bool HasPrefixInstrs = false;
+  bool IsISA2_06 = false;
+  bool IsISA2_07 = false;
+  bool IsISA3_0 = false;
+  bool IsISA3_1 = false;
 
 protected:
   std::string ABI;
@@ -86,10 +90,11 @@ public:
     LongDoubleWidth = LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::PPCDoubleDouble();
     HasStrictFP = true;
+    HasIbm128 = true;
   }
 
   // Set the language option for altivec based on our value.
-  void adjust(LangOptions &Opts) override;
+  void adjust(DiagnosticsEngine &Diags, LangOptions &Opts) override;
 
   // Note: GCC recognizes the following additional cpus:
   //  401, 403, 405, 405fp, 440fp, 464, 464fp, 476, 476fp, 505, 740, 801,
@@ -344,29 +349,12 @@ public:
                : "u9__ieee128";
   }
   const char *getFloat128Mangling() const override { return "u9__ieee128"; }
+  const char *getIbm128Mangling() const override { return "g"; }
 
   bool hasExtIntType() const override { return true; }
 
   bool isSPRegName(StringRef RegName) const override {
     return RegName.equals("r1") || RegName.equals("x1");
-  }
-
-  void defineXLCompatMacros(MacroBuilder &Builder) const {
-    Builder.defineMacro("__popcntb", "__builtin_ppc_popcntb");
-    Builder.defineMacro("__eieio", "__builtin_ppc_eieio");
-    Builder.defineMacro("__iospace_eieio", "__builtin_ppc_iospace_eieio");
-    Builder.defineMacro("__isync", "__builtin_ppc_isync");
-    Builder.defineMacro("__lwsync", "__builtin_ppc_lwsync");
-    Builder.defineMacro("__iospace_lwsync", "__builtin_ppc_iospace_lwsync");
-    Builder.defineMacro("__sync", "__builtin_ppc_sync");
-    Builder.defineMacro("__iospace_sync", "__builtin_ppc_iospace_sync");
-    Builder.defineMacro("__dcbfl", "__builtin_ppc_dcbfl");
-    Builder.defineMacro("__dcbflp", "__builtin_ppc_dcbflp");
-    Builder.defineMacro("__dcbst", "__builtin_ppc_dcbst");
-    Builder.defineMacro("__dcbt", "__builtin_ppc_dcbt");
-    Builder.defineMacro("__dcbtst", "__builtin_ppc_dcbtst");
-    Builder.defineMacro("__dcbz", "__builtin_ppc_dcbz");
-    Builder.defineMacro("__icbt", "__builtin_ppc_icbt");
   }
 };
 
@@ -472,6 +460,8 @@ public:
     switch (CC) {
     case CC_Swift:
       return CCCR_OK;
+    case CC_SwiftAsync:
+      return CCCR_Error;
     default:
       return CCCR_Warning;
     }

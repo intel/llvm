@@ -429,8 +429,8 @@ define <4 x float> @signbits_ashr_sext_select_shuffle_sitofp(<4 x i64> %a0, <4 x
 ; X86-NEXT:    movl %esp, %ebp
 ; X86-NEXT:    andl $-16, %esp
 ; X86-NEXT:    subl $16, %esp
-; X86-NEXT:    vpmovsxdq 8(%ebp), %xmm3
-; X86-NEXT:    vpmovsxdq 16(%ebp), %xmm4
+; X86-NEXT:    vpmovsxdq 8(%ebp), %xmm4
+; X86-NEXT:    vpmovsxdq 16(%ebp), %xmm3
 ; X86-NEXT:    vpsrad $31, %xmm2, %xmm5
 ; X86-NEXT:    vpsrad $1, %xmm2, %xmm6
 ; X86-NEXT:    vpshufd {{.*#+}} xmm6 = xmm6[1,1,3,3]
@@ -441,12 +441,12 @@ define <4 x float> @signbits_ashr_sext_select_shuffle_sitofp(<4 x i64> %a0, <4 x
 ; X86-NEXT:    vpshufd {{.*#+}} xmm2 = xmm2[1,1,3,3]
 ; X86-NEXT:    vpblendw {{.*#+}} xmm2 = xmm2[0,1],xmm6[2,3],xmm2[4,5],xmm6[6,7]
 ; X86-NEXT:    vpcmpeqq %xmm1, %xmm0, %xmm6
-; X86-NEXT:    vblendvpd %xmm6, %xmm5, %xmm3, %xmm3
+; X86-NEXT:    vblendvpd %xmm6, %xmm5, %xmm4, %xmm4
 ; X86-NEXT:    vextractf128 $1, %ymm1, %xmm1
 ; X86-NEXT:    vextractf128 $1, %ymm0, %xmm0
 ; X86-NEXT:    vpcmpeqq %xmm1, %xmm0, %xmm0
-; X86-NEXT:    vblendvpd %xmm0, %xmm2, %xmm4, %xmm0
-; X86-NEXT:    vinsertf128 $1, %xmm0, %ymm3, %ymm0
+; X86-NEXT:    vblendvpd %xmm0, %xmm2, %xmm3, %xmm0
+; X86-NEXT:    vinsertf128 $1, %xmm0, %ymm4, %ymm0
 ; X86-NEXT:    vmovddup {{.*#+}} ymm0 = ymm0[0,0,2,2]
 ; X86-NEXT:    vextractf128 $1, %ymm0, %xmm1
 ; X86-NEXT:    vshufps {{.*#+}} xmm0 = xmm0[0,2],xmm1[0,2]
@@ -659,6 +659,80 @@ define <4 x i32> @signbits_mask_ashr_umin(<4 x i32> %a0, <4 x i32> %a1) {
   ret <4 x i32> %6
 }
 declare <4 x i32> @llvm.umin.v4i32(<4 x i32>, <4 x i32>) nounwind readnone
+
+define i32 @signbits_cmpss(float %0, float %1) {
+; X86-LABEL: signbits_cmpss:
+; X86:       # %bb.0:
+; X86-NEXT:    vmovss {{.*#+}} xmm0 = mem[0],zero,zero,zero
+; X86-NEXT:    vcmpeqss {{[0-9]+}}(%esp), %xmm0, %xmm0
+; X86-NEXT:    vmovd %xmm0, %eax
+; X86-NEXT:    retl
+;
+; X64-LABEL: signbits_cmpss:
+; X64:       # %bb.0:
+; X64-NEXT:    vcmpeqss %xmm1, %xmm0, %xmm0
+; X64-NEXT:    vmovd %xmm0, %eax
+; X64-NEXT:    retq
+  %3 = fcmp oeq float %0, %1
+  %4 = sext i1 %3 to i32
+  ret i32 %4
+}
+
+define i32 @signbits_cmpss_int(<4 x float> %0, <4 x float> %1) {
+; CHECK-LABEL: signbits_cmpss_int:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vcmpeqss %xmm1, %xmm0, %xmm0
+; CHECK-NEXT:    vextractps $0, %xmm0, %eax
+; CHECK-NEXT:    ret{{[l|q]}}
+  %3 = tail call <4 x float> @llvm.x86.sse.cmp.ss(<4 x float> %0, <4 x float> %1, i8 0)
+  %4 = bitcast <4 x float> %3 to <4 x i32>
+  %5 = extractelement <4 x i32> %4, i32 0
+  %6 = ashr i32 %5, 31
+  ret i32 %6
+}
+declare <4 x float> @llvm.x86.sse.cmp.ss(<4 x float>, <4 x float>, i8 immarg)
+
+define i64 @signbits_cmpsd(double %0, double %1) {
+; X86-LABEL: signbits_cmpsd:
+; X86:       # %bb.0:
+; X86-NEXT:    vmovsd {{.*#+}} xmm0 = mem[0],zero
+; X86-NEXT:    vcmpeqsd {{[0-9]+}}(%esp), %xmm0, %xmm0
+; X86-NEXT:    vmovd %xmm0, %eax
+; X86-NEXT:    andl $1, %eax
+; X86-NEXT:    negl %eax
+; X86-NEXT:    movl %eax, %edx
+; X86-NEXT:    retl
+;
+; X64-LABEL: signbits_cmpsd:
+; X64:       # %bb.0:
+; X64-NEXT:    vcmpeqsd %xmm1, %xmm0, %xmm0
+; X64-NEXT:    vmovq %xmm0, %rax
+; X64-NEXT:    retq
+  %3 = fcmp oeq double %0, %1
+  %4 = sext i1 %3 to i64
+  ret i64 %4
+}
+
+define i64 @signbits_cmpsd_int(<2 x double> %0, <2 x double> %1) {
+; X86-LABEL: signbits_cmpsd_int:
+; X86:       # %bb.0:
+; X86-NEXT:    vcmpeqsd %xmm1, %xmm0, %xmm0
+; X86-NEXT:    vextractps $1, %xmm0, %eax
+; X86-NEXT:    movl %eax, %edx
+; X86-NEXT:    retl
+;
+; X64-LABEL: signbits_cmpsd_int:
+; X64:       # %bb.0:
+; X64-NEXT:    vcmpeqsd %xmm1, %xmm0, %xmm0
+; X64-NEXT:    vmovq %xmm0, %rax
+; X64-NEXT:    retq
+  %3 = tail call <2 x double> @llvm.x86.sse2.cmp.sd(<2 x double> %0, <2 x double> %1, i8 0)
+  %4 = bitcast <2 x double> %3 to <2 x i64>
+  %5 = extractelement <2 x i64> %4, i32 0
+  %6 = ashr i64 %5, 63
+  ret i64 %6
+}
+declare <2 x double> @llvm.x86.sse2.cmp.sd(<2 x double>, <2 x double>, i8 immarg)
 
 ; Make sure we can preserve sign bit information into the second basic block
 ; so we can avoid having to shift bit 0 into bit 7 for each element due to

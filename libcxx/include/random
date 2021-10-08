@@ -1678,6 +1678,7 @@ class piecewise_linear_distribution
 */
 
 #include <__config>
+#include <__random/uniform_int_distribution.h>
 #include <algorithm>
 #include <cmath>
 #include <concepts>
@@ -1730,7 +1731,7 @@ struct __is_seed_sequence
 template <unsigned long long __a, unsigned long long __c,
           unsigned long long __m, unsigned long long _Mp,
           bool _MightOverflow = (__a != 0 && __m != 0 && __m-1 > (_Mp-__c)/__a),
-          bool _OverflowOK = ((__m|__m-1) > __m), // m = 2^n
+          bool _OverflowOK = ((__m | (__m-1)) > __m), // m = 2^n
           bool _SchrageOK = (__a != 0 && __m != 0 && __m % __a <= __m / __a)> // r <= q
 struct __lce_alg_picker
 {
@@ -3773,42 +3774,6 @@ generate_canonical(_URNG& __g)
     return _Sp / __base;
 }
 
-// uniform_int_distribution
-
-// in <algorithm>
-
-template <class _CharT, class _Traits, class _IT>
-basic_ostream<_CharT, _Traits>&
-operator<<(basic_ostream<_CharT, _Traits>& __os,
-           const uniform_int_distribution<_IT>& __x)
-{
-    __save_flags<_CharT, _Traits> __lx(__os);
-    typedef basic_ostream<_CharT, _Traits> _Ostream;
-    __os.flags(_Ostream::dec | _Ostream::left);
-    _CharT __sp = __os.widen(' ');
-    __os.fill(__sp);
-    return __os << __x.a() << __sp << __x.b();
-}
-
-template <class _CharT, class _Traits, class _IT>
-basic_istream<_CharT, _Traits>&
-operator>>(basic_istream<_CharT, _Traits>& __is,
-           uniform_int_distribution<_IT>& __x)
-{
-    typedef uniform_int_distribution<_IT> _Eng;
-    typedef typename _Eng::result_type result_type;
-    typedef typename _Eng::param_type param_type;
-    __save_flags<_CharT, _Traits> __lx(__is);
-    typedef basic_istream<_CharT, _Traits> _Istream;
-    __is.flags(_Istream::dec | _Istream::skipws);
-    result_type __a;
-    result_type __b;
-    __is >> __a >> __b;
-    if (!__is.fail())
-        __x.param(param_type(__a, __b));
-    return __is;
-}
-
 // uniform_real_distribution
 
 template<class _RealType = double>
@@ -4160,7 +4125,7 @@ inline _LIBCPP_INLINE_VISIBILITY double __libcpp_lgamma(double __d) {
 }
 
 template<class _IntType>
-binomial_distribution<_IntType>::param_type::param_type(const result_type __t, const double __p)
+binomial_distribution<_IntType>::param_type::param_type(result_type __t, double __p)
     : __t_(__t), __p_(__p)
 {
     if (0 < __p_ && __p_ < 1)

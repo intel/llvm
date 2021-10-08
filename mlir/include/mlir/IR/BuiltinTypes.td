@@ -154,6 +154,13 @@ def Builtin_Function : Builtin_Type<"Function", [
     unsigned getNumResults() const;
     Type getResult(unsigned i) const { return getResults()[i]; }
 
+    /// Returns a new function type with the specified arguments and results
+    /// inserted.
+    FunctionType getWithArgsAndResults(ArrayRef<unsigned> argIndices,
+                                       TypeRange argTypes,
+                                       ArrayRef<unsigned> resultIndices,
+                                       TypeRange resultTypes);
+
     /// Returns a new function type without the specified arguments and results.
     FunctionType getWithoutArgsAndResults(ArrayRef<unsigned> argIndices,
                                           ArrayRef<unsigned> resultIndices);
@@ -502,14 +509,16 @@ def Builtin_MemRef : Builtin_Type<"MemRef", [
 
     ##### Strided MemRef
 
-    A memref may specify strides as part of its type. A stride specification is
-    a list of integer values that are either static or `?` (dynamic case).
+    A memref may specify a strided layout as part of its type. A stride
+    specification is a list of integer values that are either static or `?`
+    (dynamic case).
     Strides encode the distance, in number of elements, in (linear) memory
     between successive entries along a particular dimension. A stride
     specification is syntactic sugar for an equivalent strided memref
-    representation using semi-affine maps. For example,
-    `memref<42x16xf32, offset: 33, strides: [1, 64]>` specifies a non-contiguous
-    memory region of `42` by `16` `f32` elements such that:
+    representation with a *single* semi-affine map.
+
+    For example, `memref<42x16xf32, offset: 33, strides: [1, 64]>` specifies a
+    non-contiguous memory region of `42` by `16` `f32` elements such that:
 
     1.  the minimal size of the enclosing memory region must be
         `33 + 42 * 1 + 16 * 64 = 1066` elements;
@@ -751,7 +760,7 @@ def Builtin_Tuple : Builtin_Type<"Tuple", [
 
     **Rationale:** Though this type is first class in the type system, MLIR
     provides no standard operations for operating on `tuple` types
-    ([rationale](Rationale/Rationale.md/#tuple-types)).
+    ([rationale](Rationale/Rationale/#tuple-types)).
 
     Examples:
 

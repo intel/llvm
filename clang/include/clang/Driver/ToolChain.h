@@ -113,6 +113,13 @@ public:
     RM_Disabled,
   };
 
+  struct BitCodeLibraryInfo {
+    std::string Path;
+    bool ShouldInternalize;
+    BitCodeLibraryInfo(StringRef Path, bool ShouldInternalize = true)
+        : Path(Path), ShouldInternalize(ShouldInternalize) {}
+  };
+
   enum FileType { FT_Object, FT_Static, FT_Shared };
 
 private:
@@ -396,6 +403,10 @@ public:
 
   /// Check if the toolchain should use the integrated assembler.
   virtual bool useIntegratedAs() const;
+
+  /// Check if the toolchain should use AsmParser to parse inlineAsm when
+  /// integrated assembler is not default.
+  virtual bool parseInlineAsmUsingAsmParser() const { return false; }
 
   /// IsMathErrnoDefault - Does this tool chain use -fmath-errno by default.
   virtual bool IsMathErrnoDefault() const { return true; }
@@ -694,7 +705,7 @@ public:
                                           const llvm::opt::ArgList &Args) const;
 
   /// Get paths of HIP device libraries.
-  virtual llvm::SmallVector<std::string, 12>
+  virtual llvm::SmallVector<BitCodeLibraryInfo, 12>
   getHIPDeviceLibs(const llvm::opt::ArgList &Args) const;
 
   /// Return sanitizers which are available in this toolchain.

@@ -1,5 +1,8 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
 
+// See http://llvm.org/pr52045
+// UNSUPPORTED: asan
+
 // Check different error cases.
 // -----
 
@@ -92,7 +95,8 @@ func @memref_stride_missing_colon_2(memref<42x42xi8, offset: 0, strides [?, ?]>)
 
 // -----
 
-func @memref_stride_invalid_strides(memref<42x42xi8, offset: 0, strides: ()>) // expected-error {{invalid braces-enclosed stride list}}
+// expected-error @+1 {{expected '['}}
+func @memref_stride_invalid_strides(memref<42x42xi8, offset: 0, strides: ()>)
 
 // -----
 
@@ -178,6 +182,16 @@ func @no_return() {
 
 // -----
 
+func @no_terminator() {
+  br ^bb1
+^bb1:
+  %x = constant 0 : i32
+  %y = constant 1 : i32  // expected-error {{block with no terminator}}
+}
+
+
+// -----
+
 "       // expected-error {{expected}}
 "
 
@@ -253,7 +267,7 @@ func @for_negative_stride() {
 // -----
 
 func @non_operation() {
-  asd   // expected-error {{custom op 'asd' is unknown}}
+  test.asd   // expected-error {{custom op 'test.asd' is unknown}}
 }
 
 // -----
@@ -623,7 +637,8 @@ func @invalid_bound_map(%N : i32) {
 
 // -----
 
-#set0 = affine_set<(i)[N, M] : )i >= 0)> // expected-error {{expected '(' at start of integer set constraint list}}
+// expected-error @+1 {{expected '(' in integer set constraint list}}
+#set0 = affine_set<(i)[N, M] : )i >= 0)>
 
 // -----
 #set0 = affine_set<(i)[N] : (i >= 0, N - i >= 0)>
@@ -887,7 +902,7 @@ func @mi() {
 // -----
 
 func @invalid_tensor_literal() {
-  // expected-error @+1 {{expected 1-d tensor for values}}
+  // expected-error @+1 {{expected 1-d tensor for sparse element values}}
   "foof16"(){bar = sparse<[[0, 0, 0]],  [[-2.0]]> : vector<1x1x1xf16>} : () -> ()
 
 // -----
@@ -895,6 +910,12 @@ func @invalid_tensor_literal() {
 func @invalid_tensor_literal() {
   // expected-error @+1 {{expected element literal of primitive type}}
   "fooi16"(){bar = sparse<[[1, 1, 0], [0, 1, 0], [0,, [[0, 0, 0]], [-2.0]> : tensor<2x2x2xi16>} : () -> ()
+
+// -----
+
+func @invalid_tensor_literal() {
+  // expected-error @+1 {{sparse index #0 is not contained within the value shape, with index=[1, 1], and type='tensor<1x1xi16>'}}
+  "fooi16"(){bar = sparse<1, 10> : tensor<1x1xi16>} : () -> ()
 
 // -----
 

@@ -121,11 +121,6 @@ public:
     // Currently, DBG_VALUE_VAR expressions must use stack_value.
     assert(Expr && Expr->isValid() &&
            is_contained(Locs, dwarf::DW_OP_stack_value));
-    for (DbgValueLocEntry &Entry : ValueLocEntries) {
-      assert(!Entry.isConstantFP() && !Entry.isConstantInt() &&
-             "Constant values should only be present in non-variadic "
-             "DBG_VALUEs.");
-    }
 #endif
   }
 
@@ -142,11 +137,6 @@ public:
       // Currently, DBG_VALUE_VAR expressions must use stack_value.
       assert(Expr && Expr->isValid() &&
              is_contained(Expr->getElements(), dwarf::DW_OP_stack_value));
-      for (DbgValueLocEntry &Entry : ValueLocEntries) {
-        assert(!Entry.isConstantFP() && !Entry.isConstantInt() &&
-               "Constant values should only be present in non-variadic "
-               "DBG_VALUEs.");
-      }
     }
 #endif
   }
@@ -168,7 +158,7 @@ public:
   friend bool operator<(const DbgValueLoc &, const DbgValueLoc &);
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   LLVM_DUMP_METHOD void dump() const {
-    for (DbgValueLocEntry DV : ValueLocEntries)
+    for (const DbgValueLocEntry &DV : ValueLocEntries)
       DV.dump();
     if (Expression)
       Expression->dump();

@@ -1,21 +1,19 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 
 // Tests for IR of Intel FPGA [[intel::use_stall_enable_clusters]] function attribute on Device.
-// The metadata to be attached to the functionDecl that the attribute is applied to.
-// The attributes do not get propagated to kernel metadata i.e. spir_kernel.
 
 #include "sycl.hpp"
 
 using namespace cl::sycl;
 queue q;
 
-[[intel::use_stall_enable_clusters]] void test() {}
+[[intel::use_stall_enable_clusters]] void func() {}
 
 struct FuncObj {
   [[intel::use_stall_enable_clusters]] void operator()() const {}
 };
 
-void test1() {
+void func1() {
   auto lambda = []() [[intel::use_stall_enable_clusters]]{};
   lambda();
 }
@@ -27,28 +25,42 @@ public:
 
 int main() {
   q.submit([&](handler &h) {
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel1() #0 !kernel_arg_buffer_location ![[NUM4:[0-9]+]]
-    // CHECK: define {{.*}}spir_func void @{{.*}}FuncObjclEv(%struct.{{.*}}FuncObj addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM5:[0-9]+]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel1() {{.*}} !stall_enable ![[NUM4:[0-9]+]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}FuncObjclEv(%struct.{{.*}}FuncObj addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM4]]
     h.single_task<class test_kernel1>(
         FuncObj());
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel2() #0 !kernel_arg_buffer_location ![[NUM4]]
-    // CHECK define {{.*}}spir_func void @{{.*}}FooclEv(%class._ZTS3Foo.Foo addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM5]]
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel2() {{.*}} !stall_enable ![[NUM4]]
+    // CHECK define {{.*}}spir_func void @{{.*}}FooclEv(%class._ZTS3Foo.Foo addrspace(4)* align 1 dereferenceable_or_null(1) %this) #3 comdat align 2 !stall_enable ![[NUM4]]
     Foo f;
     h.single_task<class test_kernel2>(f);
 
-    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel3() #0 !kernel_arg_buffer_location ![[NUM4]]
-    // CHECK: define {{.*}}spir_func void @_Z4testv() #3 !stall_enable ![[NUM5]]
+    // Test attribute is not propagated to the kernel metadata i.e. spir_kernel.
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel3()
+    // CHECK-NOT: !stall_enable
+    // CHECK-SAME: {
+    // CHECK: define {{.*}}spir_func void @{{.*}}func{{.*}} !stall_enable ![[NUM4]]
     h.single_task<class test_kernel3>(
-        []() { test(); });
+        []() { func(); });
 
+<<<<<<< HEAD
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel4() #0 !kernel_arg_buffer_location ![[NUM4]]
     // CHECK: define {{.*}}spir_func void @{{.*}}test1vENKUlvE_clEv(%class.anon{{.*}} addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM5]]
+=======
+    // Test attribute is not propagated to the kernel metadata i.e. spir_kernel.
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel4()
+    // CHECK-NOT: !stall_enable
+    // CHECK-SAME: {
+    // CHECK: define {{.*}}spir_func void @{{.*}}func1{{.*}}(%class.{{.*}}func1{{.*}}.anon addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM4]]
+>>>>>>> intel/sycl
     h.single_task<class test_kernel4>(
-        []() { test1(); });
+        []() { func1(); });
+
+    // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel5() {{.*}} !stall_enable ![[NUM4]]
+    h.single_task<class test_kernel5>(
+        []() [[intel::use_stall_enable_clusters]]{});
   });
   return 0;
 }
 
-// CHECK: ![[NUM4]] = !{}
-// CHECK: ![[NUM5]] = !{i32 1}
+// CHECK: ![[NUM4]] = !{i32 1}

@@ -54,6 +54,7 @@ protected:
   bool HasVOP3PInsts;
   bool HasMulI24;
   bool HasMulU24;
+  bool HasSMulHi;
   bool HasInv2PiInlineImm;
   bool HasFminFmaxLegacy;
   bool EnablePromoteAlloca;
@@ -90,7 +91,18 @@ public:
   /// be converted to integer, violate subtarget's specifications, or are not
   /// compatible with minimum/maximum number of waves limited by flat work group
   /// size, register usage, and/or lds usage.
-  std::pair<unsigned, unsigned> getWavesPerEU(const Function &F) const;
+  std::pair<unsigned, unsigned> getWavesPerEU(const Function &F) const {
+    // Default/requested minimum/maximum flat work group sizes.
+    std::pair<unsigned, unsigned> FlatWorkGroupSizes = getFlatWorkGroupSizes(F);
+    return getWavesPerEU(F, FlatWorkGroupSizes);
+  }
+
+  /// Overload which uses the specified values for the flat work group sizes,
+  /// rather than querying the function itself. \p FlatWorkGroupSizes Should
+  /// correspond to the function's value for getFlatWorkGroupSizes.
+  std::pair<unsigned, unsigned>
+  getWavesPerEU(const Function &F,
+                std::pair<unsigned, unsigned> FlatWorkGroupSizes) const;
 
   /// Return the amount of LDS that can be used that will not restrict the
   /// occupancy lower than WaveCount.
@@ -159,6 +171,10 @@ public:
 
   bool hasMulU24() const {
     return HasMulU24;
+  }
+
+  bool hasSMulHi() const {
+    return HasSMulHi;
   }
 
   bool hasInv2PiInlineImm() const {

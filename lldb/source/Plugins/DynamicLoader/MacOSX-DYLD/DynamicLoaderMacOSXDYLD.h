@@ -66,8 +66,6 @@ public:
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
   bool IsFullyInitialized() override;
 
 protected:
@@ -106,9 +104,7 @@ protected:
     bool libSystemInitialized = false;                        // Version >= 2
     lldb::addr_t dyldImageLoadAddress = LLDB_INVALID_ADDRESS; // Version >= 2
 
-    DYLDAllImageInfos()
-
-    {}
+    DYLDAllImageInfos() = default;
 
     void Clear() {
       version = 0;

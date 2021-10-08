@@ -194,6 +194,7 @@ template <> void SPIRVMap<OclExt::Kind, std::string>::init() {
   _SPIRV_OP(cl_khr_mipmap_image_writes)
   _SPIRV_OP(cl_khr_egl_event)
   _SPIRV_OP(cl_khr_srgb_image_writes)
+  _SPIRV_OP(cl_khr_extended_bit_ops)
 #undef _SPIRV_OP
 }
 
@@ -206,6 +207,7 @@ template <> void SPIRVMap<OclExt::Kind, SPIRVCapabilityKind>::init() {
   add(OclExt::cl_khr_subgroups, CapabilityGroups);
   add(OclExt::cl_khr_mipmap_image, CapabilityImageMipmap);
   add(OclExt::cl_khr_mipmap_image_writes, CapabilityImageMipmap);
+  add(OclExt::cl_khr_extended_bit_ops, CapabilityBitInstructions);
 }
 
 /// Map OpenCL work functions to SPIR-V builtin variables.
@@ -291,7 +293,7 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(isgreaterequal, FOrdGreaterThanEqual)
   _SPIRV_OP(isless, FOrdLessThan)
   _SPIRV_OP(islessequal, FOrdLessThanEqual)
-  _SPIRV_OP(islessgreater, LessOrGreater)
+  _SPIRV_OP(islessgreater, FOrdNotEqual)
   _SPIRV_OP(isordered, Ordered)
   _SPIRV_OP(isunordered, Unordered)
   _SPIRV_OP(isfinite, IsFinite)
@@ -414,6 +416,11 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   // cl_khr_subgroup_shuffle_relative
   _SPIRV_OP(group_shuffle_up, GroupNonUniformShuffleUp)
   _SPIRV_OP(group_shuffle_down, GroupNonUniformShuffleDown)
+  // cl_khr_extended_bit_ops
+  _SPIRV_OP(bitfield_insert, BitFieldInsert)
+  _SPIRV_OP(bitfield_extract_signed, BitFieldSExtract)
+  _SPIRV_OP(bitfield_extract_unsigned, BitFieldUExtract)
+  _SPIRV_OP(bit_reverse, BitReverse)
 #undef _SPIRV_OP
 }
 
@@ -964,6 +971,7 @@ public:
   OCLBuiltinFuncMangleInfo(Function *F) : F(F) {}
   OCLBuiltinFuncMangleInfo(ArrayRef<Type *> ArgTypes)
       : ArgTypes(ArgTypes.vec()) {}
+  Type *getArgTy(unsigned I) { return F->getFunctionType()->getParamType(I); }
   void init(StringRef UniqName) override {
     // Make a local copy as we will modify the string in init function
     std::string TempStorage = UniqName.str();
@@ -1253,9 +1261,9 @@ public:
     } else if (NameRef.startswith("intel_sub_group_block_write")) {
       // distinguish write to image and other data types as position
       // of uint argument is different though name is the same.
-      assert(ArgTypes.size() && "lack of necessary information");
-      if (ArgTypes[0]->isPointerTy() &&
-          ArgTypes[0]->getPointerElementType()->isIntegerTy()) {
+      auto *Arg0Ty = getArgTy(0);
+      if (Arg0Ty->isPointerTy() &&
+          Arg0Ty->getPointerElementType()->isIntegerTy()) {
         addUnsignedArg(0);
         addUnsignedArg(1);
       } else {
@@ -1264,9 +1272,9 @@ public:
     } else if (NameRef.startswith("intel_sub_group_block_read")) {
       // distinguish read from image and other data types as position
       // of uint argument is different though name is the same.
-      assert(ArgTypes.size() && "lack of necessary information");
-      if (ArgTypes[0]->isPointerTy() &&
-          ArgTypes[0]->getPointerElementType()->isIntegerTy()) {
+      auto *Arg0Ty = getArgTy(0);
+      if (Arg0Ty->isPointerTy() &&
+          Arg0Ty->getPointerElementType()->isIntegerTy()) {
         setArgAttr(0, SPIR::ATTR_CONST);
         addUnsignedArg(0);
       }
@@ -1284,6 +1292,11 @@ public:
         }
       } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
         addUnsignedArg(1);
+    } else if (NameRef.startswith("bitfield_insert")) {
+      addUnsignedArgs(2, 3);
+    } else if (NameRef.startswith("bitfield_extract_signed") ||
+               NameRef.startswith("bitfield_extract_unsigned")) {
+      addUnsignedArgs(1, 2);
     }
 
     // Store the final version of a function name
@@ -1292,6 +1305,8 @@ public:
   // Auxiliarry information, it is expected that it is relevant at the moment
   // the init method is called.
   Function *F;                  // SPIRV decorated function
+  // TODO: ArgTypes argument should get removed once all SPV-IR related issues
+  // are resolved
   std::vector<Type *> ArgTypes; // Arguments of OCL builtin
 };
 
@@ -1494,6 +1509,15 @@ std::string getIntelSubgroupBlockDataPostfix(unsigned ElementBitSize,
         "Incorrect vector length for intel_subgroup_block builtins");
   }
   return OSS.str();
+}
+
+void insertImageNameAccessQualifier(SPIRVAccessQualifierKind Acc,
+                                    std::string &Name) {
+  std::string QName = rmap<std::string>(Acc);
+  // transform: read_only -> ro, write_only -> wo, read_write -> rw
+  QName = QName.substr(0, 1) + QName.substr(QName.find("_") + 1, 1) + "_";
+  assert(!Name.empty() && "image name should not be empty");
+  Name.insert(Name.size() - 1, QName);
 }
 } // namespace OCLUtil
 

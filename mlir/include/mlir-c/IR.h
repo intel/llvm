@@ -60,6 +60,7 @@ DEFINE_C_API_STRUCT(MlirIdentifier, const void);
 DEFINE_C_API_STRUCT(MlirLocation, const void);
 DEFINE_C_API_STRUCT(MlirModule, const void);
 DEFINE_C_API_STRUCT(MlirType, const void);
+DEFINE_C_API_STRUCT(MlirTypeID, const void);
 DEFINE_C_API_STRUCT(MlirValue, const void);
 
 #undef DEFINE_C_API_STRUCT
@@ -161,6 +162,18 @@ MLIR_CAPI_EXPORTED MlirLocation mlirLocationFileLineColGet(
 /// Creates a call site location with a callee and a caller.
 MLIR_CAPI_EXPORTED MlirLocation mlirLocationCallSiteGet(MlirLocation callee,
                                                         MlirLocation caller);
+
+/// Creates a fused location with an array of locations and metadata.
+MLIR_CAPI_EXPORTED MlirLocation
+mlirLocationFusedGet(MlirContext ctx, intptr_t nLocations,
+                     MlirLocation const *locations, MlirAttribute metadata);
+
+/// Creates a name location owned by the given context. Providing null location
+/// for childLoc is allowed and if childLoc is null location, then the behavior
+/// is the same as having unknown child location.
+MLIR_CAPI_EXPORTED MlirLocation mlirLocationNameGet(MlirContext context,
+                                                    MlirStringRef name,
+                                                    MlirLocation childLoc);
 
 /// Creates a location with unknown position owned by the given context.
 MLIR_CAPI_EXPORTED MlirLocation mlirLocationUnknownGet(MlirContext context);
@@ -344,6 +357,11 @@ MLIR_CAPI_EXPORTED bool mlirOperationEqual(MlirOperation op,
 /// Gets the context this operation is associated with
 MLIR_CAPI_EXPORTED MlirContext mlirOperationGetContext(MlirOperation op);
 
+/// Gets the type id of the operation.
+/// Returns null if the operation does not have a registered operation
+/// description.
+MLIR_CAPI_EXPORTED MlirTypeID mlirOperationGetTypeID(MlirOperation op);
+
 /// Gets the name of the operation as an identifier.
 MLIR_CAPI_EXPORTED MlirIdentifier mlirOperationGetName(MlirOperation op);
 
@@ -447,6 +465,10 @@ MLIR_CAPI_EXPORTED void mlirRegionDestroy(MlirRegion region);
 /// Checks whether a region is null.
 static inline bool mlirRegionIsNull(MlirRegion region) { return !region.ptr; }
 
+/// Checks whether two region handles point to the same region. This does not
+/// perform deep comparison.
+MLIR_CAPI_EXPORTED bool mlirRegionEqual(MlirRegion region, MlirRegion other);
+
 /// Gets the first block in the region.
 MLIR_CAPI_EXPORTED MlirBlock mlirRegionGetFirstBlock(MlirRegion region);
 
@@ -495,6 +517,9 @@ MLIR_CAPI_EXPORTED bool mlirBlockEqual(MlirBlock block, MlirBlock other);
 
 /// Returns the closest surrounding operation that contains this block.
 MLIR_CAPI_EXPORTED MlirOperation mlirBlockGetParentOperation(MlirBlock);
+
+/// Returns the region that contains this block.
+MLIR_CAPI_EXPORTED MlirRegion mlirBlockGetParentRegion(MlirBlock block);
 
 /// Returns the block immediately following the given block in its parent
 /// region.
@@ -557,7 +582,7 @@ mlirBlockPrint(MlirBlock block, MlirStringCallback callback, void *userData);
 static inline bool mlirValueIsNull(MlirValue value) { return !value.ptr; }
 
 /// Returns 1 if two values are equal, 0 otherwise.
-bool mlirValueEqual(MlirValue value1, MlirValue value2);
+MLIR_CAPI_EXPORTED bool mlirValueEqual(MlirValue value1, MlirValue value2);
 
 /// Returns 1 if the value is a block argument, 0 otherwise.
 MLIR_CAPI_EXPORTED bool mlirValueIsABlockArgument(MlirValue value);
@@ -607,6 +632,9 @@ MLIR_CAPI_EXPORTED MlirType mlirTypeParseGet(MlirContext context,
 /// Gets the context that a type was created with.
 MLIR_CAPI_EXPORTED MlirContext mlirTypeGetContext(MlirType type);
 
+/// Gets the type ID of the type.
+MLIR_CAPI_EXPORTED MlirTypeID mlirTypeGetTypeID(MlirType type);
+
 /// Checks whether a type is null.
 static inline bool mlirTypeIsNull(MlirType type) { return !type.ptr; }
 
@@ -635,6 +663,9 @@ MLIR_CAPI_EXPORTED MlirContext mlirAttributeGetContext(MlirAttribute attribute);
 
 /// Gets the type of this attribute.
 MLIR_CAPI_EXPORTED MlirType mlirAttributeGetType(MlirAttribute attribute);
+
+/// Gets the type id of the attribute.
+MLIR_CAPI_EXPORTED MlirTypeID mlirAttributeGetTypeID(MlirAttribute attribute);
 
 /// Checks whether an attribute is null.
 static inline bool mlirAttributeIsNull(MlirAttribute attr) { return !attr.ptr; }
@@ -673,6 +704,21 @@ MLIR_CAPI_EXPORTED bool mlirIdentifierEqual(MlirIdentifier ident,
 
 /// Gets the string value of the identifier.
 MLIR_CAPI_EXPORTED MlirStringRef mlirIdentifierStr(MlirIdentifier ident);
+
+//===----------------------------------------------------------------------===//
+// TypeID API.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether a type id is null.
+MLIR_CAPI_EXPORTED static inline bool mlirTypeIDIsNull(MlirTypeID typeID) {
+  return !typeID.ptr;
+}
+
+/// Checks if two type ids are equal.
+MLIR_CAPI_EXPORTED bool mlirTypeIDEqual(MlirTypeID typeID1, MlirTypeID typeID2);
+
+/// Returns the hash value of the type id.
+MLIR_CAPI_EXPORTED size_t mlirTypeIDHashValue(MlirTypeID typeID);
 
 #ifdef __cplusplus
 }

@@ -19,8 +19,8 @@ namespace lldb_private {
 // ITSession - Keep track of the IT Block progression.
 class ITSession {
 public:
-  ITSession() {}
-  ~ITSession() {}
+  ITSession() = default;
+  ~ITSession() = default;
 
   // InitIT - Initializes ITCounter/ITState.
   bool InitIT(uint32_t bits7_0);
@@ -86,8 +86,6 @@ public:
   lldb_private::ConstString GetPluginName() override {
     return GetPluginNameStatic();
   }
-
-  uint32_t GetPluginVersion() override { return 1; }
 
   bool SetTargetTriple(const ArchSpec &arch) override;
 

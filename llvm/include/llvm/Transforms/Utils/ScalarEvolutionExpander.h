@@ -83,6 +83,9 @@ class SCEVExpander : public SCEVVisitor<SCEVExpander, Value *> {
   /// InsertedValues/InsertedPostIncValues.
   SmallPtrSet<Value *, 16> ReusedValues;
 
+  // The induction variables generated.
+  SmallVector<WeakVH, 2> InsertedIVs;
+
   /// A memoization of the "relevant" loop for a given SCEV.
   DenseMap<const SCEV *, const Loop *> RelevantLoops;
 
@@ -160,7 +163,7 @@ class SCEVExpander : public SCEVVisitor<SCEVExpander, Value *> {
   /// consistent when instructions are moved.
   SmallVector<SCEVInsertPointGuard *, 8> InsertPointGuards;
 
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
   const char *DebugType;
 #endif
 
@@ -176,7 +179,7 @@ public:
         Builder(se.getContext(), TargetFolder(DL),
                 IRBuilderCallbackInserter(
                     [this](Instruction *I) { rememberInstruction(I); })) {
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
     DebugType = "";
 #endif
   }
@@ -186,7 +189,7 @@ public:
     assert(InsertPointGuards.empty());
   }
 
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
   void setDebugType(const char *s) { DebugType = s; }
 #endif
 
@@ -199,9 +202,11 @@ public:
     InsertedPostIncValues.clear();
     ReusedValues.clear();
     ChainedPhis.clear();
+    InsertedIVs.clear();
   }
 
   ScalarEvolution *getSE() { return &SE; }
+  const SmallVectorImpl<WeakVH> &getInsertedIVs() const { return InsertedIVs; }
 
   /// Return a vector containing all instructions inserted during expansion.
   SmallVector<Instruction *, 32> getAllInsertedInstructions() const {
@@ -483,9 +488,6 @@ private:
                                      Type *&TruncTy, bool &InvertStep);
   Value *expandIVInc(PHINode *PN, Value *StepV, const Loop *L, Type *ExpandTy,
                      Type *IntTy, bool useSubtract);
-
-  void hoistBeforePos(DominatorTree *DT, Instruction *InstToHoist,
-                      Instruction *Pos, PHINode *LoopPhi);
 
   void fixupInsertPoints(Instruction *I);
 

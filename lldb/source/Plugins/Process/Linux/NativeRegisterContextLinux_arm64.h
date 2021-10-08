@@ -12,6 +12,7 @@
 #define lldb_NativeRegisterContextLinux_arm64_h
 
 #include "Plugins/Process/Linux/NativeRegisterContextLinux.h"
+#include "Plugins/Process/Utility/LinuxPTraceDefines_arm64sve.h"
 #include "Plugins/Process/Utility/NativeRegisterContextDBReg_arm64.h"
 #include "Plugins/Process/Utility/RegisterInfoPOSIX_arm64.h"
 
@@ -53,6 +54,9 @@ public:
 
   bool RegisterOffsetIsDynamic() const override { return true; }
 
+  llvm::Expected<MemoryTaggingDetails>
+  GetMemoryTaggingDetails(int32_t type) override;
+
 protected:
   Status ReadGPR() override;
 
@@ -72,6 +76,8 @@ protected:
 
   size_t GetFPRSize() override { return sizeof(m_fpr); }
 
+  lldb::addr_t FixWatchpointHitAddress(lldb::addr_t hit_addr) override;
+
 private:
   bool m_gpr_is_valid;
   bool m_fpu_is_valid;
@@ -87,7 +93,7 @@ private:
       m_fpr; // floating-point registers including extended register sets.
 
   SVEState m_sve_state;
-  struct user_sve_header m_sve_header;
+  struct sve::user_sve_header m_sve_header;
   std::vector<uint8_t> m_sve_ptrace_payload;
 
   bool m_refresh_hwdebug_info;
@@ -133,7 +139,7 @@ private:
 
   void *GetMTEControl() { return &m_mte_ctrl_reg; }
 
-  void *GetSVEBuffer();
+  void *GetSVEBuffer() { return m_sve_ptrace_payload.data(); };
 
   size_t GetSVEHeaderSize() { return sizeof(m_sve_header); }
 

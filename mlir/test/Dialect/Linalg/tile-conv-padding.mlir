@@ -1,5 +1,5 @@
-// RUN: mlir-opt %s -linalg-tile="linalg-tile-sizes=2,3,0,0,4" | FileCheck %s -check-prefix=TILE-23004
-// RUN: mlir-opt %s -linalg-tile="linalg-tile-sizes=2" | FileCheck %s -check-prefix=TILE-20000
+// RUN: mlir-opt %s -linalg-tile="tile-sizes=2,3,0,0,4" | FileCheck %s -check-prefix=TILE-23004
+// RUN: mlir-opt %s -linalg-tile="tile-sizes=2" | FileCheck %s -check-prefix=TILE-20000
 
 // TILE-23004-DAG: #[[$strided4D:.*]] = affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3 + d3)>
 // TILE-20000-DAG: #[[$strided4D:.*]] = affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3 + d3)>
@@ -23,14 +23,12 @@ func @conv_padding(%arg0: memref<?x?x?x?xf32, offset: ?, strides: [?, ?, ?, 1]>,
 //   TILE-20000-DAG:   %[[C2:.*]] = constant 2 : index
 //       TILE-20000:   %[[B:.*]] = memref.dim %[[ARG1]], %c0
 //       TILE-20000:   scf.for %[[ivI:.*]] = %[[C0]] to %[[B]] step %[[C2]] {
-//       TILE-20000:     %[[DIM10:.*]] = memref.dim %[[ARG1]], %c0
-//       TILE-20000:     %[[EXTENT:.*]] = affine.min #[[$minmap]](%[[ivI]])[%[[DIM10]]]
+//       TILE-20000:     %[[EXTENT:.*]] = affine.min #[[$minmap]](%[[ivI]])[%[[B]]]
 //       TILE-20000:     %[[DIM11:.*]] = memref.dim %[[ARG1]], %c1
 //       TILE-20000:     %[[DIM12:.*]] = memref.dim %[[ARG1]], %c2
 //       TILE-20000:     %[[DIM13:.*]] = memref.dim %[[ARG1]], %c3
 //       TILE-20000:     %[[SUBVIEW1:.*]] = memref.subview %[[ARG1]][%[[ivI]], 0, 0, 0] [%[[EXTENT]], %[[DIM11]], %[[DIM12]], %[[DIM13]]]
-//       TILE-20000:     %[[DIM20:.*]] = memref.dim %[[ARG2]], %c0
-//       TILE-20000:     %[[EXTENT:.*]] = affine.min #[[$minmap]](%[[ivI]])[%[[DIM20]]]
+//       TILE-20000:     %[[EXTENT:.*]] = affine.min #[[$minmap]](%[[ivI]])[%[[B]]]
 //       TILE-20000:     %[[DIM21:.*]] = memref.dim %[[ARG2]], %c1
 //       TILE-20000:     %[[DIM22:.*]] = memref.dim %[[ARG2]], %c2
 //       TILE-20000:     %[[DIM23:.*]] = memref.dim %[[ARG2]], %c3

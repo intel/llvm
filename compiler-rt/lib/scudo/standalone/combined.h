@@ -205,6 +205,16 @@ public:
 #endif // GWP_ASAN_HOOKS
   }
 
+#ifdef GWP_ASAN_HOOKS
+  const gwp_asan::AllocationMetadata *getGwpAsanAllocationMetadata() {
+    return GuardedAlloc.getMetadataRegion();
+  }
+
+  const gwp_asan::AllocatorState *getGwpAsanAllocatorState() {
+    return GuardedAlloc.getAllocatorState();
+  }
+#endif // GWP_ASAN_HOOKS
+
   ALWAYS_INLINE void initThreadMaybe(bool MinimalInit = false) {
     TSDRegistry.initThreadMaybe(this, MinimalInit);
   }
@@ -569,9 +579,6 @@ public:
       reportAllocationSizeTooBig(NewSize, 0, MaxAllowedMallocSize);
     }
 
-    void *OldTaggedPtr = OldPtr;
-    OldPtr = getHeaderTaggedPointer(OldPtr);
-
     // The following cases are handled by the C wrappers.
     DCHECK_NE(OldPtr, nullptr);
     DCHECK_NE(NewSize, 0);
@@ -590,6 +597,9 @@ public:
       return NewPtr;
     }
 #endif // GWP_ASAN_HOOKS
+
+    void *OldTaggedPtr = OldPtr;
+    OldPtr = getHeaderTaggedPointer(OldPtr);
 
     if (UNLIKELY(!isAligned(reinterpret_cast<uptr>(OldPtr), MinAlignment)))
       reportMisalignedPointer(AllocatorAction::Reallocating, OldPtr);
@@ -639,7 +649,7 @@ public:
           if (ClassId) {
             resizeTaggedChunk(reinterpret_cast<uptr>(OldTaggedPtr) + OldSize,
                               reinterpret_cast<uptr>(OldTaggedPtr) + NewSize,
-                              NewSize, BlockEnd);
+                              NewSize, untagPointer(BlockEnd));
             storePrimaryAllocationStackMaybe(Options, OldPtr);
           } else {
             storeSecondaryAllocationStackMaybe(Options, OldPtr, NewSize);
@@ -910,7 +920,7 @@ public:
     if (!Depot->find(Hash, &RingPos, &Size))
       return;
     for (unsigned I = 0; I != Size && I != MaxTraceSize; ++I)
-      Trace[I] = (*Depot)[RingPos + I];
+      Trace[I] = static_cast<uintptr_t>((*Depot)[RingPos + I]);
   }
 
   static void getErrorInfo(struct scudo_error_info *ErrorInfo,
@@ -1154,6 +1164,7 @@ private:
   // address tags against chunks. To allow matching in this case we store the
   // address tag in the first byte of the chunk.
   void storeEndMarker(uptr End, uptr Size, uptr BlockEnd) {
+    DCHECK_EQ(BlockEnd, untagPointer(BlockEnd));
     uptr UntaggedEnd = untagPointer(End);
     if (UntaggedEnd != BlockEnd) {
       storeTag(UntaggedEnd);

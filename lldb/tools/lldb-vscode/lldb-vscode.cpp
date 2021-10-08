@@ -107,6 +107,19 @@ typedef void (*RequestCallback)(const llvm::json::Object &command);
 
 enum LaunchMethod { Launch, Attach, AttachForSuspendedLaunch };
 
+lldb::SBValueList *GetTopLevelScope(int64_t variablesReference) {
+  switch (variablesReference) {
+  case VARREF_LOCALS:
+    return &g_vsc.variables.locals;
+  case VARREF_GLOBALS:
+    return &g_vsc.variables.globals;
+  case VARREF_REGS:
+    return &g_vsc.variables.registers;
+  default:
+    return nullptr;
+  }
+}
+
 SOCKET AcceptConnection(int portno) {
   // Accept a socket connection from any host on "portno".
   SOCKET newsockfd = -1;
@@ -219,13 +232,17 @@ void SendThreadStoppedEvent() {
       // set it as the focus thread if below if needed.
       lldb::tid_t first_tid_with_reason = LLDB_INVALID_THREAD_ID;
       uint32_t num_threads_with_reason = 0;
+      bool focus_thread_exists = false;
       for (uint32_t thread_idx = 0; thread_idx < num_threads; ++thread_idx) {
         lldb::SBThread thread = process.GetThreadAtIndex(thread_idx);
         const lldb::tid_t tid = thread.GetThreadID();
         const bool has_reason = ThreadHasStopReason(thread);
         // If the focus thread doesn't have a stop reason, clear the thread ID
-        if (tid == g_vsc.focus_tid && !has_reason)
-          g_vsc.focus_tid = LLDB_INVALID_THREAD_ID;
+        if (tid == g_vsc.focus_tid) {
+          focus_thread_exists = true;
+          if (!has_reason)
+            g_vsc.focus_tid = LLDB_INVALID_THREAD_ID;
+        }
         if (has_reason) {
           ++num_threads_with_reason;
           if (first_tid_with_reason == LLDB_INVALID_THREAD_ID)
@@ -233,10 +250,10 @@ void SendThreadStoppedEvent() {
         }
       }
 
-      // We will have cleared g_vsc.focus_tid if he focus thread doesn't
-      // have a stop reason, so if it was cleared, or wasn't set, then set the
-      // focus thread to the first thread with a stop reason.
-      if (g_vsc.focus_tid == LLDB_INVALID_THREAD_ID)
+      // We will have cleared g_vsc.focus_tid if he focus thread doesn't have
+      // a stop reason, so if it was cleared, or wasn't set, or doesn't exist,
+      // then set the focus thread to the first thread with a stop reason.
+      if (!focus_thread_exists || g_vsc.focus_tid == LLDB_INVALID_THREAD_ID)
         g_vsc.focus_tid = first_tid_with_reason;
 
       // If no threads stopped with a reason, then report the first one so
@@ -389,8 +406,7 @@ void ProgressEventThreadFunction() {
         const char *message = lldb::SBDebugger::GetProgressFromEvent(
             event, progress_id, completed, total, is_debugger_specific);
         if (message)
-          g_vsc.SendProgressEvent(
-              ProgressEvent(progress_id, message, completed, total));
+          g_vsc.SendProgressEvent(progress_id, message, completed, total);
       }
     }
   }
@@ -440,6 +456,7 @@ void EventThreadFunction() {
             }
             break;
           case lldb::eStateRunning:
+            g_vsc.WillContinue();
             break;
           case lldb::eStateExited: {
             // Run any exit LLDB commands the user specified in the
@@ -1197,6 +1214,10 @@ void request_evaluate(const llvm::json::Object &request) {
     lldb::SBValue value = frame.GetValueForVariablePath(
         expression.data(), lldb::eDynamicDontRunTarget);
 
+    // Freeze dry the value in case users expand it later in the debug console
+    if (value.GetError().Success() && context == "repl")
+      value = value.Persist();
+
     if (value.GetError().Fail() && context != "hover")
       value = frame.EvaluateExpression(expression.data());
 
@@ -1216,9 +1237,9 @@ void request_evaluate(const llvm::json::Object &request) {
       EmplaceSafeString(body, "type",
                         value_typename ? value_typename : NO_TYPENAME);
       if (value.MightHaveChildren()) {
-        auto variablesReference = VARIDX_TO_VARREF(g_vsc.variables.GetSize());
-        g_vsc.variables.Append(value);
-        body.try_emplace("variablesReference", variablesReference);
+        auto variableReference = g_vsc.variables.InsertExpandableVariable(
+            value, /*is_permanent=*/context == "repl");
+        body.try_emplace("variablesReference", variableReference);
       } else {
         body.try_emplace("variablesReference", (int64_t)0);
       }
@@ -1896,20 +1917,15 @@ void request_scopes(const llvm::json::Object &request) {
     frame.GetThread().GetProcess().SetSelectedThread(frame.GetThread());
     frame.GetThread().SetSelectedFrame(frame.GetFrameID());
   }
-  g_vsc.variables.Clear();
-  g_vsc.variables.Append(frame.GetVariables(true,   // arguments
-                                            true,   // locals
-                                            false,  // statics
-                                            true)); // in_scope_only
-  g_vsc.num_locals = g_vsc.variables.GetSize();
-  g_vsc.variables.Append(frame.GetVariables(false,  // arguments
-                                            false,  // locals
-                                            true,   // statics
-                                            true)); // in_scope_only
-  g_vsc.num_globals = g_vsc.variables.GetSize() - (g_vsc.num_locals);
-  g_vsc.variables.Append(frame.GetRegisters());
-  g_vsc.num_regs =
-      g_vsc.variables.GetSize() - (g_vsc.num_locals + g_vsc.num_globals);
+  g_vsc.variables.locals = frame.GetVariables(/*arguments=*/true,
+                                              /*locals=*/true,
+                                              /*statics=*/false,
+                                              /*in_scope_only=*/true);
+  g_vsc.variables.globals = frame.GetVariables(/*arguments=*/false,
+                                               /*locals=*/false,
+                                               /*statics=*/true,
+                                               /*in_scope_only=*/true);
+  g_vsc.variables.registers = frame.GetRegisters();
   body.try_emplace("scopes", g_vsc.CreateTopLevelScopes());
   response.try_emplace("body", std::move(body));
   g_vsc.SendJSON(llvm::json::Value(std::move(response)));
@@ -2751,37 +2767,20 @@ void request_setVariable(const llvm::json::Object &request) {
   // of the variable within the g_vsc.variables list.
   const auto id_value = GetUnsigned(arguments, "id", UINT64_MAX);
   if (id_value != UINT64_MAX) {
-    variable = g_vsc.variables.GetValueAtIndex(id_value);
-  } else if (VARREF_IS_SCOPE(variablesReference)) {
+    variable = g_vsc.variables.GetVariable(id_value);
+  } else if (lldb::SBValueList *top_scope =
+                 GetTopLevelScope(variablesReference)) {
     // variablesReference is one of our scopes, not an actual variable it is
     // asking for a variable in locals or globals or registers
-    int64_t start_idx = 0;
-    int64_t end_idx = 0;
-    switch (variablesReference) {
-    case VARREF_LOCALS:
-      start_idx = 0;
-      end_idx = start_idx + g_vsc.num_locals;
-      break;
-    case VARREF_GLOBALS:
-      start_idx = g_vsc.num_locals;
-      end_idx = start_idx + g_vsc.num_globals;
-      break;
-    case VARREF_REGS:
-      start_idx = g_vsc.num_locals + g_vsc.num_globals;
-      end_idx = start_idx + g_vsc.num_regs;
-      break;
-    default:
-      break;
-    }
-
-    for (int64_t i = end_idx - 1; i >= start_idx; --i) {
-      lldb::SBValue curr_variable = g_vsc.variables.GetValueAtIndex(i);
+    int64_t end_idx = top_scope->GetSize();
+    // Searching backward so that we choose the variable in closest scope
+    // among variables of the same name.
+    for (int64_t i = end_idx - 1; i >= 0; --i) {
+      lldb::SBValue curr_variable = top_scope->GetValueAtIndex(i);
       std::string variable_name = CreateUniqueVariableNameForDisplay(
           curr_variable, is_duplicated_variable_name);
       if (variable_name == name) {
         variable = curr_variable;
-        if (curr_variable.MightHaveChildren())
-          newVariablesReference = i;
         break;
       }
     }
@@ -2791,8 +2790,7 @@ void request_setVariable(const llvm::json::Object &request) {
 
     // We have a named item within an actual variable so we need to find it
     // withing the container variable by name.
-    const int64_t var_idx = VARREF_TO_VARIDX(variablesReference);
-    lldb::SBValue container = g_vsc.variables.GetValueAtIndex(var_idx);
+    lldb::SBValue container = g_vsc.variables.GetVariable(variablesReference);
     variable = container.GetChildMemberWithName(name.data());
     if (!variable.IsValid()) {
       if (name.startswith("[")) {
@@ -2804,14 +2802,6 @@ void request_setVariable(const llvm::json::Object &request) {
         }
       }
     }
-
-    // We don't know the index of the variable in our g_vsc.variables
-    if (variable.IsValid()) {
-      if (variable.MightHaveChildren()) {
-        newVariablesReference = VARIDX_TO_VARREF(g_vsc.variables.GetSize());
-        g_vsc.variables.Append(variable);
-      }
-    }
   }
 
   if (variable.IsValid()) {
@@ -2820,6 +2810,15 @@ void request_setVariable(const llvm::json::Object &request) {
     if (success) {
       SetValueForKey(variable, body, "value");
       EmplaceSafeString(body, "type", variable.GetType().GetDisplayTypeName());
+
+      // We don't know the index of the variable in our g_vsc.variables
+      // so always insert a new one to get its variablesReference.
+      // is_permanent is false because debug console does not support
+      // setVariable request.
+      if (variable.MightHaveChildren())
+        newVariablesReference = g_vsc.variables.InsertExpandableVariable(
+            variable, /*is_permanent=*/false);
+
       body.try_emplace("variablesReference", newVariablesReference);
     } else {
       EmplaceSafeString(body, "message", std::string(error.GetCString()));
@@ -2920,33 +2919,19 @@ void request_variables(const llvm::json::Object &request) {
   if (format)
     hex = GetBoolean(format, "hex", false);
 
-  if (VARREF_IS_SCOPE(variablesReference)) {
+  if (lldb::SBValueList *top_scope = GetTopLevelScope(variablesReference)) {
     // variablesReference is one of our scopes, not an actual variable it is
     // asking for the list of args, locals or globals.
     int64_t start_idx = 0;
     int64_t num_children = 0;
-    switch (variablesReference) {
-    case VARREF_LOCALS:
-      start_idx = start;
-      num_children = g_vsc.num_locals;
-      break;
-    case VARREF_GLOBALS:
-      start_idx = start + g_vsc.num_locals + start;
-      num_children = g_vsc.num_globals;
-      break;
-    case VARREF_REGS:
-      start_idx = start + g_vsc.num_locals + g_vsc.num_globals;
-      num_children = g_vsc.num_regs;
-      break;
-    default:
-      break;
-    }
+
+    num_children = top_scope->GetSize();
     const int64_t end_idx = start_idx + ((count == 0) ? num_children : count);
 
     // We first find out which variable names are duplicated
     std::map<std::string, int> variable_name_counts;
     for (auto i = start_idx; i < end_idx; ++i) {
-      lldb::SBValue variable = g_vsc.variables.GetValueAtIndex(i);
+      lldb::SBValue variable = top_scope->GetValueAtIndex(i);
       if (!variable.IsValid())
         break;
       variable_name_counts[GetNonNullVariableName(variable)]++;
@@ -2954,19 +2939,24 @@ void request_variables(const llvm::json::Object &request) {
 
     // Now we construct the result with unique display variable names
     for (auto i = start_idx; i < end_idx; ++i) {
-      lldb::SBValue variable = g_vsc.variables.GetValueAtIndex(i);
+      lldb::SBValue variable = top_scope->GetValueAtIndex(i);
 
       if (!variable.IsValid())
         break;
-      variables.emplace_back(CreateVariable(variable, VARIDX_TO_VARREF(i), i,
-                                            hex,
+
+      int64_t var_ref = 0;
+      if (variable.MightHaveChildren()) {
+        var_ref = g_vsc.variables.InsertExpandableVariable(
+            variable, /*is_permanent=*/false);
+      }
+      variables.emplace_back(CreateVariable(
+          variable, var_ref, var_ref != 0 ? var_ref : UINT64_MAX, hex,
           variable_name_counts[GetNonNullVariableName(variable)] > 1));
     }
   } else {
     // We are expanding a variable that has children, so we will return its
     // children.
-    const int64_t var_idx = VARREF_TO_VARIDX(variablesReference);
-    lldb::SBValue variable = g_vsc.variables.GetValueAtIndex(var_idx);
+    lldb::SBValue variable = g_vsc.variables.GetVariable(variablesReference);
     if (variable.IsValid()) {
       const auto num_children = variable.GetNumChildren();
       const int64_t end_idx = start + ((count == 0) ? num_children : count);
@@ -2975,11 +2965,12 @@ void request_variables(const llvm::json::Object &request) {
         if (!child.IsValid())
           break;
         if (child.MightHaveChildren()) {
-          const int64_t var_idx = g_vsc.variables.GetSize();
-          auto childVariablesReferences = VARIDX_TO_VARREF(var_idx);
-          variables.emplace_back(
-              CreateVariable(child, childVariablesReferences, var_idx, hex));
-          g_vsc.variables.Append(child);
+          auto is_permanent =
+              g_vsc.variables.IsPermanentVariableReference(variablesReference);
+          auto childVariablesReferences =
+              g_vsc.variables.InsertExpandableVariable(child, is_permanent);
+          variables.emplace_back(CreateVariable(child, childVariablesReferences,
+                                                childVariablesReferences, hex));
         } else {
           variables.emplace_back(CreateVariable(child, 0, INT64_MAX, hex));
         }
@@ -3047,7 +3038,7 @@ void RegisterRequestCallbacks() {
 
 static void printHelp(LLDBVSCodeOptTable &table, llvm::StringRef tool_name) {
   std::string usage_str = tool_name.str() + " options";
-  table.PrintHelp(llvm::outs(), usage_str.c_str(), "LLDB VSCode", false);
+  table.printHelp(llvm::outs(), usage_str.c_str(), "LLDB VSCode", false);
 
   std::string examples = R"___(
 EXAMPLES:

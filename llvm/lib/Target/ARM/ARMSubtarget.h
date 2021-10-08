@@ -468,6 +468,9 @@ protected:
   /// cannot be encoded. For example, ADD r0, r1, #FFFFFFFF -> SUB r0, r1, #1.
   bool NegativeImmediates = true;
 
+  /// Mitigate against the cve-2021-35465 security vulnurability.
+  bool FixCMSE_CVE_2021_35465 = false;
+
   /// Harden against Straight Line Speculation for Returns and Indirect
   /// Branches.
   bool HardenSlsRetBr = false;
@@ -820,8 +823,10 @@ public:
     return isTargetMachO() ? (ReserveR9 || !HasV6Ops) : ReserveR9;
   }
 
-  bool useR7AsFramePointer() const {
-    return isTargetDarwin() || (!isTargetWindows() && isThumb());
+  MCPhysReg getFramePointerReg() const {
+    if (isTargetDarwin() || (!isTargetWindows() && isThumb()))
+      return ARM::R7;
+    return ARM::R11;
   }
 
   /// Returns true if the frame setup is split into two separate pushes (first
@@ -829,7 +834,7 @@ public:
   /// to lr. This is always required on Thumb1-only targets, as the push and
   /// pop instructions can't access the high registers.
   bool splitFramePushPop(const MachineFunction &MF) const {
-    return (useR7AsFramePointer() &&
+    return (getFramePointerReg() == ARM::R7 &&
             MF.getTarget().Options.DisableFramePointerElim(MF)) ||
            isThumb1Only();
   }
@@ -931,6 +936,8 @@ public:
   bool ignoreCSRForAllocationOrder(const MachineFunction &MF,
                                    unsigned PhysReg) const override;
   unsigned getGPRAllocationOrder(const MachineFunction &MF) const;
+
+  bool fixCMSE_CVE_2021_35465() const { return FixCMSE_CVE_2021_35465; }
 
   bool hardenSlsRetBr() const { return HardenSlsRetBr; }
   bool hardenSlsBlr() const { return HardenSlsBlr; }

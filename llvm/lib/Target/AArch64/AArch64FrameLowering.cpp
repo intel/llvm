@@ -1129,15 +1129,22 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
 
   const auto &MFnI = *MF.getInfo<AArch64FunctionInfo>();
   if (MFnI.shouldSignReturnAddress()) {
+
+    unsigned PACI;
     if (MFnI.shouldSignWithBKey()) {
       BuildMI(MBB, MBBI, DL, TII->get(AArch64::EMITBKEY))
           .setMIFlag(MachineInstr::FrameSetup);
-      BuildMI(MBB, MBBI, DL, TII->get(AArch64::PACIBSP))
-          .setMIFlag(MachineInstr::FrameSetup);
+      PACI = Subtarget.hasPAuth() ? AArch64::PACIB : AArch64::PACIBSP;
     } else {
-      BuildMI(MBB, MBBI, DL, TII->get(AArch64::PACIASP))
-          .setMIFlag(MachineInstr::FrameSetup);
+      PACI = Subtarget.hasPAuth() ? AArch64::PACIA : AArch64::PACIASP;
     }
+
+    auto MI = BuildMI(MBB, MBBI, DL, TII->get(PACI));
+    if (Subtarget.hasPAuth())
+      MI.addReg(AArch64::LR, RegState::Define)
+          .addReg(AArch64::LR)
+          .addReg(AArch64::SP, RegState::InternalRead);
+    MI.setMIFlag(MachineInstr::FrameSetup);
 
     unsigned CFIIndex =
         MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
@@ -1151,11 +1158,33 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
   // ORR is sufficient, it is assumed a Swift kernel would initialize the TBI
   // bits so that is still true.
   if (HasFP && AFI->hasSwiftAsyncContext()) {
-    // ORR x29, x29, #0x1000_0000_0000_0000
-    BuildMI(MBB, MBBI, DL, TII->get(AArch64::ORRXri), AArch64::FP)
-        .addUse(AArch64::FP)
-        .addImm(0x1100)
-        .setMIFlag(MachineInstr::FrameSetup);
+    switch (MF.getTarget().Options.SwiftAsyncFramePointer) {
+    case SwiftAsyncFramePointerMode::DeploymentBased:
+      if (Subtarget.swiftAsyncContextIsDynamicallySet()) {
+        // The special symbol below is absolute and has a *value* that can be
+        // combined with the frame pointer to signal an extended frame.
+        BuildMI(MBB, MBBI, DL, TII->get(AArch64::LOADgot), AArch64::X16)
+            .addExternalSymbol("swift_async_extendedFramePointerFlags",
+                               AArch64II::MO_GOT);
+        BuildMI(MBB, MBBI, DL, TII->get(AArch64::ORRXrs), AArch64::FP)
+            .addUse(AArch64::FP)
+            .addUse(AArch64::X16)
+            .addImm(Subtarget.isTargetILP32() ? 32 : 0);
+        break;
+      }
+      LLVM_FALLTHROUGH;
+
+    case SwiftAsyncFramePointerMode::Always:
+      // ORR x29, x29, #0x1000_0000_0000_0000
+      BuildMI(MBB, MBBI, DL, TII->get(AArch64::ORRXri), AArch64::FP)
+          .addUse(AArch64::FP)
+          .addImm(0x1100)
+          .setMIFlag(MachineInstr::FrameSetup);
+      break;
+
+    case SwiftAsyncFramePointerMode::Never:
+      break;
+    }
   }
 
   // All calls are tail calls in GHC calling conv, and functions have no
@@ -1198,7 +1227,7 @@ void AArch64FrameLowering::emitPrologue(MachineFunction &MF,
       emitFrameOffset(MBB, MBBI, DL, AArch64::SP, AArch64::SP,
                       StackOffset::getFixed(-NumBytes), TII,
                       MachineInstr::FrameSetup, false, NeedsWinCFI, &HasWinCFI);
-      if (!NeedsWinCFI && needsFrameMoves) {
+      if (needsFrameMoves) {
         // Label used to tie together the PROLOG_LABEL and the MachineMoves.
         MCSymbol *FrameLabel = MMI.getContext().createTempSymbol();
           // Encode the stack size of the leaf function.
@@ -1731,7 +1760,7 @@ void AArch64FrameLowering::emitEpilogue(MachineFunction &MF,
 
     // Adjust local stack
     emitFrameOffset(MBB, LastPopI, DL, AArch64::SP, AArch64::SP,
-                    StackOffset::getFixed(-AFI->getLocalStackSize()), TII,
+                    StackOffset::getFixed(AFI->getLocalStackSize()), TII,
                     MachineInstr::FrameDestroy, false, NeedsWinCFI);
 
     // SP has been already adjusted while restoring callee save regs.

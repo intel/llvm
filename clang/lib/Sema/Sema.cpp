@@ -22,12 +22,14 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/CXXFieldCollector.h"
 #include "clang/Sema/DelayedDiagnostic.h"
@@ -54,6 +56,26 @@ SourceLocation Sema::getLocForEndOfToken(SourceLocation Loc, unsigned Offset) {
 }
 
 ModuleLoader &Sema::getModuleLoader() const { return PP.getModuleLoader(); }
+
+DarwinSDKInfo *
+Sema::getDarwinSDKInfoForAvailabilityChecking(SourceLocation Loc,
+                                              StringRef Platform) {
+  if (CachedDarwinSDKInfo)
+    return CachedDarwinSDKInfo->get();
+  auto SDKInfo = parseDarwinSDKInfo(
+      PP.getFileManager().getVirtualFileSystem(),
+      PP.getHeaderSearchInfo().getHeaderSearchOpts().Sysroot);
+  if (SDKInfo && *SDKInfo) {
+    CachedDarwinSDKInfo = std::make_unique<DarwinSDKInfo>(std::move(**SDKInfo));
+    return CachedDarwinSDKInfo->get();
+  }
+  if (!SDKInfo)
+    llvm::consumeError(SDKInfo.takeError());
+  Diag(Loc, diag::warn_missing_sdksettings_for_availability_checking)
+      << Platform;
+  CachedDarwinSDKInfo = std::unique_ptr<DarwinSDKInfo>();
+  return nullptr;
+}
 
 IdentifierInfo *
 Sema::InventAbbreviatedTemplateParameterTypeName(IdentifierInfo *ParamName,
@@ -184,6 +206,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       ThreadSafetyDeclCache(nullptr), VarDataSharingAttributesStack(nullptr),
       CurScope(nullptr), Ident_super(nullptr), Ident___float128(nullptr),
       SyclIntHeader(nullptr), SyclIntFooter(nullptr) {
+  assert(pp.TUKind == TUKind);
   TUScope = nullptr;
   isConstantEvaluatedOverride = false;
 
@@ -329,10 +352,11 @@ void Sema::Initialize() {
         Context.getTargetInfo().getSupportedOpenCLOpts(), getLangOpts());
     addImplicitTypedef("sampler_t", Context.OCLSamplerTy);
     addImplicitTypedef("event_t", Context.OCLEventTy);
-    if (getLangOpts().OpenCLCPlusPlus || getLangOpts().OpenCLVersion >= 200) {
+    if (getLangOpts().getOpenCLCompatibleVersion() >= 200) {
       addImplicitTypedef("clk_event_t", Context.OCLClkEventTy);
       addImplicitTypedef("queue_t", Context.OCLQueueTy);
-      addImplicitTypedef("reserve_id_t", Context.OCLReserveIDTy);
+      if (getLangOpts().OpenCLPipes)
+        addImplicitTypedef("reserve_id_t", Context.OCLReserveIDTy);
       addImplicitTypedef("atomic_int", Context.getAtomicType(Context.IntTy));
       addImplicitTypedef("atomic_uint",
                          Context.getAtomicType(Context.UnsignedIntTy));
@@ -634,16 +658,36 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
   if (ExprTy == TypeTy)
     return E;
 
-  // C++1z [conv.array]: The temporary materialization conversion is applied.
-  // We also use this to fuel C++ DR1213, which applies to C++11 onwards.
-  if (Kind == CK_ArrayToPointerDecay && getLangOpts().CPlusPlus &&
-      E->getValueKind() == VK_PRValue) {
-    // The temporary is an lvalue in C++98 and an xvalue otherwise.
-    ExprResult Materialized = CreateMaterializeTemporaryExpr(
-        E->getType(), E, !getLangOpts().CPlusPlus11);
-    if (Materialized.isInvalid())
-      return ExprError();
-    E = Materialized.get();
+  if (Kind == CK_ArrayToPointerDecay) {
+    // C++1z [conv.array]: The temporary materialization conversion is applied.
+    // We also use this to fuel C++ DR1213, which applies to C++11 onwards.
+    if (getLangOpts().CPlusPlus && E->isPRValue()) {
+      // The temporary is an lvalue in C++98 and an xvalue otherwise.
+      ExprResult Materialized = CreateMaterializeTemporaryExpr(
+          E->getType(), E, !getLangOpts().CPlusPlus11);
+      if (Materialized.isInvalid())
+        return ExprError();
+      E = Materialized.get();
+    }
+    // C17 6.7.1p6 footnote 124: The implementation can treat any register
+    // declaration simply as an auto declaration. However, whether or not
+    // addressable storage is actually used, the address of any part of an
+    // object declared with storage-class specifier register cannot be
+    // computed, either explicitly(by use of the unary & operator as discussed
+    // in 6.5.3.2) or implicitly(by converting an array name to a pointer as
+    // discussed in 6.3.2.1).Thus, the only operator that can be applied to an
+    // array declared with storage-class specifier register is sizeof.
+    if (VK == VK_PRValue && !getLangOpts().CPlusPlus && !E->isPRValue()) {
+      if (const auto *DRE = dyn_cast<DeclRefExpr>(E)) {
+        if (const auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          if (VD->getStorageClass() == SC_Register) {
+            Diag(E->getExprLoc(), diag::err_typecheck_address_of)
+                << /*register variable*/ 3 << E->getSourceRange();
+            return ExprError();
+          }
+        }
+      }
+    }
   }
 
   if (ImplicitCastExpr *ImpCast = dyn_cast<ImplicitCastExpr>(E)) {
@@ -1042,6 +1086,9 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   }
 
   if (getLangOpts().SYCLIsDevice) {
+    // Set the names of the kernels, now that the names have settled down. This
+    // needs to happen before we generate the integration headers.
+    SetSYCLKernelNames();
     // Emit SYCL integration header for current translation unit if needed
     if (SyclIntHeader != nullptr)
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
@@ -1423,7 +1470,7 @@ NamedDecl *Sema::getCurFunctionOrMethodDecl() {
 
 LangAS Sema::getDefaultCXXMethodAddrSpace() const {
   if (getLangOpts().OpenCL)
-    return LangAS::opencl_generic;
+    return getASTContext().getDefaultOpenCLPointeeAddrSpace();
   return LangAS::Default;
 }
 
@@ -1856,7 +1903,7 @@ Sema::SemaDiagnosticBuilder Sema::Diag(SourceLocation Loc, unsigned DiagID,
   bool IsError = Diags.getDiagnosticIDs()->isDefaultMappingAsError(DiagID);
   bool ShouldDefer = getLangOpts().CUDA && LangOpts.GPUDeferDiag &&
                      DiagnosticIDs::isDeferrable(DiagID) &&
-                     (DeferHint || !IsError);
+                     (DeferHint || DeferDiags || !IsError);
   auto SetIsLastErrorImmediate = [&](bool Flag) {
     if (IsError)
       IsLastErrorImmediate = Flag;
@@ -1910,12 +1957,26 @@ void Sema::checkDeviceDecl(ValueDecl *D, SourceLocation Loc) {
       return;
     }
 
+    // Check if we are dealing with two 'long double' but with different
+    // semantics.
+    bool LongDoubleMismatched = false;
+    if (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128) {
+      const llvm::fltSemantics &Sem = Context.getFloatTypeSemantics(Ty);
+      if ((&Sem != &llvm::APFloat::PPCDoubleDouble() &&
+           !Context.getTargetInfo().hasFloat128Type()) ||
+          (&Sem == &llvm::APFloat::PPCDoubleDouble() &&
+           !Context.getTargetInfo().hasIbm128Type()))
+        LongDoubleMismatched = true;
+    }
+
     if ((Ty->isFloat16Type() && !Context.getTargetInfo().hasFloat16Type()) ||
         ((Ty->isFloat128Type() ||
           (Ty->isRealFloatingType() && Context.getTypeSize(Ty) == 128)) &&
          !Context.getTargetInfo().hasFloat128Type()) ||
+        (Ty->isIbm128Type() && !Context.getTargetInfo().hasIbm128Type()) ||
         (Ty->isIntegerType() && Context.getTypeSize(Ty) == 128 &&
-         !Context.getTargetInfo().hasInt128Type())) {
+         !Context.getTargetInfo().hasInt128Type()) ||
+        LongDoubleMismatched) {
       if (targetDiag(Loc, diag::err_device_unsupported_type, FD)
           << D << true /*show bit size*/
           << static_cast<unsigned>(Context.getTypeSize(Ty)) << Ty
@@ -2022,6 +2083,9 @@ void Sema::RecordParsingTemplateParameterDepth(unsigned Depth) {
 
 // Check that the type of the VarDecl has an accessible copy constructor and
 // resolve its destructor's exception specification.
+// This also performs initialization of block variables when they are moved
+// to the heap. It uses the same rules as applicable for implicit moves
+// according to the C++ standard in effect ([class.copy.elision]p3).
 static void checkEscapingByref(VarDecl *VD, Sema &S) {
   QualType T = VD->getType();
   EnterExpressionEvaluationContext scope(
@@ -2029,9 +2093,18 @@ static void checkEscapingByref(VarDecl *VD, Sema &S) {
   SourceLocation Loc = VD->getLocation();
   Expr *VarRef =
       new (S.Context) DeclRefExpr(S.Context, VD, false, T, VK_LValue, Loc);
-  ExprResult Result = S.PerformMoveOrCopyInitialization(
-      InitializedEntity::InitializeBlock(Loc, T, false), VD, VD->getType(),
-      VarRef, /*AllowNRVO=*/true);
+  ExprResult Result;
+  auto IE = InitializedEntity::InitializeBlock(Loc, T);
+  if (S.getLangOpts().CPlusPlus2b) {
+    auto *E = ImplicitCastExpr::Create(S.Context, T, CK_NoOp, VarRef, nullptr,
+                                       VK_XValue, FPOptionsOverride());
+    Result = S.PerformCopyInitialization(IE, SourceLocation(), E);
+  } else {
+    Result = S.PerformMoveOrCopyInitialization(
+        IE, Sema::NamedReturnInfo{VD, Sema::NamedReturnInfo::MoveEligible},
+        VarRef);
+  }
+
   if (!Result.isInvalid()) {
     Result = S.MaybeCreateExprWithCleanups(Result);
     Expr *Init = Result.getAs<Expr>();

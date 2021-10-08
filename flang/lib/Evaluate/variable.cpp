@@ -245,7 +245,7 @@ DescriptorInquiry::DescriptorInquiry(
     : base_{base}, field_{field}, dimension_{dim} {
   const Symbol &last{base_.GetLastSymbol()};
   CHECK(IsDescriptor(last));
-  CHECK((field == Field::Len && dim == 0) ||
+  CHECK(((field == Field::Len || field == Field::Rank) && dim == 0) ||
       (field != Field::Len && dim >= 0 && dim < last.Rank()));
 }
 
@@ -269,7 +269,7 @@ static std::optional<Expr<SubscriptInteger>> SymbolLEN(const Symbol &symbol) {
       return len;
     } else if (IsDescriptor(ultimate) && !ultimate.owner().IsDerivedType()) {
       return Expr<SubscriptInteger>{DescriptorInquiry{
-          NamedEntity{ultimate}, DescriptorInquiry::Field::Len}};
+          NamedEntity{symbol}, DescriptorInquiry::Field::Len}};
     }
   }
   return std::nullopt;

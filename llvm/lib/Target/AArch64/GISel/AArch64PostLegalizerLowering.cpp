@@ -527,7 +527,7 @@ tryAdjustICmpImmAndPred(Register RHS, CmpInst::Predicate P,
 
   // If the RHS is not a constant, or the RHS is already a valid arithmetic
   // immediate, then there is nothing to change.
-  auto ValAndVReg = getConstantVRegValWithLookThrough(RHS, MRI);
+  auto ValAndVReg = getIConstantVRegValWithLookThrough(RHS, MRI);
   if (!ValAndVReg)
     return None;
   uint64_t C = ValAndVReg->Value.getZExtValue();
@@ -705,12 +705,13 @@ bool applyDupLane(MachineInstr &MI, MachineRegisterInfo &MRI,
   Register DupSrc = MI.getOperand(1).getReg();
   // For types like <2 x s32>, we can use G_DUPLANE32, with a <4 x s32> source.
   // To do this, we can use a G_CONCAT_VECTORS to do the widening.
-  if (SrcTy == LLT::vector(2, LLT::scalar(32))) {
+  if (SrcTy == LLT::fixed_vector(2, LLT::scalar(32))) {
     assert(MRI.getType(MI.getOperand(0).getReg()).getNumElements() == 2 &&
            "Unexpected dest elements");
     auto Undef = B.buildUndef(SrcTy);
-    DupSrc = B.buildConcatVectors(SrcTy.changeNumElements(4),
-                                  {Src1Reg, Undef.getReg(0)})
+    DupSrc = B.buildConcatVectors(
+                  SrcTy.changeElementCount(ElementCount::getFixed(4)),
+                  {Src1Reg, Undef.getReg(0)})
                  .getReg(0);
   }
   B.buildInstr(MatchInfo.first, {MI.getOperand(0).getReg()}, {DupSrc, Lane});
@@ -756,7 +757,7 @@ static unsigned getCmpOperandFoldingProfit(Register CmpOp,
     if (MI.getOpcode() != TargetOpcode::G_AND)
       return false;
     auto ValAndVReg =
-        getConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
+        getIConstantVRegValWithLookThrough(MI.getOperand(2).getReg(), MRI);
     if (!ValAndVReg)
       return false;
     uint64_t Mask = ValAndVReg->Value.getZExtValue();
@@ -773,7 +774,7 @@ static unsigned getCmpOperandFoldingProfit(Register CmpOp,
     return 0;
 
   auto MaybeShiftAmt =
-      getConstantVRegValWithLookThrough(Def->getOperand(2).getReg(), MRI);
+      getIConstantVRegValWithLookThrough(Def->getOperand(2).getReg(), MRI);
   if (!MaybeShiftAmt)
     return 0;
   uint64_t ShiftAmt = MaybeShiftAmt->Value.getZExtValue();
@@ -813,7 +814,7 @@ static bool trySwapICmpOperands(MachineInstr &MI,
   // Don't swap if there's a constant on the RHS, because we know we can fold
   // that.
   Register RHS = MI.getOperand(3).getReg();
-  auto RHSCst = getConstantVRegValWithLookThrough(RHS, MRI);
+  auto RHSCst = getIConstantVRegValWithLookThrough(RHS, MRI);
   if (RHSCst && isLegalArithImmed(RHSCst->Value.getSExtValue()))
     return false;
 
@@ -958,7 +959,10 @@ static bool matchFormTruncstore(MachineInstr &MI, MachineRegisterInfo &MRI,
   if (MRI.getType(DstReg).isVector())
     return false;
   // Match a store of a truncate.
-  return mi_match(DstReg, MRI, m_GTrunc(m_Reg(SrcReg)));
+  if (!mi_match(DstReg, MRI, m_GTrunc(m_Reg(SrcReg))))
+    return false;
+  // Only form truncstores for value types of max 64b.
+  return MRI.getType(SrcReg).getSizeInBits() <= 64;
 }
 
 static bool applyFormTruncstore(MachineInstr &MI, MachineRegisterInfo &MRI,

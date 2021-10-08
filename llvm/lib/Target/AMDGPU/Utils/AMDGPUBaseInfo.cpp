@@ -671,7 +671,8 @@ unsigned getNumExtraSGPRs(const MCSubtargetInfo *STI, bool VCCUsed,
     if (XNACKUsed)
       ExtraSGPRs = 4;
 
-    if (FlatScrUsed)
+    if (FlatScrUsed ||
+        STI->getFeatureBits().test(AMDGPU::FeatureArchitectedFlatScratch))
       ExtraSGPRs = 6;
   }
 
@@ -1344,6 +1345,17 @@ unsigned getInitialPSInputAddr(const Function &F) {
   return getIntegerAttribute(F, "InitialPSInputAddr", 0);
 }
 
+bool getHasColorExport(const Function &F) {
+  // As a safe default always respond as if PS has color exports.
+  return getIntegerAttribute(
+             F, "amdgpu-color-export",
+             F.getCallingConv() == CallingConv::AMDGPU_PS ? 1 : 0) != 0;
+}
+
+bool getHasDepthExport(const Function &F) {
+  return getIntegerAttribute(F, "amdgpu-depth-export", 0) != 0;
+}
+
 bool isShader(CallingConv::ID cc) {
   switch(cc) {
     case CallingConv::AMDGPU_VS:
@@ -1650,6 +1662,13 @@ unsigned getRegBitWidth(unsigned RCID) {
   case AMDGPU::VReg_192_Align2RegClassID:
   case AMDGPU::AReg_192_Align2RegClassID:
     return 192;
+  case AMDGPU::SGPR_224RegClassID:
+  case AMDGPU::SReg_224RegClassID:
+  case AMDGPU::VReg_224RegClassID:
+  case AMDGPU::AReg_224RegClassID:
+  case AMDGPU::VReg_224_Align2RegClassID:
+  case AMDGPU::AReg_224_Align2RegClassID:
+    return 224;
   case AMDGPU::SGPR_256RegClassID:
   case AMDGPU::SReg_256RegClassID:
   case AMDGPU::VReg_256RegClassID:
@@ -1807,8 +1826,8 @@ bool isArgPassedInSGPR(const Argument *A) {
   case CallingConv::AMDGPU_Gfx:
     // For non-compute shaders, SGPR inputs are marked with either inreg or byval.
     // Everything else is in VGPRs.
-    return F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::InReg) ||
-           F->getAttributes().hasParamAttribute(A->getArgNo(), Attribute::ByVal);
+    return F->getAttributes().hasParamAttr(A->getArgNo(), Attribute::InReg) ||
+           F->getAttributes().hasParamAttr(A->getArgNo(), Attribute::ByVal);
   default:
     // TODO: Should calls support inreg for SGPR inputs?
     return false;

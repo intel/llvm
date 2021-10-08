@@ -126,7 +126,7 @@ public:
     m_collection_sp->Initialize(g_darwinlog_properties);
   }
 
-  ~StructuredDataDarwinLogProperties() override {}
+  ~StructuredDataDarwinLogProperties() override = default;
 
   bool GetEnableOnStartup() const {
     const uint32_t idx = ePropertyEnableOnStartup;
@@ -181,7 +181,7 @@ using FilterRuleSP = std::shared_ptr<FilterRule>;
 
 class FilterRule {
 public:
-  virtual ~FilterRule() {}
+  virtual ~FilterRule() = default;
 
   using OperationCreationFunc =
       std::function<FilterRuleSP(bool accept, size_t attribute_index,
@@ -809,7 +809,6 @@ protected:
                        StructuredDataDarwinLog::GetStaticPluginName())) {
       result.AppendError("failed to get StructuredDataPlugin for "
                          "the process");
-      result.SetStatus(eReturnStatusFailed);
     }
     StructuredDataDarwinLog &plugin =
         *static_cast<StructuredDataDarwinLog *>(plugin_sp.get());
@@ -833,7 +832,6 @@ protected:
     // Report results.
     if (!error.Success()) {
       result.AppendError(error.AsCString());
-      result.SetStatus(eReturnStatusFailed);
       // Our configuration failed, so we're definitely disabled.
       plugin.SetEnabled(false);
     } else {
@@ -1069,8 +1067,6 @@ ConstString StructuredDataDarwinLog::GetStaticPluginName() {
 ConstString StructuredDataDarwinLog::GetPluginName() {
   return GetStaticPluginName();
 }
-
-uint32_t StructuredDataDarwinLog::GetPluginVersion() { return 1; }
 
 #pragma mark -
 #pragma mark StructuredDataPlugin API

@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: gcc-10
-//     GCC's __builtin_strlen isn't constexpr yet
-// UNSUPPORTED: LIBCXX-DEBUG-FIXME
+// GCC's __builtin_strlen isn't constexpr yet
+// XFAIL: gcc-11 && !(c++11 || c++14 || c++17)
 
 // <string_view>
 

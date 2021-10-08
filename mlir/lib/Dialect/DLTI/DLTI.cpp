@@ -16,6 +16,8 @@
 
 using namespace mlir;
 
+#include "mlir/Dialect/DLTI/DLTIDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // DataLayoutEntryAttr
 //===----------------------------------------------------------------------===//
@@ -68,7 +70,7 @@ DataLayoutEntryAttr DataLayoutEntryAttr::parse(DialectAsmParser &parser) {
     return {};
 
   Type type = nullptr;
-  StringRef identifier;
+  std::string identifier;
   llvm::SMLoc idLoc = parser.getCurrentLocation();
   OptionalParseResult parsedType = parser.parseOptionalType(type);
   if (parsedType.hasValue() && failed(parsedType.getValue()))
@@ -281,7 +283,7 @@ DataLayoutSpecAttr DataLayoutSpecAttr::parse(DialectAsmParser &parser) {
 
   // Empty spec.
   if (succeeded(parser.parseOptionalGreater()))
-    return get(parser.getBuilder().getContext(), {});
+    return get(parser.getContext(), {});
 
   SmallVector<DataLayoutEntryInterface> entries;
   do {
@@ -293,7 +295,7 @@ DataLayoutSpecAttr DataLayoutSpecAttr::parse(DialectAsmParser &parser) {
   if (failed(parser.parseGreater()))
     return {};
   return getChecked([&] { return parser.emitError(parser.getNameLoc()); },
-                    parser.getBuilder().getContext(), entries);
+                    parser.getContext(), entries);
 }
 
 void DataLayoutSpecAttr::print(DialectAsmPrinter &os) const {

@@ -220,8 +220,7 @@ define i32 @uabd16b_rdx_i32(<16 x i8> %a, <16 x i8> %b) {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    uabdl.8h v2, v0, v1
 ; CHECK-NEXT:    uabal2.8h v2, v0, v1
-; CHECK-NEXT:    uaddlp.4s v0, v2
-; CHECK-NEXT:    addv.4s s0, v0
+; CHECK-NEXT:    uaddlv.8h s0, v2
 ; CHECK-NEXT:    fmov w0, s0
 ; CHECK-NEXT:    ret
   %aext = zext <16 x i8> %a to <16 x i32>
@@ -239,8 +238,7 @@ define i32 @sabd16b_rdx_i32(<16 x i8> %a, <16 x i8> %b) {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    sabdl.8h v2, v0, v1
 ; CHECK-NEXT:    sabal2.8h v2, v0, v1
-; CHECK-NEXT:    uaddlp.4s v0, v2
-; CHECK-NEXT:    addv.4s s0, v0
+; CHECK-NEXT:    uaddlv.8h s0, v2
 ; CHECK-NEXT:    fmov w0, s0
 ; CHECK-NEXT:    ret
   %aext = sext <16 x i8> %a to <16 x i32>
@@ -1630,12 +1628,12 @@ define <2 x i128> @uabd_i64(<2 x i64> %a, <2 x i64> %b) {
 ; CHECK-NEXT:    sbcs x11, x12, x14
 ; CHECK-NEXT:    negs x12, x8
 ; CHECK-NEXT:    ngcs x13, x11
-; CHECK-NEXT:    cmp x11, #0 // =0
+; CHECK-NEXT:    cmp x11, #0
 ; CHECK-NEXT:    csel x2, x12, x8, lt
 ; CHECK-NEXT:    csel x3, x13, x11, lt
 ; CHECK-NEXT:    negs x8, x9
 ; CHECK-NEXT:    ngcs x11, x10
-; CHECK-NEXT:    cmp x10, #0 // =0
+; CHECK-NEXT:    cmp x10, #0
 ; CHECK-NEXT:    csel x8, x8, x9, lt
 ; CHECK-NEXT:    csel x1, x11, x10, lt
 ; CHECK-NEXT:    fmov d0, x8

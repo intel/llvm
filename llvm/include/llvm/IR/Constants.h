@@ -58,9 +58,11 @@ class ConstantData : public Constant {
 protected:
   explicit ConstantData(Type *Ty, ValueTy VT) : Constant(Ty, VT, nullptr, 0) {}
 
-  void *operator new(size_t s) { return User::operator new(s, 0); }
+  void *operator new(size_t S) { return User::operator new(S, 0); }
 
 public:
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
+
   ConstantData(const ConstantData &) = delete;
 
   /// Methods to support type inquiry through isa, cast, and dyn_cast.
@@ -189,19 +191,19 @@ public:
   /// This is just a convenience method to make client code smaller for a
   /// common code. It also correctly performs the comparison without the
   /// potential for an assertion from getZExtValue().
-  bool isZero() const { return Val.isNullValue(); }
+  bool isZero() const { return Val.isZero(); }
 
   /// This is just a convenience method to make client code smaller for a
   /// common case. It also correctly performs the comparison without the
   /// potential for an assertion from getZExtValue().
   /// Determine if the value is one.
-  bool isOne() const { return Val.isOneValue(); }
+  bool isOne() const { return Val.isOne(); }
 
   /// This function will return true iff every bit in this constant is set
   /// to true.
   /// @returns true iff this constant's bits are all set to true.
   /// Determine if the value is all ones.
-  bool isMinusOne() const { return Val.isAllOnesValue(); }
+  bool isMinusOne() const { return Val.isAllOnes(); }
 
   /// This function will return true iff this constant represents the largest
   /// value that may be represented by the constant's type.
@@ -452,8 +454,7 @@ public:
   template <typename... Csts>
   static std::enable_if_t<are_base_of<Constant, Csts...>::value, Constant *>
   get(StructType *T, Csts *...Vs) {
-    SmallVector<Constant *, 8> Values({Vs...});
-    return get(T, Values);
+    return get(T, ArrayRef<Constant *>({Vs...}));
   }
 
   /// Return an anonymous struct that has the specified elements.
@@ -849,12 +850,14 @@ class BlockAddress final : public Constant {
 
   BlockAddress(Function *F, BasicBlock *BB);
 
-  void *operator new(size_t s) { return User::operator new(s, 2); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
 
   void destroyConstantImpl();
   Value *handleOperandChangeImpl(Value *From, Value *To);
 
 public:
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
+
   /// Return a BlockAddress for the specified function and basic block.
   static BlockAddress *get(Function *F, BasicBlock *BB);
 
@@ -893,12 +896,14 @@ class DSOLocalEquivalent final : public Constant {
 
   DSOLocalEquivalent(GlobalValue *GV);
 
-  void *operator new(size_t s) { return User::operator new(s, 1); }
+  void *operator new(size_t S) { return User::operator new(S, 1); }
 
   void destroyConstantImpl();
   Value *handleOperandChangeImpl(Value *From, Value *To);
 
 public:
+  void operator delete(void *Ptr) { User::operator delete(Ptr); }
+
   /// Return a DSOLocalEquivalent for the specified global value.
   static DSOLocalEquivalent *get(GlobalValue *GV);
 
@@ -1281,10 +1286,6 @@ public:
 
   /// Return a string representation for an opcode.
   const char *getOpcodeName() const;
-
-  /// Return a constant expression identical to this one, but with the specified
-  /// operand set to the specified value.
-  Constant *getWithOperandReplaced(unsigned OpNo, Constant *Op) const;
 
   /// This returns the current constant expression with the operands replaced
   /// with the specified values. The specified array must have the same number

@@ -128,7 +128,7 @@ FileManager::getDirectoryRef(StringRef DirName, bool CacheFailure) {
   // Stat("C:") does not recognize "C:" as a valid directory
   std::string DirNameStr;
   if (DirName.size() > 1 && DirName.back() == ':' &&
-      DirName.equals_lower(llvm::sys::path::root_name(DirName))) {
+      DirName.equals_insensitive(llvm::sys::path::root_name(DirName))) {
     DirNameStr = DirName.str() + '.';
     DirName = DirNameStr;
   }
@@ -276,6 +276,18 @@ FileManager::getFileRef(StringRef Filename, bool openFile, bool CacheFailure) {
   } else {
     // Name mismatch. We need a redirect. First grab the actual entry we want
     // to return.
+    //
+    // This redirection logic intentionally leaks the external name of a
+    // redirected file that uses 'use-external-name' in \a
+    // vfs::RedirectionFileSystem. This allows clang to report the external
+    // name to users (in diagnostics) and to tools that don't have access to
+    // the VFS (in debug info and dependency '.d' files).
+    //
+    // FIXME: This is pretty complicated. It's also inconsistent with how
+    // "real" filesystems behave and confuses parts of clang expect to see the
+    // name-as-accessed on the \a FileEntryRef. Maybe the returned \a
+    // FileEntryRef::getName() could return the accessed name unmodified, but
+    // make the external name available via a separate API.
     auto &Redirection =
         *SeenFileEntries
              .insert({Status.getName(), FileEntryRef::MapValue(UFE, DirInfo)})
@@ -611,7 +623,7 @@ StringRef FileManager::getCanonicalName(const DirectoryEntry *Dir) {
 
   SmallString<4096> CanonicalNameBuf;
   if (!FS->getRealPath(Dir->getName(), CanonicalNameBuf))
-    CanonicalName = StringRef(CanonicalNameBuf).copy(CanonicalNameStorage);
+    CanonicalName = CanonicalNameBuf.str().copy(CanonicalNameStorage);
 
   CanonicalNames.insert({Dir, CanonicalName});
   return CanonicalName;
@@ -627,7 +639,7 @@ StringRef FileManager::getCanonicalName(const FileEntry *File) {
 
   SmallString<4096> CanonicalNameBuf;
   if (!FS->getRealPath(File->getName(), CanonicalNameBuf))
-    CanonicalName = StringRef(CanonicalNameBuf).copy(CanonicalNameStorage);
+    CanonicalName = CanonicalNameBuf.str().copy(CanonicalNameStorage);
 
   CanonicalNames.insert({File, CanonicalName});
   return CanonicalName;

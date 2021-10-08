@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: host-has-gdb
+// REQUIRES: host-has-gdb-with-python
 // UNSUPPORTED: libcpp-has-no-localization
 // UNSUPPORTED: c++03
 
@@ -92,24 +91,28 @@ void MarkAsLive(Type &&) {}
 template <typename TypeToPrint> void ComparePrettyPrintToChars(
     TypeToPrint value,
     const char *expectation) {
+  MarkAsLive(value);
   StopForDebugger(&value, &expectation);
 }
 
 template <typename TypeToPrint> void ComparePrettyPrintToRegex(
     TypeToPrint value,
     const char *expectation) {
+  MarkAsLive(value);
   StopForDebugger(&value, &expectation);
 }
 
 void CompareExpressionPrettyPrintToChars(
     std::string value,
     const char *expectation) {
+  MarkAsLive(value);
   StopForDebugger(&value, &expectation);
 }
 
 void CompareExpressionPrettyPrintToRegex(
     std::string value,
     const char *expectation) {
+  MarkAsLive(value);
   StopForDebugger(&value, &expectation);
 }
 

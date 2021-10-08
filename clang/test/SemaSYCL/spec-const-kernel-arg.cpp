@@ -8,12 +8,12 @@
 sycl::queue myQueue;
 
 struct SpecConstantsWrapper {
-  sycl::ONEAPI::experimental::spec_constant<int, class sc_name1> SC1;
-  sycl::ONEAPI::experimental::spec_constant<int, class sc_name2> SC2;
+  sycl::ext::oneapi::experimental::spec_constant<int, class sc_name1> SC1;
+  sycl::ext::oneapi::experimental::spec_constant<int, class sc_name2> SC2;
 };
 
 int main() {
-  sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const> SC;
+  sycl::ext::oneapi::experimental::spec_constant<char, class MyInt32Const> SC;
   SpecConstantsWrapper SCWrapper;
   myQueue.submit([&](sycl::handler &h) {
     h.single_task<class kernel_sc>(
@@ -27,7 +27,7 @@ int main() {
 // CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void ()'
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::ONEAPI::experimental::spec_constant<char, class MyInt32Const>':'sycl::ONEAPI::experimental::spec_constant<char, MyInt32Const>'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::ext::oneapi::experimental::spec_constant<char, class MyInt32Const>':'sycl::ext::oneapi::experimental::spec_constant<char, MyInt32Const>'
 // CHECK-NEXT: InitListExpr {{.*}} 'SpecConstantsWrapper'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ONEAPI::experimental::spec_constant<int, class sc_name1>':'sycl::ONEAPI::experimental::spec_constant<int, sc_name1>'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ONEAPI::experimental::spec_constant<int, class sc_name2>':'sycl::ONEAPI::experimental::spec_constant<int, sc_name2>'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, class sc_name1>':'sycl::ext::oneapi::experimental::spec_constant<int, sc_name1>'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, class sc_name2>':'sycl::ext::oneapi::experimental::spec_constant<int, sc_name2>'

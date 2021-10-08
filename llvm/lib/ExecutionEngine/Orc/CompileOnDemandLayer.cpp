@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ExecutionEngine/Orc/CompileOnDemandLayer.h"
-
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
 #include "llvm/IR/Mangler.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <string>
 
 using namespace llvm;
 using namespace llvm::orc;
@@ -184,6 +184,8 @@ void CompileOnDemandLayer::emit(
 
 CompileOnDemandLayer::PerDylibResources &
 CompileOnDemandLayer::getPerDylibResources(JITDylib &TargetD) {
+  std::lock_guard<std::mutex> Lock(CODLayerMutex);
+
   auto I = DylibResources.find(&TargetD);
   if (I == DylibResources.end()) {
     auto &ImplD =

@@ -18,6 +18,7 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/LoopLikeInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
+include "mlir/Interfaces/TilingInterface.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 
 // Base class for Linalg dialect ops that do not correspond to library calls.
@@ -36,8 +37,7 @@ class Linalg_Op<string mnemonic, list<OpTrait> traits = []> :
 
 def Linalg_InitTensorOp : Linalg_Op<"init_tensor",
     [NoSideEffect,
-     DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-         ["reifyReturnTypeShapesPerResultDim"]>]> {
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>]> {
   let summary = "operation to define a tensor of particular value";
 
   let description = [{
@@ -130,10 +130,11 @@ def Linalg_InitTensorOp : Linalg_Op<"init_tensor",
 }
 
 def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
-    [AttrSizedOperandSegments,
-     DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-         ["reifyReturnTypeShapesPerResultDim"]>,
-     NoSideEffect]> {
+    [AttrSizedOperandSegments, NoSideEffect,
+     DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>,
+     DeclareOpInterfaceMethods<TilingInterface,
+         ["getDestinationOperands", "getLoopIteratorTypes", "getLoopBounds",
+          "getTiledImplementation"]>]> {
   let summary = "tensor pad operation";
   let description = [{
     `linalg.pad_tensor` is an operation that pads the `source` tensor
@@ -145,18 +146,24 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
     * low: A list contains the padding along the start of each
            dimension, i.e `low`.
     * high: A list contains the padding along the end of each
-           dimension, i.e. `high`.
+            dimension, i.e. `high`.
+    * nofold: indicates that the operation should not be folded when source and
+              result types are equal.
 
     The result tensor dimensions are `low` + `dim` + `high` along that
     dimension. The number of elements of `low` and `high` must match
-    the rank of the input tensor (which is also the rank of the output
-    tensor). They can be either a constant or a dynamic value.
+    the rank of the input tensor. They can be either a constant or a
+    dynamic value.
 
     The region of the `pad_tensor` operation returns the value to use
     for the padding. The arguments of the region represent the index
     of the source being accessed. There should be as many arguments as
     the rank of the `source` tensor. The value `yield`-ed by the
     region is used as the value of the view at the given position.
+
+    If `nofold` is set, the padding operation will not be folded away even
+    if the source type and the padded type have the same static shape. This can
+    be used, e.g., for packing or promotion to faster memory.
 
     Example 1:
 
@@ -187,6 +194,17 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
         linalg.yield %pad_value : f32
       } : tensor<2x3xf32> to tensor<?x?xf32>
     ```
+
+    Example 4:
+
+    ```mlir
+      // Force a padded value to be always exist with `nofold`.
+      %pad_value = ... : f32
+      %0 = linalg.pad_tensor %arg0 nofold low[0, 0] high[0, 0] {
+      ^bb0(%arg1: index, %arg2: index):
+        linalg.yield %pad_value : f32
+      } : tensor<2x3xf32> to tensor<2x3xf32>
+    ```
   }];
 
   let arguments = (ins
@@ -194,14 +212,18 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
     Variadic<Index>:$low,
     Variadic<Index>:$high,
     I64ArrayAttr:$static_low,
-    I64ArrayAttr:$static_high);
+    I64ArrayAttr:$static_high,
+    UnitAttr:$nofold);
 
   let regions = (region SizedRegion<1>:$region);
 
   let results = (outs AnyTensor:$result);
 
+  // TODO: Remove custom<InferType> when AllTypesMatch supports opt. operands.
   let assemblyFormat = [{
-    $source `low` `` custom<OperandsOrIntegersSizesList>($low, $static_low)
+    $source
+    (`nofold` $nofold^)?
+    `low` `` custom<OperandsOrIntegersSizesList>($low, $static_low)
     `high` `` custom<OperandsOrIntegersSizesList>($high, $static_high)
     $region attr-dict `:` type($source) `to` type($result)
   }];
@@ -222,25 +244,31 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
       return getResult().getType().cast<RankedTensorType>();
     }
 
-    // Infer the shape of the result tensor given the static shapes
-    // and element type of the result tensor.
-    static RankedTensorType inferResultType(RankedTensorType sourceType,
+    // Infer the shape of the result tensor given the type of the source tensor
+    // and paddings. Known result dimensions that cannot necessarily be inferred
+    // from low/high padding sizes can be optionally specified. Those will be
+    // considered when computing the result type.
+    static RankedTensorType inferResultType(
+                                RankedTensorType sourceType,
                                 ArrayRef<int64_t> staticLow,
-                                ArrayRef<int64_t> staticHigh);
+                                ArrayRef<int64_t> staticHigh,
+                                ArrayRef<int64_t> resultShape = {});
 
     // Return a PadTensorOp that pads `source` to `type` size where the static
     // sizes are assumed to be greater than the dynamic sizes. The op performs
     // "high" padding (i.e. it adds trailing padding values until the desired
     // size is met).
     static linalg::PadTensorOp createPadHighOp(
-        Type type, Value source, Value pad, Location loc, OpBuilder & builder);
+        Type type, Value source, Value pad, bool nofold, Location loc,
+        OpBuilder & builder);
 
     // Return a PadTensorOp that pads `source to `type` size with `pad` value.
     // I.e., a block will be created and the `pad` value will be yielded
     // directly. If the type passed is nullptr, it is inferred.
     static linalg::PadTensorOp createPadScalarOp(
         Type type, Value source, Value pad, ArrayRef<OpFoldResult> low,
-        ArrayRef<OpFoldResult> high, Location loc, OpBuilder & builder);
+        ArrayRef<OpFoldResult> high, bool nofold, Location loc,
+        OpBuilder & builder);
 
     // Return the pad value if it is a constant. Return null value otherwise.
     Value getConstantPaddingValue();
@@ -269,13 +297,13 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
     // Return true if low padding is guaranteed to be 0.
     bool hasZeroLowPad() {
       return llvm::all_of(getMixedLowPad(), [](OpFoldResult ofr) {
-        return mlir::isEqualConstantInt(ofr, 0);
+        return getConstantIntValue(ofr) == static_cast<int64_t>(0);
       });
     }
     // Return true if high padding is guaranteed to be 0.
     bool hasZeroHighPad() {
       return llvm::all_of(getMixedHighPad(), [](OpFoldResult ofr) {
-        return mlir::isEqualConstantInt(ofr, 0);
+        return getConstantIntValue(ofr) == static_cast<int64_t>(0);
       });
     }
   }];
@@ -284,18 +312,22 @@ def Linalg_PadTensorOp : Linalg_Op<"pad_tensor",
     // Build a PadTensorOp with mixed static and dynamic entries.
     OpBuilder<(ins "Value":$source, "ArrayRef<int64_t>":$staticLow,
       "ArrayRef<int64_t>":$staticHigh, "ValueRange":$low, "ValueRange":$high,
+      CArg<"bool", "false">:$nofold,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a PadTensorOp with all dynamic entries.
     OpBuilder<(ins "Value":$source, "ValueRange":$low, "ValueRange":$high,
+      CArg<"bool", "false">:$nofold,
       CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
     // Build a PadTensorOp with mixed static and dynamic entries and custom
     // result type. If the type passed is nullptr, it is inferred.
     OpBuilder<(ins "Type":$resultType, "Value":$source,
       "ArrayRef<OpFoldResult>":$low, "ArrayRef<OpFoldResult>":$high,
-      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>
+      CArg<"bool", "false">:$nofold,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
   ];
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Linalg_RangeOp :
@@ -384,95 +416,9 @@ class Linalg_ReshapeLikeOp<string mnemonic, list<OpTrait> traits = []> :
 def IndexListArrayAttr :
   TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
 
-class Linalg_ReshapeOp<string mnemonic> : Linalg_ReshapeLikeOp<mnemonic,
-    [DeclareOpInterfaceMethods<ViewLikeOpInterface>]>,
-    Arguments<(ins AnyStridedMemRef:$src, IndexListArrayAttr:$reassociation)>,
-    Results<(outs AnyStridedMemRef:$result)> {
-  let extraClassDeclaration = commonExtraClassDeclaration # [{
-    MemRefType getSrcType() { return src().getType().cast<MemRefType>(); }
-    MemRefType getResultType() { return result().getType().cast<MemRefType>(); }
-  }];
-  let hasFolder = 1;
-  let hasCanonicalizer = 1;
-  let printer = [{ return ::print(p, *this); }];
-}
-
-def Linalg_ExpandShapeOp : Linalg_ReshapeOp<"expand_shape"> {
-  let summary = "operation to produce a memref with a higher rank.";
-  let description = [{
-    The `linalg.expand_shape` op produces a new view with a higher rank whose
-    sizes are a reassociation of the original `view`. Depending on whether or
-    not the reassociated MemRefType is contiguous, the resulting memref may
-    require explicit alloc and copies.
-
-    A reassociation is defined as a continuous grouping of dimensions and is
-    represented with an array of I64ArrayAttr attribute.
-
-    For now, it is assumed that either:
-      1. a reassociation produces and consumes contiguous MemRefType or,
-      2. the reshape op will be folded into its consumers (by changing the shape
-         of the computations).
-    All other cases are undefined behavior and a reshape op may not lower to
-    LLVM if it cannot be proven statically that it does not require alloc+copy.
-
-    The operand memref type when dimensions can be zero-ranked if the result
-    memref type is statically shaped with all dimensions being unit extent. In
-    such case the reassociation map is empty.
-
-    The verification rule is that the reassociation maps are applied to the
-    result memref with the larger rank to obtain the operand memref with the
-    smaller rank.
-
-    Example:
-
-    ```mlir
-    // Dimension expansion i -> (i', j') and (k) -> (k')
-    %1 = linalg.expand_shape %0 [[0, 1], [2]] :
-      memref<?x?xf32, stride_spec> into memref<?x?x?xf32, stride_spec_2>
-    ```
-  }];
-}
-
-def Linalg_CollapseShapeOp : Linalg_ReshapeOp<"collapse_shape"> {
-  let summary = "operation to produce a memref with a smaller rank.";
-  let description = [{
-    The `linalg.collapse_shape` op produces a new view with a smaller rank
-    whose sizes are a reassociation of the original `view`. Depending on
-    whether or not the reassociated MemRefType is contiguous, the resulting
-    memref may require explicit alloc and copies.
-
-    A reassociation is defined as a continuous grouping of dimensions and is
-    represented with an array of I64ArrayAttr attribute.
-
-    For now, it is assumed that either:
-      1. a reassociation produces and consumes contiguous MemRefType or,
-      2. the reshape op will be folded into its consumers (by changing the shape
-         of the computations).
-    All other cases are undefined behavior and a reshape op may not lower to
-    LLVM if it cannot be proven statically that it does not require alloc+copy.
-
-    The result memref type of a reshape can be zero-ranked if the operand
-    memref type is statically shaped with all dimensions being unit extent. In
-    such case the reassociation map is empty.
-
-    The verification rule is that the reassociation maps are applied to the
-    operand memref with the larger rank to obtain the result memref with the
-    smaller rank.
-
-    Examples:
-
-    ```mlir
-    // Dimension collapse (i, j) -> i' and k -> k'
-    %1 = linalg.collapse_shape %0 [[0, 1], [2]] :
-      memref<?x?x?xf32, stride_spec> into memref<?x?xf32, stride_spec_2>
-    ```
-  }];
-}
-
 class Linalg_TensorReshapeOp<string mnemonic> : Linalg_ReshapeLikeOp<
     mnemonic,
-    [DeclareOpInterfaceMethods<InferShapedTypeOpInterface,
-      ["reifyReturnTypeShapesPerResultDim"]>]>,
+    [DeclareOpInterfaceMethods<ReifyRankedShapedTypeOpInterface>]>,
     Arguments<(ins AnyTensor:$src,
                    IndexListArrayAttr:$reassociation)>,
     Results<(outs AnyTensor:$result)> {
@@ -578,12 +524,11 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
 
     Tensor-based version:
 
-    The body region of the loop contains `subtensor` operations applied to
+    The body region of the loop contains `extract_slice` operations applied to
     every tensor argument of TiledLoopOp.
 
     The body region must contain exactly one block that terminates with
-    `linalg.yield` with the operands resulting from `subtensor_insert`
-    operations.
+    `linalg.yield` with the operands resulting from `insert_slice` operations.
 
     Example:
 
@@ -593,16 +538,16 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
         outs(%out : tensor<24x64xi8>)
         iterators("parallel")
         distribution("block_x") {
-      %lhs_sub = subtensor %lhs[%i, 0] [%c4, %c64] [1, 1]
+      %lhs_sub = tensor.extract_slice %lhs[%i, 0] [%c4, %c64] [1, 1]
           : tensor<24x64xi8> to tensor<?x?xi8>
-      %rhs_sub = subtensor %rhs[%i, 0] [%c4, %c64] [1, 1]
+      %rhs_sub = tensor.extract_slice %rhs[%i, 0] [%c4, %c64] [1, 1]
           : tensor<24x64xi8> to tensor<?x?xi8>
-      %out_sub = subtensor %out[%i, 0] [%c4, %c64] [1, 1]
+      %out_sub = tensor.extract_slice %out[%i, 0] [%c4, %c64] [1, 1]
           : tensor<24x64xi8> to tensor<?x?xi8>
 
       %result_sub = linalg.generic ...
 
-      %result = subtensor_insert %result_sub into %out[%i, 0][%c4, %c64][1, 1]
+      %result = tensor.insert_slice %result_sub into %out[%i, 0][%c4, %c64][1, 1]
         : tensor<?x?xi8> into tensor<24x64xi8>
       linalg.yield %result : tensor<24x64xi8>
     }
@@ -814,6 +759,22 @@ def Linalg_TiledLoopOp : Linalg_Op<"tiled_loop", [
       OperandRange::iterator it = llvm::find(outputs(), value);
       if (it == outputs().end()) return nullptr;
       return it.getBase();
+    }
+
+    /// Return whether the op has only MemRef input and outputs.
+    bool hasBufferSemantics() {
+      Operation* op = this->getOperation();
+      return op->getNumResults() == 0 &&
+             llvm::all_of(op->getOpOperands(), [&](OpOperand & operand) {
+               return !operand.get().getType().template isa<ShapedType>() ||
+                      operand.get().getType().template isa<MemRefType>();
+             });
+    }
+
+    /// Return whether the loop dimension is parallel or not.
+    bool isParallelDimension(unsigned dim) {
+      StringAttr attr = this->iterator_types()[dim].cast<StringAttr>();
+      return attr.getValue() == getParallelIteratorTypeName();
     }
   }];
 

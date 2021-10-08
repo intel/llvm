@@ -47,8 +47,6 @@
 ; CHECK-NEXT:      Transform functions to use DSP intrinsics
 ; CHECK-NEXT:      Interleaved Access Pass
 ; CHECK-NEXT:      Type Promotion
-; CHECK-NEXT:      Dominator Tree Construction
-; CHECK-NEXT:      Natural Loop Information
 ; CHECK-NEXT:      CodeGen Prepare
 ; CHECK-NEXT:      Dominator Tree Construction
 ; CHECK-NEXT:      Exception handling preparation
@@ -128,6 +126,7 @@
 ; CHECK-NEXT:      Stack Slot Coloring
 ; CHECK-NEXT:      Machine Copy Propagation Pass
 ; CHECK-NEXT:      Machine Loop Invariant Code Motion
+; CHECK-NEXT:      Remove Redundant DEBUG_VALUE analysis
 ; CHECK-NEXT:      Fixup Statepoint Caller Saved
 ; CHECK-NEXT:      PostRA Machine Sink
 ; CHECK-NEXT:      Machine Block Frequency Analysis

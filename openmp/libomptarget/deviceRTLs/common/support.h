@@ -19,45 +19,33 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Execution Parameters
 ////////////////////////////////////////////////////////////////////////////////
-enum ExecutionMode {
-  Spmd = 0x00u,
-  Generic = 0x01u,
-  ModeMask = 0x01u,
+enum OMPTgtExecModeFlags : int8_t {
+  OMP_TGT_EXEC_MODE_GENERIC = 1 << 0,
+  OMP_TGT_EXEC_MODE_SPMD = 1 << 1
 };
 
-enum RuntimeMode {
-  RuntimeInitialized = 0x00u,
-  RuntimeUninitialized = 0x02u,
-  RuntimeMask = 0x02u,
+enum OMPTgtRuntimeModeFlags : int8_t {
+  OMP_TGT_RUNTIME_UNINITIALIZED = 0,
+  OMP_TGT_RUNTIME_INITIALIZED = 1 << 2
 };
 
-void setExecutionParameters(ExecutionMode EMode, RuntimeMode RMode);
+void setExecutionParameters(OMPTgtExecModeFlags EMode,
+                            OMPTgtRuntimeModeFlags RMode);
 bool isGenericMode();
-bool isSPMDMode();
 bool isRuntimeUninitialized();
 bool isRuntimeInitialized();
-
-////////////////////////////////////////////////////////////////////////////////
-// Execution Modes based on location parameter fields
-////////////////////////////////////////////////////////////////////////////////
-
-bool checkSPMDMode(kmp_Ident *loc);
-bool checkGenericMode(kmp_Ident *loc);
-bool checkRuntimeUninitialized(kmp_Ident *loc);
-bool checkRuntimeInitialized(kmp_Ident *loc);
 
 ////////////////////////////////////////////////////////////////////////////////
 // get info from machine
 ////////////////////////////////////////////////////////////////////////////////
 
 // get global ids to locate tread/team info (constant regardless of OMP)
-int GetLogicalThreadIdInBlock(bool isSPMDExecutionMode);
+int GetLogicalThreadIdInBlock();
 int GetMasterThreadID();
 int GetNumberOfWorkersInTeam();
 
 // get OpenMP thread and team ids
-int GetOmpThreadId(int threadId,
-                   bool isSPMDExecutionMode); // omp_thread_num
+int GetOmpThreadId();                         // omp_thread_num
 int GetOmpTeamId();                           // omp_team_num
 
 // get OpenMP number of threads and team

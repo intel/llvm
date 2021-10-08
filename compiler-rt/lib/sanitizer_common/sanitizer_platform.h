@@ -14,7 +14,7 @@
 
 #if !defined(__linux__) && !defined(__FreeBSD__) && !defined(__NetBSD__) && \
     !defined(__APPLE__) && !defined(_WIN32) && !defined(__Fuchsia__) &&     \
-    !defined(__rtems__) && !(defined(__sun__) && defined(__svr4__))
+    !(defined(__sun__) && defined(__svr4__))
 #  error "This operating system is not supported"
 #endif
 
@@ -114,12 +114,6 @@
 # define SANITIZER_FUCHSIA 1
 #else
 # define SANITIZER_FUCHSIA 0
-#endif
-
-#if defined(__rtems__)
-#  define SANITIZER_RTEMS 1
-#else
-#  define SANITIZER_RTEMS 0
 #endif
 
 #define SANITIZER_POSIX \
@@ -225,12 +219,6 @@
 # define SANITIZER_SOLARIS32 0
 #endif
 
-#if defined(__myriad2__)
-#  define SANITIZER_MYRIAD2 1
-#else
-#  define SANITIZER_MYRIAD2 0
-#endif
-
 #if defined(__riscv) && (__riscv_xlen == 64)
 #define SANITIZER_RISCV64 1
 #else
@@ -293,11 +281,12 @@
 // mandated by the upstream linux community for all new ports. Other ports
 // may still use legacy syscalls.
 #ifndef SANITIZER_USES_CANONICAL_LINUX_SYSCALLS
-# if (defined(__aarch64__) || defined(__riscv)) && SANITIZER_LINUX
-# define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 1
-# else
-# define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 0
-# endif
+#  if (defined(__aarch64__) || defined(__riscv) || defined(__hexagon__)) && \
+      SANITIZER_LINUX
+#    define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 1
+#  else
+#    define SANITIZER_USES_CANONICAL_LINUX_SYSCALLS 0
+#  endif
 #endif
 
 // udi16 syscalls can only be used when the following conditions are
@@ -373,8 +362,8 @@
 # define SANITIZER_CACHE_LINE_SIZE 64
 #endif
 
-// Enable offline markup symbolizer for Fuchsia and RTEMS.
-#if SANITIZER_FUCHSIA || SANITIZER_RTEMS
+// Enable offline markup symbolizer for Fuchsia.
+#if SANITIZER_FUCHSIA
 #  define SANITIZER_SYMBOLIZER_MARKUP 1
 #else
 #define SANITIZER_SYMBOLIZER_MARKUP 0
@@ -387,6 +376,20 @@
 #define SANITIZER_SUPPORTS_INIT_FOR_DLOPEN 1
 #else
 #define SANITIZER_SUPPORTS_INIT_FOR_DLOPEN 0
+#endif
+
+// SANITIZER_SUPPORTS_THREADLOCAL
+// 1 - THREADLOCAL macro is supported by target
+// 0 - THREADLOCAL macro is not supported by target
+#ifndef __has_feature
+// TODO: Support other compilers here
+#  define SANITIZER_SUPPORTS_THREADLOCAL 1
+#else
+#  if __has_feature(tls)
+#    define SANITIZER_SUPPORTS_THREADLOCAL 1
+#  else
+#    define SANITIZER_SUPPORTS_THREADLOCAL 0
+#  endif
 #endif
 
 #endif // SANITIZER_PLATFORM_H

@@ -38,9 +38,26 @@
 ; void G() { common3(); }
 ; void H() { common3(); }
 ;
+; void no_assert_func() {
+;   return;
+; }
+; void common4() {
+;   assert_func();
+;   no_assert_func();
+; }
+; void J() {
+;   common4();
+; }
+;
 ; int main() {
 ;   queue Q;
 ;   Q.submit([&] (handler& CGH) {
+;     CGH.parallel_for<class Kernel9>(range<1>{1}, [=](id<1> i) {
+;       J();
+;     });
+;     CGH.parallel_for<class Kernel10>(range<1>{1}, [=](id<1> i) {
+;       common4();
+;     });
 ;     CGH.parallel_for<class Kernel>(range<1>{1}, [=](id<1> i) {
 ;       A_excl();
 ;       B_incl();
@@ -81,7 +98,7 @@
 ; }
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64_x86_64-unknown-unknown-sycldevice"
+target triple = "spir64_x86_64-unknown-unknown"
 
 @.str = private unnamed_addr addrspace(1) constant [2 x i8] c"0\00", align 1
 @.str.1 = private unnamed_addr addrspace(1) constant [16 x i8] c"assert_test.cpp\00", align 1
@@ -89,6 +106,43 @@ target triple = "spir64_x86_64-unknown-unknown-sycldevice"
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
 ; CHECK: [SYCL/assert used]
+
+; Function Attrs: convergent noinline norecurse optnone mustprogress
+define dso_local spir_func void @_Z1Jv() #3 {
+entry:
+  call spir_func void @_Z7common4v()
+  ret void
+}
+
+; Function Attrs: convergent noinline norecurse optnone mustprogress
+define dso_local spir_func void @_Z7common4v() #3 {
+entry:
+  call spir_func void @_Z11assert_funcv()
+  call spir_func void @_Z14no_assert_funcv()
+  ret void
+}
+
+; CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E7Kernel9
+; Function Attrs: convergent noinline norecurse mustprogress
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E7Kernel9() #0 {
+entry:
+  call spir_func void @_Z1Jv()
+  ret void
+}
+
+; CHECK: _ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E8Kernel10
+; Function Attrs: convergent noinline norecurse optnone mustprogress
+define weak_odr dso_local spir_kernel void @_ZTSZZ4mainENKUlRN2cl4sycl7handlerEE_clES2_E8Kernel10() #0 {
+entry:
+  call spir_func void @_Z7common4v()
+  ret void
+}
+
+; Function Attrs: convergent noinline norecurse nounwind optnone mustprogress
+define dso_local spir_func void @_Z14no_assert_funcv() #2 {
+entry:
+  ret void
+}
 
 ; Function Attrs: convergent norecurse nounwind mustprogress
 define dso_local spir_func void @_Z6B_inclv() local_unnamed_addr {

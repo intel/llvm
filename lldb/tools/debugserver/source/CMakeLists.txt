@@ -2,7 +2,6 @@ include(CheckCXXCompilerFlag)
 include(CheckLibraryExists)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/..)
 include_directories(${LLDB_SOURCE_DIR}/source)
-include_directories(MacOSX/DarwinLog)
 
 include_directories(MacOSX)
 
@@ -207,8 +206,8 @@ set(lldbDebugserverCommonSources
   DNBThreadResumeActions.cpp
   JSON.cpp
   StdStringExtractor.cpp
+  StringConvert.cpp
   # JSON reader depends on the following LLDB-common files
-  ${LLDB_SOURCE_DIR}/source/Host/common/StringConvert.cpp
   ${LLDB_SOURCE_DIR}/source/Host/common/SocketAddress.cpp
   # end JSON reader dependencies
   libdebugserver.cpp
@@ -255,7 +254,6 @@ target_link_libraries(lldbDebugserverCommon
                       ${LOCKDOWN_LIBRARY}
                       ${CAROUSELSERVICES_LIBRARY}
                       lldbDebugserverArchSupport
-                      lldbDebugserverDarwin_DarwinLog
                       ${FOUNDATION_LIBRARY}
                       ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION}
@@ -325,7 +323,6 @@ if(APPLE_EMBEDDED)
                       ${CORE_FOUNDATION_LIBRARY}
                       ${FOUNDATION_LIBRARY}
                       lldbDebugserverArchSupport
-                      lldbDebugserverDarwin_DarwinLog
                       ${SECURITY_LIBRARY}
                       ${LIBCOMPRESSION})
   if(HAVE_LIBCOMPRESSION)

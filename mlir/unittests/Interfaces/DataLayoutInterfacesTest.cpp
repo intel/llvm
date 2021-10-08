@@ -114,6 +114,7 @@ struct TypeNoLayout : public Type::TypeBase<TypeNoLayout, Type, TypeStorage> {
 /// types itself.
 struct OpWithLayout : public Op<OpWithLayout, DataLayoutOpInterface::Trait> {
   using Op::Op;
+  static ArrayRef<StringRef> getAttributeNames() { return {}; }
 
   static StringRef getOperationName() { return "dltest.op_with_layout"; }
 
@@ -156,6 +157,7 @@ struct OpWithLayout : public Op<OpWithLayout, DataLayoutOpInterface::Trait> {
 struct OpWith7BitByte
     : public Op<OpWith7BitByte, DataLayoutOpInterface::Trait> {
   using Op::Op;
+  static ArrayRef<StringRef> getAttributeNames() { return {}; }
 
   static StringRef getOperationName() { return "dltest.op_with_7bit_byte"; }
 
@@ -195,7 +197,7 @@ struct DLTestDialect : Dialect {
     (void)ok;
     assert(ok);
     if (succeeded(parser.parseOptionalGreater()))
-      return CustomDataLayoutSpec::get(parser.getBuilder().getContext(), {});
+      return CustomDataLayoutSpec::get(parser.getContext(), {});
 
     SmallVector<DataLayoutEntryInterface> entries;
     do {
@@ -205,7 +207,7 @@ struct DLTestDialect : Dialect {
     } while (succeeded(parser.parseOptionalComma()));
     ok = succeeded(parser.parseGreater());
     assert(ok);
-    return CustomDataLayoutSpec::get(parser.getBuilder().getContext(), entries);
+    return CustomDataLayoutSpec::get(parser.getContext(), entries);
   }
 
   void printType(Type type, DialectAsmPrinter &printer) const override {
@@ -219,7 +221,7 @@ struct DLTestDialect : Dialect {
     bool ok = succeeded(parser.parseKeyword("single_query"));
     (void)ok;
     assert(ok);
-    return SingleQueryType::get(parser.getBuilder().getContext());
+    return SingleQueryType::get(parser.getContext());
   }
 };
 

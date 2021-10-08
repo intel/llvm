@@ -60,8 +60,6 @@ public:
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
 protected:
   void PrivateInitialize(lldb_private::Process *process);
 
@@ -214,9 +212,7 @@ protected:
     uint32_t entry_count = 0;
     lldb::addr_t image_infos_addr = LLDB_INVALID_ADDRESS;
 
-    OSKextLoadedKextSummaryHeader()
-
-    {}
+    OSKextLoadedKextSummaryHeader() = default;
 
     uint32_t GetSize() {
       switch (version) {

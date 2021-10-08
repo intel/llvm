@@ -1291,10 +1291,6 @@ void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
   MCTargetStreamer &TS = *OutStreamer->getTargetStreamer();
   ARMTargetStreamer &ATS = static_cast<ARMTargetStreamer &>(TS);
 
-  const MachineFunction &MF = *MI->getParent()->getParent();
-  const ARMSubtarget &STI = MF.getSubtarget<ARMSubtarget>();
-  unsigned FramePtr = STI.useR7AsFramePointer() ? ARM::R7 : ARM::R11;
-
   // If we just ended a constant pool, mark it as such.
   if (InConstantPool && MI->getOpcode() != ARM::CONSTPOOL_ENTRY) {
     OutStreamer->emitDataRegion(MCDR_DataRegionEnd);
@@ -1743,7 +1739,7 @@ void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
       // FIXME: Ideally we could vary the LDRB index based on the padding
       // between the sequence and jump table, however that relies on MCExprs
       // for load indexes which are currently not supported.
-      OutStreamer->emitCodeAlignment(4);
+      OutStreamer->emitCodeAlignment(4, &getSubtargetInfo());
       EmitToStreamer(*OutStreamer, MCInstBuilder(ARM::tADDhirr)
                                        .addReg(Idx)
                                        .addReg(Idx)
@@ -2036,15 +2032,18 @@ void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
       .addImm(ARMCC::AL)
       .addReg(0));
 
+    const MachineFunction &MF = *MI->getParent()->getParent();
+    const ARMSubtarget &STI = MF.getSubtarget<ARMSubtarget>();
+
     if (STI.isTargetDarwin() || STI.isTargetWindows()) {
       // These platforms always use the same frame register
       EmitToStreamer(*OutStreamer, MCInstBuilder(ARM::LDRi12)
-        .addReg(FramePtr)
-        .addReg(SrcReg)
-        .addImm(0)
-        // Predicate.
-        .addImm(ARMCC::AL)
-        .addReg(0));
+                                       .addReg(STI.getFramePointerReg())
+                                       .addReg(SrcReg)
+                                       .addImm(0)
+                                       // Predicate.
+                                       .addImm(ARMCC::AL)
+                                       .addReg(0));
     } else {
       // If the calling code might use either R7 or R11 as
       // frame pointer register, restore it into both.
@@ -2081,6 +2080,9 @@ void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
     Register SrcReg = MI->getOperand(0).getReg();
     Register ScratchReg = MI->getOperand(1).getReg();
 
+    const MachineFunction &MF = *MI->getParent()->getParent();
+    const ARMSubtarget &STI = MF.getSubtarget<ARMSubtarget>();
+
     EmitToStreamer(*OutStreamer, MCInstBuilder(ARM::tLDRi)
       .addReg(ScratchReg)
       .addReg(SrcReg)
@@ -2109,12 +2111,12 @@ void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
     if (STI.isTargetDarwin() || STI.isTargetWindows()) {
       // These platforms always use the same frame register
       EmitToStreamer(*OutStreamer, MCInstBuilder(ARM::tLDRi)
-        .addReg(FramePtr)
-        .addReg(SrcReg)
-        .addImm(0)
-        // Predicate.
-        .addImm(ARMCC::AL)
-        .addReg(0));
+                                       .addReg(STI.getFramePointerReg())
+                                       .addReg(SrcReg)
+                                       .addImm(0)
+                                       // Predicate.
+                                       .addImm(ARMCC::AL)
+                                       .addReg(0));
     } else {
       // If the calling code might use either R7 or R11 as
       // frame pointer register, restore it into both.

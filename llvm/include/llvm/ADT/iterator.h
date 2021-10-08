@@ -95,6 +95,22 @@ protected:
     operator ReferenceT() const { return *I; }
   };
 
+  /// A proxy object for computing a pointer via indirecting a copy of a
+  /// reference. This is used in APIs which need to produce a pointer but for
+  /// which the reference might be a temporary. The proxy preserves the
+  /// reference internally and exposes the pointer via a arrow operator.
+  class PointerProxy {
+    friend iterator_facade_base;
+
+    ReferenceT R;
+
+    template <typename RefT>
+    PointerProxy(RefT &&R) : R(std::forward<RefT>(R)) {}
+
+  public:
+    PointerT operator->() const { return &R; }
+  };
+
 public:
   DerivedT operator+(DifferenceTypeT n) const {
     static_assert(std::is_base_of<iterator_facade_base, DerivedT>::value,
@@ -172,19 +188,21 @@ public:
     return !(static_cast<const DerivedT &>(*this) < RHS);
   }
 
-  PointerT operator->() { return &static_cast<DerivedT *>(this)->operator*(); }
-  PointerT operator->() const {
-    return &static_cast<const DerivedT *>(this)->operator*();
+  PointerProxy operator->() {
+    return static_cast<DerivedT *>(this)->operator*();
+  }
+  PointerProxy operator->() const {
+    return static_cast<const DerivedT *>(this)->operator*();
   }
   ReferenceProxy operator[](DifferenceTypeT n) {
     static_assert(IsRandomAccess,
                   "Subscripting is only defined for random access iterators.");
-    return ReferenceProxy(static_cast<DerivedT *>(this)->operator+(n));
+    return static_cast<DerivedT *>(this)->operator+(n);
   }
   ReferenceProxy operator[](DifferenceTypeT n) const {
     static_assert(IsRandomAccess,
                   "Subscripting is only defined for random access iterators.");
-    return ReferenceProxy(static_cast<const DerivedT *>(this)->operator+(n));
+    return static_cast<const DerivedT *>(this)->operator+(n);
   }
 };
 
@@ -349,34 +367,6 @@ template <typename WrappedIteratorT,
           typename T2 = std::add_pointer_t<T1>>
 using raw_pointer_iterator =
     pointer_iterator<pointee_iterator<WrappedIteratorT, T1>, T2>;
-
-// Wrapper iterator over iterator ItType, adding DataRef to the type of ItType,
-// to create NodeRef = std::pair<InnerTypeOfItType, DataRef>.
-template <typename ItType, typename NodeRef, typename DataRef>
-class WrappedPairNodeDataIterator
-    : public iterator_adaptor_base<
-          WrappedPairNodeDataIterator<ItType, NodeRef, DataRef>, ItType,
-          typename std::iterator_traits<ItType>::iterator_category, NodeRef,
-          std::ptrdiff_t, NodeRef *, NodeRef &> {
-  using BaseT = iterator_adaptor_base<
-      WrappedPairNodeDataIterator, ItType,
-      typename std::iterator_traits<ItType>::iterator_category, NodeRef,
-      std::ptrdiff_t, NodeRef *, NodeRef &>;
-
-  const DataRef DR;
-  mutable NodeRef NR;
-
-public:
-  WrappedPairNodeDataIterator(ItType Begin, const DataRef DR)
-      : BaseT(Begin), DR(DR) {
-    NR.first = DR;
-  }
-
-  NodeRef &operator*() const {
-    NR.second = *this->I;
-    return NR;
-  }
-};
 
 } // end namespace llvm
 

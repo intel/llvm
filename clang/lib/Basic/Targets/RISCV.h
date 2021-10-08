@@ -39,7 +39,6 @@ protected:
   bool HasZbf = false;
   bool HasZbm = false;
   bool HasZbp = false;
-  bool HasZbproposedc = false;
   bool HasZbr = false;
   bool HasZbs = false;
   bool HasZbt = false;
@@ -60,6 +59,7 @@ public:
     WIntType = UnsignedInt;
     HasRISCVVTypes = true;
     MCountName = "_mcount";
+    HasFloat16 = true;
   }
 
   bool setCPU(const std::string &Name) override {
@@ -80,6 +80,11 @@ public:
   }
 
   const char *getClobbers() const override { return ""; }
+
+  StringRef getConstraintRegister(StringRef Constraint,
+                                  StringRef Expression) const override {
+    return Expression;
+  }
 
   ArrayRef<const char *> getGCCRegNames() const override;
 

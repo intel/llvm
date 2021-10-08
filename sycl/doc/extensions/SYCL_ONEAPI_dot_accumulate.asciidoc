@@ -46,7 +46,7 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: B
+Revision: 3
 
 == Contact
 
@@ -105,7 +105,8 @@ The value that is returned is equivalent to +
 ----
 namespace cl {
 namespace sycl {
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 
 int32_t dot_acc(vec<int8_t,4>  a, vec<int8_t,4>  b, int32_t c);
 int32_t dot_acc(vec<int8_t,4>  a, vec<uint8_t,4> b, int32_t c);
@@ -117,7 +118,8 @@ int32_t dot_acc(int32_t a, uint32_t b, int32_t c);
 int32_t dot_acc(uint32_t a, int32_t b, int32_t c);
 int32_t dot_acc(uint32_t a, uint32_t b, int32_t c);
 
-} // ONEAPI
+} // oneapi
+} // ext
 } // sycl
 } // cl
 ----
@@ -133,9 +135,9 @@ None.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2019-12-13|Ben Ashbaugh|*Initial draft*
-|B|2019-12-18|Ben Ashbaugh|Switched to standard C++ fixed width types.
-|C|2020-10-26|Rajiv Deodhar|Added int32 types.
+|1|2019-12-13|Ben Ashbaugh|*Initial draft*
+|2|2019-12-18|Ben Ashbaugh|Switched to standard C++ fixed width types.
+|3|2020-10-26|Rajiv Deodhar|Added int32 types.
 |========================================
 
 //************************************************************************

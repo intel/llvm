@@ -8,26 +8,26 @@
 ; CHECK-LABEL: define {{.*}} spir_kernel void @_ZTS4Test
 ; CHECK: %[[#NS0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID:]], i32
 ; CHECK: %[[#NS1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 1]], float
-; CHECK: %[[#NA0:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#NS0]], float %[[#NS1]])
+; CHECK: %[[#NA0:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif_Rstruct._ZTS1A.A(i32 %[[#NS0]], float %[[#NS1]])
 ;
 ; CHECK: %[[#NS2:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 2]], i32
 ; CHECK: %[[#NS3:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 3]], float
-; CHECK: %[[#NA1:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#NS2]], float %[[#NS3]])
+; CHECK: %[[#NA1:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif_Rstruct._ZTS1A.A(i32 %[[#NS2]], float %[[#NS3]])
 ;
-; CHECK: %[[#NA:]] = call [2 x %struct._ZTS1A.A] @_Z29__spirv_SpecConstantCompositestruct._ZTS1A.Astruct._ZTS1A.A(%struct._ZTS1A.A %[[#NA0]], %struct._ZTS1A.A %[[#NA1]])
+; CHECK: %[[#NA:]] = call [2 x %struct._ZTS1A.A] @_Z29__spirv_SpecConstantCompositestruct._ZTS1A.Astruct._ZTS1A.A_RA2_struct._ZTS1A.A(%struct._ZTS1A.A %[[#NA0]], %struct._ZTS1A.A %[[#NA1]])
 ;
 ; CHECK: %[[#B0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 4]], i32{{.*}})
 ; CHECK: %[[#B1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 5]], i32{{.*}})
-; CHECK: %[[#BV:]] = call <2 x i32> @_Z29__spirv_SpecConstantCompositeii(i32 %[[#B0]], i32 %[[#B1]])
-; CHECK: %[[#B:]] = call %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" @_Z29__spirv_SpecConstantCompositeDv2_i(<2 x i32> %[[#BV]])
+; CHECK: %[[#BV:]] = call <2 x i32> @_Z29__spirv_SpecConstantCompositeii_RDv2_i(i32 %[[#B0]], i32 %[[#B1]])
+; CHECK: %[[#B:]] = call %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" @"_Z29__spirv_SpecConstantCompositeDv2_i_Rclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"(<2 x i32> %[[#BV]])
 ;
-; CHECK: %[[#POD:]] = call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"([2 x %struct._ZTS1A.A] %[[#NA]], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" %[[#B]])
+; CHECK: %[[#POD:]] = call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeA2_struct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec_Rstruct._ZTS3POD.POD"([2 x %struct._ZTS1A.A] %[[#NA]], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" %[[#B]])
 ; CHECK: store %struct._ZTS3POD.POD %[[#POD]]
 
 ; CHECK-LABEL: define {{.*}} spir_kernel void @_ZTS17SpecializedKernel
 ; CHECK: %[[#N0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 6]], i32
 ; CHECK: %[[#N1:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID + 7]], float
-; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif(i32 %[[#N0]], float %[[#N1]])
+; CHECK: %[[#CONST:]] = call %struct._ZTS1A.A @_Z29__spirv_SpecConstantCompositeif_Rstruct._ZTS1A.A(i32 %[[#N0]], float %[[#N1]])
 ; CHECK: %struct._ZTS1A.A %[[#CONST]]
 ;
 ; CHECK: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]]}
@@ -43,7 +43,7 @@
 ; CHECK-SAME: i32 [[#ID + 7]], i32 4, i32 4}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %struct._ZTS3POD.POD = type { [2 x %struct._ZTS1A.A], %"class._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec" }
 %struct._ZTS1A.A = type { i32, float }
@@ -55,8 +55,8 @@ target triple = "spir64-unknown-unknown-sycldevice"
 $_ZTS4Test = comdat any
 $_ZTS17SpecializedKernel = comdat any
 
-@__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI3PODS4_E3getIS4_EENSt9enable_ifIXsr3std6is_podIT_EE5valueES8_E4typeEv = private unnamed_addr addrspace(1) constant [9 x i8] c"_ZTS3POD\00", align 1
-@__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI13MyComposConstE3getIS4_EENSt9enable_ifIXaasr3std8is_classIT_EE5valuesr3std6is_podIS9_EE5valueES9_E4typeEv = private unnamed_addr addrspace(1) constant [20 x i8] c"_ZTS13MyComposConst\00", align 1
+@__builtin_unique_stable_name._ZNK2cl4sycl3ext6oneapi12experimental13spec_constantI3PODS4_E3getIS4_EENSt9enable_ifIXsr3std6is_podIT_EE5valueES8_E4typeEv = private unnamed_addr addrspace(1) constant [9 x i8] c"_ZTS3POD\00", align 1
+@__builtin_unique_stable_name._ZNK2cl4sycl3ext6oneapi12experimental13spec_constantI13MyComposConstE3getIS4_EENSt9enable_ifIXaasr3std8is_classIT_EE5valuesr3std6is_podIS9_EE5valueES9_E4typeEv = private unnamed_addr addrspace(1) constant [20 x i8] c"_ZTS13MyComposConst\00", align 1
 
 ; Function Attrs: convergent norecurse uwtable
 define weak_odr dso_local spir_kernel void @_ZTS4Test(%struct._ZTS3POD.POD addrspace(1)* %_arg_, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_1, %"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range"* byval(%"class._ZTSN2cl4sycl5rangeILi1EEE.cl::sycl::range") align 8 %_arg_2, %"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id"* byval(%"class._ZTSN2cl4sycl2idILi1EEE.cl::sycl::id") align 8 %_arg_3) local_unnamed_addr #0 comdat !kernel_arg_buffer_location !4 {
@@ -68,7 +68,7 @@ entry:
   %2 = bitcast %struct._ZTS3POD.POD* %ref.tmp.i to i8*
   call void @llvm.lifetime.start.p0i8(i64 24, i8* nonnull %2) #3
   %3 = addrspacecast %struct._ZTS3POD.POD* %ref.tmp.i to %struct._ZTS3POD.POD addrspace(4)*
-  call spir_func void @_Z36__sycl_getCompositeSpecConstantValueI3PODET_PKc(%struct._ZTS3POD.POD addrspace(4)* sret(%struct._ZTS3POD.POD) align 8 %3, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI3PODS4_E3getIS4_EENSt9enable_ifIXsr3std6is_podIT_EE5valueES8_E4typeEv, i64 0, i64 0) to i8 addrspace(4)*)) #4
+  call spir_func void @_Z36__sycl_getCompositeSpecConstantValueI3PODET_PKc(%struct._ZTS3POD.POD addrspace(4)* sret(%struct._ZTS3POD.POD) align 8 %3, i8 addrspace(4)* addrspacecast (i8 addrspace(1)* getelementptr inbounds ([9 x i8], [9 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl3ext6oneapi12experimental13spec_constantI3PODS4_E3getIS4_EENSt9enable_ifIXsr3std6is_podIT_EE5valueES8_E4typeEv, i64 0, i64 0) to i8 addrspace(4)*)) #4
   %4 = bitcast %struct._ZTS3POD.POD addrspace(1)* %add.ptr.i to i8 addrspace(1)*
   %5 = addrspacecast i8 addrspace(1)* %4 to i8 addrspace(4)*
   call void @llvm.memcpy.p4i8.p0i8.i64(i8 addrspace(4)* align 8 dereferenceable(24) %5, i8* nonnull align 8 dereferenceable(24) %2, i64 24, i1 false), !tbaa.struct !5
@@ -87,7 +87,7 @@ entry:
   %c.ascast.i = addrspacecast %struct._ZTS1A.A* %c.i to %struct._ZTS1A.A addrspace(4)*
   %3 = bitcast %struct._ZTS1A.A* %c.i to i8*
   call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %3) #3
-  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI13MyComposConstET_PKcPvS4_(%struct._ZTS1A.A addrspace(4)* sret(%struct._ZTS1A.A) align 4 %c.ascast.i, i8 addrspace(4)* getelementptr inbounds ([20 x i8], [20 x i8] addrspace(4)* addrspacecast ([20 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl6ONEAPI12experimental13spec_constantI13MyComposConstE3getIS4_EENSt9enable_ifIXaasr3std8is_classIT_EE5valuesr3std6is_podIS9_EE5valueES9_E4typeEv to [20 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* null, i8 addrspace(4)* null) #4
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI13MyComposConstET_PKcPvS4_(%struct._ZTS1A.A addrspace(4)* sret(%struct._ZTS1A.A) align 4 %c.ascast.i, i8 addrspace(4)* getelementptr inbounds ([20 x i8], [20 x i8] addrspace(4)* addrspacecast ([20 x i8] addrspace(1)* @__builtin_unique_stable_name._ZNK2cl4sycl3ext6oneapi12experimental13spec_constantI13MyComposConstE3getIS4_EENSt9enable_ifIXaasr3std8is_classIT_EE5valuesr3std6is_podIS9_EE5valueES9_E4typeEv to [20 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* null, i8 addrspace(4)* null) #4
   %a.i = getelementptr inbounds %struct._ZTS1A.A, %struct._ZTS1A.A addrspace(4)* %c.ascast.i, i64 0, i32 0
   %4 = load i32, i32 addrspace(4)* %a.i, align 4
   %conv.i = sitofp i32 %4 to float

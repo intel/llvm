@@ -336,6 +336,14 @@ unsigned AffineMap::getDimPosition(unsigned idx) const {
   return getResult(idx).cast<AffineDimExpr>().getPosition();
 }
 
+unsigned AffineMap::getPermutedPosition(unsigned input) const {
+  assert(isPermutation() && "invalid permutation request");
+  for (unsigned i = 0, numResults = getNumResults(); i < numResults; i++)
+    if (getDimPosition(i) == input)
+      return i;
+  llvm_unreachable("incorrect permutation request");
+}
+
 /// Folds the results of the application of an affine map on the provided
 /// operands to a constant if possible. Returns false if the folding happens,
 /// true otherwise.
@@ -437,6 +445,15 @@ AffineMap AffineMap::replace(const DenseMap<AffineExpr, AffineExpr> &map,
   for (AffineExpr e : getResults())
     newResults.push_back(e.replace(map));
   return AffineMap::get(numResultDims, numResultSyms, newResults, getContext());
+}
+
+AffineMap
+AffineMap::replace(const DenseMap<AffineExpr, AffineExpr> &map) const {
+  SmallVector<AffineExpr, 4> newResults;
+  newResults.reserve(getNumResults());
+  for (AffineExpr e : getResults())
+    newResults.push_back(e.replace(map));
+  return AffineMap::inferFromExprList(newResults).front();
 }
 
 AffineMap AffineMap::compose(AffineMap map) const {

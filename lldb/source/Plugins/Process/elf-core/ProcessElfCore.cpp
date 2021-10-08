@@ -113,8 +113,6 @@ ProcessElfCore::~ProcessElfCore() {
 // PluginInterface
 ConstString ProcessElfCore::GetPluginName() { return GetPluginNameStatic(); }
 
-uint32_t ProcessElfCore::GetPluginVersion() { return 1; }
-
 lldb::addr_t ProcessElfCore::AddAddressRangeFromLoadSegment(
     const elf::ELFProgramHeader &header) {
   const lldb::addr_t addr = header.p_vaddr;
@@ -519,9 +517,8 @@ ProcessElfCore::parseSegment(const DataExtractor &segment) {
 
     size_t note_start = offset;
     size_t note_size = llvm::alignTo(note.n_descsz, 4);
-    DataExtractor note_data(segment, note_start, note_size);
 
-    result.push_back({note, note_data});
+    result.push_back({note, DataExtractor(segment, note_start, note_size)});
     offset += note_size;
   }
 
@@ -656,6 +653,32 @@ llvm::Error ProcessElfCore::parseNetBSDNotes(llvm::ArrayRef<CoreNote> notes) {
                 llvm::inconvertibleErrorCode());
           had_nt_regs = true;
         } else if (note.info.n_type == NETBSD::AARCH64::NT_FPREGS) {
+          if (!had_nt_regs || tid != thread_data.tid)
+            return llvm::make_error<llvm::StringError>(
+                "Error parsing NetBSD core(5) notes: Unexpected order "
+                "of NOTEs PT_GETFPREG before PT_GETREG",
+                llvm::inconvertibleErrorCode());
+          thread_data.notes.push_back(note);
+        }
+      } break;
+      case llvm::Triple::x86: {
+        // Assume order PT_GETREGS, PT_GETFPREGS
+        if (note.info.n_type == NETBSD::I386::NT_REGS) {
+          // If this is the next thread, push the previous one first.
+          if (had_nt_regs) {
+            m_thread_data.push_back(thread_data);
+            thread_data = ThreadData();
+            had_nt_regs = false;
+          }
+
+          thread_data.gpregset = note.data;
+          thread_data.tid = tid;
+          if (thread_data.gpregset.GetByteSize() == 0)
+            return llvm::make_error<llvm::StringError>(
+                "Could not find general purpose registers note in core file.",
+                llvm::inconvertibleErrorCode());
+          had_nt_regs = true;
+        } else if (note.info.n_type == NETBSD::I386::NT_FPREGS) {
           if (!had_nt_regs || tid != thread_data.tid)
             return llvm::make_error<llvm::StringError>(
                 "Error parsing NetBSD core(5) notes: Unexpected order "
@@ -871,7 +894,8 @@ llvm::Error ProcessElfCore::parseLinuxNotes(llvm::ArrayRef<CoreNote> notes) {
 /// A note segment consists of one or more NOTE entries, but their types and
 /// meaning differ depending on the OS.
 llvm::Error ProcessElfCore::ParseThreadContextsFromNoteSegment(
-    const elf::ELFProgramHeader &segment_header, DataExtractor segment_data) {
+    const elf::ELFProgramHeader &segment_header,
+    const DataExtractor &segment_data) {
   assert(segment_header.p_type == llvm::ELF::PT_NOTE);
 
   auto notes_or_error = parseSegment(segment_data);

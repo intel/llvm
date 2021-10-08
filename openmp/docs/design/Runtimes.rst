@@ -30,6 +30,9 @@ variables is defined below.
     * ``LIBOMPTARGET_PROFILE=<Filename>``
     * ``LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD=<Num>``
     * ``LIBOMPTARGET_INFO=<Num>``
+    * ``LIBOMPTARGET_HEAP_SIZE=<Num>``
+    * ``LIBOMPTARGET_STACK_SIZE=<Num>``
+    * ``LIBOMPTARGET_SHARED_MEMORY_SIZE=<Num>``
 
 LIBOMPTARGET_DEBUG
 """"""""""""""""""
@@ -141,50 +144,66 @@ provide the following output from the runtime library.
     Info: Entering OpenMP data region at zaxpy.cpp:14:1 with 2 arguments:
     Info: to(X[0:N])[16384]
     Info: tofrom(Y[0:N])[16384]
-    Info: Creating new map entry with HstPtrBegin=0x00007ffde9e99000,
-          TgtPtrBegin=0x00007f15dc600000, Size=16384, Name=X[0:N]
-    Info: Copying data from host to device, HstPtr=0x00007ffde9e99000,
-          TgtPtr=0x00007f15dc600000, Size=16384, Name=X[0:N]
-    Info: Creating new map entry with HstPtrBegin=0x00007ffde9e95000,
-          TgtPtrBegin=0x00007f15dc604000, Size=16384, Name=Y[0:N]
-    Info: Copying data from host to device, HstPtr=0x00007ffde9e95000,
-          TgtPtr=0x00007f15dc604000, Size=16384, Name=Y[0:N]
+    Info: Creating new map entry with HstPtrBegin=0x00007fff0d259a40,
+          TgtPtrBegin=0x00007fdba5800000, Size=16384, RefCount=1, Name=X[0:N]
+    Info: Copying data from host to device, HstPtr=0x00007fff0d259a40,
+          TgtPtr=0x00007fdba5800000, Size=16384, Name=X[0:N]
+    Info: Creating new map entry with HstPtrBegin=0x00007fff0d255a40,
+          TgtPtrBegin=0x00007fdba5804000, Size=16384, RefCount=1, Name=Y[0:N]
+    Info: Copying data from host to device, HstPtr=0x00007fff0d255a40,
+          TgtPtr=0x00007fdba5804000, Size=16384, Name=Y[0:N]
     Info: OpenMP Host-Device pointer mappings after block at zaxpy.cpp:14:1:
     Info: Host Ptr           Target Ptr         Size (B) RefCount Declaration
-    Info: 0x00007ffde9e95000 0x00007f15dc604000 16384    1        Y[0:N] at zaxpy.cpp:13:17
-    Info: 0x00007ffde9e99000 0x00007f15dc600000 16384    1        X[0:N] at zaxpy.cpp:13:11
+    Info: 0x00007fff0d255a40 0x00007fdba5804000 16384    1        Y[0:N] at zaxpy.cpp:13:17
+    Info: 0x00007fff0d259a40 0x00007fdba5800000 16384    1        X[0:N] at zaxpy.cpp:13:11
     Info: Entering OpenMP kernel at zaxpy.cpp:6:1 with 4 arguments:
     Info: firstprivate(N)[8] (implicit)
     Info: use_address(Y)[0] (implicit)
     Info: tofrom(D)[16] (implicit)
     Info: use_address(X)[0] (implicit)
-    Info: Mapping exists (implicit) with HstPtrBegin=0x00007ffde9e95000,
-          TgtPtrBegin=0x00007f15dc604000, Size=0, updated RefCount=2, Name=Y
-    Info: Creating new map entry with HstPtrBegin=0x00007ffde9e94fb0,
-          TgtPtrBegin=0x00007f15dc608000, Size=16, Name=D
-    Info: Copying data from host to device, HstPtr=0x00007ffde9e94fb0,
-          TgtPtr=0x00007f15dc608000, Size=16, Name=D
-    Info: Mapping exists (implicit) with HstPtrBegin=0x00007ffde9e99000,
-          TgtPtrBegin=0x00007f15dc600000, Size=0, updated RefCount=2, Name=X
-    Info: Launching kernel __omp_offloading_fd02_e25f6e76__Z5zaxpyPSt7complexIdES1_S0_m_l6
+    Info: Mapping exists (implicit) with HstPtrBegin=0x00007fff0d255a40,
+          TgtPtrBegin=0x00007fdba5804000, Size=0, RefCount=2 (incremented), Name=Y
+    Info: Creating new map entry with HstPtrBegin=0x00007fff0d2559f0,
+          TgtPtrBegin=0x00007fdba5808000, Size=16, RefCount=1, Name=D
+    Info: Copying data from host to device, HstPtr=0x00007fff0d2559f0,
+          TgtPtr=0x00007fdba5808000, Size=16, Name=D
+    Info: Mapping exists (implicit) with HstPtrBegin=0x00007fff0d259a40,
+          TgtPtrBegin=0x00007fdba5800000, Size=0, RefCount=2 (incremented), Name=X
+    Info: Mapping exists with HstPtrBegin=0x00007fff0d255a40,
+          TgtPtrBegin=0x00007fdba5804000, Size=0, RefCount=2 (update suppressed)
+    Info: Mapping exists with HstPtrBegin=0x00007fff0d2559f0,
+          TgtPtrBegin=0x00007fdba5808000, Size=16, RefCount=1 (update suppressed)
+    Info: Mapping exists with HstPtrBegin=0x00007fff0d259a40,
+          TgtPtrBegin=0x00007fdba5800000, Size=0, RefCount=2 (update suppressed)
+    Info: Launching kernel __omp_offloading_10305_c08c86__Z5zaxpyPSt7complexIdES1_S0_m_l6
           with 8 blocks and 128 threads in SPMD mode
-    Info: Copying data from device to host, TgtPtr=0x00007f15dc608000,
-          HstPtr=0x00007ffde9e94fb0, Size=16, Name=D
-    Info: Removing map entry with HstPtrBegin=0x00007ffde9e94fb0,
-          TgtPtrBegin=0x00007f15dc608000, Size=16, Name=D
+    Info: Mapping exists with HstPtrBegin=0x00007fff0d259a40,
+          TgtPtrBegin=0x00007fdba5800000, Size=0, RefCount=1 (decremented)
+    Info: Mapping exists with HstPtrBegin=0x00007fff0d2559f0,
+          TgtPtrBegin=0x00007fdba5808000, Size=16, RefCount=1 (deferred final decrement)
+    Info: Copying data from device to host, TgtPtr=0x00007fdba5808000,
+          HstPtr=0x00007fff0d2559f0, Size=16, Name=D
+    Info: Mapping exists with HstPtrBegin=0x00007fff0d255a40,
+          TgtPtrBegin=0x00007fdba5804000, Size=0, RefCount=1 (decremented)
+    Info: Removing map entry with HstPtrBegin=0x00007fff0d2559f0,
+          TgtPtrBegin=0x00007fdba5808000, Size=16, Name=D
     Info: OpenMP Host-Device pointer mappings after block at zaxpy.cpp:6:1:
     Info: Host Ptr           Target Ptr         Size (B) RefCount Declaration
-    Info: 0x00007ffde9e95000 0x00007f15dc604000 16384    1        Y[0:N] at zaxpy.cpp:13:17
-    Info: 0x00007ffde9e99000 0x00007f15dc600000 16384    1        X[0:N] at zaxpy.cpp:13:11
+    Info: 0x00007fff0d255a40 0x00007fdba5804000 16384    1        Y[0:N] at zaxpy.cpp:13:17
+    Info: 0x00007fff0d259a40 0x00007fdba5800000 16384    1        X[0:N] at zaxpy.cpp:13:11
     Info: Exiting OpenMP data region at zaxpy.cpp:14:1 with 2 arguments:
     Info: to(X[0:N])[16384]
     Info: tofrom(Y[0:N])[16384]
-    Info: Copying data from device to host, TgtPtr=0x00007f15dc604000,
-          HstPtr=0x00007ffde9e95000, Size=16384, Name=Y[0:N]
-    Info: Removing map entry with HstPtrBegin=0x00007ffde9e95000,
-          TgtPtrBegin=0x00007f15dc604000, Size=16384, Name=Y[0:N]
-    Info: Removing map entry with HstPtrBegin=0x00007ffde9e99000,
-          TgtPtrBegin=0x00007f15dc600000, Size=16384, Name=X[0:N]
+    Info: Mapping exists with HstPtrBegin=0x00007fff0d255a40,
+          TgtPtrBegin=0x00007fdba5804000, Size=16384, RefCount=1 (deferred final decrement)
+    Info: Copying data from device to host, TgtPtr=0x00007fdba5804000,
+          HstPtr=0x00007fff0d255a40, Size=16384, Name=Y[0:N]
+    Info: Mapping exists with HstPtrBegin=0x00007fff0d259a40,
+          TgtPtrBegin=0x00007fdba5800000, Size=16384, RefCount=1 (deferred final decrement)
+    Info: Removing map entry with HstPtrBegin=0x00007fff0d255a40,
+          TgtPtrBegin=0x00007fdba5804000, Size=16384, Name=Y[0:N]
+    Info: Removing map entry with HstPtrBegin=0x00007fff0d259a40,
+          TgtPtrBegin=0x00007fdba5800000, Size=16384, Name=X[0:N]
 
 From this information, we can see the OpenMP kernel being launched on the CUDA
 device with enough threads and blocks for all ``1024`` iterations of the loop in
@@ -304,6 +323,29 @@ default. The solution is to add an explicit map clause in the target region.
     
       return sum;
     }
+
+LIBOMPTARGET_STACK_SIZE
+"""""""""""""""""""""""
+
+This environment variable sets the stack size in bytes for the CUDA plugin. This
+can be used to increase or decrease the standard amount of memory reserved for
+each thread's stack.
+
+LIBOMPTARGET_HEAP_SIZE
+"""""""""""""""""""""""
+
+This environment variable sets the amount of memory in bytes that can be
+allocated using ``malloc`` and ``free`` for the CUDA plugin. This is necessary
+for some applications that allocate too much memory either through the user or
+globalization.
+
+LIBOMPTARGET_SHARED_MEMORY_SIZE
+"""""""""""""""""""""""""""""""
+
+This environment variable sets the amount of dynamic shared memory in bytes used 
+by the kernel once it is launched. A pointer to the dynamic memory buffer can 
+currently only be accessed using the ``__kmpc_get_dynamic_shared`` device 
+runtime call.
 
 .. toctree::
    :hidden:

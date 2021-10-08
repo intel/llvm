@@ -168,15 +168,6 @@ def build_vector_to_dup : GICombineRule<
 
 def build_vector_lowering : GICombineGroup<[build_vector_to_dup]>;
 
-def bitfield_extract_from_sext_inreg : GICombineRule<
-  (defs root:$root, build_fn_matchinfo:$info),
-  (match (wip_match_opcode G_SEXT_INREG):$root,
-    [{ return matchBitfieldExtractFromSExtInReg(*${root}, MRI, ${info}); }]),
-  (apply [{ return Helper.applyBuildFn(*${root}, ${info}); }])>;
-
-def form_bitfield_extract : GICombineGroup<[bitfield_extract_from_sext_inreg,
-                                            bitfield_extract_from_and]>;
-
 def lower_vector_fcmp : GICombineRule<
   (defs root:$root),
   (match (wip_match_opcode G_FCMP):$root,
@@ -189,6 +180,20 @@ def form_truncstore : GICombineRule<
   (match (wip_match_opcode G_STORE):$root,
           [{ return matchFormTruncstore(*${root}, MRI, ${matchinfo}); }]),
   (apply [{ applyFormTruncstore(*${root}, MRI, B, Observer, ${matchinfo}); }])
+>;
+
+def fold_merge_to_zext : GICombineRule<
+  (defs root:$d),
+  (match (wip_match_opcode G_MERGE_VALUES):$d,
+          [{ return matchFoldMergeToZext(*${d}, MRI); }]),
+  (apply [{ applyFoldMergeToZext(*${d}, MRI, B, Observer); }])
+>;
+
+def mutate_anyext_to_zext : GICombineRule<
+  (defs root:$d),
+  (match (wip_match_opcode G_ANYEXT):$d,
+          [{ return matchMutateAnyExtToZExt(*${d}, MRI); }]),
+  (apply [{ applyMutateAnyExtToZExt(*${d}, MRI, B, Observer); }])
 >;
 
 // Post-legalization combines which should happen at all optimization levels.
@@ -206,12 +211,15 @@ def AArch64PostLegalizerLoweringHelper
 def AArch64PostLegalizerCombinerHelper
     : GICombinerHelper<"AArch64GenPostLegalizerCombinerHelper",
                        [copy_prop, erase_undef_store, combines_for_extload,
-                        sext_trunc_sextload,
+                        sext_trunc_sextload, mutate_anyext_to_zext,
                         hoist_logic_op_with_same_opcode_hands,
                         redundant_and, xor_of_and_with_same_reg,
                         extractvecelt_pairwise_add, redundant_or,
                         mul_const, redundant_sext_inreg,
                         form_bitfield_extract, rotate_out_of_range,
-                        icmp_to_true_false_known_bits]> {
+                        icmp_to_true_false_known_bits, merge_unmerge,
+                        select_combines, fold_merge_to_zext,
+                        constant_fold, identity_combines,
+                        ptr_add_immed_chain, overlapping_and]> {
   let DisableRuleOption = "aarch64postlegalizercombiner-disable-rule";
 }

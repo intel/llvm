@@ -54,8 +54,8 @@ void fuchsia::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("now");
 
   const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
-  if (llvm::sys::path::filename(Exec).equals_lower("ld.lld") ||
-      llvm::sys::path::stem(Exec).equals_lower("ld.lld")) {
+  if (llvm::sys::path::filename(Exec).equals_insensitive("ld.lld") ||
+      llvm::sys::path::stem(Exec).equals_insensitive("ld.lld")) {
     CmdArgs.push_back("-z");
     CmdArgs.push_back("rodynamic");
     CmdArgs.push_back("-z");
@@ -436,14 +436,4 @@ SanitizerMask Fuchsia::getDefaultSanitizers() const {
     break;
   }
   return Res;
-}
-
-void Fuchsia::addProfileRTLibs(const llvm::opt::ArgList &Args,
-                               llvm::opt::ArgStringList &CmdArgs) const {
-  // Add linker option -u__llvm_profile_runtime to cause runtime
-  // initialization module to be linked in.
-  if (needsProfileRT(Args))
-    CmdArgs.push_back(Args.MakeArgString(
-        Twine("-u", llvm::getInstrProfRuntimeHookVarName())));
-  ToolChain::addProfileRTLibs(Args, CmdArgs);
 }

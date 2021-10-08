@@ -54,12 +54,13 @@ uint8_t getImageNumberChannels(image_channel_order Order) {
   case image_channel_order::ra:
     return 2;
   case image_channel_order::rgb:
-  case image_channel_order::rgbx:
     return 3;
+  case image_channel_order::rgbx:
   case image_channel_order::rgba:
   case image_channel_order::argb:
   case image_channel_order::bgra:
   case image_channel_order::abgr:
+  case image_channel_order::ext_oneapi_srgba:
     return 4;
   }
   assert(false && "Unhandled image channel order");
@@ -133,6 +134,8 @@ RT::PiMemImageChannelOrder convertChannelOrder(image_channel_order Order) {
     return PI_IMAGE_CHANNEL_ORDER_LUMINANCE;
   case image_channel_order::abgr:
     return PI_IMAGE_CHANNEL_ORDER_ABGR;
+  case image_channel_order::ext_oneapi_srgba:
+    return PI_IMAGE_CHANNEL_ORDER_sRGBA;
   }
   assert(false && "Unhandled image_channel_order");
   return static_cast<RT::PiMemImageChannelOrder>(0);
@@ -168,6 +171,8 @@ image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order) {
     return image_channel_order::luminance;
   case PI_IMAGE_CHANNEL_ORDER_ABGR:
     return image_channel_order::abgr;
+  case PI_IMAGE_CHANNEL_ORDER_sRGBA:
+    return image_channel_order::ext_oneapi_srgba;
   }
   assert(false && "Unhandled image_channel_order");
   return static_cast<image_channel_order>(0);
@@ -259,7 +264,7 @@ static void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
 template <int Dimensions>
 image_impl<Dimensions>::image_impl(
     cl_mem MemObject, const context &SyclContext, event AvailableEvent,
-    unique_ptr_class<SYCLMemObjAllocator> Allocator)
+    std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
             std::move(Allocator)),
       MRange(InitializedVal<Dimensions, range>::template get<0>()) {
@@ -324,7 +329,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_width))
     throw invalid_parameter_error(
         "For a 1D/2D image/image array, the width must be a Value >= 1 and "
-        "<= CL_DEVICE_IMAGE2D_MAX_WIDTH.",
+        "<= info::device::image2d_max_width",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
@@ -332,7 +337,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_width))
     throw invalid_parameter_error(
         "For a 3D image, the width must be a Value >= 1 and <= "
-        "CL_DEVICE_IMAGE3D_MAX_WIDTH",
+        "info::device::image3d_max_width",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE2D,
@@ -341,7 +346,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_height))
     throw invalid_parameter_error("For a 2D image or image array, the height "
                                   "must be a Value >= 1 and <= "
-                                  "CL_DEVICE_IMAGE2D_MAX_HEIGHT",
+                                  "info::device::image2d_max_height",
                                   PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
@@ -349,7 +354,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_height))
     throw invalid_parameter_error(
         "For a 3D image, the heightmust be a Value >= 1 and <= "
-        "CL_DEVICE_IMAGE3D_MAX_HEIGHT",
+        "info::device::image3d_max_height",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
@@ -357,7 +362,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_depth))
     throw invalid_parameter_error(
         "For a 3D image, the depth must be a Value >= 1 and <= "
-        "CL_DEVICE_IMAGE3D_MAX_DEPTH",
+        "info::device::image2d_max_depth",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
@@ -366,7 +371,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_array_size))
     throw invalid_parameter_error(
         "For a 1D and 2D image array, the array_size must be a "
-        "Value >= 1 and <= CL_DEVICE_IMAGE_MAX_ARRAY_SIZE.",
+        "Value >= 1 and <= info::device::image_max_array_size.",
         PI_INVALID_VALUE);
 
   if ((nullptr == UserPtr) && (0 != Desc.image_row_pitch))
@@ -411,16 +416,17 @@ bool image_impl<Dimensions>::checkImageFormat(
         "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT.",
         PI_INVALID_VALUE);
 
-  if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_RGB,
-               PI_IMAGE_CHANNEL_ORDER_RGBx) &&
-      !checkAny(Format.image_channel_data_type,
-                PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
-                PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
-                PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010))
+  if (checkAny(Format.image_channel_data_type,
+               PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
+               PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
+               PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010) &&
+      !checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_RGB,
+                PI_IMAGE_CHANNEL_ORDER_RGBx))
     throw invalid_parameter_error(
-        "CL_RGB or CL_RGBx	These formats can only be used if channel data "
         "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
-        "CL_UNORM_INT_101010.",
+        "CL_UNORM_INT_101010."
+        "These channel types can only be used with CL_RGB or CL_RGBx channel "
+        "order.",
         PI_INVALID_VALUE);
 
   if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_ARGB,
@@ -439,7 +445,7 @@ bool image_impl<Dimensions>::checkImageFormat(
 }
 
 template <int Dimensions>
-vector_class<device>
+std::vector<device>
 image_impl<Dimensions>::getDevices(const ContextImplPtr Context) {
   return Context->get_info<info::context::devices>();
 }

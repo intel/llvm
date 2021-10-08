@@ -501,9 +501,14 @@ class BitcodeReader : public BitcodeReaderBase, public GVMaterializer {
 
   std::vector<std::pair<GlobalVariable *, unsigned>> GlobalInits;
   std::vector<std::pair<GlobalIndirectSymbol *, unsigned>> IndirectSymbolInits;
-  std::vector<std::pair<Function *, unsigned>> FunctionPrefixes;
-  std::vector<std::pair<Function *, unsigned>> FunctionPrologues;
-  std::vector<std::pair<Function *, unsigned>> FunctionPersonalityFns;
+
+  struct FunctionOperandInfo {
+    Function *F;
+    unsigned PersonalityFn;
+    unsigned Prefix;
+    unsigned Prologue;
+  };
+  std::vector<FunctionOperandInfo> FunctionOperands;
 
   /// The set of attributes by index.  Index zero in the file is for null, and
   /// is thus not represented here.  As such all indices are off by one.
@@ -682,9 +687,10 @@ private:
     return getFnValueByID(ValNo, Ty);
   }
 
-  /// Upgrades old-style typeless byval or sret attributes by adding the
-  /// corresponding argument's pointee type.
-  void propagateByValSRetTypes(CallBase *CB, ArrayRef<Type *> ArgsTys);
+  /// Upgrades old-style typeless byval/sret/inalloca attributes by adding the
+  /// corresponding argument's pointee type. Also upgrades intrinsics that now
+  /// require an elementtype attribute.
+  void propagateAttributeTypes(CallBase *CB, ArrayRef<Type *> ArgsTys);
 
   /// Converts alignment exponent (i.e. power of two (or zero)) to the
   /// corresponding alignment to use. If alignment is too large, returns
@@ -932,6 +938,9 @@ static FunctionSummary::FFlags getDecodedFFlags(uint64_t RawFlags) {
   Flags.ReturnDoesNotAlias = (RawFlags >> 3) & 0x1;
   Flags.NoInline = (RawFlags >> 4) & 0x1;
   Flags.AlwaysInline = (RawFlags >> 5) & 0x1;
+  Flags.NoUnwind = (RawFlags >> 6) & 0x1;
+  Flags.MayThrow = (RawFlags >> 7) & 0x1;
+  Flags.HasUnknownCall = (RawFlags >> 8) & 0x1;
   return Flags;
 }
 
@@ -1127,7 +1136,7 @@ static Comdat::SelectionKind getDecodedComdatSelectionKind(unsigned Val) {
   case bitc::COMDAT_SELECTION_KIND_LARGEST:
     return Comdat::Largest;
   case bitc::COMDAT_SELECTION_KIND_NO_DUPLICATES:
-    return Comdat::NoDuplicates;
+    return Comdat::NoDeduplicate;
   case bitc::COMDAT_SELECTION_KIND_SAME_SIZE:
     return Comdat::SameSize;
   }
@@ -1279,6 +1288,8 @@ static void addRawAttributeValue(AttrBuilder &B, uint64_t Val) {
         B.addAlignmentAttr(1ULL << ((A >> 16) - 1));
       else if (I == Attribute::StackAlignment)
         B.addStackAlignmentAttr(1ULL << ((A >> 26)-1));
+      else if (Attribute::isTypeAttrKind(I))
+        B.addTypeAttr(I, nullptr); // Type will be auto-upgraded.
       else
         B.addAttribute(I);
     }
@@ -1385,6 +1396,10 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::Cold;
   case bitc::ATTR_KIND_CONVERGENT:
     return Attribute::Convergent;
+  case bitc::ATTR_KIND_DISABLE_SANITIZER_INSTRUMENTATION:
+    return Attribute::DisableSanitizerInstrumentation;
+  case bitc::ATTR_KIND_ELEMENTTYPE:
+    return Attribute::ElementType;
   case bitc::ATTR_KIND_INACCESSIBLEMEM_ONLY:
     return Attribute::InaccessibleMemOnly;
   case bitc::ATTR_KIND_INACCESSIBLEMEM_OR_ARGMEMONLY:
@@ -1439,6 +1454,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::NoSync;
   case bitc::ATTR_KIND_NOCF_CHECK:
     return Attribute::NoCfCheck;
+  case bitc::ATTR_KIND_NO_PROFILE:
+    return Attribute::NoProfile;
   case bitc::ATTR_KIND_NO_UNWIND:
     return Attribute::NoUnwind;
   case bitc::ATTR_KIND_NO_SANITIZE_COVERAGE:
@@ -1597,12 +1614,16 @@ Error BitcodeReader::parseAttributeGroupBlock() {
             B.addStructRetAttr(nullptr);
           else if (Kind == Attribute::InAlloca)
             B.addInAllocaAttr(nullptr);
-
-          B.addAttribute(Kind);
+          else if (Attribute::isEnumAttrKind(Kind))
+            B.addAttribute(Kind);
+          else
+            return error("Not an enum attribute");
         } else if (Record[i] == 1) { // Integer attribute
           Attribute::AttrKind Kind;
           if (Error Err = parseAttrKind(Record[++i], &Kind))
             return Err;
+          if (!Attribute::isIntAttrKind(Kind))
+            return error("Not an int attribute");
           if (Kind == Attribute::Alignment)
             B.addAlignmentAttr(Record[++i]);
           else if (Kind == Attribute::StackAlignment)
@@ -1640,17 +1661,10 @@ Error BitcodeReader::parseAttributeGroupBlock() {
           Attribute::AttrKind Kind;
           if (Error Err = parseAttrKind(Record[++i], &Kind))
             return Err;
-          if (Kind == Attribute::ByVal) {
-            B.addByValAttr(HasType ? getTypeByID(Record[++i]) : nullptr);
-          } else if (Kind == Attribute::StructRet) {
-            B.addStructRetAttr(HasType ? getTypeByID(Record[++i]) : nullptr);
-          } else if (Kind == Attribute::ByRef) {
-            B.addByRefAttr(getTypeByID(Record[++i]));
-          } else if (Kind == Attribute::Preallocated) {
-            B.addPreallocatedAttr(getTypeByID(Record[++i]));
-          } else if (Kind == Attribute::InAlloca) {
-            B.addInAllocaAttr(HasType ? getTypeByID(Record[++i]) : nullptr);
-          }
+          if (!Attribute::isTypeAttrKind(Kind))
+            return error("Not a type attribute");
+
+          B.addTypeAttr(Kind, HasType ? getTypeByID(Record[++i]) : nullptr);
         }
       }
 
@@ -1781,6 +1795,9 @@ Error BitcodeReader::parseTypeTableBody() {
     case bitc::TYPE_CODE_OPAQUE_POINTER: { // OPAQUE_POINTER: [addrspace]
       if (Record.size() != 1)
         return error("Invalid record");
+      if (Context.supportsTypedPointers())
+        return error(
+            "Opaque pointers are only supported in -opaque-pointers mode");
       unsigned AddressSpace = Record[0];
       ResultTy = PointerType::get(Context, AddressSpace);
       break;
@@ -2238,15 +2255,11 @@ Error BitcodeReader::resolveGlobalAndIndirectSymbolInits() {
   std::vector<std::pair<GlobalVariable *, unsigned>> GlobalInitWorklist;
   std::vector<std::pair<GlobalIndirectSymbol *, unsigned>>
       IndirectSymbolInitWorklist;
-  std::vector<std::pair<Function *, unsigned>> FunctionPrefixWorklist;
-  std::vector<std::pair<Function *, unsigned>> FunctionPrologueWorklist;
-  std::vector<std::pair<Function *, unsigned>> FunctionPersonalityFnWorklist;
+  std::vector<FunctionOperandInfo> FunctionOperandWorklist;
 
   GlobalInitWorklist.swap(GlobalInits);
   IndirectSymbolInitWorklist.swap(IndirectSymbolInits);
-  FunctionPrefixWorklist.swap(FunctionPrefixes);
-  FunctionPrologueWorklist.swap(FunctionPrologues);
-  FunctionPersonalityFnWorklist.swap(FunctionPersonalityFns);
+  FunctionOperandWorklist.swap(FunctionOperands);
 
   while (!GlobalInitWorklist.empty()) {
     unsigned ValID = GlobalInitWorklist.back().second;
@@ -2278,43 +2291,41 @@ Error BitcodeReader::resolveGlobalAndIndirectSymbolInits() {
     IndirectSymbolInitWorklist.pop_back();
   }
 
-  while (!FunctionPrefixWorklist.empty()) {
-    unsigned ValID = FunctionPrefixWorklist.back().second;
-    if (ValID >= ValueList.size()) {
-      FunctionPrefixes.push_back(FunctionPrefixWorklist.back());
-    } else {
-      if (Constant *C = dyn_cast_or_null<Constant>(ValueList[ValID]))
-        FunctionPrefixWorklist.back().first->setPrefixData(C);
-      else
-        return error("Expected a constant");
+  while (!FunctionOperandWorklist.empty()) {
+    FunctionOperandInfo &Info = FunctionOperandWorklist.back();
+    if (Info.PersonalityFn) {
+      unsigned ValID = Info.PersonalityFn - 1;
+      if (ValID < ValueList.size()) {
+        if (Constant *C = dyn_cast_or_null<Constant>(ValueList[ValID]))
+          Info.F->setPersonalityFn(C);
+        else
+          return error("Expected a constant");
+        Info.PersonalityFn = 0;
+      }
     }
-    FunctionPrefixWorklist.pop_back();
-  }
-
-  while (!FunctionPrologueWorklist.empty()) {
-    unsigned ValID = FunctionPrologueWorklist.back().second;
-    if (ValID >= ValueList.size()) {
-      FunctionPrologues.push_back(FunctionPrologueWorklist.back());
-    } else {
-      if (Constant *C = dyn_cast_or_null<Constant>(ValueList[ValID]))
-        FunctionPrologueWorklist.back().first->setPrologueData(C);
-      else
-        return error("Expected a constant");
+    if (Info.Prefix) {
+      unsigned ValID = Info.Prefix - 1;
+      if (ValID < ValueList.size()) {
+        if (Constant *C = dyn_cast_or_null<Constant>(ValueList[ValID]))
+          Info.F->setPrefixData(C);
+        else
+          return error("Expected a constant");
+        Info.Prefix = 0;
+      }
     }
-    FunctionPrologueWorklist.pop_back();
-  }
-
-  while (!FunctionPersonalityFnWorklist.empty()) {
-    unsigned ValID = FunctionPersonalityFnWorklist.back().second;
-    if (ValID >= ValueList.size()) {
-      FunctionPersonalityFns.push_back(FunctionPersonalityFnWorklist.back());
-    } else {
-      if (Constant *C = dyn_cast_or_null<Constant>(ValueList[ValID]))
-        FunctionPersonalityFnWorklist.back().first->setPersonalityFn(C);
-      else
-        return error("Expected a constant");
+    if (Info.Prologue) {
+      unsigned ValID = Info.Prologue - 1;
+      if (ValID < ValueList.size()) {
+        if (Constant *C = dyn_cast_or_null<Constant>(ValueList[ValID]))
+          Info.F->setPrologueData(C);
+        else
+          return error("Expected a constant");
+        Info.Prologue = 0;
+      }
     }
-    FunctionPersonalityFnWorklist.pop_back();
+    if (Info.PersonalityFn || Info.Prefix || Info.Prologue)
+      FunctionOperands.push_back(Info);
+    FunctionOperandWorklist.pop_back();
   }
 
   return Error::success();
@@ -2347,6 +2358,15 @@ Error BitcodeReader::parseConstants() {
     unsigned CstNo;
   };
   std::vector<DelayedShufTy> DelayedShuffles;
+  struct DelayedSelTy {
+    Type *OpTy;
+    uint64_t Op0Idx;
+    uint64_t Op1Idx;
+    uint64_t Op2Idx;
+    unsigned CstNo;
+  };
+  std::vector<DelayedSelTy> DelayedSelectors;
+
   while (true) {
     Expected<BitstreamEntry> MaybeEntry = Stream.advanceSkippingSubblocks();
     if (!MaybeEntry)
@@ -2381,6 +2401,27 @@ Error BitcodeReader::parseConstants() {
         SmallVector<int, 16> Mask;
         ShuffleVectorInst::getShuffleMask(Op2, Mask);
         Value *V = ConstantExpr::getShuffleVector(Op0, Op1, Mask);
+        ValueList.assignValue(V, CstNo);
+      }
+      for (auto &DelayedSelector : DelayedSelectors) {
+        Type *OpTy = DelayedSelector.OpTy;
+        Type *SelectorTy = Type::getInt1Ty(Context);
+        uint64_t Op0Idx = DelayedSelector.Op0Idx;
+        uint64_t Op1Idx = DelayedSelector.Op1Idx;
+        uint64_t Op2Idx = DelayedSelector.Op2Idx;
+        uint64_t CstNo = DelayedSelector.CstNo;
+        Constant *Op1 = ValueList.getConstantFwdRef(Op1Idx, OpTy);
+        Constant *Op2 = ValueList.getConstantFwdRef(Op2Idx, OpTy);
+        // The selector might be an i1 or an <n x i1>
+        // Get the type from the ValueList before getting a forward ref.
+        if (VectorType *VTy = dyn_cast<VectorType>(OpTy)) {
+          Value *V = ValueList[Op0Idx];
+          assert(V);
+          if (SelectorTy != V->getType())
+            SelectorTy = VectorType::get(SelectorTy, VTy->getElementCount());
+        }
+        Constant *Op0 = ValueList.getConstantFwdRef(Op0Idx, SelectorTy);
+        Value *V = ConstantExpr::getSelect(Op0, Op1, Op2);
         ValueList.assignValue(V, CstNo);
       }
 
@@ -2663,11 +2704,10 @@ Error BitcodeReader::parseConstants() {
       if (Elts.size() < 1)
         return error("Invalid gep with no operands");
 
-      Type *ImplicitPointeeType =
-          cast<PointerType>(Elt0FullTy->getScalarType())->getElementType();
+      PointerType *OrigPtrTy = cast<PointerType>(Elt0FullTy->getScalarType());
       if (!PointeeType)
-        PointeeType = ImplicitPointeeType;
-      else if (PointeeType != ImplicitPointeeType)
+        PointeeType = OrigPtrTy->getElementType();
+      else if (!OrigPtrTy->isOpaqueOrPointeeTypeMatches(PointeeType))
         return error("Explicit gep operator type does not match pointee type "
                      "of pointer operand");
 
@@ -2680,21 +2720,11 @@ Error BitcodeReader::parseConstants() {
       if (Record.size() < 3)
         return error("Invalid record");
 
-      Type *SelectorTy = Type::getInt1Ty(Context);
-
-      // The selector might be an i1, an <n x i1>, or a <vscale x n x i1>
-      // Get the type from the ValueList before getting a forward ref.
-      if (VectorType *VTy = dyn_cast<VectorType>(CurTy))
-        if (Value *V = ValueList[Record[0]])
-          if (SelectorTy != V->getType())
-            SelectorTy = VectorType::get(SelectorTy,
-                                         VTy->getElementCount());
-
-      V = ConstantExpr::getSelect(ValueList.getConstantFwdRef(Record[0],
-                                                              SelectorTy),
-                                  ValueList.getConstantFwdRef(Record[1],CurTy),
-                                  ValueList.getConstantFwdRef(Record[2],CurTy));
-      break;
+      DelayedSelectors.push_back(
+          {CurTy, Record[0], Record[1], Record[2], NextCstNo});
+      (void)ValueList.getConstantFwdRef(NextCstNo, CurTy);
+      ++NextCstNo;
+      continue;
     }
     case bitc::CST_CODE_CE_EXTRACTELT
         : { // CE_EXTRACTELT: [opty, opval, opty, opval]
@@ -3267,7 +3297,7 @@ Error BitcodeReader::parseGlobalVarRecord(ArrayRef<uint64_t> Record) {
   }
 
   if (Record.size() > 12) {
-    auto AS = getAttributes(Record[12]).getFnAttributes();
+    auto AS = getAttributes(Record[12]).getFnAttrs();
     NewGV->setAttributes(AS);
   }
 
@@ -3332,6 +3362,9 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
       if (!Func->hasParamAttribute(i, Kind))
         continue;
 
+      if (Func->getParamAttribute(i, Kind).getValueAsType())
+        continue;
+
       Func->removeParamAttr(i, Kind);
 
       Type *PTy = cast<FunctionType>(FTy)->getParamType(i);
@@ -3377,8 +3410,10 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
   if (Record.size() > 9)
     UnnamedAddr = getDecodedUnnamedAddrType(Record[9]);
   Func->setUnnamedAddr(UnnamedAddr);
-  if (Record.size() > 10 && Record[10] != 0)
-    FunctionPrologues.push_back(std::make_pair(Func, Record[10] - 1));
+
+  FunctionOperandInfo OperandInfo = {Func, 0, 0, 0};
+  if (Record.size() > 10)
+    OperandInfo.Prologue = Record[10];
 
   if (Record.size() > 11)
     Func->setDLLStorageClass(getDecodedDLLStorageClass(Record[11]));
@@ -3395,11 +3430,11 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
     Func->setComdat(reinterpret_cast<Comdat *>(1));
   }
 
-  if (Record.size() > 13 && Record[13] != 0)
-    FunctionPrefixes.push_back(std::make_pair(Func, Record[13] - 1));
+  if (Record.size() > 13)
+    OperandInfo.Prefix = Record[13];
 
-  if (Record.size() > 14 && Record[14] != 0)
-    FunctionPersonalityFns.push_back(std::make_pair(Func, Record[14] - 1));
+  if (Record.size() > 14)
+    OperandInfo.PersonalityFn = Record[14];
 
   if (Record.size() > 15) {
     Func->setDSOLocal(getDecodedDSOLocal(Record[15]));
@@ -3408,11 +3443,17 @@ Error BitcodeReader::parseFunctionRecord(ArrayRef<uint64_t> Record) {
 
   // Record[16] is the address space number.
 
-  // Check whether we have enough values to read a partition name.
-  if (Record.size() > 18)
+  // Check whether we have enough values to read a partition name. Also make
+  // sure Strtab has enough values.
+  if (Record.size() > 18 && Strtab.data() &&
+      Record[17] + Record[18] <= Strtab.size()) {
     Func->setPartition(StringRef(Strtab.data() + Record[17], Record[18]));
+  }
 
   ValueList.push_back(Func);
+
+  if (OperandInfo.PersonalityFn || OperandInfo.Prefix || OperandInfo.Prologue)
+    FunctionOperands.push_back(OperandInfo);
 
   // If this is a function with a body, remember the prototype we are
   // creating now, so that we can match up the body with them later.
@@ -3803,7 +3844,7 @@ Error BitcodeReader::typeCheckLoadStoreInst(Type *ValType, Type *PtrType) {
   return Error::success();
 }
 
-void BitcodeReader::propagateByValSRetTypes(CallBase *CB,
+void BitcodeReader::propagateAttributeTypes(CallBase *CB,
                                             ArrayRef<Type *> ArgsTys) {
   for (unsigned i = 0; i != CB->arg_size(); ++i) {
     for (Attribute::AttrKind Kind : {Attribute::ByVal, Attribute::StructRet,
@@ -3831,6 +3872,19 @@ void BitcodeReader::propagateByValSRetTypes(CallBase *CB,
 
       CB->addParamAttr(i, NewAttr);
     }
+  }
+
+  switch (CB->getIntrinsicID()) {
+  case Intrinsic::preserve_array_access_index:
+  case Intrinsic::preserve_struct_access_index:
+    if (!CB->getAttributes().getParamElementType(0)) {
+      Type *ElTy = cast<PointerType>(ArgsTys[0])->getElementType();
+      Attribute NewAttr = Attribute::get(Context, Attribute::ElementType, ElTy);
+      CB->addParamAttr(0, NewAttr);
+    }
+    break;
+  default:
+    break;
   }
 }
 
@@ -4636,7 +4690,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
             cast<PointerType>(Callee->getType())->getElementType());
         if (!FTy)
           return error("Callee is not of pointer to function type");
-      } else if (cast<PointerType>(Callee->getType())->getElementType() != FTy)
+      } else if (!CalleeTy->isOpaqueOrPointeeTypeMatches(FTy))
         return error("Explicit invoke type does not match pointee type of "
                      "callee operand");
       if (Record.size() < FTy->getNumParams() + OpNum)
@@ -4673,7 +4727,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       cast<InvokeInst>(I)->setCallingConv(
           static_cast<CallingConv::ID>(CallingConv::MaxID & CCInfo));
       cast<InvokeInst>(I)->setAttributes(PAL);
-      propagateByValSRetTypes(cast<CallBase>(I), ArgsTys);
+      propagateAttributeTypes(cast<CallBase>(I), ArgsTys);
 
       break;
     }
@@ -5264,7 +5318,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
             cast<PointerType>(Callee->getType())->getElementType());
         if (!FTy)
           return error("Callee is not of pointer to function type");
-      } else if (cast<PointerType>(Callee->getType())->getElementType() != FTy)
+      } else if (!OpTy->isOpaqueOrPointeeTypeMatches(FTy))
         return error("Explicit call type does not match pointee type of "
                      "callee operand");
       if (Record.size() < FTy->getNumParams() + OpNum)
@@ -5312,7 +5366,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         TCK = CallInst::TCK_NoTail;
       cast<CallInst>(I)->setTailCallKind(TCK);
       cast<CallInst>(I)->setAttributes(PAL);
-      propagateByValSRetTypes(cast<CallBase>(I), ArgsTys);
+      propagateAttributeTypes(cast<CallBase>(I), ArgsTys);
       if (FMF.any()) {
         if (!isa<FPMathOperator>(I))
           return error("Fast-math-flags specified for call without "
@@ -5545,9 +5599,8 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
 
     // Remove incompatible attributes on function calls.
     if (auto *CI = dyn_cast<CallBase>(&I)) {
-      CI->removeAttributes(AttributeList::ReturnIndex,
-                           AttributeFuncs::typeIncompatible(
-                               CI->getFunctionType()->getReturnType()));
+      CI->removeRetAttrs(AttributeFuncs::typeIncompatible(
+          CI->getFunctionType()->getReturnType()));
 
       for (unsigned ArgNo = 0; ArgNo < CI->arg_size(); ++ArgNo)
         CI->removeParamAttrs(ArgNo, AttributeFuncs::typeIncompatible(

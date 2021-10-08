@@ -473,6 +473,11 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
 
       return false;
     }
+
+    if (auto *FPI = dyn_cast<ConstrainedFPIntrinsic>(I)) {
+      Optional<fp::ExceptionBehavior> ExBehavior = FPI->getExceptionBehavior();
+      return ExBehavior.getValue() != fp::ebStrict;
+    }
   }
 
   if (isAllocLikeFn(I, TLI))
@@ -485,6 +490,16 @@ bool llvm::wouldInstructionBeTriviallyDead(Instruction *I,
   if (auto *Call = dyn_cast<CallBase>(I))
     if (isMathLibCallNoop(Call, TLI))
       return true;
+
+  // To express possible interaction with floating point environment constrained
+  // intrinsics are described as if they access memory. So they look like having
+  // side effect but actually do not have it unless they raise floating point
+  // exception. If FP exceptions are ignored, the intrinsic may be deleted.
+  if (auto *CI = dyn_cast<ConstrainedFPIntrinsic>(I)) {
+    Optional<fp::ExceptionBehavior> EB = CI->getExceptionBehavior();
+    if (!EB || *EB == fp::ExceptionBehavior::ebIgnore)
+      return true;
+  }
 
   return false;
 }
@@ -1133,12 +1148,6 @@ bool llvm::TryToSimplifyUncondBranchFromEmptyBlock(BasicBlock *BB,
       for (BasicBlock *Pred : predecessors(BB))
         Pred->getTerminator()->setMetadata(LoopMDKind, LoopMD);
 
-  // For AutoFDO, since BB is going to be removed, we won't be able to sample
-  // it. To avoid assigning a zero weight for BB, move all its pseudo probes
-  // into Succ and mark them dangling. This should allow the counts inference a
-  // chance to get a more reasonable weight for BB.
-  moveAndDanglePseudoProbes(BB, &*Succ->getFirstInsertionPt());
-
   // Everything that jumped to BB now goes to Succ.
   BB->replaceAllUsesWith(Succ);
   if (!Succ->hasName()) Succ->takeName(BB);
@@ -1724,6 +1733,9 @@ void llvm::salvageDebugInfo(Instruction &I) {
 
 void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers) {
+  // This is an arbitrary chosen limit on the maximum number of values we can
+  // salvage up to in a DIArgList, used for performance reasons.
+  const unsigned MaxDebugArgs = 16;
   bool Salvaged = false;
 
   for (auto *DII : DbgUsers) {
@@ -1735,18 +1747,45 @@ void llvm::salvageDebugInfoForDbgValues(
     assert(
         is_contained(DIILocation, &I) &&
         "DbgVariableIntrinsic must use salvaged instruction as its location");
-    unsigned LocNo = std::distance(DIILocation.begin(), find(DIILocation, &I));
-
-    DIExpression *DIExpr =
-        salvageDebugInfoImpl(I, DII->getExpression(), StackValue, LocNo);
-
+    SmallVector<Value *, 4> AdditionalValues;
+    // `I` may appear more than once in DII's location ops, and each use of `I`
+    // must be updated in the DIExpression and potentially have additional
+    // values added; thus we call salvageDebugInfoImpl for each `I` instance in
+    // DIILocation.
+    Value *Op0 = nullptr;
+    DIExpression *SalvagedExpr = DII->getExpression();
+    auto LocItr = find(DIILocation, &I);
+    while (SalvagedExpr && LocItr != DIILocation.end()) {
+      SmallVector<uint64_t, 16> Ops;
+      unsigned LocNo = std::distance(DIILocation.begin(), LocItr);
+      uint64_t CurrentLocOps = SalvagedExpr->getNumLocationOperands();
+      Op0 = salvageDebugInfoImpl(I, CurrentLocOps, Ops, AdditionalValues);
+      if (!Op0)
+        break;
+      SalvagedExpr =
+          DIExpression::appendOpsToArg(SalvagedExpr, Ops, LocNo, StackValue);
+      LocItr = std::find(++LocItr, DIILocation.end(), &I);
+    }
     // salvageDebugInfoImpl should fail on examining the first element of
     // DbgUsers, or none of them.
-    if (!DIExpr)
+    if (!Op0)
       break;
 
-    DII->replaceVariableLocationOp(&I, I.getOperand(0));
-    DII->setExpression(DIExpr);
+    DII->replaceVariableLocationOp(&I, Op0);
+    if (AdditionalValues.empty()) {
+      DII->setExpression(SalvagedExpr);
+    } else if (isa<DbgValueInst>(DII) &&
+               DII->getNumVariableLocationOps() + AdditionalValues.size() <=
+                   MaxDebugArgs) {
+      DII->addVariableLocationOps(AdditionalValues, SalvagedExpr);
+    } else {
+      // Do not salvage using DIArgList for dbg.addr/dbg.declare, as it is
+      // currently only valid for stack value expressions.
+      // Also do not salvage if the resulting DIArgList would contain an
+      // unreasonably large number of values.
+      Value *Undef = UndefValue::get(I.getOperand(0)->getType());
+      DII->replaceVariableLocationOp(I.getOperand(0), Undef);
+    }
     LLVM_DEBUG(dbgs() << "SALVAGE: " << *DII << '\n');
     Salvaged = true;
   }
@@ -1760,15 +1799,30 @@ void llvm::salvageDebugInfoForDbgValues(
   }
 }
 
-bool getSalvageOpsForGEP(GetElementPtrInst *GEP, const DataLayout &DL,
-                         SmallVectorImpl<uint64_t> &Opcodes) {
+Value *getSalvageOpsForGEP(GetElementPtrInst *GEP, const DataLayout &DL,
+                           uint64_t CurrentLocOps,
+                           SmallVectorImpl<uint64_t> &Opcodes,
+                           SmallVectorImpl<Value *> &AdditionalValues) {
   unsigned BitWidth = DL.getIndexSizeInBits(GEP->getPointerAddressSpace());
-  // Rewrite a constant GEP into a DIExpression.
+  // Rewrite a GEP into a DIExpression.
+  MapVector<Value *, APInt> VariableOffsets;
   APInt ConstantOffset(BitWidth, 0);
-  if (!GEP->accumulateConstantOffset(DL, ConstantOffset))
-    return false;
+  if (!GEP->collectOffset(DL, BitWidth, VariableOffsets, ConstantOffset))
+    return nullptr;
+  if (!VariableOffsets.empty() && !CurrentLocOps) {
+    Opcodes.insert(Opcodes.begin(), {dwarf::DW_OP_LLVM_arg, 0});
+    CurrentLocOps = 1;
+  }
+  for (auto Offset : VariableOffsets) {
+    AdditionalValues.push_back(Offset.first);
+    assert(Offset.second.isStrictlyPositive() &&
+           "Expected strictly positive multiplier for offset.");
+    Opcodes.append({dwarf::DW_OP_LLVM_arg, CurrentLocOps++, dwarf::DW_OP_constu,
+                    Offset.second.getZExtValue(), dwarf::DW_OP_mul,
+                    dwarf::DW_OP_plus});
+  }
   DIExpression::appendOffset(Opcodes, ConstantOffset.getSExtValue());
-  return true;
+  return GEP->getOperand(0);
 }
 
 uint64_t getDwarfOpForBinOp(Instruction::BinaryOps Opcode) {
@@ -1801,85 +1855,88 @@ uint64_t getDwarfOpForBinOp(Instruction::BinaryOps Opcode) {
   }
 }
 
-bool getSalvageOpsForBinOp(BinaryOperator *BI,
-                           SmallVectorImpl<uint64_t> &Opcodes) {
-  // Rewrite binary operations with constant integer operands.
+Value *getSalvageOpsForBinOp(BinaryOperator *BI, uint64_t CurrentLocOps,
+                             SmallVectorImpl<uint64_t> &Opcodes,
+                             SmallVectorImpl<Value *> &AdditionalValues) {
+  // Handle binary operations with constant integer operands as a special case.
   auto *ConstInt = dyn_cast<ConstantInt>(BI->getOperand(1));
-  if (!ConstInt || ConstInt->getBitWidth() > 64)
-    return false;
-  uint64_t Val = ConstInt->getSExtValue();
+  // Values wider than 64 bits cannot be represented within a DIExpression.
+  if (ConstInt && ConstInt->getBitWidth() > 64)
+    return nullptr;
+
   Instruction::BinaryOps BinOpcode = BI->getOpcode();
-  // Add or Sub Instructions with a constant operand can potentially be
-  // simplified.
-  if (BinOpcode == Instruction::Add || BinOpcode == Instruction::Sub) {
-    uint64_t Offset = BinOpcode == Instruction::Add ? Val : -int64_t(Val);
-    DIExpression::appendOffset(Opcodes, Offset);
-    return true;
+  // Push any Constant Int operand onto the expression stack.
+  if (ConstInt) {
+    uint64_t Val = ConstInt->getSExtValue();
+    // Add or Sub Instructions with a constant operand can potentially be
+    // simplified.
+    if (BinOpcode == Instruction::Add || BinOpcode == Instruction::Sub) {
+      uint64_t Offset = BinOpcode == Instruction::Add ? Val : -int64_t(Val);
+      DIExpression::appendOffset(Opcodes, Offset);
+      return BI->getOperand(0);
+    }
+    Opcodes.append({dwarf::DW_OP_constu, Val});
+  } else {
+    if (!CurrentLocOps) {
+      Opcodes.append({dwarf::DW_OP_LLVM_arg, 0});
+      CurrentLocOps = 1;
+    }
+    Opcodes.append({dwarf::DW_OP_LLVM_arg, CurrentLocOps});
+    AdditionalValues.push_back(BI->getOperand(1));
   }
-  // Add constant int operand to expression stack.
-  Opcodes.append({dwarf::DW_OP_constu, Val});
 
   // Add salvaged binary operator to expression stack, if it has a valid
   // representation in a DIExpression.
   uint64_t DwarfBinOp = getDwarfOpForBinOp(BinOpcode);
   if (!DwarfBinOp)
-    return false;
+    return nullptr;
   Opcodes.push_back(DwarfBinOp);
-
-  return true;
+  return BI->getOperand(0);
 }
 
-DIExpression *llvm::salvageDebugInfoImpl(Instruction &I,
-                                         DIExpression *SrcDIExpr,
-                                         bool WithStackValue, unsigned LocNo) {
+Value *llvm::salvageDebugInfoImpl(Instruction &I, uint64_t CurrentLocOps,
+                                  SmallVectorImpl<uint64_t> &Ops,
+                                  SmallVectorImpl<Value *> &AdditionalValues) {
   auto &M = *I.getModule();
   auto &DL = M.getDataLayout();
 
-  // Apply a vector of opcodes to the source DIExpression.
-  auto doSalvage = [&](SmallVectorImpl<uint64_t> &Ops) -> DIExpression * {
-    DIExpression *DIExpr = SrcDIExpr;
-    if (!Ops.empty()) {
-      DIExpr = DIExpression::appendOpsToArg(DIExpr, Ops, LocNo, WithStackValue);
-    }
-    return DIExpr;
-  };
-
-  // initializer-list helper for applying operators to the source DIExpression.
-  auto applyOps = [&](ArrayRef<uint64_t> Opcodes) -> DIExpression * {
-    SmallVector<uint64_t, 8> Ops(Opcodes.begin(), Opcodes.end());
-    return doSalvage(Ops);
-  };
-
   if (auto *CI = dyn_cast<CastInst>(&I)) {
+    Value *FromValue = CI->getOperand(0);
     // No-op casts are irrelevant for debug info.
-    if (CI->isNoopCast(DL))
-      return SrcDIExpr;
+    if (CI->isNoopCast(DL)) {
+      return FromValue;
+    }
 
     Type *Type = CI->getType();
+    if (Type->isPointerTy())
+      Type = DL.getIntPtrType(Type);
     // Casts other than Trunc, SExt, or ZExt to scalar types cannot be salvaged.
     if (Type->isVectorTy() ||
-        !(isa<TruncInst>(&I) || isa<SExtInst>(&I) || isa<ZExtInst>(&I)))
+        !(isa<TruncInst>(&I) || isa<SExtInst>(&I) || isa<ZExtInst>(&I) ||
+          isa<IntToPtrInst>(&I) || isa<PtrToIntInst>(&I)))
       return nullptr;
 
-    Value *FromValue = CI->getOperand(0);
-    unsigned FromTypeBitSize = FromValue->getType()->getScalarSizeInBits();
+    llvm::Type *FromType = FromValue->getType();
+    if (FromType->isPointerTy())
+      FromType = DL.getIntPtrType(FromType);
+
+    unsigned FromTypeBitSize = FromType->getScalarSizeInBits();
     unsigned ToTypeBitSize = Type->getScalarSizeInBits();
 
-    return applyOps(DIExpression::getExtOps(FromTypeBitSize, ToTypeBitSize,
-                                            isa<SExtInst>(&I)));
+    auto ExtOps = DIExpression::getExtOps(FromTypeBitSize, ToTypeBitSize,
+                                          isa<SExtInst>(&I));
+    Ops.append(ExtOps.begin(), ExtOps.end());
+    return FromValue;
   }
 
-  SmallVector<uint64_t, 8> Ops;
-  if (auto *GEP = dyn_cast<GetElementPtrInst>(&I)) {
-    if (getSalvageOpsForGEP(GEP, DL, Ops))
-      return doSalvage(Ops);
-  } else if (auto *BI = dyn_cast<BinaryOperator>(&I)) {
-    if (getSalvageOpsForBinOp(BI, Ops))
-      return doSalvage(Ops);
-  }
-    // *Not* to do: we should not attempt to salvage load instructions,
-    // because the validity and lifetime of a dbg.value containing
-    // DW_OP_deref becomes difficult to analyze. See PR40628 for examples.
+  if (auto *GEP = dyn_cast<GetElementPtrInst>(&I))
+    return getSalvageOpsForGEP(GEP, DL, CurrentLocOps, Ops, AdditionalValues);
+  if (auto *BI = dyn_cast<BinaryOperator>(&I))
+    return getSalvageOpsForBinOp(BI, CurrentLocOps, Ops, AdditionalValues);
+
+  // *Not* to do: we should not attempt to salvage load instructions,
+  // because the validity and lifetime of a dbg.value containing
+  // DW_OP_deref becomes difficult to analyze. See PR40628 for examples.
   return nullptr;
 }
 
@@ -2048,8 +2105,8 @@ llvm::removeAllNonTerminatorAndEHPadInstructions(BasicBlock *BB) {
   return {NumDeadInst, NumDeadDbgInst};
 }
 
-unsigned llvm::changeToUnreachable(Instruction *I, bool UseLLVMTrap,
-                                   bool PreserveLCSSA, DomTreeUpdater *DTU,
+unsigned llvm::changeToUnreachable(Instruction *I, bool PreserveLCSSA,
+                                   DomTreeUpdater *DTU,
                                    MemorySSAUpdater *MSSAU) {
   BasicBlock *BB = I->getParent();
 
@@ -2064,14 +2121,6 @@ unsigned llvm::changeToUnreachable(Instruction *I, bool UseLLVMTrap,
     Successor->removePredecessor(BB, PreserveLCSSA);
     if (DTU)
       UniqueSuccessors.insert(Successor);
-  }
-  // Insert a call to llvm.trap right before this.  This turns the undefined
-  // behavior into a hard fail instead of falling through into random code.
-  if (UseLLVMTrap) {
-    Function *TrapFn =
-      Intrinsic::getDeclaration(BB->getParent()->getParent(), Intrinsic::trap);
-    CallInst *CallTrap = CallInst::Create(TrapFn, "", I);
-    CallTrap->setDebugLoc(I->getDebugLoc());
   }
   auto *UI = new UnreachableInst(I->getContext(), I);
   UI->setDebugLoc(I->getDebugLoc());
@@ -2209,7 +2258,7 @@ static bool markAliveBlocks(Function &F,
           if (IntrinsicID == Intrinsic::assume) {
             if (match(CI->getArgOperand(0), m_CombineOr(m_Zero(), m_Undef()))) {
               // Don't insert a call to llvm.trap right before the unreachable.
-              changeToUnreachable(CI, false, false, DTU);
+              changeToUnreachable(CI, false, DTU);
               Changed = true;
               break;
             }
@@ -2225,8 +2274,7 @@ static bool markAliveBlocks(Function &F,
             // still be useful for widening.
             if (match(CI->getArgOperand(0), m_Zero()))
               if (!isa<UnreachableInst>(CI->getNextNode())) {
-                changeToUnreachable(CI->getNextNode(), /*UseLLVMTrap=*/false,
-                                    false, DTU);
+                changeToUnreachable(CI->getNextNode(), false, DTU);
                 Changed = true;
                 break;
               }
@@ -2234,7 +2282,7 @@ static bool markAliveBlocks(Function &F,
         } else if ((isa<ConstantPointerNull>(Callee) &&
                     !NullPointerIsDefined(CI->getFunction())) ||
                    isa<UndefValue>(Callee)) {
-          changeToUnreachable(CI, /*UseLLVMTrap=*/false, false, DTU);
+          changeToUnreachable(CI, false, DTU);
           Changed = true;
           break;
         }
@@ -2244,7 +2292,7 @@ static bool markAliveBlocks(Function &F,
           // though.
           if (!isa<UnreachableInst>(CI->getNextNode())) {
             // Don't insert a call to llvm.trap right before the unreachable.
-            changeToUnreachable(CI->getNextNode(), false, false, DTU);
+            changeToUnreachable(CI->getNextNode(), false, DTU);
             Changed = true;
           }
           break;
@@ -2263,7 +2311,7 @@ static bool markAliveBlocks(Function &F,
             (isa<ConstantPointerNull>(Ptr) &&
              !NullPointerIsDefined(SI->getFunction(),
                                    SI->getPointerAddressSpace()))) {
-          changeToUnreachable(SI, true, false, DTU);
+          changeToUnreachable(SI, false, DTU);
           Changed = true;
           break;
         }
@@ -2277,7 +2325,7 @@ static bool markAliveBlocks(Function &F,
       if ((isa<ConstantPointerNull>(Callee) &&
            !NullPointerIsDefined(BB->getParent())) ||
           isa<UndefValue>(Callee)) {
-        changeToUnreachable(II, true, false, DTU);
+        changeToUnreachable(II, false, DTU);
         Changed = true;
       } else if (II->doesNotThrow() && canSimplifyInvokeNoUnwind(&F)) {
         if (II->use_empty() && II->onlyReadsMemory()) {
@@ -2616,9 +2664,7 @@ static unsigned replaceDominatedUsesWith(Value *From, Value *To,
   assert(From->getType() == To->getType());
 
   unsigned Count = 0;
-  for (Value::use_iterator UI = From->use_begin(), UE = From->use_end();
-       UI != UE;) {
-    Use &U = *UI++;
+  for (Use &U : llvm::make_early_inc_range(From->uses())) {
     if (!Dominates(Root, U))
       continue;
     U.set(To);
@@ -2634,9 +2680,7 @@ unsigned llvm::replaceNonLocalUsesWith(Instruction *From, Value *To) {
    auto *BB = From->getParent();
    unsigned Count = 0;
 
-  for (Value::use_iterator UI = From->use_begin(), UE = From->use_end();
-       UI != UE;) {
-    Use &U = *UI++;
+   for (Use &U : llvm::make_early_inc_range(From->uses())) {
     auto *I = cast<Instruction>(U.getUser());
     if (I->getParent() == BB)
       continue;
@@ -2767,19 +2811,13 @@ void llvm::hoistAllInstructionsInto(BasicBlock *DomBlock, Instruction *InsertPt,
   // encode predicated DIExpressions that yield different results on different
   // code paths.
 
-  // A hoisted conditional probe should be treated as dangling so that it will
-  // not be over-counted when the samples collected on the non-conditional path
-  // are counted towards the conditional path. We leave it for the counts
-  // inference algorithm to figure out a proper count for a danglng probe.
-  moveAndDanglePseudoProbes(BB, InsertPt);
-
   for (BasicBlock::iterator II = BB->begin(), IE = BB->end(); II != IE;) {
     Instruction *I = &*II;
-    I->dropUnknownNonDebugMetadata();
+    I->dropUndefImplyingAttrsAndUnknownMetadata();
     if (I->isUsedByMetadata())
       dropDebugUsers(*I);
-    if (isa<DbgInfoIntrinsic>(I)) {
-      // Remove DbgInfo Intrinsics.
+    if (I->isDebugOrPseudoInst()) {
+      // Remove DbgInfo and pseudo probe Intrinsics.
       II = I->eraseFromParent();
       continue;
     }
@@ -3124,7 +3162,7 @@ bool llvm::recognizeBSwapOrBitReverseIdiom(
 
   // Now, is the bit permutation correct for a bswap or a bitreverse? We can
   // only byteswap values with an even number of bytes.
-  APInt DemandedMask = APInt::getAllOnesValue(DemandedBW);
+  APInt DemandedMask = APInt::getAllOnes(DemandedBW);
   bool OKForBSwap = MatchBSwaps && (DemandedBW % 16) == 0;
   bool OKForBitReverse = MatchBitReversals;
   for (unsigned BitIdx = 0;
@@ -3161,7 +3199,7 @@ bool llvm::recognizeBSwapOrBitReverseIdiom(
   Instruction *Result = CallInst::Create(F, Provider, "rev", I);
   InsertedInsts.push_back(Result);
 
-  if (!DemandedMask.isAllOnesValue()) {
+  if (!DemandedMask.isAllOnes()) {
     auto *Mask = ConstantInt::get(DemandedTy, DemandedMask);
     Result = BinaryOperator::Create(Instruction::And, Result, Mask, "mask", I);
     InsertedInsts.push_back(Result);
@@ -3188,7 +3226,7 @@ void llvm::maybeMarkSanitizerLibraryCallNoBuiltin(
   if (F && !F->hasLocalLinkage() && F->hasName() &&
       TLI->getLibFunc(F->getName(), Func) && TLI->hasOptimizedCodeGen(Func) &&
       !F->doesNotAccessMemory())
-    CI->addAttribute(AttributeList::FunctionIndex, Attribute::NoBuiltin);
+    CI->addFnAttr(Attribute::NoBuiltin);
 }
 
 bool llvm::canReplaceOperandWithVariable(const Instruction *I, unsigned OpIdx) {
@@ -3216,7 +3254,7 @@ bool llvm::canReplaceOperandWithVariable(const Instruction *I, unsigned OpIdx) {
     if (CB.isBundleOperand(OpIdx))
       return false;
 
-    if (OpIdx < CB.getNumArgOperands()) {
+    if (OpIdx < CB.arg_size()) {
       // Some variadic intrinsics require constants in the variadic arguments,
       // which currently aren't markable as immarg.
       if (isa<IntrinsicInst>(CB) &&

@@ -1,4 +1,4 @@
-// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
+// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm %s -o - | FileCheck %s
 #include "Inputs/sycl.hpp"
 
 struct Base {
@@ -26,11 +26,11 @@ int main() {
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE6kernel
 // CHECK-SAME: i32 [[ARG_A:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: i32 [[ARG_B:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i8 addrspace(1)* [[ACC1_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i8 addrspace(1)* readonly [[ACC1_DATA:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC1_RANGE2:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[ID_TYPE]]* byval(%[[ID_TYPE]]) align 4 [[ACC1_ID:%[a-zA-Z0-9_]+]],
-// CHECK-SAME: i8 addrspace(1)* [[ACC2_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: i8 addrspace(1)* readonly [[ACC2_DATA:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[RANGE_TYPE]]* byval(%[[RANGE_TYPE]]) align 4 [[ACC2_RANGE2:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: %[[ID_TYPE]]* byval(%[[ID_TYPE]]) align 4 [[ACC2_ID:%[a-zA-Z0-9_]+]],
@@ -72,12 +72,12 @@ int main() {
 // Check accessors initialization
 // CHECK: [[ACC_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, %struct{{.*}}Base addrspace(4)* [[BITCAST]], i32 0, i32 2
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC1Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACC_FIELD]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[ACC_FIELD]])
 // CHECK: [[BITCAST1:%[a-zA-Z0-9_]+]] = bitcast %struct{{.*}}Captured addrspace(4)* [[GEP]] to i8 addrspace(4)*
 // CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr inbounds i8, i8 addrspace(4)* [[BITCAST1]], i64 20
 // CHECK: [[BITCAST2:%[a-zA-Z0-9_]+]] = bitcast i8 addrspace(4)* [[GEP1]] to %"class{{.*}}cl::sycl::accessor" addrspace(4)*
 // Default constructor call
-// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_6ONEAPI22accessor_property_listIJEEEEC2Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[BITCAST2]])
+// CHECK: call spir_func void @_ZN2cl4sycl8accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev(%"class{{.*}}cl::sycl::accessor" addrspace(4)* {{[^,]*}} [[BITCAST2]])
 
 // CHECK C field initialization
 // CHECK: [[FIELD_C:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Captured, %struct{{.*}}Captured addrspace(4)* [[GEP]], i32 0, i32 2

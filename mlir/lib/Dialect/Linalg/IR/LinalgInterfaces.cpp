@@ -89,7 +89,7 @@ static bool isAddMul(Block &block) {
   return success;
 }
 
-enum MatchContractionResult {
+enum class MatchContractionResult {
   Success = 0,
   NotLinalgOp,
   WrongNumOperands,
@@ -153,6 +153,260 @@ LogicalResult mlir::linalg::detail::verifyContractionInterface(Operation *op) {
 }
 
 //===----------------------------------------------------------------------===//
+// ConvolutionOpInterface implementation
+//===----------------------------------------------------------------------===//
+
+/// Of the given two expressions returns one that is of type T (`lhs` gets
+/// preference over `rhs`)
+template <typename T>
+static T getAffineExprOfType(AffineExpr lhs, AffineExpr rhs) {
+  return lhs.isa<T>() ? lhs.cast<T>()
+                      : (rhs.isa<T>() ? rhs.cast<T>() : nullptr);
+}
+
+namespace {
+/// Walk the indexing expressions for input of a convolution operation to verify
+/// its of the right form, either
+/// - AffineDimExpr
+/// - AffineDimExpr (`*` (AffineSymbolExpr | AffineConstantExpr))?
+///      (`+` AffineDimExpr (`*` (AffineSymbolExpr | AffineConstantExpr))?)*
+///
+/// classifies the AffineDimExpr as convolved dimensions or unconvolved
+/// dimensions and verifies each dimension occurs only once.
+struct ConvAccessExprWalker
+    : public AffineExprVisitor<ConvAccessExprWalker, LogicalResult> {
+  llvm::SmallDenseSet<unsigned> convolvedDims;
+  llvm::SmallDenseSet<unsigned> unConvolvedDims;
+
+  LogicalResult visitDimExpr(AffineDimExpr dimExpr) {
+    unsigned position = dimExpr.getPosition();
+    if (unConvolvedDims.count(position) || convolvedDims.count(position)) {
+      return failure();
+    }
+    unConvolvedDims.insert(position);
+    return success();
+  }
+
+  LogicalResult visitSymbolExpr(AffineSymbolExpr expr) { return failure(); }
+
+  LogicalResult visitConstantExpr(AffineConstantExpr expr) { return failure(); }
+
+  LogicalResult visitAffineBinaryOpExpr(AffineBinaryOpExpr binaryExpr) {
+    // In pre-order visit, top level op has to be an add op.
+    if (binaryExpr.getKind() != AffineExprKind::Add)
+      return failure();
+    return success(succeeded(isDimExprOrMulExpr(binaryExpr.getLHS())) &&
+                   succeeded(isDimExprOrMulExpr(binaryExpr.getRHS())));
+  }
+
+  LogicalResult isDimExprOrMulExpr(AffineExpr expr) {
+    if (auto dimExpr = expr.dyn_cast<AffineDimExpr>()) {
+      unsigned dim = dimExpr.getPosition();
+      if (convolvedDims.count(dim) || unConvolvedDims.count(dim))
+        return failure();
+      convolvedDims.insert(dim);
+      return success();
+    }
+    if (auto symbolMulExpr = expr.dyn_cast<AffineBinaryOpExpr>()) {
+      if (symbolMulExpr.getKind() != AffineExprKind::Mul)
+        return failure();
+      auto lhsExpr = symbolMulExpr.getLHS();
+      auto rhsExpr = symbolMulExpr.getRHS();
+      // Check for symbol expression.
+      AffineExpr mulExpr =
+          getAffineExprOfType<AffineSymbolExpr>(lhsExpr, rhsExpr);
+      // If there was no symbol expr, check for constant expression.
+      if (!mulExpr) {
+        mulExpr = getAffineExprOfType<AffineConstantExpr>(lhsExpr, rhsExpr);
+      }
+      auto dimExpr = getAffineExprOfType<AffineDimExpr>(lhsExpr, rhsExpr);
+      if (!mulExpr || !dimExpr)
+        return failure();
+      unsigned dim = dimExpr.getPosition();
+      if (convolvedDims.count(dim) || unConvolvedDims.count(dim))
+        return failure();
+      convolvedDims.insert(dim);
+      return success();
+    }
+    return failure();
+  }
+};
+} // namespace
+
+static llvm::SmallDenseSet<unsigned> getPreservedDims(AffineMap map) {
+  assert(map.isProjectedPermutation() &&
+         "expected map to have projected permutations");
+  llvm::SmallDenseSet<unsigned> preservedDims;
+  for (auto expr : map.getResults())
+    preservedDims.insert(expr.cast<AffineDimExpr>().getPosition());
+  return preservedDims;
+}
+
+enum class MatchConvolutionResult {
+  Success = 0,
+  NotLinalgOp,
+  WrongNumOperands,
+  WrongInputIndexingMap,
+  NotProjectedPermutations,
+  NonConvolutionLoop,
+  OutputDimsNotParallel,
+  NonOutputDimNotReduction
+};
+
+static MatchConvolutionResult isConvolutionInterfaceImpl(Operation *op) {
+  auto linalgOp = dyn_cast<linalg::LinalgOp>(op);
+  if (!linalgOp)
+    return MatchConvolutionResult::NotLinalgOp;
+  if (linalgOp.getNumInputs() < 2 || linalgOp.getNumOutputs() != 1)
+    return MatchConvolutionResult::WrongNumOperands;
+
+  auto indexingMaps = linalgOp.getIndexingMaps();
+
+  // Check the input indexing map has the right form.
+  ConvAccessExprWalker inputExprWalker;
+  if (llvm::any_of(indexingMaps[0].getResults(),
+                   [&inputExprWalker](AffineExpr expr) {
+                     return failed(inputExprWalker.visit(expr));
+                   })) {
+    return MatchConvolutionResult::WrongInputIndexingMap;
+  }
+
+  // Filter and output maps must be projected permutation.
+  if (!indexingMaps[1].isProjectedPermutation() ||
+      !indexingMaps.back().isProjectedPermutation())
+    return MatchConvolutionResult::NotProjectedPermutations;
+
+  auto iteratorTypesRange =
+      linalgOp.iterator_types().getAsValueRange<StringAttr>();
+
+  llvm::SmallDenseSet<unsigned> outputDims =
+      getPreservedDims(indexingMaps.back());
+  llvm::SmallDenseSet<unsigned> filterDims = getPreservedDims(indexingMaps[1]);
+  // Make sure all loops are charecterized as one of:
+  // - Batch loop : present in output, as non-convolved in input, not present in
+  //   filter.
+  // - Output image dimension : present in output, convolved dims in input, not
+  //   present in filter.
+  // - Output channel dimension : present in output, not present in input,
+  //   present in filter.
+  // - Filter loop dimension : present in filter, convolved in input, not
+  //   present in output.
+  // - Input channel dimension : unconvolved in input, not present in output,
+  //   present in filter.
+  // - Depth multiplier : unconvolved in input, present in output, present in
+  //   filter.
+  llvm::SmallDenseSet<unsigned> allLoopDims;
+  for (auto outputExpr : indexingMaps.back().getResults()) {
+    unsigned outputDim = outputExpr.cast<AffineDimExpr>().getPosition();
+    if (inputExprWalker.unConvolvedDims.count(outputDim) &&
+        !filterDims.count(outputDim)) {
+      // Batch dimension.
+      if (*std::next(iteratorTypesRange.begin(), outputDim) !=
+          getParallelIteratorTypeName())
+        return MatchConvolutionResult::OutputDimsNotParallel;
+      allLoopDims.insert(outputDim);
+      continue;
+    }
+    if (inputExprWalker.convolvedDims.count(outputDim) &&
+        !filterDims.count(outputDim)) {
+      // Output image Loop dimension.
+      if (*std::next(iteratorTypesRange.begin(), outputDim) !=
+          getParallelIteratorTypeName())
+        return MatchConvolutionResult::OutputDimsNotParallel;
+      allLoopDims.insert(outputDim);
+      continue;
+    }
+    if (!inputExprWalker.convolvedDims.count(outputDim) &&
+        !inputExprWalker.unConvolvedDims.count(outputDim) &&
+        filterDims.count(outputDim)) {
+      // Output channel dimension.
+      if (*std::next(iteratorTypesRange.begin(), outputDim) !=
+          getParallelIteratorTypeName())
+        return MatchConvolutionResult::OutputDimsNotParallel;
+      allLoopDims.insert(outputDim);
+      continue;
+    }
+    if (inputExprWalker.unConvolvedDims.count(outputDim) &&
+        filterDims.count(outputDim)) {
+      // Depth multiplier.
+      if (*std::next(iteratorTypesRange.begin(), outputDim) !=
+          getParallelIteratorTypeName())
+        return MatchConvolutionResult::OutputDimsNotParallel;
+      allLoopDims.insert(outputDim);
+      continue;
+    }
+    return MatchConvolutionResult::NonConvolutionLoop;
+  }
+  for (auto filterExpr : indexingMaps[1].getResults()) {
+    unsigned filterDim = filterExpr.cast<AffineDimExpr>().getPosition();
+    if (outputDims.count(filterDim) &&
+        !inputExprWalker.unConvolvedDims.count(filterDim) &&
+        !inputExprWalker.convolvedDims.count(filterDim)) {
+      // Output channel dimension. THis is already seen, continue;
+      continue;
+    }
+    if (inputExprWalker.convolvedDims.count(filterDim) &&
+        !outputDims.count(filterDim)) {
+      // Filter loop dimension.
+      if (*std::next(iteratorTypesRange.begin(), filterDim) !=
+          getReductionIteratorTypeName())
+        return MatchConvolutionResult::NonOutputDimNotReduction;
+      if (allLoopDims.count(filterDim))
+        return MatchConvolutionResult::NonConvolutionLoop;
+      allLoopDims.insert(filterDim);
+      continue;
+    }
+    if (inputExprWalker.unConvolvedDims.count(filterDim) &&
+        !outputDims.count(filterDim)) {
+      // Input channel dimension.
+      if (*std::next(iteratorTypesRange.begin(), filterDim) !=
+          getReductionIteratorTypeName())
+        return MatchConvolutionResult::NonOutputDimNotReduction;
+      if (allLoopDims.count(filterDim))
+        return MatchConvolutionResult::NonConvolutionLoop;
+      allLoopDims.insert(filterDim);
+      continue;
+    }
+    if (inputExprWalker.unConvolvedDims.count(filterDim) &&
+        outputDims.count(filterDim)) {
+      // Depthwise loop. Already seen.
+      continue;
+    }
+    return MatchConvolutionResult::NonConvolutionLoop;
+  }
+  // All loops must be covered now.
+  if (allLoopDims.size() != linalgOp.getNumLoops())
+    return MatchConvolutionResult::NonConvolutionLoop;
+
+  return MatchConvolutionResult::Success;
+}
+
+LogicalResult mlir::linalg::detail::verifyConvolutionInterface(Operation *op) {
+  auto res = isConvolutionInterfaceImpl(op);
+  if (res == MatchConvolutionResult::NotLinalgOp)
+    return op->emitError("expected a LinalgOp");
+  if (res == MatchConvolutionResult::WrongNumOperands)
+    return op->emitError("expected op with 2 inputs and 1 output");
+  if (res == MatchConvolutionResult::WrongInputIndexingMap)
+    return op->emitError("unexpected input index map for convolutions");
+  if (res == MatchConvolutionResult::NotProjectedPermutations) {
+    return op->emitError(
+        "expected output/filter indexing maps to be projected permutations");
+  }
+  if (res == MatchConvolutionResult::NonConvolutionLoop) {
+    return op->emitError("unexpected loop dimension for convolution op");
+  }
+  if (res == MatchConvolutionResult::OutputDimsNotParallel) {
+    return op->emitError(
+        "expected all iterators used to access outputs to be parallel");
+  }
+  if (res == MatchConvolutionResult::NonOutputDimNotReduction) {
+    return op->emitError(
+        "expected all iterators not used to access outputs to be reduction");
+  }
+  return success();
+}
+//===----------------------------------------------------------------------===//
 // StructuredOpInterface implementation
 //===----------------------------------------------------------------------===//
 
@@ -191,12 +445,23 @@ SmallVector<Value, 4> mlir::linalg::applyMapToValues(OpBuilder &b, Location loc,
   return res;
 }
 
+/// Helper function that creates a memref::DimOp or tensor::DimOp depending on
+/// the type of `source`.
+static Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source,
+                               int64_t dim) {
+  if (source.getType().isa<UnrankedMemRefType, MemRefType>())
+    return b.createOrFold<memref::DimOp>(loc, source, dim);
+  if (source.getType().isa<UnrankedTensorType, RankedTensorType>())
+    return b.createOrFold<tensor::DimOp>(loc, source, dim);
+  llvm_unreachable("Expected MemRefType or TensorType");
+}
+
 SmallVector<Value, 4> LinalgOp::createFlatListOfOperandDims(OpBuilder &b,
                                                             Location loc) {
   SmallVector<Value, 4> res;
   for (OpOperand *opOperand : getInputAndOutputOperands()) {
     for (int64_t i = 0, e = getRank(opOperand); i < e; ++i)
-      res.push_back(b.createOrFold<memref::DimOp>(loc, opOperand->get(), i));
+      res.push_back(createOrFoldDimOp(b, loc, opOperand->get(), i));
   }
   return res;
 }
@@ -263,8 +528,9 @@ private:
   llvm::SmallSet<unsigned, 4> positions;
 };
 
-LogicalResult LinalgOp::reifyReturnTypeShapesPerResultDim(
-    OpBuilder &b, SmallVectorImpl<SmallVector<Value>> &reifiedReturnShapes) {
+LogicalResult
+LinalgOp::reifyResultShapes(OpBuilder &b,
+                            ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
   // An example that helps understand the logic below.
   // Consider the following expression O(i+j, j) += A(i,k) * B(k, j)
   // We want to express the shape of dim 0 of O in terms of shape of the inputs.
@@ -305,8 +571,7 @@ LogicalResult LinalgOp::reifyReturnTypeShapesPerResultDim(
     SmallVector<Value> shapes;
     for (int64_t dim : llvm::seq<int64_t>(0, getRank(opOperand))) {
       if (checkDimExpr.visit(shapeExprs[pos]))
-        shapes.push_back(
-            b.createOrFold<memref::DimOp>(loc, opOperand->get(), dim));
+        shapes.push_back(createOrFoldDimOp(b, loc, opOperand->get(), dim));
       else
         shapes.push_back(allResultDimValues[pos]);
       pos++;
@@ -318,19 +583,22 @@ LogicalResult LinalgOp::reifyReturnTypeShapesPerResultDim(
 
 LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
   LinalgOp linalgOp = cast<LinalgOp>(op);
-  // Expect at least one input/output operand.
+  // Expect at least one output operand.
   // This means an op that constructs a tensor out of indices cannot be a
   // LinalgOp at the moment. For now this will have to be a special op until we
   // have output shape operands that are not tensors.
-  int64_t numInputsAndOutputs = linalgOp.getNumInputsAndOutputs();
-  if (numInputsAndOutputs == 0)
-    return op->emitOpError("expected at least one input/output operand");
-  if (failed(OpTrait::impl::verifyAtLeastNOperands(op, numInputsAndOutputs)))
+  int64_t numInputs = linalgOp.getNumInputs();
+  int64_t numOutputs = linalgOp.getNumOutputs();
+  if (numOutputs == 0)
+    return op->emitOpError("expected at least one output operand");
+  if (failed(OpTrait::impl::verifyNOperands(op, numInputs + numOutputs)))
     return failure();
-  // Should have at least one output tensor per result tensor.
-  // Can also have outbut buffers that do not correspond to results.
-  if (op->getNumResults() > linalgOp.getOutputTensorOperands().size())
-    return op->emitOpError("unexpected #results > #outputs");
+  // Verify the number of results matches the number of output tensors.
+  if (op->getNumResults() != linalgOp.getOutputTensorOperands().size())
+    return op->emitOpError("expected the number of results (")
+           << op->getNumResults()
+           << ") to be equal to the number of output tensors ("
+           << linalgOp.getOutputTensorOperands().size() << ")";
 
   // Before checking indexing maps, we need to make sure the attributes
   // referenced by it are valid.
@@ -383,10 +651,6 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
         "all have buffer type");
 
   for (OpOperand *opOperand : linalgOp.getOutputTensorOperands()) {
-    // TODO: Enforce one output tensor per result?
-    if (opOperand->getOperandNumber() - linalgOp.getNumInputs() >=
-        linalgOp->getNumResults())
-      continue;
     OpResult result = linalgOp.getTiedOpResult(opOperand);
     if (result.getType() != opOperand->get().getType())
       return op->emitOpError("expected type of operand #")
@@ -440,25 +704,17 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
   // consistency discussions (i.e. what to do with output tensors whose bbarg is
   // not used).
   Block &block = linalgOp->getRegion(0).front();
-  unsigned numBBIvs = linalgOp.getNumPayloadInductionVariables();
 
-  if (linalgOp.getNumInputsAndOutputs() + numBBIvs != block.getNumArguments())
+  if (linalgOp.getNumInputsAndOutputs() != block.getNumArguments())
     return op->emitOpError("expected as many non-induction variable region "
                            "arguments as the number of input/output operands");
 
-  // Note: the number and type of yield values are checked in the YieldOp.
-  for (unsigned i = 0; i < numBBIvs; ++i)
-    if (!block.getArgument(i).getType().isIndex())
-      return op->emitOpError("expected index block argument #") << i;
-
   for (OpOperand *opOperand : linalgOp.getInputAndOutputOperands()) {
     Type elementType = getElementTypeOrSelf(opOperand->get());
-    Type argType =
-        block.getArgument(numBBIvs + opOperand->getOperandNumber()).getType();
+    Type argType = block.getArgument(opOperand->getOperandNumber()).getType();
     if (elementType != argType)
       return op->emitOpError("expected type of bb argument #")
-             << numBBIvs + opOperand->getOperandNumber() << " (" << argType
-             << ")"
+             << opOperand->getOperandNumber() << " (" << argType << ")"
              << " to match element or self type of the corresponding operand ("
              << elementType << ")";
   }

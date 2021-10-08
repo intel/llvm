@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // ranges::advance(it, n)
 
@@ -17,10 +16,7 @@
 #include <array>
 #include <cassert>
 
-#include "test_standard_function.h"
 #include "test_iterators.h"
-
-static_assert(is_function_like<decltype(std::ranges::advance)>());
 
 using range_t = std::array<int, 10>;
 

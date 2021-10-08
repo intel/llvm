@@ -23,6 +23,7 @@
 #include "llvm/CodeGen/GlobalISel/Combiner.h"
 #include "llvm/CodeGen/GlobalISel/CombinerHelper.h"
 #include "llvm/CodeGen/GlobalISel/CombinerInfo.h"
+#include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
@@ -54,7 +55,7 @@ bool matchExtractVecEltPairwiseAdd(
   Register Src2 = MI.getOperand(2).getReg();
   LLT DstTy = MRI.getType(MI.getOperand(0).getReg());
 
-  auto Cst = getConstantVRegValWithLookThrough(Src2, MRI);
+  auto Cst = getIConstantVRegValWithLookThrough(Src2, MRI);
   if (!Cst || Cst->Value != 0)
     return false;
   // SDAG also checks for FullFP16, but this looks to be beneficial anyway.
@@ -128,7 +129,7 @@ bool matchAArch64MulConstCombine(
   const LLT Ty = MRI.getType(LHS);
 
   // The below optimizations require a constant RHS.
-  auto Const = getConstantVRegValWithLookThrough(RHS, MRI);
+  auto Const = getIConstantVRegValWithLookThrough(RHS, MRI);
   if (!Const)
     return false;
 
@@ -240,32 +241,52 @@ bool applyAArch64MulConstCombine(
   return true;
 }
 
-/// Form a G_SBFX from a G_SEXT_INREG fed by a right shift.
-static bool matchBitfieldExtractFromSExtInReg(
-    MachineInstr &MI, MachineRegisterInfo &MRI,
-    std::function<void(MachineIRBuilder &)> &MatchInfo) {
-  assert(MI.getOpcode() == TargetOpcode::G_SEXT_INREG);
+/// Try to fold a G_MERGE_VALUES of 2 s32 sources, where the second source
+/// is a zero, into a G_ZEXT of the first.
+bool matchFoldMergeToZext(MachineInstr &MI, MachineRegisterInfo &MRI) {
+  auto &Merge = cast<GMerge>(MI);
+  LLT SrcTy = MRI.getType(Merge.getSourceReg(0));
+  if (SrcTy != LLT::scalar(32) || Merge.getNumSources() != 2)
+    return false;
+  return mi_match(Merge.getSourceReg(1), MRI, m_SpecificICst(0));
+}
+
+void applyFoldMergeToZext(MachineInstr &MI, MachineRegisterInfo &MRI,
+                          MachineIRBuilder &B, GISelChangeObserver &Observer) {
+  // Mutate %d(s64) = G_MERGE_VALUES %a(s32), 0(s32)
+  //  ->
+  // %d(s64) = G_ZEXT %a(s32)
+  Observer.changingInstr(MI);
+  MI.setDesc(B.getTII().get(TargetOpcode::G_ZEXT));
+  MI.RemoveOperand(2);
+  Observer.changedInstr(MI);
+}
+
+/// \returns True if a G_ANYEXT instruction \p MI should be mutated to a G_ZEXT
+/// instruction.
+static bool matchMutateAnyExtToZExt(MachineInstr &MI, MachineRegisterInfo &MRI) {
+  // If this is coming from a scalar compare then we can use a G_ZEXT instead of
+  // a G_ANYEXT:
+  //
+  // %cmp:_(s32) = G_[I|F]CMP ... <-- produces 0/1.
+  // %ext:_(s64) = G_ANYEXT %cmp(s32)
+  //
+  // By doing this, we can leverage more KnownBits combines.
+  assert(MI.getOpcode() == TargetOpcode::G_ANYEXT);
   Register Dst = MI.getOperand(0).getReg();
   Register Src = MI.getOperand(1).getReg();
-  int64_t Width = MI.getOperand(2).getImm();
-  LLT Ty = MRI.getType(Src);
-  assert((Ty == LLT::scalar(32) || Ty == LLT::scalar(64)) &&
-         "Unexpected type for G_SEXT_INREG?");
-  Register ShiftSrc;
-  int64_t ShiftImm;
-  if (!mi_match(
-          Src, MRI,
-          m_OneNonDBGUse(m_any_of(m_GAShr(m_Reg(ShiftSrc), m_ICst(ShiftImm)),
-                                  m_GLShr(m_Reg(ShiftSrc), m_ICst(ShiftImm))))))
-    return false;
-  if (ShiftImm < 0 || ShiftImm + Width > Ty.getSizeInBits())
-    return false;
-  MatchInfo = [=](MachineIRBuilder &B) {
-    auto Cst1 = B.buildConstant(Ty, ShiftImm);
-    auto Cst2 = B.buildConstant(Ty, Width);
-    B.buildInstr(TargetOpcode::G_SBFX, {Dst}, {ShiftSrc, Cst1, Cst2});
-  };
-  return true;
+  return MRI.getType(Dst).isScalar() &&
+         mi_match(Src, MRI,
+                  m_any_of(m_GICmp(m_Pred(), m_Reg(), m_Reg()),
+                           m_GFCmp(m_Pred(), m_Reg(), m_Reg())));
+}
+
+static void applyMutateAnyExtToZExt(MachineInstr &MI, MachineRegisterInfo &MRI,
+                              MachineIRBuilder &B,
+                              GISelChangeObserver &Observer) {
+  Observer.changingInstr(MI);
+  MI.setDesc(B.getTII().get(TargetOpcode::G_ZEXT));
+  Observer.changedInstr(MI);
 }
 
 #define AARCH64POSTLEGALIZERCOMBINERHELPER_GENCOMBINERHELPER_DEPS

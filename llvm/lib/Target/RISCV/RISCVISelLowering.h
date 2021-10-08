@@ -84,6 +84,16 @@ enum NodeType : unsigned {
   FMV_X_ANYEXTH,
   FMV_W_X_RV64,
   FMV_X_ANYEXTW_RV64,
+  // FP to XLen int conversions. Corresponds to fcvt.l(u).s/d/h on RV64 and
+  // fcvt.w(u).s/d/h on RV32. Unlike FP_TO_S/UINT these saturate out of
+  // range inputs. These are used for FP_TO_S/UINT_SAT lowering.
+  FCVT_X_RTZ,
+  FCVT_XU_RTZ,
+  // FP to 32 bit int conversions for RV64. These are used to keep track of the
+  // result being sign extended to 64 bit. These saturate out of range inputs.
+  // Used for FP_TO_S/UINT and FP_TO_S/UINT_SAT lowering.
+  FCVT_W_RTZ_RV64,
+  FCVT_WU_RTZ_RV64,
   // READ_CYCLE_WIDE - A read of the 64-bit cycle CSR on a 32-bit target
   // (returns (Lo, Hi)). It takes a chain operand.
   READ_CYCLE_WIDE,
@@ -154,12 +164,13 @@ enum NodeType : unsigned {
   VFNCVT_ROD_VL,
   // These nodes match the semantics of the corresponding RVV vector reduction
   // instructions. They produce a vector result which is the reduction
-  // performed over the first vector operand plus the first element of the
-  // second vector operand. The first operand is an unconstrained vector type,
-  // and the result and second operand's types are expected to be the
-  // corresponding full-width LMUL=1 type for the first operand:
-  //   nxv8i8 = vecreduce_add nxv32i8, nxv8i8
-  //   nxv2i32 = vecreduce_add nxv8i32, nxv2i32
+  // performed over the second vector operand plus the first element of the
+  // third vector operand. The first operand is the pass-thru operand. The
+  // second operand is an unconstrained vector type, and the result, first, and
+  // third operand's types are expected to be the corresponding full-width
+  // LMUL=1 type for the second operand:
+  //   nxv8i8 = vecreduce_add nxv8i8, nxv32i8, nxv8i8
+  //   nxv2i32 = vecreduce_add nxv2i32, nxv8i32, nxv2i32
   // The different in types does introduce extra vsetvli instructions but
   // similarly it reduces the number of registers consumed per reduction.
   // Also has a mask and VL operand.
@@ -192,6 +203,12 @@ enum NodeType : unsigned {
   UDIV_VL,
   UREM_VL,
   XOR_VL,
+
+  SADDSAT_VL,
+  UADDSAT_VL,
+  SSUBSAT_VL,
+  USUBSAT_VL,
+
   FADD_VL,
   FSUB_VL,
   FMUL_VL,
@@ -215,6 +232,10 @@ enum NodeType : unsigned {
   UINT_TO_FP_VL,
   FP_ROUND_VL,
   FP_EXTEND_VL,
+
+  // Widening instructions
+  VWMUL_VL,
+  VWMULU_VL,
 
   // Vector compare producing a mask. Fourth operand is input mask. Fifth
   // operand is VL.
@@ -241,6 +262,7 @@ enum NodeType : unsigned {
   // Vector sign/zero extend with additional mask & VL operands.
   VSEXT_VL,
   VZEXT_VL,
+
   //  vpopc.m with additional mask and VL operands.
   VPOPC_VL,
 
@@ -293,6 +315,8 @@ public:
   bool isSExtCheaperThanZExt(EVT SrcVT, EVT DstVT) const override;
   bool isCheapToSpeculateCttz() const override;
   bool isCheapToSpeculateCtlz() const override;
+  bool shouldSinkOperands(Instruction *I,
+                          SmallVectorImpl<Use *> &Ops) const override;
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;
 
@@ -440,6 +464,9 @@ public:
   bool decomposeMulByConstant(LLVMContext &Context, EVT VT,
                               SDValue C) const override;
 
+  bool isMulAddWithConstProfitable(const SDValue &AddNode,
+                                   const SDValue &ConstNode) const override;
+
   TargetLowering::AtomicExpansionKind
   shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
   Value *emitMaskedAtomicRMWIntrinsic(IRBuilderBase &Builder, AtomicRMWInst *AI,
@@ -483,6 +510,8 @@ public:
   MVT getContainerForFixedLengthVector(MVT VT) const;
 
   bool shouldRemoveExtendFromGSIndex(EVT VT) const override;
+
+  bool isLegalElementTypeForRVV(Type *ScalarTy) const;
 
 private:
   /// RISCVCCAssignFn - This target-specific function extends the default
@@ -532,26 +561,30 @@ private:
   SDValue lowerEXTRACT_VECTOR_ELT(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerINTRINSIC_W_CHAIN(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVPREDUCE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerVectorMaskVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerVectorMaskVecReduction(SDValue Op, SelectionDAG &DAG,
+                                      bool IsVP) const;
   SDValue lowerFPVECREDUCE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerINSERT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerEXTRACT_SUBVECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerSTEP_VECTOR(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerVECTOR_REVERSE(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerABS(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerMLOAD(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerMSTORE(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerMaskedLoad(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerMaskedStore(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorFCOPYSIGNToRVV(SDValue Op,
                                                SelectionDAG &DAG) const;
-  SDValue lowerMGATHER(SDValue Op, SelectionDAG &DAG) const;
-  SDValue lowerMSCATTER(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerMaskedGather(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerMaskedScatter(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorLoadToRVV(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorStoreToRVV(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorSetccToRVV(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorLogicOpToRVV(SDValue Op, SelectionDAG &DAG,
                                              unsigned MaskOpc,
                                              unsigned VecOpc) const;
+  SDValue lowerFixedLengthVectorShiftToRVV(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFixedLengthVectorSelectToRVV(SDValue Op,
                                             SelectionDAG &DAG) const;
   SDValue lowerToScalableOp(SDValue Op, SelectionDAG &DAG, unsigned NewOpc,

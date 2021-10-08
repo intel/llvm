@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/Scalar/LoopBoundSplit.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/LoopInfo.h"
@@ -42,7 +43,7 @@ struct ConditionInfo {
   /// Bound llvm value
   Value *BoundValue;
   /// AddRec SCEV
-  const SCEV *AddRecSCEV;
+  const SCEVAddRecExpr *AddRecSCEV;
   /// Bound SCEV
   const SCEV *BoundSCEV;
 
@@ -58,15 +59,19 @@ static void analyzeICmp(ScalarEvolution &SE, ICmpInst *ICmp,
   Cond.ICmp = ICmp;
   if (match(ICmp, m_ICmp(Cond.Pred, m_Value(Cond.AddRecValue),
                          m_Value(Cond.BoundValue)))) {
-    Cond.AddRecSCEV = SE.getSCEV(Cond.AddRecValue);
-    Cond.BoundSCEV = SE.getSCEV(Cond.BoundValue);
+    const SCEV *AddRecSCEV = SE.getSCEV(Cond.AddRecValue);
+    const SCEV *BoundSCEV = SE.getSCEV(Cond.BoundValue);
+    const SCEVAddRecExpr *LHSAddRecSCEV = dyn_cast<SCEVAddRecExpr>(AddRecSCEV);
+    const SCEVAddRecExpr *RHSAddRecSCEV = dyn_cast<SCEVAddRecExpr>(BoundSCEV);
     // Locate AddRec in LHSSCEV and Bound in RHSSCEV.
-    if (isa<SCEVAddRecExpr>(Cond.BoundSCEV) &&
-        !isa<SCEVAddRecExpr>(Cond.AddRecSCEV)) {
+    if (!LHSAddRecSCEV && RHSAddRecSCEV) {
       std::swap(Cond.AddRecValue, Cond.BoundValue);
-      std::swap(Cond.AddRecSCEV, Cond.BoundSCEV);
+      std::swap(AddRecSCEV, BoundSCEV);
       Cond.Pred = ICmpInst::getSwappedPredicate(Cond.Pred);
     }
+
+    Cond.AddRecSCEV = dyn_cast<SCEVAddRecExpr>(AddRecSCEV);
+    Cond.BoundSCEV = BoundSCEV;
   }
 }
 
@@ -124,15 +129,14 @@ static bool hasProcessableCondition(const Loop &L, ScalarEvolution &SE,
   if (!SE.isAvailableAtLoopEntry(Cond.BoundSCEV, &L))
     return false;
 
-  const SCEVAddRecExpr *AddRecSCEV = dyn_cast<SCEVAddRecExpr>(Cond.AddRecSCEV);
   // Allowed AddRec as induction variable.
-  if (!AddRecSCEV)
+  if (!Cond.AddRecSCEV)
     return false;
 
-  if (!AddRecSCEV->isAffine())
+  if (!Cond.AddRecSCEV->isAffine())
     return false;
 
-  const SCEV *StepRecSCEV = AddRecSCEV->getStepRecurrence(SE);
+  const SCEV *StepRecSCEV = Cond.AddRecSCEV->getStepRecurrence(SE);
   // Allowed constant step.
   if (!isa<SCEVConstant>(StepRecSCEV))
     return false;
@@ -262,6 +266,14 @@ static BranchInst *findSplitCandidate(const Loop &L, ScalarEvolution &SE,
 
     if (ExitingCond.BoundSCEV->getType() !=
         SplitCandidateCond.BoundSCEV->getType())
+      continue;
+
+    // After transformation, we assume the split condition of the pre-loop is
+    // always true. In order to guarantee it, we need to check the start value
+    // of the split cond AddRec satisfies the split condition.
+    if (!SE.isLoopEntryGuardedByCond(&L, SplitCandidateCond.Pred,
+                                     SplitCandidateCond.AddRecSCEV->getStart(),
+                                     SplitCandidateCond.BoundSCEV))
       continue;
 
     SplitCandidateCond.BI = BI;
@@ -397,6 +409,20 @@ static bool splitLoopBound(Loop &L, DominatorTree &DT, LoopInfo &LI,
     ExitingCond.BI->setSuccessor(0, PostLoopPreHeader);
   else
     ExitingCond.BI->setSuccessor(1, PostLoopPreHeader);
+
+  // Update phi node in exit block of post-loop.
+  for (PHINode &PN : PostLoop->getExitBlock()->phis()) {
+    for (auto i : seq<int>(0, PN.getNumOperands())) {
+      // Check incoming block is pre-loop's exiting block.
+      if (PN.getIncomingBlock(i) == L.getExitingBlock()) {
+        // Replace pre-loop's exiting block by post-loop's preheader.
+        PN.setIncomingBlock(i, PostLoopPreHeader);
+        // Add a new incoming value with post-loop's exiting block.
+        PN.addIncoming(VMap[PN.getIncomingValue(i)],
+                       PostLoop->getExitingBlock());
+      }
+    }
+  }
 
   // Update dominator tree.
   DT.changeImmediateDominator(PostLoopPreHeader, L.getExitingBlock());

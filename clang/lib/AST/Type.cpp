@@ -1801,6 +1801,9 @@ namespace {
     }
 
     // Only these types can contain the desired 'auto' type.
+    Type *VisitSubstTemplateTypeParmType(const SubstTemplateTypeParmType *T) {
+      return Visit(T->getReplacementType());
+    }
 
     Type *VisitElaboratedType(const ElaboratedType *T) {
       return Visit(T->getNamedType());
@@ -2094,7 +2097,7 @@ bool Type::hasUnsignedIntegerRepresentation() const {
 bool Type::isFloatingType() const {
   if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
     return BT->getKind() >= BuiltinType::Half &&
-           BT->getKind() <= BuiltinType::Float128;
+           BT->getKind() <= BuiltinType::Ibm128;
   if (const auto *CT = dyn_cast<ComplexType>(CanonicalType))
     return CT->getElementType()->isFloatingType();
   return false;
@@ -2116,7 +2119,7 @@ bool Type::isRealFloatingType() const {
 bool Type::isRealType() const {
   if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
     return BT->getKind() >= BuiltinType::Bool &&
-           BT->getKind() <= BuiltinType::Float128;
+           BT->getKind() <= BuiltinType::Ibm128;
   if (const auto *ET = dyn_cast<EnumType>(CanonicalType))
       return ET->getDecl()->isComplete() && !ET->getDecl()->isScoped();
   return isExtIntType();
@@ -2125,7 +2128,7 @@ bool Type::isRealType() const {
 bool Type::isArithmeticType() const {
   if (const auto *BT = dyn_cast<BuiltinType>(CanonicalType))
     return BT->getKind() >= BuiltinType::Bool &&
-           BT->getKind() <= BuiltinType::Float128 &&
+           BT->getKind() <= BuiltinType::Ibm128 &&
            BT->getKind() != BuiltinType::BFloat16;
   if (const auto *ET = dyn_cast<EnumType>(CanonicalType))
     // GCC allows forward declaration of enum types (forbid by C99 6.7.2.3p2).
@@ -3027,6 +3030,8 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
     return "_Float16";
   case Float128:
     return "__float128";
+  case Ibm128:
+    return "__ibm128";
   case WChar_S:
   case WChar_U:
     return Policy.MSWChar ? "__wchar_t" : "wchar_t";
@@ -3037,7 +3042,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Char32:
     return "char32_t";
   case NullPtr:
-    return "nullptr_t";
+    return "std::nullptr_t";
   case Overload:
     return "<overloaded function type>";
   case BoundMember:
@@ -3148,6 +3153,7 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
   case CC_SpirFunction: return "spir_function";
   case CC_OpenCLKernel: return "opencl_kernel";
   case CC_Swift: return "swiftcall";
+  case CC_SwiftAsync: return "swiftasynccall";
   case CC_PreserveMost: return "preserve_most";
   case CC_PreserveAll: return "preserve_all";
   }
@@ -3564,6 +3570,7 @@ bool AttributedType::isCallingConv() const {
   case attr::ThisCall:
   case attr::RegCall:
   case attr::SwiftCall:
+  case attr::SwiftAsyncCall:
   case attr::VectorCall:
   case attr::AArch64VectorPcs:
   case attr::Pascal:
@@ -3758,8 +3765,8 @@ public:
 
   friend CachedProperties merge(CachedProperties L, CachedProperties R) {
     Linkage MergedLinkage = minLinkage(L.L, R.L);
-    return CachedProperties(MergedLinkage,
-                         L.hasLocalOrUnnamedType() | R.hasLocalOrUnnamedType());
+    return CachedProperties(MergedLinkage, L.hasLocalOrUnnamedType() ||
+                                               R.hasLocalOrUnnamedType());
   }
 };
 

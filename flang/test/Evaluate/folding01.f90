@@ -1,5 +1,4 @@
-! RUN: %S/test_folding.sh %s %t %flang_fc1
-! REQUIRES: shell
+! RUN: %python %S/test_folding.py %s %flang_fc1
 
 ! Test intrinsic operation folding
 
@@ -135,4 +134,8 @@ module m
   logical, parameter :: test_max_a1 = all(max(x1a, x2a).EQ.[11, 12, 13, 14])
   logical, parameter :: test_min_a1 = all(min(x1a, x2a).EQ.[1, 2, 3, 4])
 
+  logical, parameter :: test_not_zero = not(0).EQ.-1
+  logical, parameter :: test_not_neg_one = not(-1).EQ.0
+  logical, parameter :: test_not_array = all(not([5, 6, 7]).EQ.[-6, -7, -8])
+ 
 end module

@@ -239,7 +239,8 @@ GenerateModuleFromModuleMapAction::CreateOutputFile(CompilerInstance &CI,
   // Because this is exposed via libclang we must disable RemoveFileOnSignal.
   return CI.createDefaultOutputFile(/*Binary=*/true, InFile, /*Extension=*/"",
                                     /*RemoveFileOnSignal=*/false,
-                                    /*CreateMissingDirectories=*/true);
+                                    /*CreateMissingDirectories=*/true,
+                                    /*ForceUseTemporary=*/true);
 }
 
 bool GenerateModuleInterfaceAction::BeginSourceFileAction(
@@ -991,4 +992,18 @@ void PrintDependencyDirectivesSourceMinimizerAction::ExecuteAction() {
     return;
   }
   llvm::outs() << Output;
+}
+
+void GetDependenciesByModuleNameAction::ExecuteAction() {
+  CompilerInstance &CI = getCompilerInstance();
+  Preprocessor &PP = CI.getPreprocessor();
+  SourceManager &SM = PP.getSourceManager();
+  FileID MainFileID = SM.getMainFileID();
+  SourceLocation FileStart = SM.getLocForStartOfFile(MainFileID);
+  SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 2> Path;
+  IdentifierInfo *ModuleID = PP.getIdentifierInfo(ModuleName);
+  Path.push_back(std::make_pair(ModuleID, FileStart));
+  auto ModResult = CI.loadModule(FileStart, Path, Module::Hidden, false);
+  PPCallbacks *CB = PP.getPPCallbacks();
+  CB->moduleImport(SourceLocation(), Path, ModResult);
 }

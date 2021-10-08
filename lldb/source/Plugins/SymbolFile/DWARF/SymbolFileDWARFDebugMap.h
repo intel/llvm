@@ -142,8 +142,6 @@ public:
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
 protected:
   enum { kHaveInitializedOSOs = (1 << 0), kNumFlags };
 
@@ -278,7 +276,7 @@ protected:
   // OSOEntry
   class OSOEntry {
   public:
-    OSOEntry() {}
+    OSOEntry() = default;
 
     OSOEntry(uint32_t exe_sym_idx, lldb::addr_t oso_file_addr)
         : m_exe_sym_idx(exe_sym_idx), m_oso_file_addr(oso_file_addr) {}

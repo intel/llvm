@@ -172,6 +172,45 @@ inline void iterateIndicesExcept(unsigned totalIndices,
       callback(i);
 }
 
+/// Returns a new function type with the specified arguments and results
+/// inserted.
+FunctionType FunctionType::getWithArgsAndResults(
+    ArrayRef<unsigned> argIndices, TypeRange argTypes,
+    ArrayRef<unsigned> resultIndices, TypeRange resultTypes) {
+  assert(argIndices.size() == argTypes.size());
+  assert(resultIndices.size() == resultTypes.size());
+
+  ArrayRef<Type> newInputTypes = getInputs();
+  SmallVector<Type, 4> newInputTypesBuffer;
+  if (!argIndices.empty()) {
+    const auto *fromIt = newInputTypes.begin();
+    for (auto it : llvm::zip(argIndices, argTypes)) {
+      const auto *toIt = newInputTypes.begin() + std::get<0>(it);
+      newInputTypesBuffer.append(fromIt, toIt);
+      newInputTypesBuffer.push_back(std::get<1>(it));
+      fromIt = toIt;
+    }
+    newInputTypesBuffer.append(fromIt, newInputTypes.end());
+    newInputTypes = newInputTypesBuffer;
+  }
+
+  ArrayRef<Type> newResultTypes = getResults();
+  SmallVector<Type, 4> newResultTypesBuffer;
+  if (!resultIndices.empty()) {
+    const auto *fromIt = newResultTypes.begin();
+    for (auto it : llvm::zip(resultIndices, resultTypes)) {
+      const auto *toIt = newResultTypes.begin() + std::get<0>(it);
+      newResultTypesBuffer.append(fromIt, toIt);
+      newResultTypesBuffer.push_back(std::get<1>(it));
+      fromIt = toIt;
+    }
+    newResultTypesBuffer.append(fromIt, newResultTypes.end());
+    newResultTypes = newResultTypesBuffer;
+  }
+
+  return FunctionType::get(getContext(), newInputTypes, newResultTypes);
+}
+
 /// Returns a new function type without the specified arguments and results.
 FunctionType
 FunctionType::getWithoutArgsAndResults(ArrayRef<unsigned> argIndices,
@@ -225,7 +264,7 @@ LogicalResult OpaqueType::verify(function_ref<InFlightDiagnostic()> emitError,
            << "` type created with unregistered dialect. If this is "
               "intended, please call allowUnregisteredDialects() on the "
               "MLIRContext, or use -allow-unregistered-dialect with "
-              "mlir-opt";
+              "the MLIR opt tool used";
   }
 
   return success();
@@ -452,7 +491,7 @@ bool TensorType::isValidElementType(Type type) {
   // element type within that dialect.
   return type.isa<ComplexType, FloatType, IntegerType, OpaqueType, VectorType,
                   IndexType>() ||
-         !type.getDialect().getNamespace().empty();
+         !llvm::isa<BuiltinDialect>(type.getDialect());
 }
 
 //===----------------------------------------------------------------------===//
@@ -476,6 +515,8 @@ void RankedTensorType::walkImmediateSubElements(
     function_ref<void(Attribute)> walkAttrsFn,
     function_ref<void(Type)> walkTypesFn) const {
   walkTypesFn(getElementType());
+  if (Attribute encoding = getEncoding())
+    walkAttrsFn(encoding);
 }
 
 //===----------------------------------------------------------------------===//
@@ -732,16 +773,13 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
                                         AffineExpr &offset) {
   auto affineMaps = t.getAffineMaps();
 
+  if (affineMaps.size() > 1)
+    return failure();
+
   if (!affineMaps.empty() && affineMaps.back().getNumResults() != 1)
     return failure();
 
-  AffineMap m;
-  if (!affineMaps.empty()) {
-    m = affineMaps.back();
-    for (size_t i = affineMaps.size() - 1; i > 0; --i)
-      m = m.compose(affineMaps[i - 1]);
-    assert(!m.isIdentity() && "unexpected identity map");
-  }
+  AffineMap m = affineMaps.empty() ? AffineMap() : affineMaps.back();
 
   auto zero = getAffineConstantExpr(0, t.getContext());
   auto one = getAffineConstantExpr(1, t.getContext());
@@ -749,7 +787,7 @@ LogicalResult mlir::getStridesAndOffset(MemRefType t,
   strides.assign(t.getRank(), zero);
 
   // Canonical case for empty map.
-  if (!m) {
+  if (!m || m.isIdentity()) {
     // 0-D corner case, offset is already 0.
     if (t.getRank() == 0)
       return success();

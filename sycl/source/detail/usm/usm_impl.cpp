@@ -150,8 +150,18 @@ void *malloc_device(size_t Size, const device &Dev, const context &Ctxt) {
   return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::device);
 }
 
+void *malloc_device(size_t Size, const device &Dev, const context &Ctxt,
+                    const property_list &) {
+  return malloc_device(Size, Dev, Ctxt);
+}
+
 void *malloc_device(size_t Size, const queue &Q) {
   return malloc_device(Size, Q.get_device(), Q.get_context());
+}
+
+void *malloc_device(size_t Size, const queue &Q,
+                    const property_list &PropList) {
+  return malloc_device(Size, Q.get_device(), Q.get_context(), PropList);
 }
 
 void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
@@ -159,8 +169,19 @@ void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
   return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::device);
 }
 
+void *aligned_alloc_device(size_t Alignment, size_t Size, const device &Dev,
+                           const context &Ctxt, const property_list &) {
+  return aligned_alloc_device(Alignment, Size, Dev, Ctxt);
+}
+
 void *aligned_alloc_device(size_t Alignment, size_t Size, const queue &Q) {
   return aligned_alloc_device(Alignment, Size, Q.get_device(), Q.get_context());
+}
+
+void *aligned_alloc_device(size_t Alignment, size_t Size, const queue &Q,
+                           const property_list &PropList) {
+  return aligned_alloc_device(Alignment, Size, Q.get_device(), Q.get_context(),
+                              PropList);
 }
 
 void free(void *ptr, const context &Ctxt) {
@@ -176,33 +197,72 @@ void *malloc_host(size_t Size, const context &Ctxt) {
   return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host);
 }
 
+void *malloc_host(size_t Size, const context &Ctxt, const property_list &) {
+  return malloc_host(Size, Ctxt);
+}
+
 void *malloc_host(size_t Size, const queue &Q) {
   return malloc_host(Size, Q.get_context());
+}
+
+void *malloc_host(size_t Size, const queue &Q, const property_list &PropList) {
+  return malloc_host(Size, Q.get_context(), PropList);
 }
 
 void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt) {
   return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, alloc::shared);
 }
 
+void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt,
+                    const property_list &) {
+  return malloc_shared(Size, Dev, Ctxt);
+}
+
 void *malloc_shared(size_t Size, const queue &Q) {
   return malloc_shared(Size, Q.get_device(), Q.get_context());
+}
+
+void *malloc_shared(size_t Size, const queue &Q,
+                    const property_list &PropList) {
+  return malloc_shared(Size, Q.get_device(), Q.get_context(), PropList);
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt) {
   return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host);
 }
 
+void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt,
+                         const property_list &) {
+  return aligned_alloc_host(Alignment, Size, Ctxt);
+}
+
 void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q) {
   return aligned_alloc_host(Alignment, Size, Q.get_context());
-}  
+}
+
+void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q,
+                         const property_list &PropList) {
+  return aligned_alloc_host(Alignment, Size, Q.get_context(), PropList);
+}
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
                            const context &Ctxt) {
   return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, alloc::shared);
 }
 
+void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
+                           const context &Ctxt, const property_list &) {
+  return aligned_alloc_shared(Alignment, Size, Dev, Ctxt);
+}
+
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q) {
   return aligned_alloc_shared(Alignment, Size, Q.get_device(), Q.get_context());
+}
+
+void *aligned_alloc_shared(size_t Alignment, size_t Size, const queue &Q,
+                           const property_list &PropList) {
+  return aligned_alloc_shared(Alignment, Size, Q.get_device(), Q.get_context(),
+                              PropList);
 }
 
 // single form
@@ -219,8 +279,18 @@ void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind) {
   return RetVal;
 }
 
+void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind,
+             const property_list &) {
+  return malloc(Size, Dev, Ctxt, Kind);
+}
+
 void *malloc(size_t Size, const queue &Q, alloc Kind) {
   return malloc(Size, Q.get_device(), Q.get_context(), Kind);
+}
+
+void *malloc(size_t Size, const queue &Q, alloc Kind,
+             const property_list &PropList) {
+  return malloc(Size, Q.get_device(), Q.get_context(), Kind, PropList);
 }
 
 void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
@@ -236,16 +306,27 @@ void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
   return RetVal;
 }
 
+void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
+                    const context &Ctxt, alloc Kind, const property_list &) {
+  return aligned_alloc(Alignment, Size, Dev, Ctxt, Kind);
+}
+
 void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind) {
   return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind);
+}
+
+void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
+                    const property_list &PropList) {
+  return aligned_alloc(Alignment, Size, Q.get_device(), Q.get_context(), Kind,
+                       PropList);
 }
 
 // Pointer queries
 /// Query the allocation type from a USM pointer
 /// Returns alloc::host for all pointers in a host context.
 ///
-/// \param ptr is the USM pointer to query
-/// \param ctxt is the sycl context the ptr was allocated in
+/// \param Ptr is the USM pointer to query
+/// \param Ctxt is the sycl context the ptr was allocated in
 alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
   if (!Ptr)
     return alloc::unknown;
@@ -270,7 +351,7 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
     return alloc::unknown;
   // otherwise PI_SUCCESS is expected
   if (Err != PI_SUCCESS) {
-    throw runtime_error("Error querying USM pointer: ", Err);
+    Plugin.reportPiError(Err, "get_pointer_type()");
   }
 
   alloc ResultAlloc;
@@ -294,8 +375,8 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
 /// Queries the device against which the pointer was allocated
 ///
-/// \param ptr is the USM pointer to query
-/// \param ctxt is the sycl context the ptr was allocated in
+/// \param Ptr is the USM pointer to query
+/// \param Ctxt is the sycl context the ptr was allocated in
 device get_pointer_device(const void *Ptr, const context &Ctxt) {
   // Check if ptr is a valid USM pointer
   if (get_pointer_type(Ptr, Ctxt) == alloc::unknown)

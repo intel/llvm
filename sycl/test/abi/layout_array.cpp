@@ -9,9 +9,9 @@
 #include <CL/sycl.hpp>
 
 
-SYCL_EXTERNAL void range(sycl::range<2>) {}
+SYCL_EXTERNAL void id(sycl::id<2>) {}
 
-// CHECK: 0 | class sycl::range<2>
+// CHECK: 0 | class sycl::id<2>
 // CHECK-NEXT: 0 |   class sycl::detail::array<2> (base)
 // CHECK-NEXT: 0 |     size_t [2] common_array
 // CHECK-NEXT: | [sizeof=16, dsize=16, align=8,
@@ -19,9 +19,9 @@ SYCL_EXTERNAL void range(sycl::range<2>) {}
 
 //----------------------------
 
-SYCL_EXTERNAL void id(sycl::id<2>) {}
+SYCL_EXTERNAL void range(sycl::range<2>) {}
 
-// CHECK: 0 | class sycl::id<2>
+// CHECK: 0 | class sycl::range<2>
 // CHECK-NEXT: 0 |   class sycl::detail::array<2> (base)
 // CHECK-NEXT: 0 |     size_t [2] common_array
 // CHECK-NEXT: | [sizeof=16, dsize=16, align=8,

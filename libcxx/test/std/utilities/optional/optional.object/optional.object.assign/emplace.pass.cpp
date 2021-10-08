@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: gcc-10
 // <optional>
 
 // template <class... Args> T& optional<T>::emplace(Args&&... args);
@@ -31,7 +30,7 @@ public:
     constexpr X(int i) : i_(i) {}
     constexpr X(int i, int j) : i_(i), j_(j) {}
 
-    constexpr friend bool operator==(const X& x, const X& y)
+    friend constexpr bool operator==(const X& x, const X& y)
         {return x.i_ == y.i_ && x.j_ == y.j_;}
 };
 

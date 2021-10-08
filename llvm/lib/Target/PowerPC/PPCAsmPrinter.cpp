@@ -203,6 +203,7 @@ private:
   DenseMap<const GlobalObject *, SmallVector<const GlobalAlias *, 1>>
       GOAliasMap;
 
+  uint16_t getNumberOfVRSaved();
   void emitTracebackTable();
 
   SmallVector<const GlobalVariable *, 8> TOCDataGlobalVars;
@@ -1493,7 +1494,7 @@ void PPCLinuxAsmPrinter::emitInstruction(const MachineInstr *MI) {
     //
     // Update compiler-rt/lib/xray/xray_powerpc64.cc accordingly when number
     // of instructions change.
-    OutStreamer->emitCodeAlignment(8);
+    OutStreamer->emitCodeAlignment(8, &getSubtargetInfo());
     MCSymbol *BeginOfSled = OutContext.createTempSymbol();
     OutStreamer->emitLabel(BeginOfSled);
     EmitToStreamer(*OutStreamer, RetInst);
@@ -1881,12 +1882,54 @@ void PPCAIXAsmPrinter::SetupMachineFunction(MachineFunction &MF) {
   return AsmPrinter::SetupMachineFunction(MF);
 }
 
+uint16_t PPCAIXAsmPrinter::getNumberOfVRSaved() {
+  // Calculate the number of VRs be saved.
+  // Vector registers 20 through 31 are marked as reserved and cannot be used
+  // in the default ABI.
+  const PPCSubtarget &Subtarget = MF->getSubtarget<PPCSubtarget>();
+  if (Subtarget.isAIXABI() && Subtarget.hasAltivec() &&
+      TM.getAIXExtendedAltivecABI()) {
+    const MachineRegisterInfo &MRI = MF->getRegInfo();
+    for (unsigned Reg = PPC::V20; Reg <= PPC::V31; ++Reg)
+      if (MRI.isPhysRegModified(Reg))
+        // Number of VRs saved.
+        return PPC::V31 - Reg + 1;
+  }
+  return 0;
+}
+
 void PPCAIXAsmPrinter::emitFunctionBodyEnd() {
 
   if (!TM.getXCOFFTracebackTable())
     return;
 
   emitTracebackTable();
+
+  // If ShouldEmitEHBlock returns true, then the eh info table
+  // will be emitted via `AIXException::endFunction`. Otherwise, we
+  // need to emit a dumy eh info table when VRs are saved. We could not
+  // consolidate these two places into one because there is no easy way
+  // to access register information in `AIXException` class.
+  if (!TargetLoweringObjectFileXCOFF::ShouldEmitEHBlock(MF) &&
+      (getNumberOfVRSaved() > 0)) {
+    // Emit dummy EH Info Table.
+    OutStreamer->SwitchSection(getObjFileLowering().getCompactUnwindSection());
+    MCSymbol *EHInfoLabel =
+        TargetLoweringObjectFileXCOFF::getEHInfoTableSymbol(MF);
+    OutStreamer->emitLabel(EHInfoLabel);
+
+    // Version number.
+    OutStreamer->emitInt32(0);
+
+    const DataLayout &DL = MMI->getModule()->getDataLayout();
+    const unsigned PointerSize = DL.getPointerSize();
+    // Add necessary paddings in 64 bit mode.
+    OutStreamer->emitValueToAlignment(PointerSize);
+
+    OutStreamer->emitIntValue(0, PointerSize);
+    OutStreamer->emitIntValue(0, PointerSize);
+    OutStreamer->SwitchSection(MF->getSection());
+  }
 }
 
 void PPCAIXAsmPrinter::emitTracebackTable() {
@@ -1980,9 +2023,10 @@ void PPCAIXAsmPrinter::emitTracebackTable() {
   // Set the 4th byte of the mandatory field.
   FirstHalfOfMandatoryField |= TracebackTable::IsFunctionNamePresentMask;
 
-  static_assert(XCOFF::AllocRegNo == 31, "Unexpected register usage!");
-  if (MRI.isPhysRegUsed(Subtarget->isPPC64() ? PPC::X31 : PPC::R31,
-                        /* SkipRegMaskTest */ true))
+  const PPCRegisterInfo *RegInfo =
+      static_cast<const PPCRegisterInfo *>(Subtarget->getRegisterInfo());
+  Register FrameReg = RegInfo->getFrameRegister(*MF);
+  if (FrameReg == (Subtarget->isPPC64() ? PPC::X31 : PPC::R31))
     FirstHalfOfMandatoryField |= TracebackTable::IsAllocaUsedMask;
 
   const SmallVectorImpl<Register> &MustSaveCRs = FI->getMustSaveCRs();
@@ -2041,7 +2085,10 @@ void PPCAIXAsmPrinter::emitTracebackTable() {
   if (FI->hasVectorParms() || HasVectorInst)
     SecondHalfOfMandatoryField |= TracebackTable::HasVectorInfoMask;
 
-  bool ShouldEmitEHBlock = TargetLoweringObjectFileXCOFF::ShouldEmitEHBlock(MF);
+  uint16_t NumOfVRSaved = getNumberOfVRSaved();
+  bool ShouldEmitEHBlock =
+      TargetLoweringObjectFileXCOFF::ShouldEmitEHBlock(MF) || NumOfVRSaved > 0;
+
   if (ShouldEmitEHBlock)
     SecondHalfOfMandatoryField |= TracebackTable::HasExtensionTableMask;
 
@@ -2061,8 +2108,8 @@ void PPCAIXAsmPrinter::emitTracebackTable() {
   SecondHalfOfMandatoryField |= (GPRSaved << TracebackTable::GPRSavedShift) &
                                 TracebackTable::GPRSavedMask;
 
-  GENBOOLCOMMENT("", SecondHalfOfMandatoryField, HasVectorInfo);
-  GENBOOLCOMMENT(", ", SecondHalfOfMandatoryField, HasExtensionTable);
+  GENBOOLCOMMENT("", SecondHalfOfMandatoryField, HasExtensionTable);
+  GENBOOLCOMMENT(", ", SecondHalfOfMandatoryField, HasVectorInfo);
   GENVALUECOMMENT(", NumOfGPRsSaved", SecondHalfOfMandatoryField, GPRSaved);
   EmitComment();
   OutStreamer->emitIntValueInHexWithPadding(
@@ -2151,26 +2198,16 @@ void PPCAIXAsmPrinter::emitTracebackTable() {
 
   if (SecondHalfOfMandatoryField & TracebackTable::HasVectorInfoMask) {
     uint16_t VRData = 0;
-    // Calculate the number of VRs be saved.
-    // Vector registers 20 through 31 are marked as reserved and cannot be used
-    // in the default ABI.
-    const PPCSubtarget &Subtarget = MF->getSubtarget<PPCSubtarget>();
-    if (Subtarget.isAIXABI() && Subtarget.hasAltivec() &&
-        TM.getAIXExtendedAltivecABI()) {
-      for (unsigned Reg = PPC::V20; Reg <= PPC::V31; ++Reg)
-        if (MRI.isPhysRegModified(Reg)) {
-          // Number of VRs saved.
-          VRData |=
-              ((PPC::V31 - Reg + 1) << TracebackTable::NumberOfVRSavedShift) &
-              TracebackTable::NumberOfVRSavedMask;
-          // This bit is supposed to set only when the special register
-          // VRSAVE is saved on stack.
-          // However, IBM XL compiler sets the bit when any vector registers
-          // are saved on the stack. We will follow XL's behavior on AIX
-          // so that we don't get surprise behavior change for C code.
-          VRData |= TracebackTable::IsVRSavedOnStackMask;
-          break;
-        }
+    if (NumOfVRSaved) {
+      // Number of VRs saved.
+      VRData |= (NumOfVRSaved << TracebackTable::NumberOfVRSavedShift) &
+                TracebackTable::NumberOfVRSavedMask;
+      // This bit is supposed to set only when the special register
+      // VRSAVE is saved on stack.
+      // However, IBM XL compiler sets the bit when any vector registers
+      // are saved on the stack. We will follow XL's behavior on AIX
+      // so that we don't get surprise behavior change for C code.
+      VRData |= TracebackTable::IsVRSavedOnStackMask;
     }
 
     // Set has_varargs.
@@ -2320,7 +2357,7 @@ void PPCAIXAsmPrinter::emitGlobalVariableHelper(const GlobalVariable *GV) {
   if (GV->hasCommonLinkage() || GVKind.isBSSLocal() ||
       GVKind.isThreadBSSLocal()) {
     Align Alignment = GV->getAlign().getValueOr(DL.getPreferredAlign(GV));
-    uint64_t Size = DL.getTypeAllocSize(GV->getType()->getElementType());
+    uint64_t Size = DL.getTypeAllocSize(GV->getValueType());
     GVSym->setStorageClass(
         TargetLoweringObjectFileXCOFF::getStorageClassForGlobal(GV));
 
@@ -2538,6 +2575,18 @@ void PPCAIXAsmPrinter::emitInstruction(const MachineInstr *MI) {
     if (MI->getOperand(0).isSymbol())
       report_fatal_error("Tail call for extern symbol not yet supported.");
     break;
+  case PPC::DST:
+  case PPC::DST64:
+  case PPC::DSTT:
+  case PPC::DSTT64:
+  case PPC::DSTST:
+  case PPC::DSTST64:
+  case PPC::DSTSTT:
+  case PPC::DSTSTT64:
+    EmitToStreamer(
+        *OutStreamer,
+        MCInstBuilder(PPC::ORI).addReg(PPC::R0).addReg(PPC::R0).addImm(0));
+    return;
   }
   return PPCAsmPrinter::emitInstruction(MI);
 }

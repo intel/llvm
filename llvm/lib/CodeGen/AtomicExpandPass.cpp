@@ -17,6 +17,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/CodeGen/AtomicExpandUtils.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -425,8 +426,8 @@ bool AtomicExpand::expandAtomicLoadToLL(LoadInst *LI) {
   // On some architectures, load-linked instructions are atomic for larger
   // sizes than normal loads. For example, the only 64-bit load guaranteed
   // to be single-copy atomic by ARM is an ldrexd (A3.5.3).
-  Value *Val =
-      TLI->emitLoadLinked(Builder, LI->getPointerOperand(), LI->getOrdering());
+  Value *Val = TLI->emitLoadLinked(Builder, LI->getType(),
+                                   LI->getPointerOperand(), LI->getOrdering());
   TLI->emitAtomicCmpXchgNoStoreLLBalance(Builder);
 
   LI->replaceAllUsesWith(Val);
@@ -570,7 +571,9 @@ static Value *performAtomicOp(AtomicRMWInst::BinOp Op, IRBuilder<> &Builder,
 }
 
 bool AtomicExpand::tryExpandAtomicRMW(AtomicRMWInst *AI) {
-  switch (TLI->shouldExpandAtomicRMWInIR(AI)) {
+  LLVMContext &Ctx = AI->getModule()->getContext();
+  TargetLowering::AtomicExpansionKind Kind = TLI->shouldExpandAtomicRMWInIR(AI);
+  switch (Kind) {
   case TargetLoweringBase::AtomicExpansionKind::None:
     return false;
   case TargetLoweringBase::AtomicExpansionKind::LLSC: {
@@ -600,6 +603,18 @@ bool AtomicExpand::tryExpandAtomicRMW(AtomicRMWInst *AI) {
       expandPartwordAtomicRMW(AI,
                               TargetLoweringBase::AtomicExpansionKind::CmpXChg);
     } else {
+      SmallVector<StringRef> SSNs;
+      Ctx.getSyncScopeNames(SSNs);
+      auto MemScope = SSNs[AI->getSyncScopeID()].empty()
+                          ? "system"
+                          : SSNs[AI->getSyncScopeID()];
+      OptimizationRemarkEmitter ORE(AI->getFunction());
+      ORE.emit([&]() {
+        return OptimizationRemark(DEBUG_TYPE, "Passed", AI)
+               << "A compare and swap loop was generated for an atomic "
+               << AI->getOperationName(AI->getOperation()) << " operation at "
+               << MemScope << " memory scope";
+      });
       expandAtomicRMWToCmpXchg(AI, createCmpXchgInstFun);
     }
     return true;
@@ -689,6 +704,8 @@ static PartwordMaskValues createMaskInstrs(IRBuilder<> &Builder, Instruction *I,
   if (PMV.ValueType == PMV.WordType) {
     PMV.AlignedAddr = Addr;
     PMV.AlignedAddrAlignment = AddrAlign;
+    PMV.ShiftAmt = ConstantInt::get(PMV.ValueType, 0);
+    PMV.Mask = ConstantInt::get(PMV.ValueType, ~0);
     return PMV;
   }
 
@@ -1101,7 +1118,7 @@ Value *AtomicExpand::insertRMWLLSCLoop(
 
   // Start the main loop block now that we've taken care of the preliminaries.
   Builder.SetInsertPoint(LoopBB);
-  Value *Loaded = TLI->emitLoadLinked(Builder, Addr, MemOpOrder);
+  Value *Loaded = TLI->emitLoadLinked(Builder, ResultTy, Addr, MemOpOrder);
 
   Value *NewVal = PerformOp(Builder, Loaded);
 
@@ -1269,7 +1286,7 @@ bool AtomicExpand::expandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
   // Start the main loop block now that we've taken care of the preliminaries.
   Builder.SetInsertPoint(StartBB);
   Value *UnreleasedLoad =
-      TLI->emitLoadLinked(Builder, PMV.AlignedAddr, MemOpOrder);
+      TLI->emitLoadLinked(Builder, PMV.WordType, PMV.AlignedAddr, MemOpOrder);
   Value *UnreleasedLoadExtract =
       extractMaskedValue(Builder, UnreleasedLoad, PMV);
   Value *ShouldStore = Builder.CreateICmpEQ(
@@ -1302,7 +1319,8 @@ bool AtomicExpand::expandAtomicCmpXchg(AtomicCmpXchgInst *CI) {
   Builder.SetInsertPoint(ReleasedLoadBB);
   Value *SecondLoad;
   if (HasReleasedLoadBB) {
-    SecondLoad = TLI->emitLoadLinked(Builder, PMV.AlignedAddr, MemOpOrder);
+    SecondLoad =
+        TLI->emitLoadLinked(Builder, PMV.WordType, PMV.AlignedAddr, MemOpOrder);
     Value *SecondLoadExtract = extractMaskedValue(Builder, SecondLoad, PMV);
     ShouldStore = Builder.CreateICmpEQ(SecondLoadExtract,
                                        CI->getCompareOperand(), "should_store");
@@ -1847,7 +1865,7 @@ bool AtomicExpand::expandAtomicOpToLibcall(
   // Now, the return type.
   if (CASExpected) {
     ResultTy = Type::getInt1Ty(Ctx);
-    Attr = Attr.addAttribute(Ctx, AttributeList::ReturnIndex, Attribute::ZExt);
+    Attr = Attr.addRetAttribute(Ctx, Attribute::ZExt);
   } else if (HasResult && UseSizedLibcall)
     ResultTy = SizedIntTy;
   else

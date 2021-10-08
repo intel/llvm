@@ -38,7 +38,8 @@ fun:dfsan_get_origin=uninstrumented
 fun:dfsan_get_origin=custom
 fun:dfsan_get_init_origin=uninstrumented
 fun:dfsan_get_init_origin=discard
-
+fun:dfsan_get_track_origins=uninstrumented
+fun:dfsan_get_track_origins=discard
 
 ###############################################################################
 # glibc
@@ -205,6 +206,7 @@ fun:symlink=discard
 fun:syscall=discard
 fun:unlink=discard
 fun:uselocale=discard
+fun:vfprintf=discard
 
 # Functions that produce output does not depend on the input (need to zero the
 # shadow manually).
@@ -216,6 +218,7 @@ fun:fgets=custom
 fun:fstat=custom
 fun:getcwd=custom
 fun:get_current_dir_name=custom
+fun:getentropy=custom
 fun:gethostname=custom
 fun:getpeername=custom
 fun:getrlimit=custom
@@ -266,7 +269,7 @@ fun:strrchr=custom
 fun:strstr=custom
 
 # Functions which take action based on global state, such as running a callback
-# set by a sepperate function.
+# set by a separate function.
 fun:write=custom
 
 # Functions that take a callback (wrap the callback manually).

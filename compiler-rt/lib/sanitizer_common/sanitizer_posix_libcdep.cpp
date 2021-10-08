@@ -128,14 +128,6 @@ void SetAddressSpaceUnlimited() {
   CHECK(AddressSpaceIsUnlimited());
 }
 
-void SleepForSeconds(int seconds) {
-  sleep(seconds);
-}
-
-void SleepForMillis(int millis) {
-  usleep(millis * 1000);
-}
-
 void Abort() {
 #if !SANITIZER_GO
   // If we are handling SIGABRT, unhandle it first.
@@ -158,6 +150,8 @@ int Atexit(void (*function)(void)) {
   return 0;
 #endif
 }
+
+bool CreateDir(const char *pathname) { return mkdir(pathname, 0755) == 0; }
 
 bool SupportsColoredOutput(fd_t fd) {
   return isatty(fd) != 0;

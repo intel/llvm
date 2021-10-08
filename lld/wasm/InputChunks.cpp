@@ -39,6 +39,11 @@ bool relocIs64(uint8_t relocType) {
   case R_WASM_MEMORY_ADDR_SLEB64:
   case R_WASM_MEMORY_ADDR_REL_SLEB64:
   case R_WASM_MEMORY_ADDR_I64:
+  case R_WASM_TABLE_INDEX_SLEB64:
+  case R_WASM_TABLE_INDEX_I64:
+  case R_WASM_FUNCTION_OFFSET_I64:
+  case R_WASM_TABLE_INDEX_REL_SLEB64:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB64:
     return true;
   default:
     return false;
@@ -106,19 +111,18 @@ void InputChunk::relocate(uint8_t *buf) const {
 
   for (const WasmRelocation &rel : relocations) {
     uint8_t *loc = buf + rel.Offset - inputSectionOffset;
-    auto value = file->calcNewValue(rel, tombstone, this);
     LLVM_DEBUG(dbgs() << "apply reloc: type=" << relocTypeToString(rel.Type));
     if (rel.Type != R_WASM_TYPE_INDEX_LEB)
       LLVM_DEBUG(dbgs() << " sym=" << file->getSymbols()[rel.Index]->getName());
     LLVM_DEBUG(dbgs() << " addend=" << rel.Addend << " index=" << rel.Index
-                      << " value=" << value << " offset=" << rel.Offset
-                      << "\n");
+                      << " offset=" << rel.Offset << "\n");
+    auto value = file->calcNewValue(rel, tombstone, this);
 
     switch (rel.Type) {
     case R_WASM_TYPE_INDEX_LEB:
     case R_WASM_FUNCTION_INDEX_LEB:
     case R_WASM_GLOBAL_INDEX_LEB:
-    case R_WASM_EVENT_INDEX_LEB:
+    case R_WASM_TAG_INDEX_LEB:
     case R_WASM_MEMORY_ADDR_LEB:
     case R_WASM_TABLE_NUMBER_LEB:
       encodeULEB128(value, loc, 5);
@@ -137,6 +141,7 @@ void InputChunk::relocate(uint8_t *buf) const {
     case R_WASM_TABLE_INDEX_REL_SLEB64:
     case R_WASM_MEMORY_ADDR_SLEB64:
     case R_WASM_MEMORY_ADDR_REL_SLEB64:
+    case R_WASM_MEMORY_ADDR_TLS_SLEB64:
       encodeSLEB128(static_cast<int64_t>(value), loc, 10);
       break;
     case R_WASM_TABLE_INDEX_I32:
@@ -209,7 +214,7 @@ static unsigned writeCompressedReloc(uint8_t *buf, const WasmRelocation &rel,
   case R_WASM_TYPE_INDEX_LEB:
   case R_WASM_FUNCTION_INDEX_LEB:
   case R_WASM_GLOBAL_INDEX_LEB:
-  case R_WASM_EVENT_INDEX_LEB:
+  case R_WASM_TAG_INDEX_LEB:
   case R_WASM_MEMORY_ADDR_LEB:
   case R_WASM_MEMORY_ADDR_LEB64:
   case R_WASM_TABLE_NUMBER_LEB:
@@ -229,7 +234,7 @@ static unsigned getRelocWidthPadded(const WasmRelocation &rel) {
   case R_WASM_TYPE_INDEX_LEB:
   case R_WASM_FUNCTION_INDEX_LEB:
   case R_WASM_GLOBAL_INDEX_LEB:
-  case R_WASM_EVENT_INDEX_LEB:
+  case R_WASM_TAG_INDEX_LEB:
   case R_WASM_MEMORY_ADDR_LEB:
   case R_WASM_TABLE_NUMBER_LEB:
   case R_WASM_TABLE_INDEX_SLEB:
@@ -356,12 +361,11 @@ void InputChunk::generateRelocationCode(raw_ostream &os) const {
   LLVM_DEBUG(dbgs() << "generating runtime relocations: " << getName()
                     << " count=" << relocations.size() << "\n");
 
-  unsigned opcode_ptr_const = config->is64.getValueOr(false)
-                                  ? WASM_OPCODE_I64_CONST
-                                  : WASM_OPCODE_I32_CONST;
-  unsigned opcode_ptr_add = config->is64.getValueOr(false)
-                                ? WASM_OPCODE_I64_ADD
-                                : WASM_OPCODE_I32_ADD;
+  bool is64 = config->is64.getValueOr(false);
+  unsigned opcode_ptr_const = is64 ? WASM_OPCODE_I64_CONST
+                                   : WASM_OPCODE_I32_CONST;
+  unsigned opcode_ptr_add = is64 ? WASM_OPCODE_I64_ADD
+                                 : WASM_OPCODE_I32_ADD;
 
   uint64_t tombstone = getTombstone();
   // TODO(sbc): Encode the relocations in the data section and write a loop

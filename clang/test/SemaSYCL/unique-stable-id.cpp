@@ -91,33 +91,3 @@ void useDependentMembers() {
   // expected-error@+1{{argument passed to '__builtin_sycl_unique_stable_id' must have global storage}}
   __builtin_sycl_unique_stable_id(d.member);
 }
-
-// A few tests to ensure this gets correctly invalidated, like
-// __builtin_sycl_unique_stable_name.
-void invalidated() {
-  (void)[]() {
-    class K{};
-    // Name gets changed because marking 'K' as a kernel changes the containing
-    // lambda.
-    static int GlobalStorageVar;
-    constexpr const char *c = __builtin_sycl_unique_stable_id(GlobalStorageVar);
-    // expected-error@+2{{kernel naming changes the result of an evaluated '__builtin_sycl_unique_stable_id'}}
-    // expected-note@-2{{'__builtin_sycl_unique_stable_id' evaluated here}}
-    __builtin_sycl_mark_kernel_name(K);
-  };
-
-  (void)[]() {
-    // This name also gets changed, because naming 'lambda' causes the containg
-    // lambda to have its name changed.
-    static double ThisGlobalStorageVar;
-
-    auto lambda = []() {};
-    constexpr const char *d =
-        __builtin_sycl_unique_stable_id(ThisGlobalStorageVar);
-
-    // expected-error@#KernelSingleTaskFunc{{kernel instantiation changes the result of an evaluated '__builtin_sycl_unique_stable_id'}}
-    // expected-note@+2{{in instantiation of function template specialization}}
-    // expected-note@-4{{'__builtin_sycl_unique_stable_id' evaluated here}}
-    cl::sycl::kernel_single_task<class C>(lambda);
-  };
-}

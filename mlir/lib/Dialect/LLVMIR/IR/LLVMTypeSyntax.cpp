@@ -339,7 +339,7 @@ static LLVMStructType parseStructType(DialectAsmParser &parser) {
   // If we are parsing a self-reference to a recursive struct, i.e. the parsing
   // stack already contains a struct with the same identifier, bail out after
   // the name.
-  StringRef name;
+  std::string name;
   bool isIdentified = succeeded(parser.parseOptionalString(&name));
   if (isIdentified) {
     if (knownStructNames.count(name)) {
@@ -438,7 +438,7 @@ static Type dispatchParse(DialectAsmParser &parser, bool allowAny = true) {
   if (failed(parser.parseKeyword(&key)))
     return Type();
 
-  MLIRContext *ctx = parser.getBuilder().getContext();
+  MLIRContext *ctx = parser.getContext();
   return StringSwitch<function_ref<Type()>>(key)
       .Case("void", [&] { return LLVMVoidType::get(ctx); })
       .Case("ppc_fp128", [&] { return LLVMPPCFP128Type::get(ctx); })

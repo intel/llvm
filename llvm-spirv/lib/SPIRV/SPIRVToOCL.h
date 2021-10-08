@@ -107,6 +107,11 @@ public:
   /// to_{global|local|private} OCL builtin.
   void visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI, Op OC);
 
+  /// Transform __spirv_OpBuildINDRange_{1|2|3}D to
+  /// ndrange_{1|2|3}D OCL builtin.
+  void visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
+                                    StringRef DemangledName);
+
   /// Transform __spirv_*Convert_R{ReturnType}{_sat}{_rtp|_rtn|_rtz|_rte} to
   /// convert_{ReturnType}_{sat}{_rtp|_rtn|_rtz|_rte}
   /// example:  <2 x i8> __spirv_SatConvertUToS(<2 x i32>) =>
@@ -128,9 +133,39 @@ public:
   /// Transform __spirv_ImageWrite to write_image
   void visitCallSPIRVImageWriteBuiltIn(CallInst *CI, Op OC);
 
+  /// Transform __spirv_ImageRead to read_image
+  void visitCallSPIRVImageReadBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform __spirv_ImageQueryOrder to get_image_channel_order
+  //            __spirv_ImageQueryFormat to get_image_channel_data_type
+  void visitCallSPIRVImageQueryBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform subgroup Intel opcodes
+  /// example: __spirv_SubgroupBlockWriteINTEL
+  ///    =>    intel_sub_group_block_write_ul
+  void visitCallSPIRVSubgroupINTELBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform AVC INTEL Evaluate opcodes
+  /// example: __spirv_SubgroupAvcImeEvaluateWithSingleReference
+  ///    => intel_sub_group_avc_ime_evaluate_with_single_reference
+  void visitCallSPIRVAvcINTELEvaluateBuiltIn(CallInst *CI, Op OC);
+
+  /// Transform AVC INTEL general opcodes
+  /// example: __spirv_SubgroupAvcMceGetDefaultInterBaseMultiReferencePenalty
+  ///   =>
+  ///   intel_sub_group_avc_mce_get_default_inter_base_multi_reference_penalty
+  void visitCallSPIRVAvcINTELInstructionBuiltin(CallInst *CI, Op OC);
+
   /// Transform __spirv_* builtins to OCL 2.0 builtins.
   /// No change with arguments.
   void visitCallSPIRVBuiltin(CallInst *CI, Op OC);
+
+  /// Transform __spirv_* builtins (originates from builtin variables) to OCL
+  /// builtins.
+  /// No change with arguments.
+  /// e.g.
+  /// _Z33__spirv_BuiltInGlobalInvocationIdi(x) -> get_global_id(x)
+  void visitCallSPIRVBuiltin(CallInst *CI, SPIRVBuiltinVariableKind Kind);
 
   /// Transform __spirv_ocl* instructions (OpenCL Extended Instruction Set)
   /// to OpenCL builtins.
@@ -152,7 +187,7 @@ public:
 
   /// Transform __spirv_OpAtomicCompareExchange and
   /// __spirv_OpAtomicCompareExchangeWeak
-  virtual Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) = 0;
+  virtual Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) = 0;
 
   /// Transform __spirv_OpAtomicIIncrement/OpAtomicIDecrement to:
   /// - OCL2.0: atomic_fetch_add_explicit/atomic_fetch_sub_explicit
@@ -199,6 +234,11 @@ public:
   std::string getBallotBuiltinName(CallInst *CI, Op OC);
   /// Transform group opcode to corresponding OpenCL function name
   std::string groupOCToOCLBuiltinName(CallInst *CI, Op OC);
+  /// Transform SPV-IR image opaque type into OpenCL representation,
+  /// example: spirv.Image._void_1_0_0_0_0_0_1 => opencl.image2d_wo_t
+  std::string getOCLImageOpaqueType(SmallVector<std::string, 8> &Postfixes);
+
+  void translateOpaqueTypes();
 
   Module *M;
   LLVMContext *Ctx;
@@ -253,10 +293,10 @@ public:
   /// (bool)atomic_xchg(*ptr, 1)
   Instruction *visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI);
 
-  /// Transform __spirv_OpAtomicCompareExchange and
-  /// __spirv_OpAtomicCompareExchangeWeak into atomic_cmpxchg. There is no
-  /// weak version of function in OpenCL 1.2
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
+  /// Transform __spirv_OpAtomicCompareExchange/Weak into atomic_cmpxchg
+  /// OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
+  /// the same semantics as OpAtomicCompareExchange.
+  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
 
   /// Conduct generic mutations for all atomic builtins
   CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
@@ -331,8 +371,10 @@ public:
   std::string mapFPAtomicName(Op OC) override;
 
   /// Transform __spirv_OpAtomicCompareExchange/Weak into
-  /// compare_exchange_strong/weak_explicit
-  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI, Op OC) override;
+  /// atomic_compare_exchange_strong_explicit
+  /// OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
+  /// the same semantics as OpAtomicCompareExchange.
+  Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
 };
 
 class SPIRVToOCL20Pass : public llvm::PassInfoMixin<SPIRVToOCL20Pass>,

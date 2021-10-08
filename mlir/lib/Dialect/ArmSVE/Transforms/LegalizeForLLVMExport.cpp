@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
+#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/ArmSVE/ArmSVEDialect.h"
 #include "mlir/Dialect/ArmSVE/Transforms.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -45,12 +46,13 @@ class ForwardOperands : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(OpTy op, ArrayRef<Value> operands,
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    if (ValueRange(operands).getTypes() == op->getOperands().getTypes())
+    if (adaptor.getOperands().getTypes() == op->getOperands().getTypes())
       return rewriter.notifyMatchFailure(op, "operand types already match");
 
-    rewriter.updateRootInPlace(op, [&]() { op->setOperands(operands); });
+    rewriter.updateRootInPlace(
+        op, [&]() { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };
@@ -60,9 +62,10 @@ public:
   using OpConversionPattern<ReturnOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(ReturnOp op, ArrayRef<Value> operands,
+  matchAndRewrite(ReturnOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriter.updateRootInPlace(op, [&]() { op->setOperands(operands); });
+    rewriter.updateRootInPlace(
+        op, [&]() { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };
@@ -117,13 +120,12 @@ struct ScalableLoadOpLowering : public ConvertOpToLLVMPattern<ScalableLoadOp> {
   using ConvertOpToLLVMPattern<ScalableLoadOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(ScalableLoadOp loadOp, ArrayRef<Value> operands,
+  matchAndRewrite(ScalableLoadOp loadOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto type = loadOp.getMemRefType();
     if (!isConvertibleAndHasIdentityMaps(type))
       return failure();
 
-    ScalableLoadOp::Adaptor transformed(operands);
     LLVMTypeConverter converter(loadOp.getContext());
 
     auto resultType = loadOp.result().getType();
@@ -137,9 +139,8 @@ struct ScalableLoadOpLowering : public ConvertOpToLLVMPattern<ScalableLoadOp> {
                                           converter)
               .getValue());
     }
-    Value dataPtr =
-        getStridedElementPtr(loadOp.getLoc(), type, transformed.base(),
-                             transformed.index(), rewriter);
+    Value dataPtr = getStridedElementPtr(loadOp.getLoc(), type, adaptor.base(),
+                                         adaptor.index(), rewriter);
     Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
         loadOp.getLoc(), llvmDataTypePtr, dataPtr);
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(loadOp, bitCastedPtr);
@@ -154,13 +155,12 @@ struct ScalableStoreOpLowering
   using ConvertOpToLLVMPattern<ScalableStoreOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(ScalableStoreOp storeOp, ArrayRef<Value> operands,
+  matchAndRewrite(ScalableStoreOp storeOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto type = storeOp.getMemRefType();
     if (!isConvertibleAndHasIdentityMaps(type))
       return failure();
 
-    ScalableStoreOp::Adaptor transformed(operands);
     LLVMTypeConverter converter(storeOp.getContext());
 
     auto resultType = storeOp.value().getType();
@@ -174,12 +174,11 @@ struct ScalableStoreOpLowering
                                           converter)
               .getValue());
     }
-    Value dataPtr =
-        getStridedElementPtr(storeOp.getLoc(), type, transformed.base(),
-                             transformed.index(), rewriter);
+    Value dataPtr = getStridedElementPtr(storeOp.getLoc(), type, adaptor.base(),
+                                         adaptor.index(), rewriter);
     Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
         storeOp.getLoc(), llvmDataTypePtr, dataPtr);
-    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(storeOp, transformed.value(),
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(storeOp, adaptor.value(),
                                                bitCastedPtr);
     return success();
   }

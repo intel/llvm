@@ -52,7 +52,6 @@ public:
 X86::X86() {
   copyRel = R_386_COPY;
   gotRel = R_386_GLOB_DAT;
-  noneRel = R_386_NONE;
   pltRel = R_386_JUMP_SLOT;
   iRelativeRel = R_386_IRELATIVE;
   relativeRel = R_386_RELATIVE;
@@ -60,6 +59,7 @@ X86::X86() {
   tlsGotRel = R_386_TLS_TPOFF;
   tlsModuleIndexRel = R_386_TLS_DTPMOD32;
   tlsOffsetRel = R_386_TLS_DTPOFF32;
+  gotBaseSymInGotPlt = true;
   pltHeaderSize = 16;
   pltEntrySize = 16;
   ipltEntrySize = 16;
@@ -250,16 +250,36 @@ int64_t X86::getImplicitAddend(const uint8_t *buf, RelType type) const {
   case R_386_PC16:
     return SignExtend64<16>(read16le(buf));
   case R_386_32:
+  case R_386_GLOB_DAT:
   case R_386_GOT32:
   case R_386_GOT32X:
   case R_386_GOTOFF:
   case R_386_GOTPC:
+  case R_386_IRELATIVE:
   case R_386_PC32:
   case R_386_PLT32:
+  case R_386_RELATIVE:
+  case R_386_TLS_DTPMOD32:
+  case R_386_TLS_DTPOFF32:
   case R_386_TLS_LDO_32:
+  case R_386_TLS_LDM:
+  case R_386_TLS_IE:
+  case R_386_TLS_IE_32:
   case R_386_TLS_LE:
+  case R_386_TLS_LE_32:
+  case R_386_TLS_GD:
+  case R_386_TLS_GD_32:
+  case R_386_TLS_GOTIE:
+  case R_386_TLS_TPOFF:
+  case R_386_TLS_TPOFF32:
     return SignExtend64<32>(read32le(buf));
+  case R_386_NONE:
+  case R_386_JUMP_SLOT:
+    // These relocations are defined as not having an implicit addend.
+    return 0;
   default:
+    internalLinkerError(getErrorLocation(buf),
+                        "cannot read addend for relocation " + toString(type));
     return 0;
   }
 }

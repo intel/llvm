@@ -168,7 +168,8 @@ SELECTION OPTIONS
 -----------------
 
 By default, `lit` will run failing tests first, then run tests in descending
-execution time order to optimize concurrency.
+execution time order to optimize concurrency.  The execution order can be
+changed using the :option:`--order` option.
 
 The timing data is stored in the `test_exec_root` in a file named
 `.lit_test_times.txt`. If this file does not exist, then `lit` checks the
@@ -176,7 +177,8 @@ The timing data is stored in the `test_exec_root` in a file named
 
 .. option:: --shuffle
 
- Run the tests in a random order, not failing/slowest first.
+ Run the tests in a random order, not failing/slowest first. Deprecated,
+ use :option:`--order` instead.
 
 .. option:: --max-failures N
 
@@ -203,6 +205,19 @@ The timing data is stored in the `test_exec_root` in a file named
  option. These two options provide a coarse mechanism for partitioning large
  testsuites, for parallel execution on separate machines (say in a large
  testing farm).
+
+.. option:: --order={lexical,random,smart}
+
+ Define the order in which tests are run. The supported values are:
+
+ - lexical - tests will be run in lexical order according to the test file
+   path. This option is useful when predictable test order is desired.
+
+ - random - tests will be run in random order.
+
+ - smart - tests that failed previously will be run first, then the remaining
+   tests, all in descending execution time order. This is the default as it
+   optimizes concurrency.
 
 .. option:: --run-shard=N
 
@@ -238,6 +253,40 @@ The timing data is stored in the `test_exec_root` in a file named
   suite. The environment variable ``LIT_XFAIL`` can be also used in place of
   this option, which is especially useful in environments where the call to
   ``lit`` is issued indirectly.
+
+  A test name can specified as a file name relative to the test suite directory.
+  For example:
+
+  .. code-block:: none
+
+    LIT_XFAIL="affinity/kmp-hw-subset.c;offloading/memory_manager.cpp"
+
+  In this case, all of the following tests are treated as ``XFAIL``:
+
+  .. code-block:: none
+
+    libomp :: affinity/kmp-hw-subset.c
+    libomptarget :: nvptx64-nvidia-cuda :: offloading/memory_manager.cpp
+    libomptarget :: x86_64-pc-linux-gnu :: offloading/memory_manager.cpp
+
+  Alternatively, a test name can be specified as the full test name
+  reported in LIT output.  For example, we can adjust the previous
+  example not to treat the ``nvptx64-nvidia-cuda`` version of
+  ``offloading/memory_manager.cpp`` as XFAIL:
+
+  .. code-block:: none
+
+    LIT_XFAIL="affinity/kmp-hw-subset.c;libomptarget :: x86_64-pc-linux-gnu :: offloading/memory_manager.cpp"
+
+.. option:: --xfail-not=LIST
+
+  Do not treat the specified tests as ``XFAIL``.  The environment variable
+  ``LIT_XFAIL_NOT`` can also be used in place of this option.  The syntax is the
+  same as for :option:`--xfail` and ``LIT_XFAIL``.  :option:`--xfail-not` and
+  ``LIT_XFAIL_NOT`` always override all other ``XFAIL`` specifications,
+  including an :option:`--xfail` appearing later on the command line.  The
+  primary purpose is to suppress an ``XPASS`` result without modifying a test
+  case that uses the ``XFAIL`` directive.
 
 ADDITIONAL OPTIONS
 ------------------

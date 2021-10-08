@@ -729,6 +729,10 @@ public:
   /// Returns the number of explicit template arguments that were given.
   unsigned getNumTemplateArgs() const { return NumArgs; }
 
+  llvm::ArrayRef<TemplateArgumentLoc> arguments() const {
+    return llvm::makeArrayRef(getTemplateArgs(), getNumTemplateArgs());
+  }
+
   /// Returns the nth template argument.
   const TemplateArgumentLoc &getTemplateArg(unsigned I) const {
     assert(I < getNumTemplateArgs() && "template arg index out of range");
@@ -1189,7 +1193,7 @@ class TemplateTypeParmDecl final : public TypeDecl,
 
   /// Whether the type constraint has been initialized. This can be false if the
   /// constraint was not initialized yet or if there was an error forming the
-  /// type constriant.
+  /// type constraint.
   bool TypeConstraintInitialized : 1;
 
   /// Whether this non-type template parameter is an "expanded"

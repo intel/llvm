@@ -200,6 +200,8 @@ public:
       return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
     case internal::DecorationPipelineEnableINTEL:
       return ExtensionID::SPV_INTEL_fpga_invocation_pipelining_attributes;
+    case internal::DecorationRuntimeAlignedINTEL:
+      return ExtensionID::SPV_INTEL_runtime_aligned;
     default:
       return {};
     }
@@ -316,7 +318,7 @@ public:
       : SPIRVDecorateGeneric(OC), MemberNumber(SPIRVWORD_MAX) {}
 
   llvm::Optional<ExtensionID> getRequiredExtension() const override {
-    switch (Dec) {
+    switch (static_cast<size_t>(Dec)) {
     case DecorationRegisterINTEL:
     case DecorationMemoryINTEL:
     case DecorationNumbanksINTEL:
@@ -339,6 +341,8 @@ public:
       return ExtensionID::SPV_INTEL_io_pipes;
     case DecorationBufferLocationINTEL:
       return ExtensionID::SPV_INTEL_fpga_buffer_location;
+    case internal::DecorationRuntimeAlignedINTEL:
+      return ExtensionID::SPV_INTEL_runtime_aligned;
     default:
       return {};
     }
@@ -496,7 +500,7 @@ public:
 };
 
 class SPIRVDecorateFuncParamDescAttr
-    : public SPIRVDecorateStrAttrBase<DecorationFuncParamDescINTEL> {
+    : public SPIRVDecorateStrAttrBase<internal::DecorationFuncParamDescINTEL> {
 public:
   //  Complete constructor for UserSemantic decoration
   SPIRVDecorateFuncParamDescAttr(SPIRVEntry *TheTarget,

@@ -30,6 +30,8 @@
 using namespace mlir;
 using namespace ROCDL;
 
+#include "mlir/Dialect/LLVMIR/ROCDLOpsDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // Parsing for ROCDL ops
 //===----------------------------------------------------------------------===//
@@ -45,7 +47,7 @@ static ParseResult parseROCDLMubufLoadOp(OpAsmParser &parser,
       parser.addTypeToList(type, result.types))
     return failure();
 
-  MLIRContext *context = parser.getBuilder().getContext();
+  MLIRContext *context = parser.getContext();
   auto int32Ty = IntegerType::get(context, 32);
   auto int1Ty = IntegerType::get(context, 1);
   auto i32x4Ty = LLVM::getFixedVectorType(int32Ty, 4);
@@ -64,7 +66,7 @@ static ParseResult parseROCDLMubufStoreOp(OpAsmParser &parser,
   if (parser.parseOperandList(ops, 6) || parser.parseColonType(type))
     return failure();
 
-  MLIRContext *context = parser.getBuilder().getContext();
+  MLIRContext *context = parser.getContext();
   auto int32Ty = IntegerType::get(context, 32);
   auto int1Ty = IntegerType::get(context, 1);
   auto i32x4Ty = LLVM::getFixedVectorType(int32Ty, 4);

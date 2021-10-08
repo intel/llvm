@@ -306,6 +306,9 @@ class RegisterClass<string namespace, list<ValueType> regTypes, int alignment,
   // the assembly matcher will provide a function to map from diagnostic types
   // to message strings.
   string DiagnosticString = "";
+
+  // Target-specific flags. This becomes the TSFlags field in TargetRegisterClass.
+  bits<8> TSFlags = 0;
 }
 
 // The memberList in a RegisterClass is a dag of set operations. TableGen
@@ -1175,6 +1178,13 @@ def PSEUDO_PROBE : StandardPseudoInstruction {
   let InOperandList = (ins i64imm:$guid, i64imm:$index, i8imm:$type, i32imm:$attr);
   let AsmString = "PSEUDO_PROBE";
   let hasSideEffects = 1;
+}
+def ARITH_FENCE : StandardPseudoInstruction {
+  let OutOperandList = (outs unknown:$dst);
+  let InOperandList = (ins unknown:$src);
+  let AsmString = "";
+  let hasSideEffects = false;
+  let Constraints = "$src = $dst";
 }
 
 def STACKMAP : StandardPseudoInstruction {

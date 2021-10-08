@@ -45,6 +45,11 @@ static cl::opt<unsigned> RVVVectorLMULMax(
              "Fractional LMUL values are not supported."),
     cl::init(8), cl::Hidden);
 
+static cl::opt<unsigned> RVVVectorELENMax(
+    "riscv-v-fixed-length-vector-elen-max",
+    cl::desc("The maximum ELEN value to use for fixed length vectors."),
+    cl::init(64), cl::Hidden);
+
 void RISCVSubtarget::anchor() {}
 
 RISCVSubtarget &
@@ -109,30 +114,32 @@ unsigned RISCVSubtarget::getMaxRVVVectorSizeInBits() const {
   assert(hasStdExtV() && "Tried to get vector length without V support!");
   if (RVVVectorBitsMax == 0)
     return 0;
-  assert(RVVVectorBitsMax >= 128 && isPowerOf2_32(RVVVectorBitsMax) &&
-         "V extension requires vector length to be at least 128 and a power of "
-         "2!");
+  assert(RVVVectorBitsMax >= 128 && RVVVectorBitsMax <= 65536 &&
+         isPowerOf2_32(RVVVectorBitsMax) &&
+         "V extension requires vector length to be in the range of 128 to "
+         "65536 and a power of 2!");
   assert(RVVVectorBitsMax >= RVVVectorBitsMin &&
          "Minimum V extension vector length should not be larger than its "
          "maximum!");
   unsigned Max = std::max(RVVVectorBitsMin, RVVVectorBitsMax);
-  return PowerOf2Floor(Max < 128 ? 0 : Max);
+  return PowerOf2Floor((Max < 128 || Max > 65536) ? 0 : Max);
 }
 
 unsigned RISCVSubtarget::getMinRVVVectorSizeInBits() const {
   assert(hasStdExtV() &&
          "Tried to get vector length without V extension support!");
   assert((RVVVectorBitsMin == 0 ||
-          (RVVVectorBitsMin >= 128 && isPowerOf2_32(RVVVectorBitsMin))) &&
-         "V extension requires vector length to be at least 128 and a power of "
-         "2!");
+          (RVVVectorBitsMin >= 128 && RVVVectorBitsMax <= 65536 &&
+           isPowerOf2_32(RVVVectorBitsMin))) &&
+         "V extension requires vector length to be in the range of 128 to "
+         "65536 and a power of 2!");
   assert((RVVVectorBitsMax >= RVVVectorBitsMin || RVVVectorBitsMax == 0) &&
          "Minimum V extension vector length should not be larger than its "
          "maximum!");
   unsigned Min = RVVVectorBitsMin;
   if (RVVVectorBitsMax != 0)
     Min = std::min(RVVVectorBitsMin, RVVVectorBitsMax);
-  return PowerOf2Floor(Min < 128 ? 0 : Min);
+  return PowerOf2Floor((Min < 128 || Min > 65536) ? 0 : Min);
 }
 
 unsigned RISCVSubtarget::getMaxLMULForFixedLengthVectors() const {
@@ -140,7 +147,18 @@ unsigned RISCVSubtarget::getMaxLMULForFixedLengthVectors() const {
          "Tried to get maximum LMUL without V extension support!");
   assert(RVVVectorLMULMax <= 8 && isPowerOf2_32(RVVVectorLMULMax) &&
          "V extension requires a LMUL to be at most 8 and a power of 2!");
-  return PowerOf2Floor(std::max<unsigned>(RVVVectorLMULMax, 1));
+  return PowerOf2Floor(
+      std::max<unsigned>(std::min<unsigned>(RVVVectorLMULMax, 8), 1));
+}
+
+unsigned RISCVSubtarget::getMaxELENForFixedLengthVectors() const {
+  assert(hasStdExtV() &&
+         "Tried to get maximum ELEN without V extension support!");
+  assert(RVVVectorELENMax <= 64 && RVVVectorELENMax >= 8 &&
+         isPowerOf2_32(RVVVectorELENMax) &&
+         "V extension requires a ELEN to be a power of 2 between 8 and 64!");
+  return PowerOf2Floor(
+      std::max<unsigned>(std::min<unsigned>(RVVVectorELENMax, 64), 8));
 }
 
 bool RISCVSubtarget::useRVVForFixedLengthVectors() const {

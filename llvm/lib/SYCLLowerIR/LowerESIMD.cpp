@@ -92,15 +92,19 @@ struct ESIMDIntrinDesc {
     SRC_TMPL_ARG, // is an integer template argument
     NUM_BYTES,    // is a number of bytes (gather.scaled and scatter.scaled)
     UNDEF,        // is an undef value
+    CONST_INT8,   // is an i8 constant
     CONST_INT16,  // is an i16 constant
     CONST_INT32,  // is an i32 constant
     CONST_INT64,  // is an i64 constant
   };
 
-  enum GenXArgConversion {
-    NONE,  // no conversion
-    TO_I1, // convert vector of N-bit integer to 1-bit
-    TO_SI  // convert to 32-bit integer surface index
+  enum class GenXArgConversion : int16_t {
+    NONE,   // no conversion
+    TO_SI,  // convert to 32-bit integer surface index
+    TO_I1,  // convert vector of N-bit integer to 1-bit
+    TO_I8,  // convert vector of N-bit integer to 18-bit
+    TO_I16, // convert vector of N-bit integer to 16-bit
+    TO_I32, // convert vector of N-bit integer to 32-bit
   };
 
   // Denotes GenX intrinsic name suffix creation rule kind.
@@ -116,13 +120,13 @@ struct ESIMDIntrinDesc {
     GenXArgRuleKind Kind;
     union Info {
       struct {
-        int16_t CallArgNo; // SRC_CALL_ARG: source call arg num
-                           // UNDEF: source call arg num to get type from
-                           // -1 denotes return value
-        int16_t Conv;      // GenXArgConversion
+        int16_t CallArgNo;      // SRC_CALL_ARG: source call arg num
+                                // SRC_TMPL_ARG: source template arg num
+                                // UNDEF: source call arg num to get type from
+                                // -1 denotes return value
+        GenXArgConversion Conv; // GenXArgConversion
       } Arg;
       int NRemArgs;           // SRC_CALL_ALL: number of remaining args
-      unsigned int TmplArgNo; // SRC_TMPL_ARG: source template arg num
       unsigned int ArgConst;  // CONST_I16 OR CONST_I32: constant value
     } I;
   };
@@ -167,9 +171,38 @@ private:
     return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::Kind, {{N, {}}}};         \
   }
   DEF_ARG_RULE(l, SRC_CALL_ALL)
-  DEF_ARG_RULE(t, SRC_TMPL_ARG)
   DEF_ARG_RULE(u, UNDEF)
   DEF_ARG_RULE(nbs, NUM_BYTES)
+
+  static constexpr ESIMDIntrinDesc::ArgRule t(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::NONE}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule t1(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I1}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule t8(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I8}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule t16(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I16}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule t32(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I32}}};
+  }
 
   static constexpr ESIMDIntrinDesc::ArgRule a(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
@@ -187,6 +220,10 @@ private:
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
         {{N, ESIMDIntrinDesc::GenXArgConversion::TO_SI}}};
+  }
+
+  static constexpr ESIMDIntrinDesc::ArgRule c8(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{ESIMDIntrinDesc::CONST_INT8, {{N, {}}}};
   }
 
   static constexpr ESIMDIntrinDesc::ArgRule c16(int16_t N) {
@@ -387,7 +424,10 @@ public:
         {"ssdp4a_sat", {"ssdp4a.sat", {a(0), a(1), a(2)}}},
         {"any", {"any", {ai1(0)}}},
         {"all", {"all", {ai1(0)}}},
-        {"lane_id", {"lane.id", {}}}};
+        {"lane_id", {"lane.id", {}}},
+        {"test_src_tmpl_arg",
+         {"test.src.tmpl.arg", {t(0), t1(1), t8(2), t16(3), t32(4), c8(17)}}},
+    };
   }
 
   const IntrinTable &getTable() { return Table; }
@@ -453,6 +493,7 @@ Type *parsePrimitiveTypeString(StringRef TyStr, LLVMContext &Ctx) {
       .Case("unsigned", IntegerType::getInt32Ty(Ctx))
       .Case("unsigned long long", IntegerType::getInt64Ty(Ctx))
       .Case("long long", IntegerType::getInt64Ty(Ctx))
+      .Case("_Float16", IntegerType::getHalfTy(Ctx))
       .Case("float", IntegerType::getFloatTy(Ctx))
       .Case("double", IntegerType::getDoubleTy(Ctx))
       .Case("void", IntegerType::getVoidTy(Ctx))
@@ -469,26 +510,59 @@ static const T *castNodeImpl(const id::Node *N, id::Node::Kind K) {
   castNodeImpl<id::NodeKind>(NodeObj, id::Node::K##NodeKind)
 
 static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
-                              Type *&Ty, LLVMContext &Ctx) {
+                              Type *&Ty, LLVMContext &Ctx,
+                              ESIMDIntrinDesc::GenXArgConversion Conv =
+                                  ESIMDIntrinDesc::GenXArgConversion::NONE) {
+  // parseTemplateArg returns APInt with a certain bitsize
+  // This bitsize (primitive size in bits) is deduced by the following rules:
+  // If Conv is not None, then bitsize is taken from Conv
+  // If Conv is None and Arg is IntegerLiteral, then bitsize is taken from
+  // Arg size
+  // If Conv is None and Arg is BoolExpr or Enum, the bitsize falls back to 32
+
   const auto *Nm = castNode(FE->getName(), NameWithTemplateArgs);
   const auto *ArgsN = castNode(Nm->TemplateArgs, TemplateArgs);
   id::NodeArray Args = ArgsN->getParams();
   assert(N < Args.size() && "too few template arguments");
   id::StringView Val;
+  switch (Conv) {
+  case ESIMDIntrinDesc::GenXArgConversion::NONE:
+    // Default fallback case, if we cannot deduce bitsize
+    Ty = IntegerType::getInt32Ty(Ctx);
+    break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I1:
+    Ty = IntegerType::getInt1Ty(Ctx);
+    break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I8:
+    Ty = IntegerType::getInt8Ty(Ctx);
+    break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I16:
+    Ty = IntegerType::getInt16Ty(Ctx);
+    break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I32:
+  case ESIMDIntrinDesc::GenXArgConversion::TO_SI:
+    Ty = IntegerType::getInt32Ty(Ctx);
+    break;
+  }
 
   switch (Args[N]->getKind()) {
   case id::Node::KIntegerLiteral: {
     auto *ValL = castNode(Args[N], IntegerLiteral);
     const id::StringView &TyStr = ValL->getType();
-    Ty = TyStr.size() == 0 ? IntegerType::getInt32Ty(Ctx)
-                           : parsePrimitiveTypeString(
-                                 StringRef(TyStr.begin(), TyStr.size()), Ctx);
+    if (Conv == ESIMDIntrinDesc::GenXArgConversion::NONE && TyStr.size() != 0)
+      // Overwrite Ty with IntegerLiteral's size
+      Ty =
+          parsePrimitiveTypeString(StringRef(TyStr.begin(), TyStr.size()), Ctx);
     Val = ValL->getValue();
+    break;
+  }
+  case id::Node::KBoolExpr: {
+    auto *ValL = castNode(Args[N], BoolExpr);
+    ValL->match([&Val](bool Value) { Value ? Val = "1" : Val = "0"; });
     break;
   }
   case id::Node::KEnumLiteral: {
     auto *CE = castNode(Args[N], EnumLiteral);
-    Ty = IntegerType::getInt32Ty(Ctx);
     Val = CE->getIntegerValue();
     break;
   }
@@ -715,7 +789,8 @@ static void translateUnPackMask(CallInst &CI) {
   if (Width > N) {
     llvm::Type *Ty = llvm::IntegerType::get(Context, N);
     Arg0 = Builder.CreateTrunc(Arg0, Ty);
-    cast<llvm::Instruction>(Arg0)->setDebugLoc(CI.getDebugLoc());
+    if (auto *Trunc = dyn_cast<llvm::Instruction>(Arg0))
+      Trunc->setDebugLoc(CI.getDebugLoc());
   }
   assert(Arg0->getType()->getPrimitiveSizeInBits() == N);
   Arg0 = Builder.CreateBitCast(
@@ -960,7 +1035,8 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       break;
     case ESIMDIntrinDesc::GenXArgRuleKind::SRC_TMPL_ARG: {
       Type *Ty = nullptr;
-      APInt Val = parseTemplateArg(FE, Rule.I.TmplArgNo, Ty, CI.getContext());
+      APInt Val = parseTemplateArg(FE, Rule.I.Arg.CallArgNo, Ty,
+                                   CI.getContext(), Rule.I.Arg.Conv);
       Value *ArgVal = ConstantInt::get(
           Ty, static_cast<uint64_t>(Val.getSExtValue()), true /*signed*/);
       GenXArgs.push_back(ArgVal);
@@ -986,6 +1062,11 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       GenXArgs.push_back(UndefValue::get(Ty));
       break;
     }
+    case ESIMDIntrinDesc::GenXArgRuleKind::CONST_INT8: {
+      auto Ty = IntegerType::getInt8Ty(CI.getContext());
+      GenXArgs.push_back(llvm::ConstantInt::get(Ty, Rule.I.ArgConst));
+      break;
+    }
     case ESIMDIntrinDesc::GenXArgRuleKind::CONST_INT16: {
       auto Ty = IntegerType::getInt16Ty(CI.getContext());
       GenXArgs.push_back(llvm::ConstantInt::get(Ty, Rule.I.ArgConst));
@@ -1005,13 +1086,30 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
   }
 }
 
+// Create a simple function declaration
+// This is used for testing purposes, when it is impossible to query
+// vc-intrinsics
+static Function *createTestESIMDDeclaration(const ESIMDIntrinDesc &Desc,
+                                            SmallVector<Value *, 16> &GenXArgs,
+                                            CallInst &CI) {
+  SmallVector<Type *, 16> ArgTypes;
+  for (unsigned i = 0; i < GenXArgs.size(); ++i)
+    ArgTypes.push_back(GenXArgs[i]->getType());
+  auto *FType = FunctionType::get(CI.getType(), ArgTypes, false);
+  auto Name = GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling;
+  return Function::Create(FType, GlobalVariable::ExternalLinkage, Name,
+                          CI.getModule());
+}
+
 // Demangles and translates given ESIMD intrinsic call instruction. Example
 //
 // ### Source-level intrinsic:
 //
-// sycl::intel::gpu::__vector_type<int, 16>::type __esimd_flat_read<int, 16>(
-//     sycl::intel::gpu::__vector_type<unsigned long long, 16>::type,
-//     sycl::intel::gpu::__vector_type<int, 16>::type)
+// sycl::ext::intel::experimental::esimd::__vector_type<int, 16>::type
+// __esimd_flat_read<int, 16>(
+//     sycl::ext::intel::experimental::esimd::__vector_type<unsigned long long,
+//     16>::type, sycl::ext::intel::experimental::esimd::__vector_type<int,
+//     16>::type)
 //
 // ### Itanium-mangled name:
 //
@@ -1088,21 +1186,26 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
 
   auto *FTy = F->getFunctionType();
   std::string Suffix = getESIMDIntrinSuffix(FE, FTy, Desc.SuffixRule);
-  auto ID = GenXIntrinsic::lookupGenXIntrinsicID(
-      GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
-
   SmallVector<Value *, 16> GenXArgs;
   createESIMDIntrinsicArgs(Desc, GenXArgs, CI, FE);
+  Function *NewFDecl = nullptr;
+  if (Desc.GenXSpelling.rfind("test.src.", 0) == 0) {
+    // Special case for testing purposes
+    NewFDecl = createTestESIMDDeclaration(Desc, GenXArgs, CI);
+  } else {
+    auto ID = GenXIntrinsic::lookupGenXIntrinsicID(
+        GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
 
-  SmallVector<Type *, 16> GenXOverloadedTypes;
-  if (GenXIntrinsic::isOverloadedRet(ID))
-    GenXOverloadedTypes.push_back(CI.getType());
-  for (unsigned i = 0; i < GenXArgs.size(); ++i)
-    if (GenXIntrinsic::isOverloadedArg(ID, i))
-      GenXOverloadedTypes.push_back(GenXArgs[i]->getType());
+    SmallVector<Type *, 16> GenXOverloadedTypes;
+    if (GenXIntrinsic::isOverloadedRet(ID))
+      GenXOverloadedTypes.push_back(CI.getType());
+    for (unsigned i = 0; i < GenXArgs.size(); ++i)
+      if (GenXIntrinsic::isOverloadedArg(ID, i))
+        GenXOverloadedTypes.push_back(GenXArgs[i]->getType());
 
-  Function *NewFDecl = GenXIntrinsic::getGenXDeclaration(CI.getModule(), ID,
-                                                         GenXOverloadedTypes);
+    NewFDecl = GenXIntrinsic::getGenXDeclaration(CI.getModule(), ID,
+                                                 GenXOverloadedTypes);
+  }
 
   Instruction *NewCI = IntrinsicInst::Create(
       NewFDecl, GenXArgs,
@@ -1251,10 +1354,16 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
     if (!GTy ||
         !GTy->getName()
              .rtrim(".0123456789")
-             .endswith("cl::sycl::ext::intel::experimental::esimd::simd"))
+             .endswith("sycl::ext::intel::experimental::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
+    if ((GTy = dyn_cast<StructType>(VTy))) {
+      assert(
+          GTy->getName().endswith(
+              "sycl::ext::intel::experimental::esimd::detail::simd_obj_impl"));
+      VTy = GTy->getContainedType(0);
+    }
     assert(VTy->isVectorTy());
     GenXVolatileTypeSet.insert(VTy);
   }

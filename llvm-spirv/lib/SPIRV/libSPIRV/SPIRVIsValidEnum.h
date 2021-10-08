@@ -47,7 +47,7 @@
 #define SPIRV_LIBSPIRV_SPIRVISVALIDENUM_H
 
 #include "SPIRVEnum.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 
 using namespace spv;
@@ -55,7 +55,7 @@ using namespace spv;
 namespace SPIRV {
 
 inline bool isValid(spv::ExecutionModel V) {
-  switch (V) {
+  switch (static_cast<uint32_t>(V)) {
   case ExecutionModelVertex:
   case ExecutionModelTessellationControl:
   case ExecutionModelTessellationEvaluation:
@@ -65,12 +65,13 @@ inline bool isValid(spv::ExecutionModel V) {
   case ExecutionModelKernel:
   case ExecutionModelTaskNV:
   case ExecutionModelMeshNV:
-  case ExecutionModelRayGenerationNV:
-  case ExecutionModelIntersectionNV:
-  case ExecutionModelAnyHitNV:
-  case ExecutionModelClosestHitNV:
-  case ExecutionModelMissNV:
-  case ExecutionModelCallableNV:
+  case ExecutionModelRayGenerationKHR:
+  case ExecutionModelIntersectionKHR:
+  case ExecutionModelAnyHitKHR:
+  case ExecutionModelClosestHitKHR:
+  case ExecutionModelMissKHR:
+  case ExecutionModelCallableKHR:
+  case internal::ExecutionModeStreamingInterfaceINTEL:
     return true;
   default:
     return false;
@@ -116,13 +117,14 @@ inline bool isValid(spv::StorageClass V) {
   case StorageClassAtomicCounter:
   case StorageClassImage:
   case StorageClassStorageBuffer:
-  case StorageClassCallableDataNV:
-  case StorageClassIncomingCallableDataNV:
-  case StorageClassRayPayloadNV:
-  case StorageClassHitAttributeNV:
-  case StorageClassIncomingRayPayloadNV:
-  case StorageClassShaderRecordBufferNV:
+  case StorageClassCallableDataKHR:
+  case StorageClassIncomingCallableDataKHR:
+  case StorageClassRayPayloadKHR:
+  case StorageClassHitAttributeKHR:
+  case StorageClassIncomingRayPayloadKHR:
+  case StorageClassShaderRecordBufferKHR:
   case StorageClassPhysicalStorageBuffer:
+  case StorageClassCodeSectionINTEL:
   case StorageClassDeviceOnlyINTEL:
   case StorageClassHostOnlyINTEL:
     return true;
@@ -222,8 +224,10 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInBaseVertex:
   case BuiltInBaseInstance:
   case BuiltInDrawIndex:
+  case BuiltInPrimitiveShadingRateKHR:
   case BuiltInDeviceIndex:
   case BuiltInViewIndex:
+  case BuiltInShadingRateKHR:
   case BuiltInBaryCoordNoPerspAMD:
   case BuiltInBaryCoordNoPerspCentroidAMD:
   case BuiltInBaryCoordNoPerspSampleAMD:
@@ -250,20 +254,21 @@ inline bool isValid(spv::BuiltIn V) {
   case BuiltInBaryCoordNoPerspNV:
   case BuiltInFragSizeEXT:
   case BuiltInFragInvocationCountEXT:
-  case BuiltInLaunchIdNV:
-  case BuiltInLaunchSizeNV:
-  case BuiltInWorldRayOriginNV:
-  case BuiltInWorldRayDirectionNV:
-  case BuiltInObjectRayOriginNV:
-  case BuiltInObjectRayDirectionNV:
-  case BuiltInRayTminNV:
-  case BuiltInRayTmaxNV:
-  case BuiltInInstanceCustomIndexNV:
-  case BuiltInObjectToWorldNV:
-  case BuiltInWorldToObjectNV:
+  case BuiltInLaunchIdKHR:
+  case BuiltInLaunchSizeKHR:
+  case BuiltInWorldRayOriginKHR:
+  case BuiltInWorldRayDirectionKHR:
+  case BuiltInObjectRayOriginKHR:
+  case BuiltInObjectRayDirectionKHR:
+  case BuiltInRayTminKHR:
+  case BuiltInRayTmaxKHR:
+  case BuiltInInstanceCustomIndexKHR:
+  case BuiltInObjectToWorldKHR:
+  case BuiltInWorldToObjectKHR:
   case BuiltInHitTNV:
-  case BuiltInHitKindNV:
-  case BuiltInIncomingRayFlagsNV:
+  case BuiltInHitKindKHR:
+  case BuiltInIncomingRayFlagsKHR:
+  case BuiltInRayGeometryIndexKHR:
   case BuiltInWarpsPerSMNV:
   case BuiltInSMCountNV:
   case BuiltInWarpIDNV:

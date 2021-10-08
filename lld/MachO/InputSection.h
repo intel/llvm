@@ -13,6 +13,7 @@
 #include "Relocations.h"
 
 #include "lld/Common/LLVM.h"
+#include "lld/Common/Memory.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/CachedHashString.h"
@@ -23,6 +24,7 @@ namespace macho {
 
 class InputFile;
 class OutputSection;
+class Defined;
 
 class InputSection {
 public:
@@ -32,9 +34,13 @@ public:
     WordLiteralKind,
   };
 
-  Kind kind() const { return sectionKind; }
+  Kind kind() const { return shared->sectionKind; }
   virtual ~InputSection() = default;
   virtual uint64_t getSize() const { return data.size(); }
+  InputFile *getFile() const { return shared->file; }
+  StringRef getName() const { return shared->name; }
+  StringRef getSegName() const { return shared->segname; }
+  uint32_t getFlags() const { return shared->flags; }
   uint64_t getFileSize() const;
   // Translates \p off -- an offset relative to this InputSection -- into an
   // offset from the beginning of its parent OutputSection.
@@ -44,33 +50,41 @@ public:
   // Whether the data at \p off in this InputSection is live.
   virtual bool isLive(uint64_t off) const = 0;
   virtual void markLive(uint64_t off) = 0;
-
-  InputFile *file = nullptr;
-  StringRef name;
-  StringRef segname;
+  virtual InputSection *canonical() { return this; }
 
   OutputSection *parent = nullptr;
 
   uint32_t align = 1;
-  uint32_t flags = 0;
-  uint32_t callSiteCount = 0;
-  bool isFinal = false; // is address assigned?
-
+  uint32_t callSiteCount : 31;
+  // is address assigned?
+  uint32_t isFinal : 1;
 
   ArrayRef<uint8_t> data;
   std::vector<Reloc> relocs;
 
 protected:
-  InputSection(Kind kind, StringRef segname, StringRef name)
-      : name(name), segname(segname), sectionKind(kind) {}
+  // The fields in this struct are immutable. Since we create a lot of
+  // InputSections with identical values for them (due to
+  // .subsections_via_symbols), factoring them out into a shared struct reduces
+  // memory consumption and makes copying cheaper.
+  struct Shared {
+    InputFile *file;
+    StringRef name;
+    StringRef segname;
+    uint32_t flags;
+    Kind sectionKind;
+    Shared(InputFile *file, StringRef name, StringRef segname, uint32_t flags,
+           Kind kind)
+        : file(file), name(name), segname(segname), flags(flags),
+          sectionKind(kind) {}
+  };
 
   InputSection(Kind kind, StringRef segname, StringRef name, InputFile *file,
                ArrayRef<uint8_t> data, uint32_t align, uint32_t flags)
-      : file(file), name(name), segname(segname), align(align), flags(flags),
-        data(data), sectionKind(kind) {}
+      : align(align), callSiteCount(0), isFinal(false), data(data),
+        shared(make<Shared>(file, name, segname, flags, kind)) {}
 
-private:
-  Kind sectionKind;
+  const Shared *const shared;
 };
 
 // ConcatInputSections are combined into (Concat)OutputSections through simple
@@ -78,12 +92,15 @@ private:
 // contents merged before output.
 class ConcatInputSection final : public InputSection {
 public:
-  ConcatInputSection(StringRef segname, StringRef name)
-      : InputSection(ConcatKind, segname, name) {}
-
   ConcatInputSection(StringRef segname, StringRef name, InputFile *file,
-                     ArrayRef<uint8_t> data, uint32_t align, uint32_t flags)
+                     ArrayRef<uint8_t> data, uint32_t align = 1,
+                     uint32_t flags = 0)
       : InputSection(ConcatKind, segname, name, file, data, align, flags) {}
+
+  ConcatInputSection(StringRef segname, StringRef name)
+      : ConcatInputSection(segname, name, /*file=*/nullptr,
+                           /*data=*/{},
+                           /*align=*/1, /*flags=*/0) {}
 
   uint64_t getOffset(uint64_t off) const override { return outSecOff + off; }
   uint64_t getVA() const { return InputSection::getVA(0); }
@@ -92,11 +109,23 @@ public:
   void markLive(uint64_t off) override { live = true; }
   bool isCoalescedWeak() const { return wasCoalesced && numRefs == 0; }
   bool shouldOmitFromOutput() const { return !live || isCoalescedWeak(); }
+  bool isHashableForICF() const;
+  void hashForICF();
   void writeTo(uint8_t *buf);
+
+  void foldIdentical(ConcatInputSection *redundant);
+  InputSection *canonical() override {
+    return replacement ? replacement : this;
+  }
 
   static bool classof(const InputSection *isec) {
     return isec->kind() == ConcatKind;
   }
+
+  // Points to the surviving section after this one is folded by ICF
+  InputSection *replacement = nullptr;
+  // Equivalence-class ID for ICF
+  uint64_t icfEqClass[2] = {0, 0};
 
   // With subsections_via_symbols, most symbols have their own InputSection,
   // and for weak symbols (e.g. from inline functions), only the
@@ -107,8 +136,28 @@ public:
   bool live = !config->deadStrip;
   // How many symbols refer to this InputSection.
   uint32_t numRefs = 0;
+  // This variable has two usages. Initially, it represents the input order.
+  // After assignAddresses is called, it represents the offset from the
+  // beginning of the output section this section was assigned to.
   uint64_t outSecOff = 0;
 };
+
+// Verify ConcatInputSection's size on 64-bit builds.
+static_assert(sizeof(int) != 8 || sizeof(ConcatInputSection) == 112,
+              "Try to minimize ConcatInputSection's size, we create many "
+              "instances of it");
+
+// Helper functions to make it easy to sprinkle asserts.
+
+inline bool shouldOmitFromOutput(InputSection *isec) {
+  return isa<ConcatInputSection>(isec) &&
+         cast<ConcatInputSection>(isec)->shouldOmitFromOutput();
+}
+
+inline bool isCoalescedWeak(InputSection *isec) {
+  return isa<ConcatInputSection>(isec) &&
+         cast<ConcatInputSection>(isec)->isCoalescedWeak();
+}
 
 // We allocate a lot of these and binary search on them, so they should be as
 // compact as possible. Hence the use of 31 rather than 64 bits for the hash.
@@ -116,6 +165,7 @@ struct StringPiece {
   // Offset from the start of the containing input section.
   uint32_t inSecOff;
   uint32_t live : 1;
+  // Only set if deduplicating literals
   uint32_t hash : 31;
   // Offset from the start of the containing output section.
   uint64_t outSecOff = 0;
@@ -151,14 +201,20 @@ public:
   // Split at each null byte.
   void splitIntoPieces();
 
+  LLVM_ATTRIBUTE_ALWAYS_INLINE
+  StringRef getStringRef(size_t i) const {
+    size_t begin = pieces[i].inSecOff;
+    size_t end =
+        (pieces.size() - 1 == i) ? data.size() : pieces[i + 1].inSecOff;
+    return toStringRef(data.slice(begin, end - begin));
+  }
+
   // Returns i'th piece as a CachedHashStringRef. This function is very hot when
   // string merging is enabled, so we want to inline.
   LLVM_ATTRIBUTE_ALWAYS_INLINE
   llvm::CachedHashStringRef getCachedHashStringRef(size_t i) const {
-    size_t begin = pieces[i].inSecOff;
-    size_t end =
-        (pieces.size() - 1 == i) ? data.size() : pieces[i + 1].inSecOff;
-    return {toStringRef(data.slice(begin, end - begin)), pieces[i].hash};
+    assert(config->dedupLiterals);
+    return {getStringRef(i), pieces[i].hash};
   }
 
   static bool classof(const InputSection *isec) {
@@ -220,7 +276,9 @@ inline bool isWordLiteralSection(uint32_t flags) {
 
 bool isCodeSection(const InputSection *);
 
-extern std::vector<InputSection *> inputSections;
+bool isCfStringSection(const InputSection *);
+
+extern std::vector<ConcatInputSection *> inputSections;
 
 namespace section_names {
 

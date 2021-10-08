@@ -55,6 +55,7 @@
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/thread.h"
 #include <mutex>
 
 #if LLVM_ENABLE_THREADS != 0 && defined(__APPLE__)
@@ -1987,7 +1988,8 @@ public:
     return static_cast<const FieldDecl *>(data[0]);
   }
   SourceLocation getLoc() const {
-    return SourceLocation::getFromRawEncoding((unsigned)(uintptr_t)data[1]);
+    return SourceLocation::getFromRawEncoding(
+        (SourceLocation::UIntTy)(uintptr_t)data[1]);
   }
 };
 class EnqueueVisitor : public ConstStmtVisitor<EnqueueVisitor, void> {
@@ -5585,6 +5587,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("ModuleImport");
   case CXCursor_OMPCanonicalLoop:
     return cxstring::createRef("OMPCanonicalLoop");
+  case CXCursor_OMPMetaDirective:
+    return cxstring::createRef("OMPMetaDirective");
   case CXCursor_OMPParallelDirective:
     return cxstring::createRef("OMPParallelDirective");
   case CXCursor_OMPSimdDirective:
@@ -6790,10 +6794,10 @@ void clang_enableStackTraces(void) {
 
 void clang_executeOnThread(void (*fn)(void *), void *user_data,
                            unsigned stack_size) {
-  llvm::llvm_execute_on_thread(fn, user_data,
-                               stack_size == 0
-                                   ? clang::DesiredStackSize
-                                   : llvm::Optional<unsigned>(stack_size));
+  llvm::thread Thread(stack_size == 0 ? clang::DesiredStackSize
+                                      : llvm::Optional<unsigned>(stack_size),
+                      fn, user_data);
+  Thread.join();
 }
 
 //===----------------------------------------------------------------------===//

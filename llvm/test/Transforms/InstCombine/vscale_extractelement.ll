@@ -55,16 +55,6 @@ define i8 @extractelement_bitcast_wrong_insert(<vscale x 2 x i32> %a, i32 %x) {
   ret i8 %r
 }
 
-define i32 @extractelement_shuffle_in_range(i32 %v) {
-; CHECK-LABEL: @extractelement_shuffle_in_range(
-; CHECK-NEXT:    ret i32 %v
-;
-  %in = insertelement <vscale x 4 x i32> undef, i32 %v, i32 0
-  %splat = shufflevector <vscale x 4 x i32> %in, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
-  %r = extractelement <vscale x 4 x i32> %splat, i32 1
-  ret i32 %r
-}
-
 define i32 @extractelement_shuffle_maybe_out_of_range(i32 %v) {
 ; CHECK-LABEL: @extractelement_shuffle_maybe_out_of_range(
 ; CHECK-NEXT:    [[IN:%.*]] = insertelement <vscale x 4 x i32> undef, i32 [[V:%.*]], i32 0
@@ -88,20 +78,6 @@ define i32 @extractelement_shuffle_invalid_index(i32 %v) {
   %in = insertelement <vscale x 4 x i32> undef, i32 %v, i32 0
   %splat = shufflevector <vscale x 4 x i32> %in, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
   %r = extractelement <vscale x 4 x i32> %splat, i32 -1
-  ret i32 %r
-}
-
-
-define i32 @extractelement_shuffle_symbolic_index(i32 %v, i32 %idx) {
-; CHECK-LABEL: @extractelement_shuffle_symbolic_index(
-; CHECK-NEXT:    [[IN:%.*]] = insertelement <vscale x 4 x i32> undef, i32 [[V:%.*]], i32 0
-; CHECK-NEXT:    [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[IN]], <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
-; CHECK-NEXT:    [[R:%.*]] = extractelement <vscale x 4 x i32> [[SPLAT]], i32 [[IDX:%.*]]
-; CHECK-NEXT:    ret i32 [[R]]
-;
-  %in = insertelement <vscale x 4 x i32> undef, i32 %v, i32 0
-  %splat = shufflevector <vscale x 4 x i32> %in, <vscale x 4 x i32> undef, <vscale x 4 x i32> zeroinitializer
-  %r = extractelement <vscale x 4 x i32> %splat, i32 %idx
   ret i32 %r
 }
 
@@ -267,6 +243,49 @@ entry:
   ret i8 %1
 }
 
+; Check that we can extract more complex cases where the stepvector is
+; involved in a binary operation prior to the lane being extracted.
+
+define i64 @ext_lane0_from_add_with_stepvec(i64 %i) {
+; CHECK-LABEL: @ext_lane0_from_add_with_stepvec(
+; CHECK-NEXT:    ret i64 [[I:%.*]]
+;
+  %tmp = insertelement <vscale x 2 x i64> poison, i64 %i, i32 0
+  %splatofi = shufflevector <vscale x 2 x i64> %tmp, <vscale x 2 x i64> poison, <vscale x  2 x i32> zeroinitializer
+  %stepvec = call <vscale x 2 x i64> @llvm.experimental.stepvector.nxv2i64()
+  %add = add <vscale x 2 x i64> %splatofi, %stepvec
+  %res = extractelement <vscale x 2 x i64> %add, i32 0
+  ret i64 %res
+}
+
+define i1 @ext_lane1_from_cmp_with_stepvec(i64 %i) {
+; CHECK-LABEL: @ext_lane1_from_cmp_with_stepvec(
+; CHECK-NEXT:    [[RES:%.*]] = icmp eq i64 [[I:%.*]], 1
+; CHECK-NEXT:    ret i1 [[RES]]
+;
+  %tmp = insertelement <vscale x 2 x i64> poison, i64 %i, i32 0
+  %splatofi = shufflevector <vscale x 2 x i64> %tmp, <vscale x 2 x i64> poison, <vscale x  2 x i32> zeroinitializer
+  %stepvec = call <vscale x 2 x i64> @llvm.experimental.stepvector.nxv2i64()
+  %cmp = icmp eq <vscale x 2 x i64> %splatofi, %stepvec
+  %res = extractelement <vscale x 2 x i1> %cmp, i32 1
+  ret i1 %res
+}
+
+define i64* @ext_lane_from_bitcast_of_splat(i32* %v) {
+; CHECK-LABEL: @ext_lane_from_bitcast_of_splat(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[R:%.*]] = bitcast i32* [[V:%.*]] to i64*
+; CHECK-NEXT:    ret i64* [[R]]
+;
+entry:
+  %in = insertelement <vscale x 4 x i32*> poison, i32* %v, i32 0
+  %splat = shufflevector <vscale x 4 x i32*> %in, <vscale x 4 x i32*> poison, <vscale x 4 x i32> zeroinitializer
+  %bc = bitcast <vscale x 4 x i32*> %splat to <vscale x 4 x i64*>
+  %r = extractelement <vscale x 4 x i64*> %bc, i32 3
+  ret i64* %r
+}
+
+declare <vscale x 2 x i64> @llvm.experimental.stepvector.nxv2i64()
 declare <vscale x 4 x i64> @llvm.experimental.stepvector.nxv4i64()
 declare <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
 declare <vscale x 512 x i8> @llvm.experimental.stepvector.nxv512i8()

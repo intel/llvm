@@ -21,7 +21,7 @@ struct StructWithSampler {
 };
 
 struct StructWithSpecConst {
-  sycl::ONEAPI::experimental::spec_constant<int, class f1> SC;
+  sycl::ext::oneapi::experimental::spec_constant<int, class f1> SC;
 };
 
 sycl::handler H;

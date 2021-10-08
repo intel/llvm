@@ -92,7 +92,7 @@ using namespace lld::macho;
 // TODO(gkm): prune __eh_frame entries superseded by __unwind_info, PR50410
 // TODO(gkm): how do we align the 2nd-level pages?
 
-using EncodingMap = llvm::DenseMap<compact_unwind_encoding_t, size_t>;
+using EncodingMap = DenseMap<compact_unwind_encoding_t, size_t>;
 
 struct SecondLevelPage {
   uint32_t kind;
@@ -103,9 +103,11 @@ struct SecondLevelPage {
   EncodingMap localEncodingIndexes;
 };
 
-template <class Ptr> class UnwindInfoSectionImpl : public UnwindInfoSection {
+template <class Ptr>
+class UnwindInfoSectionImpl final : public UnwindInfoSection {
 public:
   void prepareRelocations(ConcatInputSection *) override;
+  void addInput(ConcatInputSection *) override;
   void finalize() override;
   void writeTo(uint8_t *buf) const override;
 
@@ -113,18 +115,38 @@ private:
   std::vector<std::pair<compact_unwind_encoding_t, size_t>> commonEncodings;
   EncodingMap commonEncodingIndexes;
   // Indices of personality functions within the GOT.
-  std::vector<uint32_t> personalities;
+  std::vector<Ptr> personalities;
   SmallDenseMap<std::pair<InputSection *, uint64_t /* addend */>, Symbol *>
       personalityTable;
   std::vector<unwind_info_section_header_lsda_index_entry> lsdaEntries;
   // Map of function offset (from the image base) to an index within the LSDA
   // array.
-  llvm::DenseMap<uint32_t, uint32_t> functionToLsdaIndex;
+  DenseMap<uint32_t, uint32_t> functionToLsdaIndex;
   std::vector<CompactUnwindEntry<Ptr>> cuVector;
   std::vector<CompactUnwindEntry<Ptr> *> cuPtrVector;
   std::vector<SecondLevelPage> secondLevelPages;
   uint64_t level2PagesOffset = 0;
 };
+
+UnwindInfoSection::UnwindInfoSection()
+    : SyntheticSection(segment_names::text, section_names::unwindInfo) {
+  align = 4;
+  compactUnwindSection =
+      make<ConcatOutputSection>(section_names::compactUnwind);
+}
+
+void UnwindInfoSection::prepareRelocations() {
+  for (ConcatInputSection *isec : compactUnwindSection->inputs)
+    prepareRelocations(isec);
+}
+
+template <class Ptr>
+void UnwindInfoSectionImpl<Ptr>::addInput(ConcatInputSection *isec) {
+  assert(isec->getSegName() == segment_names::ld &&
+         isec->getName() == section_names::compactUnwind);
+  isec->parent = compactUnwindSection;
+  compactUnwindSection->addInput(isec);
+}
 
 // Compact unwind relocations have different semantics, so we handle them in a
 // separate code path from regular relocations. First, we do not wish to add
@@ -133,8 +155,6 @@ private:
 // reside in the GOT and must be treated specially.
 template <class Ptr>
 void UnwindInfoSectionImpl<Ptr>::prepareRelocations(ConcatInputSection *isec) {
-  assert(isec->segname == segment_names::ld &&
-         isec->name == section_names::compactUnwind);
   assert(!isec->shouldOmitFromOutput() &&
          "__compact_unwind section should not be omitted");
 
@@ -143,19 +163,47 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(ConcatInputSection *isec) {
   // work. But since there are usually just few personality functions
   // that are referenced from many places, at least some of them likely
   // live, it wouldn't reduce number of got entries.
-  for (Reloc &r : isec->relocs) {
+  for (size_t i = 0; i < isec->relocs.size(); ++i) {
+    Reloc &r = isec->relocs[i];
     assert(target->hasAttr(r.type, RelocAttrBits::UNSIGNED));
+
+    if (r.offset % sizeof(CompactUnwindEntry<Ptr>) == 0) {
+      InputSection *referentIsec;
+      if (auto *isec = r.referent.dyn_cast<InputSection *>())
+        referentIsec = isec;
+      else
+        referentIsec = cast<Defined>(r.referent.dyn_cast<Symbol *>())->isec;
+
+      if (!cast<ConcatInputSection>(referentIsec)->shouldOmitFromOutput())
+        allEntriesAreOmitted = false;
+      continue;
+    }
+
     if (r.offset % sizeof(CompactUnwindEntry<Ptr>) !=
         offsetof(CompactUnwindEntry<Ptr>, personality))
       continue;
 
     if (auto *s = r.referent.dyn_cast<Symbol *>()) {
+      if (auto *defined = dyn_cast<Defined>(s)) {
+        // XXX(vyng) This is a a special case for handling duplicate personality
+        // symbols. Note that LD64's behavior is a bit different and it is
+        // inconsistent with how symbol resolution usually work
+        //
+        // So we've decided not to follow it. Instead, simply pick the symbol
+        // with the same name from the symbol table to replace the local one.
+        //
+        // (See discussions/alternatives already considered on D107533)
+        if (!defined->isExternal())
+          if (const Symbol *sym = symtab->find(defined->getName()))
+            r.referent = s = const_cast<Symbol *>(sym);
+      }
       if (auto *undefined = dyn_cast<Undefined>(s)) {
         treatUndefinedSymbol(*undefined);
         // treatUndefinedSymbol() can replace s with a DylibSymbol; re-check.
         if (isa<Undefined>(s))
           continue;
       }
+
       if (auto *defined = dyn_cast<Defined>(s)) {
         // Check if we have created a synthetic symbol at the same address.
         Symbol *&personality =
@@ -174,6 +222,7 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(ConcatInputSection *isec) {
     }
 
     if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
+      assert(!isCoalescedWeak(referentIsec));
       // Personality functions can be referenced via section relocations
       // if they live in the same object file. Create placeholder synthetic
       // symbols for them in the GOT.
@@ -199,12 +248,15 @@ void UnwindInfoSectionImpl<Ptr>::prepareRelocations(ConcatInputSection *isec) {
 // the exact addresses that it references. So it is safe for compact unwind to
 // reference addresses in __TEXT, but not addresses in any other segment.
 static ConcatInputSection *checkTextSegment(InputSection *isec) {
-  if (isec->segname != segment_names::text)
+  if (isec->getSegName() != segment_names::text)
     error("compact unwind references address in " + toString(isec) +
           " which is not in segment __TEXT");
   // __text should always be a ConcatInputSection.
   return cast<ConcatInputSection>(isec);
 }
+
+template <class Ptr>
+constexpr Ptr TombstoneValue = std::numeric_limits<Ptr>::max();
 
 // We need to apply the relocations to the pre-link compact unwind section
 // before converting it to post-link form. There should only be absolute
@@ -222,10 +274,9 @@ relocateCompactUnwind(ConcatOutputSection *compactUnwindSection,
     memcpy(buf, isec->data.data(), isec->data.size());
 
     for (const Reloc &r : isec->relocs) {
-      uint64_t referentVA = 0;
+      uint64_t referentVA = TombstoneValue<Ptr>;
       if (auto *referentSym = r.referent.dyn_cast<Symbol *>()) {
         if (!isa<Undefined>(referentSym)) {
-          assert(referentSym->isInGot());
           if (auto *defined = dyn_cast<Defined>(referentSym))
             checkTextSegment(defined->isec);
           // At this point in the link, we may not yet know the final address of
@@ -233,14 +284,12 @@ relocateCompactUnwind(ConcatOutputSection *compactUnwindSection,
           // that we can distinguish the null pointer case.
           referentVA = referentSym->gotIndex + 1;
         }
-      } else if (auto *referentIsec = r.referent.dyn_cast<InputSection *>()) {
+      } else {
+        auto *referentIsec = r.referent.get<InputSection *>();
         ConcatInputSection *concatIsec = checkTextSegment(referentIsec);
-        if (concatIsec->shouldOmitFromOutput())
-          referentVA = UINT64_MAX; // Tombstone value
-        else
+        if (!concatIsec->shouldOmitFromOutput())
           referentVA = referentIsec->getVA(r.addend);
       }
-
       writeAddress(buf + r.offset, referentVA, r.length);
     }
   }
@@ -249,9 +298,9 @@ relocateCompactUnwind(ConcatOutputSection *compactUnwindSection,
 // There should only be a handful of unique personality pointers, so we can
 // encode them as 2-bit indices into a small array.
 template <class Ptr>
-void encodePersonalities(
-    const std::vector<CompactUnwindEntry<Ptr> *> &cuPtrVector,
-    std::vector<uint32_t> &personalities) {
+static void
+encodePersonalities(const std::vector<CompactUnwindEntry<Ptr> *> &cuPtrVector,
+                    std::vector<Ptr> &personalities) {
   for (CompactUnwindEntry<Ptr> *cu : cuPtrVector) {
     if (cu->personality == 0)
       continue;
@@ -271,6 +320,65 @@ void encodePersonalities(
   if (personalities.size() > 3)
     error("too many personalities (" + std::to_string(personalities.size()) +
           ") for compact unwind to encode");
+}
+
+// __unwind_info stores unwind data for address ranges. If several
+// adjacent functions have the same unwind encoding, LSDA, and personality
+// function, they share one unwind entry. For this to work, functions without
+// unwind info need explicit "no unwind info" unwind entries -- else the
+// unwinder would think they have the unwind info of the closest function
+// with unwind info right before in the image.
+template <class Ptr>
+static void addEntriesForFunctionsWithoutUnwindInfo(
+    std::vector<CompactUnwindEntry<Ptr>> &cuVector) {
+  DenseSet<Ptr> hasUnwindInfo;
+  for (CompactUnwindEntry<Ptr> &cuEntry : cuVector)
+    if (cuEntry.functionAddress != TombstoneValue<Ptr>)
+      hasUnwindInfo.insert(cuEntry.functionAddress);
+
+  // Add explicit "has no unwind info" entries for all global and local symbols
+  // without unwind info.
+  auto markNoUnwindInfo = [&cuVector, &hasUnwindInfo](const Defined *d) {
+    if (d->isLive() && d->isec && isCodeSection(d->isec)) {
+      Ptr ptr = d->getVA();
+      if (!hasUnwindInfo.count(ptr))
+        cuVector.push_back({ptr, 0, 0, 0, 0});
+    }
+  };
+  for (Symbol *sym : symtab->getSymbols())
+    if (auto *d = dyn_cast<Defined>(sym))
+      markNoUnwindInfo(d);
+  for (const InputFile *file : inputFiles)
+    if (auto *objFile = dyn_cast<ObjFile>(file))
+      for (Symbol *sym : objFile->symbols)
+        if (auto *d = dyn_cast_or_null<Defined>(sym))
+          if (!d->isExternal())
+            markNoUnwindInfo(d);
+}
+
+static bool canFoldEncoding(compact_unwind_encoding_t encoding) {
+  // From compact_unwind_encoding.h:
+  //  UNWIND_X86_64_MODE_STACK_IND:
+  //  A "frameless" (RBP not used as frame pointer) function large constant
+  //  stack size.  This case is like the previous, except the stack size is too
+  //  large to encode in the compact unwind encoding.  Instead it requires that
+  //  the function contains "subq $nnnnnnnn,RSP" in its prolog.  The compact
+  //  encoding contains the offset to the nnnnnnnn value in the function in
+  //  UNWIND_X86_64_FRAMELESS_STACK_SIZE.
+  // Since this means the unwinder has to look at the `subq` in the function
+  // of the unwind info's unwind address, two functions that have identical
+  // unwind info can't be folded if it's using this encoding since both
+  // entries need unique addresses.
+  static_assert(UNWIND_X86_64_MODE_MASK == UNWIND_X86_MODE_MASK, "");
+  static_assert(UNWIND_X86_64_MODE_STACK_IND == UNWIND_X86_MODE_STACK_IND, "");
+  if ((target->cpuType == CPU_TYPE_X86_64 || target->cpuType == CPU_TYPE_X86) &&
+      (encoding & UNWIND_X86_64_MODE_MASK) == UNWIND_X86_64_MODE_STACK_IND) {
+    // FIXME: Consider passing in the two function addresses and getting
+    // their two stack sizes off the `subq` and only returning false if they're
+    // actually different.
+    return false;
+  }
+  return true;
 }
 
 // Scan the __LD,__compact_unwind entries and compute the space needs of
@@ -294,9 +402,11 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
   cuVector.resize(cuCount);
   relocateCompactUnwind(compactUnwindSection, cuVector);
 
+  addEntriesForFunctionsWithoutUnwindInfo(cuVector);
+
   // Rather than sort & fold the 32-byte entries directly, we create a
   // vector of pointers to entries and sort & fold that instead.
-  cuPtrVector.reserve(cuCount);
+  cuPtrVector.reserve(cuVector.size());
   for (CompactUnwindEntry<Ptr> &cuEntry : cuVector)
     cuPtrVector.emplace_back(&cuEntry);
   llvm::sort(cuPtrVector, [](const CompactUnwindEntry<Ptr> *a,
@@ -304,13 +414,13 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
     return a->functionAddress < b->functionAddress;
   });
 
-  // Dead-stripped functions get a functionAddress of UINT64_MAX in
+  // Dead-stripped functions get a functionAddress of TombstoneValue in
   // relocateCompactUnwind(). Filter them out here.
   // FIXME: This doesn't yet collect associated data like LSDAs kept
   // alive only by a now-removed CompactUnwindEntry or other comdat-like
   // data (`kindNoneGroupSubordinate*` in ld64).
   CompactUnwindEntry<Ptr> tombstone;
-  tombstone.functionAddress = static_cast<Ptr>(UINT64_MAX);
+  tombstone.functionAddress = TombstoneValue<Ptr>;
   cuPtrVector.erase(
       std::lower_bound(cuPtrVector.begin(), cuPtrVector.end(), &tombstone,
                        [](const CompactUnwindEntry<Ptr> *a,
@@ -318,6 +428,13 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
                          return a->functionAddress < b->functionAddress;
                        }),
       cuPtrVector.end());
+
+  // If there are no entries left after adding explicit "no unwind info"
+  // entries and removing entries for dead-stripped functions, don't write
+  // an __unwind_info section at all.
+  assert(allEntriesAreOmitted == cuPtrVector.empty());
+  if (cuPtrVector.empty())
+    return;
 
   // Fold adjacent entries with matching encoding+personality+lsda
   // We use three iterators on the same cuPtrVector to fold in-situ:
@@ -332,7 +449,8 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
     while (++foldEnd < cuPtrVector.end() &&
            (*foldBegin)->encoding == (*foldEnd)->encoding &&
            (*foldBegin)->personality == (*foldEnd)->personality &&
-           (*foldBegin)->lsda == (*foldEnd)->lsda)
+           (*foldBegin)->lsda == (*foldEnd)->lsda &&
+           canFoldEncoding((*foldEnd)->encoding))
       ;
     *foldWrite++ = *foldBegin;
     foldBegin = foldEnd;
@@ -447,6 +565,8 @@ template <class Ptr> void UnwindInfoSectionImpl<Ptr>::finalize() {
 
 template <class Ptr>
 void UnwindInfoSectionImpl<Ptr>::writeTo(uint8_t *buf) const {
+  assert(!cuPtrVector.empty() && "call only if there is unwind info");
+
   // section header
   auto *uip = reinterpret_cast<unwind_info_section_header *>(buf);
   uip->version = 1;
@@ -466,7 +586,7 @@ void UnwindInfoSectionImpl<Ptr>::writeTo(uint8_t *buf) const {
     *i32p++ = encoding.first;
 
   // Personalities
-  for (const uint32_t &personality : personalities)
+  for (Ptr personality : personalities)
     *i32p++ =
         in.got->addr + (personality - 1) * target->wordSize - in.header->addr;
 
@@ -487,8 +607,10 @@ void UnwindInfoSectionImpl<Ptr>::writeTo(uint8_t *buf) const {
     l2PagesOffset += SECOND_LEVEL_PAGE_BYTES;
   }
   // Level-1 sentinel
-  const CompactUnwindEntry<Ptr> &cuEnd = cuVector.back();
-  iep->functionOffset = cuEnd.functionAddress + cuEnd.functionLength;
+  const CompactUnwindEntry<Ptr> &cuEnd = *cuPtrVector.back();
+  assert(cuEnd.functionAddress != TombstoneValue<Ptr>);
+  iep->functionOffset =
+      cuEnd.functionAddress - in.header->addr + cuEnd.functionLength;
   iep->secondLevelPagesSectionOffset = 0;
   iep->lsdaIndexArraySectionOffset =
       lsdaOffset +

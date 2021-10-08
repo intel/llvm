@@ -411,7 +411,6 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
   if (m_command_options.top_level && !m_command_options.allow_jit) {
     result.AppendErrorWithFormat(
         "Can't disable JIT compilation for top-level expressions.\n");
-    result.SetStatus(eReturnStatusFailed);
     return false;
   }
 
@@ -422,9 +421,8 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
   // We only tell you about the FixIt if we applied it.  The compiler errors
   // will suggest the FixIt if it parsed.
   if (!m_fixed_expression.empty() && target.GetEnableNotifyAboutFixIts()) {
-    if (success == eExpressionCompleted)
-      error_stream.Printf("  Fix-it applied, fixed expression was: \n    %s\n",
-                          m_fixed_expression.c_str());
+    error_stream.Printf("  Fix-it applied, fixed expression was: \n    %s\n",
+                        m_fixed_expression.c_str());
   }
 
   if (result_valobj_sp) {
@@ -441,7 +439,6 @@ bool CommandObjectExpression::EvaluateExpression(llvm::StringRef expr,
             result.AppendErrorWithFormat(
                 "expression cannot be used with --element-count %s\n",
                 error.AsCString(""));
-            result.SetStatus(eReturnStatusFailed);
             return false;
           }
         }

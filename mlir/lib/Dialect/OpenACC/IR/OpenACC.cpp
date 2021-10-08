@@ -17,6 +17,8 @@
 using namespace mlir;
 using namespace acc;
 
+#include "mlir/Dialect/OpenACC/OpenACCOpsDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // OpenACC operations
 //===----------------------------------------------------------------------===//
@@ -380,8 +382,6 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &printer, ParallelOp &op) {
-  printer << ParallelOp::getOperationName();
-
   // async()?
   if (Value async = op.async())
     printer << " " << ParallelOp::getAsyncKeyword() << "(" << async << ": "
@@ -597,8 +597,6 @@ static ParseResult parseLoopOp(OpAsmParser &parser, OperationState &result) {
 }
 
 static void print(OpAsmPrinter &printer, LoopOp &op) {
-  printer << LoopOp::getOperationName();
-
   unsigned execMapping = op.exec_mapping();
   if (execMapping & OpenACCExecMapping::GANG) {
     printer << " " << LoopOp::getGangKeyword();

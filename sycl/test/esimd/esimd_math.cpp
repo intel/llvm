@@ -1,19 +1,19 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <limits>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <utility>
 
 using namespace sycl::ext::intel::experimental::esimd;
 
 bool test_esimd_mask() __attribute__((sycl_device)) {
-  simd<ushort, 16> a(0);
+  simd_mask<16> a(0);
   a.select<4, 1>(4) = 1;
   a.select<4, 1>(12) = 1;
   unsigned int b = esimd_pack_mask(a);
 
-  simd<ushort, 16> c = esimd_unpack_mask<16>(b);
+  simd_mask<16> c = esimd_unpack_mask<16>(b);
 
   unsigned int d = esimd_pack_mask(c);
 
@@ -59,4 +59,16 @@ bool test_esimd_dp4() __attribute__((sycl_device)) {
   simd<float, 8> ret = esimd_dp4(a, b);
   return (ret[0] == ret[1] && ret[1] == ret[2] && ret[2] == ret[3]) &&
          (ret[0] == 14.0f && ret[4] == 126.0f);
+}
+
+bool test_esimd_trunc() __attribute__((sycl_device)) {
+  simd<float, 16> vfa(1.4f);
+  simd<float, 16> vfr = esimd_trunc<float, 16>(vfa);
+  simd<short, 16> vsr = esimd_trunc<short, 16>(vfa);
+
+  float sfa = 2.8f;
+  float sfr = esimd_trunc<float>(sfa);
+  short ssr = esimd_trunc<short>(sfa);
+
+  return (vfr[0] == 1.f) && (vsr[0] == 1) && (sfr == 2.f) && (ssr == 2);
 }

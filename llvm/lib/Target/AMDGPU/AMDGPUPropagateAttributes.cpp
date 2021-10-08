@@ -9,7 +9,7 @@
 /// \file
 /// \brief This pass propagates attributes from kernels to the non-entry
 /// functions. Most of the library functions were not compiled for specific ABI,
-/// yet will be correctly compiled if proper attrbutes are propagated from the
+/// yet will be correctly compiled if proper attributes are propagated from the
 /// caller.
 ///
 /// The pass analyzes call graph and propagates ABI target features through the
@@ -17,7 +17,7 @@
 ///
 /// It can run in two modes: as a function or module pass. A function pass
 /// simply propagates attributes. A module pass clones functions if there are
-/// callers with different ABI. If a function is clonned all call sites will
+/// callers with different ABI. If a function is cloned all call sites will
 /// be updated to use a correct clone.
 ///
 /// A function pass is limited in functionality but can run early in the
@@ -30,13 +30,11 @@
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/Analysis/CallGraph.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include <queue>
 
 #define DEBUG_TYPE "amdgpu-propagate-attributes"
 
@@ -115,16 +113,11 @@ class AMDGPUPropagateAttributes {
   // Clone functions as needed or just set attributes.
   bool AllowClone;
 
-  CallGraph *ModuleCG = nullptr;
-
   // Option propagation roots.
   SmallSet<Function *, 32> Roots;
 
   // Clones of functions with their attributes.
   SmallVector<Clone, 32> Clones;
-
-  // To memoize address taken functions.
-  SmallSet<Function *, 32> AddressTakenFunctions;
 
   // Find a clone with required features.
   Function *findFunction(const FnProperties &PropsNeeded,
@@ -146,26 +139,17 @@ class AMDGPUPropagateAttributes {
   bool process();
 
 public:
-  AMDGPUPropagateAttributes(const TargetMachine *TM, bool AllowClone)
-      : TM(TM), AllowClone(AllowClone) {}
+  AMDGPUPropagateAttributes(const TargetMachine *TM, bool AllowClone) :
+    TM(TM), AllowClone(AllowClone) {}
 
   // Use F as a root and propagate its attributes.
   bool process(Function &F);
 
   // Propagate attributes starting from kernel functions.
-  bool process(Module &M, CallGraph *CG);
-
-  // Remove attributes from F.
-  // This is used in presence of address taken functions.
-  bool removeAttributes(Function *F);
-
-  // Handle call graph rooted at address taken functions.
-  // This function will erase all attributes present
-  // on all functions called from address taken functions transitively.
-  bool handleAddressTakenFunctions(CallGraph *CG);
+  bool process(Module &M);
 };
 
-// Allows to propagate attributes early, but no clonning is allowed as it must
+// Allows to propagate attributes early, but no cloning is allowed as it must
 // be a function pass to run before any optimizations.
 // TODO: We shall only need a one instance of module pass, but that needs to be
 // in the linker pipeline which is currently not possible.
@@ -184,7 +168,7 @@ public:
   bool runOnFunction(Function &F) override;
 };
 
-// Allows to propagate attributes with clonning but does that late in the
+// Allows to propagate attributes with cloning but does that late in the
 // pipeline.
 class AMDGPUPropagateAttributesLate : public ModulePass {
   const TargetMachine *TM;
@@ -198,7 +182,6 @@ public:
       *PassRegistry::getPassRegistry());
   }
 
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
   bool runOnModule(Module &M) override;
 };
 
@@ -216,49 +199,6 @@ INITIALIZE_PASS(AMDGPUPropagateAttributesLate,
                 "Late propagate attributes from kernels to functions",
                 false, false)
 
-bool AMDGPUPropagateAttributes::removeAttributes(Function *F) {
-  bool Changed = false;
-  if (!F)
-    return Changed;
-  LLVM_DEBUG(dbgs() << "Removing attributes from " << F->getName() << '\n');
-  for (unsigned I = 0; I < NumAttr; ++I) {
-    if (F->hasFnAttribute(AttributeNames[I])) {
-      F->removeFnAttr(AttributeNames[I]);
-      Changed = true;
-    }
-  }
-  return Changed;
-}
-
-bool AMDGPUPropagateAttributes::handleAddressTakenFunctions(CallGraph *CG) {
-  assert(ModuleCG && "Call graph not present");
-
-  bool Changed = false;
-  SmallSet<CallGraphNode *, 32> Visited;
-
-  for (Function *F : AddressTakenFunctions) {
-    CallGraphNode *CGN = (*CG)[F];
-    if (!Visited.count(CGN)) {
-      Changed |= removeAttributes(F);
-      Visited.insert(CGN);
-    }
-
-    std::queue<CallGraphNode *> SubGraph;
-    SubGraph.push(CGN);
-    while (!SubGraph.empty()) {
-      CallGraphNode *CGN = SubGraph.front();
-      SubGraph.pop();
-      if (!Visited.count(CGN)) {
-        Changed |= removeAttributes(CGN->getFunction());
-        Visited.insert(CGN);
-      }
-      for (auto N : *CGN)
-        SubGraph.push(N.second);
-    }
-  }
-  return Changed;
-}
-
 Function *
 AMDGPUPropagateAttributes::findFunction(const FnProperties &PropsNeeded,
                                         Function *OrigF) {
@@ -270,13 +210,12 @@ AMDGPUPropagateAttributes::findFunction(const FnProperties &PropsNeeded,
   return nullptr;
 }
 
-bool AMDGPUPropagateAttributes::process(Module &M, CallGraph *CG) {
+bool AMDGPUPropagateAttributes::process(Module &M) {
   for (auto &F : M.functions())
-    if (AMDGPU::isEntryFunctionCC(F.getCallingConv()))
+    if (AMDGPU::isKernel(F.getCallingConv()))
       Roots.insert(&F);
 
-  ModuleCG = CG;
-  return process();
+  return Roots.empty() ? false : process();
 }
 
 bool AMDGPUPropagateAttributes::process(Function &F) {
@@ -289,8 +228,7 @@ bool AMDGPUPropagateAttributes::process() {
   SmallSet<Function *, 32> NewRoots;
   SmallSet<Function *, 32> Replaced;
 
-  if (Roots.empty())
-    return false;
+  assert(!Roots.empty());
   Module &M = *(*Roots.begin())->getParent();
 
   do {
@@ -300,9 +238,6 @@ bool AMDGPUPropagateAttributes::process() {
     for (auto &F : M.functions()) {
       if (F.isDeclaration())
         continue;
-
-      if (F.hasAddressTaken(nullptr, true, true, true))
-        AddressTakenFunctions.insert(&F);
 
       const FnProperties CalleeProps(*TM, F);
       SmallVector<std::pair<CallBase *, Function *>, 32> ToReplace;
@@ -337,7 +272,7 @@ bool AMDGPUPropagateAttributes::process() {
         if (!NewF) {
           const FnProperties NewProps = CalleeProps.adjustToCaller(CallerProps);
           if (!AllowClone) {
-            // This may set different features on different iteartions if
+            // This may set different features on different iterations if
             // there is a contradiction in callers' attributes. In this case
             // we rely on a second pass running on Module, which is allowed
             // to clone.
@@ -373,12 +308,6 @@ bool AMDGPUPropagateAttributes::process() {
 
   Roots.clear();
   Clones.clear();
-
-  // Keep the post processing related to indirect
-  // calls separate to handle them gracefully.
-  // The core traversal need not be affected by this.
-  if (AllowClone)
-    Changed |= handleAddressTakenFunctions(ModuleCG);
 
   return Changed;
 }
@@ -453,14 +382,10 @@ bool AMDGPUPropagateAttributesEarly::runOnFunction(Function &F) {
     TM = &TPC->getTM<TargetMachine>();
   }
 
-  if (!AMDGPU::isEntryFunctionCC(F.getCallingConv()))
+  if (!AMDGPU::isKernel(F.getCallingConv()))
     return false;
 
   return AMDGPUPropagateAttributes(TM, false).process(F);
-}
-
-void AMDGPUPropagateAttributesLate::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<CallGraphWrapperPass>();
 }
 
 bool AMDGPUPropagateAttributesLate::runOnModule(Module &M) {
@@ -471,8 +396,8 @@ bool AMDGPUPropagateAttributesLate::runOnModule(Module &M) {
 
     TM = &TPC->getTM<TargetMachine>();
   }
-  CallGraph &CG = getAnalysis<CallGraphWrapperPass>().getCallGraph();
-  return AMDGPUPropagateAttributes(TM, true).process(M, &CG);
+
+  return AMDGPUPropagateAttributes(TM, true).process(M);
 }
 
 FunctionPass
@@ -497,9 +422,8 @@ AMDGPUPropagateAttributesEarlyPass::run(Function &F,
 }
 
 PreservedAnalyses
-AMDGPUPropagateAttributesLatePass::run(Module &M, ModuleAnalysisManager &MAM) {
-  AMDGPUPropagateAttributes APA(&TM, true);
-  CallGraph &CG = MAM.getResult<CallGraphAnalysis>(M);
-  const bool Changed = APA.process(M, &CG);
-  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
+AMDGPUPropagateAttributesLatePass::run(Module &M, ModuleAnalysisManager &AM) {
+  return AMDGPUPropagateAttributes(&TM, true).process(M)
+             ? PreservedAnalyses::none()
+             : PreservedAnalyses::all();
 }

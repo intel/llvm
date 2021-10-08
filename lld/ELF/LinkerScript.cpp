@@ -251,30 +251,34 @@ getChangedSymbolAssignment(const SymbolAssignmentMap &oldValues) {
 // Process INSERT [AFTER|BEFORE] commands. For each command, we move the
 // specified output section to the designated place.
 void LinkerScript::processInsertCommands() {
+  std::vector<OutputSection *> moves;
   for (const InsertCommand &cmd : insertCommands) {
-    // If cmd.os is empty, it may have been discarded by
-    // adjustSectionsBeforeSorting(). We do not handle such output sections.
-    auto from = llvm::find_if(sectionCommands, [&](BaseCommand *base) {
-      return isa<OutputSection>(base) &&
-             cast<OutputSection>(base)->name == cmd.name;
-    });
-    if (from == sectionCommands.end())
-      continue;
-    OutputSection *osec = cast<OutputSection>(*from);
-    sectionCommands.erase(from);
+    for (StringRef name : cmd.names) {
+      // If base is empty, it may have been discarded by
+      // adjustSectionsBeforeSorting(). We do not handle such output sections.
+      auto from = llvm::find_if(sectionCommands, [&](BaseCommand *base) {
+        return isa<OutputSection>(base) &&
+               cast<OutputSection>(base)->name == name;
+      });
+      if (from == sectionCommands.end())
+        continue;
+      moves.push_back(cast<OutputSection>(*from));
+      sectionCommands.erase(from);
+    }
 
     auto insertPos = llvm::find_if(sectionCommands, [&cmd](BaseCommand *base) {
       auto *to = dyn_cast<OutputSection>(base);
       return to != nullptr && to->name == cmd.where;
     });
     if (insertPos == sectionCommands.end()) {
-      error("unable to insert " + osec->name +
+      error("unable to insert " + cmd.names[0] +
             (cmd.isAfter ? " after " : " before ") + cmd.where);
     } else {
       if (cmd.isAfter)
         ++insertPos;
-      sectionCommands.insert(insertPos, osec);
+      sectionCommands.insert(insertPos, moves.begin(), moves.end());
     }
+    moves.clear();
   }
 }
 
@@ -845,17 +849,8 @@ void LinkerScript::diagnoseOrphanHandling() const {
 }
 
 uint64_t LinkerScript::advance(uint64_t size, unsigned alignment) {
-  bool isTbss =
-      (ctx->outSec->flags & SHF_TLS) && ctx->outSec->type == SHT_NOBITS;
-  uint64_t start = isTbss ? dot + ctx->threadBssOffset : dot;
-  start = alignTo(start, alignment);
-  uint64_t end = start + size;
-
-  if (isTbss)
-    ctx->threadBssOffset = end - dot;
-  else
-    dot = end;
-  return end;
+  dot = alignTo(dot, alignment) + size;
+  return dot;
 }
 
 void LinkerScript::output(InputSection *s) {
@@ -927,13 +922,24 @@ static OutputSection *findFirstSection(PhdrEntry *load) {
 // This function assigns offsets to input sections and an output section
 // for a single sections command (e.g. ".text { *(.text); }").
 void LinkerScript::assignOffsets(OutputSection *sec) {
+  const bool isTbss = (sec->flags & SHF_TLS) && sec->type == SHT_NOBITS;
   const bool sameMemRegion = ctx->memRegion == sec->memRegion;
   const bool prevLMARegionIsDefault = ctx->lmaRegion == nullptr;
   const uint64_t savedDot = dot;
   ctx->memRegion = sec->memRegion;
   ctx->lmaRegion = sec->lmaRegion;
 
-  if (sec->flags & SHF_ALLOC) {
+  if (!(sec->flags & SHF_ALLOC)) {
+    // Non-SHF_ALLOC sections have zero addresses.
+    dot = 0;
+  } else if (isTbss) {
+    // Allow consecutive SHF_TLS SHT_NOBITS output sections. The address range
+    // starts from the end address of the previous tbss section.
+    if (ctx->tbssAddr == 0)
+      ctx->tbssAddr = dot;
+    else
+      dot = ctx->tbssAddr;
+  } else {
     if (ctx->memRegion)
       dot = ctx->memRegion->curPos;
     if (sec->addrExpr)
@@ -946,9 +952,6 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
     if (ctx->memRegion && ctx->memRegion->curPos < dot)
       expandMemoryRegion(ctx->memRegion, dot - ctx->memRegion->curPos,
                          ctx->memRegion->name, sec->name);
-  } else {
-    // Non-SHF_ALLOC sections have zero addresses.
-    dot = 0;
   }
 
   switchTo(sec);
@@ -1004,8 +1007,13 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
 
   // Non-SHF_ALLOC sections do not affect the addresses of other OutputSections
   // as they are not part of the process image.
-  if (!(sec->flags & SHF_ALLOC))
+  if (!(sec->flags & SHF_ALLOC)) {
     dot = savedDot;
+  } else if (isTbss) {
+    // NOBITS TLS sections are similar. Additionally save the end address.
+    ctx->tbssAddr = dot;
+    dot = savedDot;
+  }
 }
 
 static bool isDiscardable(OutputSection &sec) {

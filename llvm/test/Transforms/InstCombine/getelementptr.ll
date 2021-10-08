@@ -218,7 +218,7 @@ define <2 x i1> @test13_vector2(i64 %X, <2 x %S*> %P) nounwind {
 ; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i64> poison, i64 [[X:%.*]], i32 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = shl <2 x i64> [[DOTSPLATINSERT]], <i64 2, i64 0>
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp eq <2 x i64> [[TMP1]], <i64 -4, i64 poison>
-; CHECK-NEXT:    [[C:%.*]] = shufflevector <2 x i1> [[TMP2]], <2 x i1> undef, <2 x i32> zeroinitializer
+; CHECK-NEXT:    [[C:%.*]] = shufflevector <2 x i1> [[TMP2]], <2 x i1> poison, <2 x i32> zeroinitializer
 ; CHECK-NEXT:    ret <2 x i1> [[C]]
 ;
   %A = getelementptr inbounds %S, <2 x %S*> %P, <2 x i64> zeroinitializer, <2 x i32> <i32 1, i32 1>, i64 %X
@@ -233,7 +233,7 @@ define <2 x i1> @test13_vector3(i64 %X, <2 x %S*> %P) nounwind {
 ; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i64> poison, i64 [[X:%.*]], i32 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = shl <2 x i64> [[DOTSPLATINSERT]], <i64 2, i64 0>
 ; CHECK-NEXT:    [[TMP2:%.*]] = icmp eq <2 x i64> [[TMP1]], <i64 4, i64 poison>
-; CHECK-NEXT:    [[C:%.*]] = shufflevector <2 x i1> [[TMP2]], <2 x i1> undef, <2 x i32> zeroinitializer
+; CHECK-NEXT:    [[C:%.*]] = shufflevector <2 x i1> [[TMP2]], <2 x i1> poison, <2 x i32> zeroinitializer
 ; CHECK-NEXT:    ret <2 x i1> [[C]]
 ;
   %A = getelementptr inbounds %S, <2 x %S*> %P, <2 x i64> zeroinitializer, <2 x i32> <i32 1, i32 1>, i64 %X
@@ -495,8 +495,8 @@ define i1 @test23() {
 define void @test25() {
 ; CHECK-LABEL: @test25(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    store i64 undef, i64* null, align 536870912
-; CHECK-NEXT:    tail call void @foo25(i32 0, i64 0)
+; CHECK-NEXT:    store i64 poison, i64* null, align 1073741824
+; CHECK-NEXT:    tail call void @foo25(i32 0, i64 poison)
 ; CHECK-NEXT:    unreachable
 ;
 entry:
@@ -613,12 +613,8 @@ declare i32 @printf(i8*, ...)
 define i32 @test29(i8* %start, i32 %X) nounwind {
 ; CHECK-LABEL: @test29(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    store i64 undef, i64* null, align 536870912
-; CHECK-NEXT:    [[ADD_PTR:%.*]] = getelementptr i8, i8* [[START:%.*]], i64 undef
-; CHECK-NEXT:    [[TMP0:%.*]] = sext i32 [[X:%.*]] to i64
-; CHECK-NEXT:    [[ADD_PTR212:%.*]] = getelementptr i8, i8* [[START]], i64 [[TMP0]]
-; CHECK-NEXT:    [[CMP214:%.*]] = icmp ugt i8* [[ADD_PTR212]], [[ADD_PTR]]
-; CHECK-NEXT:    br i1 [[CMP214]], label [[IF_THEN216:%.*]], label [[IF_END363:%.*]]
+; CHECK-NEXT:    store i64 poison, i64* null, align 1073741824
+; CHECK-NEXT:    br i1 poison, label [[IF_THEN216:%.*]], label [[IF_END363:%.*]]
 ; CHECK:       if.then216:
 ; CHECK-NEXT:    ret i32 1
 ; CHECK:       if.end363:
@@ -798,7 +794,7 @@ define i32 @test35() nounwind {
 ; Don't treat signed offsets as unsigned.
 define i8* @test36() nounwind {
 ; CHECK-LABEL: @test36(
-; CHECK-NEXT:    ret i8* getelementptr ([11 x i8], [11 x i8]* @array, i64 0, i64 -1)
+; CHECK-NEXT:    ret i8* getelementptr ([11 x i8], [11 x i8]* @array, i64 -1, i64 10)
 ;
   ret i8* getelementptr ([11 x i8], [11 x i8]* @array, i32 0, i64 -1)
 }
@@ -1232,7 +1228,7 @@ define i32* @test_gep_inbounds_of_gep(i32* %base) {
 
 define i32* @PR45084(i1 %cond) {
 ; CHECK-LABEL: @PR45084(
-; CHECK-NEXT:    [[GEP:%.*]] = select i1 [[COND:%.*]], i32* getelementptr inbounds ([[STRUCT_F:%.*]], %struct.f* @g0, i64 0, i32 0), i32* getelementptr inbounds ([[STRUCT_F]], %struct.f* @g1, i64 0, i32 0), !prof !0
+; CHECK-NEXT:    [[GEP:%.*]] = select i1 [[COND:%.*]], i32* getelementptr inbounds ([[STRUCT_F:%.*]], %struct.f* @g0, i64 0, i32 0), i32* getelementptr inbounds ([[STRUCT_F]], %struct.f* @g1, i64 0, i32 0), !prof [[PROF0:![0-9]+]]
 ; CHECK-NEXT:    ret i32* [[GEP]]
 ;
   %sel = select i1 %cond, %struct.f* @g0, %struct.f* @g1, !prof !0

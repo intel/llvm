@@ -14,8 +14,6 @@
 // CHECK-DAG: #[[$stride2Dilation1:.*]] = affine_map<(d0, d1) -> (d0 * 2 + d1)>
 // CHECK-DAG: #[[$stride2Dilation4:.*]] = affine_map<(d0, d1) -> (d0 * 2 + d1 * 4)>
 // CHECK-DAG: #[[$stride3Dilation5:.*]] = affine_map<(d0, d1) -> (d0 * 3 + d1 * 5)>
-// CHECK-DAG: #[[$stride1Dilation1Padding1:.*]] = affine_map<(d0, d1) -> (d0 + d1 - 1)>
-// CHECK-DAG: #[[$stride1Dilation1Padding2:.*]] = affine_map<(d0, d1) -> (d0 + d1 - 2)>
 
 // CHECKPARALLEL-DAG: #[[$strided1D:.*]] = affine_map<(d0)[s0] -> (d0 + s0)>
 // CHECKPARALLEL-DAG: #[[$strided2D:.*]] = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
@@ -27,8 +25,6 @@
 // CHECKPARALLEL-DAG: #[[$stride2Dilation1:.*]] = affine_map<(d0, d1) -> (d0 * 2 + d1)>
 // CHECKPARALLEL-DAG: #[[$stride2Dilation4:.*]] = affine_map<(d0, d1) -> (d0 * 2 + d1 * 4)>
 // CHECKPARALLEL-DAG: #[[$stride3Dilation5:.*]] = affine_map<(d0, d1) -> (d0 * 3 + d1 * 5)>
-// CHECKPARALLEL-DAG: #[[$stride1Dilation1Padding1:.*]] = affine_map<(d0, d1) -> (d0 + d1 - 1)>
-// CHECKPARALLEL-DAG: #[[$stride1Dilation1Padding2:.*]] = affine_map<(d0, d1) -> (d0 + d1 - 2)>
 
 func @matmul(%arg0: memref<?xi8>, %M: index, %N: index, %K: index) {
   %c0 = constant 0 : index
@@ -182,7 +178,7 @@ func @dot_view(%arg0: memref<?xf32, offset: ?, strides: [1]>, %arg1: memref<?xf3
 //       CHECKPARALLEL:   store %[[res]], %{{.*}}[] : memref<f32>
 
 func @fill_view(%arg0: memref<?xf32, offset: ?, strides: [1]>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<?xf32, offset: ?, strides: [1]>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<?xf32, offset: ?, strides: [1]>
   return
 }
 // CHECK-LABEL: func @fill_view(
@@ -196,7 +192,7 @@ func @fill_view(%arg0: memref<?xf32, offset: ?, strides: [1]>, %arg1: f32) {
 //       CHECKPARALLEL:     store %{{.*}}, %{{.*}}[%{{.*}}] : memref<?xf32, #[[$strided1D]]>
 
 func @fill_view0(%arg0: memref<f32>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<f32>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<f32>
   return
 }
 // CHECK-LABEL: func @fill_view0(%{{.*}}: memref<f32>, %{{.*}}: f32) {
@@ -206,7 +202,7 @@ func @fill_view0(%arg0: memref<f32>, %arg1: f32) {
 //       CHECKPARALLEL:   store %{{.*}}, %{{.*}}[] : memref<f32>
 
 func @fill_view3(%arg0: memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, %arg1: f32) {
-  linalg.fill(%arg0, %arg1) : memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>, f32
+  linalg.fill(%arg1, %arg0) : f32, memref<?x?x?xf32, offset: ?, strides: [?, ?, 1]>
   return
 }
 // CHECK-LABEL: func @fill_view3(
@@ -425,404 +421,6 @@ func @conv_padding(%arg0: memref<?x?x?x?xf32>,
 //       CHECKPARALLEL:           memref.load {{.*}} : memref<?x?x?x?xf32>
 //       CHECKPARALLEL:           addf
 //       CHECKPARALLEL:           store %{{.*}}, {{.*}} : memref<?x?x?x?xf32>
-
-func @pooling_max(%arg0: memref<?x?xf32>,
-                  %arg1: memref<?x?xi32>,
-                  %arg2: memref<?x?xf32>) {
-  linalg.pooling_max(%arg0, %arg1, %arg2) { strides = [2, 1] }:
-    memref<?x?xf32>, memref<?x?xi32>, memref<?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_max
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride2Dilation1]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1]]
-//       CHECK:           memref.load {{.*}} : memref<?x?xf32>
-//       CHECK:           memref.load %{{.*}}[%[[IX]], %[[IY]]] : memref<?x?xf32>
-//       CHECK:           %[[RES:.*]] = select %{{.*}},
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xf32>
-
-// CHECKPARALLEL-LABEL: func @pooling_max
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride2Dilation1]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1]]
-//       CHECKPARALLEL:         memref.load {{.*}} : memref<?x?xf32>
-//       CHECKPARALLEL:         memref.load %{{.*}}[%[[IX]], %[[IY]]] : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[RES:.*]] = select %{{.*}},
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xf32>
-
-func @pooling_max_padding(%arg0: memref<?x?xf32>,
-                          %arg1: memref<?x?xi32>,
-                          %arg2: memref<?x?xf32>) {
-  linalg.pooling_max(%arg0, %arg1, %arg2) { padding = dense<[[2, 2], [1, 1]]> : tensor<2x2xi64> } :
-    memref<?x?xf32>, memref<?x?xi32>, memref<?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_max_padding
-//       CHECK:   %[[PAD:.*]] = constant 0xFF800000 : f32
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECK:           %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xf32>
-//       CHECK:           %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECK:           %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECK:           %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xf32>
-//       CHECK:           %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : f32
-//       CHECK:           %[[CMP:.*]] = cmpf ogt, %[[RHS]], %[[SEL]] : f32
-//       CHECK:           %[[RES:.*]] = select %{{.*}}, %[[RHS]], %[[SEL]] : f32
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xf32>
-
-// CHECKPARALLEL-LABEL: func @pooling_max_padding
-//       CHECKPARALLEL:   %[[PAD:.*]] = constant 0xFF800000 : f32
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECKPARALLEL:         %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECKPARALLEL:         %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECKPARALLEL:         %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : f32
-//       CHECKPARALLEL:         %[[CMP:.*]] = cmpf ogt, %[[RHS]], %[[SEL]] : f32
-//       CHECKPARALLEL:         %[[RES:.*]] = select %{{.*}}, %[[RHS]], %[[SEL]] : f32
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xf32>
-
-func @pooling_max_padding_i32(%arg0: memref<?x?xi32>,
-                              %arg1: memref<?x?xi32>,
-                              %arg2: memref<?x?xi32>) {
-  linalg.pooling_max(%arg0, %arg1, %arg2) { padding = dense<[[2, 2], [1, 1]]> : tensor<2x2xi64> } :
-    memref<?x?xi32>, memref<?x?xi32>, memref<?x?xi32>
-  return
-}
-// CHECK-LABEL: func @pooling_max_padding_i32
-//       CHECK:   %[[PAD:.*]] = constant -2147483648 : i32
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xi32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xi32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECK:           %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xi32>
-//       CHECK:           %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECK:           %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECK:           %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xi32>
-//       CHECK:           %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : i32
-//       CHECK:           %[[CMP:.*]] = cmpi sgt, %[[RHS]], %[[SEL]] : i32
-//       CHECK:           %[[RES:.*]] = select %{{.*}}, %[[RHS]], %[[SEL]] : i32
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xi32>
-
-// CHECKPARALLEL-LABEL: func @pooling_max_padding_i32
-//       CHECKPARALLEL:   %[[PAD:.*]] = constant -2147483648 : i32
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECKPARALLEL:         %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xi32>
-//       CHECKPARALLEL:         %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECKPARALLEL:         %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECKPARALLEL:         %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xi32>
-//       CHECKPARALLEL:         %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : i32
-//       CHECKPARALLEL:         %[[CMP:.*]] = cmpi sgt, %[[RHS]], %[[SEL]] : i32
-//       CHECKPARALLEL:         %[[RES:.*]] = select %{{.*}}, %[[RHS]], %[[SEL]] : i32
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xi32>
-
-func @pooling_min(%arg0: memref<?x?xf32>,
-                  %arg1: memref<?x?xi32>,
-                  %arg2: memref<?x?xf32>) {
-  linalg.pooling_min(%arg0, %arg1, %arg2) { strides = [2, 1] }:
-    memref<?x?xf32>, memref<?x?xi32>, memref<?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_min
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride2Dilation1]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1]]
-//       CHECK:           memref.load {{.*}} : memref<?x?xf32>
-//       CHECK:           memref.load %{{.*}}[%[[IX]], %[[IY]]] : memref<?x?xf32>
-//       CHECK:           %[[RES:.*]] = select %{{.*}},
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xf32>
-
-// CHECKPARALLEL-LABEL: func @pooling_min
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride2Dilation1]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1]]
-//       CHECKPARALLEL:         memref.load {{.*}} : memref<?x?xf32>
-//       CHECKPARALLEL:         memref.load %{{.*}}[%[[IX]], %[[IY]]] : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[RES:.*]] = select %{{.*}},
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xf32>
-
-func @pooling_min_padding(%arg0: memref<?x?xf32>,
-                          %arg1: memref<?x?xi32>,
-                          %arg2: memref<?x?xf32>) {
-  linalg.pooling_min(%arg0, %arg1, %arg2) { padding = dense<[[2, 2], [1, 1]]> : tensor<2x2xi64> } :
-    memref<?x?xf32>, memref<?x?xi32>, memref<?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_min_padding
-//       CHECK:   %[[PAD:.*]] = constant 0x7F800000 : f32
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECK:           %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xf32>
-//       CHECK:           %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECK:           %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECK:           %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xf32>
-//       CHECK:           %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : f32
-//       CHECK:           %[[CMP:.*]] = cmpf olt, %[[RHS]], %[[SEL]] : f32
-//       CHECK:           %[[RES:.*]] = select %{{.*}}, %[[RHS]], %[[SEL]] : f32
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xf32>
-
-// CHECKPARALLEL-LABEL: func @pooling_min_padding
-//       CHECKPARALLEL:   %[[PAD:.*]] = constant 0x7F800000 : f32
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECKPARALLEL:         %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECKPARALLEL:         %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECKPARALLEL:         %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : f32
-//       CHECKPARALLEL:         %[[CMP:.*]] = cmpf olt, %[[RHS]], %[[SEL]] : f32
-//       CHECKPARALLEL:         %[[RES:.*]] = select %{{.*}}, %[[RHS]], %[[SEL]] : f32
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xf32>
-
-func @pooling_min_padding_i32(%arg0: memref<?x?xi32>,
-                              %arg1: memref<?x?xi32>,
-                              %arg2: memref<?x?xi32>) {
-  linalg.pooling_min(%arg0, %arg1, %arg2) { padding = dense<[[2, 2], [1, 1]]> : tensor<2x2xi64> } :
-    memref<?x?xi32>, memref<?x?xi32>, memref<?x?xi32>
-  return
-}
-// CHECK-LABEL: func @pooling_min_padding_i32
-//       CHECK:   %[[PAD:.*]] = constant 2147483647 : i32
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xi32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xi32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECK:           %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xi32>
-//       CHECK:           %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECK:           %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECK:           %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xi32>
-//       CHECK:           %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : i32
-//       CHECK:           %[[CMP:.*]] = cmpi slt, %[[RHS]], %[[SEL]] : i32
-//       CHECK:           %[[RES:.*]] = select %{{.*}}, %[[RHS]], %[[SEL]] : i32
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xi32>
-
-// CHECKPARALLEL-LABEL: func @pooling_min_padding_i32
-//       CHECKPARALLEL:   %[[PAD:.*]] = constant 2147483647 : i32
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECKPARALLEL:         %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xi32>
-//       CHECKPARALLEL:         %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECKPARALLEL:         %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECKPARALLEL:         %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xi32>
-//       CHECKPARALLEL:         %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : i32
-//       CHECKPARALLEL:         %[[CMP:.*]] = cmpi slt, %[[RHS]], %[[SEL]] : i32
-//       CHECKPARALLEL:         %[[RES:.*]] = select %{{.*}}, %[[RHS]], %[[SEL]] : i32
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xi32>
-
-func @pooling_sum(%arg0: memref<?x?xf32>,
-                  %arg1: memref<?x?xi32>,
-                  %arg2: memref<?x?xf32>) {
-  linalg.pooling_sum(%arg0, %arg1, %arg2) { strides = [2, 1] }:
-    memref<?x?xf32>, memref<?x?xi32>, memref<?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_sum
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride2Dilation1]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1]]
-//       CHECK:           %[[RHS:.*]] = memref.load %{{.*}}[%[[IX]], %[[IY]]] : memref<?x?xf32>
-//       CHECK:           %[[LHS:.*]] = memref.load {{.*}} : memref<?x?xf32>
-//       CHECK:           %[[RES:.*]] = addf %[[LHS]], %[[RHS]] : f32
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xf32>
-
-// CHECKPARALLEL-LABEL: func @pooling_sum
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride2Dilation1]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1]]
-//       CHECKPARALLEL:         %[[RHS:.*]] = memref.load %{{.*}}[%[[IX]], %[[IY]]] : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[LHS:.*]] = memref.load {{.*}} : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[RES:.*]] = addf %[[LHS]], %[[RHS]] : f32
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xf32>
-
-func @pooling_sum_padding(%arg0: memref<?x?xf32>,
-                          %arg1: memref<?x?xi32>,
-                          %arg2: memref<?x?xf32>) {
-  linalg.pooling_sum(%arg0, %arg1, %arg2) { padding = dense<[[2, 2], [1, 1]]> : tensor<2x2xi64> } :
-    memref<?x?xf32>, memref<?x?xi32>, memref<?x?xf32>
-  return
-}
-// CHECK-LABEL: func @pooling_sum_padding
-//       CHECK:   %[[PAD:.*]] = constant 0.000000e+00 : f32
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECK:           %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECK:           %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECK:           %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xf32>
-//       CHECK:           %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : f32
-//       CHECK:           %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xf32>
-//       CHECK:           %[[RES:.*]] = addf %[[RHS]], %[[SEL]] : f32
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xf32>
-
-// CHECKPARALLEL-LABEL: func @pooling_sum_padding
-//       CHECKPARALLEL:   %[[PAD:.*]] = constant 0.000000e+00 : f32
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xf32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xf32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECKPARALLEL:         %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECKPARALLEL:         %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECKPARALLEL:         %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : f32
-//       CHECKPARALLEL:         %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xf32>
-//       CHECKPARALLEL:         %[[RES:.*]] = addf %[[RHS]], %[[SEL]] : f32
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xf32>
-
-func @pooling_sum_padding_i32(%arg0: memref<?x?xi32>,
-                              %arg1: memref<?x?xi32>,
-                              %arg2: memref<?x?xi32>) {
-  linalg.pooling_sum(%arg0, %arg1, %arg2) { padding = dense<[[2, 2], [1, 1]]> : tensor<2x2xi64> } :
-    memref<?x?xi32>, memref<?x?xi32>, memref<?x?xi32>
-  return
-}
-// CHECK-LABEL: func @pooling_sum_padding_i32
-//       CHECK:   %[[PAD:.*]] = constant 0 : i32
-//       CHECK:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECK:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECK:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xi32>
-//       CHECK:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xi32>
-//       CHECK:   scf.for {{.*}} to %[[OX]]
-//       CHECK:     scf.for {{.*}} to %[[OY]]
-//       CHECK:       scf.for {{.*}} to %[[WX]]
-//       CHECK:         scf.for {{.*}} to %[[WY]]
-//       CHECK:           %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECK:           %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECK:           %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECK:           %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECK:           %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xi32>
-//       CHECK:           %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : i32
-//       CHECK:           %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xi32>
-//       CHECK:           %[[RES:.*]] = addi %[[RHS]], %[[SEL]] : i32
-//       CHECK:           store %[[RES]], {{.*}} : memref<?x?xi32>
-
-// CHECKPARALLEL-LABEL: func @pooling_sum_padding_i32
-//       CHECKPARALLEL:   %[[PAD:.*]] = constant 0 : i32
-//       CHECKPARALLEL:   %[[WX:.*]] = memref.dim %arg1, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[WY:.*]] = memref.dim %arg1, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OX:.*]] = memref.dim %arg2, %c0 : memref<?x?xi32>
-//       CHECKPARALLEL:   %[[OY:.*]] = memref.dim %arg2, %c1 : memref<?x?xi32>
-//       CHECKPARALLEL:   scf.parallel {{.*}} to (%[[OX]], %[[OY]])
-//       CHECKPARALLEL:     scf.for {{.*}} to %[[WX]]
-//       CHECKPARALLEL:       scf.for {{.*}} to %[[WY]]
-//       CHECKPARALLEL:         %[[IX:.*]] = affine.apply #[[$stride1Dilation1Padding2]]
-//       CHECKPARALLEL:         %[[IY:.*]] = affine.apply #[[$stride1Dilation1Padding1]]
-//       CHECKPARALLEL:         %[[IDX:.*]] = affine.max #[[$clampMinMap]](%[[IX]])
-//       CHECKPARALLEL:         %[[IDY:.*]] = affine.max #[[$clampMinMap]](%[[IY]])
-//       CHECKPARALLEL:         %[[LHS:.*]] = memref.load %{{.*}}[%[[IDX]], %[[IDY]]] : memref<?x?xi32>
-//       CHECKPARALLEL:         %[[SEL:.*]] = select %{{.*}}, %[[PAD]], %[[LHS]] : i32
-//       CHECKPARALLEL:         %[[RHS:.*]] = memref.load {{.*}} : memref<?x?xi32>
-//       CHECKPARALLEL:         %[[RES:.*]] = addi %[[RHS]], %[[SEL]] : i32
-//       CHECKPARALLEL:         store %[[RES]], {{.*}} : memref<?x?xi32>
 
 #accesses = [
   affine_map<(i, j, k) -> (i, j)>,
@@ -1365,9 +963,9 @@ func @conv3d_no_symbols(%in : memref<?x?x?xf32>, %filter : memref<?x?x?xf32>, %o
 //  CHECK-SAME: %[[arg0:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECK-SAME: %[[arg1:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECK-SAME: %[[arg2:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
-//       CHECK: %[[c2:.*]] = constant 2 : index
-//       CHECK: %[[c0:.*]] = constant 0 : index
-//       CHECK: %[[c1:.*]] = constant 1 : index
+//       CHECK-DAG: %[[c2:.*]] = constant 2 : index
+//       CHECK-DAG: %[[c0:.*]] = constant 0 : index
+//       CHECK-DAG: %[[c1:.*]] = constant 1 : index
 //       CHECK: %[[dim0:.*]] = memref.dim %[[arg1]], %[[c0]] : memref<?x?x?xf32>
 //       CHECK: %[[dim1:.*]] = memref.dim %[[arg1]], %[[c1]] : memref<?x?x?xf32>
 //       CHECK: %[[dim2:.*]] = memref.dim %[[arg1]], %[[c2]] : memref<?x?x?xf32>
@@ -1396,9 +994,9 @@ func @conv3d_no_symbols(%in : memref<?x?x?xf32>, %filter : memref<?x?x?xf32>, %o
 //  CHECKPARALLEL-SAME: %[[arg0:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECKPARALLEL-SAME: %[[arg1:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
 //  CHECKPARALLEL-SAME: %[[arg2:[a-zA-Z0-9]+]]: memref<?x?x?xf32>
-//       CHECKPARALLEL: %[[c2:.*]] = constant 2 : index
-//       CHECKPARALLEL: %[[c0:.*]] = constant 0 : index
-//       CHECKPARALLEL: %[[c1:.*]] = constant 1 : index
+//       CHECKPARALLEL-DAG: %[[c2:.*]] = constant 2 : index
+//       CHECKPARALLEL-DAG: %[[c0:.*]] = constant 0 : index
+//       CHECKPARALLEL-DAG: %[[c1:.*]] = constant 1 : index
 //       CHECKPARALLEL: %[[dim0:.*]] = memref.dim %[[arg1]], %[[c0]] : memref<?x?x?xf32>
 //       CHECKPARALLEL: %[[dim1:.*]] = memref.dim %[[arg1]], %[[c1]] : memref<?x?x?xf32>
 //       CHECKPARALLEL: %[[dim2:.*]] = memref.dim %[[arg1]], %[[c2]] : memref<?x?x?xf32>
@@ -1418,3 +1016,28 @@ func @conv3d_no_symbols(%in : memref<?x?x?xf32>, %filter : memref<?x?x?xf32>, %o
 //       CHECKPARALLEL:         %[[inc:.*]] = mulf %[[vb]], %[[va]] : f32
 //       CHECKPARALLEL:         %[[res:.*]] = addf %[[vc]], %[[inc]] : f32
 //       CHECKPARALLEL:         store %[[res]], %[[arg2]][%[[arg3]], %[[arg4]], %[[arg5]]] : memref<?x?x?xf32>
+
+// -----
+
+func @lower_to_loops_with_rank_reducing_subviews(
+    %arg0 : memref<?xi32>, %arg1 : memref<?x?xi32>, %arg2 : index,
+    %arg3 : index, %arg4 : index) {
+  %0 = memref.subview %arg0[%arg2] [%arg3] [1]
+      : memref<?xi32> to memref<?xi32, offset: ?, strides: [1]>
+  %1 = memref.subview %arg1[0, %arg4] [1, %arg3] [1, 1]
+      : memref<?x?xi32> to memref<?xi32, offset: ?, strides : [1]>
+  linalg.copy(%0, %1)
+      : memref<?xi32, offset: ?, strides: [1]>, memref<?xi32, offset: ?, strides: [1]>
+  return
+}
+// CHECK-LABEL: func @lower_to_loops_with_rank_reducing_subviews
+//       CHECK:   scf.for %[[IV:.+]] = %{{.+}} to %{{.+}} step %{{.+}} {
+//       CHECK:     %[[VAL:.+]] = memref.load %{{.+}}[%[[IV]]]
+//       CHECK:     memref.store %[[VAL]], %{{.+}}[%[[IV]]]
+//       CHECK:   }
+
+// CHECKPARALLEL-LABEL: func @lower_to_loops_with_rank_reducing_subviews
+//       CHECKPARALLEL:   scf.parallel (%[[IV:.+]]) = (%{{.+}}) to (%{{.+}}) step (%{{.+}}) {
+//       CHECKPARALLEL:     %[[VAL:.+]] = memref.load %{{.+}}[%[[IV]]]
+//       CHECKPARALLEL:     memref.store %[[VAL]], %{{.+}}[%[[IV]]]
+//       CHECKPARALLEL:   }

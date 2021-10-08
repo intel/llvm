@@ -27,6 +27,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -162,7 +163,7 @@ namespace clang {
                     const PreprocessorOptions &PPOpts,
                     const CodeGenOptions &CodeGenOpts,
                     const TargetOptions &TargetOpts,
-                    const LangOptions &LangOpts,
+                    const LangOptions &LangOpts, llvm::Module *Module,
                     SmallVector<LinkModule, 4> LinkModules, LLVMContext &C,
                     CoverageSourceInfo *CoverageInfo = nullptr)
         : Diags(Diags), Action(Action), HeaderSearchOpts(HeaderSearchOpts),
@@ -172,7 +173,7 @@ namespace clang {
           LLVMIRGenerationRefCount(0),
           Gen(CreateLLVMCodeGen(Diags, "", HeaderSearchOpts, PPOpts,
                                 CodeGenOpts, C, CoverageInfo)),
-          LinkModules(std::move(LinkModules)) {
+          LinkModules(std::move(LinkModules)), CurLinkModule(Module) {
       TimerIsEnabled = CodeGenOpts.TimePasses;
       llvm::TimePassesIsEnabled = CodeGenOpts.TimePasses;
       llvm::TimePassesPerRun = CodeGenOpts.TimePassesPerRun;
@@ -395,6 +396,7 @@ namespace clang {
         const llvm::OptimizationRemarkAnalysisAliasing &D);
     void OptimizationFailureHandler(
         const llvm::DiagnosticInfoOptimizationFailure &D);
+    void DontCallDiagHandler(const DiagnosticInfoDontCall &D);
   };
 
   void BackendConsumer::anchor() {}
@@ -565,7 +567,9 @@ BackendConsumer::StackSizeDiagHandler(const llvm::DiagnosticInfoStackSize &D) {
     // FIXME: Shouldn't need to truncate to uint32_t
     Diags.Report(ND->getASTContext().getFullLoc(ND->getLocation()),
                  diag::warn_fe_frame_larger_than)
-      << static_cast<uint32_t>(D.getStackSize()) << Decl::castToDeclContext(ND);
+        << static_cast<uint32_t>(D.getStackSize())
+        << static_cast<uint32_t>(D.getStackLimit())
+        << Decl::castToDeclContext(ND);
     return true;
   }
 
@@ -750,6 +754,21 @@ void BackendConsumer::OptimizationFailureHandler(
   EmitOptimizationMessage(D, diag::warn_fe_backend_optimization_failure);
 }
 
+void BackendConsumer::DontCallDiagHandler(const DiagnosticInfoDontCall &D) {
+  SourceLocation LocCookie =
+      SourceLocation::getFromRawEncoding(D.getLocCookie());
+
+  // FIXME: we can't yet diagnose indirect calls. When/if we can, we
+  // should instead assert that LocCookie.isValid().
+  if (!LocCookie.isValid())
+    return;
+
+  Diags.Report(LocCookie, D.getSeverity() == DiagnosticSeverity::DS_Error
+                              ? diag::err_fe_backend_error_attr
+                              : diag::warn_fe_backend_warning_attr)
+      << llvm::demangle(D.getFunctionName().str()) << D.getNote();
+}
+
 /// This function is invoked when the backend needs
 /// to report something to the user.
 void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
@@ -771,11 +790,7 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     ComputeDiagID(Severity, backend_frame_larger_than, DiagID);
     break;
   case DK_Linker:
-    assert(CurLinkModule);
-    // FIXME: stop eating the warnings and notes.
-    if (Severity != DS_Error)
-      return;
-    DiagID = diag::err_fe_cannot_link_module;
+    ComputeDiagID(Severity, linking_module, DiagID);
     break;
   case llvm::DK_OptimizationRemark:
     // Optimization remarks are always handled completely by this
@@ -825,6 +840,9 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
   case llvm::DK_Unsupported:
     UnsupportedDiagHandler(cast<DiagnosticInfoUnsupported>(DI));
     return;
+  case llvm::DK_DontCall:
+    DontCallDiagHandler(cast<DiagnosticInfoDontCall>(DI));
+    return;
   default:
     // Plugin IDs are not bound to any value as they are set dynamically.
     ComputeDiagRemarkID(Severity, backend_plugin, DiagID);
@@ -837,9 +855,9 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     DI.print(DP);
   }
 
-  if (DiagID == diag::err_fe_cannot_link_module) {
-    Diags.Report(diag::err_fe_cannot_link_module)
-        << CurLinkModule->getModuleIdentifier() << MsgStorage;
+  if (DI.getKind() == DK_Linker) {
+    assert(CurLinkModule && "CurLinkModule must be set for linker diagnostics");
+    Diags.Report(DiagID) << CurLinkModule->getModuleIdentifier() << MsgStorage;
     return;
   }
 
@@ -1122,7 +1140,7 @@ void CodeGenAction::ExecuteAction() {
   // BackendConsumer.
   BackendConsumer Result(BA, CI.getDiagnostics(), CI.getHeaderSearchOpts(),
                          CI.getPreprocessorOpts(), CI.getCodeGenOpts(),
-                         CI.getTargetOpts(), CI.getLangOpts(),
+                         CI.getTargetOpts(), CI.getLangOpts(), TheModule.get(),
                          std::move(LinkModules), *VMContext, nullptr);
   // PR44896: Force DiscardValueNames as false. DiscardValueNames cannot be
   // true here because the valued names are needed for reading textual IR.

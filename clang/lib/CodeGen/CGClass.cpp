@@ -467,8 +467,6 @@ llvm::Value *CodeGenFunction::GetVTTParameter(GlobalDecl GD,
   const CXXRecordDecl *RD = cast<CXXMethodDecl>(CurCodeDecl)->getParent();
   const CXXRecordDecl *Base = cast<CXXMethodDecl>(GD.getDecl())->getParent();
 
-  llvm::Value *VTT;
-
   uint64_t SubVTTIndex;
 
   if (Delegating) {
@@ -494,15 +492,14 @@ llvm::Value *CodeGenFunction::GetVTTParameter(GlobalDecl GD,
 
   if (CGM.getCXXABI().NeedsVTTParameter(CurGD)) {
     // A VTT parameter was passed to the constructor, use it.
-    VTT = LoadCXXVTT();
-    VTT = Builder.CreateConstInBoundsGEP1_64(VTT, SubVTTIndex);
+    llvm::Value *VTT = LoadCXXVTT();
+    return Builder.CreateConstInBoundsGEP1_64(VoidPtrTy, VTT, SubVTTIndex);
   } else {
     // We're the complete constructor, so get the VTT by name.
-    VTT = CGM.getVTables().GetAddrOfVTT(RD);
-    VTT = Builder.CreateConstInBoundsGEP2_64(VTT, 0, SubVTTIndex);
+    llvm::GlobalValue *VTT = CGM.getVTables().GetAddrOfVTT(RD);
+    return Builder.CreateConstInBoundsGEP2_64(
+        VTT->getValueType(), VTT, 0, SubVTTIndex);
   }
-
-  return VTT;
 }
 
 namespace {
@@ -1744,6 +1741,7 @@ namespace {
           llvm::ConstantInt::get(CGF.SizeTy, PoisonStart.getQuantity());
 
       llvm::Value *OffsetPtr = CGF.Builder.CreateGEP(
+          CGF.Int8Ty,
           CGF.Builder.CreateBitCast(CGF.LoadCXXThis(), CGF.Int8PtrTy),
           OffsetSizePtr);
 
@@ -2504,6 +2502,8 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
 
   // Apply the offsets.
   Address VTableField = LoadCXXThisAddress();
+  unsigned ThisAddrSpace =
+      VTableField.getPointer()->getType()->getPointerAddressSpace();
 
   if (!NonVirtualOffset.isZero() || VirtualOffset)
     VTableField = ApplyNonVirtualAndVirtualOffset(
@@ -2518,12 +2518,11 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
       llvm::FunctionType::get(CGM.Int32Ty, /*isVarArg=*/true)
           ->getPointerTo(ProgAS)
           ->getPointerTo(GlobalsAS);
-  // vtable field is is derived from `this` pointer, therefore it should be in
-  // default address space.
-  VTableField = Builder.CreatePointerBitCastOrAddrSpaceCast(
-      VTableField, VTablePtrTy->getPointerTo());
-  VTableAddressPoint = Builder.CreatePointerBitCastOrAddrSpaceCast(
-      VTableAddressPoint, VTablePtrTy);
+  // vtable field is is derived from `this` pointer, therefore they should be in
+  // the same addr space. Note that this might not be LLVM address space 0.
+  VTableField = Builder.CreateBitCast(VTableField,
+                                      VTablePtrTy->getPointerTo(ThisAddrSpace));
+  VTableAddressPoint = Builder.CreateBitCast(VTableAddressPoint, VTablePtrTy);
 
   llvm::StoreInst *Store = Builder.CreateStore(VTableAddressPoint, VTableField);
   TBAAAccessInfo TBAAInfo = CGM.getTBAAVTablePtrAccessInfo(VTablePtrTy);

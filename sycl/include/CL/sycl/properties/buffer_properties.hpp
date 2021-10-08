@@ -21,12 +21,12 @@ class use_host_ptr : public detail::DataLessProperty<detail::BufferUseHostPtr> {
 
 class use_mutex : public detail::PropertyWithData<detail::BufferUseMutex> {
 public:
-  use_mutex(sycl::mutex_class &MutexRef) : MMutex(MutexRef) {}
+  use_mutex(std::mutex &MutexRef) : MMutex(MutexRef) {}
 
-  sycl::mutex_class *get_mutex_ptr() const { return &MMutex; }
+  std::mutex *get_mutex_ptr() const { return &MMutex; }
 
 private:
-  sycl::mutex_class &MMutex;
+  std::mutex &MMutex;
 };
 
 class context_bound
@@ -58,8 +58,8 @@ namespace oneapi {
 namespace property {
 namespace buffer {
 
-class use_pinned_host_memory
-    : public detail::DataLessProperty<detail::BufferUsePinnedHostMemory> {};
+class use_pinned_host_memory : public sycl::detail::DataLessProperty<
+                                   sycl::detail::BufferUsePinnedHostMemory> {};
 } // namespace buffer
 } // namespace property
 } // namespace oneapi

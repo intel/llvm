@@ -30,12 +30,14 @@
 using namespace mlir;
 using namespace NVVM;
 
+#include "mlir/Dialect/LLVMIR/NVVMOpsDialect.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // Printing/parsing for NVVM ops
 //===----------------------------------------------------------------------===//
 
 static void printNVVMIntrinsicOp(OpAsmPrinter &p, Operation *op) {
-  p << op->getName() << " " << op->getOperands();
+  p << " " << op->getOperands();
   if (op->getNumResults() > 0)
     p << " : " << op->getResultTypes();
 }
@@ -62,7 +64,7 @@ static ParseResult parseNVVMShflSyncBflyOp(OpAsmParser &parser,
     break;
   }
 
-  auto int32Ty = IntegerType::get(parser.getBuilder().getContext(), 32);
+  auto int32Ty = IntegerType::get(parser.getContext(), 32);
   return parser.resolveOperands(ops, {int32Ty, resultType, int32Ty, int32Ty},
                                 parser.getNameLoc(), result.operands);
 }
@@ -70,7 +72,7 @@ static ParseResult parseNVVMShflSyncBflyOp(OpAsmParser &parser,
 // <operation> ::= `llvm.nvvm.vote.ballot.sync %mask, %pred` : result_type
 static ParseResult parseNVVMVoteBallotOp(OpAsmParser &parser,
                                          OperationState &result) {
-  MLIRContext *context = parser.getBuilder().getContext();
+  MLIRContext *context = parser.getContext();
   auto int32Ty = IntegerType::get(context, 32);
   auto int1Ty = IntegerType::get(context, 1);
 
@@ -283,7 +285,6 @@ static LogicalResult parseWMMAMmaF16F16M16N16K16Op(OpAsmParser &parser,
 
 static void printWMMAMmaF16F16M16N16K16Op(OpAsmPrinter &p,
                                           WMMAMmaF16F16M16N16K16Op &op) {
-  p << op.getOperationName();
   p << ' ';
   p << op.args();
   p.printOptionalAttrDict(op->getAttrs(), {});

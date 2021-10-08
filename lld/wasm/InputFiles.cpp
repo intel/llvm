@@ -88,15 +88,6 @@ InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName) {
   fatal("unknown file type: " + mb.getBufferIdentifier());
 }
 
-void ObjFile::dumpInfo() const {
-  log("info for: " + toString(this) +
-      "\n              Symbols : " + Twine(symbols.size()) +
-      "\n     Function Imports : " + Twine(wasmObj->getNumImportedFunctions()) +
-      "\n       Global Imports : " + Twine(wasmObj->getNumImportedGlobals()) +
-      "\n        Event Imports : " + Twine(wasmObj->getNumImportedEvents()) +
-      "\n        Table Imports : " + Twine(wasmObj->getNumImportedTables()));
-}
-
 // Relocations contain either symbol or type indices.  This function takes a
 // relocation and returns relocated index (i.e. translates from the input
 // symbol/type space to the output symbol/type space).
@@ -124,6 +115,7 @@ uint64_t ObjFile::calcNewAddend(const WasmRelocation &reloc) const {
   case R_WASM_MEMORY_ADDR_I32:
   case R_WASM_MEMORY_ADDR_I64:
   case R_WASM_MEMORY_ADDR_TLS_SLEB:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB64:
   case R_WASM_FUNCTION_OFFSET_I32:
   case R_WASM_FUNCTION_OFFSET_I64:
   case R_WASM_MEMORY_ADDR_LOCREL_I32:
@@ -196,6 +188,7 @@ uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
     return value;
   }
   case R_WASM_MEMORY_ADDR_TLS_SLEB:
+  case R_WASM_MEMORY_ADDR_TLS_SLEB64:
     if (isa<UndefinedData>(sym) || sym->isUndefWeak())
       return 0;
     // TLS relocations are relative to the start of the TLS output segment
@@ -209,8 +202,8 @@ uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
     if (auto gs = dyn_cast<GlobalSymbol>(sym))
       return gs->getGlobalIndex();
     return sym->getGOTIndex();
-  case R_WASM_EVENT_INDEX_LEB:
-    return getEventSymbol(reloc.Index)->getEventIndex();
+  case R_WASM_TAG_INDEX_LEB:
+    return getTagSymbol(reloc.Index)->getTagIndex();
   case R_WASM_FUNCTION_OFFSET_I32:
   case R_WASM_FUNCTION_OFFSET_I64: {
     auto *f = cast<DefinedFunction>(sym);
@@ -343,10 +336,10 @@ void ObjFile::addLegacyIndirectFunctionTableIfNeeded(
   LLVM_DEBUG(dbgs() << "Synthesizing symbol for table import: " << info->Name
                     << "\n");
   const WasmGlobalType *globalType = nullptr;
-  const WasmEventType *eventType = nullptr;
+  const WasmTagType *tagType = nullptr;
   const WasmSignature *signature = nullptr;
   auto *wasmSym = make<WasmSymbol>(*info, globalType, &tableImport->Table,
-                                   eventType, signature);
+                                   tagType, signature);
   Symbol *sym = createUndefined(*wasmSym, false);
   // We're only sure it's a TableSymbol if the createUndefined succeeded.
   if (errorCount())
@@ -489,7 +482,14 @@ void ObjFile::parse(bool ignoreComdats) {
     } else
       seg = make<InputSegment>(s, this);
     seg->discarded = isExcludedByComdat(seg);
-
+    // Older object files did not include WASM_SEG_FLAG_TLS and instead
+    // relied on the naming convention.  To maintain compat with such objects
+    // we still imply the TLS flag based on the name of the segment.
+    if (!seg->isTLS() &&
+        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss"))) {
+      seg->flags |= WASM_SEG_FLAG_TLS;
+      seg->implicitTLS = true;
+    }
     segments.emplace_back(seg);
   }
   setRelocs(segments, dataSection);
@@ -515,9 +515,9 @@ void ObjFile::parse(bool ignoreComdats) {
   for (const WasmGlobal &g : wasmObj->globals())
     globals.emplace_back(make<InputGlobal>(g, this));
 
-  // Populate `Events`.
-  for (const WasmEvent &e : wasmObj->events())
-    events.emplace_back(make<InputEvent>(types[e.Type.SigIndex], e, this));
+  // Populate `Tags`.
+  for (const WasmTag &t : wasmObj->tags())
+    tags.emplace_back(make<InputTag>(types[t.Type.SigIndex], t, this));
 
   // Populate `Symbols` based on the symbols in the object.
   symbols.reserve(wasmObj->getNumberOfSymbols());
@@ -556,8 +556,8 @@ GlobalSymbol *ObjFile::getGlobalSymbol(uint32_t index) const {
   return cast<GlobalSymbol>(symbols[index]);
 }
 
-EventSymbol *ObjFile::getEventSymbol(uint32_t index) const {
-  return cast<EventSymbol>(symbols[index]);
+TagSymbol *ObjFile::getTagSymbol(uint32_t index) const {
+  return cast<TagSymbol>(symbols[index]);
 }
 
 TableSymbol *ObjFile::getTableSymbol(uint32_t index) const {
@@ -590,6 +590,9 @@ Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
     InputChunk *seg = segments[sym.Info.DataRef.Segment];
     auto offset = sym.Info.DataRef.Offset;
     auto size = sym.Info.DataRef.Size;
+    if (seg->implicitTLS) {
+      flags |= WASM_SYMBOL_TLS;
+    }
     if (sym.isBindingLocal())
       return make<DefinedData>(name, flags, this, seg, offset, size);
     if (seg->discarded)
@@ -612,12 +615,11 @@ Symbol *ObjFile::createDefined(const WasmSymbol &sym) {
       return nullptr;
     return make<SectionSymbol>(flags, section, this);
   }
-  case WASM_SYMBOL_TYPE_EVENT: {
-    InputEvent *event =
-        events[sym.Info.ElementIndex - wasmObj->getNumImportedEvents()];
+  case WASM_SYMBOL_TYPE_TAG: {
+    InputTag *tag = tags[sym.Info.ElementIndex - wasmObj->getNumImportedTags()];
     if (sym.isBindingLocal())
-      return make<DefinedEvent>(name, flags, this, event);
-    return symtab->addDefinedEvent(name, flags, this, event);
+      return make<DefinedTag>(name, flags, this, tag);
+    return symtab->addDefinedTag(name, flags, this, tag);
   }
   case WASM_SYMBOL_TYPE_TABLE: {
     InputTable *table =
@@ -757,8 +759,9 @@ void BitcodeFile::parse() {
   }
   checkArch(t.getArch());
   std::vector<bool> keptComdats;
-  for (StringRef s : obj->getComdatTable())
-    keptComdats.push_back(symtab->addComdat(s));
+  // TODO Support nodeduplicate https://bugs.llvm.org/show_bug.cgi?id=50531
+  for (std::pair<StringRef, Comdat::SelectionKind> s : obj->getComdatTable())
+    keptComdats.push_back(symtab->addComdat(s.first));
 
   for (const lto::InputFile::Symbol &objSym : obj->symbols())
     symbols.push_back(createBitcodeSymbol(keptComdats, objSym, *this));

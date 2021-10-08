@@ -18,6 +18,12 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 
+/// A TypeAttr for memref types.
+def MemRefTypeAttr
+    : TypeAttrBase<"::mlir::MemRefType", "memref type attribute"> {
+  let constBuilderCall = "::mlir::TypeAttr::get($0)";
+}
+
 class MemRef_Op<string mnemonic, list<OpTrait> traits = []>
     : Op<MemRef_Dialect, mnemonic, traits> {
   let printer = [{ return ::print(p, *this); }];
@@ -113,7 +119,10 @@ def AssumeAlignmentOp : MemRef_Op<"assume_alignment"> {
 // AllocOp
 //===----------------------------------------------------------------------===//
 
-def MemRef_AllocOp : AllocLikeOp<"alloc", DefaultResource> {
+def MemRef_AllocOp : AllocLikeOp<"alloc", DefaultResource, [
+    DeclareOpInterfaceMethods<AllocationOpInterface,
+      ["buildDealloc", "buildClone"]>]
+  > {
   let summary = "memory allocation operation";
   let description = [{
     The `alloc` operation allocates a region of memory, as specified by its
@@ -203,7 +212,7 @@ def MemRef_AllocaOp : AllocLikeOp<"alloca", AutomaticAllocationScopeResource> {
 // AllocaScopeOp
 //===----------------------------------------------------------------------===//
 
-def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope", 
+def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope",
       [AutomaticAllocationScope,
        DeclareOpInterfaceMethods<RegionBranchOpInterface>,
        SingleBlockImplicitTerminator<"AllocaScopeReturnOp">,
@@ -225,8 +234,8 @@ def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope",
 
     Here, `%myalloca` memref is valid within the explicitly delimited scope
     and is automatically deallocated at the end of the given region. Conceptually,
-    `memref.alloca_scope` is a passthrough operation with 
-    `AutomaticAllocationScope` that spans the body of the region within the operation. 
+    `memref.alloca_scope` is a passthrough operation with
+    `AutomaticAllocationScope` that spans the body of the region within the operation.
 
     `memref.alloca_scope` may also return results that are defined in the nested
     region. To return a value, one should use `memref.alloca_scope.return`
@@ -251,14 +260,14 @@ def MemRef_AllocaScopeOp : MemRef_Op<"alloca_scope",
 // AllocaScopeReturnOp
 //===----------------------------------------------------------------------===//
 
-def MemRef_AllocaScopeReturnOp : MemRef_Op<"alloca_scope.return", 
+def MemRef_AllocaScopeReturnOp : MemRef_Op<"alloca_scope.return",
       [HasParent<"AllocaScopeOp">,
        NoSideEffect,
        ReturnLike,
        Terminator]> {
   let summary = "terminator for alloca_scope operation";
   let description = [{
-    `memref.alloca_scope.return` operation returns zero or more SSA values 
+    `memref.alloca_scope.return` operation returns zero or more SSA values
     from the region within `memref.alloca_scope`. If no values are returned,
     the return operation may be omitted. Otherwise, it has to be present
     to indicate which values are going to be returned. For example:
@@ -277,8 +286,6 @@ def MemRef_AllocaScopeReturnOp : MemRef_Op<"alloca_scope.return",
   // No custom verification needed.
   let verifier = ?;
 }
-
-
 
 //===----------------------------------------------------------------------===//
 // BufferCastOp
@@ -409,7 +416,9 @@ def MemRef_CastOp : MemRef_Op<"cast", [
 
 def CloneOp : MemRef_Op<"clone", [
     CopyOpInterface,
-    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
+    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+    DeclareOpInterfaceMethods<AllocationOpInterface,
+      ["buildDealloc", "buildClone"]>
   ]> {
   let builders = [
     OpBuilder<(ins "Value":$value), [{
@@ -425,15 +434,17 @@ def CloneOp : MemRef_Op<"clone", [
     %arg1 = memref.clone %arg0 : memref<?xf32> to memref<?xf32>
     ```
 
-    Note, that mutating the source or result of the clone operation leads to
-    undefined behavior.
+    Valid implementations of this operation may alias the input and output
+    views or create an actual copy. Mutating the source or result
+    of the clone operation after the clone operation thus leads to undefined
+    behavior.
   }];
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", []>:$input);
   let results = (outs Arg<AnyRankedOrUnrankedMemRef, "", []>:$output);
 
   let extraClassDeclaration = [{
-    Value getSource() { return input();}
+    Value getSource() { return input(); }
     Value getTarget() { return output(); }
   }];
 
@@ -442,6 +453,43 @@ def CloneOp : MemRef_Op<"clone", [
   let hasFolder = 1;
   let verifier = ?;
   let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// CopyOp
+//===----------------------------------------------------------------------===//
+
+def CopyOp : MemRef_Op<"copy",
+    [CopyOpInterface, SameOperandsElementType, SameOperandsShape]> {
+
+  let description = [{
+    Copies the data from the source to the destination memref.
+
+    Usage:
+
+    ```mlir
+    memref.copy %arg0, %arg1 : memref<?xf32> to memref<?xf32>
+    ```
+
+    Source and destination are expected to have the same element type and shape.
+    Otherwise, the result is undefined. They may have different layouts.
+  }];
+
+  let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "the memref to copy from",
+                           [MemRead]>:$source,
+                       Arg<AnyRankedOrUnrankedMemRef, "the memref to copy to",
+                           [MemWrite]>:$target);
+
+  let extraClassDeclaration = [{
+    Value getSource() { return source();}
+    Value getTarget() { return target(); }
+  }];
+
+  let assemblyFormat = [{
+    $source `,` $target attr-dict `:` type($source) `to` type($target)
+  }];
+
+  let verifier = ?;
 }
 
 //===----------------------------------------------------------------------===//
@@ -475,7 +523,7 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
 // DimOp
 //===----------------------------------------------------------------------===//
 
-def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
+def MemRef_DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
   let summary = "dimension index operation";
   let description = [{
     The `dim` operation takes a memref and a dimension operand of type `index`.
@@ -501,18 +549,17 @@ def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
     ```
   }];
 
-  let arguments = (ins AnyTypeOf<[AnyTensor, AnyRankedOrUnrankedMemRef],
-                                 "any memref or tensor type">:$memrefOrTensor,
+  let arguments = (ins AnyRankedOrUnrankedMemRef:$source,
                        Index:$index);
   let results = (outs Index:$result);
 
   let assemblyFormat = [{
-    attr-dict $memrefOrTensor `,` $index `:` type($memrefOrTensor)
+    attr-dict $source `,` $index `:` type($source)
   }];
 
   let builders = [
-    OpBuilder<(ins "Value":$memrefOrTensor, "int64_t":$index)>,
-    OpBuilder<(ins "Value":$memrefOrTensor, "Value":$index)>
+    OpBuilder<(ins "Value":$source, "int64_t":$index)>,
+    OpBuilder<(ins "Value":$source, "Value":$index)>
   ];
 
   let extraClassDeclaration = [{
@@ -521,6 +568,217 @@ def DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
   }];
 
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// DmaStartOp
+//===----------------------------------------------------------------------===//
+
+def MemRef_DmaStartOp : MemRef_Op<"dma_start"> {
+  let summary = "non-blocking DMA operation that starts a transfer";
+  let description = [{
+    DmaStartOp starts a non-blocking DMA operation that transfers data from a
+    source memref to a destination memref. The source and destination memref
+    need not be of the same dimensionality, but need to have the same elemental
+    type. The operands include the source and destination memref's each followed
+    by its indices, size of the data transfer in terms of the number of elements
+    (of the elemental type of the memref), a tag memref with its indices, and
+    optionally at the end, a stride and a number_of_elements_per_stride
+    arguments. The tag location is used by a DmaWaitOp to check for completion.
+    The indices of the source memref, destination memref, and the tag memref
+    have the same restrictions as any load/store. The optional stride arguments
+    should be of 'index' type, and specify a stride for the slower memory space
+    (memory space with a lower memory space id), transferring chunks of
+    number_of_elements_per_stride every stride until %num_elements are
+    transferred. Either both or no stride arguments should be specified. If the
+    source and destination locations overlap the behavior of this operation is
+    not defined.
+
+    For example, a DmaStartOp operation that transfers 256 elements of a memref
+    '%src' in memory space 0 at indices [%i, %j] to memref '%dst' in memory
+    space 1 at indices [%k, %l], would be specified as follows:
+
+    ```mlir
+    %num_elements = constant 256
+    %idx = constant 0 : index
+    %tag = alloc() : memref<1 x i32, (d0) -> (d0), 4>
+    dma_start %src[%i, %j], %dst[%k, %l], %num_elements, %tag[%idx] :
+      memref<40 x 128 x f32>, (d0) -> (d0), 0>,
+      memref<2 x 1024 x f32>, (d0) -> (d0), 1>,
+      memref<1 x i32>, (d0) -> (d0), 2>
+    ```
+
+    If %stride and %num_elt_per_stride are specified, the DMA is expected to
+    transfer %num_elt_per_stride elements every %stride elements apart from
+    memory space 0 until %num_elements are transferred.
+
+    ```mlir
+    dma_start %src[%i, %j], %dst[%k, %l], %num_elements, %tag[%idx], %stride,
+              %num_elt_per_stride :
+    ```
+
+    TODO: add additional operands to allow source and destination striding, and
+    multiple stride levels.
+    TODO: Consider replacing src/dst memref indices with view memrefs.
+  }];
+  let arguments = (ins Variadic<AnyType>:$operands);
+
+  let builders = [
+    OpBuilder<(ins "Value":$srcMemRef, "ValueRange":$srcIndices,
+                   "Value":$destMemRef, "ValueRange":$destIndices,
+                   "Value":$numElements, "Value":$tagMemRef,
+                   "ValueRange":$tagIndices, CArg<"Value", "{}">:$stride,
+                   CArg<"Value", "{}">:$elementsPerStride)>
+  ];
+
+  let extraClassDeclaration = [{
+    // Returns the source MemRefType for this DMA operation.
+    Value getSrcMemRef() { return getOperand(0); }
+    // Returns the rank (number of indices) of the source MemRefType.
+    unsigned getSrcMemRefRank() {
+      return getSrcMemRef().getType().cast<MemRefType>().getRank();
+    }
+    // Returns the source memref indices for this DMA operation.
+    operand_range getSrcIndices() {
+      return {(*this)->operand_begin() + 1,
+              (*this)->operand_begin() + 1 + getSrcMemRefRank()};
+    }
+
+    // Returns the destination MemRefType for this DMA operations.
+    Value getDstMemRef() { return getOperand(1 + getSrcMemRefRank()); }
+    // Returns the rank (number of indices) of the destination MemRefType.
+    unsigned getDstMemRefRank() {
+      return getDstMemRef().getType().cast<MemRefType>().getRank();
+    }
+    unsigned getSrcMemorySpace() {
+      return getSrcMemRef().getType().cast<MemRefType>().getMemorySpaceAsInt();
+    }
+    unsigned getDstMemorySpace() {
+      return getDstMemRef().getType().cast<MemRefType>().getMemorySpaceAsInt();
+    }
+
+    // Returns the destination memref indices for this DMA operation.
+    operand_range getDstIndices() {
+      return {(*this)->operand_begin() + 1 + getSrcMemRefRank() + 1,
+              (*this)->operand_begin() + 1 + getSrcMemRefRank() + 1 +
+                  getDstMemRefRank()};
+    }
+
+    // Returns the number of elements being transferred by this DMA operation.
+    Value getNumElements() {
+      return getOperand(1 + getSrcMemRefRank() + 1 + getDstMemRefRank());
+    }
+
+    // Returns the Tag MemRef for this DMA operation.
+    Value getTagMemRef() {
+      return getOperand(1 + getSrcMemRefRank() + 1 + getDstMemRefRank() + 1);
+    }
+    // Returns the rank (number of indices) of the tag MemRefType.
+    unsigned getTagMemRefRank() {
+      return getTagMemRef().getType().cast<MemRefType>().getRank();
+    }
+
+    // Returns the tag memref index for this DMA operation.
+    operand_range getTagIndices() {
+      unsigned tagIndexStartPos =
+          1 + getSrcMemRefRank() + 1 + getDstMemRefRank() + 1 + 1;
+      return {(*this)->operand_begin() + tagIndexStartPos,
+              (*this)->operand_begin() + tagIndexStartPos + getTagMemRefRank()};
+    }
+
+    /// Returns true if this is a DMA from a faster memory space to a slower
+    /// one.
+    bool isDestMemorySpaceFaster() {
+      return (getSrcMemorySpace() < getDstMemorySpace());
+    }
+
+    /// Returns true if this is a DMA from a slower memory space to a faster
+    /// one.
+    bool isSrcMemorySpaceFaster() {
+      // Assumes that a lower number is for a slower memory space.
+      return (getDstMemorySpace() < getSrcMemorySpace());
+    }
+
+    /// Given a DMA start operation, returns the operand position of either the
+    /// source or destination memref depending on the one that is at the higher
+    /// level of the memory hierarchy. Asserts failure if neither is true.
+    unsigned getFasterMemPos() {
+      assert(isSrcMemorySpaceFaster() || isDestMemorySpaceFaster());
+      return isSrcMemorySpaceFaster() ? 0 : getSrcMemRefRank() + 1;
+    }
+
+    bool isStrided() {
+      return getNumOperands() != 1 + getSrcMemRefRank() + 1 +
+                                 getDstMemRefRank() + 1 + 1 +
+                                 getTagMemRefRank();
+    }
+
+    Value getStride() {
+      if (!isStrided())
+        return nullptr;
+      return getOperand(getNumOperands() - 1 - 1);
+    }
+
+    Value getNumElementsPerStride() {
+      if (!isStrided())
+        return nullptr;
+      return getOperand(getNumOperands() - 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// DmaWaitOp
+//===----------------------------------------------------------------------===//
+
+def MemRef_DmaWaitOp : MemRef_Op<"dma_wait"> {
+  let summary = "blocking DMA operation that waits for transfer completion";
+  let description = [{
+   DmaWaitOp blocks until the completion of a DMA operation associated with the
+   tag element '%tag[%index]'. %tag is a memref, and %index has to be an index
+   with the same restrictions as any load/store index. %num_elements is the
+   number of elements associated with the DMA operation.
+
+   Example:
+
+   ```mlir
+    dma_start %src[%i, %j], %dst[%k, %l], %num_elements, %tag[%index] :
+      memref<2048 x f32>, (d0) -> (d0), 0>,
+      memref<256 x f32>, (d0) -> (d0), 1>
+      memref<1 x i32>, (d0) -> (d0), 2>
+    ...
+    ...
+    dma_wait %tag[%index], %num_elements : memref<1 x i32, (d0) -> (d0), 2>
+    ```
+  }];
+  let arguments = (ins
+    AnyMemRef:$tagMemRef,
+    Variadic<Index>:$tagIndices,
+    Index:$numElements
+  );
+  let assemblyFormat = [{
+    $tagMemRef `[` $tagIndices `]` `,` $numElements attr-dict `:`
+    type($tagMemRef)
+  }];
+  let extraClassDeclaration = [{
+    /// Returns the Tag MemRef associated with the DMA operation being waited
+    /// on.
+    Value getTagMemRef() { return tagMemRef(); }
+
+    /// Returns the tag memref index for this DMA operation.
+    operand_range getTagIndices() { return tagIndices(); }
+
+    /// Returns the rank (number of indices) of the tag memref.
+    unsigned getTagMemRefRank() {
+      return getTagMemRef().getType().cast<MemRefType>().getRank();
+    }
+
+    /// Returns the number of elements transferred in the associated DMA
+    /// operation.
+    Value getNumElements() { return numElements(); }
+  }];
   let hasFolder = 1;
 }
 
@@ -559,14 +817,14 @@ def MemRef_GetGlobalOp : MemRef_Op<"get_global",
 def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
   let summary = "declare or define a global memref variable";
   let description = [{
-    The `memref.global` operation declares or defines a named global variable.
-    The backing memory for the variable is allocated statically and is described
-    by the type of the variable (which should be a statically shaped memref
-    type). The operation is a declaration if no `inital_value` is specified,
-    else it is a definition. The `initial_value` can either be a unit attribute
-    to represent a definition of an uninitialized global variable, or an
-    elements attribute to represent the definition of a global variable with an
-    initial value. The global variable can also be marked constant using the
+    The `memref.global` operation declares or defines a named global memref
+    variable. The backing memory for the variable is allocated statically and is
+    described by the type of the variable (which should be a statically shaped
+    memref type). The operation is a declaration if no `inital_value` is
+    specified, else it is a definition. The `initial_value` can either be a unit
+    attribute to represent a definition of an uninitialized global variable, or
+    an elements attribute to represent the definition of a global variable with
+    an initial value. The global variable can also be marked constant using the
     `constant` unit attribute. Writing to such constant global variables is
     undefined.
 
@@ -595,7 +853,7 @@ def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
   let arguments = (ins
       SymbolNameAttr:$sym_name,
       OptionalAttr<StrAttr>:$sym_visibility,
-      TypeAttr:$type,
+      MemRefTypeAttr:$type,
       OptionalAttr<AnyAttr>:$initial_value,
       UnitAttr:$constant
   );
@@ -740,7 +998,7 @@ def MemRef_PrefetchOp : MemRef_Op<"prefetch"> {
 def MemRef_ReinterpretCastOp:
     BaseOpWithOffsetSizesAndStrides<MemRef_Dialect, "reinterpret_cast", [
       NoSideEffect, AttrSizedOperandSegments, ViewLikeOpInterface,
-      OffsetSizeAndStrideOpInterface
+      OffsetSizeAndStrideOpInterface, MemRefsNormalizable
     ]> {
   let summary = "memref reinterpret cast operation";
   let description = [{
@@ -889,6 +1147,150 @@ def MemRef_ReshapeOp: MemRef_Op<"reshape", [
   let assemblyFormat = [{
     $source `(` $shape `)` attr-dict `:` functional-type(operands, results)
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// ExpandShapeOp / CollapseShapeOp
+//===----------------------------------------------------------------------===//
+
+def IndexListArrayAttr :
+  TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
+
+class MemRef_ReassociativeReshapeOp<string mnemonic, list<OpTrait> traits = []> :
+    MemRef_Op<mnemonic, !listconcat(traits,
+      [NoSideEffect, ViewLikeOpInterface])>,
+    Arguments<(ins AnyStridedMemRef:$src, IndexListArrayAttr:$reassociation)>,
+    Results<(outs AnyStridedMemRef:$result)>{
+  let builders = [
+    // Builders for a contracting reshape whose result type is computed from
+    // `src` and `reassociation`.
+    OpBuilder<(ins "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs)>,
+    OpBuilder<(ins "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, src, reassociationMaps, attrs);
+    }]>,
+
+    // Builders for a reshape whose result type is passed explicitly. This may
+    // be either a contracting or expanding reshape.
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationIndices>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      build($_builder, $_state, resultType, src, attrs);
+      $_state.addAttribute("reassociation",
+                          getReassociationIndicesAttribute($_builder, reassociation));
+    }]>,
+    OpBuilder<(ins "Type":$resultType, "Value":$src,
+      "ArrayRef<ReassociationExprs>":$reassociation,
+      CArg<"ArrayRef<NamedAttribute>", "{}">:$attrs),
+    [{
+      auto reassociationMaps =
+          convertReassociationMapsToIndices($_builder, reassociation);
+      build($_builder, $_state, resultType, src, reassociationMaps, attrs);
+    }]>
+  ];
+
+  code commonExtraClassDeclaration = [{
+    SmallVector<AffineMap, 4> getReassociationMaps();
+    SmallVector<ReassociationExprs, 4> getReassociationExprs();
+    SmallVector<ReassociationIndices, 4> getReassociationIndices() {
+      SmallVector<ReassociationIndices, 4> reassociationIndices;
+      for (auto attr : reassociation())
+        reassociationIndices.push_back(llvm::to_vector<2>(
+            llvm::map_range(attr.cast<ArrayAttr>(), [&](Attribute indexAttr) {
+              return indexAttr.cast<IntegerAttr>().getInt();
+            })));
+      return reassociationIndices;
+    };
+    MemRefType getSrcType() { return src().getType().cast<MemRefType>(); }
+    MemRefType getResultType() { return result().getType().cast<MemRefType>(); }
+    Value getViewSource() { return src(); }
+  }];
+
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+  let printer = [{ return ::print(p, *this); }];
+  let parser = [{ return ::parseReshapeLikeOp(parser, result); }];
+}
+
+def MemRef_ExpandShapeOp : MemRef_ReassociativeReshapeOp<"expand_shape"> {
+  let summary = "operation to produce a memref with a higher rank.";
+  let description = [{
+    The `memref.expand_shape` op produces a new view with a higher rank whose
+    sizes are a reassociation of the original `view`. Depending on whether or
+    not the reassociated MemRefType is contiguous, the resulting memref may
+    require explicit alloc and copies.
+
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an array of I64ArrayAttr attribute.
+
+    For now, it is assumed that either:
+      1. a reassociation produces and consumes contiguous MemRefType or,
+      2. the reshape op will be folded into its consumers (by changing the shape
+         of the computations).
+    All other cases are undefined behavior and a reshape op may not lower to
+    LLVM if it cannot be proven statically that it does not require alloc+copy.
+
+    The operand memref type when dimensions can be zero-ranked if the result
+    memref type is statically shaped with all dimensions being unit extent. In
+    such case the reassociation map is empty.
+
+    The verification rule is that the reassociation maps are applied to the
+    result memref with the larger rank to obtain the operand memref with the
+    smaller rank.
+
+    Example:
+
+    ```mlir
+    // Dimension expansion i -> (i', j') and (k) -> (k')
+    %1 = memref.expand_shape %0 [[0, 1], [2]] :
+      memref<?x?xf32, stride_spec> into memref<?x?x?xf32, stride_spec_2>
+    ```
+  }];
+  let extraClassDeclaration = commonExtraClassDeclaration;
+}
+
+def MemRef_CollapseShapeOp : MemRef_ReassociativeReshapeOp<"collapse_shape"> {
+  let summary = "operation to produce a memref with a smaller rank.";
+  let description = [{
+    The `memref.collapse_shape` op produces a new view with a smaller rank
+    whose sizes are a reassociation of the original `view`. Depending on
+    whether or not the reassociated MemRefType is contiguous, the resulting
+    memref may require explicit alloc and copies.
+
+    A reassociation is defined as a continuous grouping of dimensions and is
+    represented with an array of I64ArrayAttr attribute.
+
+    For now, it is assumed that either:
+      1. a reassociation produces and consumes contiguous MemRefType or,
+      2. the reshape op will be folded into its consumers (by changing the shape
+         of the computations).
+    All other cases are undefined behavior and a reshape op may not lower to
+    LLVM if it cannot be proven statically that it does not require alloc+copy.
+
+    The result memref type of a reshape can be zero-ranked if the operand
+    memref type is statically shaped with all dimensions being unit extent. In
+    such case the reassociation map is empty.
+
+    The verification rule is that the reassociation maps are applied to the
+    operand memref with the larger rank to obtain the result memref with the
+    smaller rank.
+
+    Examples:
+
+    ```mlir
+    // Dimension collapse (i, j) -> i' and k -> k'
+    %1 = memref.collapse_shape %0 [[0, 1], [2]] :
+      memref<?x?x?xf32, stride_spec> into memref<?x?xf32, stride_spec_2>
+    ```
+  }];
+  let extraClassDeclaration = commonExtraClassDeclaration;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1191,6 +1593,10 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
     /// Return the number of leading operands before the `offsets`, `sizes` and
     /// and `strides` operands.
     static unsigned getOffsetSizeAndStrideStartOperandIndex() { return 1; }
+
+    /// Return the dimensions of the source type that are dropped when
+    /// the result is rank-reduced.
+    llvm::SmallDenseSet<unsigned> getDroppedDims();
   }];
 
   let hasCanonicalizer = 1;
@@ -1251,6 +1657,7 @@ def TensorLoadOp : MemRef_Op<"tensor_load",
 
   let assemblyFormat = "$memref attr-dict `:` type($memref)";
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 

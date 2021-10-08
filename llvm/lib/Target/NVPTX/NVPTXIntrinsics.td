@@ -1232,7 +1232,7 @@ multiclass F_ATOMIC_2<NVPTXRegClass regclass, string SpaceStr, string TypeStr,
 // has 2 operands, neg the second one
 multiclass F_ATOMIC_2_NEG_imp<NVPTXRegClass ptrclass, NVPTXRegClass regclass,
   string SpaceStr, string TypeStr, string OpcStr, PatFrag IntOp,
-  Operand IMMType, list<Predicate> Pred> {
+  list<Predicate> Pred> {
   def reg : NVPTXInst<(outs regclass:$dst), (ins ptrclass:$addr, regclass:$b),
     !strconcat(
       "{{ \n\t",
@@ -1244,12 +1244,11 @@ multiclass F_ATOMIC_2_NEG_imp<NVPTXRegClass ptrclass, NVPTXRegClass regclass,
   Requires<Pred>;
 }
 multiclass F_ATOMIC_2_NEG<NVPTXRegClass regclass, string SpaceStr,
-  string TypeStr, string OpcStr, PatFrag IntOp, Operand IMMType,
-  list<Predicate> Pred = []> {
+  string TypeStr, string OpcStr, PatFrag IntOp, list<Predicate> Pred = []> {
  defm p32: F_ATOMIC_2_NEG_imp<Int32Regs, regclass, SpaceStr, TypeStr, OpcStr,
-   IntOp, IMMType, Pred> ;
+   IntOp, Pred> ;
  defm p64: F_ATOMIC_2_NEG_imp<Int64Regs, regclass, SpaceStr, TypeStr, OpcStr,
-   IntOp, IMMType, Pred> ;
+   IntOp, Pred> ;
 }
 
 // has 3 operands
@@ -1357,21 +1356,21 @@ def atomic_load_sub_64_gen: ATOMIC_GENERIC_CHK<(ops node:$a, node:$b),
   (atomic_load_sub_64 node:$a, node:$b)>;
 
 defm INT_PTX_ATOM_SUB_G_32 : F_ATOMIC_2_NEG<Int32Regs, ".global", "32", ".add",
-  atomic_load_sub_32_g, i32imm>;
+  atomic_load_sub_32_g>;
 defm INT_PTX_ATOM_SUB_G_64 : F_ATOMIC_2_NEG<Int64Regs, ".global", "64", ".add",
-  atomic_load_sub_64_g, i64imm>;
+  atomic_load_sub_64_g>;
 defm INT_PTX_ATOM_SUB_GEN_32 : F_ATOMIC_2_NEG<Int32Regs, "", "32", ".add",
-  atomic_load_sub_32_gen, i32imm>;
+  atomic_load_sub_32_gen>;
 defm INT_PTX_ATOM_SUB_GEN_32_USE_G : F_ATOMIC_2_NEG<Int32Regs, ".global", "32",
-  ".add", atomic_load_sub_32_gen, i32imm>;
+  ".add", atomic_load_sub_32_gen>;
 defm INT_PTX_ATOM_SUB_S_32 : F_ATOMIC_2_NEG<Int32Regs, ".shared", "32", ".add",
-  atomic_load_sub_32_s, i32imm>;
+  atomic_load_sub_32_s>;
 defm INT_PTX_ATOM_SUB_S_64 : F_ATOMIC_2_NEG<Int64Regs, ".shared", "64", ".add",
-  atomic_load_sub_64_s, i64imm>;
+  atomic_load_sub_64_s>;
 defm INT_PTX_ATOM_SUB_GEN_64 : F_ATOMIC_2_NEG<Int64Regs, "", "64", ".add",
-  atomic_load_sub_64_gen, i64imm>;
+  atomic_load_sub_64_gen>;
 defm INT_PTX_ATOM_SUB_GEN_64_USE_G : F_ATOMIC_2_NEG<Int64Regs, ".global", "64",
-  ".add", atomic_load_sub_64_gen, i64imm>;
+  ".add", atomic_load_sub_64_gen>;
 
 // atom_swap
 
@@ -1943,21 +1942,21 @@ multiclass VLDU_G_ELE_V2<string TyStr, NVPTXRegClass regclass> {
                      !strconcat("ldu.global.", TyStr), []>;
 }
 
-multiclass VLDU_G_ELE_V4<string TyStr, NVPTXRegClass regclass> { 
+multiclass VLDU_G_ELE_V4<string TyStr, NVPTXRegClass regclass> {
  def _areg32: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                            regclass:$dst4), (ins Int32Regs:$src), 
+                            regclass:$dst4), (ins Int32Regs:$src),
                !strconcat("ldu.global.", TyStr), []>;
  def _areg64: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                            regclass:$dst4), (ins Int64Regs:$src), 
+                            regclass:$dst4), (ins Int64Regs:$src),
                !strconcat("ldu.global.", TyStr), []>;
  def _ari32: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                            regclass:$dst4), (ins MEMri:$src), 
+                            regclass:$dst4), (ins MEMri:$src),
                !strconcat("ldu.global.", TyStr), []>;
  def _ari64: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                            regclass:$dst4), (ins MEMri64:$src), 
+                            regclass:$dst4), (ins MEMri64:$src),
                !strconcat("ldu.global.", TyStr), []>;
  def _avar: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                            regclass:$dst4), (ins imemAny:$src), 
+                            regclass:$dst4), (ins imemAny:$src),
                !strconcat("ldu.global.", TyStr), []>;
 }
 
@@ -1997,7 +1996,7 @@ defm INT_PTX_LDU_G_v4f32_ELE
 
 
 //-----------------------------------
-// Support for ldg on sm_35 or later 
+// Support for ldg on sm_35 or later
 //-----------------------------------
 
 // Don't annotate ld.global.nc as mayLoad, because these loads go through the
@@ -2045,7 +2044,7 @@ defm INT_PTX_LDG_GLOBAL_p64
 
 // vector
 
-// Elementized vector ldg 
+// Elementized vector ldg
 multiclass VLDG_G_ELE_V2<string TyStr, NVPTXRegClass regclass> {
  def _areg32: NVPTXInst<(outs regclass:$dst1, regclass:$dst2),
                      (ins Int32Regs:$src),
@@ -2064,21 +2063,21 @@ multiclass VLDG_G_ELE_V2<string TyStr, NVPTXRegClass regclass> {
                      !strconcat("ld.global.nc.", TyStr), []>;
 }
 
-multiclass VLDG_G_ELE_V4<string TyStr, NVPTXRegClass regclass> { 
+multiclass VLDG_G_ELE_V4<string TyStr, NVPTXRegClass regclass> {
   def _areg32: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                              regclass:$dst4), (ins Int32Regs:$src), 
+                              regclass:$dst4), (ins Int32Regs:$src),
                !strconcat("ld.global.nc.", TyStr), []>;
   def _areg64: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                               regclass:$dst4), (ins Int64Regs:$src), 
+                               regclass:$dst4), (ins Int64Regs:$src),
                !strconcat("ld.global.nc.", TyStr), []>;
   def _ari32: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                              regclass:$dst4), (ins MEMri:$src), 
+                              regclass:$dst4), (ins MEMri:$src),
                !strconcat("ld.global.nc.", TyStr), []>;
   def _ari64: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                              regclass:$dst4), (ins MEMri64:$src), 
+                              regclass:$dst4), (ins MEMri64:$src),
                !strconcat("ld.global.nc.", TyStr), []>;
   def _avar: NVPTXInst<(outs regclass:$dst1, regclass:$dst2, regclass:$dst3,
-                             regclass:$dst4), (ins imemAny:$src), 
+                             regclass:$dst4), (ins imemAny:$src),
                !strconcat("ld.global.nc.", TyStr), []>;
 }
 
@@ -7568,13 +7567,17 @@ def INT_PTX_SREG_WARPSIZE :
 // In addition to target-independent fields provided by WMMA_REGS, it adds
 // the fields commonly used to implement specific PTX instruction -- register
 // types and names, constraints, parts of assembly, etc.
-class WMMA_REGINFO<WMMA_REGS r>
+class WMMA_REGINFO<WMMA_REGS r, string op>
       : WMMA_REGS<r.geom, r.frag, r.ptx_elt_type> {
   // NVPTX register types used to carry fragment data.
   NVPTXRegClass regclass = !cond(
     !eq(ptx_elt_type, "f16") : Float16x2Regs,
     !eq(ptx_elt_type, "f32") : Float32Regs,
+    !eq(ptx_elt_type, "f64") : Float64Regs,
+    !eq(ptx_elt_type, "bf16") : Int32Regs,
+    !eq(ptx_elt_type, "tf32") : Int32Regs,
     !eq(ptx_elt_type, "s32") : Int32Regs,
+    !eq(ptx_elt_type, "b16") : Int32Regs,
     !eq(ptx_elt_type, "s8") : Int32Regs,
     !eq(ptx_elt_type, "u8") : Int32Regs,
     !eq(ptx_elt_type, "s4") : Int32Regs,
@@ -7602,6 +7605,9 @@ class WMMA_REGINFO<WMMA_REGS r>
          !or(!eq(ptx_elt_type, "f16"),
              !eq(ptx_elt_type, "f32"))) : [hasSM70, hasPTX60],
 
+    !and(!eq(geom,"m8n8k4"),
+         !eq(ptx_elt_type, "f64")) : [hasSM80, hasPTX70],
+
     // fp16 -> fp16/fp32 @ m8n32k16/m32n8k16
     !and(!or(!eq(geom, "m8n32k16"),
              !eq(geom, "m32n8k16")),
@@ -7616,11 +7622,50 @@ class WMMA_REGINFO<WMMA_REGS r>
              !eq(ptx_elt_type, "s8"),
              !eq(ptx_elt_type, "s32"))) : [hasSM72, hasPTX63],
 
-    // u4/s4/b1 -> s32 @ m8n8k32 (u4/s4), m8n8k128(b1)
-    !or(!eq(geom,"m8n8k128"),
-        !eq(geom,"m8n8k32")) : [hasSM75, hasPTX63],
+    !and(!or(!eq(geom,"m16n16k16"),
+             !eq(geom,"m8n32k16"),
+             !eq(geom,"m32n8k16")),
+         !eq(ptx_elt_type, "bf16")) : [hasSM80, hasPTX70],
 
-    !eq(geom, "m8n8k4") : [hasSM70, hasPTX64]);
+    !and(!eq(geom,"m16n16k8"),
+         !eq(ptx_elt_type, "tf32")) : [hasSM80, hasPTX70],
+
+    !and(!eq(geom,"m16n16k8"),
+         !eq(ptx_elt_type, "f32")) : [hasSM80, hasPTX70],
+
+    // b1 -> s32 @ m8n8k128(b1)
+    !and(!ne(op,"mma"),
+         !eq(geom,"m8n8k128")) : [hasSM75, hasPTX63],
+
+    // u4/s4 -> s32 @ m8n8k32 (u4/s4)
+    !and(!ne(op,"mma"),
+         !eq(geom,"m8n8k32")) : [hasSM75, hasPTX63],
+
+    !or(!eq(geom,"m16n8k8"),
+        !eq(geom,"m8n8k16")) : [hasSM75, hasPTX65],
+
+    !and(!ne(ptx_elt_type,"f64"),
+         !eq(geom, "m8n8k4")) : [hasSM70, hasPTX64],
+
+    // mma m8n8k32 requires higher PTX version
+    !and(!eq(op,"mma"),
+         !eq(geom,"m8n8k32")) : [hasSM75, hasPTX65],
+
+    !and(!eq(ptx_elt_type,"f64"),
+         !eq(geom, "m8n8k4")) : [hasSM80, hasPTX70],
+
+    !and(!eq(op,"mma"),
+         !or(!eq(geom, "m16n8k16"),
+             !eq(geom, "m16n8k4"),
+             !eq(geom, "m16n8k32"),
+             !eq(geom, "m16n8k64"),
+             !eq(geom, "m8n8k128"),
+             !eq(geom, "m16n8k128"),
+             !eq(geom, "m16n8k256"))) : [hasSM80, hasPTX70],
+
+    !and(!eq(op,"ldmatrix"),
+         !eq(ptx_elt_type,"b16"),
+         !eq(geom, "m8n8")) : [hasSM75, hasPTX65]);
 
   // template DAGs for instruction inputs/output.
   dag Outs = !dag(outs, ptx_regs, reg_names);
@@ -7744,60 +7789,109 @@ defset list<WMMA_INSTR> MMA_LDSTs  = {
       foreach space = [".global", ".shared", ""] in {
         foreach addr = [imem, Int32Regs, Int64Regs, MEMri, MEMri64] in {
           foreach frag = NVVM_MMA_OPS.all_ld_ops in
-            if NVVM_MMA_SUPPORTED<[frag], layout>.ret then
-              def : WMMA_LOAD<WMMA_REGINFO<frag>, layout, space, stride, addr>;
+            if NVVM_WMMA_LDST_SUPPORTED<frag, layout>.ret then
+              def : WMMA_LOAD<WMMA_REGINFO<frag, "load">, layout, space, stride, addr>;
           foreach frag = NVVM_MMA_OPS.all_st_ops in
-            if NVVM_MMA_SUPPORTED<[frag], layout>.ret then
-              def : WMMA_STORE_D<WMMA_REGINFO<frag>, layout, space, stride, addr>;
+            if NVVM_WMMA_LDST_SUPPORTED<frag, layout>.ret then
+              def : WMMA_STORE_D<WMMA_REGINFO<frag, "store">, layout, space, stride, addr>;
         } // addr
       } // space
     } // stride
   } // layout
 } // defset
 
+// B1 instruction variants need extra constraints.
+class MMA_OP_PREDICATES<WMMA_REGINFO FragA, string b1op> {
+  string Op = b1op;
+  WMMA_REGINFO Frag = FragA;
+  list<Predicate> ret = !listconcat(
+    FragA.Predicates,
+    !if(!eq(b1op, ".and.popc"), [hasSM80,hasPTX71],[])
+  );
+}
 // WMMA.MMA
 class WMMA_MMA<WMMA_REGINFO FragA, WMMA_REGINFO FragB,
                WMMA_REGINFO FragC, WMMA_REGINFO FragD,
-               string ALayout, string BLayout, int Satfinite>
-  : WMMA_INSTR<WMMA_NAME_MMA<ALayout, BLayout, Satfinite, FragA, FragB, FragC, FragD>.record,
-                             [FragA.Ins, FragB.Ins, FragC.Ins]>,
+               string ALayout, string BLayout, int Satfinite, string rnd, string b1op>
+  : WMMA_INSTR<WMMA_NAME<ALayout, BLayout, Satfinite, rnd, b1op, FragA, FragB, FragC, FragD>.record,
+                         [FragA.Ins, FragB.Ins, FragC.Ins]>,
     // Requires does not seem to have effect on Instruction w/o Patterns.
     // We set it here anyways and propagate to the Pat<> we construct below.
-    Requires<FragA.Predicates> {
+    Requires<MMA_OP_PREDICATES<FragA, b1op>.ret> {
   let OutOperandList = FragD.Outs;
   let InOperandList  = !con(Args, (ins MmaCode:$ptx));
   string TypeList = !cond(
-    !eq(FragD.geom, "m8n8k4") : "." # FragD.ptx_elt_type
-                                # ".f16.f16."
-                                # FragC.ptx_elt_type,
-    !eq(FragD.ptx_elt_type, "s32") : ".s32"
-                                     # "." # FragA.ptx_elt_type
-                                     # "." # FragB.ptx_elt_type
-                                     # ".s32",
-    1: "." # FragD.ptx_elt_type # "." # FragC.ptx_elt_type,
+    !eq(FragA.ptx_elt_type, "f16") : "." # FragD.ptx_elt_type
+                                     # "." # FragC.ptx_elt_type,
+    1: "." # FragD.ptx_elt_type
+       # "." # FragA.ptx_elt_type
+       # "." # FragB.ptx_elt_type
+       # "." # FragC.ptx_elt_type,
   );
-  let AsmString = !if(!eq(FragA.geom, "m8n8k4"),
-     "mma.sync.aligned.m8n8k4"
-        # "." # ALayout
-        # "." # BLayout
-        # TypeList # "\n\t\t"
-        # FragD.regstring # ",\n\t\t"
-        # FragA.regstring # ",\n\t\t"
-        # FragB.regstring # ",\n\t\t"
-        # FragC.regstring # ";",
-     "wmma.mma"
-        # !if(!eq(FragA.ptx_elt_type, "b1"), ".xor.popc", "")
-        # ".sync"
-        # "${ptx:aligned}"
-        # "." # ALayout
-        # "." # BLayout
-        # "." # FragA.geom
-        # TypeList
-        # !if(Satfinite, ".satfinite", "") # "\n\t\t"
-        # FragD.regstring # ",\n\t\t"
-        # FragA.regstring # ",\n\t\t"
-        # FragB.regstring # ",\n\t\t"
-        # FragC.regstring # ";");
+  let AsmString = "wmma.mma"
+                  # b1op
+                  # ".sync"
+                  # "${ptx:aligned}"
+                  # "." # ALayout
+                  # "." # BLayout
+                  # "." # FragA.geom
+                  # !if(!ne(rnd, ""), !strconcat(".", rnd), "")
+                  # TypeList
+                  # !if(Satfinite, ".satfinite", "") # "\n\t\t"
+                  # FragD.regstring # ",\n\t\t"
+                  # FragA.regstring # ",\n\t\t"
+                  # FragB.regstring # ",\n\t\t"
+                  # FragC.regstring # ";";
+}
+
+defset list<WMMA_INSTR> WMMAs  = {
+  foreach layout_a = ["row", "col"] in {
+    foreach layout_b = ["row", "col"] in {
+      foreach satf = [0, 1] in {
+        foreach rnd = ["", "rn", "rz", "rm", "rp"] in {
+          foreach op = NVVM_MMA_OPS.all_wmma_ops in {
+            foreach b1op = NVVM_MMA_B1OPS<op>.ret in {
+              if NVVM_WMMA_SUPPORTED<op, layout_a, layout_b, satf, rnd>.ret then {
+                def : WMMA_MMA<WMMA_REGINFO<op[0], "wmma.mma">,
+                              WMMA_REGINFO<op[1], "wmma.mma">,
+                              WMMA_REGINFO<op[2], "wmma.mma">,
+                              WMMA_REGINFO<op[3], "wmma.mma">,
+                              layout_a, layout_b, satf, rnd, b1op>;
+              }
+            } // b1op
+          } // op
+        } // rnd
+      } // satf
+    } // layout_b
+  } // layout_a
+} // defset
+
+// MMA
+class MMA<WMMA_REGINFO FragA, WMMA_REGINFO FragB,
+               WMMA_REGINFO FragC, WMMA_REGINFO FragD,
+               string ALayout, string BLayout, int Satfinite, string b1op>
+  : WMMA_INSTR<MMA_NAME<ALayout, BLayout, Satfinite, b1op, FragA, FragB, FragC, FragD>.record,
+                        [FragA.Ins, FragB.Ins, FragC.Ins]>,
+    // Requires does not seem to have effect on Instruction w/o Patterns.
+    // We set it here anyways and propagate to the Pat<> we construct below.
+  Requires<MMA_OP_PREDICATES<FragA, b1op>.ret> {
+  let OutOperandList = FragD.Outs;
+  let InOperandList  = !con(Args, (ins MmaCode:$ptx));
+  string TypeList = "." # FragD.ptx_elt_type
+                    # "." # FragA.ptx_elt_type
+                    # "." # FragB.ptx_elt_type
+                    # "." # FragC.ptx_elt_type;
+  let AsmString = "mma.sync.aligned."
+                  # FragA.geom
+                  # "." # ALayout
+                  # "." # BLayout
+                  # !if(Satfinite, ".satfinite", "")
+                  # TypeList
+                  # b1op # "\n\t\t"
+                  # FragD.regstring # ",\n\t\t"
+                  # FragA.regstring # ",\n\t\t"
+                  # FragB.regstring # ",\n\t\t"
+                  # FragC.regstring # ";";
 }
 
 defset list<WMMA_INSTR> MMAs  = {
@@ -7805,29 +7899,69 @@ defset list<WMMA_INSTR> MMAs  = {
     foreach layout_b = ["row", "col"] in {
       foreach satf = [0, 1] in {
         foreach op = NVVM_MMA_OPS.all_mma_ops in {
-          if NVVM_MMA_SUPPORTED<op, layout_a, layout_b, satf>.ret then {
-            def : WMMA_MMA<WMMA_REGINFO<op[0]>,
-                           WMMA_REGINFO<op[1]>,
-                           WMMA_REGINFO<op[2]>,
-                           WMMA_REGINFO<op[3]>,
-                           layout_a, layout_b, satf>;
-          }
+          foreach b1op = NVVM_MMA_B1OPS<op>.ret in {
+            if NVVM_MMA_SUPPORTED<op, layout_a, layout_b, satf>.ret then {
+              def : MMA<WMMA_REGINFO<op[0], "mma">,
+                        WMMA_REGINFO<op[1], "mma">,
+                        WMMA_REGINFO<op[2], "mma">,
+                        WMMA_REGINFO<op[3], "mma">,
+                        layout_a, layout_b, satf, b1op>;
+            }
+          } // b1op
         } // op
       } // satf
     } // layout_b
   } // layout_a
 } // defset
 
+//
+// ldmatrix.sync.aligned.m8n8[|.trans][|.shared].b16
+//
+class LDMATRIX<WMMA_REGINFO Frag, bit Transposed, string Space,
+               DAGOperand SrcOp>
+  : WMMA_INSTR<LDMATRIX_NAME<Frag, Transposed>.record, [(ins SrcOp:$src)]>,
+    Requires<Frag.Predicates> {
+  // Build PatFrag that only matches particular address space.
+  PatFrag IntrFrag = PatFrag<(ops node:$src), (Intr node:$src),
+                             !cond(!eq(Space, ".shared"): AS_match.shared,
+                                   true: AS_match.generic)>;
+  // Build AS-constrained pattern.
+  let IntrinsicPattern = BuildPatternPF<IntrFrag, Args>.ret;
+
+  let OutOperandList = Frag.Outs;
+  let InOperandList = !con(Args, (ins MmaCode:$ptx));
+  let AsmString = "ldmatrix.sync.aligned."
+                  # Frag.geom
+                  # "." # Frag.frag
+                  # !if(Transposed, ".trans", "")
+                  # Space
+                  # "." # Frag.ptx_elt_type
+                  # " " # Frag.regstring # ", [$src];";
+}
+
+// Create all ldmatrix variants
+defset list<WMMA_INSTR> LDMATRIXs  = {
+  foreach transposed = [false, true] in {
+    foreach space = [".shared", ""] in {
+      foreach addr = [imem, Int32Regs, Int64Regs, MEMri, MEMri64] in {
+        foreach frag = NVVM_MMA_OPS.all_ldmatrix_ops in
+          if NVVM_LDMATRIX_SUPPORTED<frag>.ret then
+            def : LDMATRIX<WMMA_REGINFO<frag, "ldmatrix">, transposed, space,
+                            addr>;
+      } // addr
+    } // space
+  } // transposed
+} // defset
 
 // Constructing non-flat DAGs is still a pain. I can't !subst a dag node with a
 // dag, so the ptx.version must be appended *after* foreach replaces 'ins' with
 // the instruction record.
-class WMMA_PAT<WMMA_INSTR wi>
+class MMA_PAT<WMMA_INSTR wi>
       : Pat<wi.IntrinsicPattern,
             !con(!foreach(tmp, wi.Args, !subst(ins, wi, tmp)),
                  (wi ptx.version))>,
         Requires<wi.Predicates>;
 
 // Build intrinsic->instruction patterns for all MMA instructions.
-foreach mma = !listconcat(MMAs, MMA_LDSTs) in
-  def : WMMA_PAT<mma>;
+foreach mma = !listconcat(MMAs, WMMAs, MMA_LDSTs, LDMATRIXs) in
+  def : MMA_PAT<mma>;

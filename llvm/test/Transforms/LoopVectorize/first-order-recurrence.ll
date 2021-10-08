@@ -337,7 +337,8 @@ for.end:
 ; UNROLL-NO-IC-LABEL: @constant_folded_previous_value(
 ; UNROLL-NO-IC:       vector.body:
 ; UNROLL-NO-IC:         [[VECTOR_RECUR:%.*]] = phi <4 x i64> [ <i64 poison, i64 poison, i64 poison, i64 0>, %vector.ph ], [ <i64 1, i64 1, i64 1, i64 1>, %vector.body ]
-; UNROLL-NO-IC-NEXT:    [[TMP0:%.*]] = shufflevector <4 x i64> [[VECTOR_RECUR]], <4 x i64> <i64 1, i64 1, i64 1, i64 1>, <4 x i32> <i32 3, i32 4, i32 5, i32 6>
+; UNROLL-NO-IC:         [[TMP0:%.*]] = shufflevector <4 x i64> [[VECTOR_RECUR]], <4 x i64> <i64 1, i64 1, i64 1, i64 1>, <4 x i32> <i32 3, i32 4, i32 5, i32 6>
+; CHECK-NO-IC-NEXT:     add nuw i64
 ; UNROLL-NO-IC:         br i1 {{.*}}, label %middle.block, label %vector.body
 ;
 define void @constant_folded_previous_value() {
@@ -641,10 +642,10 @@ define void @sink_dead_inst() {
 ; SINK-AFTER-NEXT:    %index = phi i32 [ 0, %vector.ph ], [ %index.next, %vector.body ]
 ; SINK-AFTER-NEXT:    %vec.ind = phi <4 x i16> [ <i16 -27, i16 -26, i16 -25, i16 -24>, %vector.ph ], [ %vec.ind.next, %vector.body ]
 ; SINK-AFTER-NEXT:    %vector.recur = phi <4 x i16> [ <i16 poison, i16 poison, i16 poison, i16 0>, %vector.ph ], [ %3, %vector.body ]
-; SINK-AFTER-NEXT:    %vector.recur2 = phi <4 x i32> [ <i32 poison, i32 poison, i32 poison, i32 -27>, %vector.ph ], [ %1, %vector.body ]
+; SINK-AFTER-NEXT:    %vector.recur1 = phi <4 x i32> [ <i32 poison, i32 poison, i32 poison, i32 -27>, %vector.ph ], [ %1, %vector.body ]
 ; SINK-AFTER-NEXT:    %0 = add <4 x i16> %vec.ind, <i16 1, i16 1, i16 1, i16 1>
 ; SINK-AFTER-NEXT:    %1 = zext <4 x i16> %0 to <4 x i32>
-; SINK-AFTER-NEXT:    %2 = shufflevector <4 x i32> %vector.recur2, <4 x i32> %1, <4 x i32> <i32 3, i32 4, i32 5, i32 6>
+; SINK-AFTER-NEXT:    %2 = shufflevector <4 x i32> %vector.recur1, <4 x i32> %1, <4 x i32> <i32 3, i32 4, i32 5, i32 6>
 ; SINK-AFTER-NEXT:    %3 = add <4 x i16> %0, <i16 5, i16 5, i16 5, i16 5>
 ; SINK-AFTER-NEXT:    %4 = shufflevector <4 x i16> %vector.recur, <4 x i16> %3, <4 x i32> <i32 3, i32 4, i32 5, i32 6>
 ; SINK-AFTER-NEXT:    %5 = sub <4 x i16> %4, <i16 10, i16 10, i16 10, i16 10>
@@ -704,30 +705,30 @@ define i32 @sink_into_replication_region(i32 %y) {
 ; CHECK-NEXT:    [[TMP6:%.*]] = phi <4 x i32> [ poison, [[VECTOR_BODY]] ], [ [[TMP5]], [[PRED_UDIV_IF]] ]
 ; CHECK-NEXT:    [[TMP7:%.*]] = extractelement <4 x i1> [[TMP2]], i32 1
 ; CHECK-NEXT:    br i1 [[TMP7]], label [[PRED_UDIV_IF4:%.*]], label [[PRED_UDIV_CONTINUE5:%.*]]
-; CHECK:       pred.udiv.if4:
+; CHECK:       pred.udiv.if3:
 ; CHECK-NEXT:    [[TMP8:%.*]] = add i32 [[OFFSET_IDX]], -1
 ; CHECK-NEXT:    [[TMP9:%.*]] = udiv i32 219220132, [[TMP8]]
 ; CHECK-NEXT:    [[TMP10:%.*]] = insertelement <4 x i32> [[TMP6]], i32 [[TMP9]], i32 1
 ; CHECK-NEXT:    br label [[PRED_UDIV_CONTINUE5]]
-; CHECK:       pred.udiv.continue5:
+; CHECK:       pred.udiv.continue4:
 ; CHECK-NEXT:    [[TMP11:%.*]] = phi <4 x i32> [ [[TMP6]], [[PRED_UDIV_CONTINUE]] ], [ [[TMP10]], [[PRED_UDIV_IF4]] ]
 ; CHECK-NEXT:    [[TMP12:%.*]] = extractelement <4 x i1> [[TMP2]], i32 2
 ; CHECK-NEXT:    br i1 [[TMP12]], label [[PRED_UDIV_IF6:%.*]], label [[PRED_UDIV_CONTINUE7:%.*]]
-; CHECK:       pred.udiv.if6:
+; CHECK:       pred.udiv.if5:
 ; CHECK-NEXT:    [[TMP13:%.*]] = add i32 [[OFFSET_IDX]], -2
 ; CHECK-NEXT:    [[TMP14:%.*]] = udiv i32 219220132, [[TMP13]]
 ; CHECK-NEXT:    [[TMP15:%.*]] = insertelement <4 x i32> [[TMP11]], i32 [[TMP14]], i32 2
 ; CHECK-NEXT:    br label [[PRED_UDIV_CONTINUE7]]
-; CHECK:       pred.udiv.continue7:
+; CHECK:       pred.udiv.continue6:
 ; CHECK-NEXT:    [[TMP16:%.*]] = phi <4 x i32> [ [[TMP11]], [[PRED_UDIV_CONTINUE5]] ], [ [[TMP15]], [[PRED_UDIV_IF6]] ]
 ; CHECK-NEXT:    [[TMP17:%.*]] = extractelement <4 x i1> [[TMP2]], i32 3
 ; CHECK-NEXT:    br i1 [[TMP17]], label [[PRED_UDIV_IF8:%.*]], label [[PRED_UDIV_CONTINUE9]]
-; CHECK:       pred.udiv.if8:
+; CHECK:       pred.udiv.if7:
 ; CHECK-NEXT:    [[TMP18:%.*]] = add i32 [[OFFSET_IDX]], -3
 ; CHECK-NEXT:    [[TMP19:%.*]] = udiv i32 219220132, [[TMP18]]
 ; CHECK-NEXT:    [[TMP20:%.*]] = insertelement <4 x i32> [[TMP16]], i32 [[TMP19]], i32 3
 ; CHECK-NEXT:    br label [[PRED_UDIV_CONTINUE9]]
-; CHECK:       pred.udiv.continue9:
+; CHECK:       pred.udiv.continue8:
 ; CHECK-NEXT:    [[TMP21]] = phi <4 x i32> [ [[TMP16]], [[PRED_UDIV_CONTINUE7]] ], [ [[TMP20]], [[PRED_UDIV_IF8]] ]
 ; CHECK-NEXT:    [[TMP22:%.*]] = shufflevector <4 x i32> [[VECTOR_RECUR]], <4 x i32> [[TMP21]], <4 x i32> <i32 3, i32 4, i32 5, i32 6>
 ; CHECK-NEXT:    [[TMP23]] = add <4 x i32> [[VEC_PHI1]], [[TMP22]]
@@ -798,27 +799,27 @@ define i32 @sink_into_replication_region_multiple(i32 *%x, i32 %y) {
 ; CHECK-NEXT:    [[TMP9:%.*]] = phi <4 x i32> [ poison, [[VECTOR_BODY]] ], [ [[TMP8]], [[PRED_UDIV_IF]] ]
 ; CHECK-NEXT:    [[TMP10:%.*]] = extractelement <4 x i1> [[TMP5]], i32 1
 ; CHECK-NEXT:    br i1 [[TMP10]], label [[PRED_UDIV_IF5:%.*]], label [[PRED_UDIV_CONTINUE6:%.*]]
-; CHECK:       pred.udiv.if5:
+; CHECK:       pred.udiv.if4:
 ; CHECK-NEXT:    [[TMP11:%.*]] = udiv i32 219220132, [[TMP2]]
 ; CHECK-NEXT:    [[TMP12:%.*]] = insertelement <4 x i32> [[TMP9]], i32 [[TMP11]], i32 1
 ; CHECK-NEXT:    br label [[PRED_UDIV_CONTINUE6]]
-; CHECK:       pred.udiv.continue6:
+; CHECK:       pred.udiv.continue5:
 ; CHECK-NEXT:    [[TMP13:%.*]] = phi <4 x i32> [ [[TMP9]], [[PRED_UDIV_CONTINUE]] ], [ [[TMP12]], [[PRED_UDIV_IF5]] ]
 ; CHECK-NEXT:    [[TMP14:%.*]] = extractelement <4 x i1> [[TMP5]], i32 2
 ; CHECK-NEXT:    br i1 [[TMP14]], label [[PRED_UDIV_IF7:%.*]], label [[PRED_UDIV_CONTINUE8:%.*]]
-; CHECK:       pred.udiv.if7:
+; CHECK:       pred.udiv.if6:
 ; CHECK-NEXT:    [[TMP15:%.*]] = udiv i32 219220132, [[TMP3]]
 ; CHECK-NEXT:    [[TMP16:%.*]] = insertelement <4 x i32> [[TMP13]], i32 [[TMP15]], i32 2
 ; CHECK-NEXT:    br label [[PRED_UDIV_CONTINUE8]]
-; CHECK:       pred.udiv.continue8:
+; CHECK:       pred.udiv.continue7:
 ; CHECK-NEXT:    [[TMP17:%.*]] = phi <4 x i32> [ [[TMP13]], [[PRED_UDIV_CONTINUE6]] ], [ [[TMP16]], [[PRED_UDIV_IF7]] ]
 ; CHECK-NEXT:    [[TMP18:%.*]] = extractelement <4 x i1> [[TMP5]], i32 3
 ; CHECK-NEXT:    br i1 [[TMP18]], label [[PRED_UDIV_IF9:%.*]], label [[PRED_UDIV_CONTINUE10:%.*]]
-; CHECK:       pred.udiv.if9:
+; CHECK:       pred.udiv.if8:
 ; CHECK-NEXT:    [[TMP19:%.*]] = udiv i32 219220132, [[TMP4]]
 ; CHECK-NEXT:    [[TMP20:%.*]] = insertelement <4 x i32> [[TMP17]], i32 [[TMP19]], i32 3
 ; CHECK-NEXT:    br label [[PRED_UDIV_CONTINUE10]]
-; CHECK:       pred.udiv.continue10:
+; CHECK:       pred.udiv.continue9:
 ; CHECK-NEXT:    [[TMP21]] = phi <4 x i32> [ [[TMP17]], [[PRED_UDIV_CONTINUE8]] ], [ [[TMP20]], [[PRED_UDIV_IF9]] ]
 ; CHECK-NEXT:    [[TMP22:%.*]] = shufflevector <4 x i32> [[VECTOR_RECUR]], <4 x i32> [[TMP21]], <4 x i32> <i32 3, i32 4, i32 5, i32 6>
 ; CHECK-NEXT:    [[TMP23]] = add <4 x i32> [[VEC_PHI4]], [[TMP22]]
@@ -832,31 +833,31 @@ define i32 @sink_into_replication_region_multiple(i32 *%x, i32 %y) {
 ; CHECK:       pred.store.continue:
 ; CHECK-NEXT:    [[TMP27:%.*]] = extractelement <4 x i1> [[TMP5]], i32 1
 ; CHECK-NEXT:    br i1 [[TMP27]], label [[PRED_STORE_IF11:%.*]], label [[PRED_STORE_CONTINUE12:%.*]]
-; CHECK:       pred.store.if11:
+; CHECK:       pred.store.if10:
 ; CHECK-NEXT:    [[TMP28:%.*]] = or i32 [[INDEX]], 1
 ; CHECK-NEXT:    [[TMP29:%.*]] = sext i32 [[TMP28]] to i64
 ; CHECK-NEXT:    [[TMP30:%.*]] = getelementptr inbounds i32, i32* [[X]], i64 [[TMP29]]
 ; CHECK-NEXT:    store i32 [[TMP2]], i32* [[TMP30]], align 4
 ; CHECK-NEXT:    br label [[PRED_STORE_CONTINUE12]]
-; CHECK:       pred.store.continue12:
+; CHECK:       pred.store.continue11:
 ; CHECK-NEXT:    [[TMP31:%.*]] = extractelement <4 x i1> [[TMP5]], i32 2
 ; CHECK-NEXT:    br i1 [[TMP31]], label [[PRED_STORE_IF13:%.*]], label [[PRED_STORE_CONTINUE14:%.*]]
-; CHECK:       pred.store.if13:
+; CHECK:       pred.store.if12:
 ; CHECK-NEXT:    [[TMP32:%.*]] = or i32 [[INDEX]], 2
 ; CHECK-NEXT:    [[TMP33:%.*]] = sext i32 [[TMP32]] to i64
 ; CHECK-NEXT:    [[TMP34:%.*]] = getelementptr inbounds i32, i32* [[X]], i64 [[TMP33]]
 ; CHECK-NEXT:    store i32 [[TMP3]], i32* [[TMP34]], align 4
 ; CHECK-NEXT:    br label [[PRED_STORE_CONTINUE14]]
-; CHECK:       pred.store.continue14:
+; CHECK:       pred.store.continue13:
 ; CHECK-NEXT:    [[TMP35:%.*]] = extractelement <4 x i1> [[TMP5]], i32 3
 ; CHECK-NEXT:    br i1 [[TMP35]], label [[PRED_STORE_IF15:%.*]], label [[PRED_STORE_CONTINUE16]]
-; CHECK:       pred.store.if15:
+; CHECK:       pred.store.if14:
 ; CHECK-NEXT:    [[TMP36:%.*]] = or i32 [[INDEX]], 3
 ; CHECK-NEXT:    [[TMP37:%.*]] = sext i32 [[TMP36]] to i64
 ; CHECK-NEXT:    [[TMP38:%.*]] = getelementptr inbounds i32, i32* [[X]], i64 [[TMP37]]
 ; CHECK-NEXT:    store i32 [[TMP4]], i32* [[TMP38]], align 4
 ; CHECK-NEXT:    br label [[PRED_STORE_CONTINUE16]]
-; CHECK:       pred.store.continue16:
+; CHECK:       pred.store.continue15:
 ; CHECK-NEXT:    [[INDEX_NEXT]] = add i32 [[INDEX]], 4
 ; CHECK-NEXT:    [[VEC_IND_NEXT3]] = add <4 x i32> [[VEC_IND2]], <i32 4, i32 4, i32 4, i32 4>
 ; CHECK-NEXT:    [[TMP39:%.*]] = icmp eq i32 [[INDEX_NEXT]], [[N_VEC]]
@@ -893,6 +894,45 @@ bb:
   %iv.next = add nsw i32 %iv, 1
   %tmp9 = icmp slt i32 %tmp3, 2
   br i1 %tmp9, label %bb1, label %bb2, !prof !2
+}
+
+; %vec.dead will be marked as dead instruction in the vector loop and no recipe
+; will be created for it. Make sure a valid sink target is used.
+define void @sink_after_dead_inst(i32* %A.ptr) {
+; CHECK-LABEL: @sink_after_dead_inst
+; CHECK-LABEL: vector.body:
+; CHECK-NEXT:    [[INDEX:%.*]] = phi i32 [ 0, %vector.ph ], [ [[INDEX_NEXT]], %vector.body ]
+; CHECK-NEXT:    [[OFFSET_IDX:%.*]] = zext i32 [[INDEX]] to i64
+; CHECK-NEXT:    [[SEXT:%.*]] = shl i64 [[OFFSET_IDX]], 48
+; CHECK-NEXT:    [[SHIFT:%.*]] = ashr exact i64 [[SEXT]], 48
+; CHECK-NEXT:    [[GEP:%.*]] = getelementptr i32, i32* %A.ptr, i64 [[SHIFT]]
+; CHECK-NEXT:    [[CAST:%.*]] = bitcast i32* [[GEP]]  to <4 x i32>*
+; CHECK-NEXT:    store <4 x i32> zeroinitializer, <4 x i32>* [[CAST]], align 4
+; CHECK-NEXT:    [[INDEX_NEXT:%.*]] = add nuw i32 [[INDEX]], 4
+; CHECK-NEXT:    [[EC:%.*]] = icmp eq i32 [[INDEX_NEXT]], 16
+; CHECK-NEXT:    br i1 [[EC]], label %middle.block, label %vector.body
+
+entry:
+  br label %loop
+
+loop:
+  %iv = phi i16 [ 0, %entry ], [ %iv.next, %loop ]
+  %for = phi i32 [ 0, %entry ], [ %for.prev, %loop ]
+  %cmp = icmp eq i32 %for, 15
+  %C = icmp eq i1 %cmp, true
+  %vec.dead = and i1 %C, 1
+  %iv.next = add i16 %iv, 1
+  %B1 = or i16 %iv.next, %iv.next
+  %B3 = and i1 %cmp, %C
+  %for.prev = zext i16 %B1 to i32
+
+  %ext = zext i1 %B3 to i32
+  %A.gep = getelementptr i32, i32* %A.ptr, i16 %iv
+  store i32 0, i32* %A.gep
+  br i1 %vec.dead, label %for.end, label %loop
+
+for.end:
+  ret void
 }
 
 !2 = !{!"branch_weights", i32 1, i32 1}

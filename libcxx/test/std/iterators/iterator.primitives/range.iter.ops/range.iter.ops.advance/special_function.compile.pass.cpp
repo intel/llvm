@@ -8,11 +8,14 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // ranges::advance
 
 #include <iterator>
+
+#include "test_standard_function.h"
+
+static_assert(is_function_like<decltype(std::ranges::advance)>());
 
 // FIXME: We're bending the rules here by adding a new type to namespace std::ranges. Since this is
 // the standard library's test suite, this should be fine (we *are* the implementation), but it's

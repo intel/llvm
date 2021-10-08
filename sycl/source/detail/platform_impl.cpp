@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -92,29 +93,32 @@ static bool IsBannedPlatform(platform Platform) {
   return IsNVIDIAOpenCL(Platform);
 }
 
-vector_class<platform> platform_impl::get_platforms() {
-  vector_class<platform> Platforms;
-  const vector_class<plugin> &Plugins = RT::initialize();
-
+std::vector<platform> platform_impl::get_platforms() {
+  std::vector<platform> Platforms;
+  std::vector<plugin> &Plugins = RT::initialize();
   info::device_type ForcedType = detail::get_forced_type();
-  for (unsigned int i = 0; i < Plugins.size(); i++) {
-
+  for (plugin &Plugin : Plugins) {
     pi_uint32 NumPlatforms = 0;
     // Move to the next plugin if the plugin fails to initialize.
     // This way platforms from other plugins get a chance to be discovered.
-    if (Plugins[i].call_nocheck<PiApiKind::piPlatformsGet>(
+    if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
             0, nullptr, &NumPlatforms) != PI_SUCCESS)
       continue;
 
     if (NumPlatforms) {
-      vector_class<RT::PiPlatform> PiPlatforms(NumPlatforms);
-      if (Plugins[i].call_nocheck<PiApiKind::piPlatformsGet>(
+      std::vector<RT::PiPlatform> PiPlatforms(NumPlatforms);
+      if (Plugin.call_nocheck<PiApiKind::piPlatformsGet>(
               NumPlatforms, PiPlatforms.data(), nullptr) != PI_SUCCESS)
         return Platforms;
 
       for (const auto &PiPlatform : PiPlatforms) {
         platform Platform = detail::createSyclObjFromImpl<platform>(
-            getOrMakePlatformImpl(PiPlatform, Plugins[i]));
+            getOrMakePlatformImpl(PiPlatform, Plugin));
+        {
+          std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
+          // insert PiPlatform into the Plugin
+          Plugin.getPlatformId(PiPlatform);
+        }
         // Skip platforms which do not contain requested device types
         if (!Platform.get_devices(ForcedType).empty() &&
             !IsBannedPlatform(Platform))
@@ -139,15 +143,27 @@ vector_class<platform> platform_impl::get_platforms() {
 // by the device_filter constructor.
 // This function matches devices in the order of backend, device_type, and
 // device_num.
-static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
-                               const plugin &Plugin) {
+static void filterDeviceFilter(std::vector<RT::PiDevice> &PiDevices,
+                               RT::PiPlatform Platform) {
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   if (!FilterList)
     return;
 
+  std::vector<plugin> &Plugins = RT::initialize();
+  auto It =
+      std::find_if(Plugins.begin(), Plugins.end(), [Platform](plugin &Plugin) {
+        return Plugin.containsPiPlatform(Platform);
+      });
+  if (It == Plugins.end())
+    return;
+
+  plugin &Plugin = *It;
   backend Backend = Plugin.getBackend();
   int InsertIDx = 0;
-  int DeviceNum = 0;
+  // DeviceIds should be given consecutive numbers across platforms in the same
+  // backend
+  std::lock_guard<std::mutex> Guard(*Plugin.getPluginMutex());
+  int DeviceNum = Plugin.getStartingDeviceId(Platform);
   for (RT::PiDevice Device : PiDevices) {
     RT::PiDeviceType PiDevType;
     Plugin.call<PiApiKind::piDeviceGetInfo>(Device, PI_DEVICE_INFO_TYPE,
@@ -180,6 +196,10 @@ static void filterDeviceFilter(vector_class<RT::PiDevice> &PiDevices,
     DeviceNum++;
   }
   PiDevices.resize(InsertIDx);
+  // remember the last backend that has gone through this filter function
+  // to assign a unique device id number across platforms that belong to
+  // the same backend. For example, opencl:cpu:0, opencl:acc:1, opencl:gpu:2
+  Plugin.setLastDeviceId(Platform, DeviceNum);
 }
 
 std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
@@ -202,9 +222,9 @@ std::shared_ptr<device_impl> platform_impl::getOrMakeDeviceImpl(
   return Result;
 }
 
-vector_class<device>
+std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
-  vector_class<device> Res;
+  std::vector<device> Res;
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
     // If SYCL_DEVICE_FILTER is set, check if filter contains host.
@@ -228,7 +248,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   if (NumDevices == 0)
     return Res;
 
-  vector_class<RT::PiDevice> PiDevices(NumDevices);
+  std::vector<RT::PiDevice> PiDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin.call<PiApiKind::piDevicesGet>(MPlatform,
                                        pi::cast<RT::PiDeviceType>(DeviceType),
@@ -236,12 +256,12 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   // Filter out devices that are not present in the SYCL_DEVICE_ALLOWLIST
   if (SYCLConfig<SYCL_DEVICE_ALLOWLIST>::get())
-    applyAllowList(PiDevices, MPlatform, this->getPlugin());
+    applyAllowList(PiDevices, MPlatform, Plugin);
 
   // Filter out devices that are not compatible with SYCL_DEVICE_FILTER
-  filterDeviceFilter(PiDevices, Plugin);
+  filterDeviceFilter(PiDevices, MPlatform);
 
-  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, *MPlugin);
+  PlatformImplPtr PlatformImpl = getOrMakePlatformImpl(MPlatform, Plugin);
   std::transform(
       PiDevices.begin(), PiDevices.end(), std::back_inserter(Res),
       [PlatformImpl](const RT::PiDevice &PiDevice) -> device {
@@ -252,12 +272,12 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   return Res;
 }
 
-bool platform_impl::has_extension(const string_class &ExtensionName) const {
+bool platform_impl::has_extension(const std::string &ExtensionName) const {
   if (is_host())
     return false;
 
-  string_class AllExtensionNames =
-      get_platform_info<string_class, info::platform::extensions>::get(
+  std::string AllExtensionNames =
+      get_platform_info<std::string, info::platform::extensions>::get(
           MPlatform, getPlugin());
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }

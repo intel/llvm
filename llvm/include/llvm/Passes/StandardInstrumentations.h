@@ -61,7 +61,6 @@ private:
   /// Stack of Module description, enough to print the module after a given
   /// pass.
   SmallVector<PrintModuleDesc, 2> ModuleDescStack;
-  bool StoreModuleDesc = false;
 };
 
 class OptNoneInstrumentation {
@@ -145,7 +144,7 @@ public:
                     FunctionAnalysisManager::Invalidator &);
   };
 
-#ifndef NDEBUG
+#ifdef LLVM_ENABLE_ABI_BREAKING_CHECKS
   SmallVector<StringRef, 8> PassStack;
 #endif
 

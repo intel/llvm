@@ -15,6 +15,7 @@
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -27,6 +28,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallString.h"
@@ -51,11 +53,25 @@ void OperationName::print(raw_ostream &os) const { os << getStringRef(); }
 
 void OperationName::dump() const { print(llvm::errs()); }
 
+//===--------------------------------------------------------------------===//
+// AsmParser
+//===--------------------------------------------------------------------===//
+
+AsmParser::~AsmParser() {}
+DialectAsmParser::~DialectAsmParser() {}
+OpAsmParser::~OpAsmParser() {}
+
+MLIRContext *AsmParser::getContext() const { return getBuilder().getContext(); }
+
+//===----------------------------------------------------------------------===//
+// DialectAsmPrinter
+//===----------------------------------------------------------------------===//
+
 DialectAsmPrinter::~DialectAsmPrinter() {}
 
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 // OpAsmPrinter
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 OpAsmPrinter::~OpAsmPrinter() {}
 
@@ -87,9 +103,9 @@ void OpAsmPrinter::printFunctionalType(Operation *op) {
     os << ')';
 }
 
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 // Operation OpAsm interface.
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 /// The OpAsmOpInterface, see OpAsmInterface.td for more details.
 #include "mlir/IR/OpAsmInterface.cpp.inc"
@@ -249,12 +265,12 @@ namespace {
 struct NewLineCounter {
   unsigned curLine = 1;
 };
-} // end anonymous namespace
 
 static raw_ostream &operator<<(raw_ostream &os, NewLineCounter &newLine) {
   ++newLine.curLine;
   return os << '\n';
 }
+} // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
 // AliasInitializer
@@ -356,9 +372,9 @@ private:
 /// in the output, and trims down unnecessary output.
 class DummyAliasOperationPrinter : private OpAsmPrinter {
 public:
-  explicit DummyAliasOperationPrinter(const OpPrintingFlags &flags,
+  explicit DummyAliasOperationPrinter(const OpPrintingFlags &printerFlags,
                                       AliasInitializer &initializer)
-      : printerFlags(flags), initializer(initializer) {}
+      : printerFlags(printerFlags), initializer(initializer) {}
 
   /// Print the given operation.
   void print(Operation *op) {
@@ -371,7 +387,7 @@ public:
       // Check to see if this is a known operation.  If so, use the registered
       // custom printer hook.
       if (auto *opInfo = op->getAbstractOperation()) {
-        opInfo->printAssembly(op, *this);
+        opInfo->printAssembly(op, *this, /*defaultDialect=*/"");
         return;
       }
     }
@@ -382,7 +398,7 @@ public:
 
 private:
   /// Print the given operation in the generic form.
-  void printGenericOp(Operation *op) override {
+  void printGenericOp(Operation *op, bool printOpName = true) override {
     // Consider nested operations for aliases.
     if (op->getNumRegions() != 0) {
       for (Region &region : op->getRegions())
@@ -491,6 +507,7 @@ private:
 
   /// The following are hooks of `OpAsmPrinter` that are not necessary for
   /// determining potential aliases.
+  void printFloat(const APFloat &value) override {}
   void printAffineMapOfSSAIds(AffineMapAttr, ValueRange) override {}
   void printAffineExprOfSSAIds(AffineExpr, ValueRange, ValueRange) override {}
   void printNewline() override {}
@@ -652,21 +669,28 @@ void AliasInitializer::visit(Type type) {
 template <typename T>
 LogicalResult AliasInitializer::generateAlias(
     T symbol, llvm::MapVector<StringRef, std::vector<T>> &aliasToSymbol) {
-  SmallString<16> tempBuffer;
+  SmallString<32> nameBuffer;
   for (const auto &interface : interfaces) {
-    if (failed(interface.getAlias(symbol, aliasOS)))
+    OpAsmDialectInterface::AliasResult result =
+        interface.getAlias(symbol, aliasOS);
+    if (result == OpAsmDialectInterface::AliasResult::NoAlias)
       continue;
-    StringRef name = aliasOS.str();
-    assert(!name.empty() && "expected valid alias name");
-    name = sanitizeIdentifier(name, tempBuffer, /*allowedPunctChars=*/"$_-",
-                              /*allowTrailingDigit=*/false);
-    name = name.copy(aliasAllocator);
-
-    aliasToSymbol[name].push_back(symbol);
-    aliasBuffer.clear();
-    return success();
+    nameBuffer = std::move(aliasBuffer);
+    assert(!nameBuffer.empty() && "expected valid alias name");
+    if (result == OpAsmDialectInterface::AliasResult::FinalAlias)
+      break;
   }
-  return failure();
+
+  if (nameBuffer.empty())
+    return failure();
+
+  SmallString<16> tempBuffer;
+  StringRef name =
+      sanitizeIdentifier(nameBuffer, tempBuffer, /*allowedPunctChars=*/"$_-",
+                         /*allowTrailingDigit=*/false);
+  name = name.copy(aliasAllocator);
+  aliasToSymbol[name].push_back(symbol);
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -767,7 +791,7 @@ public:
   /// A sentinel value used for values with names set.
   enum : unsigned { NameSentinel = ~0U };
 
-  SSANameState(Operation *op,
+  SSANameState(Operation *op, const OpPrintingFlags &printerFlags,
                DialectInterfaceCollection<OpAsmDialectInterface> &interfaces);
 
   /// Print the SSA identifier for the given value to 'stream'. If
@@ -789,15 +813,9 @@ public:
 
 private:
   /// Number the SSA values within the given IR unit.
-  void numberValuesInRegion(
-      Region &region,
-      DialectInterfaceCollection<OpAsmDialectInterface> &interfaces);
-  void numberValuesInBlock(
-      Block &block,
-      DialectInterfaceCollection<OpAsmDialectInterface> &interfaces);
-  void numberValuesInOp(
-      Operation &op,
-      DialectInterfaceCollection<OpAsmDialectInterface> &interfaces);
+  void numberValuesInRegion(Region &region);
+  void numberValuesInBlock(Block &block);
+  void numberValuesInOp(Operation &op);
 
   /// Given a result of an operation 'result', find the result group head
   /// 'lookupValue' and the result of 'result' within that group in
@@ -838,12 +856,19 @@ private:
   unsigned nextArgumentID = 0;
   /// This is the next ID to assign when a name conflict is detected.
   unsigned nextConflictID = 0;
+
+  /// These are the printing flags.  They control, eg., whether to print in
+  /// generic form.
+  OpPrintingFlags printerFlags;
+
+  DialectInterfaceCollection<OpAsmDialectInterface> &interfaces;
 };
 } // end anonymous namespace
 
 SSANameState::SSANameState(
-    Operation *op,
-    DialectInterfaceCollection<OpAsmDialectInterface> &interfaces) {
+    Operation *op, const OpPrintingFlags &printerFlags,
+    DialectInterfaceCollection<OpAsmDialectInterface> &interfaces)
+    : printerFlags(printerFlags), interfaces(interfaces) {
   llvm::SaveAndRestore<unsigned> valueIDSaver(nextValueID);
   llvm::SaveAndRestore<unsigned> argumentIDSaver(nextArgumentID);
   llvm::SaveAndRestore<unsigned> conflictIDSaver(nextConflictID);
@@ -867,7 +892,7 @@ SSANameState::SSANameState(
     nameContext.push_back(std::make_tuple(&region, nextValueID, nextArgumentID,
                                           nextConflictID, topLevelNamesScope));
 
-  numberValuesInOp(*op, interfaces);
+  numberValuesInOp(*op);
 
   while (!nameContext.empty()) {
     Region *region;
@@ -887,7 +912,7 @@ SSANameState::SSANameState(
     auto *curNamesScope = new (allocator.Allocate<UsedNamesScopeTy>())
         UsedNamesScopeTy(usedNames);
 
-    numberValuesInRegion(*region, interfaces);
+    numberValuesInRegion(*region);
 
     for (Operation &op : region->getOps())
       for (Region &region : op.getRegions())
@@ -974,22 +999,18 @@ void SSANameState::shadowRegionArgs(Region &region, ValueRange namesToUse) {
   }
 }
 
-void SSANameState::numberValuesInRegion(
-    Region &region,
-    DialectInterfaceCollection<OpAsmDialectInterface> &interfaces) {
+void SSANameState::numberValuesInRegion(Region &region) {
   // Number the values within this region in a breadth-first order.
   unsigned nextBlockID = 0;
   for (auto &block : region) {
     // Each block gets a unique ID, and all of the operations within it get
     // numbered as well.
     blockIDs[&block] = nextBlockID++;
-    numberValuesInBlock(block, interfaces);
+    numberValuesInBlock(block);
   }
 }
 
-void SSANameState::numberValuesInBlock(
-    Block &block,
-    DialectInterfaceCollection<OpAsmDialectInterface> &interfaces) {
+void SSANameState::numberValuesInBlock(Block &block) {
   auto setArgNameFn = [&](Value arg, StringRef name) {
     assert(!valueIDs.count(arg) && "arg numbered multiple times");
     assert(arg.cast<BlockArgument>().getOwner() == &block &&
@@ -998,7 +1019,7 @@ void SSANameState::numberValuesInBlock(
   };
 
   bool isEntryBlock = block.isEntryBlock();
-  if (isEntryBlock) {
+  if (isEntryBlock && !printerFlags.shouldPrintGenericOpForm()) {
     if (auto *op = block.getParentOp()) {
       if (auto asmInterface = interfaces.getInterfaceFor(op->getDialect()))
         asmInterface->getAsmBlockArgumentNames(&block, setArgNameFn);
@@ -1021,12 +1042,10 @@ void SSANameState::numberValuesInBlock(
 
   // Number the operations in this block.
   for (auto &op : block)
-    numberValuesInOp(op, interfaces);
+    numberValuesInOp(op);
 }
 
-void SSANameState::numberValuesInOp(
-    Operation &op,
-    DialectInterfaceCollection<OpAsmDialectInterface> &interfaces) {
+void SSANameState::numberValuesInOp(Operation &op) {
   unsigned numResults = op.getNumResults();
   if (numResults == 0)
     return;
@@ -1043,10 +1062,12 @@ void SSANameState::numberValuesInOp(
     if (int resultNo = result.cast<OpResult>().getResultNumber())
       resultGroups.push_back(resultNo);
   };
-  if (OpAsmOpInterface asmInterface = dyn_cast<OpAsmOpInterface>(&op))
-    asmInterface.getAsmResultNames(setResultNameFn);
-  else if (auto *asmInterface = interfaces.getInterfaceFor(op.getDialect()))
-    asmInterface->getAsmResultNames(&op, setResultNameFn);
+  if (!printerFlags.shouldPrintGenericOpForm()) {
+    if (OpAsmOpInterface asmInterface = dyn_cast<OpAsmOpInterface>(&op))
+      asmInterface.getAsmResultNames(setResultNameFn);
+    else if (auto *asmInterface = interfaces.getInterfaceFor(op.getDialect()))
+      asmInterface->getAsmResultNames(&op, setResultNameFn);
+  }
 
   // If the first result wasn't numbered, give it a default number.
   if (valueIDs.try_emplace(resultBegin, nextValueID).second)
@@ -1124,7 +1145,7 @@ StringRef SSANameState::uniqueValueName(StringRef name) {
     while (true) {
       probeName += llvm::utostr(nextConflictID++);
       if (!usedNames.count(probeName)) {
-        name = StringRef(probeName).copy(usedNameAllocator);
+        name = probeName.str().copy(usedNameAllocator);
         break;
       }
       probeName.resize(name.size() + 1);
@@ -1143,12 +1164,13 @@ namespace mlir {
 namespace detail {
 class AsmStateImpl {
 public:
-  explicit AsmStateImpl(Operation *op, AsmState::LocationMap *locationMap)
-      : interfaces(op->getContext()), nameState(op, interfaces),
-        locationMap(locationMap) {}
+  explicit AsmStateImpl(Operation *op, const OpPrintingFlags &printerFlags,
+                        AsmState::LocationMap *locationMap)
+      : interfaces(op->getContext()), nameState(op, printerFlags, interfaces),
+        printerFlags(printerFlags), locationMap(locationMap) {}
 
   /// Initialize the alias state to enable the printing of aliases.
-  void initializeAliases(Operation *op, const OpPrintingFlags &printerFlags) {
+  void initializeAliases(Operation *op) {
     aliasState.initialize(op, printerFlags, interfaces);
   }
 
@@ -1181,29 +1203,32 @@ private:
   /// The state used for SSA value names.
   SSANameState nameState;
 
+  /// Flags that control op output.
+  OpPrintingFlags printerFlags;
+
   /// An optional location map to be populated.
   AsmState::LocationMap *locationMap;
 };
 } // end namespace detail
 } // end namespace mlir
 
-AsmState::AsmState(Operation *op, LocationMap *locationMap)
-    : impl(std::make_unique<AsmStateImpl>(op, locationMap)) {}
+AsmState::AsmState(Operation *op, const OpPrintingFlags &printerFlags,
+                   LocationMap *locationMap)
+    : impl(std::make_unique<AsmStateImpl>(op, printerFlags, locationMap)) {}
 AsmState::~AsmState() {}
 
 //===----------------------------------------------------------------------===//
-// ModulePrinter
+// AsmPrinter::Impl
 //===----------------------------------------------------------------------===//
 
-namespace {
-class ModulePrinter {
+namespace mlir {
+class AsmPrinter::Impl {
 public:
-  ModulePrinter(raw_ostream &os, OpPrintingFlags flags = llvm::None,
-                AsmStateImpl *state = nullptr)
+  Impl(raw_ostream &os, OpPrintingFlags flags = llvm::None,
+       AsmStateImpl *state = nullptr)
       : os(os), printerFlags(flags), state(state) {}
-  explicit ModulePrinter(ModulePrinter &printer)
-      : os(printer.os), printerFlags(printer.printerFlags),
-        state(printer.state) {}
+  explicit Impl(Impl &other)
+      : Impl(other.os, other.printerFlags, other.state) {}
 
   /// Returns the output stream of the printer.
   raw_ostream &getStream() { return os; }
@@ -1288,9 +1313,9 @@ protected:
   /// A tracker for the number of new lines emitted during printing.
   NewLineCounter newLine;
 };
-} // end anonymous namespace
+} // namespace mlir
 
-void ModulePrinter::printTrailingLocation(Location loc, bool allowAlias) {
+void AsmPrinter::Impl::printTrailingLocation(Location loc, bool allowAlias) {
   // Check to see if we are printing debug information.
   if (!printerFlags.shouldPrintDebugInfo())
     return;
@@ -1299,7 +1324,7 @@ void ModulePrinter::printTrailingLocation(Location loc, bool allowAlias) {
   printLocation(loc, /*allowAlias=*/allowAlias);
 }
 
-void ModulePrinter::printLocationInternal(LocationAttr loc, bool pretty) {
+void AsmPrinter::Impl::printLocationInternal(LocationAttr loc, bool pretty) {
   TypeSwitch<LocationAttr>(loc)
       .Case<OpaqueLoc>([&](OpaqueLoc loc) {
         printLocationInternal(loc.getFallbackLocation(), pretty);
@@ -1405,7 +1430,7 @@ static void printFloatValue(const APFloat &apValue, raw_ostream &os) {
     apValue.toString(strValue);
 
     // Make sure that we can parse the default form as a float.
-    if (StringRef(strValue).contains('.')) {
+    if (strValue.str().contains('.')) {
       os << strValue;
       return;
     }
@@ -1420,7 +1445,7 @@ static void printFloatValue(const APFloat &apValue, raw_ostream &os) {
   os << str;
 }
 
-void ModulePrinter::printLocation(LocationAttr loc, bool allowAlias) {
+void AsmPrinter::Impl::printLocation(LocationAttr loc, bool allowAlias) {
   if (printerFlags.shouldPrintDebugInfoPrettyForm())
     return printLocationInternal(loc, /*pretty=*/true);
 
@@ -1516,8 +1541,9 @@ static void printDialectSymbol(raw_ostream &os, StringRef symPrefix,
     return;
   }
 
-  // TODO: escape the symbol name, it could contain " characters.
-  os << "<\"" << symString << "\">";
+  os << "<\"";
+  llvm::printEscapedString(symString, os);
+  os << "\">";
 }
 
 /// Returns true if the given string can be represented as a bare identifier.
@@ -1567,8 +1593,8 @@ static void printElidedElementsAttr(raw_ostream &os) {
   os << R"(opaque<"_", "0xDEADBEEF">)";
 }
 
-void ModulePrinter::printAttribute(Attribute attr,
-                                   AttrTypeElision typeElision) {
+void AsmPrinter::Impl::printAttribute(Attribute attr,
+                                      AttrTypeElision typeElision) {
   if (!attr) {
     os << "<<NULL ATTRIBUTE>>";
     return;
@@ -1649,7 +1675,7 @@ void ModulePrinter::printAttribute(Attribute attr,
     printType(typeAttr.getValue());
 
   } else if (auto refAttr = attr.dyn_cast<SymbolRefAttr>()) {
-    printSymbolReference(refAttr.getRootReference(), os);
+    printSymbolReference(refAttr.getRootReference().getValue(), os);
     for (FlatSymbolRefAttr nestedRef : refAttr.getNestedReferences()) {
       os << "::";
       printSymbolReference(nestedRef.getValue(), os);
@@ -1769,8 +1795,8 @@ printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
     os << ']';
 }
 
-void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
-                                           bool allowHex) {
+void AsmPrinter::Impl::printDenseElementsAttr(DenseElementsAttr attr,
+                                              bool allowHex) {
   if (auto stringAttr = attr.dyn_cast<DenseStringElementsAttr>())
     return printDenseStringElementsAttr(stringAttr);
 
@@ -1778,8 +1804,8 @@ void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
                                 allowHex);
 }
 
-void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
-                                                  bool allowHex) {
+void AsmPrinter::Impl::printDenseIntOrFPElementsAttr(
+    DenseIntOrFPElementsAttr attr, bool allowHex) {
   auto type = attr.getType();
   auto elementType = type.getElementType();
 
@@ -1814,8 +1840,9 @@ void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
     // and hence was replaced.
     if (complexElementType.isa<IntegerType>()) {
       bool isSigned = !complexElementType.isUnsignedInteger();
+      auto valueIt = attr.value_begin<std::complex<APInt>>();
       printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-        auto complexValue = *(attr.getComplexIntValues().begin() + index);
+        auto complexValue = *(valueIt + index);
         os << "(";
         printDenseIntElement(complexValue.real(), os, isSigned);
         os << ",";
@@ -1823,8 +1850,9 @@ void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
         os << ")";
       });
     } else {
+      auto valueIt = attr.value_begin<std::complex<APFloat>>();
       printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-        auto complexValue = *(attr.getComplexFloatValues().begin() + index);
+        auto complexValue = *(valueIt + index);
         os << "(";
         printFloatValue(complexValue.real(), os);
         os << ",";
@@ -1834,20 +1862,21 @@ void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
     }
   } else if (elementType.isIntOrIndex()) {
     bool isSigned = !elementType.isUnsignedInteger();
-    auto intValues = attr.getIntValues();
+    auto valueIt = attr.value_begin<APInt>();
     printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-      printDenseIntElement(*(intValues.begin() + index), os, isSigned);
+      printDenseIntElement(*(valueIt + index), os, isSigned);
     });
   } else {
     assert(elementType.isa<FloatType>() && "unexpected element type");
-    auto floatValues = attr.getFloatValues();
+    auto valueIt = attr.value_begin<APFloat>();
     printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-      printFloatValue(*(floatValues.begin() + index), os);
+      printFloatValue(*(valueIt + index), os);
     });
   }
 }
 
-void ModulePrinter::printDenseStringElementsAttr(DenseStringElementsAttr attr) {
+void AsmPrinter::Impl::printDenseStringElementsAttr(
+    DenseStringElementsAttr attr) {
   ArrayRef<StringRef> data = attr.getRawStringData();
   auto printFn = [&](unsigned index) {
     os << "\"";
@@ -1857,7 +1886,7 @@ void ModulePrinter::printDenseStringElementsAttr(DenseStringElementsAttr attr) {
   printDenseElementsAttrImpl(attr.isSplat(), attr.getType(), os, printFn);
 }
 
-void ModulePrinter::printType(Type type) {
+void AsmPrinter::Impl::printType(Type type) {
   if (!type) {
     os << "<<NULL TYPE>>";
     return;
@@ -1973,9 +2002,9 @@ void ModulePrinter::printType(Type type) {
       .Default([&](Type type) { return printDialectType(type); });
 }
 
-void ModulePrinter::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
-                                          ArrayRef<StringRef> elidedAttrs,
-                                          bool withKeyword) {
+void AsmPrinter::Impl::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
+                                             ArrayRef<StringRef> elidedAttrs,
+                                             bool withKeyword) {
   // If there are no attributes, then there is nothing to be done.
   if (attrs.empty())
     return;
@@ -2007,7 +2036,7 @@ void ModulePrinter::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
     printFilteredAttributesFn(filteredAttrs);
 }
 
-void ModulePrinter::printNamedAttribute(NamedAttribute attr) {
+void AsmPrinter::Impl::printNamedAttribute(NamedAttribute attr) {
   if (isBareIdentifier(attr.first)) {
     os << attr.first;
   } else {
@@ -2024,75 +2053,82 @@ void ModulePrinter::printNamedAttribute(NamedAttribute attr) {
   printAttribute(attr.second);
 }
 
-//===----------------------------------------------------------------------===//
-// CustomDialectAsmPrinter
-//===----------------------------------------------------------------------===//
-
-namespace {
-/// This class provides the main specialization of the DialectAsmPrinter that is
-/// used to provide support for print attributes and types. This hooks allows
-/// for dialects to hook into the main ModulePrinter.
-struct CustomDialectAsmPrinter : public DialectAsmPrinter {
-public:
-  CustomDialectAsmPrinter(ModulePrinter &printer) : printer(printer) {}
-  ~CustomDialectAsmPrinter() override {}
-
-  raw_ostream &getStream() const override { return printer.getStream(); }
-
-  /// Print the given attribute to the stream.
-  void printAttribute(Attribute attr) override { printer.printAttribute(attr); }
-
-  /// Print the given floating point value in a stablized form.
-  void printFloat(const APFloat &value) override {
-    printFloatValue(value, getStream());
-  }
-
-  /// Print the given type to the stream.
-  void printType(Type type) override { printer.printType(type); }
-
-  /// The main module printer.
-  ModulePrinter &printer;
-};
-} // end anonymous namespace
-
-void ModulePrinter::printDialectAttribute(Attribute attr) {
+void AsmPrinter::Impl::printDialectAttribute(Attribute attr) {
   auto &dialect = attr.getDialect();
 
   // Ask the dialect to serialize the attribute to a string.
   std::string attrName;
   {
     llvm::raw_string_ostream attrNameStr(attrName);
-    ModulePrinter subPrinter(attrNameStr, printerFlags, state);
-    CustomDialectAsmPrinter printer(subPrinter);
+    Impl subPrinter(attrNameStr, printerFlags, state);
+    DialectAsmPrinter printer(subPrinter);
     dialect.printAttribute(attr, printer);
   }
   printDialectSymbol(os, "#", dialect.getNamespace(), attrName);
 }
 
-void ModulePrinter::printDialectType(Type type) {
+void AsmPrinter::Impl::printDialectType(Type type) {
   auto &dialect = type.getDialect();
 
   // Ask the dialect to serialize the type to a string.
   std::string typeName;
   {
     llvm::raw_string_ostream typeNameStr(typeName);
-    ModulePrinter subPrinter(typeNameStr, printerFlags, state);
-    CustomDialectAsmPrinter printer(subPrinter);
+    Impl subPrinter(typeNameStr, printerFlags, state);
+    DialectAsmPrinter printer(subPrinter);
     dialect.printType(type, printer);
   }
   printDialectSymbol(os, "!", dialect.getNamespace(), typeName);
+}
+
+//===--------------------------------------------------------------------===//
+// AsmPrinter
+//===--------------------------------------------------------------------===//
+
+AsmPrinter::~AsmPrinter() {}
+
+raw_ostream &AsmPrinter::getStream() const {
+  assert(impl && "expected AsmPrinter::getStream to be overriden");
+  return impl->getStream();
+}
+
+/// Print the given floating point value in a stablized form.
+void AsmPrinter::printFloat(const APFloat &value) {
+  assert(impl && "expected AsmPrinter::printFloat to be overriden");
+  printFloatValue(value, impl->getStream());
+}
+
+void AsmPrinter::printType(Type type) {
+  assert(impl && "expected AsmPrinter::printType to be overriden");
+  impl->printType(type);
+}
+
+void AsmPrinter::printAttribute(Attribute attr) {
+  assert(impl && "expected AsmPrinter::printAttribute to be overriden");
+  impl->printAttribute(attr);
+}
+
+void AsmPrinter::printAttributeWithoutType(Attribute attr) {
+  assert(impl &&
+         "expected AsmPrinter::printAttributeWithoutType to be overriden");
+  impl->printAttribute(attr, Impl::AttrTypeElision::Must);
+}
+
+void AsmPrinter::printSymbolName(StringRef symbolRef) {
+  assert(impl && "expected AsmPrinter::printSymbolName to be overriden");
+  ::printSymbolReference(symbolRef, impl->getStream());
 }
 
 //===----------------------------------------------------------------------===//
 // Affine expressions and maps
 //===----------------------------------------------------------------------===//
 
-void ModulePrinter::printAffineExpr(
+void AsmPrinter::Impl::printAffineExpr(
     AffineExpr expr, function_ref<void(unsigned, bool)> printValueName) {
   printAffineExprInternal(expr, BindingStrength::Weak, printValueName);
 }
 
-void ModulePrinter::printAffineExprInternal(
+void AsmPrinter::Impl::printAffineExprInternal(
     AffineExpr expr, BindingStrength enclosingTightness,
     function_ref<void(unsigned, bool)> printValueName) {
   const char *binopSpelling = nullptr;
@@ -2225,12 +2261,12 @@ void ModulePrinter::printAffineExprInternal(
     os << ')';
 }
 
-void ModulePrinter::printAffineConstraint(AffineExpr expr, bool isEq) {
+void AsmPrinter::Impl::printAffineConstraint(AffineExpr expr, bool isEq) {
   printAffineExprInternal(expr, BindingStrength::Weak);
   isEq ? os << " == 0" : os << " >= 0";
 }
 
-void ModulePrinter::printAffineMap(AffineMap map) {
+void AsmPrinter::Impl::printAffineMap(AffineMap map) {
   // Dimension identifiers.
   os << '(';
   for (int i = 0; i < (int)map.getNumDims() - 1; ++i)
@@ -2256,7 +2292,7 @@ void ModulePrinter::printAffineMap(AffineMap map) {
   os << ')';
 }
 
-void ModulePrinter::printIntegerSet(IntegerSet set) {
+void AsmPrinter::Impl::printIntegerSet(IntegerSet set) {
   // Dimension identifiers.
   os << '(';
   for (unsigned i = 1; i < set.getNumDims(); ++i)
@@ -2294,11 +2330,14 @@ void ModulePrinter::printIntegerSet(IntegerSet set) {
 
 namespace {
 /// This class contains the logic for printing operations, regions, and blocks.
-class OperationPrinter : public ModulePrinter, private OpAsmPrinter {
+class OperationPrinter : public AsmPrinter::Impl, private OpAsmPrinter {
 public:
+  using Impl = AsmPrinter::Impl;
+  using Impl::printType;
+
   explicit OperationPrinter(raw_ostream &os, OpPrintingFlags flags,
                             AsmStateImpl &state)
-      : ModulePrinter(os, flags, &state) {}
+      : Impl(os, flags, &state), OpAsmPrinter(static_cast<Impl &>(*this)) {}
 
   /// Print the given top-level operation.
   void printTopLevelOperation(Operation *op);
@@ -2308,7 +2347,7 @@ public:
   /// Print the bare location, not including indentation/location/etc.
   void printOperation(Operation *op);
   /// Print the given operation in the generic form.
-  void printGenericOp(Operation *op) override;
+  void printGenericOp(Operation *op, bool printOpName) override;
 
   /// Print the name of the given block.
   void printBlockName(Block *block);
@@ -2327,28 +2366,11 @@ public:
   // OpAsmPrinter methods
   //===--------------------------------------------------------------------===//
 
-  /// Return the current stream of the printer.
-  raw_ostream &getStream() const override { return os; }
-
   /// Print a newline and indent the printer to the start of the current
   /// operation.
   void printNewline() override {
     os << newLine;
     os.indent(currentIndent);
-  }
-
-  /// Print the given type.
-  void printType(Type type) override { ModulePrinter::printType(type); }
-
-  /// Print the given attribute.
-  void printAttribute(Attribute attr) override {
-    ModulePrinter::printAttribute(attr);
-  }
-
-  /// Print the given attribute without its type. The corresponding parser must
-  /// provide a valid type for the attribute.
-  void printAttributeWithoutType(Attribute attr) override {
-    ModulePrinter::printAttribute(attr, AttrTypeElision::Must);
   }
 
   /// Print a block argument in the usual format of:
@@ -2369,13 +2391,13 @@ public:
   /// Print an optional attribute dictionary with a given set of elided values.
   void printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
                              ArrayRef<StringRef> elidedAttrs = {}) override {
-    ModulePrinter::printOptionalAttrDict(attrs, elidedAttrs);
+    Impl::printOptionalAttrDict(attrs, elidedAttrs);
   }
   void printOptionalAttrDictWithKeyword(
       ArrayRef<NamedAttribute> attrs,
       ArrayRef<StringRef> elidedAttrs = {}) override {
-    ModulePrinter::printOptionalAttrDict(attrs, elidedAttrs,
-                                         /*withKeyword=*/true);
+    Impl::printOptionalAttrDict(attrs, elidedAttrs,
+                                /*withKeyword=*/true);
   }
 
   /// Print the given successor.
@@ -2408,12 +2430,14 @@ public:
   void printAffineExprOfSSAIds(AffineExpr expr, ValueRange dimOperands,
                                ValueRange symOperands) override;
 
-  /// Print the given string as a symbol reference.
-  void printSymbolName(StringRef symbolRef) override {
-    ::printSymbolReference(symbolRef, os);
-  }
-
 private:
+  // Contains the stack of default dialects to use when printing regions.
+  // A new dialect is pushed to the stack before parsing regions nested under an
+  // operation implementing `OpAsmOpInterface`, and popped when done. At the
+  // top-level we start with "builtin" as the default, so that the top-level
+  // `module` operation prints as-is.
+  SmallVector<StringRef> defaultDialectStack{"builtin"};
+
   /// The number of spaces used for indenting nested operations.
   const static unsigned indentWidth = 2;
 
@@ -2493,24 +2517,34 @@ void OperationPrinter::printOperation(Operation *op) {
     // Check to see if this is a known operation.  If so, use the registered
     // custom printer hook.
     if (auto *opInfo = op->getAbstractOperation()) {
-      opInfo->printAssembly(op, *this);
+      opInfo->printAssembly(op, *this, defaultDialectStack.back());
       return;
     }
     // Otherwise try to dispatch to the dialect, if available.
     if (Dialect *dialect = op->getDialect()) {
-      if (succeeded(dialect->printOperation(op, *this)))
+      if (auto opPrinter = dialect->getOperationPrinter(op)) {
+        // Print the op name first.
+        StringRef name = op->getName().getStringRef();
+        name.consume_front((defaultDialectStack.back() + ".").str());
+        printEscapedString(name, os);
+        // Print the rest of the op now.
+        opPrinter(op, *this);
         return;
+      }
     }
   }
 
   // Otherwise print with the generic assembly form.
-  printGenericOp(op);
+  printGenericOp(op, /*printOpName=*/true);
 }
 
-void OperationPrinter::printGenericOp(Operation *op) {
-  os << '"';
-  printEscapedString(op->getName().getStringRef(), os);
-  os << "\"(";
+void OperationPrinter::printGenericOp(Operation *op, bool printOpName) {
+  if (printOpName) {
+    os << '"';
+    printEscapedString(op->getName().getStringRef(), os);
+    os << '"';
+  }
+  os << '(';
   interleaveComma(op->getOperands(), [&](Value value) { printValueID(value); });
   os << ')';
 
@@ -2638,6 +2672,13 @@ void OperationPrinter::printRegion(Region &region, bool printEntryBlockArgs,
                                    bool printEmptyBlock) {
   os << " {" << newLine;
   if (!region.empty()) {
+    auto restoreDefaultDialect =
+        llvm::make_scope_exit([&]() { defaultDialectStack.pop_back(); });
+    if (auto iface = dyn_cast<OpAsmOpInterface>(region.getParentOp()))
+      defaultDialectStack.push_back(iface.getDefaultDialect());
+    else
+      defaultDialectStack.push_back("");
+
     auto *entryBlock = &region.front();
     // Force printing the block header if printEmptyBlock is set and the block
     // is empty or if printEntryBlockArgs is set and there are arguments to
@@ -2689,7 +2730,7 @@ void OperationPrinter::printAffineExprOfSSAIds(AffineExpr expr,
 //===----------------------------------------------------------------------===//
 
 void Attribute::print(raw_ostream &os) const {
-  ModulePrinter(os).printAttribute(*this);
+  AsmPrinter::Impl(os).printAttribute(*this);
 }
 
 void Attribute::dump() const {
@@ -2697,9 +2738,11 @@ void Attribute::dump() const {
   llvm::errs() << "\n";
 }
 
-void Type::print(raw_ostream &os) { ModulePrinter(os).printType(*this); }
+void Type::print(raw_ostream &os) const {
+  AsmPrinter::Impl(os).printType(*this);
+}
 
-void Type::dump() { print(llvm::errs()); }
+void Type::dump() const { print(llvm::errs()); }
 
 void AffineMap::dump() const {
   print(llvm::errs());
@@ -2716,7 +2759,7 @@ void AffineExpr::print(raw_ostream &os) const {
     os << "<<NULL AFFINE EXPR>>";
     return;
   }
-  ModulePrinter(os).printAffineExpr(*this);
+  AsmPrinter::Impl(os).printAffineExpr(*this);
 }
 
 void AffineExpr::dump() const {
@@ -2729,11 +2772,11 @@ void AffineMap::print(raw_ostream &os) const {
     os << "<<NULL AFFINE MAP>>";
     return;
   }
-  ModulePrinter(os).printAffineMap(*this);
+  AsmPrinter::Impl(os).printAffineMap(*this);
 }
 
 void IntegerSet::print(raw_ostream &os) const {
-  ModulePrinter(os).printIntegerSet(*this);
+  AsmPrinter::Impl(os).printIntegerSet(*this);
 }
 
 void Value::print(raw_ostream &os) {
@@ -2742,7 +2785,7 @@ void Value::print(raw_ostream &os) {
   // TODO: Improve BlockArgument print'ing.
   BlockArgument arg = this->cast<BlockArgument>();
   os << "<block argument> of type '" << arg.getType()
-     << "' at index: " << arg.getArgNumber() << '\n';
+     << "' at index: " << arg.getArgNumber();
 }
 void Value::print(raw_ostream &os, AsmState &state) {
   if (auto *op = getDefiningOp())
@@ -2751,7 +2794,7 @@ void Value::print(raw_ostream &os, AsmState &state) {
   // TODO: Improve BlockArgument print'ing.
   BlockArgument arg = this->cast<BlockArgument>();
   os << "<block argument> of type '" << arg.getType()
-     << "' at index: " << arg.getArgNumber() << '\n';
+     << "' at index: " << arg.getArgNumber();
 }
 
 void Value::dump() {
@@ -2768,18 +2811,18 @@ void Value::printAsOperand(raw_ostream &os, AsmState &state) {
                                                  os);
 }
 
-void Operation::print(raw_ostream &os, OpPrintingFlags flags) {
+void Operation::print(raw_ostream &os, const OpPrintingFlags &printerFlags) {
   // If this is a top level operation, we also print aliases.
-  if (!getParent() && !flags.shouldUseLocalScope()) {
-    AsmState state(this);
-    state.getImpl().initializeAliases(this, flags);
-    print(os, state, flags);
+  if (!getParent() && !printerFlags.shouldUseLocalScope()) {
+    AsmState state(this, printerFlags);
+    state.getImpl().initializeAliases(this);
+    print(os, state, printerFlags);
     return;
   }
 
   // Find the operation to number from based upon the provided flags.
   Operation *op = this;
-  bool shouldUseLocalScope = flags.shouldUseLocalScope();
+  bool shouldUseLocalScope = printerFlags.shouldUseLocalScope();
   do {
     // If we are printing local scope, stop at the first operation that is
     // isolated from above.
@@ -2793,10 +2836,11 @@ void Operation::print(raw_ostream &os, OpPrintingFlags flags) {
     op = parentOp;
   } while (true);
 
-  AsmState state(op);
-  print(os, state, flags);
+  AsmState state(op, printerFlags);
+  print(os, state, printerFlags);
 }
-void Operation::print(raw_ostream &os, AsmState &state, OpPrintingFlags flags) {
+void Operation::print(raw_ostream &os, AsmState &state,
+                      const OpPrintingFlags &flags) {
   OperationPrinter printer(os, flags, state.getImpl());
   if (!getParent() && !flags.shouldUseLocalScope())
     printer.printTopLevelOperation(this);

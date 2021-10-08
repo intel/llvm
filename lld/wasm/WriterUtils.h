@@ -16,7 +16,11 @@
 namespace lld {
 namespace wasm {
 
+#ifdef LLVM_DEBUG
 void debugWrite(uint64_t offset, const Twine &msg);
+#else
+#define debugWrite(...) (void *)0
+#endif
 
 void writeUleb128(raw_ostream &os, uint64_t number, const Twine &msg);
 
@@ -51,9 +55,9 @@ void writeLimits(raw_ostream &os, const llvm::wasm::WasmLimits &limits);
 
 void writeGlobalType(raw_ostream &os, const llvm::wasm::WasmGlobalType &type);
 
-void writeEventType(raw_ostream &os, const llvm::wasm::WasmEventType &type);
+void writeTagType(raw_ostream &os, const llvm::wasm::WasmTagType &type);
 
-void writeEvent(raw_ostream &os, const llvm::wasm::WasmEvent &event);
+void writeTag(raw_ostream &os, const llvm::wasm::WasmTag &tag);
 
 void writeTableType(raw_ostream &os, const llvm::wasm::WasmTableType &type);
 
@@ -66,7 +70,7 @@ void writeExport(raw_ostream &os, const llvm::wasm::WasmExport &export_);
 std::string toString(llvm::wasm::ValType type);
 std::string toString(const llvm::wasm::WasmSignature &sig);
 std::string toString(const llvm::wasm::WasmGlobalType &type);
-std::string toString(const llvm::wasm::WasmEventType &type);
+std::string toString(const llvm::wasm::WasmTagType &type);
 std::string toString(const llvm::wasm::WasmTableType &type);
 
 } // namespace lld

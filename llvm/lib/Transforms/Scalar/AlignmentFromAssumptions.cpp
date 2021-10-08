@@ -135,6 +135,8 @@ static Align getNewAlignment(const SCEV *AASCEV, const SCEV *AlignSCEV,
   PtrSCEV = SE->getTruncateOrZeroExtend(
       PtrSCEV, SE->getEffectiveSCEVType(AASCEV->getType()));
   const SCEV *DiffSCEV = SE->getMinusSCEV(PtrSCEV, AASCEV);
+  if (isa<SCEVCouldNotCompute>(DiffSCEV))
+    return Align(1);
 
   // On 32-bit platforms, DiffSCEV might now have type i32 -- we've always
   // sign-extended OffSCEV to i64, so make sure they agree again.
@@ -219,6 +221,10 @@ bool AlignmentFromAssumptionsPass::extractAlignmentInfo(CallInst *I,
   AAPtr = AAPtr->stripPointerCastsSameRepresentation();
   AlignSCEV = SE->getSCEV(AlignOB.Inputs[1].get());
   AlignSCEV = SE->getTruncateOrZeroExtend(AlignSCEV, Int64Ty);
+  if (!isa<SCEVConstant>(AlignSCEV))
+    // Added to suppress a crash because consumer doesn't expect non-constant
+    // alignments in the assume bundle.  TODO: Consider generalizing caller.
+    return false;
   if (AlignOB.Inputs.size() == 3)
     OffSCEV = SE->getSCEV(AlignOB.Inputs[2].get());
   else

@@ -127,12 +127,9 @@ void MCObjectStreamer::resolvePendingFixups() {
 
 // As a compile-time optimization, avoid allocating and evaluating an MCExpr
 // tree for (Hi - Lo) when Hi and Lo are offsets into the same fragment.
-static Optional<uint64_t>
-absoluteSymbolDiff(MCAssembler &Asm, const MCSymbol *Hi, const MCSymbol *Lo) {
+static Optional<uint64_t> absoluteSymbolDiff(const MCSymbol *Hi,
+                                             const MCSymbol *Lo) {
   assert(Hi && Lo);
-  if (Asm.getBackendPtr()->requiresDiffExpressionRelocations())
-    return None;
-
   if (!Hi->getFragment() || Hi->getFragment() != Lo->getFragment() ||
       Hi->isVariable() || Lo->isVariable())
     return None;
@@ -143,19 +140,17 @@ absoluteSymbolDiff(MCAssembler &Asm, const MCSymbol *Hi, const MCSymbol *Lo) {
 void MCObjectStreamer::emitAbsoluteSymbolDiff(const MCSymbol *Hi,
                                               const MCSymbol *Lo,
                                               unsigned Size) {
-  if (Optional<uint64_t> Diff = absoluteSymbolDiff(getAssembler(), Hi, Lo)) {
-    emitIntValue(*Diff, Size);
-    return;
-  }
+  if (!getAssembler().getContext().getTargetTriple().isRISCV())
+    if (Optional<uint64_t> Diff = absoluteSymbolDiff(Hi, Lo))
+      return emitIntValue(*Diff, Size);
   MCStreamer::emitAbsoluteSymbolDiff(Hi, Lo, Size);
 }
 
 void MCObjectStreamer::emitAbsoluteSymbolDiffAsULEB128(const MCSymbol *Hi,
                                                        const MCSymbol *Lo) {
-  if (Optional<uint64_t> Diff = absoluteSymbolDiff(getAssembler(), Hi, Lo)) {
-    emitULEB128IntValue(*Diff);
-    return;
-  }
+  if (!getAssembler().getContext().getTargetTriple().isRISCV())
+    if (Optional<uint64_t> Diff = absoluteSymbolDiff(Hi, Lo))
+      return emitULEB128IntValue(*Diff);
   MCStreamer::emitAbsoluteSymbolDiffAsULEB128(Hi, Lo);
 }
 
@@ -373,7 +368,7 @@ void MCObjectStreamer::emitInstruction(const MCInst &Inst,
                                                 "' cannot have instructions");
     return;
   }
-  getAssembler().getBackend().emitInstructionBegin(*this, Inst);
+  getAssembler().getBackend().emitInstructionBegin(*this, Inst, STI);
   emitInstructionImpl(Inst, STI);
   getAssembler().getBackend().emitInstructionEnd(*this, Inst);
 }
@@ -614,9 +609,10 @@ void MCObjectStreamer::emitValueToAlignment(unsigned ByteAlignment,
 }
 
 void MCObjectStreamer::emitCodeAlignment(unsigned ByteAlignment,
+                                         const MCSubtargetInfo *STI,
                                          unsigned MaxBytesToEmit) {
   emitValueToAlignment(ByteAlignment, 0, 1, MaxBytesToEmit);
-  cast<MCAlignFragment>(getCurrentFragment())->setEmitNops(true);
+  cast<MCAlignFragment>(getCurrentFragment())->setEmitNops(true, STI);
 }
 
 void MCObjectStreamer::emitValueToOffset(const MCExpr *Offset,
@@ -840,17 +836,26 @@ void MCObjectStreamer::emitFill(const MCExpr &NumValues, int64_t Size,
 }
 
 void MCObjectStreamer::emitNops(int64_t NumBytes, int64_t ControlledNopLength,
-                                SMLoc Loc) {
+                                SMLoc Loc, const MCSubtargetInfo &STI) {
   // Emit an NOP fragment.
   MCDataFragment *DF = getOrCreateDataFragment();
   flushPendingLabels(DF, DF->getContents().size());
 
   assert(getCurrentSectionOnly() && "need a section");
-  insert(new MCNopsFragment(NumBytes, ControlledNopLength, Loc));
+
+  insert(new MCNopsFragment(NumBytes, ControlledNopLength, Loc, STI));
 }
 
 void MCObjectStreamer::emitFileDirective(StringRef Filename) {
   getAssembler().addFileName(Filename);
+}
+
+void MCObjectStreamer::emitFileDirective(StringRef Filename,
+                                         StringRef CompilerVerion,
+                                         StringRef TimeStamp,
+                                         StringRef Description) {
+  getAssembler().addFileName(Filename);
+  // TODO: add additional info to integrated assembler.
 }
 
 void MCObjectStreamer::emitAddrsig() {

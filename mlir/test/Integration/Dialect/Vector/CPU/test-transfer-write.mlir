@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -convert-scf-to-std -convert-vector-to-llvm -convert-std-to-llvm | \
+// RUN: mlir-opt %s -convert-scf-to-std -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
 // RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
@@ -89,6 +89,7 @@ func @entry() {
   %6 = call @transfer_read_1d(%A) : (memref<?xf32>) -> (vector<32xf32>)
   vector.print %6 : vector<32xf32>
 
+  memref.dealloc %A : memref<?xf32>
   return
 }
 

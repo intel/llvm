@@ -439,6 +439,7 @@ TYPE_TRAIT_2(__builtin_types_compatible_p, TypeCompatible, KEYNOCXX)
 KEYWORD(__builtin_va_arg            , KEYALL)
 KEYWORD(__extension__               , KEYALL)
 KEYWORD(__float128                  , KEYALL)
+KEYWORD(__ibm128                    , KEYALL)
 KEYWORD(__imag                      , KEYALL)
 KEYWORD(__int128                    , KEYALL)
 KEYWORD(__label__                   , KEYALL)
@@ -711,8 +712,6 @@ KEYWORD(__builtin_available              , KEYALL)
 KEYWORD(__builtin_sycl_unique_stable_name, KEYSYCL)
 KEYWORD(__builtin_sycl_unique_stable_id  , KEYSYCL)
 
-TYPE_TRAIT_1(__builtin_sycl_mark_kernel_name, SYCLMarkKernelName, KEYSYCL)
-
 // Clang-specific keywords enabled only in testing.
 TESTING_KEYWORD(__unknown_anytype , KEYALL)
 
@@ -873,6 +872,13 @@ PRAGMA_ANNOTATION(pragma_ms_pragma)
 PRAGMA_ANNOTATION(pragma_opencl_extension)
 
 // Annotations for OpenMP pragma directives - #pragma omp ...
+// The parser produces this annotation token when it parses an [[omp::*]]
+// attribute. The tokens from the attribute argument list are replayed to the
+// token stream with this leading token (and a trailing pragma_openmp_end) so
+// that the parser can reuse the OpenMP parsing logic but still be able to
+// distinguish between a real pragma and a converted pragma. It is not marked
+// as a PRAGMA_ANNOTATION because it doesn't get generated from a #pragma.
+ANNOTATION(attr_openmp)
 // The lexer produces these so that they only take effect when the parser
 // handles #pragma omp ... directives.
 PRAGMA_ANNOTATION(pragma_openmp)

@@ -115,6 +115,8 @@ ld64_cmd = config.ld64_executable
 asan_rtlib = get_asan_rtlib()
 if asan_rtlib:
     ld64_cmd = 'DYLD_INSERT_LIBRARIES={} {}'.format(asan_rtlib, ld64_cmd)
+if config.osx_sysroot:
+    ld64_cmd = '{} -syslibroot {}'.format(ld64_cmd, config.osx_sysroot)
 
 ocamlc_command = '%s ocamlc -cclib -L%s %s' % (
     config.ocamlfind_executable, config.llvm_lib_dir, config.ocaml_flags)
@@ -163,9 +165,9 @@ tools.extend([
     'llvm-link', 'llvm-lto', 'llvm-lto2', 'llvm-mc', 'llvm-mca',
     'llvm-modextract', 'llvm-nm', 'llvm-objcopy', 'llvm-objdump', 'llvm-otool',
     'llvm-pdbutil', 'llvm-profdata', 'llvm-profgen', 'llvm-ranlib', 'llvm-rc', 'llvm-readelf',
-    'llvm-readobj', 'llvm-rtdyld', 'llvm-size', 'llvm-split', 'llvm-strings',
-    'llvm-strip', 'llvm-tblgen', 'llvm-tapi-diff', 'llvm-undname', 'llvm-windres',
-    'llvm-c-test', 'llvm-cxxfilt',
+    'llvm-readobj', 'llvm-rtdyld', 'llvm-sim', 'llvm-size', 'llvm-split',
+    'llvm-stress', 'llvm-strings', 'llvm-strip', 'llvm-tblgen', 'llvm-tapi-diff',
+    'llvm-undname', 'llvm-windres', 'llvm-c-test', 'llvm-cxxfilt',
     'llvm-xray', 'yaml2obj', 'obj2yaml', 'yaml-bench', 'verify-uselistorder',
     'bugpoint', 'llc', 'llvm-symbolizer', 'opt', 'sancov', 'sanstats'])
 
@@ -180,7 +182,13 @@ tools.extend([
     ToolSubst('Kaleidoscope-Ch7', unresolved='ignore'),
     ToolSubst('Kaleidoscope-Ch8', unresolved='ignore'),
     ToolSubst('LLJITWithThinLTOSummaries', unresolved='ignore'),
-    ToolSubst('LLJITWithRemoteDebugging', unresolved='ignore')])
+    ToolSubst('LLJITWithRemoteDebugging', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsBasicUsage', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsAddObjectFile', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsRemovableCode', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsReflectProcessSymbols', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsLazy', unresolved='ignore'),
+    ToolSubst('OrcV2CBindingsVeryLazy', unresolved='ignore')])
 
 llvm_config.add_tool_substitutions(tools, config.llvm_tools_dir)
 
@@ -232,6 +240,14 @@ else:
 if not config.build_shared_libs and not config.link_llvm_dylib:
     config.available_features.add('static-libs')
 
+if config.link_llvm_dylib:
+    config.available_features.add('llvm-dylib')
+    config.substitutions.append(
+        ('%llvmdylib',
+         '{}/libLLVM-{}{}'.format(config.llvm_shlib_dir,
+                                  config.llvm_dylib_version,
+                                  config.llvm_shlib_ext)))
+
 if config.have_tf_aot:
     config.available_features.add("have_tf_aot")
 
@@ -246,7 +262,7 @@ def have_cxx_shared_library():
 
     try:
         readobj_cmd = subprocess.Popen(
-            [readobj_exe, '-needed-libs', readobj_exe], stdout=subprocess.PIPE)
+            [readobj_exe, '--needed-libs', readobj_exe], stdout=subprocess.PIPE)
     except OSError:
         print('could not exec llvm-readobj')
         return False
@@ -362,8 +378,8 @@ if 'darwin' == sys.platform:
         if 'hw.optional.fma: 1' in result:
             config.available_features.add('fma3')
 
-# .debug_frame is not emitted for targeting Windows x64.
-if not re.match(r'^x86_64.*-(windows-gnu|windows-msvc)', config.target_triple):
+# .debug_frame is not emitted for targeting Windows x64 or arm64.
+if not re.match(r'^(x86_64|arm64).*-(windows-gnu|windows-msvc)', config.target_triple):
     config.available_features.add('debug_frame')
 
 if config.have_libxar:

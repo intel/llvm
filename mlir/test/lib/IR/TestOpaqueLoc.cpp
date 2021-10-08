@@ -18,6 +18,10 @@ namespace {
 /// locations.
 struct TestOpaqueLoc
     : public PassWrapper<TestOpaqueLoc, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-opaque-loc"; }
+  StringRef getDescription() const final {
+    return "Changes all leaf locations to opaque locations";
+  }
 
   /// A simple structure which is used for testing as an underlying location in
   /// OpaqueLoc.
@@ -33,7 +37,7 @@ struct TestOpaqueLoc
     std::vector<std::unique_ptr<MyLocation>> myLocs;
     int last_it = 0;
 
-    getOperation().walk([&](Operation *op) {
+    getOperation().getBody()->walk([&](Operation *op) {
       myLocs.push_back(std::make_unique<MyLocation>(last_it++));
 
       Location loc = op->getLoc();
@@ -82,9 +86,6 @@ struct TestOpaqueLoc
 
 namespace mlir {
 namespace test {
-void registerTestOpaqueLoc() {
-  PassRegistration<TestOpaqueLoc> pass(
-      "test-opaque-loc", "Changes all leaf locations to opaque locations");
-}
+void registerTestOpaqueLoc() { PassRegistration<TestOpaqueLoc>(); }
 } // namespace test
 } // namespace mlir

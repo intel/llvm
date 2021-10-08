@@ -220,8 +220,6 @@ public:
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
   DWARFDebugAbbrev *DebugAbbrev();
 
   DWARFDebugInfo &DebugInfo();
@@ -317,6 +315,8 @@ public:
   static lldb::LanguageType LanguageTypeFromDWARF(uint64_t val);
 
   static lldb::LanguageType GetLanguage(DWARFUnit &unit);
+  /// Same as GetLanguage() but reports all C++ versions as C++ (no version).
+  static lldb::LanguageType GetLanguageFamily(DWARFUnit &unit);
 
 protected:
   typedef llvm::DenseMap<const DWARFDebugInfoEntry *, lldb_private::Type *>
@@ -366,6 +366,9 @@ protected:
   lldb::TypeSP ParseType(const lldb_private::SymbolContext &sc,
                          const DWARFDIE &die, bool *type_is_new);
 
+  bool ParseSupportFiles(DWARFUnit &dwarf_cu, const lldb::ModuleSP &module,
+                         lldb_private::FileSpecList &support_files);
+
   lldb_private::Type *ResolveTypeUID(const DWARFDIE &die,
                                      bool assert_not_being_parsed);
 
@@ -375,11 +378,19 @@ protected:
                                     const DWARFDIE &die,
                                     const lldb::addr_t func_low_pc);
 
-  size_t ParseVariables(const lldb_private::SymbolContext &sc,
-                        const DWARFDIE &orig_die,
-                        const lldb::addr_t func_low_pc, bool parse_siblings,
-                        bool parse_children,
-                        lldb_private::VariableList *cc_variable_list = nullptr);
+  void
+  ParseAndAppendGlobalVariable(const lldb_private::SymbolContext &sc,
+                               const DWARFDIE &die,
+                               lldb_private::VariableList &cc_variable_list);
+
+  size_t ParseVariablesInFunctionContext(const lldb_private::SymbolContext &sc,
+                                         const DWARFDIE &die,
+                                         const lldb::addr_t func_low_pc);
+
+  size_t ParseVariablesInFunctionContextRecursive(
+      const lldb_private::SymbolContext &sc, const DWARFDIE &die,
+      const lldb::addr_t func_low_pc,
+      lldb_private::VariableList &variable_list);
 
   bool ClassOrStructIsVirtual(const DWARFDIE &die);
 

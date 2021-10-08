@@ -23,28 +23,33 @@
 /// laid out as follows:
 ///
 /// +--------------------+ 0x800000000000 (top of memory)
-/// | application memory |
-/// +--------------------+ 0x700000008000 (kAppAddr)
-/// |                    |
-/// |       unused       |
-/// |                    |
-/// +--------------------+ 0x300000000000 (kUnusedAddr)
-/// |       origin       |
-/// +--------------------+ 0x200000008000 (kOriginAddr)
-/// |       unused       |
+/// |    application 3   |
+/// +--------------------+ 0x700000000000
+/// |      invalid       |
+/// +--------------------+ 0x610000000000
+/// |      origin 1      |
+/// +--------------------+ 0x600000000000
+/// |    application 2   |
+/// +--------------------+ 0x510000000000
+/// |      shadow 1      |
+/// +--------------------+ 0x500000000000
+/// |      invalid       |
+/// +--------------------+ 0x400000000000
+/// |      origin 3      |
+/// +--------------------+ 0x300000000000
+/// |      shadow 3      |
 /// +--------------------+ 0x200000000000
-/// |   shadow memory    |
-/// +--------------------+ 0x100000008000 (kShadowAddr)
-/// |       unused       |
-/// +--------------------+ 0x000000010000
-/// | reserved by kernel |
+/// |      origin 2      |
+/// +--------------------+ 0x110000000000
+/// |      invalid       |
+/// +--------------------+ 0x100000000000
+/// |      shadow 2      |
+/// +--------------------+ 0x010000000000
+/// |    application 1   |
 /// +--------------------+ 0x000000000000
 ///
-///
-/// To derive a shadow memory address from an application memory address, bits
-/// 45-46 are cleared to bring the address into the range
-/// [0x100000008000,0x200000000000). See the function
-/// DataFlowSanitizer::getShadowAddress below.
+/// MEM_TO_SHADOW(mem) = mem ^ 0x500000000000
+/// SHADOW_TO_ORIGIN(shadow) = shadow + 0x100000000000
 ///
 /// For more information, please refer to the design document:
 /// http://clang.llvm.org/docs/DataFlowSanitizerDesign.html
@@ -123,11 +128,6 @@ static const Align MinOriginAlignment = Align(4);
 static const unsigned ArgTLSSize = 800;
 static const unsigned RetvalTLSSize = 800;
 
-// External symbol to be used when generating the shadow address for
-// architectures with multiple VMAs. Instead of using a constant integer
-// the runtime will set the external mask based on the VMA range.
-const char DFSanExternShadowPtrMask[] = "__dfsan_shadow_ptr_mask";
-
 // The -dfsan-preserve-alignment flag controls whether this pass assumes that
 // alignment requirements provided by the input IR are correct.  For example,
 // if the input IR contains a load with alignment 8, this flag will cause
@@ -144,8 +144,17 @@ static cl::opt<bool> ClPreserveAlignment(
 // to the "native" (i.e. unsanitized) ABI.  Unless the ABI list contains
 // additional annotations for those functions, a call to one of those functions
 // will produce a warning message, as the labelling behaviour of the function is
-// unknown.  The other supported annotations are "functional" and "discard",
-// which are described below under DataFlowSanitizer::WrapperKind.
+// unknown. The other supported annotations for uninstrumented functions are
+// "functional" and "discard", which are described below under
+// DataFlowSanitizer::WrapperKind.
+// Functions will often be labelled with both "uninstrumented" and one of
+// "functional" or "discard". This will leave the function unchanged by this
+// pass, and create a wrapper function that will call the original.
+//
+// Instrumented functions can also be annotated as "force_zero_labels", which
+// will make all shadow and return values set zero labels.
+// Functions should never be labelled with both "force_zero_labels" and
+// "uninstrumented" or any of the unistrumented wrapper kinds.
 static cl::list<std::string> ClABIListFiles(
     "dfsan-abilist",
     cl::desc("File listing native ABI functions and how the pass treats them"),
@@ -240,6 +249,30 @@ static StringRef getGlobalTypeString(const GlobalValue &G) {
 
 namespace {
 
+// Memory map parameters used in application-to-shadow address calculation.
+// Offset = (Addr & ~AndMask) ^ XorMask
+// Shadow = ShadowBase + Offset
+// Origin = (OriginBase + Offset) & ~3ULL
+struct MemoryMapParams {
+  uint64_t AndMask;
+  uint64_t XorMask;
+  uint64_t ShadowBase;
+  uint64_t OriginBase;
+};
+
+} // end anonymous namespace
+
+// x86_64 Linux
+// NOLINTNEXTLINE(readability-identifier-naming)
+static const MemoryMapParams Linux_X86_64_MemoryMapParams = {
+    0,              // AndMask (not used)
+    0x500000000000, // XorMask
+    0,              // ShadowBase (not used)
+    0x100000000000, // OriginBase
+};
+
+namespace {
+
 class DFSanABIList {
   std::unique_ptr<SpecialCaseList> SCL;
 
@@ -325,18 +358,18 @@ transformFunctionAttributes(const TransformedFunction &TransformedFunction,
   for (unsigned I = 0, IE = TransformedFunction.ArgumentIndexMapping.size();
        I < IE; ++I) {
     unsigned TransformedIndex = TransformedFunction.ArgumentIndexMapping[I];
-    ArgumentAttributes[TransformedIndex] = CallSiteAttrs.getParamAttributes(I);
+    ArgumentAttributes[TransformedIndex] = CallSiteAttrs.getParamAttrs(I);
   }
 
   // Copy annotations on varargs arguments.
   for (unsigned I = TransformedFunction.OriginalType->getNumParams(),
                 IE = CallSiteAttrs.getNumAttrSets();
        I < IE; ++I) {
-    ArgumentAttributes.push_back(CallSiteAttrs.getParamAttributes(I));
+    ArgumentAttributes.push_back(CallSiteAttrs.getParamAttrs(I));
   }
 
-  return AttributeList::get(Ctx, CallSiteAttrs.getFnAttributes(),
-                            CallSiteAttrs.getRetAttributes(),
+  return AttributeList::get(Ctx, CallSiteAttrs.getFnAttrs(),
+                            CallSiteAttrs.getRetAttrs(),
                             llvm::makeArrayRef(ArgumentAttributes));
 }
 
@@ -346,10 +379,7 @@ class DataFlowSanitizer {
 
   enum { ShadowWidthBits = 8, ShadowWidthBytes = ShadowWidthBits / 8 };
 
-  enum {
-    OriginWidthBits = 32,
-    OriginWidthBytes = OriginWidthBits / 8
-  };
+  enum { OriginWidthBits = 32, OriginWidthBytes = OriginWidthBits / 8 };
 
   /// Which ABI should be used for instrumented functions?
   enum InstrumentedABI {
@@ -398,15 +428,11 @@ class DataFlowSanitizer {
   PointerType *PrimitiveShadowPtrTy;
   IntegerType *IntptrTy;
   ConstantInt *ZeroPrimitiveShadow;
-  ConstantInt *ShadowPtrMask;
-  ConstantInt *ShadowBase;
-  ConstantInt *OriginBase;
   Constant *ArgTLS;
   ArrayType *ArgOriginTLSTy;
   Constant *ArgOriginTLS;
   Constant *RetvalTLS;
   Constant *RetvalOriginTLS;
-  Constant *ExternalShadowMask;
   FunctionType *DFSanUnionLoadFnTy;
   FunctionType *DFSanLoadLabelAndOriginFnTy;
   FunctionType *DFSanUnimplementedFnTy;
@@ -440,7 +466,10 @@ class DataFlowSanitizer {
   DFSanABIList ABIList;
   DenseMap<Value *, Function *> UnwrappedFnMap;
   AttrBuilder ReadOnlyNoneAttrs;
-  bool DFSanRuntimeShadowMask = false;
+
+  /// Memory map parameters used in calculation mapping application addresses
+  /// to shadow addresses and origin addresses.
+  const MemoryMapParams *MapParams;
 
   Value *getShadowOffset(Value *Addr, IRBuilder<> &IRB);
   Value *getShadowAddress(Value *Addr, Instruction *Pos);
@@ -449,12 +478,13 @@ class DataFlowSanitizer {
   getShadowOriginAddress(Value *Addr, Align InstAlignment, Instruction *Pos);
   bool isInstrumented(const Function *F);
   bool isInstrumented(const GlobalAlias *GA);
+  bool isForceZeroLabels(const Function *F);
   FunctionType *getArgsFunctionType(FunctionType *T);
   FunctionType *getTrampolineFunctionType(FunctionType *T);
   TransformedFunction getCustomFunctionType(FunctionType *T);
   InstrumentedABI getInstrumentedABI();
   WrapperKind getWrapperKind(Function *F);
-  void addGlobalNamePrefix(GlobalValue *GV);
+  void addGlobalNameSuffix(GlobalValue *GV);
   Function *buildWrapperFunction(Function *F, StringRef NewFName,
                                  GlobalValue::LinkageTypes NewFLink,
                                  FunctionType *NewFT);
@@ -462,7 +492,7 @@ class DataFlowSanitizer {
   void initializeCallbackFunctions(Module &M);
   void initializeRuntimeFunctions(Module &M);
   void injectMetadataGlobals(Module &M);
-  bool init(Module &M);
+  bool initializeModule(Module &M);
 
   /// Advances \p OriginAddr to point to the next 32-bit origin and then loads
   /// from it. Returns the origin's loaded value.
@@ -521,6 +551,7 @@ struct DFSanFunction {
   DominatorTree DT;
   DataFlowSanitizer::InstrumentedABI IA;
   bool IsNativeABI;
+  bool IsForceZeroLabels;
   AllocaInst *LabelReturnAlloca = nullptr;
   AllocaInst *OriginReturnAlloca = nullptr;
   DenseMap<Value *, Value *> ValShadowMap;
@@ -551,8 +582,10 @@ struct DFSanFunction {
   DenseMap<Value *, Value *> CachedCollapsedShadows;
   DenseMap<Value *, std::set<Value *>> ShadowElements;
 
-  DFSanFunction(DataFlowSanitizer &DFS, Function *F, bool IsNativeABI)
-      : DFS(DFS), F(F), IA(DFS.getInstrumentedABI()), IsNativeABI(IsNativeABI) {
+  DFSanFunction(DataFlowSanitizer &DFS, Function *F, bool IsNativeABI,
+                bool IsForceZeroLabels)
+      : DFS(DFS), F(F), IA(DFS.getInstrumentedABI()), IsNativeABI(IsNativeABI),
+        IsForceZeroLabels(IsForceZeroLabels) {
     DT.recalculate(*F);
   }
 
@@ -721,6 +754,7 @@ public:
   void visitBitCastInst(BitCastInst &BCI);
   void visitCastInst(CastInst &CI);
   void visitCmpInst(CmpInst &CI);
+  void visitLandingPadInst(LandingPadInst &LPI);
   void visitGetElementPtrInst(GetElementPtrInst &GEPI);
   void visitLoadInst(LoadInst &LI);
   void visitStoreInst(StoreInst &SI);
@@ -1011,9 +1045,15 @@ Type *DataFlowSanitizer::getShadowTy(Value *V) {
   return getShadowTy(V->getType());
 }
 
-bool DataFlowSanitizer::init(Module &M) {
+bool DataFlowSanitizer::initializeModule(Module &M) {
   Triple TargetTriple(M.getTargetTriple());
   const DataLayout &DL = M.getDataLayout();
+
+  if (TargetTriple.getOS() != Triple::Linux)
+    report_fatal_error("unsupported operating system");
+  if (TargetTriple.getArch() != Triple::x86_64)
+    report_fatal_error("unsupported architecture");
+  MapParams = &Linux_X86_64_MemoryMapParams;
 
   Mod = &M;
   Ctx = &M.getContext();
@@ -1025,27 +1065,6 @@ bool DataFlowSanitizer::init(Module &M) {
   IntptrTy = DL.getIntPtrType(*Ctx);
   ZeroPrimitiveShadow = ConstantInt::getSigned(PrimitiveShadowTy, 0);
   ZeroOrigin = ConstantInt::getSigned(OriginTy, 0);
-
-  // TODO: these should be platform-specific and set in the switch-stmt below.
-  ShadowBase = ConstantInt::get(IntptrTy, 0x100000008000LL);
-  OriginBase = ConstantInt::get(IntptrTy, 0x200000008000LL);
-
-  switch (TargetTriple.getArch()) {
-  case Triple::x86_64:
-    ShadowPtrMask = ConstantInt::getSigned(IntptrTy, ~0x600000000000LL);
-    break;
-  case Triple::mips64:
-  case Triple::mips64el:
-    ShadowPtrMask = ConstantInt::getSigned(IntptrTy, ~0xE000000000LL);
-    break;
-  case Triple::aarch64:
-  case Triple::aarch64_be:
-    // AArch64 supports multiple VMAs and the shadow mask is set at runtime.
-    DFSanRuntimeShadowMask = true;
-    break;
-  default:
-    report_fatal_error("unsupported triple");
-  }
 
   Type *DFSanUnionLoadArgs[2] = {PrimitiveShadowPtrTy, IntptrTy};
   DFSanUnionLoadFnTy = FunctionType::get(PrimitiveShadowTy, DFSanUnionLoadArgs,
@@ -1101,6 +1120,10 @@ bool DataFlowSanitizer::isInstrumented(const GlobalAlias *GA) {
   return !ABIList.isIn(*GA, "uninstrumented");
 }
 
+bool DataFlowSanitizer::isForceZeroLabels(const Function *F) {
+  return ABIList.isIn(*F, "force_zero_labels");
+}
+
 DataFlowSanitizer::InstrumentedABI DataFlowSanitizer::getInstrumentedABI() {
   return ClArgsABI ? IA_Args : IA_TLS;
 }
@@ -1116,9 +1139,9 @@ DataFlowSanitizer::WrapperKind DataFlowSanitizer::getWrapperKind(Function *F) {
   return WK_Warning;
 }
 
-void DataFlowSanitizer::addGlobalNamePrefix(GlobalValue *GV) {
-  std::string GVName = std::string(GV->getName()), Prefix = "dfs$";
-  GV->setName(Prefix + GVName);
+void DataFlowSanitizer::addGlobalNameSuffix(GlobalValue *GV) {
+  std::string GVName = std::string(GV->getName()), Suffix = ".dfsan";
+  GV->setName(GVName + Suffix);
 
   // Try to change the name of the function in module inline asm.  We only do
   // this for specific asm directives, currently only ".symver", to try to avoid
@@ -1129,8 +1152,13 @@ void DataFlowSanitizer::addGlobalNamePrefix(GlobalValue *GV) {
   std::string SearchStr = ".symver " + GVName + ",";
   size_t Pos = Asm.find(SearchStr);
   if (Pos != std::string::npos) {
-    Asm.replace(Pos, SearchStr.size(),
-                ".symver " + Prefix + GVName + "," + Prefix);
+    Asm.replace(Pos, SearchStr.size(), ".symver " + GVName + Suffix + ",");
+    Pos = Asm.find("@");
+
+    if (Pos == std::string::npos)
+      report_fatal_error("unsupported .symver: " + Asm);
+
+    Asm.replace(Pos, 1, Suffix + "@");
     GV->getParent()->setModuleInlineAsm(Asm);
   }
 }
@@ -1143,14 +1171,12 @@ DataFlowSanitizer::buildWrapperFunction(Function *F, StringRef NewFName,
   Function *NewF = Function::Create(NewFT, NewFLink, F->getAddressSpace(),
                                     NewFName, F->getParent());
   NewF->copyAttributesFrom(F);
-  NewF->removeAttributes(
-      AttributeList::ReturnIndex,
+  NewF->removeRetAttrs(
       AttributeFuncs::typeIncompatible(NewFT->getReturnType()));
 
   BasicBlock *BB = BasicBlock::Create(*Ctx, "entry", NewF);
   if (F->isVarArg()) {
-    NewF->removeAttributes(AttributeList::FunctionIndex,
-                           AttrBuilder().addAttribute("split-stack"));
+    NewF->removeFnAttrs(AttrBuilder().addAttribute("split-stack"));
     CallInst::Create(DFSanVarargWrapperFn,
                      IRBuilder<>(BB).CreateGlobalStringPtr(F->getName()), "",
                      BB);
@@ -1188,7 +1214,8 @@ Constant *DataFlowSanitizer::getOrBuildTrampolineFunction(FunctionType *FT,
 
     // F is called by a wrapped custom function with primitive shadows. So
     // its arguments and return value need conversion.
-    DFSanFunction DFSF(*this, F, /*IsNativeABI=*/true);
+    DFSanFunction DFSF(*this, F, /*IsNativeABI=*/true,
+                       /*ForceZeroLabels=*/false);
     Function::arg_iterator ValAI = F->arg_begin(), ShadowAI = AI;
     ++ValAI;
     for (unsigned N = FT->getNumParams(); N != 0; ++ValAI, ++ShadowAI, --N) {
@@ -1227,23 +1254,17 @@ Constant *DataFlowSanitizer::getOrBuildTrampolineFunction(FunctionType *FT,
 void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
   {
     AttributeList AL;
-    AL = AL.addAttribute(M.getContext(), AttributeList::FunctionIndex,
-                         Attribute::NoUnwind);
-    AL = AL.addAttribute(M.getContext(), AttributeList::FunctionIndex,
-                         Attribute::ReadOnly);
-    AL = AL.addAttribute(M.getContext(), AttributeList::ReturnIndex,
-                         Attribute::ZExt);
+    AL = AL.addFnAttribute(M.getContext(), Attribute::NoUnwind);
+    AL = AL.addFnAttribute(M.getContext(), Attribute::ReadOnly);
+    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
     DFSanUnionLoadFn =
         Mod->getOrInsertFunction("__dfsan_union_load", DFSanUnionLoadFnTy, AL);
   }
   {
     AttributeList AL;
-    AL = AL.addAttribute(M.getContext(), AttributeList::FunctionIndex,
-                         Attribute::NoUnwind);
-    AL = AL.addAttribute(M.getContext(), AttributeList::FunctionIndex,
-                         Attribute::ReadOnly);
-    AL = AL.addAttribute(M.getContext(), AttributeList::ReturnIndex,
-                         Attribute::ZExt);
+    AL = AL.addFnAttribute(M.getContext(), Attribute::NoUnwind);
+    AL = AL.addFnAttribute(M.getContext(), Attribute::ReadOnly);
+    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
     DFSanLoadLabelAndOriginFn = Mod->getOrInsertFunction(
         "__dfsan_load_label_and_origin", DFSanLoadLabelAndOriginFnTy, AL);
   }
@@ -1263,8 +1284,7 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
   {
     AttributeList AL;
     AL = AL.addParamAttribute(M.getContext(), 0, Attribute::ZExt);
-    AL = AL.addAttribute(M.getContext(), AttributeList::ReturnIndex,
-                         Attribute::ZExt);
+    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
     DFSanChainOriginFn = Mod->getOrInsertFunction("__dfsan_chain_origin",
                                                   DFSanChainOriginFnTy, AL);
   }
@@ -1272,8 +1292,7 @@ void DataFlowSanitizer::initializeRuntimeFunctions(Module &M) {
     AttributeList AL;
     AL = AL.addParamAttribute(M.getContext(), 0, Attribute::ZExt);
     AL = AL.addParamAttribute(M.getContext(), 1, Attribute::ZExt);
-    AL = AL.addAttribute(M.getContext(), AttributeList::ReturnIndex,
-                         Attribute::ZExt);
+    AL = AL.addRetAttribute(M.getContext(), Attribute::ZExt);
     DFSanChainOriginIfTaintedFn = Mod->getOrInsertFunction(
         "__dfsan_chain_origin_if_tainted", DFSanChainOriginIfTaintedFnTy, AL);
   }
@@ -1351,7 +1370,7 @@ void DataFlowSanitizer::injectMetadataGlobals(Module &M) {
 }
 
 bool DataFlowSanitizer::runImpl(Module &M) {
-  init(M);
+  initializeModule(M);
 
   if (ABIList.isIn(M, "skip"))
     return false;
@@ -1386,20 +1405,19 @@ bool DataFlowSanitizer::runImpl(Module &M) {
     Changed = true;
     return new GlobalVariable(
         M, OriginTy, true, GlobalValue::WeakODRLinkage,
-        ConstantInt::getSigned(OriginTy, shouldTrackOrigins()),
+        ConstantInt::getSigned(OriginTy,
+                               shouldTrackOrigins() ? ClTrackOrigins : 0),
         "__dfsan_track_origins");
   });
 
   injectMetadataGlobals(M);
-
-  ExternalShadowMask =
-      Mod->getOrInsertGlobal(DFSanExternShadowPtrMask, IntptrTy);
 
   initializeCallbackFunctions(M);
   initializeRuntimeFunctions(M);
 
   std::vector<Function *> FnsToInstrument;
   SmallPtrSet<Function *, 2> FnsWithNativeABI;
+  SmallPtrSet<Function *, 2> FnsWithForceZeroLabel;
   for (Function &F : M)
     if (!F.isIntrinsic() && !DFSanRuntimeFunctions.contains(&F))
       FnsToInstrument.push_back(&F);
@@ -1418,7 +1436,7 @@ bool DataFlowSanitizer::runImpl(Module &M) {
 
     bool GAInst = isInstrumented(GA), FInst = isInstrumented(F);
     if (GAInst && FInst) {
-      addGlobalNamePrefix(GA);
+      addGlobalNameSuffix(GA);
     } else if (GAInst != FInst) {
       // Non-instrumented alias of an instrumented function, or vice versa.
       // Replace the alias with a native-ABI wrapper of the aliasee.  The pass
@@ -1447,15 +1465,18 @@ bool DataFlowSanitizer::runImpl(Module &M) {
                               FT->getReturnType()->isVoidTy());
 
     if (isInstrumented(&F)) {
-      // Instrumented functions get a 'dfs$' prefix.  This allows us to more
-      // easily identify cases of mismatching ABIs.
+      if (isForceZeroLabels(&F))
+        FnsWithForceZeroLabel.insert(&F);
+
+      // Instrumented functions get a '.dfsan' suffix.  This allows us to more
+      // easily identify cases of mismatching ABIs. This naming scheme is
+      // mangling-compatible (see Itanium ABI), using a vendor-specific suffix.
       if (getInstrumentedABI() == IA_Args && !IsZeroArgsVoidRet) {
         FunctionType *NewFT = getArgsFunctionType(FT);
         Function *NewF = Function::Create(NewFT, F.getLinkage(),
                                           F.getAddressSpace(), "", &M);
         NewF->copyAttributesFrom(&F);
-        NewF->removeAttributes(
-            AttributeList::ReturnIndex,
+        NewF->removeRetAttrs(
             AttributeFuncs::typeIncompatible(NewFT->getReturnType()));
         for (Function::arg_iterator FArg = F.arg_begin(),
                                     NewFArg = NewF->arg_begin(),
@@ -1480,9 +1501,9 @@ bool DataFlowSanitizer::runImpl(Module &M) {
         NewF->takeName(&F);
         F.eraseFromParent();
         *FI = NewF;
-        addGlobalNamePrefix(NewF);
+        addGlobalNameSuffix(NewF);
       } else {
-        addGlobalNamePrefix(&F);
+        addGlobalNameSuffix(&F);
       }
     } else if (!IsZeroArgsVoidRet || getWrapperKind(&F) == WK_Custom) {
       // Build a wrapper function for F.  The wrapper simply calls F, and is
@@ -1503,7 +1524,7 @@ bool DataFlowSanitizer::runImpl(Module &M) {
               std::string(F.getName()),
           WrapperLinkage, NewFT);
       if (getInstrumentedABI() == IA_TLS)
-        NewF->removeAttributes(AttributeList::FunctionIndex, ReadOnlyNoneAttrs);
+        NewF->removeFnAttrs(ReadOnlyNoneAttrs);
 
       Value *WrappedFnCst =
           ConstantExpr::getBitCast(NewF, PointerType::getUnqual(FT));
@@ -1542,7 +1563,8 @@ bool DataFlowSanitizer::runImpl(Module &M) {
 
     removeUnreachableBlocks(*F);
 
-    DFSanFunction DFSF(*this, F, FnsWithNativeABI.count(F));
+    DFSanFunction DFSF(*this, F, FnsWithNativeABI.count(F),
+                       FnsWithForceZeroLabel.count(F));
 
     // DFSanVisitor may create new basic blocks, which confuses df_iterator.
     // Build a copy of the list before iterating over it.
@@ -1706,6 +1728,8 @@ Value *DFSanFunction::getShadowForTLSArgument(Argument *A) {
 Value *DFSanFunction::getShadow(Value *V) {
   if (!isa<Argument>(V) && !isa<Instruction>(V))
     return DFS.getZeroShadow(V);
+  if (IsForceZeroLabels)
+    return DFS.getZeroShadow(V);
   Value *&Shadow = ValShadowMap[V];
   if (!Shadow) {
     if (Argument *A = dyn_cast<Argument>(V)) {
@@ -1740,16 +1764,23 @@ void DFSanFunction::setShadow(Instruction *I, Value *Shadow) {
   ValShadowMap[I] = Shadow;
 }
 
+/// Compute the integer shadow offset that corresponds to a given
+/// application address.
+///
+/// Offset = (Addr & ~AndMask) ^ XorMask
 Value *DataFlowSanitizer::getShadowOffset(Value *Addr, IRBuilder<> &IRB) {
-  // Returns Addr & shadow_mask
   assert(Addr != RetvalTLS && "Reinstrumenting?");
-  Value *ShadowPtrMaskValue;
-  if (DFSanRuntimeShadowMask)
-    ShadowPtrMaskValue = IRB.CreateLoad(IntptrTy, ExternalShadowMask);
-  else
-    ShadowPtrMaskValue = ShadowPtrMask;
-  return IRB.CreateAnd(IRB.CreatePtrToInt(Addr, IntptrTy),
-                       IRB.CreatePtrToInt(ShadowPtrMaskValue, IntptrTy));
+  Value *OffsetLong = IRB.CreatePointerCast(Addr, IntptrTy);
+
+  uint64_t AndMask = MapParams->AndMask;
+  if (AndMask)
+    OffsetLong =
+        IRB.CreateAnd(OffsetLong, ConstantInt::get(IntptrTy, ~AndMask));
+
+  uint64_t XorMask = MapParams->XorMask;
+  if (XorMask)
+    OffsetLong = IRB.CreateXor(OffsetLong, ConstantInt::get(IntptrTy, XorMask));
+  return OffsetLong;
 }
 
 std::pair<Value *, Value *>
@@ -1758,13 +1789,22 @@ DataFlowSanitizer::getShadowOriginAddress(Value *Addr, Align InstAlignment,
   // Returns ((Addr & shadow_mask) + origin_base - shadow_base) & ~4UL
   IRBuilder<> IRB(Pos);
   Value *ShadowOffset = getShadowOffset(Addr, IRB);
-  Value *ShadowPtr = getShadowAddress(Addr, Pos, ShadowOffset);
+  Value *ShadowLong = ShadowOffset;
+  uint64_t ShadowBase = MapParams->ShadowBase;
+  if (ShadowBase != 0) {
+    ShadowLong =
+        IRB.CreateAdd(ShadowLong, ConstantInt::get(IntptrTy, ShadowBase));
+  }
+  IntegerType *ShadowTy = IntegerType::get(*Ctx, ShadowWidthBits);
+  Value *ShadowPtr =
+      IRB.CreateIntToPtr(ShadowLong, PointerType::get(ShadowTy, 0));
   Value *OriginPtr = nullptr;
   if (shouldTrackOrigins()) {
-    static Value *OriginByShadowOffset = ConstantInt::get(
-        IntptrTy, OriginBase->getZExtValue() - ShadowBase->getZExtValue());
-
-    Value *OriginLong = IRB.CreateAdd(ShadowOffset, OriginByShadowOffset);
+    Value *OriginLong = ShadowOffset;
+    uint64_t OriginBase = MapParams->OriginBase;
+    if (OriginBase != 0)
+      OriginLong =
+          IRB.CreateAdd(OriginLong, ConstantInt::get(IntptrTy, OriginBase));
     const Align Alignment = llvm::assumeAligned(InstAlignment.value());
     // When alignment is >= 4, Addr must be aligned to 4, otherwise it is UB.
     // So Mask is unnecessary.
@@ -1774,7 +1814,7 @@ DataFlowSanitizer::getShadowOriginAddress(Value *Addr, Align InstAlignment,
     }
     OriginPtr = IRB.CreateIntToPtr(OriginLong, OriginPtrTy);
   }
-  return {ShadowPtr, OriginPtr};
+  return std::make_pair(ShadowPtr, OriginPtr);
 }
 
 Value *DataFlowSanitizer::getShadowAddress(Value *Addr, Instruction *Pos,
@@ -1784,7 +1824,6 @@ Value *DataFlowSanitizer::getShadowAddress(Value *Addr, Instruction *Pos,
 }
 
 Value *DataFlowSanitizer::getShadowAddress(Value *Addr, Instruction *Pos) {
-  // Returns (Addr & shadow_mask)
   IRBuilder<> IRB(Pos);
   Value *ShadowOffset = getShadowOffset(Addr, IRB);
   return getShadowAddress(Addr, Pos, ShadowOffset);
@@ -2099,7 +2138,7 @@ std::pair<Value *, Value *> DFSanFunction::loadShadowOriginSansLoadTracking(
         IRB.CreateCall(DFS.DFSanLoadLabelAndOriginFn,
                        {IRB.CreatePointerCast(Addr, IRB.getInt8PtrTy()),
                         ConstantInt::get(DFS.IntptrTy, Size)});
-    Call->addAttribute(AttributeList::ReturnIndex, Attribute::ZExt);
+    Call->addRetAttr(Attribute::ZExt);
     return {IRB.CreateTrunc(IRB.CreateLShr(Call, DFS.OriginWidthBits),
                             DFS.PrimitiveShadowTy),
             IRB.CreateTrunc(Call, DFS.OriginTy)};
@@ -2146,7 +2185,7 @@ std::pair<Value *, Value *> DFSanFunction::loadShadowOriginSansLoadTracking(
   IRBuilder<> IRB(Pos);
   CallInst *FallbackCall = IRB.CreateCall(
       DFS.DFSanUnionLoadFn, {ShadowAddr, ConstantInt::get(DFS.IntptrTy, Size)});
-  FallbackCall->addAttribute(AttributeList::ReturnIndex, Attribute::ZExt);
+  FallbackCall->addRetAttr(Attribute::ZExt);
   return {FallbackCall, Origin};
 }
 
@@ -2561,6 +2600,22 @@ void DFSanVisitor::visitCmpInst(CmpInst &CI) {
   }
 }
 
+void DFSanVisitor::visitLandingPadInst(LandingPadInst &LPI) {
+  // We do not need to track data through LandingPadInst.
+  //
+  // For the C++ exceptions, if a value is thrown, this value will be stored
+  // in a memory location provided by __cxa_allocate_exception(...) (on the
+  // throw side) or  __cxa_begin_catch(...) (on the catch side).
+  // This memory will have a shadow, so with the loads and stores we will be
+  // able to propagate labels on data thrown through exceptions, without any
+  // special handling of the LandingPadInst.
+  //
+  // The second element in the pair result of the LandingPadInst is a
+  // register value, but it is for a type ID and should never be tainted.
+  DFSF.setShadow(&LPI, DFSF.DFS.getZeroShadow(&LPI));
+  DFSF.setOrigin(&LPI, DFSF.DFS.ZeroOrigin);
+}
+
 void DFSanVisitor::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
   if (ClCombineOffsetLabelsOnGEP) {
     visitInstOperands(GEPI);
@@ -2912,8 +2967,7 @@ bool DFSanVisitor::visitWrappedCallBase(Function &F, CallBase &CB) {
 
       // Custom functions returning non-void will write to the return label.
       if (!FT->getReturnType()->isVoidTy()) {
-        CustomFn->removeAttributes(AttributeList::FunctionIndex,
-                                   DFSF.DFS.ReadOnlyNoneAttrs);
+        CustomFn->removeFnAttrs(DFSF.DFS.ReadOnlyNoneAttrs);
       }
     }
 
@@ -2930,8 +2984,9 @@ bool DFSanVisitor::visitWrappedCallBase(Function &F, CallBase &CB) {
         TName += utostr(FT->getNumParams() - N);
         TName += "$";
         TName += F.getName();
-        Constant *T = DFSF.DFS.getOrBuildTrampolineFunction(ParamFT, TName);
-        Args.push_back(T);
+        Constant *Trampoline =
+            DFSF.DFS.getOrBuildTrampolineFunction(ParamFT, TName);
+        Args.push_back(Trampoline);
         Args.push_back(
             IRB.CreateBitCast(*I, Type::getInt8PtrTy(*DFSF.DFS.Ctx)));
       } else {
@@ -3134,9 +3189,8 @@ void DFSanVisitor::visitCallBase(CallBase &CB) {
       NewCB = IRB.CreateCall(NewFT, Func, Args);
     }
     NewCB->setCallingConv(CB.getCallingConv());
-    NewCB->setAttributes(CB.getAttributes().removeAttributes(
-        *DFSF.DFS.Ctx, AttributeList::ReturnIndex,
-        AttributeFuncs::typeIncompatible(NewCB->getType())));
+    NewCB->setAttributes(CB.getAttributes().removeRetAttributes(
+        *DFSF.DFS.Ctx, AttributeFuncs::typeIncompatible(NewCB->getType())));
 
     if (Next) {
       ExtractValueInst *ExVal = ExtractValueInst::Create(NewCB, 0, "", Next);

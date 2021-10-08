@@ -103,6 +103,10 @@ cl::opt<bool> EnableLoopFlatten("enable-loop-flatten", cl::init(false),
                                 cl::Hidden,
                                 cl::desc("Enable the LoopFlatten Pass"));
 
+cl::opt<bool> EnableDFAJumpThreading("enable-dfa-jump-thread",
+                                     cl::desc("Enable DFA jump threading."),
+                                     cl::init(false), cl::Hidden);
+
 static cl::opt<bool>
     EnablePrepareForThinLTO("prepare-for-thinlto", cl::init(false), cl::Hidden,
                             cl::desc("Enable preparation for ThinLTO."));
@@ -435,7 +439,15 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   if (OptLevel > 1)
     MPM.add(createTailCallEliminationPass()); // Eliminate tail calls
   MPM.add(createCFGSimplificationPass());      // Merge & remove BBs
-  MPM.add(createReassociatePass());           // Reassociate expressions
+  // FIXME: re-association increases variables liveness and therefore register
+  // pressure.
+  if (!SYCLOptimizationMode)
+    MPM.add(createReassociatePass()); // Reassociate expressions
+
+  // The matrix extension can introduce large vector operations early, which can
+  // benefit from running vector-combine early on.
+  if (EnableMatrix)
+    MPM.add(createVectorCombinePass());
 
   // Do not run loop pass pipeline in "SYCL Optimization Mode". Loop
   // optimizations rely on TTI, which is not accurate for SPIR target.
@@ -462,7 +474,7 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
       MPM.add(
           createLoopUnswitchPass(SizeLevel || OptLevel < 3, DivergentTarget));
     // FIXME: We break the loop pass pipeline here in order to do full
-    // simplify-cfg. Eventually loop-simplifycfg should be enhanced to replace
+    // simplifycfg. Eventually loop-simplifycfg should be enhanced to replace
     // the need for this.
     MPM.add(createCFGSimplificationPass());
     MPM.add(createInstructionCombiningPass());
@@ -509,6 +521,9 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
   MPM.add(createInstructionCombiningPass());
   addExtensionsToPM(EP_Peephole, MPM);
   if (OptLevel > 1) {
+    if (EnableDFAJumpThreading && SizeLevel == 0)
+      MPM.add(createDFAJumpThreadingPass());
+
     MPM.add(createJumpThreadingPass());         // Thread jumps
     MPM.add(createCorrelatedValuePropagationPass());
   }
@@ -540,10 +555,10 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
 
 /// FIXME: Should LTO cause any differences to this set of passes?
 void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
-                                         bool IsLTO) {
+                                         bool IsFullLTO) {
   PM.add(createLoopVectorizePass(!LoopsInterleaved, !LoopVectorize));
 
-  if (IsLTO) {
+  if (IsFullLTO) {
     // The vectorizer may have significantly shortened a loop body; unroll
     // again. Unroll small loops to hide loop backedge latency and saturate any
     // parallel execution resources of an out-of-order processor. We also then
@@ -559,7 +574,7 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
     PM.add(createWarnMissedTransformationsPass());
   }
 
-  if (!IsLTO) {
+  if (!IsFullLTO) {
     // Eliminate loads by forwarding stores from the previous iteration to loads
     // of the current iteration.
     PM.add(createLoopLoadEliminationPass());
@@ -599,7 +614,7 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
                                          .hoistCommonInsts(true)
                                          .sinkCommonInsts(true)));
 
-  if (IsLTO) {
+  if (IsFullLTO) {
     PM.add(createSCCPPass());                 // Propagate exposed constants
     PM.add(createInstructionCombiningPass()); // Clean up again
     PM.add(createBitTrackingDCEPass());
@@ -615,7 +630,7 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
   // Enhance/cleanup vector code.
   PM.add(createVectorCombinePass());
 
-  if (!IsLTO) {
+  if (!IsFullLTO) {
     addExtensionsToPM(EP_Peephole, PM);
     PM.add(createInstructionCombiningPass());
 
@@ -648,7 +663,7 @@ void PassManagerBuilder::addVectorPasses(legacy::PassManagerBase &PM,
   // about pointer alignments.
   PM.add(createAlignmentFromAssumptionsPass());
 
-  if (IsLTO)
+  if (IsFullLTO)
     PM.add(createInstructionCombiningPass());
 }
 
@@ -928,7 +943,7 @@ void PassManagerBuilder::populateModulePassManager(
     // llvm.loop.distribute=true or when -enable-loop-distribute is specified.
     MPM.add(createLoopDistributePass());
 
-    addVectorPasses(MPM, /* IsLTO */ false);
+    addVectorPasses(MPM, /* IsFullLTO */ false);
   }
 
   // FIXME: We shouldn't bother with this anymore.
@@ -1144,7 +1159,7 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
                                     ForgetAllSCEVInLoopUnroll));
   PM.add(createLoopDistributePass());
 
-  addVectorPasses(PM, /* IsLTO */ true);
+  addVectorPasses(PM, /* IsFullLTO */ true);
 
   addExtensionsToPM(EP_Peephole, PM);
 

@@ -12,12 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPUSubtarget.h"
-#include "AMDGPU.h"
 #include "AMDGPUCallLowering.h"
 #include "AMDGPUInstructionSelector.h"
 #include "AMDGPULegalizerInfo.h"
 #include "AMDGPURegisterBankInfo.h"
 #include "AMDGPUTargetMachine.h"
+#include "R600Subtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SmallString.h"
@@ -38,10 +38,7 @@ using namespace llvm;
 #define GET_SUBTARGETINFO_CTOR
 #define AMDGPUSubtarget GCNSubtarget
 #include "AMDGPUGenSubtargetInfo.inc"
-#define GET_SUBTARGETINFO_TARGET_DESC
-#define GET_SUBTARGETINFO_CTOR
 #undef AMDGPUSubtarget
-#include "R600GenSubtargetInfo.inc"
 
 static cl::opt<bool> DisablePowerSched(
   "amdgpu-disable-power-sched",
@@ -64,19 +61,6 @@ static cl::opt<bool> UseAA("amdgpu-use-aa-in-codegen",
 
 GCNSubtarget::~GCNSubtarget() = default;
 
-R600Subtarget &
-R600Subtarget::initializeSubtargetDependencies(const Triple &TT,
-                                               StringRef GPU, StringRef FS) {
-  SmallString<256> FullFS("+promote-alloca,");
-  FullFS += FS;
-  ParseSubtargetFeatures(GPU, /*TuneCPU*/ GPU, FullFS);
-
-  HasMulU24 = getGeneration() >= EVERGREEN;
-  HasMulI24 = hasCaymanISA();
-
-  return *this;
-}
-
 GCNSubtarget &
 GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
                                               StringRef GPU, StringRef FS) {
@@ -98,12 +82,12 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   FullFS += "+enable-prt-strict-null,"; // This is overridden by a disable in FS
 
   // Disable mutually exclusive bits.
-  if (FS.find_lower("+wavefrontsize") != StringRef::npos) {
-    if (FS.find_lower("wavefrontsize16") == StringRef::npos)
+  if (FS.find_insensitive("+wavefrontsize") != StringRef::npos) {
+    if (FS.find_insensitive("wavefrontsize16") == StringRef::npos)
       FullFS += "-wavefrontsize16,";
-    if (FS.find_lower("wavefrontsize32") == StringRef::npos)
+    if (FS.find_insensitive("wavefrontsize32") == StringRef::npos)
       FullFS += "-wavefrontsize32,";
-    if (FS.find_lower("wavefrontsize64") == StringRef::npos)
+    if (FS.find_insensitive("wavefrontsize64") == StringRef::npos)
       FullFS += "-wavefrontsize64,";
   }
 
@@ -163,6 +147,7 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
     WavefrontSizeLog2 = 5;
 
   HasFminFmaxLegacy = getGeneration() < AMDGPUSubtarget::VOLCANIC_ISLANDS;
+  HasSMulHi = getGeneration() >= AMDGPUSubtarget::GFX9;
 
   TargetID.setTargetIDFromFeaturesString(FS);
 
@@ -185,6 +170,7 @@ AMDGPUSubtarget::AMDGPUSubtarget(const Triple &TT) :
   HasVOP3PInsts(false),
   HasMulI24(true),
   HasMulU24(true),
+  HasSMulHi(false),
   HasInv2PiInlineImm(false),
   HasFminFmaxLegacy(true),
   EnablePromoteAlloca(false),
@@ -262,6 +248,7 @@ GCNSubtarget::GCNSubtarget(const Triple &TT, StringRef GPU, StringRef FS,
     HasGFX10A16(false),
     HasG16(false),
     HasNSAEncoding(false),
+    NSAMaxSize(0),
     GFX10_AEncoding(false),
     GFX10_BEncoding(false),
     HasDLInsts(false),
@@ -351,6 +338,105 @@ unsigned GCNSubtarget::getConstantBusLimit(unsigned Opcode) const {
   }
 
   return 2;
+}
+
+/// This list was mostly derived from experimentation.
+bool GCNSubtarget::zeroesHigh16BitsOfDest(unsigned Opcode) const {
+  switch (Opcode) {
+  case AMDGPU::V_CVT_F16_F32_e32:
+  case AMDGPU::V_CVT_F16_F32_e64:
+  case AMDGPU::V_CVT_F16_U16_e32:
+  case AMDGPU::V_CVT_F16_U16_e64:
+  case AMDGPU::V_CVT_F16_I16_e32:
+  case AMDGPU::V_CVT_F16_I16_e64:
+  case AMDGPU::V_RCP_F16_e64:
+  case AMDGPU::V_RCP_F16_e32:
+  case AMDGPU::V_RSQ_F16_e64:
+  case AMDGPU::V_RSQ_F16_e32:
+  case AMDGPU::V_SQRT_F16_e64:
+  case AMDGPU::V_SQRT_F16_e32:
+  case AMDGPU::V_LOG_F16_e64:
+  case AMDGPU::V_LOG_F16_e32:
+  case AMDGPU::V_EXP_F16_e64:
+  case AMDGPU::V_EXP_F16_e32:
+  case AMDGPU::V_SIN_F16_e64:
+  case AMDGPU::V_SIN_F16_e32:
+  case AMDGPU::V_COS_F16_e64:
+  case AMDGPU::V_COS_F16_e32:
+  case AMDGPU::V_FLOOR_F16_e64:
+  case AMDGPU::V_FLOOR_F16_e32:
+  case AMDGPU::V_CEIL_F16_e64:
+  case AMDGPU::V_CEIL_F16_e32:
+  case AMDGPU::V_TRUNC_F16_e64:
+  case AMDGPU::V_TRUNC_F16_e32:
+  case AMDGPU::V_RNDNE_F16_e64:
+  case AMDGPU::V_RNDNE_F16_e32:
+  case AMDGPU::V_FRACT_F16_e64:
+  case AMDGPU::V_FRACT_F16_e32:
+  case AMDGPU::V_FREXP_MANT_F16_e64:
+  case AMDGPU::V_FREXP_MANT_F16_e32:
+  case AMDGPU::V_FREXP_EXP_I16_F16_e64:
+  case AMDGPU::V_FREXP_EXP_I16_F16_e32:
+  case AMDGPU::V_LDEXP_F16_e64:
+  case AMDGPU::V_LDEXP_F16_e32:
+  case AMDGPU::V_LSHLREV_B16_e64:
+  case AMDGPU::V_LSHLREV_B16_e32:
+  case AMDGPU::V_LSHRREV_B16_e64:
+  case AMDGPU::V_LSHRREV_B16_e32:
+  case AMDGPU::V_ASHRREV_I16_e64:
+  case AMDGPU::V_ASHRREV_I16_e32:
+  case AMDGPU::V_ADD_U16_e64:
+  case AMDGPU::V_ADD_U16_e32:
+  case AMDGPU::V_SUB_U16_e64:
+  case AMDGPU::V_SUB_U16_e32:
+  case AMDGPU::V_SUBREV_U16_e64:
+  case AMDGPU::V_SUBREV_U16_e32:
+  case AMDGPU::V_MUL_LO_U16_e64:
+  case AMDGPU::V_MUL_LO_U16_e32:
+  case AMDGPU::V_ADD_F16_e64:
+  case AMDGPU::V_ADD_F16_e32:
+  case AMDGPU::V_SUB_F16_e64:
+  case AMDGPU::V_SUB_F16_e32:
+  case AMDGPU::V_SUBREV_F16_e64:
+  case AMDGPU::V_SUBREV_F16_e32:
+  case AMDGPU::V_MUL_F16_e64:
+  case AMDGPU::V_MUL_F16_e32:
+  case AMDGPU::V_MAX_F16_e64:
+  case AMDGPU::V_MAX_F16_e32:
+  case AMDGPU::V_MIN_F16_e64:
+  case AMDGPU::V_MIN_F16_e32:
+  case AMDGPU::V_MAX_U16_e64:
+  case AMDGPU::V_MAX_U16_e32:
+  case AMDGPU::V_MIN_U16_e64:
+  case AMDGPU::V_MIN_U16_e32:
+  case AMDGPU::V_MAX_I16_e64:
+  case AMDGPU::V_MAX_I16_e32:
+  case AMDGPU::V_MIN_I16_e64:
+  case AMDGPU::V_MIN_I16_e32:
+    // On gfx10, all 16-bit instructions preserve the high bits.
+    return getGeneration() <= AMDGPUSubtarget::GFX9;
+  case AMDGPU::V_MAD_F16_e64:
+  case AMDGPU::V_MADAK_F16:
+  case AMDGPU::V_MADMK_F16:
+  case AMDGPU::V_MAC_F16_e64:
+  case AMDGPU::V_MAC_F16_e32:
+  case AMDGPU::V_FMAMK_F16:
+  case AMDGPU::V_FMAAK_F16:
+  case AMDGPU::V_MAD_U16_e64:
+  case AMDGPU::V_MAD_I16_e64:
+  case AMDGPU::V_FMA_F16_e64:
+  case AMDGPU::V_FMAC_F16_e64:
+  case AMDGPU::V_FMAC_F16_e32:
+  case AMDGPU::V_DIV_FIXUP_F16_e64:
+    // In gfx9, the preferred handling of the unused high 16-bits changed. Most
+    // instructions maintain the legacy behavior of 0ing. Some instructions
+    // changed to preserving the high bits.
+    return getGeneration() == AMDGPUSubtarget::VOLCANIC_ISLANDS;
+  case AMDGPU::V_MAD_MIXLO_F16:
+  case AMDGPU::V_MAD_MIXHI_F16:
+  default:
+    return false;
+  }
 }
 
 unsigned AMDGPUSubtarget::getMaxLocalMemSizeWithWaveCount(unsigned NWaves,
@@ -447,12 +533,9 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getFlatWorkGroupSizes(
 }
 
 std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
-  const Function &F) const {
+    const Function &F, std::pair<unsigned, unsigned> FlatWorkGroupSizes) const {
   // Default minimum/maximum number of waves per execution unit.
   std::pair<unsigned, unsigned> Default(1, getMaxWavesPerEU());
-
-  // Default/requested minimum/maximum flat work group sizes.
-  std::pair<unsigned, unsigned> FlatWorkGroupSizes = getFlatWorkGroupSizes(F);
 
   // If minimum/maximum flat work group sizes were explicitly requested using
   // "amdgpu-flat-work-group-size" attribute, then set default minimum/maximum
@@ -619,23 +702,6 @@ AMDGPUDwarfFlavour AMDGPUSubtarget::getAMDGPUDwarfFlavour() const {
                                   : AMDGPUDwarfFlavour::Wave64;
 }
 
-R600Subtarget::R600Subtarget(const Triple &TT, StringRef GPU, StringRef FS,
-                             const TargetMachine &TM) :
-  R600GenSubtargetInfo(TT, GPU, /*TuneCPU*/GPU, FS),
-  AMDGPUSubtarget(TT),
-  InstrInfo(*this),
-  FrameLowering(TargetFrameLowering::StackGrowsUp, getStackAlignment(), 0),
-  FMA(false),
-  CaymanISA(false),
-  CFALUBug(false),
-  HasVertexCache(false),
-  R600ALUInst(false),
-  FP64(false),
-  TexVTXClauseSize(0),
-  Gen(R600),
-  TLInfo(TM, initializeSubtargetDependencies(TT, GPU, FS)),
-  InstrItins(getInstrItineraryForCPU(GPU)) { }
-
 void GCNSubtarget::overrideSchedPolicy(MachineSchedPolicy &Policy,
                                       unsigned NumRegionInstrs) const {
   // Track register pressure so the scheduler can try to decrease
@@ -703,7 +769,7 @@ GCNSubtarget::getBaseReservedNumSGPRs(const bool HasFlatScratchInit) const {
   if (getGeneration() >= AMDGPUSubtarget::GFX10)
     return 2; // VCC. FLAT_SCRATCH and XNACK are no longer in SGPRs.
 
-  if (HasFlatScratchInit) {
+  if (HasFlatScratchInit || HasArchitectedFlatScratch) {
     if (getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS)
       return 6; // FLAT_SCRATCH, XNACK, VCC (in that order).
     if (getGeneration() == AMDGPUSubtarget::SEA_ISLANDS)
@@ -722,15 +788,17 @@ unsigned GCNSubtarget::getReservedNumSGPRs(const MachineFunction &MF) const {
 
 unsigned GCNSubtarget::getReservedNumSGPRs(const Function &F) const {
   // The logic to detect if the function has
-  // flat scratch init is same as how MachineFunctionInfo derives.
+  // flat scratch init is slightly different than how
+  // SIMachineFunctionInfo constructor derives.
+  // We don't use amdgpu-calls, amdgpu-stack-objects
+  // attributes and isAmdHsaOrMesa here as it doesn't really matter.
+  // TODO: Outline this derivation logic and have just
+  // one common function in the backend to avoid duplication.
+  bool isEntry = AMDGPU::isEntryFunctionCC(F.getCallingConv());
   bool FunctionHasFlatScratchInit = false;
-  bool HasCalls = F.hasFnAttribute("amdgpu-calls");
-  bool HasStackObjects = F.hasFnAttribute("amdgpu-stack-objects");
-  if (hasFlatAddressSpace() && AMDGPU::isEntryFunctionCC(F.getCallingConv()) &&
-      (isAmdHsaOrMesa(F) || enableFlatScratch()) &&
-      !flatScratchIsArchitected()) {
-    if (HasCalls || HasStackObjects || enableFlatScratch())
-      FunctionHasFlatScratchInit = true;
+  if (hasFlatAddressSpace() && isEntry && !flatScratchIsArchitected() &&
+      enableFlatScratch()) {
+    FunctionHasFlatScratchInit = true;
   }
   return getBaseReservedNumSGPRs(FunctionHasFlatScratchInit);
 }
@@ -948,7 +1016,7 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
     return true;
   }
 
-  // Link as much SALU intructions in chain as possible. Return the size
+  // Link as many SALU instructions in chain as possible. Return the size
   // of the chain. Links up to MaxChain instructions.
   unsigned linkSALUChain(SUnit *From, SUnit *To, unsigned MaxChain,
                          SmallPtrSetImpl<SUnit *> &Visited) const {
@@ -1030,6 +1098,11 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
 void GCNSubtarget::getPostRAMutations(
     std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
   Mutations.push_back(std::make_unique<FillMFMAShadowMutation>(&InstrInfo));
+}
+
+std::unique_ptr<ScheduleDAGMutation>
+GCNSubtarget::createFillMFMAShadowMutation(const TargetInstrInfo *TII) const {
+  return std::make_unique<FillMFMAShadowMutation>(&InstrInfo);
 }
 
 const AMDGPUSubtarget &AMDGPUSubtarget::get(const MachineFunction &MF) {

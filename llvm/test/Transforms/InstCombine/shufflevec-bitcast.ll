@@ -57,7 +57,7 @@ define <4 x i16> @splat_bitcast_operand_uses(<8 x i8> %x) {
 define <4 x i32> @splat_bitcast_operand_same_size_src_elt(<4 x float> %x) {
 ; CHECK-LABEL: @splat_bitcast_operand_same_size_src_elt(
 ; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <4 x float> [[X:%.*]] to <4 x i32>
-; CHECK-NEXT:    [[BC:%.*]] = shufflevector <4 x i32> [[TMP1]], <4 x i32> undef, <4 x i32> <i32 2, i32 2, i32 2, i32 2>
+; CHECK-NEXT:    [[BC:%.*]] = shufflevector <4 x i32> [[TMP1]], <4 x i32> poison, <4 x i32> <i32 2, i32 2, i32 2, i32 2>
 ; CHECK-NEXT:    ret <4 x i32> [[BC]]
 ;
   %s1 = shufflevector <4 x float> %x, <4 x float> undef, <4 x i32> <i32 2, i32 2, i32 2, i32 2>
@@ -197,7 +197,7 @@ define <2 x i4> @shuf_bitcast_insert_use2(<2 x i8> %v, i8 %x, <4 x i4>* %p) {
 ; CHECK-LABEL: @shuf_bitcast_insert_use2(
 ; CHECK-NEXT:    [[I:%.*]] = insertelement <2 x i8> [[V:%.*]], i8 [[X:%.*]], i32 0
 ; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <4 x i4>* [[P:%.*]] to <2 x i8>*
-; CHECK-NEXT:    store <2 x i8> [[I]], <2 x i8>* [[TMP1]], align 4
+; CHECK-NEXT:    store <2 x i8> [[I]], <2 x i8>* [[TMP1]], align 2
 ; CHECK-NEXT:    [[R:%.*]] = bitcast i8 [[X]] to <2 x i4>
 ; CHECK-NEXT:    ret <2 x i4> [[R]]
 ;

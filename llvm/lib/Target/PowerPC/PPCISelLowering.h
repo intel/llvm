@@ -494,6 +494,11 @@ namespace llvm {
     /// Constrained floating point add in round-to-zero mode.
     STRICT_FADDRTZ,
 
+    // NOTE: The nodes below may require PC-Rel specific patterns if the
+    // address could be PC-Relative. When adding new nodes below, consider
+    // whether or not the address can be PC-Relative and add the corresponding
+    // PC-relative patterns and tests.
+
     /// CHAIN = STBRX CHAIN, GPRC, Ptr, Type - This is a
     /// byte-swapping store instruction.  It byte-swaps the low "Type" bits of
     /// the GPRC input, then stores it through Ptr.  Type can be either i16 or
@@ -712,7 +717,9 @@ namespace llvm {
       AM_DForm,
       AM_DSForm,
       AM_DQForm,
+      AM_PrefixDForm,
       AM_XForm,
+      AM_PCRel
     };
   } // end namespace PPC
 
@@ -875,6 +882,23 @@ namespace llvm {
                                   AtomicOrdering Ord) const override;
     Instruction *emitTrailingFence(IRBuilderBase &Builder, Instruction *Inst,
                                    AtomicOrdering Ord) const override;
+
+    TargetLowering::AtomicExpansionKind
+    shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const override;
+
+    TargetLowering::AtomicExpansionKind
+    shouldExpandAtomicCmpXchgInIR(AtomicCmpXchgInst *AI) const override;
+
+    Value *emitMaskedAtomicRMWIntrinsic(IRBuilderBase &Builder,
+                                        AtomicRMWInst *AI, Value *AlignedAddr,
+                                        Value *Incr, Value *Mask,
+                                        Value *ShiftAmt,
+                                        AtomicOrdering Ord) const override;
+    Value *emitMaskedAtomicCmpXchgIntrinsic(IRBuilderBase &Builder,
+                                            AtomicCmpXchgInst *CI,
+                                            Value *AlignedAddr, Value *CmpVal,
+                                            Value *NewVal, Value *Mask,
+                                            AtomicOrdering Ord) const override;
 
     MachineBasicBlock *
     EmitInstrWithCustomInserter(MachineInstr &MI,
@@ -1049,7 +1073,8 @@ namespace llvm {
     /// Returns true if an argument of type Ty needs to be passed in a
     /// contiguous block of registers in calling convention CallConv.
     bool functionArgumentNeedsConsecutiveRegisters(
-      Type *Ty, CallingConv::ID CallConv, bool isVarArg) const override {
+        Type *Ty, CallingConv::ID CallConv, bool isVarArg,
+        const DataLayout &DL) const override {
       // We support any array type as "consecutive" block in the parameter
       // save area.  The element type defines the alignment requirement and
       // whether the argument should go in GPRs, FPRs, or VRs if available.
@@ -1228,6 +1253,7 @@ namespace llvm {
     SDValue LowerINTRINSIC_VOID(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBSWAP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerATOMIC_CMP_SWAP(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerATOMIC_LOAD_STORE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSCALAR_TO_VECTOR(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;

@@ -248,7 +248,7 @@ SymbolFileDWARFDebugMap::SymbolFileDWARFDebugMap(ObjectFileSP objfile_sp)
       m_func_indexes(), m_glob_indexes(),
       m_supports_DW_AT_APPLE_objc_complete_type(eLazyBoolCalculate) {}
 
-SymbolFileDWARFDebugMap::~SymbolFileDWARFDebugMap() {}
+SymbolFileDWARFDebugMap::~SymbolFileDWARFDebugMap() = default;
 
 void SymbolFileDWARFDebugMap::InitializeObject() {}
 
@@ -1240,8 +1240,6 @@ void SymbolFileDWARFDebugMap::DumpClangAST(Stream &s) {
 lldb_private::ConstString SymbolFileDWARFDebugMap::GetPluginName() {
   return GetPluginNameStatic();
 }
-
-uint32_t SymbolFileDWARFDebugMap::GetPluginVersion() { return 1; }
 
 lldb::CompUnitSP
 SymbolFileDWARFDebugMap::GetCompileUnit(SymbolFileDWARF *oso_dwarf) {

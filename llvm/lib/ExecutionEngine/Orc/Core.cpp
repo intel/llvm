@@ -90,14 +90,17 @@ void FailedToMaterialize::log(raw_ostream &OS) const {
   OS << "Failed to materialize symbols: " << *Symbols;
 }
 
-SymbolsNotFound::SymbolsNotFound(SymbolNameSet Symbols) {
+SymbolsNotFound::SymbolsNotFound(std::shared_ptr<SymbolStringPool> SSP,
+                                 SymbolNameSet Symbols)
+    : SSP(std::move(SSP)) {
   for (auto &Sym : Symbols)
     this->Symbols.push_back(Sym);
   assert(!this->Symbols.empty() && "Can not fail to resolve an empty set");
 }
 
-SymbolsNotFound::SymbolsNotFound(SymbolNameVector Symbols)
-    : Symbols(std::move(Symbols)) {
+SymbolsNotFound::SymbolsNotFound(std::shared_ptr<SymbolStringPool> SSP,
+                                 SymbolNameVector Symbols)
+    : SSP(std::move(SSP)), Symbols(std::move(Symbols)) {
   assert(!this->Symbols.empty() && "Can not fail to resolve an empty set");
 }
 
@@ -109,8 +112,9 @@ void SymbolsNotFound::log(raw_ostream &OS) const {
   OS << "Symbols not found: " << Symbols;
 }
 
-SymbolsCouldNotBeRemoved::SymbolsCouldNotBeRemoved(SymbolNameSet Symbols)
-    : Symbols(std::move(Symbols)) {
+SymbolsCouldNotBeRemoved::SymbolsCouldNotBeRemoved(
+    std::shared_ptr<SymbolStringPool> SSP, SymbolNameSet Symbols)
+    : SSP(std::move(SSP)), Symbols(std::move(Symbols)) {
   assert(!this->Symbols.empty() && "Can not fail to resolve an empty set");
 }
 
@@ -1333,11 +1337,13 @@ Error JITDylib::remove(const SymbolNameSet &Names) {
 
     // If any of the symbols are not defined, return an error.
     if (!Missing.empty())
-      return make_error<SymbolsNotFound>(std::move(Missing));
+      return make_error<SymbolsNotFound>(ES.getSymbolStringPool(),
+                                         std::move(Missing));
 
     // If any of the symbols are currently materializing, return an error.
     if (!Materializing.empty())
-      return make_error<SymbolsCouldNotBeRemoved>(std::move(Materializing));
+      return make_error<SymbolsCouldNotBeRemoved>(ES.getSymbolStringPool(),
+                                                  std::move(Materializing));
 
     // Remove the symbols.
     for (auto &SymbolMaterializerItrPair : SymbolsToRemove) {
@@ -1750,6 +1756,49 @@ Expected<DenseMap<JITDylib *, SymbolMap>> Platform::lookupInitSymbols(
   return std::move(CompoundResult);
 }
 
+void Platform::lookupInitSymbolsAsync(
+    unique_function<void(Error)> OnComplete, ExecutionSession &ES,
+    const DenseMap<JITDylib *, SymbolLookupSet> &InitSyms) {
+
+  class TriggerOnComplete {
+  public:
+    using OnCompleteFn = unique_function<void(Error)>;
+    TriggerOnComplete(OnCompleteFn OnComplete)
+        : OnComplete(std::move(OnComplete)) {}
+    ~TriggerOnComplete() { OnComplete(std::move(LookupResult)); }
+    void reportResult(Error Err) {
+      std::lock_guard<std::mutex> Lock(ResultMutex);
+      LookupResult = joinErrors(std::move(LookupResult), std::move(Err));
+    }
+
+  private:
+    std::mutex ResultMutex;
+    Error LookupResult{Error::success()};
+    OnCompleteFn OnComplete;
+  };
+
+  LLVM_DEBUG({
+    dbgs() << "Issuing init-symbol lookup:\n";
+    for (auto &KV : InitSyms)
+      dbgs() << "  " << KV.first->getName() << ": " << KV.second << "\n";
+  });
+
+  auto TOC = std::make_shared<TriggerOnComplete>(std::move(OnComplete));
+
+  for (auto &KV : InitSyms) {
+    auto *JD = KV.first;
+    auto Names = std::move(KV.second);
+    ES.lookup(
+        LookupKind::Static,
+        JITDylibSearchOrder({{JD, JITDylibLookupFlags::MatchAllSymbols}}),
+        std::move(Names), SymbolState::Ready,
+        [TOC](Expected<SymbolMap> Result) {
+          TOC->reportResult(Result.takeError());
+        },
+        NoDependenciesToRegister);
+  }
+}
+
 void Task::anchor() {}
 
 void MaterializationTask::printDescription(raw_ostream &OS) {
@@ -1759,8 +1808,11 @@ void MaterializationTask::printDescription(raw_ostream &OS) {
 
 void MaterializationTask::run() { MU->materialize(std::move(MR)); }
 
-ExecutionSession::ExecutionSession(std::shared_ptr<SymbolStringPool> SSP)
-    : SSP(SSP ? std::move(SSP) : std::make_shared<SymbolStringPool>()) {}
+ExecutionSession::ExecutionSession(std::unique_ptr<ExecutorProcessControl> EPC)
+    : EPC(std::move(EPC)) {
+  // Associated EPC and this.
+  this->EPC->ES = this;
+}
 
 Error ExecutionSession::endSession() {
   LLVM_DEBUG(dbgs() << "Ending ExecutionSession " << this << "\n");
@@ -1775,6 +1827,9 @@ Error ExecutionSession::endSession() {
   Error Err = Error::success();
   for (auto &JD : JITDylibsToClose)
     Err = joinErrors(std::move(Err), JD->clear());
+
+  Err = joinErrors(std::move(Err), EPC->disconnect());
+
   return Err;
 }
 
@@ -2005,6 +2060,58 @@ ExecutionSession::lookup(ArrayRef<JITDylib *> SearchOrder, StringRef Name,
   return lookup(SearchOrder, intern(Name), RequiredState);
 }
 
+Error ExecutionSession::registerJITDispatchHandlers(
+    JITDylib &JD, JITDispatchHandlerAssociationMap WFs) {
+
+  auto TagAddrs = lookup({{&JD, JITDylibLookupFlags::MatchAllSymbols}},
+                         SymbolLookupSet::fromMapKeys(
+                             WFs, SymbolLookupFlags::WeaklyReferencedSymbol));
+  if (!TagAddrs)
+    return TagAddrs.takeError();
+
+  // Associate tag addresses with implementations.
+  std::lock_guard<std::mutex> Lock(JITDispatchHandlersMutex);
+  for (auto &KV : *TagAddrs) {
+    auto TagAddr = KV.second.getAddress();
+    if (JITDispatchHandlers.count(TagAddr))
+      return make_error<StringError>("Tag " + formatv("{0:x16}", TagAddr) +
+                                         " (for " + *KV.first +
+                                         ") already registered",
+                                     inconvertibleErrorCode());
+    auto I = WFs.find(KV.first);
+    assert(I != WFs.end() && I->second &&
+           "JITDispatchHandler implementation missing");
+    JITDispatchHandlers[KV.second.getAddress()] =
+        std::make_shared<JITDispatchHandlerFunction>(std::move(I->second));
+    LLVM_DEBUG({
+      dbgs() << "Associated function tag \"" << *KV.first << "\" ("
+             << formatv("{0:x}", KV.second.getAddress()) << ") with handler\n";
+    });
+  }
+  return Error::success();
+}
+
+void ExecutionSession::runJITDispatchHandler(
+    ExecutorProcessControl::SendResultFunction SendResult,
+    JITTargetAddress HandlerFnTagAddr, ArrayRef<char> ArgBuffer) {
+
+  std::shared_ptr<JITDispatchHandlerFunction> F;
+  {
+    std::lock_guard<std::mutex> Lock(JITDispatchHandlersMutex);
+    auto I = JITDispatchHandlers.find(HandlerFnTagAddr);
+    if (I != JITDispatchHandlers.end())
+      F = I->second;
+  }
+
+  if (F)
+    (*F)(std::move(SendResult), ArgBuffer.data(), ArgBuffer.size());
+  else
+    SendResult(shared::WrapperFunctionResult::createOutOfBandError(
+        ("No function registered for tag " +
+         formatv("{0:x16}", HandlerFnTagAddr))
+            .str()));
+}
+
 void ExecutionSession::dump(raw_ostream &OS) {
   runSessionLocked([this, &OS]() {
     for (auto &JD : JDs)
@@ -2133,7 +2240,8 @@ Error ExecutionSession::IL_updateCandidatesFor(
         // weakly referenced" specific error here to reduce confusion.
         if (SymI->second.getFlags().hasMaterializationSideEffectsOnly() &&
             SymLookupFlags != SymbolLookupFlags::WeaklyReferencedSymbol)
-          return make_error<SymbolsNotFound>(SymbolNameVector({Name}));
+          return make_error<SymbolsNotFound>(getSymbolStringPool(),
+                                             SymbolNameVector({Name}));
 
         // If we matched against this symbol but it is in the error state
         // then bail out and treat it as a failure to materialize.
@@ -2321,7 +2429,7 @@ void ExecutionSession::OL_applyQueryPhase1(
   } else {
     LLVM_DEBUG(dbgs() << "Phase 1 failed with unresolved symbols.\n");
     IPLS->fail(make_error<SymbolsNotFound>(
-        IPLS->DefGeneratorCandidates.getSymbolNames()));
+        getSymbolStringPool(), IPLS->DefGeneratorCandidates.getSymbolNames()));
   }
 }
 
@@ -2391,7 +2499,8 @@ void ExecutionSession::OL_completeLookup(
                 dbgs() << "error: "
                           "required, but symbol is has-side-effects-only\n";
               });
-              return make_error<SymbolsNotFound>(SymbolNameVector({Name}));
+              return make_error<SymbolsNotFound>(getSymbolStringPool(),
+                                                 SymbolNameVector({Name}));
             }
 
             // If we matched against this symbol but it is in the error state
@@ -2493,7 +2602,7 @@ void ExecutionSession::OL_completeLookup(
       }
     }
 
-    LLVM_DEBUG(dbgs() << "Stripping unmatched weakly-refererced symbols\n");
+    LLVM_DEBUG(dbgs() << "Stripping unmatched weakly-referenced symbols\n");
     IPLS->LookupSet.forEachWithRemoval(
         [&](const SymbolStringPtr &Name, SymbolLookupFlags SymLookupFlags) {
           if (SymLookupFlags == SymbolLookupFlags::WeaklyReferencedSymbol) {
@@ -2505,7 +2614,8 @@ void ExecutionSession::OL_completeLookup(
 
     if (!IPLS->LookupSet.empty()) {
       LLVM_DEBUG(dbgs() << "Failing due to unresolved symbols\n");
-      return make_error<SymbolsNotFound>(IPLS->LookupSet.getSymbolNames());
+      return make_error<SymbolsNotFound>(getSymbolStringPool(),
+                                         IPLS->LookupSet.getSymbolNames());
     }
 
     // Record whether the query completed.
@@ -2632,7 +2742,8 @@ void ExecutionSession::OL_completeLookupFlags(
 
     if (!IPLS->LookupSet.empty()) {
       LLVM_DEBUG(dbgs() << "Failing due to unresolved symbols\n");
-      return make_error<SymbolsNotFound>(IPLS->LookupSet.getSymbolNames());
+      return make_error<SymbolsNotFound>(getSymbolStringPool(),
+                                         IPLS->LookupSet.getSymbolNames());
     }
 
     LLVM_DEBUG(dbgs() << "Succeded, result = " << Result << "\n");
@@ -2810,6 +2921,7 @@ void ExecutionSession::dumpDispatchInfo(Task &T) {
   runSessionLocked([&]() {
     dbgs() << "Dispatching: ";
     T.printDescription(dbgs());
+    dbgs() << "\n";
   });
 }
 #endif // NDEBUG

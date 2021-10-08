@@ -18,6 +18,34 @@
 
 #if __HIP__
 
+#define __host__ __attribute__((host))
+#define __device__ __attribute__((device))
+#define __global__ __attribute__((global))
+#define __shared__ __attribute__((shared))
+#define __constant__ __attribute__((constant))
+#define __managed__ __attribute__((managed))
+
+#if !defined(__cplusplus) || __cplusplus < 201103L
+  #define nullptr NULL;
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+  __attribute__((__visibility__("default")))
+  __attribute__((weak))
+  __attribute__((noreturn))
+  __device__ void __cxa_pure_virtual(void) {
+    __builtin_trap();
+  }
+  __attribute__((__visibility__("default")))
+  __attribute__((weak))
+  __attribute__((noreturn))
+  __device__ void __cxa_deleted_virtual(void) {
+    __builtin_trap();
+  }
+}
+#endif //__cplusplus
+
 #if !defined(__HIPCC_RTC__)
 #include <cmath>
 #include <cstdlib>
@@ -40,39 +68,39 @@ typedef __SIZE_TYPE__ size_t;
 #define INT_MAX __INTMAX_MAX__
 #endif // __HIPCC_RTC__
 
-#define __host__ __attribute__((host))
-#define __device__ __attribute__((device))
-#define __global__ __attribute__((global))
-#define __shared__ __attribute__((shared))
-#define __constant__ __attribute__((constant))
-#define __managed__ __attribute__((managed))
+typedef __SIZE_TYPE__ __hip_size_t;
 
-#if !defined(__cplusplus) || __cplusplus < 201103L
-  #define nullptr NULL;
-#endif
+#ifdef __cplusplus
+extern "C" {
+#endif //__cplusplus
 
 #if __HIP_ENABLE_DEVICE_MALLOC__
-extern "C" __device__ void *__hip_malloc(size_t __size);
-extern "C" __device__ void *__hip_free(void *__ptr);
-static inline __device__ void *malloc(size_t __size) {
+__device__ void *__hip_malloc(__hip_size_t __size);
+__device__ void *__hip_free(void *__ptr);
+__attribute__((weak)) inline __device__ void *malloc(__hip_size_t __size) {
   return __hip_malloc(__size);
 }
-static inline __device__ void *free(void *__ptr) { return __hip_free(__ptr); }
-#else
-static inline __device__ void *malloc(size_t __size) {
-  __builtin_trap();
-  return nullptr;
+__attribute__((weak)) inline __device__ void *free(void *__ptr) {
+  return __hip_free(__ptr);
 }
-static inline __device__ void *free(void *__ptr) {
+#else
+__attribute__((weak)) inline __device__ void *malloc(__hip_size_t __size) {
   __builtin_trap();
-  return nullptr;
+  return (void *)0;
+}
+__attribute__((weak)) inline __device__ void *free(void *__ptr) {
+  __builtin_trap();
+  return (void *)0;
 }
 #endif
+
+#ifdef __cplusplus
+} // extern "C"
+#endif //__cplusplus
 
 #include <__clang_hip_libdevice_declares.h>
 #include <__clang_hip_math.h>
 
-#if !_OPENMP || __HIP_ENABLE_CUDA_WRAPPER_FOR_OPENMP__
 #if defined(__HIPCC_RTC__)
 #include <__clang_hip_cmath.h>
 #else
@@ -83,7 +111,6 @@ static inline __device__ void *free(void *__ptr) {
 #include <complex>
 #include <new>
 #endif // __HIPCC_RTC__
-#endif // !_OPENMP || __HIP_ENABLE_CUDA_WRAPPER_FOR_OPENMP__
 
 #define __CLANG_HIP_RUNTIME_WRAPPER_INCLUDED__ 1
 #if defined(__HIPCC_RTC__)

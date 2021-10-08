@@ -521,21 +521,21 @@ static const MDNode *getLeastCommonType(const MDNode *A, const MDNode *B) {
   return Ret;
 }
 
-void Instruction::getAAMetadata(AAMDNodes &N, bool Merge) const {
-  if (Merge) {
-    N.TBAA =
-        MDNode::getMostGenericTBAA(N.TBAA, getMetadata(LLVMContext::MD_tbaa));
-    N.TBAAStruct = nullptr;
-    N.Scope = MDNode::getMostGenericAliasScope(
-        N.Scope, getMetadata(LLVMContext::MD_alias_scope));
-    N.NoAlias =
-        MDNode::intersect(N.NoAlias, getMetadata(LLVMContext::MD_noalias));
-  } else {
-    N.TBAA = getMetadata(LLVMContext::MD_tbaa);
-    N.TBAAStruct = getMetadata(LLVMContext::MD_tbaa_struct);
-    N.Scope = getMetadata(LLVMContext::MD_alias_scope);
-    N.NoAlias = getMetadata(LLVMContext::MD_noalias);
-  }
+AAMDNodes AAMDNodes::merge(const AAMDNodes &Other) const {
+  AAMDNodes Result;
+  Result.TBAA = MDNode::getMostGenericTBAA(TBAA, Other.TBAA);
+  Result.TBAAStruct = nullptr;
+  Result.Scope = MDNode::getMostGenericAliasScope(Scope, Other.Scope);
+  Result.NoAlias = MDNode::intersect(NoAlias, Other.NoAlias);
+  return Result;
+}
+
+AAMDNodes AAMDNodes::concat(const AAMDNodes &Other) const {
+  AAMDNodes Result;
+  Result.TBAA = Result.TBAAStruct = nullptr;
+  Result.Scope = MDNode::getMostGenericAliasScope(Scope, Other.Scope);
+  Result.NoAlias = MDNode::intersect(NoAlias, Other.NoAlias);
+  return Result;
 }
 
 static const MDNode *createAccessTag(const MDNode *AccessType) {
@@ -738,7 +738,7 @@ void TypeBasedAAWrapperPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-MDNode *AAMDNodes::ShiftTBAA(MDNode *MD, size_t Offset) {
+MDNode *AAMDNodes::shiftTBAA(MDNode *MD, size_t Offset) {
   // Fast path if there's no offset
   if (Offset == 0)
     return MD;
@@ -757,7 +757,7 @@ MDNode *AAMDNodes::ShiftTBAA(MDNode *MD, size_t Offset) {
   return MD;
 }
 
-MDNode *AAMDNodes::ShiftTBAAStruct(MDNode *MD, size_t Offset) {
+MDNode *AAMDNodes::shiftTBAAStruct(MDNode *MD, size_t Offset) {
   // Fast path if there's no offset
   if (Offset == 0)
     return MD;

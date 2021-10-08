@@ -30,9 +30,9 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/RegionKindInterface.h"
+#include "mlir/IR/Threading.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/Parallel.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Regex.h"
 #include <atomic>
@@ -43,9 +43,6 @@ namespace {
 /// This class encapsulates all the state used to verify an operation region.
 class OperationVerifier {
 public:
-  explicit OperationVerifier(MLIRContext *context)
-      : parallelismEnabled(context->isMultithreadingEnabled()) {}
-
   /// Verify the given operation.
   LogicalResult verifyOpAndDominance(Operation &op);
 
@@ -64,9 +61,6 @@ private:
   /// Operation.
   LogicalResult verifyDominanceOfContainedRegions(Operation &op,
                                                   DominanceInfo &domInfo);
-
-  /// This is true if parallelism is enabled on the MLIRContext.
-  const bool parallelismEnabled;
 };
 } // end anonymous namespace
 
@@ -89,28 +83,9 @@ LogicalResult OperationVerifier::verifyOpAndDominance(Operation &op) {
 
   // Check the dominance properties and invariants of any operations in the
   // regions contained by the 'opsWithIsolatedRegions' operations.
-  if (!parallelismEnabled || opsWithIsolatedRegions.size() <= 1) {
-    // If parallelism is disabled or if there is only 0/1 operation to do, use
-    // a simple non-parallel loop.
-    for (Operation *op : opsWithIsolatedRegions) {
-      if (failed(verifyOpAndDominance(*op)))
-        return failure();
-    }
-  } else {
-    // Otherwise, verify the operations and their bodies in parallel.
-    ParallelDiagnosticHandler handler(op.getContext());
-    std::atomic<bool> passFailed(false);
-    llvm::parallelForEachN(0, opsWithIsolatedRegions.size(), [&](size_t opIdx) {
-      handler.setOrderIDForThread(opIdx);
-      if (failed(verifyOpAndDominance(*opsWithIsolatedRegions[opIdx])))
-        passFailed = true;
-      handler.eraseOrderIDForThread();
-    });
-    if (passFailed)
-      return failure();
-  }
-
-  return success();
+  return failableParallelForEach(
+      op.getContext(), opsWithIsolatedRegions,
+      [&](Operation *op) { return verifyOpAndDominance(*op); });
 }
 
 /// Returns true if this block may be valid without terminator. That is if:
@@ -254,7 +229,7 @@ LogicalResult OperationVerifier::verifyOperation(
              << "created with unregistered dialect. If this is "
                 "intended, please call allowUnregisteredDialects() on the "
                 "MLIRContext, or use -allow-unregistered-dialect with "
-                "mlir-opt";
+                "the MLIR opt tool used";
     }
     return success();
   }
@@ -376,5 +351,5 @@ OperationVerifier::verifyDominanceOfContainedRegions(Operation &op,
 /// compiler bugs.  On error, this reports the error through the MLIRContext and
 /// returns failure.
 LogicalResult mlir::verify(Operation *op) {
-  return OperationVerifier(op->getContext()).verifyOpAndDominance(*op);
+  return OperationVerifier().verifyOpAndDominance(*op);
 }

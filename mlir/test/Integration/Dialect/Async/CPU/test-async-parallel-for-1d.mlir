@@ -4,12 +4,54 @@
 // RUN:               -async-runtime-ref-counting-opt                          \
 // RUN:               -convert-async-to-llvm                                   \
 // RUN:               -convert-scf-to-std                                      \
+// RUN:               -convert-memref-to-llvm                                  \
+// RUN:               -std-expand                                              \
 // RUN:               -convert-std-to-llvm                                     \
+// RUN:               -reconcile-unrealized-casts                              \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:  -e entry -entry-point-result=void -O0                                 \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_async_runtime%shlibext\
 // RUN: | FileCheck %s --dump-input=always
+
+// RUN:   mlir-opt %s -async-parallel-for                                      \
+// RUN:               -async-to-async-runtime                                  \
+// RUN:               -async-runtime-policy-based-ref-counting                 \
+// RUN:               -convert-async-to-llvm                                   \
+// RUN:               -convert-scf-to-std                                      \
+// RUN:               -convert-memref-to-llvm                                  \
+// RUN:               -std-expand                                              \
+// RUN:               -convert-std-to-llvm                                     \
+// RUN:               -reconcile-unrealized-casts                              \
+// RUN: | mlir-cpu-runner                                                      \
+// RUN:  -e entry -entry-point-result=void -O0                                 \
+// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \
+// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_async_runtime%shlibext\
+// RUN: | FileCheck %s --dump-input=always
+
+// RUN:   mlir-opt %s -async-parallel-for="async-dispatch=false                \
+// RUN:                                    num-workers=20                      \
+// RUN:                                    min-task-size=1"                \
+// RUN:               -async-to-async-runtime                                  \
+// RUN:               -async-runtime-ref-counting                              \
+// RUN:               -async-runtime-ref-counting-opt                          \
+// RUN:               -convert-async-to-llvm                                   \
+// RUN:               -convert-scf-to-std                                      \
+// RUN:               -convert-memref-to-llvm                                  \
+// RUN:               -std-expand                                              \
+// RUN:               -convert-std-to-llvm                                     \
+// RUN:               -reconcile-unrealized-casts                              \
+// RUN: | mlir-cpu-runner                                                      \
+// RUN:  -e entry -entry-point-result=void -O0                                 \
+// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \
+// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_async_runtime%shlibext\
+// RUN: | FileCheck %s --dump-input=always
+
+// Suppress constant folding by introducing "dynamic" zero value at runtime.
+func private @zero() -> index {
+  %0 = constant 0 : index
+  return %0 : index
+}
 
 func @entry() {
   %c0 = constant 0.0 : f32
@@ -61,6 +103,15 @@ func @entry() {
   }
   // CHECK: [-20, 0, 0, -17, 0, 0, -14, 0, 0]
   call @print_memref_f32(%U): (memref<*xf32>) -> ()
+
+  // 4. Check that loop with zero iterations doesn't crash at runtime.
+  %lb1 = call @zero(): () -> (index)
+  %ub1 = call @zero(): () -> (index)
+
+  scf.parallel (%i) = (%lb1) to (%ub1) step (%c1) {
+    %false = constant 0 : i1
+    assert %false, "should never be executed"
+  }
 
   memref.dealloc %A : memref<9xf32>
   return

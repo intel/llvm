@@ -23,7 +23,7 @@ CommandObjectRegexCommand::CommandObjectRegexCommand(
       m_entries(), m_is_removable(is_removable) {}
 
 // Destructor
-CommandObjectRegexCommand::~CommandObjectRegexCommand() {}
+CommandObjectRegexCommand::~CommandObjectRegexCommand() = default;
 
 bool CommandObjectRegexCommand::DoExecute(llvm::StringRef command,
                                           CommandReturnObject &result) {
@@ -43,7 +43,7 @@ bool CommandObjectRegexCommand::DoExecute(llvm::StringRef command,
                              percent_var, idx)) != std::string::npos;) {
             new_command.erase(percent_var_idx, percent_var_len);
             new_command.insert(percent_var_idx, match_str);
-            idx += percent_var_idx + match_str.size();
+            idx = percent_var_idx + match_str.size();
           }
         }
       }

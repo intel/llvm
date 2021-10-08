@@ -6,8 +6,8 @@
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
 #include <CL/sycl.hpp>
-#include <sycl/ext/intel/experimental/esimd.hpp>
 #include <CL/sycl/detail/image_ocl_types.hpp>
+#include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace sycl::ext::intel::experimental::esimd;
 
@@ -42,7 +42,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   simd<uint32_t, VL> v1(0, x + z);
   simd<uint64_t, VL> offsets(0, y);
   simd<uintptr_t, VL> v_addr(reinterpret_cast<uintptr_t>(ptr));
-  simd<ushort, VL> pred;
+  simd_mask<VL> pred;
   v_addr += offsets;
 
   __esimd_flat_atomic0<EsimdAtomicOpType::inc, uint32_t, VL>(
@@ -50,10 +50,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.inc.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
   __esimd_flat_atomic1<EsimdAtomicOpType::add, uint32_t, VL>(
-      v_addr.data(), v1, pred.data());
+      v_addr.data(), v1.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.add.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
   __esimd_flat_atomic2<EsimdAtomicOpType::cmpxchg, uint32_t, VL>(
-      v_addr.data(), v1, v1, pred.data());
+      v_addr.data(), v1.data(), v1.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.cmpxchg.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
@@ -117,7 +117,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   {
     sycl::accessor<int, 1, sycl::access::mode::read_write,
-                   sycl::access::target::global_buffer>
+                   sycl::access::target::device>
         acc;
     simd<uint32_t, 8> offsets = 1;
     simd<uint16_t, 8> pred{1, 0, 1, 0, 1, 0, 1, 0};

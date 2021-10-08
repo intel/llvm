@@ -21,10 +21,13 @@ namespace sycl {
 enum class backend : char {
   host = 0,
   opencl = 1,
-  level_zero = 2,
+  ext_oneapi_level_zero = 2,
+  level_zero __SYCL2020_DEPRECATED("use 'ext_oneapi_level_zero' instead") =
+      ext_oneapi_level_zero,
   cuda = 3,
   all = 4,
-  esimd_cpu = 5
+  esimd_cpu = 5,
+  hip = 6,
 };
 
 template <backend Backend, typename SYCLObjectT> struct interop;
@@ -54,6 +57,9 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
     break;
   case backend::esimd_cpu:
     Out << "esimd_cpu";
+    break;
+  case backend::hip:
+    Out << "hip";
     break;
   case backend::all:
     Out << "all";

@@ -1,14 +1,15 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-return-type -Wno-sycl-2017-compat -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-return-type -sycl-std=2017 -Wno-sycl-2017-compat -fcxx-exceptions -fsyntax-only -ast-dump -verify -pedantic %s | FileCheck %s
 
 #include "sycl.hpp"
 
 using namespace cl::sycl;
 queue q;
 
+//expected-warning@+1 {{unknown attribute 'no_global_work_offset' ignored}}
+[[intelfpga::no_global_work_offset]] void RemovedSpell();
+
 struct FuncObj {
-  //expected-warning@+2 {{attribute 'intelfpga::no_global_work_offset' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::no_global_work_offset' instead?}}
-  [[intelfpga::no_global_work_offset]] void operator()() const {}
+  [[intel::no_global_work_offset]] void operator()() const {}
 };
 
 int main() {

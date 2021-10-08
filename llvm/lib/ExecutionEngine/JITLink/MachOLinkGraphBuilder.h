@@ -159,6 +159,7 @@ protected:
   static bool isAltEntry(const NormalizedSymbol &NSym);
 
   static bool isDebugSection(const NormalizedSection &NSec);
+  static bool isZeroFillSection(const NormalizedSection &NSec);
 
   MachO::relocation_info
   getRelocationInfo(const object::relocation_iterator RelItr) {
@@ -228,6 +229,17 @@ private:
   DenseMap<uint32_t, NormalizedSymbol *> IndexToSymbol;
   std::map<JITTargetAddress, Symbol *> AddrToCanonicalSymbol;
   StringMap<SectionParserFunction> CustomSectionParserFunctions;
+};
+
+/// A pass to split up __LD,__compact_unwind sections.
+class CompactUnwindSplitter {
+public:
+  CompactUnwindSplitter(StringRef CompactUnwindSectionName)
+      : CompactUnwindSectionName(CompactUnwindSectionName) {}
+  Error operator()(LinkGraph &G);
+
+private:
+  StringRef CompactUnwindSectionName;
 };
 
 } // end namespace jitlink

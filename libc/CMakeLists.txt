@@ -14,13 +14,12 @@ set(LIBC_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 # Path libc/scripts directory.
 set(LIBC_BUILD_SCRIPTS_DIR "${LIBC_SOURCE_DIR}/utils/build_scripts")
 
-set(LIBC_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX} CACHE PATH "Define libc destination prefix.")
-
 set(LIBC_TARGET_OS ${CMAKE_SYSTEM_NAME})
 string(TOLOWER ${LIBC_TARGET_OS} LIBC_TARGET_OS)
 
 # Defines LIBC_TARGET_ARCHITECTURE and associated macros.
 include(LLVMLibCArchitectures)
+include(LLVMLibCCheckMPFR)
 
 # Flags to pass down to the compiler while building the libc functions.
 set(LIBC_COMPILE_OPTIONS_DEFAULT "" CACHE STRING "Architecture to tell clang to optimize for (e.g. -march=... or -mcpu=...)")
@@ -73,12 +72,31 @@ elseif(LLVM_LIBC_FULL_BUILD)
     (pass -DLLVM_LIBC_ENABLE_LINTING=ON to cmake).")
 endif()
 
+option(LLVM_LIBC_INCLUDE_SCUDO "Include the SCUDO standalone as the allocator for LLVM libc" OFF)
+if(LLVM_LIBC_INCLUDE_SCUDO)
+  if (NOT "compiler-rt" IN_LIST LLVM_ENABLE_PROJECTS)
+    message(FATAL_ERROR "SCUDO cannot be included without adding compiler-rt to LLVM_ENABLE_PROJECTS")
+  endif()
+endif()
+
 include(CMakeParseArguments)
 include(LLVMLibCRules)
 include(LLVMLibCCheckCpuFeatures)
 
-include("${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}/entrypoints.txt")
-include("${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}/headers.txt")
+if(EXISTS "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}/entrypoints.txt")
+  set(entrypoint_file "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}/entrypoints.txt")
+elseif(EXISTS "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/entrypoints.txt")
+  set(entrypoint_file "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/entrypoints.txt")
+else()
+  message(FATAL_ERROR "entrypoints.txt file for the target platform not found.")
+endif()
+include(${entrypoint_file})
+
+if(EXISTS "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}/headers.txt")
+  include("${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/${LIBC_TARGET_ARCHITECTURE}/headers.txt")
+elseif(EXISTS "${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}/headers.txt")
+  include("${LIBC_SOURCE_DIR}/config/${LIBC_TARGET_OS}//headers.txt")
+endif()
 
 set(TARGET_ENTRYPOINT_NAME_LIST "")
 foreach(entrypoint IN LISTS TARGET_LLVMLIBC_ENTRYPOINTS)

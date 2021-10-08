@@ -740,6 +740,12 @@ public:
   bool tryEvaluateObjectSize(uint64_t &Result, ASTContext &Ctx,
                              unsigned Type) const;
 
+  /// If the current Expr is a pointer, this will try to statically
+  /// determine the strlen of the string pointed to.
+  /// Returns true if all of the above holds and we were able to figure out the
+  /// strlen, false otherwise.
+  bool tryEvaluateStrLen(uint64_t &Result, ASTContext &Ctx) const;
+
   /// Enumeration used to describe the kind of Null pointer constant
   /// returned from \c isNullPointerConstant().
   enum NullPointerConstantKind {
@@ -3039,9 +3045,20 @@ public:
   }
 
   /// setArg - Set the specified argument.
+  /// ! the dependence bits might be stale after calling this setter, it is
+  /// *caller*'s responsibility to recompute them by calling
+  /// computeDependence().
   void setArg(unsigned Arg, Expr *ArgExpr) {
     assert(Arg < getNumArgs() && "Arg access out of range!");
     getArgs()[Arg] = ArgExpr;
+  }
+
+  /// Compute and set dependence bits.
+  void computeDependence() {
+    setDependence(clang::computeDependence(
+        this, llvm::makeArrayRef(
+                  reinterpret_cast<Expr **>(getTrailingStmts() + PREARGS_START),
+                  getNumPreArgs())));
   }
 
   /// Reduce the number of arguments in this call expression. This is used for

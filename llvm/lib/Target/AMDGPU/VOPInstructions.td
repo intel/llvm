@@ -57,8 +57,7 @@ class VOP_Pseudo <string opName, string suffix, VOPProfile P, dag outs, dag ins,
 }
 
 class VOP3Common <dag outs, dag ins, string asm = "",
-                  list<dag> pattern = [], bit HasMods = 0,
-                  bit VOP3Only = 0> :
+                  list<dag> pattern = [], bit HasMods = 0> :
   VOPAnyCommon <outs, ins, asm, pattern> {
 
   // Using complex patterns gives VOP3 patterns a very high complexity rating,
@@ -83,7 +82,7 @@ class VOP3Common <dag outs, dag ins, string asm = "",
 }
 
 class VOP3_Pseudo <string opName, VOPProfile P, list<dag> pattern = [],
-                   bit VOP3Only = 0, bit isVOP3P = 0, bit isVop3OpSel = 0> :
+                   bit isVOP3P = 0, bit isVop3OpSel = 0> :
   VOP_Pseudo <opName, "_e64", P, P.Outs64,
               !if(isVop3OpSel,
                   P.InsVOP3OpSel,
@@ -136,7 +135,7 @@ class VOP3_Pseudo <string opName, VOPProfile P, list<dag> pattern = [],
 }
 
 class VOP3P_Pseudo <string opName, VOPProfile P, list<dag> pattern = []> :
-  VOP3_Pseudo<opName, P, pattern, 1, 1> {
+  VOP3_Pseudo<opName, P, pattern, 1> {
   let VOP3P = 1;
 }
 
@@ -150,6 +149,8 @@ class VOP3_Real <VOP_Pseudo ps, int EncodingFamily> :
   InstSI <ps.OutOperandList, ps.InOperandList, ps.Mnemonic # ps.AsmOperands, []>,
   SIMCInstr <ps.PseudoInstr, EncodingFamily> {
 
+  let VALU = 1;
+  let VOP3 = 1;
   let isPseudo = 0;
   let isCodeGenOnly = 0;
   let UseNamedOperandTable = 1;
@@ -169,6 +170,9 @@ class VOP3_Real <VOP_Pseudo ps, int EncodingFamily> :
   let Uses                 = ps.Uses;
   let Defs                 = ps.Defs;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
+  let TRANS                = ps.TRANS;
 
   VOPProfile Pfl = ps.Pfl;
 }
@@ -521,6 +525,8 @@ class VOP_SDWA_Real <VOP_SDWA_Pseudo ps> :
   InstSI <ps.OutOperandList, ps.InOperandList, ps.Mnemonic # ps.AsmOperands, []>,
   SIMCInstr <ps.PseudoInstr, SIEncodingFamily.SDWA> {
 
+  let VALU = 1;
+  let SDWA = 1;
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
@@ -542,17 +548,21 @@ class VOP_SDWA_Real <VOP_SDWA_Pseudo ps> :
   let DisableEncoding      = ps.DisableEncoding;
   let TSFlags              = ps.TSFlags;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
+  let TRANS                = ps.TRANS;
 }
 
 class Base_VOP_SDWA9_Real <VOP_SDWA_Pseudo ps> :
   InstSI <ps.OutOperandList, ps.InOperandList, ps.Mnemonic # ps.AsmOperands9, []> {
 
+  let VALU = 1;
+  let SDWA = 1;
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
   let Defs = ps.Defs;
   let Uses = ps.Uses;
-  let SchedRW = ps.SchedRW;
   let hasSideEffects = ps.hasSideEffects;
 
   let Constraints     = ps.Constraints;
@@ -571,6 +581,9 @@ class Base_VOP_SDWA9_Real <VOP_SDWA_Pseudo ps> :
   let DisableEncoding      = ps.DisableEncoding;
   let TSFlags              = ps.TSFlags;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
+  let TRANS                = ps.TRANS;
 }
 
 class VOP_SDWA9_Real <VOP_SDWA_Pseudo ps> :
@@ -650,12 +663,13 @@ class VOP_DPP_Real <VOP_DPP_Pseudo ps, int EncodingFamily> :
   InstSI <ps.OutOperandList, ps.InOperandList, ps.Mnemonic # ps.AsmOperands, []>,
   SIMCInstr <ps.PseudoInstr, EncodingFamily> {
 
+  let VALU = 1;
+  let DPP = 1;
   let isPseudo = 0;
   let isCodeGenOnly = 0;
 
   let Defs = ps.Defs;
   let Uses = ps.Uses;
-  let SchedRW = ps.SchedRW;
   let hasSideEffects = ps.hasSideEffects;
 
   let Constraints     = ps.Constraints;
@@ -673,6 +687,9 @@ class VOP_DPP_Real <VOP_DPP_Pseudo ps, int EncodingFamily> :
   let DisableEncoding      = ps.DisableEncoding;
   let TSFlags              = ps.TSFlags;
   let SchedRW              = ps.SchedRW;
+  let mayLoad              = ps.mayLoad;
+  let mayStore             = ps.mayStore;
+  let TRANS                = ps.TRANS;
 }
 
 class VOP_DPP <string OpName, VOPProfile P, bit IsDPP16,

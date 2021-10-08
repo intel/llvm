@@ -365,6 +365,27 @@ TEST(LocateSymbol, WithIndex) {
       ElementsAre(Sym("Forward", SymbolHeader.range("forward"), Test.range())));
 }
 
+TEST(LocateSymbol, AnonymousStructFields) {
+  auto Code = Annotations(R"cpp(
+    struct $2[[Foo]] {
+      struct { int $1[[x]]; };
+      void foo() {
+        // Make sure the implicit base is skipped.
+        $1^x = 42;
+      }
+    };
+    // Check that we don't skip explicit bases.
+    int a = $2^Foo{}.x;
+  )cpp");
+  TestTU TU = TestTU::withCode(Code.code());
+  auto AST = TU.build();
+  EXPECT_THAT(locateSymbolAt(AST, Code.point("1"), TU.index().get()),
+              UnorderedElementsAre(Sym("x", Code.range("1"), Code.range("1"))));
+  EXPECT_THAT(
+      locateSymbolAt(AST, Code.point("2"), TU.index().get()),
+      UnorderedElementsAre(Sym("Foo", Code.range("2"), Code.range("2"))));
+}
+
 TEST(LocateSymbol, FindOverrides) {
   auto Code = Annotations(R"cpp(
     class Foo {
@@ -420,6 +441,18 @@ TEST(LocateSymbol, All) {
   //   $def is the definition location (if absent, symbol has no definition)
   //   unnamed range becomes both $decl and $def.
   const char *Tests[] = {
+      R"cpp(
+        struct X {
+          union {
+            int [[a]];
+            float b;
+          };
+        };
+        int test(X &x) {
+          return x.^a;
+        }
+      )cpp",
+
       R"cpp(// Local variable
         int main() {
           int [[bonjour]];
@@ -1935,6 +1968,9 @@ TEST(FindReferences, IncludeOverrides) {
           void $overridedecl[[func]]() override;
         };
         void Derived::$overridedef[[func]]() {}
+        class Derived2 : public Base {
+          void $overridedef[[func]]() override {}
+        };
         void test(Derived* D) {
           D->func();  // No references to the overrides.
         })cpp";

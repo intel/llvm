@@ -149,8 +149,8 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
   bool Changed = false;
   CoroIdInst *CoroId = nullptr;
   SmallVector<CoroFreeInst *, 4> CoroFrees;
-  for (auto IB = inst_begin(F), IE = inst_end(F); IB != IE;) {
-    Instruction &I = *IB++;
+  bool HasCoroSuspend = false;
+  for (Instruction &I : llvm::make_early_inc_range(instructions(F))) {
     if (auto *CB = dyn_cast<CallBase>(&I)) {
       switch (CB->getIntrinsicID()) {
       default:
@@ -163,6 +163,7 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
         // pass expects that there is at most one final suspend point.
         if (cast<CoroSuspendInst>(&I)->isFinal())
           CB->setCannotDuplicate();
+        HasCoroSuspend = true;
         break;
       case Intrinsic::coro_end_async:
       case Intrinsic::coro_end:
@@ -213,6 +214,13 @@ bool Lowerer::lowerEarlyIntrinsics(Function &F) {
   if (CoroId)
     for (CoroFreeInst *CF : CoroFrees)
       CF->setArgOperand(0, CoroId);
+  // Coroutine suspention could potentially lead to any argument modified
+  // outside of the function, hence arguments should not have noalias
+  // attributes.
+  if (HasCoroSuspend)
+    for (Argument &A : F.args())
+      if (A.hasNoAliasAttr())
+        A.removeAttr(Attribute::NoAlias);
   return Changed;
 }
 

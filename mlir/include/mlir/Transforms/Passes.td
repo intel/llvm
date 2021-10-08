@@ -136,7 +136,15 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
                             "to fast memory space">,
     Option<"maximalFusion", "fusion-maximal", "bool", /*default=*/"false",
            "Enables maximal loop fusion">,
-  ];
+    Option<"affineFusionMode", "mode", "enum FusionMode",
+           "mlir::FusionMode::Greedy", "fusion mode to attempt",
+           "llvm::cl::values(clEnumValN(mlir::FusionMode::Greedy,"
+           " \"greedy\", \"Perform greedy (both producer-consumer and sibling)  fusion\"), "
+           "clEnumValN( mlir::FusionMode::ProducerConsumer, "
+           "\"producer\", \"Perform only producer-consumer fusion\"), "
+           "clEnumValN( mlir::FusionMode::Sibling, "
+           "\"sibling\", \"Perform only sibling fusion\"))">,
+    ];
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
@@ -352,7 +360,7 @@ def BufferResultsToOutParams : Pass<"buffer-results-to-out-params", "ModuleOp"> 
     works for static shaped memrefs.
   }];
   let constructor = "mlir::createBufferResultsToOutParamsPass()";
-  let dependentDialects = ["linalg::LinalgDialect", "memref::MemRefDialect"];
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 def Canonicalizer : Pass<"canonicalize"> {
@@ -612,19 +620,9 @@ def ParallelLoopCollapsing : Pass<"parallel-loop-collapsing"> {
   ];
 }
 
-def PrintCFG : FunctionPass<"print-cfg-graph"> {
-  let summary = "Print CFG graph per-Region";
-  let constructor = "mlir::createPrintCFGGraphPass()";
-}
-
 def PrintOpStats : Pass<"print-op-stats"> {
   let summary = "Print statistics of operations";
   let constructor = "mlir::createPrintOpStatsPass()";
-}
-
-def PrintOp : Pass<"print-op-graph", "ModuleOp"> {
-  let summary = "Print op graph per-Region";
-  let constructor = "mlir::createPrintOpGraphPass()";
 }
 
 def SCCP : Pass<"sccp"> {
@@ -693,21 +691,34 @@ def SymbolDCE : Pass<"symbol-dce"> {
   let constructor = "mlir::createSymbolDCEPass()";
 }
 
-def ViewOpGraphPass : Pass<"view-op-graph", "ModuleOp"> {
-  let summary = "Print graphviz view of module";
+def ViewOpGraphPass : Pass<"view-op-graph"> {
+  let summary = "Print Graphviz visualization of an operation";
   let description = [{
-    This pass prints a graphviz per block of a module.
+    This pass prints a Graphviz graph of a module.
 
-    - Op are represented as nodes;
-    - Uses as edges;
+    - Operations are represented as nodes;
+    - Uses (data flow) as edges;
+    - Control flow as dashed edges;
+    - Regions/blocks as subgraphs.
+
+    By default, only data flow edges are printed.
+
+    Note: See https://www.graphviz.org/doc/info/lang.html for more information
+    about the Graphviz DOT language.
   }];
-  let constructor = "mlir::createPrintOpGraphPass()";
   let options = [
-    Option<"title", "title", "std::string",
-           /*default=*/"", "The prefix of the title of the graph">,
-    Option<"shortNames", "short-names", "bool", /*default=*/"false",
-           "Use short names">
+    Option<"maxLabelLen", "max-label-len", "unsigned",
+            /*default=*/"20", "Limit attribute/type length to number of chars">,
+    Option<"printAttrs", "print-attrs", "bool",
+           /*default=*/"true", "Print attributes of operations">,
+    Option<"printControlFlowEdges", "print-control-flow-edges", "bool",
+           /*default=*/"false", "Print control flow edges">,
+    Option<"printDataFlowEdges", "print-data-flow-edges", "bool",
+           /*default=*/"true", "Print data flow edges">,
+    Option<"printResultTypes", "print-result-types", "bool",
+            /*default=*/"true", "Print result types of operations">
   ];
+  let constructor = "mlir::createPrintOpGraphPass()";
 }
 
 #endif // MLIR_TRANSFORMS_PASSES

@@ -6,7 +6,8 @@ macro(add_sycl_unittest test_dirname link_variant)
   # Enable exception handling for these unit tests
   set(LLVM_REQUIRES_EH 1)
 
-  if (MSVC AND CMAKE_BUILD_TYPE MATCHES "Debug")
+  string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
+  if (MSVC AND build_type_lower MATCHES "debug")
     set(sycl_obj_target "sycld_object")
     set(sycl_so_target "sycld")
   else()
@@ -20,7 +21,8 @@ macro(add_sycl_unittest test_dirname link_variant)
   else()
     add_unittest(SYCLUnitTests ${test_dirname}
                 $<TARGET_OBJECTS:${sycl_obj_target}> ${ARGN})
-    target_compile_definitions(${test_dirname} PRIVATE __SYCL_BUILD_SYCL_DLL)
+    target_compile_definitions(${test_dirname}
+                               PRIVATE __SYCL_BUILD_SYCL_DLL)
 
     get_target_property(SYCL_LINK_LIBS ${sycl_so_target} LINK_LIBRARIES)
   endif()
@@ -44,60 +46,5 @@ macro(add_sycl_unittest test_dirname link_variant)
         -Wno-unused-parameter
         -Wno-inconsistent-missing-override
     )
-  endif()
-endmacro()
-
-macro(add_sycl_unittest_with_device test_dirname link_variant)
-  set(LLVM_REQUIRES_EH 1)
-
-  if (MSVC AND CMAKE_BUILD_TYPE MATCHES "Debug")
-    set(sycl_obj_target "sycld_object")
-    set(sycl_so_target "sycld")
-    set(XPTI_LIB xptid)
-    set(WIN_CRT /MDd)
-  else()
-    set(sycl_obj_target "sycl_object")
-    set(sycl_so_target "sycl")
-    set(XPTI_LIB xpti)
-    set(WIN_CRT /MD)
-  endif()
-
-  set(COMMON_OPTS
-    -DGTEST_LANG_CXX11=1
-    -DGTEST_HAS_TR1_TUPLE=0
-    -D__SYCL_BUILD_SYCL_DLL
-    -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
-    -I${LLVM_MAIN_SRC_DIR}/utils/unittest/googlemock/include
-    -I${LLVM_BINARY_DIR}/include
-    -I${LLVM_MAIN_SRC_DIR}/include
-    -I${PROJECT_SOURCE_DIR}/source
-    -I${PROJECT_SOURCE_DIR}/unittests
-    )
-
-  if (MSVC)
-    list(APPEND COMMON_OPTS ${WIN_CRT})
-    list(APPEND COMMON_OPTS /EHsc)
-    list(APPEND COMMON_OPTS /link)
-    list(APPEND COMMON_OPTS /LIBPATH:${LLVM_BINARY_DIR}/lib)
-    list(APPEND COMMON_OPTS /subsystem:console)
-    list(APPEND COMMON_OPTS /INCREMENTAL:NO)
-
-    list(APPEND EXTRA_LIBS shlwapi)
-  else()
-    list(APPEND EXTRA_LIBS dl)
-  endif()
-
-  if (SYCL_ENABLE_XPTI_TRACING)
-    list(APPEND EXTRA_LIBS ${XPTI_LIB})
-  endif()
-
-  if ("${link_variant}" MATCHES "OBJECT")
-    add_sycl_executable(${test_dirname}
-      OPTIONS -nolibsycl ${COMMON_OPTS} ${LLVM_PTHREAD_LIB} ${TERMINFO_LIB}
-      SOURCES ${ARGN} $<TARGET_OBJECTS:${sycl_obj_target}>
-      LIBRARIES gtest_main gtest LLVMSupport LLVMTestingSupport OpenCL ${EXTRA_LIBS}
-      DEPENDANTS SYCLUnitTests)
-  else()
-    # TODO support shared library case.
   endif()
 endmacro()

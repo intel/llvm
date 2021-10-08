@@ -100,8 +100,6 @@ public:
   // PluginInterface protocol
   lldb_private::ConstString GetPluginName() override;
 
-  uint32_t GetPluginVersion() override;
-
 protected:
   lldb::user_id_t m_break_id;
   mutable std::recursive_mutex m_mutex;
@@ -113,7 +111,7 @@ private:
     uint16_t item_info_version = 0;
     uint16_t item_info_data_offset = 0;
 
-    libBacktraceRecording_info() {}
+    libBacktraceRecording_info() = default;
   };
 
   // A structure which reflects the data recorded in the
@@ -190,9 +188,7 @@ private:
     uint16_t vo_activity_ids_array = UINT16_MAX;
     uint16_t vo_activity_ids_array_entry_size = UINT16_MAX;
 
-    LibdispatchVoucherOffsets()
-
-    {}
+    LibdispatchVoucherOffsets() = default;
 
     bool IsValid() { return vo_version != UINT16_MAX; }
   };
@@ -203,7 +199,7 @@ private:
     uint64_t dti_voucher_index = UINT64_MAX;
     uint64_t dti_qos_class_index = UINT64_MAX;
 
-    LibdispatchTSDIndexes() {}
+    LibdispatchTSDIndexes() = default;
 
     bool IsValid() { return dti_version != UINT16_MAX; }
   };
@@ -214,9 +210,7 @@ private:
     uint16_t plo_pthread_tsd_base_address_offset = UINT16_MAX;
     uint16_t plo_pthread_tsd_entry_size = UINT16_MAX;
 
-    LibpthreadOffsets()
-
-    {}
+    LibpthreadOffsets() = default;
 
     bool IsValid() { return plo_version != UINT16_MAX; }
   };

@@ -15,7 +15,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_enqueue_barrier](EnqueueBarrier/enqueue_barrier.asciidoc)                                                       | Supported(OpenCL, Level Zero)             | |
 | [SYCL_INTEL_extended_atomics](ExtendedAtomics/SYCL_INTEL_extended_atomics.asciidoc)                                         | Supported(OpenCL: CPU, GPU)               | |
 | [SYCL_INTEL_group_algorithms](GroupAlgorithms/SYCL_INTEL_group_algorithms.asciidoc)                                         | Supported(OpenCL; CUDA)                   | |
-| [SYCL_INTEL_group_mask](./GroupMask/SYCL_INTEL_group_mask.asciidoc)                                                         | Proposal                                  | |
+| [GroupMask](GroupMask/GroupMask.asciidoc)                                                                                   | Proposal                                  | |
 | [FPGA selector](IntelFPGA/FPGASelector.md)                                                                                  | Supported                                 | |
 | [FPGA reg](IntelFPGA/FPGAReg.md)                                                                                            | Supported(OpenCL: ACCELERATOR)            | |
 | [SYCL_INTEL_kernel_restrict_all](KernelRestrictAll/SYCL_INTEL_kernel_restrict_all.asciidoc)                                 | Supported(OpenCL)                         | |
@@ -27,7 +27,7 @@ DPC++ extensions status:
 | [SYCL_INTEL_reqd_work_group_size](ReqdWorkGroupSize/SYCL_INTEL_reqd_work_group_size.asciidoc)                               | Supported(OpenCL: CPU, GPU)               | |
 | [SPV_INTEL_function_pointers](SPIRV/SPV_INTEL_function_pointers.asciidoc)                                                   | Supported(OpenCL: CPU, GPU; HOST)         | |
 | [SPV_INTEL_inline_assembly](SPIRV/SPV_INTEL_inline_assembly.asciidoc)                                                       | Supported(OpenCL: GPU)                    | |
-| [SYCL_INTEL_local_memory](LocalMemory/SYCL_INTEL_local_memory.asciidoc)                                                     | Proposal                                  | |
+| [LocalMemory](LocalMemory/LocalMemory.asciidoc)                                                                             | Supported(OpenCL; CUDA)                   | Revision 1 of the spec is fully supported, future revisions are expected to expand the functionality |
 | [SYCL_INTEL_static_local_memory_query](StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)                | Proposal                                  | |
 | [SYCL_INTEL_sub_group_algorithms](SubGroupAlgorithms/SYCL_INTEL_sub_group_algorithms.asciidoc)                              | Partially supported(OpenCL: CPU, GPU)     | Features from SYCL_INTEL_group_algorithms extended to sub-groups |
 | [Sub-groups for NDRange Parallelism](SubGroupNDRange/SubGroupNDRange.md)                                                    | Deprecated(OpenCL: CPU, GPU)              | |
@@ -36,12 +36,17 @@ DPC++ extensions status:
 | [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
 | [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
 | [Level-Zero backend specification](LevelZeroBackend/LevelZeroBackend.md)                                           	      | Supported                                 | |
-| [ITT annotations support](ITTAnnotations/ITTAnnotations.rst) | Supported | |
+| [Platform Context](PlatformContext/PlatformContext.adoc) | Proposal | |
 | [SYCL_EXT_ONEAPI_DEVICE_IF](DeviceIf/device_if.asciidoc) | Proposal | |
 | [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
 | [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc) | Proposal | |
+| [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                        | Partially supported(AMX AOT)               | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
+| [SYCL_INTEL_free_function_queries](FreeFunctionQueries/SYCL_INTEL_free_function_queries.asciidoc)                           | Supported (experimental)                  | |
+| [SYCL_EXT_ONEAPI_DEVICE_GLOBAL](DeviceGlobal/SYCL_INTEL_device_global.asciidoc)                                             | Proposal                                  | |
+| [SYCL_INTEL_bf16_conversion](Bf16Conversion/SYCL_INTEL_bf16_conversion.asciidoc)                                            | Partially supported (Level Zero: GPU)     | Currently available only on Xe HP GPU. ext_intel_bf16_conversion aspect is not supported. |
+| [Property List](PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc)                                                        | Proposal                                  | |
 
 Legend:
 

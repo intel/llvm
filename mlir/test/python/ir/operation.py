@@ -97,13 +97,13 @@ def testTraverseOpRegionBlockIndices():
   # CHECK: REGION 0:
   # CHECK:   BLOCK 0:
   # CHECK:     OP 0: func
-  # CHECK:     OP 0: parent module
+  # CHECK:     OP 0: parent builtin.module
   # CHECK:       REGION 0:
   # CHECK:         BLOCK 0:
   # CHECK:           OP 0: %0 = "custom.addi"
-  # CHECK:           OP 0: parent func
+  # CHECK:           OP 0: parent builtin.func
   # CHECK:           OP 1: return
-  # CHECK:           OP 1: parent func
+  # CHECK:           OP 1: parent builtin.func
   walk_operations("", module.operation)
 
 run(testTraverseOpRegionBlockIndices)
@@ -133,6 +133,23 @@ def testBlockArgumentList():
     # CHECK: Argument 2, type i24
     for arg in entry_block.arguments:
       print(f"Argument {arg.arg_number}, type {arg.type}")
+
+    # Check that slicing works for block argument lists.
+    # CHECK: Argument 1, type i16
+    # CHECK: Argument 2, type i24
+    for arg in entry_block.arguments[1:]:
+      print(f"Argument {arg.arg_number}, type {arg.type}")
+
+    # Check that we can concatenate slices of argument lists.
+    # CHECK: Length: 4
+    print("Length: ",
+          len(entry_block.arguments[:2] + entry_block.arguments[1:]))
+
+    # CHECK: Type: i8
+    # CHECK: Type: i16
+    # CHECK: Type: i24
+    for t in entry_block.arguments.types:
+      print("Type: ", t)
 
 
 run(testBlockArgumentList)
@@ -369,6 +386,12 @@ def testOperationResultList():
   for res in call.results:
     print(f"Result {res.result_number}, type {res.type}")
 
+  # CHECK: Result type i32
+  # CHECK: Result type f64
+  # CHECK: Result type index
+  for t in call.results.types:
+    print(f"Result type {t}")
+
 
 run(testOperationResultList)
 
@@ -533,12 +556,12 @@ def testKnownOpView():
 
     # One of the custom ops should resolve to the default OpView.
     custom = module.body.operations[0]
-    # CHECK: <_mlir.ir.OpView object
+    # CHECK: OpView object
     print(repr(custom))
 
     # Check again to make sure negative caching works.
     custom = module.body.operations[0]
-    # CHECK: <_mlir.ir.OpView object
+    # CHECK: OpView object
     print(repr(custom))
 
 run(testKnownOpView)
@@ -580,12 +603,12 @@ run(testSingleResultProperty)
 def testPrintInvalidOperation():
   ctx = Context()
   with Location.unknown(ctx):
-    module = Operation.create("module", regions=2)
+    module = Operation.create("builtin.module", regions=2)
     # This module has two region and is invalid verify that we fallback
     # to the generic printer for safety.
     block = module.regions[0].blocks.append()
     # CHECK: // Verification failed, printing generic form
-    # CHECK: "module"() ( {
+    # CHECK: "builtin.module"() ( {
     # CHECK: }) : () -> ()
     print(module)
     # CHECK: .verify = False
@@ -598,24 +621,26 @@ def testCreateWithInvalidAttributes():
   ctx = Context()
   with Location.unknown(ctx):
     try:
-      Operation.create("module", attributes={None:StringAttr.get("name")})
+      Operation.create(
+          "builtin.module", attributes={None: StringAttr.get("name")})
     except Exception as e:
-      # CHECK: Invalid attribute key (not a string) when attempting to create the operation "module"
+      # CHECK: Invalid attribute key (not a string) when attempting to create the operation "builtin.module"
       print(e)
     try:
-      Operation.create("module", attributes={42:StringAttr.get("name")})
+      Operation.create(
+          "builtin.module", attributes={42: StringAttr.get("name")})
     except Exception as e:
-      # CHECK: Invalid attribute key (not a string) when attempting to create the operation "module"
+      # CHECK: Invalid attribute key (not a string) when attempting to create the operation "builtin.module"
       print(e)
     try:
-      Operation.create("module", attributes={"some_key":ctx})
+      Operation.create("builtin.module", attributes={"some_key": ctx})
     except Exception as e:
-      # CHECK: Invalid attribute value for the key "some_key" when attempting to create the operation "module"
+      # CHECK: Invalid attribute value for the key "some_key" when attempting to create the operation "builtin.module"
       print(e)
     try:
-      Operation.create("module", attributes={"some_key":None})
+      Operation.create("builtin.module", attributes={"some_key": None})
     except Exception as e:
-      # CHECK: Found an invalid (`None`?) attribute value for the key "some_key" when attempting to create the operation "module"
+      # CHECK: Found an invalid (`None`?) attribute value for the key "some_key" when attempting to create the operation "builtin.module"
       print(e)
 run(testCreateWithInvalidAttributes)
 

@@ -475,7 +475,7 @@ bool LiveIntervals::shrinkToUses(LiveInterval *li,
   // Visit all instructions reading li->reg().
   Register Reg = li->reg();
   for (MachineInstr &UseMI : MRI->reg_instructions(Reg)) {
-    if (UseMI.isDebugValue() || !UseMI.readsVirtualRegister(Reg))
+    if (UseMI.isDebugInstr() || !UseMI.readsVirtualRegister(Reg))
       continue;
     SlotIndex Idx = getInstructionIndex(UseMI).getRegSlot();
     LiveQueryResult LRQ = li->Query(Idx);
@@ -713,10 +713,15 @@ void LiveIntervals::addKillFlags(const VirtRegMap *VRM) {
     if (LI.empty())
       continue;
 
+    // Target may have not allocated this yet.
+    Register PhysReg = VRM->getPhys(Reg);
+    if (!PhysReg)
+      continue;
+
     // Find the regunit intervals for the assigned register. They may overlap
     // the virtual register live range, cancelling any kills.
     RU.clear();
-    for (MCRegUnitIterator Unit(VRM->getPhys(Reg), TRI); Unit.isValid();
+    for (MCRegUnitIterator Unit(PhysReg, TRI); Unit.isValid();
          ++Unit) {
       const LiveRange &RURange = getRegUnit(*Unit);
       if (RURange.empty())
@@ -1566,15 +1571,14 @@ void LiveIntervals::repairOldRegInRange(const MachineBasicBlock::iterator Begin,
                                         LaneBitmask LaneMask) {
   LiveInterval::iterator LII = LR.find(EndIdx);
   SlotIndex lastUseIdx;
-  if (LII == LR.begin()) {
-    // This happens when the function is called for a subregister that only
-    // occurs _after_ the range that is to be repaired.
-    return;
-  }
-  if (LII != LR.end() && LII->start < EndIdx)
+  if (LII != LR.end() && LII->start < EndIdx) {
     lastUseIdx = LII->end;
-  else
+  } else if (LII == LR.begin()) {
+    // We may not have a liverange at all if this is a subregister untouched
+    // between \p Begin and \p End.
+  } else {
     --LII;
+  }
 
   for (MachineBasicBlock::iterator I = End; I != Begin;) {
     --I;
@@ -1651,6 +1655,10 @@ void LiveIntervals::repairOldRegInRange(const MachineBasicBlock::iterator Begin,
       }
     }
   }
+
+  bool isStartValid = getInstructionFromIndex(LII->start);
+  if (!isStartValid && LII->end.isDead())
+    LR.removeSegment(*LII, true);
 }
 
 void
@@ -1673,6 +1681,8 @@ LiveIntervals::repairIntervalsInRange(MachineBasicBlock *MBB,
 
   Indexes->repairIndexesInRange(MBB, Begin, End);
 
+  // Make sure a live interval exists for all register operands in the range.
+  SmallVector<Register> RegsToRepair(OrigRegs.begin(), OrigRegs.end());
   for (MachineBasicBlock::iterator I = End; I != Begin;) {
     --I;
     MachineInstr &MI = *I;
@@ -1681,14 +1691,25 @@ LiveIntervals::repairIntervalsInRange(MachineBasicBlock *MBB,
     for (MachineInstr::const_mop_iterator MOI = MI.operands_begin(),
                                           MOE = MI.operands_end();
          MOI != MOE; ++MOI) {
-      if (MOI->isReg() && Register::isVirtualRegister(MOI->getReg()) &&
-          !hasInterval(MOI->getReg())) {
-        createAndComputeVirtRegInterval(MOI->getReg());
+      if (MOI->isReg() && MOI->getReg().isVirtual()) {
+        Register Reg = MOI->getReg();
+        // If the new instructions refer to subregs but the old instructions did
+        // not, throw away any old live interval so it will be recomputed with
+        // subranges.
+        if (MOI->getSubReg() && hasInterval(Reg) &&
+            !getInterval(Reg).hasSubRanges() &&
+            MRI->shouldTrackSubRegLiveness(Reg))
+          removeInterval(Reg);
+        if (!hasInterval(Reg)) {
+          createAndComputeVirtRegInterval(Reg);
+          // Don't bother to repair a freshly calculated live interval.
+          erase_value(RegsToRepair, Reg);
+        }
       }
     }
   }
 
-  for (Register Reg : OrigRegs) {
+  for (Register Reg : RegsToRepair) {
     if (!Reg.isVirtual())
       continue;
 
@@ -1699,6 +1720,7 @@ LiveIntervals::repairIntervalsInRange(MachineBasicBlock *MBB,
 
     for (LiveInterval::SubRange &S : LI.subranges())
       repairOldRegInRange(Begin, End, EndIdx, S, Reg, S.LaneMask);
+    LI.removeEmptySubRanges();
 
     repairOldRegInRange(Begin, End, EndIdx, LI, Reg);
   }

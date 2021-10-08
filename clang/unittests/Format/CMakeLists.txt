@@ -9,6 +9,7 @@ add_clang_unittest(FormatTests
   FormatTestCSharp.cpp
   FormatTestJS.cpp
   FormatTestJava.cpp
+  FormatTestJson.cpp
   FormatTestObjC.cpp
   FormatTestProto.cpp
   FormatTestRawStrings.cpp
@@ -17,6 +18,7 @@ add_clang_unittest(FormatTests
   FormatTestTextProto.cpp
   MacroExpanderTest.cpp
   NamespaceEndCommentsFixerTest.cpp
+  QualifierFixerTest.cpp
   SortImportsTestJS.cpp
   SortImportsTestJava.cpp
   SortIncludesTest.cpp

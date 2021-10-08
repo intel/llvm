@@ -31,8 +31,12 @@ enum class CudaVersion {
   CUDA_110,
   CUDA_111,
   CUDA_112,
-  LATEST = CUDA_112,
-  LATEST_SUPPORTED = CUDA_101,
+  CUDA_113,
+  CUDA_114,
+  FULLY_SUPPORTED = CUDA_114,
+  PARTIALLY_SUPPORTED =
+      CUDA_114, // Partially supported. Proceed with a warning.
+  NEW = 10000,  // Too new. Issue a warning, but allow using it.
 };
 const char *CudaVersionToString(CudaVersion V);
 // Input is "Major.Minor"
@@ -89,6 +93,7 @@ enum class CudaArch {
   GFX1032,
   GFX1033,
   GFX1034,
+  GFX1035,
   LAST,
 };
 

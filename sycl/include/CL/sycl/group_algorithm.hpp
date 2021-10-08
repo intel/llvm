@@ -10,7 +10,6 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/ONEAPI/functional.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <CL/sycl/functional.hpp>
@@ -18,6 +17,8 @@
 #include <CL/sycl/known_identity.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/sub_group.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/ext/oneapi/group_sort.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -55,7 +56,8 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t get_local_linear_range<ONEAPI::sub_group>(ONEAPI::sub_group g) {
+inline size_t
+get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -77,19 +79,17 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline ONEAPI::sub_group::linear_id_type
-get_local_linear_id<ONEAPI::sub_group>(ONEAPI::sub_group g) {
+inline ext::oneapi::sub_group::linear_id_type
+get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
   return g.get_local_id()[0];
 }
 
 // ---- is_native_op
 template <typename T>
 using native_op_list =
-    type_list<ONEAPI::plus<T>, ONEAPI::bit_or<T>, ONEAPI::bit_xor<T>,
-              ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>,
-              ONEAPI::multiplies<T>, sycl::plus<T>, sycl::bit_or<T>,
-              sycl::bit_xor<T>, sycl::bit_and<T>, sycl::maximum<T>,
-              sycl::minimum<T>, sycl::multiplies<T>>;
+    type_list<sycl::plus<T>, sycl::bit_or<T>, sycl::bit_xor<T>,
+              sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
+              sycl::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
@@ -622,14 +622,15 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
     return ((v + divisor - 1) / divisor) * divisor;
   };
-  typename InPtr::element_type x;
-  typename OutPtr::element_type carry = init;
+  typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
+      x;
+  typename detail::remove_pointer<OutPtr>::type carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
     if (i < N) {
       x = first[i];
     }
-    typename OutPtr::element_type out =
+    typename detail::remove_pointer<OutPtr>::type out =
         exclusive_scan_over_group(g, x, carry, binary_op);
     if (i < N) {
       result[i] = out;
@@ -662,13 +663,15 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)),
-                   typename OutPtr::element_type>::value ||
-          (std::is_same<typename OutPtr::element_type, half>::value &&
+                   typename detail::remove_pointer<OutPtr>::type>::value ||
+          (std::is_same<typename detail::remove_pointer<OutPtr>::type,
+                        half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   return joint_exclusive_scan(
       g, first, last, result,
-      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>,
+      sycl::known_identity_v<BinaryOperation,
+                             typename detail::remove_pointer<OutPtr>::type>,
       binary_op);
 }
 
@@ -789,14 +792,15 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
     return ((v + divisor - 1) / divisor) * divisor;
   };
-  typename InPtr::element_type x;
-  typename OutPtr::element_type carry = init;
+  typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
+      x;
+  typename detail::remove_pointer<OutPtr>::type carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
     if (i < N) {
       x = first[i];
     }
-    typename OutPtr::element_type out =
+    typename detail::remove_pointer<OutPtr>::type out =
         inclusive_scan_over_group(g, x, binary_op, carry);
     if (i < N) {
       result[i] = out;
@@ -828,13 +832,15 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)),
-                   typename OutPtr::element_type>::value ||
-          (std::is_same<typename OutPtr::element_type, half>::value &&
+                   typename detail::remove_pointer<OutPtr>::type>::value ||
+          (std::is_same<typename detail::remove_pointer<OutPtr>::type,
+                        half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   return joint_inclusive_scan(
       g, first, last, result, binary_op,
-      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>);
+      sycl::known_identity_v<BinaryOperation,
+                             typename detail::remove_pointer<OutPtr>::type>);
 }
 
 namespace detail {
@@ -858,7 +864,7 @@ group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
   // which type of memory this behavior is applied to.
   __spirv_ControlBarrier(detail::group_barrier_scope<Group>::Scope,
                          sycl::detail::spirv::getScope(FenceScope),
-                         __spv::MemorySemanticsMask::AcquireRelease |
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
                              __spv::MemorySemanticsMask::SubgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);

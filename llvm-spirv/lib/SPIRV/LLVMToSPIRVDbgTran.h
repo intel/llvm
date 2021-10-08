@@ -143,6 +143,9 @@ private:
   // Imported declarations and modules
   SPIRVEntry *transDbgImportedEntry(const DIImportedEntity *IE);
 
+  // A module in programming language. Example - Fortran module, clang module.
+  SPIRVEntry *transDbgModule(const DIModule *IE);
+
   SPIRVModule *BM;
   Module *M;
   LLVMToSPIRVBase *SPIRVWriter;

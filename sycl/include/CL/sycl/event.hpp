@@ -41,8 +41,9 @@ public:
   ///
   /// \param ClEvent is a valid instance of OpenCL cl_event.
   /// \param SyclContext is an instance of SYCL context.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   event(cl_event ClEvent, const context &SyclContext);
+#endif
 
   event(const event &rhs) = default;
 
@@ -59,8 +60,9 @@ public:
   /// Returns a valid OpenCL event interoperability handle.
   ///
   /// \return a valid instance of OpenCL cl_event.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_event get() const;
+#endif
 
   /// Checks if this event is a SYCL host event.
   ///
@@ -73,7 +75,7 @@ public:
   /// included in the returned vector.
   ///
   /// \return a vector of SYCL events.
-  vector_class<event> get_wait_list();
+  std::vector<event> get_wait_list();
 
   /// Wait for the event.
   void wait();
@@ -81,7 +83,7 @@ public:
   /// Synchronously wait on a list of events.
   ///
   /// \param EventList is a vector of SYCL events.
-  static void wait(const vector_class<event> &EventList);
+  static void wait(const std::vector<event> &EventList);
 
   /// Wait for the event.
   ///
@@ -97,7 +99,7 @@ public:
   /// asynchronous error handlers with those errors.
   ///
   /// \param EventList is a vector of SYCL events.
-  static void wait_and_throw(const vector_class<event> &EventList);
+  static void wait_and_throw(const std::vector<event> &EventList);
 
   /// Queries this SYCL event for information.
   ///
@@ -129,17 +131,18 @@ public:
   ///
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   auto get_native() const -> typename interop<BackendName, event>::type {
     return reinterpret_cast<typename interop<BackendName, event>::type>(
         getNative());
   }
 
 private:
-  event(shared_ptr_class<detail::event_impl> EventImpl);
+  event(std::shared_ptr<detail::event_impl> EventImpl);
 
   pi_native_handle getNative() const;
 
-  shared_ptr_class<detail::event_impl> impl;
+  std::shared_ptr<detail::event_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -154,7 +157,7 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::event> {
   size_t operator()(const cl::sycl::event &e) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::event_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::event_impl>>()(
         cl::sycl::detail::getSyclObjImpl(e));
   }
 };

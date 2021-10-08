@@ -133,6 +133,29 @@ PPCRegisterInfo::PPCRegisterInfo(const PPCTargetMachine &TM)
   ImmToIdxMap[PPC::EVSTDD] = PPC::EVSTDDX;
   ImmToIdxMap[PPC::SPESTW] = PPC::SPESTWX;
   ImmToIdxMap[PPC::SPELWZ] = PPC::SPELWZX;
+
+  // Power10
+  ImmToIdxMap[PPC::PLBZ]   = PPC::LBZX; ImmToIdxMap[PPC::PLBZ8]   = PPC::LBZX8;
+  ImmToIdxMap[PPC::PLHZ]   = PPC::LHZX; ImmToIdxMap[PPC::PLHZ8]   = PPC::LHZX8;
+  ImmToIdxMap[PPC::PLHA]   = PPC::LHAX; ImmToIdxMap[PPC::PLHA8]   = PPC::LHAX8;
+  ImmToIdxMap[PPC::PLWZ]   = PPC::LWZX; ImmToIdxMap[PPC::PLWZ8]   = PPC::LWZX8;
+  ImmToIdxMap[PPC::PLWA]   = PPC::LWAX; ImmToIdxMap[PPC::PLWA8]   = PPC::LWAX;
+  ImmToIdxMap[PPC::PLD]    = PPC::LDX;  ImmToIdxMap[PPC::PSTD]   = PPC::STDX;
+
+  ImmToIdxMap[PPC::PSTB]   = PPC::STBX; ImmToIdxMap[PPC::PSTB8]   = PPC::STBX8;
+  ImmToIdxMap[PPC::PSTH]   = PPC::STHX; ImmToIdxMap[PPC::PSTH8]   = PPC::STHX8;
+  ImmToIdxMap[PPC::PSTW]   = PPC::STWX; ImmToIdxMap[PPC::PSTW8]   = PPC::STWX8;
+
+  ImmToIdxMap[PPC::PLFS]   = PPC::LFSX; ImmToIdxMap[PPC::PSTFS]   = PPC::STFSX;
+  ImmToIdxMap[PPC::PLFD]   = PPC::LFDX; ImmToIdxMap[PPC::PSTFD]   = PPC::STFDX;
+  ImmToIdxMap[PPC::PLXSSP] = PPC::LXSSPX; ImmToIdxMap[PPC::PSTXSSP] = PPC::STXSSPX;
+  ImmToIdxMap[PPC::PLXSD]  = PPC::LXSDX; ImmToIdxMap[PPC::PSTXSD]  = PPC::STXSDX;
+  ImmToIdxMap[PPC::PLXV]   = PPC::LXVX; ImmToIdxMap[PPC::PSTXV]  = PPC::STXVX;
+
+  ImmToIdxMap[PPC::LXVP]   = PPC::LXVPX;
+  ImmToIdxMap[PPC::STXVP]  = PPC::STXVPX;
+  ImmToIdxMap[PPC::PLXVP]  = PPC::LXVPX;
+  ImmToIdxMap[PPC::PSTXVP] = PPC::STXVPX;
 }
 
 /// getPointerRegClass - Return the register class to use to hold pointers.
@@ -464,6 +487,64 @@ bool PPCRegisterInfo::isCallerPreservedPhysReg(MCRegister PhysReg,
     // and no inline asm which clobbers X1/R1.
     return true;
   return false;
+}
+
+bool PPCRegisterInfo::getRegAllocationHints(Register VirtReg,
+                                            ArrayRef<MCPhysReg> Order,
+                                            SmallVectorImpl<MCPhysReg> &Hints,
+                                            const MachineFunction &MF,
+                                            const VirtRegMap *VRM,
+                                            const LiveRegMatrix *Matrix) const {
+  const MachineRegisterInfo *MRI = &MF.getRegInfo();
+
+  // Call the base implementation first to set any hints based on the usual
+  // heuristics and decide what the return value should be. We want to return
+  // the same value returned by the base implementation. If the base
+  // implementation decides to return true and force the allocation then we
+  // will leave it as such. On the other hand if the base implementation
+  // decides to return false the following code will not force the allocation
+  // as we are just looking to provide a hint.
+  bool BaseImplRetVal = TargetRegisterInfo::getRegAllocationHints(
+      VirtReg, Order, Hints, MF, VRM, Matrix);
+  // We are interested in instructions that copy values to ACC/UACC.
+  // The copy into UACC will be simply a COPY to a subreg so we
+  // want to allocate the corresponding physical subreg for the source.
+  // The copy into ACC will be a BUILD_UACC so we want to allocate
+  // the same number UACC for the source.
+  for (MachineInstr &Use : MRI->reg_nodbg_instructions(VirtReg)) {
+    const MachineOperand *ResultOp = nullptr;
+    Register ResultReg;
+    switch (Use.getOpcode()) {
+    case TargetOpcode::COPY: {
+      ResultOp = &Use.getOperand(0);
+      ResultReg = ResultOp->getReg();
+      if (Register::isVirtualRegister(ResultReg) &&
+          MRI->getRegClass(ResultReg)->contains(PPC::UACC0) &&
+          VRM->hasPhys(ResultReg)) {
+        Register UACCPhys = VRM->getPhys(ResultReg);
+        Register HintReg = getSubReg(UACCPhys, ResultOp->getSubReg());
+        // Ensure that the hint is a VSRp register.
+        if (HintReg >= PPC::VSRp0 && HintReg <= PPC::VSRp31)
+          Hints.push_back(HintReg);
+      }
+      break;
+    }
+    case PPC::BUILD_UACC: {
+      ResultOp = &Use.getOperand(0);
+      ResultReg = ResultOp->getReg();
+      if (MRI->getRegClass(ResultReg)->contains(PPC::ACC0) &&
+          VRM->hasPhys(ResultReg)) {
+        Register ACCPhys = VRM->getPhys(ResultReg);
+        assert((ACCPhys >= PPC::ACC0 && ACCPhys <= PPC::ACC7) &&
+               "Expecting an ACC register for BUILD_UACC.");
+        Register HintReg = PPC::UACC0 + (ACCPhys - PPC::ACC0);
+        Hints.push_back(HintReg);
+      }
+      break;
+    }
+    }
+  }
+  return BaseImplRetVal;
 }
 
 unsigned PPCRegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
@@ -1243,6 +1324,8 @@ static unsigned offsetMinAlignForOpcode(unsigned OpC) {
   case PPC::LXV:
   case PPC::STXV:
   case PPC::LQ:
+  case PPC::LXVP:
+  case PPC::STXVP:
     return 16;
   }
 }
@@ -1281,7 +1364,7 @@ PPCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineFunction &MF = *MBB.getParent();
   const PPCSubtarget &Subtarget = MF.getSubtarget<PPCSubtarget>();
   // Get the instruction info.
-  const TargetInstrInfo &TII = *Subtarget.getInstrInfo();
+  const PPCInstrInfo &TII = *Subtarget.getInstrInfo();
   // Get the frame info.
   MachineFrameInfo &MFI = MF.getFrameInfo();
   DebugLoc dl = MI.getDebugLoc();
@@ -1370,6 +1453,16 @@ PPCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       Offset += MFI.getStackSize();
   }
 
+  // If we encounter an LXVP/STXVP with an offset that doesn't fit, we can
+  // transform it to the prefixed version so we don't have to use the XForm.
+  if ((OpC == PPC::LXVP || OpC == PPC::STXVP) &&
+      (!isInt<16>(Offset) || (Offset % offsetMinAlign(MI)) != 0) &&
+      Subtarget.hasPrefixInstrs()) {
+    unsigned NewOpc = OpC == PPC::LXVP ? PPC::PLXVP : PPC::PSTXVP;
+    MI.setDesc(TII.get(NewOpc));
+    OpC = NewOpc;
+  }
+
   // If we can, encode the offset directly into the instruction.  If this is a
   // normal PPC "ri" instruction, any 16-bit value can be safely encoded.  If
   // this is a PPC64 "ix" instruction, only a 16-bit value with the low two bits
@@ -1378,9 +1471,13 @@ PPCRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   // happen in invalid code.
   assert(OpC != PPC::DBG_VALUE &&
          "This should be handled in a target-independent way");
+  // FIXME: This should be factored out to a separate function as prefixed
+  // instructions add a number of opcodes for which we can use 34-bit imm.
   bool OffsetFitsMnemonic = (OpC == PPC::EVSTDD || OpC == PPC::EVLDD) ?
                             isUInt<8>(Offset) :
                             isInt<16>(Offset);
+  if (TII.isPrefixed(MI.getOpcode()))
+    OffsetFitsMnemonic = isInt<34>(Offset);
   if (!noImmForm && ((OffsetFitsMnemonic &&
                       ((Offset % offsetMinAlign(MI)) == 0)) ||
                      OpC == TargetOpcode::STACKMAP ||

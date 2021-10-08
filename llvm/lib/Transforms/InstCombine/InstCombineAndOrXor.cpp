@@ -367,9 +367,9 @@ getMaskedTypeForICmpPair(Value *&A, Value *&B, Value *&C,
     } else {
       return None;
     }
+
+    assert(Ok && "Failed to find AND on the right side of the RHS icmp.");
   }
-  if (!Ok)
-    return None;
 
   if (L11 == A) {
     B = L12;
@@ -779,7 +779,7 @@ foldAndOrOfEqualityCmpsWithConstants(ICmpInst *LHS, ICmpInst *RHS,
 
   // Special case: get the ordering right when the values wrap around zero.
   // Ie, we assumed the constants were unsigned when swapping earlier.
-  if (C1->isNullValue() && C2->isAllOnesValue())
+  if (C1->isZero() && C2->isAllOnes())
     std::swap(C1, C2);
 
   if (*C1 == *C2 - 1) {
@@ -923,7 +923,7 @@ static Value *foldSignedTruncationCheck(ICmpInst *ICmp0, ICmpInst *ICmp1,
   if (!tryToDecompose(OtherICmp, X0, UnsetBitsMask))
     return nullptr;
 
-  assert(!UnsetBitsMask.isNullValue() && "empty mask makes no sense.");
+  assert(!UnsetBitsMask.isZero() && "empty mask makes no sense.");
 
   // Are they working on the same value?
   Value *X;
@@ -1113,8 +1113,8 @@ static Value *extractIntPart(const IntPart &P, IRBuilderBase &Builder) {
 /// (icmp eq X0, Y0) & (icmp eq X1, Y1) -> icmp eq X01, Y01
 /// (icmp ne X0, Y0) | (icmp ne X1, Y1) -> icmp ne X01, Y01
 /// where X0, X1 and Y0, Y1 are adjacent parts extracted from an integer.
-static Value *foldEqOfParts(ICmpInst *Cmp0, ICmpInst *Cmp1, bool IsAnd,
-                            InstCombiner::BuilderTy &Builder) {
+Value *InstCombinerImpl::foldEqOfParts(ICmpInst *Cmp0, ICmpInst *Cmp1,
+                                       bool IsAnd) {
   if (!Cmp0->hasOneUse() || !Cmp1->hasOneUse())
     return nullptr;
 
@@ -1262,7 +1262,7 @@ Value *InstCombinerImpl::foldAndOfICmps(ICmpInst *LHS, ICmpInst *RHS,
           foldUnsignedUnderflowCheck(RHS, LHS, /*IsAnd=*/true, Q, Builder))
     return X;
 
-  if (Value *X = foldEqOfParts(LHS, RHS, /*IsAnd=*/true, Builder))
+  if (Value *X = foldEqOfParts(LHS, RHS, /*IsAnd=*/true))
     return X;
 
   // This only handles icmp of constants: (icmp1 A, C1) & (icmp2 B, C2).
@@ -1310,8 +1310,8 @@ Value *InstCombinerImpl::foldAndOfICmps(ICmpInst *LHS, ICmpInst *RHS,
 
       // Check that the low bits are zero.
       APInt Low = APInt::getLowBitsSet(BigBitSize, SmallBitSize);
-      if ((Low & AndC->getValue()).isNullValue() &&
-          (Low & BigC->getValue()).isNullValue()) {
+      if ((Low & AndC->getValue()).isZero() &&
+          (Low & BigC->getValue()).isZero()) {
         Value *NewAnd = Builder.CreateAnd(V, Low | AndC->getValue());
         APInt N = SmallC->getValue().zext(BigBitSize) | BigC->getValue();
         Value *NewVal = ConstantInt::get(AndC->getType()->getContext(), N);
@@ -1883,7 +1883,7 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
       // (X + AddC) & LowMaskC --> X & LowMaskC
       unsigned Ctlz = C->countLeadingZeros();
       APInt LowMask(APInt::getLowBitsSet(Width, Width - Ctlz));
-      if ((*AddC & LowMask).isNullValue())
+      if ((*AddC & LowMask).isZero())
         return BinaryOperator::CreateAnd(X, Op1);
 
       // If we are masking the result of the add down to exactly one bit and
@@ -1896,44 +1896,37 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
         return BinaryOperator::CreateXor(NewAnd, Op1);
       }
     }
-  }
 
-  ConstantInt *AndRHS;
-  if (match(Op1, m_ConstantInt(AndRHS))) {
-    const APInt &AndRHSMask = AndRHS->getValue();
-
-    // Optimize a variety of ((val OP C1) & C2) combinations...
-    if (BinaryOperator *Op0I = dyn_cast<BinaryOperator>(Op0)) {
-      // ((C1 OP zext(X)) & C2) -> zext((C1-X) & C2) if C2 fits in the bitwidth
-      // of X and OP behaves well when given trunc(C1) and X.
-      // TODO: Do this for vectors by using m_APInt instead of m_ConstantInt.
-      switch (Op0I->getOpcode()) {
-      default:
-        break;
+    // ((C1 OP zext(X)) & C2) -> zext((C1 OP X) & C2) if C2 fits in the
+    // bitwidth of X and OP behaves well when given trunc(C1) and X.
+    auto isSuitableBinOpcode = [](BinaryOperator *B) {
+      switch (B->getOpcode()) {
       case Instruction::Xor:
       case Instruction::Or:
       case Instruction::Mul:
       case Instruction::Add:
       case Instruction::Sub:
-        Value *X;
-        ConstantInt *C1;
-        // TODO: The one use restrictions could be relaxed a little if the AND
-        // is going to be removed.
-        if (match(Op0I, m_OneUse(m_c_BinOp(m_OneUse(m_ZExt(m_Value(X))),
-                                           m_ConstantInt(C1))))) {
-          if (AndRHSMask.isIntN(X->getType()->getScalarSizeInBits())) {
-            auto *TruncC1 = ConstantExpr::getTrunc(C1, X->getType());
-            Value *BinOp;
-            Value *Op0LHS = Op0I->getOperand(0);
-            if (isa<ZExtInst>(Op0LHS))
-              BinOp = Builder.CreateBinOp(Op0I->getOpcode(), X, TruncC1);
-            else
-              BinOp = Builder.CreateBinOp(Op0I->getOpcode(), TruncC1, X);
-            auto *TruncC2 = ConstantExpr::getTrunc(AndRHS, X->getType());
-            auto *And = Builder.CreateAnd(BinOp, TruncC2);
-            return new ZExtInst(And, Ty);
-          }
-        }
+        return true;
+      default:
+        return false;
+      }
+    };
+    BinaryOperator *BO;
+    if (match(Op0, m_OneUse(m_BinOp(BO))) && isSuitableBinOpcode(BO)) {
+      Value *X;
+      const APInt *C1;
+      // TODO: The one-use restrictions could be relaxed a little if the AND
+      // is going to be removed.
+      if (match(BO, m_c_BinOp(m_OneUse(m_ZExt(m_Value(X))), m_APInt(C1))) &&
+          C->isIntN(X->getType()->getScalarSizeInBits())) {
+        unsigned XWidth = X->getType()->getScalarSizeInBits();
+        Constant *TruncC1 = ConstantInt::get(X->getType(), C1->trunc(XWidth));
+        Value *BinOp = isa<ZExtInst>(BO->getOperand(0))
+                           ? Builder.CreateBinOp(BO->getOpcode(), X, TruncC1)
+                           : Builder.CreateBinOp(BO->getOpcode(), TruncC1, X);
+        Constant *TruncC = ConstantInt::get(X->getType(), C->trunc(XWidth));
+        Value *And = Builder.CreateAnd(BinOp, TruncC);
+        return new ZExtInst(And, Ty);
       }
     }
   }
@@ -2496,7 +2489,7 @@ Value *InstCombinerImpl::foldOrOfICmps(ICmpInst *LHS, ICmpInst *RHS,
           foldUnsignedUnderflowCheck(RHS, LHS, /*IsAnd=*/false, Q, Builder))
     return X;
 
-  if (Value *X = foldEqOfParts(LHS, RHS, /*IsAnd=*/false, Builder))
+  if (Value *X = foldEqOfParts(LHS, RHS, /*IsAnd=*/false))
     return X;
 
   // (icmp ne A, 0) | (icmp ne B, 0) --> (icmp ne (A|B), 0)
@@ -2684,7 +2677,7 @@ Instruction *InstCombinerImpl::visitOr(BinaryOperator &I) {
   Value *X, *Y;
   const APInt *CV;
   if (match(&I, m_c_Or(m_OneUse(m_Xor(m_Value(X), m_APInt(CV))), m_Value(Y))) &&
-      !CV->isAllOnesValue() && MaskedValueIsZero(Y, *CV, 0, &I)) {
+      !CV->isAllOnes() && MaskedValueIsZero(Y, *CV, 0, &I)) {
     // (X ^ C) | Y -> (X | Y) ^ C iff Y & C == 0
     // The check for a 'not' op is for efficiency (if Y is known zero --> ~X).
     Value *Or = Builder.CreateOr(X, Y);
@@ -2699,7 +2692,7 @@ Instruction *InstCombinerImpl::visitOr(BinaryOperator &I) {
     ConstantInt *C1, *C2;
     if (match(C, m_ConstantInt(C1)) && match(D, m_ConstantInt(C2))) {
       Value *V1 = nullptr, *V2 = nullptr;
-      if ((C1->getValue() & C2->getValue()).isNullValue()) {
+      if ((C1->getValue() & C2->getValue()).isZero()) {
         // ((V | N) & C1) | (V & C2) --> (V|N) & (C1|C2)
         // iff (C1&C2) == 0 and (N&~C1) == 0
         if (match(A, m_Or(m_Value(V1), m_Value(V2))) &&
@@ -2722,9 +2715,9 @@ Instruction *InstCombinerImpl::visitOr(BinaryOperator &I) {
         // iff (C1&C2) == 0 and (C3&~C1) == 0 and (C4&~C2) == 0.
         ConstantInt *C3 = nullptr, *C4 = nullptr;
         if (match(A, m_Or(m_Value(V1), m_ConstantInt(C3))) &&
-            (C3->getValue() & ~C1->getValue()).isNullValue() &&
+            (C3->getValue() & ~C1->getValue()).isZero() &&
             match(B, m_Or(m_Specific(V1), m_ConstantInt(C4))) &&
-            (C4->getValue() & ~C2->getValue()).isNullValue()) {
+            (C4->getValue() & ~C2->getValue()).isZero()) {
           V2 = Builder.CreateOr(V1, ConstantExpr::getOr(C3, C4), "bitfield");
           return BinaryOperator::CreateAnd(V2,
                                  Builder.getInt(C1->getValue()|C2->getValue()));
@@ -3456,13 +3449,13 @@ Instruction *InstCombinerImpl::visitXor(BinaryOperator &I) {
       // canonicalize to a 'not' before the shift to help SCEV and codegen:
       // (X << C) ^ RHSC --> ~X << C
       if (match(Op0, m_OneUse(m_Shl(m_Value(X), m_APInt(C)))) &&
-          *RHSC == APInt::getAllOnesValue(Ty->getScalarSizeInBits()).shl(*C)) {
+          *RHSC == APInt::getAllOnes(Ty->getScalarSizeInBits()).shl(*C)) {
         Value *NotX = Builder.CreateNot(X);
         return BinaryOperator::CreateShl(NotX, ConstantInt::get(Ty, *C));
       }
       // (X >>u C) ^ RHSC --> ~X >>u C
       if (match(Op0, m_OneUse(m_LShr(m_Value(X), m_APInt(C)))) &&
-          *RHSC == APInt::getAllOnesValue(Ty->getScalarSizeInBits()).lshr(*C)) {
+          *RHSC == APInt::getAllOnes(Ty->getScalarSizeInBits()).lshr(*C)) {
         Value *NotX = Builder.CreateNot(X);
         return BinaryOperator::CreateLShr(NotX, ConstantInt::get(Ty, *C));
       }
@@ -3576,13 +3569,17 @@ Instruction *InstCombinerImpl::visitXor(BinaryOperator &I) {
   // ~min(~X, ~Y) --> max(X, Y)
   // ~max(~X, Y) --> min(X, ~Y)
   auto *II = dyn_cast<IntrinsicInst>(Op0);
-  if (II && match(Op1, m_AllOnes())) {
-    if (match(Op0, m_MaxOrMin(m_Not(m_Value(X)), m_Not(m_Value(Y))))) {
+  if (II && II->hasOneUse() && match(Op1, m_AllOnes())) {
+    if (match(Op0, m_MaxOrMin(m_Value(X), m_Value(Y))) &&
+        isFreeToInvert(X, X->hasOneUse()) &&
+        isFreeToInvert(Y, Y->hasOneUse())) {
       Intrinsic::ID InvID = getInverseMinMaxIntrinsic(II->getIntrinsicID());
-      Value *InvMaxMin = Builder.CreateBinaryIntrinsic(InvID, X, Y);
+      Value *NotX = Builder.CreateNot(X);
+      Value *NotY = Builder.CreateNot(Y);
+      Value *InvMaxMin = Builder.CreateBinaryIntrinsic(InvID, NotX, NotY);
       return replaceInstUsesWith(I, InvMaxMin);
     }
-    if (match(Op0, m_OneUse(m_c_MaxOrMin(m_Not(m_Value(X)), m_Value(Y))))) {
+    if (match(Op0, m_c_MaxOrMin(m_Not(m_Value(X)), m_Value(Y)))) {
       Intrinsic::ID InvID = getInverseMinMaxIntrinsic(II->getIntrinsicID());
       Value *NotY = Builder.CreateNot(Y);
       Value *InvMaxMin = Builder.CreateBinaryIntrinsic(InvID, X, NotY);

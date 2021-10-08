@@ -16,6 +16,8 @@
 
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Discriminator.h"
+#include "llvm/CodeGen/RegAllocCommon.h"
+
 #include <functional>
 #include <string>
 
@@ -35,6 +37,10 @@ class raw_ostream;
 
 // List of target independent CodeGen pass IDs.
 namespace llvm {
+
+  /// AtomicExpandPass - At IR level this pass replace atomic instructions with
+  /// __atomic_* library calls, or target specific instruction which implement the
+  /// same semantics in a way which better fits the target backend.
   FunctionPass *createAtomicExpandPass();
 
   /// createUnreachableBlockEliminationPass - The LLVM code generator does not
@@ -169,20 +175,27 @@ namespace llvm {
   /// This pass adds flow sensitive discriminators.
   extern char &MIRAddFSDiscriminatorsID;
 
+  /// This pass reads flow sensitive profile.
+  extern char &MIRProfileLoaderPassID;
+
   /// FastRegisterAllocation Pass - This pass register allocates as fast as
   /// possible. It is best suited for debug code where live ranges are short.
   ///
   FunctionPass *createFastRegisterAllocator();
+  FunctionPass *createFastRegisterAllocator(RegClassFilterFunc F,
+                                            bool ClearVirtRegs);
 
   /// BasicRegisterAllocation Pass - This pass implements a degenerate global
   /// register allocator using the basic regalloc framework.
   ///
   FunctionPass *createBasicRegisterAllocator();
+  FunctionPass *createBasicRegisterAllocator(RegClassFilterFunc F);
 
   /// Greedy register allocation pass - This pass implements a global register
   /// allocator for optimized builds.
   ///
   FunctionPass *createGreedyRegisterAllocator();
+  FunctionPass *createGreedyRegisterAllocator(RegClassFilterFunc F);
 
   /// PBQPRegisterAllocation Pass - This pass implements the Partitioned Boolean
   /// Quadratic Prograaming (PBQP) based register allocator.
@@ -270,10 +283,18 @@ namespace llvm {
   /// operations.
   FunctionPass *createGCLoweringPass();
 
+  /// GCLowering Pass - Used by gc.root to perform its default lowering
+  /// operations.
+  extern char &GCLoweringID;
+
   /// ShadowStackGCLowering - Implements the custom lowering mechanism
   /// used by the shadow stack GC.  Only runs on functions which opt in to
   /// the shadow stack collector.
   FunctionPass *createShadowStackGCLoweringPass();
+
+  /// ShadowStackGCLowering - Implements the custom lowering mechanism
+  /// used by the shadow stack GC.
+  extern char &ShadowStackGCLoweringID;
 
   /// GCMachineCodeAnalysis - Target-independent pass to mark safe points
   /// in machine code. Must be added very late during code generation, just
@@ -386,6 +407,9 @@ namespace llvm {
   /// the intrinsic for later emission to the StackMap.
   extern char &StackMapLivenessID;
 
+  /// RemoveRedundantDebugValues pass.
+  extern char &RemoveRedundantDebugValuesID;
+
   /// LiveDebugValues pass
   extern char &LiveDebugValuesID;
 
@@ -495,6 +519,11 @@ namespace llvm {
   /// sequence number of this pass (starting from 1).
   FunctionPass *
   createMIRAddFSDiscriminatorsPass(sampleprof::FSDiscriminatorPass P);
+
+  /// Read Flow Sensitive Profile.
+  FunctionPass *createMIRProfileLoaderPass(std::string File,
+                                           std::string RemappingFile,
+                                           sampleprof::FSDiscriminatorPass P);
 
   /// Creates MIR Debugify pass. \see MachineDebugify.cpp
   ModulePass *createDebugifyMachineModulePass();

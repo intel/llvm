@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/VectorUtils.h"
@@ -32,6 +33,7 @@
 #include "llvm/ADT/bit.h"
 #include <numeric>
 
+#include "mlir/Dialect/Vector/VectorOpsDialect.cpp.inc"
 // Pull in all enum type and utility function definitions.
 #include "mlir/Dialect/Vector/VectorOpsEnums.cpp.inc"
 
@@ -99,6 +101,15 @@ static bool isSupportedCombiningKind(CombiningKind combiningKind,
     return elementType.isIntOrIndex();
   }
   return false;
+}
+
+/// Return true if the last dimension of the MemRefType has unit stride. Also
+/// return true for memrefs with no strides.
+bool mlir::vector::isLastMemrefDimUnitStride(MemRefType type) {
+  int64_t offset;
+  SmallVector<int64_t> strides;
+  auto successStrides = getStridesAndOffset(type, strides, offset);
+  return succeeded(successStrides) && (strides.empty() || strides.back() == 1);
 }
 
 //===----------------------------------------------------------------------===//
@@ -176,8 +187,7 @@ Attribute CombiningKindAttr::parse(DialectAsmParser &parser) {
   if (failed(parser.parseGreater()))
     return {};
 
-  return CombiningKindAttr::get(kind.getValue(),
-                                parser.getBuilder().getContext());
+  return CombiningKindAttr::get(kind.getValue(), parser.getContext());
 }
 
 Attribute VectorDialect::parseAttribute(DialectAsmParser &parser,
@@ -327,7 +337,7 @@ static ParseResult parseReductionOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, ReductionOp op) {
-  p << op.getOperationName() << " \"" << op.kind() << "\", " << op.vector();
+  p << " \"" << op.kind() << "\", " << op.vector();
   if (!op.acc().empty())
     p << ", " << op.acc();
   p << " : " << op.vector().getType() << " into " << op.dest().getType();
@@ -346,6 +356,18 @@ Value mlir::vector::getVectorReductionOp(AtomicRMWKind op, OpBuilder &builder,
   case AtomicRMWKind::muli:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("mul"),
+                                               vector, ValueRange{});
+  case AtomicRMWKind::minf:
+  case AtomicRMWKind::mins:
+  case AtomicRMWKind::minu:
+    return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
+                                               builder.getStringAttr("min"),
+                                               vector, ValueRange{});
+  case AtomicRMWKind::maxf:
+  case AtomicRMWKind::maxs:
+  case AtomicRMWKind::maxu:
+    return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
+                                               builder.getStringAttr("max"),
                                                vector, ValueRange{});
   // TODO: Add remaining reduction operations.
   default:
@@ -443,7 +465,7 @@ static void print(OpAsmPrinter &p, ContractionOp op) {
       attrs.push_back(attr);
 
   auto dictAttr = DictionaryAttr::get(op.getContext(), attrs);
-  p << op.getOperationName() << " " << dictAttr << " " << op.lhs() << ", ";
+  p << " " << dictAttr << " " << op.lhs() << ", ";
   p << op.rhs() << ", " << op.acc();
   if (op.masks().size() == 2)
     p << ", " << op.masks();
@@ -771,7 +793,7 @@ struct CanonicalizeContractAdd : public OpRewritePattern<AddOpType> {
     Value a = addOp->getOperand(0), b = addOp->getOperand(1);
     vector::ContractionOp contract = canonicalize(a, b);
     contract = contract ? contract : canonicalize(b, a);
-    return success();
+    return contract ? success() : failure();
   }
 };
 
@@ -836,7 +858,7 @@ void vector::ExtractOp::build(OpBuilder &builder, OperationState &result,
 }
 
 static void print(OpAsmPrinter &p, vector::ExtractOp op) {
-  p << op.getOperationName() << " " << op.vector() << op.position();
+  p << " " << op.vector() << op.position();
   p.printOptionalAttrDict(op->getAttrs(), {"position"});
   p << " : " << op.vector().getType();
 }
@@ -1191,82 +1213,10 @@ void ExtractOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.add<ExtractToShapeCast>(context);
 }
 
-//===----------------------------------------------------------------------===//
-// ExtractSlicesOp
-//===----------------------------------------------------------------------===//
-
-void ExtractSlicesOp::build(OpBuilder &builder, OperationState &result,
-                            TupleType tupleType, Value vector,
-                            ArrayRef<int64_t> sizes,
-                            ArrayRef<int64_t> strides) {
-  result.addOperands(vector);
-  auto sizesAttr = getVectorSubscriptAttr(builder, sizes);
-  auto stridesAttr = getVectorSubscriptAttr(builder, strides);
-  result.addTypes(tupleType);
-  result.addAttribute(getSizesAttrName(), sizesAttr);
-  result.addAttribute(getStridesAttrName(), stridesAttr);
-}
-
-static LogicalResult
-isValidExtractOrInsertSlicesType(Operation *op, VectorType vectorType,
-                                 TupleType tupleType, ArrayRef<int64_t> sizes,
-                                 ArrayRef<int64_t> strides) {
-  // Check for non-unit strides.
-  // TODO: Support non-1 strides.
-  if (llvm::any_of(strides, [](int64_t s) { return s != 1; }))
-    return op->emitError("requires unit strides");
-  // Check that 'vectorType' rank matches rank of tuple element vectors.
-  unsigned rank = vectorType.getRank();
-  auto is_vector_type_of_rank = [&](Type t) {
-    return t.isa<VectorType>() && t.cast<VectorType>().getRank() == rank;
-  };
-  if (!llvm::all_of(tupleType.getTypes(), is_vector_type_of_rank))
-    return op->emitError("requires vector tuple elements of rank ") << rank;
-  // Check that 'sizes' and 'strides' are of size == 'rank'.
-  if (sizes.size() != rank || strides.size() != rank)
-    return op->emitError("requires sizes and strides of rank ") << rank;
-
-  // Generate each slice shape based on 'sizes', 'strides' and 'vectorType',
-  // and verify that the same matches the corresponding tuple element 'i'.
-  auto shape = vectorType.getShape();
-  auto sliceStrides = computeStrides(shape, sizes);
-  for (int64_t i = 0, e = tupleType.size(); i < e; ++i) {
-    auto vectorOffsets = delinearize(sliceStrides, i);
-    auto elementOffsets =
-        computeElementOffsetsFromVectorSliceOffsets(sizes, vectorOffsets);
-    auto sliceSizes = computeSliceSizes(shape, sizes, elementOffsets);
-    // Create slice VectorType type.
-    auto sliceVectorType =
-        VectorType::get(sliceSizes, vectorType.getElementType());
-    // Verify that 'sliceVectorType' matches tupleType.getTypes(i)
-    if (sliceVectorType != tupleType.getType(i))
-      return op->emitError("invalid tuple element type ") << sliceVectorType;
-  }
-  return success();
-}
-
-static LogicalResult verify(ExtractSlicesOp op) {
-  SmallVector<int64_t, 4> sizes;
-  op.getSizes(sizes);
-  SmallVector<int64_t, 4> strides;
-  op.getStrides(strides);
-  return isValidExtractOrInsertSlicesType(
-      op.getOperation(), op.getSourceVectorType(), op.getResultTupleType(),
-      sizes, strides);
-}
-
 static void populateFromInt64AttrArray(ArrayAttr arrayAttr,
                                        SmallVectorImpl<int64_t> &results) {
   for (auto attr : arrayAttr)
     results.push_back(attr.cast<IntegerAttr>().getInt());
-}
-
-void ExtractSlicesOp::getSizes(SmallVectorImpl<int64_t> &results) {
-  populateFromInt64AttrArray(sizes(), results);
-}
-
-void ExtractSlicesOp::getStrides(SmallVectorImpl<int64_t> &results) {
-  populateFromInt64AttrArray(strides(), results);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1417,11 +1367,25 @@ public:
   }
 };
 
+// Fold broadcast1(broadcast2(x)) into broadcast1(x).
+struct BroadcastFolder : public OpRewritePattern<BroadcastOp> {
+  using OpRewritePattern<BroadcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BroadcastOp broadcastOp,
+                                PatternRewriter &rewriter) const override {
+    auto srcBroadcast = broadcastOp.source().getDefiningOp<BroadcastOp>();
+    if (!srcBroadcast)
+      return failure();
+    rewriter.replaceOpWithNewOp<BroadcastOp>(
+        broadcastOp, broadcastOp.getVectorType(), srcBroadcast.source());
+    return success();
+  }
+};
 } // namespace
 
 void BroadcastOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.add<BroadcastToShapeCast>(context);
+  results.add<BroadcastToShapeCast, BroadcastFolder>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1437,8 +1401,7 @@ void ShuffleOp::build(OpBuilder &builder, OperationState &result, Value v1,
 }
 
 static void print(OpAsmPrinter &p, ShuffleOp op) {
-  p << op.getOperationName() << " " << op.v1() << ", " << op.v2() << " "
-    << op.mask();
+  p << " " << op.v1() << ", " << op.v2() << " " << op.mask();
   p.printOptionalAttrDict(op->getAttrs(), {ShuffleOp::getMaskAttrName()});
   p << " : " << op.v1().getType() << ", " << op.v2().getType();
 }
@@ -1617,28 +1580,6 @@ OpFoldResult vector::InsertOp::fold(ArrayRef<Attribute> operands) {
   if (position().empty())
     return source();
   return {};
-}
-
-//===----------------------------------------------------------------------===//
-// InsertSlicesOp
-//===----------------------------------------------------------------------===//
-
-static LogicalResult verify(InsertSlicesOp op) {
-  SmallVector<int64_t, 4> sizes;
-  op.getSizes(sizes);
-  SmallVector<int64_t, 4> strides;
-  op.getStrides(strides);
-  return isValidExtractOrInsertSlicesType(
-      op.getOperation(), op.getResultVectorType(), op.getSourceTupleType(),
-      sizes, strides);
-}
-
-void InsertSlicesOp::getSizes(SmallVectorImpl<int64_t> &results) {
-  populateFromInt64AttrArray(sizes(), results);
-}
-
-void InsertSlicesOp::getStrides(SmallVectorImpl<int64_t> &results) {
-  populateFromInt64AttrArray(strides(), results);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1827,7 +1768,7 @@ void OuterProductOp::build(OpBuilder &builder, OperationState &result,
 }
 
 static void print(OpAsmPrinter &p, OuterProductOp op) {
-  p << op.getOperationName() << " " << op.lhs() << ", " << op.rhs();
+  p << " " << op.lhs() << ", " << op.rhs();
   if (!op.acc().empty()) {
     p << ", " << op.acc();
     p.printOptionalAttrDict(op->getAttrs());
@@ -2387,8 +2328,8 @@ static LogicalResult verifyTransferOp(Operation *op, ShapedType shapedType,
                              "as permutation_map results: ")
              << AffineMapAttr::get(permutationMap);
     for (unsigned int i = 0; i < permutationMap.getNumResults(); ++i)
-      if (permutationMap.getResult(i).isa<AffineConstantExpr>()
-          && !inBounds.getValue()[i].cast<BoolAttr>().getValue())
+      if (permutationMap.getResult(i).isa<AffineConstantExpr>() &&
+          !inBounds.getValue()[i].cast<BoolAttr>().getValue())
         return op->emitOpError("requires broadcast dimensions to be in-bounds");
   }
 
@@ -2474,8 +2415,7 @@ static void printTransferAttrs(OpAsmPrinter &p, VectorTransferOpInterface op) {
 }
 
 static void print(OpAsmPrinter &p, TransferReadOp op) {
-  p << op.getOperationName() << " " << op.source() << "[" << op.indices()
-    << "], " << op.padding();
+  p << " " << op.source() << "[" << op.indices() << "], " << op.padding();
   if (op.mask())
     p << ", " << op.mask();
   printTransferAttrs(p, cast<VectorTransferOpInterface>(op.getOperation()));
@@ -2643,8 +2583,8 @@ static LogicalResult foldTransferInBoundsAttribute(TransferOp op) {
     // inBounds.
     auto dimExpr = permutationMap.getResult(i).dyn_cast<AffineDimExpr>();
     assert(dimExpr && "Broadcast dims must be in-bounds");
-    auto inBounds = isInBounds(
-        op, /*resultIdx=*/i, /*indicesIdx=*/dimExpr.getPosition());
+    auto inBounds =
+        isInBounds(op, /*resultIdx=*/i, /*indicesIdx=*/dimExpr.getPosition());
     newInBounds.push_back(inBounds);
     // We commit the pattern if it is "more inbounds".
     changed |= inBounds;
@@ -2707,6 +2647,74 @@ void TransferReadOp::getEffects(
   if (getShapedType().isa<MemRefType>())
     effects.emplace_back(MemoryEffects::Read::get(), source(),
                          SideEffects::DefaultResource::get());
+}
+
+namespace {
+/// Fold transfer_reads of a tensor.extract_slice op. E.g.:
+///
+/// ```
+/// %0 = tensor.extract_slice %t[%a, %b] [%c, %d] [1, 1]
+///     : tensor<?x?xf32> to tensor<?x?xf32>
+/// %1 = vector.transfer_read %0[%e, %f], %cst {in_bounds = [true, true]}
+///     : tensor<?x?xf32>, vector<4x5xf32>
+/// ```
+/// is rewritten to:
+/// ```
+/// %p0 = addi %a, %e : index
+/// %p1 = addi %b, %f : index
+/// %1 = vector.transfer_read %t[%p0, %p1], %cst {in_bounds = [true, true]}
+///     : tensor<?x?xf32>, vector<4x5xf32>
+/// ```
+struct FoldExtractSliceIntoTransferRead
+    : public OpRewritePattern<TransferReadOp> {
+public:
+  using OpRewritePattern<TransferReadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TransferReadOp xferOp,
+                                PatternRewriter &rewriter) const override {
+    if (xferOp.hasOutOfBoundsDim())
+      return failure();
+    if (!xferOp.permutation_map().isIdentity())
+      return failure();
+    if (xferOp.mask())
+      return failure();
+    auto extractOp = xferOp.source().getDefiningOp<tensor::ExtractSliceOp>();
+    if (!extractOp)
+      return failure();
+    if (!extractOp.hasUnitStride())
+      return failure();
+
+    int64_t rankReduced =
+        extractOp.getSourceType().getRank() - extractOp.getType().getRank();
+    SmallVector<Value> newIndices;
+    // In case this is a rank-reducing ExtractSliceOp, copy rank-reduced
+    // indices first.
+    for (int64_t i = 0; i < rankReduced; ++i) {
+      OpFoldResult offset = extractOp.getMixedOffsets()[i];
+      newIndices.push_back(getValueOrCreateConstantIndexOp(
+          rewriter, extractOp.getLoc(), offset));
+    }
+    for (auto it : llvm::enumerate(xferOp.indices())) {
+      OpFoldResult offset =
+          extractOp.getMixedOffsets()[it.index() + rankReduced];
+      newIndices.push_back(
+          rewriter.create<AddIOp>(xferOp->getLoc(), it.value(),
+                                  getValueOrCreateConstantIndexOp(
+                                      rewriter, extractOp.getLoc(), offset)));
+    }
+    SmallVector<bool> inBounds(xferOp.getTransferRank(), true);
+    rewriter.replaceOpWithNewOp<TransferReadOp>(xferOp, xferOp.getVectorType(),
+                                                extractOp.source(), newIndices,
+                                                xferOp.padding(), inBounds);
+
+    return success();
+  }
+};
+} // namespace
+
+void TransferReadOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                 MLIRContext *context) {
+  results.add<FoldExtractSliceIntoTransferRead>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2815,8 +2823,7 @@ static ParseResult parseTransferWriteOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, TransferWriteOp op) {
-  p << op.getOperationName() << " " << op.vector() << ", " << op.source() << "["
-    << op.indices() << "]";
+  p << " " << op.vector() << ", " << op.source() << "[" << op.indices() << "]";
   if (op.mask())
     p << ", " << op.mask();
   printTransferAttrs(p, cast<VectorTransferOpInterface>(op.getOperation()));
@@ -3019,11 +3026,61 @@ public:
     return failure();
   }
 };
+
+/// Fold tensor.insert_slice into vector.transfer_write if the transfer_write
+/// could directly write to the insert_slice's destination. E.g.:
+///
+/// ```
+/// %0 = vector.transfer_write %v, %t1[%c0, %c0] {in_bounds = [true, true]}
+///     : vector<4x5xf32>, tensor<4x5xf32>
+/// %1 = tensor.insert_slice %0 into %t2[%a, %b] [4, 5] [1, 1]
+///     : tensor<4x5xf32> into tensor<?x?xf32>
+/// ```
+/// is rewritten to:
+/// ```
+/// %1 = vector.transfer_write %v, %t2[%a, %b] {in_bounds = [true, true]}
+///     : vector<4x5xf32>, tensor<?x?xf32>
+/// ```
+struct FoldInsertSliceIntoTransferWrite
+    : public OpRewritePattern<tensor::InsertSliceOp> {
+public:
+  using OpRewritePattern<tensor::InsertSliceOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::InsertSliceOp insertOp,
+                                PatternRewriter &rewriter) const override {
+    if (!insertOp.hasUnitStride())
+      return failure();
+    auto xferOp = insertOp.source().getDefiningOp<TransferWriteOp>();
+    if (!xferOp)
+      return failure();
+    if (xferOp.hasOutOfBoundsDim())
+      return failure();
+    if (xferOp.getVectorType().getRank() != xferOp.getShapedType().getRank())
+      return failure();
+    if (xferOp.mask())
+      return failure();
+    // Fold only if the TransferWriteOp completely overwrites the `source` with
+    // a vector. I.e., the result of the TransferWriteOp is a new tensor who's
+    // content is the data of the vector.
+    if (!llvm::equal(xferOp.getVectorType().getShape(),
+                     xferOp.getShapedType().getShape()))
+      return failure();
+    if (!xferOp.permutation_map().isIdentity())
+      return failure();
+
+    SmallVector<Value> indices = getValueOrCreateConstantIndexOp(
+        rewriter, insertOp.getLoc(), insertOp.getMixedOffsets());
+    SmallVector<bool> inBounds(xferOp.getTransferRank(), true);
+    rewriter.replaceOpWithNewOp<TransferWriteOp>(
+        insertOp, xferOp.vector(), insertOp.dest(), indices, inBounds);
+    return success();
+  }
+};
 } // namespace
 
 void TransferWriteOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
-  results.add<foldWAW>(context);
+  results.add<foldWAW, FoldInsertSliceIntoTransferWrite>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3032,9 +3089,8 @@ void TransferWriteOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 static LogicalResult verifyLoadStoreMemRefLayout(Operation *op,
                                                  MemRefType memRefTy) {
-  auto affineMaps = memRefTy.getAffineMaps();
-  if (!affineMaps.empty())
-    return op->emitOpError("base memref should have a default identity layout");
+  if (!isLastMemrefDimUnitStride(memRefTy))
+    return op->emitOpError("most minor memref dim must have unit stride");
   return success();
 }
 
@@ -3058,6 +3114,12 @@ static LogicalResult verify(vector::LoadOp op) {
   if (llvm::size(op.indices()) != memRefTy.getRank())
     return op.emitOpError("requires ") << memRefTy.getRank() << " indices";
   return success();
+}
+
+OpFoldResult LoadOp::fold(ArrayRef<Attribute>) {
+  if (succeeded(foldMemRefCast(*this)))
+    return getResult();
+  return OpFoldResult();
 }
 
 //===----------------------------------------------------------------------===//
@@ -3085,6 +3147,11 @@ static LogicalResult verify(vector::StoreOp op) {
   if (llvm::size(op.indices()) != memRefTy.getRank())
     return op.emitOpError("requires ") << memRefTy.getRank() << " indices";
   return success();
+}
+
+LogicalResult StoreOp::fold(ArrayRef<Attribute> operands,
+                            SmallVectorImpl<OpFoldResult> &results) {
+  return foldMemRefCast(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3135,6 +3202,12 @@ void MaskedLoadOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.add<MaskedLoadFolder>(context);
 }
 
+OpFoldResult MaskedLoadOp::fold(ArrayRef<Attribute>) {
+  if (succeeded(foldMemRefCast(*this)))
+    return getResult();
+  return OpFoldResult();
+}
+
 //===----------------------------------------------------------------------===//
 // MaskedStoreOp
 //===----------------------------------------------------------------------===//
@@ -3178,6 +3251,11 @@ public:
 void MaskedStoreOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                 MLIRContext *context) {
   results.add<MaskedStoreFolder>(context);
+}
+
+LogicalResult MaskedStoreOp::fold(ArrayRef<Attribute> operands,
+                                  SmallVectorImpl<OpFoldResult> &results) {
+  return foldMemRefCast(*this);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3440,23 +3518,6 @@ static LogicalResult verify(ShapeCastOp op) {
   if (sourceVectorType && resultVectorType)
     return verifyVectorShapeCast(op, sourceVectorType, resultVectorType);
 
-  // Check if source/result are "tuple of vectors" type.
-  auto sourceTupleType = op.source().getType().dyn_cast_or_null<TupleType>();
-  auto resultTupleType = op.result().getType().dyn_cast_or_null<TupleType>();
-  if (!sourceTupleType || !resultTupleType)
-    return op.emitOpError("source/result must be of same type");
-
-  // Check that source/result tuple sizes are the same.
-  if (sourceTupleType.size() != resultTupleType.size())
-    return op.emitOpError("source/result tuples must be the same size");
-
-  // Check each source/result tuple element pair.
-  for (unsigned i = 0, e = sourceTupleType.size(); i < e; ++i)
-    if (failed(verifyVectorShapeCast(
-            op, sourceTupleType.getType(i).cast<VectorType>(),
-            resultTupleType.getType(i).cast<VectorType>())))
-      return failure();
-
   return success();
 }
 
@@ -3617,33 +3678,6 @@ static LogicalResult verify(TypeCastOp op) {
 }
 
 //===----------------------------------------------------------------------===//
-// TupleOp
-//===----------------------------------------------------------------------===//
-
-static ParseResult parseTupleOp(OpAsmParser &parser, OperationState &result) {
-  SmallVector<OpAsmParser::OperandType, 4> operandInfos;
-  SmallVector<Type, 4> types;
-  auto loc = parser.getCurrentLocation();
-  auto *ctx = parser.getBuilder().getContext();
-  return failure(
-      parser.parseOperandList(operandInfos) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonTypeList(types) ||
-      parser.resolveOperands(operandInfos, types, loc, result.operands) ||
-      parser.addTypeToList(TupleType::get(ctx, types), result.types));
-}
-
-static void print(OpAsmPrinter &p, TupleOp op) {
-  p << op.getOperationName() << ' ';
-  p.printOperands(op.getOperands());
-  p.printOptionalAttrDict(op->getAttrs());
-  p << " : ";
-  llvm::interleaveComma(op->getOperandTypes(), p);
-}
-
-static LogicalResult verify(TupleOp op) { return success(); }
-
-//===----------------------------------------------------------------------===//
 // TransposeOp
 //===----------------------------------------------------------------------===//
 
@@ -3752,58 +3786,6 @@ void vector::TransposeOp::getCanonicalizationPatterns(
 
 void vector::TransposeOp::getTransp(SmallVectorImpl<int64_t> &results) {
   populateFromInt64AttrArray(transp(), results);
-}
-
-//===----------------------------------------------------------------------===//
-// TupleGetOp
-//===----------------------------------------------------------------------===//
-
-static ParseResult parseTupleGetOp(OpAsmParser &parser,
-                                   OperationState &result) {
-  OpAsmParser::OperandType operandInfo;
-  IntegerAttr indexAttr;
-  StringRef indexAttrName = TupleGetOp::getIndexAttrName();
-  Type indexType = parser.getBuilder().getIndexType();
-  TupleType tupleType;
-  if (parser.parseOperand(operandInfo) || parser.parseComma() ||
-      parser.parseAttribute(indexAttr, indexType, indexAttrName,
-                            result.attributes) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(tupleType) ||
-      parser.resolveOperand(operandInfo, tupleType, result.operands))
-    return failure();
-  if (indexAttr.getInt() < 0 ||
-      indexAttr.getInt() >= static_cast<int64_t>(tupleType.size()))
-    return failure();
-  parser.addTypeToList(tupleType.getType(indexAttr.getInt()), result.types);
-  return success();
-}
-
-static void print(OpAsmPrinter &p, TupleGetOp op) {
-  p << op.getOperationName() << ' ' << op.getOperand() << ", " << op.index();
-  p.printOptionalAttrDict(op->getAttrs(),
-                          /*elidedAttrs=*/{TupleGetOp::getIndexAttrName()});
-  p << " : " << op.getOperand().getType();
-}
-
-static LogicalResult verify(TupleGetOp op) {
-  auto tupleType = op.getOperand().getType().cast<TupleType>();
-  if (op.getIndex() < 0 ||
-      op.getIndex() >= static_cast<int64_t>(tupleType.size()))
-    return op.emitOpError("tuple get index out of range");
-  return success();
-}
-
-OpFoldResult TupleGetOp::fold(ArrayRef<Attribute> operands) {
-  // Rewrite:
-  //    %t = vector.tuple .., %e_i, ..
-  //    %x = vector.tuple_get %t, i
-  // into:
-  //    %t = vector.tuple .., %e_i, ..  // one less use
-  //    %x = %e_i
-  if (auto tupleOp = getOperand().getDefiningOp<TupleOp>())
-    return tupleOp.getOperand(getIndex());
-  return {};
 }
 
 //===----------------------------------------------------------------------===//

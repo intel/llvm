@@ -810,7 +810,7 @@ func @sparsetensorattr() -> () {
 // CHECK: "fooi32"() {bar = sparse<> : tensor<1x1xi32>} : () -> ()
   "fooi32"(){bar = sparse<> : tensor<1x1xi32>} : () -> ()
 // CHECK: "fooi64"() {bar = sparse<0, -1> : tensor<1xi64>} : () -> ()
-  "fooi64"(){bar = sparse<[[0]], [-1]> : tensor<1xi64>} : () -> ()
+  "fooi64"(){bar = sparse<[0], [-1]> : tensor<1xi64>} : () -> ()
 // CHECK: "foo2"() {bar = sparse<> : tensor<0xi32>} : () -> ()
   "foo2"(){bar = sparse<> : tensor<0xi32>} : () -> ()
 // CHECK: "foo3"() {bar = sparse<> : tensor<i32>} : () -> ()
@@ -1239,6 +1239,12 @@ func @"\"_string_symbol_reference\""() {
   return
 }
 
+// CHECK-LABEL: func private @parse_opaque_attr_escape
+func private @parse_opaque_attr_escape() {
+    // CHECK: value = #foo<"\22escaped\\\0A\22">
+    "foo.constant"() {value = #foo<"\"escaped\\\n\"">} : () -> ()
+}
+
 // CHECK-LABEL: func private @string_attr_name
 // CHECK-SAME: {"0 . 0", nested = {"0 . 0"}}
 func private @string_attr_name() attributes {"0 . 0", nested = {"0 . 0"}}
@@ -1298,6 +1304,28 @@ func @pretty_names() {
   // CHECK: %q, %q_1, %q_2, %r = test.string_attr_pretty_name attributes {names = ["q", "q", "q", "r"]}
 
   // CHECK: return
+  return
+}
+
+
+// This tests the behavior of "default dialect":
+// operations like `test.default_dialect` can define a default dialect
+// used in nested region.
+// CHECK-LABEL: func @default_dialect
+func @default_dialect() {
+  test.default_dialect {
+    // The test dialect is the default in this region, the following two
+    // operations are parsed identically.
+    // CHECK-NOT: test.parse_integer_literal
+    parse_integer_literal : 5
+    // CHECK: parse_integer_literal : 6
+    test.parse_integer_literal : 6
+    // Verify that only an op prefix is stripped, not an attribute value for
+    // example.
+    // CHECK:  "test.op_with_attr"() {test.attr = "test.value"} : () -> ()
+    "test.op_with_attr"() {test.attr = "test.value"} : () -> ()
+    "test.terminator"() : ()->()
+  }
   return
 }
 

@@ -530,10 +530,9 @@ bool CodeGenPrepare::runOnFunction(Function &F) {
   while (MadeChange) {
     MadeChange = false;
     DT.reset();
-    for (Function::iterator I = F.begin(); I != F.end(); ) {
-      BasicBlock *BB = &*I++;
+    for (BasicBlock &BB : llvm::make_early_inc_range(F)) {
       bool ModifiedDTOnIteration = false;
-      MadeChange |= optimizeBlock(*BB, ModifiedDTOnIteration);
+      MadeChange |= optimizeBlock(BB, ModifiedDTOnIteration);
 
       // Restart BB iteration if the dominator tree of the Function was changed
       if (ModifiedDTOnIteration)
@@ -2041,6 +2040,10 @@ static bool despeculateCountZeros(IntrinsicInst *CountZeros,
   if (Ty->isVectorTy() || SizeInBits > DL->getLargestLegalIntTypeSizeInBits())
     return false;
 
+  // Bail if the value is never zero.
+  if (llvm::isKnownNonZero(CountZeros->getOperand(0), *DL))
+    return false;
+
   // The intrinsic will be sunk behind a compare against zero and branch.
   BasicBlock *StartBlock = CountZeros->getParent();
   BasicBlock *CallBlock = StartBlock->splitBasicBlock(CountZeros, "cond.false");
@@ -2104,7 +2107,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
   // idea
   unsigned MinSize, PrefAlign;
   if (TLI->shouldAlignPointerArgs(CI, MinSize, PrefAlign)) {
-    for (auto &Arg : CI->arg_operands()) {
+    for (auto &Arg : CI->args()) {
       // We want to align both objects whose address is used directly and
       // objects whose address is used in casts and GEPs, though it only makes
       // sense for GEPs if the offset is a multiple of the desired alignment and
@@ -2155,7 +2158,7 @@ bool CodeGenPrepare::optimizeCallInst(CallInst *CI, bool &ModifiedDT) {
   // into their uses.  TODO: generalize this to work over profiling data
   if (CI->hasFnAttr(Attribute::Cold) &&
       !OptSize && !llvm::shouldOptimizeForSize(BB, PSI, BFI.get()))
-    for (auto &Arg : CI->arg_operands()) {
+    for (auto &Arg : CI->args()) {
       if (!Arg->getType()->isPointerTy())
         continue;
       unsigned AS = Arg->getType()->getPointerAddressSpace();
@@ -3714,7 +3717,8 @@ private:
       // Traverse all Phis until we found equivalent or fail to do that.
       bool IsMatched = false;
       for (auto &P : PHI->getParent()->phis()) {
-        if (&P == PHI)
+        // Skip new Phi nodes.
+        if (PhiNodesToMatch.count(&P))
           continue;
         if ((IsMatched = MatchPhiNode(PHI, &P, Matched, PhiNodesToMatch)))
           break;
@@ -4183,7 +4187,7 @@ bool TypePromotionHelper::canGetThrough(const Instruction *Inst,
   if (Inst->getOpcode() == Instruction::Xor) {
     const ConstantInt *Cst = dyn_cast<ConstantInt>(Inst->getOperand(1));
     // Make sure it is not a NOT.
-    if (Cst && !Cst->getValue().isAllOnesValue())
+    if (Cst && !Cst->getValue().isAllOnes())
       return true;
   }
 
@@ -4854,10 +4858,9 @@ static constexpr int MaxMemoryUsesToScan = 20;
 
 /// Recursively walk all the uses of I until we find a memory use.
 /// If we find an obviously non-foldable instruction, return true.
-/// Add the ultimately found memory instructions to MemoryUses.
+/// Add accessed addresses and types to MemoryUses.
 static bool FindAllMemoryUses(
-    Instruction *I,
-    SmallVectorImpl<std::pair<Instruction *, unsigned>> &MemoryUses,
+    Instruction *I, SmallVectorImpl<std::pair<Value *, Type *>> &MemoryUses,
     SmallPtrSetImpl<Instruction *> &ConsideredInsts, const TargetLowering &TLI,
     const TargetRegisterInfo &TRI, bool OptSize, ProfileSummaryInfo *PSI,
     BlockFrequencyInfo *BFI, int SeenInsts = 0) {
@@ -4878,31 +4881,28 @@ static bool FindAllMemoryUses(
 
     Instruction *UserI = cast<Instruction>(U.getUser());
     if (LoadInst *LI = dyn_cast<LoadInst>(UserI)) {
-      MemoryUses.push_back(std::make_pair(LI, U.getOperandNo()));
+      MemoryUses.push_back({U.get(), LI->getType()});
       continue;
     }
 
     if (StoreInst *SI = dyn_cast<StoreInst>(UserI)) {
-      unsigned opNo = U.getOperandNo();
-      if (opNo != StoreInst::getPointerOperandIndex())
+      if (U.getOperandNo() != StoreInst::getPointerOperandIndex())
         return true; // Storing addr, not into addr.
-      MemoryUses.push_back(std::make_pair(SI, opNo));
+      MemoryUses.push_back({U.get(), SI->getValueOperand()->getType()});
       continue;
     }
 
     if (AtomicRMWInst *RMW = dyn_cast<AtomicRMWInst>(UserI)) {
-      unsigned opNo = U.getOperandNo();
-      if (opNo != AtomicRMWInst::getPointerOperandIndex())
+      if (U.getOperandNo() != AtomicRMWInst::getPointerOperandIndex())
         return true; // Storing addr, not into addr.
-      MemoryUses.push_back(std::make_pair(RMW, opNo));
+      MemoryUses.push_back({U.get(), RMW->getValOperand()->getType()});
       continue;
     }
 
     if (AtomicCmpXchgInst *CmpX = dyn_cast<AtomicCmpXchgInst>(UserI)) {
-      unsigned opNo = U.getOperandNo();
-      if (opNo != AtomicCmpXchgInst::getPointerOperandIndex())
+      if (U.getOperandNo() != AtomicCmpXchgInst::getPointerOperandIndex())
         return true; // Storing addr, not into addr.
-      MemoryUses.push_back(std::make_pair(CmpX, opNo));
+      MemoryUses.push_back({U.get(), CmpX->getCompareOperand()->getType()});
       continue;
     }
 
@@ -5012,7 +5012,7 @@ isProfitableToFoldIntoAddressingMode(Instruction *I, ExtAddrMode &AMBefore,
   // we can remove the addressing mode and effectively trade one live register
   // for another (at worst.)  In this context, folding an addressing mode into
   // the use is just a particularly nice way of sinking it.
-  SmallVector<std::pair<Instruction*,unsigned>, 16> MemoryUses;
+  SmallVector<std::pair<Value *, Type *>, 16> MemoryUses;
   SmallPtrSet<Instruction*, 16> ConsideredInsts;
   if (FindAllMemoryUses(I, MemoryUses, ConsideredInsts, TLI, TRI, OptSize,
                         PSI, BFI))
@@ -5028,18 +5028,10 @@ isProfitableToFoldIntoAddressingMode(Instruction *I, ExtAddrMode &AMBefore,
   // growth since most architectures have some reasonable small and fast way to
   // compute an effective address.  (i.e LEA on x86)
   SmallVector<Instruction*, 32> MatchedAddrModeInsts;
-  for (unsigned i = 0, e = MemoryUses.size(); i != e; ++i) {
-    Instruction *User = MemoryUses[i].first;
-    unsigned OpNo = MemoryUses[i].second;
-
-    // Get the access type of this use.  If the use isn't a pointer, we don't
-    // know what it accesses.
-    Value *Address = User->getOperand(OpNo);
-    PointerType *AddrTy = dyn_cast<PointerType>(Address->getType());
-    if (!AddrTy)
-      return false;
-    Type *AddressAccessTy = AddrTy->getElementType();
-    unsigned AS = AddrTy->getAddressSpace();
+  for (const std::pair<Value *, Type *> &Pair : MemoryUses) {
+    Value *Address = Pair.first;
+    Type *AddressAccessTy = Pair.second;
+    unsigned AS = Address->getType()->getPointerAddressSpace();
 
     // Do a match against the root of this address, ignoring profitability. This
     // will tell us if the addressing mode for the memory operation will
@@ -5120,8 +5112,7 @@ bool CodeGenPrepare::optimizeMemoryInst(Instruction *MemoryInst, Value *Addr,
   TypePromotionTransaction::ConstRestorationPt LastKnownGood =
       TPT.getRestorationPoint();
   while (!worklist.empty()) {
-    Value *V = worklist.back();
-    worklist.pop_back();
+    Value *V = worklist.pop_back_val();
 
     // We allow traversing cyclic Phi nodes.
     // In case of success after this loop we ensure that traversing through
@@ -6465,12 +6456,15 @@ bool CodeGenPrepare::optimizeLoadExt(LoadInst *Load) {
 
   EVT LoadResultVT = TLI->getValueType(*DL, Load->getType());
   unsigned BitWidth = LoadResultVT.getSizeInBits();
+  // If the BitWidth is 0, do not try to optimize the type
+  if (BitWidth == 0)
+    return false;
+
   APInt DemandBits(BitWidth, 0);
   APInt WidestAndBits(BitWidth, 0);
 
   while (!WorkList.empty()) {
-    Instruction *I = WorkList.back();
-    WorkList.pop_back();
+    Instruction *I = WorkList.pop_back_val();
 
     // Break use-def graph loops.
     if (!Visited.insert(I).second)
@@ -6942,16 +6936,26 @@ bool CodeGenPrepare::tryToSinkFreeOperands(Instruction *I) {
   BasicBlock *TargetBB = I->getParent();
   bool Changed = false;
   SmallVector<Use *, 4> ToReplace;
+  Instruction *InsertPoint = I;
+  DenseMap<const Instruction *, unsigned long> InstOrdering;
+  unsigned long InstNumber = 0;
+  for (const auto &I : *TargetBB)
+    InstOrdering[&I] = InstNumber++;
+
   for (Use *U : reverse(OpsToSink)) {
     auto *UI = cast<Instruction>(U->get());
-    if (UI->getParent() == TargetBB || isa<PHINode>(UI))
+    if (isa<PHINode>(UI))
       continue;
+    if (UI->getParent() == TargetBB) {
+      if (InstOrdering[UI] < InstOrdering[InsertPoint])
+        InsertPoint = UI;
+      continue;
+    }
     ToReplace.push_back(U);
   }
 
   SetVector<Instruction *> MaybeDead;
   DenseMap<Instruction *, Instruction *> NewInstructions;
-  Instruction *InsertPoint = I;
   for (Use *U : ToReplace) {
     auto *UI = cast<Instruction>(U->get());
     Instruction *NI = UI->clone();
@@ -6988,7 +6992,8 @@ bool CodeGenPrepare::optimizeSwitchInst(SwitchInst *SI) {
   Value *Cond = SI->getCondition();
   Type *OldType = Cond->getType();
   LLVMContext &Context = Cond->getContext();
-  MVT RegType = TLI->getRegisterType(Context, TLI->getValueType(*DL, OldType));
+  EVT OldVT = TLI->getValueType(*DL, OldType);
+  MVT RegType = TLI->getRegisterType(Context, OldVT);
   unsigned RegWidth = RegType.getSizeInBits();
 
   if (RegWidth <= cast<IntegerType>(OldType)->getBitWidth())
@@ -7002,14 +7007,21 @@ bool CodeGenPrepare::optimizeSwitchInst(SwitchInst *SI) {
   // where N is the number of cases in the switch.
   auto *NewType = Type::getIntNTy(Context, RegWidth);
 
-  // Zero-extend the switch condition and case constants unless the switch
-  // condition is a function argument that is already being sign-extended.
-  // In that case, we can avoid an unnecessary mask/extension by sign-extending
-  // everything instead.
+  // Extend the switch condition and case constants using the target preferred
+  // extend unless the switch condition is a function argument with an extend
+  // attribute. In that case, we can avoid an unnecessary mask/extension by
+  // matching the argument extension instead.
   Instruction::CastOps ExtType = Instruction::ZExt;
-  if (auto *Arg = dyn_cast<Argument>(Cond))
+  // Some targets prefer SExt over ZExt.
+  if (TLI->isSExtCheaperThanZExt(OldVT, RegType))
+    ExtType = Instruction::SExt;
+
+  if (auto *Arg = dyn_cast<Argument>(Cond)) {
     if (Arg->hasSExtAttr())
       ExtType = Instruction::SExt;
+    if (Arg->hasZExtAttr())
+      ExtType = Instruction::ZExt;
+  }
 
   auto *ExtInst = CastInst::Create(ExtType, Cond, NewType);
   ExtInst->insertBefore(SI);
@@ -7847,8 +7859,9 @@ bool CodeGenPrepare::optimizeInst(Instruction *I, bool &ModifiedDT) {
 
   BinaryOperator *BinOp = dyn_cast<BinaryOperator>(I);
 
-  if (BinOp && (BinOp->getOpcode() == Instruction::And) && EnableAndCmpSinking)
-    return sinkAndCmp0Expression(BinOp, *TLI, InsertedInsts);
+  if (BinOp && BinOp->getOpcode() == Instruction::And && EnableAndCmpSinking &&
+      sinkAndCmp0Expression(BinOp, *TLI, InsertedInsts))
+    return true;
 
   // TODO: Move this into the switch on opcode - it handles shifts already.
   if (BinOp && (BinOp->getOpcode() == Instruction::AShr ||
@@ -7986,7 +7999,9 @@ bool CodeGenPrepare::fixupDbgValue(Instruction *I) {
 
   // Does this dbg.value refer to a sunk address calculation?
   bool AnyChange = false;
-  for (Value *Location : DVI.getValues()) {
+  SmallDenseSet<Value *> LocationOps(DVI.location_ops().begin(),
+                                     DVI.location_ops().end());
+  for (Value *Location : LocationOps) {
     WeakTrackingVH SunkAddrVH = SunkAddrs[Location];
     Value *SunkAddr = SunkAddrVH.pointsToAliveValue() ? SunkAddrVH : nullptr;
     if (SunkAddr) {
@@ -8012,9 +8027,8 @@ bool CodeGenPrepare::placeDbgValues(Function &F) {
   DominatorTree DT(F);
 
   for (BasicBlock &BB : F) {
-    for (BasicBlock::iterator BI = BB.begin(), BE = BB.end(); BI != BE;) {
-      Instruction *Insn = &*BI++;
-      DbgValueInst *DVI = dyn_cast<DbgValueInst>(Insn);
+    for (Instruction &Insn : llvm::make_early_inc_range(BB)) {
+      DbgValueInst *DVI = dyn_cast<DbgValueInst>(&Insn);
       if (!DVI)
         continue;
 

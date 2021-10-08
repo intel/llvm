@@ -643,8 +643,8 @@ TEST_F(ConstantRangeTest, losslessUnsignedTruncationZeroext) {
   EnumerateConstantRanges(Bits, [&](const ConstantRange &CR) {
     unsigned MinBitWidth = CR.getActiveBits();
     if (MinBitWidth == 0) {
-      EXPECT_TRUE(CR.isEmptySet() || (CR.isSingleElement() &&
-                                      CR.getSingleElement()->isNullValue()));
+      EXPECT_TRUE(CR.isEmptySet() ||
+                  (CR.isSingleElement() && CR.getSingleElement()->isZero()));
       return;
     }
     if (MinBitWidth == Bits)
@@ -1225,7 +1225,7 @@ TEST_F(ConstantRangeTest, SDiv) {
           return;
 
         // SignedMin / -1 is UB.
-        if (N1.isMinSignedValue() && N2.isAllOnesValue())
+        if (N1.isMinSignedValue() && N2.isAllOnes())
           return;
 
         APInt N = N1.sdiv(N2);
@@ -1298,7 +1298,7 @@ TEST_F(ConstantRangeTest, URem) {
         return CR1.urem(CR2);
       },
       [](const APInt &N1, const APInt &N2) -> Optional<APInt> {
-        if (N2.isNullValue())
+        if (N2.isZero())
           return None;
         return N1.urem(N2);
       });
@@ -1372,7 +1372,7 @@ TEST_F(ConstantRangeTest, SRem) {
         return CR1.srem(CR2);
       },
       [](const APInt &N1, const APInt &N2) -> Optional<APInt> {
-        if (N2.isNullValue())
+        if (N2.isZero())
           return None;
         return N1.srem(N2);
       });
@@ -1551,9 +1551,9 @@ void ICmpTestImpl(CmpInst::Predicate Pred) {
 }
 
 TEST(ConstantRange, ICmp) {
-  for (auto Pred : seq<unsigned>(CmpInst::Predicate::FIRST_ICMP_PREDICATE,
-                                 1 + CmpInst::Predicate::LAST_ICMP_PREDICATE))
-    ICmpTestImpl((CmpInst::Predicate)Pred);
+  for (auto Pred : seq_inclusive(CmpInst::Predicate::FIRST_ICMP_PREDICATE,
+                                 CmpInst::Predicate::LAST_ICMP_PREDICATE))
+    ICmpTestImpl(Pred);
 }
 
 TEST(ConstantRange, MakeGuaranteedNoWrapRegion) {
@@ -1969,7 +1969,7 @@ TEST_F(ConstantRangeTest, UnsignedAddOverflow) {
   EXPECT_MAY_OVERFLOW(Empty.unsignedAddMayOverflow(Some));
 
   // Never overflow despite one full/wrap set.
-  ConstantRange Zero(APInt::getNullValue(16));
+  ConstantRange Zero(APInt::getZero(16));
   EXPECT_NEVER_OVERFLOWS(Full.unsignedAddMayOverflow(Zero));
   EXPECT_NEVER_OVERFLOWS(Wrap.unsignedAddMayOverflow(Zero));
   EXPECT_NEVER_OVERFLOWS(Zero.unsignedAddMayOverflow(Full));
@@ -2003,8 +2003,8 @@ TEST_F(ConstantRangeTest, UnsignedSubOverflow) {
   EXPECT_MAY_OVERFLOW(Empty.unsignedSubMayOverflow(Some));
 
   // Never overflow despite one full/wrap set.
-  ConstantRange Zero(APInt::getNullValue(16));
-  ConstantRange Max(APInt::getAllOnesValue(16));
+  ConstantRange Zero(APInt::getZero(16));
+  ConstantRange Max(APInt::getAllOnes(16));
   EXPECT_NEVER_OVERFLOWS(Full.unsignedSubMayOverflow(Zero));
   EXPECT_NEVER_OVERFLOWS(Wrap.unsignedSubMayOverflow(Zero));
   EXPECT_NEVER_OVERFLOWS(Max.unsignedSubMayOverflow(Full));
@@ -2038,7 +2038,7 @@ TEST_F(ConstantRangeTest, SignedAddOverflow) {
   EXPECT_MAY_OVERFLOW(Empty.signedAddMayOverflow(Some));
 
   // Never overflow despite one full/wrap set.
-  ConstantRange Zero(APInt::getNullValue(16));
+  ConstantRange Zero(APInt::getZero(16));
   EXPECT_NEVER_OVERFLOWS(Full.signedAddMayOverflow(Zero));
   EXPECT_NEVER_OVERFLOWS(Wrap.signedAddMayOverflow(Zero));
   EXPECT_NEVER_OVERFLOWS(Zero.signedAddMayOverflow(Full));
@@ -2090,7 +2090,7 @@ TEST_F(ConstantRangeTest, SignedSubOverflow) {
   EXPECT_MAY_OVERFLOW(Empty.signedSubMayOverflow(Some));
 
   // Never overflow despite one full/wrap set.
-  ConstantRange Zero(APInt::getNullValue(16));
+  ConstantRange Zero(APInt::getZero(16));
   EXPECT_NEVER_OVERFLOWS(Full.signedSubMayOverflow(Zero));
   EXPECT_NEVER_OVERFLOWS(Wrap.signedSubMayOverflow(Zero));
 
@@ -2474,18 +2474,14 @@ TEST_F(ConstantRangeTest, binaryNot) {
       PreferSmallest);
   TestUnaryOpExhaustive(
       [](const ConstantRange &CR) {
-        return CR.binaryXor(
-            ConstantRange(APInt::getAllOnesValue(CR.getBitWidth())));
+        return CR.binaryXor(ConstantRange(APInt::getAllOnes(CR.getBitWidth())));
       },
-      [](const APInt &N) { return ~N; },
-      PreferSmallest);
+      [](const APInt &N) { return ~N; }, PreferSmallest);
   TestUnaryOpExhaustive(
       [](const ConstantRange &CR) {
-        return ConstantRange(APInt::getAllOnesValue(CR.getBitWidth()))
-            .binaryXor(CR);
+        return ConstantRange(APInt::getAllOnes(CR.getBitWidth())).binaryXor(CR);
       },
-      [](const APInt &N) { return ~N; },
-      PreferSmallest);
+      [](const APInt &N) { return ~N; }, PreferSmallest);
 }
 
 }  // anonymous namespace

@@ -1,7 +1,5 @@
 ; RUN: opt -function-specialization -func-specialization-avg-iters-cost=3 -S < %s | \
 ; RUN:   FileCheck %s --check-prefixes=COMMON,DISABLED
-; RUN: opt -function-specialization -func-specialization-avg-iters-cost=4 -S < %s | \
-; RUN:   FileCheck %s --check-prefixes=COMMON,FORCE
 ; RUN: opt -function-specialization -force-function-specialization -S < %s | \
 ; RUN:   FileCheck %s --check-prefixes=COMMON,FORCE
 ; RUN: opt -function-specialization -func-specialization-avg-iters-cost=3 -force-function-specialization -S < %s | \
@@ -16,8 +14,8 @@ target datalayout = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128"
 
 define dso_local i32 @bar(i32 %x, i32 %y) {
 ; COMMON-LABEL: @bar
-; FORCE:        %call = call i32 @foo.2(i32 %x, i32* @A)
-; FORCE:        %call1 = call i32 @foo.1(i32 %y, i32* @B)
+; FORCE:        %call = call i32 @foo.1(i32 %x, i32* @A)
+; FORCE:        %call1 = call i32 @foo.2(i32 %y, i32* @B)
 ; DISABLED-NOT: %call1 = call i32 @foo.1(
 entry:
   %tobool = icmp ne i32 %x, 0
@@ -38,14 +36,14 @@ return:
 
 ; FORCE:      define internal i32 @foo.1(i32 %x, i32* %b) {
 ; FORCE-NEXT: entry:
-; FORCE-NEXT:   %0 = load i32, i32* @B, align 4
+; FORCE-NEXT:   %0 = load i32, i32* @A, align 4
 ; FORCE-NEXT:   %add = add nsw i32 %x, %0
 ; FORCE-NEXT:   ret i32 %add
 ; FORCE-NEXT: }
 
 ; FORCE:      define internal i32 @foo.2(i32 %x, i32* %b) {
 ; FORCE-NEXT: entry:
-; FORCE-NEXT:   %0 = load i32, i32* @A, align 4
+; FORCE-NEXT:   %0 = load i32, i32* @B, align 4
 ; FORCE-NEXT:   %add = add nsw i32 %x, %0
 ; FORCE-NEXT:   ret i32 %add
 ; FORCE-NEXT: }

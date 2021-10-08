@@ -18,7 +18,7 @@
 
 namespace scudo {
 
-#if defined(__aarch64__) || defined(SCUDO_FUZZ)
+#if (__clang_major__ >= 12 && defined(__aarch64__)) || defined(SCUDO_FUZZ)
 
 // We assume that Top-Byte Ignore is enabled if the architecture supports memory
 // tagging. Not all operating systems enable TBI, so we only claim architectural
@@ -55,7 +55,7 @@ inline uint8_t extractTag(uptr Ptr) {
 
 #endif
 
-#if defined(__aarch64__)
+#if __clang_major__ >= 12 && defined(__aarch64__)
 
 #if SCUDO_LINUX
 
@@ -91,9 +91,10 @@ inline bool systemDetectsMemoryTagFaultsTestOnly() {
 #ifndef PR_MTE_TCF_MASK
 #define PR_MTE_TCF_MASK (3UL << PR_MTE_TCF_SHIFT)
 #endif
-  return (static_cast<unsigned long>(
-              prctl(PR_GET_TAGGED_ADDR_CTRL, 0, 0, 0, 0)) &
-          PR_MTE_TCF_MASK) != PR_MTE_TCF_NONE;
+  int res = prctl(PR_GET_TAGGED_ADDR_CTRL, 0, 0, 0, 0);
+  if (res == -1)
+    return false;
+  return (static_cast<unsigned long>(res) & PR_MTE_TCF_MASK) != PR_MTE_TCF_NONE;
 }
 
 inline void enableSystemMemoryTaggingTestOnly() {
@@ -319,7 +320,8 @@ inline void *addFixedTag(void *Ptr, uptr Tag) {
 
 template <typename Config>
 inline constexpr bool allocatorSupportsMemoryTagging() {
-  return archSupportsMemoryTagging() && Config::MaySupportMemoryTagging;
+  return archSupportsMemoryTagging() && Config::MaySupportMemoryTagging &&
+         (1 << SCUDO_MIN_ALIGNMENT_LOG) >= archMemoryTagGranuleSize();
 }
 
 } // namespace scudo

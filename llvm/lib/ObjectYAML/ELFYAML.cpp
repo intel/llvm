@@ -555,6 +555,7 @@ void ScalarBitSetTraits<ELFYAML::ELF_EF>::bitset(IO &IO,
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1032, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1033, EF_AMDGPU_MACH);
     BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1034, EF_AMDGPU_MACH);
+    BCaseMask(EF_AMDGPU_MACH_AMDGCN_GFX1035, EF_AMDGPU_MACH);
     switch (Object->Header.ABIVersion) {
     default:
       // ELFOSABI_AMDGPU_PAL, ELFOSABI_AMDGPU_MESA3D support *_V3 flags.
@@ -653,6 +654,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHT>::enumeration(
     break;
   case ELF::EM_RISCV:
     ECase(SHT_RISCV_ATTRIBUTES);
+    break;
+  case ELF::EM_MSP430:
+    ECase(SHT_MSP430_ATTRIBUTES);
     break;
   default:
     // Nothing to do.
@@ -886,6 +890,13 @@ void ScalarEnumerationTraits<ELFYAML::ELF_DYNTAG>::enumeration(
 #undef PPC64_DYNAMIC_TAG
 #define PPC64_DYNAMIC_TAG(name, value)
     break;
+  case ELF::EM_RISCV:
+#undef RISCV_DYNAMIC_TAG
+#define RISCV_DYNAMIC_TAG(name, value) DYNAMIC_TAG(name, value)
+#include "llvm/BinaryFormat/DynamicTags.def"
+#undef RISCV_DYNAMIC_TAG
+#define RISCV_DYNAMIC_TAG(name, value)
+    break;
   default:
 #include "llvm/BinaryFormat/DynamicTags.def"
     break;
@@ -1007,6 +1018,7 @@ void MappingTraits<ELFYAML::FileHeader>::mapping(IO &IO,
   IO.mapOptional("Machine", FileHdr.Machine);
   IO.mapOptional("Flags", FileHdr.Flags, ELFYAML::ELF_EF(0));
   IO.mapOptional("Entry", FileHdr.Entry, Hex64(0));
+  IO.mapOptional("SectionHeaderStringTable", FileHdr.SectionHeaderStringTable);
 
   // obj2yaml does not dump these fields.
   assert(!IO.outputting() ||
@@ -1163,6 +1175,8 @@ struct NormalizedOther {
 
     if (EMachine == ELF::EM_AARCH64)
       Map["STO_AARCH64_VARIANT_PCS"] = ELF::STO_AARCH64_VARIANT_PCS;
+    if (EMachine == ELF::EM_RISCV)
+      Map["STO_RISCV_VARIANT_CC"] = ELF::STO_RISCV_VARIANT_CC;
     return Map;
   }
 
@@ -1833,11 +1847,9 @@ void MappingTraits<ELFYAML::LinkerOption>::mapping(IO &IO,
   IO.mapRequired("Value", Opt.Value);
 }
 
-void MappingTraits<ELFYAML::CallGraphEntry>::mapping(
-    IO &IO, ELFYAML::CallGraphEntry &E) {
+void MappingTraits<ELFYAML::CallGraphEntryWeight>::mapping(
+    IO &IO, ELFYAML::CallGraphEntryWeight &E) {
   assert(IO.getContext() && "The IO context is not initialized");
-  IO.mapRequired("From", E.From);
-  IO.mapRequired("To", E.To);
   IO.mapRequired("Weight", E.Weight);
 }
 

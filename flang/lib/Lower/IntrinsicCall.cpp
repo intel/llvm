@@ -29,7 +29,7 @@
 #include <utility>
 
 #define PGMATH_DECLARE
-#include "../runtime/pgmath.h.inc"
+#include "flang/Evaluate/pgmath.h.inc"
 
 /// This file implements lowering of Fortran intrinsic procedures.
 /// Intrinsics are lowered to a mix of FIR and MLIR operations as
@@ -283,17 +283,17 @@ struct RuntimeFunction {
 static constexpr RuntimeFunction pgmathFast[] = {
 #define PGMATH_FAST
 #define PGMATH_USE_ALL_TYPES(name, func) RUNTIME_STATIC_DESCRIPTION(name, func)
-#include "../runtime/pgmath.h.inc"
+#include "flang/Evaluate/pgmath.h.inc"
 };
 static constexpr RuntimeFunction pgmathRelaxed[] = {
 #define PGMATH_RELAXED
 #define PGMATH_USE_ALL_TYPES(name, func) RUNTIME_STATIC_DESCRIPTION(name, func)
-#include "../runtime/pgmath.h.inc"
+#include "flang/Evaluate/pgmath.h.inc"
 };
 static constexpr RuntimeFunction pgmathPrecise[] = {
 #define PGMATH_PRECISE
 #define PGMATH_USE_ALL_TYPES(name, func) RUNTIME_STATIC_DESCRIPTION(name, func)
-#include "../runtime/pgmath.h.inc"
+#include "flang/Evaluate/pgmath.h.inc"
 };
 
 static mlir::FunctionType genF32F32FuncType(mlir::MLIRContext *context) {
@@ -919,7 +919,7 @@ mlir::SymbolRefAttr IntrinsicLibrary::getUnrestrictedIntrinsicSymbolRefAttr(
     funcOp = getWrapper(rtCallGenerator, name, signature, loadRefArguments);
   }
 
-  return builder.getSymbolRefAttr(funcOp.getName());
+  return SymbolRefAttr::get(funcOp);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1021,7 +1021,7 @@ mlir::Value IntrinsicLibrary::genConjg(mlir::Type resultType,
   auto imag =
       Fortran::lower::ComplexExprHelper{builder, loc}.extractComplexPart(
           cplx, /*isImagPart=*/true);
-  auto negImag = builder.create<fir::NegfOp>(loc, imag);
+  auto negImag = builder.create<mlir::NegFOp>(loc, imag);
   return Fortran::lower::ComplexExprHelper{builder, loc}.insertComplexPart(
       cplx, negImag, /*isImagPart=*/true);
 }
@@ -1041,7 +1041,7 @@ mlir::Value IntrinsicLibrary::genDim(mlir::Type resultType,
   auto zero = builder.createRealZeroConstant(loc, resultType);
   auto diff = builder.create<mlir::SubFOp>(loc, args[0], args[1]);
   auto cmp =
-      builder.create<fir::CmpfOp>(loc, mlir::CmpFPredicate::OGT, diff, zero);
+      builder.create<mlir::CmpFOp>(loc, mlir::CmpFPredicate::OGT, diff, zero);
   return builder.create<mlir::SelectOp>(loc, cmp, diff, zero);
 }
 
@@ -1187,9 +1187,9 @@ mlir::Value IntrinsicLibrary::genSign(mlir::Type resultType,
   // TODO: Requirements when second argument is +0./0.
   auto zeroAttr = builder.getZeroAttr(resultType);
   auto zero = builder.create<mlir::ConstantOp>(loc, resultType, zeroAttr);
-  auto neg = builder.create<fir::NegfOp>(loc, abs);
-  auto cmp =
-      builder.create<fir::CmpfOp>(loc, mlir::CmpFPredicate::OLT, args[1], zero);
+  auto neg = builder.create<mlir::NegFOp>(loc, abs);
+  auto cmp = builder.create<mlir::CmpFOp>(loc, mlir::CmpFPredicate::OLT,
+                                          args[1], zero);
   return builder.create<mlir::SelectOp>(loc, cmp, neg, abs);
 }
 
@@ -1213,26 +1213,26 @@ static mlir::Value createExtremumCompare(mlir::Location loc,
       // Return the number if one of the inputs is NaN and the other is
       // a number.
       auto leftIsResult =
-          builder.create<fir::CmpfOp>(loc, orderedCmp, left, right);
-      auto rightIsNan = builder.create<fir::CmpfOp>(
+          builder.create<mlir::CmpFOp>(loc, orderedCmp, left, right);
+      auto rightIsNan = builder.create<mlir::CmpFOp>(
           loc, mlir::CmpFPredicate::UNE, right, right);
       result = builder.create<mlir::OrOp>(loc, leftIsResult, rightIsNan);
     } else if constexpr (behavior == ExtremumBehavior::IeeeMinMaximum) {
       // Always return NaNs if one the input is NaNs
       auto leftIsResult =
-          builder.create<fir::CmpfOp>(loc, orderedCmp, left, right);
-      auto leftIsNan = builder.create<fir::CmpfOp>(
+          builder.create<mlir::CmpFOp>(loc, orderedCmp, left, right);
+      auto leftIsNan = builder.create<mlir::CmpFOp>(
           loc, mlir::CmpFPredicate::UNE, left, left);
       result = builder.create<mlir::OrOp>(loc, leftIsResult, leftIsNan);
     } else if constexpr (behavior == ExtremumBehavior::MinMaxss) {
       // If the left is a NaN, return the right whatever it is.
-      result = builder.create<fir::CmpfOp>(loc, orderedCmp, left, right);
+      result = builder.create<mlir::CmpFOp>(loc, orderedCmp, left, right);
     } else if constexpr (behavior == ExtremumBehavior::PgfortranLlvm) {
       // If one of the operand is a NaN, return left whatever it is.
       static constexpr auto unorderedCmp = extremum == Extremum::Max
                                                ? mlir::CmpFPredicate::UGT
                                                : mlir::CmpFPredicate::ULT;
-      result = builder.create<fir::CmpfOp>(loc, unorderedCmp, left, right);
+      result = builder.create<mlir::CmpFOp>(loc, unorderedCmp, left, right);
     } else {
       // TODO: ieeeMinNum/ieeeMaxNum
       static_assert(behavior == ExtremumBehavior::IeeeMinMaxNum,

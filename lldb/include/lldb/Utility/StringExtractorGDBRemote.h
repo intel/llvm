@@ -88,6 +88,7 @@ public:
     eServerPacketType_vFile_mode,
     eServerPacketType_vFile_exists,
     eServerPacketType_vFile_md5,
+    eServerPacketType_vFile_fstat,
     eServerPacketType_vFile_stat,
     eServerPacketType_vFile_symlink,
     eServerPacketType_vFile_unlink,
@@ -135,6 +136,7 @@ public:
     eServerPacketType_vAttachName,
     eServerPacketType_vCont,
     eServerPacketType_vCont_actions, // vCont?
+    eServerPacketType_vRun,
 
     eServerPacketType_stop_reason, // '?'
 
@@ -167,6 +169,11 @@ public:
     eServerPacketType_jLLDBTraceStop,
     eServerPacketType_jLLDBTraceGetState,
     eServerPacketType_jLLDBTraceGetBinaryData,
+
+    eServerPacketType_qMemTags, // read memory tags
+    eServerPacketType_QMemTags, // write memory tags
+
+    eServerPacketType_qLLDBSaveCore,
   };
 
   ServerPacketType GetServerPacketType() const;

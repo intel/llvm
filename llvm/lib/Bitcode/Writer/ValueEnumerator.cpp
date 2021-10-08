@@ -28,6 +28,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Use.h"
 #include "llvm/IR/User.h"
@@ -228,8 +229,11 @@ static void predictValueUseListOrderImpl(const Value *V, const Function *F,
     // have been read (despite having earlier IDs).  Rather than awkwardly
     // modeling this behaviour here, orderModule() has assigned IDs to
     // initializers of GlobalValues before GlobalValues themselves.
-    if (OM.isGlobalValue(LID) && OM.isGlobalValue(RID))
+    if (OM.isGlobalValue(LID) && OM.isGlobalValue(RID)) {
+      if (LID == RID)
+        return LU->getOperandNo() > RU->getOperandNo();
       return LID < RID;
+    }
 
     // If ID is 4, then expect: 7 6 5 1 2 3.
     if (LID < RID) {
@@ -364,18 +368,23 @@ ValueEnumerator::ValueEnumerator(const Module &M,
     UseListOrders = predictUseListOrder(M);
 
   // Enumerate the global variables.
-  for (const GlobalVariable &GV : M.globals())
+  for (const GlobalVariable &GV : M.globals()) {
     EnumerateValue(&GV);
+    EnumerateType(GV.getValueType());
+  }
 
   // Enumerate the functions.
   for (const Function & F : M) {
     EnumerateValue(&F);
+    EnumerateType(F.getValueType());
     EnumerateAttributes(F.getAttributes());
   }
 
   // Enumerate the aliases.
-  for (const GlobalAlias &GA : M.aliases())
+  for (const GlobalAlias &GA : M.aliases()) {
     EnumerateValue(&GA);
+    EnumerateType(GA.getValueType());
+  }
 
   // Enumerate the ifuncs.
   for (const GlobalIFunc &GIF : M.ifuncs())
@@ -463,9 +472,15 @@ ValueEnumerator::ValueEnumerator(const Module &M,
         }
         if (auto *SVI = dyn_cast<ShuffleVectorInst>(&I))
           EnumerateType(SVI->getShuffleMaskForBitcode()->getType());
+        if (auto *GEP = dyn_cast<GetElementPtrInst>(&I))
+          EnumerateType(GEP->getSourceElementType());
+        if (auto *AI = dyn_cast<AllocaInst>(&I))
+          EnumerateType(AI->getAllocatedType());
         EnumerateType(I.getType());
-        if (const auto *Call = dyn_cast<CallBase>(&I))
+        if (const auto *Call = dyn_cast<CallBase>(&I)) {
           EnumerateAttributes(Call->getAttributes());
+          EnumerateType(Call->getFunctionType());
+        }
 
         // Enumerate metadata attached with this instruction.
         MDs.clear();
@@ -1004,9 +1019,12 @@ void ValueEnumerator::EnumerateOperandType(const Value *V) {
 
     EnumerateOperandType(Op);
   }
-  if (auto *CE = dyn_cast<ConstantExpr>(C))
+  if (auto *CE = dyn_cast<ConstantExpr>(C)) {
     if (CE->getOpcode() == Instruction::ShuffleVector)
       EnumerateOperandType(CE->getShuffleMaskForBitcode());
+    if (CE->getOpcode() == Instruction::GetElementPtr)
+      EnumerateType(cast<GEPOperator>(CE)->getSourceElementType());
+  }
 }
 
 void ValueEnumerator::EnumerateAttributes(AttributeList PAL) {
@@ -1021,7 +1039,7 @@ void ValueEnumerator::EnumerateAttributes(AttributeList PAL) {
   }
 
   // Do lookups for all attribute groups.
-  for (unsigned i = PAL.index_begin(), e = PAL.index_end(); i != e; ++i) {
+  for (unsigned i : PAL.indexes()) {
     AttributeSet AS = PAL.getAttributes(i);
     if (!AS.hasAttributes())
       continue;
@@ -1030,6 +1048,11 @@ void ValueEnumerator::EnumerateAttributes(AttributeList PAL) {
     if (Entry == 0) {
       AttributeGroups.push_back(Pair);
       Entry = AttributeGroups.size();
+
+      for (Attribute Attr : AS) {
+        if (Attr.isTypeAttribute())
+          EnumerateType(Attr.getValueAsType());
+      }
     }
   }
 }

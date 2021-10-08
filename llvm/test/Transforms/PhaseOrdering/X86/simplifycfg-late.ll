@@ -16,9 +16,10 @@ define i32 @f(i32 %c) {
 ; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 [[SWITCH_TABLEIDX]] to i64
 ; CHECK-NEXT:    [[SWITCH_GEP:%.*]] = getelementptr inbounds [7 x i32], [7 x i32]* @switch.table.f, i64 0, i64 [[TMP1]]
 ; CHECK-NEXT:    [[SWITCH_LOAD:%.*]] = load i32, i32* [[SWITCH_GEP]], align 4
-; CHECK-NEXT:    ret i32 [[SWITCH_LOAD]]
+; CHECK-NEXT:    br label [[RETURN]]
 ; CHECK:       return:
-; CHECK-NEXT:    ret i32 15
+; CHECK-NEXT:    [[R:%.*]] = phi i32 [ [[SWITCH_LOAD]], [[SWITCH_LOOKUP]] ], [ 15, [[ENTRY:%.*]] ]
+; CHECK-NEXT:    ret i32 [[R]]
 ;
 entry:
   switch i32 %c, label %sw.default [

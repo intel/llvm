@@ -54,7 +54,7 @@ public:
   /// \param DeviceList is a list of SYCL device instances.
   /// \param AsyncHandler is an instance of async_handler.
   /// \param PropList is an instance of property_list.
-  context_impl(const vector_class<cl::sycl::device> DeviceList,
+  context_impl(const std::vector<cl::sycl::device> DeviceList,
                async_handler AsyncHandler, const property_list &PropList);
 
   /// Construct a context_impl using plug-in interoperability handle.
@@ -138,7 +138,7 @@ public:
 
   /// Unlike `get_info<info::context::devices>', this function returns a
   /// reference.
-  const vector_class<device> &getDevices() const { return MDevices; }
+  const std::vector<device> &getDevices() const { return MDevices; }
 
   /// In contrast to user programs, which are compiled from user code, library
   /// programs come from the SYCL runtime. They are identified by the
@@ -160,7 +160,7 @@ public:
   KernelProgramCache &getKernelProgramCache() const;
 
   /// Returns true if and only if context contains the given device.
-  bool hasDevice(shared_ptr_class<detail::device_impl> Device) const;
+  bool hasDevice(std::shared_ptr<detail::device_impl> Device) const;
 
   /// Gets the native handle of the SYCL context.
   ///
@@ -169,7 +169,7 @@ public:
 
 private:
   async_handler MAsyncHandler;
-  vector_class<device> MDevices;
+  std::vector<device> MDevices;
   RT::PiContext MContext;
   PlatformImplPtr MPlatform;
   property_list MPropList;

@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MCA/Stages/InOrderIssueStage.h"
+#include "llvm/MCA/HardwareUnits/LSUnit.h"
 #include "llvm/MCA/HardwareUnits/RegisterFile.h"
 #include "llvm/MCA/HardwareUnits/RetireControlUnit.h"
 #include "llvm/MCA/Instruction.h"
@@ -43,9 +44,10 @@ void StallInfo::cycleEnd() {
 }
 
 InOrderIssueStage::InOrderIssueStage(const MCSubtargetInfo &STI,
-                                     RegisterFile &PRF)
-    : STI(STI), PRF(PRF), RM(STI.getSchedModel()), NumIssued(), SI(),
-      CarryOver(), Bandwidth(), LastWriteBackCycle() {}
+                                     RegisterFile &PRF, CustomBehaviour &CB,
+                                     LSUnit &LSU)
+    : STI(STI), PRF(PRF), RM(STI.getSchedModel()), CB(CB), LSU(LSU),
+      NumIssued(), SI(), CarryOver(), Bandwidth(), LastWriteBackCycle() {}
 
 unsigned InOrderIssueStage::getIssueWidth() const {
   return STI.getSchedModel().IssueWidth;
@@ -125,6 +127,18 @@ bool InOrderIssueStage::canExecute(const InstRef &IR) {
     return false;
   }
 
+  if (IR.getInstruction()->isMemOp() && !LSU.isReady(IR)) {
+    // This load (store) aliases with a preceding store (load). Delay
+    // it until the depenency is cleared.
+    SI.update(IR, /* delay */ 1, StallInfo::StallKind::LOAD_STORE);
+    return false;
+  }
+
+  if (unsigned CustomStallCycles = CB.checkCustomHazard(IssuedInst, IR)) {
+    SI.update(IR, CustomStallCycles, StallInfo::StallKind::CUSTOM_STALL);
+    return false;
+  }
+
   if (LastWriteBackCycle) {
     if (!IR.getInstruction()->getDesc().RetireOOO) {
       unsigned NextWriteBackCycle = findFirstWriteBackCycle(IR);
@@ -183,6 +197,10 @@ void InOrderIssueStage::notifyInstructionRetired(const InstRef &IR,
 }
 
 llvm::Error InOrderIssueStage::execute(InstRef &IR) {
+  Instruction &IS = *IR.getInstruction();
+  if (IS.isMemOp())
+    IS.setLSUTokenID(LSU.dispatch(IR));
+
   if (llvm::Error E = tryIssue(IR))
     return E;
 
@@ -217,6 +235,9 @@ llvm::Error InOrderIssueStage::tryIssue(InstRef &IR) {
   RM.issueInstruction(Desc, UsedResources);
   IS.execute(SourceIndex);
 
+  if (IS.isMemOp())
+    LSU.onInstructionIssued(IR);
+
   // Replace resource masks with valid resource processor IDs.
   for (ResourceUse &Use : UsedResources) {
     uint64_t Mask = Use.first.first;
@@ -234,6 +255,19 @@ llvm::Error InOrderIssueStage::tryIssue(InstRef &IR) {
   } else {
     NumIssued += NumMicroOps;
     Bandwidth = Desc.EndGroup ? 0 : Bandwidth - NumMicroOps;
+  }
+
+  // If the instruction has a latency of 0, we need to handle
+  // the execution and retirement now.
+  if (IS.isExecuted()) {
+    PRF.onInstructionExecuted(&IS);
+    LSU.onInstructionExecuted(IR);
+    notifyEvent<HWInstructionEvent>(
+        HWInstructionEvent(HWInstructionEvent::Executed, IR));
+    LLVM_DEBUG(dbgs() << "[E] Instruction #" << IR << " is executed\n");
+
+    retireInstruction(IR);
+    return llvm::ErrorSuccess();
   }
 
   IssuedInst.push_back(IR);
@@ -262,6 +296,7 @@ void InOrderIssueStage::updateIssuedInst() {
     }
 
     PRF.onInstructionExecuted(&IS);
+    LSU.onInstructionExecuted(IR);
     notifyInstructionExecuted(IR);
     ++NumExecuted;
 
@@ -307,6 +342,9 @@ void InOrderIssueStage::retireInstruction(InstRef &IR) {
   for (const WriteState &WS : IS.getDefs())
     PRF.removeRegisterWrite(WS, FreedRegs);
 
+  if (IS.isMemOp())
+    LSU.onInstructionRetired(IR);
+
   notifyInstructionRetired(IR, FreedRegs);
 }
 
@@ -333,6 +371,11 @@ void InOrderIssueStage::notifyStallEvent() {
         HWPressureEvent(HWPressureEvent::RESOURCES, IR));
     break;
   }
+  case StallInfo::StallKind::CUSTOM_STALL: {
+    notifyEvent<HWStallEvent>(
+        HWStallEvent(HWStallEvent::CustomBehaviourStall, IR));
+    break;
+  }
   }
 }
 
@@ -341,6 +384,7 @@ llvm::Error InOrderIssueStage::cycleStart() {
   Bandwidth = getIssueWidth();
 
   PRF.cycleStart();
+  LSU.cycleEvent();
 
   // Release consumed resources.
   SmallVector<ResourceRef, 4> Freed;

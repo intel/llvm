@@ -11,22 +11,19 @@
 
 // This test requires the dylib support introduced in D68480, which shipped in
 // macOS 11.0.
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.15
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.14
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.13
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.12
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.11
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.10
-// XFAIL: use_system_cxx_lib && x86_64-apple-macosx10.9
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
 
 // <semaphore>
 
 #include <semaphore>
 #include <chrono>
 #include <thread>
+#include <type_traits>
 
 #include "make_test_thread.h"
 #include "test_macros.h"
+
+static_assert(std::is_same<std::binary_semaphore, std::counting_semaphore<1>>::value, "");
 
 int main(int, char**)
 {

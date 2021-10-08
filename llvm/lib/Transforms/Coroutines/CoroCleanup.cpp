@@ -56,8 +56,7 @@ static void lowerSubFn(IRBuilder<> &Builder, CoroSubFnInst *SubFn) {
 bool Lowerer::lowerRemainingCoroIntrinsics(Function &F) {
   bool Changed = false;
 
-  for (auto IB = inst_begin(F), E = inst_end(F); IB != E;) {
-    Instruction &I = *IB++;
+  for (Instruction &I : llvm::make_early_inc_range(instructions(F))) {
     if (auto *II = dyn_cast<IntrinsicInst>(&I)) {
       switch (II->getIntrinsicID()) {
       default:
@@ -70,6 +69,10 @@ bool Lowerer::lowerRemainingCoroIntrinsics(Function &F) {
         break;
       case Intrinsic::coro_alloc:
         II->replaceAllUsesWith(ConstantInt::getTrue(Context));
+        break;
+      case Intrinsic::coro_async_resume:
+        II->replaceAllUsesWith(
+            ConstantPointerNull::get(cast<PointerType>(I.getType())));
         break;
       case Intrinsic::coro_id:
       case Intrinsic::coro_id_retcon:
@@ -115,7 +118,8 @@ static bool declaresCoroCleanupIntrinsics(const Module &M) {
   return coro::declaresIntrinsics(
       M, {"llvm.coro.alloc", "llvm.coro.begin", "llvm.coro.subfn.addr",
           "llvm.coro.free", "llvm.coro.id", "llvm.coro.id.retcon",
-          "llvm.coro.id.retcon.once", "llvm.coro.async.size.replace"});
+          "llvm.coro.id.retcon.once", "llvm.coro.async.size.replace",
+          "llvm.coro.async.resume"});
 }
 
 PreservedAnalyses CoroCleanupPass::run(Function &F,

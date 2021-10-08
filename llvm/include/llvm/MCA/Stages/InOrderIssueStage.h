@@ -14,16 +14,25 @@
 #ifndef LLVM_MCA_STAGES_INORDERISSUESTAGE_H
 #define LLVM_MCA_STAGES_INORDERISSUESTAGE_H
 
+#include "llvm/MCA/CustomBehaviour.h"
 #include "llvm/MCA/HardwareUnits/ResourceManager.h"
 #include "llvm/MCA/SourceMgr.h"
 #include "llvm/MCA/Stages/Stage.h"
 
 namespace llvm {
 namespace mca {
+class LSUnit;
 class RegisterFile;
 
 struct StallInfo {
-  enum class StallKind { DEFAULT, REGISTER_DEPS, DISPATCH, DELAY };
+  enum class StallKind {
+    DEFAULT,
+    REGISTER_DEPS,
+    DISPATCH,
+    DELAY,
+    LOAD_STORE,
+    CUSTOM_STALL
+  };
 
   InstRef IR;
   unsigned CyclesLeft;
@@ -46,6 +55,8 @@ class InOrderIssueStage final : public Stage {
   const MCSubtargetInfo &STI;
   RegisterFile &PRF;
   ResourceManager RM;
+  CustomBehaviour &CB;
+  LSUnit &LSU;
 
   /// Instructions that were issued, but not executed yet.
   SmallVector<InstRef, 4> IssuedInst;
@@ -101,7 +112,8 @@ class InOrderIssueStage final : public Stage {
   void retireInstruction(InstRef &IR);
 
 public:
-  InOrderIssueStage(const MCSubtargetInfo &STI, RegisterFile &PRF);
+  InOrderIssueStage(const MCSubtargetInfo &STI, RegisterFile &PRF,
+                    CustomBehaviour &CB, LSUnit &LSU);
 
   unsigned getIssueWidth() const;
   bool isAvailable(const InstRef &) const override;

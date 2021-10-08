@@ -43,11 +43,11 @@ void AsanThreadContext::OnFinished() {
 static ALIGNED(16) char thread_registry_placeholder[sizeof(ThreadRegistry)];
 static ThreadRegistry *asan_thread_registry;
 
-static BlockingMutex mu_for_thread_context(LINKER_INITIALIZED);
+static Mutex mu_for_thread_context;
 static LowLevelAllocator allocator_for_thread_context;
 
 static ThreadContextBase *GetAsanThreadContext(u32 tid) {
-  BlockingMutexLock lock(&mu_for_thread_context);
+  Lock lock(&mu_for_thread_context);
   return new(allocator_for_thread_context) AsanThreadContext(tid);
 }
 
@@ -60,8 +60,8 @@ ThreadRegistry &asanThreadRegistry() {
     // in TSD and can't reliably tell when no more TSD destructors will
     // be called. It would be wrong to reuse AsanThreadContext for another
     // thread before all TSD destructors will be called for it.
-    asan_thread_registry = new(thread_registry_placeholder) ThreadRegistry(
-        GetAsanThreadContext, kMaxNumberOfThreads, kMaxNumberOfThreads);
+    asan_thread_registry =
+        new (thread_registry_placeholder) ThreadRegistry(GetAsanThreadContext);
     initialized = true;
   }
   return *asan_thread_registry;
@@ -257,10 +257,9 @@ void AsanThread::Init(const InitOptions *options) {
           &local);
 }
 
-// Fuchsia and RTEMS don't use ThreadStart.
-// asan_fuchsia.c/asan_rtems.c define CreateMainThread and
-// SetThreadStackAndTls.
-#if !SANITIZER_FUCHSIA && !SANITIZER_RTEMS
+// Fuchsia doesn't use ThreadStart.
+// asan_fuchsia.c definies CreateMainThread and SetThreadStackAndTls.
+#if !SANITIZER_FUCHSIA
 
 thread_return_t AsanThread::ThreadStart(tid_t os_id) {
   Init();
@@ -317,7 +316,7 @@ void AsanThread::SetThreadStackAndTls(const InitOptions *options) {
   }
 }
 
-#endif  // !SANITIZER_FUCHSIA && !SANITIZER_RTEMS
+#endif  // !SANITIZER_FUCHSIA
 
 void AsanThread::ClearShadowForThreadStackAndTLS() {
   if (stack_top_ != stack_bottom_)
@@ -422,9 +421,6 @@ static bool ThreadStackContainsAddress(ThreadContextBase *tctx_base,
 }
 
 AsanThread *GetCurrentThread() {
-  if (SANITIZER_RTEMS && !asan_inited)
-    return nullptr;
-
   AsanThreadContext *context =
       reinterpret_cast<AsanThreadContext *>(AsanTSDGet());
   if (!context) {

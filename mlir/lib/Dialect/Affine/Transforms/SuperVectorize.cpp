@@ -948,6 +948,16 @@ static ConstantOp vectorizeConstant(ConstantOp constOp,
 
   auto vecTy = getVectorType(scalarTy, state.strategy);
   auto vecAttr = DenseElementsAttr::get(vecTy, constOp.getValue());
+
+  OpBuilder::InsertionGuard guard(state.builder);
+  Operation *parentOp = state.builder.getInsertionBlock()->getParentOp();
+  // Find the innermost vectorized ancestor loop to insert the vector constant.
+  while (parentOp && !state.vecLoopToVecDim.count(parentOp))
+    parentOp = parentOp->getParentOp();
+  assert(parentOp && state.vecLoopToVecDim.count(parentOp) &&
+         isa<AffineForOp>(parentOp) && "Expected a vectorized for op");
+  auto vecForOp = cast<AffineForOp>(parentOp);
+  state.builder.setInsertionPointToStart(vecForOp.getBody());
   auto newConstOp = state.builder.create<ConstantOp>(constOp.getLoc(), vecAttr);
 
   // Register vector replacement for future uses in the scope.
@@ -1006,7 +1016,7 @@ static Value createMask(AffineForOp vecForOp, VectorizationState &state) {
   state.builder.setInsertionPointToStart(vecForOp.getBody());
 
   // We generate the mask using the `vector.create_mask` operation which accepts
-  // the number of meaningful elements (i.e. the legth of the prefix of 1s).
+  // the number of meaningful elements (i.e. the length of the prefix of 1s).
   // To compute the number of meaningful elements we subtract the current value
   // of the iteration variable from the upper bound of the loop. Example:
   //

@@ -35,46 +35,6 @@
 #define BARRIER_COUNTER 0
 #define ORDERED_COUNTER 1
 
-// arguments needed for L0 parallelism only.
-class omptarget_nvptx_SharedArgs {
-public:
-  // All these methods must be called by the master thread only.
-  INLINE void Init() {
-    args = buffer;
-    nArgs = MAX_SHARED_ARGS;
-  }
-  INLINE void DeInit() {
-    // Free any memory allocated for outlined parallel function with a large
-    // number of arguments.
-    if (nArgs > MAX_SHARED_ARGS) {
-      SafeFree(args, "new extended args");
-      Init();
-    }
-  }
-  INLINE void EnsureSize(size_t size) {
-    if (size > nArgs) {
-      if (nArgs > MAX_SHARED_ARGS) {
-        SafeFree(args, "new extended args");
-      }
-      args = (void **)SafeMalloc(size * sizeof(void *), "new extended args");
-      nArgs = size;
-    }
-  }
-  // Called by all threads.
-  INLINE void **GetArgs() const { return args; };
-
-private:
-  // buffer of pre-allocated arguments.
-  void *buffer[MAX_SHARED_ARGS];
-  // pointer to arguments buffer.
-  // starts off as a pointer to 'buffer' but can be dynamically allocated.
-  void **args;
-  // starts off as MAX_SHARED_ARGS but can increase in size.
-  uint32_t nArgs;
-};
-
-extern omptarget_nvptx_SharedArgs EXTERN_SHARED(omptarget_nvptx_globalArgs);
-
 // Worker slot type which is initialized with the default worker slot
 // size of 4*32 bytes.
 struct __kmpc_data_sharing_slot {
@@ -84,18 +44,6 @@ struct __kmpc_data_sharing_slot {
   void *DataEnd;
   char Data[DS_Worker_Warp_Slot_Size];
 };
-
-// Data structure to keep in shared memory that traces the current slot, stack,
-// and frame pointer as well as the active threads that didn't exit the current
-// environment.
-struct DataSharingStateTy {
-  __kmpc_data_sharing_slot *SlotPtr[DS_Max_Warp_Number];
-  void *StackPtr[DS_Max_Warp_Number];
-  void *volatile FramePtr[DS_Max_Warp_Number];
-  __kmpc_impl_lanemask_t ActiveThreads[DS_Max_Warp_Number];
-};
-
-extern DataSharingStateTy EXTERN_SHARED(DataSharingState);
 
 ////////////////////////////////////////////////////////////////////////////////
 // task ICV and (implicit & explicit) task state
@@ -308,7 +256,7 @@ extern uint16_t EXTERN_SHARED(nThreads);
 extern omptarget_nvptx_ThreadPrivateContext *
     EXTERN_SHARED(omptarget_nvptx_threadPrivateContext);
 
-extern uint32_t EXTERN_SHARED(execution_param);
+extern int8_t EXTERN_SHARED(execution_param);
 extern void *EXTERN_SHARED(ReductionScratchpadPtr);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -317,7 +265,7 @@ extern void *EXTERN_SHARED(ReductionScratchpadPtr);
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef void *omptarget_nvptx_WorkFn;
-extern volatile omptarget_nvptx_WorkFn EXTERN_SHARED(omptarget_nvptx_workFn);
+extern omptarget_nvptx_WorkFn EXTERN_SHARED(omptarget_nvptx_workFn);
 
 ////////////////////////////////////////////////////////////////////////////////
 // get private data structures

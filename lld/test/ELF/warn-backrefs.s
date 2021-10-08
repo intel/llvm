@@ -18,6 +18,7 @@
 ## Warn unless the archive is excluded by --warn-backrefs-exclude
 # RUN: ld.lld --fatal-warnings %t2.a %t1.o -o /dev/null
 # RUN: ld.lld --warn-backrefs %t2.a %t1.o -o /dev/null 2>&1 | FileCheck %s
+# RUN: ld.lld --warn-backrefs --no-warn-backrefs %t2.a %t1.o -o /dev/null 2>&1 | count 0
 # RUN: ld.lld --warn-backrefs %t2.a '-(' %t1.o '-)' -o /dev/null 2>&1 | FileCheck %s
 # RUN: ld.lld --warn-backrefs --warn-backrefs-exclude='*3.a' %t2.a %t1.o -o /dev/null 2>&1 | FileCheck %s
 # RUN: ld.lld --fatal-warnings --warn-backrefs --warn-backrefs-exclude='*2.a(*2.o)' %t2.a %t1.o -o /dev/null
@@ -30,6 +31,7 @@
 # RUN: echo 'GROUP("%t2.a" "%t1.o")' > %t2.lds
 # RUN: ld.lld --fatal-warnings --warn-backrefs %t2.lds -o /dev/null
 # RUN: ld.lld --fatal-warnings --warn-backrefs '-(' %t2.a %t1.o '-)' -o /dev/null
+# RUN: ld.lld --fatal-warnings --warn-backrefs --start-group %t2.a %t1.o --end-group -o /dev/null
 
 ## A backward reference from %t1.o to %t2.a (added by %t3.lds).
 # RUN: echo 'GROUP("%t2.a")' > %t3.lds

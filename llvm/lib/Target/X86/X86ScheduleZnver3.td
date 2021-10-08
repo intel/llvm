@@ -495,6 +495,10 @@ defm : Zn3WriteResInt<WriteRMW, [Zn3AGU012, Zn3Store], Znver3Model.StoreLatency,
 // Loads, stores, and moves, not folded with other operations.
 defm : Zn3WriteResInt<WriteLoad, [Zn3AGU012, Zn3Load], !add(Znver3Model.LoadLatency, 1), [1, 1], 1>;
 
+// Model the effect of clobbering the read-write mask operand of the GATHER operation.
+// Does not cost anything by itself, only has latency, matching that of the WriteLoad,
+defm : Zn3WriteResInt<WriteVecMaskedGatherWriteback, [], !add(Znver3Model.LoadLatency, 1), [], 0>;
+
 def Zn3WriteMOVSlow : SchedWriteRes<[Zn3AGU012, Zn3Load]> {
   let Latency = !add(Znver3Model.LoadLatency, 1);
   let ResourceCycles = [3, 1];
@@ -578,7 +582,7 @@ def Zn3Write3OpsLEA : SchedWriteRes<[Zn3ALU0123]> {
   let NumMicroOps = 2;
 }
 
-// On Piledriver, a slow LEA is either a 3Ops LEA (base, index, offset),
+// On Znver3, a slow LEA is either a 3Ops LEA (base, index, offset),
 // or an LEA with a `Scale` value different than 1.
 def Zn3SlowLEAPredicate : MCSchedPredicate<
   CheckAny<[
@@ -613,42 +617,15 @@ defm : Zn3WriteResIntPair<WriteIMul16, [Zn3Multiplier], 3, [3], 3, /*LoadUOps=*/
 defm : Zn3WriteResIntPair<WriteIMul16Imm, [Zn3Multiplier], 4, [4], 2>; // Integer 16-bit multiplication by immediate.
 defm : Zn3WriteResIntPair<WriteIMul16Reg, [Zn3Multiplier], 3, [1], 1>; // Integer 16-bit multiplication by register.
 defm : Zn3WriteResIntPair<WriteIMul32, [Zn3Multiplier], 3, [3], 2>;    // Integer 32-bit multiplication.
-
-def Zn3MULX32rr : SchedWriteRes<[Zn3Multiplier]> {
-  let Latency = 4;
-  let ResourceCycles = [1];
-  let NumMicroOps = 2;
-}
-def : InstRW<[Zn3MULX32rr, WriteIMulH], (instrs MULX32rr)>;
-
-def Zn3MULX32rm : SchedWriteRes<[Zn3AGU012, Zn3Load, Zn3Multiplier]> {
-  let Latency = !add(Znver3Model.LoadLatency, Zn3MULX32rr.Latency);
-  let ResourceCycles = [1, 1, 2];
-  let NumMicroOps = Zn3MULX32rr.NumMicroOps;
-}
-def : InstRW<[Zn3MULX32rm, WriteIMulH], (instrs MULX32rm)>;
-
+defm : Zn3WriteResIntPair<WriteMULX32, [Zn3Multiplier], 3, [1], 2>;    // Integer 32-bit Unsigned Multiply Without Affecting Flags.
 defm : Zn3WriteResIntPair<WriteIMul32Imm, [Zn3Multiplier], 3, [1], 1>; // Integer 32-bit multiplication by immediate.
 defm : Zn3WriteResIntPair<WriteIMul32Reg, [Zn3Multiplier], 3, [1], 1>; // Integer 32-bit multiplication by register.
 defm : Zn3WriteResIntPair<WriteIMul64, [Zn3Multiplier], 3, [3], 2>;    // Integer 64-bit multiplication.
-
-def Zn3MULX64rr : SchedWriteRes<[Zn3Multiplier]> {
-  let Latency = 4;
-  let ResourceCycles = [1];
-  let NumMicroOps = 2;
-}
-def : InstRW<[Zn3MULX64rr, WriteIMulH], (instrs MULX64rr)>;
-
-def Zn3MULX64rm : SchedWriteRes<[Zn3AGU012, Zn3Load, Zn3Multiplier]> {
-  let Latency = !add(Znver3Model.LoadLatency, Zn3MULX64rr.Latency);
-  let ResourceCycles = [1, 1, 2];
-  let NumMicroOps = Zn3MULX64rr.NumMicroOps;
-}
-def : InstRW<[Zn3MULX64rm, WriteIMulH], (instrs MULX64rm)>;
-
+defm : Zn3WriteResIntPair<WriteMULX64, [Zn3Multiplier], 3, [1], 2>;    // Integer 32-bit Unsigned Multiply Without Affecting Flags.
 defm : Zn3WriteResIntPair<WriteIMul64Imm, [Zn3Multiplier], 3, [1], 1>; // Integer 64-bit multiplication by immediate.
 defm : Zn3WriteResIntPair<WriteIMul64Reg, [Zn3Multiplier], 3, [1], 1>; // Integer 64-bit multiplication by register.
-defm : Zn3WriteResInt<WriteIMulH, [], 4, [], 0>;         // Integer multiplication, high part.
+defm : Zn3WriteResInt<WriteIMulHLd, [], !add(4, Znver3Model.LoadLatency), [], 0>;  // Integer multiplication, high part.
+defm : Zn3WriteResInt<WriteIMulH, [], 4, [], 0>;  // Integer multiplication, high part.
 
 defm : Zn3WriteResInt<WriteBSWAP32, [Zn3ALU0123], 1, [1], 1>; // Byte Order (Endianness) 32-bit Swap.
 defm : Zn3WriteResInt<WriteBSWAP64, [Zn3ALU0123], 1, [1], 1>; // Byte Order (Endianness) 64-bit Swap.
@@ -1143,9 +1120,9 @@ defm : Zn3WriteResXMMPair<WriteShuffle, [Zn3FPVShuf01], 1, [1], 1>;  // Vector s
 defm : Zn3WriteResXMMPair<WriteShuffleX, [Zn3FPVShuf01], 1, [1], 1>; // Vector shuffles (XMM).
 defm : Zn3WriteResYMMPair<WriteShuffleY, [Zn3FPVShuf01], 1, [1], 1>; // Vector shuffles (YMM).
 defm : X86WriteResPairUnsupported<WriteShuffleZ>; // Vector shuffles (ZMM).
-defm : Zn3WriteResXMMPair<WriteVarShuffle, [Zn3FPVShift01], 1, [1], 1>;  // Vector variable shuffles.
-defm : Zn3WriteResXMMPair<WriteVarShuffleX, [Zn3FPVShift01], 1, [1], 1>; // Vector variable shuffles (XMM).
-defm : Zn3WriteResYMMPair<WriteVarShuffleY, [Zn3FPVShift01], 1, [1], 1>; // Vector variable shuffles (YMM).
+defm : Zn3WriteResXMMPair<WriteVarShuffle, [Zn3FPVShuf01], 1, [1], 1>;  // Vector variable shuffles.
+defm : Zn3WriteResXMMPair<WriteVarShuffleX, [Zn3FPVShuf01], 1, [1], 1>; // Vector variable shuffles (XMM).
+defm : Zn3WriteResYMMPair<WriteVarShuffleY, [Zn3FPVShuf01], 1, [1], 1>; // Vector variable shuffles (YMM).
 defm : X86WriteResPairUnsupported<WriteVarShuffleZ>; // Vector variable shuffles (ZMM).
 defm : Zn3WriteResXMMPair<WriteBlend, [Zn3FPVMisc0123], 1, [1], 1>; // Vector blends.
 defm : Zn3WriteResYMMPair<WriteBlendY, [Zn3FPVMisc0123], 1, [1], 1>; // Vector blends (YMM).
@@ -1414,7 +1391,7 @@ def Zn3WriteVPERMYm : SchedWriteRes<[Zn3AGU012, Zn3Load, Zn3FPVShuf]> {
 def : InstRW<[Zn3WriteVPERMYm], (instrs VPERMQYmi, VPERMDYrm)>;
 
 defm : Zn3WriteResYMMPair<WriteVPMOV256, [Zn3FPVShuf01], 4, [3], 2, /*LoadUOps=*/-1>; // 256-bit width packed vector width-changing move.
-defm : Zn3WriteResYMMPair<WriteVarShuffle256, [Zn3FPVShift01], 1, [1], 2>; // 256-bit width vector variable shuffles.
+defm : Zn3WriteResYMMPair<WriteVarShuffle256, [Zn3FPVShuf01], 1, [1], 2>; // 256-bit width vector variable shuffles.
 defm : Zn3WriteResXMMPair<WriteVarVecShift, [Zn3FPVShift01], 1, [1], 1>; // Variable vector shifts.
 defm : Zn3WriteResYMMPair<WriteVarVecShiftY, [Zn3FPVShift01], 1, [1], 1>; // Variable vector shifts (YMM).
 defm : X86WriteResPairUnsupported<WriteVarVecShiftZ>; // Variable vector shifts (ZMM).

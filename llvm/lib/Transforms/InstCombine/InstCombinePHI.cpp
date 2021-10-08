@@ -299,6 +299,29 @@ Instruction *InstCombinerImpl::foldIntegerTypedPHI(PHINode &PN) {
                                           IntToPtr->getOperand(0)->getType());
 }
 
+// Remove RoundTrip IntToPtr/PtrToInt Cast on PHI-Operand and
+// fold Phi-operand to bitcast.
+Instruction *InstCombinerImpl::foldPHIArgIntToPtrToPHI(PHINode &PN) {
+  // convert ptr2int ( phi[ int2ptr(ptr2int(x))] ) --> ptr2int ( phi [ x ] )
+  // Make sure all uses of phi are ptr2int.
+  if (!all_of(PN.users(), [](User *U) { return isa<PtrToIntInst>(U); }))
+    return nullptr;
+
+  // Iterating over all operands to check presence of target pointers for
+  // optimization.
+  bool OperandWithRoundTripCast = false;
+  for (unsigned OpNum = 0; OpNum != PN.getNumIncomingValues(); ++OpNum) {
+    if (auto *NewOp =
+            simplifyIntToPtrRoundTripCast(PN.getIncomingValue(OpNum))) {
+      PN.setIncomingValue(OpNum, NewOp);
+      OperandWithRoundTripCast = true;
+    }
+  }
+  if (!OperandWithRoundTripCast)
+    return nullptr;
+  return &PN;
+}
+
 /// If we have something like phi [insertvalue(a,b,0), insertvalue(c,d,0)],
 /// turn this into a phi[a,c] and phi[b,d] and a single insertvalue.
 Instruction *
@@ -1119,7 +1142,7 @@ Instruction *InstCombinerImpl::SliceUpIllegalIntegerPHI(PHINode &FirstPhi) {
 
   // If we have no users, they must be all self uses, just nuke the PHI.
   if (PHIUsers.empty())
-    return replaceInstUsesWith(FirstPhi, UndefValue::get(FirstPhi.getType()));
+    return replaceInstUsesWith(FirstPhi, PoisonValue::get(FirstPhi.getType()));
 
   // If this phi node is transformable, create new PHIs for all the pieces
   // extracted out of it.  First, sort the users by their offset and size.
@@ -1218,11 +1241,11 @@ Instruction *InstCombinerImpl::SliceUpIllegalIntegerPHI(PHINode &FirstPhi) {
   }
 
   // Replace all the remaining uses of the PHI nodes (self uses and the lshrs)
-  // with undefs.
-  Value *Undef = UndefValue::get(FirstPhi.getType());
+  // with poison.
+  Value *Poison = PoisonValue::get(FirstPhi.getType());
   for (unsigned i = 1, e = PHIsToSlice.size(); i != e; ++i)
-    replaceInstUsesWith(*PHIsToSlice[i], Undef);
-  return replaceInstUsesWith(FirstPhi, Undef);
+    replaceInstUsesWith(*PHIsToSlice[i], Poison);
+  return replaceInstUsesWith(FirstPhi, Poison);
 }
 
 static Value *SimplifyUsingControlFlow(InstCombiner &Self, PHINode &PN,
@@ -1306,6 +1329,9 @@ Instruction *InstCombinerImpl::visitPHINode(PHINode &PN) {
   if (Instruction *Result = foldPHIArgZextsIntoPHI(PN))
     return Result;
 
+  if (Instruction *Result = foldPHIArgIntToPtrToPHI(PN))
+    return Result;
+
   // If all PHI operands are the same operation, pull them through the PHI,
   // reducing code size.
   if (isa<Instruction>(PN.getIncomingValue(0)) &&
@@ -1317,8 +1343,9 @@ Instruction *InstCombinerImpl::visitPHINode(PHINode &PN) {
       return Result;
 
   // If the incoming values are pointer casts of the same original value,
-  // replace the phi with a single cast.
-  if (PN.getType()->isPointerTy()) {
+  // replace the phi with a single cast iff we can insert a non-PHI instruction.
+  if (PN.getType()->isPointerTy() &&
+      PN.getParent()->getFirstInsertionPt() != PN.getParent()->end()) {
     Value *IV0 = PN.getIncomingValue(0);
     Value *IV0Stripped = IV0->stripPointerCasts();
     // Set to keep track of values known to be equal to IV0Stripped after
@@ -1346,7 +1373,7 @@ Instruction *InstCombinerImpl::visitPHINode(PHINode &PN) {
       SmallPtrSet<PHINode*, 16> PotentiallyDeadPHIs;
       PotentiallyDeadPHIs.insert(&PN);
       if (DeadPHICycle(PU, PotentiallyDeadPHIs))
-        return replaceInstUsesWith(PN, UndefValue::get(PN.getType()));
+        return replaceInstUsesWith(PN, PoisonValue::get(PN.getType()));
     }
 
     // If this phi has a single use, and if that use just computes a value for
@@ -1358,7 +1385,7 @@ Instruction *InstCombinerImpl::visitPHINode(PHINode &PN) {
     if (PHIUser->hasOneUse() &&
         (isa<BinaryOperator>(PHIUser) || isa<GetElementPtrInst>(PHIUser)) &&
         PHIUser->user_back() == &PN) {
-      return replaceInstUsesWith(PN, UndefValue::get(PN.getType()));
+      return replaceInstUsesWith(PN, PoisonValue::get(PN.getType()));
     }
     // When a PHI is used only to be compared with zero, it is safe to replace
     // an incoming value proved as known nonzero with any non-zero constant.

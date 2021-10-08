@@ -128,6 +128,24 @@ public:
   bool SelectAddrModeUnscaled128(SDValue N, SDValue &Base, SDValue &OffImm) {
     return SelectAddrModeUnscaled(N, 16, Base, OffImm);
   }
+  template <unsigned Size, unsigned Max>
+  bool SelectAddrModeIndexedUImm(SDValue N, SDValue &Base, SDValue &OffImm) {
+    // Test if there is an appropriate addressing mode and check if the
+    // immediate fits.
+    bool Found = SelectAddrModeIndexed(N, Size, Base, OffImm);
+    if (Found) {
+      if (auto *CI = dyn_cast<ConstantSDNode>(OffImm)) {
+        int64_t C = CI->getSExtValue();
+        if (C <= Max)
+          return true;
+      }
+    }
+
+    // Otherwise, base only, materialize address in register.
+    Base = N;
+    OffImm = CurDAG->getTargetConstant(0, SDLoc(N), MVT::i64);
+    return true;
+  }
 
   template<int Width>
   bool SelectAddrModeWRO(SDValue N, SDValue &Base, SDValue &Offset,
@@ -149,7 +167,7 @@ public:
     case ISD::SPLAT_VECTOR: {
       auto Opnd0 = N->getOperand(0);
       if (auto CN = dyn_cast<ConstantSDNode>(Opnd0))
-        if (CN->isNullValue())
+        if (CN->isZero())
           return true;
       if (auto CN = dyn_cast<ConstantFPSDNode>(Opnd0))
         if (CN->isZero())
@@ -169,7 +187,7 @@ public:
     case ISD::SPLAT_VECTOR: {
       auto Opnd0 = N->getOperand(0);
       if (auto CN = dyn_cast<ConstantSDNode>(Opnd0))
-        if (CN->isNullValue())
+        if (CN->isZero())
           return true;
       if (auto CN = dyn_cast<ConstantFPSDNode>(Opnd0))
         if (CN->isZero())
@@ -216,6 +234,22 @@ public:
 
     MulImm /= Scale;
     if ((MulImm >= Min) && (MulImm <= Max)) {
+      Imm = CurDAG->getTargetConstant(MulImm, SDLoc(N), MVT::i32);
+      return true;
+    }
+
+    return false;
+  }
+
+  template <signed Max, signed Scale>
+  bool SelectEXTImm(SDValue N, SDValue &Imm) {
+    if (!isa<ConstantSDNode>(N))
+      return false;
+
+    int64_t MulImm = cast<ConstantSDNode>(N)->getSExtValue();
+
+    if (MulImm >= 0 && MulImm <= Max) {
+      MulImm *= Scale;
       Imm = CurDAG->getTargetConstant(MulImm, SDLoc(N), MVT::i32);
       return true;
     }
@@ -819,7 +853,7 @@ static bool isWorthFoldingADDlow(SDValue N) {
 
     // ldar and stlr have much more restrictive addressing modes (just a
     // register).
-    if (isStrongerThanMonotonic(cast<MemSDNode>(Use)->getOrdering()))
+    if (isStrongerThanMonotonic(cast<MemSDNode>(Use)->getSuccessOrdering()))
       return false;
   }
 
@@ -2133,7 +2167,7 @@ static bool isBitfieldDstMask(uint64_t DstMask, const APInt &BitsToBeInserted,
   APInt SignificantBitsToBeInserted = BitsToBeInserted.zextOrTrunc(BitWidth);
 
   return (SignificantDstMask & SignificantBitsToBeInserted) == 0 &&
-         (SignificantDstMask | SignificantBitsToBeInserted).isAllOnesValue();
+         (SignificantDstMask | SignificantBitsToBeInserted).isAllOnes();
 }
 
 // Look for bits that will be useful for later uses.
@@ -2306,10 +2340,10 @@ static void getUsefulBitsForUse(SDNode *UserNode, APInt &UsefulBits,
 
   case AArch64::ORRWrs:
   case AArch64::ORRXrs:
-    if (UserNode->getOperand(1) != Orig)
-      return;
-    return getUsefulBitsFromOrWithShiftedReg(SDValue(UserNode, 0), UsefulBits,
-                                             Depth);
+    if (UserNode->getOperand(0) != Orig && UserNode->getOperand(1) == Orig)
+      getUsefulBitsFromOrWithShiftedReg(SDValue(UserNode, 0), UsefulBits,
+                                        Depth);
+    return;
   case AArch64::BFMWri:
   case AArch64::BFMXri:
     return getUsefulBitsFromBFM(SDValue(UserNode, 0), Orig, UsefulBits, Depth);
@@ -2918,6 +2952,7 @@ static int getIntOperandFromRegisterString(StringRef RegString) {
 
   assert(AllIntFields &&
           "Unexpected non-integer value in special register string.");
+  (void)AllIntFields;
 
   // Need to combine the integer fields of the string into a single value
   // based on the bit encoding of MRS/MSR instruction.
@@ -2930,8 +2965,8 @@ static int getIntOperandFromRegisterString(StringRef RegString) {
 // form described in getIntOperandsFromRegsterString) or is a named register
 // known by the MRS SysReg mapper.
 bool AArch64DAGToDAGISel::tryReadRegister(SDNode *N) {
-  const MDNodeSDNode *MD = dyn_cast<MDNodeSDNode>(N->getOperand(1));
-  const MDString *RegString = dyn_cast<MDString>(MD->getMD()->getOperand(0));
+  const auto *MD = cast<MDNodeSDNode>(N->getOperand(1));
+  const auto *RegString = cast<MDString>(MD->getMD()->getOperand(0));
   SDLoc DL(N);
 
   int Reg = getIntOperandFromRegisterString(RegString->getString());
@@ -2976,8 +3011,8 @@ bool AArch64DAGToDAGISel::tryReadRegister(SDNode *N) {
 // form described in getIntOperandsFromRegsterString) or is a named register
 // known by the MSR SysReg mapper.
 bool AArch64DAGToDAGISel::tryWriteRegister(SDNode *N) {
-  const MDNodeSDNode *MD = dyn_cast<MDNodeSDNode>(N->getOperand(1));
-  const MDString *RegString = dyn_cast<MDString>(MD->getMD()->getOperand(0));
+  const auto *MD = cast<MDNodeSDNode>(N->getOperand(1));
+  const auto *RegString = cast<MDString>(MD->getMD()->getOperand(0));
   SDLoc DL(N);
 
   int Reg = getIntOperandFromRegisterString(RegString->getString());
@@ -3117,7 +3152,6 @@ bool AArch64DAGToDAGISel::SelectSVEAddSubImm(SDValue N, MVT VT, SDValue &Imm, SD
         Imm = CurDAG->getTargetConstant(ImmVal, DL, MVT::i32);
         return true;
       } else if ((ImmVal & 0xFF) == 0) {
-        assert((ImmVal >= -32768) && (ImmVal <= 32512));
         Shift = CurDAG->getTargetConstant(8, DL, MVT::i32);
         Imm = CurDAG->getTargetConstant((ImmVal >> 8) & 0xFF, DL, MVT::i32);
         return true;
@@ -3486,7 +3520,7 @@ void AArch64DAGToDAGISel::Select(SDNode *Node) {
     // Materialize zero constants as copies from WZR/XZR.  This allows
     // the coalescer to propagate these into other instructions.
     ConstantSDNode *ConstNode = cast<ConstantSDNode>(Node);
-    if (ConstNode->isNullValue()) {
+    if (ConstNode->isZero()) {
       if (VT == MVT::i32) {
         SDValue New = CurDAG->getCopyFromReg(
             CurDAG->getEntryNode(), SDLoc(Node), AArch64::WZR, MVT::i32);
@@ -4996,6 +5030,24 @@ bool AArch64DAGToDAGISel::SelectSVERegRegAddrMode(SDValue N, unsigned Scale,
   if (Scale == 0) {
     Base = LHS;
     Offset = RHS;
+    return true;
+  }
+
+  if (auto C = dyn_cast<ConstantSDNode>(RHS)) {
+    int64_t ImmOff = C->getSExtValue();
+    unsigned Size = 1 << Scale;
+
+    // To use the reg+reg addressing mode, the immediate must be a multiple of
+    // the vector element's byte size.
+    if (ImmOff % Size)
+      return false;
+
+    SDLoc DL(N);
+    Base = LHS;
+    Offset = CurDAG->getTargetConstant(ImmOff >> Scale, DL, MVT::i64);
+    SDValue Ops[] = {Offset};
+    SDNode *MI = CurDAG->getMachineNode(AArch64::MOVi64imm, DL, MVT::i64, Ops);
+    Offset = SDValue(MI, 0);
     return true;
   }
 

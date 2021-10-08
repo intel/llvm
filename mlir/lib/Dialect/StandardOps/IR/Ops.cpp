@@ -10,7 +10,6 @@
 
 #include "mlir/Dialect/CommonFolders.h"
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -24,73 +23,19 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
+#include <numeric>
+
+#include "mlir/Dialect/StandardOps/IR/OpsDialect.cpp.inc"
 
 // Pull in all enum type definitions and utility function declarations.
 #include "mlir/Dialect/StandardOps/IR/OpsEnums.cpp.inc"
 
 using namespace mlir;
-
-/// Helper function to dispatch an OpFoldResult into either the `dynamicVec` if
-/// it is a Value or into `staticVec` if it is an IntegerAttr.
-/// In the case of a Value, a copy of the `sentinel` value is also pushed to
-/// `staticVec`. This is useful to extract mixed static and dynamic entries that
-/// come from an AttrSizedOperandSegments trait.
-static void dispatchIndexOpFoldResult(OpFoldResult ofr,
-                                      SmallVectorImpl<Value> &dynamicVec,
-                                      SmallVectorImpl<int64_t> &staticVec,
-                                      int64_t sentinel) {
-  if (auto v = ofr.dyn_cast<Value>()) {
-    dynamicVec.push_back(v);
-    staticVec.push_back(sentinel);
-    return;
-  }
-  APInt apInt = ofr.dyn_cast<Attribute>().cast<IntegerAttr>().getValue();
-  staticVec.push_back(apInt.getSExtValue());
-}
-
-static void dispatchIndexOpFoldResults(ArrayRef<OpFoldResult> ofrs,
-                                       SmallVectorImpl<Value> &dynamicVec,
-                                       SmallVectorImpl<int64_t> &staticVec,
-                                       int64_t sentinel) {
-  for (auto ofr : ofrs)
-    dispatchIndexOpFoldResult(ofr, dynamicVec, staticVec, sentinel);
-}
-
-/// If ofr is a constant integer, i.e., an IntegerAttr or a ConstantOp with an
-/// IntegerAttr, return the integer.
-llvm::Optional<int64_t> mlir::getConstantIntValue(OpFoldResult ofr) {
-  Attribute attr = ofr.dyn_cast<Attribute>();
-  // Note: isa+cast-like pattern allows writing the condition below as 1 line.
-  if (!attr && ofr.get<Value>().getDefiningOp<ConstantOp>())
-    attr = ofr.get<Value>().getDefiningOp<ConstantOp>().getValue();
-  if (auto intAttr = attr.dyn_cast_or_null<IntegerAttr>())
-    return intAttr.getValue().getSExtValue();
-  return llvm::None;
-}
-
-/// Return true if ofr and value are the same integer.
-/// Ignore integer bitwidth and type mismatch that come from the fact there is
-/// no IndexAttr and that IndexType has no bitwidth.
-bool mlir::isEqualConstantInt(OpFoldResult ofr, int64_t value) {
-  auto ofrValue = getConstantIntValue(ofr);
-  return ofrValue && *ofrValue == value;
-}
-
-/// Return true if ofr1 and ofr2 are the same integer constant attribute values
-/// or the same SSA value.
-/// Ignore integer bitwidth and type mismatch that come from the fact there is
-/// no IndexAttr and that IndexType has no bitwidth.
-bool mlir::isEqualConstantIntOrValue(OpFoldResult ofr1, OpFoldResult ofr2) {
-  auto cst1 = getConstantIntValue(ofr1), cst2 = getConstantIntValue(ofr2);
-  if (cst1 && cst2 && *cst1 == *cst2)
-    return true;
-  auto v1 = ofr1.dyn_cast<Value>(), v2 = ofr2.dyn_cast<Value>();
-  return v1 && v2 && v1 == v2;
-}
 
 //===----------------------------------------------------------------------===//
 // StandardOpsDialect Interfaces
@@ -160,9 +105,7 @@ static void printStandardUnaryOp(Operation *op, OpAsmPrinter &p) {
   assert(op->getNumOperands() == 1 && "unary op should have one operand");
   assert(op->getNumResults() == 1 && "unary op should have one result");
 
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' '
-    << op->getOperand(0);
+  p << ' ' << op->getOperand(0);
   p.printOptionalAttrDict(op->getAttrs());
   p << " : " << op->getOperand(0).getType();
 }
@@ -182,9 +125,7 @@ static void printStandardBinaryOp(Operation *op, OpAsmPrinter &p) {
     return;
   }
 
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' '
-    << op->getOperand(0) << ", " << op->getOperand(1);
+  p << ' ' << op->getOperand(0) << ", " << op->getOperand(1);
   p.printOptionalAttrDict(op->getAttrs());
 
   // Now we can output only one type for all operands and the result.
@@ -207,9 +148,7 @@ static void printStandardTernaryOp(Operation *op, OpAsmPrinter &p) {
     return;
   }
 
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' '
-    << op->getOperand(0) << ", " << op->getOperand(1) << ", "
+  p << ' ' << op->getOperand(0) << ", " << op->getOperand(1) << ", "
     << op->getOperand(2);
   p.printOptionalAttrDict(op->getAttrs());
 
@@ -220,14 +159,11 @@ static void printStandardTernaryOp(Operation *op, OpAsmPrinter &p) {
 /// A custom cast operation printer that omits the "std." prefix from the
 /// operation names.
 static void printStandardCastOp(Operation *op, OpAsmPrinter &p) {
-  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
-  p << op->getName().getStringRef().drop_front(stdDotLen) << ' '
-    << op->getOperand(0) << " : " << op->getOperand(0).getType() << " to "
-    << op->getResult(0).getType();
+  p << ' ' << op->getOperand(0) << " : " << op->getOperand(0).getType()
+    << " to " << op->getResult(0).getType();
 }
 
 void StandardOpsDialect::initialize() {
-  getContext()->loadDialect<tensor::TensorDialect>();
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/StandardOps/IR/Ops.cpp.inc"
@@ -284,14 +220,6 @@ OpFoldResult AddIOp::fold(ArrayRef<Attribute> operands) {
 
   return constFoldBinaryOp<IntegerAttr>(operands,
                                         [](APInt a, APInt b) { return a + b; });
-}
-
-/// Extract int64_t values from the assumed ArrayAttr of IntegerAttr.
-static SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr) {
-  return llvm::to_vector<4>(
-      llvm::map_range(attr.cast<ArrayAttr>(), [](Attribute a) -> int64_t {
-        return a.cast<IntegerAttr>().getInt();
-      }));
 }
 
 /// Canonicalize a sum of a constant and (constant - something) to simply be
@@ -360,8 +288,7 @@ OpFoldResult AndOp::fold(ArrayRef<Attribute> operands) {
     return rhs();
   /// and(x, allOnes) -> x
   APInt intValue;
-  if (matchPattern(rhs(), m_ConstantInt(&intValue)) &&
-      intValue.isAllOnesValue())
+  if (matchPattern(rhs(), m_ConstantInt(&intValue)) && intValue.isAllOnes())
     return lhs();
   /// and(x,x) -> x
   if (lhs() == rhs())
@@ -423,9 +350,32 @@ static LogicalResult verify(AtomicRMWOp op) {
 Attribute mlir::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
                                      OpBuilder &builder, Location loc) {
   switch (kind) {
+  case AtomicRMWKind::maxf:
+    return builder.getFloatAttr(
+        resultType,
+        APFloat::getInf(resultType.cast<FloatType>().getFloatSemantics(),
+                        /*Negative=*/true));
   case AtomicRMWKind::addf:
   case AtomicRMWKind::addi:
+  case AtomicRMWKind::maxu:
     return builder.getZeroAttr(resultType);
+  case AtomicRMWKind::maxs:
+    return builder.getIntegerAttr(
+        resultType,
+        APInt::getSignedMinValue(resultType.cast<IntegerType>().getWidth()));
+  case AtomicRMWKind::minf:
+    return builder.getFloatAttr(
+        resultType,
+        APFloat::getInf(resultType.cast<FloatType>().getFloatSemantics(),
+                        /*Negative=*/false));
+  case AtomicRMWKind::mins:
+    return builder.getIntegerAttr(
+        resultType,
+        APInt::getSignedMaxValue(resultType.cast<IntegerType>().getWidth()));
+  case AtomicRMWKind::minu:
+    return builder.getIntegerAttr(
+        resultType,
+        APInt::getMaxValue(resultType.cast<IntegerType>().getWidth()));
   case AtomicRMWKind::muli:
     return builder.getIntegerAttr(resultType, 1);
   case AtomicRMWKind::mulf:
@@ -458,6 +408,30 @@ Value mlir::getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
     return builder.create<MulFOp>(loc, lhs, rhs);
   case AtomicRMWKind::muli:
     return builder.create<MulIOp>(loc, lhs, rhs);
+  case AtomicRMWKind::maxf:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpFOp>(loc, CmpFPredicate::OGT, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::minf:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpFOp>(loc, CmpFPredicate::OLT, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::maxs:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpIOp>(loc, CmpIPredicate::sgt, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::mins:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpIOp>(loc, CmpIPredicate::slt, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::maxu:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpIOp>(loc, CmpIPredicate::ugt, lhs, rhs), lhs,
+        rhs);
+  case AtomicRMWKind::minu:
+    return builder.create<SelectOp>(
+        loc, builder.create<CmpIOp>(loc, CmpIPredicate::ult, lhs, rhs), lhs,
+        rhs);
   // TODO: Add remaining reduction operations.
   default:
     (void)emitOptionalError(loc, "Reduction operation type not supported");
@@ -529,7 +503,7 @@ static ParseResult parseGenericAtomicRMWOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, GenericAtomicRMWOp op) {
-  p << op.getOperationName() << ' ' << op.memref() << "[" << op.indices()
+  p << ' ' << op.memref() << "[" << op.indices()
     << "] : " << op.memref().getType();
   p.printRegion(op.body());
   p.printOptionalAttrDict(op->getAttrs());
@@ -546,6 +520,54 @@ static LogicalResult verify(AtomicYieldOp op) {
     return op.emitOpError() << "types mismatch between yield op: " << resultType
                             << " and its parent: " << parentType;
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// BitcastOp
+//===----------------------------------------------------------------------===//
+
+bool BitcastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
+  assert(inputs.size() == 1 && outputs.size() == 1 &&
+         "bitcast op expects one operand and result");
+  Type a = inputs.front(), b = outputs.front();
+  if (a.isSignlessIntOrFloat() && b.isSignlessIntOrFloat())
+    return a.getIntOrFloatBitWidth() == b.getIntOrFloatBitWidth();
+  return areVectorCastSimpleCompatible(a, b, areCastCompatible);
+}
+
+OpFoldResult BitcastOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 1 && "bitcastop expects 1 operand");
+
+  // Bitcast of bitcast
+  auto *sourceOp = getOperand().getDefiningOp();
+  if (auto sourceBitcast = dyn_cast_or_null<BitcastOp>(sourceOp)) {
+    setOperand(sourceBitcast.getOperand());
+    return getResult();
+  }
+
+  auto operand = operands[0];
+  if (!operand)
+    return {};
+
+  Type resType = getResult().getType();
+
+  if (auto denseAttr = operand.dyn_cast<DenseElementsAttr>())
+    return denseAttr.bitcast(resType.cast<ShapedType>().getElementType());
+
+  APInt bits;
+  if (auto floatAttr = operand.dyn_cast<FloatAttr>())
+    bits = floatAttr.getValue().bitcastToAPInt();
+  else if (auto intAttr = operand.dyn_cast<IntegerAttr>())
+    bits = intAttr.getValue();
+  else
+    return {};
+
+  if (resType.isa<IntegerType>())
+    return IntegerAttr::get(resType, bits);
+  if (auto resFloatType = resType.dyn_cast<FloatType>())
+    return FloatAttr::get(resType,
+                          APFloat(resFloatType.getFloatSemantics(), bits));
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
@@ -688,8 +710,12 @@ LogicalResult CallOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
     return emitOpError("incorrect number of results for callee");
 
   for (unsigned i = 0, e = fnType.getNumResults(); i != e; ++i)
-    if (getResult(i).getType() != fnType.getResult(i))
-      return emitOpError("result type mismatch");
+    if (getResult(i).getType() != fnType.getResult(i)) {
+      auto diag = emitOpError("result type mismatch at index ") << i;
+      diag.attachNote() << "      op result types: " << getResultTypes();
+      diag.attachNote() << "function result types: " << fnType.getResults();
+      return diag;
+    }
 
   return success();
 }
@@ -1145,7 +1171,7 @@ Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
 //===----------------------------------------------------------------------===//
 
 static void print(OpAsmPrinter &p, ConstantOp &op) {
-  p << "constant ";
+  p << " ";
   p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{"value"});
 
   if (op->getAttrs().size() > 1)
@@ -1419,6 +1445,27 @@ bool FPTruncOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   return areVectorCastSimpleCompatible(a, b, areCastCompatible);
 }
 
+/// Perform safe const propagation for fptrunc, i.e. only propagate
+/// if FP value can be represented without precision loss or rounding.
+OpFoldResult FPTruncOp::fold(ArrayRef<Attribute> operands) {
+  assert(operands.size() == 1 && "unary operation takes one operand");
+
+  auto constOperand = operands.front();
+  if (!constOperand || !constOperand.isa<FloatAttr>())
+    return {};
+
+  // Convert to target type via 'double'.
+  double sourceValue =
+      constOperand.dyn_cast<FloatAttr>().getValue().convertToDouble();
+  auto targetAttr = FloatAttr::get(getType(), sourceValue);
+
+  // Propagate if constant's value does not change after truncation.
+  if (sourceValue == targetAttr.getValue().convertToDouble())
+    return targetAttr;
+
+  return {};
+}
+
 //===----------------------------------------------------------------------===//
 // IndexCastOp
 //===----------------------------------------------------------------------===//
@@ -1564,6 +1611,37 @@ static LogicalResult verify(ReturnOp op) {
 // SelectOp
 //===----------------------------------------------------------------------===//
 
+// Transforms a select to a not, where relevant.
+//
+//  select %arg, %false, %true
+//
+//  becomes
+//
+//  xor %arg, %true
+struct SelectToNot : public OpRewritePattern<SelectOp> {
+  using OpRewritePattern<SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!matchPattern(op.getTrueValue(), m_Zero()))
+      return failure();
+
+    if (!matchPattern(op.getFalseValue(), m_One()))
+      return failure();
+
+    if (!op.getType().isInteger(1))
+      return failure();
+
+    rewriter.replaceOpWithNewOp<XOrOp>(op, op.condition(), op.getFalseValue());
+    return success();
+  }
+};
+
+void SelectOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                           MLIRContext *context) {
+  results.insert<SelectToNot>(context);
+}
+
 OpFoldResult SelectOp::fold(ArrayRef<Attribute> operands) {
   auto trueVal = getTrueValue();
   auto falseVal = getFalseValue();
@@ -1601,7 +1679,7 @@ OpFoldResult SelectOp::fold(ArrayRef<Attribute> operands) {
 }
 
 static void print(OpAsmPrinter &p, SelectOp op) {
-  p << "select " << op.getOperands();
+  p << " " << op.getOperands();
   p.printOptionalAttrDict(op->getAttrs());
   p << " : ";
   if (ShapedType condType = op.getCondition().getType().dyn_cast<ShapedType>())
@@ -1742,7 +1820,7 @@ OpFoldResult SignedFloorDivIOp::fold(ArrayRef<Attribute> operands) {
       return a;
     }
     unsigned bits = a.getBitWidth();
-    APInt zero = APInt::getNullValue(bits);
+    APInt zero = APInt::getZero(bits);
     if (a.sge(zero) && b.sgt(zero)) {
       // Both positive (or a is zero), return a / b.
       return a.sdiv_ov(b, overflowOrDiv0);
@@ -1792,7 +1870,7 @@ OpFoldResult SignedCeilDivIOp::fold(ArrayRef<Attribute> operands) {
       return a;
     }
     unsigned bits = a.getBitWidth();
-    APInt zero = APInt::getNullValue(bits);
+    APInt zero = APInt::getZero(bits);
     if (a.sgt(zero) && b.sgt(zero)) {
       // Both positive, return ceil(a, b).
       return signedCeilNonnegInputs(a, b, overflowOrDiv0);
@@ -2083,499 +2161,6 @@ bool UIToFPOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
 }
 
 //===----------------------------------------------------------------------===//
-// SubTensorOp
-//===----------------------------------------------------------------------===//
-
-/// A subtensor result type can be fully inferred from the source type and the
-/// static representation of offsets, sizes and strides. Special sentinels
-/// encode the dynamic case.
-Type SubTensorOp::inferResultType(RankedTensorType sourceRankedTensorType,
-                                  ArrayRef<int64_t> leadingStaticOffsets,
-                                  ArrayRef<int64_t> leadingStaticSizes,
-                                  ArrayRef<int64_t> leadingStaticStrides) {
-  // A subtensor may specify only a leading subset of offset/sizes/strides in
-  // which case we complete with offset=0, sizes from memref type and strides=1.
-  unsigned rank = sourceRankedTensorType.getRank();
-  assert(leadingStaticSizes.size() <= rank &&
-         "unexpected leadingStaticSizes overflow");
-  auto staticSizes = llvm::to_vector<4>(leadingStaticSizes);
-  unsigned numTrailingSizes = rank - staticSizes.size();
-  llvm::append_range(staticSizes, sourceRankedTensorType.getShape().take_back(
-                                      numTrailingSizes));
-  return RankedTensorType::get(staticSizes,
-                               sourceRankedTensorType.getElementType());
-}
-
-Type SubTensorOp::inferResultType(RankedTensorType sourceRankedTensorType,
-                                  ArrayRef<OpFoldResult> leadingStaticOffsets,
-                                  ArrayRef<OpFoldResult> leadingStaticSizes,
-                                  ArrayRef<OpFoldResult> leadingStaticStrides) {
-  SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
-  SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(leadingStaticOffsets, dynamicOffsets,
-                             staticOffsets, ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(leadingStaticSizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(leadingStaticStrides, dynamicStrides,
-                             staticStrides, ShapedType::kDynamicStrideOrOffset);
-  return SubTensorOp::inferResultType(sourceRankedTensorType, staticOffsets,
-                                      staticSizes, staticStrides);
-}
-
-/// A subtensor result type can be fully inferred from the source type and the
-/// static representation of offsets, sizes and strides. Special sentinels
-/// encode the dynamic case.
-Type SubTensorOp::inferRankReducedResultType(
-    unsigned resultRank, RankedTensorType sourceRankedTensorType,
-    ArrayRef<int64_t> leadingStaticOffsets,
-    ArrayRef<int64_t> leadingStaticSizes,
-    ArrayRef<int64_t> leadingStaticStrides) {
-  auto inferredType =
-      inferResultType(sourceRankedTensorType, leadingStaticOffsets,
-                      leadingStaticSizes, leadingStaticStrides)
-          .cast<RankedTensorType>();
-  int rankDiff = inferredType.getRank() - resultRank;
-  if (rankDiff > 0) {
-    auto shape = inferredType.getShape();
-    llvm::SmallDenseSet<unsigned> dimsToProject;
-    mlir::getPositionsOfShapeOne(rankDiff, shape, dimsToProject);
-    SmallVector<int64_t> projectedShape;
-    for (unsigned pos = 0, e = shape.size(); pos < e; ++pos)
-      if (!dimsToProject.contains(pos))
-        projectedShape.push_back(shape[pos]);
-    inferredType =
-        RankedTensorType::get(projectedShape, inferredType.getElementType());
-  }
-  return inferredType;
-}
-
-Type SubTensorOp::inferRankReducedResultType(
-    unsigned resultRank, RankedTensorType sourceRankedTensorType,
-    ArrayRef<OpFoldResult> leadingStaticOffsets,
-    ArrayRef<OpFoldResult> leadingStaticSizes,
-    ArrayRef<OpFoldResult> leadingStaticStrides) {
-  SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
-  SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(leadingStaticOffsets, dynamicOffsets,
-                             staticOffsets, ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(leadingStaticSizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(leadingStaticStrides, dynamicStrides,
-                             staticStrides, ShapedType::kDynamicStrideOrOffset);
-  return SubTensorOp::inferRankReducedResultType(
-      resultRank, sourceRankedTensorType, staticOffsets, staticSizes,
-      staticStrides);
-}
-
-// Build a SubTensorOp with mixed static and dynamic entries and custom result
-// type. If the type passed is nullptr, it is inferred.
-void mlir::SubTensorOp::build(OpBuilder &b, OperationState &result,
-                              RankedTensorType resultType, Value source,
-                              ArrayRef<OpFoldResult> offsets,
-                              ArrayRef<OpFoldResult> sizes,
-                              ArrayRef<OpFoldResult> strides,
-                              ArrayRef<NamedAttribute> attrs) {
-  SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
-  SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamicStrideOrOffset);
-  auto sourceRankedTensorType = source.getType().cast<RankedTensorType>();
-  // Structuring implementation this way avoids duplication between builders.
-  if (!resultType) {
-    resultType =
-        SubTensorOp::inferResultType(sourceRankedTensorType, staticOffsets,
-                                     staticSizes, staticStrides)
-            .cast<RankedTensorType>();
-  }
-  build(b, result, resultType, source, dynamicOffsets, dynamicSizes,
-        dynamicStrides, b.getI64ArrayAttr(staticOffsets),
-        b.getI64ArrayAttr(staticSizes), b.getI64ArrayAttr(staticStrides));
-  result.addAttributes(attrs);
-}
-
-// Build a SubTensorOp with mixed static and dynamic entries and inferred result
-// type.
-void mlir::SubTensorOp::build(OpBuilder &b, OperationState &result,
-                              Value source, ArrayRef<OpFoldResult> offsets,
-                              ArrayRef<OpFoldResult> sizes,
-                              ArrayRef<OpFoldResult> strides,
-                              ArrayRef<NamedAttribute> attrs) {
-  build(b, result, RankedTensorType(), source, offsets, sizes, strides, attrs);
-}
-
-// Build a SubTensorOp with dynamic entries and custom result type. If the type
-// passed is nullptr, it is inferred.
-void mlir::SubTensorOp::build(OpBuilder &b, OperationState &result,
-                              RankedTensorType resultType, Value source,
-                              ValueRange offsets, ValueRange sizes,
-                              ValueRange strides,
-                              ArrayRef<NamedAttribute> attrs) {
-  SmallVector<OpFoldResult> offsetValues = llvm::to_vector<4>(
-      llvm::map_range(offsets, [](Value v) -> OpFoldResult { return v; }));
-  SmallVector<OpFoldResult> sizeValues = llvm::to_vector<4>(
-      llvm::map_range(sizes, [](Value v) -> OpFoldResult { return v; }));
-  SmallVector<OpFoldResult> strideValues = llvm::to_vector<4>(
-      llvm::map_range(strides, [](Value v) -> OpFoldResult { return v; }));
-  build(b, result, resultType, source, offsetValues, sizeValues, strideValues);
-}
-
-// Build a SubTensorOp with dynamic entries and inferred result type.
-void mlir::SubTensorOp::build(OpBuilder &b, OperationState &result,
-                              Value source, ValueRange offsets,
-                              ValueRange sizes, ValueRange strides,
-                              ArrayRef<NamedAttribute> attrs) {
-  build(b, result, RankedTensorType(), source, offsets, sizes, strides, attrs);
-}
-
-enum SubTensorVerificationResult {
-  Success,
-  RankTooLarge,
-  SizeMismatch,
-  ElemTypeMismatch,
-};
-
-/// Checks if `original` Type type can be rank reduced to `reduced` type.
-/// This function is slight variant of `is subsequence` algorithm where
-/// not matching dimension must be 1.
-static SubTensorVerificationResult
-isRankReducedType(Type originalType, Type candidateReducedType,
-                  std::string *errMsg = nullptr) {
-  if (originalType == candidateReducedType)
-    return SubTensorVerificationResult::Success;
-  if (!originalType.isa<RankedTensorType>())
-    return SubTensorVerificationResult::Success;
-  if (originalType.isa<RankedTensorType>() &&
-      !candidateReducedType.isa<RankedTensorType>())
-    return SubTensorVerificationResult::Success;
-
-  ShapedType originalShapedType = originalType.cast<ShapedType>();
-  ShapedType candidateReducedShapedType =
-      candidateReducedType.cast<ShapedType>();
-
-  // Rank and size logic is valid for all ShapedTypes.
-  ArrayRef<int64_t> originalShape = originalShapedType.getShape();
-  ArrayRef<int64_t> candidateReducedShape =
-      candidateReducedShapedType.getShape();
-  unsigned originalRank = originalShape.size(),
-           candidateReducedRank = candidateReducedShape.size();
-  if (candidateReducedRank > originalRank)
-    return SubTensorVerificationResult::RankTooLarge;
-
-  auto optionalUnusedDimsMask =
-      computeRankReductionMask(originalShape, candidateReducedShape);
-
-  // Sizes cannot be matched in case empty vector is returned.
-  if (!optionalUnusedDimsMask.hasValue())
-    return SubTensorVerificationResult::SizeMismatch;
-
-  if (originalShapedType.getElementType() !=
-      candidateReducedShapedType.getElementType())
-    return SubTensorVerificationResult::ElemTypeMismatch;
-
-  // We are done for the tensor case.
-  if (originalType.isa<RankedTensorType>())
-    return SubTensorVerificationResult::Success;
-
-  return SubTensorVerificationResult::Success;
-}
-
-template <typename OpTy>
-static LogicalResult
-produceSubTensorErrorMsg(SubTensorVerificationResult result, OpTy op,
-                         Type expectedType, StringRef errMsg = "") {
-  auto memrefType = expectedType.cast<ShapedType>();
-  switch (result) {
-  case SubTensorVerificationResult::Success:
-    return success();
-  case SubTensorVerificationResult::RankTooLarge:
-    return op.emitError("expected result rank to be smaller or equal to ")
-           << "the source rank. " << errMsg;
-  case SubTensorVerificationResult::SizeMismatch:
-    return op.emitError("expected result type to be ")
-           << expectedType
-           << " or a rank-reduced version. (mismatch of result sizes) "
-           << errMsg;
-  case SubTensorVerificationResult::ElemTypeMismatch:
-    return op.emitError("expected result element type to be ")
-           << memrefType.getElementType() << errMsg;
-  }
-  llvm_unreachable("unexpected subtensor verification result");
-}
-/// Verifier for SubTensorOp.
-static LogicalResult verify(SubTensorOp op) {
-  // Verify result type against inferred type.
-  auto expectedType = SubTensorOp::inferResultType(
-      op.getSourceType(), extractFromI64ArrayAttr(op.static_offsets()),
-      extractFromI64ArrayAttr(op.static_sizes()),
-      extractFromI64ArrayAttr(op.static_strides()));
-  auto result = isRankReducedType(expectedType, op.getType());
-  return produceSubTensorErrorMsg(result, op, expectedType);
-}
-
-/// Infer the canonical type of the result of a subtensor operation. Returns a
-/// type with rank `resultRank` that is either the rank of the rank-reduced
-/// type, or the non-rank-reduced type.
-static RankedTensorType getCanonicalSubTensorResultType(
-    unsigned resultRank, RankedTensorType sourceType,
-    ArrayRef<OpFoldResult> mixedOffsets, ArrayRef<OpFoldResult> mixedSizes,
-    ArrayRef<OpFoldResult> mixedStrides) {
-  auto resultType =
-      SubTensorOp::inferRankReducedResultType(
-          resultRank, sourceType, mixedOffsets, mixedSizes, mixedStrides)
-          .cast<RankedTensorType>();
-  if (resultType.getRank() != resultRank) {
-    resultType = SubTensorOp::inferResultType(sourceType, mixedOffsets,
-                                              mixedSizes, mixedStrides)
-                     .cast<RankedTensorType>();
-  }
-  return resultType;
-}
-
-namespace {
-/// Pattern to rewrite a subtensor op with tensor::Cast arguments.
-/// This essentially pushes memref_cast past its consuming subtensor when
-/// `canFoldIntoConsumerOp` is true.
-///
-/// Example:
-/// ```
-///   %0 = tensorcast %V : tensor<16x16xf32> to tensor<?x?xf32>
-///   %1 = subtensor %0[0, 0][3, 4][1, 1] : tensor<?x?xf32> to tensor<3x4xf32>
-/// ```
-/// is rewritten into:
-/// ```
-///   %0 = subtensor %V[0, 0][3, 4][1, 1] : tensor<16x16xf32> to tensor<3x4xf32>
-///   %1 = tensor.cast %0: tensor<3x4xf32> to tensor<3x4xf32>
-/// ```
-class SubTensorOpCastFolder final : public OpRewritePattern<SubTensorOp> {
-public:
-  using OpRewritePattern<SubTensorOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SubTensorOp subTensorOp,
-                                PatternRewriter &rewriter) const override {
-    // Any constant operand, just return to let SubViewOpConstantFolder kick in.
-    if (llvm::any_of(subTensorOp.getOperands(), [](Value operand) {
-          return matchPattern(operand, matchConstantIndex());
-        }))
-      return failure();
-
-    auto castOp = subTensorOp.source().getDefiningOp<tensor::CastOp>();
-    if (!castOp)
-      return failure();
-
-    if (!canFoldIntoConsumerOp(castOp))
-      return failure();
-
-    /// Deduce the type of the result to use for the canonicalized operation.
-    RankedTensorType resultType = getCanonicalSubTensorResultType(
-        subTensorOp.getType().getRank(), subTensorOp.getSourceType(),
-        subTensorOp.getMixedOffsets(), subTensorOp.getMixedSizes(),
-        subTensorOp.getMixedStrides());
-    Value newSubTensor = rewriter.create<SubTensorOp>(
-        subTensorOp.getLoc(), resultType, castOp.source(),
-        subTensorOp.offsets(), subTensorOp.sizes(), subTensorOp.strides(),
-        subTensorOp.static_offsets(), subTensorOp.static_sizes(),
-        subTensorOp.static_strides());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
-        subTensorOp, subTensorOp.getType(), newSubTensor);
-    return success();
-  }
-};
-} // namespace
-
-/// Return the canonical type of the result of a subtensor.
-struct SubTensorReturnTypeCanonicalizer {
-  RankedTensorType operator()(SubTensorOp op,
-                              ArrayRef<OpFoldResult> mixedOffsets,
-                              ArrayRef<OpFoldResult> mixedSizes,
-                              ArrayRef<OpFoldResult> mixedStrides) {
-    return getCanonicalSubTensorResultType(op.getType().getRank(),
-                                           op.getSourceType(), mixedOffsets,
-                                           mixedSizes, mixedStrides);
-  }
-};
-
-/// A canonicalizer wrapper to replace SubTensorOps.
-struct SubTensorCanonicalizer {
-  void operator()(PatternRewriter &rewriter, SubTensorOp op,
-                  SubTensorOp newOp) {
-    Value replacement = newOp.getResult();
-    if (replacement.getType() != op.getType())
-      replacement = rewriter.create<tensor::CastOp>(op.getLoc(), op.getType(),
-                                                    replacement);
-    rewriter.replaceOp(op, replacement);
-  }
-};
-
-void SubTensorOp::getCanonicalizationPatterns(RewritePatternSet &results,
-                                              MLIRContext *context) {
-  results.add<OpWithOffsetSizesAndStridesConstantArgumentFolder<
-                  SubTensorOp, SubTensorReturnTypeCanonicalizer,
-                  SubTensorCanonicalizer>,
-              SubTensorOpCastFolder>(context);
-}
-
-//
-static LogicalResult
-foldIdentityOffsetSizeAndStrideOpInterface(OffsetSizeAndStrideOpInterface op,
-                                           ShapedType shapedType) {
-  OpBuilder b(op.getContext());
-  for (OpFoldResult ofr : op.getMixedOffsets())
-    if (!isEqualConstantIntOrValue(ofr, b.getIndexAttr(0)))
-      return failure();
-  // Rank-reducing noops only need to inspect the leading dimensions: llvm::zip
-  // is appropriate.
-  auto shape = shapedType.getShape();
-  for (auto it : llvm::zip(op.getMixedSizes(), shape))
-    if (!isEqualConstantIntOrValue(std::get<0>(it),
-                                   b.getIndexAttr(std::get<1>(it))))
-      return failure();
-  for (OpFoldResult ofr : op.getMixedStrides())
-    if (!isEqualConstantIntOrValue(ofr, b.getIndexAttr(1)))
-      return failure();
-  return success();
-}
-
-OpFoldResult SubTensorOp::fold(ArrayRef<Attribute>) {
-  if (getSourceType() == getType() &&
-      succeeded(foldIdentityOffsetSizeAndStrideOpInterface(*this, getType())))
-    return this->source();
-  return OpFoldResult();
-}
-
-//===----------------------------------------------------------------------===//
-// SubTensorInsertOp
-//===----------------------------------------------------------------------===//
-
-// Build a SubTensorInsertOp with mixed static and dynamic entries.
-void mlir::SubTensorInsertOp::build(OpBuilder &b, OperationState &result,
-                                    Value source, Value dest,
-                                    ArrayRef<OpFoldResult> offsets,
-                                    ArrayRef<OpFoldResult> sizes,
-                                    ArrayRef<OpFoldResult> strides,
-                                    ArrayRef<NamedAttribute> attrs) {
-  SmallVector<int64_t> staticOffsets, staticSizes, staticStrides;
-  SmallVector<Value> dynamicOffsets, dynamicSizes, dynamicStrides;
-  dispatchIndexOpFoldResults(offsets, dynamicOffsets, staticOffsets,
-                             ShapedType::kDynamicStrideOrOffset);
-  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
-                             ShapedType::kDynamicSize);
-  dispatchIndexOpFoldResults(strides, dynamicStrides, staticStrides,
-                             ShapedType::kDynamicStrideOrOffset);
-  build(b, result, dest.getType(), source, dest, dynamicOffsets, dynamicSizes,
-        dynamicStrides, b.getI64ArrayAttr(staticOffsets),
-        b.getI64ArrayAttr(staticSizes), b.getI64ArrayAttr(staticStrides));
-  result.addAttributes(attrs);
-}
-
-// Build a SubTensorInsertOp with dynamic entries.
-void mlir::SubTensorInsertOp::build(OpBuilder &b, OperationState &result,
-                                    Value source, Value dest,
-                                    ValueRange offsets, ValueRange sizes,
-                                    ValueRange strides,
-                                    ArrayRef<NamedAttribute> attrs) {
-  SmallVector<OpFoldResult> offsetValues = llvm::to_vector<4>(
-      llvm::map_range(offsets, [](Value v) -> OpFoldResult { return v; }));
-  SmallVector<OpFoldResult> sizeValues = llvm::to_vector<4>(
-      llvm::map_range(sizes, [](Value v) -> OpFoldResult { return v; }));
-  SmallVector<OpFoldResult> strideValues = llvm::to_vector<4>(
-      llvm::map_range(strides, [](Value v) -> OpFoldResult { return v; }));
-  build(b, result, source, dest, offsetValues, sizeValues, strideValues);
-}
-
-OpFoldResult SubTensorInsertOp::fold(ArrayRef<Attribute>) {
-  if (getSourceType().hasStaticShape() && getType().hasStaticShape() &&
-      getSourceType() == getType() &&
-      succeeded(foldIdentityOffsetSizeAndStrideOpInterface(*this, getType())))
-    return this->source();
-  return OpFoldResult();
-}
-
-namespace {
-/// Pattern to rewrite a subtensor_insert op with constant arguments.
-class SubTensorInsertOpConstantArgumentFolder final
-    : public OpRewritePattern<SubTensorInsertOp> {
-public:
-  using OpRewritePattern<SubTensorInsertOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SubTensorInsertOp subTensorInsertOp,
-                                PatternRewriter &rewriter) const override {
-    // No constant operand, just return.
-    if (llvm::none_of(subTensorInsertOp.getOperands(), [](Value operand) {
-          return matchPattern(operand, matchConstantIndex());
-        }))
-      return failure();
-
-    // At least one of offsets/sizes/strides is a new constant.
-    // Form the new list of operands and constant attributes from the
-    // existing.
-    SmallVector<OpFoldResult> mixedOffsets(subTensorInsertOp.getMixedOffsets());
-    SmallVector<OpFoldResult> mixedSizes(subTensorInsertOp.getMixedSizes());
-    SmallVector<OpFoldResult> mixedStrides(subTensorInsertOp.getMixedStrides());
-    canonicalizeSubViewPart(mixedOffsets, ShapedType::isDynamicStrideOrOffset);
-    canonicalizeSubViewPart(mixedSizes, ShapedType::isDynamic);
-    canonicalizeSubViewPart(mixedStrides, ShapedType::isDynamicStrideOrOffset);
-
-    // Create the new op in canonical form.
-    rewriter.replaceOpWithNewOp<SubTensorInsertOp>(
-        subTensorInsertOp, subTensorInsertOp.source(), subTensorInsertOp.dest(),
-        mixedOffsets, mixedSizes, mixedStrides);
-    return success();
-  }
-};
-
-/// Fold tensor_casts with subtensor_insert operations.
-struct SubTensorInsertOpCastFolder final
-    : public OpRewritePattern<SubTensorInsertOp> {
-  using OpRewritePattern<SubTensorInsertOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SubTensorInsertOp subTensorInsertOp,
-                                PatternRewriter &rewriter) const override {
-    if (llvm::any_of(subTensorInsertOp.getOperands(), [](Value operand) {
-          return matchPattern(operand, matchConstantIndex());
-        }))
-      return failure();
-
-    auto getSourceOfCastOp = [](Value v) -> Optional<Value> {
-      auto castOp = v.getDefiningOp<tensor::CastOp>();
-      if (!castOp || !canFoldIntoConsumerOp(castOp))
-        return llvm::None;
-      return castOp.source();
-    };
-    Optional<Value> sourceCastSource =
-        getSourceOfCastOp(subTensorInsertOp.source());
-    Optional<Value> destCastSource =
-        getSourceOfCastOp(subTensorInsertOp.dest());
-    if (!sourceCastSource && !destCastSource)
-      return failure();
-
-    Value replacement = rewriter.create<SubTensorInsertOp>(
-        subTensorInsertOp.getLoc(),
-        (sourceCastSource ? *sourceCastSource : subTensorInsertOp.source()),
-        (destCastSource ? *destCastSource : subTensorInsertOp.dest()),
-        subTensorInsertOp.getMixedOffsets(), subTensorInsertOp.getMixedSizes(),
-        subTensorInsertOp.getMixedStrides());
-
-    if (replacement.getType() != subTensorInsertOp.getType()) {
-      replacement = rewriter.create<tensor::CastOp>(
-          subTensorInsertOp.getLoc(), subTensorInsertOp.getType(), replacement);
-    }
-    rewriter.replaceOp(subTensorInsertOp, replacement);
-    return success();
-  }
-};
-} // namespace
-
-void SubTensorInsertOp::getCanonicalizationPatterns(RewritePatternSet &results,
-                                                    MLIRContext *context) {
-  results.add<SubTensorInsertOpConstantArgumentFolder,
-              SubTensorInsertOpCastFolder>(context);
-}
-
-//===----------------------------------------------------------------------===//
 // SwitchOp
 //===----------------------------------------------------------------------===//
 
@@ -2584,21 +2169,8 @@ void SwitchOp::build(OpBuilder &builder, OperationState &result, Value value,
                      DenseIntElementsAttr caseValues,
                      BlockRange caseDestinations,
                      ArrayRef<ValueRange> caseOperands) {
-  SmallVector<Value> flattenedCaseOperands;
-  SmallVector<int32_t> caseOperandOffsets;
-  int32_t offset = 0;
-  for (ValueRange operands : caseOperands) {
-    flattenedCaseOperands.append(operands.begin(), operands.end());
-    caseOperandOffsets.push_back(offset);
-    offset += operands.size();
-  }
-  DenseIntElementsAttr caseOperandOffsetsAttr;
-  if (!caseOperandOffsets.empty())
-    caseOperandOffsetsAttr = builder.getI32VectorAttr(caseOperandOffsets);
-
-  build(builder, result, value, defaultOperands, flattenedCaseOperands,
-        caseValues, caseOperandOffsetsAttr, defaultDestination,
-        caseDestinations);
+  build(builder, result, value, defaultOperands, caseOperands, caseValues,
+        defaultDestination, caseDestinations);
 }
 
 void SwitchOp::build(OpBuilder &builder, OperationState &result, Value value,
@@ -2617,30 +2189,25 @@ void SwitchOp::build(OpBuilder &builder, OperationState &result, Value value,
 
 /// <cases> ::= `default` `:` bb-id (`(` ssa-use-and-type-list `)`)?
 ///             ( `,` integer `:` bb-id (`(` ssa-use-and-type-list `)`)? )*
-static ParseResult
-parseSwitchOpCases(OpAsmParser &parser, Type &flagType,
-                   Block *&defaultDestination,
-                   SmallVectorImpl<OpAsmParser::OperandType> &defaultOperands,
-                   SmallVectorImpl<Type> &defaultOperandTypes,
-                   DenseIntElementsAttr &caseValues,
-                   SmallVectorImpl<Block *> &caseDestinations,
-                   SmallVectorImpl<OpAsmParser::OperandType> &caseOperands,
-                   SmallVectorImpl<Type> &caseOperandTypes,
-                   DenseIntElementsAttr &caseOperandOffsets) {
-  if (failed(parser.parseKeyword("default")) || failed(parser.parseColon()) ||
-      failed(parser.parseSuccessor(defaultDestination)))
+static ParseResult parseSwitchOpCases(
+    OpAsmParser &parser, Type &flagType, Block *&defaultDestination,
+    SmallVectorImpl<OpAsmParser::OperandType> &defaultOperands,
+    SmallVectorImpl<Type> &defaultOperandTypes,
+    DenseIntElementsAttr &caseValues,
+    SmallVectorImpl<Block *> &caseDestinations,
+    SmallVectorImpl<SmallVector<OpAsmParser::OperandType>> &caseOperands,
+    SmallVectorImpl<SmallVector<Type>> &caseOperandTypes) {
+  if (parser.parseKeyword("default") || parser.parseColon() ||
+      parser.parseSuccessor(defaultDestination))
     return failure();
   if (succeeded(parser.parseOptionalLParen())) {
-    if (failed(parser.parseRegionArgumentList(defaultOperands)) ||
-        failed(parser.parseColonTypeList(defaultOperandTypes)) ||
-        failed(parser.parseRParen()))
+    if (parser.parseRegionArgumentList(defaultOperands) ||
+        parser.parseColonTypeList(defaultOperandTypes) || parser.parseRParen())
       return failure();
   }
 
   SmallVector<APInt> values;
-  SmallVector<int32_t> offsets;
   unsigned bitWidth = flagType.getIntOrFloatBitWidth();
-  int64_t offset = 0;
   while (succeeded(parser.parseOptionalComma())) {
     int64_t value = 0;
     if (failed(parser.parseInteger(value)))
@@ -2649,30 +2216,26 @@ parseSwitchOpCases(OpAsmParser &parser, Type &flagType,
 
     Block *destination;
     SmallVector<OpAsmParser::OperandType> operands;
+    SmallVector<Type> operandTypes;
     if (failed(parser.parseColon()) ||
         failed(parser.parseSuccessor(destination)))
       return failure();
     if (succeeded(parser.parseOptionalLParen())) {
       if (failed(parser.parseRegionArgumentList(operands)) ||
-          failed(parser.parseColonTypeList(caseOperandTypes)) ||
+          failed(parser.parseColonTypeList(operandTypes)) ||
           failed(parser.parseRParen()))
         return failure();
     }
     caseDestinations.push_back(destination);
-    caseOperands.append(operands.begin(), operands.end());
-    offsets.push_back(offset);
-    offset += operands.size();
+    caseOperands.emplace_back(operands);
+    caseOperandTypes.emplace_back(operandTypes);
   }
 
-  if (values.empty())
-    return success();
-
-  Builder &builder = parser.getBuilder();
-  ShapedType caseValueType =
-      VectorType::get(static_cast<int64_t>(values.size()), flagType);
-  caseValues = DenseIntElementsAttr::get(caseValueType, values);
-  caseOperandOffsets = builder.getI32VectorAttr(offsets);
-
+  if (!values.empty()) {
+    ShapedType caseValueType =
+        VectorType::get(static_cast<int64_t>(values.size()), flagType);
+    caseValues = DenseIntElementsAttr::get(caseValueType, values);
+  }
   return success();
 }
 
@@ -2680,8 +2243,7 @@ static void printSwitchOpCases(
     OpAsmPrinter &p, SwitchOp op, Type flagType, Block *defaultDestination,
     OperandRange defaultOperands, TypeRange defaultOperandTypes,
     DenseIntElementsAttr caseValues, SuccessorRange caseDestinations,
-    OperandRange caseOperands, TypeRange caseOperandTypes,
-    ElementsAttr caseOperandOffsets) {
+    OperandRangeRange caseOperands, TypeRangeRange caseOperandTypes) {
   p << "  default: ";
   p.printSuccessorAndUseList(defaultDestination, defaultOperands);
 
@@ -2694,7 +2256,7 @@ static void printSwitchOpCases(
     p << "  ";
     p << caseValues.getValue<APInt>(i).getLimitedValue();
     p << ": ";
-    p.printSuccessorAndUseList(caseDestinations[i], op.getCaseOperands(i));
+    p.printSuccessorAndUseList(caseDestinations[i], caseOperands[i]);
   }
   p.printNewline();
 }
@@ -2720,28 +2282,6 @@ static LogicalResult verify(SwitchOp op) {
                                "case destinations ("
                             << caseDestinations.size() << ")";
   return success();
-}
-
-OperandRange SwitchOp::getCaseOperands(unsigned index) {
-  return getCaseOperandsMutable(index);
-}
-
-MutableOperandRange SwitchOp::getCaseOperandsMutable(unsigned index) {
-  MutableOperandRange caseOperands = caseOperandsMutable();
-  if (!case_operand_offsets()) {
-    assert(caseOperands.size() == 0 &&
-           "non-empty case operands must have offsets");
-    return caseOperands;
-  }
-
-  ElementsAttr offsets = case_operand_offsets().getValue();
-  assert(index < offsets.size() && "invalid case operand offset index");
-
-  int64_t begin = offsets.getValue(index).cast<IntegerAttr>().getInt();
-  int64_t end = index + 1 == offsets.size()
-                    ? caseOperands.size()
-                    : offsets.getValue(index + 1).cast<IntegerAttr>().getInt();
-  return caseOperandsMutable().slice(begin, end - begin);
 }
 
 Optional<MutableOperandRange>

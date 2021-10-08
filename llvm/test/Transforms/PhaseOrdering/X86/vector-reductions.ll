@@ -297,9 +297,10 @@ define i1 @cmp_lt_gt(double %a, double %b, double %c) {
 ; CHECK-NEXT:    [[CMP5:%.*]] = fcmp ule double [[DIV]], 1.000000e+00
 ; CHECK-NEXT:    [[CMP7:%.*]] = fcmp ule double [[DIV3]], 1.000000e+00
 ; CHECK-NEXT:    [[OR_COND1:%.*]] = select i1 [[CMP5]], i1 true, i1 [[CMP7]]
-; CHECK-NEXT:    ret i1 [[OR_COND1]]
+; CHECK-NEXT:    br label [[CLEANUP]]
 ; CHECK:       cleanup:
-; CHECK-NEXT:    ret i1 false
+; CHECK-NEXT:    [[RETVAL_0:%.*]] = phi i1 [ false, [[ENTRY:%.*]] ], [ [[OR_COND1]], [[LOR_LHS_FALSE]] ]
+; CHECK-NEXT:    ret i1 [[RETVAL_0]]
 ;
 entry:
   %fneg = fneg double %b

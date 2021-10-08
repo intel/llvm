@@ -9,14 +9,13 @@
 #include "lldb/Core/Mangled.h"
 
 #include "lldb/Core/RichManglingContext.h"
+#include "lldb/Target/Language.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Logging.h"
 #include "lldb/Utility/RegularExpression.h"
 #include "lldb/Utility/Stream.h"
 #include "lldb/lldb-enumerations.h"
-
-#include "Plugins/Language/CPlusPlus/CPlusPlusLanguage.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Demangle/Demangle.h"
@@ -34,35 +33,6 @@ static inline bool cstring_is_mangled(llvm::StringRef s) {
   return Mangled::GetManglingScheme(s) != Mangled::eManglingSchemeNone;
 }
 
-static ConstString GetDemangledNameWithoutArguments(ConstString mangled,
-                                                    ConstString demangled) {
-  const char *mangled_name_cstr = mangled.GetCString();
-
-  if (demangled && mangled_name_cstr && mangled_name_cstr[0]) {
-    if (mangled_name_cstr[0] == '_' && mangled_name_cstr[1] == 'Z' &&
-        (mangled_name_cstr[2] != 'T' && // avoid virtual table, VTT structure,
-                                        // typeinfo structure, and typeinfo
-                                        // mangled_name
-         mangled_name_cstr[2] != 'G' && // avoid guard variables
-         mangled_name_cstr[2] != 'Z')) // named local entities (if we eventually
-                                       // handle eSymbolTypeData, we will want
-                                       // this back)
-    {
-      CPlusPlusLanguage::MethodName cxx_method(demangled);
-      if (!cxx_method.GetBasename().empty()) {
-        std::string shortname;
-        if (!cxx_method.GetContext().empty())
-          shortname = cxx_method.GetContext().str() + "::";
-        shortname += cxx_method.GetBasename().str();
-        return ConstString(shortname);
-      }
-    }
-  }
-  if (demangled)
-    return demangled;
-  return mangled;
-}
-
 #pragma mark Mangled
 
 Mangled::ManglingScheme Mangled::GetManglingScheme(llvm::StringRef const name) {
@@ -71,6 +41,9 @@ Mangled::ManglingScheme Mangled::GetManglingScheme(llvm::StringRef const name) {
 
   if (name.startswith("?"))
     return Mangled::eManglingSchemeMSVC;
+
+  if (name.startswith("_R"))
+    return Mangled::eManglingSchemeRustV0;
 
   if (name.startswith("_Z"))
     return Mangled::eManglingSchemeItanium;
@@ -199,6 +172,19 @@ static char *GetItaniumDemangledStr(const char *M) {
   return demangled_cstr;
 }
 
+static char *GetRustV0DemangledStr(const char *M) {
+  char *demangled_cstr = llvm::rustDemangle(M, nullptr, nullptr, nullptr);
+
+  if (Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DEMANGLE)) {
+    if (demangled_cstr && demangled_cstr[0])
+      LLDB_LOG(log, "demangled rustv0: {0} -> \"{1}\"", M, demangled_cstr);
+    else
+      LLDB_LOG(log, "demangled rustv0: {0} -> error: failed to demangle", M);
+  }
+
+  return demangled_cstr;
+}
+
 // Explicit demangling for scheduled requests during batch processing. This
 // makes use of ItaniumPartialDemangler's rich demangle info
 bool Mangled::DemangleWithRichManglingInfo(
@@ -256,6 +242,10 @@ bool Mangled::DemangleWithRichManglingInfo(
       return context.FromCxxMethodName(m_demangled);
     }
   }
+
+  case eManglingSchemeRustV0:
+    // Rich demangling scheme is not supported for Rust
+    return false;
   }
   llvm_unreachable("Fully covered switch above!");
 }
@@ -284,6 +274,9 @@ ConstString Mangled::GetDemangledName() const {
         demangled_name = GetItaniumDemangledStr(mangled_name);
         break;
       }
+      case eManglingSchemeRustV0:
+        demangled_name = GetRustV0DemangledStr(mangled_name);
+        break;
       case eManglingSchemeNone:
         llvm_unreachable("eManglingSchemeNone was handled already");
       }
@@ -321,14 +314,16 @@ ConstString Mangled::GetName(Mangled::NamePreference preference) const {
   if (preference == ePreferMangled && m_mangled)
     return m_mangled;
 
+  // Call the accessor to make sure we get a demangled name in case it hasn't
+  // been demangled yet...
   ConstString demangled = GetDemangledName();
 
   if (preference == ePreferDemangledWithoutArguments) {
-    return GetDemangledNameWithoutArguments(m_mangled, demangled);
+    if (Language *lang = Language::FindPlugin(GuessLanguage())) {
+      return lang->GetDemangledFunctionNameWithoutArguments(*this);
+    }
   }
   if (preference == ePreferDemangled) {
-    // Call the accessor to make sure we get a demangled name in case it hasn't
-    // been demangled yet...
     if (demangled)
       return demangled;
     return m_mangled;

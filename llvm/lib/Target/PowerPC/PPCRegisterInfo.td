@@ -303,9 +303,14 @@ def GPRC : RegisterClass<"PPC", [i32,f32], 32, (add (sequence "R%u", 2, 12),
                                                     R31, R0, R1, FP, BP)> {
   // On non-Darwin PPC64 systems, R2 can be allocated, but must be restored, so
   // put it at the end of the list.
-  let AltOrders = [(add (sub GPRC, R2), R2)];
+  // On AIX, CSRs are allocated starting from R31 according to:
+  // https://www.ibm.com/docs/en/ssw_aix_72/assembler/assembler_pdf.pdf.
+  // This also helps setting the correct `NumOfGPRsSaved' in traceback table.
+  let AltOrders = [(add (sub GPRC, R2), R2),
+                   (add (sequence "R%u", 2, 12),
+                        (sequence "R%u", 31, 13), R0, R1, FP, BP)];
   let AltOrderSelect = [{
-    return MF.getSubtarget<PPCSubtarget>().is64BitELFABI();
+    return MF.getSubtarget<PPCSubtarget>().getGPRAllocationOrderIdx();
   }];
 }
 
@@ -314,9 +319,11 @@ def G8RC : RegisterClass<"PPC", [i64], 64, (add (sequence "X%u", 2, 12),
                                                 X31, X13, X0, X1, FP8, BP8)> {
   // On non-Darwin PPC64 systems, R2 can be allocated, but must be restored, so
   // put it at the end of the list.
-  let AltOrders = [(add (sub G8RC, X2), X2)];
+  let AltOrders = [(add (sub G8RC, X2), X2),
+                   (add (sequence "X%u", 2, 12),
+                        (sequence "X%u", 31, 13), X0, X1, FP8, BP8)];
   let AltOrderSelect = [{
-    return MF.getSubtarget<PPCSubtarget>().is64BitELFABI();
+    return MF.getSubtarget<PPCSubtarget>().getGPRAllocationOrderIdx();
   }];
 }
 
@@ -326,18 +333,22 @@ def G8RC : RegisterClass<"PPC", [i64], 64, (add (sequence "X%u", 2, 12),
 def GPRC_NOR0 : RegisterClass<"PPC", [i32,f32], 32, (add (sub GPRC, R0), ZERO)> {
   // On non-Darwin PPC64 systems, R2 can be allocated, but must be restored, so
   // put it at the end of the list.
-  let AltOrders = [(add (sub GPRC_NOR0, R2), R2)];
+  let AltOrders = [(add (sub GPRC_NOR0, R2), R2),
+                   (add (sequence "R%u", 2, 12),
+                        (sequence "R%u", 31, 13), R1, FP, BP, ZERO)];
   let AltOrderSelect = [{
-    return MF.getSubtarget<PPCSubtarget>().is64BitELFABI();
+    return MF.getSubtarget<PPCSubtarget>().getGPRAllocationOrderIdx();
   }];
 }
 
 def G8RC_NOX0 : RegisterClass<"PPC", [i64], 64, (add (sub G8RC, X0), ZERO8)> {
   // On non-Darwin PPC64 systems, R2 can be allocated, but must be restored, so
   // put it at the end of the list.
-  let AltOrders = [(add (sub G8RC_NOX0, X2), X2)];
+  let AltOrders = [(add (sub G8RC_NOX0, X2), X2),
+                   (add (sequence "X%u", 2, 12),
+                        (sequence "X%u", 31, 13), X1, FP8, BP8, ZERO8)];
   let AltOrderSelect = [{
-    return MF.getSubtarget<PPCSubtarget>().is64BitELFABI();
+    return MF.getSubtarget<PPCSubtarget>().getGPRAllocationOrderIdx();
   }];
 }
 
@@ -449,6 +460,13 @@ let SubRegIndices = [sub_pair0, sub_pair1] in {
 }
 def ACCRC : RegisterClass<"PPC", [v512i1], 128, (add ACC0, ACC1, ACC2, ACC3,
                                                       ACC4, ACC5, ACC6, ACC7)> {
+  // The AllocationPriority is in the range [0, 63]. Assigned the ACC registers
+  // the highest possible priority in this range to force the register allocator
+  // to assign these registers first. This is done because the ACC registers
+  // must represent 4 advacent vector registers. For example ACC1 must be
+  // VS4 - VS7. The value here must be at least 32 as we want to allocate
+  // these registers even before we allocate global ranges.
+  let AllocationPriority = 63;
   let Size = 512;
 }
 
@@ -465,17 +483,34 @@ let SubRegIndices = [sub_pair0, sub_pair1] in {
 def UACCRC : RegisterClass<"PPC", [v512i1], 128,
                            (add UACC0, UACC1, UACC2, UACC3,
                                 UACC4, UACC5, UACC6, UACC7)> {
+  // The AllocationPriority for the UACC registers is still high and must be at
+  // least 32 as we want to allocate these registers before we allocate other
+  // global ranges. The value must be less than the AllocationPriority of the
+  // ACC registers.
+  let AllocationPriority = 36;
   let Size = 512;
 }
 
-// Allocate in the same order as the underlying VSX registers.
+// FIXME: This allocation order may increase stack frame size when allocating
+// non-volatile registers.
+//
+// Placing Altivec registers first and allocate the rest as underlying VSX
+// ones, to reduce interference with accumulator registers (lower 32 VSRs).
+// This reduces copies when loading for accumulators, which is common use for
+// paired VSX registers.
 def VSRpRC :
   RegisterClass<"PPC", [v256i1], 128,
-                (add (sequence "VSRp%u", 0, 6),
-                     (sequence "VSRp%u", 15, 7), VSRp17, VSRp18,
-                     VSRp16, VSRp19, VSRp20, VSRp21, VSRp22, VSRp23,
-                     VSRp24, VSRp25, VSRp31, VSRp30, VSRp29, VSRp28,
-                     VSRp27, VSRp26)> {
+                (add VSRp17, VSRp18, VSRp16, VSRp19, VSRp20, VSRp21,
+                     VSRp22, VSRp23, VSRp24, VSRp25, VSRp31, VSRp30,
+                     VSRp29, VSRp28, VSRp27, VSRp26,
+                     (sequence "VSRp%u", 0, 6),
+                     (sequence "VSRp%u", 15, 7))> {
+  // Give the VSRp registers a non-zero AllocationPriority. The value is less
+  // than 32 as these registers should not always be allocated before global
+  // ranges and the value should be less than the AllocationPriority - 32 for
+  // the UACC registers. Even global VSRp registers should be allocated after
+  // the UACC registers have been chosen.
+  let AllocationPriority = 2;
   let Size = 256;
 }
 
