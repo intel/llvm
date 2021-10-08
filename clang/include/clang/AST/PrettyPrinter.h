@@ -77,7 +77,7 @@ struct PrintingPolicy {
         SuppressDefinition(false), SuppressDefaultTemplateArguments(false),
         PrintCanonicalTypes(false),
         SkipCanonicalizationOfTemplateTypeParms(false),
-        PrintInjectedClassNameWithArguments(true) {}
+        PrintInjectedClassNameWithArguments(true), UsePreferredNames(true) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -331,6 +331,7 @@ struct PrintingPolicy {
   /// written. When a template argument is unnamed, printing it results in
   /// invalid C++ code.
   unsigned PrintInjectedClassNameWithArguments : 1;
+  unsigned UsePreferredNames : 1;
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;
