@@ -18,8 +18,6 @@
 
 #include <vector>
 
-#define SYCL_BACKEND_OPENCL 1
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 

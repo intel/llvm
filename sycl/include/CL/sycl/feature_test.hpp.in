@@ -10,6 +10,7 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+#define SYCL_BACKEND_OPENCL 1
 // Feature test macro definitions
 
 // TODO: Move these feature-test macros to compiler driver.

@@ -91,8 +91,10 @@ int main() {
   sycl::backend_traits<sycl::backend::cuda>::errc someCUDAErrCode{EC};
   sycl::errc_for<sycl::backend::cuda> anotherCUDAErrCode{EC};
   assert(someCUDAErrCode == anotherCUDAErrCode);
-  sycl::backend_traits<sycl::backend::esimd_cpu>::errc someESIMDErrCode{EC};
-  sycl::errc_for<sycl::backend::esimd_cpu> anotherESIMDErrCode{EC};
+  sycl::backend_traits<sycl::backend::ext_intel_esimd_emulator>::errc
+      someESIMDErrCode{EC};
+  sycl::errc_for<sycl::backend::ext_intel_esimd_emulator> anotherESIMDErrCode{
+      EC};
   assert(someESIMDErrCode == anotherESIMDErrCode);
   sycl::backend_traits<sycl::backend::hip>::errc someHIPErrCode{EC};
   sycl::errc_for<sycl::backend::hip> anotherHIPErrCode{EC};
