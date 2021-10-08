@@ -67,9 +67,9 @@ constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
 constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 
 // InputFilename - The filename to read from.
-cl::opt<std::string> InputFilename{
-    cl::Positional, cl::desc("<input bitcode file>"), cl::init("-"),
-    cl::value_desc("filename")};
+cl::opt<std::string> InputFilename{cl::Positional,
+                                   cl::desc("<input bitcode file>"),
+                                   cl::init("-"), cl::value_desc("filename")};
 
 cl::opt<std::string> OutputDir{
     "out-dir",
@@ -78,22 +78,21 @@ cl::opt<std::string> OutputDir{
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
 cl::opt<std::string> OutputFilename{"o", cl::desc("Output filename"),
-                                           cl::value_desc("filename"),
-                                           cl::init("-"), cl::cat(PostLinkCat)};
+                                    cl::value_desc("filename"), cl::init("-"),
+                                    cl::cat(PostLinkCat)};
 
 cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
+                    cl::cat(PostLinkCat)};
+
+cl::opt<bool> IROutputOnly{"ir-output-only", cl::desc("Output single IR file"),
                            cl::cat(PostLinkCat)};
 
-cl::opt<bool> IROutputOnly{
-    "ir-output-only", cl::desc("Output single IR file"), cl::cat(PostLinkCat)};
-
-cl::opt<bool> OutputAssembly{"S",
-                                    cl::desc("Write output as LLVM assembly"),
-                                    cl::Hidden, cl::cat(PostLinkCat)};
+cl::opt<bool> OutputAssembly{"S", cl::desc("Write output as LLVM assembly"),
+                             cl::Hidden, cl::cat(PostLinkCat)};
 
 cl::opt<bool> SplitEsimd{"split-esimd",
-                                cl::desc("Split SYCL and ESIMD kernels"),
-                                cl::cat(PostLinkCat)};
+                         cl::desc("Split SYCL and ESIMD kernels"),
+                         cl::cat(PostLinkCat)};
 
 // TODO Design note: sycl-post-link should probably separate different kinds of
 // its functionality on  logical and source level:
@@ -104,20 +103,20 @@ cl::opt<bool> SplitEsimd{"split-esimd",
 // above actions. This could help make the tool structure clearer and more
 // maintainable.
 
-cl::opt<bool> LowerEsimd{
-    "lower-esimd", cl::desc("Lower ESIMD constructs"), cl::cat(PostLinkCat)};
+cl::opt<bool> LowerEsimd{"lower-esimd", cl::desc("Lower ESIMD constructs"),
+                         cl::cat(PostLinkCat)};
 
-cl::opt<bool>
-    OptLevelO0("O0", cl::desc("Optimization level 0. Similar to clang -O0"),
-               cl::cat(PostLinkCat));
+cl::opt<bool> OptLevelO0("O0",
+                         cl::desc("Optimization level 0. Similar to clang -O0"),
+                         cl::cat(PostLinkCat));
 
-cl::opt<bool>
-    OptLevelO1("O1", cl::desc("Optimization level 1. Similar to clang -O1"),
-               cl::cat(PostLinkCat));
+cl::opt<bool> OptLevelO1("O1",
+                         cl::desc("Optimization level 1. Similar to clang -O1"),
+                         cl::cat(PostLinkCat));
 
-cl::opt<bool>
-    OptLevelO2("O2", cl::desc("Optimization level 2. Similar to clang -O2"),
-               cl::cat(PostLinkCat));
+cl::opt<bool> OptLevelO2("O2",
+                         cl::desc("Optimization level 2. Similar to clang -O2"),
+                         cl::cat(PostLinkCat));
 
 cl::opt<bool> OptLevelOs(
     "Os",
@@ -130,9 +129,9 @@ cl::opt<bool> OptLevelOz(
     cl::desc("Like -Os but reduces code size further. Similar to clang -Oz"),
     cl::cat(PostLinkCat));
 
-cl::opt<bool>
-    OptLevelO3("O3", cl::desc("Optimization level 3. Similar to clang -O3"),
-               cl::cat(PostLinkCat));
+cl::opt<bool> OptLevelO3("O3",
+                         cl::desc("Optimization level 3. Similar to clang -O3"),
+                         cl::cat(PostLinkCat));
 
 enum IRSplitMode {
   SPLIT_PER_TU,     // one module per translation unit
@@ -149,9 +148,8 @@ cl::opt<IRSplitMode> SplitMode(
         clEnumValN(SPLIT_AUTO, "auto", "Choose split mode automatically")),
     cl::cat(PostLinkCat));
 
-cl::opt<bool> DoSymGen{"symbols",
-                              cl::desc("generate exported symbol files"),
-                              cl::cat(PostLinkCat)};
+cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
+                       cl::cat(PostLinkCat)};
 
 enum SpecConstMode { SC_USE_RT_VAL, SC_USE_DEFAULT_VAL };
 
@@ -171,12 +169,12 @@ cl::opt<bool> EmitKernelParamInfo{
     cl::cat(PostLinkCat)};
 
 cl::opt<bool> EmitProgramMetadata{"emit-program-metadata",
-                                         cl::desc("emit SYCL program metadata"),
-                                         cl::cat(PostLinkCat)};
+                                  cl::desc("emit SYCL program metadata"),
+                                  cl::cat(PostLinkCat)};
 
 cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
-                                         cl::desc("emit exported symbols"),
-                                         cl::cat(PostLinkCat)};
+                                  cl::desc("emit exported symbols"),
+                                  cl::cat(PostLinkCat)};
 
 cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
     "emit-only-kernels-as-entry-points",
@@ -416,8 +414,7 @@ HasAssertStatus hasAssertInFunctionCallGraph(Function *Func) {
 }
 
 // Gets reqd_work_group_size information for function Func.
-std::vector<uint32_t>
-getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
+std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   auto ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
   if (!ReqdWorkGroupSizeMD)
     return {};
@@ -462,10 +459,9 @@ struct ResultModule {
 // ResModules is a vector of pairs of kernel module names and produced modules.
 // The function splits input LLVM IR module M into smaller ones and stores them
 // to the ResModules vector.
-void
-splitModule(Module &M,
-            std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
-            std::vector<ResultModule> &ResModules) {
+void splitModule(Module &M,
+                 std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
+                 std::vector<ResultModule> &ResModules) {
   for (auto &It : KernelModuleMap) {
     // For each group of kernels collect all dependencies.
     SetVector<const GlobalValue *> GVs;
@@ -546,7 +542,7 @@ void saveModule(Module &M, StringRef OutFilename) {
 // Saves specified collection of llvm IR modules to files.
 // Saves file list if user specified corresponding filename.
 string_vector saveResultModules(std::vector<ResultModule> &ResModules,
-                                       StringRef Suffix) {
+                                StringRef Suffix) {
   string_vector Res;
 
   for (size_t I = 0; I < ResModules.size(); ++I) {
@@ -714,7 +710,7 @@ string_vector saveDeviceImageProperty(
 // Saves specified collection of symbols lists to files.
 // Saves file list if user specified corresponding filename.
 string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
-                                            StringRef Suffix) {
+                                     StringRef Suffix) {
   string_vector Res;
 
   std::string TxtFilesList;
@@ -766,7 +762,7 @@ void LowerEsimdConstructs(Module &M) {
 using TableFiles = std::map<StringRef, string_vector>;
 
 TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
-                                   bool SyclAndEsimdCode) {
+                            bool SyclAndEsimdCode) {
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
