@@ -259,7 +259,7 @@ KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
 // _Z28__spirv_GlobalInvocationId_xv
-bool funcIsSpirvSyclBuiltin(StringRef FName) {
+bool isSpirvSyclBuiltin(StringRef FName) {
   if (!FName.consume_front("_Z"))
     return false;
   // now skip the digits
@@ -278,7 +278,7 @@ bool isEntryPoint(const Function &F) {
     // are also considered as entry points (except __spirv_* and __sycl_*
     // functions)
     return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-           !funcIsSpirvSyclBuiltin(F.getName());
+           !isSpirvSyclBuiltin(F.getName());
   }
 
   return false;
