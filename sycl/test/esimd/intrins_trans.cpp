@@ -45,29 +45,27 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   simd_mask<VL> pred;
   v_addr += offsets;
 
-  __esimd_flat_atomic0<EsimdAtomicOpType::inc, uint32_t, VL>(
-      v_addr.data(), pred.data());
+  __esimd_svm_atomic0<atomic_op::inc, uint32_t, VL>(v_addr.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.inc.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
-  __esimd_flat_atomic1<EsimdAtomicOpType::add, uint32_t, VL>(
-      v_addr.data(), v1.data(), pred.data());
+  __esimd_svm_atomic1<atomic_op::add, uint32_t, VL>(v_addr.data(), v1.data(),
+                                                    pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.add.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
-  __esimd_flat_atomic2<EsimdAtomicOpType::cmpxchg, uint32_t, VL>(
+  __esimd_svm_atomic2<atomic_op::cmpxchg, uint32_t, VL>(
       v_addr.data(), v1.data(), v1.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.cmpxchg.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-  simd<uint32_t, VL> v00 =
-      __esimd_flat_block_read_unaligned<uint32_t, VL>(addr);
+  simd<uint32_t, VL> v00 = __esimd_svm_block_ld_unaligned<uint32_t, VL>(addr);
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.block.ld.unaligned.v32i32.i64(i64 %{{[0-9a-zA-Z_.]+}})
-  __esimd_flat_block_write<uint32_t, VL>(addr, v00.data());
+  __esimd_svm_block_st<uint32_t, VL>(addr, v00.data());
   // CHECK: call void @llvm.genx.svm.block.st.i64.v32i32(i64 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   simd<uint32_t, VL> v01 =
-      __esimd_flat_read<uint32_t, VL>(v_addr.data(), 0, pred.data());
+      __esimd_svm_gather<uint32_t, VL>(v_addr.data(), 0, pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.gather.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
-  __esimd_flat_write<uint32_t, VL>(v_addr.data(), v01.data(), 0, pred.data());
+  __esimd_svm_scatter<uint32_t, VL>(v_addr.data(), v01.data(), 0, pred.data());
   // CHECK: call void @llvm.genx.svm.scatter.v32i1.v32i64.v32i32(<32 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   simd<short, 16> mina(0, 1);
@@ -77,7 +75,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   simd<float, 1> diva(2.f);
   simd<float, 1> divb(1.f);
-  diva = __esimd_div_ieee<1>(diva.data(), divb.data());
+  diva = __esimd_ieee_div<1>(diva.data(), divb.data());
   // CHECK:  %{{[0-9a-zA-Z_.]+}} = call <1 x float> @llvm.genx.ieee.div.v1f32(<1 x float>  %{{[0-9a-zA-Z_.]+}}, <1 x float>  %{{[0-9a-zA-Z_.]+}})
 
   simd<float, 16> a(0.1f);
@@ -102,12 +100,16 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   simd<int, 32> va;
   va = media_block_load<int, 4, 8>(pA, x, y);
-  // CHECK: %[[SI0:[0-9a-zA-Z_.]+]] = ptrtoint %opencl.image2d_ro_t addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+  // CHECK: %[[SI0_VAL:[0-9a-zA-Z_.]+]] = ptrtoint %opencl.image2d_ro_t addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+  // CHECK: store i32 %[[SI0_VAL]], i32 addrspace(4)* %[[SI0_ADDR:[0-9a-zA-Z_.]+]]
+  // CHECK: %[[SI0:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI0_ADDR]]
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.media.ld.v32i32(i32 0, i32 %[[SI0]], i32 0, i32 32, i32 %{{[0-9a-zA-Z_.]+}}, i32 %{{[0-9a-zA-Z_.]+}})
 
   simd<int, 32> vb = va + 1;
   media_block_store<int, 4, 8>(pB, x, y, vb);
-  // CHECK: %[[SI2:[0-9a-zA-Z_.]+]] = ptrtoint %opencl.image2d_wo_t addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+  // CHECK: %[[SI2_VAL:[0-9a-zA-Z_.]+]] = ptrtoint %opencl.image2d_wo_t addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+  // CHECK: store i32 %[[SI2_VAL]], i32 addrspace(4)* %[[SI2_ADDR:[0-9a-zA-Z_.]+]]
+  // CHECK: %[[SI2:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI2_ADDR]]
   // CHECK: call void @llvm.genx.media.st.v32i32(i32 0, i32 %[[SI2]], i32 0, i32 32, i32 %{{[0-9a-zA-Z_.]+}}, i32 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
 
   auto ee = __esimd_vload<int, 16>((detail::vector_type_t<int, 16> *)(&vg));
@@ -120,26 +122,34 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
                    sycl::access::target::device>
         acc;
     simd<uint32_t, 8> offsets = 1;
-    simd<uint16_t, 8> pred{1, 0, 1, 0, 1, 0, 1, 0};
+    simd_mask<8> pred{1, 0, 1, 0, 1, 0, 1, 0};
 
     // 4-byte element gather
     simd<int, 8> v = gather<int, 8>(acc, offsets, 100);
-    // CHECK: %[[SI3:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %[[SI3_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: store i32 %[[SI3_VAL]], i32 addrspace(4)* %[[SI3_ADDR:[0-9a-zA-Z_.]+]]
+    // CHECK: %[[SI3:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI3_ADDR]]
     // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.scaled2.v8i32.v8i32(i32 2, i16 0, i32 %[[SI3]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
 
     // 4-byte element scatter
     scatter<int, 8>(acc, v, offsets, 100, pred);
-    // CHECK: %[[SI4:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %[[SI4_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: store i32 %[[SI4_VAL]], i32 addrspace(4)* %[[SI4_ADDR:[0-9a-zA-Z_.]+]]
+    // CHECK: %[[SI4:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI4_ADDR]]
     // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 2, i16 0, i32 %[[SI4]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
 
     // 1-byte element gather
     simd<unsigned char, 8> v1 = gather<unsigned char, 8>(acc, offsets, 100);
-    // CHECK: %[[SI5:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %[[SI5_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: store i32 %[[SI5_VAL]], i32 addrspace(4)* %[[SI5_ADDR:[0-9a-zA-Z_.]+]]
+    // CHECK: %[[SI5:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI5_ADDR]]
     // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.scaled2.v8i32.v8i32(i32 0, i16 0, i32 %[[SI5]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
 
     // 1-byte element scatter
     scatter<unsigned char, 8>(acc, v1, offsets, 100, pred);
-    // CHECK: %[[SI6:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %[[SI6_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: store i32 %[[SI6_VAL]], i32 addrspace(4)* %[[SI6_ADDR:[0-9a-zA-Z_.]+]]
+    // CHECK: %[[SI6:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI6_ADDR]]
     // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, i16 0, i32 %[[SI6]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
   }
   return d;

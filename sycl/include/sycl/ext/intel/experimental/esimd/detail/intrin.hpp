@@ -62,11 +62,11 @@
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, M>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, M>
 __esimd_rdregion(__SEIEED::vector_type_t<T, N> Input, uint16_t Offset);
 
 template <typename T, int N, int M, int ParentWidth = 0>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, M>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, M>
 __esimd_rdindirect(__SEIEED::vector_type_t<T, N> Input,
                    __SEIEED::vector_type_t<uint16_t, M> Offset);
 
@@ -119,13 +119,13 @@ __esimd_rdindirect(__SEIEED::vector_type_t<T, N> Input,
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, N>
 __esimd_wrregion(__SEIEED::vector_type_t<T, N> OldVal,
                  __SEIEED::vector_type_t<T, M> NewVal, uint16_t Offset,
                  __SEIEED::simd_mask_storage_t<M> Mask = 1);
 
 template <typename T, int N, int M, int ParentWidth = 0>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, N>
 __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
                    __SEIEED::vector_type_t<T, M> NewVal,
                    __SEIEED::vector_type_t<uint16_t, M> Offset,
@@ -221,7 +221,7 @@ readRegion(const __SEIEED::vector_type_t<BT, BN> &Base,
 // optimization on simd object
 //
 template <typename T, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, N>
 __esimd_vload(const __SEIEED::vector_type_t<T, N> *ptr);
 
 // vstore
@@ -229,13 +229,11 @@ __esimd_vload(const __SEIEED::vector_type_t<T, N> *ptr);
 // map to the backend vstore intrinsic, used by compiler to control
 // optimization on simd object
 template <typename T, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
-__esimd_vstore(__SEIEED::vector_type_t<T, N> *ptr,
-               __SEIEED::vector_type_t<T, N> vals);
+__ESIMD_INTRIN void __esimd_vstore(__SEIEED::vector_type_t<T, N> *ptr,
+                                   __SEIEED::vector_type_t<T, N> vals);
 
 template <typename T, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint16_t
-__esimd_any(__SEIEED::vector_type_t<T, N> src)
+__ESIMD_INTRIN uint16_t __esimd_any(__SEIEED::vector_type_t<T, N> src)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -249,8 +247,7 @@ __esimd_any(__SEIEED::vector_type_t<T, N> src)
 #endif // __SYCL_DEVICE_ONLY__
 
 template <typename T, int N>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION uint16_t
-__esimd_all(__SEIEED::vector_type_t<T, N> src)
+__ESIMD_INTRIN uint16_t __esimd_all(__SEIEED::vector_type_t<T, N> src)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -268,7 +265,7 @@ __esimd_all(__SEIEED::vector_type_t<T, N> src)
 // Implementations of ESIMD intrinsics for the SYCL host device
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, M>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, M>
 __esimd_rdregion(__SEIEED::vector_type_t<T, N> Input, uint16_t Offset) {
   uint16_t EltOffset = Offset / sizeof(T);
   assert(Offset % sizeof(T) == 0);
@@ -287,7 +284,7 @@ __esimd_rdregion(__SEIEED::vector_type_t<T, N> Input, uint16_t Offset) {
 }
 
 template <typename T, int N, int M, int ParentWidth>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, M>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, M>
 __esimd_rdindirect(__SEIEED::vector_type_t<T, N> Input,
                    __SEIEED::vector_type_t<uint16_t, M> Offset) {
   __SEIEED::vector_type_t<T, M> Result;
@@ -302,7 +299,7 @@ __esimd_rdindirect(__SEIEED::vector_type_t<T, N> Input,
 
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, N>
 __esimd_wrregion(__SEIEED::vector_type_t<T, N> OldVal,
                  __SEIEED::vector_type_t<T, M> NewVal, uint16_t Offset,
                  __SEIEED::simd_mask_storage_t<M> Mask) {
@@ -325,7 +322,7 @@ __esimd_wrregion(__SEIEED::vector_type_t<T, N> OldVal,
 }
 
 template <typename T, int N, int M, int ParentWidth>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<T, N>
+__ESIMD_INTRIN __SEIEED::vector_type_t<T, N>
 __esimd_wrindirect(__SEIEED::vector_type_t<T, N> OldVal,
                    __SEIEED::vector_type_t<T, M> NewVal,
                    __SEIEED::vector_type_t<uint16_t, M> Offset,

@@ -1423,11 +1423,11 @@ esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
 // a "typename T". Since the type can only be float, we hack it
 // by defining T=void without instantiating it to be float.
 
-#define ESIMD_INTRINSIC_DEF(type, name)                                        \
+#define ESIMD_INTRINSIC_DEF(type, name, iname)                                 \
   template <int SZ>                                                            \
   ESIMD_NODEBUG ESIMD_INLINE simd<type, SZ> esimd_##name(                      \
       simd<type, SZ> src0, int flag = saturation_off) {                        \
-    simd<type, SZ> Result = __esimd_##name<SZ>(src0.data());                   \
+    simd<type, SZ> Result = __esimd_##iname<SZ>(src0.data());                  \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
     return esimd_sat<type>(Result);                                            \
@@ -1440,25 +1440,25 @@ esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
     return Result[0];                                                          \
   }
 
-ESIMD_INTRINSIC_DEF(float, inv)
-ESIMD_INTRINSIC_DEF(float, log)
-ESIMD_INTRINSIC_DEF(float, exp)
-ESIMD_INTRINSIC_DEF(float, sqrt)
-ESIMD_INTRINSIC_DEF(float, sqrt_ieee)
-ESIMD_INTRINSIC_DEF(float, rsqrt)
-ESIMD_INTRINSIC_DEF(float, sin)
-ESIMD_INTRINSIC_DEF(float, cos)
+ESIMD_INTRINSIC_DEF(float, inv, inv)
+ESIMD_INTRINSIC_DEF(float, log, log)
+ESIMD_INTRINSIC_DEF(float, exp, exp)
+ESIMD_INTRINSIC_DEF(float, sqrt, sqrt)
+ESIMD_INTRINSIC_DEF(float, ieee_sqrt, sqrt_ieee)
+ESIMD_INTRINSIC_DEF(float, rsqrt, rsqrt)
+ESIMD_INTRINSIC_DEF(float, sin, sin)
+ESIMD_INTRINSIC_DEF(float, cos, cos)
 
-ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
+ESIMD_INTRINSIC_DEF(double, ieee_sqrt, sqrt_ieee)
 
 #undef ESIMD_INTRINSIC_DEF
 
-#define ESIMD_INTRINSIC_DEF(ftype, name)                                       \
+#define ESIMD_INTRINSIC_DEF(ftype, name, iname)                                \
   template <int SZ, typename U>                                                \
   ESIMD_NODEBUG ESIMD_INLINE simd<ftype, SZ> esimd_##name(                     \
       simd<ftype, SZ> src0, U src1, int flag = saturation_off) {               \
     simd<ftype, SZ> Src1 = src1;                                               \
-    simd<ftype, SZ> Result = __esimd_##name<SZ>(src0.data(), Src1.data());     \
+    simd<ftype, SZ> Result = __esimd_##iname<SZ>(src0.data(), Src1.data());    \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
                                                                                \
@@ -1481,10 +1481,10 @@ ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
     return Result[0];                                                          \
   }
 
-ESIMD_INTRINSIC_DEF(float, pow)
+ESIMD_INTRINSIC_DEF(float, pow, pow)
 
-ESIMD_INTRINSIC_DEF(float, ieee_div)
-ESIMD_INTRINSIC_DEF(double, ieee_div)
+ESIMD_INTRINSIC_DEF(float, div_ieee, ieee_div)
+ESIMD_INTRINSIC_DEF(double, div_ieee, ieee_div)
 
 #undef ESIMD_INTRINSIC_DEF
 
