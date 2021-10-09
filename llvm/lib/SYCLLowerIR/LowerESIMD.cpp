@@ -885,15 +885,14 @@ static Instruction *generateGenXCall(ExtractElementInst *EEI,
                 EEI->getModule(), ID, FixedVectorType::get(I32Ty, MAX_DIMS))
           : GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID);
 
-  std::string ResultName =
-      (Twine(EEI->getNameOrAsOperand()) + "." + FullIntrinName).str();
+  std::string ResultName = (Twine(EEI->getName()) + "." + FullIntrinName).str();
   Instruction *Inst = IntrinsicInst::Create(NewFDecl, {}, ResultName, EEI);
   Inst->setDebugLoc(EEI->getDebugLoc());
 
   if (IsVectorCall) {
     Type *I32Ty = Type::getInt32Ty(EEI->getModule()->getContext());
     std::string ExtractName =
-        (Twine(Inst->getNameOrAsOperand()) + ".ext." + Twine(IndexValue)).str();
+        (Twine(Inst->getName()) + ".ext." + Twine(IndexValue)).str();
     Inst = ExtractElementInst::Create(Inst, ConstantInt::get(I32Ty, IndexValue),
                                       ExtractName, EEI);
     Inst->setDebugLoc(EEI->getDebugLoc());
