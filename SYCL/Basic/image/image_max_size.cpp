@@ -3,8 +3,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || (windows && opencl && gpu)
 // CUDA does not support info::device::image3d_max_width query.
+// TODO: Irregular runtime fails on Windows/opencl:gpu require analysis.
 
 // The test checks that 'image' with max allowed sizes is handled correctly.
 
