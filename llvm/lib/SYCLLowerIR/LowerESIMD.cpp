@@ -880,9 +880,10 @@ static Instruction *generateGenXCall(ExtractElementInst *EEI,
   auto ID = GenXIntrinsic::lookupGenXIntrinsicID(FullIntrinName);
   Type *I32Ty = Type::getInt32Ty(EEI->getModule()->getContext());
   Function *NewFDecl =
-      IsVectorCall ? GenXIntrinsic::getGenXDeclaration(
-                         EEI->getModule(), ID, FixedVectorType::get(I32Ty, MAX_DIMS))
-                   : GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID);
+      IsVectorCall
+          ? GenXIntrinsic::getGenXDeclaration(
+                EEI->getModule(), ID, FixedVectorType::get(I32Ty, MAX_DIMS))
+          : GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID);
 
   std::string ResultName =
       (Twine(EEI->getNameOrAsOperand()) + "." + FullIntrinName).str();
@@ -915,8 +916,8 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
 
   // Translate those loads from _scalar_ SPIRV globals that can be replaced with
   // a const value here.
-  // The loads from other scalar SPIRV globals may require insertion of GenX calls
-  // before each user, which is done in the loop by users of 'LI' below.
+  // The loads from other scalar SPIRV globals may require insertion of GenX
+  // calls before each user, which is done in the loop by users of 'LI' below.
   Value *NewInst = nullptr;
   if (SpirvGlobalName == "SubgroupLocalInvocationId") {
     NewInst = llvm::Constant::getNullValue(LI->getType());
