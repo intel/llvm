@@ -207,8 +207,9 @@ typename std::enable_if<detail::InteropFeatureSupportMap<Backend>::MakeBuffer ==
 make_buffer(const typename backend_traits<Backend>::template input_type<
                 buffer<T, Dimensions, AllocatorT>> &BackendObject,
             const context &TargetContext, event AvailableEvent = {}) {
-  return buffer<T, Dimensions, AllocatorT>(
-      reinterpret_cast<cl_mem>(BackendObject), TargetContext, AvailableEvent);
+  return detail::make_buffer_helper<T, Dimensions, AllocatorT>(
+      detail::pi::cast<pi_native_handle>(BackendObject), TargetContext,
+      AvailableEvent);
 }
 
 template <backend Backend>
