@@ -43,6 +43,8 @@ namespace id = itanium_demangle;
 
 #define SLM_BTI 254
 
+#define MAX_DIMS 3
+
 namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
 void generateKernelMetadata(Module &);
@@ -855,10 +857,8 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI) {
 /// It is checked here that the index is either 0, 1, or 2.
 static uint64_t getIndexFromExtract(ExtractElementInst *EEI) {
   Value *IndexV = EEI->getIndexOperand();
-  assert(isa<ConstantInt>(IndexV) &&
-         "Expected a const index in extract element instruction");
   uint64_t IndexValue = cast<ConstantInt>(IndexV)->getZExtValue();
-  assert(IndexValue <= 2 &&
+  assert(IndexValue < MAX_DIMS &&
          "Extract element index should be either 0, 1, or 2");
   return IndexValue;
 }
@@ -881,7 +881,7 @@ static Instruction *generateGenXCall(ExtractElementInst *EEI,
   Type *I32Ty = Type::getInt32Ty(EEI->getModule()->getContext());
   Function *NewFDecl =
       IsVectorCall ? GenXIntrinsic::getGenXDeclaration(
-                         EEI->getModule(), ID, FixedVectorType::get(I32Ty, 3))
+                         EEI->getModule(), ID, FixedVectorType::get(I32Ty, MAX_DIMS))
                    : GenXIntrinsic::getGenXDeclaration(EEI->getModule(), ID);
 
   std::string ResultName =
@@ -913,9 +913,10 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   // uint32_t __spirv_BuiltIn NumSubgroups;
   // uint32_t __spirv_BuiltIn SubgroupId;
 
-  // Translate the loads from _scalar_ SPIRV globals in the next block.
-  // Such globals require the replacement of the load only because the users
-  // may have any kind/opcode and we do not even try replacing the users here.
+  // Translate those loads from _scalar_ SPIRV globals that can be replaced with
+  // a const value here.
+  // The loads from other scalar SPIRV globals may require insertion of GenX calls
+  // before each user, which is done in the loop by users of 'LI' below.
   Value *NewInst = nullptr;
   if (SpirvGlobalName == "SubgroupLocalInvocationId") {
     NewInst = llvm::Constant::getNullValue(LI->getType());
@@ -930,10 +931,13 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
     return;
   }
 
-  // Only loads from _vector_ SPIRV globals reach here. Replace their users now.
+  // Only loads from _vector_ SPIRV globals reach here now. Their users are
+  // expected to be ExtractElementInst only, and they are replaced in this loop.
+  // When loads from _scalar_ SPIRV globals are handled here as well, the users
+  // will not be replaced by new instructions, but the GenX call replacing the
+  // original load 'LI' should be inserted before each user.
   for (User *LU : LI->users()) {
-    ExtractElementInst *EEI = dyn_cast<ExtractElementInst>(LU);
-    assert(EEI && "User of load from vector SPIRV global must be an extract");
+    ExtractElementInst *EEI = cast<ExtractElementInst>(LU);
     NewInst = nullptr;
 
     if (SpirvGlobalName == "WorkgroupSize") {
