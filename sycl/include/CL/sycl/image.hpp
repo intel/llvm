@@ -224,13 +224,14 @@ public:
         PropList);
   }
 
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   image(cl_mem ClMemObject, const context &SyclContext,
         event AvailableEvent = {}) {
     impl = std::make_shared<detail::image_impl<Dimensions>>(
         ClMemObject, SyclContext, AvailableEvent,
         make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT>>());
   }
+#endif
 
   /* -- common interface members -- */
 

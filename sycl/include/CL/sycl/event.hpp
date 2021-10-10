@@ -41,8 +41,9 @@ public:
   ///
   /// \param ClEvent is a valid instance of OpenCL cl_event.
   /// \param SyclContext is an instance of SYCL context.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   event(cl_event ClEvent, const context &SyclContext);
+#endif
 
   event(const event &rhs) = default;
 
@@ -59,8 +60,9 @@ public:
   /// Returns a valid OpenCL event interoperability handle.
   ///
   /// \return a valid instance of OpenCL cl_event.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_event get() const;
+#endif
 
   /// Checks if this event is a SYCL host event.
   ///

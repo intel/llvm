@@ -655,6 +655,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_SHT>::enumeration(
   case ELF::EM_RISCV:
     ECase(SHT_RISCV_ATTRIBUTES);
     break;
+  case ELF::EM_MSP430:
+    ECase(SHT_MSP430_ATTRIBUTES);
+    break;
   default:
     // Nothing to do.
     break;
@@ -886,6 +889,13 @@ void ScalarEnumerationTraits<ELFYAML::ELF_DYNTAG>::enumeration(
 #include "llvm/BinaryFormat/DynamicTags.def"
 #undef PPC64_DYNAMIC_TAG
 #define PPC64_DYNAMIC_TAG(name, value)
+    break;
+  case ELF::EM_RISCV:
+#undef RISCV_DYNAMIC_TAG
+#define RISCV_DYNAMIC_TAG(name, value) DYNAMIC_TAG(name, value)
+#include "llvm/BinaryFormat/DynamicTags.def"
+#undef RISCV_DYNAMIC_TAG
+#define RISCV_DYNAMIC_TAG(name, value)
     break;
   default:
 #include "llvm/BinaryFormat/DynamicTags.def"
@@ -1165,6 +1175,8 @@ struct NormalizedOther {
 
     if (EMachine == ELF::EM_AARCH64)
       Map["STO_AARCH64_VARIANT_PCS"] = ELF::STO_AARCH64_VARIANT_PCS;
+    if (EMachine == ELF::EM_RISCV)
+      Map["STO_RISCV_VARIANT_CC"] = ELF::STO_RISCV_VARIANT_CC;
     return Map;
   }
 

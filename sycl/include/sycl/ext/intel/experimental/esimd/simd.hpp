@@ -102,7 +102,7 @@ public:
   /// @}
 
 #define __ESIMD_DEF_SIMD_ARITH_UNARY_OP(ARITH_UNARY_OP)                        \
-  template <class T1 = Ty> simd operator ARITH_UNARY_OP() {                    \
+  template <class T1 = Ty> simd operator ARITH_UNARY_OP() const {              \
     static_assert(!std::is_unsigned_v<T1>,                                     \
                   #ARITH_UNARY_OP "doesn't apply to unsigned types");          \
     return simd(ARITH_UNARY_OP(base_type::data()));                            \

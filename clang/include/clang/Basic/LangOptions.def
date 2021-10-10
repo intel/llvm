@@ -445,7 +445,7 @@ ENUM_LANGOPT(DefaultSubGroupSizeType, SubGroupSizeType, 2,
 VALUE_LANGOPT(DefaultSubGroupSize, 32, 0,
               "If DefaultSubGroupSizeType is Integer contains the value")
 
-ENUM_LANGOPT(ExtendIntArgs, ExtendArgsKind, 1, ExtendArgsKind::ExtendTo32, 
+ENUM_LANGOPT(ExtendIntArgs, ExtendArgsKind, 1, ExtendArgsKind::ExtendTo32,
              "Controls how scalar integer arguments are extended in calls "
              "to unprototyped and varargs functions")
 

@@ -13,8 +13,8 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "SPIRKernelParamOptInfo.h"
 #include "SYCLDeviceLibReqMask.h"
+#include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -175,6 +175,12 @@ static cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
                                          cl::desc("emit exported symbols"),
                                          cl::cat(PostLinkCat)};
 
+static cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
+    "emit-only-kernels-as-entry-points",
+    cl::desc("Consider only sycl_kernel functions as entry points for "
+             "device code split"),
+    cl::cat(PostLinkCat), cl::init(false)};
+
 struct ImagePropSaveInfo {
   bool NeedDeviceLibReqMask;
   bool DoSpecConst;
@@ -261,6 +267,22 @@ static bool funcIsSpirvSyclBuiltin(StringRef FName) {
   return FName.startswith("__spirv_") || FName.startswith("__sycl_");
 }
 
+static bool isEntryPoint(const Function &F) {
+  // Kernels are always considered to be entry points
+  if (CallingConv::SPIR_KERNEL == F.getCallingConv())
+    return true;
+
+  if (!EmitOnlyKernelsAsEntryPoints) {
+    // If not disabled, SYCL_EXTERNAL functions with sycl-module-id attribute
+    // are also considered as entry points (except __spirv_* and __sycl_*
+    // functions)
+    return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+           !funcIsSpirvSyclBuiltin(F.getName());
+  }
+
+  return false;
+}
+
 // This function decides how kernels of the input module M will be distributed
 // ("split") into multiple modules based on the command options and IR
 // attributes. The decision is recorded in the output map parameter
@@ -271,37 +293,34 @@ static void collectKernelModuleMap(
     Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
     KernelMapEntryScope EntryScope) {
 
-  // Process module entry points: kernels and SYCL_EXTERNAL functions.
-  // Only they have sycl-module-id attribute, so any other unrefenced
-  // functions are dropped. SPIRV and SYCL builtin functions are not
-  // considered as module entry points.
+  // Only process module entry points:
   for (auto &F : M.functions()) {
-    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-        !funcIsSpirvSyclBuiltin(F.getName())) {
-      switch (EntryScope) {
-      case Scope_PerKernel:
-        ResKernelModuleMap[F.getName()].push_back(&F);
-        break;
-      case Scope_PerModule: {
-        Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
-        StringRef Val = Id.getValueAsString();
-        ResKernelModuleMap[Val].push_back(&F);
-        break;
-      }
-      case Scope_Global:
-        // the map key is not significant here
-        ResKernelModuleMap[GLOBAL_SCOPE_NAME].push_back(&F);
-        break;
-      }
-    } else if (EntryScope == Scope_PerModule &&
-               F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      // TODO It may make sense to group all kernels w/o the attribute into
-      // a separate module rather than issuing an error. Should probably be
-      // controlled by an option.
-      // Functions with spir_func calling convention are allowed to not have
-      // a sycl-module-id attribute.
-      error("no '" + Twine(ATTR_SYCL_MODULE_ID) + "' attribute in kernel '" +
-            F.getName() + "', per-module split not possible");
+    if (!isEntryPoint(F))
+      continue;
+
+    switch (EntryScope) {
+    case Scope_PerKernel:
+      ResKernelModuleMap[F.getName()].push_back(&F);
+      break;
+    case Scope_PerModule: {
+      if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
+        // TODO It may make sense to group all kernels w/o the attribute into
+        // a separate module rather than issuing an error. Should probably be
+        // controlled by an option.
+        // Functions with spir_func calling convention are allowed to not have
+        // a sycl-module-id attribute.
+        error("no '" + Twine(ATTR_SYCL_MODULE_ID) + "' attribute in kernel '" +
+              F.getName() + "', per-module split not possible");
+
+      Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
+      StringRef Val = Id.getValueAsString();
+      ResKernelModuleMap[Val].push_back(&F);
+      break;
+    }
+    case Scope_Global:
+      // the map key is not significant here
+      ResKernelModuleMap[GLOBAL_SCOPE_NAME].push_back(&F);
+      break;
     }
   }
 }
@@ -583,9 +602,10 @@ static string_vector saveDeviceImageProperty(
       // Register required analysis
       MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
       // Register the payload analysis
-      MAM.registerPass([&] { return SPIRKernelParamOptInfoAnalysis(); });
-      SPIRKernelParamOptInfo PInfo =
-          MAM.getResult<SPIRKernelParamOptInfoAnalysis>(
+
+      MAM.registerPass([&] { return SYCLKernelParamOptInfoAnalysis(); });
+      SYCLKernelParamOptInfo PInfo =
+          MAM.getResult<SYCLKernelParamOptInfoAnalysis>(
               *ResultModules[I].ModulePtr);
 
       // convert analysis results into properties and record them
@@ -871,13 +891,9 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   std::vector<Function *> SyclFunctions;
   std::vector<Function *> EsimdFunctions;
   // Collect information about the SYCL and ESIMD functions in the module.
-  // Process module entry points: kernels and SYCL_EXTERNAL functions.
-  // Only they have sycl-module-id attribute, so any other unrefenced
-  // functions are dropped. SPIRV and SYCL builtin functions are not
-  // considered as module entry points.
+  // Only process module entry points.
   for (auto &F : M->functions()) {
-    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-        !funcIsSpirvSyclBuiltin(F.getName())) {
+    if (isEntryPoint(F)) {
       if (F.getMetadata("sycl_explicit_simd"))
         EsimdFunctions.push_back(&F);
       else
@@ -949,8 +965,8 @@ int main(int argc, char **argv) {
       "- SYCL and ESIMD kernels can be split into separate modules with\n"
       "  '-split-esimd' option. The option has no effect when there is only\n"
       "  one type of kernels in the input module. Functions unreachable from\n"
-      "  any kernel or SYCL_EXTERNAL function are dropped from the resulting\n"
-      "  module(s)."
+      "  any entry point (kernels and SYCL_EXTERNAL functions) are\n"
+      "  dropped from the resulting module(s).\n"
       "- Module splitter to split a big input module into smaller ones.\n"
       "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"

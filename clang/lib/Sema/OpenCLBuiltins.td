@@ -810,9 +810,6 @@ multiclass VloadVstore<list<AddressSpace> addrspaces, bit defStores> {
         def : Builtin<name, [VectorType<Double, VSize>, Size, PointerType<ConstType<Double>, AS>]>;
         def : Builtin<name, [VectorType<Half, VSize>, Size, PointerType<ConstType<Half>, AS>]>;
       }
-      foreach name = ["vloada_half" # VSize] in {
-        def : Builtin<name, [VectorType<Float, VSize>, Size, PointerType<ConstType<Half>, AS>]>;
-      }
       if defStores then {
         foreach name = ["vstore" # VSize] in {
           def : Builtin<name, [Void, VectorType<Char, VSize>, Size, PointerType<Char, AS>]>;
@@ -826,12 +823,6 @@ multiclass VloadVstore<list<AddressSpace> addrspaces, bit defStores> {
           def : Builtin<name, [Void, VectorType<Float, VSize>, Size, PointerType<Float, AS>]>;
           def : Builtin<name, [Void, VectorType<Double, VSize>, Size, PointerType<Double, AS>]>;
           def : Builtin<name, [Void, VectorType<Half, VSize>, Size, PointerType<Half, AS>]>;
-        }
-        foreach rnd = ["", "_rte", "_rtz", "_rtp", "_rtn"] in {
-          foreach name = ["vstorea_half" # VSize # rnd] in {
-            def : Builtin<name, [Void, VectorType<Float, VSize>, Size, PointerType<Half, AS>]>;
-            def : Builtin<name, [Void, VectorType<Double, VSize>, Size, PointerType<Half, AS>]>;
-          }
         }
       }
     }
@@ -851,7 +842,7 @@ multiclass VloadVstoreHalf<list<AddressSpace> addrspaces, bit defStores> {
   foreach AS = addrspaces in {
     def : Builtin<"vload_half", [Float, Size, PointerType<ConstType<Half>, AS>]>;
     foreach VSize = [2, 3, 4, 8, 16] in {
-      foreach name = ["vload_half" # VSize] in {
+      foreach name = ["vload_half" # VSize, "vloada_half" # VSize] in {
         def : Builtin<name, [VectorType<Float, VSize>, Size, PointerType<ConstType<Half>, AS>]>;
       }
     }
@@ -862,7 +853,7 @@ multiclass VloadVstoreHalf<list<AddressSpace> addrspaces, bit defStores> {
           def : Builtin<name, [Void, Double, Size, PointerType<Half, AS>]>;
         }
         foreach VSize = [2, 3, 4, 8, 16] in {
-          foreach name = ["vstore_half" # VSize # rnd] in {
+          foreach name = ["vstore_half" # VSize # rnd, "vstorea_half" # VSize # rnd] in {
             def : Builtin<name, [Void, VectorType<Float, VSize>, Size, PointerType<Half, AS>]>;
             def : Builtin<name, [Void, VectorType<Double, VSize>, Size, PointerType<Half, AS>]>;
           }

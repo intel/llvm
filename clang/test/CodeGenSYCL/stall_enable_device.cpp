@@ -47,7 +47,7 @@ int main() {
     // CHECK: define {{.*}}spir_kernel void @{{.*}}test_kernel4()
     // CHECK-NOT: !stall_enable
     // CHECK-SAME: {
-    // CHECK: define {{.*}}spir_func void @{{.*}}func1{{.*}}(%class.{{.*}}func1{{.*}}.anon addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM4]]
+    // CHECK: define {{.*}}spir_func void @{{.*}}func1{{.*}}(%class.anon{{.*}} addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 !stall_enable ![[NUM4]]
     h.single_task<class test_kernel4>(
         []() { func1(); });
 

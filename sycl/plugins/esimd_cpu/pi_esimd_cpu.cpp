@@ -1386,8 +1386,8 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   return PI_SUCCESS;
 }
 
-pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context, bool,
-                                            pi_kernel *) {
+pi_result piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
+                                            pi_program, bool, pi_kernel *) {
   DIE_NO_IMPLEMENTATION;
 }
 
