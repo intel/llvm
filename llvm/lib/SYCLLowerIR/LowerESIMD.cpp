@@ -784,7 +784,7 @@ static void translateUnPackMask(CallInst &CI) {
   APInt Val = parseTemplateArg(FE, 0, TTy, Context);
   unsigned N = Val.getZExtValue();
   // get N x i1
-  assert(CI.getNumArgOperands() == 1);
+  assert(CI.arg_size() == 1);
   llvm::Value *Arg0 = CI.getArgOperand(0);
   unsigned Width = Arg0->getType()->getPrimitiveSizeInBits();
   IRBuilder<> Builder(&CI);
@@ -1016,8 +1016,8 @@ static void createESIMDIntrinsicArgs(const ESIMDIntrinDesc &Desc,
       break;
     }
     case ESIMDIntrinDesc::GenXArgRuleKind::SRC_CALL_ALL:
-      assert(LastCppArgNo < CI.getNumArgOperands());
-      for (uint32_t N = LastCppArgNo; N < CI.getNumArgOperands(); ++N)
+      assert(LastCppArgNo < CI.arg_size());
+      for (uint32_t N = LastCppArgNo; N < CI.arg_size(); ++N)
         GenXArgs.push_back(CI.getArgOperand(N));
       break;
     case ESIMDIntrinDesc::GenXArgRuleKind::SRC_TMPL_ARG: {

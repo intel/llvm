@@ -622,8 +622,8 @@ using CaptureDesc = std::pair<AllocaInst *, GetElementPtrInst *>;
 //
 static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // Lambda object is always the last argument to the PFWI lambda function:
-  auto NArgs = PFWICall->getNumArgOperands();
-  assert(PFWICall->getNumArgOperands() > 1 && "invalid PFWI call");
+  auto NArgs = PFWICall->arg_size();
+  assert(PFWICall->arg_size() > 1 && "invalid PFWI call");
   Value *LambdaObj =
       PFWICall->getArgOperand(NArgs - 1 /*lambda object parameter*/);
   // First go through all stores through the LambdaObj pointer - those are

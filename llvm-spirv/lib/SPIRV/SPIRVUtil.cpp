@@ -344,7 +344,7 @@ Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
 std::vector<Value *> getArguments(CallInst *CI, unsigned Start, unsigned End) {
   std::vector<Value *> Args;
   if (End == 0)
-    End = CI->getNumArgOperands();
+    End = CI->arg_size();
   for (; Start != End; ++Start) {
     Args.push_back(CI->getArgOperand(Start));
   }

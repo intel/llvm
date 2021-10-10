@@ -689,7 +689,7 @@ bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
 }
 
 BarrierLiterals getBarrierLiterals(CallInst *CI) {
-  auto N = CI->getNumArgOperands();
+  auto N = CI->arg_size();
   assert(N == 1 || N == 2);
 
   StringRef DemangledName;
