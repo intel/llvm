@@ -3037,6 +3037,7 @@ pi_result hip_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                  pi_program *program) {
   (void)nativeHandle;
   (void)context;
+  (void)ownNativeHandle;
   (void)program;
 
   cl::sycl::detail::pi::die(
