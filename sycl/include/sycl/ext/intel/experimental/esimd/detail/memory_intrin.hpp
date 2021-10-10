@@ -486,7 +486,8 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// slm_block_read reads a block of data from SLM
+// Reads a block of data from given surface at given offset, offset must be
+// 16-byte-aligned.
 template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)

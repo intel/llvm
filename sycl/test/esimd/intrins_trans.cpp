@@ -154,3 +154,117 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   }
   return d;
 }
+
+// TODO
+// 1. __esimd* intrinsic translation tests from
+//   llvm\test\SYCLLowerIR\esimd_lower_intrins.ll should be refactored and
+//   moved here, as the form below is much easier to maintain with the same
+//   level of testing strength
+// 2. Test cases above should be refactored not to use user-level APIs like
+//   gather and use __esimd* calls instead.
+template <class T, int N> using vec = typename simd<T, N>::vector_type;
+
+template <int N> using mask = typename simd_mask<N>::vector_type;
+
+SYCL_EXTERNAL void use(const vec<float, 8> &x) SYCL_ESIMD_FUNCTION;
+SYCL_EXTERNAL void use(const vec<int, 8> &x) SYCL_ESIMD_FUNCTION;
+SYCL_EXTERNAL void use(const vec<unsigned char, 8> &x) SYCL_ESIMD_FUNCTION;
+
+SYCL_EXTERNAL vec<float, 8> get8f() SYCL_ESIMD_FUNCTION;
+SYCL_EXTERNAL vec<int, 8> get8i() SYCL_ESIMD_FUNCTION;
+SYCL_EXTERNAL vec<uint64_t, 8> get8ui64() SYCL_ESIMD_FUNCTION;
+SYCL_EXTERNAL vec<unsigned short, 8> get8ui16() SYCL_ESIMD_FUNCTION;
+SYCL_EXTERNAL vec<unsigned char, 8> get8ui8() SYCL_ESIMD_FUNCTION;
+
+SYCL_EXTERNAL void
+test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
+                 const vec<float, 8> &xi) SYCL_ESIMD_FUNCTION {
+  {
+    constexpr SurfaceIndex si = 0;
+    vec<float, 8> x = __esimd_oword_ld_unaligned<float, 8>(si, 0);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.oword.ld.unaligned.v8f32(i32 0, i32 0, i32 0)
+    use(x);
+  }
+  {
+    constexpr SurfaceIndex si = 0;
+    vec<float, 8> x = __esimd_oword_ld<float, 8>(si, 0);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.oword.ld.v8f32(i32 0, i32 0, i32 0)
+    use(x);
+  }
+  {
+    constexpr SurfaceIndex si = 0;
+    __esimd_oword_st<float, 8>(si, 0, get8f());
+    // CHECK-LABEL: call void @llvm.genx.oword.st.v8f32(i32 0, i32 0, <8 x float> %{{[a-zA-Z0-9.]+}})
+  }
+  {
+      // TODO
+      // vec<int, 8> x = __esimd_svm_block_ld<int, 8>(addr);
+  } {
+    vec<int, 8> x = __esimd_svm_block_ld_unaligned<int, 8>(addr);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.block.ld.unaligned.v8i32.i64(i64 %{{[a-zA-Z0-9.]+}})
+    use(x);
+  }
+  {
+    __esimd_svm_block_st<int, 8>(addr, get8i());
+    // CHECK-LABEL: call void @llvm.genx.svm.block.st.i64.v8i32(i64 %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}})
+  }
+  {
+    auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), 0, get8ui16());
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i8> @llvm.genx.svm.gather.v8i8.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, i32 0, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i8> undef)
+    use(x);
+  }
+  {
+    __esimd_svm_scatter<unsigned char, 8>(get8ui64(), get8ui8(), 0, get8ui16());
+    // CHECK-LABEL: call void @llvm.genx.svm.scatter.v8i1.v8i64.v8i8(<8 x i1> %{{[a-zA-Z0-9.]+}}, i32 0, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i8> %{{[a-zA-Z0-9.]+}})
+  }
+  {
+    auto x =
+        __esimd_svm_atomic0<atomic_op::inc, int, 8>(get8ui64(), get8ui16());
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.atomic.inc.v8i32.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x i32> undef)
+    use(x);
+  }
+  {
+    vec<float, 8> src0 = get8f();
+    auto x = __esimd_svm_atomic1<atomic_op::fmin, float, 8>(get8ui64(), src0,
+                                                            get8ui16());
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.svm.atomic.fmin.v8f32.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x float> %{{[a-zA-Z0-9.]+}}, <8 x float> undef)
+    use(x);
+  }
+  {
+    vec<float, 8> src0 = get8f();
+    vec<float, 8> src1 = get8f();
+    auto x = __esimd_svm_atomic2<atomic_op::fcmpwr, float, 8>(get8ui64(), src0,
+                                                              src1, get8ui16());
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.svm.atomic.fcmpwr.v8f32.v8i1.v8i64(<8 x i1> %{{[a-zA-Z0-9.]+}}, <8 x i64> %{{[a-zA-Z0-9.]+}}, <8 x float> %{{[a-zA-Z0-9.]+}}, <8 x float> %{{[a-zA-Z0-9.]+}}, <8 x float> undef)
+    use(x);
+  }
+  {
+    constexpr SurfaceIndex si = 0;
+    vec<float, 8> x =
+        __esimd_media_ld<float, 2, 4, 0, SurfaceIndex, 0, 4>(si, 0, 0);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.media.ld.v8f32(i32 0, i32 0, i32 0, i32 4, i32 0, i32 0)
+    use(x);
+  }
+  {
+    constexpr SurfaceIndex si = 0;
+    vec<float, 8> x = get8f();
+    __esimd_media_st<float, 2, 4, 0, SurfaceIndex, 0, 4>(si, 0, 0, x);
+    // CHECK-LABEL: call void @llvm.genx.media.st.v8f32(i32 0, i32 0, i32 0, i32 4, i32 0, i32 0, <8 x float> %{{[a-zA-Z0-9.]+}})
+  }
+}
+
+SYCL_EXTERNAL void test_math_intrins() SYCL_ESIMD_FUNCTION {
+  {
+    vec<float, 8> x0 = get8f();
+    vec<float, 8> x1 = get8f();
+    auto y = __esimd_ieee_div<8>(x0, x1);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.ieee.div.v8f32(<8 x float> %{{[a-zA-Z0-9.]+}}, <8 x float> %{{[a-zA-Z0-9.]+}})
+    use(y);
+  }
+  {
+    vec<float, 8> x = get8f();
+    auto y = __esimd_ieee_sqrt<8>(x);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x float> @llvm.genx.ieee.sqrt.v8f32(<8 x float> %{{[a-zA-Z0-9.]+}})
+    use(y);
+  }
+}
