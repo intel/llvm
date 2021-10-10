@@ -531,13 +531,15 @@ public:
 
   /// Bitwise inversion, available in all subclasses.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
-  Derived operator~() {
+  Derived operator~() const {
     return Derived(~data());
   }
 
   /// Unary logical negation operator, available in all subclasses.
+  /// Similarly to C++, where !x returns bool, !simd returns as simd_mask, where
+  /// each element is a result of comparision with zero.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
-  simd_mask_type<N> operator!() {
+  simd_mask_type<N> operator!() const {
     using MaskVecT = typename simd_mask_type<N>::vector_type;
     auto R = data() == vector_type(0);
     return simd_mask_type<N>{__builtin_convertvector(R, MaskVecT) &

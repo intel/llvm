@@ -45,14 +45,14 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   simd_mask<VL> pred;
   v_addr += offsets;
 
-  __esimd_flat_atomic0<EsimdAtomicOpType::ATOMIC_INC, uint32_t, VL>(
+  __esimd_flat_atomic0<EsimdAtomicOpType::inc, uint32_t, VL>(
       v_addr.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.inc.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
-  __esimd_flat_atomic1<EsimdAtomicOpType::ATOMIC_ADD, uint32_t, VL>(
+  __esimd_flat_atomic1<EsimdAtomicOpType::add, uint32_t, VL>(
       v_addr.data(), v1.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.add.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
-  __esimd_flat_atomic2<EsimdAtomicOpType::ATOMIC_CMPXCHG, uint32_t, VL>(
+  __esimd_flat_atomic2<EsimdAtomicOpType::cmpxchg, uint32_t, VL>(
       v_addr.data(), v1.data(), v1.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.cmpxchg.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
