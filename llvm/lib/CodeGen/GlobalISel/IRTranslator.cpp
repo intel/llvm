@@ -1003,14 +1003,22 @@ void IRTranslator::emitBitTestHeader(SwitchCG::BitTestBlock &B,
   Register MinValReg = MIB.buildConstant(SwitchOpTy, B.First).getReg(0);
   auto RangeSub = MIB.buildSub(SwitchOpTy, SwitchOpReg, MinValReg);
 
-  // Ensure that the type will fit the mask value.
+  Type *PtrIRTy = Type::getInt8PtrTy(MF->getFunction().getContext());
+  const LLT PtrTy = getLLTForType(*PtrIRTy, *DL);
+
   LLT MaskTy = SwitchOpTy;
-  for (unsigned I = 0, E = B.Cases.size(); I != E; ++I) {
-    if (!isUIntN(SwitchOpTy.getSizeInBits(), B.Cases[I].Mask)) {
-      // Switch table case range are encoded into series of masks.
-      // Just use pointer type, it's guaranteed to fit.
-      MaskTy = LLT::scalar(64);
-      break;
+  if (MaskTy.getSizeInBits() > PtrTy.getSizeInBits() ||
+      !isPowerOf2_32(MaskTy.getSizeInBits()))
+    MaskTy = LLT::scalar(PtrTy.getSizeInBits());
+  else {
+    // Ensure that the type will fit the mask value.
+    for (unsigned I = 0, E = B.Cases.size(); I != E; ++I) {
+      if (!isUIntN(SwitchOpTy.getSizeInBits(), B.Cases[I].Mask)) {
+        // Switch table case range are encoded into series of masks.
+        // Just use pointer type, it's guaranteed to fit.
+        MaskTy = LLT::scalar(PtrTy.getSizeInBits());
+        break;
+      }
     }
   }
   Register SubReg = RangeSub.getReg(0);
@@ -1583,8 +1591,7 @@ bool IRTranslator::translateMemFunc(const CallInst &CI,
   Align DstAlign;
   Align SrcAlign;
   unsigned IsVol =
-      cast<ConstantInt>(CI.getArgOperand(CI.getNumArgOperands() - 1))
-          ->getZExtValue();
+      cast<ConstantInt>(CI.getArgOperand(CI.arg_size() - 1))->getZExtValue();
 
   if (auto *MCI = dyn_cast<MemCpyInst>(&CI)) {
     DstAlign = MCI->getDestAlign().valueOrOne();
@@ -1776,7 +1783,7 @@ bool IRTranslator::translateSimpleIntrinsic(const CallInst &CI,
 
   // Yes. Let's translate it.
   SmallVector<llvm::SrcOp, 4> VRegs;
-  for (auto &Arg : CI.arg_operands())
+  for (auto &Arg : CI.args())
     VRegs.push_back(getOrCreateVReg(*Arg));
 
   MIRBuilder.buildInstr(Op, {getOrCreateVReg(CI)}, VRegs,
@@ -2169,7 +2176,7 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
 
     // Directly emit some LOCAL_ESCAPE machine instrs. Label assignment emission
     // is the same on all targets.
-    for (unsigned Idx = 0, E = CI.getNumArgOperands(); Idx < E; ++Idx) {
+    for (unsigned Idx = 0, E = CI.arg_size(); Idx < E; ++Idx) {
       Value *Arg = CI.getArgOperand(Idx)->stripPointerCasts();
       if (isa<ConstantPointerNull>(Arg))
         continue; // Skip null pointers. They represent a hole in index space.
@@ -2336,14 +2343,7 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
   if (CI.isInlineAsm())
     return translateInlineAsm(CI, MIRBuilder);
 
-  if (F && F->hasFnAttribute("dontcall")) {
-    unsigned LocCookie = 0;
-    if (MDNode *MD = CI.getMetadata("srcloc"))
-      LocCookie =
-          mdconst::extract<ConstantInt>(MD->getOperand(0))->getZExtValue();
-    DiagnosticInfoDontCall D(F->getName(), LocCookie);
-    F->getContext().diagnose(D);
-  }
+  diagnoseDontCall(CI);
 
   Intrinsic::ID ID = Intrinsic::not_intrinsic;
   if (F && F->isIntrinsic()) {
@@ -2371,7 +2371,7 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
   if (isa<FPMathOperator>(CI))
     MIB->copyIRFlags(CI);
 
-  for (auto &Arg : enumerate(CI.arg_operands())) {
+  for (auto &Arg : enumerate(CI.args())) {
     // If this is required to be an immediate, don't materialize it in a
     // register.
     if (CI.paramHasAttr(Arg.index(), Attribute::ImmArg)) {
@@ -2384,10 +2384,15 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
       } else {
         MIB.addFPImm(cast<ConstantFP>(Arg.value()));
       }
-    } else if (auto MD = dyn_cast<MetadataAsValue>(Arg.value())) {
-      auto *MDN = dyn_cast<MDNode>(MD->getMetadata());
-      if (!MDN) // This was probably an MDString.
-        return false;
+    } else if (auto *MDVal = dyn_cast<MetadataAsValue>(Arg.value())) {
+      auto *MD = MDVal->getMetadata();
+      auto *MDN = dyn_cast<MDNode>(MD);
+      if (!MDN) {
+        if (auto *ConstMD = dyn_cast<ConstantAsMetadata>(MD))
+          MDN = MDNode::get(MF->getFunction().getContext(), ConstMD);
+        else // This was probably an MDString.
+          return false;
+      }
       MIB.addMetadata(MDN);
     } else {
       ArrayRef<Register> VRegs = getOrCreateVRegs(*Arg.value());
@@ -2691,6 +2696,28 @@ bool IRTranslator::translateVAArg(const User &U, MachineIRBuilder &MIRBuilder) {
   MIRBuilder.buildInstr(TargetOpcode::G_VAARG, {getOrCreateVReg(U)},
                         {getOrCreateVReg(*U.getOperand(0)),
                          DL->getABITypeAlign(U.getType()).value()});
+  return true;
+}
+
+bool IRTranslator::translateUnreachable(const User &U, MachineIRBuilder &MIRBuilder) {
+    if (!MF->getTarget().Options.TrapUnreachable)
+    return true;
+
+  auto &UI = cast<UnreachableInst>(U);
+  // We may be able to ignore unreachable behind a noreturn call.
+  if (MF->getTarget().Options.NoTrapAfterNoreturn) {
+    const BasicBlock &BB = *UI.getParent();
+    if (&UI != &BB.front()) {
+      BasicBlock::const_iterator PredI =
+        std::prev(BasicBlock::const_iterator(UI));
+      if (const CallInst *Call = dyn_cast<CallInst>(&*PredI)) {
+        if (Call->doesNotReturn())
+          return true;
+      }
+    }
+  }
+
+  MIRBuilder.buildIntrinsic(Intrinsic::trap, ArrayRef<Register>(), true);
   return true;
 }
 

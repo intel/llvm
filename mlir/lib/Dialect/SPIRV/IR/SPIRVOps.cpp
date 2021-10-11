@@ -92,7 +92,12 @@ static LogicalResult extractValueFromConstOp(Operation *op, int32_t &value) {
   if (!integerValueAttr) {
     return failure();
   }
-  value = integerValueAttr.getInt();
+
+  if (integerValueAttr.getType().isSignlessInteger())
+    value = integerValueAttr.getInt();
+  else
+    value = integerValueAttr.getSInt();
+
   return success();
 }
 
@@ -321,8 +326,7 @@ static ParseResult parseImageOperands(OpAsmParser &parser,
   if (parseEnumStrAttr(imageOperands, parser))
     return failure();
 
-  attr = spirv::ImageOperandsAttr::get(parser.getBuilder().getContext(),
-                                       imageOperands);
+  attr = spirv::ImageOperandsAttr::get(parser.getContext(), imageOperands);
 
   return parser.parseRSquare();
 }
@@ -2067,8 +2071,7 @@ Operation::operand_range spirv::FunctionCallOp::getArgOperands() {
 void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
                                     Type type, StringRef name,
                                     unsigned descriptorSet, unsigned binding) {
-  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name),
-        nullptr);
+  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name));
   state.addAttribute(
       spirv::SPIRVDialect::getAttributeName(spirv::Decoration::DescriptorSet),
       builder.getI32IntegerAttr(descriptorSet));
@@ -2080,8 +2083,7 @@ void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
 void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
                                     Type type, StringRef name,
                                     spirv::BuiltIn builtin) {
-  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name),
-        nullptr);
+  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name));
   state.addAttribute(
       spirv::SPIRVDialect::getAttributeName(spirv::Decoration::BuiltIn),
       builder.getStringAttr(spirv::stringifyBuiltIn(builtin)));
@@ -3590,7 +3592,7 @@ static ParseResult parseSpecConstantOperationOp(OpAsmParser &parser,
   if (!wrappedOp)
     return failure();
 
-  OpBuilder builder(parser.getBuilder().getContext());
+  OpBuilder builder(parser.getContext());
   builder.setInsertionPointToEnd(&block);
   builder.create<spirv::YieldOp>(wrappedOp->getLoc(), wrappedOp->getResult(0));
   state.location = wrappedOp->getLoc();

@@ -480,6 +480,14 @@ protected:
     return success(gaussianEliminateIds(position, position + 1) == 1);
   }
 
+  /// Removes local variables using equalities. Each equality is checked if it
+  /// can be reduced to the form: `e = affine-expr`, where `e` is a local
+  /// variable and `affine-expr` is an affine expression not containing `e`.
+  /// If an equality satisfies this form, the local variable is replaced in
+  /// each constraint and then removed. The equality used to replace this local
+  /// variable is also removed.
+  void removeRedundantLocalVars();
+
   /// Eliminates identifiers from equality and inequality constraints
   /// in column range [posStart, posLimit).
   /// Returns the number of variables eliminated.
@@ -583,6 +591,20 @@ public:
 
   FlatAffineValueConstraints(ArrayRef<const AffineValueMap *> avmRef,
                              IntegerSet set);
+
+  // Construct a hyperrectangular constraint set from ValueRanges that represent
+  // induction variables, lower and upper bounds. `ivs`, `lbs` and `ubs` are
+  // expected to match one to one. The order of variables and constraints is:
+  //
+  // ivs | lbs | ubs | eq/ineq
+  // ----+-----+-----+---------
+  //   1   -1     0      >= 0
+  // ----+-----+-----+---------
+  //  -1    0     1      >= 0
+  //
+  // All dimensions as set as DimId.
+  static FlatAffineValueConstraints
+  getHyperrectangular(ValueRange ivs, ValueRange lbs, ValueRange ubs);
 
   /// Return the kind of this FlatAffineConstraints.
   Kind getKind() const override { return Kind::FlatAffineValueConstraints; }

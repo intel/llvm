@@ -189,6 +189,48 @@ FlatAffineValueConstraints::FlatAffineValueConstraints(IntegerSet set)
   values.resize(numIds, None);
 }
 
+// Construct a hyperrectangular constraint set from ValueRanges that represent
+// induction variables, lower and upper bounds. `ivs`, `lbs` and `ubs` are
+// expected to match one to one. The order of variables and constraints is:
+//
+// ivs | lbs | ubs | eq/ineq
+// ----+-----+-----+---------
+//   1   -1     0      >= 0
+// ----+-----+-----+---------
+//  -1    0     1      >= 0
+//
+// All dimensions as set as DimId.
+FlatAffineValueConstraints
+FlatAffineValueConstraints::getHyperrectangular(ValueRange ivs, ValueRange lbs,
+                                                ValueRange ubs) {
+  FlatAffineValueConstraints res;
+  unsigned nIvs = ivs.size();
+  assert(nIvs == lbs.size() && "expected as many lower bounds as ivs");
+  assert(nIvs == ubs.size() && "expected as many upper bounds as ivs");
+
+  if (nIvs == 0)
+    return res;
+
+  res.appendDimId(ivs);
+  unsigned lbsStart = res.appendDimId(lbs);
+  unsigned ubsStart = res.appendDimId(ubs);
+
+  MLIRContext *ctx = ivs.front().getContext();
+  for (int ivIdx = 0, e = nIvs; ivIdx < e; ++ivIdx) {
+    // iv - lb >= 0
+    AffineMap lb = AffineMap::get(/*dimCount=*/3 * nIvs, /*symbolCount=*/0,
+                                  getAffineDimExpr(lbsStart + ivIdx, ctx));
+    if (failed(res.addBound(BoundType::LB, ivIdx, lb)))
+      llvm_unreachable("Unexpected FlatAffineValueConstraints creation error");
+    // -iv + ub >= 0
+    AffineMap ub = AffineMap::get(/*dimCount=*/3 * nIvs, /*symbolCount=*/0,
+                                  getAffineDimExpr(ubsStart + ivIdx, ctx));
+    if (failed(res.addBound(BoundType::UB, ivIdx, ub)))
+      llvm_unreachable("Unexpected FlatAffineValueConstraints creation error");
+  }
+  return res;
+}
+
 void FlatAffineConstraints::reset(unsigned numReservedInequalities,
                                   unsigned numReservedEqualities,
                                   unsigned newNumReservedCols,
@@ -628,7 +670,7 @@ FlatAffineValueConstraints::addAffineForOpDomain(AffineForOp forOp) {
   int64_t step = forOp.getStep();
   if (step != 1) {
     if (!forOp.hasConstantLowerBound())
-      forOp.emitWarning("domain conservatively approximated");
+      LLVM_DEBUG(forOp.emitWarning("domain conservatively approximated"));
     else {
       // Add constraints for the stride.
       // (iv - lb) % step = 0 can be written as:
@@ -949,9 +991,14 @@ bool FlatAffineConstraints::isEmpty() const {
   if (isEmptyByGCDTest() || hasInvalidConstraint())
     return true;
 
-  // First, eliminate as many identifiers as possible using Gaussian
-  // elimination.
   FlatAffineConstraints tmpCst(*this);
+
+  // First, eliminate as many local variables as possible using equalities.
+  tmpCst.removeRedundantLocalVars();
+  if (tmpCst.isEmptyByGCDTest() || tmpCst.hasInvalidConstraint())
+    return true;
+
+  // Eliminate as many identifiers as possible using Gaussian elimination.
   unsigned currentPos = 0;
   while (currentPos < tmpCst.getNumIds()) {
     tmpCst.gaussianEliminateIds(currentPos, tmpCst.getNumIds());
@@ -1796,6 +1843,54 @@ void FlatAffineConstraints::mergeLocalIds(FlatAffineConstraints &other) {
   unsigned initLocals = getNumLocalIds();
   insertLocalId(getNumLocalIds(), other.getNumLocalIds());
   other.insertLocalId(0, initLocals);
+}
+
+/// Removes local variables using equalities. Each equality is checked if it
+/// can be reduced to the form: `e = affine-expr`, where `e` is a local
+/// variable and `affine-expr` is an affine expression not containing `e`.
+/// If an equality satisfies this form, the local variable is replaced in
+/// each constraint and then removed. The equality used to replace this local
+/// variable is also removed.
+void FlatAffineConstraints::removeRedundantLocalVars() {
+  // Normalize the equality constraints to reduce coefficients of local
+  // variables to 1 wherever possible.
+  for (unsigned i = 0, e = getNumEqualities(); i < e; ++i)
+    normalizeConstraintByGCD</*isEq=*/true>(this, i);
+
+  while (true) {
+    unsigned i, e, j, f;
+    for (i = 0, e = getNumEqualities(); i < e; ++i) {
+      // Find a local variable to eliminate using ith equality.
+      for (j = getNumDimAndSymbolIds(), f = getNumIds(); j < f; ++j)
+        if (std::abs(atEq(i, j)) == 1)
+          break;
+
+      // Local variable can be eliminated using ith equality.
+      if (j < f)
+        break;
+    }
+
+    // No equality can be used to eliminate a local variable.
+    if (i == e)
+      break;
+
+    // Use the ith equality to simplify other equalities. If any changes
+    // are made to an equality constraint, it is normalized by GCD.
+    for (unsigned k = 0, t = getNumEqualities(); k < t; ++k) {
+      if (atEq(k, j) != 0) {
+        eliminateFromConstraint(this, k, i, j, j, /*isEq=*/true);
+        normalizeConstraintByGCD</*isEq=*/true>(this, k);
+      }
+    }
+
+    // Use the ith equality to simplify inequalities.
+    for (unsigned k = 0, t = getNumInequalities(); k < t; ++k)
+      eliminateFromConstraint(this, k, i, j, j, /*isEq=*/false);
+
+    // Remove the ith equality and the found local variable.
+    removeId(j);
+    removeEquality(i);
+  }
 }
 
 std::pair<AffineMap, AffineMap> FlatAffineConstraints::getLowerAndUpperBound(

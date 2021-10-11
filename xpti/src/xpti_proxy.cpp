@@ -7,15 +7,12 @@
 //
 #include "xpti/xpti_trace_framework.hpp"
 
-#include <atomic>
 #include <iostream>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 
 enum functions_t {
-  XPTI_FRAMEWORK_INITIALIZE,
-  XPTI_FRAMEWORK_FINALIZE,
   XPTI_INITIALIZE,
   XPTI_FINALIZE,
   XPTI_GET_UNIQUE_ID,
@@ -45,8 +42,6 @@ enum functions_t {
 namespace xpti {
 class ProxyLoader {
   std::unordered_map<int, const char *> m_function_names = {
-      {XPTI_FRAMEWORK_INITIALIZE, "xptiFrameworkInitialize"},
-      {XPTI_FRAMEWORK_FINALIZE, "xptiFrameworkFinalize"},
       {XPTI_INITIALIZE, "xptiInitialize"},
       {XPTI_FINALIZE, "xptiFinalize"},
       {XPTI_GET_UNIQUE_ID, "xptiGetUniqueId"},
@@ -121,15 +116,10 @@ public:
   inline bool noErrors() { return m_loaded; }
 
   void *functionByIndex(int index) {
-    if (index >= XPTI_FRAMEWORK_INITIALIZE && index < XPTI_FW_API_COUNT) {
+    if (index >= XPTI_INITIALIZE && index < XPTI_FW_API_COUNT) {
       return reinterpret_cast<void *>(m_dispatch_table[index]);
     }
     return nullptr;
-  }
-
-  static ProxyLoader &instance() {
-    static ProxyLoader *loader = new ProxyLoader();
-    return *loader;
   }
 
 private:
@@ -138,35 +128,14 @@ private:
   dispatch_table_t m_dispatch_table;
   xpti::utils::PlatformHelper m_loader;
 };
+
+static ProxyLoader g_loader;
 } // namespace xpti
-
-XPTI_EXPORT_API void xptiFrameworkInitialize() {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    void *f = xpti::ProxyLoader::instance().functionByIndex(
-        XPTI_FRAMEWORK_INITIALIZE);
-    if (f) {
-      (*reinterpret_cast<xpti_framework_initialize_t>(f))();
-    }
-  }
-}
-
-XPTI_EXPORT_API void xptiFrameworkFinalize() {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    void *f =
-        xpti::ProxyLoader::instance().functionByIndex(XPTI_FRAMEWORK_FINALIZE);
-    if (f) {
-      (*reinterpret_cast<xpti_framework_finalize_t>(f))();
-    }
-  }
-
-  delete &xpti::ProxyLoader::instance();
-}
 
 XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedTracePoint(
     const char *tool_name, uint8_t user_defined_tp) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(
-        XPTI_REGISTER_USER_DEFINED_TP);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_USER_DEFINED_TP);
     if (f) {
       return (*(xpti_register_user_defined_tp_t)f)(tool_name, user_defined_tp);
     }
@@ -176,9 +145,8 @@ XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedTracePoint(
 
 XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
     const char *tool_name, uint8_t user_defined_event) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(
-        XPTI_REGISTER_USER_DEFINED_ET);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_USER_DEFINED_ET);
     if (f) {
       return (*(xpti_register_user_defined_et_t)f)(tool_name,
                                                    user_defined_event);
@@ -190,8 +158,8 @@ XPTI_EXPORT_API uint16_t xptiRegisterUserDefinedEventType(
 XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *stream, uint32_t maj,
                                               uint32_t min,
                                               const char *version) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_INITIALIZE);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_INITIALIZE);
     if (f) {
       return (*(xpti_initialize_t)f)(stream, maj, min, version);
     }
@@ -200,8 +168,8 @@ XPTI_EXPORT_API xpti::result_t xptiInitialize(const char *stream, uint32_t maj,
 }
 
 XPTI_EXPORT_API void xptiFinalize(const char *stream) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_FINALIZE);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_FINALIZE);
     if (f) {
       (*(xpti_finalize_t)f)(stream);
     }
@@ -209,8 +177,8 @@ XPTI_EXPORT_API void xptiFinalize(const char *stream) {
 }
 
 XPTI_EXPORT_API uint64_t xptiGetUniqueId() {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_GET_UNIQUE_ID);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_GET_UNIQUE_ID);
     if (f) {
       return (*(xpti_get_unique_id_t)f)();
     }
@@ -220,9 +188,8 @@ XPTI_EXPORT_API uint64_t xptiGetUniqueId() {
 
 XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *string,
                                                      char **table_string) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f =
-        xpti::ProxyLoader::instance().functionByIndex(XPTI_REGISTER_STRING);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_STRING);
     if (f) {
       return (*(xpti_register_string_t)f)(string, table_string);
     }
@@ -231,8 +198,8 @@ XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *string,
 }
 
 XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_LOOKUP_STRING);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_LOOKUP_STRING);
     if (f) {
       return (*(xpti_lookup_string_t)f)(id);
     }
@@ -241,9 +208,8 @@ XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id) {
 }
 
 XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f =
-        xpti::ProxyLoader::instance().functionByIndex(XPTI_REGISTER_PAYLOAD);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_PAYLOAD);
     if (f) {
       return (*(xpti_register_payload_t)f)(payload);
     }
@@ -252,9 +218,8 @@ XPTI_EXPORT_API uint64_t xptiRegisterPayload(xpti::payload_t *payload) {
 }
 
 XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *stream_name) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f =
-        xpti::ProxyLoader::instance().functionByIndex(XPTI_REGISTER_STREAM);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_STREAM);
     if (f) {
       return (*(xpti_register_stream_t)f)(stream_name);
     }
@@ -263,9 +228,8 @@ XPTI_EXPORT_API uint8_t xptiRegisterStream(const char *stream_name) {
 }
 
 XPTI_EXPORT_API xpti::result_t xptiUnregisterStream(const char *stream_name) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f =
-        xpti::ProxyLoader::instance().functionByIndex(XPTI_UNREGISTER_STREAM);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_UNREGISTER_STREAM);
     if (f) {
       return (*(xpti_unregister_stream_t)f)(stream_name);
     }
@@ -275,8 +239,8 @@ XPTI_EXPORT_API xpti::result_t xptiUnregisterStream(const char *stream_name) {
 XPTI_EXPORT_API xpti::trace_event_data_t *
 xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
               xpti::trace_activity_type_t activity, uint64_t *instance_no) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_MAKE_EVENT);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_MAKE_EVENT);
     if (f) {
       return (*(xpti_make_event_t)f)(name, payload, event, activity,
                                      instance_no);
@@ -286,8 +250,8 @@ xptiMakeEvent(const char *name, xpti::payload_t *payload, uint16_t event,
 }
 
 XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t uid) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_FIND_EVENT);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_FIND_EVENT);
     if (f) {
       return (*(xpti_find_event_t)f)(uid);
     }
@@ -297,8 +261,8 @@ XPTI_EXPORT_API const xpti::trace_event_data_t *xptiFindEvent(uint64_t uid) {
 
 XPTI_EXPORT_API const xpti::payload_t *
 xptiQueryPayload(xpti::trace_event_data_t *lookup_object) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_QUERY_PAYLOAD);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_QUERY_PAYLOAD);
     if (f) {
       return (*(xpti_query_payload_t)f)(lookup_object);
     }
@@ -307,9 +271,8 @@ xptiQueryPayload(xpti::trace_event_data_t *lookup_object) {
 }
 
 XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(
-        XPTI_QUERY_PAYLOAD_BY_UID);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_QUERY_PAYLOAD_BY_UID);
     if (f) {
       return (*(xpti_query_payload_by_uid_t)f)(uid);
     }
@@ -320,9 +283,8 @@ XPTI_EXPORT_API const xpti::payload_t *xptiQueryPayloadByUID(uint64_t uid) {
 XPTI_EXPORT_API xpti::result_t
 xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
                      xpti::tracepoint_callback_api_t cb) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f =
-        xpti::ProxyLoader::instance().functionByIndex(XPTI_REGISTER_CALLBACK);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_REGISTER_CALLBACK);
     if (f) {
       return (*(xpti_register_cb_t)f)(stream_id, trace_type, cb);
     }
@@ -333,9 +295,8 @@ xptiRegisterCallback(uint8_t stream_id, uint16_t trace_type,
 XPTI_EXPORT_API xpti::result_t
 xptiUnregisterCallback(uint8_t stream_id, uint16_t trace_type,
                        xpti::tracepoint_callback_api_t cb) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f =
-        xpti::ProxyLoader::instance().functionByIndex(XPTI_UNREGISTER_CALLBACK);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_UNREGISTER_CALLBACK);
     if (f) {
       return (*(xpti_unregister_cb_t)f)(stream_id, trace_type, cb);
     }
@@ -348,9 +309,8 @@ xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
                       xpti::trace_event_data_t *parent,
                       xpti::trace_event_data_t *object, uint64_t instance,
                       const void *user_data) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f =
-        xpti::ProxyLoader::instance().functionByIndex(XPTI_NOTIFY_SUBSCRIBERS);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_NOTIFY_SUBSCRIBERS);
     if (f) {
       return (*(xpti_notify_subscribers_t)f)(stream_id, trace_type, parent,
                                              object, instance, user_data);
@@ -360,8 +320,8 @@ xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
 }
 
 XPTI_EXPORT_API bool xptiTraceEnabled() {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_TRACE_ENABLED);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_TRACE_ENABLED);
     if (f) {
       return (*(xpti_trace_enabled_t)f)();
     }
@@ -372,8 +332,8 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
                                                const char *key,
                                                const char *value) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_ADD_METADATA);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_ADD_METADATA);
     if (f) {
       return (*(xpti_add_metadata_t)f)(e, key, value);
     }
@@ -383,8 +343,8 @@ XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
 
 XPTI_EXPORT_API xpti::metadata_t *
 xptiQueryMetadata(xpti::trace_event_data_t *lookup_object) {
-  if (xpti::ProxyLoader::instance().noErrors()) {
-    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_QUERY_METADATA);
+  if (xpti::g_loader.noErrors()) {
+    auto f = xpti::g_loader.functionByIndex(XPTI_QUERY_METADATA);
     if (f) {
       return (*(xpti_query_metadata_t)f)(lookup_object);
     }

@@ -19,7 +19,7 @@
 
 declare dso_local spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)*)
 
-define dso_local spir_kernel void @KERNEL_AAA() #0 {
+define dso_local spir_kernel void @KERNEL_AAA() {
   %1 = call spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([10 x i8], [10 x i8]* @SCSymID, i64 0, i64 0) to i8 addrspace(4)*))
 ; CHECK-IR0: %{{[0-9]+}} = call i1 @_Z20__spirv_SpecConstantib(i32 1, i1 false)
   %2 = call spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([11 x i8], [11 x i8]* @SCSymID2, i64 0, i64 0) to i8 addrspace(4)*))
@@ -27,18 +27,16 @@ define dso_local spir_kernel void @KERNEL_AAA() #0 {
   ret void
 }
 
-define dso_local spir_kernel void @KERNEL_BBB() #0 {
+define dso_local spir_kernel void @KERNEL_BBB() {
   %1 = call spir_func zeroext i1 @_Z33__sycl_getScalarSpecConstantValueIbET_PKc(i8 addrspace(4)* addrspacecast (i8* getelementptr inbounds ([10 x i8], [10 x i8]* @SCSymID, i64 0, i64 0) to i8 addrspace(4)*))
 ; CHECK-IR1: %{{[0-9]+}} = call i1 @_Z20__spirv_SpecConstantib(i32 0, i1 false)
   ret void
 }
 
-define dso_local spir_kernel void @KERNEL_CCC() #0 {
+define dso_local spir_kernel void @KERNEL_CCC() {
 ; CHECK-IR2: define{{.*}}spir_kernel void @KERNEL_CCC
   ret void
 }
-
-attributes #0 = { "sycl-module-id"="a.cpp" }
 
 ; CHECK-IR0: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]]}
 ; CHECK-IR0: ![[#MD0:]] = !{!"SpecConst2", i32 0, i32 0, i32 1}
