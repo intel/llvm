@@ -8,18 +8,20 @@
 
 #include <CL/sycl/detail/os_util.hpp>
 
-#ifdef __SYCL_RT_OS_LINUX
+#if defined(__SYCL_RT_OS_LINUX)
 #include <dlfcn.h>
+#elif defined(__SYCL_RT_OS_WINDOWS)
+#include <Windows.h>
+#include <winreg.h>
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-std::string getPluginDirectory() {
+std::string getPluginDirectory(const std::string &DSOPath) {
 #ifdef __SYCL_SECURE_DLL_LOAD
-  // TODO this funciton must be moved to support library
-  return OSUtil::getCurrentDSODir();
+  return DSOPath;
 #else
   return "";
 #endif
@@ -34,7 +36,7 @@ void *loadOsLibrary(const std::string &PluginPath) {
 #ifdef __SYCL_SECURE_DLL_LOAD
   // Exclude current directory from DLL search paths according to Microsoft
   // guidelines.
-  SetDllDirectory("");
+  SetDllDirectory(L"");
 #endif
   // Tells the system to not display the critical-error-handler message box.
   // Instead, the system sends the error to the calling process.

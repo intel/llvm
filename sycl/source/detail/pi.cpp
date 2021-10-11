@@ -381,7 +381,10 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
   PluginInformation.PiFunctionTable = {};
 
-  const std::string PluginPath = getPluginDirectory();
+  // This is a workaround to allow loading plugins by name only from unit tests,
+  // that link SYCL runtime statically. Eventually OS utils should be moved to a
+  // separate library, and getPluginDirectory should not accept any arguments.
+  const std::string PluginPath = getPluginDirectory(OSUtil::getCurrentDSODir());
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     const std::string PluginName = [&]() {
       if (!PluginName.empty()) {

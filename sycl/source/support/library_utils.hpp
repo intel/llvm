@@ -15,7 +15,7 @@ namespace sycl {
 namespace detail {
 /// \returns a path to a directory from which plugins can be loaded. This can
 /// be an empty string in unit tests only.
-std::string getPluginDirectory();
+std::string getPluginDirectory(const std::string &DSOPath);
 
 /// Loads dynamic library.
 ///

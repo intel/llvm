@@ -33,7 +33,6 @@
 #include <direct.h>
 #include <malloc.h>
 #include <shlwapi.h>
-#include <winreg.h>
 
 #elif defined(__SYCL_RT_OS_DARWIN)
 
