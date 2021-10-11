@@ -168,6 +168,8 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
+  bool is_event_required() const { return MIsEventRequired; }
+
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -220,6 +222,21 @@ public:
     return submit_impl(CGF, Self, Loc, PostProcess);
   }
 
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param Self is a shared_ptr to this queue.
+  /// \param Loc is the code location of the submit call (default argument)
+  void submit_without_event(const std::function<void(handler &)> &CGF,
+                            const std::shared_ptr<queue_impl> &Self,
+                            const detail::code_location &Loc) {
+    handler Handler(Self, MHostQueue);
+    Handler.saveCodeLoc(Loc);
+    CGF(Handler);
+    Handler.finalize_without_event();
+  }
+
   /// Performs a blocking wait for the completion of all enqueued tasks in the
   /// queue.
   ///
@@ -264,6 +281,7 @@ public:
   /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
+    bool enable_profiling = false;
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
@@ -271,6 +289,7 @@ public:
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
+      enable_profiling = true;
     }
     if (MPropList.has_property<property::queue::cuda::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
@@ -294,6 +313,7 @@ public:
       Plugin.checkPiResult(Error);
     }
 
+    MIsEventRequired = enable_profiling || (!MSupportOOO);
     return Queue;
   }
 
@@ -513,6 +533,8 @@ private:
   const bool MHostQueue = false;
   // Assume OOO support by default.
   bool MSupportOOO = true;
+
+  bool MIsEventRequired = false;
 
   // Thread pool for host task and event callbacks execution.
   // The thread pool is instantiated upon the very first call to getThreadPool()

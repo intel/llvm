@@ -503,6 +503,18 @@ private:
   void **MDstPtr = nullptr;
 };
 
+cl_int enqueueImpKernel(
+    const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+    const std::unique_ptr<HostKernelBase> &HostKernel,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
+    const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
+    std::vector<RT::PiEvent> &RawEvents, const EventImplPtr &EventImpl,
+    std::function<void *(Requirement *Req)> getMemAllocationFunc,
+    std::function<cl_int(NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+                         const std::unique_ptr<HostKernelBase> &HostKernel)>
+        RunKernelOnHost);
+
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
 class ExecCGCommand : public Command {
@@ -537,13 +549,6 @@ private:
   cl_int enqueueImp() final;
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
-
-  pi_result SetKernelParamsAndLaunch(
-      CGExecKernel *ExecKernel,
-      std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
-      NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
-      RT::PiEvent &Event,
-      const ProgramManager::KernelArgMask &EliminatedArgMask);
 
   std::unique_ptr<detail::CG> MCommandGroup;
 

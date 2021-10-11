@@ -1003,6 +1003,94 @@ public:
         CodeLoc);
   }
 
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  void parallel_for_without_event(range<1> NumWorkItems,
+                                  _KERNELFUNCPARAM(KernelFunc)
+                                      _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    parallel_for_impl_without_event<KernelName>(NumWorkItems, KernelFunc,
+                                                CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  void parallel_for_without_event(range<2> NumWorkItems,
+                                  _KERNELFUNCPARAM(KernelFunc)
+                                      _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    parallel_for_impl_without_event<KernelName>(NumWorkItems, KernelFunc,
+                                                CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType>
+  void parallel_for_without_event(range<3> NumWorkItems,
+                                  _KERNELFUNCPARAM(KernelFunc)
+                                      _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    parallel_for_impl_without_event<KernelName>(NumWorkItems, KernelFunc,
+                                                CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + range and
+  /// offset that specify global size and global offset correspondingly.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param WorkItemOffset specifies the offset for each work item id
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  void parallel_for_without_event(range<Dims> NumWorkItems,
+                                  id<Dims> WorkItemOffset,
+                                  _KERNELFUNCPARAM(KernelFunc)
+                                      _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    submit_impl_without_event(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType>(
+              NumWorkItems, WorkItemOffset, KernelFunc);
+        },
+        CodeLoc);
+  }
+
+  /// parallel_for version with a kernel represented as a lambda + nd_range that
+  /// specifies global, local sizes and offset.
+  ///
+  /// \param ExecutionRange is a range that specifies the work space of the
+  /// kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  void parallel_for_without_event(nd_range<Dims> ExecutionRange,
+                                  _KERNELFUNCPARAM(KernelFunc)
+                                      _CODELOCPARAM(&CodeLoc)) {
+    _CODELOCARG(&CodeLoc);
+    submit_impl_without_event(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType>(ExecutionRange,
+                                                            KernelFunc);
+        },
+        CodeLoc);
+  }
+
 // Clean up CODELOC and KERNELFUNC macros.
 #undef _CODELOCPARAM
 #undef _CODELOCONLYPARAM
@@ -1052,6 +1140,29 @@ private:
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+
+  /// A template-free version of submit.
+  void submit_impl_without_event(std::function<void(handler &)> CGH,
+                                 const detail::code_location &CodeLoc);
+
+  /// parallel_for_impl with a kernel represented as a lambda + range that
+  /// specifies global size only.
+  ///
+  /// \param NumWorkItems is a range that specifies the work space of the kernel
+  /// \param KernelFunc is the Kernel functor or lambda
+  /// \param CodeLoc contains the code location of user code
+  template <typename KernelName = detail::auto_name, typename KernelType,
+            int Dims>
+  void parallel_for_impl_without_event(
+      range<Dims> NumWorkItems, KernelType KernelFunc,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    submit_impl_without_event(
+        [&](handler &CGH) {
+          CGH.template parallel_for<KernelName, KernelType>(NumWorkItems,
+                                                            KernelFunc);
+        },
+        CodeLoc);
+  }
 
   // Function to postprocess submitted command
   // Arguments:
