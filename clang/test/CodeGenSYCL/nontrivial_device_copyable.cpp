@@ -24,5 +24,5 @@ int main() {
 }
 
 // SYCL kernels
-// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name(%struct._ZTS20NontriviallyCopyable.NontriviallyCopyable* byval(%struct._ZTS20NontriviallyCopyable.NontriviallyCopyable) {{.*}}) {{.*}}
-// CHECK-NOT: define {{.*}}spir_func void @{{.*}}device_func({{.*}}byval(%struct._ZTS20NontriviallyCopyable.NontriviallyCopyable){{.*}}) {{.*}}
+// CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name(%struct.NontriviallyCopyable* byval(%struct.NontriviallyCopyable)
+// CHECK-NOT: define {{.*}}spir_func void @{{.*}}device_func({{.*}}byval(%struct.NontriviallyCopyable)
