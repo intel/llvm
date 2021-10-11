@@ -549,7 +549,7 @@ Value *WebAssemblyLowerEmscriptenEHSjLj::wrapInvoke(CallBase *CI) {
   // No attributes for the callee pointer.
   ArgAttributes.push_back(AttributeSet());
   // Copy the argument attributes from the original
-  for (unsigned I = 0, E = CI->getNumArgOperands(); I < E; ++I)
+  for (unsigned I = 0, E = CI->arg_size(); I < E; ++I)
     ArgAttributes.push_back(InvokeAL.getParamAttrs(I));
 
   AttrBuilder FnAttrs(InvokeAL.getFnAttrs());
@@ -830,6 +830,33 @@ bool WebAssemblyLowerEmscriptenEHSjLj::runOnModule(Module &M) {
 
   Function *SetjmpF = M.getFunction("setjmp");
   Function *LongjmpF = M.getFunction("longjmp");
+
+  // In some platforms _setjmp and _longjmp are used instead. Change these to
+  // use setjmp/longjmp instead, because we later detect these functions by
+  // their names.
+  Function *SetjmpF2 = M.getFunction("_setjmp");
+  Function *LongjmpF2 = M.getFunction("_longjmp");
+  if (SetjmpF2) {
+    if (SetjmpF) {
+      if (SetjmpF->getFunctionType() != SetjmpF2->getFunctionType())
+        report_fatal_error("setjmp and _setjmp have different function types");
+    } else {
+      SetjmpF = Function::Create(SetjmpF2->getFunctionType(),
+                                 GlobalValue::ExternalLinkage, "setjmp", M);
+    }
+    SetjmpF2->replaceAllUsesWith(SetjmpF);
+  }
+  if (LongjmpF2) {
+    if (LongjmpF) {
+      if (LongjmpF->getFunctionType() != LongjmpF2->getFunctionType())
+        report_fatal_error(
+            "longjmp and _longjmp have different function types");
+    } else {
+      LongjmpF = Function::Create(LongjmpF2->getFunctionType(),
+                                  GlobalValue::ExternalLinkage, "setjmp", M);
+    }
+    LongjmpF2->replaceAllUsesWith(LongjmpF);
+  }
 
   auto *TPC = getAnalysisIfAvailable<TargetPassConfig>();
   assert(TPC && "Expected a TargetPassConfig");

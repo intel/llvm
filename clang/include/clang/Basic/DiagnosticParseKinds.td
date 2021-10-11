@@ -742,8 +742,9 @@ def err_unknown_template_name : Error<
   "unknown template name %0">;
 def err_expected_comma_greater : Error<
   "expected ',' or '>' in template-parameter-list">;
-def err_class_on_template_template_param : Error<
-  "template template parameter requires 'class' after the parameter list">;
+def err_class_on_template_template_param
+    : Error<"template template parameter requires 'class'%select{| or "
+            "'typename'}0 after the parameter list">;
 def ext_template_template_param_typename : ExtWarn<
   "template template parameter using 'typename' is a C++17 extension">,
   InGroup<CXX17>;
@@ -1436,6 +1437,9 @@ def warn_omp51_compat_attributes : Warning<
   "specifying OpenMP directives with [[]] is incompatible with OpenMP "
   "standards before OpenMP 5.1">,
   InGroup<OpenMPPre51Compat>, DefaultIgnore;
+def err_omp_expected_colon : Error<"missing ':' in %0">;
+def err_omp_expected_context_selector
+    : Error<"expected valid context selector in %0">;
 
 // Pragma loop support.
 def err_pragma_loop_missing_argument : Error<

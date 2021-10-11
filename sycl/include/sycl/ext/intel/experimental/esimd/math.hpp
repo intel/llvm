@@ -1667,6 +1667,27 @@ ESIMD_NODEBUG ESIMD_INLINE
   return esimd_pack_mask(src_0);
 }
 
+/// Compare source vector elements against zero and return a bitfield combining
+/// the comparison result. The representative bit in the result is set if
+/// corresponding source vector element is non-zero, and is unset otherwise.
+/// @param mask the source operand to be compared with zero.
+/// @return an \c uint, where each bit is set if the corresponding element of
+/// the source operand is non-zero and unset otherwise.
+template <typename T, int N>
+ESIMD_NODEBUG ESIMD_INLINE typename sycl::detail::enable_if_t<
+    detail::is_type<T, ushort, uint> && (N > 0 && N <= 32), uint>
+esimd_ballot(simd<T, N> mask) {
+  simd_mask<N> cmp = (mask != 0);
+  if constexpr (N == 8 || N == 16 || N == 32) {
+    return __esimd_pack_mask<N>(cmp.data());
+  } else {
+    constexpr int N1 = (N <= 8 ? 8 : N <= 16 ? 16 : 32);
+    simd<uint16_t, N1> res = 0;
+    res.template select<N, 1>() = cmp.data();
+    return __esimd_pack_mask<N1>(res.data());
+  }
+}
+
 /// Count number of bits set in the source operand per element.
 /// @param src0 the source operand to count bits in.
 /// @return a vector of \c uint32_t, where each element is set to bit count of
@@ -1912,6 +1933,32 @@ ESIMD_INLINE simd<RT, SZ> esimd_ceil(const simd<float, SZ> src0,
 template <typename RT>
 ESIMD_INLINE RT esimd_ceil(const float &src0, const uint flags = 0) {
   return esimd_rndu<RT, 1U>(src0, flags);
+}
+
+/// Round to integral value using the round to zero rounding mode (vector
+/// version).
+/// \tparam RT element type of the return vector.
+/// \tparam SZ size of the input and returned vectors.
+/// @param src0 the input vector.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
+/// @return vector of rounded values.
+template <typename RT, int SZ>
+ESIMD_NODEBUG ESIMD_INLINE simd<RT, SZ> esimd_trunc(const simd<float, SZ> &src0,
+                                                    const uint flag = 0) {
+  return esimd_rndz<RT, SZ>(src0, flag);
+}
+
+/// Round to integral value using the round to zero rounding mode (scalar
+/// version).
+/// \tparam RT type of the return value.
+/// @param src0 the input operand.
+/// @param flag enables/disables the saturation (off by default). Possible
+/// values: saturation_on/saturation_off.
+/// @return rounded value.
+template <typename RT>
+ESIMD_NODEBUG ESIMD_INLINE RT esimd_trunc(float src0, const uint flag = 0) {
+  return esimd_rndz<RT, 1U>(src0, flag)[0];
 }
 
 /* esimd_atan2_fast - a fast atan2 implementation */

@@ -130,7 +130,13 @@ def extending_loads : GICombineRule<
   (match (wip_match_opcode G_LOAD, G_SEXTLOAD, G_ZEXTLOAD):$root,
          [{ return Helper.matchCombineExtendingLoads(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyCombineExtendingLoads(*${root}, ${matchinfo}); }])>;
-def combines_for_extload: GICombineGroup<[extending_loads]>;
+
+def load_and_mask : GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_AND):$root,
+        [{ return Helper.matchCombineLoadWithAndMask(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
+def combines_for_extload: GICombineGroup<[extending_loads, load_and_mask]>;
 
 def sext_trunc_sextload : GICombineRule<
   (defs root:$d),
@@ -696,6 +702,12 @@ def constant_fold : GICombineRule<
    [{ return Helper.matchConstantFold(*${d}, ${matchinfo}); }]),
   (apply [{ Helper.replaceInstWithConstant(*${d}, ${matchinfo}); }])>;
 
+def mulo_by_2: GICombineRule<
+  (defs root:$root, build_fn_matchinfo:$matchinfo),
+  (match (wip_match_opcode G_UMULO, G_SMULO):$root,
+         [{ return Helper.matchMulOBy2(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyBuildFnNoErase(*${root}, ${matchinfo}); }])>;
+
 // FIXME: These should use the custom predicate feature once it lands.
 def undef_combines : GICombineGroup<[undef_to_fp_zero, undef_to_int_zero,
                                      undef_to_negative_one,
@@ -712,7 +724,7 @@ def identity_combines : GICombineGroup<[select_same_val, right_identity_zero,
                                         fneg_fneg_fold, right_identity_one]>;
 
 def const_combines : GICombineGroup<[constant_fp_op, const_ptradd_to_i2p,
-                                     overlapping_and]>;
+                                     overlapping_and, mulo_by_2]>;
 
 def known_bits_simplifications : GICombineGroup<[
   redundant_and, redundant_sext_inreg, redundant_or, urem_pow2_to_mask,

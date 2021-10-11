@@ -21,6 +21,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/FunctionImplementation.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -336,11 +337,12 @@ void gpu::addAsyncDependency(Operation *op, Value token) {
   auto attrName =
       OpTrait::AttrSizedOperandSegments<void>::getOperandSegmentSizeAttr();
   auto sizeAttr = op->template getAttrOfType<DenseIntElementsAttr>(attrName);
+
+  // Async dependencies is the only variadic operand.
   if (!sizeAttr)
-    return; // Async dependencies is the only variadic operand.
-  SmallVector<int32_t, 8> sizes;
-  for (auto size : sizeAttr.getIntValues())
-    sizes.push_back(size.getSExtValue());
+    return;
+
+  SmallVector<int32_t, 8> sizes(sizeAttr.getValues<int32_t>());
   ++sizes.front();
   op->setAttr(attrName, Builder(op->getContext()).getI32VectorAttr(sizes));
 }
@@ -351,10 +353,13 @@ void gpu::addAsyncDependency(Operation *op, Value token) {
 
 void LaunchOp::build(OpBuilder &builder, OperationState &result,
                      Value gridSizeX, Value gridSizeY, Value gridSizeZ,
-                     Value blockSizeX, Value blockSizeY, Value blockSizeZ) {
+                     Value blockSizeX, Value blockSizeY, Value blockSizeZ,
+                     Value dynamicSharedMemorySize) {
   // Add grid and block sizes as op operands, followed by the data operands.
   result.addOperands(
       {gridSizeX, gridSizeY, gridSizeZ, blockSizeX, blockSizeY, blockSizeZ});
+  if (dynamicSharedMemorySize)
+    result.addOperands(dynamicSharedMemorySize);
 
   // Create a kernel body region with kNumConfigRegionAttributes + N arguments,
   // where the first kNumConfigRegionAttributes arguments have `index` type and
@@ -404,7 +409,8 @@ static LogicalResult verify(LaunchOp op) {
   // for block/thread identifiers and grid/block sizes.
   if (!op.body().empty()) {
     if (op.body().getNumArguments() !=
-        LaunchOp::kNumConfigOperands + op.getNumOperands())
+        LaunchOp::kNumConfigOperands + op.getNumOperands() -
+            (op.dynamicSharedMemorySize() ? 1 : 0))
       return op.emitOpError("unexpected number of region arguments");
   }
 
@@ -448,6 +454,9 @@ static void printLaunchOp(OpAsmPrinter &p, LaunchOp op) {
   p << ' ' << op.getThreadsKeyword();
   printSizeAssignment(p, op.getBlockSize(), op.getBlockSizeOperandValues(),
                       op.getThreadIds());
+  if (op.dynamicSharedMemorySize())
+    p << ' ' << op.getDynamicSharedMemorySizeKeyword() << ' '
+      << op.dynamicSharedMemorySize();
 
   p.printRegion(op.body(), /*printEntryBlockArgs=*/false);
   p.printOptionalAttrDict(op->getAttrs());
@@ -519,6 +528,15 @@ static ParseResult parseLaunchOp(OpAsmParser &parser, OperationState &result) {
                              result.operands))
     return failure();
 
+  OpAsmParser::OperandType dynamicSharedMemorySize;
+  if (!parser.parseOptionalKeyword(
+          LaunchOp::getDynamicSharedMemorySizeKeyword()))
+    if (parser.parseOperand(dynamicSharedMemorySize) ||
+        parser.resolveOperand(dynamicSharedMemorySize,
+                              parser.getBuilder().getI32Type(),
+                              result.operands))
+      return failure();
+
   // Introduce the body region and parse it. The region has
   // kNumConfigRegionAttributes arguments that correspond to
   // block/thread identifiers and grid/block sizes, all of the `index` type.
@@ -530,31 +548,75 @@ static ParseResult parseLaunchOp(OpAsmParser &parser, OperationState &result) {
                  parser.parseOptionalAttrDict(result.attributes));
 }
 
+/// Simplify the gpu.launch when the range of a thread or block ID is
+/// trivially known to be one.
+struct FoldLaunchArguments : public OpRewritePattern<LaunchOp> {
+  using OpRewritePattern<LaunchOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(LaunchOp op,
+                                PatternRewriter &rewriter) const override {
+    // If the range implies a single value for `id`, replace `id`'s uses by
+    // zero.
+    Value zero;
+    bool simplified = false;
+    auto constPropIdUses = [&](Value id, Value size) {
+      // Check if size is trivially one.
+      if (!matchPattern(size, m_One()))
+        return;
+      if (!simplified) {
+        // Create a zero value the first time.
+        OpBuilder::InsertionGuard guard(rewriter);
+        rewriter.setInsertionPointToStart(&op.body().front());
+        zero = rewriter.create<ConstantIndexOp>(op.getLoc(), /*value=*/0);
+      }
+      id.replaceAllUsesWith(zero);
+      simplified = true;
+    };
+    constPropIdUses(op.getBlockIds().x, op.gridSizeX());
+    constPropIdUses(op.getBlockIds().y, op.gridSizeY());
+    constPropIdUses(op.getBlockIds().z, op.gridSizeZ());
+    constPropIdUses(op.getThreadIds().x, op.blockSizeX());
+    constPropIdUses(op.getThreadIds().y, op.blockSizeY());
+    constPropIdUses(op.getThreadIds().z, op.blockSizeZ());
+
+    return success(simplified);
+  }
+};
+
+void LaunchOp::getCanonicalizationPatterns(RewritePatternSet &rewrites,
+                                           MLIRContext *context) {
+  rewrites.add<FoldLaunchArguments>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // LaunchFuncOp
 //===----------------------------------------------------------------------===//
 
 void LaunchFuncOp::build(OpBuilder &builder, OperationState &result,
                          GPUFuncOp kernelFunc, KernelDim3 gridSize,
-                         KernelDim3 blockSize, ValueRange kernelOperands) {
+                         KernelDim3 blockSize, Value dynamicSharedMemorySize,
+                         ValueRange kernelOperands) {
   // Add grid and block sizes as op operands, followed by the data operands.
   result.addOperands({gridSize.x, gridSize.y, gridSize.z, blockSize.x,
                       blockSize.y, blockSize.z});
+  if (dynamicSharedMemorySize)
+    result.addOperands(dynamicSharedMemorySize);
   result.addOperands(kernelOperands);
   auto kernelModule = kernelFunc->getParentOfType<GPUModuleOp>();
   auto kernelSymbol =
       SymbolRefAttr::get(kernelModule.getNameAttr(),
                          {SymbolRefAttr::get(kernelFunc.getNameAttr())});
   result.addAttribute(getKernelAttrName(), kernelSymbol);
-  SmallVector<int32_t, 8> segmentSizes(8, 1);
+  SmallVector<int32_t, 9> segmentSizes(9, 1);
   segmentSizes.front() = 0; // Initially no async dependencies.
+  segmentSizes[segmentSizes.size() - 2] = dynamicSharedMemorySize ? 1 : 0;
   segmentSizes.back() = static_cast<int32_t>(kernelOperands.size());
   result.addAttribute(getOperandSegmentSizeAttr(),
                       builder.getI32VectorAttr(segmentSizes));
 }
 
 unsigned LaunchFuncOp::getNumKernelOperands() {
-  return getNumOperands() - asyncDependencies().size() - kNumConfigOperands;
+  return getNumOperands() - asyncDependencies().size() - kNumConfigOperands -
+         (dynamicSharedMemorySize() ? 1 : 0);
 }
 
 StringAttr LaunchFuncOp::getKernelModuleName() {
@@ -564,7 +626,8 @@ StringAttr LaunchFuncOp::getKernelModuleName() {
 StringAttr LaunchFuncOp::getKernelName() { return kernel().getLeafReference(); }
 
 Value LaunchFuncOp::getKernelOperand(unsigned i) {
-  return getOperand(asyncDependencies().size() + kNumConfigOperands + i);
+  return getOperand(asyncDependencies().size() + kNumConfigOperands +
+                    (dynamicSharedMemorySize() ? 1 : 0) + i);
 }
 
 KernelDim3 LaunchFuncOp::getGridSizeOperandValues() {

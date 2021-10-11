@@ -216,9 +216,9 @@ static bool DiagnoseNoDiscard(Sema &S, const WarnUnusedResultAttr *A,
   return S.Diag(Loc, diag::warn_unused_result_msg) << A << Msg << R1 << R2;
 }
 
-void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
+void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
   if (const LabelStmt *Label = dyn_cast_or_null<LabelStmt>(S))
-    return DiagnoseUnusedExprResult(Label->getSubStmt());
+    return DiagnoseUnusedExprResult(Label->getSubStmt(), DiagID);
 
   const Expr *E = dyn_cast_or_null<Expr>(S);
   if (!E)
@@ -264,7 +264,6 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
   // Okay, we have an unused result.  Depending on what the base expression is,
   // we might want to make a more specific diagnostic.  Check for one of these
   // cases now.
-  unsigned DiagID = diag::warn_unused_expr;
   if (const FullExpr *Temps = dyn_cast<FullExpr>(E))
     E = Temps->getSubExpr();
   if (const CXXBindTemporaryExpr *TempExpr = dyn_cast<CXXBindTemporaryExpr>(E))
@@ -339,7 +338,7 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     if (LangOpts.OpenMP && isa<CallExpr>(Source) &&
         POE->getNumSemanticExprs() == 1 &&
         isa<CallExpr>(POE->getSemanticExpr(0)))
-      return DiagnoseUnusedExprResult(POE->getSemanticExpr(0));
+      return DiagnoseUnusedExprResult(POE->getSemanticExpr(0), DiagID);
     if (isa<ObjCSubscriptRefExpr>(Source))
       DiagID = diag::warn_unused_container_subscript_expr;
     else
@@ -379,7 +378,12 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S) {
     return;
   }
 
-  DiagRuntimeBehavior(Loc, nullptr, PDiag(DiagID) << R1 << R2);
+  // Do not diagnose use of a comma operator in a SFINAE context because the
+  // type of the left operand could be used for SFINAE, so technically it is
+  // *used*.
+  if (DiagID != diag::warn_unused_comma_left_operand || !isSFINAEContext())
+    DiagIfReachable(Loc, S ? llvm::makeArrayRef(S) : llvm::None,
+                    PDiag(DiagID) << R1 << R2);
 }
 
 void Sema::ActOnStartOfCompoundStmt(bool IsStmtExpr) {
@@ -3453,7 +3457,7 @@ const VarDecl *Sema::getCopyElisionCandidate(NamedReturnInfo &Info,
 /// Verify that the initialization sequence that was picked for the
 /// first overload resolution is permissible under C++98.
 ///
-/// Reject (possibly converting) contructors not taking an rvalue reference,
+/// Reject (possibly converting) constructors not taking an rvalue reference,
 /// or user conversion operators which are not ref-qualified.
 static bool
 VerifyInitializationSequenceCXX98(const Sema &S,
@@ -3481,7 +3485,8 @@ VerifyInitializationSequenceCXX98(const Sema &S,
 ExprResult Sema::PerformMoveOrCopyInitialization(
     const InitializedEntity &Entity, const NamedReturnInfo &NRInfo, Expr *Value,
     bool SupressSimplerImplicitMoves) {
-  if ((!getLangOpts().CPlusPlus2b || SupressSimplerImplicitMoves) &&
+  if (getLangOpts().CPlusPlus &&
+      (!getLangOpts().CPlusPlus2b || SupressSimplerImplicitMoves) &&
       NRInfo.isMoveEligible()) {
     ImplicitCastExpr AsRvalue(ImplicitCastExpr::OnStack, Value->getType(),
                               CK_NoOp, Value, VK_XValue, FPOptionsOverride());
@@ -3652,8 +3657,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
 
     // In C++ the return statement is handled via a copy initialization.
     // the C version of which boils down to CheckSingleAssignmentConstraints.
-    InitializedEntity Entity = InitializedEntity::InitializeResult(
-        ReturnLoc, FnRetType, NRVOCandidate != nullptr);
+    InitializedEntity Entity =
+        InitializedEntity::InitializeResult(ReturnLoc, FnRetType);
     ExprResult Res = PerformMoveOrCopyInitialization(
         Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
     if (Res.isInvalid()) {
@@ -3884,7 +3889,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   if (RetValExp && DiagnoseUnexpandedParameterPack(RetValExp))
     return StmtError();
 
-  // HACK: We supress simpler implicit move here in msvc compatibility mode
+  // HACK: We suppress simpler implicit move here in msvc compatibility mode
   // just as a temporary work around, as the MSVC STL has issues with
   // this change.
   bool SupressSimplerImplicitMoves =
@@ -4084,8 +4089,8 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
     // the C version of which boils down to CheckSingleAssignmentConstraints.
     if (!HasDependentReturnType && !RetValExp->isTypeDependent()) {
       // we have a non-void function with an expression, continue checking
-      InitializedEntity Entity = InitializedEntity::InitializeResult(
-          ReturnLoc, RetType, NRVOCandidate != nullptr);
+      InitializedEntity Entity =
+          InitializedEntity::InitializeResult(ReturnLoc, RetType);
       ExprResult Res = PerformMoveOrCopyInitialization(
           Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
       if (Res.isInvalid()) {

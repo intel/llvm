@@ -785,6 +785,13 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::LOAD, MVT::i128, Custom);
   setOperationAction(ISD::STORE, MVT::i128, Custom);
 
+  // Aligned 128-bit loads and stores are single-copy atomic according to the
+  // v8.4a spec.
+  if (Subtarget->hasLSE2()) {
+    setOperationAction(ISD::ATOMIC_LOAD, MVT::i128, Custom);
+    setOperationAction(ISD::ATOMIC_STORE, MVT::i128, Custom);
+  }
+
   // 256 bit non-temporal stores can be lowered to STNP. Do this as part of the
   // custom lowering, as there are no un-paired non-temporal stores and
   // legalization will break up 256 bit inputs.
@@ -4681,18 +4688,7 @@ SDValue AArch64TargetLowering::LowerSTORE(SDValue Op,
       return Result;
     }
   } else if (MemVT == MVT::i128 && StoreNode->isVolatile()) {
-    assert(StoreNode->getValue()->getValueType(0) == MVT::i128);
-    SDValue Lo =
-        DAG.getNode(ISD::EXTRACT_ELEMENT, Dl, MVT::i64, StoreNode->getValue(),
-                    DAG.getConstant(0, Dl, MVT::i64));
-    SDValue Hi =
-        DAG.getNode(ISD::EXTRACT_ELEMENT, Dl, MVT::i64, StoreNode->getValue(),
-                    DAG.getConstant(1, Dl, MVT::i64));
-    SDValue Result = DAG.getMemIntrinsicNode(
-        AArch64ISD::STP, Dl, DAG.getVTList(MVT::Other),
-        {StoreNode->getChain(), Lo, Hi, StoreNode->getBasePtr()},
-        StoreNode->getMemoryVT(), StoreNode->getMemOperand());
-    return Result;
+    return LowerStore128(Op, DAG);
   } else if (MemVT == MVT::i64x8) {
     SDValue Value = StoreNode->getValue();
     assert(Value->getValueType(0) == MVT::i64x8);
@@ -4711,6 +4707,31 @@ SDValue AArch64TargetLowering::LowerSTORE(SDValue Op,
   }
 
   return SDValue();
+}
+
+/// Lower atomic or volatile 128-bit stores to a single STP instruction.
+SDValue AArch64TargetLowering::LowerStore128(SDValue Op,
+                                             SelectionDAG &DAG) const {
+  MemSDNode *StoreNode = cast<MemSDNode>(Op);
+  assert(StoreNode->getMemoryVT() == MVT::i128);
+  assert(StoreNode->isVolatile() || StoreNode->isAtomic());
+  assert(!StoreNode->isAtomic() ||
+         StoreNode->getMergedOrdering() == AtomicOrdering::Unordered ||
+         StoreNode->getMergedOrdering() == AtomicOrdering::Monotonic);
+
+  SDValue Value = StoreNode->getOpcode() == ISD::STORE
+                      ? StoreNode->getOperand(1)
+                      : StoreNode->getOperand(2);
+  SDLoc DL(Op);
+  SDValue Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i64, Value,
+                           DAG.getConstant(0, DL, MVT::i64));
+  SDValue Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i64, Value,
+                           DAG.getConstant(1, DL, MVT::i64));
+  SDValue Result = DAG.getMemIntrinsicNode(
+      AArch64ISD::STP, DL, DAG.getVTList(MVT::Other),
+      {StoreNode->getChain(), Lo, Hi, StoreNode->getBasePtr()},
+      StoreNode->getMemoryVT(), StoreNode->getMemOperand());
+  return Result;
 }
 
 SDValue AArch64TargetLowering::LowerLOAD(SDValue Op,
@@ -4950,6 +4971,12 @@ SDValue AArch64TargetLowering::LowerOperation(SDValue Op,
                                /*OverrideNEON=*/true);
   case ISD::INTRINSIC_WO_CHAIN:
     return LowerINTRINSIC_WO_CHAIN(Op, DAG);
+  case ISD::ATOMIC_STORE:
+    if (cast<MemSDNode>(Op)->getMemoryVT() == MVT::i128) {
+      assert(Subtarget->hasLSE2());
+      return LowerStore128(Op, DAG);
+    }
+    return SDValue();
   case ISD::STORE:
     return LowerSTORE(Op, DAG);
   case ISD::MSTORE:
@@ -10197,7 +10224,7 @@ SDValue AArch64TargetLowering::LowerBUILD_VECTOR(SDValue Op,
         unsigned BitSize = VT.getVectorElementType().getSizeInBits();
         APInt Val(BitSize,
                   Const->getAPIntValue().zextOrTrunc(BitSize).getZExtValue());
-        if (Val.isNullValue() || Val.isAllOnesValue())
+        if (Val.isZero() || Val.isAllOnes())
           return Op;
       }
   }
@@ -11296,7 +11323,7 @@ setInfoSVEStN(const AArch64TargetLowering &TLI, const DataLayout &DL,
   // memVT is `NumVecs * VT`.
   Info.memVT = EVT::getVectorVT(CI.getType()->getContext(), VT.getScalarType(),
                                 EC * NumVecs);
-  Info.ptrVal = CI.getArgOperand(CI.getNumArgOperands() - 1);
+  Info.ptrVal = CI.getArgOperand(CI.arg_size() - 1);
   Info.offset = 0;
   Info.align.reset();
   Info.flags = MachineMemOperand::MOStore;
@@ -11334,7 +11361,7 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     // Conservatively set memVT to the entire set of vectors loaded.
     uint64_t NumElts = DL.getTypeSizeInBits(I.getType()) / 64;
     Info.memVT = EVT::getVectorVT(I.getType()->getContext(), MVT::i64, NumElts);
-    Info.ptrVal = I.getArgOperand(I.getNumArgOperands() - 1);
+    Info.ptrVal = I.getArgOperand(I.arg_size() - 1);
     Info.offset = 0;
     Info.align.reset();
     // volatile loads with NEON intrinsics not supported
@@ -11353,14 +11380,14 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.opc = ISD::INTRINSIC_VOID;
     // Conservatively set memVT to the entire set of vectors stored.
     unsigned NumElts = 0;
-    for (unsigned ArgI = 0, ArgE = I.getNumArgOperands(); ArgI < ArgE; ++ArgI) {
-      Type *ArgTy = I.getArgOperand(ArgI)->getType();
+    for (const Value *Arg : I.args()) {
+      Type *ArgTy = Arg->getType();
       if (!ArgTy->isVectorTy())
         break;
       NumElts += DL.getTypeSizeInBits(ArgTy) / 64;
     }
     Info.memVT = EVT::getVectorVT(I.getType()->getContext(), MVT::i64, NumElts);
-    Info.ptrVal = I.getArgOperand(I.getNumArgOperands() - 1);
+    Info.ptrVal = I.getArgOperand(I.arg_size() - 1);
     Info.offset = 0;
     Info.align.reset();
     // volatile stores with NEON intrinsics not supported
@@ -11414,9 +11441,7 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.ptrVal = I.getArgOperand(1);
     Info.offset = 0;
     Info.align = DL.getABITypeAlign(PtrTy->getElementType());
-    Info.flags = MachineMemOperand::MOLoad;
-    if (Intrinsic == Intrinsic::aarch64_sve_ldnt1)
-      Info.flags |= MachineMemOperand::MONonTemporal;
+    Info.flags = MachineMemOperand::MOLoad | MachineMemOperand::MONonTemporal;
     return true;
   }
   case Intrinsic::aarch64_sve_stnt1: {
@@ -11426,9 +11451,7 @@ bool AArch64TargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
     Info.ptrVal = I.getArgOperand(2);
     Info.offset = 0;
     Info.align = DL.getABITypeAlign(PtrTy->getElementType());
-    Info.flags = MachineMemOperand::MOStore;
-    if (Intrinsic == Intrinsic::aarch64_sve_stnt1)
-      Info.flags |= MachineMemOperand::MONonTemporal;
+    Info.flags = MachineMemOperand::MOStore | MachineMemOperand::MONonTemporal;
     return true;
   }
   default:
@@ -16128,7 +16151,7 @@ static SDValue performVSelectCombine(SDNode *N, SelectionDAG &DAG) {
                           MVT::v2i32, MVT::v4i32, MVT::v2i64}),
             VT.getSimpleVT().SimpleTy) &&
         ISD::isConstantSplatVector(SplatLHS, SplatLHSVal) &&
-        SplatLHSVal.isOneValue() && ISD::isConstantSplatVectorAllOnes(CmpRHS) &&
+        SplatLHSVal.isOne() && ISD::isConstantSplatVectorAllOnes(CmpRHS) &&
         ISD::isConstantSplatVectorAllOnes(SplatRHS)) {
       unsigned NumElts = VT.getVectorNumElements();
       SmallVector<SDValue, 8> Ops(
@@ -17506,12 +17529,14 @@ void AArch64TargetLowering::ReplaceNodeResults(
   case ISD::ATOMIC_CMP_SWAP:
     ReplaceCMP_SWAP_128Results(N, Results, DAG, Subtarget);
     return;
+  case ISD::ATOMIC_LOAD:
   case ISD::LOAD: {
     assert(SDValue(N, 0).getValueType() == MVT::i128 &&
            "unexpected load's value type");
-    LoadSDNode *LoadNode = cast<LoadSDNode>(N);
-    if (!LoadNode->isVolatile() || LoadNode->getMemoryVT() != MVT::i128) {
-      // Non-volatile loads are optimized later in AArch64's load/store
+    MemSDNode *LoadNode = cast<MemSDNode>(N);
+    if ((!LoadNode->isVolatile() && !LoadNode->isAtomic()) ||
+        LoadNode->getMemoryVT() != MVT::i128) {
+      // Non-volatile or atomic loads are optimized later in AArch64's load/store
       // optimizer.
       return;
     }
@@ -17602,12 +17627,37 @@ AArch64TargetLowering::getPreferredVectorAction(MVT VT) const {
   return TargetLoweringBase::getPreferredVectorAction(VT);
 }
 
+// In v8.4a, ldp and stp instructions are guaranteed to be single-copy atomic
+// provided the address is 16-byte aligned.
+bool AArch64TargetLowering::isOpSuitableForLDPSTP(const Instruction *I) const {
+  if (!Subtarget->hasLSE2())
+    return false;
+
+  if (auto LI = dyn_cast<LoadInst>(I))
+    return LI->getType()->getPrimitiveSizeInBits() == 128 &&
+           LI->getAlignment() >= 16;
+
+  if (auto SI = dyn_cast<StoreInst>(I))
+    return SI->getValueOperand()->getType()->getPrimitiveSizeInBits() == 128 &&
+           SI->getAlignment() >= 16;
+
+  return false;
+}
+
+bool AArch64TargetLowering::shouldInsertFencesForAtomic(
+    const Instruction *I) const {
+  return isOpSuitableForLDPSTP(I);
+}
+
 // Loads and stores less than 128-bits are already atomic; ones above that
 // are doomed anyway, so defer to the default libcall and blame the OS when
 // things go wrong.
 bool AArch64TargetLowering::shouldExpandAtomicStoreInIR(StoreInst *SI) const {
   unsigned Size = SI->getValueOperand()->getType()->getPrimitiveSizeInBits();
-  return Size == 128;
+  if (Size != 128)
+    return false;
+
+  return !isOpSuitableForLDPSTP(SI);
 }
 
 // Loads and stores less than 128-bits are already atomic; ones above that
@@ -17616,7 +17666,19 @@ bool AArch64TargetLowering::shouldExpandAtomicStoreInIR(StoreInst *SI) const {
 TargetLowering::AtomicExpansionKind
 AArch64TargetLowering::shouldExpandAtomicLoadInIR(LoadInst *LI) const {
   unsigned Size = LI->getType()->getPrimitiveSizeInBits();
-  return Size == 128 ? AtomicExpansionKind::LLSC : AtomicExpansionKind::None;
+
+  if (Size != 128 || isOpSuitableForLDPSTP(LI))
+    return AtomicExpansionKind::None;
+
+  // At -O0, fast-regalloc cannot cope with the live vregs necessary to
+  // implement atomicrmw without spilling. If the target address is also on the
+  // stack and close enough to the spill slot, this can lead to a situation
+  // where the monitor always gets cleared and the atomic operation can never
+  // succeed. So at -O0 lower this operation to a CAS loop.
+  if (getTargetMachine().getOptLevel() == CodeGenOpt::None)
+    return AtomicExpansionKind::CmpXChg;
+
+  return AtomicExpansionKind::LLSC;
 }
 
 // For the real atomic operations, we have ldxr/stxr up to 128 bits,

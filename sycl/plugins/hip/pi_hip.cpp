@@ -1428,7 +1428,16 @@ pi_result hip_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfo(param_value_size, param_value, param_value_size_ret, "");
   }
   case PI_DEVICE_INFO_EXTENSIONS: {
-    return getInfo(param_value_size, param_value, param_value_size_ret, "");
+    // TODO: Remove comment when HIP support native asserts.
+    // DEVICELIB_ASSERT extension is set so fallback assert
+    // postprocessing is NOP. HIP 4.3 docs indicate support for
+    // native asserts are in progress
+    std::string SupportedExtensions = "";
+    SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
+    SupportedExtensions += " ";
+
+    return getInfo(param_value_size, param_value, param_value_size_ret,
+                   SupportedExtensions.c_str());
   }
   case PI_DEVICE_INFO_PRINTF_BUFFER_SIZE: {
     // The minimum value for the FULL profile is 1 MB.
@@ -3029,6 +3038,7 @@ pi_result hip_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                  pi_program *program) {
   (void)nativeHandle;
   (void)context;
+  (void)ownNativeHandle;
   (void)program;
 
   cl::sycl::detail::pi::die(
@@ -3866,8 +3876,7 @@ pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
       result = retImplEv->start();
     }
 
-    auto dstDevice =
-        (uint8_t *)buffer->mem_.buffer_mem_.get_with_offset(offset);
+    auto dstDevice = buffer->mem_.buffer_mem_.get_with_offset(offset);
     auto stream = command_queue->get();
     auto N = size / pattern_size;
 
@@ -3915,7 +3924,8 @@ pi_result hip_piEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
         value = *(static_cast<const uint8_t *>(pattern) + step);
 
         // offset the pointer to the part of the buffer we want to write to
-        auto offset_ptr = dstDevice + (step * sizeof(uint8_t));
+        auto offset_ptr = reinterpret_cast<void *>(
+            reinterpret_cast<uint8_t *>(dstDevice) + (step * sizeof(uint8_t)));
 
         // set all of the pattern chunks
         result = PI_CHECK_ERROR(hipMemset2DAsync(

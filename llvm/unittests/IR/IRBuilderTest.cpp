@@ -878,8 +878,7 @@ TEST_F(IRBuilderTest, InsertExtractElement) {
   auto VecTy = FixedVectorType::get(Builder.getInt64Ty(), 4);
   auto Elt1 = Builder.getInt64(-1);
   auto Elt2 = Builder.getInt64(-2);
-  Value *Vec = UndefValue::get(VecTy);
-  Vec = Builder.CreateInsertElement(Vec, Elt1, Builder.getInt8(1));
+  Value *Vec = Builder.CreateInsertElement(VecTy, Elt1, Builder.getInt8(1));
   Vec = Builder.CreateInsertElement(Vec, Elt2, 2);
   auto X1 = Builder.CreateExtractElement(Vec, 1);
   auto X2 = Builder.CreateExtractElement(Vec, Builder.getInt32(2));
@@ -945,13 +944,17 @@ TEST_F(IRBuilderTest, DIImportedEntity) {
   auto CU = DIB.createCompileUnit(dwarf::DW_LANG_Cobol74,
                                   F, "llvm-cobol74",
                                   true, "", 0);
+  MDTuple *Elements = MDTuple::getDistinct(Ctx, None);
+
   DIB.createImportedDeclaration(CU, nullptr, F, 1);
   DIB.createImportedDeclaration(CU, nullptr, F, 1);
   DIB.createImportedModule(CU, (DIImportedEntity *)nullptr, F, 2);
   DIB.createImportedModule(CU, (DIImportedEntity *)nullptr, F, 2);
+  DIB.createImportedModule(CU, (DIImportedEntity *)nullptr, F, 2, Elements);
+  DIB.createImportedModule(CU, (DIImportedEntity *)nullptr, F, 2, Elements);
   DIB.finalize();
   EXPECT_TRUE(verifyModule(*M));
-  EXPECT_TRUE(CU->getImportedEntities().size() == 2);
+  EXPECT_TRUE(CU->getImportedEntities().size() == 3);
 }
 
 //  0: #define M0 V0          <-- command line definition

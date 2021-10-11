@@ -44,8 +44,9 @@ public:
   /// construction.
   ///
   /// \param PlatformId is an OpenCL cl_platform_id instance.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   explicit platform(cl_platform_id PlatformId);
+#endif
 
   /// Constructs a SYCL platform instance using device selector.
   ///
@@ -71,8 +72,9 @@ public:
   /// Returns an OpenCL interoperability platform.
   ///
   /// \return an instance of OpenCL cl_platform_id.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_platform_id get() const;
+#endif
 
   /// Checks if platform supports specified extension.
   ///

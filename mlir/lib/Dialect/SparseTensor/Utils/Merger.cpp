@@ -511,6 +511,7 @@ Optional<unsigned> Merger::buildTensorExpFromLinalg(linalg::GenericOp op) {
   return buildTensorExp(op, yield->getOperand(0));
 }
 
+/// Only returns false if we are certain this is a nonzero.
 bool Merger::maybeZero(unsigned e) const {
   if (tensorExps[e].kind == kInvariant) {
     if (auto c = tensorExps[e].val.getDefiningOp<ConstantIntOp>())
@@ -567,7 +568,7 @@ Optional<unsigned> Merger::buildTensorExp(linalg::GenericOp op, Value v) {
       if (isa<FloorFOp>(def))
         return addExp(kFloorF, e);
       if (isa<NegFOp>(def))
-        return addExp(kNegF, e); // TODO: no negi in std?
+        return addExp(kNegF, e); // no negi in std
       if (isa<FPTruncOp>(def))
         return addExp(kTruncF, e, v);
       if (isa<FPExtOp>(def))
@@ -650,9 +651,12 @@ Value Merger::buildExp(PatternRewriter &rewriter, Location loc, unsigned e,
     return rewriter.create<FloorFOp>(loc, v0);
   case kNegF:
     return rewriter.create<NegFOp>(loc, v0);
-  case kNegI:
-    assert(v1); // no negi in std
-    return rewriter.create<SubIOp>(loc, v0, v1);
+  case kNegI: // no negi in std
+    return rewriter.create<SubIOp>(
+        loc,
+        rewriter.create<ConstantOp>(loc, v0.getType(),
+                                    rewriter.getZeroAttr(v0.getType())),
+        v0);
   case kTruncF:
     return rewriter.create<FPTruncOp>(loc, v0, inferType(e, v0));
   case kExtF:

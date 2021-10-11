@@ -435,7 +435,7 @@ private:
   DenseMap<Value*, unsigned> FieldIndexByKey;
 
 public:
-  FrameTypeBuilder(LLVMContext &Context, DataLayout const &DL,
+  FrameTypeBuilder(LLVMContext &Context, const DataLayout &DL,
                    Optional<Align> MaxFrameAlignment)
       : DL(DL), Context(Context), MaxFrameAlignment(MaxFrameAlignment) {}
 
@@ -840,8 +840,9 @@ static StringRef solveTypeName(Type *Ty) {
   return "UnknownType";
 }
 
-static DIType *solveDIType(DIBuilder &Builder, Type *Ty, DataLayout &Layout,
-                           DIScope *Scope, unsigned LineNum,
+static DIType *solveDIType(DIBuilder &Builder, Type *Ty,
+                           const DataLayout &Layout, DIScope *Scope,
+                           unsigned LineNum,
                            DenseMap<Type *, DIType *> &DITypeCache) {
   if (DIType *DT = DITypeCache.lookup(Ty))
     return DT;
@@ -1354,7 +1355,7 @@ struct AllocaUseVisitor : PtrUseVisitor<AllocaUseVisitor> {
   }
 
   void visitCallBase(CallBase &CB) {
-    for (unsigned Op = 0, OpCount = CB.getNumArgOperands(); Op < OpCount; ++Op)
+    for (unsigned Op = 0, OpCount = CB.arg_size(); Op < OpCount; ++Op)
       if (U->get() == CB.getArgOperand(Op) && !CB.doesNotCapture(Op))
         PI.setEscaped(&CB);
     handleMayWrite(CB);
@@ -1868,8 +1869,7 @@ static void cleanupSinglePredPHIs(Function &F) {
     }
   }
   while (!Worklist.empty()) {
-    auto *Phi = Worklist.back();
-    Worklist.pop_back();
+    auto *Phi = Worklist.pop_back_val();
     auto *OriginalValue = Phi->getIncomingValue(0);
     Phi->replaceAllUsesWith(OriginalValue);
   }

@@ -136,7 +136,15 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
                             "to fast memory space">,
     Option<"maximalFusion", "fusion-maximal", "bool", /*default=*/"false",
            "Enables maximal loop fusion">,
-  ];
+    Option<"affineFusionMode", "mode", "enum FusionMode",
+           "mlir::FusionMode::Greedy", "fusion mode to attempt",
+           "llvm::cl::values(clEnumValN(mlir::FusionMode::Greedy,"
+           " \"greedy\", \"Perform greedy (both producer-consumer and sibling)  fusion\"), "
+           "clEnumValN( mlir::FusionMode::ProducerConsumer, "
+           "\"producer\", \"Perform only producer-consumer fusion\"), "
+           "clEnumValN( mlir::FusionMode::Sibling, "
+           "\"sibling\", \"Perform only sibling fusion\"))">,
+    ];
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
@@ -352,7 +360,7 @@ def BufferResultsToOutParams : Pass<"buffer-results-to-out-params", "ModuleOp"> 
     works for static shaped memrefs.
   }];
   let constructor = "mlir::createBufferResultsToOutParamsPass()";
-  let dependentDialects = ["linalg::LinalgDialect", "memref::MemRefDialect"];
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 def Canonicalizer : Pass<"canonicalize"> {

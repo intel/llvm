@@ -23,6 +23,7 @@
 #include "MSP430.h"
 #include "PS4CPU.h"
 #include "SYCL.h"
+#include "clang/Basic/CLWarnings.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LangOptions.h"
@@ -806,11 +807,6 @@ static void addPGOAndCoverageFlags(const ToolChain &TC, Compilation &C,
   }
 
   if (TC.getTriple().isOSAIX()) {
-    if (PGOGenerateArg)
-      if (!D.isUsingLTO(false /*IsDeviceOffloadAction */) ||
-          D.getLTOMode() != LTOK_Full)
-        D.Diag(clang::diag::err_drv_argument_only_allowed_with)
-            << PGOGenerateArg->getSpelling() << "-flto";
     if (ProfileGenerateArg)
       D.Diag(diag::err_drv_unsupported_opt_for_target)
           << ProfileGenerateArg->getSpelling() << TC.getTriple().str();
@@ -4216,6 +4212,29 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
                                            options::OPT_gpubnames)
                             ? "-gpubnames"
                             : "-ggnu-pubnames");
+  const auto *SimpleTemplateNamesArg =
+      Args.getLastArg(options::OPT_gsimple_template_names, options::OPT_gno_simple_template_names,
+                      options::OPT_gsimple_template_names_EQ);
+  bool ForwardTemplateParams = DebuggerTuning == llvm::DebuggerKind::SCE;
+  if (SimpleTemplateNamesArg &&
+      checkDebugInfoOption(SimpleTemplateNamesArg, Args, D, TC)) {
+    const auto &Opt = SimpleTemplateNamesArg->getOption();
+    if (Opt.matches(options::OPT_gsimple_template_names)) {
+      ForwardTemplateParams = true;
+      CmdArgs.push_back("-gsimple-template-names=simple");
+    } else if (Opt.matches(options::OPT_gsimple_template_names_EQ)) {
+      ForwardTemplateParams = true;
+      StringRef Value = SimpleTemplateNamesArg->getValue();
+      if (Value == "simple") {
+        CmdArgs.push_back("-gsimple-template-names=simple");
+      } else if (Value == "mangled") {
+        CmdArgs.push_back("-gsimple-template-names=mangled");
+      } else {
+        D.Diag(diag::err_drv_unsupported_option_argument)
+            << Opt.getName() << SimpleTemplateNamesArg->getValue();
+      }
+    }
+  }
 
   if (Args.hasFlag(options::OPT_fdebug_ranges_base_address,
                    options::OPT_fno_debug_ranges_base_address, false)) {
@@ -4262,7 +4281,7 @@ static void renderDebugOptions(const ToolChain &TC, const Driver &D,
 
   // Decide how to render forward declarations of template instantiations.
   // SCE wants full descriptions, others just get them in the name.
-  if (DebuggerTuning == llvm::DebuggerKind::SCE)
+  if (ForwardTemplateParams)
     CmdArgs.push_back("-debug-forward-template-params");
 
   // Do we need to explicitly import anonymous namespaces into the parent
@@ -4635,7 +4654,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     // Turn on Dead Parameter Elimination Optimization with early optimizations
-    if (!(RawTriple.isNVPTX() || RawTriple.isAMDGCN()) &&
+    if (!(RawTriple.isAMDGCN()) &&
         Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
       CmdArgs.push_back("-fenable-sycl-dae");
@@ -4659,6 +4678,15 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_sycl_allow_func_ptr, false)) {
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
+
+    // Forward -fsycl-instrument-device-code option to cc1. This option will
+    // only be used for SPIR-V-based targets.
+    if (Arg *A =
+            Args.getLastArgNoClaim(options::OPT_fsycl_instrument_device_code))
+      if (Triple.isSPIR()) {
+        A->claim();
+        CmdArgs.push_back("-fsycl-instrument-device-code");
+      }
 
     if (!SYCLStdArg) {
       // The user had not pass SYCL version, thus we'll employ no-sycl-strict
@@ -5536,16 +5564,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // This is a coarse approximation of what llvm-gcc actually does, both
   // -fasynchronous-unwind-tables and -fnon-call-exceptions interact in more
   // complicated ways.
-  bool UnwindTables =
+  bool AsyncUnwindTables =
       Args.hasFlag(options::OPT_fasynchronous_unwind_tables,
                    options::OPT_fno_asynchronous_unwind_tables,
                    (TC.IsUnwindTablesDefault(Args) ||
                     TC.getSanitizerArgs().needsUnwindTables()) &&
                        !Freestanding);
-  UnwindTables = Args.hasFlag(options::OPT_funwind_tables,
-                              options::OPT_fno_unwind_tables, UnwindTables);
-  if (UnwindTables)
-    CmdArgs.push_back("-munwind-tables");
+  bool UnwindTables = Args.hasFlag(options::OPT_funwind_tables,
+                                   options::OPT_fno_unwind_tables, false);
+  if (AsyncUnwindTables)
+    CmdArgs.push_back("-funwind-tables=2");
+  else if (UnwindTables)
+    CmdArgs.push_back("-funwind-tables=1");
 
   // Prepare `-aux-target-cpu` and `-aux-target-feature` unless
   // `--gpu-use-aux-triple-only` is specified.
@@ -5854,7 +5884,26 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddAllArgs(CmdArgs, options::OPT_R_Group);
 
-  Args.AddAllArgs(CmdArgs, options::OPT_W_Group);
+  for (const Arg *A :
+       Args.filtered(options::OPT_W_Group, options::OPT__SLASH_wd)) {
+    A->claim();
+    if (A->getOption().getID() == options::OPT__SLASH_wd) {
+      unsigned WarningNumber;
+      if (StringRef(A->getValue()).getAsInteger(10, WarningNumber)) {
+        D.Diag(diag::err_drv_invalid_int_value)
+            << A->getAsString(Args) << A->getValue();
+        continue;
+      }
+
+      if (auto Group = diagGroupFromCLWarningID(WarningNumber)) {
+        CmdArgs.push_back(Args.MakeArgString(
+            "-Wno-" + DiagnosticIDs::getWarningOptionForGroup(*Group)));
+      }
+      continue;
+    }
+    A->render(Args, CmdArgs);
+  }
+
   if (Args.hasFlag(options::OPT_pedantic, options::OPT_no_pedantic, false))
     CmdArgs.push_back("-pedantic");
   Args.AddLastArg(CmdArgs, options::OPT_pedantic_errors);
@@ -6364,6 +6413,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   RenderSCPOptions(TC, Args, CmdArgs);
   RenderTrivialAutoVarInitOptions(D, TC, Args, CmdArgs);
 
+  Args.AddLastArg(CmdArgs, options::OPT_fswift_async_fp_EQ);
+
   // Translate -mstackrealign
   if (Args.hasFlag(options::OPT_mstackrealign, options::OPT_mno_stackrealign,
                    false))
@@ -6406,15 +6457,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Forward -cl options to -cc1
   RenderOpenCLOptions(Args, CmdArgs, InputType);
-
-  // Forward -fsycl-instrument-device-code option to cc1. This option can only
-  // be used with spir triple.
-  if (Arg *A = Args.getLastArg(options::OPT_fsycl_instrument_device_code)) {
-    if (!Triple.isSPIR())
-      D.Diag(diag::err_drv_unsupported_opt_for_target)
-          << A->getAsString(Args) << TripleStr;
-    CmdArgs.push_back("-fsycl-instrument-device-code");
-  }
 
   if (IsHIP) {
     if (Args.hasFlag(options::OPT_fhip_new_launch_api,
@@ -7325,7 +7367,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-faddrsig");
 
   if ((Triple.isOSBinFormatELF() || Triple.isOSBinFormatMachO()) &&
-      (EH || UnwindTables || DebugInfoKind != codegenoptions::NoDebugInfo))
+      (EH || AsyncUnwindTables || UnwindTables ||
+       DebugInfoKind != codegenoptions::NoDebugInfo))
     CmdArgs.push_back("-D__GCC_HAVE_DWARF2_CFI_ASM=1");
 
   if (Arg *A = Args.getLastArg(options::OPT_fsymbol_partition_EQ)) {
@@ -8205,7 +8248,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += '-';
     Triples += CurTC->getTriple().normalize();
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
-         CurKind == Action::OFK_Cuda) &&
+         CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
         CurDep->getOffloadingArch()) {
       Triples += '-';
       Triples += CurDep->getOffloadingArch();
@@ -8363,7 +8406,8 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     Triples += Dep.DependentToolChain->getTriple().normalize();
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
-         Dep.DependentOffloadKind == Action::OFK_Cuda) &&
+         Dep.DependentOffloadKind == Action::OFK_Cuda ||
+         Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
       Triples += '-';
       Triples += Dep.DependentBoundArch;
@@ -8652,13 +8696,7 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_SYCL) &&
         !Dep.DependentBoundArch.empty()) {
-      // If OffloadArch is present it can only appear as the 6th hyphen
-      // separated field of Bundle Entry ID. So, pad required number of
-      // hyphens in Triple.
-      // e.g. if NormalizedTriple is nvptx64-nvidia-cuda, 2 more - to
-      // generate nvptx64-nvidia-cuda--
-      for (int i = 4 - StringRef(NormalizedTriple).count("-"); i > 0; i--)
-        Targets += '-';
+      Targets += '-';
       Targets += Dep.DependentBoundArch;
     }
   }
@@ -8919,12 +8957,18 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // auto is the default split mode
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
+
+  // On FPGA target we don't need non-kernel functions as entry points, because
+  // it only increases amount of code for device compiler to handle, without any
+  // actual benefits.
+  if (getToolChain().getTriple().getArchName() == "spir64_fpga")
+    addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
+
   // OPT_fsycl_device_code_split is not checked as it is an alias to
   // -fsycl-device-code-split=auto
 
   // Turn on Dead Parameter Elimination Optimization with early optimizations
-  if (!(getToolChain().getTriple().isNVPTX() ||
-        getToolChain().getTriple().isAMDGCN()) &&
+  if (!(getToolChain().getTriple().isAMDGCN()) &&
       TCArgs.hasFlag(options::OPT_fsycl_dead_args_optimization,
                      options::OPT_fno_sycl_dead_args_optimization, false))
     addArgs(CmdArgs, TCArgs, {"-emit-param-info"});
@@ -8941,6 +8985,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // Symbol file and specialization constant info generation is mandatory -
     // add options unconditionally
     addArgs(CmdArgs, TCArgs, {"-symbols"});
+    addArgs(CmdArgs, TCArgs, {"-emit-exported-symbols"});
     addArgs(CmdArgs, TCArgs, {"-split-esimd"});
     addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }

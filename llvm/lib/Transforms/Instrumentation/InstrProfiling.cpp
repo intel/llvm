@@ -446,13 +446,12 @@ bool InstrProfiling::lowerIntrinsics(Function *F) {
   bool MadeChange = false;
   PromotionCandidates.clear();
   for (BasicBlock &BB : *F) {
-    for (auto I = BB.begin(), E = BB.end(); I != E;) {
-      auto Instr = I++;
-      InstrProfIncrementInst *Inc = castToIncrementInst(&*Instr);
+    for (Instruction &Instr : llvm::make_early_inc_range(BB)) {
+      InstrProfIncrementInst *Inc = castToIncrementInst(&Instr);
       if (Inc) {
         lowerIncrement(Inc);
         MadeChange = true;
-      } else if (auto *Ind = dyn_cast<InstrProfValueProfileInst>(Instr)) {
+      } else if (auto *Ind = dyn_cast<InstrProfValueProfileInst>(&Instr)) {
         lowerValueProfileInst(Ind);
         MadeChange = true;
       }
@@ -863,6 +862,15 @@ InstrProfiling::getOrCreateRegionCounters(InstrProfIncrementInst *Inc) {
   GlobalValue::LinkageTypes Linkage = NamePtr->getLinkage();
   GlobalValue::VisibilityTypes Visibility = NamePtr->getVisibility();
 
+  // Due to the limitation of binder as of 2021/09/28, the duplicate weak
+  // symbols in the same csect won't be discarded. When there are duplicate weak
+  // symbols, we can NOT guarantee that the relocations get resolved to the
+  // intended weak symbol, so we can not ensure the correctness of the relative
+  // CounterPtr, so we have to use private linkage for counter and data symbols.
+  if (TT.isOSBinFormatXCOFF()) {
+    Linkage = GlobalValue::PrivateLinkage;
+    Visibility = GlobalValue::DefaultVisibility;
+  }
   // Move the name variable to the right section. Place them in a COMDAT group
   // if the associated function is a COMDAT. This will make sure that only one
   // copy of counters of the COMDAT function will be emitted after linking. Keep

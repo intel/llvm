@@ -15,6 +15,7 @@ Using oneAPI DPC++ for Application Development
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
    FAQ
    User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
+   EnvironmentVariables
 
 Developing oneAPI DPC++ Compiler
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -27,7 +28,6 @@ Developing oneAPI DPC++ Compiler
    Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
    CompilerAndRuntimeDesign
    KernelParameterPassing
-   EnvironmentVariables
    PluginInterface
    ABIPolicyGuide
    SpecializationConstants

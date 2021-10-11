@@ -172,6 +172,9 @@ public:
   bool matchCombineExtendingLoads(MachineInstr &MI, PreferredTuple &MatchInfo);
   void applyCombineExtendingLoads(MachineInstr &MI, PreferredTuple &MatchInfo);
 
+  /// Match (and (load x), mask) -> zextload x
+  bool matchCombineLoadWithAndMask(MachineInstr &MI, BuildFnTy &MatchInfo);
+
   /// Combine \p MI into a pre-indexed or post-indexed load/store operation if
   /// legal and the surrounding code makes it useful.
   bool tryCombineIndexedLoadStore(MachineInstr &MI);
@@ -577,6 +580,14 @@ public:
   /// Match: shr (shl x, n), k -> sbfx/ubfx x, pos, width
   bool matchBitfieldExtractFromShr(MachineInstr &MI, BuildFnTy &MatchInfo);
 
+  // Helpers for reassociation:
+  bool matchReassocConstantInnerRHS(GPtrAdd &MI, MachineInstr *RHS,
+                                    BuildFnTy &MatchInfo);
+  bool matchReassocFoldConstantsInSubTree(GPtrAdd &MI, MachineInstr *LHS,
+                                          MachineInstr *RHS,
+                                          BuildFnTy &MatchInfo);
+  bool matchReassocConstantInnerLHS(GPtrAdd &MI, MachineInstr *LHS,
+                                    MachineInstr *RHS, BuildFnTy &MatchInfo);
   /// Reassociate pointer calculations with G_ADD involved, to allow better
   /// addressing mode usage.
   bool matchReassocPtrAdd(MachineInstr &MI, BuildFnTy &MatchInfo);
@@ -597,6 +608,11 @@ public:
   /// TODO: implement dynamically sized inline memcpy,
   ///       and rename: s/bool tryEmit/void emit/
   bool tryEmitMemcpyInline(MachineInstr &MI);
+
+  /// Match:
+  ///   (G_UMULO x, 2) -> (G_UADDO x, x)
+  ///   (G_SMULO x, 2) -> (G_SADDO x, x)
+  bool matchMulOBy2(MachineInstr &MI, BuildFnTy &MatchInfo);
 
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that

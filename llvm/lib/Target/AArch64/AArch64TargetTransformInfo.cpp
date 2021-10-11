@@ -289,13 +289,15 @@ AArch64TTIImpl::getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
     const auto LegalisationCost = TLI->getTypeLegalizationCost(DL, RetTy);
     const auto *Entry =
         CostTableLookup(BitreverseTbl, ICA.getID(), LegalisationCost.second);
-    // Cost Model is using the legal type(i32) that i8 and i16 will be converted
-    // to +1 so that we match the actual lowering cost
-    if (TLI->getValueType(DL, RetTy, true) == MVT::i8 ||
-        TLI->getValueType(DL, RetTy, true) == MVT::i16)
-      return LegalisationCost.first * Entry->Cost + 1;
-    if (Entry)
+    if (Entry) {
+      // Cost Model is using the legal type(i32) that i8 and i16 will be
+      // converted to +1 so that we match the actual lowering cost
+      if (TLI->getValueType(DL, RetTy, true) == MVT::i8 ||
+          TLI->getValueType(DL, RetTy, true) == MVT::i16)
+        return LegalisationCost.first * Entry->Cost + 1;
+
       return LegalisationCost.first * Entry->Cost;
+    }
     break;
   }
   case Intrinsic::ctpop: {
@@ -693,6 +695,33 @@ static Optional<Instruction *> instCombineSVEPTest(InstCombiner &IC,
   return None;
 }
 
+static Instruction::BinaryOps intrinsicIDToBinOpCode(unsigned Intrinsic) {
+  switch (Intrinsic) {
+  case Intrinsic::aarch64_sve_fmul:
+    return Instruction::BinaryOps::FMul;
+  case Intrinsic::aarch64_sve_fadd:
+    return Instruction::BinaryOps::FAdd;
+  case Intrinsic::aarch64_sve_fsub:
+    return Instruction::BinaryOps::FSub;
+  default:
+    return Instruction::BinaryOpsEnd;
+  }
+}
+
+static Optional<Instruction *> instCombineSVEVectorBinOp(InstCombiner &IC,
+                                                         IntrinsicInst &II) {
+  auto BinOpCode = intrinsicIDToBinOpCode(II.getIntrinsicID());
+  if (BinOpCode == Instruction::BinaryOpsEnd ||
+      !match(II.getOperand(0),
+             m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
+                 m_ConstantInt<AArch64SVEPredPattern::all>())))
+    return None;
+  IRBuilder<> Builder(II.getContext());
+  Builder.SetInsertPoint(&II);
+  return IC.replaceInstUsesWith(
+      II, Builder.CreateBinOp(BinOpCode, II.getOperand(1), II.getOperand(2)));
+}
+
 static Optional<Instruction *> instCombineSVEVectorMul(InstCombiner &IC,
                                                        IntrinsicInst &II) {
   auto *OpPredicate = II.getOperand(0);
@@ -742,7 +771,7 @@ static Optional<Instruction *> instCombineSVEVectorMul(InstCombiner &IC,
     }
   }
 
-  return None;
+  return instCombineSVEVectorBinOp(IC, II);
 }
 
 static Optional<Instruction *> instCombineSVEUnpack(InstCombiner &IC,
@@ -792,6 +821,47 @@ static Optional<Instruction *> instCombineSVETBL(InstCombiner &IC,
   return IC.replaceInstUsesWith(II, VectorSplat);
 }
 
+static Optional<Instruction *> instCombineSVETupleGet(InstCombiner &IC,
+                                                      IntrinsicInst &II) {
+  // Try to remove sequences of tuple get/set.
+  Value *SetTuple, *SetIndex, *SetValue;
+  auto *GetTuple = II.getArgOperand(0);
+  auto *GetIndex = II.getArgOperand(1);
+  // Check that we have tuple_get(GetTuple, GetIndex) where GetTuple is a
+  // call to tuple_set i.e. tuple_set(SetTuple, SetIndex, SetValue).
+  // Make sure that the types of the current intrinsic and SetValue match
+  // in order to safely remove the sequence.
+  if (!match(GetTuple,
+             m_Intrinsic<Intrinsic::aarch64_sve_tuple_set>(
+                 m_Value(SetTuple), m_Value(SetIndex), m_Value(SetValue))) ||
+      SetValue->getType() != II.getType())
+    return None;
+  // Case where we get the same index right after setting it.
+  // tuple_get(tuple_set(SetTuple, SetIndex, SetValue), GetIndex) --> SetValue
+  if (GetIndex == SetIndex)
+    return IC.replaceInstUsesWith(II, SetValue);
+  // If we are getting a different index than what was set in the tuple_set
+  // intrinsic. We can just set the input tuple to the one up in the chain.
+  // tuple_get(tuple_set(SetTuple, SetIndex, SetValue), GetIndex)
+  // --> tuple_get(SetTuple, GetIndex)
+  return IC.replaceOperand(II, 0, SetTuple);
+}
+
+static Optional<Instruction *> instCombineSVEZip(InstCombiner &IC,
+                                                 IntrinsicInst &II) {
+  // zip1(uzp1(A, B), uzp2(A, B)) --> A
+  // zip2(uzp1(A, B), uzp2(A, B)) --> B
+  Value *A, *B;
+  if (match(II.getArgOperand(0),
+            m_Intrinsic<Intrinsic::aarch64_sve_uzp1>(m_Value(A), m_Value(B))) &&
+      match(II.getArgOperand(1), m_Intrinsic<Intrinsic::aarch64_sve_uzp2>(
+                                     m_Specific(A), m_Specific(B))))
+    return IC.replaceInstUsesWith(
+        II, (II.getIntrinsicID() == Intrinsic::aarch64_sve_zip1 ? A : B));
+
+  return None;
+}
+
 Optional<Instruction *>
 AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
                                      IntrinsicInst &II) const {
@@ -828,6 +898,9 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
   case Intrinsic::aarch64_sve_mul:
   case Intrinsic::aarch64_sve_fmul:
     return instCombineSVEVectorMul(IC, II);
+  case Intrinsic::aarch64_sve_fadd:
+  case Intrinsic::aarch64_sve_fsub:
+    return instCombineSVEVectorBinOp(IC, II);
   case Intrinsic::aarch64_sve_tbl:
     return instCombineSVETBL(IC, II);
   case Intrinsic::aarch64_sve_uunpkhi:
@@ -835,6 +908,11 @@ AArch64TTIImpl::instCombineIntrinsic(InstCombiner &IC,
   case Intrinsic::aarch64_sve_sunpkhi:
   case Intrinsic::aarch64_sve_sunpklo:
     return instCombineSVEUnpack(IC, II);
+  case Intrinsic::aarch64_sve_tuple_get:
+    return instCombineSVETupleGet(IC, II);
+  case Intrinsic::aarch64_sve_zip1:
+  case Intrinsic::aarch64_sve_zip2:
+    return instCombineSVEZip(IC, II);
   }
 
   return None;
@@ -1513,7 +1591,7 @@ InstructionCost
 AArch64TTIImpl::getMaskedMemoryOpCost(unsigned Opcode, Type *Src,
                                       Align Alignment, unsigned AddressSpace,
                                       TTI::TargetCostKind CostKind) {
-  if (useNeonVector(Src))
+  if (!isa<ScalableVectorType>(Src))
     return BaseT::getMaskedMemoryOpCost(Opcode, Src, Alignment, AddressSpace,
                                         CostKind);
   auto LT = TLI->getTypeLegalizationCost(DL, Src);
@@ -1784,7 +1862,7 @@ Value *AArch64TTIImpl::getOrCreateResultFromMemIntrinsic(IntrinsicInst *Inst,
     StructType *ST = dyn_cast<StructType>(ExpectedType);
     if (!ST)
       return nullptr;
-    unsigned NumElts = Inst->getNumArgOperands() - 1;
+    unsigned NumElts = Inst->arg_size() - 1;
     if (ST->getNumElements() != NumElts)
       return nullptr;
     for (unsigned i = 0, e = NumElts; i != e; ++i) {
@@ -1825,7 +1903,7 @@ bool AArch64TTIImpl::getTgtMemIntrinsic(IntrinsicInst *Inst,
   case Intrinsic::aarch64_neon_st4:
     Info.ReadMem = false;
     Info.WriteMem = true;
-    Info.PtrVal = Inst->getArgOperand(Inst->getNumArgOperands() - 1);
+    Info.PtrVal = Inst->getArgOperand(Inst->arg_size() - 1);
     break;
   }
 

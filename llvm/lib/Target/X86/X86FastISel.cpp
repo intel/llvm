@@ -2745,7 +2745,7 @@ bool X86FastISel::fastLowerIntrinsicCall(const IntrinsicInst *II) {
     if (MCI->getSourceAddressSpace() > 255 || MCI->getDestAddressSpace() > 255)
       return false;
 
-    return lowerCallTo(II, "memcpy", II->getNumArgOperands() - 1);
+    return lowerCallTo(II, "memcpy", II->arg_size() - 1);
   }
   case Intrinsic::memset: {
     const MemSetInst *MSI = cast<MemSetInst>(II);
@@ -2760,7 +2760,7 @@ bool X86FastISel::fastLowerIntrinsicCall(const IntrinsicInst *II) {
     if (MSI->getDestAddressSpace() > 255)
       return false;
 
-    return lowerCallTo(II, "memset", II->getNumArgOperands() - 1);
+    return lowerCallTo(II, "memset", II->arg_size() - 1);
   }
   case Intrinsic::stackprotector: {
     // Emit code to store the stack guard onto the stack.
@@ -3842,11 +3842,11 @@ unsigned X86FastISel::fastMaterializeConstant(const Constant *C) {
 
   if (const auto *CI = dyn_cast<ConstantInt>(C))
     return X86MaterializeInt(CI, VT);
-  else if (const ConstantFP *CFP = dyn_cast<ConstantFP>(C))
+  if (const auto *CFP = dyn_cast<ConstantFP>(C))
     return X86MaterializeFP(CFP, VT);
-  else if (const GlobalValue *GV = dyn_cast<GlobalValue>(C))
+  if (const auto *GV = dyn_cast<GlobalValue>(C))
     return X86MaterializeGV(GV, VT);
-  else if (isa<UndefValue>(C)) {
+  if (isa<UndefValue>(C)) {
     unsigned Opc = 0;
     switch (VT.SimpleTy) {
     default:

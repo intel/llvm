@@ -461,6 +461,8 @@ private:
   void visitDereferenceableMetadata(Instruction &I, MDNode *MD);
   void visitProfMetadata(Instruction &I, MDNode *MD);
   void visitAnnotationMetadata(MDNode *Annotation);
+  void visitAliasScopeMetadata(const MDNode *MD);
+  void visitAliasScopeListMetadata(const MDNode *MD);
 
   template <class Ty> bool isValidMetadataArray(const MDTuple &N);
 #define HANDLE_SPECIALIZED_MDNODE_LEAF(CLASS) void visit##CLASS(const CLASS &N);
@@ -1094,7 +1096,8 @@ void Verifier::visitDICompositeType(const DICompositeType &N) {
                N.getTag() == dwarf::DW_TAG_union_type ||
                N.getTag() == dwarf::DW_TAG_enumeration_type ||
                N.getTag() == dwarf::DW_TAG_class_type ||
-               N.getTag() == dwarf::DW_TAG_variant_part,
+               N.getTag() == dwarf::DW_TAG_variant_part ||
+               N.getTag() == dwarf::DW_TAG_namelist,
            "invalid tag", &N);
 
   AssertDI(isScope(N.getRawScope()), "invalid scope", &N, N.getRawScope());
@@ -2729,7 +2732,7 @@ void Verifier::visitCallBrInst(CallBrInst &CBI) {
     Assert(CBI.getSuccessor(i)->getType()->isLabelTy(),
            "Callbr successors must all have pointer type!", &CBI);
   for (unsigned i = 0, e = CBI.getNumOperands(); i != e; ++i) {
-    Assert(i >= CBI.getNumArgOperands() || !isa<BasicBlock>(CBI.getOperand(i)),
+    Assert(i >= CBI.arg_size() || !isa<BasicBlock>(CBI.getOperand(i)),
            "Using an unescaped label as a callbr argument!", &CBI);
     if (isa<BasicBlock>(CBI.getOperand(i)))
       for (unsigned j = i + 1; j != e; ++j)
@@ -3311,7 +3314,7 @@ static bool isTypeCongruent(Type *L, Type *R) {
   return PL->getAddressSpace() == PR->getAddressSpace();
 }
 
-static AttrBuilder getParameterABIAttributes(int I, AttributeList Attrs) {
+static AttrBuilder getParameterABIAttributes(unsigned I, AttributeList Attrs) {
   static const Attribute::AttrKind ABIAttrs[] = {
       Attribute::StructRet,  Attribute::ByVal,          Attribute::InAlloca,
       Attribute::InReg,      Attribute::StackAlignment, Attribute::SwiftSelf,
@@ -3379,12 +3382,12 @@ void Verifier::verifyMustTailCall(CallInst &CI) {
 
     // - Only sret, byval, swiftself, and swiftasync ABI-impacting attributes
     //   are allowed in swifttailcc call
-    for (int I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
+    for (unsigned I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
       AttrBuilder ABIAttrs = getParameterABIAttributes(I, CallerAttrs);
       SmallString<32> Context{CCName, StringRef(" musttail caller")};
       verifyTailCCMustTailAttrs(ABIAttrs, Context);
     }
-    for (int I = 0, E = CalleeTy->getNumParams(); I != E; ++I) {
+    for (unsigned I = 0, E = CalleeTy->getNumParams(); I != E; ++I) {
       AttrBuilder ABIAttrs = getParameterABIAttributes(I, CalleeAttrs);
       SmallString<32> Context{CCName, StringRef(" musttail callee")};
       verifyTailCCMustTailAttrs(ABIAttrs, Context);
@@ -3402,7 +3405,7 @@ void Verifier::verifyMustTailCall(CallInst &CI) {
     Assert(CallerTy->getNumParams() == CalleeTy->getNumParams(),
            "cannot guarantee tail call due to mismatched parameter counts",
            &CI);
-    for (int I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
+    for (unsigned I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
       Assert(
           isTypeCongruent(CallerTy->getParamType(I), CalleeTy->getParamType(I)),
           "cannot guarantee tail call due to mismatched parameter types", &CI);
@@ -3411,7 +3414,7 @@ void Verifier::verifyMustTailCall(CallInst &CI) {
 
   // - All ABI-impacting function attributes, such as sret, byval, inreg,
   //   returned, preallocated, and inalloca, must match.
-  for (int I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
+  for (unsigned I = 0, E = CallerTy->getNumParams(); I != E; ++I) {
     AttrBuilder CallerABIAttrs = getParameterABIAttributes(I, CallerAttrs);
     AttrBuilder CalleeABIAttrs = getParameterABIAttributes(I, CalleeAttrs);
     Assert(CallerABIAttrs == CalleeABIAttrs,
@@ -4343,6 +4346,38 @@ void Verifier::visitAnnotationMetadata(MDNode *Annotation) {
     Assert(isa<MDString>(Op.get()), "operands must be strings");
 }
 
+void Verifier::visitAliasScopeMetadata(const MDNode *MD) {
+  unsigned NumOps = MD->getNumOperands();
+  Assert(NumOps >= 2 && NumOps <= 3, "scope must have two or three operands",
+         MD);
+  Assert(MD->getOperand(0).get() == MD || isa<MDString>(MD->getOperand(0)),
+         "first scope operand must be self-referential or string", MD);
+  if (NumOps == 3)
+    Assert(isa<MDString>(MD->getOperand(2)),
+           "third scope operand must be string (if used)", MD);
+
+  MDNode *Domain = dyn_cast<MDNode>(MD->getOperand(1));
+  Assert(Domain != nullptr, "second scope operand must be MDNode", MD);
+
+  unsigned NumDomainOps = Domain->getNumOperands();
+  Assert(NumDomainOps >= 1 && NumDomainOps <= 2,
+         "domain must have one or two operands", Domain);
+  Assert(Domain->getOperand(0).get() == Domain ||
+             isa<MDString>(Domain->getOperand(0)),
+         "first domain operand must be self-referential or string", Domain);
+  if (NumDomainOps == 2)
+    Assert(isa<MDString>(Domain->getOperand(1)),
+           "second domain operand must be string (if used)", Domain);
+}
+
+void Verifier::visitAliasScopeListMetadata(const MDNode *MD) {
+  for (const MDOperand &Op : MD->operands()) {
+    const MDNode *OpMD = dyn_cast<MDNode>(Op);
+    Assert(OpMD != nullptr, "scope list must consist of MDNodes", MD);
+    visitAliasScopeMetadata(OpMD);
+  }
+}
+
 /// verifyInstruction - Verify that an instruction is well formed.
 ///
 void Verifier::visitInstruction(Instruction &I) {
@@ -4501,6 +4536,11 @@ void Verifier::visitInstruction(Instruction &I) {
 
   if (MDNode *TBAA = I.getMetadata(LLVMContext::MD_tbaa))
     TBAAVerifyHelper.visitTBAAMetadata(I, TBAA);
+
+  if (MDNode *MD = I.getMetadata(LLVMContext::MD_noalias))
+    visitAliasScopeListMetadata(MD);
+  if (MDNode *MD = I.getMetadata(LLVMContext::MD_alias_scope))
+    visitAliasScopeListMetadata(MD);
 
   if (MDNode *AlignMD = I.getMetadata(LLVMContext::MD_align)) {
     Assert(I.getType()->isPointerTy(), "align applies only to pointer types",
@@ -4749,7 +4789,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
                            "llvm.call.preallocated.setup");
         FoundCall = true;
         size_t NumPreallocatedArgs = 0;
-        for (unsigned i = 0; i < UseCall->getNumArgOperands(); i++) {
+        for (unsigned i = 0; i < UseCall->arg_size(); i++) {
           if (UseCall->paramHasAttr(i, Attribute::Preallocated)) {
             ++NumPreallocatedArgs;
           }
@@ -4847,7 +4887,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
       Assert(AI && AI->isStaticAlloca(),
              "llvm.localescape only accepts static allocas", Call);
     }
-    FrameEscapeInfo[BB->getParent()].first = Call.getNumArgOperands();
+    FrameEscapeInfo[BB->getParent()].first = Call.arg_size();
     SawFrameEscape = true;
     break;
   }
@@ -4896,7 +4936,7 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     break;
   }
   case Intrinsic::experimental_gc_relocate: {
-    Assert(Call.getNumArgOperands() == 3, "wrong number of arguments", Call);
+    Assert(Call.arg_size() == 3, "wrong number of arguments", Call);
 
     Assert(isa<PointerType>(Call.getType()->getScalarType()),
            "gc.relocate must return a pointer or a vector of pointers", Call);
@@ -5030,14 +5070,14 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
   case Intrinsic::masked_gather: {
     const APInt &Alignment =
         cast<ConstantInt>(Call.getArgOperand(1))->getValue();
-    Assert(Alignment.isNullValue() || Alignment.isPowerOf2(),
+    Assert(Alignment.isZero() || Alignment.isPowerOf2(),
            "masked_gather: alignment must be 0 or a power of 2", Call);
     break;
   }
   case Intrinsic::masked_scatter: {
     const APInt &Alignment =
         cast<ConstantInt>(Call.getArgOperand(2))->getValue();
-    Assert(Alignment.isNullValue() || Alignment.isPowerOf2(),
+    Assert(Alignment.isZero() || Alignment.isPowerOf2(),
            "masked_scatter: alignment must be 0 or a power of 2", Call);
     break;
   }
@@ -5353,7 +5393,7 @@ void Verifier::visitConstrainedFPIntrinsic(ConstrainedFPIntrinsic &FPI) {
   // Compare intrinsics carry an extra predicate metadata operand.
   if (isa<ConstrainedFPCmpIntrinsic>(FPI))
     NumOperands += 1;
-  Assert((FPI.getNumArgOperands() == NumOperands),
+  Assert((FPI.arg_size() == NumOperands),
          "invalid arguments for constrained FP intrinsic", &FPI);
 
   switch (FPI.getIntrinsicID()) {
@@ -5719,6 +5759,7 @@ void Verifier::verifyNoAliasScopeDecl() {
            II);
     Assert(ScopeListMD->getNumOperands() == 1,
            "!id.scope.list must point to a list with a single scope", II);
+    visitAliasScopeListMetadata(ScopeListMD);
   }
 
   // Only check the domination rule when requested. Once all passes have been

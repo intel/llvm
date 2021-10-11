@@ -86,7 +86,10 @@ enum InternalMemoryAccessMask {
   IMemAccessNoAliasINTELMask = 0x20000
 };
 
-enum InternalExecutionMode { IExecModeFastCompositeKernelINTEL = 6088 };
+enum InternalExecutionMode {
+  IExecModeFastCompositeKernelINTEL = 6088,
+  IExecModeStreamingInterfaceINTEL = 6154
+};
 
 enum InternalLoopControlMask { ILoopControlLoopCountINTELMask = 0x1000000 };
 
@@ -168,6 +171,8 @@ constexpr MemoryAccessMask MemoryAccessNoAliasINTELMask =
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
+constexpr ExecutionMode ExecutionModeStreamingInterfaceINTEL =
+    static_cast<ExecutionMode>(IExecModeStreamingInterfaceINTEL);
 
 constexpr LoopControlMask LoopControlLoopCountINTELMask =
     static_cast<LoopControlMask>(ILoopControlLoopCountINTELMask);

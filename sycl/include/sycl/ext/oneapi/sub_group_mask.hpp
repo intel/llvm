@@ -100,7 +100,7 @@ struct sub_group_mask {
     uint32_t mask = 0;
     if (pos.get(0) + insert_size < size())
       mask |= (0xffffffff << (pos.get(0) + insert_size));
-    if (pos.get(0) < size())
+    if (pos.get(0) < size() && pos.get(0))
       mask |= (0xffffffff >> (size() - pos.get(0)));
     Bits &= mask;
     Bits += insert_data;
@@ -124,7 +124,7 @@ struct sub_group_mask {
 
   template <typename Type,
             typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
-  void extract_bits(Type &bits, id<1> pos = 0) {
+  void extract_bits(Type &bits, id<1> pos = 0) const {
     uint32_t Res = Bits;
     if (pos.get(0) < size()) {
       if (pos.get(0) > 0) {
