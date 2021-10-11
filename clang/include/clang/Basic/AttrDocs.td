@@ -405,6 +405,24 @@ The SYCL kernel in the previous code sample meets these expectations.
   }];
 }
 
+def SYCLSpecialClassDocs : Documentation {
+  let Category = DocCatStmt;
+  let Content = [{
+The ``__attribute__((sycl_special_class))`` attribute is used in SYCL
+headers to indicate that a class or a struct needs additional handling when
+it is passed from host to device. Please note that this is an attribute that is
+used for internal implementation and not intended to be used by external users.
+It is used for ``accessor``, ``sampler`` , or ``stream`` classes.
+
+.. code-block:: c++
+  class __attribute__((sycl_special_class)) accessor {
+
+private:
+  void __init() {}
+};
+  }];
+}
+
 def SYCLSimdDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
