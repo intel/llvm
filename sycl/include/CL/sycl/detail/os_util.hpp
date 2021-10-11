@@ -96,30 +96,6 @@ public:
     return !stat(Path.c_str(), &Stat);
 #endif
   }
-
-  /// \returns a path to a directory from which plugins can be loaded. This can
-  /// be an empty string in unit tests only.
-  static std::string getPluginDirectory();
-
-  /// Loads dynamic library.
-  ///
-  /// \param Path is a path to dynamic library file.
-  /// \returns an OS-specific dynamic library handle
-  static void *loadLibrary(const std::string &Path);
-
-  /// Unloads dynamic library.
-  ///
-  /// \param Handle is a valid OS library handle, obtained from loadLibrary().
-  /// \returns 0 on success, error code otherwise.
-  static int unloadLibrary(void *Handle);
-
-  /// Obtain a pointer to dynamic library symbol.
-  ///
-  /// \param Handle is a valid library handle, returned from loadLibrary().
-  /// \param FunctionName is a symbol name.
-  /// \returns a valid function pointer if symbol is found, nullptr otherwise.
-  static void *getLibraryFuncAddress(void *Handle,
-                                     const std::string &FunctionName);
 };
 
 } // namespace detail

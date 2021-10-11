@@ -138,6 +138,7 @@ set(SYCL_SOURCES
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
     "detail/online_compiler/online_compiler.cpp"
+    "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
     "detail/reduction.cpp"
@@ -178,7 +179,7 @@ set(SYCL_SOURCES
 
 function(add_sycl_support_library LIB_NAME OPTIONS)
   set(_SUPPORT_SRC
-    support/os_util.cpp
+    support/library_utils.cpp
     )
   add_library(${LIB_NAME} STATIC
     ${_SUPPORT_SRC}

@@ -127,20 +127,8 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const cl::sycl::context &constext,
                                              pi_context_extended_deleter func,
                                              void *user_data);
 
-// Function to load the shared library
-// Implementation is OS dependent.
-void *loadOsLibrary(const std::string &Library);
-
-// Function to unload the shared library
-// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
-int unloadOsLibrary(void *Library);
-
 // OS agnostic function to unload the shared library
 int unloadPlugin(void *Library);
-
-// Function to get Address of a symbol defined in the shared
-// library, implementation is OS dependent.
-void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 
 // Get a string representing a _pi_platform_info enum
 std::string platformInfoToString(pi_platform_info info);

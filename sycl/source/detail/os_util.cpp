@@ -299,59 +299,6 @@ int OSUtil::makeDir(const char *Dir) {
   } while (pos != std::string::npos);
   return 0;
 }
-
-std::string OSUtil::getPluginDirectory() {
-#ifdef __SYCL_SECURE_DLL_LOAD
-  return getCurrentDSODir();
-#else
-  return "";
-#endif
-}
-
-void *OSUtil::loadLibrary(const std::string &PluginPath) {
-#if defined(__SYCL_RT_OS_LINUX)
-  // TODO: Check if the option RTLD_NOW is correct. Explore using
-  // RTLD_DEEPBIND option when there are multiple plugins.
-  return dlopen(PluginPath.c_str(), RTLD_NOW);
-#elif defined(__SYCL_RT_OS_WINDOWS)
-#ifdef __SYCL_SECURE_DLL_LOAD
-  // Exclude current directory from DLL search paths according to Microsoft
-  // guidelines.
-  SetDllDirectory("");
-#endif
-  // Tells the system to not display the critical-error-handler message box.
-  // Instead, the system sends the error to the calling process.
-  // This is crucial for graceful handling of plugins that couldn't be
-  // loaded, e.g. due to missing native run-times.
-  // TODO: add reporting in case of an error.
-  // NOTE: we restore the old mode to not affect user app behavior.
-  //
-  UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
-  auto Result = (void *)LoadLibraryA(PluginPath.c_str());
-  (void)SetErrorMode(SavedMode);
-
-  return Result;
-#endif
-}
-
-int OSUtil::unloadLibrary(void *Library) {
-#if defined(__SYCL_RT_OS_LINUX)
-  return dlclose(Library);
-#elif defined(__SYCL_RT_OS_WINDOWS)
-  return (int)FreeLibrary((HMODULE)Library);
-#endif
-}
-
-void *OSUtil::getLibraryFuncAddress(void *Library,
-                                    const std::string &FunctionName) {
-#if defined(__SYCL_RT_OS_LINUX)
-  return dlsym(Library, FunctionName.c_str());
-#elif defined(__SYCL_RT_OS_WINDOWS)
-  return reinterpret_cast<void *>(
-      GetProcAddress((HMODULE)Library, FunctionName.c_str()));
-#endif
-}
-
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -23,6 +23,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 #include <detail/xpti_registry.hpp>
+#include <support/library_utils.hpp>
 
 #include <bitset>
 #include <cstdarg>
@@ -321,12 +322,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
 void *loadPlugin(const std::string &PluginPath) {
-  return OSUtil::loadLibrary(PluginPath);
+  return loadOsLibrary(PluginPath);
 }
 
 // Unload the given plugin by calling teh OS-specific library unloading call.
 // \param Library OS-specific library handle created when loading.
-int unloadPlugin(void *Library) { return OSUtil::unloadLibrary(Library); }
+int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.
@@ -337,8 +338,8 @@ int unloadPlugin(void *Library) { return OSUtil::unloadLibrary(Library); }
 bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 
   decltype(::piPluginInit) *PluginInitializeFunction =
-      (decltype(&::piPluginInit))(OSUtil::getLibraryFuncAddress(
-          Library, "piPluginInit"));
+      (decltype(&::piPluginInit))(getOsLibraryFuncAddress(Library,
+                                                          "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
@@ -380,7 +381,7 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
   PluginInformation.PiFunctionTable = {};
 
-  const std::string PluginPath = OSUtil::getPluginDirectory();
+  const std::string PluginPath = getPluginDirectory();
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     const std::string PluginName = [&]() {
       if (!PluginName.empty()) {
