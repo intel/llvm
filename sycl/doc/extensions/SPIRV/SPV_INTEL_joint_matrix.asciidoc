@@ -303,22 +303,16 @@ Behavior is undefined if sizes of operands do not meet the conditions above.
 All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
  +
-'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
-'Component Type' be a signed 'numerical type' or 16-bit unsigned integer type
-(which stands for 'bfloat16' type) in case if 'B' is of 16-bit unsigned integer
-<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> type as well and 'C' is of
-'float' <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> type.
-'Rown Count' equals to 'M' and 'Column Count' equals to 'K' +
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is a signed 'numerical type', 'Row Count' equals to 'M' and
+'Column Count' equals to 'K' +
  +
-'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
-'Component Type' be a signed 'numerical type' or 16-bit unsigned integer type
-(which stands for 'bfloat16' type) in case if 'A' is of 16-bit unsigned integer
-<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> type as well and 'C' is of
-'float' <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> type.
-'Rown Count' equals to 'K' and 'Column Count' equals to 'N' +
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is a signed 'numerical type', 'Row Count' equals to 'K' and
+'Column Count' equals to 'N' +
  +
 'C' and 'Result Type' must be a
-<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Rown Count' equals to
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals to
 'M' and 'Column Count' equals to 'N' +
  +
 'Scope' is syncronization scope for operation on the matrix. It must be the
@@ -352,16 +346,16 @@ Behavior is undefined if sizes of operands do not meet the conditions above.
 All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
  +
-'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
-'Component Type' be a signed 'numerical type', 'Rown Count' equals to 'M' and
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is a signed 'numerical type', 'Row Count' equals to 'M' and
 'Column Count' equals to 'K' +
  +
-'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
-'Component Type' be an unsigned 'numerical type', 'Rown Count' equals to 'K' and
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is an unsigned 'numerical type', 'Row Count' equals to 'K' and
 'Column Count' equals to 'N' +
  +
 'C' and 'Result Type' must be a
-<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Rown Count' equals to
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals to
 'M' and 'Column Count' equals to 'N' +
  +
 'Scope' is syncronization scope for operation on the matrix. It must be the
@@ -395,16 +389,16 @@ Behavior is undefined if sizes of operands do not meet the conditions above.
 All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
  +
-'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
-'Component Type' be an unsigned 'numerical type', 'Rown Count' equals to 'M' and
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is an unsigned 'numerical type', 'Row Count' equals to 'M' and
 'Column Count' equals to 'K' +
  +
-'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
-'Component Type' be a signed 'numerical type', 'Rown Count' equals to 'K' and
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is a signed 'numerical type', 'Row Count' equals to 'K' and
 'Column Count' equals to 'N' +
  +
 'C' and 'Result Type' must be a
-<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Rown Count' equals to
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals to
 'M' and 'Column Count' equals to 'N' +
  +
 'Scope' is syncronization scope for operation on the matrix. It must be the
@@ -438,16 +432,16 @@ Behavior is undefined if sizes of operands do not meet the conditions above.
 All operands and the 'Result Type' must be
 <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>>. +
  +
-'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
-'Component Type' be an unsigned 'numerical type', 'Rown Count' equals to 'M' and
+'A' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is an unsigned 'numerical type', 'Row Count' equals to 'M' and
 'Column Count' equals to 'K' +
  +
-'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with
-'Component Type' be an unsigned 'numerical type', 'Rown Count' equals to 'K' and
+'B' must be a <<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> whose
+'Component Type' is an unsigned 'numerical type', 'Row Count' equals to 'K' and
 'Column Count' equals to 'N' +
  +
 'C' and 'Result Type' must be a
-<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Rown Count' equals to
+<<OpTypeJointMatrixINTEL,*OpTypeJointMatrixINTEL*>> with 'Row Count' equals to
 'M' and 'Column Count' equals to 'N' +
  +
 'Scope' is syncronization scope for operation on the matrix. It must be the
