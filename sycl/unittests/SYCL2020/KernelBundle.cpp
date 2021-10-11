@@ -51,6 +51,7 @@ template <> struct KernelInfo<TestKernelExeOnly> {
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
+                     pi_device_binary_type BinaryType,
                      const char *DeviceTargetSpec) {
   using namespace sycl::unittest;
 
@@ -60,7 +61,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV, // Format
+  PiImage Img{BinaryType, // Format
               DeviceTargetSpec,
               "", // Compile options
               "", // Link options
@@ -72,9 +73,9 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 }
 
 static sycl::unittest::PiImage Imgs[2] = {
-    generateDefaultImage({"TestKernel"},
+    generateDefaultImage({"TestKernel"}, PI_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"TestKernelExeOnly"},
+    generateDefaultImage({"TestKernelExeOnly"}, PI_DEVICE_BINARY_TYPE_NATIVE,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
 static sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 
@@ -177,6 +178,9 @@ TEST(KernelBundle, EmptyKernelBundle) {
     std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
+
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
