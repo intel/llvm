@@ -138,7 +138,6 @@ set(SYCL_SOURCES
     "detail/program_manager/program_manager.cpp"
     "detail/queue_impl.cpp"
     "detail/online_compiler/online_compiler.cpp"
-    "detail/os_util.cpp"
     "detail/persistent_device_code_cache.cpp"
     "detail/platform_util.cpp"
     "detail/reduction.cpp"
@@ -174,10 +173,35 @@ set(SYCL_SOURCES
     "sampler.cpp"
     "stream.cpp"
     "spirv_ops.cpp"
-    "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
-    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
     "$<$<PLATFORM_ID:Windows>:abi_replacements_windows.cpp>"
 )
+
+function(add_sycl_support_library LIB_NAME OPTIONS)
+  set(_SUPPORT_SRC
+    support/os_util.cpp
+    )
+  add_library(${LIB_NAME} STATIC
+    ${_SUPPORT_SRC}
+    )
+  add_library(${LIB_NAME}_test STATIC
+    ${_SUPPORT_SRC}
+    )
+
+  target_compile_definitions(${LIB_NAME} PRIVATE __SYCL_SECURE_DLL_LOAD)
+  target_include_directories(${LIB_NAME} PRIVATE ${sycl_inc_dir})
+  target_include_directories(${LIB_NAME}_test PRIVATE ${sycl_inc_dir})
+  #TODO: Remove dependency on icd loader and opencl headers.
+  target_link_libraries(${LIB_NAME}
+    PRIVATE OpenCL-Headers
+  )
+  target_link_libraries(${LIB_NAME}_test
+    PRIVATE OpenCL-Headers
+  )
+  if (NOT ${OPTIONS} STREQUAL "")
+    target_compile_options(${LIB_NAME} PRIVATE ${OPTIONS})
+    target_compile_options(${LIB_NAME}_test PRIVATE ${OPTIONS})
+  endif()
+endfunction()
 
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
@@ -198,6 +222,9 @@ if (MSVC)
     add_sycl_rt_library(sycld COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   endif()
 
+  add_sycl_support_library(sycl_supportd "/MDd")
+  target_link_libraries(sycld PRIVATE sycl_supportd)
+
   set(SYCL_EXTRA_OPTS "/MD")
 endif()
 
@@ -206,6 +233,9 @@ if (SYCL_ENABLE_XPTI_TRACING)
 else()
   add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
 endif()
+
+add_sycl_support_library(sycl_support "${SYCL_EXTRA_OPTS}")
+target_link_libraries(sycl PRIVATE sycl_support)
 
 # Enable new IN_LIST operator.
 cmake_policy(SET CMP0057 NEW)

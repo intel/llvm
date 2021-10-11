@@ -11,6 +11,7 @@
 ///
 /// \ingroup sycl_pi
 
+#include "CL/sycl/detail/os_util.hpp"
 #include "context_impl.hpp"
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
@@ -320,23 +321,24 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
 void *loadPlugin(const std::string &PluginPath) {
-  return loadOsLibrary(PluginPath);
+  return OSUtil::loadLibrary(PluginPath);
 }
 
 // Unload the given plugin by calling teh OS-specific library unloading call.
 // \param Library OS-specific library handle created when loading.
-int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
+int unloadPlugin(void *Library) { return OSUtil::unloadLibrary(Library); }
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.
-// TODO: Change the functionality such that a single getOsLibraryFuncAddress
+// TODO: Change the functionality such that a single getLibraryFuncAddress
 // call is done to get all Interface API mapping. The plugin interface also
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 
-  decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
-      &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
+  decltype(::piPluginInit) *PluginInitializeFunction =
+      (decltype(&::piPluginInit))(OSUtil::getLibraryFuncAddress(
+          Library, "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
@@ -378,15 +380,22 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
   PluginInformation.PiFunctionTable = {};
 
+  const std::string PluginPath = OSUtil::getPluginDirectory();
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
+    const std::string PluginName = [&]() {
+      if (!PluginName.empty()) {
+        return PluginPath + std::string{OSUtil::DirSep} + PluginNames[I].first;
+      }
+      // This branch is only taken in unit tests.
+      return PluginNames[I].first;
+    }();
     void *Library = loadPlugin(PluginNames[I].first);
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
                   << "Check if plugin is present. "
-                  << "Failed to load plugin: " << PluginNames[I].first
-                  << std::endl;
+                  << "Failed to load plugin: " << PluginName << std::endl;
       }
       continue;
     }
@@ -394,8 +403,8 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     if (!bindPlugin(Library, &PluginInformation)) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
-                  << "Failed to bind PI APIs to the plugin: "
-                  << PluginNames[I].first << std::endl;
+                  << "Failed to bind PI APIs to the plugin: " << PluginName
+                  << std::endl;
       }
       continue;
     }
