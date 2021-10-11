@@ -38,7 +38,7 @@ namespace esimd {
 template <typename T0, typename T1, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<T0, SZ> esimd_sat(simd<T1, SZ> src) {
   if constexpr (std::is_floating_point<T0>::value)
-    return __esimd_satf<T0, T1, SZ>(src.data());
+    return __esimd_sat<T0, T1, SZ>(src.data());
   else if constexpr (std::is_floating_point<T1>::value) {
     if constexpr (std::is_unsigned<T0>::value)
       return __esimd_fptoui_sat<T0, T1, SZ>(src.data());
@@ -692,7 +692,7 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ>
 esimd_max(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
   if constexpr (std::is_floating_point<T>::value) {
     auto Result = __esimd_fmax<T, SZ>(src0.data(), src1.data());
-    Result = (flag == saturation_off) ? Result : __esimd_satf<T, T, SZ>(Result);
+    Result = (flag == saturation_off) ? Result : __esimd_sat<T, T, SZ>(Result);
     return simd<T, SZ>(Result);
   } else if constexpr (std::is_unsigned<T>::value) {
     auto Result = __esimd_umax<T, SZ>(src0.data(), src1.data());
@@ -779,7 +779,7 @@ ESIMD_NODEBUG ESIMD_INLINE simd<T, SZ>
 esimd_min(simd<T, SZ> src0, simd<T, SZ> src1, int flag = saturation_off) {
   if constexpr (std::is_floating_point<T>::value) {
     auto Result = __esimd_fmin<T, SZ>(src0.data(), src1.data());
-    Result = (flag == saturation_off) ? Result : __esimd_satf<T, T, SZ>(Result);
+    Result = (flag == saturation_off) ? Result : __esimd_sat<T, T, SZ>(Result);
     return simd<T, SZ>(Result);
   } else if constexpr (std::is_unsigned<T>::value) {
     auto Result = __esimd_umin<T, SZ>(src0.data(), src1.data());
@@ -1350,7 +1350,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   simd<DT1, SZ> Src2 = src2;
   simd<DT1, SZ> Src3 = src3;
 
-  return __esimd_bfins<DT1>(Src0.data(), Src1.data(), Src2.data(), Src3.data());
+  return __esimd_bfi<DT1>(Src0.data(), Src1.data(), Src2.data(), Src3.data());
 }
 
 template <typename T0, typename T1, typename T2, typename T3, typename T4>
@@ -1376,7 +1376,7 @@ ESIMD_NODEBUG ESIMD_INLINE
   simd<DT1, SZ> Src1 = src1;
   simd<DT1, SZ> Src2 = src2;
 
-  return __esimd_bfext<DT1>(Src0.data(), Src1.data(), Src2.data());
+  return __esimd_sbfe<DT1>(Src0.data(), Src1.data(), Src2.data());
 }
 
 template <typename T0, typename T1, typename T2, typename T3>
@@ -1423,11 +1423,11 @@ esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
 // a "typename T". Since the type can only be float, we hack it
 // by defining T=void without instantiating it to be float.
 
-#define ESIMD_INTRINSIC_DEF(type, name)                                        \
+#define ESIMD_INTRINSIC_DEF(type, name, iname)                                 \
   template <int SZ>                                                            \
   ESIMD_NODEBUG ESIMD_INLINE simd<type, SZ> esimd_##name(                      \
       simd<type, SZ> src0, int flag = saturation_off) {                        \
-    simd<type, SZ> Result = __esimd_##name<SZ>(src0.data());                   \
+    simd<type, SZ> Result = __esimd_##iname<SZ>(src0.data());                  \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
     return esimd_sat<type>(Result);                                            \
@@ -1440,25 +1440,25 @@ esimd_bf_extract(T1 src0, T2 src1, T3 src2) {
     return Result[0];                                                          \
   }
 
-ESIMD_INTRINSIC_DEF(float, inv)
-ESIMD_INTRINSIC_DEF(float, log)
-ESIMD_INTRINSIC_DEF(float, exp)
-ESIMD_INTRINSIC_DEF(float, sqrt)
-ESIMD_INTRINSIC_DEF(float, sqrt_ieee)
-ESIMD_INTRINSIC_DEF(float, rsqrt)
-ESIMD_INTRINSIC_DEF(float, sin)
-ESIMD_INTRINSIC_DEF(float, cos)
+ESIMD_INTRINSIC_DEF(float, inv, inv)
+ESIMD_INTRINSIC_DEF(float, log, log)
+ESIMD_INTRINSIC_DEF(float, exp, exp)
+ESIMD_INTRINSIC_DEF(float, sqrt, sqrt)
+ESIMD_INTRINSIC_DEF(float, ieee_sqrt, sqrt_ieee)
+ESIMD_INTRINSIC_DEF(float, rsqrt, rsqrt)
+ESIMD_INTRINSIC_DEF(float, sin, sin)
+ESIMD_INTRINSIC_DEF(float, cos, cos)
 
-ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
+ESIMD_INTRINSIC_DEF(double, ieee_sqrt, sqrt_ieee)
 
 #undef ESIMD_INTRINSIC_DEF
 
-#define ESIMD_INTRINSIC_DEF(ftype, name)                                       \
+#define ESIMD_INTRINSIC_DEF(ftype, name, iname)                                \
   template <int SZ, typename U>                                                \
   ESIMD_NODEBUG ESIMD_INLINE simd<ftype, SZ> esimd_##name(                     \
       simd<ftype, SZ> src0, U src1, int flag = saturation_off) {               \
     simd<ftype, SZ> Src1 = src1;                                               \
-    simd<ftype, SZ> Result = __esimd_##name<SZ>(src0.data(), Src1.data());     \
+    simd<ftype, SZ> Result = __esimd_##iname<SZ>(src0.data(), Src1.data());    \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
                                                                                \
@@ -1481,10 +1481,10 @@ ESIMD_INTRINSIC_DEF(double, sqrt_ieee)
     return Result[0];                                                          \
   }
 
-ESIMD_INTRINSIC_DEF(float, pow)
+ESIMD_INTRINSIC_DEF(float, pow, pow)
 
-ESIMD_INTRINSIC_DEF(float, div_ieee)
-ESIMD_INTRINSIC_DEF(double, div_ieee)
+ESIMD_INTRINSIC_DEF(float, div_ieee, ieee_div)
+ESIMD_INTRINSIC_DEF(double, div_ieee, ieee_div)
 
 #undef ESIMD_INTRINSIC_DEF
 
@@ -2394,11 +2394,11 @@ template <typename T0, typename T1, int SZ> struct esimd_apply_reduced_max {
   template <typename... T>
   simd<T0, SZ> operator()(simd<T1, SZ> v1, simd<T1, SZ> v2) {
     if constexpr (std::is_floating_point<T1>::value) {
-      return __esimd_reduced_fmax<T1, SZ>(v1.data(), v2.data());
+      return __esimd_fmax<T1, SZ>(v1.data(), v2.data());
     } else if constexpr (std::is_unsigned<T1>::value) {
-      return __esimd_reduced_umax<T1, SZ>(v1.data(), v2.data());
+      return __esimd_umax<T1, SZ>(v1.data(), v2.data());
     } else {
-      return __esimd_reduced_smax<T1, SZ>(v1.data(), v2.data());
+      return __esimd_smax<T1, SZ>(v1.data(), v2.data());
     }
   }
 };
@@ -2407,11 +2407,11 @@ template <typename T0, typename T1, int SZ> struct esimd_apply_reduced_min {
   template <typename... T>
   simd<T0, SZ> operator()(simd<T1, SZ> v1, simd<T1, SZ> v2) {
     if constexpr (std::is_floating_point<T1>::value) {
-      return __esimd_reduced_fmin<T1, SZ>(v1.data(), v2.data());
+      return __esimd_fmin<T1, SZ>(v1.data(), v2.data());
     } else if constexpr (std::is_unsigned<T1>::value) {
-      return __esimd_reduced_umin<T1, SZ>(v1.data(), v2.data());
+      return __esimd_umin<T1, SZ>(v1.data(), v2.data());
     } else {
-      return __esimd_reduced_smin<T1, SZ>(v1.data(), v2.data());
+      return __esimd_smin<T1, SZ>(v1.data(), v2.data());
     }
   }
 };

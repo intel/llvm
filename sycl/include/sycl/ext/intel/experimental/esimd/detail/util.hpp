@@ -19,6 +19,12 @@
 #define __SEIEE sycl::ext::intel::experimental::esimd
 #define __SEIEEED sycl::ext::intel::experimental::esimd::emu::detail
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define __ESIMD_INTRIN SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+#else
+#define __ESIMD_INTRIN inline
+#endif // __SYCL_DEVICE_ONLY__
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
