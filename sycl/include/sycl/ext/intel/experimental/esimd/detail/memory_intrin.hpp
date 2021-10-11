@@ -19,27 +19,6 @@
 
 #include <cstdint>
 
-#ifndef __SYCL_DEVICE_ONLY__
-/// ESIMD_CPU Emulation support using esimd_cpu plugin
-
-/// Definition macro to be referenced in CM header files for
-/// preventing build failure caused by symbol conflicts between llvm
-/// and CM - e.g. vector.
-#define __SYCL_EXPLICIT_SIMD_PLUGIN__
-
-// Header files required for accessing CM-managed resources - image,
-// buffer, runtime API etc.
-namespace cm_support {
-#include <CL/cm_rt.h>
-} // namespace cm_support
-
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/detail/pi.hpp>
-#include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/emu/detail/esimdcpu_device_interface.hpp>
-
-#endif // ifndef __SYCL_DEVICE_ONLY__
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
@@ -55,7 +34,7 @@ public:
   static auto getNativeImageObj(const AccessorTy &Acc) {
     return Acc.getNativeImageObj();
   }
-#else  // __SYCL_DEVICE_ONLY__
+#else
   template <typename AccessorTy>
   static auto getImageRange(const AccessorTy &Acc) {
     return Acc.getAccessRange();
@@ -63,10 +42,7 @@ public:
   static auto getElemSize(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getElemSize();
   }
-  static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
-    return Acc.getPtr();
-  }
-#endif // __SYCL_DEVICE_ONLY__
+#endif
 };
 
 template <int ElemsPerAddr,
@@ -186,7 +162,17 @@ template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
 SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
 __esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
                   uint32_t global_offset,
-                  __SEIEED::vector_type_t<uint32_t, N> elem_offsets);
+                  __SEIEED::vector_type_t<uint32_t, N> elem_offsets)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(TySizeLog2 <= 2);
+  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
 
 // Low-level surface-based scatter. Writes elements of a \ref simd object into a
 // surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
@@ -219,7 +205,17 @@ SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
 __esimd_surf_write(__SEIEED::simd_mask_storage_t<N> pred, int16_t scale,
                    SurfIndAliasTy surf_ind, uint32_t global_offset,
                    __SEIEED::vector_type_t<uint32_t, N> elem_offsets,
-                   __SEIEED::vector_type_t<Ty, N> vals);
+                   __SEIEED::vector_type_t<Ty, N> vals)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(TySizeLog2 <= 2);
+  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
 
 // TODO bring the parameter order of __esimd* intrinsics in accordance with the
 // correponsing BE intrinsicics parameter order.
@@ -517,10 +513,7 @@ __esimd_raw_send_store(uint8_t modifier, uint8_t execSize,
                        __SEIEED::simd_mask_storage_t<N> pred, uint8_t numSrc0,
                        uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
                        __SEIEED::vector_type_t<Ty1, N1> msgSrc0);
-
 #ifndef __SYCL_DEVICE_ONLY__
-
-/// ESIMD_CPU Emulation support using esimd_cpu plugin
 
 template <typename Ty, int N, int NumBlk, __SEIEE::CacheHint L1H,
           __SEIEE::CacheHint L3H>
@@ -669,31 +662,6 @@ inline void __esimd_flat_write4(
   }
 }
 
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION __SEIEED::vector_type_t<Ty, N>
-__esimd_surf_read(int16_t scale, SurfIndAliasTy surf_ind,
-                  uint32_t global_offset,
-                  __SEIEED::vector_type_t<uint32_t, N> elem_offsets) {
-  static_assert(N == 1 || N == 8 || N == 16);
-  static_assert(TySizeLog2 <= 2);
-  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
-}
-
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
-SYCL_EXTERNAL SYCL_ESIMD_FUNCTION void
-__esimd_surf_write(__SEIEED::vector_type_t<uint16_t, N> pred, int16_t scale,
-                   SurfIndAliasTy surf_ind, uint32_t global_offset,
-                   __SEIEED::vector_type_t<uint32_t, N> elem_offsets,
-                   __SEIEED::vector_type_t<Ty, N> vals) {
-  static_assert(N == 1 || N == 8 || N == 16);
-  static_assert(TySizeLog2 <= 2);
-  static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
-  throw cl::sycl::feature_not_supported();
-}
-
 template <typename Ty, int N, __SEIEE::CacheHint L1H, __SEIEE::CacheHint L3H>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_flat_block_read_unaligned(uint64_t addr) {
@@ -719,109 +687,48 @@ template <typename Ty, int M, int N, typename TACC>
 inline __SEIEED::vector_type_t<Ty, M * N>
 __esimd_media_block_load(unsigned modififer, TACC handle, unsigned plane,
                          unsigned width, unsigned x, unsigned y) {
+  // On host the input surface is modeled as sycl image 2d object,
+  // and the read/write access is done through accessor,
+  // which is passed in as the handle argument.
+  auto range = __SEIEED::AccessorPrivateProxy::getImageRange(handle);
+  unsigned bpp = __SEIEED::AccessorPrivateProxy::getElemSize(handle);
+  unsigned vpp = bpp / sizeof(Ty);
+  unsigned int i = x / bpp;
+  unsigned int j = y;
+
+  assert(x % bpp == 0);
+  unsigned int xbound = range[0] - 1;
+  unsigned int ybound = range[1] - 1;
+
   __SEIEED::vector_type_t<Ty, M * N> vals;
+  for (int row = 0; row < M; row++) {
+    for (int col = 0; col < N; col += vpp) {
+      unsigned int xoff = (i > xbound) ? xbound : i;
+      unsigned int yoff = (j > ybound) ? ybound : j;
+      auto coords = cl::sycl::cl_int2(xoff, yoff);
+      cl::sycl::cl_uint4 data = handle.read(coords);
 
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  char *readBase;
-  uint32_t bpp;
-  uint32_t imgWidth;
-  uint32_t imgHeight;
-  std::mutex *mutexLock;
-
-  auto ImageHandle = __SEIEED::AccessorPrivateProxy::getPtr(handle);
-
-  I->sycl_get_cm_image_params_ptr(ImageHandle, &readBase, &imgWidth, &imgHeight,
-                                  &bpp, &mutexLock);
-
-  std::unique_lock<std::mutex> lock(*mutexLock);
-
-  int x_pos_a, y_pos_a, offset, index;
-
-  // TODO : Remove intermediate 'in' matrix
-  std::vector<std::vector<Ty>> in(M, std::vector<Ty>(N));
-  int R = M;
-  int C = N;
-  for (int i = 0; i < R; i++) {
-    for (int j = 0; j < C; j++) {
-      x_pos_a = x + j * sizeof(Ty);
-      { y_pos_a = y + i; }
-      // We should check the boundary condition based on sizeof(Ty), x_pos_a is
-      // 0-based Note: Use a signed variable; otherwise sizeof(Ty) is unsigned
-      if ((x_pos_a + sizeof(Ty)) > imgWidth) {
-        // If we're trying to read outside the boundary, limit the value of
-        // x_pos_a Assumption -- We don't this situation:
-        //         x_pos_a  width's boundary
-        //           |      |
-        //           <---type(Ty)--->
-        // At most x_pos_a+sizeof(Ty) is exactly at the boundary.
-        x_pos_a = imgWidth;
-      }
-      if (y_pos_a > imgHeight - 1) {
-        y_pos_a = imgHeight - 1;
-      }
-      if (y_pos_a < 0) {
-        y_pos_a = 0;
-      }
-      {
-        if (x_pos_a < 0) {
-          // Need to align x position to bbp
-          int offset = x % bpp;
-          x_pos_a -= offset;
-        }
-        while (x_pos_a < 0) {
-          // If we're trying to read outside the left boundary, increase x_pos_a
-          x_pos_a += bpp;
-        }
+      __SEIEED::vector_type_t<unsigned int, 4> res;
+      for (int idx = 0; idx < 4; idx++) {
+        res[idx] = data[idx];
       }
 
-      if (x_pos_a >= imgWidth) {
-        {
-          x_pos_a = x_pos_a - bpp;
-          for (uint byte_count = 0; byte_count < sizeof(Ty); byte_count++) {
-            if (x_pos_a >= imgWidth) {
-              x_pos_a = x_pos_a - bpp;
-            }
-            offset = y_pos_a * imgWidth + x_pos_a;
+      constexpr int refN = sizeof(cl::sycl::cl_uint4) / sizeof(Ty);
+      unsigned int stride = sizeof(cl::sycl::cl_uint4) / bpp;
+      using refTy = __SEIEED::vector_type_t<Ty, refN>;
+      auto ref = reinterpret_cast<refTy>(res);
 
-            /*
-              If destination size per element is less then or equal pixel size
-              of the surface move the pixel value accross the destination
-              elements. If destination size per element is greater then pixel
-              size of the surface replicate pixel value in the destination
-              element.
-            */
-            if (sizeof(Ty) <= bpp) {
-              for (uint bpp_count = 0; j < C && bpp_count < bpp;
-                   j++, bpp_count += sizeof(Ty)) {
-                in[i][j] = *((Ty *)(readBase + offset + bpp_count));
-              }
-              j--;
-              break;
-            } else {
-              // ((unsigned char*)in.get_addr(i*C+j))[byte_count] = *((unsigned
-              // char*)((char*)buff_iter->p + offset));
-              unsigned char *pTempBase =
-                  ((unsigned char *)in[i].data()) + j * sizeof(Ty);
-              pTempBase[byte_count] = *((unsigned char *)(readBase + offset));
-            }
-
-            x_pos_a = x_pos_a + 1;
-          }
-          x_pos_a = imgWidth;
-        }
-      } else {
-        offset = y_pos_a * imgWidth + x_pos_a;
-        { in[i][j] = *((Ty *)(readBase + offset)); }
+      unsigned int offset1 = col + row * N;
+      unsigned int offset2 = 0;
+      for (int idx = 0; idx < vpp; idx++) {
+        vals[offset1] = ref[offset2];
+        offset1++;
+        offset2 += stride;
       }
+      i++;
     }
-  }
-
-  for (auto i = 0, k = 0; i < M; i++) {
-    for (auto j = 0; j < N; j++) {
-      vals[k++] = in[i][j];
-    }
+    i = x / bpp;
+    j++;
   }
 
   return vals;
@@ -832,60 +739,45 @@ inline void __esimd_media_block_store(unsigned modififer, TACC handle,
                                       unsigned plane, unsigned width,
                                       unsigned x, unsigned y,
                                       __SEIEED::vector_type_t<Ty, M * N> vals) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
+  unsigned bpp = __SEIEED::AccessorPrivateProxy::getElemSize(handle);
+  unsigned vpp = bpp / sizeof(Ty);
+  auto range = __SEIEED::AccessorPrivateProxy::getImageRange(handle);
+  unsigned int i = x / bpp;
+  unsigned int j = y;
 
-  char *writeBase;
-  uint32_t bpp;
-  uint32_t imgWidth;
-  uint32_t imgHeight;
-  std::mutex *mutexLock;
+  assert(x % bpp == 0);
 
-  auto ImageHandle = __SEIEED::AccessorPrivateProxy::getPtr(handle);
+  for (int row = 0; row < M; row++) {
+    for (int col = 0; col < N; col += vpp) {
+      constexpr int Sz = sizeof(cl::sycl::cl_uint4) / sizeof(Ty);
+      __SEIEED::vector_type_t<Ty, Sz> res = 0;
 
-  I->sycl_get_cm_image_params_ptr(ImageHandle, &writeBase, &imgWidth,
-                                  &imgHeight, &bpp, &mutexLock);
+      unsigned int offset1 = col + row * N;
+      unsigned int offset2 = 0;
+      unsigned int stride = sizeof(cl::sycl::cl_uint4) / bpp;
+      for (int idx = 0; idx < vpp; idx++) {
+        res[offset2] = vals[offset1];
+        offset1++;
+        offset2 += stride;
+      }
 
-  int x_pos_a, y_pos_a, offset;
+      using refTy = __SEIEED::vector_type_t<unsigned int, 4>;
+      auto ref = reinterpret_cast<refTy>(res);
 
-  assert((x % 4) == 0);
-  assert((N * sizeof(Ty)) % 4 == 0);
+      cl::sycl::cl_uint4 data;
+      for (int idx = 0; idx < 4; idx++) {
+        data[idx] = ref[idx];
+      }
 
-  // TODO : Remove intermediate 'out' matrix
-  std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
-
-  std::unique_lock<std::mutex> lock(*mutexLock);
-
-  for (int i = 0, k = 0; i < M; i++) {
-    for (int j = 0; j < N; j++) {
-      out[i][j] = vals[k++];
+      if (i < range[0] && j < range[1]) {
+        auto coords = cl::sycl::cl_int2(i, j);
+        handle.write(coords, data);
+      }
+      i++;
     }
+    i = x / bpp;
+    j++;
   }
-
-  for (int i = 0; i < M; i++) {
-    for (int j = 0; j < N; j++) {
-      x_pos_a = x + j * sizeof(Ty);
-      { y_pos_a = y + i; }
-      if ((int)x_pos_a < 0) {
-        continue;
-      }
-      if ((int)y_pos_a < 0) {
-        continue;
-      }
-      if ((int)(x_pos_a + sizeof(Ty)) > imgWidth) {
-        continue;
-      }
-
-      if ((int)y_pos_a > imgHeight - 1) {
-        continue;
-      }
-      offset = y_pos_a * imgWidth + x_pos_a;
-      *((Ty *)(writeBase + offset)) = out[i][j];
-    }
-  }
-
-  /// TODO : Optimize
-  I->cm_fence_ptr();
 }
 
 template <typename Ty, int N>
@@ -922,27 +814,10 @@ __esimd_dp4(__SEIEED::vector_type_t<Ty, N> v1,
   return retv;
 }
 
-inline void __esimd_slm_init(size_t size) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
+/// TODO
+inline void __esimd_barrier() {}
 
-  I->cm_slm_init_ptr(size);
-}
-
-inline void __esimd_barrier() {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  I->cm_barrier_ptr();
-}
-
-inline void __esimd_sbarrier(
-    sycl::ext::intel::experimental::esimd::EsimdSbarrierType flag) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  I->cm_sbarrier_ptr((uint32_t)flag);
-}
+inline void __esimd_sbarrier(__SEIEE::split_barrier_action flag) {}
 
 inline void __esimd_slm_fence(uint8_t cntl) {}
 
@@ -951,17 +826,6 @@ inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_read(__SEIEED::vector_type_t<uint32_t, N> addrs,
                  __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  char *SlmBase = I->__cm_emu_get_slm_ptr();
-  for (int i = 0; i < N; ++i) {
-    if (pred[i]) {
-      Ty *addr = reinterpret_cast<Ty *>(addrs[i] + SlmBase);
-      retv[i] = *addr;
-    }
-  }
-
   return retv;
 }
 
@@ -969,49 +833,19 @@ __esimd_slm_read(__SEIEED::vector_type_t<uint32_t, N> addrs,
 template <typename Ty, int N>
 inline void __esimd_slm_write(__SEIEED::vector_type_t<uint32_t, N> addrs,
                               __SEIEED::vector_type_t<Ty, N> vals,
-                              __SEIEED::vector_type_t<uint16_t, N> pred) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  char *SlmBase = I->__cm_emu_get_slm_ptr();
-  for (int i = 0; i < N; ++i) {
-    if (pred[i]) {
-      Ty *addr = reinterpret_cast<Ty *>(addrs[i] + SlmBase);
-      *addr = vals[i];
-    }
-  }
-}
+                              __SEIEED::simd_mask_storage_t<N> pred) {}
 
 // slm_block_read reads a block of data from SLM
 template <typename Ty, int N>
 inline __SEIEED::vector_type_t<Ty, N> __esimd_slm_block_read(uint32_t addr) {
   __SEIEED::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *SlmBase = I->__cm_emu_get_slm_ptr();
-  addr <<= 4;
-  for (int i = 0; i < N; ++i) {
-    Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
-    retv[i] = *SlmAddr;
-    addr += sizeof(Ty);
-  }
   return retv;
 }
 
 // slm_block_write writes a block of data to SLM
 template <typename Ty, int N>
 inline void __esimd_slm_block_write(uint32_t addr,
-                                    __SEIEED::vector_type_t<Ty, N> vals) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *SlmBase = I->__cm_emu_get_slm_ptr();
-  addr <<= 4;
-  for (int i = 0; i < N; ++i) {
-    Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
-    *SlmAddr = vals[i];
-    addr += sizeof(Ty);
-  }
-}
+                                    __SEIEED::vector_type_t<Ty, N> vals) {}
 
 // slm_read4 does SLM gather4
 template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
@@ -1019,52 +853,6 @@ inline __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
 __esimd_slm_read4(__SEIEED::vector_type_t<uint32_t, N> addrs,
                   __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *ReadBase = I->__cm_emu_get_slm_ptr();
-
-  unsigned int Next = 0;
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
-        retv[Next] = *addr;
-      }
-    }
-  }
-
-  ReadBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
-        retv[Next] = *addr;
-      }
-    }
-  }
-
-  ReadBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
-        retv[Next] = *addr;
-      }
-    }
-  }
-
-  ReadBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
-        retv[Next] = *addr;
-      }
-    }
-  }
   return retv;
 }
 
@@ -1073,55 +861,7 @@ template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 inline void __esimd_slm_write4(
     __SEIEED::vector_type_t<uint32_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __SEIEED::vector_type_t<uint16_t, N> pred) {
-
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *WriteBase = I->__cm_emu_get_slm_ptr();
-
-  unsigned int Next = 0;
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
-        *addr = vals[Next];
-      }
-    }
-  }
-
-  WriteBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
-        *addr = vals[Next];
-      }
-    }
-  }
-
-  WriteBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
-        *addr = vals[Next];
-      }
-    }
-  }
-
-  WriteBase += sizeof(Ty);
-
-  if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
-    for (int I = 0; I < N; I++, Next++) {
-      if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
-        *addr = vals[Next];
-      }
-    }
-  }
-}
+    __SEIEED::simd_mask_storage_t<N> pred) {}
 
 // slm_atomic: SLM atomic
 template <__SEIEE::atomic_op Op, typename Ty, int N>
@@ -1129,23 +869,6 @@ inline __SEIEED::vector_type_t<Ty, N>
 __esimd_slm_atomic0(__SEIEED::vector_type_t<uint32_t, N> addrs,
                     __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *WriteBase = I->__cm_emu_get_slm_ptr();
-
-  for (int i = 0; i < N; i++) {
-    if (pred[i]) {
-      Ty *p = reinterpret_cast<Ty *>(addrs[i] + WriteBase);
-
-      switch (Op) {
-      case __SEIEE::atomic_op::inc:
-        retv[i] = atomic_add_fetch<Ty>(p, 1);
-        break;
-      default:
-        throw cl::sycl::feature_not_supported();
-      }
-    }
-  }
   return retv;
 }
 
@@ -1184,21 +907,6 @@ __esimd_flat_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
                      __SEIEED::vector_type_t<Ty, N> src0,
                      __SEIEED::simd_mask_storage_t<N> pred) {
   __SEIEED::vector_type_t<Ty, N> retv;
-
-  for (int i = 0; i < N; i++) {
-    if (pred[i]) {
-      Ty *p = reinterpret_cast<Ty *>(addrs[i]);
-
-      switch (Op) {
-      case __SEIEE::atomic_op::add:
-        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
-        break;
-      default:
-        throw cl::sycl::feature_not_supported();
-      }
-    }
-  }
-
   return retv;
 }
 
@@ -1216,62 +924,15 @@ __esimd_flat_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
 template <typename Ty, int N, typename SurfIndAliasTy>
 inline __SEIEED::vector_type_t<Ty, N>
 __esimd_block_read(SurfIndAliasTy surf_ind, uint32_t offset) {
-  __SEIEED::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  char *readBase;
-  uint32_t width;
-  std::mutex *mutexLock;
-
-  auto BufferHandle = __SEIEED::AccessorPrivateProxy::getPtr(surf_ind);
-
-  I->sycl_get_cm_buffer_params_ptr(BufferHandle, &readBase, &width, &mutexLock);
-
-  std::unique_lock<std::mutex> lock(*mutexLock);
-
-  for (int idx = 0; idx < N; idx++) {
-    if (offset >= width) {
-      retv[idx] = 0;
-    } else {
-      retv[idx] = *((Ty *)(readBase + offset));
-    }
-    offset += (uint32_t)sizeof(Ty);
-  }
-
-  return retv;
+  throw cl::sycl::feature_not_supported();
+  return __SEIEED::vector_type_t<Ty, N>();
 }
 
 template <typename Ty, int N, typename SurfIndAliasTy>
 inline void __esimd_block_write(SurfIndAliasTy surf_ind, uint32_t offset,
                                 __SEIEED::vector_type_t<Ty, N> vals) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
 
-  char *writeBase;
-  uint32_t width;
-  std::mutex *mutexLock;
-
-  auto BufferHandle = __SEIEED::AccessorPrivateProxy::getPtr(surf_ind);
-
-  I->sycl_get_cm_buffer_params_ptr(BufferHandle, &writeBase, &width,
-                                   &mutexLock);
-
-  std::unique_lock<std::mutex> lock(*mutexLock);
-
-  offset <<= 4;
-
-  for (int idx = 0; idx < N; idx++) {
-    if (offset < width) {
-      *((Ty *)(writeBase + offset)) = vals[idx];
-    } else {
-      break;
-    }
-    offset += (uint32_t)sizeof(Ty);
-  }
-
-  /// TODO : Optimize
-  I->cm_fence_ptr();
+  throw cl::sycl::feature_not_supported();
 }
 
 /// \brief esimd_get_value
