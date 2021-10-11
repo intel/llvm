@@ -10181,9 +10181,40 @@ class SPIRABIInfo : public DefaultABIInfo {
 public:
   SPIRABIInfo(CodeGenTypes &CGT) : DefaultABIInfo(CGT) { setCCs(); }
 
+  ABIArgInfo classifyKernelArgumentType(QualType Ty) const;
+
+  void computeInfo(CGFunctionInfo &FI) const override;
+
 private:
   void setCCs();
 };
+
+ABIArgInfo SPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
+  Ty = useFirstFieldIfTransparentUnion(Ty);
+
+  if (getContext().getLangOpts().SYCLIsDevice && isAggregateTypeForABI(Ty)) {
+    // Pass all aggregate types allowed by Sema by value.
+    return getNaturalAlignIndirect(Ty);
+  }
+
+  return DefaultABIInfo::classifyArgumentType(Ty);
+}
+
+void SPIRABIInfo::computeInfo(CGFunctionInfo &FI) const {
+  llvm::CallingConv::ID CC = FI.getCallingConvention();
+
+  if (!getCXXABI().classifyReturnType(FI))
+    FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
+
+  for (auto &Arg : FI.arguments()) {
+    if (CC == llvm::CallingConv::SPIR_KERNEL) {
+      Arg.info = classifyKernelArgumentType(Arg.type);
+    } else {
+      Arg.info = classifyArgumentType(Arg.type);
+    }
+  }
+}
+
 } // end anonymous namespace
 namespace {
 class SPIRTargetCodeGenInfo : public TargetCodeGenInfo {
@@ -10209,7 +10240,7 @@ void SPIRABIInfo::setCCs() {
 namespace clang {
 namespace CodeGen {
 void computeSPIRKernelABIInfo(CodeGenModule &CGM, CGFunctionInfo &FI) {
-  DefaultABIInfo SPIRABI(CGM.getTypes());
+  SPIRABIInfo SPIRABI(CGM.getTypes());
   SPIRABI.computeInfo(FI);
 }
 }
