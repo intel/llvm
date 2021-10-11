@@ -1703,6 +1703,15 @@ public:
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+    CXXRecordDecl* RD = FieldTy->getAsCXXRecordDecl();
+    assert(RD && "Not a RecordDecl inside the handler for struct type");
+    if (RD->isLambda()) {
+      for (const LambdaCapture &LC : RD->captures())
+        if (LC.capturesThis() && LC.isImplicit()) {
+          SemaRef.Diag(LC.getLocation(), diag::err_implicit_this_capture);
+          IsInvalid = true;
+        }
+    }
     return isValid();
   }
 
@@ -3758,7 +3767,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     for (const LambdaCapture &LC : KernelObj->captures())
       if (LC.capturesThis() && LC.isImplicit()) {
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
-        Diag(CallLoc.getBegin(), diag::note_used_here);
         KernelFunc->setInvalidDecl();
       }
   }
