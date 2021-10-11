@@ -1,5 +1,4 @@
-// TODO enable on Windows
-// REQUIRES: linux && gpu
+// REQUIRES: gpu
 // FIXME Disable fallback assert so that it doesn't interferes with number of
 // program builds at run-time
 // RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fsycl %s -o %t.out
