@@ -1,0 +1,170 @@
+:extension_name: SPV_INTEL_hw_thread_queries
+:capability_name: HWThreadQueryINTEL
+:capability_token: 6134
+:SubDeviceIDINTEL_token: 6135
+:HWThreadIDINTEL_token: 6136
+:MaxHWThreadIDPerSubDeviceINTEL_token: 6137
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Dmitry Sidorov, Intel +
+- Mariya Podchishchaeva, Intel +
+- Patrick Steinbrecher, Intel +
+- Ben Ashbaugh, Intel +
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | A
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 5.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+The extension adds BuiltIn Decorations to query maximum number of H/W thread IDs per sub-device, sub-device ID and H/W thread ID within the sub-device. These instructions combined can be used to
+calculate unique H/W thread ID which is executing the code.
+
+
+== Extension Name
+
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_name}
+----
+
+== New Instructions
+
+BuiltIn Decorations added under the *{capability_name}* capability:
+
+----
+
+SubDeviceIDINTEL
+HWThreadIDINTEL
+MaxHWThreadIDPerSubDeviceINTEL
+
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{capability_name}* | {capability_token}
+|*SubDeviceIDINTEL*  | {SubDeviceIDINTEL_token}
+|*HWThreadIDINTEL*  | {HWThreadIDINTEL_token}
+|*MaxHWThreadIDPerSubDeviceINTEL*  | {MaxHWThreadIDPerSubDeviceINTEL_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.5
+
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {capability_token} | *{capability_name}*
+| Reserved. +
+ +
+See also extension: *{extension_name}*
+|====
+--
+
+=== Decorations
+
+Modify Section 3.21, BuiltIn, adding these rows to the BuiltIn table:
+
+==== 3.21 BuiltIn
+
+--
+[options="header"]
+|====
+2+^| BuiltIn 2+^| Enabling Capabilities
+| {SubDeviceIDINTEL_token} | [[SubDeviceIDINTEL]]*SubDeviceIDINTEL* +
+ ID of the sub-device on which the code running in *Kernel* +
+<<Execution Mode>>. See the client API specification for more detail. +
+2+| *{capability_name}*
+| {HWThreadIDINTEL_token} | [[HWThreadIDINTEL]]*HWThreadIDINTEL* +
+ ID of the H/W thread within a sub-device on which the code running in *Kernel* +
+<<Execution Mode>>. See the client API specification for more detail. +
+2+| *{capability_name}*
+| {MaxHWThreadIDPerSubDeviceINTEL_token} | [[MaxHWThreadIDPerSubDeviceINTEL]]*MaxHWThreadIDPerSubDeviceINTEL* +
+ Maximum number of H/W thread ID per sub-device in Kernel Execution Mode. See +
+ the client API specification for more detail. +
+2+| *{capability_name}*
+|====
+--
+
+
+=== Issues
+
+None
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-09-20|Dmitry Sidorov|Initial revision
+|========================================
+
