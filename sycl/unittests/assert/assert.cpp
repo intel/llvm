@@ -336,7 +336,8 @@ static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedProgramGetInfo(pi_program P, pi_program_info ParamName,
+static pi_result redefinedProgramGetInfo(pi_program P,
+                                         pi_program_info ParamName,
                                          size_t ParamValueSize,
                                          void *ParamValue,
                                          size_t *ParamValueSizeRet) {
@@ -570,8 +571,10 @@ TEST(Assert, TestInteropKernelNegative) {
 
   const sycl::backend Backend = Plt.get_backend();
 
-  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip || Backend == sycl::backend::level_zero) {
-    printf("Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
+  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
+      Backend == sycl::backend::level_zero) {
+    printf(
+        "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
     return;
   }
 
@@ -586,15 +589,12 @@ TEST(Assert, TestInteropKernelNegative) {
 
   sycl::program POrig{Ctx};
   POrig.build_with_kernel_type<TestKernel>();
-  //sycl::program PInterop{Ctx, POrig.get_native<sycl::backend::opencl>()};
   sycl::kernel KOrig = POrig.get_kernel<TestKernel>();
 
   cl_kernel CLKernel = KOrig.get_native<sycl::backend::opencl>();
   sycl::kernel KInterop{CLKernel, Ctx};
 
-  Queue.submit([&](sycl::handler &H) {
-    H.single_task(KInterop);
-  });
+  Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });
 
   EXPECT_EQ(TestInteropKernel::KernelLaunchCounter,
             KernelLaunchCounterBase + 1);
@@ -610,8 +610,10 @@ TEST(Assert, TestKernelFromSourceNegative) {
 
   const sycl::backend Backend = Plt.get_backend();
 
-  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip || Backend == sycl::backend::level_zero) {
-    printf("Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
+  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
+      Backend == sycl::backend::level_zero) {
+    printf(
+        "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
     return;
   }
 
@@ -640,9 +642,9 @@ TEST(Assert, TestKernelFromSourceNegative) {
               data[index] = data[index] + 1;
           }
       )CLC",
-      "-cl-fast-relaxed-math");
+                      "-cl-fast-relaxed-math");
 
-  Queue.submit([&](sycl::handler& H) {
+  Queue.submit([&](sycl::handler &H) {
     auto Acc = Buf.get_access<sycl::access::mode::read_write>(H);
 
     H.set_args(Acc);
