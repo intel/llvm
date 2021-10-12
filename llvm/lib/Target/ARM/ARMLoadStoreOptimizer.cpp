@@ -564,7 +564,7 @@ void ARMLoadStoreOpt::UpdateBaseRegUses(MachineBasicBlock &MBB,
   }
 
   // End of block was reached.
-  if (MBB.succ_size() > 0) {
+  if (!MBB.succ_empty()) {
     // FIXME: Because of a bug, live registers are sometimes missing from
     // the successor blocks' live-in sets. This means we can't trust that
     // information and *always* have to reset at the end of a block.
@@ -587,7 +587,7 @@ unsigned ARMLoadStoreOpt::findFreeReg(const TargetRegisterClass &RegClass) {
   }
 
   for (unsigned Reg : RegClassInfo.getOrder(&RegClass))
-    if (!LiveRegs.contains(Reg))
+    if (LiveRegs.available(MF->getRegInfo(), Reg))
       return Reg;
   return 0;
 }
@@ -2476,8 +2476,7 @@ bool ARMPreAllocLoadStoreOpt::RescheduleOps(MachineBasicBlock *MBB,
           }
         } else {
           for (unsigned i = 0; i != NumMove; ++i) {
-            MachineInstr *Op = Ops.back();
-            Ops.pop_back();
+            MachineInstr *Op = Ops.pop_back_val();
             MBB->splice(InsertPos, MBB, Op);
           }
         }
@@ -2726,9 +2725,18 @@ static bool isLegalOrConvertableAddressImm(unsigned Opcode, int Imm,
 // by -Offset. This can either happen in-place or be a replacement as MI is
 // converted to another instruction type.
 static void AdjustBaseAndOffset(MachineInstr *MI, Register NewBaseReg,
-                                int Offset, const TargetInstrInfo *TII) {
+                                int Offset, const TargetInstrInfo *TII,
+                                const TargetRegisterInfo *TRI) {
+  // Set the Base reg
   unsigned BaseOp = getBaseOperandIndex(*MI);
   MI->getOperand(BaseOp).setReg(NewBaseReg);
+  // and constrain the reg class to that required by the instruction.
+  MachineFunction *MF = MI->getMF();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const MCInstrDesc &MCID = TII->get(MI->getOpcode());
+  const TargetRegisterClass *TRC = TII->getRegClass(MCID, BaseOp, TRI, *MF);
+  MRI.constrainRegClass(NewBaseReg, TRC);
+
   int OldOffset = MI->getOperand(BaseOp + 1).getImm();
   if (isLegalAddressImm(MI->getOpcode(), OldOffset - Offset, TII))
     MI->getOperand(BaseOp + 1).setImm(OldOffset - Offset);
@@ -2802,6 +2810,7 @@ static MachineInstr *createPostIncLoadStore(MachineInstr *MI, int Offset,
         .addImm(Offset)
         .add(MI->getOperand(3))
         .add(MI->getOperand(4))
+        .add(MI->getOperand(5))
         .cloneMemRefs(*MI);
   case ARMII::AddrModeT2_i8:
     if (MI->mayLoad()) {
@@ -2971,7 +2980,7 @@ bool ARMPreAllocLoadStoreOpt::DistributeIncrements(Register Base) {
 
   for (auto *Use : SuccessorAccesses) {
     LLVM_DEBUG(dbgs() << "Changing: "; Use->dump());
-    AdjustBaseAndOffset(Use, NewBaseReg, IncrementOffset, TII);
+    AdjustBaseAndOffset(Use, NewBaseReg, IncrementOffset, TII, TRI);
     LLVM_DEBUG(dbgs() << "  To    : "; Use->dump());
   }
 

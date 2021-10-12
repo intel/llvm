@@ -20,9 +20,12 @@
 #include "clang/Lex/ModuleMap.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SetVector.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Allocator.h"
 #include <cassert>
 #include <cstddef>
@@ -48,7 +51,7 @@ class TargetInfo;
 /// The preprocessor keeps track of this information for each
 /// file that is \#included.
 struct HeaderFileInfo {
-  /// True if this is a \#import'd or \#pragma once file.
+  /// True if this is a \#import'd file.
   unsigned isImport : 1;
 
   /// True if this is a \#pragma once file.
@@ -109,6 +112,14 @@ struct HeaderFileInfo {
   /// If this header came from a framework include, this is the name
   /// of the framework.
   StringRef Framework;
+
+  /// List of aliases that this header is known as.
+  /// Most headers should only have at most one alias, but a handful
+  /// have two.
+  llvm::SetVector<llvm::SmallString<32>,
+                  llvm::SmallVector<llvm::SmallString<32>, 2>,
+                  llvm::SmallSet<llvm::SmallString<32>, 2>>
+      Aliases;
 
   HeaderFileInfo()
       : isImport(false), isPragmaOnce(false), DirInfo(SrcMgr::C_User),
@@ -439,11 +450,10 @@ public:
     return (SrcMgr::CharacteristicKind)getFileInfo(File).DirInfo;
   }
 
-  /// Mark the specified file as a "once only" file, e.g. due to
+  /// Mark the specified file as a "once only" file due to
   /// \#pragma once.
   void MarkFileIncludeOnce(const FileEntry *File) {
     HeaderFileInfo &FI = getFileInfo(File);
-    FI.isImport = true;
     FI.isPragmaOnce = true;
   }
 
@@ -451,6 +461,10 @@ public:
   /// \#pragma GCC system_header.
   void MarkFileSystemHeader(const FileEntry *File) {
     getFileInfo(File).DirInfo = SrcMgr::C_System;
+  }
+
+  void AddFileAlias(const FileEntry *File, StringRef Alias) {
+    getFileInfo(File).Aliases.insert(Alias);
   }
 
   /// Mark the specified file as part of a module.
@@ -485,8 +499,7 @@ public:
   /// This routine does not consider the effect of \#import
   bool isFileMultipleIncludeGuarded(const FileEntry *File);
 
-  /// Determine whether the given file is known to have ever been \#imported
-  /// (or if it has been \#included and we've encountered a \#pragma once).
+  /// Determine whether the given file is known to have ever been \#imported.
   bool hasFileBeenImported(const FileEntry *File) {
     const HeaderFileInfo *FI = getExistingFileInfo(File);
     return FI && FI->isImport;

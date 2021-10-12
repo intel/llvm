@@ -26,6 +26,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/IR/Assumptions.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
@@ -195,6 +196,9 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
     break;
   case Stmt::SEHTryStmtClass:
     EmitSEHTryStmt(cast<SEHTryStmt>(*S));
+    break;
+  case Stmt::OMPMetaDirectiveClass:
+    EmitOMPMetaDirective(cast<OMPMetaDirective>(*S));
     break;
   case Stmt::OMPCanonicalLoopClass:
     EmitOMPCanonicalLoop(cast<OMPCanonicalLoop>(S));
@@ -1518,6 +1522,12 @@ void CodeGenFunction::EmitCaseStmt(const CaseStmt &S,
     NextCase = dyn_cast<CaseStmt>(CurCase->getSubStmt());
   }
 
+  // Generate a stop point for debug info if the case statement is
+  // followed by a default statement. A fallthrough case before a
+  // default case gets its own branch target.
+  if (CurCase->getSubStmt()->getStmtClass() == Stmt::DefaultStmtClass)
+    EmitStopPoint(CurCase);
+
   // Normal default recursion for non-cases.
   EmitStmt(CurCase->getSubStmt());
 }
@@ -2097,7 +2107,8 @@ CodeGenFunction::EmitAsmInputLValue(const TargetInfo::ConstraintInfo &Info,
     } else {
       llvm::Type *Ty = ConvertType(InputType);
       uint64_t Size = CGM.getDataLayout().getTypeSizeInBits(Ty);
-      if (Size <= 64 && llvm::isPowerOf2_64(Size)) {
+      if ((Size <= 64 && llvm::isPowerOf2_64(Size)) ||
+          getTargetHooks().isScalarizableAsmOperand(*this, Ty)) {
         Ty = llvm::IntegerType::get(getLLVMContext(), Size);
         Ty = llvm::PointerType::getUnqual(Ty);
 
@@ -2187,20 +2198,30 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
                               CodeGenFunction &CGF,
                               std::vector<llvm::Value *> &RegResults) {
   if (!HasUnwindClobber)
-    Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                        llvm::Attribute::NoUnwind);
+    Result.addFnAttr(llvm::Attribute::NoUnwind);
 
   if (NoMerge)
-    Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                        llvm::Attribute::NoMerge);
+    Result.addFnAttr(llvm::Attribute::NoMerge);
   // Attach readnone and readonly attributes.
   if (!HasSideEffect) {
     if (ReadNone)
-      Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                          llvm::Attribute::ReadNone);
+      Result.addFnAttr(llvm::Attribute::ReadNone);
     else if (ReadOnly)
-      Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                          llvm::Attribute::ReadOnly);
+      Result.addFnAttr(llvm::Attribute::ReadOnly);
+  }
+
+  // Attach OpenMP assumption attributes from the caller, if they exist.
+  if (CGF.CGM.getLangOpts().OpenMP) {
+    SmallVector<StringRef, 4> Attrs;
+
+    for (const AssumptionAttr *AA :
+         CGF.CurFuncDecl->specific_attrs<AssumptionAttr>())
+      AA->getAssumption().split(Attrs, ",");
+
+    if (!Attrs.empty())
+      Result.addFnAttr(
+          llvm::Attribute::get(CGF.getLLVMContext(), llvm::AssumptionAttrKey,
+                               llvm::join(Attrs.begin(), Attrs.end(), ",")));
   }
 
   // Slap the source location of the inline asm into a !srcloc metadata on the
@@ -2222,8 +2243,7 @@ static void UpdateAsmCallInst(llvm::CallBase &Result, bool HasSideEffect,
     // convergent (meaning, they may call an intrinsically convergent op, such
     // as bar.sync, and so can't have certain optimizations applied around
     // them).
-    Result.addAttribute(llvm::AttributeList::FunctionIndex,
-                        llvm::Attribute::Convergent);
+    Result.addFnAttr(llvm::Attribute::Convergent);
   // Extract all of the register value results from the asm.
   if (ResultRegTypes.size() == 1) {
     RegResults.push_back(&Result);
@@ -2320,23 +2340,28 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
 
     // If this is a register output, then make the inline asm return it
     // by-value.  If this is a memory result, return the value by-reference.
-    bool isScalarizableAggregate =
-        hasAggregateEvaluationKind(OutExpr->getType());
-    if (!Info.allowsMemory() && (hasScalarEvaluationKind(OutExpr->getType()) ||
-                                 isScalarizableAggregate)) {
+    QualType QTy = OutExpr->getType();
+    const bool IsScalarOrAggregate = hasScalarEvaluationKind(QTy) ||
+                                     hasAggregateEvaluationKind(QTy);
+    if (!Info.allowsMemory() && IsScalarOrAggregate) {
+
       Constraints += "=" + OutputConstraint;
-      ResultRegQualTys.push_back(OutExpr->getType());
+      ResultRegQualTys.push_back(QTy);
       ResultRegDests.push_back(Dest);
-      ResultTruncRegTypes.push_back(ConvertTypeForMem(OutExpr->getType()));
-      if (Info.allowsRegister() && isScalarizableAggregate) {
-        ResultTypeRequiresCast.push_back(true);
-        unsigned Size = getContext().getTypeSize(OutExpr->getType());
-        llvm::Type *ConvTy = llvm::IntegerType::get(getLLVMContext(), Size);
-        ResultRegTypes.push_back(ConvTy);
-      } else {
-        ResultTypeRequiresCast.push_back(false);
-        ResultRegTypes.push_back(ResultTruncRegTypes.back());
+
+      llvm::Type *Ty = ConvertTypeForMem(QTy);
+      const bool RequiresCast = Info.allowsRegister() &&
+          (getTargetHooks().isScalarizableAsmOperand(*this, Ty) ||
+           Ty->isAggregateType());
+
+      ResultTruncRegTypes.push_back(Ty);
+      ResultTypeRequiresCast.push_back(RequiresCast);
+
+      if (RequiresCast) {
+        unsigned Size = getContext().getTypeSize(QTy);
+        Ty = llvm::IntegerType::get(getLLVMContext(), Size);
       }
+      ResultRegTypes.push_back(Ty);
       // If this output is tied to an input, and if the input is larger, then
       // we need to set the actual result type of the inline asm node to be the
       // same as the input type.
@@ -2638,11 +2663,11 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   assert(ResultTypeRequiresCast.size() <= ResultRegDests.size());
   for (unsigned i = 0, e = RegResults.size(); i != e; ++i) {
     llvm::Value *Tmp = RegResults[i];
+    llvm::Type *TruncTy = ResultTruncRegTypes[i];
 
     // If the result type of the LLVM IR asm doesn't match the result type of
     // the expression, do the conversion.
     if (ResultRegTypes[i] != ResultTruncRegTypes[i]) {
-      llvm::Type *TruncTy = ResultTruncRegTypes[i];
 
       // Truncate the integer result to the right size, note that TruncTy can be
       // a pointer.
@@ -2672,6 +2697,11 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
       unsigned Size = getContext().getTypeSize(ResultRegQualTys[i]);
       Address A = Builder.CreateBitCast(Dest.getAddress(*this),
                                         ResultRegTypes[i]->getPointerTo());
+      if (getTargetHooks().isScalarizableAsmOperand(*this, TruncTy)) {
+        Builder.CreateStore(Tmp, A);
+        continue;
+      }
+
       QualType Ty = getContext().getIntTypeForBitwidth(Size, /*Signed*/ false);
       if (Ty.isNull()) {
         const Expr *OutExpr = S.getOutputExpr(i);

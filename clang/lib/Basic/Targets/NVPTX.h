@@ -155,6 +155,10 @@ public:
     Opts["cl_khr_3d_image_writes"] = true;
   }
 
+  const llvm::omp::GV &getGridValue() const override {
+    return llvm::omp::NVPTXGridValues;
+  }
+
   /// \returns If a target requires an address within a target specific address
   /// space \p AddressSpace to be converted in order to be used, then return the
   /// corresponding target specific DWARF address space.

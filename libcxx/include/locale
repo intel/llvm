@@ -230,7 +230,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #  define _LIBCPP_GET_C_LOCALE 0
-#elif defined(__CloudABI__) || defined(__NetBSD__)
+#elif defined(__NetBSD__)
 #  define _LIBCPP_GET_C_LOCALE LC_C_LOCALE
 #else
 #  define _LIBCPP_GET_C_LOCALE __cloc()
@@ -2891,6 +2891,10 @@ money_get<_CharT, _InputIterator>::__do_get(iter_type& __b, iter_type __e,
                                             unique_ptr<char_type, void(*)(void*)>& __wb,
                                             char_type*& __wn, char_type* __we)
 {
+    if (__b == __e) {
+        __err |= ios_base::failbit;
+        return false;
+    }
     const unsigned __bz = 100;
     unsigned __gbuf[__bz];
     unique_ptr<unsigned, void(*)(void*)> __gb(__gbuf, __do_nothing);

@@ -24,6 +24,7 @@
 #include "polly/Support/ISLTools.h"
 #include "polly/Support/SCEVValidator.h"
 #include "polly/Support/ScopHelper.h"
+#include "polly/Support/VirtualInstruction.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
@@ -107,10 +108,10 @@ static cl::opt<OpenMPBackend> PollyOmpBackend(
                clEnumValN(OpenMPBackend::LLVM, "LLVM", "LLVM OpenMP")),
     cl::Hidden, cl::init(OpenMPBackend::GNU), cl::cat(PollyCategory));
 
-isl::ast_expr IslNodeBuilder::getUpperBound(isl::ast_node For,
+isl::ast_expr IslNodeBuilder::getUpperBound(isl::ast_node_for For,
                                             ICmpInst::Predicate &Predicate) {
-  isl::ast_expr Cond = For.for_get_cond();
-  isl::ast_expr Iterator = For.for_get_iterator();
+  isl::ast_expr Cond = For.cond();
+  isl::ast_expr Iterator = For.iterator();
   assert(isl_ast_expr_get_type(Cond.get()) == isl_ast_expr_op &&
          "conditional expression is not an atomic upper bound");
 
@@ -163,16 +164,17 @@ static bool checkIslAstExprInt(__isl_take isl_ast_expr *Expr,
   return true;
 }
 
-int IslNodeBuilder::getNumberOfIterations(isl::ast_node For) {
+int IslNodeBuilder::getNumberOfIterations(isl::ast_node_for For) {
   assert(isl_ast_node_get_type(For.get()) == isl_ast_node_for);
-  isl::ast_node Body = For.for_get_body();
+  isl::ast_node Body = For.body();
 
   // First, check if we can actually handle this code.
   switch (isl_ast_node_get_type(Body.get())) {
   case isl_ast_node_user:
     break;
   case isl_ast_node_block: {
-    isl::ast_node_list List = Body.block_get_children();
+    isl::ast_node_block BodyBlock = Body.as<isl::ast_node_block>();
+    isl::ast_node_list List = BodyBlock.children();
     for (isl::ast_node Node : List) {
       isl_ast_node_type NodeType = isl_ast_node_get_type(Node.get());
       if (NodeType != isl_ast_node_user)
@@ -184,10 +186,10 @@ int IslNodeBuilder::getNumberOfIterations(isl::ast_node For) {
     return -1;
   }
 
-  isl::ast_expr Init = For.for_get_init();
+  isl::ast_expr Init = For.init();
   if (!checkIslAstExprInt(Init.release(), isl_val_is_zero))
     return -1;
-  isl::ast_expr Inc = For.for_get_inc();
+  isl::ast_expr Inc = For.inc();
   if (!checkIslAstExprInt(Inc.release(), isl_val_is_one))
     return -1;
   CmpInst::Predicate Predicate;
@@ -204,40 +206,68 @@ int IslNodeBuilder::getNumberOfIterations(isl::ast_node For) {
     return NumberIterations + 1;
 }
 
-/// Extract the values and SCEVs needed to generate code for a block.
-static int findReferencesInBlock(struct SubtreeReferences &References,
-                                 const ScopStmt *Stmt, BasicBlock *BB) {
-  for (Instruction &Inst : *BB) {
-    // Include invariant loads
-    if (isa<LoadInst>(Inst))
-      if (Value *InvariantLoad = References.GlobalMap.lookup(&Inst))
-        References.Values.insert(InvariantLoad);
+static void findReferencesByUse(Value *SrcVal, ScopStmt *UserStmt,
+                                Loop *UserScope, const ValueMapT &GlobalMap,
+                                SetVector<Value *> &Values,
+                                SetVector<const SCEV *> &SCEVs) {
+  VirtualUse VUse = VirtualUse::create(UserStmt, UserScope, SrcVal, true);
+  switch (VUse.getKind()) {
+  case VirtualUse::Constant:
+    // When accelerator-offloading, GlobalValue is a host address whose content
+    // must still be transferred to the GPU.
+    if (isa<GlobalValue>(SrcVal))
+      Values.insert(SrcVal);
+    break;
 
-    for (Value *SrcVal : Inst.operands()) {
-      auto *Scope = References.LI.getLoopFor(BB);
-      if (canSynthesize(SrcVal, References.S, &References.SE, Scope)) {
-        References.SCEVs.insert(References.SE.getSCEVAtScope(SrcVal, Scope));
-        continue;
-      } else if (Value *NewVal = References.GlobalMap.lookup(SrcVal))
-        References.Values.insert(NewVal);
-    }
+  case VirtualUse::Synthesizable:
+    SCEVs.insert(VUse.getScevExpr());
+    return;
+
+  case VirtualUse::Block:
+  case VirtualUse::ReadOnly:
+  case VirtualUse::Hoisted:
+  case VirtualUse::Intra:
+  case VirtualUse::Inter:
+    break;
   }
-  return 0;
+
+  if (Value *NewVal = GlobalMap.lookup(SrcVal))
+    Values.insert(NewVal);
 }
 
-void polly::addReferencesFromStmt(const ScopStmt *Stmt, void *UserPtr,
+static void findReferencesInInst(Instruction *Inst, ScopStmt *UserStmt,
+                                 Loop *UserScope, const ValueMapT &GlobalMap,
+                                 SetVector<Value *> &Values,
+                                 SetVector<const SCEV *> &SCEVs) {
+  for (Use &U : Inst->operands())
+    findReferencesByUse(U.get(), UserStmt, UserScope, GlobalMap, Values, SCEVs);
+}
+
+static void findReferencesInStmt(ScopStmt *Stmt, SetVector<Value *> &Values,
+                                 ValueMapT &GlobalMap,
+                                 SetVector<const SCEV *> &SCEVs) {
+  LoopInfo *LI = Stmt->getParent()->getLI();
+
+  BasicBlock *BB = Stmt->getBasicBlock();
+  Loop *Scope = LI->getLoopFor(BB);
+  for (Instruction *Inst : Stmt->getInstructions())
+    findReferencesInInst(Inst, Stmt, Scope, GlobalMap, Values, SCEVs);
+
+  if (Stmt->isRegionStmt()) {
+    for (BasicBlock *BB : Stmt->getRegion()->blocks()) {
+      Loop *Scope = LI->getLoopFor(BB);
+      for (Instruction &Inst : *BB)
+        findReferencesInInst(&Inst, Stmt, Scope, GlobalMap, Values, SCEVs);
+    }
+  }
+}
+
+void polly::addReferencesFromStmt(ScopStmt *Stmt, void *UserPtr,
                                   bool CreateScalarRefs) {
   auto &References = *static_cast<struct SubtreeReferences *>(UserPtr);
 
-  if (Stmt->isBlockStmt())
-    findReferencesInBlock(References, Stmt, Stmt->getBasicBlock());
-  else if (Stmt->isRegionStmt()) {
-    for (BasicBlock *BB : Stmt->getRegion()->blocks())
-      findReferencesInBlock(References, Stmt, BB);
-  } else {
-    assert(Stmt->isCopyStmt());
-    // Copy Stmts have no instructions that we need to consider.
-  }
+  findReferencesInStmt(Stmt, References.Values, References.GlobalMap,
+                       References.SCEVs);
 
   for (auto &Access : *Stmt) {
     if (References.ParamSpace) {
@@ -275,8 +305,8 @@ void polly::addReferencesFromStmt(const ScopStmt *Stmt, void *UserPtr,
 static void addReferencesFromStmtSet(isl::set Set,
                                      struct SubtreeReferences *UserPtr) {
   isl::id Id = Set.get_tuple_id();
-  auto *Stmt = static_cast<const ScopStmt *>(Id.get_user());
-  return addReferencesFromStmt(Stmt, UserPtr);
+  auto *Stmt = static_cast<ScopStmt *>(Id.get_user());
+  addReferencesFromStmt(Stmt, UserPtr);
 }
 
 /// Extract the out-of-scop values and SCEVs referenced from a union set
@@ -413,17 +443,14 @@ void IslNodeBuilder::createMark(__isl_take isl_ast_node *Node) {
   if (strcmp(isl_id_get_name(Id), "SIMD") == 0 &&
       isl_ast_node_get_type(Child) == isl_ast_node_for) {
     bool Vector = PollyVectorizerChoice == VECTORIZER_POLLY;
-    int VectorWidth = getNumberOfIterations(isl::manage_copy(Child));
+    int VectorWidth =
+        getNumberOfIterations(isl::manage_copy(Child).as<isl::ast_node_for>());
     if (Vector && 1 < VectorWidth && VectorWidth <= 16)
       createForVector(Child, VectorWidth);
     else
-      createForSequential(isl::manage(Child), true);
+      createForSequential(isl::manage(Child).as<isl::ast_node_for>(), true);
     isl_id_free(Id);
     return;
-  }
-  if (strcmp(isl_id_get_name(Id), "Inter iteration alias-free") == 0) {
-    auto *BasePtr = static_cast<Value *>(isl_id_get_user(Id));
-    Annotator.addInterIterationAliasFreeBasePtr(BasePtr);
   }
 
   BandAttr *ChildLoopAttr = getLoopAttr(isl::manage_copy(Id));
@@ -518,18 +545,21 @@ void IslNodeBuilder::createForVector(__isl_take isl_ast_node *For,
 ///
 /// @param Node The band node to be modified.
 /// @return The modified schedule node.
-static bool IsLoopVectorizerDisabled(isl::ast_node Node) {
+static bool IsLoopVectorizerDisabled(isl::ast_node_for Node) {
   assert(isl_ast_node_get_type(Node.get()) == isl_ast_node_for);
-  auto Body = Node.for_get_body();
+  isl::ast_node Body = Node.body();
   if (isl_ast_node_get_type(Body.get()) != isl_ast_node_mark)
     return false;
-  auto Id = Body.mark_get_id();
+
+  isl::ast_node_mark BodyMark = Body.as<isl::ast_node_mark>();
+  auto Id = BodyMark.id();
   if (strcmp(Id.get_name().c_str(), "Loop Vectorizer Disabled") == 0)
     return true;
   return false;
 }
 
-void IslNodeBuilder::createForSequential(isl::ast_node For, bool MarkParallel) {
+void IslNodeBuilder::createForSequential(isl::ast_node_for For,
+                                         bool MarkParallel) {
   Value *ValueLB, *ValueUB, *ValueInc;
   Type *MaxType;
   BasicBlock *ExitBlock;
@@ -538,7 +568,7 @@ void IslNodeBuilder::createForSequential(isl::ast_node For, bool MarkParallel) {
 
   bool LoopVectorizerDisabled = IsLoopVectorizerDisabled(For);
 
-  isl::ast_node Body = For.for_get_body();
+  isl::ast_node Body = For.body();
 
   // isl_ast_node_for_is_degenerate(For)
   //
@@ -546,9 +576,9 @@ void IslNodeBuilder::createForSequential(isl::ast_node For, bool MarkParallel) {
   //       However, for now we just reuse the logic for normal loops, which will
   //       create a loop with a single iteration.
 
-  isl::ast_expr Init = For.for_get_init();
-  isl::ast_expr Inc = For.for_get_inc();
-  isl::ast_expr Iterator = For.for_get_iterator();
+  isl::ast_expr Init = For.init();
+  isl::ast_expr Inc = For.inc();
+  isl::ast_expr Iterator = For.iterator();
   isl::id IteratorID = Iterator.get_id();
   isl::ast_expr UB = getUpperBound(For, Predicate);
 
@@ -654,7 +684,8 @@ void IslNodeBuilder::createForParallel(__isl_take isl_ast_node *For) {
   Inc = isl_ast_node_for_get_inc(For);
   Iterator = isl_ast_node_for_get_iterator(For);
   IteratorID = isl_ast_expr_get_id(Iterator);
-  UB = getUpperBound(isl::manage_copy(For), Predicate).release();
+  UB = getUpperBound(isl::manage_copy(For).as<isl::ast_node_for>(), Predicate)
+           .release();
 
   ValueLB = ExprBuilder.create(Init);
   ValueUB = ExprBuilder.create(UB);
@@ -782,7 +813,8 @@ void IslNodeBuilder::createFor(__isl_take isl_ast_node *For) {
 
   if (Vector && IslAstInfo::isInnermostParallel(isl::manage_copy(For)) &&
       !IslAstInfo::isReductionParallel(isl::manage_copy(For))) {
-    int VectorWidth = getNumberOfIterations(isl::manage_copy(For));
+    int VectorWidth =
+        getNumberOfIterations(isl::manage_copy(For).as<isl::ast_node_for>());
     if (1 < VectorWidth && VectorWidth <= 16 && !hasPartialAccesses(For)) {
       createForVector(For, VectorWidth);
       return;
@@ -795,7 +827,7 @@ void IslNodeBuilder::createFor(__isl_take isl_ast_node *For) {
   }
   bool Parallel = (IslAstInfo::isParallel(isl::manage_copy(For)) &&
                    !IslAstInfo::isReductionParallel(isl::manage_copy(For)));
-  createForSequential(isl::manage(For), Parallel);
+  createForSequential(isl::manage(For).as<isl::ast_node_for>(), Parallel);
 }
 
 void IslNodeBuilder::createIf(__isl_take isl_ast_node *If) {

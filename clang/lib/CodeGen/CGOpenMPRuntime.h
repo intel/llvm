@@ -340,6 +340,35 @@ protected:
   llvm::Value *emitUpdateLocation(CodeGenFunction &CGF, SourceLocation Loc,
                                   unsigned Flags = 0);
 
+  /// Emit the number of teams for a target directive.  Inspect the num_teams
+  /// clause associated with a teams construct combined or closely nested
+  /// with the target directive.
+  ///
+  /// Emit a team of size one for directives such as 'target parallel' that
+  /// have no associated teams construct.
+  ///
+  /// Otherwise, return nullptr.
+  const Expr *getNumTeamsExprForTargetDirective(CodeGenFunction &CGF,
+                                                const OMPExecutableDirective &D,
+                                                int32_t &DefaultVal);
+  llvm::Value *emitNumTeamsForTargetDirective(CodeGenFunction &CGF,
+                                              const OMPExecutableDirective &D);
+  /// Emit the number of threads for a target directive.  Inspect the
+  /// thread_limit clause associated with a teams construct combined or closely
+  /// nested with the target directive.
+  ///
+  /// Emit the num_threads clause for directives such as 'target parallel' that
+  /// have no associated teams construct.
+  ///
+  /// Otherwise, return nullptr.
+  const Expr *
+  getNumThreadsExprForTargetDirective(CodeGenFunction &CGF,
+                                      const OMPExecutableDirective &D,
+                                      int32_t &DefaultVal);
+  llvm::Value *
+  emitNumThreadsForTargetDirective(CodeGenFunction &CGF,
+                                   const OMPExecutableDirective &D);
+
   /// Returns pointer to ident_t type.
   llvm::Type *getIdentTyPointerTy();
 
@@ -766,9 +795,11 @@ private:
   llvm::Type *getKmpc_MicroPointerTy();
 
   /// Returns __kmpc_for_static_init_* runtime function for the specified
-  /// size \a IVSize and sign \a IVSigned.
+  /// size \a IVSize and sign \a IVSigned. Will create a distribute call
+  /// __kmpc_distribute_static_init* if \a IsGPUDistribute is set.
   llvm::FunctionCallee createForStaticInitFunction(unsigned IVSize,
-                                                   bool IVSigned);
+                                                   bool IVSigned,
+                                                   bool IsGPUDistribute);
 
   /// Returns __kmpc_dispatch_init_* runtime function for the specified
   /// size \a IVSize and sign \a IVSigned.

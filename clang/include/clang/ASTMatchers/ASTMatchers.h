@@ -148,6 +148,7 @@ using CXXBaseSpecifierMatcher = internal::Matcher<CXXBaseSpecifier>;
 using CXXCtorInitializerMatcher = internal::Matcher<CXXCtorInitializer>;
 using TemplateArgumentMatcher = internal::Matcher<TemplateArgument>;
 using TemplateArgumentLocMatcher = internal::Matcher<TemplateArgumentLoc>;
+using AttrMatcher = internal::Matcher<Attr>;
 /// @}
 
 /// Matches any node.
@@ -307,7 +308,7 @@ AST_POLYMORPHIC_MATCHER_REGEX(isExpansionInFileMatching,
 
 /// Matches statements that are (transitively) expanded from the named macro.
 /// Does not match if only part of the statement is expanded from that macro or
-/// if different parts of the the statement are expanded from different
+/// if different parts of the statement are expanded from different
 /// appearances of the macro.
 AST_POLYMORPHIC_MATCHER_P(isExpandedFromMacro,
                           AST_POLYMORPHIC_SUPPORTED_TYPES(Decl, Stmt, TypeLoc),
@@ -752,9 +753,10 @@ AST_MATCHER_P(ClassTemplateSpecializationDecl, hasSpecializedTemplate,
           InnerMatcher.matches(*Decl, Finder, Builder));
 }
 
-/// Matches a declaration that has been implicitly added
-/// by the compiler (eg. implicit default/copy constructors).
-AST_MATCHER(Decl, isImplicit) {
+/// Matches an entity that has been implicitly added by the compiler (e.g.
+/// implicit default/copy constructors).
+AST_POLYMORPHIC_MATCHER(isImplicit,
+                        AST_POLYMORPHIC_SUPPORTED_TYPES(Decl, Attr)) {
   return Node.isImplicit();
 }
 
@@ -3489,8 +3491,8 @@ internal::Matcher<T> findAll(const internal::Matcher<T> &Matcher) {
 /// Usable as: Any Matcher
 extern const internal::ArgumentAdaptingMatcherFunc<
     internal::HasParentMatcher,
-    internal::TypeList<Decl, NestedNameSpecifierLoc, Stmt, TypeLoc>,
-    internal::TypeList<Decl, NestedNameSpecifierLoc, Stmt, TypeLoc>>
+    internal::TypeList<Decl, NestedNameSpecifierLoc, Stmt, TypeLoc, Attr>,
+    internal::TypeList<Decl, NestedNameSpecifierLoc, Stmt, TypeLoc, Attr>>
     hasParent;
 
 /// Matches AST nodes that have an ancestor that matches the provided
@@ -3506,8 +3508,8 @@ extern const internal::ArgumentAdaptingMatcherFunc<
 /// Usable as: Any Matcher
 extern const internal::ArgumentAdaptingMatcherFunc<
     internal::HasAncestorMatcher,
-    internal::TypeList<Decl, NestedNameSpecifierLoc, Stmt, TypeLoc>,
-    internal::TypeList<Decl, NestedNameSpecifierLoc, Stmt, TypeLoc>>
+    internal::TypeList<Decl, NestedNameSpecifierLoc, Stmt, TypeLoc, Attr>,
+    internal::TypeList<Decl, NestedNameSpecifierLoc, Stmt, TypeLoc, Attr>>
     hasAncestor;
 
 /// Matches if the provided matcher does not match.
@@ -5875,6 +5877,10 @@ AST_MATCHER(CXXMethodDecl, isVirtualAsWritten) {
   return Node.isVirtualAsWritten();
 }
 
+AST_MATCHER(CXXConstructorDecl, isInheritingConstructor) {
+  return Node.isInheritingConstructor();
+}
+
 /// Matches if the given method or class declaration is final.
 ///
 /// Given:
@@ -7132,6 +7138,24 @@ AST_MATCHER_P(NestedNameSpecifier, specifiesNamespace,
     return false;
   return InnerMatcher.matches(*Node.getAsNamespace(), Finder, Builder);
 }
+
+/// Matches attributes.
+/// Attributes may be attached with a variety of different syntaxes (including
+/// keywords, C++11 attributes, GNU ``__attribute``` and MSVC `__declspec``,
+/// and ``#pragma``s). They may also be implicit.
+///
+/// Given
+/// \code
+///   struct [[nodiscard]] Foo{};
+///   void bar(int * __attribute__((nonnull)) );
+///   __declspec(noinline) void baz();
+///
+///   #pragma omp declare simd
+///   int min();
+/// \endcode
+/// attr()
+///   matches "nodiscard", "nonnull", "noinline", and the whole "#pragma" line.
+extern const internal::VariadicAllOfMatcher<Attr> attr;
 
 /// Overloads for the \c equalsNode matcher.
 /// FIXME: Implement for other node types.

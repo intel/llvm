@@ -246,6 +246,9 @@ StringRef llvm::object::getELFSectionTypeName(uint32_t Machine, unsigned Type) {
       STRINGIFY_ENUM_CASE(ELF, SHT_MIPS_ABIFLAGS);
     }
     break;
+  case ELF::EM_MSP430:
+    switch (Type) { STRINGIFY_ENUM_CASE(ELF, SHT_MSP430_ATTRIBUTES); }
+    break;
   case ELF::EM_RISCV:
     switch (Type) { STRINGIFY_ENUM_CASE(ELF, SHT_RISCV_ATTRIBUTES); }
     break;
@@ -474,11 +477,27 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
     }
     break;
 
+  case ELF::EM_PPC:
+    switch (Type) {
+#define PPC_DYNAMIC_TAG(name, value) DYNAMIC_STRINGIFY_ENUM(name, value)
+#include "llvm/BinaryFormat/DynamicTags.def"
+#undef PPC_DYNAMIC_TAG
+    }
+    break;
+
   case ELF::EM_PPC64:
     switch (Type) {
 #define PPC64_DYNAMIC_TAG(name, value) DYNAMIC_STRINGIFY_ENUM(name, value)
 #include "llvm/BinaryFormat/DynamicTags.def"
 #undef PPC64_DYNAMIC_TAG
+    }
+    break;
+
+  case ELF::EM_RISCV:
+    switch (Type) {
+#define RISCV_DYNAMIC_TAG(name, value) DYNAMIC_STRINGIFY_ENUM(name, value)
+#include "llvm/BinaryFormat/DynamicTags.def"
+#undef RISCV_DYNAMIC_TAG
     }
     break;
   }
@@ -488,7 +507,9 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
 #define AARCH64_DYNAMIC_TAG(name, value)
 #define MIPS_DYNAMIC_TAG(name, value)
 #define HEXAGON_DYNAMIC_TAG(name, value)
+#define PPC_DYNAMIC_TAG(name, value)
 #define PPC64_DYNAMIC_TAG(name, value)
+#define RISCV_DYNAMIC_TAG(name, value)
 // Also ignore marker tags such as DT_HIOS (maps to DT_VERNEEDNUM), etc.
 #define DYNAMIC_TAG_MARKER(name, value)
 #define DYNAMIC_TAG(name, value) case value: return #name;
@@ -497,7 +518,9 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
 #undef AARCH64_DYNAMIC_TAG
 #undef MIPS_DYNAMIC_TAG
 #undef HEXAGON_DYNAMIC_TAG
+#undef PPC_DYNAMIC_TAG
 #undef PPC64_DYNAMIC_TAG
+#undef RISCV_DYNAMIC_TAG
 #undef DYNAMIC_TAG_MARKER
 #undef DYNAMIC_STRINGIFY_ENUM
   default:

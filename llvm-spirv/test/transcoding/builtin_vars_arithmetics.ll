@@ -7,6 +7,9 @@
 ; RUN: llvm-spirv %t.spv -r --spirv-target-env=SPV-IR -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefixes=CHECK-LLVM,CHECK-LLVM-SPV
 
+; Check that produced builtin-call-based SPV-IR is recognized by the translator
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+
 ; The IR was generated from the following source:
 ; #include <CL/sycl.hpp>
 ;
@@ -72,7 +75,7 @@
 ; CHECK-LLVM  %21 = sub <3 x i64> %[[GlobSizeVec]], %[[GOffSetVec]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 %"class._ZTSN2cl4sycl5rangeILi2EEE.cl::sycl::range" = type { %"class._ZTSN2cl4sycl6detail5arrayILi2EEE.cl::sycl::detail::array" }
 %"class._ZTSN2cl4sycl6detail5arrayILi2EEE.cl::sycl::detail::array" = type { [2 x i64] }

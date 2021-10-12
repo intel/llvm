@@ -8,13 +8,17 @@ if(SYCL_BUILD_PI_CUDA)
   add_subdirectory(cuda)
 endif()
 
-if(SYCL_BUILD_PI_ROCM)
-  add_subdirectory(rocm)
+if(SYCL_BUILD_PI_HIP)
+  add_subdirectory(hip)
 endif()
 
 add_subdirectory(opencl)
 add_subdirectory(level_zero)
 
-if (SYCL_BUILD_PI_ESIMD_CPU)
-  add_subdirectory(esimd_cpu)
+# TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
+# environment
+if (NOT MSVC)
+  if (SYCL_BUILD_PI_ESIMD_CPU)
+    add_subdirectory(esimd_cpu)
+  endif()
 endif()

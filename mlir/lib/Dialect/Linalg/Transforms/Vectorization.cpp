@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Analysis/LoopAnalysis.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
@@ -110,46 +111,24 @@ static VectorType extractVectorTypeFromShapedValue(Value v) {
   return VectorType::get(st.getShape(), st.getElementType());
 }
 
-/// Given an `outputOperand` of a LinalgOp, compute the intersection of the
-/// forward slice starting from `outputOperand` and the backward slice
-/// starting from the corresponding linalg.yield operand.
-/// This intersection is assumed to have a single binary operation that is
-/// the reduction operation. Multiple reduction operations would impose an
+/// Check whether `outputOperand` is a reduction with a single combiner
+/// operation. Return the combiner operation of the reduction, which is assumed
+/// to be a binary operation. Multiple reduction operations would impose an
 /// ordering between reduction dimensions and is currently unsupported in
-/// Linalg. This limitation is motivated by the fact that e.g.
-/// min(max(X)) != max(min(X))
+/// Linalg. This limitation is motivated by the fact that e.g. min(max(X)) !=
+/// max(min(X))
 // TODO: use in LinalgOp verification, there is a circular dependency atm.
 static Operation *getSingleBinaryOpAssumedReduction(OpOperand *outputOperand) {
   auto linalgOp = cast<LinalgOp>(outputOperand->getOwner());
-  auto yieldOp = cast<YieldOp>(linalgOp->getRegion(0).front().getTerminator());
-  unsigned yieldNum =
+  unsigned outputPos =
       outputOperand->getOperandNumber() - linalgOp.getNumInputs();
-  llvm::SetVector<Operation *> backwardSlice, forwardSlice;
-  BlockArgument bbArg = linalgOp->getRegion(0).front().getArgument(
-      outputOperand->getOperandNumber());
-  Value yieldVal = yieldOp->getOperand(yieldNum);
-  getBackwardSlice(yieldVal, &backwardSlice, [&](Operation *op) {
-    return op->getParentOp() == linalgOp;
-  });
-  backwardSlice.insert(yieldVal.getDefiningOp());
-  getForwardSlice(bbArg, &forwardSlice,
-                  [&](Operation *op) { return op->getParentOp() == linalgOp; });
-  // Search for the (assumed unique) elementwiseMappable op at the intersection
-  // of forward and backward slices.
-  Operation *reductionOp = nullptr;
-  for (Operation *op : llvm::reverse(backwardSlice)) {
-    if (!forwardSlice.contains(op))
-      continue;
-    if (OpTrait::hasElementwiseMappableTraits(op)) {
-      if (reductionOp) {
-        // Reduction detection fails: found more than 1 elementwise-mappable op.
-        return nullptr;
-      }
-      reductionOp = op;
-    }
-  }
+  SmallVector<Operation *, 4> combinerOps;
+  if (!matchReduction(linalgOp.getRegionOutputArgs(), outputPos, combinerOps) ||
+      combinerOps.size() != 1)
+    return nullptr;
+
   // TODO: also assert no other subsequent ops break the reduction.
-  return reductionOp;
+  return combinerOps[0];
 }
 
 /// If `value` of assumed VectorType has a shape different than `shape`, try to
@@ -210,7 +189,7 @@ static Value reduceIfNeeded(OpBuilder &b, VectorType targetVectorType,
   unsigned idx = 0;
   SmallVector<bool> reductionMask(linalgOp.iterator_types().size(), false);
   for (auto attr : linalgOp.iterator_types()) {
-    if (isReductionIteratorType(attr))
+    if (isReductionIterator(attr))
       reductionMask[idx] = true;
     ++idx;
   }
@@ -245,7 +224,7 @@ static Value buildVectorWrite(OpBuilder &b, Value value,
     AffineMap map =
         reindexIndexingMap(linalgOp.getTiedIndexingMap(outputOperand));
     SmallVector<int64_t> transposeShape =
-        applyPermuationMap(inversePermutation(map), vectorType.getShape());
+        applyPermutationMap(inversePermutation(map), vectorType.getShape());
     vectorType = VectorType::get(transposeShape, vectorType.getElementType());
     SmallVector<Value> indices(linalgOp.getRank(outputOperand),
                                b.create<ConstantIndexOp>(loc, 0));
@@ -575,7 +554,7 @@ static LogicalResult vectorizeContraction(OpBuilder &b, LinalgOp linalgOp,
     if (outShape.empty()) {
       vType = op->getResult(0).getType();
     } else {
-      SmallVector<int64_t> resultShape = applyPermuationMap(
+      SmallVector<int64_t> resultShape = applyPermutationMap(
           inversePermutation(reindexIndexingMap(
               linalgOp.getTiedIndexingMap(linalgOp.getOutputOperand(0)))),
           outShape);
@@ -615,7 +594,7 @@ static bool allIndexingsAreProjectedPermutation(LinalgOp op) {
 // TODO: probably need some extra checks for reduction followed by consumer
 // ops that may not commute (e.g. linear reduction + non-linear instructions).
 static LogicalResult reductionPreconditions(LinalgOp op) {
-  if (llvm::none_of(op.iterator_types(), isReductionIteratorType))
+  if (llvm::none_of(op.iterator_types(), isReductionIterator))
     return failure();
   for (OpOperand *opOperand : op.getOutputOperands()) {
     Operation *reductionOp = getSingleBinaryOpAssumedReduction(opOperand);
@@ -750,6 +729,13 @@ struct GenericPadTensorOpVectorizationPattern
     auto read = rewriter.create<vector::TransferReadOp>(
         padOp.getLoc(), vecType, padOp.source(), readIndices, padValue,
         readInBounds);
+
+    // If `dest` is a FillOp and the TransferWriteOp would overwrite the entire
+    // tensor, write directly to the FillOp's operand.
+    if (llvm::equal(vecShape, resultType.getShape())
+        && llvm::all_of(writeInBounds, [](bool b) { return b; }))
+      if (auto fill = dest.getDefiningOp<FillOp>())
+        dest = fill.output();
 
     // Generate TransferWriteOp.
     auto writeIndices = ofrToIndexValues(
@@ -1127,7 +1113,7 @@ LogicalResult ConvOpVectorization<ConvOp, N>::matchAndRewrite(
   return success();
 }
 
-using ConvOpConst = ConvOpVectorization<ConvWOp, 1>;
+using ConvOpConst = ConvOpVectorization<Conv1DOp, 1>;
 
 /// Inserts tiling, promotion and vectorization pattern for ConvOp
 /// conversion into corresponding pattern lists.
@@ -1165,43 +1151,22 @@ void mlir::linalg::populateConvVectorizationPatterns(
   RewritePatternSet tiling(context);
   RewritePatternSet promotion(context);
   RewritePatternSet vectorization(context);
-  populateVectorizationPatterns<ConvWOp, 1>(tiling, promotion, vectorization,
-                                            tileSizes);
-
-  populateVectorizationPatterns<ConvNWCOp, 3>(tiling, promotion, vectorization,
-                                              tileSizes);
-  populateVectorizationPatterns<ConvInputNWCFilterWCFOp, 3>(
-      tiling, promotion, vectorization, tileSizes);
-
-  populateVectorizationPatterns<ConvNCWOp, 3>(tiling, promotion, vectorization,
-                                              tileSizes);
-  populateVectorizationPatterns<ConvInputNCWFilterWCFOp, 3>(
-      tiling, promotion, vectorization, tileSizes);
-
-  populateVectorizationPatterns<ConvHWOp, 2>(tiling, promotion, vectorization,
+  populateVectorizationPatterns<Conv1DOp, 1>(tiling, promotion, vectorization,
                                              tileSizes);
 
-  populateVectorizationPatterns<ConvNHWCOp, 4>(tiling, promotion, vectorization,
-                                               tileSizes);
-  populateVectorizationPatterns<ConvInputNHWCFilterHWCFOp, 4>(
-      tiling, promotion, vectorization, tileSizes);
+  populateVectorizationPatterns<Conv2DOp, 2>(tiling, promotion, vectorization,
+                                             tileSizes);
 
-  populateVectorizationPatterns<Conv2DNchwOp, 4>(tiling, promotion,
-                                                 vectorization, tileSizes);
-  populateVectorizationPatterns<ConvInputNCHWFilterHWCFOp, 4>(
-      tiling, promotion, vectorization, tileSizes);
+  populateVectorizationPatterns<Conv3DOp, 3>(tiling, promotion, vectorization,
+                                             tileSizes);
 
-  populateVectorizationPatterns<ConvDHWOp, 3>(tiling, promotion, vectorization,
-                                              tileSizes);
+  populateVectorizationPatterns<Conv1DNwcWcfOp, 3>(tiling, promotion,
+                                                   vectorization, tileSizes);
 
-  populateVectorizationPatterns<ConvNDHWCOp, 5>(tiling, promotion,
-                                                vectorization, tileSizes);
-  populateVectorizationPatterns<ConvInputNDHWCFilterDHWCFOp, 5>(
-      tiling, promotion, vectorization, tileSizes);
+  populateVectorizationPatterns<Conv2DNhwcHwcfOp, 4>(tiling, promotion,
+                                                     vectorization, tileSizes);
 
-  populateVectorizationPatterns<ConvNCDHWOp, 5>(tiling, promotion,
-                                                vectorization, tileSizes);
-  populateVectorizationPatterns<ConvInputNCDHWFilterDHWCFOp, 5>(
+  populateVectorizationPatterns<Conv3DNdhwcDhwcfOp, 5>(
       tiling, promotion, vectorization, tileSizes);
 
   patterns.push_back(std::move(tiling));

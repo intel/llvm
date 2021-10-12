@@ -25,7 +25,6 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
-#include "llvm/CodeGen/WasmEHFuncInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/IR/Function.h"
@@ -33,6 +32,7 @@
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetOptions.h"
@@ -303,9 +303,7 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
       setLoadExtAction(Ext, MVT::v4i32, MVT::v4i16, Legal);
       setLoadExtAction(Ext, MVT::v2i64, MVT::v2i32, Legal);
     }
-    // And some truncating stores are legal as well
-    setTruncStoreAction(MVT::v8i16, MVT::v8i8, Legal);
-    setTruncStoreAction(MVT::v4i32, MVT::v4i16, Legal);
+    setLoadExtAction(ISD::EXTLOAD, MVT::v2f64, MVT::v2f32, Legal);
   }
 
   // Don't do anything clever with build_pairs
@@ -770,6 +768,13 @@ bool WebAssemblyTargetLowering::isVectorLoadExtDesirable(SDValue ExtVal) const {
          (ExtT == MVT::v2i64 && MemT == MVT::v2i32);
 }
 
+bool WebAssemblyTargetLowering::isOffsetFoldingLegal(
+    const GlobalAddressSDNode *GA) const {
+  // Wasm doesn't support function addresses with offsets
+  const GlobalValue *GV = GA->getGlobal();
+  return isa<Function>(GV) ? false : TargetLowering::isOffsetFoldingLegal(GA);
+}
+
 EVT WebAssemblyTargetLowering::getSetCCResultType(const DataLayout &DL,
                                                   LLVMContext &C,
                                                   EVT VT) const {
@@ -821,6 +826,45 @@ bool WebAssemblyTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
   default:
     return false;
   }
+}
+
+void WebAssemblyTargetLowering::computeKnownBitsForTargetNode(
+    const SDValue Op, KnownBits &Known, const APInt &DemandedElts,
+    const SelectionDAG &DAG, unsigned Depth) const {
+  switch (Op.getOpcode()) {
+  default:
+    break;
+  case ISD::INTRINSIC_WO_CHAIN: {
+    unsigned IntNo = Op.getConstantOperandVal(0);
+    switch (IntNo) {
+    default:
+      break;
+    case Intrinsic::wasm_bitmask: {
+      unsigned BitWidth = Known.getBitWidth();
+      EVT VT = Op.getOperand(1).getSimpleValueType();
+      unsigned PossibleBits = VT.getVectorNumElements();
+      APInt ZeroMask = APInt::getHighBitsSet(BitWidth, BitWidth - PossibleBits);
+      Known.Zero |= ZeroMask;
+      break;
+    }
+    }
+  }
+  }
+}
+
+TargetLoweringBase::LegalizeTypeAction
+WebAssemblyTargetLowering::getPreferredVectorAction(MVT VT) const {
+  if (VT.isFixedLengthVector()) {
+    MVT EltVT = VT.getVectorElementType();
+    // We have legal vector types with these lane types, so widening the
+    // vector would let us use some of the lanes directly without having to
+    // extend or truncate values.
+    if (EltVT == MVT::i8 || EltVT == MVT::i16 || EltVT == MVT::i32 ||
+        EltVT == MVT::i64 || EltVT == MVT::f32 || EltVT == MVT::f64)
+      return TypeWidenVector;
+  }
+
+  return TargetLoweringBase::getPreferredVectorAction(VT);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1468,7 +1512,7 @@ SDValue WebAssemblyTargetLowering::LowerRETURNADDR(SDValue Op,
   if (verifyReturnAddressArgumentIsConstant(Op, DAG))
     return SDValue();
 
-  unsigned Depth = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+  unsigned Depth = Op.getConstantOperandVal(0);
   MakeLibCallOptions CallOptions;
   return makeLibCall(DAG, RTLIB::RETURN_ADDRESS, Op.getValueType(),
                      {DAG.getConstant(Depth, DL, MVT::i32)}, CallOptions, DL)
@@ -1495,7 +1539,6 @@ WebAssemblyTargetLowering::LowerGlobalTLSAddress(SDValue Op,
                                                  SelectionDAG &DAG) const {
   SDLoc DL(Op);
   const auto *GA = cast<GlobalAddressSDNode>(Op);
-  MVT PtrVT = getPointerTy(DAG.getDataLayout());
 
   MachineFunction &MF = DAG.getMachineFunction();
   if (!MF.getSubtarget<WebAssemblySubtarget>().hasBulkMemory())
@@ -1517,20 +1560,43 @@ WebAssemblyTargetLowering::LowerGlobalTLSAddress(SDValue Op,
                        false);
   }
 
-  auto GlobalGet = PtrVT == MVT::i64 ? WebAssembly::GLOBAL_GET_I64
-                                     : WebAssembly::GLOBAL_GET_I32;
-  const char *BaseName = MF.createExternalSymbolName("__tls_base");
+  auto model = GV->getThreadLocalMode();
 
-  SDValue BaseAddr(
-      DAG.getMachineNode(GlobalGet, DL, PtrVT,
-                         DAG.getTargetExternalSymbol(BaseName, PtrVT)),
-      0);
+  // Unsupported TLS modes
+  assert(model != GlobalValue::NotThreadLocal);
+  assert(model != GlobalValue::InitialExecTLSModel);
 
-  SDValue TLSOffset = DAG.getTargetGlobalAddress(
-      GV, DL, PtrVT, GA->getOffset(), WebAssemblyII::MO_TLS_BASE_REL);
-  SDValue SymAddr = DAG.getNode(WebAssemblyISD::Wrapper, DL, PtrVT, TLSOffset);
+  if (model == GlobalValue::LocalExecTLSModel ||
+      model == GlobalValue::LocalDynamicTLSModel ||
+      (model == GlobalValue::GeneralDynamicTLSModel &&
+       getTargetMachine().shouldAssumeDSOLocal(*GV->getParent(), GV))) {
+    // For DSO-local TLS variables we use offset from __tls_base
 
-  return DAG.getNode(ISD::ADD, DL, PtrVT, BaseAddr, SymAddr);
+    MVT PtrVT = getPointerTy(DAG.getDataLayout());
+    auto GlobalGet = PtrVT == MVT::i64 ? WebAssembly::GLOBAL_GET_I64
+                                       : WebAssembly::GLOBAL_GET_I32;
+    const char *BaseName = MF.createExternalSymbolName("__tls_base");
+
+    SDValue BaseAddr(
+        DAG.getMachineNode(GlobalGet, DL, PtrVT,
+                           DAG.getTargetExternalSymbol(BaseName, PtrVT)),
+        0);
+
+    SDValue TLSOffset = DAG.getTargetGlobalAddress(
+        GV, DL, PtrVT, GA->getOffset(), WebAssemblyII::MO_TLS_BASE_REL);
+    SDValue SymOffset =
+        DAG.getNode(WebAssemblyISD::WrapperREL, DL, PtrVT, TLSOffset);
+
+    return DAG.getNode(ISD::ADD, DL, PtrVT, BaseAddr, SymOffset);
+  }
+
+  assert(model == GlobalValue::GeneralDynamicTLSModel);
+
+  EVT VT = Op.getValueType();
+  return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
+                     DAG.getTargetGlobalAddress(GA->getGlobal(), DL, VT,
+                                                GA->getOffset(),
+                                                WebAssemblyII::MO_GOT_TLS));
 }
 
 SDValue WebAssemblyTargetLowering::LowerGlobalAddress(SDValue Op,
@@ -1563,14 +1629,13 @@ SDValue WebAssemblyTargetLowering::LowerGlobalAddress(SDValue Op,
                       DAG.getTargetExternalSymbol(BaseName, PtrVT));
 
       SDValue SymAddr = DAG.getNode(
-          WebAssemblyISD::WrapperPIC, DL, VT,
+          WebAssemblyISD::WrapperREL, DL, VT,
           DAG.getTargetGlobalAddress(GA->getGlobal(), DL, VT, GA->getOffset(),
                                      OperandFlags));
 
       return DAG.getNode(ISD::ADD, DL, VT, BaseAddr, SymAddr);
-    } else {
-      OperandFlags = WebAssemblyII::MO_GOT;
     }
+    OperandFlags = WebAssemblyII::MO_GOT;
   }
 
   return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
@@ -1640,21 +1705,6 @@ SDValue WebAssemblyTargetLowering::LowerVASTART(SDValue Op,
                       MachinePointerInfo(SV));
 }
 
-static SDValue getCppExceptionSymNode(SDValue Op, unsigned TagIndex,
-                                      SelectionDAG &DAG) {
-  // We only support C++ exceptions for now
-  int Tag =
-      cast<ConstantSDNode>(Op.getOperand(TagIndex).getNode())->getZExtValue();
-  if (Tag != WebAssembly::CPP_EXCEPTION)
-    llvm_unreachable("Invalid tag: We only support C++ exceptions for now");
-  auto &MF = DAG.getMachineFunction();
-  const auto &TLI = DAG.getTargetLoweringInfo();
-  MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
-  const char *SymName = MF.createExternalSymbolName("__cpp_exception");
-  return DAG.getNode(WebAssemblyISD::Wrapper, SDLoc(Op), PtrVT,
-                     DAG.getTargetExternalSymbol(SymName, PtrVT));
-}
-
 SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
                                                   SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
@@ -1662,10 +1712,10 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
   switch (Op.getOpcode()) {
   case ISD::INTRINSIC_VOID:
   case ISD::INTRINSIC_W_CHAIN:
-    IntNo = cast<ConstantSDNode>(Op.getOperand(1))->getZExtValue();
+    IntNo = Op.getConstantOperandVal(1);
     break;
   case ISD::INTRINSIC_WO_CHAIN:
-    IntNo = cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue();
+    IntNo = Op.getConstantOperandVal(0);
     break;
   default:
     llvm_unreachable("Invalid intrinsic");
@@ -1685,30 +1735,6 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
                                             Twine(MF.getFunctionNumber()));
     return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
                        DAG.getMCSymbol(S, PtrVT));
-  }
-
-  case Intrinsic::wasm_throw: {
-    SDValue SymNode = getCppExceptionSymNode(Op, 2, DAG);
-    return DAG.getNode(WebAssemblyISD::THROW, DL,
-                       MVT::Other, // outchain type
-                       {
-                           Op.getOperand(0), // inchain
-                           SymNode,          // exception symbol
-                           Op.getOperand(3)  // thrown value
-                       });
-  }
-
-  case Intrinsic::wasm_catch: {
-    SDValue SymNode = getCppExceptionSymNode(Op, 2, DAG);
-    return DAG.getNode(WebAssemblyISD::CATCH, DL,
-                       {
-                           MVT::i32,  // outchain type
-                           MVT::Other // return value
-                       },
-                       {
-                           Op.getOperand(0), // inchain
-                           SymNode           // exception symbol
-                       });
   }
 
   case Intrinsic::wasm_shuffle: {
@@ -1774,8 +1800,76 @@ WebAssemblyTargetLowering::LowerSIGN_EXTEND_INREG(SDValue Op,
                      Op.getOperand(1));
 }
 
+static SDValue LowerConvertLow(SDValue Op, SelectionDAG &DAG) {
+  SDLoc DL(Op);
+  if (Op.getValueType() != MVT::v2f64)
+    return SDValue();
+
+  auto GetConvertedLane = [](SDValue Op, unsigned &Opcode, SDValue &SrcVec,
+                             unsigned &Index) -> bool {
+    switch (Op.getOpcode()) {
+    case ISD::SINT_TO_FP:
+      Opcode = WebAssemblyISD::CONVERT_LOW_S;
+      break;
+    case ISD::UINT_TO_FP:
+      Opcode = WebAssemblyISD::CONVERT_LOW_U;
+      break;
+    case ISD::FP_EXTEND:
+      Opcode = WebAssemblyISD::PROMOTE_LOW;
+      break;
+    default:
+      return false;
+    }
+
+    auto ExtractVector = Op.getOperand(0);
+    if (ExtractVector.getOpcode() != ISD::EXTRACT_VECTOR_ELT)
+      return false;
+
+    if (!isa<ConstantSDNode>(ExtractVector.getOperand(1).getNode()))
+      return false;
+
+    SrcVec = ExtractVector.getOperand(0);
+    Index = ExtractVector.getConstantOperandVal(1);
+    return true;
+  };
+
+  unsigned LHSOpcode, RHSOpcode, LHSIndex, RHSIndex;
+  SDValue LHSSrcVec, RHSSrcVec;
+  if (!GetConvertedLane(Op.getOperand(0), LHSOpcode, LHSSrcVec, LHSIndex) ||
+      !GetConvertedLane(Op.getOperand(1), RHSOpcode, RHSSrcVec, RHSIndex))
+    return SDValue();
+
+  if (LHSOpcode != RHSOpcode)
+    return SDValue();
+
+  MVT ExpectedSrcVT;
+  switch (LHSOpcode) {
+  case WebAssemblyISD::CONVERT_LOW_S:
+  case WebAssemblyISD::CONVERT_LOW_U:
+    ExpectedSrcVT = MVT::v4i32;
+    break;
+  case WebAssemblyISD::PROMOTE_LOW:
+    ExpectedSrcVT = MVT::v4f32;
+    break;
+  }
+  if (LHSSrcVec.getValueType() != ExpectedSrcVT)
+    return SDValue();
+
+  auto Src = LHSSrcVec;
+  if (LHSIndex != 0 || RHSIndex != 1 || LHSSrcVec != RHSSrcVec) {
+    // Shuffle the source vector so that the converted lanes are the low lanes.
+    Src = DAG.getVectorShuffle(
+        ExpectedSrcVT, DL, LHSSrcVec, RHSSrcVec,
+        {static_cast<int>(LHSIndex), static_cast<int>(RHSIndex) + 4, -1, -1});
+  }
+  return DAG.getNode(LHSOpcode, DL, MVT::v2f64, Src);
+}
+
 SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
                                                      SelectionDAG &DAG) const {
+  if (auto ConvertLow = LowerConvertLow(Op, DAG))
+    return ConvertLow;
+
   SDLoc DL(Op);
   const EVT VecT = Op.getValueType();
   const EVT LaneT = Op.getOperand(0).getValueType();
@@ -1974,7 +2068,23 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
     SmallVector<SDValue, 16> ConstLanes;
     for (const SDValue &Lane : Op->op_values()) {
       if (IsConstant(Lane)) {
-        ConstLanes.push_back(Lane);
+        // Values may need to be fixed so that they will sign extend to be
+        // within the expected range during ISel. Check whether the value is in
+        // bounds based on the lane bit width and if it is out of bounds, lop
+        // off the extra bits and subtract 2^n to reflect giving the high bit
+        // value -2^(n-1) rather than +2^(n-1). Skip the i64 case because it
+        // cannot possibly be out of range.
+        auto *Const = dyn_cast<ConstantSDNode>(Lane.getNode());
+        int64_t Val = Const ? Const->getSExtValue() : 0;
+        uint64_t LaneBits = 128 / Lanes;
+        assert((LaneBits == 64 || Val >= -(1ll << (LaneBits - 1))) &&
+               "Unexpected out of bounds negative value");
+        if (Const && LaneBits != 64 && Val > (1ll << (LaneBits - 1)) - 1) {
+          auto NewVal = ((uint64_t)Val % (1ll << LaneBits)) - (1ll << LaneBits);
+          ConstLanes.push_back(DAG.getConstant(NewVal, SDLoc(Lane), LaneT));
+        } else {
+          ConstLanes.push_back(Lane);
+        }
       } else if (LaneT.isFloatingPoint()) {
         ConstLanes.push_back(DAG.getConstantFP(0, DL, LaneT));
       } else {
@@ -2227,120 +2337,6 @@ performVectorExtendCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
 }
 
 static SDValue
-performVectorConvertLowCombine(SDNode *N,
-                               TargetLowering::DAGCombinerInfo &DCI) {
-  auto &DAG = DCI.DAG;
-
-  EVT ResVT = N->getValueType(0);
-  if (ResVT != MVT::v2f64)
-    return SDValue();
-
-  auto GetWasmConversionOp = [](unsigned Op) {
-    switch (Op) {
-    case ISD::SINT_TO_FP:
-      return WebAssemblyISD::CONVERT_LOW_S;
-    case ISD::UINT_TO_FP:
-      return WebAssemblyISD::CONVERT_LOW_U;
-    case ISD::FP_EXTEND:
-      return WebAssemblyISD::PROMOTE_LOW;
-    }
-    llvm_unreachable("unexpected op");
-  };
-
-  if (N->getOpcode() == ISD::EXTRACT_SUBVECTOR) {
-    // Combine this:
-    //
-    //   (v2f64 (extract_subvector
-    //     (v4f64 ({s,u}int_to_fp (v4i32 $x))), 0))
-    //
-    // into (f64x2.convert_low_i32x4_{s,u} $x).
-    //
-    // Or this:
-    //
-    //  (v2f64 (extract_subvector
-    //    (v4f64 (fp_extend (v4f32 $x))), 0))
-    //
-    // into (f64x2.promote_low_f32x4 $x).
-    auto Conversion = N->getOperand(0);
-    auto ConversionOp = Conversion.getOpcode();
-    MVT ExpectedSourceType;
-    switch (ConversionOp) {
-    case ISD::SINT_TO_FP:
-    case ISD::UINT_TO_FP:
-      ExpectedSourceType = MVT::v4i32;
-      break;
-    case ISD::FP_EXTEND:
-      ExpectedSourceType = MVT::v4f32;
-      break;
-    default:
-      return SDValue();
-    }
-
-    if (Conversion.getValueType() != MVT::v4f64)
-      return SDValue();
-
-    auto Source = Conversion.getOperand(0);
-    if (Source.getValueType() != ExpectedSourceType)
-      return SDValue();
-
-    auto IndexNode = dyn_cast<ConstantSDNode>(N->getOperand(1));
-    if (IndexNode == nullptr || IndexNode->getZExtValue() != 0)
-      return SDValue();
-
-    auto Op = GetWasmConversionOp(ConversionOp);
-    return DAG.getNode(Op, SDLoc(N), ResVT, Source);
-  }
-
-  // Combine this:
-  //
-  //   (v2f64 ({s,u}int_to_fp
-  //     (v2i32 (extract_subvector (v4i32 $x), 0))))
-  //
-  // into (f64x2.convert_low_i32x4_{s,u} $x).
-  //
-  // Or this:
-  //
-  //   (v2f64 (fp_extend
-  //     (v2f32 (extract_subvector (v4f32 $x), 0))))
-  //
-  // into (f64x2.promote_low_f32x4 $x).
-  auto ConversionOp = N->getOpcode();
-  MVT ExpectedExtractType;
-  MVT ExpectedSourceType;
-  switch (ConversionOp) {
-  case ISD::SINT_TO_FP:
-  case ISD::UINT_TO_FP:
-    ExpectedExtractType = MVT::v2i32;
-    ExpectedSourceType = MVT::v4i32;
-    break;
-  case ISD::FP_EXTEND:
-    ExpectedExtractType = MVT::v2f32;
-    ExpectedSourceType = MVT::v4f32;
-    break;
-  default:
-    llvm_unreachable("unexpected opcode");
-  }
-
-  auto Extract = N->getOperand(0);
-  if (Extract.getOpcode() != ISD::EXTRACT_SUBVECTOR)
-    return SDValue();
-
-  if (Extract.getValueType() != ExpectedExtractType)
-    return SDValue();
-
-  auto Source = Extract.getOperand(0);
-  if (Source.getValueType() != ExpectedSourceType)
-    return SDValue();
-
-  auto *IndexNode = dyn_cast<ConstantSDNode>(Extract.getOperand(1));
-  if (IndexNode == nullptr || IndexNode->getZExtValue() != 0)
-    return SDValue();
-
-  unsigned Op = GetWasmConversionOp(ConversionOp);
-  return DAG.getNode(Op, SDLoc(N), ResVT, Source);
-}
-
-static SDValue
 performVectorTruncZeroCombine(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
   auto &DAG = DCI.DAG;
 
@@ -2470,11 +2466,6 @@ WebAssemblyTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::SIGN_EXTEND:
   case ISD::ZERO_EXTEND:
     return performVectorExtendCombine(N, DCI);
-  case ISD::SINT_TO_FP:
-  case ISD::UINT_TO_FP:
-  case ISD::FP_EXTEND:
-  case ISD::EXTRACT_SUBVECTOR:
-    return performVectorConvertLowCombine(N, DCI);
   case ISD::FP_TO_SINT_SAT:
   case ISD::FP_TO_UINT_SAT:
   case ISD::FP_ROUND:

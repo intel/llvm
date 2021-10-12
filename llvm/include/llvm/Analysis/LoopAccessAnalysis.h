@@ -177,21 +177,11 @@ public:
 
   /// Register the location (instructions are given increasing numbers)
   /// of a write access.
-  void addAccess(StoreInst *SI) {
-    Value *Ptr = SI->getPointerOperand();
-    Accesses[MemAccessInfo(Ptr, true)].push_back(AccessIdx);
-    InstMap.push_back(SI);
-    ++AccessIdx;
-  }
+  void addAccess(StoreInst *SI);
 
   /// Register the location (instructions are given increasing numbers)
   /// of a write access.
-  void addAccess(LoadInst *LI) {
-    Value *Ptr = LI->getPointerOperand();
-    Accesses[MemAccessInfo(Ptr, false)].push_back(AccessIdx);
-    InstMap.push_back(LI);
-    ++AccessIdx;
-  }
+  void addAccess(LoadInst *LI);
 
   /// Check whether the dependencies between the accesses are safe.
   ///
@@ -341,17 +331,21 @@ struct RuntimeCheckingPtrGroup {
   /// pointer, with index \p Index in RtCheck.
   RuntimeCheckingPtrGroup(unsigned Index, RuntimePointerChecking &RtCheck);
 
+  RuntimeCheckingPtrGroup(unsigned Index, const SCEV *Start, const SCEV *End,
+                          unsigned AS)
+      : High(End), Low(Start), AddressSpace(AS) {
+    Members.push_back(Index);
+  }
+
   /// Tries to add the pointer recorded in RtCheck at index
   /// \p Index to this pointer checking group. We can only add a pointer
   /// to a checking group if we will still be able to get
   /// the upper and lower bounds of the check. Returns true in case
   /// of success, false otherwise.
-  bool addPointer(unsigned Index);
+  bool addPointer(unsigned Index, RuntimePointerChecking &RtCheck);
+  bool addPointer(unsigned Index, const SCEV *Start, const SCEV *End,
+                  unsigned AS, ScalarEvolution &SE);
 
-  /// Constitutes the context of this pointer checking group. For each
-  /// pointer that is a member of this group we will retain the index
-  /// at which it appears in RtCheck.
-  RuntimePointerChecking &RtCheck;
   /// The SCEV expression which represents the upper bound of all the
   /// pointers in this group.
   const SCEV *High;
@@ -360,6 +354,8 @@ struct RuntimeCheckingPtrGroup {
   const SCEV *Low;
   /// Indices of all the pointers that constitute this grouping.
   SmallVector<unsigned, 2> Members;
+  /// Address space of the involved pointers.
+  unsigned AddressSpace;
 };
 
 /// A memcheck which made up of a pair of grouped pointers.
@@ -658,15 +654,14 @@ Value *stripIntegerCast(Value *V);
 /// If necessary this method will version the stride of the pointer according
 /// to \p PtrToStride and therefore add further predicates to \p PSE.
 ///
-/// If \p OrigPtr is not null, use it to look up the stride value instead of \p
-/// Ptr.  \p PtrToStride provides the mapping between the pointer value and its
+/// \p PtrToStride provides the mapping between the pointer value and its
 /// stride as collected by LoopVectorizationLegality::collectStridedAccess.
 const SCEV *replaceSymbolicStrideSCEV(PredicatedScalarEvolution &PSE,
                                       const ValueToValueMap &PtrToStride,
-                                      Value *Ptr, Value *OrigPtr = nullptr);
+                                      Value *Ptr);
 
-/// If the pointer has a constant stride return it in units of its
-/// element size.  Otherwise return zero.
+/// If the pointer has a constant stride return it in units of the access type
+/// size.  Otherwise return zero.
 ///
 /// Ensure that it does not wrap in the address space, assuming the predicate
 /// associated with \p PSE is true.
@@ -675,7 +670,8 @@ const SCEV *replaceSymbolicStrideSCEV(PredicatedScalarEvolution &PSE,
 /// to \p PtrToStride and therefore add further predicates to \p PSE.
 /// The \p Assume parameter indicates if we are allowed to make additional
 /// run-time assumptions.
-int64_t getPtrStride(PredicatedScalarEvolution &PSE, Value *Ptr, const Loop *Lp,
+int64_t getPtrStride(PredicatedScalarEvolution &PSE, Type *AccessTy, Value *Ptr,
+                     const Loop *Lp,
                      const ValueToValueMap &StridesMap = ValueToValueMap(),
                      bool Assume = false, bool ShouldCheckWrap = true);
 

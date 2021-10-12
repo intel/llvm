@@ -338,14 +338,6 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
       return;
     }
 
-    // Deprecate [[intel::reqd_work_group_size]] attribute spelling in favor
-    // of the SYCL 2020 attribute spelling [[sycl::reqd_work_group_size]].
-    if (A.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && A.hasScope() &&
-        A.getScopeName()->isStr("intel")) {
-      DiagnoseDeprecatedAttribute(A, "sycl", NewName);
-      return;
-    }
-
     // All GNU-style spellings are deprecated in favor of a C++-style spelling.
     if (A.getSyntax() == ParsedAttr::AS_GNU) {
       // Note: we cannot suggest an automatic fix-it because GNU-style
@@ -369,15 +361,6 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
   if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && A.hasScope() &&
       A.getScopeName()->isStr("sycl")) {
     Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
-    return;
-  }
-
-  // All attributes in the intelfpga vendor namespace are deprecated in favor
-  // of a name in the intel vendor namespace. By default, assume the attribute
-  // retains its original name but changes the namespace. However, some
-  // attributes were renamed, so we support supplying a new name as well.
-  if (A.hasScope() && A.getScopeName()->isStr("intelfpga")) {
-    DiagnoseDeprecatedAttribute(A, "intel", NewName);
     return;
   }
 }
@@ -1038,6 +1021,14 @@ static void handleEnableIfAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   StringRef Msg;
   if (checkFunctionConditionAttr(S, D, AL, Cond, Msg))
     D->addAttr(::new (S.Context) EnableIfAttr(S.Context, AL, Cond, Msg));
+}
+
+static void handleErrorAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef NewUserDiagnostic;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, NewUserDiagnostic))
+    return;
+  if (ErrorAttr *EA = S.mergeErrorAttr(D, AL, NewUserDiagnostic))
+    D->addAttr(EA);
 }
 
 namespace {
@@ -3141,29 +3132,6 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
 
   S.CheckDeprecatedSYCLAttributeSpelling(AL);
-
-  Expr *XDimExpr = AL.getArgAsExpr(0);
-
-  // If no attribute argument is specified, set the second and third argument
-  // to the default value 1, but only if the sycl:: or intel::
-  // reqd_work_group_size spelling was used.
-  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL, SourceLocation loc) {
-    Expr *E =
-        (AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
-         (AL.getScopeName()->isStr("sycl") ||
-          AL.getScopeName()->isStr("intel")))
-            ? IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
-                                     S.Context.IntTy, AL.getLoc())
-            : nullptr;
-    return E;
-  };
-
-  Expr *YDimExpr = AL.isArgExpr(1) ? AL.getArgAsExpr(1)
-                                   : SetDefaultValue(S, AL, AL.getLoc());
-
-  Expr *ZDimExpr = AL.isArgExpr(2) ? AL.getArgAsExpr(2)
-                                   : SetDefaultValue(S, AL, AL.getLoc());
-
   // __attribute__((reqd_work_group_size)), [[cl::reqd_work_group_size]], and
   // [[intel::max_work_group_size]] all require exactly three arguments.
   if ((AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize &&
@@ -3174,6 +3142,24 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (!AL.checkExactlyNumArgs(S, 3))
       return;
   }
+
+  Expr *XDimExpr = AL.getArgAsExpr(0);
+
+  // If no attribute argument is specified, set the second and third argument
+  // to the default value 1, but only if the sycl::reqd_work_group_size
+  // spelling was used.
+  auto SetDefaultValue = [](Sema &S, const ParsedAttr &AL) {
+    assert(AL.getKind() == ParsedAttr::AT_ReqdWorkGroupSize && AL.hasScope() &&
+           AL.getScopeName()->isStr("sycl"));
+    return IntegerLiteral::Create(S.Context, llvm::APInt(32, 1),
+                                  S.Context.IntTy, AL.getLoc());
+  };
+
+  Expr *YDimExpr =
+      AL.isArgExpr(1) ? AL.getArgAsExpr(1) : SetDefaultValue(S, AL);
+
+  Expr *ZDimExpr =
+      AL.isArgExpr(2) ? AL.getArgAsExpr(2) : SetDefaultValue(S, AL);
 
   ASTContext &Ctx = S.getASTContext();
 
@@ -3562,8 +3548,6 @@ SYCLIntelNumSimdWorkItemsAttr *Sema::MergeSYCLIntelNumSimdWorkItemsAttr(
 
 static void handleSYCLIntelNumSimdWorkItemsAttr(Sema &S, Decl *D,
                                                 const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   Expr *E = A.getArgAsExpr(0);
   S.AddSYCLIntelNumSimdWorkItemsAttr(D, A, E);
 }
@@ -3586,7 +3570,6 @@ static void handleUseStallEnableClustersAttr(Sema &S, Decl *D,
 // Handles disable_loop_pipelining attribute.
 static void handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Decl *D,
                                                          const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
   D->addAttr(::new (S.Context)
                  SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A));
 }
@@ -3731,8 +3714,6 @@ Sema::MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
 
 static void handleSYCLIntelSchedulerTargetFmaxMhzAttr(Sema &S, Decl *D,
                                                       const ParsedAttr &AL) {
-  S.CheckDeprecatedSYCLAttributeSpelling(AL);
-
   Expr *E = AL.getArgAsExpr(0);
   S.AddSYCLIntelSchedulerTargetFmaxMhzAttr(D, AL, E);
 }
@@ -3858,8 +3839,6 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
 
 static void handleSYCLIntelMaxGlobalWorkDimAttr(Sema &S, Decl *D,
                                                 const ParsedAttr &AL) {
-  S.CheckDeprecatedSYCLAttributeSpelling(AL);
-
   Expr *E = AL.getArgAsExpr(0);
   S.AddSYCLIntelMaxGlobalWorkDimAttr(D, AL, E);
 }
@@ -3946,8 +3925,6 @@ Sema::MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A) {
 }
 
 static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   // If no attribute argument is specified, set to default value '1'.
   Expr *E = A.isArgExpr(0)
                 ? A.getArgAsExpr(0)
@@ -4384,6 +4361,29 @@ static void handleInitPriorityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
   D->addAttr(::new (S.Context) InitPriorityAttr(S.Context, AL, prioritynum));
+}
+
+ErrorAttr *Sema::mergeErrorAttr(Decl *D, const AttributeCommonInfo &CI,
+                                StringRef NewUserDiagnostic) {
+  if (const auto *EA = D->getAttr<ErrorAttr>()) {
+    std::string NewAttr = CI.getNormalizedFullName();
+    assert((NewAttr == "error" || NewAttr == "warning") &&
+           "unexpected normalized full name");
+    bool Match = (EA->isError() && NewAttr == "error") ||
+                 (EA->isWarning() && NewAttr == "warning");
+    if (!Match) {
+      Diag(EA->getLocation(), diag::err_attributes_are_not_compatible)
+          << CI << EA;
+      Diag(CI.getLoc(), diag::note_conflicting_attribute);
+      return nullptr;
+    }
+    if (EA->getUserDiagnostic() != NewUserDiagnostic) {
+      Diag(CI.getLoc(), diag::warn_duplicate_attribute) << EA;
+      Diag(EA->getLoc(), diag::note_previous_attribute);
+    }
+    D->dropAttr<ErrorAttr>();
+  }
+  return ::new (Context) ErrorAttr(Context, CI, NewUserDiagnostic);
 }
 
 FormatAttr *Sema::mergeFormatAttr(Decl *D, const AttributeCommonInfo &CI,
@@ -4988,15 +4988,26 @@ void Sema::AddAlignedAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E,
     return;
   }
 
-  if (Context.getTargetInfo().isTLSSupported()) {
+  const auto *VD = dyn_cast<VarDecl>(D);
+  if (VD && Context.getTargetInfo().isTLSSupported()) {
     unsigned MaxTLSAlign =
         Context.toCharUnitsFromBits(Context.getTargetInfo().getMaxTLSAlign())
             .getQuantity();
-    const auto *VD = dyn_cast<VarDecl>(D);
-    if (MaxTLSAlign && AlignVal > MaxTLSAlign && VD &&
+    if (MaxTLSAlign && AlignVal > MaxTLSAlign &&
         VD->getTLSKind() != VarDecl::TLS_None) {
       Diag(VD->getLocation(), diag::err_tls_var_aligned_over_maximum)
           << (unsigned)AlignVal << VD << MaxTLSAlign;
+      return;
+    }
+  }
+
+  // On AIX, an aligned attribute can not decrease the alignment when applied
+  // to a variable declaration with vector type.
+  if (VD && Context.getTargetInfo().getTriple().isOSAIX()) {
+    const Type *Ty = VD->getType().getTypePtr();
+    if (Ty->isVectorType() && AlignVal < 16) {
+      Diag(VD->getLocation(), diag::warn_aligned_attr_underaligned)
+          << VD->getType() << 16;
       return;
     }
   }
@@ -5769,7 +5780,7 @@ static void handleLifetimeCategoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   // To check if earlier decl attributes do not conflict the newly parsed ones
-  // we always add (and check) the attribute to the cannonical decl. We need
+  // we always add (and check) the attribute to the canonical decl. We need
   // to repeat the check for attribute mutual exclusion because we're attaching
   // all of the attributes to the canonical declaration rather than the current
   // declaration.
@@ -6285,8 +6296,6 @@ SYCLIntelNoGlobalWorkOffsetAttr *Sema::MergeSYCLIntelNoGlobalWorkOffsetAttr(
 
 static void handleSYCLIntelNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
                                                   const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   // If no attribute argument is specified, set to default value '1'.
   Expr *E = A.isArgExpr(0)
                 ? A.getArgAsExpr(0)
@@ -6296,7 +6305,7 @@ static void handleSYCLIntelNoGlobalWorkOffsetAttr(Sema &S, Decl *D,
   S.AddSYCLIntelNoGlobalWorkOffsetAttr(D, A, E);
 }
 
-/// Handle the [[intelfpga::doublepump]] and [[intelfpga::singlepump]]
+/// Handle the [[intel::doublepump]] and [[intel::singlepump]]
 /// attributes.
 template <typename AttrType>
 static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &A) {
@@ -6306,13 +6315,11 @@ static void handleIntelFPGAPumpAttr(Sema &S, Decl *D, const ParsedAttr &A) {
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
         S.Context, IntelFPGAMemoryAttr::Default));
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   handleSimpleAttribute<AttrType>(S, D, A);
 }
 
-/// Handle the [[intelfpga::memory]] attribute.
-/// This is incompatible with the [[intelfpga::register]] attribute.
+/// Handle the [[intel::fpga_memory]] attribute.
+/// This is incompatible with the [[intel::fpga_register]] attribute.
 static void handleIntelFPGAMemoryAttr(Sema &S, Decl *D,
                                       const ParsedAttr &AL) {
   checkForDuplicateAttribute<IntelFPGAMemoryAttr>(S, D, AL);
@@ -6341,8 +6348,6 @@ static void handleIntelFPGAMemoryAttr(Sema &S, Decl *D,
     if (MA->isImplicit())
       D->dropAttr<IntelFPGAMemoryAttr>();
 
-  S.CheckDeprecatedSYCLAttributeSpelling(AL, "fpga_memory");
-
   D->addAttr(::new (S.Context) IntelFPGAMemoryAttr(S.Context, AL, Kind));
 }
 
@@ -6355,41 +6360,188 @@ static bool checkIntelFPGARegisterAttrCompatibility(Sema &S, Decl *D,
     if (!MA->isImplicit() &&
         checkAttrMutualExclusion<IntelFPGAMemoryAttr>(S, D, Attr))
       InCompat = true;
-  if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>())
-    if (!NBA->isImplicit() &&
-        checkAttrMutualExclusion<IntelFPGANumBanksAttr>(S, D, Attr))
-      InCompat = true;
 
   return InCompat;
 }
 
-/// Handle the [[intelfpga::register]] attribute.
+/// Handle the [[intel::fpga_register]] attribute.
 /// This is incompatible with most of the other memory attributes.
 static void handleIntelFPGARegisterAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   checkForDuplicateAttribute<IntelFPGARegisterAttr>(S, D, A);
   if (checkIntelFPGARegisterAttrCompatibility(S, D, A))
     return;
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A, "fpga_register");
-
   handleSimpleAttribute<IntelFPGARegisterAttr>(S, D, A);
 }
 
-/// Handle the [[intelfpga::bankwidth]] and [[intelfpga::numbanks]] attributes.
+/// Handle the [[intel::bankwidth]] and [[intel::numbanks]] attributes.
 /// These require a single constant power of two greater than zero.
 /// These are incompatible with the register attribute.
 /// The numbanks and bank_bits attributes are related.  If bank_bits exists
 /// when handling numbanks they are checked for consistency.
-template <typename AttrType>
-static void handleOneConstantPowerTwoValueAttr(Sema &S, Decl *D,
-                                               const ParsedAttr &A) {
-  checkForDuplicateAttribute<AttrType>(S, D, A);
-  if (checkAttrMutualExclusion<IntelFPGARegisterAttr>(S, D, A))
-    return;
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+void Sema::AddIntelFPGABankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
 
-  S.AddOneConstantPowerTwoValueAttr<AttrType>(D, A, A.getArgAsExpr(0));
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
+
+    // This attribute requires a single constant power of two greater than zero.
+    if (!ArgVal.isPowerOf2()) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_not_power_of_two)
+          << CI;
+      return;
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<IntelFPGABankWidthAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        Context, IntelFPGAMemoryAttr::Default));
+
+  D->addAttr(::new (Context) IntelFPGABankWidthAttr(Context, CI, E));
+}
+
+IntelFPGABankWidthAttr *
+Sema::MergeIntelFPGABankWidthAttr(Decl *D, const IntelFPGABankWidthAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelFPGABankWidthAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+
+  return ::new (Context) IntelFPGABankWidthAttr(Context, A, A.getValue());
+}
+
+static void handleIntelFPGABankWidthAttr(Sema &S, Decl *D,
+                                         const ParsedAttr &A) {
+  S.AddIntelFPGABankWidthAttr(D, A, A.getArgAsExpr(0));
+}
+
+void Sema::AddIntelFPGANumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *E) {
+  if (!E->isValueDependent()) {
+    // Validate that we have an integer constant expression and then store the
+    // converted constant expression into the semantic attribute so that we
+    // don't have to evaluate it again later.
+    llvm::APSInt ArgVal;
+    ExprResult Res = VerifyIntegerConstantExpression(E, &ArgVal);
+    if (Res.isInvalid())
+      return;
+    E = Res.get();
+
+    // This attribute requires a strictly positive value.
+    if (ArgVal <= 0) {
+      Diag(E->getExprLoc(), diag::err_attribute_requires_positive_integer)
+          << CI << /*positive*/ 0;
+      return;
+    }
+
+    // This attribute requires a single constant power of two greater than zero.
+    if (!ArgVal.isPowerOf2()) {
+      Diag(E->getExprLoc(), diag::err_attribute_argument_not_power_of_two)
+          << CI;
+      return;
+    }
+
+    // Check or add the related BankBits attribute.
+    if (auto *BBA = D->getAttr<IntelFPGABankBitsAttr>()) {
+      unsigned NumBankBits = BBA->args_size();
+      if (NumBankBits != ArgVal.ceilLogBase2()) {
+        Diag(E->getExprLoc(), diag::err_bankbits_numbanks_conflicting) << CI;
+        return;
+      }
+    }
+
+    // Check to see if there's a duplicate attribute with different values
+    // already applied to the declaration.
+    if (const auto *DeclAttr = D->getAttr<IntelFPGANumBanksAttr>()) {
+      // If the other attribute argument is instantiation dependent, we won't
+      // have converted it to a constant expression yet and thus we test
+      // whether this is a null pointer.
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue())) {
+        if (ArgVal != DeclExpr->getResultAsAPSInt()) {
+          Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
+          Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
+        }
+        // Drop the duplicate attribute.
+        return;
+      }
+    }
+  }
+
+  // If the declaration does not have an [[intel::fpga_memory]]
+  // attribute, this creates one as an implicit attribute.
+  if (!D->hasAttr<IntelFPGAMemoryAttr>())
+    D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
+        Context, IntelFPGAMemoryAttr::Default));
+
+  // We are adding a user NumBanks attribute, drop any implicit default.
+  if (auto *NBA = D->getAttr<IntelFPGANumBanksAttr>()) {
+    if (NBA->isImplicit())
+      D->dropAttr<IntelFPGANumBanksAttr>();
+  }
+
+  D->addAttr(::new (Context) IntelFPGANumBanksAttr(Context, CI, E));
+}
+
+IntelFPGANumBanksAttr *
+Sema::MergeIntelFPGANumBanksAttr(Decl *D, const IntelFPGANumBanksAttr &A) {
+  // Check to see if there's a duplicate attribute with different values
+  // already applied to the declaration.
+  if (const auto *DeclAttr = D->getAttr<IntelFPGANumBanksAttr>()) {
+    const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getValue());
+    const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
+    if (DeclExpr && MergeExpr &&
+        DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
+      Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
+      Diag(A.getLoc(), diag::note_previous_attribute);
+      return nullptr;
+    }
+  }
+
+  return ::new (Context) IntelFPGANumBanksAttr(Context, A, A.getValue());
+}
+
+static void handleIntelFPGANumBanksAttr(Sema &S, Decl *D, const ParsedAttr &A) {
+  S.AddIntelFPGANumBanksAttr(D, A, A.getArgAsExpr(0));
 }
 
 static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
@@ -6399,8 +6551,6 @@ static void handleIntelFPGASimpleDualPortAttr(Sema &S, Decl *D,
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
         S.Context, IntelFPGAMemoryAttr::Default));
-
-  S.CheckDeprecatedSYCLAttributeSpelling(AL);
 
   D->addAttr(::new (S.Context)
                  IntelFPGASimpleDualPortAttr(S.Context, AL));
@@ -6472,8 +6622,6 @@ Sema::MergeIntelFPGAMaxReplicatesAttr(Decl *D,
 
 static void handleIntelFPGAMaxReplicatesAttr(Sema &S, Decl *D,
                                              const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   S.AddIntelFPGAMaxReplicatesAttr(D, A, A.getArgAsExpr(0));
 }
 
@@ -6501,8 +6649,6 @@ static void handleIntelFPGAMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
         S.Context, IntelFPGAMemoryAttr::Default));
 
-  S.CheckDeprecatedSYCLAttributeSpelling(AL);
-
   D->addAttr(::new (S.Context)
                  IntelFPGAMergeAttr(S.Context, AL, Results[0], Results[1]));
 }
@@ -6525,8 +6671,6 @@ static void handleIntelFPGABankBitsAttr(Sema &S, Decl *D, const ParsedAttr &A) {
   for (unsigned I = 0; I < A.getNumArgs(); ++I) {
     Args.push_back(A.getArgAsExpr(I));
   }
-
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
 
   S.AddIntelFPGABankBitsAttr(D, A, Args.data(), Args.size());
 }
@@ -6628,7 +6772,7 @@ void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
     }
   }
 
-  // If the declaration does not have [[intel::memory]]
+  // If the declaration does not have [[intel::fpga_memory]]
   // attribute, this creates default implicit memory.
   if (!D->hasAttr<IntelFPGAMemoryAttr>())
     D->addAttr(IntelFPGAMemoryAttr::CreateImplicit(
@@ -6639,8 +6783,6 @@ void Sema::AddIntelFPGAPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
 
 static void handleIntelFPGAPrivateCopiesAttr(Sema &S, Decl *D,
                                              const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   S.AddIntelFPGAPrivateCopiesAttr(D, A, A.getArgAsExpr(0));
 }
 
@@ -6713,8 +6855,6 @@ Sema::MergeIntelFPGAForcePow2DepthAttr(Decl *D,
 
 static void handleIntelFPGAForcePow2DepthAttr(Sema &S, Decl *D,
                                               const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   S.AddIntelFPGAForcePow2DepthAttr(D, A, A.getArgAsExpr(0));
 }
 
@@ -6842,8 +6982,6 @@ void Sema::AddSYCLIntelFPGAMaxConcurrencyAttr(Decl *D,
 
 static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
                                                   const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
-
   Expr *E = A.getArgAsExpr(0);
   S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
 }
@@ -7698,7 +7836,7 @@ validateSwiftFunctionName(Sema &S, const ParsedAttr &AL, SourceLocation Loc,
   if (BaseName.empty()) {
     BaseName = ContextName;
     ContextName = StringRef();
-  } else if (ContextName.empty() || !isValidIdentifier(ContextName)) {
+  } else if (ContextName.empty() || !isValidAsciiIdentifier(ContextName)) {
     S.Diag(Loc, diag::warn_attr_swift_name_invalid_identifier)
         << AL << /*context*/ 1;
     return false;
@@ -7706,7 +7844,7 @@ validateSwiftFunctionName(Sema &S, const ParsedAttr &AL, SourceLocation Loc,
     IsMember = true;
   }
 
-  if (!isValidIdentifier(BaseName) || BaseName == "_") {
+  if (!isValidAsciiIdentifier(BaseName) || BaseName == "_") {
     S.Diag(Loc, diag::warn_attr_swift_name_invalid_identifier)
         << AL << /*basename*/ 0;
     return false;
@@ -7756,7 +7894,7 @@ validateSwiftFunctionName(Sema &S, const ParsedAttr &AL, SourceLocation Loc,
   do {
     std::tie(CurrentParam, Parameters) = Parameters.split(':');
 
-    if (!isValidIdentifier(CurrentParam)) {
+    if (!isValidAsciiIdentifier(CurrentParam)) {
       S.Diag(Loc, diag::warn_attr_swift_name_invalid_identifier)
           << AL << /*parameter*/2;
       return false;
@@ -7925,13 +8063,13 @@ bool Sema::DiagnoseSwiftName(Decl *D, StringRef Name, SourceLocation Loc,
     if (BaseName.empty()) {
       BaseName = ContextName;
       ContextName = StringRef();
-    } else if (!isValidIdentifier(ContextName)) {
+    } else if (!isValidAsciiIdentifier(ContextName)) {
       Diag(Loc, diag::warn_attr_swift_name_invalid_identifier) << AL
           << /*context*/1;
       return false;
     }
 
-    if (!isValidIdentifier(BaseName)) {
+    if (!isValidAsciiIdentifier(BaseName)) {
       Diag(Loc, diag::warn_attr_swift_name_invalid_identifier) << AL
           << /*basename*/0;
       return false;
@@ -8464,6 +8602,30 @@ static void handleBPFPreserveAccessIndexAttr(Sema &S, Decl *D,
   auto *Rec = cast<RecordDecl>(D);
   handleBPFPreserveAIRecord(S, Rec);
   Rec->addAttr(::new (S.Context) BPFPreserveAccessIndexAttr(S.Context, AL));
+}
+
+static bool hasBTFTagAttr(Decl *D, StringRef Tag) {
+  for (const auto *I : D->specific_attrs<BTFTagAttr>()) {
+    if (I->getBTFTag() == Tag)
+      return true;
+  }
+  return false;
+}
+
+static void handleBTFTagAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  StringRef Str;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Str))
+    return;
+  if (hasBTFTagAttr(D, Str))
+    return;
+
+  D->addAttr(::new (S.Context) BTFTagAttr(S.Context, AL, Str));
+}
+
+BTFTagAttr *Sema::mergeBTFTagAttr(Decl *D, const BTFTagAttr &AL) {
+  if (hasBTFTagAttr(D, AL.getBTFTag()))
+    return nullptr;
+  return ::new (Context) BTFTagAttr(Context, AL, AL.getBTFTag());
 }
 
 static void handleWebAssemblyExportNameAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -9069,7 +9231,7 @@ static void handleNoSanitizeSpecificAttr(Sema &S, Decl *D,
   // index rather than incorrectly assume the index for NoSanitizeSpecificAttr
   // has the same spellings as the index for NoSanitizeAttr. We don't have a
   // general way to "translate" between the two, so this hack attempts to work
-  // around the issue with hard-coded indicies. This is critical for calling
+  // around the issue with hard-coded indices. This is critical for calling
   // getSpelling() or prettyPrint() on the resulting semantic attribute object
   // without failing assertions.
   unsigned TranslatedSpellingIndex = 0;
@@ -9088,12 +9250,12 @@ static void handleInternalLinkageAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 }
 
 static void handleOpenCLNoSVMAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (S.LangOpts.OpenCLVersion != 200)
+  if (S.LangOpts.getOpenCLCompatibleVersion() < 200)
     S.Diag(AL.getLoc(), diag::err_attribute_requires_opencl_version)
-        << AL << "2.0" << 0;
+        << AL << "2.0" << 1;
   else
-    S.Diag(AL.getLoc(), diag::warn_opencl_attr_deprecated_ignored) << AL
-                                                                   << "2.0";
+    S.Diag(AL.getLoc(), diag::warn_opencl_attr_deprecated_ignored)
+        << AL << S.LangOpts.getOpenCLVersionString();
 }
 
 static void handleOpenCLAccessAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -9121,18 +9283,17 @@ static void handleOpenCLAccessAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // OpenCL v3.0 s6.8 - For OpenCL C 2.0, or with the
   // __opencl_c_read_write_images feature, image objects specified as arguments
   // to a kernel can additionally be declared to be read-write.
-  // C++ for OpenCL inherits rule from OpenCL C v2.0.
+  // C++ for OpenCL 1.0 inherits rule from OpenCL C v2.0.
+  // C++ for OpenCL 2021 inherits rule from OpenCL C v3.0.
   if (const auto *PDecl = dyn_cast<ParmVarDecl>(D)) {
     const Type *DeclTy = PDecl->getType().getCanonicalType().getTypePtr();
     if (AL.getAttrName()->getName().find("read_write") != StringRef::npos) {
-      bool ReadWriteImagesUnsupportedForOCLC =
-          (S.getLangOpts().OpenCLVersion < 200) ||
-          (S.getLangOpts().OpenCLVersion == 300 &&
+      bool ReadWriteImagesUnsupported =
+          (S.getLangOpts().getOpenCLCompatibleVersion() < 200) ||
+          (S.getLangOpts().getOpenCLCompatibleVersion() == 300 &&
            !S.getOpenCLOptions().isSupported("__opencl_c_read_write_images",
                                              S.getLangOpts()));
-      if ((!S.getLangOpts().OpenCLCPlusPlus &&
-           ReadWriteImagesUnsupportedForOCLC) ||
-          DeclTy->isPipeType()) {
+      if (ReadWriteImagesUnsupported || DeclTy->isPipeType()) {
         S.Diag(AL.getLoc(), diag::err_opencl_invalid_read_write)
             << AL << PDecl->getType() << DeclTy->isImageType();
         D->setInvalidDecl(true);
@@ -9153,7 +9314,7 @@ static void handleSYCLKernelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Function template must have at least two template parameters so it
   // can be used in OpenCL kernel generation.
   const TemplateParameterList *TL = FT->getTemplateParameters();
-  if (S.LangOpts.SYCLIsDevice && TL->size() < 2) {
+  if (TL->size() < 2) {
     S.Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_template_params);
     return;
   }
@@ -9515,6 +9676,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case ParsedAttr::AT_BPFPreserveAccessIndex:
     handleBPFPreserveAccessIndexAttr(S, D, AL);
     break;
+  case ParsedAttr::AT_BTFTag:
+    handleBTFTagAttr(S, D, AL);
+    break;
   case ParsedAttr::AT_WebAssemblyExportName:
     handleWebAssemblyExportNameAttr(S, D, AL);
     break;
@@ -9587,6 +9751,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_EnableIf:
     handleEnableIfAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_Error:
+    handleErrorAttr(S, D, AL);
     break;
   case ParsedAttr::AT_DiagnoseIf:
     handleDiagnoseIfAttr(S, D, AL);
@@ -10060,10 +10227,10 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     handleIntelFPGARegisterAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGABankWidth:
-    handleOneConstantPowerTwoValueAttr<IntelFPGABankWidthAttr>(S, D, AL);
+    handleIntelFPGABankWidthAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGANumBanks:
-    handleOneConstantPowerTwoValueAttr<IntelFPGANumBanksAttr>(S, D, AL);
+    handleIntelFPGANumBanksAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IntelFPGAPrivateCopies:
     handleIntelFPGAPrivateCopiesAttr(S, D, AL);
@@ -10338,8 +10505,9 @@ NamedDecl * Sema::DeclClonePragmaWeak(NamedDecl *ND, IdentifierInfo *II,
     NewFD = FunctionDecl::Create(
         FD->getASTContext(), FD->getDeclContext(), Loc, Loc,
         DeclarationName(II), FD->getType(), FD->getTypeSourceInfo(), SC_None,
-        false /*isInlineSpecified*/, FD->hasPrototype(),
-        ConstexprSpecKind::Unspecified, FD->getTrailingRequiresClause());
+        getCurFPFeatures().isFPConstrained(), false /*isInlineSpecified*/,
+        FD->hasPrototype(), ConstexprSpecKind::Unspecified,
+        FD->getTrailingRequiresClause());
     NewD = NewFD;
 
     if (FD->getQualifier())

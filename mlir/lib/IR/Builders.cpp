@@ -53,6 +53,8 @@ IndexType Builder::getIndexType() { return IndexType::get(context); }
 
 IntegerType Builder::getI1Type() { return IntegerType::get(context, 1); }
 
+IntegerType Builder::getI8Type() { return IntegerType::get(context, 8); }
+
 IntegerType Builder::getI32Type() { return IntegerType::get(context, 32); }
 
 IntegerType Builder::getI64Type() { return IntegerType::get(context, 64); }
@@ -206,21 +208,6 @@ StringAttr Builder::getStringAttr(const Twine &bytes) {
 
 ArrayAttr Builder::getArrayAttr(ArrayRef<Attribute> value) {
   return ArrayAttr::get(context, value);
-}
-
-FlatSymbolRefAttr Builder::getSymbolRefAttr(Operation *value) {
-  auto symName =
-      value->getAttrOfType<StringAttr>(SymbolTable::getSymbolAttrName());
-  assert(symName && "value does not have a valid symbol name");
-  return getSymbolRefAttr(symName.getValue());
-}
-FlatSymbolRefAttr Builder::getSymbolRefAttr(StringRef value) {
-  return SymbolRefAttr::get(getContext(), value);
-}
-SymbolRefAttr
-Builder::getSymbolRefAttr(StringRef value,
-                          ArrayRef<FlatSymbolRefAttr> nestedReferences) {
-  return SymbolRefAttr::get(getContext(), value, nestedReferences);
 }
 
 ArrayAttr Builder::getBoolArrayAttr(ArrayRef<bool> values) {

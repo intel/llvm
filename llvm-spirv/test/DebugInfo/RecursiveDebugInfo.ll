@@ -52,7 +52,7 @@
 ; CHECK: [[FNC_TY1]] = !DIDerivedType(tag: DW_TAG_typedef, name: "vec_it", {{.+}}, baseType: [[IT_VEC]])
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" = type { i8 }
 %struct._ZTS8iteratorI6vectorE.iterator = type { i32 addrspace(4)* }

@@ -35,9 +35,10 @@ Expr<SomeType> Parenthesize(Expr<SomeType> &&expr) {
   return std::visit(
       [&](auto &&x) {
         using T = std::decay_t<decltype(x)>;
-        if constexpr (common::HasMember<T, TypelessExpression> ||
-            std::is_same_v<T, Expr<SomeDerived>>) {
-          return expr; // no parentheses around typeless or derived type
+        if constexpr (common::HasMember<T, TypelessExpression>) {
+          return expr; // no parentheses around typeless
+        } else if constexpr (std::is_same_v<T, Expr<SomeDerived>>) {
+          return AsGenericExpr(Parentheses<SomeDerived>{std::move(x)});
         } else {
           return std::visit(
               [](auto &&y) {
@@ -48,6 +49,15 @@ Expr<SomeType> Parenthesize(Expr<SomeType> &&expr) {
         }
       },
       std::move(expr.u));
+}
+
+std::optional<DataRef> ExtractDataRef(
+    const ActualArgument &arg, bool intoSubstring) {
+  if (const Expr<SomeType> *expr{arg.UnwrapExpr()}) {
+    return ExtractDataRef(*expr, intoSubstring);
+  } else {
+    return std::nullopt;
+  }
 }
 
 std::optional<DataRef> ExtractSubstringBase(const Substring &substring) {
@@ -665,6 +675,11 @@ std::optional<Expr<SomeType>> ConvertToType(
 }
 
 bool IsAssumedRank(const Symbol &original) {
+  if (const auto *assoc{original.detailsIf<semantics::AssocEntityDetails>()}) {
+    if (assoc->rank()) {
+      return false; // in SELECT RANK case
+    }
+  }
   const Symbol &symbol{semantics::ResolveAssociations(original)};
   if (const auto *details{symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
     return details->IsAssumedRank();
@@ -681,6 +696,13 @@ bool IsAssumedRank(const ActualArgument &arg) {
     CHECK(assumedTypeDummy);
     return IsAssumedRank(*assumedTypeDummy);
   }
+}
+
+bool IsCoarray(const ActualArgument &arg) {
+  if (const auto *expr{arg.UnwrapExpr()}) {
+    return IsCoarray(*expr);
+  }
+  return false;
 }
 
 bool IsProcedure(const Expr<SomeType> &expr) {
@@ -735,18 +757,23 @@ bool IsObjectPointer(const Expr<SomeType> &expr, FoldingContext &context) {
 }
 
 // IsNullPointer()
-struct IsNullPointerHelper : public AllTraverse<IsNullPointerHelper, false> {
-  using Base = AllTraverse<IsNullPointerHelper, false>;
-  IsNullPointerHelper() : Base(*this) {}
-  using Base::operator();
-  bool operator()(const ProcedureRef &call) const {
-    auto *intrinsic{call.proc().GetSpecificIntrinsic()};
+struct IsNullPointerHelper {
+  template <typename A> bool operator()(const A &) const { return false; }
+  template <typename T> bool operator()(const FunctionRef<T> &call) const {
+    const auto *intrinsic{call.proc().GetSpecificIntrinsic()};
     return intrinsic &&
         intrinsic->characteristics.value().attrs.test(
             characteristics::Procedure::Attr::NullPointer);
   }
   bool operator()(const NullPointer &) const { return true; }
+  template <typename T> bool operator()(const Parentheses<T> &x) const {
+    return (*this)(x.left());
+  }
+  template <typename T> bool operator()(const Expr<T> &x) const {
+    return std::visit(*this, x.u);
+  }
 };
+
 bool IsNullPointer(const Expr<SomeType> &expr) {
   return IsNullPointerHelper{}(expr);
 }
@@ -1136,6 +1163,7 @@ bool IsDummy(const Symbol &symbol) {
       common::visitors{[](const EntityDetails &x) { return x.isDummy(); },
           [](const ObjectEntityDetails &x) { return x.isDummy(); },
           [](const ProcEntityDetails &x) { return x.isDummy(); },
+          [](const SubprogramDetails &x) { return x.isDummy(); },
           [](const auto &) { return false; }},
       ResolveAssociations(symbol).details());
 }
@@ -1156,6 +1184,40 @@ bool IsKindTypeParameter(const Symbol &symbol) {
 bool IsLenTypeParameter(const Symbol &symbol) {
   const auto *param{symbol.GetUltimate().detailsIf<TypeParamDetails>()};
   return param && param->attr() == common::TypeParamAttr::Len;
+}
+
+bool IsExtensibleType(const DerivedTypeSpec *derived) {
+  return derived && !IsIsoCType(derived) &&
+      !derived->typeSymbol().attrs().test(Attr::BIND_C) &&
+      !derived->typeSymbol().get<DerivedTypeDetails>().sequence();
+}
+
+bool IsBuiltinDerivedType(const DerivedTypeSpec *derived, const char *name) {
+  if (!derived) {
+    return false;
+  } else {
+    const auto &symbol{derived->typeSymbol()};
+    return &symbol.owner() == symbol.owner().context().GetBuiltinsScope() &&
+        symbol.name() == "__builtin_"s + name;
+  }
+}
+
+bool IsIsoCType(const DerivedTypeSpec *derived) {
+  return IsBuiltinDerivedType(derived, "c_ptr") ||
+      IsBuiltinDerivedType(derived, "c_funptr");
+}
+
+bool IsTeamType(const DerivedTypeSpec *derived) {
+  return IsBuiltinDerivedType(derived, "team_type");
+}
+
+bool IsBadCoarrayType(const DerivedTypeSpec *derived) {
+  return IsTeamType(derived) || IsIsoCType(derived);
+}
+
+bool IsEventTypeOrLockType(const DerivedTypeSpec *derivedTypeSpec) {
+  return IsBuiltinDerivedType(derivedTypeSpec, "event_type") ||
+      IsBuiltinDerivedType(derivedTypeSpec, "lock_type");
 }
 
 int CountLenParameters(const DerivedTypeSpec &type) {

@@ -95,7 +95,7 @@ bool Constant::isAllOnesValue() const {
 
   // Check for FP which are bitcasted from -1 integers
   if (const ConstantFP *CFP = dyn_cast<ConstantFP>(this))
-    return CFP->getValueAPF().bitcastToAPInt().isAllOnesValue();
+    return CFP->getValueAPF().bitcastToAPInt().isAllOnes();
 
   // Check for constant splat vectors of 1 values.
   if (getType()->isVectorTy())
@@ -112,7 +112,7 @@ bool Constant::isOneValue() const {
 
   // Check for FP which are bitcasted from 1 integers
   if (const ConstantFP *CFP = dyn_cast<ConstantFP>(this))
-    return CFP->getValueAPF().bitcastToAPInt().isOneValue();
+    return CFP->getValueAPF().bitcastToAPInt().isOne();
 
   // Check for constant splat vectors of 1 values.
   if (getType()->isVectorTy())
@@ -129,7 +129,7 @@ bool Constant::isNotOneValue() const {
 
   // Check for FP which are bitcasted from 1 integers
   if (const ConstantFP *CFP = dyn_cast<ConstantFP>(this))
-    return !CFP->getValueAPF().bitcastToAPInt().isOneValue();
+    return !CFP->getValueAPF().bitcastToAPInt().isOne();
 
   // Check that vectors don't contain 1
   if (auto *VTy = dyn_cast<FixedVectorType>(getType())) {
@@ -315,9 +315,11 @@ containsUndefinedElement(const Constant *C,
       return false;
 
     for (unsigned i = 0, e = cast<FixedVectorType>(VTy)->getNumElements();
-         i != e; ++i)
-      if (HasFn(C->getAggregateElement(i)))
-        return true;
+         i != e; ++i) {
+      if (Constant *Elem = C->getAggregateElement(i))
+        if (HasFn(Elem))
+          return true;
+    }
   }
 
   return false;
@@ -366,9 +368,8 @@ Constant *Constant::getNullValue(Type *Ty) {
     return ConstantFP::get(Ty->getContext(),
                            APFloat::getZero(APFloat::IEEEquad()));
   case Type::PPC_FP128TyID:
-    return ConstantFP::get(Ty->getContext(),
-                           APFloat(APFloat::PPCDoubleDouble(),
-                                   APInt::getNullValue(128)));
+    return ConstantFP::get(Ty->getContext(), APFloat(APFloat::PPCDoubleDouble(),
+                                                     APInt::getZero(128)));
   case Type::PointerTyID:
     return ConstantPointerNull::get(cast<PointerType>(Ty));
   case Type::StructTyID:
@@ -404,11 +405,10 @@ Constant *Constant::getIntegerValue(Type *Ty, const APInt &V) {
 Constant *Constant::getAllOnesValue(Type *Ty) {
   if (IntegerType *ITy = dyn_cast<IntegerType>(Ty))
     return ConstantInt::get(Ty->getContext(),
-                            APInt::getAllOnesValue(ITy->getBitWidth()));
+                            APInt::getAllOnes(ITy->getBitWidth()));
 
   if (Ty->isFloatingPointTy()) {
-    APFloat FL = APFloat::getAllOnesValue(Ty->getFltSemantics(),
-                                          Ty->getPrimitiveSizeInBits());
+    APFloat FL = APFloat::getAllOnesValue(Ty->getFltSemantics());
     return ConstantFP::get(Ty->getContext(), FL);
   }
 
@@ -1430,12 +1430,12 @@ Constant *ConstantVector::getSplat(ElementCount EC, Constant *V) {
   Type *I32Ty = Type::getInt32Ty(VTy->getContext());
 
   // Move scalar into vector.
-  Constant *UndefV = UndefValue::get(VTy);
-  V = ConstantExpr::getInsertElement(UndefV, V, ConstantInt::get(I32Ty, 0));
+  Constant *PoisonV = PoisonValue::get(VTy);
+  V = ConstantExpr::getInsertElement(PoisonV, V, ConstantInt::get(I32Ty, 0));
   // Build shuffle mask to perform the splat.
   SmallVector<int, 8> Zeros(EC.getKnownMinValue(), 0);
   // Splat.
-  return ConstantExpr::getShuffleVector(V, UndefV, Zeros);
+  return ConstantExpr::getShuffleVector(V, PoisonV, Zeros);
 }
 
 ConstantTokenNone *ConstantTokenNone::get(LLVMContext &Context) {
@@ -1506,20 +1506,6 @@ ArrayRef<int> ConstantExpr::getShuffleMask() const {
 
 Constant *ConstantExpr::getShuffleMaskForBitcode() const {
   return cast<ShuffleVectorConstantExpr>(this)->ShuffleMaskForBitcode;
-}
-
-Constant *
-ConstantExpr::getWithOperandReplaced(unsigned OpNo, Constant *Op) const {
-  assert(Op->getType() == getOperand(OpNo)->getType() &&
-         "Replacing operand with value of different type!");
-  if (getOperand(OpNo) == Op)
-    return const_cast<ConstantExpr*>(this);
-
-  SmallVector<Constant*, 8> NewOps;
-  for (unsigned i = 0, e = getNumOperands(); i != e; ++i)
-    NewOps.push_back(i == OpNo ? Op : getOperand(i));
-
-  return getWithOperands(NewOps);
 }
 
 Constant *ConstantExpr::getWithOperands(ArrayRef<Constant *> Ops, Type *Ty,

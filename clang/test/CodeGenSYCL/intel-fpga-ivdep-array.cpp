@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // Array-specific ivdep - annotate the correspondent GEPs only
 //

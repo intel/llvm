@@ -14,6 +14,7 @@
 #include "flang/Evaluate/type.h"
 #include "flang/Semantics/scope.h"
 #include "flang/Semantics/tools.h"
+#include <functional>
 #include <list>
 #include <map>
 #include <string>
@@ -68,12 +69,12 @@ private:
   std::vector<evaluate::StructureConstructor> DescribeBindings(
       const Scope &dtScope, Scope &);
   void DescribeGeneric(
-      const GenericDetails &, std::vector<evaluate::StructureConstructor> &);
-  void DescribeSpecialProc(std::vector<evaluate::StructureConstructor> &,
+      const GenericDetails &, std::map<int, evaluate::StructureConstructor> &);
+  void DescribeSpecialProc(std::map<int, evaluate::StructureConstructor> &,
       const Symbol &specificOrBinding, bool isAssignment, bool isFinal,
       std::optional<GenericKind::DefinedIo>);
   void IncorporateDefinedIoGenericInterfaces(
-      std::vector<evaluate::StructureConstructor> &, SourceName,
+      std::map<int, evaluate::StructureConstructor> &, SourceName,
       GenericKind::DefinedIo, const Scope *);
 
   // Instantiated for ParamValue and Bound
@@ -124,16 +125,16 @@ private:
   SomeExpr deferredEnum_; // Value::Genre::Deferred
   SomeExpr explicitEnum_; // Value::Genre::Explicit
   SomeExpr lenParameterEnum_; // Value::Genre::LenParameter
-  SomeExpr assignmentEnum_; // SpecialBinding::Which::Assignment
+  SomeExpr scalarAssignmentEnum_; // SpecialBinding::Which::ScalarAssignment
   SomeExpr
       elementalAssignmentEnum_; // SpecialBinding::Which::ElementalAssignment
-  SomeExpr finalEnum_; // SpecialBinding::Which::Final
-  SomeExpr elementalFinalEnum_; // SpecialBinding::Which::ElementalFinal
-  SomeExpr assumedRankFinalEnum_; // SpecialBinding::Which::AssumedRankFinal
   SomeExpr readFormattedEnum_; // SpecialBinding::Which::ReadFormatted
   SomeExpr readUnformattedEnum_; // SpecialBinding::Which::ReadUnformatted
   SomeExpr writeFormattedEnum_; // SpecialBinding::Which::WriteFormatted
   SomeExpr writeUnformattedEnum_; // SpecialBinding::Which::WriteUnformatted
+  SomeExpr elementalFinalEnum_; // SpecialBinding::Which::ElementalFinal
+  SomeExpr assumedRankFinalEnum_; // SpecialBinding::Which::AssumedRankFinal
+  SomeExpr scalarFinalEnum_; // SpecialBinding::Which::ScalarFinal
   parser::CharBlock location_;
   std::set<const Scope *> ignoreScopes_;
 };
@@ -148,15 +149,15 @@ RuntimeTableBuilder::RuntimeTableBuilder(
                                                        "deferred")},
       explicitEnum_{GetEnumValue("explicit")}, lenParameterEnum_{GetEnumValue(
                                                    "lenparameter")},
-      assignmentEnum_{GetEnumValue("assignment")},
+      scalarAssignmentEnum_{GetEnumValue("scalarassignment")},
       elementalAssignmentEnum_{GetEnumValue("elementalassignment")},
-      finalEnum_{GetEnumValue("final")}, elementalFinalEnum_{GetEnumValue(
-                                             "elementalfinal")},
-      assumedRankFinalEnum_{GetEnumValue("assumedrankfinal")},
       readFormattedEnum_{GetEnumValue("readformatted")},
       readUnformattedEnum_{GetEnumValue("readunformatted")},
       writeFormattedEnum_{GetEnumValue("writeformatted")},
-      writeUnformattedEnum_{GetEnumValue("writeunformatted")} {
+      writeUnformattedEnum_{GetEnumValue("writeunformatted")},
+      elementalFinalEnum_{GetEnumValue("elementalfinal")},
+      assumedRankFinalEnum_{GetEnumValue("assumedrankfinal")},
+      scalarFinalEnum_{GetEnumValue("scalarfinal")} {
   ignoreScopes_.insert(tables_.schemata);
 }
 
@@ -263,11 +264,11 @@ static SomeExpr SaveNumericPointerTarget(
     object.set_shape(arraySpec);
     object.set_init(evaluate::AsGenericExpr(evaluate::Constant<T>{
         std::move(x), evaluate::ConstantSubscripts{elements}}));
-    const Symbol &symbol{
-        *scope
-             .try_emplace(
-                 name, Attrs{Attr::TARGET, Attr::SAVE}, std::move(object))
-             .first->second};
+    Symbol &symbol{*scope
+                        .try_emplace(name, Attrs{Attr::TARGET, Attr::SAVE},
+                            std::move(object))
+                        .first->second};
+    symbol.set(Symbol::Flag::CompilerCreated);
     return evaluate::AsGenericExpr(
         evaluate::Expr<T>{evaluate::Designator<T>{symbol}});
   }
@@ -300,11 +301,11 @@ static SomeExpr SaveDerivedPointerTarget(Scope &scope, SourceName name,
     object.set_init(
         evaluate::AsGenericExpr(evaluate::Constant<evaluate::SomeDerived>{
             derivedType, std::move(x), std::move(shape)}));
-    const Symbol &symbol{
-        *scope
-             .try_emplace(
-                 name, Attrs{Attr::TARGET, Attr::SAVE}, std::move(object))
-             .first->second};
+    Symbol &symbol{*scope
+                        .try_emplace(name, Attrs{Attr::TARGET, Attr::SAVE},
+                            std::move(object))
+                        .first->second};
+    symbol.set(Symbol::Flag::CompilerCreated);
     return evaluate::AsGenericExpr(
         evaluate::Designator<evaluate::SomeDerived>{symbol});
   }
@@ -312,11 +313,12 @@ static SomeExpr SaveDerivedPointerTarget(Scope &scope, SourceName name,
 
 static SomeExpr SaveObjectInit(
     Scope &scope, SourceName name, const ObjectEntityDetails &object) {
-  const Symbol &symbol{*scope
-                            .try_emplace(name, Attrs{Attr::TARGET, Attr::SAVE},
-                                ObjectEntityDetails{object})
-                            .first->second};
+  Symbol &symbol{*scope
+                      .try_emplace(name, Attrs{Attr::TARGET, Attr::SAVE},
+                          ObjectEntityDetails{object})
+                      .first->second};
   CHECK(symbol.get<ObjectEntityDetails>().init().has_value());
+  symbol.set(Symbol::Flag::CompilerCreated);
   return evaluate::AsGenericExpr(
       evaluate::Designator<evaluate::SomeDerived>{symbol});
 }
@@ -399,9 +401,6 @@ const Symbol *RuntimeTableBuilder::DescribeType(Scope &dtScope) {
     AddValue(dtValues, derivedTypeSchema_, "uninstantiated"s,
         SomeExpr{evaluate::NullPointer{}});
   }
-
-  // TODO: compute typeHash
-
   using Int8 = evaluate::Type<TypeCategory::Integer, 8>;
   using Int1 = evaluate::Type<TypeCategory::Integer, 1>;
   std::vector<Int8::Scalar> kinds;
@@ -442,7 +441,7 @@ const Symbol *RuntimeTableBuilder::DescribeType(Scope &dtScope) {
   if (!isPDTdefinition) {
     std::vector<const Symbol *> dataComponentSymbols;
     std::vector<evaluate::StructureConstructor> procPtrComponents;
-    std::vector<evaluate::StructureConstructor> specials;
+    std::map<int, evaluate::StructureConstructor> specials;
     for (const auto &pair : dtScope) {
       const Symbol &symbol{*pair.second};
       auto locationRestorer{common::ScopedSet(location_, symbol.name())};
@@ -507,12 +506,10 @@ const Symbol *RuntimeTableBuilder::DescribeType(Scope &dtScope) {
                 static_cast<evaluate::ConstantSubscript>(bindings.size())}));
     // Describe "special" bindings to defined assignments, FINAL subroutines,
     // and user-defined derived type I/O subroutines.
-    if (dtScope.symbol()) {
-      for (const auto &pair :
-          dtScope.symbol()->get<DerivedTypeDetails>().finals()) {
-        DescribeSpecialProc(specials, *pair.second, false /*!isAssignment*/,
-            true, std::nullopt);
-      }
+    const DerivedTypeDetails &dtDetails{dtSymbol->get<DerivedTypeDetails>()};
+    for (const auto &pair : dtDetails.finals()) {
+      DescribeSpecialProc(
+          specials, *pair.second, false /*!isAssignment*/, true, std::nullopt);
     }
     IncorporateDefinedIoGenericInterfaces(specials,
         SourceName{"read(formatted)", 15},
@@ -526,11 +523,24 @@ const Symbol *RuntimeTableBuilder::DescribeType(Scope &dtScope) {
     IncorporateDefinedIoGenericInterfaces(specials,
         SourceName{"write(unformatted)", 18},
         GenericKind::DefinedIo::WriteUnformatted, &scope);
+    // Pack the special procedure bindings in ascending order of their "which"
+    // code values, and compile a little-endian bit-set of those codes for
+    // use in O(1) look-up at run time.
+    std::vector<evaluate::StructureConstructor> sortedSpecials;
+    std::uint32_t specialBitSet{0};
+    for (auto &pair : specials) {
+      auto bit{std::uint32_t{1} << pair.first};
+      CHECK(!(specialBitSet & bit));
+      specialBitSet |= bit;
+      sortedSpecials.emplace_back(std::move(pair.second));
+    }
     AddValue(dtValues, derivedTypeSchema_, "special"s,
         SaveDerivedPointerTarget(scope, SaveObjectName(".s."s + distinctName),
-            std::move(specials),
+            std::move(sortedSpecials),
             evaluate::ConstantSubscripts{
                 static_cast<evaluate::ConstantSubscript>(specials.size())}));
+    AddValue(dtValues, derivedTypeSchema_, "specialbitset"s,
+        IntExpr<4>(specialBitSet));
     // Note the presence/absence of a parent component
     AddValue(dtValues, derivedTypeSchema_, "hasparent"s,
         IntExpr<1>(dtScope.GetDerivedTypeParent() != nullptr));
@@ -543,6 +553,9 @@ const Symbol *RuntimeTableBuilder::DescribeType(Scope &dtScope) {
     // Similarly, a flag to short-circuit destruction when not needed.
     AddValue(dtValues, derivedTypeSchema_, "nodestructionneeded"s,
         IntExpr<1>(derivedTypeSpec && !derivedTypeSpec->HasDestruction()));
+    // Similarly, a flag to short-circuit finalization when not needed.
+    AddValue(dtValues, derivedTypeSchema_, "nofinalizationneeded"s,
+        IntExpr<1>(derivedTypeSpec && !IsFinalizable(*derivedTypeSpec)));
   }
   dtObject.get<ObjectEntityDetails>().set_init(MaybeExpr{
       StructureExpr(Structure(derivedTypeSchema_, std::move(dtValues)))});
@@ -603,6 +616,7 @@ Symbol &RuntimeTableBuilder::CreateObject(
       Attrs{Attr::TARGET, Attr::SAVE}, std::move(object))};
   CHECK(pair.second);
   Symbol &result{*pair.first->second};
+  result.set(Symbol::Flag::CompilerCreated);
   return result;
 }
 
@@ -626,11 +640,11 @@ SomeExpr RuntimeTableBuilder::SaveNameAsPointerTarget(
   using Ascii = evaluate::Type<TypeCategory::Character, 1>;
   using AsciiExpr = evaluate::Expr<Ascii>;
   object.set_init(evaluate::AsGenericExpr(AsciiExpr{name}));
-  const Symbol &symbol{
-      *scope
-           .try_emplace(SaveObjectName(".n."s + name),
-               Attrs{Attr::TARGET, Attr::SAVE}, std::move(object))
-           .first->second};
+  Symbol &symbol{*scope
+                      .try_emplace(SaveObjectName(".n."s + name),
+                          Attrs{Attr::TARGET, Attr::SAVE}, std::move(object))
+                      .first->second};
+  symbol.set(Symbol::Flag::CompilerCreated);
   return evaluate::AsGenericExpr(
       AsciiExpr{evaluate::Designator<Ascii>{symbol}});
 }
@@ -807,6 +821,7 @@ bool RuntimeTableBuilder::InitializeDataPointer(
         ".dp."s + distinctName + "."s + symbol.name().ToString())};
     Symbol &ptrDtSym{
         *scope.try_emplace(ptrDtName, Attrs{}, UnknownDetails{}).first->second};
+    ptrDtSym.set(Symbol::Flag::CompilerCreated);
     Scope &ptrDtScope{scope.MakeScope(Scope::Kind::DerivedType, &ptrDtSym)};
     ignoreScopes_.insert(&ptrDtScope);
     ObjectEntityDetails ptrDtObj;
@@ -904,7 +919,7 @@ RuntimeTableBuilder::DescribeBindings(const Scope &dtScope, Scope &scope) {
 }
 
 void RuntimeTableBuilder::DescribeGeneric(const GenericDetails &generic,
-    std::vector<evaluate::StructureConstructor> &specials) {
+    std::map<int, evaluate::StructureConstructor> &specials) {
   std::visit(common::visitors{
                  [&](const GenericKind::OtherKind &k) {
                    if (k == GenericKind::OtherKind::Assignment) {
@@ -933,21 +948,39 @@ void RuntimeTableBuilder::DescribeGeneric(const GenericDetails &generic,
 }
 
 void RuntimeTableBuilder::DescribeSpecialProc(
-    std::vector<evaluate::StructureConstructor> &specials,
+    std::map<int, evaluate::StructureConstructor> &specials,
     const Symbol &specificOrBinding, bool isAssignment, bool isFinal,
     std::optional<GenericKind::DefinedIo> io) {
   const auto *binding{specificOrBinding.detailsIf<ProcBindingDetails>()};
   const Symbol &specific{*(binding ? &binding->symbol() : &specificOrBinding)};
   if (auto proc{evaluate::characteristics::Procedure::Characterize(
           specific, context_.foldingContext())}) {
-    std::uint8_t rank{0};
     std::uint8_t isArgDescriptorSet{0};
     int argThatMightBeDescriptor{0};
     MaybeExpr which;
-    if (isAssignment) { // only type-bound asst's are germane to runtime
-      CHECK(binding != nullptr);
+    if (isAssignment) {
+      // Only type-bound asst's with the same type on both dummy arguments
+      // are germane to the runtime, which needs only these to implement
+      // component assignment as part of intrinsic assignment.
+      // Non-type-bound generic INTERFACEs and assignments from distinct
+      // types must not be used for component intrinsic assignment.
       CHECK(proc->dummyArguments.size() == 2);
-      which = proc->IsElemental() ? elementalAssignmentEnum_ : assignmentEnum_;
+      const auto t1{
+          DEREF(std::get_if<evaluate::characteristics::DummyDataObject>(
+                    &proc->dummyArguments[0].u))
+              .type.type()};
+      const auto t2{
+          DEREF(std::get_if<evaluate::characteristics::DummyDataObject>(
+                    &proc->dummyArguments[1].u))
+              .type.type()};
+      if (!binding || t1.category() != TypeCategory::Derived ||
+          t2.category() != TypeCategory::Derived ||
+          t1.IsUnlimitedPolymorphic() || t2.IsUnlimitedPolymorphic() ||
+          t1.GetDerivedTypeSpec() != t2.GetDerivedTypeSpec()) {
+        return;
+      }
+      which = proc->IsElemental() ? elementalAssignmentEnum_
+                                  : scalarAssignmentEnum_;
       if (binding && binding->passName() &&
           *binding->passName() == proc->dummyArguments[1].name) {
         argThatMightBeDescriptor = 1;
@@ -971,10 +1004,10 @@ void RuntimeTableBuilder::DescribeSpecialProc(
           which = assumedRankFinalEnum_;
           isArgDescriptorSet |= 1;
         } else {
-          which = finalEnum_;
-          rank = evaluate::GetRank(typeAndShape.shape());
-          if (rank > 0) {
+          which = scalarFinalEnum_;
+          if (int rank{evaluate::GetRank(typeAndShape.shape())}; rank > 0) {
             argThatMightBeDescriptor = 1;
+            which = IntExpr<1>(ToInt64(which).value() + rank);
           }
         }
       }
@@ -1004,19 +1037,22 @@ void RuntimeTableBuilder::DescribeSpecialProc(
       isArgDescriptorSet |= 1 << (argThatMightBeDescriptor - 1);
     }
     evaluate::StructureConstructorValues values;
+    auto index{evaluate::ToInt64(which)};
+    CHECK(index.has_value());
     AddValue(
         values, specialSchema_, "which"s, SomeExpr{std::move(which.value())});
-    AddValue(values, specialSchema_, "rank"s, IntExpr<1>(rank));
     AddValue(values, specialSchema_, "isargdescriptorset"s,
         IntExpr<1>(isArgDescriptorSet));
     AddValue(values, specialSchema_, "proc"s,
         SomeExpr{evaluate::ProcedureDesignator{specific}});
-    specials.emplace_back(DEREF(specialSchema_.AsDerived()), std::move(values));
+    auto pair{specials.try_emplace(
+        *index, DEREF(specialSchema_.AsDerived()), std::move(values))};
+    CHECK(pair.second); // ensure not already present
   }
 }
 
 void RuntimeTableBuilder::IncorporateDefinedIoGenericInterfaces(
-    std::vector<evaluate::StructureConstructor> &specials, SourceName name,
+    std::map<int, evaluate::StructureConstructor> &specials, SourceName name,
     GenericKind::DefinedIo definedIo, const Scope *scope) {
   for (; !scope->IsGlobal(); scope = &scope->parent()) {
     if (auto asst{scope->find(name)}; asst != scope->end()) {
@@ -1035,11 +1071,8 @@ void RuntimeTableBuilder::IncorporateDefinedIoGenericInterfaces(
 
 RuntimeDerivedTypeTables BuildRuntimeDerivedTypeTables(
     SemanticsContext &context) {
-  ModFileReader reader{context};
   RuntimeDerivedTypeTables result;
-  static const char schemataName[]{"__fortran_type_info"};
-  SourceName schemataModule{schemataName, std::strlen(schemataName)};
-  result.schemata = reader.Read(schemataModule);
+  result.schemata = context.GetBuiltinModule("__fortran_type_info");
   if (result.schemata) {
     RuntimeTableBuilder builder{context, result};
     builder.DescribeTypes(context.globalScope(), false);

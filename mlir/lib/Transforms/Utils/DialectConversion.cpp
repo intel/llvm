@@ -1485,6 +1485,7 @@ void ConversionPatternRewriter::cancelRootUpdate(Operation *op) {
   auto &rootUpdates = impl->rootUpdates;
   auto it = llvm::find_if(llvm::reverse(rootUpdates), stateHasOp);
   assert(it != rootUpdates.rend() && "no root update started on op");
+  (*it).resetOperation();
   int updateIdx = std::prev(rootUpdates.rend()) - it;
   rootUpdates.erase(rootUpdates.begin() + updateIdx);
 }
@@ -1650,7 +1651,13 @@ OperationLegalizer::OperationLegalizer(ConversionTarget &targetInfo,
 
 bool OperationLegalizer::isIllegal(Operation *op) const {
   // Check if the target explicitly marked this operation as illegal.
-  return target.getOpAction(op->getName()) == LegalizationAction::Illegal;
+  if (auto info = target.getOpAction(op->getName())) {
+    if (*info == LegalizationAction::Dynamic)
+      return !target.isLegal(op);
+    return *info == LegalizationAction::Illegal;
+  }
+
+  return false;
 }
 
 LogicalResult
@@ -2700,10 +2707,9 @@ auto ConversionTarget::isLegal(Operation *op) const
 
   // Returns true if this operation instance is known to be legal.
   auto isOpLegal = [&] {
-    // Handle dynamic legality either with the provided legality function, or
-    // the default hook on the derived instance.
+    // Handle dynamic legality either with the provided legality function.
     if (info->action == LegalizationAction::Dynamic)
-      return info->legalityFn ? info->legalityFn(op) : isDynamicallyLegal(op);
+      return info->legalityFn(op);
 
     // Otherwise, the operation is only legal if it was marked 'Legal'.
     return info->action == LegalizationAction::Legal;

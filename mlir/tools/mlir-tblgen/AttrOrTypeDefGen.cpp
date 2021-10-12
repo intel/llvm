@@ -244,8 +244,7 @@ static const char *const defDeclParametricBeginStr = R"(
 /// {0}: The name of the base value type, e.g. Attribute or Type.
 /// {1}: Extra parser parameters.
 static const char *const defDeclParsePrintStr = R"(
-    static ::mlir::{0} parse(::mlir::MLIRContext *context,
-                             ::mlir::DialectAsmParser &parser{1});
+    static ::mlir::{0} parse(::mlir::DialectAsmParser &parser{1});
     void print(::mlir::DialectAsmPrinter &printer) const;
 )";
 
@@ -413,7 +412,8 @@ void DefGenerator::emitDefDecl(const AttrOrTypeDef &def) {
     for (AttrOrTypeParameter &parameter : parameters) {
       SmallString<16> name = parameter.getName();
       name[0] = llvm::toUpper(name[0]);
-      os << formatv("    {0} get{1}() const;\n", parameter.getCppType(), name);
+      os << formatv("    {0} get{1}() const;\n", parameter.getCppAccessorType(),
+                    name);
     }
   }
 
@@ -440,16 +440,24 @@ bool DefGenerator::emitDecls(StringRef selectedDialect) {
   collectAllDefs(selectedDialect, defRecords, defs);
   if (defs.empty())
     return false;
+  {
+    NamespaceEmitter nsEmitter(os, defs.front().getDialect());
 
-  NamespaceEmitter nsEmitter(os, defs.front().getDialect());
+    // Declare all the def classes first (in case they reference each other).
+    for (const AttrOrTypeDef &def : defs)
+      os << "  class " << def.getCppClassName() << ";\n";
 
-  // Declare all the def classes first (in case they reference each other).
+    // Emit the declarations.
+    for (const AttrOrTypeDef &def : defs)
+      emitDefDecl(def);
+  }
+  // Emit the TypeID explicit specializations to have a single definition for
+  // each of these.
   for (const AttrOrTypeDef &def : defs)
-    os << "  class " << def.getCppClassName() << ";\n";
+    if (!def.getDialect().getCppNamespace().empty())
+      os << "DECLARE_EXPLICIT_TYPE_ID(" << def.getDialect().getCppNamespace()
+         << "::" << def.getCppClassName() << ")\n";
 
-  // Emit the declarations.
-  for (const AttrOrTypeDef &def : defs)
-    emitDefDecl(def);
   return false;
 }
 
@@ -475,7 +483,7 @@ void DefGenerator::emitTypeDefList(ArrayRef<AttrOrTypeDef> defs) {
 /// {0}: The name of the base value type, e.g. Attribute or Type.
 /// {1}: Additional parser parameters.
 static const char *const defParserDispatchStartStr = R"(
-static ::mlir::OptionalParseResult generated{0}Parser(::mlir::MLIRContext *context,
+static ::mlir::OptionalParseResult generated{0}Parser(
                                       ::mlir::DialectAsmParser &parser,
                                       ::llvm::StringRef mnemonic{1},
                                       ::mlir::{0} &value) {{
@@ -711,10 +719,11 @@ void DefGenerator::emitParsePrint(const AttrOrTypeDef &def) {
   // Emit the parser code, if specified.
   if (Optional<StringRef> parserCode = def.getParserCode()) {
     FmtContext fmtCtxt;
-    fmtCtxt.addSubst("_parser", "parser").addSubst("_ctxt", "context");
+    fmtCtxt.addSubst("_parser", "parser")
+        .addSubst("_ctxt", "parser.getContext()");
 
     // The mnenomic must be defined so the dispatcher knows how to dispatch.
-    os << llvm::formatv("::mlir::{0} {1}::parse(::mlir::MLIRContext *context, "
+    os << llvm::formatv("::mlir::{0} {1}::parse("
                         "::mlir::DialectAsmParser &parser",
                         valueType, def.getCppClassName());
     if (isAttrGenerator) {
@@ -851,7 +860,7 @@ void DefGenerator::emitDefDef(const AttrOrTypeDef &def) {
         SmallString<16> name = param.getName();
         name[0] = llvm::toUpper(name[0]);
         os << formatv("{0} {3}::get{1}() const {{ return getImpl()->{2}; }\n",
-                      param.getCppType(), name, paramStorageName,
+                      param.getCppAccessorType(), name, paramStorageName,
                       def.getCppClassName());
       }
     }
@@ -885,11 +894,12 @@ void DefGenerator::emitParsePrintDispatch(ArrayRef<AttrOrTypeDef> defs) {
       // If the def has no parameters and no parser code, just invoke a normal
       // `get`.
       if (def.getNumParameters() == 0 && !def.getParserCode()) {
-        os << "get(context);\n    return ::mlir::success(!!value);\n  }\n";
+        os << "get(parser.getContext());\n";
+        os << "    return ::mlir::success(!!value);\n  }\n";
         continue;
       }
 
-      os << "parse(context, parser" << (isAttrGenerator ? ", type" : "")
+      os << "parse(parser" << (isAttrGenerator ? ", type" : "")
          << ");\n    return ::mlir::success(!!value);\n  }\n";
     }
   }
@@ -934,8 +944,13 @@ bool DefGenerator::emitDefs(StringRef selectedDialect) {
 
   IfDefScope scope("GET_" + defTypePrefix.upper() + "DEF_CLASSES", os);
   emitParsePrintDispatch(defs);
-  for (const AttrOrTypeDef &def : defs)
+  for (const AttrOrTypeDef &def : defs) {
     emitDefDef(def);
+    // Emit the TypeID explicit specializations to have a single symbol def.
+    if (!def.getDialect().getCppNamespace().empty())
+      os << "DEFINE_EXPLICIT_TYPE_ID(" << def.getDialect().getCppNamespace()
+         << "::" << def.getCppClassName() << ")\n";
+  }
 
   return false;
 }

@@ -54,6 +54,15 @@ int main() {
                      cl::sycl::ext::oneapi::accessor_property_list<
                          another_property>>
       accessorC;
+
+  cl::sycl::kernel_single_task<class kernel_function>(
+      [=]() {
+        // expected-no-diagnostics
+        Obj.use();
+        accessorA.use();
+        accessorB.use();
+        accessorC.use();
+      });
 #else
   cl::sycl::accessor<int, 1, cl::sycl::access::mode::read_write,
                      cl::sycl::access::target::global_buffer,
@@ -72,23 +81,18 @@ int main() {
                          buffer_location<1>,
                          buffer_location<2>>>
       accessorF;
-#endif
   cl::sycl::kernel_single_task<class kernel_function>(
       [=]() {
-#ifndef TRIGGER_ERROR
-        // expected-no-diagnostics
-        Obj.use();
-        accessorA.use();
-        accessorB.use();
-        accessorC.use();
-#else
         //expected-error@+1{{buffer_location template parameter must be a non-negative integer}}
         accessorD.use();
         //expected-error@+1{{sixth template parameter of the accessor must be of accessor_property_list type}}
         accessorE.use();
+      });
+  cl::sycl::kernel_single_task<class kernel_function>(
+      [=]() {
         //expected-error@+1{{can't apply buffer_location property twice to the same accessor}}
         accessorF.use();
-#endif
       });
+#endif
   return 0;
 }

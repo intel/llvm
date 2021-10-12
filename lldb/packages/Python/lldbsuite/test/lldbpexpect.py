@@ -23,7 +23,7 @@ class PExpectTest(TestBase):
     def expect_prompt(self):
         self.child.expect_exact(self.PROMPT)
 
-    def launch(self, executable=None, extra_args=None, timeout=30, dimensions=None):
+    def launch(self, executable=None, extra_args=None, timeout=60, dimensions=None):
         logfile = getattr(sys.stdout, 'buffer',
                             sys.stdout) if self.TraceOn() else None
 
@@ -36,7 +36,8 @@ class PExpectTest(TestBase):
             args.extend(extra_args)
 
         env = dict(os.environ)
-        env["TERM"]="vt100"
+        env["TERM"] = "vt100"
+        env["HOME"] = self.getBuildDir()
 
         import pexpect
         self.child = pexpect.spawn(

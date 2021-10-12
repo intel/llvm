@@ -143,7 +143,8 @@ static LogicalResult reshapeLowerToHigher(PatternRewriter &rewriter,
 
   SmallVector<int64_t, 4> reshapeOutputShape;
 
-  computeReshapeOutput(higherRankShape, lowerRankShape, reshapeOutputShape);
+  computeReshapeOutput(outputType.getShape(), lowerRankShape,
+                       reshapeOutputShape);
 
   auto reshapeInputType = lowerTensorValue.getType().cast<RankedTensorType>();
   auto reshapeOutputType = RankedTensorType::get(
@@ -268,6 +269,9 @@ public:
     RewritePatternSet patterns(func.getContext());
     MLIRContext *ctx = func.getContext();
     // Add the generated patterns to the list.
+    patterns.add<ConvertTosaOp<tosa::BitwiseAndOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::BitwiseOrOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::BitwiseXorOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::AddOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::SubOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::MulOp>>(ctx);
@@ -280,6 +284,10 @@ public:
     patterns.add<ConvertTosaOp<tosa::LogicalLeftShiftOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::ArithmeticRightShiftOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::LogicalRightShiftOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::LogicalAndOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::LogicalOrOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::LogicalXorOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::PowOp>>(ctx);
     (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   }
 };

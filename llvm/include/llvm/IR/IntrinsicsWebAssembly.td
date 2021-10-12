@@ -50,7 +50,8 @@ def int_wasm_trunc_saturate_unsigned : Intrinsic<[llvm_anyint_ty],
 //===----------------------------------------------------------------------===//
 
 // throw / rethrow
-// The immediate argument is an index to a tag, which is 0 for C++.
+// The first immediate argument is an index to a tag, which is 0 for C++
+// exception. The second argument is the thrown exception pointer.
 def int_wasm_throw : Intrinsic<[], [llvm_i32_ty, llvm_ptr_ty],
                                [Throws, IntrNoReturn, ImmArg<ArgIndex<0>>]>;
 def int_wasm_rethrow : Intrinsic<[], [], [Throws, IntrNoReturn]>;
@@ -63,8 +64,9 @@ def int_wasm_get_ehselector : Intrinsic<[llvm_i32_ty], [llvm_token_ty],
                                         [IntrHasSideEffects]>;
 
 // wasm.catch returns the pointer to the exception object caught by wasm 'catch'
-// instruction. This returns a single pointer, which is sufficient for C++
-// support. The immediate argument is an index to for a tag, which is 0 for C++.
+// instruction. This returns a single pointer, which is the case for C++
+// exceptions. The immediate argument is an index to for a tag, which is 0 for
+// C++ exceptions.
 def int_wasm_catch : Intrinsic<[llvm_ptr_ty], [llvm_i32_ty],
                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
 
@@ -162,21 +164,13 @@ def int_wasm_q15mulr_sat_signed :
             [llvm_v8i16_ty, llvm_v8i16_ty],
             [IntrNoMem, IntrSpeculatable]>;
 
-def int_wasm_extmul_low_signed :
+def int_wasm_pmin :
   Intrinsic<[llvm_anyvector_ty],
-            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
+            [LLVMMatchType<0>, LLVMMatchType<0>],
             [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_extmul_high_signed :
+def int_wasm_pmax :
   Intrinsic<[llvm_anyvector_ty],
-            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
-            [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_extmul_low_unsigned :
-  Intrinsic<[llvm_anyvector_ty],
-            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
-            [IntrNoMem, IntrSpeculatable]>;
-def int_wasm_extmul_high_unsigned :
-  Intrinsic<[llvm_anyvector_ty],
-            [LLVMSubdivide2VectorType<0>, LLVMSubdivide2VectorType<0>],
+            [LLVMMatchType<0>, LLVMMatchType<0>],
             [IntrNoMem, IntrSpeculatable]>;
 
 def int_wasm_extadd_pairwise_signed :
@@ -186,6 +180,19 @@ def int_wasm_extadd_pairwise_signed :
 def int_wasm_extadd_pairwise_unsigned :
   Intrinsic<[llvm_anyvector_ty],
             [LLVMSubdivide2VectorType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+
+//===----------------------------------------------------------------------===//
+// Relaxed SIMD intrinsics (experimental)
+//===----------------------------------------------------------------------===//
+
+def int_wasm_fma :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_fms :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
             [IntrNoMem, IntrSpeculatable]>;
 
 //===----------------------------------------------------------------------===//

@@ -2451,6 +2451,14 @@ TEST_F(FormatTest, ShortEnums) {
   Style.AllowShortEnumsOnASingleLine = true;
   verifyFormat("enum { A, B, C } ShortEnum1, ShortEnum2;", Style);
   Style.AllowShortEnumsOnASingleLine = false;
+  verifyFormat("enum {\n"
+               "  A,\n"
+               "  B,\n"
+               "  C\n"
+               "} ShortEnum1, ShortEnum2;",
+               Style);
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.AfterEnum = true;
   verifyFormat("enum\n"
                "{\n"
                "  A,\n"
@@ -5952,7 +5960,26 @@ TEST_F(FormatTest, ConstructorInitializers) {
                "      aaaaaaaaaaaaaaaaaaaaat(aaaaaaaaaaaaaaaaaaaaaaaaaaaa) {}");
 
   FormatStyle OnePerLine = getLLVMStyle();
-  OnePerLine.ConstructorInitializerAllOnOneLineOrOnePerLine = true;
+  OnePerLine.PackConstructorInitializers = FormatStyle::PCIS_Never;
+  verifyFormat("MyClass::MyClass()\n"
+               "    : a(a),\n"
+               "      b(b),\n"
+               "      c(c) {}",
+               OnePerLine);
+  verifyFormat("MyClass::MyClass()\n"
+               "    : a(a), // comment\n"
+               "      b(b),\n"
+               "      c(c) {}",
+               OnePerLine);
+  verifyFormat("MyClass::MyClass(int a)\n"
+               "    : b(a),      // comment\n"
+               "      c(a + 1) { // lined up\n"
+               "}",
+               OnePerLine);
+  verifyFormat("Constructor()\n"
+               "    : a(b, b, b) {}",
+               OnePerLine);
+  OnePerLine.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
   OnePerLine.AllowAllParametersOfDeclarationOnNextLine = false;
   verifyFormat("SomeClass::Constructor()\n"
                "    : aaaaaaaaaaaaa(aaaaaaaaaaaaaa),\n"
@@ -6005,8 +6032,6 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
   FormatStyle Style = getLLVMStyle();
   Style.BreakConstructorInitializers = FormatStyle::BCIS_BeforeComma;
   Style.ColumnLimit = 60;
-  Style.ConstructorInitializerAllOnOneLineOrOnePerLine = true;
-  Style.AllowAllConstructorInitializersOnNextLine = true;
   Style.BinPackParameters = false;
 
   for (int i = 0; i < 4; ++i) {
@@ -6014,14 +6039,14 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
     Style.AllowAllParametersOfDeclarationOnNextLine = i & 1;
     Style.AllowAllArgumentsOnNextLine = i & 2;
 
-    Style.AllowAllConstructorInitializersOnNextLine = true;
+    Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
     Style.BreakConstructorInitializers = FormatStyle::BCIS_BeforeComma;
     verifyFormat("Constructor()\n"
                  "    : aaaaaaaaaaaaaaaaaaaa(a), bbbbbbbbbbbbbbbbbbbbb(b) {}",
                  Style);
     verifyFormat("Constructor() : a(a), b(b) {}", Style);
 
-    Style.AllowAllConstructorInitializersOnNextLine = false;
+    Style.PackConstructorInitializers = FormatStyle::PCIS_CurrentLine;
     verifyFormat("Constructor()\n"
                  "    : aaaaaaaaaaaaaaaaaaaa(a)\n"
                  "    , bbbbbbbbbbbbbbbbbbbbb(b) {}",
@@ -6029,24 +6054,24 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
     verifyFormat("Constructor() : a(a), b(b) {}", Style);
 
     Style.BreakConstructorInitializers = FormatStyle::BCIS_BeforeColon;
-    Style.AllowAllConstructorInitializersOnNextLine = true;
+    Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
     verifyFormat("Constructor()\n"
                  "    : aaaaaaaaaaaaaaaaaaaa(a), bbbbbbbbbbbbbbbbbbbbb(b) {}",
                  Style);
 
-    Style.AllowAllConstructorInitializersOnNextLine = false;
+    Style.PackConstructorInitializers = FormatStyle::PCIS_CurrentLine;
     verifyFormat("Constructor()\n"
                  "    : aaaaaaaaaaaaaaaaaaaa(a),\n"
                  "      bbbbbbbbbbbbbbbbbbbbb(b) {}",
                  Style);
 
     Style.BreakConstructorInitializers = FormatStyle::BCIS_AfterColon;
-    Style.AllowAllConstructorInitializersOnNextLine = true;
+    Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
     verifyFormat("Constructor() :\n"
                  "    aaaaaaaaaaaaaaaaaa(a), bbbbbbbbbbbbbbbbbbbbb(b) {}",
                  Style);
 
-    Style.AllowAllConstructorInitializersOnNextLine = false;
+    Style.PackConstructorInitializers = FormatStyle::PCIS_CurrentLine;
     verifyFormat("Constructor() :\n"
                  "    aaaaaaaaaaaaaaaaaa(a),\n"
                  "    bbbbbbbbbbbbbbbbbbbbb(b) {}",
@@ -6058,14 +6083,13 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
   // BreakConstructorInitializers modes
   Style.BreakConstructorInitializers = FormatStyle::BCIS_BeforeComma;
   Style.AllowAllParametersOfDeclarationOnNextLine = true;
-  Style.AllowAllConstructorInitializersOnNextLine = false;
   verifyFormat("SomeClassWithALongName::Constructor(\n"
                "    int aaaaaaaaaaaaaaaaaaaaaaaa, int bbbbbbbbbbbbb)\n"
                "    : aaaaaaaaaaaaaaaaaaaa(a)\n"
                "    , bbbbbbbbbbbbbbbbbbbbb(b) {}",
                Style);
 
-  Style.AllowAllConstructorInitializersOnNextLine = true;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
   verifyFormat("SomeClassWithALongName::Constructor(\n"
                "    int aaaaaaaaaaaaaaaaaaaaaaaa,\n"
                "    int bbbbbbbbbbbbb,\n"
@@ -6074,7 +6098,7 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
                Style);
 
   Style.AllowAllParametersOfDeclarationOnNextLine = false;
-  Style.AllowAllConstructorInitializersOnNextLine = false;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_CurrentLine;
   verifyFormat("SomeClassWithALongName::Constructor(\n"
                "    int aaaaaaaaaaaaaaaaaaaaaaaa,\n"
                "    int bbbbbbbbbbbbb)\n"
@@ -6091,7 +6115,7 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
                "      bbbbbbbbbbbbbbbbbbbbb(b) {}",
                Style);
 
-  Style.AllowAllConstructorInitializersOnNextLine = true;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
   verifyFormat("SomeClassWithALongName::Constructor(\n"
                "    int aaaaaaaaaaaaaaaaaaaaaaaa,\n"
                "    int bbbbbbbbbbbbb,\n"
@@ -6100,7 +6124,7 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
                Style);
 
   Style.AllowAllParametersOfDeclarationOnNextLine = false;
-  Style.AllowAllConstructorInitializersOnNextLine = false;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_CurrentLine;
   verifyFormat("SomeClassWithALongName::Constructor(\n"
                "    int aaaaaaaaaaaaaaaaaaaaaaaa,\n"
                "    int bbbbbbbbbbbbb)\n"
@@ -6116,7 +6140,7 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
                "    bbbbbbbbbbbbbbbbbbbbb(b) {}",
                Style);
 
-  Style.AllowAllConstructorInitializersOnNextLine = true;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
   verifyFormat("SomeClassWithALongName::Constructor(\n"
                "    int aaaaaaaaaaaaaaaaaaaaaaaa,\n"
                "    int bbbbbbbbbbbbb,\n"
@@ -6125,7 +6149,7 @@ TEST_F(FormatTest, AllowAllConstructorInitializersOnNextLine) {
                Style);
 
   Style.AllowAllParametersOfDeclarationOnNextLine = false;
-  Style.AllowAllConstructorInitializersOnNextLine = false;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_CurrentLine;
   verifyFormat("SomeClassWithALongName::Constructor(\n"
                "    int aaaaaaaaaaaaaaaaaaaaaaaa,\n"
                "    int bbbbbbbbbbbbb) :\n"
@@ -6141,7 +6165,8 @@ TEST_F(FormatTest, AllowAllArgumentsOnNextLine) {
   for (int i = 0; i < 4; ++i) {
     // Test all combinations of parameters that should not have an effect.
     Style.AllowAllParametersOfDeclarationOnNextLine = i & 1;
-    Style.AllowAllConstructorInitializersOnNextLine = i & 2;
+    Style.PackConstructorInitializers =
+        i & 2 ? FormatStyle::PCIS_BinPack : FormatStyle::PCIS_Never;
 
     Style.AllowAllArgumentsOnNextLine = true;
     verifyFormat("void foo() {\n"
@@ -6257,13 +6282,13 @@ TEST_F(FormatTest, BreakConstructorInitializersAfterColon) {
   verifyFormat("template <typename T>\n"
                "Constructor() : Initializer(FitsOnTheLine) {}",
                getStyleWithColumns(Style, 50));
-  Style.ConstructorInitializerAllOnOneLineOrOnePerLine = true;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
   verifyFormat(
       "SomeClass::Constructor() :\n"
       "    aaaaaaaaaaaaa(aaaaaaaaaaaaaa), aaaaaaaaaaaaaaa(aaaaaaaaaaaa) {}",
       Style);
 
-  Style.ConstructorInitializerAllOnOneLineOrOnePerLine = false;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_BinPack;
   verifyFormat(
       "SomeClass::Constructor() :\n"
       "    aaaaaaaaaaaaa(aaaaaaaaaaaaaa), aaaaaaaaaaaaaaa(aaaaaaaaaaaa) {}",
@@ -6318,8 +6343,7 @@ TEST_F(FormatTest, BreakConstructorInitializersAfterColon) {
                Style);
 
   FormatStyle OnePerLine = Style;
-  OnePerLine.ConstructorInitializerAllOnOneLineOrOnePerLine = true;
-  OnePerLine.AllowAllConstructorInitializersOnNextLine = false;
+  OnePerLine.PackConstructorInitializers = FormatStyle::PCIS_CurrentLine;
   verifyFormat("SomeClass::Constructor() :\n"
                "    aaaaaaaaaaaaa(aaaaaaaaaaaaaa),\n"
                "    aaaaaaaaaaaaa(aaaaaaaaaaaaaa),\n"
@@ -6502,7 +6526,7 @@ TEST_F(FormatTest, MemoizationTests) {
 
   // This test takes VERY long when memoization is broken.
   FormatStyle OnePerLine = getLLVMStyle();
-  OnePerLine.ConstructorInitializerAllOnOneLineOrOnePerLine = true;
+  OnePerLine.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
   OnePerLine.BinPackParameters = false;
   std::string input = "Constructor()\n"
                       "    : aaaa(a,\n";
@@ -8216,7 +8240,12 @@ TEST_F(FormatTest, ReturnTypeBreakingStyle) {
                "f(i)\n"
                "{\n"
                "  return i + 1;\n"
-               "}",
+               "}\n"
+               "int\n" // Break here.
+               "f(i)\n"
+               "{\n"
+               "  return i + 1;\n"
+               "};",
                Style);
   verifyFormat("int f(a, b, c);\n" // No break here.
                "int\n"             // Break here.
@@ -8225,8 +8254,54 @@ TEST_F(FormatTest, ReturnTypeBreakingStyle) {
                "float c;\n"
                "{\n"
                "  return a + b < c;\n"
+               "}\n"
+               "int\n"        // Break here.
+               "f(a, b, c)\n" // Break here.
+               "short a, b;\n"
+               "float c;\n"
+               "{\n"
+               "  return a + b < c;\n"
+               "};",
+               Style);
+  verifyFormat("byte *\n" // Break here.
+               "f(a)\n"   // Break here.
+               "byte a[];\n"
+               "{\n"
+               "  return a;\n"
                "}",
                Style);
+  verifyFormat("bool f(int a, int) override;\n"
+               "Bar g(int a, Bar) final;\n"
+               "Bar h(a, Bar) final;",
+               Style);
+  verifyFormat("int\n"
+               "f(a)",
+               Style);
+  verifyFormat("bool\n"
+               "f(size_t = 0, bool b = false)\n"
+               "{\n"
+               "  return !b;\n"
+               "}",
+               Style);
+
+  // The return breaking style doesn't affect:
+  // * function and object definitions with attribute-like macros
+  verifyFormat("Tttttttttttttttttttttttt ppppppppppppppp\n"
+               "    ABSL_GUARDED_BY(mutex) = {};",
+               getGoogleStyleWithColumns(40));
+  verifyFormat("Tttttttttttttttttttttttt ppppppppppppppp\n"
+               "    ABSL_GUARDED_BY(mutex);  // comment",
+               getGoogleStyleWithColumns(40));
+  verifyFormat("Tttttttttttttttttttttttt ppppppppppppppp\n"
+               "    ABSL_GUARDED_BY(mutex1)\n"
+               "        ABSL_GUARDED_BY(mutex2);",
+               getGoogleStyleWithColumns(40));
+  verifyFormat("Tttttt f(int a, int b)\n"
+               "    ABSL_GUARDED_BY(mutex1)\n"
+               "        ABSL_GUARDED_BY(mutex2);",
+               getGoogleStyleWithColumns(40));
+  // * typedefs
+  verifyFormat("typedef ATTR(X) char x;", getGoogleStyle());
 
   Style = getGNUStyle();
 
@@ -16411,6 +16486,37 @@ TEST_F(FormatTest, AlignWithLineBreaks) {
                "}",
                Style);
   // clang-format on
+
+  Style = getLLVMStyleWithColumns(120);
+  Style.AlignConsecutiveAssignments = FormatStyle::ACS_Consecutive;
+  Style.ContinuationIndentWidth = 4;
+  Style.IndentWidth = 4;
+
+  // clang-format off
+  verifyFormat("void SomeFunc() {\n"
+               "    newWatcher.maxAgeUsec = ToLegacyTimestamp(GetMaxAge(FromLegacyTimestamp<milliseconds>(monitorFrequencyUsec),\n"
+               "                                                        seconds(std::uint64_t(maxSampleAge)), maxKeepSamples));\n"
+               "    newWatcher.maxAge     = ToLegacyTimestamp(GetMaxAge(FromLegacyTimestamp<milliseconds>(monitorFrequencyUsec),\n"
+               "                                                        seconds(std::uint64_t(maxSampleAge)), maxKeepSamples));\n"
+               "    newWatcher.max        = ToLegacyTimestamp(GetMaxAge(FromLegacyTimestamp<milliseconds>(monitorFrequencyUsec),\n"
+               "                                                        seconds(std::uint64_t(maxSampleAge)), maxKeepSamples));\n"
+               "}",
+               Style);
+  // clang-format on
+
+  Style.BinPackArguments = false;
+
+  // clang-format off
+  verifyFormat("void SomeFunc() {\n"
+               "    newWatcher.maxAgeUsec = ToLegacyTimestamp(GetMaxAge(\n"
+               "        FromLegacyTimestamp<milliseconds>(monitorFrequencyUsec), seconds(std::uint64_t(maxSampleAge)), maxKeepSamples));\n"
+               "    newWatcher.maxAge     = ToLegacyTimestamp(GetMaxAge(\n"
+               "        FromLegacyTimestamp<milliseconds>(monitorFrequencyUsec), seconds(std::uint64_t(maxSampleAge)), maxKeepSamples));\n"
+               "    newWatcher.max        = ToLegacyTimestamp(GetMaxAge(\n"
+               "        FromLegacyTimestamp<milliseconds>(monitorFrequencyUsec), seconds(std::uint64_t(maxSampleAge)), maxKeepSamples));\n"
+               "}",
+               Style);
+  // clang-format on
 }
 
 TEST_F(FormatTest, AlignWithInitializerPeriods) {
@@ -17694,13 +17800,25 @@ TEST_F(FormatTest, CatchAlignArrayOfStructuresRightAlignment) {
 TEST_F(FormatTest, CatchAlignArrayOfStructuresLeftAlignment) {
   auto Style = getLLVMStyle();
   Style.AlignArrayOfStructures = FormatStyle::AIAS_Left;
+  /* FIXME: This case gets misformatted.
+  verifyFormat("auto foo = Items{\n"
+               "    Section{0, bar(), },\n"
+               "    Section{1, boo()  }\n"
+               "};\n",
+               Style);
+  */
+  verifyFormat("auto foo = Items{\n"
+               "    Section{\n"
+               "            0, bar(),\n"
+               "            }\n"
+               "};\n",
+               Style);
   verifyFormat("struct test demo[] = {\n"
                "    {56, 23,    \"hello\"},\n"
                "    {-1, 93463, \"world\"},\n"
                "    {7,  5,     \"!!\"   }\n"
                "};\n",
                Style);
-
   verifyFormat("struct test demo[] = {\n"
                "    {56, 23,    \"hello\"}, // first line\n"
                "    {-1, 93463, \"world\"}, // second line\n"
@@ -18129,7 +18247,6 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   Style.Language = FormatStyle::LK_Cpp;
   CHECK_PARSE_BOOL(AlignTrailingComments);
   CHECK_PARSE_BOOL(AllowAllArgumentsOnNextLine);
-  CHECK_PARSE_BOOL(AllowAllConstructorInitializersOnNextLine);
   CHECK_PARSE_BOOL(AllowAllParametersOfDeclarationOnNextLine);
   CHECK_PARSE_BOOL(AllowShortCaseLabelsOnASingleLine);
   CHECK_PARSE_BOOL(AllowShortEnumsOnASingleLine);
@@ -18141,7 +18258,6 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(BreakBeforeTernaryOperators);
   CHECK_PARSE_BOOL(BreakStringLiterals);
   CHECK_PARSE_BOOL(CompactNamespaces);
-  CHECK_PARSE_BOOL(ConstructorInitializerAllOnOneLineOrOnePerLine);
   CHECK_PARSE_BOOL(DeriveLineEnding);
   CHECK_PARSE_BOOL(DerivePointerAlignment);
   CHECK_PARSE_BOOL_FIELD(DerivePointerAlignment, "DerivePointerBinding");
@@ -18220,6 +18336,26 @@ TEST_F(FormatTest, ParsesConfiguration) {
   CHECK_PARSE("IndentWidth: 32", IndentWidth, 32u);
   CHECK_PARSE("ContinuationIndentWidth: 11", ContinuationIndentWidth, 11u);
   CHECK_PARSE("CommentPragmas: '// abc$'", CommentPragmas, "// abc$");
+
+  Style.QualifierAlignment = FormatStyle::QAS_Right;
+  CHECK_PARSE("QualifierAlignment: Leave", QualifierAlignment,
+              FormatStyle::QAS_Leave);
+  CHECK_PARSE("QualifierAlignment: Right", QualifierAlignment,
+              FormatStyle::QAS_Right);
+  CHECK_PARSE("QualifierAlignment: Left", QualifierAlignment,
+              FormatStyle::QAS_Left);
+  CHECK_PARSE("QualifierAlignment: Custom", QualifierAlignment,
+              FormatStyle::QAS_Custom);
+
+  Style.QualifierOrder.clear();
+  CHECK_PARSE("QualifierOrder: [ const, volatile, type ]", QualifierOrder,
+              std::vector<std::string>({"const", "volatile", "type"}));
+  Style.QualifierOrder.clear();
+  CHECK_PARSE("QualifierOrder: [const, type]", QualifierOrder,
+              std::vector<std::string>({"const", "type"}));
+  Style.QualifierOrder.clear();
+  CHECK_PARSE("QualifierOrder: [volatile, type]", QualifierOrder,
+              std::vector<std::string>({"volatile", "type"}));
 
   Style.AlignConsecutiveAssignments = FormatStyle::ACS_Consecutive;
   CHECK_PARSE("AlignConsecutiveAssignments: None", AlignConsecutiveAssignments,
@@ -18359,6 +18495,32 @@ TEST_F(FormatTest, ParsesConfiguration) {
   // For backward compatibility:
   CHECK_PARSE("BreakBeforeInheritanceComma: true", BreakInheritanceList,
               FormatStyle::BILS_BeforeComma);
+
+  Style.PackConstructorInitializers = FormatStyle::PCIS_BinPack;
+  CHECK_PARSE("PackConstructorInitializers: Never", PackConstructorInitializers,
+              FormatStyle::PCIS_Never);
+  CHECK_PARSE("PackConstructorInitializers: BinPack",
+              PackConstructorInitializers, FormatStyle::PCIS_BinPack);
+  CHECK_PARSE("PackConstructorInitializers: CurrentLine",
+              PackConstructorInitializers, FormatStyle::PCIS_CurrentLine);
+  CHECK_PARSE("PackConstructorInitializers: NextLine",
+              PackConstructorInitializers, FormatStyle::PCIS_NextLine);
+  // For backward compatibility:
+  CHECK_PARSE("BasedOnStyle: Google\n"
+              "ConstructorInitializerAllOnOneLineOrOnePerLine: true\n"
+              "AllowAllConstructorInitializersOnNextLine: false",
+              PackConstructorInitializers, FormatStyle::PCIS_CurrentLine);
+  Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
+  CHECK_PARSE("BasedOnStyle: Google\n"
+              "ConstructorInitializerAllOnOneLineOrOnePerLine: false",
+              PackConstructorInitializers, FormatStyle::PCIS_BinPack);
+  CHECK_PARSE("ConstructorInitializerAllOnOneLineOrOnePerLine: true\n"
+              "AllowAllConstructorInitializersOnNextLine: true",
+              PackConstructorInitializers, FormatStyle::PCIS_NextLine);
+  Style.PackConstructorInitializers = FormatStyle::PCIS_BinPack;
+  CHECK_PARSE("ConstructorInitializerAllOnOneLineOrOnePerLine: true\n"
+              "AllowAllConstructorInitializersOnNextLine: false",
+              PackConstructorInitializers, FormatStyle::PCIS_CurrentLine);
 
   Style.EmptyLineBeforeAccessModifier = FormatStyle::ELBAMS_LogicalBlock;
   CHECK_PARSE("EmptyLineBeforeAccessModifier: Never",
@@ -18862,8 +19024,6 @@ TEST_F(FormatTest, ParsesConfigurationWithLanguages) {
   EXPECT_EQ(FormatStyle::LK_Cpp, Style.Language);
 }
 
-#undef CHECK_PARSE
-
 TEST_F(FormatTest, UsesLanguageForBasedOnStyle) {
   FormatStyle Style = {};
   Style.Language = FormatStyle::LK_JavaScript;
@@ -19119,7 +19279,7 @@ TEST_F(FormatTest, BreakConstructorInitializersBeforeComma) {
                ", c(c) {}",
                Style);
 
-  Style.ConstructorInitializerAllOnOneLineOrOnePerLine = true;
+  Style.PackConstructorInitializers = FormatStyle::PCIS_NextLine;
   Style.ConstructorInitializerIndentWidth = 4;
   verifyFormat("SomeClass::Constructor() : aaaaaaaa(aaaaaaaa) {}", Style);
   verifyFormat(
@@ -19135,6 +19295,78 @@ TEST_F(FormatTest, BreakConstructorInitializersBeforeComma) {
                "    : aaaaaaaa(aaaaaaaa)\n"
                "    , aaaaaaaa(aaaaaaaa)\n"
                "    , aaaaaaaa(aaaaaaaa) {}",
+               Style);
+}
+
+TEST_F(FormatTest, ConstructorInitializersWithPreprocessorDirective) {
+  FormatStyle Style = getLLVMStyle();
+  Style.BreakConstructorInitializers = FormatStyle::BCIS_BeforeComma;
+  Style.ConstructorInitializerIndentWidth = 4;
+  verifyFormat("SomeClass::Constructor()\n"
+               "    : a{a}\n"
+               "    , b{b} {}",
+               Style);
+  verifyFormat("SomeClass::Constructor()\n"
+               "    : a{a}\n"
+               "#if CONDITION\n"
+               "    , b{b}\n"
+               "#endif\n"
+               "{\n}",
+               Style);
+  Style.ConstructorInitializerIndentWidth = 2;
+  verifyFormat("SomeClass::Constructor()\n"
+               "#if CONDITION\n"
+               "  : a{a}\n"
+               "#endif\n"
+               "  , b{b}\n"
+               "  , c{c} {\n}",
+               Style);
+  Style.ConstructorInitializerIndentWidth = 0;
+  verifyFormat("SomeClass::Constructor()\n"
+               ": a{a}\n"
+               "#ifdef CONDITION\n"
+               ", b{b}\n"
+               "#else\n"
+               ", c{c}\n"
+               "#endif\n"
+               ", d{d} {\n}",
+               Style);
+  Style.ConstructorInitializerIndentWidth = 4;
+  verifyFormat("SomeClass::Constructor()\n"
+               "    : a{a}\n"
+               "#if WINDOWS\n"
+               "#if DEBUG\n"
+               "    , b{0}\n"
+               "#else\n"
+               "    , b{1}\n"
+               "#endif\n"
+               "#else\n"
+               "#if DEBUG\n"
+               "    , b{2}\n"
+               "#else\n"
+               "    , b{3}\n"
+               "#endif\n"
+               "#endif\n"
+               "{\n}",
+               Style);
+  verifyFormat("SomeClass::Constructor()\n"
+               "    : a{a}\n"
+               "#if WINDOWS\n"
+               "    , b{0}\n"
+               "#if DEBUG\n"
+               "    , c{0}\n"
+               "#else\n"
+               "    , c{1}\n"
+               "#endif\n"
+               "#else\n"
+               "#if DEBUG\n"
+               "    , c{2}\n"
+               "#else\n"
+               "    , c{3}\n"
+               "#endif\n"
+               "    , b{1}\n"
+               "#endif\n"
+               "{\n}",
                Style);
 }
 
@@ -22123,8 +22355,7 @@ TEST_F(FormatTest, IndentAccessModifiers) {
                Style);
   // Enumerations are not records and should be unaffected.
   Style.AllowShortEnumsOnASingleLine = false;
-  verifyFormat("enum class E\n"
-               "{\n"
+  verifyFormat("enum class E {\n"
                "  A,\n"
                "  B\n"
                "};\n",
@@ -22165,6 +22396,7 @@ TEST_F(FormatTest, LimitlessStringsAndComments) {
       "}";
   EXPECT_EQ(Code, format(Code, Style));
 }
+
 } // namespace
 } // namespace format
 } // namespace clang

@@ -460,6 +460,11 @@ protected:
       Builder.defineMacro("_REENTRANT");
     if (this->HasFloat128)
       Builder.defineMacro("__FLOAT128__");
+
+    if (Opts.C11) {
+      Builder.defineMacro("__STDC_NO_ATOMICS__");
+      Builder.defineMacro("__STDC_NO_THREADS__");
+    }
   }
 
 public:
@@ -673,9 +678,11 @@ protected:
     DefineStd(Builder, "unix", Opts);
     Builder.defineMacro("_IBMR2");
     Builder.defineMacro("_POWER");
+    Builder.defineMacro("__THW_BIG_ENDIAN__");
 
     Builder.defineMacro("_AIX");
     Builder.defineMacro("__TOS_AIX__");
+    Builder.defineMacro("__HOS_AIX__");
 
     if (Opts.C11) {
       Builder.defineMacro("__STDC_NO_ATOMICS__");
@@ -796,8 +803,6 @@ public:
     this->UseZeroLengthBitfieldAlignment = true;
     this->UseLeadingZeroLengthBitfield = false;
     this->ZeroLengthBitfieldBoundary = 32;
-    this->MinGlobalAlign = 0;
-    this->DefaultAlignForAttributeAligned = 128;
   }
 };
 
@@ -944,6 +949,7 @@ class LLVM_LIBRARY_VISIBILITY EmscriptenTargetInfo
   void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
                     MacroBuilder &Builder) const final {
     WebAssemblyOSTargetInfo<Target>::getOSDefines(Opts, Triple, Builder);
+    DefineStd(Builder, "unix", Opts);
     Builder.defineMacro("__EMSCRIPTEN__");
     if (Opts.POSIXThreads)
       Builder.defineMacro("__EMSCRIPTEN_PTHREADS__");

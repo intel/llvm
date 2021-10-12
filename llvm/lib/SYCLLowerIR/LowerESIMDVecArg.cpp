@@ -110,14 +110,18 @@ ModulePass *llvm::createESIMDLowerVecArgPass() {
 // nullptr.
 Type *ESIMDLowerVecArgPass::getSimdArgPtrTyOrNull(Value *arg) {
   auto ArgType = dyn_cast<PointerType>(arg->getType());
-  if (!ArgType || !ArgType->getElementType()->isStructTy())
+  if (!ArgType)
     return nullptr;
-  auto ContainedType = ArgType->getElementType();
-  if ((ContainedType->getStructNumElements() != 1) ||
-      !ContainedType->getStructElementType(0)->isVectorTy())
+  Type *Res = nullptr;
+  StructType *ST = dyn_cast_or_null<StructType>(ArgType->getElementType());
+
+  while (ST && (ST->getStructNumElements() == 1)) {
+    Res = ST->getStructElementType(0);
+    ST = dyn_cast<StructType>(Res);
+  }
+  if (!Res || !Res->isVectorTy())
     return nullptr;
-  return PointerType::get(ContainedType->getStructElementType(0),
-                          ArgType->getPointerAddressSpace());
+  return PointerType::get(Res, ArgType->getPointerAddressSpace());
 }
 
 // F may have multiple arguments of type simd*. This

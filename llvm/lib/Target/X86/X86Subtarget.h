@@ -353,6 +353,9 @@ class X86Subtarget final : public X86GenSubtargetInfo {
   /// Processor has AVX-512 Vector Length eXtenstions
   bool HasVLX = false;
 
+  /// Processor has AVX-512 16 bit floating-point extenstions
+  bool HasFP16 = false;
+
   /// Processor has PKU extenstions
   bool HasPKU = false;
 
@@ -424,6 +427,10 @@ class X86Subtarget final : public X86GenSubtargetInfo {
 
   /// Processor supports User Level Interrupt instructions
   bool HasUINTR = false;
+
+  /// Enable SSE4.2 CRC32 instruction (Used when SSE4.2 is supported but
+  /// function is GPR only)
+  bool HasCRC32 = false;
 
   /// Processor has a single uop BEXTR implementation.
   bool HasFastBEXTR = false;
@@ -742,6 +749,7 @@ public:
   bool hasDQI() const { return HasDQI; }
   bool hasBWI() const { return HasBWI; }
   bool hasVLX() const { return HasVLX; }
+  bool hasFP16() const { return HasFP16; }
   bool hasPKU() const { return HasPKU; }
   bool hasVNNI() const { return HasVNNI; }
   bool hasBF16() const { return HasBF16; }
@@ -763,6 +771,7 @@ public:
   bool hasSERIALIZE() const { return HasSERIALIZE; }
   bool hasTSXLDTRK() const { return HasTSXLDTRK; }
   bool hasUINTR() const { return HasUINTR; }
+  bool hasCRC32() const { return HasCRC32; }
   bool useRetpolineIndirectCalls() const { return UseRetpolineIndirectCalls; }
   bool useRetpolineIndirectBranches() const {
     return UseRetpolineIndirectBranches;
@@ -932,6 +941,31 @@ public:
 
   /// Return true if the subtarget allows calls to immediate address.
   bool isLegalToCallImmediateAddr() const;
+
+  /// Return whether FrameLowering should always set the "extended frame
+  /// present" bit in FP, or set it based on a symbol in the runtime.
+  bool swiftAsyncContextIsDynamicallySet() const {
+    // Older OS versions (particularly system unwinders) are confused by the
+    // Swift extended frame, so when building code that might be run on them we
+    // must dynamically query the concurrency library to determine whether
+    // extended frames should be flagged as present.
+    const Triple &TT = getTargetTriple();
+
+    unsigned Major, Minor, Micro;
+    TT.getOSVersion(Major, Minor, Micro);
+    switch(TT.getOS()) {
+    default:
+      return false;
+    case Triple::IOS:
+    case Triple::TvOS:
+      return Major < 15;
+    case Triple::WatchOS:
+      return Major < 8;
+    case Triple::MacOSX:
+    case Triple::Darwin:
+      return Major < 12;
+    }
+  }
 
   /// If we are using indirect thunks, we need to expand indirectbr to avoid it
   /// lowering to an actual indirect jump.

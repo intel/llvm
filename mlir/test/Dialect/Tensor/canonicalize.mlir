@@ -83,8 +83,8 @@ func @fold_extract(%arg0 : index) -> (f32, f16, f16, i32) {
   %ext_2 = tensor.extract %1[%const_1, %const_1, %const_1] : tensor<4x4x4xf16>
 
   // Fold an extract into a sparse with a non sparse index.
-  %2 = constant sparse<[[1, 1, 1]],  [-2.0]> : tensor<1x1x1xf16>
-  %ext_3 = tensor.extract %2[%const_0, %const_0, %const_0] : tensor<1x1x1xf16>
+  %2 = constant sparse<[[1, 1, 1]],  [-2.0]> : tensor<2x2x2xf16>
+  %ext_3 = tensor.extract %2[%const_0, %const_0, %const_0] : tensor<2x2x2xf16>
 
   // Fold an extract into a dense tensor.
    %3 = constant dense<[[[1, -2, 1, 36]], [[0, 2, -1, 64]]]> : tensor<2x1x4xi32>
@@ -366,10 +366,11 @@ func @insert_slice_canonicalize(%arg0 : tensor<?x?x?xf32>, %arg1 : index,
 }
 // CHECK-LABEL: func @insert_slice_canonicalize
 //  CHECK-SAME:   %[[ARG0:[a-zA-Z0-9_]+]]: tensor<?x?x?xf32>
-//       CHECK:   %[[RESULT:.+]] = tensor.insert_slice %[[ARG0]]
+//       CHECK:   %[[CAST:.+]] = tensor.cast %[[ARG0]] : tensor<?x?x?xf32> to tensor<4x1x?xf32>
+//       CHECK:   %[[RESULT:.+]] = tensor.insert_slice %[[CAST]]
 //  CHECK-SAME:      [0, %{{.+}}, 1] [4, 1, %{{.+}}] [1, 1, 1]
-//  CHECK-SAME:      : tensor<?x?x?xf32> into tensor<?x?x?xf32>
-//       CHEKC:   return %[[RESULT]]
+//  CHECK-SAME:      : tensor<4x1x?xf32> into tensor<?x?x?xf32>
+//       CHECK:   return %[[RESULT]]
 
 // -----
 
@@ -516,4 +517,18 @@ func @fold_dim_of_tensor.cast(%arg0 : tensor<4x?xf32>) -> (index, index) {
   %1 = tensor.dim %0, %c0 : tensor<?x?xf32>
   %2 = tensor.dim %0, %c1 : tensor<?x?xf32>
   return %1, %2: index, index
+}
+
+// -----
+
+// CHECK-LABEL: func @insert_tensor_cast_on_insert_slice_src(
+// CHECK-SAME:      %[[arg0:.*]]: tensor<?x5x?xf32>, %[[arg1:.*]]: tensor<?x?x?xf32>
+//      CHECK:    %[[cast:.*]] = tensor.cast %[[arg0]] : tensor<?x5x?xf32> to tensor<64x5x64xf32>
+//      CHECK:    %[[r:.*]] =  tensor.insert_slice %[[cast]] into %[[arg1]][0, 1, 2] [64, 5, 64] [1, 1, 1] : tensor<64x5x64xf32> into tensor<?x?x?xf32>
+//      CHECK:    return %[[r]]
+func @insert_tensor_cast_on_insert_slice_src(
+  %arg0 : tensor<?x5x?xf32>,  %arg1 : tensor<?x?x?xf32>) -> tensor<?x?x?xf32> {
+  %r = tensor.insert_slice %arg0 into %arg1[0, 1, 2] [64, 5, 64] [1, 1, 1]
+    : tensor<?x5x?xf32> into tensor<?x?x?xf32>
+  return %r : tensor<?x?x?xf32>
 }

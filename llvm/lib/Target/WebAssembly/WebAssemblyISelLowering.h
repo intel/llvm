@@ -102,11 +102,20 @@ private:
                                       bool *Fast) const override;
   bool isIntDivCheap(EVT VT, AttributeList Attr) const override;
   bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
+  bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
   bool getTgtMemIntrinsic(IntrinsicInfo &Info, const CallInst &I,
                           MachineFunction &MF,
                           unsigned Intrinsic) const override;
+
+  void computeKnownBitsForTargetNode(const SDValue Op, KnownBits &Known,
+                                     const APInt &DemandedElts,
+                                     const SelectionDAG &DAG,
+                                     unsigned Depth) const override;
+
+  TargetLoweringBase::LegalizeTypeAction
+  getPreferredVectorAction(MVT VT) const override;
 
   SDValue LowerCall(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;

@@ -32,11 +32,6 @@ class kernel_impl;
 /// invocation APIs such as single_task.
 class auto_name {};
 
-// Helper for the auto_name specialization to ensure that the 'B' is evaluted.
-template <typename Type, bool B> struct get_kernel_name_t_helper {
-  using name = Type;
-};
-
 /// Helper struct to get a kernel name type based on given \c Name and \c Type
 /// types: if \c Name is undefined (is a \c auto_name) then \c Type becomes
 /// the \c Name.
@@ -54,15 +49,7 @@ template <typename Name, typename Type> struct get_kernel_name_t {
 /// lack of specialization allows us to trigger static_assert from the primary
 /// definition.
 template <typename Type> struct get_kernel_name_t<detail::auto_name, Type> {
-  // We need to mark 'Type' as kernel here so FE will apply proper mangling for
-  // it. The reason for that is that when with range rounding enabled, we
-  // evaluate __builtin_sycl_unique_stable_name before instantiating the kernel,
-  // which leads to different results of built-in evaluation before and after
-  // kernel instantiation, which is illegal as it changes the result of
-  // previously evaluated constant expression.
-  using name =
-      typename get_kernel_name_t_helper<Type, __builtin_sycl_mark_kernel_name(
-                                                  Type)>::name;
+  using name = Type;
 };
 #endif // __SYCL_UNNAMED_LAMBDA__
 
@@ -124,6 +111,11 @@ public:
   /// \return a valid SYCL context
   context get_context() const;
 
+  /// Returns the backend associated with this kernel.
+  ///
+  /// \return the backend associated with this kernel.
+  backend get_backend() const noexcept;
+
   /// Get the kernel_bundle associated with this kernel.
   ///
   /// \return a valid kernel_bundle<bundle_state::executable>
@@ -172,8 +164,10 @@ public:
   /// \param Device is a valid SYCL device.
   /// \return depends on information being queried.
   template <info::kernel_work_group param>
+  __SYCL2020_DEPRECATED("get_work_group_info() is deprecated, use SYCL 2020 "
+                        "kernel_device_specific queries instead")
   typename info::param_traits<info::kernel_work_group, param>::return_type
-  get_work_group_info(const device &Device) const;
+      get_work_group_info(const device &Device) const;
 
   /// Query sub-group information from a kernel using the
   /// info::kernel_sub_group descriptor for a specific device.
@@ -203,8 +197,9 @@ public:
   // clang-format on
 
   template <backend Backend>
-  typename backend_traits<Backend>::template return_type<kernel>
-  get_native() const {
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  typename backend_traits<Backend>::template return_type<kernel> get_native()
+      const {
     return detail::pi::cast<
         typename backend_traits<Backend>::template return_type<kernel>>(
         getNativeImpl());

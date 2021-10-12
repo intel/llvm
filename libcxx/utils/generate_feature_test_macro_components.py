@@ -66,8 +66,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_addressof_constexpr",
     "values": { "c++17": 201603 },
     "headers": ["memory"],
-    "test_suite_guard": "TEST_HAS_BUILTIN(__builtin_addressof) || TEST_GCC_VER >= 700",
-    "libcxx_guard": "!defined(_LIBCPP_HAS_NO_BUILTIN_ADDRESSOF)",
   }, {
     "name": "__cpp_lib_allocator_traits_is_always_equal",
     "values": { "c++17": 201411 },
@@ -158,7 +156,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_bit_cast",
     "values": { "c++20": 201806 },
     "headers": ["bit"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_bitops",
     "values": { "c++20": 201907 },
@@ -323,8 +320,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_has_unique_object_representations",
     "values": { "c++17": 201606 },
     "headers": ["type_traits"],
-    "test_suite_guard": "TEST_HAS_BUILTIN_IDENTIFIER(__has_unique_object_representations) || TEST_GCC_VER >= 700",
-    "libcxx_guard": "defined(_LIBCPP_HAS_UNIQUE_OBJECT_REPRESENTATIONS)",
   }, {
     "name": "__cpp_lib_hypot",
     "values": { "c++17": 201603 },
@@ -363,14 +358,10 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_is_aggregate",
     "values": { "c++17": 201703 },
     "headers": ["type_traits"],
-    "test_suite_guard": "TEST_HAS_BUILTIN_IDENTIFIER(__is_aggregate) || TEST_GCC_VER_NEW >= 7001",
-    "libcxx_guard": "!defined(_LIBCPP_HAS_NO_IS_AGGREGATE)",
   }, {
     "name": "__cpp_lib_is_constant_evaluated",
     "values": { "c++20": 201811 },
     "headers": ["type_traits"],
-    "test_suite_guard": "TEST_HAS_BUILTIN(__builtin_is_constant_evaluated) || TEST_GCC_VER >= 900",
-    "libcxx_guard": "!defined(_LIBCPP_HAS_NO_BUILTIN_IS_CONSTANT_EVALUATED)",
   }, {
     "name": "__cpp_lib_is_final",
     "values": { "c++14": 201402 },
@@ -684,11 +675,13 @@ lit_markup = {
   "atomic": ["UNSUPPORTED: libcpp-has-no-threads"],
   "barrier": ["UNSUPPORTED: libcpp-has-no-threads"],
   "filesystem": ["UNSUPPORTED: libcpp-has-no-filesystem-library"],
+  "format": ["UNSUPPORTED: libcpp-has-no-incomplete-format"],
   "iomanip": ["UNSUPPORTED: libcpp-has-no-localization"],
   "istream": ["UNSUPPORTED: libcpp-has-no-localization"],
   "latch": ["UNSUPPORTED: libcpp-has-no-threads"],
   "locale": ["UNSUPPORTED: libcpp-has-no-localization"],
   "ostream": ["UNSUPPORTED: libcpp-has-no-localization"],
+  "ranges": ["UNSUPPORTED: libcpp-has-no-incomplete-ranges"],
   "regex": ["UNSUPPORTED: libcpp-has-no-localization"],
   "semaphore": ["UNSUPPORTED: libcpp-has-no-threads"],
   "shared_mutex": ["UNSUPPORTED: libcpp-has-no-threads"],
@@ -829,7 +822,7 @@ def produce_version_synopsis():
 
 def produce_version_header():
   template="""// -*- C++ -*-
-//===--------------------------- version ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

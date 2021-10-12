@@ -3,12 +3,27 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
+//
+// Do the same run, but now with SIMDization as well. This should not change the outcome.
+//
+// RUN: mlir-opt %s \
+// RUN:   --sparsification="vectorization-strategy=2 vl=4 enable-simd-index32" --sparse-tensor-conversion \
+// RUN:   --convert-vector-to-scf --convert-scf-to-std \
+// RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
+// RUN:   --std-bufferize --finalizing-bufferize --lower-affine \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
+// RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
+// RUN: mlir-cpu-runner \
+// RUN:  -e entry -entry-point-result=void  \
+// RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
+// RUN: FileCheck %s
+//
 
 !Filename = type !llvm.ptr<i8>
 
@@ -88,7 +103,7 @@ module {
 
     // Read the sparse matrix from file, construct sparse storage.
     %fileName = call @getTensorFilename(%c0) : (index) -> (!Filename)
-    %s = sparse_tensor.new %fileName : !llvm.ptr<i8> to tensor<?x?xf32, #SparseMatrix>
+    %s = sparse_tensor.new %fileName : !Filename to tensor<?x?xf32, #SparseMatrix>
 
     // Call the kernel.
     %0 = call @sampled_dense_dense(%s, %a, %b, %x)

@@ -36,6 +36,29 @@ Coding Standards]. Compliance of your code is checked automatically using
 Travis CI. See [clang-format] and [clang-tidy] configs for more details about
 coding standards.
 
+## How to add an extension
+
+First of all please make sure you have added a link to the
+specification for the extension in your PR. Then to add definitions of
+new Op Codes you shall modify [spirv.hpp], which is an external
+dependency for this project. To do so, you should add new definitions
+to [json grammar file], rebuild the header following the
+[instructions] in [SPIR-V Headers repository] and push your changes
+for review, i.e. make a PR. Once the PR is merged, a new spirv.hpp
+will have to be downloaded during build of the translator; make sure
+to update the hash for SPIRV-Headers in [spirv-headers-tag.conf]
+so that tokens from your extension can be visible to the translator
+build.
+
+It's highly recommended to add the definitions to [SPIR-V Headers repository]
+first, but if you don't want to bring it there yet, you can define new Op Codes
+in the [internal SPIR-V header file].
+
+For local testing you can copy your spirv.hpp variant to
+`<PATH_TO_SPIRV_HEADERS>/include/spirv/unified1` and/or modify it
+there. See [README.md](README.md#configuring-spir-v-headers) for build
+instructions that should be employed with such modifications.
+
 ### Conditions to merge a PR
 
 In order to get your PR merged, the following conditions must be met:
@@ -79,5 +102,10 @@ it can be merged:
 [LLVM Coding Standards]: https://llvm.org/docs/CodingStandards.html
 [clang-format]: [.clang-format]
 [clang-tidy]: [.clang-tidy]
+[spirv.hpp]: https://github.com/KhronosGroup/SPIRV-Headers/blob/master/include/spirv/unified1/spirv.hpp
+[json grammar file]: https://github.com/KhronosGroup/SPIRV-Headers/blob/master/include/spirv/unified1/spirv.core.grammar.json
+[instructions]: https://github.com/KhronosGroup/SPIRV-Headers#generating-headers-from-the-json-grammar-for-the-spir-v-core-instruction-set
+[SPIR-V Headers repository]: https://github.com/KhronosGroup/SPIRV-Headers
+[internal SPIR-V header file]: https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/master/lib/SPIRV/libSPIRV/spirv_internal.hpp
 [Contributor License Agreement]: https://cla-assistant.io/KhronosGroup/SPIRV-LLVM-Translator
 [Travis CI testing]: https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator

@@ -1584,6 +1584,7 @@ DWARFASTParserClang::ParseStructureLikeDIE(const SymbolContext &sc,
     }
   }
   assert(tag_decl_kind != -1);
+  (void)tag_decl_kind;
   bool clang_type_was_created = false;
   clang_type.SetCompilerType(
       &m_ast, dwarf->GetForwardDeclDieToClangType().lookup(die.GetDIE()));
@@ -1966,16 +1967,12 @@ bool DWARFASTParserClang::CompleteRecordType(const DWARFDIE &die,
       TypeSystemClang::StartTagDeclarationDefinition(clang_type);
     }
 
-    int tag_decl_kind = -1;
     AccessType default_accessibility = eAccessNone;
     if (tag == DW_TAG_structure_type) {
-      tag_decl_kind = clang::TTK_Struct;
       default_accessibility = eAccessPublic;
     } else if (tag == DW_TAG_union_type) {
-      tag_decl_kind = clang::TTK_Union;
       default_accessibility = eAccessPublic;
     } else if (tag == DW_TAG_class_type) {
-      tag_decl_kind = clang::TTK_Class;
       default_accessibility = eAccessPrivate;
     }
 
@@ -3140,7 +3137,6 @@ clang::Decl *DWARFASTParserClang::GetClangDeclForDIE(const DWARFDIE &die) {
   if (DWARFDIE spec_die = die.GetReferencedDIE(DW_AT_specification)) {
     clang::Decl *decl = GetClangDeclForDIE(spec_die);
     m_die_to_decl[die.GetDIE()] = decl;
-    m_decl_to_die[decl].insert(die.GetDIE());
     return decl;
   }
 
@@ -3148,7 +3144,6 @@ clang::Decl *DWARFASTParserClang::GetClangDeclForDIE(const DWARFDIE &die) {
           die.GetReferencedDIE(DW_AT_abstract_origin)) {
     clang::Decl *decl = GetClangDeclForDIE(abstract_origin_die);
     m_die_to_decl[die.GetDIE()] = decl;
-    m_decl_to_die[decl].insert(die.GetDIE());
     return decl;
   }
 
@@ -3213,7 +3208,6 @@ clang::Decl *DWARFASTParserClang::GetClangDeclForDIE(const DWARFDIE &die) {
   }
 
   m_die_to_decl[die.GetDIE()] = decl;
-  m_decl_to_die[decl].insert(die.GetDIE());
 
   return decl;
 }
@@ -3477,7 +3471,8 @@ bool DWARFASTParserClang::CopyUniqueClassMethodTypes(
   UniqueCStringMap<DWARFDIE> dst_name_to_die;
   UniqueCStringMap<DWARFDIE> src_name_to_die_artificial;
   UniqueCStringMap<DWARFDIE> dst_name_to_die_artificial;
-  for (DWARFDIE src_die : src_class_die.children()) {
+  for (src_die = src_class_die.GetFirstChild(); src_die.IsValid();
+       src_die = src_die.GetSibling()) {
     if (src_die.Tag() == DW_TAG_subprogram) {
       // Make sure this is a declaration and not a concrete instance by looking
       // for DW_AT_declaration set to 1. Sometimes concrete function instances
@@ -3495,7 +3490,8 @@ bool DWARFASTParserClang::CopyUniqueClassMethodTypes(
       }
     }
   }
-  for (DWARFDIE dst_die : dst_class_die.children()) {
+  for (dst_die = dst_class_die.GetFirstChild(); dst_die.IsValid();
+       dst_die = dst_die.GetSibling()) {
     if (dst_die.Tag() == DW_TAG_subprogram) {
       // Make sure this is a declaration and not a concrete instance by looking
       // for DW_AT_declaration set to 1. Sometimes concrete function instances

@@ -47,7 +47,7 @@
 #define SPIRV_LIBSPIRV_SPIRVNAMEMAPENUM_H
 
 #include "SPIRVEnum.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 
 using namespace spv;
@@ -581,6 +581,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityMax, "Max");
   add(internal::CapabilityFPArithmeticFenceINTEL, "FPArithmeticFenceINTEL");
   add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
+  add(internal::CapabilityJointMatrixINTEL, "JointMatrixINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

@@ -13,6 +13,10 @@ def build_invocation(compile_flags):
 
 # Assume that llvm-jitlink is in the config.llvm_tools_dir.
 llvm_jitlink = os.path.join(config.llvm_tools_dir, 'llvm-jitlink')
+if config.host_os == 'Darwin':
+  orc_rt_path = '%s/libclang_rt.orc_osx.a' % config.compiler_rt_libdir
+else:
+  orc_rt_path = '%s/libclang_rt.orc%s.a' % (config.compiler_rt_libdir, config.target_suffix)
 
 config.substitutions.append(
     ('%clang ', build_invocation([config.target_cflags])))
@@ -20,14 +24,10 @@ config.substitutions.append(
     ('%clangxx ',
      build_invocation(config.cxx_mode_flags + [config.target_cflags])))
 config.substitutions.append(
-    ('%llvm_jitlink', llvm_jitlink))
-config.substitutions.append(
-    ('%orc_rt',
-        ('-L%s -lclang_rt.orc%s')
-        % (config.compiler_rt_libdir, config.target_suffix)))
+    ('%llvm_jitlink', (llvm_jitlink + ' -orc-runtime=' + orc_rt_path)))
 
 # Default test suffixes.
 config.suffixes = ['.c', '.cpp', '.S']
 
-if config.host_os not in ['Darwin']:
+if config.host_os not in ['Darwin', 'FreeBSD', 'Linux']:
   config.unsupported = True

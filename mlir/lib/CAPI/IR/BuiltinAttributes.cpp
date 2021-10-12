@@ -212,15 +212,16 @@ MlirAttribute mlirSymbolRefAttrGet(MlirContext ctx, MlirStringRef symbol,
   refs.reserve(numReferences);
   for (intptr_t i = 0; i < numReferences; ++i)
     refs.push_back(unwrap(references[i]).cast<FlatSymbolRefAttr>());
-  return wrap(SymbolRefAttr::get(unwrap(ctx), unwrap(symbol), refs));
+  auto symbolAttr = StringAttr::get(unwrap(ctx), unwrap(symbol));
+  return wrap(SymbolRefAttr::get(symbolAttr, refs));
 }
 
 MlirStringRef mlirSymbolRefAttrGetRootReference(MlirAttribute attr) {
-  return wrap(unwrap(attr).cast<SymbolRefAttr>().getRootReference());
+  return wrap(unwrap(attr).cast<SymbolRefAttr>().getRootReference().getValue());
 }
 
 MlirStringRef mlirSymbolRefAttrGetLeafReference(MlirAttribute attr) {
-  return wrap(unwrap(attr).cast<SymbolRefAttr>().getLeafReference());
+  return wrap(unwrap(attr).cast<SymbolRefAttr>().getLeafReference().getValue());
 }
 
 intptr_t mlirSymbolRefAttrGetNumNestedReferences(MlirAttribute attr) {
@@ -504,48 +505,36 @@ MlirStringRef mlirDenseElementsAttrGetStringSplatValue(MlirAttribute attr) {
 // Indexed accessors.
 
 bool mlirDenseElementsAttrGetBoolValue(MlirAttribute attr, intptr_t pos) {
-  return *(unwrap(attr).cast<DenseElementsAttr>().getValues<bool>().begin() +
-           pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<bool>(pos);
 }
 int8_t mlirDenseElementsAttrGetInt8Value(MlirAttribute attr, intptr_t pos) {
-  return *(unwrap(attr).cast<DenseElementsAttr>().getValues<int8_t>().begin() +
-           pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<int8_t>(pos);
 }
 uint8_t mlirDenseElementsAttrGetUInt8Value(MlirAttribute attr, intptr_t pos) {
-  return *(unwrap(attr).cast<DenseElementsAttr>().getValues<uint8_t>().begin() +
-           pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<uint8_t>(pos);
 }
 int32_t mlirDenseElementsAttrGetInt32Value(MlirAttribute attr, intptr_t pos) {
-  return *(unwrap(attr).cast<DenseElementsAttr>().getValues<int32_t>().begin() +
-           pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<int32_t>(pos);
 }
 uint32_t mlirDenseElementsAttrGetUInt32Value(MlirAttribute attr, intptr_t pos) {
-  return *(
-      unwrap(attr).cast<DenseElementsAttr>().getValues<uint32_t>().begin() +
-      pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<uint32_t>(pos);
 }
 int64_t mlirDenseElementsAttrGetInt64Value(MlirAttribute attr, intptr_t pos) {
-  return *(unwrap(attr).cast<DenseElementsAttr>().getValues<int64_t>().begin() +
-           pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<int64_t>(pos);
 }
 uint64_t mlirDenseElementsAttrGetUInt64Value(MlirAttribute attr, intptr_t pos) {
-  return *(
-      unwrap(attr).cast<DenseElementsAttr>().getValues<uint64_t>().begin() +
-      pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<uint64_t>(pos);
 }
 float mlirDenseElementsAttrGetFloatValue(MlirAttribute attr, intptr_t pos) {
-  return *(unwrap(attr).cast<DenseElementsAttr>().getValues<float>().begin() +
-           pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<float>(pos);
 }
 double mlirDenseElementsAttrGetDoubleValue(MlirAttribute attr, intptr_t pos) {
-  return *(unwrap(attr).cast<DenseElementsAttr>().getValues<double>().begin() +
-           pos);
+  return unwrap(attr).cast<DenseElementsAttr>().getFlatValue<double>(pos);
 }
 MlirStringRef mlirDenseElementsAttrGetStringValue(MlirAttribute attr,
                                                   intptr_t pos) {
   return wrap(
-      *(unwrap(attr).cast<DenseElementsAttr>().getValues<StringRef>().begin() +
-        pos));
+      unwrap(attr).cast<DenseElementsAttr>().getFlatValue<StringRef>(pos));
 }
 
 //===----------------------------------------------------------------------===//

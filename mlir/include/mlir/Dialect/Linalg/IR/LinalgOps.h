@@ -25,6 +25,7 @@
 #include "mlir/Interfaces/CopyOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Interfaces/TilingInterface.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Support/LLVM.h"
 
@@ -35,9 +36,6 @@ namespace linalg {
 
 class ConvOp;
 class LinalgOp;
-class PoolingMaxOp;
-class PoolingMinOp;
-class PoolingSumOp;
 
 // TOFO: allow an extra ValueRange to specify an indexing and allow
 // non-hyperrectangular shapes.

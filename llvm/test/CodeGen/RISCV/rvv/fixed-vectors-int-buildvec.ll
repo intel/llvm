@@ -68,7 +68,7 @@ define void @buildvec_vid_step2_add0_v4i8(<4 x i8>* %z0, <4 x i8>* %z1, <4 x i8>
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 4, e8, mf4, ta, mu
 ; CHECK-NEXT:    vid.v v25
-; CHECK-NEXT:    vsll.vi v25, v25, 1
+; CHECK-NEXT:    vadd.vv v25, v25, v25
 ; CHECK-NEXT:    vse8.v v25, (a0)
 ; CHECK-NEXT:    vse8.v v25, (a1)
 ; CHECK-NEXT:    vse8.v v25, (a2)
@@ -86,7 +86,7 @@ define void @buildvec_vid_step2_add1_v4i8(<4 x i8>* %z0, <4 x i8>* %z1, <4 x i8>
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 4, e8, mf4, ta, mu
 ; CHECK-NEXT:    vid.v v25
-; CHECK-NEXT:    vsll.vi v25, v25, 1
+; CHECK-NEXT:    vadd.vv v25, v25, v25
 ; CHECK-NEXT:    vadd.vi v25, v25, 1
 ; CHECK-NEXT:    vse8.v v25, (a0)
 ; CHECK-NEXT:    vse8.v v25, (a1)
@@ -127,7 +127,7 @@ define void @buildvec_vid_stepn2_add0_v4i8(<4 x i8>* %z0, <4 x i8>* %z1, <4 x i8
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 4, e8, mf4, ta, mu
 ; CHECK-NEXT:    vid.v v25
-; CHECK-NEXT:    vsll.vi v25, v25, 1
+; CHECK-NEXT:    vadd.vv v25, v25, v25
 ; CHECK-NEXT:    vrsub.vi v25, v25, 0
 ; CHECK-NEXT:    vse8.v v25, (a0)
 ; CHECK-NEXT:    vse8.v v25, (a1)
@@ -146,7 +146,7 @@ define void @buildvec_vid_stepn2_add3_v4i8(<4 x i8>* %z0, <4 x i8>* %z1, <4 x i8
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 4, e8, mf4, ta, mu
 ; CHECK-NEXT:    vid.v v25
-; CHECK-NEXT:    vsll.vi v25, v25, 1
+; CHECK-NEXT:    vadd.vv v25, v25, v25
 ; CHECK-NEXT:    vrsub.vi v25, v25, 3
 ; CHECK-NEXT:    vse8.v v25, (a0)
 ; CHECK-NEXT:    ret
@@ -232,7 +232,7 @@ define <4 x i64> @buildvec_vid_step2_add0_v4i64() {
 ; RV64:       # %bb.0:
 ; RV64-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
 ; RV64-NEXT:    vid.v v25
-; RV64-NEXT:    vsll.vi v8, v25, 1
+; RV64-NEXT:    vadd.vv v8, v25, v25
 ; RV64-NEXT:    vadd.vi v9, v8, 4
 ; RV64-NEXT:    ret
   ret <4 x i64> <i64 0, i64 2, i64 4, i64 6>
@@ -388,7 +388,6 @@ define void @buildvec_dominant0_v2i32(<2 x i64>* %x) {
 ; RV64-NEXT:    addi a1, a1, -910
 ; RV64-NEXT:    vsetvli zero, zero, e64, m1, tu, mu
 ; RV64-NEXT:    vmv.s.x v25, a1
-; RV64-NEXT:    vsetvli zero, zero, e64, m1, ta, mu
 ; RV64-NEXT:    vse64.v v25, (a0)
 ; RV64-NEXT:    ret
   store <2 x i64> <i64 2049638230412172402, i64 -1>, <2 x i64>* %x
@@ -550,5 +549,92 @@ define void @buildvec_seq_v4i16_v2i32(<4 x i16>* %x) {
 ; CHECK-NEXT:    vse16.v v25, (a0)
 ; CHECK-NEXT:    ret
   store <4 x i16> <i16 -127, i16 -1, i16 -127, i16 -1>, <4 x i16>* %x
+  ret void
+}
+
+define void @buildvec_vid_step1o2_v4i32(<4 x i32>* %z0, <4 x i32>* %z1, <4 x i32>* %z2, <4 x i32>* %z3, <4 x i32>* %z4, <4 x i32>* %z5, <4 x i32>* %z6) {
+; CHECK-LABEL: buildvec_vid_step1o2_v4i32:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vid.v v25
+; CHECK-NEXT:    vsrl.vi v25, v25, 1
+; CHECK-NEXT:    vse32.v v25, (a0)
+; CHECK-NEXT:    vse32.v v25, (a1)
+; CHECK-NEXT:    vse32.v v25, (a2)
+; CHECK-NEXT:    vse32.v v25, (a3)
+; CHECK-NEXT:    vse32.v v25, (a4)
+; CHECK-NEXT:    vmv.s.x v25, zero
+; CHECK-NEXT:    vmv.v.i v26, 1
+; CHECK-NEXT:    vsetivli zero, 2, e32, m1, tu, mu
+; CHECK-NEXT:    vslideup.vi v26, v25, 1
+; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
+; CHECK-NEXT:    vse32.v v26, (a5)
+; CHECK-NEXT:    addi a0, zero, 1
+; CHECK-NEXT:    vmv.s.x v25, a0
+; CHECK-NEXT:    vmv.v.i v26, 0
+; CHECK-NEXT:    vsetvli zero, zero, e32, m1, tu, mu
+; CHECK-NEXT:    vslideup.vi v26, v25, 3
+; CHECK-NEXT:    vse32.v v26, (a6)
+; CHECK-NEXT:    ret
+  store <4 x i32> <i32 0, i32 0, i32 1, i32 1>, <4 x i32>* %z0
+  store <4 x i32> <i32 0, i32 0, i32 1, i32 undef>, <4 x i32>* %z1
+  store <4 x i32> <i32 0, i32 undef, i32 1, i32 1>, <4 x i32>* %z2
+  store <4 x i32> <i32 undef, i32 0, i32 undef, i32 1>, <4 x i32>* %z3
+  store <4 x i32> <i32 0, i32 undef, i32 1, i32 undef>, <4 x i32>* %z4
+  ; We don't catch this one
+  store <4 x i32> <i32 undef, i32 0, i32 1, i32 1>, <4 x i32>* %z5
+  ; We catch this one but as VID/3 rather than VID/2
+  store <4 x i32> <i32 0, i32 0, i32 undef, i32 1>, <4 x i32>* %z6
+  ret void
+}
+
+define void @buildvec_vid_step1o2_add3_v4i16(<4 x i16>* %z0, <4 x i16>* %z1, <4 x i16>* %z2, <4 x i16>* %z3, <4 x i16>* %z4, <4 x i16>* %z5, <4 x i16>* %z6) {
+; CHECK-LABEL: buildvec_vid_step1o2_add3_v4i16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 4, e16, mf2, ta, mu
+; CHECK-NEXT:    vid.v v25
+; CHECK-NEXT:    vsrl.vi v25, v25, 1
+; CHECK-NEXT:    vadd.vi v25, v25, 3
+; CHECK-NEXT:    vse16.v v25, (a0)
+; CHECK-NEXT:    vse16.v v25, (a1)
+; CHECK-NEXT:    vse16.v v25, (a2)
+; CHECK-NEXT:    vse16.v v25, (a3)
+; CHECK-NEXT:    vse16.v v25, (a4)
+; CHECK-NEXT:    addi a0, zero, 3
+; CHECK-NEXT:    vmv.s.x v25, a0
+; CHECK-NEXT:    vmv.v.i v26, 4
+; CHECK-NEXT:    vsetivli zero, 2, e16, mf2, tu, mu
+; CHECK-NEXT:    vslideup.vi v26, v25, 1
+; CHECK-NEXT:    vsetivli zero, 4, e16, mf2, ta, mu
+; CHECK-NEXT:    vse16.v v26, (a5)
+; CHECK-NEXT:    addi a0, zero, 4
+; CHECK-NEXT:    vmv.s.x v25, a0
+; CHECK-NEXT:    vmv.v.i v26, 3
+; CHECK-NEXT:    vsetvli zero, zero, e16, mf2, tu, mu
+; CHECK-NEXT:    vslideup.vi v26, v25, 3
+; CHECK-NEXT:    vse16.v v26, (a6)
+; CHECK-NEXT:    ret
+  store <4 x i16> <i16 3, i16 3, i16 4, i16 4>, <4 x i16>* %z0
+  store <4 x i16> <i16 3, i16 3, i16 4, i16 undef>, <4 x i16>* %z1
+  store <4 x i16> <i16 3, i16 undef, i16 4, i16 4>, <4 x i16>* %z2
+  store <4 x i16> <i16 undef, i16 3, i16 undef, i16 4>, <4 x i16>* %z3
+  store <4 x i16> <i16 3, i16 undef, i16 4, i16 undef>, <4 x i16>* %z4
+  ; We don't catch this one
+  store <4 x i16> <i16 undef, i16 3, i16 4, i16 4>, <4 x i16>* %z5
+  ; We catch this one but as VID/3 rather than VID/2
+  store <4 x i16> <i16 3, i16 3, i16 undef, i16 4>, <4 x i16>* %z6
+  ret void
+}
+
+define void @buildvec_vid_stepn1o4_addn5_v8i8(<8 x i8>* %z0) {
+; CHECK-LABEL: buildvec_vid_stepn1o4_addn5_v8i8:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetivli zero, 8, e8, mf2, ta, mu
+; CHECK-NEXT:    vid.v v25
+; CHECK-NEXT:    vsrl.vi v25, v25, 2
+; CHECK-NEXT:    vrsub.vi v25, v25, -5
+; CHECK-NEXT:    vse8.v v25, (a0)
+; CHECK-NEXT:    ret
+  store <8 x i8> <i8 -5, i8 -5, i8 -5, i8 -5, i8 -6, i8 -6, i8 -6, i8 -6>, <8 x i8>* %z0
   ret void
 }

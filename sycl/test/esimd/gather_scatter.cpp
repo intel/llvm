@@ -9,8 +9,8 @@
 using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
-void kernel(accessor<int, 1, access::mode::read_write,
-                     access::target::global_buffer> &buf)
+void kernel(
+    accessor<int, 1, access::mode::read_write, access::target::device> &buf)
     __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<int, 32> v1(0, 1);
@@ -22,8 +22,8 @@ void kernel(accessor<int, 1, access::mode::read_write,
   scatter<int, 32>(buf.get_pointer(), v0, offsets);
 }
 
-void kernel(accessor<uint8_t, 1, access::mode::read_write,
-                     access::target::global_buffer> &buf)
+void kernel(
+    accessor<uint8_t, 1, access::mode::read_write, access::target::device> &buf)
     __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint8_t, 32> v1(0, 1);
@@ -38,7 +38,7 @@ void kernel(accessor<uint8_t, 1, access::mode::read_write,
 }
 
 void kernel(accessor<uint16_t, 1, access::mode::read_write,
-                     access::target::global_buffer> &buf)
+                     access::target::device> &buf)
     __attribute__((sycl_device)) {
   simd<uint32_t, 32> offsets(0, 1);
   simd<uint16_t, 32> v1(0, 1);

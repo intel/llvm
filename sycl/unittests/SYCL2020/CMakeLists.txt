@@ -4,7 +4,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(LLVM_REQUIRES_EH 1)
 add_sycl_unittest(SYCL2020Tests OBJECT
   GetNativeOpenCL.cpp
-  SpecConstDefaultValues.cpp
+  SpecializationConstant.cpp
   KernelBundle.cpp
+  KernelID.cpp
 )
 

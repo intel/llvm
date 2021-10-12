@@ -1,12 +1,12 @@
 ; This test checks that the Local Accessor to Shared Memory pass does not run with the
-; `nvptx64-nvidia-nvcl-sycldevice` triple.
+; `nvptx64-nvidia-nvcl` triple.
 ; RUN: llc -march=nvptx64 -mcpu=sm_20 < %s | FileCheck %s
 ; CHECK: .param .u64 .ptr .shared .align 4 _ZTS14example_kernel_param_0
 
 ; ModuleID = 'local-accessor-to-shared-memory-invalid-triple.ll'
 source_filename = "local-accessor-to-shared-memory-invalid-triple.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
-target triple = "nvptx64-nvidia-nvcl-sycldevice"
+target triple = "nvptx64-nvidia-nvcl"
 
 ; Function Attrs: noinline
 define weak_odr dso_local void @_ZTS14example_kernel(i32 addrspace(3)* %a) {

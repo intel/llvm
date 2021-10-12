@@ -11,6 +11,13 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv --spirv-target-env=SPV-IR -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPIRV
+
+; Check that produced SPIR-V friendly IR is correctly recognized
+; RUN: llvm-spirv %t.rev.bc -spirv-text -o %t.spv.txt
+; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV: 2 Capability Float16
 ; CHECK-SPIRV: 2 Capability ImageBasic
@@ -74,6 +81,25 @@ target triple = "spir-unknown-unknown"
 %spirv.ReserveId            = type opaque ; reserve_id_t
 %spirv.Sampler              = type opaque ; sampler_t
 %spirv.SampledImage._float_1_1_0_0_0_0_0 = type opaque
+
+; TODO: translate pipe types to SPIR-V friendly IR
+; CHECK-LLVM-SPIRV-DAG: %opencl.pipe_ro_t = type opaque
+; CHECK-LLVM-SPIRV-DAG: %opencl.pipe_wo_t = type opaque
+
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_0_0_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._uint_1_0_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._uint_2_0_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._float_1_1_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._half_1_0_1_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._float_5_0_0_0_0_0_0 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_0_0_0_0_0_0_1 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Image._void_1_0_0_0_0_0_2 = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.DeviceEvent          = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Event                = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Queue                = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.ReserveId            = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.Sampler              = type opaque
+; CHECK-LLVM-SPIRV-DAG: %spirv.SampledImage._float_1_1_0_0_0_0_0 = type opaque
 
 ; CHECK-SPIRV: {{[0-9]+}} Function
 ; CHECK-SPIRV: 3 FunctionParameter [[PIPE_RD]] {{[0-9]+}}
@@ -147,6 +173,9 @@ define spir_func void @bar(
 ; CHECK-LLVM:  %opencl.image2d_depth_ro_t addrspace(1)* %srcimg.coerce,
 ; CHECK-LLVM:  %opencl.sampler_t addrspace(2)* %s.coerce)
 ; CHECK-LLVM:  call spir_func float @_Z11read_imagef20ocl_image2d_depth_ro11ocl_samplerDv4_if(%opencl.image2d_depth_ro_t addrspace(1)* %srcimg.coerce, %opencl.sampler_t addrspace(2)* %s.coerce, <4 x i32> zeroinitializer, float 1.000000e+00)
+
+; CHECK-LLVM-SPIRV: call spir_func %spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* @_Z20__spirv_SampledImagePU3AS134__spirv_Image__float_1_1_0_0_0_0_0PU3AS215__spirv_Sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce, %spirv.Sampler addrspace(2)* %s.coerce)
+; CHECK-LLVM-SPIRV: call spir_func <4 x float> @_Z38__spirv_ImageSampleExplicitLod_Rfloat4PU3AS141__spirv_SampledImage__float_1_1_0_0_0_0_0Dv4_iif(%spirv.SampledImage._float_1_1_0_0_0_0_0 addrspace(1)* %1, <4 x i32> zeroinitializer, i32 2, float 1.000000e+00)
 
 define spir_func void @test_sampler(%spirv.Image._float_1_1_0_0_0_0_0 addrspace(1)* %srcimg.coerce,
                                     %spirv.Sampler addrspace(1)* %s.coerce) {

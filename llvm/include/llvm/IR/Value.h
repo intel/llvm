@@ -454,12 +454,16 @@ public:
 
   /// Return true if there is exactly one use of this value that cannot be
   /// dropped.
-  ///
-  /// This is specialized because it is a common request and does not require
-  /// traversing the whole use list.
   Use *getSingleUndroppableUse();
   const Use *getSingleUndroppableUse() const {
     return const_cast<Value *>(this)->getSingleUndroppableUse();
+  }
+
+  /// Return true if there is exactly one unique user of this value that cannot be
+  /// dropped (that user can have multiple uses of this value).
+  User *getUniqueUndroppableUser();
+  const User *getUniqueUndroppableUser() const {
+    return const_cast<Value *>(this)->getUniqueUndroppableUser();
   }
 
   /// Return true if there this value.
@@ -781,8 +785,8 @@ public:
   ///
   /// This is the greatest alignment value supported by load, store, and alloca
   /// instructions, and global values.
-  static const unsigned MaxAlignmentExponent = 29;
-  static const unsigned MaximumAlignment = 1u << MaxAlignmentExponent;
+  static constexpr unsigned MaxAlignmentExponent = 30;
+  static constexpr unsigned MaximumAlignment = 1u << MaxAlignmentExponent;
 
   /// Mutate the type of this Value to be of the specified type.
   ///

@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/wide.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -64,7 +64,7 @@ module {
 
     // Read the sparse matrix from file, construct sparse storage.
     %fileName = call @getTensorFilename(%c0) : (index) -> (!Filename)
-    %a = sparse_tensor.new %fileName : !llvm.ptr<i8> to tensor<?x?xf64, #SparseMatrix>
+    %a = sparse_tensor.new %fileName : !Filename to tensor<?x?xf64, #SparseMatrix>
 
     // Initialize dense vectors.
     %bdata = memref.alloc(%c256, %c4) : memref<?x?xf64>

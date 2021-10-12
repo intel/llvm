@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -convert-scf-to-std -convert-memref-to-llvm -convert-std-to-llvm \
+// RUN: mlir-opt %s -convert-scf-to-std -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts \
 // RUN: | mlir-cpu-runner -e main -entry-point-result=void \
 // RUN: -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
@@ -31,6 +31,7 @@ func @main() -> () {
   call @cast_ranked_memref_to_dynamic_shape(%input) : (memref<2x3xf32>) -> ()
   call @cast_unranked_memref_to_static_shape(%input) : (memref<2x3xf32>) -> ()
   call @cast_unranked_memref_to_dynamic_shape(%input) : (memref<2x3xf32>) -> ()
+  memref.dealloc %input : memref<2x3xf32>
   return
 }
 

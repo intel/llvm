@@ -256,6 +256,34 @@ void PreprocessMetadataBase::visit(Module *M) {
           .add(getMDOperandAsInt(SchedulerTargetFmaxMhzINTEL, 0))
           .done();
     }
+
+    // !{void (i32 addrspace(1)*)* @kernel, i32 ip_interface, i32 interface}
+    if (MDNode *Interface =
+            Kernel.getMetadata(kSPIR2MD::IntelFPGAIPInterface)) {
+      std::set<std::string> InterfaceStrSet;
+      // Default mode is 'csr' aka !ip_interface !N
+      //                           !N = !{!”csr”}
+      // don't emit any particular SPIR-V for it
+      // Streaming mode metadata be like:
+      // Not 'stall free' mode (to be mapped on '0' literal)
+      // !ip_interface !N
+      // !N = !{!"streaming"}
+      // 'stall free' mode (to be mapped on '1' literal)
+      // !ip_interface !N
+      // !N = !{!"streaming", !"stall_free_return"}
+      for (size_t I = 0; I != Interface->getNumOperands(); ++I)
+        InterfaceStrSet.insert(getMDOperandAsString(Interface, I));
+      if (InterfaceStrSet.find("streaming") != InterfaceStrSet.end()) {
+        int32_t InterfaceMode = 0;
+        if (InterfaceStrSet.find("stall_free_return") != InterfaceStrSet.end())
+          InterfaceMode = 1;
+        EM.addOp()
+            .add(&Kernel)
+            .add(spv::internal::ExecutionModeStreamingInterfaceINTEL)
+            .add(InterfaceMode)
+            .done();
+      }
+    }
   }
 }
 
@@ -319,11 +347,10 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
     // RoundMode and FloatMode are always same for all types in VC
     // While Denorm could be different for double, float and half
     auto Attrs = F.getAttributes();
-    if (Attrs.hasFnAttribute(kVCMetadata::VCFloatControl)) {
+    if (Attrs.hasFnAttr(kVCMetadata::VCFloatControl)) {
       SPIRVWord Mode = 0;
       Attrs
-          .getAttribute(AttributeList::FunctionIndex,
-                        kVCMetadata::VCFloatControl)
+          .getFnAttr(kVCMetadata::VCFloatControl)
           .getValueAsString()
           .getAsInteger(0, Mode);
       spv::ExecutionMode ExecRoundMode =
@@ -342,9 +369,9 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
                 .done();
           });
     }
-    if (Attrs.hasFnAttribute(kVCMetadata::VCSLMSize)) {
+    if (Attrs.hasFnAttr(kVCMetadata::VCSLMSize)) {
       SPIRVWord SLMSize = 0;
-      Attrs.getAttribute(AttributeList::FunctionIndex, kVCMetadata::VCSLMSize)
+      Attrs.getFnAttr(kVCMetadata::VCSLMSize)
           .getValueAsString()
           .getAsInteger(0, SLMSize);
       EM.addOp()
@@ -353,7 +380,7 @@ void PreprocessMetadataBase::preprocessVectorComputeMetadata(Module *M,
           .add(SLMSize)
           .done();
     }
-    if (Attrs.hasFnAttribute(kVCMetadata::VCFCEntry)) {
+    if (Attrs.hasFnAttr(kVCMetadata::VCFCEntry)) {
       EM.addOp()
           .add(&F)
           .add(spv::internal::ExecutionModeFastCompositeKernelINTEL)

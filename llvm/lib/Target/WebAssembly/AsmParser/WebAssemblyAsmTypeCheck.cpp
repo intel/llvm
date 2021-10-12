@@ -89,8 +89,7 @@ bool WebAssemblyAsmTypeCheck::popType(SMLoc ErrorLoc,
                           : StringRef(
                                     "empty stack while popping value"));
   }
-  auto PVT = Stack.back();
-  Stack.pop_back();
+  auto PVT = Stack.pop_back_val();
   if (EVT.hasValue() && EVT.getValue() != PVT) {
     return typeError(
         ErrorLoc, StringRef("popped ") + WebAssembly::typeToString(PVT) +
@@ -155,8 +154,12 @@ bool WebAssemblyAsmTypeCheck::getGlobal(SMLoc ErrorLoc, const MCInst &Inst,
     break;
   case wasm::WASM_SYMBOL_TYPE_FUNCTION:
   case wasm::WASM_SYMBOL_TYPE_DATA:
-    if (SymRef->getKind() == MCSymbolRefExpr::VK_GOT) {
+    switch (SymRef->getKind()) {
+    case MCSymbolRefExpr::VK_GOT:
+    case MCSymbolRefExpr::VK_WASM_GOT_TLS:
       Type = is64 ? wasm::ValType::I64 : wasm::ValType::I32;
+      return false;
+    default:
       break;
     }
     LLVM_FALLTHROUGH;
@@ -213,7 +216,7 @@ bool WebAssemblyAsmTypeCheck::typeCheck(SMLoc ErrorLoc, const MCInst &Inst) {
     if (popType(ErrorLoc, {}))
       return true;
   } else if (Name == "end_block" || Name == "end_loop" || Name == "end_if" ||
-              Name == "else") {
+             Name == "else" || Name == "end_try") {
     if (checkEnd(ErrorLoc))
       return true;
   } else if (Name == "call_indirect" || Name == "return_call_indirect") {
@@ -230,6 +233,18 @@ bool WebAssemblyAsmTypeCheck::typeCheck(SMLoc ErrorLoc, const MCInst &Inst) {
       return typeError(ErrorLoc, StringRef("symbol ") + WasmSym->getName() +
                                       " missing .functype");
     if (checkSig(ErrorLoc, *Sig)) return true;
+  } else if (Name == "catch") {
+    const MCSymbolRefExpr *SymRef;
+    if (getSymRef(ErrorLoc, Inst, SymRef))
+      return true;
+    const auto *WasmSym = cast<MCSymbolWasm>(&SymRef->getSymbol());
+    const auto *Sig = WasmSym->getSignature();
+    if (!Sig || WasmSym->getType() != wasm::WASM_SYMBOL_TYPE_TAG)
+      return typeError(ErrorLoc, StringRef("symbol ") + WasmSym->getName() +
+                                     " missing .tagtype");
+    // catch instruction pushes values whose types are specified in the tag's
+    // "params" part
+    Stack.insert(Stack.end(), Sig->Params.begin(), Sig->Params.end());
   } else if (Name == "ref.null") {
     auto VT = static_cast<wasm::ValType>(Inst.getOperand(0).getImm());
     Stack.push_back(VT);

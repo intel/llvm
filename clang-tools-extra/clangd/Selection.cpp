@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Selection.h"
+#include "AST.h"
 #include "SourceCode.h"
 #include "support/Logger.h"
 #include "support/Trace.h"
@@ -442,6 +443,15 @@ bool isImplicit(const Stmt *S) {
   if (auto *CTI = llvm::dyn_cast<CXXThisExpr>(S))
     if (CTI->isImplicit())
       return true;
+  // Make sure implicit access of anonymous structs don't end up owning tokens.
+  if (auto *ME = llvm::dyn_cast<MemberExpr>(S)) {
+    if (auto *FD = llvm::dyn_cast<FieldDecl>(ME->getMemberDecl()))
+      if (FD->isAnonymousStructOrUnion())
+        // If Base is an implicit CXXThis, then the whole MemberExpr has no
+        // tokens. If it's a normal e.g. DeclRef, we treat the MemberExpr like
+        // an implicit cast.
+        return isImplicit(ME->getBase());
+  }
   // Refs to operator() and [] are (almost?) always implicit as part of calls.
   if (auto *DRE = llvm::dyn_cast<DeclRefExpr>(S)) {
     if (auto *FD = llvm::dyn_cast<FunctionDecl>(DRE->getDecl())) {
@@ -490,7 +500,6 @@ public:
   // Two categories of nodes are not "well-behaved":
   //  - those without source range information, we don't record those
   //  - those that can't be stored in DynTypedNode.
-  // We're missing some interesting things like Attr due to the latter.
   bool TraverseDecl(Decl *X) {
     if (X && isa<TranslationUnitDecl>(X))
       return Base::TraverseDecl(X); // Already pushed by constructor.
@@ -516,6 +525,9 @@ public:
   }
   bool TraverseCXXBaseSpecifier(const CXXBaseSpecifier &X) {
     return traverseNode(&X, [&] { return Base::TraverseCXXBaseSpecifier(X); });
+  }
+  bool TraverseAttr(Attr *X) {
+    return traverseNode(X, [&] { return Base::TraverseAttr(X); });
   }
   // Stmt is the same, but this form allows the data recursion optimization.
   bool dataTraverseStmtPre(Stmt *X) {
@@ -651,6 +663,11 @@ private:
       if (auto AT = TL->getAs<AttributedTypeLoc>())
         S = AT.getModifiedLoc().getSourceRange();
     }
+    // SourceRange often doesn't manage to accurately cover attributes.
+    // Fortunately, attributes are rare.
+    if (llvm::any_of(getAttributes(N),
+                     [](const Attr *A) { return !A->isImplicit(); }))
+      return false;
     if (!SelChecker.mayHit(S)) {
       dlog("{1}skip: {0}", printNodeToString(N, PrintPolicy), indent());
       dlog("{1}skipped range = {0}", S.printToString(SM), indent(1));

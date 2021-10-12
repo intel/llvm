@@ -47,7 +47,7 @@ Optional<SmallVector<ReassociationIndices>> composeReassociationIndices(
 
 /// Convert reassociation indices to affine expressions.
 SmallVector<SmallVector<AffineExpr, 2>, 2> convertReassociationIndicesToExprs(
-    OpBuilder &b, ArrayRef<ReassociationIndices> reassociationIndices);
+    MLIRContext *context, ArrayRef<ReassociationIndices> reassociationIndices);
 
 /// Constructs affine maps out of Array<Array<AffineExpr>>.
 SmallVector<AffineMap, 4>
@@ -82,7 +82,7 @@ ParseResult parseReshapeLikeOp(OpAsmParser &parser, OperationState &result);
 /// linalg::(Tensor)CollapseShapeOp.
 template <typename ReshapeLikeOp>
 void printReshapeOp(OpAsmPrinter &p, ReshapeLikeOp op) {
-  p << op.getOperationName() << ' ' << op.src() << " [";
+  p << ' ' << op.src() << " [";
 
   llvm::interleaveComma(op.reassociation(), p, [&](const Attribute &attr) {
     p << '[';
@@ -223,8 +223,8 @@ struct CollapseReshapeOps : public OpRewritePattern<ReshapeOpTy> {
     ShapedType resultType = reshapeOp.getResultType();
     Optional<SmallVector<ReassociationIndices>> reassociationIndices =
         composeReassociationIndices(srcReshapeOp.getReassociationIndices(),
-                                     reshapeOp.getReassociationIndices(),
-                                     rewriter.getContext());
+                                    reshapeOp.getReassociationIndices(),
+                                    rewriter.getContext());
     if (!reassociationIndices)
       return failure();
     rewriter.replaceOpWithNewOp<ReshapeOpTy>(

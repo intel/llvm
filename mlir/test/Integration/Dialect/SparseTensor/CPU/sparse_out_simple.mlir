@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -59,7 +59,7 @@ module {
 
     // Read the sparse matrix from file, construct sparse storage.
     %fileName = call @getTensorFilename(%c0) : (index) -> (!Filename)
-    %x = sparse_tensor.new %fileName : !llvm.ptr<i8> to tensor<?x?xf64, #DCSR>
+    %x = sparse_tensor.new %fileName : !Filename to tensor<?x?xf64, #DCSR>
 
     // Call kernel.
     %0 = call @kernel_eltwise_mult(%x) : (tensor<?x?xf64, #DCSR>) -> tensor<?x?xf64, #DCSR>

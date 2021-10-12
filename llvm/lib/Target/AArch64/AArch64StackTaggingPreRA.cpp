@@ -1,9 +1,8 @@
 //===-- AArch64StackTaggingPreRA.cpp --- Stack Tagging for AArch64 -----===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -277,8 +276,7 @@ Optional<int> AArch64StackTaggingPreRA::findFirstSlotCandidate() {
     WorkList.push_back(RetagReg);
 
     while (!WorkList.empty()) {
-      Register UseReg = WorkList.back();
-      WorkList.pop_back();
+      Register UseReg = WorkList.pop_back_val();
       for (auto &UseI : MRI->use_instructions(UseReg)) {
         unsigned Opcode = UseI.getOpcode();
         if (Opcode == AArch64::STGOffset || Opcode == AArch64::ST2GOffset ||

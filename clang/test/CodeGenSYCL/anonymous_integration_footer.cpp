@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -triple spir64-unknown-unknown-sycldevice -fsycl-int-footer=%t.h %s -emit-llvm -o %t.ll
+// RUN: %clang_cc1 -fsycl-is-device -std=c++17 -triple spir64-unknown-unknown -fsycl-int-footer=%t.h %s -emit-llvm -o %t.ll
 // RUN: FileCheck -input-file=%t.h %s
 // A test that validates the more complex cases of the specialization-constant
 // integration footer details, basically any situation we can come up with that

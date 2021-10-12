@@ -20,12 +20,14 @@
 #include "llvm/Demangle/ItaniumDemangle.h"
 
 #include "lldb/Core/Mangled.h"
+#include "lldb/Core/Module.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/UniqueCStringMap.h"
 #include "lldb/DataFormatters/CXXFunctionPointer.h"
 #include "lldb/DataFormatters/DataVisualization.h"
 #include "lldb/DataFormatters/FormattersHelpers.h"
 #include "lldb/DataFormatters/VectorType.h"
+#include "lldb/Symbol/SymbolFile.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/RegularExpression.h"
@@ -64,13 +66,40 @@ bool CPlusPlusLanguage::SymbolNameFitsToLanguage(Mangled mangled) const {
   return mangled_name && CPlusPlusLanguage::IsCPPMangledName(mangled_name);
 }
 
+ConstString CPlusPlusLanguage::GetDemangledFunctionNameWithoutArguments(
+    Mangled mangled) const {
+  const char *mangled_name_cstr = mangled.GetMangledName().GetCString();
+  ConstString demangled_name = mangled.GetDemangledName();
+  if (demangled_name && mangled_name_cstr && mangled_name_cstr[0]) {
+    if (mangled_name_cstr[0] == '_' && mangled_name_cstr[1] == 'Z' &&
+        (mangled_name_cstr[2] != 'T' && // avoid virtual table, VTT structure,
+                                        // typeinfo structure, and typeinfo
+                                        // mangled_name
+         mangled_name_cstr[2] != 'G' && // avoid guard variables
+         mangled_name_cstr[2] != 'Z'))  // named local entities (if we
+                                        // eventually handle eSymbolTypeData,
+                                        // we will want this back)
+    {
+      CPlusPlusLanguage::MethodName cxx_method(demangled_name);
+      if (!cxx_method.GetBasename().empty()) {
+        std::string shortname;
+        if (!cxx_method.GetContext().empty())
+          shortname = cxx_method.GetContext().str() + "::";
+        shortname += cxx_method.GetBasename().str();
+        return ConstString(shortname);
+      }
+    }
+  }
+  if (demangled_name)
+    return demangled_name;
+  return mangled.GetMangledName();
+}
+
 // PluginInterface protocol
 
 lldb_private::ConstString CPlusPlusLanguage::GetPluginName() {
   return GetPluginNameStatic();
 }
-
-uint32_t CPlusPlusLanguage::GetPluginVersion() { return 1; }
 
 // Static Functions
 
@@ -397,9 +426,10 @@ public:
 };
 } // namespace
 
-uint32_t CPlusPlusLanguage::FindAlternateFunctionManglings(
-    const ConstString mangled_name, std::set<ConstString> &alternates) {
-  const auto start_size = alternates.size();
+std::vector<ConstString> CPlusPlusLanguage::GenerateAlternateFunctionManglings(
+    const ConstString mangled_name) const {
+  std::vector<ConstString> alternates;
+
   /// Get a basic set of alternative manglings for the given symbol `name`, by
   /// making a few basic possible substitutions on basic types, storage duration
   /// and `const`ness for the given symbol. The output parameter `alternates`
@@ -412,7 +442,7 @@ uint32_t CPlusPlusLanguage::FindAlternateFunctionManglings(
       strncmp(mangled_name.GetCString(), "_ZNK", 4)) {
     std::string fixed_scratch("_ZNK");
     fixed_scratch.append(mangled_name.GetCString() + 3);
-    alternates.insert(ConstString(fixed_scratch));
+    alternates.push_back(ConstString(fixed_scratch));
   }
 
   // Maybe we're looking for a static symbol but we thought it was global...
@@ -420,7 +450,7 @@ uint32_t CPlusPlusLanguage::FindAlternateFunctionManglings(
       strncmp(mangled_name.GetCString(), "_ZL", 3)) {
     std::string fixed_scratch("_ZL");
     fixed_scratch.append(mangled_name.GetCString() + 2);
-    alternates.insert(ConstString(fixed_scratch));
+    alternates.push_back(ConstString(fixed_scratch));
   }
 
   TypeSubstitutor TS;
@@ -430,24 +460,74 @@ uint32_t CPlusPlusLanguage::FindAlternateFunctionManglings(
   // parameter, try finding matches which have the general case 'c'.
   if (ConstString char_fixup =
           TS.substitute(mangled_name.GetStringRef(), "a", "c"))
-    alternates.insert(char_fixup);
+    alternates.push_back(char_fixup);
 
   // long long parameter mangling 'x', may actually just be a long 'l' argument
   if (ConstString long_fixup =
           TS.substitute(mangled_name.GetStringRef(), "x", "l"))
-    alternates.insert(long_fixup);
+    alternates.push_back(long_fixup);
 
   // unsigned long long parameter mangling 'y', may actually just be unsigned
   // long 'm' argument
   if (ConstString ulong_fixup =
           TS.substitute(mangled_name.GetStringRef(), "y", "m"))
-    alternates.insert(ulong_fixup);
+    alternates.push_back(ulong_fixup);
 
   if (ConstString ctor_fixup =
           CtorDtorSubstitutor().substitute(mangled_name.GetStringRef()))
-    alternates.insert(ctor_fixup);
+    alternates.push_back(ctor_fixup);
 
-  return alternates.size() - start_size;
+  return alternates;
+}
+
+ConstString CPlusPlusLanguage::FindBestAlternateFunctionMangledName(
+    const Mangled mangled, const SymbolContext &sym_ctx) const {
+  ConstString demangled = mangled.GetDemangledName();
+  if (!demangled)
+    return ConstString();
+
+  CPlusPlusLanguage::MethodName cpp_name(demangled);
+  std::string scope_qualified_name = cpp_name.GetScopeQualifiedName();
+
+  if (!scope_qualified_name.size())
+    return ConstString();
+
+  if (!sym_ctx.module_sp)
+    return ConstString();
+
+  lldb_private::SymbolFile *sym_file = sym_ctx.module_sp->GetSymbolFile();
+  if (!sym_file)
+    return ConstString();
+
+  std::vector<ConstString> alternates;
+  sym_file->GetMangledNamesForFunction(scope_qualified_name, alternates);
+
+  std::vector<ConstString> param_and_qual_matches;
+  std::vector<ConstString> param_matches;
+  for (size_t i = 0; i < alternates.size(); i++) {
+    ConstString alternate_mangled_name = alternates[i];
+    Mangled mangled(alternate_mangled_name);
+    ConstString demangled = mangled.GetDemangledName();
+
+    CPlusPlusLanguage::MethodName alternate_cpp_name(demangled);
+    if (!cpp_name.IsValid())
+      continue;
+
+    if (alternate_cpp_name.GetArguments() == cpp_name.GetArguments()) {
+      if (alternate_cpp_name.GetQualifiers() == cpp_name.GetQualifiers())
+        param_and_qual_matches.push_back(alternate_mangled_name);
+      else
+        param_matches.push_back(alternate_mangled_name);
+    }
+  }
+
+  if (param_and_qual_matches.size())
+    return param_and_qual_matches[0]; // It is assumed that there will be only
+                                      // one!
+  else if (param_matches.size())
+    return param_matches[0]; // Return one of them as a best match
+  else
+    return ConstString();
 }
 
 static void LoadLibCxxFormatters(lldb::TypeCategoryImplSP cpp_category_sp) {

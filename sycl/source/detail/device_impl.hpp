@@ -222,6 +222,8 @@ public:
   /// \return the host device_impl singleton
   static std::shared_ptr<device_impl> getHostDeviceImpl();
 
+  bool isAssertFailSupported() const;
+
 private:
   explicit device_impl(pi_native_handle InteropDevice, RT::PiDevice Device,
                        PlatformImplPtr Platform, const plugin &Plugin);
@@ -230,6 +232,7 @@ private:
   bool MIsRootDevice = false;
   bool MIsHostDevice;
   PlatformImplPtr MPlatform;
+  bool MIsAssertFailSupported = false;
 }; // class device_impl
 
 } // namespace detail

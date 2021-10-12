@@ -776,7 +776,10 @@ class VPInstruction : public VPRecipeBase, public VPValue {
 public:
   /// VPlan opcodes, extending LLVM IR with idiomatics instructions.
   enum {
-    Not = Instruction::OtherOpsEnd + 1,
+    FirstOrderRecurrenceSplice =
+        Instruction::OtherOpsEnd + 1, // Combines the incoming and previous
+                                      // values of a first-order recurrence.
+    Not,
     ICmpULE,
     SLPLoad,
     SLPStore,
@@ -1060,8 +1063,12 @@ class VPWidenPHIRecipe : public VPRecipeBase, public VPValue {
   SmallVector<VPBasicBlock *, 2> IncomingBlocks;
 
 protected:
-  VPWidenPHIRecipe(unsigned char VPVID, unsigned char VPDefID, PHINode *Phi)
-      : VPRecipeBase(VPDefID, {}), VPValue(VPVID, Phi, this) {}
+  VPWidenPHIRecipe(unsigned char VPVID, unsigned char VPDefID, PHINode *Phi,
+                   VPValue *Start = nullptr)
+      : VPRecipeBase(VPDefID, {}), VPValue(VPVID, Phi, this) {
+    if (Start)
+      addOperand(Start);
+  }
 
 public:
   /// Create a VPWidenPHIRecipe for \p Phi
@@ -1078,10 +1085,12 @@ public:
   /// Method to support type inquiry through isa, cast, and dyn_cast.
   static inline bool classof(const VPRecipeBase *B) {
     return B->getVPDefID() == VPRecipeBase::VPWidenPHISC ||
+           B->getVPDefID() == VPRecipeBase::VPFirstOrderRecurrencePHISC ||
            B->getVPDefID() == VPRecipeBase::VPReductionPHISC;
   }
   static inline bool classof(const VPValue *V) {
     return V->getVPValueID() == VPValue::VPVWidenPHISC ||
+           V->getVPValueID() == VPValue::VPVFirstOrderRecurrencePHISC ||
            V->getVPValueID() == VPValue::VPVReductionPHISC;
   }
 
@@ -1106,6 +1115,12 @@ public:
     return getOperand(1);
   }
 
+  /// Returns the backedge value as a recipe. The backedge value is guaranteed
+  /// to be a recipe.
+  VPRecipeBase *getBackedgeRecipe() {
+    return cast<VPRecipeBase>(getBackedgeValue()->getDef());
+  }
+
   /// Adds a pair (\p IncomingV, \p IncomingBlock) to the phi.
   void addIncoming(VPValue *IncomingV, VPBasicBlock *IncomingBlock) {
     addOperand(IncomingV);
@@ -1117,6 +1132,34 @@ public:
 
   /// Returns the \p I th incoming VPBasicBlock.
   VPBasicBlock *getIncomingBlock(unsigned I) { return IncomingBlocks[I]; }
+};
+
+/// A recipe for handling first-order recurrence phis. The start value is the
+/// first operand of the recipe and the incoming value from the backedge is the
+/// second operand.
+struct VPFirstOrderRecurrencePHIRecipe : public VPWidenPHIRecipe {
+  VPFirstOrderRecurrencePHIRecipe(PHINode *Phi, VPValue &Start)
+      : VPWidenPHIRecipe(VPVFirstOrderRecurrencePHISC,
+                         VPFirstOrderRecurrencePHISC, Phi, &Start) {}
+
+  /// Method to support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const VPRecipeBase *R) {
+    return R->getVPDefID() == VPRecipeBase::VPFirstOrderRecurrencePHISC;
+  }
+  static inline bool classof(const VPWidenPHIRecipe *D) {
+    return D->getVPDefID() == VPRecipeBase::VPFirstOrderRecurrencePHISC;
+  }
+  static inline bool classof(const VPValue *V) {
+    return V->getVPValueID() == VPValue::VPVFirstOrderRecurrencePHISC;
+  }
+
+  void execute(VPTransformState &State) override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
 };
 
 /// A recipe for handling reduction phis. The start value is the first operand
@@ -1138,10 +1181,9 @@ public:
   VPReductionPHIRecipe(PHINode *Phi, RecurrenceDescriptor &RdxDesc,
                        VPValue &Start, bool IsInLoop = false,
                        bool IsOrdered = false)
-      : VPWidenPHIRecipe(VPVReductionPHISC, VPReductionPHISC, Phi),
+      : VPWidenPHIRecipe(VPVReductionPHISC, VPReductionPHISC, Phi, &Start),
         RdxDesc(RdxDesc), IsInLoop(IsInLoop), IsOrdered(IsOrdered) {
     assert((!IsOrdered || IsInLoop) && "IsOrdered requires IsInLoop");
-    addOperand(&Start);
   }
 
   ~VPReductionPHIRecipe() override = default;
@@ -1270,7 +1312,7 @@ public:
     // The first operand is the address, followed by the stored values, followed
     // by an optional mask.
     return ArrayRef<VPValue *>(op_begin(), getNumOperands())
-        .slice(1, getNumOperands() - (HasMask ? 2 : 1));
+        .slice(1, getNumStoreOperands());
   }
 
   /// Generate the wide load or store, and shuffles.
@@ -1283,6 +1325,12 @@ public:
 #endif
 
   const InterleaveGroup<Instruction> *getInterleaveGroup() { return IG; }
+
+  /// Returns the number of stored operands of this interleave group. Returns 0
+  /// for load interleave groups.
+  unsigned getNumStoreOperands() const {
+    return getNumOperands() - (HasMask ? 2 : 1);
+  }
 };
 
 /// A recipe to represent inloop reduction operations, performing a reduction on
@@ -2052,6 +2100,10 @@ class VPlan {
   /// Holds the VPLoopInfo analysis for this VPlan.
   VPLoopInfo VPLInfo;
 
+  /// Indicates whether it is safe use the Value2VPValue mapping or if the
+  /// mapping cannot be used any longer, because it is stale.
+  bool Value2VPValueEnabled = true;
+
 public:
   VPlan(VPBlockBase *Entry = nullptr) : Entry(Entry) {
     if (Entry)
@@ -2093,6 +2145,10 @@ public:
     return BackedgeTakenCount;
   }
 
+  /// Mark the plan to indicate that using Value2VPValue is not safe any
+  /// longer, because it may be stale.
+  void disableValue2VPValue() { Value2VPValueEnabled = false; }
+
   void addVF(ElementCount VF) { VFs.insert(VF); }
 
   bool hasVF(ElementCount VF) { return VFs.count(VF); }
@@ -2106,6 +2162,8 @@ public:
   void addExternalDef(VPValue *VPVal) { VPExternalDefs.insert(VPVal); }
 
   void addVPValue(Value *V) {
+    assert(Value2VPValueEnabled &&
+           "IR value to VPValue mapping may be out of date!");
     assert(V && "Trying to add a null Value to VPlan");
     assert(!Value2VPValue.count(V) && "Value already exists in VPlan");
     VPValue *VPV = new VPValue(V);
@@ -2114,25 +2172,39 @@ public:
   }
 
   void addVPValue(Value *V, VPValue *VPV) {
+    assert(Value2VPValueEnabled && "Value2VPValue mapping may be out of date!");
     assert(V && "Trying to add a null Value to VPlan");
     assert(!Value2VPValue.count(V) && "Value already exists in VPlan");
     Value2VPValue[V] = VPV;
   }
 
-  VPValue *getVPValue(Value *V) {
+  /// Returns the VPValue for \p V. \p OverrideAllowed can be used to disable
+  /// checking whether it is safe to query VPValues using IR Values.
+  VPValue *getVPValue(Value *V, bool OverrideAllowed = false) {
+    assert((OverrideAllowed || isa<Constant>(V) || Value2VPValueEnabled) &&
+           "Value2VPValue mapping may be out of date!");
     assert(V && "Trying to get the VPValue of a null Value");
     assert(Value2VPValue.count(V) && "Value does not exist in VPlan");
     return Value2VPValue[V];
   }
 
-  VPValue *getOrAddVPValue(Value *V) {
+  /// Gets the VPValue or adds a new one (if none exists yet) for \p V. \p
+  /// OverrideAllowed can be used to disable checking whether it is safe to
+  /// query VPValues using IR Values.
+  VPValue *getOrAddVPValue(Value *V, bool OverrideAllowed = false) {
+    assert((OverrideAllowed || isa<Constant>(V) || Value2VPValueEnabled) &&
+           "Value2VPValue mapping may be out of date!");
     assert(V && "Trying to get or add the VPValue of a null Value");
     if (!Value2VPValue.count(V))
       addVPValue(V);
     return getVPValue(V);
   }
 
-  void removeVPValueFor(Value *V) { Value2VPValue.erase(V); }
+  void removeVPValueFor(Value *V) {
+    assert(Value2VPValueEnabled &&
+           "IR value to VPValue mapping may be out of date!");
+    Value2VPValue.erase(V);
+  }
 
   /// Return the VPLoopInfo analysis for this VPlan.
   VPLoopInfo &getVPLoopInfo() { return VPLInfo; }
@@ -2202,9 +2274,9 @@ class VPlanPrinter {
     return BlockID.count(Block) ? BlockID[Block] : BlockID[Block] = BID++;
   }
 
-  const Twine getOrCreateName(const VPBlockBase *Block);
+  Twine getOrCreateName(const VPBlockBase *Block);
 
-  const Twine getUID(const VPBlockBase *Block);
+  Twine getUID(const VPBlockBase *Block);
 
   /// Print the information related to a CFG edge between two VPBlockBases.
   void drawEdge(const VPBlockBase *From, const VPBlockBase *To, bool Hidden,

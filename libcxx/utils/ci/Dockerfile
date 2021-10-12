@@ -24,7 +24,7 @@
 # To update the image, rebuild it and push it to ldionne/libcxx-builder (which
 # will obviously only work if you have permission to do so).
 #
-#   $ docker build -t ldionne/libcxx-builder .
+#   $ docker build -t ldionne/libcxx-builder libcxx/utils/ci
 #   $ docker push ldionne/libcxx-builder
 #
 
@@ -32,6 +32,12 @@ FROM ubuntu:bionic
 
 # Make sure apt-get doesn't try to prompt for stuff like our time zone, etc.
 ENV DEBIAN_FRONTEND=noninteractive
+
+# This dummy command is meant to be edited from time to time, which causes the
+# CI builders to rebuild their copy of the Docker image. This is not a great
+# solution, however without that, the CI builders will keep the same cached
+# Docker image forever.
+RUN echo 1
 
 RUN apt-get update && apt-get install -y bash curl
 
@@ -62,7 +68,7 @@ RUN add-apt-repository ppa:ubuntu-toolchain-r/test
 RUN apt-get update && apt install -y gcc-$GCC_LATEST_VERSION g++-$GCC_LATEST_VERSION
 
 # Install a recent CMake
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.sh -O /tmp/install-cmake.sh
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.21.1/cmake-3.21.1-linux-x86_64.sh -O /tmp/install-cmake.sh
 RUN bash /tmp/install-cmake.sh --prefix=/usr --exclude-subdir --skip-license
 RUN rm /tmp/install-cmake.sh
 

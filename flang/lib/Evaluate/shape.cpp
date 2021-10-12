@@ -208,7 +208,8 @@ MaybeExtentExpr GetSize(Shape &&shape) {
 
 ConstantSubscript GetSize(const ConstantSubscripts &shape) {
   ConstantSubscript size{1};
-  for (auto dim : std::move(shape)) {
+  for (auto dim : shape) {
+    CHECK(dim >= 0);
     size *= dim;
   }
   return size;
@@ -260,7 +261,15 @@ auto GetLowerBoundHelper::operator()(const Symbol &symbol0) -> Result {
     }
   } else if (const auto *assoc{
                  symbol.detailsIf<semantics::AssocEntityDetails>()}) {
-    return (*this)(assoc->expr());
+    if (assoc->rank()) { // SELECT RANK case
+      const Symbol &resolved{ResolveAssociations(symbol)};
+      if (IsDescriptor(resolved) && dimension_ < *assoc->rank()) {
+        return ExtentExpr{DescriptorInquiry{NamedEntity{symbol0},
+            DescriptorInquiry::Field::LowerBound, dimension_}};
+      }
+    } else {
+      return (*this)(assoc->expr());
+    }
   }
   return Default();
 }
@@ -316,9 +325,42 @@ Shape GetLowerBounds(FoldingContext &context, const NamedEntity &base) {
   return result;
 }
 
+// If the upper and lower bounds are constant, return a constant expression for
+// the extent.  In particular, if the upper bound is less than the lower bound,
+// return zero.
+static MaybeExtentExpr GetNonNegativeExtent(
+    const semantics::ShapeSpec &shapeSpec) {
+  const auto &ubound{shapeSpec.ubound().GetExplicit()};
+  const auto &lbound{shapeSpec.lbound().GetExplicit()};
+  std::optional<ConstantSubscript> uval{ToInt64(ubound)};
+  std::optional<ConstantSubscript> lval{ToInt64(lbound)};
+  if (uval && lval) {
+    if (*uval < *lval) {
+      return ExtentExpr{0};
+    } else {
+      return ExtentExpr{*uval - *lval + 1};
+    }
+  }
+  return common::Clone(ubound.value()) - common::Clone(lbound.value()) +
+      ExtentExpr{1};
+}
+
 MaybeExtentExpr GetExtent(const NamedEntity &base, int dimension) {
   CHECK(dimension >= 0);
-  const Symbol &symbol{ResolveAssociations(base.GetLastSymbol())};
+  const Symbol &last{base.GetLastSymbol()};
+  const Symbol &symbol{ResolveAssociations(last)};
+  if (const auto *assoc{last.detailsIf<semantics::AssocEntityDetails>()}) {
+    if (assoc->rank()) { // SELECT RANK case
+      if (semantics::IsDescriptor(symbol) && dimension < *assoc->rank()) {
+        return ExtentExpr{DescriptorInquiry{
+            NamedEntity{base}, DescriptorInquiry::Field::Extent, dimension}};
+      }
+    } else if (auto shape{GetShape(assoc->expr())}) {
+      if (dimension < static_cast<int>(shape->size())) {
+        return std::move(shape->at(dimension));
+      }
+    }
+  }
   if (const auto *details{symbol.detailsIf<semantics::ObjectEntityDetails>()}) {
     if (IsImpliedShape(symbol) && details->init()) {
       if (auto shape{GetShape(symbol)}) {
@@ -330,11 +372,12 @@ MaybeExtentExpr GetExtent(const NamedEntity &base, int dimension) {
       int j{0};
       for (const auto &shapeSpec : details->shape()) {
         if (j++ == dimension) {
-          if (shapeSpec.ubound().isExplicit()) {
-            if (const auto &ubound{shapeSpec.ubound().GetExplicit()}) {
-              if (const auto &lbound{shapeSpec.lbound().GetExplicit()}) {
-                return common::Clone(ubound.value()) -
-                    common::Clone(lbound.value()) + ExtentExpr{1};
+          if (const auto &ubound{shapeSpec.ubound().GetExplicit()}) {
+            if (shapeSpec.ubound().GetExplicit()) {
+              // 8.5.8.2, paragraph 3.  If the upper bound is less than the
+              // lower bound, the extent is zero.
+              if (shapeSpec.lbound().GetExplicit()) {
+                return GetNonNegativeExtent(shapeSpec);
               } else {
                 return ubound.value();
               }
@@ -346,13 +389,6 @@ MaybeExtentExpr GetExtent(const NamedEntity &base, int dimension) {
                 DescriptorInquiry::Field::Extent, dimension}};
           }
         }
-      }
-    }
-  } else if (const auto *assoc{
-                 symbol.detailsIf<semantics::AssocEntityDetails>()}) {
-    if (auto shape{GetShape(assoc->expr())}) {
-      if (dimension < static_cast<int>(shape->size())) {
-        return std::move(shape->at(dimension));
       }
     }
   }
@@ -479,6 +515,8 @@ auto GetShapeHelper::operator()(const Symbol &symbol) const -> Result {
           [&](const semantics::ObjectEntityDetails &object) {
             if (IsImpliedShape(symbol) && object.init()) {
               return (*this)(object.init());
+            } else if (IsAssumedRank(symbol)) {
+              return Result{};
             } else {
               int n{object.shape().Rank()};
               NamedEntity base{symbol};
@@ -496,12 +534,12 @@ auto GetShapeHelper::operator()(const Symbol &symbol) const -> Result {
             }
           },
           [&](const semantics::AssocEntityDetails &assoc) {
-            if (!assoc.rank()) {
-              return (*this)(assoc.expr());
-            } else {
+            if (assoc.rank()) { // SELECT RANK case
               int n{assoc.rank().value()};
               NamedEntity base{symbol};
               return Result{CreateShape(n, base)};
+            } else {
+              return (*this)(assoc.expr());
             }
           },
           [&](const semantics::SubprogramDetails &subp) {
@@ -615,14 +653,15 @@ auto GetShapeHelper::operator()(const ProcedureRef &call) const -> Result {
           }
         }
       }
-    } else if (intrinsic->name == "maxloc" || intrinsic->name == "minloc") {
-      // TODO: FINDLOC
-      if (call.arguments().size() >= 2) {
+    } else if (intrinsic->name == "findloc" || intrinsic->name == "maxloc" ||
+        intrinsic->name == "minloc") {
+      std::size_t dimIndex{intrinsic->name == "findloc" ? 2u : 1u};
+      if (call.arguments().size() > dimIndex) {
         if (auto arrayShape{
                 (*this)(UnwrapExpr<Expr<SomeType>>(call.arguments().at(0)))}) {
           auto rank{static_cast<int>(arrayShape->size())};
           if (const auto *dimArg{
-                  UnwrapExpr<Expr<SomeType>>(call.arguments()[1])}) {
+                  UnwrapExpr<Expr<SomeType>>(call.arguments()[dimIndex])}) {
             auto dim{ToInt64(*dimArg)};
             if (dim && *dim >= 1 && *dim <= rank) {
               arrayShape->erase(arrayShape->begin() + (*dim - 1));

@@ -3252,6 +3252,28 @@ protected:
 _SPIRV_OP(ConvertFToBF16INTEL)
 _SPIRV_OP(ConvertBF16ToFINTEL)
 #undef _SPIRV_OP
+
+class SPIRVJointMatrixINTELInstBase : public SPIRVInstTemplateBase {
+protected:
+  llvm::Optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_joint_matrix;
+  }
+};
+
+class SPIRVJointMatrixINTELInst : public SPIRVJointMatrixINTELInstBase {
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityJointMatrixINTEL);
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVJointMatrixINTELInst, internal::Op##x##INTEL, \
+                            __VA_ARGS__>                                       \
+      SPIRV##x##INTEL;
+_SPIRV_OP(JointMatrixLoad, true, 6, true)
+_SPIRV_OP(JointMatrixStore, false, 5, true)
+_SPIRV_OP(JointMatrixMad, true, 7)
+#undef _SPIRV_OP
 } // namespace SPIRV
 
 #endif // SPIRV_LIBSPIRV_SPIRVINSTRUCTION_H

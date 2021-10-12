@@ -12,12 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "AMDGPUSubtarget.h"
-#include "AMDGPU.h"
 #include "AMDGPUCallLowering.h"
 #include "AMDGPUInstructionSelector.h"
 #include "AMDGPULegalizerInfo.h"
 #include "AMDGPURegisterBankInfo.h"
 #include "AMDGPUTargetMachine.h"
+#include "R600Subtarget.h"
 #include "SIMachineFunctionInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/ADT/SmallString.h"
@@ -38,10 +38,7 @@ using namespace llvm;
 #define GET_SUBTARGETINFO_CTOR
 #define AMDGPUSubtarget GCNSubtarget
 #include "AMDGPUGenSubtargetInfo.inc"
-#define GET_SUBTARGETINFO_TARGET_DESC
-#define GET_SUBTARGETINFO_CTOR
 #undef AMDGPUSubtarget
-#include "R600GenSubtargetInfo.inc"
 
 static cl::opt<bool> DisablePowerSched(
   "amdgpu-disable-power-sched",
@@ -63,19 +60,6 @@ static cl::opt<bool> UseAA("amdgpu-use-aa-in-codegen",
                            cl::init(true));
 
 GCNSubtarget::~GCNSubtarget() = default;
-
-R600Subtarget &
-R600Subtarget::initializeSubtargetDependencies(const Triple &TT,
-                                               StringRef GPU, StringRef FS) {
-  SmallString<256> FullFS("+promote-alloca,");
-  FullFS += FS;
-  ParseSubtargetFeatures(GPU, /*TuneCPU*/ GPU, FullFS);
-
-  HasMulU24 = getGeneration() >= EVERGREEN;
-  HasMulI24 = hasCaymanISA();
-
-  return *this;
-}
 
 GCNSubtarget &
 GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
@@ -549,12 +533,9 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getFlatWorkGroupSizes(
 }
 
 std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
-  const Function &F) const {
+    const Function &F, std::pair<unsigned, unsigned> FlatWorkGroupSizes) const {
   // Default minimum/maximum number of waves per execution unit.
   std::pair<unsigned, unsigned> Default(1, getMaxWavesPerEU());
-
-  // Default/requested minimum/maximum flat work group sizes.
-  std::pair<unsigned, unsigned> FlatWorkGroupSizes = getFlatWorkGroupSizes(F);
 
   // If minimum/maximum flat work group sizes were explicitly requested using
   // "amdgpu-flat-work-group-size" attribute, then set default minimum/maximum
@@ -721,23 +702,6 @@ AMDGPUDwarfFlavour AMDGPUSubtarget::getAMDGPUDwarfFlavour() const {
                                   : AMDGPUDwarfFlavour::Wave64;
 }
 
-R600Subtarget::R600Subtarget(const Triple &TT, StringRef GPU, StringRef FS,
-                             const TargetMachine &TM) :
-  R600GenSubtargetInfo(TT, GPU, /*TuneCPU*/GPU, FS),
-  AMDGPUSubtarget(TT),
-  InstrInfo(*this),
-  FrameLowering(TargetFrameLowering::StackGrowsUp, getStackAlignment(), 0),
-  FMA(false),
-  CaymanISA(false),
-  CFALUBug(false),
-  HasVertexCache(false),
-  R600ALUInst(false),
-  FP64(false),
-  TexVTXClauseSize(0),
-  Gen(R600),
-  TLInfo(TM, initializeSubtargetDependencies(TT, GPU, FS)),
-  InstrItins(getInstrItineraryForCPU(GPU)) { }
-
 void GCNSubtarget::overrideSchedPolicy(MachineSchedPolicy &Policy,
                                       unsigned NumRegionInstrs) const {
   // Track register pressure so the scheduler can try to decrease
@@ -805,7 +769,7 @@ GCNSubtarget::getBaseReservedNumSGPRs(const bool HasFlatScratchInit) const {
   if (getGeneration() >= AMDGPUSubtarget::GFX10)
     return 2; // VCC. FLAT_SCRATCH and XNACK are no longer in SGPRs.
 
-  if (HasFlatScratchInit) {
+  if (HasFlatScratchInit || HasArchitectedFlatScratch) {
     if (getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS)
       return 6; // FLAT_SCRATCH, XNACK, VCC (in that order).
     if (getGeneration() == AMDGPUSubtarget::SEA_ISLANDS)
@@ -1052,7 +1016,7 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
     return true;
   }
 
-  // Link as much SALU intructions in chain as possible. Return the size
+  // Link as many SALU instructions in chain as possible. Return the size
   // of the chain. Links up to MaxChain instructions.
   unsigned linkSALUChain(SUnit *From, SUnit *To, unsigned MaxChain,
                          SmallPtrSetImpl<SUnit *> &Visited) const {
@@ -1134,6 +1098,11 @@ struct FillMFMAShadowMutation : ScheduleDAGMutation {
 void GCNSubtarget::getPostRAMutations(
     std::vector<std::unique_ptr<ScheduleDAGMutation>> &Mutations) const {
   Mutations.push_back(std::make_unique<FillMFMAShadowMutation>(&InstrInfo));
+}
+
+std::unique_ptr<ScheduleDAGMutation>
+GCNSubtarget::createFillMFMAShadowMutation(const TargetInstrInfo *TII) const {
+  return std::make_unique<FillMFMAShadowMutation>(&InstrInfo);
 }
 
 const AMDGPUSubtarget &AMDGPUSubtarget::get(const MachineFunction &MF) {

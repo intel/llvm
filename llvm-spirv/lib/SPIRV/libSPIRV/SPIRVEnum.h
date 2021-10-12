@@ -42,7 +42,7 @@
 
 #include "LLVMSPIRVOpts.h"
 #include "SPIRVOpCode.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 #include <cstdint>
 using namespace spv;
@@ -261,6 +261,8 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(internal::ExecutionModeFastCompositeKernelINTEL,
                {internal::CapabilityFastCompositeINTEL});
+  ADD_VEC_INIT(internal::ExecutionModeStreamingInterfaceINTEL,
+               {CapabilityFPGAKernelAttributesINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {

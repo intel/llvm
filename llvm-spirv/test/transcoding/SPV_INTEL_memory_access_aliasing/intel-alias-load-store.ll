@@ -68,7 +68,7 @@
 ; ModuleID = 'optimized_intel_restrict.bc'
 source_filename = "intel_restrict.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nofree norecurse nounwind willreturn mustprogress
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_restrict(i32 addrspace(1)* noalias %_arg_, i32 addrspace(1)* noalias %_arg_1, i32 addrspace(1)* noalias %_arg_3) local_unnamed_addr #0 !kernel_arg_buffer_location !4 {

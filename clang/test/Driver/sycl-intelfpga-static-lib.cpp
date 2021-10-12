@@ -27,7 +27,7 @@
 // CHECK_PHASES: 12: backend-compiler, {9, 11}, fpga_aocx, (device-sycl)
 // CHECK_PHASES: 13: file-table-tform, {7, 12}, tempfiletable, (device-sycl)
 // CHECK_PHASES: 14: clang-offload-wrapper, {13}, object, (device-sycl)
-// CHECK_PHASES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown-sycldevice)" {14}, image
+// CHECK_PHASES: 15: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown)" {14}, image
 
 /// Check for unbundle and use of deps in static lib
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fintelfpga -Xshardware %t.a -### 2>&1 \
@@ -36,7 +36,7 @@
 // CHECK_UNBUNDLE: aoc{{.*}} "-dep-files=@[[DEPFILES]]"
 
 /// Check for no unbundle and use of deps in static lib when using triple
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64_fpga-unknown-unknown %t.a -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_NO_UNBUNDLE %s
 // CHECK_NO_UNBUNDLE-NOT: clang-offload-bundler" "-type=aoo" "-targets=sycl-fpga_dep"
 // CHECK_NO_UNBUNDLE-NOT: aoc{{.*}} "-dep-files={{.*}}"

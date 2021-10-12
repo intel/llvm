@@ -326,7 +326,7 @@ void AggressiveDeadCodeElimination::initialize() {
 
 bool AggressiveDeadCodeElimination::isAlwaysLive(Instruction &I) {
   // TODO -- use llvm::isInstructionTriviallyDead
-  if (I.isEHPad() || I.mayHaveSideEffects() || !I.willReturn()) {
+  if (I.isEHPad() || I.mayHaveSideEffects()) {
     // Skip any value profile instrumentation calls if they are
     // instrumenting constants.
     if (isInstrumentsConstant(I))
@@ -538,7 +538,7 @@ bool AggressiveDeadCodeElimination::removeDeadInstructions() {
   // that have no side effects and do not influence the control flow or return
   // value of the function, and may therefore be deleted safely.
   // NOTE: We reuse the Worklist vector here for memory efficiency.
-  for (Instruction &I : instructions(F)) {
+  for (Instruction &I : llvm::reverse(instructions(F))) {
     // Check if the instruction is alive.
     if (isLive(&I))
       continue;
@@ -554,8 +554,10 @@ bool AggressiveDeadCodeElimination::removeDeadInstructions() {
     // Prepare to delete.
     Worklist.push_back(&I);
     salvageDebugInfo(I);
-    I.dropAllReferences();
   }
+
+  for (Instruction *&I : Worklist)
+    I->dropAllReferences();
 
   for (Instruction *&I : Worklist) {
     ++NumRemoved;

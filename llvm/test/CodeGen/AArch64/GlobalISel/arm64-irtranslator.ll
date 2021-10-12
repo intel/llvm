@@ -87,8 +87,6 @@ bb2:
 ; CHECK: body:
 ; CHECK: bb.{{[0-9]+}}.{{[a-zA-Z0-9.]+}}:
 ; CHECK-NEXT: successors: %[[END:bb.[0-9]+]](0x80000000)
-; We don't emit a branch here, as we can fallthrough to the successor.
-; CHECK-NOT: G_BR
 ; CHECK: [[END]].{{[a-zA-Z0-9.]+}}:
 ; CHECK-NEXT: RET_ReallyLR
 define void @uncondbr_fallthrough() {
@@ -137,7 +135,6 @@ false:
 ; CHECK: bb.{{[0-9]+.[a-zA-Z0-9.]+}}:
 ; Make sure we have one successor
 ; CHECK-NEXT: successors: %[[BB_L1:bb.[0-9]+]](0x80000000)
-; CHECK-NOT: G_BR
 ;
 ; Check basic block L1 has 2 successors: BBL1 and BBL2
 ; CHECK: [[BB_L1]].{{[a-zA-Z0-9.]+}} (address-taken):
@@ -2460,3 +2457,29 @@ define {i8, i32} @test_freeze_struct({ i8, i32 }* %addr) {
 }
 
 !0 = !{ i64 0, i64 2 }
+
+declare i64 @llvm.lround.i64.f32(float) nounwind readnone
+define i64 @lround(float %x) {
+  ; CHECK-LABEL: name: lround
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $s0
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $s0
+  ; CHECK:   [[LROUND:%[0-9]+]]:_(s64) = G_LROUND [[COPY]](s32)
+  ; CHECK:   $x0 = COPY [[LROUND]](s64)
+  ; CHECK:   RET_ReallyLR implicit $x0
+  %lround = tail call i64 @llvm.lround.i64.f32(float %x)
+  ret i64 %lround
+}
+
+declare i64 @llvm.llround.i64.f32(float) nounwind readnone
+define i64 @llround(float %x) {
+  ; CHECK-LABEL: name: llround
+  ; CHECK: bb.1 (%ir-block.0):
+  ; CHECK:   liveins: $s0
+  ; CHECK:   [[COPY:%[0-9]+]]:_(s32) = COPY $s0
+  ; CHECK:   [[LLROUND:%[0-9]+]]:_(s64) = G_LLROUND [[COPY]](s32)
+  ; CHECK:   $x0 = COPY [[LLROUND]](s64)
+  ; CHECK:   RET_ReallyLR implicit $x0
+  %lround = tail call i64 @llvm.llround.i64.f32(float %x)
+  ret i64 %lround
+}

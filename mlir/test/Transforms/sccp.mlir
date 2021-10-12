@@ -1,4 +1,4 @@
-// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="func(sccp)" -split-input-file | FileCheck %s
+// RUN: mlir-opt -allow-unregistered-dialect %s -pass-pipeline="builtin.func(sccp)" -split-input-file | FileCheck %s
 
 /// Check simple forward constant propagation without any control flow.
 
@@ -177,4 +177,24 @@ func @simple_loop_overdefined(%arg0 : i32, %cond1 : i1) -> i32 {
   // CHECK: return %[[ARG]] : i32
 
   return %arg : i32
+}
+
+// Check that we reprocess executable edges when information changes.
+
+// CHECK-LABEL: func @recheck_executable_edge
+func @recheck_executable_edge(%cond0: i1) -> (i1, i1) {
+  %true = constant true
+  %false = constant false
+  cond_br %cond0, ^bb_1a, ^bb2(%false : i1)
+^bb_1a:
+  br ^bb2(%true : i1)
+
+^bb2(%x: i1):
+  // CHECK: ^bb2(%[[X:.*]]: i1):
+  br ^bb3(%x : i1)
+
+^bb3(%y: i1):
+  // CHECK: ^bb3(%[[Y:.*]]: i1):
+  // CHECK: return %[[X]], %[[Y]]
+  return %x, %y : i1, i1
 }

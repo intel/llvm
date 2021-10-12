@@ -15,6 +15,7 @@
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -27,6 +28,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/ScopedHashTable.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallString.h"
@@ -51,11 +53,25 @@ void OperationName::print(raw_ostream &os) const { os << getStringRef(); }
 
 void OperationName::dump() const { print(llvm::errs()); }
 
+//===--------------------------------------------------------------------===//
+// AsmParser
+//===--------------------------------------------------------------------===//
+
+AsmParser::~AsmParser() {}
+DialectAsmParser::~DialectAsmParser() {}
+OpAsmParser::~OpAsmParser() {}
+
+MLIRContext *AsmParser::getContext() const { return getBuilder().getContext(); }
+
+//===----------------------------------------------------------------------===//
+// DialectAsmPrinter
+//===----------------------------------------------------------------------===//
+
 DialectAsmPrinter::~DialectAsmPrinter() {}
 
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 // OpAsmPrinter
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 OpAsmPrinter::~OpAsmPrinter() {}
 
@@ -87,9 +103,9 @@ void OpAsmPrinter::printFunctionalType(Operation *op) {
     os << ')';
 }
 
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 // Operation OpAsm interface.
-//===--------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 /// The OpAsmOpInterface, see OpAsmInterface.td for more details.
 #include "mlir/IR/OpAsmInterface.cpp.inc"
@@ -249,12 +265,12 @@ namespace {
 struct NewLineCounter {
   unsigned curLine = 1;
 };
-} // end anonymous namespace
 
 static raw_ostream &operator<<(raw_ostream &os, NewLineCounter &newLine) {
   ++newLine.curLine;
   return os << '\n';
 }
+} // end anonymous namespace
 
 //===----------------------------------------------------------------------===//
 // AliasInitializer
@@ -371,7 +387,7 @@ public:
       // Check to see if this is a known operation.  If so, use the registered
       // custom printer hook.
       if (auto *opInfo = op->getAbstractOperation()) {
-        opInfo->printAssembly(op, *this);
+        opInfo->printAssembly(op, *this, /*defaultDialect=*/"");
         return;
       }
     }
@@ -382,7 +398,7 @@ public:
 
 private:
   /// Print the given operation in the generic form.
-  void printGenericOp(Operation *op) override {
+  void printGenericOp(Operation *op, bool printOpName = true) override {
     // Consider nested operations for aliases.
     if (op->getNumRegions() != 0) {
       for (Region &region : op->getRegions())
@@ -491,6 +507,7 @@ private:
 
   /// The following are hooks of `OpAsmPrinter` that are not necessary for
   /// determining potential aliases.
+  void printFloat(const APFloat &value) override {}
   void printAffineMapOfSSAIds(AffineMapAttr, ValueRange) override {}
   void printAffineExprOfSSAIds(AffineExpr, ValueRange, ValueRange) override {}
   void printNewline() override {}
@@ -652,21 +669,28 @@ void AliasInitializer::visit(Type type) {
 template <typename T>
 LogicalResult AliasInitializer::generateAlias(
     T symbol, llvm::MapVector<StringRef, std::vector<T>> &aliasToSymbol) {
-  SmallString<16> tempBuffer;
+  SmallString<32> nameBuffer;
   for (const auto &interface : interfaces) {
-    if (failed(interface.getAlias(symbol, aliasOS)))
+    OpAsmDialectInterface::AliasResult result =
+        interface.getAlias(symbol, aliasOS);
+    if (result == OpAsmDialectInterface::AliasResult::NoAlias)
       continue;
-    StringRef name = aliasOS.str();
-    assert(!name.empty() && "expected valid alias name");
-    name = sanitizeIdentifier(name, tempBuffer, /*allowedPunctChars=*/"$_-",
-                              /*allowTrailingDigit=*/false);
-    name = name.copy(aliasAllocator);
-
-    aliasToSymbol[name].push_back(symbol);
-    aliasBuffer.clear();
-    return success();
+    nameBuffer = std::move(aliasBuffer);
+    assert(!nameBuffer.empty() && "expected valid alias name");
+    if (result == OpAsmDialectInterface::AliasResult::FinalAlias)
+      break;
   }
-  return failure();
+
+  if (nameBuffer.empty())
+    return failure();
+
+  SmallString<16> tempBuffer;
+  StringRef name =
+      sanitizeIdentifier(nameBuffer, tempBuffer, /*allowedPunctChars=*/"$_-",
+                         /*allowTrailingDigit=*/false);
+  name = name.copy(aliasAllocator);
+  aliasToSymbol[name].push_back(symbol);
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -1194,18 +1218,17 @@ AsmState::AsmState(Operation *op, const OpPrintingFlags &printerFlags,
 AsmState::~AsmState() {}
 
 //===----------------------------------------------------------------------===//
-// ModulePrinter
+// AsmPrinter::Impl
 //===----------------------------------------------------------------------===//
 
-namespace {
-class ModulePrinter {
+namespace mlir {
+class AsmPrinter::Impl {
 public:
-  ModulePrinter(raw_ostream &os, OpPrintingFlags flags = llvm::None,
-                AsmStateImpl *state = nullptr)
+  Impl(raw_ostream &os, OpPrintingFlags flags = llvm::None,
+       AsmStateImpl *state = nullptr)
       : os(os), printerFlags(flags), state(state) {}
-  explicit ModulePrinter(ModulePrinter &printer)
-      : os(printer.os), printerFlags(printer.printerFlags),
-        state(printer.state) {}
+  explicit Impl(Impl &other)
+      : Impl(other.os, other.printerFlags, other.state) {}
 
   /// Returns the output stream of the printer.
   raw_ostream &getStream() { return os; }
@@ -1290,9 +1313,9 @@ protected:
   /// A tracker for the number of new lines emitted during printing.
   NewLineCounter newLine;
 };
-} // end anonymous namespace
+} // namespace mlir
 
-void ModulePrinter::printTrailingLocation(Location loc, bool allowAlias) {
+void AsmPrinter::Impl::printTrailingLocation(Location loc, bool allowAlias) {
   // Check to see if we are printing debug information.
   if (!printerFlags.shouldPrintDebugInfo())
     return;
@@ -1301,7 +1324,7 @@ void ModulePrinter::printTrailingLocation(Location loc, bool allowAlias) {
   printLocation(loc, /*allowAlias=*/allowAlias);
 }
 
-void ModulePrinter::printLocationInternal(LocationAttr loc, bool pretty) {
+void AsmPrinter::Impl::printLocationInternal(LocationAttr loc, bool pretty) {
   TypeSwitch<LocationAttr>(loc)
       .Case<OpaqueLoc>([&](OpaqueLoc loc) {
         printLocationInternal(loc.getFallbackLocation(), pretty);
@@ -1422,7 +1445,7 @@ static void printFloatValue(const APFloat &apValue, raw_ostream &os) {
   os << str;
 }
 
-void ModulePrinter::printLocation(LocationAttr loc, bool allowAlias) {
+void AsmPrinter::Impl::printLocation(LocationAttr loc, bool allowAlias) {
   if (printerFlags.shouldPrintDebugInfoPrettyForm())
     return printLocationInternal(loc, /*pretty=*/true);
 
@@ -1570,8 +1593,8 @@ static void printElidedElementsAttr(raw_ostream &os) {
   os << R"(opaque<"_", "0xDEADBEEF">)";
 }
 
-void ModulePrinter::printAttribute(Attribute attr,
-                                   AttrTypeElision typeElision) {
+void AsmPrinter::Impl::printAttribute(Attribute attr,
+                                      AttrTypeElision typeElision) {
   if (!attr) {
     os << "<<NULL ATTRIBUTE>>";
     return;
@@ -1652,7 +1675,7 @@ void ModulePrinter::printAttribute(Attribute attr,
     printType(typeAttr.getValue());
 
   } else if (auto refAttr = attr.dyn_cast<SymbolRefAttr>()) {
-    printSymbolReference(refAttr.getRootReference(), os);
+    printSymbolReference(refAttr.getRootReference().getValue(), os);
     for (FlatSymbolRefAttr nestedRef : refAttr.getNestedReferences()) {
       os << "::";
       printSymbolReference(nestedRef.getValue(), os);
@@ -1772,8 +1795,8 @@ printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
     os << ']';
 }
 
-void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
-                                           bool allowHex) {
+void AsmPrinter::Impl::printDenseElementsAttr(DenseElementsAttr attr,
+                                              bool allowHex) {
   if (auto stringAttr = attr.dyn_cast<DenseStringElementsAttr>())
     return printDenseStringElementsAttr(stringAttr);
 
@@ -1781,8 +1804,8 @@ void ModulePrinter::printDenseElementsAttr(DenseElementsAttr attr,
                                 allowHex);
 }
 
-void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
-                                                  bool allowHex) {
+void AsmPrinter::Impl::printDenseIntOrFPElementsAttr(
+    DenseIntOrFPElementsAttr attr, bool allowHex) {
   auto type = attr.getType();
   auto elementType = type.getElementType();
 
@@ -1817,8 +1840,9 @@ void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
     // and hence was replaced.
     if (complexElementType.isa<IntegerType>()) {
       bool isSigned = !complexElementType.isUnsignedInteger();
+      auto valueIt = attr.value_begin<std::complex<APInt>>();
       printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-        auto complexValue = *(attr.getComplexIntValues().begin() + index);
+        auto complexValue = *(valueIt + index);
         os << "(";
         printDenseIntElement(complexValue.real(), os, isSigned);
         os << ",";
@@ -1826,8 +1850,9 @@ void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
         os << ")";
       });
     } else {
+      auto valueIt = attr.value_begin<std::complex<APFloat>>();
       printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-        auto complexValue = *(attr.getComplexFloatValues().begin() + index);
+        auto complexValue = *(valueIt + index);
         os << "(";
         printFloatValue(complexValue.real(), os);
         os << ",";
@@ -1837,20 +1862,21 @@ void ModulePrinter::printDenseIntOrFPElementsAttr(DenseIntOrFPElementsAttr attr,
     }
   } else if (elementType.isIntOrIndex()) {
     bool isSigned = !elementType.isUnsignedInteger();
-    auto intValues = attr.getIntValues();
+    auto valueIt = attr.value_begin<APInt>();
     printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-      printDenseIntElement(*(intValues.begin() + index), os, isSigned);
+      printDenseIntElement(*(valueIt + index), os, isSigned);
     });
   } else {
     assert(elementType.isa<FloatType>() && "unexpected element type");
-    auto floatValues = attr.getFloatValues();
+    auto valueIt = attr.value_begin<APFloat>();
     printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
-      printFloatValue(*(floatValues.begin() + index), os);
+      printFloatValue(*(valueIt + index), os);
     });
   }
 }
 
-void ModulePrinter::printDenseStringElementsAttr(DenseStringElementsAttr attr) {
+void AsmPrinter::Impl::printDenseStringElementsAttr(
+    DenseStringElementsAttr attr) {
   ArrayRef<StringRef> data = attr.getRawStringData();
   auto printFn = [&](unsigned index) {
     os << "\"";
@@ -1860,7 +1886,7 @@ void ModulePrinter::printDenseStringElementsAttr(DenseStringElementsAttr attr) {
   printDenseElementsAttrImpl(attr.isSplat(), attr.getType(), os, printFn);
 }
 
-void ModulePrinter::printType(Type type) {
+void AsmPrinter::Impl::printType(Type type) {
   if (!type) {
     os << "<<NULL TYPE>>";
     return;
@@ -1976,9 +2002,9 @@ void ModulePrinter::printType(Type type) {
       .Default([&](Type type) { return printDialectType(type); });
 }
 
-void ModulePrinter::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
-                                          ArrayRef<StringRef> elidedAttrs,
-                                          bool withKeyword) {
+void AsmPrinter::Impl::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
+                                             ArrayRef<StringRef> elidedAttrs,
+                                             bool withKeyword) {
   // If there are no attributes, then there is nothing to be done.
   if (attrs.empty())
     return;
@@ -2010,7 +2036,7 @@ void ModulePrinter::printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
     printFilteredAttributesFn(filteredAttrs);
 }
 
-void ModulePrinter::printNamedAttribute(NamedAttribute attr) {
+void AsmPrinter::Impl::printNamedAttribute(NamedAttribute attr) {
   if (isBareIdentifier(attr.first)) {
     os << attr.first;
   } else {
@@ -2027,75 +2053,82 @@ void ModulePrinter::printNamedAttribute(NamedAttribute attr) {
   printAttribute(attr.second);
 }
 
-//===----------------------------------------------------------------------===//
-// CustomDialectAsmPrinter
-//===----------------------------------------------------------------------===//
-
-namespace {
-/// This class provides the main specialization of the DialectAsmPrinter that is
-/// used to provide support for print attributes and types. This hooks allows
-/// for dialects to hook into the main ModulePrinter.
-struct CustomDialectAsmPrinter : public DialectAsmPrinter {
-public:
-  CustomDialectAsmPrinter(ModulePrinter &printer) : printer(printer) {}
-  ~CustomDialectAsmPrinter() override {}
-
-  raw_ostream &getStream() const override { return printer.getStream(); }
-
-  /// Print the given attribute to the stream.
-  void printAttribute(Attribute attr) override { printer.printAttribute(attr); }
-
-  /// Print the given floating point value in a stablized form.
-  void printFloat(const APFloat &value) override {
-    printFloatValue(value, getStream());
-  }
-
-  /// Print the given type to the stream.
-  void printType(Type type) override { printer.printType(type); }
-
-  /// The main module printer.
-  ModulePrinter &printer;
-};
-} // end anonymous namespace
-
-void ModulePrinter::printDialectAttribute(Attribute attr) {
+void AsmPrinter::Impl::printDialectAttribute(Attribute attr) {
   auto &dialect = attr.getDialect();
 
   // Ask the dialect to serialize the attribute to a string.
   std::string attrName;
   {
     llvm::raw_string_ostream attrNameStr(attrName);
-    ModulePrinter subPrinter(attrNameStr, printerFlags, state);
-    CustomDialectAsmPrinter printer(subPrinter);
+    Impl subPrinter(attrNameStr, printerFlags, state);
+    DialectAsmPrinter printer(subPrinter);
     dialect.printAttribute(attr, printer);
   }
   printDialectSymbol(os, "#", dialect.getNamespace(), attrName);
 }
 
-void ModulePrinter::printDialectType(Type type) {
+void AsmPrinter::Impl::printDialectType(Type type) {
   auto &dialect = type.getDialect();
 
   // Ask the dialect to serialize the type to a string.
   std::string typeName;
   {
     llvm::raw_string_ostream typeNameStr(typeName);
-    ModulePrinter subPrinter(typeNameStr, printerFlags, state);
-    CustomDialectAsmPrinter printer(subPrinter);
+    Impl subPrinter(typeNameStr, printerFlags, state);
+    DialectAsmPrinter printer(subPrinter);
     dialect.printType(type, printer);
   }
   printDialectSymbol(os, "!", dialect.getNamespace(), typeName);
+}
+
+//===--------------------------------------------------------------------===//
+// AsmPrinter
+//===--------------------------------------------------------------------===//
+
+AsmPrinter::~AsmPrinter() {}
+
+raw_ostream &AsmPrinter::getStream() const {
+  assert(impl && "expected AsmPrinter::getStream to be overriden");
+  return impl->getStream();
+}
+
+/// Print the given floating point value in a stablized form.
+void AsmPrinter::printFloat(const APFloat &value) {
+  assert(impl && "expected AsmPrinter::printFloat to be overriden");
+  printFloatValue(value, impl->getStream());
+}
+
+void AsmPrinter::printType(Type type) {
+  assert(impl && "expected AsmPrinter::printType to be overriden");
+  impl->printType(type);
+}
+
+void AsmPrinter::printAttribute(Attribute attr) {
+  assert(impl && "expected AsmPrinter::printAttribute to be overriden");
+  impl->printAttribute(attr);
+}
+
+void AsmPrinter::printAttributeWithoutType(Attribute attr) {
+  assert(impl &&
+         "expected AsmPrinter::printAttributeWithoutType to be overriden");
+  impl->printAttribute(attr, Impl::AttrTypeElision::Must);
+}
+
+void AsmPrinter::printSymbolName(StringRef symbolRef) {
+  assert(impl && "expected AsmPrinter::printSymbolName to be overriden");
+  ::printSymbolReference(symbolRef, impl->getStream());
 }
 
 //===----------------------------------------------------------------------===//
 // Affine expressions and maps
 //===----------------------------------------------------------------------===//
 
-void ModulePrinter::printAffineExpr(
+void AsmPrinter::Impl::printAffineExpr(
     AffineExpr expr, function_ref<void(unsigned, bool)> printValueName) {
   printAffineExprInternal(expr, BindingStrength::Weak, printValueName);
 }
 
-void ModulePrinter::printAffineExprInternal(
+void AsmPrinter::Impl::printAffineExprInternal(
     AffineExpr expr, BindingStrength enclosingTightness,
     function_ref<void(unsigned, bool)> printValueName) {
   const char *binopSpelling = nullptr;
@@ -2228,12 +2261,12 @@ void ModulePrinter::printAffineExprInternal(
     os << ')';
 }
 
-void ModulePrinter::printAffineConstraint(AffineExpr expr, bool isEq) {
+void AsmPrinter::Impl::printAffineConstraint(AffineExpr expr, bool isEq) {
   printAffineExprInternal(expr, BindingStrength::Weak);
   isEq ? os << " == 0" : os << " >= 0";
 }
 
-void ModulePrinter::printAffineMap(AffineMap map) {
+void AsmPrinter::Impl::printAffineMap(AffineMap map) {
   // Dimension identifiers.
   os << '(';
   for (int i = 0; i < (int)map.getNumDims() - 1; ++i)
@@ -2259,7 +2292,7 @@ void ModulePrinter::printAffineMap(AffineMap map) {
   os << ')';
 }
 
-void ModulePrinter::printIntegerSet(IntegerSet set) {
+void AsmPrinter::Impl::printIntegerSet(IntegerSet set) {
   // Dimension identifiers.
   os << '(';
   for (unsigned i = 1; i < set.getNumDims(); ++i)
@@ -2297,11 +2330,14 @@ void ModulePrinter::printIntegerSet(IntegerSet set) {
 
 namespace {
 /// This class contains the logic for printing operations, regions, and blocks.
-class OperationPrinter : public ModulePrinter, private OpAsmPrinter {
+class OperationPrinter : public AsmPrinter::Impl, private OpAsmPrinter {
 public:
+  using Impl = AsmPrinter::Impl;
+  using Impl::printType;
+
   explicit OperationPrinter(raw_ostream &os, OpPrintingFlags flags,
                             AsmStateImpl &state)
-      : ModulePrinter(os, flags, &state) {}
+      : Impl(os, flags, &state), OpAsmPrinter(static_cast<Impl &>(*this)) {}
 
   /// Print the given top-level operation.
   void printTopLevelOperation(Operation *op);
@@ -2311,7 +2347,7 @@ public:
   /// Print the bare location, not including indentation/location/etc.
   void printOperation(Operation *op);
   /// Print the given operation in the generic form.
-  void printGenericOp(Operation *op) override;
+  void printGenericOp(Operation *op, bool printOpName) override;
 
   /// Print the name of the given block.
   void printBlockName(Block *block);
@@ -2330,28 +2366,11 @@ public:
   // OpAsmPrinter methods
   //===--------------------------------------------------------------------===//
 
-  /// Return the current stream of the printer.
-  raw_ostream &getStream() const override { return os; }
-
   /// Print a newline and indent the printer to the start of the current
   /// operation.
   void printNewline() override {
     os << newLine;
     os.indent(currentIndent);
-  }
-
-  /// Print the given type.
-  void printType(Type type) override { ModulePrinter::printType(type); }
-
-  /// Print the given attribute.
-  void printAttribute(Attribute attr) override {
-    ModulePrinter::printAttribute(attr);
-  }
-
-  /// Print the given attribute without its type. The corresponding parser must
-  /// provide a valid type for the attribute.
-  void printAttributeWithoutType(Attribute attr) override {
-    ModulePrinter::printAttribute(attr, AttrTypeElision::Must);
   }
 
   /// Print a block argument in the usual format of:
@@ -2372,13 +2391,13 @@ public:
   /// Print an optional attribute dictionary with a given set of elided values.
   void printOptionalAttrDict(ArrayRef<NamedAttribute> attrs,
                              ArrayRef<StringRef> elidedAttrs = {}) override {
-    ModulePrinter::printOptionalAttrDict(attrs, elidedAttrs);
+    Impl::printOptionalAttrDict(attrs, elidedAttrs);
   }
   void printOptionalAttrDictWithKeyword(
       ArrayRef<NamedAttribute> attrs,
       ArrayRef<StringRef> elidedAttrs = {}) override {
-    ModulePrinter::printOptionalAttrDict(attrs, elidedAttrs,
-                                         /*withKeyword=*/true);
+    Impl::printOptionalAttrDict(attrs, elidedAttrs,
+                                /*withKeyword=*/true);
   }
 
   /// Print the given successor.
@@ -2411,12 +2430,14 @@ public:
   void printAffineExprOfSSAIds(AffineExpr expr, ValueRange dimOperands,
                                ValueRange symOperands) override;
 
-  /// Print the given string as a symbol reference.
-  void printSymbolName(StringRef symbolRef) override {
-    ::printSymbolReference(symbolRef, os);
-  }
-
 private:
+  // Contains the stack of default dialects to use when printing regions.
+  // A new dialect is pushed to the stack before parsing regions nested under an
+  // operation implementing `OpAsmOpInterface`, and popped when done. At the
+  // top-level we start with "builtin" as the default, so that the top-level
+  // `module` operation prints as-is.
+  SmallVector<StringRef> defaultDialectStack{"builtin"};
+
   /// The number of spaces used for indenting nested operations.
   const static unsigned indentWidth = 2;
 
@@ -2496,24 +2517,34 @@ void OperationPrinter::printOperation(Operation *op) {
     // Check to see if this is a known operation.  If so, use the registered
     // custom printer hook.
     if (auto *opInfo = op->getAbstractOperation()) {
-      opInfo->printAssembly(op, *this);
+      opInfo->printAssembly(op, *this, defaultDialectStack.back());
       return;
     }
     // Otherwise try to dispatch to the dialect, if available.
     if (Dialect *dialect = op->getDialect()) {
-      if (succeeded(dialect->printOperation(op, *this)))
+      if (auto opPrinter = dialect->getOperationPrinter(op)) {
+        // Print the op name first.
+        StringRef name = op->getName().getStringRef();
+        name.consume_front((defaultDialectStack.back() + ".").str());
+        printEscapedString(name, os);
+        // Print the rest of the op now.
+        opPrinter(op, *this);
         return;
+      }
     }
   }
 
   // Otherwise print with the generic assembly form.
-  printGenericOp(op);
+  printGenericOp(op, /*printOpName=*/true);
 }
 
-void OperationPrinter::printGenericOp(Operation *op) {
-  os << '"';
-  printEscapedString(op->getName().getStringRef(), os);
-  os << "\"(";
+void OperationPrinter::printGenericOp(Operation *op, bool printOpName) {
+  if (printOpName) {
+    os << '"';
+    printEscapedString(op->getName().getStringRef(), os);
+    os << '"';
+  }
+  os << '(';
   interleaveComma(op->getOperands(), [&](Value value) { printValueID(value); });
   os << ')';
 
@@ -2641,6 +2672,13 @@ void OperationPrinter::printRegion(Region &region, bool printEntryBlockArgs,
                                    bool printEmptyBlock) {
   os << " {" << newLine;
   if (!region.empty()) {
+    auto restoreDefaultDialect =
+        llvm::make_scope_exit([&]() { defaultDialectStack.pop_back(); });
+    if (auto iface = dyn_cast<OpAsmOpInterface>(region.getParentOp()))
+      defaultDialectStack.push_back(iface.getDefaultDialect());
+    else
+      defaultDialectStack.push_back("");
+
     auto *entryBlock = &region.front();
     // Force printing the block header if printEmptyBlock is set and the block
     // is empty or if printEntryBlockArgs is set and there are arguments to
@@ -2692,7 +2730,7 @@ void OperationPrinter::printAffineExprOfSSAIds(AffineExpr expr,
 //===----------------------------------------------------------------------===//
 
 void Attribute::print(raw_ostream &os) const {
-  ModulePrinter(os).printAttribute(*this);
+  AsmPrinter::Impl(os).printAttribute(*this);
 }
 
 void Attribute::dump() const {
@@ -2700,7 +2738,9 @@ void Attribute::dump() const {
   llvm::errs() << "\n";
 }
 
-void Type::print(raw_ostream &os) const { ModulePrinter(os).printType(*this); }
+void Type::print(raw_ostream &os) const {
+  AsmPrinter::Impl(os).printType(*this);
+}
 
 void Type::dump() const { print(llvm::errs()); }
 
@@ -2719,7 +2759,7 @@ void AffineExpr::print(raw_ostream &os) const {
     os << "<<NULL AFFINE EXPR>>";
     return;
   }
-  ModulePrinter(os).printAffineExpr(*this);
+  AsmPrinter::Impl(os).printAffineExpr(*this);
 }
 
 void AffineExpr::dump() const {
@@ -2732,11 +2772,11 @@ void AffineMap::print(raw_ostream &os) const {
     os << "<<NULL AFFINE MAP>>";
     return;
   }
-  ModulePrinter(os).printAffineMap(*this);
+  AsmPrinter::Impl(os).printAffineMap(*this);
 }
 
 void IntegerSet::print(raw_ostream &os) const {
-  ModulePrinter(os).printIntegerSet(*this);
+  AsmPrinter::Impl(os).printIntegerSet(*this);
 }
 
 void Value::print(raw_ostream &os) {

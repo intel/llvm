@@ -1,9 +1,9 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
-! REQUIRES: shell
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! 15.5.1 procedure reference constraints and restrictions
 
 subroutine s01(elem, subr)
   interface
+    !ERROR: A dummy procedure may not be ELEMENTAL
     elemental real function elem(x)
       real, intent(in), value :: x
     end function

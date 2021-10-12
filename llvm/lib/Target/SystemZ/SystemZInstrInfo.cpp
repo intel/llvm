@@ -514,8 +514,8 @@ unsigned SystemZInstrInfo::insertBranch(MachineBasicBlock &MBB,
 }
 
 bool SystemZInstrInfo::analyzeCompare(const MachineInstr &MI, Register &SrcReg,
-                                      Register &SrcReg2, int &Mask,
-                                      int &Value) const {
+                                      Register &SrcReg2, int64_t &Mask,
+                                      int64_t &Value) const {
   assert(MI.isCompare() && "Caller should have checked for a comparison");
 
   if (MI.getNumExplicitOperands() == 2 && MI.getOperand(0).isReg() &&
@@ -942,8 +942,8 @@ static void transferMIFlag(MachineInstr *OldMI, MachineInstr *NewMI,
     NewMI->setFlag(Flag);
 }
 
-MachineInstr *SystemZInstrInfo::convertToThreeAddress(
-    MachineFunction::iterator &MFI, MachineInstr &MI, LiveVariables *LV) const {
+MachineInstr *SystemZInstrInfo::convertToThreeAddress(MachineInstr &MI,
+                                                      LiveVariables *LV) const {
   MachineBasicBlock *MBB = MI.getParent();
 
   // Try to convert an AND into an RISBG-type instruction.

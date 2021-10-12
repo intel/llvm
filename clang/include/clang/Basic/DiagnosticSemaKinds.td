@@ -66,6 +66,7 @@ def warn_infinite_recursive_function : Warning<
 def warn_comma_operator : Warning<"possible misuse of comma operator here">,
   InGroup<DiagGroup<"comma">>, DefaultIgnore;
 def note_cast_to_void : Note<"cast expression to void to silence warning">;
+def note_cast_operand_to_int : Note<"cast one or both operands to int to silence this warning">;
 
 // Constant expressions
 def err_expr_not_ice : Error<
@@ -82,11 +83,11 @@ def err_typecheck_converted_constant_expression_indirect : Error<
   "bind reference to a temporary">;
 def err_expr_not_cce : Error<
   "%select{case value|enumerator value|non-type template argument|"
-  "array size|explicit specifier argument}0 "
+  "array size|explicit specifier argument|noexcept specifier argument}0 "
   "is not a constant expression">;
 def ext_cce_narrowing : ExtWarn<
   "%select{case value|enumerator value|non-type template argument|"
-  "array size|explicit specifier argument}0 "
+  "array size|explicit specifier argument|noexcept specifier argument}0 "
   "%select{cannot be narrowed from type %2 to %3|"
   "evaluates to %2, which cannot be narrowed to type %3}1">,
   InGroup<CXX11Narrowing>, DefaultError, SFINAEFailure;
@@ -300,10 +301,12 @@ def err_invalid_vector_double_decl_spec : Error <
 def err_invalid_vector_bool_int128_decl_spec : Error <
   "use of '__int128' with '__vector bool' requires VSX support enabled (on "
   "POWER10 or later)">;
+def err_invalid_vector_int128_decl_spec : Error<
+  "use of '__int128' with '__vector' requires extended Altivec support"
+  " (available on POWER8 or later)">;
 def err_invalid_vector_long_long_decl_spec : Error <
-  "use of 'long long' with '__vector bool' requires VSX support (available on "
-  "POWER7 or later) or extended Altivec support (available on POWER8 or later) "
-  "to be enabled">;
+  "use of 'long long' with '__vector' requires VSX support (available on "
+  "POWER7 or later) to be enabled">;
 def err_invalid_vector_long_double_decl_spec : Error<
   "cannot use 'long double' with '__vector'">;
 def warn_vector_long_decl_spec_combination : Warning<
@@ -715,6 +718,9 @@ def warn_unreachable_return : Warning<
 def warn_unreachable_loop_increment : Warning<
   "loop will run at most once (loop increment never executed)">,
   InGroup<UnreachableCodeLoopIncrement>, DefaultIgnore;
+def warn_unreachable_fallthrough_attr : Warning<
+  "fallthrough annotation in unreachable code">,
+  InGroup<UnreachableCodeFallthrough>, DefaultIgnore;
 def note_unreachable_silence : Note<
   "silence by adding parentheses to mark code as explicitly dead">;
 
@@ -849,6 +855,11 @@ def warn_fortify_source_size_mismatch : Warning<
   "'%0' size argument is too large; destination buffer has size %1,"
   " but size argument is %2">, InGroup<FortifySource>;
 
+def warn_fortify_strlen_overflow: Warning<
+  "'%0' will always overflow; destination buffer has size %1,"
+  " but the source string has length %2 (including NUL byte)">,
+  InGroup<FortifySource>;
+
 def warn_fortify_source_format_overflow : Warning<
   "'%0' will always overflow; destination buffer has size %1,"
   " but format string expands to at least %2">,
@@ -941,6 +952,9 @@ def warn_pragma_options_align_reset_failed : Warning<
   InGroup<IgnoredPragmas>;
 def err_pragma_options_align_mac68k_target_unsupported : Error<
   "mac68k alignment pragma is not supported on this target">;
+def warn_pragma_align_not_xl_compatible : Warning<
+  "#pragma align(packed) may not be compatible with objects generated with AIX XL C/C++">,
+  InGroup<AIXCompat>;
 def warn_pragma_pack_invalid_alignment : Warning<
   "expected #pragma pack parameter to be '1', '2', '4', '8', or '16'">,
   InGroup<IgnoredPragmas>;
@@ -966,7 +980,8 @@ def warn_pragma_pack_pop_identifier_and_alignment : Warning<
 def warn_pragma_pop_failed : Warning<"#pragma %0(pop, ...) failed: %1">,
   InGroup<IgnoredPragmas>;
 def err_pragma_fc_pp_scope : Error<
-  "'#pragma float_control push/pop' can only appear at file scope or namespace scope">;
+  "'#pragma float_control push/pop' can only appear at file or namespace scope "
+  "or within a language linkage specification">;
 def err_pragma_fc_noprecise_requires_nofenv : Error<
   "'#pragma float_control(precise, off)' is illegal when fenv_access is enabled">;
 def err_pragma_fc_except_requires_precise : Error<
@@ -2992,7 +3007,7 @@ def err_attribute_requires_positive_integer : Error<
   "%0 attribute requires a %select{positive|non-negative}1 "
   "integral compile time constant expression">;
 def err_attribute_requires_opencl_version : Error<
-  "%0 attribute requires OpenCL version %1%select{| or above}2">;
+  "attribute %0 is supported in the OpenCL version %1%select{| onwards}2">;
 def err_invalid_branch_protection_spec : Error<
   "invalid or misplaced branch protection specification '%0'">;
 def warn_unsupported_target_attribute
@@ -3019,6 +3034,8 @@ def err_alignas_mismatch : Error<
   "redeclaration has different alignment requirement (%1 vs %0)">;
 def err_alignas_underaligned : Error<
   "requested alignment is less than minimum alignment of %1 for type %0">;
+def warn_aligned_attr_underaligned : Warning<err_alignas_underaligned.Text>,
+  InGroup<IgnoredAttributes>;
 def err_attribute_sizeless_type : Error<
   "%0 attribute cannot be applied to sizeless type %1">;
 def err_attribute_argument_n_type : Error<
@@ -3424,7 +3441,7 @@ def warn_attribute_dllimport_static_field_definition : Warning<
   InGroup<DiagGroup<"dllimport-static-field-def">>;
 def warn_attribute_dllexport_explicit_instantiation_decl : Warning<
   "explicit instantiation declaration should not be 'dllexport'">,
-  InGroup<DiagGroup<"dllexport-explicit-instantiation-decl">>;
+  InGroup<DllexportExplicitInstantiationDecl>;
 def warn_attribute_dllexport_explicit_instantiation_def : Warning<
   "'dllexport' attribute ignored on explicit instantiation definition">,
   InGroup<IgnoredAttributes>;
@@ -4516,7 +4533,8 @@ def note_ovl_candidate_bad_conv_incomplete : Note<
     "; remove &}7">;
 def note_ovl_candidate_bad_list_argument : Note<
     "candidate %sub{select_ovl_candidate_kind}0,1,2 not viable: "
-    "cannot convert initializer list argument to %4">;
+    "%select{cannot convert initializer list|too few initializers in list"
+    "|too many initializers in list}7 argument to %4">;
 def note_ovl_candidate_bad_overload : Note<
     "candidate %sub{select_ovl_candidate_kind}0,1,2 not viable: "
     "no overload of %4 matching %3 for %ordinal5 argument">;
@@ -5607,8 +5625,8 @@ def warn_undefined_inline : Warning<"inline function %q0 is not defined">,
 def err_undefined_inline_var : Error<"inline variable %q0 is not defined">;
 def note_used_here : Note<"used here">;
 
-def err_internal_linkage_redeclaration : Error<
-  "'internal_linkage' attribute does not appear on the first declaration of %0">;
+def err_attribute_missing_on_first_decl : Error<
+  "%0 attribute does not appear on the first declaration">;
 def warn_internal_linkage_local_storage : Warning<
   "'internal_linkage' attribute on a non-static local variable is ignored">,
   InGroup<IgnoredAttributes>;
@@ -5771,7 +5789,7 @@ def warn_typecheck_function_qualifiers_unspecified : Warning<
   "'%0' qualifier on function type %1 has unspecified behavior">;
 def warn_typecheck_reference_qualifiers : Warning<
   "'%0' qualifier on reference type %1 has no effect">,
-  InGroup<IgnoredQualifiers>;
+  InGroup<IgnoredReferenceQualifiers>;
 def err_typecheck_invalid_restrict_not_pointer : Error<
   "restrict requires a pointer or reference (%0 is invalid)">;
 def err_typecheck_invalid_restrict_not_pointer_noarg : Error<
@@ -6441,11 +6459,6 @@ def warn_gnu_null_ptr_arith : Warning<
 def warn_pointer_sub_null_ptr : Warning<
   "performing pointer subtraction with a null pointer %select{has|may have}0 undefined behavior">,
   InGroup<NullPointerSubtraction>, DefaultIgnore;
-def err_kernel_invalidates_sycl_unique_stable_name
-    : Error<"kernel %select{naming|instantiation}0 changes the result of an "
-            "evaluated '__builtin_sycl_unique_stable_%select{name|id}1'">;
-def note_sycl_unique_stable_name_evaluated_here
-    : Note<"'__builtin_sycl_unique_stable_%select{name|id}0' evaluated here">;
 def err_unique_stable_id_expected_var : Error<"expected variable name">;
 def err_unique_stable_id_global_storage
     : Error<"argument passed to '__builtin_sycl_unique_stable_id' must have "
@@ -7461,10 +7474,13 @@ def note_member_declared_here : Note<
   "member %0 declared here">;
 def note_member_first_declared_here : Note<
   "member %0 first declared here">;
+def warn_bitwise_instead_of_logical : Warning<
+  "use of bitwise '%0' with boolean operands">,
+  InGroup<BitwiseInsteadOfLogical>, DefaultIgnore;
 def warn_bitwise_negation_bool : Warning<
   "bitwise negation of a boolean expression%select{;| always evaluates to 'true';}0 "
   "did you mean logical negation?">,
-  InGroup<DiagGroup<"bool-operation">>;
+  InGroup<BoolOperation>, DefaultIgnore;
 def err_decrement_bool : Error<"cannot decrement expression of type bool">;
 def warn_increment_bool : Warning<
   "incrementing expression of type bool is deprecated and "
@@ -8430,8 +8446,10 @@ def err_ref_bad_target_global_initializer : Error<
   "function %1 in global initializer">;
 def err_capture_bad_target : Error<
   "capture host variable %0 by reference in device or host device lambda function">;
-def err_capture_bad_target_this_ptr : Error<
-  "capture host side class data member by this pointer in device or host device lambda function">;
+def warn_maybe_capture_bad_target_this_ptr : Warning<
+  "capture host side class data member by this pointer in device or host device lambda function "
+  "may result in invalid memory access if this pointer is not accessible on device side">,
+  InGroup<DiagGroup<"gpu-maybe-wrong-side">>;
 def warn_kern_is_method : Extension<
   "kernel function %0 is a member function; this may not be accepted by nvcc">,
   InGroup<CudaCompat>;
@@ -8600,6 +8618,9 @@ def ext_typecheck_cond_pointer_integer_mismatch : ExtWarn<
 def err_typecheck_choose_expr_requires_constant : Error<
   "'__builtin_choose_expr' requires a constant expression">;
 def warn_unused_expr : Warning<"expression result unused">,
+  InGroup<UnusedValue>;
+def warn_unused_comma_left_operand : Warning<
+  "left operand of comma operator has no effect">,
   InGroup<UnusedValue>;
 def warn_unused_voidptr : Warning<
   "expression result unused; should this cast be to 'void'?">,
@@ -9192,14 +9213,18 @@ def note_defaulted_comparison_calls_deleted : Note<
   "defaulted %0 is implicitly deleted because it would invoke a deleted "
   "comparison function%select{| for member %2| for base class %2}1">;
 def note_defaulted_comparison_no_viable_function : Note<
-  "defaulted %0 is implicitly deleted because there is no viable three-way "
-  "comparison function for%select{| member| base class}1 %2">;
+  "defaulted %0 is implicitly deleted because there is no viable "
+  "%select{three-way comparison function|'operator=='}1 for "
+  "%select{|member |base class }2%3">;
 def note_defaulted_comparison_no_viable_function_synthesized : Note<
   "three-way comparison cannot be synthesized because there is no viable "
   "function for %select{'=='|'<'}0 comparison">;
 def note_defaulted_comparison_not_rewritten_callee : Note<
   "defaulted %0 is implicitly deleted because this non-rewritten comparison "
   "function would be the best match for the comparison">;
+def note_defaulted_comparison_not_rewritten_conversion : Note<
+  "defaulted %0 is implicitly deleted because a builtin comparison function "
+  "using this conversion would be the best match for the comparison">;
 def note_defaulted_comparison_cannot_deduce : Note<
   "return type of defaulted 'operator<=>' cannot be deduced because "
   "return type %2 of three-way comparison for %select{|member|base class}0 %1 "
@@ -9620,9 +9645,6 @@ def err_fallthrough_attr_outside_switch : Error<
   "fallthrough annotation is outside switch statement">;
 def err_fallthrough_attr_invalid_placement : Error<
   "fallthrough annotation does not directly precede switch label">;
-def warn_fallthrough_attr_unreachable : Warning<
-  "fallthrough annotation in unreachable code">,
-  InGroup<ImplicitFallthrough>, DefaultIgnore;
 
 def warn_unreachable_default : Warning<
   "default label in switch which covers all enumeration values">,
@@ -9718,10 +9740,6 @@ def warn_falloff_noreturn_function : Warning<
   InGroup<InvalidNoreturn>;
 def err_noreturn_block_has_return_expr : Error<
   "block declared 'noreturn' should not return">;
-def err_noreturn_missing_on_first_decl : Error<
-  "function declared '[[noreturn]]' after its first declaration">;
-def note_noreturn_missing_first_decl : Note<
-  "declaration missing '[[noreturn]]' attribute is here">;
 def err_carries_dependency_missing_on_first_decl : Error<
   "%select{function|parameter}0 declared '[[carries_dependency]]' "
   "after its first declaration">;
@@ -9779,6 +9797,9 @@ def err_argument_invalid_range : Error<
 def warn_argument_invalid_range : Warning<
   "argument value %0 is outside the valid range [%1, %2]">, DefaultError,
   InGroup<DiagGroup<"argument-outside-range">>;
+def warn_argument_undefined_behaviour : Warning<
+  "argument value %0 will result in undefined behaviour">,
+  InGroup<DiagGroup<"argument-undefined-behaviour">>;
 def err_argument_not_multiple : Error<
   "argument should be a multiple of %0">;
 def err_argument_not_power_of_2 : Error<
@@ -9819,8 +9840,12 @@ def err_mips_builtin_requires_msa : Error<
   "this builtin requires 'msa' ASE, please use -mmsa">;
 def err_ppc_builtin_only_on_arch : Error<
   "this builtin is only valid on POWER%0 or later CPUs">;
+def err_ppc_builtin_requires_vsx : Error<
+  "this builtin requires VSX to be enabled">;
 def err_ppc_invalid_use_mma_type : Error<
   "invalid use of PPC MMA type">;
+def err_ppc_invalid_test_data_class_type : Error<
+  "expected a 'float' or 'double' for the first argument">;
 def err_x86_builtin_invalid_rounding : Error<
   "invalid rounding argument">;
 def err_x86_builtin_invalid_scale : Error<
@@ -10141,8 +10166,7 @@ def err_opencl_type_can_only_be_used_as_function_parameter : Error <
 def err_opencl_type_not_found : Error<
   "%0 type %1 not found; include the base header with -finclude-default-header">;
 def warn_opencl_attr_deprecated_ignored : Warning <
-  "%0 attribute is deprecated and ignored in OpenCL version %1">,
-  InGroup<IgnoredAttributes>;
+  "%0 attribute is deprecated and ignored in %1">, InGroup<IgnoredAttributes>;
 def err_opencl_variadic_function : Error<
   "invalid prototype, variadic arguments are not allowed in OpenCL">;
 def err_opencl_requires_extension : Error<
@@ -10150,8 +10174,6 @@ def err_opencl_requires_extension : Error<
 def ext_opencl_double_without_pragma : Extension<
   "Clang permits use of type 'double' regardless pragma if 'cl_khr_fp64' is"
   " supported">;
-def err_opencl_double_requires_extension :  Error<
-    "use of type 'double' requires %select{cl_khr_fp64|cl_khr_fp64 and __opencl_c_fp64}0 support">;
 def warn_opencl_generic_address_space_arg : Warning<
   "passing non-generic address space pointer to %0"
   " may cause dynamic conversion affecting performance">,
@@ -10211,7 +10233,7 @@ def err_opencl_builtin_expected_type : Error<
 
 // OpenCL v3.0 s6.3.7 - Vector Components
 def ext_opencl_ext_vector_type_rgba_selector: ExtWarn<
-  "vector component name '%0' is an OpenCL C version 3.0 feature">,
+  "vector component name '%0' is a feature from OpenCL version 3.0 onwards">,
   InGroup<OpenCLUnsupportedRGBA>;
 
 def err_openclcxx_placement_new : Error<
@@ -10582,6 +10604,8 @@ def err_omp_map_shared_storage : Error<
   "variable already marked as mapped in current construct">;
 def err_omp_invalid_map_type_for_directive : Error<
   "%select{map type '%1' is not allowed|map type must be specified}0 for '#pragma omp %2'">;
+def err_omp_invalid_map_type_modifier_for_directive : Error<
+  "map type modifier '%0' is not allowed for '#pragma omp %1'">;
 def err_omp_no_clause_for_directive : Error<
   "expected at least one %0 clause for '#pragma omp %1'">;
 def err_omp_threadprivate_in_clause : Error<
@@ -10833,6 +10857,8 @@ def err_omp_dispatch_statement_call
 def err_omp_unroll_full_variable_trip_count : Error<
   "loop to be fully unrolled must have a constant trip count">;
 def note_omp_directive_here : Note<"'%0' directive found here">;
+def err_omp_instantiation_not_supported
+    : Error<"instantiation of '%0' not supported yet">;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {
@@ -11245,8 +11271,8 @@ def err_multiversion_mismatched_attrs
             "%0 %select{is missing|has different arguments}1">;
 def err_multiversion_diff : Error<
   "multiversioned function declaration has a different %select{calling convention"
-  "|return type|constexpr specification|inline specification|storage class|"
-  "linkage}0">;
+  "|return type|constexpr specification|inline specification|linkage|"
+  "language linkage}0">;
 def err_multiversion_doesnt_support : Error<
   "attribute '%select{target|cpu_specific|cpu_dispatch}0' multiversioned functions do not "
   "yet support %select{function templates|virtual functions|"

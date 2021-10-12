@@ -89,9 +89,11 @@ static StringRef twineToStrRef(const Twine &val,
   // Allocate memory to hold this string.
   SmallString<64> data;
   auto strRef = val.toStringRef(data);
+  if (strRef.empty())
+    return strRef;
+
   strings.push_back(std::unique_ptr<char[]>(new char[strRef.size()]));
   memcpy(&strings.back()[0], strRef.data(), strRef.size());
-
   // Return a reference to the new string.
   return StringRef(&strings.back()[0], strRef.size());
 }
@@ -128,6 +130,14 @@ Diagnostic &Diagnostic::operator<<(Operation &val) {
   std::string str;
   llvm::raw_string_ostream os(str);
   val.print(os, OpPrintingFlags().useLocalScope().elideLargeElementsAttrs());
+  return *this << os.str();
+}
+
+/// Stream in a Value.
+Diagnostic &Diagnostic::operator<<(Value val) {
+  std::string str;
+  llvm::raw_string_ostream os(str);
+  val.print(os);
   return *this << os.str();
 }
 
@@ -466,7 +476,7 @@ void SourceMgrDiagnosticHandler::emitDiagnostic(Diagnostic &diag) {
   SmallVector<std::pair<Location, StringRef>> locationStack;
   auto addLocToStack = [&](Location loc, StringRef locContext) {
     if (Optional<Location> showableLoc = findLocToShow(loc))
-      locationStack.emplace_back(loc, locContext);
+      locationStack.emplace_back(*showableLoc, locContext);
   };
 
   // Add locations to display for this diagnostic.

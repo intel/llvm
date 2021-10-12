@@ -453,7 +453,27 @@ TEST(SelectionTest, CommonAncestor) {
         template <template <typename> class Container> class A {};
         A<[[V^ector]]> a;
       )cpp",
-       "TemplateArgumentLoc"}};
+       "TemplateArgumentLoc"},
+
+      // Attributes
+      {R"cpp(
+        void f(int * __attribute__(([[no^nnull]])) );
+      )cpp",
+       "NonNullAttr"},
+
+      {R"cpp(
+        // Digraph syntax for attributes to avoid accidental annotations.
+        class <:[gsl::Owner([[in^t]])]:> X{};
+      )cpp",
+       "BuiltinTypeLoc"},
+
+      // This case used to crash - AST has a null Attr
+      {R"cpp(
+        @interface I
+        [[@property(retain, nonnull) <:[My^Object2]:> *x]]; // error-ok
+        @end
+      )cpp",
+       "ObjCPropertyDecl"}};
 
   for (const Case &C : Cases) {
     trace::TestTracer Tracer;

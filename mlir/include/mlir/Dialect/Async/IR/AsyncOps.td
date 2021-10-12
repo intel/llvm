@@ -29,7 +29,8 @@ class Async_Op<string mnemonic, list<OpTrait> traits = []> :
 def Async_ExecuteOp :
   Async_Op<"execute", [SingleBlockImplicitTerminator<"YieldOp">,
                        DeclareOpInterfaceMethods<RegionBranchOpInterface,
-                                                 ["getNumRegionInvocations"]>,
+                                                 ["getSuccessorEntryOperands",
+                                                  "getNumRegionInvocations"]>,
                        AttrSizedOperandSegments]> {
   let summary = "Asynchronous execute operation";
   let description = [{
@@ -99,7 +100,9 @@ def Async_ExecuteOp :
 }
 
 def Async_YieldOp :
-    Async_Op<"yield", [HasParent<"ExecuteOp">, NoSideEffect, Terminator]> {
+    Async_Op<"yield", [
+      HasParent<"ExecuteOp">, NoSideEffect, Terminator,
+      DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>]> {
   let summary = "terminator for Async execute operation";
   let description = [{
     The `async.yield` is a special terminator operation for the block inside
@@ -505,7 +508,7 @@ def Async_RuntimeAddRefOp : Async_Op<"runtime.add_ref"> {
   }];
 
   let arguments = (ins Async_AnyAsyncType:$operand,
-                       Confined<I32Attr, [IntPositive]>:$count);
+                       Confined<I64Attr, [IntPositive]>:$count);
 
   let assemblyFormat = [{
     $operand attr-dict `:` type($operand)
@@ -520,7 +523,7 @@ def Async_RuntimeDropRefOp : Async_Op<"runtime.drop_ref"> {
   }];
 
   let arguments = (ins Async_AnyAsyncType:$operand,
-                       Confined<I32Attr, [IntPositive]>:$count);
+                       Confined<I64Attr, [IntPositive]>:$count);
 
   let assemblyFormat = [{
     $operand attr-dict `:` type($operand)

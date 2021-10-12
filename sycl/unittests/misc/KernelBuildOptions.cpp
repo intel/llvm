@@ -223,6 +223,11 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
     return;
   }
 
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
+    return;
+  }
+
   sycl::unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
 
@@ -255,6 +260,11 @@ TEST(KernelBuildOptions, Program) {
 
   if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
+    return;
+  }
+
+  if (Plt.get_backend() == sycl::backend::hip) {
+    std::cerr << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 

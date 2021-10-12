@@ -351,7 +351,7 @@ public:
   }
 
   void setConstrainedFPCallAttr(CallBase *I) {
-    I->addAttribute(AttributeList::FunctionIndex, Attribute::StrictFP);
+    I->addFnAttr(Attribute::StrictFP);
   }
 
   void setDefaultOperandBundles(ArrayRef<OperandBundleDef> OpBundles) {
@@ -697,12 +697,16 @@ public:
       MDNode *TBAAStructTag = nullptr, MDNode *ScopeTag = nullptr,
       MDNode *NoAliasTag = nullptr);
 
-  /// Create a vector fadd reduction intrinsic of the source vector.
-  /// The first parameter is a scalar accumulator value for ordered reductions.
+  /// Create a sequential vector fadd reduction intrinsic of the source vector.
+  /// The first parameter is a scalar accumulator value. An unordered reduction
+  /// can be created by adding the reassoc fast-math flag to the resulting
+  /// sequential reduction.
   CallInst *CreateFAddReduce(Value *Acc, Value *Src);
 
-  /// Create a vector fmul reduction intrinsic of the source vector.
-  /// The first parameter is a scalar accumulator value for ordered reductions.
+  /// Create a sequential vector fmul reduction intrinsic of the source vector.
+  /// The first parameter is a scalar accumulator value. An unordered reduction
+  /// can be created by adding the reassoc fast-math flag to the resulting
+  /// sequential reduction.
   CallInst *CreateFMulReduce(Value *Acc, Value *Src);
 
   /// Create a vector int add reduction intrinsic of the source vector.
@@ -2446,6 +2450,16 @@ public:
   Value *CreateExtractElement(Value *Vec, uint64_t Idx,
                               const Twine &Name = "") {
     return CreateExtractElement(Vec, getInt64(Idx), Name);
+  }
+
+  Value *CreateInsertElement(Type *VecTy, Value *NewElt, Value *Idx,
+                             const Twine &Name = "") {
+    return CreateInsertElement(PoisonValue::get(VecTy), NewElt, Idx, Name);
+  }
+
+  Value *CreateInsertElement(Type *VecTy, Value *NewElt, uint64_t Idx,
+                             const Twine &Name = "") {
+    return CreateInsertElement(PoisonValue::get(VecTy), NewElt, Idx, Name);
   }
 
   Value *CreateInsertElement(Value *Vec, Value *NewElt, Value *Idx,

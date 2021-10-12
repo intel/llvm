@@ -20,7 +20,6 @@
 #define BUFFER
 #define IMAGE 
 #define UNDEFINED
-#define CG
 
 #include <CL/sycl.hpp>
 

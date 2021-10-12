@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 
 // template<class I2, class S2>
 //   requires convertible_to<const I2&, I> && convertible_to<const S2&, S> &&
@@ -16,7 +15,9 @@
 //     common_iterator& operator=(const common_iterator<I2, S2>& x);
 
 #include <iterator>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
 #include <ranges>
+#endif
 #include <cassert>
 
 #include "test_macros.h"
@@ -55,6 +56,7 @@ void test() {
     assert(*commonIter2 == 2);
     assert(commonIter1 == commonIter2);
   }
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
   {
     auto iter1 = random_access_iterator<int*>(buffer);
     auto commonIter1 = std::common_iterator<decltype(iter1), sentinel_type<int*>>(iter1);
@@ -81,6 +83,7 @@ void test() {
     assert(std::ranges::next(commonIter1, 6) == commonSent1);
     assert(std::ranges::next(commonIter1, 6) == commonSent2);
   }
+#endif
   {
     auto iter1 = assignable_iterator<int*>(buffer);
     auto iter2 = forward_iterator<int*>(buffer + 1);
@@ -99,13 +102,17 @@ void test() {
     assert(*commonIter2 == 2);
     assert(commonIter1 == commonIter2);
 
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
     assert(std::ranges::next(commonIter1, 6) != commonSent1);
     assert(std::ranges::next(commonIter1, 6) == commonSent2);
+#endif
 
     commonSent1 = commonSent2;
 
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
     assert(std::ranges::next(commonIter1, 6) == commonSent1);
     assert(std::ranges::next(commonIter1, 6) == commonSent2);
+#endif
 
     commonIter1 = commonSent1;
 

@@ -452,7 +452,7 @@ static bool tryAddToFoldList(SmallVectorImpl<FoldCandidate> &FoldList,
     const SIRegisterInfo &SRI = TII->getRegisterInfo();
 
     // Fine if the operand can be encoded as an inline constant
-    if (OpToFold->isImm()) {
+    if (TII->isLiteralConstantLike(*OpToFold, OpInfo)) {
       if (!SRI.opCanUseInlineConstant(OpInfo.OperandType) ||
           !TII->isInlineConstant(*OpToFold, OpInfo)) {
         // Otherwise check for another constant
@@ -1388,6 +1388,13 @@ bool SIFoldOperands::tryFoldClamp(MachineInstr &MI) {
   DefClamp->setImm(1);
   MRI->replaceRegWith(MI.getOperand(0).getReg(), Def->getOperand(0).getReg());
   MI.eraseFromParent();
+
+  // Use of output modifiers forces VOP3 encoding for a VOP2 mac/fmac
+  // instruction, so we might as well convert it to the more flexible VOP3-only
+  // mad/fma form.
+  if (TII->convertToThreeAddress(*Def, nullptr))
+    Def->eraseFromParent();
+
   return true;
 }
 
@@ -1526,6 +1533,13 @@ bool SIFoldOperands::tryFoldOMod(MachineInstr &MI) {
   DefOMod->setImm(OMod);
   MRI->replaceRegWith(MI.getOperand(0).getReg(), Def->getOperand(0).getReg());
   MI.eraseFromParent();
+
+  // Use of output modifiers forces VOP3 encoding for a VOP2 mac/fmac
+  // instruction, so we might as well convert it to the more flexible VOP3-only
+  // mad/fma form.
+  if (TII->convertToThreeAddress(*Def, nullptr))
+    Def->eraseFromParent();
+
   return true;
 }
 

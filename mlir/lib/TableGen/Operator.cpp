@@ -53,6 +53,7 @@ Operator::Operator(const llvm::Record &def)
   cppNamespace = def.getValueAsString("cppNamespace");
 
   populateOpStructure();
+  assertInvariants();
 }
 
 std::string Operator::getOperationName() const {
@@ -65,6 +66,41 @@ std::string Operator::getOperationName() const {
 
 std::string Operator::getAdaptorName() const {
   return std::string(llvm::formatv("{0}Adaptor", getCppClassName()));
+}
+
+void Operator::assertInvariants() const {
+  // Check that the name of arguments/results/regions/successors don't overlap.
+  DenseMap<StringRef, StringRef> existingNames;
+  auto checkName = [&](StringRef name, StringRef entity) {
+    if (name.empty())
+      return;
+    auto insertion = existingNames.insert({name, entity});
+    if (insertion.second)
+      return;
+    if (entity == insertion.first->second)
+      PrintFatalError(getLoc(), "op has a conflict with two " + entity +
+                                    " having the same name '" + name + "'");
+    PrintFatalError(getLoc(), "op has a conflict with " +
+                                  insertion.first->second + " and " + entity +
+                                  " both having an entry with the name '" +
+                                  name + "'");
+  };
+  // Check operands amongst themselves.
+  for (int i : llvm::seq<int>(0, getNumOperands()))
+    checkName(getOperand(i).name, "operands");
+
+  // Check results amongst themselves and against operands.
+  for (int i : llvm::seq<int>(0, getNumResults()))
+    checkName(getResult(i).name, "results");
+
+  // Check regions amongst themselves and against operands and results.
+  for (int i : llvm::seq<int>(0, getNumRegions()))
+    checkName(getRegion(i).name, "regions");
+
+  // Check successors amongst themselves and against operands, results, and
+  // regions.
+  for (int i : llvm::seq<int>(0, getNumSuccessors()))
+    checkName(getSuccessor(i).name, "successors");
 }
 
 StringRef Operator::getDialectName() const { return dialect.getName(); }
@@ -458,6 +494,13 @@ void Operator::populateOpStructure() {
     results.push_back({name, TypeConstraint(resultDef)});
     if (!name.empty())
       argumentsAndResultsIndex[name] = resultIndex(i);
+
+    // We currently only support VariadicOfVariadic operands.
+    if (results.back().constraint.isVariadicOfVariadic()) {
+      PrintFatalError(
+          def.getLoc(),
+          "'VariadicOfVariadic' results are currently not supported");
+    }
   }
 
   // Handle successors
@@ -577,8 +620,7 @@ bool Operator::hasAssemblyFormat() const {
 
 StringRef Operator::getAssemblyFormat() const {
   return TypeSwitch<llvm::Init *, StringRef>(def.getValueInit("assemblyFormat"))
-      .Case<llvm::StringInit>(
-          [&](auto *init) { return init->getValue(); });
+      .Case<llvm::StringInit>([&](auto *init) { return init->getValue(); });
 }
 
 void Operator::print(llvm::raw_ostream &os) const {

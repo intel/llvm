@@ -1,3 +1,11 @@
+//===----------------------------------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef TEST_STD_RANGES_RANGE_ADAPTORS_RANGE_TRANSFORM_TYPES_H
 #define TEST_STD_RANGES_RANGE_ADAPTORS_RANGE_TRANSFORM_TYPES_H
 
@@ -6,9 +14,6 @@
 #include "test_range.h"
 
 int globalBuff[8] = {0,1,2,3,4,5,6,7};
-
-template<class T, class F>
-concept ValidDropView = requires { typename std::ranges::transform_view<T, F>; };
 
 struct ContiguousView : std::ranges::view_base {
   int start_;
@@ -124,23 +129,19 @@ struct CountedView : std::ranges::view_base {
   constexpr CountedIter end() const { return CountedIter(ForwardIter(globalBuff + 8)); }
 };
 
-using ThreeWayCompIter = three_way_contiguous_iterator<int*>;
-struct ThreeWayCompView : std::ranges::view_base {
-  constexpr ThreeWayCompIter begin() { return ThreeWayCompIter(globalBuff); }
-  constexpr ThreeWayCompIter begin() const { return ThreeWayCompIter(globalBuff); }
-  constexpr ThreeWayCompIter end() { return ThreeWayCompIter(globalBuff + 8); }
-  constexpr ThreeWayCompIter end() const { return ThreeWayCompIter(globalBuff + 8); }
+struct TimesTwo {
+  constexpr int operator()(int x) const { return x * 2; }
 };
 
-struct Increment {
+struct PlusOneMutable {
   constexpr int operator()(int x) { return x + 1; }
 };
 
-struct IncrementConst {
+struct PlusOne {
   constexpr int operator()(int x) const { return x + 1; }
 };
 
-struct IncrementRef {
+struct Increment {
   constexpr int& operator()(int& x) { return ++x; }
 };
 
@@ -148,7 +149,7 @@ struct IncrementRvalueRef {
   constexpr int&& operator()(int& x) { return std::move(++x); }
 };
 
-struct IncrementNoexcept {
+struct PlusOneNoexcept {
   constexpr int operator()(int x) noexcept { return x + 1; }
 };
 

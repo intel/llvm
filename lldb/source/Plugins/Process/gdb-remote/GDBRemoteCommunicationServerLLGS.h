@@ -202,6 +202,8 @@ protected:
 
   PacketResult Handle_vAttachOrWait(StringExtractorGDBRemote &packet);
 
+  PacketResult Handle_vRun(StringExtractorGDBRemote &packet);
+
   PacketResult Handle_D(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_qThreadStopInfo(StringExtractorGDBRemote &packet);
@@ -214,9 +216,13 @@ protected:
 
   PacketResult Handle_QPassSignals(StringExtractorGDBRemote &packet);
 
+  PacketResult Handle_qSaveCore(StringExtractorGDBRemote &packet);
+
   PacketResult Handle_g(StringExtractorGDBRemote &packet);
 
   PacketResult Handle_qMemTags(StringExtractorGDBRemote &packet);
+
+  PacketResult Handle_QMemTags(StringExtractorGDBRemote &packet);
 
   void SetCurrentThreadID(lldb::tid_t tid);
 

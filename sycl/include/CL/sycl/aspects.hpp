@@ -46,6 +46,7 @@ enum class aspect {
   atomic64 = 28,
   ext_intel_device_info_uuid = 29,
   ext_oneapi_srgb = 30,
+  ext_oneapi_native_assert = 31,
 };
 
 } // namespace sycl

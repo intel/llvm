@@ -17,6 +17,45 @@
 include "mlir/Interfaces/SideEffectInterfaceBase.td"
 
 //===----------------------------------------------------------------------===//
+// AllocationOpInterface
+//===----------------------------------------------------------------------===//
+
+def AllocationOpInterface : OpInterface<"AllocationOpInterface"> {
+  let description = [{
+    This interface provides general allocation-related methods that are
+    designed for allocation operations. For example, it offers the ability to
+    construct associated deallocation and clone operations that are compatible
+    with the current allocation operation.
+  }];
+  let cppNamespace = "::mlir";
+
+  let methods = [
+    StaticInterfaceMethod<[{
+        Builds a deallocation operation using the provided builder and the
+        current allocation value (which refers to the current Op implementing
+        this interface). The allocation value is a result of the current
+        operation implementing this interface. If there is no compatible
+        deallocation operation, this method can return ::llvm::None.
+      }],
+      "::mlir::Optional<::mlir::Operation*>", "buildDealloc",
+      (ins "::mlir::OpBuilder&":$opBuilder, "::mlir::Value":$alloc), [{}],
+      /*defaultImplementation=*/[{ return llvm::None; }]
+    >,
+    StaticInterfaceMethod<[{
+        Builds a clone operation using the provided builder and the current
+        allocation value (which refers to the current Op implementing this
+        interface). The allocation value is a result of the current operation
+        implementing this interface. If there is no compatible clone operation,
+        this method can return ::llvm::None.
+      }],
+      "::mlir::Optional<::mlir::Value>", "buildClone",
+      (ins "::mlir::OpBuilder&":$opBuilder, "::mlir::Value":$alloc), [{}],
+      /*defaultImplementation=*/[{ return llvm::None; }]
+    >
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // MemoryEffects
 //===----------------------------------------------------------------------===//
 
@@ -49,28 +88,28 @@ class MemoryEffects<list<MemoryEffect> effects = []>
 // resource. An 'allocate' effect implies only allocation of the resource, and
 // not any visible mutation or dereference.
 class MemAlloc<Resource resource>
-  : MemoryEffect<"MemoryEffects::Allocate", resource>;
+  : MemoryEffect<"::mlir::MemoryEffects::Allocate", resource>;
 def MemAlloc : MemAlloc<DefaultResource>;
 
 // The following effect indicates that the operation frees some resource that
 // has been allocated. A 'free' effect implies only de-allocation of the
 // resource, and not any visible allocation, mutation or dereference.
 class MemFree<Resource resource>
-  : MemoryEffect<"MemoryEffects::Free", resource>;
+  : MemoryEffect<"::mlir::MemoryEffects::Free", resource>;
 def MemFree : MemFree<DefaultResource>;
 
 // The following effect indicates that the operation reads from some
 // resource. A 'read' effect implies only dereferencing of the resource, and
 // not any visible mutation.
 class MemRead<Resource resource>
-  : MemoryEffect<"MemoryEffects::Read", resource>;
+  : MemoryEffect<"::mlir::MemoryEffects::Read", resource>;
 def MemRead : MemRead<DefaultResource>;
 
 // The following effect indicates that the operation writes to some
 // resource. A 'write' effect implies only mutating a resource, and not any
 // visible dereference or read.
 class MemWrite<Resource resource>
-  : MemoryEffect<"MemoryEffects::Write", resource>;
+  : MemoryEffect<"::mlir::MemoryEffects::Write", resource>;
 def MemWrite : MemWrite<DefaultResource>;
 
 //===----------------------------------------------------------------------===//

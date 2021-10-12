@@ -238,9 +238,9 @@ const HexagonSubtarget *
 HexagonTargetMachine::getSubtargetImpl(const Function &F) const {
   AttributeList FnAttrs = F.getAttributes();
   Attribute CPUAttr =
-      FnAttrs.getAttribute(AttributeList::FunctionIndex, "target-cpu");
+      FnAttrs.getFnAttr("target-cpu");
   Attribute FSAttr =
-      FnAttrs.getAttribute(AttributeList::FunctionIndex, "target-features");
+      FnAttrs.getFnAttr("target-features");
 
   std::string CPU =
       CPUAttr.isValid() ? CPUAttr.getValueAsString().str() : TargetCPU;
@@ -280,11 +280,11 @@ void HexagonTargetMachine::adjustPassManager(PassManagerBuilder &PMB) {
 
 void HexagonTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   PB.registerLateLoopOptimizationsEPCallback(
-      [=](LoopPassManager &LPM, PassBuilder::OptimizationLevel Level) {
+      [=](LoopPassManager &LPM, OptimizationLevel Level) {
         LPM.addPass(HexagonLoopIdiomRecognitionPass());
       });
   PB.registerLoopOptimizerEndEPCallback(
-      [=](LoopPassManager &LPM, PassBuilder::OptimizationLevel Level) {
+      [=](LoopPassManager &LPM, OptimizationLevel Level) {
         LPM.addPass(HexagonVectorLoopCarriedReusePass());
       });
 }

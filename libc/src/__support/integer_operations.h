@@ -14,10 +14,16 @@
 namespace __llvm_libc {
 
 template <typename T>
-static inline cpp::EnableIfType<cpp::IsIntegral<T>::Value, T> integerAbs(T n) {
-  if (n < 0)
-    return -n;
-  return n;
+static constexpr cpp::EnableIfType<cpp::IsIntegral<T>::Value, T>
+integerAbs(T n) {
+  return (n < 0) ? -n : n;
+}
+
+template <typename T>
+static constexpr cpp::EnableIfType<cpp::IsIntegral<T>::Value, void>
+integerRemQuo(T x, T y, T &quot, T &rem) {
+  quot = x / y;
+  rem = x % y;
 }
 
 } // namespace __llvm_libc

@@ -14,6 +14,7 @@
 #include "llvm/LTO/legacy/ThinLTOCodeGenerator.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/AliasAnalysis.h"
@@ -54,6 +55,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include "llvm/Transforms/IPO/FunctionImport.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
@@ -303,22 +305,22 @@ static void optimizeModuleNewPM(Module &TheModule, TargetMachine &TM,
 
   ModulePassManager MPM;
 
-  PassBuilder::OptimizationLevel OL;
+  OptimizationLevel OL;
 
   switch (OptLevel) {
   default:
     llvm_unreachable("Invalid optimization level");
   case 0:
-    OL = PassBuilder::OptimizationLevel::O0;
+    OL = OptimizationLevel::O0;
     break;
   case 1:
-    OL = PassBuilder::OptimizationLevel::O1;
+    OL = OptimizationLevel::O1;
     break;
   case 2:
-    OL = PassBuilder::OptimizationLevel::O2;
+    OL = OptimizationLevel::O2;
     break;
   case 3:
-    OL = PassBuilder::OptimizationLevel::O3;
+    OL = OptimizationLevel::O3;
     break;
   }
 
@@ -503,7 +505,7 @@ ProcessThinLTOModule(Module &TheModule, ModuleSummaryIndex &Index,
     promoteModule(TheModule, Index, ClearDSOLocalOnDeclarations);
 
     // Apply summary-based prevailing-symbol resolution decisions.
-    thinLTOResolvePrevailingInModule(TheModule, DefinedGlobals);
+    thinLTOFinalizeInModule(TheModule, DefinedGlobals, /*PropagateAttrs=*/true);
 
     // Save temps: after promotion.
     saveTempBitcode(TheModule, SaveTempsDir, count, ".1.promoted.bc");
@@ -762,8 +764,9 @@ void ThinLTOCodeGenerator::promote(Module &TheModule, ModuleSummaryIndex &Index,
   resolvePrevailingInIndex(Index, ResolvedODR, GUIDPreservedSymbols,
                            PrevailingCopy);
 
-  thinLTOResolvePrevailingInModule(
-      TheModule, ModuleToDefinedGVSummaries[ModuleIdentifier]);
+  thinLTOFinalizeInModule(TheModule,
+                          ModuleToDefinedGVSummaries[ModuleIdentifier],
+                          /*PropagateAttrs=*/false);
 
   // Promote the exported values in the index, so that they are promoted
   // in the module.
@@ -937,8 +940,9 @@ void ThinLTOCodeGenerator::internalize(Module &TheModule,
   promoteModule(TheModule, Index, /*ClearDSOLocalOnDeclarations=*/false);
 
   // Internalization
-  thinLTOResolvePrevailingInModule(
-      TheModule, ModuleToDefinedGVSummaries[ModuleIdentifier]);
+  thinLTOFinalizeInModule(TheModule,
+                          ModuleToDefinedGVSummaries[ModuleIdentifier],
+                          /*PropagateAttrs=*/false);
 
   thinLTOInternalizeModule(TheModule,
                            ModuleToDefinedGVSummaries[ModuleIdentifier]);
@@ -996,6 +1000,11 @@ ThinLTOCodeGenerator::writeGeneratedObject(int count, StringRef CacheEntryPath,
 
 // Main entry point for the ThinLTO processing
 void ThinLTOCodeGenerator::run() {
+  timeTraceProfilerBegin("ThinLink", StringRef(""));
+  auto TimeTraceScopeExit = llvm::make_scope_exit([]() {
+    if (llvm::timeTraceProfilerEnabled())
+      llvm::timeTraceProfilerEnd();
+  });
   // Prepare the resulting object vector
   assert(ProducedBinaries.empty() && "The generator should not be reused");
   if (SavedObjectsDirectoryPath.empty())
@@ -1124,6 +1133,8 @@ void ThinLTOCodeGenerator::run() {
       *Index, IsExported(ExportLists, GUIDPreservedSymbols),
       IsPrevailing(PrevailingCopy));
 
+  thinLTOPropagateFunctionAttrs(*Index, IsPrevailing(PrevailingCopy));
+
   // Make sure that every module has an entry in the ExportLists, ImportList,
   // GVSummary and ResolvedODR maps to enable threaded access to these maps
   // below.
@@ -1140,6 +1151,11 @@ void ThinLTOCodeGenerator::run() {
   for (auto &Mod : Modules)
     ModulesVec.push_back(&Mod->getSingleBitcodeModule());
   std::vector<int> ModulesOrdering = lto::generateModulesOrdering(ModulesVec);
+
+  if (llvm::timeTraceProfilerEnabled())
+    llvm::timeTraceProfilerEnd();
+
+  TimeTraceScopeExit.release();
 
   // Parallel optimizer + codegen
   {

@@ -56,8 +56,7 @@ public:
 
 class Functor16x16x16 {
 public:
-  [[intel::reqd_work_group_size(16, 16, 16)]] void operator()() const {} // expected-warning {{attribute 'intel::reqd_work_group_size' is deprecated}} \
-                                                                         // expected-note {{did you mean to use 'sycl::reqd_work_group_size' instead?}}
+  [[sycl::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
 };
 
 class FunctorAttr {

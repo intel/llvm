@@ -2,6 +2,8 @@
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 
+extern "C" int printf(const char* fmt, ...);
+
 // Dummy runtime classes to model SYCL API.
 inline namespace cl {
 namespace sycl {
@@ -118,13 +120,6 @@ struct no_alias {
 } // namespace oneapi
 } // namespace ext
 
-namespace ext {
-namespace oneapi {
-template <typename... properties>
-class accessor_property_list {};
-} // namespace oneapi
-} // namespace ext
-
 template <int dim>
 struct id {
   template <typename... T>
@@ -143,6 +138,20 @@ private:
   // kernel wrapper
   int Data;
 };
+
+namespace ext {
+namespace oneapi {
+template <typename... properties>
+class accessor_property_list {};
+namespace experimental {
+template <int Dims> item<Dims>
+this_item() { return item<Dims>{}; }
+
+template <int Dims> id<Dims>
+this_id() { return id<Dims>{}; }
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 
 template <int Dims> item<Dims>
 this_item() { return item<Dims>{}; }
@@ -310,6 +319,21 @@ public:
     return get();
   }
 };
+
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_CONSTANT_AS __attribute__((opencl_constant))
+#else
+#define __SYCL_CONSTANT_AS
+#endif
+template <typename... Args>
+int printf(const __SYCL_CONSTANT_AS char *__format, Args... args) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+  return __spirv_ocl_printf(__format, args...);
+#else
+  return ::printf(__format, args...);
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+}
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

@@ -42,7 +42,7 @@
 
 #include "SPIRVInternal.h"
 #include "SPIRVUtil.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 
 namespace VectorComputeUtil {
 

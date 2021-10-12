@@ -74,7 +74,7 @@ protected:
 // https://github.com/WebAssembly/tool-conventions/blob/master/DynamicLinking.md
 class DylinkSection : public SyntheticSection {
 public:
-  DylinkSection() : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "dylink") {}
+  DylinkSection() : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "dylink.0") {}
   bool isNeeded() const override { return config->isPic; }
   void writeBody() override;
 
@@ -131,7 +131,8 @@ inline bool operator==(const ImportKey<T> &lhs, const ImportKey<T> &rhs) {
 
 // `ImportKey<T>` can be used as a key in a `DenseMap` if `T` can be used as a
 // key in a `DenseMap`.
-template <typename T> struct llvm::DenseMapInfo<lld::wasm::ImportKey<T>> {
+namespace llvm {
+template <typename T> struct DenseMapInfo<lld::wasm::ImportKey<T>> {
   static lld::wasm::ImportKey<T> getEmptyKey() {
     typename lld::wasm::ImportKey<T> key(llvm::DenseMapInfo<T>::getEmptyKey());
     key.state = lld::wasm::ImportKey<T>::State::Empty;
@@ -154,6 +155,7 @@ template <typename T> struct llvm::DenseMapInfo<lld::wasm::ImportKey<T>> {
     return lhs == rhs;
   }
 };
+} // end namespace llvm
 
 namespace lld {
 namespace wasm {
@@ -285,9 +287,9 @@ public:
   // transform a `global.get` to an `i32.const`.
   void addInternalGOTEntry(Symbol *sym);
   bool needsRelocations() { return internalGotSymbols.size(); }
-  void generateRelocationCode(raw_ostream &os) const;
+  void generateRelocationCode(raw_ostream &os, bool TLS) const;
 
-  std::vector<const DefinedData *> dataAddressGlobals;
+  std::vector<DefinedData *> dataAddressGlobals;
   std::vector<InputGlobal *> inputGlobals;
   std::vector<Symbol *> internalGotSymbols;
 
@@ -362,9 +364,7 @@ public:
   NameSection(ArrayRef<OutputSegment *> segments)
       : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "name"),
         segments(segments) {}
-  bool isNeeded() const override {
-    return !config->stripDebug && !config->stripAll && numNames() > 0;
-  }
+  bool isNeeded() const override { return !config->stripAll && numNames() > 0; }
   void writeBody() override;
   unsigned numNames() const { return numNamedGlobals() + numNamedFunctions(); }
   unsigned numNamedGlobals() const;

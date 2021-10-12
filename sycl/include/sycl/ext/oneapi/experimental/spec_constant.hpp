@@ -31,7 +31,10 @@ class spec_const_error : public compile_program_error {
   using compile_program_error::compile_program_error;
 };
 
-template <typename T, typename ID = T> class spec_constant {
+template <typename T, typename ID = T>
+class __SYCL2020_DEPRECATED(
+    "Specialization constats extension is deprecated, use SYCL 2020"
+    " specialization constants instead") spec_constant {
 public:
   spec_constant() {}
 
@@ -80,8 +83,5 @@ public:
 } // namespace oneapi
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
-}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

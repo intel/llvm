@@ -26,6 +26,7 @@ class ELFSectionRef;
 class MachOObjectFile;
 class MachOUniversalBinary;
 class RelocationRef;
+struct VersionEntry;
 } // namespace object
 
 namespace objdump {
@@ -137,12 +138,13 @@ void printSymbolTable(const object::ObjectFile *O, StringRef ArchiveName,
                       StringRef ArchitectureName = StringRef(),
                       bool DumpDynamic = false);
 void printSymbol(const object::ObjectFile *O, const object::SymbolRef &Symbol,
+                 ArrayRef<object::VersionEntry> SymbolVersions,
                  StringRef FileName, StringRef ArchiveName,
                  StringRef ArchitectureName, bool DumpDynamic);
-LLVM_ATTRIBUTE_NORETURN void reportError(StringRef File, const Twine &Message);
-LLVM_ATTRIBUTE_NORETURN void reportError(Error E, StringRef FileName,
-                                         StringRef ArchiveName = "",
-                                         StringRef ArchitectureName = "");
+[[noreturn]] void reportError(StringRef File, const Twine &Message);
+[[noreturn]] void reportError(Error E, StringRef FileName,
+                              StringRef ArchiveName = "",
+                              StringRef ArchitectureName = "");
 void reportWarning(const Twine &Message, StringRef File);
 
 template <typename T, typename... Ts>

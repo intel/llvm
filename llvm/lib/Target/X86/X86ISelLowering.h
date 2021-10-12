@@ -14,6 +14,7 @@
 #ifndef LLVM_LIB_TARGET_X86_X86ISELLOWERING_H
 #define LLVM_LIB_TARGET_X86_X86ISELLOWERING_H
 
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/TargetLowering.h"
 
 namespace llvm {
@@ -460,6 +461,7 @@ namespace llvm {
     MOVHLPS,
     MOVSD,
     MOVSS,
+    MOVSH,
     UNPCKL,
     UNPCKH,
     VPERMILPV,
@@ -564,6 +566,27 @@ namespace llvm {
     FMADDSUB_RND,
     FMSUBADD_RND,
 
+    // AVX512-FP16 complex addition and multiplication.
+    VFMADDC,
+    VFMADDC_RND,
+    VFCMADDC,
+    VFCMADDC_RND,
+
+    VFMULC,
+    VFMULC_RND,
+    VFCMULC,
+    VFCMULC_RND,
+
+    VFMADDCSH,
+    VFMADDCSH_RND,
+    VFCMADDCSH,
+    VFCMADDCSH_RND,
+
+    VFMULCSH,
+    VFMULCSH_RND,
+    VFCMULCSH,
+    VFCMULCSH_RND,
+
     // Compress and expand.
     COMPRESS,
     EXPAND,
@@ -631,8 +654,8 @@ namespace llvm {
     // is needed so that this can be expanded with control flow.
     VASTART_SAVE_XMM_REGS,
 
-    // Windows's _chkstk call to do stack probing.
-    WIN_ALLOCA,
+    // A stack checking function call. On Windows it's _chkstk call.
+    DYN_ALLOCA,
 
     // For allocating variable amounts of stack space when using
     // segmented stacks. Check if the current stacklet has enough space, and
@@ -989,7 +1012,7 @@ namespace llvm {
     }
 
     bool canMergeStoresTo(unsigned AddressSpace, EVT MemVT,
-                          const SelectionDAG &DAG) const override;
+                          const MachineFunction &MF) const override;
 
     bool isCheapToSpeculateCttz() const override;
 
@@ -998,7 +1021,8 @@ namespace llvm {
     bool isCtlzFast() const override;
 
     bool hasBitPreservingFPLogic(EVT VT) const override {
-      return VT == MVT::f32 || VT == MVT::f64 || VT.isVector();
+      return VT == MVT::f32 || VT == MVT::f64 || VT.isVector() ||
+             (VT == MVT::f16 && X86ScalarSSEf16);
     }
 
     bool isMultiStoresCheaperThanBitsMerge(EVT LTy, EVT HTy) const override {
@@ -1282,7 +1306,8 @@ namespace llvm {
     /// register, not on the X87 floating point stack.
     bool isScalarFPTypeInSSEReg(EVT VT) const {
       return (VT == MVT::f64 && X86ScalarSSEf64) || // f64 is when SSE2
-             (VT == MVT::f32 && X86ScalarSSEf32);   // f32 is when SSE1
+             (VT == MVT::f32 && X86ScalarSSEf32) || // f32 is when SSE1
+             (VT == MVT::f16 && X86ScalarSSEf16);   // f16 is when AVX512FP16
     }
 
     /// Returns true if it is beneficial to convert a load of a constant
@@ -1442,6 +1467,7 @@ namespace llvm {
     /// When SSE2 is available, use it for f64 operations.
     bool X86ScalarSSEf32;
     bool X86ScalarSSEf64;
+    bool X86ScalarSSEf16;
 
     /// A list of legal FP immediates.
     std::vector<APFloat> LegalFPImmediates;
@@ -1472,16 +1498,11 @@ namespace llvm {
 
     /// Check whether the call is eligible for tail call optimization. Targets
     /// that want to do tail call optimization should implement this function.
-    bool IsEligibleForTailCallOptimization(SDValue Callee,
-                                           CallingConv::ID CalleeCC,
-                                           bool isVarArg,
-                                           bool isCalleeStructRet,
-                                           bool isCallerStructRet,
-                                           Type *RetTy,
-                                    const SmallVectorImpl<ISD::OutputArg> &Outs,
-                                    const SmallVectorImpl<SDValue> &OutVals,
-                                    const SmallVectorImpl<ISD::InputArg> &Ins,
-                                           SelectionDAG& DAG) const;
+    bool IsEligibleForTailCallOptimization(
+        SDValue Callee, CallingConv::ID CalleeCC, bool IsCalleeStackStructRet,
+        bool isVarArg, Type *RetTy, const SmallVectorImpl<ISD::OutputArg> &Outs,
+        const SmallVectorImpl<SDValue> &OutVals,
+        const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const;
     SDValue EmitTailCallLoadRetAddr(SelectionDAG &DAG, SDValue &OutRetAddr,
                                     SDValue Chain, bool IsTailCall,
                                     bool Is64Bit, int FPDiff,
@@ -1540,6 +1561,9 @@ namespace llvm {
     SDValue LowerFLT_ROUNDS_(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerWin64_i128OP(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerWin64_FP_TO_INT128(SDValue Op, SelectionDAG &DAG,
+                                    SDValue &Chain) const;
+    SDValue LowerWin64_INT128_TO_FP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerGC_TRANSITION(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINTRINSIC_WO_CHAIN(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerFaddFsub(SDValue Op, SelectionDAG &DAG) const;

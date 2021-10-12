@@ -2,12 +2,17 @@
 #  See https://llvm.org/LICENSE.txt for license information.
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import Optional, Sequence
+try:
+  from typing import Optional, Sequence, Union
 
-import inspect
+  import inspect
 
-from ..ir import *
+  from ..ir import *
+except ImportError as e:
+  raise RuntimeError("Error loading imports from extension module") from e
 
+ARGUMENT_ATTRIBUTE_NAME = "arg_attrs"
+RESULT_ATTRIBUTE_NAME = "res_attrs"
 
 class ModuleOp:
   """Specialization for the module op class."""
@@ -77,8 +82,8 @@ class FuncOp:
     return self.attributes["sym_visibility"]
 
   @property
-  def name(self):
-    return self.attributes["sym_name"]
+  def name(self) -> StringAttr:
+    return StringAttr(self.attributes["sym_name"])
 
   @property
   def entry_block(self):
@@ -96,6 +101,30 @@ class FuncOp:
       raise IndexError('The function already has an entry block!')
     self.body.blocks.append(*self.type.inputs)
     return self.body.blocks[0]
+
+  @property
+  def arg_attrs(self):
+    return ArrayAttr(self.attributes[ARGUMENT_ATTRIBUTE_NAME])
+
+  @arg_attrs.setter
+  def arg_attrs(self, attribute: Union[ArrayAttr, list]):
+    if isinstance(attribute, ArrayAttr):
+      self.attributes[ARGUMENT_ATTRIBUTE_NAME] = attribute
+    else:
+      self.attributes[ARGUMENT_ATTRIBUTE_NAME] = ArrayAttr.get(
+          attribute, context=self.context)
+
+  @property
+  def arguments(self):
+    return self.entry_block.arguments
+
+  @property
+  def result_attrs(self):
+    return self.attributes[RESULT_ATTRIBUTE_NAME]
+
+  @result_attrs.setter
+  def result_attrs(self, attribute: ArrayAttr):
+    self.attributes[RESULT_ATTRIBUTE_NAME] = attribute
 
   @classmethod
   def from_py_func(FuncOp,

@@ -1232,7 +1232,7 @@ multiclass F_ATOMIC_2<NVPTXRegClass regclass, string SpaceStr, string TypeStr,
 // has 2 operands, neg the second one
 multiclass F_ATOMIC_2_NEG_imp<NVPTXRegClass ptrclass, NVPTXRegClass regclass,
   string SpaceStr, string TypeStr, string OpcStr, PatFrag IntOp,
-  Operand IMMType, list<Predicate> Pred> {
+  list<Predicate> Pred> {
   def reg : NVPTXInst<(outs regclass:$dst), (ins ptrclass:$addr, regclass:$b),
     !strconcat(
       "{{ \n\t",
@@ -1244,12 +1244,11 @@ multiclass F_ATOMIC_2_NEG_imp<NVPTXRegClass ptrclass, NVPTXRegClass regclass,
   Requires<Pred>;
 }
 multiclass F_ATOMIC_2_NEG<NVPTXRegClass regclass, string SpaceStr,
-  string TypeStr, string OpcStr, PatFrag IntOp, Operand IMMType,
-  list<Predicate> Pred = []> {
+  string TypeStr, string OpcStr, PatFrag IntOp, list<Predicate> Pred = []> {
  defm p32: F_ATOMIC_2_NEG_imp<Int32Regs, regclass, SpaceStr, TypeStr, OpcStr,
-   IntOp, IMMType, Pred> ;
+   IntOp, Pred> ;
  defm p64: F_ATOMIC_2_NEG_imp<Int64Regs, regclass, SpaceStr, TypeStr, OpcStr,
-   IntOp, IMMType, Pred> ;
+   IntOp, Pred> ;
 }
 
 // has 3 operands
@@ -1357,21 +1356,21 @@ def atomic_load_sub_64_gen: ATOMIC_GENERIC_CHK<(ops node:$a, node:$b),
   (atomic_load_sub_64 node:$a, node:$b)>;
 
 defm INT_PTX_ATOM_SUB_G_32 : F_ATOMIC_2_NEG<Int32Regs, ".global", "32", ".add",
-  atomic_load_sub_32_g, i32imm>;
+  atomic_load_sub_32_g>;
 defm INT_PTX_ATOM_SUB_G_64 : F_ATOMIC_2_NEG<Int64Regs, ".global", "64", ".add",
-  atomic_load_sub_64_g, i64imm>;
+  atomic_load_sub_64_g>;
 defm INT_PTX_ATOM_SUB_GEN_32 : F_ATOMIC_2_NEG<Int32Regs, "", "32", ".add",
-  atomic_load_sub_32_gen, i32imm>;
+  atomic_load_sub_32_gen>;
 defm INT_PTX_ATOM_SUB_GEN_32_USE_G : F_ATOMIC_2_NEG<Int32Regs, ".global", "32",
-  ".add", atomic_load_sub_32_gen, i32imm>;
+  ".add", atomic_load_sub_32_gen>;
 defm INT_PTX_ATOM_SUB_S_32 : F_ATOMIC_2_NEG<Int32Regs, ".shared", "32", ".add",
-  atomic_load_sub_32_s, i32imm>;
+  atomic_load_sub_32_s>;
 defm INT_PTX_ATOM_SUB_S_64 : F_ATOMIC_2_NEG<Int64Regs, ".shared", "64", ".add",
-  atomic_load_sub_64_s, i64imm>;
+  atomic_load_sub_64_s>;
 defm INT_PTX_ATOM_SUB_GEN_64 : F_ATOMIC_2_NEG<Int64Regs, "", "64", ".add",
-  atomic_load_sub_64_gen, i64imm>;
+  atomic_load_sub_64_gen>;
 defm INT_PTX_ATOM_SUB_GEN_64_USE_G : F_ATOMIC_2_NEG<Int64Regs, ".global", "64",
-  ".add", atomic_load_sub_64_gen, i64imm>;
+  ".add", atomic_load_sub_64_gen>;
 
 // atom_swap
 
@@ -7578,6 +7577,7 @@ class WMMA_REGINFO<WMMA_REGS r, string op>
     !eq(ptx_elt_type, "bf16") : Int32Regs,
     !eq(ptx_elt_type, "tf32") : Int32Regs,
     !eq(ptx_elt_type, "s32") : Int32Regs,
+    !eq(ptx_elt_type, "b16") : Int32Regs,
     !eq(ptx_elt_type, "s8") : Int32Regs,
     !eq(ptx_elt_type, "u8") : Int32Regs,
     !eq(ptx_elt_type, "s4") : Int32Regs,
@@ -7661,7 +7661,11 @@ class WMMA_REGINFO<WMMA_REGS r, string op>
              !eq(geom, "m16n8k64"),
              !eq(geom, "m8n8k128"),
              !eq(geom, "m16n8k128"),
-             !eq(geom, "m16n8k256"))) : [hasSM80, hasPTX70]);
+             !eq(geom, "m16n8k256"))) : [hasSM80, hasPTX70],
+
+    !and(!eq(op,"ldmatrix"),
+         !eq(ptx_elt_type,"b16"),
+         !eq(geom, "m8n8")) : [hasSM75, hasPTX65]);
 
   // template DAGs for instruction inputs/output.
   dag Outs = !dag(outs, ptx_regs, reg_names);
@@ -7910,6 +7914,44 @@ defset list<WMMA_INSTR> MMAs  = {
   } // layout_a
 } // defset
 
+//
+// ldmatrix.sync.aligned.m8n8[|.trans][|.shared].b16
+//
+class LDMATRIX<WMMA_REGINFO Frag, bit Transposed, string Space,
+               DAGOperand SrcOp>
+  : WMMA_INSTR<LDMATRIX_NAME<Frag, Transposed>.record, [(ins SrcOp:$src)]>,
+    Requires<Frag.Predicates> {
+  // Build PatFrag that only matches particular address space.
+  PatFrag IntrFrag = PatFrag<(ops node:$src), (Intr node:$src),
+                             !cond(!eq(Space, ".shared"): AS_match.shared,
+                                   true: AS_match.generic)>;
+  // Build AS-constrained pattern.
+  let IntrinsicPattern = BuildPatternPF<IntrFrag, Args>.ret;
+
+  let OutOperandList = Frag.Outs;
+  let InOperandList = !con(Args, (ins MmaCode:$ptx));
+  let AsmString = "ldmatrix.sync.aligned."
+                  # Frag.geom
+                  # "." # Frag.frag
+                  # !if(Transposed, ".trans", "")
+                  # Space
+                  # "." # Frag.ptx_elt_type
+                  # " " # Frag.regstring # ", [$src];";
+}
+
+// Create all ldmatrix variants
+defset list<WMMA_INSTR> LDMATRIXs  = {
+  foreach transposed = [false, true] in {
+    foreach space = [".shared", ""] in {
+      foreach addr = [imem, Int32Regs, Int64Regs, MEMri, MEMri64] in {
+        foreach frag = NVVM_MMA_OPS.all_ldmatrix_ops in
+          if NVVM_LDMATRIX_SUPPORTED<frag>.ret then
+            def : LDMATRIX<WMMA_REGINFO<frag, "ldmatrix">, transposed, space,
+                            addr>;
+      } // addr
+    } // space
+  } // transposed
+} // defset
 
 // Constructing non-flat DAGs is still a pain. I can't !subst a dag node with a
 // dag, so the ptx.version must be appended *after* foreach replaces 'ins' with
@@ -7921,5 +7963,5 @@ class MMA_PAT<WMMA_INSTR wi>
         Requires<wi.Predicates>;
 
 // Build intrinsic->instruction patterns for all MMA instructions.
-foreach mma = !listconcat(MMAs, WMMAs, MMA_LDSTs) in
+foreach mma = !listconcat(MMAs, WMMAs, MMA_LDSTs, LDMATRIXs) in
   def : MMA_PAT<mma>;

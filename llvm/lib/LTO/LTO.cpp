@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/LTO/LTO.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
@@ -536,12 +537,12 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
   auto *ResI = Res.begin();
   auto *ResE = Res.end();
   (void)ResE;
+  const Triple TT(RegularLTO.CombinedModule->getTargetTriple());
   for (const InputFile::Symbol &Sym : Syms) {
     assert(ResI != ResE);
     SymbolResolution Res = *ResI++;
 
     StringRef Name = Sym.getName();
-    Triple TT(RegularLTO.CombinedModule->getTargetTriple());
     // Strip the __imp_ prefix from COFF dllimport symbols (similar to the
     // way they are handled by lld), otherwise we can end up with two
     // global resolutions (one with and one for a copy of the symbol without).
@@ -856,10 +857,14 @@ Error LTO::linkRegularLTO(RegularLTOState::AddedModule Mod,
   for (GlobalValue *GV : Mod.Keep) {
     if (LivenessFromIndex && !ThinLTO.CombinedIndex.isGUIDLive(GV->getGUID())) {
       if (Function *F = dyn_cast<Function>(GV)) {
-        OptimizationRemarkEmitter ORE(F, nullptr);
-        ORE.emit(OptimizationRemark(DEBUG_TYPE, "deadfunction", F)
-                 << ore::NV("Function", F)
-                 << " not added to the combined module ");
+        if (DiagnosticOutputFile) {
+          if (Error Err = F->materialize())
+            return Err;
+          OptimizationRemarkEmitter ORE(F, nullptr);
+          ORE.emit(OptimizationRemark(DEBUG_TYPE, "deadfunction", F)
+                   << ore::NV("Function", F)
+                   << " not added to the combined module ");
+        }
       }
       continue;
     }
@@ -1048,6 +1053,7 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
       Conf.RemarksHotnessThreshold);
   if (!DiagFileOrErr)
     return DiagFileOrErr.takeError();
+  DiagnosticOutputFile = std::move(*DiagFileOrErr);
 
   // Finalize linking of regular LTO modules containing summaries now that
   // we have computed liveness information.
@@ -1136,7 +1142,7 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
       return Err;
   }
 
-  return finalizeOptimizationRemarks(std::move(*DiagFileOrErr));
+  return finalizeOptimizationRemarks(std::move(DiagnosticOutputFile));
 }
 
 static const char *libcallRoutineNames[] = {
@@ -1398,6 +1404,11 @@ ThinBackend lto::createWriteIndexesThinBackend(
 
 Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
                       const DenseSet<GlobalValue::GUID> &GUIDPreservedSymbols) {
+  timeTraceProfilerBegin("ThinLink", StringRef(""));
+  auto TimeTraceScopeExit = llvm::make_scope_exit([]() {
+    if (llvm::timeTraceProfilerEnabled())
+      llvm::timeTraceProfilerEnd();
+  });
   if (ThinLTO.ModuleMap.empty())
     return Error::success();
 
@@ -1510,7 +1521,14 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
   thinLTOResolvePrevailingInIndex(Conf, ThinLTO.CombinedIndex, isPrevailing,
                                   recordNewLinkage, GUIDPreservedSymbols);
 
+  thinLTOPropagateFunctionAttrs(ThinLTO.CombinedIndex, isPrevailing);
+
   generateParamAccessSummary(ThinLTO.CombinedIndex);
+
+  if (llvm::timeTraceProfilerEnabled())
+    llvm::timeTraceProfilerEnd();
+
+  TimeTraceScopeExit.release();
 
   std::unique_ptr<ThinBackendProc> BackendProc =
       ThinLTO.Backend(Conf, ThinLTO.CombinedIndex, ModuleToDefinedGVSummaries,

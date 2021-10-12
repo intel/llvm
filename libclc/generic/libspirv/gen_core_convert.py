@@ -304,7 +304,7 @@ def generate_float_conversion(src, dst, size, mode, sat):
   else:
     print("  {DST}{N} r = {FN}(x);".format(FN=clc_core_fn_name(dst, size=size),
                                            DST=dst, N=size))
-    print("  {SRC}{N} y = {FN}(y);".format(FN=clc_core_fn_name(src, size=size),
+    print("  {SRC}{N} y = {FN}(r);".format(FN=clc_core_fn_name(src, size=size),
                                            SRC=src, N=size))
     if mode == '_rtz':
       if src in int_types:

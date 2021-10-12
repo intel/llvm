@@ -14,7 +14,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     message(STATUS "vc-intrinsics are missing. Will try to download them from github.com")
 
-    set( LLVMGenXIntrinsics_GIT_TAG 19e6ddafc545bc96ceaacbf7c81cacbff59a39b6 )
+    set( LLVMGenXIntrinsics_GIT_TAG b1db3e55bac23670be4ffbd0da85a9fd0110f593 )
 
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics

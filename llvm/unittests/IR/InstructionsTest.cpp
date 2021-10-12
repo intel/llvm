@@ -89,14 +89,13 @@ TEST_F(ModuleWithFunctionTest, CallInst) {
 
   // Make sure iteration over a call's arguments works as expected.
   unsigned Idx = 0;
-  for (Value *Arg : Call->arg_operands()) {
+  for (Value *Arg : Call->args()) {
     EXPECT_EQ(FArgTypes[Idx], Arg->getType());
     EXPECT_EQ(Call->getArgOperand(Idx)->getType(), Arg->getType());
     Idx++;
   }
 
-  Call->addAttribute(llvm::AttributeList::ReturnIndex,
-                     Attribute::get(Call->getContext(), "test-str-attr"));
+  Call->addRetAttr(Attribute::get(Call->getContext(), "test-str-attr"));
   EXPECT_TRUE(Call->hasRetAttr("test-str-attr"));
   EXPECT_FALSE(Call->hasRetAttr("not-on-call"));
 }
@@ -112,7 +111,7 @@ TEST_F(ModuleWithFunctionTest, InvokeInst) {
 
   // Make sure iteration over invoke's arguments works as expected.
   unsigned Idx = 0;
-  for (Value *Arg : Invoke->arg_operands()) {
+  for (Value *Arg : Invoke->args()) {
     EXPECT_EQ(FArgTypes[Idx], Arg->getType());
     EXPECT_EQ(Invoke->getArgOperand(Idx)->getType(), Arg->getType());
     Idx++;

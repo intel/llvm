@@ -41,7 +41,7 @@
 #define SPIRV_LIBSPIRV_SPIRVOPCODE_H
 
 #include "SPIRVUtil.h"
-#include "spirv.hpp"
+#include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
 #include <string>
 
@@ -215,7 +215,8 @@ inline bool isTypeOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpTypeVoid <= OC && OC <= OpTypePipe) || OC == OpTypePipeStorage ||
          isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL ||
-         isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL;
+         isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL ||
+         OC == internal::OpTypeJointMatrixINTEL;
 }
 
 inline bool isSpecConstantOpCode(Op OpCode) {

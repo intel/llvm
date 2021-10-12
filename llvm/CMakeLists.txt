@@ -11,7 +11,7 @@ endif()
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 if(NOT DEFINED LLVM_VERSION_MAJOR)
-  set(LLVM_VERSION_MAJOR 13)
+  set(LLVM_VERSION_MAJOR 14)
 endif()
 if(NOT DEFINED LLVM_VERSION_MINOR)
   set(LLVM_VERSION_MINOR 0)
@@ -65,12 +65,20 @@ endif()
 # This allows an easy way of setting up a build directory for llvm and another
 # one for llvm+clang+... using the same sources.
 set(LLVM_ALL_PROJECTS "clang;clang-tools-extra;compiler-rt;cross-project-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;mlir;openmp;parallel-libs;polly;pstl")
+set(LLVM_ALL_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTERNAL_PROJECTS}")
 # The flang project is not yet part of "all" projects (see C++ requirements)
 set(LLVM_EXTRA_PROJECTS "flang")
 # List of all known projects in the mono repo
 set(LLVM_KNOWN_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTRA_PROJECTS}")
+message("TEST: ${LLVM_EXTRA_PROJECTS}")
 set(LLVM_ENABLE_PROJECTS "" CACHE STRING
 	"Semicolon-separated list of projects to build (${LLVM_KNOWN_PROJECTS}), or \"all\".")
+foreach(proj ${LLVM_ENABLE_PROJECTS})
+  if (NOT proj STREQUAL "all" AND NOT proj STREQUAL "llvm" AND NOT "${proj}" IN_LIST LLVM_KNOWN_PROJECTS)
+     MESSAGE(FATAL_ERROR "${proj} isn't a known project: ${LLVM_KNOWN_PROJECTS}")
+  endif()
+endforeach()
+
 if( LLVM_ENABLE_PROJECTS STREQUAL "all" )
   set( LLVM_ENABLE_PROJECTS ${LLVM_ALL_PROJECTS})
 endif()
@@ -81,9 +89,8 @@ if ("flang" IN_LIST LLVM_ENABLE_PROJECTS)
     list(APPEND LLVM_ENABLE_PROJECTS "mlir")
   endif()
 
-  option(FLANG_BUILD_NEW_DRIVER "Build the flang compiler driver" ON)
-  if (FLANG_BUILD_NEW_DRIVER AND NOT "clang" IN_LIST LLVM_ENABLE_PROJECTS)
-    message(FATAL_ERROR "Clang is not enabled, but it's required by the new Flang driver")
+  if (NOT "clang" IN_LIST LLVM_ENABLE_PROJECTS)
+    message(FATAL_ERROR "Clang is not enabled, but is required for the Flang driver")
   endif()
 endif()
 
@@ -296,8 +303,8 @@ set(LLVM_MAIN_SRC_DIR     ${CMAKE_CURRENT_SOURCE_DIR}  ) # --src-root
 set(LLVM_MAIN_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/include ) # --includedir
 set(LLVM_BINARY_DIR       ${CMAKE_CURRENT_BINARY_DIR}  ) # --prefix
 
-# Note: LLVM_CMAKE_PATH does not include generated files
-set(LLVM_CMAKE_PATH ${LLVM_MAIN_SRC_DIR}/cmake/modules)
+# Note: LLVM_CMAKE_DIR does not include generated files
+set(LLVM_CMAKE_DIR ${LLVM_MAIN_SRC_DIR}/cmake/modules)
 set(LLVM_EXAMPLES_BINARY_DIR ${LLVM_BINARY_DIR}/examples)
 set(LLVM_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 
@@ -504,7 +511,7 @@ set(LLVM_LIB_FUZZING_ENGINE "" CACHE PATH
   "Path to fuzzing library for linking with fuzz targets")
 
 option(LLVM_USE_SPLIT_DWARF
-  "Use -gsplit-dwarf when compiling llvm." OFF)
+  "Use -gsplit-dwarf when compiling llvm and --gdb-index when linking." OFF)
 
 # Define an option controlling whether we should build for 32-bit on 64-bit
 # platforms, where supported.
@@ -702,8 +709,13 @@ else()
 endif()
 option(LLVM_ENABLE_PLUGINS "Enable plugin support" ${LLVM_ENABLE_PLUGINS_default})
 
-set(ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER FALSE CACHE BOOL
+set(LLVM_ENABLE_NEW_PASS_MANAGER FALSE CACHE BOOL
   "Enable the new pass manager by default.")
+if(NOT LLVM_ENABLE_NEW_PASS_MANAGER)
+  message(WARNING "Using the legacy pass manager for the optimization pipeline"
+                  " is deprecated. The functionality will degrade over time and"
+                  " be removed in a future release.")
+endif()
 
 include(HandleLLVMOptions)
 
@@ -718,6 +730,7 @@ set(LLVM_ENUM_TARGETS "")
 set(LLVM_ENUM_ASM_PRINTERS "")
 set(LLVM_ENUM_ASM_PARSERS "")
 set(LLVM_ENUM_DISASSEMBLERS "")
+set(LLVM_ENUM_TARGETMCAS "")
 foreach(t ${LLVM_TARGETS_TO_BUILD})
   set( td ${LLVM_MAIN_SRC_DIR}/lib/Target/${t} )
 
@@ -747,6 +760,10 @@ foreach(t ${LLVM_TARGETS_TO_BUILD})
     set(LLVM_ENUM_DISASSEMBLERS
       "${LLVM_ENUM_DISASSEMBLERS}LLVM_DISASSEMBLER(${t})\n")
   endif()
+    if( EXISTS ${td}/MCA/CMakeLists.txt )
+    set(LLVM_ENUM_TARGETMCAS
+      "${LLVM_ENUM_TARGETMCAS}LLVM_TARGETMCA(${t})\n")
+  endif()
 endforeach(t)
 
 # Produce the target definition files, which provide a way for clients to easily
@@ -766,6 +783,10 @@ configure_file(
 configure_file(
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Config/Targets.def.in
   ${LLVM_INCLUDE_DIR}/llvm/Config/Targets.def
+  )
+configure_file(
+  ${LLVM_MAIN_INCLUDE_DIR}/llvm/Config/TargetMCAs.def.in
+  ${LLVM_INCLUDE_DIR}/llvm/Config/TargetMCAs.def
   )
 
 # They are not referenced. See set_output_directory().
@@ -795,8 +816,8 @@ if (TENSORFLOW_C_LIB_PATH)
   include_directories(${TENSORFLOW_C_LIB_PATH}/include)
   if (NOT TF_PROTO_HEADERS)
     message(STATUS "TF_PROTO_HEADERS not defined. Looking for tensorflow pip package.")
-    execute_process(COMMAND 
-      ${Python3_EXECUTABLE} "-m" "pip" "show" "tensorflow" 
+    execute_process(COMMAND
+      ${Python3_EXECUTABLE} "-m" "pip" "show" "tensorflow"
       OUTPUT_VARIABLE TF_PIP_OUT)
     if ("${TF_PIP_OUT}" STREQUAL "")
       message(FATAL ERROR "Tensorflow pip package is also required for 'development' mode (protobuf headers)")
@@ -828,14 +849,10 @@ if (NOT TENSORFLOW_AOT_PATH STREQUAL "")
   include_directories(${TENSORFLOW_AOT_PATH}/include)
   add_subdirectory(${TENSORFLOW_AOT_PATH}/xla_aot_runtime_src
     ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/tf_runtime)
-  install(TARGETS tf_xla_runtime EXPORT LLVMExports 
+  install(TARGETS tf_xla_runtime EXPORT LLVMExports
     ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT tf_xla_runtime)
   set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS tf_xla_runtime)
 endif()
-
-# Keep the legacy CMake flag ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER for
-# compatibility.
-set(LLVM_ENABLE_NEW_PASS_MANAGER ${ENABLE_EXPERIMENTAL_NEW_PASS_MANAGER})
 
 # Configure the three LLVM configuration header files.
 configure_file(
@@ -1143,6 +1160,7 @@ endif()
 # after all targets are created.
 llvm_distribution_add_targets()
 process_llvm_pass_plugins(GEN_CONFIG)
+include(CoverageReport)
 
 # This allows us to deploy the Universal CRT DLLs by passing -DCMAKE_INSTALL_UCRT_LIBRARIES=ON to CMake
 if (MSVC AND CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_INSTALL_UCRT_LIBRARIES)

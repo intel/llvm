@@ -438,7 +438,7 @@ inline cst_pred_ty<is_any_apint> m_AnyIntegralConstant() {
 }
 
 struct is_all_ones {
-  bool isValue(const APInt &C) { return C.isAllOnesValue(); }
+  bool isValue(const APInt &C) { return C.isAllOnes(); }
 };
 /// Match an integer or vector with all bits set.
 /// For vectors, this includes constants with undefined elements.
@@ -506,7 +506,7 @@ inline cst_pred_ty<is_nonpositive> m_NonPositive() {
 inline api_pred_ty<is_nonpositive> m_NonPositive(const APInt *&V) { return V; }
 
 struct is_one {
-  bool isValue(const APInt &C) { return C.isOneValue(); }
+  bool isValue(const APInt &C) { return C.isOne(); }
 };
 /// Match an integer 1 or a vector with all elements equal to 1.
 /// For vectors, this includes constants with undefined elements.
@@ -515,7 +515,7 @@ inline cst_pred_ty<is_one> m_One() {
 }
 
 struct is_zero_int {
-  bool isValue(const APInt &C) { return C.isNullValue(); }
+  bool isValue(const APInt &C) { return C.isZero(); }
 };
 /// Match an integer 0 or a vector with all elements equal to 0.
 /// For vectors, this includes constants with undefined elements.
@@ -2107,6 +2107,14 @@ struct m_Intrinsic_Ty<T0, T1, T2, T3, T4, T5> {
 /// m_Intrinsic<Intrinsic::fabs>(m_Value(X))
 template <Intrinsic::ID IntrID> inline IntrinsicID_match m_Intrinsic() {
   return IntrinsicID_match(IntrID);
+}
+
+/// Matches MaskedLoad Intrinsic.
+template <typename Opnd0, typename Opnd1, typename Opnd2, typename Opnd3>
+inline typename m_Intrinsic_Ty<Opnd0, Opnd1, Opnd2, Opnd3>::Ty
+m_MaskedLoad(const Opnd0 &Op0, const Opnd1 &Op1, const Opnd2 &Op2,
+             const Opnd3 &Op3) {
+  return m_Intrinsic<Intrinsic::masked_load>(Op0, Op1, Op2, Op3);
 }
 
 template <Intrinsic::ID IntrID, typename T0>

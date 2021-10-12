@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-unknown-unknown -fsycl-int-header=%t.h %s -o %t.out %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=NONATIVESUPPORT --check-prefix=ALL
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -o %t.out %s -o %t.out
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s -o %t.out %s -o %t.out
 // RUN: FileCheck -input-file=%t.h %s --check-prefix=NATIVESUPPORT --check-prefix=ALL
 
 // This test checks that the compiler generates required information

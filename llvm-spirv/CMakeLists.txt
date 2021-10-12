@@ -1,7 +1,9 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.13.4)
 
-set (BASE_LLVM_VERSION 13.0.0)
+set (BASE_LLVM_VERSION 14.0.0)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
+
+include(FetchContent)
 
 option(LLVM_SPIRV_INCLUDE_TESTS
   "Generate build targets for the llvm-spirv lit tests."
@@ -13,6 +15,42 @@ if (NOT DEFINED LLVM_SPIRV_BUILD_EXTERNAL)
     set(LLVM_SPIRV_BUILD_EXTERNAL YES)
   endif(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 endif (NOT DEFINED LLVM_SPIRV_BUILD_EXTERNAL)
+
+# Download spirv.hpp from the official SPIRV-Headers repository.
+# One can skip this step by manually setting
+# LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR path.
+if(NOT DEFINED LLVM_TOOL_SPIRV_HEADERS_BUILD AND
+   NOT DEFINED LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR)
+  set(LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/SPIRV-Headers")
+  message(STATUS "SPIR-V Headers location is not specified. Will try to download
+          spirv.hpp from https://github.com/KhronosGroup/SPIRV-Headers into
+          ${LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR}")
+  file(READ spirv-headers-tag.conf SPIRV_HEADERS_TAG)
+  # Strip the potential trailing newline from tag
+  string(STRIP "${SPIRV_HEADERS_TAG}" SPIRV_HEADERS_TAG)
+  FetchContent_Declare(spirv-headers
+    GIT_REPOSITORY    https://github.com/KhronosGroup/SPIRV-Headers.git
+    GIT_TAG           ${SPIRV_HEADERS_TAG}
+    SOURCE_DIR ${LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR}
+  )
+  FetchContent_MakeAvailable(spirv-headers)
+else()
+  if(NOT DEFINED LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR)
+    # This means LLVM_TOOL_SPIRV_HEADERS_BUILD is defined, therefore
+    # SPIRV-Headers exist as a subproject.
+    set(LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR
+      "${CMAKE_SOURCE_DIR}/projects/SPIRV-Headers")
+    if(NOT EXISTS ${LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR})
+      message(FATAL_ERROR "No location specified for SPIRV-Headers.
+              Try setting the LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR
+              path or put the project into the llvm/projects folder
+              under the name 'SPIRV-Headers'")
+    endif()
+  endif()
+  message(STATUS "Using SPIR-V Headers from
+          ${LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR}")
+endif()
 
 if(LLVM_SPIRV_BUILD_EXTERNAL)
   project(LLVM_SPIRV

@@ -56,8 +56,8 @@ if (MSVC_IDE OR XCODE)
   endif()
 endif()
 
-# stdlib_stdexcept.cpp depends on libc++ internals.
-include_directories("${LIBCXXABI_LIBCXX_PATH}")
+# Some files depend on libc++ internals.
+include_directories("${LIBCXXABI_LIBCXX_PATH}/src")
 
 if (LIBCXXABI_HAS_CXA_THREAD_ATEXIT_IMPL)
   add_definitions(-DHAVE___CXA_THREAD_ATEXIT_IMPL)
@@ -181,25 +181,18 @@ if (LIBCXXABI_ENABLE_SHARED)
     target_link_libraries(cxxabi_shared PUBLIC pstl::ParallelSTL)
   endif()
   set_target_properties(cxxabi_shared
-                        PROPERTIES
-                          CXX_EXTENSIONS
-                            OFF
-                          CXX_STANDARD
-                            20
-                          CXX_STANDARD_REQUIRED
-                            OFF
-                          COMPILE_FLAGS
-                            "${LIBCXXABI_COMPILE_FLAGS}"
-                          LINK_FLAGS
-                            "${LIBCXXABI_LINK_FLAGS}"
-                          OUTPUT_NAME
-                            "c++abi"
-                          SOVERSION
-                            "1"
-                          VERSION
-                            "${LIBCXXABI_LIBRARY_VERSION}"
-                          DEFINE_SYMBOL
-                            "")
+    PROPERTIES
+      CXX_EXTENSIONS OFF
+      CXX_STANDARD 20
+      CXX_STANDARD_REQUIRED OFF
+      COMPILE_FLAGS "${LIBCXXABI_COMPILE_FLAGS}"
+      LINK_FLAGS "${LIBCXXABI_LINK_FLAGS}"
+      OUTPUT_NAME "c++abi"
+      SOVERSION "1"
+      VERSION "${LIBCXXABI_LIBRARY_VERSION}"
+      DEFINE_SYMBOL ""
+      POSITION_INDEPENDENT_CODE ON
+  )
 
   list(APPEND LIBCXXABI_BUILD_TARGETS "cxxabi_shared")
   if (LIBCXXABI_INSTALL_SHARED_LIBRARY)
@@ -244,19 +237,15 @@ if (LIBCXXABI_ENABLE_STATIC)
     target_link_libraries(cxxabi_static PUBLIC pstl::ParallelSTL)
   endif()
   set_target_properties(cxxabi_static
-                        PROPERTIES
-                          CXX_EXTENSIONS
-                            OFF
-                          CXX_STANDARD
-                            20
-                          CXX_STANDARD_REQUIRED
-                            OFF
-                          COMPILE_FLAGS
-                            "${LIBCXXABI_COMPILE_FLAGS}"
-                          LINK_FLAGS
-                            "${LIBCXXABI_LINK_FLAGS}"
-                          OUTPUT_NAME
-                            "c++abi")
+    PROPERTIES
+      CXX_EXTENSIONS OFF
+      CXX_STANDARD 20
+      CXX_STANDARD_REQUIRED OFF
+      COMPILE_FLAGS "${LIBCXXABI_COMPILE_FLAGS}"
+      LINK_FLAGS "${LIBCXXABI_LINK_FLAGS}"
+      OUTPUT_NAME "c++abi"
+      POSITION_INDEPENDENT_CODE ON
+    )
 
   if(LIBCXXABI_HERMETIC_STATIC_LIBRARY)
     append_flags_if_supported(CXXABI_STATIC_LIBRARY_FLAGS -fvisibility=hidden)
@@ -305,6 +294,7 @@ if (LIBCXXABI_INSTALL_LIBRARY)
   install(TARGETS ${LIBCXXABI_INSTALL_TARGETS}
     LIBRARY DESTINATION ${LIBCXXABI_INSTALL_LIBRARY_DIR} COMPONENT cxxabi
     ARCHIVE DESTINATION ${LIBCXXABI_INSTALL_LIBRARY_DIR} COMPONENT cxxabi
+    RUNTIME DESTINATION ${LIBCXXABI_INSTALL_RUNTIME_DIR} COMPONENT cxxabi
     )
 endif()
 

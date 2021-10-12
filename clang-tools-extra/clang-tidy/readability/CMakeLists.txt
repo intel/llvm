@@ -7,12 +7,14 @@ add_clang_library(clangTidyReadabilityModule
   AvoidConstParamsInDecls.cpp
   BracesAroundStatementsCheck.cpp
   ConstReturnTypeCheck.cpp
+  ContainerDataPointerCheck.cpp
   ContainerSizeEmptyCheck.cpp
   ConvertMemberFunctionsToStatic.cpp
   DeleteNullPointerCheck.cpp
   ElseAfterReturnCheck.cpp
   FunctionCognitiveComplexityCheck.cpp
   FunctionSizeCheck.cpp
+  IdentifierLengthCheck.cpp
   IdentifierNamingCheck.cpp
   ImplicitBoolConversionCheck.cpp
   InconsistentDeclarationParameterNameCheck.cpp

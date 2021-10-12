@@ -67,41 +67,55 @@ int lambda_outer() {
 }
 #pragma omp end assumes
 
-// AST:      void foo() __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp"))) {
+void no_assume() {
+  foo();
+}
+
+#pragma omp begin assumes ext_call_site
+void assume() {
+  foo();
+}
+
+void assembly() {
+  asm ("nop");
+}
+#pragma omp end assumes ext_call_site
+
+// AST:      void foo() __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp"))) {
 // AST-NEXT: }
 // AST-NEXT: class BAR {
 // AST-NEXT: public:
-// AST-NEXT:     BAR() __attribute__((assume("range_bar_only"))) __attribute__((assume("range_bar_only_2"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")))     {
+// AST-NEXT:     BAR() __attribute__((assume("ompx_range_bar_only"))) __attribute__((assume("ompx_range_bar_only_2"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")))     {
 // AST-NEXT:     }
-// AST-NEXT:     void bar1() __attribute__((assume("range_bar_only"))) __attribute__((assume("range_bar_only_2"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")))     {
+// AST-NEXT:     void bar1() __attribute__((assume("ompx_range_bar_only"))) __attribute__((assume("ompx_range_bar_only_2"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")))     {
 // AST-NEXT:     }
-// AST-NEXT:     static void bar2() __attribute__((assume("range_bar_only"))) __attribute__((assume("range_bar_only_2"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")))     {
+// AST-NEXT:     static void bar2() __attribute__((assume("ompx_range_bar_only"))) __attribute__((assume("ompx_range_bar_only_2"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")))     {
 // AST-NEXT:     }
 // AST-NEXT: };
-// AST-NEXT: void bar() __attribute__((assume("range_bar_only"))) __attribute__((assume("range_bar_only_2"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp"))) {
+// AST-NEXT: void bar() __attribute__((assume("ompx_range_bar_only"))) __attribute__((assume("ompx_range_bar_only_2"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp"))) {
 // AST-NEXT:     BAR b;
 // AST-NEXT: }
-// AST-NEXT: void baz() __attribute__((assume("1234"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")));
+// AST-NEXT: void baz() __attribute__((assume("ompx_1234"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")));
 // AST-NEXT: template <typename T> class BAZ {
 // AST-NEXT: public:
-// AST-NEXT:     BAZ<T>() __attribute__((assume("1234"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")))     {
+// AST-NEXT:     BAZ<T>() __attribute__((assume("ompx_1234"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")))     {
 // AST-NEXT:     }
-// AST-NEXT:     void baz1() __attribute__((assume("1234"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")))     {
+// AST-NEXT:     void baz1() __attribute__((assume("ompx_1234"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")))     {
 // AST-NEXT:     }
-// AST-NEXT:     static void baz2() __attribute__((assume("1234"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")))     {
+// AST-NEXT:     static void baz2() __attribute__((assume("ompx_1234"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")))     {
 // AST-NEXT:     }
 // AST-NEXT: };
 // AST-NEXT: template<> class BAZ<float> {
 // AST-NEXT: public:
-// AST-NEXT:     BAZ() __attribute__((assume("1234"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")))    {
+// AST-NEXT:     BAZ() __attribute__((assume("ompx_1234"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")))    {
 // AST-NEXT:     }
-// AST-NEXT:     void baz1() __attribute__((assume("1234"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")));
-// AST-NEXT:     static void baz2() __attribute__((assume("1234"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp")));
+// AST-NEXT:     void baz1() __attribute__((assume("ompx_1234"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")));
+// AST-NEXT:     static void baz2() __attribute__((assume("ompx_1234"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp")));
 // AST-NEXT: };
-// AST-NEXT: void baz() __attribute__((assume("1234"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp"))) {
+// AST-NEXT: void baz() __attribute__((assume("ompx_1234"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp"))) {
 // AST-NEXT:     BAZ<float> b;
 // AST-NEXT: }
-// AST-NEXT: int lambda_outer() __attribute__((assume("lambda_assumption"))) __attribute__((assume("no_openmp_routines,another_warning,after_invalid_clauses"))) __attribute__((assume("no_openmp"))) {
+// AST-NEXT: int lambda_outer() __attribute__((assume("ompx_lambda_assumption"))) __attribute__((assume("omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses"))) __attribute__((assume("omp_no_openmp"))) {
 // AST-NEXT:     auto lambda_inner = []() {
 // AST-NEXT:         return 42;
 // AST-NEXT:     };
@@ -115,51 +129,73 @@ int lambda_outer() {
 // CHECK: define{{.*}} void @_Z3barv()
 // CHECK-SAME: [[attr1:#[0-9]]]
 // CHECK:   call{{.*}} @_ZN3BARC1Ev(%class.BAR*{{.*}} %b)
-// CHECK-SAME: [[attr9:#[0-9]]]
+// CHECK-SAME: [[attr10:#[0-9]]]
 // CHECK: define{{.*}} void @_ZN3BARC1Ev(%class.BAR*{{.*}} %this)
 // CHECK-SAME: [[attr2:#[0-9]]]
 // CHECK:   call{{.*}} @_ZN3BARC2Ev(%class.BAR*{{.*}} %this1)
-// CHECK-SAME: [[attr9]]
+// CHECK-SAME: [[attr10]]
 // CHECK: define{{.*}} void @_ZN3BARC2Ev(%class.BAR*{{.*}} %this)
 // CHECK-SAME: [[attr3:#[0-9]]]
 // CHECK: define{{.*}} void @_Z3bazv()
 // CHECK-SAME: [[attr4:#[0-9]]]
 // CHECK:   call{{.*}} @_ZN3BAZIfEC1Ev(%class.BAZ*{{.*}} %b)
-// CHECK-SAME: [[attr10:#[0-9]]]
+// CHECK-SAME: [[attr11:#[0-9]]]
 // CHECK: define{{.*}} void @_ZN3BAZIfEC1Ev(%class.BAZ*{{.*}} %this)
 // CHECK-SAME: [[attr5:#[0-9]]]
 // CHECK:   call{{.*}} @_ZN3BAZIfEC2Ev(%class.BAZ*{{.*}} %this1)
-// CHECK-SAME: [[attr10]]
+// CHECK-SAME: [[attr12:#[0-9]]]
 // CHECK: define{{.*}} void @_ZN3BAZIfEC2Ev(%class.BAZ*{{.*}} %this)
 // CHECK-SAME: [[attr6:#[0-9]]]
 // CHECK: define{{.*}} i32 @_Z12lambda_outerv()
 // CHECK-SAME: [[attr7:#[0-9]]]
 // CHECK: call{{.*}} @"_ZZ12lambda_outervENK3$_0clEv"
-// CHECK-SAME: [[attr11:#[0-9]]]
+// CHECK-SAME: [[attr13:#[0-9]]]
 // CHECK: define{{.*}} i32 @"_ZZ12lambda_outervENK3$_0clEv"(%class.anon*{{.*}} %this)
 // CHECK-SAME: [[attr8:#[0-9]]]
+// CHECK: define{{.*}} void @_Z9no_assumev()
+// CHECK-SAME: [[attr0:#[0-9]]]
+// CHECK: call{{.*}} @_Z3foov()
+// CHECK-SAME: [[attr14:#[0-9]]]
+// CHECK: define{{.*}} void @_Z6assumev()
+// CHECK-SAME: [[attr9:#[0-9]]]
+// CHECK: call{{.*}} @_Z3foov()
+// CHECK-SAME: [[attr15:#[0-9]]]
+// CHECK: define{{.*}} void @_Z8assemblyv()
+// CHECK-SAME: [[attr9:#[0-9]]]
+// CHECK: call{{.*}} void asm sideeffect "nop", "~{dirflag},~{fpsr},~{flags}"()
+// CHECK-SAME: [[attr16:#[0-9]]]
 
 // CHECK:     attributes [[attr0]]
-// CHECK-SAME:  "llvm.assume"="no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr1]]
-// CHECK-SAME:  "llvm.assume"="range_bar_only,range_bar_only_2,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_range_bar_only,ompx_range_bar_only_2,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr2]]
-// CHECK-SAME:  "llvm.assume"="range_bar_only,range_bar_only_2,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_range_bar_only,ompx_range_bar_only_2,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr3]]
-// CHECK-SAME:  "llvm.assume"="range_bar_only,range_bar_only_2,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_range_bar_only,ompx_range_bar_only_2,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr4]]
-// CHECK-SAME:  "llvm.assume"="1234,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp,1234,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr5]]
-// CHECK-SAME:  "llvm.assume"="1234,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr6]]
-// CHECK-SAME:  "llvm.assume"="1234,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr7]]
-// CHECK-SAME:  "llvm.assume"="lambda_assumption,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_lambda_assumption,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr8]]
-// CHECK-SAME:  "llvm.assume"="lambda_assumption,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_lambda_assumption,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr9]]
-// CHECK-SAME:  "llvm.assume"="range_bar_only,range_bar_only_2,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_call_site,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr10]]
-// CHECK-SAME:  "llvm.assume"="1234,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_range_bar_only,ompx_range_bar_only_2,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,ompx_range_bar_only,ompx_range_bar_only_2,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
 // CHECK:     attributes [[attr11]]
-// CHECK-SAME:  "llvm.assume"="lambda_assumption,no_openmp_routines,another_warning,after_invalid_clauses,no_openmp"
+// CHECK-SAME:  "llvm.assume"="ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
+// CHECK:     attributes [[attr12]]
+// CHECK-SAME:  "llvm.assume"="ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,ompx_1234,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
+// CHECK:     attributes [[attr13]]
+// CHECK-SAME:  "llvm.assume"="ompx_lambda_assumption,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,ompx_lambda_assumption,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
+// CHECK:     attributes [[attr14]]
+// CHECK-SAME:  "llvm.assume"="omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
+// CHECK:     attributes [[attr15]]
+// CHECK-SAME:  "llvm.assume"="omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp,ompx_call_site,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"
+// CHECK:     attributes [[attr16]]
+// CHECK-SAME:  "llvm.assume"="ompx_call_site,omp_no_openmp_routines,ompx_another_warning,ompx_after_invalid_clauses,omp_no_openmp"

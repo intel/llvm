@@ -234,32 +234,47 @@ template <typename T> struct HeadTail {
 //
 // Precondition:
 // - size >= T::kSize
-template <typename T> struct Loop {
+template <typename T, typename TailT = T> struct Loop {
+  static_assert(T::kSize == TailT::kSize,
+                "Tail type must have the same size as T");
+
   static void Copy(char *__restrict dst, const char *__restrict src,
                    size_t size) {
-    for (size_t offset = 0; offset < size - T::kSize; offset += T::kSize)
+    size_t offset = 0;
+    do {
       T::Copy(dst + offset, src + offset);
-    Tail<T>::Copy(dst, src, size);
+      offset += T::kSize;
+    } while (offset < size - T::kSize);
+    Tail<TailT>::Copy(dst, src, size);
   }
 
   static bool Equals(const char *lhs, const char *rhs, size_t size) {
-    for (size_t offset = 0; offset < size - T::kSize; offset += T::kSize)
+    size_t offset = 0;
+    do {
       if (!T::Equals(lhs + offset, rhs + offset))
         return false;
-    return Tail<T>::Equals(lhs, rhs, size);
+      offset += T::kSize;
+    } while (offset < size - T::kSize);
+    return Tail<TailT>::Equals(lhs, rhs, size);
   }
 
   static int ThreeWayCompare(const char *lhs, const char *rhs, size_t size) {
-    for (size_t offset = 0; offset < size - T::kSize; offset += T::kSize)
+    size_t offset = 0;
+    do {
       if (!T::Equals(lhs + offset, rhs + offset))
         return T::ThreeWayCompare(lhs + offset, rhs + offset);
-    return Tail<T>::ThreeWayCompare(lhs, rhs, size);
+      offset += T::kSize;
+    } while (offset < size - T::kSize);
+    return Tail<TailT>::ThreeWayCompare(lhs, rhs, size);
   }
 
   static void SplatSet(char *dst, const unsigned char value, size_t size) {
-    for (size_t offset = 0; offset < size - T::kSize; offset += T::kSize)
+    size_t offset = 0;
+    do {
       T::SplatSet(dst + offset, value);
-    Tail<T>::SplatSet(dst, value, size);
+      offset += T::kSize;
+    } while (offset < size - T::kSize);
+    Tail<TailT>::SplatSet(dst, value, size);
   }
 };
 
@@ -304,7 +319,7 @@ template <size_t Alignment> struct AlignHelper<Arg::_2, Alignment> {
 //
 // e.g. A 16-byte Destination Aligned 32-byte Loop Copy can be written as:
 // Copy<Align<_16, Arg::Dst>::Then<Loop<_32>>>(dst, src, count);
-template <typename AlignmentT, Arg AlignOn> struct Align {
+template <typename AlignmentT, Arg AlignOn = Arg::_1> struct Align {
 private:
   static constexpr size_t Alignment = AlignmentT::kSize;
   static_assert(Alignment > 1, "Alignment must be more than 1");
@@ -338,6 +353,44 @@ public:
       char *dummy = nullptr;
       internal::AlignHelper<Arg::_1, Alignment>::Bump(dst, dummy, size);
       NextT::SplatSet(dst, value, size);
+    }
+  };
+};
+
+// An operation that allows to skip the specified amount of bytes.
+template <ptrdiff_t Bytes> struct Skip {
+  template <typename NextT> struct Then {
+    static void Copy(char *__restrict dst, const char *__restrict src,
+                     size_t size) {
+      NextT::Copy(dst + Bytes, src + Bytes, size - Bytes);
+    }
+
+    static void Copy(char *__restrict dst, const char *__restrict src) {
+      NextT::Copy(dst + Bytes, src + Bytes);
+    }
+
+    static bool Equals(const char *lhs, const char *rhs, size_t size) {
+      return NextT::Equals(lhs + Bytes, rhs + Bytes, size - Bytes);
+    }
+
+    static bool Equals(const char *lhs, const char *rhs) {
+      return NextT::Equals(lhs + Bytes, rhs + Bytes);
+    }
+
+    static int ThreeWayCompare(const char *lhs, const char *rhs, size_t size) {
+      return NextT::ThreeWayCompare(lhs + Bytes, rhs + Bytes, size - Bytes);
+    }
+
+    static int ThreeWayCompare(const char *lhs, const char *rhs) {
+      return NextT::ThreeWayCompare(lhs + Bytes, rhs + Bytes);
+    }
+
+    static void SplatSet(char *dst, const unsigned char value, size_t size) {
+      NextT::SplatSet(dst + Bytes, value, size - Bytes);
+    }
+
+    static void SplatSet(char *dst, const unsigned char value) {
+      NextT::SplatSet(dst + Bytes, value);
     }
   };
 };
@@ -390,7 +443,7 @@ template <size_t Size> struct Builtin {
 
 private:
   // Copies `kSize` bytes from `src` to `dst` using a for loop.
-  // This code requires the use of `-fno-buitin-memcpy` to prevent the compiler
+  // This code requires the use of `-fno-builtin-memcpy` to prevent the compiler
   // from turning the for-loop back into `__builtin_memcpy`.
   static void ForLoopCopy(char *__restrict dst, const char *__restrict src) {
     for (size_t i = 0; i < kSize; ++i)

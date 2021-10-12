@@ -226,13 +226,13 @@ void elf::combineEhSections() {
 }
 
 static Defined *addOptionalRegular(StringRef name, SectionBase *sec,
-                                   uint64_t val, uint8_t stOther = STV_HIDDEN,
-                                   uint8_t binding = STB_GLOBAL) {
+                                   uint64_t val, uint8_t stOther = STV_HIDDEN) {
   Symbol *s = symtab->find(name);
   if (!s || s->isDefined())
     return nullptr;
 
-  s->resolve(Defined{/*file=*/nullptr, name, binding, stOther, STT_NOTYPE, val,
+  s->resolve(Defined{/*file=*/nullptr, name, STB_GLOBAL, stOther, STT_NOTYPE,
+                     val,
                      /*size=*/0, sec});
   return cast<Defined>(s);
 }
@@ -622,11 +622,12 @@ template <class ELFT> void Writer<ELFT>::run() {
     for (OutputSection *sec : outputSections)
       sec->addr = 0;
 
-  // Handle --print-map(-M)/--Map, --cref and --print-archive-stats=. Dump them
-  // before checkSections() because the files may be useful in case
-  // checkSections() or openFile() fails, for example, due to an erroneous file
-  // size.
+  // Handle --print-map(-M)/--Map, --why-extract=, --cref and
+  // --print-archive-stats=. Dump them before checkSections() because the files
+  // may be useful in case checkSections() or openFile() fails, for example, due
+  // to an erroneous file size.
   writeMapFile();
+  writeWhyExtract();
   writeCrossReferenceTable();
   writeArchiveStats();
 
@@ -1097,11 +1098,11 @@ template <class ELFT> void Writer<ELFT>::addRelIpltSymbols() {
   // sure that .rela.plt exists in output.
   ElfSym::relaIpltStart = addOptionalRegular(
       config->isRela ? "__rela_iplt_start" : "__rel_iplt_start",
-      Out::elfHeader, 0, STV_HIDDEN, STB_WEAK);
+      Out::elfHeader, 0, STV_HIDDEN);
 
   ElfSym::relaIpltEnd = addOptionalRegular(
       config->isRela ? "__rela_iplt_end" : "__rel_iplt_end",
-      Out::elfHeader, 0, STV_HIDDEN, STB_WEAK);
+      Out::elfHeader, 0, STV_HIDDEN);
 }
 
 template <class ELFT>
@@ -1889,26 +1890,44 @@ template <class ELFT> void Writer<ELFT>::optimizeBasicBlockJumps() {
 // out to be empty.
 static void removeUnusedSyntheticSections() {
   // All input synthetic sections that can be empty are placed after
-  // all regular ones. We iterate over them all and exit at first
-  // non-synthetic.
-  for (InputSectionBase *s : llvm::reverse(inputSections)) {
-    SyntheticSection *ss = dyn_cast<SyntheticSection>(s);
-    if (!ss)
-      return;
-    OutputSection *os = ss->getParent();
-    if (!os || ss->isNeeded())
-      continue;
+  // all regular ones. Reverse iterate to find the first synthetic section
+  // after a non-synthetic one which will be our starting point.
+  auto start = std::find_if(inputSections.rbegin(), inputSections.rend(),
+                            [](InputSectionBase *s) {
+                              return !isa<SyntheticSection>(s);
+                            })
+                   .base();
 
-    // If we reach here, then ss is an unused synthetic section and we want to
-    // remove it from the corresponding input section description, and
-    // orphanSections.
-    for (BaseCommand *b : os->sectionCommands)
-      if (auto *isd = dyn_cast<InputSectionDescription>(b))
-        llvm::erase_if(isd->sections,
-                       [=](InputSection *isec) { return isec == ss; });
-    llvm::erase_if(script->orphanSections,
-                   [=](const InputSectionBase *isec) { return isec == ss; });
-  }
+  DenseSet<InputSectionDescription *> isdSet;
+  // Mark unused synthetic sections for deletion
+  auto end = std::stable_partition(
+      start, inputSections.end(), [&](InputSectionBase *s) {
+        SyntheticSection *ss = dyn_cast<SyntheticSection>(s);
+        OutputSection *os = ss->getParent();
+        if (!os || ss->isNeeded())
+          return true;
+
+        // If we reach here, then ss is an unused synthetic section and we want
+        // to remove it from the corresponding input section description, and
+        // orphanSections.
+        for (BaseCommand *b : os->sectionCommands)
+          if (auto *isd = dyn_cast<InputSectionDescription>(b))
+            isdSet.insert(isd);
+
+        llvm::erase_if(
+            script->orphanSections,
+            [=](const InputSectionBase *isec) { return isec == ss; });
+
+        return false;
+      });
+
+  DenseSet<InputSectionBase *> unused(end, inputSections.end());
+  for (auto *isd : isdSet)
+    llvm::erase_if(isd->sections,
+                   [=](InputSection *isec) { return unused.count(isec); });
+
+  // Erase unused synthetic sections.
+  inputSections.erase(end, inputSections.end());
 }
 
 // Create output section objects and add them to OutputSections.
@@ -1947,7 +1966,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     OutputSection *sec = findSection(".sdata");
     ElfSym::riscvGlobalPointer =
         addOptionalRegular("__global_pointer$", sec ? sec : Out::elfHeader,
-                           0x800, STV_DEFAULT, STB_GLOBAL);
+                           0x800, STV_DEFAULT);
   }
 
   if (config->emachine == EM_X86_64) {
@@ -2579,9 +2598,10 @@ static uint64_t computeFileOffset(OutputSection *os, uint64_t off) {
     return alignTo(off, os->ptLoad->p_align, os->addr);
 
   // File offsets are not significant for .bss sections other than the first one
-  // in a PT_LOAD. By convention, we keep section offsets monotonically
+  // in a PT_LOAD/PT_TLS. By convention, we keep section offsets monotonically
   // increasing rather than setting to zero.
-   if (os->type == SHT_NOBITS)
+  if (os->type == SHT_NOBITS &&
+      (!Out::tlsPhdr || Out::tlsPhdr->firstSec != os))
      return off;
 
   // If the section is not in a PT_LOAD, we just have to align it.
@@ -2814,8 +2834,7 @@ template <class ELFT> void Writer<ELFT>::checkSections() {
 // 2. the ENTRY(symbol) command in a linker control script;
 // 3. the value of the symbol _start, if present;
 // 4. the number represented by the entry symbol, if it is a number;
-// 5. the address of the first byte of the .text section, if present;
-// 6. the address 0.
+// 5. the address 0.
 static uint64_t getEntryAddr() {
   // Case 1, 2 or 3
   if (Symbol *b = symtab->find(config->entry))
@@ -2827,14 +2846,6 @@ static uint64_t getEntryAddr() {
     return addr;
 
   // Case 5
-  if (OutputSection *sec = findSection(".text")) {
-    if (config->warnMissingEntry)
-      warn("cannot find entry symbol " + config->entry + "; defaulting to 0x" +
-           utohexstr(sec->addr));
-    return sec->addr;
-  }
-
-  // Case 6
   if (config->warnMissingEntry)
     warn("cannot find entry symbol " + config->entry +
          "; not setting start address");

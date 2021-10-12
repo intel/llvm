@@ -16,7 +16,7 @@
 #include "tbb/task_group.h"
 
 #include "cl_processor.hpp"
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 
 #include <atomic>
 #include <chrono>
@@ -206,7 +206,7 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
 
   if (!NumThreads) {
     std::vector<xpti::payload_t *> Payloads;
-    std::vector<int64_t> UIds;
+    std::vector<uint64_t> UIds;
     std::vector<xpti::trace_event_data_t *> Events;
     Payloads.resize(TracepointCount);
     UIds.resize(TracepointCount);

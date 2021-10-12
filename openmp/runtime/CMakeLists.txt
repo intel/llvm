@@ -333,7 +333,8 @@ set(LIBOMP_OMPD_SUPPORT ${OMPD_DEFAULT} CACHE BOOL
   "OMPD-support?")
 
 if(LIBOMP_OMPD_SUPPORT AND ((NOT LIBOMP_OMPT_SUPPORT) OR (NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")))
-  libomp_error_say("OpenMP Debug Interface(OMPD) requested but not available in this implementation")
+  libomp_warning_say("OpenMP Debug Interface(OMPD) requested but not available in this implementation")
+  set(LIBOMP_OMPD_SUPPORT FALSE)
 endif()
 
 # Error check hwloc support after config-ix has run
@@ -410,3 +411,4 @@ set(LIBOMP_LIBRARY_DIR ${LIBOMP_LIBRARY_DIR} PARENT_SCOPE)
 set(LIBOMP_INCLUDE_DIR ${LIBOMP_INCLUDE_DIR} PARENT_SCOPE)
 # make these variables available for tools/libompd:
 set(LIBOMP_SRC_DIR ${LIBOMP_SRC_DIR} PARENT_SCOPE)
+set(LIBOMP_OMPD_SUPPORT ${LIBOMP_OMPD_SUPPORT} PARENT_SCOPE)

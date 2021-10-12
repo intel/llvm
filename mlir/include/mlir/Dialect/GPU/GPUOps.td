@@ -289,6 +289,7 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
                SymbolRefAttr:$kernel,
                Index:$gridSizeX, Index:$gridSizeY, Index:$gridSizeZ,
                Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ,
+               Optional<I32>:$dynamicSharedMemorySize,
                Variadic<AnyType>:$operands)>,
     Results<(outs Optional<GPU_AsyncToken>:$asyncToken)> {
   let summary = "Launches a function as a GPU kernel";
@@ -317,7 +318,12 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
     dimensions as arguments. When a lower-dimensional kernel is required,
     unused sizes must be explicitly set to `1`.
 
-    The remaining operands are passed as arguments to the kernel function.
+    The remaining operands are optional. The first optional operand corresponds
+    to the amount of dynamic shared memory a kernel's workgroup should be
+    allocated; when this operand is not present, a zero size is assumed.
+
+    The remaining operands if present are passed as arguments to the kernel
+    function.
 
     Example:
 
@@ -360,6 +366,8 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
           @kernels::@kernel_1             // Kernel function.
           blocks in (%cst, %cst, %cst)    // Grid size.
           threads in (%cst, %cst, %cst)   // Block size.
+          dynamic_shared_memory_size %s   // (Optional) Amount of dynamic shared
+                                          // memory to allocate for a workgroup.
           args(%arg0 : f32,               // (Optional) Kernel arguments.
                %arg1 : memref<?xf32, 1>)
     }
@@ -370,7 +378,8 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
 
   let builders = [
     OpBuilder<(ins "GPUFuncOp":$kernelFunc, "KernelDim3":$gridSize,
-      "KernelDim3":$blockSize, "ValueRange":$kernelOperands)>
+      "KernelDim3":$blockSize, "Value":$dynamicSharedMemorySize,
+      "ValueRange":$kernelOperands)>
   ];
 
   let extraClassDeclaration = [{
@@ -378,10 +387,10 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
     unsigned getNumKernelOperands();
 
     /// The name of the kernel's containing module.
-    StringRef getKernelModuleName();
+    StringAttr getKernelModuleName();
 
     /// The name of the kernel.
-    StringRef getKernelName();
+    StringAttr getKernelName();
 
     /// The i-th operand passed to the kernel function.
     Value getKernelOperand(unsigned i);
@@ -411,24 +420,30 @@ def GPU_LaunchFuncOp : GPU_Op<"launch_func",
       $kernel
       `blocks` `in` ` ` `(`$gridSizeX`,` $gridSizeY`,` $gridSizeZ`)`
       `threads` `in` ` ` `(`$blockSizeX`,` $blockSizeY`,` $blockSizeZ`)`
-      custom<LaunchFuncOperands>($operands, type($operands))
-      attr-dict
+      (`dynamic_shared_memory_size` $dynamicSharedMemorySize^)?
+      custom<LaunchFuncOperands>($operands, type($operands)) attr-dict
   }];
 }
 
 def GPU_LaunchOp : GPU_Op<"launch">,
     Arguments<(ins Index:$gridSizeX, Index:$gridSizeY, Index:$gridSizeZ,
-               Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)>,
+               Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ,
+               Optional<I32>:$dynamicSharedMemorySize)>,
     Results<(outs)> {
   let summary = "GPU kernel launch operation";
 
   let description = [{
     Launch a kernel on the specified grid of thread blocks. The body of the
     kernel is defined by the single region that this operation contains. The
-    operation takes six operands, with first three operands being grid sizes
-    along x,y,z dimensions and the following three arguments being block sizes
-    along x,y,z dimension. When a lower-dimensional kernel is required,
-    unused sizes must be explicitly set to `1`.
+    operation takes six operands followed by an optional operand: the first
+    three operands are grid sizes along the x,y,z dimensions and the following
+    three are block sizes along the x,y,z dimensions. The last operand is
+    optional and corresponds to the amount of dynamic shared memory a kernel's
+    workgroup should be allocated; when this operand is not present, a zero size
+    is assumed.
+
+    When a lower-dimensional kernel is required, unused sizes must
+    be explicitly set to `1`.
 
     The body region has _twelve_ arguments, grouped as follows:
 
@@ -442,7 +457,8 @@ def GPU_LaunchOp : GPU_Op<"launch">,
     ```
     operation ::= `gpu.launch` `block` `(` ssa-id-list `)` `in` ssa-reassignment
                              `threads` `(` ssa-id-list `)` `in` ssa-reassignment
-                               region attr-dict?
+                             (dynamic_shared_memory_size ssa-use)?
+                             region attr-dict?
     ssa-reassignment ::= `(` ssa-id `=` ssa-use (`,` ssa-id `=` ssa-use)* `)`
     ```
 
@@ -490,7 +506,8 @@ def GPU_LaunchOp : GPU_Op<"launch">,
   let builders = [
     OpBuilder<(ins "Value":$gridSizeX, "Value":$gridSizeY,
       "Value":$gridSizeZ, "Value":$blockSizeX, "Value":$blockSizeY,
-      "Value":$blockSizeZ)>
+      "Value":$blockSizeZ,
+      CArg<"Value", "nullptr">:$dynamic_shared_memory_size)>
   ];
 
   let extraClassDeclaration = [{
@@ -510,6 +527,9 @@ def GPU_LaunchOp : GPU_Op<"launch">,
 
     static StringRef getBlocksKeyword() { return "blocks"; }
     static StringRef getThreadsKeyword() { return "threads"; }
+    static StringRef getDynamicSharedMemorySizeKeyword() {
+      return "dynamic_shared_memory_size";
+    }
 
     /// The number of launch configuration operands, placed at the leading
     /// positions of the operand list.
@@ -523,6 +543,7 @@ def GPU_LaunchOp : GPU_Op<"launch">,
   let parser = [{ return parseLaunchOp(parser, result); }];
   let printer = [{ printLaunchOp(p, *this); }];
   let verifier = [{ return ::verify(*this); }];
+  let hasCanonicalizer = 1;
 }
 
 def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, NoSideEffect,
@@ -537,8 +558,7 @@ def GPU_ReturnOp : GPU_Op<"return", [HasParent<"GPUFuncOp">, NoSideEffect,
 
   let builders = [OpBuilder<(ins), [{ // empty}]>];
 
-  let parser = [{ return parseReturnOp(parser, result); }];
-  let printer = [{ p << getOperationName(); }];
+  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
   let verifier = [{ return ::verify(*this); }];
 }
 
@@ -552,8 +572,7 @@ def GPU_TerminatorOp : GPU_Op<"terminator", [HasParent<"LaunchOp">,
     terminator takes no operands.
   }];
 
-  let parser = [{ return success(); }];
-  let printer = [{ p << getOperationName(); }];
+  let assemblyFormat = "attr-dict";
 }
 
 def GPU_YieldOp : GPU_Op<"yield", [NoSideEffect, Terminator]>,
@@ -681,8 +700,7 @@ def GPU_BarrierOp : GPU_Op<"barrier"> {
     Either none or all work items of a workgroup need to execute this op
     in convergence.
   }];
-  let parser = [{ return success(); }];
-  let printer = [{ p << getOperationName(); }];
+  let assemblyFormat = "attr-dict";
 }
 
 def GPU_GPUModuleOp : GPU_Op<"module", [
@@ -733,8 +751,7 @@ def GPU_ModuleEndOp : GPU_Op<"module_end", [
     This op terminates the only block inside the only region of a `gpu.module`.
   }];
 
-  let parser = [{ return success(); }];
-  let printer = [{ p << getOperationName(); }];
+  let assemblyFormat = "attr-dict";
 }
 
 def GPU_HostRegisterOp : GPU_Op<"host_register">,
@@ -834,6 +851,8 @@ def GPU_AllocOp : GPU_Op<"alloc", [
     custom<AsyncDependencies>(type($asyncToken), $asyncDependencies) ` `
     `(` $dynamicSizes `)` (`` `[` $symbolOperands^ `]`)? attr-dict `:` type($memref)
   }];
+
+  let hasCanonicalizer = 1;
 }
 
 def GPU_DeallocOp : GPU_Op<"dealloc", [GPU_AsyncOpInterface]> {
@@ -900,6 +919,42 @@ def GPU_MemcpyOp : GPU_Op<"memcpy", [GPU_AsyncOpInterface]> {
     $dst`,` $src `:` type($dst)`,` type($src) attr-dict
   }];
   let verifier = [{ return ::verify(*this); }];
+  let hasFolder = 1;
+}
+
+def GPU_MemsetOp : GPU_Op<"memset",
+  [GPU_AsyncOpInterface, AllElementTypesMatch<["dst", "value"]>]> {
+
+  let summary = "GPU memset operation";
+
+  let description = [{
+    The `gpu.memset` operation sets the content of memref to a scalar value.
+
+    The op does not execute before all async dependencies have finished
+    executing.
+
+    If the `async` keyword is present, the op is executed asynchronously (i.e.
+    it does not block until the execution has finished on the device). In
+    that case, it returns a !gpu.async.token.
+
+    Example:
+
+    ```mlir
+    %token = gpu.memset async [%dep] %dst, %value : memref<?xf32, 1>, f32
+    ```
+  }];
+
+  let arguments = (ins Variadic<GPU_AsyncToken>:$asyncDependencies,
+                   Arg<AnyMemRef, "", [MemWrite]>:$dst,
+                   Arg<AnyType, "">:$value);
+  let results = (outs Optional<GPU_AsyncToken>:$asyncToken);
+
+  let assemblyFormat = [{
+    custom<AsyncDependencies>(type($asyncToken), $asyncDependencies)
+    $dst`,` $value `:` type($dst)`,` type($value) attr-dict
+  }];
+  // MemsetOp is fully verified by traits.
+  let verifier = [{ return success(); }];
   let hasFolder = 1;
 }
 
@@ -1040,7 +1095,7 @@ def GPU_SubgroupMmaConstantMatrixOp : GPU_Op<"subgroup_mma_constant_matrix",
     the same value.
 
     This op is meant to be used along with `gpu.subgroup_mma_compute`.
-    
+
     Example:
 
     ```mlir

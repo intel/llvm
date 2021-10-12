@@ -201,8 +201,7 @@ static cl::opt<RunPassOption, true, cl::parser<std::string>> RunPass(
 
 static int compileModule(char **, LLVMContext &);
 
-LLVM_ATTRIBUTE_NORETURN static void reportError(Twine Msg,
-                                                StringRef Filename = "") {
+[[noreturn]] static void reportError(Twine Msg, StringRef Filename = "") {
   SmallString<256> Prefix;
   if (!Filename.empty()) {
     if (Filename == "-")
@@ -213,7 +212,7 @@ LLVM_ATTRIBUTE_NORETURN static void reportError(Twine Msg,
   exit(1);
 }
 
-LLVM_ATTRIBUTE_NORETURN static void reportError(Error Err, StringRef Filename) {
+[[noreturn]] static void reportError(Error Err, StringRef Filename) {
   assert(Err);
   handleAllErrors(createFileError(Filename, std::move(Err)),
                   [&](const ErrorInfoBase &EI) { reportError(EI.message()); });
@@ -330,8 +329,6 @@ int main(int argc, char **argv) {
   // Enable debug stream buffering.
   EnableDebugBuffering = true;
 
-  LLVMContext Context;
-
   // Initialize targets first, so that --version shows registered targets.
   InitializeAllTargets();
   InitializeAllTargetMCs();
@@ -366,6 +363,7 @@ int main(int argc, char **argv) {
 
   cl::ParseCommandLineOptions(argc, argv, "llvm system compiler\n");
 
+  LLVMContext Context;
   Context.setDiscardValueNames(DiscardValueNames);
 
   // Set a diagnostic handler that doesn't exit on the first error

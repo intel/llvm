@@ -10,7 +10,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 bool test_simd_merge1() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;
   simd<int, 16> v1 = 2;
-  simd<ushort, 16> mask = 0;
+  simd_mask<16> mask = 0;
   mask.select<4, 4>(0) = 1;
   v0.merge(v1, mask);
   return v0[0] == 2 && v0[4] == 2 && v0[8] == 2 && v0[12] == 2;
@@ -20,7 +20,7 @@ bool test_simd_merge2() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;
   simd<int, 16> v1 = 2;
   simd<int, 16> v2 = 3;
-  simd<ushort, 16> mask = 0;
+  simd_mask<16> mask = 0;
   mask.select<4, 4>(0) = 1;
   v0.merge(v1, v2, (v1 < v2) & mask);
   return v0[0] == 2 && v0[4] == 2 && v0[8] == 2 && v0[12] == 2 && v0[3] == 3 &&
@@ -30,7 +30,7 @@ bool test_simd_merge2() __attribute__((sycl_device)) {
 bool test_simd_merge2d1() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;
   simd<int, 16> v1 = 2;
-  simd<ushort, 16> mask = 0;
+  simd_mask<16> mask = 0;
   mask.select<4, 4>(0) = 1;
   auto v0_2d = v0.bit_cast_view<int, 4, 4>();
   v0_2d.merge(v1, mask);
@@ -41,7 +41,7 @@ bool test_simd_merge2d2() __attribute__((sycl_device)) {
   simd<int, 16> v0 = 1;
   simd<int, 16> v1 = 2;
   simd<int, 16> v2 = 3;
-  simd<ushort, 16> mask = 0;
+  simd_mask<16> mask = 0;
   mask.select<4, 4>(0) = 1;
   auto v0_2d = v0.bit_cast_view<int, 4, 4>();
   v0_2d.merge(v1, v2, mask);

@@ -22,6 +22,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TargetTransformInfoImpl.h"
 #include "llvm/CodeGen/ISDOpcodes.h"
@@ -363,8 +364,9 @@ public:
   }
 
   InstructionCost getGEPCost(Type *PointeeType, const Value *Ptr,
-                             ArrayRef<const Value *> Operands) {
-    return BaseT::getGEPCost(PointeeType, Ptr, Operands);
+                             ArrayRef<const Value *> Operands,
+                             TTI::TargetCostKind CostKind) {
+    return BaseT::getGEPCost(PointeeType, Ptr, Operands, CostKind);
   }
 
   unsigned getEstimatedNumberOfCaseClusters(const SwitchInst &SI,
@@ -484,7 +486,8 @@ public:
   int getInlinerVectorBonusPercent() { return 150; }
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
-                               TTI::UnrollingPreferences &UP) {
+                               TTI::UnrollingPreferences &UP,
+                               OptimizationRemarkEmitter *ORE) {
     // This unrolling functionality is target independent, but to provide some
     // motivation for its intended use, for x86:
 
@@ -526,6 +529,15 @@ public:
               continue;
           }
 
+          if (ORE) {
+            ORE->emit([&]() {
+              return OptimizationRemark("TTI", "DontUnroll", L->getStartLoc(),
+                                        L->getHeader())
+                     << "advising against unrolling the loop because it "
+                        "contains a "
+                     << ore::NV("Call", &I);
+            });
+          }
           return;
         }
       }
@@ -686,7 +698,7 @@ public:
                                            bool Extract) {
     auto *Ty = cast<FixedVectorType>(InTy);
 
-    APInt DemandedElts = APInt::getAllOnesValue(Ty->getNumElements());
+    APInt DemandedElts = APInt::getAllOnes(Ty->getNumElements());
     return thisT()->getScalarizationOverhead(Ty, DemandedElts, Insert, Extract);
   }
 
@@ -737,8 +749,7 @@ public:
   unsigned getMaxInterleaveFactor(unsigned VF) { return 1; }
 
   InstructionCost getArithmeticInstrCost(
-      unsigned Opcode, Type *Ty,
-      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
+      unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
       TTI::OperandValueKind Opd1Info = TTI::OK_AnyValue,
       TTI::OperandValueKind Opd2Info = TTI::OK_AnyValue,
       TTI::OperandValueProperties Opd1PropInfo = TTI::OP_None,
@@ -1201,9 +1212,9 @@ public:
     // used (those corresponding to elements [0:1] and [8:9] of the unlegalized
     // type). The other loads are unused.
     //
-    // We only scale the cost of loads since interleaved store groups aren't
-    // allowed to have gaps.
-    if (Opcode == Instruction::Load && VecTySize > VecTyLTSize) {
+    // TODO: Note that legalization can turn masked loads/stores into unmasked
+    // (legalized) loads/stores. This can be reflected in the cost.
+    if (VecTySize > VecTyLTSize) {
       // The number of loads of a legal type it will take to represent a load
       // of the unlegalized vector type.
       unsigned NumLegalInsts = divideCeil(VecTySize, VecTyLTSize);
@@ -1224,6 +1235,16 @@ public:
     }
 
     // Then plus the cost of interleave operation.
+    assert(Indices.size() <= Factor &&
+           "Interleaved memory op has too many members");
+
+    APInt DemandedLoadStoreElts = APInt::getZero(NumElts);
+    for (unsigned Index : Indices) {
+      assert(Index < Factor && "Invalid index for interleaved memory op");
+      for (unsigned Elm = 0; Elm < NumSubElts; Elm++)
+        DemandedLoadStoreElts.setBit(Index + Elm * Factor);
+    }
+
     if (Opcode == Instruction::Load) {
       // The interleave cost is similar to extract sub vectors' elements
       // from the wide vector, and insert them into sub vectors.
@@ -1233,44 +1254,32 @@ public:
       //      %v0 = shuffle %vec, undef, <0, 2, 4, 6>         ; Index 0
       // The cost is estimated as extract elements at 0, 2, 4, 6 from the
       // <8 x i32> vector and insert them into a <4 x i32> vector.
-
-      assert(Indices.size() <= Factor &&
-             "Interleaved memory op has too many members");
-
-      for (unsigned Index : Indices) {
-        assert(Index < Factor && "Invalid index for interleaved memory op");
-
-        // Extract elements from loaded vector for each sub vector.
-        for (unsigned i = 0; i < NumSubElts; i++)
-          Cost += thisT()->getVectorInstrCost(Instruction::ExtractElement, VT,
-                                              Index + i * Factor);
-      }
-
-      InstructionCost InsSubCost = 0;
-      for (unsigned i = 0; i < NumSubElts; i++)
-        InsSubCost +=
-            thisT()->getVectorInstrCost(Instruction::InsertElement, SubVT, i);
-
+      InstructionCost InsSubCost =
+          getScalarizationOverhead(SubVT, /*Insert*/ true, /*Extract*/ false);
       Cost += Indices.size() * InsSubCost;
+      Cost +=
+          thisT()->getScalarizationOverhead(VT, DemandedLoadStoreElts,
+                                            /*Insert*/ false, /*Extract*/ true);
     } else {
-      // The interleave cost is extract all elements from sub vectors, and
+      // The interleave cost is extract elements from sub vectors, and
       // insert them into the wide vector.
       //
-      // E.g. An interleaved store of factor 2:
-      //      %v0_v1 = shuffle %v0, %v1, <0, 4, 1, 5, 2, 6, 3, 7>
-      //      store <8 x i32> %interleaved.vec, <8 x i32>* %ptr
-      // The cost is estimated as extract all elements from both <4 x i32>
-      // vectors and insert into the <8 x i32> vector.
-
-      InstructionCost ExtSubCost = 0;
-      for (unsigned i = 0; i < NumSubElts; i++)
-        ExtSubCost +=
-            thisT()->getVectorInstrCost(Instruction::ExtractElement, SubVT, i);
-      Cost += ExtSubCost * Factor;
-
-      for (unsigned i = 0; i < NumElts; i++)
-        Cost += static_cast<T *>(this)
-                    ->getVectorInstrCost(Instruction::InsertElement, VT, i);
+      // E.g. An interleaved store of factor 3 with 2 members at indices 0,1:
+      // (using VF=4):
+      //    %v0_v1 = shuffle %v0, %v1, <0,4,undef,1,5,undef,2,6,undef,3,7,undef>
+      //    %gaps.mask = <true, true, false, true, true, false,
+      //                  true, true, false, true, true, false>
+      //    call llvm.masked.store <12 x i32> %v0_v1, <12 x i32>* %ptr,
+      //                           i32 Align, <12 x i1> %gaps.mask
+      // The cost is estimated as extract all elements (of actual members,
+      // excluding gaps) from both <4 x i32> vectors and insert into the <12 x
+      // i32> vector.
+      InstructionCost ExtSubCost =
+          getScalarizationOverhead(SubVT, /*Insert*/ false, /*Extract*/ true);
+      Cost += ExtSubCost * Indices.size();
+      Cost += thisT()->getScalarizationOverhead(VT, DemandedLoadStoreElts,
+                                                /*Insert*/ true,
+                                                /*Extract*/ false);
     }
 
     if (!UseMaskForCond)
@@ -1290,13 +1299,9 @@ public:
     // The cost is estimated as extract all mask elements from the <8xi1> mask
     // vector and insert them factor times into the <24xi1> shuffled mask
     // vector.
-    for (unsigned i = 0; i < NumSubElts; i++)
-      Cost +=
-          thisT()->getVectorInstrCost(Instruction::ExtractElement, SubVT, i);
-
-    for (unsigned i = 0; i < NumElts; i++)
-      Cost +=
-          thisT()->getVectorInstrCost(Instruction::InsertElement, MaskVT, i);
+    Cost += getScalarizationOverhead(SubVT, /*Insert*/ false, /*Extract*/ true);
+    Cost +=
+        getScalarizationOverhead(MaskVT, /*Insert*/ true, /*Extract*/ false);
 
     // The Gaps mask is invariant and created outside the loop, therefore the
     // cost of creating it is not accounted for here. However if we have both
@@ -1658,27 +1663,25 @@ public:
     }
     case Intrinsic::vector_reduce_add:
       return thisT()->getArithmeticReductionCost(Instruction::Add, VecOpTy,
-                                                 CostKind);
+                                                 None, CostKind);
     case Intrinsic::vector_reduce_mul:
       return thisT()->getArithmeticReductionCost(Instruction::Mul, VecOpTy,
-                                                 CostKind);
+                                                 None, CostKind);
     case Intrinsic::vector_reduce_and:
       return thisT()->getArithmeticReductionCost(Instruction::And, VecOpTy,
-                                                 CostKind);
+                                                 None, CostKind);
     case Intrinsic::vector_reduce_or:
-      return thisT()->getArithmeticReductionCost(Instruction::Or, VecOpTy,
+      return thisT()->getArithmeticReductionCost(Instruction::Or, VecOpTy, None,
                                                  CostKind);
     case Intrinsic::vector_reduce_xor:
       return thisT()->getArithmeticReductionCost(Instruction::Xor, VecOpTy,
-                                                 CostKind);
+                                                 None, CostKind);
     case Intrinsic::vector_reduce_fadd:
-      // FIXME: Add new flag for cost of strict reductions.
       return thisT()->getArithmeticReductionCost(Instruction::FAdd, VecOpTy,
-                                                 CostKind);
+                                                 FMF, CostKind);
     case Intrinsic::vector_reduce_fmul:
-      // FIXME: Add new flag for cost of strict reductions.
       return thisT()->getArithmeticReductionCost(Instruction::FMul, VecOpTy,
-                                                 CostKind);
+                                                 FMF, CostKind);
     case Intrinsic::vector_reduce_smax:
     case Intrinsic::vector_reduce_smin:
     case Intrinsic::vector_reduce_fmax:
@@ -1786,23 +1789,16 @@ public:
                             ? BinaryOperator::Add
                             : BinaryOperator::Sub;
 
-      //   LHSSign -> LHS >= 0
-      //   RHSSign -> RHS >= 0
-      //   SumSign -> Sum >= 0
-      //
       //   Add:
-      //   Overflow -> (LHSSign == RHSSign) && (LHSSign != SumSign)
+      //   Overflow -> (Result < LHS) ^ (RHS < 0)
       //   Sub:
-      //   Overflow -> (LHSSign != RHSSign) && (LHSSign != SumSign)
+      //   Overflow -> (Result < LHS) ^ (RHS > 0)
       InstructionCost Cost = 0;
       Cost += thisT()->getArithmeticInstrCost(Opcode, SumTy, CostKind);
-      Cost += 3 * thisT()->getCmpSelInstrCost(
-                      Instruction::ICmp, SumTy, OverflowTy,
-                      CmpInst::BAD_ICMP_PREDICATE, CostKind);
       Cost += 2 * thisT()->getCmpSelInstrCost(
-                      Instruction::Select, OverflowTy, OverflowTy,
-                      CmpInst::BAD_ICMP_PREDICATE, CostKind);
-      Cost += thisT()->getArithmeticInstrCost(BinaryOperator::And, OverflowTy,
+                      Instruction::ICmp, SumTy, OverflowTy,
+                      CmpInst::ICMP_SGT, CostKind);
+      Cost += thisT()->getArithmeticInstrCost(BinaryOperator::Xor, OverflowTy,
                                               CostKind);
       return Cost;
     }
@@ -1976,9 +1972,9 @@ public:
   /// \param RetTy Return value types.
   /// \param Tys Argument types.
   /// \returns The cost of Call instruction.
-  InstructionCost
-  getCallInstrCost(Function *F, Type *RetTy, ArrayRef<Type *> Tys,
-                   TTI::TargetCostKind CostKind = TTI::TCK_SizeAndLatency) {
+  InstructionCost getCallInstrCost(Function *F, Type *RetTy,
+                                   ArrayRef<Type *> Tys,
+                                   TTI::TargetCostKind CostKind) {
     return 10;
   }
 
@@ -2014,8 +2010,8 @@ public:
   ///
   /// The cost model should take into account that the actual length of the
   /// vector is reduced on each iteration.
-  InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
-                                             TTI::TargetCostKind CostKind) {
+  InstructionCost getTreeReductionCost(unsigned Opcode, VectorType *Ty,
+                                       TTI::TargetCostKind CostKind) {
     Type *ScalarTy = Ty->getElementType();
     unsigned NumVecElts = cast<FixedVectorType>(Ty)->getNumElements();
     if ((Opcode == Instruction::Or || Opcode == Instruction::And) &&
@@ -2062,9 +2058,51 @@ public:
     // By default reductions need one shuffle per reduction level.
     ShuffleCost += NumReduxLevels * thisT()->getShuffleCost(
                                      TTI::SK_PermuteSingleSrc, Ty, None, 0, Ty);
-    ArithCost += NumReduxLevels * thisT()->getArithmeticInstrCost(Opcode, Ty);
+    ArithCost +=
+        NumReduxLevels * thisT()->getArithmeticInstrCost(Opcode, Ty, CostKind);
     return ShuffleCost + ArithCost +
            thisT()->getVectorInstrCost(Instruction::ExtractElement, Ty, 0);
+  }
+
+  /// Try to calculate the cost of performing strict (in-order) reductions,
+  /// which involves doing a sequence of floating point additions in lane
+  /// order, starting with an initial value. For example, consider a scalar
+  /// initial value 'InitVal' of type float and a vector of type <4 x float>:
+  ///
+  ///   Vector = <float %v0, float %v1, float %v2, float %v3>
+  ///
+  ///   %add1 = %InitVal + %v0
+  ///   %add2 = %add1 + %v1
+  ///   %add3 = %add2 + %v2
+  ///   %add4 = %add3 + %v3
+  ///
+  /// As a simple estimate we can say the cost of such a reduction is 4 times
+  /// the cost of a scalar FP addition. We can only estimate the costs for
+  /// fixed-width vectors here because for scalable vectors we do not know the
+  /// runtime number of operations.
+  InstructionCost getOrderedReductionCost(unsigned Opcode, VectorType *Ty,
+                                          TTI::TargetCostKind CostKind) {
+    // Targets must implement a default value for the scalable case, since
+    // we don't know how many lanes the vector has.
+    if (isa<ScalableVectorType>(Ty))
+      return InstructionCost::getInvalid();
+
+    auto *VTy = cast<FixedVectorType>(Ty);
+    InstructionCost ExtractCost =
+        getScalarizationOverhead(VTy, /*Insert=*/false, /*Extract=*/true);
+    InstructionCost ArithCost = thisT()->getArithmeticInstrCost(
+        Opcode, VTy->getElementType(), CostKind);
+    ArithCost *= VTy->getNumElements();
+
+    return ExtractCost + ArithCost;
+  }
+
+  InstructionCost getArithmeticReductionCost(unsigned Opcode, VectorType *Ty,
+                                             Optional<FastMathFlags> FMF,
+                                             TTI::TargetCostKind CostKind) {
+    if (TTI::requiresOrderedReduction(FMF))
+      return getOrderedReductionCost(Opcode, Ty, CostKind);
+    return getTreeReductionCost(Opcode, Ty, CostKind);
   }
 
   /// Try to calculate op costs for min/max reduction operations.
@@ -2133,8 +2171,8 @@ public:
     // Without any native support, this is equivalent to the cost of
     // vecreduce.add(ext) or if IsMLA vecreduce.add(mul(ext, ext))
     VectorType *ExtTy = VectorType::get(ResTy, Ty);
-    InstructionCost RedCost =
-        thisT()->getArithmeticReductionCost(Instruction::Add, ExtTy, CostKind);
+    InstructionCost RedCost = thisT()->getArithmeticReductionCost(
+        Instruction::Add, ExtTy, None, CostKind);
     InstructionCost MulCost = 0;
     InstructionCost ExtCost = thisT()->getCastInstrCost(
         IsUnsigned ? Instruction::ZExt : Instruction::SExt, ExtTy, Ty,

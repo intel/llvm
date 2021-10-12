@@ -222,7 +222,7 @@ EXTERN void __kmpc_push_num_threads(kmp_Ident *loc, int32_t global_tid,
                                     int32_t num_threads);
 EXTERN void __kmpc_serialized_parallel(kmp_Ident *loc, uint32_t global_tid);
 EXTERN void __kmpc_end_serialized_parallel(kmp_Ident *loc, uint32_t global_tid);
-EXTERN uint8_t __kmpc_parallel_level();
+NOINLINE EXTERN uint8_t __kmpc_parallel_level();
 
 // proc bind
 EXTERN void __kmpc_push_proc_bind(kmp_Ident *loc, uint32_t global_tid,
@@ -255,6 +255,27 @@ EXTERN void __kmpc_for_static_init_8u(kmp_Ident *loc, int32_t global_tid,
                                       uint64_t *plower, uint64_t *pupper,
                                       int64_t *pstride, int64_t incr,
                                       int64_t chunk);
+// distribute static (no chunk or chunk)
+EXTERN void __kmpc_distribute_static_init_4(kmp_Ident *loc, int32_t global_tid,
+                                            int32_t sched, int32_t *plastiter,
+                                            int32_t *plower, int32_t *pupper,
+                                            int32_t *pstride, int32_t incr,
+                                            int32_t chunk);
+EXTERN void __kmpc_distribute_static_init_4u(kmp_Ident *loc, int32_t global_tid,
+                                             int32_t sched, int32_t *plastiter,
+                                             uint32_t *plower, uint32_t *pupper,
+                                             int32_t *pstride, int32_t incr,
+                                             int32_t chunk);
+EXTERN void __kmpc_distribute_static_init_8(kmp_Ident *loc, int32_t global_tid,
+                                            int32_t sched, int32_t *plastiter,
+                                            int64_t *plower, int64_t *pupper,
+                                            int64_t *pstride, int64_t incr,
+                                            int64_t chunk);
+EXTERN void __kmpc_distribute_static_init_8u(kmp_Ident *loc, int32_t global_tid,
+                                             int32_t sched, int32_t *plastiter1,
+                                             uint64_t *plower, uint64_t *pupper,
+                                             int64_t *pstride, int64_t incr,
+                                             int64_t chunk);
 EXTERN
 void __kmpc_for_static_init_4_simple_spmd(kmp_Ident *loc, int32_t global_tid,
                                           int32_t sched, int32_t *plastiter,
@@ -303,6 +324,8 @@ void __kmpc_for_static_init_8u_simple_generic(
     int64_t chunk);
 
 EXTERN void __kmpc_for_static_fini(kmp_Ident *loc, int32_t global_tid);
+
+EXTERN void __kmpc_distribute_static_fini(kmp_Ident *loc, int32_t global_tid);
 
 // for dynamic
 EXTERN void __kmpc_dispatch_init_4(kmp_Ident *loc, int32_t global_tid,
@@ -375,9 +398,9 @@ EXTERN void __kmpc_end_critical(kmp_Ident *loc, int32_t global_tid,
 EXTERN void __kmpc_flush(kmp_Ident *loc);
 
 // vote
-EXTERN __kmpc_impl_lanemask_t __kmpc_warp_active_thread_mask();
+EXTERN uint64_t __kmpc_warp_active_thread_mask(void);
 // syncwarp
-EXTERN void __kmpc_syncwarp(__kmpc_impl_lanemask_t);
+EXTERN void __kmpc_syncwarp(uint64_t);
 
 // tasks
 EXTERN kmp_TaskDescr *__kmpc_omp_task_alloc(kmp_Ident *loc, uint32_t global_tid,
@@ -416,11 +439,11 @@ EXTERN int32_t __kmpc_cancel(kmp_Ident *loc, int32_t global_tid,
                              int32_t cancelVal);
 
 // non standard
-EXTERN int32_t __kmpc_target_init(ident_t *Ident, bool IsSPMD,
-                                 bool UseGenericStateMachine,
-                           bool RequiresFullRuntime);
-EXTERN void __kmpc_target_deinit(ident_t *Ident, bool IsSPMD,
-                           bool RequiresFullRuntime);
+EXTERN int32_t __kmpc_target_init(ident_t *Ident, int8_t Mode,
+                                  bool UseGenericStateMachine,
+                                  bool RequiresFullRuntime);
+EXTERN void __kmpc_target_deinit(ident_t *Ident, int8_t Mode,
+                                 bool RequiresFullRuntime);
 EXTERN void __kmpc_kernel_prepare_parallel(void *WorkFn);
 EXTERN bool __kmpc_kernel_parallel(void **WorkFn);
 EXTERN void __kmpc_kernel_end_parallel();
@@ -441,10 +464,11 @@ EXTERN void __kmpc_get_shared_variables(void ***GlobalArgs);
 /// \param wrapper_fn  The worker wrapper function of fn.
 /// \param args        The pointer array of arguments to fn.
 /// \param nargs       The number of arguments to fn.
-EXTERN void __kmpc_parallel_51(ident_t *ident, kmp_int32 global_tid,
-                               kmp_int32 if_expr, kmp_int32 num_threads,
-                               int proc_bind, void *fn, void *wrapper_fn,
-                               void **args, size_t nargs);
+NOINLINE EXTERN void __kmpc_parallel_51(ident_t *ident, kmp_int32 global_tid,
+                                        kmp_int32 if_expr,
+                                        kmp_int32 num_threads, int proc_bind,
+                                        void *fn, void *wrapper_fn, void **args,
+                                        size_t nargs);
 
 // SPMD execution mode interrogation function.
 EXTERN int8_t __kmpc_is_spmd_exec_mode();

@@ -112,7 +112,6 @@ static lto::Config createConfig() {
     }
   }
 
-  c.Options.PseudoProbeForProfiling = config->ltoPseudoProbeForProfiling;
   c.Options.UniqueBasicBlockSectionNames =
       config->ltoUniqueBasicBlockSectionNames;
 
@@ -163,6 +162,7 @@ static lto::Config createConfig() {
 
   c.CSIRProfile = std::string(config->ltoCSProfileFile);
   c.RunCSIRInstr = config->ltoCSProfileGenerate;
+  c.PGOWarnMismatch = config->ltoPGOWarnMismatch;
 
   if (config->emitLLVM) {
     c.PostInternalizeModuleHook = [](size_t task, const Module &m) {

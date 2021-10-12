@@ -15,6 +15,7 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/Location.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Verifier.h"
@@ -22,6 +23,7 @@
 #include "mlir/Parser.h"
 
 #include "llvm/Support/Debug.h"
+#include <cstddef>
 
 using namespace mlir;
 
@@ -129,6 +131,23 @@ MlirLocation mlirLocationFileLineColGet(MlirContext context,
 
 MlirLocation mlirLocationCallSiteGet(MlirLocation callee, MlirLocation caller) {
   return wrap(Location(CallSiteLoc::get(unwrap(callee), unwrap(caller))));
+}
+
+MlirLocation mlirLocationFusedGet(MlirContext ctx, intptr_t nLocations,
+                                  MlirLocation const *locations,
+                                  MlirAttribute metadata) {
+  SmallVector<Location, 4> locs;
+  ArrayRef<Location> unwrappedLocs = unwrapList(nLocations, locations, locs);
+  return wrap(FusedLoc::get(unwrappedLocs, unwrap(metadata), unwrap(ctx)));
+}
+
+MlirLocation mlirLocationNameGet(MlirContext context, MlirStringRef name,
+                                 MlirLocation childLoc) {
+  if (mlirLocationIsNull(childLoc))
+    return wrap(
+        Location(NameLoc::get(Identifier::get(unwrap(name), unwrap(context)))));
+  return wrap(Location(NameLoc::get(
+      Identifier::get(unwrap(name), unwrap(context)), unwrap(childLoc))));
 }
 
 MlirLocation mlirLocationUnknownGet(MlirContext context) {
@@ -327,6 +346,13 @@ MlirContext mlirOperationGetContext(MlirOperation op) {
   return wrap(unwrap(op)->getContext());
 }
 
+MlirTypeID mlirOperationGetTypeID(MlirOperation op) {
+  if (const auto *abstractOp = unwrap(op)->getAbstractOperation()) {
+    return wrap(abstractOp->typeID);
+  }
+  return {nullptr};
+}
+
 MlirIdentifier mlirOperationGetName(MlirOperation op) {
   return wrap(unwrap(op)->getName().getIdentifier());
 }
@@ -427,6 +453,10 @@ bool mlirOperationVerify(MlirOperation op) {
 
 MlirRegion mlirRegionCreate() { return wrap(new Region); }
 
+bool mlirRegionEqual(MlirRegion region, MlirRegion other) {
+  return unwrap(region) == unwrap(other);
+}
+
 MlirBlock mlirRegionGetFirstBlock(MlirRegion region) {
   Region *cppRegion = unwrap(region);
   if (cppRegion->empty())
@@ -490,6 +520,10 @@ bool mlirBlockEqual(MlirBlock block, MlirBlock other) {
 
 MlirOperation mlirBlockGetParentOperation(MlirBlock block) {
   return wrap(unwrap(block)->getParentOp());
+}
+
+MlirRegion mlirBlockGetParentRegion(MlirBlock block) {
+  return wrap(unwrap(block)->getParent());
 }
 
 MlirBlock mlirBlockGetNextInRegion(MlirBlock block) {
@@ -632,6 +666,10 @@ MlirContext mlirTypeGetContext(MlirType type) {
   return wrap(unwrap(type).getContext());
 }
 
+MlirTypeID mlirTypeGetTypeID(MlirType type) {
+  return wrap(unwrap(type).getTypeID());
+}
+
 bool mlirTypeEqual(MlirType t1, MlirType t2) {
   return unwrap(t1) == unwrap(t2);
 }
@@ -657,6 +695,10 @@ MlirContext mlirAttributeGetContext(MlirAttribute attribute) {
 
 MlirType mlirAttributeGetType(MlirAttribute attribute) {
   return wrap(unwrap(attribute).getType());
+}
+
+MlirTypeID mlirAttributeGetTypeID(MlirAttribute attr) {
+  return wrap(unwrap(attr).getTypeID());
 }
 
 bool mlirAttributeEqual(MlirAttribute a1, MlirAttribute a2) {
@@ -694,4 +736,16 @@ bool mlirIdentifierEqual(MlirIdentifier ident, MlirIdentifier other) {
 
 MlirStringRef mlirIdentifierStr(MlirIdentifier ident) {
   return wrap(unwrap(ident).strref());
+}
+
+//===----------------------------------------------------------------------===//
+// TypeID API.
+//===----------------------------------------------------------------------===//
+
+bool mlirTypeIDEqual(MlirTypeID typeID1, MlirTypeID typeID2) {
+  return unwrap(typeID1) == unwrap(typeID2);
+}
+
+size_t mlirTypeIDHashValue(MlirTypeID typeID) {
+  return hash_value(unwrap(typeID));
 }

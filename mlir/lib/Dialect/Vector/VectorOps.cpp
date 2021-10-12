@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/VectorUtils.h"
@@ -186,8 +187,7 @@ Attribute CombiningKindAttr::parse(DialectAsmParser &parser) {
   if (failed(parser.parseGreater()))
     return {};
 
-  return CombiningKindAttr::get(kind.getValue(),
-                                parser.getBuilder().getContext());
+  return CombiningKindAttr::get(kind.getValue(), parser.getContext());
 }
 
 Attribute VectorDialect::parseAttribute(DialectAsmParser &parser,
@@ -337,7 +337,7 @@ static ParseResult parseReductionOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, ReductionOp op) {
-  p << op.getOperationName() << " \"" << op.kind() << "\", " << op.vector();
+  p << " \"" << op.kind() << "\", " << op.vector();
   if (!op.acc().empty())
     p << ", " << op.acc();
   p << " : " << op.vector().getType() << " into " << op.dest().getType();
@@ -356,6 +356,18 @@ Value mlir::vector::getVectorReductionOp(AtomicRMWKind op, OpBuilder &builder,
   case AtomicRMWKind::muli:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("mul"),
+                                               vector, ValueRange{});
+  case AtomicRMWKind::minf:
+  case AtomicRMWKind::mins:
+  case AtomicRMWKind::minu:
+    return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
+                                               builder.getStringAttr("min"),
+                                               vector, ValueRange{});
+  case AtomicRMWKind::maxf:
+  case AtomicRMWKind::maxs:
+  case AtomicRMWKind::maxu:
+    return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
+                                               builder.getStringAttr("max"),
                                                vector, ValueRange{});
   // TODO: Add remaining reduction operations.
   default:
@@ -453,7 +465,7 @@ static void print(OpAsmPrinter &p, ContractionOp op) {
       attrs.push_back(attr);
 
   auto dictAttr = DictionaryAttr::get(op.getContext(), attrs);
-  p << op.getOperationName() << " " << dictAttr << " " << op.lhs() << ", ";
+  p << " " << dictAttr << " " << op.lhs() << ", ";
   p << op.rhs() << ", " << op.acc();
   if (op.masks().size() == 2)
     p << ", " << op.masks();
@@ -781,7 +793,7 @@ struct CanonicalizeContractAdd : public OpRewritePattern<AddOpType> {
     Value a = addOp->getOperand(0), b = addOp->getOperand(1);
     vector::ContractionOp contract = canonicalize(a, b);
     contract = contract ? contract : canonicalize(b, a);
-    return success();
+    return contract ? success() : failure();
   }
 };
 
@@ -846,7 +858,7 @@ void vector::ExtractOp::build(OpBuilder &builder, OperationState &result,
 }
 
 static void print(OpAsmPrinter &p, vector::ExtractOp op) {
-  p << op.getOperationName() << " " << op.vector() << op.position();
+  p << " " << op.vector() << op.position();
   p.printOptionalAttrDict(op->getAttrs(), {"position"});
   p << " : " << op.vector().getType();
 }
@@ -1389,8 +1401,7 @@ void ShuffleOp::build(OpBuilder &builder, OperationState &result, Value v1,
 }
 
 static void print(OpAsmPrinter &p, ShuffleOp op) {
-  p << op.getOperationName() << " " << op.v1() << ", " << op.v2() << " "
-    << op.mask();
+  p << " " << op.v1() << ", " << op.v2() << " " << op.mask();
   p.printOptionalAttrDict(op->getAttrs(), {ShuffleOp::getMaskAttrName()});
   p << " : " << op.v1().getType() << ", " << op.v2().getType();
 }
@@ -1757,7 +1768,7 @@ void OuterProductOp::build(OpBuilder &builder, OperationState &result,
 }
 
 static void print(OpAsmPrinter &p, OuterProductOp op) {
-  p << op.getOperationName() << " " << op.lhs() << ", " << op.rhs();
+  p << " " << op.lhs() << ", " << op.rhs();
   if (!op.acc().empty()) {
     p << ", " << op.acc();
     p.printOptionalAttrDict(op->getAttrs());
@@ -2317,8 +2328,8 @@ static LogicalResult verifyTransferOp(Operation *op, ShapedType shapedType,
                              "as permutation_map results: ")
              << AffineMapAttr::get(permutationMap);
     for (unsigned int i = 0; i < permutationMap.getNumResults(); ++i)
-      if (permutationMap.getResult(i).isa<AffineConstantExpr>()
-          && !inBounds.getValue()[i].cast<BoolAttr>().getValue())
+      if (permutationMap.getResult(i).isa<AffineConstantExpr>() &&
+          !inBounds.getValue()[i].cast<BoolAttr>().getValue())
         return op->emitOpError("requires broadcast dimensions to be in-bounds");
   }
 
@@ -2404,8 +2415,7 @@ static void printTransferAttrs(OpAsmPrinter &p, VectorTransferOpInterface op) {
 }
 
 static void print(OpAsmPrinter &p, TransferReadOp op) {
-  p << op.getOperationName() << " " << op.source() << "[" << op.indices()
-    << "], " << op.padding();
+  p << " " << op.source() << "[" << op.indices() << "], " << op.padding();
   if (op.mask())
     p << ", " << op.mask();
   printTransferAttrs(p, cast<VectorTransferOpInterface>(op.getOperation()));
@@ -2573,8 +2583,8 @@ static LogicalResult foldTransferInBoundsAttribute(TransferOp op) {
     // inBounds.
     auto dimExpr = permutationMap.getResult(i).dyn_cast<AffineDimExpr>();
     assert(dimExpr && "Broadcast dims must be in-bounds");
-    auto inBounds = isInBounds(
-        op, /*resultIdx=*/i, /*indicesIdx=*/dimExpr.getPosition());
+    auto inBounds =
+        isInBounds(op, /*resultIdx=*/i, /*indicesIdx=*/dimExpr.getPosition());
     newInBounds.push_back(inBounds);
     // We commit the pattern if it is "more inbounds".
     changed |= inBounds;
@@ -2637,6 +2647,74 @@ void TransferReadOp::getEffects(
   if (getShapedType().isa<MemRefType>())
     effects.emplace_back(MemoryEffects::Read::get(), source(),
                          SideEffects::DefaultResource::get());
+}
+
+namespace {
+/// Fold transfer_reads of a tensor.extract_slice op. E.g.:
+///
+/// ```
+/// %0 = tensor.extract_slice %t[%a, %b] [%c, %d] [1, 1]
+///     : tensor<?x?xf32> to tensor<?x?xf32>
+/// %1 = vector.transfer_read %0[%e, %f], %cst {in_bounds = [true, true]}
+///     : tensor<?x?xf32>, vector<4x5xf32>
+/// ```
+/// is rewritten to:
+/// ```
+/// %p0 = addi %a, %e : index
+/// %p1 = addi %b, %f : index
+/// %1 = vector.transfer_read %t[%p0, %p1], %cst {in_bounds = [true, true]}
+///     : tensor<?x?xf32>, vector<4x5xf32>
+/// ```
+struct FoldExtractSliceIntoTransferRead
+    : public OpRewritePattern<TransferReadOp> {
+public:
+  using OpRewritePattern<TransferReadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TransferReadOp xferOp,
+                                PatternRewriter &rewriter) const override {
+    if (xferOp.hasOutOfBoundsDim())
+      return failure();
+    if (!xferOp.permutation_map().isIdentity())
+      return failure();
+    if (xferOp.mask())
+      return failure();
+    auto extractOp = xferOp.source().getDefiningOp<tensor::ExtractSliceOp>();
+    if (!extractOp)
+      return failure();
+    if (!extractOp.hasUnitStride())
+      return failure();
+
+    int64_t rankReduced =
+        extractOp.getSourceType().getRank() - extractOp.getType().getRank();
+    SmallVector<Value> newIndices;
+    // In case this is a rank-reducing ExtractSliceOp, copy rank-reduced
+    // indices first.
+    for (int64_t i = 0; i < rankReduced; ++i) {
+      OpFoldResult offset = extractOp.getMixedOffsets()[i];
+      newIndices.push_back(getValueOrCreateConstantIndexOp(
+          rewriter, extractOp.getLoc(), offset));
+    }
+    for (auto it : llvm::enumerate(xferOp.indices())) {
+      OpFoldResult offset =
+          extractOp.getMixedOffsets()[it.index() + rankReduced];
+      newIndices.push_back(
+          rewriter.create<AddIOp>(xferOp->getLoc(), it.value(),
+                                  getValueOrCreateConstantIndexOp(
+                                      rewriter, extractOp.getLoc(), offset)));
+    }
+    SmallVector<bool> inBounds(xferOp.getTransferRank(), true);
+    rewriter.replaceOpWithNewOp<TransferReadOp>(xferOp, xferOp.getVectorType(),
+                                                extractOp.source(), newIndices,
+                                                xferOp.padding(), inBounds);
+
+    return success();
+  }
+};
+} // namespace
+
+void TransferReadOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                 MLIRContext *context) {
+  results.add<FoldExtractSliceIntoTransferRead>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -2745,8 +2823,7 @@ static ParseResult parseTransferWriteOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, TransferWriteOp op) {
-  p << op.getOperationName() << " " << op.vector() << ", " << op.source() << "["
-    << op.indices() << "]";
+  p << " " << op.vector() << ", " << op.source() << "[" << op.indices() << "]";
   if (op.mask())
     p << ", " << op.mask();
   printTransferAttrs(p, cast<VectorTransferOpInterface>(op.getOperation()));
@@ -2949,11 +3026,61 @@ public:
     return failure();
   }
 };
+
+/// Fold tensor.insert_slice into vector.transfer_write if the transfer_write
+/// could directly write to the insert_slice's destination. E.g.:
+///
+/// ```
+/// %0 = vector.transfer_write %v, %t1[%c0, %c0] {in_bounds = [true, true]}
+///     : vector<4x5xf32>, tensor<4x5xf32>
+/// %1 = tensor.insert_slice %0 into %t2[%a, %b] [4, 5] [1, 1]
+///     : tensor<4x5xf32> into tensor<?x?xf32>
+/// ```
+/// is rewritten to:
+/// ```
+/// %1 = vector.transfer_write %v, %t2[%a, %b] {in_bounds = [true, true]}
+///     : vector<4x5xf32>, tensor<?x?xf32>
+/// ```
+struct FoldInsertSliceIntoTransferWrite
+    : public OpRewritePattern<tensor::InsertSliceOp> {
+public:
+  using OpRewritePattern<tensor::InsertSliceOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::InsertSliceOp insertOp,
+                                PatternRewriter &rewriter) const override {
+    if (!insertOp.hasUnitStride())
+      return failure();
+    auto xferOp = insertOp.source().getDefiningOp<TransferWriteOp>();
+    if (!xferOp)
+      return failure();
+    if (xferOp.hasOutOfBoundsDim())
+      return failure();
+    if (xferOp.getVectorType().getRank() != xferOp.getShapedType().getRank())
+      return failure();
+    if (xferOp.mask())
+      return failure();
+    // Fold only if the TransferWriteOp completely overwrites the `source` with
+    // a vector. I.e., the result of the TransferWriteOp is a new tensor who's
+    // content is the data of the vector.
+    if (!llvm::equal(xferOp.getVectorType().getShape(),
+                     xferOp.getShapedType().getShape()))
+      return failure();
+    if (!xferOp.permutation_map().isIdentity())
+      return failure();
+
+    SmallVector<Value> indices = getValueOrCreateConstantIndexOp(
+        rewriter, insertOp.getLoc(), insertOp.getMixedOffsets());
+    SmallVector<bool> inBounds(xferOp.getTransferRank(), true);
+    rewriter.replaceOpWithNewOp<TransferWriteOp>(
+        insertOp, xferOp.vector(), insertOp.dest(), indices, inBounds);
+    return success();
+  }
+};
 } // namespace
 
 void TransferWriteOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
-  results.add<foldWAW>(context);
+  results.add<foldWAW, FoldInsertSliceIntoTransferWrite>(context);
 }
 
 //===----------------------------------------------------------------------===//
