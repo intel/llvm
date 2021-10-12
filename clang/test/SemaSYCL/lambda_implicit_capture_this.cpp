@@ -78,6 +78,18 @@ void Class::function() {
     h.single_task<class CapturedOnHost1>([Lambda]() {
     });
   });
+  auto InnerLambda = [=]() {
+    int A = 2 + member; // expected-error {{implicit capture of 'this' is not allowed for kernel functions}}
+  };
+  auto ExternalLambda = [=]() {
+    InnerLambda();
+  };
+  q.submit([&](handler &h) {
+    // expected-note@+1 {{in instantiation of function template specialization}}
+    h.single_task<class CapturedOnHost2>([=]() {
+      NestedLambda();
+    });
+  });
 }
 
 int main(int argc, char *argv[]) {
