@@ -224,15 +224,15 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
 {
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
-  if (surf_ind == SLM_BTI) {
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
     // O-word/Block store for Shared Local Memory
-    // SLM_BTI is special binding table index for SLM
+    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
     char *SlmBase = I->__cm_emu_get_slm_ptr();
-    addr <<= 4;
+    offset <<= 4;
     for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
+      Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
       *SlmAddr = vals[i];
-      addr += sizeof(Ty);
+      offset += sizeof(Ty);
     }
   } else {
     // O-word/Block store for regular surface indexed by surf_ind
@@ -432,14 +432,14 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
-  if (surf_ind == SLM_BTI) {
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
     // Scattered-store for Shared Local Memory
-    // SLM_BTI is special binding table index for SLM
-    static_assert(global_offset == 0);
+    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
+    assert(global_offset == 0);
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int i = 0; i < N; ++i) {
       if (pred[i]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[i] + SlmBase);
+        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[i] + SlmBase);
         *addr = vals[i];
       }
     }
@@ -564,10 +564,10 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   __SEIEED::vector_type_t<Ty, N> retv;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
-  if (surf_ind == SLM_BTI) {
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
     // Scattered-load for Shared Local Memory
-    // SLM_BTI is special binding table index for SLM
-    static_assert(global_offset == 0);
+    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
+    assert(global_offset == 0);
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     for (int i = 0; i < N; ++i) {
       if (pred[i]) {
@@ -598,9 +598,9 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
-  if (surf_ind == SLM_BTI) {
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
     // O-word/Block load for Shared Local Memory
-    // SLM_BTI is special binding table index for SLM
+    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
     char *SlmBase = I->__cm_emu_get_slm_ptr();
     addr <<= 4;
     for (int i = 0; i < N; ++i) {
@@ -637,7 +637,7 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + ReadBase);
         retv[Next] = *addr;
       }
     }
@@ -648,7 +648,7 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + ReadBase);
         retv[Next] = *addr;
       }
     }
@@ -659,7 +659,7 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + ReadBase);
         retv[Next] = *addr;
       }
     }
@@ -670,7 +670,7 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + ReadBase);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + ReadBase);
         retv[Next] = *addr;
       }
     }
@@ -698,7 +698,7 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
   if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::R)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + WriteBase);
         *addr = vals[Next];
       }
     }
@@ -709,7 +709,7 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
   if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::G)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + WriteBase);
         *addr = vals[Next];
       }
     }
@@ -720,7 +720,7 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
   if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::B)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + WriteBase);
         *addr = vals[Next];
       }
     }
@@ -731,7 +731,7 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
   if (__SEIEE::is_channel_enabled(Mask, __SEIEE::rgba_channel::A)) {
     for (int I = 0; I < N; I++, Next++) {
       if (pred[I]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[I] + WriteBase);
+        Ty *addr = reinterpret_cast<Ty *>(offsets[I] + WriteBase);
         *addr = vals[Next];
       }
     }
@@ -749,7 +749,7 @@ __esimd_dword_atomic0(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
-  if (surf_ind == SLM_BTI) {
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
     __SEIEED::vector_type_t<Ty, N> retv;
     sycl::detail::ESIMDDeviceInterface *I =
         sycl::detail::getESIMDDeviceInterface();
