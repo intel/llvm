@@ -1,7 +1,7 @@
 * @bader
 
 # Front-end compiler
-clang/ @premanandrao @elizabethandrews
+clang/ @premanandrao @elizabethandrews @smanna12
 
 # Driver
 clang/**/Driver @mdtoguchi @AGindinson @hchilama

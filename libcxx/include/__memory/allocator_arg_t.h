@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _LIBCPP___FUNCTIONAL___ALLOCATOR_ARG_T_H
-#define _LIBCPP___FUNCTIONAL___ALLOCATOR_ARG_T_H
+#ifndef _LIBCPP___FUNCTIONAL_ALLOCATOR_ARG_T_H
+#define _LIBCPP___FUNCTIONAL_ALLOCATOR_ARG_T_H
 
 #include <__config>
 #include <__memory/uses_allocator.h>
@@ -26,7 +26,7 @@ struct _LIBCPP_TEMPLATE_VIS allocator_arg_t { explicit allocator_arg_t() = defau
 #if defined(_LIBCPP_CXX03_LANG) || defined(_LIBCPP_BUILDING_LIBRARY)
 extern _LIBCPP_EXPORTED_FROM_ABI const allocator_arg_t allocator_arg;
 #else
-/* _LIBCPP_INLINE_VAR */ constexpr allocator_arg_t allocator_arg = allocator_arg_t();
+/* inline */ constexpr allocator_arg_t allocator_arg = allocator_arg_t();
 #endif
 
 #ifndef _LIBCPP_CXX03_LANG
@@ -75,4 +75,4 @@ void __user_alloc_construct_impl (integral_constant<int, 2>, _Tp *__storage, con
 
 _LIBCPP_END_NAMESPACE_STD
 
-#endif // _LIBCPP___FUNCTIONAL___ALLOCATOR_ARG_T_H
+#endif // _LIBCPP___FUNCTIONAL_ALLOCATOR_ARG_T_H

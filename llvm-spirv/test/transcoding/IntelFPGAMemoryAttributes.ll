@@ -249,6 +249,8 @@
 ; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
 ; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 1
 
+; CHECK-SPIRV-NOT: Decorate [[#]] UserSemantic "{memory:MLAB}{sizeinfo:4,500}"
+
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
 

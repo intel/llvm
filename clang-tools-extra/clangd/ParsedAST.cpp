@@ -439,7 +439,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   // Otherwise we would collect the replayed includes again...
   // (We can't *just* use the replayed includes, they don't have Resolved path).
   Clang->getPreprocessor().addPPCallbacks(
-      collectIncludeStructureCallback(Clang->getSourceManager(), &Includes));
+      Includes.collect(Clang->getSourceManager()));
   // Copy over the macros in the preamble region of the main file, and combine
   // with non-preamble macros below.
   MainFileMacros Macros;
@@ -448,6 +448,13 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   Clang->getPreprocessor().addPPCallbacks(
       std::make_unique<CollectMainFileMacros>(Clang->getSourceManager(),
                                               Macros));
+
+  std::vector<PragmaMark> Marks;
+  // FIXME: We need to patch the marks for stale preambles.
+  if (Preamble)
+    Marks = Preamble->Marks;
+  Clang->getPreprocessor().addPPCallbacks(
+      collectPragmaMarksCallback(Clang->getSourceManager(), Marks));
 
   // Copy over the includes from the preamble, then combine with the
   // non-preamble includes below.
@@ -510,7 +517,7 @@ ParsedAST::build(llvm::StringRef Filename, const ParseInputs &Inputs,
   }
   return ParsedAST(Inputs.Version, std::move(Preamble), std::move(Clang),
                    std::move(Action), std::move(Tokens), std::move(Macros),
-                   std::move(ParsedDecls), std::move(Diags),
+                   std::move(Marks), std::move(ParsedDecls), std::move(Diags),
                    std::move(Includes), std::move(CanonIncludes));
 }
 
@@ -550,6 +557,7 @@ llvm::ArrayRef<Decl *> ParsedAST::getLocalTopLevelDecls() {
 }
 
 const MainFileMacros &ParsedAST::getMacros() const { return Macros; }
+const std::vector<PragmaMark> &ParsedAST::getMarks() const { return Marks; }
 
 std::size_t ParsedAST::getUsedBytes() const {
   auto &AST = getASTContext();
@@ -596,12 +604,14 @@ ParsedAST::ParsedAST(llvm::StringRef Version,
                      std::unique_ptr<CompilerInstance> Clang,
                      std::unique_ptr<FrontendAction> Action,
                      syntax::TokenBuffer Tokens, MainFileMacros Macros,
+                     std::vector<PragmaMark> Marks,
                      std::vector<Decl *> LocalTopLevelDecls,
                      llvm::Optional<std::vector<Diag>> Diags,
                      IncludeStructure Includes, CanonicalIncludes CanonIncludes)
     : Version(Version), Preamble(std::move(Preamble)), Clang(std::move(Clang)),
       Action(std::move(Action)), Tokens(std::move(Tokens)),
-      Macros(std::move(Macros)), Diags(std::move(Diags)),
+      Macros(std::move(Macros)), Marks(std::move(Marks)),
+      Diags(std::move(Diags)),
       LocalTopLevelDecls(std::move(LocalTopLevelDecls)),
       Includes(std::move(Includes)), CanonIncludes(std::move(CanonIncludes)) {
   Resolver = std::make_unique<HeuristicResolver>(getASTContext());

@@ -2448,8 +2448,8 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
     // Instantiate the explicit template arguments.
     TemplateArgumentListInfo ExplicitArgs(Info->getLAngleLoc(),
                                           Info->getRAngleLoc());
-    if (SemaRef.Subst(Info->getTemplateArgs(), Info->getNumTemplateArgs(),
-                      ExplicitArgs, TemplateArgs))
+    if (SemaRef.SubstTemplateArguments(Info->arguments(), TemplateArgs,
+                                       ExplicitArgs))
       return nullptr;
 
     // Map the candidate templates to their instantiations.
@@ -2476,8 +2476,8 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
     // Instantiate the explicit template arguments.
     TemplateArgumentListInfo ExplicitArgs(Info->getLAngleLoc(),
                                           Info->getRAngleLoc());
-    if (SemaRef.Subst(Info->getTemplateArgs(), Info->getNumTemplateArgs(),
-                      ExplicitArgs, TemplateArgs))
+    if (SemaRef.SubstTemplateArguments(Info->arguments(), TemplateArgs,
+                                       ExplicitArgs))
       return nullptr;
 
     if (SemaRef.CheckFunctionTemplateSpecialization(Function,
@@ -2812,8 +2812,8 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
     // Instantiate the explicit template arguments.
     TemplateArgumentListInfo ExplicitArgs(Info->getLAngleLoc(),
                                           Info->getRAngleLoc());
-    if (SemaRef.Subst(Info->getTemplateArgs(), Info->getNumTemplateArgs(),
-                      ExplicitArgs, TemplateArgs))
+    if (SemaRef.SubstTemplateArguments(Info->arguments(), TemplateArgs,
+                                       ExplicitArgs))
       return nullptr;
 
     // Map the candidate templates to their instantiations.
@@ -2839,8 +2839,8 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
 
     TemplateArgumentListInfo ExplicitArgs(Info->getLAngleLoc(),
                                           Info->getRAngleLoc());
-    if (SemaRef.Subst(Info->getTemplateArgs(), Info->getNumTemplateArgs(),
-                      ExplicitArgs, TemplateArgs))
+    if (SemaRef.SubstTemplateArguments(Info->arguments(), TemplateArgs,
+                                       ExplicitArgs))
       return nullptr;
 
     if (SemaRef.CheckFunctionTemplateSpecialization(Method,
@@ -3008,25 +3008,7 @@ Decl *TemplateDeclInstantiator::VisitTemplateTypeParmDecl(
 
       // TODO: Concepts: do not instantiate the constraint (delayed constraint
       // substitution)
-      const ASTTemplateArgumentListInfo *TemplArgInfo
-        = TC->getTemplateArgsAsWritten();
-      TemplateArgumentListInfo InstArgs;
-
-      if (TemplArgInfo) {
-        InstArgs.setLAngleLoc(TemplArgInfo->LAngleLoc);
-        InstArgs.setRAngleLoc(TemplArgInfo->RAngleLoc);
-        if (SemaRef.Subst(TemplArgInfo->getTemplateArgs(),
-                          TemplArgInfo->NumTemplateArgs,
-                          InstArgs, TemplateArgs))
-          return nullptr;
-      }
-      if (SemaRef.AttachTypeConstraint(
-              TC->getNestedNameSpecifierLoc(), TC->getConceptNameInfo(),
-              TC->getNamedConcept(), &InstArgs, Inst,
-              D->isParameterPack()
-                  ? cast<CXXFoldExpr>(TC->getImmediatelyDeclaredConstraint())
-                      ->getEllipsisLoc()
-                  : SourceLocation()))
+      if (SemaRef.SubstTypeConstraint(Inst, TC, TemplateArgs))
         return nullptr;
     }
   }
@@ -3924,8 +3906,7 @@ TemplateDeclInstantiator::VisitClassTemplateSpecializationDecl(
   SmallVector<TemplateArgumentLoc, 4> ArgLocs;
   for (unsigned I = 0; I != Loc.getNumArgs(); ++I)
     ArgLocs.push_back(Loc.getArgLoc(I));
-  if (SemaRef.Subst(ArgLocs.data(), ArgLocs.size(),
-                    InstTemplateArgs, TemplateArgs))
+  if (SemaRef.SubstTemplateArguments(ArgLocs, TemplateArgs, InstTemplateArgs))
     return nullptr;
 
   // Check that the template argument list is well-formed for this
@@ -4050,8 +4031,8 @@ Decl *TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
   VarTemplateArgsInfo.setLAngleLoc(TemplateArgsInfo.getLAngleLoc());
   VarTemplateArgsInfo.setRAngleLoc(TemplateArgsInfo.getRAngleLoc());
 
-  if (SemaRef.Subst(TemplateArgsInfo.getArgumentArray(),
-                    TemplateArgsInfo.size(), VarTemplateArgsInfo, TemplateArgs))
+  if (SemaRef.SubstTemplateArguments(TemplateArgsInfo.arguments(), TemplateArgs,
+                                     VarTemplateArgsInfo))
     return nullptr;
 
   // Check that the template argument list is well-formed for this template.
@@ -4318,9 +4299,8 @@ TemplateDeclInstantiator::InstantiateClassTemplatePartialSpecialization(
     = PartialSpec->getTemplateArgsAsWritten();
   TemplateArgumentListInfo InstTemplateArgs(TemplArgInfo->LAngleLoc,
                                             TemplArgInfo->RAngleLoc);
-  if (SemaRef.Subst(TemplArgInfo->getTemplateArgs(),
-                    TemplArgInfo->NumTemplateArgs,
-                    InstTemplateArgs, TemplateArgs))
+  if (SemaRef.SubstTemplateArguments(TemplArgInfo->arguments(), TemplateArgs,
+                                     InstTemplateArgs))
     return nullptr;
 
   // Check that the template argument list is well-formed for this
@@ -4446,9 +4426,8 @@ TemplateDeclInstantiator::InstantiateVarTemplatePartialSpecialization(
     = PartialSpec->getTemplateArgsAsWritten();
   TemplateArgumentListInfo InstTemplateArgs(TemplArgInfo->LAngleLoc,
                                             TemplArgInfo->RAngleLoc);
-  if (SemaRef.Subst(TemplArgInfo->getTemplateArgs(),
-                    TemplArgInfo->NumTemplateArgs,
-                    InstTemplateArgs, TemplateArgs))
+  if (SemaRef.SubstTemplateArguments(TemplArgInfo->arguments(), TemplateArgs,
+                                     InstTemplateArgs))
     return nullptr;
 
   // Check that the template argument list is well-formed for this
