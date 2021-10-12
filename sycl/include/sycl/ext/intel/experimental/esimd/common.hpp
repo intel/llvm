@@ -96,6 +96,11 @@ static inline constexpr uint8_t chR = ch<rgba_channel::R>;
 static inline constexpr uint8_t chG = ch<rgba_channel::G>;
 static inline constexpr uint8_t chB = ch<rgba_channel::B>;
 static inline constexpr uint8_t chA = ch<rgba_channel::A>;
+
+// Shared Local Memory Binding Table Index (aka surface index).
+static inline constexpr SurfaceIndex SLM_BTI = 254;
+static inline constexpr SurfaceIndex INVALID_BTI =
+    static_cast<SurfaceIndex>(-1);
 } // namespace detail
 
 /// Represents a pixel's channel mask - all possible combinations of enabled

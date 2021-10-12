@@ -32,11 +32,6 @@ namespace detail {
 // implemenations of SLM memory accesses to general surface-based memory
 // accesses and thus reuse validity checks etc.
 struct LocalAccessorMarker {};
-
-// Shared Local Memory Binding Table Index (aka surface index).
-static inline constexpr SurfaceIndex SLM_BTI = 254;
-static inline constexpr SurfaceIndex INVALID_BTI =
-    static_cast<SurfaceIndex>(-1);
 } // namespace detail
 
 /// Get surface index corresponding to a SYCL accessor.
