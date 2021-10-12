@@ -1228,7 +1228,7 @@ def SYCLGlobalVar : InheritableAttr {
 def SYCLKernel : InheritableAttr {
   let Spellings = [Clang<"sycl_kernel">];
   let Subjects = SubjectList<[FunctionTmpl]>;
-  let LangOpts = [SYCLIsHost, SYCLIsDevice];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLKernelDocs];
 }
 
@@ -2435,7 +2435,7 @@ def BPFPreserveAccessIndex : InheritableAttr,
   let LangOpts = [COnly];
 }
 
-def BTFTag : InheritableAttr {
+def BTFTag : DeclOrTypeAttr {
   let Spellings = [Clang<"btf_tag">];
   let Args = [StringArgument<"BTFTag">];
   let Subjects = SubjectList<[Var, Function, Record, Field], ErrorDiag>;

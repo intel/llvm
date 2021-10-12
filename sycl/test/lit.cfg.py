@@ -109,6 +109,7 @@ if triple == 'amdgcn-amd-amdhsa':
     if not re.match('.*--offload-arch.*', config.sycl_clang_extra_flags):
         raise Exception("Error: missing --offload-arch flag when trying to "  \
                         "run lit tests for AMD GPU, please add "              \
+                        "--hip-amd-arch=<target> to buildbot/configure.py or add"  \
                         "`-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=<target>` to " \
                         "the CMake variable SYCL_CLANG_EXTRA_FLAGS")
 

@@ -22,6 +22,9 @@ int main() {
   buffer<int, 1> ConstantBuf(Range);
   queue q;
   q.submit([&](handler &Cgh) {
+    auto DeviceRWAcc =
+        GlobalBuf.get_access<mode::read_write, target::device>(Cgh);
+    auto DeviceRAcc = GlobalBuf.get_access<mode::read, target::device>(Cgh);
     auto GlobalRWAcc =
         GlobalBuf.get_access<mode::read_write, target::global_buffer>(Cgh);
     auto GlobalRAcc =
@@ -31,6 +34,10 @@ int main() {
     accessor<int, 1, mode::read_write, target::local> LocalAcc(Range, Cgh);
 
     Cgh.single_task<class test>([=]() {
+      static_assert(std::is_same<decltype(DeviceRWAcc[0]), int &>::value,
+                    "Incorrect type from device read-write accessor");
+      static_assert(std::is_same<decltype(DeviceRAcc[0]), const int &>::value,
+                    "Incorrect type from device read accessor");
       static_assert(std::is_same<decltype(GlobalRWAcc[0]), int &>::value,
                     "Incorrect type from global read-write accessor");
       static_assert(std::is_same<decltype(GlobalRAcc[0]), const int &>::value,

@@ -2423,7 +2423,7 @@ void ScopeHandler::MakeExternal(Symbol &symbol) {
 bool ModuleVisitor::Pre(const parser::Only &x) {
   std::visit(common::visitors{
                  [&](const Indirection<parser::GenericSpec> &generic) {
-                   const GenericSpecInfo &genericSpecInfo{generic.value()};
+                   GenericSpecInfo genericSpecInfo{generic.value()};
                    AddUseOnly(genericSpecInfo.symbolName());
                    AddUse(genericSpecInfo);
                  },
@@ -4224,17 +4224,7 @@ void DeclarationVisitor::Post(const parser::ComponentDecl &x) {
               "POINTER or ALLOCATABLE"_err_en_US);
         }
       }
-      if (!coarraySpec().empty()) { // C747
-        if (IsTeamType(derived)) {
-          Say("A coarray component may not be of type TEAM_TYPE from "
-              "ISO_FORTRAN_ENV"_err_en_US);
-        } else {
-          if (IsIsoCType(derived)) {
-            Say("A coarray component may not be of type C_PTR or C_FUNPTR from "
-                "ISO_C_BINDING"_err_en_US);
-          }
-        }
-      }
+      // TODO: This would be more appropriate in CheckDerivedType()
       if (auto it{FindCoarrayUltimateComponent(*derived)}) { // C748
         std::string ultimateName{it.BuildResultDesignatorName()};
         // Strip off the leading "%"

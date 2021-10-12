@@ -64,7 +64,8 @@ def StringConversion : DiagGroup<"string-conversion">;
 def SignConversion : DiagGroup<"sign-conversion">;
 def PointerBoolConversion : DiagGroup<"pointer-bool-conversion">;
 def UndefinedBoolConversion : DiagGroup<"undefined-bool-conversion">;
-def BoolOperation : DiagGroup<"bool-operation">;
+def BitwiseInsteadOfLogical : DiagGroup<"bitwise-instead-of-logical">;
+def BoolOperation : DiagGroup<"bool-operation", [BitwiseInsteadOfLogical]>;
 def BoolConversion : DiagGroup<"bool-conversion", [PointerBoolConversion,
                                                    UndefinedBoolConversion]>;
 def IntConversion : DiagGroup<"int-conversion">;
@@ -396,6 +397,7 @@ def Dangling : DiagGroup<"dangling", [DanglingField,
                                       DanglingGsl,
                                       ReturnStackAddress]>;
 def DistributedObjectModifiers : DiagGroup<"distributed-object-modifiers">;
+def DllexportExplicitInstantiationDecl : DiagGroup<"dllexport-explicit-instantiation-decl">;
 def ExcessInitializers : DiagGroup<"excess-initializers">;
 def ExpansionToDefined : DiagGroup<"expansion-to-defined">;
 def FlagEnum : DiagGroup<"flag-enum">;
@@ -648,6 +650,7 @@ def KeywordAsMacro : DiagGroup<"keyword-macro">;
 def ReservedIdAsMacro : DiagGroup<"reserved-macro-identifier">;
 def ReservedIdAsMacroAlias : DiagGroup<"reserved-id-macro", [ReservedIdAsMacro]>;
 def RestrictExpansionMacro : DiagGroup<"restrict-expansion">;
+def FinalMacro : DiagGroup<"final-macro">;
 
 // Just silence warnings about -Wstrict-aliasing for now.
 def : DiagGroup<"strict-aliasing=0">;
@@ -1333,4 +1336,5 @@ def PedanticMacros : DiagGroup<"pedantic-macros",
                     [DeprecatedPragma,
                      MacroRedefined,
                      BuiltinMacroRedefined,
-                     RestrictExpansionMacro]>;
+                     RestrictExpansionMacro,
+                     FinalMacro]>;

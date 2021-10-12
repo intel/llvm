@@ -3871,21 +3871,19 @@ struct CSEDenseMapInfo {
 static void cse(BasicBlock *BB) {
   // Perform simple cse.
   SmallDenseMap<Instruction *, Instruction *, 4, CSEDenseMapInfo> CSEMap;
-  for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E;) {
-    Instruction *In = &*I++;
-
-    if (!CSEDenseMapInfo::canHandle(In))
+  for (Instruction &In : llvm::make_early_inc_range(*BB)) {
+    if (!CSEDenseMapInfo::canHandle(&In))
       continue;
 
     // Check if we can replace this instruction with any of the
     // visited instructions.
-    if (Instruction *V = CSEMap.lookup(In)) {
-      In->replaceAllUsesWith(V);
-      In->eraseFromParent();
+    if (Instruction *V = CSEMap.lookup(&In)) {
+      In.replaceAllUsesWith(V);
+      In.eraseFromParent();
       continue;
     }
 
-    CSEMap[In] = In;
+    CSEMap[&In] = &In;
   }
 }
 
@@ -3895,7 +3893,7 @@ LoopVectorizationCostModel::getVectorCallCost(CallInst *CI, ElementCount VF,
   Function *F = CI->getCalledFunction();
   Type *ScalarRetTy = CI->getType();
   SmallVector<Type *, 4> Tys, ScalarTys;
-  for (auto &ArgOp : CI->arg_operands())
+  for (auto &ArgOp : CI->args())
     ScalarTys.push_back(ArgOp->getType());
 
   // Estimate cost of scalarized vector call. The source operands are assumed
@@ -4981,7 +4979,7 @@ void InnerLoopVectorizer::widenCallInstruction(CallInst &I, VPValue *Def,
   auto *CI = cast<CallInst>(&I);
 
   SmallVector<Type *, 4> Tys;
-  for (Value *ArgOperand : CI->arg_operands())
+  for (Value *ArgOperand : CI->args())
     Tys.push_back(ToVectorTy(ArgOperand->getType(), VF.getKnownMinValue()));
 
   Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
@@ -5302,7 +5300,7 @@ bool LoopVectorizationCostModel::interleavedAccessCanBeWidened(
   // (either a gap at the end of a load-access that may result in a speculative
   // load, or any gaps in a store-access).
   bool PredicatedAccessRequiresMasking =
-      Legal->blockNeedsPredication(I->getParent()) && Legal->isMaskRequired(I);
+      blockNeedsPredication(I->getParent()) && Legal->isMaskRequired(I);
   bool LoadAccessWithGapsRequiresEpilogMasking =
       isa<LoadInst>(I) && Group->requiresScalarEpilogue() &&
       !isScalarEpilogueAllowed();
@@ -6251,9 +6249,9 @@ LoopVectorizationCostModel::selectEpilogueVectorizationFactor(
 
   if (EpilogueVectorizationForceVF > 1) {
     LLVM_DEBUG(dbgs() << "LEV: Epilogue vectorization factor is forced.\n";);
-    if (LVP.hasPlanWithVFs(
-            {MainLoopVF, ElementCount::getFixed(EpilogueVectorizationForceVF)}))
-      return {ElementCount::getFixed(EpilogueVectorizationForceVF), 0};
+    ElementCount ForcedEC = ElementCount::getFixed(EpilogueVectorizationForceVF);
+    if (LVP.hasPlanWithVFs({MainLoopVF, ForcedEC}))
+      return {ForcedEC, 0};
     else {
       LLVM_DEBUG(
           dbgs()
@@ -7420,7 +7418,7 @@ LoopVectorizationCostModel::getScalarizationOverhead(Instruction *I,
 
   // Collect operands to consider.
   CallInst *CI = dyn_cast<CallInst>(I);
-  Instruction::op_range Ops = CI ? CI->arg_operands() : I->operands();
+  Instruction::op_range Ops = CI ? CI->args() : I->operands();
 
   // Skip operands that do not require extraction/scalarization and do not incur
   // any overhead.
@@ -8906,7 +8904,7 @@ VPWidenCallRecipe *VPRecipeBuilder::tryToWidenCall(CallInst *CI,
   if (!LoopVectorizationPlanner::getDecisionAndClampRange(willWiden, Range))
     return nullptr;
 
-  ArrayRef<VPValue *> Ops = Operands.take_front(CI->getNumArgOperands());
+  ArrayRef<VPValue *> Ops = Operands.take_front(CI->arg_size());
   return new VPWidenCallRecipe(*CI, make_range(Ops.begin(), Ops.end()));
 }
 
@@ -10559,8 +10557,8 @@ PreservedAnalyses LoopVectorizePass::run(Function &F,
     auto &LAM = AM.getResult<LoopAnalysisManagerFunctionProxy>(F).getManager();
     std::function<const LoopAccessInfo &(Loop &)> GetLAA =
         [&](Loop &L) -> const LoopAccessInfo & {
-      LoopStandardAnalysisResults AR = {AA,  AC,  DT,      LI,  SE,
-                                        TLI, TTI, nullptr, nullptr};
+      LoopStandardAnalysisResults AR = {AA,  AC,  DT,      LI,      SE,
+                                        TLI, TTI, nullptr, nullptr, nullptr};
       return LAM.getResult<LoopAccessAnalysis>(L, AR);
     };
     auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
@@ -10583,4 +10581,15 @@ PreservedAnalyses LoopVectorizePass::run(Function &F,
     if (!Result.MadeCFGChange)
       PA.preserveSet<CFGAnalyses>();
     return PA;
+}
+
+void LoopVectorizePass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<LoopVectorizePass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+
+  OS << "<";
+  OS << (InterleaveOnlyWhenForced ? "" : "no-") << "interleave-forced-only;";
+  OS << (VectorizeOnlyWhenForced ? "" : "no-") << "vectorize-forced-only;";
+  OS << ">";
 }

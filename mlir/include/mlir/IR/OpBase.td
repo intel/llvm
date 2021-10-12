@@ -1582,7 +1582,8 @@ def SymbolRefAttr : Attr<CPred<"$_self.isa<::mlir::SymbolRefAttr>()">,
   let storageType = [{ ::mlir::SymbolRefAttr }];
   let returnType = [{ ::mlir::SymbolRefAttr }];
   let valueType = NoneType;
-  let constBuilderCall = "SymbolRefAttr::get($_builder.getContext(), $0)";
+  let constBuilderCall =
+    "::mlir::SymbolRefAttr::get($_builder.getContext(), $0)";
   let convertFromStorage = "$_self";
 }
 
@@ -1591,7 +1592,8 @@ def FlatSymbolRefAttr : Attr<CPred<"$_self.isa<::mlir::FlatSymbolRefAttr>()">,
   let storageType = [{ ::mlir::FlatSymbolRefAttr }];
   let returnType = [{ ::llvm::StringRef }];
   let valueType = NoneType;
-  let constBuilderCall = "SymbolRefAttr::get($_builder.getContext(), $0)";
+  let constBuilderCall =
+    "::mlir::SymbolRefAttr::get($_builder.getContext(), $0)";
   let convertFromStorage = "$_self.getValue()";
 }
 
@@ -2081,8 +2083,7 @@ class TypeInterface<string name> : Interface<name>, InterfaceTrait<name>;
 // declarations should be generated. This class takes an optional set of methods
 // that should have declarations generated even if the method has a default
 // implementation.
-class DeclareInterfaceMethods<Interface interface,
-                              list<string> overridenMethods = []> {
+class DeclareInterfaceMethods<list<string> overridenMethods = []> {
     // This field contains a set of method names that should always have their
     // declarations generated. This allows for generating declarations for
     // methods with default implementations that need to be overridden.
@@ -2090,7 +2091,7 @@ class DeclareInterfaceMethods<Interface interface,
 }
 class DeclareAttrInterfaceMethods<AttrInterface interface,
                                   list<string> overridenMethods = []>
-      : DeclareInterfaceMethods<interface, overridenMethods>,
+      : DeclareInterfaceMethods<overridenMethods>,
         AttrInterface<interface.cppClassName> {
     let description = interface.description;
     let cppClassName = interface.cppClassName;
@@ -2099,7 +2100,7 @@ class DeclareAttrInterfaceMethods<AttrInterface interface,
 }
 class DeclareOpInterfaceMethods<OpInterface interface,
                                 list<string> overridenMethods = []>
-      : DeclareInterfaceMethods<interface, overridenMethods>,
+      : DeclareInterfaceMethods<overridenMethods>,
         OpInterface<interface.cppClassName> {
     let description = interface.description;
     let cppClassName = interface.cppClassName;
@@ -2108,7 +2109,7 @@ class DeclareOpInterfaceMethods<OpInterface interface,
 }
 class DeclareTypeInterfaceMethods<TypeInterface interface,
                                   list<string> overridenMethods = []>
-      : DeclareInterfaceMethods<interface, overridenMethods>,
+      : DeclareInterfaceMethods<overridenMethods>,
         TypeInterface<interface.cppClassName> {
     let description = interface.description;
     let cppClassName = interface.cppClassName;
@@ -2637,15 +2638,49 @@ def ConstantLikeMatcher : NativeCodeCall<"success(matchPattern($_self->getResult
 // Rewrite directives
 //===----------------------------------------------------------------------===//
 
-// Directive used in result pattern to specify the location of the generated
-// op. This directive must be used as the last argument to the op creation
-// DAG construct. The arguments to location must be previously captured symbol.
-def location;
-
 // Directive used in result pattern to indicate that no new op are generated,
 // so to replace the matched DAG with an existing SSA value.
 def replaceWithValue;
 
+// Directive used in result patterns to specify the location of the generated
+// op. This directive must be used as a trailing argument to op creation or
+// native code calls.
+//
+// Usage:
+// * Create a named location: `(location "myLocation")`
+// * Copy the location of a captured symbol: `(location $arg)`
+// * Create a fused location: `(location "metadata", $arg0, $arg1)`
+
+def location;
+
+// Directive used in result patterns to specify return types for a created op.
+// This allows ops to be created without relying on type inference with
+// `OpTraits` or an op builder with deduction.
+//
+// This directive must be used as a trailing argument to op creation.
+//
+// Specify one return type with a string literal:
+//
+// ```
+// (AnOp $val, (returnType "$_builder.getI32Type()"))
+// ```
+//
+// Pass a captured value to copy its return type:
+//
+// ```
+// (AnOp $val, (returnType $val));
+// ```
+//
+// Pass a native code call inside a DAG to create a new type with arguments.
+//
+// ```
+// (AnOp $val,
+//       (returnType (NativeCodeCall<"$_builder.getTupleType({$0})"> $val)));
+// ```
+//
+// Specify multiple return types with multiple of any of the above.
+
+def returnType;
 
 //===----------------------------------------------------------------------===//
 // Attribute and Type generation
@@ -2825,6 +2860,7 @@ class AttrDef<Dialect dialect, string name, list<Trait> traits = [],
       AttrOrTypeDef<"Attr", name, traits, baseCppClass> {
   // The name of the C++ Attribute class.
   string cppClassName = name # "Attr";
+  let storageType = dialect.cppNamespace # "::" # name # "Attr";
 
   // The underlying C++ value type
   let returnType = dialect.cppNamespace # "::" # cppClassName;

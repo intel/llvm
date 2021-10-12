@@ -988,10 +988,6 @@ bool RISCVAsmParser::generateImmOutOfRangeError(
   return Error(ErrorLoc, Msg + " [" + Twine(Lower) + ", " + Twine(Upper) + "]");
 }
 
-static std::string RISCVMnemonicSpellCheck(StringRef S,
-                                           const FeatureBitset &FBS,
-                                           unsigned VariantID = 0);
-
 bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                              OperandVector &Operands,
                                              MCStreamer &Out,
@@ -1024,8 +1020,8 @@ bool RISCVAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   }
   case Match_MnemonicFail: {
     FeatureBitset FBS = ComputeAvailableFeatures(getSTI().getFeatureBits());
-    std::string Suggestion =
-        RISCVMnemonicSpellCheck(((RISCVOperand &)*Operands[0]).getToken(), FBS);
+    std::string Suggestion = RISCVMnemonicSpellCheck(
+        ((RISCVOperand &)*Operands[0]).getToken(), FBS, 0);
     return Error(IDLoc, "unrecognized instruction mnemonic" + Suggestion);
   }
   case Match_InvalidOperand: {
@@ -2082,8 +2078,6 @@ bool RISCVAsmParser::parseDirectiveAttribute() {
     clearFeatureBits(RISCV::FeatureStdExtZbf, "experimental-zbf");
     clearFeatureBits(RISCV::FeatureStdExtZbm, "experimental-zbm");
     clearFeatureBits(RISCV::FeatureStdExtZbp, "experimental-zbp");
-    clearFeatureBits(RISCV::FeatureStdExtZbproposedc,
-                     "experimental-zbproposedc");
     clearFeatureBits(RISCV::FeatureStdExtZbr, "experimental-zbr");
     clearFeatureBits(RISCV::FeatureStdExtZbs, "experimental-zbs");
     clearFeatureBits(RISCV::FeatureStdExtZbt, "experimental-zbt");
@@ -2134,9 +2128,6 @@ bool RISCVAsmParser::parseDirectiveAttribute() {
           setFeatureBits(RISCV::FeatureStdExtZbm, "experimental-zbm");
         else if (Ext == "zbp")
           setFeatureBits(RISCV::FeatureStdExtZbp, "experimental-zbp");
-        else if (Ext == "zbproposedc")
-          setFeatureBits(RISCV::FeatureStdExtZbproposedc,
-                         "experimental-zbproposedc");
         else if (Ext == "zbr")
           setFeatureBits(RISCV::FeatureStdExtZbr, "experimental-zbr");
         else if (Ext == "zbs")
@@ -2211,8 +2202,6 @@ bool RISCVAsmParser::parseDirectiveAttribute() {
         formalArchStr = (Twine(formalArchStr) + "_zbm0p93").str();
       if (getFeatureBits(RISCV::FeatureStdExtZbp))
         formalArchStr = (Twine(formalArchStr) + "_zbp0p93").str();
-      if (getFeatureBits(RISCV::FeatureStdExtZbproposedc))
-        formalArchStr = (Twine(formalArchStr) + "_zbproposedc0p93").str();
       if (getFeatureBits(RISCV::FeatureStdExtZbr))
         formalArchStr = (Twine(formalArchStr) + "_zbr0p93").str();
       if (getFeatureBits(RISCV::FeatureStdExtZbs))

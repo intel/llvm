@@ -1240,7 +1240,7 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
       // writes to this memory in the loop, we can hoist or sink.
       if (AAResults::onlyAccessesArgPointees(Behavior)) {
         // TODO: expand to writeable arguments
-        for (Value *Op : CI->arg_operands())
+        for (Value *Op : CI->args())
           if (Op->getType()->isPointerTy()) {
             bool Invalidated;
             if (CurAST)
@@ -2153,9 +2153,9 @@ bool llvm::promoteLoopAccessesToScalars(
       // Merge the AA tags.
       if (LoopUses.empty()) {
         // On the first load/store, just take its AA tags.
-        UI->getAAMetadata(AATags);
+        AATags = UI->getAAMetadata();
       } else if (AATags) {
-        UI->getAAMetadata(AATags, /* Merge = */ true);
+        AATags = AATags.merge(UI->getAAMetadata());
       }
 
       LoopUses.push_back(UI);

@@ -2993,7 +2993,7 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
     DeleteCurrentProcess();
 
     m_process_sp =
-        GetPlatform()->DebugProcess(launch_info, debugger, this, error);
+        GetPlatform()->DebugProcess(launch_info, debugger, *this, error);
 
   } else {
     LLDB_LOGF(log,
@@ -4285,16 +4285,6 @@ bool TargetProperties::GetDisplayRecognizedArguments() const {
 
 void TargetProperties::SetDisplayRecognizedArguments(bool b) {
   const uint32_t idx = ePropertyDisplayRecognizedArguments;
-  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
-}
-
-bool TargetProperties::GetNonStopModeEnabled() const {
-  const uint32_t idx = ePropertyNonStopModeEnabled;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(nullptr, idx, false);
-}
-
-void TargetProperties::SetNonStopModeEnabled(bool b) {
-  const uint32_t idx = ePropertyNonStopModeEnabled;
   m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
 }
 

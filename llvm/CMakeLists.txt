@@ -65,12 +65,20 @@ endif()
 # This allows an easy way of setting up a build directory for llvm and another
 # one for llvm+clang+... using the same sources.
 set(LLVM_ALL_PROJECTS "clang;clang-tools-extra;compiler-rt;cross-project-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;mlir;openmp;parallel-libs;polly;pstl")
+set(LLVM_ALL_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTERNAL_PROJECTS}")
 # The flang project is not yet part of "all" projects (see C++ requirements)
 set(LLVM_EXTRA_PROJECTS "flang")
 # List of all known projects in the mono repo
 set(LLVM_KNOWN_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTRA_PROJECTS}")
+message("TEST: ${LLVM_EXTRA_PROJECTS}")
 set(LLVM_ENABLE_PROJECTS "" CACHE STRING
 	"Semicolon-separated list of projects to build (${LLVM_KNOWN_PROJECTS}), or \"all\".")
+foreach(proj ${LLVM_ENABLE_PROJECTS})
+  if (NOT proj STREQUAL "all" AND NOT proj STREQUAL "llvm" AND NOT "${proj}" IN_LIST LLVM_KNOWN_PROJECTS)
+     MESSAGE(FATAL_ERROR "${proj} isn't a known project: ${LLVM_KNOWN_PROJECTS}")
+  endif()
+endforeach()
+
 if( LLVM_ENABLE_PROJECTS STREQUAL "all" )
   set( LLVM_ENABLE_PROJECTS ${LLVM_ALL_PROJECTS})
 endif()
@@ -295,8 +303,8 @@ set(LLVM_MAIN_SRC_DIR     ${CMAKE_CURRENT_SOURCE_DIR}  ) # --src-root
 set(LLVM_MAIN_INCLUDE_DIR ${LLVM_MAIN_SRC_DIR}/include ) # --includedir
 set(LLVM_BINARY_DIR       ${CMAKE_CURRENT_BINARY_DIR}  ) # --prefix
 
-# Note: LLVM_CMAKE_PATH does not include generated files
-set(LLVM_CMAKE_PATH ${LLVM_MAIN_SRC_DIR}/cmake/modules)
+# Note: LLVM_CMAKE_DIR does not include generated files
+set(LLVM_CMAKE_DIR ${LLVM_MAIN_SRC_DIR}/cmake/modules)
 set(LLVM_EXAMPLES_BINARY_DIR ${LLVM_BINARY_DIR}/examples)
 set(LLVM_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 

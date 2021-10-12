@@ -67,7 +67,8 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-The improvements are...
+- Added support for `NOLINTBEGIN` ... `NOLINTEND` comments to suppress
+  Clang-Tidy warnings over multiple lines.
 
 New checks
 ^^^^^^^^^^
@@ -90,6 +91,11 @@ New checks
   Reports identifiers whose names are too short. Currently checks local
   variables and function parameters only.
 
+
+- New :doc:`readability-data-pointer <clang-tidy/checks/readability-data-pointer>` check.
+
+  Finds cases where code could use ``data()`` rather than the address of the
+  element at index 0 in a container.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^

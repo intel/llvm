@@ -12,14 +12,12 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         def readRegisters(self):
             return '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_connect(self):
         """Test connecting to a remote gdb server"""
         target = self.createTarget("a.yaml")
         process = self.connect(target)
         self.assertPacketLogContains(["qProcessInfo", "qfThreadInfo"])
 
-    @skipIfReproducer # FIXME: Unexpected packet during (active) replay
     def test_attach_fail(self):
         error_msg = "mock-error-msg"
 
@@ -69,7 +67,6 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
                 None, 0, True, error)
         self.assertEquals("'A' packet returned an error: 71", error.GetCString())
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_read_registers_using_g_packets(self):
         """Test reading registers using 'g' packets (default behavior)"""
         self.dbg.HandleCommand(
@@ -87,7 +84,6 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         self.assertEquals(
                 0, len([p for p in self.server.responder.packetLog if p.startswith("p")]))
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_read_registers_using_p_packets(self):
         """Test reading registers using 'p' packets"""
         self.dbg.HandleCommand(
@@ -100,7 +96,6 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         self.assertGreater(
                 len([p for p in self.server.responder.packetLog if p.startswith("p")]), 0)
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_write_registers_using_P_packets(self):
         """Test writing registers using 'P' packets (default behavior)"""
         self.server.responder = self.gPacketResponder()
@@ -113,7 +108,6 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
         self.assertGreater(
                 len([p for p in self.server.responder.packetLog if p.startswith("P")]), 0)
 
-    @skipIfReproducer # Packet log is not populated during replay.
     def test_write_registers_using_G_packets(self):
         """Test writing registers using 'G' packets"""
 
@@ -354,3 +348,46 @@ class TestGDBRemoteClient(GDBRemoteTestBase):
           "QEnvironmentHexEncoded:4e45454453454e43343d6623726f62",
           "QEnvironmentHexEncoded:455155414c533d666f6f3d626172",
         ])
+
+    def test_detach_no_multiprocess(self):
+        class MyResponder(MockGDBServerResponder):
+            def __init__(self):
+                super().__init__()
+                self.detached = None
+
+            def qfThreadInfo(self):
+                return "10200"
+
+            def D(self, packet):
+                self.detached = packet
+                return "OK"
+
+        self.server.responder = MyResponder()
+        target = self.dbg.CreateTarget('')
+        process = self.connect(target)
+        process.Detach()
+        self.assertEqual(self.server.responder.detached, "D")
+
+    def test_detach_pid(self):
+        class MyResponder(MockGDBServerResponder):
+            def __init__(self, test_case):
+                super().__init__()
+                self.test_case = test_case
+                self.detached = None
+
+            def qSupported(self, client_supported):
+                self.test_case.assertIn("multiprocess+", client_supported)
+                return "multiprocess+;" + super().qSupported(client_supported)
+
+            def qfThreadInfo(self):
+                return "mp400.10200"
+
+            def D(self, packet):
+                self.detached = packet
+                return "OK"
+
+        self.server.responder = MyResponder(self)
+        target = self.dbg.CreateTarget('')
+        process = self.connect(target)
+        process.Detach()
+        self.assertRegex(self.server.responder.detached, r"D;0*400")

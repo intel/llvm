@@ -2041,7 +2041,7 @@ void InitListChecker::CheckStructUnionTypes(
   RecordDecl *structDecl = DeclType->castAs<RecordType>()->getDecl();
 
   // If the record is invalid, some of it's members are invalid. To avoid
-  // confusion, we forgo checking the intializer for the entire record.
+  // confusion, we forgo checking the initializer for the entire record.
   if (structDecl->isInvalidDecl()) {
     // Assume it was supposed to consume a single initializer.
     ++Index;
@@ -8253,7 +8253,7 @@ ExprResult InitializationSequence::Perform(Sema &S,
 
       // When this is an incomplete array type (such as when this is
       // initializing an array of unknown bounds from an init list), use THAT
-      // type instead so that we propogate the array bounds.
+      // type instead so that we propagate the array bounds.
       if (MTETy->isIncompleteArrayType() &&
           !CurInit.get()->getType()->isIncompleteArrayType() &&
           S.Context.hasSameType(
@@ -8925,12 +8925,16 @@ static void emitBadConversionNotes(Sema &S, const InitializedEntity &entity,
       S.EmitRelatedResultTypeNoteForReturn(destType);
   }
   QualType fromType = op->getType();
-  auto *fromDecl = fromType.getTypePtr()->getPointeeCXXRecordDecl();
-  auto *destDecl = destType.getTypePtr()->getPointeeCXXRecordDecl();
+  QualType fromPointeeType = fromType.getCanonicalType()->getPointeeType();
+  QualType destPointeeType = destType.getCanonicalType()->getPointeeType();
+  auto *fromDecl = fromType->getPointeeCXXRecordDecl();
+  auto *destDecl = destType->getPointeeCXXRecordDecl();
   if (fromDecl && destDecl && fromDecl->getDeclKind() == Decl::CXXRecord &&
       destDecl->getDeclKind() == Decl::CXXRecord &&
       !fromDecl->isInvalidDecl() && !destDecl->isInvalidDecl() &&
-      !fromDecl->hasDefinition())
+      !fromDecl->hasDefinition() &&
+      destPointeeType.getQualifiers().compatiblyIncludes(
+          fromPointeeType.getQualifiers()))
     S.Diag(fromDecl->getLocation(), diag::note_forward_class_conversion)
         << S.getASTContext().getTagDeclType(fromDecl)
         << S.getASTContext().getTagDeclType(destDecl);

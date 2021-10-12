@@ -42,7 +42,7 @@ public:
 
   lldb::ProcessSP DebugProcess(lldb_private::ProcessLaunchInfo &launch_info,
                                lldb_private::Debugger &debugger,
-                               lldb_private::Target *target,
+                               lldb_private::Target &target,
                                lldb_private::Status &error) override;
 
   lldb::ProcessSP Attach(lldb_private::ProcessAttachInfo &attach_info,
@@ -61,6 +61,9 @@ public:
   void CalculateTrapHandlerSymbolNames() override {}
 
   ConstString GetFullNameForDylib(ConstString basename) override;
+
+  size_t GetSoftwareBreakpointTrapOpcode(Target &target,
+                                         BreakpointSite *bp_site) override;
 };
 
 } // namespace lldb_private

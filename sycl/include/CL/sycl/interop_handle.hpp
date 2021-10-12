@@ -52,9 +52,7 @@ public:
             access::mode Mode, access::target Target, access::placeholder IsPlh>
   backend_return_t<Backend, buffer<DataT, Dims>>
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
-    // TODO: the method is available when the target is target::device. Add it
-    // to the assert below when target::device enum is created.
-    static_assert(Target == access::target::global_buffer ||
+    static_assert(Target == access::target::device ||
                       Target == access::target::constant_buffer,
                   "The method is available only for target::device accessors");
 #ifndef __SYCL_DEVICE_ONLY__

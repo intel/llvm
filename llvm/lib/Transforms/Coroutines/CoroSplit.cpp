@@ -627,7 +627,7 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
       auto Slot = getSwiftErrorSlot(ValueTy);
       MappedResult = Builder.CreateLoad(ValueTy, Slot);
     } else {
-      assert(Op->getNumArgOperands() == 1);
+      assert(Op->arg_size() == 1);
       auto Value = MappedOp->getArgOperand(0);
       auto ValueTy = Value->getType();
       auto Slot = getSwiftErrorSlot(ValueTy);
@@ -738,8 +738,7 @@ void CoroCloner::replaceEntryBlock() {
   // entry needs to be moved to the new entry.
   Function *F = OldEntry->getParent();
   DominatorTree DT{*F};
-  for (auto IT = inst_begin(F), End = inst_end(F); IT != End;) {
-    Instruction &I = *IT++;
+  for (Instruction &I : llvm::make_early_inc_range(instructions(F))) {
     auto *Alloca = dyn_cast<AllocaInst>(&I);
     if (!Alloca || I.use_empty())
       continue;

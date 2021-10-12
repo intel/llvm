@@ -2017,6 +2017,14 @@ protected:
   ShuffleVectorInst *cloneImpl() const;
 
 public:
+  ShuffleVectorInst(Value *V1, Value *Mask, const Twine &NameStr = "",
+                    Instruction *InsertBefore = nullptr);
+  ShuffleVectorInst(Value *V1, Value *Mask, const Twine &NameStr,
+                    BasicBlock *InsertAtEnd);
+  ShuffleVectorInst(Value *V1, ArrayRef<int> Mask, const Twine &NameStr = "",
+                    Instruction *InsertBefore = nullptr);
+  ShuffleVectorInst(Value *V1, ArrayRef<int> Mask, const Twine &NameStr,
+                    BasicBlock *InsertAtEnd);
   ShuffleVectorInst(Value *V1, Value *V2, Value *Mask,
                     const Twine &NameStr = "",
                     Instruction *InsertBefor = nullptr);
@@ -4097,14 +4105,12 @@ public:
   ///
   Value *getIndirectDestLabel(unsigned i) const {
     assert(i < getNumIndirectDests() && "Out of bounds!");
-    return getOperand(i + getNumArgOperands() + getNumTotalBundleOperands() +
-                      1);
+    return getOperand(i + arg_size() + getNumTotalBundleOperands() + 1);
   }
 
   Value *getIndirectDestLabelUse(unsigned i) const {
     assert(i < getNumIndirectDests() && "Out of bounds!");
-    return getOperandUse(i + getNumArgOperands() + getNumTotalBundleOperands() +
-                         1);
+    return getOperandUse(i + arg_size() + getNumTotalBundleOperands() + 1);
   }
 
   // Return the destination basic blocks...

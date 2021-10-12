@@ -76,6 +76,7 @@ namespace clang {
   using llvm::make_error;
   using llvm::Error;
   using llvm::Expected;
+  using ExpectedTypePtr = llvm::Expected<const Type *>;
   using ExpectedType = llvm::Expected<QualType>;
   using ExpectedStmt = llvm::Expected<Stmt *>;
   using ExpectedExpr = llvm::Expected<Expr *>;
@@ -160,7 +161,9 @@ namespace clang {
     // Call the import function of ASTImporter for a baseclass of type `T` and
     // cast the return value to `T`.
     template <typename T>
-    Expected<T *> import(T *From) {
+    auto import(T *From)
+        -> std::conditional_t<std::is_base_of<Type, T>::value,
+                              Expected<const T *>, Expected<T *>> {
       auto ToOrErr = Importer.Import(From);
       if (!ToOrErr)
         return ToOrErr.takeError();
@@ -168,7 +171,7 @@ namespace clang {
     }
 
     template <typename T>
-    Expected<T *> import(const T *From) {
+    auto import(const T *From) {
       return import(const_cast<T *>(From));
     }
 
@@ -184,22 +187,6 @@ namespace clang {
       if (!From)
         return Optional<T>();
       return import(*From);
-    }
-
-    // Helper for chaining together multiple imports. If an error is detected,
-    // subsequent imports will return default constructed nodes, so that failure
-    // can be detected with a single conditional branch after a sequence of
-    // imports.
-    template <typename T> T importChecked(Error &Err, const T &From) {
-      // Don't attempt to import nodes if we hit an error earlier.
-      if (Err)
-        return T{};
-      Expected<T> MaybeVal = import(From);
-      if (!MaybeVal) {
-        Err = MaybeVal.takeError();
-        return T{};
-      }
-      return *MaybeVal;
     }
 
     ExplicitSpecifier importExplicitSpecifier(Error &Err,
@@ -477,6 +464,9 @@ namespace clang {
     Error ImportDefaultArgOfParmVarDecl(const ParmVarDecl *FromParam,
                                         ParmVarDecl *ToParam);
 
+    Expected<InheritedConstructor>
+    ImportInheritedConstructor(const InheritedConstructor &From);
+
     template <typename T>
     bool hasSameVisibilityContextAndLinkage(T *Found, T *From);
 
@@ -599,6 +589,7 @@ namespace clang {
     ExpectedStmt VisitSourceLocExpr(SourceLocExpr *E);
     ExpectedStmt VisitVAArgExpr(VAArgExpr *E);
     ExpectedStmt VisitChooseExpr(ChooseExpr *E);
+    ExpectedStmt VisitShuffleVectorExpr(ShuffleVectorExpr *E);
     ExpectedStmt VisitGNUNullExpr(GNUNullExpr *E);
     ExpectedStmt VisitGenericSelectionExpr(GenericSelectionExpr *E);
     ExpectedStmt VisitPredefinedExpr(PredefinedExpr *E);
@@ -668,6 +659,22 @@ namespace clang {
     ExpectedStmt VisitTypeTraitExpr(TypeTraitExpr *E);
     ExpectedStmt VisitCXXTypeidExpr(CXXTypeidExpr *E);
     ExpectedStmt VisitCXXFoldExpr(CXXFoldExpr *E);
+
+    // Helper for chaining together multiple imports. If an error is detected,
+    // subsequent imports will return default constructed nodes, so that failure
+    // can be detected with a single conditional branch after a sequence of
+    // imports.
+    template <typename T> T importChecked(Error &Err, const T &From) {
+      // Don't attempt to import nodes if we hit an error earlier.
+      if (Err)
+        return T{};
+      Expected<T> MaybeVal = import(From);
+      if (!MaybeVal) {
+        Err = MaybeVal.takeError();
+        return T{};
+      }
+      return *MaybeVal;
+    }
 
     template<typename IIter, typename OIter>
     Error ImportArrayChecked(IIter Ibegin, IIter Iend, OIter Obegin) {
@@ -1169,12 +1176,12 @@ ASTNodeImporter::VisitMemberPointerType(const MemberPointerType *T) {
   if (!ToPointeeTypeOrErr)
     return ToPointeeTypeOrErr.takeError();
 
-  ExpectedType ClassTypeOrErr = import(QualType(T->getClass(), 0));
+  ExpectedTypePtr ClassTypeOrErr = import(T->getClass());
   if (!ClassTypeOrErr)
     return ClassTypeOrErr.takeError();
 
-  return Importer.getToContext().getMemberPointerType(
-      *ToPointeeTypeOrErr, (*ClassTypeOrErr).getTypePtr());
+  return Importer.getToContext().getMemberPointerType(*ToPointeeTypeOrErr,
+                                                      *ClassTypeOrErr);
 }
 
 ExpectedType
@@ -1480,34 +1487,32 @@ ExpectedType ASTNodeImporter::VisitTemplateTypeParmType(
 
 ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmType(
     const SubstTemplateTypeParmType *T) {
-  ExpectedType ReplacedOrErr = import(QualType(T->getReplacedParameter(), 0));
+  Expected<const TemplateTypeParmType *> ReplacedOrErr =
+      import(T->getReplacedParameter());
   if (!ReplacedOrErr)
     return ReplacedOrErr.takeError();
-  const TemplateTypeParmType *Replaced =
-      cast<TemplateTypeParmType>((*ReplacedOrErr).getTypePtr());
 
   ExpectedType ToReplacementTypeOrErr = import(T->getReplacementType());
   if (!ToReplacementTypeOrErr)
     return ToReplacementTypeOrErr.takeError();
 
   return Importer.getToContext().getSubstTemplateTypeParmType(
-        Replaced, (*ToReplacementTypeOrErr).getCanonicalType());
+      *ReplacedOrErr, ToReplacementTypeOrErr->getCanonicalType());
 }
 
 ExpectedType ASTNodeImporter::VisitSubstTemplateTypeParmPackType(
     const SubstTemplateTypeParmPackType *T) {
-  ExpectedType ReplacedOrErr = import(QualType(T->getReplacedParameter(), 0));
+  Expected<const TemplateTypeParmType *> ReplacedOrErr =
+      import(T->getReplacedParameter());
   if (!ReplacedOrErr)
     return ReplacedOrErr.takeError();
-  const TemplateTypeParmType *Replaced =
-      cast<TemplateTypeParmType>(ReplacedOrErr->getTypePtr());
 
   Expected<TemplateArgument> ToArgumentPack = import(T->getArgumentPack());
   if (!ToArgumentPack)
     return ToArgumentPack.takeError();
 
   return Importer.getToContext().getSubstTemplateTypeParmPackType(
-      Replaced, *ToArgumentPack);
+      *ReplacedOrErr, *ToArgumentPack);
 }
 
 ExpectedType ASTNodeImporter::VisitTemplateSpecializationType(
@@ -1522,7 +1527,7 @@ ExpectedType ASTNodeImporter::VisitTemplateSpecializationType(
     return std::move(Err);
 
   QualType ToCanonType;
-  if (!QualType(T, 0).isCanonical()) {
+  if (!T->isCanonicalUnqualified()) {
     QualType FromCanonType
       = Importer.getFromContext().getCanonicalType(QualType(T, 0));
     if (ExpectedType TyOrErr = import(FromCanonType))
@@ -1830,7 +1835,7 @@ ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) {
         RecordDecl *FromRecordDecl = nullptr;
         RecordDecl *ToRecordDecl = nullptr;
         // If we have a field that is an ArrayType we need to check if the array
-        // element is a RecordDecl and if so we need to import the defintion.
+        // element is a RecordDecl and if so we need to import the definition.
         if (FieldFrom->getType()->isArrayType()) {
           // getBaseElementTypeUnsafe(...) handles multi-dimensonal arrays for us.
           FromRecordDecl = FieldFrom->getType()->getBaseElementTypeUnsafe()->getAsRecordDecl();
@@ -3483,13 +3488,19 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
         importExplicitSpecifier(Err, FromConstructor->getExplicitSpecifier());
     if (Err)
       return std::move(Err);
+    auto ToInheritedConstructor = InheritedConstructor();
+    if (FromConstructor->isInheritingConstructor()) {
+      Expected<InheritedConstructor> ImportedInheritedCtor =
+          import(FromConstructor->getInheritedConstructor());
+      if (!ImportedInheritedCtor)
+        return ImportedInheritedCtor.takeError();
+      ToInheritedConstructor = *ImportedInheritedCtor;
+    }
     if (GetImportedOrCreateDecl<CXXConstructorDecl>(
             ToFunction, D, Importer.getToContext(), cast<CXXRecordDecl>(DC),
             ToInnerLocStart, NameInfo, T, TInfo, ESpec, D->UsesFPIntrin(),
             D->isInlineSpecified(), D->isImplicit(), D->getConstexprKind(),
-            InheritedConstructor(), // FIXME: Properly import inherited
-                                    // constructor info
-            TrailingRequiresClause))
+            ToInheritedConstructor, TrailingRequiresClause))
       return ToFunction;
   } else if (CXXDestructorDecl *FromDtor = dyn_cast<CXXDestructorDecl>(D)) {
 
@@ -4223,6 +4234,17 @@ Error ASTNodeImporter::ImportDefaultArgOfParmVarDecl(
   return Error::success();
 }
 
+Expected<InheritedConstructor>
+ASTNodeImporter::ImportInheritedConstructor(const InheritedConstructor &From) {
+  Error Err = Error::success();
+  CXXConstructorDecl *ToBaseCtor = importChecked(Err, From.getConstructor());
+  ConstructorUsingShadowDecl *ToShadow =
+      importChecked(Err, From.getShadowDecl());
+  if (Err)
+    return std::move(Err);
+  return InheritedConstructor(ToShadow, ToBaseCtor);
+}
+
 ExpectedDecl ASTNodeImporter::VisitParmVarDecl(ParmVarDecl *D) {
   // Parameters are created in the translation unit's context, then moved
   // into the function declaration's context afterward.
@@ -4762,9 +4784,29 @@ ExpectedDecl ASTNodeImporter::VisitUsingShadowDecl(UsingShadowDecl *D) {
     return ToTargetOrErr.takeError();
 
   UsingShadowDecl *ToShadow;
-  if (GetImportedOrCreateDecl(ToShadow, D, Importer.getToContext(), DC, Loc,
-                              Name, *ToIntroducerOrErr, *ToTargetOrErr))
-    return ToShadow;
+  if (auto *FromConstructorUsingShadow =
+          dyn_cast<ConstructorUsingShadowDecl>(D)) {
+    Error Err = Error::success();
+    ConstructorUsingShadowDecl *Nominated = importChecked(
+        Err, FromConstructorUsingShadow->getNominatedBaseClassShadowDecl());
+    if (Err)
+      return std::move(Err);
+    // The 'Target' parameter of ConstructorUsingShadowDecl constructor
+    // is really the "NominatedBaseClassShadowDecl" value if it exists
+    // (see code of ConstructorUsingShadowDecl::ConstructorUsingShadowDecl).
+    // We should pass the NominatedBaseClassShadowDecl to it (if non-null) to
+    // get the correct values.
+    if (GetImportedOrCreateDecl<ConstructorUsingShadowDecl>(
+            ToShadow, D, Importer.getToContext(), DC, Loc,
+            cast<UsingDecl>(*ToIntroducerOrErr),
+            Nominated ? Nominated : *ToTargetOrErr,
+            FromConstructorUsingShadow->constructsVirtualBase()))
+      return ToShadow;
+  } else {
+    if (GetImportedOrCreateDecl(ToShadow, D, Importer.getToContext(), DC, Loc,
+                                Name, *ToIntroducerOrErr, *ToTargetOrErr))
+      return ToShadow;
+  }
 
   ToShadow->setLexicalDeclContext(LexicalDC);
   ToShadow->setAccess(D->getAccess());
@@ -6736,6 +6778,24 @@ ExpectedStmt ASTNodeImporter::VisitChooseExpr(ChooseExpr *E) {
                  ToRParenLoc, CondIsTrue);
 }
 
+ExpectedStmt ASTNodeImporter::VisitShuffleVectorExpr(ShuffleVectorExpr *E) {
+  Error Err = Error::success();
+  auto ToRParenLoc = importChecked(Err, E->getRParenLoc());
+  auto ToBeginLoc = importChecked(Err, E->getBeginLoc());
+  auto ToType = importChecked(Err, E->getType());
+  const unsigned NumSubExprs = E->getNumSubExprs();
+
+  llvm::SmallVector<Expr *, 8> ToSubExprs;
+  llvm::ArrayRef<Expr *> FromSubExprs(E->getSubExprs(), NumSubExprs);
+  ToSubExprs.resize(NumSubExprs);
+
+  if ((Err = ImportContainerChecked(FromSubExprs, ToSubExprs)))
+    return std::move(Err);
+
+  return new (Importer.getToContext()) ShuffleVectorExpr(
+      Importer.getToContext(), ToSubExprs, ToType, ToBeginLoc, ToRParenLoc);
+}
+
 ExpectedStmt ASTNodeImporter::VisitGNUNullExpr(GNUNullExpr *E) {
   ExpectedType TypeOrErr = import(E->getType());
   if (!TypeOrErr)
@@ -8365,7 +8425,7 @@ ASTImporter::Import(ExprWithCleanups::CleanupObject From) {
   return make_error<ImportError>(ImportError::UnsupportedConstruct);
 }
 
-Expected<const Type *> ASTImporter::Import(const Type *FromT) {
+ExpectedTypePtr ASTImporter::Import(const Type *FromT) {
   if (!FromT)
     return FromT;
 
@@ -8375,7 +8435,7 @@ Expected<const Type *> ASTImporter::Import(const Type *FromT) {
   if (Pos != ImportedTypes.end())
     return Pos->second;
 
-  // Import the type
+  // Import the type.
   ASTNodeImporter Importer(*this);
   ExpectedType ToTOrErr = Importer.Visit(FromT);
   if (!ToTOrErr)
@@ -8391,7 +8451,7 @@ Expected<QualType> ASTImporter::Import(QualType FromT) {
   if (FromT.isNull())
     return QualType{};
 
-  Expected<const Type *> ToTyOrErr = Import(FromT.getTypePtr());
+  ExpectedTypePtr ToTyOrErr = Import(FromT.getTypePtr());
   if (!ToTyOrErr)
     return ToTyOrErr.takeError();
 
@@ -8414,8 +8474,118 @@ Expected<TypeSourceInfo *> ASTImporter::Import(TypeSourceInfo *FromTSI) {
   return ToContext.getTrivialTypeSourceInfo(*TOrErr, *BeginLocOrErr);
 }
 
+// To use this object, it should be created before the new attribute is created,
+// and destructed after it is created. The construction already performs the
+// import of the data.
+template <typename T> struct AttrArgImporter {
+  AttrArgImporter<T>(const AttrArgImporter<T> &) = delete;
+  AttrArgImporter<T>(AttrArgImporter<T> &&) = default;
+  AttrArgImporter<T> &operator=(const AttrArgImporter<T> &) = delete;
+  AttrArgImporter<T> &operator=(AttrArgImporter<T> &&) = default;
+
+  AttrArgImporter(ASTNodeImporter &I, Error &Err, const T &From)
+      : To(I.importChecked(Err, From)) {}
+
+  const T &value() { return To; }
+
+private:
+  T To;
+};
+
+// To use this object, it should be created before the new attribute is created,
+// and destructed after it is created. The construction already performs the
+// import of the data. The array data is accessible in a pointer form, this form
+// is used by the attribute classes. This object should be created once for the
+// array data to be imported (the array size is not imported, just copied).
+template <typename T> struct AttrArgArrayImporter {
+  AttrArgArrayImporter<T>(const AttrArgArrayImporter<T> &) = delete;
+  AttrArgArrayImporter<T>(AttrArgArrayImporter<T> &&) = default;
+  AttrArgArrayImporter<T> &operator=(const AttrArgArrayImporter<T> &) = delete;
+  AttrArgArrayImporter<T> &operator=(AttrArgArrayImporter<T> &&) = default;
+
+  AttrArgArrayImporter(ASTNodeImporter &I, Error &Err,
+                       const llvm::iterator_range<T *> &From,
+                       unsigned ArraySize) {
+    if (Err)
+      return;
+    To.reserve(ArraySize);
+    Err = I.ImportContainerChecked(From, To);
+  }
+
+  T *value() { return To.data(); }
+
+private:
+  llvm::SmallVector<T, 2> To;
+};
+
+class AttrImporter {
+  Error Err = Error::success();
+  ASTImporter &Importer;
+  ASTNodeImporter NImporter;
+
+public:
+  AttrImporter(ASTImporter &I) : Importer(I), NImporter(I) {}
+
+  // Create an "importer" for an attribute parameter.
+  // Result of the 'value()' of that object is to be passed to the function
+  // 'createImpoprtedAttr', in the order that is expected by the attribute
+  // class.
+  template <class T> AttrArgImporter<T> importArg(const T &From) {
+    return AttrArgImporter<T>(NImporter, Err, From);
+  }
+
+  // Create an "importer" for an attribute parameter that has array type.
+  // Result of the 'value()' of that object is to be passed to the function
+  // 'createImpoprtedAttr', then the size of the array as next argument.
+  template <typename T>
+  AttrArgArrayImporter<T> importArrayArg(const llvm::iterator_range<T *> &From,
+                                         unsigned ArraySize) {
+    return AttrArgArrayImporter<T>(NImporter, Err, From, ArraySize);
+  }
+
+  // Create an attribute object with the specified arguments.
+  // The 'FromAttr' is the original (not imported) attribute, the 'ImportedArg'
+  // should be values that are passed to the 'Create' function of the attribute.
+  // (The 'Create' with 'ASTContext' first and 'AttributeCommonInfo' last is
+  // used here.) As much data is copied or imported from the old attribute
+  // as possible. The passed arguments should be already imported.
+  template <typename T, typename... Arg>
+  Expected<Attr *> createImportedAttr(const T *FromAttr, Arg &&...ImportedArg) {
+    static_assert(std::is_base_of<Attr, T>::value,
+                  "T should be subclass of Attr.");
+
+    const IdentifierInfo *ToAttrName = Importer.Import(FromAttr->getAttrName());
+    const IdentifierInfo *ToScopeName =
+        Importer.Import(FromAttr->getScopeName());
+    SourceRange ToAttrRange =
+        NImporter.importChecked(Err, FromAttr->getRange());
+    SourceLocation ToScopeLoc =
+        NImporter.importChecked(Err, FromAttr->getScopeLoc());
+
+    if (Err)
+      return std::move(Err);
+
+    AttributeCommonInfo ToI(ToAttrName, ToScopeName, ToAttrRange, ToScopeLoc,
+                            FromAttr->getParsedKind(), FromAttr->getSyntax(),
+                            FromAttr->getAttributeSpellingListIndex());
+    // The "SemanticSpelling" is not needed to be passed to the constructor.
+    // That value is recalculated from the SpellingListIndex if needed.
+    T *ToAttr = T::Create(Importer.getToContext(),
+                          std::forward<Arg>(ImportedArg)..., ToI);
+
+    ToAttr->setImplicit(FromAttr->isImplicit());
+    ToAttr->setPackExpansion(FromAttr->isPackExpansion());
+    if (auto *ToInheritableAttr = dyn_cast<InheritableAttr>(ToAttr))
+      ToInheritableAttr->setInherited(FromAttr->isInherited());
+
+    return ToAttr;
+  }
+};
+
 Expected<Attr *> ASTImporter::Import(const Attr *FromAttr) {
   Attr *ToAttr = nullptr;
+  // FIXME: Use AttrImporter as much as possible, try to remove the import
+  // of range from here.
   SourceRange ToRange;
   if (Error Err = importInto(ToRange, FromAttr->getRange()))
     return std::move(Err);
@@ -8457,6 +8627,20 @@ Expected<Attr *> ASTImporter::Import(const Attr *FromAttr) {
     ToAttr = To;
     break;
   }
+
+  case attr::AssertCapability: {
+    const auto *From = cast<AssertCapabilityAttr>(FromAttr);
+    AttrImporter AI(*this);
+    Expected<Attr *> ToAttrOrErr = AI.createImportedAttr(
+        From, AI.importArrayArg(From->args(), From->args_size()).value(),
+        From->args_size());
+    if (ToAttrOrErr)
+      ToAttr = *ToAttrOrErr;
+    else
+      return ToAttrOrErr.takeError();
+    break;
+  }
+
   default:
     // FIXME: 'clone' copies every member but some of them should be imported.
     // Handle other Attrs that have parameters that should be imported.
@@ -8623,6 +8807,11 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
   return ToDOrErr;
 }
 
+llvm::Expected<InheritedConstructor>
+ASTImporter::Import(const InheritedConstructor &From) {
+  return ASTNodeImporter(*this).ImportInheritedConstructor(From);
+}
+
 Expected<DeclContext *> ASTImporter::ImportContext(DeclContext *FromDC) {
   if (!FromDC)
     return FromDC;
@@ -8767,12 +8956,11 @@ ASTImporter::Import(NestedNameSpecifier *FromNNS) {
 
   case NestedNameSpecifier::TypeSpec:
   case NestedNameSpecifier::TypeSpecWithTemplate:
-    if (Expected<QualType> TyOrErr =
-            Import(QualType(FromNNS->getAsType(), 0u))) {
+    if (ExpectedTypePtr TyOrErr = Import(FromNNS->getAsType())) {
       bool TSTemplate =
           FromNNS->getKind() == NestedNameSpecifier::TypeSpecWithTemplate;
       return NestedNameSpecifier::Create(ToContext, Prefix, TSTemplate,
-                                         TyOrErr->getTypePtr());
+                                         *TyOrErr);
     } else {
       return TyOrErr.takeError();
     }
@@ -9407,16 +9595,14 @@ ASTNodeImporter::ImportAPValue(const APValue &FromValue) {
         }
       } else {
         FromElemTy = FromValue.getLValueBase().getTypeInfoType();
-        QualType ImpTypeInfo = importChecked(
-            Err,
-            QualType(FromValue.getLValueBase().get<TypeInfoLValue>().getType(),
-                     0));
+        const Type *ImpTypeInfo = importChecked(
+            Err, FromValue.getLValueBase().get<TypeInfoLValue>().getType());
         QualType ImpType =
             importChecked(Err, FromValue.getLValueBase().getTypeInfoType());
         if (Err)
           return std::move(Err);
-        Base = APValue::LValueBase::getTypeInfo(
-            TypeInfoLValue(ImpTypeInfo.getTypePtr()), ImpType);
+        Base = APValue::LValueBase::getTypeInfo(TypeInfoLValue(ImpTypeInfo),
+                                                ImpType);
       }
     }
     CharUnits Offset = FromValue.getLValueOffset();
