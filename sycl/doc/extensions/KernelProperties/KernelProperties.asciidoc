@@ -415,12 +415,11 @@ NOTE: Due to limitations of the C preprocessor, property value expressions
 containing commas (e.g. due to template arguments) must be enclosed in
 parentheses to avoid being interpreted as multiple arguments.
 
-The example below shows a function that can only be called from kernels using
-a work-group size of (8, 8) and a sub-group size of 8:
+The example below shows a function that uses two optional features,
+corresponding to the `fp16` and `atomic64` aspects.
 
 ```c++
-SYCL_EXT_ONEAPI_PROPERTY((sycl::work_group_size_v<8, 8>))
-SYCL_EXT_ONEAPI_PROPERTY(sycl::sub_group_size_v<8>)
+SYCL_EXT_ONEAPI_PROPERTY((sycl::device_has_v<aspect::fp16, aspect::atomic64>))
 void foo();
 ```
 
@@ -429,35 +428,6 @@ with a non-kernel device function via the `SYCL_EXT_ONEAPI_PROPERTY` macro.
 
 |===
 |Property|Description
-
-|`work_group_size`
-|The `work_group_size` property adds the restriction that the device function
- may only be called by kernels using the specified work-group size. If a kernel
- with an associated `work_group_size` property calls a device function with a
- different `work_group_size` property, the compiler must issue a diagnostic.
- If a kernel without an associated `work_group_size` property calls a device
- function with an associated `work_group_size` property, and the kernel is
- launched with a different work-group size to the one specified by the
- property, the behavior of the device function is undefined.
-
-|`work_group_size_hint`
-|The `work_group_size_hint` property hints to the compiler that the device
- function is likely to be called from a kernel launched with the specified
- work-group size. An implementation must guarantee that any device function
- associated with this property is compiled such that it can be called from any
- kernel; if a kernel with an associated `work_group_size_hint` property calls a
- device function with a different `work_group_size_hint` property, the compiler
- must not issue a diagnostic.
-
-|`sub_group_size`
-|The `sub_group_size` property adds the restriction that the device function
- may only be called by kernels using the specified sub-group size. If a kernel
- with an associated `sub_group_size` property calls a device function with a
- different `sub_group_size` property, the compiler must issue a diagnostic.
- If a kernel without an associated `sub_group_size` property calls a device
- function with an associated `sub_group_size` property, and the kernel is
- executed with a different sub-group size to the one specified by the property,
- the behavior of the device function is undefined.
 
 |`device_has`
 |The `device_has` property asserts that the device function uses optional
