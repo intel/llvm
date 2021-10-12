@@ -11,7 +11,6 @@
 ///
 /// \ingroup sycl_pi
 
-#include "CL/sycl/detail/os_util.hpp"
 #include "context_impl.hpp"
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/common.hpp>
@@ -23,7 +22,6 @@
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 #include <detail/xpti_registry.hpp>
-#include <support/library_utils.hpp>
 
 #include <bitset>
 #include <cstdarg>
@@ -331,7 +329,7 @@ int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 
 // Binds all the PI Interface APIs to Plugin Library Function Addresses.
 // TODO: Remove the 'OclPtr' extension to PI_API.
-// TODO: Change the functionality such that a single getLibraryFuncAddress
+// TODO: Change the functionality such that a single getOsLibraryFuncAddress
 // call is done to get all Interface API mapping. The plugin interface also
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
@@ -380,25 +378,15 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
   PluginInformation.PiFunctionTable = {};
 
-  // This is a workaround to allow loading plugins by name only from unit tests,
-  // that link SYCL runtime statically. Eventually OS utils should be moved to a
-  // separate library, and getPluginDirectory should not accept any arguments.
-  const std::string PluginPath = getPluginDirectory(OSUtil::getCurrentDSODir());
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
-    const std::string PluginName = [&]() {
-      if (!PluginName.empty()) {
-        return PluginPath + std::string{OSUtil::DirSep} + PluginNames[I].first;
-      }
-      // This branch is only taken in unit tests.
-      return PluginNames[I].first;
-    }();
     void *Library = loadPlugin(PluginNames[I].first);
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
                   << "Check if plugin is present. "
-                  << "Failed to load plugin: " << PluginName << std::endl;
+                  << "Failed to load plugin: " << PluginNames[I].first
+                  << std::endl;
       }
       continue;
     }
@@ -406,8 +394,8 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     if (!bindPlugin(Library, &PluginInformation)) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
-                  << "Failed to bind PI APIs to the plugin: " << PluginName
-                  << std::endl;
+                  << "Failed to bind PI APIs to the plugin: "
+                  << PluginNames[I].first << std::endl;
       }
       continue;
     }

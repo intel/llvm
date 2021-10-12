@@ -123,7 +123,7 @@ std::string OSUtil::getCurrentDSODir() {
   //
   //  4) Extract an absolute path to a filename and get a dirname from it.
   //
-  uintptr_t CurrentFunc = (uintptr_t)&getCurrentDSODir;
+  uintptr_t CurrentFunc = (uintptr_t) &getCurrentDSODir;
   std::ifstream Stream("/proc/self/maps");
   Stream >> std::hex;
   while (!Stream.eof()) {
@@ -168,7 +168,7 @@ std::string OSUtil::getCurrentDSODir() {
   return "";
 }
 
-std::string OSUtil::getDirName(const char *Path) {
+std::string OSUtil::getDirName(const char* Path) {
   std::string Tmp(Path);
   // dirname(3) needs a writable C string: a null-terminator is written where a
   // path should split.
@@ -298,6 +298,7 @@ int OSUtil::makeDir(const char *Dir) {
   } while (pos != std::string::npos);
   return 0;
 }
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

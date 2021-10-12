@@ -1,4 +1,4 @@
-//===-- library_utils.cpp - Dynamic library utilities ----------*- C++ -*--===//
+//==---------------- windows_pi.cpp ----------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,38 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/detail/os_util.hpp>
+#include <CL/sycl/detail/defines.hpp>
 
-#if defined(__SYCL_RT_OS_LINUX)
-#include <dlfcn.h>
-#elif defined(__SYCL_RT_OS_WINDOWS)
-#include <Windows.h>
+#include <string>
+#include <windows.h>
 #include <winreg.h>
-#endif
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-
-std::string getPluginDirectory(const std::string &DSOPath) {
-#ifdef __SYCL_SECURE_DLL_LOAD
-  return DSOPath;
-#else
-  return "";
-#endif
-}
+namespace pi {
 
 void *loadOsLibrary(const std::string &PluginPath) {
-#if defined(__SYCL_RT_OS_LINUX)
-  // TODO: Check if the option RTLD_NOW is correct. Explore using
-  // RTLD_DEEPBIND option when there are multiple plugins.
-  return dlopen(PluginPath.c_str(), RTLD_NOW);
-#elif defined(__SYCL_RT_OS_WINDOWS)
-#ifdef __SYCL_SECURE_DLL_LOAD
-  // Exclude current directory from DLL search paths according to Microsoft
-  // guidelines.
-  SetDllDirectory(L"");
-#endif
   // Tells the system to not display the critical-error-handler message box.
   // Instead, the system sends the error to the calling process.
   // This is crucial for graceful handling of plugins that couldn't be
@@ -50,26 +30,18 @@ void *loadOsLibrary(const std::string &PluginPath) {
   (void)SetErrorMode(SavedMode);
 
   return Result;
-#endif
 }
 
 int unloadOsLibrary(void *Library) {
-#if defined(__SYCL_RT_OS_LINUX)
-  return dlclose(Library);
-#elif defined(__SYCL_RT_OS_WINDOWS)
   return (int)FreeLibrary((HMODULE)Library);
-#endif
 }
 
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
-#if defined(__SYCL_RT_OS_LINUX)
-  return dlsym(Library, FunctionName.c_str());
-#elif defined(__SYCL_RT_OS_WINDOWS)
   return reinterpret_cast<void *>(
       GetProcAddress((HMODULE)Library, FunctionName.c_str()));
-#endif
 }
 
+} // namespace pi
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
