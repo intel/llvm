@@ -156,8 +156,8 @@ defm : X86WriteRes<WriteBitTestSetRegLd, [SLM_IEC_RSV01, SLM_MEC_RSV], 3, [1,1],
 def : WriteRes<WriteLEA, [SLM_IEC_RSV1]>;
 
 // Bit counts.
-defm : SLMWriteResPair<WriteBSF, [SLM_IEC_RSV01], 10, [20], 10>;
-defm : SLMWriteResPair<WriteBSR, [SLM_IEC_RSV01], 10, [20], 10>;
+defm : SLMWriteResPair<WriteBSF, [SLM_IEC_RSV0, SLM_IEC_RSV1], 10, [10,10], 10>;
+defm : SLMWriteResPair<WriteBSR, [SLM_IEC_RSV0, SLM_IEC_RSV1], 10, [10,10], 10>;
 defm : SLMWriteResPair<WriteLZCNT,          [SLM_IEC_RSV0], 3>;
 defm : SLMWriteResPair<WriteTZCNT,          [SLM_IEC_RSV0], 3>;
 defm : SLMWriteResPair<WritePOPCNT,         [SLM_IEC_RSV0], 3>;
@@ -465,15 +465,19 @@ def : WriteRes<WriteNop, []>;
 def SLMWriteResGroup1rr : SchedWriteRes<[SLM_FPC_RSV01]> {
   let Latency = 4;
   let NumMicroOps = 2;
-  let ResourceCycles = [4];
+  let ResourceCycles = [8];
 }
-def: InstRW<[SLMWriteResGroup1rr], (instrs PADDQrr, PSUBQrr, PCMPEQQrr)>;
+def: InstRW<[SLMWriteResGroup1rr], (instrs MMX_PADDQirr, PADDQrr,
+                                           MMX_PSUBQirr, PSUBQrr,
+                                           PCMPEQQrr)>;
 
 def SLMWriteResGroup1rm : SchedWriteRes<[SLM_MEC_RSV,SLM_FPC_RSV01]> {
   let Latency = 7;
   let NumMicroOps = 3;
-  let ResourceCycles = [1,4];
+  let ResourceCycles = [1,8];
 }
-def: InstRW<[SLMWriteResGroup1rm], (instrs PADDQrm, PSUBQrm, PCMPEQQrm)>;
+def: InstRW<[SLMWriteResGroup1rm], (instrs MMX_PADDQirm, PADDQrm,
+                                           MMX_PSUBQirm, PSUBQrm,
+                                           PCMPEQQrm)>;
 
 } // SchedModel

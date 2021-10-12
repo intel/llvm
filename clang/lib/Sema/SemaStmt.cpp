@@ -378,8 +378,12 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
     return;
   }
 
-  DiagIfReachable(Loc, S ? llvm::makeArrayRef(S) : llvm::None,
-                  PDiag(DiagID) << R1 << R2);
+  // Do not diagnose use of a comma operator in a SFINAE context because the
+  // type of the left operand could be used for SFINAE, so technically it is
+  // *used*.
+  if (DiagID != diag::warn_unused_comma_left_operand || !isSFINAEContext())
+    DiagIfReachable(Loc, S ? llvm::makeArrayRef(S) : llvm::None,
+                    PDiag(DiagID) << R1 << R2);
 }
 
 void Sema::ActOnStartOfCompoundStmt(bool IsStmtExpr) {
@@ -3653,8 +3657,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
 
     // In C++ the return statement is handled via a copy initialization.
     // the C version of which boils down to CheckSingleAssignmentConstraints.
-    InitializedEntity Entity = InitializedEntity::InitializeResult(
-        ReturnLoc, FnRetType, NRVOCandidate != nullptr);
+    InitializedEntity Entity =
+        InitializedEntity::InitializeResult(ReturnLoc, FnRetType);
     ExprResult Res = PerformMoveOrCopyInitialization(
         Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
     if (Res.isInvalid()) {
@@ -4085,8 +4089,8 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
     // the C version of which boils down to CheckSingleAssignmentConstraints.
     if (!HasDependentReturnType && !RetValExp->isTypeDependent()) {
       // we have a non-void function with an expression, continue checking
-      InitializedEntity Entity = InitializedEntity::InitializeResult(
-          ReturnLoc, RetType, NRVOCandidate != nullptr);
+      InitializedEntity Entity =
+          InitializedEntity::InitializeResult(ReturnLoc, RetType);
       ExprResult Res = PerformMoveOrCopyInitialization(
           Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
       if (Res.isInvalid()) {

@@ -77,12 +77,17 @@ int main() {
   b.insert_bits(sycl::marray<char, 8>{1, 2, 4, 8, 16, 32, 64, 128}, 5);
   assert(!b[18] && !b[20] && !b[22] && !b[24] && !b[30] && !b[16] && b[3] &&
          b[5] && b[14] && b[23]);
-  char r;
+  char r, rbc;
+  const auto b_const{b};
   b.extract_bits(r);
+  b_const.extract_bits(rbc);
   assert(r == 0b00101000);
-  long r2 = -1;
+  assert(rbc == 0b00101000);
+  long r2 = -1, r2bc = -1;
   b.extract_bits(r2, 16);
+  b_const.extract_bits(r2bc, 16);
   assert(r2 == 128);
+  assert(r2bc == 128);
   b[31] = true;
   sycl::marray<char, 6> r3{-1};
   b.extract_bits(r3, 14);

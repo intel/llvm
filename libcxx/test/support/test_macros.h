@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===---------------------------- test_macros.h ---------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -162,20 +162,6 @@
 #else
 # define TEST_CONSTEXPR_CXX20
 #endif
-
-/* Features that were introduced in C++14 */
-#if TEST_STD_VER >= 14
-#define TEST_HAS_VARIABLE_TEMPLATES
-#endif
-
-/* Features that were introduced in C++17 */
-#if TEST_STD_VER >= 17
-#endif
-
-/* Features that were introduced after C++17 */
-#if TEST_STD_VER > 17
-#endif
-
 
 #define TEST_ALIGNAS_TYPE(...) TEST_ALIGNAS(TEST_ALIGNOF(__VA_ARGS__))
 

@@ -573,14 +573,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   }
 
   if (config->timeTraceEnabled) {
-    if (auto E = timeTraceProfilerWrite(args.getLastArgValue(OPT_time_trace_file_eq).str(),
-                                        config->outputFile)) {
-      handleAllErrors(std::move(E), [&](const StringError &SE) {
-        error(SE.getMessage());
-      });
-      return;
-    }
-
+    checkError(timeTraceProfilerWrite(
+        args.getLastArgValue(OPT_time_trace_file_eq).str(),
+        config->outputFile));
     timeTraceProfilerCleanup();
   }
 }
@@ -1084,8 +1079,6 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path_eq);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
-  config->ltoPseudoProbeForProfiling =
-      args.hasArg(OPT_lto_pseudo_probe_for_profiling);
   config->ltoSampleProfile = args.getLastArgValue(OPT_lto_sample_profile);
   config->ltoBasicBlockSections =
       args.getLastArgValue(OPT_lto_basic_block_sections);

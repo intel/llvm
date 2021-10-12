@@ -93,6 +93,9 @@ public:
   std::optional<DynamicType> GetType() const;
   int Rank() const;
   std::string AsFortran() const;
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  LLVM_DUMP_METHOD void dump() const;
+#endif
   llvm::raw_ostream &AsFortran(llvm::raw_ostream &) const;
   static Derived Rewrite(FoldingContext &, Derived &&);
 };
@@ -116,8 +119,10 @@ class Operation {
 public:
   using Derived = DERIVED;
   using Result = RESULT;
-  static_assert(IsSpecificIntrinsicType<Result>);
   static constexpr std::size_t operands{sizeof...(OPERANDS)};
+  // Allow specific intrinsic types and Parentheses<SomeDerived>
+  static_assert(IsSpecificIntrinsicType<Result> ||
+      (operands == 1 && std::is_same_v<Result, SomeDerived>));
   template <int J> using Operand = std::tuple_element_t<J, OperandTypes>;
 
   // Unary operations wrap a single Expr with a CopyableIndirection.
@@ -172,7 +177,9 @@ public:
     }
   }
 
-  static constexpr std::optional<DynamicType> GetType() {
+  static constexpr std::conditional_t<Result::category != TypeCategory::Derived,
+      std::optional<DynamicType>, void>
+  GetType() {
     return Result::GetType();
   }
   int Rank() const {
@@ -220,6 +227,17 @@ struct Parentheses : public Operation<Parentheses<A>, A, A> {
   using Operand = A;
   using Base = Operation<Parentheses, A, A>;
   using Base::Base;
+};
+
+template <>
+struct Parentheses<SomeDerived>
+    : public Operation<Parentheses<SomeDerived>, SomeDerived, SomeDerived> {
+public:
+  using Result = SomeDerived;
+  using Operand = SomeDerived;
+  using Base = Operation<Parentheses, SomeDerived, SomeDerived>;
+  using Base::Base;
+  DynamicType GetType() const;
 };
 
 template <typename A> struct Negate : public Operation<Negate<A>, A, A> {
@@ -730,7 +748,7 @@ public:
   using Result = SomeDerived;
   EVALUATE_UNION_CLASS_BOILERPLATE(Expr)
   std::variant<Constant<Result>, ArrayConstructor<Result>, StructureConstructor,
-      Designator<Result>, FunctionRef<Result>>
+      Designator<Result>, FunctionRef<Result>, Parentheses<Result>>
       u;
 };
 

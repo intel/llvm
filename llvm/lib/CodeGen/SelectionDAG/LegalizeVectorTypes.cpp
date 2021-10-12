@@ -3623,7 +3623,7 @@ SDValue DAGTypeLegalizer::WidenVecRes_Convert(SDNode *N) {
   SDLoc DL(N);
 
   EVT WidenVT = TLI.getTypeToTransformTo(Ctx, N->getValueType(0));
-  unsigned WidenNumElts = WidenVT.getVectorNumElements();
+  ElementCount WidenEC = WidenVT.getVectorElementCount();
 
   EVT InVT = InOp.getValueType();
 
@@ -3643,14 +3643,14 @@ SDValue DAGTypeLegalizer::WidenVecRes_Convert(SDNode *N) {
   }
 
   EVT InEltVT = InVT.getVectorElementType();
-  EVT InWidenVT = EVT::getVectorVT(Ctx, InEltVT, WidenNumElts);
-  unsigned InVTNumElts = InVT.getVectorNumElements();
+  EVT InWidenVT = EVT::getVectorVT(Ctx, InEltVT, WidenEC);
+  ElementCount InVTEC = InVT.getVectorElementCount();
 
   if (getTypeAction(InVT) == TargetLowering::TypeWidenVector) {
     InOp = GetWidenedVector(N->getOperand(0));
     InVT = InOp.getValueType();
-    InVTNumElts = InVT.getVectorNumElements();
-    if (InVTNumElts == WidenNumElts) {
+    InVTEC = InVT.getVectorElementCount();
+    if (InVTEC == WidenEC) {
       if (N->getNumOperands() == 1)
         return DAG.getNode(Opcode, DL, WidenVT, InOp);
       return DAG.getNode(Opcode, DL, WidenVT, InOp, N->getOperand(1), Flags);
@@ -3674,9 +3674,10 @@ SDValue DAGTypeLegalizer::WidenVecRes_Convert(SDNode *N) {
     // it an illegal type that might lead to repeatedly splitting the input
     // and then widening it. To avoid this, we widen the input only if
     // it results in a legal type.
-    if (WidenNumElts % InVTNumElts == 0) {
+    if (WidenEC.isKnownMultipleOf(InVTEC.getKnownMinValue())) {
       // Widen the input and call convert on the widened input vector.
-      unsigned NumConcat = WidenNumElts/InVTNumElts;
+      unsigned NumConcat =
+          WidenEC.getKnownMinValue() / InVTEC.getKnownMinValue();
       SmallVector<SDValue, 16> Ops(NumConcat, DAG.getUNDEF(InVT));
       Ops[0] = InOp;
       SDValue InVec = DAG.getNode(ISD::CONCAT_VECTORS, DL, InWidenVT, Ops);
@@ -3685,7 +3686,7 @@ SDValue DAGTypeLegalizer::WidenVecRes_Convert(SDNode *N) {
       return DAG.getNode(Opcode, DL, WidenVT, InVec, N->getOperand(1), Flags);
     }
 
-    if (InVTNumElts % WidenNumElts == 0) {
+    if (InVTEC.isKnownMultipleOf(WidenEC.getKnownMinValue())) {
       SDValue InVal = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, InWidenVT, InOp,
                                   DAG.getVectorIdxConstant(0, DL));
       // Extract the input and convert the shorten input vector.
@@ -3697,7 +3698,7 @@ SDValue DAGTypeLegalizer::WidenVecRes_Convert(SDNode *N) {
 
   // Otherwise unroll into some nasty scalar code and rebuild the vector.
   EVT EltVT = WidenVT.getVectorElementType();
-  SmallVector<SDValue, 16> Ops(WidenNumElts, DAG.getUNDEF(EltVT));
+  SmallVector<SDValue, 16> Ops(WidenEC.getFixedValue(), DAG.getUNDEF(EltVT));
   // Use the original element count so we don't do more scalar opts than
   // necessary.
   unsigned MinElts = N->getValueType(0).getVectorNumElements();
@@ -4060,12 +4061,14 @@ SDValue DAGTypeLegalizer::WidenVecRes_CONCAT_VECTORS(SDNode *N) {
 
 SDValue DAGTypeLegalizer::WidenVecRes_EXTRACT_SUBVECTOR(SDNode *N) {
   EVT      VT = N->getValueType(0);
+  EVT      EltVT = VT.getVectorElementType();
   EVT      WidenVT = TLI.getTypeToTransformTo(*DAG.getContext(), VT);
   SDValue  InOp = N->getOperand(0);
   SDValue  Idx  = N->getOperand(1);
   SDLoc dl(N);
 
-  if (getTypeAction(InOp.getValueType()) == TargetLowering::TypeWidenVector)
+  auto InOpTypeAction = getTypeAction(InOp.getValueType());
+  if (InOpTypeAction == TargetLowering::TypeWidenVector)
     InOp = GetWidenedVector(InOp);
 
   EVT InVT = InOp.getValueType();
@@ -4075,20 +4078,49 @@ SDValue DAGTypeLegalizer::WidenVecRes_EXTRACT_SUBVECTOR(SDNode *N) {
   if (IdxVal == 0 && InVT == WidenVT)
     return InOp;
 
-  if (VT.isScalableVector())
-    report_fatal_error("Don't know how to widen the result of "
-                       "EXTRACT_SUBVECTOR for scalable vectors");
-
   // Check if we can extract from the vector.
-  unsigned WidenNumElts = WidenVT.getVectorNumElements();
-  unsigned InNumElts = InVT.getVectorNumElements();
+  unsigned WidenNumElts = WidenVT.getVectorMinNumElements();
+  unsigned InNumElts = InVT.getVectorMinNumElements();
   if (IdxVal % WidenNumElts == 0 && IdxVal + WidenNumElts < InNumElts)
     return DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, WidenVT, InOp, Idx);
+
+  if (VT.isScalableVector()) {
+    // Try to split the operation up into smaller extracts and concat the
+    // results together, e.g.
+    //    nxv6i64 extract_subvector(nxv12i64, 6)
+    // <->
+    //  nxv8i64 concat(
+    //    nxv2i64 extract_subvector(nxv16i64, 6)
+    //    nxv2i64 extract_subvector(nxv16i64, 8)
+    //    nxv2i64 extract_subvector(nxv16i64, 10)
+    //    undef)
+    unsigned VTNElts = VT.getVectorMinNumElements();
+    unsigned GCD = greatestCommonDivisor(VTNElts, WidenNumElts);
+    assert((IdxVal % GCD) == 0 && "Expected Idx to be a multiple of the broken "
+                                  "down type's element count");
+    EVT PartVT = EVT::getVectorVT(*DAG.getContext(), EltVT,
+                                  ElementCount::getScalable(GCD));
+    // Avoid recursion around e.g. nxv1i8.
+    if (getTypeAction(PartVT) != TargetLowering::TypeWidenVector) {
+      SmallVector<SDValue> Parts;
+      unsigned I = 0;
+      for (; I < VTNElts / GCD; ++I)
+        Parts.push_back(
+            DAG.getNode(ISD::EXTRACT_SUBVECTOR, dl, PartVT, InOp,
+                        DAG.getVectorIdxConstant(IdxVal + I * GCD, dl)));
+      for (; I < WidenNumElts / GCD; ++I)
+        Parts.push_back(DAG.getUNDEF(PartVT));
+
+      return DAG.getNode(ISD::CONCAT_VECTORS, dl, WidenVT, Parts);
+    }
+
+    report_fatal_error("Don't know how to widen the result of "
+                       "EXTRACT_SUBVECTOR for scalable vectors");
+  }
 
   // We could try widening the input to the right length but for now, extract
   // the original elements, fill the rest with undefs and build a vector.
   SmallVector<SDValue, 16> Ops(WidenNumElts);
-  EVT EltVT = VT.getVectorElementType();
   unsigned NumElts = VT.getVectorNumElements();
   unsigned i;
   for (i = 0; i < NumElts; ++i)

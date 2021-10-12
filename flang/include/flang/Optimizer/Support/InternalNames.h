@@ -41,7 +41,8 @@ struct NameUniquer {
     INTRINSIC_TYPE_DESC,
     PROCEDURE,
     TYPE_DESC,
-    VARIABLE
+    VARIABLE,
+    NAMELIST_GROUP
   };
 
   /// Components of an unparsed unique name
@@ -53,10 +54,10 @@ struct NameUniquer {
         : modules{modules.begin(), modules.end()}, host{host}, name{name},
           kinds{kinds.begin(), kinds.end()} {}
 
-    llvm::SmallVector<std::string, 2> modules;
+    llvm::SmallVector<std::string> modules;
     llvm::Optional<std::string> host;
     std::string name;
-    llvm::SmallVector<std::int64_t, 4> kinds;
+    llvm::SmallVector<std::int64_t> kinds;
   };
 
   /// Unique a common block name
@@ -111,6 +112,11 @@ struct NameUniquer {
   static std::string doVariable(llvm::ArrayRef<llvm::StringRef> modules,
                                 llvm::Optional<llvm::StringRef> host,
                                 llvm::StringRef name);
+
+  /// Unique a namelist group name
+  static std::string doNamelistGroup(llvm::ArrayRef<llvm::StringRef> modules,
+                                     llvm::Optional<llvm::StringRef> host,
+                                     llvm::StringRef name);
 
   /// Entry point for the PROGRAM (called by the runtime)
   /// Can be overridden with the `--main-entry-name=<name>` option.

@@ -367,6 +367,20 @@ class Remangler {
       addSub(typeNode);
       break;
     }
+    case Node::Kind::KBinaryFPType: {
+      if (remangleSub(typeNode, S))
+        return;
+
+      const BinaryFPType *BFPType = static_cast<const BinaryFPType *>(typeNode);
+      assert(BFPType->getDimension()->getKind() == Node::Kind::KNameType);
+      const NameType *dims =
+          static_cast<const NameType *>(BFPType->getDimension());
+
+      S << "DF";
+      S << dims->getName();
+      S << '_';
+      break;
+    }
     case Node::Kind::KVendorExtQualType: {
       if (remangleSub(typeNode, S))
         return;
