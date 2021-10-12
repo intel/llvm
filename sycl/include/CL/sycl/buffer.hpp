@@ -42,8 +42,8 @@ make_buffer_helper(pi_native_handle Handle, const context &Ctx, event Evt) {
 template <
     typename T, int dimensions = 1,
     typename AllocatorT = cl::sycl::buffer_allocator<detail::remove_const_t<T>>,
-    typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
-                                                      (dimensions <= 3)>>
+    typename __Enabled =
+        typename detail::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer {
 public:
   using value_type = T;
