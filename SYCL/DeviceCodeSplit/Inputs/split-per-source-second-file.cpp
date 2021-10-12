@@ -16,7 +16,6 @@ void runKernelsFromFile2() {
     assert(!KB.has_kernel(KernelID3));
 
     Q.submit([&](cl::sycl::handler &Cgh) {
-      Cgh.use_kernel_bundle(KB);
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
       Cgh.single_task<File2Kern1>(Krn, [=]() { Acc[0] = 3; });
     });

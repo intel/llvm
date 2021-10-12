@@ -24,7 +24,6 @@ int main() {
     // assert(!Prg.has_kernel<File2Kern1>());
 
     Q.submit([&](cl::sycl::handler &Cgh) {
-      Cgh.use_kernel_bundle(KB);
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
       Cgh.single_task<File1Kern1>(/*Krn,*/ [=]() { Acc[0] = 1; });
     });
@@ -45,7 +44,6 @@ int main() {
     // assert(!Prg.has_kernel<File2Kern1>());
 
     Q.submit([&](cl::sycl::handler &Cgh) {
-      Cgh.use_kernel_bundle(KB);
       auto Acc = Buf.get_access<cl::sycl::access::mode::read_write>(Cgh);
       Cgh.single_task<File1Kern2>(/*Krn,*/ [=]() { Acc[0] = 2; });
     });

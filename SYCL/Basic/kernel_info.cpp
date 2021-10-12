@@ -32,7 +32,6 @@ int main() {
   kernel krn = KB.get_kernel(KernelID);
 
   q.submit([&](handler &cgh) {
-    cgh.use_kernel_bundle(KB);
     auto acc = buf.get_access<access::mode::read_write>(cgh);
     cgh.single_task<class SingleTask>(krn, [=]() { acc[0] = acc[0] + 1; });
   });
