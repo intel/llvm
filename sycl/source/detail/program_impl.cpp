@@ -323,14 +323,12 @@ kernel program_impl::get_kernel(std::string KernelName,
       throw invalid_object_error("This instance of program is a host instance",
                                  PI_INVALID_PROGRAM);
 
-    KImpl = std::make_shared<kernel_impl>(MContext, PtrToSelf);
-
-  } else
-    KImpl = std::make_shared<kernel_impl>(
-        get_pi_kernel(KernelName), MContext, PtrToSelf,
-        /*IsCreatedFromSource*/ IsCreatedFromSource);
-
-  return createSyclObjFromImpl<kernel>(KImpl);
+    return createSyclObjFromImpl<kernel>(
+        std::make_shared<kernel_impl>(MContext, PtrToSelf));
+  }
+  return createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
+      get_pi_kernel(KernelName), MContext, PtrToSelf,
+      /*IsCreatedFromSource*/ IsCreatedFromSource));
 }
 
 std::vector<std::vector<char>> program_impl::get_binaries() const {
