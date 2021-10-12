@@ -252,7 +252,6 @@ TEST(KernelBundle, EmptyKernelBundleKernelLaunchException) {
   }
 }
 
-
 TEST(KernelBundle, HasKernelBundle) {
   sycl::platform Plt{sycl::default_selector()};
   if (Plt.is_host()) {
