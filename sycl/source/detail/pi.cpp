@@ -337,9 +337,8 @@ int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 // Currently, we bind to a singe plugin.
 bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
 
-  decltype(::piPluginInit) *PluginInitializeFunction =
-      (decltype(&::piPluginInit))(getOsLibraryFuncAddress(Library,
-                                                          "piPluginInit"));
+  decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
+      &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
