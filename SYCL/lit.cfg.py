@@ -154,13 +154,11 @@ llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
 if not config.sycl_be:
      lit_config.error("SYCL backend is not specified")
 
-# Mapping from SYCL_BE backend definition style to SYCL_DEVICE_FILTER used
-# for backward compatibility
-try:
-  config.sycl_be = { 'PI_OPENCL': 'opencl',  'PI_CUDA': 'cuda', 'PI_HIP': 'hip', 'PI_LEVEL_ZERO': 'level_zero'}[config.sycl_be]
-except:
-  # do nothing a we expect that new format of plugin values are used
-  pass
+# Transforming from SYCL_BE backend definition style to SYCL_DEVICE_FILTER used
+# for backward compatibility : e.g. 'PI_ABC_XYZ' -> 'abc_xyz'
+if config.sycl_be.startswith("PI_"):
+    config.sycl_be = config.sycl_be[3:]
+config.sycl_be = config.sycl_be.lower()
 
 lit_config.note("Backend: {BACKEND}".format(BACKEND=config.sycl_be))
 
@@ -171,10 +169,16 @@ config.substitutions.append( ('%BE_RUN_PLACEHOLDER', "env SYCL_DEVICE_FILTER={SY
 if config.dump_ir_supported:
    config.available_features.add('dump_ir')
 
-if config.sycl_be not in ['host', 'opencl', 'cuda', 'hip', 'level_zero']:
+supported_sycl_be = ['host',
+                     'opencl',
+                     'cuda',
+                     'hip',
+                     'level_zero']
+
+if config.sycl_be not in supported_sycl_be:
    lit_config.error("Unknown SYCL BE specified '" +
                     config.sycl_be +
-                    "' supported values are opencl, cuda, hip, level_zero")
+                    "'. Supported values are {}".format(', '.join(supported_sycl_be)))
 
 # If HIP_PLATFORM flag is not set, default to AMD, and check if HIP platform is supported
 supported_hip_platforms=["AMD", "NVIDIA"]
