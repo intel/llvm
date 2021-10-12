@@ -37,7 +37,8 @@ using EventImplPtr = std::shared_ptr<event_impl>;
 
 template <typename T>
 class aligned_allocator;
-using sycl_memory_object_allocator = aligned_allocator<char>;
+
+template <typename T> using sycl_memory_object_allocator = aligned_allocator<T>;
 
 // The class serves as a base for all SYCL memory objects.
 class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
@@ -54,13 +55,13 @@ class __SYCL_EXPORT SYCLMemObjT : public SYCLMemObjI {
   using EnableIfOutputIteratorT = enable_if_t<
       /*is_output_iterator<T>::value &&*/ !std::is_pointer<T>::value>;
 
-  template <typename T>
+  template <typename T, typename U = char>
   using EnableIfDefaultAllocator =
-      enable_if_t<std::is_same<T, sycl_memory_object_allocator>::value>;
+      enable_if_t<std::is_base_of<sycl_memory_object_allocator<U>, T>::value>;
 
-  template <typename T>
+  template <typename T, typename U = char>
   using EnableIfNonDefaultAllocator =
-      enable_if_t<!std::is_same<T, sycl_memory_object_allocator>::value>;
+      enable_if_t<!std::is_base_of<sycl_memory_object_allocator<U>, T>::value>;
 
 public:
   SYCLMemObjT(const size_t SizeInBytes, const property_list &Props,
