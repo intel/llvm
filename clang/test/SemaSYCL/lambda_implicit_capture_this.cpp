@@ -87,7 +87,7 @@ void Class::function() {
   q.submit([&](handler &h) {
     // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class CapturedOnHost2>([=]() {
-      NestedLambda();
+      ExternalLambda();
     });
   });
 }
