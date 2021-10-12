@@ -491,6 +491,18 @@ __esimd_svm_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+__ESIMD_INTRIN void __esimd_slm_init(size_t size)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  I->cm_slm_init_ptr(size);
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 // esimd_barrier, generic group barrier
 __ESIMD_INTRIN void __esimd_barrier()
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1169,13 +1181,3 @@ __ESIMD_INTRIN void __esimd_raw_send2_noresult(
   throw cl::sycl::feature_not_supported();
 }
 #endif // __SYCL_DEVICE_ONLY__
-
-// Initializing SLM
-#ifndef __SYCL_DEVICE_ONLY__
-__ESIMD_INTRIN void __esimd_slm_init(size_t size) {
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  I->cm_slm_init_ptr(size);
-}
-#endif // ifndef __SYCL_DEVICE_ONLY__
