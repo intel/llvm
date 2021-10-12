@@ -12,12 +12,12 @@ namespace sycl {
 namespace ext {
 namespace intel {
 
-template<int _N = 1, typename _F>
+template <int _N = 1, typename _F>
 void fpga_loop_fuse [[intel::loop_fuse(_N)]] (_F f) {
   f();
 }
 
-template<int _N = 1, typename _F>
+template <int _N = 1, typename _F>
 void fpga_loop_fuse_independent [[intel::loop_fuse_independent(_N)]] (_F f) {
   f();
 }
