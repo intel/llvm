@@ -145,11 +145,9 @@ public:
   }
 };
 
-typedef std::shared_ptr<PluginProperties> SymbolFileDWARFPropertiesSP;
-
-static const SymbolFileDWARFPropertiesSP &GetGlobalPluginProperties() {
-  static const auto g_settings_sp(std::make_shared<PluginProperties>());
-  return g_settings_sp;
+static PluginProperties &GetGlobalPluginProperties() {
+  static PluginProperties g_settings;
+  return g_settings;
 }
 
 } // namespace
@@ -267,7 +265,7 @@ void SymbolFileDWARF::DebuggerInitialize(Debugger &debugger) {
           debugger, PluginProperties::GetSettingName())) {
     const bool is_global_setting = true;
     PluginManager::CreateSettingForSymbolFilePlugin(
-        debugger, GetGlobalPluginProperties()->GetValueProperties(),
+        debugger, GetGlobalPluginProperties().GetValueProperties(),
         ConstString("Properties for the dwarf symbol-file plug-in."),
         is_global_setting);
   }
@@ -470,7 +468,7 @@ SymbolFileDWARF::GetTypeSystemForLanguage(LanguageType language) {
 void SymbolFileDWARF::InitializeObject() {
   Log *log = LogChannelDWARF::GetLogIfAll(DWARF_LOG_DEBUG_INFO);
 
-  if (!GetGlobalPluginProperties()->IgnoreFileIndexes()) {
+  if (!GetGlobalPluginProperties().IgnoreFileIndexes()) {
     StreamString module_desc;
     GetObjectFile()->GetModule()->GetDescription(module_desc.AsRawOstream(),
                                                  lldb::eDescriptionLevelBrief);
@@ -3538,12 +3536,11 @@ size_t SymbolFileDWARF::ParseVariablesInFunctionContext(
   if (!die || !sc.function)
     return 0;
 
-  Block *block =
-      sc.function->GetBlock(/*can_create=*/true).FindBlockByID(die.GetID());
-  const bool can_create = false;
-  VariableListSP variable_list_sp = block->GetBlockVariableList(can_create);
+  VariableList empty_variable_list;
+  // Since |die| corresponds to a Block instance, the recursive call will get
+  // a variable list from the block. |empty_variable_list| should remain empty.
   return ParseVariablesInFunctionContextRecursive(sc, die, func_low_pc,
-                                                  *variable_list_sp);
+                                                  empty_variable_list);
 }
 
 size_t SymbolFileDWARF::ParseVariablesInFunctionContextRecursive(

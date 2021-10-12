@@ -267,19 +267,6 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "Unified standalone build"
-    command: "libcxx/utils/ci/run-buildbot unified-standalone"
-    artifact_paths:
-      - "**/test-results.xml"
-    agents:
-      queue: "libcxx-builders"
-      os: "linux"
-    retry:
-      automatic:
-        - exit_status: -1  # Agent was lost
-          limit: 2
-    timeout_in_minutes: 120
-
   - label: "New standalone runtimes build"
     command: "libcxx/utils/ci/run-buildbot new-standalone"
     artifact_paths:
@@ -573,20 +560,6 @@ steps:
         - exit_status: -1  # Agent was lost
           limit: 2
     timeout_in_minutes: 120
-
-  # TODO: Re-enable this once issues with the Apple-specific testing config have been resolved
-  # - label: "Apple system -fno-exceptions"
-  #   command: "libcxx/utils/ci/run-buildbot x86_64-apple-system-noexceptions"
-  #   artifact_paths:
-  #     - "**/test-results.xml"
-  #   agents:
-  #     queue: "libcxx-builders"
-  #     os: "macos"
-  #   retry:
-  #     automatic:
-  #       - exit_status: -1  # Agent was lost
-  #         limit: 2
-  #   timeout_in_minutes: 120
 
   # Test back-deployment to older Apple platforms
   - label: "Apple back-deployment macosx10.9"

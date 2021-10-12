@@ -4161,7 +4161,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     Type *ResTy = CI->getType();
 
     auto OpItr = CI->value_op_begin();
-    auto OpEnd = OpItr + CI->getNumArgOperands();
+    auto OpEnd = OpItr + CI->arg_size();
 
     // If the return type of an instruction is wider than 64-bit, then this
     // instruction will return via 'sret' argument added into the arguments
@@ -4245,7 +4245,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     Type *ResTy = CI->getType();
 
     auto OpItr = CI->value_op_begin();
-    auto OpEnd = OpItr + CI->getNumArgOperands();
+    auto OpEnd = OpItr + CI->arg_size();
 
     // If the return type of an instruction is wider than 64-bit, then this
     // instruction will return via 'sret' argument added into the arguments
@@ -4313,7 +4313,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     Type *ResTy = CI->getType();
 
     auto OpItr = CI->value_op_begin();
-    auto OpEnd = OpItr + CI->getNumArgOperands();
+    auto OpEnd = OpItr + CI->arg_size();
 
     // If the return type of an instruction is wider than 64-bit, then this
     // instruction will return via 'sret' argument added into the arguments
@@ -4353,11 +4353,11 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       auto BBT = transType(BoolTy);
       SPIRVInstruction *Res;
       if (isCmpOpCode(OC)) {
-        assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
+        assert(CI && CI->arg_size() == 2 && "Invalid call inst");
         Res = BM->addCmpInst(OC, BBT, transValue(CI->getArgOperand(0), BB),
                              transValue(CI->getArgOperand(1), BB), BB);
       } else {
-        assert(CI && CI->getNumArgOperands() == 1 && "Invalid call inst");
+        assert(CI && CI->arg_size() == 1 && "Invalid call inst");
         Res =
             BM->addUnaryInst(OC, BBT, transValue(CI->getArgOperand(0), BB), BB);
       }
@@ -4370,11 +4370,11 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
           IsVector ? Constant::getAllOnesValue(ResultTy) : getInt32(M, 1), BB);
       return BM->addSelectInst(Res, One, Zero, BB);
     } else if (isBinaryOpCode(OC)) {
-      assert(CI && CI->getNumArgOperands() == 2 && "Invalid call inst");
+      assert(CI && CI->arg_size() == 2 && "Invalid call inst");
       return BM->addBinaryInst(OC, transType(CI->getType()),
                                transValue(CI->getArgOperand(0), BB),
                                transValue(CI->getArgOperand(1), BB), BB);
-    } else if (CI->getNumArgOperands() == 1 && !CI->getType()->isVoidTy() &&
+    } else if (CI->arg_size() == 1 && !CI->getType()->isVoidTy() &&
                !hasExecScope(OC) && !isAtomicOpCode(OC)) {
       return BM->addUnaryInst(OC, transType(CI->getType()),
                               transValue(CI->getArgOperand(0), BB), BB);
