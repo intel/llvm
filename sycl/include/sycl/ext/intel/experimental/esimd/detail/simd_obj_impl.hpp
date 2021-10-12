@@ -647,7 +647,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *const Addr) {
 
   uintptr_t AddrVal = reinterpret_cast<uintptr_t>(Addr);
   *this =
-      __esimd_flat_block_read_unaligned<T, N, CacheHint::None, CacheHint::None>(
+      __esimd_svm_block_ld_unaligned<T, N, CacheHint::None, CacheHint::None>(
           AddrVal);
 }
 
@@ -666,10 +666,11 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset) {
   static_assert(Sz <= 8 * OperandSize::OWORD,
                 "block size must be at most 8 owords");
 #if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
-  *this = __esimd_block_read<T, N>(surf_ind, offset);
+  auto surf_ind =
+      __esimd_get_surface_index(AccessorPrivateProxy::getNativeImageObj(acc));
+  *this = __esimd_oword_ld_unaligned<T, N>(surf_ind, offset);
 #else
-  *this = __esimd_block_read<T, N>(acc, offset);
+  *this = __esimd_oword_ld_unaligned<T, N>(acc, offset);
 #endif // __SYCL_DEVICE_ONLY__
 }
 
@@ -686,8 +687,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr) {
                 "block size must be at most 8 owords");
 
   uintptr_t AddrVal = reinterpret_cast<uintptr_t>(addr);
-  __esimd_flat_block_write<T, N, CacheHint::None, CacheHint::None>(AddrVal,
-                                                                   data());
+  __esimd_svm_block_st<T, N, CacheHint::None, CacheHint::None>(AddrVal, data());
 }
 
 template <typename T, int N, class T1, class SFINAE>
@@ -706,10 +706,11 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset) {
                 "block size must be at most 8 owords");
 
 #if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
-  __esimd_block_write<T, N>(surf_ind, offset >> 4, data());
+  auto surf_ind =
+      __esimd_get_surface_index(AccessorPrivateProxy::getNativeImageObj(acc));
+  __esimd_oword_st<T, N>(surf_ind, offset >> 4, data());
 #else
-  __esimd_block_write<T, N>(acc, offset >> 4, data());
+  __esimd_oword_st<T, N>(acc, offset >> 4, data());
 #endif // __SYCL_DEVICE_ONLY__
 }
 } // namespace detail
