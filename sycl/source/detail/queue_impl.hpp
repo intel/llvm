@@ -414,7 +414,8 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
-  buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
+  buffer<AssertHappened, 1, aligned_allocator<char>> &
+  getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
 
@@ -533,7 +534,7 @@ private:
   std::unique_ptr<ThreadPool> MHostTaskThreadPool;
 
   // Buffer to store assert failure descriptor
-  buffer<AssertHappened, 1> MAssertHappenedBuffer;
+  buffer<AssertHappened, 1, aligned_allocator<char>> MAssertHappenedBuffer;
 
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MLastEventMtx
