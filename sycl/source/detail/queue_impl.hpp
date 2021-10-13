@@ -24,6 +24,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
@@ -470,11 +471,12 @@ private:
     if (PostProcess) {
       bool IsKernel = Type == CG::Kernel;
       bool KernelUsesAssert = false;
+
       if (IsKernel)
-        KernelUsesAssert =
-            Handler.MKernel ? true
-                            : ProgramManager::getInstance().kernelUsesAssert(
-                                  Handler.MOSModuleHandle, Handler.MKernelName);
+        // Kernel only uses assert if it's non interop one
+        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               Handler.MOSModuleHandle, Handler.MKernelName);
 
       finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
 
