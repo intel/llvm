@@ -61,6 +61,7 @@ struct Inclusion {
   unsigned HashOffset = 0; // Byte offset from start of file to #.
   int HashLine = 0;        // Line number containing the directive, 0-indexed.
   SrcMgr::CharacteristicKind FileKind = SrcMgr::C_User;
+  llvm::Optional<unsigned> HeaderID;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Inclusion &);
 bool operator==(const Inclusion &LHS, const Inclusion &RHS);
@@ -123,11 +124,6 @@ public:
   // Returns a PPCallback that visits all inclusions in the main file and
   // populates the structure.
   std::unique_ptr<PPCallbacks> collect(const SourceManager &SM);
-
-  void setMainFileEntry(const FileEntry *Entry) {
-    assert(Entry && Entry->isValid());
-    this->MainFileEntry = Entry;
-  }
 
   // HeaderID identifies file in the include graph. It corresponds to a
   // FileEntry rather than a FileID, but stays stable across preamble & main

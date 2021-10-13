@@ -11,10 +11,10 @@
 
 ; CHECK-NOT: Decorate {{[0-9]+}} FPRoundingMode
 
-; CHECK: Decorate [[ad]] FPRoundingMode 0
-; CHECK: Decorate [[di]] FPRoundingMode 1
-; CHECK: Decorate [[su]] FPRoundingMode 2
-; CHECK: Decorate [[mu]] FPRoundingMode 3
+; CHECK-DAG: Decorate [[ad]] FPRoundingMode 0
+; CHECK-DAG: Decorate [[di]] FPRoundingMode 1
+; CHECK-DAG: Decorate [[su]] FPRoundingMode 2
+; CHECK-DAG: Decorate [[mu]] FPRoundingMode 3
 
 ; CHECK-NOT: Decorate {{[0-9]+}} FPRoundingMode
 

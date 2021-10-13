@@ -5518,7 +5518,7 @@ bool SelectionDAGBuilder::EmitFuncArgumentDbgValue(
       // pointing at the VReg, which will be patched up later.
       auto &Inst = TII->get(TargetOpcode::DBG_INSTR_REF);
       auto MIB = BuildMI(MF, DL, Inst);
-      MIB.addReg(Reg, RegState::Debug);
+      MIB.addReg(Reg);
       MIB.addImm(0);
       MIB.addMetadata(Variable);
       auto *NewDIExpr = FragExpr;
@@ -10622,27 +10622,6 @@ SelectionDAGBuilder::HandlePHINodesInSuccessorBlocks(const BasicBlock *LLVMBB) {
   }
 
   ConstantsOut.clear();
-}
-
-/// Add a successor MBB to ParentMBB< creating a new MachineBB for BB if SuccMBB
-/// is 0.
-MachineBasicBlock *
-SelectionDAGBuilder::StackProtectorDescriptor::
-AddSuccessorMBB(const BasicBlock *BB,
-                MachineBasicBlock *ParentMBB,
-                bool IsLikely,
-                MachineBasicBlock *SuccMBB) {
-  // If SuccBB has not been created yet, create it.
-  if (!SuccMBB) {
-    MachineFunction *MF = ParentMBB->getParent();
-    MachineFunction::iterator BBI(ParentMBB);
-    SuccMBB = MF->CreateMachineBasicBlock(BB);
-    MF->insert(++BBI, SuccMBB);
-  }
-  // Add it as a successor of ParentMBB.
-  ParentMBB->addSuccessor(
-      SuccMBB, BranchProbabilityInfo::getBranchProbStackProtector(IsLikely));
-  return SuccMBB;
 }
 
 MachineBasicBlock *SelectionDAGBuilder::NextBlock(MachineBasicBlock *MBB) {
