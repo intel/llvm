@@ -1474,7 +1474,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
 
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
-      // TODO FIXME slm_init should be made top-level __esimd_slm_init
       if (Name.startswith("__esimd_slm_init")) {
         // tag the kernel with meta-data SLMSize, and remove this builtin
         translateSLMInit(*CI);
