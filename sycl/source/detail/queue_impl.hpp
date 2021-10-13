@@ -195,13 +195,14 @@ public:
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     try {
-      return submit_impl(CGF, Self, Loc, PostProcess);
+      return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
       {
         std::lock_guard<std::mutex> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return SecondQueue->submit(CGF, SecondQueue, Loc, PostProcess);
+      return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
+                                      PostProcess);
     }
   }
 
@@ -217,7 +218,7 @@ public:
                const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    return submit_impl(CGF, Self, Loc, PostProcess);
+    return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -440,13 +441,19 @@ private:
   ///
   /// \param CGF is a function object containing command group.
   /// \param Self is a pointer to this queue.
+  /// \param PrimaryQueue is a pointer to the primary queue. This may be the
+  ///        same as Self.
+  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
+  ///        same as Self.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const std::function<void(handler &)> &CGF,
                     const std::shared_ptr<queue_impl> &Self,
+                    const std::shared_ptr<queue_impl> &PrimaryQueue,
+                    const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-    handler Handler(Self, MHostQueue);
+    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 

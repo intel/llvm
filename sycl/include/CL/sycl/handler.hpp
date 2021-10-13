@@ -366,6 +366,19 @@ private:
   /// \param IsHost indicates if this handler is created for SYCL host device.
   handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost);
 
+  /// Constructs SYCL handler from the associated queue and the submission's
+  /// primary and secondary queue.
+  ///
+  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
+  ///        SecondaryQueue.
+  /// \param PrimaryQueue is the primary SYCL queue of the submission.
+  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
+  ///        is null if no secondary queue is associated with the submission.
+  /// \param IsHost indicates if this handler is created for SYCL host device.
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          std::shared_ptr<detail::queue_impl> PrimaryQueue,
+          std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
+
   /// Stores copy of Arg passed to the MArgsStorage.
   template <typename T, typename F = typename detail::remove_const_t<
                             typename detail::remove_reference_t<T>>>
@@ -1194,10 +1207,7 @@ public:
 #endif
 
   void
-  use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle) {
-    setStateExplicitKernelBundle();
-    setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
-  }
+  use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
 
   /// Requires access to the memory object associated with the placeholder
   /// accessor.
