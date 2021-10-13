@@ -335,7 +335,6 @@ kernel program_impl::get_kernel(std::string KernelName,
                                 std::shared_ptr<program_impl> PtrToSelf,
                                 bool IsCreatedFromSource) const {
   throw_if_state_is(program_state::none);
-  std::shared_ptr<kernel_impl> KImpl;
   if (is_host()) {
     if (IsCreatedFromSource)
       throw invalid_object_error("This instance of program is a host instance",
