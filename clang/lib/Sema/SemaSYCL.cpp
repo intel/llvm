@@ -1994,12 +1994,15 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
+      // FIXME: This code is temporary, and will be removed once the current
+      // crash (crash pre-existing this patch) is fixed. The function
+      // handleAccessorType is called only for types that have property list in
+      // their arguments, accessor for now. (itsn't called for sampler/stream).
+      // When adding new classes with property list this function needs to be
+      // renamed too.
       if (ParamTy.getTypePtr()->isPointerType() &&
-          !isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName))
-        // isPointerType removes sampler type.
-        // !isCXXRecordWithInitOrFinalizeMember removes stream type. Do this
-        // only for accessor type.
-        handleAccessorType(RecordDecl, FD->getLocation());
+          Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
+        handleAccessorType(RecordDecl, FD->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -2105,11 +2108,14 @@ public:
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(BS, ParamTy.getCanonicalType());
+      // FIXME: This code is temporary, and will be removed once the current
+      // crash (crash pre-existing this patch) is fixed. The function
+      // handleAccessorType is called only for types that have property list in
+      // their arguments, accessor for now. (itsn't called for sampler/stream).
+      // When adding new classes with property list this function needs to be
+      // renamed too.
       if (ParamTy.getTypePtr()->isPointerType() &&
-          !isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName))
-        // isPointerType removes sampler type.
-        // !isCXXRecordWithInitOrFinalizeMember removes stream type. Do this
-        // only for accessor type.
+          Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
         handleAccessorType(RecordDecl, BS.getBeginLoc());
     }
     LastParamIndex = ParamIndex;

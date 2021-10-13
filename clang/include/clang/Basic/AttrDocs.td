@@ -413,6 +413,8 @@ headers to indicate that a class or a struct needs additional handling when
 it is passed from host to device. Please note that this is an attribute that is
 used for internal implementation and not intended to be used by external users.
 It is used for ``accessor``, ``sampler`` , or ``stream`` classes.
+The types that own this attribute are excluded from device-copyable and other
+type-legalization steps.
 
 .. code-block:: c++
   class __attribute__((sycl_special_class)) accessor {
