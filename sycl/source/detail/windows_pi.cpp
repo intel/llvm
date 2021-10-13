@@ -8,6 +8,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
+#include <cassert>
 #include <string>
 #include <windows.h>
 #include <winreg.h>
