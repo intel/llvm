@@ -18,6 +18,8 @@
  * pipe.
  */
 
+// Enable use of interop kernel c-tor
+#define __SYCL_INTERNAL_API
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
 
@@ -562,6 +564,43 @@ TEST(Assert, TestAssertServiceKernelHidden) {
 }
 
 TEST(Assert, TestInteropKernelNegative) {
+  sycl::platform Plt{sycl::default_selector()};
+
+  if (Plt.is_host()) {
+    printf("Test is not supported on host, skipping\n");
+    return;
+  }
+
+  const sycl::backend Backend = Plt.get_backend();
+
+  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
+      Backend == sycl::backend::level_zero) {
+    printf(
+        "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+
+  const sycl::context Ctx = Queue.get_context();
+
+  setupMockForInterop(Mock, Ctx, Dev);
+
+  cl_kernel CLKernel = (cl_kernel)(0x01);
+  // TODO use make_kernel. This requires a fix in backend.cpp to get plugin
+  // from context instead of free getPlugin to alllow for mocking of its methods
+  sycl::kernel KInterop(CLKernel, Ctx);
+
+  Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });
+
+  EXPECT_EQ(TestInteropKernel::KernelLaunchCounter,
+            KernelLaunchCounterBase + 1);
+}
+
+TEST(Assert, TestInteropKernelFromProgramNegative) {
   sycl::platform Plt{sycl::default_selector()};
 
   if (Plt.is_host()) {
