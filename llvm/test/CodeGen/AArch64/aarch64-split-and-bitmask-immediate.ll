@@ -243,3 +243,24 @@ entry:
   store i32 %or, i32* %z, align 4
   ret void
 }
+
+; This test genereates below MIs.
+;
+; MOVi32imm -1610612736
+; SUBREG_TO_REG
+;
+; The constant should be zero-extended to 64 bit and it should not be split.
+define i8 @test11(i64 %a) {
+; CHECK-LABEL: test11:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    mov w8, #-1610612736
+; CHECK-NEXT:    and x8, x0, x8
+; CHECK-NEXT:    cmp x8, #1024
+; CHECK-NEXT:    cset w0, eq
+; CHECK-NEXT:    ret
+entry:
+  %and = and i64 %a, 2684354560
+  %cmp = icmp eq i64 %and, 1024
+  %conv = zext i1 %cmp to i8
+  ret i8 %conv
+}

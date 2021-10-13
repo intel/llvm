@@ -20610,7 +20610,7 @@ SDValue DAGCombiner::visitEXTRACT_SUBVECTOR(SDNode *N) {
     // If the concatenated source types match this extract, it's a direct
     // simplification:
     // extract_subvec (concat V1, V2, ...), i --> Vi
-    if (ConcatSrcNumElts == ExtNumElts)
+    if (NVT.getVectorElementCount() == ConcatSrcVT.getVectorElementCount())
       return V.getOperand(ConcatOpIdx);
 
     // If the concatenated source vectors are a multiple length of this extract,
@@ -20618,7 +20618,8 @@ SDValue DAGCombiner::visitEXTRACT_SUBVECTOR(SDNode *N) {
     // concat operand. Example:
     //   v2i8 extract_subvec (v16i8 concat (v8i8 X), (v8i8 Y), 14 -->
     //   v2i8 extract_subvec v8i8 Y, 6
-    if (NVT.isFixedLengthVector() && ConcatSrcNumElts % ExtNumElts == 0) {
+    if (NVT.isFixedLengthVector() && ConcatSrcVT.isFixedLengthVector() &&
+        ConcatSrcNumElts % ExtNumElts == 0) {
       SDLoc DL(N);
       unsigned NewExtIdx = ExtIdx - ConcatOpIdx * ConcatSrcNumElts;
       assert(NewExtIdx + ExtNumElts <= ConcatSrcNumElts &&
@@ -23045,9 +23046,10 @@ SDValue DAGCombiner::BuildDivEstimate(SDValue N, SDValue Op,
   if (LegalDAG)
     return SDValue();
 
-  // TODO: Handle half and/or extended types?
+  // TODO: Handle extended types?
   EVT VT = Op.getValueType();
-  if (VT.getScalarType() != MVT::f32 && VT.getScalarType() != MVT::f64)
+  if (VT.getScalarType() != MVT::f16 && VT.getScalarType() != MVT::f32 &&
+      VT.getScalarType() != MVT::f64)
     return SDValue();
 
   // If estimates are explicitly disabled for this function, we're done.
@@ -23184,9 +23186,10 @@ SDValue DAGCombiner::buildSqrtEstimateImpl(SDValue Op, SDNodeFlags Flags,
   if (LegalDAG)
     return SDValue();
 
-  // TODO: Handle half and/or extended types?
+  // TODO: Handle extended types?
   EVT VT = Op.getValueType();
-  if (VT.getScalarType() != MVT::f32 && VT.getScalarType() != MVT::f64)
+  if (VT.getScalarType() != MVT::f16 && VT.getScalarType() != MVT::f32 &&
+      VT.getScalarType() != MVT::f64)
     return SDValue();
 
   // If estimates are explicitly disabled for this function, we're done.

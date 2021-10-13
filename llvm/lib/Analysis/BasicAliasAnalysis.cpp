@@ -69,15 +69,6 @@ using namespace llvm;
 static cl::opt<bool> EnableRecPhiAnalysis("basic-aa-recphi", cl::Hidden,
                                           cl::init(true));
 
-/// By default, even on 32-bit architectures we use 64-bit integers for
-/// calculations. This will allow us to more-aggressively decompose indexing
-/// expressions calculated using i64 values (e.g., long long in C) which is
-/// common enough to worry about.
-static cl::opt<bool> ForceAtLeast64Bits("basic-aa-force-at-least-64b",
-                                        cl::Hidden, cl::init(true));
-static cl::opt<bool> DoubleCalcBits("basic-aa-double-calc-bits",
-                                    cl::Hidden, cl::init(false));
-
 /// SearchLimitReached / SearchTimes shows how often the limit of
 /// to decompose GEPs is reached. It will affect the precision
 /// of basic alias analysis.
@@ -468,14 +459,6 @@ static APInt adjustToPointerSize(const APInt &Offset, unsigned PointerSize) {
   return (Offset << ShiftBits).ashr(ShiftBits);
 }
 
-static unsigned getMaxPointerSize(const DataLayout &DL) {
-  unsigned MaxPointerSize = DL.getMaxPointerSizeInBits();
-  if (MaxPointerSize < 64 && ForceAtLeast64Bits) MaxPointerSize = 64;
-  if (DoubleCalcBits) MaxPointerSize *= 2;
-
-  return MaxPointerSize;
-}
-
 namespace {
 // A linear transformation of a Value; this class represents
 // ZExt(SExt(V, SExtBits), ZExtBits) * Scale.
@@ -556,7 +539,7 @@ BasicAAResult::DecomposeGEPExpression(const Value *V, const DataLayout &DL,
   SearchTimes++;
   const Instruction *CxtI = dyn_cast<Instruction>(V);
 
-  unsigned MaxPointerSize = getMaxPointerSize(DL);
+  unsigned MaxPointerSize = DL.getMaxPointerSizeInBits();
   DecomposedGEP Decomposed;
   Decomposed.Offset = APInt(MaxPointerSize, 0);
   Decomposed.HasCompileTimeConstantScale = true;
@@ -1194,14 +1177,14 @@ AliasResult BasicAAResult::aliasGEP(
   // For GEPs with identical offsets, we can preserve the size and AAInfo
   // when performing the alias check on the underlying objects.
   if (DecompGEP1.Offset == 0 && DecompGEP1.VarIndices.empty())
-    return getBestAAResults().alias(
-        MemoryLocation(UnderlyingV1, V1Size),
-        MemoryLocation(UnderlyingV2, V2Size), AAQI);
+    return getBestAAResults().alias(MemoryLocation(DecompGEP1.Base, V1Size),
+                                    MemoryLocation(DecompGEP2.Base, V2Size),
+                                    AAQI);
 
   // Do the base pointers alias?
   AliasResult BaseAlias = getBestAAResults().alias(
-      MemoryLocation::getBeforeOrAfter(UnderlyingV1),
-      MemoryLocation::getBeforeOrAfter(UnderlyingV2), AAQI);
+      MemoryLocation::getBeforeOrAfter(DecompGEP1.Base),
+      MemoryLocation::getBeforeOrAfter(DecompGEP2.Base), AAQI);
 
   // If we get a No or May, then return it immediately, no amount of analysis
   // will improve this situation.

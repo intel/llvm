@@ -38,8 +38,8 @@
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NOEXT
 
 ; CHECK-SPIRV: Extension "SPV_KHR_no_integer_wrap_decoration"
-; CHECK-SPIRV: Decorate {{[0-9]+}} NoSignedWrap
-; CHECK-SPIRV: Decorate {{[0-9]+}} NoUnsignedWrap
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NoSignedWrap
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NoUnsignedWrap
 ;
 ; CHECK-SPIRV-NOEXT-NOT: Extension "SPV_KHR_no_integer_wrap_decoration"
 ; CHECK-SPIRV-NOEXT-NOT: Decorate {{[0-9]+}} NoSignedWrap
