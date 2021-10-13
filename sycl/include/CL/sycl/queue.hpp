@@ -1149,8 +1149,7 @@ private:
         CodeLoc);
   }
 
-  buffer<detail::AssertHappened, 1, detail::aligned_allocator<char>> &
-  getAssertHappenedBuffer();
+  buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
 };
 
 namespace detail {
@@ -1169,8 +1168,7 @@ namespace detail {
  */
 event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
                           const detail::code_location &CodeLoc) {
-  using AHBufT =
-      buffer<detail::AssertHappened, 1, detail::aligned_allocator<char>>;
+  using AHBufT = buffer<detail::AssertHappened, 1>;
 
   AHBufT &Buffer = Self.getAssertHappenedBuffer();
 

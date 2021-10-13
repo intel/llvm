@@ -188,8 +188,7 @@ backend queue::get_backend() const noexcept { return getImplBackend(impl); }
 
 pi_native_handle queue::getNative() const { return impl->getNative(); }
 
-buffer<detail::AssertHappened, 1, detail::aligned_allocator<char>> &
-queue::getAssertHappenedBuffer() {
+buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();
 }
 
