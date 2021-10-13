@@ -38,6 +38,17 @@ namespace cm_support {
 #include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
 #include <sycl/ext/intel/experimental/esimd/emu/detail/esimdcpu_device_interface.hpp>
 
+inline void __esimd_emu_pi_load_check() {
+  try {
+    sycl::detail::pi::getPlugin<sycl::backend::esimd_cpu>();
+  } catch (...) {
+    std::cerr << "ESIMD EMU plugin error or not loaded - try setting "
+                 "SYCL_DEVICE_FILTER=esimd_emu:gpu environment variable"
+              << std::endl;
+    throw cl::sycl::feature_not_supported();
+  }
+}
+
 #endif // ifndef __SYCL_DEVICE_ONLY__
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -222,6 +233,8 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
   if (surf_ind == __SEIEE::detail::SLM_BTI) {
@@ -429,6 +442,8 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
   static_assert(TySizeLog2 <= 2);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
 
+  __esimd_emu_pi_load_check();
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -505,6 +520,8 @@ __ESIMD_INTRIN void __esimd_slm_init(size_t size)
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -518,6 +535,8 @@ __ESIMD_INTRIN void __esimd_barrier()
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -531,6 +550,8 @@ __ESIMD_INTRIN void __esimd_sbarrier(__SEIEE::split_barrier_action flag)
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
@@ -544,6 +565,8 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
   I->cm_fence_ptr();
@@ -561,6 +584,8 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   __SEIEED::vector_type_t<Ty, N> retv;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -594,6 +619,8 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   __SEIEED::vector_type_t<Ty, N> retv;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -628,6 +655,8 @@ __esimd_gather4_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv;
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -690,6 +719,8 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
   char *WriteBase = I->__cm_emu_get_slm_ptr();
@@ -749,6 +780,8 @@ __esimd_dword_atomic0(__SEIEED::simd_mask_storage_t<N> pred,
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   if (surf_ind == __SEIEE::detail::SLM_BTI) {
     __SEIEED::vector_type_t<Ty, N> retv;
     sycl::detail::ESIMDDeviceInterface *I =
@@ -824,6 +857,8 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   __SEIEED::vector_type_t<Ty, M * N> vals;
 
   sycl::detail::ESIMDDeviceInterface *I =
@@ -955,6 +990,8 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
     ;
 #else
 {
+  __esimd_emu_pi_load_check();
+
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
 
