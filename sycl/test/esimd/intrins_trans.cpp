@@ -152,6 +152,39 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
     // CHECK: %[[SI6:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI6_ADDR]]
     // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, i16 0, i32 %[[SI6]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
   }
+  esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE);
+  // CHECK: i8 1, i8 addrspace(4)* [[STORE_ESIMDx1:%.*]], align 1
+  // CHECK: [[LOAD_ESIMDx1:%.*]] = load i8, i8 addrspace(4)* [[STORE_ESIMDx1]], align 1
+  // CHECK: call void @llvm.genx.fence(i8 [[LOAD_ESIMDx1]])
+  esimd_fence(ESIMD_L3_FLUSH_INSTRUCTIONS);
+  // CHECK: i8 2, i8 addrspace(4)* [[STORE_ESIMDx2:%.*]], align 1
+  // CHECK: [[LOAD_ESIMDx2:%.*]] = load i8, i8 addrspace(4)* [[STORE_ESIMDx2]], align 1
+  // CHECK: call void @llvm.genx.fence(i8 [[LOAD_ESIMDx2]])
+  esimd_fence(ESIMD_L3_FLUSH_TEXTURE_DATA);
+  // CHECK: i8 4, i8 addrspace(4)* [[STORE_ESIMDx4:%.*]], align 1
+  // CHECK: [[LOAD_ESIMDx4:%.*]] = load i8, i8 addrspace(4)* [[STORE_ESIMDx4]], align 1
+  // CHECK: call void @llvm.genx.fence(i8 [[LOAD_ESIMDx4]])
+  esimd_fence(ESIMD_L3_FLUSH_CONSTANT_DATA);
+  // CHECK: i8 8, i8 addrspace(4)* [[STORE_ESIMDx8:%.*]], align 1
+  // CHECK: [[LOAD_ESIMDx8:%.*]] = load i8, i8 addrspace(4)* [[STORE_ESIMDx8]], align 1
+  // CHECK: call void @llvm.genx.fence(i8 [[LOAD_ESIMDx8]])
+  esimd_fence(ESIMD_L3_FLUSH_RW_DATA);
+  // CHECK: i8 16, i8 addrspace(4)* [[STORE_ESIMDx10:%.*]], align 1
+  // CHECK: [[LOAD_ESIMDx10:%.*]] = load i8, i8 addrspace(4)* [[STORE_ESIMDx10]], align 1
+  // CHECK: call void @llvm.genx.fence(i8 [[LOAD_ESIMDx10]])
+  esimd_fence(ESIMD_LOCAL_BARRIER);
+  // CHECK: i8 32, i8 addrspace(4)* [[STORE_ESIMDx20:%.*]], align 1
+  // CHECK: [[LOAD_ESIMDx20:%.*]] = load i8, i8 addrspace(4)* [[STORE_ESIMDx20]], align 1
+  // CHECK: call void @llvm.genx.fence(i8 [[LOAD_ESIMDx20]])
+  esimd_fence(ESIMD_L1_FLUSH_RO_DATA);
+  // CHECK: i8 64, i8 addrspace(4)* [[STORE_ESIMDx40:%.*]], align 1
+  // CHECK: [[LOAD_ESIMDx40:%.*]] = load i8, i8 addrspace(4)* [[STORE_ESIMDx40]], align 1
+  // CHECK: call void @llvm.genx.fence(i8 [[LOAD_ESIMDx40]])
+  esimd_fence(ESIMD_SW_BARRIER);
+  // CHECK: i8 -128, i8 addrspace(4)* [[STORE_ESIMDx80:%.*]], align 1
+  // CHECK: [[LOAD_ESIMDx80:%.*]] = load i8, i8 addrspace(4)* [[STORE_ESIMDx80]], align 1
+  // CHECK: call void @llvm.genx.fence(i8 [[LOAD_ESIMDx80]])
+
   return d;
 }
 
