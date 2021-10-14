@@ -29,6 +29,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/MC/MCTargetOptions.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
@@ -38,7 +39,6 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TargetParser.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <cassert>
@@ -687,6 +687,8 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
 
 std::string ToolChain::GetStaticLibToolPath() const {
   // TODO: Add support for static lib archiving on Windows
+  if (Triple.isOSDarwin())
+    return GetProgramPath("libtool");
   return GetProgramPath("llvm-ar");
 }
 
@@ -1093,7 +1095,7 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
-llvm::SmallVector<std::string, 12>
+llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 ToolChain::getHIPDeviceLibs(const ArgList &DriverArgs) const {
   return {};
 }

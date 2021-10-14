@@ -375,7 +375,7 @@ static void printIndexStats() {
         ExitOnErr(getModuleSummaryIndexForFile(Filename));
     // Skip files without a module summary.
     if (!Index)
-      report_fatal_error(Filename + " does not contain an index");
+      report_fatal_error(Twine(Filename) + " does not contain an index");
 
     unsigned Calls = 0, Refs = 0, Functions = 0, Alias = 0, Globals = 0;
     for (auto &Summaries : *Index) {
@@ -487,6 +487,10 @@ static void createCombinedModuleSummaryIndex() {
         ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(Filename)));
     ExitOnErr(readModuleSummaryIndex(*MB, CombinedIndex, NextModuleId++));
   }
+  // In order to use this index for testing, specifically import testing, we
+  // need to update any indirect call edges created from SamplePGO, so that they
+  // point to the correct GUIDs.
+  updateIndirectCalls(CombinedIndex);
   std::error_code EC;
   assert(!OutputFilename.empty());
   raw_fd_ostream OS(OutputFilename + ".thinlto.bc", EC,

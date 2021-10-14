@@ -1,4 +1,4 @@
-// RUN: mlir-opt -convert-linalg-to-loops -lower-affine -convert-scf-to-std -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm %s | mlir-cpu-runner -O3 -e main -entry-point-result=void -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext | FileCheck %s
+// RUN: mlir-opt -convert-linalg-to-loops -lower-affine -convert-scf-to-std -convert-vector-to-llvm -convert-memref-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts %s | mlir-cpu-runner -O3 -e main -entry-point-result=void -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext | FileCheck %s
 
 func @main() {
   %A = memref.alloc() : memref<16x16xf32>
@@ -42,6 +42,9 @@ func @main() {
   %flops = divf %num_flops_f, %t : f64
   call @print_flops(%flops) : (f64) -> ()
 
+  memref.dealloc %A : memref<16x16xf32>
+  memref.dealloc %B : memref<16x16xf32>
+  memref.dealloc %C : memref<16x16xf32>
   return
 }
 // CHECK: 17

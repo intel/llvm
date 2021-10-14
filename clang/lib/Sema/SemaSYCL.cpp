@@ -1703,6 +1703,15 @@ public:
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+    CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
+    assert(RD && "Not a RecordDecl inside the handler for struct type");
+    if (RD->isLambda()) {
+      for (const LambdaCapture &LC : RD->captures())
+        if (LC.capturesThis() && LC.isImplicit()) {
+          SemaRef.Diag(LC.getLocation(), diag::err_implicit_this_capture);
+          IsInvalid = true;
+        }
+    }
     return isValid();
   }
 
@@ -2952,8 +2961,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     CollectionInitExprs.push_back(ILE);
   }
 
-  // FIXME Avoid creation of kernel obj clone.
-  // See https://github.com/intel/llvm/issues/1544 for details.
   static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
                                        const CXXRecordDecl *KernelObj) {
     TypeSourceInfo *TSInfo =
@@ -3760,7 +3767,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     for (const LambdaCapture &LC : KernelObj->captures())
       if (LC.capturesThis() && LC.isImplicit()) {
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
-        Diag(CallLoc.getBegin(), diag::note_used_here);
         KernelFunc->setInvalidDecl();
       }
   }
@@ -5220,15 +5226,7 @@ bool Util::isSyclSpecConstantType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "spec_constant")};
-  std::array<DeclContextDesc, 5> ScopesDeprecated = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "experimental"),
-      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
-                                "spec_constant")};
-  return matchQualifiedTypeName(Ty, Scopes) ||
-         matchQualifiedTypeName(Ty, ScopesDeprecated);
+  return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclSpecIdType(QualType Ty) {
@@ -5258,16 +5256,7 @@ bool Util::isSyclAccessorNoAliasPropertyType(QualType Ty) {
       Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
       Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
                             "instance"}};
-  std::array<DeclContextDesc, 6> ScopesDeprecated = {
-      Util::DeclContextDesc{Decl::Kind::Namespace, "cl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "sycl"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "ONEAPI"},
-      Util::DeclContextDesc{Decl::Kind::Namespace, "property"},
-      Util::DeclContextDesc{Decl::Kind::CXXRecord, "no_alias"},
-      Util::DeclContextDesc{Decl::Kind::ClassTemplateSpecialization,
-                            "instance"}};
-  return matchQualifiedTypeName(Ty, Scopes) ||
-         matchQualifiedTypeName(Ty, ScopesDeprecated);
+  return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclBufferLocationType(QualType Ty) {
@@ -5280,16 +5269,7 @@ bool Util::isSyclBufferLocationType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "instance")};
-  std::array<DeclContextDesc, 6> ScopesDeprecated = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "INTEL"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "property"),
-      Util::MakeDeclContextDesc(Decl::Kind::CXXRecord, "buffer_location"),
-      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
-                                "instance")};
-  return matchQualifiedTypeName(Ty, Scopes) ||
-         matchQualifiedTypeName(Ty, ScopesDeprecated);
+  return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::isSyclType(QualType Ty, StringRef Name, bool Tmpl) {
@@ -5332,14 +5312,7 @@ bool Util::isAccessorPropertyListType(QualType Ty) {
       Util::MakeDeclContextDesc(Decl::Kind::Namespace, "oneapi"),
       Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
                                 "accessor_property_list")};
-  std::array<DeclContextDesc, 4> ScopesDeprecated = {
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "cl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "sycl"),
-      Util::MakeDeclContextDesc(Decl::Kind::Namespace, "ONEAPI"),
-      Util::MakeDeclContextDesc(Decl::Kind::ClassTemplateSpecialization,
-                                "accessor_property_list")};
-  return matchQualifiedTypeName(Ty, Scopes) ||
-         matchQualifiedTypeName(Ty, ScopesDeprecated);
+  return matchQualifiedTypeName(Ty, Scopes);
 }
 
 bool Util::matchContext(const DeclContext *Ctx,

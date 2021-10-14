@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.tns" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -41,7 +41,8 @@ module {
   // A kernel that flattens a rank 8 tensor into a dense matrix.
   //
   func @kernel_flatten(%arga: tensor<7x3x3x3x3x3x5x3xf64, #SparseTensor>,
-                       %argx: tensor<7x3xf64>) -> tensor<7x3xf64> {
+                       %argx: tensor<7x3xf64> {linalg.inplaceable = true})
+		       -> tensor<7x3xf64> {
     %0 = linalg.generic #trait_flatten
       ins(%arga: tensor<7x3x3x3x3x3x5x3xf64, #SparseTensor>)
       outs(%argx: tensor<7x3xf64>) {
@@ -99,6 +100,7 @@ module {
 
     // Release the resources.
     memref.dealloc %xdata : memref<7x3xf64>
+    sparse_tensor.release %a : tensor<7x3x3x3x3x3x5x3xf64, #SparseTensor>
 
     return
   }

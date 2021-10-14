@@ -55,7 +55,6 @@ private:
   void SetDefaultModuleCacheDirectory(const FileSpec &dir_spec);
 };
 
-typedef std::shared_ptr<PlatformProperties> PlatformPropertiesSP;
 typedef llvm::SmallVector<lldb::addr_t, 6> MmapArgList;
 
 /// \class Platform Platform.h "lldb/Target/Platform.h"
@@ -84,7 +83,7 @@ public:
 
   static void Terminate();
 
-  static const PlatformPropertiesSP &GetGlobalPlatformProperties();
+  static PlatformProperties &GetGlobalPlatformProperties();
 
   /// Get the native host platform plug-in.
   ///
@@ -363,11 +362,9 @@ public:
   /// platforms will want to subclass this function in order to be able to
   /// intercept STDIO and possibly launch a separate process that will debug
   /// the debuggee.
-  virtual lldb::ProcessSP
-  DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
-               Target *target, // Can be nullptr, if nullptr create a new
-                               // target, else use existing one
-               Status &error);
+  virtual lldb::ProcessSP DebugProcess(ProcessLaunchInfo &launch_info,
+                                       Debugger &debugger, Target &target,
+                                       Status &error);
 
   virtual lldb::ProcessSP ConnectProcess(llvm::StringRef connect_url,
                                          llvm::StringRef plugin_name,

@@ -95,7 +95,7 @@ bool Constant::isAllOnesValue() const {
 
   // Check for FP which are bitcasted from -1 integers
   if (const ConstantFP *CFP = dyn_cast<ConstantFP>(this))
-    return CFP->getValueAPF().bitcastToAPInt().isAllOnesValue();
+    return CFP->getValueAPF().bitcastToAPInt().isAllOnes();
 
   // Check for constant splat vectors of 1 values.
   if (getType()->isVectorTy())
@@ -112,7 +112,7 @@ bool Constant::isOneValue() const {
 
   // Check for FP which are bitcasted from 1 integers
   if (const ConstantFP *CFP = dyn_cast<ConstantFP>(this))
-    return CFP->getValueAPF().bitcastToAPInt().isOneValue();
+    return CFP->getValueAPF().bitcastToAPInt().isOne();
 
   // Check for constant splat vectors of 1 values.
   if (getType()->isVectorTy())
@@ -129,7 +129,7 @@ bool Constant::isNotOneValue() const {
 
   // Check for FP which are bitcasted from 1 integers
   if (const ConstantFP *CFP = dyn_cast<ConstantFP>(this))
-    return !CFP->getValueAPF().bitcastToAPInt().isOneValue();
+    return !CFP->getValueAPF().bitcastToAPInt().isOne();
 
   // Check that vectors don't contain 1
   if (auto *VTy = dyn_cast<FixedVectorType>(getType())) {
@@ -315,9 +315,11 @@ containsUndefinedElement(const Constant *C,
       return false;
 
     for (unsigned i = 0, e = cast<FixedVectorType>(VTy)->getNumElements();
-         i != e; ++i)
-      if (HasFn(C->getAggregateElement(i)))
-        return true;
+         i != e; ++i) {
+      if (Constant *Elem = C->getAggregateElement(i))
+        if (HasFn(Elem))
+          return true;
+    }
   }
 
   return false;
@@ -366,9 +368,8 @@ Constant *Constant::getNullValue(Type *Ty) {
     return ConstantFP::get(Ty->getContext(),
                            APFloat::getZero(APFloat::IEEEquad()));
   case Type::PPC_FP128TyID:
-    return ConstantFP::get(Ty->getContext(),
-                           APFloat(APFloat::PPCDoubleDouble(),
-                                   APInt::getNullValue(128)));
+    return ConstantFP::get(Ty->getContext(), APFloat(APFloat::PPCDoubleDouble(),
+                                                     APInt::getZero(128)));
   case Type::PointerTyID:
     return ConstantPointerNull::get(cast<PointerType>(Ty));
   case Type::StructTyID:
@@ -404,11 +405,10 @@ Constant *Constant::getIntegerValue(Type *Ty, const APInt &V) {
 Constant *Constant::getAllOnesValue(Type *Ty) {
   if (IntegerType *ITy = dyn_cast<IntegerType>(Ty))
     return ConstantInt::get(Ty->getContext(),
-                            APInt::getAllOnesValue(ITy->getBitWidth()));
+                            APInt::getAllOnes(ITy->getBitWidth()));
 
   if (Ty->isFloatingPointTy()) {
-    APFloat FL = APFloat::getAllOnesValue(Ty->getFltSemantics(),
-                                          Ty->getPrimitiveSizeInBits());
+    APFloat FL = APFloat::getAllOnesValue(Ty->getFltSemantics());
     return ConstantFP::get(Ty->getContext(), FL);
   }
 
@@ -714,28 +714,40 @@ Constant::PossibleRelocationsTy Constant::getRelocationInfo() const {
   return Result;
 }
 
-/// If the specified constantexpr is dead, remove it. This involves recursively
-/// eliminating any dead users of the constantexpr.
-static bool removeDeadUsersOfConstant(const Constant *C) {
+/// Return true if the specified constantexpr is dead. This involves
+/// recursively traversing users of the constantexpr.
+/// If RemoveDeadUsers is true, also remove dead users at the same time.
+static bool constantIsDead(const Constant *C, bool RemoveDeadUsers) {
   if (isa<GlobalValue>(C)) return false; // Cannot remove this
 
-  while (!C->use_empty()) {
-    const Constant *User = dyn_cast<Constant>(C->user_back());
+  Value::const_user_iterator I = C->user_begin(), E = C->user_end();
+  while (I != E) {
+    const Constant *User = dyn_cast<Constant>(*I);
     if (!User) return false; // Non-constant usage;
-    if (!removeDeadUsersOfConstant(User))
+    if (!constantIsDead(User, RemoveDeadUsers))
       return false; // Constant wasn't dead
+
+    // Just removed User, so the iterator was invalidated.
+    // Since we return immediately upon finding a live user, we can always
+    // restart from user_begin().
+    if (RemoveDeadUsers)
+      I = C->user_begin();
+    else
+      ++I;
   }
 
-  // If C is only used by metadata, it should not be preserved but should have
-  // its uses replaced.
-  if (C->isUsedByMetadata()) {
-    const_cast<Constant *>(C)->replaceAllUsesWith(
-        UndefValue::get(C->getType()));
+  if (RemoveDeadUsers) {
+    // If C is only used by metadata, it should not be preserved but should
+    // have its uses replaced.
+    if (C->isUsedByMetadata()) {
+      const_cast<Constant *>(C)->replaceAllUsesWith(
+          UndefValue::get(C->getType()));
+    }
+    const_cast<Constant *>(C)->destroyConstant();
   }
-  const_cast<Constant*>(C)->destroyConstant();
+
   return true;
 }
-
 
 void Constant::removeDeadConstantUsers() const {
   Value::const_user_iterator I = user_begin(), E = user_end();
@@ -748,7 +760,7 @@ void Constant::removeDeadConstantUsers() const {
       continue;
     }
 
-    if (!removeDeadUsersOfConstant(User)) {
+    if (!constantIsDead(User, /* RemoveDeadUsers= */ true)) {
       // If the constant wasn't dead, remember that this was the last live use
       // and move on to the next constant.
       LastNonDeadUser = I;
@@ -762,6 +774,20 @@ void Constant::removeDeadConstantUsers() const {
     else
       I = std::next(LastNonDeadUser);
   }
+}
+
+bool Constant::hasOneLiveUse() const {
+  unsigned NumUses = 0;
+  for (const Use &use : uses()) {
+    const Constant *User = dyn_cast<Constant>(use.getUser());
+    if (!User || !constantIsDead(User, /* RemoveDeadUsers= */ false)) {
+      ++NumUses;
+
+      if (NumUses > 1)
+        return false;
+    }
+  }
+  return NumUses == 1;
 }
 
 Constant *Constant::replaceUndefsWith(Constant *C, Constant *Replacement) {

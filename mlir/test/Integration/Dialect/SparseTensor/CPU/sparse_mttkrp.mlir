@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/mttkrp_b.tns" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -40,7 +40,8 @@ module {
   func @kernel_mttkrp(%argb: tensor<?x?x?xf64, #SparseMatrix>,
                       %argc: tensor<?x?xf64>,
                       %argd: tensor<?x?xf64>,
-                      %arga: tensor<?x?xf64>) -> tensor<?x?xf64> {
+                      %arga: tensor<?x?xf64> {linalg.inplaceable = true})
+		      -> tensor<?x?xf64> {
     %0 = linalg.generic #mttkrp
       ins(%argb, %argc, %argd:
             tensor<?x?x?xf64, #SparseMatrix>, tensor<?x?xf64>, tensor<?x?xf64>)
@@ -126,6 +127,7 @@ module {
     memref.dealloc %adata : memref<?x?xf64>
     memref.dealloc %cdata : memref<?x?xf64>
     memref.dealloc %ddata : memref<?x?xf64>
+    sparse_tensor.release %b : tensor<?x?x?xf64, #SparseMatrix>
 
     return
   }

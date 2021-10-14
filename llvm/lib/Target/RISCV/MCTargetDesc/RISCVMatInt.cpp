@@ -77,7 +77,7 @@ static void generateInstSeqImpl(int64_t Val,
   assert(IsRV64 && "Can't emit >32-bit imm for non-RV64 target");
 
   // In the worst case, for a full 64-bit constant, a sequence of 8 instructions
-  // (i.e., LUI+ADDIW+SLLI+ADDI+SLLI+ADDI+SLLI+ADDI) has to be emmitted. Note
+  // (i.e., LUI+ADDIW+SLLI+ADDI+SLLI+ADDI+SLLI+ADDI) has to be emitted. Note
   // that the first two instructions (LUI+ADDIW) can contribute up to 32 bits
   // while the following ADDI instructions contribute up to 12 bits each.
   //
@@ -165,7 +165,7 @@ InstSeq generateInstSeq(int64_t Val, const FeatureBitset &ActiveFeatures) {
 
     // If we have exactly 32 leading zeros and Zba, we can try using zext.w at
     // the end of the sequence.
-    if (LeadingZeros == 32 && ActiveFeatures[RISCV::FeatureExtZba]) {
+    if (LeadingZeros == 32 && ActiveFeatures[RISCV::FeatureStdExtZba]) {
       // Try replacing upper bits with 1.
       uint64_t LeadingOnesVal = Val | maskLeadingOnes<uint64_t>(LeadingZeros);
       TmpSeq.clear();

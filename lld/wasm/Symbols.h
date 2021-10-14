@@ -74,6 +74,7 @@ public:
   bool isLocal() const;
   bool isWeak() const;
   bool isHidden() const;
+  bool isTLS() const;
 
   // Returns true if this symbol exists in a discarded (due to COMDAT) section
   bool isDiscarded() const;
@@ -438,8 +439,6 @@ class TagSymbol : public Symbol {
 public:
   static bool classof(const Symbol *s) { return s->kind() == DefinedTagKind; }
 
-  const WasmTagType *getTagType() const { return tagType; }
-
   // Get/set the tag index
   uint32_t getTagIndex() const;
   void setTagIndex(uint32_t index);
@@ -449,10 +448,9 @@ public:
 
 protected:
   TagSymbol(StringRef name, Kind k, uint32_t flags, InputFile *f,
-            const WasmTagType *tagType, const WasmSignature *sig)
-      : Symbol(name, k, flags, f), signature(sig), tagType(tagType) {}
+            const WasmSignature *sig)
+      : Symbol(name, k, flags, f), signature(sig) {}
 
-  const WasmTagType *tagType;
   uint32_t tagIndex = INVALID_INDEX;
 };
 
@@ -551,9 +549,14 @@ struct WasmSym {
   static DefinedFunction *applyDataRelocs;
 
   // __wasm_apply_global_relocs
-  // Function that applies relocations to data segment post-instantiation.
+  // Function that applies relocations to wasm globals post-instantiation.
   // Unlike __wasm_apply_data_relocs this needs to run on every thread.
   static DefinedFunction *applyGlobalRelocs;
+
+  // __wasm_apply_global_tls_relocs
+  // Like applyGlobalRelocs but for globals that hold TLS addresess.  These
+  // must be delayed until __wasm_init_tls.
+  static DefinedFunction *applyGlobalTLSRelocs;
 
   // __wasm_init_tls
   // Function that allocates thread-local storage and initializes it.

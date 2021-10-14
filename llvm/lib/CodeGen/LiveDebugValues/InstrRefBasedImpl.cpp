@@ -764,8 +764,8 @@ public:
     const DIExpression *Expr = Properties.DIExpr;
     if (!MLoc) {
       // No location -> DBG_VALUE $noreg
-      MIB.addReg(0, RegState::Debug);
-      MIB.addReg(0, RegState::Debug);
+      MIB.addReg(0);
+      MIB.addReg(0);
     } else if (LocIdxToLocID[*MLoc] >= NumRegs) {
       unsigned LocID = LocIdxToLocID[*MLoc];
       const SpillLoc &Spill = SpillLocs[LocID - NumRegs + 1];
@@ -774,15 +774,15 @@ public:
       Expr = TRI->prependOffsetExpression(Expr, DIExpression::ApplyOffset,
                                           Spill.SpillOffset);
       unsigned Base = Spill.SpillBase;
-      MIB.addReg(Base, RegState::Debug);
+      MIB.addReg(Base);
       MIB.addImm(0);
     } else {
       unsigned LocID = LocIdxToLocID[*MLoc];
-      MIB.addReg(LocID, RegState::Debug);
+      MIB.addReg(LocID);
       if (Properties.Indirect)
         MIB.addImm(0);
       else
-        MIB.addReg(0, RegState::Debug);
+        MIB.addReg(0);
     }
 
     MIB.addMetadata(Var.getVariable());
@@ -1220,7 +1220,6 @@ public:
         DIExpression::prepend(Prop.DIExpr, DIExpression::EntryValue);
     Register Reg = MTracker->LocIdxToLocID[Num.getLoc()];
     MachineOperand MO = MachineOperand::CreateReg(Reg, false);
-    MO.setIsDebug(true);
 
     PendingDbgValues.push_back(emitMOLoc(MO, Var, {NewExpr, Prop.Indirect}));
     return true;
@@ -2027,6 +2026,12 @@ bool InstrRefBasedLDV::transferDebugPHI(MachineInstr &MI) {
     auto PHIRec = DebugPHIRecord(
         {InstrNum, MI.getParent(), Num, MTracker->lookupOrTrackRegister(Reg)});
     DebugPHINumToValue.push_back(PHIRec);
+
+    // Subsequent register operations, or variable locations, might occur for
+    // any of the subregisters of this DBG_PHIs operand. Ensure that all
+    // registers aliasing this register are tracked.
+    for (MCRegAliasIterator RAI(MO.getReg(), TRI, true); RAI.isValid(); ++RAI)
+      MTracker->lookupOrTrackRegister(*RAI);
   } else {
     // The value is whatever's in this stack slot.
     assert(MO.isFI());

@@ -23,7 +23,7 @@
 // RUN: echo 'Target image 1' > %t.bin0
 // RUN: echo 'Target image 2' > %t.bin1
 // RUN: clang-offload-wrapper -kind=openmp -target=tg0 %t.bin0 -kind=sycl -target=tg1 %t.bin1 -o %t.wrapped.bc
-// RUN: %clang %s %t.wrapped.bc -o %t.fat.bin
+// RUN: %clang -fdeclspec %s %t.wrapped.bc -o %t.fat.bin
 
 //
 // Extract target images.
@@ -41,6 +41,11 @@
 //
 // Some code so that we can build an offload executable from this file.
 //
+#pragma section(".tgtimg", read)
+__declspec(allocate(".tgtimg"))
+__declspec(align(sizeof(void*) * 2))
+const void* padding[2] = {0, 0};
+
 #ifdef _WIN32
 char __start_omp_offloading_entries = 1;
 char __stop_omp_offloading_entries = 1;

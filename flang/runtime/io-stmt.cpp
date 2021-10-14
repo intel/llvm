@@ -1,4 +1,4 @@
-//===-- runtime/io-stmt.cpp -------------------------------------*- C++ -*-===//
+//===-- runtime/io-stmt.cpp -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,9 +9,9 @@
 #include "io-stmt.h"
 #include "connection.h"
 #include "format.h"
-#include "memory.h"
 #include "tools.h"
 #include "unit.h"
+#include "flang/Runtime/memory.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -272,7 +272,7 @@ ExternalIoStatementState<DIR>::ExternalIoStatementState(
 template <Direction DIR> int ExternalIoStatementState<DIR>::EndIoStatement() {
   if constexpr (DIR == Direction::Input) {
     BeginReadingRecord(); // in case there were no I/O items
-    if (!mutableModes().nonAdvancing) {
+    if (!mutableModes().nonAdvancing || GetIoStat() == IostatEor) {
       FinishReadingRecord();
     }
   } else {
@@ -521,6 +521,7 @@ std::optional<char32_t> IoStatementState::SkipSpaces(
       }
       HandleRelativePosition(1);
       if (remaining) {
+        GotChar();
         --*remaining;
       }
     } else {
@@ -556,21 +557,21 @@ std::optional<char32_t> IoStatementState::NextInField(
     if (auto next{GetCurrentChar()}) {
       --*remaining;
       HandleRelativePosition(1);
+      GotChar();
       return next;
     }
     const ConnectionState &connection{GetConnectionState()};
-    if (!connection.IsAtEOF() && connection.isFixedRecordLength &&
-        connection.recordLength &&
+    if (!connection.IsAtEOF() && connection.recordLength &&
         connection.positionInRecord >= *connection.recordLength) {
-      if (connection.modes.pad) { // PAD='YES'
-        --*remaining;
-        return std::optional<char32_t>{' '};
-      }
       IoErrorHandler &handler{GetIoErrorHandler()};
       if (mutableModes().nonAdvancing) {
         handler.SignalEor();
-      } else {
+      } else if (connection.isFixedRecordLength && !connection.modes.pad) {
         handler.SignalError(IostatRecordReadOverrun);
+      }
+      if (connection.modes.pad) { // PAD='YES'
+        --*remaining;
+        return std::optional<char32_t>{' '};
       }
     }
   }
@@ -609,6 +610,25 @@ bool IoStatementState::Inquire(
 
 bool IoStatementState::Inquire(InquiryKeywordHash inquiry, std::int64_t &n) {
   return std::visit([&](auto &x) { return x.get().Inquire(inquiry, n); }, u_);
+}
+
+void IoStatementState::GotChar(int n) {
+  if (auto *formattedIn{
+          get_if<FormattedIoStatementState<Direction::Input>>()}) {
+    formattedIn->GotChar(n);
+  } else {
+    GetIoErrorHandler().Crash("IoStatementState::GotChar() called for "
+                              "statement that is not formatted input");
+  }
+}
+
+std::size_t
+FormattedIoStatementState<Direction::Input>::GetEditDescriptorChars() const {
+  return chars_;
+}
+
+void FormattedIoStatementState<Direction::Input>::GotChar(int n) {
+  chars_ += n;
 }
 
 bool ListDirectedStatementState<Direction::Output>::EmitLeadingSpaceOrAdvance(
@@ -1325,5 +1345,26 @@ bool InquireUnconnectedFileState::Inquire(
 InquireIOLengthState::InquireIOLengthState(
     const char *sourceFile, int sourceLine)
     : NoUnitIoStatementState{sourceFile, sourceLine, *this} {}
+
+bool InquireIOLengthState::Emit(
+    const char *, std::size_t n, std::size_t elementBytes) {
+  bytes_ += n * elementBytes;
+  return true;
+}
+
+bool InquireIOLengthState::Emit(const char *p, std::size_t n) {
+  bytes_ += sizeof *p * n;
+  return true;
+}
+
+bool InquireIOLengthState::Emit(const char16_t *p, std::size_t n) {
+  bytes_ += sizeof *p * n;
+  return true;
+}
+
+bool InquireIOLengthState::Emit(const char32_t *p, std::size_t n) {
+  bytes_ += sizeof *p * n;
+  return true;
+}
 
 } // namespace Fortran::runtime::io

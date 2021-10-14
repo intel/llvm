@@ -143,6 +143,12 @@ static cl::opt<bool> ProfileSampleAccurate(
              "callsite and function as having 0 samples. Otherwise, treat "
              "un-sampled callsites and functions conservatively as unknown. "));
 
+static cl::opt<bool> ProfileSampleBlockAccurate(
+    "profile-sample-block-accurate", cl::Hidden, cl::init(false),
+    cl::desc("If the sample profile is accurate, we will mark all un-sampled "
+             "branches and calls as having 0 samples. Otherwise, treat "
+             "them conservatively as unknown. "));
+
 static cl::opt<bool> ProfileAccurateForSymsInList(
     "profile-accurate-for-symsinlist", cl::Hidden, cl::ZeroOrMore,
     cl::init(true),
@@ -982,7 +988,14 @@ void SampleProfileLoader::findExternalInlineCandidate(
     // For CSSPGO profile, retrieve candidate profile by walking over the
     // trie built for context profile. Note that also take call targets
     // even if callee doesn't have a corresponding context profile.
-    if (!CalleeSample || CalleeSample->getEntrySamples() < Threshold)
+    if (!CalleeSample)
+      continue;
+
+    // If pre-inliner decision is used, honor that for importing as well.
+    bool PreInline =
+        UsePreInlinerDecision &&
+        CalleeSample->getContext().hasAttribute(ContextShouldBeInlined);
+    if (!PreInline && CalleeSample->getEntrySamples() < Threshold)
       continue;
 
     StringRef Name = CalleeSample->getFuncName();
@@ -1191,8 +1204,8 @@ bool SampleProfileLoader::tryInlineCandidate(
                                                *CalledFunction);
 
     // The call to InlineFunction erases I, so we can't pass it here.
-    emitInlinedInto(*ORE, DLoc, BB, *CalledFunction, *BB->getParent(), Cost,
-                    true, CSINLINE_DEBUG);
+    emitInlinedIntoBasedOnCost(*ORE, DLoc, BB, *CalledFunction,
+                               *BB->getParent(), Cost, true, CSINLINE_DEBUG);
 
     // Now populate the list of newly exposed call sites.
     if (InlinedCallSites) {
@@ -1306,10 +1319,15 @@ SampleProfileLoader::shouldInlineCandidate(InlineCandidate &Candidate) {
   // we replay that inline decision under `sample-profile-use-preinliner`.
   // Note that we don't need to handle negative decision from preinliner as
   // context profile for not inlined calls are merged by preinliner already.
-  if (UsePreInlinerDecision &&
-      Candidate.CalleeSamples->getContext().hasAttribute(
-          ContextShouldBeInlined))
-    return InlineCost::getAlways("preinliner");
+  if (UsePreInlinerDecision && Candidate.CalleeSamples) {
+    // Once two node are merged due to promotion, we're losing some context
+    // so the original context-sensitive preinliner decision should be ignored
+    // for SyntheticContext.
+    SampleContext &Context = Candidate.CalleeSamples->getContext();
+    if (!Context.hasState(SyntheticContext) &&
+        Context.hasAttribute(ContextShouldBeInlined))
+      return InlineCost::getAlways("preinliner");
+  }
 
   // For old FDO inliner, we inline the call site as long as cost is not
   // "Never". The cost-benefit check is done earlier.
@@ -1517,7 +1535,7 @@ void SampleProfileLoader::generateMDProfMetadata(Function &F) {
                             {static_cast<uint32_t>(BlockWeights[BB])}));
         }
       }
-    } else if (OverwriteExistingWeights) {
+    } else if (OverwriteExistingWeights || ProfileSampleBlockAccurate) {
       // Set profile metadata (possibly annotated by LTO prelink) to zero or
       // clear it for cold code.
       for (auto &I : BB->getInstList()) {

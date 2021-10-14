@@ -4,6 +4,9 @@
 // Check that the code compiles with -O0 and -g
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -O0
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl -O0 -g
+// Check that the code compiles with device code instrumentation enabled
+// RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl \
+// RUN: -fsycl-instrument-device-code
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/esimd.hpp>

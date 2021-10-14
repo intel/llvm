@@ -112,6 +112,23 @@ func @sparse_new3d(%arg0: !llvm.ptr<i8>) -> tensor<?x?x?xf32, #SparseTensor> {
   return %0 : tensor<?x?x?xf32, #SparseTensor>
 }
 
+// CHECK-LABEL: func @sparse_release(
+//  CHECK-SAME: %[[A:.*]]: !llvm.ptr<i8>)
+//       CHECK: call @delSparseTensor(%[[A]]) : (!llvm.ptr<i8>) -> ()
+//       CHECK: return
+func @sparse_release(%arg0: tensor<128xf64, #SparseVector>) {
+  sparse_tensor.release %arg0 : tensor<128xf64, #SparseVector>
+  return
+}
+
+// CHECK-LABEL: func @sparse_nop_convert(
+//  CHECK-SAME: %[[A:.*]]: !llvm.ptr<i8>) -> !llvm.ptr<i8>
+//       CHECK: return %[[A]] : !llvm.ptr<i8>
+func @sparse_nop_convert(%arg0: tensor<64xf32, #SparseVector>) -> tensor<64xf32, #SparseVector> {
+  %0 = sparse_tensor.convert %arg0 : tensor<64xf32, #SparseVector> to tensor<64xf32, #SparseVector>
+  return %0 : tensor<64xf32, #SparseVector>
+}
+
 // CHECK-LABEL: func @sparse_convert_1d(
 //  CHECK-SAME: %[[A:.*]]: tensor<?xi32>) -> !llvm.ptr<i8>
 //   CHECK-DAG: %[[C0:.*]] = constant 0 : index
@@ -172,6 +189,45 @@ func @sparse_convert_1d_ss(%arg0: tensor<?xf32, #SparseVector64>) -> tensor<?xf3
 func @sparse_convert_2d(%arg0: tensor<2x4xf64>) -> tensor<2x4xf64, #SparseMatrix> {
   %0 = sparse_tensor.convert %arg0 : tensor<2x4xf64> to tensor<2x4xf64, #SparseMatrix>
   return %0 : tensor<2x4xf64, #SparseMatrix>
+}
+
+#CSR = #sparse_tensor.encoding<{ dimLevelType = [ "dense", "compressed" ] }>
+
+// CHECK-LABEL:   func @entry() -> !llvm.ptr<i8> {
+// CHECK:           %[[C1:.*]] = constant 1 : i32
+// CHECK:           %[[Offset:.*]] = constant dense<[0, 1]> : tensor<2xi64>
+// CHECK:           %[[Dims:.*]] = constant dense<[8, 7]> : tensor<2xi64>
+// CHECK:           %[[Base:.*]] = constant dense<[0, 1]> : tensor<2xi8>
+// CHECK:           %[[I2:.*]] = constant 2 : index
+// CHECK:           %[[SparseV:.*]] = constant dense<[1.000000e+00, 5.000000e+00]> : tensor<2xf32>
+// CHECK:           %[[SparseI:.*]] = constant dense<{{\[\[}}0, 0], [1, 6]]> : tensor<2x2xi64>
+// CHECK:           %[[I1:.*]] = constant 1 : index
+// CHECK:           %[[I0:.*]] = constant 0 : index
+// CHECK:           %[[C2:.*]] = constant 2 : i32
+// CHECK:           %[[BaseD:.*]] = tensor.cast %[[Base]] : tensor<2xi8> to tensor<?xi8>
+// CHECK:           %[[DimsD:.*]] = tensor.cast %[[Dims]] : tensor<2xi64> to tensor<?xi64>
+// CHECK:           %[[OffsetD:.*]] = tensor.cast %[[Offset]] : tensor<2xi64> to tensor<?xi64>
+// CHECK:           %[[TCOO:.*]] = call @newSparseTensor(%[[BaseD]], %[[DimsD]], %[[OffsetD]], %{{.*}}, %{{.*}}, %{{.*}}, %[[C2]], %{{.}})
+// CHECK:           %[[Index:.*]] = memref.alloca() : memref<2xindex>
+// CHECK:           %[[IndexD:.*]] = memref.cast %[[Index]] : memref<2xindex> to memref<?xindex>
+// CHECK:           scf.for %[[IV:.*]] = %[[I0]] to %[[I2]] step %[[I1]] {
+// CHECK:             %[[VAL0:.*]] = tensor.extract %[[SparseI]]{{\[}}%[[IV]], %[[I0]]] : tensor<2x2xi64>
+// CHECK:             %[[VAL1:.*]] = index_cast %[[VAL0]] : i64 to index
+// CHECK:             memref.store %[[VAL1]], %[[Index]]{{\[}}%[[I0]]] : memref<2xindex>
+// CHECK:             %[[VAL2:.*]] = tensor.extract %[[SparseI]]{{\[}}%[[IV]], %[[I1]]] : tensor<2x2xi64>
+// CHECK:             %[[VAL3:.*]] = index_cast %[[VAL2]] : i64 to index
+// CHECK:             memref.store %[[VAL3]], %[[Index]]{{\[}}%[[I1]]] : memref<2xindex>
+// CHECK:             %[[VAL4:.*]] = tensor.extract %[[SparseV]]{{\[}}%[[IV]]] : tensor<2xf32>
+// CHECK:             call @addEltF32(%[[TCOO]], %[[VAL4]], %[[IndexD]], %[[OffsetD]])
+// CHECK:           }
+// CHECK:           %[[T:.*]] = call @newSparseTensor(%[[BaseD]], %[[DimsD]], %[[OffsetD]], %{{.*}}, %{{.*}}, %[[C1]], %{{.*}})
+// CHECK:           return %[[T]] : !llvm.ptr<i8>
+func @entry() -> tensor<8x7xf32, #CSR>{
+  // Initialize a tensor.
+  %0 = constant sparse<[[0, 0], [1, 6]], [1.0, 5.0]> : tensor<8x7xf32>
+  // Convert the tensor to a sparse tensor.
+  %1 = sparse_tensor.convert %0 : tensor<8x7xf32> to tensor<8x7xf32, #CSR>
+  return %1 : tensor<8x7xf32, #CSR>
 }
 
 // CHECK-LABEL: func @sparse_convert_3d(

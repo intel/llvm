@@ -299,7 +299,14 @@ using BIsRepresentationT = half;
 // as a kernel argument which is expected to be floating point number.
 template <int NumElements> struct half_vec {
   alignas(detail::vector_alignment<StorageT, NumElements>::value)
-      std::array<StorageT, NumElements> s;
+      StorageT s[NumElements];
+
+  __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
+  constexpr void initialize_data() {
+    for (size_t i = 0; i < NumElements; ++i) {
+      s[i] = StorageT(0.0f);
+    }
+  }
 };
 
   using Vec2StorageT = half_vec<2>;
@@ -383,6 +390,7 @@ public:
   }
 
   template <typename Key> friend struct std::hash;
+
 private:
   StorageT Data;
 };

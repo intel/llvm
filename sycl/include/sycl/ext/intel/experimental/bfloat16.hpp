@@ -141,8 +141,5 @@ public:
 } // namespace intel
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED("use 'ext::intel' instead") INTEL {
-  using namespace ext::intel;
-}
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

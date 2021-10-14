@@ -292,6 +292,7 @@ struct objc_clsopt_v16_t {
    uint32_t occupied;
    uint32_t shift;
    uint32_t mask;
+   uint32_t zero;
    uint64_t salt;
    uint32_t scramble[256];
    uint8_t  tab[0]; // tab[mask+1]
@@ -1069,8 +1070,6 @@ lldb_private::ConstString AppleObjCRuntimeV2::GetPluginNameStatic() {
 lldb_private::ConstString AppleObjCRuntimeV2::GetPluginName() {
   return GetPluginNameStatic();
 }
-
-uint32_t AppleObjCRuntimeV2::GetPluginVersion() { return 1; }
 
 BreakpointResolverSP
 AppleObjCRuntimeV2::CreateExceptionResolver(const BreakpointSP &bkpt,
@@ -2188,8 +2187,12 @@ lldb::addr_t AppleObjCRuntimeV2::GetSharedCacheBaseAddress() {
   if (!info_dict)
     return LLDB_INVALID_ADDRESS;
 
-  return info_dict->GetValueForKey("shared_cache_base_address")
-      ->GetIntegerValue(LLDB_INVALID_ADDRESS);
+  StructuredData::ObjectSP value =
+      info_dict->GetValueForKey("shared_cache_base_address");
+  if (!value)
+    return LLDB_INVALID_ADDRESS;
+
+  return value->GetIntegerValue(LLDB_INVALID_ADDRESS);
 }
 
 void AppleObjCRuntimeV2::UpdateISAToDescriptorMapIfNeeded() {

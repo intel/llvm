@@ -182,7 +182,7 @@ void check_ast()
   // No diagnostic is emitted because the arguments match.
   // Duplicate attribute is silently ignored.
   //CHECK: VarDecl{{.*}}var_bankwidth 'int'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGABankWidthAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 16
@@ -194,7 +194,7 @@ void check_ast()
   // No diagnostic is emitted because the arguments match.
   // Duplicate attribute is silently ignored.
   //CHECK: VarDecl{{.*}}var_numbanks 'int'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGANumBanksAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
@@ -210,9 +210,10 @@ void diagnostics()
   //CHECK: VarDecl{{.*}}doublepump
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGADoublePumpAttr
-  //expected-warning@+2 {{attribute 'intelfpga::doublepump' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::doublepump' instead?}}
-  [[intelfpga::doublepump]] unsigned int doublepump[64];
+  [[intel::doublepump]] unsigned int doublepump[64];
+
+  //expected-warning@+1 {{unknown attribute 'doublepump' ignored}}
+  [[intelfpga::doublepump]] unsigned int doublepump_var[64];
 
   //expected-error@+2{{attributes are not compatible}}
   [[intel::doublepump]]
@@ -234,9 +235,10 @@ void diagnostics()
   //CHECK: VarDecl{{.*}}singlepump
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGASinglePumpAttr
-  //expected-warning@+2 {{attribute 'intelfpga::singlepump' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::singlepump' instead?}}
-  [[intelfpga::singlepump]] unsigned int singlepump[64];
+  [[intel::singlepump]] unsigned int singlepump[64];
+
+  //expected-warning@+1 {{unknown attribute 'singlepump' ignored}}
+  [[intelfpga::singlepump]] unsigned int singlepump_var[64];
 
   //expected-error@+1{{attributes are not compatible}}
   [[intel::singlepump, intel::doublepump]]
@@ -256,9 +258,10 @@ void diagnostics()
   // **fpga_register
   //CHECK: VarDecl{{.*}}reg
   //CHECK: IntelFPGARegisterAttr
-  //expected-warning@+2 {{attribute 'intelfpga::register' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::fpga_register' instead?}}
-  [[intelfpga::register]] unsigned int reg[64];
+  [[intel::fpga_register]] unsigned int reg[64];
+
+  //expected-warning@+1 {{unknown attribute 'register' ignored}}
+  [[intelfpga::register]] unsigned int reg_var[64];
 
   //expected-warning@+1{{attribute 'fpga_register' is already applied}}
   [[intel::fpga_register]] [[intel::fpga_register]] unsigned int reg_reg[64];
@@ -347,9 +350,7 @@ void diagnostics()
   // **memory
   //CHECK: VarDecl{{.*}}memory
   //CHECK: IntelFPGAMemoryAttr
-  //expected-warning@+2 {{attribute 'intelfpga::memory' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::fpga_memory' instead?}}
-  [[intelfpga::memory]] unsigned int memory[64];
+  [[intel::fpga_memory]] unsigned int memory[64];
 
   //expected-error@+2{{attributes are not compatible}}
   [[intel::fpga_memory]]
@@ -360,6 +361,9 @@ void diagnostics()
   //expected-warning@+1{{attribute 'fpga_memory' is already applied}}
   [[intel::fpga_memory]] [[intel::fpga_memory]] unsigned int mem_mem[64];
 
+  //expected-warning@+1 {{unknown attribute 'memory' ignored}}
+  [[intelfpga::memory]] unsigned int memory_var[64];
+
   // bankwidth
   //CHECK: VarDecl{{.*}}bankwidth
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
@@ -367,9 +371,10 @@ void diagnostics()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}4
   //CHECK-NEXT: IntegerLiteral{{.*}}4{{$}}
-  //expected-warning@+2 {{attribute 'intelfpga::bankwidth' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::bankwidth' instead?}}
-  [[intelfpga::bankwidth(4)]] unsigned int bankwidth[32];
+  [[intel::bankwidth(4)]] unsigned int bankwidth[32];
+
+  //expected-warning@+1 {{unknown attribute 'bankwidth' ignored}}
+  [[intelfpga::bankwidth(4)]] unsigned int bankwidth_var[32];
 
   // Checking of incompatible attributes.
   //expected-error@+2{{attributes are not compatible}}
@@ -386,9 +391,10 @@ void diagnostics()
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}2
   //CHECK: IntegerLiteral{{.*}}2{{$}}
-  //expected-warning@+2 {{attribute 'intelfpga::max_replicates' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::max_replicates' instead?}}
-  [[intelfpga::max_replicates(2)]] unsigned int max_replicates[64];
+  [[intel::max_replicates(2)]] unsigned int max_replicates[64];
+
+  //expected-warning@+1 {{unknown attribute 'max_replicates' ignored}}
+  [[intelfpga::max_replicates(2)]] unsigned int max_replicates_var[64];
 
   // Checking of different argument values.
   //expected-warning@+2{{attribute 'max_replicates' is already applied with different arguments}}
@@ -413,9 +419,10 @@ void diagnostics()
   //CHECK: VarDecl{{.*}}dual_port
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGASimpleDualPortAttr
-  //expected-warning@+2 {{attribute 'intelfpga::simple_dual_port' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::simple_dual_port' instead?}}
-  [[intelfpga::simple_dual_port]] unsigned int dual_port[64];
+  [[intel::simple_dual_port]] unsigned int dual_port[64];
+
+  //expected-warning@+1 {{unknown attribute 'simple_dual_port' ignored}}
+  [[intelfpga::simple_dual_port]] unsigned int dual_port_var[64];
 
   //expected-note@+1 {{conflicting attribute is here}}
   [[intel::fpga_register]]
@@ -424,7 +431,7 @@ void diagnostics()
 
   // Checking of different argument values.
   //CHECK: VarDecl{{.*}}bw_bw 'unsigned int [64]'
-  //CHECK:IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK:IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGABankWidthAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
@@ -458,9 +465,10 @@ void diagnostics()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-  //expected-warning@+2 {{attribute 'intelfpga::private_copies' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::private_copies' instead?}}
-  [[intelfpga::private_copies(8)]] unsigned int private_copies[64];
+  [[intel::private_copies(8)]] unsigned int private_copies[64];
+
+  //expected-warning@+1 {{unknown attribute 'private_copies' ignored}}
+  [[intelfpga::private_copies(8)]] unsigned int private_copies_var[64];
 
   // Checking of incompatible attributes.
   //expected-error@+2{{attributes are not compatible}}
@@ -493,9 +501,7 @@ void diagnostics()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}8
   //CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
-  //expected-warning@+2 {{attribute 'intelfpga::numbanks' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::numbanks' instead?}}
-  [[intelfpga::numbanks(8)]] unsigned int numbanks[32];
+  [[intel::numbanks(8)]] unsigned int numbanks[32];
 
   //expected-error@+2{{attributes are not compatible}}
   [[intel::numbanks(16)]]
@@ -504,7 +510,7 @@ void diagnostics()
   unsigned int nb_reg[64];
 
   //CHECK: VarDecl{{.*}}nb_nb 'unsigned int [64]'
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK:IntelFPGANumBanksAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 8
@@ -531,13 +537,17 @@ void diagnostics()
   //expected-error@+1{{requires a positive integral compile time constant expression}}
   [[intel::numbanks(0)]] unsigned int nb_zero[64];
 
+  //expected-warning@+1 {{unknown attribute 'numbanks' ignored}}
+  [[intelfpga::numbanks(8)]] unsigned int numbanks_var[32];
+
   // merge
   //CHECK: VarDecl{{.*}}merge_depth
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
   //CHECK: IntelFPGAMergeAttr{{.*}}"mrg1" "depth"{{$}}
-  //expected-warning@+2 {{attribute 'intelfpga::merge' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::merge' instead?}}
-  [[intelfpga::merge("mrg1", "depth")]] unsigned int merge_depth[64];
+  [[intel::merge("mrg1", "depth")]] unsigned int merge_depth[64];
+
+  //expected-warning@+1 {{unknown attribute 'merge' ignored}}
+  [[intelfpga::merge("mrg1", "depth")]] unsigned int merge_depth_var[64];
 
   //expected-error@+2{{attributes are not compatible}}
   [[intel::merge("mrg1", "depth")]]
@@ -583,14 +593,12 @@ void diagnostics()
   //CHECK-NEXT: ConstantExpr
   //CHECK-NEXT: value:{{.*}}5
   //CHECK-NEXT: IntegerLiteral{{.*}}5{{$}}
-  //expected-warning@+2 {{attribute 'intelfpga::bank_bits' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::bank_bits' instead?}}
-  [[intelfpga::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
+  [[intel::bank_bits(2, 3, 4, 5)]] unsigned int bankbits[64];
 
   //CHECK: VarDecl{{.*}} bb_reg 'unsigned int [4]'
   //CHECK: IntelFPGANumBanksAttr{{.*}}Implicit
   //CHECK-NEXT: IntegerLiteral{{.*}}'int' 4
-  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit memory Default
+  //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit Default
   //CHECK: IntelFPGABankBitsAttr
   //CHECK-NEXT: ConstantExpr{{.*}}'int'
   //CHECK-NEXT: value: Int 2
@@ -638,6 +646,9 @@ void diagnostics()
   //expected-error@+1{{'bank_bits' attribute requires a non-negative integral compile time constant expression}}
   [[intel::bank_bits(-1)]] unsigned int bb_negative_arg[4];
 
+  //expected-warning@+1 {{unknown attribute 'bank_bits' ignored}}
+  [[intelfpga::bank_bits(2, 3, 4, 5)]] unsigned int bankbits_var[64];
+
   // force_pow2_depth
   //CHECK: VarDecl{{.*}}arr_force_p2d_0
   //CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
@@ -645,9 +656,10 @@ void diagnostics()
   //CHECK: ConstantExpr
   //CHECK-NEXT: value:{{.*}}0
   //CHECK: IntegerLiteral{{.*}}0{{$}}
-  //expected-warning@+2 {{attribute 'intelfpga::force_pow2_depth' is deprecated}}
-  //expected-note@+1 {{did you mean to use 'intel::force_pow2_depth' instead?}}
-  [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
+  [[intel::force_pow2_depth(0)]] unsigned int arr_force_p2d_0[64];
+
+  //expected-warning@+1 {{unknown attribute 'force_pow2_depth' ignored}}
+  [[intelfpga::force_pow2_depth(0)]] unsigned int arr_force_p2d_0_var[64];
 
   //expected-error@+1{{'force_pow2_depth' attribute requires integer constant between 0 and 1 inclusive}}
   [[intel::force_pow2_depth(-1)]] unsigned int force_p2d_below_min[64];

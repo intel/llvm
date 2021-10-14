@@ -1668,7 +1668,7 @@ Value *ScalarExprEmitter::VisitShuffleVectorExpr(ShuffleVectorExpr *E) {
   for (unsigned i = 2; i < E->getNumSubExprs(); ++i) {
     llvm::APSInt Idx = E->getShuffleMaskIdx(CGF.getContext(), i-2);
     // Check for -1 and output it as undef in the IR.
-    if (Idx.isSigned() && Idx.isAllOnesValue())
+    if (Idx.isSigned() && Idx.isAllOnes())
       Indices.push_back(-1);
     else
       Indices.push_back(Idx.getZExtValue());
@@ -1796,13 +1796,18 @@ Value *ScalarExprEmitter::VisitMatrixSubscriptExpr(MatrixSubscriptExpr *E) {
   // integer value.
   Value *RowIdx = Visit(E->getRowIdx());
   Value *ColumnIdx = Visit(E->getColumnIdx());
+
+  const auto *MatrixTy = E->getBase()->getType()->castAs<ConstantMatrixType>();
+  unsigned NumRows = MatrixTy->getNumRows();
+  llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
+  Value *Idx = MB.CreateIndex(RowIdx, ColumnIdx, NumRows);
+  if (CGF.CGM.getCodeGenOpts().OptimizationLevel > 0)
+    MB.CreateIndexAssumption(Idx, MatrixTy->getNumElementsFlattened());
+
   Value *Matrix = Visit(E->getBase());
 
   // TODO: Should we emit bounds checks with SanitizerKind::ArrayBounds?
-  llvm::MatrixBuilder<CGBuilderTy> MB(Builder);
-  return MB.CreateExtractElement(
-      Matrix, RowIdx, ColumnIdx,
-      E->getBase()->getType()->castAs<ConstantMatrixType>()->getNumRows());
+  return Builder.CreateExtractElement(Matrix, Idx, "matrixext");
 }
 
 static int getMaskElt(llvm::ShuffleVectorInst *SVI, unsigned Idx,
@@ -2701,7 +2706,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       amt = llvm::ConstantFP::get(VMContext,
                                   llvm::APFloat(static_cast<double>(amount)));
     else {
-      // Remaining types are Half, LongDouble or __float128. Convert from float.
+      // Remaining types are Half, LongDouble, __ibm128 or __float128. Convert
+      // from float.
       llvm::APFloat F(static_cast<float>(amount));
       bool ignored;
       const llvm::fltSemantics *FS;
@@ -2711,6 +2717,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
         FS = &CGF.getTarget().getFloat128Format();
       else if (value->getType()->isHalfTy())
         FS = &CGF.getTarget().getHalfFormat();
+      else if (value->getType()->isPPC_FP128Ty())
+        FS = &CGF.getTarget().getIbm128Format();
       else
         FS = &CGF.getTarget().getLongDoubleFormat();
       F.convert(*FS, llvm::APFloat::rmTowardZero, &ignored);
@@ -4817,12 +4825,10 @@ Value *ScalarExprEmitter::VisitAsTypeExpr(AsTypeExpr *E) {
   // to vec4 if the original type is not vec4, then a shuffle vector to
   // get a vec3.
   if (NumElementsSrc != 3 && NumElementsDst == 3) {
-    if (!CGF.CGM.getCodeGenOpts().PreserveVec3Type) {
-      auto *Vec4Ty = llvm::FixedVectorType::get(
-          cast<llvm::VectorType>(DstTy)->getElementType(), 4);
-      Src = createCastsForTypeOfSameSize(Builder, CGF.CGM.getDataLayout(), Src,
-                                         Vec4Ty);
-    }
+    auto *Vec4Ty = llvm::FixedVectorType::get(
+        cast<llvm::VectorType>(DstTy)->getElementType(), 4);
+    Src = createCastsForTypeOfSameSize(Builder, CGF.CGM.getDataLayout(), Src,
+                                       Vec4Ty);
 
     Src = ConvertVec3AndVec4(Builder, CGF, Src, 3);
     Src->setName("astype");
@@ -4982,7 +4988,7 @@ static GEPOffsetAndOverflow EmitGEPOffsetInBytes(Value *BasePtr, Value *GEPVal,
 
   auto *GEP = cast<llvm::GEPOperator>(GEPVal);
   assert(GEP->getPointerOperand() == BasePtr &&
-         "BasePtr must be the the base of the GEP.");
+         "BasePtr must be the base of the GEP.");
   assert(GEP->isInBounds() && "Expected inbounds GEP");
 
   auto *IntPtrTy = DL.getIntPtrType(GEP->getPointerOperandType());

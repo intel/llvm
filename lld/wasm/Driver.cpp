@@ -651,7 +651,7 @@ static void createSyntheticSymbols() {
     WasmSym::stackPointer->markLive();
   }
 
-  if (config->sharedMemory && !config->relocatable) {
+  if (config->sharedMemory) {
     WasmSym::tlsBase = createGlobalVariable("__tls_base", true);
     WasmSym::tlsSize = createGlobalVariable("__tls_size", false);
     WasmSym::tlsAlign = createGlobalVariable("__tls_align", false);
@@ -947,8 +947,6 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     }
   }
 
-  createOptionalSymbols();
-
   if (errorCount())
     return;
 
@@ -975,6 +973,8 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   symtab->addCombinedLTOObject();
   if (errorCount())
     return;
+
+  createOptionalSymbols();
 
   // Resolve any variant symbols that were created due to signature
   // mismatchs.

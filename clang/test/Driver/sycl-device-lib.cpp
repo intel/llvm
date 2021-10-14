@@ -95,15 +95,22 @@
 
 /// test invalid value for -f[no-]sycl-device-lib
 // RUN: %clangxx -fsycl %s -fsycl-device-lib=libc,dummy -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_INVALID_VALUE
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_INVALID_VALUE -DVal=dummy
 // RUN: %clangxx -fsycl %s -fno-sycl-device-lib=dummy,libm-fp32 -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=SYCL_NO_DEVICE_LIB_INVALID_VALUE
-// SYCL_DEVICE_LIB_INVALID_VALUE: error: unsupported argument 'dummy' to option 'fsycl-device-lib='
-// SYCL_NO_DEVICE_LIB_INVALID_VALUE: error: unsupported argument 'dummy' to option 'fno-sycl-device-lib='
+// RUN:   | FileCheck %s -check-prefix=SYCL_NO_DEVICE_LIB_INVALID_VALUE -DVal=dummy
+// Do separate checks for the compiler-reserved "internal" value
+// RUN: %clangxx -fsycl %s -fsycl-device-lib=internal -### 2>&1		\
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_INVALID_VALUE -DVal=internal
+// RUN: %clangxx -fsycl %s -fno-sycl-device-lib=internal -### 2>&1		\
+// RUN:   | FileCheck %s -check-prefix=SYCL_NO_DEVICE_LIB_INVALID_VALUE -DVal=internal
+// SYCL_DEVICE_LIB_INVALID_VALUE: error: unsupported argument '[[Val]]' to option 'fsycl-device-lib='
+// SYCL_NO_DEVICE_LIB_INVALID_VALUE: error: unsupported argument '[[Val]]' to option 'fno-sycl-device-lib='
 
 /// ###########################################################################
 /// test llvm-link behavior for linking device libraries
 // RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
+// RUN: %clangxx -fsycl -save-temps %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_DEVICE_LIB
 // SYCL_LLVM_LINK_DEVICE_LIB: llvm-link{{.*}}  "{{.*}}.bc" "-o" "{{.*}}.bc" "--suppress-warnings"
 // SYCL_LLVM_LINK_DEVICE_LIB-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-inputs={{.*}}libsycl-crt.o" "-outputs={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
@@ -125,7 +132,7 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_LLVM_LINK_NO_DEVICE_LIB
 // SYCL_LLVM_LINK_NO_DEVICE_LIB: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 // SYCL_LLVM_LINK_NO_DEVICE_LIB-NOT: llvm-link{{.*}}  "-only-needed"
-// SYCL_LLVM_LINK_NO_DEVICE_LIB: sycl-post-link{{.*}}  "-symbols" "-split-esimd" "-lower-esimd" "-O2" "-spec-const=rt" "-o" "{{.*}}.table" "{{.*}}.bc"
+// SYCL_LLVM_LINK_NO_DEVICE_LIB: sycl-post-link{{.*}}  "-symbols" "-emit-exported-symbols" "-split-esimd" "-lower-esimd" "-O2" "-spec-const=rt" "-o" "{{.*}}.table" "{{.*}}.bc"
 
 /// ###########################################################################
 /// test llvm-link behavior for special user input whose filename resembles SYCL device library

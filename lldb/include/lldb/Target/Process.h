@@ -106,8 +106,6 @@ protected:
   std::unique_ptr<ProcessExperimentalProperties> m_experimental_properties_up;
 };
 
-typedef std::shared_ptr<ProcessProperties> ProcessPropertiesSP;
-
 // ProcessAttachInfo
 //
 // Describes any information that is required to attach to a process.
@@ -501,7 +499,7 @@ public:
 
   static void SettingsTerminate();
 
-  static const ProcessPropertiesSP &GetGlobalProperties();
+  static ProcessProperties &GetGlobalProperties();
 
   /// Find a Process plug-in that can debug \a module using the currently
   /// selected architecture.
@@ -686,6 +684,16 @@ public:
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "Not implemented");
   }
+
+  /// Save core dump into the specified file.
+  ///
+  /// \param[in] outfile
+  ///     Path to store core dump in.
+  ///
+  /// \return
+  ///     true if saved successfully, false if saving the core dump
+  ///     is not supported by the plugin, error otherwise.
+  virtual llvm::Expected<bool> SaveCore(llvm::StringRef outfile);
 
 protected:
   virtual JITLoaderList &GetJITLoaders();

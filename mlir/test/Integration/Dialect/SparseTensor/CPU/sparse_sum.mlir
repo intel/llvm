@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -35,7 +35,7 @@ module {
   // A kernel that sum-reduces a matrix to a single scalar.
   //
   func @kernel_sum_reduce(%arga: tensor<?x?xf64, #SparseMatrix>,
-                          %argx: tensor<f64>) -> tensor<f64> {
+                          %argx: tensor<f64> {linalg.inplaceable = true}) -> tensor<f64> {
     %0 = linalg.generic #trait_sum_reduce
       ins(%arga: tensor<?x?xf64, #SparseMatrix>)
       outs(%argx: tensor<f64>) {
@@ -79,6 +79,7 @@ module {
 
     // Release the resources.
     memref.dealloc %xdata : memref<f64>
+    sparse_tensor.release %a : tensor<?x?xf64, #SparseMatrix>
 
     return
   }

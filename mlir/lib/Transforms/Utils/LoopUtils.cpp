@@ -68,7 +68,7 @@ static void getCleanupLoopLowerBound(AffineForOp forOp, unsigned unrollFactor,
 
   AffineMap tripCountMap;
   SmallVector<Value, 4> tripCountOperands;
-  buildTripCountMapAndOperands(forOp, &tripCountMap, &tripCountOperands);
+  getTripCountMapAndOperands(forOp, &tripCountMap, &tripCountOperands);
 
   // Sometimes the trip count cannot be expressed as an affine expression.
   if (!tripCountMap) {
@@ -1052,6 +1052,8 @@ LogicalResult mlir::loopUnrollFull(AffineForOp forOp) {
   Optional<uint64_t> mayBeConstantTripCount = getConstantTripCount(forOp);
   if (mayBeConstantTripCount.hasValue()) {
     uint64_t tripCount = mayBeConstantTripCount.getValue();
+    if (tripCount == 0)
+      return success();
     if (tripCount == 1)
       return promoteIfSingleIteration(forOp);
     return loopUnrollByFactor(forOp, tripCount);
@@ -1126,6 +1128,40 @@ static void generateUnrolledLoop(
   loopBodyBlock->getTerminator()->setOperands(lastYielded);
 }
 
+/// Helper to generate cleanup loop for unroll or unroll-and-jam when the trip
+/// count is not a multiple of `unrollFactor`.
+static void generateCleanupLoopForUnroll(AffineForOp forOp,
+                                         uint64_t unrollFactor) {
+  // Insert the cleanup loop right after 'forOp'.
+  OpBuilder builder(forOp->getBlock(), std::next(Block::iterator(forOp)));
+  auto cleanupForOp = cast<AffineForOp>(builder.clone(*forOp));
+
+  // Update uses of `forOp` results. `cleanupForOp` should use `forOp` result
+  // and produce results for the original users of `forOp` results.
+  auto results = forOp.getResults();
+  auto cleanupResults = cleanupForOp.getResults();
+  auto cleanupIterOperands = cleanupForOp.getIterOperands();
+
+  for (auto e : llvm::zip(results, cleanupResults, cleanupIterOperands)) {
+    std::get<0>(e).replaceAllUsesWith(std::get<1>(e));
+    cleanupForOp->replaceUsesOfWith(std::get<2>(e), std::get<0>(e));
+  }
+
+  AffineMap cleanupMap;
+  SmallVector<Value, 4> cleanupOperands;
+  getCleanupLoopLowerBound(forOp, unrollFactor, cleanupMap, cleanupOperands);
+  assert(cleanupMap &&
+         "cleanup loop lower bound map for single result lower bound maps "
+         "can always be determined");
+  cleanupForOp.setLowerBound(cleanupOperands, cleanupMap);
+  // Promote the loop body up if this has turned into a single iteration loop.
+  (void)promoteIfSingleIteration(cleanupForOp);
+
+  // Adjust upper bound of the original loop; this is the same as the lower
+  // bound of the cleanup loop.
+  forOp.setUpperBound(cleanupOperands, cleanupMap);
+}
+
 /// Unrolls this loop by the specified factor. Returns success if the loop
 /// is successfully unrolled.
 LogicalResult mlir::loopUnrollByFactor(
@@ -1156,34 +1192,8 @@ LogicalResult mlir::loopUnrollByFactor(
     return failure();
 
   // Generate the cleanup loop if trip count isn't a multiple of unrollFactor.
-  if (getLargestDivisorOfTripCount(forOp) % unrollFactor != 0) {
-    OpBuilder builder(forOp->getBlock(), std::next(Block::iterator(forOp)));
-    auto cleanupForOp = cast<AffineForOp>(builder.clone(*forOp));
-
-    // Update users of loop results.
-    auto results = forOp.getResults();
-    auto cleanupResults = cleanupForOp.getResults();
-    auto cleanupIterOperands = cleanupForOp.getIterOperands();
-
-    for (auto e : llvm::zip(results, cleanupResults, cleanupIterOperands)) {
-      std::get<0>(e).replaceAllUsesWith(std::get<1>(e));
-      cleanupForOp->replaceUsesOfWith(std::get<2>(e), std::get<0>(e));
-    }
-
-    AffineMap cleanupMap;
-    SmallVector<Value, 4> cleanupOperands;
-    getCleanupLoopLowerBound(forOp, unrollFactor, cleanupMap, cleanupOperands);
-    assert(cleanupMap &&
-           "cleanup loop lower bound map for single result lower bound maps "
-           "can always be determined");
-    cleanupForOp.setLowerBound(cleanupOperands, cleanupMap);
-    // Promote the loop body up if this has turned into a single iteration loop.
-    (void)promoteIfSingleIteration(cleanupForOp);
-
-    // Adjust upper bound of the original loop; this is the same as the lower
-    // bound of the cleanup loop.
-    forOp.setUpperBound(cleanupOperands, cleanupMap);
-  }
+  if (getLargestDivisorOfTripCount(forOp) % unrollFactor != 0)
+    generateCleanupLoopForUnroll(forOp, unrollFactor);
 
   ValueRange iterArgs(forOp.getRegionIterArgs());
   auto yieldedValues = forOp.getBody()->getTerminator()->getOperands();
@@ -1330,37 +1340,52 @@ LogicalResult mlir::loopUnrollJamUpToFactor(AffineForOp forOp,
   return loopUnrollJamByFactor(forOp, unrollJamFactor);
 }
 
+/// Check if all control operands of all loops are defined outside of `forOp`
+/// and return false if not.
+static bool areInnerBoundsInvariant(AffineForOp forOp) {
+  auto walkResult = forOp.walk([&](AffineForOp aForOp) {
+    for (auto controlOperand : aForOp.getControlOperands()) {
+      if (!forOp.isDefinedOutsideOfLoop(controlOperand))
+        return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
+  });
+  if (walkResult.wasInterrupted())
+    return false;
+  return true;
+}
+
+// Gathers all maximal sub-blocks of operations that do not themselves
+// include a for op (a operation could have a descendant for op though
+// in its tree).  Ignore the block terminators.
+struct JamBlockGatherer {
+  // Store iterators to the first and last op of each sub-block found.
+  std::vector<std::pair<Block::iterator, Block::iterator>> subBlocks;
+
+  // This is a linear time walk.
+  void walk(Operation *op) {
+    for (auto &region : op->getRegions())
+      for (auto &block : region)
+        walk(block);
+  }
+
+  void walk(Block &block) {
+    for (auto it = block.begin(), e = std::prev(block.end()); it != e;) {
+      auto subBlockStart = it;
+      while (it != e && !isa<AffineForOp>(&*it))
+        ++it;
+      if (it != subBlockStart)
+        subBlocks.push_back({subBlockStart, std::prev(it)});
+      // Process all for ops that appear next.
+      while (it != e && isa<AffineForOp>(&*it))
+        walk(&*it++);
+    }
+  }
+};
+
 /// Unrolls and jams this loop by the specified factor.
 LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
                                           uint64_t unrollJamFactor) {
-  // Gathers all maximal sub-blocks of operations that do not themselves
-  // include a for op (a operation could have a descendant for op though
-  // in its tree).  Ignore the block terminators.
-  struct JamBlockGatherer {
-    // Store iterators to the first and last op of each sub-block found.
-    std::vector<std::pair<Block::iterator, Block::iterator>> subBlocks;
-
-    // This is a linear time walk.
-    void walk(Operation *op) {
-      for (auto &region : op->getRegions())
-        for (auto &block : region)
-          walk(block);
-    }
-
-    void walk(Block &block) {
-      for (auto it = block.begin(), e = std::prev(block.end()); it != e;) {
-        auto subBlockStart = it;
-        while (it != e && !isa<AffineForOp>(&*it))
-          ++it;
-        if (it != subBlockStart)
-          subBlocks.push_back({subBlockStart, std::prev(it)});
-        // Process all for ops that appear next.
-        while (it != e && isa<AffineForOp>(&*it))
-          walk(&*it++);
-      }
-    }
-  };
-
   assert(unrollJamFactor > 0 && "unroll jam factor should be positive");
 
   if (unrollJamFactor == 1)
@@ -1387,31 +1412,83 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
     return failure();
   }
 
+  // If any control operand of any inner loop of `forOp` is defined within
+  // `forOp`, no unroll jam.
+  if (!areInnerBoundsInvariant(forOp))
+    return failure();
+
   // Gather all sub-blocks to jam upon the loop being unrolled.
   JamBlockGatherer jbg;
   jbg.walk(forOp);
   auto &subBlocks = jbg.subBlocks;
 
+  // Collect loops with iter_args.
+  SmallVector<AffineForOp, 4> loopsWithIterArgs;
+  forOp.walk([&](AffineForOp aForOp) {
+    if (aForOp.getNumIterOperands() > 0)
+      loopsWithIterArgs.push_back(aForOp);
+  });
+
+  // Get supported reductions to be used for creating reduction ops at the end.
+  SmallVector<LoopReduction> reductions;
+  if (forOp.getNumIterOperands() > 0)
+    getSupportedReductions(forOp, reductions);
+
   // Generate the cleanup loop if trip count isn't a multiple of
   // unrollJamFactor.
-  if (getLargestDivisorOfTripCount(forOp) % unrollJamFactor != 0) {
-    // Insert the cleanup loop right after 'forOp'.
-    OpBuilder builder(forOp->getBlock(), std::next(Block::iterator(forOp)));
-    auto cleanupAffineForOp = cast<AffineForOp>(builder.clone(*forOp));
-    // Adjust the lower bound of the cleanup loop; its upper bound is the same
-    // as the original loop's upper bound.
-    AffineMap cleanupMap;
-    SmallVector<Value, 4> cleanupOperands;
-    getCleanupLoopLowerBound(forOp, unrollJamFactor, cleanupMap,
-                             cleanupOperands);
-    cleanupAffineForOp.setLowerBound(cleanupOperands, cleanupMap);
+  if (getLargestDivisorOfTripCount(forOp) % unrollJamFactor != 0)
+    generateCleanupLoopForUnroll(forOp, unrollJamFactor);
 
-    // Promote the cleanup loop if it has turned into a single iteration loop.
-    (void)promoteIfSingleIteration(cleanupAffineForOp);
+  // `operandMaps[i - 1]` carries old->new operand mapping for the ith unrolled
+  // iteration. There are (`unrollJamFactor` - 1) iterations.
+  SmallVector<BlockAndValueMapping, 4> operandMaps(unrollJamFactor - 1);
 
-    // Adjust the upper bound of the original loop - it will be the same as the
-    // cleanup loop's lower bound. Its lower bound remains unchanged.
-    forOp.setUpperBound(cleanupOperands, cleanupMap);
+  // For any loop with iter_args, replace it with a new loop that has
+  // `unrollJamFactor` copies of its iterOperands, iter_args and yield
+  // operands.
+  SmallVector<AffineForOp, 4> newLoopsWithIterArgs;
+  OpBuilder builder(forOp.getContext());
+  for (AffineForOp oldForOp : loopsWithIterArgs) {
+    SmallVector<Value, 4> dupIterOperands, dupIterArgs, dupYieldOperands;
+    ValueRange oldIterOperands = oldForOp.getIterOperands();
+    ValueRange oldIterArgs = oldForOp.getRegionIterArgs();
+    ValueRange oldYieldOperands =
+        cast<AffineYieldOp>(oldForOp.getBody()->getTerminator()).getOperands();
+    // Get additional iterOperands, iterArgs, and yield operands. We will
+    // fix iterOperands and yield operands after cloning of sub-blocks.
+    for (unsigned i = unrollJamFactor - 1; i >= 1; --i) {
+      dupIterOperands.append(oldIterOperands.begin(), oldIterOperands.end());
+      dupIterArgs.append(oldIterArgs.begin(), oldIterArgs.end());
+      dupYieldOperands.append(oldYieldOperands.begin(), oldYieldOperands.end());
+    }
+    // Create a new loop with additional iterOperands, iter_args and yield
+    // operands. This new loop will take the loop body of the original loop.
+    AffineForOp newForOp = mlir::replaceForOpWithNewYields(
+        builder, oldForOp, dupIterOperands, dupYieldOperands, dupIterArgs);
+    newLoopsWithIterArgs.push_back(newForOp);
+    // `forOp` has been replaced with a new loop.
+    if (oldForOp == forOp)
+      forOp = newForOp;
+    assert(oldForOp.use_empty() && "old for op should not have any user");
+    oldForOp.erase();
+    // Update `operandMaps` for `newForOp` iterArgs and results.
+    ValueRange newIterArgs = newForOp.getRegionIterArgs();
+    unsigned oldNumIterArgs = oldIterArgs.size();
+    ValueRange newResults = newForOp.getResults();
+    unsigned oldNumResults = newResults.size() / unrollJamFactor;
+    assert(oldNumIterArgs == oldNumResults &&
+           "oldNumIterArgs must be the same as oldNumResults");
+    for (unsigned i = unrollJamFactor - 1; i >= 1; --i) {
+      for (unsigned j = 0; j < oldNumIterArgs; ++j) {
+        // `newForOp` has `unrollJamFactor` - 1 new sets of iterArgs and
+        // results. Update `operandMaps[i - 1]` to map old iterArgs and results
+        // to those in the `i`th new set.
+        operandMaps[i - 1].map(newIterArgs[j],
+                               newIterArgs[i * oldNumIterArgs + j]);
+        operandMaps[i - 1].map(newResults[j],
+                               newResults[i * oldNumResults + j]);
+      }
+    }
   }
 
   // Scale the step of loop being unroll-jammed by the unroll-jam factor.
@@ -1421,8 +1498,6 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
   auto forOpIV = forOp.getInductionVar();
   // Unroll and jam (appends unrollJamFactor - 1 additional copies).
   for (unsigned i = unrollJamFactor - 1; i >= 1; --i) {
-    // Operand map persists across all sub-blocks.
-    BlockAndValueMapping operandMap;
     for (auto &subBlock : subBlocks) {
       // Builder to insert unroll-jammed bodies. Insert right at the end of
       // sub-block.
@@ -1431,16 +1506,63 @@ LogicalResult mlir::loopUnrollJamByFactor(AffineForOp forOp,
       // If the induction variable is used, create a remapping to the value for
       // this unrolled instance.
       if (!forOpIV.use_empty()) {
-        // iv' = iv + i, i = 1 to unrollJamFactor-1.
+        // iv' = iv + i * step, i = 1 to unrollJamFactor-1.
         auto d0 = builder.getAffineDimExpr(0);
         auto bumpMap = AffineMap::get(1, 0, d0 + i * step);
         auto ivUnroll =
             builder.create<AffineApplyOp>(forOp.getLoc(), bumpMap, forOpIV);
-        operandMap.map(forOpIV, ivUnroll);
+        operandMaps[i - 1].map(forOpIV, ivUnroll);
       }
       // Clone the sub-block being unroll-jammed.
       for (auto it = subBlock.first; it != std::next(subBlock.second); ++it)
-        builder.clone(*it, operandMap);
+        builder.clone(*it, operandMaps[i - 1]);
+    }
+    // Fix iterOperands and yield op operands of newly created loops.
+    for (auto newForOp : newLoopsWithIterArgs) {
+      unsigned oldNumIterOperands =
+          newForOp.getNumIterOperands() / unrollJamFactor;
+      unsigned numControlOperands = newForOp.getNumControlOperands();
+      auto yieldOp = cast<AffineYieldOp>(newForOp.getBody()->getTerminator());
+      unsigned oldNumYieldOperands = yieldOp.getNumOperands() / unrollJamFactor;
+      assert(oldNumIterOperands == oldNumYieldOperands &&
+             "oldNumIterOperands must be the same as oldNumYieldOperands");
+      for (unsigned j = 0; j < oldNumIterOperands; ++j) {
+        // The `i`th duplication of an old iterOperand or yield op operand
+        // needs to be replaced with a mapped value from `operandMaps[i - 1]`
+        // if such mapped value exists.
+        newForOp.setOperand(numControlOperands + i * oldNumIterOperands + j,
+                            operandMaps[i - 1].lookupOrDefault(
+                                newForOp.getOperand(numControlOperands + j)));
+        yieldOp.setOperand(
+            i * oldNumYieldOperands + j,
+            operandMaps[i - 1].lookupOrDefault(yieldOp.getOperand(j)));
+      }
+    }
+  }
+  if (forOp.getNumResults() > 0) {
+    // Create reduction ops to combine every `unrollJamFactor` related results
+    // into one value. For example, for %0:2 = affine.for ... and addf, we add
+    // %1 = addf %0#0, %0#1, and replace the following uses of %0#0 with %1.
+    builder.setInsertionPointAfter(forOp);
+    auto loc = forOp.getLoc();
+    unsigned oldNumResults = forOp.getNumResults() / unrollJamFactor;
+    for (LoopReduction &reduction : reductions) {
+      unsigned pos = reduction.iterArgPosition;
+      Value lhs = forOp.getResult(pos);
+      Value rhs;
+      SmallPtrSet<Operation *, 4> newOps;
+      for (unsigned i = unrollJamFactor - 1; i >= 1; --i) {
+        rhs = forOp.getResult(i * oldNumResults + pos);
+        // Create ops based on reduction type.
+        lhs = getReductionOp(reduction.kind, builder, loc, lhs, rhs);
+        if (!lhs)
+          return failure();
+        Operation *op = lhs.getDefiningOp();
+        assert(op && "Reduction op should have been created");
+        newOps.insert(op);
+      }
+      // Replace all uses except those in newly created reduction ops.
+      forOp.getResult(pos).replaceAllUsesExcept(lhs, newOps);
     }
   }
 
@@ -2045,7 +2167,7 @@ void mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
 
   builder.setInsertionPointToStart(outermost.getBody());
 
-  // 3. Remap induction variables.  For each original loop, the value of the
+  // 3. Remap induction variables. For each original loop, the value of the
   // induction variable can be obtained by dividing the induction variable of
   // the linearized loop by the total number of iterations of the loops nested
   // in it modulo the number of iterations in this loop (remove the values
@@ -2075,6 +2197,120 @@ void mlir::coalesceLoops(MutableArrayRef<scf::ForOp> loops) {
       Block::iterator(second.getOperation()),
       innermost.getBody()->getOperations());
   second.erase();
+}
+
+LogicalResult mlir::coalesceLoops(MutableArrayRef<AffineForOp> loops) {
+  if (loops.size() < 2)
+    return success();
+
+  AffineForOp innermost = loops.back();
+  AffineForOp outermost = loops.front();
+  AffineBound ub = outermost.getUpperBound();
+  AffineMap origUbMap = ub.getMap();
+  Location loc = outermost.getLoc();
+  OpBuilder builder(outermost);
+  for (AffineForOp loop : loops) {
+    // We only work on normalized loops.
+    if (loop.getStep() != 1 || !loop.hasConstantLowerBound() ||
+        loop.getConstantLowerBound() != 0)
+      return failure();
+  }
+  SmallVector<Value, 4> upperBoundSymbols;
+  SmallVector<Value, 4> ubOperands(ub.getOperands().begin(),
+                                   ub.getOperands().end());
+
+  // 1. Store the upper bound of the outermost loop in a variable.
+  Value prev;
+  if (!llvm::hasSingleElement(origUbMap.getResults()))
+    prev = builder.create<AffineMinOp>(loc, origUbMap, ubOperands);
+  else
+    prev = builder.create<AffineApplyOp>(loc, origUbMap, ubOperands);
+  upperBoundSymbols.push_back(prev);
+
+  // 2. Emit code computing the upper bound of the coalesced loop as product of
+  // the number of iterations of all loops.
+  for (AffineForOp loop : loops.drop_front()) {
+    ub = loop.getUpperBound();
+    origUbMap = ub.getMap();
+    ubOperands = ub.getOperands();
+    Value upperBound;
+    // If upper bound map has more than one result, take their minimum.
+    if (!llvm::hasSingleElement(origUbMap.getResults()))
+      upperBound = builder.create<AffineMinOp>(loc, origUbMap, ubOperands);
+    else
+      upperBound = builder.create<AffineApplyOp>(loc, origUbMap, ubOperands);
+    upperBoundSymbols.push_back(upperBound);
+    SmallVector<Value, 4> operands;
+    operands.push_back(prev);
+    operands.push_back(upperBound);
+    // Maintain running product of loop upper bounds.
+    prev = builder.create<AffineApplyOp>(
+        loc,
+        AffineMap::get(/*numDims=*/1,
+                       /*numSymbols=*/1,
+                       builder.getAffineDimExpr(0) *
+                           builder.getAffineSymbolExpr(0)),
+        operands);
+  }
+  // Set upper bound of the coalesced loop.
+  AffineMap newUbMap = AffineMap::get(
+      /*numDims=*/0,
+      /*numSymbols=*/1, builder.getAffineSymbolExpr(0), builder.getContext());
+  outermost.setUpperBound(prev, newUbMap);
+
+  builder.setInsertionPointToStart(outermost.getBody());
+
+  // 3. Remap induction variables. For each original loop, the value of the
+  // induction variable can be obtained by dividing the induction variable of
+  // the linearized loop by the total number of iterations of the loops nested
+  // in it modulo the number of iterations in this loop (remove the values
+  // related to the outer loops):
+  //   iv_i = floordiv(iv_linear, product-of-loop-ranges-until-i) mod range_i.
+  // Compute these iteratively from the innermost loop by creating a "running
+  // quotient" of division by the range.
+  Value previous = outermost.getInductionVar();
+  for (unsigned idx = loops.size(); idx > 0; --idx) {
+    if (idx != loops.size()) {
+      SmallVector<Value, 4> operands;
+      operands.push_back(previous);
+      operands.push_back(upperBoundSymbols[idx]);
+      previous = builder.create<AffineApplyOp>(
+          loc,
+          AffineMap::get(
+              /*numDims=*/1, /*numSymbols=*/1,
+              builder.getAffineDimExpr(0).floorDiv(
+                  builder.getAffineSymbolExpr(0))),
+          operands);
+    }
+    // Modified value of the induction variables of the nested loops after
+    // coalescing.
+    Value inductionVariable;
+    if (idx == 1) {
+      inductionVariable = previous;
+    } else {
+      SmallVector<Value, 4> applyOperands;
+      applyOperands.push_back(previous);
+      applyOperands.push_back(upperBoundSymbols[idx - 1]);
+      inductionVariable = builder.create<AffineApplyOp>(
+          loc,
+          AffineMap::get(
+              /*numDims=*/1, /*numSymbols=*/1,
+              builder.getAffineDimExpr(0) % builder.getAffineSymbolExpr(0)),
+          applyOperands);
+    }
+    replaceAllUsesInRegionWith(loops[idx - 1].getInductionVar(),
+                               inductionVariable, loops.back().region());
+  }
+
+  // 4. Move the operations from the innermost just above the second-outermost
+  // loop, delete the extra terminator and the second-outermost loop.
+  AffineForOp secondOutermostLoop = loops[1];
+  innermost.getBody()->back().erase();
+  outermost.getBody()->getOperations().splice(
+      Block::iterator(secondOutermostLoop.getOperation()),
+      innermost.getBody()->getOperations());
+  secondOutermostLoop.erase();
+  return success();
 }
 
 void mlir::collapseParallelLoops(

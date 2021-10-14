@@ -494,6 +494,11 @@ namespace llvm {
     /// Constrained floating point add in round-to-zero mode.
     STRICT_FADDRTZ,
 
+    // NOTE: The nodes below may require PC-Rel specific patterns if the
+    // address could be PC-Relative. When adding new nodes below, consider
+    // whether or not the address can be PC-Relative and add the corresponding
+    // PC-relative patterns and tests.
+
     /// CHAIN = STBRX CHAIN, GPRC, Ptr, Type - This is a
     /// byte-swapping store instruction.  It byte-swaps the low "Type" bits of
     /// the GPRC input, then stores it through Ptr.  Type can be either i16 or
@@ -712,7 +717,9 @@ namespace llvm {
       AM_DForm,
       AM_DSForm,
       AM_DQForm,
+      AM_PrefixDForm,
       AM_XForm,
+      AM_PCRel
     };
   } // end namespace PPC
 
@@ -936,7 +943,7 @@ namespace llvm {
     /// getByValTypeAlignment - Return the desired alignment for ByVal aggregate
     /// function arguments in the caller parameter area.  This is the actual
     /// alignment, not its logarithm.
-    unsigned getByValTypeAlignment(Type *Ty,
+    uint64_t getByValTypeAlignment(Type *Ty,
                                    const DataLayout &DL) const override;
 
     /// LowerAsmOperandForConstraint - Lower the specified operand into the Ops

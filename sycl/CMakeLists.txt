@@ -90,8 +90,8 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
 option(SYCL_BUILD_PI_CUDA
   "Enables the CUDA backend for the Plugin Interface" OFF)
 
-option(SYCL_BUILD_PI_ROCM
-  "Enables the ROCM backend for the Plugin Interface" OFF)
+option(SYCL_BUILD_PI_HIP
+  "Enables the HIP backend for the Plugin Interface" OFF)
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -100,14 +100,32 @@ set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
+set(feature_header "${sycl_inc_dir}/CL/sycl/feature_test.hpp")
+configure_file("${feature_header}.in" "${feature_header}")
+
+# This is workaround to detect changes (add or modify) in subtree which
+# are not detected by copy_directory command.
+# TODO: detect and process remove header/directory case
+file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
+file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 
 # Copy SYCL headers from sources to build directory
-add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
-COMMENT "Copying SYCL headers ...")
+add_custom_target(sycl-headers
+  DEPENDS ${SYCL_INCLUDE_BUILD_DIR}/sycl
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL)
 
-# Copy SYCL headers from sources to install directory
+add_custom_command(
+  OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
+          ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  DEPENDS ${HEADERS_IN_SYCL_DIR}
+          ${HEADERS_IN_CL_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  COMMENT "Copying SYCL headers ...")
+
+# Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
 
@@ -172,7 +190,7 @@ if (NOT WIN32)
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  set(XPTIFW_LIBS xptifw)
+  set(XPTIFW_LIBS xpti xptifw)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -279,22 +297,22 @@ if(SYCL_BUILD_PI_CUDA)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
 endif()
 
-if(SYCL_BUILD_PI_ROCM)
+if(SYCL_BUILD_PI_HIP)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
-      "ROCM support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+      "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  add_dependencies(sycl-toolchain libspirv-builtins pi_rocm)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_rocm)
+  add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
 endif()
 
 # TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
 # environment
 if (NOT MSVC)
-  if (SYCL_BUILD_PI_ESIMD_CPU)
+  if (SYCL_BUILD_PI_ESIMD_EMULATOR)
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
     if (MSVC)
       list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)

@@ -49,6 +49,24 @@ void mlir::getPositionsOfShapeOne(
   }
 }
 
+Value mlir::getValueOrCreateConstantIndexOp(OpBuilder &b, Location loc,
+                                            OpFoldResult ofr) {
+  if (auto value = ofr.dyn_cast<Value>())
+    return value;
+  auto attr = ofr.dyn_cast<Attribute>().dyn_cast<IntegerAttr>();
+  assert(attr && "expect the op fold result casts to an integer attribute");
+  return b.create<ConstantIndexOp>(loc, attr.getValue().getSExtValue());
+}
+
+SmallVector<Value>
+mlir::getValueOrCreateConstantIndexOp(OpBuilder &b, Location loc,
+                                      ArrayRef<OpFoldResult> valueOrAttrVec) {
+  return llvm::to_vector<4>(
+      llvm::map_range(valueOrAttrVec, [&](OpFoldResult value) -> Value {
+        return getValueOrCreateConstantIndexOp(b, loc, value);
+      }));
+}
+
 Value ArithBuilder::_and(Value lhs, Value rhs) {
   return b.create<AndOp>(loc, lhs, rhs);
 }

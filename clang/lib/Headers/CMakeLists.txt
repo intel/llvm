@@ -47,6 +47,7 @@ set(files
   __clang_cuda_complex_builtins.h
   __clang_cuda_device_functions.h
   __clang_cuda_intrinsics.h
+  __clang_cuda_texture_intrinsics.h
   __clang_cuda_libdevice_declares.h
   __clang_cuda_math_forward_declares.h
   __clang_cuda_runtime_wrapper.h
@@ -58,6 +59,7 @@ set(files
   cet.h
   cldemoteintrin.h
   clzerointrin.h
+  crc32intrin.h
   cpuid.h
   clflushoptintrin.h
   clwbintrin.h

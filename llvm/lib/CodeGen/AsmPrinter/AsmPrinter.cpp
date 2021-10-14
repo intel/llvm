@@ -102,6 +102,7 @@
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/MC/SectionKind.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Remarks/Remark.h"
 #include "llvm/Remarks/RemarkFormat.h"
@@ -115,7 +116,6 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
@@ -275,7 +275,7 @@ bool AsmPrinter::doInitialization(Module &M) {
   const_cast<TargetLoweringObjectFile &>(getObjFileLowering())
       .getModuleMetadata(M);
 
-  OutStreamer->InitSections(false);
+  OutStreamer->initSections(false, *TM.getMCSubtargetInfo());
 
   if (DisableDebugInfoPrinting)
     MMI->setDebugInfoAvailability(false);
@@ -326,16 +326,10 @@ bool AsmPrinter::doInitialization(Module &M) {
 
   // Emit module-level inline asm if it exists.
   if (!M.getModuleInlineAsm().empty()) {
-    // We're at the module level. Construct MCSubtarget from the default CPU
-    // and target triple.
-    std::unique_ptr<MCSubtargetInfo> STI(TM.getTarget().createMCSubtargetInfo(
-        TM.getTargetTriple().str(), TM.getTargetCPU(),
-        TM.getTargetFeatureString()));
-    assert(STI && "Unable to create subtarget info");
     OutStreamer->AddComment("Start of file scope inline assembly");
     OutStreamer->AddBlankLine();
-    emitInlineAsm(M.getModuleInlineAsm() + "\n",
-                  OutContext.getSubtargetCopy(*STI), TM.Options.MCOptions);
+    emitInlineAsm(M.getModuleInlineAsm() + "\n", *TM.getMCSubtargetInfo(),
+                  TM.Options.MCOptions);
     OutStreamer->AddComment("End of file scope inline assembly");
     OutStreamer->AddBlankLine();
   }
@@ -1672,9 +1666,9 @@ void AsmPrinter::emitGlobalIndirectSymbol(Module &M,
     // size of the alias symbol from the type of the alias. We don't do this in
     // other situations as the alias and aliasee having differing types but same
     // size may be intentional.
-    const GlobalObject *BaseObject = GA->getBaseObject();
+    const GlobalObject *Aliasee = GA->getAliaseeObject();
     if (MAI->hasDotTypeDotSizeDirective() && GA->getValueType()->isSized() &&
-        (!BaseObject || BaseObject->hasPrivateLinkage())) {
+        (!Aliasee || Aliasee->hasPrivateLinkage())) {
       const DataLayout &DL = M.getDataLayout();
       uint64_t Size = DL.getTypeAllocSize(GA->getValueType());
       OutStreamer->emitELFSize(Name, MCConstantExpr::create(Size, OutContext));
@@ -2460,9 +2454,14 @@ void AsmPrinter::emitAlignment(Align Alignment, const GlobalObject *GV) const {
   if (Alignment == Align(1))
     return; // 1-byte aligned: no need to emit alignment.
 
-  if (getCurrentSection()->getKind().isText())
-    OutStreamer->emitCodeAlignment(Alignment.value());
-  else
+  if (getCurrentSection()->getKind().isText()) {
+    const MCSubtargetInfo *STI = nullptr;
+    if (this->MF)
+      STI = &getSubtargetInfo();
+    else
+      STI = TM.getMCSubtargetInfo();
+    OutStreamer->emitCodeAlignment(Alignment.value(), STI);
+  } else
     OutStreamer->emitValueToAlignment(Alignment.value());
 }
 
@@ -2518,7 +2517,7 @@ const MCExpr *AsmPrinter::lowerConstant(const Constant *CV) {
     OS << "Unsupported expression in static initializer: ";
     CE->printAsOperand(OS, /*PrintType=*/false,
                    !MF ? nullptr : MF->getFunction().getParent());
-    report_fatal_error(OS.str());
+    report_fatal_error(Twine(OS.str()));
   }
   case Instruction::GetElementPtr: {
     // Generate a symbolic expression for the byte address
@@ -3543,7 +3542,7 @@ void AsmPrinter::emitXRayTable() {
   // pointers. This should work for both 32-bit and 64-bit platforms.
   if (FnSledIndex) {
     OutStreamer->SwitchSection(FnSledIndex);
-    OutStreamer->emitCodeAlignment(2 * WordSizeBytes);
+    OutStreamer->emitCodeAlignment(2 * WordSizeBytes, &getSubtargetInfo());
     OutStreamer->emitSymbolValue(SledsStart, WordSizeBytes, false);
     OutStreamer->emitSymbolValue(SledsEnd, WordSizeBytes, false);
     OutStreamer->SwitchSection(PrevSection);

@@ -28,6 +28,18 @@
 // Don't format out enums and structs.
 // clang-format off
 
+/// return flags of __tgt_target_XXX public APIs
+enum __tgt_target_return_t : int {
+  /// successful offload executed on a target device
+  OMP_TGT_SUCCESS = 0,
+  /// offload may not execute on the requested target device
+  /// this scenario can be caused by the device not available or unsupported
+  /// as described in the Execution Model in the specifcation
+  /// this status may not be used for target device execution failure
+  /// which should be handled internally in libomptarget
+  OMP_TGT_FAIL = ~0
+};
+
 /// Data attributes for each data reference used in an OpenMP target region.
 enum tgt_map_type {
   // No flags
@@ -207,6 +219,9 @@ int omp_target_disassociate_ptr(const void *host_ptr, int device_num);
 void *llvm_omp_target_alloc_device(size_t size, int device_num);
 void *llvm_omp_target_alloc_host(size_t size, int device_num);
 void *llvm_omp_target_alloc_shared(size_t size, int device_num);
+
+/// Dummy target so we have a symbol for generating host fallback.
+void *llvm_omp_get_dynamic_shared();
 
 /// add the clauses of the requires directives in a given file
 void __tgt_register_requires(int64_t flags);

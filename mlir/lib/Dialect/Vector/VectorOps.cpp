@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/Dialect/Vector/VectorUtils.h"
@@ -91,13 +92,18 @@ static bool isSupportedCombiningKind(CombiningKind combiningKind,
   switch (combiningKind) {
   case CombiningKind::ADD:
   case CombiningKind::MUL:
-  case CombiningKind::MIN:
-  case CombiningKind::MAX:
     return elementType.isIntOrIndexOrFloat();
+  case CombiningKind::MINUI:
+  case CombiningKind::MINSI:
+  case CombiningKind::MAXUI:
+  case CombiningKind::MAXSI:
   case CombiningKind::AND:
   case CombiningKind::OR:
   case CombiningKind::XOR:
     return elementType.isIntOrIndex();
+  case CombiningKind::MINF:
+  case CombiningKind::MAXF:
+    return elementType.isa<FloatType>();
   }
   return false;
 }
@@ -150,8 +156,12 @@ static constexpr const CombiningKind combiningKindsList[] = {
     // clang-format off
     CombiningKind::ADD,
     CombiningKind::MUL,
-    CombiningKind::MIN,
-    CombiningKind::MAX,
+    CombiningKind::MINUI,
+    CombiningKind::MINSI,
+    CombiningKind::MINF,
+    CombiningKind::MAXUI,
+    CombiningKind::MAXSI,
+    CombiningKind::MAXF,
     CombiningKind::AND,
     CombiningKind::OR,
     CombiningKind::XOR,
@@ -186,8 +196,7 @@ Attribute CombiningKindAttr::parse(DialectAsmParser &parser) {
   if (failed(parser.parseGreater()))
     return {};
 
-  return CombiningKindAttr::get(kind.getValue(),
-                                parser.getBuilder().getContext());
+  return CombiningKindAttr::get(kind.getValue(), parser.getContext());
 }
 
 Attribute VectorDialect::parseAttribute(DialectAsmParser &parser,
@@ -291,22 +300,20 @@ static LogicalResult verify(ReductionOp op) {
     return op.emitOpError("unsupported reduction rank: ") << rank;
 
   // Verify supported reduction kind.
-  auto kind = op.kind();
+  StringRef strKind = op.kind();
+  auto maybeKind = symbolizeCombiningKind(strKind);
+  if (!maybeKind)
+    return op.emitOpError("unknown reduction kind: ") << strKind;
+
   Type eltType = op.dest().getType();
-  if (kind == "add" || kind == "mul" || kind == "min" || kind == "max") {
-    if (!eltType.isIntOrIndexOrFloat())
-      return op.emitOpError("unsupported reduction type");
-  } else if (kind == "and" || kind == "or" || kind == "xor") {
-    if (!eltType.isIntOrIndex())
-      return op.emitOpError("unsupported reduction type");
-  } else {
-    return op.emitOpError("unknown reduction kind: ") << kind;
-  }
+  if (!isSupportedCombiningKind(*maybeKind, eltType))
+    return op.emitOpError("unsupported reduction type '")
+           << eltType << "' for kind '" << op.kind() << "'";
 
   // Verify optional accumulator.
   if (!op.acc().empty()) {
-    if (kind != "add" && kind != "mul")
-      return op.emitOpError("no accumulator for reduction kind: ") << kind;
+    if (strKind != "add" && strKind != "mul")
+      return op.emitOpError("no accumulator for reduction kind: ") << strKind;
     if (!eltType.isa<FloatType>())
       return op.emitOpError("no accumulator for type: ") << eltType;
   }
@@ -356,6 +363,18 @@ Value mlir::vector::getVectorReductionOp(AtomicRMWKind op, OpBuilder &builder,
   case AtomicRMWKind::muli:
     return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
                                                builder.getStringAttr("mul"),
+                                               vector, ValueRange{});
+  case AtomicRMWKind::minf:
+  case AtomicRMWKind::mins:
+  case AtomicRMWKind::minu:
+    return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
+                                               builder.getStringAttr("min"),
+                                               vector, ValueRange{});
+  case AtomicRMWKind::maxf:
+  case AtomicRMWKind::maxs:
+  case AtomicRMWKind::maxu:
+    return builder.create<vector::ReductionOp>(vector.getLoc(), scalarType,
+                                               builder.getStringAttr("max"),
                                                vector, ValueRange{});
   // TODO: Add remaining reduction operations.
   default:
@@ -781,7 +800,7 @@ struct CanonicalizeContractAdd : public OpRewritePattern<AddOpType> {
     Value a = addOp->getOperand(0), b = addOp->getOperand(1);
     vector::ContractionOp contract = canonicalize(a, b);
     contract = contract ? contract : canonicalize(b, a);
-    return success();
+    return contract ? success() : failure();
   }
 };
 
@@ -2637,6 +2656,74 @@ void TransferReadOp::getEffects(
                          SideEffects::DefaultResource::get());
 }
 
+namespace {
+/// Fold transfer_reads of a tensor.extract_slice op. E.g.:
+///
+/// ```
+/// %0 = tensor.extract_slice %t[%a, %b] [%c, %d] [1, 1]
+///     : tensor<?x?xf32> to tensor<?x?xf32>
+/// %1 = vector.transfer_read %0[%e, %f], %cst {in_bounds = [true, true]}
+///     : tensor<?x?xf32>, vector<4x5xf32>
+/// ```
+/// is rewritten to:
+/// ```
+/// %p0 = addi %a, %e : index
+/// %p1 = addi %b, %f : index
+/// %1 = vector.transfer_read %t[%p0, %p1], %cst {in_bounds = [true, true]}
+///     : tensor<?x?xf32>, vector<4x5xf32>
+/// ```
+struct FoldExtractSliceIntoTransferRead
+    : public OpRewritePattern<TransferReadOp> {
+public:
+  using OpRewritePattern<TransferReadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TransferReadOp xferOp,
+                                PatternRewriter &rewriter) const override {
+    if (xferOp.hasOutOfBoundsDim())
+      return failure();
+    if (!xferOp.permutation_map().isIdentity())
+      return failure();
+    if (xferOp.mask())
+      return failure();
+    auto extractOp = xferOp.source().getDefiningOp<tensor::ExtractSliceOp>();
+    if (!extractOp)
+      return failure();
+    if (!extractOp.hasUnitStride())
+      return failure();
+
+    int64_t rankReduced =
+        extractOp.getSourceType().getRank() - extractOp.getType().getRank();
+    SmallVector<Value> newIndices;
+    // In case this is a rank-reducing ExtractSliceOp, copy rank-reduced
+    // indices first.
+    for (int64_t i = 0; i < rankReduced; ++i) {
+      OpFoldResult offset = extractOp.getMixedOffsets()[i];
+      newIndices.push_back(getValueOrCreateConstantIndexOp(
+          rewriter, extractOp.getLoc(), offset));
+    }
+    for (auto it : llvm::enumerate(xferOp.indices())) {
+      OpFoldResult offset =
+          extractOp.getMixedOffsets()[it.index() + rankReduced];
+      newIndices.push_back(
+          rewriter.create<AddIOp>(xferOp->getLoc(), it.value(),
+                                  getValueOrCreateConstantIndexOp(
+                                      rewriter, extractOp.getLoc(), offset)));
+    }
+    SmallVector<bool> inBounds(xferOp.getTransferRank(), true);
+    rewriter.replaceOpWithNewOp<TransferReadOp>(xferOp, xferOp.getVectorType(),
+                                                extractOp.source(), newIndices,
+                                                xferOp.padding(), inBounds);
+
+    return success();
+  }
+};
+} // namespace
+
+void TransferReadOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                 MLIRContext *context) {
+  results.add<FoldExtractSliceIntoTransferRead>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // TransferWriteOp
 //===----------------------------------------------------------------------===//
@@ -2946,11 +3033,61 @@ public:
     return failure();
   }
 };
+
+/// Fold tensor.insert_slice into vector.transfer_write if the transfer_write
+/// could directly write to the insert_slice's destination. E.g.:
+///
+/// ```
+/// %0 = vector.transfer_write %v, %t1[%c0, %c0] {in_bounds = [true, true]}
+///     : vector<4x5xf32>, tensor<4x5xf32>
+/// %1 = tensor.insert_slice %0 into %t2[%a, %b] [4, 5] [1, 1]
+///     : tensor<4x5xf32> into tensor<?x?xf32>
+/// ```
+/// is rewritten to:
+/// ```
+/// %1 = vector.transfer_write %v, %t2[%a, %b] {in_bounds = [true, true]}
+///     : vector<4x5xf32>, tensor<?x?xf32>
+/// ```
+struct FoldInsertSliceIntoTransferWrite
+    : public OpRewritePattern<tensor::InsertSliceOp> {
+public:
+  using OpRewritePattern<tensor::InsertSliceOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(tensor::InsertSliceOp insertOp,
+                                PatternRewriter &rewriter) const override {
+    if (!insertOp.hasUnitStride())
+      return failure();
+    auto xferOp = insertOp.source().getDefiningOp<TransferWriteOp>();
+    if (!xferOp)
+      return failure();
+    if (xferOp.hasOutOfBoundsDim())
+      return failure();
+    if (xferOp.getVectorType().getRank() != xferOp.getShapedType().getRank())
+      return failure();
+    if (xferOp.mask())
+      return failure();
+    // Fold only if the TransferWriteOp completely overwrites the `source` with
+    // a vector. I.e., the result of the TransferWriteOp is a new tensor who's
+    // content is the data of the vector.
+    if (!llvm::equal(xferOp.getVectorType().getShape(),
+                     xferOp.getShapedType().getShape()))
+      return failure();
+    if (!xferOp.permutation_map().isIdentity())
+      return failure();
+
+    SmallVector<Value> indices = getValueOrCreateConstantIndexOp(
+        rewriter, insertOp.getLoc(), insertOp.getMixedOffsets());
+    SmallVector<bool> inBounds(xferOp.getTransferRank(), true);
+    rewriter.replaceOpWithNewOp<TransferWriteOp>(
+        insertOp, xferOp.vector(), insertOp.dest(), indices, inBounds);
+    return success();
+  }
+};
 } // namespace
 
 void TransferWriteOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
-  results.add<foldWAW>(context);
+  results.add<foldWAW, FoldInsertSliceIntoTransferWrite>(context);
 }
 
 //===----------------------------------------------------------------------===//

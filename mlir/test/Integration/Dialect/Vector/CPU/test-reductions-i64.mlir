@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -convert-scf-to-std -convert-vector-to-llvm -convert-std-to-llvm | \
+// RUN: mlir-opt %s -convert-scf-to-std -convert-vector-to-llvm -convert-std-to-llvm -reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner -e entry -entry-point-result=void  \
 // RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
@@ -39,10 +39,10 @@ func @entry() {
   %1 = vector.reduction "mul", %v9 : vector<10xi64> into i64
   vector.print %1 : i64
   // CHECK: -1228800
-  %2 = vector.reduction "min", %v9 : vector<10xi64> into i64
+  %2 = vector.reduction "minsi", %v9 : vector<10xi64> into i64
   vector.print %2 : i64
   // CHECK: -80
-  %3 = vector.reduction "max", %v9 : vector<10xi64> into i64
+  %3 = vector.reduction "maxsi", %v9 : vector<10xi64> into i64
   vector.print %3 : i64
   // CHECK: 5
   %4 = vector.reduction "and", %v9 : vector<10xi64> into i64

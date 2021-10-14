@@ -18,7 +18,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include "llvm/Support/Mutex.h"
-#include "llvm/Support/Parallel.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -228,6 +227,10 @@ formatPassOpReproducerMessage(Diagnostic &os,
 
 void PassCrashReproducerGenerator::finalize(Operation *rootOp,
                                             LogicalResult executionResult) {
+  // Don't generate a reproducer if we have no active contexts.
+  if (impl->activeContexts.empty())
+    return;
+
   // If the pass manager execution succeeded, we don't generate any reproducers.
   if (succeeded(executionResult))
     return impl->activeContexts.clear();
@@ -346,18 +349,18 @@ struct CrashReproducerInstrumentation : public PassInstrumentation {
       : generator(generator) {}
   ~CrashReproducerInstrumentation() override = default;
 
-  /// A callback to run before a pass is executed.
   void runBeforePass(Pass *pass, Operation *op) override {
     if (!isa<OpToOpPassAdaptor>(pass))
       generator.prepareReproducerFor(pass, op);
   }
 
-  /// A callback to run after a pass is successfully executed. This function
-  /// takes a pointer to the pass to be executed, as well as the current
-  /// operation being operated on.
   void runAfterPass(Pass *pass, Operation *op) override {
     if (!isa<OpToOpPassAdaptor>(pass))
       generator.removeLastReproducerFor(pass, op);
+  }
+
+  void runAfterPassFailed(Pass *pass, Operation *op) override {
+    generator.finalize(op, /*executionResult=*/failure());
   }
 
 private:
