@@ -1,4 +1,4 @@
-//==----- esimdemu_device_interface.hpp - DPC++ Explicit SIMD API ----------==//
+//==----- esimd_emulator_device_interface.hpp - DPC++ Explicit SIMD API ----------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,21 +7,21 @@
 //===----------------------------------------------------------------------===//
 
 /// \file esimdemu_device_interface.hpp
-/// Declarations for ESIMD_EMU-device specific definitions.
+/// Declarations for ESIMD_EMULATOR-device specific definitions.
 /// ESIMD intrinsic and LibCM functionalities required by intrinsic defined
 ///
 /// This interface is for ESIMD intrinsic emulation implementations
-/// such as slm_access to access ESIMD_EMU specific-support therefore
+/// such as slm_access to access ESIMD_EMULATOR specific-support therefore
 /// it has to be defined and shared as include directory
 ///
-/// \ingroup sycl_pi_esimd_emu
+/// \ingroup sycl_pi_esimd_emulator
 
 #pragma once
 
 #include <CL/sycl/detail/pi.hpp>
 
 // cstdint-type fields such as 'uint32_t' are to be used in funtion
-// pointer table file ('esimd_emu_functions_v1.h') included in 'struct
+// pointer table file ('esimd_emulator_functions_v1.h') included in 'struct
 // ESIMDDeviceInterface' definition.
 #include <cstdint>
 #include <mutex>
@@ -35,7 +35,7 @@ namespace detail {
 #define ESIMD_DEVICE_INTERFACE_VERSION 1
 
 // 'ESIMDDeviceInterface' structure defines interface for ESIMD CPU
-// emulation (ESIMD_EMU) to access LibCM CPU emulation functionalities
+// emulation (ESIMD_EMULATOR) to access LibCM CPU emulation functionalities
 // from kernel application under emulation.
 
 // Header files included in the structure contains only function
@@ -51,13 +51,13 @@ struct ESIMDDeviceInterface {
   void *reserved;
 
   ESIMDDeviceInterface();
-#include "esimd_emu_functions_v1.h"
+#include "esimd_emulator_functions_v1.h"
 };
 
 // Denotes the data version used by the implementation.
 // Increment whenever the 'data' field interpretation within PluginOpaqueData is
 // changed.
-#define ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION 0
+#define ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION 0
 /// This structure denotes a ESIMD EMU plugin-specific data returned via the
 /// piextPluginGetOpaqueData PI call. Depending on the \c version field, the
 /// second \c data field can be interpreted differently.
@@ -76,14 +76,14 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
   void *PIOpaqueData = nullptr;
 
   PIOpaqueData =
-      getPluginOpaqueData<cl::sycl::backend::ext_oneapi_esimd_emulator>(
+      getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(
           nullptr);
 
   ESIMDEmuPluginOpaqueData *OpaqueData =
       reinterpret_cast<ESIMDEmuPluginOpaqueData *>(PIOpaqueData);
 
   // First check if opaque data version is compatible.
-  if (OpaqueData->version != ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION) {
+  if (OpaqueData->version != ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION) {
     // NOTE: the version check should always be '!=' as layouts of different
     // versions of PluginOpaqueData is not backward compatible, unlike
     // layout of the ESIMDDeviceInterface.
@@ -92,7 +92,7 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
               << "Opaque data returned by ESIMD Emu plugin is incompatible with"
               << "the one used in current implementation." << std::endl
               << "Returned version : " << OpaqueData->version << std::endl
-              << "Required version : " << ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION
+              << "Required version : " << ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION
               << std::endl;
     throw cl::sycl::feature_not_supported();
   }
@@ -115,7 +115,7 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
 }
 
 #undef ESIMD_DEVICE_INTERFACE_VERSION
-#undef ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION
+#undef ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION
 
 } // namespace detail
 } // namespace sycl

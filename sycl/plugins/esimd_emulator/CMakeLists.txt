@@ -1,11 +1,11 @@
 
 # PI Esimd CPU  library
-# Create Shared library for libpi_esimd_emu.so.
+# Create Shared library for libpi_esimd_emulator.so.
 
 include(ExternalProject)
 
 include_directories("${sycl_inc_dir}")
-# FIXME/TODO: 'pi.h' is included in 'pi_esimd_emu.cpp', and CL_*_INTEL
+# FIXME/TODO: 'pi.h' is included in 'pi_esimd_emulator.cpp', and CL_*_INTEL
 # and CL_*_KHR definitions in 'pi.h' are from
 # ${OPENCL_INCLUDE}. Remove build dependency on OpenCL
 include_directories(${OpenCL_INCLUDE_DIR})
@@ -14,11 +14,11 @@ file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_build)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install)
 
 if (MSVC)
-  set(LIBCM ${LLVM_BINARY_DIR}/pi_esimd_emu_deps/lib/libcm${CMAKE_STATIC_LIBRARY_SUFFIX})
-  set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emu_deps/lib/igfxcmrt64_emu${CMAKE_STATIC_LIBRARY_SUFFIX})
+  set(LIBCM ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/libcm${CMAKE_STATIC_LIBRARY_SUFFIX})
+  set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/igfxcmrt64_emu${CMAKE_STATIC_LIBRARY_SUFFIX})
 else()
-  set(LIBCM ${LLVM_BINARY_DIR}/pi_esimd_emu_deps/lib/libcm${CMAKE_SHARED_LIBRARY_SUFFIX})
-  set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emu_deps/lib/libigfxcmrt_emu${CMAKE_SHARED_LIBRARY_SUFFIX})
+  set(LIBCM ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/libcm${CMAKE_SHARED_LIBRARY_SUFFIX})
+  set(LIBIGFXCMRT_EMU ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/lib/libigfxcmrt_emu${CMAKE_SHARED_LIBRARY_SUFFIX})
 endif()
 
 if (DEFINED CM_LOCAL_SOURCE_DIR)
@@ -75,13 +75,13 @@ else ()
   endif()
 endif ()
 ExternalProject_Add_Step(cm-emu llvminstall
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_BINARY_DIR}/pi_esimd_emu_deps && ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}/pi_esimd_emu_deps
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps && ${CMAKE_COMMAND} -E copy_directory <INSTALL_DIR>/ ${LLVM_BINARY_DIR}/pi_esimd_emulator_deps
   COMMENT "Installing cm-emu into the LLVM binary directory"
   DEPENDEES install
 )
 
-include_directories(${LLVM_BINARY_DIR}/pi_esimd_emu_deps/include/igfxcmrt_emu)
-include_directories(${LLVM_BINARY_DIR}/pi_esimd_emu_deps/include/libcm/cm)
+include_directories(${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/include/igfxcmrt_emu)
+include_directories(${LLVM_BINARY_DIR}/pi_esimd_emulator_deps/include/libcm/cm)
 
 # Compilation flag to exclude lines in header files imported from CM
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__SYCL_EXPLICIT_SIMD_PLUGIN__")
@@ -96,19 +96,19 @@ else()
 string(REPLACE "-pedantic" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 endif()
 
-add_library(pi_esimd_emu SHARED
+add_library(pi_esimd_emulator SHARED
   "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-  "pi_esimd_emu.cpp"
+  "pi_esimd_emulator.cpp"
 )
 
 if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
   # which are individually tagged for all pi* symbols in pi.h
-  target_compile_definitions(pi_esimd_emu PRIVATE __SYCL_BUILD_SYCL_DLL)
+  target_compile_definitions(pi_esimd_emulator PRIVATE __SYCL_BUILD_SYCL_DLL)
 else()
   # we set the visibility of all symbols 'hidden' by default.
   # In pi.h file, we set exported symbols with visibility==default individually
-  target_compile_options(pi_esimd_emu PUBLIC -fvisibility=hidden)
+  target_compile_options(pi_esimd_emulator PUBLIC -fvisibility=hidden)
 
   # This script file is used to allow exporting pi* symbols only.
   # All other symbols are regarded as local (hidden)
@@ -116,23 +116,23 @@ else()
 
   # Filter symbols based on the scope defined in the script file,
   # and export pi* function symbols in the library.
-  target_link_libraries( pi_esimd_emu
+  target_link_libraries( pi_esimd_emulator
     PRIVATE "-Wl,--version-script=${linker_script}"
   )
 endif()
 
-add_dependencies(pi_esimd_emu OpenCL-Headers)
-add_dependencies(pi_esimd_emu cm-emu)
-add_dependencies(sycl-toolchain pi_esimd_emu)
+add_dependencies(pi_esimd_emulator OpenCL-Headers)
+add_dependencies(pi_esimd_emulator cm-emu)
+add_dependencies(sycl-toolchain pi_esimd_emulator)
 
-target_link_libraries(pi_esimd_emu PRIVATE sycl ${LIBCM} ${LIBIGFXCMRT_EMU})
-set_target_properties(pi_esimd_emu PROPERTIES LINKER_LANGUAGE CXX)
+target_link_libraries(pi_esimd_emulator PRIVATE sycl ${LIBCM} ${LIBIGFXCMRT_EMU})
+set_target_properties(pi_esimd_emulator PROPERTIES LINKER_LANGUAGE CXX)
 
-add_common_options(pi_esimd_emu)
+add_common_options(pi_esimd_emulator)
 
-install(TARGETS pi_esimd_emu
-        LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_esimd_emu
-        RUNTIME DESTINATION "bin" COMPONENT pi_esimd_emu)
+install(TARGETS pi_esimd_emulator
+        LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT pi_esimd_emulator
+        RUNTIME DESTINATION "bin" COMPONENT pi_esimd_emulator)
 
 # Copy CM Header files to $(INSTALL)/include/sycl/CL/
 install(DIRECTORY    ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install/include/libcm/cm/

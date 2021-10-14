@@ -1,4 +1,4 @@
-//==----- esimd_emu_functions_v1.h - DPC++ Explicit SIMD API ---------==//
+//==----- esimd_emulator_functions_v1.h - DPC++ Explicit SIMD API ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// \file esimd_emu_functions_v1.h
+/// \file esimd_emulator_functions_v1.h
 ///
-/// \ingroup sycl_pi_esimd_emu
+/// \ingroup sycl_pi_esimd_emulator
 
 #pragma once
 
