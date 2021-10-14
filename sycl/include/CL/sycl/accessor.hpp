@@ -1574,6 +1574,7 @@ public:
       const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
   return atomic<DataT, AS>(
       multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
+  // clang-format off
   }
 
   template <int Dims = Dimensions>
@@ -1584,7 +1585,7 @@ public:
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
-
+  // clang-format on
   template <int Dims = Dimensions>
   typename detail::enable_if_t<Dims == 1 && AccessMode == access::mode::atomic,
                                atomic<DataT, AS>>
