@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -249,6 +249,15 @@ module {
     %49 = sparse_tensor.values %y : tensor<10x8xf64, #BlockCol> to memref<?xf64>
     %50 = vector.transfer_read %49[%c0], %d0: memref<?xf64>, vector<70xf64>
     vector.print %50 : vector<70xf64>
+
+    // Release the resources.
+    sparse_tensor.release %0 : tensor<10x8xf64, #Dense>
+    sparse_tensor.release %1 : tensor<10x8xf64, #CSR>
+    sparse_tensor.release %2 : tensor<10x8xf64, #DCSR>
+    sparse_tensor.release %3 : tensor<10x8xf64, #CSC>
+    sparse_tensor.release %4 : tensor<10x8xf64, #DCSC>
+    sparse_tensor.release %x : tensor<10x8xf64, #BlockRow>
+    sparse_tensor.release %y : tensor<10x8xf64, #BlockCol>
 
     return
   }

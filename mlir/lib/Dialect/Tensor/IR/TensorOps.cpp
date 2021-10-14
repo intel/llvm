@@ -31,6 +31,34 @@ Operation *TensorDialect::materializeConstant(OpBuilder &builder,
 // CastOp
 //===----------------------------------------------------------------------===//
 
+/// Returns true if `target` is a ranked tensor type that preserves static
+/// information available in the `source` ranked tensor type.
+bool mlir::tensor::preservesStaticInformation(Type source, Type target) {
+  auto sourceType = source.dyn_cast<RankedTensorType>();
+  auto targetType = target.dyn_cast<RankedTensorType>();
+
+  // Requires RankedTensorType.
+  if (!sourceType || !targetType)
+    return false;
+
+  // Requires same elemental type.
+  if (sourceType.getElementType() != targetType.getElementType())
+    return false;
+
+  // Requires same rank.
+  if (sourceType.getRank() != targetType.getRank())
+    return false;
+
+  // If cast is towards more static sizes along any dimension, don't fold.
+  for (auto t : llvm::zip(sourceType.getShape(), targetType.getShape())) {
+    if (!ShapedType::isDynamic(std::get<0>(t)) &&
+        ShapedType::isDynamic(std::get<1>(t)))
+      return false;
+  }
+
+  return true;
+}
+
 /// Determines whether tensor::CastOp casts to a more dynamic version of the
 /// source tensor. This is useful to fold a tensor.cast into a consuming op and
 /// implement canonicalization patterns for ops in different dialects that may
@@ -57,30 +85,10 @@ bool mlir::tensor::canFoldIntoConsumerOp(CastOp castOp) {
   if (!castOp)
     return false;
 
-  RankedTensorType sourceType =
-      castOp.source().getType().dyn_cast<RankedTensorType>();
-  RankedTensorType resultType = castOp.getType().dyn_cast<RankedTensorType>();
-
-  // Requires RankedTensorType.
-  if (!sourceType || !resultType)
-    return false;
-
-  // Requires same elemental type.
-  if (sourceType.getElementType() != resultType.getElementType())
-    return false;
-
-  // Requires same rank.
-  if (sourceType.getRank() != resultType.getRank())
-    return false;
-
-  // If cast is towards more static sizes along any dimension, don't fold.
-  for (auto t : llvm::zip(sourceType.getShape(), resultType.getShape())) {
-    if (ShapedType::isDynamic(std::get<0>(t)) &&
-        !ShapedType::isDynamic(std::get<1>(t)))
-      return false;
-  }
-
-  return true;
+  // Can fold if the source of cast has at least as much static information as
+  // its results.
+  return preservesStaticInformation(castOp.getType(),
+                                    castOp.source().getType());
 }
 
 /// Performs folding of any operand of `op` if it comes from a tensor::CastOp
@@ -269,9 +277,12 @@ OpFoldResult DimOp::fold(ArrayRef<Attribute> operands) {
   unsigned unsignedIndex = index.getValue().getZExtValue();
 
   if (auto sliceOp = dyn_cast_or_null<tensor::ExtractSliceOp>(definingOp)) {
-    assert(sliceOp.isDynamicSize(unsignedIndex) &&
-           "Expected dynamic slice size");
-    return sliceOp.getDynamicSize(unsignedIndex);
+    // Fold only for non-rank reduced ops. For the rank-reduced version, rely on
+    // `resolve-shaped-type-result-dims` pass.
+    if (sliceOp.getType().getRank() == sliceOp.getSourceType().getRank() &&
+        sliceOp.isDynamicSize(unsignedIndex)) {
+      return {sliceOp.getDynamicSize(unsignedIndex)};
+    }
   }
 
   // dim(cast) -> dim
@@ -885,6 +896,46 @@ getCanonicalSliceResultType(unsigned resultRank, RankedTensorType sourceType,
                      .cast<RankedTensorType>();
   }
   return resultType;
+}
+
+llvm::SmallDenseSet<unsigned> ExtractSliceOp::getDroppedDims() {
+  llvm::SmallDenseSet<unsigned> droppedDims;
+  ArrayRef<int64_t> resultShape = getType().getShape();
+  SmallVector<OpFoldResult> mixedSizes = getMixedSizes();
+  unsigned shapePos = 0;
+  for (auto size : enumerate(mixedSizes)) {
+    Optional<int64_t> sizeVal = getConstantIntValue(size.value());
+    // If the size is not 1, or if the current matched dimension of the result
+    // is the same static shape as the size value (which is 1), then the
+    // dimension is preserved.
+    if (!sizeVal || sizeVal.getValue() != 1 ||
+        (shapePos < resultShape.size() && resultShape[shapePos] == 1)) {
+      shapePos++;
+      continue;
+    }
+    droppedDims.insert(size.index());
+  }
+  return droppedDims;
+}
+
+LogicalResult ExtractSliceOp::reifyResultShapes(
+    OpBuilder &builder, ReifiedRankedShapedTypeDims &reifiedReturnShapes) {
+  reifiedReturnShapes.resize(1);
+  reifiedReturnShapes[0].reserve(getType().getRank());
+  SmallVector<OpFoldResult> mixedSizes = getMixedSizes();
+  llvm::SmallDenseSet<unsigned> droppedDims = getDroppedDims();
+  Location loc = getLoc();
+  for (auto size : enumerate(mixedSizes)) {
+    if (droppedDims.count(size.index()))
+      continue;
+    if (auto attr = size.value().dyn_cast<Attribute>()) {
+      reifiedReturnShapes[0].push_back(builder.create<ConstantIndexOp>(
+          loc, attr.cast<IntegerAttr>().getInt()));
+      continue;
+    }
+    reifiedReturnShapes[0].push_back(size.value().get<Value>());
+  }
+  return success();
 }
 
 namespace {

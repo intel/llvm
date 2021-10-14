@@ -538,35 +538,6 @@ func @matmul_tensors(
 
 // -----
 
-// CHECK-LABEL: func @matmul_i8_i8_i32
-//  CHECK-SAME:  %[[ARG0:[a-z0-9]+]]: memref<4x6xi8>
-//  CHECK-SAME:  %[[ARG1:[a-z0-9]+]]: memref<6x12xi8>
-//  CHECK-SAME:  %[[ARG2:[a-z0-9]+]]: memref<4x12xi32>
-func @matmul_i8_i8_i32(%a: memref<4x6xi8>, %b: memref<6x12xi8>, %c: memref<4x12xi32>) {
-  //   CHECK-DAG:   %[[C0:.*]] = constant 0 : index
-  //   CHECK-DAG:   %[[VEC_C0:.*]] = constant dense<0> : vector<4x12xi32>
-  //   CHECK-DAG:   %[[V0:.*]] = vector.transfer_read %[[ARG0]][%[[C0]], %[[C0]]], {{.*}} : memref<4x6xi8>, vector<4x6xi8>
-  //   CHECK-DAG:   %[[V1:.*]] = vector.transfer_read %[[ARG1]][%[[C0]], %[[C0]]], {{.*}} : memref<6x12xi8>, vector<12x6xi8>
-  //   CHECK-DAG:   %[[V2:.*]] = vector.transfer_read %[[ARG2]][%[[C0]], %[[C0]]], {{.*}} : memref<4x12xi32>, vector<4x12xi32>
-  //   CHECK-DAG:   %[[V0_32:.*]] = sexti %[[V0]] : vector<4x6xi8> to vector<4x6xi32>
-  //   CHECK-DAG:   %[[V1_32:.*]] = sexti %[[V1]] : vector<12x6xi8> to vector<12x6xi32>
-  //
-  // linalg contraction lowers to %tmp = vector.contract %a, %b, %c0 followed by addf %c, %tmp.
-  // a later canonicalization fuses the add into vector.contract.
-  //       CHECK:   %[[C:.*]] = vector.contract
-  //  CHECK-SAME:      iterator_types = ["parallel", "parallel", "reduction"], kind = #vector.kind<add>}
-  //  CHECK-SAME:      %[[V0_32]], %[[V1_32]], %[[VEC_C0]]
-  //  CHECK-SAME:     vector<4x6xi32>, vector<12x6xi32> into vector<4x12xi32>
-  //       CHECK:   %[[RES:.*]] = addi %[[V2]], %[[C]] : vector<4x12xi32>
-  //       CHECK:   vector.transfer_write %[[RES]], %[[ARG2]][%[[C0]], %[[C0]]] {in_bounds = [true, true]}
-  //  CHECK-SAME:     vector<4x12xi32>, memref<4x12xi32>
-  linalg.matmul_i8_i8_i32 ins(%a, %b : memref<4x6xi8>, memref<6x12xi8>)
-    outs(%c: memref<4x12xi32>)
-  return
-}
-
-// -----
-
 // CHECK-LABEL: func @pad_static(
 //  CHECK-SAME:                  %[[ARG0:.*]]: tensor<2x?x2xf32>, %[[PAD:.*]]: f32
 //   CHECK-NOT:   linalg.pad_tensor
@@ -835,3 +806,54 @@ func @sum_exp_2(%input: tensor<3x2xf32>, %input_2: tensor<5x4xf32>, %output: ten
     } -> tensor<5x2xf32>
   return %0 : tensor<5x2xf32>
 }
+
+// -----
+
+// CHECK-LABEL:   func @red_max_2d(
+func @red_max_2d(%arg0: tensor<4x4xf32>) -> tensor<4xf32> {
+  // CHECK: linalg.init_tensor [4] : tensor<4xf32>
+  // CHECK: vector.transfer_write {{.*}} : vector<4xf32>, tensor<4xf32>
+  // CHECK: vector.transfer_read {{.*}} : tensor<4x4xf32>, vector<4x4xf32>
+  // CHECK: vector.transfer_read {{.*}} : tensor<4xf32>, vector<4x4xf32>
+  // CHECK: maxf {{.*}} : vector<4x4xf32>
+  // CHECK: vector.multi_reduction #vector.kind<maxf>, {{.*}} [1] : vector<4x4xf32> to vector<4xf32>
+  // CHECK: vector.transfer_write {{.*}} : vector<4xf32>, tensor<4xf32>
+  %minf32 = constant -3.40282e+38 : f32
+  %init = linalg.init_tensor [4] : tensor<4xf32>
+  %fill = linalg.fill(%minf32, %init) : f32, tensor<4xf32> -> tensor<4xf32>
+  %red = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                                          affine_map<(d0, d1) -> (d0)>],
+                         iterator_types = ["parallel", "reduction"]}
+                         ins(%arg0 : tensor<4x4xf32>) outs(%fill : tensor<4xf32>) {
+  ^bb0(%in0: f32, %out0: f32):  // no predecessors
+    %max = maxf %in0, %out0 : f32
+    linalg.yield %max : f32
+  } -> tensor<4xf32>
+  return %red : tensor<4xf32>
+}
+
+// -----
+
+// CHECK-LABEL:   func @red_min_2d(
+func @red_min_2d(%arg0: tensor<4x4xf32>) -> tensor<4xf32> {
+  // CHECK: linalg.init_tensor [4] : tensor<4xf32>
+  // CHECK: vector.transfer_write {{.*}} : vector<4xf32>, tensor<4xf32>
+  // CHECK: vector.transfer_read {{.*}} : tensor<4x4xf32>, vector<4x4xf32>
+  // CHECK: vector.transfer_read {{.*}} : tensor<4xf32>, vector<4x4xf32>
+  // CHECK: minf {{.*}} : vector<4x4xf32>
+  // CHECK: vector.multi_reduction #vector.kind<minf>, {{.*}} [1] : vector<4x4xf32> to vector<4xf32>
+  // CHECK: vector.transfer_write {{.*}} : vector<4xf32>, tensor<4xf32>
+  %maxf32 = constant 3.40282e+38 : f32
+  %init = linalg.init_tensor [4] : tensor<4xf32>
+  %fill = linalg.fill(%maxf32, %init) : f32, tensor<4xf32> -> tensor<4xf32>
+  %red = linalg.generic {indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>,
+                                          affine_map<(d0, d1) -> (d0)>],
+                         iterator_types = ["parallel", "reduction"]}
+                         ins(%arg0 : tensor<4x4xf32>) outs(%fill : tensor<4xf32>) {
+  ^bb0(%in0: f32, %out0: f32):  // no predecessors
+    %min = minf %in0, %out0 : f32
+    linalg.yield %min : f32
+  } -> tensor<4xf32>
+  return %red : tensor<4xf32>
+}
+

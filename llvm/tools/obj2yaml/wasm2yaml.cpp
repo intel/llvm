@@ -51,7 +51,7 @@ static WasmYAML::Table makeTable(uint32_t Index,
 std::unique_ptr<WasmYAML::CustomSection>
 WasmDumper::dumpCustomSection(const WasmSection &WasmSec) {
   std::unique_ptr<WasmYAML::CustomSection> CustomSec;
-  if (WasmSec.Name == "dylink") {
+  if (WasmSec.Name == "dylink" || WasmSec.Name == "dylink.0") {
     std::unique_ptr<WasmYAML::DylinkSection> DylinkSec =
         std::make_unique<WasmYAML::DylinkSection>();
     const wasm::WasmDylinkInfo& Info = Obj.dylinkInfo();
@@ -60,6 +60,8 @@ WasmDumper::dumpCustomSection(const WasmSection &WasmSec) {
     DylinkSec->TableSize = Info.TableSize;
     DylinkSec->TableAlignment = Info.TableAlignment;
     DylinkSec->Needed = Info.Needed;
+    for (const auto &Exp : Info.ExportInfo)
+      DylinkSec->ExportInfo.push_back({Exp.Name, Exp.Flags});
     CustomSec = std::move(DylinkSec);
   } else if (WasmSec.Name == "name") {
     std::unique_ptr<WasmYAML::NameSection> NameSec =
@@ -239,8 +241,7 @@ ErrorOr<WasmYAML::Object *> WasmDumper::dump() {
           Im.GlobalImport.Mutable = Import.Global.Mutable;
           break;
         case wasm::WASM_EXTERNAL_TAG:
-          Im.TagImport.Attribute = Import.Tag.Attribute;
-          Im.TagImport.SigIndex = Import.Tag.SigIndex;
+          Im.SigIndex = Import.SigIndex;
           break;
         case wasm::WASM_EXTERNAL_TABLE:
           // FIXME: Currently we always output an index of 0 for any imported
@@ -258,8 +259,8 @@ ErrorOr<WasmYAML::Object *> WasmDumper::dump() {
     }
     case wasm::WASM_SEC_FUNCTION: {
       auto FuncSec = std::make_unique<WasmYAML::FunctionSection>();
-      for (const auto &Func : Obj.functionTypes()) {
-        FuncSec->FunctionTypes.push_back(Func);
+      for (const auto &Func : Obj.functions()) {
+        FuncSec->FunctionTypes.push_back(Func.SigIndex);
       }
       S = std::move(FuncSec);
       break;
@@ -283,11 +284,7 @@ ErrorOr<WasmYAML::Object *> WasmDumper::dump() {
     case wasm::WASM_SEC_TAG: {
       auto TagSec = std::make_unique<WasmYAML::TagSection>();
       for (auto &Tag : Obj.tags()) {
-        WasmYAML::Tag T;
-        T.Index = Tag.Index;
-        T.Attribute = Tag.Type.Attribute;
-        T.SigIndex = Tag.Type.SigIndex;
-        TagSec->Tags.push_back(T);
+        TagSec->TagTypes.push_back(Tag.SigIndex);
       }
       S = std::move(TagSec);
       break;

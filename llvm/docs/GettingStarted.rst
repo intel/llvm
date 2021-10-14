@@ -131,6 +131,8 @@ FreeBSD            x86\ :sup:`1`         GCC, Clang
 FreeBSD            amd64                 GCC, Clang
 NetBSD             x86\ :sup:`1`         GCC, Clang
 NetBSD             amd64                 GCC, Clang
+OpenBSD            x86\ :sup:`1`         GCC, Clang
+OpenBSD            amd64                 GCC, Clang
 macOS\ :sup:`2`    PowerPC               GCC
 macOS              x86                   GCC, Clang
 Cygwin/Win32       x86\ :sup:`1, 3`      GCC
@@ -613,8 +615,10 @@ used by people developing LLVM.
 |                         | other LLVM subprojects to additionally build. (Only|
 |                         | effective when using a side-by-side project layout |
 |                         | e.g. via git). The default list is empty. Can      |
-|                         | include: clang, libcxx, libcxxabi, libunwind, lldb,|
-|                         | compiler-rt, lld, polly, or debuginfo-tests.       |
+|                         | include: clang, clang-tools-extra, compiler-rt,    |
+|                         | cross-project-tests, flang, libc, libclc, libcxx,  |
+|                         | libcxxabi, libunwind, lld, lldb, mlir, openmp,     |
+|                         | parallel-libs, polly, or pstl.                     |
 +-------------------------+----------------------------------------------------+
 | LLVM_ENABLE_SPHINX      | Build sphinx-based documentation from the source   |
 |                         | code. This is disabled by default because it is    |

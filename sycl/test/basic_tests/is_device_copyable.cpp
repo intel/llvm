@@ -87,4 +87,10 @@ void test() {
 
   Q.single_task<class TestB>(FunctorA{});
   Q.single_task<class TestC>(FunctorB{});
+
+  Q.submit([=](sycl::handler &cgh) {
+    const sycl::range<2> range(1026, 1026);
+    cgh.parallel_for(range,
+                     [=](sycl::item<2> item) { int A = IamBadButCopyable.i; });
+  });
 }

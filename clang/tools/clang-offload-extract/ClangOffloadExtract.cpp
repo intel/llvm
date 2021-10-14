@@ -124,6 +124,10 @@ int main(int argc, const char **argv) {
         DataOrErr->size() / sizeof(ImgInfoTy));
 
     for (auto &Img : ImgInfo) {
+      // Ignore zero padding that can be inserted by the linker.
+      if (!Img.Addr)
+        continue;
+
       // Find section which contains this image.
       // TODO: can use more efficient algorithm than linear search. For example
       // sections and images could be sorted by address then one pass performed

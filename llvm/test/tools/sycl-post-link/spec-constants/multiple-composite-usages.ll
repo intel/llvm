@@ -6,11 +6,11 @@
 ; once
 ;
 ; CHECK-LABEL: @foo1
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeA2_struct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec_Rstruct._ZTS3POD.POD"({{.*}})
 ; CHECK-LABEL: @_ZTS4Test
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeA2_struct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec_Rstruct._ZTS3POD.POD"({{.*}})
 ; CHECK-LABEL: @foo2
-; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeAstruct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec"({{.*}})
+; CHECK: call %struct._ZTS3POD.POD @"_Z29__spirv_SpecConstantCompositeA2_struct._ZTS1A.Aclass._ZTSN2cl4sycl3vecIiLi2EEE.cl::sycl::vec_Rstruct._ZTS3POD.POD"({{.*}})
 
 ; CHECK: !sycl.specialization-constants = !{![[#MD0:]], ![[#MD1:]]
 ;

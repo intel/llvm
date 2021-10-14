@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -S %s -o - | FileCheck %s
 
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda || hip_amd
 
 #include <sycl/ext/intel/experimental/bfloat16.hpp>
 #include <sycl/sycl.hpp>

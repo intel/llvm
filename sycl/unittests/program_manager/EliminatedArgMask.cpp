@@ -121,12 +121,12 @@ inline pi_result redefinedProgramCreateEAM(pi_context, const void *, size_t,
 class MockHandler : public sycl::handler {
 
 public:
-  MockHandler(sycl::shared_ptr_class<sycl::detail::queue_impl> Queue)
+  MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue)
       : sycl::handler(Queue, /* IsHost */ false) {}
 
-  sycl::unique_ptr_class<sycl::detail::CG> finalize() {
+  std::unique_ptr<sycl::detail::CG> finalize() {
     auto CGH = static_cast<sycl::handler *>(this);
-    sycl::unique_ptr_class<sycl::detail::CG> CommandGroup;
+    std::unique_ptr<sycl::detail::CG> CommandGroup;
     switch (getType()) {
     case sycl::detail::CG::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
@@ -160,7 +160,7 @@ sycl::detail::ProgramManager::KernelArgMask getKernelArgMaskFromBundle(
   MockCGH.use_kernel_bundle(ExecBundle);
   MockCGH.single_task<EAMTestKernel>([] {}); // Actual kernel does not matter
 
-  sycl::unique_ptr_class<sycl::detail::CG> CmdGroup = MockCGH.finalize();
+  std::unique_ptr<sycl::detail::CG> CmdGroup = MockCGH.finalize();
   auto *ExecKernel = static_cast<sycl::detail::CGExecKernel *>(CmdGroup.get());
 
   const auto &KernelBundleImplPtr = ExecKernel->getKernelBundle();
@@ -197,8 +197,8 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   } else if (Plt.get_backend() == sycl::backend::cuda) {
     std::cerr << "Test is not supported on CUDA platform, skipping\n";
     return;
-  } else if (Plt.get_backend() == sycl::backend::rocm) {
-    std::cout << "Test is not supported on ROCm platform, skipping\n";
+  } else if (Plt.get_backend() == sycl::backend::hip) {
+    std::cout << "Test is not supported on HIP platform, skipping\n";
     return;
   }
 

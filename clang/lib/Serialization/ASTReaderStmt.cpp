@@ -213,11 +213,11 @@ void ASTStmtReader::VisitAttributedStmt(AttributedStmt *S) {
 void ASTStmtReader::VisitIfStmt(IfStmt *S) {
   VisitStmt(S);
 
-  S->setConstexpr(Record.readInt());
   bool HasElse = Record.readInt();
   bool HasVar = Record.readInt();
   bool HasInit = Record.readInt();
 
+  S->setStatementKind(static_cast<IfStatementKind>(Record.readInt()));
   S->setCond(Record.readSubExpr());
   S->setThen(Record.readSubStmt());
   if (HasElse)
@@ -2339,6 +2339,13 @@ void ASTStmtReader::VisitOMPLoopDirective(OMPLoopDirective *D) {
   VisitOMPLoopBasedDirective(D);
 }
 
+void ASTStmtReader::VisitOMPMetaDirective(OMPMetaDirective *D) {
+  VisitStmt(D);
+  // The NumClauses field was read in ReadStmtFromStream.
+  Record.skipInts(1);
+  VisitOMPExecutableDirective(D);
+}
+
 void ASTStmtReader::VisitOMPParallelDirective(OMPParallelDirective *D) {
   VisitStmt(D);
   VisitOMPExecutableDirective(D);
@@ -2349,12 +2356,18 @@ void ASTStmtReader::VisitOMPSimdDirective(OMPSimdDirective *D) {
   VisitOMPLoopDirective(D);
 }
 
-void ASTStmtReader::VisitOMPTileDirective(OMPTileDirective *D) {
+void ASTStmtReader::VisitOMPLoopTransformationDirective(
+    OMPLoopTransformationDirective *D) {
   VisitOMPLoopBasedDirective(D);
+  D->setNumGeneratedLoops(Record.readUInt32());
+}
+
+void ASTStmtReader::VisitOMPTileDirective(OMPTileDirective *D) {
+  VisitOMPLoopTransformationDirective(D);
 }
 
 void ASTStmtReader::VisitOMPUnrollDirective(OMPUnrollDirective *D) {
-  VisitOMPLoopBasedDirective(D);
+  VisitOMPLoopTransformationDirective(D);
 }
 
 void ASTStmtReader::VisitOMPForDirective(OMPForDirective *D) {
@@ -2778,9 +2791,9 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     case STMT_IF:
       S = IfStmt::CreateEmpty(
           Context,
-          /* HasElse=*/Record[ASTStmtReader::NumStmtFields + 1],
-          /* HasVar=*/Record[ASTStmtReader::NumStmtFields + 2],
-          /* HasInit=*/Record[ASTStmtReader::NumStmtFields + 3]);
+          /* HasElse=*/Record[ASTStmtReader::NumStmtFields],
+          /* HasVar=*/Record[ASTStmtReader::NumStmtFields + 1],
+          /* HasInit=*/Record[ASTStmtReader::NumStmtFields + 2]);
       break;
 
     case STMT_SWITCH:
@@ -3217,6 +3230,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case STMT_OMP_CANONICAL_LOOP:
       S = OMPCanonicalLoop::createEmpty(Context);
+      break;
+
+    case STMT_OMP_META_DIRECTIVE:
+      S = OMPMetaDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 
     case STMT_OMP_PARALLEL_DIRECTIVE:

@@ -232,6 +232,7 @@ private:
   bool MIsRootDevice = false;
   bool MIsHostDevice;
   PlatformImplPtr MPlatform;
+  bool MIsAssertFailSupported = false;
 }; // class device_impl
 
 } // namespace detail

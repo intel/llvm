@@ -12,11 +12,12 @@
 
 #include "CrashHandlerFixture.h"
 #include "gtest/gtest.h"
-#include "../../runtime/io-api.h"
-#include "../../runtime/main.h"
-#include "../../runtime/stop.h"
+#include "flang/Runtime/io-api.h"
+#include "flang/Runtime/main.h"
+#include "flang/Runtime/stop.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstring>
+#include <string_view>
 
 using namespace Fortran::runtime::io;
 
@@ -40,6 +41,15 @@ TEST(ExternalIOTests, TestDirectUnformatted) {
   ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
       << "EndIoStatement() for OpenNewUnit";
 
+  // INQUIRE(IOLENGTH=) j
+  io = IONAME(BeginInquireIoLength)(__FILE__, __LINE__);
+  ASSERT_TRUE(IONAME(OutputUnformattedBlock)(
+      io, reinterpret_cast<const char *>(&buffer), 1, recl))
+      << "OutputUnformattedBlock() for InquireIoLength";
+  ASSERT_EQ(IONAME(GetIoLength)(io), recl) << "GetIoLength";
+  ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
+      << "EndIoStatement() for InquireIoLength";
+
   static constexpr int records{10};
   for (int j{1}; j <= records; ++j) {
     // WRITE(UNIT=unit,REC=j) j
@@ -48,7 +58,7 @@ TEST(ExternalIOTests, TestDirectUnformatted) {
 
     buffer = j;
     ASSERT_TRUE(IONAME(OutputUnformattedBlock)(
-        io, reinterpret_cast<const char *>(&buffer), recl, recl))
+        io, reinterpret_cast<const char *>(&buffer), 1, recl))
         << "OutputUnformattedBlock()";
 
     ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
@@ -60,7 +70,7 @@ TEST(ExternalIOTests, TestDirectUnformatted) {
     io = IONAME(BeginUnformattedInput)(unit, __FILE__, __LINE__);
     ASSERT_TRUE(IONAME(SetRec)(io, j)) << "SetRec(" << j << ')';
     ASSERT_TRUE(IONAME(InputUnformattedBlock)(
-        io, reinterpret_cast<char *>(&buffer), recl, recl))
+        io, reinterpret_cast<char *>(&buffer), 1, recl))
         << "InputUnformattedBlock()";
 
     ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
@@ -156,6 +166,17 @@ TEST(ExternalIOTests, TestSequentialFixedUnformatted) {
   ASSERT_TRUE(IONAME(GetNewUnit)(io, unit)) << "GetNewUnit()";
   ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
       << "EndIoStatement() for OpenNewUnit";
+
+  // INQUIRE(IOLENGTH=) j, ...
+  io = IONAME(BeginInquireIoLength)(__FILE__, __LINE__);
+  for (int j{1}; j <= 3; ++j) {
+    ASSERT_TRUE(IONAME(OutputUnformattedBlock)(
+        io, reinterpret_cast<const char *>(&buffer), 1, recl))
+        << "OutputUnformattedBlock() for InquireIoLength";
+  }
+  ASSERT_EQ(IONAME(GetIoLength)(io), 3 * recl) << "GetIoLength";
+  ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
+      << "EndIoStatement() for InquireIoLength";
 
   static const int records{10};
   for (int j{1}; j <= records; ++j) {
@@ -416,7 +437,7 @@ TEST(ExternalIOTests, TestSequentialVariableFormatted) {
         << "EndIoStatement() for Backspace (before read)";
 
     std::snprintf(fmt, sizeof fmt, "(%dI4)", j);
-    // READ(UNIT=unit,FMT=fmt) n; check
+    // READ(UNIT=unit,FMT=fmt,SIZE=chars) n; check
     io = IONAME(BeginExternalFormattedInput)(
         fmt, std::strlen(fmt), unit, __FILE__, __LINE__);
 
@@ -425,6 +446,9 @@ TEST(ExternalIOTests, TestSequentialVariableFormatted) {
       ASSERT_TRUE(IONAME(InputInteger)(io, check[k])) << "InputInteger()";
     }
 
+    std::size_t chars{IONAME(GetSize)(io)};
+    ASSERT_EQ(chars, j * 4u)
+        << "GetSize()=" << chars << ", expected " << (j * 4u) << '\n';
     ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
         << "EndIoStatement() for InputInteger";
     for (int k{0}; k < j; ++k) {
@@ -445,4 +469,71 @@ TEST(ExternalIOTests, TestSequentialVariableFormatted) {
   ASSERT_TRUE(IONAME(SetStatus)(io, "DELETE", 6)) << "SetStatus(DELETE)";
   ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
       << "EndIoStatement() for Close";
+}
+
+TEST(ExternalIOTests, TestNonAvancingInput) {
+  // OPEN(NEWUNIT=unit,ACCESS='SEQUENTIAL',ACTION='READWRITE',&
+  //   FORM='FORMATTED',STATUS='SCRATCH')
+  auto *io{IONAME(BeginOpenNewUnit)(__FILE__, __LINE__)};
+  ASSERT_TRUE(IONAME(SetAccess)(io, "SEQUENTIAL", 10))
+      << "SetAccess(SEQUENTIAL)";
+  ASSERT_TRUE(IONAME(SetAction)(io, "READWRITE", 9)) << "SetAction(READWRITE)";
+  ASSERT_TRUE(IONAME(SetForm)(io, "FORMATTED", 9)) << "SetForm(FORMATTED)";
+  ASSERT_TRUE(IONAME(SetStatus)(io, "SCRATCH", 7)) << "SetStatus(SCRATCH)";
+
+  int unit{-1};
+  ASSERT_TRUE(IONAME(GetNewUnit)(io, unit)) << "GetNewUnit()";
+  ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
+      << "EndIoStatement() for OpenNewUnit";
+
+  // Write the file to be used for the input test.
+  static constexpr std::string_view records[] = {
+      "ABCDEFGH", "IJKLMNOP", "QRSTUVWX"};
+  static constexpr std::string_view fmt{"(A)"};
+  for (const auto &record : records) {
+    // WRITE(UNIT=unit,FMT=fmt) record
+    io = IONAME(BeginExternalFormattedOutput)(
+        fmt.data(), fmt.length(), unit, __FILE__, __LINE__);
+    ASSERT_TRUE(IONAME(OutputAscii)(io, record.data(), record.length()))
+        << "OutputAscii()";
+    ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
+        << "EndIoStatement() for OutputAscii";
+  }
+
+  // REWIND(UNIT=unit)
+  io = IONAME(BeginRewind)(unit, __FILE__, __LINE__);
+  ASSERT_EQ(IONAME(EndIoStatement)(io), IostatOk)
+      << "EndIoStatement() for Rewind";
+
+  struct TestItems {
+    std::string item;
+    int expectedIoStat;
+    std::string expectedItemValue;
+  };
+  // Actual non advancing input IO test
+  TestItems inputItems[]{
+      {std::string(4, '+'), IostatOk, "ABCD"},
+      {std::string(4, '+'), IostatOk, "EFGH"},
+      {std::string(4, '+'), IostatEor, "    "},
+      {std::string(2, '+'), IostatOk, "IJ"},
+      {std::string(8, '+'), IostatEor, "KLMNOP  "},
+      {std::string(10, '+'), IostatEor, "QRSTUVWX  "},
+  };
+
+  int j{0};
+  for (auto &inputItem : inputItems) {
+    // READ(UNIT=unit, FMT=fmt, ADVANCE='NO', IOSTAT=iostat) inputItem
+    io = IONAME(BeginExternalFormattedInput)(
+        fmt.data(), fmt.length(), unit, __FILE__, __LINE__);
+    IONAME(EnableHandlers)(io, true, false, false, false, false);
+    ASSERT_TRUE(IONAME(SetAdvance)(io, "NO", 2)) << "SetAdvance(NO)" << j;
+    ASSERT_TRUE(
+        IONAME(InputAscii)(io, inputItem.item.data(), inputItem.item.length()))
+        << "InputAscii() " << j;
+    ASSERT_EQ(IONAME(EndIoStatement)(io), inputItem.expectedIoStat)
+        << "EndIoStatement() for Read " << j;
+    ASSERT_EQ(inputItem.item, inputItem.expectedItemValue)
+        << "Input-item value after non advancing read " << j;
+    j++;
+  }
 }

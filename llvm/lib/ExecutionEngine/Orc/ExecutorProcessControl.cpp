@@ -24,9 +24,10 @@ ExecutorProcessControl::MemoryAccess::~MemoryAccess() {}
 ExecutorProcessControl::~ExecutorProcessControl() {}
 
 SelfExecutorProcessControl::SelfExecutorProcessControl(
-    std::shared_ptr<SymbolStringPool> SSP, Triple TargetTriple,
-    unsigned PageSize, std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr)
-    : ExecutorProcessControl(std::move(SSP)) {
+    std::shared_ptr<SymbolStringPool> SSP, std::unique_ptr<TaskDispatcher> D,
+    Triple TargetTriple, unsigned PageSize,
+    std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr)
+    : ExecutorProcessControl(std::move(SSP), std::move(D)) {
 
   OwnedMemMgr = std::move(MemMgr);
   if (!OwnedMemMgr)
@@ -36,8 +37,8 @@ SelfExecutorProcessControl::SelfExecutorProcessControl(
   this->PageSize = PageSize;
   this->MemMgr = OwnedMemMgr.get();
   this->MemAccess = this;
-  this->JDI = {ExecutorAddress::fromPtr(jitDispatchViaWrapperFunctionManager),
-               ExecutorAddress::fromPtr(this)};
+  this->JDI = {ExecutorAddr::fromPtr(jitDispatchViaWrapperFunctionManager),
+               ExecutorAddr::fromPtr(this)};
   if (this->TargetTriple.isOSBinFormatMachO())
     GlobalManglingPrefix = '_';
 }
@@ -45,10 +46,19 @@ SelfExecutorProcessControl::SelfExecutorProcessControl(
 Expected<std::unique_ptr<SelfExecutorProcessControl>>
 SelfExecutorProcessControl::Create(
     std::shared_ptr<SymbolStringPool> SSP,
+    std::unique_ptr<TaskDispatcher> D,
     std::unique_ptr<jitlink::JITLinkMemoryManager> MemMgr) {
 
   if (!SSP)
     SSP = std::make_shared<SymbolStringPool>();
+
+  if (!D) {
+#if LLVM_ENABLE_THREADS
+    D = std::make_unique<DynamicThreadPoolTaskDispatcher>();
+#else
+    D = std::make_unique<InPlaceTaskDispatcher>();
+#endif
+  }
 
   auto PageSize = sys::Process::getPageSize();
   if (!PageSize)
@@ -57,7 +67,8 @@ SelfExecutorProcessControl::Create(
   Triple TT(sys::getProcessTriple());
 
   return std::make_unique<SelfExecutorProcessControl>(
-      std::move(SSP), std::move(TT), *PageSize, std::move(MemMgr));
+      std::move(SSP), std::move(D), std::move(TT), *PageSize,
+      std::move(MemMgr));
 }
 
 Expected<tpctypes::DylibHandle>
@@ -93,7 +104,7 @@ SelfExecutorProcessControl::lookupSymbols(ArrayRef<LookupRequest> Request) {
         // FIXME: Collect all failing symbols before erroring out.
         SymbolNameVector MissingSymbols;
         MissingSymbols.push_back(Sym);
-        return make_error<SymbolsNotFound>(std::move(MissingSymbols));
+        return make_error<SymbolsNotFound>(SSP, std::move(MissingSymbols));
       }
       R.back().push_back(pointerToJITTargetAddress(Addr));
     }
@@ -103,18 +114,18 @@ SelfExecutorProcessControl::lookupSymbols(ArrayRef<LookupRequest> Request) {
 }
 
 Expected<int32_t>
-SelfExecutorProcessControl::runAsMain(JITTargetAddress MainFnAddr,
+SelfExecutorProcessControl::runAsMain(ExecutorAddr MainFnAddr,
                                       ArrayRef<std::string> Args) {
   using MainTy = int (*)(int, char *[]);
-  return orc::runAsMain(jitTargetAddressToFunction<MainTy>(MainFnAddr), Args);
+  return orc::runAsMain(MainFnAddr.toPtr<MainTy>(), Args);
 }
 
-void SelfExecutorProcessControl::callWrapperAsync(
-    SendResultFunction SendResult, JITTargetAddress WrapperFnAddr,
-    ArrayRef<char> ArgBuffer) {
+void SelfExecutorProcessControl::callWrapperAsync(ExecutorAddr WrapperFnAddr,
+                                                  IncomingWFRHandler SendResult,
+                                                  ArrayRef<char> ArgBuffer) {
   using WrapperFnTy =
       shared::detail::CWrapperFunctionResult (*)(const char *Data, size_t Size);
-  auto *WrapperFn = jitTargetAddressToFunction<WrapperFnTy>(WrapperFnAddr);
+  auto *WrapperFn = WrapperFnAddr.toPtr<WrapperFnTy>();
   SendResult(WrapperFn(ArgBuffer.data(), ArgBuffer.size()));
 }
 

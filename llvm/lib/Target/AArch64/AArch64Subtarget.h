@@ -89,6 +89,9 @@ protected:
   bool HasV8_5aOps = false;
   bool HasV8_6aOps = false;
   bool HasV8_7aOps = false;
+  bool HasV9_0aOps = false;
+  bool HasV9_1aOps = false;
+  bool HasV9_2aOps = false;
 
   bool HasV8_0rOps = false;
   bool HasCONTEXTIDREL2 = false;
@@ -99,6 +102,7 @@ protected:
   bool HasDotProd = false;
   bool HasCRC = false;
   bool HasLSE = false;
+  bool HasLSE2 = false;
   bool HasRAS = false;
   bool HasRDM = false;
   bool HasPerfMon = false;
@@ -139,7 +143,6 @@ protected:
   bool HasTRACEV8_4 = false;
   bool HasAM = false;
   bool HasSEL2 = false;
-  bool HasPMU = false;
   bool HasTLB_RMI = false;
   bool HasFlagM = false;
   bool HasRCPC_IMMO = false;
@@ -344,6 +347,9 @@ public:
   bool hasV8_3aOps() const { return HasV8_3aOps; }
   bool hasV8_4aOps() const { return HasV8_4aOps; }
   bool hasV8_5aOps() const { return HasV8_5aOps; }
+  bool hasV9_0aOps() const { return HasV9_0aOps; }
+  bool hasV9_1aOps() const { return HasV9_1aOps; }
+  bool hasV9_2aOps() const { return HasV9_2aOps; }
   bool hasV8_0rOps() const { return HasV8_0rOps; }
 
   bool hasZeroCycleRegMove() const { return HasZeroCycleRegMove; }
@@ -376,6 +382,7 @@ public:
   bool hasDotProd() const { return HasDotProd; }
   bool hasCRC() const { return HasCRC; }
   bool hasLSE() const { return HasLSE; }
+  bool hasLSE2() const { return HasLSE2; }
   bool hasRAS() const { return HasRAS; }
   bool hasRDM() const { return HasRDM; }
   bool hasSM4() const { return HasSM4; }
@@ -543,7 +550,6 @@ public:
   bool hasHCX() const { return HasHCX; }
   bool hasLS64() const { return HasLS64; }
   bool hasSEL2() const { return HasSEL2; }
-  bool hasPMU() const { return HasPMU; }
   bool hasTLB_RMI() const { return HasTLB_RMI; }
   bool hasFlagM() const { return HasFlagM; }
   bool hasRCPC_IMMO() const { return HasRCPC_IMMO; }
@@ -597,6 +603,31 @@ public:
       return true;
     default:
       return false;
+    }
+  }
+
+  /// Return whether FrameLowering should always set the "extended frame
+  /// present" bit in FP, or set it based on a symbol in the runtime.
+  bool swiftAsyncContextIsDynamicallySet() const {
+    // Older OS versions (particularly system unwinders) are confused by the
+    // Swift extended frame, so when building code that might be run on them we
+    // must dynamically query the concurrency library to determine whether
+    // extended frames should be flagged as present.
+    const Triple &TT = getTargetTriple();
+
+    unsigned Major, Minor, Micro;
+    TT.getOSVersion(Major, Minor, Micro);
+    switch(TT.getOS()) {
+    default:
+      return false;
+    case Triple::IOS:
+    case Triple::TvOS:
+      return Major < 15;
+    case Triple::WatchOS:
+      return Major < 8;
+    case Triple::MacOSX:
+    case Triple::Darwin:
+      return Major < 12;
     }
   }
 

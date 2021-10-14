@@ -1,10 +1,10 @@
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=0 vl=16" -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=0 vl=16" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC0
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=1 vl=16" -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=1 vl=16" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC1
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=2 vl=16" -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=2 vl=16" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC2
-// RUN: mlir-opt %s -sparsification="vectorization-strategy=2 vl=16 enable-simd-index32=true" -split-input-file | \
+// RUN: mlir-opt %s -sparsification="vectorization-strategy=2 vl=16 enable-simd-index32=true" -cse -split-input-file | \
 // RUN:   FileCheck %s --check-prefix=CHECK-VEC3
 
 #DenseVector = #sparse_tensor.encoding<{ dimLevelType = [ "dense" ] }>
@@ -210,32 +210,38 @@ func @mul_s(%arga: tensor<1024xf32, #SparseVector>, %argb: tensor<1024xf32>, %ar
 //
 // CHECK-VEC1-LABEL: func @reduction_d
 // CHECK-VEC1-DAG:   %[[c0:.*]] = constant 0 : index
+// CHECK-VEC1-DAG:   %[[i0:.*]] = constant 0 : i32
 // CHECK-VEC1-DAG:   %[[c16:.*]] = constant 16 : index
 // CHECK-VEC1-DAG:   %[[c1024:.*]] = constant 1024 : index
 // CHECK-VEC1-DAG:   %[[v0:.*]] = constant dense<0.000000e+00> : vector<16xf32>
-// CHECK-VEC1:       %[[red:.*]] = scf.for %[[i:.*]] = %[[c0]] to %[[c1024]] step %[[c16]] iter_args(%[[red_in:.*]] = %[[v0]]) -> (vector<16xf32>) {
+// CHECK-VEC1:       %[[l:.*]] = memref.load %{{.*}}[] : memref<f32>
+// CHECK-VEC1:       %[[r:.*]] = vector.insertelement %[[l]], %[[v0]][%[[i0]] : i32] : vector<16xf32>
+// CHECK-VEC1:       %[[red:.*]] = scf.for %[[i:.*]] = %[[c0]] to %[[c1024]] step %[[c16]] iter_args(%[[red_in:.*]] = %[[r]]) -> (vector<16xf32>) {
 // CHECK-VEC1:         %[[la:.*]] = vector.load %{{.*}}[%[[i]]] : memref<?xf32>, vector<16xf32>
 // CHECK-VEC1:         %[[lb:.*]] = vector.load %{{.*}}[%[[i]]] : memref<1024xf32>, vector<16xf32>
 // CHECK-VEC1:         %[[m:.*]] = mulf %[[la]], %[[lb]] : vector<16xf32>
 // CHECK-VEC1:         %[[a:.*]] = addf %[[red_in]], %[[m]] : vector<16xf32>
 // CHECK-VEC1:         scf.yield %[[a]] : vector<16xf32>
 // CHECK-VEC1:       }
-// CHECK-VEC1:       %{{.*}} = vector.reduction "add", %[[red]], %{{.*}} : vector<16xf32> into f32
+// CHECK-VEC1:       %{{.*}} = vector.reduction "add", %[[red]] : vector<16xf32> into f32
 // CHECK-VEC1:       return
 //
 // CHECK-VEC2-LABEL: func @reduction_d
 // CHECK-VEC2-DAG:   %[[c0:.*]] = constant 0 : index
+// CHECK-VEC2-DAG:   %[[i0:.*]] = constant 0 : i32
 // CHECK-VEC2-DAG:   %[[c16:.*]] = constant 16 : index
 // CHECK-VEC2-DAG:   %[[c1024:.*]] = constant 1024 : index
 // CHECK-VEC2-DAG:   %[[v0:.*]] = constant dense<0.000000e+00> : vector<16xf32>
-// CHECK-VEC2:       %[[red:.*]] = scf.for %[[i:.*]] = %[[c0]] to %[[c1024]] step %[[c16]] iter_args(%[[red_in:.*]] = %[[v0]]) -> (vector<16xf32>) {
+// CHECK-VEC2:       %[[l:.*]] = memref.load %{{.*}}[] : memref<f32>
+// CHECK-VEC2:       %[[r:.*]] = vector.insertelement %[[l]], %[[v0]][%[[i0]] : i32] : vector<16xf32>
+// CHECK-VEC2:       %[[red:.*]] = scf.for %[[i:.*]] = %[[c0]] to %[[c1024]] step %[[c16]] iter_args(%[[red_in:.*]] = %[[r]]) -> (vector<16xf32>) {
 // CHECK-VEC2:         %[[la:.*]] = vector.load %{{.*}}[%[[i]]] : memref<?xf32>, vector<16xf32>
 // CHECK-VEC2:         %[[lb:.*]] = vector.load %{{.*}}[%[[i]]] : memref<1024xf32>, vector<16xf32>
 // CHECK-VEC2:         %[[m:.*]] = mulf %[[la]], %[[lb]] : vector<16xf32>
 // CHECK-VEC2:         %[[a:.*]] = addf %[[red_in]], %[[m]] : vector<16xf32>
 // CHECK-VEC2:         scf.yield %[[a]] : vector<16xf32>
 // CHECK-VEC2:       }
-// CHECK-VEC2:       %{{.*}} = vector.reduction "add", %[[red]], %{{.*}} : vector<16xf32> into f32
+// CHECK-VEC2:       %{{.*}} = vector.reduction "add", %[[red]] : vector<16xf32> into f32
 // CHECK-VEC2:       return
 //
 func @reduction_d(%arga: tensor<1024xf32, #DenseVector>, %argb: tensor<1024xf32>, %argx: tensor<f32>) -> tensor<f32> {
@@ -379,4 +385,88 @@ func @mul_ds(%arga: tensor<512x1024xf32, #SparseMatrix>, %argb: tensor<512x1024x
         linalg.yield %0 : f32
   } -> tensor<512x1024xf32>
   return %0 : tensor<512x1024xf32>
+}
+
+// -----
+
+#SparseMatrix = #sparse_tensor.encoding<{dimLevelType = ["dense","compressed"]}>
+
+#trait_affine = {
+  indexing_maps = [
+    affine_map<(i,j) -> (i,j)>,
+    affine_map<(i,j) -> (i+1,j)>
+  ],
+  iterator_types = ["parallel","parallel"],
+  doc = "X(i+1,j) += A(i,j)"
+}
+
+//
+// CHECK-VEC0-LABEL: func @add_dense
+// CHECK-VEC0-DAG:   %[[c0:.*]] = constant 0 : index
+// CHECK-VEC0-DAG:   %[[c1:.*]] = constant 1 : index
+// CHECK-VEC0-DAG:   %[[c32:.*]] = constant 32 : index
+// CHECK-VEC0:       scf.for %[[i:.*]] = %[[c0]] to %[[c32]] step %[[c1]] {
+// CHECK-VEC0:         %[[lo:.*]] = memref.load %{{.*}}[%[[i]]] : memref<?xindex>
+// CHECK-VEC0:         %[[i1:.*]] = addi %[[i]], %[[c1]] : index
+// CHECK-VEC0:         %[[hi:.*]] = memref.load %{{.*}}[%[[i1]]] : memref<?xindex>
+// CHECK-VEC0:         scf.for %[[jj:.*]] = %[[lo]] to %[[hi]] step %[[c1]] {
+// CHECK-VEC0:           %[[j:.*]] = memref.load %{{.*}}[%[[jj]]] : memref<?xindex>
+// CHECK-VEC0:           %[[x:.*]] = memref.load %{{.*}}[%[[i1]], %[[j]]] : memref<33x64xf64>
+// CHECK-VEC0:           %[[a:.*]] = memref.load %{{.*}}[%[[jj]]] : memref<?xf64>
+// CHECK-VEC0:           %[[s:.*]] = addf %[[x]], %[[a]] : f64
+// CHECK-VEC0:           memref.store %[[s]], %{{.*}}[%[[i1]], %[[j]]] : memref<33x64xf64>
+// CHECK-VEC0:         }
+// CHECK-VEC0:       }
+// CHECK-VEC0:       return
+//
+// CHECK-VEC1-LABEL: func @add_dense
+// CHECK-VEC1-DAG:   %[[c0:.*]] = constant 0 : index
+// CHECK-VEC1-DAG:   %[[c1:.*]] = constant 1 : index
+// CHECK-VEC1-DAG:   %[[c32:.*]] = constant 32 : index
+// CHECK-VEC1:       scf.for %[[i:.*]] = %[[c0]] to %[[c32]] step %[[c1]] {
+// CHECK-VEC1:         %[[lo:.*]] = memref.load %{{.*}}[%[[i]]] : memref<?xindex>
+// CHECK-VEC1:         %[[i1:.*]] = addi %[[i]], %[[c1]] : index
+// CHECK-VEC1:         %[[hi:.*]] = memref.load %{{.*}}[%[[i1]]] : memref<?xindex>
+// CHECK-VEC1:         scf.for %[[jj:.*]] = %[[lo]] to %[[hi]] step %[[c1]] {
+// CHECK-VEC1:           %[[j:.*]] = memref.load %{{.*}}[%[[jj]]] : memref<?xindex>
+// CHECK-VEC1:           %[[x:.*]] = memref.load %{{.*}}[%[[i1]], %[[j]]] : memref<33x64xf64>
+// CHECK-VEC1:           %[[a:.*]] = memref.load %{{.*}}[%[[jj]]] : memref<?xf64>
+// CHECK-VEC1:           %[[s:.*]] = addf %[[x]], %[[a]] : f64
+// CHECK-VEC1:           memref.store %[[s]], %{{.*}}[%[[i1]], %[[j]]] : memref<33x64xf64>
+// CHECK-VEC1:         }
+// CHECK-VEC1:       }
+// CHECK-VEC1:       return
+//
+// CHECK-VEC2:       #[[$map:.*]] = affine_map<(d0, d1)[s0] -> (16, d0 - d1)
+// CHECK-VEC2-LABEL: func @add_dense
+// CHECK-VEC2-DAG:   %[[c0:.*]] = constant 0 : index
+// CHECK-VEC2-DAG:   %[[c1:.*]] = constant 1 : index
+// CHECK-VEC2-DAG:   %[[c16:.*]] = constant 16 : index
+// CHECK-VEC2-DAG:   %[[c32:.*]] = constant 32 : index
+// CHECK-VEC2:       scf.for %[[i:.*]] = %[[c0]] to %[[c32]] step %[[c1]] {
+// CHECK-VEC2:         %[[lo:.*]] = memref.load %{{.*}}[%[[i]]] : memref<?xindex>
+// CHECK-VEC2:         %[[i1:.*]] = addi %[[i]], %[[c1]] : index
+// CHECK-VEC2:         %[[hi:.*]] = memref.load %{{.*}}[%[[i1]]] : memref<?xindex>
+// CHECK-VEC2:         scf.for %[[jj:.*]] = %[[lo]] to %[[hi]] step %[[c16]] {
+// CHECK-VEC2:           %[[sub:.*]] = affine.min #[[$map]](%[[hi]], %[[jj]])[%[[c16]]]
+// CHECK-VEC2:           %[[mask:.*]] = vector.create_mask %[[sub]] : vector<16xi1>
+// CHECK-VEC2:           %[[j:.*]] = vector.maskedload %{{.*}}[%[[jj]]], %[[mask]], %{{.*}} : memref<?xindex>
+// CHECK-VEC2:           %[[x:.*]] = vector.gather %{{.*}}[%[[i1]], %[[c0]]] [%[[j]]], %[[mask]], %{{.*}} : memref<33x64xf64>
+// CHECK-VEC2:           %[[a:.*]] = vector.maskedload %{{.*}}[%[[jj]]], %[[mask]], %{{.*}} : memref<?xf64>
+// CHECK-VEC2:           %[[s:.*]] = addf %[[x]], %[[a]] : vector<16xf64>
+// CHECK-VEC2:           vector.scatter %{{.*}}[%[[i1]], %[[c0]]] [%[[j]]], %[[mask]], %[[s]] : memref<33x64xf64>
+// CHECK-VEC2:         }
+// CHECK-VEC2:       }
+// CHECK-VEC2:       return
+//
+func @add_dense(%arga: tensor<32x64xf64, #SparseMatrix>,
+                %argx: tensor<33x64xf64> {linalg.inplaceable = true}) -> tensor<33x64xf64> {
+  %0 = linalg.generic #trait_affine
+     ins(%arga: tensor<32x64xf64, #SparseMatrix>)
+    outs(%argx: tensor<33x64xf64>) {
+      ^bb(%a: f64, %x: f64):
+        %0 = addf %x, %a : f64
+        linalg.yield %0 : f64
+  } -> tensor<33x64xf64>
+  return %0 : tensor<33x64xf64>
 }

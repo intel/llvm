@@ -20,6 +20,7 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/OpenMP/OmpCommon.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Dialect/OpenMP/OpenMPOpsInterfaces.td"
 
 def OpenMP_Dialect : Dialect {
   let name = "omp";
@@ -72,7 +73,8 @@ def ClauseDefault : StrEnumAttr<
   let cppNamespace = "::mlir::omp";
 }
 
-def ParallelOp : OpenMP_Op<"parallel", [AttrSizedOperandSegments]> {
+def ParallelOp : OpenMP_Op<"parallel", [AttrSizedOperandSegments,
+                 DeclareOpInterfaceMethods<OutlineableOpenMPOpInterface>]> {
   let summary = "parallel construct";
   let description = [{
     The parallel construct includes a region of code which is to be executed
@@ -317,12 +319,12 @@ def TargetOp : OpenMP_Op<"target",[AttrSizedOperandSegments]> {
     The optional $device parameter specifies the device number for the target region.
 
     The optional $thread_limit specifies the limit on the number of threads
-    
+
     The optional $nowait elliminates the implicit barrier so the parent task can make progress
     even if the target task is not yet completed.
-    
+
     TODO:  private, map, is_device_ptr, firstprivate, depend, defaultmap, in_reduction
-    
+
   }];
 
   let arguments = (ins Optional<I1>:$if_expr,

@@ -12,71 +12,86 @@
 #include <detail/device_impl.hpp>
 
 #include <cstring>
+#include <string_view>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
+std::vector<std::string_view> tokenize(const std::string &Filter,
+                                       const std::string &Delim) {
+  std::vector<std::string_view> Tokens;
+  size_t Pos = 0;
+  size_t LastPos = 0;
+
+  while ((Pos = Filter.find(Delim, LastPos)) != std::string::npos) {
+    std::string_view Tok(Filter.data() + LastPos, (Pos - LastPos));
+
+    if (!Tok.empty()) {
+      Tokens.push_back(Tok);
+    }
+    // move the search starting index
+    LastPos = Pos + 1;
+  }
+
+  // Add remainder if any
+  if (LastPos < Filter.size()) {
+    std::string_view Tok(Filter.data() + LastPos, Filter.size() - LastPos);
+    Tokens.push_back(Tok);
+  }
+  return Tokens;
+}
+
 device_filter::device_filter(const std::string &FilterString) {
-  size_t Cursor = 0;
-  size_t ColonPos = 0;
-  auto findElement = [&](auto Element) {
-    size_t Found = FilterString.find(Element.first, Cursor);
-    if (Found == std::string::npos)
-      return false;
-    Cursor = Found;
-    return true;
+  std::vector<std::string_view> Tokens = tokenize(FilterString, ":");
+  size_t TripleValueID = 0;
+
+  auto FindElement = [&](auto Element) {
+    return std::string::npos != Tokens[TripleValueID].find(Element.first);
   };
 
   // Handle the optional 1st field of the filter, backend
   // Check if the first entry matches with a known backend type
   auto It = std::find_if(std::begin(getSyclBeMap()), std::end(getSyclBeMap()),
-                         findElement);
+                         FindElement);
   // If no match is found, set the backend type backend::all
   // which actually means 'any backend' will be a match.
   if (It == getSyclBeMap().end())
     Backend = backend::all;
   else {
     Backend = It->second;
-    ColonPos = FilterString.find(":", Cursor);
-    if (ColonPos != std::string::npos)
-      Cursor = ColonPos + 1;
-    else
-      Cursor = Cursor + It->first.size();
+    TripleValueID++;
   }
+
   // Handle the optional 2nd field of the filter - device type.
   // Check if the 2nd entry matches with any known device type.
-  if (Cursor >= FilterString.size()) {
+  if (TripleValueID >= Tokens.size()) {
     DeviceType = info::device_type::all;
   } else {
     auto Iter = std::find_if(std::begin(getSyclDeviceTypeMap()),
-                             std::end(getSyclDeviceTypeMap()), findElement);
+                             std::end(getSyclDeviceTypeMap()), FindElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
     if (Iter == getSyclDeviceTypeMap().end())
       DeviceType = info::device_type::all;
     else {
       DeviceType = Iter->second;
-      ColonPos = FilterString.find(":", Cursor);
-      if (ColonPos != std::string::npos)
-        Cursor = ColonPos + 1;
-      else
-        Cursor = Cursor + Iter->first.size();
+      TripleValueID++;
     }
   }
 
   // Handle the optional 3rd field of the filter, device number
   // Try to convert the remaining string to an integer.
   // If succeessful, the converted integer is the desired device num.
-  if (Cursor < FilterString.size()) {
+  if (TripleValueID < Tokens.size()) {
     try {
-      DeviceNum = stoi(FilterString.substr(Cursor));
+      DeviceNum = std::stoi(Tokens[TripleValueID].data());
       HasDeviceNum = true;
     } catch (...) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
           "\nPossible backend values are "
-          "{host,opencl,level_zero,cuda,rocm,*}.\n"
+          "{host,opencl,level_zero,cuda,hip,*}.\n"
           "Possible device types are {host,cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
       throw cl::sycl::invalid_parameter_error(Message, PI_INVALID_VALUE);

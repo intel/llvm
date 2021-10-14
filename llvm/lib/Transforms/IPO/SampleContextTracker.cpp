@@ -511,13 +511,13 @@ SampleContextTracker::getOrCreateContextPath(const SampleContext &Context,
   for (auto &Callsite : Context.getContextFrames()) {
     // Create child node at parent line/disc location
     if (AllowCreate) {
-      ContextNode = ContextNode->getOrCreateChildContext(CallSiteLoc,
-                                                         Callsite.CallerName);
+      ContextNode =
+          ContextNode->getOrCreateChildContext(CallSiteLoc, Callsite.FuncName);
     } else {
       ContextNode =
-          ContextNode->getChildContext(CallSiteLoc, Callsite.CallerName);
+          ContextNode->getChildContext(CallSiteLoc, Callsite.FuncName);
     }
-    CallSiteLoc = Callsite.Callsite;
+    CallSiteLoc = Callsite.Location;
   }
 
   assert((!AllowCreate || ContextNode) &&
@@ -545,6 +545,8 @@ void SampleContextTracker::mergeContextNode(ContextTrieNode &FromNode,
     ToSamples->merge(*FromSamples);
     ToSamples->getContext().setState(SyntheticContext);
     FromSamples->getContext().setState(MergedContext);
+    if (FromSamples->getContext().hasAttribute(ContextShouldBeInlined))
+      ToSamples->getContext().setAttribute(ContextShouldBeInlined);
   } else if (FromSamples) {
     // Transfer FromSamples from FromNode to ToNode
     ToNode.setFunctionSamples(FromSamples);

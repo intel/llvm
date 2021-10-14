@@ -8,8 +8,8 @@ public:
   event single_task(event DepEvent, KernelType KernelFunc);                   // (2)
 
   template <typename KernelName, typename KernelType>
-  event single_task(const vector_class<event> &DepEvents,
-                    KernelType KernelFunc);                                   // (3)
+  event single_task(const std::vector<event> &DepEvents,
+                    KernelType KernelFunc); // (3)
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(range<Dims> NumWorkItems, KernelType KernelFunc);        // (4)
@@ -20,8 +20,8 @@ public:
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(range<Dims> NumWorkItems,
-                     const vector_class<event> &DepEvents,
-                     KernelType KernelFunc);                                  // (6)
+                     const std::vector<event> &DepEvents,
+                     KernelType KernelFunc); // (6)
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
@@ -33,8 +33,8 @@ public:
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                     const vector_class<event> &DepEvents,
-                     KernelType KernelFunc);                                  // (9)
+                     const std::vector<event> &DepEvents,
+                     KernelType KernelFunc); // (9)
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange, KernelType KernelFunc);   // (10)
@@ -45,6 +45,6 @@ public:
 
   template <typename KernelName, typename KernelType, int Dims>
   event parallel_for(nd_range<Dims> ExecutionRange,
-                     const vector_class<event> &DepEvents,
-                     KernelType KernelFunc);                                  // (12)
+                     const std::vector<event> &DepEvents,
+                     KernelType KernelFunc); // (12)
 };

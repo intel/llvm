@@ -39,7 +39,16 @@
 // RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
 // RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fPIC %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -fPIE %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
 // CHECK_SHARED: llc{{.*}} "-relocation-model=pic"
+
+/// check for code-model settings for llc device wrap compilation
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -mcmodel=large %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_CODE_MODEL -DARG=large %s
+// RUN: %clangxx -### -fsycl -target x86_64-unknown-linux-gnu -mcmodel=medium %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK_CODE_MODEL -DARG=medium %s
+// CHECK_CODE_MODEL: llc{{.*}} "--code-model=[[ARG]]"
 
 /// -S -emit-llvm should generate textual IR for device.
 // RUN: %clangxx -### -fsycl -S -emit-llvm %s 2>&1 \
@@ -59,7 +68,7 @@
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %S/Inputs/SYCL/objlin64.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// IMPLIED_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"{{.*}} "-targets={{.*}}sycl-spir64-unknown-unknown,sycl-spir64_{{.*}}-unknown-unknown"{{.*}} "-unbundle"
+// IMPLIED_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"{{.*}} "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64_{{.*}}-unknown-unknown,{{.*}}sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
@@ -69,7 +78,7 @@
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
-// IMPLIED_DEVICE_LIB: clang-offload-bundler{{.*}} "-type=a"{{.*}} "-targets=sycl-spir64-unknown-unknown,sycl-spir64_{{.*}}-unknown-unknown"{{.*}} "-unbundle"
+// IMPLIED_DEVICE_LIB: clang-offload-bundler{{.*}} "-type=a"{{.*}} "-targets=sycl-spir64_{{.*}}-unknown-unknown,sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
 /// Check that the default device triple is not used with -fno-sycl-link-spirv
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-link-spirv -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/objlin64.o %s 2>&1 \
@@ -112,3 +121,14 @@
 // RUN:    | FileCheck -check-prefixes=SYCL_TARGET_OPT_AOT %s
 // SYCL_TARGET_OPT_AOT-NOT: error: cannot deduce implicit triple value for '-Xsycl-target-backend'
 // SYCL_TARGET_OPT_AOT: {{opencl-aot|ocloc|aoc}}{{.*}} "-DFOO"
+
+/// Do not process directories when checking for default sections in fat objs
+// RUN:  %clangxx -### -Wl,-rpath,%S -fsycl -fsycl-targets=spir64_x86_64 %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
+// RUN:  %clangxx -### -Xlinker -rpath -Xlinker %S -fsycl -fsycl-targets=spir64_fpga %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
+// RUN:  %clangxx -### -Wl,-rpath,%S -fsycl -fsycl-targets=spir64_gen %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
+// RUN:  %clangxx -### -Wl,-rpath,%S -fsycl -fintelfpga %t_empty.o %s 2>&1 \
+// RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
+// NO_DIR_CHECK-NOT: clang-offload-bundler: error: '{{.*}}': Is a directory

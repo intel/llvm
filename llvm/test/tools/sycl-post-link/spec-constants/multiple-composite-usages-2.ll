@@ -9,11 +9,11 @@
 ; CHECK-LABEL: @_ZTSN4test8kernel_tIfEE
 ; CHECK: %[[#X1:]] = call float @_Z20__spirv_SpecConstantif(i32 0, float 0
 ; CHECK: %[[#Y1:]] = call float @_Z20__spirv_SpecConstantif(i32 1, float 0
-; CHECK: call {{.*}} @_Z29__spirv_SpecConstantCompositeff(float %[[#X1]], float %[[#Y1]])
+; CHECK: call {{.*}} @"_Z29__spirv_SpecConstantCompositeff_Rstruct._ZTSN4test5pod_tE.test::pod_t"(float %[[#X1]], float %[[#Y1]])
 ; CHECK-LABEL: @_ZTSN4test8kernel_tIiEE
 ; CHECK: %[[#X2:]] = call float @_Z20__spirv_SpecConstantif(i32 0, float 0
 ; CHECK: %[[#Y2:]] = call float @_Z20__spirv_SpecConstantif(i32 1, float 0
-; CHECK: call {{.*}} @_Z29__spirv_SpecConstantCompositeff(float %[[#X2]], float %[[#Y2]])
+; CHECK: call {{.*}} @"_Z29__spirv_SpecConstantCompositeff_Rstruct._ZTSN4test5pod_tE.test::pod_t"(float %[[#X2]], float %[[#Y2]])
 
 ; CHECK: !sycl.specialization-constants = !{![[#ID:]]
 

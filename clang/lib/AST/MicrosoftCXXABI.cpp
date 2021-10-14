@@ -116,6 +116,10 @@ public:
       DeviceMangler.reset(
           ItaniumMangleContext::create(Context, Context.getDiagnostics()));
     }
+    else if (Context.getLangOpts().isSYCL()) {
+      DeviceMangler.reset(
+          ItaniumMangleContext::create(Context, Context.getDiagnostics()));
+    }
   }
 
   MemberPointerInfo
@@ -182,6 +186,7 @@ public:
       assert(DeviceMangler && "Missing device mangler");
       return std::make_unique<MSSYCLNumberingContext>(DeviceMangler.get());
     }
+
     return std::make_unique<MicrosoftNumberingContext>();
   }
 };
