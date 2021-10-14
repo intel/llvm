@@ -1,4 +1,4 @@
-//==----- esimd_emulator_device_interface.hpp - DPC++ Explicit SIMD API ----------==//
+//==----- esimd_emulator_device_interface.hpp - DPC++ Explicit SIMD API ----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -76,8 +76,7 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
   void *PIOpaqueData = nullptr;
 
   PIOpaqueData =
-      getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(
-          nullptr);
+      getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(nullptr);
 
   ESIMDEmuPluginOpaqueData *OpaqueData =
       reinterpret_cast<ESIMDEmuPluginOpaqueData *>(PIOpaqueData);
@@ -92,8 +91,8 @@ ESIMDDeviceInterface *getESIMDDeviceInterface() {
               << "Opaque data returned by ESIMD Emu plugin is incompatible with"
               << "the one used in current implementation." << std::endl
               << "Returned version : " << OpaqueData->version << std::endl
-              << "Required version : " << ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION
-              << std::endl;
+              << "Required version : "
+              << ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION << std::endl;
     throw cl::sycl::feature_not_supported();
   }
   // Opaque data version is OK, can cast the 'data' field.
