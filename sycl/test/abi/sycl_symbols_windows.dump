@@ -49,6 +49,7 @@
 ??$get_info@$0BABB@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABBA@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0BABBB@@device@sycl@cl@@QEBA?AV?$vector@W4memory_order@sycl@cl@@V?$allocator@W4memory_order@sycl@cl@@@std@@@std@@XZ
+??$get_info@$0BABBC@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@$0BABC@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABD@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABE@@device@sycl@cl@@QEBA_KXZ

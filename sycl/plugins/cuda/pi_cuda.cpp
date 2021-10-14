@@ -2552,6 +2552,14 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
+    case PI_KERNEL_GROUP_INFO_NUM_REGS: {
+      int numRegs = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint32(numRegs));
+    }
     default:
       __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
