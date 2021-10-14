@@ -165,9 +165,9 @@ struct DiagnosticStorage {
   /// The values for the various substitution positions.
   ///
   /// This is used when the argument is not an std::string. The specific value
-  /// is mangled into an intptr_t and the interpretation depends on exactly
+  /// is mangled into an uint64_t and the interpretation depends on exactly
   /// what sort of argument kind it is.
-  intptr_t DiagArgumentsVal[MaxArguments];
+  uint64_t DiagArgumentsVal[MaxArguments];
 
   /// The values for the various substitution positions that have
   /// string arguments.
@@ -1185,7 +1185,7 @@ public:
     DiagStorage = nullptr;
   }
 
-  void AddTaggedVal(intptr_t V, DiagnosticsEngine::ArgumentKind Kind) const {
+  void AddTaggedVal(uint64_t V, DiagnosticsEngine::ArgumentKind Kind) const {
     if (!DiagStorage)
       DiagStorage = getStorage();
 
@@ -1408,6 +1408,12 @@ inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
   return DB;
 }
 
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             int64_t I) {
+  DB.AddTaggedVal(I, DiagnosticsEngine::ak_sint);
+  return DB;
+}
+
 // We use enable_if here to prevent that this overload is selected for
 // pointers or other arguments that are implicitly convertible to bool.
 template <typename T>
@@ -1420,6 +1426,12 @@ operator<<(const StreamingDiagnostic &DB, T I) {
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                              unsigned I) {
+  DB.AddTaggedVal(I, DiagnosticsEngine::ak_uint);
+  return DB;
+}
+
+inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
+                                             uint64_t I) {
   DB.AddTaggedVal(I, DiagnosticsEngine::ak_uint);
   return DB;
 }
@@ -1586,18 +1598,18 @@ public:
 
   /// Return the specified signed integer argument.
   /// \pre getArgKind(Idx) == DiagnosticsEngine::ak_sint
-  int getArgSInt(unsigned Idx) const {
+  int64_t getArgSInt(unsigned Idx) const {
     assert(getArgKind(Idx) == DiagnosticsEngine::ak_sint &&
            "invalid argument accessor!");
-    return (int)DiagObj->DiagStorage.DiagArgumentsVal[Idx];
+    return (int64_t)DiagObj->DiagStorage.DiagArgumentsVal[Idx];
   }
 
   /// Return the specified unsigned integer argument.
   /// \pre getArgKind(Idx) == DiagnosticsEngine::ak_uint
-  unsigned getArgUInt(unsigned Idx) const {
+  uint64_t getArgUInt(unsigned Idx) const {
     assert(getArgKind(Idx) == DiagnosticsEngine::ak_uint &&
            "invalid argument accessor!");
-    return (unsigned)DiagObj->DiagStorage.DiagArgumentsVal[Idx];
+    return DiagObj->DiagStorage.DiagArgumentsVal[Idx];
   }
 
   /// Return the specified IdentifierInfo argument.
@@ -1611,7 +1623,7 @@ public:
 
   /// Return the specified non-string argument in an opaque form.
   /// \pre getArgKind(Idx) != DiagnosticsEngine::ak_std_string
-  intptr_t getRawArg(unsigned Idx) const {
+  uint64_t getRawArg(unsigned Idx) const {
     assert(getArgKind(Idx) != DiagnosticsEngine::ak_std_string &&
            "invalid argument accessor!");
     return DiagObj->DiagStorage.DiagArgumentsVal[Idx];

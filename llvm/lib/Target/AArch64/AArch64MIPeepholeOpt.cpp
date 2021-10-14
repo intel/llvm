@@ -148,6 +148,11 @@ bool AArch64MIPeepholeOpt::visitAND(
 
   // Split the bitmask immediate into two.
   T UImm = static_cast<T>(MovMI->getOperand(1).getImm());
+  // For the 32 bit form of instruction, the upper 32 bits of the destination
+  // register are set to zero. If there is SUBREG_TO_REG, set the upper 32 bits
+  // of UImm to zero.
+  if (SubregToRegMI)
+    UImm &= 0xFFFFFFFF;
   T Imm1Enc;
   T Imm2Enc;
   if (!splitBitmaskImm(UImm, RegSize, Imm1Enc, Imm2Enc))

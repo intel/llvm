@@ -567,20 +567,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       has_kernel method, so an alternative would be to move the has_kernel
 ///       query to PI and use hipModuleGetFunction to check for a kernel.
 std::string getKernelNames(pi_program program) {
-  std::string source(program->binary_,
-                     program->binary_ + program->binarySizeInBytes_);
-  std::regex entries_pattern(".entry\\s+([^\\([:s:]]*)");
-  std::string names("");
-  std::smatch match;
-  bool first_match = true;
-  while (std::regex_search(source, match, entries_pattern)) {
-    assert(match.size() == 2);
-    names += first_match ? "" : ";";
-    names += match[1]; // Second element is the group.
-    source = match.suffix().str();
-    first_match = false;
-  }
-  return names;
+  cl::sycl::detail::pi::die("getKernelNames not implemented");
+  return {};
 }
 
 /// RAII object that calls the reference count release function on the held PI
@@ -909,16 +897,25 @@ pi_result hip_piextDeviceSelectBinary(pi_device device,
 
 pi_result hip_piextGetDeviceFunctionPointer(pi_device device,
                                             pi_program program,
-                                            const char *function_name,
-                                            pi_uint64 *function_pointer_ret) {
-  (void)device;
-  (void)program;
-  (void)function_name;
-  (void)function_pointer_ret;
+                                            const char *func_name,
+                                            pi_uint64 *func_pointer_ret) {
+  // Check if device passed is the same the device bound to the context
+  assert(device == program->get_context()->get_device());
+  assert(func_pointer_ret != nullptr);
 
-  cl::sycl::detail::pi::die(
-      "hip_piextGetDeviceFunctionPointer not implemented");
-  return {};
+  hipFunction_t func;
+  hipError_t ret = hipModuleGetFunction(&func, program->get(), func_name);
+  *func_pointer_ret = reinterpret_cast<pi_uint64>(func);
+  pi_result retError = PI_SUCCESS;
+
+  if (ret != hipSuccess && ret != hipErrorNotFound)
+    retError = PI_CHECK_ERROR(ret);
+  if (ret == hipErrorNotFound) {
+    *func_pointer_ret = 0;
+    retError = PI_INVALID_KERNEL_NAME;
+  }
+
+  return retError;
 }
 
 /// \return PI_SUCCESS always since HIP devices are always root devices.
@@ -3038,6 +3035,7 @@ pi_result hip_piextProgramCreateWithNativeHandle(pi_native_handle nativeHandle,
                                                  pi_program *program) {
   (void)nativeHandle;
   (void)context;
+  (void)ownNativeHandle;
   (void)program;
 
   cl::sycl::detail::pi::die(

@@ -68,8 +68,9 @@ public:
           addressing_mode addressingMode, filtering_mode filteringMode,
           const property_list &propList = {});
 
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   sampler(cl_sampler clSampler, const context &syclContext);
+#endif
 
   sampler(const sampler &rhs) = default;
 

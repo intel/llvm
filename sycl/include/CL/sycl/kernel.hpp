@@ -71,9 +71,9 @@ public:
   ///
   /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
-  __SYCL2020_DEPRECATED(
-      "OpenCL interop constructors are deprecated, use make_kernel() instead")
+#ifdef __SYCL_INTERNAL_API
   kernel(cl_kernel ClKernel, const context &SyclContext);
+#endif
 
   kernel(const kernel &RHS) = default;
 
@@ -94,9 +94,9 @@ public:
   /// an invalid_object_error exception will be thrown.
   ///
   /// \return a valid cl_kernel instance
-  __SYCL2020_DEPRECATED(
-      "OpenCL interop get() functions are deprecated, use get_native() instead")
+#ifdef __SYCL_INTERNAL_API
   cl_kernel get() const;
+#endif
 
   /// Check if the associated SYCL context is a SYCL host context.
   ///
