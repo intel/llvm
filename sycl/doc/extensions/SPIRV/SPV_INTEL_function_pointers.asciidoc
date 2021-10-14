@@ -17,6 +17,7 @@ https://github.com/intel/llvm/issues
 - Ben Ashbaugh, Intel
 - Pawel Jurek, Intel
 - Thomas Raoux, Intel
+- Nikita Kornev, Intel
 
 == Notice
 
@@ -37,7 +38,7 @@ If you are interested in using this feature in your software product, please let
 [width="40%",cols="25,25"]
 |==================================
 | Last Modified Date | {docdate}
-| Revision           | G
+| Revision           | H
 |==================================
 
 == Dependencies
@@ -62,6 +63,8 @@ corresponding capabilities:
   pointer to a function from the module and pass it as argument into one of
   entry points where it will be used.
   See *cl_intel_function_pointers* extension specification for more details.
+- One new decoration added under *FunctionPointersINTEL* to preserve argument
+  attributes of *OpFunctionPointerCall*.
 
 == Extension Name
 
@@ -98,6 +101,12 @@ Decorations added under the *IndirectlyReferencableINTEL* capability:
 ReferencedIndirectlyINTEL
 ----
 
+Decorations added under the *FunctionPointersINTEL* capability:
+
+----
+ArgumentAttributeINTEL
+----
+
 == New Storage Classes
 
 Storage Classes added under the *FunctionPointersINTEL* capability:
@@ -119,6 +128,7 @@ CodeSectionINTEL
 |FunctionPointersINTEL      | 5603
 |IndirectReferencesINTEL    | 5604
 |CodeSectionINTEL           | 5605
+|ArgumentAttributeINTEL     | 6409
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.4
@@ -178,7 +188,20 @@ but it's address can be obtained and passed into an Entry Point for further
 usage via *OpFunctionPointerCallINTEL*. This function must not be optimized
 out based on call graph/reachability analysis 2+||
 *IndirectReferencesINTEL*|
+6409 | *ArgumentAttributeINTEL* +
+Apply to an *OpFunctionPointerCallINTEL* to preserve _Function Parameter Attribute_ of it's
+argument with the specified _Index_. +
+_Function Parameter Attribute_ and _Index_ are literal strings. _Optional Argument_ is literal string to preserve alignment value, it can exist if the _Function Parameter Attribute_ is an alignment
+ 2+|
+_<<Literal, Literals>> +
+Index +
+<<Literal, Literals>> +
+Function Parameter Attribute +
+<<Literal, Literals>> +
+Optional Argument_ |
+*FunctionPointersINTEL*|
 |====
+Index of the argument
 
 === Capabilities
 
@@ -336,4 +359,5 @@ be used for ones out of the box and we don't have much use-cases for it.
 |F|2019-06-21|Alexey Sachkov|Added new storage class dedicated for function
 pointers. Updated validation rules. Misc updates.
 |G|2019-07-19|Ben Ashbaugh|Assigned SPIR-V enums, added preview extension disclaimer text.
+|H|2021-11-15|Nikita Kornev|Added new *ArgumentAttributeINTEL* decoration.
 |========================================
