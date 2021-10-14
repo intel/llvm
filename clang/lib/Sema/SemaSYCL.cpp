@@ -1981,10 +1981,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>()
-            ? Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)
-                  ? InitESIMDMethodName
-                  : InitMethodName
+        KernelDecl->hasAttr<SYCLSimdAttr>() &&
+                Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)
+            ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
@@ -2097,10 +2096,9 @@ public:
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
-        KernelDecl->hasAttr<SYCLSimdAttr>()
-            ? Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)
-                  ? InitESIMDMethodName
-                  : InitMethodName
+        KernelDecl->hasAttr<SYCLSimdAttr>() &&
+                Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)
+            ? InitESIMDMethodName
             : InitMethodName;
     CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
