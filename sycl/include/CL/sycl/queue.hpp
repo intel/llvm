@@ -295,22 +295,31 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
-                           bool IsKernel, bool KernelUsesAssert, event &E) {
-      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-          KernelUsesAssert) {
-        // __devicelib_assert_fail isn't supported by Device-side Runtime
-        // Linking against fallback impl of __devicelib_assert_fail is performed
-        // by program manager class
-        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
-      }
-    };
+    if (!is_host()) {
+      auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+                             bool IsKernel, bool KernelUsesAssert, event &E) {
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert) {
+          // Only secondary queues on devices need to be added to the assert
+          // capture.
+          // TODO: Handle case where primary queue is host but the secondary
+          // queue is not.
+          queue *DeviceSecondaryQueue =
+              SecondaryQueue.is_host() ? nullptr : &SecondaryQueue;
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
+        }
+      };
 
-    Event =
-        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
-#else
-    Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                          PostProcess);
+    } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
+    {
+      Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+    }
 
     return Event;
   }
