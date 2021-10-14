@@ -1578,7 +1578,8 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_sincosILi8ELi18ELi10E
   %7 = load i34, i34 addrspace(4)* %2, align 8
   call spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i66 addrspace(4)* sret(i66) align 8 %4, i34 %7, i32 18, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_34]] [[SinCos_AId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_66]] [[#]] [[SinCos_AId]] 18 20 0 2 1
+; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_66]] [[SinCos_ResultId:[0-9]+]] [[SinCos_AId]] 18 20 0 2 1
+; CHECK-SPIRV: 3 Store [[#]] [[SinCos_ResultId]]
 ; CHECK-LLVM: call i66 @intel_arbitrary_float_sincos.i66.i34(i34 %[[#]], i32 18, i32 20, i32 0, i32 2, i32 1)
   %8 = load i66, i66 addrspace(4)* %4, align 8
   store i66 %8, i66 addrspace(4)* %4, align 8
@@ -1606,7 +1607,8 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi
   call spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i66 addrspace(4)* sret(i66) align 8 %4, i24 signext %8, i32 16, i25 signext %9, i32 17, i32 18, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_24]] [[ATan2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_25]] [[ATan2_BId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_66]] [[#]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
+; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_66]] [[ATan2_ResultId:[0-9]+]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
+; CHECK-SPIRV: 3 Store [[#]] [[ATan2_ResultId]]
 ; CHECK-LLVM: call i66 @intel_arbitrary_float_atan2.i66.i24.i25(i24 %[[#]], i32 16, i25 %[[#]], i32 17, i32 18, i32 0, i32 2, i32 1)
   %10 = load i66, i66 addrspace(4)* %4, align 8
   store i66 %10, i66 addrspace(4)* %4, align 8

@@ -4180,8 +4180,12 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addFixedPointIntelInst(OC, transType(ResTy), Input, Literals,
-                                      BB);
+    auto *APIntInst =
+        BM->addFixedPointIntelInst(OC, transType(ResTy), Input, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   case OpArbitraryFloatCastINTEL:
   case OpArbitraryFloatCastFromIntINTEL:
@@ -4263,8 +4267,12 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA, nullptr,
-                                         Literals, BB);
+    auto *APIntInst = BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA,
+                                                    nullptr, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   case OpArbitraryFloatAddINTEL:
   case OpArbitraryFloatSubINTEL:
@@ -4335,8 +4343,12 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA, InB,
-                                         Literals, BB);
+    auto *APIntInst = BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA,
+                                                    InB, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {

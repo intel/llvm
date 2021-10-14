@@ -164,7 +164,8 @@
 ; CHECK-SPIRV-NEXT: 9 FixedExpINTEL [[Ty_34]] [[#]] [[Exp_InId]] 0 20 20 0 0
 
 ; CHECK-SPIRV: 6 Load [[Ty_34]] [[SinCos_InId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 9 FixedSinCosINTEL [[Ty_66]] [[#]] [[SinCos_InId]] 1 3 2 0 0
+; CHECK-SPIRV-NEXT: 9 FixedSinCosINTEL [[Ty_66]] [[SinCos_ResultId:[0-9]+]] [[SinCos_InId]] 1 3 2 0 0
+; CHECK-SPIRV: 3 Store [[#]] [[SinCos_ResultId]]
 
 ; CHECK-LLVM: call i5 @intel_arbitrary_fixed_sqrt.i5.i13(i13 %[[#]], i1 false, i32 2, i32 2, i32 0, i32 0)
 ; CHECK-LLVM: call i13 @intel_arbitrary_fixed_sqrt.i13.i5(i5 %[[#]], i1 false, i32 2, i32 2, i32 0, i32 0)
