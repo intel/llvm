@@ -23,10 +23,12 @@ int main() {
   queue q;
 
 #if defined(WARN)
-  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
-  // expected-note@+7 {{in instantiation of function template specialization}}
+  // expected-error@Inputs/sycl.hpp:257 {{'InvalidKernelName1' is an invalid kernel name type}}
+  // expected-note@Inputs/sycl.hpp:257 {{'InvalidKernelName1' should be globally-visible}}
+  // expected-note@+8 {{in instantiation of function template specialization}}
 #elif defined(ERROR)
-  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
+  // expected-error@Inputs/sycl.hpp:257 {{'InvalidKernelName1' is an invalid kernel name type}}
+  // expected-note@Inputs/sycl.hpp:257 {{'InvalidKernelName1' should be globally-visible}}
   // expected-note@+4 {{in instantiation of function template specialization}}
 #endif
   class InvalidKernelName1 {};

@@ -11430,10 +11430,11 @@ def err_nullptr_t_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, "
 def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, " 
                                           "%q1 is declared in the 'std' namespace ">;
 
-def err_sycl_kernel_incorrectly_named : Error<
-  "%select{%1 should be globally visible"
+def err_sycl_kernel_incorrectly_named : Error<"%0 is an invalid kernel name type">;
+def note_invalid_type_in_sycl_kernel : Note<
+  "%select{%1 should be globally-visible"
   "|unscoped enum %1 requires fixed underlying type"
-  "|unnamed lambda %1 used"
+  "|unnamed lambda is used"
   "}0">;
 
 def err_sycl_kernel_not_function_object
