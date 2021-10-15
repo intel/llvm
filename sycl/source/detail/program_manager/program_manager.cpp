@@ -468,11 +468,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg)
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
 
-  bool ProgramReusedFromCache = true;
-
   auto BuildF = [this, &M, &KSId, &ContextImpl, &DeviceImpl, Prg, &CompileOpts,
-                 &LinkOpts, &JITCompilationIsRequired, SpecConsts,
-                 &ProgramReusedFromCache] {
+                 &LinkOpts, &JITCompilationIsRequired, SpecConsts] {
     auto Context = createSyclObjFromImpl<context>(ContextImpl);
     auto Device = createSyclObjFromImpl<device>(DeviceImpl);
 
@@ -518,11 +515,14 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     }
 
     // Save program to persistent cache if it is not there
-    if (!DeviceCodeWasInCache)
+    if (DeviceCodeWasInCache) {
+      // Whenever a program is reused, increment the reference count so that
+      // the program is deallocated only when the last used program is released.
+      Plugin.call<PiApiKind::piProgramRetain>(BuiltProgram.get());
+    } else {
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
     }
-    ProgramReusedFromCache = false;
     return BuiltProgram.release();
   };
 
@@ -533,12 +533,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
       std::make_pair(std::make_pair(std::move(SpecConsts), KSId),
                      std::make_pair(PiDevice, CompileOpts + LinkOpts)),
       AcquireF, GetF, BuildF);
-  RT::PiProgram PiProgram = BuildResult->Ptr.load();
-  if (ProgramReusedFromCache) {
-    const detail::plugin &Plugin = ContextImpl->getPlugin();
-    Plugin.call<PiApiKind::piProgramRetain>(PiProgram);
-  }
-  return PiProgram;
+  return BuildResult->Ptr.load();
 }
 
 std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
