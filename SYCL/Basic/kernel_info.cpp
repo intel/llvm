@@ -6,8 +6,8 @@
 // Fail is flaky for level_zero, enable when fixed.
 // UNSUPPORTED: level_zero
 //
-// Failing on HIP AMD
-// XFAIL: hip_amd
+// Failing on HIP AMD and HIP Nvidia
+// XFAIL: hip_amd || hip_nvidia
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //

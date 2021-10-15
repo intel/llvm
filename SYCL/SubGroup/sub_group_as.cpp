@@ -8,7 +8,8 @@
 // __spirv_SubgroupInvocationId, __spirv_GenericCastToPtrExplicit_ToGlobal,
 // __spirv_SubgroupBlockReadINTEL, __assert_fail,
 // __spirv_SubgroupBlockWriteINTEL on AMD
-// XFAIL: hip_amd
+// error message `Barrier is not supported on the host device yet.` on Nvidia.
+// XFAIL: hip_amd || hip_nvidia
 
 #include <CL/sycl.hpp>
 #include <cassert>

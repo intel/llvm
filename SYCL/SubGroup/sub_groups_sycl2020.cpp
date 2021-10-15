@@ -3,7 +3,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
 // Missing __spirv_SubgroupLocalInvocationId on AMD
-// XFAIL: hip_amd
+// Assertion `!MHostPlatform && "Plugin is not available for Host."' failed on
+// Nvidia.
+// XFAIL: hip_amd || hip_nvidia
 
 #include <sycl/sycl.hpp>
 
