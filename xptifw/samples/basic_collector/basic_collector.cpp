@@ -5,8 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
-#include "xpti_timers.hpp"
 #include "xpti/xpti_trace_framework.h"
+#include "xpti_timers.hpp"
 
 #include <chrono>
 #include <cstdio>
