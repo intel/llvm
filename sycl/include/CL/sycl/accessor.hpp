@@ -1571,15 +1571,14 @@ public:
                                             AccessMode == access::mode::atomic,
                                         atomic<DataT, AS>>() const {
 #endif
-      const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-  return atomic<DataT, AS>(
-      multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
-  // clang-format off
+    const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
+    return atomic<DataT, AS>(
+        multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                             atomic<DataT, AS>>
+                               atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(
@@ -1594,7 +1593,6 @@ public:
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
-  // clang-format on
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
   typename AccessorCommonT::template AccessorSubscript<Dims - 1>
   operator[](size_t Index) const {
