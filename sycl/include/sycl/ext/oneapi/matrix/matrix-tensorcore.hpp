@@ -11,7 +11,7 @@ namespace experimental::matrix {
 
 enum class matrix_use { a, b, accumulator };
 
-enum class matrix_layout { row_major, col_major, packed };
+enum class matrix_layout { row_major, col_major, packed_a, packed_b };
 
 template <typename T, matrix_use MT, size_t Rows = sycl::dynamic_extent,
           size_t Cols = sycl::dynamic_extent,
