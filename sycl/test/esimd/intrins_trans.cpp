@@ -152,6 +152,23 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
     // CHECK: %[[SI6:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI6_ADDR]]
     // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, i16 0, i32 %[[SI6]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
   }
+  __esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE);
+  // CHECK: call void @llvm.genx.fence(i8 1)
+  __esimd_fence(ESIMD_L3_FLUSH_INSTRUCTIONS);
+  // CHECK: call void @llvm.genx.fence(i8 2)
+  __esimd_fence(ESIMD_L3_FLUSH_TEXTURE_DATA);
+  // CHECK: call void @llvm.genx.fence(i8 4)
+  __esimd_fence(ESIMD_L3_FLUSH_CONSTANT_DATA);
+  // CHECK: call void @llvm.genx.fence(i8 8)
+  __esimd_fence(ESIMD_L3_FLUSH_RW_DATA);
+  // CHECK: call void @llvm.genx.fence(i8 16)
+  __esimd_fence(ESIMD_LOCAL_BARRIER);
+  // CHECK: call void @llvm.genx.fence(i8 32)
+  __esimd_fence(ESIMD_L1_FLUSH_RO_DATA);
+  // CHECK: call void @llvm.genx.fence(i8 64)
+  __esimd_fence(ESIMD_SW_BARRIER);
+  // CHECK: call void @llvm.genx.fence(i8 -128)
+
   return d;
 }
 

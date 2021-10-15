@@ -765,7 +765,8 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
     return 0;
   assert(NamedMD->getNumOperands() > 0 && "Invalid SPIR");
   if (!AllowMulti && NamedMD->getNumOperands() != 1)
-    report_fatal_error("Multiple OCL version metadata not allowed");
+    report_fatal_error(
+        llvm::Twine("Multiple OCL version metadata not allowed"));
 
   // If the module was linked with another module, there may be multiple
   // operands.
@@ -776,7 +777,7 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
   auto Ver = GetVer(0);
   for (unsigned I = 1, E = NamedMD->getNumOperands(); I != E; ++I)
     if (Ver != GetVer(I))
-      report_fatal_error("OCL version mismatch");
+      report_fatal_error(llvm::Twine("OCL version mismatch"));
 
   return encodeOCLVer(Ver.first, Ver.second, 0);
 }

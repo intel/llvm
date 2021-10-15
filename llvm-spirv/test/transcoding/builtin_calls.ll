@@ -11,8 +11,8 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ; Check that builtin-call based SPV-IR is recognized by the translator.
-; CHECK-SPIRV: Decorate [[Id:[0-9]+]] BuiltIn 28
-; CHECK-SPIRV: Decorate [[Id:[0-9]+]] BuiltIn 34
+; CHECK-SPIRV-DAG: Decorate [[Id:[0-9]+]] BuiltIn 28
+; CHECK-SPIRV-DAG: Decorate [[Id:[0-9]+]] BuiltIn 34
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[Id:[0-9]+]]
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[Id:[0-9]+]]
 
