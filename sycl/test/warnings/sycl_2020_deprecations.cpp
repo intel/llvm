@@ -61,7 +61,7 @@ int main() {
   // expected-error@+1 {{no member named 'get' in 'sycl::kernel'}}
   (void)Kernel.get();
 
-  // expected-warning@+1 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
+  // expected-error@+1 {{no type named 'program' in namespace 'sycl'}}
   sycl::program Prog{Ctx};
 
   sycl::buffer<int, 1> Buffer(4);

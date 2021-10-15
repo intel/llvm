@@ -37,9 +37,11 @@ template <> struct interop<backend::opencl, queue> {
   using type = cl_command_queue;
 };
 
+#ifdef __SYCL_INTERNAL_API
 template <> struct interop<backend::opencl, program> {
   using type = cl_program;
 };
+#endif
 
 template <> struct interop<backend::opencl, event> { using type = cl_event; };
 
@@ -110,8 +112,10 @@ namespace opencl {
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
 __SYCL_EXPORT device make_device(pi_native_handle NativeHandle);
 __SYCL_EXPORT context make_context(pi_native_handle NativeHandle);
+#ifdef __SYCL_INTERNAL_API
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
+#endif
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle);
 
@@ -137,12 +141,14 @@ T make(typename interop<backend::opencl, T>::type Interop) {
 }
 
 // Construction of SYCL program.
+#ifdef __SYCL_INTERNAL_API
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, program>::value> * = nullptr>
 T make(const context &Context,
        typename interop<backend::opencl, T>::type Interop) {
   return make_program(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
+#endif
 
 // Construction of SYCL queue.
 template <typename T, typename detail::enable_if_t<
