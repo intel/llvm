@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
+// RUN: %clangxx -fsycl -D__SYCL_INTERNAL_API -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
 // REQUIRES: level_zero

@@ -44,9 +44,21 @@ sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
                                         &ZeModule, &ZeBuildLog);
   if (ZeResult != ZE_RESULT_SUCCESS)
     throw sycl::runtime_error();
-  sycl::program SyclProgram =
-      sycl::level_zero::make<sycl::program>(Context, ZeModule);
-  return SyclProgram.get_kernel("my_kernel");
+
+  ze_kernel_handle_t ZeKernel = nullptr;
+
+  ze_kernel_desc_t ZeKernelDesc{ZE_STRUCTURE_TYPE_KERNEL_DESC, nullptr, 0,
+                                "my_kernel"};
+  ZeResult = zeKernelCreate(ZeModule, &ZeKernelDesc, &ZeKernel);
+  if (ZeResult != ZE_RESULT_SUCCESS)
+    throw sycl::runtime_error();
+  sycl::kernel_bundle<sycl::bundle_state::executable> SyclKB =
+      sycl::make_kernel_bundle<sycl::backend::ext_oneapi_level_zero,
+                               sycl::bundle_state::executable>(
+          {ZeModule, sycl::ext::oneapi::level_zero::ownership::keep}, Context);
+  return sycl::make_kernel<sycl::backend::ext_oneapi_level_zero>(
+      {SyclKB, ZeKernel, sycl::ext::oneapi::level_zero::ownership::keep},
+      Context);
 }
 #endif // RUN_KERNELS
 

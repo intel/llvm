@@ -1,4 +1,4 @@
-//==--------------- spec_const_float.cpp  - DPC++ ESIMD on-device test ----===//
+//==--------------- spec_const_double.cpp  - DPC++ ESIMD on-device test ---===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
+// RUN: %clangxx -fsycl -D__SYCL_INTERNAL_API -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda || hip
 
 #include <cstdint>
 
-#define DEF_VAL -1.456789e-5
-#define REDEF_VAL 2.9865432e+5
-#define STORE 2
+#define DEF_VAL 9.1029384756e+11
+#define REDEF_VAL -1.4432211654e-10
+#define STORE 1
 
-using spec_const_t = float;
-using container_t = float;
+using spec_const_t = double;
+using container_t = double;
 
-#include "Inputs/spec-const-2020-common.hpp"
+#include "Inputs/spec_const_common.hpp"

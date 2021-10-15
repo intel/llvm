@@ -19,4 +19,4 @@
 using spec_const_t = int8_t;
 using container_t = int8_t;
 
-#include "Inputs/spec_const_common.hpp"
+#include "Inputs/spec-const-2020-common.hpp"

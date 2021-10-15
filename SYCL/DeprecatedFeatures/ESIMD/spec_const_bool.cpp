@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
-// RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
+// RUN: %clangxx -fsycl -D__SYCL_INTERNAL_API -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda || hip
 
@@ -21,4 +21,4 @@
 using spec_const_t = bool;
 using container_t = uint8_t;
 
-#include "Inputs/spec-const-2020-common.hpp"
+#include "Inputs/spec_const_common.hpp"

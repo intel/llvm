@@ -1,7 +1,7 @@
 // REQUIRES: gpu
 // FIXME Disable fallback assert so that it doesn't interferes with number of
 // program builds at run-time
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fsycl %s -o %t.out
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -D__SYCL_INTERNAL_API -fsycl -I%S/Inputs %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
 // UNSUPPORTED: cuda || hip
 

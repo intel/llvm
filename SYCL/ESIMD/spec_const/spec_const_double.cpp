@@ -19,4 +19,4 @@
 using spec_const_t = double;
 using container_t = double;
 
-#include "Inputs/spec_const_common.hpp"
+#include "Inputs/spec-const-2020-common.hpp"

@@ -36,6 +36,12 @@ using namespace sycl::ext::intel::experimental::esimd;
 #define WIDTH 800
 #define HEIGHT 602
 
+constexpr specialization_id<int> CrunchConst;
+constexpr specialization_id<float> XoffConst;
+constexpr specialization_id<float> YoffConst;
+constexpr specialization_id<float> ScaleConst;
+constexpr specialization_id<float> ThrsConst;
+
 template <typename ACC>
 ESIMD_INLINE void mandelbrot(ACC out_image, int ix, int iy, int crunch,
                              float xOff, float yOff, float scale, float thrs) {
@@ -74,12 +80,6 @@ ESIMD_INLINE void mandelbrot(ACC out_image, int ix, int iy, int crunch,
   media_block_store<unsigned char, 2, 32>(out_image, ix * sizeof(int), iy,
                                           color.bit_cast_view<unsigned char>());
 }
-
-class CrunchConst;
-class XoffConst;
-class YoffConst;
-class ScaleConst;
-class ThrsConst;
 
 class Test;
 
@@ -127,33 +127,27 @@ int main(int argc, char *argv[]) {
                 << ", yoff = " << yoff << ", scale = " << scale
                 << ", thrs = " << thrs << "\n";
     }
-    sycl::program prg(q.get_context());
-    sycl::ext::oneapi::experimental::spec_constant<int, CrunchConst>
-        crunch_const = prg.set_spec_constant<CrunchConst>(crunch);
-    sycl::ext::oneapi::experimental::spec_constant<float, XoffConst>
-        xoff_const = prg.set_spec_constant<XoffConst>(xoff);
-    sycl::ext::oneapi::experimental::spec_constant<float, YoffConst>
-        yoff_const = prg.set_spec_constant<YoffConst>(yoff);
-    sycl::ext::oneapi::experimental::spec_constant<float, ScaleConst>
-        scale_const = prg.set_spec_constant<ScaleConst>(scale);
-    sycl::ext::oneapi::experimental::spec_constant<float, ThrsConst>
-        thrs_const = prg.set_spec_constant<ThrsConst>(thrs);
-
-    prg.build_with_kernel_type<Test>();
-
     auto e = q.submit([&](sycl::handler &cgh) {
       auto accOutput =
           imgOutput.get_access<uint4, sycl::access::mode::write>(cgh);
 
-      cgh.parallel_for<Test>(prg.get_kernel<Test>(), GlobalRange * LocalRange,
-                             [=](item<2> it) SYCL_ESIMD_KERNEL {
-                               uint h_pos = it.get_id(0);
-                               uint v_pos = it.get_id(1);
-                               mandelbrot(accOutput, h_pos, v_pos,
-                                          crunch_const.get(), xoff_const.get(),
-                                          yoff_const.get(), scale_const.get(),
-                                          thrs_const.get());
-                             });
+      cgh.set_specialization_constant<CrunchConst>(crunch);
+      cgh.set_specialization_constant<XoffConst>(xoff);
+      cgh.set_specialization_constant<YoffConst>(yoff);
+      cgh.set_specialization_constant<ScaleConst>(scale);
+      cgh.set_specialization_constant<ThrsConst>(thrs);
+      cgh.parallel_for<Test>(
+          GlobalRange * LocalRange,
+          [=](item<2> it, kernel_handler h) SYCL_ESIMD_KERNEL {
+            uint h_pos = it.get_id(0);
+            uint v_pos = it.get_id(1);
+            mandelbrot(accOutput, h_pos, v_pos,
+                       h.get_specialization_constant<CrunchConst>(),
+                       h.get_specialization_constant<XoffConst>(),
+                       h.get_specialization_constant<YoffConst>(),
+                       h.get_specialization_constant<ScaleConst>(),
+                       h.get_specialization_constant<ThrsConst>());
+          });
     });
     e.wait();
   } catch (sycl::exception const &e) {
