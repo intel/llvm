@@ -3657,7 +3657,7 @@ public:
     if (const auto *ED = dyn_cast<EnumDecl>(DeclNamed)) {
       if (!ED->isScoped() && !ED->isFixed()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-	    << KernelNameType;
+            << KernelNameType;
         S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
             << /* Unscoped enum requires fixed underlying type */ 1
             << QualType(ED->getTypeForDecl(), 0);
@@ -3705,7 +3705,7 @@ public:
           if (Tag->isCompleteDefinition()) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-		<< KernelNameType;
+                << KernelNameType;
             S.Diag(KernelInvocationFuncLoc,
                    diag::note_invalid_type_in_sycl_kernel)
                 << /* kernel name should be globally visible */ 0
