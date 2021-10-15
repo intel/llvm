@@ -309,8 +309,8 @@ if(SYCL_BUILD_PI_HIP)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
 endif()
 
-if (SYCL_BUILD_PI_ESIMD_CPU)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
+if (SYCL_BUILD_PI_ESIMD_EMULATOR)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
   if (MSVC)
     list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
   else()
@@ -318,7 +318,7 @@ if (SYCL_BUILD_PI_ESIMD_CPU)
   endif()
 else()
   # TODO/FIXME : Removing empty header file (cm_rt.h) generation when
-  # the ESIMD_CPU support is enabled by default
+  # the ESIMD_EMULATOR support is enabled by default
   file (TOUCH ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL/cm_rt.h)
 endif()
 

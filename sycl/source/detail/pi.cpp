@@ -284,7 +284,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
                              backend::level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
-    PluginNames.emplace_back(__SYCL_ESIMD_CPU_PLUGIN_NAME, backend::esimd_cpu);
+    PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
+                             backend::ext_intel_esimd_emulator);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::hip);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
@@ -310,10 +311,10 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
         PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
         CudaFound = true;
       }
-      if (!EsimdCpuFound &&
-          (Backend == backend::esimd_cpu || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_ESIMD_CPU_PLUGIN_NAME,
-                                 backend::esimd_cpu);
+      if (!EsimdCpuFound && (Backend == backend::ext_intel_esimd_emulator ||
+                             Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
+                                 backend::ext_intel_esimd_emulator);
         EsimdCpuFound = true;
       }
       if (!HIPFound && (Backend == backend::hip || Backend == backend::all)) {
@@ -423,11 +424,12 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       // Use the CUDA plugin as the GlobalPlugin
       GlobalPlugin =
           std::make_shared<plugin>(PluginInformation, backend::cuda, Library);
-    } else if (InteropBE == backend::esimd_cpu &&
-               PluginNames[I].first.find("esimd_cpu") != std::string::npos) {
-      // Use the ESIMD_CPU plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
-                                              backend::esimd_cpu, Library);
+    } else if (InteropBE == backend::ext_intel_esimd_emulator &&
+               PluginNames[I].first.find("esimd_emulator") !=
+                   std::string::npos) {
+      // Use the ESIMD_EMULATOR plugin as the GlobalPlugin
+      GlobalPlugin = std::make_shared<plugin>(
+          PluginInformation, backend::ext_intel_esimd_emulator, Library);
     } else if (InteropBE == backend::hip &&
                PluginNames[I].first.find("hip") != std::string::npos) {
       // Use the HIP plugin as the GlobalPlugin

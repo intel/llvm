@@ -1,4 +1,4 @@
-//==------------------- esimdcpu_device_interface.cpp ----------------------==//
+//==--------------- esimd_emulator_device_interface.cpp --------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,16 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 /// \file esimdcpu_device_interface.cpp
-/// Definitions for ESIMD_CPU-device specific definitions.
+/// Definitions for ESIMD_EMULATOR-device specific definitions.
 ///
 /// This interface is for ESIMD intrinsic emulation implementations
-/// such as slm_access to access ESIMD_CPU specific-support therefore
+/// such as slm_access to access ESIMD_EMULATOR specific-support therefore
 /// it has to be defined and shared as include directory
 ///
 /// \ingroup sycl_pi_esimd_cpu
 
 #include <CL/sycl/detail/common.hpp>
-#include <sycl/ext/intel/experimental/esimd/emu/detail/esimdcpu_device_interface.hpp>
+#include <sycl/ext/intel/experimental/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -34,7 +34,7 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
       reinterpret_cast<ESIMDEmuPluginOpaqueData *>(PIOpaqueData);
 
   // First check if opaque data version is compatible.
-  if (OpaqueData->version != ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION) {
+  if (OpaqueData->version != ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION) {
     // NOTE: the version check should always be '!=' as layouts of different
     // versions of PluginOpaqueData is not backward compatible, unlike
     // layout of the ESIMDDeviceInterface.
@@ -43,8 +43,8 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
               << "Opaque data returned by ESIMD Emu plugin is incompatible with"
               << "the one used in current implementation." << std::endl
               << "Returned version : " << OpaqueData->version << std::endl
-              << "Required version : " << ESIMD_EMU_PLUGIN_OPAQUE_DATA_VERSION
-              << std::endl;
+              << "Required version : "
+              << ESIMD_EMULATOR_PLUGIN_OPAQUE_DATA_VERSION << std::endl;
     throw feature_not_supported();
   }
   // Opaque data version is OK, can cast the 'data' field.
