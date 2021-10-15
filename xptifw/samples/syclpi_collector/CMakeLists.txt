@@ -5,9 +5,9 @@ target_link_libraries(xpti_syclpi_collector PRIVATE
   xptifw
   ${CMAKE_DL_LIBS}
 )
-target_include_directories(xpti_basic_collector PRIVATE
+target_include_directories(xpti_syclpi_collector PRIVATE
   ${XPTIFW_DIR}/include
-  ${XPTI_DIR}/include
+  ${XPTI_DIR}/include/xpti/
   ${XPTIFW_DIR}/samples/include
 )
 

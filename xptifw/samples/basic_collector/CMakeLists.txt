@@ -7,7 +7,7 @@ target_link_libraries(xpti_basic_collector PRIVATE
 )
 target_include_directories(xpti_basic_collector PRIVATE
   ${XPTIFW_DIR}/include
-  ${XPTI_DIR}/include
+  ${XPTI_DIR}/include/xpti/
   ${XPTIFW_DIR}/samples/include
 )
 
