@@ -37,8 +37,8 @@ public:
       h.single_task<ValidNS::StructinValidNS>([] {});
     });
 
-    // expected-error@Inputs/sycl.hpp:257 {{'ParentStruct::ChildStruct' is an invalid kernel name type}}
-    // expected-note@Inputs/sycl.hpp:257 {{'ParentStruct::ChildStruct' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'ParentStruct::ChildStruct' is an invalid kernel name type}}
+    // expected-note@#KernelSingleTask {{'ParentStruct::ChildStruct' should be globally-visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<ParentStruct::ChildStruct>([] {});
