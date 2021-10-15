@@ -9,6 +9,7 @@
 #include "mlir/Dialect/Linalg/IR/LinalgInterfaces.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
@@ -110,8 +111,8 @@ static MatchContractionResult isContractionInterfaceImpl(Operation *op) {
                    [](AffineMap m) { return !m.isProjectedPermutation(); }))
     return MatchContractionResult::NotProjectedPermutations;
   // TODO: more fields than add/mul.
-  if (!isAddMul<AddFOp, MulFOp>(linalgOp->getRegion(0).front()) &&
-      !isAddMul<AddIOp, MulIOp>(linalgOp->getRegion(0).front()))
+  if (!isAddMul<arith::AddFOp, arith::MulFOp>(linalgOp->getRegion(0).front()) &&
+      !isAddMul<arith::AddIOp, arith::MulIOp>(linalgOp->getRegion(0).front()))
     return MatchContractionResult::NotAddMul;
   return MatchContractionResult::Success;
 }
@@ -479,8 +480,8 @@ SmallVector<Range, 4> LinalgOp::createLoopRanges(OpBuilder &b, Location loc) {
   unsigned numDims = map.getNumDims(), numRes = map.getNumResults();
   auto viewSizes = createFlatListOfOperandDims(b, loc);
   SmallVector<Range, 4> res(numDims);
-  Value zeroVal = b.create<ConstantIndexOp>(loc, 0);
-  Value oneVal = b.create<ConstantIndexOp>(loc, 1);
+  Value zeroVal = b.create<arith::ConstantIndexOp>(loc, 0);
+  Value oneVal = b.create<arith::ConstantIndexOp>(loc, 1);
   for (unsigned idx = 0; idx < numRes; ++idx) {
     auto result = map.getResult(idx);
     if (auto d = result.dyn_cast<AffineDimExpr>()) {
@@ -682,17 +683,10 @@ LogicalResult mlir::linalg::detail::verifyStructuredOpInterface(Operation *op) {
     }
   }
 
-  // Named ops that are defined manually have a region builder but no region at
-  // this time. Assume the region is well-formed by specification.
-  // TODO: use linalg-ods-gen for all ops when we have enough expressive power.
-  if (linalgOp->getNumRegions() == 0) {
-    assert(!linalgOp.getRegionBuilder() && "regionBuilder but no region");
-    return success();
-  }
-
-  auto &region = linalgOp->getRegion(0);
-  if (linalgOp->getNumRegions() > 1 || !llvm::hasSingleElement(region))
-    return op->emitOpError("expected 1 region with 1 block");
+  // Check the region has exactly one block.
+  if (linalgOp->getNumRegions() != 1 ||
+      !llvm::hasSingleElement(linalgOp->getRegion(0)))
+    return op->emitOpError("expects to have 1 region with 1 block");
 
   if (!linalgOp.getShapesToLoopsMap())
     return op->emitOpError("expected the shape-to-loops map to be non-null");

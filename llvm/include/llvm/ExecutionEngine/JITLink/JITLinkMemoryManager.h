@@ -247,18 +247,26 @@ public:
   /// The Alignment, ContentSize and ZeroFillSize of each segment will be
   /// pre-filled from the Graph. Clients must set the Addr and WorkingMem fields
   /// prior to calling apply.
+  //
+  // FIXME: The C++98 initializer is an attempt to work around compile failures
+  // due to http://www.open-std.org/jtc1/sc22/wg21/docs/cwg_defects.html#1397.
+  // We should be able to switch this back to member initialization once that
+  // issue is fixed.
   class Segment {
     friend class BasicLayout;
 
   public:
+    Segment()
+        : ContentSize(0), ZeroFillSize(0), Addr(0), WorkingMem(nullptr),
+          NextWorkingMemOffset(0) {}
     Align Alignment;
-    size_t ContentSize = 0;
-    uint64_t ZeroFillSize = 0;
-    JITTargetAddress Addr = 0;
-    char *WorkingMem;
+    size_t ContentSize;
+    uint64_t ZeroFillSize;
+    JITTargetAddress Addr;
+    char *WorkingMem = nullptr;
 
   private:
-    size_t NextWorkingMemOffset = 0;
+    size_t NextWorkingMemOffset;
     std::vector<Block *> ContentBlocks, ZeroFillBlocks;
   };
 

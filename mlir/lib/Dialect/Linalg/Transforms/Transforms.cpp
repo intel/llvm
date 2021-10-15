@@ -13,6 +13,7 @@
 
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -114,7 +115,7 @@ mlir::linalg::LinalgTilingOptions::setTileSizes(ArrayRef<int64_t> ts) {
     b.setInsertionPointToStart(
         &op->getParentOfType<FuncOp>().getBody().front());
     return llvm::to_vector<4>(map_range(tileSizes, [&](int64_t s) {
-      Value v = b.create<ConstantIndexOp>(op->getLoc(), s);
+      Value v = b.create<arith::ConstantIndexOp>(op->getLoc(), s);
       return v;
     }));
   };
@@ -138,8 +139,8 @@ LinalgTilingOptions &mlir::linalg::LinalgTilingOptions::scalarizeDynamicDims() {
     // size 0).
     for (Value shapeSize : shapeSizes)
       tileSizes.push_back(getConstantIntValue(shapeSize).hasValue()
-                              ? b.create<ConstantIndexOp>(loc, 0)
-                              : b.create<ConstantIndexOp>(loc, 1));
+                              ? b.create<arith::ConstantIndexOp>(loc, 0)
+                              : b.create<arith::ConstantIndexOp>(loc, 1));
     return tileSizes;
   };
   return *this;
@@ -152,7 +153,8 @@ LinalgTilingOptions &mlir::linalg::LinalgTilingOptions::scalarizeDynamicDims() {
 /// padded to a static shape.
 static LogicalResult padOperandToSmallestStaticBoundingBox(
     PatternRewriter &rewriter, linalg::LinalgOp opToPad, OpOperand *opOperand,
-    const PaddingValueComputationFunction &paddingFunc, Value &result) {
+    const PaddingValueComputationFunction &paddingFunc,
+    const PaddingNoFoldComputationFunction &nofoldFunc, Value &result) {
   // Can't pad scalars.
   if (opToPad.getShape(opOperand).empty())
     return success();
@@ -180,15 +182,17 @@ static LogicalResult padOperandToSmallestStaticBoundingBox(
   }
   auto staticTensorType = RankedTensorType::get(
       staticSizes, getElementTypeOrSelf(opOperand->get()));
+  bool nofold = nofoldFunc ? nofoldFunc(*opOperand) : false;
   result = linalg::PadTensorOp::createPadHighOp(
       staticTensorType, opOperand->get(), paddingValue.getValue(),
-      /*nofold=*/true, opToPad->getLoc(), rewriter);
+      /*nofold=*/nofold, opToPad->getLoc(), rewriter);
   return success();
 }
 
 LogicalResult
 linalg::rewriteAsPaddedOp(PatternRewriter &rewriter, LinalgOp opToPad,
                           const PaddingValueComputationFunction &paddingFunc,
+                          const PaddingNoFoldComputationFunction &nofoldFunc,
                           LinalgOp &paddedOp) {
   Location loc = opToPad->getLoc();
 
@@ -207,7 +211,8 @@ linalg::rewriteAsPaddedOp(PatternRewriter &rewriter, LinalgOp opToPad,
     // If padding was requested but the shape cannot be bounded statically then
     // the pattern fails to apply.
     if (failed(padOperandToSmallestStaticBoundingBox(
-            rewriter, opToPad, opOperand, paddingFunc, paddedOperand)))
+            rewriter, opToPad, opOperand, paddingFunc, nofoldFunc,
+            paddedOperand)))
       return failure();
     newOperands.push_back(paddedOperand ? paddedOperand : opOperand->get());
   }
@@ -340,9 +345,9 @@ LogicalResult mlir::linalg::LinalgBaseTilingPattern::matchAndRewriteBase(
   // Try to pad on the fly by rewriting res->op as a padded op. If successful,
   // `res.op` is rewritten in static form with padded operands.
   LinalgOp paddedOp;
-  if (succeeded(rewriteAsPaddedOp(rewriter, res->op,
-                                  options.paddingValueComputationFunction,
-                                  paddedOp))) {
+  if (succeeded(rewriteAsPaddedOp(
+          rewriter, res->op, options.paddingValueComputationFunction,
+          options.paddingNoFoldComputationFunction, paddedOp))) {
     filter.replaceLinalgTransformationFilter(rewriter, paddedOp);
     res->op = paddedOp;
     result = *res;
@@ -421,7 +426,7 @@ LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
 
   // Tile the unfused loops;
   SmallVector<Value, 4> unfusedLoopTileSizes;
-  Value zero = rewriter.create<ConstantIndexOp>(op->getLoc(), 0);
+  Value zero = rewriter.create<arith::ConstantIndexOp>(op->getLoc(), 0);
   for (auto tileSize : enumerate(tileSizes)) {
     if (tiledAndFusedOps->fusedLoopDims.count(tileSize.index()))
       unfusedLoopTileSizes.push_back(zero);
@@ -432,8 +437,8 @@ LogicalResult mlir::linalg::LinalgBaseTileAndFusePattern::matchAndRewrite(
   if (unfusedLoopTileSizes.size() > linalgOp.getNumLoops())
     unfusedLoopTileSizes.resize(linalgOp.getNumLoops());
   if (llvm::any_of(unfusedLoopTileSizes, [](Value val) {
-        if (auto cst = val.getDefiningOp<ConstantIndexOp>())
-          return cst.getValue() != 0;
+        if (auto cst = val.getDefiningOp<arith::ConstantIndexOp>())
+          return cst.value() != 0;
         return true;
       })) {
     LinalgTilingOptions unfusedTilingOptions = tilingOptions;
@@ -638,7 +643,7 @@ LogicalResult PadTensorOpTransformationPattern::matchAndRewrite(
   // Create tensor with the padded shape
   Location loc = padOp.getLoc();
   SmallVector<Value> indices(resultShapedType.getRank(),
-                             rewriter.create<ConstantIndexOp>(loc, 0));
+                             rewriter.create<arith::ConstantIndexOp>(loc, 0));
   Value initTensor = rewriter.create<InitTensorOp>(
       loc, resultShapedType.getShape(), resultShapedType.getElementType());
 
@@ -703,7 +708,7 @@ GeneralizePadTensorOpPattern::matchAndRewrite(PadTensorOp padOp,
     if (auto val = ofr.dyn_cast<Value>())
       return val;
     return rewriter
-        .create<ConstantIndexOp>(
+        .create<arith::ConstantIndexOp>(
             padOp.getLoc(), ofr.get<Attribute>().cast<IntegerAttr>().getInt())
         .getResult();
   };
@@ -718,9 +723,9 @@ GeneralizePadTensorOpPattern::matchAndRewrite(PadTensorOp padOp,
       auto srcSize = rewriter.createOrFold<tensor::DimOp>(padOp.getLoc(),
                                                           padOp.source(), dim);
       // Add low and high padding value.
-      auto plusLow = rewriter.createOrFold<AddIOp>(
+      auto plusLow = rewriter.createOrFold<arith::AddIOp>(
           padOp.getLoc(), srcSize, getIdxValue(padOp.getMixedLowPad()[dim]));
-      auto plusHigh = rewriter.createOrFold<AddIOp>(
+      auto plusHigh = rewriter.createOrFold<arith::AddIOp>(
           padOp.getLoc(), plusLow, getIdxValue(padOp.getMixedHighPad()[dim]));
       dynSizes.push_back(plusHigh);
     }

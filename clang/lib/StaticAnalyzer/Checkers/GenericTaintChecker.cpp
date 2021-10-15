@@ -260,7 +260,7 @@ private:
     }
 
     bool isDestinationArgument(unsigned ArgNum) const {
-      return (llvm::find(DstArgs, ArgNum) != DstArgs.end());
+      return llvm::is_contained(DstArgs, ArgNum);
     }
 
     static bool isTaintedOrPointsToTainted(const Expr *E,
@@ -435,7 +435,6 @@ GenericTaintChecker::TaintPropagationRule::getTaintPropagationRule(
           .Case("getch", {{}, {ReturnValueIndex}})
           .Case("getchar", {{}, {ReturnValueIndex}})
           .Case("getchar_unlocked", {{}, {ReturnValueIndex}})
-          .Case("getenv", {{}, {ReturnValueIndex}})
           .Case("gets", {{}, {0, ReturnValueIndex}})
           .Case("scanf", {{}, {}, VariadicType::Dst, 1})
           .Case("socket", {{},
@@ -468,6 +467,16 @@ GenericTaintChecker::TaintPropagationRule::getTaintPropagationRule(
 
   if (!Rule.isNull())
     return Rule;
+
+  // `getenv` returns taint only in untrusted environments.
+  if (FData.FullName == "getenv") {
+    if (C.getAnalysisManager()
+            .getAnalyzerOptions()
+            .ShouldAssumeControlledEnvironment)
+      return {};
+    return {{}, {ReturnValueIndex}};
+  }
+
   assert(FData.FDecl);
 
   // Check if it's one of the memory setting/copying functions.
