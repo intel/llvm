@@ -4336,6 +4336,7 @@ cc_library(
     hdrs = ["include/mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"],
     includes = ["include"],
     deps = [
+        ":Analysis",
         ":ConversionPassIncGen",
         ":IR",
         ":LLVMDialect",
@@ -5465,20 +5466,6 @@ cc_binary(
 )
 
 cc_binary(
-    name = "mlir-linalg-ods-gen",
-    srcs = [
-        "tools/mlir-linalg-ods-gen/mlir-linalg-ods-gen.cpp",
-    ],
-    deps = [
-        ":IR",
-        ":Support",
-        "//llvm:Support",
-        "//llvm:TableGen",
-        "//llvm:config",
-    ],
-)
-
-cc_binary(
     name = "mlir-linalg-ods-yaml-gen",
     srcs = [
         "tools/mlir-linalg-ods-gen/mlir-linalg-ods-yaml-gen.cpp",
@@ -5612,6 +5599,7 @@ td_library(
     srcs = [
         "include/mlir/Dialect/OpenMP/OmpCommon.td",
         "include/mlir/Dialect/OpenMP/OpenMPOps.td",
+        "include/mlir/Dialect/OpenMP/OpenMPOpsInterfaces.td",
     ],
     deps = [
         ":LLVMOpsTdFiles",
@@ -5671,6 +5659,24 @@ gentbl_cc_library(
     deps = [":OpenMPOpsTdFiles"],
 )
 
+gentbl_cc_library(
+    name = "OpenMPInterfacesIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            ["-gen-op-interface-decls"],
+            "include/mlir/Dialect/OpenMP/OpenMPOpsInterfaces.h.inc",
+        ),
+        (
+            ["-gen-op-interface-defs"],
+            "include/mlir/Dialect/OpenMP/OpenMPOpsInterfaces.cpp.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/OpenMP/OpenMPOpsInterfaces.td",
+    deps = [":OpenMPOpsTdFiles"],
+)
+
 cc_library(
     name = "OpenMPDialect",
     srcs = glob(
@@ -5687,6 +5693,7 @@ cc_library(
         ":ControlFlowInterfaces",
         ":IR",
         ":LLVMDialect",
+        ":OpenMPInterfacesIncGen",
         ":OpenMPOpsIncGen",
         ":SideEffectInterfaces",
         ":StandardOps",
@@ -5911,22 +5918,6 @@ gentbl_cc_library(
 )
 
 genlinalg(
-    name = "LinalgNamedStructuredOpsTcIncGen",
-    src = "include/mlir/Dialect/Linalg/IR/LinalgNamedStructuredOpsSpec.tc",
-    linalg_outs = [
-        (
-            "-gen-impl -o=$@",
-            "include/mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.tcgen.cpp.inc",
-        ),
-        (
-            "-gen-ods-decl -o=$@",
-            "include/mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.tcgen.td",
-        ),
-    ],
-    linalggen = ":mlir-linalg-ods-gen",
-)
-
-genlinalg(
     name = "LinalgNamedStructuredOpsYamlIncGen",
     src = "include/mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.yaml",
     linalg_outs = [
@@ -5946,7 +5937,6 @@ td_library(
     name = "LinalgStructuredOpsTdFiles",
     srcs = [
         "include/mlir/Dialect/Linalg/IR/LinalgInterfaces.td",
-        "include/mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.tcgen.td",
         "include/mlir/Dialect/Linalg/IR/LinalgNamedStructuredOps.yamlgen.td",
         "include/mlir/Dialect/Linalg/IR/LinalgStructuredOps.td",
     ],
@@ -6122,7 +6112,6 @@ cc_library(
         ":InferTypeOpInterface",
         ":LinalgInterfaces",
         ":LinalgInterfacesIncGen",
-        ":LinalgNamedStructuredOpsTcIncGen",
         ":LinalgNamedStructuredOpsYamlIncGen",
         ":LinalgOpsIncGen",
         ":LinalgStructuredOpsIncGen",
@@ -6184,6 +6173,8 @@ cc_library(
         "include/mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h",
         "include/mlir/Dialect/Linalg/Passes.h",
         "include/mlir/Dialect/Linalg/Transforms/CodegenStrategy.h",
+        "include/mlir/Dialect/Linalg/Transforms/ComprehensiveBufferize.h",
+        "include/mlir/Dialect/Linalg/Transforms/HoistPadding.h",
         "include/mlir/Dialect/Linalg/Transforms/Hoisting.h",
         "include/mlir/Dialect/Linalg/Transforms/Transforms.h",
         "include/mlir/Dialect/Linalg/Utils/Utils.h",
@@ -6701,6 +6692,118 @@ exports_files([
     "include/mlir/Interfaces/ControlFlowInterfaces.h",
     "include/mlir/Transforms/InliningUtils.h",
 ])
+
+td_library(
+    name = "ArithmeticOpsTdFiles",
+    srcs = [
+        "include/mlir/Dialect/Arithmetic/IR/ArithmeticBase.td",
+        "include/mlir/Dialect/Arithmetic/IR/ArithmeticOps.td",
+    ],
+    includes = ["include"],
+    deps = [
+        ":OpBaseTdFiles",
+        ":SideEffectInterfacesTdFiles",
+        ":VectorInterfacesTdFiles",
+    ],
+)
+
+gentbl_cc_library(
+    name = "ArithmeticBaseIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            [
+                "-gen-dialect-decls",
+                "-dialect=arith",
+            ],
+            "include/mlir/Dialect/Arithmetic/IR/ArithmeticOpsDialect.h.inc",
+        ),
+        (
+            [
+                "-gen-dialect-defs",
+                "-dialect=arith",
+            ],
+            "include/mlir/Dialect/Arithmetic/IR/ArithmeticOpsDialect.cpp.inc",
+        ),
+        (
+            ["-gen-enum-decls"],
+            "include/mlir/Dialect/Arithmetic/IR/ArithmeticOpsEnums.h.inc",
+        ),
+        (
+            ["-gen-enum-defs"],
+            "include/mlir/Dialect/Arithmetic/IR/ArithmeticOpsEnums.cpp.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/Arithmetic/IR/ArithmeticBase.td",
+    deps = [":ArithmeticOpsTdFiles"],
+)
+
+gentbl_cc_library(
+    name = "ArithmeticOpsIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            ["-gen-op-decls"],
+            "include/mlir/Dialect/Arithmetic/IR/ArithmeticOps.h.inc",
+        ),
+        (
+            ["-gen-op-defs"],
+            "include/mlir/Dialect/Arithmetic/IR/ArithmeticOps.cpp.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/Arithmetic/IR/ArithmeticOps.td",
+    deps = [
+        ":ArithmeticOpsTdFiles",
+        ":CastInterfacesTdFiles",
+    ],
+)
+
+gentbl_cc_library(
+    name = "ArithmeticCanonicalizationIncGen",
+    strip_include_prefix = "include/mlir/Dialect/Arithmetic/IR",
+    tbl_outs = [
+        (
+            ["-gen-rewriters"],
+            "include/mlir/Dialect/Arithmetic/IR/ArithmeticCanonicalization.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "lib/Dialect/Arithmetic/IR/ArithmeticCanonicalization.td",
+    deps = [
+        ":ArithmeticOpsTdFiles",
+        ":CastInterfacesTdFiles",
+        ":StdOpsTdFiles",
+    ],
+)
+
+cc_library(
+    name = "ArithmeticDialect",
+    srcs = glob(
+        [
+            "lib/Dialect/Arithmetic/IR/*.cpp",
+            "lib/Dialect/Arithmetic/IR/*.h",
+        ],
+    ),
+    hdrs = [
+        "include/mlir/Dialect/Arithmetic/IR/Arithmetic.h",
+        "include/mlir/Transforms/InliningUtils.h",
+    ],
+    includes = ["include"],
+    deps = [
+        ":ArithmeticBaseIncGen",
+        ":ArithmeticCanonicalizationIncGen",
+        ":ArithmeticOpsIncGen",
+        ":CommonFolders",
+        ":IR",
+        ":SideEffectInterfaces",
+        ":StandardOps",
+        ":Support",
+        ":VectorInterfaces",
+        "//llvm:Support",
+    ],
+)
 
 td_library(
     name = "MathOpsTdFiles",

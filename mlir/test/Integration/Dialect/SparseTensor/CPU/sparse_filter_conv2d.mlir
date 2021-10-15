@@ -1,5 +1,5 @@
 // RUN: mlir-opt %s \
-// RUN:   --linalg-generalize-named-ops \
+// RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
 // RUN:   --sparsification --sparse-tensor-conversion \
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
@@ -14,7 +14,7 @@
 // Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
 // RUN: mlir-opt %s \
-// RUN:   --linalg-generalize-named-ops \
+// RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
 // RUN:   --sparsification="vectorization-strategy=2 vl=2" --sparse-tensor-conversion \
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
@@ -83,6 +83,10 @@ module {
     %v = vector.transfer_read %m[%c0, %c0], %i0
       : memref<6x6xi32>, vector<6x6xi32>
     vector.print %v : vector<6x6xi32>
+
+    // Release the resources.
+    sparse_tensor.release %sparse_filter : tensor<3x3xi32, #DCSR>
+    memref.dealloc %m : memref<6x6xi32>
 
     return
   }

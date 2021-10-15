@@ -25,6 +25,7 @@
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
 #include "clang/AST/OperationKinds.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/TypeLoc.h"
 #include "clang/Basic/Builtins.h"
@@ -3898,7 +3899,7 @@ ExprResult Sema::ActOnNumericConstant(const Token &Tok, Scope *UDLScope) {
 
     llvm::APInt Val(bit_width, 0, isSigned);
     bool Overflowed = Literal.GetFixedPointValue(Val, scale);
-    bool ValIsZero = Val.isNullValue() && !Overflowed;
+    bool ValIsZero = Val.isZero() && !Overflowed;
 
     auto MaxVal = Context.getFixedPointMax(Ty).getValue();
     if (Literal.isFract && Val == MaxVal + 1 && !ValIsZero)
@@ -5339,7 +5340,7 @@ ExprResult Sema::ActOnOMPIteratorExpr(Scope *S, SourceLocation IteratorKwLoc,
       // OpenMP 5.0, 2.1.6 Iterators, Restrictions
       // If the step expression of a range-specification equals zero, the
       // behavior is unspecified.
-      if (Result && Result->isNullValue()) {
+      if (Result && Result->isZero()) {
         Diag(Step->getExprLoc(), diag::err_omp_iterator_step_constant_zero)
             << Step << Step->getSourceRange();
         IsCorrect = false;
@@ -8467,7 +8468,7 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
   // OpenCL v2.0 s6.12.5 - Blocks cannot be used as expressions of the ternary
   // selection operator (?:).
   if (getLangOpts().OpenCL &&
-      (checkBlockType(*this, LHS.get()) | checkBlockType(*this, RHS.get()))) {
+      ((int)checkBlockType(*this, LHS.get()) | (int)checkBlockType(*this, RHS.get()))) {
     return QualType();
   }
 
@@ -13035,7 +13036,7 @@ static void DiagnoseRecursiveConstFields(Sema &S, const ValueDecl *VD,
       // Then we append it to the list to check next in order.
       FieldTy = FieldTy.getCanonicalType();
       if (const auto *FieldRecTy = FieldTy->getAs<RecordType>()) {
-        if (llvm::find(RecordTypeList, FieldRecTy) == RecordTypeList.end())
+        if (!llvm::is_contained(RecordTypeList, FieldRecTy))
           RecordTypeList.push_back(FieldRecTy);
       }
     }
@@ -15804,7 +15805,7 @@ ExprResult Sema::ActOnBlockStmtExpr(SourceLocation CaretLoc,
         if (!Result.isInvalid()) {
           Result = PerformCopyInitialization(
               InitializedEntity::InitializeBlock(Var->getLocation(),
-                                                 Cap.getCaptureType(), false),
+                                                 Cap.getCaptureType()),
               Loc, Result.get());
         }
 
@@ -16732,7 +16733,7 @@ void Sema::CheckUnusedVolatileAssignment(Expr *E) {
 ExprResult Sema::CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl) {
   if (isUnevaluatedContext() || !E.isUsable() || !Decl ||
       !Decl->isConsteval() || isConstantEvaluated() ||
-      RebuildingImmediateInvocation)
+      RebuildingImmediateInvocation || isImmediateFunctionContext())
     return E;
 
   /// Opportunistically remove the callee from ReferencesToConsteval if we can.
@@ -17003,6 +17004,8 @@ static bool isPotentiallyConstantEvaluatedContext(Sema &SemaRef) {
   //   An expression or conversion is potentially constant evaluated if it is
   switch (SemaRef.ExprEvalContexts.back().Context) {
     case Sema::ExpressionEvaluationContext::ConstantEvaluated:
+    case Sema::ExpressionEvaluationContext::ImmediateFunctionContext:
+
       // -- a manifestly constant-evaluated expression,
     case Sema::ExpressionEvaluationContext::PotentiallyEvaluated:
     case Sema::ExpressionEvaluationContext::PotentiallyEvaluatedIfUsed:
@@ -17125,6 +17128,7 @@ static OdrUseContext isOdrUseContext(Sema &SemaRef) {
       return OdrUseContext::None;
 
     case Sema::ExpressionEvaluationContext::ConstantEvaluated:
+    case Sema::ExpressionEvaluationContext::ImmediateFunctionContext:
     case Sema::ExpressionEvaluationContext::PotentiallyEvaluated:
       Result = OdrUseContext::Used;
       break;
@@ -18998,9 +19002,10 @@ void Sema::MarkDeclarationsReferencedInExpr(Expr *E,
 ///        namespace { auto *p = new double[3][false ? (1, 2) : 3]; }
 bool Sema::DiagIfReachable(SourceLocation Loc, ArrayRef<const Stmt *> Stmts,
                            const PartialDiagnostic &PD) {
-  if (!Stmts.empty() && !FunctionScopes.empty()) {
-    FunctionScopes.back()->PossiblyUnreachableDiags.push_back(
-        sema::PossiblyUnreachableDiag(PD, Loc, Stmts));
+  if (!Stmts.empty() && getCurFunctionOrMethodDecl()) {
+    if (!FunctionScopes.empty())
+      FunctionScopes.back()->PossiblyUnreachableDiags.push_back(
+          sema::PossiblyUnreachableDiag(PD, Loc, Stmts));
     return true;
   }
 
@@ -19049,6 +19054,7 @@ bool Sema::DiagRuntimeBehavior(SourceLocation Loc, ArrayRef<const Stmt*> Stmts,
     break;
 
   case ExpressionEvaluationContext::ConstantEvaluated:
+  case ExpressionEvaluationContext::ImmediateFunctionContext:
     // Relevant diagnostics should be produced by constant evaluation.
     break;
 

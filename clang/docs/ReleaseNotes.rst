@@ -51,7 +51,7 @@ Major New Features
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ...
+- -Wbitwise-instead-of-logical (part of -Wbool-operation) warns about use of bitwise operators with boolean operands which have side effects.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -121,6 +121,7 @@ C Language Changes in Clang
   `P2362 <wg21.link/P2362>`_.
 - Support for ``__attribute__((error("")))`` and
   ``__attribute__((warning("")))`` function attributes have been added.
+- The maximum allowed alignment has been increased from 2^29 to 2^32.
 
 C++ Language Changes in Clang
 -----------------------------
@@ -133,7 +134,9 @@ C++20 Feature Support
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
-...
+- Implemented `P1938R3: if consteval <https://wg21.link/P1938R3>`_.
+- Implemented `P2360R0: Extend init-statement to allow alias-declaration <https://wg21.link/P2360R0>`_.
+
 
 CUDA Language Changes in Clang
 ------------------------------
@@ -188,6 +191,16 @@ clang-format
 
 - Option ``AllowShortEnumsOnASingleLine: false`` has been improved, it now
   correctly places the opening brace according to ``BraceWrapping.AfterEnum``.
+
+- Option ``QualifierAligment`` has been added in order to auto-arrange the
+  positioning of specifiers/qualifiers
+  `const` `volatile` `static` `inline` `constexpr` `restrict`
+  in variable and parameter declarations to be either ``Right`` aligned
+  or ``Left`` aligned or ``Custom`` using ``QualifierOrder``.
+
+- Option ``QualifierOrder`` has been added to allow the order
+  `const` `volatile` `static` `inline` `constexpr` `restrict`
+  to be controlled relative to the `type`.
 
 libclang
 --------

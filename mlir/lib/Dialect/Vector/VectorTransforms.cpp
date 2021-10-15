@@ -672,10 +672,10 @@ class TransposeOpLowering : public OpRewritePattern<vector::TransposeOp> {
 public:
   using OpRewritePattern<vector::TransposeOp>::OpRewritePattern;
 
-  TransposeOpLowering(vector::VectorTransformsOptions vectorTransformsOptions,
+  TransposeOpLowering(vector::VectorTransformsOptions vectorTransformOptions,
                       MLIRContext *context)
       : OpRewritePattern<vector::TransposeOp>(context),
-        vectorTransformsOptions(vectorTransformsOptions) {}
+        vectorTransformOptions(vectorTransformOptions) {}
 
   LogicalResult matchAndRewrite(vector::TransposeOp op,
                                 PatternRewriter &rewriter) const override {
@@ -689,7 +689,7 @@ public:
       transp.push_back(attr.cast<IntegerAttr>().getInt());
 
     // Handle a true 2-D matrix transpose differently when requested.
-    if (vectorTransformsOptions.vectorTransposeLowering ==
+    if (vectorTransformOptions.vectorTransposeLowering ==
             vector::VectorTransposeLowering::Flat &&
         resType.getRank() == 2 && transp[0] == 1 && transp[1] == 0) {
       Type flattenedType =
@@ -739,7 +739,7 @@ private:
   }
 
   /// Options to control the vector patterns.
-  vector::VectorTransformsOptions vectorTransformsOptions;
+  vector::VectorTransformsOptions vectorTransformOptions;
 };
 
 /// Progressive lowering of OuterProductOp.
@@ -821,15 +821,17 @@ private:
     case CombiningKind::MUL:
       combinedResult = rewriter.create<MulIOp>(loc, mul, acc);
       break;
-    case CombiningKind::MIN:
-      combinedResult = rewriter.create<SelectOp>(
-          loc, rewriter.create<CmpIOp>(loc, CmpIPredicate::slt, mul, acc), mul,
-          acc);
+    case CombiningKind::MINUI:
+      combinedResult = rewriter.create<MinUIOp>(loc, mul, acc);
       break;
-    case CombiningKind::MAX:
-      combinedResult = rewriter.create<SelectOp>(
-          loc, rewriter.create<CmpIOp>(loc, CmpIPredicate::sge, mul, acc), mul,
-          acc);
+    case CombiningKind::MINSI:
+      combinedResult = rewriter.create<MinSIOp>(loc, mul, acc);
+      break;
+    case CombiningKind::MAXUI:
+      combinedResult = rewriter.create<MaxUIOp>(loc, mul, acc);
+      break;
+    case CombiningKind::MAXSI:
+      combinedResult = rewriter.create<MaxSIOp>(loc, mul, acc);
       break;
     case CombiningKind::AND:
       combinedResult = rewriter.create<AndOp>(loc, mul, acc);
@@ -840,6 +842,9 @@ private:
     case CombiningKind::XOR:
       combinedResult = rewriter.create<XOrOp>(loc, mul, acc);
       break;
+    case CombiningKind::MINF: // Only valid for floating point types.
+    case CombiningKind::MAXF: // Only valid for floating point types.
+      return Optional<Value>();
     }
     return Optional<Value>(combinedResult);
   }
@@ -864,18 +869,18 @@ private:
     case CombiningKind::MUL:
       combinedResult = rewriter.create<MulFOp>(loc, mul, acc);
       break;
-    case CombiningKind::MIN:
-      combinedResult = rewriter.create<SelectOp>(
-          loc, rewriter.create<CmpFOp>(loc, CmpFPredicate::OLE, mul, acc), mul,
-          acc);
+    case CombiningKind::MINF:
+      combinedResult = rewriter.create<MinFOp>(loc, mul, acc);
       break;
-    case CombiningKind::MAX:
-      combinedResult = rewriter.create<SelectOp>(
-          loc, rewriter.create<CmpFOp>(loc, CmpFPredicate::OGT, mul, acc), mul,
-          acc);
+    case CombiningKind::MAXF:
+      combinedResult = rewriter.create<MaxFOp>(loc, mul, acc);
       break;
     case CombiningKind::ADD: // Already handled this special case above.
     case CombiningKind::AND: // Only valid for integer types.
+    case CombiningKind::MINUI: // Only valid for integer types.
+    case CombiningKind::MINSI: // Only valid for integer types.
+    case CombiningKind::MAXUI: // Only valid for integer types.
+    case CombiningKind::MAXSI: // Only valid for integer types.
     case CombiningKind::OR:  // Only valid for integer types.
     case CombiningKind::XOR: // Only valid for integer types.
       return Optional<Value>();
@@ -1151,7 +1156,7 @@ ContractionOpToMatmulOpLowering::matchAndRewrite(vector::ContractionOp op,
   // TODO: implement masks
   if (llvm::size(op.masks()) != 0)
     return failure();
-  if (vectorTransformsOptions.vectorContractLowering !=
+  if (vectorTransformOptions.vectorContractLowering !=
       vector::VectorContractLowering::Matmul)
     return failure();
   if (failed(filter(op)))
@@ -1314,7 +1319,7 @@ LogicalResult ContractionOpToOuterProductOpLowering::matchAndRewrite(
   if (llvm::size(op.masks()) != 0)
     return failure();
 
-  if (vectorTransformsOptions.vectorContractLowering !=
+  if (vectorTransformOptions.vectorContractLowering !=
       vector::VectorContractLowering::OuterProduct)
     return failure();
 
@@ -1419,7 +1424,7 @@ ContractionOpToDotLowering::matchAndRewrite(vector::ContractionOp op,
   if (failed(filter(op)))
     return failure();
 
-  if (vectorTransformsOptions.vectorContractLowering !=
+  if (vectorTransformOptions.vectorContractLowering !=
       vector::VectorContractLowering::Dot)
     return failure();
 
@@ -1560,13 +1565,13 @@ ContractionOpLowering::matchAndRewrite(vector::ContractionOp op,
 
   // TODO: implement benefits, cost models.
   MLIRContext *ctx = op.getContext();
-  ContractionOpToMatmulOpLowering pat1(vectorTransformsOptions, ctx);
+  ContractionOpToMatmulOpLowering pat1(vectorTransformOptions, ctx);
   if (succeeded(pat1.matchAndRewrite(op, rewriter)))
     return success();
-  ContractionOpToOuterProductOpLowering pat2(vectorTransformsOptions, ctx);
+  ContractionOpToOuterProductOpLowering pat2(vectorTransformOptions, ctx);
   if (succeeded(pat2.matchAndRewrite(op, rewriter)))
     return success();
-  ContractionOpToDotLowering pat3(vectorTransformsOptions, ctx);
+  ContractionOpToDotLowering pat3(vectorTransformOptions, ctx);
   if (succeeded(pat3.matchAndRewrite(op, rewriter)))
     return success();
 
@@ -1835,9 +1840,9 @@ static MemRefType getCastCompatibleMemRefType(MemRefType aT, MemRefType bT) {
 /// Operates under a scoped context to build the intersection between the
 /// view `xferOp.source()` @ `xferOp.indices()` and the view `alloc`.
 // TODO: view intersection/union/differences should be a proper std op.
-static Value createSubViewIntersection(OpBuilder &b,
-                                       VectorTransferOpInterface xferOp,
-                                       Value alloc) {
+static std::pair<Value, Value>
+createSubViewIntersection(OpBuilder &b, VectorTransferOpInterface xferOp,
+                          Value alloc) {
   ImplicitLocOpBuilder lb(xferOp.getLoc(), b);
   int64_t memrefRank = xferOp.getShapedType().getRank();
   // TODO: relax this precondition, will require rank-reducing subviews.
@@ -1864,11 +1869,15 @@ static Value createSubViewIntersection(OpBuilder &b,
     sizes.push_back(affineMin);
   });
 
-  SmallVector<OpFoldResult, 4> indices = llvm::to_vector<4>(llvm::map_range(
+  SmallVector<OpFoldResult> srcIndices = llvm::to_vector<4>(llvm::map_range(
       xferOp.indices(), [](Value idx) -> OpFoldResult { return idx; }));
-  return lb.create<memref::SubViewOp>(
-      isaWrite ? alloc : xferOp.source(), indices, sizes,
-      SmallVector<OpFoldResult>(memrefRank, OpBuilder(xferOp).getIndexAttr(1)));
+  SmallVector<OpFoldResult> destIndices(memrefRank, b.getIndexAttr(0));
+  SmallVector<OpFoldResult> strides(memrefRank, b.getIndexAttr(1));
+  auto copySrc = lb.create<memref::SubViewOp>(
+      isaWrite ? alloc : xferOp.source(), srcIndices, sizes, strides);
+  auto copyDest = lb.create<memref::SubViewOp>(
+      isaWrite ? xferOp.source() : alloc, destIndices, sizes, strides);
+  return std::make_pair(copySrc, copyDest);
 }
 
 /// Given an `xferOp` for which:
@@ -1877,14 +1886,15 @@ static Value createSubViewIntersection(OpBuilder &b,
 /// Produce IR resembling:
 /// ```
 ///    %1:3 = scf.if (%inBounds) {
-///      memref.cast %A: memref<A...> to compatibleMemRefType
+///      %view = memref.cast %A: memref<A...> to compatibleMemRefType
 ///      scf.yield %view, ... : compatibleMemRefType, index, index
 ///    } else {
 ///      %2 = linalg.fill(%pad, %alloc)
 ///      %3 = subview %view [...][...][...]
-///      linalg.copy(%3, %alloc)
-///      memref.cast %alloc: memref<B...> to compatibleMemRefType
-///      scf.yield %4, ... : compatibleMemRefType, index, index
+///      %4 = subview %alloc [0, 0] [...] [...]
+///      linalg.copy(%3, %4)
+///      %5 = memref.cast %alloc: memref<B...> to compatibleMemRefType
+///      scf.yield %5, ... : compatibleMemRefType, index, index
 ///   }
 /// ```
 /// Return the produced scf::IfOp.
@@ -1910,9 +1920,9 @@ createFullPartialLinalgCopy(OpBuilder &b, vector::TransferReadOp xferOp,
         b.create<linalg::FillOp>(loc, xferOp.padding(), alloc);
         // Take partial subview of memref which guarantees no dimension
         // overflows.
-        Value memRefSubView = createSubViewIntersection(
+        std::pair<Value, Value> copyArgs = createSubViewIntersection(
             b, cast<VectorTransferOpInterface>(xferOp.getOperation()), alloc);
-        b.create<linalg::CopyOp>(loc, memRefSubView, alloc);
+        b.create<linalg::CopyOp>(loc, copyArgs.first, copyArgs.second);
         Value casted =
             b.create<memref::CastOp>(loc, alloc, compatibleMemRefType);
         scf::ValueVector viewAndIndices{casted};
@@ -2030,7 +2040,8 @@ getLocationToWriteFullVec(OpBuilder &b, vector::TransferWriteOp xferOp,
 ///    %notInBounds = xor %inBounds, %true
 ///    scf.if (%notInBounds) {
 ///      %3 = subview %alloc [...][...][...]
-///      linalg.copy(%3, %view)
+///      %4 = subview %view [0, 0][...][...]
+///      linalg.copy(%3, %4)
 ///   }
 /// ```
 static void createFullPartialLinalgCopy(OpBuilder &b,
@@ -2040,9 +2051,9 @@ static void createFullPartialLinalgCopy(OpBuilder &b,
   auto notInBounds =
       lb.create<XOrOp>(inBoundsCond, lb.create<ConstantIntOp>(true, 1));
   lb.create<scf::IfOp>(notInBounds, [&](OpBuilder &b, Location loc) {
-    Value memRefSubView = createSubViewIntersection(
+    std::pair<Value, Value> copyArgs = createSubViewIntersection(
         b, cast<VectorTransferOpInterface>(xferOp.getOperation()), alloc);
-    b.create<linalg::CopyOp>(loc, memRefSubView, xferOp.source());
+    b.create<linalg::CopyOp>(loc, copyArgs.first, copyArgs.second);
     b.create<scf::YieldOp>(loc, ValueRange{});
   });
 }
@@ -2190,6 +2201,9 @@ LogicalResult mlir::vector::splitFullAndPartialTransfer(
   MemRefType compatibleMemRefType =
       getCastCompatibleMemRefType(xferOp.getShapedType().cast<MemRefType>(),
                                   alloc.getType().cast<MemRefType>());
+  if (!compatibleMemRefType)
+    return failure();
+
   SmallVector<Type, 4> returnTypes(1 + xferOp.getTransferRank(),
                                    b.getIndexType());
   returnTypes[0] = compatibleMemRefType;
@@ -3688,23 +3702,23 @@ struct UnrollOuterMultiReduction
         else
           result = rewriter.create<MulFOp>(loc, operand, result);
         break;
-      case vector::CombiningKind::MIN:
-        if (elementType.isIntOrIndex())
-          condition =
-              rewriter.create<CmpIOp>(loc, CmpIPredicate::slt, operand, result);
-        else
-          condition =
-              rewriter.create<CmpFOp>(loc, CmpFPredicate::OLT, operand, result);
-        result = rewriter.create<SelectOp>(loc, condition, operand, result);
+      case vector::CombiningKind::MINUI:
+        result = rewriter.create<MinUIOp>(loc, operand, result);
         break;
-      case vector::CombiningKind::MAX:
-        if (elementType.isIntOrIndex())
-          condition =
-              rewriter.create<CmpIOp>(loc, CmpIPredicate::sge, operand, result);
-        else
-          condition =
-              rewriter.create<CmpFOp>(loc, CmpFPredicate::OGE, operand, result);
-        result = rewriter.create<SelectOp>(loc, condition, operand, result);
+      case vector::CombiningKind::MINSI:
+        result = rewriter.create<MinSIOp>(loc, operand, result);
+        break;
+      case vector::CombiningKind::MINF:
+        result = rewriter.create<MinFOp>(loc, operand, result);
+        break;
+      case vector::CombiningKind::MAXUI:
+        result = rewriter.create<MaxUIOp>(loc, operand, result);
+        break;
+      case vector::CombiningKind::MAXSI:
+        result = rewriter.create<MaxSIOp>(loc, operand, result);
+        break;
+      case vector::CombiningKind::MAXF:
+        result = rewriter.create<MaxFOp>(loc, operand, result);
         break;
       case vector::CombiningKind::AND:
         result = rewriter.create<AndOp>(loc, operand, result);
@@ -3762,10 +3776,18 @@ struct TwoDimMultiReductionToReduction
         return "add";
       case vector::CombiningKind::MUL:
         return "mul";
-      case vector::CombiningKind::MIN:
-        return "min";
-      case vector::CombiningKind::MAX:
-        return "max";
+      case vector::CombiningKind::MINUI:
+        return "minui";
+      case vector::CombiningKind::MINSI:
+        return "minsi";
+      case vector::CombiningKind::MINF:
+        return "minf";
+      case vector::CombiningKind::MAXUI:
+        return "maxui";
+      case vector::CombiningKind::MAXSI:
+        return "maxsi";
+      case vector::CombiningKind::MAXF:
+        return "maxf";
       case vector::CombiningKind::AND:
         return "and";
       case vector::CombiningKind::OR:
@@ -3825,27 +3847,35 @@ void mlir::vector::populateBubbleVectorBitCastOpPatterns(
                BubbleUpBitCastForStridedSliceInsert>(patterns.getContext());
 }
 
+void mlir::vector::populateVectorBroadcastLoweringPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<BroadcastOpLowering>(patterns.getContext());
+}
+
+void mlir::vector::populateVectorMaskOpLoweringPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<CreateMaskOpLowering, ConstantMaskOpLowering>(
+      patterns.getContext());
+}
+
+void mlir::vector::populateVectorShapeCastLoweringPatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<ShapeCastOp2DDownCastRewritePattern,
+               ShapeCastOp2DUpCastRewritePattern, ShapeCastOpRewritePattern>(
+      patterns.getContext());
+}
+
 void mlir::vector::populateVectorContractLoweringPatterns(
-    RewritePatternSet &patterns, VectorTransformsOptions parameters) {
-  // clang-format off
-  patterns.add<BroadcastOpLowering,
-                  CreateMaskOpLowering,
-                  ConstantMaskOpLowering,
-                  OuterProductOpLowering,
-                  ShapeCastOp2DDownCastRewritePattern,
-                  ShapeCastOp2DUpCastRewritePattern,
-                  ShapeCastOpRewritePattern>(patterns.getContext());
-  patterns.add<ContractionOpLowering,
-                  ContractionOpToMatmulOpLowering,
-                  ContractionOpToOuterProductOpLowering>(parameters, patterns.getContext());
-  // clang-format on
+    RewritePatternSet &patterns, VectorTransformsOptions options) {
+  patterns.add<OuterProductOpLowering>(patterns.getContext());
+  patterns.add<ContractionOpLowering, ContractionOpToMatmulOpLowering,
+               ContractionOpToOuterProductOpLowering>(options,
+                                                      patterns.getContext());
 }
 
 void mlir::vector::populateVectorTransposeLoweringPatterns(
-    RewritePatternSet &patterns,
-    VectorTransformsOptions vectorTransformOptions) {
-  patterns.add<TransposeOpLowering>(vectorTransformOptions,
-                                    patterns.getContext());
+    RewritePatternSet &patterns, VectorTransformsOptions options) {
+  patterns.add<TransposeOpLowering>(options, patterns.getContext());
 }
 
 void mlir::vector::populateVectorTransferPermutationMapLoweringPatterns(

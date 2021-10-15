@@ -1147,6 +1147,8 @@ FailureOr<Block *> ConversionPatternRewriterImpl::convertBlockSignature(
                        block, converter, *conversion, mapping, argReplacements)
                  : argConverter.convertSignature(block, converter, mapping,
                                                  argReplacements);
+  if (failed(result))
+    return failure();
   if (Block *newBlock = result.getValue()) {
     if (newBlock != block)
       blockActions.push_back(BlockAction::getTypeConversion(newBlock));
@@ -1485,6 +1487,7 @@ void ConversionPatternRewriter::cancelRootUpdate(Operation *op) {
   auto &rootUpdates = impl->rootUpdates;
   auto it = llvm::find_if(llvm::reverse(rootUpdates), stateHasOp);
   assert(it != rootUpdates.rend() && "no root update started on op");
+  (*it).resetOperation();
   int updateIdx = std::prev(rootUpdates.rend()) - it;
   rootUpdates.erase(rootUpdates.begin() + updateIdx);
 }

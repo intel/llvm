@@ -103,7 +103,6 @@ function(add_sycl_rt_library LIB_NAME)
 endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
-    "${sycl_inc_dir}/CL/sycl.hpp"
     "backend/opencl.cpp"
     "backend/level_zero.cpp"
     "backend.cpp"

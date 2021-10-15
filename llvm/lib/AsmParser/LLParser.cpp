@@ -1927,7 +1927,7 @@ bool LLParser::parseOptionalAlignment(MaybeAlign &Alignment, bool AllowParens) {
   if (!EatIfPresent(lltok::kw_align))
     return false;
   LocTy AlignLoc = Lex.getLoc();
-  uint32_t Value = 0;
+  uint64_t Value = 0;
 
   LocTy ParenLoc = Lex.getLoc();
   bool HaveParens = false;
@@ -1936,13 +1936,13 @@ bool LLParser::parseOptionalAlignment(MaybeAlign &Alignment, bool AllowParens) {
       HaveParens = true;
   }
 
-  if (parseUInt32(Value))
+  if (parseUInt64(Value))
     return true;
 
   if (HaveParens && !EatIfPresent(lltok::rparen))
     return error(ParenLoc, "expected ')'");
 
-  if (!isPowerOf2_32(Value))
+  if (!isPowerOf2_64(Value))
     return error(AlignLoc, "alignment is not a power of two");
   if (Value > Value::MaximumAlignment)
     return error(AlignLoc, "huge alignments are not supported yet");
@@ -8521,12 +8521,15 @@ bool LLParser::parseFlag(unsigned &Val) {
 ///        [',' 'returnDoesNotAlias' ':' Flag]? ')'
 ///        [',' 'noInline' ':' Flag]? ')'
 ///        [',' 'alwaysInline' ':' Flag]? ')'
+///        [',' 'noUnwind' ':' Flag]? ')'
+///        [',' 'mayThrow' ':' Flag]? ')'
+///        [',' 'hasUnknownCall' ':' Flag]? ')'
 
 bool LLParser::parseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
   assert(Lex.getKind() == lltok::kw_funcFlags);
   Lex.Lex();
 
-  if (parseToken(lltok::colon, "expected ':' in funcFlags") |
+  if (parseToken(lltok::colon, "expected ':' in funcFlags") ||
       parseToken(lltok::lparen, "expected '(' in funcFlags"))
     return true;
 
@@ -8569,6 +8572,24 @@ bool LLParser::parseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
         return true;
       FFlags.AlwaysInline = Val;
       break;
+    case lltok::kw_noUnwind:
+      Lex.Lex();
+      if (parseToken(lltok::colon, "expected ':'") || parseFlag(Val))
+        return true;
+      FFlags.NoUnwind = Val;
+      break;
+    case lltok::kw_mayThrow:
+      Lex.Lex();
+      if (parseToken(lltok::colon, "expected ':'") || parseFlag(Val))
+        return true;
+      FFlags.MayThrow = Val;
+      break;
+    case lltok::kw_hasUnknownCall:
+      Lex.Lex();
+      if (parseToken(lltok::colon, "expected ':'") || parseFlag(Val))
+        return true;
+      FFlags.HasUnknownCall = Val;
+      break;
     default:
       return error(Lex.getLoc(), "expected function flag type");
     }
@@ -8588,7 +8609,7 @@ bool LLParser::parseOptionalCalls(std::vector<FunctionSummary::EdgeTy> &Calls) {
   assert(Lex.getKind() == lltok::kw_calls);
   Lex.Lex();
 
-  if (parseToken(lltok::colon, "expected ':' in calls") |
+  if (parseToken(lltok::colon, "expected ':' in calls") ||
       parseToken(lltok::lparen, "expected '(' in calls"))
     return true;
 
@@ -8680,7 +8701,7 @@ bool LLParser::parseOptionalVTableFuncs(VTableFuncList &VTableFuncs) {
   assert(Lex.getKind() == lltok::kw_vTableFuncs);
   Lex.Lex();
 
-  if (parseToken(lltok::colon, "expected ':' in vTableFuncs") |
+  if (parseToken(lltok::colon, "expected ':' in vTableFuncs") ||
       parseToken(lltok::lparen, "expected '(' in vTableFuncs"))
     return true;
 

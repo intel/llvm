@@ -546,7 +546,6 @@ private:
               EVKind == EntryValueLocKind::EntryValueKind ? Orig.getReg()
                                                           : Register(Loc.RegNo),
               false));
-          MOs.back().setIsDebug();
           break;
         case MachineLocKind::SpillLocKind: {
           // Spills are indirect DBG_VALUEs, with a base register and offset.
@@ -568,7 +567,6 @@ private:
             DIExpr = DIExpression::appendOpsToArg(DIExpr, Ops, I);
           }
           MOs.push_back(MachineOperand::CreateReg(Base, false));
-          MOs.back().setIsDebug();
           break;
         }
         case MachineLocKind::ImmediateKind: {
@@ -618,7 +616,7 @@ private:
     unsigned getRegIdx(Register Reg) const {
       for (unsigned Idx = 0; Idx < Locs.size(); ++Idx)
         if (Locs[Idx].Kind == MachineLocKind::RegisterKind &&
-            Locs[Idx].Value.RegNo == Reg)
+            Register{static_cast<unsigned>(Locs[Idx].Value.RegNo)} == Reg)
           return Idx;
       llvm_unreachable("Could not find given Reg in Locs");
     }

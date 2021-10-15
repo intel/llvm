@@ -169,7 +169,7 @@ public:
 } // end namespace clang
 
 const unsigned Sema::MaxAlignmentExponent;
-const unsigned Sema::MaximumAlignment;
+const uint64_t Sema::MaximumAlignment;
 
 Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
            TranslationUnitKind TUKind, CodeCompleteConsumer *CodeCompleter)
@@ -431,13 +431,10 @@ void Sema::Initialize() {
 #include "clang/Basic/AArch64SVEACLETypes.def"
   }
 
-  if (Context.getTargetInfo().getTriple().isPPC64() &&
-      Context.getTargetInfo().hasFeature("paired-vector-memops")) {
-    if (Context.getTargetInfo().hasFeature("mma")) {
+  if (Context.getTargetInfo().getTriple().isPPC64()) {
 #define PPC_VECTOR_MMA_TYPE(Name, Id, Size) \
       addImplicitTypedef(#Name, Context.Id##Ty);
 #include "clang/Basic/PPCTypes.def"
-    }
 #define PPC_VECTOR_VSX_TYPE(Name, Id, Size) \
     addImplicitTypedef(#Name, Context.Id##Ty);
 #include "clang/Basic/PPCTypes.def"
@@ -1470,7 +1467,7 @@ NamedDecl *Sema::getCurFunctionOrMethodDecl() {
 
 LangAS Sema::getDefaultCXXMethodAddrSpace() const {
   if (getLangOpts().OpenCL)
-    return LangAS::opencl_generic;
+    return getASTContext().getDefaultOpenCLPointeeAddrSpace();
   return LangAS::Default;
 }
 
@@ -2094,7 +2091,7 @@ static void checkEscapingByref(VarDecl *VD, Sema &S) {
   Expr *VarRef =
       new (S.Context) DeclRefExpr(S.Context, VD, false, T, VK_LValue, Loc);
   ExprResult Result;
-  auto IE = InitializedEntity::InitializeBlock(Loc, T, false);
+  auto IE = InitializedEntity::InitializeBlock(Loc, T);
   if (S.getLangOpts().CPlusPlus2b) {
     auto *E = ImplicitCastExpr::Create(S.Context, T, CK_NoOp, VarRef, nullptr,
                                        VK_XValue, FPOptionsOverride());
