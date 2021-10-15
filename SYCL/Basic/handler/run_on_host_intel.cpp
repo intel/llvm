@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl/access/access.hpp"
 #include <CL/sycl.hpp>
 
 #include "../../helpers.hpp"

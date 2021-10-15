@@ -11,7 +11,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl/access/access.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
 
