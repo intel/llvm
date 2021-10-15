@@ -7,7 +7,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 // and it should be programmers fault, similar to string_view.
 // However, sometimes we could return simd_view from a function
 // implicitly. This test checks that users will see a warning in such situation.
-simd_view<simd<float, 4>, region1d_t<float, 1, 0>> f1(simd<float, 4> x) {
+simd_view<simd<float, 4>, region1d_t<float, 1, 1>> f1(simd<float, 4> x) {
   // expected-warning@+1 {{address of stack memory associated with parameter 'x' returned}}
   return x[0];
 }

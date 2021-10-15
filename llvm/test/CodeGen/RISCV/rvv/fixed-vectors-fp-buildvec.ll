@@ -62,14 +62,12 @@ define <4 x float> @hang_when_merging_stores_after_legalization(<8 x float> %x, 
 ; LMULMAX2-NEXT:    vmv.s.x v0, a0
 ; LMULMAX2-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX2-NEXT:    vrgather.vi v25, v8, 0
-; LMULMAX2-NEXT:    vsetvli zero, zero, e32, m1, tu, mu
 ; LMULMAX2-NEXT:    vrgather.vi v25, v9, 3, v0.t
 ; LMULMAX2-NEXT:    addi a0, zero, 8
 ; LMULMAX2-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
 ; LMULMAX2-NEXT:    vmv.s.x v0, a0
 ; LMULMAX2-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
 ; LMULMAX2-NEXT:    vrgather.vi v26, v10, 0
-; LMULMAX2-NEXT:    vsetvli zero, zero, e32, m1, tu, mu
 ; LMULMAX2-NEXT:    vrgather.vi v26, v11, 3, v0.t
 ; LMULMAX2-NEXT:    addi a0, zero, 3
 ; LMULMAX2-NEXT:    vsetivli zero, 1, e8, mf8, ta, mu
@@ -91,7 +89,6 @@ define void @buildvec_dominant0_v2f32(<2 x float>* %x) {
 ; CHECK-NEXT:    fmv.w.x ft0, zero
 ; CHECK-NEXT:    vsetvli zero, zero, e32, mf2, tu, mu
 ; CHECK-NEXT:    vfmv.s.f v25, ft0
-; CHECK-NEXT:    vsetvli zero, zero, e32, mf2, ta, mu
 ; CHECK-NEXT:    vse32.v v25, (a0)
 ; CHECK-NEXT:    ret
   store <2 x float> <float 0.0, float 1.0>, <2 x float>* %x

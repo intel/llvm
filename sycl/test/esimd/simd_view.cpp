@@ -6,7 +6,7 @@
 
 using namespace sycl::ext::intel::experimental::esimd;
 
-SYCL_ESIMD_FUNCTION bool test_simd_view_bin_ops() {
+SYCL_ESIMD_FUNCTION auto test_simd_view_bin_ops() {
   simd<int, 16> v0 = 1;
   simd<int, 16> v1 = 2;
   auto ref0 = v0.select<8, 2>(0);
@@ -20,7 +20,44 @@ SYCL_ESIMD_FUNCTION bool test_simd_view_bin_ops() {
   ref0 *= 2;
   ref0 /= ref1;
   ref0 /= 2;
-  return v0[0] == 1;
+  if (v0[0] == 1)
+    return ref0 + (short)3;
+  else
+    return ref0 + ref1;
+}
+
+SYCL_ESIMD_FUNCTION auto test_simd_view_bitwise_ops() {
+  simd<int, 16> v0 = 1;
+  simd<int, 16> v1 = 2;
+  auto ref0 = v0.select<8, 2>(0);
+  auto ref1 = v1.select<8, 2>(0);
+  simd<int, 8> v2 = (ref0 | ref1) & (ref0 | 3);
+  ref0 |= 3;
+  ref0 |= ref1;
+  simd<int, 8> v3 = (ref0 ^ ref1) & (ref0 ^ 3);
+  ref0 ^= 3;
+  ref0 ^= ref1;
+  simd<int, 8> v4 = (ref0 & ref1) | (ref0 & 3);
+  ref0 &= 3;
+  ref0 &= ref1;
+  return ref0;
+}
+
+SYCL_ESIMD_FUNCTION auto test_simd_mask_view_bitwise_ops() {
+  simd_mask<16> v0 = 1;
+  simd_mask<16> v1 = 2;
+  auto ref0 = v0.select<8, 2>(0);
+  auto ref1 = v1.select<8, 2>(0);
+  simd_mask<8> v2 = (ref0 | ref1) & (ref0 | 3);
+  ref0 |= 3;
+  ref0 |= ref1;
+  simd_mask<8> v3 = (ref0 ^ ref1) & (ref0 ^ 3);
+  ref0 ^= 3;
+  ref0 ^= ref1;
+  simd_mask<8> v4 = (ref0 & ref1) | (ref0 & 3);
+  ref0 &= 3;
+  ref0 &= ref1;
+  return ref0;
 }
 
 SYCL_ESIMD_FUNCTION bool test_simd_view_unary_ops() {
@@ -31,7 +68,7 @@ SYCL_ESIMD_FUNCTION bool test_simd_view_unary_ops() {
   ref0 <<= ref1;
   ref1 = -ref0;
   ref0 = ~ref1;
-  auto mask = !ref0;
+  auto mask = !(ref0 < ref1);
   return v1[0] == 1;
 }
 
@@ -54,10 +91,10 @@ SYCL_ESIMD_FUNCTION bool test_simd_view_assign3() {
   simd<int, 64> v1 = 1;
   auto mask = (v0.select<16, 1>(0) > v1.select<16, 1>(0));
   auto mask2 = (v0 > v1);
-  simd<ushort, 64> s = 0;
+  simd_mask<64> s = 0;
   auto g4 = s.bit_cast_view<ushort, 4, 16>();
-  simd<ushort, 16> val = (g4.row(2) & mask);
-  simd<ushort, 16> val1 =
+  simd_mask<16> val = (g4.row(2) & mask);
+  simd_mask<16> val1 =
       (g4.row(2) & mask2.bit_cast_view<ushort, 4, 16>().row(0));
   return val[0] == 0 && val1[0] == 0;
 }
@@ -123,21 +160,21 @@ void test_simd_view_impl_api_ret_types() SYCL_ESIMD_FUNCTION {
   simd<float, 4> x = 0;
   auto v1 =
       x.select<2, 1>(0); // simd_view<simd<float, 4>, region1d_t<float, 2, 1>>
-  static_assert(detail::is_simd_view_v<decltype(v1)>::value, "");
+  static_assert(detail::is_simd_view_type_v<decltype(v1)>, "");
   auto v2 = v1.select<1, 1>(
       0); // simd_view<simd<float, 4>, std::pair<region_base<false, float, 1, 0,
           // 1, 1>, region_base<false, float, 1, 0, 2, 1>>>
-  static_assert(detail::is_simd_view_v<decltype(v1)>::value, "");
+  static_assert(detail::is_simd_view_type_v<decltype(v1)>, "");
 
   auto v2_int = v2.bit_cast_view<int>();
-  static_assert(detail::is_simd_view_v<decltype(v2_int)>::value, "");
+  static_assert(detail::is_simd_view_type_v<decltype(v2_int)>, "");
   auto v2_int_2D = v2.bit_cast_view<int, 1, 1>();
-  static_assert(detail::is_simd_view_v<decltype(v2_int_2D)>::value, "");
+  static_assert(detail::is_simd_view_type_v<decltype(v2_int_2D)>, "");
 
   auto v3 = x.select<2, 1>(2);
   auto &v4 = (v1 += v3);
-  static_assert(detail::is_simd_view_v<decltype(v4)>::value, "");
-  static_assert(detail::is_simd_view_v<decltype(++v4)>::value, "");
+  static_assert(detail::is_simd_view_type_v<decltype(v4)>, "");
+  static_assert(detail::is_simd_view_type_v<decltype(++v4)>, "");
 }
 
 void test_simd_view_subscript() SYCL_ESIMD_FUNCTION {
@@ -169,9 +206,12 @@ void test_simd_view_writeable_subscript() SYCL_ESIMD_FUNCTION {
 void test_simd_view_binop_with_conv_to_scalar() SYCL_ESIMD_FUNCTION {
   simd<ushort, 64> s = 0;
   auto g = s.bit_cast_view<ushort, 4, 16>();
-  auto x = g.row(1) - (g.row(1))[0]; // binary op
-  auto y = g.row(1) & (g.row(1))[0]; // bitwise op
-  auto z = g.row(1) < (g.row(1))[0]; // relational op
+  auto x1 = g.row(1) - (g.row(1))[0]; // binary op
+  auto x2 = (g.row(1))[0] - g.row(1); // binary op
+  auto y1 = g.row(1) & (g.row(1))[0]; // bitwise op
+  auto y2 = (g.row(1))[0] & g.row(1); // bitwise op
+  auto z1 = g.row(1) < (g.row(1))[0]; // relational op
+  auto z2 = (g.row(1))[0] < g.row(1); // relational op
 }
 
 // This code is OK. The result of bit_cast_view should be mapped
@@ -193,4 +233,73 @@ void test_nested_simd_view_len1_bitcast() SYCL_ESIMD_FUNCTION {
   // checking nested views with several bitcasts.
   simd<double, 4> s2;
   ((s2[0].bit_cast_view<float>())[1].bit_cast_view<int>())[0] = 1;
+}
+
+void test_simd_view_len1_binop() SYCL_ESIMD_FUNCTION {
+  simd<int, 4> s = 0;
+  auto v1 = s[0];
+  auto v2 = s.select<2, 1>(0);
+  auto x = v1 * v2;
+}
+
+void test_simd_view_assign_op() SYCL_ESIMD_FUNCTION {
+  // multiple elements
+  {
+#define N 4
+    // simd - assign views of different element type
+    simd<float, 32> v1 = 0;
+    simd<short, 16> v2 = 0;
+    // - region is a region type (top-level region)
+    v1.select<N, 2>(0) = v2.select<N, 2>(0);
+    v2.select<N, 2>(0) = v1.select<N, 2>(0);
+    // - region is a std::pair (nested region)
+    v1.select<8, 2>(0).select<N, 1>(1) = v2.select<8, 2>(0).select<N, 1>(1);
+    v2.select<8, 2>(0).select<N, 1>(1) = v1.select<8, 2>(0).select<N, 1>(1);
+    // - first region is top-level, second - nested
+    v1.select<4, 2>(0) = v2.select<8, 2>(0).select<4, 1>(1);
+    // - first region is nested, second - top-level
+    v2.select<8, 2>(0).select<4, 1>(1) = v1.select<4, 2>(0);
+
+    // simd_mask
+    simd_mask<32> m1 = 0;
+    simd_mask<16> m2 = 0;
+    // - region is a region type (top-level region)
+    m1.select<4, 2>(0) = m2.select<4, 2>(0);
+    m2.select<4, 2>(0) = m1.select<4, 2>(0);
+    // - region is a std::pair (nested region)
+    m1.select<8, 2>(0).select<N, 1>(1) = m2.select<8, 2>(0).select<N, 1>(1);
+    m2.select<8, 2>(0).select<N, 1>(1) = m1.select<8, 2>(0).select<N, 1>(1);
+    // - first region is top-level, second - nested
+    m1.select<4, 2>(0) = m2.select<8, 2>(0).select<4, 1>(1);
+    // - first region is nested, second - top-level
+    m2.select<8, 2>(0).select<4, 1>(1) = m1.select<4, 2>(0);
+#undef N
+  }
+  // single element
+  {
+#define N 1
+    // simd - assign views of different element type
+    simd<float, 16> v1 = 0;
+    simd<short, 8> v2 = 0;
+    // - region is a region type (top-level region)
+    v1.select<N, 1>(0) = v2.select<N, 1>(0);
+    v2[0] = v1[0];
+    v2[1] = v1.select<N, 1>(1);
+    // - region is a std::pair (nested region)
+    v1.select<4, 2>(0).select<N, 1>(1) = v2.select<4, 2>(0).select<N, 1>(1);
+    v2.select<4, 2>(0).select<N, 1>(1) = v1.select<4, 2>(0).select<N, 1>(1);
+
+    // simd_mask
+    simd_mask<16> m1 = 0;
+    simd_mask<8> m2 = 0;
+    // - region is a region type (top-level region)
+    m1.select<N, 1>(0) = m2.select<N, 1>(0);
+    m2[0] = m1[0];
+    m2[1] = m1.select<N, 1>(1);
+    // - region is a std::pair (nested region)
+    m1.select<4, 2>(0).select<N, 1>(1) = m2.select<4, 2>(0).select<N, 1>(1);
+    m2.select<4, 2>(0)[1] = m1.select<4, 2>(0)[1];
+    m2.select<4, 2>(0)[2] = m1.select<4, 2>(0).select<N, 1>(2);
+#undef N
+  }
 }

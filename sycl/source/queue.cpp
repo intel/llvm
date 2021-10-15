@@ -87,7 +87,7 @@ event queue::memset(void *Ptr, int Value, size_t Count, event DepEvent) {
 }
 
 event queue::memset(void *Ptr, int Value, size_t Count,
-                    const vector_class<event> &DepEvents) {
+                    const std::vector<event> &DepEvents) {
   return impl->memset(impl, Ptr, Value, Count, DepEvents);
 }
 
@@ -100,7 +100,7 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent) {
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
-                    const vector_class<event> &DepEvents) {
+                    const std::vector<event> &DepEvents) {
   return impl->memcpy(impl, Dest, Src, Count, DepEvents);
 }
 
@@ -118,7 +118,7 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
-                        const vector_class<event> &DepEvents) {
+                        const std::vector<event> &DepEvents) {
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
 }
 
@@ -133,13 +133,13 @@ event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
 }
 
 event queue::submit_impl_and_postprocess(
-    function_class<void(handler &)> CGH, const detail::code_location &CodeLoc,
+    std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
     const SubmitPostProcessF &PostProcess) {
   return impl->submit(CGH, impl, CodeLoc, &PostProcess);
 }
 
 event queue::submit_impl_and_postprocess(
-    function_class<void(handler &)> CGH, queue SecondQueue,
+    std::function<void(handler &)> CGH, queue SecondQueue,
     const detail::code_location &CodeLoc,
     const SubmitPostProcessF &PostProcess) {
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);

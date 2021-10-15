@@ -39,10 +39,14 @@ template <> struct interop<backend::level_zero, program> {
   using type = ze_module_handle_t;
 };
 
+template <> struct interop<backend::level_zero, kernel> {
+  using type = ze_kernel_handle_t;
+};
+
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::level_zero, accessor<DataT, Dimensions, AccessMode,
-                                             access::target::global_buffer,
-                                             access::placeholder::false_t>> {
+struct interop<backend::level_zero,
+               accessor<DataT, Dimensions, AccessMode, access::target::device,
+                        access::placeholder::false_t>> {
   using type = char *;
 };
 
@@ -101,7 +105,11 @@ template <> struct BackendInput<backend::level_zero, event> {
 
 template <bundle_state State>
 struct BackendInput<backend::level_zero, kernel_bundle<State>> {
-  using type = ze_module_handle_t;
+  using type = struct {
+    ze_module_handle_t NativeHandle;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  };
 };
 
 template <bundle_state State>
@@ -113,6 +121,15 @@ template <> struct BackendReturn<backend::level_zero, kernel> {
   using type = ze_kernel_handle_t;
 };
 
+template <> struct BackendInput<backend::level_zero, kernel> {
+  using type = struct {
+    kernel_bundle<bundle_state::executable> KernelBundle;
+    ze_kernel_handle_t NativeHandle;
+    ext::oneapi::level_zero::ownership Ownership{
+        ext::oneapi::level_zero::ownership::transfer};
+  };
+};
+
 template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakePlatform = true;
   static constexpr bool MakeDevice = true;
@@ -120,8 +137,8 @@ template <> struct InteropFeatureSupportMap<backend::level_zero> {
   static constexpr bool MakeQueue = true;
   static constexpr bool MakeEvent = true;
   static constexpr bool MakeKernelBundle = true;
+  static constexpr bool MakeKernel = true;
   static constexpr bool MakeBuffer = false;
-  static constexpr bool MakeKernel = false;
 };
 } // namespace detail
 
@@ -218,7 +235,7 @@ T make(const context &Context,
 
 // Specialization of sycl::make_context for Level-Zero backend.
 template <>
-context make_context<backend::level_zero>(
+inline context make_context<backend::level_zero>(
     const backend_input_t<backend::level_zero, context> &BackendObject,
     const async_handler &Handler) {
   return ext::oneapi::level_zero::make_context(
@@ -229,7 +246,7 @@ context make_context<backend::level_zero>(
 
 // Specialization of sycl::make_queue for Level-Zero backend.
 template <>
-queue make_queue<backend::level_zero>(
+inline queue make_queue<backend::level_zero>(
     const backend_input_t<backend::level_zero, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
   return ext::oneapi::level_zero::make_queue(
@@ -240,7 +257,7 @@ queue make_queue<backend::level_zero>(
 
 // Specialization of sycl::make_event for Level-Zero backend.
 template <>
-event make_event<backend::level_zero>(
+inline event make_event<backend::level_zero>(
     const backend_input_t<backend::level_zero, event> &BackendObject,
     const context &TargetContext) {
   return ext::oneapi::level_zero::make_event(
@@ -249,10 +266,40 @@ event make_event<backend::level_zero>(
       BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep);
 }
 
+// Specialization of sycl::make_kernel_bundle for Level-Zero backend.
+template <>
+inline kernel_bundle<bundle_state::executable>
+make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>(
+    const backend_input_t<backend::ext_oneapi_level_zero,
+                          kernel_bundle<bundle_state::executable>>
+        &BackendObject,
+    const context &TargetContext) {
+  std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
+      detail::make_kernel_bundle(
+          detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+          TargetContext,
+          BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+          bundle_state::executable, backend::ext_oneapi_level_zero);
+  return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::executable>>(
+      KBImpl);
+}
+
+// Specialization of sycl::make_kernel for Level-Zero backend.
+template <>
+inline kernel make_kernel<backend::level_zero>(
+    const backend_input_t<backend::level_zero, kernel> &BackendObject,
+    const context &TargetContext) {
+  return detail::make_kernel(
+      TargetContext, BackendObject.KernelBundle,
+      detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
+      BackendObject.Ownership == ext::oneapi::level_zero::ownership::keep,
+      backend::ext_oneapi_level_zero);
+}
+
 // TODO: remove this specialization when generic is changed to call
 // .GetNative() instead of .get_native() member of kernel_bundle.
 template <>
-auto get_native<backend::level_zero>(
+inline auto get_native<backend::level_zero>(
     const kernel_bundle<bundle_state::executable> &Obj)
     -> backend_return_t<backend::level_zero,
                         kernel_bundle<bundle_state::executable>> {

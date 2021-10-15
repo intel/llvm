@@ -51,7 +51,8 @@ def SparseTensor_NewOp : SparseTensor_Op<"new", []>,
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($result)";
 }
 
-def SparseTensor_ConvertOp : SparseTensor_Op<"convert", [SameOperandsAndResultType]>,
+def SparseTensor_ConvertOp : SparseTensor_Op<"convert",
+  [NoSideEffect, SameOperandsAndResultType]>,
     Arguments<(ins AnyTensor:$source)>,
     Results<(outs AnyTensor:$dest)> {
   string summary = "Converts between different tensor types";
@@ -81,6 +82,26 @@ def SparseTensor_ConvertOp : SparseTensor_Op<"convert", [SameOperandsAndResultTy
 
   }];
   let assemblyFormat = "$source attr-dict `:` type($source) `to` type($dest)";
+  let hasFolder = 1;
+}
+
+def SparseTensor_ReleaseOp : SparseTensor_Op<"release", []>,
+    Arguments<(ins AnyTensor:$tensor)> {
+  string description = [{
+    Releases the underlying sparse storage scheme for a tensor that
+    materialized earlier through a `new` operator or a non-trivial
+    `convert` operator with an annotated tensor type as destination.
+    This operation should only be called once for any materialized tensor.
+    Also, after this operation, any subsequent `memref` querying operation
+    on the tensor returns undefined results.
+
+    Example:
+
+    ```mlir
+    sparse_tensor.release %tensor : tensor<1024x1024xf64, #CSR>
+    ```
+  }];
+  let assemblyFormat = "$tensor attr-dict `:` type($tensor)";
 }
 
 def SparseTensor_ToPointersOp : SparseTensor_Op<"pointers", [NoSideEffect]>,

@@ -174,7 +174,10 @@ static bool setArgNoUndef(Function &F, unsigned ArgNo) {
 }
 
 static bool setRetAndArgsNoUndef(Function &F) {
-  return setRetNoUndef(F) | setArgsNoUndef(F);
+  bool UndefAdded = false;
+  UndefAdded |= setRetNoUndef(F);
+  UndefAdded |= setArgsNoUndef(F);
+  return UndefAdded;
 }
 
 static bool setReturnedArg(Function &F, unsigned ArgNo) {
@@ -1268,7 +1271,7 @@ Value *llvm::emitStrNCmp(Value *Ptr1, Value *Ptr2, Value *Len, IRBuilderBase &B,
 
 Value *llvm::emitStrCpy(Value *Dst, Value *Src, IRBuilderBase &B,
                         const TargetLibraryInfo *TLI) {
-  Type *I8Ptr = B.getInt8PtrTy();
+  Type *I8Ptr = Dst->getType();
   return emitLibCall(LibFunc_strcpy, I8Ptr, {I8Ptr, I8Ptr},
                      {castToCStr(Dst, B), castToCStr(Src, B)}, B, TLI);
 }

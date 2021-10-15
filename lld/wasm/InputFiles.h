@@ -116,8 +116,6 @@ public:
   // Returns the underlying wasm file.
   const WasmObjectFile *getWasmObj() const { return wasmObj.get(); }
 
-  void dumpInfo() const;
-
   uint32_t calcNewIndex(const WasmRelocation &reloc) const;
   uint64_t calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
                         const InputChunk *chunk) const;
@@ -156,7 +154,7 @@ private:
   Symbol *createDefined(const WasmSymbol &sym);
   Symbol *createUndefined(const WasmSymbol &sym, bool isCalledDirectly);
 
-  bool isExcludedByComdat(InputChunk *chunk) const;
+  bool isExcludedByComdat(const InputChunk *chunk) const;
   void addLegacyIndirectFunctionTableIfNeeded(uint32_t tableSymbolCount);
 
   std::unique_ptr<WasmObjectFile> wasmObj;

@@ -65,7 +65,7 @@ void test_simd_writable_subscript() SYCL_ESIMD_FUNCTION {
   v[1] = 0;        // returns simd_view
 
   // CHECK: simd_subscript.cpp:69{{.*}}warning: {{.*}} deprecated
-  // CHECK: sycl/ext/intel/experimental/esimd/simd.hpp:{{.*}} note: {{.*}} has been explicitly marked deprecated here
+  // CHECK: sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp:{{.*}} note: {{.*}} has been explicitly marked deprecated here
   v(1) = 0;
 }
 
@@ -76,7 +76,7 @@ void test_simd_const_subscript() SYCL_ESIMD_FUNCTION {
   cv[1] = 0;
 
   // CHECK: simd_subscript.cpp:80{{.*}}warning: {{.*}} deprecated
-  // CHECK: sycl/ext/intel/experimental/esimd/simd.hpp:{{.*}} note: {{.*}} has been explicitly marked deprecated here
+  // CHECK: sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp:{{.*}} note: {{.*}} has been explicitly marked deprecated here
   int val3 = cv(0);
 }
 

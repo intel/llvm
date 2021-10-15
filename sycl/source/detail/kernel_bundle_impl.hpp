@@ -97,6 +97,7 @@ public:
           "Not all devices are associated with the context or "
           "vector of devices is empty");
     MDeviceImages.push_back(DevImage);
+    MIsInterop = true;
   }
 
   // Matches sycl::build and sycl::compile
@@ -463,13 +464,11 @@ public:
     return SetInDevImg || MSpecConstValues.count(std::string{SpecName}) != 0;
   }
 
-  const device_image_plain *begin() const {
-    assert(!MDeviceImages.empty() && "MDeviceImages can't be empty");
-    // UB in case MDeviceImages is empty
-    return &MDeviceImages.front();
-  }
+  const device_image_plain *begin() const { return MDeviceImages.data(); }
 
-  const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
+  const device_image_plain *end() const {
+    return MDeviceImages.data() + MDeviceImages.size();
+  }
 
   size_t size() const noexcept { return MDeviceImages.size(); }
 
@@ -484,6 +483,8 @@ public:
     return MSpecConstValues;
   }
 
+  bool isInterop() const { return MIsInterop; }
+
 private:
   context MContext;
   std::vector<device> MDevices;
@@ -491,6 +492,7 @@ private:
   // This map stores values for specialization constants, that are missing
   // from any device image.
   SpecConstMapT MSpecConstValues;
+  bool MIsInterop = false;
 };
 
 } // namespace detail

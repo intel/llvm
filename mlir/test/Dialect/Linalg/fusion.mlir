@@ -257,9 +257,10 @@ func @f5(%A: memref<?x?xf32, offset: 0, strides: [?, ?]>,
 // CHECK-DAG: #[[BOUND_2_MAP_2:.+]] = affine_map<(d0)[s0, s1] -> (-d0 + s0, 2, -d0 + s1)>
 // CHECK-DAG: #[[BOUND_4_MAP:.+]] = affine_map<(d0)[s0] -> (4, -d0 + s0)>
 // CHECK: func @f5
-// HECK-SAME:  (%[[A:.*]]:{{.*}}, %[[B:.*]]:{{.*}}, %[[C:.*]]:{{.*}}, %[[D:.*]]:{{.*}}, %[[E:.*]]:{{.*}})
+// CHECK-SAME:  (%[[A:.*]]:{{.*}}, %[[B:.*]]:{{.*}}, %[[C:.*]]:{{.*}}, %[[D:.*]]:{{.*}}, %[[E:.*]]:{{.*}})
 // CHECK-DAG:  %[[C0:.*]] = constant 0 : index
 // CHECK-DAG:  %[[C1:.*]] = constant 1 : index
+// CHECK-DAG:  %[[A_0:.*]] = memref.dim %[[A]], %[[C0]] : memref<?x?xf32, #[[$strided2D]]>
 // CHECK-DAG:  %[[B_1:.*]] = memref.dim %[[B]], %[[C1]] : memref<?x?xf32, #[[$strided2D]]>
 // CHECK-DAG:  %[[C_0:.*]] = memref.dim %[[C]], %[[C0]] : memref<?x?xf32, #[[$strided2D]]>
 // CHECK-DAG:  %[[D_0:.*]] = memref.dim %[[D]], %[[C0]] : memref<?x?xf32, #[[$strided2D]]>
@@ -268,18 +269,17 @@ func @f5(%A: memref<?x?xf32, offset: 0, strides: [?, ?]>,
 //     CHECK:  scf.for %[[I:.*]] = %{{.*}} to %[[D_0]] step %{{.*}} {
 //     CHECK:    %[[BOUND_2_C0:.+]] = affine.min #[[BOUND_2_MAP]](%[[I]])[%[[C_0]]]
 //     CHECK:    %[[C_I0:.*]] = memref.subview %[[C]][%[[I]], 0] [%[[BOUND_2_C0]]
-//     CHECK:    %[[BOUND_2_D0:.+]] = affine.min #[[BOUND_2_MAP]](%[[I]])[%[[D_0]]]
+//     CHECK:    %[[BOUND_ID_C0:.+]] = affine.min #[[BOUND_2_MAP_2]](%[[I]])[%[[A_0]], %[[C_0]]]
 //     CHECK:    %[[A_I0:.*]] = memref.subview %[[A]][%[[I]], 0]
-//     CHECK:    %[[BOUND_ID_C0:.+]] = affine.min #[[BOUND_2_MAP_2]](%[[I]])[%[[C_0]], %[[C_0]]]
 //     CHECK:    %[[C_I0_OUT:.*]] = memref.subview %[[C]][%[[I]], 0] [%[[BOUND_ID_C0]]
 //     CHECK:    scf.for %[[J:.*]] = %{{.*}} to %[[B_1]] step %{{.*}} {
 //     CHECK:      %[[E_IJ:.*]] = memref.subview %[[E]][%[[I]], %[[J]]]
 //     CHECK:      scf.for %[[K:.*]] = %{{.*}} to %[[D_1]] step %{{.*}} {
 //     CHECK:        %[[D_IK:.*]] = memref.subview %[[D]][%[[I]], %[[K]]] [2, 4]
 //     CHECK:        %[[B_KJ:.*]] = memref.subview %[[B]][%[[K]], %[[J]]]
+//     CHECK:        %[[BOUND_4_B1:.*]] = affine.min #[[BOUND_4_MAP]](%[[K]])[%[[B_1]]]
 //     CHECK:        %[[B_0K:.*]] = memref.subview %[[B]][0, %[[K]]]
-//     CHECK:        %[[BOUND_4_D1:.+]] = affine.min #[[BOUND_4_MAP]](%[[K]])[%[[D_1]]]
-//     CHECK:        %[[D_IK_OUT:.+]] = memref.subview %[[D]][%[[I]], %[[K]]] [%[[BOUND_2_D0]], %[[BOUND_4_D1]]]
+//     CHECK:        %[[D_IK_OUT:.+]] = memref.subview %[[D]][%[[I]], %[[K]]] [%[[BOUND_2_C0]], %[[BOUND_4_B1]]]
 //     CHECK:        linalg.matmul ins(%[[A_I0]], %[[B_00]]{{.*}} outs(%[[C_I0_OUT]]
 //     CHECK:        linalg.matmul ins(%[[C_I0]], %[[B_0K]]{{.*}} outs(%[[D_IK_OUT]]
 //     CHECK:        linalg.matmul ins(%[[D_IK]], %[[B_KJ]]{{.*}} outs(%[[E_IJ]]
@@ -672,44 +672,33 @@ func @fusion_of_three(%arg0: memref<100x10xf32>,
 
 // -----
 
-#map0 = affine_map<(d0, d1, d2) -> (d0, d1 - d2)>
-#map1 = affine_map<(d0, d1, d2, d3)[s0, s1, s2, s3, s4] -> (d0 * s1 + s0 + d1 * s2 + d2 * s3 + d3 * s4)>
-#map2 = affine_map<()[s0] -> (s0 + 3)>
 
-func @fill_and_conv(%arg0: memref<?x?x?x?xf32>, %arg1: memref<2x3x1x1xf32>, %arg2: memref<?x?x?x?xf32>) {
+#map0 = affine_map<(d0)[s0] -> (2, -d0 + s0)>
+#map1 = affine_map<(d0)[s0] -> (3, -d0 + s0)>
+#map2 = affine_map<(d0, d1)[s0, s1] -> (d0 * s1 + s0 + d1)>
+#map3 = affine_map<(d0)[s0, s1] -> (s0 + 1, -d0 + s0 + s1)>
+#map4 = affine_map<(d0)[s0, s1] -> (s0 + 2, -d0 + s0 + s1)>
+
+func @fill_and_conv(%arg0: memref<?x?xf32>, %arg1: memref<?x?xf32>, %arg2: memref<?x?xf32>) {
   %cst = constant 0.000000e+00 : f32
-  linalg.fill(%cst, %arg2) : f32, memref<?x?x?x?xf32>
-
-  %c4 = constant 4 : index
-  %c1 = constant 1 : index
-  %c0 = constant 0 : index
   %c2 = constant 2 : index
   %c3 = constant 3 : index
-  %4 = memref.dim %arg1, %c0 : memref<2x3x1x1xf32>
-  %5 = memref.dim %arg1, %c1 : memref<2x3x1x1xf32>
-  %6 = memref.dim %arg0, %c0 : memref<?x?x?x?xf32>
-  %7 = memref.dim %arg0, %c1 : memref<?x?x?x?xf32>
-  %8 = memref.dim %arg0, %c3 : memref<?x?x?x?xf32>
-  %9 = memref.dim %arg2, %c0 : memref<?x?x?x?xf32>
-  %10 = memref.dim %arg2, %c1 : memref<?x?x?x?xf32>
-  %11 = memref.dim %arg2, %c2 : memref<?x?x?x?xf32>
-  %12 = memref.dim %arg2, %c3 : memref<?x?x?x?xf32>
-  %13 = linalg.range %c0 : %6 : %c2 : !linalg.range
-  %14 = linalg.range %c0 : %10 : %c3 : !linalg.range
-  scf.for %arg3 = %c0 to %6 step %c2 {
-    scf.for %arg4 = %c0 to %10 step %c3 {
-      %15 = affine.min #map0(%c2, %c1, %arg3)
-      %16 = affine.apply #map2()[%7]
-      %17 = affine.min #map0(%16, %c4, %arg4)
-      %18 = memref.dim %arg0, %c2 : memref<?x?x?x?xf32>
-      %19 = memref.dim %arg0, %c3 : memref<?x?x?x?xf32>
-      %20 = memref.subview %arg0[%arg3, %arg4, %c0, %c0] [%15, %17, %18, %19] [%c1, %c1, %c1, %c1] : memref<?x?x?x?xf32> to memref<?x?x?x?xf32, #map1>
-      %21 = affine.min #map0(%c2, %c1, %arg3)
-      %22 = affine.min #map0(%c3, %c4, %arg4)
-      %23 = memref.dim %arg2, %c2 : memref<?x?x?x?xf32>
-      %24 = memref.dim %arg2, %c3 : memref<?x?x?x?xf32>
-      %25 = memref.subview %arg2[%arg3, %arg4, %c0, %c0] [%21, %22, %23, %24] [%c1, %c1, %c1, %c1] : memref<?x?x?x?xf32> to memref<?x?x?x?xf32, #map1>
-      linalg.conv(%arg1, %20, %25) {dilations = [1, 1], strides = [1, 1]} : memref<2x3x1x1xf32>, memref<?x?x?x?xf32, #map1>, memref<?x?x?x?xf32, #map1>
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  linalg.fill(%cst, %arg0) : f32, memref<?x?xf32>
+  %2 = memref.dim %arg1, %c0 : memref<?x?xf32>
+  %3 = memref.dim %arg1, %c1 : memref<?x?xf32>
+  %4 = memref.dim %arg2, %c0 : memref<?x?xf32>
+  %5 = memref.dim %arg2, %c1 : memref<?x?xf32>
+  scf.for %arg3 = %c0 to %4 step %c2 {
+    scf.for %arg4 = %c0 to %5 step %c3 {
+      %6 = affine.min #map3(%arg3)[%2, %4]
+      %7 = affine.min #map4(%arg4)[%3, %5]
+      %8 = memref.subview %arg0[%arg3, %arg4] [%6, %7] [1, 1] : memref<?x?xf32> to memref<?x?xf32, #map2>
+      %9 = affine.min #map0(%arg3)[%4]
+      %10 = affine.min #map1(%arg4)[%5]
+      %11 = memref.subview %arg2[%arg3, %arg4] [%9, %10] [1, 1] : memref<?x?xf32> to memref<?x?xf32, #map2>
+      linalg.conv_2d ins(%8, %arg1 : memref<?x?xf32, #map2>, memref<?x?xf32>) outs(%11 : memref<?x?xf32, #map2>)
     }
   }
   return
@@ -718,7 +707,7 @@ func @fill_and_conv(%arg0: memref<?x?x?x?xf32>, %arg1: memref<2x3x1x1xf32>, %arg
 // CHECK: scf.for
 // CHECK:   scf.for
 // CHECK:     linalg.fill
-// CHECK:     linalg.conv
+// CHECK:     linalg.conv_2d
 
 // -----
 

@@ -10,18 +10,16 @@ optional kernel features.
 
 The requirements for this design come mostly from the SYCL 2020 specification
 [section 5.7 "Optional kernel features"][1] but they also encompass the C++
-attribute `[[sycl::requires()]]` that is described in [section 5.8.1 "Kernel
-attributes"][2] and [section 5.8.2 "Device function attributes"][3].
+attribute `[[sycl::device_has()]]` that is described in section 5.8.1 "Kernel
+attributes" and section 5.8.2 "Device function attributes".
 
 [1]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features>
-[2]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:kernel.attributes>
-[3]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_device_function_attributes>
 
-**NOTE**: At the time this document was written, there is a
-[proposed change][4] to the SYCL 2020 specification that will rename
-`[[sycl::requires()]]` to `[[sycl::device_has()]]`.  Since that proposal has
-not yet been adopted, this design document continues to use the
-`[[sycl::requires()]]` name.
+At the time this document was written, the published version of the SYCL 2020
+specification does not include the `[[sycl::device_has()]]` attribute.  The
+published spec refers to this attribute as `[[sycl::requires()]]`, but the
+attribute was renamed to `[[sycl::device_has()]]` in [this pull request][4] to
+the SYCL 2020 specification.
 
 [4]: <https://github.com/KhronosGroup/SYCL-Docs/pull/171>
 
@@ -99,19 +97,19 @@ compiler must not issue any diagnostic simply because a kernel uses an optional
 feature.
 
 The only exception to this rule occurs when the application uses the C++
-attribute `[[sycl::requires()]]`.  When the application decorates a kernel or
+attribute `[[sycl::device_has()]]`.  When the application decorates a kernel or
 device function with this attribute, it is an assertion that the kernel or
 device function is allowed to use only those optional features which are listed
 by the attribute.  Therefore, the FE compiler must issue a diagnostic if the
 kernel or device function uses any other optional kernel features.
 
 The SYCL 2020 specification only mandates this diagnostic when a kernel or
-device function that is decorated with `[[sycl::requires()]]` uses an optional
-kernel feature (not listed in the attribute), **and** when that use is in the
-kernel's static call graph as computed for the translation unit that contains
-the kernel function.  Thus, the compiler is not required to issue a diagnostic
-if the use is in a `SYCL_EXTERNAL` function that is defined in another
-translation unit.
+device function that is decorated with `[[sycl::device_has()]]` uses an
+optional kernel feature (not listed in the attribute), **and** when that use is
+in the kernel's static call graph as computed for the translation unit that
+contains the kernel function.  Thus, the compiler is not required to issue a
+diagnostic if the use is in a `SYCL_EXTERNAL` function that is defined in
+another translation unit.
 
 Note that this behavior does not change when the compiler runs in AOT mode.
 Even if the user specifies a target device via "-fsycl-targets", that does not
@@ -147,16 +145,17 @@ is required.
 To further clarify, this exception must be thrown in the following
 circumstances:
 
-* For a kernel that is not decorated with `[[sycl::requires()]]`, the exception
-  must be thrown if the kernel uses a feature that the device does not support.
+* For a kernel that is not decorated with `[[sycl::device_has()]]`, the
+  exception must be thrown if the kernel uses a feature that the device does
+  not support.
 
-* For a kernel that is decorated with `[[sycl::requires()]]`, the exception
+* For a kernel that is decorated with `[[sycl::device_has()]]`, the exception
   must be thrown if the device does not have the aspects listed in that
   attribute.  Note that the exception must be thrown even if the kernel does
   not actually use a feature corresponding to the aspect, and it must be
   thrown even if the aspect does not correspond to any optional feature.
 
-* For a kernel that is decorated with `[[sycl::requires()]]`, the FE compiler
+* For a kernel that is decorated with `[[sycl::device_has()]]`, the FE compiler
   will mostly check (at compile time) whether the kernel uses any features that
   are not listed in the attribute.  However, this check only results in a
   warning, so the runtime is still responsible for throwing the exception if
@@ -198,8 +197,8 @@ of the required work-group or sub-group size).
 
 As we will see later, it is helpful to decorate all APIs in DPC++ headers that
 correspond to optional kernel features with a C++ attribute that identifies the
-associated aspect.  We cannot use the `[[sycl::requires()]]` attribute for this
-purpose, though, because that attribute is allowed only for functions.
+associated aspect.  We cannot use the `[[sycl::device_has()]]` attribute for
+this purpose, though, because that attribute is allowed only for functions.
 Instead, we invent a new internal attribute `[[sycl_detail::uses_aspects()]]`
 that can be used to decorate both functions and types.  This attribute is not
 documented for user code; instead it is an internal implementation detail of
@@ -246,7 +245,7 @@ instantiations of `sycl::atomic_ref` as an optional feature.
 
 Although the examples above show only a single aspect parameter to the
 `[[sycl_detail::uses_aspects()]]` attribute, this attribute should support a
-list of aspects, similar to the `[[sycl::requires()]]` attribute.  This will
+list of aspects, similar to the `[[sycl::device_has()]]` attribute.  This will
 allow us to support future features that depend on a conjunction of aspects
 (e.g. a feature that does atomic operations on 64-bit floating point values
 might be decorated with
@@ -261,7 +260,7 @@ attribute for any device code that uses the `double` type.
 
 ### New LLVM IR metadata
 
-In order to communicate the information from `[[sycl::requires()]]` and
+In order to communicate the information from `[[sycl::device_has()]]` and
 `[[sycl_detail::uses_aspects()]]` attributes to the DPC++ post-link tool, we
 introduce several new LLVM IR metadata.
 
@@ -295,18 +294,18 @@ type's name.
 We also introduce two metadata that can be attached to a function definition
 similar to the existing `!intel_reqd_sub_group_size`.  The
 `!intel_declared_aspects` metadata is used for functions that are decorated
-with `[[sycl::requires()]]`, and the `!intel_used_aspects` metadata is used to
-store the propagated information about all aspects used by a kernel or exported
-device function.
+with `[[sycl::device_has()]]`, and the `!intel_used_aspects` metadata is used
+to store the propagated information about all aspects used by a kernel or
+exported device function.
 
 In each case, the metadata's parameter is an unnamed metadata node, and the
 value of the metadata node is a list of `i32` constants, where each constant is
 a value from `enum class aspect`.
 
 For example, the following illustrates the IR that corresponds to a function
-`foo` that is decorated with `[[sycl::requires()]]` where the required aspects
-have the numerical values `8` and `9`.  In addition, the function uses an
-optional feature that corresponds to an aspect with numerical value `8`.
+`foo` that is decorated with `[[sycl::device_has()]]` where the required
+aspects have the numerical values `8` and `9`.  In addition, the function uses
+an optional feature that corresponds to an aspect with numerical value `8`.
 
 ```
 define void @foo() !intel_declared_aspects !1 !intel_used_aspects !2 {}
@@ -318,7 +317,7 @@ define void @foo() !intel_declared_aspects !1 !intel_used_aspects !2 {}
 ### Changes to the DPC++ front-end
 
 The front-end of the device compiler is responsible for parsing the
-`[[sycl::requires()]]` and `[[sycl_detail::uses_aspects()]]` attributes and
+`[[sycl::device_has()]]` and `[[sycl_detail::uses_aspects()]]` attributes and
 transferring the information to the LLVM IR metadata described above according
 to the following rules:
 
@@ -331,7 +330,7 @@ to the following rules:
   front-end adds an `!intel_used_aspects` metadata to the function's definition
   listing the aspects from that attribute.
 
-* If a function is decorated with `[[sycl::requires()]]`, the front-end adds
+* If a function is decorated with `[[sycl::device_has()]]`, the front-end adds
   an `!intel_declared_aspects` metadata to the function's definition listing
   the aspects from that attribute.
 
@@ -395,7 +394,7 @@ location information into the IR.  To compensate, the warning message displays
 the static call chain that leads to the problem.  For example:
 
 ```
-warning: function 'foo' uses aspect 'fp64' not listed in 'sycl::requires'
+warning: function 'foo' uses aspect 'fp64' not listed in 'sycl::device_has'
 use is from this call chain:
   foo()
   bar()
@@ -412,7 +411,7 @@ When the compiler is invoked with `-g`, the implementation uses the
 and column information like so:
 
 ```
-hw.cpp:27:4: warning: function 'foo' uses aspect 'fp64' not listed in 'sycl::requires'
+hw.cpp:27:4: warning: function 'foo' uses aspect 'fp64' not listed in 'sycl::device_has'
 use is from this call chain:
   foo()
   bar() hw.cpp:15:3
@@ -460,7 +459,7 @@ We do not propose this change as part of this design, though.  We expect that
 this will not be a common error because applications can avoid this problem by
 declaring the `SYCL_EXTERNAL` function in a common header that is included by
 both the importing and the exporting translation unit.  If the declaration (in
-the header) is decorated with `[[sycl::requires()]]`, the shared declaration
+the header) is decorated with `[[sycl::device_has()]]`, the shared declaration
 will ensure that the definition stays in sync with the declaration.
 
 
@@ -492,7 +491,7 @@ For the purposes of this analysis, the set of *Used* aspects is computed by
 taking the union of the aspects listed in the kernel's (or device function's)
 `!intel_used_aspects` and `!intel_declared_aspects` sets.  This is consistent
 with the SYCL specification, which says that a kernel decorated with
-`[[sycl::requires()]]` may only be submitted to a device that provides the
+`[[sycl::device_has()]]` may only be submitted to a device that provides the
 listed aspects, regardless of whether the kernel actually uses those aspects.
 
 We must also split two kernels into different device images if they have

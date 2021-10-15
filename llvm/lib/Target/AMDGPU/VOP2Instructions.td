@@ -154,8 +154,6 @@ multiclass VOP2Inst_e64<string opName,
 
 multiclass VOP2Inst_sdwa<string opName,
                          VOPProfile P,
-                         SDPatternOperator node = null_frag,
-                         string revOp = opName,
                          bit GFX9Renamed = 0> {
   let renamedInGFX9 = GFX9Renamed in {
     foreach _ = BoolToList<P.HasExtSDWA>.ret in
@@ -170,7 +168,7 @@ multiclass VOP2Inst<string opName,
                     bit GFX9Renamed = 0> :
     VOP2Inst_e32<opName, P, node, revOp, GFX9Renamed>,
     VOP2Inst_e64<opName, P, node, revOp, GFX9Renamed>,
-    VOP2Inst_sdwa<opName, P, node, revOp, GFX9Renamed> {
+    VOP2Inst_sdwa<opName, P, GFX9Renamed> {
   let renamedInGFX9 = GFX9Renamed in {
     foreach _ = BoolToList<P.HasExtDPP>.ret in
       def _dpp  : VOP2_DPP_Pseudo <opName, P>;
@@ -272,12 +270,11 @@ multiclass VOP2eInstAliases<VOP2_Pseudo ps, VOP2_Real inst> {
 class VOP_MADAK <ValueType vt> : VOPProfile <[vt, vt, vt, vt]> {
   field Operand ImmOpType = !if(!eq(vt.Size, 32), f32kimm, f16kimm);
   field dag Ins32 = !if(!eq(vt.Size, 32),
-                        (ins VCSrc_f32:$src0, VGPR_32:$src1, ImmOpType:$imm),
-                        (ins VCSrc_f16:$src0, VGPR_32:$src1, ImmOpType:$imm));
+                        (ins VSrc_f32_Deferred:$src0, VGPR_32:$src1, ImmOpType:$imm),
+                        (ins VSrc_f16_Deferred:$src0, VGPR_32:$src1, ImmOpType:$imm));
+  field string Asm32 = "$vdst, $src0, $src1, $imm";
   field bit HasExt = 0;
   let IsSingle = 1;
-
-  field string Asm32 = "$vdst, $src0, $src1, $imm";
 }
 
 def VOP_MADAK_F16 : VOP_MADAK <f16>;
@@ -285,11 +282,10 @@ def VOP_MADAK_F32 : VOP_MADAK <f32>;
 
 class VOP_MADMK <ValueType vt> : VOPProfile <[vt, vt, vt, vt]> {
   field Operand ImmOpType = !if(!eq(vt.Size, 32), f32kimm, f16kimm);
-  field dag Ins32 = (ins VCSrc_f32:$src0, ImmOpType:$imm, VGPR_32:$src1);
+  field dag Ins32 = (ins VSrc_f32_Deferred:$src0, ImmOpType:$imm, VGPR_32:$src1);
+  field string Asm32 = "$vdst, $src0, $imm, $src1";
   field bit HasExt = 0;
   let IsSingle = 1;
-
-  field string Asm32 = "$vdst, $src0, $imm, $src1";
 }
 
 def VOP_MADMK_F16 : VOP_MADMK <f16>;
@@ -927,7 +923,7 @@ class VOP2_DPP16<bits<6> op, VOP2_DPP_Pseudo ps,
     SIMCInstr <ps.PseudoInstr, SIEncodingFamily.GFX10>;
 
 class VOP2_DPP8<bits<6> op, VOP2_Pseudo ps,
-                string opName = ps.OpName, VOPProfile p = ps.Pfl> :
+                VOPProfile p = ps.Pfl> :
     VOP_DPP8<ps.OpName, p> {
   let hasSideEffects = ps.hasSideEffects;
   let Defs = ps.Defs;
@@ -1123,14 +1119,14 @@ let AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10" in {
   multiclass VOP2be_Real_dpp8_gfx10<bits<6> op, string opName, string asmName> {
     foreach _ = BoolToList<!cast<VOP2_Pseudo>(opName#"_e32").Pfl.HasExtDPP>.ret in
     def _dpp8_gfx10 :
-      VOP2_DPP8<op, !cast<VOP2_Pseudo>(opName#"_e32"), asmName> {
+      VOP2_DPP8<op, !cast<VOP2_Pseudo>(opName#"_e32")> {
         string AsmDPP8 = !cast<VOP2_Pseudo>(opName#"_e32").Pfl.AsmDPP8;
         let AsmString = asmName # !subst(", vcc", "", AsmDPP8);
         let DecoderNamespace = "DPP8";
       }
     foreach _ = BoolToList<!cast<VOP2_Pseudo>(opName#"_e32").Pfl.HasExtDPP>.ret in
     def _dpp8_w32_gfx10 :
-      VOP2_DPP8<op, !cast<VOP2_Pseudo>(opName#"_e32"), asmName> {
+      VOP2_DPP8<op, !cast<VOP2_Pseudo>(opName#"_e32")> {
         string AsmDPP8 = !cast<VOP2_Pseudo>(opName#"_e32").Pfl.AsmDPP8;
         let AsmString = asmName # !subst("vcc", "vcc_lo", AsmDPP8);
         let isAsmParserOnly = 1;
@@ -1138,7 +1134,7 @@ let AssemblerPredicate = isGFX10Plus, DecoderNamespace = "GFX10" in {
       }
     foreach _ = BoolToList<!cast<VOP2_Pseudo>(opName#"_e32").Pfl.HasExtDPP>.ret in
     def _dpp8_w64_gfx10 :
-      VOP2_DPP8<op, !cast<VOP2_Pseudo>(opName#"_e32"), asmName> {
+      VOP2_DPP8<op, !cast<VOP2_Pseudo>(opName#"_e32")> {
         string AsmDPP8 = !cast<VOP2_Pseudo>(opName#"_e32").Pfl.AsmDPP8;
         let AsmString = asmName # AsmDPP8;
         let isAsmParserOnly = 1;

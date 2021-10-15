@@ -633,6 +633,9 @@ __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
 extern SYCL_EXTERNAL uint16_t __spirv_ConvertFToBF16INTEL(float) noexcept;
 extern SYCL_EXTERNAL float __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 
+__SYCL_CONVERGENT__ extern SYCL_EXTERNAL __SYCL_EXPORT __ocl_vec_t<uint32_t, 4>
+__spirv_GroupNonUniformBallot(uint32_t Execution, bool Predicate) noexcept;
+
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>

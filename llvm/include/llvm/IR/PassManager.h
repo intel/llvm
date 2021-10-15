@@ -377,14 +377,13 @@ template <typename DerivedT> struct PassInfoMixin {
     static_assert(std::is_base_of<PassInfoMixin, DerivedT>::value,
                   "Must pass the derived type as the template argument!");
     StringRef Name = getTypeName<DerivedT>();
-    if (Name.startswith("llvm::"))
-      Name = Name.drop_front(strlen("llvm::"));
+    Name.consume_front("llvm::");
     return Name;
   }
 
   void printPipeline(raw_ostream &OS,
                      function_ref<StringRef(StringRef)> MapClassName2PassName) {
-    auto ClassName = name();
+    StringRef ClassName = DerivedT::name();
     auto PassName = MapClassName2PassName(ClassName);
     OS << PassName;
   }
@@ -537,12 +536,6 @@ public:
       // Finally, intersect the preserved analyses to compute the aggregate
       // preserved set for this pass manager.
       PA.intersect(std::move(PassPA));
-
-      // FIXME: Historically, the pass managers all called the LLVM context's
-      // yield function here. We don't have a generic way to acquire the
-      // context and it isn't yet clear what the right pattern is for yielding
-      // in the new pass manager so it is currently omitted.
-      //IR.getContext().yield();
     }
 
     // Invalidation was handled after each pass in the above loop for the
@@ -555,13 +548,16 @@ public:
   }
 
   template <typename PassT>
-  std::enable_if_t<!std::is_same<PassT, PassManager>::value>
-  addPass(PassT &&Pass) {
+  LLVM_ATTRIBUTE_MINSIZE
+      std::enable_if_t<!std::is_same<PassT, PassManager>::value>
+      addPass(PassT &&Pass) {
     using PassModelT =
         detail::PassModel<IRUnitT, PassT, PreservedAnalyses, AnalysisManagerT,
                           ExtraArgTs...>;
-
-    Passes.emplace_back(new PassModelT(std::forward<PassT>(Pass)));
+    // Do not use make_unique or emplace_back, they cause too many template
+    // instantiations, causing terrible compile times.
+    Passes.push_back(std::unique_ptr<PassConceptT>(
+        new PassModelT(std::forward<PassT>(Pass))));
   }
 
   /// When adding a pass manager pass that has the same type as this pass
@@ -570,10 +566,11 @@ public:
   /// implementation complexity and avoid potential invalidation issues that may
   /// happen with nested pass managers of the same type.
   template <typename PassT>
-  std::enable_if_t<std::is_same<PassT, PassManager>::value>
-  addPass(PassT &&Pass) {
+  LLVM_ATTRIBUTE_MINSIZE
+      std::enable_if_t<std::is_same<PassT, PassManager>::value>
+      addPass(PassT &&Pass) {
     for (auto &P : Pass.Passes)
-      Passes.emplace_back(std::move(P));
+      Passes.push_back(std::move(P));
   }
 
   /// Returns if the pass manager contains any passes.
@@ -1229,9 +1226,11 @@ createModuleToFunctionPassAdaptor(FunctionPassT &&Pass) {
   using PassModelT =
       detail::PassModel<Function, FunctionPassT, PreservedAnalyses,
                         FunctionAnalysisManager>;
-
+  // Do not use make_unique, it causes too many template instantiations,
+  // causing terrible compile times.
   return ModuleToFunctionPassAdaptor(
-      std::make_unique<PassModelT>(std::forward<FunctionPassT>(Pass)));
+      std::unique_ptr<ModuleToFunctionPassAdaptor::PassConceptT>(
+          new PassModelT(std::forward<FunctionPassT>(Pass))));
 }
 
 /// A utility pass template to force an analysis result to be available.

@@ -244,6 +244,11 @@ using EsimdSbarrierType = split_barrier_action;
 #define ESIMD_SBARRIER_WAIT EsimdSbarrierType::WAIT
 #define ESIMD_SBARRIER_SIGNAL EsimdSbarrierType::SIGNAL
 
+/// Surface index type. Surface is an internal representation of a memory block
+/// addressable by GPU in "stateful" memory model, and each surface is
+/// identified by its "binding table index" - surface index.
+using SurfaceIndex = unsigned int;
+
 } // namespace esimd
 } // namespace experimental
 } // namespace intel

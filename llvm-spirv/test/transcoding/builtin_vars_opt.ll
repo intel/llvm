@@ -39,9 +39,9 @@
 ; clang -fsycl -fsycl-device-only -Xclang -fsycl-enable-optimizations tmp.cpp -o tmp.bc
 ; llvm-spirv tmp.bc -s -o builtin_vars_opt.ll
 
-; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] BuiltIn 37
-; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] Constant
-; CHECK-SPIRV: Decorate [[#SG_MaxSize_BI:]] LinkageAttributes "__spirv_BuiltInSubgroupMaxSize" Import
+; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] BuiltIn 37
+; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] Constant
+; CHECK-SPIRV-DAG: Decorate [[#SG_MaxSize_BI:]] LinkageAttributes "__spirv_BuiltInSubgroupMaxSize" Import
 ;
 ; CHECK-LLVM-OCL-NOT: @__spirv_BuiltInSubgroupMaxSize
 ; CHECK-LLVM-NOT: addrspacecast i32 addrspace(1)* @__spirv_BuiltInSubgroupMaxSize to i32 addrspace(4)*
@@ -78,7 +78,7 @@ entry:
   br i1 %tobool.not.i, label %if.end.i, label %if.then.i
 
 if.then.i:                                        ; preds = %entry
-  %4 = load i32, i32 addrspace(4)* %3, align 4, !noalias !8
+  %4 = load i32, i32 addrspace(4)* %3, align 4
   %ptridx.ascast.i14.i = addrspacecast i32 addrspace(1)* %add.ptr.i to i32 addrspace(4)*
   store i32 %4, i32 addrspace(4)* %ptridx.ascast.i14.i, align 4
   br label %if.end.i
@@ -89,7 +89,7 @@ if.end.i:                                         ; preds = %if.then.i, %entry
   br i1 %tobool4.not.i, label %cond.false.i, label %"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit"
 
 cond.false.i:                                     ; preds = %if.end.i
-  %5 = load i32, i32 addrspace(4)* %3, align 4, !noalias !11
+  %5 = load i32, i32 addrspace(4)* %3, align 4
   br label %"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit"
 
 "_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlNS1_7nd_itemILi1EEEE_clES5_.exit": ; preds = %cond.false.i, %if.end.i
@@ -119,9 +119,3 @@ attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "dis
 !9 = !{!"int", !10, i64 0}
 !10 = !{!"omnipotent char", !11, i64 0}
 !11 = !{!"Simple C++ TBAA"}
-!12 = !{!13}
-!13 = distinct !{!13, !14, !"_ZNK2cl4sycl5intel9sub_group19get_max_local_rangeEv: %agg.result"}
-!14 = distinct !{!14, !"_ZNK2cl4sycl5intel9sub_group19get_max_local_rangeEv"}
-!15 = !{!16}
-!16 = distinct !{!16, !17, !"_ZNK2cl4sycl5intel9sub_group19get_max_local_rangeEv: %agg.result"}
-!17 = distinct !{!17, !"_ZNK2cl4sycl5intel9sub_group19get_max_local_rangeEv"}

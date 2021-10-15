@@ -13,6 +13,7 @@
 #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -86,8 +87,16 @@ static mlir::Value applyPad(Location loc, Value input, ArrayRef<int64_t> pad,
 
   return linalg::PadTensorOp::createPadScalarOp(
              RankedTensorType::get(paddedShape, inputETy), input, padValue,
-             lowIndices, highIndices, loc, rewriter)
+             lowIndices, highIndices, /*nofold=*/false, loc, rewriter)
       .result();
+}
+
+static SmallVector<Value> filterDynamicDims(SmallVector<Value> dynDims) {
+  SmallVector<Value> filteredDims;
+  for (auto dim : dynDims)
+    if (dim)
+      filteredDims.push_back(dim);
+  return filteredDims;
 }
 
 static Value
@@ -254,7 +263,7 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
   // tosa::BitwiseNotOp
   if (isa<tosa::BitwiseNotOp>(op) && elementTy.isa<IntegerType>()) {
     auto allOnesAttr = rewriter.getIntegerAttr(
-        elementTy, APInt::getAllOnesValue(elementTy.getIntOrFloatBitWidth()));
+        elementTy, APInt::getAllOnes(elementTy.getIntOrFloatBitWidth()));
     auto allOnes = rewriter.create<ConstantOp>(loc, allOnesAttr);
     return rewriter.create<mlir::XOrOp>(loc, resultTypes, args[0], allOnes);
   }
@@ -308,6 +317,55 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
     auto extended =
         rewriter.create<ZeroExtendIOp>(loc, resultTypes, shouldRound);
     return rewriter.create<mlir::AddIOp>(loc, resultTypes, result, extended);
+  }
+
+  // tosa::ClzOp
+  if (isa<tosa::ClzOp>(op) && elementTy.isa<IntegerType>()) {
+    int bitWidth = elementTy.getIntOrFloatBitWidth();
+    auto zero =
+        rewriter.create<mlir::ConstantOp>(loc, IntegerAttr::get(elementTy, 0));
+    auto leadingZeros = rewriter.create<mlir::ConstantOp>(
+        loc, IntegerAttr::get(elementTy, bitWidth));
+
+    SmallVector<Value> operands = {args[0], leadingZeros, zero};
+    SmallVector<Type> types = {elementTy, elementTy, elementTy};
+
+    auto whileOp = rewriter.create<scf::WhileOp>(loc, types, operands);
+    Block *before = rewriter.createBlock(&whileOp.before(), {}, types);
+    Block *after = rewriter.createBlock(&whileOp.after(), {}, types);
+
+    // The conditional block of the while loop.
+    {
+      rewriter.setInsertionPointToStart(&whileOp.before().front());
+      Value input = before->getArgument(0);
+      Value zero = before->getArgument(2);
+
+      Value inputLargerThanZero =
+          rewriter.create<CmpIOp>(loc, CmpIPredicate::ne, input, zero);
+      rewriter.create<scf::ConditionOp>(loc, inputLargerThanZero,
+                                        before->getArguments());
+    }
+
+    // The body of the while loop: shift right until reaching a value of 0.
+    {
+      rewriter.setInsertionPointToStart(&whileOp.after().front());
+      Value input = after->getArgument(0);
+      Value leadingZeros = after->getArgument(1);
+
+      auto one = rewriter.create<mlir::ConstantOp>(
+          loc, IntegerAttr::get(elementTy, 1));
+      auto shifted = rewriter.create<mlir::UnsignedShiftRightOp>(
+          loc, resultTypes, input, one);
+      auto leadingZerosMinusOne =
+          rewriter.create<mlir::SubIOp>(loc, resultTypes, leadingZeros, one);
+
+      rewriter.create<scf::YieldOp>(
+          loc,
+          ValueRange({shifted, leadingZerosMinusOne, after->getArgument(2)}));
+    }
+
+    rewriter.setInsertionPointAfter(whileOp);
+    return whileOp->getResult(1);
   }
 
   // tosa::LogicalAnd
@@ -516,6 +574,19 @@ createLinalgBodyCalculationForElementwiseOp(Operation *op, ValueRange args,
       return rewriter.create<mlir::SIToFPOp>(loc, resultTypes, args,
                                              mlir::None);
 
+    // Unsigned integers need an unrealized cast so that they can be passed
+    // to UIToFP.
+    if (srcTy.isUnsignedInteger() && dstTy.isa<FloatType>()) {
+      auto unrealizedCast =
+          rewriter
+              .create<UnrealizedConversionCastOp>(
+                  loc, rewriter.getIntegerType(srcTy.getIntOrFloatBitWidth()),
+                  args[0])
+              .getResult(0);
+      return rewriter.create<mlir::UIToFPOp>(loc, resultTypes[0],
+                                             unrealizedCast);
+    }
+
     // Casting to boolean, floats need to only be checked as not-equal to zero.
     if (srcTy.isa<FloatType>() && dstTy.isInteger(1)) {
       Value zero =
@@ -627,10 +698,7 @@ elementwiseMatchAndRewriteHelper(Operation *operation,
     }
   }
 
-  SmallVector<Value> filteredDims;
-  for (auto dim : dynDims)
-    if (dim)
-      filteredDims.push_back(dim);
+  SmallVector<Value> filteredDims = filterDynamicDims(dynDims);
 
   for (auto result : results) {
     auto resultTy = result.getType().template cast<ShapedType>();
@@ -739,10 +807,10 @@ static Attribute createInitialValueForReduceOp(Operation *op, Type elementTy,
         elementTy, APInt::getSignedMinValue(elementTy.getIntOrFloatBitWidth()));
 
   if (isa<tosa::ReduceAllOp>(op) && elementTy.isInteger(1))
-    return rewriter.getIntegerAttr(elementTy, APInt::getAllOnesValue(1));
+    return rewriter.getIntegerAttr(elementTy, APInt::getAllOnes(1));
 
   if (isa<tosa::ReduceAnyOp>(op) && elementTy.isInteger(1))
-    return rewriter.getIntegerAttr(elementTy, APInt::getNullValue(1));
+    return rewriter.getIntegerAttr(elementTy, APInt::getZero(1));
 
   if (isa<tosa::ArgMaxOp>(op) && elementTy.isa<FloatType>())
     return rewriter.getFloatAttr(
@@ -897,7 +965,7 @@ class ConvConverter : public OpConversionPattern<tosa::Conv2DOp> {
 public:
   using OpConversionPattern<tosa::Conv2DOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tosa::Conv2DOp op, ArrayRef<Value> args,
+  matchAndRewrite(tosa::Conv2DOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     Location loc = op->getLoc();
     Value input = op->getOperand(0);
@@ -1061,7 +1129,7 @@ class DepthwiseConvConverter
 public:
   using OpConversionPattern<tosa::DepthwiseConv2DOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tosa::DepthwiseConv2DOp op, ArrayRef<Value> args,
+  matchAndRewrite(tosa::DepthwiseConv2DOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     Location loc = op->getLoc();
     Value input = op->getOperand(0);
@@ -1216,7 +1284,7 @@ class TransposeConvConverter
 public:
   using OpConversionPattern<tosa::TransposeConv2DOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tosa::TransposeConv2DOp op, ArrayRef<Value> args,
+  matchAndRewrite(tosa::TransposeConv2DOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     Location loc = op->getLoc();
     Value input = op->getOperand(0);
@@ -1286,18 +1354,37 @@ class MatMulConverter : public OpConversionPattern<tosa::MatMulOp> {
 public:
   using OpConversionPattern<tosa::MatMulOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tosa::MatMulOp op, ArrayRef<Value> args,
+  matchAndRewrite(tosa::MatMulOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    tosa::MatMulOp::Adaptor adaptor(args);
-
     Location loc = op.getLoc();
 
     auto outputTy = op.getType().cast<ShapedType>();
     auto outputElementTy = outputTy.getElementType();
+
+    auto firstOperandTy = op->getOperand(0).getType().cast<ShapedType>();
+    auto secondOperandTy = op->getOperand(1).getType().cast<ShapedType>();
+
+    SmallVector<Value> dynDims;
+    dynDims.resize(op->getResult(0).getType().cast<ShapedType>().getRank());
+
+    if (!firstOperandTy.hasRank() || firstOperandTy.isDynamicDim(0)) {
+      dynDims[0] = rewriter.create<tensor::DimOp>(loc, op->getOperand(0), 0);
+    }
+
+    if (!firstOperandTy.hasRank() || firstOperandTy.isDynamicDim(1)) {
+      dynDims[1] = rewriter.create<tensor::DimOp>(loc, op->getOperand(0), 1);
+    }
+
+    if (!secondOperandTy.hasRank() || secondOperandTy.isDynamicDim(2)) {
+      dynDims[2] = rewriter.create<tensor::DimOp>(loc, op->getOperand(1), 2);
+    }
+
+    SmallVector<Value> filteredDims = filterDynamicDims(dynDims);
+
     auto zeroAttr = rewriter.getZeroAttr(outputElementTy);
     Value zero = rewriter.create<ConstantOp>(loc, zeroAttr);
     auto initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, outputTy.getShape(), outputTy.getElementType());
+        loc, filteredDims, outputTy.getShape(), outputTy.getElementType());
     Value zeroTensor =
         rewriter.create<linalg::FillOp>(loc, zero, initTensor).getResult(0);
     if (!op.quantization_info()) {
@@ -1327,18 +1414,33 @@ class FullyConnectedConverter
 public:
   using OpConversionPattern<tosa::FullyConnectedOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tosa::FullyConnectedOp op, ArrayRef<Value> args,
+  matchAndRewrite(tosa::FullyConnectedOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     Location loc = op.getLoc();
     auto outputTy = op.getType().cast<ShapedType>();
     auto input = op.input();
-    auto weight = op.weight();
+    auto inputTy = input.getType().cast<ShapedType>();
+
     auto bias = op.bias();
 
+    auto weight = op.weight();
     auto weightTy = weight.getType().cast<ShapedType>();
     auto weightShape = weightTy.getShape();
 
     auto outputETy = outputTy.getElementType();
+
+    SmallVector<Value> dynDims;
+    dynDims.resize(op->getResult(0).getType().cast<ShapedType>().getRank());
+
+    if (!inputTy.hasRank() || inputTy.isDynamicDim(0)) {
+      dynDims[0] = rewriter.create<tensor::DimOp>(loc, input, 0);
+    }
+
+    if (!weightTy.hasRank() || weightTy.isDynamicDim(0)) {
+      dynDims[1] = rewriter.create<tensor::DimOp>(loc, weight, 0);
+    }
+
+    SmallVector<Value> filteredDims = filterDynamicDims(dynDims);
 
     // Creating maps for the output of MatMul and the bias
     SmallVector<AffineMap, 4> indexingMaps;
@@ -1352,7 +1454,7 @@ public:
     indexingMaps.push_back(rewriter.getMultiDimIdentityMap(outputTy.getRank()));
 
     auto initTensor = rewriter.create<linalg::InitTensorOp>(
-        loc, outputTy.getShape(), outputTy.getElementType());
+        loc, filteredDims, outputTy.getShape(), outputTy.getElementType());
 
     // When quantized, the input elemeny type is not the same as the output
     Attribute resultZeroAttr = rewriter.getZeroAttr(outputETy);
@@ -1374,7 +1476,8 @@ public:
 
     auto biasInitTensor =
         rewriter
-            .create<linalg::InitTensorOp>(loc, outputTy.getShape(), outputETy)
+            .create<linalg::InitTensorOp>(loc, filteredDims,
+                                          outputTy.getShape(), outputETy)
             ->getResults();
 
     if (!op.quantization_info()) {
@@ -1436,15 +1539,13 @@ public:
   using OpConversionPattern<tosa::ReshapeOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(tosa::ReshapeOp reshape, ArrayRef<Value> args,
+  matchAndRewrite(tosa::ReshapeOp reshape, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    typename tosa::ReshapeOp::Adaptor operands(args);
-
-    ShapedType operandTy = operands.input1().getType().cast<ShapedType>();
+    ShapedType operandTy = adaptor.input1().getType().cast<ShapedType>();
     ShapedType resultTy = reshape.getType().template cast<ShapedType>();
 
     if (operandTy == resultTy) {
-      rewriter.replaceOp(reshape, args[0]);
+      rewriter.replaceOp(reshape, adaptor.getOperands()[0]);
       return success();
     }
 
@@ -1525,19 +1626,20 @@ public:
 
       auto collapsedTy = RankedTensorType::get({totalElems}, elemTy);
       Value collapsedOp = rewriter.create<linalg::TensorCollapseShapeOp>(
-          loc, collapsedTy, args[0], collapsingMap);
+          loc, collapsedTy, adaptor.getOperands()[0], collapsingMap);
       rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
           reshape, resultTy, collapsedOp, expandingMap);
 
       return success();
     }
 
-    if (resultTy.getRank() < args[0].getType().cast<ShapedType>().getRank())
+    if (resultTy.getRank() <
+        adaptor.getOperands()[0].getType().cast<ShapedType>().getRank())
       rewriter.replaceOpWithNewOp<linalg::TensorCollapseShapeOp>(
-          reshape, resultTy, args[0], reassociationMap);
+          reshape, resultTy, adaptor.getOperands()[0], reassociationMap);
     else
       rewriter.replaceOpWithNewOp<linalg::TensorExpandShapeOp>(
-          reshape, resultTy, args[0], reassociationMap);
+          reshape, resultTy, adaptor.getOperands()[0], reassociationMap);
 
     return success();
   }
@@ -1554,20 +1656,29 @@ public:
       return failure();
     }
 
+    auto loc = op.getLoc();
+    auto input = op->getOperand(0);
     auto resultTy = op.getType().cast<ShapedType>();
-    if (!resultTy.hasStaticShape())
-      return failure();
+
+    SmallVector<Value> dynDims;
+    dynDims.resize(op->getResult(0).getType().cast<ShapedType>().getRank());
 
     SmallVector<AffineExpr, 2> inputExprs;
     inputExprs.resize(resultTy.getRank());
-    for (auto permutation : llvm::enumerate(perms.getIntValues())) {
-      inputExprs[permutation.value().getZExtValue()] =
-          rewriter.getAffineDimExpr(permutation.index());
+    auto operandTy = input.getType().cast<ShapedType>();
+    for (auto permutation : llvm::enumerate(perms.getValues<APInt>())) {
+      auto index = permutation.index();
+      auto value = permutation.value().getZExtValue();
+      if (!operandTy.hasRank() || operandTy.isDynamicDim(index)) {
+        dynDims[value] = rewriter.create<tensor::DimOp>(loc, input, index);
+      }
+      inputExprs[value] = rewriter.getAffineDimExpr(index);
     }
 
+    SmallVector<Value> filteredDims = filterDynamicDims(dynDims);
+
     auto initTensor = rewriter.create<linalg::InitTensorOp>(
-        op.getLoc(), ArrayRef<Value>({}), resultTy.getShape(),
-        resultTy.getElementType());
+        loc, filteredDims, resultTy.getShape(), resultTy.getElementType());
 
     SmallVector<AffineMap, 2> affineMaps = {
         AffineMap::get(resultTy.getRank(), /*symbolCount=*/0, inputExprs,
@@ -1578,7 +1689,7 @@ public:
         op, resultTy, op.input1(), ValueRange{initTensor}, affineMaps,
         getNParallelLoopsAttrs(resultTy.getRank()),
         [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange args) {
-          nestedBuilder.create<linalg::YieldOp>(op.getLoc(), *args.begin());
+          nestedBuilder.create<linalg::YieldOp>(loc, *args.begin());
         });
     return success();
   }
@@ -2067,7 +2178,7 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
   using OpConversionPattern<tosa::ConcatOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(tosa::ConcatOp op, ArrayRef<Value> args,
+  matchAndRewrite(tosa::ConcatOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto resultType = op.getType().dyn_cast<RankedTensorType>();
     if (!resultType || !resultType.hasStaticShape()) {
@@ -2086,11 +2197,12 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
     offsets.resize(rank, rewriter.create<ConstantIndexOp>(loc, 0));
 
     for (int i = 0; i < rank; ++i) {
-      sizes.push_back(rewriter.create<tensor::DimOp>(loc, args[0], i));
+      sizes.push_back(
+          rewriter.create<tensor::DimOp>(loc, adaptor.getOperands()[0], i));
     }
 
     Value resultDimSize = sizes[axis];
-    for (auto arg : args.drop_front()) {
+    for (auto arg : adaptor.getOperands().drop_front()) {
       auto size = rewriter.create<tensor::DimOp>(loc, arg, axisValue);
       resultDimSize = rewriter.create<AddIOp>(loc, resultDimSize, size);
     }
@@ -2104,7 +2216,7 @@ struct ConcatConverter : public OpConversionPattern<tosa::ConcatOp> {
     Value result =
         rewriter.create<linalg::FillOp>(loc, zeroVal, init).getResult(0);
 
-    for (auto arg : args) {
+    for (auto arg : adaptor.getOperands()) {
       sizes[axis] = rewriter.create<tensor::DimOp>(loc, arg, axisValue);
       result = rewriter.create<tensor::InsertSliceOp>(loc, arg, result, offsets,
                                                       sizes, strides);
@@ -2180,7 +2292,7 @@ struct TileConverter : public OpConversionPattern<tosa::TileOp> {
   using OpConversionPattern<tosa::TileOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(tosa::TileOp op, ArrayRef<Value> args,
+  matchAndRewrite(tosa::TileOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     auto input = op.input1();
@@ -2300,7 +2412,8 @@ public:
     Value constant = rewriter.create<ConstantOp>(loc, constantAttr);
 
     auto newPadOp = linalg::PadTensorOp::createPadScalarOp(
-        padOp.getType(), input, constant, lowValues, highValues, loc, rewriter);
+        padOp.getType(), input, constant, lowValues, highValues,
+        /*nofold=*/false, loc, rewriter);
 
     rewriter.replaceOp(padOp, newPadOp.getResult());
     return success();
@@ -2437,10 +2550,10 @@ class GatherConverter : public OpConversionPattern<tosa::GatherOp> {
 public:
   using OpConversionPattern<tosa::GatherOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(tosa::GatherOp op, ArrayRef<Value> args,
+  matchAndRewrite(tosa::GatherOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    auto input = args[0];
-    auto indices = args[1];
+    auto input = adaptor.getOperands()[0];
+    auto indices = adaptor.getOperands()[1];
 
     auto inputTy = input.getType().cast<ShapedType>();
     auto indicesTy = indices.getType().cast<ShapedType>();
@@ -2905,6 +3018,7 @@ void mlir::tosa::populateTosaToLinalgOnTensorsConversionPatterns(
       PointwiseConverter<tosa::LogicalLeftShiftOp>,
       PointwiseConverter<tosa::LogicalRightShiftOp>,
       PointwiseConverter<tosa::ArithmeticRightShiftOp>,
+      PointwiseConverter<tosa::ClzOp>,
       PointwiseConverter<tosa::SelectOp>,
       PointwiseConverter<tosa::GreaterOp>,
       PointwiseConverter<tosa::GreaterEqualOp>,

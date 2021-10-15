@@ -26,6 +26,10 @@ def HasSIMD128 :
     Predicate<"Subtarget->hasSIMD128()">,
     AssemblerPredicate<(all_of FeatureSIMD128), "simd128">;
 
+def HasRelaxedSIMD :
+    Predicate<"Subtarget->hasRelaxedSIMD()">,
+    AssemblerPredicate<(all_of FeatureRelaxedSIMD), "relaxed-simd">;
+
 def HasAtomics :
     Predicate<"Subtarget->hasAtomics()">,
     AssemblerPredicate<(all_of FeatureAtomics), "atomics">;
@@ -100,7 +104,7 @@ def WebAssemblyreturn   : SDNode<"WebAssemblyISD::RETURN",
                                  [SDNPHasChain, SDNPVariadic]>;
 def WebAssemblyWrapper  : SDNode<"WebAssemblyISD::Wrapper",
                                  SDT_WebAssemblyWrapper>;
-def WebAssemblyWrapperPIC  : SDNode<"WebAssemblyISD::WrapperPIC",
+def WebAssemblyWrapperREL  : SDNode<"WebAssemblyISD::WrapperREL",
                                      SDT_WebAssemblyWrapper>;
 def WebAssemblyglobal_get :
     SDNode<"WebAssemblyISD::GLOBAL_GET", SDT_WebAssemblyGlobalGet,
@@ -388,15 +392,20 @@ def : Pat<(i32 (WebAssemblyWrapper tglobaladdr:$addr)),
 def : Pat<(i64 (WebAssemblyWrapper tglobaladdr:$addr)),
           (GLOBAL_GET_I64 tglobaladdr:$addr)>, Requires<[IsPIC, HasAddr64]>;
 
-def : Pat<(i32 (WebAssemblyWrapperPIC tglobaladdr:$addr)),
+def : Pat<(i32 (WebAssemblyWrapperREL tglobaladdr:$addr)),
           (CONST_I32 tglobaladdr:$addr)>, Requires<[IsPIC, HasAddr32]>;
-def : Pat<(i64 (WebAssemblyWrapperPIC tglobaladdr:$addr)),
+def : Pat<(i64 (WebAssemblyWrapperREL tglobaladdr:$addr)),
           (CONST_I64 tglobaladdr:$addr)>, Requires<[IsPIC, HasAddr64]>;
 
-def : Pat<(i32 (WebAssemblyWrapper tglobaltlsaddr:$addr)),
+def : Pat<(i32 (WebAssemblyWrapperREL tglobaltlsaddr:$addr)),
           (CONST_I32 tglobaltlsaddr:$addr)>, Requires<[HasAddr32]>;
-def : Pat<(i64 (WebAssemblyWrapper tglobaltlsaddr:$addr)),
+def : Pat<(i64 (WebAssemblyWrapperREL tglobaltlsaddr:$addr)),
           (CONST_I64 tglobaltlsaddr:$addr)>, Requires<[HasAddr64]>;
+
+def : Pat<(i32 (WebAssemblyWrapper tglobaltlsaddr:$addr)),
+          (GLOBAL_GET_I32 tglobaltlsaddr:$addr)>, Requires<[HasAddr32]>;
+def : Pat<(i64 (WebAssemblyWrapper tglobaltlsaddr:$addr)),
+          (GLOBAL_GET_I64 tglobaltlsaddr:$addr)>, Requires<[HasAddr64]>;
 
 def : Pat<(i32 (WebAssemblyWrapper texternalsym:$addr)),
           (GLOBAL_GET_I32 texternalsym:$addr)>, Requires<[IsPIC, HasAddr32]>;
