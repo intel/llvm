@@ -246,7 +246,37 @@ The query interface proposed here consists of three functionalities:
 
 - Construct the matrices using a default shape if user does not provide a combination. This corresponds to the case where the user provides the sizes of large `tile` matrices but does not specify the sizes of the corresponding submatrices of the `tiles`. In this case, the query will construct these submatrices of the matrices whose size the user provided. 
 
-- General query interface for sizes, types, static/dynamic, scope. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query return an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and C. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively depending whether the implementation supports a continuous or discrete number of sizes. For example, Intel AMX implementation supports a continuous number of sizes so the `max_*` variant is applied and only the maximum number is returned. DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.   
+- General query interface for sizes, types, static/dynamic, scope. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query return an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and C. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively depending whether the implementation supports a continuous or discrete number of sizes. For example, Intel AMX implementation supports a continuous number of sizes so the `max_*` variant is applied and only the maximum number is returned. DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  
+
+The table below provides a desciption for each of the member variables and type aliases in `tpu_params` class.
+
+[frame="none",options="header"]
+|======================
+| Member/type alias in `tpu_params` |Description
+|`type_a`| type alias for the type of matrix A
+|`type_b`| type alias for the type of matrix B
+|`type_c`| type alias for the type of matrix C
+|`defaultM`| when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports
+|`defaultN`| when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports
+|`defaultK`| when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports
+|`joint_matrix_a`| type alias for `joint_matrix` for matrix A
+|`joint_matrix_b`| type alias for `joint_matrix` for matrix B
+|`joint_matrix_c`| type alias for `joint_matrix` for matrix C
+|`dynamic_p`| a boolean that indicates whether the implementation supports dynamic sizes (true) or not (false)
+|numtiles| indicates number of tiles in Intel AMX (does not apply to DPAS)
+|scope| indicates the memory and execution scope supported by the TPU implementation
+|`combination` | composes the types and sizes of A, B, C matrices allowed in one combination
+|`max_msize`, `max_nsize`, `max_ksize`|When one of these members is non-zero, it indicates that the TPU supports all element sizes in the range from 1 up to the given value. By contrast, a zero value indicates that the TPU implementation supports only a discrete set of element sizes, which are given by the corresponding msize, nsize, or ksize members
+|`msize`, `nsize`, `ksize`| presents one of the sizes that the TPU implementation supports 
+|`atype`, `btype`, `ctype`| indicates the types supported in the combination
+|`combinations`    |Tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes. 
+|`num_combinations`| indicates number of combinations supported by the TPU implementation which corresponds to the size of the `combinations` array
+|======================
+
+
+
+
+
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -285,15 +315,31 @@ struct tpu_params<
 
   template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
   using joint_matrix_a = joint_matrix<Ta, defaultM, defaultK, Layout, Group>;
-  template <typename Group>
+  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
   using joint_matrix_b = joint_matrix<Tb, defaultK, defaultN, Layout, Group>;
-  template <typename Group>
+  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
   using joint_matrix_c = joint_matrix<Tc, defaultM, defaultN, Layout, Group>;
 
-  bool dynamic_p = false; // should be true in future implementations
+  static constexpr bool dynamic_p = false; // should be true in future implementations
                           // because Intel AMX hardware supports dynamic sizes
-  uint32_t numtiles = 8;
-  scope_t scope = scope_t::sub_group;
+  static constexpr uint32_t numtiles = 8;
+  static constexpr scope_t scope = scope_t::sub_group;
+  struct combination {
+    uint32_t max_msize;
+    uint32_t max_nsize;
+    uint32_t max_ksize;
+    uint32_t msize;
+    uint32_t nsize;
+    uint32_t ksize;
+    matrix_type atype;
+    matrix_type btype;
+    matrix_type ctype;
+  };
+  // In this case, the combinations array contains only the combination that the user provided
+  static constexpr combination combinations[] = {
+      {16, 16, (sizeof(Ta) == 1) ? 64 : 32, M, N, K}};
+  static constexpr int num_combinations =
+      sizeof(combinations) / sizeof(combination);
 };
 
 // Sizes-only query
@@ -319,26 +365,28 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
 
   template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
   using joint_matrix_a = joint_matrix<Ta, defaultM, defaultK, Layout, Group>;
-  template <typename Group>
+  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
   using joint_matrix_b = joint_matrix<Tb, defaultK, defaultN, Layout, Group>;
-  template <typename Group>
+  template <matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
   using joint_matrix_c = joint_matrix<Tc, defaultM, defaultN, Layout, Group>;
 
-  bool dynamic_p = false; // should be true in future implementations because
+  static constexpr bool dynamic_p = false; // should be true in future implementations because
                           // Intel AMX hardware supports dynamic sizes
-  uint32_t numtiles = 8;
-  scope_t scope = scope_t::sub_group;
+  static constexpr uint32_t numtiles = 8;
+  static constexpr scope_t scope = scope_t::sub_group;
   struct combination {
     uint32_t max_msize;
     uint32_t max_nsize;
     uint32_t max_ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type ctype;
     uint32_t msize;
     uint32_t nsize;
     uint32_t ksize;
+    matrix_type atype;
+    matrix_type btype;
+    matrix_type ctype;
   };
+  // In this case, the combinations array contain only the combinations that correspond to the Ta, Tb, and Tc 
+  // types that the user provided
   static constexpr combination combinations[] = {
       {16, 16, (sizeof(Ta) == 1) ? 64 : 32}};
   static constexpr int num_combinations =
@@ -353,28 +401,28 @@ struct tpu_params<tpu::amx, void, void, void, M, N, K> {
   static constexpr std::size_t defaultN = -1;
   static constexpr std::size_t defaultK = -1;
 
-  bool dynamic_p = false; // should be true in future implementations because
+  static constexpr bool dynamic_p = false; // should be true in future implementations because
                           // Intel AMX hardware supports dynamic sizes
-  uint32_t numtiles = 8;
-  constscope_t scope = scope_t::sub_group;
+  static constexpr uint32_t numtiles = 8;
+  static constexpr scope_t scope = scope_t::sub_group;
   struct combination {
     uint32_t max_msize;
     uint32_t max_nsize;
     uint32_t max_ksize;
-    matrix_type atype;
-    matrix_type btype;
-    matrix_type ctype;
     uint32_t msize;
     uint32_t nsize;
     uint32_t ksize;
+    matrix_type atype;
+    matrix_type btype;
+    matrix_type ctype;
   };
   
   static constexpr combination combinations[] = {
-      {16, 16, 64, matrix_type::sint8, matrix_type::sint8, matrix_type::sint32},
-      {16, 16, 64, matrix_type::sint8, matrix_type::uint8, matrix_type::sint32},
-      {16, 16, 64, matrix_type::uint8, matrix_type::sint8, matrix_type::sint32},
-      {16, 16, 64, matrix_type::uint8, matrix_type::uint8, matrix_type::sint32},
-      {16, 16, 32, matrix_type::bf16, matrix_type::bf16, matrix_type::fp32}};
+      {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8, matrix_type::sint32},
+      {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8, matrix_type::sint32},
+      {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8, matrix_type::sint32},
+      {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8, matrix_type::sint32},
+      {16, 16, 32, 0, 0,0, matrix_type::bf16, matrix_type::bf16, matrix_type::fp32}};
   static constexpr int num_combinations =
       sizeof(combinations) / sizeof(combination);
 };
@@ -541,6 +589,9 @@ We did not utilize this extension for this matrix API version because sub-group 
 ## TODO List
 - Add support for fill matrix and element-wise operations features
 - Add 'matrix_use' parameter to the matrix to distinguish between matrix A, B, and matrix accumulator. This is necessary for supporting VNNI and transpose transform 
+- Change the names default sizes in the query from defaultM, defaultN, defaultK to M,N,K
+- Change the type of `scope` in the query interface to be able to return more than one value. This will be useful in the event we support other scopes like workgroup besides subgroups
+
 
 ## Revision History
 
