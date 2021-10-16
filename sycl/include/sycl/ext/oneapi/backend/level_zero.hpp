@@ -35,9 +35,11 @@ template <> struct interop<backend::level_zero, event> {
   using type = ze_event_handle_t;
 };
 
+#ifdef __SYCL_INTERNAL_API
 template <> struct interop<backend::level_zero, program> {
   using type = ze_module_handle_t;
 };
+#endif
 
 template <> struct interop<backend::level_zero, kernel> {
   using type = ze_kernel_handle_t;
@@ -154,8 +156,10 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool keep_ownership = false);
+#ifdef __SYCL_INTERNAL_API
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
+#endif
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle,
                                bool keep_ownership = false);
@@ -200,6 +204,7 @@ T make(const std::vector<device> &DeviceList,
 }
 
 // Construction of SYCL program.
+#ifdef __SYCL_INTERNAL_API
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, program>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
@@ -207,6 +212,7 @@ T make(const context &Context,
        typename interop<backend::level_zero, T>::type Interop) {
   return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
 }
+#endif
 
 // Construction of SYCL queue.
 template <typename T, typename detail::enable_if_t<
