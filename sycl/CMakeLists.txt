@@ -313,7 +313,7 @@ endif()
 # environment
 if (NOT MSVC)
   if (SYCL_BUILD_PI_ESIMD_EMULATOR)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
     if (MSVC)
       list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
     else()
