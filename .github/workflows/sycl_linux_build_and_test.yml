@@ -1,0 +1,120 @@
+name: Reusable SYCL Linux build and test workflow
+
+on:
+  pull_request:
+    paths:
+    - '.github/workflows/sycl_linux_build_and_test.yml'
+  workflow_call:
+    inputs:
+      cc:
+        type: string
+        required: false
+        default: "gcc"
+      cxx:
+        type: string
+        required: false
+        default: "g++"
+      build_image:
+        type: string
+        required: false
+        default: "ghcr.io/intel/llvm/ubuntu2004_base:latest"
+      build_runs_on:
+        type: string
+        required: false
+        default: "ubuntu-latest"
+      build_github_cache:
+        type: boolean
+        required: false
+        default: false
+      build_cache_root:
+        type: string
+        required: true
+      build_cache_suffix:
+        type: string
+        required: false
+        default: "default"
+      build_cache_size:
+        type: string
+        required: false
+        default: 2G
+      build_configure_extra_args:
+        type: string
+        required: false
+        default: ""
+      build_artifact_suffix:
+        type: string
+        required: true
+
+jobs:
+  build:
+    name: Build SYCL toolchain
+    runs-on: ${{ inputs.build_runs_on }}
+    container:
+      image: ${{ inputs.build_image }}
+      volumes:
+        - ${{ github.workspace }}:${{ github.workspace }}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: src
+    - name: Setup Cache
+      uses: actions/cache@v2
+      if: ${{ inputs.build_github_cache }}
+      id: cache
+      with:
+        path: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
+        key: sycl-build-${{ inputs.build_cache_suffix }}-${{ github.sha }}
+        restore-keys: |
+          sycl-build-${{ inputs.build_cache_suffix }}-
+    - name: Configure
+      env:
+        CC: ${{ inputs.cc }}
+        CXX: ${{ inputs.cxx }}
+        CCACHE_ROOT: ${{ inputs.build_cache_root }}
+        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
+        CACHE_SIZE: ${{ inputs.build_cache_size }}
+        ARGS: ${{ inputs.build_configure_extra_args }}
+      run: |
+        mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
+        mkdir -p $GITHUB_WORKSPACE/build
+        mkdir -p $GITHUB_WORKSPACE/install
+        cd $GITHUB_WORKSPACE/build
+        python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+          -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+          --ci-defaults $ARGS --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
+          --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
+          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt="-DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/install"
+    - name: Compile
+      run: cmake --build $GITHUB_WORKSPACE/build
+    # TODO allow to optionally disable in-tree checks
+    - name: check-llvm
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+        -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-llvm
+    - name: check-clang
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+        -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-clang
+    - name: check-sycl
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+        -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-sycl
+    - name: check-llvm-spirv
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+        -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-llvm-spirv
+    - name: Install
+      run: cmake --build $GITHUB_WORKSPACE/build --target install
+    - name: Pack
+      run: tar -czvf llvm_sycl.tar.gz -C $GITHUB_WORKSPACE/install .
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: sycl_linux_${{ inputs.build_artifact_suffix }}
+        path: llvm_sycl.tar.gz
+
