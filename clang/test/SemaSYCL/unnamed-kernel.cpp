@@ -145,7 +145,7 @@ public:
     // This errors because const decltype(SomeLambda) != decltype(SomeLambda),
     //  so this is not the unnamed lambda situation.
     // expected-error-re@#KernelSingleTask {{'const (lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is an invalid kernel name type}}
-    // expected-note@#KernelSingleTask {{unnamed lambda is used}}
+    // expected-note@#KernelSingleTask {{unnamed lambda is used in a SYCL kernel name}}
     // expected-note@+3{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       auto SomeLambda = []() {};
@@ -159,7 +159,7 @@ int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
   // expected-error-re@#KernelSingleTask {{'(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is an invalid kernel name type}}
-  // expected-note@#KernelSingleTask {{unnamed lambda is used}}
+  // expected-note@#KernelSingleTask {{unnamed lambda is used in a SYCL kernel name}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });

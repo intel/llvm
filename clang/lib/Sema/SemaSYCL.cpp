@@ -3695,7 +3695,7 @@ public:
                 << KernelNameType;
             S.Diag(KernelInvocationFuncLoc,
                    diag::note_invalid_type_in_sycl_kernel)
-                << /* unnamed lambda is used */ 2;
+                << /* unnamed lambda is used in a SYCL kernel name */ 2;
             IsInvalid = true;
             return;
           }
