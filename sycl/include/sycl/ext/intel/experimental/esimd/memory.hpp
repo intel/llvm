@@ -439,8 +439,8 @@ template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG void scalar_store(AccessorTy acc, uint32_t offset,
                                              T val) {
-  scatter<T>(acc, simd<T, 1, AccessorTy, L1H, L3H>(val),
-             simd<uint32_t, 1>(offset));
+  scatter<T, 1, AccessorTy, L1H, L3H>(acc, simd<T, 1>(val),
+                                      simd<uint32_t, 1>(offset));
 }
 
 /// Store a scalar value into the Shared Local Memory.
