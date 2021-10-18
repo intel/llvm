@@ -1539,6 +1539,19 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     spv::BuiltIn Builtin = spv::BuiltInPosition;
     if (!GV->hasName() || !getSPIRVBuiltin(GV->getName().str(), Builtin))
       return BVar;
+    if (static_cast<uint32_t>(Builtin) >= internal::BuiltInSubDeviceIDINTEL &&
+        static_cast<uint32_t>(Builtin) <=
+            internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL) {
+      if (!BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_hw_thread_queries)) {
+        std::string ErrorStr = "Intel HW thread queries must be enabled by "
+                               "SPV_INTEL_hw_thread_queries extension.\n"
+                               "LLVM value that is being translated:\n";
+        getErrorLog().checkError(false, SPIRVEC_InvalidModule, V, ErrorStr);
+      }
+      BM->addExtension(ExtensionID::SPV_INTEL_hw_thread_queries);
+    }
+
     BVar->setBuiltin(Builtin);
     return BVar;
   }
