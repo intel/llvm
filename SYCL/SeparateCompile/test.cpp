@@ -3,17 +3,18 @@
 //
 // FIXME Disabled fallback assert as it'll require either online linking or
 // explicit offline linking step here
+// FIXME separate compilation requires -fno-sycl-dead-args-optimization
 // >> ---- compile src1
 // >> device compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc -Wno-sycl-strict
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -Wno-sycl-strict
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
 //
 // >> ---- compile src2
 // >> device compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc -Wno-sycl-strict
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 %cxx_std_optionc++17 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -Wno-sycl-strict
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 %cxx_std_optionc++17 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
 //
 // >> ---- bundle .o with .spv
 // >> run bundler
