@@ -13,7 +13,7 @@
 /// such as slm_access to access ESIMD_EMULATOR specific-support therefore
 /// it has to be defined and shared as include directory
 ///
-/// \ingroup sycl_pi_esimd_cpu
+/// \ingroup sycl_pi_esimd_emulator
 
 #include <CL/sycl/detail/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/emu/detail/esimd_emulator_device_interface.hpp>
@@ -28,7 +28,8 @@ __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface() {
   // tight loop)
   void *PIOpaqueData = nullptr;
 
-  PIOpaqueData = getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(nullptr);
+  PIOpaqueData =
+      getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(nullptr);
 
   ESIMDEmuPluginOpaqueData *OpaqueData =
       reinterpret_cast<ESIMDEmuPluginOpaqueData *>(PIOpaqueData);

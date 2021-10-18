@@ -2038,8 +2038,8 @@ cl_int ExecCGCommand::enqueueImp() {
 
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
 
-    if (MQueue->is_host() ||
-        (MQueue->getPlugin().getBackend() == backend::esimd_cpu)) {
+    if (MQueue->is_host() || (MQueue->getPlugin().getBackend() ==
+                              backend::ext_intel_esimd_emulator)) {
       for (ArgDesc &Arg : ExecKernel->MArgs)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -2056,7 +2056,8 @@ cl_int ExecCGCommand::enqueueImp() {
         ExecKernel->MHostKernel->call(NDRDesc,
                                       getEvent()->getHostProfilingInfo());
       } else {
-        assert(MQueue->getPlugin().getBackend() == backend::esimd_cpu);
+        assert(MQueue->getPlugin().getBackend() ==
+               backend::ext_intel_esimd_emulator);
         MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(
             nullptr,
             reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),

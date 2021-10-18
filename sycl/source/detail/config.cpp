@@ -175,7 +175,7 @@ const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
        {"opencl", backend::opencl},
        {"level_zero", backend::level_zero},
        {"cuda", backend::cuda},
-       {"esimd_cpu", backend::esimd_cpu},
+       {"esimd_emulator", backend::ext_intel_esimd_emulator},
        {"hip", backend::hip},
        {"*", backend::all}}};
   return SyclBeMap;

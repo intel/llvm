@@ -139,7 +139,7 @@ public:
          {"PI_LEVEL_ZERO", backend::level_zero},
          {"PI_LEVEL0", backend::level_zero}, // for backward compatibility
          {"PI_CUDA", backend::cuda},
-         {"PI_ESIMD_CPU", backend::esimd_cpu},
+         {"PI_ESIMD_EMULATOR", backend::ext_intel_esimd_emulator},
          {"PI_HIP", backend::hip}}};
     if (ValStr) {
       auto It = std::find_if(
@@ -150,7 +150,7 @@ public:
       if (It == SyclBeMap.end())
         pi::die("Invalid backend. "
                 "Valid values are "
-                "PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_ESIMD_CPU/PI_HIP");
+                "PI_OPENCL/PI_LEVEL_ZERO/PI_CUDA/PI_ESIMD_EMULATOR/PI_HIP");
       static backend Backend = It->second;
       BackendPtr = &Backend;
     }
