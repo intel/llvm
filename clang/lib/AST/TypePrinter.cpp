@@ -244,6 +244,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
         T->isObjCQualifiedIdType() || T->isObjCQualifiedClassType();
       break;
 
+    case Type::VariableArray:
     case Type::DependentSizedArray:
       NeedARCStrongQualifier = true;
       LLVM_FALLTHROUGH;
@@ -253,9 +254,6 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
       return canPrefixQualifiers(
           cast<ArrayType>(UnderlyingType)->getElementType().getTypePtr(),
           NeedARCStrongQualifier);
-    case Type::VariableArray:
-      NeedARCStrongQualifier = true;
-      LLVM_FALLTHROUGH;
 
     case Type::Adjusted:
     case Type::Decayed:
@@ -1723,7 +1721,6 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::UPtr:
   case attr::AddressSpace:
   case attr::CmseNSCall:
-  case attr::BTFTag:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:

@@ -83,6 +83,12 @@ Modified Compiler Flags
   - RISC-V SiFive S54 (``sifive-s54``).
   - RISC-V SiFive S76 (``sifive-s76``).
 
+- Support has been added for the following architectures (``-march`` identifiers in parentheses):
+
+  - Armv9-A (``armv9-a``).
+  - Armv9.1-A (``armv9.1-a``).
+  - Armv9.2-A (``armv9.2-a``).
+
 Removed Compiler Flags
 -------------------------
 
@@ -171,6 +177,12 @@ X86 Support in Clang
 
 - Support for ``AVX512-FP16`` instructions has been added.
 
+Arm and AArch64 Support in Clang
+--------------------------------
+
+- Support has been added for the following processors (command-line identifiers in parentheses):
+  - Arm Cortex-A510 (``cortex-a510``)
+
 Internal API Changes
 --------------------
 
@@ -184,7 +196,11 @@ Build System Changes
 AST Matchers
 ------------
 
-- ...
+- ``TypeLoc`` AST Matchers are now available. These matchers provide helpful
+  utilities for matching ``TypeLoc`` nodes, such as the ``pointerTypeLoc``
+  matcher or the ``hasReturnTypeLoc`` matcher. The addition of these matchers
+  was made possible by changes to the handling of ``TypeLoc`` nodes that
+  allows them to enjoy the same static type checking as other AST node kinds.
 
 clang-format
 ------------
