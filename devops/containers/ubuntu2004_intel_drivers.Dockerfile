@@ -5,8 +5,6 @@ FROM $base_image:$base_tag
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-USER root
-
 ARG compute_runtime_tag=latest
 ARG igc_tag=latest
 ARG tbb_tag=latest
@@ -55,8 +53,6 @@ RUN cd /runtimes && \
   echo  /runtimes/oclcpu/x64/libintelocl.so > /etc/OpenCL/vendors/intel_oclcpu.icd
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
-
-USER sycl
 
 ENTRYPOINT ["/bin/bash", "/drivers_entrypoint.sh"]
 
