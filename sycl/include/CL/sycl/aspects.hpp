@@ -13,15 +13,17 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class aspect {
-  host = 0,
+  host_debuggable = 0,
+  host __SYCL2020_DEPRECATED(
+      "use host_debuggable instead") = host_debuggable,
   cpu = 1,
   gpu = 2,
   accelerator = 3,
   custom = 4,
   fp16 = 5,
   fp64 = 6,
-  int64_base_atomics = 7,
-  int64_extended_atomics = 8,
+  int64_base_atomics __SYCL2020_DEPRECATED("use atomic64 instead") = 7,
+  int64_extended_atomics __SYCL2020_DEPRECATED("use atomic64 instead") = 8,
   image = 9,
   online_compiler = 10,
   online_linker = 11,
