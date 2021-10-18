@@ -330,8 +330,7 @@ int main() {
           sycl::link({KernelBundleObject1, KernelBundleObject2},
                      std::vector<sycl::device>{});
         },
-        "Not all devices are in the set of associated devices for input "
-        "bundles or vector of devices is empty");
+        "Vector of devices is empty");
 
     std::cerr << "Mismatched contexts for join" << std::endl;
     checkException(
