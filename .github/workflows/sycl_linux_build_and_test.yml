@@ -46,11 +46,41 @@ on:
         required: true
 
 jobs:
+  configure:
+    name: Pre-build configuration
+    runs-on: ubuntu-latest
+    outputs:
+      params: ${{ steps.input-parameters.outputs.params }}
+    steps:
+      - id: input-parameters
+        env:
+          INPUTS: ${{ toJSON(inputs) }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != "workflow_call" ]]; then
+            INPUTS="{
+              \"cc\":\"gcc\",
+              \"cxx\":\"g++\",
+              \"build_runs_on\":\"ubuntu-latest\",
+              \"build_image\":\"ghcr.io/testorg-abatashev/llvm/ubuntu2004_base:latest\",
+              \"build_github_cache\":\"false\",
+              \"build_cache_root\":\"$GITHUB_WORKSPACE\",
+              \"build_cache_suffix\":\"default\",
+              \"build_cache_size\":\"2G\",
+              \"build_configure_extra_args\":\"\",
+              \"build_artifact_suffix\":\"default\"
+            }"
+          fi
+          INPUTS="${INPUTS//'%'/'%25'}"
+          INPUTS="${INPUTS//$'\n'/'%0A'}"
+          INPUTS="${INPUTS//$'\r'/'%0D'}"
+          echo "::set-output name=params::$INPUTS"
+          echo "$INPUTS"
   build:
     name: Build SYCL toolchain
-    runs-on: ${{ inputs.build_runs_on }}
+    needs: configure
+    runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
     container:
-      image: ${{ inputs.build_image }}
+      image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
       volumes:
         - ${{ github.workspace }}:${{ github.workspace }}
     steps:
@@ -59,32 +89,30 @@ jobs:
         path: src
     - name: Setup Cache
       uses: actions/cache@v2
-      if: ${{ inputs.build_github_cache }}
+      if: ${{ steps.parameters.github_cache }}
       id: cache
       with:
-        path: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
-        key: sycl-build-${{ inputs.build_cache_suffix }}-${{ github.sha }}
+        path: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}/build_cache_${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
+        key: sycl-build-${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}-${{ github.sha }}
         restore-keys: |
-          sycl-build-${{ inputs.build_cache_suffix }}-
+          sycl-build-${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}-
     - name: Configure
       env:
-        CC: ${{ inputs.cc }}
-        CXX: ${{ inputs.cxx }}
-        CCACHE_ROOT: ${{ inputs.build_cache_root }}
-        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
-        CACHE_SIZE: ${{ inputs.build_cache_size }}
-        ARGS: ${{ inputs.build_configure_extra_args }}
+        CC: ${{ fromJSON(needs.configure.outputs.params).cc }}
+        CXX: ${{ fromJSON(needs.configure.outputs.params).cxx }}
+        CACHE_ROOT: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}
+        CACHE_SUFFIX: ${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
+        CACHE_SIZE: ${{ fromJSON(needs.configure.outputs.params).build_cache_size }}
+        ARGS: ${{ fromJSON(needs.configure.outputs.params).build_configure_extra_args }}
       run: |
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
         mkdir -p $GITHUB_WORKSPACE/build
-        mkdir -p $GITHUB_WORKSPACE/install
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults $ARGS --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
-          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
-          --cmake-opt="-DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/install"
+          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE"
     - name: Compile
       run: cmake --build $GITHUB_WORKSPACE/build
     # TODO allow to optionally disable in-tree checks
@@ -115,6 +143,6 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v1
       with:
-        name: sycl_linux_${{ inputs.build_artifact_suffix }}
+        name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         path: llvm_sycl.tar.gz
 
