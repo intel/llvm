@@ -14,8 +14,7 @@ namespace sycl {
 
 enum class aspect {
   host_debuggable = 0,
-  host __SYCL2020_DEPRECATED(
-      "use host_debuggable instead") = host_debuggable,
+  host __SYCL2020_DEPRECATED("use host_debuggable instead") = host_debuggable,
   cpu = 1,
   gpu = 2,
   accelerator = 3,
