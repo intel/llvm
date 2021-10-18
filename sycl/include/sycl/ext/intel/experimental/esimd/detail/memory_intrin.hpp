@@ -47,8 +47,8 @@ public:
 };
 
 template <int ElemsPerAddr,
-          typename = sycl::detail::enable_if_t<
-              (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)>>
+          typename = std::enable_if_t<(ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
+                                       ElemsPerAddr == 4)>>
 constexpr unsigned int ElemsPerAddrEncoding() {
   // encoding requires log2 of ElemsPerAddr
   if constexpr (ElemsPerAddr == 1)
@@ -498,7 +498,7 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
 /// @param surf_ind - the surface index, taken from the SYCL memory object
 /// @param global_offset - offset added to each individual element's offset to
 ///   compute actual memory access offset for that element
-/// @param elem_offsets - per-element offsets
+/// @param offsets - per-element offsets
 /// @param pred - per-element predicates; elements with zero corresponding
 ///   predicates are not written
 /// @return - elements read ("gathered") from memory
@@ -507,7 +507,7 @@ template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           int16_t Scale = 0>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
-                              __SEIEED::vector_type_t<uint32_t, N> addrs,
+                              __SEIEED::vector_type_t<uint32_t, N> offsets,
                               __SEIEED::simd_mask_storage_t<N> pred)
 #ifdef __SYCL_DEVICE_ONLY__
     ;

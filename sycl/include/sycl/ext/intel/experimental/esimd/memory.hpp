@@ -122,11 +122,12 @@ ESIMD_INLINE ESIMD_NODEBUG SurfaceIndex get_surface_index(AccessorTy acc) {
 /// \ingroup sycl_esimd
 template <typename T, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    ((n == 8 || n == 16 || n == 32) &&
-     (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
-    simd<T, n * ElemsPerAddr>>
-gather(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
+                               (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
+                                ElemsPerAddr == 4)),
+                              simd<T, n * ElemsPerAddr>>
+    gather(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
@@ -171,12 +172,13 @@ gather(T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
 /// \ingroup sycl_esimd
 template <typename T, int n, int ElemsPerAddr = 1,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    ((n == 8 || n == 16 || n == 32) &&
-     (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)),
-    void>
-scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
-        simd_mask<n> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
+                               (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
+                                ElemsPerAddr == 4)),
+                              void>
+    scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
+            simd_mask<n> pred = 1) {
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -280,12 +282,13 @@ ESIMD_INLINE ESIMD_NODEBUG
 namespace detail {
 template <typename T, int N, typename AccessorTy, bool ScaleOffset = false,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value,
-    void>
-scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-             uint32_t glob_offset, simd_mask<N> pred) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<(sizeof(T) <= 4) &&
+                                  (N == 1 || N == 8 || N == 16 || N == 32) &&
+                                  !std::is_pointer<AccessorTy>::value,
+                              void>
+    scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+                 uint32_t glob_offset, simd_mask<N> pred) {
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr int16_t scale = 0;
@@ -314,12 +317,13 @@ scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
 
 template <typename T, int N, typename AccessorTy, bool ScaleOffset = false,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value,
-    simd<T, N>>
-gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
-            simd_mask<N> pred) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<(sizeof(T) <= 4) &&
+                                  (N == 1 || N == 8 || N == 16 || N == 32) &&
+                                  !std::is_pointer<AccessorTy>::value,
+                              simd<T, N>>
+    gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
+                simd_mask<N> pred) {
 
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
@@ -369,12 +373,13 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 /// \ingroup sycl_esimd
 template <typename T, int N, typename AccessorTy,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value,
-    simd<T, N>>
-gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
-       simd_mask<N> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<(sizeof(T) <= 4) &&
+                                  (N == 1 || N == 8 || N == 16 || N == 32) &&
+                                  !std::is_pointer<AccessorTy>::value,
+                              simd<T, N>>
+    gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+           simd_mask<N> pred = 1) {
 
   return detail::gather_impl<T, N, AccessorTy, true, L1H, L3H>(
       acc, offsets, glob_offset, pred);
@@ -401,12 +406,13 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 /// \ingroup sycl_esimd
 template <typename T, int N, typename AccessorTy,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-        !std::is_pointer<AccessorTy>::value,
-    void>
-scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-        uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<(sizeof(T) <= 4) &&
+                                  (N == 1 || N == 8 || N == 16 || N == 32) &&
+                                  !std::is_pointer<AccessorTy>::value,
+                              void>
+    scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+            uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
 
   detail::scatter_impl<T, N, AccessorTy, true, L1H, L3H>(acc, vals, offsets,
                                                          glob_offset, pred);
@@ -419,18 +425,7 @@ template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
 ESIMD_INLINE ESIMD_NODEBUG T scalar_load(AccessorTy acc, uint32_t offset) {
   const simd<T, 1> Res =
       gather<T, 1, AccessorTy, L1H, L3H>(acc, simd<uint32_t, 1>(offset));
-  return (T)Res[0];
-}
-
-/// Load a scalar value from the Shared Local Memory.
-/// @tparam T type of the value
-/// @param offset SLM offset in bytes
-/// @return the loaded value
-/// \ingroup sycl_esimd
-template <typename T>
-ESIMD_INLINE ESIMD_NODEBUG T slm_scalar_load(uint32_t offset) {
-  const simd<T, 1> Res = slm_gather<T, 1>(simd<uint32_t, 1>(offset));
-  return (T)Res[0];
+  return Res[0];
 }
 
 /// Store a scalar value into an accessor.
@@ -441,16 +436,6 @@ ESIMD_INLINE ESIMD_NODEBUG void scalar_store(AccessorTy acc, uint32_t offset,
                                              T val) {
   scatter<T, 1, AccessorTy, L1H, L3H>(acc, simd<T, 1>(val),
                                       simd<uint32_t, 1>(offset));
-}
-
-/// Store a scalar value into the Shared Local Memory.
-/// @tparam T type of the value
-/// @param offset SLM offset in bytes
-/// @param val value to store
-/// \ingroup sycl_esimd
-template <typename T>
-ESIMD_INLINE ESIMD_NODEBUG void slm_scalar_store(uint32_t offset, T val) {
-  slm_scatter<T, 1>(simd<T, 1>(val), simd<uint32_t, 1>(offset), 1);
 }
 
 /// Gathering read for the given starting pointer \p p and \p offsets.
@@ -465,10 +450,10 @@ ESIMD_INLINE ESIMD_NODEBUG void slm_scalar_store(uint32_t offset, T val) {
 /// \ingroup sycl_esimd
 template <typename T, int N, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
-    (N == 16 || N == 32) && (sizeof(T) == 4),
-    simd<T, N * get_num_channels_enabled(Mask)>>
-gather_rgba(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
+ESIMD_INLINE ESIMD_NODEBUG
+    typename std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
+                              simd<T, N * get_num_channels_enabled(Mask)>>
+    gather_rgba(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
 
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
@@ -483,7 +468,7 @@ gather_rgba(T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
 template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 __SYCL_DEPRECATED("use gather_rgba.")
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+ESIMD_INLINE ESIMD_NODEBUG typename std::enable_if_t<
     (n == 16 || n == 32) && (sizeof(T) == 4),
     simd<T, n * get_num_channels_enabled(Mask)>> gather4(T *p,
                                                          simd<uint32_t, n>
@@ -507,8 +492,7 @@ ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
 template <typename T, int N, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 ESIMD_INLINE ESIMD_NODEBUG
-    typename sycl::detail::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
-                                       void>
+    typename std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4), void>
     scatter_rgba(T *p, simd<T, N * get_num_channels_enabled(Mask)> vals,
                  simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
@@ -523,7 +507,7 @@ ESIMD_INLINE ESIMD_NODEBUG
 template <typename T, int n, rgba_channel_mask Mask,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 __SYCL_DEPRECATED("use scatter_rgba.")
-ESIMD_INLINE ESIMD_NODEBUG typename sycl::detail::enable_if_t<
+ESIMD_INLINE ESIMD_NODEBUG typename std::enable_if_t<
     (n == 16 || n == 32) && (sizeof(T) == 4),
     void> scatter4(T *p, simd<T, n * get_num_channels_enabled(Mask)> vals,
                    simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
@@ -634,8 +618,7 @@ constexpr bool check_atomic() {
 template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
   simd<uintptr_t, n> offset_i1 = convert<uintptr_t>(offset);
@@ -648,8 +631,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
                 simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -664,8 +646,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<T, n>>
     flat_atomic(T *p, simd<unsigned, n> offset, simd<T, n> src0,
                 simd<T, n> src1, simd_mask<n> pred) {
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -751,6 +732,17 @@ ESIMD_INLINE ESIMD_NODEBUG
   return slm_gather<T, n>(offsets, pred);
 }
 
+/// Load a scalar value from the Shared Local Memory.
+/// @tparam T type of the value
+/// @param offset SLM offset in bytes
+/// @return the loaded value
+/// \ingroup sycl_esimd
+template <typename T>
+ESIMD_INLINE ESIMD_NODEBUG T slm_scalar_load(uint32_t offset) {
+  const simd<T, 1> Res = slm_gather<T, 1>(simd<uint32_t, 1>(offset));
+  return Res[0];
+}
+
 /// SLM scatter.
 template <typename T, int n>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
@@ -766,6 +758,16 @@ __SYCL_DEPRECATED("use slm_scatter.")
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<(n == 16 || n == 32)> slm_store(
     simd<T, n> vals, simd<uint32_t, n> offsets, simd<uint16_t, n> pred = 1) {
   slm_scatter<T, n>(vals, offsets, pred);
+}
+
+/// Store a scalar value into the Shared Local Memory.
+/// @tparam T type of the value
+/// @param offset SLM offset in bytes
+/// @param val value to store
+/// \ingroup sycl_esimd
+template <typename T>
+ESIMD_INLINE ESIMD_NODEBUG void slm_scalar_store(uint32_t offset, T val) {
+  slm_scatter<T, 1>(simd<T, 1>(val), simd<uint32_t, 1>(offset), 1);
 }
 
 /// Gathering read from the SLM given specified \p offsets.
@@ -873,8 +875,7 @@ ESIMD_INLINE ESIMD_NODEBUG void slm_block_store(uint32_t offset,
 /// SLM atomic, zero source operand: inc and dec.
 template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd_mask<n> pred) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   return __esimd_dword_atomic0<Op, T, n>(pred.data(), si, offsets.data());
@@ -883,8 +884,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// SLM atomic, one source operand, add/sub/min/max etc.
 template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd_mask<n> pred) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   return __esimd_dword_atomic1<Op, T, n>(pred.data(), si, offsets.data(),
@@ -894,8 +894,7 @@ ESIMD_NODEBUG ESIMD_INLINE
 /// SLM atomic, two source operands.
 template <atomic_op Op, typename T, int n>
 ESIMD_NODEBUG ESIMD_INLINE
-    typename sycl::detail::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
-                                       simd<T, n>>
+    typename std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<T, n>>
     slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd<T, n> src1,
                simd_mask<n> pred) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
