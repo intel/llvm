@@ -61,7 +61,7 @@ jobs:
               \"cc\":\"gcc\",
               \"cxx\":\"g++\",
               \"build_runs_on\":\"ubuntu-latest\",
-              \"build_image\":\"ghcr.io/testorg-abatashev/llvm/ubuntu2004_base:latest\",
+              \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_base:latest\",
               \"build_github_cache\":\"false\",
               \"build_cache_root\":\"$GITHUB_WORKSPACE\",
               \"build_cache_suffix\":\"default\",
