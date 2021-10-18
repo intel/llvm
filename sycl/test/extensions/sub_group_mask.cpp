@@ -88,10 +88,15 @@ int main() {
   b_const.extract_bits(r2bc, 16);
   assert(r2 == 128);
   assert(r2bc == 128);
+
   b[31] = true;
-  sycl::marray<char, 6> r3{-1};
+  const auto b_const2{b};
+  sycl::marray<char, 6> r3{-1}, r3bc{-1};
   b.extract_bits(r3, 14);
+  b_const2.extract_bits(r3bc, 14);
   assert(r3[0] == 1 && r3[1] == 2 && r3[2] == 2 && !r3[3] && !r3[4] && !r3[5]);
+  assert(r3bc[0] == 1 && r3bc[1] == 2 && r3bc[2] == 2 && !r3bc[3] && !r3bc[4] &&
+         !r3bc[5]);
   int ibits = 0b1010101010101010101010101010101;
   b.insert_bits(ibits);
   for (size_t i = 0; i < 32; i++) {
