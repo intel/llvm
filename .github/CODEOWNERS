@@ -26,6 +26,7 @@ sycl/ReleaseNotes.md @pvchupin @tfzhu
 sycl/doc/ @pvchupin @bader
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 sycl/doc/SPIRV @AlexeySotkin @bashbaug @mbelicki
+sycl/doc/dev @bader @vladimirlaz
 
 # Sub-groups
 sycl/include/CL/sycl/detail/spirv.hpp @Pennycook @AlexeySachkov
