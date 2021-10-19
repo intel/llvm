@@ -85,7 +85,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   // Track only if we won't be able to handle it with piQueueFinish.
   // FIXME these events are stored for level zero until as a workaround, remove
   // once piEventRelease no longer calls wait on the event in the plugin.
-  if (!MSupportOOO || getPlugin().getBackend() == backend::ext_oneapi_level_zero)
+  if (!MSupportOOO ||
+      getPlugin().getBackend() == backend::ext_oneapi_level_zero)
     addSharedEvent(ResEvent);
   return ResEvent;
 }

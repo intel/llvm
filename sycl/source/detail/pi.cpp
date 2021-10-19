@@ -412,7 +412,8 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     if (InteropBE == backend::opencl &&
         PluginNames[I].first.find("opencl") != std::string::npos) {
       // Use the OpenCL plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation, backend::opencl, Library);
+      GlobalPlugin =
+          std::make_shared<plugin>(PluginInformation, backend::opencl, Library);
     } else if (InteropBE == backend::ext_oneapi_cuda &&
                PluginNames[I].first.find("cuda") != std::string::npos) {
       // Use the CUDA plugin as the GlobalPlugin
