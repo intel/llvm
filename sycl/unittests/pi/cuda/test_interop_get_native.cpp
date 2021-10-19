@@ -8,10 +8,12 @@
 
 #include "gtest/gtest.h"
 
+#include <cuda.h>
+
 #include "TestGetPlatforms.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/backend/cuda.hpp>
-#include <cuda.h>
+#include <sycl/ext/oneapi/backend/cuda.hpp>
+
 #include <iostream>
 
 using namespace cl::sycl;

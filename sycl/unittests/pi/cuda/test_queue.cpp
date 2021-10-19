@@ -13,11 +13,11 @@
 #include "TestGetPlatforms.hpp"
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
-#include <CL/sycl/backend/cuda.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
+#include <sycl/ext/oneapi/backend/cuda.hpp>
 
 using namespace sycl;
 

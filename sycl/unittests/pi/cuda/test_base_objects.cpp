@@ -16,6 +16,7 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <detail/plugin.hpp>
 #include <pi_cuda.hpp>
+
 #include <thread>
 
 const unsigned int LATEST_KNOWN_CUDA_DRIVER_API_VERSION = 3020u;
