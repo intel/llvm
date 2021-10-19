@@ -19,6 +19,7 @@
 
 // This is necessary for asciidoc, but not for asciidoctor
 :cpp: C++
+:dpcpp: DPC++
 
 == Introduction
 In OpenCL 2.0 and later, a user is able to allocate program
@@ -55,8 +56,8 @@ products.
 
 == Version
 
-Built On: 2021-08-01 +
-Revision: 2
+Built On: 2021-09-30 +
+Revision: 3
 
 == Contact
 
@@ -186,13 +187,9 @@ The allocation of type _T_ is zero-initialized on each device prior to the first
 
 `device_global` may only be declared with static storage duration at namespace scope or class scope. If a `device_global` is declared with any other storage duration or scope, the program is ill-formed.
 
-Properties may be specified for a `device_global` to provide semantic modification or optimization hint information to the compiler.  Specific properties are defined in other extensions, but example uses of a property (with a "no copy" attribute described by another extension) are:
-
-[source,c++]
-----
-device_global<MyClass, property_list_t<no_copy::value_t>> dm1;
-device_global<int[4], property_list_t<no_copy::value_t>> dm2;
-----
+Properties may be specified for a `device_global` to provide semantic
+modification or optimization hint information to the compiler.  See the section
+below for a list of the properties that are allowed.
 
 [NOTE]
 ====
@@ -397,6 +394,216 @@ Must produce a compiler diagnostic if `PropertyListT` does not contain a `proper
 Available only if `sycl::is_property_of_v<propertyT, sycl::ext::oneapi::device_global>` is true.
 
 |===
+
+=== Properties for device global variables
+
+The `device_global` class supports several compile-time-constant properties.
+If specified, these properties are included in the `PropertyListT` template
+parameter as shown in this example:
+
+[source,c++]
+----
+using namespace sycl::ext::oneapi;
+
+device_global<MyClass, property_list_t<device_image_scope::value_t>> dm1;
+device_global<int[4], property_list_t<host_access::value_t<host_access::access::read>> dm2;
+----
+
+The following code synopsis shows the set of supported properties, and the
+following table describes their effect.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+struct device_image_scope {
+  using value_t = property_value<device_image_scope>;
+};
+
+struct host_access {
+  enum class access: /*unspecified*/ {
+    read,
+    write,
+    read_write,
+    none
+  };
+  template<access A>
+  using value_t = property_value<host_access, std::integral_constant<access, A>>;
+
+struct init_mode {
+  enum class trigger: /*unspecified*/ {
+    reprogram,
+    reset
+  };
+  template<trigger T>
+  using value_t = property_value<init_mode, std::integral_constant<trigger, T>>;
+};
+
+struct implement_in_csr {
+  template <bool Enable>
+  using value_t = property_value<implement_in_csr, std::bool_constant<Enable>>;
+};
+
+
+inline constexpr device_image_scope::value_t device_image_scope_v;
+
+template<host_access::access A>
+inline constexpr host_access::value_t<A> host_access_v;
+
+template<init_mode::trigger T>
+inline constexpr init_mode::value_t<T> init_mode_v;
+
+template<bool Enable>
+inline constexpr implement_in_csr::value_t<Enable> implement_in_csr_v;
+
+} // namespace sycl::ext::oneapi
+----
+
+[frame="topbot",options="header"]
+|===
+|Property |Description
+
+a|
+[source,c++]
+----
+device_image_scope
+----
+a|
+This property is most useful for kernels that are submitted to an FPGA device,
+but it may be used with any kernel.  Normally, a single instance of a device
+global variable is allocated for each device, and that instance is shared by
+all kernels that are submitted to the device, regardless of which _device
+image_ contains the kernel.  When this property is specified, it is an
+assertion by the user that the device global is referenced only from kernels
+that are contained by the same _device image_.  An implementation may be able
+to optimize accesses to the device global when this property is specified
+(especially on an FPGA device), but the user must be aware of which _device
+image_ contains the kernels that use the variable.
+
+A device global that is decorated with this property may not be accessed from
+kernels that reside in different _device images_, either by direct reference
+to the variable or indirectly by passing the variable's address to another
+kernel.  The implementation is required to diagnose an error if the kernels
+that directly access a variable do not all reside in the same _device image_,
+however no diagnostic is required for an indirect access from another _device
+image_.
+
+When a device global is decorated with this property, the implementation
+re-initializes it whenever the _device image_ is loaded onto the device.  As a
+result, the application can only be guaranteed that a device global retains its
+value between kernel invocations if it understands when the _device image_ is
+loaded onto the device.  For an FPGA, this happens whenever the device is
+reprogrammed.  Other devices typically load the _device image_ once before the
+first invocation of any kernel in that _device image_, and then it remains
+loaded onto the device until the program terminates.
+
+The application may copy to or from a device global even before any kernel in
+the _device image_ is submitted to the device.  Doing so causes the device
+global to be initialized immediately before the copy happens.  (Typically, the
+copy operation causes the _device image_ to be loaded onto the device also.)
+As a result, copying from a device global returns the initial value if the
+_device image_ that contains the variable is not currently loaded onto the
+device.
+
+a|
+[source,c++]
+----
+host_access
+----
+a|
+This property provides an assertion by the user telling the implementation
+whether the host code copies to or from the device global.  As a result, the
+implementation may be able to perform certain optimizations.  Although this
+property may be used with any device, it is generally only beneficial when used
+on FPGA devices.
+
+The following values are supported:
+
+* `read`: The user asserts that the host code may copy from (read) the
+  variable, but it will never copy to (write) it.  For an FPGA device, only a
+  read port is exposed.
+* `write`: The user asserts that the host code may copy to (write) the
+  variable, but it never copy from (read) it.  For an FPGA device, only a write
+  port is exposed.
+* `none`: The user asserts that the host code will never copy to or copy
+  from the variable.  For an FPGA device, no external ports are exposed.
+* `read_write`: The user provides no assertions, and the host code may either
+  copy to or copy from the variable.  This is the default.  For an FPGA device,
+  a read/write port is exposed.
+
+a|
+[source,c++]
+----
+init_mode
+----
+a|
+This property is only meaningful when used with an FPGA device.  It is ignored
+for other devices.  The following values are supported:
+
+* `reprogram`: Initialization is performed by reprogramming the device.  This
+  may require more frequent reprogramming but may reduce area.
+* `reset`: Initialization is performed by sending a reset signal to the device.
+  This may increase area but may reduce reprogramming frequency.
+
+If the `init_mode` property is not specified, the default behavior is
+equivalent to one of the values listed above, but the choice is implementation
+defined.
+
+a|
+[source,c++]
+----
+implement_in_csr
+----
+a|
+This property is only meaningful when used with an FPGA device.  It is ignored
+for other devices.  The following values are supported:
+
+* `true`: Access to this memory is done through a CSR interface shared with
+  kernel arguments.
+* `false`: Access to this memory is done through a dedicated interface.
+
+If the `implement_in_csr` property is not specified, the default behavior is
+equivalent to one of the values listed above, but the choice is implementation
+defined.
+
+|===
+
+[NOTE]
+====
+As stated above, the user must understand which _device image_ contains a
+kernel in order to use the `device_image_scope` property.  Each implementation
+may have its own rules that determine when two kernels are bundled together
+into the same _device image_.  For {dpcpp} two kernels _K1_ and _K2_ will be
+bundled into the same _device image_ when both of the following conditions are
+satisfied:
+
+* The translation unit containing _K1_ and the translation unit containing _K2_
+  must both be compiled with `-fsycl-targets=X
+  -fsycl-assume-all-kernels-run-on-targets` where the target `X` is the same in
+  both compilations.  (A list of targets may also be specified such as
+  `-fsycl-targets=X,Y`.  In this case the list must be the same in both
+  compilations.)
+
+* The application must be linked with `-fsycl-device-code-split` such that the
+  kernels _K1_ and _K2_ are not split into different _device images_.  For
+  example, if _K1_ and _K2_ reside in the same translation unit,
+  `-fsycl-device-code-split=per_source` will guarantee that they are bundled
+  together in the same _device image_.  If they reside in different translation
+  units, `-fsycl-device-code-split=none` will guarantee that they reside in the
+  same _device image_.
+
+In addition, the following factors also affect how kernels are bundled into
+_device images_:
+
+* Kernels that are online-compiled using `sycl::kernel_bundle` may reside in
+  different _device images_ if they are compiled from different `kernel_bundle`
+  objects.
+
+* A kernel that uses specialization constants may have a new instance in a new
+  _device image_ each time the application sets a new value for the
+  specialization constant.  However, this happens only if the device supports
+  native specialization constants, which is not the case for FPGA devices.
+====
 
 === Relax language restrictions for SYCL device functions
 
@@ -650,6 +857,9 @@ void copy(const std::remove_all_extents_t<T> *src,
 ----
 | `T` must be device copyable.
 
+Not available if `PropertyListT` contains the `host_access` property with
+`read` or `none` assertions.
+
 Copies _count_ elements of type `std::remove_all_extents_t<T>` from the pointer _src_ to the `device_global` _dest_, starting at _startIndex_ elements of _dest_. _src_ may be either a host or USM pointer.
 a| 
 [source, c++]
@@ -662,6 +872,9 @@ void copy(const device_global<T, PropertyListT>& src,
 ----
 | `T` must be device copyable.
 
+Not available if `PropertyListT` contains the `host_access` property with
+`write` or `none` assertions.
+
 Copies _count_ elements of type `std::remove_all_extents_t<T>` from the `device_global` _src_ to the pointer _dest_, starting at _startIndex_ elements of _src_. _dest_ may be either a host or USM pointer.
 
 a| 
@@ -672,6 +885,9 @@ void memcpy(device_global<T, PropertyListT>& dest,
   const void *src, size_t numBytes = sizeof(T), size_t offset = 0);
 ----
 |`T` must be device copyable.
+
+Not available if `PropertyListT` contains the `host_access` property with
+`read` or `none` assertions.
 
 Copies _count_ bytes from the pointer _src_ to the `device_global` _dest_, starting at _offset_ bytes. _src_ may be either a host or USM pointer.
 
@@ -684,6 +900,9 @@ void memcpy(void *dest,
   size_t numBytes = sizeof(T), size_t offset = 0);
 ----
 |`T` must be device copyable.
+
+Not available if `PropertyListT` contains the `host_access` property with
+`write` or `none` assertions.
 
 Copies _count_ bytes from the `device_global` _src_ to the pointer _dest_, starting at _offset_ bytes. _dest_ may be either a host or USM pointer.
 |====
