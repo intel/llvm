@@ -545,8 +545,9 @@ for other devices.  The following values are supported:
 * `reset`: Initialization is performed by sending a reset signal to the device.
   This may increase area but may reduce reprogramming frequency.
 
-If the `init_mode` property is not specified it may be set automatically to an
-implementation defined default.
+If the `init_mode` property is not specified, the default behavior is
+equivalent to one of the values listed above, but the choice is implementation
+defined.
 
 a|
 [source,c++]
@@ -561,8 +562,9 @@ for other devices.  The following values are supported:
   kernel arguments.
 * `false`: Access to this memory is done through a dedicated interface.
 
-If the `implement_in_csr` property is not specified it may be set automatically
-to an implementation defined default.
+If the `implement_in_csr` property is not specified, the default behavior is
+equivalent to one of the values listed above, but the choice is implementation
+defined.
 
 |===
 
