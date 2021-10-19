@@ -8,4 +8,5 @@ RUN apt update && apt install -yqq \
       ninja-build \
       ccache \
       git \
-      python3
+      python3 \
+      python3-distutils
