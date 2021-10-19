@@ -23,7 +23,8 @@ using namespace cl::sycl;
 struct CudaTestMemObj : public ::testing::Test {
 
 protected:
-  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::ext_oneapi_cuda);
+  std::optional<detail::plugin> plugin =
+      pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;
   pi_device device_;

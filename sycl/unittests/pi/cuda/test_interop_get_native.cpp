@@ -39,7 +39,8 @@ TEST_P(CudaInteropGetNativeTests, getNativeDevice) {
 }
 
 TEST_P(CudaInteropGetNativeTests, getNativeContext) {
-  CUcontext cudaContext = get_native<backend::ext_oneapi_cuda>(syclQueue_->get_context());
+  CUcontext cudaContext =
+      get_native<backend::ext_oneapi_cuda>(syclQueue_->get_context());
   ASSERT_NE(cudaContext, nullptr);
 }
 
@@ -51,7 +52,8 @@ TEST_P(CudaInteropGetNativeTests, getNativeQueue) {
   CUresult result = cuStreamGetCtx(cudaStream, &streamContext);
   ASSERT_EQ(result, CUDA_SUCCESS);
 
-  CUcontext cudaContext = get_native<backend::ext_oneapi_cuda>(syclQueue_->get_context());
+  CUcontext cudaContext =
+      get_native<backend::ext_oneapi_cuda>(syclQueue_->get_context());
   ASSERT_EQ(streamContext, cudaContext);
 }
 
@@ -89,7 +91,8 @@ TEST_P(CudaInteropGetNativeTests, hostTaskGetNativeMem) {
   syclQueue_->submit([&](handler &cgh) {
     auto syclAccessor = syclBuffer.get_access<access::mode::read>(cgh);
     cgh.host_task([=](interop_handle ih) {
-      CUdeviceptr cudaPtr = ih.get_native_mem<backend::ext_oneapi_cuda>(syclAccessor);
+      CUdeviceptr cudaPtr =
+          ih.get_native_mem<backend::ext_oneapi_cuda>(syclAccessor);
       CUdeviceptr cudaPtrBase;
       size_t cudaPtrSize = 0;
       CUcontext cudaContext =
@@ -107,17 +110,20 @@ TEST_P(CudaInteropGetNativeTests, hostTaskGetNativeQueue) {
   CUstream cudaStream = get_native<backend::ext_oneapi_cuda>(*syclQueue_);
   syclQueue_->submit([&](handler &cgh) {
     cgh.host_task([=](interop_handle ih) {
-      CUstream cudaInteropStream = ih.get_native_queue<backend::ext_oneapi_cuda>();
+      CUstream cudaInteropStream =
+          ih.get_native_queue<backend::ext_oneapi_cuda>();
       ASSERT_EQ(cudaInteropStream, cudaStream);
     });
   });
 }
 
 TEST_P(CudaInteropGetNativeTests, hostTaskGetNativeContext) {
-  CUcontext cudaContext = get_native<backend::ext_oneapi_cuda>(syclQueue_->get_context());
+  CUcontext cudaContext =
+      get_native<backend::ext_oneapi_cuda>(syclQueue_->get_context());
   syclQueue_->submit([&](handler &cgh) {
     cgh.host_task([=](interop_handle ih) {
-      CUcontext cudaInteropContext = ih.get_native_context<backend::ext_oneapi_cuda>();
+      CUcontext cudaInteropContext =
+          ih.get_native_context<backend::ext_oneapi_cuda>();
       ASSERT_EQ(cudaInteropContext, cudaContext);
     });
   });

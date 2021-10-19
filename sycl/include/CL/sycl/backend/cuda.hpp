@@ -33,16 +33,26 @@ typedef unsigned int CUdeviceptr;
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
-template <> struct interop<backend::ext_oneapi_cuda, device> { using type = CUdevice; };
+template <> struct interop<backend::ext_oneapi_cuda, device> {
+  using type = CUdevice;
+};
 
-template <> struct interop<backend::ext_oneapi_cuda, context> { using type = CUcontext; };
+template <> struct interop<backend::ext_oneapi_cuda, context> {
+  using type = CUcontext;
+};
 
-template <> struct interop<backend::ext_oneapi_cuda, queue> { using type = CUstream; };
+template <> struct interop<backend::ext_oneapi_cuda, queue> {
+  using type = CUstream;
+};
 
-template <> struct interop<backend::ext_oneapi_cuda, event> { using type = CUevent; };
+template <> struct interop<backend::ext_oneapi_cuda, event> {
+  using type = CUevent;
+};
 
 #ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_cuda, program> { using type = CUmodule; };
+template <> struct interop<backend::ext_oneapi_cuda, program> {
+  using type = CUmodule;
+};
 #endif
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
@@ -53,14 +63,16 @@ struct interop<backend::ext_oneapi_cuda,
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_cuda, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::constant_buffer,
-                                         access::placeholder::false_t>> {
+struct interop<
+    backend::ext_oneapi_cuda,
+    accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
+             access::placeholder::false_t>> {
   using type = CUdeviceptr;
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>
-struct interop<backend::ext_oneapi_cuda, buffer<DataT, Dimensions, AllocatorT>> {
+struct interop<backend::ext_oneapi_cuda,
+               buffer<DataT, Dimensions, AllocatorT>> {
   using type = CUdeviceptr;
 };
 

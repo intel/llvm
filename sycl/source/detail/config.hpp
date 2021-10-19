@@ -137,7 +137,8 @@ public:
     const std::array<std::pair<std::string, backend>, 5> SyclBeMap = {
         {{"PI_OPENCL", backend::opencl},
          {"PI_LEVEL_ZERO", backend::ext_oneapi_level_zero},
-         {"PI_LEVEL0", backend::ext_oneapi_level_zero}, // for backward compatibility
+         {"PI_LEVEL0", backend::ext_oneapi_level_zero}, // for backward
+                                                        // compatibility
          {"PI_CUDA", backend::ext_oneapi_cuda},
          {"PI_HIP", backend::ext_oneapi_hip}}};
     if (ValStr) {

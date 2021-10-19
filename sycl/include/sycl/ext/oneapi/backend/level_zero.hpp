@@ -53,9 +53,10 @@ struct interop<backend::ext_oneapi_level_zero,
 };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_level_zero, accessor<DataT, Dimensions, AccessMode,
-                                               access::target::constant_buffer,
-                                               access::placeholder::false_t>> {
+struct interop<
+    backend::ext_oneapi_level_zero,
+    accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
+             access::placeholder::false_t>> {
   using type = char *;
 };
 
@@ -242,7 +243,8 @@ T make(const context &Context,
 // Specialization of sycl::make_context for Level-Zero backend.
 template <>
 inline context make_context<backend::ext_oneapi_level_zero>(
-    const backend_input_t<backend::ext_oneapi_level_zero, context> &BackendObject,
+    const backend_input_t<backend::ext_oneapi_level_zero, context>
+        &BackendObject,
     const async_handler &Handler) {
   return ext::oneapi::level_zero::make_context(
       BackendObject.DeviceList,
@@ -293,7 +295,8 @@ make_kernel_bundle<backend::ext_oneapi_level_zero, bundle_state::executable>(
 // Specialization of sycl::make_kernel for Level-Zero backend.
 template <>
 inline kernel make_kernel<backend::ext_oneapi_level_zero>(
-    const backend_input_t<backend::ext_oneapi_level_zero, kernel> &BackendObject,
+    const backend_input_t<backend::ext_oneapi_level_zero, kernel>
+        &BackendObject,
     const context &TargetContext) {
   return detail::make_kernel(
       TargetContext, BackendObject.KernelBundle,

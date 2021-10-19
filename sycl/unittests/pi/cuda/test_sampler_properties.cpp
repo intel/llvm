@@ -21,7 +21,8 @@ class SamplerPropertiesTest
     : public ::testing::TestWithParam<std::tuple<
           pi_bool, pi_sampler_filter_mode, pi_sampler_addressing_mode>> {
 protected:
-  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::ext_oneapi_cuda);
+  std::optional<detail::plugin> plugin =
+      pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;
   pi_device device_;

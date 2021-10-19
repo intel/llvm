@@ -25,8 +25,7 @@ enum class backend : char {
   level_zero __SYCL2020_DEPRECATED("use 'ext_oneapi_level_zero' instead") =
       ext_oneapi_level_zero,
   ext_oneapi_cuda = 3,
-  cuda __SYCL2020_DEPRECATED("use 'ext_oneapi_cuda' instead") =
-      ext_oneapi_cuda,
+  cuda __SYCL2020_DEPRECATED("use 'ext_oneapi_cuda' instead") = ext_oneapi_cuda,
   all = 4,
   ext_intel_esimd_emulator = 5,
   esimd_cpu __SYCL2020_DEPRECATED("use 'ext_oneapi_esimd_emulator' instead") =

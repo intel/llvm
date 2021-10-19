@@ -24,7 +24,8 @@ using namespace cl::sycl;
 
 class CudaBaseObjectsTest : public ::testing::Test {
 protected:
-  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::ext_oneapi_cuda);
+  std::optional<detail::plugin> plugin =
+      pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   void SetUp() override {
     // skip the tests if the CUDA backend is not available
