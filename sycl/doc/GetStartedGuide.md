@@ -290,7 +290,24 @@ directory.
 
 ### Deployment
 
-TODO: add instructions how to deploy built DPC++ toolchain.
+DPC++ toolchain can be deployed through the same mechanisms as upstream LLVM
+toolchains, either by building `install` target, that would install all
+components or by specifying `LLVM_DISTRIBUTION_COMPONENTS`.
+See [LLVM documentation](https://llvm.org/docs/BuildingADistribution.html) for
+more info.
+
+For convenience, there's a pre-defined CMake cache file
+`sycl/cmake/caches/Deploy.cmake`, that can be used to generate correct
+distribution components. This is enabled by default, if you use `configure.py`
+script. Default deployment configuration will provide two additional targets:
+
+- `install-toolchain-distribution`, that will install core DPC++ compiler
+   components.
+- `install-development-distribution`, that will install some utilities, required
+   for development and testing of the compiler.
+
+To learn more about CMake caches and their applications, refer to
+[LLVM documentation](https://llvm.org/docs/AdvancedBuilds.html).
 
 ## Use DPC++ toolchain
 

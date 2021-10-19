@@ -62,6 +62,9 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     DESTINATION "."
     COMPONENT level-zero-loader
   )
+  add_llvm_install_targets(install-level-zero-loader
+    COMPONENT level-zero-loader
+  )
 
   set(LEVEL_ZERO_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/level_zero_loader_install/include/
 	  CACHE INTERNAL "Path containing Level_Zero header files.")
@@ -90,6 +93,10 @@ else()
 endif()
 
 list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS level-zero-loader level-zero-headers)
+add_custom_target(level-zero-headers)
+add_llvm_install_targets(install-level-zero-headers
+  COMPONENT level-zero-headers
+)
 
 include_directories("${LEVEL_ZERO_INCLUDE_DIR}")
 
@@ -100,35 +107,26 @@ target_include_directories(LevelZeroLoader-Headers
 )
 
 
-include_directories("${sycl_inc_dir}")
-
-add_library(pi_level_zero SHARED
-  "${sycl_inc_dir}/CL/sycl/detail/pi.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
-)
-
-if (MSVC)
-  # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
-  # which are individually tagged for all pi* symbols in pi.h
-  target_compile_definitions(pi_level_zero PRIVATE __SYCL_BUILD_SYCL_DLL)
-else()
-  # we set the visibility of all symbols 'hidden' by default.
-  # In pi.h file, we set exported symbols with visibility==default individually
-  target_compile_options(pi_level_zero PUBLIC -fvisibility=hidden)
-
+add_sycl_library(pi_level_zero SHARED
+  SOURCES
+    "${sycl_inc_dir}/CL/sycl/detail/pi.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pi_level_zero.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/usm_allocator.hpp"
+  INCLUDES
+    ${sycl_inc_dir}
+  LINK
+    ${CMAKE_DL_LIBS}
+  COMPILE_DEFINITIONS
+    __SYCL_BUILD_SYCL_DLL
   # This script file is used to allow exporting pi* symbols only.
   # All other symbols are regarded as local (hidden)
-  set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt")
-
-  # Filter symbols based on the scope defined in the script file,
-  # and export pi* function symbols in the library.
-  target_link_libraries( pi_level_zero
-    PRIVATE "-Wl,--version-script=${linker_script}"
-  )
-endif()
+  VERSION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt"
+  # we set the visibility of all symbols 'hidden' by default.
+  # In pi.h file, we set exported symbols with visibility==default individually
+  HIDE_SYMBOLS
+)
 
 if (TARGET level-zero-loader)
   add_dependencies(pi_level_zero level-zero-loader)
@@ -141,12 +139,10 @@ target_link_libraries(pi_level_zero
     OpenCL-Headers
 )
 
-if (UNIX)
-  target_link_libraries(pi_level_zero PRIVATE pthread)
-endif()
-
-add_common_options(pi_level_zero)
-
 install(TARGETS pi_level_zero
   LIBRARY DESTINATION "lib" COMPONENT pi_level_zero
   RUNTIME DESTINATION "bin" COMPONENT pi_level_zero)
+add_llvm_install_targets(install-pi_level_zero
+  COMPONENT pi_level_zero
+  DEPENDS pi_level_zero
+  )

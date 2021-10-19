@@ -103,6 +103,7 @@ def do_configure(args):
     cmake_cmd = [
         "cmake",
         "-G", args.cmake_gen,
+        "-C", os.path.join(abs_src_dir, "sycl", "cmake", "caches", "Deploy.cmake"),
         "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
         "-DLLVM_ENABLE_ASSERTIONS={}".format(llvm_enable_assertions),
         "-DLLVM_TARGETS_TO_BUILD={}".format(llvm_targets_to_build),

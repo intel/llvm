@@ -1,9 +1,3 @@
-#To-Do:
-#1. Figure out why CMP0057 has to be set. Should have been taken care of earlier in the build
-#2. Use AddLLVM to modify the build and access config options
-#cmake_policy(SET CMP0057 NEW)
-#include(AddLLVM)
-
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
@@ -23,83 +17,48 @@ function(add_sycl_rt_library LIB_NAME)
 
   set(LIB_OBJ_NAME ${LIB_NAME}_object)
 
-  add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
-  add_library(${LIB_NAME} SHARED 
-              $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
-              ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
-    
-  if (ARG_COMPILE_OPTIONS)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE ${ARG_COMPILE_OPTIONS})
-  endif()
+  add_sycl_library(${LIB_OBJ_NAME} OBJECT
+    SOURCES ${ARG_SOURCES}
+    COMPILE_OPTIONS ${ARG_COMPILE_OPTIONS}
+    COMPILE_DEFINITIONS
+      __SYCL_INTERNAL_API
+      __SYCL_BUILD_SYCL_DLL
+      SYCL2020_DISABLE_DEPRECATION_WARNINGS
+    INCLUDES
+      ${CMAKE_CURRENT_SOURCE_DIR}
+      "${sycl_inc_dir}"
+    LINK
+      OpenCL-Headers
+    HIDE_SYMBOLS
+  )
+  add_sycl_library(${LIB_NAME} SHARED
+    SOURCES
+      $<TARGET_OBJECTS:${LIB_OBJ_NAME}>
+      ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+    LINK
+      ${ARG_XPTI_LIB}
+      ${CMAKE_DL_LIBS}
+      ${CMAKE_THREAD_LIBS_INIT}
+      # TODO remove dependency on OpenCL
+      OpenCL-ICD
+      "$<$<PLATFORM_ID:Windows>:shlwapi>"
+    LINKER_SCRIPTS
+      "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt"
+    VERSION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt"
+  )
 
   add_dependencies(${LIB_OBJ_NAME}
     sycl-headers
   )
 
-  set_target_properties(${LIB_NAME} PROPERTIES LINKER_LANGUAGE CXX)
-
   if (SYCL_ENABLE_XPTI_TRACING)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE XPTI_ENABLE_INSTRUMENTATION XPTI_STATIC_LIBRARY)
-    target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
-
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
-
-  if (MSVC)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
-    target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
-  else()
-    target_compile_options(${LIB_OBJ_NAME} PUBLIC
-                           -fvisibility=hidden -fvisibility-inlines-hidden)
-    set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
-    set(abi_linker_script "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt")
-    target_link_libraries(
-      ${LIB_NAME} PRIVATE "-Wl,${abi_linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${abi_linker_script})
-    target_link_libraries(
-        ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
-    set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
-    if (SYCL_ENABLE_XPTI_TRACING)
-      target_link_libraries(${LIB_NAME} PRIVATE dl)
-    endif()
-  endif()
-
-  target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL2020_DISABLE_DEPRECATION_WARNINGS)
-
-  target_include_directories(
-    ${LIB_OBJ_NAME}
-    PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}
-      "${sycl_inc_dir}"
-  )
-  #TODO: Remove dependency on icd loader and opencl headers.
-  target_link_libraries(${LIB_OBJ_NAME}
-    PRIVATE OpenCL-Headers
-  )
-
-  find_package(Threads REQUIRED)
-
-  target_link_libraries(${LIB_NAME}
-    PRIVATE
-      OpenCL-ICD
-      ${CMAKE_DL_LIBS}
-      ${CMAKE_THREAD_LIBS_INIT}
-    PUBLIC
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:pi_cuda>
-  )
-
-  add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
                         SOVERSION ${SYCL_MAJOR_VERSION})
 
-  check_cxx_compiler_flag(-Winstantiation-after-specialization
-    HAS_INST_AFTER_SPEC)
-  if (HAS_INST_AFTER_SPEC)
-    target_compile_options(${LIB_OBJ_NAME} PRIVATE
-      -Winstantiation-after-specialization)
-  endif()
 endfunction(add_sycl_rt_library)
 
 set(SYCL_SOURCES
@@ -183,15 +142,6 @@ if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
   # To avoid potential issues in user code we also need to provide two kinds
   # of SYCL Runtime Library for release and debug configurations.
-  foreach(flag_var
-      CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-      CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-    string(REGEX REPLACE "/MDd" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MTd" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MD" "" ${flag_var} "${${flag_var}}")
-    string(REGEX REPLACE "/MT" "" ${flag_var} "${${flag_var}}")
-  endforeach()
-
   if (SYCL_ENABLE_XPTI_TRACING)
     add_sycl_rt_library(sycld XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
   else()
@@ -207,9 +157,6 @@ else()
   add_sycl_rt_library(sycl COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
 endif()
 
-# Enable new IN_LIST operator.
-cmake_policy(SET CMP0057 NEW)
-
 if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
   add_dependencies(sycl libsycldevice)
 endif()
@@ -218,3 +165,7 @@ install(TARGETS ${SYCL_RT_LIBS}
   ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
   LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl
   RUNTIME DESTINATION "bin" COMPONENT sycl)
+add_llvm_install_targets(install-sycl
+  COMPONENT sycl
+  DEPENDS ${SYCL_RT_LIBS}
+  )

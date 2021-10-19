@@ -280,3 +280,6 @@ install(FILES ${spv_binary_dir}/libsycl-fallback-cassert.spv
               ${spv_binary_dir}/libsycl-fallback-cmath-fp64.spv
         DESTINATION ${install_dest_spv}
         COMPONENT libsycldevice)
+add_llvm_install_targets(install-libsycldevice
+  COMPONENT libsycldevice
+)

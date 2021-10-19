@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 
+# Enable new IN_LIST operator.
+cmake_policy(SET CMP0057 NEW)
+
 project(sycl-solution)
 # Requirements
 set(CMAKE_CXX_STANDARD 17)
@@ -11,6 +14,7 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
+include(AddSYCL)
 
 set(SYCL_MAJOR_VERSION 5)
 set(SYCL_MINOR_VERSION 4)
@@ -86,6 +90,9 @@ file(COPY ${OpenCL_INCLUDE_DIR}/CL
 install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DIR}/sycl
         COMPONENT OpenCL-Headers)
+add_llvm_install_targets(install-OpenCL-Headers
+  COMPONENT OpenCL-Headers
+)
 
 option(SYCL_BUILD_PI_CUDA
   "Enables the CUDA backend for the Plugin Interface" OFF)
@@ -128,42 +135,14 @@ add_custom_command(
 # Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
+add_llvm_install_targets(install-sycl-headers
+  COMPONENT sycl-headers
+)
 
 set(SYCL_RT_LIBS sycl)
 if (MSVC)
   list(APPEND SYCL_RT_LIBS sycld)
 endif()
-
-# This function allows building multiple libraries with the same options.
-# Currently used by sycl and plugins library.
-# Currently handles linking with libcxx support and gcc workaround
-function( add_common_options LIB_NAME)
-  if (SYCL_USE_LIBCXX)
-    if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") OR
-      (CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
-      if ((NOT (DEFINED SYCL_LIBCXX_INCLUDE_PATH)) OR (NOT (DEFINED SYCL_LIBCXX_LIBRARY_PATH)))
-        message(FATAL_ERROR "When building with libc++ SYCL_LIBCXX_INCLUDE_PATHS and"
-                            "SYCL_LIBCXX_LIBRARY_PATH should be set")
-      endif()
-      target_link_libraries(${LIB_NAME} PRIVATE "-L${SYCL_LIBCXX_LIBRARY_PATH}" -Wl,-rpath,${SYCL_LIBCXX_LIBRARY_PATH} -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc)
-      target_compile_options(${LIB_NAME} PRIVATE -nostdinc++)
-      target_include_directories(${LIB_NAME} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-      if (ARGC EQUAL 2)
-        target_compile_options(${ARGV1} PRIVATE -nostdinc++)
-        target_include_directories(${ARGV1} PRIVATE "${SYCL_LIBCXX_INCLUDE_PATH}")
-      endif()
-    else()
-      message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
-    endif()
-  else()
-    # Workaround for bug in GCC version 5 and higher.
-    # More information https://bugs.launchpad.net/ubuntu/+source/gcc-5/+bug/1568899
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-        CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 5.0)
-      target_link_libraries(${ARGV0} PRIVATE gcc_s gcc)
-    endif()
-  endif()
-endfunction(add_common_options)
 
 if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS AND NOT WIN32)
   if(SYCL_USE_LIBCXX)
@@ -188,6 +167,10 @@ if (NOT WIN32)
     DESTINATION "lib${LLVM_LIBDIR_SUFFIX}/"
     COMPONENT sycl-headers-extras)
 endif()
+add_custom_target(sycl-headers-extras)
+add_llvm_install_targets(install-sycl-headers-extras
+  COMPONENT sycl-headers-extras
+)
 
 if (SYCL_ENABLE_XPTI_TRACING)
   set(XPTIFW_LIBS xpti xptifw)
@@ -230,6 +213,7 @@ endif()
 option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
+
 
 # Plugin Library
 add_subdirectory( plugins )
@@ -349,6 +333,8 @@ endforeach( comp )
 add_custom_target(deploy-sycl-toolchain
   DEPENDS sycl-toolchain ${manifest_list}
 )
+
+message(WARNING "deploy-sycl-toolchain target is deprecated and will be removed")
 
 # SYCL Runtime documentation
 add_subdirectory(doc)

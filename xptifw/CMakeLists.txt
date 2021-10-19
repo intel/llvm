@@ -53,8 +53,8 @@ add_subdirectory(src)
 add_custom_target(check-xptifw)
 
 add_subdirectory(unit_test)
-add_subdirectory(samples/basic_collector)
-add_subdirectory(samples/syclpi_collector)
+#add_subdirectory(samples/basic_collector)
+#add_subdirectory(samples/syclpi_collector)
 
 # The tests in basic_test are written using TBB, so these tests are enabled
 # only if TBB has been enabled.
