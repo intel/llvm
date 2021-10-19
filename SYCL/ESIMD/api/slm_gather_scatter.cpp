@@ -5,9 +5,6 @@
 //
 // The test checks functionality of the slm_gather/slm_scatter ESIMD APIs.
 
-// TODO: Enable the test for 1 and 2 byte types when the implementation is fixed
-#define SKIP_ONE_AND_TWO_BYTE_BLOCKS 1
-
 #include "../esimd_test_utils.hpp"
 
 #include <CL/sycl.hpp>
@@ -37,7 +34,6 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
     simd_mask<VL> pred = 1;
     pred[VL - 1] = 0; // mask out the last lane
     simd<T, VL> valsOut = slm_gather<T, VL>(offsets, pred);
-    valsOut *= -1;
 
     valsOut.copy_to(buf);
   }
@@ -46,6 +42,7 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
 template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   using namespace sycl::ext::intel::experimental::esimd;
   constexpr size_t size = VL;
+  constexpr int MASKED_LANE = VL - 1;
 
   std::cout << "Testing T=" << typeid(T).name() << " VL=" << VL
             << " STRIDE=" << STRIDE << "...\n";
@@ -56,12 +53,9 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   T *gold = new T[size];
 
   for (int i = 0; i < size; ++i) {
-    A[i] = (T)-i;
-    gold[i] = (T)i;
+    A[i] = (T)i + 1;
+    gold[i] = (T)i + 1;
   }
-
-  // Account for masked out last lane (with pred argument to slm_gather).
-  gold[(VL - 1)] = (T)0;
 
   try {
     range<1> glob_range{1};
@@ -80,7 +74,23 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
 
   int err_cnt = 0;
   for (unsigned i = 0; i < size; ++i) {
-    if (A[i] != gold[i]) {
+    if (i == MASKED_LANE) {
+      if (sizeof(T) >= 2) {
+        // Value in this lane should be overwritten by whatever value was
+        // returned by the masked gather in this lane. If, when verifying, we
+        // see the original value stored in memory at this index this 99.999%
+        // likely means the read hasn't been masked. There is non-zero chance
+        // masked read will spontaneously return the same value we wrote here
+        // and we'll get false negative. But this is the best we can do to test
+        // masked reads. Disable this for 1-byte elements, where probability of
+        // false negative increases.
+        if (A[i] == gold[i]) {
+          if (++err_cnt < VL) {
+            std::cout << "masking failed at index " << i << "\n";
+          }
+        }
+      }
+    } else if (A[i] != gold[i]) {
       if (++err_cnt < VL) {
         std::cout << "failed at index " << i << ": " << A[i]
                   << " != " << gold[i] << " (gold)\n";
@@ -118,12 +128,11 @@ int main(void) {
 
   bool passed = true;
 
-#ifndef SKIP_ONE_AND_TWO_BYTE_BLOCKS
   passed &= test<char, 16>(q);
   passed &= test<char, 32>(q);
   passed &= test<short, 16>(q);
   passed &= test<short, 32>(q);
-#endif
+
   passed &= test<int, 16>(q);
   passed &= test<int, 32>(q);
   passed &= test<float, 16>(q);
