@@ -117,8 +117,7 @@ values, to address several of these issues.
 
 The kernel properties below correspond to kernel attributes defined in
 Section 5.8.1 of the SYCL 2020 specification.  Note that deprecated attributes
-(such as `vec_type_hint`) are not included.  The `requires` attribute has been
-renamed `device_has`, to avoid future conflicts with the {cpp}20 keyword.
+(such as `vec_type_hint`) are not included.
 
 ```c++
 namespace sycl {
@@ -143,7 +142,7 @@ struct sub_group_size {
   using value_t = property_value<sub_group_size, std::integral_constant<uint32_t, Size>>;
 }; // sub_group_size
 
-// Corresponds to requires
+// Corresponds to device_has
 struct device_has {
   template <sycl::aspect... Aspects>
   using value_t = property_value<device_has, std::integral_constant<sycl::aspect, Aspects>...>;
@@ -213,7 +212,7 @@ inline constexpr device_has::value_t<Aspects...> device_has_v;
  launched on a device that has all of the aspects listed in the `Aspects`
  parameter pack. An implementation may throw an exception or issue a
  diagnostic for certain combinations of aspects, devices and kernel functions,
- as described for the `requires` attribute in Table 180 of the SYCL 2020
+ as described for the `device_has` attribute in Table 180 of the SYCL 2020
  specification.
 
 |===
@@ -403,7 +402,7 @@ run-time should result in an implementation throwing an `exception` with the
 
 == Device Functions
 
-The SYCL 2020 `sycl::requires` attribute can be applied to the declaration
+The SYCL 2020 `sycl::device_has` attribute can be applied to the declaration
 of a non-kernel device function, to assert that the device function uses a
 specific set of optional features. This extension provides a mechanism exposing
 similar behavior, allowing for kernel properties to be associated with
@@ -433,7 +432,7 @@ with a non-kernel device function via the `SYCL_EXT_ONEAPI_PROPERTY` macro.
 |The `device_has` property asserts that the device function uses optional
  features corresponding to the aspects listed in the `Aspects` parameter pack.
  The effects of this property are identical to those described for the
- `requires` attribute in Table 181 of the SYCL 2020 specification.
+ `device_has` attribute in Table 181 of the SYCL 2020 specification.
 
 |===
 
