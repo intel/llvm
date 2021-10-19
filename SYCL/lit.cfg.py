@@ -204,8 +204,10 @@ with open(check_sycl_hpp_file, 'w') as fp:
     fp.write('int main() {}')
 
 extra_sycl_include = ""
-sycl_hpp_available = subprocess.getstatusoutput(config.dpcpp_compiler+' -fsycl  ' + check_sycl_hpp_file)
+sycl_hpp_available = subprocess.getstatusoutput(config.dpcpp_compiler + ' -fsycl  ' + check_sycl_hpp_file + ("/c" if cl_options else "-c"))
 if sycl_hpp_available[0] != 0:
+    lit_config.note('Simple include of sycl/sycl.hpp failed with output: ' + sycl_hpp_available[1] + 
+                    '\nUsing fake sycl/sycl.hpp (which just points to CL/sycl.hpp)')
     extra_sycl_include = " " + ("/I" if cl_options else "-I") + config.extra_include
 
 config.substitutions.append( ('%clangxx', ' '+ config.dpcpp_compiler + ' ' + config.cxx_flags + ' ' + arch_flag + extra_sycl_include) )
