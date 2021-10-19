@@ -65,7 +65,7 @@ typedef unsigned int __clc_vec4_uint32_t __attribute__((ext_vector_type(4)));
 typedef unsigned int __clc_vec8_uint32_t __attribute__((ext_vector_type(8)));
 typedef unsigned int __clc_vec16_uint32_t __attribute__((ext_vector_type(16)));
 
-typedef long __clc_uint64_t;
+typedef long __clc_int64_t;
 typedef long __clc_vec2_int64_t __attribute__((ext_vector_type(2)));
 typedef long __clc_vec3_int64_t __attribute__((ext_vector_type(3)));
 typedef long __clc_vec4_int64_t __attribute__((ext_vector_type(4)));
@@ -120,7 +120,7 @@ typedef _Float16 __clc_vec8_float16_t __attribute__((ext_vector_type(8)));
 typedef _Float16 __clc_vec16_float16_t __attribute__((ext_vector_type(16)));
 
 #endif
-typedef __clc_int64_t __clc_size_t;
+typedef __clc_uint64_t __clc_size_t;
 
 typedef event_t __clc_event_t;
 
