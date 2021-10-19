@@ -44,7 +44,7 @@ context_impl::context_impl(const std::vector<cl::sycl::device> Devices,
   }
 
   const auto Backend = getPlugin().getBackend();
-  if (Backend == backend::cuda) {
+  if (Backend == backend::ext_oneapi_cuda) {
     const bool UseCUDAPrimaryContext =
         MPropList.has_property<property::context::cuda::use_primary_context>();
     const pi_context_properties Props[] = {

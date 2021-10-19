@@ -24,7 +24,7 @@ using namespace cl::sycl;
 
 class CudaBaseObjectsTest : public ::testing::Test {
 protected:
-  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   void SetUp() override {
     // skip the tests if the CUDA backend is not available
@@ -42,7 +42,7 @@ TEST_F(CudaBaseObjectsTest, piContextCreate) {
   pi_uint32 numPlatforms = 0;
   pi_platform platform = nullptr;
   pi_device device;
-  ASSERT_EQ(plugin->getBackend(), backend::cuda);
+  ASSERT_EQ(plugin->getBackend(), backend::ext_oneapi_cuda);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                 0, nullptr, &numPlatforms)),

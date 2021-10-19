@@ -24,7 +24,7 @@ using namespace sycl;
 struct CudaTestQueue : public ::testing::TestWithParam<platform> {
 
 protected:
-  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::cuda);
+  std::optional<detail::plugin> plugin = pi::initializeAndGet(backend::ext_oneapi_cuda);
 
   pi_platform platform_;
   pi_device device_;
@@ -37,7 +37,7 @@ protected:
     }
 
     pi_uint32 numPlatforms = 0;
-    ASSERT_EQ(plugin->getBackend(), backend::cuda);
+    ASSERT_EQ(plugin->getBackend(), backend::ext_oneapi_cuda);
 
     ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piPlatformsGet>(
                   0, nullptr, &numPlatforms)),
@@ -165,7 +165,7 @@ TEST_P(CudaTestQueue, SYCLQueueDefaultStream) {
   queue Queue(deviceA_, async_handler{},
               {property::queue::cuda::use_default_stream{}});
 
-  CUstream CudaStream = get_native<backend::cuda>(Queue);
+  CUstream CudaStream = get_native<backend::ext_oneapi_cuda>(Queue);
   unsigned int flags;
   cuStreamGetFlags(CudaStream, &flags);
   ASSERT_EQ(flags, CU_STREAM_DEFAULT);

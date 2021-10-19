@@ -34,7 +34,7 @@ static bool isDeviceOfPreferredSyclBe(const device &Device) {
     return false;
 
   return detail::getSyclObjImpl(Device)->getPlugin().getBackend() ==
-         backend::level_zero;
+         backend::ext_oneapi_level_zero;
 }
 
 // Return true if the given device 'Dev' matches with any filter

@@ -40,8 +40,8 @@ TEST_P(CudaPrimaryContextTests, piSingleContext) {
   context Context(deviceA_, async_handler{},
                   {sycl::property::context::cuda::use_primary_context{}});
 
-  CUdevice CudaDevice = deviceA_.get_native<backend::cuda>();
-  CUcontext CudaContext = Context.get_native<backend::cuda>();
+  CUdevice CudaDevice = deviceA_.get_native<backend::ext_oneapi_cuda>();
+  CUcontext CudaContext = Context.get_native<backend::ext_oneapi_cuda>();
 
   CUcontext PrimaryCudaContext;
   cuDevicePrimaryCtxRetain(&PrimaryCudaContext, CudaDevice);
@@ -58,8 +58,8 @@ TEST_P(CudaPrimaryContextTests, piMultiContextSingleDevice) {
   context ContextB(deviceA_, async_handler{},
                    {sycl::property::context::cuda::use_primary_context{}});
 
-  CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
-  CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
+  CUcontext CudaContextA = ContextA.get_native<backend::ext_oneapi_cuda>();
+  CUcontext CudaContextB = ContextB.get_native<backend::ext_oneapi_cuda>();
 
   ASSERT_EQ(CudaContextA, CudaContextB);
 }
@@ -68,8 +68,8 @@ TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
   if (deviceA_ == deviceB_)
     return;
 
-  CUdevice CudaDeviceA = deviceA_.get_native<backend::cuda>();
-  CUdevice CudaDeviceB = deviceB_.get_native<backend::cuda>();
+  CUdevice CudaDeviceA = deviceA_.get_native<backend::ext_oneapi_cuda>();
+  CUdevice CudaDeviceB = deviceB_.get_native<backend::ext_oneapi_cuda>();
 
   ASSERT_NE(CudaDeviceA, CudaDeviceB);
 
@@ -79,8 +79,8 @@ TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
   context ContextB(deviceB_, async_handler{},
                    {sycl::property::context::cuda::use_primary_context{}});
 
-  CUcontext CudaContextA = ContextA.get_native<backend::cuda>();
-  CUcontext CudaContextB = ContextB.get_native<backend::cuda>();
+  CUcontext CudaContextA = ContextA.get_native<backend::ext_oneapi_cuda>();
+  CUcontext CudaContextB = ContextB.get_native<backend::ext_oneapi_cuda>();
 
   ASSERT_NE(CudaContextA, CudaContextB);
 }
