@@ -35,9 +35,6 @@ KernelProgramCache::~KernelProgramCache() {
         Plugin.call<PiApiKind::piKernelRelease>(Kern);
       }
     }
-
-    const detail::plugin &Plugin = MParentContext->getPlugin();
-    Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
   }
 }
 }
