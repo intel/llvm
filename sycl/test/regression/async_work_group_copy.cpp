@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o -
 
-// Test checks for that no compile errors occur for 
+// Test checks for that no compile errors occur for
 // builtin async_work_group_copy
 #include <sycl/sycl.hpp>
 
@@ -30,8 +30,8 @@ template <typename T> void async_work_group_test() {
        size_t Offset = GrId * WorkGroupSize;
        auto E = NDId.async_work_group_copy(
            Local.get_pointer(), In.get_pointer() + Offset, WorkGroupSize);
-       E = NDId.async_work_group_copy(
-           Out.get_pointer() + Offset, Local.get_pointer(), WorkGroupSize);
+       E = NDId.async_work_group_copy(Out.get_pointer() + Offset,
+                                      Local.get_pointer(), WorkGroupSize);
      });
    }).wait();
 }
@@ -61,4 +61,3 @@ int main() {
   test<double>();
   return 1;
 }
-
