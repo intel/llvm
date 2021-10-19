@@ -96,7 +96,26 @@ cl_int clGetDeviceGlobalVariablePointerINTEL(
     void **global_variable_pointer_ret );
 ----
 is used to retrieve a pointer to a user-defined global variable
-_global_variable_name_ which exists in built _program_.
+_global_variable_name_ which exists in built _program_.  The interpretation of
+_global_variable_name_ depends on how the _program_ was created:
+
+* If the _program_ was created with *clCreateProgramWithSource* from OpenCL C
+  sources, *TODO* (see Issues section below).
+
+* If the _program_ was created with *clCreateProgramWithIL* from SPIR-V, there
+  are two cases:
+
+  - If the SPIR-V module declares the *GlobalVariableDecorationsINTEL*
+    capability, the implementation looks first for an *OpVariable* that is
+    decorated with *HostAccessINTEL* where the _Name_ operand is the same as
+    _global_variable_name_.
+
+  - The implementation next looks for an *OpVariable* that is decorated with
+    *LinkageAttributes* where the _Linkage Type_ is *Export* and the _Name_
+    operand is the same as _global_variable_name_.
+
+* If the _program_ was created in any other way, the interpretation of
+  _global_variable_name_ is implementation-defined.
 
 The returned pointer is a Unified Shared Memory pointer to the requested global
 variable and is specific to given _device_.
@@ -150,21 +169,12 @@ cl_intel_global_variable_pointers ...
 
 == Issues
 
-. Can this extension be used to query the address of any global variable in the program?
+. Exactly what is the interpretation of _global_variable_name_ for a _program_
+  that was created from OpenCL C sources?  Must the variable be declared
+  "extern"?  Are "constant" variables allowed?
 +
 --
 *UNRESOLVED*
-
-It is not possible to obtain address of *any* arbitrary global variable using
-`clGetDeviceGlobalVariablePointerINTEL`, and the mechanism to identify that the
-global variable may have it's address taken is dependent on how program object
-is created:
-
-* for programs created from source, *TODO* (extern?)
-
-* for programs created from SPIR-V IL, *TODO* (global variable needs to have *export* linkage?)
-
-* for programs created from a binary, the mechanism is implementation defined.
 --
 
 . Can a queried global variable pointer be used by a kernel from another program object?
@@ -185,4 +195,5 @@ Currently this is disallowed.
 |Rev|Date|Author|Changes
 |0.9.0|2019-09-14|Jaroslaw Chodor|*Initial revision*
 |0.9.0|2021-09-22|Ben Ashbaugh|Added preview disclaimer, general cleanup.
+|0.9.0|2021-10-18|Greg Lueck|Clarify variable name for SPIR-V case.
 |========================================

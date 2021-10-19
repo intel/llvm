@@ -61,8 +61,8 @@ This extension requires SPIR-V 1.0.
 == Overview
 
 This extension adds decorations that can be applied to global (module scope)
-variables.  These decorations are intended to help code generation for FPGA
-devices, but they must be recognized by any consumer that supports this
+variables.  These decorations are mostly intended to help code generation for
+FPGA devices, but they must be recognized by any consumer that supports this
 extension.
 
 == Extension Name
@@ -103,7 +103,7 @@ Modify Section 3.20, Decoration, adding these rows to the Decoration table:
 --
 [options="header"]
 |====
-2+^| Decoration | Extra Operands | Enabling Capabilities
+2+^| Decoration 2+^| Extra Operands | Enabling Capabilities
 
 // --- ROW BREAK ---
 | 6147
@@ -113,8 +113,10 @@ Only valid on global (module scope) *OpVariable*.
 
 The client API's execution environment may provide a way to access a global
 variable's value from the host system.  If it does, this decoration provides
-an assertion by the producer about the types of these accesses.  This may allow
-the consumer to perform certain optimizations, especially for FPGA devices.
+two pieces of information.  _Access_ is an assertion by the producer about the
+types of these accesses, which may allow the consumer to perform certain
+optimizations, especially for FPGA devices.  _Name_ is a name which the client
+API's execution environment may use to identify this variable.
 
 Legal values of _Access_:
 
@@ -135,6 +137,8 @@ If a global *OpVariable* is not decorated with *HostAccessINTEL*, the default
 behavior is [Read/Write].
 | Literal Number +
 _Access_
+| Literal String +
+_Name_
 | *GlobalVariableDecorationsINTEL*
 
 // --- ROW BREAK ---
@@ -154,7 +158,7 @@ Legal values of _Trigger_:
 * 1 [init on device reset] - Initialization is performed when a reset signal is
   sent to the device.
 
-| Literal Number +
+2+| Literal Number +
 _Trigger_
 | *GlobalVariableDecorationsINTEL*
 
@@ -174,7 +178,7 @@ Legal values of _Value_:
 * 1 [True] - Access to this memory is through a CSR interface shared with the
   kernel arguments.
 
-| Literal Number +
+2+| Literal Number +
 _Value_
 | *GlobalVariableDecorationsINTEL*
 
