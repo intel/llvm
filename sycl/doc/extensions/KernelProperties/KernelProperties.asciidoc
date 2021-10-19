@@ -350,6 +350,11 @@ a `property_list` member variable named `properties`. Note that this member
 variable must be `static constexpr`, and kernel functors can therefore only
 encode properties with compile-time values.
 
+NOTE: The attribute mechanism in SYCL 2020 allows for different kernel
+attributes to be applied to different call operators within the same
+functor. The `property_list` member variable applies to all call operators in
+the functor.
+
 The example below shows how the kernel from the previous section could be
 rewritten to leverage an embedded property list:
 
@@ -380,17 +385,6 @@ struct KernelFunctor {
 q.parallel_for(range<2>{16, 16}, KernelFunctor(a, b, c)).wait();
 ```
 
-Any properties encoded into a kernel type via a property list are reflected
-in the results of a call to `kernel::get_info` with the
-`info::kernel::attributes` information descriptor, as if the corresponding
-attribute from the SYCL 2020 specification had been applied to the kernel
-function.
-
-NOTE: The attribute mechanism in SYCL 2020 allows for different kernel
-attributes to be applied to different call operators within the same
-functor. The `property_list` member variable applies to all call operators in
-the functor.
-
 If a kernel functor with a `property_list` member variable is enqueued for
 execution using an invocation function with a `property_list` argument,
 the kernel is launched as-if the member variable and argument were combined. If
@@ -399,6 +393,14 @@ an error: invalid combinations that can be detected at compile-time should be
 reported via a diagnostic; invalid combinations that can only be detected at
 run-time should result in an implementation throwing an `exception` with the
 `errc::invalid` error code.
+
+== Querying Properties in a Compiled Kernel
+
+Any properties encoded into a kernel type via a property list are reflected
+in the results of a call to `kernel::get_info` with the
+`info::kernel::attributes` information descriptor, as if the corresponding
+attribute from the SYCL 2020 specification had been applied to the kernel
+function.
 
 == Device Functions
 
