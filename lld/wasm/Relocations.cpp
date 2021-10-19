@@ -32,17 +32,13 @@ static bool requiresGOTAccess(const Symbol *sym) {
 }
 
 static bool allowUndefined(const Symbol* sym) {
-  // Undefined functions and globals with explicit import name are allowed to be
-  // undefined at link time.
-  if (auto *f = dyn_cast<UndefinedFunction>(sym))
-    if (f->importName || config->importUndefined)
-      return true;
-  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
-    if (g->importName)
-      return true;
-  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
-    if (g->importName)
-      return true;
+  // Symbols with explicit import names are always allowed to be undefined at
+  // link time.
+  if (sym->importName)
+    return true;
+  if (isa<UndefinedFunction>(sym) && config->importUndefined)
+    return true;
+
   return config->allowUndefinedSymbols.count(sym->getName()) != 0;
 }
 
@@ -120,6 +116,12 @@ void scanRelocations(InputChunk *chunk) {
       // merged with normal data and allowing TLS relocation in non-TLS
       // segments.
       if (config->sharedMemory) {
+        if (!sym->isTLS()) {
+          error(toString(file) + ": relocation " +
+                relocTypeToString(reloc.Type) +
+                " cannot be used against non-TLS symbol `" + toString(*sym) +
+                "`");
+        }
         if (auto *D = dyn_cast<DefinedData>(sym)) {
           if (!D->segment->outputSeg->isTLS()) {
             error(toString(file) + ": relocation " +
@@ -145,15 +147,6 @@ void scanRelocations(InputChunk *chunk) {
         error(toString(file) + ": relocation " + relocTypeToString(reloc.Type) +
               " cannot be used against symbol " + toString(*sym) +
               "; recompile with -fPIC");
-        break;
-      case R_WASM_MEMORY_ADDR_TLS_SLEB:
-      case R_WASM_MEMORY_ADDR_TLS_SLEB64:
-        if (!sym->isDefined()) {
-          error(toString(file) +
-                ": TLS symbol is undefined, but TLS symbols cannot yet be "
-                "imported: `" +
-                toString(*sym) + "`");
-        }
         break;
       case R_WASM_TABLE_INDEX_I32:
       case R_WASM_TABLE_INDEX_I64:

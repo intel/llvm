@@ -49,6 +49,8 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/MSP430AttributeParser.h"
+#include "llvm/Support/MSP430Attributes.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MipsABIFlags.h"
 #include "llvm/Support/RISCVAttributeParser.h"
@@ -1614,6 +1616,9 @@ static const EnumEntry<unsigned> ElfMips16SymOtherFlags[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, STO_MIPS_MIPS16)
 };
 
+static const EnumEntry<unsigned> ElfRISCVSymOtherFlags[] = {
+    LLVM_READOBJ_ENUM_ENT(ELF, STO_RISCV_VARIANT_CC)};
+
 static const char *getElfMipsOptionsOdkType(unsigned Odk) {
   switch (Odk) {
   LLVM_READOBJ_ENUM_CASE(ELF, ODK_NULL);
@@ -2574,6 +2579,11 @@ template <class ELFT> void ELFDumper<ELFT>::printArchSpecificInfo() {
     else
       reportUniqueWarning("attribute printing not implemented for big-endian "
                           "RISC-V objects");
+    break;
+  case EM_MSP430:
+    printAttributes(ELF::SHT_MSP430_ATTRIBUTES,
+                    std::make_unique<MSP430AttributeParser>(&W),
+                    support::little);
     break;
   case EM_MIPS: {
     printMipsABIFlags();
@@ -3766,6 +3776,15 @@ void GNUELFDumper<ELFT>::printSymbol(const Elf_Sym &Symbol, unsigned SymIndex,
           Fields[5].Str.append(" | " + to_hexString(Other, false));
         Fields[5].Str.append("]");
       }
+    } else if (this->Obj.getHeader().e_machine == ELF::EM_RISCV) {
+      uint8_t Other = Symbol.st_other & ~0x3;
+      if (Other & STO_RISCV_VARIANT_CC) {
+        Other &= ~STO_RISCV_VARIANT_CC;
+        Fields[5].Str += " [VARIANT_CC";
+        if (Other != 0)
+          Fields[5].Str.append(" | " + to_hexString(Other, false));
+        Fields[5].Str.append("]");
+      }
     } else {
       Fields[5].Str +=
           " [<other: " + to_string(format_hex(Symbol.st_other, 2)) + ">]";
@@ -4362,7 +4381,7 @@ template <class ELFT> void GNUELFDumper<ELFT>::printDynamicTable() {
   for (auto Entry : Table) {
     uintX_t Tag = Entry.getTag();
     std::string Type =
-        std::string("(") + this->Obj.getDynamicTagAsString(Tag).c_str() + ")";
+        std::string("(") + this->Obj.getDynamicTagAsString(Tag) + ")";
     std::string Value = this->getDynamicEntry(Tag, Entry.getVal());
     OS << "  " << format_hex(Tag, ELFT::Is64Bits ? 18 : 10)
        << format(ValueFmt.c_str(), Type.c_str()) << Value << "\n";
@@ -6570,6 +6589,10 @@ void LLVMELFDumper<ELFT>::printSymbol(const Elf_Sym &Symbol, unsigned SymIndex,
       SymOtherFlags.insert(SymOtherFlags.end(),
                            std::begin(ElfAArch64SymOtherFlags),
                            std::end(ElfAArch64SymOtherFlags));
+    } else if (this->Obj.getHeader().e_machine == EM_RISCV) {
+      SymOtherFlags.insert(SymOtherFlags.end(),
+                           std::begin(ElfRISCVSymOtherFlags),
+                           std::end(ElfRISCVSymOtherFlags));
     }
     W.printFlags("Other", Symbol.st_other, makeArrayRef(SymOtherFlags), 0x3u);
   }

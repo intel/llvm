@@ -622,8 +622,8 @@ using CaptureDesc = std::pair<AllocaInst *, GetElementPtrInst *>;
 //
 static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // Lambda object is always the last argument to the PFWI lambda function:
-  auto NArgs = PFWICall->getNumArgOperands();
-  assert(PFWICall->getNumArgOperands() > 1 && "invalid PFWI call");
+  auto NArgs = PFWICall->arg_size();
+  assert(PFWICall->arg_size() > 1 && "invalid PFWI call");
   Value *LambdaObj =
       PFWICall->getArgOperand(NArgs - 1 /*lambda object parameter*/);
   // First go through all stores through the LambdaObj pointer - those are
@@ -978,8 +978,7 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   Type *RetTy = Type::getVoidTy(Ctx);
 
   AttributeList Attr;
-  Attr = Attr.addAttribute(Ctx, AttributeList::FunctionIndex,
-                           Attribute::Convergent);
+  Attr = Attr.addFnAttribute(Ctx, Attribute::Convergent);
   FunctionCallee FC =
       M.getOrInsertFunction(Name, Attr, RetTy, ScopeTy, ScopeTy, SemanticsTy);
   assert(FC.getCallee() && "spirv intrinsic creation failed");
@@ -992,7 +991,6 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
       ScopeTy, asUInt(spirv::MemorySemantics::SequentiallyConsistent) |
                    asUInt(spirv::MemorySemantics::WorkgroupMemory));
   auto BarrierCall = Bld.CreateCall(FC, {ArgExec, ArgMem, ArgSema});
-  BarrierCall->addAttribute(llvm::AttributeList::FunctionIndex,
-                            llvm::Attribute::Convergent);
+  BarrierCall->addFnAttr(llvm::Attribute::Convergent);
   return BarrierCall;
 }

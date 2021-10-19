@@ -160,16 +160,27 @@ joint_matrix_store(Group sg,
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-template <typename Group, typename T1, typename T2, size_t M, size_t K,
-          size_t N, matrix_layout LayoutA, matrix_layout LayoutB,
+template <typename Group, typename T1, typename T2, typename T3, size_t M,
+          size_t K, size_t N, matrix_layout LayoutA, matrix_layout LayoutB,
           matrix_layout LayoutC>
-inline __SYCL_ALWAYS_INLINE joint_matrix<T2, M, N, LayoutC, Group>
+inline __SYCL_ALWAYS_INLINE joint_matrix<T3, M, N, LayoutC, Group>
 joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
-                 joint_matrix<T1, K, N, LayoutB, Group> &mB,
-                 joint_matrix<T2, M, N, LayoutC, Group> &mC) {
+                 joint_matrix<T2, K, N, LayoutB, Group> &mB,
+                 joint_matrix<T3, M, N, LayoutC, Group> &mC) {
 #ifdef __SYCL_DEVICE_ONLY__
-  joint_matrix<T2, M, N, LayoutC, Group> res(sg);
-  res.spvm = __spirv_JointMatrixMadINTEL(mA.spvm, mB.spvm, mC.spvm);
+  joint_matrix<T3, M, N, LayoutC, Group> res(sg);
+  if constexpr (std::is_same<T1, uint16_t>::value &&
+                std::is_same<T2, uint16_t>::value &&
+                std::is_same<T3, float>::value)
+    res.spvm = __spirv_JointMatrixMadINTEL(mA.spvm, mB.spvm, mC.spvm);
+  else if constexpr (std::is_unsigned<T1>::value && std::is_unsigned<T2>::value)
+    res.spvm = __spirv_JointMatrixUUMadINTEL(mA.spvm, mB.spvm, mC.spvm);
+  else if constexpr (std::is_signed<T1>::value && std::is_unsigned<T2>::value)
+    res.spvm = __spirv_JointMatrixSUMadINTEL(mA.spvm, mB.spvm, mC.spvm);
+  else if constexpr (std::is_unsigned<T1>::value && std::is_signed<T2>::value)
+    res.spvm = __spirv_JointMatrixUSMadINTEL(mA.spvm, mB.spvm, mC.spvm);
+  else
+    res.spvm = __spirv_JointMatrixMadINTEL(mA.spvm, mB.spvm, mC.spvm);
   return res;
 #else
   (void)sg;

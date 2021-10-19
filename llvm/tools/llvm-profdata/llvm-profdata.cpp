@@ -1633,6 +1633,7 @@ void SampleOverlapAggregator::computeSampleProfileOverlap(raw_fd_ostream &OS) {
            "except inlinees");
     FuncOverlap.TestSample = TestStats[FuncOverlap.TestName].SampleSum;
 
+    bool Matched = false;
     const auto Match = BaseFuncProf.find(FuncOverlap.TestName);
     if (Match == BaseFuncProf.end()) {
       const FuncSampleStats &FuncStats = TestStats[FuncOverlap.TestName];
@@ -1677,6 +1678,7 @@ void SampleOverlapAggregator::computeSampleProfileOverlap(raw_fd_ostream &OS) {
       // Remove matched base functions for later reporting functions not found
       // in test profile.
       BaseFuncProf.erase(Match);
+      Matched = true;
     }
 
     // Print function-level similarity information if specified by options.
@@ -1684,9 +1686,8 @@ void SampleOverlapAggregator::computeSampleProfileOverlap(raw_fd_ostream &OS) {
            "TestStats should have records for all functions in test profile "
            "except inlinees");
     if (TestStats[FuncOverlap.TestName].MaxSample >= FuncFilter.ValueCutoff ||
-        (Match != BaseFuncProf.end() &&
-         FuncOverlap.Similarity < LowSimilarityThreshold) ||
-        (Match != BaseFuncProf.end() && !FuncFilter.NameFilter.empty() &&
+        (Matched && FuncOverlap.Similarity < LowSimilarityThreshold) ||
+        (Matched && !FuncFilter.NameFilter.empty() &&
          FuncOverlap.BaseName.toString().find(FuncFilter.NameFilter) !=
              std::string::npos)) {
       assert(ProfOverlap.BaseSample > 0 &&
@@ -1914,22 +1915,13 @@ std::error_code SampleOverlapAggregator::loadProfiles() {
 
   // Load BaseHotThreshold and TestHotThreshold as 99-percentile threshold in
   // profile summary.
-  const uint64_t HotCutoff = 990000;
   ProfileSummary &BasePS = BaseReader->getSummary();
-  for (const auto &SummaryEntry : BasePS.getDetailedSummary()) {
-    if (SummaryEntry.Cutoff == HotCutoff) {
-      BaseHotThreshold = SummaryEntry.MinCount;
-      break;
-    }
-  }
-
   ProfileSummary &TestPS = TestReader->getSummary();
-  for (const auto &SummaryEntry : TestPS.getDetailedSummary()) {
-    if (SummaryEntry.Cutoff == HotCutoff) {
-      TestHotThreshold = SummaryEntry.MinCount;
-      break;
-    }
-  }
+  BaseHotThreshold =
+      ProfileSummaryBuilder::getHotCountThreshold(BasePS.getDetailedSummary());
+  TestHotThreshold =
+      ProfileSummaryBuilder::getHotCountThreshold(TestPS.getDetailedSummary());
+
   return std::error_code();
 }
 
@@ -2303,7 +2295,7 @@ static void dumpHotFunctionList(const std::vector<std::string> &ColumnTitle,
                                 uint64_t HotFuncCount, uint64_t TotalFuncCount,
                                 uint64_t HotProfCount, uint64_t TotalProfCount,
                                 const std::string &HotFuncMetric,
-                                raw_fd_ostream &OS) {
+                                uint32_t TopNFunctions, raw_fd_ostream &OS) {
   assert(ColumnOffset.size() == ColumnTitle.size() &&
          "ColumnOffset and ColumnTitle should have the same size");
   assert(ColumnTitle.size() >= 4 &&
@@ -2332,7 +2324,10 @@ static void dumpHotFunctionList(const std::vector<std::string> &ColumnTitle,
   }
   FOS << "\n";
 
-  for (const HotFuncInfo &R : PrintValues) {
+  uint32_t Count = 0;
+  for (const auto &R : PrintValues) {
+    if (TopNFunctions && (Count++ == TopNFunctions))
+      break;
     FOS.PadToColumn(ColumnOffset[0]);
     FOS << R.TotalCount << " (" << format("%.2f%%", R.TotalCountPercent) << ")";
     FOS.PadToColumn(ColumnOffset[1]);
@@ -2345,7 +2340,8 @@ static void dumpHotFunctionList(const std::vector<std::string> &ColumnTitle,
 }
 
 static int showHotFunctionList(const sampleprof::SampleProfileMap &Profiles,
-                               ProfileSummary &PS, raw_fd_ostream &OS) {
+                               ProfileSummary &PS, uint32_t TopN,
+                               raw_fd_ostream &OS) {
   using namespace sampleprof;
 
   const uint32_t HotFuncCutoff = 990000;
@@ -2400,13 +2396,14 @@ static int showHotFunctionList(const sampleprof::SampleProfileMap &Profiles,
   }
   dumpHotFunctionList(ColumnTitle, ColumnOffset, PrintValues, HotFuncCount,
                       Profiles.size(), HotFuncSample, ProfileTotalSample,
-                      Metric, OS);
+                      Metric, TopN, OS);
 
   return 0;
 }
 
 static int showSampleProfile(const std::string &Filename, bool ShowCounts,
-                             bool ShowAllFunctions, bool ShowDetailedSummary,
+                             uint32_t TopN, bool ShowAllFunctions,
+                             bool ShowDetailedSummary,
                              const std::string &ShowFunction,
                              bool ShowProfileSymbolList,
                              bool ShowSectionInfoOnly, bool ShowHotFuncList,
@@ -2445,8 +2442,8 @@ static int showSampleProfile(const std::string &Filename, bool ShowCounts,
     PS.printDetailedSummary(OS);
   }
 
-  if (ShowHotFuncList)
-    showHotFunctionList(Reader->getProfiles(), Reader->getSummary(), OS);
+  if (ShowHotFuncList || TopN)
+    showHotFunctionList(Reader->getProfiles(), Reader->getSummary(), TopN, OS);
 
   return 0;
 }
@@ -2537,10 +2534,10 @@ static int show_main(int argc, const char *argv[]) {
         ShowAllFunctions, ShowCS, ValueCutoff, OnlyListBelow, ShowFunction,
         TextFormat, ShowBinaryIds, OS);
   else
-    return showSampleProfile(Filename, ShowCounts, ShowAllFunctions,
-                             ShowDetailedSummary, ShowFunction,
-                             ShowProfileSymbolList, ShowSectionInfoOnly,
-                             ShowHotFuncList, OS);
+    return showSampleProfile(Filename, ShowCounts, TopNFunctions,
+                             ShowAllFunctions, ShowDetailedSummary,
+                             ShowFunction, ShowProfileSymbolList,
+                             ShowSectionInfoOnly, ShowHotFuncList, OS);
 }
 
 int main(int argc, const char *argv[]) {

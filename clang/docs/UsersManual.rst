@@ -1386,6 +1386,17 @@ are listed below.
    If both ``-fno-honor-infinities`` and ``-fno-honor-nans`` are used,
    has the same effect as specifying ``-ffinite-math-only``.
 
+.. _opt_fapprox-func:
+
+**-f[no-]approx-func**
+
+   Allow certain math function calls (such as ``log``, ``sqrt``, ``pow``, etc)
+   to be replaced with an approximately equivalent set of instructions
+   or alternative math function calls. For example, a ``pow(x, 0.25)``
+   may be replaced with ``sqrt(sqrt(x))``, despite being an inexact result
+   in cases where ``x`` is ``-0.0`` or ``-inf``.
+   Defaults to ``-fno-approx-func``.
+
 .. _opt_fsigned-zeros:
 
 **-f[no-]signed-zeros**
@@ -1477,17 +1488,6 @@ Note that floating-point operations performed as part of constant initialization
    * ``ignore`` The compiler assumes that the exception status flags will not be read and that floating point exceptions will be masked.
    * ``maytrap`` The compiler avoids transformations that may raise exceptions that would not have been raised by the original code. Constant folding performed by the compiler is exempt from this option.
    * ``strict`` The compiler ensures that all transformations strictly preserve the floating point exception semantics of the original code.
-
-.. option:: -ffp-eval-method=<value>
-
-   Specify the floating-point evaluation method.
-
-   Valid values are: ``source``, ``double``, and ``extended``.
-   The default value is target-specific, typically ``source``.  Details:
-
-   * ``source`` The compiler uses the floating-point type declared in the source program as the evaluation method.
-   * ``double`` The compiler uses ``double`` as the floating-point evaluation method for all float expressions of type that is narrower than ``double``.
-   * ``extended`` The compiler uses ``long double`` as the floating-point evaluation method for all float expressions of type that is narrower than ``long double``.
 
 .. option:: -f[no-]protect-parens:
 

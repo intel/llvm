@@ -20,9 +20,11 @@
 #include <CL/sycl/properties/queue_properties.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
@@ -50,6 +52,22 @@ enum QueueOrder { Ordered, OOO };
 
 class queue_impl {
 public:
+  // \return a default context for the platform if it includes the device
+  // passed and default contexts are enabled, a new context otherwise.
+  static ContextImplPtr getDefaultOrNew(const DeviceImplPtr &Device) {
+    if (!SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
+      return detail::getSyclObjImpl(
+          context{createSyclObjFromImpl<device>(Device), {}, {}});
+
+    ContextImplPtr DefaultContext = detail::getSyclObjImpl(
+        Device->get_platform().ext_oneapi_get_default_context());
+
+    if (DefaultContext->hasDevice(Device))
+      return DefaultContext;
+
+    return detail::getSyclObjImpl(
+        context{createSyclObjFromImpl<device>(Device), {}, {}});
+  }
   /// Constructs a SYCL queue from a device using an async_handler and
   /// property_list provided.
   ///
@@ -59,14 +77,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device,
-                   detail::getSyclObjImpl(
-                       context(createSyclObjFromImpl<device>(Device), {},
-                               (DefaultContextType == CUDAContextT::primary)
-                                   ? property_list{property::context::cuda::
-                                                       use_primary_context()}
-                                   : property_list{})),
-                   AsyncHandler, PropList){};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -81,7 +92,8 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
-        MAssertHappenedBuffer(range<1>{1}) {
+        MAssertHappenedBuffer(range<1>{1}),
+        MIsInorder(has_property<property::queue::in_order>()) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -104,8 +116,9 @@ public:
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
   queue_impl(RT::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
-      : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
-        MAssertHappenedBuffer(range<1>{1}) {
+      : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
+        MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
+        MIsInorder(has_property<property::queue::in_order>()) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -183,13 +196,14 @@ public:
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     try {
-      return submit_impl(CGF, Self, Loc, PostProcess);
+      return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
       {
         std::lock_guard<std::mutex> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return SecondQueue->submit(CGF, SecondQueue, Loc, PostProcess);
+      return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
+                                      PostProcess);
     }
   }
 
@@ -205,7 +219,7 @@ public:
                const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    return submit_impl(CGF, Self, Loc, PostProcess);
+    return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -402,55 +416,73 @@ public:
   /// \return a native handle.
   pi_native_handle getNative() const;
 
-  bool kernelUsesAssert(const std::string &KernelName,
-                        OSModuleHandle Handle) const;
-
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
 
 private:
+  void finalizeHandler(handler &Handler, bool NeedSeparateDependencyMgmt,
+                       event &EventRet) {
+    if (MIsInorder) {
+      // Accessing and changing of an event isn't atomic operation.
+      // Hence, here is the lock for thread-safety.
+      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+
+      if (NeedSeparateDependencyMgmt)
+        Handler.depends_on(MLastEvent);
+
+      EventRet = Handler.finalize();
+
+      MLastEvent = EventRet;
+    } else
+      EventRet = Handler.finalize();
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
   /// \param Self is a pointer to this queue.
+  /// \param PrimaryQueue is a pointer to the primary queue. This may be the
+  ///        same as Self.
+  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
+  ///        same as Self.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const std::function<void(handler &)> &CGF,
                     const std::shared_ptr<queue_impl> &Self,
+                    const std::shared_ptr<queue_impl> &PrimaryQueue,
+                    const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-    handler Handler(Self, MHostQueue);
+    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
-    if (has_property<property::queue::in_order>() &&
-        (Handler.getType() == CG::CGTYPE::CodeplayHostTask ||
-         Handler.getType() == CG::CGTYPE::CodeplayInteropTask))
-      Handler.depends_on(MLastEvent);
+    const CG::CGTYPE Type = Handler.getType();
+    bool NeedSeparateDependencyMgmt =
+        MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
+                       Type == CG::CGTYPE::CodeplayInteropTask);
 
     event Event;
 
     if (PostProcess) {
-      bool IsKernel = Handler.getType() == CG::Kernel;
+      bool IsKernel = Type == CG::Kernel;
       bool KernelUsesAssert = false;
-      if (IsKernel)
-        KernelUsesAssert = Handler.MKernel
-                               ? true
-                               : kernelUsesAssert(Handler.MKernelName,
-                                                  Handler.MOSModuleHandle);
 
-      Event = Handler.finalize();
+      if (IsKernel)
+        // Kernel only uses assert if it's non interop one
+        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               Handler.MOSModuleHandle, Handler.MKernelName);
+
+      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      Event = Handler.finalize();
-
-    if (has_property<property::queue::in_order>())
-      MLastEvent = Event;
+      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
 
     addEvent(Event);
     return Event;
@@ -512,7 +544,12 @@ private:
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
+  // This event is employed for enhanced dependency tracking with in-order queue
+  // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
+  std::mutex MLastEventMtx;
+
+  const bool MIsInorder;
 };
 
 } // namespace detail

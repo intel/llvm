@@ -5,7 +5,7 @@
 // RUN: %clangxx -fsycl -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER %s
 // HOST_COMPILER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
-// HOST_COMPILER: g++{{.*}} "-c" "-include" "[[INTHEADER]]" "-I" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}}
+// HOST_COMPILER: g++{{.*}} "-c" "-include" "[[INTHEADER]]" "-iquote" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"{{.*}} "-o" "[[HOSTOBJ:.+\.o]]"{{.*}}
 // HOST_COMPILER: ld{{.*}} "[[HOSTOBJ]]"
 
 // RUN: %clang_cl -fsycl -fsycl-host-compiler=/some/dir/cl %s -### 2>&1 \

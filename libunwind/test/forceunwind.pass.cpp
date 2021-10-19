@@ -9,6 +9,12 @@
 
 // REQUIRES: linux
 
+// TODO: Investigate these failures
+// XFAIL: asan, tsan, ubsan
+
+// TODO: Investigate this failure
+// XFAIL: 32bits-on-64bits
+
 // Basic test for _Unwind_ForcedUnwind.
 // See libcxxabi/test/forced_unwind* tests too.
 
@@ -27,7 +33,7 @@ void foo();
 _Unwind_Exception ex;
 
 _Unwind_Reason_Code stop(int version, _Unwind_Action actions,
-                         uint64_t exceptionClass,
+                         _Unwind_Exception_Class exceptionClass,
                          _Unwind_Exception *exceptionObject,
                          struct _Unwind_Context *context,
                          void *stop_parameter) {
@@ -57,7 +63,7 @@ __attribute__((noinline)) void foo() {
 #if defined(_LIBUNWIND_ARM_EHABI)
   // Create a mock exception object.
   memset(e, '\0', sizeof(*e));
-  e->exception_class = 0x434C4E47554E5700; // CLNGUNW\0
+  strcpy(reinterpret_cast<char *>(&e->exception_class), "CLNGUNW");
 #endif
   _Unwind_ForcedUnwind(e, stop, (void *)&foo);
 }

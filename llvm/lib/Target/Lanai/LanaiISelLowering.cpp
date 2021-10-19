@@ -1176,7 +1176,7 @@ SDValue LanaiTargetLowering::LowerGlobalAddress(SDValue Op,
 
   // If the code model is small or global variable will be placed in the small
   // section, then assume address will fit in 21-bits.
-  const GlobalObject *GO = GV->getBaseObject();
+  const GlobalObject *GO = GV->getAliaseeObject();
   if (TLOF->isGlobalInSmallSection(GO, getTargetMachine())) {
     SDValue Small = DAG.getTargetGlobalAddress(
         GV, DL, getPointerTy(DAG.getDataLayout()), Offset, LanaiII::MO_NO_FLAG);
@@ -1400,8 +1400,7 @@ static bool isConditionalZeroOrAllOnes(SDNode *N, bool AllOnes, SDValue &CC,
       // value is 0.
       OtherOp = DAG.getConstant(0, dl, VT);
     else
-      OtherOp =
-          DAG.getConstant(APInt::getAllOnesValue(VT.getSizeInBits()), dl, VT);
+      OtherOp = DAG.getAllOnesConstant(dl, VT);
     return true;
   }
   }

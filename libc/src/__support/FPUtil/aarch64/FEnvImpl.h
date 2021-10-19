@@ -89,6 +89,13 @@ static inline int disableExcept(int excepts) {
   return FEnv::exceptionStatusToMacro(oldExcepts);
 }
 
+static inline int getExcept() {
+  uint32_t controlWord = FEnv::getControlWord();
+  int enabledExcepts =
+      (controlWord >> FEnv::ExceptionControlFlagsBitPosition) & 0x1F;
+  return FEnv::exceptionStatusToMacro(enabledExcepts);
+}
+
 static inline int clearExcept(int excepts) {
   uint32_t statusWord = FEnv::getStatusWord();
   uint32_t toClear = FEnv::getStatusValueForExcept(excepts);
@@ -223,6 +230,13 @@ static inline int getEnv(fenv_t *envp) {
 }
 
 static inline int setEnv(const fenv_t *envp) {
+  if (envp == FE_DFL_ENV) {
+    // Default status and control words bits are all zeros so we just
+    // write zeros.
+    FEnv::writeStatusWord(0);
+    FEnv::writeControlWord(0);
+    return 0;
+  }
   const FEnv::FPState *state = reinterpret_cast<const FEnv::FPState *>(envp);
   FEnv::writeControlWord(state->ControlWord);
   FEnv::writeStatusWord(state->StatusWord);

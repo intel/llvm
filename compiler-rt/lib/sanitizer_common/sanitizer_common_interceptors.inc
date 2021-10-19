@@ -2229,8 +2229,20 @@ INTERCEPTOR(int, clock_getcpuclockid, pid_t pid,
   return res;
 }
 
-#define INIT_CLOCK_GETCPUCLOCKID                  \
-  COMMON_INTERCEPT_FUNCTION(clock_getcpuclockid);
+INTERCEPTOR(int, pthread_getcpuclockid, uptr thread,
+            __sanitizer_clockid_t *clockid) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, pthread_getcpuclockid, thread, clockid);
+  int res = REAL(pthread_getcpuclockid)(thread, clockid);
+  if (!res && clockid) {
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, clockid, sizeof *clockid);
+  }
+  return res;
+}
+
+#define INIT_CLOCK_GETCPUCLOCKID                   \
+  COMMON_INTERCEPT_FUNCTION(clock_getcpuclockid);  \
+  COMMON_INTERCEPT_FUNCTION(pthread_getcpuclockid);
 #else
 #define INIT_CLOCK_GETCPUCLOCKID
 #endif
@@ -7531,6 +7543,14 @@ INTERCEPTOR(struct __sanitizer_ttyent *, getttynam, char *name) {
     COMMON_INTERCEPTOR_WRITE_RANGE(ctx, ttyent, struct_ttyent_sz);
   return ttyent;
 }
+#define INIT_TTYENT \
+  COMMON_INTERCEPT_FUNCTION(getttyent); \
+  COMMON_INTERCEPT_FUNCTION(getttynam);
+#else
+#define INIT_TTYENT
+#endif
+
+#if SANITIZER_INTERCEPT_TTYENTPATH
 INTERCEPTOR(int, setttyentpath, char *path) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, setttyentpath, path);
@@ -7538,12 +7558,9 @@ INTERCEPTOR(int, setttyentpath, char *path) {
     COMMON_INTERCEPTOR_READ_RANGE(ctx, path, internal_strlen(path) + 1);
   return REAL(setttyentpath)(path);
 }
-#define INIT_TTYENT \
-  COMMON_INTERCEPT_FUNCTION(getttyent); \
-  COMMON_INTERCEPT_FUNCTION(getttynam); \
-  COMMON_INTERCEPT_FUNCTION(setttyentpath)
+#define INIT_TTYENTPATH COMMON_INTERCEPT_FUNCTION(setttyentpath);
 #else
-#define INIT_TTYENT
+#define INIT_TTYENTPATH
 #endif
 
 #if SANITIZER_INTERCEPT_PROTOENT

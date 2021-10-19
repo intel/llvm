@@ -15,6 +15,8 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+namespace ext {
+namespace oneapi {
 namespace level_zero {
 using namespace detail;
 
@@ -103,5 +105,7 @@ __SYCL_EXPORT event make_event(const context &Context,
 }
 
 } // namespace level_zero
+} // namespace oneapi
+} // namespace ext
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

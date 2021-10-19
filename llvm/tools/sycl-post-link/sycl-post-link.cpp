@@ -13,12 +13,11 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "SPIRKernelParamOptInfo.h"
 #include "SYCLDeviceLibReqMask.h"
+#include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -30,12 +29,12 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PropertySetIO.h"
 #include "llvm/Support/SimpleTable.h"
 #include "llvm/Support/SystemUtils.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
@@ -46,48 +45,54 @@
 
 #include <algorithm>
 #include <memory>
+#include <string>
+#include <vector>
 
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
 
+namespace {
+
 cl::OptionCategory PostLinkCat{"sycl-post-link options"};
 
 // Column names in the output file table. Must match across tools -
 // clang/lib/Driver/Driver.cpp, sycl-post-link.cpp, ClangOffloadWrapper.cpp
-static constexpr char COL_CODE[] = "Code";
-static constexpr char COL_SYM[] = "Symbols";
-static constexpr char COL_PROPS[] = "Properties";
-static constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+constexpr char COL_CODE[] = "Code";
+constexpr char COL_SYM[] = "Symbols";
+constexpr char COL_PROPS[] = "Properties";
+constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+
+// Identifying name for global scope
+constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
 
 // InputFilename - The filename to read from.
-static cl::opt<std::string> InputFilename{
-    cl::Positional, cl::desc("<input bitcode file>"), cl::init("-"),
-    cl::value_desc("filename")};
+cl::opt<std::string> InputFilename{cl::Positional,
+                                   cl::desc("<input bitcode file>"),
+                                   cl::init("-"), cl::value_desc("filename")};
 
-static cl::opt<std::string> OutputDir{
+cl::opt<std::string> OutputDir{
     "out-dir",
     cl::desc(
         "Directory where files listed in the result file table will be output"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
-static cl::opt<std::string> OutputFilename{"o", cl::desc("Output filename"),
-                                           cl::value_desc("filename"),
-                                           cl::init("-"), cl::cat(PostLinkCat)};
+cl::opt<std::string> OutputFilename{"o", cl::desc("Output filename"),
+                                    cl::value_desc("filename"), cl::init("-"),
+                                    cl::cat(PostLinkCat)};
 
-static cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
+cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
+                    cl::cat(PostLinkCat)};
+
+cl::opt<bool> IROutputOnly{"ir-output-only", cl::desc("Output single IR file"),
                            cl::cat(PostLinkCat)};
 
-static cl::opt<bool> IROutputOnly{
-    "ir-output-only", cl::desc("Output single IR file"), cl::cat(PostLinkCat)};
+cl::opt<bool> OutputAssembly{"S", cl::desc("Write output as LLVM assembly"),
+                             cl::Hidden, cl::cat(PostLinkCat)};
 
-static cl::opt<bool> OutputAssembly{"S",
-                                    cl::desc("Write output as LLVM assembly"),
-                                    cl::Hidden, cl::cat(PostLinkCat)};
-
-static cl::opt<bool> SplitEsimd{"split-esimd",
-                                cl::desc("Split SYCL and ESIMD kernels"),
-                                cl::cat(PostLinkCat)};
+cl::opt<bool> SplitEsimd{"split-esimd",
+                         cl::desc("Split SYCL and ESIMD entry points"),
+                         cl::cat(PostLinkCat)};
 
 // TODO Design note: sycl-post-link should probably separate different kinds of
 // its functionality on  logical and source level:
@@ -98,35 +103,35 @@ static cl::opt<bool> SplitEsimd{"split-esimd",
 // above actions. This could help make the tool structure clearer and more
 // maintainable.
 
-static cl::opt<bool> LowerEsimd{
-    "lower-esimd", cl::desc("Lower ESIMD constructs"), cl::cat(PostLinkCat)};
+cl::opt<bool> LowerEsimd{"lower-esimd", cl::desc("Lower ESIMD constructs"),
+                         cl::cat(PostLinkCat)};
 
-static cl::opt<bool>
-    OptLevelO0("O0", cl::desc("Optimization level 0. Similar to clang -O0"),
-               cl::cat(PostLinkCat));
+cl::opt<bool> OptLevelO0("O0",
+                         cl::desc("Optimization level 0. Similar to clang -O0"),
+                         cl::cat(PostLinkCat));
 
-static cl::opt<bool>
-    OptLevelO1("O1", cl::desc("Optimization level 1. Similar to clang -O1"),
-               cl::cat(PostLinkCat));
+cl::opt<bool> OptLevelO1("O1",
+                         cl::desc("Optimization level 1. Similar to clang -O1"),
+                         cl::cat(PostLinkCat));
 
-static cl::opt<bool>
-    OptLevelO2("O2", cl::desc("Optimization level 2. Similar to clang -O2"),
-               cl::cat(PostLinkCat));
+cl::opt<bool> OptLevelO2("O2",
+                         cl::desc("Optimization level 2. Similar to clang -O2"),
+                         cl::cat(PostLinkCat));
 
-static cl::opt<bool> OptLevelOs(
+cl::opt<bool> OptLevelOs(
     "Os",
     cl::desc(
         "Like -O2 with extra optimizations for size. Similar to clang -Os"),
     cl::cat(PostLinkCat));
 
-static cl::opt<bool> OptLevelOz(
+cl::opt<bool> OptLevelOz(
     "Oz",
     cl::desc("Like -Os but reduces code size further. Similar to clang -Oz"),
     cl::cat(PostLinkCat));
 
-static cl::opt<bool>
-    OptLevelO3("O3", cl::desc("Optimization level 3. Similar to clang -O3"),
-               cl::cat(PostLinkCat));
+cl::opt<bool> OptLevelO3("O3",
+                         cl::desc("Optimization level 3. Similar to clang -O3"),
+                         cl::cat(PostLinkCat));
 
 enum IRSplitMode {
   SPLIT_PER_TU,     // one module per translation unit
@@ -134,7 +139,7 @@ enum IRSplitMode {
   SPLIT_AUTO        // automatically select split mode
 };
 
-static cl::opt<IRSplitMode> SplitMode(
+cl::opt<IRSplitMode> SplitMode(
     "split", cl::desc("split input module"), cl::Optional, cl::init(SPLIT_AUTO),
     cl::values(
         clEnumValN(SPLIT_PER_TU, "source",
@@ -143,13 +148,12 @@ static cl::opt<IRSplitMode> SplitMode(
         clEnumValN(SPLIT_AUTO, "auto", "Choose split mode automatically")),
     cl::cat(PostLinkCat));
 
-static cl::opt<bool> DoSymGen{"symbols",
-                              cl::desc("generate exported symbol files"),
-                              cl::cat(PostLinkCat)};
+cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
+                       cl::cat(PostLinkCat)};
 
 enum SpecConstMode { SC_USE_RT_VAL, SC_USE_DEFAULT_VAL };
 
-static cl::opt<SpecConstMode> SpecConstLower{
+cl::opt<SpecConstMode> SpecConstLower{
     "spec-const",
     cl::desc("lower and generate specialization constants information"),
     cl::Optional,
@@ -160,13 +164,23 @@ static cl::opt<SpecConstMode> SpecConstLower{
                    "set spec constants to C++ defaults")),
     cl::cat(PostLinkCat)};
 
-static cl::opt<bool> EmitKernelParamInfo{
+cl::opt<bool> EmitKernelParamInfo{
     "emit-param-info", cl::desc("emit kernel parameter optimization info"),
     cl::cat(PostLinkCat)};
 
-static cl::opt<bool> EmitProgramMetadata{"emit-program-metadata",
-                                         cl::desc("emit SYCL program metadata"),
-                                         cl::cat(PostLinkCat)};
+cl::opt<bool> EmitProgramMetadata{"emit-program-metadata",
+                                  cl::desc("emit SYCL program metadata"),
+                                  cl::cat(PostLinkCat)};
+
+cl::opt<bool> EmitExportedSymbols{"emit-exported-symbols",
+                                  cl::desc("emit exported symbols"),
+                                  cl::cat(PostLinkCat)};
+
+cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
+    "emit-only-kernels-as-entry-points",
+    cl::desc("Consider only sycl_kernel functions as entry points for "
+             "device code split"),
+    cl::cat(PostLinkCat), cl::init(false)};
 
 struct ImagePropSaveInfo {
   bool NeedDeviceLibReqMask;
@@ -175,20 +189,21 @@ struct ImagePropSaveInfo {
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
+  bool EmitExportedSymbols;
   bool IsEsimdKernel;
 };
 
-static void error(const Twine &Msg) {
+void error(const Twine &Msg) {
   errs() << "sycl-post-link: " << Msg << '\n';
   exit(1);
 }
 
-static void checkError(std::error_code EC, const Twine &Prefix) {
+void checkError(std::error_code EC, const Twine &Prefix) {
   if (EC)
     error(Prefix + ": " + EC.message());
 }
 
-static void writeToFile(std::string Filename, std::string Content) {
+void writeToFile(const std::string &Filename, const std::string &Content) {
   std::error_code EC;
   raw_fd_ostream OS{Filename, EC, sys::fs::OpenFlags::OF_None};
   checkError(EC, "error opening the file '" + Filename + "'");
@@ -204,7 +219,7 @@ enum KernelMapEntryScope {
   Scope_Global     // single entry in the map for all kernels
 };
 
-static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
+KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(const Module &M) {
   if (IROutputOnly) {
     // We allow enabling auto split mode even in presence of -ir-output-only
     // flag, but in this case we are limited by it so we can't do any split at
@@ -223,14 +238,16 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
     // There are indirect calls in the module, which means that we don't know
     // how to group functions so both caller and callee of indirect call are in
     // the same module.
-    for (const auto &BB : F) {
-      for (const auto &I : BB) {
-        if (auto *CI = dyn_cast<CallInst>(&I)) {
-          if (!CI->getCalledFunction())
-            return Scope_Global;
-        }
-      }
+    for (const auto &I : instructions(F)) {
+      if (auto *CI = dyn_cast<CallInst>(&I))
+        if (!CI->getCalledFunction())
+          return Scope_Global;
     }
+
+    // Function pointer is used somewhere. Follow the same rule as above.
+    for (const auto *U : F.users())
+      if (!isa<CallInst>(U))
+        return Scope_Global;
   }
 
   // At the moment, we assume that per-source split is the best way of splitting
@@ -240,7 +257,7 @@ static KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(Module &M) {
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
 // _Z28__spirv_GlobalInvocationId_xv
-static bool funcIsSpirvSyclBuiltin(StringRef FName) {
+bool isSpirvSyclBuiltin(StringRef FName) {
   if (!FName.consume_front("_Z"))
     return false;
   // now skip the digits
@@ -249,47 +266,60 @@ static bool funcIsSpirvSyclBuiltin(StringRef FName) {
   return FName.startswith("__spirv_") || FName.startswith("__sycl_");
 }
 
-// This function decides how kernels of the input module M will be distributed
-// ("split") into multiple modules based on the command options and IR
-// attributes. The decision is recorded in the output map parameter
-// ResKernelModuleMap which maps some key to a group of kernels. Each such group
-// along with IR it depends on (globals, functions from its call graph,...) will
-// constitute a separate module.
-static void collectKernelModuleMap(
-    Module &M, std::map<StringRef, std::vector<Function *>> &ResKernelModuleMap,
+bool isEntryPoint(const Function &F) {
+  // Kernels are always considered to be entry points
+  if (CallingConv::SPIR_KERNEL == F.getCallingConv())
+    return true;
+
+  if (!EmitOnlyKernelsAsEntryPoints) {
+    // If not disabled, SYCL_EXTERNAL functions with sycl-module-id attribute
+    // are also considered as entry points (except __spirv_* and __sycl_*
+    // functions)
+    return F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
+           !isSpirvSyclBuiltin(F.getName());
+  }
+
+  return false;
+}
+
+// This function decides how entry points of the input module M will be
+// distributed ("split") into multiple modules based on the command options and
+// IR attributes. The decision is recorded in the output map parameter
+// ResKernelModuleMap which maps some key to a group of entry points. Each such
+// group along with IR it depends on (globals, functions from its call graph,
+// ...) will constitute a separate module.
+void collectEntryPointToModuleMap(
+    const Module &M,
+    std::map<StringRef, std::vector<const Function *>> &ResKernelModuleMap,
     KernelMapEntryScope EntryScope) {
 
-  // Process module entry points: kernels and SYCL_EXTERNAL functions.
-  // Only they have sycl-module-id attribute, so any other unrefenced
-  // functions are dropped. SPIRV and SYCL builtin functions are not
-  // considered as module entry points.
-  for (auto &F : M.functions()) {
-    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-        !funcIsSpirvSyclBuiltin(F.getName())) {
-      switch (EntryScope) {
-      case Scope_PerKernel:
-        ResKernelModuleMap[F.getName()].push_back(&F);
-        break;
-      case Scope_PerModule: {
-        Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
-        StringRef Val = Id.getValueAsString();
-        ResKernelModuleMap[Val].push_back(&F);
-        break;
-      }
-      case Scope_Global:
-        // the map key is not significant here
-        ResKernelModuleMap["<GLOBAL>"].push_back(&F);
-        break;
-      }
-    } else if (EntryScope == Scope_PerModule &&
-               F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      // TODO It may make sense to group all kernels w/o the attribute into
-      // a separate module rather than issuing an error. Should probably be
-      // controlled by an option.
-      // Functions with spir_func calling convention are allowed to not have
-      // a sycl-module-id attribute.
-      error("no '" + Twine(ATTR_SYCL_MODULE_ID) + "' attribute in kernel '" +
-            F.getName() + "', per-module split not possible");
+  // Only process module entry points:
+  for (const auto &F : M.functions()) {
+    if (!isEntryPoint(F))
+      continue;
+
+    switch (EntryScope) {
+    case Scope_PerKernel:
+      ResKernelModuleMap[F.getName()].push_back(&F);
+      break;
+    case Scope_PerModule: {
+      if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
+        // TODO It may make sense to group all entry points w/o the attribute
+        // into a separate module rather than issuing an error. Should probably
+        // be controlled by an option.
+        error("no '" + Twine(ATTR_SYCL_MODULE_ID) +
+              "' attribute for entry point '" + F.getName() +
+              "', per-module split not possible");
+
+      Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
+      StringRef Val = Id.getValueAsString();
+      ResKernelModuleMap[Val].push_back(&F);
+      break;
+    }
+    case Scope_Global:
+      // the map key is not significant here
+      ResKernelModuleMap[GLOBAL_SCOPE_NAME].push_back(&F);
+      break;
     }
   }
 }
@@ -297,20 +327,20 @@ static void collectKernelModuleMap(
 enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
 
 // Go through function call graph searching for assert call.
-static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
+HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
   // Map holds the info about assertions in already examined functions:
   // true  - if there is an assertion in underlying functions,
   // false - if there are definetely no assertions in underlying functions.
-  static std::map<llvm::Function *, bool> hasAssertionInCallGraphMap;
-  std::vector<llvm::Function *> FuncCallStack;
+  static std::map<const Function *, bool> hasAssertionInCallGraphMap;
+  std::vector<const Function *> FuncCallStack;
 
-  static std::vector<llvm::Function *> isIndirectlyCalledInGraph;
+  static std::vector<const Function *> isIndirectlyCalledInGraph;
 
-  std::vector<llvm::Function *> Workstack;
+  std::vector<const Function *> Workstack;
   Workstack.push_back(Func);
 
   while (!Workstack.empty()) {
-    Function *F = Workstack.back();
+    const Function *F = Workstack.back();
     Workstack.pop_back();
     if (F != Func)
       FuncCallStack.push_back(F);
@@ -326,11 +356,11 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
     }
 
     bool IsLeaf = true;
-    for (auto &I : instructions(F)) {
+    for (const auto &I : instructions(F)) {
       if (!isa<CallBase>(&I))
         continue;
 
-      Function *CF = cast<CallBase>(&I)->getCalledFunction();
+      const Function *CF = cast<CallBase>(&I)->getCalledFunction();
       if (!CF)
         continue;
 
@@ -355,7 +385,7 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
       if (CF->getName().startswith("__devicelib_assert_fail")) {
         // Mark all the functions above in call graph as ones that can call
         // assert.
-        for (auto *It : FuncCallStack)
+        for (const auto *It : FuncCallStack)
           hasAssertionInCallGraphMap[It] = true;
 
         hasAssertionInCallGraphMap[Func] = true;
@@ -382,8 +412,7 @@ static HasAssertStatus hasAssertInFunctionCallGraph(llvm::Function *Func) {
 }
 
 // Gets reqd_work_group_size information for function Func.
-static std::vector<uint32_t>
-getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
+std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   auto ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
   if (!ReqdWorkGroupSizeMD)
     return {};
@@ -398,18 +427,18 @@ getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   return {X, Y, Z};
 }
 
-// Input parameter KernelModuleMap is a map containing groups of kernels with
-// same values of the sycl-module-id attribute. ResSymbolsLists is a vector of
-// kernel name lists. Each vector element is a string with kernel names from the
-// same module separated by \n.
-// The function saves names of kernels from one group to a single std::string
-// and stores this string to the ResSymbolsLists vector.
-static void collectSymbolsLists(
-    std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
+// Input parameter KernelModuleMap is a map containing groups of entry points
+// with same values of the sycl-module-id attribute. ResSymbolsLists is a vector
+// of entry points names lists. Each vector element is a string with entry point
+// names from the same module separated by \n.
+// The function saves names of entry points from one group to a single
+// std::string and stores this string to the ResSymbolsLists vector.
+void collectSymbolsLists(
+    const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
     string_vector &ResSymbolsLists) {
-  for (auto &It : KernelModuleMap) {
+  for (const auto &It : KernelModuleMap) {
     std::string SymbolsList;
-    for (auto &F : It.second) {
+    for (const auto &F : It.second) {
       SymbolsList =
           (Twine(SymbolsList) + Twine(F->getName()) + Twine("\n")).str();
     }
@@ -417,32 +446,37 @@ static void collectSymbolsLists(
   }
 }
 
-// Input parameter KernelModuleMap is a map containing groups of kernels with
-// same values of the sycl-module-id attribute. For each group of kernels a
-// separate IR module will be produced.
-// ResModules is a vector of produced modules.
+struct ResultModule {
+  StringRef KernelModuleName;
+  std::unique_ptr<Module> ModulePtr;
+};
+
+// Input parameter KernelModuleMap is a map containing groups of entry points
+// with same values of the sycl-module-id attribute. For each group of entry
+// points a separate IR module will be produced.
+// ResModules is a vector of pairs of kernel module names and produced modules.
 // The function splits input LLVM IR module M into smaller ones and stores them
 // to the ResModules vector.
-static void
-splitModule(Module &M,
-            std::map<StringRef, std::vector<Function *>> &KernelModuleMap,
-            std::vector<std::unique_ptr<Module>> &ResModules) {
-  for (auto &It : KernelModuleMap) {
-    // For each group of kernels collect all dependencies.
+void splitModule(
+    const Module &M,
+    const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
+    std::vector<ResultModule> &ResModules) {
+  for (const auto &It : KernelModuleMap) {
+    // For each group of entry points collect all dependencies.
     SetVector<const GlobalValue *> GVs;
-    std::vector<llvm::Function *> Workqueue;
+    std::vector<const Function *> Workqueue;
 
-    for (auto &F : It.second) {
+    for (const auto &F : It.second) {
       GVs.insert(F);
       Workqueue.push_back(F);
     }
 
     while (!Workqueue.empty()) {
-      Function *F = &*Workqueue.back();
+      const Function *F = &*Workqueue.back();
       Workqueue.pop_back();
-      for (auto &I : instructions(F)) {
-        if (CallBase *CB = dyn_cast<CallBase>(&I))
-          if (Function *CF = CB->getCalledFunction())
+      for (const auto &I : instructions(F)) {
+        if (const CallBase *CB = dyn_cast<CallBase>(&I))
+          if (const Function *CF = CB->getCalledFunction())
             if (!CF->isDeclaration() && !GVs.count(CF)) {
               GVs.insert(CF);
               Workqueue.push_back(CF);
@@ -454,7 +488,7 @@ splitModule(Module &M,
     // because global variable can be used inside a combination of operators, so
     // mark all global variables as needed and remove dead ones after
     // cloning.
-    for (auto &G : M.globals()) {
+    for (const auto &G : M.globals()) {
       GVs.insert(&G);
     }
 
@@ -473,11 +507,11 @@ splitModule(Module &M,
     Passes.run(*MClone.get());
 
     // Save results.
-    ResModules.push_back(std::move(MClone));
+    ResModules.push_back({It.first, std::move(MClone)});
   }
 }
 
-static std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
+std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
   const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
                              ? OutputDir
                              : sys::path::parent_path(OutputFilename);
@@ -489,7 +523,7 @@ static std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
          std::to_string(I) + Ext.str();
 }
 
-static void saveModule(Module &M, StringRef OutFilename) {
+void saveModule(Module &M, StringRef OutFilename) {
   std::error_code EC;
   raw_fd_ostream Out{OutFilename, EC, sys::fs::OF_None};
   checkError(EC, "error opening the file '" + OutFilename + "'");
@@ -506,23 +540,23 @@ static void saveModule(Module &M, StringRef OutFilename) {
 
 // Saves specified collection of llvm IR modules to files.
 // Saves file list if user specified corresponding filename.
-static string_vector
-saveResultModules(std::vector<std::unique_ptr<Module>> &ResModules,
-                  StringRef Suffix) {
+string_vector saveResultModules(const std::vector<ResultModule> &ResModules,
+                                StringRef Suffix) {
   string_vector Res;
 
   for (size_t I = 0; I < ResModules.size(); ++I) {
     std::error_code EC;
     StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
     std::string CurOutFileName = makeResultFileName(FileExt, I, Suffix);
-    saveModule(*ResModules[I].get(), CurOutFileName);
+    saveModule(*ResModules[I].ModulePtr, CurOutFileName);
     Res.emplace_back(std::move(CurOutFileName));
   }
   return Res;
 }
 
-static string_vector saveDeviceImageProperty(
-    const std::vector<std::unique_ptr<Module>> &ResultModules,
+string_vector saveDeviceImageProperty(
+    const std::vector<ResultModule> &ResultModules,
+    const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
     const ImagePropSaveInfo &ImgPSInfo) {
   string_vector Res;
   legacy::PassManager GetSYCLDeviceLibReqMask;
@@ -532,7 +566,7 @@ static string_vector saveDeviceImageProperty(
   for (size_t I = 0; I < ResultModules.size(); ++I) {
     llvm::util::PropertySetRegistry PropSet;
     if (ImgPSInfo.NeedDeviceLibReqMask) {
-      GetSYCLDeviceLibReqMask.run(*ResultModules[I]);
+      GetSYCLDeviceLibReqMask.run(*ResultModules[I].ModulePtr);
       uint32_t MRMask = SDLReqMaskLegacyPass->getSYCLDeviceLibReqMask();
       std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
       PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
@@ -542,8 +576,8 @@ static string_vector saveDeviceImageProperty(
       if (ImgPSInfo.SpecConstsMet) {
         // extract spec constant maps per each module
         SpecIDMapTy TmpSpecIDMap;
-        SpecConstantsPass::collectSpecConstantMetadata(*ResultModules[I].get(),
-                                                       TmpSpecIDMap);
+        SpecConstantsPass::collectSpecConstantMetadata(
+            *ResultModules[I].ModulePtr, TmpSpecIDMap);
         PropSet.add(
             llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
             TmpSpecIDMap);
@@ -553,7 +587,7 @@ static string_vector saveDeviceImageProperty(
         if (!ImgPSInfo.SetSpecConstAtRT) {
           std::vector<char> DefaultValues;
           SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
-              *ResultModules[I].get(), DefaultValues);
+              *ResultModules[I].ModulePtr, DefaultValues);
           PropSet.add(llvm::util::PropertySetRegistry::
                           SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
                       "all", DefaultValues);
@@ -566,9 +600,11 @@ static string_vector saveDeviceImageProperty(
       // Register required analysis
       MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
       // Register the payload analysis
-      MAM.registerPass([&] { return SPIRKernelParamOptInfoAnalysis(); });
-      SPIRKernelParamOptInfo PInfo =
-          MAM.getResult<SPIRKernelParamOptInfoAnalysis>(*ResultModules[I]);
+
+      MAM.registerPass([&] { return SYCLKernelParamOptInfoAnalysis(); });
+      SYCLKernelParamOptInfo PInfo =
+          MAM.getResult<SYCLKernelParamOptInfoAnalysis>(
+              *ResultModules[I].ModulePtr);
 
       // convert analysis results into properties and record them
       llvm::util::PropertySet &Props =
@@ -576,12 +612,28 @@ static string_vector saveDeviceImageProperty(
 
       for (const auto &NameInfoPair : PInfo) {
         const llvm::BitVector &Bits = NameInfoPair.second;
-        const llvm::ArrayRef<uintptr_t> Arr = NameInfoPair.second.getData();
+        if (Bits.empty())
+          continue; // Nothing to add
+
+        const llvm::ArrayRef<uintptr_t> Arr = Bits.getData();
         const unsigned char *Data =
             reinterpret_cast<const unsigned char *>(Arr.begin());
         llvm::util::PropertyValue::SizeTy DataBitSize = Bits.size();
         Props.insert(std::make_pair(
             NameInfoPair.first, llvm::util::PropertyValue(Data, DataBitSize)));
+      }
+    }
+    if (ImgPSInfo.EmitExportedSymbols) {
+      // For each result module, extract the exported functions
+      auto ModuleFunctionsIt =
+          KernelModuleMap.find(ResultModules[I].KernelModuleName);
+      if (ModuleFunctionsIt != KernelModuleMap.end()) {
+        for (const auto &F : ModuleFunctionsIt->second) {
+          if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
+            PropSet[llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS]
+                .insert({F->getName(), true});
+          }
+        }
       }
     }
 
@@ -593,7 +645,7 @@ static string_vector saveDeviceImageProperty(
           PropSet[llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA];
 
       // Add reqd_work_group_size information to program metadata
-      for (const Function &Func : ResultModules[I]->functions()) {
+      for (const Function &Func : ResultModules[I].ModulePtr->functions()) {
         std::vector<uint32_t> KernelReqdWorkGroupSize =
             getKernelReqdWorkGroupSizeMetadata(Func);
         if (KernelReqdWorkGroupSize.empty())
@@ -609,10 +661,10 @@ static string_vector saveDeviceImageProperty(
     }
 
     {
-      Module *M = ResultModules[I].get();
+      Module *M = ResultModules[I].ModulePtr.get();
       bool HasIndirectlyCalledAssert = false;
-      std::vector<llvm::Function *> Kernels;
-      for (auto &F : M->functions()) {
+      std::vector<const Function *> Kernels;
+      for (const auto &F : M->functions()) {
         // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
         // TODO: handle function pointers.
         if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
@@ -637,7 +689,7 @@ static string_vector saveDeviceImageProperty(
       }
 
       if (HasIndirectlyCalledAssert) {
-        for (auto *F : Kernels)
+        for (const auto *F : Kernels)
           PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
               {F->getName(), true});
       }
@@ -656,8 +708,8 @@ static string_vector saveDeviceImageProperty(
 
 // Saves specified collection of symbols lists to files.
 // Saves file list if user specified corresponding filename.
-static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
-                                            StringRef Suffix) {
+string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
+                                     StringRef Suffix) {
   string_vector Res;
 
   std::string TxtFilesList;
@@ -681,7 +733,7 @@ static string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
 // When ESIMD code was separated from the regular SYCL code,
 // we can safely process ESIMD part.
 // TODO: support options like -debug-pass, -print-[before|after], and others
-static void LowerEsimdConstructs(Module &M) {
+void LowerEsimdConstructs(Module &M) {
   legacy::PassManager MPM;
   MPM.add(createSYCLLowerESIMDPass());
   if (!OptLevelO0) {
@@ -708,8 +760,8 @@ static void LowerEsimdConstructs(Module &M) {
 
 using TableFiles = std::map<StringRef, string_vector>;
 
-static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
-                                   bool SyclAndEsimdCode) {
+TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
+                            bool SyclAndEsimdCode) {
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
@@ -731,7 +783,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     LowerEsimdConstructs(*M);
 
-  std::map<StringRef, std::vector<Function *>> GlobalsSet;
+  std::map<StringRef, std::vector<const Function *>> GlobalsSet;
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
@@ -745,10 +797,10 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
         Scope =
             SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
     }
-    collectKernelModuleMap(*M, GlobalsSet, Scope);
+    collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
   }
 
-  std::vector<std::unique_ptr<Module>> ResultModules;
+  std::vector<ResultModule> ResultModules;
   string_vector ResultSymbolsLists;
 
   bool SpecConstsMet = false;
@@ -758,7 +810,7 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     splitModule(*M, GlobalsSet, ResultModules);
   // post-link always produces a code result, even if it is unmodified input
   if (ResultModules.empty())
-    ResultModules.push_back(std::move(M));
+    ResultModules.push_back({GLOBAL_SCOPE_NAME, std::move(M)});
 
   if (DoSpecConst) {
     ModulePassManager RunSpecConst;
@@ -768,17 +820,17 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
     RunSpecConst.addPass(std::move(SCP));
 
-    for (auto &MPtr : ResultModules) {
+    for (auto &ResultModule : ResultModules) {
       // perform the spec constant intrinsics transformation on each resulting
       // module
-      PreservedAnalyses Res = RunSpecConst.run(*MPtr, MAM);
+      PreservedAnalyses Res = RunSpecConst.run(*ResultModule.ModulePtr, MAM);
       SpecConstsMet |= !Res.areAllPreserved();
     }
   }
 
   if (IROutputOnly) {
     // the result is the transformed input LLVMIR file rather than a file table
-    saveModule(*ResultModules.front(), OutputFilename);
+    saveModule(*ResultModules.front().ModulePtr, OutputFilename);
     return TblFiles;
   }
 
@@ -800,11 +852,16 @@ static TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   }
 
   {
-    ImagePropSaveInfo ImgPSInfo = {
-        true,          DoSpecConst,         SetSpecConstAtRT,
-        SpecConstsMet, EmitKernelParamInfo, EmitProgramMetadata,
-        IsEsimd};
-    string_vector Files = saveDeviceImageProperty(ResultModules, ImgPSInfo);
+    ImagePropSaveInfo ImgPSInfo = {true,
+                                   DoSpecConst,
+                                   SetSpecConstAtRT,
+                                   SpecConstsMet,
+                                   EmitKernelParamInfo,
+                                   EmitProgramMetadata,
+                                   EmitExportedSymbols,
+                                   IsEsimd};
+    string_vector Files =
+        saveDeviceImageProperty(ResultModules, GlobalsSet, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));
   }
@@ -828,17 +885,13 @@ using ModulePair = std::pair<std::unique_ptr<Module>, std::unique_ptr<Module>>;
 
 // This function splits a module with a mix of SYCL and ESIMD kernels
 // into two separate modules.
-static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
-  std::vector<Function *> SyclFunctions;
-  std::vector<Function *> EsimdFunctions;
+ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
+  std::vector<const Function *> SyclFunctions;
+  std::vector<const Function *> EsimdFunctions;
   // Collect information about the SYCL and ESIMD functions in the module.
-  // Process module entry points: kernels and SYCL_EXTERNAL functions.
-  // Only they have sycl-module-id attribute, so any other unrefenced
-  // functions are dropped. SPIRV and SYCL builtin functions are not
-  // considered as module entry points.
-  for (auto &F : M->functions()) {
-    if (F.hasFnAttribute(ATTR_SYCL_MODULE_ID) &&
-        !funcIsSpirvSyclBuiltin(F.getName())) {
+  // Only process module entry points.
+  for (const auto &F : M->functions()) {
+    if (isEntryPoint(F)) {
       if (F.getMetadata("sycl_explicit_simd"))
         EsimdFunctions.push_back(&F);
       else
@@ -854,19 +907,19 @@ static ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
     return std::make_pair(std::unique_ptr<Module>(nullptr), std::move(M));
 
   // Key values in KernelModuleMap are not significant, but they define the
-  // order, in which kernels are processed in the splitModule function. The
+  // order, in which entry points are processed in the splitModule function. The
   // caller of the splitSyclEsimd function expects a pair of 1-Sycl and 2-Esimd
   // modules, hence the strings names below.
-  std::map<StringRef, std::vector<Function *>> KernelModuleMap(
+  std::map<StringRef, std::vector<const Function *>> KernelModuleMap(
       {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
-  std::vector<std::unique_ptr<Module>> ResultModules;
+  std::vector<ResultModule> ResultModules;
   splitModule(*M, KernelModuleMap, ResultModules);
   assert(ResultModules.size() == 2);
-  return std::make_pair(std::move(ResultModules[0]),
-                        std::move(ResultModules[1]));
+  return std::make_pair(std::move(ResultModules[0].ModulePtr),
+                        std::move(ResultModules[1].ModulePtr));
 }
 
-static TableFiles processInputModule(std::unique_ptr<Module> M) {
+TableFiles processInputModule(std::unique_ptr<Module> M) {
   if (!SplitEsimd)
     return processOneModule(std::move(M), false, false);
 
@@ -896,6 +949,8 @@ static TableFiles processInputModule(std::unique_ptr<Module> M) {
   return MergedTblFiles;
 }
 
+} // namespace
+
 int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
@@ -910,8 +965,8 @@ int main(int argc, char **argv) {
       "- SYCL and ESIMD kernels can be split into separate modules with\n"
       "  '-split-esimd' option. The option has no effect when there is only\n"
       "  one type of kernels in the input module. Functions unreachable from\n"
-      "  any kernel or SYCL_EXTERNAL function are dropped from the resulting\n"
-      "  module(s)."
+      "  any entry point (kernels and SYCL_EXTERNAL functions) are\n"
+      "  dropped from the resulting module(s).\n"
       "- Module splitter to split a big input module into smaller ones.\n"
       "  Groups kernels using function attribute 'sycl-module-id', i.e.\n"
       "  kernels with the same values of the 'sycl-module-id' attribute will\n"
@@ -954,9 +1009,10 @@ int main(int argc, char **argv) {
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
+  bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd) {
+      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
@@ -982,6 +1038,11 @@ int main(int argc, char **argv) {
   }
   if (IROutputOnly && DoProgMetadata) {
     errs() << "error: -" << EmitProgramMetadata.ArgStr << " can't be used with"
+           << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoExportedSyms) {
+    errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }

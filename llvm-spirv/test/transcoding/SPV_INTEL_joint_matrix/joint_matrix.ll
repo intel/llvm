@@ -55,10 +55,10 @@
 ; CHECK-LLVM: call spir_func void @_Z29__spirv_JointMatrixStoreINTELPU3AS4sPU3AS139__spirv_JointMatrixINTEL__short_2_2_0_3liii(i16 addrspace(4)* [[CPtr]], %spirv.JointMatrixINTEL._short_2_2_0_3 addrspace(1)* [[C]], i64 [[Stride]], i32 0, i32 3, i32 0)
 
 
-; ModuleID = 'joint_matrix_test-sycl-spir64-unknown-unknown-sycldevice.bc'
+; ModuleID = 'joint_matrix_test-sycl-spir64-unknown-unknown.bc'
 source_filename = "./joint_matrix_test.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIsLm2ELm2ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" = type opaque
 %"struct._ZTSN5__spv24__spirv_JointMatrixINTELIaLm2ELm16ELNS_12MatrixLayoutE0ELNS_5Scope4FlagE3EEE.__spv::__spirv_JointMatrixINTEL" = type opaque

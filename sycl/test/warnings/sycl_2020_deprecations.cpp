@@ -4,65 +4,64 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -sycl-std=1.2.1 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s -o %t.out
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/ONEAPI/atomic_fence.hpp>
-#include <CL/sycl/INTEL/online_compiler.hpp>
+#include <sycl/ext/intel/online_compiler.hpp>
 
 int main() {
   cl_context ClCtx;
-  // expected-warning@+1 {{'context' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::context'}}
   sycl::context Ctx{ClCtx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in 'sycl::context'}}
   (void)Ctx.get();
 
   cl_mem Mem;
-  // expected-warning@+1 {{'buffer' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::buffer<int, 1>'}}
   sycl::buffer<int, 1> Buf{Mem, Ctx};
   (void)Buf;
 
   cl_device_id DevId;
-  // expected-warning@+1 {{'device' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::device'}}
   sycl::device Device{DevId};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in 'sycl::device'}}
   (void)Device.get();
   // expected-warning@+1 {{'has_extension' is deprecated: use device::has() function with aspects APIs instead}}
   (void)Device.has_extension("abc");
 
   cl_event ClEvent;
-  // expected-warning@+1 {{'event' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::event'}}
   sycl::event Evt{ClEvent, Ctx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in 'sycl::event'}}
   (void)Evt.get();
 
-  // expected-warning@+1 {{'image' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::image<1>'}}
   sycl::image<1> Img{Mem, Ctx};
   (void)Img;
 
   cl_platform_id ClPlatform;
-  // expected-warning@+1 {{'platform' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::platform'}}
   sycl::platform Platform{ClPlatform};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in 'sycl::platform'}}
   (void)Platform.get();
   // expected-warning@+1 {{'has_extension' is deprecated: use platform::has() function with aspects APIs instead}}
   (void)Platform.has_extension("abc");
 
   cl_command_queue ClQueue;
-  // expected-warning@+1 {{'queue' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::queue'}}
   sycl::queue Queue{ClQueue, Ctx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no member named 'get' in 'sycl::queue'}}
   (void)Queue.get();
 
   cl_sampler ClSampler;
-  // expected-warning@+1 {{'sampler' is deprecated: OpenCL interop APIs are deprecated}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::sampler'}}
   sycl::sampler Sampler{ClSampler, Ctx};
   (void)Sampler;
 
   cl_kernel ClKernel;
-  // expected-warning@+1 {{'kernel' is deprecated: OpenCL interop constructors are deprecated, use make_kernel() instead}}
+  // expected-error@+1 {{no matching constructor for initialization of 'sycl::kernel'}}
   sycl::kernel Kernel{ClKernel, Ctx};
-  // expected-warning@+1 {{'get' is deprecated: OpenCL interop get() functions are deprecated, use get_native() instead}}
+  // expected-error@+1 {{no member named 'get' in 'sycl::kernel'}}
   (void)Kernel.get();
 
-  // expected-warning@+1 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
+  // expected-error@+1 {{no type named 'program' in namespace 'sycl'}}
   sycl::program Prog{Ctx};
 
   sycl::buffer<int, 1> Buffer(4);
@@ -106,12 +105,6 @@ int main() {
   sycl::profiling_error pre;
   // expected-warning@+1 {{'feature_not_supported' is deprecated: use sycl::exception with sycl::errc::feature_not_supported instead.}}
   sycl::feature_not_supported fns;
-  // expected-warning@+1{{'string_class' is deprecated: use STL classes directly}}
-  sycl::string_class Str = "abc";
-  (void)Str;
-  // expected-warning@+1{{'mutex_class' is deprecated: use STL classes directly}}
-  sycl::mutex_class Mtx;
-  (void)Mtx;
   // expected-warning@+1{{'exception' is deprecated: The version of an exception constructor which takes no arguments is deprecated.}}
   sycl::exception ex;
   // expected-warning@+1{{'get_cl_code' is deprecated: use sycl::exception.code() instead.}}
@@ -130,6 +123,10 @@ int main() {
         });
   });
 
+  // expected-warning@+1{{'byte' is deprecated: use std::byte instead}}
+  sycl::byte B;
+  (void)B;
+
   // expected-warning@+1{{'max_constant_buffer_size' is deprecated: max_constant_buffer_size is deprecated}}
   auto MCBS = sycl::info::device::max_constant_buffer_size;
   (void)MCBS;
@@ -143,17 +140,39 @@ int main() {
   // expected-warning@+1{{'extensions' is deprecated: device::extensions is deprecated, use info::device::aspects instead.}}
   auto DE = sycl::info::device::extensions;
 
-  // expected-warning@+4{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
   // expected-warning@+3{{'atomic_fence' is deprecated: use sycl::atomic_fence instead}}
-  // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
-  // expected-warning@+2{{'ONEAPI' is deprecated: use 'ext::oneapi' instead}}
-  sycl::ONEAPI::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
+  // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
+  // expected-error@+2{{no member named 'ONEAPI' in namespace 'sycl'}}
+  sycl::ext::oneapi::atomic_fence(sycl::ONEAPI::memory_order::relaxed,
                              sycl::ONEAPI::memory_scope::work_group);
 
-  // expected-warning@+1{{'INTEL' is deprecated: use 'ext::intel' instead}}
+  // expected-error@+1{{no member named 'INTEL' in namespace 'sycl'}}
   auto SL = sycl::INTEL::source_language::opencl_c;
   (void)SL;
 
+  // expected-warning@+1{{'intel' is deprecated: use 'ext::intel::experimental' instead}}
+  auto SLExtIntel = sycl::ext::intel::source_language::opencl_c;
+  (void)SLExtIntel;
+
+  // expected-warning@+1{{'level_zero' is deprecated: use 'ext_oneapi_level_zero' instead}}
+  auto LevelZeroBackend = sycl::backend::level_zero;
+  (void)LevelZeroBackend;
+
+  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_oneapi_esimd_emulator' instead}}
+  auto ESIMDCPUBackend = sycl::backend::esimd_cpu;
+  (void)ESIMDCPUBackend;
+
+  sycl::half Val = 1.0f;
+  // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
+  auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
+  (void)BitCastRes;
+
+  // expected-warning@+1{{'submit_barrier' is deprecated: use 'ext_oneapi_submit_barrier' instead}}
+  Queue.submit_barrier();
+
+  // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
+  Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
+  
   // expected-warning@+1{{'half' is deprecated: use 'sycl::half' instead}}
   half H;
   (void)H;

@@ -1,4 +1,4 @@
-//===-- runtime/edit-input.cpp ----------------------------------*- C++ -*-===//
+//===-- runtime/edit-input.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -56,6 +56,7 @@ static bool ScanNumericPrefix(IoStatementState &io, const DataEdit &edit,
   if (next) {
     negative = *next == '-';
     if (negative || *next == '+') {
+      io.GotChar();
       io.SkipSpaces(remaining);
       next = io.NextInField(remaining);
     }
@@ -136,7 +137,8 @@ static int ScanRealInput(char *buffer, int bufferSize, IoStatementState &io,
   if (ScanNumericPrefix(io, edit, next, remaining)) {
     Put('-');
   }
-  if (!next) { // empty field means zero
+  if (next.value_or(' ') == ' ') { // empty/blank field means zero
+    remaining.reset();
     Put('0');
     return got;
   }
@@ -453,6 +455,7 @@ bool EditDefaultCharacterInput(
        next = io.NextInField(remaining)) {
     if (skip > 0) {
       --skip;
+      io.GotChar(-1);
     } else {
       *x++ = *next;
       --length;

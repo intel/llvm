@@ -191,6 +191,7 @@
 // CHECK-IR1: [[DESCTY:%.+]] = type { i16, i16, [[IMAGETY]]*, [[ENTTY]]*, [[ENTTY]]* }
 // CHECK-IR1-NOT: @llvm.global_ctors
 // CHECK-IR1-NOT: @llvm.global_dtors
+// CHECK-IR1-NOT: section ".tgtimg"
 // CHECK-IR1: @.sycl_offloading.lalala = constant [[DESCTY]] { i16 {{[0-9]+}}, i16 1, [[IMAGETY]]* getelementptr inbounds ([1 x [[IMAGETY]]], [1 x [[IMAGETY]]]* @.sycl_offloading.device_images, i64 0, i64 0), [[ENTTY]]* null, [[ENTTY]]* null }
 
 // -------

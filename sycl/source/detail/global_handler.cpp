@@ -51,6 +51,15 @@ ProgramManager &GlobalHandler::getProgramManager() {
   return getOrCreate(MProgramManager);
 }
 
+std::unordered_map<PlatformImplPtr, ContextImplPtr> &
+GlobalHandler::getPlatformToDefaultContextCache() {
+  return getOrCreate(MPlatformToDefaultContextCache);
+}
+
+std::mutex &GlobalHandler::getPlatformToDefaultContextCacheMutex() {
+  return getOrCreate(MPlatformToDefaultContextCacheMutex);
+}
+
 Sync &GlobalHandler::getSync() { return getOrCreate(MSync); }
 
 std::vector<PlatformImplPtr> &GlobalHandler::getPlatformCache() {
@@ -84,6 +93,16 @@ void shutdown() {
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
   GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
+#ifndef _WIN32
+  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
+#else
+  // Windows does not maintain dependencies between dynamically loaded libraries
+  // and can unload SYCL runtime dependencies before sycl.dll's DllMain has
+  // finished. To avoid calls to nowhere, intentionally leak platform to device
+  // cache. This will prevent destructors from being called, thus no PI cleanup
+  // routines will be called in the end.
+  GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
+#endif
   GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
 
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If

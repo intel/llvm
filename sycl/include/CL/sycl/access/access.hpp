@@ -15,13 +15,14 @@ namespace sycl {
 namespace access {
 
 enum class target {
-  global_buffer = 2014,
+  global_buffer __SYCL2020_DEPRECATED("use 'target::device' instead") = 2014,
   constant_buffer = 2015,
   local = 2016,
   image = 2017,
   host_buffer = 2018,
   host_image = 2019,
-  image_array = 2020
+  image_array = 2020,
+  device = global_buffer,
 };
 
 enum class mode {
@@ -46,8 +47,14 @@ enum class address_space : int {
   global_space = 1,
   constant_space = 2,
   local_space = 3,
-  global_device_space = 4,
-  global_host_space = 5
+  ext_intel_global_device_space = 4,
+  ext_intel_host_device_space = 5,
+  global_device_space __SYCL2020_DEPRECATED(
+      "use 'ext_intel_global_device_space' instead") =
+      ext_intel_global_device_space,
+  global_host_space __SYCL2020_DEPRECATED(
+      "use 'ext_intel_host_device_space' instead") =
+      ext_intel_host_device_space,
 };
 
 } // namespace access
@@ -130,7 +137,7 @@ template <access::target accessTarget> struct TargetToAS {
 };
 
 #ifdef __ENABLE_USM_ADDR_SPACE__
-template <> struct TargetToAS<access::target::global_buffer> {
+template <> struct TargetToAS<access::target::device> {
   constexpr static access::address_space AS =
       access::address_space::global_device_space;
 };

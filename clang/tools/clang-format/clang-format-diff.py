@@ -58,6 +58,11 @@ def main():
   parser.add_argument('-style',
                       help='formatting style to apply (LLVM, GNU, Google, Chromium, '
                       'Microsoft, Mozilla, WebKit)')
+  parser.add_argument('-fallback-style',
+                      help='The name of the predefined style used as a'
+                      'fallback in case clang-format is invoked with'
+                      '-style=file, but can not find the .clang-format'
+                      'file to use.')
   parser.add_argument('-binary', default='clang-format',
                       help='location of binary to use for clang-format')
   args = parser.parse_args()
@@ -85,9 +90,11 @@ def main():
       line_count = 1
       if match.group(3):
         line_count = int(match.group(3))
-      if line_count == 0:
-        continue
-      end_line = start_line + line_count - 1
+      # Also format lines range if line_count is 0 in case of deleting
+      # surrounding statements.
+      end_line = start_line
+      if line_count != 0:
+        end_line += line_count - 1
       lines_by_file.setdefault(filename, []).extend(
           ['-lines', str(start_line) + ':' + str(end_line)])
 
@@ -103,6 +110,8 @@ def main():
     command.extend(lines)
     if args.style:
       command.extend(['-style', args.style])
+    if args.fallback_style:
+      command.extend(['-fallback-style', args.fallback_style])
 
     try:
       p = subprocess.Popen(command,

@@ -165,11 +165,31 @@ std::error_code SampleProfileWriterExtBinaryBase::writeFuncOffsetTable() {
   encodeULEB128(FuncOffsetTable.size(), OS);
 
   // Write out FuncOffsetTable.
-  for (auto Entry : FuncOffsetTable) {
-    if (std::error_code EC = writeContextIdx(Entry.first))
+  auto WriteItem = [&](const SampleContext &Context, uint64_t Offset) {
+    if (std::error_code EC = writeContextIdx(Context))
       return EC;
-    encodeULEB128(Entry.second, OS);
+    encodeULEB128(Offset, OS);
+    return (std::error_code)sampleprof_error::success;
+  };
+
+  if (FunctionSamples::ProfileIsCS) {
+    // Sort the contexts before writing them out. This is to help fast load all
+    // context profiles for a function as well as their callee contexts which
+    // can help profile-guided importing for ThinLTO.
+    std::map<SampleContext, uint64_t> OrderedFuncOffsetTable(
+        FuncOffsetTable.begin(), FuncOffsetTable.end());
+    for (const auto &Entry : OrderedFuncOffsetTable) {
+      if (std::error_code EC = WriteItem(Entry.first, Entry.second))
+        return EC;
+    }
+    addSectionFlag(SecFuncOffsetTable, SecFuncOffsetFlags::SecFlagOrdered);
+  } else {
+    for (const auto &Entry : FuncOffsetTable) {
+      if (std::error_code EC = WriteItem(Entry.first, Entry.second))
+        return EC;
+    }
   }
+
   FuncOffsetTable.clear();
   return sampleprof_error::success;
 }
@@ -249,10 +269,10 @@ std::error_code SampleProfileWriterExtBinaryBase::writeCSNameTableSection() {
     auto Frames = Context.getContextFrames();
     encodeULEB128(Frames.size(), OS);
     for (auto &Callsite : Frames) {
-      if (std::error_code EC = writeNameIdx(Callsite.CallerName))
+      if (std::error_code EC = writeNameIdx(Callsite.FuncName))
         return EC;
-      encodeULEB128(Callsite.Callsite.LineOffset, OS);
-      encodeULEB128(Callsite.Callsite.Discriminator, OS);
+      encodeULEB128(Callsite.Location.LineOffset, OS);
+      encodeULEB128(Callsite.Location.Discriminator, OS);
     }
   }
 
@@ -522,7 +542,7 @@ void SampleProfileWriterExtBinaryBase::addContext(
     const SampleContext &Context) {
   if (Context.hasContext()) {
     for (auto &Callsite : Context.getContextFrames())
-      SampleProfileWriterBinary::addName(Callsite.CallerName);
+      SampleProfileWriterBinary::addName(Callsite.FuncName);
     CSNameTable.insert(std::make_pair(Context, 0));
   } else {
     SampleProfileWriterBinary::addName(Context.getName());

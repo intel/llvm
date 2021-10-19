@@ -1602,12 +1602,13 @@ DIObjCProperty *DIObjCProperty::getImpl(
 DIImportedEntity *DIImportedEntity::getImpl(LLVMContext &Context, unsigned Tag,
                                             Metadata *Scope, Metadata *Entity,
                                             Metadata *File, unsigned Line,
-                                            MDString *Name, StorageType Storage,
+                                            MDString *Name, Metadata *Elements,
+                                            StorageType Storage,
                                             bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   DEFINE_GETIMPL_LOOKUP(DIImportedEntity,
-                        (Tag, Scope, Entity, File, Line, Name));
-  Metadata *Ops[] = {Scope, Entity, Name, File};
+                        (Tag, Scope, Entity, File, Line, Name, Elements));
+  Metadata *Ops[] = {Scope, Entity, Name, File, Elements};
   DEFINE_GETIMPL_STORE(DIImportedEntity, (Tag, Line), Ops);
 }
 
@@ -1642,6 +1643,12 @@ void DIArgList::handleChangedOperand(void *Ref, Metadata *New) {
   assert((!New || isa<ValueAsMetadata>(New)) &&
          "DIArgList must be passed a ValueAsMetadata");
   untrack();
+  bool Uniq = isUniqued();
+  if (Uniq) {
+    // We need to update the uniqueness once the Args are updated since they
+    // form the key to the DIArgLists store.
+    eraseFromStore();
+  }
   ValueAsMetadata *NewVM = cast_or_null<ValueAsMetadata>(New);
   for (ValueAsMetadata *&VM : Args) {
     if (&VM == OldVMPtr) {
@@ -1650,6 +1657,10 @@ void DIArgList::handleChangedOperand(void *Ref, Metadata *New) {
       else
         VM = ValueAsMetadata::get(UndefValue::get(VM->getValue()->getType()));
     }
+  }
+  if (Uniq) {
+    if (uniquify() != this)
+      storeDistinctInContext();
   }
   track();
 }

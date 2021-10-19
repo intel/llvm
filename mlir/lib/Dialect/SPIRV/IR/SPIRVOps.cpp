@@ -92,7 +92,12 @@ static LogicalResult extractValueFromConstOp(Operation *op, int32_t &value) {
   if (!integerValueAttr) {
     return failure();
   }
-  value = integerValueAttr.getInt();
+
+  if (integerValueAttr.getType().isSignlessInteger())
+    value = integerValueAttr.getInt();
+  else
+    value = integerValueAttr.getSInt();
+
   return success();
 }
 
@@ -309,6 +314,57 @@ static void printSourceMemoryAccessAttribute(
     printer << "]";
   }
   elidedAttrs.push_back(spirv::attributeName<spirv::StorageClass>());
+}
+
+static ParseResult parseImageOperands(OpAsmParser &parser,
+                                      spirv::ImageOperandsAttr &attr) {
+  // Expect image operands
+  if (parser.parseOptionalLSquare())
+    return success();
+
+  spirv::ImageOperands imageOperands;
+  if (parseEnumStrAttr(imageOperands, parser))
+    return failure();
+
+  attr = spirv::ImageOperandsAttr::get(parser.getContext(), imageOperands);
+
+  return parser.parseRSquare();
+}
+
+static void printImageOperands(OpAsmPrinter &printer, Operation *imageOp,
+                               spirv::ImageOperandsAttr attr) {
+  if (attr) {
+    auto strImageOperands = stringifyImageOperands(attr.getValue());
+    printer << "[\"" << strImageOperands << "\"]";
+  }
+}
+
+template <typename Op>
+static LogicalResult verifyImageOperands(Op imageOp,
+                                         spirv::ImageOperandsAttr attr,
+                                         Operation::operand_range operands) {
+  if (!attr) {
+    if (operands.empty())
+      return success();
+
+    return imageOp.emitError("the Image Operands should encode what operands "
+                             "follow, as per Image Operands");
+  }
+
+  // TODO: Add the validation rules for the following Image Operands.
+  spirv::ImageOperands noSupportOperands =
+      spirv::ImageOperands::Bias | spirv::ImageOperands::Lod |
+      spirv::ImageOperands::Grad | spirv::ImageOperands::ConstOffset |
+      spirv::ImageOperands::Offset | spirv::ImageOperands::ConstOffsets |
+      spirv::ImageOperands::Sample | spirv::ImageOperands::MinLod |
+      spirv::ImageOperands::MakeTexelAvailable |
+      spirv::ImageOperands::MakeTexelVisible |
+      spirv::ImageOperands::SignExtend | spirv::ImageOperands::ZeroExtend;
+
+  if (spirv::bitEnumContains(attr.getValue(), noSupportOperands))
+    llvm_unreachable("unimplemented operands of Image Operands");
+
+  return success();
 }
 
 static LogicalResult verifyCastOp(Operation *op,
@@ -1726,16 +1782,16 @@ static ParseResult parseEntryPointOp(OpAsmParser &parser,
 
   if (!parser.parseOptionalComma()) {
     // Parse the interface variables
-    do {
-      // The name of the interface variable attribute isnt important
-      auto attrName = "var_symbol";
-      FlatSymbolRefAttr var;
-      NamedAttrList attrs;
-      if (parser.parseAttribute(var, Type(), attrName, attrs)) {
-        return failure();
-      }
-      interfaceVars.push_back(var);
-    } while (!parser.parseOptionalComma());
+    if (parser.parseCommaSeparatedList([&]() -> ParseResult {
+          // The name of the interface variable attribute isnt important
+          FlatSymbolRefAttr var;
+          NamedAttrList attrs;
+          if (parser.parseAttribute(var, Type(), "var_symbol", attrs))
+            return failure();
+          interfaceVars.push_back(var);
+          return success();
+        }))
+      return failure();
   }
   state.addAttribute(kInterfaceAttrName,
                      parser.getBuilder().getArrayAttr(interfaceVars));
@@ -2015,8 +2071,7 @@ Operation::operand_range spirv::FunctionCallOp::getArgOperands() {
 void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
                                     Type type, StringRef name,
                                     unsigned descriptorSet, unsigned binding) {
-  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name),
-        nullptr);
+  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name));
   state.addAttribute(
       spirv::SPIRVDialect::getAttributeName(spirv::Decoration::DescriptorSet),
       builder.getI32IntegerAttr(descriptorSet));
@@ -2028,8 +2083,7 @@ void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
 void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
                                     Type type, StringRef name,
                                     spirv::BuiltIn builtin) {
-  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name),
-        nullptr);
+  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name));
   state.addAttribute(
       spirv::SPIRVDialect::getAttributeName(spirv::Decoration::BuiltIn),
       builder.getStringAttr(spirv::stringifyBuiltIn(builtin)));
@@ -3538,7 +3592,7 @@ static ParseResult parseSpecConstantOperationOp(OpAsmParser &parser,
   if (!wrappedOp)
     return failure();
 
-  OpBuilder builder(parser.getBuilder().getContext());
+  OpBuilder builder(parser.getContext());
   builder.setInsertionPointToEnd(&block);
   builder.create<spirv::YieldOp>(wrappedOp->getLoc(), wrappedOp->getResult(0));
   state.location = wrappedOp->getLoc();
@@ -3656,7 +3710,6 @@ static LogicalResult verify(spirv::GLSLLdexpOp ldexpOp) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(spirv::ImageDrefGatherOp imageDrefGatherOp) {
-  // TODO: Support optional operands.
   VectorType resultType =
       imageDrefGatherOp.result().getType().cast<VectorType>();
   auto sampledImageType = imageDrefGatherOp.sampledimage()
@@ -3688,7 +3741,10 @@ static LogicalResult verify(spirv::ImageDrefGatherOp imageDrefGatherOp) {
     return imageDrefGatherOp.emitOpError(
         "the MS operand of the underlying image type must be 0");
 
-  return success();
+  spirv::ImageOperandsAttr attr = imageDrefGatherOp.imageoperandsAttr();
+  auto operandArguments = imageDrefGatherOp.operand_arguments();
+
+  return verifyImageOperands(imageDrefGatherOp, attr, operandArguments);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3859,14 +3915,9 @@ static LogicalResult verify(spirv::PtrAccessChainOp accessChainOp) {
   return verifyAccessChain(accessChainOp, accessChainOp.indices());
 }
 
-namespace mlir {
-namespace spirv {
-
 // TableGen'erated operation interfaces for querying versions, extensions, and
 // capabilities.
 #include "mlir/Dialect/SPIRV/IR/SPIRVAvailability.cpp.inc"
-} // namespace spirv
-} // namespace mlir
 
 // TablenGen'erated operation definitions.
 #define GET_OP_CLASSES
@@ -3876,6 +3927,5 @@ namespace mlir {
 namespace spirv {
 // TableGen'erated operation availability interface implementations.
 #include "mlir/Dialect/SPIRV/IR/SPIRVOpAvailabilityImpl.inc"
-
 } // namespace spirv
 } // namespace mlir

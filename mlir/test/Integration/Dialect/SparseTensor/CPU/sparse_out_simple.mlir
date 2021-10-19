@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -71,6 +71,9 @@ module {
     %m = sparse_tensor.values %0 : tensor<?x?xf64, #DCSR> to memref<?xf64>
     %v = vector.transfer_read %m[%c0], %d0: memref<?xf64>, vector<9xf64>
     vector.print %v : vector<9xf64>
+
+    // Release the resources.
+    sparse_tensor.release %x : tensor<?x?xf64, #DCSR>
 
     return
   }

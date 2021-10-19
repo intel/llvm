@@ -19,14 +19,14 @@ static Expr<T> FoldAllAny(FoldingContext &context, FunctionRef<T> &&ref,
     Scalar<T> identity) {
   static_assert(T::category == TypeCategory::Logical);
   using Element = Scalar<T>;
-  std::optional<ConstantSubscript> dim;
+  std::optional<int> dim;
   if (std::optional<Constant<T>> array{
           ProcessReductionArgs<T>(context, ref.arguments(), dim, identity,
               /*ARRAY(MASK)=*/0, /*DIM=*/1)}) {
     auto accumulator{[&](Element &element, const ConstantSubscripts &at) {
       element = (element.*operation)(array->At(at));
     }};
-    return Expr<T>{DoReduction(*array, dim, identity, accumulator)};
+    return Expr<T>{DoReduction<T>(*array, dim, identity, accumulator)};
   }
   return Expr<T>{std::move(ref)};
 }

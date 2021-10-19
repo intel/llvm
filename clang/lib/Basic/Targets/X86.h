@@ -143,6 +143,7 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasSERIALIZE = false;
   bool HasTSXLDTRK = false;
   bool HasUINTR = false;
+  bool HasCRC32 = false;
 
 protected:
   llvm::X86::CPUKind CPU = llvm::X86::CK_None;
@@ -166,7 +167,7 @@ public:
     return LongDoubleFormat == &llvm::APFloat::IEEEquad() ? "g" : "e";
   }
 
-  int getFPEvalMethod() const override {
+  unsigned getFloatEvalMethod() const override {
     // X87 evaluates with 80 bits "long double" precision.
     return SSELevel == NoSSE ? 2 : 0;
   }
@@ -411,8 +412,8 @@ public:
 
     // Use fpret for all types.
     RealTypeUsesObjCFPRet =
-        ((1 << TargetInfo::Float) | (1 << TargetInfo::Double) |
-         (1 << TargetInfo::LongDouble));
+        ((1 << (int)FloatModeKind::Float) | (1 << (int)FloatModeKind::Double) |
+         (1 << (int)FloatModeKind::LongDouble));
 
     // x86-32 has atomics up to 8 bytes
     MaxAtomicPromoteWidth = 64;
@@ -469,12 +470,12 @@ public:
   NetBSDI386TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : NetBSDTargetInfo<X86_32TargetInfo>(Triple, Opts) {}
 
-  int getFPEvalMethod() const override {
+  unsigned getFloatEvalMethod() const override {
     unsigned Major, Minor, Micro;
     getTriple().getOSVersion(Major, Minor, Micro);
     // New NetBSD uses the default rounding mode.
     if (Major >= 7 || (Major == 6 && Minor == 99 && Micro >= 26) || Major == 0)
-      return X86_32TargetInfo::getFPEvalMethod();
+      return X86_32TargetInfo::getFloatEvalMethod();
     // NetBSD before 6.99.26 defaults to "double" rounding.
     return 1;
   }
@@ -691,7 +692,7 @@ public:
                                         "64-i64:64-f80:128-n8:16:32:64-S128");
 
     // Use fpret only for long double.
-    RealTypeUsesObjCFPRet = (1 << TargetInfo::LongDouble);
+    RealTypeUsesObjCFPRet = (1 << (int)FloatModeKind::LongDouble);
 
     // Use fp2ret for _Complex long double.
     ComplexLongDoubleUsesFP2Ret = true;

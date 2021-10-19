@@ -3,10 +3,10 @@
 
 ; CHECK: %[[#NS0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID:]], i32
 ; CHECK: %[[#NS1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 1]], i32 42)
-; CHECK: %[[#NA0:]] = call %struct._ZTS10TestStruct.TestStruct @_Z29__spirv_SpecConstantCompositeii(i32 %[[#NS0]], i32 %[[#NS1]])
+; CHECK: %[[#NA0:]] = call %struct._ZTS10TestStruct.TestStruct @_Z29__spirv_SpecConstantCompositeii_Rstruct._ZTS10TestStruct.TestStruct(i32 %[[#NS0]], i32 %[[#NS1]])
 
 ; CHECK: declare i32 @_Z20__spirv_SpecConstantii(i32, i32)
-; CHECK: declare %struct._ZTS10TestStruct.TestStruct @_Z29__spirv_SpecConstantCompositeii(i32, i32)
+; CHECK: declare %struct._ZTS10TestStruct.TestStruct @_Z29__spirv_SpecConstantCompositeii_Rstruct._ZTS10TestStruct.TestStruct(i32, i32)
 
 ; CHECK: !sycl.specialization-constants = !{![[#MD:]]}
 ; CHECK: ![[#MD]] = !{!"_ZTSN2cl4sycl6detail32specialization_id_name_generatorIL_ZL10SpecConst3EEE", i32 [[#ID]], i32 0, i32 4,

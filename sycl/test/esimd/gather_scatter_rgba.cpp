@@ -11,8 +11,8 @@
 using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
-void kernel(accessor<int, 1, access::mode::read_write,
-                     access::target::global_buffer> &buf) SYCL_ESIMD_FUNCTION {
+void kernel(accessor<int, 1, access::mode::read_write, access::target::device>
+                &buf) SYCL_ESIMD_FUNCTION {
   simd<uint32_t, 32> offsets(0, 1);
   simd<int, 32 * 4> v1(0, 1);
 

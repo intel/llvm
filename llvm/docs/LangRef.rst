@@ -709,7 +709,7 @@ to over-align the global if the global has an assigned section. In this
 case, the extra alignment could be observable: for example, code could
 assume that the globals are densely packed in their section and try to
 iterate over them as an array, alignment padding would break this
-iteration. The maximum alignment is ``1 << 29``.
+iteration. The maximum alignment is ``1 << 32``.
 
 For global variables declarations, as well as definitions that may be
 replaced at link time (``linkonce``, ``weak``, ``extern_weak`` and ``common``
@@ -907,7 +907,7 @@ IFunc may have an optional :ref:`linkage type <linkage>` and an optional
 
 Syntax::
 
-    @<Name> = [Linkage] [Visibility] ifunc <IFuncTy>, <ResolverTy>* @<Resolver>
+    @<Name> = [Linkage] [PreemptionSpecifier] [Visibility] ifunc <IFuncTy>, <ResolverTy>* @<Resolver>
 
 
 .. _langref_comdats:
@@ -1594,12 +1594,18 @@ example:
     ``disable_sanitizer_instrumentation`` disables all kinds of instrumentation,
     taking precedence over the ``sanitize_<name>`` attributes and other compiler
     flags.
-``"dontcall"``
-    This attribute denotes that a diagnostic should be emitted when a call of a
-    function with this attribute is not eliminated via optimization. Front ends
-    can provide optional ``srcloc`` metadata nodes on call sites of such
-    callees to attach information about where in the source language such a
-    call came from.
+``"dontcall-error"``
+    This attribute denotes that an error diagnostic should be emitted when a
+    call of a function with this attribute is not eliminated via optimization.
+    Front ends can provide optional ``srcloc`` metadata nodes on call sites of
+    such callees to attach information about where in the source language such a
+    call came from. A string value can be provided as a note.
+``"dontcall-warn"``
+    This attribute denotes that a warning diagnostic should be emitted when a
+    call of a function with this attribute is not eliminated via optimization.
+    Front ends can provide optional ``srcloc`` metadata nodes on call sites of
+    such callees to attach information about where in the source language such a
+    call came from. A string value can be provided as a note.
 ``"frame-pointer"``
     This attribute tells the code generator whether the function
     should keep the frame pointer. The code generator may emit the frame pointer
@@ -2470,14 +2476,26 @@ for further details.
 ObjC ARC Attached Call Operand Bundles
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-A ``"clang.arc.attachedcall`` operand bundle on a call indicates the call is
+A ``"clang.arc.attachedcall"`` operand bundle on a call indicates the call is
 implicitly followed by a marker instruction and a call to an ObjC runtime
-function that uses the result of the call. If the argument passed to the operand
-bundle is 0, ``@objc_retainAutoreleasedReturnValue`` is called. If 1 is passed,
-``@objc_unsafeClaimAutoreleasedReturnValue`` is called. The return value of a
-call with this bundle is used by a call to ``@llvm.objc.clang.arc.noop.use``
-unless the called function's return type is void, in which case the operand
-bundle is ignored.
+function that uses the result of the call. The operand bundle takes either the
+pointer to the runtime function (``@objc_retainAutoreleasedReturnValue`` or
+``@objc_unsafeClaimAutoreleasedReturnValue``) or no arguments. If the bundle
+doesn't take any arguments, only the marker instruction has to be emitted after
+the call; the runtime function calls don't have to be emitted since they already
+have been emitted. The return value of a call with this bundle is used by a call
+to ``@llvm.objc.clang.arc.noop.use`` unless the called function's return type is
+void, in which case the operand bundle is ignored.
+
+.. code-block:: llvm
+
+   ; The marker instruction and a runtime function call are inserted after the call
+   ; to @foo.
+   call i8* @foo() [ "clang.arc.attachedcall"(i8* (i8*)* @objc_retainAutoreleasedReturnValue) ]
+   call i8* @foo() [ "clang.arc.attachedcall"(i8* (i8*)* @objc_unsafeClaimAutoreleasedReturnValue) ]
+
+   ; Only the marker instruction is inserted after the call to @foo.
+   call i8* @foo() [ "clang.arc.attachedcall"() ]
 
 The operand bundle is needed to ensure the call is immediately followed by the
 marker instruction or the ObjC runtime call in the final output.
@@ -2593,6 +2611,7 @@ as follows:
     options are
 
     * ``e``: ELF mangling: Private symbols get a ``.L`` prefix.
+    * ``l``: GOFF mangling: Private symbols get a ``@`` prefix.
     * ``m``: Mips mangling: Private symbols get a ``$`` prefix.
     * ``o``: Mach-O mangling: Private symbols get ``L`` prefix. Other
       symbols get a ``_`` prefix.
@@ -3291,7 +3310,7 @@ Integer Type
 
 The integer type is a very simple type that simply specifies an
 arbitrary bit width for the integer type desired. Any bit width from 1
-bit to 2\ :sup:`23`\ -1 (about 8 million) can be specified.
+bit to 2\ :sup:`23`\ (about 8 million) can be specified.
 
 :Syntax:
 
@@ -5384,8 +5403,8 @@ DISubrange
 :ref:`DICompositeType`.
 
 - ``count: -1`` indicates an empty array.
-- ``count: !9`` describes the count with a :ref:`DILocalVariable`.
-- ``count: !11`` describes the count with a :ref:`DIGlobalVariable`.
+- ``count: !10`` describes the count with a :ref:`DILocalVariable`.
+- ``count: !12`` describes the count with a :ref:`DIGlobalVariable`.
 
 .. code-block:: text
 
@@ -5778,12 +5797,16 @@ DIImportedEntity
 """"""""""""""""
 
 ``DIImportedEntity`` nodes represent entities (such as modules) imported into a
-compile unit.
+compile unit. The ``elements`` field is a list of renamed entities (such as
+variables and subprograms) in the imported entity (such as module).
 
 .. code-block:: text
 
    !2 = !DIImportedEntity(tag: DW_TAG_imported_module, name: "foo", scope: !0,
-                          entity: !1, line: 7)
+                          entity: !1, line: 7, elements: !3)
+   !3 = !{!4}
+   !4 = !DIImportedEntity(tag: DW_TAG_imported_declaration, name: "bar", scope: !0,
+                          entity: !5, line: 7)
 
 DIMacro
 """""""
@@ -9713,7 +9736,7 @@ appropriate type to the program. If "NumElements" is specified, it is
 the number of elements allocated, otherwise "NumElements" is defaulted
 to be one. If a constant alignment is specified, the value result of the
 allocation is guaranteed to be aligned to at least that boundary. The
-alignment may not be greater than ``1 << 29``. If not specified, or if
+alignment may not be greater than ``1 << 32``. If not specified, or if
 zero, the target can choose to align the allocation on any convenient
 boundary compatible with the type.
 
@@ -9803,7 +9826,7 @@ alignment for the target. It is the responsibility of the code emitter
 to ensure that the alignment information is correct. Overestimating the
 alignment results in undefined behavior. Underestimating the alignment
 may produce less efficient code. An alignment of 1 is always safe. The
-maximum possible alignment is ``1 << 29``. An alignment value higher
+maximum possible alignment is ``1 << 32``. An alignment value higher
 than the size of the loaded type implies memory up to the alignment
 value bytes can be safely loaded without trapping in the default
 address space. Access of the high bytes can interfere with debugging
@@ -9938,7 +9961,7 @@ alignment for the target. It is the responsibility of the code emitter
 to ensure that the alignment information is correct. Overestimating the
 alignment results in undefined behavior. Underestimating the
 alignment may produce less efficient code. An alignment of 1 is always
-safe. The maximum possible alignment is ``1 << 29``. An alignment
+safe. The maximum possible alignment is ``1 << 32``. An alignment
 value higher than the size of the stored type implies memory up to the
 alignment value bytes can be stored to without trapping in the default
 address space. Storing to the higher bytes however may result in data
@@ -17745,6 +17768,64 @@ The use of an effective %evl is discouraged for those targets.  The function
 ``TargetTransformInfo::hasActiveVectorLength()`` returns true when the target
 has native support for %evl.
 
+.. _int_vp_select:
+
+'``llvm.vp.select.*``' Intrinsics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <16 x i32>  @llvm.vp.select.v16i32 (<16 x i1> <condition>, <16 x i32> <on_true>, <16 x i32> <on_false>, i32 <evl>)
+      declare <vscale x 4 x i64>  @llvm.vp.select.nxv4i64 (<vscale x 4 x i1> <condition>, <vscale x 4 x i32> <on_true>, <vscale x 4 x i32> <on_false>, i32 <evl>)
+
+Overview:
+"""""""""
+
+The '``llvm.vp.select``' intrinsic is used to choose one value based on a
+condition vector, without IR-level branching.
+
+Arguments:
+""""""""""
+
+The first operand is a vector of ``i1`` and indicates the condition.  The
+second operand is the value that is selected where the condition vector is
+true.  The third operand is the value that is selected where the condition
+vector is false.  The vectors must be of the same size.  The fourth operand is
+the explicit vector length.
+
+#. The optional ``fast-math flags`` marker indicates that the select has one or
+   more :ref:`fast-math flags <fastmath>`. These are optimization hints to
+   enable otherwise unsafe floating-point optimizations. Fast-math flags are
+   only valid for selects that return a floating-point scalar or vector type,
+   or an array (nested to any depth) of floating-point scalar or vector types.
+
+Semantics:
+""""""""""
+
+The intrinsic selects lanes from the second and third operand depending on a
+condition vector.
+
+All result lanes at positions greater or equal than ``%evl`` are undefined.
+For all lanes below ``%evl`` where the condition vector is true the lane is
+taken from the second operand.  Otherwise, the lane is taken from the third
+operand.
+
+Example:
+""""""""
+
+.. code-block:: llvm
+
+      %r = call <4 x i32> @llvm.vp.select.v4i32(<4 x i1> %cond, <4 x i32> %on_true, <4 x i32> %on_false, i32 %evl)
+
+      ;;; Expansion.
+      ;; Any result is legal on lanes at and above %evl.
+      %also.r = select <4 x i1> %cond, <4 x i32> %on_true, <4 x i32> %on_false
+
+
 
 .. _int_vp_add:
 
@@ -19458,6 +19539,64 @@ Examples:
 
       %active.lane.mask = call <4 x i1> @llvm.get.active.lane.mask.v4i1.i64(i64 %elem0, i64 429)
       %wide.masked.load = call <4 x i32> @llvm.masked.load.v4i32.p0v4i32(<4 x i32>* %3, i32 4, <4 x i1> %active.lane.mask, <4 x i32> undef)
+
+
+.. _int_experimental_vp_splice:
+
+'``llvm.experimental.vp.splice``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+This is an overloaded intrinsic.
+
+::
+
+      declare <2 x double> @llvm.experimental.vp.splice.v2f64(<2 x double> %vec1, <2 x double> %vec2, i32 %imm, <2 x i1> %mask, i32 %evl1, i32 %evl2)
+      declare <vscale x 4 x i32> @llvm.experimental.vp.splice.nxv4i32(<vscale x 4 x i32> %vec1, <vscale x 4 x i32> %vec2, i32 %imm, <2 x i1> %mask i32 %evl1, i32 %evl2)
+
+Overview:
+"""""""""
+
+The '``llvm.experimental.vp.splice.*``' intrinsic is the vector length
+predicated version of the '``llvm.experimental.vector.splice.*``' intrinsic.
+
+Arguments:
+""""""""""
+
+The result and the first two arguments ``vec1`` and ``vec2`` are vectors with
+the same type.  The third argument ``imm`` is an immediate signed integer that
+indicates the offset index.  The fourth argument ``mask`` is a vector mask and
+has the same number of elements as the result.  The last two arguments ``evl1``
+and ``evl2`` are unsigned integers indicating the explicit vector lengths of
+``vec1`` and ``vec2`` respectively.  ``imm``, ``evl1`` and ``evl2`` should
+respect the following constraints: ``-evl1 <= imm < evl1``, ``0 <= evl1 <= VL``
+and ``0 <= evl2 <= VL``, where ``VL`` is the runtime vector factor. If these
+constraints are not satisfied the intrinsic has undefined behaviour.
+
+Semantics:
+""""""""""
+
+Effectively, this intrinsic concatenates ``vec1[0..evl1-1]`` and
+``vec2[0..evl2-1]`` and creates the result vector by selecting the elements in a
+window of size ``evl2``, starting at index ``imm`` (for a positive immediate) of
+the concatenated vector. Elements in the result vector beyond ``evl2`` are
+``undef``.  If ``imm`` is negative the starting index is ``evl1 + imm``.  The result
+vector of active vector length ``evl2`` contains ``evl1 - imm`` (``-imm`` for
+negative ``imm``) elements from indices ``[imm..evl1 - 1]``
+(``[evl1 + imm..evl1 -1]`` for negative ``imm``) of ``vec1`` followed by the
+first ``evl2 - (evl1 - imm)`` (``evl2 + imm`` for negative ``imm``) elements of
+``vec2``. If ``evl1 - imm`` (``-imm``) >= ``evl2``, only the first ``evl2``
+elements are considered and the remaining are ``undef``.  The lanes in the result
+vector disabled by ``mask`` are ``undef``.
+
+Examples:
+"""""""""
+
+.. code-block:: text
+
+ llvm.experimental.vp.splice(<A,B,C,D>, <E,F,G,H>, 1, 2, 3)  ==> <B, E, F, undef> ; index
+ llvm.experimental.vp.splice(<A,B,C,D>, <E,F,G,H>, -2, 3, 2) ==> <B, C, undef, undef> ; trailing elements
 
 
 .. _int_mload_mstore:
@@ -21797,52 +21936,6 @@ The '``llvm.set.rounding``' intrinsic sets the current rounding mode. It is
 similar to C library function 'fesetround', however this intrinsic does not
 return any value and uses platform-independent representation of IEEE rounding
 modes.
-
-
-Floating Point Test Intrinsics
-------------------------------
-
-These functions get properties of floating point values.
-
-
-'``llvm.isnan``' Intrinsic
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Syntax:
-"""""""
-
-::
-
-      declare i1 @llvm.isnan(<fptype> <op>)
-      declare <N x i1> @llvm.isnan(<vector-fptype> <op>)
-
-Overview:
-"""""""""
-
-The '``llvm.isnan``' intrinsic returns a boolean value or vector of boolean
-values depending on whether the value is NaN.
-
-If the operand is a floating-point scalar, then the result type is a
-boolean (:ref:`i1 <t_integer>`).
-
-If the operand is a floating-point vector, then the result type is a
-vector of boolean with the same number of elements as the operand.
-
-Arguments:
-""""""""""
-
-The argument to the '``llvm.isnan``' intrinsic must be
-:ref:`floating-point <t_floating>` or :ref:`vector <t_vector>`
-of floating-point values.
-
-
-Semantics:
-""""""""""
-
-The function tests if ``op`` is NaN. If ``op`` is a vector, then the
-check is made element by element. Each test yields an :ref:`i1 <t_integer>`
-result, which is ``true``, if the value is NaN. The function never raises
-floating point exceptions.
 
 
 General Intrinsics

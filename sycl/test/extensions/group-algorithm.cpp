@@ -4,7 +4,7 @@
 //
 // Missing __spirv_GroupIAdd, __spirv_GroupAll, __spirv_GroupBroadcast,
 // __spirv_GroupAny, __spirv_GroupSMin on AMD:
-// XFAIL: rocm_amd
+// XFAIL: hip_amd
 
 // TODO: enable compile+runtime checks for operations defined in SPIR-V 1.3.
 // That requires either adding a switch to clang (-spirv-max-version=1.3) or

@@ -19,6 +19,7 @@
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/ThreadSafeValue.h"
 #include "lldb/Host/HostThread.h"
+#include "lldb/Target/DynamicRegisterInfo.h"
 #include "lldb/Target/Process.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Utility/ArchSpec.h"
@@ -103,8 +104,6 @@ public:
 
   // PluginInterface protocol
   ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
 
   // Process Control
   Status WillResume() override;
@@ -232,6 +231,10 @@ public:
 
   void DidFork(lldb::pid_t child_pid, lldb::tid_t child_tid) override;
   void DidVFork(lldb::pid_t child_pid, lldb::tid_t child_tid) override;
+  void DidVForkDone() override;
+  void DidExec() override;
+
+  llvm::Expected<bool> SaveCore(llvm::StringRef outfile) override;
 
 protected:
   friend class ThreadGDBRemote;
@@ -250,11 +253,10 @@ protected:
   GDBRemoteCommunicationClient m_gdb_comm;
   GDBRemoteCommunicationReplayServer m_gdb_replay_server;
   std::atomic<lldb::pid_t> m_debugserver_pid;
-  std::vector<StringExtractorGDBRemote> m_stop_packet_stack; // The stop packet
-                                                             // stack replaces
-                                                             // the last stop
-                                                             // packet variable
+
+  llvm::Optional<StringExtractorGDBRemote> m_last_stop_packet;
   std::recursive_mutex m_last_stop_packet_mutex;
+
   GDBRemoteDynamicRegisterInfoSP m_register_info_sp;
   Broadcaster m_async_broadcaster;
   lldb::ListenerSP m_async_listener_sp;
@@ -295,6 +297,8 @@ protected:
   using FlashRangeVector = lldb_private::RangeVector<lldb::addr_t, size_t>;
   using FlashRange = FlashRangeVector::Entry;
   FlashRangeVector m_erased_flash_ranges;
+
+  bool m_vfork_in_progress;
 
   // Accessors
   bool IsRunning(lldb::StateType state) {
@@ -338,7 +342,7 @@ protected:
 
   bool CalculateThreadStopInfo(ThreadGDBRemote *thread);
 
-  size_t UpdateThreadPCsFromStopReplyThreadsValue(std::string &value);
+  size_t UpdateThreadPCsFromStopReplyThreadsValue(llvm::StringRef value);
 
   size_t UpdateThreadIDsFromStopReplyThreadsValue(llvm::StringRef value);
 
@@ -390,11 +394,14 @@ protected:
 
   DynamicLoader *GetDynamicLoader() override;
 
-  bool GetGDBServerRegisterInfoXMLAndProcess(ArchSpec &arch_to_use,
-                                             std::string xml_filename,
-                                             uint32_t &cur_reg_remote,
-                                             uint32_t &cur_reg_local);
+  bool GetGDBServerRegisterInfoXMLAndProcess(
+    ArchSpec &arch_to_use, std::string xml_filename,
+    std::vector<DynamicRegisterInfo::Register> &registers);
 
+  // Convert DynamicRegisterInfo::Registers into RegisterInfos and add
+  // to the dynamic register list.
+  void AddRemoteRegisters(std::vector<DynamicRegisterInfo::Register> &registers,
+                          const ArchSpec &arch_to_use);
   // Query remote GDBServer for register information
   bool GetGDBServerRegisterInfo(ArchSpec &arch);
 
@@ -465,6 +472,7 @@ private:
 
   // fork helpers
   void DidForkSwitchSoftwareBreakpoints(bool enable);
+  void DidForkSwitchHardwareTraps(bool enable);
 };
 
 } // namespace process_gdb_remote

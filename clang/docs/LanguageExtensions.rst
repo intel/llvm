@@ -2522,7 +2522,7 @@ In order to produce the unique name, the current implementation of the bultin
 uses Itanium mangling even if the host compilation uses a different name
 mangling scheme at runtime. The mangler marks all the lambdas required to name
 the SYCL kernel and emits a stable local ordering of the respective lambdas.
-The resulting pattern is demanglable. When non-lambda types are passed to the
+The resulting pattern is demanglable.  When non-lambda types are passed to the
 builtin, the mangler emits their usual pattern without any special treatment.
 
 **Syntax**:
@@ -3597,7 +3597,7 @@ specification, a stack is supported so that the ``pragma float_control``
 settings can be pushed or popped.
 
 When ``pragma float_control(precise, on)`` is enabled, the section of code
-governed by the pragma uses precise floating-point semantics, effectively
+governed by the pragma uses precise floating point semantics, effectively
 ``-ffast-math`` is disabled and ``-ffp-contract=on``
 (fused multiply add) is enabled.
 
@@ -3608,29 +3608,8 @@ when ``pragma float_control(precise, off)`` is enabled, the section of code
 governed by the pragma behaves as though the command-line option
 ``-ffp-exception-behavior=ignore`` is enabled.
 
-When ``pragma float_control(source, on)`` is enabled, the section of code governed
-by the pragma behaves as though the command-line option
-``-ffp-eval-method=source`` is enabled. Note: The default
-floating-point evaluation method is target-specific, typically ``source``.
-
-When ``pragma float_control(double, on)`` is enabled, the section of code governed
-by the pragma behaves as though the command-line option
-``-ffp-eval-method=double`` is enabled.
-
-When ``pragma float_control(extended, on)`` is enabled, the section of code governed
-by the pragma behaves as though the command-line option
-``-ffp-eval-method=extended`` is enabled.
-
-When ``pragma float_control(source, off)`` or
-``pragma float_control(double, off)`` or
-``pragma float_control(extended, off)`` is enabled,
-the section of code governed
-by the pragma behaves as though the command-line option
-``-ffp-eval-method=source`` is enabled, returning floating-point evaluation
-method to the default setting.
-
 The full syntax this pragma supports is
-``float_control(except|precise|source|double|extended, on|off [, push])`` and
+``float_control(except|precise, on|off [, push])`` and
 ``float_control(push|pop)``.
 The ``push`` and ``pop`` forms, including using ``push`` as the optional
 third argument, can only occur at file scope.
@@ -3982,6 +3961,25 @@ will expansion of the macro within the main source file. For example:
    #endif
 
 This warning is controlled by ``-Wpedantic-macros``.
+
+Final Macros
+============
+
+Clang supports the pragma ``#pragma clang final``, which can be used to
+mark macros as final, meaning they cannot be undef'd or re-defined. For example:
+
+.. code-block:: c
+
+   #define FINAL_MACRO 1
+   #pragma clang final(FINAL_MACRO)
+
+   #define FINAL_MACRO // warning: FINAL_MACRO is marked final and should not be redefined
+   #undef FINAL_MACRO  // warning: FINAL_MACRO is marked final and should not be undefined
+
+This is useful for enforcing system-provided macros that should not be altered
+in user headers or code. This is controlled by ``-Wpedantic-macros``. Final 
+macros will always warn on redefinition, including situations with identical
+bodies and in system headers.
 
 Extended Integer Types
 ======================

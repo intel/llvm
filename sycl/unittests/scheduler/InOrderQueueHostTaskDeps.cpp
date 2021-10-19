@@ -106,7 +106,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   InOrderQueue
       .submit([&](sycl::handler &CGH) {
         CGH.use_kernel_bundle(ExecBundle);
-        CGH.codeplay_host_task([=] {});
+        CGH.host_task([=] {});
       })
       .wait();
 

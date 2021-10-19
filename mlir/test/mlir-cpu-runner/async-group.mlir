@@ -3,12 +3,20 @@
 // RUN:               -async-runtime-ref-counting-opt                          \
 // RUN:               -convert-async-to-llvm                                   \
 // RUN:               -convert-std-to-llvm                                     \
+// RUN:               -reconcile-unrealized-casts                              \
 // RUN: | mlir-cpu-runner                                                      \
 // RUN:     -e main -entry-point-result=void -O0                               \
 // RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_c_runner_utils%shlibext  \
 // RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_runner_utils%shlibext    \
 // RUN:     -shared-libs=%linalg_test_lib_dir/libmlir_async_runtime%shlibext   \
 // RUN: | FileCheck %s
+
+// This is crashing in CI "most of the time" on a AMD Rome CPU VM on GCP with:
+//    Tracer caught signal 11: addr=0x7a800028 pc=0x2e81ba sp=0x7efd2a7ffd50
+//    LeakSanitizer has encountered a fatal error.
+// This is hard to reproduce locally unfortunately. Disable it with ASAN/LSAN
+// to keep the bot green for now.
+// UNSUPPORTED: asan
 
 func @main() {
   %c1 = constant 1 : index

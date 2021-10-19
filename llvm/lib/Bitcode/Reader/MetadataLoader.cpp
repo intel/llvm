@@ -1081,12 +1081,12 @@ void MetadataLoader::MetadataLoaderImpl::lazyLoadOneMetadata(
   if (Error Err = IndexCursor.JumpToBit(
           GlobalMetadataBitPosIndex[ID - MDStringRef.size()]))
     report_fatal_error("lazyLoadOneMetadata failed jumping: " +
-                       toString(std::move(Err)));
+                       Twine(toString(std::move(Err))));
   Expected<BitstreamEntry> MaybeEntry = IndexCursor.advanceSkippingSubblocks();
   if (!MaybeEntry)
     // FIXME this drops the error on the floor.
     report_fatal_error("lazyLoadOneMetadata failed advanceSkippingSubblocks: " +
-                       toString(MaybeEntry.takeError()));
+                       Twine(toString(MaybeEntry.takeError())));
   BitstreamEntry Entry = MaybeEntry.get();
   ++NumMDRecordLoaded;
   if (Expected<unsigned> MaybeCode =
@@ -1094,9 +1094,10 @@ void MetadataLoader::MetadataLoaderImpl::lazyLoadOneMetadata(
     if (Error Err =
             parseOneMetadata(Record, MaybeCode.get(), Placeholders, Blob, ID))
       report_fatal_error("Can't lazyload MD, parseOneMetadata: " +
-                         toString(std::move(Err)));
+                         Twine(toString(std::move(Err))));
   } else
-    report_fatal_error("Can't lazyload MD: " + toString(MaybeCode.takeError()));
+    report_fatal_error("Can't lazyload MD: " +
+                       Twine(toString(MaybeCode.takeError())));
 }
 
 /// Ensure that all forward-references and placeholders are resolved.
@@ -2044,17 +2045,19 @@ Error MetadataLoader::MetadataLoaderImpl::parseOneMetadata(
     break;
   }
   case bitc::METADATA_IMPORTED_ENTITY: {
-    if (Record.size() != 6 && Record.size() != 7)
+    if (Record.size() < 6 && Record.size() > 8)
       return error("Invalid record");
 
     IsDistinct = Record[0];
-    bool HasFile = (Record.size() == 7);
+    bool HasFile = (Record.size() >= 7);
+    bool HasElements = (Record.size() >= 8);
     MetadataList.assignValue(
         GET_OR_DISTINCT(DIImportedEntity,
                         (Context, Record[1], getMDOrNull(Record[2]),
                          getDITypeRefOrNull(Record[3]),
                          HasFile ? getMDOrNull(Record[6]) : nullptr,
-                         HasFile ? Record[4] : 0, getMDString(Record[5]))),
+                         HasFile ? Record[4] : 0, getMDString(Record[5]),
+                         HasElements ? getMDOrNull(Record[7]) : nullptr)),
         NextMetadataNo);
     NextMetadataNo++;
     break;

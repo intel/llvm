@@ -125,10 +125,10 @@ STATISTIC(UpdFormChainRewritten, "Num of update form chain rewritten");
 
 namespace {
   struct BucketElement {
-    BucketElement(const SCEVConstant *O, Instruction *I) : Offset(O), Instr(I) {}
+    BucketElement(const SCEV *O, Instruction *I) : Offset(O), Instr(I) {}
     BucketElement(Instruction *I) : Offset(nullptr), Instr(I) {}
 
-    const SCEVConstant *Offset;
+    const SCEV *Offset;
     Instruction *Instr;
   };
 
@@ -169,7 +169,7 @@ namespace {
 
   private:
     PPCTargetMachine *TM = nullptr;
-    const PPCSubtarget *ST; 
+    const PPCSubtarget *ST;
     DominatorTree *DT;
     LoopInfo *LI;
     ScalarEvolution *SE;
@@ -184,10 +184,13 @@ namespace {
     bool runOnLoop(Loop *L);
 
     /// Check if required PHI node is already exist in Loop \p L.
-    bool alreadyPrepared(Loop *L, Instruction* MemI,
+    bool alreadyPrepared(Loop *L, Instruction *MemI,
                          const SCEV *BasePtrStartSCEV,
-                         const SCEVConstant *BasePtrIncSCEV,
-                         InstrForm Form);
+                         const SCEV *BasePtrIncSCEV, InstrForm Form);
+
+    /// Get the value which defines the increment SCEV \p BasePtrIncSCEV.
+    Value *getNodeForInc(Loop *L, Instruction *MemI,
+                         const SCEV *BasePtrIncSCEV);
 
     /// Collect condition matched(\p isValidCandidate() returns true)
     /// candidates in Loop \p L.
@@ -231,6 +234,19 @@ namespace {
     bool rewriteLoadStores(Loop *L, Bucket &BucketChain,
                            SmallSet<BasicBlock *, 16> &BBChanged,
                            InstrForm Form);
+
+    /// Rewrite for the base load/store of a chain.
+    std::pair<Instruction *, Instruction *>
+    rewriteForBase(Loop *L, const SCEVAddRecExpr *BasePtrSCEV,
+                   Instruction *BaseMemI, bool CanPreInc, InstrForm Form,
+                   SCEVExpander &SCEVE, SmallPtrSet<Value *, 16> &DeletedPtrs);
+
+    /// Rewrite for the other load/stores of a chain according to the new \p
+    /// Base.
+    Instruction *
+    rewriteForBucketElement(std::pair<Instruction *, Instruction *> Base,
+                            const BucketElement &Element, Value *OffToBase,
+                            SmallPtrSet<Value *, 16> &DeletedPtrs);
   };
 
 } // end anonymous namespace
@@ -266,23 +282,35 @@ static std::string getInstrName(const Value *I, StringRef Suffix) {
   if (I->hasName())
     return (I->getName() + Suffix).str();
   else
-    return ""; 
+    return "";
 }
 
-static Value *GetPointerOperand(Value *MemI) {
-  if (LoadInst *LMemI = dyn_cast<LoadInst>(MemI)) {
-    return LMemI->getPointerOperand();
-  } else if (StoreInst *SMemI = dyn_cast<StoreInst>(MemI)) {
-    return SMemI->getPointerOperand();
-  } else if (IntrinsicInst *IMemI = dyn_cast<IntrinsicInst>(MemI)) {
-    if (IMemI->getIntrinsicID() == Intrinsic::prefetch ||
-        IMemI->getIntrinsicID() == Intrinsic::ppc_vsx_lxvp)
-      return IMemI->getArgOperand(0);
-    if (IMemI->getIntrinsicID() == Intrinsic::ppc_vsx_stxvp)
-      return IMemI->getArgOperand(1);
-  }
+static Value *getPointerOperandAndType(Value *MemI,
+                                       Type **PtrElementType = nullptr) {
 
-  return nullptr;
+  Value *PtrValue = nullptr;
+  Type *PointerElementType = nullptr;
+
+  if (LoadInst *LMemI = dyn_cast<LoadInst>(MemI)) {
+    PtrValue = LMemI->getPointerOperand();
+    PointerElementType = LMemI->getType();
+  } else if (StoreInst *SMemI = dyn_cast<StoreInst>(MemI)) {
+    PtrValue = SMemI->getPointerOperand();
+    PointerElementType = SMemI->getValueOperand()->getType();
+  } else if (IntrinsicInst *IMemI = dyn_cast<IntrinsicInst>(MemI)) {
+    PointerElementType = Type::getInt8Ty(MemI->getContext());
+    if (IMemI->getIntrinsicID() == Intrinsic::prefetch ||
+        IMemI->getIntrinsicID() == Intrinsic::ppc_vsx_lxvp) {
+      PtrValue = IMemI->getArgOperand(0);
+    } else if (IMemI->getIntrinsicID() == Intrinsic::ppc_vsx_stxvp) {
+      PtrValue = IMemI->getArgOperand(1);
+    }
+  }
+  /*Get ElementType if PtrElementType is not null.*/
+  if (PtrElementType)
+    *PtrElementType = PointerElementType;
+
+  return PtrValue;
 }
 
 bool PPCLoopInstrFormPrep::runOnFunction(Function &F) {
@@ -306,10 +334,197 @@ bool PPCLoopInstrFormPrep::runOnFunction(Function &F) {
   return MadeChange;
 }
 
+// Rewrite the new base according to BasePtrSCEV.
+// bb.loop.preheader:
+//   %newstart = ...
+// bb.loop.body:
+//   %phinode = phi [ %newstart, %bb.loop.preheader ], [ %add, %bb.loop.body ]
+//   ...
+//   %add = getelementptr %phinode, %inc
+//
+// First returned instruciton is %phinode (or a type cast to %phinode), caller
+// needs this value to rewrite other load/stores in the same chain.
+// Second returned instruction is %add, caller needs this value to rewrite other
+// load/stores in the same chain.
+std::pair<Instruction *, Instruction *>
+PPCLoopInstrFormPrep::rewriteForBase(Loop *L, const SCEVAddRecExpr *BasePtrSCEV,
+                                     Instruction *BaseMemI, bool CanPreInc,
+                                     InstrForm Form, SCEVExpander &SCEVE,
+                                     SmallPtrSet<Value *, 16> &DeletedPtrs) {
+
+  LLVM_DEBUG(dbgs() << "PIP: Transforming: " << *BasePtrSCEV << "\n");
+
+  assert(BasePtrSCEV->getLoop() == L && "AddRec for the wrong loop?");
+
+  Value *BasePtr = getPointerOperandAndType(BaseMemI);
+  assert(BasePtr && "No pointer operand");
+
+  Type *I8Ty = Type::getInt8Ty(BaseMemI->getParent()->getContext());
+  Type *I8PtrTy =
+      Type::getInt8PtrTy(BaseMemI->getParent()->getContext(),
+                         BasePtr->getType()->getPointerAddressSpace());
+
+  bool IsConstantInc = false;
+  const SCEV *BasePtrIncSCEV = BasePtrSCEV->getStepRecurrence(*SE);
+  Value *IncNode = getNodeForInc(L, BaseMemI, BasePtrIncSCEV);
+
+  const SCEVConstant *BasePtrIncConstantSCEV =
+      dyn_cast<SCEVConstant>(BasePtrIncSCEV);
+  if (BasePtrIncConstantSCEV)
+    IsConstantInc = true;
+
+  // No valid representation for the increment.
+  if (!IncNode) {
+    LLVM_DEBUG(dbgs() << "Loop Increasement can not be represented!\n");
+    return std::make_pair(nullptr, nullptr);
+  }
+
+  const SCEV *BasePtrStartSCEV = nullptr;
+  if (CanPreInc) {
+    assert(SE->isLoopInvariant(BasePtrIncSCEV, L) &&
+           "Increment is not loop invariant!\n");
+    BasePtrStartSCEV = SE->getMinusSCEV(BasePtrSCEV->getStart(),
+                                        IsConstantInc ? BasePtrIncConstantSCEV
+                                                      : BasePtrIncSCEV);
+  } else
+    BasePtrStartSCEV = BasePtrSCEV->getStart();
+
+  if (alreadyPrepared(L, BaseMemI, BasePtrStartSCEV, BasePtrIncSCEV, Form)) {
+    LLVM_DEBUG(dbgs() << "Instruction form is already prepared!\n");
+    return std::make_pair(nullptr, nullptr);
+  }
+
+  LLVM_DEBUG(dbgs() << "PIP: New start is: " << *BasePtrStartSCEV << "\n");
+
+  BasicBlock *Header = L->getHeader();
+  unsigned HeaderLoopPredCount = pred_size(Header);
+  BasicBlock *LoopPredecessor = L->getLoopPredecessor();
+
+  PHINode *NewPHI = PHINode::Create(I8PtrTy, HeaderLoopPredCount,
+                                    getInstrName(BaseMemI, PHINodeNameSuffix),
+                                    Header->getFirstNonPHI());
+
+  Value *BasePtrStart = SCEVE.expandCodeFor(BasePtrStartSCEV, I8PtrTy,
+                                            LoopPredecessor->getTerminator());
+
+  // Note that LoopPredecessor might occur in the predecessor list multiple
+  // times, and we need to add it the right number of times.
+  for (auto PI : predecessors(Header)) {
+    if (PI != LoopPredecessor)
+      continue;
+
+    NewPHI->addIncoming(BasePtrStart, LoopPredecessor);
+  }
+
+  Instruction *PtrInc = nullptr;
+  Instruction *NewBasePtr = nullptr;
+  if (CanPreInc) {
+    Instruction *InsPoint = &*Header->getFirstInsertionPt();
+    PtrInc = GetElementPtrInst::Create(
+        I8Ty, NewPHI, IncNode, getInstrName(BaseMemI, GEPNodeIncNameSuffix),
+        InsPoint);
+    cast<GetElementPtrInst>(PtrInc)->setIsInBounds(IsPtrInBounds(BasePtr));
+    for (auto PI : predecessors(Header)) {
+      if (PI == LoopPredecessor)
+        continue;
+
+      NewPHI->addIncoming(PtrInc, PI);
+    }
+    if (PtrInc->getType() != BasePtr->getType())
+      NewBasePtr =
+          new BitCastInst(PtrInc, BasePtr->getType(),
+                          getInstrName(PtrInc, CastNodeNameSuffix), InsPoint);
+    else
+      NewBasePtr = PtrInc;
+  } else {
+    // Note that LoopPredecessor might occur in the predecessor list multiple
+    // times, and we need to make sure no more incoming value for them in PHI.
+    for (auto PI : predecessors(Header)) {
+      if (PI == LoopPredecessor)
+        continue;
+
+      // For the latch predecessor, we need to insert a GEP just before the
+      // terminator to increase the address.
+      BasicBlock *BB = PI;
+      Instruction *InsPoint = BB->getTerminator();
+      PtrInc = GetElementPtrInst::Create(
+          I8Ty, NewPHI, IncNode, getInstrName(BaseMemI, GEPNodeIncNameSuffix),
+          InsPoint);
+      cast<GetElementPtrInst>(PtrInc)->setIsInBounds(IsPtrInBounds(BasePtr));
+
+      NewPHI->addIncoming(PtrInc, PI);
+    }
+    PtrInc = NewPHI;
+    if (NewPHI->getType() != BasePtr->getType())
+      NewBasePtr = new BitCastInst(NewPHI, BasePtr->getType(),
+                                   getInstrName(NewPHI, CastNodeNameSuffix),
+                                   &*Header->getFirstInsertionPt());
+    else
+      NewBasePtr = NewPHI;
+  }
+
+  BasePtr->replaceAllUsesWith(NewBasePtr);
+
+  DeletedPtrs.insert(BasePtr);
+
+  return std::make_pair(NewBasePtr, PtrInc);
+}
+
+Instruction *PPCLoopInstrFormPrep::rewriteForBucketElement(
+    std::pair<Instruction *, Instruction *> Base, const BucketElement &Element,
+    Value *OffToBase, SmallPtrSet<Value *, 16> &DeletedPtrs) {
+  Instruction *NewBasePtr = Base.first;
+  Instruction *PtrInc = Base.second;
+  assert((NewBasePtr && PtrInc) && "base does not exist!\n");
+
+  Type *I8Ty = Type::getInt8Ty(PtrInc->getParent()->getContext());
+
+  Value *Ptr = getPointerOperandAndType(Element.Instr);
+  assert(Ptr && "No pointer operand");
+
+  Instruction *RealNewPtr;
+  if (!Element.Offset ||
+      (isa<SCEVConstant>(Element.Offset) &&
+       cast<SCEVConstant>(Element.Offset)->getValue()->isZero())) {
+    RealNewPtr = NewBasePtr;
+  } else {
+    Instruction *PtrIP = dyn_cast<Instruction>(Ptr);
+    if (PtrIP && isa<Instruction>(NewBasePtr) &&
+        cast<Instruction>(NewBasePtr)->getParent() == PtrIP->getParent())
+      PtrIP = nullptr;
+    else if (PtrIP && isa<PHINode>(PtrIP))
+      PtrIP = &*PtrIP->getParent()->getFirstInsertionPt();
+    else if (!PtrIP)
+      PtrIP = Element.Instr;
+
+    assert(OffToBase && "There should be an offset for non base element!\n");
+    GetElementPtrInst *NewPtr = GetElementPtrInst::Create(
+        I8Ty, PtrInc, OffToBase,
+        getInstrName(Element.Instr, GEPNodeOffNameSuffix), PtrIP);
+    if (!PtrIP)
+      NewPtr->insertAfter(cast<Instruction>(PtrInc));
+    NewPtr->setIsInBounds(IsPtrInBounds(Ptr));
+    RealNewPtr = NewPtr;
+  }
+
+  Instruction *ReplNewPtr;
+  if (Ptr->getType() != RealNewPtr->getType()) {
+    ReplNewPtr = new BitCastInst(RealNewPtr, Ptr->getType(),
+                                 getInstrName(Ptr, CastNodeNameSuffix));
+    ReplNewPtr->insertAfter(RealNewPtr);
+  } else
+    ReplNewPtr = RealNewPtr;
+
+  Ptr->replaceAllUsesWith(ReplNewPtr);
+  DeletedPtrs.insert(Ptr);
+
+  return ReplNewPtr;
+}
+
 void PPCLoopInstrFormPrep::addOneCandidate(Instruction *MemI, const SCEV *LSCEV,
                                         SmallVector<Bucket, 16> &Buckets,
                                         unsigned MaxCandidateNum) {
-  assert((MemI && GetPointerOperand(MemI)) &&
+  assert((MemI && getPointerOperandAndType(MemI)) &&
          "Candidate should be a memory instruction.");
   assert(LSCEV && "Invalid SCEV for Ptr value.");
   bool FoundBucket = false;
@@ -337,27 +552,14 @@ SmallVector<Bucket, 16> PPCLoopInstrFormPrep::collectCandidates(
   SmallVector<Bucket, 16> Buckets;
   for (const auto &BB : L->blocks())
     for (auto &J : *BB) {
-      Value *PtrValue;
-      Type *PointerElementType;
+      Value *PtrValue = nullptr;
+      Type *PointerElementType = nullptr;
+      PtrValue = getPointerOperandAndType(&J, &PointerElementType);
 
-      if (LoadInst *LMemI = dyn_cast<LoadInst>(&J)) {
-        PtrValue = LMemI->getPointerOperand();
-        PointerElementType = LMemI->getType();
-      } else if (StoreInst *SMemI = dyn_cast<StoreInst>(&J)) {
-        PtrValue = SMemI->getPointerOperand();
-        PointerElementType = SMemI->getValueOperand()->getType();
-      } else if (IntrinsicInst *IMemI = dyn_cast<IntrinsicInst>(&J)) {
-        PointerElementType = Type::getInt8Ty(J.getContext());
-        if (IMemI->getIntrinsicID() == Intrinsic::prefetch ||
-            IMemI->getIntrinsicID() == Intrinsic::ppc_vsx_lxvp) {
-          PtrValue = IMemI->getArgOperand(0);
-        } else if (IMemI->getIntrinsicID() == Intrinsic::ppc_vsx_stxvp) {
-          PtrValue = IMemI->getArgOperand(1);
-        } else continue;
-      } else continue;
+      if (!PtrValue)
+        continue;
 
-      unsigned PtrAddrSpace = PtrValue->getType()->getPointerAddressSpace();
-      if (PtrAddrSpace)
+      if (PtrValue->getType()->getPointerAddressSpace())
         continue;
 
       if (L->isLoopInvariant(PtrValue))
@@ -388,8 +590,9 @@ bool PPCLoopInstrFormPrep::prepareBaseForDispFormChain(Bucket &BucketChain,
     if (!BucketChain.Elements[j].Offset)
       RemainderOffsetInfo[0] = std::make_pair(0, 1);
     else {
-      unsigned Remainder =
-          BucketChain.Elements[j].Offset->getAPInt().urem(Form);
+      unsigned Remainder = cast<SCEVConstant>(BucketChain.Elements[j].Offset)
+                               ->getAPInt()
+                               .urem(Form);
       if (RemainderOffsetInfo.find(Remainder) == RemainderOffsetInfo.end())
         RemainderOffsetInfo[Remainder] = std::make_pair(j, 1);
       else
@@ -404,13 +607,13 @@ bool PPCLoopInstrFormPrep::prepareBaseForDispFormChain(Bucket &BucketChain,
   // contains following load/stores with different remainders:
   // 1: 10 load/store whose remainder is 1;
   // 2: 9 load/store whose remainder is 2;
-  // 3: 1 for remainder 3 and 0 for remainder 0; 
+  // 3: 1 for remainder 3 and 0 for remainder 0;
   // Now we will choose the first load/store whose remainder is 1 as base and
   // adjust all other load/stores according to new base, so we will get 10 DS
   // form and 10 X form.
   // But we should be more clever, for this case we could use two bases, one for
-  // remainder 1 and the other for remainder 2, thus we could get 19 DS form and 1
-  // X form.
+  // remainder 1 and the other for remainder 2, thus we could get 19 DS form and
+  // 1 X form.
   unsigned MaxCountRemainder = 0;
   for (unsigned j = 0; j < (unsigned)Form; j++)
     if ((RemainderOffsetInfo.find(j) != RemainderOffsetInfo.end()) &&
@@ -471,7 +674,7 @@ bool PPCLoopInstrFormPrep::prepareBaseForUpdateFormChain(Bucket &BucketChain) {
     // If our chosen element has no offset from the base pointer, there's
     // nothing to do.
     if (!BucketChain.Elements[j].Offset ||
-        BucketChain.Elements[j].Offset->isZero())
+        cast<SCEVConstant>(BucketChain.Elements[j].Offset)->isZero())
       break;
 
     const SCEV *Offset = BucketChain.Elements[j].Offset;
@@ -489,191 +692,75 @@ bool PPCLoopInstrFormPrep::prepareBaseForUpdateFormChain(Bucket &BucketChain) {
   return true;
 }
 
-bool PPCLoopInstrFormPrep::rewriteLoadStores(Loop *L, Bucket &BucketChain,
-                                          SmallSet<BasicBlock *, 16> &BBChanged,
-                                          InstrForm Form) {
+bool PPCLoopInstrFormPrep::rewriteLoadStores(
+    Loop *L, Bucket &BucketChain, SmallSet<BasicBlock *, 16> &BBChanged,
+    InstrForm Form) {
   bool MadeChange = false;
+
   const SCEVAddRecExpr *BasePtrSCEV =
       cast<SCEVAddRecExpr>(BucketChain.BaseSCEV);
   if (!BasePtrSCEV->isAffine())
     return MadeChange;
 
-  LLVM_DEBUG(dbgs() << "PIP: Transforming: " << *BasePtrSCEV << "\n");
-
-  assert(BasePtrSCEV->getLoop() == L && "AddRec for the wrong loop?");
-
-  // The instruction corresponding to the Bucket's BaseSCEV must be the first
-  // in the vector of elements.
-  Instruction *MemI = BucketChain.Elements.begin()->Instr;
-  Value *BasePtr = GetPointerOperand(MemI);
-  assert(BasePtr && "No pointer operand");
-
-  Type *I8Ty = Type::getInt8Ty(MemI->getParent()->getContext());
-  Type *I8PtrTy = Type::getInt8PtrTy(MemI->getParent()->getContext(),
-    BasePtr->getType()->getPointerAddressSpace());
-
-  if (!SE->isLoopInvariant(BasePtrSCEV->getStart(), L))
+  if (!isSafeToExpand(BasePtrSCEV->getStart(), *SE))
     return MadeChange;
 
-  const SCEVConstant *BasePtrIncSCEV =
-    dyn_cast<SCEVConstant>(BasePtrSCEV->getStepRecurrence(*SE));
-  if (!BasePtrIncSCEV)
-    return MadeChange;
-
-  // For some DS form load/store instructions, it can also be an update form,
-  // if the stride is a multipler of 4. Use update form if prefer it.
-  bool CanPreInc = (Form == UpdateForm ||
-                    ((Form == DSForm) && !BasePtrIncSCEV->getAPInt().urem(4) &&
-                     PreferUpdateForm));
-  const SCEV *BasePtrStartSCEV = nullptr;
-  if (CanPreInc)
-    BasePtrStartSCEV =
-        SE->getMinusSCEV(BasePtrSCEV->getStart(), BasePtrIncSCEV);
-  else
-    BasePtrStartSCEV = BasePtrSCEV->getStart();
-
-  if (!isSafeToExpand(BasePtrStartSCEV, *SE))
-    return MadeChange;
-
-  if (alreadyPrepared(L, MemI, BasePtrStartSCEV, BasePtrIncSCEV, Form))
-    return MadeChange;
-
-  LLVM_DEBUG(dbgs() << "PIP: New start is: " << *BasePtrStartSCEV << "\n");
+  SmallPtrSet<Value *, 16> DeletedPtrs;
 
   BasicBlock *Header = L->getHeader();
-  unsigned HeaderLoopPredCount = pred_size(Header);
-  BasicBlock *LoopPredecessor = L->getLoopPredecessor();
-
-  PHINode *NewPHI =
-      PHINode::Create(I8PtrTy, HeaderLoopPredCount,
-                      getInstrName(MemI, PHINodeNameSuffix),
-                      Header->getFirstNonPHI());
-
   SCEVExpander SCEVE(*SE, Header->getModule()->getDataLayout(), "pistart");
-  Value *BasePtrStart = SCEVE.expandCodeFor(BasePtrStartSCEV, I8PtrTy,
-                                            LoopPredecessor->getTerminator());
 
-  // Note that LoopPredecessor might occur in the predecessor list multiple
-  // times, and we need to add it the right number of times.
-  for (auto PI : predecessors(Header)) {
-    if (PI != LoopPredecessor)
+  // For some DS form load/store instructions, it can also be an update form,
+  // if the stride is constant and is a multipler of 4. Use update form if
+  // prefer it.
+  bool CanPreInc = (Form == UpdateForm ||
+                    ((Form == DSForm) &&
+                     isa<SCEVConstant>(BasePtrSCEV->getStepRecurrence(*SE)) &&
+                     !cast<SCEVConstant>(BasePtrSCEV->getStepRecurrence(*SE))
+                          ->getAPInt()
+                          .urem(4) &&
+                     PreferUpdateForm));
+
+  std::pair<Instruction *, Instruction *> Base =
+      rewriteForBase(L, BasePtrSCEV, BucketChain.Elements.begin()->Instr,
+                     CanPreInc, Form, SCEVE, DeletedPtrs);
+
+  if (!Base.first || !Base.second)
+    return MadeChange;
+
+  // Keep track of the replacement pointer values we've inserted so that we
+  // don't generate more pointer values than necessary.
+  SmallPtrSet<Value *, 16> NewPtrs;
+  NewPtrs.insert(Base.first);
+
+  for (auto I = std::next(BucketChain.Elements.begin()),
+       IE = BucketChain.Elements.end(); I != IE; ++I) {
+    Value *Ptr = getPointerOperandAndType(I->Instr);
+    assert(Ptr && "No pointer operand");
+    if (NewPtrs.count(Ptr))
       continue;
 
-    NewPHI->addIncoming(BasePtrStart, LoopPredecessor);
-  }
-
-  Instruction *PtrInc = nullptr;
-  Instruction *NewBasePtr = nullptr;
-  if (CanPreInc) {
-    Instruction *InsPoint = &*Header->getFirstInsertionPt();
-    PtrInc = GetElementPtrInst::Create(
-        I8Ty, NewPHI, BasePtrIncSCEV->getValue(),
-        getInstrName(MemI, GEPNodeIncNameSuffix), InsPoint);
-    cast<GetElementPtrInst>(PtrInc)->setIsInBounds(IsPtrInBounds(BasePtr));
-    for (auto PI : predecessors(Header)) {
-      if (PI == LoopPredecessor)
-        continue;
-
-      NewPHI->addIncoming(PtrInc, PI);
-    }
-    if (PtrInc->getType() != BasePtr->getType())
-      NewBasePtr = new BitCastInst(
-          PtrInc, BasePtr->getType(),
-          getInstrName(PtrInc, CastNodeNameSuffix), InsPoint);
-    else
-      NewBasePtr = PtrInc;
-  } else {
-    // Note that LoopPredecessor might occur in the predecessor list multiple
-    // times, and we need to make sure no more incoming value for them in PHI.
-    for (auto PI : predecessors(Header)) {
-      if (PI == LoopPredecessor)
-        continue;
-
-      // For the latch predecessor, we need to insert a GEP just before the
-      // terminator to increase the address.
-      BasicBlock *BB = PI;
-      Instruction *InsPoint = BB->getTerminator();
-      PtrInc = GetElementPtrInst::Create(
-          I8Ty, NewPHI, BasePtrIncSCEV->getValue(),
-          getInstrName(MemI, GEPNodeIncNameSuffix), InsPoint);
-
-      cast<GetElementPtrInst>(PtrInc)->setIsInBounds(IsPtrInBounds(BasePtr));
-
-      NewPHI->addIncoming(PtrInc, PI);
-    }
-    PtrInc = NewPHI;
-    if (NewPHI->getType() != BasePtr->getType())
-      NewBasePtr =
-          new BitCastInst(NewPHI, BasePtr->getType(),
-                          getInstrName(NewPHI, CastNodeNameSuffix),
-                          &*Header->getFirstInsertionPt());
-    else
-      NewBasePtr = NewPHI;
+    Instruction *NewPtr = rewriteForBucketElement(
+        Base, *I,
+        I->Offset ? cast<SCEVConstant>(I->Offset)->getValue() : nullptr,
+        DeletedPtrs);
+    assert(NewPtr && "wrong rewrite!\n");
+    NewPtrs.insert(NewPtr);
   }
 
   // Clear the rewriter cache, because values that are in the rewriter's cache
   // can be deleted below, causing the AssertingVH in the cache to trigger.
   SCEVE.clear();
 
-  if (Instruction *IDel = dyn_cast<Instruction>(BasePtr))
-    BBChanged.insert(IDel->getParent());
-  BasePtr->replaceAllUsesWith(NewBasePtr);
-  RecursivelyDeleteTriviallyDeadInstructions(BasePtr);
-
-  // Keep track of the replacement pointer values we've inserted so that we
-  // don't generate more pointer values than necessary.
-  SmallPtrSet<Value *, 16> NewPtrs;
-  NewPtrs.insert(NewBasePtr);
-
-  for (auto I = std::next(BucketChain.Elements.begin()),
-       IE = BucketChain.Elements.end(); I != IE; ++I) {
-    Value *Ptr = GetPointerOperand(I->Instr);
-    assert(Ptr && "No pointer operand");
-    if (NewPtrs.count(Ptr))
-      continue;
-
-    Instruction *RealNewPtr;
-    if (!I->Offset || I->Offset->getValue()->isZero()) {
-      RealNewPtr = NewBasePtr;
-    } else {
-      Instruction *PtrIP = dyn_cast<Instruction>(Ptr);
-      if (PtrIP && isa<Instruction>(NewBasePtr) &&
-          cast<Instruction>(NewBasePtr)->getParent() == PtrIP->getParent())
-        PtrIP = nullptr;
-      else if (PtrIP && isa<PHINode>(PtrIP))
-        PtrIP = &*PtrIP->getParent()->getFirstInsertionPt();
-      else if (!PtrIP)
-        PtrIP = I->Instr;
-
-      GetElementPtrInst *NewPtr = GetElementPtrInst::Create(
-          I8Ty, PtrInc, I->Offset->getValue(),
-          getInstrName(I->Instr, GEPNodeOffNameSuffix), PtrIP);
-      if (!PtrIP)
-        NewPtr->insertAfter(cast<Instruction>(PtrInc));
-      NewPtr->setIsInBounds(IsPtrInBounds(Ptr));
-      RealNewPtr = NewPtr;
-    }
-
+  for (auto *Ptr : DeletedPtrs) {
     if (Instruction *IDel = dyn_cast<Instruction>(Ptr))
       BBChanged.insert(IDel->getParent());
-
-    Instruction *ReplNewPtr;
-    if (Ptr->getType() != RealNewPtr->getType()) {
-      ReplNewPtr = new BitCastInst(RealNewPtr, Ptr->getType(),
-        getInstrName(Ptr, CastNodeNameSuffix));
-      ReplNewPtr->insertAfter(RealNewPtr);
-    } else
-      ReplNewPtr = RealNewPtr;
-
-    Ptr->replaceAllUsesWith(ReplNewPtr);
     RecursivelyDeleteTriviallyDeadInstructions(Ptr);
-
-    NewPtrs.insert(RealNewPtr);
   }
 
   MadeChange = true;
 
-  SuccPrepCount++;  
+  SuccPrepCount++;
 
   if (Form == DSForm && !CanPreInc)
     DSFormChainRewritten++;
@@ -726,14 +813,90 @@ bool PPCLoopInstrFormPrep::dispFormPrep(Loop *L, SmallVector<Bucket, 16> &Bucket
   return MadeChange;
 }
 
+// Find the loop invariant increment node for SCEV BasePtrIncSCEV.
+// bb.loop.preheader:
+//   %start = ...
+// bb.loop.body:
+//   %phinode = phi [ %start, %bb.loop.preheader ], [ %add, %bb.loop.body ]
+//   ...
+//   %add = add %phinode, %inc  ; %inc is what we want to get.
+//
+Value *PPCLoopInstrFormPrep::getNodeForInc(Loop *L, Instruction *MemI,
+                                           const SCEV *BasePtrIncSCEV) {
+  // If the increment is a constant, no definition is needed.
+  // Return the value directly.
+  if (isa<SCEVConstant>(BasePtrIncSCEV))
+    return cast<SCEVConstant>(BasePtrIncSCEV)->getValue();
+
+  if (!SE->isLoopInvariant(BasePtrIncSCEV, L))
+    return nullptr;
+
+  BasicBlock *BB = MemI->getParent();
+  if (!BB)
+    return nullptr;
+
+  BasicBlock *LatchBB = L->getLoopLatch();
+
+  if (!LatchBB)
+    return nullptr;
+
+  // Run through the PHIs and check their operands to find valid representation
+  // for the increment SCEV.
+  iterator_range<BasicBlock::phi_iterator> PHIIter = BB->phis();
+  for (auto &CurrentPHI : PHIIter) {
+    PHINode *CurrentPHINode = dyn_cast<PHINode>(&CurrentPHI);
+    if (!CurrentPHINode)
+      continue;
+
+    if (!SE->isSCEVable(CurrentPHINode->getType()))
+      continue;
+
+    const SCEV *PHISCEV = SE->getSCEVAtScope(CurrentPHINode, L);
+
+    const SCEVAddRecExpr *PHIBasePtrSCEV = dyn_cast<SCEVAddRecExpr>(PHISCEV);
+    if (!PHIBasePtrSCEV)
+      continue;
+
+    const SCEV *PHIBasePtrIncSCEV = PHIBasePtrSCEV->getStepRecurrence(*SE);
+
+    if (!PHIBasePtrIncSCEV || (PHIBasePtrIncSCEV != BasePtrIncSCEV))
+      continue;
+
+    // Get the incoming value from the loop latch and check if the value has
+    // the add form with the required increment.
+    if (Instruction *I = dyn_cast<Instruction>(
+            CurrentPHINode->getIncomingValueForBlock(LatchBB))) {
+      Value *StrippedBaseI = I;
+      while (BitCastInst *BC = dyn_cast<BitCastInst>(StrippedBaseI))
+        StrippedBaseI = BC->getOperand(0);
+
+      Instruction *StrippedI = dyn_cast<Instruction>(StrippedBaseI);
+      if (!StrippedI)
+        continue;
+
+      // LSR pass may add a getelementptr instruction to do the loop increment,
+      // also search in that getelementptr instruction.
+      if (StrippedI->getOpcode() == Instruction::Add ||
+          (StrippedI->getOpcode() == Instruction::GetElementPtr &&
+           StrippedI->getNumOperands() == 2)) {
+        if (SE->getSCEVAtScope(StrippedI->getOperand(0), L) == BasePtrIncSCEV)
+          return StrippedI->getOperand(0);
+        if (SE->getSCEVAtScope(StrippedI->getOperand(1), L) == BasePtrIncSCEV)
+          return StrippedI->getOperand(1);
+      }
+    }
+  }
+  return nullptr;
+}
+
 // In order to prepare for the preferred instruction form, a PHI is added.
 // This function will check to see if that PHI already exists and will return
 // true if it found an existing PHI with the matched start and increment as the
 // one we wanted to create.
-bool PPCLoopInstrFormPrep::alreadyPrepared(Loop *L, Instruction* MemI,
-                                        const SCEV *BasePtrStartSCEV,
-                                        const SCEVConstant *BasePtrIncSCEV,
-                                        InstrForm Form) {
+bool PPCLoopInstrFormPrep::alreadyPrepared(Loop *L, Instruction *MemI,
+                                           const SCEV *BasePtrStartSCEV,
+                                           const SCEV *BasePtrIncSCEV,
+                                           InstrForm Form) {
   BasicBlock *BB = MemI->getParent();
   if (!BB)
     return false;
@@ -777,7 +940,7 @@ bool PPCLoopInstrFormPrep::alreadyPrepared(Loop *L, Instruction* MemI,
               PHIBasePtrSCEV->getStart() == BasePtrStartSCEV) {
             ++PHINodeAlreadyExistsUpdate;
             return true;
-          } 
+          }
           if (Form == DSForm || Form == DQForm) {
             const SCEVConstant *Diff = dyn_cast<SCEVConstant>(
                 SE->getMinusSCEV(PHIBasePtrSCEV->getStart(), BasePtrStartSCEV));
@@ -788,7 +951,7 @@ bool PPCLoopInstrFormPrep::alreadyPrepared(Loop *L, Instruction* MemI,
                 ++PHINodeAlreadyExistsDQ;
               return true;
             }
-          } 
+          }
         }
       }
     }
@@ -883,7 +1046,8 @@ bool PPCLoopInstrFormPrep::runOnLoop(Loop *L) {
     return ST && ST->hasP9Vector() && (PointerElementType->isVectorTy());
   };
 
-  // intrinsic for update form.
+  // Collect buckets of comparable addresses used by loads and stores for update
+  // form.
   SmallVector<Bucket, 16> UpdateFormBuckets =
       collectCandidates(L, isUpdateFormCandidate, MaxVarsUpdateForm);
 

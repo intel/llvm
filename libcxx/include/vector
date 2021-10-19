@@ -302,33 +302,18 @@ _LIBCPP_PUSH_MACROS
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <bool>
-class _LIBCPP_TEMPLATE_VIS __vector_base_common
-{
-protected:
-    _LIBCPP_INLINE_VISIBILITY __vector_base_common() {}
-    _LIBCPP_NORETURN void __throw_length_error() const;
-    _LIBCPP_NORETURN void __throw_out_of_range() const;
+struct __vector_base_common;
+
+template <>
+struct __vector_base_common<true> {
+    // Both are defined in vector.cpp
+    _LIBCPP_NORETURN _LIBCPP_EXPORTED_FROM_ABI void __throw_length_error() const;
+    _LIBCPP_NORETURN _LIBCPP_EXPORTED_FROM_ABI void __throw_out_of_range() const;
 };
-
-template <bool __b>
-void
-__vector_base_common<__b>::__throw_length_error() const
-{
-    _VSTD::__throw_length_error("vector");
-}
-
-template <bool __b>
-void
-__vector_base_common<__b>::__throw_out_of_range() const
-{
-    _VSTD::__throw_out_of_range("vector");
-}
-
-_LIBCPP_EXTERN_TEMPLATE(class _LIBCPP_EXTERN_TEMPLATE_TYPE_VIS __vector_base_common<true>)
 
 template <class _Tp, class _Allocator>
 class __vector_base
-    : protected __vector_base_common<true>
+    : protected __vector_base_common<true> // This base class is historical, but it needs to remain for ABI compatibility
 {
 public:
     typedef _Allocator                               allocator_type;
@@ -954,14 +939,14 @@ private:
 #if _LIBCPP_STD_VER >= 17
 template<class _InputIterator,
          class _Alloc = allocator<__iter_value_type<_InputIterator>>,
-         class = _EnableIf<__is_allocator<_Alloc>::value>
+         class = enable_if_t<__is_allocator<_Alloc>::value>
          >
 vector(_InputIterator, _InputIterator)
   -> vector<__iter_value_type<_InputIterator>, _Alloc>;
 
 template<class _InputIterator,
          class _Alloc,
-         class = _EnableIf<__is_allocator<_Alloc>::value>
+         class = enable_if_t<__is_allocator<_Alloc>::value>
          >
 vector(_InputIterator, _InputIterator, _Alloc)
   -> vector<__iter_value_type<_InputIterator>, _Alloc>;
@@ -1063,7 +1048,7 @@ vector<_Tp, _Allocator>::__construct_at_end(size_type __n)
 {
     _ConstructTransaction __tx(*this, __n);
     const_pointer __new_end = __tx.__new_end_;
-    for (pointer __pos = __tx.__pos_; __pos != __new_end; ++__pos, __tx.__pos_ = __pos) {
+    for (pointer __pos = __tx.__pos_; __pos != __new_end; __tx.__pos_ = ++__pos) {
         __alloc_traits::construct(this->__alloc(), _VSTD::__to_address(__pos));
     }
 }
@@ -1081,7 +1066,7 @@ vector<_Tp, _Allocator>::__construct_at_end(size_type __n, const_reference __x)
 {
     _ConstructTransaction __tx(*this, __n);
     const_pointer __new_end = __tx.__new_end_;
-    for (pointer __pos = __tx.__pos_; __pos != __new_end; ++__pos, __tx.__pos_ = __pos) {
+    for (pointer __pos = __tx.__pos_; __pos != __new_end; __tx.__pos_ = ++__pos) {
         __alloc_traits::construct(this->__alloc(), _VSTD::__to_address(__pos), __x);
     }
 }
@@ -1421,7 +1406,7 @@ inline _LIBCPP_INLINE_VISIBILITY
 vector<_Tp, _Allocator>&
 vector<_Tp, _Allocator>::operator=(const vector& __x)
 {
-    if (this != &__x)
+    if (this != _VSTD::addressof(__x))
     {
         __base::__copy_assign_alloc(__x);
         assign(__x.__begin_, __x.__end_);
@@ -1775,7 +1760,7 @@ vector<_Tp, _Allocator>::__move_range(pointer __from_s, pointer __from_e, pointe
       pointer __i = __from_s + __n;
       _ConstructTransaction __tx(*this, __from_e - __i);
       for (pointer __pos = __tx.__pos_; __i < __from_e;
-           ++__i, ++__pos, __tx.__pos_ = __pos) {
+           ++__i, (void) ++__pos, __tx.__pos_ = __pos) {
           __alloc_traits::construct(this->__alloc(),
                                     _VSTD::__to_address(__pos),
                                     _VSTD::move(*__i));
@@ -2874,7 +2859,7 @@ template <class _Allocator>
 vector<bool, _Allocator>&
 vector<bool, _Allocator>::operator=(const vector& __v)
 {
-    if (this != &__v)
+    if (this != _VSTD::addressof(__v))
     {
         __copy_assign_alloc(__v);
         if (__v.__size_)

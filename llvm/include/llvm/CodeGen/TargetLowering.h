@@ -1454,7 +1454,7 @@ public:
   /// Return the desired alignment for ByVal or InAlloca aggregate function
   /// arguments in the caller parameter area.  This is the actual alignment, not
   /// its logarithm.
-  virtual unsigned getByValTypeAlignment(Type *Ty, const DataLayout &DL) const;
+  virtual uint64_t getByValTypeAlignment(Type *Ty, const DataLayout &DL) const;
 
   /// Return the type of registers that this ValueType will eventually require.
   MVT getRegisterType(MVT VT) const {
@@ -4444,10 +4444,6 @@ public:
   /// \param N Node to expand
   /// \returns The expansion result
   SDValue expandFP_TO_INT_SAT(SDNode *N, SelectionDAG &DAG) const;
-
-  /// Expand isnan depending on function attributes.
-  SDValue expandISNAN(EVT ResultVT, SDValue Op, SDNodeFlags Flags,
-                      const SDLoc &DL, SelectionDAG &DAG) const;
 
   /// Expand CTPOP nodes. Expands vector/scalar CTPOP nodes,
   /// vector nodes can only succeed if all operations are legal/custom.

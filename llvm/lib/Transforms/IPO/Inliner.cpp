@@ -464,7 +464,7 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
         }
         ++NumInlined;
 
-        emitInlinedInto(ORE, DLoc, Block, *Callee, *Caller, *OIC);
+        emitInlinedIntoBasedOnCost(ORE, DLoc, Block, *Callee, *Caller, *OIC);
 
         // If inlining this function gave us any new call sites, throw them
         // onto our worklist to process.  They are useful inline candidates.
@@ -1052,4 +1052,30 @@ PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
 
   // The ModulePassManager has already taken care of invalidating analyses.
   return PreservedAnalyses::all();
+}
+
+void InlinerPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<InlinerPass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+  if (OnlyMandatory)
+    OS << "<only-mandatory>";
+}
+
+void ModuleInlinerWrapperPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  // Print some info about passes added to the wrapper. This is however
+  // incomplete as InlineAdvisorAnalysis part isn't included (which also depends
+  // on Params and Mode).
+  if (!MPM.isEmpty()) {
+    MPM.printPipeline(OS, MapClassName2PassName);
+    OS << ",";
+  }
+  OS << "cgscc(";
+  if (MaxDevirtIterations != 0)
+    OS << "devirt<" << MaxDevirtIterations << ">(";
+  PM.printPipeline(OS, MapClassName2PassName);
+  if (MaxDevirtIterations != 0)
+    OS << ")";
+  OS << ")";
 }

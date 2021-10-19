@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
@@ -245,7 +245,17 @@ module {
     call @dumpf64(%v2) : (memref<?xf64>) -> ()
     call @dumpf64(%v3) : (memref<?xf64>) -> ()
 
+    // Release the resources.
+    sparse_tensor.release %1 : tensor<2x3x4xf64, #Tensor1>
+    sparse_tensor.release %2 : tensor<2x3x4xf64, #Tensor2>
+    sparse_tensor.release %3 : tensor<2x3x4xf64, #Tensor3>
+    sparse_tensor.release %b : tensor<2x3x4xf64, #Tensor1>
+    sparse_tensor.release %c : tensor<2x3x4xf64, #Tensor1>
+    sparse_tensor.release %d : tensor<2x3x4xf64, #Tensor2>
+    sparse_tensor.release %f : tensor<2x3x4xf64, #Tensor2>
+    sparse_tensor.release %g : tensor<2x3x4xf64, #Tensor3>
+    sparse_tensor.release %h : tensor<2x3x4xf64, #Tensor3>
+
     return
   }
 }
-

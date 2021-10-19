@@ -138,6 +138,9 @@ template<class Container>
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+// byte is unsigned char at sycl/image.hpp:58
+using byte = unsigned char;
+
 // asserts suppressed for device compatibility.
 // TODO: enable
 #if defined(__SYCL_DEVICE_ONLY__)
@@ -224,7 +227,7 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr explicit span(pointer __f, pointer __l)
       : __data{__f} {
     (void)__l;
-    _SYCL_SPAN_ASSERT(_Extent == distance(__f, __l),
+    _SYCL_SPAN_ASSERT(_Extent == std::distance(__f, __l),
                       "size mismatch in span's constructor (ptr, ptr)");
   }
 
@@ -381,17 +384,16 @@ public:
     return rev_iterator(begin());
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY
-  span<const std::byte, _Extent * sizeof(element_type)>
+  _SYCL_SPAN_INLINE_VISIBILITY span<const byte, _Extent * sizeof(element_type)>
   __as_bytes() const noexcept {
-    return span<const std::byte, _Extent * sizeof(element_type)>{
-        reinterpret_cast<const std::byte *>(data()), size_bytes()};
+    return span<const byte, _Extent * sizeof(element_type)>{
+        reinterpret_cast<const byte *>(data()), size_bytes()};
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY span<std::byte, _Extent * sizeof(element_type)>
+  _SYCL_SPAN_INLINE_VISIBILITY span<byte, _Extent * sizeof(element_type)>
   __as_writable_bytes() const noexcept {
-    return span<std::byte, _Extent * sizeof(element_type)>{
-        reinterpret_cast<std::byte *>(data()), size_bytes()};
+    return span<byte, _Extent * sizeof(element_type)>{
+        reinterpret_cast<byte *>(data()), size_bytes()};
   }
 
 private:
@@ -426,7 +428,7 @@ public:
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __ptr, size_type __count)
       : __data{__ptr}, __size{__count} {}
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(pointer __f, pointer __l)
-      : __data{__f}, __size{static_cast<size_t>(distance(__f, __l))} {}
+      : __data{__f}, __size{static_cast<size_t>(std::distance(__f, __l))} {}
 
   template <size_t _Sz>
   _SYCL_SPAN_INLINE_VISIBILITY constexpr span(
@@ -575,14 +577,14 @@ public:
     return rev_iterator(begin());
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY span<const std::byte, dynamic_extent>
+  _SYCL_SPAN_INLINE_VISIBILITY span<const byte, dynamic_extent>
   __as_bytes() const noexcept {
-    return {reinterpret_cast<const std::byte *>(data()), size_bytes()};
+    return {reinterpret_cast<const byte *>(data()), size_bytes()};
   }
 
-  _SYCL_SPAN_INLINE_VISIBILITY span<std::byte, dynamic_extent>
+  _SYCL_SPAN_INLINE_VISIBILITY span<byte, dynamic_extent>
   __as_writable_bytes() const noexcept {
-    return {reinterpret_cast<std::byte *>(data()), size_bytes()};
+    return {reinterpret_cast<byte *>(data()), size_bytes()};
   }
 
 private:

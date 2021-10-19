@@ -28,8 +28,7 @@ struct FuncObj {
 };
 
 struct Func {
-  // expected-warning@+2 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
-  // expected-note@+1 {{did you mean to use 'intel::max_global_work_dim' instead?}}
+  // expected-warning@+1 {{unknown attribute 'max_global_work_dim' ignored}}
   [[intelfpga::max_global_work_dim(2)]] void operator()() const {}
 };
 
@@ -245,10 +244,8 @@ int main() {
     // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
     // CHECK-NEXT:  value: Int 2
     // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // expected-warning@+3 {{attribute 'intelfpga::max_global_work_dim' is deprecated}}
-    // expected-note@+2 {{did you mean to use 'intel::max_global_work_dim' instead?}}
     h.single_task<class test_kernel2>(
-        []() [[intelfpga::max_global_work_dim(2)]]{});
+        []() [[intel::max_global_work_dim(2)]]{});
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLIntelMaxGlobalWorkDimAttr {{.*}}
