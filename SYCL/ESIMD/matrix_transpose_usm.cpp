@@ -31,7 +31,7 @@ void initMatrix(int *M, unsigned N) {
 void printMatrix(const char *msg, int *M, unsigned N) {
   cerr << msg << "\n";
   if (N > 64) {
-    cerr << "<<<maitrix of size " << N << " x " << N << ">>>\n";
+    cerr << "<<<matrix of size " << N << " x " << N << ">>>\n";
     return;
   }
 
@@ -241,12 +241,8 @@ ESIMD_INLINE void transpose16(int *buf, int MZ, int block_col, int block_row) {
   }
 }
 
-bool runTest(unsigned MZ, unsigned block_size) {
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
-          property::queue::enable_profiling{});
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
-  int *M = static_cast<int *>(malloc_shared(MZ * MZ * sizeof(int), dev, ctxt));
+bool runTest(queue &q, unsigned MZ, unsigned block_size) {
+  int *M = malloc_shared<int>(MZ * MZ, q);
 
   initMatrix(M, MZ);
   cerr << "\nTranspose square matrix of size " << MZ << "\n";
@@ -258,11 +254,11 @@ bool runTest(unsigned MZ, unsigned block_size) {
 
   // create ranges
   // We need that many workitems
-  auto GlobalRange = cl::sycl::range<2>(thread_width, thread_height);
+  auto GlobalRange = sycl::range<2>(thread_width, thread_height);
 
   // Number of workitems in a workgroup
-  cl::sycl::range<2> LocalRange{1, 1};
-  cl::sycl::nd_range<2> Range(GlobalRange, LocalRange);
+  sycl::range<2> LocalRange{1, 1};
+  sycl::nd_range<2> Range(GlobalRange, LocalRange);
 
   // Start timer.
   esimd_test::Timer timer;
@@ -301,10 +297,10 @@ bool runTest(unsigned MZ, unsigned block_size) {
       else
         start = timer.Elapsed();
     }
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    free(M, ctxt);
-    return e.get_cl_code();
+    free(M, q);
+    return false;
   }
 
   // End timer.
@@ -325,7 +321,7 @@ bool runTest(unsigned MZ, unsigned block_size) {
 
   // printMatrix("\nTransposed matrix:", M, MZ);
   bool success = checkResult(M, MZ);
-  free(M, ctxt);
+  free(M, q);
   return success;
 }
 
@@ -337,17 +333,19 @@ int main(int argc, char *argv[]) {
     MZ = (MZ < (1U << 12)) ? MZ : (1U << 12);
   }
 
+  queue Q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+          property::queue::enable_profiling{});
   bool success = true;
-  success &= runTest(MZ, 16);
+  success &= runTest(Q, MZ, 16);
   if (argc == 1) {
-    success &= runTest(1U << 7, 8);
-    success &= runTest(1U << 8, 8);
-    success &= runTest(1U << 9, 8);
-    // success &= runTest(1U << 13, 8);
-    success &= runTest(1U << 7, 16);
-    success &= runTest(1U << 8, 16);
-    success &= runTest(1U << 9, 16);
-    // success &= runTest(1U << 13, 16);
+    success &= runTest(Q, 1U << 7, 8);
+    success &= runTest(Q, 1U << 8, 8);
+    success &= runTest(Q, 1U << 9, 8);
+    // success &= runTest(Q, 1U << 13, 8);
+    success &= runTest(Q, 1U << 7, 16);
+    success &= runTest(Q, 1U << 8, 16);
+    success &= runTest(Q, 1U << 9, 16);
+    // success &= runTest(Q, 1U << 13, 16);
   }
 
   cerr << (success ? "PASSED\n" : "FAILED\n");
