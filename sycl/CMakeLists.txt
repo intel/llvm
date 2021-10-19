@@ -214,7 +214,6 @@ option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
 
-
 # Plugin Library
 add_subdirectory( plugins )
 
