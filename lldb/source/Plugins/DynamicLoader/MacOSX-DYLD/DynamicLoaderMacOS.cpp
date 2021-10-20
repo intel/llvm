@@ -350,7 +350,7 @@ bool DynamicLoaderMacOS::SetNotificationBreakpoint() {
       LazyBool skip_prologue = eLazyBoolNo;
       FileSpecList *source_files = nullptr;
       FileSpecList dyld_filelist;
-      dyld_filelist.Append(dyld_sp->GetObjectFile()->GetFileSpec());
+      dyld_filelist.Append(dyld_sp->GetFileSpec());
 
       Breakpoint *breakpoint =
           m_process->GetTarget()
@@ -512,9 +512,4 @@ lldb_private::ConstString DynamicLoaderMacOS::GetPluginNameStatic() {
 const char *DynamicLoaderMacOS::GetPluginDescriptionStatic() {
   return "Dynamic loader plug-in that watches for shared library loads/unloads "
          "in MacOSX user processes.";
-}
-
-// PluginInterface protocol
-lldb_private::ConstString DynamicLoaderMacOS::GetPluginName() {
-  return GetPluginNameStatic();
 }

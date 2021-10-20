@@ -87,6 +87,7 @@
 ;     sin_cos_pi<13, 5, false, 2, 2>();
 ;     log<64, 44, true, 24, 22>();
 ;     exp<44, 34, false, 20, 20>();
+;     exp<68, 68, false, 20, 20>();
 ;   });
 ;   return 0;
 ; }
@@ -125,6 +126,7 @@
 ; CHECK-SPIRV: 4 TypeInt [[Ty_44:[0-9]+]] 44 0
 ; CHECK-SPIRV: 4 TypeInt [[Ty_34:[0-9]+]] 34 0
 ; CHECK-SPIRV: 4 TypeInt [[Ty_66:[0-9]+]] 66 0
+; CHECK-SPIRV: 4 TypeInt [[Ty_68:[0-9]+]] 68 0
 
 ; CHECK-SPIRV: 6 Load [[Ty_13]] [[Sqrt_InId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 FixedSqrtINTEL [[Ty_5]] [[#]] [[Sqrt_InId]] 0 2 2 0 0
@@ -164,7 +166,13 @@
 ; CHECK-SPIRV-NEXT: 9 FixedExpINTEL [[Ty_34]] [[#]] [[Exp_InId]] 0 20 20 0 0
 
 ; CHECK-SPIRV: 6 Load [[Ty_34]] [[SinCos_InId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 9 FixedSinCosINTEL [[Ty_66]] [[#]] [[SinCos_InId]] 1 3 2 0 0
+; CHECK-SPIRV-NEXT: 9 FixedSinCosINTEL [[Ty_66]] [[SinCos_ResultId:[0-9]+]] [[SinCos_InId]] 1 3 2 0 0
+; CHECK-SPIRV: 3 Store [[#]] [[SinCos_ResultId]]
+
+; CHECK-SPIRV: 6 Load [[Ty_68]] [[ResId:[0-9]+]]
+; CHECK-SPIRV-NEXT: 5 Store [[PtrId:[0-9]+]] [[ResId]]
+; CHECK-SPIRV-NEXT: 4 Load [[Ty_68]] [[ExpInId2:[0-9]+]] [[PtrId]]
+; CHECK-SPIRV-NEXT: 9 FixedExpINTEL [[Ty_68]] [[#]] [[ExpInId2]] 0 20 20 0 0
 
 ; CHECK-LLVM: call i5 @intel_arbitrary_fixed_sqrt.i5.i13(i13 %[[#]], i1 false, i32 2, i32 2, i32 0, i32 0)
 ; CHECK-LLVM: call i13 @intel_arbitrary_fixed_sqrt.i13.i5(i5 %[[#]], i1 false, i32 2, i32 2, i32 0, i32 0)
@@ -180,6 +188,7 @@
 ; CHECK-LLVM: call i44 @intel_arbitrary_fixed_log.i44.i64(i64 %[[#]], i1 true, i32 24, i32 22, i32 0, i32 0)
 ; CHECK-LLVM: call i34 @intel_arbitrary_fixed_exp.i34.i44(i44 %[[#]], i1 false, i32 20, i32 20, i32 0, i32 0)
 ; CHECK-LLVM: call i66 @intel_arbitrary_fixed_sincos.i66.i34(i34 %[[#]], i1 true, i32 3, i32 2, i32 0, i32 0)
+; CHECK-LLVM: call i68 @intel_arbitrary_fixed_exp.i68.i68(i68 %[[#]], i1 false, i32 20, i32 20, i32 0, i32 0)
 
 ; ModuleID = 'ap_fixed.cpp'
 source_filename = "ap_fixed.cpp"
@@ -211,6 +220,8 @@ $_Z3logILi64ELi44ELb1ELi24ELi22EEvv = comdat any
 $_Z3expILi44ELi34ELb0ELi20ELi20EEvv = comdat any
 
 $_Z7sin_cosILi31ELi20ELb1ELi10ELi12EEvv_ = comdat any
+
+$_Z3expILi68ELi68ELb0ELi20ELi20EEvv = comdat any
 
 ; Function Attrs: norecurse
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -245,6 +256,7 @@ entry:
   call spir_func void @_Z3logILi64ELi44ELb1ELi24ELi22EEvv()
   call spir_func void @_Z3expILi44ELi34ELb0ELi20ELi20EEvv()
   call spir_func void @_Z7sin_cosILi31ELi20ELb1ELi10ELi12EEvv_()
+  call spir_func void @_Z3expILi68ELi68ELb0ELi20ELi20EEvv()
   ret void
 }
 
@@ -506,6 +518,33 @@ entry:
   ret void
 }
 
+; Function Attrs: norecurse nounwind
+define linkonce_odr dso_local spir_func void @_Z3expILi68ELi68ELb0ELi20ELi20EEvv() #3 comdat {
+entry:
+  %a = alloca i68, align 8
+  %a.ascast = addrspacecast i68* %a to i68 addrspace(4)*
+  %ap_fixed_Exp = alloca i68, align 8
+  %ap_fixed_Exp.ascast = addrspacecast i68* %ap_fixed_Exp to i68 addrspace(4)*
+  %tmp = alloca i68, align 8
+  %tmp.ascast = addrspacecast i68* %tmp to i68 addrspace(4)*
+  %indirect-arg-temp = alloca i68, align 8
+  %0 = bitcast i68* %a to i8*
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %0)
+  %1 = bitcast i68* %ap_fixed_Exp to i8*
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %1)
+  %2 = load i68, i68 addrspace(4)* %a.ascast, align 8
+  store i68 %2, i68* %indirect-arg-temp, align 8
+  call spir_func void @_Z21__spirv_FixedExpINTELILi68ELi68EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i68 addrspace(4)* sret(i68) align 8 %tmp.ascast, i68* byval(i68) align 8 %indirect-arg-temp, i1 zeroext false, i32 20, i32 20, i32 0, i32 0) #4
+  %3 = load i68, i68 addrspace(4)* %tmp.ascast, align 8
+  store i68 %3, i68 addrspace(4)* %ap_fixed_Exp.ascast, align 8
+  %4 = bitcast i68* %ap_fixed_Exp to i8*
+  call void @llvm.lifetime.end.p0i8(i64 16, i8* %4)
+  %5 = bitcast i68* %a to i8*
+  call void @llvm.lifetime.end.p0i8(i64 16, i8* %5)
+  ret void
+}
+
+
 ; Function Attrs: nounwind
 declare dso_local spir_func signext i5 @_Z22__spirv_FixedSqrtINTELILi13ELi5EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i13 signext, i1 zeroext, i32, i32, i32, i32) #4
 
@@ -544,6 +583,9 @@ declare dso_local spir_func i34 @_Z21__spirv_FixedExpINTELILi44ELi34EEU7_ExtIntI
 
 ; Function Attrs: nounwind
 declare dso_local spir_func void @_Z24__spirv_FixedSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEibiiii(i66 addrspace(4)* sret(i66) align 8, i34, i1 zeroext, i32, i32, i32, i32) #4
+
+; Function Attrs: convergent nounwind
+declare dso_local spir_func void @_Z21__spirv_FixedExpINTELILi68ELi68EEU7_ExtIntIXT0_EEiU7_ExtIntIXT_EEibiiii(i68 addrspace(4)* sret(i68) align 8, i68* byval(i68) align 8, i1 zeroext, i32, i32, i32, i32) #4
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="ap_fixed.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }

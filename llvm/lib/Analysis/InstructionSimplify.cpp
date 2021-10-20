@@ -1407,8 +1407,7 @@ static Value *SimplifyLShrInst(Value *Op0, Value *Op1, bool isExact,
       match(Op0, m_c_Or(m_NUWShl(m_Value(X), m_APInt(ShLAmt)), m_Value(Y))) &&
       *ShRAmt == *ShLAmt) {
     const KnownBits YKnown = computeKnownBits(Y, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
-    const unsigned Width = Op0->getType()->getScalarSizeInBits();
-    const unsigned EffWidthY = Width - YKnown.countMinLeadingZeros();
+    const unsigned EffWidthY = YKnown.countMaxActiveBits();
     if (ShRAmt->uge(EffWidthY))
       return X;
   }
@@ -2159,11 +2158,11 @@ static Value *SimplifyAndInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
     const unsigned Width = Op0->getType()->getScalarSizeInBits();
     const unsigned ShftCnt = ShAmt->getLimitedValue(Width);
     const KnownBits YKnown = computeKnownBits(Y, Q.DL, 0, Q.AC, Q.CxtI, Q.DT);
-    const unsigned EffWidthY = Width - YKnown.countMinLeadingZeros();
+    const unsigned EffWidthY = YKnown.countMaxActiveBits();
     if (EffWidthY <= ShftCnt) {
       const KnownBits XKnown = computeKnownBits(X, Q.DL, 0, Q.AC, Q.CxtI,
                                                 Q.DT);
-      const unsigned EffWidthX = Width - XKnown.countMinLeadingZeros();
+      const unsigned EffWidthX = XKnown.countMaxActiveBits();
       const APInt EffBitsY = APInt::getLowBitsSet(Width, EffWidthY);
       const APInt EffBitsX = APInt::getLowBitsSet(Width, EffWidthX) << ShftCnt;
       // If the mask is extracting all bits from X or Y as is, we can skip
@@ -4978,13 +4977,14 @@ SimplifyFAddInst(Value *Op0, Value *Op1, FastMathFlags FMF,
     if (match(Op1, m_NegZeroFP()))
       return Op0;
 
+  // fadd X, 0 ==> X, when we know X is not -0
+  if (canIgnoreSNaN(ExBehavior, FMF))
+    if (match(Op1, m_PosZeroFP()) &&
+        (FMF.noSignedZeros() || CannotBeNegativeZero(Op0, Q.TLI)))
+      return Op0;
+
   if (!isDefaultFPEnvironment(ExBehavior, Rounding))
     return nullptr;
-
-  // fadd X, 0 ==> X, when we know X is not -0
-  if (match(Op1, m_PosZeroFP()) &&
-      (FMF.noSignedZeros() || CannotBeNegativeZero(Op0, Q.TLI)))
-    return Op0;
 
   // With nnan: -X + X --> 0.0 (and commuted variant)
   // We don't have to explicitly exclude infinities (ninf): INF + -INF == NaN.
