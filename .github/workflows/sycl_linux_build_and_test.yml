@@ -31,8 +31,7 @@ on:
         required: true
       build_cache_suffix:
         type: string
-        required: false
-        default: "default"
+        required: false default: "default"
       build_cache_size:
         type: string
         required: false
@@ -118,24 +117,27 @@ jobs:
     # TODO allow to optionally disable in-tree checks
     - name: check-llvm
       if: always()
+      # GitHub Actions requires Docker containers to use default root user to
+      # run scripts. It also overrides default entry point for containers. Below
+      # is a workaround, that switches users for tests.
       run: |
-        cmake --build $GITHUB_WORKSPACE/src --target check-llvm
+        /docker_entrypoint.sh cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always()
       run: |
-        cmake --build $GITHUB_WORKSPACE/src --target check-clang
+        cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
       if: always()
       run: |
-        cmake --build $GITHUB_WORKSPACE/src --target check-sycl
+        cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
       if: always()
       run: |
-        cmake --build $GITHUB_WORKSPACE/src --target check-llvm-spirv
+        cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
       if: always()
       run: |
-        cmake --build $GITHUB_WORKSPACE/src --target check-xptifw
+        cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
     - name: Install
       run: cmake --build $GITHUB_WORKSPACE/build --target install
     - name: Pack
