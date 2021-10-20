@@ -193,12 +193,6 @@
 #undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
-#define __CLC_GENTYPE int
-#define __CLC_GENTYPE_MANGLED i
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
-
 #define __CLC_GENTYPE int2
 #define __CLC_GENTYPE_MANGLED Dv2_i
 #include __CLC_BODY
@@ -227,12 +221,6 @@
 
 #define __CLC_GENTYPE int16
 #define __CLC_GENTYPE_MANGLED Dv16_i
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
-
-#define __CLC_GENTYPE uint
-#define __CLC_GENTYPE_MANGLED j
 #include __CLC_BODY
 #undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
@@ -269,12 +257,6 @@
 #undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
-#define __CLC_GENTYPE float
-#define __CLC_GENTYPE_MANGLED f
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
-
 #define __CLC_GENTYPE float2
 #define __CLC_GENTYPE_MANGLED Dv2_f
 #include __CLC_BODY
@@ -307,12 +289,6 @@
 #undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
 
-#define __CLC_GENTYPE long
-#define __CLC_GENTYPE_MANGLED l
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
-
 #define __CLC_GENTYPE long2
 #define __CLC_GENTYPE_MANGLED Dv2_l
 #include __CLC_BODY
@@ -341,12 +317,6 @@
 
 #define __CLC_GENTYPE long16
 #define __CLC_GENTYPE_MANGLED Dv16_l
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
-
-#define __CLC_GENTYPE ulong
-#define __CLC_GENTYPE_MANGLED m
 #include __CLC_BODY
 #undef __CLC_GENTYPE_MANGLED
 #undef __CLC_GENTYPE
@@ -385,12 +355,6 @@
 
 #ifdef cl_khr_fp64
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
-#define __CLC_GENTYPE double
-#define __CLC_GENTYPE_MANGLED d
-#include __CLC_BODY
-#undef __CLC_GENTYPE_MANGLED
-#undef __CLC_GENTYPE
 
 #define __CLC_GENTYPE double2
 #define __CLC_GENTYPE_MANGLED Dv2_d

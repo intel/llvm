@@ -34,6 +34,18 @@ public:
   void wait() {
     __spirv_GroupWaitEvents(__spv::Scope::Workgroup, 1, m_Event);
   }
+
+  template <typename Group>
+  void ext_oneapi_wait(Group) {
+    constexpr auto scope = [](){
+      if (std::is_same<Group, sycl::ext::oneapi::sub_group>::value){
+        return __spv::Scope::Subgroup;
+      } else {
+        return __spv::Scope::Workgroup;
+      }
+    }();
+    __spirv_GroupWaitEvents(scope, 1, m_Event);
+  }
 };
 
 } // namespace sycl
