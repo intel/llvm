@@ -208,3 +208,7 @@ Returns the `sub_group` instance representing the particular `sub-group` within 
 
 If prerequisites are not fulfilled the behavior is undefined
 |===
+
+== Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES` to `1` to indicate that it is enabled.

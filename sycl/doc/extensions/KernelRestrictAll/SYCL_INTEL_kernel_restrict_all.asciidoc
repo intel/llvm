@@ -109,7 +109,9 @@ None.
 //*RESOLUTION*: Description
 //--
 
+== Feature Test Macro
 
+This extension defines the macro `SYCL_EXT_INTEL_KERNEL_ARGS_RESTRICT` to `1` to indicate that it is enabled.
 
 == Revision History
 

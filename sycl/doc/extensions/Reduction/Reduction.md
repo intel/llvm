@@ -186,3 +186,7 @@ __kernel void dot_product(__global float* a, __global float* b, __global float* 
     atomic_add(sum, a[i] * b[i]);
 }
 ```
+
+## Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS` to `1` to indicate that it is enabled.

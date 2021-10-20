@@ -317,6 +317,10 @@ Exact matching is required to ensure that developers can reason about the portab
 //*RESOLUTION*: Not resolved.
 //--
 
+== Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_ONEAPI_SUB_GROUP` to `1` to indicate that it is enabled.
+
 == Revision History
 
 [cols="5,15,15,70"]

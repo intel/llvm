@@ -118,3 +118,7 @@ Queue.submit([&](cl::sycl::handler &cgh) {
 });
 ...
 ```
+
+## Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_INTEL_FPGA_LSU` to `1` to indicate that it is enabled.

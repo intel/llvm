@@ -634,6 +634,10 @@ Automated mechanisms are possible to provide uniquification across calls, and co
 *RESOLUTION*: Resolved.  Abstraction/libraries on top enable functionality like this.  We will make public a library that enables arrays of pipes.
 --
 
+== Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_INTEL_DATAFLOW_PIPES` to `1` to indicate that it is enabled.
+
 == Revision History
 
 [cols="5,15,15,70"]

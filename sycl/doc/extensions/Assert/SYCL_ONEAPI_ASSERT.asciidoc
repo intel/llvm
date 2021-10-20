@@ -150,6 +150,10 @@ Revision: 1
 
 None.
 
+== Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_ONEAPI_ASSERT` to `1` to indicate that it is enabled.
+
 == Revision History
 
 [cols="5,15,15,70"]

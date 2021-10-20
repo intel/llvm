@@ -25,3 +25,7 @@ cl::sycl::queue deviceQueue{cl::sycl::ext::intel::fpga_selector{}};
 cl::sycl::queue deviceQueue{cl::sycl::ext::intel::fpga_emulator_selector{}};
 ...
 ```
+
+## Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_INTEL_FPGA_DEVICE_SELECTOR` to `1` to indicate that it is enabled.

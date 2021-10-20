@@ -199,6 +199,10 @@ each work-item in the work-group obtains a `multi_ptr` to the same allocation.
 
 None.
 
+== Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_ONEAPI_LOCAL_MEMORY` to `1` to indicate that it is enabled.
+
 == Revision History
 
 [cols="5,15,15,70"]

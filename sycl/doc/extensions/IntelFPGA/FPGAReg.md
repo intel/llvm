@@ -29,3 +29,7 @@ int a = cl::sycl::intel::fpga_reg(a[k]) + b[k];
 
 ...
 ```
+
+## Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_INTEL_FPGA_REG` to `1` to indicate that it is enabled.
