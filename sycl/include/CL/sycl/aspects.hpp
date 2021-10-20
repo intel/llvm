@@ -13,8 +13,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 enum class aspect {
-  host_debuggable = 0,
-  host __SYCL2020_DEPRECATED("use host_debuggable instead") = host_debuggable,
+  host = 0,
   cpu = 1,
   gpu = 2,
   accelerator = 3,
@@ -48,6 +47,7 @@ enum class aspect {
   ext_intel_device_info_uuid = 29,
   ext_oneapi_srgb = 30,
   ext_oneapi_native_assert = 31,
+  host_debuggable = 32,
 };
 
 } // namespace sycl
