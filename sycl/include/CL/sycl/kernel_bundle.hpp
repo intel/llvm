@@ -376,6 +376,17 @@ namespace detail {
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
+
+inline const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs) {
+  auto compareDevices = [](device a, device b) { return a != b; };
+  std::set<device, decltype(compareDevices)> UniqueDeviceSet(
+      Devs.begin(), Devs.end(), compareDevices);
+  std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
+                                    UniqueDeviceSet.end());
+  return UniqueDevices;
+}
+
 } // namespace detail
 
 /// A kernel bundle in state State which contains all of the kernels in the
@@ -385,8 +396,10 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 template <bundle_state State>
 kernel_bundle<State> get_kernel_bundle(const context &Ctx,
                                        const std::vector<device> &Devs) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::get_kernel_bundle_impl(Ctx, Devs, State);
+      detail::get_kernel_bundle_impl(Ctx, UniqueDevices, State);
 
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
@@ -418,8 +431,10 @@ template <bundle_state State>
 kernel_bundle<State>
 get_kernel_bundle(const context &Ctx, const std::vector<device> &Devs,
                   const std::vector<kernel_id> &KernelIDs) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::get_kernel_bundle_impl(Ctx, Devs, KernelIDs, State);
+      detail::get_kernel_bundle_impl(Ctx, UniqueDevices, KernelIDs, State);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
 
@@ -460,14 +475,16 @@ template <bundle_state State, typename SelectorT>
 kernel_bundle<State> get_kernel_bundle(const context &Ctx,
                                        const std::vector<device> &Devs,
                                        SelectorT Selector) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::DevImgSelectorImpl SelectorWrapper =
       [Selector](const detail::DeviceImageImplPtr &DevImg) {
         return Selector(
             detail::createSyclObjFromImpl<sycl::device_image<State>>(DevImg));
       };
 
-  detail::KernelBundleImplPtr Impl =
-      detail::get_kernel_bundle_impl(Ctx, Devs, State, SelectorWrapper);
+  detail::KernelBundleImplPtr Impl = detail::get_kernel_bundle_impl(
+      Ctx, UniqueDevices, State, SelectorWrapper);
 
   return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
 }
@@ -590,14 +607,7 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 inline kernel_bundle<bundle_state::object>
 compile(const kernel_bundle<bundle_state::input> &InputBundle,
         const std::vector<device> &Devs, const property_list &PropList = {}) {
-  // duplicate devices removed
-  auto compareDevices = [](device a, device b) {
-    return a != b;
-  };
-  std::set<device, decltype(compareDevices)> UniqueDeviceSet(
-      Devs.begin(), Devs.end(), compareDevices);
-  std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
-                                    UniqueDeviceSet.end());
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
 
   detail::KernelBundleImplPtr Impl =
       detail::compile_impl(InputBundle, UniqueDevices, PropList);
@@ -632,8 +642,10 @@ link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
 inline kernel_bundle<bundle_state::executable>
 link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
      const std::vector<device> &Devs, const property_list &PropList = {}) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::link_impl(ObjectBundles, Devs, PropList);
+      detail::link_impl(ObjectBundles, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
       kernel_bundle<sycl::bundle_state::executable>>(Impl);
 }
@@ -677,8 +689,10 @@ build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 inline kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
       const std::vector<device> &Devs, const property_list &PropList = {}) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::build_impl(InputBundle, Devs, PropList);
+      detail::build_impl(InputBundle, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
       kernel_bundle<sycl::bundle_state::executable>>(Impl);
 }
