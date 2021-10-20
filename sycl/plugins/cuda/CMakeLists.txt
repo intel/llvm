@@ -38,7 +38,7 @@ add_sycl_library(pi_cuda SHARED
     __SYCL_BUILD_SYCL_DLL
   # Filter symbols based on the scope defined in the script file,
   # and export pi* function symbols in the library.
-  VERSION_SCRIPT "-Wl,--version-script=${linker_script}"
+  VERSION_SCRIPT "${linker_script}"
   HIDE_SYMBOLS
 )
 
