@@ -623,6 +623,12 @@
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-AMBIGUOUS-ERROR %s
 // CHK-FSYCL-TARGET-AMBIGUOUS-ERROR: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-backend', specify triple using '-Xsycl-target-backend=<triple>'
 
+/// Check -Xsycl-target-backend does not trigger an error when multiple
+/// instances of -fsycl-targets is used.
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64-unknown-unknown -fsycl-targets=spir64_gen-unknown-unknown -Xsycl-target-backend -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-2X-ERROR %s
+// CHK-FSYCL-TARGET-2X-ERROR-NOT: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-backend', specify triple using '-Xsycl-target-backend=<triple>'
+
 /// ###########################################################################
 
 /// Ahead of Time compilation for fpga, gen, cpu
