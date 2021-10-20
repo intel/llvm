@@ -19,6 +19,7 @@
 
 #include <cassert>
 #include <memory>
+#include <set>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -589,8 +590,17 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 inline kernel_bundle<bundle_state::object>
 compile(const kernel_bundle<bundle_state::input> &InputBundle,
         const std::vector<device> &Devs, const property_list &PropList = {}) {
+  // duplicate devices removed
+  auto compareDevices = [](device a, device b) {
+    return a == b;
+  }; // correct: { return a != b; };
+  std::set<device, decltype(compareDevices)> UniqueDeviceSet(
+      Devs.begin(), Devs.end(), compareDevices);
+  std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
+                                    UniqueDeviceSet.end());
+
   detail::KernelBundleImplPtr Impl =
-      detail::compile_impl(InputBundle, Devs, PropList);
+      detail::compile_impl(InputBundle, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
       kernel_bundle<sycl::bundle_state::object>>(Impl);
 }
