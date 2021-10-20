@@ -31,7 +31,8 @@ on:
         required: true
       build_cache_suffix:
         type: string
-        required: false default: "default"
+        required: false
+        default: "default"
       build_cache_size:
         type: string
         required: false
