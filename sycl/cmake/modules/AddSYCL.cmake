@@ -1,9 +1,5 @@
 function (add_warning_options_linux target_name)
-  if (msvc)
-    target_compile_options(${target_name} PRIVATE "/w4")
-  else ()
-    target_compile_options(${target_name} PRIVATE "-wall -wextra -wno-deprecated-declarations")
-  endif()
+  target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wno-deprecated-declarations)
 
   check_cxx_compiler_flag(-Winstantiation-after-specialization
     HAS_INST_AFTER_SPEC)

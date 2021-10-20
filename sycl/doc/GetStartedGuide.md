@@ -301,10 +301,10 @@ For convenience, there's a pre-defined CMake cache file
 distribution components. This is enabled by default, if you use `configure.py`
 script. Default deployment configuration will provide two additional targets:
 
-- `install-toolchain-distribution`, that will install core DPC++ compiler
-   components.
-- `install-development-distribution`, that will install some utilities, required
-   for development and testing of the compiler.
+- `install-dpcpp-toolchain-distribution`, that will install core DPC++ compiler
+  components.
+- `install-dpcpp-testing-distribution`, that will install some utilities,
+  required for testing of the compiler.
 
 To learn more about CMake caches and their applications, refer to
 [LLVM documentation](https://llvm.org/docs/AdvancedBuilds.html).

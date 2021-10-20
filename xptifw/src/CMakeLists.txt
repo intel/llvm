@@ -28,3 +28,10 @@ install(TARGETS xptifw
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT xptifw
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT xptifw
 )
+
+if (LLVM_BINARY_DIR)
+  add_llvm_install_targets(install-xptifw
+    COMPONENT xptifw
+    DEPENDS xptifw
+  )
+endif()

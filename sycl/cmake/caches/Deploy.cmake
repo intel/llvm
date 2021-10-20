@@ -1,9 +1,11 @@
 # Enable new IN_LIST operator.
 cmake_policy(SET CMP0057 NEW)
 
+set(LLVM_ENABLE_IDE OFF CACHE BOOL "")
+
 set(LLVM_DISTRIBUTIONS
-  Toolchain
-  Development
+  DPCPP-Toolchain
+  DPCPP-Testing
   CACHE STRING ""
 )
 
@@ -61,13 +63,13 @@ endif()
 
 set(LLVM_ENABLE_IDE OFF CACHE BOOL "" FORCE)
 
-set(LLVM_Toolchain_TOOLCHAIN_TOOLS
+set(LLVM_DPCPP-Toolchain_TOOLCHAIN_TOOLS
   ${COMMON_SYCL_TOOLS}
 
   CACHE STRING ""
   )
 
-set(LLVM_Toolchain_DISTRIBUTION_COMPONENTS
+set(LLVM_DPCPP-Toolchain_DISTRIBUTION_COMPONENTS
   ${COMMON_SYCL_COMPONENTS}
   ${COMMON_SYCL_TOOLS}
 
@@ -81,9 +83,13 @@ if ("clang-tools-extra" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND EXTRA_TOOLS clang-tidy clang-format)
 endif()
 
-set(LLVM_Development_TOOLCHAIN_TOOLS
+set(LLVM_DPCPP-Testing_TOOLCHAIN_UTILITIES
   FileCheck
   not
+
+  CACHE STRING ""
+)
+set(LLVM_DPCPP-Testing_TOOLCHAIN_TOOLS
   llvm-config
   llvm-cxxdump
   llvm-readobj
@@ -91,7 +97,7 @@ set(LLVM_Development_TOOLCHAIN_TOOLS
   CACHE STRING ""
   )
 
-set(LLVM_Development_DISTRIBUTION_COMPONENTS
+set(LLVM_DPCPP-Testing_DISTRIBUTION_COMPONENTS
   ${LLVM_Development_TOOLCHAIN_TOOLS}
   ${EXTRA_TOOLS}
   CACHE STRING ""

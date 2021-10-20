@@ -169,3 +169,15 @@ add_llvm_install_targets(install-sycl
   COMPONENT sycl
   DEPENDS ${SYCL_RT_LIBS}
   )
+
+string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
+if (WIN32 AND "${build_type_lower}" MATCHES "debug")
+  set(sycl_lib sycld)
+endif()
+
+add_library(sycl-runtime INTERFACE)
+if (WIN32 AND "${build_type_lower}" MATCHES "debug")
+  target_link_libraries(sycl-runtime INTERFACE sycld)
+else()
+  target_link_libraries(sycl-runtime INTERFACE sycl)
+endif()

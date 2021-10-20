@@ -97,3 +97,10 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   COMPONENT xpti
 )
+
+if (LLVM_BINARY_DIR)
+  add_llvm_install_targets(install-xpti
+    COMPONENT xpti
+    DEPENDS xpti
+  )
+endif()

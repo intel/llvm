@@ -333,7 +333,10 @@ add_custom_target(deploy-sycl-toolchain
   DEPENDS sycl-toolchain ${manifest_list}
 )
 
-message(WARNING "deploy-sycl-toolchain target is deprecated and will be removed")
+message(WARNING
+  "deploy-sycl-toolchain target is deprecated and will be removed. See "
+  "doc/GetStartedGuide.md for instructions on DPC++ toolchain deployment."
+)
 
 # SYCL Runtime documentation
 add_subdirectory(doc)
