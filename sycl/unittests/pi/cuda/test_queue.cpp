@@ -164,7 +164,7 @@ TEST_P(CudaTestQueue, SYCLQueueDefaultStream) {
   std::vector<device> CudaDevices = GetParam().get_devices();
   auto deviceA_ = CudaDevices[0];
   queue Queue(deviceA_, async_handler{},
-              {property::queue::cuda::use_default_stream{}});
+              {ext::oneapi::cuda::property::queue::use_default_stream{}});
 
   CUstream CudaStream = get_native<backend::ext_oneapi_cuda>(Queue);
   unsigned int flags;
