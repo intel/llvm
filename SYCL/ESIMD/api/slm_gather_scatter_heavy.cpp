@@ -229,6 +229,62 @@ struct ScatterKernel : KernelBase<T, VL, STRIDE> {
   }
 };
 
+// Partial specialization of the gather kernel to test vector length = 1.
+template <class T, unsigned STRIDE>
+struct GatherKernel<T, 1, STRIDE, TEST_VECTOR_NO_MASK>
+    : KernelBase<T, 1, STRIDE> {
+  using B = KernelBase<T, 1, STRIDE>;
+  using B::B;
+
+  static const char *get_name() { return "slm_gather_vl1"; }
+
+  void operator()(nd_item<1> i) const SYCL_ESIMD_KERNEL {
+    slm_init(B::SLM_CHUNK_SIZE);
+
+    // first, read data into SLM
+    T val = scalar_load<T>(B::acc_in, B::get_wi_offset(i));
+    slm_scalar_store((unsigned)(B::get_wi_local_offset(i) * sizeof(T)), val);
+
+    // wait for peers
+    esimd_barrier();
+
+    // now load from SLM and write back to memory
+    unsigned wi_local_id = static_cast<unsigned>(i.get_local_id(0));
+    simd<uint32_t, 1> offsets(wi_local_id * sizeof(T));
+    simd<T, 1> vec1 = slm_gather<T, 1>(offsets); /*** THE TESTED API ***/
+    scalar_store(B::acc_out, B::get_wi_offset(i), (T)vec1[0]);
+  }
+};
+
+// Partial specialization of the scatter kernel to test vector length = 1.
+template <class T, unsigned STRIDE>
+struct ScatterKernel<T, 1, STRIDE, TEST_VECTOR_NO_MASK>
+    : KernelBase<T, 1, STRIDE> {
+  using B = KernelBase<T, 1, STRIDE>;
+  using B::B;
+  static const char *get_name() { return "slm_scatter_vl1"; }
+
+  ESIMD_INLINE void operator()(nd_item<1> i) const SYCL_ESIMD_KERNEL {
+    slm_init(B::SLM_CHUNK_SIZE);
+
+    // first, read data from memory into registers
+    simd<T, 1> val;
+    val[0] = scalar_load<T>(B::acc_in, B::get_wi_offset(i));
+
+    // now write to SLM
+    unsigned wi_local_id = static_cast<unsigned>(i.get_local_id(0));
+    simd<uint32_t, 1> offsets(wi_local_id * sizeof(T));
+    slm_scatter(val, offsets); /*** THE TESTED API ***/
+
+    // wait for peers
+    esimd_barrier();
+
+    // now copy data from SLM back to memory
+    T v = slm_scalar_load<T>(B::get_wi_local_offset(i) * sizeof(T));
+    scalar_store(B::acc_out, B::get_wi_offset(i), v);
+  }
+};
+
 enum MemIODir { MEM_SCATTER, MEM_GATHER };
 
 // Verification algorithm depends on whether gather or scatter result is tested.
@@ -287,7 +343,8 @@ static bool verify(T *A, size_t size) {
 
 template <class T, unsigned VL, unsigned STRIDE, MemIODir Dir, TestCase TC>
 bool test_impl(queue q) {
-  size_t size = VL * STRIDE;
+  size_t size = VL == 1 ? 8 * STRIDE : VL * STRIDE;
+
   using KernelType =
       std::conditional_t<Dir == MEM_GATHER, GatherKernel<T, VL, STRIDE, TC>,
                          ScatterKernel<T, VL, STRIDE, TC>>;
@@ -367,6 +424,14 @@ template <class T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   return passed;
 }
 
+template <class T, unsigned STRIDE> bool test_vl1(queue q) {
+  bool passed = true;
+  std::cout << "\n";
+  passed &= test_impl<T, 1, STRIDE, MEM_GATHER, TEST_VECTOR_NO_MASK>(q);
+  passed &= test_impl<T, 1, STRIDE, MEM_SCATTER, TEST_VECTOR_NO_MASK>(q);
+  return passed;
+}
+
 int main(int argc, char **argv) {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
@@ -374,6 +439,7 @@ int main(int argc, char **argv) {
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
   bool passed = true;
+  passed &= test_vl1<char, 3>(q);
   passed &= test<char, 16, 3>(q);
   passed &= test<char, 32, 3>(q);
   passed &= test<short, 8, 8>(q);
@@ -387,6 +453,7 @@ int main(int argc, char **argv) {
   passed &= test<float, 8, 2>(q);
   passed &= test<float, 16, 5>(q);
   passed &= test<float, 32, 3>(q);
+  passed &= test_vl1<float, 7>(q);
 
   std::cout << (!passed ? "TEST FAILED\n" : "TEST Passed\n");
   return passed ? 0 : 1;
