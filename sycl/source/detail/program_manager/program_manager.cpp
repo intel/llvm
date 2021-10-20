@@ -522,6 +522,9 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     } else {
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
+      // Do not redundantly call retain if backend is level_zero.
+      if (Plugin.getBackend() != backend::ext_oneapi_level_zero)
+        Plugin.call<PiApiKind::piProgramRetain>(BuiltProgram.get());
     }
     return BuiltProgram.release();
   };
