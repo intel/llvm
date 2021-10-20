@@ -60,7 +60,7 @@ jobs:
             INPUTS="{
               \"cc\":\"gcc\",
               \"cxx\":\"g++\",
-              \"build_runs_on\":\"ubuntu-latest\",
+              \"build_runs_on\":\"sycl-precommit-linux\",
               \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_base:latest\",
               \"build_github_cache\":\"false\",
               \"build_cache_root\":\"$GITHUB_WORKSPACE\",
@@ -119,23 +119,23 @@ jobs:
     - name: check-llvm
       if: always()
       run: |
-        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
-        -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-llvm
+        cmake --build $GITHUB_WORKSPACE/src --target check-llvm
     - name: check-clang
       if: always()
       run: |
-        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
-        -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-clang
+        cmake --build $GITHUB_WORKSPACE/src --target check-clang
     - name: check-sycl
       if: always()
       run: |
-        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
-        -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-sycl
+        cmake --build $GITHUB_WORKSPACE/src --target check-sycl
     - name: check-llvm-spirv
       if: always()
       run: |
-        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
-        -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-llvm-spirv
+        cmake --build $GITHUB_WORKSPACE/src --target check-llvm-spirv
+    - name: check-xptifw
+      if: always()
+      run: |
+        cmake --build $GITHUB_WORKSPACE/src --target check-xptifw
     - name: Install
       run: cmake --build $GITHUB_WORKSPACE/build --target install
     - name: Pack
