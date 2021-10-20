@@ -4172,16 +4172,23 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       OpItr++;
     }
 
-    SPIRVValue *Input =
-        transValue(*OpItr++ /* A - integer input of any width */, BB);
+    // Input - integer input of any width or 'byval' pointer to this integer
+    SPIRVValue *Input = transValue(*OpItr, BB);
+    if (OpItr->getType()->isPointerTy())
+      Input = BM->addLoadInst(Input, {}, BB);
+    OpItr++;
 
     std::vector<SPIRVWord> Literals;
     std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addFixedPointIntelInst(OC, transType(ResTy), Input, Literals,
-                                      BB);
+    auto *APIntInst =
+        BM->addFixedPointIntelInst(OC, transType(ResTy), Input, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   case OpArbitraryFloatCastINTEL:
   case OpArbitraryFloatCastFromIntINTEL:
@@ -4256,15 +4263,23 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       OpItr++;
     }
 
-    SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
+    // Input - integer input of any width or 'byval' pointer to this integer
+    SPIRVValue *Input = transValue(*OpItr, BB);
+    if (OpItr->getType()->isPointerTy())
+      Input = BM->addLoadInst(Input, {}, BB);
+    OpItr++;
 
     std::vector<SPIRVWord> Literals;
     std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA, nullptr,
-                                         Literals, BB);
+    auto *APIntInst = BM->addArbFloatPointIntelInst(OC, transType(ResTy), Input,
+                                                    nullptr, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   case OpArbitraryFloatAddINTEL:
   case OpArbitraryFloatSubINTEL:
@@ -4324,19 +4339,33 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       OpItr++;
     }
 
-    SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
+    // InA - integer input of any width or 'byval' pointer to this integer
+    SPIRVValue *InA = transValue(*OpItr, BB);
+    if (OpItr->getType()->isPointerTy())
+      InA = BM->addLoadInst(InA, {}, BB);
+    OpItr++;
 
     std::vector<SPIRVWord> Literals;
     Literals.push_back(cast<llvm::ConstantInt>(*OpItr++)->getZExtValue());
 
-    SPIRVValue *InB = transValue(*OpItr++ /* B - input */, BB);
+    // InB - integer input of any width or 'byval' pointer to this integer
+    SPIRVValue *InB = transValue(*OpItr, BB);
+    if (OpItr->getType()->isPointerTy()) {
+      std::vector<SPIRVWord> Mem;
+      InB = BM->addLoadInst(InB, Mem, BB);
+    }
+    OpItr++;
 
     std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA, InB,
-                                         Literals, BB);
+    auto *APIntInst = BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA,
+                                                    InB, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
