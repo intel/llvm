@@ -11,7 +11,8 @@ RUN apt update && apt install -yqq \
       ccache \
       git \
       python3 \
-      python3-distutils
+      python3-distutils \
+      python-is-python3
 
 RUN adduser --disabled-password --gecos '' sycl
 
