@@ -79,20 +79,20 @@ function (add_sycl_library target_name lib_variant)
   add_sycl_common_options()
 
   if (UNIX)
+    if (SYCL_HIDE_SYMBOLS)
+      target_compile_options(${target_name} PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
+    endif()
     foreach(__linker_script ${SYCL_LINKER_SCRIPTS})
       set_target_properties(${target_name} PROPERTIES LINK_DEPENDS
         ${__linker_script})
       target_link_libraries(
         ${target_name} PRIVATE "-Wl,${__linker_script}")
     endforeach()
-    if (VERSION_SCRIPT)
+    if (SYCL_VERSION_SCRIPT)
       target_link_libraries(
         ${target_name} PRIVATE "-Wl,--version-script=${SYCL_VERSION_SCRIPT}")
       set_target_properties(${target_name} PROPERTIES LINK_DEPENDS
         ${SYCL_VERSION_SCRIPT})
-    endif()
-    if (SYCL_HIDE_OPTIONS)
-      target_compile_options(${target_name} PUBLIC -fvisibility=hidden)
     endif()
   endif()
 

@@ -45,6 +45,7 @@ function(add_sycl_rt_library LIB_NAME)
     LINKER_SCRIPTS
       "${CMAKE_CURRENT_SOURCE_DIR}/abi_replacements_linux.txt"
     VERSION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt"
+    HIDE_SYMBOLS
   )
 
   add_dependencies(${LIB_OBJ_NAME}
