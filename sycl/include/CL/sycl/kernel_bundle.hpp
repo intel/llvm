@@ -592,8 +592,8 @@ compile(const kernel_bundle<bundle_state::input> &InputBundle,
         const std::vector<device> &Devs, const property_list &PropList = {}) {
   // duplicate devices removed
   auto compareDevices = [](device a, device b) {
-    return a == b;
-  }; // correct: { return a != b; };
+    return a != b;
+  };
   std::set<device, decltype(compareDevices)> UniqueDeviceSet(
       Devs.begin(), Devs.end(), compareDevices);
   std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
