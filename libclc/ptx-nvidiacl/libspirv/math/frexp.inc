@@ -47,7 +47,7 @@ __spirv_ocl_frexp(__CLC_GENTYPE_VEC x, __CLC_ADDRESS_SPACE int3 *ep) {
     int##HALF_VEC_LEN ep_lo;                                                   \
     int##HALF_VEC_LEN ep_hi;                                                   \
     GENTYPE res = (GENTYPE)(__spirv_ocl_frexp(x.lo, &ep_lo),                   \
-                            __spirv_ocl_frexp(x.hi, &ep_lo));                  \
+                            __spirv_ocl_frexp(x.hi, &ep_hi));                  \
     *ep = (int##VEC_LEN)(ep_lo, ep_hi);                                        \
     return res;                                                                \
   }
