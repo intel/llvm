@@ -996,9 +996,8 @@ static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
 }
 
 /// Return method by name
-static CXXMethodDecl *
-isCXXRecordWithInitOrFinalizeMember(const CXXRecordDecl *CRD,
-                                    StringRef MethodName) {
+static CXXMethodDecl *getMethodByName(const CXXRecordDecl *CRD,
+                                      StringRef MethodName) {
   CXXMethodDecl *Method;
   auto It = std::find_if(CRD->methods().begin(), CRD->methods().end(),
                          [MethodName](const CXXMethodDecl *Method) {
@@ -1981,11 +1980,12 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
   bool handleSpecialType(FieldDecl *FD, QualType FieldTy) {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
-                                         ? InitESIMDMethodName
-                                         : InitMethodName;
-    CXXMethodDecl *InitMethod =
-        isCXXRecordWithInitOrFinalizeMember(RecordDecl, MethodName);
+    llvm::StringLiteral MethodName =
+        KernelDecl->hasAttr<SYCLSimdAttr>() &&
+                Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)
+            ? InitESIMDMethodName
+            : InitMethodName;
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -1994,12 +1994,15 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(FD, ParamTy.getCanonicalType());
+      // FIXME: This code is temporary, and will be removed once __init_esimd
+      // is removed and property list refactored.
+      // The function handleAccessorType includes a call to
+      // handleAccessorPropertyList. If new classes with property list are
+      // added, this code needs to be refactored to call
+      // handleAccessorPropertyList for each class which requires it.
       if (ParamTy.getTypePtr()->isPointerType() &&
-          !isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName))
-        // isPointerType removes sampler type.
-        // !isCXXRecordWithInitOrFinalizeMember removes stream type. Do this
-        // only for accessor type.
-        handleAccessorType(RecordDecl, FD->getLocation());
+          Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
+        handleAccessorType(RecordDecl, FD->getBeginLoc());
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -2092,11 +2095,12 @@ public:
                              QualType FieldTy) final {
     const auto *RecordDecl = FieldTy->getAsCXXRecordDecl();
     assert(RecordDecl && "The type must be a RecordDecl");
-    llvm::StringLiteral MethodName = KernelDecl->hasAttr<SYCLSimdAttr>()
-                                         ? InitESIMDMethodName
-                                         : InitMethodName;
-    CXXMethodDecl *InitMethod =
-        isCXXRecordWithInitOrFinalizeMember(RecordDecl, MethodName);
+    llvm::StringLiteral MethodName =
+        KernelDecl->hasAttr<SYCLSimdAttr>() &&
+                Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)
+            ? InitESIMDMethodName
+            : InitMethodName;
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
 
     // Don't do -1 here because we count on this to be the first parameter added
@@ -2105,11 +2109,14 @@ public:
     for (const ParmVarDecl *Param : InitMethod->parameters()) {
       QualType ParamTy = Param->getType();
       addParam(BS, ParamTy.getCanonicalType());
+      // FIXME: This code is temporary, and will be removed once __init_esimd
+      // is removed and property list refactored.
+      // The function handleAccessorType includes a call to
+      // handleAccessorPropertyList. If new classes with property list are
+      // added, this code needs to be refactored to call
+      // handleAccessorPropertyList for each class which requires it.
       if (ParamTy.getTypePtr()->isPointerType() &&
-          !isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName))
-        // isPointerType removes sampler type.
-        // !isCXXRecordWithInitOrFinalizeMember removes stream type. Do this
-        // only for accessor type.
+          Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
         handleAccessorType(RecordDecl, BS.getBeginLoc());
     }
     LastParamIndex = ParamIndex;
@@ -2240,8 +2247,7 @@ class SyclKernelArgsSizeChecker : public SyclKernelFieldHandler {
     assert(RecordDecl && "The type must be a RecordDecl");
     llvm::StringLiteral MethodName =
         IsSIMD ? InitESIMDMethodName : InitMethodName;
-    CXXMethodDecl *InitMethod =
-        isCXXRecordWithInitOrFinalizeMember(RecordDecl, MethodName);
+    CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, MethodName);
     assert(InitMethod && "The type must have the __init method");
     for (const ParmVarDecl *Param : InitMethod->parameters())
       addParam(Param->getType());
@@ -2727,7 +2733,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   void createSpecialMethodCall(const CXXRecordDecl *RD, StringRef MethodName,
                                SmallVectorImpl<Stmt *> &AddTo) {
-    CXXMethodDecl *Method = isCXXRecordWithInitOrFinalizeMember(RD, MethodName);
+    CXXMethodDecl *Method = getMethodByName(RD, MethodName);
     if (!Method)
       return;
 
@@ -2821,7 +2827,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
     CXXMethodDecl *FinalizeMethod =
-        isCXXRecordWithInitOrFinalizeMember(RecordDecl, FinalizeMethodName);
+        getMethodByName(RecordDecl, FinalizeMethodName);
     // A finalize-method is expected for special type such as stream.
     if (FinalizeMethod)
       createSpecialMethodCall(RecordDecl, FinalizeMethodName, FinalizeStmts);
@@ -3218,8 +3224,9 @@ public:
   bool handleSyclSpecialType(FieldDecl *FD, QualType FieldTy) final {
     const auto *ClassTy = FieldTy->getAsCXXRecordDecl();
     assert(ClassTy && "Type must be a C++ record type");
-    if (const auto *AccTy = dyn_cast<ClassTemplateSpecializationDecl>(
-            FieldTy->getAsRecordDecl())) {
+    if (Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)) {
+      const auto *AccTy =
+          dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
       assert(AccTy->getTemplateArgs().size() >= 2 &&
              "Incorrect template args for Accessor Type");
       int Dims = static_cast<int>(
@@ -3229,11 +3236,10 @@ public:
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));
     } else {
-      if (isCXXRecordWithInitOrFinalizeMember(ClassTy, FinalizeMethodName))
+      if (getMethodByName(ClassTy, FinalizeMethodName))
         addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
       else {
-        CXXMethodDecl *InitMethod =
-            isCXXRecordWithInitOrFinalizeMember(ClassTy, InitMethodName);
+        CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
         assert(InitMethod && "type must have __init method");
         const ParmVarDecl *SamplerArg = InitMethod->getParamDecl(0);
         assert(SamplerArg && "Init method must have arguments");

@@ -53,6 +53,7 @@ namespace ext {
 namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
+class __mm_host_property_list {};
 } // namespace oneapi
 } // namespace ext
 
@@ -314,6 +315,46 @@ public:
 private:
   cl::sycl::accessor<char, 1, cl::sycl::access::mode::read_write> Acc;
   int FlushBufferSize;
+};
+  
+  // zahira
+using psg_propertyListT = ext::oneapi::__mm_host_property_list<>; 
+
+template <typename DT>
+struct mmhost_interface_idx;
+template <typename DT, mmhost_intera, typename propertyListT>
+struct InterfaceType;
+
+  /*
+template <typename DT, typename psg_propertyListT>
+struct mmhost_awidth<DT, psg_propertyListT> {};
+
+template <typename DT, typename psg_propertyListT>
+struct mmhost_dwidth<DT, psg_propertyListT> {};
+
+template <typename DT, typename psg_propertyListT>
+struct mmhost_latency<DT, psg_propertyListT> {};
+
+template <typename DT, typename psg_propertyListT>
+struct mmhost_readwrite_mode<DT, psg_propertyListT> {};
+
+template <typename DT, typename psg_propertyListT>
+struct mmhost_maxburst<DT, psg_propertyListT> {};
+
+template <typename DT, typename psg_propertyListT>
+struct mmhost_align<DT, psg_propertyListT> {};
+
+template <typename DT, typename psg_propertyListT>
+struct mmhost_waitrequest<DT, psg_propertyListT> ;
+  */
+template <typename DT,
+          typename psg_propertyListT = ext::oneapi::__mm_host_property_list<>>
+class __attribute__((sycl_special_class)) __mm_host {
+public:
+  void use(void) const {}
+
+private:
+  void __init() {}
 };
 
 namespace ext {
