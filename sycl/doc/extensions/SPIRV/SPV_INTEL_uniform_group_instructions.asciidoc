@@ -206,7 +206,7 @@ The type of 'X' must be the same as 'Result Type'. +
 
 1+|Capability: +
 *{capability_name}*
-1+| 6 | {OpGroupIMulINTEL_token}
+1+| 6 | {OpGroupFMulINTEL_token}
 | '<id>' +
 'Result Type'
 | 'Result <id>'
