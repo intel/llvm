@@ -51,7 +51,7 @@ Major New Features
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ...
+- -Wbitwise-instead-of-logical (part of -Wbool-operation) warns about use of bitwise operators with boolean operands which have side effects.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -83,6 +83,12 @@ Modified Compiler Flags
   - RISC-V SiFive S54 (``sifive-s54``).
   - RISC-V SiFive S76 (``sifive-s76``).
 
+- Support has been added for the following architectures (``-march`` identifiers in parentheses):
+
+  - Armv9-A (``armv9-a``).
+  - Armv9.1-A (``armv9.1-a``).
+  - Armv9.2-A (``armv9.2-a``).
+
 Removed Compiler Flags
 -------------------------
 
@@ -104,6 +110,13 @@ Attribute Changes in Clang
   attribute is handled instead, e.g. in ``handleDeclAttribute``.
   (This was changed in order to better support attributes in code completion).
 
+- __has_cpp_attribute, __has_c_attribute, __has_attribute, and __has_declspec
+  will now macro expand their argument. This causes a change in behavior for
+  code using ``__has_cpp_attribute(__clang__::attr)`` (and same for
+  ``__has_c_attribute``) where it would previously expand to ``0`` for all
+  attributes, but will now issue an error due to the expansion of the
+  predefined ``__clang__`` macro.
+
 Windows Support
 ---------------
 
@@ -116,11 +129,15 @@ Windows Support
 C Language Changes in Clang
 ---------------------------
 
+- The value of ``__STDC_VERSION__`` has been bumped to ``202000L`` when passing
+  ``-std=c2x`` so that it can be distinguished from C17 mode. This value is
+  expected to change again when C23 is published.
 - Wide multi-characters literals such as ``L'ab'`` that would previously be interpreted as ``L'b'``
   are now ill-formed in all language modes. The motivation for this change is outlined in
   `P2362 <wg21.link/P2362>`_.
 - Support for ``__attribute__((error("")))`` and
   ``__attribute__((warning("")))`` function attributes have been added.
+- The maximum allowed alignment has been increased from 2^29 to 2^32.
 
 C++ Language Changes in Clang
 -----------------------------
@@ -133,7 +150,9 @@ C++20 Feature Support
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
-...
+- Implemented `P1938R3: if consteval <https://wg21.link/P1938R3>`_.
+- Implemented `P2360R0: Extend init-statement to allow alias-declaration <https://wg21.link/P2360R0>`_.
+
 
 CUDA Language Changes in Clang
 ------------------------------
@@ -168,6 +187,12 @@ X86 Support in Clang
 
 - Support for ``AVX512-FP16`` instructions has been added.
 
+Arm and AArch64 Support in Clang
+--------------------------------
+
+- Support has been added for the following processors (command-line identifiers in parentheses):
+  - Arm Cortex-A510 (``cortex-a510``)
+
 Internal API Changes
 --------------------
 
@@ -181,7 +206,11 @@ Build System Changes
 AST Matchers
 ------------
 
-- ...
+- ``TypeLoc`` AST Matchers are now available. These matchers provide helpful
+  utilities for matching ``TypeLoc`` nodes, such as the ``pointerTypeLoc``
+  matcher or the ``hasReturnTypeLoc`` matcher. The addition of these matchers
+  was made possible by changes to the handling of ``TypeLoc`` nodes that
+  allows them to enjoy the same static type checking as other AST node kinds.
 
 clang-format
 ------------

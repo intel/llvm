@@ -20,6 +20,12 @@
 #define __SEIEEED                                                              \
   __sycl_internal::__v1::ext::intel::experimental::esimd::emu::detail
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define __ESIMD_INTRIN SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+#else
+#define __ESIMD_INTRIN inline
+#endif // __SYCL_DEVICE_ONLY__
+
 __SYCL_OPEN_NS() {
 namespace ext {
 namespace intel {

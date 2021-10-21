@@ -721,6 +721,7 @@ def tvecshiftR64 : Operand<i32>, TImmLeaf<i32, [{
   let ParserMatchClass = Imm1_64Operand;
 }
 
+def Imm0_0Operand : AsmImmRange<0, 0>;
 def Imm0_1Operand : AsmImmRange<0, 1>;
 def Imm0_3Operand : AsmImmRange<0, 3>;
 def Imm0_7Operand : AsmImmRange<0, 7>;
@@ -1215,6 +1216,18 @@ def fpimm0 : FPImmLeaf<fAny, [{
   return Imm.isExactlyValue(+0.0);
 }]>;
 
+def fpimm_half : FPImmLeaf<fAny, [{
+  return Imm.isExactlyValue(+0.5);
+}]>;
+
+def fpimm_one : FPImmLeaf<fAny, [{
+  return Imm.isExactlyValue(+1.0);
+}]>;
+
+def fpimm_two : FPImmLeaf<fAny, [{
+  return Imm.isExactlyValue(+2.0);
+}]>;
+
 def gi_fpimm16 : GICustomOperandRenderer<"renderFPImm16">,
   GISDNodeXFormEquiv<fpimm16XForm>;
 def gi_fpimm32 : GICustomOperandRenderer<"renderFPImm32">,
@@ -1293,6 +1306,37 @@ defm sve_elm_idx_extdup_d
 defm sve_elm_idx_extdup_q
   : VectorIndex<i64, SVEVectorIndexExtDupQOperand,
                 [{ return ((uint64_t)Imm) < 4; }]>;
+
+def sme_elm_idx0_0 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) == 0;
+}]> {
+  let ParserMatchClass = Imm0_0Operand;
+  let PrintMethod = "printMatrixIndex";
+}
+def sme_elm_idx0_1 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) <= 1;
+}]> {
+  let ParserMatchClass = Imm0_1Operand;
+  let PrintMethod = "printMatrixIndex";
+}
+def sme_elm_idx0_3 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) <= 3;
+}]> {
+  let ParserMatchClass = Imm0_3Operand;
+  let PrintMethod = "printMatrixIndex";
+}
+def sme_elm_idx0_7 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) <= 7;
+}]> {
+  let ParserMatchClass = Imm0_7Operand;
+  let PrintMethod = "printMatrixIndex";
+}
+def sme_elm_idx0_15 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) <= 15;
+}]> {
+  let ParserMatchClass = Imm0_15Operand;
+  let PrintMethod = "printMatrixIndex";
+}
 
 // 8-bit immediate for AdvSIMD where 64-bit values of the form:
 // aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee ffffffff gggggggg hhhhhhhh

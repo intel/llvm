@@ -536,11 +536,11 @@ def MemRef_DimOp : MemRef_Op<"dim", [NoSideEffect, MemRefsNormalizable]> {
 
     ```mlir
     // Always returns 4, can be constant folded:
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     %x = memref.dim %A, %c0 : memref<4 x ? x f32>
 
     // Returns the dynamic dimension of %A.
-    %c1 = constant 1 : index
+    %c1 = arith.constant 1 : index
     %y = memref.dim %A, %c1 : memref<4 x ? x f32>
 
     // Equivalent generic form:
@@ -600,8 +600,8 @@ def MemRef_DmaStartOp : MemRef_Op<"dma_start"> {
     space 1 at indices [%k, %l], would be specified as follows:
 
     ```mlir
-    %num_elements = constant 256
-    %idx = constant 0 : index
+    %num_elements = arith.constant 256
+    %idx = arith.constant 0 : index
     %tag = alloc() : memref<1 x i32, (d0) -> (d0), 4>
     dma_start %src[%i, %j], %dst[%k, %l], %num_elements, %tag[%idx] :
       memref<40 x 128 x f32>, (d0) -> (d0), 0>,
@@ -839,6 +839,9 @@ def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
     // Private variable with an initial value.
     memref.global "private" @x : memref<2xf32> = dense<0.0,2.0>
 
+    // Private variable with an initial value and an alignment (power of 2).
+    memref.global "private" @x : memref<2xf32> = dense<0.0,2.0> {alignment = 64}
+
     // Declaration of an external variable.
     memref.global "private" @y : memref<4xi32>
 
@@ -855,7 +858,8 @@ def MemRef_GlobalOp : MemRef_Op<"global", [Symbol]> {
       OptionalAttr<StrAttr>:$sym_visibility,
       MemRefTypeAttr:$type,
       OptionalAttr<AnyAttr>:$initial_value,
-      UnitAttr:$constant
+      UnitAttr:$constant,
+      OptionalAttr<I64Attr>:$alignment
   );
 
   let assemblyFormat = [{

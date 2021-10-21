@@ -2705,8 +2705,8 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
     NewAttr = S.MergeWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
     NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
-  else if (const auto *BTFA = dyn_cast<BTFTagAttr>(Attr))
-    NewAttr = S.mergeBTFTagAttr(D, *BTFA);
+  else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
+    NewAttr = S.mergeBTFDeclTagAttr(D, *BTFA);
   else if (const auto *A = dyn_cast<IntelFPGABankWidthAttr>(Attr))
     NewAttr = S.MergeIntelFPGABankWidthAttr(D, *A);
   else if (const auto *A = dyn_cast<IntelFPGANumBanksAttr>(Attr))
@@ -2992,8 +2992,7 @@ void Sema::mergeDeclAttributes(NamedDecl *New, Decl *Old,
   if (const auto *NewAbiTagAttr = New->getAttr<AbiTagAttr>()) {
     if (const auto *OldAbiTagAttr = Old->getAttr<AbiTagAttr>()) {
       for (const auto &NewTag : NewAbiTagAttr->tags()) {
-        if (std::find(OldAbiTagAttr->tags_begin(), OldAbiTagAttr->tags_end(),
-                      NewTag) == OldAbiTagAttr->tags_end()) {
+        if (!llvm::is_contained(OldAbiTagAttr->tags(), NewTag)) {
           Diag(NewAbiTagAttr->getLocation(),
                diag::err_new_abi_tag_on_redeclaration)
               << NewTag;
@@ -9633,8 +9632,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
-  if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice))
-    checkDeviceDecl(NewFD, D.getBeginLoc());
+  checkTypeSupport(NewFD->getType(), D.getBeginLoc(), NewFD);
 
   if (!getLangOpts().CPlusPlus) {
     // Perform semantic checking on the function declaration.

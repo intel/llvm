@@ -12,9 +12,9 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Format.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 
 #define DEBUG_TYPE "load-binary"
@@ -22,21 +22,26 @@
 using namespace llvm;
 using namespace sampleprof;
 
-cl::opt<bool> ShowDisassemblyOnly("show-disassembly-only", cl::ReallyHidden,
-                                  cl::init(false), cl::ZeroOrMore,
+cl::opt<bool> ShowDisassemblyOnly("show-disassembly-only", cl::init(false),
+                                  cl::ZeroOrMore,
                                   cl::desc("Print disassembled code."));
 
-cl::opt<bool> ShowSourceLocations("show-source-locations", cl::ReallyHidden,
-                                  cl::init(false), cl::ZeroOrMore,
+cl::opt<bool> ShowSourceLocations("show-source-locations", cl::init(false),
+                                  cl::ZeroOrMore,
                                   cl::desc("Print source locations."));
 
-cl::opt<bool> ShowCanonicalFnName("show-canonical-fname", cl::ReallyHidden,
-                                  cl::init(false), cl::ZeroOrMore,
-                                  cl::desc("Print canonical function name."));
+static cl::opt<bool>
+    ShowCanonicalFnName("show-canonical-fname", cl::init(false), cl::ZeroOrMore,
+                        cl::desc("Print canonical function name."));
 
-cl::opt<bool> ShowPseudoProbe(
-    "show-pseudo-probe", cl::ReallyHidden, cl::init(false), cl::ZeroOrMore,
+static cl::opt<bool> ShowPseudoProbe(
+    "show-pseudo-probe", cl::init(false), cl::ZeroOrMore,
     cl::desc("Print pseudo probe section and disassembled info."));
+
+static cl::opt<bool> UseDwarfCorrelation(
+    "use-dwarf-correlation", cl::init(false), cl::ZeroOrMore,
+    cl::desc("Use dwarf for profile correlation even when binary contains "
+             "pseudo probe."));
 
 static cl::list<std::string> DisassembleFunctions(
     "disassemble-functions", cl::CommaSeparated,
@@ -62,8 +67,8 @@ void BinarySizeContextTracker::addInstructionForContext(
   ContextTrieNode *CurNode = &RootContext;
   bool IsLeaf = true;
   for (const auto &Callsite : reverse(Context)) {
-    StringRef CallerName = Callsite.CallerName;
-    LineLocation CallsiteLoc = IsLeaf ? LineLocation(0, 0) : Callsite.Callsite;
+    StringRef CallerName = Callsite.FuncName;
+    LineLocation CallsiteLoc = IsLeaf ? LineLocation(0, 0) : Callsite.Location;
     CurNode = CurNode->getOrCreateChildContext(CallsiteLoc, CallerName);
     IsLeaf = false;
   }
@@ -88,7 +93,7 @@ BinarySizeContextTracker::getFuncSizeForContext(const SampleContext &Context) {
     const auto &ChildFrame = Frames[I--];
     PrevNode = CurrNode;
     CurrNode =
-        CurrNode->getChildContext(ChildFrame.Callsite, ChildFrame.CallerName);
+        CurrNode->getChildContext(ChildFrame.Location, ChildFrame.FuncName);
     if (CurrNode && CurrNode->getFunctionSize().hasValue())
       Size = CurrNode->getFunctionSize().getValue();
   }
@@ -218,11 +223,17 @@ ProfiledBinary::getExpandedContext(const SmallVectorImpl<uint64_t> &Stack,
     ContextVec.append(ExpandedContext);
   }
 
+  // Replace with decoded base discriminator
+  for (auto &Frame : ContextVec) {
+    Frame.Location.Discriminator = ProfileGeneratorBase::getBaseDiscriminator(
+        Frame.Location.Discriminator);
+  }
+
   assert(ContextVec.size() && "Context length should be at least 1");
 
   // Compress the context string except for the leaf frame
   auto LeafFrame = ContextVec.back();
-  LeafFrame.Callsite = LineLocation(0, 0);
+  LeafFrame.Location = LineLocation(0, 0);
   ContextVec.pop_back();
   CSProfileGenerator::compressRecursionContext(ContextVec);
   CSProfileGenerator::trimContext(ContextVec);
@@ -265,6 +276,9 @@ void ProfiledBinary::setPreferredTextSegmentAddresses(const ELFObjectFileBase *O
 }
 
 void ProfiledBinary::decodePseudoProbe(const ELFObjectFileBase *Obj) {
+  if (UseDwarfCorrelation)
+    return;
+
   StringRef FileName = Obj->getFileName();
   for (section_iterator SI = Obj->section_begin(), SE = Obj->section_end();
        SI != SE; ++SI) {
@@ -541,9 +555,9 @@ SampleContextFrameVector ProfiledBinary::symbolize(const InstructionPointer &IP,
           PseudoProbeDwarfDiscriminator::extractProbeIndex(Discriminator);
       Discriminator = 0;
     } else {
-      Discriminator = DILocation::getBaseDiscriminatorFromDiscriminator(
-          CallerFrame.Discriminator,
-          /* IsFSDiscriminator */ false);
+      // Filter out invalid negative(int type) lineOffset
+      if (LineOffset & 0xffff0000)
+        return SampleContextFrameVector();
     }
 
     LineLocation Line(LineOffset, Discriminator);

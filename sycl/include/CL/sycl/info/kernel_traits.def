@@ -3,5 +3,6 @@ __SYCL_PARAM_TRAITS_SPEC(kernel, num_args, cl_uint)
 __SYCL_PARAM_TRAITS_SPEC(kernel, reference_count, cl_uint)
 __SYCL_PARAM_TRAITS_SPEC(kernel, attributes, std::string)
 __SYCL_PARAM_TRAITS_SPEC(kernel, context, __sycl_ns::context)
+#ifdef __SYCL_INTERNAL_API
 __SYCL_PARAM_TRAITS_SPEC(kernel, program, __sycl_ns::program)
-
+#endif

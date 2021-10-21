@@ -424,6 +424,7 @@ def warn_reserved_extern_symbol: Warning<
   "identifier %0 is reserved because %select{"
   "<ERROR>|" // ReservedIdentifierStatus::NotReserved
   "it starts with '_' at global scope|"
+  "it starts with '_' and has C language linkage|"
   "it starts with '__'|"
   "it starts with '_' followed by a capital letter|"
   "it contains '__'}1">,
@@ -1540,6 +1541,10 @@ def err_constexpr_if_condition_expression_is_not_constant : Error<
 def err_static_assert_failed : Error<"static_assert failed%select{ %1|}0">;
 def err_static_assert_requirement_failed : Error<
   "static_assert failed due to requirement '%0'%select{ %2|}1">;
+
+def warn_consteval_if_always_true : Warning<
+  "consteval if is always true in an %select{unevaluated|immediate}0 context">,
+  InGroup<DiagGroup<"redundant-consteval-if">>;
 
 def ext_inline_variable : ExtWarn<
   "inline variables are a C++17 extension">, InGroup<CXX17>;
@@ -3357,11 +3362,11 @@ def warn_attribute_has_no_effect_on_infinite_loop : Warning<
    InGroup<IgnoredAttributes>;
 def note_attribute_has_no_effect_on_infinite_loop_here : Note<
   "annotating the infinite loop here">;
-def warn_attribute_has_no_effect_on_if_constexpr : Warning<
-  "attribute %0 has no effect when annotating an 'if constexpr' statement">,
+def warn_attribute_has_no_effect_on_compile_time_if : Warning<
+  "attribute %0 has no effect when annotating an 'if %select{constexpr|consteval}1' statement">,
    InGroup<IgnoredAttributes>;
-def note_attribute_has_no_effect_on_if_constexpr_here : Note<
-  "annotating the 'if constexpr' statement here">;
+def note_attribute_has_no_effect_on_compile_time_if_here : Note<
+  "annotating the 'if %select{constexpr|consteval}0' statement here">;
 def err_decl_attribute_invalid_on_stmt : Error<
   "%0 attribute cannot be applied to a statement">;
 def err_stmt_attribute_invalid_on_decl : Error<
@@ -3593,6 +3598,9 @@ def warn_availability_swift_unavailable_deprecated_only : Warning<
   InGroup<Availability>;
 def note_protocol_method : Note<
   "protocol method is here">;
+def warn_availability_fuchsia_unavailable_minor : Warning<
+  "Fuchsia API Level prohibits specifying a minor or sub-minor version">,
+  InGroup<Availability>;
 
 def warn_unguarded_availability :
   Warning<"%0 is only available on %1 %2 or newer">,
@@ -5988,6 +5996,8 @@ def note_protected_by_vla_type_alias : Note<
   "jump bypasses initialization of VLA type alias">;
 def note_protected_by_constexpr_if : Note<
   "jump enters controlled statement of constexpr if">;
+def note_protected_by_consteval_if : Note<
+  "jump enters controlled statement of consteval if">;
 def note_protected_by_if_available : Note<
   "jump enters controlled statement of if available">;
 def note_protected_by_vla : Note<
@@ -10755,8 +10765,8 @@ def err_omp_invariant_or_linear_dependency : Error<
   "expected loop invariant expression or '<invariant1> * %0 + <invariant2>' kind of expression">;
 def err_omp_wrong_dependency_iterator_type : Error<
   "expected an integer or a pointer type of the outer loop counter '%0' for non-rectangular nests">;
-def err_device_unsupported_type
-    : Error<"%0 requires %select{|%2 bit size}1 %3 type support, but device "
+def err_target_unsupported_type
+    : Error<"%0 requires %select{|%2 bit size}1 %3 type support, but target "
             "'%4' does not support it">;
 def err_omp_lambda_capture_in_declare_target_not_to : Error<
   "variable captured in declare target region must appear in a to clause">;
@@ -10859,6 +10869,10 @@ def err_omp_unroll_full_variable_trip_count : Error<
 def note_omp_directive_here : Note<"'%0' directive found here">;
 def err_omp_instantiation_not_supported
     : Error<"instantiation of '%0' not supported yet">;
+def err_omp_adjust_arg_multiple_clauses : Error<
+  "'adjust_arg' argument %0 used in multiple clauses">;
+def err_omp_clause_requires_dispatch_construct : Error<
+  "'%0' clause requires 'dispatch' context selector">;
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {

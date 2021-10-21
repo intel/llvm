@@ -87,6 +87,8 @@
 ??$get_info@$0BABBA@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0BABBB@@device@__v1@__sycl_internal@@QEBA?AV?$vector@W4memory_order@__v1@__sycl_internal@@V?$allocator@W4memory_order@__v1@__sycl_internal@@@std@@@std@@XZ
 ??$get_info@$0BABBB@@device@sycl@cl@@QEBA?AV?$vector@W4memory_order@sycl@cl@@V?$allocator@W4memory_order@sycl@cl@@@std@@@std@@XZ
+??$get_info@$0BABBC@@kernel@__v1@__sycl_internal@@QEBAIAEBVdevice@12@@Z
+??$get_info@$0BABBC@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@$0BABC@@device@__v1@__sycl_internal@@QEBA_KXZ
 ??$get_info@$0BABC@@device@sycl@cl@@QEBA_KXZ
 ??$get_info@$0BABD@@device@__v1@__sycl_internal@@QEBA_KXZ
@@ -251,6 +253,14 @@
 ??$get_info@$0BBNC@@event@sycl@cl@@QEBAIXZ
 ??$get_info@$0BBND@@event@__v1@__sycl_internal@@QEBA?AW4event_command_status@info@12@XZ
 ??$get_info@$0BBND@@event@sycl@cl@@QEBA?AW4event_command_status@info@12@XZ
+??$get_info@$0CAAAA@@device@__v1@__sycl_internal@@QEBA_KXZ
+??$get_info@$0CAAAA@@device@sycl@cl@@QEBA_KXZ
+??$get_info@$0CAAAB@@device@__v1@__sycl_internal@@QEBA?AV?$id@$00@12@XZ
+??$get_info@$0CAAAB@@device@sycl@cl@@QEBA?AV?$id@$00@12@XZ
+??$get_info@$0CAAAC@@device@__v1@__sycl_internal@@QEBA?AV?$id@$01@12@XZ
+??$get_info@$0CAAAC@@device@sycl@cl@@QEBA?AV?$id@$01@12@XZ
+??$get_info@$0CAAAD@@device@__v1@__sycl_internal@@QEBA?AV?$id@$02@12@XZ
+??$get_info@$0CAAAD@@device@sycl@cl@@QEBA?AV?$id@$02@12@XZ
 ??$get_info@$0CADD@@kernel@__v1@__sycl_internal@@QEBAIAEBVdevice@12@V?$range@$02@12@@Z
 ??$get_info@$0CADD@@kernel@sycl@cl@@QEBAIAEBVdevice@12@V?$range@$02@12@@Z
 ??$get_info@$0EBAI@@device@__v1@__sycl_internal@@QEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
@@ -673,7 +683,9 @@
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@AEBM@Z
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@AEBV01234@@Z
 ??0half_v2@host_half_impl@detail@sycl@cl@@QEAA@G@Z
+??0handler@__v1@__sycl_internal@@AEAA@V?$shared_ptr@Vqueue_impl@detail@__v1@__sycl_internal@@@std@@00_N@Z
 ??0handler@__v1@__sycl_internal@@AEAA@V?$shared_ptr@Vqueue_impl@detail@__v1@__sycl_internal@@@std@@_N@Z
+??0handler@sycl@cl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@00_N@Z
 ??0handler@sycl@cl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_N@Z
 ??0host_selector@__v1@__sycl_internal@@QEAA@$$QEAV012@@Z
 ??0host_selector@__v1@__sycl_internal@@QEAA@AEBV012@@Z

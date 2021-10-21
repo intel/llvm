@@ -4571,4 +4571,11 @@
 #pragma comment(linker, "/export:?isStateExplicitKernelBundle@handler@sycl@cl@@AEBA_NXZ=?isStateExplicitKernelBundle@handler@__v1@__sycl_internal@@AEBA_NXZ")
 #pragma comment(linker, "/export:?setStateSpecConstSet@handler@sycl@cl@@AEAAXXZ=?setStateSpecConstSet@handler@__v1@__sycl_internal@@AEAAXXZ")
 #pragma comment(linker, "/export:?setStateExplicitKernelBundle@handler@sycl@cl@@AEAAXXZ=?setStateExplicitKernelBundle@handler@__v1@__sycl_internal@@AEAAXXZ")
+#pragma comment(linker, "/export:?setStateExplicitKernelBundle@handler@sycl@cl@@AEAAXXZ=?setStateExplicitKernelBundle@handler@__v1@__sycl_internal@@AEAAXXZ")
+#pragma comment(linker, "/export:??$get_info@$0CAAAB@@device@sycl@cl@@QEBA?AV?$id@$00@12@XZ=??$get_info@$0CAAAB@@device@__v1@__sycl_internal@@QEBA?AV?$id@$00@12@XZ")
+#pragma comment(linker, "/export:??$get_info@$0CAAAD@@device@sycl@cl@@QEBA?AV?$id@$02@12@XZ=??$get_info@$0CAAAD@@device@__v1@__sycl_internal@@QEBA?AV?$id@$02@12@XZ")
+#pragma comment(linker, "/export:??0handler@sycl@cl@@AEAA@V?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@00_N@Z=??0handler@__v1@__sycl_internal@@AEAA@V?$shared_ptr@Vqueue_impl@detail@__v1@__sycl_internal@@@std@@00_N@Z")
+#pragma comment(linker, "/export:??$get_info@$0CAAAC@@device@sycl@cl@@QEBA?AV?$id@$01@12@XZ=??$get_info@$0CAAAC@@device@__v1@__sycl_internal@@QEBA?AV?$id@$01@12@XZ")
+#pragma comment(linker, "/export:??$get_info@$0CAAAA@@device@sycl@cl@@QEBA_KXZ=??$get_info@$0CAAAA@@device@__v1@__sycl_internal@@QEBA_KXZ")
+#pragma comment(linker, "/export:??$get_info@$0BABBC@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z=??$get_info@$0BABBC@@kernel@__v1@__sycl_internal@@QEBAIAEBVdevice@12@@Z")
 // clang-format on

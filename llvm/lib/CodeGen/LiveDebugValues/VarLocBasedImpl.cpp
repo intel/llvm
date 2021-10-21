@@ -546,7 +546,6 @@ private:
               EVKind == EntryValueLocKind::EntryValueKind ? Orig.getReg()
                                                           : Register(Loc.RegNo),
               false));
-          MOs.back().setIsDebug();
           break;
         case MachineLocKind::SpillLocKind: {
           // Spills are indirect DBG_VALUEs, with a base register and offset.
@@ -568,7 +567,6 @@ private:
             DIExpr = DIExpression::appendOpsToArg(DIExpr, Ops, I);
           }
           MOs.push_back(MachineOperand::CreateReg(Base, false));
-          MOs.back().setIsDebug();
           break;
         }
         case MachineLocKind::ImmediateKind: {
@@ -1016,8 +1014,9 @@ private:
   /// had their instruction creation deferred.
   void flushPendingLocs(VarLocInMBB &PendingInLocs, VarLocMap &VarLocIDs);
 
-  bool ExtendRanges(MachineFunction &MF, TargetPassConfig *TPC,
-                    unsigned InputBBLimit, unsigned InputDbgValLimit) override;
+  bool ExtendRanges(MachineFunction &MF, MachineDominatorTree *DomTree,
+                    TargetPassConfig *TPC, unsigned InputBBLimit,
+                    unsigned InputDbgValLimit) override;
 
 public:
   /// Default construct and initialize the pass.
@@ -2109,9 +2108,11 @@ void VarLocBasedLDV::recordEntryValue(const MachineInstr &MI,
 
 /// Calculate the liveness information for the given machine function and
 /// extend ranges across basic blocks.
-bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF, TargetPassConfig *TPC,
-                                  unsigned InputBBLimit,
+bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF,
+                                  MachineDominatorTree *DomTree,
+                                  TargetPassConfig *TPC, unsigned InputBBLimit,
                                   unsigned InputDbgValLimit) {
+  (void)DomTree;
   LLVM_DEBUG(dbgs() << "\nDebug Range Extension\n");
 
   if (!MF.getFunction().getSubprogram())

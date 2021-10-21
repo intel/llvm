@@ -3457,8 +3457,7 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   // For __rlwnm, __rlwimi and __rldimi, the last parameter mask must
   // be a constant that represents a contiguous bit field.
   case PPC::BI__builtin_ppc_rlwnm:
-    return SemaBuiltinConstantArg(TheCall, 1, Result) ||
-           SemaValueIsRunOfOnes(TheCall, 2);
+    return SemaValueIsRunOfOnes(TheCall, 2);
   case PPC::BI__builtin_ppc_rlwimi:
   case PPC::BI__builtin_ppc_rldimi:
     return SemaBuiltinConstantArg(TheCall, 2, Result) ||
@@ -3546,9 +3545,9 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case PPC::BI__builtin_ppc_store8r:
     return SemaFeatureCheck(*this, TheCall, "isa-v206-instructions",
                             diag::err_ppc_builtin_only_on_arch, "7");
-#define CUSTOM_BUILTIN(Name, Intr, Types, Acc) \
-  case PPC::BI__builtin_##Name: \
-    return SemaBuiltinPPCMMACall(TheCall, Types);
+#define CUSTOM_BUILTIN(Name, Intr, Types, Acc)                                 \
+  case PPC::BI__builtin_##Name:                                                \
+    return SemaBuiltinPPCMMACall(TheCall, BuiltinID, Types);
 #include "clang/Basic/BuiltinsPPC.def"
   }
   return SemaBuiltinConstantArgRange(TheCall, i, l, u);
@@ -7620,10 +7619,34 @@ bool Sema::SemaBuiltinARMSpecialReg(unsigned BuiltinID, CallExpr *TheCall,
 /// Emit an error and return true on failure; return false on success.
 /// TypeStr is a string containing the type descriptor of the value returned by
 /// the builtin and the descriptors of the expected type of the arguments.
-bool Sema::SemaBuiltinPPCMMACall(CallExpr *TheCall, const char *TypeStr) {
+bool Sema::SemaBuiltinPPCMMACall(CallExpr *TheCall, unsigned BuiltinID,
+                                 const char *TypeStr) {
 
   assert((TypeStr[0] != '\0') &&
          "Invalid types in PPC MMA builtin declaration");
+
+  switch (BuiltinID) {
+  default:
+    // This function is called in CheckPPCBuiltinFunctionCall where the
+    // BuiltinID is guaranteed to be an MMA or pair vector memop builtin, here
+    // we are isolating the pair vector memop builtins that can be used with mma
+    // off so the default case is every builtin that requires mma and paired
+    // vector memops.
+    if (SemaFeatureCheck(*this, TheCall, "paired-vector-memops",
+                         diag::err_ppc_builtin_only_on_arch, "10") ||
+        SemaFeatureCheck(*this, TheCall, "mma",
+                         diag::err_ppc_builtin_only_on_arch, "10"))
+      return true;
+    break;
+  case PPC::BI__builtin_vsx_lxvp:
+  case PPC::BI__builtin_vsx_stxvp:
+  case PPC::BI__builtin_vsx_assemble_pair:
+  case PPC::BI__builtin_vsx_disassemble_pair:
+    if (SemaFeatureCheck(*this, TheCall, "paired-vector-memops",
+                         diag::err_ppc_builtin_only_on_arch, "10"))
+      return true;
+    break;
+  }
 
   unsigned Mask = 0;
   unsigned ArgNum = 0;
@@ -7642,13 +7665,23 @@ bool Sema::SemaBuiltinPPCMMACall(CallExpr *TheCall, const char *TypeStr) {
     }
 
     Expr *Arg = TheCall->getArg(ArgNum);
-    QualType ArgType = Arg->getType();
+    QualType PassedType = Arg->getType();
+    QualType StrippedRVType = PassedType.getCanonicalType();
 
-    if ((ExpectedType->isVoidPointerType() && !ArgType->isPointerType()) ||
-        (!ExpectedType->isVoidPointerType() &&
-           ArgType.getCanonicalType() != ExpectedType))
-      return Diag(Arg->getBeginLoc(), diag::err_typecheck_convert_incompatible)
-             << ArgType << ExpectedType << 1 << 0 << 0;
+    // Strip Restrict/Volatile qualifiers.
+    if (StrippedRVType.isRestrictQualified() ||
+        StrippedRVType.isVolatileQualified())
+      StrippedRVType = StrippedRVType.getCanonicalType().getUnqualifiedType();
+
+    // The only case where the argument type and expected type are allowed to
+    // mismatch is if the argument type is a non-void pointer and expected type
+    // is a void pointer.
+    if (StrippedRVType != ExpectedType)
+      if (!(ExpectedType->isVoidPointerType() &&
+            StrippedRVType->isPointerType()))
+        return Diag(Arg->getBeginLoc(),
+                    diag::err_typecheck_convert_incompatible)
+               << PassedType << ExpectedType << 1 << 0 << 0;
 
     // If the value of the Mask is not 0, we have a constraint in the size of
     // the integer argument so here we ensure the argument is a constant that

@@ -234,6 +234,10 @@ tileAndFuseLinalgOps(OpBuilder &builder, ArrayRef<LinalgOp> ops,
 void interchangeGenericOp(PatternRewriter &rewriter, GenericOp genericOp,
                           ArrayRef<unsigned> interchangeVector);
 
+/// Creates a GenericOp from the given named operation `namedOp`. Assumes
+/// `namedOp` is not a GenericOp and has a region builder.
+GenericOp generalizeNamedOp(PatternRewriter &rewriter, LinalgOp namedOp);
+
 /// Callback function type used to perform the allocation for the promoted
 /// `subView`. In `boundingSubViewsize` a best attempt is made to find the
 /// smallest constant value for the size of the buffer needed for each
@@ -380,6 +384,9 @@ LogicalResult
 interchangeGenericOpPrecondition(GenericOp genericOp,
                                  ArrayRef<unsigned> interchangeVector);
 
+/// Generalize named operations to generic operations.
+LogicalResult generalizeNamedOpPrecondition(Operation *op);
+
 /// Promote std.subviews feeding linalg operations.
 LogicalResult promoteSubviewsPrecondition(Operation *op,
                                           LinalgPromotionOptions options);
@@ -444,6 +451,10 @@ using TileSizeComputationFunction =
 /// operand type.
 using PaddingValueComputationFunction =
     std::function<FailureOr<Value>(OpBuilder &, OpOperand &)>;
+
+/// Callback returning true if the pad tensor operation defining the given
+/// OpOperand shall be marked as nofold to enable packing.
+using PaddingNoFoldComputationFunction = std::function<bool(OpOperand &)>;
 
 struct LinalgTilingOptions {
   /// Computation function that returns the tile sizes for each operation.
@@ -516,6 +527,18 @@ struct LinalgTilingOptions {
   LinalgTilingOptions &
   setPaddingValueComputationFunction(PaddingValueComputationFunction fun) {
     paddingValueComputationFunction = std::move(fun);
+    return *this;
+  }
+
+  /// Callback returning true if the pad tensor operation defining the given
+  /// OpOperand shall be marked as nofold to enable packing. A padding operation
+  /// is only marked nofold if `paddingNoFoldComputationFunction` is set and
+  /// returns true. Otherwise, the nofold attribute is set to false.
+  PaddingNoFoldComputationFunction paddingNoFoldComputationFunction = nullptr;
+
+  LinalgTilingOptions &
+  setPaddingNoFoldComputationFunction(PaddingNoFoldComputationFunction fun) {
+    paddingNoFoldComputationFunction = std::move(fun);
     return *this;
   }
 
@@ -702,6 +725,31 @@ private:
 };
 
 ///
+/// Linalg generalization pattern.
+///
+/// Apply the `generalization` transformation as a pattern.
+/// `filter` controls LinalgTransformMarker matching and update when specified.
+/// See `generalization` for more details.
+struct LinalgGeneralizationPattern : public RewritePattern {
+  // Entry point to match any LinalgOp OpInterface.
+  LinalgGeneralizationPattern(
+      MLIRContext *context,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
+  // Entry point to match a specific Linalg op.
+  LinalgGeneralizationPattern(
+      StringRef opName, MLIRContext *context,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override;
+
+private:
+  /// LinalgTransformMarker handles special attribute manipulations.
+  LinalgTransformationFilter filter;
+};
+
+///
 /// Linalg promotion patterns.
 ///
 /// Apply the `promoteSubViews` transformation as a pattern.
@@ -803,6 +851,8 @@ struct LateCodegenStrategyOptions {
   bool enableHoistRedundantVectorTransfersOnTensor = true;
   /// Vector lowering operations may result in surprising behavior when
   /// composing multiple codegen strategies and must be enabled explicitly.
+  int64_t maxTransferRank = 1;
+  bool enableVectorTransferLowering = true;
   bool enableVectorTransferPartialRewrite = false;
   bool enableVectorContractLowering = false;
   bool enableVectorToSCFConversion = false;
@@ -820,6 +870,8 @@ struct LinalgEnablingOptions {
 /// Vector lowering options control how ops are lowered down to 1-D and scf.for
 /// form.
 struct LinalgVectorLoweringOptions {
+  int64_t maxTransferRank = 1;
+  bool enableVectorTransferLowering = true;
   bool enableVectorTransferPartialRewrite = false;
   bool enableVectorContractLowering = false;
   bool enableVectorToSCFConversion = false;
@@ -938,12 +990,6 @@ void populateLinalgNamedOpsGeneralizationPatterns(
     RewritePatternSet &patterns,
     LinalgTransformationFilter filter = LinalgTransformationFilter());
 
-/// Populates `patterns` with patterns to convert linalg.conv ops to
-/// linalg.generic ops.
-void populateLinalgConvGeneralizationPatterns(
-    RewritePatternSet &patterns,
-    LinalgTransformationFilter filter = LinalgTransformationFilter());
-
 /// Linalg distribution patterns
 //
 /// Populates `patterns` with patterns to distribute linalg.tiled_loop.
@@ -969,6 +1015,7 @@ struct PadTensorOpTransformationPattern : public OpRewritePattern<PadTensorOp> {
 LogicalResult
 rewriteAsPaddedOp(PatternRewriter &rewriter, LinalgOp opToPad,
                   const PaddingValueComputationFunction &paddingFunc,
+                  const PaddingNoFoldComputationFunction &nofoldFunc,
                   LinalgOp &paddedOp);
 
 using OptimizeCopyFn =

@@ -180,7 +180,7 @@ Operation::Operation(Location location, OperationName name, unsigned numResults,
         name.getStringRef() +
         " created with unregistered dialect. If this is intended, please call "
         "allowUnregisteredDialects() on the MLIRContext, or use "
-        "-allow-unregistered-dialect with the MLIR opt tool used");
+        "-allow-unregistered-dialect with the MLIR tool used.");
 #endif
 }
 
@@ -646,8 +646,9 @@ void OpState::printOpName(Operation *op, OpAsmPrinter &p,
   StringRef name = op->getName().getStringRef();
   if (name.startswith((defaultDialect + ".").str()))
     name = name.drop_front(defaultDialect.size() + 1);
-  // TODO: remove this special case.
-  else if (name.startswith("std."))
+  // TODO: remove this special case (and update test/IR/parser.mlir)
+  else if ((defaultDialect.empty() || defaultDialect == "builtin") &&
+           name.startswith("std."))
     name = name.drop_front(4);
   p.getStream() << name;
 }

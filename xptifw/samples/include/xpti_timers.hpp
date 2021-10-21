@@ -69,6 +69,7 @@ inline uint64_t getCPU() { return GetCurrentProcessorNumber(); }
 inline xpti::timer::tick_t rdtsc() {
   struct timespec ts;
   int status = clock_gettime(CLOCK_REALTIME, &ts);
+  (void)status;
   return (static_cast<tick_t>(1000000000UL) * static_cast<tick_t>(ts.tv_sec) +
           static_cast<tick_t>(ts.tv_nsec));
 }

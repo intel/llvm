@@ -25,8 +25,8 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/MC/MCInstBuilder.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -457,6 +457,12 @@ void RISCVInstrInfo::movImm(MachineBasicBlock &MBB,
       BuildMI(MBB, MBBI, DL, get(RISCV::ADDUW), Result)
           .addReg(SrcReg, RegState::Kill)
           .addReg(RISCV::X0)
+          .setMIFlag(Flag);
+    } else if (Inst.Opc == RISCV::SH1ADD || Inst.Opc == RISCV::SH2ADD ||
+               Inst.Opc == RISCV::SH3ADD) {
+      BuildMI(MBB, MBBI, DL, get(Inst.Opc), Result)
+          .addReg(SrcReg, RegState::Kill)
+          .addReg(SrcReg, RegState::Kill)
           .setMIFlag(Flag);
     } else {
       BuildMI(MBB, MBBI, DL, get(Inst.Opc), Result)

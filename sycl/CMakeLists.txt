@@ -100,6 +100,8 @@ set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
+set(feature_header "${sycl_inc_dir}/CL/sycl/feature_test.hpp")
+configure_file("${feature_header}.in" "${feature_header}")
 
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
@@ -310,8 +312,8 @@ endif()
 # TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
 # environment
 if (NOT MSVC)
-  if (SYCL_BUILD_PI_ESIMD_CPU)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
+  if (SYCL_BUILD_PI_ESIMD_EMULATOR)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
     if (MSVC)
       list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
     else()

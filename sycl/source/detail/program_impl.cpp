@@ -117,7 +117,9 @@ program_impl::program_impl(
 
 program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram)
-    : program_impl(Context, InteropProgram, nullptr) {}
+    : program_impl(Context, InteropProgram, nullptr) {
+  MIsInterop = true;
+}
 
 program_impl::program_impl(ContextImplPtr Context,
                            pi_native_handle InteropProgram,
@@ -198,7 +200,9 @@ program_impl::program_impl(ContextImplPtr Context,
 program_impl::program_impl(ContextImplPtr Context, RT::PiKernel Kernel)
     : program_impl(Context, reinterpret_cast<pi_native_handle>(nullptr),
                    ProgramManager::getInstance().getPiProgramFromPiKernel(
-                       Kernel, Context)) {}
+                       Kernel, Context)) {
+  MIsInterop = true;
+}
 
 program_impl::~program_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -244,6 +248,7 @@ void program_impl::compile_with_source(std::string KernelSource,
     compile(CompileOptions);
   }
   MState = program_state::compiled;
+  MIsInterop = true;
 }
 
 void program_impl::build_with_kernel_name(std::string KernelName,
@@ -275,6 +280,7 @@ void program_impl::build_with_source(std::string KernelSource,
     build(BuildOptions);
   }
   MState = program_state::linked;
+  MIsInterop = true;
 }
 
 void program_impl::link(std::string LinkOptions) {
@@ -304,7 +310,25 @@ bool program_impl::has_kernel(std::string KernelName,
   if (is_host()) {
     return !IsCreatedFromSource;
   }
-  return has_cl_kernel(KernelName);
+
+  std::vector<RT::PiDevice> Devices(get_pi_devices());
+  pi_uint64 function_ptr;
+  const detail::plugin &Plugin = getPlugin();
+
+  RT::PiResult Err = PI_SUCCESS;
+  for (RT::PiDevice Device : Devices) {
+    Err = Plugin.call_nocheck<PiApiKind::piextGetDeviceFunctionPointer>(
+        Device, MProgram, KernelName.c_str(), &function_ptr);
+    if (Err != PI_SUCCESS && Err != PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE &&
+        Err != PI_INVALID_KERNEL_NAME)
+      throw runtime_error(
+          "Error from piextGetDeviceFunctionPointer when called by program",
+          Err);
+    if (Err == PI_SUCCESS || Err == PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE)
+      return true;
+  }
+
+  return false;
 }
 
 kernel program_impl::get_kernel(std::string KernelName,
@@ -413,26 +437,6 @@ std::vector<RT::PiDevice> program_impl::get_pi_devices() const {
     PiDevices.push_back(getSyclObjImpl(Device)->getHandleRef());
   }
   return PiDevices;
-}
-
-bool program_impl::has_cl_kernel(const std::string &KernelName) const {
-  size_t Size;
-  const detail::plugin &Plugin = getPlugin();
-  Plugin.call<PiApiKind::piProgramGetInfo>(
-      MProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size);
-  std::string ClResult(Size, ' ');
-  Plugin.call<PiApiKind::piProgramGetInfo>(
-      MProgram, PI_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0],
-      nullptr);
-  // Get rid of the null terminator
-  ClResult.pop_back();
-  std::vector<std::string> KernelNames(split_string(ClResult, ';'));
-  for (const auto &Name : KernelNames) {
-    if (Name == KernelName) {
-      return true;
-    }
-  }
-  return false;
 }
 
 RT::PiKernel program_impl::get_pi_kernel(const std::string &KernelName) const {

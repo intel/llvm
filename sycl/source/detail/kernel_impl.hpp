@@ -200,6 +200,8 @@ public:
 
   KernelBundleImplPtr get_kernel_bundle() const { return MKernelBundleImpl; }
 
+  bool isInterop() const { return MIsInterop; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
@@ -207,6 +209,7 @@ private:
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
+  bool MIsInterop = false;
 };
 
 template <info::kernel param>
@@ -226,10 +229,12 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
 
+#ifdef __SYCL_INTERNAL_API
 template <>
 inline program kernel_impl::get_info<info::kernel::program>() const {
   return createSyclObjFromImpl<program>(MProgramImpl);
 }
+#endif
 
 template <info::kernel_device_specific param>
 inline typename info::param_traits<info::kernel_device_specific,

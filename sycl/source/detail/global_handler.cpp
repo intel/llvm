@@ -88,10 +88,8 @@ std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
   return getOrCreate(MHandlerExtendedMembersMutex);
 }
 
-void shutdown() {
-  // First, release resources, that may access plugins.
-  GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
-  GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
+void releaseSharedGlobalHandles() {
+  // Release shared-pointers to SYCL objects.
 #ifndef _WIN32
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
 #else
@@ -103,6 +101,12 @@ void shutdown() {
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
 #endif
   GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
+}
+
+void shutdown() {
+  // First, release resources, that may access plugins.
+  GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
+  GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
 
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,
@@ -130,6 +134,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
+    releaseSharedGlobalHandles();
     shutdown();
     break;
   case DLL_PROCESS_ATTACH:
@@ -140,6 +145,14 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
+// Release shared SYCL object implementation handles at normal destructor
+// priority to avoid the global handler from keeping the objects alive after
+// the backends have destroyed any state they may rely on to correctly handle
+// further operations.
+__attribute__((destructor)) static void syclPreunload() {
+  releaseSharedGlobalHandles();
+}
+
 // Setting low priority on destructor ensures it runs after all other global
 // destructors. Priorities 0-100 are reserved by the compiler. The priority
 // value 110 allows SYCL users to run their destructors after runtime library

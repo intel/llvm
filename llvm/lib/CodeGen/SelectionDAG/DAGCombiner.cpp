@@ -129,12 +129,12 @@ static cl::opt<unsigned> StoreMergeDependenceLimit(
 
 static cl::opt<bool> EnableReduceLoadOpStoreWidth(
     "combiner-reduce-load-op-store-width", cl::Hidden, cl::init(true),
-    cl::desc("DAG cominber enable reducing the width of load/op/store "
+    cl::desc("DAG combiner enable reducing the width of load/op/store "
              "sequence"));
 
 static cl::opt<bool> EnableShrinkLoadReplaceStoreWithStore(
     "combiner-shrink-load-replace-store-with-store", cl::Hidden, cl::init(true),
-    cl::desc("DAG cominber enable load/<replace bytes>/store with "
+    cl::desc("DAG combiner enable load/<replace bytes>/store with "
              "a narrower store"));
 
 namespace {
@@ -12305,7 +12305,7 @@ SDValue DAGCombiner::visitTRUNCATE(SDNode *N) {
     SDValue Amt = N0.getOperand(1);
     KnownBits Known = DAG.computeKnownBits(Amt);
     unsigned Size = VT.getScalarSizeInBits();
-    if (Known.getBitWidth() - Known.countMinLeadingZeros() <= Log2_32(Size)) {
+    if (Known.countMaxActiveBits() <= Log2_32(Size)) {
       SDLoc SL(N);
       EVT AmtVT = TLI.getShiftAmountTy(VT, DAG.getDataLayout());
 
@@ -20610,7 +20610,7 @@ SDValue DAGCombiner::visitEXTRACT_SUBVECTOR(SDNode *N) {
     // If the concatenated source types match this extract, it's a direct
     // simplification:
     // extract_subvec (concat V1, V2, ...), i --> Vi
-    if (ConcatSrcNumElts == ExtNumElts)
+    if (NVT.getVectorElementCount() == ConcatSrcVT.getVectorElementCount())
       return V.getOperand(ConcatOpIdx);
 
     // If the concatenated source vectors are a multiple length of this extract,
@@ -20618,7 +20618,8 @@ SDValue DAGCombiner::visitEXTRACT_SUBVECTOR(SDNode *N) {
     // concat operand. Example:
     //   v2i8 extract_subvec (v16i8 concat (v8i8 X), (v8i8 Y), 14 -->
     //   v2i8 extract_subvec v8i8 Y, 6
-    if (NVT.isFixedLengthVector() && ConcatSrcNumElts % ExtNumElts == 0) {
+    if (NVT.isFixedLengthVector() && ConcatSrcVT.isFixedLengthVector() &&
+        ConcatSrcNumElts % ExtNumElts == 0) {
       SDLoc DL(N);
       unsigned NewExtIdx = ExtIdx - ConcatOpIdx * ConcatSrcNumElts;
       assert(NewExtIdx + ExtNumElts <= ConcatSrcNumElts &&
@@ -21253,15 +21254,9 @@ SDValue DAGCombiner::visitVECTOR_SHUFFLE(SDNode *N) {
   ShuffleVectorSDNode *SVN = cast<ShuffleVectorSDNode>(N);
 
   // Canonicalize shuffle v, v -> v, undef
-  if (N0 == N1) {
-    SmallVector<int, 8> NewMask;
-    for (unsigned i = 0; i != NumElts; ++i) {
-      int Idx = SVN->getMaskElt(i);
-      if (Idx >= (int)NumElts) Idx -= NumElts;
-      NewMask.push_back(Idx);
-    }
-    return DAG.getVectorShuffle(VT, SDLoc(N), N0, DAG.getUNDEF(VT), NewMask);
-  }
+  if (N0 == N1)
+    return DAG.getVectorShuffle(VT, SDLoc(N), N0, DAG.getUNDEF(VT),
+                                createUnaryMask(SVN->getMask(), NumElts));
 
   // Canonicalize shuffle undef, v -> v, undef.  Commute the shuffle mask.
   if (N0.isUndef())
@@ -23045,9 +23040,10 @@ SDValue DAGCombiner::BuildDivEstimate(SDValue N, SDValue Op,
   if (LegalDAG)
     return SDValue();
 
-  // TODO: Handle half and/or extended types?
+  // TODO: Handle extended types?
   EVT VT = Op.getValueType();
-  if (VT.getScalarType() != MVT::f32 && VT.getScalarType() != MVT::f64)
+  if (VT.getScalarType() != MVT::f16 && VT.getScalarType() != MVT::f32 &&
+      VT.getScalarType() != MVT::f64)
     return SDValue();
 
   // If estimates are explicitly disabled for this function, we're done.
@@ -23184,9 +23180,10 @@ SDValue DAGCombiner::buildSqrtEstimateImpl(SDValue Op, SDNodeFlags Flags,
   if (LegalDAG)
     return SDValue();
 
-  // TODO: Handle half and/or extended types?
+  // TODO: Handle extended types?
   EVT VT = Op.getValueType();
-  if (VT.getScalarType() != MVT::f32 && VT.getScalarType() != MVT::f64)
+  if (VT.getScalarType() != MVT::f16 && VT.getScalarType() != MVT::f32 &&
+      VT.getScalarType() != MVT::f64)
     return SDValue();
 
   // If estimates are explicitly disabled for this function, we're done.

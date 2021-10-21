@@ -849,6 +849,7 @@ typedef struct kmp_nested_proc_bind_t {
 } kmp_nested_proc_bind_t;
 
 extern kmp_nested_proc_bind_t __kmp_nested_proc_bind;
+extern kmp_proc_bind_t __kmp_teams_proc_bind;
 
 extern int __kmp_display_affinity;
 extern char *__kmp_affinity_format;
@@ -989,7 +990,7 @@ typedef omp_memspace_handle_t kmp_memspace_t; // placeholder
 typedef struct kmp_allocator_t {
   omp_memspace_handle_t memspace;
   void **memkind; // pointer to memkind
-  int alignment;
+  size_t alignment;
   omp_alloctrait_value_t fb;
   kmp_allocator_t *fb_data;
   kmp_uint64 pool_size;
@@ -1003,13 +1004,25 @@ extern omp_allocator_handle_t __kmpc_init_allocator(int gtid,
 extern void __kmpc_destroy_allocator(int gtid, omp_allocator_handle_t al);
 extern void __kmpc_set_default_allocator(int gtid, omp_allocator_handle_t al);
 extern omp_allocator_handle_t __kmpc_get_default_allocator(int gtid);
+// external interfaces, may be used by compiler
 extern void *__kmpc_alloc(int gtid, size_t sz, omp_allocator_handle_t al);
+extern void *__kmpc_aligned_alloc(int gtid, size_t align, size_t sz,
+                                  omp_allocator_handle_t al);
 extern void *__kmpc_calloc(int gtid, size_t nmemb, size_t sz,
                            omp_allocator_handle_t al);
 extern void *__kmpc_realloc(int gtid, void *ptr, size_t sz,
                             omp_allocator_handle_t al,
                             omp_allocator_handle_t free_al);
 extern void __kmpc_free(int gtid, void *ptr, omp_allocator_handle_t al);
+// internal interfaces, contain real implementation
+extern void *__kmp_alloc(int gtid, size_t align, size_t sz,
+                         omp_allocator_handle_t al);
+extern void *__kmp_calloc(int gtid, size_t align, size_t nmemb, size_t sz,
+                          omp_allocator_handle_t al);
+extern void *__kmp_realloc(int gtid, void *ptr, size_t sz,
+                           omp_allocator_handle_t al,
+                           omp_allocator_handle_t free_al);
+extern void ___kmpc_free(int gtid, void *ptr, omp_allocator_handle_t al);
 
 extern void __kmp_init_memkind();
 extern void __kmp_fini_memkind();
@@ -1209,7 +1222,8 @@ typedef struct kmp_cpuid {
 typedef struct kmp_cpuinfo_flags_t {
   unsigned sse2 : 1; // 0 if SSE2 instructions are not supported, 1 otherwise.
   unsigned rtm : 1; // 0 if RTM instructions are not supported, 1 otherwise.
-  unsigned reserved : 30; // Ensure size of 32 bits
+  unsigned hybrid : 1;
+  unsigned reserved : 29; // Ensure size of 32 bits
 } kmp_cpuinfo_flags_t;
 
 typedef struct kmp_cpuinfo {
@@ -2971,6 +2985,9 @@ extern int __kmp_storage_map_verbose_specified;
 
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
 extern kmp_cpuinfo_t __kmp_cpuinfo;
+static inline bool __kmp_is_hybrid_cpu() { return __kmp_cpuinfo.flags.hybrid; }
+#else
+static inline bool __kmp_is_hybrid_cpu() { return false; }
 #endif
 
 extern volatile int __kmp_init_serial;
