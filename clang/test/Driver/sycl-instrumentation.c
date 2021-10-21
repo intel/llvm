@@ -4,10 +4,10 @@
 /// 1. A SPIR-V-based environment must be targetted
 /// 2. The corresponding Driver option must be enabled explicitly
 
-// RUN: %clangxx -fsycl -fsycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV,CHECK-HOST %s
 /// -fno-sycl-device-lib mustn't affect the linkage of ITT libraries
-// RUN: %clangxx -fsycl -fsycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -fsycl -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL -fno-sycl-device-lib=all -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV %s
 
 // CHECK-SPIRV: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-instrument-device-code"
