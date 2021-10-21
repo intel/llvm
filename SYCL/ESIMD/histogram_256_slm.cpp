@@ -156,6 +156,10 @@ int main() {
   auto LocalRange = cl::sycl::range<1>(NUM_BINS / 16);
   cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
 
+  // Start Timer
+  esimd_test::Timer timer;
+  double start;
+
   // Launches the task on the GPU.
   double kernel_times = 0;
   unsigned num_iters = 10;
@@ -174,14 +178,19 @@ int main() {
       etime = esimd_test::report_time("kernel time", e, e);
       if (iter > 0)
         kernel_times += etime;
+      else
+        start = timer.Elapsed();
     }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    return 1;
   }
 
-  float kernel_time = kernel_times / num_iters;
-  std::cerr << "GPU kernel time = " << kernel_time << " msec\n";
+  // End timer.
+  double end = timer.Elapsed();
+
+  esimd_test::display_timing_stats(kernel_times, num_iters,
+                                   (end - start) * 1000);
 
   std::cout << "finish GPU histogram\n";
 
