@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.run
+// RUN: %clangxx -fsycl -std=c++17 -fsycl-targets=%sycl_triple %s -o %t.run
 // RUN: %GPU_RUN_PLACEHOLDER %t.run
 // RUN: %CPU_RUN_PLACEHOLDER %t.run
 // RUN: %ACC_RUN_PLACEHOLDER %t.run
@@ -13,7 +13,11 @@
 
 using namespace cl::sycl;
 
-template <typename T> class KernelName;
+template <typename T> class TypeHelper;
+
+template <typename T>
+using KernelName = class TypeHelper<typename std::conditional<
+    std::is_same<T, std::byte>::value, unsigned char, T>::type>;
 
 // Define the number of work items to enqueue.
 const size_t NElems = 32;
@@ -24,14 +28,14 @@ template <typename T> void initInputBuffer(buffer<T, 1> &Buf, size_t Stride) {
   auto Acc = Buf.template get_access<access::mode::write>();
   for (size_t I = 0; I < Buf.get_count(); I += WorkGroupSize) {
     for (size_t J = 0; J < WorkGroupSize; J++)
-      Acc[I + J] = I + J + ((J % Stride == 0) ? 100 : 0);
+      Acc[I + J] = static_cast<T>(I + J + ((J % Stride == 0) ? 100 : 0));
   }
 }
 
 template <typename T> void initOutputBuffer(buffer<T, 1> &Buf) {
   auto Acc = Buf.template get_access<access::mode::write>();
   for (size_t I = 0; I < Buf.get_count(); I++)
-    Acc[I] = 0;
+    Acc[I] = static_cast<T>(0);
 }
 
 template <typename T> struct is_vec : std::false_type {};
@@ -48,9 +52,8 @@ template <typename T> bool checkEqual(vec<T, 4> A, size_t B) {
 }
 
 template <typename T>
-typename std::enable_if<!is_vec<T>::value, bool>::type checkEqual(T A,
-                                                                  size_t B) {
-  T TB = B;
+typename std::enable_if_t<!is_vec<T>::value, bool> checkEqual(T A, size_t B) {
+  T TB = static_cast<T>(B);
   return A == TB;
 }
 
@@ -67,7 +70,16 @@ template <typename T> std::string toString(vec<T, 4> A) {
 }
 
 template <typename T = void>
-typename std::enable_if<!is_vec<T>::value, std::string>::type toString(T A) {
+typename std::enable_if_t<
+    !is_vec<T>::value && std::is_same<T, std::byte>::value, std::string>
+toString(T A) {
+  return std::to_string((unsigned char)A);
+}
+
+template <typename T = void>
+typename std::enable_if_t<
+    !is_vec<T>::value && !std::is_same<T, std::byte>::value, std::string>
+toString(T A) {
   return std::to_string(A);
 }
 
@@ -155,6 +167,8 @@ int main() {
     if (test<vec<bool, 4>>(Stride))
       return 1;
     if (test<cl::sycl::cl_bool>(Stride))
+      return 1;
+    if (test<std::byte>(Stride))
       return 1;
   }
 
