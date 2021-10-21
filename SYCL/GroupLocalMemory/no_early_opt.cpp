@@ -2,6 +2,8 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
+//
+// XFAIL: hip_nvidia
 
 // The test checks that multiple calls to the same template instantiation of a
 // group local memory function result in separate allocations, even with device

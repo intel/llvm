@@ -2,7 +2,9 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-
+//
+// Nvidia should not allow sub_devices but does not throw corresponding error.
+// XFAIL: hip_nvidia
 /* Check that:
 1) [info::device::partition_properties]: returns the partition properties
 supported by this SYCL device; a vector of info::partition_property. If this

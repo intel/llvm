@@ -1,6 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 //
+// XFAIL: hip_nvidia
 // Issue #106: The test failing sporadically on OpenCL platform due to
 // processing OCL_ICD_FILENAMES debug environment variable which causes
 // extra memory allocation on device creation.

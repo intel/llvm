@@ -5,6 +5,8 @@
 //
 // Fail is flaky for level_zero, enable when fixed.
 // UNSUPPORTED: level_zero
+//
+// XFAIL: hip_nvidia
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //

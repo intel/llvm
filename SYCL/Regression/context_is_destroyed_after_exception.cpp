@@ -2,6 +2,8 @@
 
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+//
+// XFAIL: hip_nvidia
 
 #include <CL/sycl.hpp>
 
