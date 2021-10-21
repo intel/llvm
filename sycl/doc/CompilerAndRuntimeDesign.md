@@ -573,7 +573,7 @@ path in SYCL kernels.
 ##### NVPTX Builtins
 
 Builtins are implemented in OpenCL C within libclc. OpenCL C treats `longs` 
-as 64 bit and `chars` as signed Windows treats `long` types like 32-bit integers 
+as 64 bit and `chars` as Windows DPC++ treats `long` types like 32-bit integers 
 and `long long` types like 64-bit integers. Differences between the primitive 
 types can cause applications to use incompatible libclc built-ins. A remangler 
 creates multiple libspriv files with different remangled function names to 

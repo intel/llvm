@@ -148,10 +148,10 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 
 There is experimental support for DPC++ for CUDA devices.
 
-To enable support for CUDA devices, follow the instructions for the Linux or Windows
-DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, the CUDA backend
-has Windows support, no windows subsystem for linux (WSL) is needed to build and 
-run the CUDA backend.
+To enable support for CUDA devices, follow the instructions for the Linux or
+Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, the
+CUDA backend has Windows support, no windows subsystem for linux (WSL) is needed
+to build and run the CUDA backend.
 
 Enabling this flag requires an installation of
 [CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
