@@ -3127,7 +3127,7 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     }
   }
 
-  if (Result != PI_SUCCESS)
+  if (enableBufferPooling() && Result != PI_SUCCESS)
     return Result;
 
   if (HostPtr) {
