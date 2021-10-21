@@ -46,6 +46,50 @@ cl_event event_impl::get() const {
 }
 
 event_impl::~event_impl() {
+  {
+    // deque for all dependency events
+    std::deque<std::shared_ptr<event_impl>> Q;
+
+    // BFS for event's tree starting from the Head
+    // When d-tor of any event_impl except for Head is called
+    // the vectors of dependencies must be clean
+    for (auto &DepPtr : MPreparedDepsEvents) {
+      assert(DepPtr && "Dependencies list is not clean");
+      Q.push_back(DepPtr);
+      DepPtr.reset();
+    }
+    for (auto &DepPtr : MPreparedHostDepsEvents) {
+      assert(DepPtr && "Host dependencies list is not clean");
+      Q.push_back(DepPtr);
+      DepPtr.reset();
+    }
+
+    size_t Idx = 0;
+    while (Idx < Q.size()) {
+      auto &CurrentPtr = Q[Idx];
+
+      for (auto &DepPtr : CurrentPtr->MPreparedDepsEvents) {
+        if (DepPtr) {
+          Q.push_back(DepPtr);
+          DepPtr.reset();
+        }
+      }
+      for (auto &DepPtr : CurrentPtr->MPreparedHostDepsEvents) {
+        if (DepPtr) {
+          Q.push_back(DepPtr);
+          DepPtr.reset();
+        }
+      }
+      ++Idx;
+    }
+
+    auto size = Q.size();
+    for (size_t i = 0; i < size; i++) {
+      Q[i]->MPreparedDepsEvents.clear();
+      Q[i]->MPreparedHostDepsEvents.clear();
+    }
+  }
+
   if (MEvent)
     getPlugin().call<PiApiKind::piEventRelease>(MEvent);
 }
