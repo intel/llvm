@@ -12,7 +12,6 @@
 
 #include "OperatingSystemPython.h"
 
-#include "Plugins/Process/Utility/DynamicRegisterInfo.h"
 #include "Plugins/Process/Utility/RegisterContextDummy.h"
 #include "Plugins/Process/Utility/RegisterContextMemory.h"
 #include "Plugins/Process/Utility/ThreadMemory.h"
@@ -139,11 +138,6 @@ DynamicRegisterInfo *OperatingSystemPython::GetDynamicRegisterInfo() {
     assert(m_register_info_up->GetNumRegisterSets() > 0);
   }
   return m_register_info_up.get();
-}
-
-// PluginInterface protocol
-ConstString OperatingSystemPython::GetPluginName() {
-  return GetPluginNameStatic();
 }
 
 bool OperatingSystemPython::UpdateThreadList(ThreadList &old_thread_list,

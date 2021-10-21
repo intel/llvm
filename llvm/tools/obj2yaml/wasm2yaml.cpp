@@ -60,6 +60,8 @@ WasmDumper::dumpCustomSection(const WasmSection &WasmSec) {
     DylinkSec->TableSize = Info.TableSize;
     DylinkSec->TableAlignment = Info.TableAlignment;
     DylinkSec->Needed = Info.Needed;
+    for (const auto &Imp : Info.ImportInfo)
+      DylinkSec->ImportInfo.push_back({Imp.Module, Imp.Field, Imp.Flags});
     for (const auto &Exp : Info.ExportInfo)
       DylinkSec->ExportInfo.push_back({Exp.Name, Exp.Flags});
     CustomSec = std::move(DylinkSec);
@@ -241,8 +243,7 @@ ErrorOr<WasmYAML::Object *> WasmDumper::dump() {
           Im.GlobalImport.Mutable = Import.Global.Mutable;
           break;
         case wasm::WASM_EXTERNAL_TAG:
-          Im.TagImport.Attribute = Import.Tag.Attribute;
-          Im.TagImport.SigIndex = Import.Tag.SigIndex;
+          Im.SigIndex = Import.SigIndex;
           break;
         case wasm::WASM_EXTERNAL_TABLE:
           // FIXME: Currently we always output an index of 0 for any imported
@@ -260,8 +261,8 @@ ErrorOr<WasmYAML::Object *> WasmDumper::dump() {
     }
     case wasm::WASM_SEC_FUNCTION: {
       auto FuncSec = std::make_unique<WasmYAML::FunctionSection>();
-      for (const auto &Func : Obj.functionTypes()) {
-        FuncSec->FunctionTypes.push_back(Func);
+      for (const auto &Func : Obj.functions()) {
+        FuncSec->FunctionTypes.push_back(Func.SigIndex);
       }
       S = std::move(FuncSec);
       break;
@@ -285,11 +286,7 @@ ErrorOr<WasmYAML::Object *> WasmDumper::dump() {
     case wasm::WASM_SEC_TAG: {
       auto TagSec = std::make_unique<WasmYAML::TagSection>();
       for (auto &Tag : Obj.tags()) {
-        WasmYAML::Tag T;
-        T.Index = Tag.Index;
-        T.Attribute = Tag.Type.Attribute;
-        T.SigIndex = Tag.Type.SigIndex;
-        TagSec->Tags.push_back(T);
+        TagSec->TagTypes.push_back(Tag.SigIndex);
       }
       S = std::move(TagSec);
       break;

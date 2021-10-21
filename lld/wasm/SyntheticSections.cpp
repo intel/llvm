@@ -74,15 +74,22 @@ void DylinkSection::writeBody() {
     sub.writeTo(os);
   }
 
-  // Under certain circumstances we need to include extra information about the
-  // exports we are providing to the dynamic linker.  Currently this is only the
-  // case for TLS symbols where the exported value is relative to __tls_base
-  // rather than __memory_base.
+  // Under certain circumstances we need to include extra information about our
+  // exports and/or imports to the dynamic linker.
+  // For exports we need to notify the linker when an export is TLS since the
+  // exported value is relative to __tls_base rather than __memory_base.
+  // For imports we need to notify the dynamic linker when an import is weak
+  // so that knows not to report an error for such symbols.
+  std::vector<const Symbol *> importInfo;
   std::vector<const Symbol *> exportInfo;
   for (const Symbol *sym : symtab->getSymbols()) {
-    if (sym->isExported() && sym->isLive() && sym->isTLS() &&
-        isa<DefinedData>(sym)) {
-      exportInfo.push_back(sym);
+    if (sym->isLive()) {
+      if (sym->isExported() && sym->isTLS() && isa<DefinedData>(sym)) {
+        exportInfo.push_back(sym);
+      }
+      if (sym->isUndefWeak()) {
+        importInfo.push_back(sym);
+      }
     }
   }
 
@@ -99,6 +106,22 @@ void DylinkSection::writeBody() {
         }
       }
       writeStr(sub.os, name, "sym name");
+      writeUleb128(sub.os, sym->flags, "sym flags");
+    }
+
+    sub.writeTo(os);
+  }
+
+  if (!importInfo.empty()) {
+    SubSection sub(WASM_DYLINK_IMPORT_INFO);
+    writeUleb128(sub.os, importInfo.size(), "num imports");
+
+    for (const Symbol *sym : importInfo) {
+      LLVM_DEBUG(llvm::dbgs() << "imports info: " << toString(*sym) << "\n");
+      StringRef module = sym->importModule.getValueOr(defaultModule);
+      StringRef name = sym->importName.getValueOr(sym->getName());
+      writeStr(sub.os, module, "import module");
+      writeStr(sub.os, name, "import name");
       writeUleb128(sub.os, sym->flags, "sym flags");
     }
 
@@ -170,10 +193,14 @@ void ImportSection::addImport(Symbol *sym) {
       g->setGlobalIndex(entry.first->second);
     }
   } else if (auto *t = dyn_cast<TagSymbol>(sym)) {
-    // NB: There's currently only one possible kind of tag, and no
-    // `UndefinedTag`, so we don't bother de-duplicating tag imports.
-    importedSymbols.emplace_back(sym);
-    t->setTagIndex(numImportedTags++);
+    ImportKey<WasmSignature> key(*(t->getSignature()), module, name);
+    auto entry = importedTags.try_emplace(key, numImportedTags);
+    if (entry.second) {
+      importedSymbols.emplace_back(sym);
+      t->setTagIndex(numImportedTags++);
+    } else {
+      t->setTagIndex(entry.first->second);
+    }
   } else {
     assert(TableSymbol::classof(sym));
     auto *table = cast<TableSymbol>(sym);
@@ -226,8 +253,7 @@ void ImportSection::writeBody() {
       import.Global = *globalSym->getGlobalType();
     } else if (auto *tagSym = dyn_cast<TagSymbol>(sym)) {
       import.Kind = WASM_EXTERNAL_TAG;
-      import.Tag.Attribute = tagSym->getTagType()->Attribute;
-      import.Tag.SigIndex = out.typeSec->lookupType(*tagSym->signature);
+      import.SigIndex = out.typeSec->lookupType(*tagSym->signature);
     } else {
       auto *tableSym = cast<TableSymbol>(sym);
       import.Kind = WASM_EXTERNAL_TABLE;
@@ -332,9 +358,8 @@ void TagSection::writeBody() {
 
   writeUleb128(os, inputTags.size(), "tag count");
   for (InputTag *t : inputTags) {
-    WasmTagType type = t->getType();
-    type.SigIndex = out.typeSec->lookupType(t->signature);
-    writeTagType(os, type);
+    writeUleb128(os, 0, "tag attribute"); // Reserved "attribute" field
+    writeUleb128(os, out.typeSec->lookupType(t->signature), "sig index");
   }
 }
 

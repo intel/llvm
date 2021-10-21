@@ -492,6 +492,12 @@ public:
       RetT RetVal = detail::ResultDeserializer<SPSRetTagT, RetT>::makeValue();
       detail::ResultDeserializer<SPSRetTagT, RetT>::makeSafe(RetVal);
 
+      if (auto *ErrMsg = R.getOutOfBandError()) {
+        SDR(make_error<StringError>(ErrMsg, inconvertibleErrorCode()),
+            std::move(RetVal));
+        return;
+      }
+
       SPSInputBuffer IB(R.data(), R.size());
       if (auto Err = detail::ResultDeserializer<SPSRetTagT, RetT>::deserialize(
               RetVal, R.data(), R.size()))
@@ -555,7 +561,7 @@ public:
                         SendDeserializedResultFn &&SendDeserializedResult,
                         const ArgTs &...Args) {
     WrapperFunction<SPSEmpty(SPSTagTs...)>::callAsync(
-        Caller,
+        std::forward<AsyncCallerFn>(Caller),
         [SDR = std::move(SendDeserializedResult)](Error SerializeErr,
                                                   SPSEmpty E) mutable {
           SDR(std::move(SerializeErr));
@@ -567,7 +573,7 @@ public:
   using WrapperFunction<SPSEmpty(SPSTagTs...)>::handleAsync;
 };
 
-/// A function object that takes an ExecutorAddress as its first argument,
+/// A function object that takes an ExecutorAddr as its first argument,
 /// casts that address to a ClassT*, then calls the given method on that
 /// pointer passing in the remaining function arguments. This utility
 /// removes some of the boilerplate from writing wrappers for method calls.
@@ -580,7 +586,7 @@ public:
 ///
 ///   // SPS Method signature -- note MyClass object address as first argument.
 ///   using SPSMyMethodWrapperSignature =
-///     SPSTuple<SPSExecutorAddress, uint32_t, bool>;
+///     SPSTuple<SPSExecutorAddr, uint32_t, bool>;
 ///
 ///   WrapperFunctionResult
 ///   myMethodCallWrapper(const char *ArgData, size_t ArgSize) {
@@ -594,9 +600,10 @@ class MethodWrapperHandler {
 public:
   using MethodT = RetT (ClassT::*)(ArgTs...);
   MethodWrapperHandler(MethodT M) : M(M) {}
-  RetT operator()(ExecutorAddress ObjAddr, ArgTs &... Args) {
+  RetT operator()(ExecutorAddr ObjAddr, ArgTs &...Args) {
     return (ObjAddr.toPtr<ClassT*>()->*M)(std::forward<ArgTs>(Args)...);
   }
+
 private:
   MethodT M;
 };

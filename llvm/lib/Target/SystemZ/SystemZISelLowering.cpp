@@ -82,6 +82,8 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
     : TargetLowering(TM), Subtarget(STI) {
   MVT PtrVT = MVT::getIntegerVT(8 * TM.getPointerSize(0));
 
+  auto *Regs = STI.getSpecialRegisters();
+
   // Set up the register classes.
   if (Subtarget.hasHighWord())
     addRegisterClass(MVT::i32, &SystemZ::GRX32BitRegClass);
@@ -115,7 +117,7 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   computeRegisterProperties(Subtarget.getRegisterInfo());
 
   // Set up special registers.
-  setStackPointerRegisterToSaveRestore(SystemZ::R15D);
+  setStackPointerRegisterToSaveRestore(Regs->getStackPointerRegister());
 
   // TODO: It may be better to default to latency-oriented scheduling, however
   // LLVM's current latency-oriented scheduler can't handle physreg definitions
@@ -292,6 +294,9 @@ SystemZTargetLowering::SystemZTargetLowering(const TargetMachine &TM,
   setLibcallName(RTLIB::SRL_I128, nullptr);
   setLibcallName(RTLIB::SHL_I128, nullptr);
   setLibcallName(RTLIB::SRA_I128, nullptr);
+
+  // Handle bitcast from fp128 to i128.
+  setOperationAction(ISD::BITCAST, MVT::i128, Custom);
 
   // We have native instructions for i8, i16 and i32 extensions, but not i1.
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
@@ -4137,17 +4142,21 @@ SystemZTargetLowering::getTargetMMOFlags(const Instruction &I) const {
 SDValue SystemZTargetLowering::lowerSTACKSAVE(SDValue Op,
                                               SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
+  const SystemZSubtarget *Subtarget = &MF.getSubtarget<SystemZSubtarget>();
+  auto *Regs = Subtarget->getSpecialRegisters();
   MF.getInfo<SystemZMachineFunctionInfo>()->setManipulatesSP(true);
   if (MF.getFunction().getCallingConv() == CallingConv::GHC)
     report_fatal_error("Variable-sized stack allocations are not supported "
                        "in GHC calling convention");
   return DAG.getCopyFromReg(Op.getOperand(0), SDLoc(Op),
-                            SystemZ::R15D, Op.getValueType());
+                            Regs->getStackPointerRegister(), Op.getValueType());
 }
 
 SDValue SystemZTargetLowering::lowerSTACKRESTORE(SDValue Op,
                                                  SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
+  const SystemZSubtarget *Subtarget = &MF.getSubtarget<SystemZSubtarget>();
+  auto *Regs = Subtarget->getSpecialRegisters();
   MF.getInfo<SystemZMachineFunctionInfo>()->setManipulatesSP(true);
   bool StoreBackchain = MF.getFunction().hasFnAttribute("backchain");
 
@@ -4161,12 +4170,13 @@ SDValue SystemZTargetLowering::lowerSTACKRESTORE(SDValue Op,
   SDLoc DL(Op);
 
   if (StoreBackchain) {
-    SDValue OldSP = DAG.getCopyFromReg(Chain, DL, SystemZ::R15D, MVT::i64);
+    SDValue OldSP = DAG.getCopyFromReg(
+        Chain, DL, Regs->getStackPointerRegister(), MVT::i64);
     Backchain = DAG.getLoad(MVT::i64, DL, Chain, getBackchainAddress(OldSP, DAG),
                             MachinePointerInfo());
   }
 
-  Chain = DAG.getCopyToReg(Chain, DL, SystemZ::R15D, NewSP);
+  Chain = DAG.getCopyToReg(Chain, DL, Regs->getStackPointerRegister(), NewSP);
 
   if (StoreBackchain)
     Chain = DAG.getStore(Chain, DL, Backchain, getBackchainAddress(NewSP, DAG),
@@ -5587,6 +5597,32 @@ SystemZTargetLowering::LowerOperationWrapper(SDNode *N,
     Results.push_back(Res.getValue(2));
     break;
   }
+  case ISD::BITCAST: {
+    SDValue Src = N->getOperand(0);
+    if (N->getValueType(0) == MVT::i128 && Src.getValueType() == MVT::f128 &&
+        !useSoftFloat()) {
+      SDLoc DL(N);
+      SDValue Lo, Hi;
+      if (getRepRegClassFor(MVT::f128) == &SystemZ::VR128BitRegClass) {
+        SDValue VecBC = DAG.getNode(ISD::BITCAST, DL, MVT::v2i64, Src);
+        Lo = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, MVT::i64, VecBC,
+                         DAG.getConstant(1, DL, MVT::i32));
+        Hi = DAG.getNode(ISD::EXTRACT_VECTOR_ELT, DL, MVT::i64, VecBC,
+                         DAG.getConstant(0, DL, MVT::i32));
+      } else {
+        assert(getRepRegClassFor(MVT::f128) == &SystemZ::FP128BitRegClass &&
+               "Unrecognized register class for f128.");
+        SDValue LoFP = DAG.getTargetExtractSubreg(SystemZ::subreg_l64,
+                                                  DL, MVT::f64, Src);
+        SDValue HiFP = DAG.getTargetExtractSubreg(SystemZ::subreg_h64,
+                                                  DL, MVT::f64, Src);
+        Lo = DAG.getNode(ISD::BITCAST, DL, MVT::i64, LoFP);
+        Hi = DAG.getNode(ISD::BITCAST, DL, MVT::i64, HiFP);
+      }
+      Results.push_back(DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i128, Lo, Hi));
+    }
+    break;
+  }
   default:
     llvm_unreachable("Unexpected node to lower");
   }
@@ -5632,15 +5668,10 @@ const char *SystemZTargetLowering::getTargetNodeName(unsigned Opcode) const {
     OPCODE(SUBCARRY);
     OPCODE(GET_CCMASK);
     OPCODE(MVC);
-    OPCODE(MVC_LOOP);
     OPCODE(NC);
-    OPCODE(NC_LOOP);
     OPCODE(OC);
-    OPCODE(OC_LOOP);
     OPCODE(XC);
-    OPCODE(XC_LOOP);
     OPCODE(CLC);
-    OPCODE(CLC_LOOP);
     OPCODE(STPCPY);
     OPCODE(STRCMP);
     OPCODE(SEARCH_STRING);
@@ -7794,26 +7825,67 @@ MachineBasicBlock *SystemZTargetLowering::emitMemMemWrapper(
   MachineOperand SrcBase = earlyUseOperand(MI.getOperand(2));
   uint64_t SrcDisp = MI.getOperand(3).getImm();
   MachineOperand &LengthMO = MI.getOperand(4);
-  uint64_t ImmLength = LengthMO.isImm() ? LengthMO.getImm() : 0;
-  Register LenMinus1Reg =
-      LengthMO.isReg() ? LengthMO.getReg() : SystemZ::NoRegister;
+  bool IsImmForm = LengthMO.isImm();
+  bool IsRegForm = !IsImmForm;
+
+  bool NeedsLoop = false;
+  uint64_t ImmLength = 0;
+  Register LenMinus1Reg = SystemZ::NoRegister;
+  if (IsImmForm) {
+    ImmLength = LengthMO.getImm();
+    ImmLength++; // Add back the '1' subtracted originally.
+    if (ImmLength == 0) {
+      MI.eraseFromParent();
+      return MBB;
+    }
+    if (Opcode == SystemZ::CLC) {
+      if (ImmLength > 3 * 256)
+        // A two-CLC sequence is a clear win over a loop, not least because
+        // it needs only one branch.  A three-CLC sequence needs the same
+        // number of branches as a loop (i.e. 2), but is shorter.  That
+        // brings us to lengths greater than 768 bytes.  It seems relatively
+        // likely that a difference will be found within the first 768 bytes,
+        // so we just optimize for the smallest number of branch
+        // instructions, in order to avoid polluting the prediction buffer
+        // too much.
+        NeedsLoop = true;
+    } else if (ImmLength > 6 * 256)
+      // The heuristic we use is to prefer loops for anything that would
+      // require 7 or more MVCs.  With these kinds of sizes there isn't much
+      // to choose between straight-line code and looping code, since the
+      // time will be dominated by the MVCs themselves.
+      NeedsLoop = true;
+  } else {
+    NeedsLoop = true;
+    LenMinus1Reg = LengthMO.getReg();
+  }
 
   // When generating more than one CLC, all but the last will need to
   // branch to the end when a difference is found.
-  MachineBasicBlock *EndMBB = (ImmLength > 256 && Opcode == SystemZ::CLC
-                                   ? SystemZ::splitBlockAfter(MI, MBB)
-                                   : nullptr);
+  MachineBasicBlock *EndMBB =
+      (Opcode == SystemZ::CLC && (ImmLength > 256 || NeedsLoop)
+           ? SystemZ::splitBlockAfter(MI, MBB)
+           : nullptr);
 
-  // Check for the loop form, in which operand 5 is the trip count.
-  if (MI.getNumExplicitOperands() > 5) {
-    Register StartCountReg = MI.getOperand(5).getReg();
-    bool HaveSingleBase = DestBase.isIdenticalTo(SrcBase);
+  if (NeedsLoop) {
+    Register StartCountReg =
+      MRI.createVirtualRegister(&SystemZ::GR64BitRegClass);
+    if (IsImmForm) {
+      TII->loadImmediate(*MBB, MI, StartCountReg, ImmLength / 256);
+      ImmLength &= 255;
+    } else {
+      BuildMI(*MBB, MI, DL, TII->get(SystemZ::SRLG), StartCountReg)
+        .addReg(LenMinus1Reg)
+        .addReg(0)
+        .addImm(8);
+    }
 
     auto loadZeroAddress = [&]() -> MachineOperand {
       Register Reg = MRI.createVirtualRegister(&SystemZ::ADDR64BitRegClass);
       BuildMI(*MBB, MI, DL, TII->get(SystemZ::LGHI), Reg).addImm(0);
       return MachineOperand::CreateReg(Reg, false);
     };
+    bool HaveSingleBase = DestBase.isIdenticalTo(SrcBase);
     if (DestBase.isReg() && DestBase.getReg() == SystemZ::NoRegister)
       DestBase = loadZeroAddress();
     if (SrcBase.isReg() && SrcBase.getReg() == SystemZ::NoRegister)
@@ -7840,12 +7912,12 @@ MachineBasicBlock *SystemZTargetLowering::emitMemMemWrapper(
     Register ThisCountReg = MRI.createVirtualRegister(RC);
     Register NextCountReg = MRI.createVirtualRegister(RC);
 
-    if (LengthMO.isReg()) {
+    if (IsRegForm) {
       AllDoneMBB = SystemZ::splitBlockBefore(MI, MBB);
       StartMBB = SystemZ::emitBlockAfter(MBB);
       LoopMBB = SystemZ::emitBlockAfter(StartMBB);
-      NextMBB = LoopMBB;
-      DoneMBB = SystemZ::emitBlockAfter(LoopMBB);
+      NextMBB = (EndMBB ? SystemZ::emitBlockAfter(LoopMBB) : LoopMBB);
+      DoneMBB = SystemZ::emitBlockAfter(NextMBB);
 
       //  MBB:
       //   # Jump to AllDoneMBB if LenMinus1Reg is -1, or fall thru to StartMBB.
@@ -7880,7 +7952,6 @@ MachineBasicBlock *SystemZTargetLowering::emitMemMemWrapper(
 
       DestBase = MachineOperand::CreateReg(NextDestReg, false);
       SrcBase = MachineOperand::CreateReg(NextSrcReg, false);
-      ImmLength &= 255;
       if (EndMBB && !ImmLength)
         // If the loop handled the whole CLC range, DoneMBB will be empty with
         // CC live-through into EndMBB, so add it as live-in.
@@ -7951,7 +8022,7 @@ MachineBasicBlock *SystemZTargetLowering::emitMemMemWrapper(
     MBB->addSuccessor(DoneMBB);
 
     MBB = DoneMBB;
-    if (LengthMO.isReg()) {
+    if (IsRegForm) {
       // DoneMBB:
       // # Make PHIs for RemDestReg/RemSrcReg as the loop may or may not run.
       // # Use EXecute Relative Long for the remainder of the bytes. The target
@@ -7964,19 +8035,23 @@ MachineBasicBlock *SystemZTargetLowering::emitMemMemWrapper(
         : MRI.createVirtualRegister(&SystemZ::ADDR64BitRegClass);
       BuildMI(MBB, DL, TII->get(SystemZ::PHI), RemDestReg)
         .addReg(StartDestReg).addMBB(StartMBB)
-        .addReg(NextDestReg).addMBB(LoopMBB);
+        .addReg(NextDestReg).addMBB(NextMBB);
       if (!HaveSingleBase)
         BuildMI(MBB, DL, TII->get(SystemZ::PHI), RemSrcReg)
           .addReg(StartSrcReg).addMBB(StartMBB)
-          .addReg(NextSrcReg).addMBB(LoopMBB);
-      MRI.constrainRegClass(LenMinus1Reg, &SystemZ::ADDR64BitRegClass);
-      BuildMI(MBB, DL, TII->get(SystemZ::EXRL_Pseudo))
-        .addImm(Opcode)
-        .addReg(LenMinus1Reg)
-        .addReg(RemDestReg).addImm(DestDisp)
-        .addReg(RemSrcReg).addImm(SrcDisp);
+          .addReg(NextSrcReg).addMBB(NextMBB);
+      MachineInstrBuilder EXRL_MIB =
+        BuildMI(MBB, DL, TII->get(SystemZ::EXRL_Pseudo))
+          .addImm(Opcode)
+          .addReg(LenMinus1Reg)
+          .addReg(RemDestReg).addImm(DestDisp)
+          .addReg(RemSrcReg).addImm(SrcDisp);
       MBB->addSuccessor(AllDoneMBB);
       MBB = AllDoneMBB;
+      if (EndMBB) {
+        EXRL_MIB.addReg(SystemZ::CC, RegState::ImplicitDefine);
+        MBB->addLiveIn(SystemZ::CC);
+      }
     }
   }
 
@@ -8494,21 +8569,18 @@ MachineBasicBlock *SystemZTargetLowering::EmitInstrWithCustomInserter(
 
   case SystemZ::ATOMIC_CMP_SWAPW:
     return emitAtomicCmpSwapW(MI, MBB);
-  case SystemZ::MVCSequence:
-  case SystemZ::MVCLoop:
+  case SystemZ::MVCImm:
+  case SystemZ::MVCReg:
     return emitMemMemWrapper(MI, MBB, SystemZ::MVC);
-  case SystemZ::NCSequence:
-  case SystemZ::NCLoop:
+  case SystemZ::NCImm:
     return emitMemMemWrapper(MI, MBB, SystemZ::NC);
-  case SystemZ::OCSequence:
-  case SystemZ::OCLoop:
+  case SystemZ::OCImm:
     return emitMemMemWrapper(MI, MBB, SystemZ::OC);
-  case SystemZ::XCSequence:
-  case SystemZ::XCLoop:
-  case SystemZ::XCLoopVarLen:
+  case SystemZ::XCImm:
+  case SystemZ::XCReg:
     return emitMemMemWrapper(MI, MBB, SystemZ::XC);
-  case SystemZ::CLCSequence:
-  case SystemZ::CLCLoop:
+  case SystemZ::CLCImm:
+  case SystemZ::CLCReg:
     return emitMemMemWrapper(MI, MBB, SystemZ::CLC);
   case SystemZ::CLSTLoop:
     return emitStringWrapper(MI, MBB, SystemZ::CLST);

@@ -297,7 +297,15 @@ void collectCompositeElementsDefaultValuesRecursive(
     const Module &M, Constant *C, unsigned &Offset,
     std::vector<char> &DefaultValues) {
   Type *Ty = C->getType();
-  if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+  if (auto *DataSeqC = dyn_cast<ConstantDataSequential>(C)) {
+    // This code is generic for both vectors and arrays of scalars
+    for (size_t I = 0; I < DataSeqC->getNumElements(); ++I) {
+      Constant *El = cast<Constant>(DataSeqC->getElementAsConstant(I));
+      collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
+                                                     DefaultValues);
+    }
+  } else if (auto *ArrTy = dyn_cast<ArrayType>(Ty)) {
+    // This branch handles arrays of composite types (structs, arrays, etc.)
     for (size_t I = 0; I < ArrTy->getNumElements(); ++I) {
       Constant *El = cast<Constant>(C->getOperand(I));
       collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
@@ -324,12 +332,6 @@ void collectCompositeElementsDefaultValuesRecursive(
     // Update "global" offset according to the total size of a handled struct
     // type.
     Offset += SL->getSizeInBytes();
-  } else if (auto *VecTy = dyn_cast<FixedVectorType>(Ty)) {
-    for (size_t I = 0; I < VecTy->getNumElements(); ++I) {
-      Constant *El = cast<Constant>(C->getOperand(I));
-      collectCompositeElementsDefaultValuesRecursive(M, El, Offset,
-                                                     DefaultValues);
-    }
   } else { // Assume that we encountered some scalar element
     int NumBytes = Ty->getScalarSizeInBits() / CHAR_BIT +
                    (Ty->getScalarSizeInBits() % 8 != 0);
@@ -341,7 +343,13 @@ void collectCompositeElementsDefaultValuesRecursive(
     } else if (auto FPConst = dyn_cast<ConstantFP>(C)) {
       auto Val = FPConst->getValue();
 
-      if (NumBytes == 4) {
+      if (NumBytes == 2) {
+        auto IVal = Val.bitcastToAPInt();
+        assert(IVal.getBitWidth() == 16);
+        auto Storage = static_cast<uint16_t>(IVal.getZExtValue());
+        std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
+                    std::back_inserter(DefaultValues));
+      } else if (NumBytes == 4) {
         float v = Val.convertToFloat();
         std::copy_n(reinterpret_cast<char *>(&v), NumBytes,
                     std::back_inserter(DefaultValues));

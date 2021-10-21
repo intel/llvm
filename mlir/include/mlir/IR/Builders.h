@@ -394,7 +394,7 @@ private:
   void checkHasAbstractOperation(const OperationName &name) {
     if (LLVM_UNLIKELY(!name.getAbstractOperation()))
       llvm::report_fatal_error(
-          "Building op `" + name.getStringRef().str() +
+          "Building op `" + name.getStringRef() +
           "` but it isn't registered in this MLIRContext: the dialect may not "
           "be loaded or this operation isn't registered by the dialect. See "
           "also https://mlir.llvm.org/getting_started/Faq/"
@@ -451,7 +451,7 @@ public:
   createOrFold(Location location, Args &&...args) {
     auto op = create<OpTy>(location, std::forward<Args>(args)...);
     SmallVector<Value, 0> unused;
-    tryFold(op.getOperation(), unused);
+    (void)tryFold(op.getOperation(), unused);
 
     // Folding cannot remove a zero-result operation, so for convenience we
     // continue to return it.

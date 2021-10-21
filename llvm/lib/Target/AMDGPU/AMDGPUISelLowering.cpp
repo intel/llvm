@@ -45,9 +45,7 @@ EVT AMDGPUTargetLowering::getEquivalentMemType(LLVMContext &Ctx, EVT VT) {
 }
 
 unsigned AMDGPUTargetLowering::numBitsUnsigned(SDValue Op, SelectionDAG &DAG) {
-  EVT VT = Op.getValueType();
-  KnownBits Known = DAG.computeKnownBits(Op);
-  return VT.getSizeInBits() - Known.countMinLeadingZeros();
+  return DAG.computeKnownBits(Op).countMaxActiveBits();
 }
 
 unsigned AMDGPUTargetLowering::numBitsSigned(SDValue Op, SelectionDAG &DAG) {
@@ -1378,16 +1376,11 @@ SDValue AMDGPUTargetLowering::LowerGlobalAddress(AMDGPUMachineFunction* MFI,
          "Do not know what to do with an non-zero offset");
 
     // TODO: We could emit code to handle the initialization somewhere.
-    if (!hasDefinedInitializer(GV)) {
-      unsigned Offset = MFI->allocateLDSGlobal(DL, *cast<GlobalVariable>(GV));
-      return DAG.getConstant(Offset, SDLoc(Op), Op.getValueType());
-    }
+    // We ignore the initializer for now and legalize it to allow selection.
+    // The initializer will anyway get errored out during assembly emission.
+    unsigned Offset = MFI->allocateLDSGlobal(DL, *cast<GlobalVariable>(GV));
+    return DAG.getConstant(Offset, SDLoc(Op), Op.getValueType());
   }
-
-  const Function &Fn = DAG.getMachineFunction().getFunction();
-  DiagnosticInfoUnsupported BadInit(
-      Fn, "unsupported initializer for address space", SDLoc(Op).getDebugLoc());
-  DAG.getContext()->diagnose(BadInit);
   return SDValue();
 }
 
@@ -3365,7 +3358,7 @@ SDValue AMDGPUTargetLowering::performTruncateCombine(
       KnownBits Known = DAG.computeKnownBits(Amt);
       unsigned Size = VT.getScalarSizeInBits();
       if ((Known.isConstant() && Known.getConstant().ule(Size)) ||
-          (Known.getBitWidth() - Known.countMinLeadingZeros() <= Log2_32(Size))) {
+          (Known.countMaxActiveBits() <= Log2_32(Size))) {
         EVT MidVT = VT.isVector() ?
           EVT::getVectorVT(*DAG.getContext(), MVT::i32,
                            VT.getVectorNumElements()) : MVT::i32;

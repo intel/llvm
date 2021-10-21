@@ -285,7 +285,7 @@ bool PEI::runOnMachineFunction(MachineFunction &MF) {
     (void)Failed;
   }
   if (StackSize > Threshold) {
-    DiagnosticInfoStackSize DiagStackSize(F, StackSize, DS_Warning, Threshold);
+    DiagnosticInfoStackSize DiagStackSize(F, StackSize, Threshold, DS_Warning);
     F.getContext().diagnose(DiagStackSize);
   }
   ORE->emit([&]() {
@@ -1253,7 +1253,6 @@ void PEI::replaceFrameIndices(MachineBasicBlock *BB, MachineFunction &MF,
         StackOffset Offset =
             TFI->getFrameIndexReference(MF, FrameIdx, Reg);
         Op.ChangeToRegister(Reg, false /*isDef*/);
-        Op.setIsDebug();
 
         const DIExpression *DIExpr = MI.getDebugExpression();
 

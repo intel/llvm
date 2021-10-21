@@ -304,7 +304,7 @@ defm V_MAX_F64 : VOP3Inst <"v_max_f64", VOP3_Profile<VOP_F64_F64_F64>, fmaxnum_l
 } // End SchedRW = [WriteDoubleAdd]
 
 let SchedRW = [WriteIntMul] in {
-defm V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>, mul>;
+defm V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>, DivergentBinFrag<mul>>;
 defm V_MUL_HI_U32 : VOP3Inst <"v_mul_hi_u32", VOP3_Profile<VOP_I32_I32_I32>, mulhu>;
 defm V_MUL_LO_I32 : VOP3Inst <"v_mul_lo_i32", VOP3_Profile<VOP_I32_I32_I32>>;
 defm V_MUL_HI_I32 : VOP3Inst <"v_mul_hi_i32", VOP3_Profile<VOP_I32_I32_I32>, mulhs>;
@@ -667,6 +667,14 @@ def : ThreeOp_i32_Pats<xor, add, V_XAD_U32_e64>;
 def : VOPBinOpClampPat<saddsat, V_ADD_I32_e64, i32>;
 def : VOPBinOpClampPat<ssubsat, V_SUB_I32_e64, i32>;
 
+def : GCNPat<(getDivergentFrag<or>.ret (or_oneuse i64:$src0, i64:$src1), i64:$src2),
+             (REG_SEQUENCE VReg_64,
+               (V_OR3_B32_e64 (i32 (EXTRACT_SUBREG $src0, sub0)),
+                              (i32 (EXTRACT_SUBREG $src1, sub0)),
+                              (i32 (EXTRACT_SUBREG $src2, sub0))), sub0,
+               (V_OR3_B32_e64 (i32 (EXTRACT_SUBREG $src0, sub1)),
+                              (i32 (EXTRACT_SUBREG $src1, sub1)),
+                              (i32 (EXTRACT_SUBREG $src2, sub1))), sub1)>;
 
 // FIXME: Probably should hardcode clamp bit in pseudo and avoid this.
 class OpSelBinOpClampPat<SDPatternOperator node,

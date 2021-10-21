@@ -317,7 +317,7 @@ Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
     raw_string_ostream SS(S);
     SS << "Error: Attempt to redefine function: " << *F << " => " << *FT
        << '\n';
-    report_fatal_error(SS.str(), false);
+    report_fatal_error(llvm::Twine(SS.str()), false);
   }
   if (!F || F->getFunctionType() != FT) {
     auto NewF =
@@ -344,7 +344,7 @@ Function *getOrCreateFunction(Module *M, Type *RetTy, ArrayRef<Type *> ArgTypes,
 std::vector<Value *> getArguments(CallInst *CI, unsigned Start, unsigned End) {
   std::vector<Value *> Args;
   if (End == 0)
-    End = CI->getNumArgOperands();
+    End = CI->arg_size();
   for (; Start != End; ++Start) {
     Args.push_back(CI->getArgOperand(Start));
   }
@@ -2051,6 +2051,9 @@ public:
     case OpGroupNonUniformUMin:
       addUnsignedArg(2);
       addUnsignedArg(3);
+      break;
+    case OpEnqueueMarker:
+      addUnsignedArg(1);
       break;
     default:;
       // No special handling is needed

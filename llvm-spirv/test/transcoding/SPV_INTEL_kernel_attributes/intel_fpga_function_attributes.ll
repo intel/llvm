@@ -48,11 +48,11 @@
 ; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5895
 ; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5896 8
 ; CHECK-SPIRV: ExecutionMode [[FUNCENTRY]] 5903 1000
-; CHECK-SPIRV: Decorate [[FUNCENTRY]] StallEnableINTEL
-; CHECK-SPIRV: Decorate [[FUNCENTRY]] FuseLoopsInFunctionINTEL 3 1
-; CHECK-SPIRV: Decorate [[FUNCENTRY]] InitiationIntervalINTEL 10
-; CHECK-SPIRV: Decorate [[FUNCENTRY]] MaxConcurrencyINTEL 12
-; CHECK-SPIRV: Decorate [[FUNCENTRY]] PipelineEnableINTEL 0
+; CHECK-SPIRV-DAG: Decorate [[FUNCENTRY]] StallEnableINTEL
+; CHECK-SPIRV-DAG: Decorate [[FUNCENTRY]] FuseLoopsInFunctionINTEL 3 1
+; CHECK-SPIRV-DAG: Decorate [[FUNCENTRY]] InitiationIntervalINTEL 10
+; CHECK-SPIRV-DAG: Decorate [[FUNCENTRY]] MaxConcurrencyINTEL 12
+; CHECK-SPIRV-DAG: Decorate [[FUNCENTRY]] PipelineEnableINTEL 0
 ; CHECK-SPIRV: Function {{.*}} [[FUNCENTRY]] {{.*}}
 
 ; CHECK-LLVM: define spir_kernel void {{.*}}kernel_name()

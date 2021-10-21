@@ -15,6 +15,7 @@
 #include "mlir/Analysis/Presburger/Simplex.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/IntegerSet.h"
@@ -187,6 +188,48 @@ FlatAffineConstraints::FlatAffineConstraints(IntegerSet set)
 FlatAffineValueConstraints::FlatAffineValueConstraints(IntegerSet set)
     : FlatAffineConstraints(set) {
   values.resize(numIds, None);
+}
+
+// Construct a hyperrectangular constraint set from ValueRanges that represent
+// induction variables, lower and upper bounds. `ivs`, `lbs` and `ubs` are
+// expected to match one to one. The order of variables and constraints is:
+//
+// ivs | lbs | ubs | eq/ineq
+// ----+-----+-----+---------
+//   1   -1     0      >= 0
+// ----+-----+-----+---------
+//  -1    0     1      >= 0
+//
+// All dimensions as set as DimId.
+FlatAffineValueConstraints
+FlatAffineValueConstraints::getHyperrectangular(ValueRange ivs, ValueRange lbs,
+                                                ValueRange ubs) {
+  FlatAffineValueConstraints res;
+  unsigned nIvs = ivs.size();
+  assert(nIvs == lbs.size() && "expected as many lower bounds as ivs");
+  assert(nIvs == ubs.size() && "expected as many upper bounds as ivs");
+
+  if (nIvs == 0)
+    return res;
+
+  res.appendDimId(ivs);
+  unsigned lbsStart = res.appendDimId(lbs);
+  unsigned ubsStart = res.appendDimId(ubs);
+
+  MLIRContext *ctx = ivs.front().getContext();
+  for (int ivIdx = 0, e = nIvs; ivIdx < e; ++ivIdx) {
+    // iv - lb >= 0
+    AffineMap lb = AffineMap::get(/*dimCount=*/3 * nIvs, /*symbolCount=*/0,
+                                  getAffineDimExpr(lbsStart + ivIdx, ctx));
+    if (failed(res.addBound(BoundType::LB, ivIdx, lb)))
+      llvm_unreachable("Unexpected FlatAffineValueConstraints creation error");
+    // -iv + ub >= 0
+    AffineMap ub = AffineMap::get(/*dimCount=*/3 * nIvs, /*symbolCount=*/0,
+                                  getAffineDimExpr(ubsStart + ivIdx, ctx));
+    if (failed(res.addBound(BoundType::UB, ivIdx, ub)))
+      llvm_unreachable("Unexpected FlatAffineValueConstraints creation error");
+  }
+  return res;
 }
 
 void FlatAffineConstraints::reset(unsigned numReservedInequalities,
@@ -612,8 +655,8 @@ void FlatAffineValueConstraints::addInductionVarOrTerminalSymbol(Value val) {
   // Add top level symbol.
   appendSymbolId(val);
   // Check if the symbol is a constant.
-  if (auto constOp = val.getDefiningOp<ConstantIndexOp>())
-    addBound(BoundType::EQ, val, constOp.getValue());
+  if (auto constOp = val.getDefiningOp<arith::ConstantIndexOp>())
+    addBound(BoundType::EQ, val, constOp.value());
 }
 
 LogicalResult
@@ -628,7 +671,7 @@ FlatAffineValueConstraints::addAffineForOpDomain(AffineForOp forOp) {
   int64_t step = forOp.getStep();
   if (step != 1) {
     if (!forOp.hasConstantLowerBound())
-      forOp.emitWarning("domain conservatively approximated");
+      LLVM_DEBUG(forOp.emitWarning("domain conservatively approximated"));
     else {
       // Add constraints for the stride.
       // (iv - lb) % step = 0 can be written as:
@@ -949,9 +992,14 @@ bool FlatAffineConstraints::isEmpty() const {
   if (isEmptyByGCDTest() || hasInvalidConstraint())
     return true;
 
-  // First, eliminate as many identifiers as possible using Gaussian
-  // elimination.
   FlatAffineConstraints tmpCst(*this);
+
+  // First, eliminate as many local variables as possible using equalities.
+  tmpCst.removeRedundantLocalVars();
+  if (tmpCst.isEmptyByGCDTest() || tmpCst.hasInvalidConstraint())
+    return true;
+
+  // Eliminate as many identifiers as possible using Gaussian elimination.
   unsigned currentPos = 0;
   while (currentPos < tmpCst.getNumIds()) {
     tmpCst.gaussianEliminateIds(currentPos, tmpCst.getNumIds());
@@ -1796,6 +1844,74 @@ void FlatAffineConstraints::mergeLocalIds(FlatAffineConstraints &other) {
   unsigned initLocals = getNumLocalIds();
   insertLocalId(getNumLocalIds(), other.getNumLocalIds());
   other.insertLocalId(0, initLocals);
+}
+
+/// Removes local variables using equalities. Each equality is checked if it
+/// can be reduced to the form: `e = affine-expr`, where `e` is a local
+/// variable and `affine-expr` is an affine expression not containing `e`.
+/// If an equality satisfies this form, the local variable is replaced in
+/// each constraint and then removed. The equality used to replace this local
+/// variable is also removed.
+void FlatAffineConstraints::removeRedundantLocalVars() {
+  // Normalize the equality constraints to reduce coefficients of local
+  // variables to 1 wherever possible.
+  for (unsigned i = 0, e = getNumEqualities(); i < e; ++i)
+    normalizeConstraintByGCD</*isEq=*/true>(this, i);
+
+  while (true) {
+    unsigned i, e, j, f;
+    for (i = 0, e = getNumEqualities(); i < e; ++i) {
+      // Find a local variable to eliminate using ith equality.
+      for (j = getNumDimAndSymbolIds(), f = getNumIds(); j < f; ++j)
+        if (std::abs(atEq(i, j)) == 1)
+          break;
+
+      // Local variable can be eliminated using ith equality.
+      if (j < f)
+        break;
+    }
+
+    // No equality can be used to eliminate a local variable.
+    if (i == e)
+      break;
+
+    // Use the ith equality to simplify other equalities. If any changes
+    // are made to an equality constraint, it is normalized by GCD.
+    for (unsigned k = 0, t = getNumEqualities(); k < t; ++k) {
+      if (atEq(k, j) != 0) {
+        eliminateFromConstraint(this, k, i, j, j, /*isEq=*/true);
+        normalizeConstraintByGCD</*isEq=*/true>(this, k);
+      }
+    }
+
+    // Use the ith equality to simplify inequalities.
+    for (unsigned k = 0, t = getNumInequalities(); k < t; ++k)
+      eliminateFromConstraint(this, k, i, j, j, /*isEq=*/false);
+
+    // Remove the ith equality and the found local variable.
+    removeId(j);
+    removeEquality(i);
+  }
+}
+
+void FlatAffineConstraints::convertDimToLocal(unsigned dimStart,
+                                              unsigned dimLimit) {
+  assert(dimLimit <= getNumDimIds() && "Invalid dim pos range");
+
+  if (dimStart >= dimLimit)
+    return;
+
+  // Append new local variables corresponding to the dimensions to be converted.
+  unsigned convertCount = dimLimit - dimStart;
+  unsigned newLocalIdStart = getNumIds();
+  appendLocalId(convertCount);
+
+  // Swap the new local variables with dimensions.
+  for (unsigned i = 0; i < convertCount; ++i)
+    swapId(i + dimStart, i + newLocalIdStart);
+
+  // Remove dimensions converted to local variables.
+  removeIdRange(dimStart, dimLimit);
 }
 
 std::pair<AffineMap, AffineMap> FlatAffineConstraints::getLowerAndUpperBound(
@@ -3488,4 +3604,169 @@ AffineMap mlir::alignAffineMapWithValues(AffineMap map, ValueRange operands,
 
   return map.replaceDimsAndSymbols(dimReplacements, symReplacements,
                                    dims.size(), numSymbols);
+}
+
+FlatAffineValueConstraints FlatAffineRelation::getDomainSet() const {
+  FlatAffineValueConstraints domain = *this;
+  // Convert all range variables to local variables.
+  domain.convertDimToLocal(getNumDomainDims(),
+                           getNumDomainDims() + getNumRangeDims());
+  return domain;
+}
+
+FlatAffineValueConstraints FlatAffineRelation::getRangeSet() const {
+  FlatAffineValueConstraints range = *this;
+  // Convert all domain variables to local variables.
+  range.convertDimToLocal(0, getNumDomainDims());
+  return range;
+}
+
+void FlatAffineRelation::compose(const FlatAffineRelation &other) {
+  assert(getNumDomainDims() == other.getNumRangeDims() &&
+         "Domain of this and range of other do not match");
+  assert(std::equal(values.begin(), values.begin() + getNumDomainDims(),
+                    other.values.begin() + other.getNumDomainDims()) &&
+         "Domain of this and range of other do not match");
+
+  FlatAffineRelation rel = other;
+  mergeSymbolIds(rel);
+  mergeLocalIds(rel);
+
+  // Convert domain of `this` and range of `rel` to local identifiers.
+  convertDimToLocal(0, getNumDomainDims());
+  rel.convertDimToLocal(rel.getNumDomainDims(), rel.getNumDimIds());
+  // Add dimensions such that both relations become `domainRel -> rangeThis`.
+  appendDomainId(rel.getNumDomainDims());
+  rel.appendRangeId(getNumRangeDims());
+
+  auto thisMaybeValues = getMaybeDimValues();
+  auto relMaybeValues = rel.getMaybeDimValues();
+
+  // Add and match domain of `rel` to domain of `this`.
+  for (unsigned i = 0, e = rel.getNumDomainDims(); i < e; ++i)
+    if (relMaybeValues[i].hasValue())
+      setValue(i, relMaybeValues[i].getValue());
+  // Add and match range of `this` to range of `rel`.
+  for (unsigned i = 0, e = getNumRangeDims(); i < e; ++i) {
+    unsigned rangeIdx = rel.getNumDomainDims() + i;
+    if (thisMaybeValues[rangeIdx].hasValue())
+      rel.setValue(rangeIdx, thisMaybeValues[rangeIdx].getValue());
+  }
+
+  // Append `this` to `rel` and simplify constraints.
+  rel.append(*this);
+  rel.removeRedundantLocalVars();
+
+  *this = rel;
+}
+
+void FlatAffineRelation::inverse() {
+  unsigned oldDomain = getNumDomainDims();
+  unsigned oldRange = getNumRangeDims();
+  // Add new range ids.
+  appendRangeId(oldDomain);
+  // Swap new ids with domain.
+  for (unsigned i = 0; i < oldDomain; ++i)
+    swapId(i, oldDomain + oldRange + i);
+  // Remove the swapped domain.
+  removeIdRange(0, oldDomain);
+  // Set domain and range as inverse.
+  numDomainDims = oldRange;
+  numRangeDims = oldDomain;
+}
+
+void FlatAffineRelation::insertDomainId(unsigned pos, unsigned num) {
+  assert(pos <= getNumDomainDims() &&
+         "Id cannot be inserted at invalid position");
+  insertDimId(pos, num);
+  numDomainDims += num;
+}
+
+void FlatAffineRelation::insertRangeId(unsigned pos, unsigned num) {
+  assert(pos <= getNumRangeDims() &&
+         "Id cannot be inserted at invalid position");
+  insertDimId(getNumDomainDims() + pos, num);
+  numRangeDims += num;
+}
+
+void FlatAffineRelation::appendDomainId(unsigned num) {
+  insertDimId(getNumDomainDims(), num);
+  numDomainDims += num;
+}
+
+void FlatAffineRelation::appendRangeId(unsigned num) {
+  insertDimId(getNumDimIds(), num);
+  numRangeDims += num;
+}
+
+void FlatAffineRelation::removeIdRange(unsigned idStart, unsigned idLimit) {
+  if (idStart >= idLimit)
+    return;
+
+  // Compute number of domain and range identifiers to remove. This is done by
+  // intersecting the range of domain/range ids with range of ids to remove.
+  unsigned intersectDomainLHS = std::min(idLimit, getNumDomainDims());
+  unsigned intersectDomainRHS = idStart;
+  unsigned intersectRangeLHS = std::min(idLimit, getNumDimIds());
+  unsigned intersectRangeRHS = std::max(idStart, getNumDomainDims());
+
+  FlatAffineValueConstraints::removeIdRange(idStart, idLimit);
+
+  if (intersectDomainLHS > intersectDomainRHS)
+    numDomainDims -= intersectDomainLHS - intersectDomainRHS;
+  if (intersectRangeLHS > intersectRangeRHS)
+    numRangeDims -= intersectRangeLHS - intersectRangeRHS;
+}
+
+LogicalResult mlir::getRelationFromMap(AffineMap &map,
+                                       FlatAffineRelation &rel) {
+  // Get flattened affine expressions.
+  std::vector<SmallVector<int64_t, 8>> flatExprs;
+  FlatAffineConstraints localVarCst;
+  if (failed(getFlattenedAffineExprs(map, &flatExprs, &localVarCst)))
+    return failure();
+
+  unsigned oldDimNum = localVarCst.getNumDimIds();
+  unsigned oldCols = localVarCst.getNumCols();
+  unsigned numRangeIds = map.getNumResults();
+  unsigned numDomainIds = map.getNumDims();
+
+  // Add range as the new expressions.
+  localVarCst.appendDimId(numRangeIds);
+
+  // Add equalities between source and range.
+  SmallVector<int64_t, 8> eq(localVarCst.getNumCols());
+  for (unsigned i = 0, e = map.getNumResults(); i < e; ++i) {
+    // Zero fill.
+    std::fill(eq.begin(), eq.end(), 0);
+    // Fill equality.
+    for (unsigned j = 0, f = oldDimNum; j < f; ++j)
+      eq[j] = flatExprs[i][j];
+    for (unsigned j = oldDimNum, f = oldCols; j < f; ++j)
+      eq[j + numRangeIds] = flatExprs[i][j];
+    // Set this dimension to -1 to equate lhs and rhs and add equality.
+    eq[numDomainIds + i] = -1;
+    localVarCst.addEquality(eq);
+  }
+
+  // Create relation and return success.
+  rel = FlatAffineRelation(numDomainIds, numRangeIds, localVarCst);
+  return success();
+}
+
+LogicalResult mlir::getRelationFromMap(const AffineValueMap &map,
+                                       FlatAffineRelation &rel) {
+
+  AffineMap affineMap = map.getAffineMap();
+  if (failed(getRelationFromMap(affineMap, rel)))
+    return failure();
+
+  // Set symbol values for domain dimensions and symbols.
+  for (unsigned i = 0, e = rel.getNumDomainDims(); i < e; ++i)
+    rel.setValue(i, map.getOperand(i));
+  for (unsigned i = rel.getNumDimIds(), e = rel.getNumDimAndSymbolIds(); i < e;
+       ++i)
+    rel.setValue(i, map.getOperand(i - rel.getNumRangeDims()));
+
+  return success();
 }

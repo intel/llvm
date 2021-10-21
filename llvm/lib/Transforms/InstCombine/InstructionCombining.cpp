@@ -100,7 +100,6 @@
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/InstCombine/InstCombineWorklist.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <algorithm>
 #include <cassert>
@@ -109,10 +108,11 @@
 #include <string>
 #include <utility>
 
+#define DEBUG_TYPE "instcombine"
+#include "llvm/Transforms/Utils/InstructionWorklist.h"
+
 using namespace llvm;
 using namespace llvm::PatternMatch;
-
-#define DEBUG_TYPE "instcombine"
 
 STATISTIC(NumWorklistIterations,
           "Number of instruction combining iterations performed");
@@ -202,23 +202,37 @@ Value *InstCombinerImpl::EmitGEPOffset(User *GEP) {
   return llvm::EmitGEPOffset(&Builder, DL, GEP);
 }
 
+/// Legal integers and common types are considered desirable. This is used to
+/// avoid creating instructions with types that may not be supported well by the
+/// the backend.
+/// NOTE: This treats i8, i16 and i32 specially because they are common
+///       types in frontend languages.
+bool InstCombinerImpl::isDesirableIntType(unsigned BitWidth) const {
+  switch (BitWidth) {
+  case 8:
+  case 16:
+  case 32:
+    return true;
+  default:
+    return DL.isLegalInteger(BitWidth);
+  }
+}
+
 /// Return true if it is desirable to convert an integer computation from a
 /// given bit width to a new bit width.
 /// We don't want to convert from a legal to an illegal type or from a smaller
-/// to a larger illegal type. A width of '1' is always treated as a legal type
-/// because i1 is a fundamental type in IR, and there are many specialized
-/// optimizations for i1 types. Widths of 8, 16 or 32 are equally treated as
+/// to a larger illegal type. A width of '1' is always treated as a desirable
+/// type because i1 is a fundamental type in IR, and there are many specialized
+/// optimizations for i1 types. Common/desirable widths are equally treated as
 /// legal to convert to, in order to open up more combining opportunities.
-/// NOTE: this treats i8, i16 and i32 specially, due to them being so common
-/// from frontend languages.
 bool InstCombinerImpl::shouldChangeType(unsigned FromWidth,
                                         unsigned ToWidth) const {
   bool FromLegal = FromWidth == 1 || DL.isLegalInteger(FromWidth);
   bool ToLegal = ToWidth == 1 || DL.isLegalInteger(ToWidth);
 
-  // Convert to widths of 8, 16 or 32 even if they are not legal types. Only
-  // shrink types, to prevent infinite loops.
-  if (ToWidth < FromWidth && (ToWidth == 8 || ToWidth == 16 || ToWidth == 32))
+  // Convert to desirable widths even if they are not legal types.
+  // Only shrink types, to prevent infinite loops.
+  if (ToWidth < FromWidth && isDesirableIntType(ToWidth))
     return true;
 
   // If this is a legal integer from type, and the result would be an illegal
@@ -962,14 +976,14 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
     assert(canConstantFoldCallTo(II, cast<Function>(II->getCalledOperand())) &&
            "Expected constant-foldable intrinsic");
     Intrinsic::ID IID = II->getIntrinsicID();
-    if (II->getNumArgOperands() == 1)
+    if (II->arg_size() == 1)
       return Builder.CreateUnaryIntrinsic(IID, SO);
 
     // This works for real binary ops like min/max (where we always expect the
     // constant operand to be canonicalized as op1) and unary ops with a bonus
     // constant argument like ctlz/cttz.
     // TODO: Handle non-commutative binary intrinsics as below for binops.
-    assert(II->getNumArgOperands() == 2 && "Expected binary intrinsic");
+    assert(II->arg_size() == 2 && "Expected binary intrinsic");
     assert(isa<Constant>(II->getArgOperand(1)) && "Expected constant operand");
     return Builder.CreateBinaryIntrinsic(IID, SO, II->getArgOperand(1));
   }
@@ -1059,7 +1073,7 @@ Instruction *InstCombinerImpl::FoldOpIntoSelect(Instruction &Op,
         // Compare for equality including undefs as equal.
         auto *Cmp = ConstantExpr::getCompare(ICmpInst::ICMP_EQ, ConstA, ConstB);
         const APInt *C;
-        return match(Cmp, m_APIntAllowUndef(C)) && C->isOneValue();
+        return match(Cmp, m_APIntAllowUndef(C)) && C->isOne();
       };
 
       if ((areLooselyEqual(TV, Op0) && areLooselyEqual(FV, Op1)) ||
@@ -1121,9 +1135,11 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
   BasicBlock *NonConstBB = nullptr;
   for (unsigned i = 0; i != NumPHIValues; ++i) {
     Value *InVal = PN->getIncomingValue(i);
-    // If I is a freeze instruction, count undef as a non-constant.
-    if (match(InVal, m_ImmConstant()) &&
-        (!isa<FreezeInst>(I) || isGuaranteedNotToBeUndefOrPoison(InVal)))
+    // For non-freeze, require constant operand
+    // For freeze, require non-undef, non-poison operand
+    if (!isa<FreezeInst>(I) && match(InVal, m_ImmConstant()))
+      continue;
+    if (isa<FreezeInst>(I) && isGuaranteedNotToBeUndefOrPoison(InVal))
       continue;
 
     if (isa<PHINode>(InVal)) return nullptr;  // Itself a phi.
@@ -1582,7 +1598,7 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
     Value *XY = Builder.CreateBinOp(Opcode, X, Y);
     if (auto *BO = dyn_cast<BinaryOperator>(XY))
       BO->copyIRFlags(&Inst);
-    return new ShuffleVectorInst(XY, UndefValue::get(XY->getType()), M);
+    return new ShuffleVectorInst(XY, M);
   };
 
   // If both arguments of the binary operation are shuffles that use the same
@@ -1855,7 +1871,8 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   Type *GEPType = GEP.getType();
   Type *GEPEltType = GEP.getSourceElementType();
   bool IsGEPSrcEleScalable = isa<ScalableVectorType>(GEPEltType);
-  if (Value *V = SimplifyGEPInst(GEPEltType, Ops, SQ.getWithInstruction(&GEP)))
+  if (Value *V = SimplifyGEPInst(GEPEltType, Ops, GEP.isInBounds(),
+                                 SQ.getWithInstruction(&GEP)))
     return replaceInstUsesWith(GEP, V);
 
   // For vector geps, use the generic demanded vector support.
@@ -2596,6 +2613,13 @@ static bool isAllocSiteRemovable(Instruction *AI,
           Users.emplace_back(I);
           continue;
         }
+
+        if (isReallocLikeFn(I, TLI, true)) {
+          Users.emplace_back(I);
+          Worklist.push_back(I);
+          continue;
+        }
+
         return false;
 
       case Instruction::Store: {
@@ -2790,6 +2814,26 @@ static Instruction *tryToMoveFreeBeforeNullTest(CallInst &FI,
   }
   assert(FreeInstrBB->size() == 1 &&
          "Only the branch instruction should remain");
+
+  // Now that we've moved the call to free before the NULL check, we have to
+  // remove any attributes on its parameter that imply it's non-null, because
+  // those attributes might have only been valid because of the NULL check, and
+  // we can get miscompiles if we keep them. This is conservative if non-null is
+  // also implied by something other than the NULL check, but it's guaranteed to
+  // be correct, and the conservativeness won't matter in practice, since the
+  // attributes are irrelevant for the call to free itself and the pointer
+  // shouldn't be used after the call.
+  AttributeList Attrs = FI.getAttributes();
+  Attrs = Attrs.removeParamAttribute(FI.getContext(), 0, Attribute::NonNull);
+  Attribute Dereferenceable = Attrs.getParamAttr(0, Attribute::Dereferenceable);
+  if (Dereferenceable.isValid()) {
+    uint64_t Bytes = Dereferenceable.getDereferenceableBytes();
+    Attrs = Attrs.removeParamAttribute(FI.getContext(), 0,
+                                       Attribute::Dereferenceable);
+    Attrs = Attrs.addDereferenceableOrNullParamAttr(FI.getContext(), 0, Bytes);
+  }
+  FI.setAttributes(Attrs);
+
   return &FI;
 }
 
@@ -2807,6 +2851,15 @@ Instruction *InstCombinerImpl::visitFree(CallInst &FI) {
   // when lots of inlining happens.
   if (isa<ConstantPointerNull>(Op))
     return eraseInstFromFunction(FI);
+
+  // If we had free(realloc(...)) with no intervening uses, then eliminate the
+  // realloc() entirely.
+  if (CallInst *CI = dyn_cast<CallInst>(Op)) {
+    if (CI->hasOneUse() && isReallocLikeFn(CI, &TLI, true)) {
+      return eraseInstFromFunction(
+          *replaceInstUsesWith(*CI, CI->getOperand(0)));
+    }
+  }
 
   // If we optimize for code size, try to move the call to free before the null
   // test so that simplify cfg can remove the empty block and dead code
@@ -2894,7 +2947,7 @@ Instruction *InstCombinerImpl::visitUnconditionalBranchInst(BranchInst &BI) {
 
   auto GetLastSinkableStore = [](BasicBlock::iterator BBI) {
     auto IsNoopInstrForStoreMerging = [](BasicBlock::iterator BBI) {
-      return isa<DbgInfoIntrinsic>(BBI) ||
+      return BBI->isDebugOrPseudoInst() ||
              (isa<BitCastInst>(BBI) && BBI->getType()->isPointerTy());
     };
 
@@ -3513,8 +3566,14 @@ InstCombinerImpl::pushFreezeToPreventPoisonFromPropagating(FreezeInst &OrigFI) {
   // While we could change the other users of OrigOp to use freeze(OrigOp), that
   // potentially reduces their optimization potential, so let's only do this iff
   // the OrigOp is only used by the freeze.
-  if (!OrigOpInst || !OrigOpInst->hasOneUse() || isa<PHINode>(OrigOp) ||
-      canCreateUndefOrPoison(dyn_cast<Operator>(OrigOp)))
+  if (!OrigOpInst || !OrigOpInst->hasOneUse() || isa<PHINode>(OrigOp))
+    return nullptr;
+
+  // We can't push the freeze through an instruction which can itself create
+  // poison.  If the only source of new poison is flags, we can simply
+  // strip them (since we know the only use is the freeze and nothing can
+  // benefit from them.)
+  if (canCreateUndefOrPoison(cast<Operator>(OrigOp), /*ConsiderFlags*/ false))
     return nullptr;
 
   // If operand is guaranteed not to be poison, there is no need to add freeze
@@ -3529,6 +3588,8 @@ InstCombinerImpl::pushFreezeToPreventPoisonFromPropagating(FreezeInst &OrigFI) {
     else
       return nullptr;
   }
+
+  OrigOpInst->dropPoisonGeneratingFlags();
 
   // If all operands are guaranteed to be non-poison, we can drop freeze.
   if (!MaybePoisonOperand)
@@ -3613,7 +3674,7 @@ Instruction *InstCombinerImpl::visitFreeze(FreezeInst &I) {
 /// instruction past all of the instructions between it and the end of its
 /// block.
 static bool TryToSinkInstruction(Instruction *I, BasicBlock *DestBlock) {
-  assert(I->getSingleUndroppableUse() && "Invariants didn't hold!");
+  assert(I->getUniqueUndroppableUser() && "Invariants didn't hold!");
   BasicBlock *SrcBlock = I->getParent();
 
   // Cannot move control-flow-involving, volatile loads, vaarg, etc.
@@ -3772,18 +3833,27 @@ bool InstCombinerImpl::run() {
         [this](Instruction *I) -> Optional<BasicBlock *> {
       if (!EnableCodeSinking)
         return None;
-      Use *SingleUse = I->getSingleUndroppableUse();
-      if (!SingleUse)
+      auto *UserInst = cast_or_null<Instruction>(I->getUniqueUndroppableUser());
+      if (!UserInst)
         return None;
 
       BasicBlock *BB = I->getParent();
-      Instruction *UserInst = cast<Instruction>(SingleUse->getUser());
-      BasicBlock *UserParent;
+      BasicBlock *UserParent = nullptr;
 
-      // Get the block the use occurs in.
-      if (PHINode *PN = dyn_cast<PHINode>(UserInst))
-        UserParent = PN->getIncomingBlock(*SingleUse);
-      else
+      // Special handling for Phi nodes - get the block the use occurs in.
+      if (PHINode *PN = dyn_cast<PHINode>(UserInst)) {
+        for (unsigned i = 0; i < PN->getNumIncomingValues(); i++) {
+          if (PN->getIncomingValue(i) == I) {
+            // Bail out if we have uses in different blocks. We don't do any
+            // sophisticated analysis (i.e finding NearestCommonDominator of these
+            // use blocks).
+            if (UserParent && UserParent != PN->getIncomingBlock(i))
+              return None;
+            UserParent = PN->getIncomingBlock(i);
+          }
+        }
+        assert(UserParent && "expected to find user block!");
+      } else
         UserParent = UserInst->getParent();
 
       // Try sinking to another block. If that block is unreachable, then do
@@ -3950,13 +4020,13 @@ public:
 /// whose condition is a known constant, we only visit the reachable successors.
 static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
                                           const TargetLibraryInfo *TLI,
-                                          InstCombineWorklist &ICWorklist) {
+                                          InstructionWorklist &ICWorklist) {
   bool MadeIRChange = false;
   SmallPtrSet<BasicBlock *, 32> Visited;
   SmallVector<BasicBlock*, 256> Worklist;
   Worklist.push_back(&F.front());
 
-  SmallVector<Instruction*, 128> InstrsForInstCombineWorklist;
+  SmallVector<Instruction *, 128> InstrsForInstructionWorklist;
   DenseMap<Constant *, Constant *> FoldedConstants;
   AliasScopeTracker SeenAliasScopes;
 
@@ -4005,7 +4075,7 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
       // these call instructions consumes non-trivial amount of time and
       // provides no value for the optimization.
       if (!Inst.isDebugOrPseudoInst()) {
-        InstrsForInstCombineWorklist.push_back(&Inst);
+        InstrsForInstructionWorklist.push_back(&Inst);
         SeenAliasScopes.analyse(&Inst);
       }
     }
@@ -4051,8 +4121,8 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
   // of the function down.  This jives well with the way that it adds all uses
   // of instructions to the worklist after doing a transformation, thus avoiding
   // some N^2 behavior in pathological cases.
-  ICWorklist.reserve(InstrsForInstCombineWorklist.size());
-  for (Instruction *Inst : reverse(InstrsForInstCombineWorklist)) {
+  ICWorklist.reserve(InstrsForInstructionWorklist.size());
+  for (Instruction *Inst : reverse(InstrsForInstructionWorklist)) {
     // DCE instruction if trivially dead. As we iterate in reverse program
     // order here, we will clean up whole chains of dead instructions.
     if (isInstructionTriviallyDead(Inst, TLI) ||
@@ -4072,7 +4142,7 @@ static bool prepareICWorklistFromFunction(Function &F, const DataLayout &DL,
 }
 
 static bool combineInstructionsOverFunction(
-    Function &F, InstCombineWorklist &Worklist, AliasAnalysis *AA,
+    Function &F, InstructionWorklist &Worklist, AliasAnalysis *AA,
     AssumptionCache &AC, TargetLibraryInfo &TLI, TargetTransformInfo &TTI,
     DominatorTree &DT, OptimizationRemarkEmitter &ORE, BlockFrequencyInfo *BFI,
     ProfileSummaryInfo *PSI, unsigned MaxIterations, LoopInfo *LI) {

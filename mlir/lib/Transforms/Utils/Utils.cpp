@@ -16,6 +16,7 @@
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -577,7 +578,7 @@ static AffineExpr createDimSizeExprForTiledLayout(AffineExpr oldMapOutput,
 /// 4. Create AffineApplyOp to apply the new maps. The output of AffineApplyOp
 /// is used in dynamicSizes of new AllocOp.
 ///   %0 = dim %arg0, %c1 : memref<4x?xf32>
-///   %c4 = constant 4 : index
+///   %c4 = arith.constant 4 : index
 ///   %1 = affine.apply #map1(%c4, %0)
 ///   %2 = affine.apply #map2(%c4, %0)
 static void createNewDynamicSizes(MemRefType oldMemRefType,
@@ -598,7 +599,7 @@ static void createNewDynamicSizes(MemRefType oldMemRefType,
       Attribute constantAttr =
           b.getIntegerAttr(b.getIndexType(), oldMemRefShape[d]);
       inAffineApply.emplace_back(
-          b.create<ConstantOp>(allocOp->getLoc(), constantAttr));
+          b.create<arith::ConstantOp>(allocOp->getLoc(), constantAttr));
     }
   }
 
@@ -673,7 +674,7 @@ LogicalResult mlir::normalizeMemRef(memref::AllocOp *allocOp) {
                                       /*symbolOperands=*/symbolOperands,
                                       /*domOpFilter=*/nullptr,
                                       /*postDomOpFilter=*/nullptr,
-                                      /*allowDereferencingOps=*/true))) {
+                                      /*allowNonDereferencingOps=*/true))) {
     // If it failed (due to escapes for example), bail out.
     newAlloc.erase();
     return failure();

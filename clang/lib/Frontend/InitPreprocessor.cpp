@@ -371,7 +371,10 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
   //      value is, are implementation-defined.
   // (Removed in C++20.)
   if (!LangOpts.CPlusPlus) {
-    if (LangOpts.C17)
+    // FIXME: Use correct value for C23.
+    if (LangOpts.C2x)
+      Builder.defineMacro("__STDC_VERSION__", "202000L");
+    else if (LangOpts.C17)
       Builder.defineMacro("__STDC_VERSION__", "201710L");
     else if (LangOpts.C11)
       Builder.defineMacro("__STDC_VERSION__", "201112L");
@@ -621,6 +624,7 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
   if (LangOpts.CPlusPlus2b) {
     Builder.defineMacro("__cpp_implicit_move", "202011L");
     Builder.defineMacro("__cpp_size_t_suffix", "202011L");
+    Builder.defineMacro("__cpp_if_consteval", "202106L");
   }
   if (LangOpts.Char8)
     Builder.defineMacro("__cpp_char8_t", "201811L");

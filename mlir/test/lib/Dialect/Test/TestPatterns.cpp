@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestDialect.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -114,8 +115,8 @@ public:
       return failure();
     rewriter.setInsertionPointToStart(op->getBlock());
 
-    auto constOp =
-        rewriter.create<ConstantOp>(op.getLoc(), rewriter.getBoolAttr(true));
+    auto constOp = rewriter.create<arith::ConstantOp>(
+        op.getLoc(), rewriter.getBoolAttr(true));
     rewriter.replaceOpWithNewOp<TestCastOp>(op, rewriter.getI32Type(),
                                             Value(constOp));
     return success();
@@ -684,7 +685,7 @@ struct TestLegalizePatternDriver
              converter.isLegal(&op.getBody());
     });
 
-    // TestCreateUnregisteredOp creates `std.constant` operation,
+    // TestCreateUnregisteredOp creates `arith.constant` operation,
     // which was not added to target intentionally to test
     // correct error code from conversion driver.
     target.addDynamicallyLegalOp<ILLegalOpG>([](ILLegalOpG) { return false; });
@@ -783,7 +784,7 @@ struct OneVResOneVOperandOp1Converter
   using OpConversionPattern<OneVResOneVOperandOp1>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(OneVResOneVOperandOp1 op, ArrayRef<Value> operands,
+  matchAndRewrite(OneVResOneVOperandOp1 op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto origOps = op.getOperands();
     assert(std::distance(origOps.begin(), origOps.end()) == 1 &&
@@ -878,7 +879,7 @@ struct TestTypeConversionProducer
     : public OpConversionPattern<TestTypeProducerOp> {
   using OpConversionPattern<TestTypeProducerOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(TestTypeProducerOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TestTypeProducerOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     Type resultType = op.getType();
     if (resultType.isa<FloatType>())
@@ -900,7 +901,7 @@ struct TestSignatureConversionUndo
   using OpConversionPattern<TestSignatureConversionUndoOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(TestSignatureConversionUndoOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TestSignatureConversionUndoOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     (void)rewriter.convertRegionTypes(&op->getRegion(0), *getTypeConverter());
     return failure();
@@ -914,9 +915,10 @@ struct TestTypeConsumerForward
   using OpConversionPattern<TestTypeConsumerOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(TestTypeConsumerOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TestTypeConsumerOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriter.updateRootInPlace(op, [&] { op->setOperands(operands); });
+    rewriter.updateRootInPlace(op,
+                               [&] { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };
@@ -1022,7 +1024,7 @@ struct TestMergeBlock : public OpConversionPattern<TestMergeBlocksOp> {
   using OpConversionPattern<TestMergeBlocksOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(TestMergeBlocksOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TestMergeBlocksOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     Block &firstBlock = op.body().front();
     Operation *branchOp = firstBlock.getTerminator();
@@ -1065,7 +1067,7 @@ struct TestMergeSingleBlockOps
       SingleBlockImplicitTerminatorOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(SingleBlockImplicitTerminatorOp op, ArrayRef<Value> operands,
+  matchAndRewrite(SingleBlockImplicitTerminatorOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     SingleBlockImplicitTerminatorOp parentOp =
         op->getParentOfType<SingleBlockImplicitTerminatorOp>();

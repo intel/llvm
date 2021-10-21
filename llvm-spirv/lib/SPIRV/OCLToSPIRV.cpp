@@ -810,7 +810,7 @@ void OCLToSPIRVBase::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
     } else {
       auto MaxOps =
           getOCLCpp11AtomicMaxNumOps(Stem.drop_back(strlen("_explicit")));
-      if (CI->getNumArgOperands() < MaxOps)
+      if (CI->arg_size() < MaxOps)
         PostOps.push_back(OCLMS_device);
     }
   } else if (Stem == "work_item_fence") {
@@ -1424,7 +1424,7 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
   // Check if all arguments have the same type - it's simple case.
   auto Uniform = true;
   auto IsArg0Vector = isa<VectorType>(CI->getOperand(0)->getType());
-  for (unsigned I = 1, E = CI->getNumArgOperands(); Uniform && (I != E); ++I) {
+  for (unsigned I = 1, E = CI->arg_size(); Uniform && (I != E); ++I) {
     Uniform = isa<VectorType>(CI->getOperand(I)->getType()) == IsArg0Vector;
   }
   if (Uniform) {
@@ -1654,7 +1654,7 @@ void OCLToSPIRVBase::visitSubgroupBlockWriteINTEL(CallInst *CI) {
     Info.UniqName = getSPIRVFuncName(spv::OpSubgroupBlockWriteINTEL);
   assert(!CI->arg_empty() &&
          "Intel subgroup block write should have arguments");
-  unsigned DataArg = CI->getNumArgOperands() - 1;
+  unsigned DataArg = CI->arg_size() - 1;
   Type *DataTy = CI->getArgOperand(DataArg)->getType();
   processSubgroupBlockReadWriteINTEL(CI, Info, DataTy, M);
 }
@@ -1723,7 +1723,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCall(CallInst *CI,
     FName += (STy->getName().contains("single")) ? "_single_reference"
                                                  : "_dual_reference";
   } else if (FName.find(Prefix + "sic_configure_ipe") == 0) {
-    FName += (CI->getNumArgOperands() == 8) ? "_luma" : "_luma_chroma";
+    FName += (CI->arg_size() == 8) ? "_luma" : "_luma_chroma";
   }
 
   OCLSPIRVSubgroupAVCIntelBuiltinMap::find(FName, &OC);
@@ -1758,7 +1758,7 @@ void OCLToSPIRVBase::visitSubgroupAVCWrapperBuiltinCall(
   // The operand required conversion is always the last one.
   const char *OpKind = getSubgroupAVCIntelOpKind(DemangledName);
   const char *TyKind = getSubgroupAVCIntelTyKind(
-      CI->getArgOperand(CI->getNumArgOperands() - 1)->getType());
+      CI->getArgOperand(CI->arg_size() - 1)->getType());
   std::string MCETName =
       std::string(kOCLSubgroupsAVCIntel::TypePrefix) + "mce_" + TyKind + "_t";
   auto *MCETy =
@@ -1822,7 +1822,7 @@ void OCLToSPIRVBase::visitSubgroupAVCBuiltinCallWithSampler(
   // Update names for built-ins mapped on two or more SPIRV instructions
   if (FName.find(Prefix + "ref_evaluate_with_multi_reference") == 0 ||
       FName.find(Prefix + "sic_evaluate_with_multi_reference") == 0) {
-    FName += (CI->getNumArgOperands() == 5) ? "_interlaced" : "";
+    FName += (CI->arg_size() == 5) ? "_interlaced" : "";
   }
 
   Op OC = OpNop;

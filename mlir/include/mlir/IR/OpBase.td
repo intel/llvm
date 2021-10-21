@@ -237,6 +237,11 @@ def IsTupleTypePred : CPred<"$_self.isa<::mlir::TupleType>()">;
 // Dialect definitions
 //===----------------------------------------------------------------------===//
 
+// "Enum" values for emitAccessorPrefix of Dialect.
+defvar kEmitAccessorPrefix_Raw = 0;      // Don't emit any getter/setter prefix.
+defvar kEmitAccessorPrefix_Prefixed = 1; // Only emit with getter/setter prefix.
+defvar kEmitAccessorPrefix_Both = 2;     // Emit without and with prefix.
+
 class Dialect {
   // The name of the dialect.
   string name = ?;
@@ -290,6 +295,17 @@ class Dialect {
 
   // If this dialect overrides the hook for canonicalization patterns.
   bit hasCanonicalizer = 0;
+
+  // Whether to emit raw/with no prefix or format changes, or emit with
+  // accessor with prefix only and UpperCamel suffix or to emit accessors with
+  // both.
+  //
+  // If emitting with prefix is specified then the attribute/operand's
+  // name is converted to UpperCamel from snake_case (which would result in
+  // leaving UpperCamel unchanged while also converting lowerCamel to
+  // UpperCamel) and prefixed with `get` or `set` depending on if it is a getter
+  // or setter.
+  int emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 
 //===----------------------------------------------------------------------===//
@@ -912,6 +928,11 @@ class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.summary> {
   let baseAttr = attr;
 }
 
+// Default-valued string-based attribute. Wraps the default value in escaped
+// quotes.
+class DefaultValuedStrAttr<Attr attr, string val>
+    : DefaultValuedAttr<attr, "\"" # val # "\"">;
+
 //===----------------------------------------------------------------------===//
 // Primitive attribute kinds
 
@@ -1079,7 +1100,7 @@ def F64Attr : FloatAttrBase<F64, "64-bit float attribute">;
 
 // An attribute backed by a string type.
 class StringBasedAttr<Pred condition, string descr> : Attr<condition, descr> {
-  let constBuilderCall = "$_builder.getStringAttr(\"$0\")";
+  let constBuilderCall = "$_builder.getStringAttr($0)";
   let storageType = [{ ::mlir::StringAttr }];
   let returnType = [{ ::llvm::StringRef }];
   let valueType = NoneType;
@@ -1656,6 +1677,10 @@ def ConstBoolAttrFalse : ConstantAttr<BoolAttr, "false">;
 def ConstBoolAttrTrue : ConstantAttr<BoolAttr, "true">;
 def ConstUnitAttr : ConstantAttr<UnitAttr, "unit">;
 
+// Constant string-based attribute. Wraps the desired string in escaped quotes.
+class ConstantStrAttr<Attr attribute, string val>
+    : ConstantAttr<attribute, "\"" # val # "\"">;
+
 //===----------------------------------------------------------------------===//
 // Common attribute constraints
 //===----------------------------------------------------------------------===//
@@ -2083,8 +2108,7 @@ class TypeInterface<string name> : Interface<name>, InterfaceTrait<name>;
 // declarations should be generated. This class takes an optional set of methods
 // that should have declarations generated even if the method has a default
 // implementation.
-class DeclareInterfaceMethods<Interface interface,
-                              list<string> overridenMethods = []> {
+class DeclareInterfaceMethods<list<string> overridenMethods = []> {
     // This field contains a set of method names that should always have their
     // declarations generated. This allows for generating declarations for
     // methods with default implementations that need to be overridden.
@@ -2092,7 +2116,7 @@ class DeclareInterfaceMethods<Interface interface,
 }
 class DeclareAttrInterfaceMethods<AttrInterface interface,
                                   list<string> overridenMethods = []>
-      : DeclareInterfaceMethods<interface, overridenMethods>,
+      : DeclareInterfaceMethods<overridenMethods>,
         AttrInterface<interface.cppClassName> {
     let description = interface.description;
     let cppClassName = interface.cppClassName;
@@ -2101,7 +2125,7 @@ class DeclareAttrInterfaceMethods<AttrInterface interface,
 }
 class DeclareOpInterfaceMethods<OpInterface interface,
                                 list<string> overridenMethods = []>
-      : DeclareInterfaceMethods<interface, overridenMethods>,
+      : DeclareInterfaceMethods<overridenMethods>,
         OpInterface<interface.cppClassName> {
     let description = interface.description;
     let cppClassName = interface.cppClassName;
@@ -2110,7 +2134,7 @@ class DeclareOpInterfaceMethods<OpInterface interface,
 }
 class DeclareTypeInterfaceMethods<TypeInterface interface,
                                   list<string> overridenMethods = []>
-      : DeclareInterfaceMethods<interface, overridenMethods>,
+      : DeclareInterfaceMethods<overridenMethods>,
         TypeInterface<interface.cppClassName> {
     let description = interface.description;
     let cppClassName = interface.cppClassName;
@@ -2861,6 +2885,7 @@ class AttrDef<Dialect dialect, string name, list<Trait> traits = [],
       AttrOrTypeDef<"Attr", name, traits, baseCppClass> {
   // The name of the C++ Attribute class.
   string cppClassName = name # "Attr";
+  let storageType = dialect.cppNamespace # "::" # name # "Attr";
 
   // The underlying C++ value type
   let returnType = dialect.cppNamespace # "::" # cppClassName;

@@ -2022,6 +2022,24 @@ def FormatTypesMatchContextOp : TEST_Op<"format_types_match_context", [
 }
 
 //===----------------------------------------------------------------------===//
+// InferTypeOpInterface type inference in assembly format
+
+def FormatInferTypeOp : TEST_Op<"format_infer_type", [InferTypeOpInterface]> {
+  let results = (outs AnyType);
+  let assemblyFormat = "attr-dict";
+
+  let extraClassDeclaration = [{
+    static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
+          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
+          ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
+      inferredReturnTypes.assign({::mlir::IntegerType::get(context, 16)});
+      return ::mlir::success();
+    }
+   }];
+}
+
+//===----------------------------------------------------------------------===//
 // Test SideEffects
 //===----------------------------------------------------------------------===//
 
@@ -2285,7 +2303,7 @@ def TestLinalgConvOpNotLinalgOp : TEST_Op<"conv_op_not_linalg_op", [
 }
 
 def TestLinalgConvOp :
-  TEST_Op<"linalg_conv_op", [AttrSizedOperandSegments,
+  TEST_Op<"linalg_conv_op", [AttrSizedOperandSegments, SingleBlock,
       LinalgStructuredInterface, LinalgConvolutionOpInterface]> {
 
   let arguments = (ins Variadic<AnyType>:$inputs,
@@ -2324,5 +2342,22 @@ def TestLinalgConvOp :
     }
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// Test Ops with Default-Valued String Attributes
+//===----------------------------------------------------------------------===//
+
+def TestDefaultStrAttrNoValueOp : TEST_Op<"no_str_value"> {
+  let arguments = (ins DefaultValuedAttr<StrAttr, "">:$value);
+  let assemblyFormat = "attr-dict";
+}
+
+def TestDefaultStrAttrHasValueOp : TEST_Op<"has_str_value"> {
+  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$value);
+  let assemblyFormat = "attr-dict";
+}
+
+def : Pat<(TestDefaultStrAttrNoValueOp $value),
+          (TestDefaultStrAttrHasValueOp ConstantStrAttr<StrAttr, "foo">)>;
 
 #endif // TEST_OPS

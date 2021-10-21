@@ -74,7 +74,7 @@ void *getPluginOpaqueData(void *OpaqueDataParam) {
 }
 
 template __SYCL_EXPORT void *
-getPluginOpaqueData<cl::sycl::backend::esimd_cpu>(void *);
+getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(void *);
 
 namespace pi {
 
@@ -435,8 +435,6 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-
   if (!(xptiTraceEnabled() && !XPTIInitDone))
     return;
   // Not sure this is the best place to initialize the framework; SYCL runtime
@@ -506,7 +504,8 @@ template <backend BE> const plugin &getPlugin() {
 
 template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
 template __SYCL_EXPORT const plugin &getPlugin<backend::level_zero>();
-template __SYCL_EXPORT const plugin &getPlugin<backend::esimd_cpu>();
+template __SYCL_EXPORT const plugin &
+getPlugin<backend::ext_intel_esimd_emulator>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,

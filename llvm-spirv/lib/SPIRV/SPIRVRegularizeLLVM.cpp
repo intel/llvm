@@ -320,6 +320,16 @@ void SPIRVRegularizeLLVMBase::adaptStructTypes(StructType *ST) {
     size_t Space = ElemType.rfind(' ');
     if (Space != StringRef::npos)
       ElemType = ElemType.substr(Space + 1);
+    // Half type is special: because of https://github.com/intel/llvm/pull/1089
+    // in DPC++ we use `class half` instead of `half` type natively supported by
+    // Clang. After demangling we get the type name qualified with parent
+    // namespaces, which we should remove.
+    // In anticipation of https://github.com/intel/llvm/pull/4460 we provide
+    // for 2 possible prefixes(top level namespaces).
+    if ((ElemType.startswith("cl::sycl::") ||
+         ElemType.startswith("__sycl_internal::")) &&
+        ElemType.endswith("::half"))
+      ElemType = ElemType.take_back(/*strlen("half")*/ 4);
     P = P.second.split(", ");
     // P.first = "2ul"
     // P.second = "2ul, (spv::MatrixLayout)0, (spv::Scope)3"
