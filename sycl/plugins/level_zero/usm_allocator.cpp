@@ -10,6 +10,7 @@
 #include <array>
 #include <bitset>
 #include <cassert>
+#include <cctype>
 #include <iomanip>
 #include <iostream>
 #include <list>
@@ -150,15 +151,15 @@ public:
 
     auto GetValue = [](std::string &Param, size_t Length) {
       size_t Multiplier = 1;
-      if (std::tolower(Param[Length - 1]) == 'k') {
+      if (tolower(Param[Length - 1]) == 'k') {
         Length--;
         Multiplier = 1024;
       }
-      if (std::tolower(Param[Length - 1]) == 'm') {
+      if (tolower(Param[Length - 1]) == 'm') {
         Length--;
         Multiplier = 1024 * 1024;
       }
-      if (std::tolower(Param[Length - 1]) == 'g') {
+      if (tolower(Param[Length - 1]) == 'g') {
         Length--;
         Multiplier = 1024 * 1024 * 1024;
       }
@@ -306,7 +307,6 @@ public:
   }
 } USMSettings;
 } // namespace settings
-
 
 using namespace settings;
 
