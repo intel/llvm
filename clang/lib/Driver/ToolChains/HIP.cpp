@@ -322,7 +322,7 @@ void HIPToolChain::addClangTargetOptions(
     }
 
     if (LibSpirvFile.empty()) {
-      getDriver().Diag(diag::err_drv_no_sycl_libspirv);
+      getDriver().Diag(diag::err_drv_no_sycl_hip_libspirv);
       return;
     }
 
