@@ -190,4 +190,12 @@ inline double report_time(const std::string &msg, event e0, event en) {
   return elapsed;
 }
 
+void display_timing_stats(double const kernelTime,
+                          unsigned int const uiNumberOfIterations,
+                          double const overallTime) {
+  std::cout << "Number of iterations: " << uiNumberOfIterations << "\n";
+  std::cout << "[KernelTime]:" << kernelTime << "\n";
+  std::cout << "[OverallTime][Primary]:" << overallTime << "\n";
+}
+
 } // namespace esimd_test
