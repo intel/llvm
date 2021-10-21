@@ -25,8 +25,8 @@ namespace oneapi {
 namespace cuda {
 namespace property {
 namespace queue {
-class use_default_stream
-    : public ::cl::sycl::detail::DataLessProperty<::cl::sycl::detail::UseDefaultStream> {};
+class use_default_stream : public ::cl::sycl::detail::DataLessProperty<
+                               ::cl::sycl::detail::UseDefaultStream> {};
 } // namespace queue
 } // namespace property
 } // namespace cuda
@@ -35,9 +35,10 @@ class use_default_stream
 
 namespace property {
 namespace queue {
-namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::cuda::property::queue' instead") cuda {
-class use_default_stream
-    : public ::cl::sycl::ext::oneapi::cuda::property::queue::use_default_stream {};
+namespace __SYCL2020_DEPRECATED(
+    "use 'sycl::ext::oneapi::cuda::property::queue' instead") cuda {
+  class use_default_stream : public ::cl::sycl::ext::oneapi::cuda::property::
+                                 queue::use_default_stream {};
 } // namespace cuda
 } // namespace queue
 } // namespace property
