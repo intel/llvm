@@ -316,8 +316,9 @@ struct sub_group {
 #ifdef __NVPTX__
   template <int N, typename CVT, access::address_space Space,
             typename T = std::remove_cv_t<CVT>>
-  sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
+  __sycl_ns::detail::enable_if_t<
+      __sycl_ns::detail::sub_group::AcceptableForGlobalLoadStore<T,
+                                                                 Space>::value,
       vec<T, N>>
   load(const multi_ptr<CVT, Space> cv_src) const {
     multi_ptr<T, Space> src = const_cast<T *>(static_cast<CVT *>(cv_src));
@@ -499,8 +500,9 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
 #ifdef __NVPTX__
   template <int N, typename T, access::address_space Space>
-  sycl::detail::enable_if_t<
-      sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
+  __sycl_ns::detail::enable_if_t<
+      __sycl_ns::detail::sub_group::AcceptableForGlobalLoadStore<T,
+                                                                 Space>::value>
   store(multi_ptr<T, Space> dst, const vec<T, N> &x) const {
     for (int i = 0; i < N; ++i) {
       *(dst.get() + i * get_max_local_range()[0] + get_local_id()[0]) = x[i];
