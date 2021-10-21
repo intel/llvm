@@ -3091,12 +3091,26 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
 
   pi_result Result;
   if (DeviceIsIntegrated) {
-    Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+    if (enableBufferPooling())
+      Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+    else {
+      ze_host_mem_alloc_desc_t ZeDesc = {};
+      ZeDesc.flags = 0;
+      ZE_CALL(zeMemAllocHost, (Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
+    }
   } else if (Context->SingleRootDevice) {
     // If we have a single discrete device or all devices in the context are
     // sub-devices of the same device then we can allocate on device
-    Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
-                                 nullptr, Size, Alignment);
+    if (enableBufferPooling())
+      Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                   nullptr, Size, Alignment);
+    else {
+      ze_device_mem_alloc_desc_t ZeDesc = {};
+      ZeDesc.flags = 0;
+      ZeDesc.ordinal = 0;
+      ZE_CALL(zeMemAllocDevice, (Context->ZeContext, &ZeDesc, Size, 1,
+                                 Context->SingleRootDevice->ZeDevice, &Ptr));
+    }
   } else {
     // Context with several gpu cards. Temporarily use host allocation because
     // it is accessible by all devices. But it is not good in terms of
@@ -3104,7 +3118,13 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     // TODO: We need to either allow remote access to device memory using IPC,
     // or do explicit memory transfers from one device to another using host
     // resources as backing buffers to allow those transfers.
-    Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+    if (enableBufferPooling())
+      Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+    else {
+      ze_host_mem_alloc_desc_t ZeDesc = {};
+      ZeDesc.flags = 0;
+      ZE_CALL(zeMemAllocHost, (Context->ZeContext, &ZeDesc, Size, 1, &Ptr));
+    }
   }
 
   if (Result != PI_SUCCESS)
@@ -3179,7 +3199,11 @@ pi_result piMemRelease(pi_mem Mem) {
     } else {
       auto Buf = static_cast<_pi_buffer *>(Mem);
       if (!Buf->isSubBuffer()) {
-        PI_CALL(piextUSMFree(Mem->Context, Mem->getZeHandle()));
+        if (enableBufferPooling()) {
+          PI_CALL(piextUSMFree(Mem->Context, Mem->getZeHandle()));
+        } else {
+          ZE_CALL(zeMemFree, (Mem->Context->ZeContext, Mem->getZeHandle()));
+        }
       }
     }
     delete Mem;
@@ -6489,6 +6513,18 @@ pi_result USMHostMemoryAlloc::allocateImpl(void **ResultPtr, size_t Size,
   return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
 }
 
+SystemMemory::MemType USMSharedMemoryAlloc::getMemTypeImpl() {
+  return SystemMemory::Shared;
+}
+
+SystemMemory::MemType USMDeviceMemoryAlloc::getMemTypeImpl() {
+  return SystemMemory::Device;
+}
+
+SystemMemory::MemType USMHostMemoryAlloc::getMemTypeImpl() {
+  return SystemMemory::Host;
+}
+
 void *USMMemoryAllocBase::allocate(size_t Size) {
   void *Ptr = nullptr;
 
@@ -6515,6 +6551,10 @@ void USMMemoryAllocBase::deallocate(void *Ptr) {
   if (Res != PI_SUCCESS) {
     throw UsmAllocationException(Res);
   }
+}
+
+SystemMemory::MemType USMMemoryAllocBase::getMemType() {
+  return getMemTypeImpl();
 }
 
 pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
