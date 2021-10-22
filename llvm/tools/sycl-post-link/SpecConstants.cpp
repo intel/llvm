@@ -314,7 +314,11 @@ void collectCompositeElementsDefaultValuesRecursive(
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
-      Constant *El = cast<Constant>(C->getOperand(I));
+      Constant *El = nullptr;
+      if (C->isZeroValue())
+        El = Constant::getNullValue(StructTy->getElementType(I));
+      else
+        El = cast<Constant>(C->getOperand(I));
       // When handling elements of a structure, we do not use manually
       // calculated offsets (which are sum of sizes of all previously
       // encountered elements), but instead rely on data provided for us by
