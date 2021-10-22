@@ -193,7 +193,10 @@ if (NOT DEFINED LLVM_LINKER_DETECTED)
       OUTPUT_VARIABLE stdout
       ERROR_VARIABLE stderr
       )
-    if("${stdout}" MATCHES "GNU gold")
+    if("${stdout}" MATCHES "^mold")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: mold")
+    elseif("${stdout}" MATCHES "GNU gold")
       set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
       set(LLVM_LINKER_IS_GOLD YES CACHE INTERNAL "")
       message(STATUS "Linker detection: GNU Gold")
@@ -429,13 +432,10 @@ endfunction(set_windows_version_resource_properties)
 #      This is used to specify that this is a component library of
 #      LLVM which means that the source resides in llvm/lib/ and it is a
 #      candidate for inclusion into libLLVM.so.
-#   EXCLUDE_FROM_ALL
-#      Do not build this library as part of the default target, only
-#      if explicitly requested or when linked against.
 #   )
 function(llvm_add_library name)
   cmake_parse_arguments(ARG
-    "MODULE;SHARED;STATIC;OBJECT;DISABLE_LLVM_LINK_LLVM_DYLIB;SONAME;NO_INSTALL_RPATH;COMPONENT_LIB;EXCLUDE_FROM_ALL"
+    "MODULE;SHARED;STATIC;OBJECT;DISABLE_LLVM_LINK_LLVM_DYLIB;SONAME;NO_INSTALL_RPATH;COMPONENT_LIB"
     "OUTPUT_NAME;PLUGIN_TOOL;ENTITLEMENTS;BUNDLE_PATH"
     "ADDITIONAL_HEADERS;DEPENDS;LINK_COMPONENTS;LINK_LIBS;OBJLIBS"
     ${ARGN})
@@ -538,9 +538,6 @@ function(llvm_add_library name)
 
     # FIXME: Add name_static to anywhere in TARGET ${name}'s PROPERTY.
     set(ARG_STATIC)
-    if(ARG_EXCLUDE_FROM_ALL OR EXCLUDE_FROM_ALL)
-      set_target_properties(${name_static} PROPERTIES EXCLUDE_FROM_ALL ON)
-    endif()
   endif()
 
   if(ARG_MODULE)
@@ -550,10 +547,6 @@ function(llvm_add_library name)
     add_library(${name} SHARED ${ALL_FILES})
   else()
     add_library(${name} STATIC ${ALL_FILES})
-  endif()
-
-  if(ARG_EXCLUDE_FROM_ALL OR EXCLUDE_FROM_ALL)
-    set_target_properties(${name} PROPERTIES EXCLUDE_FROM_ALL ON)
   endif()
 
   if(ARG_COMPONENT_LIB)

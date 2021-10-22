@@ -1576,8 +1576,8 @@ void AttrsVisitor::SetBindNameOn(Symbol &symbol) {
   if (!attrs_ || !attrs_->test(Attr::BIND_C)) {
     return;
   }
-  std::optional<std::string> label{evaluate::GetScalarConstantValue<
-      evaluate::Type<TypeCategory::Character, 1>>(bindName_)};
+  std::optional<std::string> label{
+      evaluate::GetScalarConstantValue<evaluate::Ascii>(bindName_)};
   // 18.9.2(2): discard leading and trailing blanks, ignore if all blank
   if (label) {
     auto first{label->find_first_not_of(" ")};
@@ -4224,17 +4224,7 @@ void DeclarationVisitor::Post(const parser::ComponentDecl &x) {
               "POINTER or ALLOCATABLE"_err_en_US);
         }
       }
-      if (!coarraySpec().empty()) { // C747
-        if (IsTeamType(derived)) {
-          Say("A coarray component may not be of type TEAM_TYPE from "
-              "ISO_FORTRAN_ENV"_err_en_US);
-        } else {
-          if (IsIsoCType(derived)) {
-            Say("A coarray component may not be of type C_PTR or C_FUNPTR from "
-                "ISO_C_BINDING"_err_en_US);
-          }
-        }
-      }
+      // TODO: This would be more appropriate in CheckDerivedType()
       if (auto it{FindCoarrayUltimateComponent(*derived)}) { // C748
         std::string ultimateName{it.BuildResultDesignatorName()};
         // Strip off the leading "%"

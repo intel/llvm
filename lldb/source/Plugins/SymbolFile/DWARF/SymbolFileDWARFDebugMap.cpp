@@ -16,6 +16,7 @@
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Utility/RangeMap.h"
 #include "lldb/Utility/RegularExpression.h"
+#include "lldb/Utility/Timer.h"
 
 //#define DEBUG_OSO_DMAP // DO NOT CHECKIN WITH THIS NOT COMMENTED OUT
 #if defined(DEBUG_OSO_DMAP)
@@ -32,9 +33,6 @@
 
 #include "LogChannelDWARF.h"
 #include "SymbolFileDWARF.h"
-
-// Work around the fact that Timer.h pulls in the system Mach-O headers.
-#include "lldb/Utility/Timer.h"
 
 #include <memory>
 
@@ -530,8 +528,8 @@ SymbolFileDWARFDebugMap::GetSymbolFileByOSOIndex(uint32_t oso_idx) {
 
 SymbolFileDWARF *
 SymbolFileDWARFDebugMap::GetSymbolFileAsSymbolFileDWARF(SymbolFile *sym_file) {
-  if (sym_file &&
-      sym_file->GetPluginName() == SymbolFileDWARF::GetPluginNameStatic())
+  if (sym_file && sym_file->GetPluginName() ==
+                      SymbolFileDWARF::GetPluginNameStatic().GetStringRef())
     return static_cast<SymbolFileDWARF *>(sym_file);
   return nullptr;
 }
@@ -1234,11 +1232,6 @@ void SymbolFileDWARFDebugMap::DumpClangAST(Stream &s) {
     // this once and can stop after the first iteration hence we return true.
     return true;
   });
-}
-
-// PluginInterface protocol
-lldb_private::ConstString SymbolFileDWARFDebugMap::GetPluginName() {
-  return GetPluginNameStatic();
 }
 
 lldb::CompUnitSP

@@ -29,7 +29,9 @@ public:
 
   static const char *GetPluginDescriptionStatic(bool is_host);
 
-  lldb_private::ConstString GetPluginName() override;
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic(IsHost()).GetStringRef();
+  }
 
   // lldb_private::Platform functions
   const char *GetDescription() override {
@@ -61,6 +63,9 @@ public:
   void CalculateTrapHandlerSymbolNames() override {}
 
   ConstString GetFullNameForDylib(ConstString basename) override;
+
+  size_t GetSoftwareBreakpointTrapOpcode(Target &target,
+                                         BreakpointSite *bp_site) override;
 };
 
 } // namespace lldb_private

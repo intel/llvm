@@ -49,8 +49,8 @@ target_include_directories(XPTIFWUnitTests SYSTEM PRIVATE
   ${LLVM_MAIN_SRC_DIR}/utils/unittest/googletest/include
 )
 
-if (TARGET Support)
-  set(SUPPORT_LIB Support)
+if (TARGET LLVMSupport)
+  set(SUPPORT_LIB LLVMSupport)
 endif()
 
 target_link_libraries(XPTIFWUnitTests PRIVATE

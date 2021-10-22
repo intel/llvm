@@ -292,16 +292,10 @@ public:
     // Check if we are in Non-Stop mode
     TargetSP target_sp =
         execution_context ? execution_context->GetTargetSP() : TargetSP();
-    if (target_sp && target_sp->GetNonStopModeEnabled()) {
-      // NonStopMode runs all threads by definition, so when it is on we don't
-      // need to check the process setting for runs all threads.
-      m_run_mode = eOnlyThisThread;
-    } else {
-      ProcessSP process_sp =
-          execution_context ? execution_context->GetProcessSP() : ProcessSP();
-      if (process_sp && process_sp->GetSteppingRunsAllThreads())
-        m_run_mode = eAllThreads;
-    }
+    ProcessSP process_sp =
+        execution_context ? execution_context->GetProcessSP() : ProcessSP();
+    if (process_sp && process_sp->GetSteppingRunsAllThreads())
+      m_run_mode = eAllThreads;
 
     m_avoid_regexp.clear();
     m_step_in_target.clear();
@@ -2205,9 +2199,8 @@ public:
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target &target = m_exe_ctx.GetTargetRef();
-    result.GetOutputStream().Printf(
-        "Trace technology: %s\n",
-        target.GetTrace()->GetPluginName().AsCString());
+    result.GetOutputStream().Format("Trace technology: {0}\n",
+                                    target.GetTrace()->GetPluginName());
     return CommandObjectIterateOverThreads::DoExecute(command, result);
   }
 

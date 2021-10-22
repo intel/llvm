@@ -220,34 +220,36 @@
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
-; CHECK-SPIRV: Decorate {{[0-9]+}} RegisterINTEL
-; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
-; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
-; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "BLOCK_RAM"
-; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 2
-; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 4
-; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 8
-; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 16
-; CHECK-SPIRV: Decorate {{[0-9]+}} BankwidthINTEL 4
-; CHECK-SPIRV: Decorate {{[0-9]+}} BankwidthINTEL 8
-; CHECK-SPIRV: Decorate {{[0-9]+}} BankwidthINTEL 16
-; CHECK-SPIRV: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 2
-; CHECK-SPIRV: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 4
-; CHECK-SPIRV: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 8
-; CHECK-SPIRV: Decorate {{[0-9]+}} SinglepumpINTEL
-; CHECK-SPIRV: Decorate {{[0-9]+}} DoublepumpINTEL
-; CHECK-SPIRV: Decorate {{[0-9]+}} MaxReplicatesINTEL 2
-; CHECK-SPIRV: Decorate {{[0-9]+}} MaxReplicatesINTEL 4
-; CHECK-SPIRV: Decorate {{[0-9]+}} MaxReplicatesINTEL 8
-; CHECK-SPIRV: Decorate {{[0-9]+}} SimpleDualPortINTEL
-; CHECK-SPIRV: Decorate {{[0-9]+}} MergeINTEL "foo" "depth"
-; CHECK-SPIRV: Decorate {{[0-9]+}} MergeINTEL "bar" "width"
-; CHECK-SPIRV: Decorate {{[0-9]+}} BankBitsINTEL 2
-; CHECK-SPIRV: Decorate {{[0-9]+}} BankBitsINTEL 5
-; CHECK-SPIRV: Decorate {{[0-9]+}} BankBitsINTEL 4 5
-; CHECK-SPIRV: Decorate {{[0-9]+}} BankBitsINTEL 2 1 0
-; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
-; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 1
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} RegisterINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "BLOCK_RAM"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NumbanksINTEL 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NumbanksINTEL 4
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NumbanksINTEL 8
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NumbanksINTEL 16
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankwidthINTEL 4
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankwidthINTEL 8
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankwidthINTEL 16
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 4
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 8
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} SinglepumpINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} DoublepumpINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxReplicatesINTEL 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxReplicatesINTEL 4
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxReplicatesINTEL 8
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} SimpleDualPortINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MergeINTEL "foo" "depth"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MergeINTEL "bar" "width"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankBitsINTEL 2 1 0
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankBitsINTEL 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankBitsINTEL 5
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankBitsINTEL 4 5
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} ForcePow2DepthINTEL 1
+
+; CHECK-SPIRV-NOT: Decorate [[#]] UserSemantic "{memory:MLAB}{sizeinfo:4,500}"
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"

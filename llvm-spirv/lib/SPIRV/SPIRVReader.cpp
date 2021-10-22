@@ -598,11 +598,6 @@ SPIRVToLLVM::transValue(const std::vector<SPIRVValue *> &BV, Function *F,
   return V;
 }
 
-bool SPIRVToLLVM::isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const {
-  auto OC = BI->getOpCode();
-  return isCmpOpCode(OC) && !(OC >= OpLessOrGreater && OC <= OpUnordered);
-}
-
 void SPIRVToLLVM::setName(llvm::Value *V, SPIRVValue *BV) {
   auto Name = BV->getName();
   if (!Name.empty() && (!V->hasName() || Name != V->getName()))
@@ -1113,6 +1108,9 @@ Value *SPIRVToLLVM::transCmpInst(SPIRVValue *BV, BasicBlock *BB, Function *F) {
   if (BB) {
     Builder.SetInsertPoint(BB);
   }
+
+  if (OP == OpLessOrGreater)
+    OP = OpFOrdNotEqual;
 
   if (BT->isTypeVectorOrScalarInt() || BT->isTypeVectorOrScalarBool() ||
       BT->isTypePointer())
@@ -2491,7 +2489,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   default: {
     auto OC = BV->getOpCode();
-    if (isSPIRVCmpInstTransToLLVMInst(static_cast<SPIRVInstruction *>(BV)))
+    if (isCmpOpCode(OC))
       return mapValue(BV, transCmpInst(BV, BB, F));
 
     if (OCLSPIRVBuiltinMap::rfind(OC, nullptr))
@@ -3787,6 +3785,27 @@ bool SPIRVToLLVM::transMetadata() {
             BF->getExecutionMode(ExecutionModeSchedulerTargetFmaxMhzINTEL)) {
       F->setMetadata(kSPIR2MD::FmaxMhz,
                      getMDNodeStringIntVec(Context, EM->getLiterals()));
+    }
+    // Generate metadata for Intel FPGA streaming interface
+    if (auto *EM = BF->getExecutionMode(
+            internal::ExecutionModeStreamingInterfaceINTEL)) {
+      std::vector<uint32_t> InterfaceVec = EM->getLiterals();
+      assert(InterfaceVec.size() == 1 &&
+             "Expected StreamingInterfaceINTEL to have exactly 1 literal");
+      std::vector<Metadata *> InterfaceMDVec =
+          [&]() -> std::vector<Metadata *> {
+        switch (InterfaceVec[0]) {
+        case 0:
+          return {MDString::get(*Context, "streaming")};
+        case 1:
+          return {MDString::get(*Context, "streaming"),
+                  MDString::get(*Context, "stall_free_return")};
+        default:
+          llvm_unreachable("Invalid streaming interface mode");
+        }
+      }();
+      F->setMetadata(kSPIR2MD::IntelFPGAIPInterface,
+                     MDNode::get(*Context, InterfaceMDVec));
     }
   }
   NamedMDNode *MemoryModelMD =

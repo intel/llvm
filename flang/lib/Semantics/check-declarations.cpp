@@ -455,24 +455,30 @@ void CheckHelper::CheckObjectEntity(
   CheckAssumedTypeEntity(symbol, details);
   WarnMissingFinal(symbol);
   if (!details.coshape().empty()) {
-    bool isDeferredShape{details.coshape().IsDeferredShape()};
+    bool isDeferredCoshape{details.coshape().IsDeferredShape()};
     if (IsAllocatable(symbol)) {
-      if (!isDeferredShape) { // C827
+      if (!isDeferredCoshape) { // C827
         messages_.Say("'%s' is an ALLOCATABLE coarray and must have a deferred"
                       " coshape"_err_en_US,
             symbol.name());
       }
     } else if (symbol.owner().IsDerivedType()) { // C746
       std::string deferredMsg{
-          isDeferredShape ? "" : " and have a deferred coshape"};
+          isDeferredCoshape ? "" : " and have a deferred coshape"};
       messages_.Say("Component '%s' is a coarray and must have the ALLOCATABLE"
                     " attribute%s"_err_en_US,
           symbol.name(), deferredMsg);
     } else {
       if (!details.coshape().IsAssumedSize()) { // C828
         messages_.Say(
-            "Component '%s' is a non-ALLOCATABLE coarray and must have"
-            " an explicit coshape"_err_en_US,
+            "'%s' is a non-ALLOCATABLE coarray and must have an explicit coshape"_err_en_US,
+            symbol.name());
+      }
+    }
+    if (const DeclTypeSpec * type{details.type()}) {
+      if (IsBadCoarrayType(type->AsDerived())) { // C747 & C824
+        messages_.Say(
+            "Coarray '%s' may not have type TEAM_TYPE, C_PTR, or C_FUNPTR"_err_en_US,
             symbol.name());
       }
     }
@@ -893,9 +899,6 @@ void CheckHelper::CheckSubprogram(
     // See comment on the similar check in CheckProcEntity()
     if (details.isDummy()) {
       messages_.Say("A dummy procedure may not be ELEMENTAL"_err_en_US);
-    } else if (details.dummyArgs().empty()) {
-      messages_.Say(
-          "An ELEMENTAL subprogram must have at least one dummy argument"_err_en_US);
     } else {
       for (const Symbol *dummy : details.dummyArgs()) {
         if (!dummy) { // C15100
@@ -2313,14 +2316,11 @@ void DistinguishabilityHelper::SayNotDistinguishable(const Scope &scope,
   parser::Message *msg;
   if (scope.sourceRange().Contains(name)) {
     msg = &context_.Say(name,
-        "Generic '%s' may not have specific procedures '%s' and"
-        " '%s' as their interfaces are not distinguishable"_err_en_US,
+        "Generic '%s' may not have specific procedures '%s' and '%s' as their interfaces are not distinguishable"_err_en_US,
         MakeOpName(name), name1, name2);
   } else {
     msg = &context_.Say(*GetTopLevelUnitContaining(proc1).GetName(),
-        "USE-associated generic '%s' may not have specific procedures '%s' "
-        "and"
-        " '%s' as their interfaces are not distinguishable"_err_en_US,
+        "USE-associated generic '%s' may not have specific procedures '%s' and '%s' as their interfaces are not distinguishable"_err_en_US,
         MakeOpName(name), name1, name2);
   }
   AttachDeclaration(*msg, scope, proc1);

@@ -64,8 +64,9 @@ extern "C" {
 ///
 /// \param Ident               Source location identification, can be NULL.
 ///
-int32_t __kmpc_target_init(IdentTy *Ident, bool IsSPMD,
+int32_t __kmpc_target_init(IdentTy *Ident, int8_t Mode,
                            bool UseGenericStateMachine, bool) {
+  const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
   if (IsSPMD) {
     inititializeRuntime(/* IsSPMD */ true);
     synchronize::threads();
@@ -80,7 +81,7 @@ int32_t __kmpc_target_init(IdentTy *Ident, bool IsSPMD,
     return -1;
   }
 
-  if (mapping::isMainThreadInGenericMode())
+  if (mapping::isMainThreadInGenericMode(IsSPMD))
     return -1;
 
   if (UseGenericStateMachine)
@@ -96,7 +97,8 @@ int32_t __kmpc_target_init(IdentTy *Ident, bool IsSPMD,
 ///
 /// \param Ident Source location identification, can be NULL.
 ///
-void __kmpc_target_deinit(IdentTy *Ident, bool IsSPMD, bool) {
+void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode, bool) {
+  const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
   state::assumeInitialState(IsSPMD);
   if (IsSPMD)
     return;

@@ -15,7 +15,9 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
+#include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/GlobalISel/RegisterBankInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -236,7 +238,7 @@ static void reportGISelDiagnostic(DiagnosticSeverity Severity,
     R << (" (in function: " + MF.getName() + ")").str();
 
   if (IsFatal)
-    report_fatal_error(R.getMsg());
+    report_fatal_error(Twine(R.getMsg()));
   else
     MORE.emit(R);
 }
@@ -582,6 +584,35 @@ Optional<APFloat> llvm::ConstantFoldFPBinOp(unsigned Opcode, const Register Op1,
   return None;
 }
 
+Optional<MachineInstr *>
+llvm::ConstantFoldVectorBinop(unsigned Opcode, const Register Op1,
+                              const Register Op2,
+                              const MachineRegisterInfo &MRI,
+                              MachineIRBuilder &MIB) {
+  auto *SrcVec1 = getOpcodeDef<GBuildVector>(Op1, MRI);
+  if (!SrcVec1)
+    return None;
+  auto *SrcVec2 = getOpcodeDef<GBuildVector>(Op2, MRI);
+  if (!SrcVec2)
+    return None;
+
+  const LLT EltTy = MRI.getType(SrcVec1->getSourceReg(0));
+
+  SmallVector<Register, 16> FoldedElements;
+  for (unsigned Idx = 0, E = SrcVec1->getNumSources(); Idx < E; ++Idx) {
+    auto MaybeCst = ConstantFoldBinOp(Opcode, SrcVec1->getSourceReg(Idx),
+                                      SrcVec2->getSourceReg(Idx), MRI);
+    if (!MaybeCst)
+      return None;
+    auto FoldedCstReg = MIB.buildConstant(EltTy, *MaybeCst).getReg(0);
+    FoldedElements.emplace_back(FoldedCstReg);
+  }
+  // Create the new vector constant.
+  auto CstVec =
+      MIB.buildBuildVector(MRI.getType(SrcVec1->getReg(0)), FoldedElements);
+  return &*CstVec;
+}
+
 bool llvm::isKnownNeverNaN(Register Val, const MachineRegisterInfo &MRI,
                            bool SNaN) {
   const MachineInstr *DefMI = MRI.getVRegDef(Val);
@@ -721,6 +752,37 @@ Optional<APFloat> llvm::ConstantFoldIntToFloat(unsigned Opcode, LLT DstTy,
     DstVal.convertFromAPInt(*MaybeSrcVal, Opcode == TargetOpcode::G_SITOFP,
                             APFloat::rmNearestTiesToEven);
     return DstVal;
+  }
+  return None;
+}
+
+Optional<SmallVector<unsigned>>
+llvm::ConstantFoldCTLZ(Register Src, const MachineRegisterInfo &MRI) {
+  LLT Ty = MRI.getType(Src);
+  SmallVector<unsigned> FoldedCTLZs;
+  auto tryFoldScalar = [&](Register R) -> Optional<unsigned> {
+    auto MaybeCst = getIConstantVRegVal(R, MRI);
+    if (!MaybeCst)
+      return None;
+    return MaybeCst->countLeadingZeros();
+  };
+  if (Ty.isVector()) {
+    // Try to constant fold each element.
+    auto *BV = getOpcodeDef<GBuildVector>(Src, MRI);
+    if (!BV)
+      return None;
+    for (unsigned SrcIdx = 0; SrcIdx < BV->getNumSources(); ++SrcIdx) {
+      if (auto MaybeFold = tryFoldScalar(BV->getSourceReg(SrcIdx))) {
+        FoldedCTLZs.emplace_back(*MaybeFold);
+        continue;
+      }
+      return None;
+    }
+    return FoldedCTLZs;
+  }
+  if (auto MaybeCst = tryFoldScalar(Src)) {
+    FoldedCTLZs.emplace_back(*MaybeCst);
+    return FoldedCTLZs;
   }
   return None;
 }
@@ -924,53 +986,81 @@ static bool isBuildVectorOp(unsigned Opcode) {
          Opcode == TargetOpcode::G_BUILD_VECTOR_TRUNC;
 }
 
-// TODO: Handle mixed undef elements.
-static bool isBuildVectorConstantSplat(const MachineInstr &MI,
-                                       const MachineRegisterInfo &MRI,
-                                       int64_t SplatValue) {
-  if (!isBuildVectorOp(MI.getOpcode()))
-    return false;
+namespace {
 
-  const unsigned NumOps = MI.getNumOperands();
-  for (unsigned I = 1; I != NumOps; ++I) {
-    Register Element = MI.getOperand(I).getReg();
-    if (!mi_match(Element, MRI, m_SpecificICst(SplatValue)))
-      return false;
+Optional<ValueAndVReg> getAnyConstantSplat(Register VReg,
+                                           const MachineRegisterInfo &MRI,
+                                           bool AllowUndef) {
+  MachineInstr *MI = getDefIgnoringCopies(VReg, MRI);
+  if (!MI)
+    return None;
+
+  if (!isBuildVectorOp(MI->getOpcode()))
+    return None;
+
+  Optional<ValueAndVReg> SplatValAndReg = None;
+  for (MachineOperand &Op : MI->uses()) {
+    Register Element = Op.getReg();
+    auto ElementValAndReg =
+        getAnyConstantVRegValWithLookThrough(Element, MRI, true, true);
+
+    // If AllowUndef, treat undef as value that will result in a constant splat.
+    if (!ElementValAndReg) {
+      if (AllowUndef && isa<GImplicitDef>(MRI.getVRegDef(Element)))
+        continue;
+      return None;
+    }
+
+    // Record splat value
+    if (!SplatValAndReg)
+      SplatValAndReg = ElementValAndReg;
+
+    // Different constant then the one already recorded, not a constant splat.
+    if (SplatValAndReg->Value != ElementValAndReg->Value)
+      return None;
   }
 
-  return true;
+  return SplatValAndReg;
 }
+
+bool isBuildVectorConstantSplat(const MachineInstr &MI,
+                                const MachineRegisterInfo &MRI,
+                                int64_t SplatValue, bool AllowUndef) {
+  if (auto SplatValAndReg =
+          getAnyConstantSplat(MI.getOperand(0).getReg(), MRI, AllowUndef))
+    return mi_match(SplatValAndReg->VReg, MRI, m_SpecificICst(SplatValue));
+  return false;
+}
+
+} // end anonymous namespace
 
 Optional<int64_t>
 llvm::getBuildVectorConstantSplat(const MachineInstr &MI,
                                   const MachineRegisterInfo &MRI) {
-  if (!isBuildVectorOp(MI.getOpcode()))
-    return None;
+  if (auto SplatValAndReg =
+          getAnyConstantSplat(MI.getOperand(0).getReg(), MRI, false))
+    return getIConstantVRegSExtVal(SplatValAndReg->VReg, MRI);
+  return None;
+}
 
-  const unsigned NumOps = MI.getNumOperands();
-  Optional<int64_t> Scalar;
-  for (unsigned I = 1; I != NumOps; ++I) {
-    Register Element = MI.getOperand(I).getReg();
-    int64_t ElementValue;
-    if (!mi_match(Element, MRI, m_ICst(ElementValue)))
-      return None;
-    if (!Scalar)
-      Scalar = ElementValue;
-    else if (*Scalar != ElementValue)
-      return None;
-  }
-
-  return Scalar;
+Optional<FPValueAndVReg> llvm::getFConstantSplat(Register VReg,
+                                                 const MachineRegisterInfo &MRI,
+                                                 bool AllowUndef) {
+  if (auto SplatValAndReg = getAnyConstantSplat(VReg, MRI, AllowUndef))
+    return getFConstantVRegValWithLookThrough(SplatValAndReg->VReg, MRI);
+  return None;
 }
 
 bool llvm::isBuildVectorAllZeros(const MachineInstr &MI,
-                                 const MachineRegisterInfo &MRI) {
-  return isBuildVectorConstantSplat(MI, MRI, 0);
+                                 const MachineRegisterInfo &MRI,
+                                 bool AllowUndef) {
+  return isBuildVectorConstantSplat(MI, MRI, 0, AllowUndef);
 }
 
 bool llvm::isBuildVectorAllOnes(const MachineInstr &MI,
-                                const MachineRegisterInfo &MRI) {
-  return isBuildVectorConstantSplat(MI, MRI, -1);
+                                const MachineRegisterInfo &MRI,
+                                bool AllowUndef) {
+  return isBuildVectorConstantSplat(MI, MRI, -1, AllowUndef);
 }
 
 Optional<RegOrConstant> llvm::getVectorSplat(const MachineInstr &MI,
@@ -985,6 +1075,36 @@ Optional<RegOrConstant> llvm::getVectorSplat(const MachineInstr &MI,
              [&Reg](const MachineOperand &Op) { return Op.getReg() != Reg; }))
     return None;
   return RegOrConstant(Reg);
+}
+
+bool llvm::isConstantOrConstantVector(MachineInstr &MI,
+                                      const MachineRegisterInfo &MRI) {
+  Register Def = MI.getOperand(0).getReg();
+  if (auto C = getIConstantVRegValWithLookThrough(Def, MRI))
+    return true;
+  GBuildVector *BV = dyn_cast<GBuildVector>(&MI);
+  if (!BV)
+    return false;
+  for (unsigned SrcIdx = 0; SrcIdx < BV->getNumSources(); ++SrcIdx) {
+    if (getIConstantVRegValWithLookThrough(BV->getSourceReg(SrcIdx), MRI) ||
+        getOpcodeDef<GImplicitDef>(BV->getSourceReg(SrcIdx), MRI))
+      continue;
+    return false;
+  }
+  return true;
+}
+
+Optional<APInt>
+llvm::isConstantOrConstantSplatVector(MachineInstr &MI,
+                                      const MachineRegisterInfo &MRI) {
+  Register Def = MI.getOperand(0).getReg();
+  if (auto C = getIConstantVRegValWithLookThrough(Def, MRI))
+    return C->Value;
+  auto MaybeCst = getBuildVectorConstantSplat(MI, MRI);
+  if (!MaybeCst)
+    return None;
+  const unsigned ScalarSize = MRI.getType(Def).getScalarSizeInBits();
+  return APInt(ScalarSize, *MaybeCst, true);
 }
 
 bool llvm::matchUnaryPredicate(
@@ -1051,6 +1171,25 @@ bool llvm::shouldOptForSize(const MachineBasicBlock &MBB,
          llvm::shouldOptimizeForSize(MBB.getBasicBlock(), PSI, BFI);
 }
 
+/// These artifacts generally don't have any debug users because they don't
+/// directly originate from IR instructions, but instead usually from
+/// legalization. Avoiding checking for debug users improves compile time.
+/// Note that truncates or extends aren't included because they have IR
+/// counterparts which can have debug users after translation.
+static bool shouldSkipDbgValueFor(MachineInstr &MI) {
+  switch (MI.getOpcode()) {
+  case TargetOpcode::G_UNMERGE_VALUES:
+  case TargetOpcode::G_MERGE_VALUES:
+  case TargetOpcode::G_CONCAT_VECTORS:
+  case TargetOpcode::G_BUILD_VECTOR:
+  case TargetOpcode::G_EXTRACT:
+  case TargetOpcode::G_INSERT:
+    return true;
+  default:
+    return false;
+  }
+}
+
 void llvm::saveUsesAndErase(MachineInstr &MI, MachineRegisterInfo &MRI,
                             LostDebugLocObserver *LocObserver,
                             SmallInstListTy &DeadInstChain) {
@@ -1060,7 +1199,10 @@ void llvm::saveUsesAndErase(MachineInstr &MI, MachineRegisterInfo &MRI,
   }
   LLVM_DEBUG(dbgs() << MI << "Is dead; erasing.\n");
   DeadInstChain.remove(&MI);
-  MI.eraseFromParentAndMarkDBGValuesForRemoval();
+  if (shouldSkipDbgValueFor(MI))
+    MI.eraseFromParent();
+  else
+    MI.eraseFromParentAndMarkDBGValuesForRemoval();
   if (LocObserver)
     LocObserver->checkpoint(false);
 }

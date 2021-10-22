@@ -573,14 +573,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   }
 
   if (config->timeTraceEnabled) {
-    if (auto E = timeTraceProfilerWrite(args.getLastArgValue(OPT_time_trace_file_eq).str(),
-                                        config->outputFile)) {
-      handleAllErrors(std::move(E), [&](const StringError &SE) {
-        error(SE.getMessage());
-      });
-      return;
-    }
-
+    checkError(timeTraceProfilerWrite(
+        args.getLastArgValue(OPT_time_trace_file_eq).str(),
+        config->outputFile));
     timeTraceProfilerCleanup();
   }
 }
@@ -815,7 +810,7 @@ static std::pair<bool, bool> getPackDynRelocs(opt::InputArgList &args) {
     return {true, true};
 
   if (s != "none")
-    error("unknown -pack-dyn-relocs format: " + s);
+    error("unknown --pack-dyn-relocs format: " + s);
   return {false, false};
 }
 
@@ -1084,8 +1079,6 @@ static void readConfigs(opt::InputArgList &args) {
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoObjPath = args.getLastArgValue(OPT_lto_obj_path_eq);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
-  config->ltoPseudoProbeForProfiling =
-      args.hasArg(OPT_lto_pseudo_probe_for_profiling);
   config->ltoSampleProfile = args.getLastArgValue(OPT_lto_sample_profile);
   config->ltoBasicBlockSections =
       args.getLastArgValue(OPT_lto_basic_block_sections);
@@ -1845,12 +1838,15 @@ static void demoteSharedSymbols() {
   llvm::TimeTraceScope timeScope("Demote shared symbols");
   for (Symbol *sym : symtab->symbols()) {
     auto *s = dyn_cast<SharedSymbol>(sym);
-    if (!s || s->getFile().isNeeded)
+    if (!((s && !s->getFile().isNeeded) ||
+          (sym->isLazy() && sym->isUsedInRegularObj)))
       continue;
 
-    bool used = s->used;
-    s->replace(Undefined{nullptr, s->getName(), STB_WEAK, s->stOther, s->type});
-    s->used = used;
+    bool used = sym->used;
+    sym->replace(
+        Undefined{nullptr, sym->getName(), STB_WEAK, sym->stOther, sym->type});
+    sym->used = used;
+    sym->versionId = VER_NDX_GLOBAL;
   }
 }
 

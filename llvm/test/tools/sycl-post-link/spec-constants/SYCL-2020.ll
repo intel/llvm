@@ -1,7 +1,9 @@
-; RUN: sycl-post-link --ir-output-only -spec-const=default %s -S -o - | \
-; RUN:   FileCheck %s -check-prefixes=CHECK,CHECK-DEF
-; RUN: sycl-post-link --ir-output-only -spec-const=rt %s -S -o - | \
-; RUN:   FileCheck %s -check-prefixes=CHECK,CHECK-RT
+; RUN: sycl-post-link -spec-const=default %s -S -o %t.table
+; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-DEF < %t_0.ll
+; RUN: FileCheck %s --check-prefixes=CHECK-PROPS,CHECK-PROPS-DEF < %t_0.prop
+; RUN: sycl-post-link -spec-const=rt %s -S -o %t.table
+; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-RT < %t_0.ll
+; RUN: FileCheck %s --check-prefixes=CHECK-PROPS < %t_0.prop
 
 ; This test checks that the post link tool is able to correctly transform
 ; SYCL 2020 specialization constant intrinsics for different types in a device
@@ -241,3 +243,16 @@ attributes #3 = { nounwind }
 ; CHECK-RT-SAME: i32 [[#SCID11]], i32 4, i32 4}
 ; CHECK-RT: ![[#ID5]] = !{!"_ZTS14name_generatorIL_Z10id_marrayEE", i32 [[#SCID12]], i32 0, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID13]], i32 4, i32 4}
+
+; CHECK-PROPS: [SYCL/specialization constants]
+; CHECK-PROPS: _ZTS14name_generatorIL_Z9id_halfEE=2|
+; CHECK-PROPS: _ZTS14name_generatorIL_Z6id_intEE=2|
+; CHECK-PROPS: _ZTS14name_generatorIL_Z9id_composEE=2|
+; CHECK-PROPS: _ZTS14name_generatorIL_Z10id_compos2EE=2|
+; CHECK-PROPS: _ZTS14name_generatorIL_Z10id_vectorEE=2|
+; CHECK-PROPS: _ZTS14name_generatorIL_Z10id_marrayEE=2|
+; CHECK-PROPS: _ZTS14name_generatorIL_Z10id_marray2EE=2|
+; CHECK-PROPS: _ZTS14name_generatorIL_Z10id_marray3EE=2|
+; CHECK-PROPS: _ZTS14name_generatorIL_Z10id_marray4EE=2|
+; CHECK-PROPS-DEF: [SYCL/specialization constants default values]
+; CHECK-PROPS-DEF: all=2|

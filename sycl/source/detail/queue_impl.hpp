@@ -24,6 +24,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
@@ -195,13 +196,14 @@ public:
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     try {
-      return submit_impl(CGF, Self, Loc, PostProcess);
+      return submit_impl(CGF, Self, Self, SecondQueue, Loc, PostProcess);
     } catch (...) {
       {
         std::lock_guard<std::mutex> Lock(MMutex);
         MExceptions.PushBack(std::current_exception());
       }
-      return SecondQueue->submit(CGF, SecondQueue, Loc, PostProcess);
+      return SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue, Loc,
+                                      PostProcess);
     }
   }
 
@@ -217,7 +219,7 @@ public:
                const std::shared_ptr<queue_impl> &Self,
                const detail::code_location &Loc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    return submit_impl(CGF, Self, Loc, PostProcess);
+    return submit_impl(CGF, Self, Self, nullptr, Loc, PostProcess);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -419,17 +421,40 @@ public:
   }
 
 private:
+  void finalizeHandler(handler &Handler, bool NeedSeparateDependencyMgmt,
+                       event &EventRet) {
+    if (MIsInorder) {
+      // Accessing and changing of an event isn't atomic operation.
+      // Hence, here is the lock for thread-safety.
+      std::lock_guard<std::mutex> Lock{MLastEventMtx};
+
+      if (NeedSeparateDependencyMgmt)
+        Handler.depends_on(MLastEvent);
+
+      EventRet = Handler.finalize();
+
+      MLastEvent = EventRet;
+    } else
+      EventRet = Handler.finalize();
+  }
+
   /// Performs command group submission to the queue.
   ///
   /// \param CGF is a function object containing command group.
   /// \param Self is a pointer to this queue.
+  /// \param PrimaryQueue is a pointer to the primary queue. This may be the
+  ///        same as Self.
+  /// \param SecondaryQueue is a pointer to the secondary queue. This may be the
+  ///        same as Self.
   /// \param Loc is the code location of the submit call (default argument)
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const std::function<void(handler &)> &CGF,
                     const std::shared_ptr<queue_impl> &Self,
+                    const std::shared_ptr<queue_impl> &PrimaryQueue,
+                    const std::shared_ptr<queue_impl> &SecondaryQueue,
                     const detail::code_location &Loc,
                     const SubmitPostProcessF *PostProcess) {
-    handler Handler(Self, MHostQueue);
+    handler Handler(Self, PrimaryQueue, SecondaryQueue, MHostQueue);
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
@@ -437,29 +462,27 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
-                       Type == CG::CGTYPE::CodeplayInteropTask))
-      Handler.depends_on(MLastEvent);
+    bool NeedSeparateDependencyMgmt =
+        MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
+                       Type == CG::CGTYPE::CodeplayInteropTask);
 
     event Event;
 
     if (PostProcess) {
       bool IsKernel = Type == CG::Kernel;
       bool KernelUsesAssert = false;
-      if (IsKernel)
-        KernelUsesAssert =
-            Handler.MKernel ? true
-                            : ProgramManager::getInstance().kernelUsesAssert(
-                                  Handler.MOSModuleHandle, Handler.MKernelName);
 
-      Event = Handler.finalize();
+      if (IsKernel)
+        // Kernel only uses assert if it's non interop one
+        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               Handler.MOSModuleHandle, Handler.MKernelName);
+
+      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      Event = Handler.finalize();
-
-    if (MIsInorder)
-      MLastEvent = Event;
+      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
 
     addEvent(Event);
     return Event;
@@ -521,7 +544,11 @@ private:
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 
+  // This event is employed for enhanced dependency tracking with in-order queue
+  // Access to the event should be guarded with MLastEventMtx
   event MLastEvent;
+  std::mutex MLastEventMtx;
+
   const bool MIsInorder;
 };
 

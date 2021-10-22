@@ -642,7 +642,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
     # adding lld to clang-bootstrap-deps without having it enabled in
     # LLVM_ENABLE_PROJECTS just generates a cryptic error message.
     if (NOT "lld" IN_LIST LLVM_ENABLE_PROJECTS)
-      message(FATAL_ERROR "LLD is enabled in the boostrap build, but lld is not in LLVM_ENABLE_PROJECTS")
+      message(FATAL_ERROR "LLD is enabled in the bootstrap build, but lld is not in LLVM_ENABLE_PROJECTS")
     endif()
     add_dependencies(clang-bootstrap-deps lld)
   endif()
@@ -709,6 +709,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
     CMAKE_CXX_COMPILER_LAUNCHER
     CMAKE_MAKE_PROGRAM
     CMAKE_OSX_ARCHITECTURES
+    CMAKE_BUILD_TYPE
     LLVM_ENABLE_PROJECTS
     LLVM_ENABLE_RUNTIMES)
 
@@ -761,6 +762,7 @@ if (CLANG_ENABLE_BOOTSTRAP)
       add_dependencies(clang-bootstrap-deps llvm-objcopy llvm-strip)
       set(${CLANG_STAGE}_OBJCOPY -DCMAKE_OBJCOPY=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-objcopy)
       set(${CLANG_STAGE}_STRIP -DCMAKE_STRIP=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-strip)
+      set(${CLANG_STAGE}_READELF -DCMAKE_READELF=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-readelf)
     endif()
   endif()
 
