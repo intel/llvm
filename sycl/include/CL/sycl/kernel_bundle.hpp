@@ -377,9 +377,13 @@ __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
 
+inline auto getDeviceComparisonLambda() {
+  return [](device a, device b) { return a.getNative() != b.getNative(); };
+}
+
 inline const std::vector<device>
 removeDuplicateDevices(const std::vector<device> &Devs) {
-  auto compareDevices = [](device a, device b) { return a != b; };
+  auto compareDevices = getDeviceComparisonLambda();
   std::set<device, decltype(compareDevices)> UniqueDeviceSet(
       Devs.begin(), Devs.end(), compareDevices);
   std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
