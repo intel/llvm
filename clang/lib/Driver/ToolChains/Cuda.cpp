@@ -678,6 +678,11 @@ void CudaToolChain::addClangTargetOptions(
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
+  // Erly exit if only pre-processing, no need to set up sycl specific flags,
+  // or include/lib directories.
+  if (DriverArgs.hasArg(options::OPT_E))
+    return;
+
   StringRef GpuArch = DriverArgs.getLastArgValue(options::OPT_march_EQ);
   assert(!GpuArch.empty() && "Must have an explicit GPU arch.");
   assert((DeviceOffloadingKind == Action::OFK_OpenMP ||
