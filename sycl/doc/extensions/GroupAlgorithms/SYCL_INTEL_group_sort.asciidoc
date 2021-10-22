@@ -622,10 +622,6 @@ will be added to the Spec to be used with other Group algorithms, e.g. find, red
 . Predefined sorters can be revisited to find a better interfaces for `memory_required` overloads.
 . `group_with_scratchpad` can be replaced with concepts that requires 2 methods.
 
-== Feature Test Macro
-
-This extension defines the macro `SYCL_EXT_ONEAPI_GROUP_SORT` to `1` to indicate that it is enabled.
-
 == Revision History
 
 [cols="5,15,15,70"]

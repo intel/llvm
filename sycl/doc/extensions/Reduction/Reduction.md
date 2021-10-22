@@ -189,4 +189,14 @@ __kernel void dot_product(__global float* a, __global float* b, __global float* 
 
 ## Feature Test Macro
 
-This extension defines the macro `SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS` to `1` to indicate that it is enabled.
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro `SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS`
+to one of the values defined in the table below. Applications can test for the
+existence of this macro to determine if the implementation supports this
+feature, or applications can test the macro’s value to determine which of the
+extension’s APIs the implementation supports.
+
+|Value |Description|
+|:---- |:---------:|
+|1     |Initial extension version. Base features are supported.|
