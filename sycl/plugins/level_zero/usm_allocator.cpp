@@ -106,7 +106,7 @@ public:
   size_t SlabMinSize[3] = {64 * 1024, 64 * 1024, 2 * 1024 * 1024};
 
   // Allocations up to this limit will be subject to chunking/pooling
-  size_t MaxPoolableSize[3] = {32 * 1024, 32 * 1024, 0};
+  size_t MaxPoolableSize[3] = {0, 32 * 1024, 0};
 
   // When pooling, each bucket will hold a max of 4 unfreed slabs
   size_t Capacity[3] = {0, 0, 0};
