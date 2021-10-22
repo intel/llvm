@@ -314,7 +314,7 @@ void collectCompositeElementsDefaultValuesRecursive(
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
-      Constant *El;
+      Constant *El = nullptr;
       if (C->isZeroValue())
         El = Constant::getNullValue(StructTy->getElementType(I));
       else
