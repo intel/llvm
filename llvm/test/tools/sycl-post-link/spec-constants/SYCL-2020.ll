@@ -28,7 +28,7 @@
 %struct.MArrayConst4 = type { [2 x [2 x [3 x i32]]] }
 %class.specialization_id.7 = type { %struct.MArrayConst4 }
 %class.specialization_id.8 = type { %struct.ComposConst3 }
-%struct.ComposConst3 = type { i32, i32 }
+%struct.ComposConst3 = type { i32, i32, %struct.myConst}
 
 @id_half = dso_local global %class.specialization_id { half 0xH4000 }, align 8
 @id_int = dso_local global %class.specialization_id.0 { i32 42 }, align 4
@@ -154,7 +154,10 @@ define void @test_zeroinit() {
 ;
 ; CHECK-RT: %[[#SE5:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID10:]], i32 0)
 ; CHECK-RT: %[[#SE6:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID11:]], i32 0)
-; CHECK-RT: call %struct.ComposConst3 @_Z29__spirv_SpecConstantCompositeii_Rstruct.ComposConst3(i32 %[[#SE5]], i32 %[[#SE6]])
+; CHECK-RT: %[[#SE7:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID12:]], i32 0)
+; CHECK-RT: %[[#SE8:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#SCID13:]], float 0.000000e+00)
+; CHECK-RT: %[[#SE9:]] = call %struct.myConst @_Z29__spirv_SpecConstantCompositeif_Rstruct.myConst(i32 %[[#SE7]], float %[[#SE8]])
+; CHECK-RT: call %struct.ComposConst3 @_Z29__spirv_SpecConstantCompositeiistruct.myConst_Rstruct.ComposConst3(i32 %[[#SE5]], i32 %[[#SE6]], %struct.myConst %[[#SE9]])
   call void @_Z40__sycl_getComposite2020SpecConstantValueI12ComposConst3ET_PKcPvS4_(%struct.ComposConst3* sret(%struct.ComposConst3) align 4 %tmp, i8* getelementptr inbounds ([39 x i8], [39 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_compos3E17specialization_idI12ComposConst3ES1_ET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.8* @id_compos3 to i8*), i8* null)
   ret void
 }
@@ -166,22 +169,22 @@ define void @test3() {
   %tmp3 = alloca %struct.MArrayConst3, align 8
   %tmp4 = alloca %struct.MArrayConst4, align 8
   %1 = bitcast %struct.VectorConst* %tmp to i8*
-; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 62
+; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, i8* null, i32 70
 ; CHECK-DEF: %[[BITCAST1:[0-9a-z]+]] = bitcast i8* %[[GEP1]] to %struct.VectorConst*
 ; CHECK-DEF: %[[C1:[0-9a-z]+]] = load %struct.VectorConst, %struct.VectorConst* %[[BITCAST1]], align 8
 ;
-; CHECK-RT: %[[#SE1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID12:]], i32 1)
-; CHECK-RT: %[[#SE2:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID13:]], i32 2)
+; CHECK-RT: %[[#SE1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID14:]], i32 1)
+; CHECK-RT: %[[#SE2:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID15:]], i32 2)
 ; CHECK-RT: %[[#CE1:]] = call <2 x i32> @_Z29__spirv_SpecConstantCompositeii_RDv2_i(i32 %[[#SE1]], i32 %[[#SE2]])
 ; CHECK-RT: call %struct.VectorConst @_Z29__spirv_SpecConstantCompositeDv2_i_Rstruct.VectorConst(<2 x i32> %[[#CE1]])
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11VectorConstET_PKcPvS4_(%struct.VectorConst* nonnull sret(%struct.VectorConst) align 8 %tmp, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_vectorE17specialization_idI11VectorConstES1_ET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.3* @id_vector to i8*), i8* null)
   %2 = bitcast %struct.MArrayConst* %tmp1 to i8*
-; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, i8* null, i32 70
+; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, i8* null, i32 78
 ; CHECK-DEF: %[[BITCAST2:[0-9a-z]+]] = bitcast i8* %[[GEP2]] to %struct.MArrayConst*
 ; CHECK-DEF: %[[C2:[0-9a-z]+]] = load %struct.MArrayConst, %struct.MArrayConst* %[[BITCAST2]], align 4
 ;
-; CHECK-RT: %[[#SE1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID14:]], i32 1)
-; CHECK-RT: %[[#SE2:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID15:]], i32 2)
+; CHECK-RT: %[[#SE1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID16:]], i32 1)
+; CHECK-RT: %[[#SE2:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID17:]], i32 2)
 ; CHECK-RT: %[[#CE1:]] = call [2 x i32] @_Z29__spirv_SpecConstantCompositeii_RA2_i(i32 %[[#SE1]], i32 %[[#SE2]])
 ; CHECK-RT: call %struct.MArrayConst @_Z29__spirv_SpecConstantCompositeA2_i_Rstruct.MArrayConst([2 x i32] %[[#CE1]])
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConstET_PKcPvS4_(%struct.MArrayConst* nonnull sret(%struct.MArrayConst) align 8 %tmp1, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_marrayE17specialization_idI11MArrayConstES1_ET1_v, i64 0, i64 0), i8* bitcast (%class.specialization_id.4* @id_marray to i8*), i8* null)
@@ -241,7 +244,7 @@ attributes #3 = { nounwind }
 ;
 ; CHECK-DEF: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 2, i32 0, i32 24}
 ; CHECK-DEF: ![[#ID3]] = !{!"_ZTS14name_generatorIL_Z10id_compos2EE", i32 3, i32 0, i32 24
-; CHECK-DEF: ![[#ID_COMPOS3]] = !{!"_ZTS14name_generatorIL_Z10id_compos3EE", i32 4, i32 0, i32 8
+; CHECK-DEF: ![[#ID_COMPOS3]] = !{!"_ZTS14name_generatorIL_Z10id_compos3EE", i32 4, i32 0, i32 16
 ;
 ; CHECK-RT: ![[#ID2]] = !{!"_ZTS14name_generatorIL_Z9id_composEE", i32 [[#SCID2]], i32 0, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID3]], i32 8, i32 8,
@@ -261,10 +264,10 @@ attributes #3 = { nounwind }
 ; CHECK-DEF: ![[#ID8]] = !{%struct.VectorConst { <2 x i32> <i32 1, i32 2> }}
 ; CHECK-DEF: ![[#ID9]] = !{%struct.MArrayConst { [2 x i32] [i32 1, i32 2] }}
 ;
-; CHECK-RT: ![[#ID4]] = !{!"_ZTS14name_generatorIL_Z10id_vectorEE", i32 [[#SCID12]], i32 0, i32 4,
-; CHECK-RT-SAME: i32 [[#SCID13]], i32 4, i32 4}
-; CHECK-RT: ![[#ID5]] = !{!"_ZTS14name_generatorIL_Z10id_marrayEE", i32 [[#SCID14]], i32 0, i32 4,
+; CHECK-RT: ![[#ID4]] = !{!"_ZTS14name_generatorIL_Z10id_vectorEE", i32 [[#SCID14]], i32 0, i32 4,
 ; CHECK-RT-SAME: i32 [[#SCID15]], i32 4, i32 4}
+; CHECK-RT: ![[#ID5]] = !{!"_ZTS14name_generatorIL_Z10id_marrayEE", i32 [[#SCID16]], i32 0, i32 4,
+; CHECK-RT-SAME: i32 [[#SCID17]], i32 4, i32 4}
 
 ; CHECK-PROPS: [SYCL/specialization constants]
 ; CHECK-PROPS: _ZTS14name_generatorIL_Z9id_halfEE=2|
