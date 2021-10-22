@@ -236,7 +236,7 @@ pi_result getInfo<const char *>(size_t param_value_size, void *param_value,
 
 int getAttribute(pi_device device, CUdevice_attribute attribute) {
   int value;
-  __sycl_internal::__v1::detail::pi::assertion(
+  __sycl_ns::detail::pi::assertion(
       cuDeviceGetAttribute(&value, attribute, device->get()) == CUDA_SUCCESS);
   return value;
 }
@@ -428,7 +428,7 @@ pi_result _pi_event::record() {
   try {
     eventId_ = queue_->get_next_event_id();
     if (eventId_ == 0) {
-      __sycl_internal::__v1::detail::pi::die(
+      __sycl_ns::detail::pi::die(
           "Unrecoverable program state reached in event identifier overflow");
     }
     result = PI_CHECK_ERROR(cuEventRecord(evEnd_, cuStream));
@@ -574,7 +574,7 @@ pi_result _pi_program::build_program(const char *build_options) {
 /// Note: Another alternative is to add kernel names as metadata, like with
 ///       reqd_work_group_size.
 std::string getKernelNames(pi_program program) {
-  cl::sycl::detail::pi::die("getKernelNames not implemented");
+  __sycl_ns::detail::pi::die("getKernelNames not implemented");
   return {};
 }
 
@@ -634,7 +634,7 @@ public:
         // CUDA error for which it is unclear if the function that reported it
         // succeeded or not. Either way, the state of the program is compromised
         // and likely unrecoverable.
-        __sycl_internal::__v1::detail::pi::die(
+        __sycl_ns::detail::pi::die(
             "Unrecoverable program state reached in cuda_piMemRelease");
       }
     }
@@ -792,7 +792,7 @@ pi_result cuda_piPlatformGetInfo(pi_platform platform,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Platform info request not implemented");
   return {};
 }
@@ -889,10 +889,10 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
   (void)device;
 
   if (!binaries) {
-    __sycl_internal::__v1::detail::pi::die("No list of device images provided");
+    __sycl_ns::detail::pi::die("No list of device images provided");
   }
   if (num_binaries < 1) {
-    __sycl_internal::__v1::detail::pi::die("No binary images in the list");
+    __sycl_ns::detail::pi::die("No binary images in the list");
   }
 
   // Look for an image for the NVPTX64 target, and return the first one that is
@@ -954,11 +954,11 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     int compute_units = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&compute_units,
                              CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(compute_units >= 0);
+    __sycl_ns::detail::pi::assertion(compute_units >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint32(compute_units));
   }
@@ -970,20 +970,20 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     size_t return_sizes[max_work_item_dimensions];
 
     int max_x = 0, max_y = 0, max_z = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&max_x, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(max_x >= 0);
+    __sycl_ns::detail::pi::assertion(max_x >= 0);
 
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&max_y, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(max_y >= 0);
+    __sycl_ns::detail::pi::assertion(max_y >= 0);
 
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&max_z, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(max_z >= 0);
+    __sycl_ns::detail::pi::assertion(max_z >= 0);
 
     return_sizes[0] = size_t(max_x);
     return_sizes[1] = size_t(max_y);
@@ -995,20 +995,20 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
     size_t return_sizes[max_work_item_dimensions];
     int max_x = 0, max_y = 0, max_z = 0;
-    cl::sycl::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&max_x, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
                              device->get()) == CUDA_SUCCESS);
-    cl::sycl::detail::pi::assertion(max_x >= 0);
+    __sycl_ns::detail::pi::assertion(max_x >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&max_y, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
                              device->get()) == CUDA_SUCCESS);
-    cl::sycl::detail::pi::assertion(max_y >= 0);
+    __sycl_ns::detail::pi::assertion(max_y >= 0);
 
-    cl::sycl::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&max_z, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
                              device->get()) == CUDA_SUCCESS);
-    cl::sycl::detail::pi::assertion(max_z >= 0);
+    __sycl_ns::detail::pi::assertion(max_z >= 0);
 
     return_sizes[0] = size_t(max_x);
     return_sizes[1] = size_t(max_y);
@@ -1019,12 +1019,12 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 
   case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int max_work_group_size = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&max_work_group_size,
                              CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                              device->get()) == CUDA_SUCCESS);
 
-    __sycl_internal::__v1::detail::pi::assertion(max_work_group_size >= 0);
+    __sycl_ns::detail::pi::assertion(max_work_group_size >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    size_t(max_work_group_size));
@@ -1074,12 +1074,12 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
     int max_threads = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&max_threads,
                              CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                              device->get()) == CUDA_SUCCESS);
     int warpSize = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
                              device->get()) == CUDA_SUCCESS);
     int maxWarps = (max_threads + warpSize - 1) / warpSize;
@@ -1090,7 +1090,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // Volta provides independent thread scheduling
     // TODO: Revisit for previous generation GPUs
     int major = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&major,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
@@ -1100,7 +1100,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 
   case PI_DEVICE_INFO_ATOMIC_64: {
     int major = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&major,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
@@ -1119,7 +1119,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int warpSize = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
                              device->get()) == CUDA_SUCCESS);
     size_t sizes[1] = {static_cast<size_t>(warpSize)};
@@ -1128,10 +1128,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
     int clock_freq = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&clock_freq, CU_DEVICE_ATTRIBUTE_CLOCK_RATE,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(clock_freq >= 0);
+    __sycl_ns::detail::pi::assertion(clock_freq >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint32(clock_freq) / 1000u);
   }
@@ -1147,7 +1147,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // CL_DEVICE_TYPE_CUSTOM.
 
     size_t global = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceTotalMem(&global, device->get()) == CUDA_SUCCESS);
 
     auto quarter_global = static_cast<pi_uint32>(global / 4u);
@@ -1177,17 +1177,17 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int tex_height = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&tex_height,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_HEIGHT,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(tex_height >= 0);
+    __sycl_ns::detail::pi::assertion(tex_height >= 0);
     int surf_height = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&surf_height,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_HEIGHT,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(surf_height >= 0);
+    __sycl_ns::detail::pi::assertion(surf_height >= 0);
 
     int min = std::min(tex_height, surf_height);
 
@@ -1196,17 +1196,17 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&tex_width,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_WIDTH,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(tex_width >= 0);
+    __sycl_ns::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&surf_width,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_WIDTH,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(surf_width >= 0);
+    __sycl_ns::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1215,17 +1215,17 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int tex_height = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&tex_height,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(tex_height >= 0);
+    __sycl_ns::detail::pi::assertion(tex_height >= 0);
     int surf_height = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&surf_height,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_HEIGHT,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(surf_height >= 0);
+    __sycl_ns::detail::pi::assertion(surf_height >= 0);
 
     int min = std::min(tex_height, surf_height);
 
@@ -1234,17 +1234,17 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&tex_width,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(tex_width >= 0);
+    __sycl_ns::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&surf_width,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_WIDTH,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(surf_width >= 0);
+    __sycl_ns::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1253,17 +1253,17 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
     // Take the smaller of maximum surface and maximum texture depth.
     int tex_depth = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&tex_depth,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(tex_depth >= 0);
+    __sycl_ns::detail::pi::assertion(tex_depth >= 0);
     int surf_depth = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&surf_depth,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_DEPTH,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(surf_depth >= 0);
+    __sycl_ns::detail::pi::assertion(surf_depth >= 0);
 
     int min = std::min(tex_depth, surf_depth);
 
@@ -1272,17 +1272,17 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
     // Take the smaller of maximum surface and maximum texture width.
     int tex_width = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&tex_width,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_WIDTH,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(tex_width >= 0);
+    __sycl_ns::detail::pi::assertion(tex_width >= 0);
     int surf_width = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&surf_width,
                              CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_WIDTH,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(surf_width >= 0);
+    __sycl_ns::detail::pi::assertion(surf_width >= 0);
 
     int min = std::min(tex_width, surf_width);
 
@@ -1306,7 +1306,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
     int mem_base_addr_align = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&mem_base_addr_align,
                              CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT,
                              device->get()) == CUDA_SUCCESS);
@@ -1344,10 +1344,10 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   }
   case PI_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
     int cache_size = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&cache_size, CU_DEVICE_ATTRIBUTE_L2_CACHE_SIZE,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(cache_size >= 0);
+    __sycl_ns::detail::pi::assertion(cache_size >= 0);
     // The L2 cache is global to the GPU.
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(cache_size));
@@ -1355,18 +1355,18 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_GLOBAL_MEM_SIZE: {
     size_t bytes = 0;
     // Runtime API has easy access to this value, driver API info is scarse.
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceTotalMem(&bytes, device->get()) == CUDA_SUCCESS);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64{bytes});
   }
   case PI_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
     int constant_memory = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&constant_memory,
                              CU_DEVICE_ATTRIBUTE_TOTAL_CONSTANT_MEMORY,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(constant_memory >= 0);
+    __sycl_ns::detail::pi::assertion(constant_memory >= 0);
 
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(constant_memory));
@@ -1386,32 +1386,32 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     // CUDA has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
     int local_mem_size = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&local_mem_size,
                              CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(local_mem_size >= 0);
+    __sycl_ns::detail::pi::assertion(local_mem_size >= 0);
     return getInfo(param_value_size, param_value, param_value_size_ret,
                    pi_uint64(local_mem_size));
   }
   case PI_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int ecc_enabled = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&ecc_enabled, CU_DEVICE_ATTRIBUTE_ECC_ENABLED,
                              device->get()) == CUDA_SUCCESS);
 
-    __sycl_internal::__v1::detail::pi::assertion((ecc_enabled == 0) |
+    __sycl_ns::detail::pi::assertion((ecc_enabled == 0) |
                                                  (ecc_enabled == 1));
     auto result = static_cast<pi_bool>(ecc_enabled);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
   }
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
     int is_integrated = 0;
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&is_integrated, CU_DEVICE_ATTRIBUTE_INTEGRATED,
                              device->get()) == CUDA_SUCCESS);
 
-    __sycl_internal::__v1::detail::pi::assertion((is_integrated == 0) |
+    __sycl_ns::detail::pi::assertion((is_integrated == 0) |
                                                  (is_integrated == 1));
     auto result = static_cast<pi_bool>(is_integrated);
     return getInfo(param_value_size, param_value, param_value_size_ret, result);
@@ -1468,7 +1468,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_NAME: {
     static constexpr size_t MAX_DEVICE_NAME_LENGTH = 256u;
     char name[MAX_DEVICE_NAME_LENGTH];
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetName(name, MAX_DEVICE_NAME_LENGTH, device->get()) ==
         CUDA_SUCCESS);
     return getInfoArray(strlen(name) + 1, param_value_size, param_value,
@@ -1506,11 +1506,11 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     int major = 0;
     int minor = 0;
 
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&major,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              device->get()) == CUDA_SUCCESS);
-    __sycl_internal::__v1::detail::pi::assertion(
+    __sycl_ns::detail::pi::assertion(
         cuDeviceGetAttribute(&minor,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
                              device->get()) == CUDA_SUCCESS);
@@ -1686,7 +1686,7 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  __sycl_internal::__v1::detail::pi::die("Device info request not implemented");
+  __sycl_ns::detail::pi::die("Device info request not implemented");
   return {};
 }
 
@@ -1713,7 +1713,7 @@ pi_result cuda_piextDeviceGetNativeHandle(pi_device device,
 /// \return TBD
 pi_result cuda_piextDeviceCreateWithNativeHandle(pi_native_handle, pi_platform,
                                                  pi_device *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Creation of PI device from native handle not implemented");
   return {};
 }
@@ -1770,7 +1770,7 @@ pi_result cuda_piContextCreate(const pi_context_properties *properties,
       break;
     default:
       // Unknown property.
-      __sycl_internal::__v1::detail::pi::die(
+      __sycl_ns::detail::pi::die(
           "Unknown piContextCreate property in property list");
       return PI_INVALID_VALUE;
     }
@@ -1878,7 +1878,7 @@ pi_result cuda_piextContextGetNativeHandle(pi_context context,
 pi_result cuda_piextContextCreateWithNativeHandle(pi_native_handle, pi_uint32,
                                                   const pi_device *, bool,
                                                   pi_context *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Creation of PI context from native handle not implemented");
   return {};
 }
@@ -2015,7 +2015,7 @@ pi_result cuda_piMemRelease(pi_mem memObj) {
     // error for which it is unclear if the function that reported it succeeded
     // or not. Either way, the state of the program is compromised and likely
     // unrecoverable.
-    __sycl_internal::__v1::detail::pi::die(
+    __sycl_ns::detail::pi::die(
         "Unrecoverable program state reached in cuda_piMemRelease");
   }
 
@@ -2091,7 +2091,7 @@ pi_result cuda_piMemBufferPartition(pi_mem parent_buffer, pi_mem_flags flags,
 }
 
 pi_result cuda_piMemGetInfo(pi_mem, cl_mem_info, size_t, void *, size_t *) {
-  __sycl_internal::__v1::detail::pi::die("cuda_piMemGetInfo not implemented");
+  __sycl_ns::detail::pi::die("cuda_piMemGetInfo not implemented");
 }
 
 /// Gets the native CUDA handle of a PI mem object
@@ -2115,7 +2115,7 @@ pi_result cuda_piextMemGetNativeHandle(pi_mem mem,
 ///
 /// \return TBD
 pi_result cuda_piextMemCreateWithNativeHandle(pi_native_handle, pi_mem *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Creation of PI mem from native handle not implemented");
   return {};
 }
@@ -2193,7 +2193,7 @@ pi_result cuda_piQueueGetInfo(pi_queue command_queue, pi_queue_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  __sycl_internal::__v1::detail::pi::die("Queue info request not implemented");
+  __sycl_ns::detail::pi::die("Queue info request not implemented");
   return {};
 }
 
@@ -2280,7 +2280,7 @@ pi_result cuda_piextQueueCreateWithNativeHandle(pi_native_handle, pi_context,
                                                 pi_queue *,
                                                 bool ownNativeHandle) {
   (void)ownNativeHandle;
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Creation of PI queue from native handle not implemented");
   return {};
 }
@@ -2487,7 +2487,7 @@ pi_result cuda_piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
           arrayDesc.Format != CU_AD_FORMAT_SIGNED_INT32 &&
           arrayDesc.Format != CU_AD_FORMAT_HALF &&
           arrayDesc.Format != CU_AD_FORMAT_FLOAT) {
-        __sycl_internal::__v1::detail::pi::die(
+        __sycl_ns::detail::pi::die(
             "PI CUDA kernels only support images with channel types int32, "
             "uint32, float, and half.");
       }
@@ -2531,7 +2531,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     switch (param_name) {
     case PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
       int max_threads = 0;
-      __sycl_internal::__v1::detail::pi::assertion(
+      __sycl_ns::detail::pi::assertion(
           cuFuncGetAttribute(&max_threads,
                              CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                              kernel->get()) == CUDA_SUCCESS);
@@ -2555,7 +2555,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
       // OpenCL LOCAL == CUDA SHARED
       int bytes = 0;
-      __sycl_internal::__v1::detail::pi::assertion(
+      __sycl_ns::detail::pi::assertion(
           cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
                              kernel->get()) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -2564,7 +2564,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
       // Work groups should be multiples of the warp size
       int warpSize = 0;
-      __sycl_internal::__v1::detail::pi::assertion(
+      __sycl_ns::detail::pi::assertion(
           cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
                                device->get()) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -2573,7 +2573,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     case PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
       // OpenCL PRIVATE == CUDA LOCAL
       int bytes = 0;
-      __sycl_internal::__v1::detail::pi::assertion(
+      __sycl_ns::detail::pi::assertion(
           cuFuncGetAttribute(&bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
                              kernel->get()) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -2581,7 +2581,7 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
     }
     case PI_KERNEL_GROUP_INFO_NUM_REGS: {
       int numRegs = 0;
-      cl::sycl::detail::pi::assertion(
+      __sycl_ns::detail::pi::assertion(
           cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
                              kernel->get()) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -2725,14 +2725,14 @@ pi_result cuda_piEnqueueKernelLaunch(
 pi_result cuda_piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
                                      pi_uint32, const pi_mem *, const void **,
                                      pi_uint32, const pi_event *, pi_event *) {
-  __sycl_internal::__v1::detail::pi::die("Not implemented in CUDA backend");
+  __sycl_ns::detail::pi::die("Not implemented in CUDA backend");
   return {};
 }
 
 pi_result cuda_piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
                                                  pi_program, bool,
                                                  pi_kernel *) {
-  sycl::detail::pi::die("Unsupported operation");
+  __sycl_ns::detail::pi::die("Unsupported operation");
   return PI_SUCCESS;
 }
 
@@ -2751,7 +2751,7 @@ pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
   // TODO: check SYCL CTS and spec. May also have to support BGRA
   if (image_format->image_channel_order !=
       pi_image_channel_order::PI_IMAGE_CHANNEL_ORDER_RGBA) {
-    __sycl_internal::__v1::detail::pi::die(
+    __sycl_ns::detail::pi::die(
         "cuda_piMemImageCreate only supports RGBA channel order");
   }
 
@@ -2812,7 +2812,7 @@ pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
     pixel_type_size_bytes = 4;
     break;
   default:
-    __sycl_internal::__v1::detail::pi::die(
+    __sycl_ns::detail::pi::die(
         "cuda_piMemImageCreate given unsupported image_channel_data_type");
   }
 
@@ -2895,7 +2895,7 @@ pi_result cuda_piMemImageCreate(pi_context context, pi_mem_flags flags,
 /// \TODO Not implemented
 pi_result cuda_piMemImageGetInfo(pi_mem, pi_image_info, size_t, void *,
                                  size_t *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "cuda_piMemImageGetInfo not implemented");
   return {};
 }
@@ -2912,7 +2912,7 @@ pi_result cuda_piMemRetain(pi_mem mem) {
 ///
 pi_result cuda_piclProgramCreateWithSource(pi_context, pi_uint32, const char **,
                                            const size_t *, pi_program *) {
-  __sycl_internal::__v1::detail::pi::cuPrint(
+  __sycl_ns::detail::pi::cuPrint(
       "cuda_piclProgramCreateWithSource not implemented");
   return PI_INVALID_OPERATION;
 }
@@ -2947,7 +2947,7 @@ pi_result cuda_piProgramBuild(pi_program program, pi_uint32 num_devices,
 
 /// \TODO Not implemented
 pi_result cuda_piProgramCreate(pi_context, const void *, size_t, pi_program *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "cuda_piProgramCreate not implemented");
   return {};
 }
@@ -3028,7 +3028,7 @@ pi_result cuda_piProgramGetInfo(pi_program program, pi_program_info param_name,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Program info request not implemented");
   return {};
 }
@@ -3152,7 +3152,7 @@ pi_result cuda_piProgramGetBuildInfo(pi_program program, pi_device device,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Program Build info request not implemented");
   return {};
 }
@@ -3219,7 +3219,7 @@ pi_result cuda_piextProgramGetNativeHandle(pi_program program,
 /// \return TBD
 pi_result cuda_piextProgramCreateWithNativeHandle(pi_native_handle, pi_context,
                                                   bool, pi_program *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Creation of PI program from native handle not implemented");
   return {};
 }
@@ -3273,7 +3273,7 @@ pi_result cuda_piKernelGetSubGroupInfo(
     case PI_KERNEL_MAX_SUB_GROUP_SIZE: {
       // Sub-group size is equivalent to warp size
       int warpSize = 0;
-      __sycl_internal::__v1::detail::pi::assertion(
+      __sycl_ns::detail::pi::assertion(
           cuDeviceGetAttribute(&warpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE,
                                device->get()) == CUDA_SUCCESS);
       return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -3282,7 +3282,7 @@ pi_result cuda_piKernelGetSubGroupInfo(
     case PI_KERNEL_MAX_NUM_SUB_GROUPS: {
       // Number of sub-groups = max block size / warp size + possible remainder
       int max_threads = 0;
-      __sycl_internal::__v1::detail::pi::assertion(
+      __sycl_ns::detail::pi::assertion(
           cuFuncGetAttribute(&max_threads,
                              CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
                              kernel->get()) == CUDA_SUCCESS);
@@ -3356,7 +3356,7 @@ pi_result cuda_piextKernelSetArgPointer(pi_kernel kernel, pi_uint32 arg_index,
 // Events
 //
 pi_result cuda_piEventCreate(pi_context, pi_event *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "PI Event Create not implemented in CUDA backend");
 }
 
@@ -3418,19 +3418,19 @@ pi_result cuda_piEventGetProfilingInfo(pi_event event,
   default:
     __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
   }
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Event Profiling info request not implemented");
   return {};
 }
 
 pi_result cuda_piEventSetCallback(pi_event, pi_int32, pfn_notify, void *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Event Callback not implemented in CUDA backend");
   return PI_SUCCESS;
 }
 
 pi_result cuda_piEventSetStatus(pi_event, pi_int32) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Event Set Status not implemented in CUDA backend");
   return PI_INVALID_VALUE;
 }
@@ -3440,7 +3440,7 @@ pi_result cuda_piEventRetain(pi_event event) {
 
   const auto refCount = event->increment_reference_count();
 
-  __sycl_internal::__v1::detail::pi::assertion(
+  __sycl_ns::detail::pi::assertion(
       refCount != 0,
       "Reference count overflow detected in cuda_piEventRetain.");
 
@@ -3452,7 +3452,7 @@ pi_result cuda_piEventRelease(pi_event event) {
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  __sycl_internal::__v1::detail::pi::assertion(
+  __sycl_ns::detail::pi::assertion(
       event->get_reference_count() != 0,
       "Reference count overflow detected in cuda_piEventRelease.");
 
@@ -3556,7 +3556,7 @@ pi_result cuda_piextEventGetNativeHandle(pi_event event,
 /// \return TBD
 pi_result cuda_piextEventCreateWithNativeHandle(pi_native_handle, pi_context,
                                                 bool, pi_event *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "Creation of PI event from native handle not implemented");
   return {};
 }
@@ -3684,7 +3684,7 @@ pi_result cuda_piSamplerRelease(pi_sampler sampler) {
 
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
-  __sycl_internal::__v1::detail::pi::assertion(
+  __sycl_ns::detail::pi::assertion(
       sampler->get_reference_count() != 0,
       "Reference count overflow detected in cuda_piSamplerRelease.");
 
@@ -4071,7 +4071,7 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR array_desc) {
   case CU_AD_FORMAT_FLOAT:
     return 4;
   default:
-    __sycl_internal::__v1::detail::pi::die("Invalid image format.");
+    __sycl_ns::detail::pi::die("Invalid image format.");
     return 0;
   }
 }
@@ -4361,7 +4361,7 @@ pi_result cuda_piEnqueueMemImageCopy(pi_queue command_queue, pi_mem src_image,
 pi_result cuda_piEnqueueMemImageFill(pi_queue, pi_mem, const void *,
                                      const size_t *, const size_t *, pi_uint32,
                                      const pi_event *, pi_event *) {
-  __sycl_internal::__v1::detail::pi::die(
+  __sycl_ns::detail::pi::die(
       "cuda_piEnqueueMemImageFill not implemented");
   return {};
 }
