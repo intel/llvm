@@ -417,11 +417,11 @@ The types that own this attribute are excluded from device-copyable and other
 type-legalization steps.
 
 .. code-block:: c++
-  class __attribute__((sycl_special_class)) accessor {
 
-private:
-  void __init() {}
-};
+  class __attribute__((sycl_special_class)) accessor {
+    private:
+      void __init() {}
+  };
   }];
 }
 
