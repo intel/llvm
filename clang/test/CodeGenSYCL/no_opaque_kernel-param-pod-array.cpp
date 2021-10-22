@@ -49,87 +49,45 @@ int main() {
 // CHECK-SAME:(%struct{{.*}}.__wrapper_class* noundef byval(%struct{{.*}}.__wrapper_class) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %class{{.*}}.anon, align 4
-// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast %class{{.*}}.anon* %[[LOCAL_OBJECTA]] to %class{{.*}}.anon addrspace(4)*
+// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %union{{.*}}.__wrapper_union, align 4
+// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast %union{{.*}}.__wrapper_union* %[[LOCAL_OBJECTA]] to %union{{.*}}.__wrapper_union addrspace(4)*
 
-// Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class, %struct{{.*}}.__wrapper_class addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
-// CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x i32], [2 x i32] addrspace(4)* %[[LAMBDA_PTR]], i64 0, i64 0
-// CHECK: br label %[[ARRAYINITBODY:.+]]
-
-// The loop body itself
-// CHECK: [[ARRAYINITBODY]]:
-// CHECK: %[[ARRAYINDEX:.+]] = phi i64 [ 0, %{{.*}} ], [ %[[NEXTINDEX:.+]], %[[ARRAYINITBODY]] ]
-// CHECK: %[[TARG_ARRAY_ELEM:.+]] = getelementptr inbounds i32, i32 addrspace(4)* %[[ARRAY_BEGIN]], i64 %[[ARRAYINDEX]]
-// CHECK: %[[SRC_ELEM:.+]] = getelementptr inbounds [2 x i32], [2 x i32] addrspace(4)* %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
-// CHECK: %[[SRC_VAL:.+]] = load i32, i32 addrspace(4)* %[[SRC_ELEM]]
-// CHECK: store i32 %[[SRC_VAL]], i32 addrspace(4)* %[[TARG_ARRAY_ELEM]]
-// CHECK: %[[NEXTINDEX]] = add nuw i64 %[[ARRAYINDEX]], 1
-// CHECK: %[[ISDONE:.+]] = icmp eq i64 %[[NEXTINDEX]], 2
-// CHECK: br i1 %[[ISDONE]], label %{{.*}}, label %[[ARRAYINITBODY]]
+// Check for Array init
+// CHECK: %[[KERNEL_BC:[a-zA-Z0-9_.]+]] = bitcast %union{{.*}}.__wrapper_union addrspace(4)* %[[LOCAL_OBJECT]] to %class{{.*}}.anon addrspace(4)*
+// CHECK: %[[A_DST_PTR:[a-zA-Z0-9_.]+]] = getelementptr inbounds %class{{.*}}.anon, %class{{.*}}.anon addrspace(4)* %[[KERNEL_BC]], i32 0, i32 0
+// CHECK: %[[A_DST:[a-zA-Z0-9_.]+]] = bitcast [2 x i32] addrspace(4)* %[[A_DST_PTR]] to i8 addrspace(4)*
+// CHECK: %[[A_SRC_PTR:[a-zA-Z0-9_.]+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class, %struct{{.*}}.__wrapper_class addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[A_SRC:[a-zA-Z0-9_.]+]] = bitcast [2 x i32] addrspace(4)* %[[A_SRC_PTR]] to i8 addrspace(4)*
+// CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 %[[A_DST]], i8 addrspace(4)* align 4 %[[A_SRC]], i64 8, i1 false)
 
 // Check kernel_C parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_C
 // CHECK-SAME:(%struct{{.*}}.__wrapper_class{{.*}}* noundef byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
-// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast %class{{.*}}.anon{{.*}}* %[[LOCAL_OBJECTA]] to %class{{.*}}.anon{{.*}} addrspace(4)*
+// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %union{{.*}}.__wrapper_union{{.*}}, align 4
+// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast %union{{.*}}.__wrapper_union{{.*}}* %[[LOCAL_OBJECTA]] to %union{{.*}}.__wrapper_union{{.*}} addrspace(4)*
 
-// Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, %class{{.*}}.anon{{.*}} addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, %struct{{.*}}.__wrapper_class{{.*}} addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
-// CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x %struct{{.*}}.foo], [2 x %struct{{.*}}.foo] addrspace(4)* %[[LAMBDA_PTR]], i64 0, i64 0
-// CHECK: br label %[[ARRAYINITBODY:.+]]
-
-// The loop body itself
-// CHECK: [[ARRAYINITBODY]]:
-// CHECK: %[[ARRAYINDEX:.+]] = phi i64 [ 0, %{{.*}} ], [ %[[NEXTINDEX:.+]], %[[ARRAYINITBODY]] ]
-// CHECK: %[[TARG_ARRAY_ELEM:.+]] = getelementptr inbounds %struct{{.*}}.foo, %struct{{.*}}.foo addrspace(4)* %[[ARRAY_BEGIN]], i64 %[[ARRAYINDEX]]
-// CHECK: %[[SRC_ELEM:.+]] = getelementptr inbounds [2 x %struct{{.*}}.foo], [2 x %struct{{.*}}.foo] addrspace(4)* %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
-// CHECK: %[[TARG_PTR:.+]] = bitcast %struct{{.*}}.foo addrspace(4)* %[[TARG_ARRAY_ELEM]] to i8 addrspace(4)*
-// CHECK: %[[SRC_PTR:.+]] = bitcast %struct{{.*}}.foo addrspace(4)* %[[SRC_ELEM]] to i8 addrspace(4)*
-// call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 %[[TARG_PTR]], i8 addrspace(4)* align %[[SRC_PTR]], i64 24, i1 false)
-// CHECK: %[[NEXTINDEX]] = add nuw i64 %[[ARRAYINDEX]], 1
-// CHECK: %[[ISDONE:.+]] = icmp eq i64 %[[NEXTINDEX]], 2
-// CHECK: br i1 %[[ISDONE]], label %{{.*}}, label %[[ARRAYINITBODY]]
+// Check for Array init
+// CHECK: %[[KERNEL_BC:[a-zA-Z0-9_.]+]] = bitcast %union{{.*}}.__wrapper_union{{.*}} addrspace(4)* %[[LOCAL_OBJECT]] to %class{{.*}}.anon{{.*}} addrspace(4)*
+// CHECK: %[[DST_PTR:[a-zA-Z0-9_.]+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, %class{{.*}}.anon{{.*}} addrspace(4)* %[[KERNEL_BC]], i32 0, i32 0
+// CHECK: %[[DST:[a-zA-Z0-9_.]+]] = bitcast [2 x %struct.foo] addrspace(4)* %[[DST_PTR]] to i8 addrspace(4)*
+// CHECK: %[[SRC_PTR:[a-zA-Z0-9_.]+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, %struct{{.*}}.__wrapper_class{{.*}} addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[SRC:[a-zA-Z0-9_.]+]] = bitcast [2 x %struct.foo] addrspace(4)* %[[SRC_PTR]] to i8 addrspace(4)*
+// CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 %[[DST]], i8 addrspace(4)* align 4 %[[SRC]], i64 48, i1 false)
 
 // Check kernel_D parameters
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_D
 // CHECK-SAME:(%struct{{.*}}.__wrapper_class{{.*}}* noundef byval(%struct{{.*}}.__wrapper_class{{.*}}) align 4 %[[ARR_ARG:.*]])
 
 // Check local lambda object alloca
-// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %class{{.*}}.anon{{.*}}, align 4
-// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast %class{{.*}}.anon{{.*}}* %[[LOCAL_OBJECTA]] to %class{{.*}}.anon{{.*}} addrspace(4)*
+// CHECK: %[[LOCAL_OBJECTA:[a-zA-Z0-9_]+]] = alloca %union{{.*}}.__wrapper_union{{.*}}, align 4
+// CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast %union{{.*}}.__wrapper_union{{.*}}* %[[LOCAL_OBJECTA]] to %union{{.*}}.__wrapper_union{{.*}} addrspace(4)*
 
-// Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, %class{{.*}}.anon{{.*}} addrspace(4)* %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, %struct{{.*}}.__wrapper_class{{.*}} addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
-// CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x [1 x i32]], [2 x [1 x i32]] addrspace(4)* %[[LAMBDA_PTR]], i64 0, i64 0
-// CHECK: br label %[[ARRAYINITBODY:.+]]
-
-// Check Outer loop.
-// CHECK: [[ARRAYINITBODY]]:
-// CHECK: %[[ARRAYINDEX:.+]] = phi i64 [ 0, %{{.*}} ], [ %[[NEXTINDEX:.+]], %[[ARRAYINITEND:.+]] ]
-// CHECK: %[[TARG_OUTER_ELEM:.+]] = getelementptr inbounds [1 x i32], [1 x i32] addrspace(4)* %[[ARRAY_BEGIN]], i64 %[[ARRAYINDEX]]
-// CHECK: %[[SRC_OUTER_ELEM:.+]] = getelementptr inbounds [2 x [1 x i32]], [2 x [1 x i32]] addrspace(4)* %[[WRAPPER_PTR]], i64 0, i64 %[[ARRAYINDEX]]
-// CHECK: %[[ARRAY_BEGIN_INNER:.+]] = getelementptr inbounds [1 x i32], [1 x i32] addrspace(4)* %[[TARG_OUTER_ELEM]], i64 0, i64 0
-// CHECK: br label %[[ARRAYINITBODY_INNER:.+]]
-
-// Check Inner Loop
-// CHECK: [[ARRAYINITBODY_INNER]]:
-// CHECK: %[[ARRAYINDEX_INNER:.+]] = phi i64 [ 0, %{{.*}} ], [ %[[NEXTINDEX_INNER:.+]], %[[ARRAYINITBODY_INNER:.+]] ]
-// CHECK: %[[TARG_INNER_ELEM:.+]] = getelementptr inbounds i32, i32 addrspace(4)* %[[ARRAY_BEGIN_INNER]], i64 %[[ARRAYINDEX_INNER]]
-// CHECK: %[[SRC_INNER_ELEM:.+]] = getelementptr inbounds [1 x i32], [1 x i32] addrspace(4)* %[[SRC_OUTER_ELEM]], i64 0, i64 %[[ARRAYINDEX_INNER]]
-// CHECK: %[[SRC_LOAD:.+]] = load i32, i32 addrspace(4)* %[[SRC_INNER_ELEM]]
-// CHECK: store i32 %[[SRC_LOAD]], i32 addrspace(4)* %[[TARG_INNER_ELEM]]
-// CHECK: %[[NEXTINDEX_INNER]] = add nuw i64 %[[ARRAYINDEX_INNER]], 1
-// CHECK: %[[ISDONE_INNER:.+]] = icmp eq i64 %[[NEXTINDEX_INNER]], 1
-// CHECK: br i1 %[[ISDONE_INNER]], label %[[ARRAYINITEND]], label %[[ARRAYINITBODY_INNER]]
-
-// Check Inner loop 'end'
-// CHECK: [[ARRAYINITEND]]:
-// CHECK: %[[NEXTINDEX]] = add nuw i64 %[[ARRAYINDEX]], 1
-// CHECK: %[[ISDONE:.+]] = icmp eq i64 %[[NEXTINDEX]], 2
-// CHECK: br i1 %[[ISDONE]], label %{{.*}}, label %[[ARRAYINITBODY]]
+// Check for Array init
+// CHECK: %[[KERNEL_BC:[a-zA-Z0-9_.]+]] = bitcast %union{{.*}}.__wrapper_union{{.*}} addrspace(4)* %[[LOCAL_OBJECT]] to %class{{.*}}.anon{{.*}} addrspace(4)*
+// CHECK: %[[DST_PTR:[a-zA-Z0-9_.]+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, %class{{.*}}.anon{{.*}} addrspace(4)* %[[KERNEL_BC]], i32 0, i32 0
+// CHECK: %[[DST:[a-zA-Z0-9_.]+]] = bitcast [2 x [1 x i32]] addrspace(4)* %[[DST_PTR]] to i8 addrspace(4)*
+// CHECK: %[[SRC_PTR:[a-zA-Z0-9_.]+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, %struct{{.*}}.__wrapper_class{{.*}} addrspace(4)* %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[SRC:[a-zA-Z0-9_.]+]] = bitcast [2 x [1 x i32]] addrspace(4)* %[[SRC_PTR]] to i8 addrspace(4)*
+// CHECK: call void @llvm.memcpy.p4i8.p4i8.i64(i8 addrspace(4)* align 4 %[[DST]], i8 addrspace(4)* align 4 %[[SRC]], i64 8, i1 false)

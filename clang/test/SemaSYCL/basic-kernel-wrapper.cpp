@@ -34,14 +34,22 @@ int main() {
 // Check lambda declaration inside the wrapper
 
 // CHECK: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})'
+// CHECK: VarDecl {{.*}} '__wrapper_union'
+// CHECK:      CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .readWriteAccessor
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
 
 // Check accessor initialization
 
 // CHECK: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write>':'sycl::accessor<int, 1, sycl::access::mode::read_write>' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}basic-kernel-wrapper.cpp{{.*}})' lvalue Var
+// CHECK-NEXT:  MemberExpr {{.*}} .readWriteAccessor
+// CHECK-NEXT:   MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:    DeclRefExpr {{.*}} '__wrapper_union'
 
 // CHECK-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
 // CHECK-NEXT: DeclRefExpr {{.*}} '__global int *' lvalue ParmVar {{.*}} '[[_arg_Mem]]' '__global int *'

@@ -25,9 +25,27 @@ int main() {
 }
 
 // CHECK: FunctionDecl {{.*}}kernel_sc{{.*}} 'void ()'
-// CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::ext::oneapi::experimental::spec_constant<char, class MyInt32Const>':'sycl::ext::oneapi::experimental::spec_constant<char, MyInt32Const>'
-// CHECK-NEXT: InitListExpr {{.*}} 'SpecConstantsWrapper'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, class sc_name1>':'sycl::ext::oneapi::experimental::spec_constant<int, sc_name1>'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, class sc_name2>':'sycl::ext::oneapi::experimental::spec_constant<int, sc_name2>'
+// CHECK: VarDecl {{.*}} used __wrapper_union '__wrapper_union'
+// CHECK:      CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<char, MyInt32Const>'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .SC
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, sc_name1>'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .SC1
+// CHECK-NEXT:     MemberExpr {{.*}} .SCWrapper
+// CHECK-NEXT:      MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:       DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr {{.*}} 'sycl::ext::oneapi::experimental::spec_constant<int, sc_name2>'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .SC2
+// CHECK-NEXT:     MemberExpr {{.*}} .SCWrapper
+// CHECK-NEXT:      MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:       DeclRefExpr {{.*}} '__wrapper_union'

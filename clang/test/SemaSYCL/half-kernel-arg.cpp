@@ -20,8 +20,16 @@ int main() {
 // CHECK: {{.*}}kernel_half{{.*}} 'void (sycl::half)'
 // CHECK: ParmVarDecl {{.*}} used _arg_HostHalf 'sycl::half':'sycl::detail::half_impl::half'
 // // Check that lambda field of half type is initialized
-// CHECK: VarDecl {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::detail::half_impl::half'{{.*}}
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const half':'const sycl::detail::half_impl::half'
-// CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::half':'sycl::detail::half_impl::half' lvalue ParmVar {{.*}} '_arg_HostHalf' 'sycl::half':'sycl::detail::half_impl::half'
+// CHECK: VarDecl {{.*}} used __wrapper_union '__wrapper_union'
+// CHECK:      CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .HostHalf
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    DeclRefExpr {{.*}} '_arg_HostHalf'
+// CHECK-NEXT:  IntegerLiteral {{.*}} 2

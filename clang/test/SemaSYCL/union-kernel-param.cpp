@@ -30,8 +30,16 @@ int main() {
 // Check kernel inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: CXXConstructExpr {{.*}}'MyUnion' 'void (const MyUnion &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const MyUnion'
-// CHECK-NEXT: DeclRefExpr {{.*}}'MyUnion' lvalue ParmVar {{.*}} '_arg_accel' {{.*}}'MyUnion'
+// CHECK-NEXT: VarDecl {{.*}} __wrapper_union
+// CHECK:      CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .accel
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    DeclRefExpr {{.*}} '_arg_accel'
+// CHECK-NEXT:  IntegerLiteral {{.*}} 4

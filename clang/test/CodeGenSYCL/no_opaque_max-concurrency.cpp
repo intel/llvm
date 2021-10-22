@@ -20,23 +20,33 @@
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name1() [[ATTR0:#[0-9]+]] {{.*}} !max_concurrency ![[NUM1:[0-9]+]]
 // CHECK: entry:
-// CHECK: [[F1:%.*]] = alloca [[CLASS_F1:%.*]], align 1
-// CHECK: [[F1_ASCAST:%.*]] = addrspacecast [[CLASS_F1]]* [[F1]] to [[CLASS_F1]] addrspace(4)*
-// CHECK: [[TMP0:%.*]] = bitcast [[CLASS_F1]]* [[F1]] to i8*
+// CHECK: [[F1:%.*]] = alloca [[UNION_F1:%.*]], align 1
+// CHECK: [[F1_PTR:%.*]] = alloca [[CLASS_F1:%.*]] addrspace(4)*, align 8
+// CHECK: [[F1_ASCAST:%.*]] = addrspacecast [[UNION_F1]]* [[F1]] to [[UNION_F1]] addrspace(4)*
+// CHECK: [[F1_PTR_ASCAST:%.*]] = addrspacecast [[CLASS_F1]] addrspace(4)** [[F1_PTR]] to [[CLASS_F1]] addrspace(4)* addrspace(4)*
+// CHECK: [[TMP0:%.*]] = bitcast [[UNION_F1]]* [[F1]] to i8*
 // CHECK: call void @llvm.lifetime.start.p0i8(i64 1, i8* [[TMP0]])
-// CHECK: call spir_func void @_ZNK8Functor1clEv([[CLASS_F1]] addrspace(4)* noundef align 1 dereferenceable_or_null(1) [[F1_ASCAST]])
-// CHECK: [[TMP1:%.*]] = bitcast [[CLASS_F1]]* [[F1]] to i8*
+// CHECK: [[F1_BC:%.*]] = bitcast [[UNION_F1]] addrspace(4)* [[F1_ASCAST]] to [[CLASS_F1]] addrspace(4)*
+// CHECK: store [[CLASS_F1]] addrspace(4)* %4, [[CLASS_F1]] addrspace(4)* addrspace(4)* [[F1_PTR_ASCAST]]
+// CHECK: [[F1_PTR:%.*]] = load [[CLASS_F1]] addrspace(4)*, [[CLASS_F1]] addrspace(4)* addrspace(4)* [[F1_PTR_ASCAST]]
+// CHECK: call spir_func void @_ZNK8Functor1clEv([[CLASS_F1]] addrspace(4)* noundef align 1 dereferenceable_or_null(1) [[F1_PTR]])
+// CHECK: [[TMP1:%.*]] = bitcast [[UNION_F1]]* [[F1]] to i8*
 // CHECK: call void @llvm.lifetime.end.p0i8(i64 1, i8* [[TMP1]])
 // CHECK: ret void
 
 // CHECK: define {{.*}}spir_kernel void @{{.*}}kernel_name4() [[ATTR0]] {{.*}} !max_concurrency ![[NUM1:[0-9]+]]
 // CHECK: entry
-// CHECK: [[F3:%.*]] = alloca [[CLASS_F3:%.*]], align 1
-// CHECK: [[F3_ASCAST:%.*]] = addrspacecast [[CLASS_F3]]* [[F3]] to [[CLASS_F3]] addrspace(4)*
-// CHECK: [[TMP2:%.*]] = bitcast [[CLASS_F3]]* [[F3]] to i8*
+// CHECK: [[F3:%.*]] = alloca [[UNION_F3:%.*]], align 1
+// CHECK: [[F3_PTR:%.*]] = alloca [[CLASS_F3:%.*]] addrspace(4)*, align 8
+// CHECK: [[F3_ASCAST:%.*]] = addrspacecast [[UNION_F3]]* [[F3]] to [[UNION_F3]] addrspace(4)*
+// CHECK: [[F3_PTR_ASCAST:%.*]] = addrspacecast [[CLASS_F3]] addrspace(4)** [[F3_PTR]] to [[CLASS_F3]] addrspace(4)* addrspace(4)*
+// CHECK: [[TMP2:%.*]] = bitcast [[UNION_F3]]* [[F3]] to i8*
 // CHECK: call void @llvm.lifetime.start.p0i8(i64 1, i8* [[TMP2]])
-// CHECK: call spir_func void @_ZNK8Functor3ILi4EEclEv([[CLASS_F3]] addrspace(4)* noundef align 1 dereferenceable_or_null(1) [[F3_ASCAST]])
-// CHECK: [[TMP3:%.*]] = bitcast [[CLASS_F3]]* [[F3]] to i8*
+// CHECK: [[F3_BC:%.*]] = bitcast [[UNION_F3]] addrspace(4)* [[F3_ASCAST]] to [[CLASS_F3]] addrspace(4)*
+// CHECK: store [[CLASS_F3]] addrspace(4)* %4, [[CLASS_F3]] addrspace(4)* addrspace(4)* [[F3_PTR_ASCAST]]
+// CHECK: [[F3_PTR:%.*]] = load [[CLASS_F3]] addrspace(4)*, [[CLASS_F3]] addrspace(4)* addrspace(4)* [[F3_PTR_ASCAST]]
+// CHECK: call spir_func void @_ZNK8Functor3ILi4EEclEv([[CLASS_F3]] addrspace(4)* noundef align 1 dereferenceable_or_null(1) [[F3_PTR]])
+// CHECK: [[TMP3:%.*]] = bitcast [[UNION_F3]]* [[F3]] to i8*
 // CHECK: call void @llvm.lifetime.end.p0i8(i64 1, i8* [[TMP3]]
 // CHECK: ret void
 
@@ -51,10 +61,15 @@
 // CHECK: define dso_local spir_kernel void @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E12kernel_name5()
 // CHECK: entry:
 // CHECK: [[H1:%.*]] = alloca [[H:%.*]], align 1
+// CHECK: [[H_PTR:%.*]] = alloca [[CLASS_H:%.*]] addrspace(4)*, align 8
 // CHECK: [[H2:%.*]] = addrspacecast [[H]]* [[H1]] to [[H]] addrspace(4)*
+// CHECK: [[H_PTR_ASCAST:%.*]] = addrspacecast [[CLASS_H]] addrspace(4)** [[H_PTR]] to [[CLASS_H]] addrspace(4)* addrspace(4)*
 // CHECK: [[H3:%.*]] = bitcast [[H]]* [[H1]] to i8*
 // CHECK: call void @llvm.lifetime.start.p0i8(i64 1, i8* [[H3]])
-// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv([[H]] addrspace(4)* noundef align 1 dereferenceable_or_null(1) [[H2]])
+// CHECK: [[H_BC:%.*]] = bitcast [[H]] addrspace(4)* [[H2]] to [[CLASS_H]] addrspace(4)*
+// CHECK: store [[CLASS_H]] addrspace(4)* %4, [[CLASS_H]] addrspace(4)* addrspace(4)* [[H_PTR_ASCAST]]
+// CHECK: [[H_PTR:%.*]] = load [[CLASS_H]] addrspace(4)*, [[CLASS_H]] addrspace(4)* addrspace(4)* [[H_PTR_ASCAST]]
+// CHECK: call spir_func void @_ZZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_ENKUlvE_clEv([[CLASS_H]] addrspace(4)* noundef align 1 dereferenceable_or_null(1) [[H_PTR]])
 // CHECK: [[TMP4:%.*]] = bitcast [[H]]* [[H1]] to i8*
 // CHECK: call void @llvm.lifetime.end.p0i8(i64 1, i8* [[TMP4]])
 // CHECK: ret void

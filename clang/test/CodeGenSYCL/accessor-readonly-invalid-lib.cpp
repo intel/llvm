@@ -2,6 +2,8 @@
 //
 // Test which verifies that readonly attribute is generated for unexpected access mode value.
 
+void* operator new  (__SIZE_TYPE__ size, void* ptr) noexcept;
+
 // Dummy library with unexpected access::mode enum value.
 namespace sycl {
 inline namespace _V1 {

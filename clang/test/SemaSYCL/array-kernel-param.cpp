@@ -135,49 +135,43 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_Array '__wrapper_class'
 // Check Kernel_Array inits
 // CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int[2]'
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_Array' '__wrapper_class'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_Array' '__wrapper_class'
+// CHECK-NEXT:  DeclStmt
+// CHECK-NEXT:   VarDecl {{.*}} __wrapper_union
+// CHECK-NEXT: CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .Array
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT:  UnaryOperator
+// CHECK-NEXT:   MemberExpr
+// CHECK-NEXT:    DeclRefExpr {{.*}} ParmVar {{.*}} '_arg_Array'
+// CHECK-NEXT: IntegerLiteral {{.*}} 8
+
 
 // Check Kernel_Array_Ptrs parameters
 // CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs{{.*}} 'void (__wrapper_class)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers '__wrapper_class'
 // Check Kernel_Array_Ptrs inits
 // CHECK-NEXT: CompoundStmt
-// CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
-// Initializer for ArrayOfPointers[0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-// Initializer for ArrayOfPointers[1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// CHECK-NEXT:  DeclStmt
+// CHECK-NEXT:   VarDecl {{.*}} __wrapper_union
+// CHECK-NEXT: CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .ArrayOfPointers
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT:  UnaryOperator
+// CHECK-NEXT:   MemberExpr
+// CHECK-NEXT:    DeclRefExpr {{.*}} ParmVar {{.*}} '_arg_ArrayOfPointers'
+// CHECK-NEXT: IntegerLiteral {{.*}} 16
 
 // Check Kernel_StructAccArray parameters
 // CHECK: FunctionDecl {{.*}}Kernel_StructAccArray{{.*}} 'void (__global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>, __global int *, sycl::range<1>, sycl::range<1>, sycl::id<1>)'
@@ -193,29 +187,54 @@ int main() {
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_member_acc 'sycl::id<1>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
-// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithAccessors'
-// CHECK-NEXT: InitListExpr {{.*}} 'Accessor[2]'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
-
-// Check __init functions are called
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}__init
-// CHECK: CXXMemberCallExpr {{.*}} 'void'
-// CHECK-NEXT: MemberExpr {{.*}}__init
+// CHECK-NEXT:  VarDecl {{.*}} __wrapper_union
+// Init first accessor
+// CHECK-NEXT: CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    ArraySubscriptExpr
+// CHECK-NEXT:     ImplicitCastExpr
+// CHECK-NEXT:      MemberExpr {{.*}} .member_acc
+// CHECK-NEXT:       MemberExpr {{.*}} .StructAccArrayObj
+// CHECK-NEXT:        MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:         DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT:    IntegerLiteral {{.*}} 0
+// CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT:  MemberExpr {{.*}}__init
+// Init second accessor
+// CHECK:      CXXNewExpr
+// CHECK-NEXT:  CXXConstructExpr
+// CHECK-NEXT:   ImplicitCastExpr
+// CHECK-NEXT:    UnaryOperator
+// CHECK-NEXT:     ArraySubscriptExpr
+// CHECK-NEXT:      ImplicitCastExpr
+// CHECK-NEXT:      MemberExpr {{.*}} .member_acc
+// CHECK-NEXT:       MemberExpr {{.*}} .StructAccArrayObj
+// CHECK-NEXT:        MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:         DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT:     IntegerLiteral {{.*}} 1
+// CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
+// CHECK-NEXT:  MemberExpr {{.*}}__init
 
 // Check Kernel_TemplatedStructArray parameters
 // CHECK: FunctionDecl {{.*}}Kernel_TemplatedStructArray{{.*}} 'void (S<int>)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>':'S<int>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
-// CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>':'S<int>' 'void (const S<int> &) noexcept'
+// CHECK-NEXT:  VarDecl
+// CHECK-NEXT: CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} 'S<int>':'S<int>'
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>':'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>':'S<int>'
+// CHECK-NEXT:  UnaryOperator
+// CHECK-NEXT:    DeclRefExpr {{.*}} ParmVar {{.*}} '_arg_s'
+// CHECK-NEXT: IntegerLiteral {{.*}} 12
 
 // Check Kernel_Array_2D parameters
 // CHECK: FunctionDecl {{.*}}Kernel_Array_2D{{.*}} 'void (__wrapper_class)'
@@ -223,31 +242,20 @@ int main() {
 // Check Kernel_Array_2D inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int[2][3]'
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2][3]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_array_2D' '__wrapper_class'
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int[3]'
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[3]' lvalue
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int (*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2][3]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_array_2D' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[3]' lvalue
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int (*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2][3]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_array_2D' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+// CHECK-NEXT:  VarDecl
+// CHECK-NEXT: CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .array_2D
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT:  UnaryOperator
+// CHECK-NEXT:   MemberExpr
+// CHECK-NEXT:    DeclRefExpr {{.*}} ParmVar {{.*}} '_arg_array_2D'
+// CHECK-NEXT: IntegerLiteral {{.*}} 24
 
 // Check Kernel_NonDecomposedStruct parameters.
 // CHECK: FunctionDecl {{.*}}Kernel_NonDecomposedStruct{{.*}} 'void (__wrapper_class)'
@@ -255,20 +263,20 @@ int main() {
 // Check Kernel_NonDecomposedStruct inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'NonDecomposedStruct[2]'
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_NonDecompStructArray' '__wrapper_class'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct':'const NonDecomposedStruct' lvalue <NoOp>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}}'NonDecomposedStruct' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'NonDecomposedStruct *' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_NonDecompStructArray' '__wrapper_class'
-// CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
+// CHECK-NEXT:  VarDecl
+// CHECK-NEXT: CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .NonDecompStructArray
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT:  UnaryOperator
+// CHECK-NEXT:   MemberExpr
+// CHECK-NEXT:    DeclRefExpr {{.*}} ParmVar {{.*}} '_arg_NonDecompStructArray'
+// CHECK-NEXT: IntegerLiteral {{.*}} 32
 
 // Check Kernel_StructWithPointers parameters.
 // CHECK: FunctionDecl {{.*}}Kernel_StructWithPointers{{.*}} 'void (__wrapper_class)'
@@ -276,152 +284,51 @@ int main() {
 // Check Kernel_StructWithPointers inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
-// Initializer for StructWithPointersArray[0]
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithPointers':'StructWithPointers' 'void (const StructWithPointers &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers':'const StructWithPointers' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers':'StructWithPointers' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__generated_StructWithPointers' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__generated_StructWithPointers *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__generated_StructWithPointers[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-// Initializer for StructWithPointersArray[1]
-// CHECK: CXXConstructExpr {{.*}} 'StructWithPointers':'StructWithPointers' 'void (const StructWithPointers &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers':'const StructWithPointers' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers':'StructWithPointers' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__generated_StructWithPointers' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__generated_StructWithPointers *' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__generated_StructWithPointers[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// CHECK-NEXT:  VarDecl
+// CHECK-NEXT: CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .StructWithPointersArray
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT:  UnaryOperator
+// CHECK-NEXT:   MemberExpr
+// CHECK-NEXT:    DeclRefExpr {{.*}} ParmVar {{.*}} '_arg_StructWithPointersArray'
+// CHECK-NEXT: IntegerLiteral {{.*}} 48
 
 // Check Kernel_Array_Ptrs_2D parameters
 // CHECK: FunctionDecl {{.*}}Kernel_Array_Ptrs_2D{{.*}} 'void (__wrapper_class, __wrapper_class)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers_2D '__wrapper_class'
 // CHECK-NEXT: ParmVarDecl {{.*}} used _arg_ArrayOfPointers '__wrapper_class'
-
-// Check Kernel_Array_Ptrs_2D inits
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
-// CHECK-NEXT: VarDecl {{.*}} cinit
-// CHECK-NEXT: InitListExpr
-
-// Initializer for ArrayOfPointers_2D
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[2][3]'
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
-// Initializer for ArrayOfPointers_2D[0][0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-
-// Initializer for ArrayOfPointers_2D[0][1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
-
-// Initializer for ArrayOfPointers_2D[0][2]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-// CHECK-NEXT: IntegerLiteral {{.*}} 2
-
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[3]'
-
-// Initializer for ArrayOfPointers_2D[1][0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-
-// Initializer for ArrayOfPointers_2D[1][1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
-
-// Initializer for ArrayOfPointers_2D[1][2]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *[3]' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int *(*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2][3]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
-// CHECK-NEXT: IntegerLiteral {{.*}} 2
-
-// Initializer for ArrayOfPointers
-// CHECK-NEXT: InitListExpr {{.*}} 'int *[2]'
-// Initializer for ArrayOfPointers[0]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 0
-
-// Initializer for ArrayOfPointers[1]
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <LValueToRValue>
-// CHECK-NEXT: UnaryOperator {{.*}} 'int *' lvalue prefix '*' cannot overflow
-// CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'int **' reinterpret_cast<int **> <BitCast>
-// CHECK-NEXT: UnaryOperator {{.*}} '__global int **' prefix '&' cannot overflow
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} '__global int *' lvalue
-// CHECK-NEXT: ImplicitCastExpr {{.*}} '__global int **' <ArrayToPointerDecay>
-// CHECK-NEXT: MemberExpr {{.*}} '__global int *[2]' lvalue .
-// CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_ArrayOfPointers'
-// CHECK-NEXT: IntegerLiteral {{.*}} 1
+// CHECK-NEXT:  VarDecl
+// CHECK-NEXT: CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .ArrayOfPointers_2D
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT:  UnaryOperator
+// CHECK-NEXT:   MemberExpr
+// CHECK-NEXT:    DeclRefExpr {{.*}} ParmVar {{.*}} '_arg_ArrayOfPointers_2D'
+// CHECK-NEXT: IntegerLiteral {{.*}} 48
+// CHECK-NEXT: CallExpr
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   DeclRefExpr {{.*}} '__builtin_memcpy'
+// CHECK-NEXT:  ImplicitCastExpr
+// CHECK-NEXT:   UnaryOperator
+// CHECK-NEXT:    MemberExpr {{.*}} .ArrayOfPointers
+// CHECK-NEXT:     MemberExpr {{.*}} '(lambda at
+// CHECK-NEXT:      DeclRefExpr {{.*}} '__wrapper_union'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT:  UnaryOperator
+// CHECK-NEXT:   MemberExpr
+// CHECK-NEXT:    DeclRefExpr {{.*}} ParmVar {{.*}} '_arg_ArrayOfPointers'
+// CHECK-NEXT: IntegerLiteral {{.*}} 16

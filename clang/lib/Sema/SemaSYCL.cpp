@@ -889,10 +889,14 @@ public:
     auto Ref = dyn_cast<DeclaratorDecl>(DRE->getDecl());
     if (Ref && Ref == MappingPair.first) {
       auto NewDecl = MappingPair.second;
+      QualType ExprType = NewDecl->getType();
+      if (ExprType->isReferenceType()) {
+        ExprType = ExprType->getPointeeType();
+      }
       return DeclRefExpr::Create(
           SemaRef.getASTContext(), DRE->getQualifierLoc(),
           DRE->getTemplateKeywordLoc(), NewDecl, false, DRE->getNameInfo(),
-          NewDecl->getType(), DRE->getValueKind());
+          ExprType, DRE->getValueKind());
     }
     return DRE;
   }
@@ -2800,7 +2804,6 @@ static bool isESIMDKernelType(const CXXRecordDecl *KernelObjType) {
 class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   SyclKernelDeclCreator &DeclCreator;
   llvm::SmallVector<Stmt *, 16> BodyStmts;
-  llvm::SmallVector<InitListExpr *, 16> CollectionInitExprs;
   llvm::SmallVector<Stmt *, 16> FinalizeStmts;
   // This collection contains the information required to add/remove information
   // about arrays as we enter them.  The InitializedEntity component is
@@ -2808,6 +2811,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // current element being worked on, which is updated every time we visit
   // nextElement.
   llvm::SmallVector<std::pair<InitializedEntity, uint64_t>, 8> ArrayInfos;
+  const CXXRecordDecl *WrappingUnion;
   VarDecl *KernelObjClone;
   InitializedEntity VarEntity;
   const CXXRecordDecl *KernelObj;
@@ -2839,15 +2843,22 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     // Push the Kernel function scope to ensure the scope isn't empty
     SemaRef.PushFunctionScope();
 
-    // Initialize kernel object local clone
-    assert(CollectionInitExprs.size() == 1 &&
-           "Should have been popped down to just the first one");
-    KernelObjClone->setInit(CollectionInitExprs.back());
+    // Create a reference to the Functor in the union
+    FieldDecl *WrappedField = *WrappingUnion->field_begin();
+    VarDecl *KernelObjRef = VarDecl::Create(
+        SemaRef.Context, DeclCreator.getKernelDecl(), SourceLocation(),
+        SourceLocation(), WrappedField->getIdentifier(),
+        SemaRef.Context.getLValueReferenceType(WrappedField->getType()),
+        nullptr, SC_None);
+    KernelObjRef->setInit(MemberExprBases.back());
+    Stmt *DS = new (SemaRef.Context) DeclStmt(
+        DeclGroupRef(KernelObjRef), KernelCallerSrcLoc, KernelCallerSrcLoc);
+    BodyStmts.push_back(DS);
 
     // Replace references to the kernel object in kernel body, to use the
     // compiler generated local clone
     Stmt *NewBody =
-        replaceWithLocalClone(KernelCallerFunc->getParamDecl(0), KernelObjClone,
+        replaceWithLocalClone(KernelCallerFunc->getParamDecl(0), KernelObjRef,
                               KernelCallerFunc->getBody());
 
     // If kernel_handler argument is passed by SYCL kernel, replace references
@@ -2967,131 +2978,125 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return buildMemberExpr(DRE, ArrayField);
   }
 
-  // Creates an initialized entity for a field/item. In the case where this is a
-  // field, returns a normal member initializer, if we're in a sub-array of a MD
-  // array, returns an element initializer.
-  InitializedEntity getFieldEntity(FieldDecl *FD, QualType Ty) {
-    if (isArrayElement(FD, Ty))
-      return InitializedEntity::InitializeElement(SemaRef.getASTContext(),
-                                                  ArrayInfos.back().second,
-                                                  ArrayInfos.back().first);
-    return InitializedEntity::InitializeMember(FD, &VarEntity);
+  // Build a placement new instruction to force the call to the default
+  // constructor if it exists. Sema has a BuildCXXNew method but we can't use it
+  // here as might be declared private.
+  void callFieldCtor() {
+    Expr *FieldExpr = MemberExprBases.back();
+    QualType ToType = FieldExpr->getType();
+    QualType CanonTy = ToType.getCanonicalType();
+    // This is gross but fine for clang. This should be moved to CodeGen anyway.
+    ToType.removeLocalConst();
+    ToType = SemaRef.Context.getPointerType(ToType);
+    FieldExpr = UnaryOperator::Create(
+        SemaRef.Context, FieldExpr, UO_AddrOf, ToType, VK_PRValue, OK_Ordinary,
+        KernelCallerSrcLoc, false, SemaRef.CurFPFeatureOverrides());
+
+    ExprResult NewExpr = SemaRef.BuildCXXNew(
+        KernelCallerSrcLoc, /*UseGlobal=*/true, KernelCallerSrcLoc, FieldExpr,
+        KernelCallerSrcLoc, {KernelCallerSrcLoc, KernelCallerSrcLoc}, CanonTy,
+        SemaRef.Context.getTrivialTypeSourceInfo(CanonTy, SourceLocation()),
+        std::nullopt, {}, nullptr);
+
+    assert(!NewExpr.isInvalid() && "Can't build placement new!");
+    BodyStmts.push_back(NewExpr.getAs<Stmt>());
   }
 
-  void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef) {
-    InitializationKind InitKind =
-        InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
-    addFieldInit(FD, Ty, ParamRef, InitKind);
+  void doScalarInit(Expr *FromExpr, QualType Ty) {
+    assert(FromExpr->getType()->isScalarType());
+    // Compute the size of the memory buffer to be copied.
+    QualType SizeType = SemaRef.Context.getSizeType();
+    llvm::APInt Size(SemaRef.Context.getTypeSize(SizeType),
+                     SemaRef.Context.getTypeSizeInChars(Ty).getQuantity());
+
+    Expr *To = MemberExprBases.back();
+    QualType ToType = To->getType();
+    assert(ToType->isScalarType());
+    assert(FromExpr->getType().getTypePtr() == ToType.getTypePtr());
+
+    // This is gross but fine for clang.
+    // Could make it less gross by adding a const_cast but this should be moved
+    // to CodeGen anyway.
+    ToType.removeLocalConst();
+    ToType = SemaRef.Context.getPointerType(ToType);
+    To = BinaryOperator::Create(
+        SemaRef.Context, To, FromExpr, BO_Assign, ToType, VK_LValue,
+        OK_Ordinary, KernelCallerSrcLoc, SemaRef.CurFPFeatureOverrides());
+    BodyStmts.push_back(To);
   }
 
-  void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef,
-                    InitializationKind InitKind) {
-    addFieldInit(FD, Ty, ParamRef, InitKind, getFieldEntity(FD, Ty));
+  void doMemCopyInit(Expr *FromExpr, QualType Ty) {
+    // Compute the size of the memory buffer to be copied.
+    QualType SizeType = SemaRef.Context.getSizeType();
+    llvm::APInt Size(SemaRef.Context.getTypeSize(SizeType),
+                     SemaRef.Context.getTypeSizeInChars(Ty).getQuantity());
+
+    Expr *From = UnaryOperator::Create(
+        SemaRef.Context, FromExpr, UO_AddrOf,
+        SemaRef.Context.getPointerType(FromExpr->getType()), VK_PRValue,
+        OK_Ordinary, KernelCallerSrcLoc, false,
+        SemaRef.CurFPFeatureOverrides());
+    Expr *To = MemberExprBases.back();
+    QualType ToType = To->getType();
+    // This is gross but fine for clang. This should be moved to CodeGen anyway.
+    ToType.removeLocalConst();
+    ToType = SemaRef.Context.getPointerType(ToType);
+    To = UnaryOperator::Create(SemaRef.Context, To, UO_AddrOf, ToType,
+                               VK_PRValue, OK_Ordinary, KernelCallerSrcLoc,
+                               false, SemaRef.CurFPFeatureOverrides());
+
+    Expr *CallArgs[] = {To, From,
+                        IntegerLiteral::Create(SemaRef.Context, Size, SizeType,
+                                               KernelCallerSrcLoc)};
+
+    ExprResult Call = SemaRef.BuildBuiltinCallExpr(
+        KernelCallerSrcLoc, Builtin::BI__builtin_memcpy, CallArgs);
+
+    assert(!Call.isInvalid() && "Call to __builtin_memcpy cannot fail!");
+    BodyStmts.push_back(Call.getAs<Stmt>());
   }
 
-  void addFieldInit(FieldDecl *FD, QualType Ty, MultiExprArg ParamRef,
-                    InitializationKind InitKind, InitializedEntity Entity) {
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, ParamRef);
-    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, ParamRef);
-
-    InitListExpr *ParentILE = CollectionInitExprs.back();
-    ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
-                          Init.get());
+  void doInit(Expr *FromExpr, QualType Ty) {
+    if (FromExpr->getType()->isScalarType()) {
+      doScalarInit(FromExpr, Ty);
+    } else {
+      doMemCopyInit(FromExpr, Ty);
+    }
   }
 
-  void addBaseInit(const CXXBaseSpecifier &BS, QualType Ty,
-                   InitializationKind InitKind) {
-    InitializedEntity Entity = InitializedEntity::InitializeBase(
-        SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, std::nullopt);
-    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, std::nullopt);
-
-    InitListExpr *ParentILE = CollectionInitExprs.back();
-    ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
-                          Init.get());
+  Expr *getDeriveToBaseExpr(const CXXRecordDecl *Base,
+                            const CXXBaseSpecifier &BS, QualType Ty) {
+    CXXCastPath BasePath;
+    QualType DerivedTy(Base->getTypeForDecl(), 0);
+    QualType BaseTy = BS.getType();
+    SemaRef.CheckDerivedToBaseConversion(DerivedTy, BaseTy, KernelCallerSrcLoc,
+                                         SourceRange(), &BasePath,
+                                         /*IgnoreBaseAccess*/ true);
+    return ImplicitCastExpr::Create(
+        SemaRef.Context, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
+        /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
   }
 
-  void addBaseInit(const CXXBaseSpecifier &BS, QualType Ty,
-                   InitializationKind InitKind, MultiExprArg Args) {
-    InitializedEntity Entity = InitializedEntity::InitializeBase(
-        SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, Args);
-    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, Args);
-
-    InitListExpr *ParentILE = CollectionInitExprs.back();
-    ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
-                          Init.get());
-  }
-
-  void addSimpleBaseInit(const CXXBaseSpecifier &BS, QualType Ty) {
-    InitializationKind InitKind =
-        InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
-
-    InitializedEntity Entity = InitializedEntity::InitializeBase(
-        SemaRef.Context, &BS, /*IsInheritedVirtualBase*/ false, &VarEntity);
+  void addSimpleBaseInit(const CXXRecordDecl *Base, const CXXBaseSpecifier &BS,
+                         QualType Ty) {
+    MemberExprBases.push_back(getDeriveToBaseExpr(Base, BS, Ty));
 
     Expr *ParamRef = createParamReferenceExpr();
-    InitializationSequence InitSeq(SemaRef, Entity, InitKind, ParamRef);
-    ExprResult Init = InitSeq.Perform(SemaRef, Entity, InitKind, ParamRef);
 
-    InitListExpr *ParentILE = CollectionInitExprs.back();
-    ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
-                          Init.get());
+    doMemCopyInit(ParamRef, Ty);
+    MemberExprBases.pop_back();
+  }
+
+  void addFieldInit(FieldDecl *FD, QualType Ty, Expr *ParamRef) {
+    addFieldMemberExpr(FD, Ty);
+    doInit(ParamRef, Ty);
+    removeFieldMemberExpr(FD, Ty);
   }
 
   // Adds an initializer that handles a simple initialization of a field.
   void addSimpleFieldInit(FieldDecl *FD, QualType Ty) {
     Expr *ParamRef = createParamReferenceExpr();
     addFieldInit(FD, Ty, ParamRef);
-  }
-
-  Expr *createGetAddressOf(Expr *E) {
-    return UnaryOperator::Create(SemaRef.Context, E, UO_AddrOf,
-                                 SemaRef.Context.getPointerType(E->getType()),
-                                 VK_PRValue, OK_Ordinary, KernelCallerSrcLoc,
-                                 false, SemaRef.CurFPFeatureOverrides());
-  }
-
-  Expr *createDerefOp(Expr *E) {
-    return UnaryOperator::Create(SemaRef.Context, E, UO_Deref,
-                                 E->getType()->getPointeeType(), VK_LValue,
-                                 OK_Ordinary, KernelCallerSrcLoc, false,
-                                 SemaRef.CurFPFeatureOverrides());
-  }
-
-  Expr *createReinterpretCastExpr(Expr *E, QualType To) {
-    return CXXReinterpretCastExpr::Create(
-        SemaRef.Context, To, VK_PRValue, CK_BitCast, E,
-        /*Path=*/nullptr, SemaRef.Context.getTrivialTypeSourceInfo(To),
-        SourceLocation(), SourceLocation(), SourceRange());
-  }
-
-  void handleGeneratedType(FieldDecl *FD, QualType Ty) {
-    // Equivalent of the following code is generated here:
-    // void ocl_kernel(__generated_type GT) {
-    //   Kernel KernelObjClone { *(reinterpret_cast<UsersType*>(&GT)) };
-    // }
-
-    Expr *RCE = createReinterpretCastExpr(
-        createGetAddressOf(createParamReferenceExpr()),
-        SemaRef.Context.getPointerType(Ty));
-    Expr *Initializer = createDerefOp(RCE);
-    addFieldInit(FD, Ty, Initializer);
-  }
-
-  void handleGeneratedType(const CXXRecordDecl *RD, const CXXBaseSpecifier &BS,
-                           QualType Ty) {
-    // Equivalent of the following code is generated here:
-    // void ocl_kernel(__generated_type GT) {
-    //   Kernel KernelObjClone { *(reinterpret_cast<UsersType*>(&GT)) };
-    // }
-    Expr *RCE = createReinterpretCastExpr(
-        createGetAddressOf(createParamReferenceExpr()),
-        SemaRef.Context.getPointerType(Ty));
-    Expr *Initializer = createDerefOp(RCE);
-    InitializationKind InitKind =
-        InitializationKind::CreateCopy(KernelCallerSrcLoc, KernelCallerSrcLoc);
-    addBaseInit(BS, Ty, InitKind, Initializer);
   }
 
   MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
@@ -3147,54 +3152,77 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
         FPOptionsOverride()));
   }
 
-  // Creates an empty InitListExpr of the correct number of child-inits
-  // of this to append into.
-  void addCollectionInitListExpr(const CXXRecordDecl *RD) {
-    const ASTRecordLayout &Info =
-        SemaRef.getASTContext().getASTRecordLayout(RD);
-    uint64_t NumInitExprs = Info.getFieldCount() + RD->getNumBases();
-    addCollectionInitListExpr(QualType(RD->getTypeForDecl(), 0), NumInitExprs);
+  static void setupSpecialMemberType(ASTContext &Ctx, CXXMethodDecl *SpecialMem,
+                                     QualType ResultTy,
+                                     ArrayRef<QualType> Args) {
+    FunctionProtoType::ExtProtoInfo EPI;
+
+    EPI.ExceptionSpec.Type = EST_Unevaluated;
+    EPI.ExceptionSpec.SourceDecl = SpecialMem;
+
+    // Set the calling convention to the default for C++ instance methods.
+    EPI.ExtInfo = EPI.ExtInfo.withCallingConv(
+        Ctx.getDefaultCallingConvention(/*IsVariadic=*/false,
+                                        /*IsCXXMethod=*/true));
+
+    auto QT = Ctx.getFunctionType(ResultTy, Args, EPI);
+    SpecialMem->setType(QT);
   }
 
-  InitListExpr *createInitListExpr(const CXXRecordDecl *RD) {
-    const ASTRecordLayout &Info =
-        SemaRef.getASTContext().getASTRecordLayout(RD);
-    uint64_t NumInitExprs = Info.getFieldCount() + RD->getNumBases();
-    return createInitListExpr(QualType(RD->getTypeForDecl(), 0), NumInitExprs);
+  // Build an anonymous union class around the kernel object.
+  static CXXRecordDecl *getWrappingUnion(Sema &SemaRef, QualType KernelObj) {
+    ASTContext &Ctx = SemaRef.Context;
+
+    CanQualType CanClassType = Ctx.getCanonicalType(KernelObj);
+
+    CXXRecordDecl *WrapperClass = cast<CXXRecordDecl>(
+        Ctx.buildImplicitRecord("__wrapper_union", TTK_Union));
+    WrapperClass->startDefinition();
+    FieldDecl *KernelField = FieldDecl::Create(
+        Ctx, WrapperClass, SourceLocation(), SourceLocation(), /*Id=*/nullptr,
+        KernelObj, Ctx.getTrivialTypeSourceInfo(KernelObj, SourceLocation()),
+        /*BW=*/nullptr, /*Mutable=*/false, /*InitStyle=*/ICIS_NoInit);
+    KernelField->setAccess(AS_public);
+    WrapperClass->addDecl(KernelField);
+    // Build an empty DTor
+    {
+      DeclarationName Name =
+          Ctx.DeclarationNames.getCXXDestructorName(CanClassType);
+      DeclarationNameInfo NameInfo(Name, SourceLocation());
+      CXXDestructorDecl *DTor = CXXDestructorDecl::Create(
+          Ctx, WrapperClass, SourceLocation(), NameInfo, /*Type*/ QualType(),
+          /*TInfo=*/nullptr, /*isFPConstrained=*/false,
+          /*isInline=*/true, /*isImplicitlyDeclared=*/false,
+          ConstexprSpecKind::Constexpr);
+      DTor->setAccess(AS_public);
+      DTor->setTrivial(true);
+      setupSpecialMemberType(Ctx, DTor, Ctx.VoidTy, std::nullopt);
+      // Make an empty body
+      DTor->setBody(CompoundStmt::Create(Ctx, {}, FPOptionsOverride(), {}, {}));
+      WrapperClass->addDecl(DTor);
+    }
+    WrapperClass->completeDefinition();
+
+    return WrapperClass;
   }
 
-  InitListExpr *createInitListExpr(QualType InitTy, uint64_t NumChildInits) {
-    InitListExpr *ILE = new (SemaRef.getASTContext()) InitListExpr(
-        SemaRef.getASTContext(), KernelCallerSrcLoc, {}, KernelCallerSrcLoc);
-    ILE->reserveInits(SemaRef.getASTContext(), NumChildInits);
-    ILE->setType(InitTy);
-
-    return ILE;
+  static CXXRecordDecl *
+  createInUnionKernelWrapper(Sema &S, DeclContext *,
+                             const CXXRecordDecl *KernelObj) {
+    return getWrappingUnion(S, QualType(KernelObj->getTypeForDecl(), 0));
   }
 
-  // Create an empty InitListExpr of the type/size for the rest of the visitor
-  // to append into.
-  void addCollectionInitListExpr(QualType InitTy, uint64_t NumChildInits) {
+  static VarDecl *
+  createInUnionKernelObjClone(Sema &S, DeclContext *DC,
+                              const CXXRecordDecl *WrappingUnion) {
+    ASTContext &Ctx = S.Context;
 
-    InitListExpr *ILE = createInitListExpr(InitTy, NumChildInits);
-    InitListExpr *ParentILE = CollectionInitExprs.back();
-    ParentILE->updateInit(SemaRef.getASTContext(), ParentILE->getNumInits(),
-                          ILE);
+    VarDecl *VD = VarDecl::Create(Ctx, DC, SourceLocation(), SourceLocation(),
+                                  WrappingUnion->getIdentifier(),
+                                  QualType(WrappingUnion->getTypeForDecl(), 0),
+                                  nullptr, SC_None);
+    VD->setIsUsed();
 
-    CollectionInitExprs.push_back(ILE);
-  }
-
-  static VarDecl *createKernelObjClone(ASTContext &Ctx, DeclContext *DC,
-                                       const CXXRecordDecl *KernelObj) {
-    TypeSourceInfo *TSInfo =
-        KernelObj->isLambda() ? KernelObj->getLambdaTypeInfo() : nullptr;
-    IdentifierInfo *Ident = KernelObj->getIdentifier();
-    if (!Ident)
-      Ident = &Ctx.Idents.get("__SYCLKernel");
-
-    VarDecl *VD = VarDecl::Create(
-        Ctx, DC, KernelObj->getLocation(), KernelObj->getLocation(), Ident,
-        QualType(KernelObj->getTypeForDecl(), 0), TSInfo, SC_None);
     return VD;
   }
 
@@ -3205,10 +3233,9 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   // Default inits the type, then calls the init-method in the body.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
-    addFieldInit(FD, Ty, std::nullopt,
-                 InitializationKind::CreateDefault(KernelCallerSrcLoc));
-
     addFieldMemberExpr(FD, Ty);
+
+    callFieldCtor();
 
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
@@ -3223,10 +3250,16 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return true;
   }
 
-  bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
+  bool handleSpecialType(const CXXRecordDecl *Base, const CXXBaseSpecifier &BS,
+                         QualType Ty) {
+    MemberExprBases.push_back(getDeriveToBaseExpr(Base, BS, Ty));
+    callFieldCtor();
+
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
+
+    MemberExprBases.pop_back();
+
     return true;
   }
 
@@ -3276,82 +3309,20 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     return IndexExpr.get();
   }
 
-  void addSimpleArrayInit(FieldDecl *FD, QualType FieldTy) {
-    Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
-    InitializationKind InitKind = InitializationKind::CreateDirect({}, {}, {});
-
-    InitializedEntity Entity =
-        InitializedEntity::InitializeMember(FD, &VarEntity, /*Implicit*/ true);
-
-    addFieldInit(FD, FieldTy, ArrayRef, InitKind, Entity);
-  }
-
-  void addArrayElementInit(FieldDecl *FD, QualType T) {
-    Expr *RCE = createReinterpretCastExpr(
-        createGetAddressOf(ArrayParamBases.pop_back_val()),
-        SemaRef.Context.getPointerType(T));
-    Expr *Initializer = createDerefOp(RCE);
-    addFieldInit(FD, T, Initializer);
-  }
-
-  // This function is recursive in order to handle
-  // multi-dimensional arrays. If the array element is
-  // an array, it implies that the array is multi-dimensional.
-  // We continue recursion till we reach a non-array element to
-  // generate required array subscript expressions.
-  void createArrayInit(FieldDecl *FD, QualType T) {
-    const ConstantArrayType *CAT =
-        SemaRef.getASTContext().getAsConstantArrayType(T);
-
-    if (!CAT) {
-      addArrayElementInit(FD, T);
-      return;
-    }
-
-    QualType ET = CAT->getElementType();
-    uint64_t ElemCount = CAT->getSize().getZExtValue();
-    enterArray(FD, T, ET);
-
-    for (uint64_t Index = 0; Index < ElemCount; ++Index) {
-      ArrayInfos.back().second = Index;
-      Expr *ArraySubscriptExpr =
-          createArraySubscriptExpr(Index, ArrayParamBases.back());
-      ArrayParamBases.push_back(ArraySubscriptExpr);
-      createArrayInit(FD, ET);
-    }
-
-    leaveArray(FD, T, ET);
-  }
-
-  // This function is used to create initializers for a top
-  // level array which contains pointers. The openCl kernel
-  // parameter for this array will be a wrapper class
-  // which contains the generated type. This function generates
-  // code equivalent to:
-  // void ocl_kernel(__wrapper_class WrappedGT) {
-  //   Kernel KernelObjClone {
-  //   *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[0]),
-  //                           *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[1]),
-  //                           *reinterpret_cast<UserArrayET*>(&WrappedGT.GeneratedArr[2])
-  //                         };
-  // }
-  void handleGeneratedArrayType(FieldDecl *FD, QualType FieldTy) {
-    ArrayParamBases.push_back(createSimpleArrayParamReferenceExpr(FieldTy));
-    createArrayInit(FD, FieldTy);
-  }
-
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelBodyCreator(Sema &S, SyclKernelDeclCreator &DC,
                         const CXXRecordDecl *KernelObj,
                         FunctionDecl *KernelCallerFunc)
       : SyclKernelFieldHandler(S), DeclCreator(DC),
-        KernelObjClone(createKernelObjClone(S.getASTContext(),
-                                            DC.getKernelDecl(), KernelObj)),
+        WrappingUnion(
+            createInUnionKernelWrapper(S, DC.getKernelDecl(), KernelObj)),
+        KernelObjClone(
+            createInUnionKernelObjClone(S, DC.getKernelDecl(), WrappingUnion)),
         VarEntity(InitializedEntity::InitializeVariable(KernelObjClone)),
         KernelObj(KernelObj), KernelCallerFunc(KernelCallerFunc),
         KernelCallerSrcLoc(KernelCallerFunc->getLocation()) {
-    CollectionInitExprs.push_back(createInitListExpr(KernelObj));
+    FieldDecl *WrappedField = *WrappingUnion->field_begin();
     annotateHierarchicalParallelismAPICalls();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
@@ -3359,9 +3330,11 @@ public:
     BodyStmts.push_back(DS);
     DeclRefExpr *KernelObjCloneRef = DeclRefExpr::Create(
         S.Context, NestedNameSpecifierLoc(), KernelCallerSrcLoc, KernelObjClone,
-        false, DeclarationNameInfo(), QualType(KernelObj->getTypeForDecl(), 0),
-        VK_LValue);
+        false, DeclarationNameInfo(),
+        QualType(WrappingUnion->getTypeForDecl(), 0), VK_LValue);
+
     MemberExprBases.push_back(KernelObjCloneRef);
+    MemberExprBases.push_back(buildMemberExpr(KernelObjCloneRef, WrappedField));
   }
 
   ~SyclKernelBodyCreator() {
@@ -3373,9 +3346,9 @@ public:
     return handleSpecialType(FD, Ty);
   }
 
-  bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
-                             QualType Ty) final {
-    return handleSpecialType(BS, Ty);
+  bool handleSyclSpecialType(const CXXRecordDecl *Base,
+                             const CXXBaseSpecifier &BS, QualType Ty) final {
+    return handleSpecialType(Base, BS, Ty);
   }
 
   bool handleSyclSpecConstantType(FieldDecl *FD, QualType Ty) final {
@@ -3390,32 +3363,21 @@ public:
   }
 
   bool handleSimpleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    if (FD->hasAttr<SYCLGenerateNewTypeAttr>())
-      handleGeneratedArrayType(FD, FieldTy);
-    else
-      addSimpleArrayInit(FD, FieldTy);
+    Expr *ArrayRef = createSimpleArrayParamReferenceExpr(FieldTy);
+
+    addFieldInit(FD, FieldTy, ArrayRef);
     return true;
   }
 
   bool handleNonDecompStruct(const CXXRecordDecl *, FieldDecl *FD,
                              QualType Ty) final {
-    CXXRecordDecl *RD = Ty->getAsCXXRecordDecl();
-    assert(RD && "Type must be a C++ record type");
-    if (RD->hasAttr<SYCLGenerateNewTypeAttr>())
-      handleGeneratedType(FD, Ty);
-    else
-      addSimpleFieldInit(FD, Ty);
+    addSimpleFieldInit(FD, Ty);
     return true;
   }
 
   bool handleNonDecompStruct(const CXXRecordDecl *RD,
                              const CXXBaseSpecifier &BS, QualType Ty) final {
-    CXXRecordDecl *BaseDecl = Ty->getAsCXXRecordDecl();
-    assert(BaseDecl && "Type must be a C++ record type");
-    if (BaseDecl->hasAttr<SYCLGenerateNewTypeAttr>())
-      handleGeneratedType(RD, BS, Ty);
-    else
-      addSimpleBaseInit(BS, Ty);
+    addSimpleBaseInit(RD, BS, Ty);
     return true;
   }
 
@@ -3453,7 +3415,6 @@ public:
 
   bool enterStruct(const CXXRecordDecl *RD, FieldDecl *FD, QualType Ty) final {
     ++StructDepth;
-    addCollectionInitListExpr(Ty->getAsCXXRecordDecl());
 
     addFieldMemberExpr(FD, Ty);
     return true;
@@ -3461,7 +3422,6 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, FieldDecl *FD, QualType Ty) final {
     --StructDepth;
-    CollectionInitExprs.pop_back();
 
     removeFieldMemberExpr(FD, Ty);
     return true;
@@ -3481,7 +3441,6 @@ public:
         SemaRef.Context, BaseTy, CK_DerivedToBase, MemberExprBases.back(),
         /* CXXCastPath=*/&BasePath, VK_LValue, FPOptionsOverride());
     MemberExprBases.push_back(Cast);
-    addCollectionInitListExpr(BaseTy->getAsCXXRecordDecl());
     return true;
   }
 
@@ -3489,19 +3448,11 @@ public:
                    QualType) final {
     --StructDepth;
     MemberExprBases.pop_back();
-    CollectionInitExprs.pop_back();
     return true;
   }
 
   bool enterArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
-    const ConstantArrayType *CAT =
-        SemaRef.getASTContext().getAsConstantArrayType(ArrayType);
-    assert(CAT && "Should only be called on constant-size array.");
-    uint64_t ArraySize = CAT->getSize().getZExtValue();
-    addCollectionInitListExpr(ArrayType, ArraySize);
-    ArrayInfos.emplace_back(getFieldEntity(FD, ArrayType), 0);
-
     // If this is the top-level array, we need to make a MemberExpr in addition
     // to an array subscript.
     addFieldMemberExpr(FD, ArrayType);
@@ -3509,8 +3460,6 @@ public:
   }
 
   bool nextElement(QualType, uint64_t Index) final {
-    ArrayInfos.back().second = Index;
-
     // Pop off the last member expr base.
     if (Index != 0)
       MemberExprBases.pop_back();
@@ -3522,9 +3471,6 @@ public:
 
   bool leaveArray(FieldDecl *FD, QualType ArrayType,
                   QualType ElementType) final {
-    CollectionInitExprs.pop_back();
-    ArrayInfos.pop_back();
-
     // Remove the IndexExpr.
     if (!FD->hasAttr<SYCLGenerateNewTypeAttr>())
       MemberExprBases.pop_back();
