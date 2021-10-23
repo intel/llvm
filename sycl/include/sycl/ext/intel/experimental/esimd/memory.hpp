@@ -49,7 +49,8 @@ static inline constexpr SurfaceIndex SLM_BTI = 254;
 static inline constexpr SurfaceIndex INVALID_BTI =
     static_cast<SurfaceIndex>(-1);
 
-// Cache hint usage in most memory APIs is deprecated.
+// Cache hint usage in most memory APIs is deprecated, as is not really
+// supported by the underlying dataport messages.
 // This is auxiliary code to warn if APIs use cache hints different from
 // CacheHint::None.
 template <CacheHint L1H, CacheHint L3H, class T = void> struct IfNotNone;
@@ -150,36 +151,36 @@ __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
                                ElemsPerAddr == 4)),
                              simd<T, n * ElemsPerAddr>>
 gather(const T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
-
+  detail::IfNotNone<L1H, L3H>::warn();
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
 
   if constexpr (sizeof(T) == 1 && ElemsPerAddr == 2) {
     auto Ret =
-        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
+        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
             addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
             pred.data());
     return __esimd_rdregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 4, 2, 1>(Ret, 0);
   } else if constexpr (sizeof(T) == 1 && ElemsPerAddr == 1) {
     auto Ret =
-        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
+        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
             addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
             pred.data());
     return __esimd_rdregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 0, n, 4>(Ret, 0);
   } else if constexpr (sizeof(T) == 2 && ElemsPerAddr == 1) {
     auto Ret =
-        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<2>(), L1H, L3H>(
+        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<2>()>(
             addrs.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
     return __esimd_rdregion<T, n * 2, n, /*VS*/ 0, n, 2>(Ret, 0);
   } else if constexpr (sizeof(T) == 2)
     return __esimd_svm_gather<
-        T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H, L3H>(
+        T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
         addrs.data(), detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(),
         pred.data());
   else
     return __esimd_svm_gather<
-        T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H, L3H>(
+        T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
         addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
         pred.data());
 }
@@ -199,6 +200,7 @@ __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
                                ElemsPerAddr == 4))>
 scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
         simd_mask<n> pred = 1) {
+  detail::IfNotNone<L1H, L3H>::warn();
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -206,20 +208,20 @@ scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
     simd<T, n * 4> D;
     D = __esimd_wrregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 4, 2, 1>(
         D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>()>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
         pred.data());
   } else if constexpr (sizeof(T) == 1 && ElemsPerAddr == 1) {
     simd<T, n * 4> D;
     D = __esimd_wrregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 0, n, 4>(
         D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>(), L1H, L3H>(
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<4>()>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
         pred.data());
   } else if constexpr (sizeof(T) == 2 && ElemsPerAddr == 1) {
     simd<T, n * 2> D;
     D = __esimd_wrregion<T, n * 2, n, /*VS*/ 0, n, 2>(D.data(), vals.data(), 0);
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<2>(), L1H, L3H>(
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<2>()>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
   } else if constexpr (sizeof(T) == 2)
     __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H,
@@ -238,6 +240,7 @@ scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
 template <typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 __ESIMD_API simd<T, n> block_load(const T *addr) {
+  detail::IfNotNone<L1H, L3H>::warn();
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -249,7 +252,7 @@ __ESIMD_API simd<T, n> block_load(const T *addr) {
                 "block size must be at most 8 owords");
 
   uintptr_t Addr = reinterpret_cast<uintptr_t>(addr);
-  return __esimd_svm_block_ld_unaligned<T, n, L1H, L3H>(Addr);
+  return __esimd_svm_block_ld_unaligned<T, n>(Addr);
 }
 
 /// Accessor-based block-load.
@@ -267,6 +270,7 @@ __ESIMD_API simd<T, n> block_load(AccessorTy acc, uint32_t offset) {
 template <typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 __ESIMD_API void block_store(T *p, simd<T, n> vals) {
+  detail::IfNotNone<L1H, L3H>::warn();
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -278,7 +282,7 @@ __ESIMD_API void block_store(T *p, simd<T, n> vals) {
                 "block size must be at most 8 owords");
 
   uintptr_t Addr = reinterpret_cast<uintptr_t>(p);
-  __esimd_svm_block_st<T, n, L1H, L3H>(Addr, vals.data());
+  __esimd_svm_block_st<T, n>(Addr, vals.data());
 }
 
 /// Accessor-based block-store.
@@ -290,14 +294,14 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals) {
 
 // Implementations of accessor-based gather and scatter functions
 namespace detail {
-template <typename T, int N, typename AccessorTy, bool ScaleOffset = false,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <typename T, int N, typename AccessorTy, bool ScaleOffset = false>
 ESIMD_INLINE
     ESIMD_NODEBUG std::enable_if_t<(sizeof(T) <= 4) &&
                                    (N == 1 || N == 8 || N == 16 || N == 32) &&
                                    !std::is_pointer<AccessorTy>::value>
     scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
                  uint32_t glob_offset, simd_mask<N> pred) {
+
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr int16_t scale = 0;
@@ -315,17 +319,15 @@ ESIMD_INLINE
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
     const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
-    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale, L1H,
-                           L3H>(pred.data(), si, glob_offset, offsets.data(),
+    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(pred.data(), si, glob_offset, offsets.data(),
                                 promo_vals.data());
   } else {
-    __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale, L1H, L3H>(
+    __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
         pred.data(), si, glob_offset, offsets.data(), vals.data());
   }
 }
 
-template <typename T, int N, typename AccessorTy, bool ScaleOffset = false,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <typename T, int N, typename AccessorTy, bool ScaleOffset = false>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
         !std::is_pointer<AccessorTy>::value,
@@ -388,7 +390,8 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> pred = 1) {
 
-  return detail::gather_impl<T, N, AccessorTy, true, L1H, L3H>(
+  detail::IfNotNone<L1H, L3H>::warn();
+  return detail::gather_impl<T, N, AccessorTy, true>(
       acc, offsets, glob_offset, pred);
 }
 
@@ -419,7 +422,8 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
         uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
 
-  detail::scatter_impl<T, N, AccessorTy, true, L1H, L3H>(acc, vals, offsets,
+  detail::IfNotNone<L1H, L3H>::warn();
+  detail::scatter_impl<T, N, AccessorTy, true>(acc, vals, offsets,
                                                          glob_offset, pred);
 }
 
@@ -428,8 +432,9 @@ scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
 template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 __ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
+  detail::IfNotNone<L1H, L3H>::warn();
   const simd<T, 1> Res =
-      gather<T, 1, AccessorTy, L1H, L3H>(acc, simd<uint32_t, 1>(offset));
+      gather<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset));
   return Res[0];
 }
 
@@ -438,7 +443,8 @@ __ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
 template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
 __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
-  scatter<T, 1, AccessorTy, L1H, L3H>(acc, simd<T, 1>(val),
+  detail::IfNotNone<L1H, L3H>::warn();
+  scatter<T, 1, AccessorTy>(acc, simd<T, 1>(val),
                                       simd<uint32_t, 1>(offset));
 }
 
@@ -458,10 +464,11 @@ __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
                              simd<T, N * get_num_channels_enabled(Mask)>>
 gather_rgba(const T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
 
+  detail::IfNotNone<L1H, L3H>::warn();
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  return __esimd_svm_gather4_scaled<T, N, Mask, L1H, L3H>(addrs.data(),
+  return __esimd_svm_gather4_scaled<T, N, Mask>(addrs.data(),
                                                           pred.data());
 }
 
@@ -478,7 +485,8 @@ __ESIMD_API std::enable_if_t<
                                                              offsets,
                                                          simd_mask<n> pred =
                                                              1) {
-  return gather_rgba<T, n, Mask, L1H, L3H>(p, offsets, pred);
+  detail::IfNotNone<L1H, L3H>::warn();
+  return gather_rgba<T, n, Mask>(p, offsets, pred);
 }
 
 /// Scatter write for the given starting pointer \p p and \p offsets.
@@ -497,10 +505,11 @@ template <typename T, int N, rgba_channel_mask Mask,
 __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4)>
 scatter_rgba(T *p, simd<T, N * get_num_channels_enabled(Mask)> vals,
              simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
+  detail::IfNotNone<L1H, L3H>::warn();
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  __esimd_svm_scatter4_scaled<T, N, Mask, L1H, L3H>(addrs.data(), vals.data(),
+  __esimd_svm_scatter4_scaled<T, N, Mask>(addrs.data(), vals.data(),
                                                     pred.data());
 }
 
@@ -512,7 +521,8 @@ __SYCL_DEPRECATED("use scatter_rgba.")
 __ESIMD_API std::enable_if_t<(n == 16 || n == 32) && sizeof(T) == 4> scatter4(
     T *p, simd<T, n * get_num_channels_enabled(Mask)> vals,
     simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
-  scatter_rgba<T, n, Mask, L1H, L3H>(p, vals, offsets, pred);
+  detail::IfNotNone<L1H, L3H>::warn();
+  scatter_rgba<T, n, Mask>(p, vals, offsets, pred);
 }
 
 namespace detail {
@@ -660,8 +670,7 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
 
 /// USM address atomic update, version with two source operands: e.g. \c
 /// cmpxchg. \ingroup sycl_esimd
-template <atomic_op Op, typename T, int n, CacheHint L1H = CacheHint::None,
-          CacheHint L3H = CacheHint::None>
+template <atomic_op Op, typename T, int n>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<T, n>>
 atomic_update(T *p, simd<unsigned, n> offset, simd<T, n> src0, simd<T, n> src1,
               simd_mask<n> pred) {
