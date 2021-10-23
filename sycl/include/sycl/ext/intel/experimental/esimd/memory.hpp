@@ -235,13 +235,8 @@ scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
 
 /// Flat-address block-load.
 /// \ingroup sycl_esimd
-// TODO normally, this function should just delegate to
-// simd::copy_from for the deprecation period, but separate implementations are
-// needed for now, as simd::copy_from does not support cache hints yet.
-// This API, even though deprecated, can't be removed until then.
 template <typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
-__SYCL_DEPRECATED("use simd::copy_from.")
 __ESIMD_API simd<T, n> block_load(const T *addr) {
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -260,7 +255,6 @@ __ESIMD_API simd<T, n> block_load(const T *addr) {
 /// Accessor-based block-load.
 /// \ingroup sycl_esimd
 template <typename T, int n, typename AccessorTy>
-__SYCL_DEPRECATED("use simd::copy_from.")
 __ESIMD_API simd<T, n> block_load(AccessorTy acc, uint32_t offset) {
   simd<T, n> Res;
   Res.copy_from(acc, offset);
@@ -272,7 +266,6 @@ __ESIMD_API simd<T, n> block_load(AccessorTy acc, uint32_t offset) {
 // TODO the above note about cache hints applies to this API as well.
 template <typename T, int n, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
-__SYCL_DEPRECATED("use simd::copy_to.")
 __ESIMD_API void block_store(T *p, simd<T, n> vals) {
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -291,7 +284,6 @@ __ESIMD_API void block_store(T *p, simd<T, n> vals) {
 /// Accessor-based block-store.
 /// \ingroup sycl_esimd
 template <typename T, int n, typename AccessorTy>
-__SYCL_DEPRECATED("use simd::copy_to.")
 __ESIMD_API void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals) {
   vals.copy_to(acc, offset);
 }
@@ -921,31 +913,59 @@ __ESIMD_API void slm_block_store(uint32_t offset, simd<T, n> vals) {
   __esimd_oword_st<T, n>(si, offset >> 4, vals.data());
 }
 
-/// SLM atomic, zero source operand: inc and dec.
+/// SLM atomic update operation, no source operands: \c inc and \c dec.
 template <atomic_op Op, typename T, int n>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(), simd<T, n>>
-slm_atomic(simd<uint32_t, n> offsets, simd_mask<n> pred) {
+slm_atomic_update(simd<uint32_t, n> offsets, simd_mask<n> pred) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   return __esimd_dword_atomic0<Op, T, n>(pred.data(), si, offsets.data());
 }
 
-/// SLM atomic, one source operand, add/sub/min/max etc.
+template <atomic_op Op, typename T, int n>
+__SYCL_DEPRECATED("use slm_atomic_update.")
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 0>(),
+                             simd<T, n>> slm_atomic(simd<uint32_t, n> offsets,
+                                                    simd_mask<n> pred) {
+  return slm_atomic_update<Op, T, n>(offsets, pred);
+}
+
+/// SLM atomic update operation, one source operand: e.g. \c add, \c sub.
 template <atomic_op Op, typename T, int n>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(), simd<T, n>>
-slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd_mask<n> pred) {
+slm_atomic_update(simd<uint32_t, n> offsets, simd<T, n> src0,
+                  simd_mask<n> pred) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   return __esimd_dword_atomic1<Op, T, n>(pred.data(), si, offsets.data(),
                                          src0.data());
 }
 
+template <atomic_op Op, typename T, int n>
+__SYCL_DEPRECATED("use slm_atomic_update.")
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 1>(),
+                             simd<T, n>> slm_atomic(simd<uint32_t, n> offsets,
+                                                    simd<T, n> src0,
+                                                    simd_mask<n> pred) {
+  return slm_atomic_update<Op, T, n>(offsets, src0, pred);
+}
+
 /// SLM atomic, two source operands.
 template <atomic_op Op, typename T, int n>
 __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(), simd<T, n>>
-slm_atomic(simd<uint32_t, n> offsets, simd<T, n> src0, simd<T, n> src1,
-           simd_mask<n> pred) {
+slm_atomic_update(simd<uint32_t, n> offsets, simd<T, n> src0, simd<T, n> src1,
+                  simd_mask<n> pred) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   return __esimd_dword_atomic2<Op, T, n>(pred.data(), si, offsets.data(),
                                          src0.data(), src1.data());
+}
+
+template <atomic_op Op, typename T, int n>
+__SYCL_DEPRECATED("use slm_atomic_update.")
+__ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
+                             simd<T, n>> slm_atomic(simd<uint32_t, n> offsets,
+                                                    simd<T, n> src0,
+                                                    simd<T, n> src1,
+                                                    simd_mask<n> pred) {
+  return slm_atomic_update<Op, T, n>(offsets, src0, src1, pred);
 }
 /// @}
 
