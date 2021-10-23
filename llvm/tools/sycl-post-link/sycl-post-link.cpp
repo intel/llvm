@@ -863,12 +863,9 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   }
 
   {
-    ImagePropSaveInfo ImgPSInfo = {SetSpecConstAtRT,
-                                   SpecConstsMet,
-                                   EmitKernelParamInfo,
-                                   EmitProgramMetadata,
-                                   EmitExportedSymbols,
-                                   IsEsimd};
+    ImagePropSaveInfo ImgPSInfo = {SetSpecConstAtRT,    SpecConstsMet,
+                                   EmitKernelParamInfo, EmitProgramMetadata,
+                                   EmitExportedSymbols, IsEsimd};
     string_vector Files =
         saveDeviceImageProperty(ResultModules, GlobalsSet, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
