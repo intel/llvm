@@ -239,8 +239,6 @@ enum class split_barrier_action : uint8_t {
 // For backward compatibility:
 using EsimdSbarrierType = split_barrier_action;
 
-#undef __ESIMD_DEPR_ENUM_V
-
 // Since EsimdSbarrierType values are deprecated, these macros will generate
 // deprecation message.
 #define ESIMD_SBARRIER_WAIT EsimdSbarrierType::WAIT
