@@ -648,9 +648,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *Addr)
                 "block size must be at most 8 owords");
 
   uintptr_t AddrVal = reinterpret_cast<uintptr_t>(Addr);
-  *this =
-      __esimd_svm_block_ld_unaligned<T, N>(
-          AddrVal);
+  *this = __esimd_svm_block_ld_unaligned<T, N>(AddrVal);
 }
 
 template <typename T, int N, class T1, class SFINAE>

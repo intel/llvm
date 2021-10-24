@@ -21,13 +21,6 @@
 
 /** @file
  * Memory access intrinsics.
- * TODO: Accessor-based memory and SLM access intrinsics must expect offsets in
- * byte units. E.g.
- *   block load/stores, slm gather/scatter, slm_scalar_load/slm_scalar_store,
- *   gather_rgba/scatter_rgba
- * all use byte units. There are few exceptions using element size units, which
- * will be fixed shortly, along with other interface inconsistencies:
- * gather, scatter, scalar_load, scalar_store.
  */
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -157,50 +150,39 @@ gather(const T *p, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
   addrs = addrs + offsets_i;
 
   if constexpr (sizeof(T) == 1 && ElemsPerAddr == 2) {
-    auto Ret =
-        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
-            addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-            pred.data());
+    auto Ret = __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
+        addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
+        pred.data());
     return __esimd_rdregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 4, 2, 1>(Ret, 0);
   } else if constexpr (sizeof(T) == 1 && ElemsPerAddr == 1) {
-    auto Ret =
-        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
-            addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-            pred.data());
+    auto Ret = __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<4>()>(
+        addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
+        pred.data());
     return __esimd_rdregion<T, n * 4, n * ElemsPerAddr, /*VS*/ 0, n, 4>(Ret, 0);
   } else if constexpr (sizeof(T) == 2 && ElemsPerAddr == 1) {
-    auto Ret =
-        __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<2>()>(
-            addrs.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
+    auto Ret = __esimd_svm_gather<T, n, detail::ElemsPerAddrEncoding<2>()>(
+        addrs.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
     return __esimd_rdregion<T, n * 2, n, /*VS*/ 0, n, 2>(Ret, 0);
   } else if constexpr (sizeof(T) == 2)
-    return __esimd_svm_gather<
-        T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
+    return __esimd_svm_gather<T, n,
+                              detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
         addrs.data(), detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(),
         pred.data());
   else
-    return __esimd_svm_gather<
-        T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
+    return __esimd_svm_gather<T, n,
+                              detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
         addrs.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
         pred.data());
 }
 
-// TODO bring this SVM-based scatter/gather interface in accordance with
-// accessor-based ones - remove the ElemsPerAddr template parameter as it is
-// redundant: the only allowed block size in the underlying BE intrinsics is 1
-// byte with max number of blocks being 4. This means T template parameter alone
-// can model all supported cases.
-
 /// Flat-address scatter.
 /// \ingroup sycl_esimd
-template <typename T, int n, int ElemsPerAddr = 1,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <typename T, int n, int ElemsPerAddr = 1>
 __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
                               (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
                                ElemsPerAddr == 4))>
-scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
+scatter(T *p, simd<uint32_t, n> offsets, simd<T, n * ElemsPerAddr> vals,
         simd_mask<n> pred = 1) {
-  detail::IfNotNone<L1H, L3H>::warn();
   simd<uint64_t, n> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, n> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
@@ -224,16 +206,27 @@ scatter(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
     __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<2>()>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
   } else if constexpr (sizeof(T) == 2)
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H,
-                        L3H>(addrs.data(), vals.data(),
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(addrs.data(), vals.data(),
                              detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(),
                              pred.data());
   else
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>(), L1H,
-                        L3H>(addrs.data(), vals.data(),
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(addrs.data(), vals.data(),
                              detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
                              pred.data());
 }
+
+template <typename T, int n, int ElemsPerAddr = 1,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+__SYCL_DEPRECATED("use scatter.")
+__ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
+                              (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
+                               ElemsPerAddr == 4))>
+scatter1(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
+        simd_mask<n> pred = 1) {
+  detail::IfNotNone<L1H, L3H>::warn();
+  scatter<T, n, ElemsPerAddr>(p, offsets, vals, pred);
+}
+
 
 /// Flat-address block-load.
 /// \ingroup sycl_esimd
@@ -294,7 +287,7 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals) {
 
 // Implementations of accessor-based gather and scatter functions
 namespace detail {
-template <typename T, int N, typename AccessorTy, bool ScaleOffset = false>
+template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE
     ESIMD_NODEBUG std::enable_if_t<(sizeof(T) <= 4) &&
                                    (N == 1 || N == 8 || N == 16 || N == 32) &&
@@ -305,11 +298,6 @@ ESIMD_INLINE
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr int16_t scale = 0;
-  constexpr uint32_t t_scale = sizeof(T);
-  if constexpr (ScaleOffset && (t_scale > 1)) {
-    glob_offset *= t_scale;
-    offsets *= t_scale;
-  }
   const auto si = __ESIMD_GET_SURF_HANDLE(acc);
 
   if constexpr (sizeof(T) < 4) {
@@ -319,15 +307,15 @@ ESIMD_INLINE
         typename sycl::detail::conditional_t<std::is_signed<T>::value, int32_t,
                                              uint32_t>;
     const simd<PromoT, N> promo_vals = convert<PromoT>(vals);
-    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(pred.data(), si, glob_offset, offsets.data(),
-                                promo_vals.data());
+    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
+        pred.data(), si, glob_offset, offsets.data(), promo_vals.data());
   } else {
     __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
         pred.data(), si, glob_offset, offsets.data(), vals.data());
   }
 }
 
-template <typename T, int N, typename AccessorTy, bool ScaleOffset = false>
+template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
     (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
         !std::is_pointer<AccessorTy>::value,
@@ -338,11 +326,6 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
   constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
   // TODO (performance) use hardware-supported scale once BE supports it
   constexpr uint32_t scale = 0;
-  constexpr uint32_t t_scale = sizeof(T);
-  if constexpr (ScaleOffset && (t_scale > 1)) {
-    glob_offset *= t_scale;
-    offsets *= t_scale;
-  }
   const auto si = get_surface_index(acc);
 
   if constexpr (sizeof(T) < 4) {
@@ -381,8 +364,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 /// compute actual memory access offset for that element.
 ///
 /// \ingroup sycl_esimd
-template <typename T, int N, typename AccessorTy,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                                  (N == 1 || N == 8 || N == 16 || N == 32) &&
                                  !std::is_pointer<AccessorTy>::value,
@@ -390,10 +372,27 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> pred = 1) {
 
-  detail::IfNotNone<L1H, L3H>::warn();
-  return detail::gather_impl<T, N, AccessorTy, true>(
-      acc, offsets, glob_offset, pred);
+  return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset,
+                                                     pred);
 }
+
+template <typename T, int N, typename AccessorTy,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
+                                 (N == 1 || N == 8 || N == 16 || N == 32) &&
+                                 !std::is_pointer<AccessorTy>::value,
+                             simd<T, N>>
+gather1(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
+       simd_mask<N> pred = 1) {
+
+  if constexpr (sizeof(T) != 1) {
+    glob_offset *= sizeof(T);
+    offsets *= sizeof(T);
+  }
+  detail::IfNotNone<L1H, L3H>::warn();
+  return gather<T, N, AccessorTy>(acc, offsets, glob_offset, pred);
+}
+
 
 /// Accessor-based scatter.
 ///
@@ -403,49 +402,79 @@ gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
 /// \tparam T is element type; can only be a 1,2,4-byte integer or \c float.
 /// \tparam N is the number of elements.
 /// \tparam AccessorTy is \ref sycl::accessor type.
-/// \tparam L1H is L1 cache hint.
-/// \tparam L3H is L3 cache hint.
 /// \param acc is the accessor to scatter to.
-/// \param vals is values to write.
 /// \param offsets is per-element offsets.
+/// \param vals is values to write.
 /// \param glob_offset is offset added to each individual element's offset to
 /// compute actual memory access offset for that element.
 /// \param pred is per-element predicates; elements with zero corresponding
 /// predicates are not written.
 ///
 /// \ingroup sycl_esimd
-template <typename T, int N, typename AccessorTy,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                              (N == 1 || N == 8 || N == 16 || N == 32) &&
                              !std::is_pointer<AccessorTy>::value>
-scatter(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
 
+  detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset,
+                                               pred);
+}
+
+template <typename T, int N, typename AccessorTy,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+__SYCL_DEPRECATED("use scatter.")
+__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
+                             (N == 1 || N == 8 || N == 16 || N == 32) &&
+                             !std::is_pointer<AccessorTy>::value>
+scatter1(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
+        uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
+
+  if constexpr (sizeof(T) != 1) {
+    glob_offset *= sizeof(T);
+    offsets *= sizeof(T);
+  }
   detail::IfNotNone<L1H, L3H>::warn();
-  detail::scatter_impl<T, N, AccessorTy, true>(acc, vals, offsets,
-                                                         glob_offset, pred);
+  scatter<T, N, AccessorTy>(acc, offsets, vals, glob_offset, pred);
 }
 
 /// Load a scalar value from an accessor.
+/// @tparam T type of the value
+/// @tparam AccessorTy type of the accessor
+/// @param offset offset in bytes
+/// @return the loaded value
 /// \ingroup sycl_esimd
-template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
-          CacheHint L3H = CacheHint::None>
+template <typename T, typename AccessorTy>
 __ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
-  detail::IfNotNone<L1H, L3H>::warn();
   const simd<T, 1> Res =
       gather<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset));
   return Res[0];
 }
 
-/// Store a scalar value into an accessor.
-/// \ingroup sycl_esimd
 template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
           CacheHint L3H = CacheHint::None>
-__ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
+__SYCL_DEPRECATED("use scalar_load.")
+__ESIMD_API T scalar_load1(AccessorTy acc, uint32_t offset) {
   detail::IfNotNone<L1H, L3H>::warn();
-  scatter<T, 1, AccessorTy>(acc, simd<T, 1>(val),
-                                      simd<uint32_t, 1>(offset));
+  const simd<T, 1> Res =
+      gather1<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset));
+  return Res[0];
+}
+
+/// Store a scalar value into an accessor.
+/// \ingroup sycl_esimd
+template <typename T, typename AccessorTy>
+__ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
+  scatter<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset), simd<T, 1>(val));
+}
+
+template <typename T, typename AccessorTy, CacheHint L1H = CacheHint::None,
+          CacheHint L3H = CacheHint::None>
+__SYCL_DEPRECATED("use scalar_load.")
+__ESIMD_API void scalar_store1(AccessorTy acc, uint32_t offset, T val) {
+  detail::IfNotNone<L1H, L3H>::warn();
+  scatter1<T, 1, AccessorTy>(acc, simd<T, 1>(val), simd<uint32_t, 1>(offset));
 }
 
 /// Gathering read for the given starting pointer \p p and \p offsets.
@@ -458,18 +487,15 @@ __ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
 /// @param offsets byte-offsets within the \p buffer to be gathered.
 /// @param pred predication control used for masking lanes.
 /// \ingroup sycl_esimd
-template <typename T, int N, rgba_channel_mask Mask,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4),
                              simd<T, N * get_num_channels_enabled(Mask)>>
 gather_rgba(const T *p, simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
 
-  detail::IfNotNone<L1H, L3H>::warn();
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
-  return __esimd_svm_gather4_scaled<T, N, Mask>(addrs.data(),
-                                                          pred.data());
+  return __esimd_svm_gather4_scaled<T, N, Mask>(addrs.data(), pred.data());
 }
 
 /// Flat-address gather4.
@@ -500,17 +526,15 @@ __ESIMD_API std::enable_if_t<
 /// @param offsets byte-offsets within the \p buffer to be written.
 /// @param pred predication control used for masking lanes.
 /// \ingroup sycl_esimd
-template <typename T, int N, rgba_channel_mask Mask,
-          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
+template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4)>
-scatter_rgba(T *p, simd<T, N * get_num_channels_enabled(Mask)> vals,
-             simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
-  detail::IfNotNone<L1H, L3H>::warn();
+scatter_rgba(T *p, simd<uint32_t, N> offsets, simd<T, N * get_num_channels_enabled(Mask)> vals,
+             simd_mask<N> pred = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
   addrs = addrs + offsets_i;
   __esimd_svm_scatter4_scaled<T, N, Mask>(addrs.data(), vals.data(),
-                                                    pred.data());
+                                          pred.data());
 }
 
 /// Flat-address scatter4.
@@ -522,7 +546,7 @@ __ESIMD_API std::enable_if_t<(n == 16 || n == 32) && sizeof(T) == 4> scatter4(
     T *p, simd<T, n * get_num_channels_enabled(Mask)> vals,
     simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
   detail::IfNotNone<L1H, L3H>::warn();
-  scatter_rgba<T, n, Mask>(p, vals, offsets, pred);
+  scatter_rgba<T, n, Mask>(p, offsets, vals, pred);
 }
 
 namespace detail {
@@ -800,7 +824,7 @@ template <typename T> __ESIMD_API T slm_scalar_load(uint32_t offset) {
 template <typename T, int n>
 __ESIMD_API std::enable_if_t<(n == 1 || n == 8 || n == 16 || n == 32) &&
                              (sizeof(T) <= 4)>
-slm_scatter(simd<T, n> vals, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
+slm_scatter(simd<uint32_t, n> offsets, simd<T, n> vals, simd_mask<n> pred = 1) {
   detail::LocalAccessorMarker acc;
   detail::scatter_impl<T, n>(acc, vals, offsets, 0, pred);
 }
@@ -810,7 +834,7 @@ template <typename T, int n>
 __SYCL_DEPRECATED("use slm_scatter.")
 __ESIMD_API std::enable_if_t<(n == 16 || n == 32)> slm_store(
     simd<T, n> vals, simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
-  slm_scatter<T, n>(vals, offsets, pred);
+  slm_scatter<T, n>(offsets, vals, pred);
 }
 
 /// Store a scalar value into the Shared Local Memory.
@@ -820,7 +844,7 @@ __ESIMD_API std::enable_if_t<(n == 16 || n == 32)> slm_store(
 /// \ingroup sycl_esimd
 template <typename T>
 __ESIMD_API void slm_scalar_store(uint32_t offset, T val) {
-  slm_scatter<T, 1>(simd<T, 1>(val), simd<uint32_t, 1>(offset), 1);
+  slm_scatter<T, 1>(simd<uint32_t, 1>(offset), simd<T, 1>(val), 1);
 }
 
 /// Gathering read from the SLM given specified \p offsets.
@@ -862,14 +886,14 @@ __ESIMD_API std::enable_if_t<
 /// \tparam T element type of the input vector. Must be 4-byte.
 /// \tparam N size of the \p offsets vector. Must be 8, 16 or 32.
 /// \tparam Mask represents a pixel's channel mask.
-/// @param vals values to be written.
 /// @param offsets byte-offsets within the SLM.
+/// @param vals values to be written.
 /// @param pred predication control used for masking lanes.
 /// \ingroup sycl_esimd
 template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
-slm_scatter_rgba(simd<T, N * get_num_channels_enabled(Mask)> vals,
-                 simd<uint32_t, N> offsets, simd_mask<N> pred = 1) {
+slm_scatter_rgba(simd<uint32_t, N> offsets, simd<T, N * get_num_channels_enabled(Mask)> vals,
+                 simd_mask<N> pred = 1) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   constexpr int16_t Scale = 0;
   constexpr int global_offset = 0;
@@ -884,7 +908,7 @@ __ESIMD_API std::
     enable_if_t<(n == 8 || n == 16 || n == 32) && (sizeof(T) == 4)> slm_store4(
         simd<T, n * get_num_channels_enabled(Mask)> vals,
         simd<uint32_t, n> offsets, simd_mask<n> pred = 1) {
-  slm_scatter_rgba<T, n, Mask>(vals, offsets, pred);
+  slm_scatter_rgba<T, n, Mask>(offsets, vals, pred);
 }
 
 /// SLM block-load.
