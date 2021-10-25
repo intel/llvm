@@ -11,13 +11,13 @@ using namespace cl::sycl;
 // CHECK:        0 | class sycl::detail::AccessorImplHost
 // CHECK-NEXT:   0 |   class sycl::id<3> MOffset
 // CHECK-NEXT:   0 |     class sycl::detail::array<3> (base)
-// CHECK-NEXT:   0 |       size_t [3] common_array
+// CHECK-NEXT:   0 |       size_t[3] common_array
 // CHECK-NEXT:  24 |   class sycl::range<3> MAccessRange
 // CHECK-NEXT:  24 |     class sycl::detail::array<3> (base)
-// CHECK-NEXT:  24 |       size_t [3] common_array
+// CHECK-NEXT:  24 |       size_t[3] common_array
 // CHECK-NEXT:  48 |   class sycl::range<3> MMemoryRange
 // CHECK-NEXT:  48 |     class sycl::detail::array<3> (base)
-// CHECK-NEXT:  48 |       size_t [3] common_array
+// CHECK-NEXT:  48 |       size_t[3] common_array
 // CHECK-NEXT:  72 |   access::mode MAccessMode
 // CHECK-NEXT:  80 |   detail::SYCLMemObjI * MSYCLMemObj
 // CHECK-NEXT:  88 |   unsigned int MDims
@@ -34,7 +34,7 @@ using namespace cl::sycl;
 // CHECK:       0 | class sycl::detail::LocalAccessorImplHost
 // CHECK-NEXT:  0 |   class sycl::range<3> MSize
 // CHECK-NEXT:  0 |     class sycl::detail::array<3> (base)
-// CHECK-NEXT:  0 |       size_t [3] common_array
+// CHECK-NEXT:  0 |       size_t[3] common_array
 // CHECK-NEXT: 24 |   int MDims
 // CHECK-NEXT: 28 |   int MElemSize
 // CHECK-NEXT: 32 |   class std::vector<char> MMem
@@ -65,7 +65,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::host_buffer> A
 // CHECK-NEXT:  8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT:  8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT:  0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::host_buffer, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 16 |   char [16] padding
+// CHECK-NEXT: 16 |   char[16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
@@ -86,7 +86,7 @@ void hostAcc(accessor<int, 1, access::mode::read, access::target::global_buffer>
 // CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 16 |   char [16] padding
+// CHECK-NEXT: 16 |   char[16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
@@ -107,7 +107,7 @@ void hostAcc(accessor<int, 1, access::mode::read_write, access::target::local> A
 // CHECK-NEXT: 8 |         class std::__shared_count<__gnu_cxx::_S_atomic> _M_refcount
 // CHECK-NEXT: 8 |           _Sp_counted_base<(enum __gnu_cxx::_Lock_policy)2U> * _M_pi
 // CHECK-NEXT: 0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::local, sycl::access::placeholder::false_t> (base) (empty)
-// CHECK-NEXT: 16 |   char [16] padding
+// CHECK-NEXT: 16 |   char[16] padding
 // CHECK-NEXT: [sizeof=32, dsize=32, align=8,
 // CHECK-NEXT: nvsize=32, nvalign=8]
 
