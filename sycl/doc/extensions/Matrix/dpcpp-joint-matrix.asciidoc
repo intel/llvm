@@ -242,35 +242,35 @@ This also offers development and tuning productivity by both scientists and libr
 so there will be no runtime errors.   
 The query interface proposed here consists of three functionalities:
 
-- At compile time, inform the user whether a specific combination is valid or not.
+- Validation: at compile time, the validation functionality informs the user whether a specific combination is valid or not. This takes place when the user specifies all template parameters.
 
-- Construct the matrices using a default shape if user does not provide a combination. This corresponds to the case where the user provides the sizes of large `tile` matrices but does not specify the sizes of the corresponding submatrices of the `tiles`. In this case, the query will construct these submatrices of the matrices whose size the user provided. 
+- Default values: this provides a default shape if the user does not provide a specific combination. In this case, aliases to the `joint_matrix` type can be used, namely `joint_matrix_a/b/c` where no additional argument is needed. This form happens when the user specifies all template parameters except the sizes of the matrices (`tiles`) M, N, and K.
 
-- General query interface for sizes, types, static/dynamic, scope. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query return an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and C. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively depending whether the implementation supports a continuous or discrete number of sizes. For example, Intel AMX implementation supports a continuous number of sizes so the `max_*` variant is applied and only the maximum number is returned. DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  
+- General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query return an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and C. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively depending whether the implementation supports a continuous or discrete number of sizes. For example, Intel AMX implementation supports a continuous number of sizes so the `max_*` variant is applied and only the maximum number is returned. DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
 
-The table below provides a desciption for each of the member variables and type aliases in `tpu_params` class.
+The table below provides a description for each of the member variables and type aliases in `tpu_params` class and the forms in which  they are defined.
 
 [frame="none",options="header"]
 |======================
-| Member/type alias in `tpu_params` |Description
-|`type_a`| type alias for the type of matrix A
-|`type_b`| type alias for the type of matrix B
-|`type_c`| type alias for the type of matrix C
-|`defaultM`| when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports
-|`defaultN`| when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports
-|`defaultK`| when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports
-|`joint_matrix_a`| type alias for `joint_matrix` for matrix A
-|`joint_matrix_b`| type alias for `joint_matrix` for matrix B
-|`joint_matrix_c`| type alias for `joint_matrix` for matrix C
-|`dynamic_p`| a boolean that indicates whether the implementation supports dynamic sizes (true) or not (false)
-|numtiles| indicates number of tiles in Intel AMX (does not apply to DPAS)
-|scope| indicates the memory and execution scope supported by the TPU implementation
-|`combination` | composes the types and sizes of A, B, C matrices allowed in one combination
-|`max_msize`, `max_nsize`, `max_ksize`|When one of these members is non-zero, it indicates that the TPU supports all element sizes in the range from 1 up to the given value. By contrast, a zero value indicates that the TPU implementation supports only a discrete set of element sizes, which are given by the corresponding msize, nsize, or ksize members
-|`msize`, `nsize`, `ksize`| presents one of the sizes that the TPU implementation supports 
-|`atype`, `btype`, `ctype`| indicates the types supported in the combination
-|`combinations`    |Tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes. 
-|`num_combinations`| indicates number of combinations supported by the TPU implementation which corresponds to the size of the `combinations` array
+| Member/type alias in `tpu_params` | Forms they are defined in |Description
+|`type_a`| validation, default values|type alias for the type of matrix A
+|`type_b`|  validation, default values|type alias for the type of matrix B
+|`type_c`|  validation, default values|type alias for the type of matrix C
+|`defaultM`|  validation, default values, general query|when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports
+|`defaultN`|  validation, default values, general query|when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports
+|`defaultK`|  validation, default values, general query|when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports
+|`joint_matrix_a`|  validation, default values|type alias for `joint_matrix` for matrix A
+|`joint_matrix_b`| validation, default values| type alias for `joint_matrix` for matrix B
+|`joint_matrix_c`|  validation, default values| type alias for `joint_matrix` for matrix C
+|`dynamic_p`| validation, default values, general query| a boolean that indicates whether the implementation supports dynamic sizes (true) or not (false)
+|numtiles|  validation, default values, general query|indicates number of tiles in Intel AMX (does not apply to DPAS)
+|scope| validation, default values, general query| indicates the memory and execution scope supported by the TPU implementation
+|`combination` |  validation, default values, general query|composes the types and sizes of A, B, C matrices allowed in one combination
+|`max_msize`, `max_nsize`, `max_ksize`|  validation, default values, general query|When one of these members is non-zero, it indicates that the TPU supports all element sizes in the range from 1 up to the given value. By contrast, a zero value indicates that the TPU implementation supports only a discrete set of element sizes, which are given by the corresponding msize, nsize, or ksize members
+|`msize`, `nsize`, `ksize`|  validation, default values, general query|presents one of the sizes that the TPU implementation supports 
+|`atype`, `btype`, `ctype`| validation, default values, general query| indicates the types supported in the combination
+|`combinations`    | validation, default values, general query|Tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes so only this specific combination is returned in the combinations array. 
+|`num_combinations`|  validation, default values, general query|indicates number of combinations supported by the TPU implementation which corresponds to the size of the `combinations` array
 |======================
 
 
@@ -285,7 +285,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 template<tpu u, typename Ta=void, typename Tb=void, typename Tc=void, int M=0, int N=0, int K=0>
 struct tpu_params;
 
-// Valid or Not:
+// Validation form: Valid or not
 // Specialization when both types and sizes are given
 template <typename Ta, typename Tb, typename Tc, int M, int N, int K>
 struct tpu_params<
@@ -342,7 +342,7 @@ struct tpu_params<
       sizeof(combinations) / sizeof(combination);
 };
 
-// Sizes-only query
+// Default values form: Sizes-only query
 // Specialization for when only types are given, need to query only sizes
 template <typename Ta, typename Tb, typename Tc>
 struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
@@ -393,7 +393,7 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
       sizeof(combinations) / sizeof(combination);
 };
 
-// General query:
+// General query form:
 // types are not given, no default sizes and no implicit matrix construction
 template <int M, int N, int K>
 struct tpu_params<tpu::amx, void, void, void, M, N, K> {
@@ -461,7 +461,7 @@ enum class scope_t {
 ```
 
 
-=== Valid or not Example:
+=== Validation Example:
 ```c++
 // User can provide sizes besides the types and tpu_params can assert if they are supported or not
 // in this case, an assertion will happens as 16 is not a supported size for M
@@ -489,8 +489,8 @@ myparams::joint_matrix_c sub_c(sg);
 constexpr int M = 1500; // with msize = 8 and msize = 4, 
           // M can be broken up to 125 sequence of 8-sized ops and remaining 500 using 125 sequence of 4-sized ops
 tpu_params<tpu::dpas> params;
-constexpr int msize = break_dimension(params.combinations, M);
-constexpr int msize_remainder = break_dimension_remainder(params.combinations, M);
+constexpr int msize = break_dimension(params, M);
+constexpr int msize_remainder = break_dimension_remainder(params, M);
 constexpr int nsize = params.combinations[0].nsize;
 constexpr int ksize = params.combinations[0].ksize;
 // device code:
@@ -583,8 +583,10 @@ We did not utilize this extension for this matrix API version because sub-group 
 ## Open Questions
 - Besides row, col major and packed (VNNI) layout, what are the additional layouts that should absolutely be added?
 - Are there alternative names for the `packed_a` and `packed_b` layouts that would be clearer to distinguish between the VNNI Layout in matrix A and VNNI layout in matrix B of a matrix multiply and add operation on Intel AMX?
+-- Yes, this will be addressed in the next revision where `use` argument will be introduced to distinguish between right (B) , left (A), and accumulator matrix. 
 - Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
-- What should the API description include: (1) only features that are implemented, (2) features that are actually part of the API: currently implemented and the ones that we expect implementing them in the future. Specifically, should the document include things like dynamic_ extent and Group? These are part of the API but are not currently implemented.
+
+- In the future looking APIs, `get_wi_slice` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
 
 ## TODO List
 - Add support for fill matrix and element-wise operations features
