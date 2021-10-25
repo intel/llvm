@@ -51,6 +51,7 @@
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
+using PropSetRegTy = llvm::util::PropertySetRegistry;
 
 namespace {
 
@@ -246,33 +247,33 @@ bool hasIndirectFunctionCalls(const Module &M) {
 
 KernelMapEntryScope selectDeviceCodeSplitScope(const Module &M) {
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
-  if (!DoSplit)
-    return Scope_Global;
+  if (DoSplit) {
+    switch (SplitMode) {
+    case SPLIT_PER_TU:
+      return Scope_PerModule;
 
-  switch (SplitMode) {
-  case SPLIT_PER_TU:
-    return Scope_PerModule;
+    case SPLIT_PER_KERNEL:
+      return Scope_PerKernel;
 
-  case SPLIT_PER_KERNEL:
-    return Scope_PerKernel;
+    case SPLIT_AUTO: {
+      if (IROutputOnly) {
+        // We allow enabling auto split mode even in presence of -ir-output-only
+        // flag, but in this case we are limited by it so we can't do any split
+        // at all.
+        return Scope_Global;
+      }
 
-  case SPLIT_AUTO: {
-    if (IROutputOnly) {
-      // We allow enabling auto split mode even in presence of -ir-output-only
-      // flag, but in this case we are limited by it so we can't do any split at
-      // all.
-      return Scope_Global;
+      if (hasIndirectFunctionCalls(M))
+        return Scope_Global;
+
+      // At the moment, we assume that per-source split is the best way of
+      // splitting device code and can always be used except for cases handled
+      // above.
+      return Scope_PerModule;
     }
-
-    if (hasIndirectFunctionCalls(M))
-      return Scope_Global;
-
-    // At the moment, we assume that per-source split is the best way of
-    // splitting device code and can always be used except for cases handled
-    // above.
-    return Scope_PerModule;
+    }
   }
-  }
+  return Scope_Global;
 }
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
@@ -612,7 +613,6 @@ string_vector saveDeviceImageProperty(
     const std::vector<ResultModule> &ResultModules,
     const std::map<StringRef, std::vector<const Function *>> &KernelModuleMap,
     const ImagePropSaveInfo &ImgPSInfo) {
-  using PropSetRegTy = llvm::util::PropertySetRegistry;
   string_vector Res;
   legacy::PassManager GetSYCLDeviceLibReqMask;
   auto *SDLReqMaskLegacyPass = new SYCLDeviceLibReqMaskPass();
