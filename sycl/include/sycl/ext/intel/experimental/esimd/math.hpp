@@ -67,7 +67,7 @@ __esimd_abs_common_internal(simd<T1, SZ> src0, int flag = saturation_off) {
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T0>(Result);
+  return esimd::saturate<T0>(Result);
 }
 
 template <typename T0, typename T1>
@@ -242,7 +242,7 @@ shr(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T0>(Result);
+  return esimd::saturate<T0>(Result);
 }
 
 /// Shift right operation (scalar version)
@@ -406,7 +406,7 @@ lsr(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T0>(Result);
+  return esimd::saturate<T0>(Result);
 }
 
 /// Logical Shift Right (scalar version)
@@ -457,7 +457,7 @@ asr(simd<T1, SZ> src0, U src1, int flag = saturation_off) {
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T0>(Result);
+  return esimd::saturate<T0>(Result);
 }
 
 /// Arithmetical Shift Right (scalar version)
@@ -862,7 +862,7 @@ __ESIMD_API simd<T0, SZ> dp2(simd<T1, SZ> src0, U src1,
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T0>(Result);
+  return esimd::saturate<T0>(Result);
 }
 
 // FIXME: describe the operation better
@@ -886,7 +886,7 @@ __ESIMD_API simd<T0, SZ> dp3(simd<T1, SZ> src0, U src1,
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T0>(Result);
+  return esimd::saturate<T0>(Result);
 }
 
 // FIXME: describe the operation better
@@ -910,7 +910,7 @@ __ESIMD_API simd<T0, SZ> dp4(simd<T1, SZ> src0, U src1,
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T0>(Result);
+  return esimd::saturate<T0>(Result);
 }
 
 // FIXME: describe the operation better
@@ -934,7 +934,7 @@ __ESIMD_API simd<T0, SZ> dph(simd<T1, SZ> src0, U src1,
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T0>(Result);
+  return esimd::saturate<T0>(Result);
 }
 
 // FIXME: describe the operation better
@@ -960,7 +960,7 @@ __ESIMD_API simd<RT, SZ> line(simd<T1, 4> src0, simd<T2, SZ> src1,
 
   simd<RT, SZ> Result;
   if (flag == saturation_on)
-    Result = saturate<RT>(Result);
+    Result = esimd::saturate<RT>(Result);
   else
     Result = Result;
 
@@ -1027,7 +1027,7 @@ ESIMD_NODEBUG
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T1>(Result);
+  return esimd::saturate<T1>(Result);
 }
 
 /// FIXME: Dot product on groups of 4 elements.
@@ -1060,7 +1060,7 @@ ESIMD_NODEBUG
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T1>(Result);
+  return esimd::saturate<T1>(Result);
 }
 
 /// FIXME: Dot product on groups of 4 elements.
@@ -1094,7 +1094,7 @@ ESIMD_NODEBUG
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T1>(Result);
+  return esimd::saturate<T1>(Result);
 }
 
 /// FIXME: Dot product on groups of 4 elements.
@@ -1127,7 +1127,7 @@ ESIMD_NODEBUG
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T>(Result);
+  return esimd::saturate<T>(Result);
 }
 
 /// FIXME: linear equation.
@@ -1156,7 +1156,7 @@ ESIMD_NODEBUG
   }
 
   if (flag == saturation_on)
-    Result = saturate<T>(Result);
+    Result = esimd::saturate<T>(Result);
 
   return Result;
 }
@@ -1243,7 +1243,7 @@ __ESIMD_API simd<float, SZ> lrp(simd<float, SZ> src0, U src1, V src2,
   if (flag != saturation_on)
     return Result;
 
-  return saturate<float>(Result);
+  return esimd::saturate<float>(Result);
 }
 
 #else
@@ -1272,7 +1272,7 @@ ESIMD_NODEBUG
   Result = Src1 * src0 + Src2 * (1.0f - src0);
   if (flag != saturation_on)
     return Result;
-  return saturate<T>(Result);
+  return esimd::saturate<T>(Result);
 }
 #endif
 
@@ -1302,7 +1302,7 @@ __ESIMD_API simd<float, SZ> pln(simd<float, 4> src0, simd<float, SZ> src1,
   if (flag != saturation_on)
     return Result;
 
-  return saturate<float>(Result);
+  return esimd::saturate<float>(Result);
 }
 
 // bf_reverse
@@ -1417,7 +1417,7 @@ ESIMD_NODEBUG
     simd<type, SZ> Result = __esimd_##iname<SZ>(src0.data());                  \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
-    return saturate<type>(Result);                                             \
+    return esimd::saturate<type>(Result);                                      \
   }                                                                            \
   template <typename T = void>                                                 \
   __ESIMD_API type name(type src0, int flag = saturation_off) {                \
@@ -1448,7 +1448,7 @@ ESIMD_INTRINSIC_DEF(double, ieee_sqrt, sqrt_ieee)
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
                                                                                \
-    return saturate<ftype>(Result);                                            \
+    return esimd::saturate<ftype>(Result);                                     \
   }                                                                            \
   template <int SZ, typename U>                                                \
   __ESIMD_API                                                                  \
@@ -1511,7 +1511,7 @@ ESIMD_NODEBUG
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T>(Result);
+  return esimd::saturate<T>(Result);
 }
 
 template <typename T>
@@ -1554,7 +1554,7 @@ ESIMD_NODEBUG
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T>(Result);
+  return esimd::saturate<T>(Result);
 }
 
 template <typename T>
@@ -1581,7 +1581,7 @@ ESIMD_NODEBUG
   if (flag != saturation_on)
     return Result;
 
-  return saturate<T>(Result);
+  return esimd::saturate<T>(Result);
 }
 
 template <typename T>
@@ -1603,7 +1603,7 @@ asin(T src0, int flag = saturation_off) {
     simd<float, SZ> Result = __esimd_##name<SZ>(src0.data());                  \
     if (flag != saturation_on)                                                 \
       return Result;                                                           \
-    return saturate<T>(Result);                                                \
+    return esimd::saturate<T>(Result);                                         \
   }                                                                            \
   template <typename T>                                                        \
   __ESIMD_API T name(float src0, int flag = saturation_off) {                  \
@@ -1872,7 +1872,7 @@ dp4a(simd<T2, N> src0, simd<T3, N> src1, simd<T4, N> src2,
       __esimd_dp4a<T1, T2, T3, T4, N>(Src0.data(), Src1.data(), Src2.data());
 
   if (flag == saturation_on)
-    Result = saturate<T1>(tmp);
+    Result = esimd::saturate<T1>(tmp);
   else
     Result = convert<T1>(tmp);
 #endif // __SYCL_DEVICE_ONLY__
@@ -2006,7 +2006,7 @@ ESIMD_INLINE simd<float, N> atan2_fast(simd<float, N> y, simd<float, N> x,
 
   atan2.merge(a1, a0, y2 <= x2);
   if (flags & saturation_on)
-    atan2 = saturate<float>(atan2);
+    atan2 = esimd::saturate<float>(atan2);
   return atan2;
 }
 
@@ -2034,7 +2034,7 @@ ESIMD_INLINE simd<float, N> atan2(simd<float, N> y, simd<float, N> x,
   mask = (esimd::abs<float>(y) < 0.000001f);
   atan2.merge(v_y0, (2 * esimd::atan((v_distance - x) / y)), mask);
   if (flags & saturation_on)
-    atan2 = saturate<float>(atan2);
+    atan2 = esimd::saturate<float>(atan2);
 
   return atan2;
 }
@@ -2052,7 +2052,7 @@ template <> ESIMD_INLINE float atan2(float y, float x, const uint flags) {
   mask = (esimd::abs<float>(y) < 0.000001f);
   atan2.merge(v_y0, (2 * esimd::atan((v_distance - x) / y)), mask);
   if (flags & saturation_on)
-    atan2 = saturate<float>(atan2);
+    atan2 = esimd::saturate<float>(atan2);
 
   return atan2[0];
 }
@@ -2068,7 +2068,7 @@ ESIMD_INLINE simd<float, N> fmod(simd<float, N> y, simd<float, N> x,
   v_quot = convert<int>(y / x);
   fmod = y - x * convert<float>(v_quot);
   if (flags & saturation_on)
-    fmod = saturate<float>(fmod);
+    fmod = esimd::saturate<float>(fmod);
 
   return fmod;
 }
@@ -2122,7 +2122,7 @@ ESIMD_INLINE simd<float, N> sin_emu(simd<float, N> x, const uint flags) {
   fTrig *= sign;
 
   if (flags & saturation_on)
-    fTrig = saturate<float>(fTrig);
+    fTrig = esimd::saturate<float>(fTrig);
 
   return fTrig;
 }
@@ -2160,7 +2160,7 @@ template <typename T> ESIMD_INLINE float sin_emu(T x0, const uint flags) {
   fTrig *= sign;
 
   if (flags & saturation_on)
-    fTrig = saturate<float>(fTrig);
+    fTrig = esimd::saturate<float>(fTrig);
 
   return fTrig[0];
 }
@@ -2199,7 +2199,7 @@ ESIMD_INLINE simd<float, N> cos_emu(simd<float, N> x, const uint flags) {
   fTrig *= sign;
 
   if (flags & saturation_on)
-    fTrig = saturate<float>(fTrig);
+    fTrig = esimd::saturate<float>(fTrig);
 
   return fTrig;
 }
@@ -2236,7 +2236,7 @@ template <typename T> ESIMD_INLINE float cos_emu(T x0, const uint flags) {
   fTrig *= sign;
 
   if (flags & saturation_on)
-    fTrig = saturate<float>(fTrig);
+    fTrig = esimd::saturate<float>(fTrig);
 
   return fTrig[0];
 }
@@ -2333,11 +2333,11 @@ template <int N> ESIMD_INLINE simd<float, N> tanh_cody_waite(simd<float, N> x) {
 /* tanh - opencl like implementation for tanh(x) */
 /* float input */
 ESIMD_INLINE float tanh(float x) {
-  return detail::tanh_impl(simd<float, 1>(x))[0];
+  return esimd::detail::tanh_impl(simd<float, 1>(x))[0];
 }
 /* vector input */
 template <int N> ESIMD_INLINE simd<float, N> tanh(simd<float, N> x) {
-  return detail::tanh_impl(x);
+  return esimd::detail::tanh_impl(x);
 }
 
 // reduction functions

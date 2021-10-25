@@ -11,7 +11,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 void kernel() __attribute__((sycl_device)) {
-  simd<uint32_t, 32> offsets(0, 1);
+  simd<uint32_t, 32> offsets(0, sizeof(int));
   simd<int, 32> v1(0, 1);
 
   auto v0 = slm_gather<int, 32>(offsets);
@@ -29,5 +29,5 @@ void kernel() __attribute__((sycl_device)) {
 
   v0 = v0 + v1;
 
-  slm_scatter<int, 32>(v0, offsets);
+  slm_scatter<int, 32>(offsets, v0);
 }
