@@ -1483,8 +1483,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
       FPGATC->TranslateBackendTargetArgs(FPGATC->getTriple(), *TranslatedArgs,
                                          TargetArgs);
       for (StringRef ArgString : TargetArgs) {
-        if (ArgString.equals("-hardware") ||
-            ArgString.equals("-simulation")) {
+        if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
           setFPGAEmulationMode(false);
           break;
         }
