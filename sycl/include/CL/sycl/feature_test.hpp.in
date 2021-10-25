@@ -7,6 +7,8 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
+#include <CL/sycl/detail/defines_elementary.hpp>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -52,7 +54,3 @@ namespace sycl {
 // Level Zero backend header depends on external headers and should be
 // included by user application directly
 // #include <sycl/ext/oneapi/backend/level_zero.hpp>
-
-#if SYCL_EXT_ONEAPI_BACKEND_CUDA
-#include <sycl/ext/oneapi/backend/cuda.hpp>
-#endif

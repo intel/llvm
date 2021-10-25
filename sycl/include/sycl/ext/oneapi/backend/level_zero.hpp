@@ -9,142 +9,11 @@
 #pragma once
 
 #include <CL/sycl.hpp>
-// This header should be included by users.
-//#include <level_zero/ze_api.h>
+
+#include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
-template <> struct interop<backend::ext_oneapi_level_zero, platform> {
-  using type = ze_driver_handle_t;
-};
-
-template <> struct interop<backend::ext_oneapi_level_zero, device> {
-  using type = ze_device_handle_t;
-};
-
-template <> struct interop<backend::ext_oneapi_level_zero, context> {
-  using type = ze_context_handle_t;
-};
-
-template <> struct interop<backend::ext_oneapi_level_zero, queue> {
-  using type = ze_command_queue_handle_t;
-};
-
-template <> struct interop<backend::ext_oneapi_level_zero, event> {
-  using type = ze_event_handle_t;
-};
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::ext_oneapi_level_zero, program> {
-  using type = ze_module_handle_t;
-};
-#endif
-
-template <> struct interop<backend::ext_oneapi_level_zero, kernel> {
-  using type = ze_kernel_handle_t;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_level_zero,
-               accessor<DataT, Dimensions, AccessMode, access::target::device,
-                        access::placeholder::false_t>> {
-  using type = char *;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<
-    backend::ext_oneapi_level_zero,
-    accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
-             access::placeholder::false_t>> {
-  using type = char *;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_level_zero,
-               accessor<DataT, Dimensions, AccessMode, access::target::image,
-                        access::placeholder::false_t>> {
-  using type = ze_image_handle_t;
-};
-
-namespace ext {
-namespace oneapi {
-namespace level_zero {
-// Since Level-Zero is not doing any reference counting itself, we have to
-// be explicit about the ownership of the native handles used in the
-// interop functions below.
-//
-enum class ownership { transfer, keep };
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
-
-namespace detail {
-
-template <> struct BackendInput<backend::ext_oneapi_level_zero, context> {
-  using type = struct {
-    interop<backend::ext_oneapi_level_zero, context>::type NativeHandle;
-    std::vector<device> DeviceList;
-    ext::oneapi::level_zero::ownership Ownership{
-        ext::oneapi::level_zero::ownership::transfer};
-  };
-};
-
-template <> struct BackendInput<backend::ext_oneapi_level_zero, queue> {
-  using type = struct {
-    interop<backend::ext_oneapi_level_zero, queue>::type NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership{
-        ext::oneapi::level_zero::ownership::transfer};
-  };
-};
-
-template <> struct BackendInput<backend::ext_oneapi_level_zero, event> {
-  using type = struct {
-    interop<backend::ext_oneapi_level_zero, event>::type NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership{
-        ext::oneapi::level_zero::ownership::transfer};
-  };
-};
-
-template <bundle_state State>
-struct BackendInput<backend::ext_oneapi_level_zero, kernel_bundle<State>> {
-  using type = struct {
-    ze_module_handle_t NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership{
-        ext::oneapi::level_zero::ownership::transfer};
-  };
-};
-
-template <bundle_state State>
-struct BackendReturn<backend::ext_oneapi_level_zero, kernel_bundle<State>> {
-  using type = std::vector<ze_module_handle_t>;
-};
-
-template <> struct BackendReturn<backend::ext_oneapi_level_zero, kernel> {
-  using type = ze_kernel_handle_t;
-};
-
-template <> struct BackendInput<backend::ext_oneapi_level_zero, kernel> {
-  using type = struct {
-    kernel_bundle<bundle_state::executable> KernelBundle;
-    ze_kernel_handle_t NativeHandle;
-    ext::oneapi::level_zero::ownership Ownership{
-        ext::oneapi::level_zero::ownership::transfer};
-  };
-};
-
-template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {
-  static constexpr bool MakePlatform = true;
-  static constexpr bool MakeDevice = true;
-  static constexpr bool MakeContext = true;
-  static constexpr bool MakeQueue = true;
-  static constexpr bool MakeEvent = true;
-  static constexpr bool MakeKernelBundle = true;
-  static constexpr bool MakeKernel = true;
-  static constexpr bool MakeBuffer = false;
-};
-} // namespace detail
-
 namespace ext {
 namespace oneapi {
 namespace level_zero {
@@ -172,7 +41,8 @@ __SYCL_EXPORT event make_event(const context &Context,
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, platform>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
-T make(typename interop<backend::ext_oneapi_level_zero, T>::type Interop) {
+T make(
+    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop) {
   return make_platform(reinterpret_cast<pi_native_handle>(Interop));
 }
 
@@ -180,8 +50,9 @@ T make(typename interop<backend::ext_oneapi_level_zero, T>::type Interop) {
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, device>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
-T make(const platform &Platform,
-       typename interop<backend::ext_oneapi_level_zero, T>::type Interop) {
+T make(
+    const platform &Platform,
+    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop) {
   return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
 }
 
@@ -197,9 +68,10 @@ T make(const platform &Platform,
 template <typename T, typename std::enable_if<
                           std::is_same<T, context>::value>::type * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
-T make(const std::vector<device> &DeviceList,
-       typename interop<backend::ext_oneapi_level_zero, T>::type Interop,
-       ownership Ownership = ownership::transfer) {
+T make(
+    const std::vector<device> &DeviceList,
+    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop,
+    ownership Ownership = ownership::transfer) {
   return make_context(DeviceList, detail::pi::cast<pi_native_handle>(Interop),
                       Ownership == ownership::keep);
 }
@@ -209,8 +81,9 @@ T make(const std::vector<device> &DeviceList,
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, program>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
-T make(const context &Context,
-       typename interop<backend::ext_oneapi_level_zero, T>::type Interop) {
+T make(
+    const context &Context,
+    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop) {
   return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
 }
 #endif
@@ -219,9 +92,10 @@ T make(const context &Context,
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, queue>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
-T make(const context &Context,
-       typename interop<backend::ext_oneapi_level_zero, T>::type Interop,
-       ownership Ownership = ownership::transfer) {
+T make(
+    const context &Context,
+    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop,
+    ownership Ownership = ownership::transfer) {
   return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
@@ -230,9 +104,10 @@ T make(const context &Context,
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, event>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
-T make(const context &Context,
-       typename interop<backend::ext_oneapi_level_zero, T>::type Interop,
-       ownership Ownership = ownership::transfer) {
+T make(
+    const context &Context,
+    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop,
+    ownership Ownership = ownership::transfer) {
   return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }

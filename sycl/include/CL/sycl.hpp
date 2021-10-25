@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/feature_test.hpp>
+
 #include <CL/sycl/accessor.hpp>
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/atomic.hpp>
@@ -21,7 +23,6 @@
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/exception.hpp>
-#include <CL/sycl/feature_test.hpp>
 #include <CL/sycl/functional.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/group_algorithm.hpp>

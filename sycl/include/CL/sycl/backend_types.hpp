@@ -35,8 +35,6 @@ enum class backend : char {
       ext_oneapi_hip,
 };
 
-template <backend Backend, typename SYCLObjectT> struct interop;
-
 template <backend Backend> class backend_traits;
 
 template <backend Backend, typename SYCLObjectT>
