@@ -72,3 +72,13 @@ N.)
 // CHK-PHASES: 18: file-table-tform, {12, 17}, tempfiletable, (device-sycl, sm_35)
 // CHK-PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl, sm_35)
 // CHK-PHASES: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (nvptx64-nvidia-cuda:sm_35)" {19}, image
+
+/// Check calling preprocessor only
+// RUN: %clangxx -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: -fsycl-targets=nvptx64-nvidia-cuda -E %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-PREPROC %s
+
+// CHK-PREPROC: __CLANG_OFFLOAD_BUNDLE____START__ sycl-nvptx64-nvidia-cuda-sm_50
+// CHK-PREPROC: __CLANG_OFFLOAD_BUNDLE____END__ sycl-nvptx64-nvidia-cuda-sm_50
+// CHK-PREPROC: __CLANG_OFFLOAD_BUNDLE____START__ host-x86_64-unknown-linux-gnu
+// CHK-PREPROC: __CLANG_OFFLOAD_BUNDLE____END__ host-x86_64-unknown-linux-gnu
