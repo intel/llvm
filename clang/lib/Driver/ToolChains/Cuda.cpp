@@ -678,7 +678,7 @@ void CudaToolChain::addClangTargetOptions(
     Action::OffloadKind DeviceOffloadingKind) const {
   HostTC.addClangTargetOptions(DriverArgs, CC1Args, DeviceOffloadingKind);
 
-  // Erly exit if only pre-processing, no need to set up sycl specific flags,
+  // Early exit if only pre-processing, no need to set up sycl specific flags,
   // or include/lib directories.
   if (DriverArgs.hasArg(options::OPT_E))
     return;
