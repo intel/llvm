@@ -15,7 +15,7 @@ namespace sycl {
 namespace opencl {
 
 // Implementation of various "make" functions resides in SYCL RT because
-// creating SYCL objects requires knowing details not acessible here.
+// creating SYCL objects requires knowing details not accessible here.
 // Note that they take opaque pi_native_handle that real OpenCL handles
 // are casted to.
 //
