@@ -21,6 +21,7 @@ def Vector_Dialect : Dialect {
   let name = "vector";
   let cppNamespace = "::mlir::vector";
   let hasConstantMaterializer = 1;
+  let dependentDialects = ["arith::ArithmeticDialect"];
 }
 
 // Base class for Vector dialect ops.
@@ -301,14 +302,17 @@ def Vector_MultiDimReductionOp :
     Results<(outs AnyType:$dest)> {
   let summary = "Multi-dimensional reduction operation";
   let description = [{
-    Reduces an n-D vector into an (n-k)-D vector using the given operation
-    (add/mul/min/max for int/fp and and/or/xor for int only).
+    Reduces an n-D vector into an (n-k)-D vector (or a scalar when k == n) 
+    using the given operation (add/mul/min/max for int/fp and and/or/xor for
+    int only).
 
     Example:
 
     ```mlir
     %1 = vector.multi_reduction "add", %0 [1, 3] :
       vector<4x8x16x32xf32> into vector<4x16xf32>
+    %2 = vector.multi_reduction "add", %1 [0, 1] :
+      vector<4x16xf32> into f32
     ```
   }];
   let builders = [
@@ -322,8 +326,14 @@ def Vector_MultiDimReductionOp :
     VectorType getSourceVectorType() {
       return source().getType().cast<VectorType>();
     }
-    VectorType getDestVectorType() {
-      return dest().getType().cast<VectorType>();
+    Type getDestType() {
+      return dest().getType();
+    }
+
+    bool isReducedDim(int64_t d) {
+      assert(d >= 0 && d < static_cast<int64_t>(getReductionMask().size()) &&
+        "d overflows the number of dims");
+      return getReductionMask()[d];
     }
 
     SmallVector<bool> getReductionMask() {
@@ -341,18 +351,28 @@ def Vector_MultiDimReductionOp :
     }
 
     static SmallVector<int64_t> inferDestShape(
-      ArrayRef<int64_t> shape, ArrayRef<bool> reducedDimsMask) {
-      assert(shape.size() == reducedDimsMask.size() &&
-             "shape and maks of different sizes");
+      ArrayRef<int64_t> sourceShape, ArrayRef<bool> reducedDimsMask) {
+      assert(sourceShape.size() == reducedDimsMask.size() &&
+             "sourceShape and maks of different sizes");
       SmallVector<int64_t> res;
-      for (auto it : llvm::zip(reducedDimsMask, shape))
+      for (auto it : llvm::zip(reducedDimsMask, sourceShape))
         if (!std::get<0>(it))
           res.push_back(std::get<1>(it));
       return res;
     }
+
+    static Type inferDestType(
+      ArrayRef<int64_t> sourceShape, ArrayRef<bool> reducedDimsMask, Type elementType) {
+      auto targetShape = inferDestShape(sourceShape, reducedDimsMask);
+      // TODO: update to also allow 0-d vectors when available.
+      if (targetShape.empty())
+        return elementType;
+      return VectorType::get(targetShape, elementType);
+    }
   }];
   let assemblyFormat =
     "$kind `,` $source attr-dict $reduction_dims `:` type($source) `to` type($dest)";
+  let hasFolder = 1;
 }
 
 def Vector_BroadcastOp :
@@ -386,7 +406,7 @@ def Vector_BroadcastOp :
     Example:
 
     ```mlir
-    %0 = constant 0.0 : f32
+    %0 = arith.constant 0.0 : f32
     %1 = vector.broadcast %0 : f32 to vector<16xf32>
     %2 = vector.broadcast %1 : vector<16xf32> to vector<4x16xf32>
     ```
@@ -475,7 +495,7 @@ def Vector_ExtractElementOp :
     Example:
 
     ```mlir
-    %c = constant 15 : i32
+    %c = arith.constant 15 : i32
     %1 = vector.extractelement %0[%c : i32]: vector<16xf32>
     ```
   }];
@@ -560,7 +580,7 @@ def Vector_ExtractMapOp :
     %idx0 = ... : index
     // dynamic computation producing the value 1 of index type
     %idx1 = ... : index
-    %0 = constant dense<0, 1, 2, 3>: vector<4xi32>
+    %0 = arith.constant dense<0, 1, 2, 3>: vector<4xi32>
     // extracts values [0, 1]
     %1 = vector.extract_map %0[%idx0] : vector<4xi32> to vector<2xi32>
     // extracts values [1, 2]
@@ -652,8 +672,8 @@ def Vector_InsertElementOp :
     Example:
 
     ```mlir
-    %c = constant 15 : i32
-    %f = constant 0.0f : f32
+    %c = arith.constant 15 : i32
+    %f = arith.constant 0.0f : f32
     %1 = vector.insertelement %f, %0[%c : i32]: vector<16xf32>
     ```
   }];
@@ -748,7 +768,7 @@ def Vector_InsertMapOp :
     %idx0 = ... : index
     // dynamic computation producing the value 1 of index type
     %idx1 = ... : index /
-    %0 = constant dense<0, 1, 2, 3>: vector<4xi32>
+    %0 = arith.constant dense<0, 1, 2, 3>: vector<4xi32>
     // extracts values [0, 1]
     %1 = vector.extract_map %0[%idx0] : vector<4xi32> to vector<2xi32>
     // extracts values [1, 2]
@@ -832,6 +852,8 @@ def Vector_InsertStridedSliceOp :
       return dest().getType().cast<VectorType>();
     }
   }];
+
+  let hasFolder = 1;
 }
 
 def Vector_OuterProductOp :
@@ -1184,7 +1206,7 @@ def Vector_TransferReadOp :
             memref<?x?x?x?xf32>
           store %tmp[%i, %j, %k] : vector<3x4x5xf32>
     }}}
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     %vec = load %view_in_tmp[%c0] : vector<3x4x5xf32>
     ```
 
@@ -1205,7 +1227,7 @@ def Vector_TransferReadOp :
           memref<?x?x?x?xf32>
         store %tmp[%i, 0, %k] : vector<3x4x5xf32>
     }}
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     %tmpvec = load %view_in_tmp[%c0] : vector<3x4x5xf32>
     %vec = broadcast %tmpvec, 1 : vector<3x4x5xf32>
     ```
@@ -1227,7 +1249,7 @@ def Vector_TransferReadOp :
     ```mlir
     // Read the slice `%A[%i0, %i1:%i1+256, %i2:%i2+32]` into vector<32x256xf32>
     // and pad with %f0 to handle the boundary case:
-    %f0 = constant 0.0f : f32
+    %f0 = arith.constant 0.0f : f32
     for %i0 = 0 to %0 {
       affine.for %i1 = 0 to %1 step 256 {
         affine.for %i2 = 0 to %2 step 32 {
@@ -1256,6 +1278,11 @@ def Vector_TransferReadOp :
     %4 = vector.transfer_read %arg1[%c3, %c3], %vf0
       {permutation_map = (d0, d1)->(d0, d1)}
         : tensor<?x?xvector<4x3xf32>>, vector<1x1x4x3xf32>
+
+    // Special encoding for 0-d transfer with 0-d tensor/memref, vector shape
+    // {1} and permutation_map () -> (0).
+    %0 = vector.transfer_read %arg0[], %f0 {permutation_map = affine_map<()->(0)>} :
+      tensor<f32>, vector<1xf32>
     ```
   }];
 
@@ -1264,7 +1291,7 @@ def Vector_TransferReadOp :
     OpBuilder<(ins "VectorType":$vector, "Value":$source,
       "ValueRange":$indices, "AffineMap":$permutationMap,
       CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    // Builder that sets padding to 'getMinorIdentityMap'.
+    // Builder that sets permutation map to 'getMinorIdentityMap'.
     OpBuilder<(ins "VectorType":$vector, "Value":$source,
       "ValueRange":$indices, "Value":$padding,
       CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
@@ -1281,6 +1308,17 @@ def Vector_TransferReadOp :
       "ValueRange":$indices, "AffineMap":$permutationMap, "Value":$padding,
       "ArrayAttr":$inBounds)>
   ];
+
+  let extraClassDeclaration = [{
+    /// Temporary convenience builders to account for the fact that we do not
+    /// have 0-d vectors atm. These create a constant `vector<1xt>` and
+    /// insert/extract into it.
+    // Builder that sets permutation map (resp. padding) to
+    // 'getMinorIdentityMap' (resp. zero).
+    static Value createScalarOp(OpBuilder &builder, Location loc, Value source,
+                                ValueRange indices,
+                                ArrayRef<bool> inBounds = ArrayRef<bool>{});
+  }];
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
@@ -1383,15 +1421,21 @@ def Vector_TransferWriteOp :
     %5 = vector.transfer_write %4, %arg1[%c3, %c3]
       {permutation_map = (d0, d1)->(d0, d1)}
         : vector<1x1x4x3xf32>, tensor<?x?xvector<4x3xf32>>
+
+    // Special encoding for 0-d transfer with 0-d tensor/memref, vector shape
+    // {1} and permutation_map () -> (0).
+    %1 = vector.transfer_write %0, %arg0[] {permutation_map = affine_map<()->(0)>} :
+      vector<1xf32>, tensor<f32>
     ```
   }];
 
   let builders = [
+    // Builder that sets an empty mask.
+    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
+      "AffineMap":$permutationMap, CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
     // Builder that sets permutation map to 'getMinorIdentityMap'.
     OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
       CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMap":$permutationMap)>,
     OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
       "AffineMapAttr":$permutationMap, "ArrayAttr":$inBounds)>,
     OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
@@ -1399,6 +1443,18 @@ def Vector_TransferWriteOp :
     OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
       "AffineMap":$permutationMap, "ArrayAttr":$inBounds)>,
   ];
+
+  let extraClassDeclaration = [{
+    /// Temporary convenience builders to account for the fact that we do not
+    /// have 0-d vectors atm. These create a constant `vector<1xt>` and
+    /// insert/extract into it.
+    // Builder that sets permutation map (resp. padding) to
+    // 'getMinorIdentityMap' (resp. zero).
+    static Operation *createScalarOp(
+      OpBuilder &builder, Location loc, Value value,
+      Value dest, ValueRange indices,
+      ArrayRef<bool> inBounds = ArrayRef<bool>{});
+  }];
 
   let hasFolder = 1;
   let hasCanonicalizer = 1;
@@ -2173,7 +2229,7 @@ def Vector_PrintOp :
     Example:
 
     ```mlir
-    %0 = constant 0.0 : f32
+    %0 = arith.constant 0.0 : f32
     %1 = vector.broadcast %0 : f32 to vector<4xf32>
     vector.print %1 : vector<4xf32>
 

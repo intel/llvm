@@ -158,6 +158,10 @@ public:
       std::vector<device> Devs, const property_list &PropList)
       : MDevices(std::move(Devs)) {
 
+    if (MDevices.empty())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Vector of devices is empty");
+
     if (ObjectBundles.empty())
       return;
 
@@ -184,11 +188,10 @@ public:
                                                         Dev);
               });
         });
-    if (MDevices.empty() || !AllDevsAssociatedWithInputBundles)
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Not all devices are in the set of associated "
-          "devices for input bundles or vector of devices is empty");
+    if (!AllDevsAssociatedWithInputBundles)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Not all devices are in the set of associated "
+                            "devices for input bundles");
 
     // TODO: Unify with c'tor for sycl::comile and sycl::build by calling
     // sycl::join on vector of kernel_bundles

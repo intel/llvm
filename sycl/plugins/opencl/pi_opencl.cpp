@@ -198,6 +198,25 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
+
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
+    // Returns the maximum sizes of a work group for each dimension one
+    // could use to submit a kernel. There is no such query defined in OpenCL
+    // so we'll return the maximum value.
+    {
+      if (paramValueSizeRet)
+        *paramValueSizeRet = paramValueSize;
+      static constexpr size_t Max = (std::numeric_limits<size_t>::max)();
+      size_t *out = cast<size_t *>(paramValue);
+      if (paramValueSize >= sizeof(size_t))
+        out[0] = Max;
+      if (paramValueSize >= 2 * sizeof(size_t))
+        out[1] = Max;
+      if (paramValueSize >= 3 * sizeof(size_t))
+        out[2] = Max;
+      return PI_SUCCESS;
+    }
+
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
