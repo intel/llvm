@@ -2533,8 +2533,7 @@ static std::string getFuncAPIntSuffix(const Type *RetTy, const Type *In1Ty,
   return Suffix.str();
 }
 
-CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
-                                           BasicBlock *BB) {
+Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   // LLVM fixed point functions return value:
   // iN (arbitrary precision integer of N bits length)
   // Arguments:
@@ -2551,25 +2550,50 @@ CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
   IntegerType *Int32Ty = IntegerType::get(*Context, 32);
   IntegerType *Int1Ty = IntegerType::get(*Context, 1);
 
-  SmallVector<Type *, 7> ArgTys = {InTy,    Int1Ty,  Int32Ty,
-                                   Int32Ty, Int32Ty, Int32Ty};
-  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
-
   Op OpCode = Inst->getOpCode();
   std::string FuncName =
       SPIRVFixedPointIntelMap::rmap(OpCode) + getFuncAPIntSuffix(RetTy, InTy);
+  auto Words = Inst->getOpWords();
 
+  if (RetTy->getIntegerBitWidth() <= 64) {
+    SmallVector<Type *, 7> ArgTys = {InTy,    Int1Ty,  Int32Ty,
+                                     Int32Ty, Int32Ty, Int32Ty};
+
+    FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
+    FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
+
+    auto *Fn = cast<Function>(FCallee.getCallee());
+    Fn->setCallingConv(CallingConv::SPIR_FUNC);
+    if (isFuncNoUnwind())
+      Fn->addFnAttr(Attribute::NoUnwind);
+
+    // Words contain:
+    // In<id> Literal S Literal I Literal rI Literal Q Literal O
+    std::vector<Value *> Args = {
+        transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
+        ConstantInt::get(Int1Ty, Words[1]) /* S - indicator of signedness */,
+        ConstantInt::get(Int32Ty,
+                         Words[2]) /* I - fixed-point location of the input */,
+        ConstantInt::get(Int32Ty,
+                         Words[3]) /* rI - fixed-point location of the result*/,
+        ConstantInt::get(Int32Ty, Words[4]) /* Quantization mode */,
+        ConstantInt::get(Int32Ty, Words[5]) /* Overflow mode */};
+
+    return CallInst::Create(FCallee, Args, "", BB);
+  }
+
+  llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+  SmallVector<Type *, 8> ArgTys = {RetPtrTy, InTy,    Int1Ty, Int32Ty,
+                                   Int32Ty,  Int32Ty, Int32Ty};
+
+  FunctionType *FT =
+      FunctionType::get(Type::getVoidTy(*Context), ArgTys, false);
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
-  auto *Fn = cast<Function>(FCallee.getCallee());
-  Fn->setCallingConv(CallingConv::SPIR_FUNC);
-  if (isFuncNoUnwind())
-    Fn->addFnAttr(Attribute::NoUnwind);
-
-  // Words contain:
-  // In<id> Literal S Literal I Literal rI Literal Q Literal O
-  auto Words = Inst->getOpWords();
+  Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+  Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
   std::vector<Value *> Args = {
+      RetValPtr,
       transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
       ConstantInt::get(Int1Ty, Words[1]) /* S - indicator of signedness */,
       ConstantInt::get(Int32Ty,
@@ -2579,11 +2603,22 @@ CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
       ConstantInt::get(Int32Ty, Words[4]) /* Quantization mode */,
       ConstantInt::get(Int32Ty, Words[5]) /* Overflow mode */};
 
-  return CallInst::Create(FCallee, Args, "", BB);
+  auto *Func = cast<Function>(FCallee.getCallee());
+  Func->setCallingConv(CallingConv::SPIR_FUNC);
+  if (isFuncNoUnwind())
+    Func->addFnAttr(Attribute::NoUnwind);
+  Func->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+  CallInst *APIntInst = CallInst::Create(FCallee, Args, "", BB);
+  APIntInst->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+
+  Value *LI = new LoadInst(RetTy, RetValPtr, "", false, BB);
+  return LI;
 }
 
-CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
-                                         bool IsBinaryInst) {
+Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
+                                      bool IsBinaryInst) {
   // Format of instructions Add, Sub, Mul, Div, Hypot, ATan2, Pow, PowR:
   //   LLVM arbitrary floating point functions return value:
   //       iN (arbitrary precision integer of N bits length)
@@ -2656,10 +2691,30 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   const std::vector<SPIRVWord> Words = Inst->getOpWords();
   auto WordsItr = Words.begin() + 1; /* Skip word for A input id */
 
-  SmallVector<Type *, 8> ArgTys = {ATy, Int32Ty};
-  std::vector<Value *> Args = {
-      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-      ConstantInt::get(Int32Ty, *WordsItr++) /* MA/Mout - width of mantissa */};
+  SmallVector<Type *> ArgTys;
+  std::vector<Value *> Args;
+
+  if (RetTy->getIntegerBitWidth() <= 64) {
+    SmallVector<Type *, 8> ArgTysLocal = {ATy, Int32Ty};
+    std::vector<Value *> ArgsLocal = {
+        transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
+        ConstantInt::get(Int32Ty,
+                         *WordsItr++) /* MA/Mout - width of mantissa */};
+    ArgTys = std::move(ArgTysLocal);
+    Args = std::move(ArgsLocal);
+  } else {
+    llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+    SmallVector<Type *, 9> ArgTysLocal = {RetPtrTy, ATy, Int32Ty};
+    Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+    Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
+    std::vector<Value *> ArgsLocal = {
+        RetValPtr,
+        transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
+        ConstantInt::get(Int32Ty,
+                         *WordsItr++) /* MA/Mout - width of mantissa */};
+    ArgTys = std::move(ArgTysLocal);
+    Args = std::move(ArgsLocal);
+  }
 
   Op OC = Inst->getOpCode();
   if (OC == OpArbitraryFloatCastFromIntINTEL ||
@@ -2683,9 +2738,22 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                    return ConstantInt::get(Int32Ty, Word);
                  });
 
-  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
   std::string FuncName =
       SPIRVArbFloatIntelMap::rmap(OC) + getFuncAPIntSuffix(RetTy, ATy, BTy);
+  if (RetTy->getIntegerBitWidth() <= 64) {
+    FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
+    FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
+
+    auto *Func = cast<Function>(FCallee.getCallee());
+    Func->setCallingConv(CallingConv::SPIR_FUNC);
+    if (isFuncNoUnwind())
+      Func->addFnAttr(Attribute::NoUnwind);
+
+    return CallInst::Create(Func, Args, "", BB);
+  }
+
+  FunctionType *FT =
+      FunctionType::get(Type::getVoidTy(*Context), ArgTys, false);
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
   auto *Func = cast<Function>(FCallee.getCallee());
@@ -2693,7 +2761,14 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   if (isFuncNoUnwind())
     Func->addFnAttr(Attribute::NoUnwind);
 
-  return CallInst::Create(Func, Args, "", BB);
+  Func->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+  CallInst *APFloatInst = CallInst::Create(FCallee, Args, "", BB);
+  APFloatInst->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+
+  Value *LI = new LoadInst(RetTy, Args[0], "", false, BB);
+  return LI;
 }
 
 template <class SourceTy, class FuncTy>
