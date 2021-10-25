@@ -174,7 +174,7 @@ public:
   std::vector<std::shared_ptr<event_impl>> &getPreparedHostDepsEvents() {
     return MPreparedHostDepsEvents;
   }
-  
+
   friend class DepIter;
 
 private:

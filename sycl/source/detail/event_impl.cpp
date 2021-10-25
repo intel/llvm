@@ -52,7 +52,7 @@ public:
                CurrentEvent->MPreparedHostDepsEvents.size();
   }
 
-  void operator++() { ++Idx;}
+  void operator++() { ++Idx; }
   std::shared_ptr<event_impl>& operator*() {
     assert(Idx < DepsSize);
     auto size = CurrentEvent->MPreparedDepsEvents.size();
