@@ -45,22 +45,112 @@ cl_event event_impl::get() const {
   return pi::cast<cl_event>(MEvent);
 }
 
+class DepIter {
+public:
+  DepIter(event_impl *event) : CurrentEvent(event), Idx(0) {
+    DepsSize = CurrentEvent->MPreparedDepsEvents.size() + 
+        CurrentEvent->MPreparedHostDepsEvents.size();
+  }
+
+  void operator++() { ++Idx;}
+  std::shared_ptr<event_impl>& operator*() {
+    assert(Idx < DepsSize);
+    auto size = CurrentEvent->MPreparedDepsEvents.size();
+    if (Idx < size)
+      return CurrentEvent->MPreparedDepsEvents[Idx];
+    else
+      return CurrentEvent->MPreparedHostDepsEvents[Idx - size];
+  }
+
+  bool is_end() { return Idx >= DepsSize; }
+
+private:
+  event_impl* CurrentEvent;
+  size_t Idx, DepsSize;
+};
+
 event_impl::~event_impl() {
   {
-    // deque for all dependency events
-    std::deque<std::shared_ptr<event_impl>> Q;
+    std::deque<DepIter> Q;
+
+    if (MPreparedDepsEvents.size() > 0 || MPreparedHostDepsEvents.size() > 0) {
+      Q.emplace_back(this);
+    }
+    
+    while (Q.size() > 0) {
+      while (!Q.back().is_end()) {
+        if (*Q.back()) {
+          Q.emplace_back((*Q.back()).get());
+        }
+        else {
+          ++Q.back();
+        }
+      }
+
+      Q.pop_back();
+
+      if (Q.size() > 0) {
+        (*Q.back()).get()->MPreparedDepsEvents.clear();
+        (*Q.back()).get()->MPreparedHostDepsEvents.clear();
+        (*Q.back()).reset();
+        ++Q.back();
+      }
+    }
+    MPreparedDepsEvents.clear();
+    MPreparedHostDepsEvents.clear();
+
+    /*if (MPreparedDepsEvents.size() > 0 || MPreparedHostDepsEvents.size() > 0)
+      Q.push_back(std::make_pair(this, 0));
+
+    while (Q.size() > 0) {
+      auto *curDeps = &Q.back().first->MPreparedDepsEvents;
+      curDeps.insert(curDeps.end(), Q.back().first->MPreparedHostDepsEvents.begin(), 
+                        Q.back().first->MPreparedHostDepsEvents.end());
+      auto Idx = Q.back().second;
+
+      while (Idx < curDeps.size()) {
+        if (curDeps[Idx]) {
+          Q.push_back(std::make_pair(curDeps[Idx].get(), 0));
+          curDeps = Q.back().first->MPreparedDepsEvents;
+          curDeps.insert(curDeps.end(), Q.back().first->MPreparedHostDepsEvents.begin(), 
+                        Q.back().first->MPreparedHostDepsEvents.end());
+          Idx = 0;
+        }
+        else {
+          ++Idx;
+          Q.back().second = Idx;
+        }
+      }
+
+      if (Idx == curDeps.size()) {
+        Q.back().first->MPreparedDepsEvents.clear();
+        Q.back().first->MPreparedHostDepsEvents.clear();
+        Q.pop_back();
+      }
+
+      if (Q.size() > 0) {
+        auto DepsSize = Q.back().first->MPreparedDepsEvents.size();
+        if (Q.back().second < DepsSize)
+          Q.back().first->MPreparedDepsEvents[Q.back().second].reset();
+        else
+          Q.back().first->MPreparedHostDepsEvents[Q.back().second - DepsSize].reset();
+        Q.back().second++;
+      }
+    }*/
 
     // BFS for event's tree starting from the Head
     // When d-tor of any event_impl except for Head is called
     // the vectors of dependencies must be clean
-    for (auto &DepPtr : MPreparedDepsEvents) {
-      assert(DepPtr && "Dependencies list is not clean");
-      Q.push_back(DepPtr);
+    /*for (auto &DepPtr : MPreparedDepsEvents) {
+      assert(DepPtr && "Only valid dependencies are expected");
+      if (DepPtr.use_count() == 1)
+        Q.push_back(DepPtr.get());
       DepPtr.reset();
     }
     for (auto &DepPtr : MPreparedHostDepsEvents) {
-      assert(DepPtr && "Host dependencies list is not clean");
-      Q.push_back(DepPtr);
+      assert(DepPtr && "Only valid host dependencies are expected");
+      if (DepPtr.use_count() == 1)
+        Q.push_back(DepPtr.get());
       DepPtr.reset();
     }
 
@@ -87,7 +177,7 @@ event_impl::~event_impl() {
     for (size_t i = 0; i < size; i++) {
       Q[i]->MPreparedDepsEvents.clear();
       Q[i]->MPreparedHostDepsEvents.clear();
-    }
+    }*/
   }
 
   if (MEvent)
