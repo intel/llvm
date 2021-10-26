@@ -13,7 +13,6 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace opencl {
-
 // Implementation of various "make" functions resides in SYCL RT because
 // creating SYCL objects requires knowing details not accessible here.
 // Note that they take opaque pi_native_handle that real OpenCL handles
@@ -60,8 +59,7 @@ template <typename T, typename detail::enable_if_t<
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_program free function")
 T make(const context &Context,
        typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_program(Context,
-                      detail::pi::cast<pi_native_handle>(Interop));
+  return make_program(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
 #endif
 
@@ -71,10 +69,8 @@ template <typename T, typename detail::enable_if_t<
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
 T make(const context &Context,
        typename detail::interop<backend::opencl, T>::type Interop) {
-  return make_queue(Context,
-                    detail::pi::cast<pi_native_handle>(Interop));
+  return make_queue(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
-
 } // namespace opencl
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
