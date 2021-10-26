@@ -23,6 +23,7 @@
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/queue.hpp>
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_context_handle_t *ze_context_handle_t;
@@ -35,20 +36,6 @@ typedef struct _ze_module_handle_t *ze_module_handle_t;
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace level_zero {
-
-// Since Level-Zero is not doing any reference counting itself, we have to
-// be explicit about the ownership of the native handles used in the
-// interop functions below.
-//
-enum class ownership { transfer, keep };
-
-} // namespace level_zero
-} // namespace oneapi
-} // namespace ext
-
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program

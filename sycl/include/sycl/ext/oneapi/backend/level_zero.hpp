@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl.hpp>
+#include <CL/sycl/backend.hpp>
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
 
 #include <vector>
 
