@@ -11,7 +11,4 @@
 
 #include <CL/sycl/detail/defines_elementary.hpp>
 
-__SYCL_WARNING("CL/sycl/backend/cuda.hpp usage is deprecated, include "
-               "sycl/ext/oneapi/backend/cuda.hpp instead")
-
-#include <sycl/ext/oneapi/backend/cuda.hpp>
+__SYCL_WARNING("CL/sycl/backend/cuda.hpp is deprecated and no required anymore")
