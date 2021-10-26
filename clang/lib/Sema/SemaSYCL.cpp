@@ -3657,7 +3657,7 @@ public:
     if (const auto *ED = dyn_cast<EnumDecl>(DeclNamed)) {
       if (!ED->isScoped() && !ED->isFixed()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << /* Unscoped enum requires fixed underlying type */ 1
+            << /* unscoped enum requires fixed underlying type */ 1
             << DeclNamed;
         IsInvalid = true;
       }
@@ -3690,8 +3690,8 @@ public:
           if (UnnamedLambdaUsed) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-		 << /* unnamed type is not valid in a SYCL kernel name */ 2
-		 << KernelNameType;
+                << /* unnamed type is not valid in a SYCL kernel name */ 2
+                << KernelNameType;
             IsInvalid = true;
             return;
           }

@@ -32,27 +32,27 @@ private:
 public:
   void test() {
     cl::sycl::queue q;
-    // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
     class InvalidKernelName1 {};
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidKernelName1>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<InvalidKernelName2>' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<InvalidKernelName2>' should be globally visible}}
     // expected-note@+3{{in instantiation of function template specialization}}
     class InvalidKernelName2 {};
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName2>>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidKernelName0>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName3>>([] {});
@@ -63,26 +63,26 @@ public:
       h.single_task<ValidAlias>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name, 'std::(anonymous)' is declared in the 'std' namespace}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<std::max_align_t>([] {});
     });
 
     using InvalidAlias = InvalidKernelName4;
-    // expected-error@#KernelSingleTask {{'std::max_align_t' is an invalid kernel name, 'std::(anonymous)' is declared in the 'std' namespace}}
+    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidAlias>([] {});
     });
 
     using InvalidAlias1 = InvalidKernelName5;
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
     });
-    // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' should be globally-visible}}
+    // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' should be globally visible}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>>([] {});
