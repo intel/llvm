@@ -386,15 +386,16 @@ void BTFTypeFloat::completeType(BTFDebug &BDebug) {
   BTFType.NameOff = BDebug.addString(Name);
 }
 
-BTFTypeTag::BTFTypeTag(uint32_t BaseTypeId, int ComponentId, StringRef Tag)
+BTFTypeDeclTag::BTFTypeDeclTag(uint32_t BaseTypeId, int ComponentIdx,
+                               StringRef Tag)
     : Tag(Tag) {
-  Kind = BTF::BTF_KIND_TAG;
-  BTFType.Info = ((ComponentId < 0) << 31) | (Kind << 24);
+  Kind = BTF::BTF_KIND_DECL_TAG;
+  BTFType.Info = Kind << 24;
   BTFType.Type = BaseTypeId;
-  Info = ComponentId < 0 ? 0 : ComponentId;
+  Info = ComponentIdx;
 }
 
-void BTFTypeTag::completeType(BTFDebug &BDebug) {
+void BTFTypeDeclTag::completeType(BTFDebug &BDebug) {
   if (IsCompleted)
     return;
   IsCompleted = true;
@@ -402,7 +403,7 @@ void BTFTypeTag::completeType(BTFDebug &BDebug) {
   BTFType.NameOff = BDebug.addString(Tag);
 }
 
-void BTFTypeTag::emitType(MCStreamer &OS) {
+void BTFTypeDeclTag::emitType(MCStreamer &OS) {
   BTFTypeBase::emitType(OS);
   OS.emitInt32(Info);
 }
@@ -497,19 +498,19 @@ void BTFDebug::visitSubroutineType(
 }
 
 void BTFDebug::processAnnotations(DINodeArray Annotations, uint32_t BaseTypeId,
-                                  int ComponentId) {
+                                  int ComponentIdx) {
   if (!Annotations)
      return;
 
   for (const Metadata *Annotation : Annotations->operands()) {
     const MDNode *MD = cast<MDNode>(Annotation);
     const MDString *Name = cast<MDString>(MD->getOperand(0));
-    if (!Name->getString().equals("btf_tag"))
+    if (!Name->getString().equals("btf_decl_tag"))
       continue;
 
     const MDString *Value = cast<MDString>(MD->getOperand(1));
-    auto TypeEntry = std::make_unique<BTFTypeTag>(BaseTypeId, ComponentId,
-                                                  Value->getString());
+    auto TypeEntry = std::make_unique<BTFTypeDeclTag>(BaseTypeId, ComponentIdx,
+                                                      Value->getString());
     addType(std::move(TypeEntry));
   }
 }

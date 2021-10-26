@@ -22,8 +22,9 @@ static_library("Orc") {
     "EPCDebugObjectRegistrar.cpp",
     "EPCDynamicLibrarySearchGenerator.cpp",
     "EPCEHFrameRegistrar.cpp",
+    "EPCGenericDylibManager.cpp",
     "EPCGenericJITLinkMemoryManager.cpp",
-    "EPCGenericMemoryAccess.cpp",
+    "EPCGenericRTDyldMemoryManager.cpp",
     "EPCIndirectionUtils.cpp",
     "ExecutionUtils.cpp",
     "ExecutorProcessControl.cpp",
@@ -42,8 +43,10 @@ static_library("Orc") {
     "OrcABISupport.cpp",
     "OrcV2CBindings.cpp",
     "RTDyldObjectLinkingLayer.cpp",
+    "SimpleRemoteEPC.cpp",
     "SpeculateAnalyses.cpp",
     "Speculation.cpp",
+    "TaskDispatch.cpp",
     "ThreadSafeModule.cpp",
   ]
 }

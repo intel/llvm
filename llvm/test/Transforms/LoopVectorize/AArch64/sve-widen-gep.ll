@@ -50,22 +50,25 @@ define void @pointer_induction_used_as_vector(i8** noalias %start.1, i8* noalias
 ; CHECK-NEXT:    [[TMP7:%.*]] = add <vscale x 2 x i64> shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> poison, i64 0, i32 0), <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer), [[TMP6]]
 ; CHECK-NEXT:    [[TMP8:%.*]] = add <vscale x 2 x i64> [[DOTSPLAT]], [[TMP7]]
 ; CHECK-NEXT:    [[NEXT_GEP4:%.*]] = getelementptr i8, i8* [[START_2]], <vscale x 2 x i64> [[TMP8]]
-; CHECK-NEXT:    [[TMP9:%.*]] = getelementptr inbounds i8, <vscale x 2 x i8*> [[NEXT_GEP4]], i64 1
-; CHECK-NEXT:    [[TMP10:%.*]] = getelementptr i8*, i8** [[NEXT_GEP]], i32 0
-; CHECK-NEXT:    [[TMP11:%.*]] = bitcast i8** [[TMP10]] to <vscale x 2 x i8*>*
-; CHECK-NEXT:    store <vscale x 2 x i8*> [[TMP9]], <vscale x 2 x i8*>* [[TMP11]], align 8
-; CHECK-NEXT:    [[TMP12:%.*]] = extractelement <vscale x 2 x i8*> [[NEXT_GEP4]], i32 0
-; CHECK-NEXT:    [[TMP13:%.*]] = getelementptr i8, i8* [[TMP12]], i32 0
-; CHECK-NEXT:    [[TMP14:%.*]] = bitcast i8* [[TMP13]] to <vscale x 2 x i8>*
-; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <vscale x 2 x i8>, <vscale x 2 x i8>* [[TMP14]], align 1
-; CHECK-NEXT:    [[TMP15:%.*]] = add <vscale x 2 x i8> [[WIDE_LOAD]], shufflevector (<vscale x 2 x i8> insertelement (<vscale x 2 x i8> poison, i8 1, i32 0), <vscale x 2 x i8> poison, <vscale x 2 x i32> zeroinitializer)
-; CHECK-NEXT:    [[TMP16:%.*]] = bitcast i8* [[TMP13]] to <vscale x 2 x i8>*
-; CHECK-NEXT:    store <vscale x 2 x i8> [[TMP15]], <vscale x 2 x i8>* [[TMP16]], align 1
-; CHECK-NEXT:    [[TMP17:%.*]] = call i64 @llvm.vscale.i64()
-; CHECK-NEXT:    [[TMP18:%.*]] = mul i64 [[TMP17]], 2
-; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], [[TMP18]]
-; CHECK-NEXT:    [[TMP19:%.*]] = icmp eq i64 [[INDEX_NEXT]], [[N_VEC]]
-; CHECK-NEXT:    br i1 [[TMP19]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP0:![0-9]+]]
+; CHECK-NEXT:    [[TMP9:%.*]] = add i64 [[INDEX]], 0
+; CHECK-NEXT:    [[NEXT_GEP5:%.*]] = getelementptr i8, i8* [[START_2]], i64 [[TMP9]]
+; CHECK-NEXT:    [[TMP10:%.*]] = add i64 [[INDEX]], 1
+; CHECK-NEXT:    [[NEXT_GEP6:%.*]] = getelementptr i8, i8* [[START_2]], i64 [[TMP10]]
+; CHECK-NEXT:    [[TMP11:%.*]] = getelementptr inbounds i8, <vscale x 2 x i8*> [[NEXT_GEP4]], i64 1
+; CHECK-NEXT:    [[TMP12:%.*]] = getelementptr i8*, i8** [[NEXT_GEP]], i32 0
+; CHECK-NEXT:    [[TMP13:%.*]] = bitcast i8** [[TMP12]] to <vscale x 2 x i8*>*
+; CHECK-NEXT:    store <vscale x 2 x i8*> [[TMP11]], <vscale x 2 x i8*>* [[TMP13]], align 8
+; CHECK-NEXT:    [[TMP14:%.*]] = getelementptr i8, i8* [[NEXT_GEP5]], i32 0
+; CHECK-NEXT:    [[TMP15:%.*]] = bitcast i8* [[TMP14]] to <vscale x 2 x i8>*
+; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <vscale x 2 x i8>, <vscale x 2 x i8>* [[TMP15]], align 1
+; CHECK-NEXT:    [[TMP16:%.*]] = add <vscale x 2 x i8> [[WIDE_LOAD]], shufflevector (<vscale x 2 x i8> insertelement (<vscale x 2 x i8> poison, i8 1, i32 0), <vscale x 2 x i8> poison, <vscale x 2 x i32> zeroinitializer)
+; CHECK-NEXT:    [[TMP17:%.*]] = bitcast i8* [[TMP14]] to <vscale x 2 x i8>*
+; CHECK-NEXT:    store <vscale x 2 x i8> [[TMP16]], <vscale x 2 x i8>* [[TMP17]], align 1
+; CHECK-NEXT:    [[TMP18:%.*]] = call i64 @llvm.vscale.i64()
+; CHECK-NEXT:    [[TMP19:%.*]] = mul i64 [[TMP18]], 2
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], [[TMP19]]
+; CHECK-NEXT:    [[TMP20:%.*]] = icmp eq i64 [[INDEX_NEXT]], [[N_VEC]]
+; CHECK-NEXT:    br i1 [[TMP20]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP0:![0-9]+]]
 ; CHECK:       middle.block:
 ; CHECK-NEXT:    [[CMP_N:%.*]] = icmp eq i64 [[N]], [[N_VEC]]
 ; CHECK-NEXT:    br i1 [[CMP_N]], label [[EXIT:%.*]], label [[SCALAR_PH]]
@@ -113,6 +116,51 @@ exit:                            ; preds = %loop.body
   ret void
 }
 
+define void @pointer_induction(i8* noalias %start, i64 %N) {
+; CHECK-LABEL: @pointer_induction(
+; CHECK:       vector.ph:
+; CHECK:         [[BROADCAST_SPLATINSERT:%.*]] = insertelement <vscale x 2 x i8*> poison, i8* [[START:%.*]], i32 0
+; CHECK-NEXT:    [[BROADCAST_SPLAT:%.*]] = shufflevector <vscale x 2 x i8*> [[BROADCAST_SPLATINSERT]], <vscale x 2 x i8*> poison, <vscale x 2 x i32> zeroinitializer
+; CHECK:       vector.body:
+; CHECK-NEXT:    [[INDEX1:%.*]] = phi i64 [ 0, [[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], [[VECTOR_BODY]] ]
+; CHECK-NEXT:    [[TMP5:%.*]] = call <vscale x 2 x i64> @llvm.experimental.stepvector.nxv2i64()
+; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <vscale x 2 x i64> poison, i64 [[INDEX1]], i32 0
+; CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <vscale x 2 x i64> [[DOTSPLATINSERT]], <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer
+; CHECK-NEXT:    [[TMP6:%.*]] = add <vscale x 2 x i64> shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> poison, i64 0, i32 0), <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer), [[TMP5]]
+; CHECK-NEXT:    [[TMP7:%.*]] = add <vscale x 2 x i64> [[DOTSPLAT]], [[TMP6]]
+; CHECK-NEXT:    [[NEXT_GEP:%.*]] = getelementptr i8, i8* [[START]], <vscale x 2 x i64> [[TMP7]]
+; CHECK-NEXT:    [[TMP8:%.*]] = add i64 [[INDEX1]], 0
+; CHECK-NEXT:    [[NEXT_GEP3:%.*]] = getelementptr i8, i8* [[START]], i64 [[TMP8]]
+; CHECK-NEXT:    [[TMP9:%.*]] = add i64 [[INDEX1]], 1
+; CHECK-NEXT:    [[NEXT_GEP4:%.*]] = getelementptr i8, i8* [[START]], i64 [[TMP9]]
+; CHECK-NEXT:    [[TMP10:%.*]] = add i64 [[INDEX1]], 0
+; CHECK-NEXT:    [[TMP11:%.*]] = getelementptr i8, i8* [[NEXT_GEP3]], i32 0
+; CHECK-NEXT:    [[TMP12:%.*]] = bitcast i8* [[TMP11]] to <vscale x 2 x i8>*
+; CHECK-NEXT:    [[WIDE_LOAD:%.*]] = load <vscale x 2 x i8>, <vscale x 2 x i8>* [[TMP12]], align 1
+; CHECK-NEXT:    [[TMP13:%.*]] = getelementptr inbounds i8, <vscale x 2 x i8*> [[NEXT_GEP]], i64 1
+; CHECK-NEXT:    [[TMP14:%.*]] = icmp eq <vscale x 2 x i8*> [[TMP13]], [[BROADCAST_SPLAT]]
+; CHECK-NEXT:    [[TMP15:%.*]] = call i64 @llvm.vscale.i64()
+; CHECK-NEXT:    [[TMP16:%.*]] = mul i64 [[TMP15]], 2
+; CHECK-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX1]], [[TMP16]]
+; CHECK-NEXT:    [[TMP17:%.*]] = icmp eq i64 [[INDEX_NEXT]], [[N_VEC]]
+; CHECK-NEXT:    br i1 [[TMP17]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP4:![0-9]+]]
+;
+entry:
+  br label %for.body
+
+for.body:
+  %ptr.phi = phi i8* [ %ptr.phi.next, %for.body ], [ %start, %entry ]
+  %index = phi i64 [ %index_nxt, %for.body ], [ 0, %entry ]
+  %index_nxt = add i64 %index, 1
+  %0 = load i8, i8* %ptr.phi, align 1
+  %ptr.phi.next = getelementptr inbounds i8, i8* %ptr.phi, i64 1
+  %cmp.i.not = icmp eq i8* %ptr.phi.next, %start
+  %cmp = icmp ult i64 %index, %N
+  br i1 %cmp, label %for.body, label %end, !llvm.loop !0
+
+end:
+  ret void
+}
 
 attributes #0 = {"target-features"="+sve"}
 

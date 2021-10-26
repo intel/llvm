@@ -156,7 +156,14 @@ public:
   /// otherwise.
   bool containsPoint(ArrayRef<int64_t> point) const;
 
-  /// Clones this object.
+  /// Find pairs of inequalities identified by their position indices, using
+  /// which an explicit representation for each local variable can be computed
+  /// The pairs are stored as indices of upperbound, lowerbound
+  /// inequalities. If no such pair can be found, it is stored as llvm::None.
+  void getLocalReprLbUbPairs(
+      std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> &repr) const;
+
+  // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
 
   /// Returns the value at the specified equality row and column.
@@ -275,11 +282,21 @@ public:
   void projectOut(unsigned pos, unsigned num);
   inline void projectOut(unsigned pos) { return projectOut(pos, 1); }
 
+  /// Removes identifiers of the specified kind with the specified pos (or
+  /// within the specified range) from the system. The specified location is
+  /// relative to the first identifier of the specified kind.
+  void removeId(IdKind kind, unsigned pos);
+  void removeIdRange(IdKind kind, unsigned idStart, unsigned idLimit);
+
   /// Removes the specified identifier from the system.
   void removeId(unsigned pos);
 
   void removeEquality(unsigned pos);
   void removeInequality(unsigned pos);
+
+  /// Remove the (in)equalities at positions [start, end).
+  void removeEqualityRange(unsigned start, unsigned end);
+  void removeInequalityRange(unsigned start, unsigned end);
 
   /// Sets the `values.size()` identifiers starting at `po`s to the specified
   /// values and removes them.
@@ -409,6 +426,15 @@ public:
   /// O(VC) time.
   void removeRedundantConstraints();
 
+  /// Converts identifiers in the column range [idStart, idLimit) to local
+  /// variables.
+  void convertDimToLocal(unsigned dimStart, unsigned dimLimit);
+
+  /// Merge local ids of `this` and `other`. This is done by appending local ids
+  /// of `other` to `this` and inserting local ids of `this` to `other` at start
+  /// of its local ids.
+  void mergeLocalIds(FlatAffineConstraints &other);
+
   /// Removes all equalities and inequalities.
   void clearConstraints();
 
@@ -416,6 +442,12 @@ public:
   void dump() const;
 
 protected:
+  /// Return the index at which the specified kind of id starts.
+  unsigned getIdKindOffset(IdKind kind) const;
+
+  /// Assert that `value` is at most the number of ids of the specified kind.
+  void assertAtMostNumIdKind(unsigned value, IdKind kind) const;
+
   /// Returns false if the fields corresponding to various identifier counts, or
   /// equality/inequality buffer sizes aren't consistent; true otherwise. This
   /// is meant to be used within an assert internally.
@@ -451,6 +483,14 @@ protected:
   inline LogicalResult gaussianEliminateId(unsigned position) {
     return success(gaussianEliminateIds(position, position + 1) == 1);
   }
+
+  /// Removes local variables using equalities. Each equality is checked if it
+  /// can be reduced to the form: `e = affine-expr`, where `e` is a local
+  /// variable and `affine-expr` is an affine expression not containing `e`.
+  /// If an equality satisfies this form, the local variable is replaced in
+  /// each constraint and then removed. The equality used to replace this local
+  /// variable is also removed.
+  void removeRedundantLocalVars();
 
   /// Eliminates identifiers from equality and inequality constraints
   /// in column range [posStart, posLimit).
@@ -545,6 +585,16 @@ public:
                                        numLocals + 1,
                                    numDims, numSymbols, numLocals, valArgs) {}
 
+  FlatAffineValueConstraints(const FlatAffineConstraints &fac,
+                             ArrayRef<Optional<Value>> valArgs = {})
+      : FlatAffineConstraints(fac) {
+    assert(valArgs.empty() || valArgs.size() == numIds);
+    if (valArgs.empty())
+      values.resize(numIds, None);
+    else
+      values.append(valArgs.begin(), valArgs.end());
+  }
+
   /// Create a flat affine constraint system from an AffineValueMap or a list of
   /// these. The constructed system will only include equalities.
   explicit FlatAffineValueConstraints(const AffineValueMap &avm);
@@ -555,6 +605,20 @@ public:
 
   FlatAffineValueConstraints(ArrayRef<const AffineValueMap *> avmRef,
                              IntegerSet set);
+
+  // Construct a hyperrectangular constraint set from ValueRanges that represent
+  // induction variables, lower and upper bounds. `ivs`, `lbs` and `ubs` are
+  // expected to match one to one. The order of variables and constraints is:
+  //
+  // ivs | lbs | ubs | eq/ineq
+  // ----+-----+-----+---------
+  //   1   -1     0      >= 0
+  // ----+-----+-----+---------
+  //  -1    0     1      >= 0
+  //
+  // All dimensions as set as DimId.
+  static FlatAffineValueConstraints
+  getHyperrectangular(ValueRange ivs, ValueRange lbs, ValueRange ubs);
 
   /// Return the kind of this FlatAffineConstraints.
   Kind getKind() const override { return Kind::FlatAffineValueConstraints; }
@@ -671,7 +735,8 @@ public:
   using FlatAffineConstraints::insertDimId;
   unsigned insertSymbolId(unsigned pos, ValueRange vals);
   using FlatAffineConstraints::insertSymbolId;
-  unsigned insertId(IdKind kind, unsigned pos, unsigned num = 1) override;
+  virtual unsigned insertId(IdKind kind, unsigned pos,
+                            unsigned num = 1) override;
   unsigned insertId(IdKind kind, unsigned pos, ValueRange vals);
 
   /// Append identifiers of the specified kind after the last identifier of that
@@ -818,6 +883,11 @@ public:
       setValue(i, values[i - start]);
   }
 
+  /// Merge and align symbols of `this` and `other` such that both get union of
+  /// of symbols that are unique. Symbols with Value as `None` are considered
+  /// to be inequal to all other symbols.
+  void mergeSymbolIds(FlatAffineValueConstraints &other);
+
 protected:
   /// Returns false if the fields corresponding to various identifier counts, or
   /// equality/inequality buffer sizes aren't consistent; true otherwise. This
@@ -827,7 +897,7 @@ protected:
   /// Removes identifiers in the column range [idStart, idLimit), and copies any
   /// remaining valid data into place, updates member variables, and resizes
   /// arrays as needed.
-  void removeIdRange(unsigned idStart, unsigned idLimit) override;
+  virtual void removeIdRange(unsigned idStart, unsigned idLimit) override;
 
   /// Eliminates the identifier at the specified position using Fourier-Motzkin
   /// variable elimination, but uses Gaussian elimination if there is an
@@ -844,6 +914,83 @@ protected:
   /// Temporary ones or those that aren't associated with any Value are set to
   /// None.
   SmallVector<Optional<Value>, 8> values;
+};
+
+/// A FlatAffineRelation represents a set of ordered pairs (domain -> range)
+/// where "domain" and "range" are tuples of identifiers. The relation is
+/// represented as a FlatAffineValueConstraints with separation of dimension
+/// identifiers into domain and  range. The identifiers are stored as:
+/// [domainIds, rangeIds, symbolIds, localIds, constant].
+class FlatAffineRelation : public FlatAffineValueConstraints {
+public:
+  FlatAffineRelation(unsigned numReservedInequalities,
+                     unsigned numReservedEqualities, unsigned numReservedCols,
+                     unsigned numDomainDims, unsigned numRangeDims,
+                     unsigned numSymbols, unsigned numLocals,
+                     ArrayRef<Optional<Value>> valArgs = {})
+      : FlatAffineValueConstraints(
+            numReservedInequalities, numReservedEqualities, numReservedCols,
+            numDomainDims + numRangeDims, numSymbols, numLocals, valArgs),
+        numDomainDims(numDomainDims), numRangeDims(numRangeDims) {}
+
+  FlatAffineRelation(unsigned numDomainDims = 0, unsigned numRangeDims = 0,
+                     unsigned numSymbols = 0, unsigned numLocals = 0)
+      : FlatAffineValueConstraints(numDomainDims + numRangeDims, numSymbols,
+                                   numLocals),
+        numDomainDims(numDomainDims), numRangeDims(numRangeDims) {}
+
+  FlatAffineRelation(unsigned numDomainDims, unsigned numRangeDims,
+                     FlatAffineValueConstraints &fac)
+      : FlatAffineValueConstraints(fac), numDomainDims(numDomainDims),
+        numRangeDims(numRangeDims) {}
+
+  FlatAffineRelation(unsigned numDomainDims, unsigned numRangeDims,
+                     FlatAffineConstraints &fac)
+      : FlatAffineValueConstraints(fac), numDomainDims(numDomainDims),
+        numRangeDims(numRangeDims) {}
+
+  /// Returns a set corresponding to the domain/range of the affine relation.
+  FlatAffineValueConstraints getDomainSet() const;
+  FlatAffineValueConstraints getRangeSet() const;
+
+  /// Returns the number of identifiers corresponding to domain/range of
+  /// relation.
+  inline unsigned getNumDomainDims() const { return numDomainDims; }
+  inline unsigned getNumRangeDims() const { return numRangeDims; }
+
+  /// Given affine relation `other: (domainOther -> rangeOther)`, this operation
+  /// takes the composition of `other` on `this: (domainThis -> rangeThis)`.
+  /// The resulting relation represents tuples of the form: `domainOther ->
+  /// rangeThis`.
+  void compose(const FlatAffineRelation &other);
+
+  /// Swap domain and range of the relation.
+  /// `(domain -> range)` is converted to `(range -> domain)`.
+  void inverse();
+
+  /// Insert `num` identifiers of the specified kind after the `pos` identifier
+  /// of that kind. The coefficient columns corresponding to the added
+  /// identifiers are initialized to zero.
+  void insertDomainId(unsigned pos, unsigned num = 1);
+  void insertRangeId(unsigned pos, unsigned num = 1);
+
+  /// Append `num` identifiers of the specified kind after the last identifier
+  /// of that kind. The coefficient columns corresponding to the added
+  /// identifiers are initialized to zero.
+  void appendDomainId(unsigned num = 1);
+  void appendRangeId(unsigned num = 1);
+
+protected:
+  // Number of dimension identifers corresponding to domain identifers.
+  unsigned numDomainDims;
+
+  // Number of dimension identifers corresponding to range identifers.
+  unsigned numRangeDims;
+
+  /// Removes identifiers in the column range [idStart, idLimit), and copies any
+  /// remaining valid data into place, updates member variables, and resizes
+  /// arrays as needed.
+  void removeIdRange(unsigned idStart, unsigned idLimit) override;
 };
 
 /// Flattens 'expr' into 'flattenedExpr', which contains the coefficients of the
@@ -901,6 +1048,26 @@ getFlattenedAffineExprs(IntegerSet set,
 AffineMap alignAffineMapWithValues(AffineMap map, ValueRange operands,
                                    ValueRange dims, ValueRange syms,
                                    SmallVector<Value> *newSyms = nullptr);
+
+/// Builds a relation from the given AffineMap/AffineValueMap `map`, containing
+/// all pairs of the form `operands -> result` that satisfy `map`. `rel` is set
+/// to the relation built. For example, give the AffineMap:
+///
+///   (d0, d1)[s0] -> (d0 + s0, d0 - s0)
+///
+/// the resulting relation formed is:
+///
+///   (d0, d1) -> (r1, r2)
+///   [d0  d1  r1  r2  s0  const]
+///    1   0   -1   0  1     0     = 0
+///    0   1    0  -1  -1    0     = 0
+///
+/// For AffineValueMap, the domain and symbols have Value set corresponding to
+/// the Value in `map`. Returns failure if the AffineMap could not be flattened
+/// (i.e., semi-affine is not yet handled).
+LogicalResult getRelationFromMap(AffineMap &map, FlatAffineRelation &rel);
+LogicalResult getRelationFromMap(const AffineValueMap &map,
+                                 FlatAffineRelation &rel);
 
 } // end namespace mlir.
 

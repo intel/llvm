@@ -460,6 +460,11 @@ protected:
       Builder.defineMacro("_REENTRANT");
     if (this->HasFloat128)
       Builder.defineMacro("__FLOAT128__");
+
+    if (Opts.C11) {
+      Builder.defineMacro("__STDC_NO_ATOMICS__");
+      Builder.defineMacro("__STDC_NO_THREADS__");
+    }
   }
 
 public:
@@ -738,7 +743,6 @@ public:
 
   // AIX sets FLT_EVAL_METHOD to be 1.
   unsigned getFloatEvalMethod() const override { return 1; }
-  bool hasInt128Type() const override { return false; }
 
   bool defaultsToAIXPowerAlignment() const override { return true; }
 };
@@ -885,6 +889,9 @@ protected:
     // Required by the libc++ locale support.
     if (Opts.CPlusPlus)
       Builder.defineMacro("_GNU_SOURCE");
+    Builder.defineMacro("__Fuchsia_API_level__", Twine(Opts.FuchsiaAPILevel));
+    this->PlatformName = "fuchsia";
+    this->PlatformMinVersion = VersionTuple(Opts.FuchsiaAPILevel);
   }
 
 public:

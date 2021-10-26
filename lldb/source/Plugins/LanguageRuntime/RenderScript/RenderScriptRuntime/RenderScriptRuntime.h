@@ -410,9 +410,9 @@ public:
   bool GetOverrideExprOptions(clang::TargetOptions &prototype);
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic().GetStringRef();
+  }
 
   static bool GetKernelCoordinate(lldb_renderscript::RSCoordinate &coord,
                                   Thread *thread_ptr);

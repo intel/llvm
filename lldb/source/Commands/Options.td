@@ -355,7 +355,7 @@ let Command = "expression" in {
     Desc<"When specified, debug the JIT code by setting a breakpoint on the "
     "first instruction and forcing breakpoints to not be ignored (-i0) and no "
     "unwinding to happen on error (-u0).">;
-  def expression_options_language : Option<"language", "l">, Groups<[1,2]>,
+  def expression_options_language : Option<"language", "l">, Groups<[1,2,3]>,
     Arg<"Language">, Desc<"Specifies the Language to use when parsing the "
     "expression.  If not set the target.language setting is used.">;
   def expression_options_apply_fixits : Option<"apply-fixits", "X">,
@@ -536,6 +536,10 @@ let Command = "source" in {
     Desc<"If true, stop executing commands on continue.">;
   def source_silent_run : Option<"silent-run", "s">, Arg<"Boolean">,
     Desc<"If true don't echo commands while executing.">;
+  def cmd_relative_to_command_file : Option<"relative-to-command-file", "C">,
+    Desc<"Resolve non-absolute paths relative to the location of the "
+    "current command file. This argument can only be used when the command is "
+    "being sourced from a file.">;
 }
 
 let Command = "alias" in {

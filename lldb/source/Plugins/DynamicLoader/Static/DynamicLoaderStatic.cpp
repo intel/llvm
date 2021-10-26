@@ -161,10 +161,3 @@ const char *DynamicLoaderStatic::GetPluginDescriptionStatic() {
   return "Dynamic loader plug-in that will load any images at the static "
          "addresses contained in each image.";
 }
-
-// PluginInterface protocol
-lldb_private::ConstString DynamicLoaderStatic::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t DynamicLoaderStatic::GetPluginVersion() { return 1; }

@@ -12,6 +12,7 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/Analysis/DependenceAnalysis.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
@@ -173,23 +174,22 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producer,
   SmallVector<Value, 8> ivs, tileSizes, sizeBounds;
   SmallVector<Range, 8> loopRanges;
   Location loc = producer.getLoc();
-  auto zero = b.create<ConstantIndexOp>(loc, 0);
-  auto one = b.create<ConstantIndexOp>(loc, 1);
+  auto zero = b.create<arith::ConstantIndexOp>(loc, 0);
+  auto one = b.create<arith::ConstantIndexOp>(loc, 1);
 
   for (unsigned i = 0, e = producer.getNumLoops(); i < e; ++i) {
+    auto shapeDim = getShapeDefiningLoopRange(producer, i);
+    Value dim = createOrFoldDimOp(b, loc, shapeDim.shape, shapeDim.dimension);
+    sizeBounds.push_back(dim);
     auto it = fusedLoopsAndRanges.find(i);
     if (it != fusedLoopsAndRanges.end()) {
       ivs.push_back(it->second.offset);
       tileSizes.push_back(it->second.size);
-      sizeBounds.push_back(nullptr);
       loopRanges.push_back(it->second);
       LLVM_DEBUG(llvm::dbgs() << "tiled loop#" << i << " with LoopRange "
                               << loopRanges.back() << "\n");
     } else {
-      auto shapeDim = getShapeDefiningLoopRange(producer, i);
-      Value dim = createOrFoldDimOp(b, loc, shapeDim.shape, shapeDim.dimension);
       tileSizes.push_back(zero);
-      sizeBounds.push_back(dim);
       loopRanges.push_back(Range{zero, dim, one});
       LLVM_DEBUG(llvm::dbgs() << "full loop#" << i << " with LoopRange "
                               << loopRanges.back() << "\n");
@@ -223,26 +223,12 @@ static LinalgOp fuse(OpBuilder &b, LinalgOp producer,
   }
 
   Operation *clonedOp = producer.clone(b, loc, resultTypes, clonedShapes);
-  // When the producer has index semantics, we have to transform the indices of
-  // the producer according to the tiling of the consumer, i.e. offset them by
-  // the values computed in `loopRanges`.
-  if (producer.hasIndexSemantics()) {
-    assert(clonedOp->getNumRegions() == 1 &&
-           clonedOp->getRegion(0).getBlocks().size() == 1 &&
-           "expected producer to have one block.");
-    // Shift all indices by the tile offset.
-    Block &block = clonedOp->getRegion(0).front();
-    for (IndexOp indexOp : block.getOps<IndexOp>()) {
-      OpBuilder::InsertionGuard g(b);
-      b.setInsertionPointAfter(indexOp);
-      AffineExpr index, offset;
-      bindDims(b.getContext(), index, offset);
-      AffineApplyOp applyOp = b.create<AffineApplyOp>(
-          indexOp.getLoc(), index + offset,
-          ValueRange{indexOp.getResult(), loopRanges[indexOp.dim()].offset});
-      indexOp.getResult().replaceAllUsesExcept(applyOp, applyOp);
-    }
-  }
+
+  // Shift all IndexOp results by the tile offset.
+  SmallVector<Value> allIvs;
+  transform(loopRanges, std::back_inserter(allIvs),
+            [](Range range) { return range.offset; });
+  addTileLoopIvsToIndexOpResults(b, clonedOp, allIvs);
 
   return clonedOp;
 }
@@ -338,16 +324,6 @@ bool mlir::linalg::isFusableInto(const LinalgDependenceGraph &graph,
                << "\n***Not fusable due to an interleaved dependence:\t"
                << *producer.getOperation());
     return false;
-  }
-  if (auto convOp = dyn_cast<linalg::ConvOp>(producer.getOperation())) {
-    // TODO: add a level of indirection to linalg.generic.
-    if (convOp.padding())
-      return false;
-  }
-  if (auto convOp = dyn_cast<linalg::ConvOp>(consumer.getOperation())) {
-    // TODO: add a level of indirection to linalg.generic.
-    if (convOp.padding())
-      return false;
   }
   return true;
 }
@@ -805,7 +781,7 @@ tileRootOperation(OpBuilder &b, LinalgOp op, ArrayRef<Value> tileSizeVector,
                   const LinalgTilingOptions &options,
                   const std::set<unsigned> &fusedLoops) {
   SmallVector<Value, 4> tileSizes(tileSizeVector.begin(), tileSizeVector.end());
-  auto zero = b.create<ConstantIndexOp>(op.getLoc(), 0);
+  auto zero = b.create<arith::ConstantIndexOp>(op.getLoc(), 0);
   for (unsigned i = 0, e = tileSizes.size(); i != e; ++i)
     if (!fusedLoops.count(i))
       tileSizes[i] = zero;

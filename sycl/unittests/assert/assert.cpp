@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 /*
- * This test checks that assert fallback assert feature works well.
+ * The positive test here checks that assert fallback assert feature works well.
  * According to the doc, when assert is triggered on device host application
  * should abort. That said, a standard `abort()` function is to be called. The
  * function makes sure the app terminates due `SIGABRT` signal. This makes it
@@ -18,7 +18,10 @@
  * pipe.
  */
 
+// Enable use of interop kernel c-tor
+#define __SYCL_INTERNAL_API
 #include <CL/sycl.hpp>
+#include <CL/sycl/backend/opencl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -51,9 +54,10 @@ template <> struct KernelInfo<TestKernel> {
 static constexpr const kernel_param_desc_t Signatures[] = {
     {kernel_param_kind_t::kind_accessor, 4062, 0}};
 
-template <> struct KernelInfo<::sycl::detail::AssertInfoCopier> {
+template <>
+struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
   static constexpr const char *getName() {
-    return "_ZTSN2cl4sycl6detail16AssertInfoCopierE";
+    return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
   }
   static constexpr unsigned getNumParams() { return 1; }
   static constexpr const kernel_param_desc_t &getParamDesc(unsigned Idx) {
@@ -73,7 +77,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 
   static const std::string KernelName = "TestKernel";
   static const std::string CopierKernelName =
-      "_ZTSN2cl4sycl6detail16AssertInfoCopierE";
+      "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
   PiPropertySet PropSet;
 
@@ -98,7 +102,7 @@ static sycl::unittest::PiImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
   static const std::string CopierKernelName =
-      "_ZTSN2cl4sycl6detail16AssertInfoCopierE";
+      "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
   PiPropertySet PropSet;
 
@@ -270,6 +274,154 @@ static void setupMock(sycl::unittest::PiMock &Mock) {
       redefinedExtKernelSetArgMemObj);
 }
 
+namespace TestInteropKernel {
+const sycl::context *Context = nullptr;
+const sycl::device *Device = nullptr;
+int KernelLaunchCounter = ::KernelLaunchCounterBase;
+
+static pi_result redefinedKernelGetInfo(pi_kernel Kernel,
+                                        pi_kernel_info ParamName,
+                                        size_t ParamValueSize, void *ParamValue,
+                                        size_t *ParamValueSizeRet) {
+  if (PI_KERNEL_INFO_CONTEXT == ParamName) {
+    cl_context Ctx = Context->get_native<sycl::backend::opencl>();
+
+    if (ParamValue)
+      memcpy(ParamValue, &Ctx, sizeof(Ctx));
+    if (ParamValueSizeRet)
+      *ParamValueSizeRet = sizeof(Ctx);
+
+    return PI_SUCCESS;
+  }
+
+  if (PI_KERNEL_INFO_PROGRAM == ParamName) {
+    cl_program X = (cl_program)1;
+
+    if (ParamValue)
+      memcpy(ParamValue, &X, sizeof(X));
+    if (ParamValueSizeRet)
+      *ParamValueSizeRet = sizeof(X);
+
+    return PI_SUCCESS;
+  }
+
+  if (sycl::info::kernel::function_name == (sycl::info::kernel)ParamName) {
+    static const char FName[] = "TestFnName";
+    if (ParamValue) {
+      size_t L = strlen(FName) + 1;
+      if (L < ParamValueSize)
+        L = ParamValueSize;
+
+      memcpy(ParamValue, FName, L);
+    }
+    if (ParamValueSizeRet)
+      *ParamValueSizeRet = strlen(FName) + 1;
+
+    return PI_SUCCESS;
+  }
+
+  return PI_ERROR_UNKNOWN;
+}
+
+static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
+                                              const size_t *, const size_t *,
+                                              const size_t *LocalSize,
+                                              pi_uint32 N, const pi_event *Deps,
+                                              pi_event *RetEvent) {
+  int *Ret = new int[1];
+  *Ret = KernelLaunchCounter++;
+  // This output here is to reduce amount of time requried to debug/reproduce a
+  // failing test upon feature break
+  printf("Enqueued %i\n", *Ret);
+
+  *RetEvent = reinterpret_cast<pi_event>(Ret);
+  return PI_SUCCESS;
+}
+
+static pi_result redefinedProgramGetInfo(pi_program P,
+                                         pi_program_info ParamName,
+                                         size_t ParamValueSize,
+                                         void *ParamValue,
+                                         size_t *ParamValueSizeRet) {
+  if (PI_PROGRAM_INFO_NUM_DEVICES == ParamName) {
+    static const int V = 1;
+
+    if (ParamValue)
+      memcpy(ParamValue, &V, sizeof(V));
+    if (ParamValueSizeRet)
+      *ParamValueSizeRet = sizeof(V);
+
+    return PI_SUCCESS;
+  }
+
+  if (PI_PROGRAM_INFO_DEVICES == ParamName) {
+    EXPECT_EQ(ParamValueSize, 1 * sizeof(cl_device_id));
+
+    cl_device_id Dev = Device->get_native<sycl::backend::opencl>();
+
+    if (ParamValue)
+      memcpy(ParamValue, &Dev, sizeof(Dev));
+    if (ParamValueSizeRet)
+      *ParamValueSizeRet = sizeof(Dev);
+
+    return PI_SUCCESS;
+  }
+
+  return PI_ERROR_UNKNOWN;
+}
+
+static pi_result redefinedProgramGetBuildInfo(
+    pi_program P, pi_device D,
+    cl_program_build_info ParamName, // TODO: untie from OpenCL
+    size_t ParamValueSize, void *ParamValue, size_t *ParamValueSizeRet) {
+  if (CL_PROGRAM_BINARY_TYPE == ParamName) {
+    static const cl_program_binary_type T = CL_PROGRAM_BINARY_TYPE_EXECUTABLE;
+    if (ParamValue)
+      memcpy(ParamValue, &T, sizeof(T));
+    if (ParamValueSizeRet)
+      *ParamValueSizeRet = sizeof(T);
+    return PI_SUCCESS;
+  }
+
+  if (CL_PROGRAM_BUILD_OPTIONS == ParamName) {
+    if (ParamValueSizeRet)
+      *ParamValueSizeRet = 0;
+    return PI_SUCCESS;
+  }
+
+  return PI_ERROR_UNKNOWN;
+}
+
+} // namespace TestInteropKernel
+
+static void setupMockForInterop(sycl::unittest::PiMock &Mock,
+                                const sycl::context &Ctx,
+                                const sycl::device &Dev) {
+  using namespace sycl::detail;
+  setupDefaultMockAPIs(Mock);
+
+  TestInteropKernel::KernelLaunchCounter = ::KernelLaunchCounterBase;
+  TestInteropKernel::Device = &Dev;
+  TestInteropKernel::Context = &Ctx;
+
+  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(redefinedKernelGetGroupInfo);
+  Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(
+      TestInteropKernel::redefinedEnqueueKernelLaunch);
+  Mock.redefine<PiApiKind::piMemBufferCreate>(redefinedMemBufferCreate);
+  Mock.redefine<PiApiKind::piMemRelease>(redefinedMemRelease);
+  Mock.redefine<PiApiKind::piKernelSetArg>(redefinedKernelSetArg);
+  Mock.redefine<PiApiKind::piEnqueueMemBufferMap>(redefinedEnqueueMemBufferMap);
+  Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
+  Mock.redefine<PiApiKind::piextKernelSetArgMemObj>(
+      redefinedExtKernelSetArgMemObj);
+  Mock.redefine<PiApiKind::piKernelGetInfo>(
+      TestInteropKernel::redefinedKernelGetInfo);
+  Mock.redefine<PiApiKind::piProgramGetInfo>(
+      TestInteropKernel::redefinedProgramGetInfo);
+  Mock.redefine<PiApiKind::piProgramGetBuildInfo>(
+      TestInteropKernel::redefinedProgramGetBuildInfo);
+}
+
 #ifndef _WIN32
 void ChildProcess(int StdErrFD) {
   static constexpr int StandardStdErrFD = 2;
@@ -395,4 +547,149 @@ TEST(Assert, TestPositive) {
     close(PipeFD[WriteFDIdx]);
   }
 #endif // _WIN32
+}
+
+TEST(Assert, TestAssertServiceKernelHidden) {
+  const char *AssertServiceKernelName = sycl::detail::KernelInfo<
+      sycl::detail::__sycl_service_kernel__::AssertInfoCopier>::getName();
+
+  std::vector<sycl::kernel_id> AllKernelIDs = sycl::get_kernel_ids();
+
+  auto NoFoundServiceKernelID = std::none_of(
+      AllKernelIDs.begin(), AllKernelIDs.end(), [=](sycl::kernel_id KernelID) {
+        return strcmp(KernelID.get_name(), AssertServiceKernelName) == 0;
+      });
+
+  EXPECT_TRUE(NoFoundServiceKernelID);
+}
+
+TEST(Assert, TestInteropKernelNegative) {
+  sycl::platform Plt{sycl::default_selector()};
+
+  if (Plt.is_host()) {
+    printf("Test is not supported on host, skipping\n");
+    return;
+  }
+
+  const sycl::backend Backend = Plt.get_backend();
+
+  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
+      Backend == sycl::backend::level_zero) {
+    printf(
+        "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+
+  const sycl::context Ctx = Queue.get_context();
+
+  setupMockForInterop(Mock, Ctx, Dev);
+
+  cl_kernel CLKernel = (cl_kernel)(0x01);
+  // TODO use make_kernel. This requires a fix in backend.cpp to get plugin
+  // from context instead of free getPlugin to alllow for mocking of its methods
+  sycl::kernel KInterop(CLKernel, Ctx);
+
+  Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });
+
+  EXPECT_EQ(TestInteropKernel::KernelLaunchCounter,
+            KernelLaunchCounterBase + 1);
+}
+
+TEST(Assert, TestInteropKernelFromProgramNegative) {
+  sycl::platform Plt{sycl::default_selector()};
+
+  if (Plt.is_host()) {
+    printf("Test is not supported on host, skipping\n");
+    return;
+  }
+
+  const sycl::backend Backend = Plt.get_backend();
+
+  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
+      Backend == sycl::backend::level_zero) {
+    printf(
+        "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+
+  const sycl::context Ctx = Queue.get_context();
+
+  setupMockForInterop(Mock, Ctx, Dev);
+
+  sycl::program POrig{Ctx};
+  POrig.build_with_kernel_type<TestKernel>();
+  sycl::kernel KOrig = POrig.get_kernel<TestKernel>();
+
+  cl_kernel CLKernel = KOrig.get_native<sycl::backend::opencl>();
+  sycl::kernel KInterop{CLKernel, Ctx};
+
+  Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });
+
+  EXPECT_EQ(TestInteropKernel::KernelLaunchCounter,
+            KernelLaunchCounterBase + 1);
+}
+
+TEST(Assert, TestKernelFromSourceNegative) {
+  sycl::platform Plt{sycl::default_selector()};
+
+  if (Plt.is_host()) {
+    printf("Test is not supported on host, skipping\n");
+    return;
+  }
+
+  const sycl::backend Backend = Plt.get_backend();
+
+  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
+      Backend == sycl::backend::level_zero) {
+    printf(
+        "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
+    return;
+  }
+
+  sycl::unittest::PiMock Mock{Plt};
+
+  constexpr size_t Size = 16;
+  std::array<int, Size> Data;
+
+  for (size_t I = 0; I < Size; I++) {
+    Data[I] = I;
+  }
+
+  sycl::buffer<int, 1> Buf{Data};
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::queue Queue{Dev};
+
+  sycl::context Ctx = Queue.get_context();
+
+  setupMockForInterop(Mock, Ctx, Dev);
+
+  sycl::program P{Queue.get_context()};
+  P.build_with_source(R"CLC(
+          kernel void add(global int* data) {
+              int index = get_global_id(0);
+              data[index] = data[index] + 1;
+          }
+      )CLC",
+                      "-cl-fast-relaxed-math");
+
+  Queue.submit([&](sycl::handler &H) {
+    auto Acc = Buf.get_access<sycl::access::mode::read_write>(H);
+
+    H.set_args(Acc);
+    H.parallel_for(Size, P.get_kernel("add"));
+  });
+
+  EXPECT_EQ(TestInteropKernel::KernelLaunchCounter,
+            KernelLaunchCounterBase + 1);
 }

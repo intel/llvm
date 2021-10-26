@@ -739,7 +739,7 @@ inline __width_manipulator__ setw(int Width) {
 /// vector and SYCL types to the console.
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT stream {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS stream {
 public:
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
@@ -957,6 +957,16 @@ private:
   friend const stream &operator<<(const stream &Out,
                                   const h_item<Dimensions> &RHS);
 };
+
+#if __cplusplus >= 201703L
+// Byte (has to be converted to a numeric value)
+template <typename T>
+inline std::enable_if_t<std::is_same<T, std::byte>::value, const stream &>
+operator<<(const stream &, const T &) {
+  static_assert(std::is_integral<T>(),
+                "Convert the byte to a numeric value using std::to_integer");
+}
+#endif // __cplusplus >= 201703L
 
 // Character
 inline const stream &operator<<(const stream &Out, const char C) {

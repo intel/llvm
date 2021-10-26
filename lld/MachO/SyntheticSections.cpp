@@ -32,7 +32,9 @@
 
 #ifdef LLVM_HAVE_LIBXAR
 #include <fcntl.h>
+extern "C" {
 #include <xar/xar.h>
+}
 #endif
 
 using namespace llvm;
@@ -1102,8 +1104,12 @@ void IndirectSymtabSection::finalizeContents() {
 }
 
 static uint32_t indirectValue(const Symbol *sym) {
-  return sym->symtabIndex != UINT32_MAX ? sym->symtabIndex
-                                        : INDIRECT_SYMBOL_LOCAL;
+  if (sym->symtabIndex == UINT32_MAX)
+    return INDIRECT_SYMBOL_LOCAL;
+  if (auto *defined = dyn_cast<Defined>(sym))
+    if (defined->privateExtern)
+      return INDIRECT_SYMBOL_LOCAL;
+  return sym->symtabIndex;
 }
 
 void IndirectSymtabSection::writeTo(uint8_t *buf) const {

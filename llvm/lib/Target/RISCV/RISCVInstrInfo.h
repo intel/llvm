@@ -160,8 +160,7 @@ public:
                                        unsigned OpIdx1,
                                        unsigned OpIdx2) const override;
 
-  MachineInstr *convertToThreeAddress(MachineFunction::iterator &MBB,
-                                      MachineInstr &MI,
+  MachineInstr *convertToThreeAddress(MachineInstr &MI,
                                       LiveVariables *LV) const override;
 
   Register getVLENFactoredAmount(
@@ -180,6 +179,11 @@ public:
 protected:
   const RISCVSubtarget &STI;
 };
+
+namespace RISCV {
+// Special immediate for AVL operand of V pseudo instructions to indicate VLMax.
+static constexpr int64_t VLMaxSentinel = -1LL;
+} // namespace RISCV
 
 namespace RISCVVPseudosTable {
 

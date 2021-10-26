@@ -355,7 +355,6 @@ private:
     PyEval_InitThreads();
   }
 
-  TerminalState m_stdin_tty_state;
   PyGILState_STATE m_gil_state = PyGILState_UNLOCKED;
   bool m_was_already_initialized = false;
 };
@@ -590,12 +589,6 @@ ScriptInterpreterPythonImpl::~ScriptInterpreterPythonImpl() {
   m_session_dict.Reset();
   PyGILState_Release(gil_state);
 }
-
-lldb_private::ConstString ScriptInterpreterPythonImpl::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t ScriptInterpreterPythonImpl::GetPluginVersion() { return 1; }
 
 void ScriptInterpreterPythonImpl::IOHandlerActivated(IOHandler &io_handler,
                                                      bool interactive) {

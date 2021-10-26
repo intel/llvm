@@ -139,8 +139,3 @@ SymbolVendorWasm::CreateInstance(const lldb::ModuleSP &module_sp,
   symbol_vendor->AddSymbolFileRepresentation(sym_objfile_sp);
   return symbol_vendor;
 }
-
-// PluginInterface protocol
-ConstString SymbolVendorWasm::GetPluginName() { return GetPluginNameStatic(); }
-
-uint32_t SymbolVendorWasm::GetPluginVersion() { return 1; }

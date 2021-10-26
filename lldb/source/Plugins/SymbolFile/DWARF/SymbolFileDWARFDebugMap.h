@@ -140,9 +140,9 @@ public:
   void DumpClangAST(lldb_private::Stream &s) override;
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic().GetStringRef();
+  }
 
 protected:
   enum { kHaveInitializedOSOs = (1 << 0), kNumFlags };

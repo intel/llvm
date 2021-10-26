@@ -127,10 +127,13 @@ Linux              Mips                  GCC, Clang
 Linux              PowerPC               GCC, Clang
 Linux              SystemZ               GCC, Clang
 Solaris            V9 (Ultrasparc)       GCC
+DragonFlyBSD       amd64                 GCC, Clang
 FreeBSD            x86\ :sup:`1`         GCC, Clang
 FreeBSD            amd64                 GCC, Clang
 NetBSD             x86\ :sup:`1`         GCC, Clang
 NetBSD             amd64                 GCC, Clang
+OpenBSD            x86\ :sup:`1`         GCC, Clang
+OpenBSD            amd64                 GCC, Clang
 macOS\ :sup:`2`    PowerPC               GCC
 macOS              x86                   GCC, Clang
 Cygwin/Win32       x86\ :sup:`1, 3`      GCC
@@ -465,8 +468,16 @@ corresponding to the review you wish to send, up-to-date with the upstream
 can start `a Phabricator review <Phabricator.html>`_ (or use ``git show`` or
 ``git format-patch`` to output the diff, and attach it to an email message).
 
-However, using the "Arcanist" tool is often easier. After `installing
-arcanist`_, you can upload the latest commit using:
+However, using the "Arcanist" tool is often easier. After `installing arcanist`_, you
+will also need to apply a fix to your arcanist repo in order to submit a patch:
+
+.. code-block:: console
+
+  % cd arcanist
+  % git fetch https://github.com/rashkov/arcanist update_cacerts
+  % git cherry-pick e3659d43d8911e91739f3b0c5935598bceb859aa
+
+Once this is all done, you can upload the latest commit using:
 
 .. code-block:: console
 
@@ -613,8 +624,10 @@ used by people developing LLVM.
 |                         | other LLVM subprojects to additionally build. (Only|
 |                         | effective when using a side-by-side project layout |
 |                         | e.g. via git). The default list is empty. Can      |
-|                         | include: clang, libcxx, libcxxabi, libunwind, lldb,|
-|                         | compiler-rt, lld, polly, or debuginfo-tests.       |
+|                         | include: clang, clang-tools-extra, compiler-rt,    |
+|                         | cross-project-tests, flang, libc, libclc, libcxx,  |
+|                         | libcxxabi, libunwind, lld, lldb, mlir, openmp,     |
+|                         | parallel-libs, polly, or pstl.                     |
 +-------------------------+----------------------------------------------------+
 | LLVM_ENABLE_SPHINX      | Build sphinx-based documentation from the source   |
 |                         | code. This is disabled by default because it is    |

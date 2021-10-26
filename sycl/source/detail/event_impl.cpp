@@ -18,7 +18,7 @@
 #include <chrono>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti_trace_framework.hpp"
+#include "xpti/xpti_trace_framework.hpp"
 #include <atomic>
 #include <detail/xpti_registry.hpp>
 #include <sstream>

@@ -131,7 +131,6 @@ class CommandLineCompletionTestCase(TestBase):
 
 
     @skipIfRemote
-    @skipIfReproducer
     def test_common_completion_process_pid_and_name(self):
         # The LLDB process itself and the process already attached to are both
         # ignored by the process discovery mechanism, thus we need a process known
@@ -234,7 +233,7 @@ class CommandLineCompletionTestCase(TestBase):
 
     def test_log_file(self):
         # Complete in our source directory which contains a 'main.cpp' file.
-        src_dir =  os.path.dirname(os.path.realpath(__file__)) + '/'
+        src_dir =  self.getSourceDir() + '/'
         self.complete_from_to('log enable lldb expr -f ' + src_dir,
                               ['main.cpp'])
 
@@ -397,7 +396,7 @@ class CommandLineCompletionTestCase(TestBase):
     def test_settings_set_target_process_dot(self):
         """Test that 'settings set target.process.t' completes to 'settings set target.process.thread.'."""
         self.complete_from_to(
-            'settings set target.process.t',
+            'settings set target.process.thr',
             'settings set target.process.thread.')
 
     def test_settings_set_target_process_thread_dot(self):

@@ -76,11 +76,9 @@ public:
 
   static lldb_private::ConstString GetPluginNameStatic();
 
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic().GetStringRef();
   }
-
-  uint32_t GetPluginVersion() override;
 
   lldb_private::Status
   SetReturnValueObject(lldb::StackFrameSP &frame_sp,

@@ -27,6 +27,8 @@
 #include "deltas/ReduceMetadata.h"
 #include "deltas/ReduceModuleData.h"
 #include "deltas/ReduceOperandBundles.h"
+#include "deltas/ReduceOperands.h"
+#include "deltas/ReduceOperandsToArgs.h"
 #include "deltas/ReduceSpecialGlobals.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -49,6 +51,8 @@ static cl::opt<std::string>
   DELTA_PASS("metadata", reduceMetadataDeltaPass)                              \
   DELTA_PASS("arguments", reduceArgumentsDeltaPass)                            \
   DELTA_PASS("instructions", reduceInstructionsDeltaPass)                      \
+  DELTA_PASS("operands", reduceOperandsDeltaPass)                              \
+  DELTA_PASS("operands-to-args", reduceOperandsToArgsDeltaPass)                \
   DELTA_PASS("operand-bundles", reduceOperandBundesDeltaPass)                  \
   DELTA_PASS("attributes", reduceAttributesDeltaPass)                          \
   DELTA_PASS("module-data", reduceModuleDataDeltaPass)

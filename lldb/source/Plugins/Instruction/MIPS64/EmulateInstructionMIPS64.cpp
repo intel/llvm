@@ -29,7 +29,7 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -182,11 +182,6 @@ void EmulateInstructionMIPS64::Terminate() {
 
 ConstString EmulateInstructionMIPS64::GetPluginNameStatic() {
   ConstString g_plugin_name("lldb.emulate-instruction.mips64");
-  return g_plugin_name;
-}
-
-lldb_private::ConstString EmulateInstructionMIPS64::GetPluginName() {
-  static ConstString g_plugin_name("EmulateInstructionMIPS64");
   return g_plugin_name;
 }
 
@@ -2258,9 +2253,9 @@ bool EmulateInstructionMIPS64::Emulate_MSA_Branch_V(llvm::MCInst &insn,
                                                     bool bnz) {
   bool success = false;
   int64_t target = 0;
-  llvm::APInt wr_val = llvm::APInt::getNullValue(128);
+  llvm::APInt wr_val = llvm::APInt::getZero(128);
   llvm::APInt fail_value = llvm::APInt::getMaxValue(128);
-  llvm::APInt zero_value = llvm::APInt::getNullValue(128);
+  llvm::APInt zero_value = llvm::APInt::getZero(128);
   RegisterValue reg_value;
 
   uint32_t wt = m_reg_info->getEncodingValue(insn.getOperand(0).getReg());

@@ -2468,7 +2468,7 @@ Value *SCEVExpander::generateOverflowCheck(const SCEVAddRecExpr *AR,
   Value *StartValue = expandCodeForImpl(Start, ARTy, Loc, false);
 
   ConstantInt *Zero =
-      ConstantInt::get(Loc->getContext(), APInt::getNullValue(DstBits));
+      ConstantInt::get(Loc->getContext(), APInt::getZero(DstBits));
 
   Builder.SetInsertPoint(Loc);
   // Compute |Step|
@@ -2618,9 +2618,11 @@ namespace {
 // perfectly reduced form, which can't be guaranteed.
 struct SCEVFindUnsafe {
   ScalarEvolution &SE;
+  bool CanonicalMode;
   bool IsUnsafe;
 
-  SCEVFindUnsafe(ScalarEvolution &se): SE(se), IsUnsafe(false) {}
+  SCEVFindUnsafe(ScalarEvolution &SE, bool CanonicalMode)
+      : SE(SE), CanonicalMode(CanonicalMode), IsUnsafe(false) {}
 
   bool follow(const SCEV *S) {
     if (const SCEVUDivExpr *D = dyn_cast<SCEVUDivExpr>(S)) {
@@ -2636,6 +2638,14 @@ struct SCEVFindUnsafe {
         IsUnsafe = true;
         return false;
       }
+
+      // For non-affine addrecs or in non-canonical mode we need a preheader
+      // to insert into.
+      if (!AR->getLoop()->getLoopPreheader() &&
+          (!CanonicalMode || !AR->isAffine())) {
+        IsUnsafe = true;
+        return false;
+      }
     }
     return true;
   }
@@ -2644,8 +2654,8 @@ struct SCEVFindUnsafe {
 }
 
 namespace llvm {
-bool isSafeToExpand(const SCEV *S, ScalarEvolution &SE) {
-  SCEVFindUnsafe Search(SE);
+bool isSafeToExpand(const SCEV *S, ScalarEvolution &SE, bool CanonicalMode) {
+  SCEVFindUnsafe Search(SE, CanonicalMode);
   visitAll(S, Search);
   return !Search.IsUnsafe;
 }

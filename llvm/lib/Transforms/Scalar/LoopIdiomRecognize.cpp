@@ -786,7 +786,8 @@ bool LoopIdiomRecognize::processLoopStores(SmallVectorImpl<StoreInst *> &SL,
 
     bool IsNegStride = StoreSize == -Stride;
 
-    const SCEV *StoreSizeSCEV = SE->getConstant(BECount->getType(), StoreSize);
+    Type *IntIdxTy = DL->getIndexType(StorePtr->getType());
+    const SCEV *StoreSizeSCEV = SE->getConstant(IntIdxTy, StoreSize);
     if (processLoopStridedStore(StorePtr, StoreSizeSCEV,
                                 MaybeAlign(HeadStore->getAlignment()),
                                 StoredVal, HeadStore, AdjacentStores, StoreEv,
@@ -1200,13 +1201,20 @@ bool LoopIdiomRecognize::processLoopStridedStore(
                     << "\n");
 
   ORE.emit([&]() {
-    return OptimizationRemark(DEBUG_TYPE, "ProcessLoopStridedStore",
-                              NewCall->getDebugLoc(), Preheader)
-           << "Transformed loop-strided store in "
-           << ore::NV("Function", TheStore->getFunction())
-           << " function into a call to "
-           << ore::NV("NewFunction", NewCall->getCalledFunction())
-           << "() intrinsic";
+    OptimizationRemark R(DEBUG_TYPE, "ProcessLoopStridedStore",
+                         NewCall->getDebugLoc(), Preheader);
+    R << "Transformed loop-strided store in "
+      << ore::NV("Function", TheStore->getFunction())
+      << " function into a call to "
+      << ore::NV("NewFunction", NewCall->getCalledFunction())
+      << "() intrinsic";
+    if (!Stores.empty())
+      R << ore::setExtraArgs();
+    for (auto *I : Stores) {
+      R << ore::NV("FromBlock", I->getParent()->getName())
+        << ore::NV("ToBlock", Preheader->getName());
+    }
+    return R;
   });
 
   // Okay, the memset has been formed.  Zap the original store and anything that
@@ -1249,6 +1257,51 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(StoreInst *SI,
                                     SI->getAlign(), LI->getAlign(), SI, LI,
                                     StoreEv, LoadEv, BECount);
 }
+
+class MemmoveVerifier {
+public:
+  explicit MemmoveVerifier(const Value &LoadBasePtr, const Value &StoreBasePtr,
+                           const DataLayout &DL)
+      : DL(DL), LoadOff(0), StoreOff(0),
+        BP1(llvm::GetPointerBaseWithConstantOffset(
+            LoadBasePtr.stripPointerCasts(), LoadOff, DL)),
+        BP2(llvm::GetPointerBaseWithConstantOffset(
+            StoreBasePtr.stripPointerCasts(), StoreOff, DL)),
+        IsSameObject(BP1 == BP2) {}
+
+  bool loadAndStoreMayFormMemmove(unsigned StoreSize, bool IsNegStride,
+                                  const Instruction &TheLoad,
+                                  bool IsMemCpy) const {
+    if (IsMemCpy) {
+      // Ensure that LoadBasePtr is after StoreBasePtr or before StoreBasePtr
+      // for negative stride.
+      if ((!IsNegStride && LoadOff <= StoreOff) ||
+          (IsNegStride && LoadOff >= StoreOff))
+        return false;
+    } else {
+      // Ensure that LoadBasePtr is after StoreBasePtr or before StoreBasePtr
+      // for negative stride. LoadBasePtr shouldn't overlap with StoreBasePtr.
+      int64_t LoadSize =
+          DL.getTypeSizeInBits(TheLoad.getType()).getFixedSize() / 8;
+      if (BP1 != BP2 || LoadSize != int64_t(StoreSize))
+        return false;
+      if ((!IsNegStride && LoadOff < StoreOff + int64_t(StoreSize)) ||
+          (IsNegStride && LoadOff + LoadSize > StoreOff))
+        return false;
+    }
+    return true;
+  }
+
+private:
+  const DataLayout &DL;
+  int64_t LoadOff;
+  int64_t StoreOff;
+  const Value *BP1;
+  const Value *BP2;
+
+public:
+  const bool IsSameObject;
+};
 
 bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
     Value *DestPtr, Value *SourcePtr, const SCEV *StoreSizeSCEV,
@@ -1314,10 +1367,10 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
   bool IsMemCpy = isa<MemCpyInst>(TheStore);
   const StringRef InstRemark = IsMemCpy ? "memcpy" : "load and store";
 
-  bool UseMemMove =
+  bool LoopAccessStore =
       mayLoopAccessLocation(StoreBasePtr, ModRefInfo::ModRef, CurLoop, BECount,
                             StoreSizeSCEV, *AA, IgnoredInsts);
-  if (UseMemMove) {
+  if (LoopAccessStore) {
     // For memmove case it's not enough to guarantee that loop doesn't access
     // TheStore and TheLoad. Additionally we need to make sure that TheStore is
     // the only user of TheLoad.
@@ -1356,33 +1409,31 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
   // the load memory locations. So remove it from the ignored stores.
   if (IsMemCpy)
     IgnoredInsts.erase(TheStore);
+  MemmoveVerifier Verifier(*LoadBasePtr, *StoreBasePtr, *DL);
   if (mayLoopAccessLocation(LoadBasePtr, ModRefInfo::Mod, CurLoop, BECount,
                             StoreSizeSCEV, *AA, IgnoredInsts)) {
-    ORE.emit([&]() {
-      return OptimizationRemarkMissed(DEBUG_TYPE, "LoopMayAccessLoad", TheLoad)
-             << ore::NV("Inst", InstRemark) << " in "
-             << ore::NV("Function", TheStore->getFunction())
-             << " function will not be hoisted: "
-             << ore::NV("Reason", "The loop may access load location");
-    });
-    return Changed;
-  }
-  if (UseMemMove) {
-    // Ensure that LoadBasePtr is after StoreBasePtr or before StoreBasePtr for
-    // negative stride. LoadBasePtr shouldn't overlap with StoreBasePtr.
-    int64_t LoadOff = 0, StoreOff = 0;
-    const Value *BP1 = llvm::GetPointerBaseWithConstantOffset(
-        LoadBasePtr->stripPointerCasts(), LoadOff, *DL);
-    const Value *BP2 = llvm::GetPointerBaseWithConstantOffset(
-        StoreBasePtr->stripPointerCasts(), StoreOff, *DL);
-    int64_t LoadSize =
-        DL->getTypeSizeInBits(TheLoad->getType()).getFixedSize() / 8;
-    if (BP1 != BP2 || LoadSize != int64_t(StoreSize))
+    if (!IsMemCpy) {
+      ORE.emit([&]() {
+        return OptimizationRemarkMissed(DEBUG_TYPE, "LoopMayAccessLoad",
+                                        TheLoad)
+               << ore::NV("Inst", InstRemark) << " in "
+               << ore::NV("Function", TheStore->getFunction())
+               << " function will not be hoisted: "
+               << ore::NV("Reason", "The loop may access load location");
+      });
       return Changed;
-    if ((!IsNegStride && LoadOff < StoreOff + int64_t(StoreSize)) ||
-        (IsNegStride && LoadOff + LoadSize > StoreOff))
+    }
+    // At this point loop may access load only for memcpy in same underlying
+    // object. If that's not the case bail out.
+    if (!Verifier.IsSameObject)
       return Changed;
   }
+
+  bool UseMemMove = IsMemCpy ? Verifier.IsSameObject : LoopAccessStore;
+  if (UseMemMove)
+    if (!Verifier.loadAndStoreMayFormMemmove(StoreSize, IsNegStride, *TheLoad,
+                                             IsMemCpy))
+      return Changed;
 
   if (avoidLIRForMultiBlockLoop())
     return Changed;
@@ -1452,7 +1503,10 @@ bool LoopIdiomRecognize::processLoopStoreOfLoopLoad(
            << ore::NV("NewFunction", NewCall->getCalledFunction())
            << "() intrinsic from " << ore::NV("Inst", InstRemark)
            << " instruction in " << ore::NV("Function", TheStore->getFunction())
-           << " function";
+           << " function"
+           << ore::setExtraArgs()
+           << ore::NV("FromBlock", TheStore->getParent()->getName())
+           << ore::NV("ToBlock", Preheader->getName());
   });
 
   // Okay, a new call to memcpy/memmove has been formed.  Zap the original store

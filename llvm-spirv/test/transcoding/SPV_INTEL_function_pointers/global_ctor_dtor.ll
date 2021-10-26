@@ -16,8 +16,8 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: Name [[Name2:[0-9]+]] "llvm.global_dtors"
 ; CHECK: Name [[NameInit:[0-9]+]] "__cxx_global_var_init"
 
-; CHECK: LinkageAttributes "llvm.global_ctors" Export
-; CHECK: LinkageAttributes "llvm.global_dtors" Export
+; CHECK-DAG: Decorate {{[0-9]+}} LinkageAttributes "llvm.global_ctors" Export
+; CHECK-DAG: Decorate {{[0-9]+}} LinkageAttributes "llvm.global_dtors" Export
 
 ; CHECK: TypeFunction {{[0-9]+}} [[TF:[0-9]+]]
 

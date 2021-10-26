@@ -1226,12 +1226,9 @@ PlatformDarwin::GetResumeCountForLaunchInfo(ProcessLaunchInfo &launch_info) {
     return 1;
 }
 
-lldb::ProcessSP
-PlatformDarwin::DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
-                             Target *target, // Can be NULL, if NULL create
-                                             // a new target, else use existing
-                                             // one
-                             Status &error) {
+lldb::ProcessSP PlatformDarwin::DebugProcess(ProcessLaunchInfo &launch_info,
+                                             Debugger &debugger, Target &target,
+                                             Status &error) {
   ProcessSP process_sp;
 
   if (IsHost()) {
@@ -1622,7 +1619,7 @@ ConstString PlatformDarwin::GetFullNameForDylib(ConstString basename) {
 }
 
 llvm::VersionTuple PlatformDarwin::GetOSVersion(Process *process) {
-  if (process && strstr(GetPluginName().GetCString(), "-simulator")) {
+  if (process && GetPluginName().contains("-simulator")) {
     lldb_private::ProcessInstanceInfo proc_info;
     if (Host::GetProcessInfo(process->GetID(), proc_info)) {
       const Environment &env = proc_info.GetEnvironment();

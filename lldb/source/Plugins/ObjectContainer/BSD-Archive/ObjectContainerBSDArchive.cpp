@@ -433,13 +433,6 @@ ObjectFileSP ObjectContainerBSDArchive::GetObjectFile(const FileSpec *file) {
   return ObjectFileSP();
 }
 
-// PluginInterface protocol
-lldb_private::ConstString ObjectContainerBSDArchive::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t ObjectContainerBSDArchive::GetPluginVersion() { return 1; }
-
 size_t ObjectContainerBSDArchive::GetModuleSpecifications(
     const lldb_private::FileSpec &file, lldb::DataBufferSP &data_sp,
     lldb::offset_t data_offset, lldb::offset_t file_offset,

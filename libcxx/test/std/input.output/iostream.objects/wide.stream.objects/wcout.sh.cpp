@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: LIBCXX-WINDOWS-FIXME
-
 // <iostream>
 
 // istream wcout;
+
+// XFAIL: libcpp-has-no-wide-characters
+// XFAIL: LIBCXX-WINDOWS-FIXME
 
 // FILE_DEPENDENCIES: ../check-stdout.sh
 // RUN: %{build}

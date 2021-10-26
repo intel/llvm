@@ -194,8 +194,8 @@ struct tpu_params<
       (M == 0 && N == 0 && K == 0) ||
           (is_combination_valid_amx<Ta, Tb, Tc>(M, N, K)),
       "Invalid parameters for AMX, query valid types and maximum sizes "
-      "using: "
-      "constexpr tpu_params<tpu::amx> myparams = tpu_params<tpu::amx>();");
+      "using: tpu_params<tpu::amx> myparams; and then check out "
+      "myparams.combinations array");
 
   // if combination is valid, construct the matrices
 
@@ -392,8 +392,8 @@ struct tpu_params<
   static_assert((M == 0 && N == 0 && K == 0) ||
                     (is_combination_valid_dpas<Ta, Tb, Tc>(M, N, K)),
                 "Invalid parameters for DPAS, query valid combinations "
-                "using: constexpr "
-                "tpu_params<tpu::dpas> myparams = tpu_params<tpu::dpas>(); ");
+                "using: tpu_params<tpu::dpas> myparams; and then check out "
+                "myparams.combinations array");
 
   // if combination is valid, construct the matrices
   static constexpr std::size_t defaultM = (M != 0) ? M : 8;

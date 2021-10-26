@@ -37,9 +37,9 @@ public:
   ~PlatformRemoteGDBServer() override;
 
   // lldb_private::PluginInterface functions
-  ConstString GetPluginName() override { return GetPluginNameStatic(); }
-
-  uint32_t GetPluginVersion() override { return 1; }
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic().GetStringRef();
+  }
 
   // lldb_private::Platform functions
   Status
@@ -64,10 +64,7 @@ public:
   Status KillProcess(const lldb::pid_t pid) override;
 
   lldb::ProcessSP DebugProcess(ProcessLaunchInfo &launch_info,
-                               Debugger &debugger,
-                               Target *target, // Can be NULL, if NULL create a
-                                               // new target, else use existing
-                                               // one
+                               Debugger &debugger, Target &target,
                                Status &error) override;
 
   lldb::ProcessSP Attach(ProcessAttachInfo &attach_info, Debugger &debugger,

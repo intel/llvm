@@ -156,7 +156,6 @@ feature_test_macros = [ add_version_header(x) for x in [
     "name": "__cpp_lib_bit_cast",
     "values": { "c++20": 201806 },
     "headers": ["bit"],
-    "unimplemented": True,
   }, {
     "name": "__cpp_lib_bitops",
     "values": { "c++20": 201907 },
@@ -823,7 +822,7 @@ def produce_version_synopsis():
 
 def produce_version_header():
   template="""// -*- C++ -*-
-//===--------------------------- version ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

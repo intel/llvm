@@ -161,9 +161,9 @@ public:
       lldb_private::ConstString name,
       const lldb_private::CompilerDeclContext &parent_decl_ctx) override;
 
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic().GetStringRef();
+  }
 
   llvm::pdb::IPDBSession &GetPDBSession();
 

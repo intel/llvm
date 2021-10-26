@@ -60,10 +60,7 @@ public:
   static char ID;
 
   LiveDebugValues();
-  ~LiveDebugValues() {
-    if (TheImpl)
-      delete TheImpl;
-  }
+  ~LiveDebugValues() {}
 
   /// Calculate the liveness information for the given machine function.
   bool runOnMachineFunction(MachineFunction &MF) override;
@@ -79,8 +76,10 @@ public:
   }
 
 private:
-  LDVImpl *TheImpl;
+  std::unique_ptr<LDVImpl> InstrRefImpl;
+  std::unique_ptr<LDVImpl> VarLocImpl;
   TargetPassConfig *TPC;
+  MachineDominatorTree MDT;
 };
 
 char LiveDebugValues::ID = 0;
@@ -93,22 +92,26 @@ INITIALIZE_PASS(LiveDebugValues, DEBUG_TYPE, "Live DEBUG_VALUE analysis", false,
 /// Default construct and initialize the pass.
 LiveDebugValues::LiveDebugValues() : MachineFunctionPass(ID) {
   initializeLiveDebugValuesPass(*PassRegistry::getPassRegistry());
-  TheImpl = nullptr;
+  InstrRefImpl =
+      std::unique_ptr<LDVImpl>(llvm::makeInstrRefBasedLiveDebugValues());
+  VarLocImpl = std::unique_ptr<LDVImpl>(llvm::makeVarLocBasedLiveDebugValues());
 }
 
 bool LiveDebugValues::runOnMachineFunction(MachineFunction &MF) {
-  if (!TheImpl) {
-    TPC = getAnalysisIfAvailable<TargetPassConfig>();
-    bool InstrRefBased = MF.useDebugInstrRef();
+  bool InstrRefBased = MF.useDebugInstrRef();
+  // Allow the user to force selection of InstrRef LDV.
+  InstrRefBased |= ForceInstrRefLDV;
 
-    // Allow the user to force selection of InstrRef LDV.
-    InstrRefBased |= ForceInstrRefLDV;
+  TPC = getAnalysisIfAvailable<TargetPassConfig>();
+  LDVImpl *TheImpl = &*VarLocImpl;
 
-    if (InstrRefBased)
-      TheImpl = llvm::makeInstrRefBasedLiveDebugValues();
-    else
-      TheImpl = llvm::makeVarLocBasedLiveDebugValues();
+  MachineDominatorTree *DomTree = nullptr;
+  if (InstrRefBased) {
+    DomTree = &MDT;
+    MDT.calculate(MF);
+    TheImpl = &*InstrRefImpl;
   }
 
-  return TheImpl->ExtendRanges(MF, TPC, InputBBLimit, InputDbgValueLimit);
+  return TheImpl->ExtendRanges(MF, DomTree, TPC, InputBBLimit,
+                               InputDbgValueLimit);
 }

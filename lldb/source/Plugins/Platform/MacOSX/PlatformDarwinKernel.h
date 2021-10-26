@@ -42,11 +42,9 @@ public:
   virtual ~PlatformDarwinKernel();
 
   // lldb_private::PluginInterface functions
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic().GetStringRef();
   }
-
-  uint32_t GetPluginVersion() override { return 1; }
 
   // lldb_private::Platform functions
   const char *GetDescription() override { return GetDescriptionStatic(); }

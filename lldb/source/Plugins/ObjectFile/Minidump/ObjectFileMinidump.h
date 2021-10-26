@@ -35,8 +35,8 @@ public:
   }
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic().GetStringRef();
   }
 
   static lldb_private::ObjectFile *
@@ -54,8 +54,6 @@ public:
                                         lldb::offset_t file_offset,
                                         lldb::offset_t length,
                                         lldb_private::ModuleSpecList &specs);
-
-  uint32_t GetPluginVersion() override { return 1; }
 
   // Saves dump in Minidump file format
   static bool SaveCore(const lldb::ProcessSP &process_sp,

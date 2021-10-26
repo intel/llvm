@@ -293,6 +293,19 @@ public:
   static LanguageSet GetLanguagesSupportingTypeSystemsForExpressions();
   static LanguageSet GetLanguagesSupportingREPLs();
 
+  // Given a mangled function name, calculates some alternative manglings since
+  // the compiler mangling may not line up with the symbol we are expecting.
+  virtual std::vector<ConstString>
+  GenerateAlternateFunctionManglings(const ConstString mangled) const {
+    return std::vector<ConstString>();
+  }
+
+  virtual ConstString
+  FindBestAlternateFunctionMangledName(const Mangled mangled,
+                                       const SymbolContext &sym_ctx) const {
+    return ConstString();
+  }
+
 protected:
   // Classes that inherit from Language can see and modify these
 

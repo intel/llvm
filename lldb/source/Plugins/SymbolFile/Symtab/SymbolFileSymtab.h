@@ -85,9 +85,9 @@ public:
                 lldb_private::TypeList &type_list) override;
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic().GetStringRef();
+  }
 
 protected:
   uint32_t CalculateNumCompileUnits() override;

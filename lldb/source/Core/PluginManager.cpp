@@ -12,6 +12,7 @@
 #include "lldb/Host/FileSystem.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Interpreter/OptionValueProperties.h"
+#include "lldb/Target/Process.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/Status.h"
@@ -687,6 +688,16 @@ Status PluginManager::SaveCore(const lldb::ProcessSP &process_sp,
                                const FileSpec &outfile,
                                lldb::SaveCoreStyle &core_style,
                                const ConstString plugin_name) {
+  if (!plugin_name) {
+    // Try saving core directly from the process plugin first.
+    llvm::Expected<bool> ret = process_sp->SaveCore(outfile.GetPath());
+    if (!ret)
+      return Status(ret.takeError());
+    if (ret.get())
+      return Status();
+  }
+
+  // Fall back to object plugins.
   Status error;
   auto &instances = GetObjectFileInstances().GetInstances();
   for (auto &instance : instances) {
@@ -1424,8 +1435,9 @@ namespace {
 typedef lldb::OptionValuePropertiesSP
 GetDebuggerPropertyForPluginsPtr(Debugger &, ConstString, ConstString,
                                  bool can_create);
+}
 
-lldb::OptionValuePropertiesSP
+static lldb::OptionValuePropertiesSP
 GetSettingForPlugin(Debugger &debugger, ConstString setting_name,
                     ConstString plugin_type_name,
                     GetDebuggerPropertyForPluginsPtr get_debugger_property =
@@ -1441,13 +1453,13 @@ GetSettingForPlugin(Debugger &debugger, ConstString setting_name,
   return properties_sp;
 }
 
-bool CreateSettingForPlugin(
-    Debugger &debugger, ConstString plugin_type_name,
-    ConstString plugin_type_desc,
-    const lldb::OptionValuePropertiesSP &properties_sp, ConstString description,
-    bool is_global_property,
-    GetDebuggerPropertyForPluginsPtr get_debugger_property =
-        GetDebuggerPropertyForPlugins) {
+static bool
+CreateSettingForPlugin(Debugger &debugger, ConstString plugin_type_name,
+                       ConstString plugin_type_desc,
+                       const lldb::OptionValuePropertiesSP &properties_sp,
+                       ConstString description, bool is_global_property,
+                       GetDebuggerPropertyForPluginsPtr get_debugger_property =
+                           GetDebuggerPropertyForPlugins) {
   if (properties_sp) {
     lldb::OptionValuePropertiesSP plugin_type_properties_sp(
         get_debugger_property(debugger, plugin_type_name, plugin_type_desc,
@@ -1462,14 +1474,12 @@ bool CreateSettingForPlugin(
   return false;
 }
 
-const char *kDynamicLoaderPluginName("dynamic-loader");
-const char *kPlatformPluginName("platform");
-const char *kProcessPluginName("process");
-const char *kSymbolFilePluginName("symbol-file");
-const char *kJITLoaderPluginName("jit-loader");
-const char *kStructuredDataPluginName("structured-data");
-
-} // anonymous namespace
+static const char *kDynamicLoaderPluginName("dynamic-loader");
+static const char *kPlatformPluginName("platform");
+static const char *kProcessPluginName("process");
+static const char *kSymbolFilePluginName("symbol-file");
+static const char *kJITLoaderPluginName("jit-loader");
+static const char *kStructuredDataPluginName("structured-data");
 
 lldb::OptionValuePropertiesSP
 PluginManager::GetSettingForDynamicLoaderPlugin(Debugger &debugger,
