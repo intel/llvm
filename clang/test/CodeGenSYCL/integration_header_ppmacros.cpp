@@ -1,0 +1,27 @@
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -sycl-std=2020 -fsycl-int-header=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-SYCL2020
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -sycl-std=2017 -fsycl-int-header=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-SYCL2017
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-disable-range-rounding -fsycl-int-header=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-RANGE
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s --check-prefix=CHECK-NO-RANGE
+
+// Test verifying predefines which need to be set for host and device compilation.
+// Preprocessor macros which are required when using custom host compiler must be
+// defined in integration header.
+
+#include "Inputs/sycl.hpp"
+
+int main() {
+  cl::sycl::kernel_single_task<class first_kernel>([]() {});
+}
+
+// CHECK-SYCL2020: #define SYCL_LANGUAGE_VERSION 202001
+// CHECK-SYCL2020-NOT: #define SYCL_LANGUAGE_VERSION 201707
+
+// CHECK-SYCL2017: #define SYCL_LANGUAGE_VERSION 201707
+// CHECK-SYCL2017-NOT: #define SYCL_LANGUAGE_VERSION 202001
+
+// CHECK-RANGE: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1
+// CHECK-NO-RANGE-NOT: #define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1

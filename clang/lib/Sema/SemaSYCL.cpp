@@ -4747,6 +4747,19 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   Policy.SuppressUnwrittenScope = true;
   SYCLFwdDeclEmitter FwdDeclEmitter(O, S.getLangOpts());
 
+  // Predefines which need to be set for custom host compilation
+  // must be defined in integration header.
+  if (S.getLangOpts().getSYCLVersion() == LangOptions::SYCL_2017) {
+    O << "#define CL_SYCL_LANGUAGE_VERSION 121\n";
+    O << "#define SYCL_LANGUAGE_VERSION 201707\n";
+  } else if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
+    O << "#define SYCL_LANGUAGE_VERSION 202001\n";
+
+  if (S.getLangOpts().SYCLDisableRangeRounding)
+    O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+
+  O << "\n";
+
   if (SpecConsts.size() > 0) {
     O << "// Forward declarations of templated spec constant types:\n";
     for (const auto &SC : SpecConsts)
