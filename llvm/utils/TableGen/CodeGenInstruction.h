@@ -274,6 +274,7 @@ template <typename T> class ArrayRef;
     bool isExtractSubreg : 1;
     bool isInsertSubreg : 1;
     bool isConvergent : 1;
+    bool isDisjointAgents : 1;
     bool hasNoSchedulingInfo : 1;
     bool FastISelShouldIgnore : 1;
     bool hasChain : 1;

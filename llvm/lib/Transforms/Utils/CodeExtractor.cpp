@@ -901,6 +901,7 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       case Attribute::Builtin:
       case Attribute::ByVal:
       case Attribute::Convergent:
+      case Attribute::DisjointAgents:
       case Attribute::Dereferenceable:
       case Attribute::DereferenceableOrNull:
       case Attribute::ElementType:

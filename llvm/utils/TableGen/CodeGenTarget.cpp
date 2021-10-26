@@ -907,7 +907,9 @@ void CodeGenIntrinsic::setProperty(Record *R) {
     unsigned ArgNo = R->getValueAsInt("ArgNo");
     uint64_t Align = R->getValueAsInt("Align");
     ArgumentAttributes.emplace_back(ArgNo, Alignment, Align);
-  } else
+  } else if (R->getName() == "IntrDisjointAgents")
+    isDisjointAgents = true;
+  else
     llvm_unreachable("Unknown property!");
 }
 

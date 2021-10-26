@@ -611,6 +611,9 @@ struct AttributeComparator {
     if (L->hasSideEffects != R->hasSideEffects)
       return R->hasSideEffects;
 
+    if (L->isDisjointAgents != R->isDisjointAgents)
+      return R->isDisjointAgents;
+
     // Try to order by readonly/readnone attribute.
     CodeGenIntrinsic::ModRefBehavior LK = L->ModRef;
     CodeGenIntrinsic::ModRefBehavior RK = R->ModRef;
@@ -742,7 +745,7 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
         Intrinsic.isNoReturn || Intrinsic.isNoSync || Intrinsic.isNoFree ||
         Intrinsic.isWillReturn || Intrinsic.isCold || Intrinsic.isNoDuplicate ||
         Intrinsic.isNoMerge || Intrinsic.isConvergent ||
-        Intrinsic.isSpeculatable) {
+        Intrinsic.isSpeculatable || Intrinsic.isDisjointAgents) {
       OS << "      const Attribute::AttrKind Atts[] = {";
       ListSeparator LS(",");
       if (!Intrinsic.canThrow)
@@ -765,6 +768,8 @@ void IntrinsicEmitter::EmitAttributes(const CodeGenIntrinsicTable &Ints,
         OS << LS << "Attribute::Convergent";
       if (Intrinsic.isSpeculatable)
         OS << LS << "Attribute::Speculatable";
+      if (Intrinsic.isDisjointAgents)
+        OS << LS << "Attribute::DisjointAgents";
 
       switch (Intrinsic.ModRef) {
       case CodeGenIntrinsic::NoMem:

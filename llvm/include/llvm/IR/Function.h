@@ -590,6 +590,17 @@ public:
     removeFnAttr(Attribute::Convergent);
   }
 
+  /// Determine if the call has disjoint agents.
+  bool isDisjointAgents() const {
+    return hasFnAttribute(Attribute::DisjointAgents);
+  }
+  void setDisjointAgents() {
+    addFnAttr(Attribute::DisjointAgents);
+  }
+  void setNotDisjointAgents() {
+    removeFnAttr(Attribute::DisjointAgents);
+  }
+
   /// Determine if the call has sideeffects.
   bool isSpeculatable() const {
     return hasFnAttribute(Attribute::Speculatable);

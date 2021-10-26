@@ -622,6 +622,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_BY_VAL;
   case Attribute::Convergent:
     return bitc::ATTR_KIND_CONVERGENT;
+  case Attribute::DisjointAgents:
+    return bitc::ATTR_KIND_DISJOINT_AGENTS;
   case Attribute::InAlloca:
     return bitc::ATTR_KIND_IN_ALLOCA;
   case Attribute::Cold:

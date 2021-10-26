@@ -1251,7 +1251,7 @@ let TargetPrefix = "nvvm" in {
   // The builtin for "bar.sync 0" is called __syncthreads.  Unlike most of the
   // intrinsics in this file, this one is a user-facing API.
   def int_nvvm_barrier0 : GCCBuiltin<"__syncthreads">,
-      Intrinsic<[], [], [IntrConvergent]>;
+      Intrinsic<[], [], [IntrConvergent, IntrDisjointAgents]>;
   // Synchronize all threads in the CTA at barrier 'n'.
   def int_nvvm_barrier_n : GCCBuiltin<"__nvvm_bar_n">,
       Intrinsic<[], [llvm_i32_ty], [IntrConvergent]>;

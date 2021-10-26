@@ -981,6 +981,7 @@ void InstrInfoEmitter::emitRecord(const CodeGenInstruction &Inst, unsigned Num,
   if (Inst.isExtractSubreg) OS << "|(1ULL<<MCID::ExtractSubreg)";
   if (Inst.isInsertSubreg) OS << "|(1ULL<<MCID::InsertSubreg)";
   if (Inst.isConvergent) OS << "|(1ULL<<MCID::Convergent)";
+  if (Inst.isDisjointAgents) OS << "|(1ULL<<MCID::DisjointAgents)";
   if (Inst.variadicOpsAreDefs) OS << "|(1ULL<<MCID::VariadicOpsAreDefs)";
   if (Inst.isAuthenticated) OS << "|(1ULL<<MCID::Authenticated)";
 

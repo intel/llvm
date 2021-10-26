@@ -148,6 +148,9 @@ struct CodeGenIntrinsic {
   // True if the intrinsic is marked as speculatable.
   bool isSpeculatable;
 
+  // True if the intrinsic is marked as interacting with disjoint agents.
+  bool isDisjointAgents;
+
   enum ArgAttrKind {
     NoCapture,
     NoAlias,

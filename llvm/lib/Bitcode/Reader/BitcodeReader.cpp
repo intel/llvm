@@ -1231,6 +1231,7 @@ static uint64_t getRawAttributeMask(Attribute::AttrKind Val) {
   case Attribute::Naked:           return 1 << 24;
   case Attribute::InlineHint:      return 1 << 25;
   case Attribute::StackAlignment:  return 7 << 26;
+  case Attribute::DisjointAgents:  return 1ULL << 28;
   case Attribute::ReturnsTwice:    return 1 << 29;
   case Attribute::UWTable:         return 1 << 30;
   case Attribute::NonLazyBind:     return 1U << 31;
@@ -1396,6 +1397,8 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::Cold;
   case bitc::ATTR_KIND_CONVERGENT:
     return Attribute::Convergent;
+  case bitc::ATTR_KIND_DISJOINT_AGENTS:
+    return Attribute::DisjointAgents;
   case bitc::ATTR_KIND_DISABLE_SANITIZER_INSTRUMENTATION:
     return Attribute::DisableSanitizerInstrumentation;
   case bitc::ATTR_KIND_ELEMENTTYPE:

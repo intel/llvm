@@ -533,18 +533,14 @@ void GlobalsAAResult::AnalyzeCallGraph(CallGraph &CG, Module &M) {
           FI.addModRefInfo(ModRefInfo::ModRef);
           if (!F->onlyAccessesArgMemory())
             FI.setMayReadAnyGlobal();
-          if (!F->isIntrinsic()) {
-            KnowNothing = true;
-            break;
-          } else if (F->getName().contains("nvvm.barrier") or
-                     F->getName().contains("nvvm.membar")) {
+          if (!F->isIntrinsic() || F->isDisjointAgents()) {
             // Even if it is an intrinsic, consider that nothing is known for
-            // NVVM barrier itrinsics to prevent illegal optimizations.
-            // This is a workaround for the bug on PTX target: barrier
-            // intrinsics are implemented as llvm intrinsics, as result there
-            // are cases when globals alias analysis can produce a result that
-            // barrier doesn't modify internal global which causes illegal
-            // reordering of memory accesses.
+            // calls that interact with disjoint agents, such as NVVM barrier
+            // itrinsics to prevent illegal optimizations.
+            // For context in PTX  barriers are implemented as llvm intrinsics,
+            // as result there are cases when globals alias analysis can
+            // produce a result that barrier doesn't modify internal global
+            // which causes illegal reordering of memory accesses.
             KnowNothing = true;
             break;
           }

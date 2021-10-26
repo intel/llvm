@@ -397,6 +397,7 @@ CodeGenInstruction::CodeGenInstruction(Record *R)
   isExtractSubreg = R->getValueAsBit("isExtractSubreg");
   isInsertSubreg = R->getValueAsBit("isInsertSubreg");
   isConvergent = R->getValueAsBit("isConvergent");
+  isDisjointAgents = R->getValueAsBit("isDisjointAgents");
   hasNoSchedulingInfo = R->getValueAsBit("hasNoSchedulingInfo");
   FastISelShouldIgnore = R->getValueAsBit("FastISelShouldIgnore");
   variadicOpsAreDefs = R->getValueAsBit("variadicOpsAreDefs");
