@@ -41,9 +41,7 @@ template <> struct interop<backend::opencl, device> {
   using type = cl_device_id;
 };
 
-template <> struct interop<backend::opencl, event> {
-  using type = cl_event;
-};
+template <> struct interop<backend::opencl, event> { using type = cl_event; };
 
 template <> struct interop<backend::opencl, queue> {
   using type = cl_command_queue;

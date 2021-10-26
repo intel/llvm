@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/assert_happened.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/service_kernel_names.hpp>

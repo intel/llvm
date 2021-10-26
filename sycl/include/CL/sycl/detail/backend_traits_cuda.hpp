@@ -127,7 +127,6 @@ template <> struct BackendReturn<backend::ext_oneapi_cuda, queue> {
   using type = CUstream;
 };
 
-
 #ifdef __SYCL_INTERNAL_API
 template <> struct BackendInput<backend::ext_oneapi_cuda, program> {
   using type = CUmodule;
