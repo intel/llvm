@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <atomic_inc_dec_helpers.h>
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
-#include <atomic_inc_dec_helpers.h>
 
 __CLC_NVVM_ATOMIC_INCDEC(unsigned int, j, IDecrement, -1)
 __CLC_NVVM_ATOMIC_INCDEC(unsigned long, m, IDecrement, -1)

@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <atomic_helpers.h>
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
-#include <atomic_helpers.h>
 
 __CLC_NVVM_ATOMIC(int, i, int, i, and, _Z17__spirv_AtomicAnd)
 __CLC_NVVM_ATOMIC(long, l, long, l, and, _Z17__spirv_AtomicAnd)
