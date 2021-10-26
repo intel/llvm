@@ -20,7 +20,10 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/scheduler/scheduler_helpers.hpp>
+#include <detail/stream_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -105,12 +108,12 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr = nullptr;
   // Kernel_bundles could not be used before CGType version 1
   if (getCGTypeVersion(MCGType) >
       static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
@@ -132,8 +135,55 @@ event handler::finalize() {
     }
   }
 
+  const auto &type = getType();
+  if (type == detail::CG::Kernel &&
+      MRequirements.size() + MEvents.size() == 0) {
+    // Stream's flush buffer memory is mainly initialized in stream's __init
+    // method. However, this method is not available on host device.
+    // Initializing stream's flush buffer on the host side in a separate task.
+    if (MQueue->is_host()) {
+      for (const detail::StreamImplPtr &Stream : MStreamStorage) {
+        initStream(Stream, MQueue);
+      }
+    }
+
+    std::vector<RT::PiEvent> RawEvents;
+    detail::EventImplPtr NewEvent =
+        std::make_shared<detail::event_impl>(MQueue);
+    NewEvent->setContextImpl(MQueue->getContextImplPtr());
+
+    auto RunKernelOnHost =
+        [](detail::NDRDescT &NDRDesc, std::vector<detail::ArgDesc> &Args,
+           const std::unique_ptr<detail::HostKernelBase> &HostKernel) {
+          for (detail::ArgDesc &Arg : Args)
+            if (detail::kernel_param_kind_t::kind_accessor == Arg.MType) {
+              throw cl::sycl::feature_not_supported(
+                  "Unsupported accessor case.", PI_INVALID_OPERATION);
+            }
+          HostKernel->call(NDRDesc, nullptr);
+          return CL_SUCCESS;
+        };
+
+    auto Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, MHostKernel,
+                                KernelBundleImpPtr, MKernel, MKernelName,
+                                MOSModuleHandle, RawEvents, NewEvent, nullptr,
+                                RunKernelOnHost);
+
+    if (CL_SUCCESS != Res)
+      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+      NewEvent->setComplete();
+
+    for (auto StreamImplPtr : MStreamStorage) {
+      StreamImplPtr->flush();
+    }
+
+    MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+    return MLastEvent;
+  }
+
   std::unique_ptr<detail::CG> CommandGroup;
-  switch (getType()) {
+  switch (type) {
   case detail::CG::Kernel:
   case detail::CG::RunOnHostIntel: {
     // Copy kernel name here instead of move so that it's available after
