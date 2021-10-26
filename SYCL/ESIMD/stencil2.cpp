@@ -91,7 +91,8 @@ int main(int argc, char *argv[]) {
             << std::endl;
   cl::sycl::range<2> LocalRange{1, 1};
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+          property::queue::enable_profiling{});
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
@@ -105,85 +106,108 @@ int main(int argc, char *argv[]) {
   InitializeSquareMatrix(inputMatrix, DIM_SIZE, false);
   InitializeSquareMatrix(outputMatrix, DIM_SIZE, true);
 
+  // Start Timer
+  esimd_test::Timer timer;
+  double start;
+
+  double kernel_times = 0;
+  unsigned num_iters = 10;
+
   try {
-    auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Stencil_kernel>(
-          GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
-            uint h_pos = it.get_id(0);
-            uint v_pos = it.get_id(1);
+    for (int iter = 0; iter <= num_iters; ++iter) {
+      auto e = q.submit([&](handler &cgh) {
+        cgh.parallel_for<class Stencil_kernel>(
+            GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
+              using namespace sycl::ext::intel::experimental::esimd;
+              uint h_pos = it.get_id(0);
+              uint v_pos = it.get_id(1);
 
-            simd<float, (HEIGHT + 10) * 32> vin;
-            // matrix HEIGHT+10 x 32
-            auto in = vin.bit_cast_view<float, HEIGHT + 10, 32>();
+              simd<float, (HEIGHT + 10) * 32> vin;
+              // matrix HEIGHT+10 x 32
+              auto in = vin.bit_cast_view<float, HEIGHT + 10, 32>();
 
-            //
-            // rather than loading all data in
-            // the code will interleave data loading and compute
-            // first, we load enough data for the first 16 pixels
-            //
-            unsigned off = (v_pos * HEIGHT) * DIM_SIZE + h_pos * WIDTH;
+              //
+              // rather than loading all data in
+              // the code will interleave data loading and compute
+              // first, we load enough data for the first 16 pixels
+              //
+              unsigned off = (v_pos * HEIGHT) * DIM_SIZE + h_pos * WIDTH;
 #pragma unroll
-            for (unsigned i = 0; i < 10; i++) {
-              simd<float, 32> data;
-              data.copy_from(inputMatrix + off);
-              in.row(i) = data;
-              off += DIM_SIZE;
-            }
+              for (unsigned i = 0; i < 10; i++) {
+                simd<float, 32> data;
+                data.copy_from(inputMatrix + off);
+                in.row(i) = data;
+                off += DIM_SIZE;
+              }
 
-            unsigned out_off =
-                (((v_pos * HEIGHT + 5) * DIM_SIZE + (h_pos * WIDTH) + 5)) *
-                sizeof(float);
-            simd<unsigned, WIDTH> elm16(0, 1);
+              unsigned out_off =
+                  (((v_pos * HEIGHT + 5) * DIM_SIZE + (h_pos * WIDTH) + 5)) *
+                  sizeof(float);
+              simd<unsigned, WIDTH> elm16(0, 1);
 
 #pragma unroll
-            for (unsigned i = 0; i < HEIGHT; i++) {
-              simd<float, 32> data;
-              data.copy_from(inputMatrix + off);
-              in.row(10 + i) = data;
-              off += DIM_SIZE;
+              for (unsigned i = 0; i < HEIGHT; i++) {
+                simd<float, 32> data;
+                data.copy_from(inputMatrix + off);
+                in.row(10 + i) = data;
+                off += DIM_SIZE;
 
-              simd<float, WIDTH> sum =
-                  vin.select<WIDTH, 1>(GET_IDX(i, 5)) * -0.02f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 1, 5)) * -0.025f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 2, 5)) * -0.0333333333333f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 3, 5)) * -0.05f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 4, 5)) * -0.1f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 0)) * -0.02f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 1)) * -0.025f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 2)) * -0.0333333333333f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 3)) * -0.05f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 4)) * -0.1f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 6)) * 0.1f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 7)) * 0.05f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 8)) * 0.0333333333333f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 9)) * 0.025f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 5, 10)) * 0.02f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 6, 5)) * 0.1f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 7, 5)) * 0.05f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 8, 5)) * 0.0333333333333f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 9, 5)) * 0.025f +
-                  vin.select<WIDTH, 1>(GET_IDX(i + 10, 5)) * 0.02f;
+                simd<float, WIDTH> sum =
+                    vin.select<WIDTH, 1>(GET_IDX(i, 5)) * -0.02f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 1, 5)) * -0.025f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 2, 5)) *
+                        -0.0333333333333f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 3, 5)) * -0.05f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 4, 5)) * -0.1f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 0)) * -0.02f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 1)) * -0.025f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 2)) *
+                        -0.0333333333333f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 3)) * -0.05f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 4)) * -0.1f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 6)) * 0.1f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 7)) * 0.05f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 8)) * 0.0333333333333f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 9)) * 0.025f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 5, 10)) * 0.02f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 6, 5)) * 0.1f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 7, 5)) * 0.05f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 8, 5)) * 0.0333333333333f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 9, 5)) * 0.025f +
+                    vin.select<WIDTH, 1>(GET_IDX(i + 10, 5)) * 0.02f;
 
-              // predciate output
-              simd_mask<WIDTH> p = (elm16 + h_pos * WIDTH) < (DIM_SIZE - 10);
+                // predciate output
+                simd_mask<WIDTH> p = (elm16 + h_pos * WIDTH) < (DIM_SIZE - 10);
 
-              simd<unsigned, WIDTH> elm16_off = elm16 * sizeof(float) + out_off;
-              scatter<float, WIDTH>(outputMatrix, sum, elm16_off, p);
-              out_off += DIM_SIZE * sizeof(float);
+                simd<unsigned, WIDTH> elm16_off =
+                    elm16 * sizeof(float) + out_off;
+                scatter<float, WIDTH>(outputMatrix, sum, elm16_off, p);
+                out_off += DIM_SIZE * sizeof(float);
 
-              if (v_pos * HEIGHT + 10 + i >= DIM_SIZE - 1)
-                break;
-            }
-          });
-    });
-    e.wait();
+                if (v_pos * HEIGHT + 10 + i >= DIM_SIZE - 1)
+                  break;
+              }
+            });
+      });
+      e.wait();
+      double etime = esimd_test::report_time("kernel time", e, e);
+      if (iter > 0)
+        kernel_times += etime;
+      else
+        start = timer.Elapsed();
+    }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     free(inputMatrix, ctxt);
     free(outputMatrix, ctxt);
-    return e.get_cl_code();
+    return 1;
   }
+
+  // End timer.
+  double end = timer.Elapsed();
+
+  esimd_test::display_timing_stats(kernel_times, num_iters,
+                                   (end - start) * 1000);
 
   // check result
   bool passed = CheckResults(outputMatrix, inputMatrix, DIM_SIZE);

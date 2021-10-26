@@ -235,42 +235,49 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
   }
 }
 
-void hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
-                         unsigned thrd_stride, unsigned n_entries,
-                         unsigned entry_per_th) {
+double hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
+                           unsigned thrd_stride, unsigned n_entries,
+                           unsigned entry_per_th) {
+  double kernel_times = 0;
   try {
     if (n_entries <= REMAINING_ENTRIES) {
+#ifdef DEBUG_DUMPS
       std::cout << "... n_entries: " << n_entries
                 << " elem_stide: " << elem_stride
                 << " thread_stride: " << thrd_stride
                 << " entry per thread: " << entry_per_th << std::endl;
+#endif // DEBUG_DUMPS
       // one single thread
-      q.submit([&](handler &cgh) {
+      auto e = q.submit([&](handler &cgh) {
         cgh.parallel_for<class Accum_final>(
             range<2>{1, 1} * range<2>{1, 1}, [=](item<2> it) SYCL_ESIMD_KERNEL {
               cmk_acum_final(buf, it.get_id(0), elem_stride, n_entries);
             });
       });
-      q.wait();
-      return;
+      e.wait();
+      kernel_times += esimd_test::report_time("kernel1 time", e, e);
+      return kernel_times;
     }
 
+#ifdef DEBUG_DUMPS
     std::cout << "*** n_entries: " << n_entries
               << " elem_stide: " << elem_stride
               << " thread_stride: " << thrd_stride
               << " entry per thread: " << entry_per_th << std::endl;
+#endif // DEBUG_DUMPS
 
     if (entry_per_th == PREFIX_ENTRIES) {
-      q.submit([&](handler &cgh) {
+      auto e = q.submit([&](handler &cgh) {
         cgh.parallel_for<class Accum_iterative1>(
             range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
             [=](item<2> it) SYCL_ESIMD_KERNEL {
               cmk_acum_iterative(buf, it.get_id(0), elem_stride, thrd_stride);
             });
       });
-      q.wait();
+      e.wait();
+      kernel_times += esimd_test::report_time("kernel2 time", e, e);
     } else {
-      q.submit([&](handler &cgh) {
+      auto e = q.submit([&](handler &cgh) {
         cgh.parallel_for<class Accum_iterative2>(
             range<2>{n_entries / entry_per_th, 1} * range<2>{1, 1},
             [=](item<2> it) SYCL_ESIMD_KERNEL {
@@ -278,7 +285,8 @@ void hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
                                      thrd_stride);
             });
       });
-      q.wait();
+      e.wait();
+      kernel_times += esimd_test::report_time("kernel3 time", e, e);
     }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -287,15 +295,21 @@ void hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
   // if number of remaining entries <= 4K , each thread  accumulates smaller
   // number of entries to keep EUs saturated
   if (n_entries / entry_per_th > 4096)
-    hierarchical_prefix(q, buf, thrd_stride, thrd_stride * PREFIX_ENTRIES,
-                        n_entries / entry_per_th, PREFIX_ENTRIES);
+    kernel_times +=
+        hierarchical_prefix(q, buf, thrd_stride, thrd_stride * PREFIX_ENTRIES,
+                            n_entries / entry_per_th, PREFIX_ENTRIES);
   else
-    hierarchical_prefix(q, buf, thrd_stride, thrd_stride * PREFIX_ENTRIES_LOW,
-                        n_entries / entry_per_th, PREFIX_ENTRIES_LOW);
+    kernel_times += hierarchical_prefix(
+        q, buf, thrd_stride, thrd_stride * PREFIX_ENTRIES_LOW,
+        n_entries / entry_per_th, PREFIX_ENTRIES_LOW);
 
+#ifdef DEBUG_DUMPS
   std::cout << "=== n_entries: " << n_entries << " elem_stide: " << elem_stride
             << " thread_stride: " << thrd_stride
             << " entry per thread: " << entry_per_th << std::endl;
+#endif // DEBUG_DUMPS
+
+  return kernel_times;
 }
 
 //************************************
@@ -308,31 +322,55 @@ void hierarchical_prefix(queue &q, unsigned *buf, unsigned elem_stride,
 //************************************
 int main(int argc, char *argv[]) {
 
-  unsigned int *pInputs;
   unsigned log2_element = 26;
   unsigned int size = 1 << log2_element;
 
   cl::sycl::range<2> LocalRange{1, 1};
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+          property::queue::enable_profiling{});
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto ctxt = q.get_context();
 
-  // allocate and initialized input
-  pInputs = static_cast<unsigned int *>(
-      malloc_shared(size * TUPLE_SZ * sizeof(unsigned int), dev, ctxt));
+  // allocate and initialized input data
+  unsigned int *pInputs = static_cast<unsigned int *>(
+      malloc(size * TUPLE_SZ * sizeof(unsigned int)));
   for (unsigned int i = 0; i < size * TUPLE_SZ; ++i) {
     pInputs[i] = rand() % 128;
   }
 
-  // allocate & compute expected result
+  // allocate kernel buffer
+  unsigned int *pDeviceOutputs =
+      malloc_shared<unsigned int>(size * TUPLE_SZ, q);
+
+  // allocate & intialize expected result
   unsigned int *pExpectOutputs = static_cast<unsigned int *>(
       malloc(size * TUPLE_SZ * sizeof(unsigned int)));
   memcpy(pExpectOutputs, pInputs, size * TUPLE_SZ * sizeof(unsigned));
 
-  hierarchical_prefix(q, pInputs, 1, PREFIX_ENTRIES, size, PREFIX_ENTRIES);
+  // Start Timer
+  esimd_test::Timer timer;
+  double start;
+
+  double kernel_times = 0;
+  unsigned num_iters = 10;
+
+  for (int iter = 0; iter <= num_iters; ++iter) {
+    memcpy(pDeviceOutputs, pInputs, size * TUPLE_SZ * sizeof(unsigned));
+    double etime = hierarchical_prefix(q, pDeviceOutputs, 1, PREFIX_ENTRIES,
+                                       size, PREFIX_ENTRIES);
+    if (iter > 0)
+      kernel_times += etime;
+    else
+      start = timer.Elapsed();
+  }
+
+  // End timer.
+  double end = timer.Elapsed();
+
+  esimd_test::display_timing_stats(kernel_times, num_iters,
+                                   (end - start) * 1000);
 
   compute_local_prefixsum(pExpectOutputs, size, 1, PREFIX_ENTRIES,
                           PREFIX_ENTRIES);
@@ -345,12 +383,13 @@ int main(int argc, char *argv[]) {
                                     PREFIX_ENTRIES * PREFIX_ENTRIES *
                                         PREFIX_ENTRIES_LOW);
 
-  bool pass = memcmp(pInputs, pExpectOutputs,
+  bool pass = memcmp(pDeviceOutputs, pExpectOutputs,
                      size * TUPLE_SZ * sizeof(unsigned int)) == 0;
   std::cout << "Prefix " << (pass ? "=> PASSED" : "=> FAILED") << std::endl
             << std::endl;
 
-  free(pInputs, ctxt);
+  free(pDeviceOutputs, q);
   free(pExpectOutputs);
+  free(pInputs);
   return 0;
 }

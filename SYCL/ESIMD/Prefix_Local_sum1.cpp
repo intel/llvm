@@ -38,8 +38,8 @@
 using namespace cl::sycl;
 using namespace sycl::ext::intel::experimental::esimd;
 
-void compute_local_prefixsum(unsigned int input[], unsigned int prefixSum[],
-                             unsigned int size) {
+void compute_local_prefixsum(const unsigned int input[],
+                             unsigned int prefixSum[], unsigned int size) {
 
   memcpy(prefixSum, input, size * TUPLE_SZ * sizeof(unsigned));
   unsigned local_sum[TUPLE_SZ];
@@ -117,7 +117,6 @@ void cmk_sum_tuple_count(unsigned int *buf, unsigned int h_pos) {
 //************************************
 int main(int argc, char *argv[]) {
 
-  unsigned int *pInputs;
   if (argc < 2) {
     std::cout << "Usage: prefix [N]. N is 2^N entries x TUPLE_SZ" << std::endl;
     exit(1);
@@ -127,18 +126,22 @@ int main(int argc, char *argv[]) {
 
   cl::sycl::range<2> LocalRange{1, 1};
 
-  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+  queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+          property::queue::enable_profiling{});
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto ctxt = q.get_context();
 
   // allocate and initialized input
-  pInputs = static_cast<unsigned int *>(
-      malloc_shared(size * TUPLE_SZ * sizeof(unsigned int), dev, ctxt));
+  unsigned int *pInputs = static_cast<unsigned int *>(
+      malloc(size * TUPLE_SZ * sizeof(unsigned int)));
   for (unsigned int i = 0; i < size * TUPLE_SZ; ++i) {
     pInputs[i] = rand() % 128;
   }
+
+  // allocate device buffer
+  unsigned int *pDeviceOutputs =
+      malloc_shared<unsigned int>(size * TUPLE_SZ, q);
 
   // allocate & compute expected result
   unsigned int *pExpectOutputs = static_cast<unsigned int *>(
@@ -147,27 +150,51 @@ int main(int argc, char *argv[]) {
 
   // compute local sum for every chunk of PREFIX_ENTRIES
   cl::sycl::range<2> GlobalRange{size / PREFIX_ENTRIES, 1};
+
+  // Start Timer
+  esimd_test::Timer timer;
+  double start;
+
+  double kernel_times = 0;
+  unsigned num_iters = 10;
+
   try {
-    auto e0 = q.submit([&](handler &cgh) {
-      cgh.parallel_for<class Sum_tuple>(
-          GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
-            cmk_sum_tuple_count(pInputs, it.get_id(0));
-          });
-    });
-    e0.wait();
+    for (int iter = 0; iter <= num_iters; ++iter) {
+      memcpy(pDeviceOutputs, pInputs, size * TUPLE_SZ * sizeof(unsigned int));
+      auto e0 = q.submit([&](handler &cgh) {
+        cgh.parallel_for<class Sum_tuple>(
+            GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
+              cmk_sum_tuple_count(pDeviceOutputs, it.get_id(0));
+            });
+      });
+      e0.wait();
+      double etime = esimd_test::report_time("kernel time", e0, e0);
+      if (iter > 0)
+        kernel_times += etime;
+      else
+        start = timer.Elapsed();
+    }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    free(pInputs, ctxt);
+    free(pDeviceOutputs, q);
     free(pExpectOutputs);
-    return e.get_cl_code();
+    free(pInputs);
+    return 1;
   }
 
-  bool pass = memcmp(pInputs, pExpectOutputs,
+  // End timer.
+  double end = timer.Elapsed();
+
+  esimd_test::display_timing_stats(kernel_times, num_iters,
+                                   (end - start) * 1000);
+
+  bool pass = memcmp(pDeviceOutputs, pExpectOutputs,
                      size * TUPLE_SZ * sizeof(unsigned int)) == 0;
   std::cout << "Prefix " << (pass ? "=> PASSED" : "=> FAILED") << std::endl
             << std::endl;
 
-  free(pInputs, ctxt);
+  free(pDeviceOutputs, q);
   free(pExpectOutputs);
+  free(pInputs);
   return 0;
 }

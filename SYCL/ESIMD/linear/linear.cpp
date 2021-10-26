@@ -54,6 +54,13 @@ int main(int argc, char *argv[]) {
   // Sets output to blank image.
   output_image.setData(new unsigned char[img_size]);
 
+  // Start Timer
+  esimd_test::Timer timer;
+  double start;
+
+  double kernel_times = 0;
+  unsigned num_iters = 10;
+
   try {
     unsigned int img_width = width * bpp / (8 * sizeof(int));
 
@@ -73,59 +80,73 @@ int main(int argc, char *argv[]) {
     // Number of workitems in a workgroup
     cl::sycl::range<2> LocalRange{1, 1};
 
-    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
+    queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
+            property::queue::enable_profiling{});
 
     auto dev = q.get_device();
     auto ctxt = q.get_context();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
-    auto e = q.submit([&](cl::sycl::handler &cgh) {
-      auto accInput =
-          imgInput.get_access<uint4, cl::sycl::access::mode::read>(cgh);
-      auto accOutput =
-          imgOutput.get_access<uint4, cl::sycl::access::mode::write>(cgh);
+    for (int iter = 0; iter <= num_iters; ++iter) {
+      auto e = q.submit([&](cl::sycl::handler &cgh) {
+        auto accInput =
+            imgInput.get_access<uint4, cl::sycl::access::mode::read>(cgh);
+        auto accOutput =
+            imgOutput.get_access<uint4, cl::sycl::access::mode::write>(cgh);
 
-      cgh.parallel_for<class Test>(
-          GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
+        cgh.parallel_for<class Test>(
+            GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
+              using namespace sycl::ext::intel::experimental::esimd;
 
-            simd<unsigned char, 8 * 32> vin;
-            auto in = vin.bit_cast_view<unsigned char, 8, 32>();
+              simd<unsigned char, 8 * 32> vin;
+              auto in = vin.bit_cast_view<unsigned char, 8, 32>();
 
-            simd<unsigned char, 6 * 24> vout;
-            auto out = vout.bit_cast_view<uchar, 6, 24>();
+              simd<unsigned char, 6 * 24> vout;
+              auto out = vout.bit_cast_view<uchar, 6, 24>();
 
-            simd<float, 6 * 24> vm;
-            auto m = vm.bit_cast_view<float, 6, 24>();
+              simd<float, 6 * 24> vm;
+              auto m = vm.bit_cast_view<float, 6, 24>();
 
-            uint h_pos = it.get_id(0);
-            uint v_pos = it.get_id(1);
+              uint h_pos = it.get_id(0);
+              uint v_pos = it.get_id(1);
 
-            in = media_block_load<unsigned char, 8, 32>(accInput, h_pos * 24,
-                                                        v_pos * 6);
+              in = media_block_load<unsigned char, 8, 32>(accInput, h_pos * 24,
+                                                          v_pos * 6);
 
-            m = in.select<6, 1, 24, 1>(1, 3);
-            m += in.select<6, 1, 24, 1>(0, 0);
-            m += in.select<6, 1, 24, 1>(0, 3);
-            m += in.select<6, 1, 24, 1>(0, 6);
-            m += in.select<6, 1, 24, 1>(1, 0);
-            m += in.select<6, 1, 24, 1>(1, 6);
-            m += in.select<6, 1, 24, 1>(2, 0);
-            m += in.select<6, 1, 24, 1>(2, 3);
-            m += in.select<6, 1, 24, 1>(2, 6);
-            m = m * 0.111f;
+              m = in.select<6, 1, 24, 1>(1, 3);
+              m += in.select<6, 1, 24, 1>(0, 0);
+              m += in.select<6, 1, 24, 1>(0, 3);
+              m += in.select<6, 1, 24, 1>(0, 6);
+              m += in.select<6, 1, 24, 1>(1, 0);
+              m += in.select<6, 1, 24, 1>(1, 6);
+              m += in.select<6, 1, 24, 1>(2, 0);
+              m += in.select<6, 1, 24, 1>(2, 3);
+              m += in.select<6, 1, 24, 1>(2, 6);
+              m = m * 0.111f;
 
-            vout = convert<unsigned char>(vm);
+              vout = convert<unsigned char>(vm);
 
-            media_block_store<unsigned char, 6, 24>(accOutput, h_pos * 24,
-                                                    v_pos * 6, out);
-          });
-    });
-    e.wait();
+              media_block_store<unsigned char, 6, 24>(accOutput, h_pos * 24,
+                                                      v_pos * 6, out);
+            });
+      });
+      e.wait();
+      double etime = esimd_test::report_time("kernel time", e, e);
+      if (iter > 0)
+        kernel_times += etime;
+      else
+        start = timer.Elapsed();
+    }
   } catch (cl::sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    return 1;
   }
+
+  // End timer.
+  double end = timer.Elapsed();
+
+  esimd_test::display_timing_stats(kernel_times, num_iters,
+                                   (end - start) * 1000);
 
   output_image.save("linear_out.bmp");
   bool passed = sycl::intel::util::bitmap::BitMap::checkResult("linear_out.bmp",

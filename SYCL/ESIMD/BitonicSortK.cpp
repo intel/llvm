@@ -592,74 +592,94 @@ int BitonicSort::Solve(uint32_t *pInputs, uint32_t *pOutputs, uint32_t size) {
   // Number of workitems in a workgroup
   cl::sycl::range<1> SortLocalRange{1};
 
-  double total_time = 0;
-  try {
-    buffer<uint32_t, 1> bufi(pInputs, range<1>(size));
-    buffer<uint32_t, 1> bufo(pOutputs, range<1>(size));
-    // enqueue sort265 kernel
-    auto e = pQueue_->submit([&](handler &cgh) {
-      auto acci = bufi.get_access<access::mode::read>(cgh);
-      auto acco = bufo.get_access<access::mode::write>(cgh);
-      cgh.parallel_for<class Sort256>(
-          SortGlobalRange * SortLocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
-            using namespace sycl::ext::intel::experimental::esimd;
-            cmk_bitonic_sort_256(acci, acco, i);
-          });
-    });
-    e.wait();
-    total_time += esimd_test::report_time("kernel time", e, e);
-  } catch (cl::sycl::exception const &e) {
-    std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
-  }
+  // Start Timer
+  esimd_test::Timer timer;
+  double start;
 
-  // Each HW thread swap two 256-element chunks. Hence, we only need
-  // to launch size/ (base_sort_size*2) HW threads
-  total_threads = size / (base_sort_size_ * 2);
-  // create ranges
-  // We need that many workitems
-  auto MergeGlobalRange = cl::sycl::range<1>(total_threads);
-  // Number of workitems in a workgroup
-  cl::sycl::range<1> MergeLocalRange{1};
+  // Launches the task on the GPU.
+  double kernel_times = 0;
+  unsigned num_iters = 10;
 
-  // enqueue merge kernel multiple times
-  // this loop is for stage 8 to stage LOG2_ELEMENTS.
-  event mergeEvent[(LOG2_ELEMENTS - 8) * (LOG2_ELEMENTS - 7) / 2];
-  int k = 0;
-  try {
-    for (int i = 8; i < LOG2_ELEMENTS; i++) {
-      // each step halves the stride distance of its prior step.
-      // 1<<j is the stride distance that the invoked step will handle.
-      // The recursive steps continue until stride distance 1 is complete.
-      // For stride distance less than 1<<8, no global synchronization
-      // is needed, i.e., all work can be done locally within HW threads.
-      // Hence, the invocation of j==8 cmk_bitonic_merge finishes stride 256
-      // compare-and-swap and then performs stride 128, 64, 32, 16, 8, 4, 2, 1
-      // locally.
-      for (int j = i; j >= 8; j--) {
-        buffer<uint32_t, 1> buf(pOutputs, range<1>(size));
-        mergeEvent[k] = pQueue_->submit([&](handler &cgh) {
-          auto acc = buf.get_access<access::mode::read_write>(cgh);
-          cgh.parallel_for<class Merge>(
-              MergeGlobalRange * MergeLocalRange,
-              [=](id<1> tid) SYCL_ESIMD_KERNEL {
-                using namespace sycl::ext::intel::experimental::esimd;
-                cmk_bitonic_merge(acc, j, i, tid);
-              });
-        });
-        k++;
-      }
+  // num_iters + 1, iteration#0 is for warmup
+  for (int iter = 0; iter <= num_iters; ++iter) {
+    try {
+      buffer<uint32_t, 1> bufi(pInputs, range<1>(size));
+      buffer<uint32_t, 1> bufo(pOutputs, range<1>(size));
+      // enqueue sort265 kernel
+      auto e = pQueue_->submit([&](handler &cgh) {
+        auto acci = bufi.get_access<access::mode::read>(cgh);
+        auto acco = bufo.get_access<access::mode::write>(cgh);
+        cgh.parallel_for<class Sort256>(
+            SortGlobalRange * SortLocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
+              using namespace sycl::ext::intel::experimental::esimd;
+              cmk_bitonic_sort_256(acci, acco, i);
+            });
+      });
+      e.wait();
+      double etime = esimd_test::report_time("kernel1 time", e, e);
+      if (iter > 0)
+        kernel_times += etime;
+    } catch (cl::sycl::exception const &e) {
+      std::cout << "SYCL exception caught: " << e.what() << '\n';
+      return 0;
     }
-  } catch (cl::sycl::exception const &e) {
-    std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+
+    // Each HW thread swap two 256-element chunks. Hence, we only need
+    // to launch size/ (base_sort_size*2) HW threads
+    total_threads = size / (base_sort_size_ * 2);
+    // create ranges
+    // We need that many workitems
+    auto MergeGlobalRange = cl::sycl::range<1>(total_threads);
+    // Number of workitems in a workgroup
+    cl::sycl::range<1> MergeLocalRange{1};
+
+    // enqueue merge kernel multiple times
+    // this loop is for stage 8 to stage LOG2_ELEMENTS.
+    event mergeEvent[(LOG2_ELEMENTS - 8) * (LOG2_ELEMENTS - 7) / 2];
+    int k = 0;
+    try {
+      for (int i = 8; i < LOG2_ELEMENTS; i++) {
+        // each step halves the stride distance of its prior step.
+        // 1<<j is the stride distance that the invoked step will handle.
+        // The recursive steps continue until stride distance 1 is complete.
+        // For stride distance less than 1<<8, no global synchronization
+        // is needed, i.e., all work can be done locally within HW threads.
+        // Hence, the invocation of j==8 cmk_bitonic_merge finishes stride 256
+        // compare-and-swap and then performs stride 128, 64, 32, 16, 8, 4, 2, 1
+        // locally.
+        for (int j = i; j >= 8; j--) {
+          buffer<uint32_t, 1> buf(pOutputs, range<1>(size));
+          mergeEvent[k] = pQueue_->submit([&](handler &cgh) {
+            auto acc = buf.get_access<access::mode::read_write>(cgh);
+            cgh.parallel_for<class Merge>(
+                MergeGlobalRange * MergeLocalRange,
+                [=](id<1> tid) SYCL_ESIMD_KERNEL {
+                  using namespace sycl::ext::intel::experimental::esimd;
+                  cmk_bitonic_merge(acc, j, i, tid);
+                });
+          });
+          k++;
+        }
+      }
+    } catch (cl::sycl::exception const &e) {
+      std::cout << "SYCL exception caught: " << e.what() << '\n';
+      return 0;
+    }
+
+    mergeEvent[k - 1].wait();
+    double etime = esimd_test::report_time("kernel2 time", mergeEvent[0],
+                                           mergeEvent[k - 1]);
+    if (iter > 0)
+      kernel_times += etime;
+    else
+      start = timer.Elapsed();
   }
 
-  mergeEvent[k - 1].wait();
-  total_time +=
-      esimd_test::report_time("kernel time", mergeEvent[0], mergeEvent[k - 1]);
+  // End timer.
+  double end = timer.Elapsed();
 
-  cout << " Sorting Time = " << total_time << " msec " << std::endl;
+  esimd_test::display_timing_stats(kernel_times, num_iters,
+                                   (end - start) * 1000);
   return 1;
 }
 
