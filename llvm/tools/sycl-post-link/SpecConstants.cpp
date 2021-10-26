@@ -238,8 +238,6 @@ MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
   return MDNode::get(Ctx, ConstantAsMetadata::get(cast<Constant>(Default)));
 }
 
-constexpr unsigned BitsInByte = 8;
-
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
@@ -281,9 +279,7 @@ void collectCompositeElementsInfoRecursive(
     SpecConstantDescriptor Desc;
     Desc.ID = 0; // To be filled later
     Desc.Offset = Offset;
-    // We need to add an additional byte if the type size is not evenly
-    // divisible by eight, which might be the case for i1, i.e. booleans
-    Desc.Size = (Ty->getPrimitiveSizeInBits() + BitsInByte - 1) / BitsInByte;
+    Desc.Size = M.getDataLayout().getTypeStoreSize(Ty);
     Result[Index++] = Desc;
     Offset += Desc.Size;
   }
@@ -338,7 +334,7 @@ void collectCompositeElementsDefaultValuesRecursive(
     // type.
     Offset += SL->getSizeInBytes();
   } else { // Assume that we encountered some scalar element
-    int NumBytes = (Ty->getPrimitiveSizeInBits() + BitsInByte - 1) / BitsInByte;
+    int NumBytes = M.getDataLayout().getTypeStoreSize(Ty);
 
     if (auto IntConst = dyn_cast<ConstantInt>(C)) {
       auto Val = IntConst->getValue().getZExtValue();
@@ -403,12 +399,7 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
     MDOps.push_back(ConstantAsMetadata::get(
         Constant::getIntegerValue(Int32Ty, APInt(32, 0))));
 
-    unsigned Size = 0;
-    if (auto *StructTy = dyn_cast<StructType>(SCTy)) {
-      const auto *SL = M.getDataLayout().getStructLayout(StructTy);
-      Size = SL->getSizeInBytes();
-    } else
-      Size = (SCTy->getPrimitiveSizeInBits() + BitsInByte - 1) / BitsInByte;
+    unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
 
     MDOps.push_back(ConstantAsMetadata::get(
         Constant::getIntegerValue(Int32Ty, APInt(32, Size))));
@@ -614,9 +605,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       // to the intrinsic - this should always be possible, as only string
       // literals are passed to it in the SYCL RT source code, and application
       // code can't use this intrinsic directly.
-      bool IsComposite =
-          F.getName().startswith(SYCL_GET_COMPOSITE_SPEC_CONST_VAL) ||
-          F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL);
+
       // SYCL 2020 specialization constants provide more functionality so they
       // use separate intrinsic with additional arguments.
       bool Is2020Intrinsic =
@@ -707,26 +696,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           bool IsNewSpecConstant = Ins.second;
           unsigned CurrentOffset = Ins.first->second;
           if (IsNewSpecConstant) {
-            unsigned Size = 0;
-            if (IsComposite) {
-              // When handling elements of a structure, we do not use manually
-              // calculated offsets (which are sum of sizes of all previously
-              // encountered elements), but instead rely on data provided for us
-              // by DataLayout, because the structure can be unpacked, i.e.
-              // padded in order to ensure particular alignment of its elements.
-              // We rely on the fact that the StructLayout of spec constant RT
-              // values is the same for the host and the device.
-              const StructLayout *SL =
-                  M.getDataLayout().getStructLayout(cast<StructType>(SCTy));
-              Size = SL->getSizeInBytes();
-            } else {
-              // FIXME: we should always use DataLayout, getScalarSizeInBits may
-              // not reflect the size of memory allocated for an instance of the
-              // type or the number of bytes that are written when an instance
-              // of the type is stored to memory
-              Size = SCTy->getScalarSizeInBits() / CHAR_BIT +
-                     (SCTy->getScalarSizeInBits() % 8 != 0);
-            }
+            unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
 
             SCMetadata[SymID] = generateSpecConstantMetadata(
                 M, SymID, SCTy, NextID, /* is native spec constant */ false);
