@@ -432,7 +432,7 @@ HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
   return No_Assert;
 }
 
-std::vector<StringRef> getFunctionsWithAssertInCallGraph(const Module &M) {
+std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   std::vector<StringRef> Result;
 
   bool HasIndirectlyCalledAssert = false;
@@ -709,7 +709,7 @@ string_vector saveDeviceImageProperty(
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
 
     {
-      std::vector<StringRef> FuncNames = getFunctionsWithAssertInCallGraph(M);
+      std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
       for (const StringRef &FName : FuncNames)
         PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
     }
