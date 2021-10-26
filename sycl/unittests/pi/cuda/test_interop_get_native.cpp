@@ -12,7 +12,6 @@
 
 #include "TestGetPlatforms.hpp"
 #include <CL/sycl.hpp>
-#include <sycl/ext/oneapi/backend/cuda.hpp>
 
 #include <iostream>
 
