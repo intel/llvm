@@ -1223,13 +1223,27 @@ let TargetPrefix = "nvvm" in {
            LLVMMatchType<0>],
           [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
 
+  multiclass PTXAtomicWithScope2_sem<LLVMType elty> {
+    def "": SCOPED_ATOMIC2_impl<elty>;
+    def _acquire: SCOPED_ATOMIC2_impl<elty>;
+    def _release: SCOPED_ATOMIC2_impl<elty>;
+    def _acq_rel: SCOPED_ATOMIC2_impl<elty>;
+  }
+  multiclass PTXAtomicWithScope3_sem<LLVMType elty> {
+    def "": SCOPED_ATOMIC3_impl<elty>;
+    def _acquire: SCOPED_ATOMIC3_impl<elty>;
+    def _release: SCOPED_ATOMIC3_impl<elty>;
+    def _acq_rel: SCOPED_ATOMIC3_impl<elty>;
+  }
   multiclass PTXAtomicWithScope2<LLVMType elty> {
-    def _cta : SCOPED_ATOMIC2_impl<elty>;
-    def _sys : SCOPED_ATOMIC2_impl<elty>;
+    defm "" : PTXAtomicWithScope2_sem<elty>;
+    defm _cta : PTXAtomicWithScope2_sem<elty>;
+    defm _sys : PTXAtomicWithScope2_sem<elty>;
   }
   multiclass PTXAtomicWithScope3<LLVMType elty> {
-    def _cta : SCOPED_ATOMIC3_impl<elty>;
-    def _sys : SCOPED_ATOMIC3_impl<elty>;
+    defm "" : PTXAtomicWithScope3_sem<elty>;
+    defm _cta : PTXAtomicWithScope3_sem<elty>;
+    defm _sys : PTXAtomicWithScope3_sem<elty>;
   }
   multiclass PTXAtomicWithScope2_fi {
     defm _f: PTXAtomicWithScope2<llvm_anyfloat_ty>;
@@ -1241,10 +1255,38 @@ let TargetPrefix = "nvvm" in {
   defm int_nvvm_atomic_exch_gen_i: PTXAtomicWithScope2<llvm_anyint_ty>;
   defm int_nvvm_atomic_xor_gen_i : PTXAtomicWithScope2<llvm_anyint_ty>;
   defm int_nvvm_atomic_max_gen_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_max_gen_ui: PTXAtomicWithScope2<llvm_anyint_ty>;
   defm int_nvvm_atomic_min_gen_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_min_gen_ui: PTXAtomicWithScope2<llvm_anyint_ty>;
   defm int_nvvm_atomic_or_gen_i  : PTXAtomicWithScope2<llvm_anyint_ty>;
   defm int_nvvm_atomic_and_gen_i : PTXAtomicWithScope2<llvm_anyint_ty>;
   defm int_nvvm_atomic_cas_gen_i : PTXAtomicWithScope3<llvm_anyint_ty>;
+
+  defm int_nvvm_atomic_add_shared   : PTXAtomicWithScope2_fi;
+  defm int_nvvm_atomic_inc_shared_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_dec_shared_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_exch_shared_i: PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_xor_shared_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_max_shared_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_max_shared_ui: PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_min_shared_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_min_shared_ui: PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_or_shared_i  : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_and_shared_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_cas_shared_i : PTXAtomicWithScope3<llvm_anyint_ty>;
+  
+  defm int_nvvm_atomic_add_global   : PTXAtomicWithScope2_fi;
+  defm int_nvvm_atomic_inc_global_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_dec_global_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_exch_global_i: PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_xor_global_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_max_global_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_max_global_ui: PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_min_global_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_min_global_ui: PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_or_global_i  : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_and_global_i : PTXAtomicWithScope2<llvm_anyint_ty>;
+  defm int_nvvm_atomic_cas_global_i : PTXAtomicWithScope3<llvm_anyint_ty>;
 
 // Bar.Sync
 
