@@ -238,6 +238,8 @@ MDNode *generateSpecConstDefaultValueMetadata(StringRef SymID, Value *Default) {
   return MDNode::get(Ctx, ConstantAsMetadata::get(cast<Constant>(Default)));
 }
 
+constexpr unsigned BitsInByte = 8;
+
 /// Recursively iterates over a composite type in order to collect information
 /// about its scalar elements.
 void collectCompositeElementsInfoRecursive(
@@ -281,8 +283,7 @@ void collectCompositeElementsInfoRecursive(
     Desc.Offset = Offset;
     // We need to add an additional byte if the type size is not evenly
     // divisible by eight, which might be the case for i1, i.e. booleans
-    Desc.Size = Ty->getPrimitiveSizeInBits() / 8 +
-                (Ty->getPrimitiveSizeInBits() % 8 != 0);
+    Desc.Size = (Ty->getPrimitiveSizeInBits() + BitsInByte - 1) / BitsInByte;
     Result[Index++] = Desc;
     Offset += Desc.Size;
   }
@@ -337,8 +338,7 @@ void collectCompositeElementsDefaultValuesRecursive(
     // type.
     Offset += SL->getSizeInBytes();
   } else { // Assume that we encountered some scalar element
-    int NumBytes = Ty->getScalarSizeInBits() / CHAR_BIT +
-                   (Ty->getScalarSizeInBits() % 8 != 0);
+    int NumBytes = (Ty->getPrimitiveSizeInBits() + BitsInByte - 1) / BitsInByte;
 
     if (auto IntConst = dyn_cast<ConstantInt>(C)) {
       auto Val = IntConst->getValue().getZExtValue();
@@ -408,8 +408,7 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
       const auto *SL = M.getDataLayout().getStructLayout(StructTy);
       Size = SL->getSizeInBytes();
     } else
-      Size = SCTy->getScalarSizeInBits() / CHAR_BIT +
-             (SCTy->getScalarSizeInBits() % 8 != 0);
+      Size = (SCTy->getPrimitiveSizeInBits() + BitsInByte - 1) / BitsInByte;
 
     MDOps.push_back(ConstantAsMetadata::get(
         Constant::getIntegerValue(Int32Ty, APInt(32, Size))));
