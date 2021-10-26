@@ -78,5 +78,5 @@ N.)
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda -E %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-PREPROC %s
 
-// CHK-PREPROC: "-triple" "nvptx64-nvidia-cuda" {{.*}} "-E"
 // CHK-PREPROC-NOT: "-mlink-builtin-bitcode"
+// CHK-PREPROC: "-triple" "nvptx64-nvidia-cuda" {{.*}} "-E"
