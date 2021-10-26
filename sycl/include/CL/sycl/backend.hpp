@@ -12,6 +12,7 @@
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/feature_test.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
 #if SYCL_BACKEND_OPENCL
 #include <CL/sycl/detail/backend_traits_opencl.hpp>
