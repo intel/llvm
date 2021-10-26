@@ -408,7 +408,8 @@ MDNode *generateSpecConstantMetadata(const Module &M, StringRef SymbolicID,
       const auto *SL = M.getDataLayout().getStructLayout(StructTy);
       Size = SL->getSizeInBytes();
     } else
-      Size = SCTy->getScalarSizeInBits() / CHAR_BIT;
+      Size = SCTy->getScalarSizeInBits() / CHAR_BIT +
+             (SCTy->getScalarSizeInBits() % 8 != 0);
 
     MDOps.push_back(ConstantAsMetadata::get(
         Constant::getIntegerValue(Int32Ty, APInt(32, Size))));
@@ -719,8 +720,14 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               const StructLayout *SL =
                   M.getDataLayout().getStructLayout(cast<StructType>(SCTy));
               Size = SL->getSizeInBytes();
-            } else
-              Size = SCTy->getScalarSizeInBits() / CHAR_BIT;
+            } else {
+              // FIXME: we should always use DataLayout, getScalarSizeInBits may
+              // not reflect the size of memory allocated for an instance of the
+              // type or the number of bytes that are written when an instance
+              // of the type is stored to memory
+              Size = SCTy->getScalarSizeInBits() / CHAR_BIT +
+                     (SCTy->getScalarSizeInBits() % 8 != 0);
+            }
 
             SCMetadata[SymID] = generateSpecConstantMetadata(
                 M, SymID, SCTy, NextID, /* is native spec constant */ false);
@@ -735,10 +742,19 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               Int8Ty, RTBuffer,
               {ConstantInt::get(Int32Ty, CurrentOffset, false)}, "gep", CI);
 
-          BitCastInst *BitCast = new BitCastInst(
-              GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc", CI);
+          Instruction *BitCast = nullptr;
+          if (SCTy->isIntegerTy(1)) // No bitcast to i1 before load
+            BitCast = GEP;
+          else
+            BitCast = new BitCastInst(
+                GEP, PointerType::get(SCTy, GEP->getAddressSpace()), "bc", CI);
 
-          Replacement = new LoadInst(SCTy, BitCast, "load", CI);
+          // When we encounter i1 spec constant, we still load the whole byte
+          Replacement = new LoadInst(SCTy->isIntegerTy(1) ? Int8Ty : SCTy,
+                                     BitCast, "load", CI);
+          if (SCTy->isIntegerTy(1)) // trunc back to i1 if necessary
+            Replacement = CastInst::CreateIntegerCast(
+                Replacement, SCTy, /* IsSigned */ false, "tobool", CI);
 
           if (IsNewSpecConstant && DefaultValue)
             DefaultsMetadata.push_back(
