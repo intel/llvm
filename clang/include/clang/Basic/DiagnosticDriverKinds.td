@@ -90,16 +90,9 @@ def warn_drv_partially_supported_cuda_version: Warning<
   InGroup<CudaUnknownVersion>;
 def err_drv_cuda_host_arch : Error<
   "unsupported architecture '%0' for host compilation">;
-def err_drv_no_sycl_cuda_libspirv : Error<
-  "cannot find suitable 'libspirv-nvptx64--nvidiacl.bc' variant; provide path to "
-  "libspirv library via '-fsycl-libspirv-path' or pass '-fno-sycl-libspirv' to " 
-  "build without linking with libspirv. Provide path to "
-  "'remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc' for Linux " 
-  "or 'remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc' for Windows">;
-def err_drv_no_sycl_hip_libspirv : Error<
-  "cannot find 'remangled-l64-signed_char.libspirv-amdgcn--amdhsa.bc'; provide path " 
-  "to libspirv library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to "
-  "build without linking with libspirv">;
+def err_drv_no_sycl_libspirv : Error<
+  "cannot find '%0'; provide path to libspirv library via '-fsycl-libspirv-path' or " 
+  "pass '-fno-sycl-libspirv' to build without linking with libspirv.">;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<
