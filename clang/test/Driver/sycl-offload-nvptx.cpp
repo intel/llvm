@@ -79,3 +79,4 @@ N.)
 // RUN: | FileCheck -check-prefix=CHK-PREPROC %s
 
 // CHK-PREPROC: "-triple" "nvptx64-nvidia-cuda" {{.*}} "-E"
+// CHK-PREPROC-NOT: "-mlink-builtin-bitcode"
