@@ -122,6 +122,7 @@ jobs:
         # Below is a workaround, that switches users for tests.
         chown -R sycl:sycl $GITHUB_WORKSPACE
         su sycl
+        whoami
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always()
