@@ -51,7 +51,11 @@ enum class ownership { transfer, keep };
 
 namespace detail {
 
-// TODO see comments in sycl/backend/opencl.hpp
+// TODO the interops for context, device, event, platform and program
+// may be removed after removing the deprecated 'get_native()' methods
+// from the corresponding classes. The interop<backend, queue> specialization
+// is also used in the get_queue() method of the deprecated class
+// interop_handler and also can be removed after API cleanup.
 template <> struct interop<backend::ext_oneapi_level_zero, context> {
   using type = ze_context_handle_t;
 };
@@ -78,6 +82,8 @@ template <> struct interop<backend::ext_oneapi_level_zero, program> {
 };
 #endif
 
+// TODO the interops for accessor is used in the already deprecated class
+// interop_handler and can be removed after API cleanup.
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::ext_oneapi_level_zero,
                accessor<DataT, Dimensions, AccessMode, access::target::device,

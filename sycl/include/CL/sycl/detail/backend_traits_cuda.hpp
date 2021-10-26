@@ -39,7 +39,11 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
-// TODO see comments in sycl/backend/opencl.hpp
+// TODO the interops for context, device, event, platform and program
+// may be removed after removing the deprecated 'get_native()' methods
+// from the corresponding classes. The interop<backend, queue> specialization
+// is also used in the get_queue() method of the deprecated class
+// interop_handler and also can be removed after API cleanup.
 template <> struct interop<backend::ext_oneapi_cuda, context> {
   using type = CUcontext;
 };
@@ -62,6 +66,8 @@ template <> struct interop<backend::ext_oneapi_cuda, program> {
 };
 #endif
 
+// TODO the interops for accessor is used in the already deprecated class
+// interop_handler and can be removed after API cleanup.
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::ext_oneapi_cuda,
                accessor<DataT, Dimensions, AccessMode, access::target::device,
