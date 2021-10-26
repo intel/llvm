@@ -81,8 +81,6 @@ jobs:
     runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
-      volumes:
-        - ${{ github.workspace }}:${{ github.workspace }}
     steps:
     - uses: actions/checkout@v2
       with:
