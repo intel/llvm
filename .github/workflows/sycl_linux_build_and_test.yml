@@ -87,7 +87,7 @@ jobs:
         path: src
     - name: Setup Cache
       uses: actions/cache@v2
-      if: ${{ steps.parameters.github_cache }}
+      if: ${{ steps.parameters.build_github_cache }}
       id: cache
       with:
         path: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}/build_cache_${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
@@ -121,15 +121,11 @@ jobs:
         # run scripts. It also overrides default entry point for containers.
         # Below is a workaround, that switches users for tests.
         chown -R sycl:sycl $GITHUB_WORKSPACE
-        su sycl
-        whoami
-        cmake --build $GITHUB_WORKSPACE/build --target check-llvm
+        su -c "cmake --build $GITHUB_WORKSPACE/build --target check-llvm" sycl
     - name: check-clang
       if: always()
       run: |
-        chown -R sycl:sycl $GITHUB_WORKSPACE
-        su sycl
-        cmake --build $GITHUB_WORKSPACE/build --target check-clang
+        su -c "cmake --build $GITHUB_WORKSPACE/build --target check-clang" sycl
     - name: check-sycl
       if: always()
       run: |
