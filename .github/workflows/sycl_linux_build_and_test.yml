@@ -116,13 +116,17 @@ jobs:
     - name: Compile
       run: cmake --build $GITHUB_WORKSPACE/build
     # TODO allow to optionally disable in-tree checks
-    - name: check-llvm
-      if: always()
+    - if: always()
       # GitHub Actions requires Docker containers to use default root user to
       # run scripts. It also overrides default entry point for containers. Below
       # is a workaround, that switches users for tests.
       run: |
-        /docker_entrypoint.sh cmake --build $GITHUB_WORKSPACE/build --target check-llvm
+        chown -R sycl:sycl $GITHUB_WORKSPACE
+        su sycl
+    - name: check-llvm
+      if: always()
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always()
       run: |
