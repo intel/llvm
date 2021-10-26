@@ -17,6 +17,8 @@ function(add_sycl_rt_library LIB_NAME)
 
   set(LIB_OBJ_NAME ${LIB_NAME}_object)
 
+  find_package(Threads)
+
   add_sycl_library(${LIB_OBJ_NAME} OBJECT
     SOURCES ${ARG_SOURCES}
     COMPILE_OPTIONS ${ARG_COMPILE_OPTIONS}
@@ -38,7 +40,7 @@ function(add_sycl_rt_library LIB_NAME)
     LINK
       ${ARG_XPTI_LIB}
       ${CMAKE_DL_LIBS}
-      ${CMAKE_THREAD_LIBS_INIT}
+      Threads::Threads
       # TODO remove dependency on OpenCL
       OpenCL-ICD
       "$<$<PLATFORM_ID:Windows>:shlwapi>"

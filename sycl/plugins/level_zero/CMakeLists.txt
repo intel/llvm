@@ -106,6 +106,7 @@ target_include_directories(LevelZeroLoader-Headers
   INTERFACE "${LEVEL_ZERO_INCLUDE_DIR}"
 )
 
+find_package(Threads)
 
 add_sycl_library(pi_level_zero SHARED
   SOURCES
@@ -117,7 +118,7 @@ add_sycl_library(pi_level_zero SHARED
   INCLUDES
     ${sycl_inc_dir}
   LINK
-    ${CMAKE_DL_LIBS}
+    Threads::Threads
   COMPILE_DEFINITIONS
     __SYCL_BUILD_SYCL_DLL
   # This script file is used to allow exporting pi* symbols only.
