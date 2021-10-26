@@ -3690,19 +3690,20 @@ public:
           if (UnnamedLambdaUsed) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-                << /* unnamed type is not valid in a SYCL kernel name */ 2
+                << /* unnamed lambda is used in a SYCL kernel name */ 2
                 << KernelNameType;
             IsInvalid = true;
             return;
           }
-
           // Check if the declaration is completely defined within a
           // function or class/struct.
+
           if (Tag->isCompleteDefinition()) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
                 << /* kernel name should be globally visible */ 0
                 << KernelNameType;
+
             IsInvalid = true;
           } else {
             S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
