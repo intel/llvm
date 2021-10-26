@@ -784,7 +784,7 @@ private:
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
           typename PropertyListT>
-class accessor :
+class __SYCL_SPECIAL_CLASS accessor :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::AccessorBaseHost,
 #endif
@@ -1578,7 +1578,7 @@ public:
 
   template <int Dims = Dimensions>
   typename detail::enable_if_t<(Dims > 0) && AccessMode == access::mode::atomic,
-                               atomic<DataT, AS>>
+                             atomic<DataT, AS>>
   operator[](id<Dimensions> Index) const {
     const size_t LinearIndex = getLinearIndex(Index);
     return atomic<DataT, AS>(
@@ -1593,7 +1593,6 @@ public:
     return atomic<DataT, AS>(
         multi_ptr<DataT, AS>(getQualifiedPtr() + LinearIndex));
   }
-
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 1)>>
   typename AccessorCommonT::template AccessorSubscript<Dims - 1>
   operator[](size_t Index) const {
@@ -1798,8 +1797,8 @@ accessor(buffer<DataT, Dimensions, AllocatorT>, handler, Type1, Type2, Type3,
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class accessor<DataT, Dimensions, AccessMode, access::target::local,
-               IsPlaceholder> :
+class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
+                                    access::target::local, IsPlaceholder> :
 #ifndef __SYCL_DEVICE_ONLY__
     public detail::LocalAccessorBaseHost,
 #endif
@@ -1993,8 +1992,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class accessor<DataT, Dimensions, AccessMode, access::target::image,
-               IsPlaceholder>
+class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
+                                    access::target::image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::image, IsPlaceholder> {
 public:
@@ -2052,8 +2051,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-               IsPlaceholder>
+class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
+                                    access::target::host_image, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions, AccessMode,
                                     access::target::host_image, IsPlaceholder> {
 public:
@@ -2083,8 +2082,8 @@ public:
 /// \ingroup sycl_api_acc
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::placeholder IsPlaceholder>
-class accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-               IsPlaceholder>
+class __SYCL_SPECIAL_CLASS accessor<DataT, Dimensions, AccessMode,
+                                    access::target::image_array, IsPlaceholder>
     : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
                                     access::target::image, IsPlaceholder> {
 #ifdef __SYCL_DEVICE_ONLY__

@@ -317,7 +317,7 @@ public:
 
   /// \tparam Rep is number of times region has to be replicated.
   /// \return replicated simd_obj_impl instance.
-  template <int Rep> resize_a_simd_type_t<Derived, Rep * N> replicate() {
+  template <int Rep> resize_a_simd_type_t<Derived, Rep * N> replicate() const {
     return replicate<Rep, N>(0);
   }
 
@@ -327,7 +327,7 @@ public:
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int W>
   __SYCL_DEPRECATED("use simd_obj_impl::replicate_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
     return replicate_w<Rep, W>(Offset);
   }
 
@@ -336,7 +336,7 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int W>
-  resize_a_simd_type_t<Derived, Rep * W> replicate_w(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate_w(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, 0, W, 1>(Offset);
   }
 
@@ -347,7 +347,7 @@ public:
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W>
   __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
     return replicate_vs_w<Rep, VS, W>(Offset);
   }
 
@@ -357,7 +357,7 @@ public:
   /// \param Offset offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W>
-  resize_a_simd_type_t<Derived, Rep * W> replicate_vs_w(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate_vs_w(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, VS, W, 1>(Offset);
   }
 
@@ -369,7 +369,7 @@ public:
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W, int HS>
   __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w_hs")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, VS, W, HS>(Offset);
   }
 
@@ -380,7 +380,8 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W, int HS>
-  resize_a_simd_type_t<Derived, Rep * W> replicate_vs_w_hs(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W>
+  replicate_vs_w_hs(uint16_t Offset) const {
     return __esimd_rdregion<Ty, N, Rep * W, VS, W, HS, N>(data(),
                                                           Offset * sizeof(Ty));
   }
@@ -390,8 +391,8 @@ public:
   ///
   /// \return 1 if any element is set, 0 otherwise.
   template <typename T1 = Ty,
-            typename = sycl::detail::enable_if_t<std::is_integral<T1>::value>>
-  uint16_t any() {
+            typename = std::enable_if_t<std::is_integral<T1>::value>>
+  uint16_t any() const {
     return __esimd_any<Ty, N>(data());
   }
 
@@ -399,8 +400,8 @@ public:
   ///
   /// \return 1 if all elements are set, 0 otherwise.
   template <typename T1 = Ty,
-            typename = sycl::detail::enable_if_t<std::is_integral<T1>::value>>
-  uint16_t all() {
+            typename = std::enable_if_t<std::is_integral<T1>::value>>
+  uint16_t all() const {
     return __esimd_all<Ty, N>(data());
   }
 
@@ -499,14 +500,14 @@ public:
   /// elements in this object.
   /// @param addr the memory address to copy from. Must be a pointer to the
   /// global address space, otherwise behavior is undefined.
-  ESIMD_INLINE void copy_from(const Ty *const addr) SYCL_ESIMD_FUNCTION;
+  ESIMD_INLINE void copy_from(const Ty *addr) SYCL_ESIMD_FUNCTION;
 
   /// Copy a contiguous block of data from memory into this simd_obj_impl
   /// object. The amount of memory copied equals the total size of vector
   /// elements in this object. Source memory location is represented via a
   /// global accessor and offset.
   /// @param acc accessor to copy from.
-  /// @param offset offset to copy from.
+  /// @param offset offset to copy from (in bytes).
   template <typename AccessorT>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                                 sycl::access::target::global_buffer, void>
@@ -515,7 +516,7 @@ public:
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// @param addr the memory address to copy to. Must be a pointer to the
   /// global address space, otherwise behavior is undefined.
-  ESIMD_INLINE void copy_to(Ty *addr) SYCL_ESIMD_FUNCTION;
+  ESIMD_INLINE void copy_to(Ty *addr) const SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// Destination memory location is represented via a global accessor and
@@ -525,7 +526,7 @@ public:
   template <typename AccessorT>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                                 sycl::access::target::global_buffer, void>
-  copy_to(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+  copy_to(AccessorT acc, uint32_t offset) const SYCL_ESIMD_FUNCTION;
 
   /// @} // Memory operations
 
@@ -634,7 +635,8 @@ protected:
 // ----------- Outlined implementations of simd_obj_impl class APIs.
 
 template <typename T, int N, class T1, class SFINAE>
-void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *const Addr) {
+void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *Addr)
+    SYCL_ESIMD_FUNCTION {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -655,7 +657,8 @@ template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                               sycl::access::target::global_buffer, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset) {
+simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset)
+    SYCL_ESIMD_FUNCTION {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -675,7 +678,8 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset) {
 }
 
 template <typename T, int N, class T1, class SFINAE>
-void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr) {
+void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr) const
+    SYCL_ESIMD_FUNCTION {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= OperandSize::OWORD,
                 "block size must be at least 1 oword");
@@ -694,7 +698,8 @@ template <typename T, int N, class T1, class SFINAE>
 template <typename AccessorT>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                               sycl::access::target::global_buffer, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset) {
+simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset) const
+    SYCL_ESIMD_FUNCTION {
   constexpr unsigned Sz = sizeof(T) * N;
   static_assert(Sz >= OperandSize::OWORD,
                 "block size must be at least 1 oword");

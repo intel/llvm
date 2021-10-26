@@ -312,8 +312,7 @@ public:
 
   template <typename ExcludePredicate>
   bool removeBindings(const ExcludePredicate &Predicate) {
-    Bindings.erase(std::remove_if(Bindings.begin(), Bindings.end(), Predicate),
-                   Bindings.end());
+    llvm::erase_if(Bindings, Predicate);
     return !Bindings.empty();
   }
 
@@ -2249,11 +2248,7 @@ public:
 
   bool matchesNode(const T &Node) const override {
     Optional<StringRef> OptOpName = getOpName(Node);
-    if (!OptOpName)
-      return false;
-    return llvm::any_of(Names, [OpName = *OptOpName](const std::string &Name) {
-      return Name == OpName;
-    });
+    return OptOpName && llvm::is_contained(Names, *OptOpName);
   }
 
 private:

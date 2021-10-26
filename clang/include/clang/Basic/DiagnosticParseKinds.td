@@ -958,6 +958,9 @@ def err_duplicate_class_virt_specifier : Error<
 def err_duplicate_virt_specifier : Error<
   "class member already marked '%0'">;
 
+def err_virt_specifier_outside_class : Error<
+  "'%0' specifier is not allowed outside a class definition">;
+
 def err_expected_parameter_pack : Error<
   "expected the name of a parameter pack">;
 def err_paren_sizeof_parameter_pack : Error<
@@ -1357,7 +1360,8 @@ def err_omp_mapper_illegal_identifier : Error<
 def err_omp_mapper_expected_declarator : Error<
   "expected declarator on 'omp declare mapper' directive">;
 def err_omp_declare_variant_wrong_clause : Error<
-  "expected '%0' clause on 'omp declare variant' directive">;
+  "expected %select{'match'|'match' or 'adjust_args'}0 clause on "
+  "'omp declare variant' directive">;
 def err_omp_declare_variant_duplicate_nested_trait : Error<
   "nested OpenMP context selector contains duplicated trait '%0'"
   " in selector '%1' and set '%2' with different score">;

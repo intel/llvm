@@ -9,6 +9,25 @@ add_header_library(
 )
 
 add_entrypoint_object(
+  memccpy
+  SRCS
+    memccpy.cpp
+  HDRS
+    memccpy.h
+)
+
+
+add_entrypoint_object(
+  mempcpy
+  SRCS
+    mempcpy.cpp
+  HDRS
+    mempcpy.h
+  DEPENDS
+    libc.src.string.memcpy
+)
+
+add_entrypoint_object(
   memchr
   SRCS
     memchr.cpp
@@ -93,6 +112,17 @@ add_entrypoint_object(
     strlen.h
   DEPENDS
     libc.include.string
+)
+
+add_entrypoint_object(
+  strncat
+  SRCS
+    strncat.cpp
+  HDRS
+    strncat.h
+  DEPENDS
+    .strncpy
+    .string_utils
 )
 
 add_entrypoint_object(

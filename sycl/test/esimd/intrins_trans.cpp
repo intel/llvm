@@ -129,7 +129,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
     // CHECK: %[[SI3_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
     // CHECK: store i32 %[[SI3_VAL]], i32 addrspace(4)* %[[SI3_ADDR:[0-9a-zA-Z_.]+]]
     // CHECK: %[[SI3:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI3_ADDR]]
-    // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.scaled2.v8i32.v8i32(i32 2, i16 0, i32 %[[SI3]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+    // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 2, i16 0, i32 %[[SI3]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
 
     // 4-byte element scatter
     scatter<int, 8>(acc, v, offsets, 100, pred);
@@ -143,7 +143,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
     // CHECK: %[[SI5_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
     // CHECK: store i32 %[[SI5_VAL]], i32 addrspace(4)* %[[SI5_ADDR:[0-9a-zA-Z_.]+]]
     // CHECK: %[[SI5:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI5_ADDR]]
-    // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.scaled2.v8i32.v8i32(i32 0, i16 0, i32 %[[SI5]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
+    // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 0, i16 0, i32 %[[SI5]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
 
     // 1-byte element scatter
     scatter<unsigned char, 8>(acc, v1, offsets, 100, pred);

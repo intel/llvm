@@ -56,7 +56,7 @@ public:
         "<DSOHandleMU>", TT, PointerSize, Endianness,
         jitlink::getGenericEdgeKindName);
     auto &DSOHandleSection =
-        G->createSection(".data.__dso_handle", sys::Memory::MF_READ);
+        G->createSection(".data.__dso_handle", jitlink::MemProt::Read);
     auto &DSOHandleBlock = G->createContentBlock(
         DSOHandleSection, getDSOHandleContent(PointerSize), 0, 8, 0);
     auto &DSOHandleSymbol = G->addDefinedSymbol(
@@ -151,7 +151,6 @@ ELFNixPlatform::Create(ExecutionSession &ES,
 Error ELFNixPlatform::setupJITDylib(JITDylib &JD) {
   return JD.define(
       std::make_unique<DSOHandleMaterializationUnit>(*this, DSOHandleSymbol));
-  return Error::success();
 }
 
 Error ELFNixPlatform::notifyAdding(ResourceTracker &RT,

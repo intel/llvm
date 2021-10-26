@@ -31,7 +31,8 @@ SelfExecutorProcessControl::SelfExecutorProcessControl(
 
   OwnedMemMgr = std::move(MemMgr);
   if (!OwnedMemMgr)
-    OwnedMemMgr = std::make_unique<jitlink::InProcessMemoryManager>();
+    OwnedMemMgr = std::make_unique<jitlink::InProcessMemoryManager>(
+        sys::Process::getPageSizeEstimate());
 
   this->TargetTriple = std::move(TargetTriple);
   this->PageSize = PageSize;
@@ -129,7 +130,10 @@ void SelfExecutorProcessControl::callWrapperAsync(ExecutorAddr WrapperFnAddr,
   SendResult(WrapperFn(ArgBuffer.data(), ArgBuffer.size()));
 }
 
-Error SelfExecutorProcessControl::disconnect() { return Error::success(); }
+Error SelfExecutorProcessControl::disconnect() {
+  D->shutdown();
+  return Error::success();
+}
 
 void SelfExecutorProcessControl::writeUInt8sAsync(
     ArrayRef<tpctypes::UInt8Write> Ws, WriteResultFn OnWriteComplete) {
