@@ -3657,10 +3657,8 @@ public:
     if (const auto *ED = dyn_cast<EnumDecl>(DeclNamed)) {
       if (!ED->isScoped() && !ED->isFixed()) {
         S.Diag(KernelInvocationFuncLoc, diag::err_sycl_kernel_incorrectly_named)
-            << KernelNameType;
-        S.Diag(KernelInvocationFuncLoc, diag::note_invalid_type_in_sycl_kernel)
             << /* Unscoped enum requires fixed underlying type */ 1
-            << QualType(ED->getTypeForDecl(), 0);
+            << DeclNamed;
         IsInvalid = true;
       }
     }
@@ -3692,25 +3690,19 @@ public:
           if (UnnamedLambdaUsed) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-                << KernelNameType;
-            S.Diag(KernelInvocationFuncLoc,
-                   diag::note_invalid_type_in_sycl_kernel)
-                << /* unnamed lambda is used in a SYCL kernel name */ 2;
+		 << /* unnamed type is not valid in a SYCL kernel name */ 2
+		 << KernelNameType;
             IsInvalid = true;
             return;
           }
+
           // Check if the declaration is completely defined within a
           // function or class/struct.
-
           if (Tag->isCompleteDefinition()) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-                << KernelNameType;
-            S.Diag(KernelInvocationFuncLoc,
-                   diag::note_invalid_type_in_sycl_kernel)
                 << /* kernel name should be globally visible */ 0
-                << QualType(Tag->getTypeForDecl(), 0);
-
+                << KernelNameType;
             IsInvalid = true;
           } else {
             S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
