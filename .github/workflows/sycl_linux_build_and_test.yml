@@ -81,6 +81,7 @@ jobs:
     runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
+      options: -u 1001
     steps:
     - uses: actions/checkout@v2
       with:
@@ -117,16 +118,11 @@ jobs:
     - name: check-llvm
       if: always()
       run: |
-        # GitHub Actions requires Docker containers to use default root user to
-        # run scripts. It also overrides default entry point for containers.
-        # Below is a workaround, that switches users for tests.
-        chown -R sycl:sycl $GITHUB_WORKSPACE
-        chown -R sycl:sycl $RUNNER_TEMP
-        su -c "cmake --build $GITHUB_WORKSPACE/build --target check-llvm" sycl
+        cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always()
       run: |
-        su -c "cmake --build $GITHUB_WORKSPACE/build --target check-clang" sycl
+        cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
       if: always()
       run: |
