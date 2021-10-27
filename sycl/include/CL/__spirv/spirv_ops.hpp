@@ -622,11 +622,11 @@ __spirv_WritePipeBlockingINTEL(__ocl_WPipeTy<dataT> Pipe, const dataT *Data,
 template <typename dataT>
 extern SYCL_EXTERNAL __ocl_RPipeTy<dataT>
 __spirv_CreatePipeFromPipeStorage_read(
-    const __spirv_ConstantPipeStorage *Storage) noexcept;
+    const ConstantPipeStorage *Storage) noexcept;
 template <typename dataT>
 extern SYCL_EXTERNAL __ocl_WPipeTy<dataT>
 __spirv_CreatePipeFromPipeStorage_write(
-    const __spirv_ConstantPipeStorage *Storage) noexcept;
+    const ConstantPipeStorage *Storage) noexcept;
 
 extern SYCL_EXTERNAL void
 __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,

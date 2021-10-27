@@ -84,8 +84,8 @@ private:
   static constexpr int32_t m_Alignment = alignof(_dataT);
   static constexpr int32_t m_Capacity = _min_capacity;
 #ifdef __SYCL_DEVICE_ONLY__
-  static constexpr struct __spirv_ConstantPipeStorage m_Storage = {
-      m_Size, m_Alignment, m_Capacity};
+  static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
+                                                           m_Capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
 
@@ -150,7 +150,7 @@ private:
   static constexpr int32_t m_Capacity = _min_capacity;
   static constexpr int32_t ID = _name::id;
 #ifdef __SYCL_DEVICE_ONLY__
-  static constexpr struct __spirv_ConstantPipeStorage m_Storage
+  static constexpr struct ConstantPipeStorage m_Storage
       __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, m_Capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };
@@ -194,7 +194,7 @@ private:
   static constexpr int32_t m_Capacity = _min_capacity;
   static constexpr int32_t ID = _name::id;
 #ifdef __SYCL_DEVICE_ONLY__
-  static constexpr struct __spirv_ConstantPipeStorage m_Storage
+  static constexpr struct ConstantPipeStorage m_Storage
       __attribute__((io_pipe_id(ID))) = {m_Size, m_Alignment, m_Capacity};
 #endif // __SYCL_DEVICE_ONLY__
 };

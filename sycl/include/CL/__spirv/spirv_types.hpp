@@ -126,7 +126,8 @@ template <typename dataT, int dims>
 using __ocl_vec_t = dataT __attribute__((ext_vector_type(dims)));
 
 // Struct representing layout of pipe storage
-struct __spirv_ConstantPipeStorage {
+// TODO: rename to __spirv_ConstantPipeStorage
+struct ConstantPipeStorage {
   int32_t _PacketSize;
   int32_t _PacketAlignment;
   int32_t _Capacity;
