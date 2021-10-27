@@ -593,6 +593,7 @@ We did not utilize this extension for this matrix API version because sub-group 
 - Add 'matrix_use' parameter to the matrix to distinguish between matrix A, B, and matrix accumulator. This is necessary for supporting VNNI and transpose transform 
 - Change the names default sizes in the query from defaultM, defaultN, defaultK to M,N,K
 - Change the type of `scope` in the query interface to be able to return more than one value. This will be useful in the event we support other scopes like workgroup besides subgroups
+- Add a more realistic and complete example that shows the value of the general query
 
 
 ## Revision History
