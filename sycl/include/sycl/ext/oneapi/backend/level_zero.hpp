@@ -9,17 +9,12 @@
 #pragma once
 
 #include <CL/sycl/backend.hpp>
-#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
+#include <CL/sycl/program.hpp>
 
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
-#ifdef __SYCL_INTERNAL_API
-class program;
-#endif
-
 namespace ext {
 namespace oneapi {
 namespace level_zero {
