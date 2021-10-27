@@ -1,9 +1,5 @@
 ## Test failing to write output file on non-windows platforms.
 
-# Temporarily disable test due to fails in CI. TODO enable test after
-# investigating fails.
-# REQUIRES: TEMPORARILY_DISABLED
-
 # UNSUPPORTED: system-windows
 # RUN: rm -rf %t.TestDir
 # RUN: mkdir %t.TestDir

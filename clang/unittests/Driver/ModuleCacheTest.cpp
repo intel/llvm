@@ -17,8 +17,7 @@ using namespace clang::driver;
 
 namespace {
 
-// TODO investigate test failure in CI and re-enable it.
-TEST(ModuleCacheTest, DISABLED_GetTargetAndMode) {
+TEST(ModuleCacheTest, GetTargetAndMode) {
   SmallString<128> Buf;
   Driver::getDefaultModuleCachePath(Buf);
   StringRef Path = Buf;
