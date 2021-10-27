@@ -15,6 +15,11 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
+
+#ifdef __SYCL_INTERNAL_API
+class program;
+#endif
+
 namespace ext {
 namespace oneapi {
 namespace level_zero {
