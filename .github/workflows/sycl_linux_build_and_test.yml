@@ -63,7 +63,7 @@ jobs:
               \"build_runs_on\":\"sycl-precommit-linux\",
               \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_base:latest\",
               \"build_github_cache\":\"false\",
-              \"build_cache_root\":\"$GITHUB_WORKSPACE\",
+              \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
               \"build_cache_size\":\"2G\",
               \"build_configure_extra_args\":\"\",
