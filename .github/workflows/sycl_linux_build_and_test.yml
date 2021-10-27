@@ -81,7 +81,7 @@ jobs:
     runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
-      options: -u 1001
+      options: -u 1001:1001
     steps:
     - uses: actions/checkout@v2
       with:
