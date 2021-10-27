@@ -11440,7 +11440,8 @@ def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, "
 def err_sycl_kernel_incorrectly_named : Error<
   "%select{%1 should be globally visible"
   "|unscoped enum %1 requires fixed underlying type"
-  "|unnamed lambda %1 used"
+  "|unnamed type %1 is invalid; provide a kernel name, or use "
+  "'-fsycl-unnamed-lambda' to enable unnamed kernel lambdas"
   "}0">;
 
 def err_sycl_kernel_not_function_object
