@@ -23,6 +23,6 @@ TEST(ModuleCacheTest, DISABLED_GetTargetAndMode) {
   Driver::getDefaultModuleCachePath(Buf);
   StringRef Path = Buf;
   EXPECT_TRUE(Path.find("clang") != Path.npos);
-  EXPECT_TRUE(Path.endswith("ModuleCache"));  
+  EXPECT_TRUE(Path.endswith("ModuleCache"));
 }
 } // end anonymous namespace.
