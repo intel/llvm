@@ -39,21 +39,21 @@ __SYCL_EXPORT event make_event(const context &Context,
                                bool keep_ownership = false);
 
 // Construction of SYCL platform.
-template <typename T, typename detail::enable_if_t<
+template <typename T, typename sycl::detail::enable_if_t<
                           std::is_same<T, platform>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_platform free function")
-T make(
-    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop) {
+T make(typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
+           Interop) {
   return make_platform(reinterpret_cast<pi_native_handle>(Interop));
 }
 
 // Construction of SYCL device.
-template <typename T, typename detail::enable_if_t<
+template <typename T, typename sycl::detail::enable_if_t<
                           std::is_same<T, device>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_device free function")
-T make(
-    const platform &Platform,
-    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop) {
+T make(const platform &Platform,
+       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
+           Interop) {
   return make_device(Platform, reinterpret_cast<pi_native_handle>(Interop));
 }
 
@@ -69,46 +69,47 @@ T make(
 template <typename T, typename std::enable_if<
                           std::is_same<T, context>::value>::type * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_context free function")
-T make(
-    const std::vector<device> &DeviceList,
-    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop,
-    ownership Ownership = ownership::transfer) {
-  return make_context(DeviceList, detail::pi::cast<pi_native_handle>(Interop),
+T make(const std::vector<device> &DeviceList,
+       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
+           Interop,
+       ownership Ownership = ownership::transfer) {
+  return make_context(DeviceList,
+                      sycl::detail::pi::cast<pi_native_handle>(Interop),
                       Ownership == ownership::keep);
 }
 
 // Construction of SYCL program.
 #ifdef __SYCL_INTERNAL_API
-template <typename T, typename detail::enable_if_t<
+template <typename T, typename sycl::detail::enable_if_t<
                           std::is_same<T, program>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_kernel_bundle free function")
-T make(
-    const context &Context,
-    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop) {
+T make(const context &Context,
+       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
+           Interop) {
   return make_program(Context, reinterpret_cast<pi_native_handle>(Interop));
 }
 #endif
 
 // Construction of SYCL queue.
-template <typename T, typename detail::enable_if_t<
+template <typename T, typename sycl::detail::enable_if_t<
                           std::is_same<T, queue>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_queue free function")
-T make(
-    const context &Context,
-    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop,
-    ownership Ownership = ownership::transfer) {
+T make(const context &Context,
+       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
+           Interop,
+       ownership Ownership = ownership::transfer) {
   return make_queue(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
 
 // Construction of SYCL event.
-template <typename T, typename detail::enable_if_t<
+template <typename T, typename sycl::detail::enable_if_t<
                           std::is_same<T, event>::value> * = nullptr>
 __SYCL_DEPRECATED("Use SYCL 2020 sycl::make_event free function")
-T make(
-    const context &Context,
-    typename detail::interop<backend::ext_oneapi_level_zero, T>::type Interop,
-    ownership Ownership = ownership::transfer) {
+T make(const context &Context,
+       typename sycl::detail::interop<backend::ext_oneapi_level_zero, T>::type
+           Interop,
+       ownership Ownership = ownership::transfer) {
   return make_event(Context, reinterpret_cast<pi_native_handle>(Interop),
                     Ownership == ownership::keep);
 }
