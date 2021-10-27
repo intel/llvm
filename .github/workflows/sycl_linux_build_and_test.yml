@@ -117,14 +117,10 @@ jobs:
     # TODO allow to optionally disable in-tree checks
     - name: check-llvm
       if: always()
-      env:
-        LIT_PRESERVES_TMP: 1
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always()
-      env:
-        LIT_PRESERVES_TMP: 1
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
@@ -148,4 +144,7 @@ jobs:
       with:
         name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         path: llvm_sycl.tar.gz
+    - name: Cleanup
+      if: always()
+      run: rm -rf $GITHUB_WORKSPACE/*
 
