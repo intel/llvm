@@ -150,7 +150,7 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error-re@#KernelSingleTask {{unnamed type '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is not valid in a SYCL kernel name, provide a kernel name or enable unnamed kernel lambdas via -fsycl-unnamed-lambda}}
+  // expected-error-re@#KernelSingleTask {{unnamed type '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is invalid; provide a kernel name, or use '-fsycl-unnamed-lambda' to enable unnamed kernel lambdas}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });

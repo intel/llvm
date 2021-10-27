@@ -3690,7 +3690,7 @@ public:
           if (UnnamedLambdaUsed) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-                << /* unnamed type is not valid in a SYCL kernel name */ 2
+                << /* unnamed type is invalid */ 2
                 << KernelNameType;
             IsInvalid = true;
             return;
