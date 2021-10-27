@@ -206,13 +206,13 @@ scatter(T *p, simd<uint32_t, n> offsets, simd<T, n * ElemsPerAddr> vals,
     __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<2>()>(
         addrs.data(), D.data(), detail::ElemsPerAddrEncoding<2>(), pred.data());
   } else if constexpr (sizeof(T) == 2)
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(addrs.data(), vals.data(),
-                             detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(),
-                             pred.data());
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
+        addrs.data(), vals.data(),
+        detail::ElemsPerAddrEncoding<2 * ElemsPerAddr>(), pred.data());
   else
-    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(addrs.data(), vals.data(),
-                             detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
-                             pred.data());
+    __esimd_svm_scatter<T, n, detail::ElemsPerAddrEncoding<ElemsPerAddr>()>(
+        addrs.data(), vals.data(), detail::ElemsPerAddrEncoding<ElemsPerAddr>(),
+        pred.data());
 }
 
 template <typename T, int n, int ElemsPerAddr = 1,
@@ -220,13 +220,14 @@ template <typename T, int n, int ElemsPerAddr = 1,
 __SYCL_DEPRECATED("use scatter.")
 __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
                               (ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
-                               ElemsPerAddr == 4))>
-scatter1(T *p, simd<T, n * ElemsPerAddr> vals, simd<uint32_t, n> offsets,
-        simd_mask<n> pred = 1) {
+                               ElemsPerAddr ==
+                                   4))> scatter1(T *p,
+                                                 simd<T, n * ElemsPerAddr> vals,
+                                                 simd<uint32_t, n> offsets,
+                                                 simd_mask<n> pred = 1) {
   detail::IfNotNone<L1H, L3H>::warn();
   scatter<T, n, ElemsPerAddr>(p, offsets, vals, pred);
 }
-
 
 /// Flat-address block-load.
 /// \ingroup sycl_esimd
@@ -372,8 +373,7 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 gather(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
        simd_mask<N> pred = 1) {
 
-  return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset,
-                                                     pred);
+  return detail::gather_impl<T, N, AccessorTy>(acc, offsets, glob_offset, pred);
 }
 
 template <typename T, int N, typename AccessorTy,
@@ -383,7 +383,7 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
                                  !std::is_pointer<AccessorTy>::value,
                              simd<T, N>>
 gather1(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
-       simd_mask<N> pred = 1) {
+        simd_mask<N> pred = 1) {
 
   if constexpr (sizeof(T) != 1) {
     glob_offset *= sizeof(T);
@@ -392,7 +392,6 @@ gather1(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset = 0,
   detail::IfNotNone<L1H, L3H>::warn();
   return gather<T, N, AccessorTy>(acc, offsets, glob_offset, pred);
 }
-
 
 /// Accessor-based scatter.
 ///
@@ -418,18 +417,19 @@ __ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
         uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
 
-  detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset,
-                                               pred);
+  detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, pred);
 }
 
 template <typename T, int N, typename AccessorTy,
           CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None>
 __SYCL_DEPRECATED("use scatter.")
-__ESIMD_API std::enable_if_t<(sizeof(T) <= 4) &&
-                             (N == 1 || N == 8 || N == 16 || N == 32) &&
-                             !std::is_pointer<AccessorTy>::value>
-scatter1(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
-        uint32_t glob_offset = 0, simd_mask<N> pred = 1) {
+__ESIMD_API std::enable_if_t<
+    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
+    !std::is_pointer<AccessorTy>::value> scatter1(AccessorTy acc,
+                                                  simd<T, N> vals,
+                                                  simd<uint32_t, N> offsets,
+                                                  uint32_t glob_offset = 0,
+                                                  simd_mask<N> pred = 1) {
 
   if constexpr (sizeof(T) != 1) {
     glob_offset *= sizeof(T);
@@ -528,7 +528,8 @@ __ESIMD_API std::enable_if_t<
 /// \ingroup sycl_esimd
 template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 16 || N == 32) && (sizeof(T) == 4)>
-scatter_rgba(T *p, simd<uint32_t, N> offsets, simd<T, N * get_num_channels_enabled(Mask)> vals,
+scatter_rgba(T *p, simd<uint32_t, N> offsets,
+             simd<T, N * get_num_channels_enabled(Mask)> vals,
              simd_mask<N> pred = 1) {
   simd<uint64_t, N> offsets_i = convert<uint64_t>(offsets);
   simd<uint64_t, N> addrs(reinterpret_cast<uint64_t>(p));
@@ -892,7 +893,8 @@ __ESIMD_API std::enable_if_t<
 /// \ingroup sycl_esimd
 template <typename T, int N, rgba_channel_mask Mask>
 __ESIMD_API std::enable_if_t<(N == 8 || N == 16 || N == 32) && (sizeof(T) == 4)>
-slm_scatter_rgba(simd<uint32_t, N> offsets, simd<T, N * get_num_channels_enabled(Mask)> vals,
+slm_scatter_rgba(simd<uint32_t, N> offsets,
+                 simd<T, N * get_num_channels_enabled(Mask)> vals,
                  simd_mask<N> pred = 1) {
   const auto si = __ESIMD_GET_SURF_HANDLE(detail::LocalAccessorMarker());
   constexpr int16_t Scale = 0;
