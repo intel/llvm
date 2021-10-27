@@ -720,50 +720,46 @@ __ESIMD_API std::enable_if_t<detail::check_atomic<Op, T, n, 2>(),
 }
 
 /// Represetns a bit mask to control behavior of esimd::fence.
-using fence_mask = uint8_t;
-
-/// Interpretation of the bits in a esimd::fence mask argument.
-struct fence_mask_bit {
+/// Enum elements define semantics of the bits in the mask.
+enum fence_mask : uint8_t {
   /// “Commit enable” - wait for fence to complete before continuing.
-  static inline constexpr uint8_t global_coherent_fence = 0x1;
+  global_coherent_fence = 0x1,
   /// Flush the instruction cache.
-  static inline constexpr uint8_t l3_flush_instructions = 0x2;
+  l3_flush_instructions = 0x2,
   /// Flush sampler (texture) cache.
-  static inline constexpr uint8_t l3_flush_texture_data = 0x4;
+  l3_flush_texture_data = 0x4,
   /// Flush constant cache.
-  static inline constexpr uint8_t l3_flush_constant_data = 0x8;
+  l3_flush_constant_data = 0x8,
   /// Flush constant cache.
-  static inline constexpr uint8_t l3_flush_rw_data = 0x10;
+  l3_flush_rw_data = 0x10,
   /// Issue SLM memory barrier only. If not set, the memory barrier is global.
-  static inline constexpr uint8_t local_barrier = 0x20;
+  local_barrier = 0x20,
   /// Flush L1 read - only data cache.
-  static inline constexpr uint8_t l1_flush_ro_data = 0x40;
+  l1_flush_ro_data = 0x40,
   /// Enable thread scheduling barrier.
-  static inline constexpr uint8_t sw_barrier = 0x80;
-
-  fence_mask_bit() = delete;
+  sw_barrier = 0x80
 };
 
-enum __SYCL_DEPRECATED("use simd::fence_mask.") EsimdFenceMask {
+enum __SYCL_DEPRECATED("use esimd::fence_mask.") EsimdFenceMask {
   __ESIMD_DEPR_ENUM_V(ESIMD_GLOBAL_COHERENT_FENCE,
-                      fence_mask_bit::global_coherent_fence, fence_mask),
+                      fence_mask::global_coherent_fence, fence_mask),
   __ESIMD_DEPR_ENUM_V(ESIMD_L3_FLUSH_INSTRUCTIONS,
-                      fence_mask_bit::l3_flush_instructions, fence_mask),
+                      fence_mask::l3_flush_instructions, fence_mask),
   __ESIMD_DEPR_ENUM_V(ESIMD_L3_FLUSH_TEXTURE_DATA,
-                      fence_mask_bit::l3_flush_texture_data, fence_mask),
+                      fence_mask::l3_flush_texture_data, fence_mask),
   __ESIMD_DEPR_ENUM_V(ESIMD_L3_FLUSH_CONSTANT_DATA,
-                      fence_mask_bit::l3_flush_constant_data, fence_mask),
-  __ESIMD_DEPR_ENUM_V(ESIMD_L3_FLUSH_RW_DATA, fence_mask_bit::l3_flush_rw_data,
+                      fence_mask::l3_flush_constant_data, fence_mask),
+  __ESIMD_DEPR_ENUM_V(ESIMD_L3_FLUSH_RW_DATA, fence_mask::l3_flush_rw_data,
                       fence_mask),
-  __ESIMD_DEPR_ENUM_V(ESIMD_LOCAL_BARRIER, fence_mask_bit::local_barrier,
+  __ESIMD_DEPR_ENUM_V(ESIMD_LOCAL_BARRIER, fence_mask::local_barrier,
                       fence_mask),
-  __ESIMD_DEPR_ENUM_V(ESIMD_L1_FLUSH_RO_DATA, fence_mask_bit::l1_flush_ro_data,
+  __ESIMD_DEPR_ENUM_V(ESIMD_L1_FLUSH_RO_DATA, fence_mask::l1_flush_ro_data,
                       fence_mask),
-  __ESIMD_DEPR_ENUM_V(ESIMD_SW_BARRIER, fence_mask_bit::sw_barrier, fence_mask)
+  __ESIMD_DEPR_ENUM_V(ESIMD_SW_BARRIER, fence_mask::sw_barrier, fence_mask)
 };
 
 /// esimd::fence sets the memory read/write order.
-/// \tparam cntl is a bitmask composed from \c fence_mask_bit bits.
+/// \tparam cntl is a bitmask composed from \c fence_mask bits.
 /// \ingroup sycl_esimd
 __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 
@@ -776,8 +772,7 @@ __ESIMD_API void fence(fence_mask cntl) { __esimd_fence(cntl); }
 /// control flow.
 /// \ingroup sycl_esimd
 __ESIMD_API void barrier() {
-  __esimd_fence(fence_mask_bit::global_coherent_fence |
-                fence_mask_bit::local_barrier);
+  __esimd_fence(fence_mask::global_coherent_fence | fence_mask::local_barrier);
   __esimd_barrier();
 }
 
