@@ -138,7 +138,7 @@ jobs:
     - name: Install
       run: cmake --build $GITHUB_WORKSPACE/build --target install
     - name: Pack
-      run: tar -czvf llvm_sycl.tar.gz -C $GITHUB_WORKSPACE/build/install .
+      run: tar -czvf llvm_sycl.tar.gz -C $GITHUB_WORKSPACE/install .
     - name: Upload artifacts
       uses: actions/upload-artifact@v1
       with:
