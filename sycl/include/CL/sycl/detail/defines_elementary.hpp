@@ -20,7 +20,7 @@
 //
 #define __SYCL_INT_HEADER_NS() cl::sycl
 #define __SYCL_INT_HEADER_OPEN_NS()                                            \
-  namespace cl {                                                  \
+  namespace cl {                                                               \
   namespace sycl
 
 #define __SYCL_INT_HEADER_CLOSE_NS() }
