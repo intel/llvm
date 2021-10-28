@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
@@ -18,8 +18,7 @@
 class TestKernel;
 class TestKernelExeOnly;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -46,8 +45,8 @@ template <> struct KernelInfo<TestKernelExeOnly> {
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,

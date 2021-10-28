@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
@@ -23,8 +23,7 @@ const char EAMTestKernelName[] = "EAMTestKernel";
 const char EAMTestKernel2Name[] = "EAMTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs = 4;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 template <> struct KernelInfo<EAMTestKernel> {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
@@ -51,8 +50,8 @@ template <> struct KernelInfo<EAMTestKernel2> {
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage generateEAMTestKernelImage() {
   using namespace sycl::unittest;

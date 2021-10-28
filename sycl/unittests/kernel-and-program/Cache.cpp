@@ -12,7 +12,7 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include "detail/program_impl.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
@@ -34,8 +34,7 @@ public:
   void operator()(cl::sycl::item<1>){};
 };
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 struct MockKernelInfo {
   static constexpr unsigned getNumParams() { return 0; }
@@ -57,8 +56,8 @@ template <> struct KernelInfo<TestKernel2> : public MockKernelInfo {
 };
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;

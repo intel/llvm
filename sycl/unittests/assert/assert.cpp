@@ -20,7 +20,7 @@
 
 // Enable use of interop kernel c-tor
 #define __SYCL_INTERNAL_API
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
@@ -36,8 +36,7 @@
 
 class TestKernel;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 template <> struct KernelInfo<TestKernel> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -69,8 +68,8 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
   static constexpr bool callsAnyThisFreeFunction() { return 0; }
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;

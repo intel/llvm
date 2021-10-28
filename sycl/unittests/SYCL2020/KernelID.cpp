@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -19,8 +19,7 @@ class TestKernel2;
 class TestKernel3;
 class ServiceKernel1;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 template <> struct KernelInfo<TestKernel1> {
   static constexpr unsigned getNumParams() { return 0; }
@@ -72,8 +71,8 @@ template <> struct KernelInfo<ServiceKernel1> {
   static constexpr bool callsAnyThisFreeFunction() { return false; }
 };
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> Kernels) {
