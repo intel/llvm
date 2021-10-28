@@ -14,7 +14,7 @@ RUN apt update && apt install -yqq \
       python3-distutils \
       python-is-python3
 
-RUN adduser --disabled-password --gecos '' sycl
+RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
 
 COPY scripts/docker_entrypoint.sh /docker_entrypoint.sh
 
