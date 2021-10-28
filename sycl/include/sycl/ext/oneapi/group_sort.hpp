@@ -16,9 +16,6 @@
 
 #include "experimental/group_helpers_sorters.hpp"
 
-// define feature macro for group sorting algorithms
-#define SYCL_EXT_ONEAPI_GROUP_SORT 1
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {

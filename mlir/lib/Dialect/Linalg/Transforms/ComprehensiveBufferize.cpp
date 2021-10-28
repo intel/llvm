@@ -551,41 +551,42 @@ static OpResult getInplaceableOpResult(OpOperand &opOperand) {
 }
 
 /// Determine which OpOperand* will alias with `result` if the op is bufferized
-/// in place.
-/// Return None if the owner of `opOperand` does not have known
-/// bufferization aliasing behavior, which indicates that the op must allocate
-/// all of its tensor results.
-/// TODO: in the future this may need to evolve towards a list of OpOperand*.
-static Optional<OpOperand *> getAliasingOpOperand(OpResult result) {
+/// in place. Note that multiple OpOperands can may potentially alias with an
+/// OpResult. E.g.: std.select in the future.
+static SmallVector<OpOperand *> getAliasingOpOperand(OpResult result) {
+  SmallVector<OpOperand *> r;
+  // Unknown ops are handled conservatively and never bufferize in-place.
   if (!hasKnownBufferizationAliasingBehavior(result.getDefiningOp()))
-    return None;
-  return TypeSwitch<Operation *, OpOperand *>(result.getDefiningOp())
-      .Case([&](tensor::CastOp op) { return &op->getOpOperand(0); })
-      .Case([&](ConstantOp op) { return nullptr; })
-      .Case([&](ExtractSliceOp op) { return &op->getOpOperand(0); })
+    return SmallVector<OpOperand *>();
+  TypeSwitch<Operation *>(result.getDefiningOp())
+      .Case([&](tensor::CastOp op) { r.push_back(&op->getOpOperand(0)); })
+      .Case([&](ExtractSliceOp op) { r.push_back(&op->getOpOperand(0)); })
       // In the case of scf::ForOp, this currently assumes the iter_args / yield
       // are 1-1. This may fail and is verified at the end.
       // TODO: update this.
       .Case([&](scf::ForOp op) {
-        return &op.getIterOpOperands()[result.getResultNumber()];
+        r.push_back(&op.getIterOpOperands()[result.getResultNumber()]);
       })
-      .Case([&](InitTensorOp op) { return nullptr; })
-      .Case([&](InsertSliceOp op) { return &op->getOpOperand(1); })
+      .Case([&](InsertSliceOp op) { r.push_back(&op->getOpOperand(1)); })
       .Case([&](LinalgOp op) {
-        return op.getOutputTensorOperands()[result.getResultNumber()];
+        r.push_back(op.getOutputTensorOperands()[result.getResultNumber()]);
       })
       .Case([&](TiledLoopOp op) {
         // TODO: TiledLoopOp helper method to avoid leaking impl details.
-        return &op->getOpOperand(op.getNumControlOperands() +
-                                 op.getNumInputs() + result.getResultNumber());
+        r.push_back(&op->getOpOperand(op.getNumControlOperands() +
+                                      op.getNumInputs() +
+                                      result.getResultNumber()));
       })
-      .Case([&](vector::TransferWriteOp op) { return &op->getOpOperand(1); })
-      .Case([&](CallOpInterface op) { return nullptr; })
+      .Case([&](vector::TransferWriteOp op) {
+        r.push_back(&op->getOpOperand(1));
+      })
+      .Case<arith::ConstantOp, ConstantOp, CallOpInterface, InitTensorOp>(
+          [&](auto op) {})
       .Default([&](Operation *op) {
         op->dump();
         llvm_unreachable("unexpected defining op");
-        return nullptr;
       });
+  return r;
 }
 
 /// If the an ExtractSliceOp is bufferized in-place, the source operand will
@@ -611,6 +612,31 @@ static OpResult getAliasingOpResult(OpOperand &opOperand) {
           [&](Operation *op) { return getInplaceableOpResult(opOperand); });
 }
 
+// Predeclaration of function.
+static bool bufferizesToMemoryRead(OpOperand &opOperand);
+
+/// scf::ForOp alone doesn't bufferize to a memory read, one of the uses of its
+/// matching bbArg may.
+static bool bufferizesToMemoryRead(scf::ForOp forOp, OpOperand &opOperand) {
+  SmallVector<OpOperand *> workingSet;
+  for (OpOperand &use : forOp.getRegionIterArgForOpOperand(opOperand).getUses())
+    workingSet.push_back(&use);
+
+  while (!workingSet.empty()) {
+    OpOperand *uMaybeReading = workingSet.pop_back_val();
+    // Skip over all ExtractSliceOps. These do not read by themselves but just
+    // add a new alias.
+    if (auto extractSliceOp =
+            dyn_cast<ExtractSliceOp>(uMaybeReading->getOwner()))
+      for (OpOperand &use : extractSliceOp.result().getUses())
+        workingSet.push_back(&use);
+    if (bufferizesToMemoryRead(*uMaybeReading))
+      return true;
+  }
+
+  return false;
+}
+
 /// Return true if `opOperand` bufferizes to a memory read.
 static bool bufferizesToMemoryRead(OpOperand &opOperand) {
   // Unknown op that returns a tensor. The inplace analysis does not support
@@ -621,15 +647,8 @@ static bool bufferizesToMemoryRead(OpOperand &opOperand) {
   // may.
   if (isa<ExtractSliceOp>(opOperand.getOwner()))
     return false;
-  // scf::ForOp alone doesn't bufferize to a memory read, one of the uses of its
-  // matching bbArg may.
-  if (auto forOp = dyn_cast<scf::ForOp>(opOperand.getOwner())) {
-    for (OpOperand &use :
-         forOp.getRegionIterArgForOpOperand(opOperand).getUses())
-      if (bufferizesToMemoryRead(use))
-        return true;
-    return false;
-  }
+  if (auto forOp = dyn_cast<scf::ForOp>(opOperand.getOwner()))
+    return bufferizesToMemoryRead(forOp, opOperand);
   // TiledLoop alone doesn't bufferize to a memory read, one of the uses of its
   // matching bbArg may.
   if (auto tiledLoopOp = dyn_cast<TiledLoopOp>(opOperand.getOwner())) {
@@ -654,11 +673,7 @@ static bool bufferizesToMemoryRead(OpOperand &opOperand) {
 }
 
 /// Return true if `opOperand` bufferizes to a memory write.
-/// If inPlaceSpec is different from InPlaceSpec::None, additionally require the
-/// write to match the inplace specification.
-static bool
-bufferizesToMemoryWrite(OpOperand &opOperand,
-                        InPlaceSpec inPlaceSpec = InPlaceSpec::None) {
+static bool bufferizesToMemoryWrite(OpOperand &opOperand) {
   // These terminators are not writes.
   if (isa<ReturnOp, linalg::YieldOp, scf::YieldOp>(opOperand.getOwner()))
     return false;
@@ -677,14 +692,9 @@ bufferizesToMemoryWrite(OpOperand &opOperand,
   if (!hasKnownBufferizationAliasingBehavior(opOperand.getOwner()))
     return true;
   OpResult opResult = getAliasingOpResult(opOperand);
-  // Supported op without a matching result for opOperand (e.g. ReturnOp).
-  // This does not bufferize to a write.
-  if (!opResult)
-    return false;
-  // If we have a matching OpResult, this is a write.
-  // Additionally allow to restrict to only inPlace write, if so specified.
-  return inPlaceSpec == InPlaceSpec::None ||
-         getInPlace(opResult) == inPlaceSpec;
+  // Only supported op with a matching result for opOperand bufferize to a
+  // write. E.g., ReturnOp does not bufferize to a write.
+  return static_cast<bool>(opResult);
 }
 
 /// Returns the relationship between the operand and the its corresponding
@@ -700,6 +710,15 @@ static BufferRelation bufferRelation(OpOperand &operand) {
 //===----------------------------------------------------------------------===//
 // Bufferization-specific alias analysis.
 //===----------------------------------------------------------------------===//
+
+/// Return true if opOperand has been decided to bufferize in-place.
+static bool isInplaceMemoryWrite(OpOperand &opOperand) {
+  // Ops that do not bufferize to a memory write, cannot be write in-place.
+  if (!bufferizesToMemoryWrite(opOperand))
+    return false;
+  OpResult opResult = getAliasingOpResult(opOperand);
+  return opResult && getInPlace(opResult) == InPlaceSpec::True;
+}
 
 BufferizationAliasInfo::BufferizationAliasInfo(Operation *rootOp) {
   rootOp->walk([&](Operation *op) {
@@ -759,7 +778,8 @@ bool BufferizationAliasInfo::aliasesNonWritableBuffer(Value value) const {
     }
 
     if (Operation *op = v.getDefiningOp()) {
-      if (isa<ConstantOp>(op) || !hasKnownBufferizationAliasingBehavior(op)) {
+      if (isa<arith::ConstantOp>(op) ||
+          !hasKnownBufferizationAliasingBehavior(op)) {
         LDBG("-----------notWritable op\n");
         return true;
       }
@@ -785,7 +805,7 @@ bool BufferizationAliasInfo::aliasesInPlaceWrite(Value value) const {
   LDBG("-------for : " << printValueInfo(value) << '\n');
   for (Value v : getAliases(value)) {
     for (auto &use : v.getUses()) {
-      if (bufferizesToMemoryWrite(use, InPlaceSpec::True)) {
+      if (isInplaceMemoryWrite(use)) {
         LDBG("-----------wants to bufferize to inPlace write: "
              << printOperationInfo(use.getOwner()) << '\n');
         return true;
@@ -814,185 +834,259 @@ void BufferizationAliasInfo::bufferizeOutOfPlace(OpResult result) {
   setInPlaceOpResult(result, InPlaceSpec::False);
 }
 
-/// Return true if it is possible to find an inplace write W among `usesWrite`
-/// and a read R among `usesRead`, such that W and R interfere.
-bool BufferizationAliasInfo::wouldCreateReadAfterWriteInterference(
-    Operation *opToBufferize, DenseSet<OpOperand *> &usesRead,
-    DenseSet<OpOperand *> &usesWrite, const DominanceInfo &domInfo) const {
+/// Starting from `value`, follow the use-def chain in reverse, always selecting
+/// the corresponding aliasing OpOperand. Try to find and return a Value for
+/// which `condition` evaluates to true for the aliasing OpOperand. Return an
+/// empty Value if no such Value was found. If `returnLast`, return the last
+/// Value (at the end of the chain), even if it does not satisfy the condition.
+static Value
+findValueInReverseUseDefChain(Value value,
+                              std::function<bool(OpOperand &)> condition,
+                              bool returnLast = false) {
+  while (value.isa<OpResult>()) {
+    auto opResult = value.cast<OpResult>();
+    SmallVector<OpOperand *> opOperands = getAliasingOpOperand(opResult);
+    assert(opOperands.size() <= 1 && "more than 1 OpOperand not supported yet");
+    if (opOperands.empty())
+      // No aliasing OpOperand. This could be an unsupported op or an op without
+      // a tensor arg such as InitTensorOp. This is the end of the chain.
+      return returnLast ? value : Value();
+    OpOperand *opOperand = opOperands.front();
+    if (condition(*opOperand))
+      return value;
+    value = opOperand->get();
+  }
+  // Value is a BlockArgument. Reached the end of the chain.
+  return returnLast ? value : Value();
+}
+
+/// Find the Value (result) of the last preceding write of a given Value.
+///
+/// Note: Unknown ops are handled conservatively and assumed to be writes.
+/// Furthermore, BlockArguments are also assumed to be writes. There is no
+/// analysis across block boundaries.
+static Value findLastPrecedingWrite(Value value) {
+  return findValueInReverseUseDefChain(value, bufferizesToMemoryWrite, true);
+}
+
+/// Return true if `value` is originating from an ExtractSliceOp that matches
+/// the given InsertSliceOp.
+bool BufferizationAliasInfo::hasMatchingExtractSliceOp(
+    Value value, InsertSliceOp insertOp) const {
+  return static_cast<bool>(
+      findValueInReverseUseDefChain(value, [&](OpOperand &opOperand) {
+        if (auto extractOp = dyn_cast<ExtractSliceOp>(opOperand.getOwner()))
+          if (areEquivalentExtractSliceOps(extractOp, insertOp))
+            return true;
+        return false;
+      }));
+}
+
+/// Given sets of uses and writes, return true if there is a RaW conflict under
+/// the assumption that all given reads/writes alias the same buffer and that
+/// all given writes bufferize inplace.
+///
+/// A conflict is: According to SSA use-def chains, a read R is supposed to read
+/// the result of a write W1. But because of bufferization decisions, R actually
+/// reads another write W2.
+bool BufferizationAliasInfo::hasReadAfterWriteInterference(
+    const DenseSet<OpOperand *> &usesRead,
+    const DenseSet<OpOperand *> &usesWrite,
+    const DominanceInfo &domInfo) const {
+
   for (OpOperand *uRead : usesRead) {
-    Operation *aliasingReadOp = uRead->getOwner();
-    LDBG("----++++aliasRead -> #"
-         << uRead->getOperandNumber()
-         << " in: " << printOperationInfo(aliasingReadOp) << '\n');
-    for (OpOperand *uWrite : usesWrite) {
-      // The same operand may both read and write.
-      // Don't consider self-use of the same operand for interference.
-      // Multiple different uses within the same op is fair game though.
-      if (uWrite == uRead)
+    Operation *readingOp = uRead->getOwner();
+
+    // Find most recent write of uRead by following the SSA use-def chain. E.g.:
+    //
+    // %0 = "writing_op"(%t) : tensor<?x32> -> tensor<?xf32>
+    // %1 = "aliasing_op"(%0) : tensor<?x32> -> tensor<?xf32>
+    // %2 = "reading_op"(%1) : : tensor<?x32> -> not_a_tensor_type
+    //
+    // In the above example, if uRead is the OpOperand of reading_op, lastWrite
+    // is %0. Note that operations that create an alias but do not write (such
+    // as ExtractSliceOp) are skipped.
+    // TODO: With branches this should probably be a list of Values.
+    Value lastWrite = findLastPrecedingWrite(uRead->get());
+
+    // Look for conflicting memory writes. Potential conflicts are writes to an
+    // alias that have been decided to bufferize inplace.
+    for (OpOperand *uConflictingWrite : usesWrite) {
+      // Throughout this loop, check for multiple requirements that have to be
+      // met for uConflictingWrite to be an actual conflict.
+      Operation *conflictingWritingOp = uConflictingWrite->getOwner();
+
+      // Print some debug info.
+      LDBG("Found potential conflict:\n");
+      LDBG("READ = #" << uRead->getOperandNumber() << " of "
+                      << printOperationInfo(readingOp) << "\n");
+      LDBG("WRITE = #" << printValueInfo(lastWrite) << "\n");
+      LDBG("CONFLICTING WRITE = #"
+           << uConflictingWrite->getOperandNumber() << " of "
+           << printOperationInfo(conflictingWritingOp) << "\n");
+
+      // No conflict if the readingOp dominates conflictingWritingOp, i.e., the
+      // write is not visible when reading.
+      if (domInfo.properlyDominates(readingOp, conflictingWritingOp))
         continue;
 
-      Operation *aliasingWriteOp = uWrite->getOwner();
-      LDBG("----    aliasWrite -> #"
-           << uWrite->getOperandNumber()
-           << " in: " << printOperationInfo(aliasingWriteOp) << '\n');
-      // If the candidate write is the one that produces the read value (in the
-      // SSA def-use sense), this is not considered an interference.
-      if (getInplaceableOpResult(*uWrite) == uRead->get())
-        continue;
-      // If aliasingReadOp properly dominates aliasingWriteOp, the read cannot
-      // be affected by the write: there is no interference.
-      if (domInfo.properlyDominates(aliasingReadOp, aliasingWriteOp))
-        continue;
-      // At this point, aliasingWriteOp properly dominates aliasingReadOp or
-      // there is no clear dominance and we need to be conservative.
-      LDBG("---->found RaW interference between:\n");
-      LDBG("       OpToBufferize -> " << printOperationInfo(opToBufferize)
-                                      << '\n');
-      LDBG("       Interfering write -> #"
-           << uWrite->getOperandNumber() << ":"
-           << printOperationInfo(aliasingWriteOp) << '\n');
-      LDBG("       Target read -> #" << uRead->getOperandNumber() << ":"
-                                     << printOperationInfo(aliasingReadOp)
-                                     << '\n');
-      LDBG("---->opportunity to clobber RaW interference\n");
-      if (isClobberedWriteBeforeRead(opToBufferize, *uRead, *uWrite, domInfo)) {
-        LDBG("---->clobbered! -> skip\n");
-        continue;
+      // No conflict if the conflicting write happens before the last write.
+      if (Operation *writingOp = lastWrite.getDefiningOp()) {
+        if (domInfo.properlyDominates(conflictingWritingOp, writingOp))
+          // conflictingWritingOp happens before writingOp. No conflict.
+          continue;
+      } else {
+        auto bbArg = lastWrite.cast<BlockArgument>();
+        Block *block = bbArg.getOwner();
+        if (!block->findAncestorOpInBlock(*conflictingWritingOp))
+          // conflictingWritingOp happens outside of the block. No
+          // conflict.
+          continue;
       }
-      LDBG("---->not clobbered -> found an interference\n");
+
+      // No conflict if the conflicting write and the last write are the same
+      // use.
+      if (getAliasingOpResult(*uConflictingWrite) == lastWrite)
+        continue;
+
+      // No conflict is the same use is the read and the conflicting write. A
+      // use cannot conflict with itself.
+      if (uConflictingWrite == uRead)
+        continue;
+
+      // Special rules for matching ExtractSliceOp/InsertSliceOp pairs. If
+      // uRead is an InsertSliceOp...
+      if (auto insertSliceOp = dyn_cast<InsertSliceOp>(readingOp)) {
+        // As an example, consider the following IR.
+        //
+        // %0 = tensor.extract_slice %t[%a, %b][%c, %d][1, 1] {inplace= [true] }
+        // %1 = linalg.fill %cst, %0 {inplace= [true] }
+        // %2 = tensor.insert_slice %1 into %t[%a, %b][%c, %d][1, 1]
+        //     {inplace= [true] }
+
+        // TODO: Use insertSliceOp.getDestOpOperand etc. when available.
+        if (uRead == &insertSliceOp->getOpOperand(1) /*dest*/ &&
+            hasMatchingExtractSliceOp(uConflictingWrite->get(), insertSliceOp))
+          // Case 1: The main insight is that InsertSliceOp reads only part of
+          // the destination tensor. The overwritten area is not read. If
+          // uConflictingWrite writes into exactly the memory location that is
+          // being read by uRead, this is not a conflict.
+          //
+          // In the above example:
+          // uRead             = OpOperand 1 (%t) of tensor.insert_slice
+          // uConflictingWrite = OpOperand 1 (%0) of linalg.fill
+          //
+          // The read of %t does not conflict with the write of the FillOp
+          // (same aliases!) because the area that the FillOp operates on is
+          // exactly the one that is *not* read via %t.
+          continue;
+
+        if (uRead == &insertSliceOp->getOpOperand(0) /*source*/ &&
+            uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
+            hasMatchingExtractSliceOp(uRead->get(), insertSliceOp))
+          // Case 2: The read of the source tensor and the write to the dest
+          // tensor via an InsertSliceOp is not a conflict if the read is
+          // reading exactly that part of an equivalent tensor that the
+          // InsertSliceOp is writing.
+          //
+          // In the above example:
+          // uRead             = OpOperand 0 (%1) of tensor.insert_slice
+          // uConflictingWrite = OpOperand 1 (%t) of tensor.insert_slice
+          continue;
+      }
+
+      // All requirements are met. Conflict found!
+      LDBG("CONFLICT CONFIRMED!\n\n");
       return true;
     }
   }
-  LDBG("----No interference found\n");
+
+  LDBG("NOT A CONFLICT!\n\n");
   return false;
 }
 
-/// Return true if it is possible to find an inplace write W among the uses of
-/// aliasInfo[result], and a read R among the uses of aliasInfo[result],
-/// such that W and R interfere.
-/// Such a (W, R) pair is an interference to the inplace bufferization of
-/// opResult when:
-///   1. R is not known to properly dominate W (i.e. the effects of the write
-///      may be visible from R).
-///   2. one cannot find an intermediate clobbering write `C` to W, such that
-///      C interleaved between W and R (i.e. W -> C -> R where -> denotes
-///      dominance).
+/// Return true if bufferizing result inplace would create a conflict. A read R
+/// and a write W of the same alias set is a conflict if inplace bufferization
+/// of W changes the value read by R to a value different from the one that
+/// would be expected by tracing back R's origin through SSA use-def chains.
+/// A conflict can only be introduced by a new alias and/or an inplace
+/// bufferization decision.
+///
+/// Example:
+/// %0 = tensor.extract_slice %t[...][...][1, 1] {inplace?}
+/// %1 = vector.transfer_write %v1, %t {inplace} : vector<5xf32>, tensor<?xf32>
+/// %e = tensor.extract_slice %1
+/// %2 = vector.transfer_write %v2, %0 {inplace} : vector<6xf32>, tensor<?xf32>
+/// %3 = vector.transfer_read %e, %cst : tensor<?xf32>, vector<7xf32>
+///
+/// In the above example, the two TransferWriteOps have already been decided to
+/// bufferize inplace. Bufferizing the ExtractSliceOp inplace would create a
+/// conflict because:
+/// * According to SSA use-def chains, we expect to read the result of %1.
+/// * However, adding an alias {%0, %t} would mean that the second
+///   TransferWriteOp overwrites the first one. Therefore, the TransferReadOp
+///   would no longer be reading the result of %1.
 bool BufferizationAliasInfo::wouldCreateReadAfterWriteInterference(
-    OpResult result, const DominanceInfo &domInfo) const {
-  Optional<OpOperand *> maybeAliasingOperand = getAliasingOpOperand(result);
-  if (!maybeAliasingOperand)
-    return false;
+    OpOperand &operand, OpResult result, const DominanceInfo &domInfo) const {
+#ifndef NDEBUG
+  SmallVector<OpOperand *> opOperands = getAliasingOpOperand(result);
+  assert(llvm::find(opOperands, &operand) != opOperands.end() &&
+         "operand and result do not match");
+#endif // NDEBUG
 
-  Operation *opToBufferize = result.getDefiningOp();
-  Value opResult = result;
-  Value opOperand = (*maybeAliasingOperand)->get();
-
-  LDBG("----Start wouldCreateReadAfterWriteInterference\n");
-  LDBG("--------consider all aliases to root read: "
-       << printValueInfo(opOperand) << "\n");
-  LDBG("--------consider all aliases to root write: "
-       << printValueInfo(opResult) << "\n");
-
-  /// Helper function to iterate on aliases of `root` and capture the reads.
+  // Helper function to iterate on aliases of `root` and capture the reads.
   auto getAliasingReads = [&](DenseSet<OpOperand *> &res, Value root) {
-    for (Value alias : getAliases(root)) {
-      for (auto &use : alias.getUses()) {
+    for (Value alias : getAliases(root))
+      for (auto &use : alias.getUses())
         // Read to a value that aliases root.
-        if (bufferizesToMemoryRead(use)) {
-          LDBG("------------bufferizesToMemoryRead: "
-               << use.getOwner()->getName().getStringRef() << "\n");
+        if (bufferizesToMemoryRead(use))
           res.insert(&use);
-        }
-      }
-    }
   };
 
-  /// Helper function to iterate on aliases of `root` and capture the writes.
+  // Helper function to iterate on aliases of `root` and capture the writes.
   auto getAliasingInplaceWrites = [&](DenseSet<OpOperand *> &res, Value root) {
-    for (Value alias : getAliases(root)) {
-      for (auto &use : alias.getUses()) {
+    for (Value alias : getAliases(root))
+      for (auto &use : alias.getUses())
         // Inplace write to a value that aliases root.
-        if (bufferizesToMemoryWrite(use, InPlaceSpec::True)) {
-          LDBG("------------bufferizesToMemoryWrite: "
-               << use.getOwner()->getName().getStringRef() << "\n");
+        if (isInplaceMemoryWrite(use))
           res.insert(&use);
-        }
-      }
-    }
   };
 
-  // Check if we can find any interference between reads to aliases[`opOperand`]
-  // and writes to aliases[`opResult`]. This handles the case:
-  //
-  // ```
-  //  %0 = op_to_bufferize_maybe_inplace(%1)
-  //  %2 = some_alias(%0)
-  //  inplace_write(%2)
-  //  %3 = some_alias(%1)
-  //  read(%3)
-  // ```
+  // Collect reads and writes of all aliases of OpOperand and OpResult.
   DenseSet<OpOperand *> usesRead, usesWrite;
-  LDBG("--------\n");
-  LDBG("--------Test reads(opOperand) vs writes(opResult)\n");
-  getAliasingReads(usesRead, opOperand);
-  getAliasingInplaceWrites(usesWrite, opResult);
-  // Additionally, `result` is not yet bufferized and we need to check for
-  // interferences as if it were bufferized inplace: add `maybeAliasingOperand`
-  // if it is a write. This handles the case:
-  //
-  // ```
-  //  %0 = op_to_bufferize_maybe_inplace(%1)
-  //  %2 = some_alias(%1)
-  //  read(%2)
-  // ```
-  if (bufferizesToMemoryWrite(**maybeAliasingOperand))
-    usesWrite.insert(*maybeAliasingOperand);
-  if (wouldCreateReadAfterWriteInterference(opToBufferize, usesRead, usesWrite,
-                                            domInfo))
-    return true;
+  getAliasingReads(usesRead, operand.get());
+  getAliasingReads(usesRead, result);
+  getAliasingInplaceWrites(usesWrite, operand.get());
+  getAliasingInplaceWrites(usesWrite, result);
+  if (bufferizesToMemoryWrite(operand))
+    usesWrite.insert(&operand);
 
-  // Check if we can find any interference between writes to
-  // aliases[`opOperand`] and reads to aliases[`opResult`]. This handles the
-  // case:
-  //
-  // ```
-  //  %0 = op_to_bufferize_maybe_inplace(%1)
-  //  %2 = some_alias(%1)
-  //  inplace_write(%2)
-  //  %3 = some_alias(%0)
-  //  read(%3)
-  // ```
-  LDBG("--------\n");
-  LDBG("--------Test reads(opResult) vs writes(opOperand)\n");
-  usesRead.clear();
-  usesWrite.clear();
-  getAliasingReads(usesRead, opResult);
-  getAliasingInplaceWrites(usesWrite, opOperand);
-  return wouldCreateReadAfterWriteInterference(opToBufferize, usesRead,
-                                               usesWrite, domInfo);
+  return hasReadAfterWriteInterference(usesRead, usesWrite, domInfo);
 }
 
-/// Return true if bufferizing `opResult` inplace would create a write to a
-/// non-writable buffer.
+/// Return true if bufferizing `opOperand` inplace with `opResult` would create
+/// a write to a non-writable buffer.
 bool BufferizationAliasInfo::wouldCreateWriteToNonWritableBuffer(
-    OpResult opResult) const {
-  Optional<OpOperand *> maybeAliasingOperand = getAliasingOpOperand(opResult);
-  if (!maybeAliasingOperand || !*maybeAliasingOperand)
-    return false;
+    OpOperand &opOperand, OpResult opResult) const {
+#ifndef NDEBUG
+  SmallVector<OpOperand *> opOperands = getAliasingOpOperand(opResult);
+  assert(llvm::find(opOperands, &opOperand) != opOperands.end() &&
+         "operand and result do not match");
+#endif // NDEBUG
 
   // Certain buffers are not writeable:
   //   1. A function bbArg that is not inplaceable or
   //   2. A constant op.
   assert(!aliasesNonWritableBuffer(opResult) &&
          "expected that opResult does not alias non-writable buffer");
-  bool nonWritable = aliasesNonWritableBuffer((*maybeAliasingOperand)->get());
+  bool nonWritable = aliasesNonWritableBuffer(opOperand.get());
   if (!nonWritable)
     return false;
 
   // This is a problem only if the buffer is written to via some alias.
   bool hasWrite = aliasesInPlaceWrite(opResult) ||
-                  aliasesInPlaceWrite((*maybeAliasingOperand)->get()) ||
-                  bufferizesToMemoryWrite(**maybeAliasingOperand);
+                  aliasesInPlaceWrite(opOperand.get()) ||
+                  bufferizesToMemoryWrite(opOperand);
   if (!hasWrite)
     return false;
 
@@ -1099,121 +1193,7 @@ bool BufferizationAliasInfo::areEquivalentExtractSliceOps(
     return false;
   if (!sameOffsetsSizesAndStrides(st, sti, isEqualConstantIntOrValue))
     return false;
-  if (!equivalentInfo.isEquivalent(st.result(), sti.source()))
-    return false;
   return true;
-}
-
-/// Return true if there is a `candidateOp` that would write to memory after
-/// bufferization and such that:
-///   1. The written buffer is equivalent to either `aliasingRead` or
-///      `aliasingWrite` under the inPlace bufferization decisions taken
-///      so far.
-///   2. `aliasingWrite` properly dominates `candidateOp`.
-///   3. `candidateOp` properly dominates `aliasingReadOp`.
-// TODO: richer clobbering analysis with container-containee relationship
-// instead of equivalence.
-bool BufferizationAliasInfo::existsInterleavedValueClobber(
-    OpOperand &aliasingRead, OpOperand &aliasingWrite,
-    const DominanceInfo &domInfo) const {
-  Operation *aliasingReadOp = aliasingRead.getOwner();
-  Operation *aliasingWriteOp = aliasingWrite.getOwner();
-  assert(!domInfo.properlyDominates(aliasingReadOp, aliasingWriteOp) &&
-         "Unexpected aliasingReadOp properly dominates aliasingWriteOp");
-
-  for (Value valueToClobber : {aliasingRead.get(), aliasingWrite.get()}) {
-    auto leaderIt = equivalentInfo.findLeader(valueToClobber);
-    for (auto mit = leaderIt, meit = equivalentInfo.member_end(); mit != meit;
-         ++mit) {
-      Operation *candidateOp = mit->v.getDefiningOp();
-      if (!candidateOp)
-        continue;
-      auto maybeAliasingOperand = getAliasingOpOperand(mit->v.cast<OpResult>());
-      if (!maybeAliasingOperand || !*maybeAliasingOperand ||
-          !bufferizesToMemoryWrite(**maybeAliasingOperand))
-        continue;
-      LDBG("---->clobbering candidate: " << printOperationInfo(candidateOp)
-                                         << '\n');
-      if (domInfo.properlyDominates(aliasingWriteOp, candidateOp) &&
-          domInfo.properlyDominates(candidateOp, aliasingReadOp))
-        return true;
-    }
-  }
-  return false;
-}
-
-/// Return true if there is a write that:
-///   1. Properly dominates aliasingReadOp.
-///   2. Is properly dominated by aliasingWriteOp.
-///   3. Clobbers the write that would be interfering with the read.
-///
-bool BufferizationAliasInfo::isClobberedWriteBeforeRead(
-    Operation *opToBufferize, OpOperand &aliasingRead, OpOperand &aliasingWrite,
-    const DominanceInfo &domInfo) const {
-  Operation *aliasingReadOp = aliasingRead.getOwner();
-  Operation *aliasingWriteOp = aliasingWrite.getOwner();
-  assert(!domInfo.properlyDominates(aliasingReadOp, aliasingWriteOp) &&
-         "Unexpected aliasingReadOp properly dominates aliasingWriteOp");
-
-  // Bail if the write does not dominate the read: it may clobber but only on
-  // a strict subset of paths, which is not enough for safety.
-  if (!domInfo.dominates(aliasingWriteOp, aliasingReadOp)) {
-    LDBG("---->no clobbering: write does not dominate read\n");
-    return false;
-  }
-
-  // The case `opToBufferize` isa ExtractSliceOp is important enough that we
-  // look for it specifically. The key information to discover is whether the
-  // aliasing read or write come from a matching InsertSliceOp.
-  // Such a pattern is introduced by tiling and is the key inplace condition
-  // not to miss.
-  if (auto extractSliceOp = dyn_cast<ExtractSliceOp>(opToBufferize)) {
-    if (auto insertSliceOp = dyn_cast<InsertSliceOp>(aliasingReadOp)) {
-      // %1 = extract_slice %0[%offset_sizes_and_strides_1]
-      //
-      // ... // 0 or more of inplace compute that reduces to: %X is an
-      //     // aliasingWrite equivalent to %1.
-      // %W = inplace_write(%1)
-      //
-      // // aliasingRead %Y in insert_slice
-      // ... = insert_slice %W into %R[%offset_sizes_and_strides_1]
-      if (aliasingRead.get() == insertSliceOp.dest() &&
-          // TODO: This is currently too restrictive and misses clobberings.
-          // When available, use container-containee analysis: the condition
-          // should be that the `aliasingWrite` is contained within
-          // `insertSliceOp.source()`.
-          equivalentInfo.isEquivalent(aliasingWrite.get(),
-                                      insertSliceOp.source()) &&
-          areEquivalentExtractSliceOps(extractSliceOp, insertSliceOp)) {
-        LDBG("---->clobbering matching extract_slice/insert_slice\n");
-        return true;
-      }
-      // %1 = extract_slice %0[%offset_sizes_and_strides_1]
-      //
-      // ... // bunch of inplace ops that reduce to %X, equivalent to %1.
-      // %X = inplace_write(%1)
-      //
-      // // aliasingRead %X in insert_slice
-      // // aliasingWrite %Y in insert_slice
-      // ... = insert_slice %X into %Y[%offset_sizes_and_strides_1]
-      if (aliasingReadOp == aliasingWriteOp) {
-        assert(aliasingRead.get() == insertSliceOp.source() &&
-               "expected read to source of insert_slice");
-        assert(aliasingWrite.get() == insertSliceOp.dest() &&
-               "expected write to dest of insert_slice");
-        if (areEquivalentExtractSliceOps(extractSliceOp, insertSliceOp)) {
-          LDBG("---->clobbering matching extract_slice/insert_slice\n");
-          return true;
-        }
-      }
-    }
-  }
-
-  // General case: look for a properly interleaved clobber of either exactly
-  // `aliasingRead` or `aliasingWrite`.
-  // TODO: Relax this to inclusion instead of double inclusion (a.k.a
-  // equivalence). We will need to compute container-containee relationship.
-  return existsInterleavedValueClobber(aliasingRead, aliasingWrite, domInfo);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1361,7 +1341,7 @@ createNewAllocDeallocPairForShapedValue(OpBuilder &b, Location loc,
     b.setInsertionPointToStart(bbArg.getOwner());
     loc = bbArg.getOwner()->getParentOp()->getLoc();
   } else {
-    b.setInsertionPointAfter(shapedValue.getDefiningOp());
+    b.setInsertionPoint(shapedValue.getDefiningOp());
     loc = shapedValue.getDefiningOp()->getLoc();
   }
 
@@ -1407,14 +1387,44 @@ createNewAllocDeallocPairForShapedValue(OpBuilder &b, Location loc,
 // Bufferization as simple BlockAndValueMapping rewrites.
 //===----------------------------------------------------------------------===//
 
+/// Return the result buffer (memref) for a given OpResult (tensor). Allocate
+/// a new buffer and copy over data from the existing buffer if out-of-place
+/// bufferization is necessary.
+static Value getResultBuffer(OpBuilder &b, OpResult result,
+                             const BlockAndValueMapping &bvm,
+                             BufferizationAliasInfo &aliasInfo,
+                             bool skipCopy = false) {
+  OpBuilder::InsertionGuard guard(b);
+  Operation *op = result.getOwner();
+  SmallVector<OpOperand *> aliasingOperands = getAliasingOpOperand(result);
+  // TODO: Support multiple OpOperands.
+  assert(aliasingOperands.size() == 1 &&
+         "more than 1 OpOperand not supported yet");
+  Value operand = aliasingOperands.front()->get();
+  Value operandBuffer = lookup(bvm, operand);
+  assert(operandBuffer && "operand buffer not found");
+
+  // If bufferizing out-of-place, allocate a new buffer.
+  if (getInPlace(result) != InPlaceSpec::True) {
+    Location loc = op->getLoc();
+    // Allocate the result buffer.
+    Value resultBuffer =
+        createNewAllocDeallocPairForShapedValue(b, loc, operand, aliasInfo);
+    if (!skipCopy && !isInitTensorOp(operand)) {
+      // Set insertion point now that potential alloc/dealloc are introduced.
+      b.setInsertionPoint(op);
+      b.create<CopyOp>(loc, operandBuffer, resultBuffer);
+    }
+    return resultBuffer;
+  }
+
+  // Bufferizing in-place. No need to allocate a new buffer.
+  return operandBuffer;
+}
+
 /// Helper function for LinalgOp bufferization.
-/// Examines each result and determines whether it bufferizes inplace on an
-/// operand.
-/// If the opResult bufferizes inplace, just reuse the existing buffer.
-/// Otherwise allocate a new buffer to hold the result.
-/// When allocating a new buffer, analyze whether `op` want to read form that
-/// buffer. In such a case, insert a copy to ensure the newly allocated buffer
-/// is properly initialiazed.
+/// When allocating a new buffer, analyze whether `op` wants to read form that
+/// buffer. Only in that case, a copy of the result buffer may be needed.
 static void allocateBuffersForResults(OpBuilder &b, Location loc, LinalgOp op,
                                       SmallVectorImpl<Value> &resultBuffers,
                                       BlockAndValueMapping &bvm,
@@ -1426,31 +1436,11 @@ static void allocateBuffersForResults(OpBuilder &b, Location loc, LinalgOp op,
   // TODO: provide the proper interface to iterate on OpResults and get the
   // matching OpOperands.
   for (OpOperand *opOperand : op.getOutputOperands()) {
-    Value output = opOperand->get();
-    assert(output.getType().isa<TensorType>() && "expected tensor type");
-
-    // If output tensor is marked inPlace, just use the buffer.
-    // The following uses internal knowledge of the position of inplaceable
-    // operand / results.
     OpResult opResult = getInplaceableOpResult(*opOperand);
-    if (getInPlace(opResult) == InPlaceSpec::True) {
-      Value v = lookup(bvm, output);
-      assert(v && "missing buffer");
-      resultBuffers.push_back(v);
-      continue;
-    }
-
-    // Otherwise, `op` is not inplaceable and we need to allocate its result.
-    Value dimTensor = bvm.lookupOrDefault(output);
-    Value alloc =
-        createNewAllocDeallocPairForShapedValue(b, loc, dimTensor, aliasInfo);
-    resultBuffers.push_back(alloc);
-
-    // Additionally, if the output buffer is used, clone its value for now.
-    if (op.payloadUsesValueFromOperand(opOperand)) {
-      Value v = lookup(bvm, output);
-      b.create<CopyOp>(loc, v, alloc);
-    }
+    assert(opResult && "could not find correspond OpResult");
+    bool skipCopy = !op.payloadUsesValueFromOperand(opOperand);
+    Value resultBuffer = getResultBuffer(b, opResult, bvm, aliasInfo, skipCopy);
+    resultBuffers.push_back(resultBuffer);
   }
 
   if (op->getNumResults())
@@ -1649,27 +1639,8 @@ static LogicalResult bufferize(OpBuilder &b, tensor::CastOp castOp,
   OpBuilder::InsertionGuard g(b);
   b.setInsertionPoint(castOp);
 
-  // If castOp is not inPlace, allocate a new buffer.
-  auto inPlace = getInPlace(castOp->getResult(0));
-  Value newBuffer;
-  if (inPlace != InPlaceSpec::True) {
-    Location loc = castOp.getLoc();
-    // Alloc a copy for `writeOp.source()`, it will become the result buffer.
-    newBuffer = createNewAllocDeallocPairForShapedValue(b, loc, castOp.source(),
-                                                        aliasInfo);
-    if (!isInitTensorOp(castOp.source())) {
-      // Set insertion point now that potential alloc/dealloc are introduced.
-      b.setInsertionPoint(castOp);
-      b.create<CopyOp>(loc, lookup(bvm, castOp.source()), newBuffer);
-    }
-  } else {
-    // InPlace write will result in memref.tensor_load(x) which must
-    // canonicalize away with one of it uses.
-    newBuffer = lookup(bvm, castOp.source());
-    assert(newBuffer && "missing buffer");
-  }
-
-  Type sourceType = newBuffer.getType();
+  Value resultBuffer = getResultBuffer(b, castOp->getResult(0), bvm, aliasInfo);
+  Type sourceType = resultBuffer.getType();
   auto rankedMemRefType = sourceType.dyn_cast<MemRefType>();
   auto unrankedMemRefType = sourceType.dyn_cast<UnrankedMemRefType>();
   assert(rankedMemRefType || unrankedMemRefType);
@@ -1683,13 +1654,14 @@ static LogicalResult bufferize(OpBuilder &b, tensor::CastOp castOp,
           : ArrayRef<AffineMap>{};
   Type memRefType = getContiguousOrUnrankedMemRefType(
       castOp.getResult().getType(), affineMaps, memorySpace);
-  Value res = b.create<memref::CastOp>(castOp.getLoc(), memRefType, newBuffer);
+  Value res =
+      b.create<memref::CastOp>(castOp.getLoc(), memRefType, resultBuffer);
   aliasInfo.insertNewBufferEquivalence(res, castOp.getResult());
   map(bvm, castOp.getResult(), res);
   return success();
 }
 
-static LogicalResult bufferize(OpBuilder &b, ConstantOp constantOp,
+static LogicalResult bufferize(OpBuilder &b, arith::ConstantOp constantOp,
                                BlockAndValueMapping &bvm,
                                BufferizationAliasInfo &aliasInfo,
                                GlobalCreator &globalCreator) {
@@ -1733,9 +1705,6 @@ static LogicalResult bufferize(OpBuilder &b, scf::ForOp forOp,
   // Take a guard before anything else.
   OpBuilder::InsertionGuard g(b);
 
-  // If inPlace, just forward the buffer.
-  // Otherwise alloc and copy.
-  Location loc = forOp.getLoc();
   for (OpResult opResult : forOp->getResults()) {
     if (!opResult.getType().isa<TensorType>())
       continue;
@@ -1743,29 +1712,11 @@ static LogicalResult bufferize(OpBuilder &b, scf::ForOp forOp,
     // alloc an UnrankedMemRefType + its underlying ranked MemRefType.
     assert(opResult.getType().isa<RankedTensorType>() &&
            "unsupported unranked tensor");
+
+    // TODO: More general: Matching bbArg does not bufferize to a read.
+    Value resultBuffer = getResultBuffer(b, opResult, bvm, aliasInfo);
+
     OpOperand &opOperand = forOp.getOpOperandForResult(opResult);
-    Value operand = opOperand.get();
-    Value operandBuffer = lookup(bvm, operand);
-    Value resultBuffer = operandBuffer;
-    if (getInPlace(opResult) != InPlaceSpec::True) {
-      resultBuffer =
-          createNewAllocDeallocPairForShapedValue(b, loc, operand, aliasInfo);
-      // If the tensor comes from either:
-      //   - linalg.init_tensor
-      //   - tensor.cast(linalg.init_tensor())
-      // Then the value is unitialized and we do not need to copy. This is a
-      // pragmatic simplification of "matching bbArg does not bufferize to a
-      // read".
-      // TODO: "matching bbArg does not bufferize to a read" is a more general
-      // check.
-      if (!isInitTensorOp(operand)) {
-        OpBuilder::InsertionGuard g(b);
-        // Set insertion point now that potential alloc/dealloc are introduced.
-        // Copy is inserted just before the forOp.
-        b.setInsertionPoint(forOp);
-        b.create<linalg::CopyOp>(forOp.getLoc(), operandBuffer, resultBuffer);
-      }
-    }
     BlockArgument bbArg = forOp.getRegionIterArgForOpOperand(opOperand);
     aliasInfo.createAliasInfoEntry(resultBuffer);
     aliasInfo.insertNewBufferEquivalence(bbArg, resultBuffer);
@@ -1882,40 +1833,19 @@ static LogicalResult bufferize(OpBuilder &b, TiledLoopOp tiledLoopOp,
     assert(oldOutputTensor.getType().isa<RankedTensorType>() &&
            "bufferizable output must be a ranked tensor");
 
-    Value outputBuffer = lookup(bvm, oldOutputTensor);
     const OpResult &opResult = tiledLoopOp->getResult(resultIndex);
     OpOperand &yieldOperand = yieldOp->getOpOperand(resultIndex);
-    // If the result is not inplaceable, need to allocate a copy for it.
-    if (getInPlace(opResult) != InPlaceSpec::True) {
-      auto loc = tiledLoopOp.getLoc();
-      Value alloc = createNewAllocDeallocPairForShapedValue(
-          b, loc, oldOutputTensor, aliasInfo);
-      // If the tensor comes from either:
-      //   - linalg.init_tensor
-      //   - tensor.cast(linalg.init_tensor())
-      // Then the value is unitialized and we do not need to copy. This is a
-      // pragmatic simplification of "matching bbArg does not bufferize to a
-      // read".
-      // TODO: "matching bbArg does not bufferize to a read" is a more general
-      // check.
-      if (!isInitTensorOp(oldOutputTensor)) {
-        OpBuilder::InsertionGuard g(b);
-        // Set insertion point now that potential alloc/dealloc are introduced.
-        // Copy is inserted just before the tiledLoopOp.
-        b.setInsertionPoint(tiledLoopOp);
-        b.create<linalg::CopyOp>(loc, outputBuffer, alloc);
-      }
-      outputBuffer = alloc;
-    }
+    Value resultBuffer = getResultBuffer(b, opResult, bvm, aliasInfo);
+
     // Insert mapping and aliasing info.
-    aliasInfo.createAliasInfoEntry(outputBuffer);
-    aliasInfo.insertNewBufferEquivalence(opResult, outputBuffer);
-    map(bvm, opResult, outputBuffer);
+    aliasInfo.createAliasInfoEntry(resultBuffer);
+    aliasInfo.insertNewBufferEquivalence(opResult, resultBuffer);
+    map(bvm, opResult, resultBuffer);
 
     // Insert new operand and bbArg.
-    tiledLoopOp->insertOperands(nextOutputOperandIndex, outputBuffer);
+    tiledLoopOp->insertOperands(nextOutputOperandIndex, resultBuffer);
     BlockArgument newBufferBBArg =
-        body->insertArgument(nextOutputBBArgIndex, outputBuffer.getType());
+        body->insertArgument(nextOutputBBArgIndex, resultBuffer.getType());
     BlockArgument oldTensorBBArg = body->getArgument(oldOutputBBArgIndex);
     // Insert mapping and aliasing info.
     aliasInfo.createAliasInfoEntry(newBufferBBArg);
@@ -2045,25 +1975,15 @@ static LogicalResult bufferize(OpBuilder &b, InsertSliceOp insertSliceOp,
   LDBG("bufferize: " << *insertSliceOp << '\n');
 
   Location loc = insertSliceOp.getLoc();
-  Value dstMemref = lookup(bvm, insertSliceOp.dest());
-  if (!dstMemref)
-    return failure();
-  auto inPlace = getInPlace(insertSliceOp->getResult(0));
-  if (inPlace != InPlaceSpec::True) {
-    // Since insert_slice arise from tiling and introducing loops, this
-    // case is generally a deal breaker. When used with loops, this ends up
-    // cloning the whole tensor on every single iteration and is a symptom
-    // of a catastrophically bad scheduling decision.
-    // TODO: be very loud about it or even consider failing the pass.
-    // Alloc a copy for `insertSliceOp.dest()`, it will become the result
-    // buffer.
-    Value newDstMemref = createNewAllocDeallocPairForShapedValue(
-        b, loc, insertSliceOp.dest(), aliasInfo);
-    // Set insertion point now that potential alloc/dealloc are introduced.
-    b.setInsertionPoint(insertSliceOp);
-    b.create<CopyOp>(insertSliceOp.getLoc(), dstMemref, newDstMemref);
-    dstMemref = newDstMemref;
-  }
+  // Since insert_slice arise from tiling and introducing loops, this
+  // case is generally a deal breaker. When used with loops, this ends up
+  // cloning the whole tensor on every single iteration and is a symptom
+  // of a catastrophically bad scheduling decision.
+  // TODO: be very loud about it or even consider failing the pass.
+  // Alloc a copy for `insertSliceOp.dest()`, it will become the result
+  // buffer.
+  Value dstMemref =
+      getResultBuffer(b, insertSliceOp->getResult(0), bvm, aliasInfo);
   auto dstMemrefType = dstMemref.getType().cast<MemRefType>();
 
   Value srcMemref = lookup(bvm, insertSliceOp.source());
@@ -2081,6 +2001,8 @@ static LogicalResult bufferize(OpBuilder &b, InsertSliceOp insertSliceOp,
   //     slice is computed out of place into the inplace full tensor.
   //   - The result is not inplace. This is the case where the whole tensor is
   //     cloned and the clone needs to be updated.
+  auto inPlace = getInPlace(insertSliceOp->getResult(0));
+  // TODO: Is this necessary?
   if (!aliasInfo.isSourceEquivalentToAMatchingInplaceExtractSliceOp(
           insertSliceOp) ||
       inPlace != InPlaceSpec::True) {
@@ -2119,38 +2041,16 @@ static LogicalResult bufferize(OpBuilder &b, VectorTransferOpInterface op,
     return success();
   }
 
-  auto inPlace = getInPlace(op->getResult(0));
-  auto writeOp = cast<vector::TransferWriteOp>(op.getOperation());
-
-  // If transfer_write is not inPlace, allocate a new buffer.
-  Value newInputBuffer;
-  Location loc = op.getLoc();
-  if (inPlace != InPlaceSpec::True) {
-    // Alloc a copy for `writeOp.source()`, it will become the result buffer.
-    newInputBuffer = createNewAllocDeallocPairForShapedValue(
-        b, loc, writeOp.source(), aliasInfo);
-    Value v = lookup(bvm, writeOp.source());
-    if (!isInitTensorOp(writeOp.source())) {
-      // Set insertion point now that potential alloc/dealloc are introduced.
-      b.setInsertionPoint(op);
-      b.create<CopyOp>(loc, v, newInputBuffer);
-    }
-  } else {
-    // InPlace write will result in memref.tensor_load(x) which must
-    // canonicalize away with one of it uses.
-    newInputBuffer = lookup(bvm, writeOp.source());
-    assert(newInputBuffer && "missing buffer");
-  }
-
   // Create a new transfer_write on buffer that doesn't have a return value.
   // Leave the previous transfer_write to dead code as it still has uses at
   // this point.
+  auto writeOp = cast<vector::TransferWriteOp>(op.getOperation());
+  Value resultBuffer = getResultBuffer(b, op->getResult(0), bvm, aliasInfo);
   b.create<vector::TransferWriteOp>(
-      loc, writeOp.vector(), newInputBuffer, writeOp.indices(),
+      op.getLoc(), writeOp.vector(), resultBuffer, writeOp.indices(),
       writeOp.permutation_map(),
       writeOp.in_bounds() ? *writeOp.in_bounds() : ArrayAttr());
-
-  map(bvm, op->getResult(0), newInputBuffer);
+  map(bvm, op->getResult(0), resultBuffer);
 
   return success();
 }
@@ -2237,6 +2137,40 @@ static LogicalResult bufferize(OpBuilder &b, tensor::ExtractOp extractOp,
 // Bufferization analyses.
 //===----------------------------------------------------------------------===//
 
+/// Determine if `operand` can be bufferized in-place with `result`. If so, set
+/// InPlaceSpec::True on the result. Otherwise, set InPlaceSpec::False on the
+/// result.
+static LogicalResult
+bufferizableInPlaceAnalysisImpl(OpOperand &operand, OpResult result,
+                                BufferizationAliasInfo &aliasInfo,
+                                const DominanceInfo &domInfo) {
+#ifndef NDEBUG
+  SmallVector<OpOperand *> opOperands = getAliasingOpOperand(result);
+  assert(llvm::find(opOperands, &operand) != opOperands.end() &&
+         "operand and result do not match");
+#endif // NDEBUG
+
+  int64_t resultNumber = result.getResultNumber();
+  (void)resultNumber;
+  LDBG('\n');
+  LDBG("Inplace analysis for <- #" << resultNumber << " -> #"
+                                   << operand.getOperandNumber() << " in "
+                                   << printValueInfo(result) << '\n');
+
+  bool foundInterference =
+      aliasInfo.wouldCreateWriteToNonWritableBuffer(operand, result) ||
+      aliasInfo.wouldCreateReadAfterWriteInterference(operand, result, domInfo);
+
+  if (foundInterference)
+    aliasInfo.bufferizeOutOfPlace(result);
+  else
+    aliasInfo.bufferizeInPlace(result, operand);
+
+  LDBG("Done inplace analysis for result #" << resultNumber << '\n');
+
+  return success();
+}
+
 ///
 /// Rationale for bufferizing `%1 = tensor.extract_slice %0[...]` inplace.
 /// ===========================================================
@@ -2255,27 +2189,9 @@ static LogicalResult
 bufferizableInPlaceAnalysis(ExtractSliceOp extractSliceOp,
                             BufferizationAliasInfo &aliasInfo,
                             const DominanceInfo &domInfo) {
-  LDBG('\n');
-  LDBG("Inplace analysis for extract_slice: "
-       << printOperationInfo(extractSliceOp) << '\n');
-
-  OpResult r = extractSliceOp->getResult(0);
-  OpOperand &s = extractSliceOp->getOpOperand(0);
-  bool foundInterference =
-      /* If `extractSliceOp` were to be bufferized inplace, it cannot end up
-         aliasing a write into a non-writable buffer.*/
-      aliasInfo.wouldCreateWriteToNonWritableBuffer(r) ||
-      /* In any of extractSliceOp.result's aliases, can we find 2 such that we
-         hit an interfering write? */
-      aliasInfo.wouldCreateReadAfterWriteInterference(r, domInfo);
-  if (foundInterference)
-    aliasInfo.bufferizeOutOfPlace(r);
-  else
-    aliasInfo.bufferizeInPlace(r, s);
-
-  LDBG("Done inplace analysis for extract_slice\n");
-
-  return success();
+  return bufferizableInPlaceAnalysisImpl(extractSliceOp->getOpOperand(0),
+                                         extractSliceOp->getOpResult(0),
+                                         aliasInfo, domInfo);
 }
 
 /// Determine if `operand` can be bufferized in-place with one of the op's
@@ -2288,41 +2204,12 @@ bufferizableInPlaceAnalysis(OpOperand &operand,
   OpResult result = getInplaceableOpResult(operand);
   if (!result)
     return success();
-
-  Operation *op = result.getDefiningOp();
-  assert(result && !isa<ExtractSliceOp>(op) &&
-         "expected OpResult not coming from a ExtractSliceOp");
-  (void)op;
-
-  int64_t resultNumber = result.getResultNumber();
-  (void)resultNumber;
-  LDBG('\n');
-  LDBG("Inplace analysis for <- #" << resultNumber << " -> #"
-                                   << operand.getOperandNumber() << " in "
-                                   << printValueInfo(result) << '\n');
-
-  bool foundInterference =
-      aliasInfo.wouldCreateWriteToNonWritableBuffer(result) ||
-      aliasInfo.wouldCreateReadAfterWriteInterference(result, domInfo);
-
-  if (foundInterference)
-    aliasInfo.bufferizeOutOfPlace(result);
-  else
-    // TODO: Atm, all inplace bufferizations yield equivalent tensors. Support
-    // more cases on a per-need basis.
-    aliasInfo.bufferizeInPlace(result, operand);
-
-  LDBG("Done inplace analysis for result #" << resultNumber << '\n');
-
-  return success();
+  return bufferizableInPlaceAnalysisImpl(operand, result, aliasInfo, domInfo);
 }
 
-/// Analyze the `ops` to determine which OpResults are inplaceable:
-///   1. First, analyze InsertSliceOp greedily: we almost never want to
-///      bufferize the tensor "inserted into" to become out-of-place.
-///   2. Walk the other ops in reverse. This is a good starter heuristic.
-///      ExtractSliceOps are interleaved with other ops in traversal order.
-///
+/// Analyze the `ops` to determine which OpResults are inplaceable. Walk ops in
+/// reverse and bufferize ops greedily. This is a good starter heuristic.
+/// ExtractSliceOps are interleaved with other ops in traversal order.
 LogicalResult mlir::linalg::inPlaceAnalysis(SmallVector<Operation *> &ops,
                                             BufferizationAliasInfo &aliasInfo,
                                             const DominanceInfo &domInfo) {
@@ -2337,13 +2224,12 @@ LogicalResult mlir::linalg::inPlaceAnalysis(SmallVector<Operation *> &ops,
     // to properly capture aliases.
     // Walk ExtractSliceOps in reverse for better clobbering analysis behavior:
     // it is easier to detect clobbers of smaller slices before larger ones.
-    if (auto extractSliceOp = dyn_cast<ExtractSliceOp>(op)) {
+    if (auto extractSliceOp = dyn_cast<ExtractSliceOp>(op))
       if (failed(
               bufferizableInPlaceAnalysis(extractSliceOp, aliasInfo, domInfo)))
         return failure();
-      continue;
-    }
   }
+
   return success();
 }
 
@@ -2408,7 +2294,7 @@ LogicalResult mlir::linalg::bufferizeOp(
               "null bufferizedFunctionTypes when bufferizing CallOpInterface");
         return bufferize(b, op, bvm, aliasInfo, *bufferizedFunctionTypes);
       })
-      .Case([&](ConstantOp op) {
+      .Case([&](arith::ConstantOp op) {
         if (!isaTensor(op.getResult().getType()))
           return success();
         LDBG("Begin bufferize:\n" << op << '\n');

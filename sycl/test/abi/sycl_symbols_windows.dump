@@ -4586,5 +4586,9 @@
 ?what@exception@sycl@cl@@UEBAPEBDXZ
 ?wrapIntoImageBuffer@MemoryManager@detail@sycl@cl@@SAPEAXV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAXPEAVSYCLMemObjI@234@@Z
 DllMain
+??$get_info@$0CAAAB@@device@sycl@cl@@QEBA?AV?$id@$00@12@XZ
+??$get_info@$0CAAAA@@device@sycl@cl@@QEBA_KXZ
+??$get_info@$0CAAAD@@device@sycl@cl@@QEBA?AV?$id@$02@12@XZ
+??$get_info@$0CAAAC@@device@sycl@cl@@QEBA?AV?$id@$01@12@XZ
 __sycl_register_lib
 __sycl_unregister_lib

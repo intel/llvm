@@ -173,9 +173,5 @@ int main() {
   // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
   Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
   
-  // expected-warning@+1{{'half' is deprecated: use 'sycl::half' instead}}
-  half H;
-  (void)H;
-
   return 0;
 }
