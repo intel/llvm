@@ -3407,8 +3407,10 @@ pi_result piProgramCreateWithBinary(
   PI_ASSERT(Program, PI_INVALID_PROGRAM);
 
   // For now we support only one device.
-  if (NumDevices != 1)
-    die("piProgramCreateWithBinary: level_zero supports only one device.");
+  if (NumDevices != 1) {
+    zePrint("piProgramCreateWithBinary: level_zero supports only one device.");
+    return PI_INVALID_VALUE;
+  }
   if (!Binaries[0] || !Lengths[0]) {
     if (BinaryStatus)
       *BinaryStatus = PI_INVALID_VALUE;
@@ -3605,8 +3607,10 @@ pi_result piProgramLink(pi_context Context, pi_uint32 NumDevices,
 
   // We only support one device with Level Zero currently.
   pi_device Device = Context->Devices[0];
-  if (NumDevices != 1)
-    die("piProgramLink: level_zero supports only one device.");
+  if (NumDevices != 1) {
+    zePrint("piProgramLink: level_zero supports only one device.");
+    return PI_INVALID_VALUE;
+  }
 
   PI_ASSERT(DeviceList && DeviceList[0] == Device, PI_INVALID_DEVICE);
   PI_ASSERT(!PFnNotify && !UserData, PI_INVALID_VALUE);
@@ -3783,8 +3787,10 @@ static pi_result compileOrBuild(pi_program Program, pi_uint32 NumDevices,
   // We only support build to one device with Level Zero now.
   // TODO: we should eventually build to the possibly multiple root
   // devices in the context.
-  if (NumDevices != 1)
-    die("compileOrBuild: level_zero supports only one device.");
+  if (NumDevices != 1) {
+    zePrint("compileOrBuild: level_zero supports only one device.");
+    return PI_INVALID_VALUE;
+  }
 
   PI_ASSERT(DeviceList, PI_INVALID_DEVICE);
 
