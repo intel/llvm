@@ -19,6 +19,7 @@
 
 using namespace cl::sycl;
 
+using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 
 template <typename T, int N, typename AccessorTy>
@@ -29,15 +30,15 @@ ESIMD_INLINE simd<T, N> dwaligned_block_read(AccessorTy acc,
 
   src0.select<1, 1>(2) = offset;
   uint32_t exDesc = 0xA;
-  uint32_t desc = esimd_get_value(acc);
+  uint32_t desc = esimd::get_value(acc);
   desc += 0x2284300;
   constexpr uint8_t execSize = 0x84;
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = 0x2;
 
-  return esimd_raw_send_load(oldDst, src0, exDesc, desc, execSize, sfid,
-                             numSrc0, numDst);
+  return esimd::raw_send_load(oldDst, src0, exDesc, desc, execSize, sfid,
+                              numSrc0, numDst);
 }
 
 template <typename T, int N, typename AccessorTy>
@@ -47,15 +48,15 @@ ESIMD_INLINE void block_write1(AccessorTy acc, unsigned int offset,
 
   src0.template select<1, 1>(2) = offset >> 4;
   uint32_t exDesc = 0x4A;
-  uint32_t desc = esimd_get_value(acc);
+  uint32_t desc = esimd::get_value(acc);
   desc += 0x20A0200;
   constexpr uint8_t execSize = 0x83;
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = 0x1;
 
-  return esimd_raw_sends_store(src0, data, exDesc, desc, execSize, sfid,
-                               numSrc0, numSrc1);
+  return esimd::raw_sends_store(src0, data, exDesc, desc, execSize, sfid,
+                                numSrc0, numSrc1);
 }
 
 template <typename T, int N, typename AccessorTy>
@@ -69,13 +70,13 @@ ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
   src0_ref1.template select<1, 1>(2) = offset >> 4;
   src0_ref2 = data;
   uint32_t exDesc = 0xA;
-  uint32_t desc = esimd_get_value(acc);
+  uint32_t desc = esimd::get_value(acc);
   desc += 0x40A0200;
   constexpr uint8_t execSize = 0x83;
   constexpr uint8_t sfid = 0x0;
   constexpr uint8_t numSrc0 = 0x2;
 
-  return esimd_raw_send_store(src0, exDesc, desc, execSize, sfid, numSrc0);
+  return esimd::raw_send_store(src0, exDesc, desc, execSize, sfid, numSrc0);
 }
 
 int main(void) {

@@ -37,6 +37,7 @@ template <class T>
 using Acc =
     accessor<T, 1, access_mode::read_write, access::target::global_buffer>;
 
+using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 constexpr int DEFAULT_VAL = -1;
 
@@ -117,7 +118,7 @@ struct GatherKernel : KernelBase<T, VL, STRIDE> {
     slm_block_store((unsigned)(B::get_wi_local_offset(i) * sizeof(T)), val);
 
     // wait for peers
-    esimd_barrier();
+    esimd::barrier();
 
     // now gather from SLM with stride and write shuffled vectors back to memory
     unsigned wi_local_id = static_cast<unsigned>(i.get_local_id(0));
@@ -198,9 +199,9 @@ struct ScatterKernel : KernelBase<T, VL, STRIDE> {
         // into the elements which will be masked out in the later (main)
         // scatter
         simd<T, VL> val1 = (T)DEFAULT_VAL;
-        slm_scatter(val1, offsets, !pred);
+        slm_scatter(offsets, val1, !pred);
       }
-      slm_scatter(val, offsets, pred);
+      slm_scatter(offsets, val, pred);
     }
 
     // clang-format off
@@ -220,7 +221,7 @@ struct ScatterKernel : KernelBase<T, VL, STRIDE> {
     // clang-format on
 
     // wait for peers
-    esimd_barrier();
+    esimd::barrier();
 
     // now copy shuffled data from SLM back to memory
     val = slm_block_load<T, VL>(
@@ -242,17 +243,17 @@ struct GatherKernel<T, 1, STRIDE, TEST_VECTOR_NO_MASK>
     slm_init(B::SLM_CHUNK_SIZE);
 
     // first, read data into SLM
-    T val = scalar_load<T>(B::acc_in, B::get_wi_offset(i));
+    T val = scalar_load<T>(B::acc_in, B::get_wi_offset(i) * sizeof(T));
     slm_scalar_store((unsigned)(B::get_wi_local_offset(i) * sizeof(T)), val);
 
     // wait for peers
-    esimd_barrier();
+    esimd::barrier();
 
     // now load from SLM and write back to memory
     unsigned wi_local_id = static_cast<unsigned>(i.get_local_id(0));
     simd<uint32_t, 1> offsets(wi_local_id * sizeof(T));
     simd<T, 1> vec1 = slm_gather<T, 1>(offsets); /*** THE TESTED API ***/
-    scalar_store(B::acc_out, B::get_wi_offset(i), (T)vec1[0]);
+    scalar_store(B::acc_out, B::get_wi_offset(i) * sizeof(T), (T)vec1[0]);
   }
 };
 
@@ -269,23 +270,32 @@ struct ScatterKernel<T, 1, STRIDE, TEST_VECTOR_NO_MASK>
 
     // first, read data from memory into registers
     simd<T, 1> val;
-    val[0] = scalar_load<T>(B::acc_in, B::get_wi_offset(i));
+    val[0] = scalar_load<T>(B::acc_in, B::get_wi_offset(i) * sizeof(T));
 
     // now write to SLM
     unsigned wi_local_id = static_cast<unsigned>(i.get_local_id(0));
     simd<uint32_t, 1> offsets(wi_local_id * sizeof(T));
-    slm_scatter(val, offsets); /*** THE TESTED API ***/
+    slm_scatter(offsets, val); /*** THE TESTED API ***/
 
     // wait for peers
-    esimd_barrier();
+    esimd::barrier();
 
     // now copy data from SLM back to memory
     T v = slm_scalar_load<T>(B::get_wi_local_offset(i) * sizeof(T));
-    scalar_store(B::acc_out, B::get_wi_offset(i), v);
+    scalar_store(B::acc_out, B::get_wi_offset(i) * sizeof(T), v);
   }
 };
 
 enum MemIODir { MEM_SCATTER, MEM_GATHER };
+
+template <
+    class T,
+    class T1 = std::conditional_t<
+        std::is_same_v<T, char>, int,
+        std::conditional_t<std::is_same_v<T, unsigned char>, unsigned int, T>>>
+T1 conv(T val) {
+  return (T1)val;
+}
 
 // Verification algorithm depends on whether gather or scatter result is tested.
 // With gather, consequitive source array elements get into resulting array with
@@ -323,8 +333,8 @@ static bool verify(T *A, size_t size) {
         if (!(is_gather && is_lane_masked) && (val != real_gold)) {
           if (++err_cnt < 41) {
             std::cout << "  error at " << off << " (wg_id=" << wg_id
-                      << ", x=" << x << ", y=" << y << "): " << val
-                      << " != " << real_gold << " (gold)\n";
+                      << ", x=" << x << ", y=" << y << "): " << conv(val)
+                      << " != " << conv(real_gold) << " (gold)\n";
           }
         }
         // traversal is done so that each iteration (size/VL total) of this

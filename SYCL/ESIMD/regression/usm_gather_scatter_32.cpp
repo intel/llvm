@@ -48,7 +48,7 @@ int main(void) {
                                    va.copy_from(A + i * VL);
 
                                    simd<uint32_t, VL> offsets(0, 1);
-                                   scatter<DataT, VL>(C + i * VL, va, offsets);
+                                   scatter<DataT, VL>(C + i * VL, offsets, va);
                                  });
   });
   e.wait();

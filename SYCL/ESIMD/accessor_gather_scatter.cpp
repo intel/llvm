@@ -38,12 +38,14 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
     // of STRIDE*VL elements
     uint32_t global_offset = (ii / STRIDE) * VL * STRIDE + ii % STRIDE;
     simd<uint32_t, VL> offsets(0, STRIDE);
-    simd<T, VL> v = gather<T, VL>(acc, offsets, global_offset);
+    simd<T, VL> v =
+        gather<T, VL>(acc, offsets * sizeof(T), global_offset * sizeof(T));
     v += ii;
     simd_mask<VL> pred = 1;
     pred.template select<1, 1>(VL - MASKED_LANE_NUM_REV) =
         0; // mask out the last lane
-    scatter<T, VL>(acc, v, offsets, global_offset, pred);
+    scatter<T, VL>(acc, offsets * sizeof(T), v, global_offset * sizeof(T),
+                   pred);
   }
 };
 

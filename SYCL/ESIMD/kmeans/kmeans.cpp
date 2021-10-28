@@ -321,10 +321,10 @@ int main(int argc, char *argv[]) {
 #pragma unroll
             for (int i = 0, j = 0; i < NUM_CENTROIDS_ALLOCATED;
                  i += SIMD_SIZE, j++) {
-              scatter<float, SIMD_SIZE>(kaccum4[i].x_sum, xsum.row(j), offsets);
-              scatter<float, SIMD_SIZE>(kaccum4[i].y_sum, ysum.row(j), offsets);
-              scatter<int, SIMD_SIZE>(kaccum4[i].num_points, npoints.row(j),
-                                      offsets);
+              scatter<float, SIMD_SIZE>(kaccum4[i].x_sum, offsets, xsum.row(j));
+              scatter<float, SIMD_SIZE>(kaccum4[i].y_sum, offsets, ysum.row(j));
+              scatter<int, SIMD_SIZE>(kaccum4[i].num_points, offsets,
+                                      npoints.row(j));
             }
           });
     });
@@ -369,7 +369,7 @@ int main(int argc, char *argv[]) {
             int k = it.get_global_id(0) & (SIMD_SIZE - 1);
             simd<unsigned int, SIMD_SIZE> offsets(k * sizeof(float),
                                                   SIMD_SIZE * sizeof(float));
-            scatter<float, SIMD_SIZE>(kcentroids4[i].xyn, centroid, offsets,
+            scatter<float, SIMD_SIZE>(kcentroids4[i].xyn, offsets, centroid,
                                       mask);
           });
     });

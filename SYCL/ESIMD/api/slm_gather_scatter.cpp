@@ -29,7 +29,7 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
     valsIn.copy_from(buf);
 
     simd<uint32_t, VL> offsets(0, STRIDE * sizeof(T));
-    slm_scatter<T, VL>(valsIn, offsets);
+    slm_scatter<T, VL>(offsets, valsIn);
 
     simd_mask<VL> pred = 1;
     pred[VL - 1] = 0; // mask out the last lane

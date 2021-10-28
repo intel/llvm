@@ -19,14 +19,15 @@ ESIMD_INLINE void do_store(AccessorTy acc, int i, spec_const_t val) {
   // whose size is no more than 4 bytes.
 #if (STORE == 0)
   // bool
-  scalar_store(acc, i, val ? 1 : 0);
+  scalar_store<container_t>(acc, i * sizeof(container_t), val ? 1 : 0);
 #elif (STORE == 1)
   // block
-  block_store(acc, i, simd<spec_const_t, 2>{val});
+  block_store<container_t>(acc, i * sizeof(container_t),
+                           simd<spec_const_t, 2>{val});
 #else
   static_assert(STORE == 2, "Unspecified store");
   // scalar
-  scalar_store(acc, i, val);
+  scalar_store<container_t>(acc, i * sizeof(container_t), val);
 #endif
 }
 
@@ -50,13 +51,13 @@ int main(int argc, char **argv) {
       sycl::buffer<container_t, 1> buf(output.data(), output.size());
 
       q.submit([&](sycl::handler &cgh) {
-        auto acc = buf.get_access<sycl::access::mode::write>(cgh);
-        if (i % 2 != 0)
-          cgh.set_specialization_constant<ConstID>(REDEF_VAL);
-        cgh.single_task<TestKernel>([=](kernel_handler kh) SYCL_ESIMD_KERNEL {
-          do_store(acc, i, kh.get_specialization_constant<ConstID>());
-        });
-      });
+         auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+         if (i % 2 != 0)
+           cgh.set_specialization_constant<ConstID>(REDEF_VAL);
+         cgh.single_task<TestKernel>([=](kernel_handler kh) SYCL_ESIMD_KERNEL {
+           do_store(acc, i, kh.get_specialization_constant<ConstID>());
+         });
+       }).wait();
     } catch (cl::sycl::exception const &e) {
       std::cout << "SYCL exception caught: " << e.what() << '\n';
       return e.get_cl_code();

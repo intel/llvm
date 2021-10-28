@@ -9,6 +9,9 @@
 // RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // UNSUPPORTED: cuda || hip
+// XFAIL: *
+// TODO XFAIL because of the SYCL RT bug: setting zero specialization constant
+// value via get_specialization_constant does not work.
 
 #include <cstdint>
 

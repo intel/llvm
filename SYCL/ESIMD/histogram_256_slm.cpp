@@ -22,6 +22,7 @@ static constexpr int BLOCK_WIDTH = 32;
 static constexpr int NUM_BLOCKS = 32;
 
 using namespace cl::sycl;
+using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 
 // Histogram kernel: computes the distribution of pixel intensities
@@ -36,8 +37,8 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
   slm_offset += 16 * lid;
   slm_offset *= sizeof(int);
   simd<uint, 16> slm_data = 0;
-  slm_scatter<uint, 16>(slm_data, slm_offset);
-  esimd_barrier();
+  slm_scatter<uint, 16>(slm_offset, slm_data);
+  esimd::barrier();
 
   // Each thread handles NUM_BLOCKSxBLOCK_WIDTH pixel blocks
   auto start_off = (linear_id * BLOCK_WIDTH * NUM_BLOCKS);
@@ -56,15 +57,15 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
     }
     start_off += BLOCK_WIDTH;
   }
-  esimd_barrier();
+  esimd::barrier();
 
   // Update global sum by atomically adding each local histogram
   simd<uint, 16> local_histogram;
   local_histogram = slm_gather<uint32_t, 16>(slm_offset);
-  flat_atomic<atomic_op::add, uint32_t, 8>(output, slm_offset.select<8, 1>(0),
-                                           local_histogram.select<8, 1>(0), 1);
-  flat_atomic<atomic_op::add, uint32_t, 8>(output, slm_offset.select<8, 1>(8),
-                                           local_histogram.select<8, 1>(8), 1);
+  atomic_update<atomic_op::add, uint32_t, 8>(
+      output, slm_offset.select<8, 1>(0), local_histogram.select<8, 1>(0), 1);
+  atomic_update<atomic_op::add, uint32_t, 8>(
+      output, slm_offset.select<8, 1>(8), local_histogram.select<8, 1>(8), 1);
 }
 
 // This function calculates histogram of the image with the CPU.

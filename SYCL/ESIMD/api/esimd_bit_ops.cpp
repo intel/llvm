@@ -20,6 +20,7 @@
 #include <iostream>
 
 using namespace cl::sycl;
+using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 
 struct bit_op {
@@ -60,18 +61,18 @@ template <typename T, int N, int Op> bool test(queue q) {
       cgh.single_task<test_id<T, N, Op>>([=]() SYCL_ESIMD_KERNEL {
         // TODO add test cases where each lane contains different value
         if constexpr (Op == bit_op::cbit) {
-          A[0] = esimd_cbit(simd<T, N>{val_all_zero})[N / 2];
-          A[1] = esimd_cbit(simd<T, N>{val_all_one})[N / 2];
-          A[2] = esimd_cbit(simd<T, N>{val_two_one})[N / 2];
+          A[0] = esimd::cbit(simd<T, N>{val_all_zero})[N / 2];
+          A[1] = esimd::cbit(simd<T, N>{val_all_one})[N / 2];
+          A[2] = esimd::cbit(simd<T, N>{val_two_one})[N / 2];
         } else if constexpr (Op == bit_op::fbl) {
-          A[0] = esimd_fbl(simd<T, N>{val_all_zero})[N / 2];
-          A[1] = esimd_fbl(simd<T, N>{val_all_one})[N / 2];
-          A[2] = esimd_fbl(simd<T, N>{val_two_one})[N / 2];
+          A[0] = esimd::fbl(simd<T, N>{val_all_zero})[N / 2];
+          A[1] = esimd::fbl(simd<T, N>{val_all_one})[N / 2];
+          A[2] = esimd::fbl(simd<T, N>{val_two_one})[N / 2];
         } else {
           static_assert(Op == bit_op::fbh);
-          A[0] = esimd_fbh(simd<T, N>{val_all_zero})[N / 2];
-          A[1] = esimd_fbh(simd<T, N>{val_all_one})[N / 2];
-          A[2] = esimd_fbh(simd<T, N>{val_two_one})[N / 2];
+          A[0] = esimd::fbh(simd<T, N>{val_all_zero})[N / 2];
+          A[1] = esimd::fbh(simd<T, N>{val_all_one})[N / 2];
+          A[2] = esimd::fbh(simd<T, N>{val_two_one})[N / 2];
         }
       });
     });

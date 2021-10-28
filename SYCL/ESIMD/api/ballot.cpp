@@ -10,7 +10,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// This test checks esimd_ballot function.
+// This test checks esimd::ballot function.
 
 #include "../esimd_test_utils.hpp"
 
@@ -24,6 +24,7 @@
 #include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace cl::sycl;
+using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 
 template <class T, int N> bool test(queue &Q) {
@@ -50,7 +51,7 @@ template <class T, int N> bool test(queue &Q) {
         simd<T, N> Mask;
         Mask.copy_from(In, 0);
 
-        uint Res = esimd_ballot(Mask);
+        uint Res = esimd::ballot(Mask);
         scalar_store(Out, 0, Res);
       });
     });

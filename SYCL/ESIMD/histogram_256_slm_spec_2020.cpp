@@ -32,7 +32,7 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
   slm_offset += 16 * lid;
   slm_offset *= sizeof(int);
   simd<uint, 16> slm_data = 0;
-  slm_scatter<uint, 16>(slm_data, slm_offset);
+  slm_scatter<uint, 16>(slm_offset, slm_data);
   esimd_barrier();
 
   // Each thread handles NUM_BLOCKSxBLOCK_WIDTH pixel blocks

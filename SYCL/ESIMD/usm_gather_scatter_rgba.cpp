@@ -46,7 +46,7 @@ struct Kernel {
 
     simd_mask<VL> pred = 1;
     pred[VL - MASKED_LANE_NUM_REV] = 0; // mask out the last lane
-    scatter_rgba<T, VL, CH_MASK>(bufOut + global_offset, v, byteOffsets, pred);
+    scatter_rgba<T, VL, CH_MASK>(bufOut + global_offset, byteOffsets, v, pred);
   }
 };
 

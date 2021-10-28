@@ -26,15 +26,15 @@ ESIMD_INLINE void do_store(AccessorTy acc, int i, spec_const_t val) {
   // whose size is no more than 4 bytes.
 #if (STORE == 0)
   // bool
-  scalar_store(acc, i, val ? 1 : 0);
+  scalar_store<container_t>(acc, i * sizeof(container_t), val ? 1 : 0);
 #elif (STORE == 1)
   // block
   simd<spec_const_t, 2> vals{val};
-  vals.copy_to(acc, i);
+  vals.copy_to(acc, i * sizeof(container_t));
 #else
   static_assert(STORE == 2, "Unspecified store");
   // scalar
-  scalar_store(acc, i, val);
+  scalar_store<container_t>(acc, i * sizeof(container_t), val);
 #endif
 }
 

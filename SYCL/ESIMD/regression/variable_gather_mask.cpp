@@ -63,8 +63,8 @@ struct KernelAcc {
 #if defined(USE_WORKAROUND)
     pred = pred == 1;
 #endif
-    simd<uint32_t, VL> offsets(0, 1);
-    scatter(acc, v, offsets, 0, pred);
+    simd<uint32_t, VL> offsets(0, sizeof(int));
+    scatter(acc, offsets, v, 0, pred);
 #endif
   }
 };
@@ -87,7 +87,7 @@ struct KernelUSM {
     pred = pred == 1;
 #endif
     simd<uint32_t, VL> offsets(0, sizeof(int));
-    scatter(ptr, v, offsets, pred);
+    scatter(ptr, offsets, v, pred);
   }
 };
 

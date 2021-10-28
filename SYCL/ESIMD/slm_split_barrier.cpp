@@ -17,6 +17,7 @@
 #include <sycl/ext/intel/experimental/esimd.hpp>
 
 using namespace cl::sycl;
+using namespace sycl::ext::intel::experimental;
 using namespace sycl::ext::intel::experimental::esimd;
 
 #define LOCAL_SIZE 4
@@ -62,14 +63,14 @@ void load_to_slm(uint grpSize, uint localId, uint slmOffset, char *addr,
     rowTrans.select<8, 1>(40) = row1.select<8, 4>(2);
     rowTrans.select<8, 1>(56) = row1.select<8, 4>(3);
 
-    slm_scatter_rgba<uint, 16, rgba_channel_mask::ABGR>(rowTrans, vOffsets);
+    slm_scatter_rgba<uint, 16, rgba_channel_mask::ABGR>(vOffsets, rowTrans);
     threadOffsetInMemory += grpSize * 256;
     vOffsets += (grpSize * 256);
   }
 
-  esimd_fence(ESIMD_GLOBAL_COHERENT_FENCE);
-  esimd_sbarrier(split_barrier_action::signal);
-  esimd_sbarrier(split_barrier_action::wait);
+  esimd::fence(ESIMD_GLOBAL_COHERENT_FENCE);
+  esimd::sbarrier(split_barrier_action::signal);
+  esimd::sbarrier(split_barrier_action::wait);
 }
 
 int main(void) {

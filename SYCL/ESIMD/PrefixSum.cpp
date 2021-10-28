@@ -165,7 +165,7 @@ void cmk_acum_iterative(unsigned *buf, unsigned h_pos,
   simd_mask<8> p = voff < TUPLE_SZ;    // predicate
   voff = (voff + (global_offset + stride_threads * TUPLE_SZ - TUPLE_SZ)) *
          sizeof(unsigned);
-  scatter<unsigned, 8>(buf, S.select<8, 1>(0), voff, p);
+  scatter<unsigned, 8>(buf, voff, S.select<8, 1>(0), p);
 }
 
 // final reduction. One thread to compute prefix all remaining entries
@@ -215,7 +215,7 @@ void cmk_acum_final(unsigned *buf, unsigned h_pos, unsigned int stride_elems,
       cnt_table.select<1, 1, 16, 1>(j, 16) +=
           cnt_table.replicate<1, 0, 16, 0>(j, 15);
     }
-    scatter_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, S, element_offset,
+    scatter_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset, S,
                                                         p);
     elm32 += 32;
     element_offset += stride_elems * TUPLE_SZ * sizeof(unsigned) * 32;
@@ -290,7 +290,7 @@ void cmk_prefix_iterative(unsigned *buf, unsigned h_pos,
     if (i == n_iter - 1)
       cnt_table.column(31) -= cnt_table.column(30);
 
-    scatter_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, S, element_offset);
+    scatter_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset, S);
 
     element_offset += stride_elems * TUPLE_SZ * sizeof(unsigned) * 32;
     prev = cnt_table.column(31);
