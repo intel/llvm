@@ -1247,12 +1247,19 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     if (XOffloadTargetNoTriple && XOffloadTargetArg) {
       // TODO: similar behaviors with OpenMP and SYCL offloading, can be
       // improved upon
+      auto SingleTargetTripleCount = [&Args](OptSpecifier Opt) {
+        const Arg *TargetArg = Args.getLastArg(Opt);
+        if (TargetArg && TargetArg->getValues().size() == 1)
+          return true;
+        return false;
+      };
       if (DeviceOffloadKind == Action::OFK_OpenMP &&
-          Args.getAllArgValues(options::OPT_fopenmp_targets_EQ).size() != 1) {
+          !SingleTargetTripleCount(options::OPT_fopenmp_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
-      } else if (DeviceOffloadKind == Action::OFK_SYCL &&
-          Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() > 1) {
+      }
+      if (DeviceOffloadKind == Action::OFK_SYCL &&
+          !SingleTargetTripleCount(options::OPT_fsycl_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
         continue;

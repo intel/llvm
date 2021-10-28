@@ -1473,17 +1473,22 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Determine FPGA emulation status.
   if (C->hasOffloadToolChain<Action::OFK_SYCL>()) {
     auto SYCLTCRange = C->getOffloadToolChains<Action::OFK_SYCL>();
-    ArgStringList TargetArgs;
-    const ToolChain *TC = SYCLTCRange.first->second;
-    const toolchains::SYCLToolChain *SYCLTC =
-        static_cast<const toolchains::SYCLToolChain *>(TC);
-    SYCLTC->TranslateBackendTargetArgs(SYCLTC->getTriple(), *TranslatedArgs,
-                                       TargetArgs);
-    for (StringRef ArgString : TargetArgs) {
-      if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
-        setFPGAEmulationMode(false);
-        break;
+    for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
+      if (TI->second->getTriple().getSubArch() !=
+          llvm::Triple::SPIRSubArch_fpga)
+        continue;
+      ArgStringList TargetArgs;
+      const toolchains::SYCLToolChain *FPGATC =
+          static_cast<const toolchains::SYCLToolChain *>(TI->second);
+      FPGATC->TranslateBackendTargetArgs(FPGATC->getTriple(), *TranslatedArgs,
+                                         TargetArgs);
+      for (StringRef ArgString : TargetArgs) {
+        if (ArgString.equals("-hardware") || ArgString.equals("-simulation")) {
+          setFPGAEmulationMode(false);
+          break;
+        }
       }
+      break;
     }
   }
 

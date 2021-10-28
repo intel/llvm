@@ -179,12 +179,12 @@ struct is_esimd_arithmetic_type : std::false_type {};
 
 template <class Ty>
 struct is_esimd_arithmetic_type<
-    Ty, __esimd_void_t<decltype(std::declval<Ty>() + std::declval<Ty>()),
+    Ty, __esimd_void_t<std::enable_if_t<std::is_arithmetic_v<Ty>>,
+                       decltype(std::declval<Ty>() + std::declval<Ty>()),
                        decltype(std::declval<Ty>() - std::declval<Ty>()),
                        decltype(std::declval<Ty>() * std::declval<Ty>()),
                        decltype(std::declval<Ty>() / std::declval<Ty>())>>
-    : std::conditional_t<std::is_arithmetic_v<Ty>, std::true_type,
-                         std::false_type> {};
+    : std::true_type {};
 
 template <typename Ty>
 static inline constexpr bool is_esimd_arithmetic_type_v =

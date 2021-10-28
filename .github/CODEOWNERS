@@ -25,7 +25,7 @@ sycl/ @intel/llvm-reviewers-runtime
 sycl/ReleaseNotes.md @pvchupin @tfzhu
 sycl/doc/ @pvchupin @bader
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
-sycl/doc/SPIRV @AlexeySotkin @bashbaug @mbelicki
+sycl/doc/extensions/SPIRV/ @AlexeySotkin @bashbaug @mbelicki
 
 # Sub-groups
 sycl/include/CL/sycl/detail/spirv.hpp @Pennycook @AlexeySachkov

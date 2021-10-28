@@ -416,10 +416,10 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
 
   diagnoseUseOfInternalDeclInInlineFunction(*this, D, Loc);
 
-  if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice)) {
-    if (auto *VD = dyn_cast<ValueDecl>(D))
-      checkDeviceDecl(VD, Loc);
+  if (auto *VD = dyn_cast<ValueDecl>(D))
+    checkTypeSupport(VD->getType(), Loc, VD);
 
+  if (LangOpts.SYCLIsDevice || (LangOpts.OpenMP && LangOpts.OpenMPIsDevice)) {
     if (!Context.getTargetInfo().isTLSSupported())
       if (const auto *VD = dyn_cast<VarDecl>(D))
         if (VD->getTLSKind() != VarDecl::TLS_None)
@@ -6635,9 +6635,13 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
         auto ArgPtTy = ArgTy->getPointeeType();
         auto ArgAS = ArgPtTy.getAddressSpace();
 
-        // Only allow implicit casting from a non-default address space pointee
-        // type to a default address space pointee type
-        if (ArgAS != LangAS::Default || ParamAS == LangAS::Default)
+        // Add address space cast if target address spaces are different
+        bool NeedImplicitASC = 
+          ParamAS != LangAS::Default &&       // Pointer params in generic AS don't need special handling.
+          ( ArgAS == LangAS::Default  ||      // We do allow implicit conversion from generic AS 
+                                              // or from specific AS which has target AS matching that of Param.
+          getASTContext().getTargetAddressSpace(ArgAS) == getASTContext().getTargetAddressSpace(ParamAS));
+        if (!NeedImplicitASC)
           continue;
 
         // First, ensure that the Arg is an RValue.
@@ -14255,6 +14259,9 @@ ExprResult Sema::CreateBuiltinBinOp(SourceLocation OpLoc,
     }
   }
 
+  checkTypeSupport(LHSExpr->getType(), OpLoc, /*ValueDecl*/ nullptr);
+  checkTypeSupport(RHSExpr->getType(), OpLoc, /*ValueDecl*/ nullptr);
+
   switch (Opc) {
   case BO_Assign:
     ResultTy = CheckAssignmentOperands(LHS.get(), RHS, OpLoc, QualType());
@@ -16724,8 +16731,7 @@ void Sema::CheckUnusedVolatileAssignment(Expr *E) {
   if (auto *BO = dyn_cast<BinaryOperator>(E->IgnoreParenImpCasts())) {
     if (BO->getOpcode() == BO_Assign) {
       auto &LHSs = ExprEvalContexts.back().VolatileAssignmentLHSs;
-      LHSs.erase(std::remove(LHSs.begin(), LHSs.end(), BO->getLHS()),
-                 LHSs.end());
+      llvm::erase_value(LHSs, BO->getLHS());
     }
   }
 }

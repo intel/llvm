@@ -51,6 +51,7 @@
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
+using PropSetRegTy = llvm::util::PropertySetRegistry;
 
 namespace {
 
@@ -183,8 +184,6 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
     cl::cat(PostLinkCat), cl::init(false)};
 
 struct ImagePropSaveInfo {
-  bool NeedDeviceLibReqMask;
-  bool DoSpecConst;
   bool SetSpecConstAtRT;
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
@@ -219,20 +218,13 @@ enum KernelMapEntryScope {
   Scope_Global     // single entry in the map for all kernels
 };
 
-KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(const Module &M) {
-  if (IROutputOnly) {
-    // We allow enabling auto split mode even in presence of -ir-output-only
-    // flag, but in this case we are limited by it so we can't do any split at
-    // all.
-    return Scope_Global;
-  }
-
+bool hasIndirectFunctionCalls(const Module &M) {
   for (const auto &F : M.functions()) {
     // There are functions marked with [[intel::device_indirectly_callable]]
     // attribute, because it instructs us to make this function available to the
     // whole program as it was compiled as a single module.
     if (F.hasFnAttribute("referenced-indirectly"))
-      return Scope_Global;
+      return true;
     if (F.isDeclaration())
       continue;
     // There are indirect calls in the module, which means that we don't know
@@ -241,18 +233,47 @@ KernelMapEntryScope selectDeviceCodeSplitScopeAutomatically(const Module &M) {
     for (const auto &I : instructions(F)) {
       if (auto *CI = dyn_cast<CallInst>(&I))
         if (!CI->getCalledFunction())
-          return Scope_Global;
+          return true;
     }
 
     // Function pointer is used somewhere. Follow the same rule as above.
     for (const auto *U : F.users())
       if (!isa<CallInst>(U))
-        return Scope_Global;
+        return true;
   }
 
-  // At the moment, we assume that per-source split is the best way of splitting
-  // device code and can always be used execpt for cases handled above.
-  return Scope_PerModule;
+  return false;
+}
+
+KernelMapEntryScope selectDeviceCodeSplitScope(const Module &M) {
+  bool DoSplit = SplitMode.getNumOccurrences() > 0;
+  if (DoSplit) {
+    switch (SplitMode) {
+    case SPLIT_PER_TU:
+      return Scope_PerModule;
+
+    case SPLIT_PER_KERNEL:
+      return Scope_PerKernel;
+
+    case SPLIT_AUTO: {
+      if (IROutputOnly) {
+        // We allow enabling auto split mode even in presence of -ir-output-only
+        // flag, but in this case we are limited by it so we can't do any split
+        // at all.
+        return Scope_Global;
+      }
+
+      if (hasIndirectFunctionCalls(M))
+        return Scope_Global;
+
+      // At the moment, we assume that per-source split is the best way of
+      // splitting device code and can always be used except for cases handled
+      // above.
+      return Scope_PerModule;
+    }
+    }
+  }
+  return Scope_Global;
 }
 
 // Return true if the function is a SPIRV or SYCL builtin, e.g.
@@ -411,6 +432,41 @@ HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
   return No_Assert;
 }
 
+std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
+  std::vector<StringRef> Result;
+
+  bool HasIndirectlyCalledAssert = false;
+  std::vector<const Function *> Kernels;
+  for (const auto &F : M.functions()) {
+    // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
+    // TODO: handle function pointers.
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    Kernels.push_back(&F);
+    if (HasIndirectlyCalledAssert)
+      continue;
+
+    HasAssertStatus HasAssert = hasAssertInFunctionCallGraph(&F);
+    switch (HasAssert) {
+    case Assert:
+      Result.push_back(F.getName());
+      break;
+    case Assert_Indirect:
+      HasIndirectlyCalledAssert = true;
+      break;
+    case No_Assert:
+      break;
+    }
+  }
+
+  if (HasIndirectlyCalledAssert)
+    for (const auto *F : Kernels)
+      Result.push_back(F->getName());
+
+  return Result;
+}
+
 // Gets reqd_work_group_size information for function Func.
 std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   auto ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
@@ -545,7 +601,6 @@ string_vector saveResultModules(const std::vector<ResultModule> &ResModules,
   string_vector Res;
 
   for (size_t I = 0; I < ResModules.size(); ++I) {
-    std::error_code EC;
     StringRef FileExt = (OutputAssembly) ? ".ll" : ".bc";
     std::string CurOutFileName = makeResultFileName(FileExt, I, Suffix);
     saveModule(*ResModules[I].ModulePtr, CurOutFileName);
@@ -560,37 +615,33 @@ string_vector saveDeviceImageProperty(
     const ImagePropSaveInfo &ImgPSInfo) {
   string_vector Res;
   legacy::PassManager GetSYCLDeviceLibReqMask;
-  SYCLDeviceLibReqMaskPass *SDLReqMaskLegacyPass =
-      new SYCLDeviceLibReqMaskPass();
+  auto *SDLReqMaskLegacyPass = new SYCLDeviceLibReqMaskPass();
   GetSYCLDeviceLibReqMask.add(SDLReqMaskLegacyPass);
   for (size_t I = 0; I < ResultModules.size(); ++I) {
-    llvm::util::PropertySetRegistry PropSet;
-    if (ImgPSInfo.NeedDeviceLibReqMask) {
-      GetSYCLDeviceLibReqMask.run(*ResultModules[I].ModulePtr);
+    Module &M = *ResultModules[I].ModulePtr;
+    PropSetRegTy PropSet;
+
+    {
+      GetSYCLDeviceLibReqMask.run(M);
       uint32_t MRMask = SDLReqMaskLegacyPass->getSYCLDeviceLibReqMask();
       std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
-      PropSet.add(llvm::util::PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK,
-                  RMEntry);
+      PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
     }
-    if (ImgPSInfo.DoSpecConst) {
-      if (ImgPSInfo.SpecConstsMet) {
-        // extract spec constant maps per each module
-        SpecIDMapTy TmpSpecIDMap;
-        SpecConstantsPass::collectSpecConstantMetadata(
-            *ResultModules[I].ModulePtr, TmpSpecIDMap);
-        PropSet.add(
-            llvm::util::PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS,
-            TmpSpecIDMap);
 
-        // Add property with the default values of spec constants
-        std::vector<char> DefaultValues;
-        SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
-            *ResultModules[I].ModulePtr, DefaultValues);
-        PropSet.add(llvm::util::PropertySetRegistry::
-                        SYCL_SPEC_CONSTANTS_DEFAULT_VALUES,
-                    "all", DefaultValues);
-      }
+    if (ImgPSInfo.SpecConstsMet) {
+      // extract spec constant maps per each module
+      SpecIDMapTy TmpSpecIDMap;
+      SpecConstantsPass::collectSpecConstantMetadata(M, TmpSpecIDMap);
+      PropSet.add(PropSetRegTy::SYCL_SPECIALIZATION_CONSTANTS, TmpSpecIDMap);
+
+      // Add property with the default values of spec constants
+      std::vector<char> DefaultValues;
+      SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
+          M, DefaultValues);
+      PropSet.add(PropSetRegTy::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES, "all",
+                  DefaultValues);
     }
+
     if (ImgPSInfo.EmitKernelParamInfo) {
       // extract kernel parameter optimization info per module
       ModuleAnalysisManager MAM;
@@ -600,12 +651,11 @@ string_vector saveDeviceImageProperty(
 
       MAM.registerPass([&] { return SYCLKernelParamOptInfoAnalysis(); });
       SYCLKernelParamOptInfo PInfo =
-          MAM.getResult<SYCLKernelParamOptInfoAnalysis>(
-              *ResultModules[I].ModulePtr);
+          MAM.getResult<SYCLKernelParamOptInfoAnalysis>(M);
 
       // convert analysis results into properties and record them
       llvm::util::PropertySet &Props =
-          PropSet[llvm::util::PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO];
+          PropSet[PropSetRegTy::SYCL_KERNEL_PARAM_OPT_INFO];
 
       for (const auto &NameInfoPair : PInfo) {
         const llvm::BitVector &Bits = NameInfoPair.second;
@@ -620,6 +670,7 @@ string_vector saveDeviceImageProperty(
             NameInfoPair.first, llvm::util::PropertyValue(Data, DataBitSize)));
       }
     }
+
     if (ImgPSInfo.EmitExportedSymbols) {
       // For each result module, extract the exported functions
       auto ModuleFunctionsIt =
@@ -627,8 +678,8 @@ string_vector saveDeviceImageProperty(
       if (ModuleFunctionsIt != KernelModuleMap.end()) {
         for (const auto &F : ModuleFunctionsIt->second) {
           if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
-            PropSet[llvm::util::PropertySetRegistry::SYCL_EXPORTED_SYMBOLS]
-                .insert({F->getName(), true});
+            PropSet[PropSetRegTy::SYCL_EXPORTED_SYMBOLS].insert(
+                {F->getName(), true});
           }
         }
       }
@@ -638,11 +689,10 @@ string_vector saveDeviceImageProperty(
     // properties have been written.
     SmallVector<std::string, 4> MetadataNames;
     if (ImgPSInfo.EmitProgramMetadata) {
-      auto &ProgramMetadata =
-          PropSet[llvm::util::PropertySetRegistry::SYCL_PROGRAM_METADATA];
+      auto &ProgramMetadata = PropSet[PropSetRegTy::SYCL_PROGRAM_METADATA];
 
       // Add reqd_work_group_size information to program metadata
-      for (const Function &Func : ResultModules[I].ModulePtr->functions()) {
+      for (const Function &Func : M.functions()) {
         std::vector<uint32_t> KernelReqdWorkGroupSize =
             getKernelReqdWorkGroupSizeMetadata(Func);
         if (KernelReqdWorkGroupSize.empty())
@@ -652,44 +702,13 @@ string_vector saveDeviceImageProperty(
       }
     }
 
-    if (ImgPSInfo.IsEsimdKernel) {
-      PropSet[llvm::util::PropertySetRegistry::SYCL_MISC_PROP].insert(
-          {"isEsimdImage", true});
-    }
+    if (ImgPSInfo.IsEsimdKernel)
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
 
     {
-      Module *M = ResultModules[I].ModulePtr.get();
-      bool HasIndirectlyCalledAssert = false;
-      std::vector<const Function *> Kernels;
-      for (const auto &F : M->functions()) {
-        // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
-        // TODO: handle function pointers.
-        if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-          continue;
-
-        Kernels.push_back(&F);
-        if (HasIndirectlyCalledAssert)
-          continue;
-
-        HasAssertStatus HasAssert = hasAssertInFunctionCallGraph(&F);
-        switch (HasAssert) {
-        case Assert:
-          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
-              {F.getName(), true});
-          break;
-        case Assert_Indirect:
-          HasIndirectlyCalledAssert = true;
-          break;
-        case No_Assert:
-          break;
-        }
-      }
-
-      if (HasIndirectlyCalledAssert) {
-        for (const auto *F : Kernels)
-          PropSet[llvm::util::PropertySetRegistry::SYCL_ASSERT_USED].insert(
-              {F->getName(), true});
-      }
+      std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
+      for (const StringRef &FName : FuncNames)
+        PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
     }
 
     std::error_code EC;
@@ -783,23 +802,15 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   std::map<StringRef, std::vector<const Function *>> GlobalsSet;
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
-  bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
 
   if (DoSplit || DoSymGen) {
-    KernelMapEntryScope Scope = Scope_Global;
-    if (DoSplit) {
-      if (SplitMode == SPLIT_AUTO)
-        Scope = selectDeviceCodeSplitScopeAutomatically(*M);
-      else
-        Scope =
-            SplitMode == SPLIT_PER_KERNEL ? Scope_PerKernel : Scope_PerModule;
-    }
+    KernelMapEntryScope Scope = selectDeviceCodeSplitScope(*M);
     collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
   }
 
   std::vector<ResultModule> ResultModules;
-  string_vector ResultSymbolsLists;
 
+  bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   bool SpecConstsMet = false;
   bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
 
@@ -849,21 +860,18 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   }
 
   {
-    ImagePropSaveInfo ImgPSInfo = {true,
-                                   DoSpecConst,
-                                   SetSpecConstAtRT,
-                                   SpecConstsMet,
-                                   EmitKernelParamInfo,
-                                   EmitProgramMetadata,
-                                   EmitExportedSymbols,
-                                   IsEsimd};
+    ImagePropSaveInfo ImgPSInfo = {SetSpecConstAtRT,    SpecConstsMet,
+                                   EmitKernelParamInfo, EmitProgramMetadata,
+                                   EmitExportedSymbols, IsEsimd};
     string_vector Files =
         saveDeviceImageProperty(ResultModules, GlobalsSet, ImgPSInfo);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_PROPS]));
   }
+
   if (DoSymGen) {
     // extract symbols per each module
+    string_vector ResultSymbolsLists;
     collectSymbolsLists(GlobalsSet, ResultSymbolsLists);
     if (ResultSymbolsLists.empty()) {
       // push empty symbols list for consistency
@@ -875,6 +883,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_SYM]));
   }
+
   return TblFiles;
 }
 

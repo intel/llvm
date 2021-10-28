@@ -5033,8 +5033,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         options::OPT_mllvm,
     };
     for (const auto &A : Args)
-      if (llvm::find(kBitcodeOptionBlacklist, A->getOption().getID()) !=
-          std::end(kBitcodeOptionBlacklist))
+      if (llvm::is_contained(kBitcodeOptionBlacklist, A->getOption().getID()))
         D.Diag(diag::err_drv_unsupported_embed_bitcode) << A->getSpelling();
 
     // Render the CodeGen options that need to be passed.
@@ -5925,6 +5924,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddLastArg(CmdArgs, options::OPT_fexperimental_relative_cxx_abi_vtables,
                   options::OPT_fno_experimental_relative_cxx_abi_vtables);
+
+  if (Arg *A = Args.getLastArg(options::OPT_ffuchsia_api_level_EQ))
+    A->render(Args, CmdArgs);
 
   // Handle -{std, ansi, trigraphs} -- take the last of -{std, ansi}
   // (-ansi is equivalent to -std=c89 or -std=c++98).
@@ -8817,7 +8819,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     std::string ExtArg("-spirv-ext=-all");
     std::string DefaultExtArg =
         ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
-        ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls";
+        ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
+        ",+SPV_KHR_expect_assume";
     std::string INTELExtArg =
         ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
         ",+SPV_INTEL_device_side_avc_motion_estimation"
@@ -8827,9 +8830,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers"
         ",+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes"
         ",+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers"
-        ",+SPV_INTEL_optimization_hints,+SPV_INTEL_float_controls2"
-        ",+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite"
-        ",+SPV_INTEL_fpga_buffer_location"
+        ",+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute"
+        ",+SPV_INTEL_fast_composite,+SPV_INTEL_fpga_buffer_location"
         ",+SPV_INTEL_arbitrary_precision_fixed_point"
         ",+SPV_INTEL_arbitrary_precision_floating_point"
         ",+SPV_INTEL_arbitrary_precision_floating_point"

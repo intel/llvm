@@ -41,12 +41,14 @@ DPC++ extensions status:
 | [SYCL_INTEL_group_sort](GroupAlgorithms/SYCL_INTEL_group_sort.asciidoc)                                                     | Proposal                                  | |
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
-| [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc) | Proposal | |
-| [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                        | Partially supported(AMX AOT)               | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
+| [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc)                                                                                | Proposal                                  | |
+| [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                                | Partially supported(AMX AOT)              | Not supported: dynamic-extent, wg and wi scopes, layouts other than packed|
 | [SYCL_INTEL_free_function_queries](FreeFunctionQueries/SYCL_INTEL_free_function_queries.asciidoc)                           | Supported (experimental)                  | |
+| [EXT_ONEAPI_max_work_groups](MaxWorkGroupQueries/max_work_group_query.md)                                                   | Supported                                 | |
 | [SYCL_EXT_ONEAPI_DEVICE_GLOBAL](DeviceGlobal/SYCL_INTEL_device_global.asciidoc)                                             | Proposal                                  | |
 | [SYCL_INTEL_bf16_conversion](Bf16Conversion/SYCL_INTEL_bf16_conversion.asciidoc)                                            | Partially supported (Level Zero: GPU)     | Currently available only on Xe HP GPU. ext_intel_bf16_conversion aspect is not supported. |
 | [Property List](PropertyList/SYCL_EXT_ONEAPI_property_list.asciidoc)                                                        | Proposal                                  | |
+| [KernelProperties](KernelProperties/KernelProperties.asciidoc)                                                              | Proposal                                  | |
 
 Legend:
 

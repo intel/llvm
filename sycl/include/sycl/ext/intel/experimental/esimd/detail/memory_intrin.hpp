@@ -47,8 +47,8 @@ public:
 };
 
 template <int ElemsPerAddr,
-          typename = sycl::detail::enable_if_t<
-              (ElemsPerAddr == 1 || ElemsPerAddr == 2 || ElemsPerAddr == 4)>>
+          typename = std::enable_if_t<(ElemsPerAddr == 1 || ElemsPerAddr == 2 ||
+                                       ElemsPerAddr == 4)>>
 constexpr unsigned int ElemsPerAddrEncoding() {
   // encoding requires log2 of ElemsPerAddr
   if constexpr (ElemsPerAddr == 1)
@@ -76,9 +76,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 // flat_read does flat-address gather
-template <typename Ty, int N, int NumBlk = 0,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N, int NumBlk = 0>
 __ESIMD_INTRIN
     __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
     __esimd_svm_gather(__SEIEED::vector_type_t<uint64_t, N> addrs,
@@ -111,9 +109,7 @@ __ESIMD_INTRIN
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_write does flat-address scatter
-template <typename Ty, int N, int NumBlk = 0,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N, int NumBlk = 0>
 __ESIMD_INTRIN void __esimd_svm_scatter(
     __SEIEED::vector_type_t<uint64_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
@@ -144,8 +140,7 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_block_read reads a block of data from one flat address
-template <typename Ty, int N, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_block_ld_unaligned(uint64_t addr)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -162,9 +157,26 @@ __esimd_svm_block_ld_unaligned(uint64_t addr)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// Read a block of data from the given address. Address must be 16-byte aligned.
+template <typename Ty, int N>
+__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
+__esimd_svm_block_ld(uint64_t addr)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __SEIEED::vector_type_t<Ty, N> V;
+
+  for (int I = 0; I < N; I++) {
+    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
+    V[I] = *Addr;
+  }
+  return V;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 // flat_block_write writes a block of data using one flat address
-template <typename Ty, int N, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N>
 __ESIMD_INTRIN void __esimd_svm_block_st(uint64_t addr,
                                          __SEIEED::vector_type_t<Ty, N> vals)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -203,9 +215,7 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_read4 does flat-address gather4
-template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> __ESIMD_INTRIN
 __esimd_svm_gather4_scaled(__SEIEED::vector_type_t<uint64_t, N> addrs,
                            __SEIEED::simd_mask_storage_t<N> pred = 1)
@@ -258,9 +268,7 @@ __esimd_svm_gather4_scaled(__SEIEED::vector_type_t<uint64_t, N> addrs,
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_write does flat-address scatter
-template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
     __SEIEED::vector_type_t<uint64_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
@@ -333,8 +341,7 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
 // @param elem_offsets - per-element offsets
 //
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+          int16_t Scale = 0>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
                        __SEIEED::vector_type_t<uint32_t, N> elem_offsets)
@@ -342,7 +349,7 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
     ;
 #else
 {
-  static_assert(N == 1 || N == 8 || N == 16);
+  static_assert(N == 1 || N == 8 || N == 16 || N == 32);
   static_assert(TySizeLog2 <= 2 && Scale == 0);
   static_assert(std::is_integral<Ty>::value || TySizeLog2 == 2);
   throw cl::sycl::feature_not_supported();
@@ -374,8 +381,7 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 // @param vals - values to write
 //
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+          int16_t Scale = 0>
 __ESIMD_INTRIN void
 __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
                        SurfIndAliasTy surf_ind, uint32_t global_offset,
@@ -392,13 +398,8 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// TODO bring the parameter order of __esimd* intrinsics in accordance with the
-// correponsing BE intrinsicics parameter order.
-
 // flat_atomic: flat-address atomic
-template <__SEIEE::atomic_op Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
                     __SEIEED::simd_mask_storage_t<N> pred)
@@ -410,9 +411,7 @@ __esimd_svm_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-template <__SEIEE::atomic_op Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
@@ -425,9 +424,7 @@ __esimd_svm_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-template <__SEIEE::atomic_op Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
@@ -473,11 +470,45 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
 
 // Scaled gather from a surface.
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t SCALE = 0>
+          int16_t Scale = 0>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
                       SurfIndAliasTy surf_ind, uint32_t global_offset,
                       __SEIEED::vector_type_t<uint32_t, N> addrs)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  throw cl::sycl::feature_not_supported();
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+/// Predicated (masked) scaled gather from a surface.
+///
+/// Template (compile-time constant) parameters:
+/// @tparam Ty - element type
+/// @tparam N  - the number of elements to read
+/// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
+///   accessor used to denote the surface
+/// @tparam TySizeLog2 - Log2 of the number of bytes written per element:
+///   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
+/// @tparam Scale - offset scale; only 0 is supported for now
+///
+/// Formal parameters:
+/// @param surf_ind - the surface index, taken from the SYCL memory object
+/// @param global_offset - offset added to each individual element's offset to
+///   compute actual memory access offset for that element
+/// @param offsets - per-element offsets
+/// @param pred - per-element predicates; elements with zero corresponding
+///   predicates are not written
+/// @return - elements read ("gathered") from memory
+
+template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
+          int16_t Scale = 0>
+__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
+__esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
+                              __SEIEED::vector_type_t<uint32_t, N> offsets,
+                              __SEIEED::simd_mask_storage_t<N> pred)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
@@ -705,7 +736,6 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-#ifdef __SYCL_DEVICE_ONLY__
 /// \brief Converts given value to a surface index.
 /// The input must always be a result of
 ///   detail::AccessorPrivateProxy::getNativeImageObj(acc)
@@ -724,15 +754,17 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 /// pointer, where we can do ptr to uint32_t conversion.
 /// This intrinsic can be called only from the device code, as
 /// accessor => memory handle translation for host is different.
-///
-/// @param SYCL accessor's native memory object extracted from it via
+/// @param acc the SYCL accessor.
 ///   getNativeImageObj.
-///
-/// Returns the surface index (binding table index) value 'sid' corresponds to.
-///
-template <typename SurfIndAliasTy>
-__ESIMD_INTRIN __SEIEE::SurfaceIndex
-__esimd_get_surface_index(SurfIndAliasTy sid);
+/// Returns the binding table index value.
+template <typename MemObjTy>
+__ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  throw cl::sycl::feature_not_supported();
+}
 #endif // __SYCL_DEVICE_ONLY__
 
 /// \brief Raw sends load.
