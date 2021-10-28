@@ -773,12 +773,18 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   std::map<StringRef, FuncPtrVector> GlobalsSet;
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
+  bool NonEmptySplit = true;
 
   if (DoSplit || DoSymGen) {
     KernelMapEntryScope Scope = selectDeviceCodeSplitScope(*M);
     collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
-  } else {
-    // post-link always produces a code result, even if it is unmodified input
+    NonEmptySplit = !GlobalsSet.empty();
+  }
+  if (GlobalsSet.empty()) {
+    // sycl-post-link always produces a code result, even if it doesn't modify
+    // input.
+    // This is a fake initialization just to guarantee at least one iteration
+    // over GlobalsSet in modules processing loop.
     GlobalsSet[GLOBAL_SCOPE_NAME] = {};
   }
 
@@ -791,7 +797,7 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   for (const auto &GlobalsPair : GlobalsSet) {
     const FuncPtrVector &ResModuleGlobals = GlobalsPair.second;
     ModuleUPtr ResM{nullptr};
-    if (DoSplit)
+    if (DoSplit && NonEmptySplit)
       ResM = splitModule(*M, ResModuleGlobals);
     else {
       assert(GlobalsSet.size() == 1);
@@ -813,8 +819,9 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
       // no spec constants and no splitting.
       // We cannot reuse input module for ESIMD code since it was transformed.
       std::string ResModuleFile{};
-      bool CanReuseInputModule = !DoSplit && !SyclAndEsimdCode && !IsEsimd &&
-                                 !IsLLVMUsedRemoved && !SpecConstsMet;
+      bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
+                                 !IsLLVMUsedRemoved && !SpecConstsMet &&
+                                 (GlobalsSet.size() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
       else {
