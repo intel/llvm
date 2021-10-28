@@ -326,11 +326,12 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
     for (unsigned I = 0; I < FractionLength; ++I)
       Digits[Offset++] = digitToChar(FractionDigits[I]);
 
+    auto AbsExp = Exp < 0 ? -Exp : Exp;
     // Exponent part
     Digits[Offset++] = 'e';
     Digits[Offset++] = Exp >= 0 ? '+' : '-';
-    Digits[Offset++] = digitToChar(abs(Exp) / 10);
-    Digits[Offset++] = digitToChar(abs(Exp) % 10);
+    Digits[Offset++] = digitToChar(AbsExp) / 10);
+    Digits[Offset++] = digitToChar(AbsExp) % 10);
   } else { // normal mode
     if (Exp < 0) {
       Digits[Offset++] = '0';
