@@ -20,8 +20,8 @@
 
 // Enable use of interop kernel c-tor
 #define __SYCL_INTERNAL_API
-#include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -36,41 +36,40 @@
 
 class TestKernel;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
-template <> struct KernelInfo<TestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return "TestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-};
+__SYCL_INT_HEADER_OPEN_NS() {
+  namespace detail {
+  template <> struct KernelInfo<TestKernel> {
+    static constexpr unsigned getNumParams() { return 0; }
+    static const kernel_param_desc_t &getParamDesc(int) {
+      static kernel_param_desc_t Dummy;
+      return Dummy;
+    }
+    static constexpr const char *getName() { return "TestKernel"; }
+    static constexpr bool isESIMD() { return false; }
+    static constexpr bool callsThisItem() { return false; }
+    static constexpr bool callsAnyThisFreeFunction() { return false; }
+  };
 
-static constexpr const kernel_param_desc_t Signatures[] = {
-    {kernel_param_kind_t::kind_accessor, 4062, 0}};
+  static constexpr const kernel_param_desc_t Signatures[] = {
+      {kernel_param_kind_t::kind_accessor, 4062, 0}};
 
-template <>
-struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
-  static constexpr const char *getName() {
-    return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
-  }
-  static constexpr unsigned getNumParams() { return 1; }
-  static constexpr const kernel_param_desc_t &getParamDesc(unsigned Idx) {
-    assert(!Idx);
-    return Signatures[Idx];
-  }
-  static constexpr bool isESIMD() { return 0; }
-  static constexpr bool callsThisItem() { return 0; }
-  static constexpr bool callsAnyThisFreeFunction() { return 0; }
-};
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+  template <>
+  struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier> {
+    static constexpr const char *getName() {
+      return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
+    }
+    static constexpr unsigned getNumParams() { return 1; }
+    static constexpr const kernel_param_desc_t &getParamDesc(unsigned Idx) {
+      assert(!Idx);
+      return Signatures[Idx];
+    }
+    static constexpr bool isESIMD() { return 0; }
+    static constexpr bool callsThisItem() { return 0; }
+    static constexpr bool callsAnyThisFreeFunction() { return 0; }
+  };
+  } // namespace detail
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;

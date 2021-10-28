@@ -8,11 +8,11 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <CL/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
+#include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
 
@@ -39,24 +39,23 @@ static void unset_env(const char *name) {
 
 class TestKernel;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
-template <> struct KernelInfo<TestKernel> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return "TestKernel"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-};
+__SYCL_INT_HEADER_OPEN_NS() {
+  namespace detail {
+  template <> struct KernelInfo<TestKernel> {
+    static constexpr unsigned getNumParams() { return 0; }
+    static const kernel_param_desc_t &getParamDesc(int) {
+      static kernel_param_desc_t Dummy;
+      return Dummy;
+    }
+    static constexpr const char *getName() { return "TestKernel"; }
+    static constexpr bool isESIMD() { return false; }
+    static constexpr bool callsThisItem() { return false; }
+    static constexpr bool callsAnyThisFreeFunction() { return false; }
+  };
 
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+  } // namespace detail
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static pi_result redefinedProgramCreate(pi_context, const void *, size_t,
                                         pi_program *) {

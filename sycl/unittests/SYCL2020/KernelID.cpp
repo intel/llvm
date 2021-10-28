@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -19,61 +19,60 @@ class TestKernel2;
 class TestKernel3;
 class ServiceKernel1;
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-namespace detail {
-template <> struct KernelInfo<TestKernel1> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return "KernelID_TestKernel1"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-};
+__SYCL_INT_HEADER_OPEN_NS() {
+  namespace detail {
+  template <> struct KernelInfo<TestKernel1> {
+    static constexpr unsigned getNumParams() { return 0; }
+    static const kernel_param_desc_t &getParamDesc(int) {
+      static kernel_param_desc_t Dummy;
+      return Dummy;
+    }
+    static constexpr const char *getName() { return "KernelID_TestKernel1"; }
+    static constexpr bool isESIMD() { return false; }
+    static constexpr bool callsThisItem() { return false; }
+    static constexpr bool callsAnyThisFreeFunction() { return false; }
+  };
 
-template <> struct KernelInfo<TestKernel2> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return "KernelID_TestKernel2"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-};
+  template <> struct KernelInfo<TestKernel2> {
+    static constexpr unsigned getNumParams() { return 0; }
+    static const kernel_param_desc_t &getParamDesc(int) {
+      static kernel_param_desc_t Dummy;
+      return Dummy;
+    }
+    static constexpr const char *getName() { return "KernelID_TestKernel2"; }
+    static constexpr bool isESIMD() { return false; }
+    static constexpr bool callsThisItem() { return false; }
+    static constexpr bool callsAnyThisFreeFunction() { return false; }
+  };
 
-template <> struct KernelInfo<TestKernel3> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() { return "KernelID_TestKernel3"; }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-};
+  template <> struct KernelInfo<TestKernel3> {
+    static constexpr unsigned getNumParams() { return 0; }
+    static const kernel_param_desc_t &getParamDesc(int) {
+      static kernel_param_desc_t Dummy;
+      return Dummy;
+    }
+    static constexpr const char *getName() { return "KernelID_TestKernel3"; }
+    static constexpr bool isESIMD() { return false; }
+    static constexpr bool callsThisItem() { return false; }
+    static constexpr bool callsAnyThisFreeFunction() { return false; }
+  };
 
-template <> struct KernelInfo<ServiceKernel1> {
-  static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int) {
-    static kernel_param_desc_t Dummy;
-    return Dummy;
-  }
-  static constexpr const char *getName() {
-    return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1";
-  }
-  static constexpr bool isESIMD() { return false; }
-  static constexpr bool callsThisItem() { return false; }
-  static constexpr bool callsAnyThisFreeFunction() { return false; }
-};
-} // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+  template <> struct KernelInfo<ServiceKernel1> {
+    static constexpr unsigned getNumParams() { return 0; }
+    static const kernel_param_desc_t &getParamDesc(int) {
+      static kernel_param_desc_t Dummy;
+      return Dummy;
+    }
+    static constexpr const char *getName() {
+      return "_ZTSN2cl4sycl6detail23__sycl_service_kernel__14ServiceKernel1";
+    }
+    static constexpr bool isESIMD() { return false; }
+    static constexpr bool callsThisItem() { return false; }
+    static constexpr bool callsAnyThisFreeFunction() { return false; }
+  };
+  } // namespace detail
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
 
 static sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> Kernels) {
