@@ -162,10 +162,8 @@ __esimd_svm_block_ld_unaligned(uint64_t addr)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// flat_block_read reads a block of data from one flat address. Address must be
-// 16-byte aligned.
-template <typename Ty, int N, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+// Read a block of data from the given address. Address must be 16-byte aligned.
+template <typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_block_ld(uint64_t addr)
 #ifdef __SYCL_DEVICE_ONLY__
