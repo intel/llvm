@@ -789,9 +789,11 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
 
   do {
     const FuncPtrVector *ResModuleGlobals{nullptr};
-    ModuleUPtr ResM{nullptr};
-    if (DoSplit && GlobSetIt != GlobalsSet.cend()) {
+    if (GlobSetIt != GlobalsSet.cend())
       ResModuleGlobals = &(GlobSetIt->second);
+
+    ModuleUPtr ResM{nullptr};
+    if (DoSplit && ResModuleGlobals) {
       ResM = splitModule(*M, *ResModuleGlobals);
     } else {
       // sycl-post-link always produces a code result, even if it doesn't modify
