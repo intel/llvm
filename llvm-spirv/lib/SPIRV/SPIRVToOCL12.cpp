@@ -255,6 +255,10 @@ Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
   return NewCI;
 }
 
+void SPIRVToOCL12Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
+  assert(0 && "OpenCL 1.2 doesn't support enqueue_kernel!");
+}
+
 std::string SPIRVToOCL12Base::mapFPAtomicName(Op OC) {
   assert(isFPAtomicOpCode(OC) && "Not intended to handle other opcodes than "
                                  "AtomicF{Add/Min/Max}EXT!");
