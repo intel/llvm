@@ -104,6 +104,7 @@ jobs:
         CACHE_SIZE: ${{ fromJSON(needs.configure.outputs.params).build_cache_size }}
         ARGS: ${{ fromJSON(needs.configure.outputs.params).build_configure_extra_args }}
       run: |
+        mkdir -p $GITHUB_WORKSPACE/os_cache
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
@@ -121,6 +122,8 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
       if: always()
+      env:
+        XDG_CACHE_HOME: ${{ github.workspace }}/os_cache
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
