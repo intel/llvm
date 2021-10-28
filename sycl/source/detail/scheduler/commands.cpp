@@ -1862,7 +1862,8 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0], &Event);
+      RawEvents.empty() ? nullptr : &RawEvents[0],
+      MQueue->is_event_required() ? &Event : nullptr);
   return Error;
 }
 
@@ -2132,6 +2133,8 @@ cl_int ExecCGCommand::enqueueImp() {
           SetKernelParamsAndLaunch(ExecKernel, DeviceImageImpl, Kernel, NDRDesc,
                                    RawEvents, Event, EliminatedArgMask);
     }
+    if (!MQueue->is_event_required())
+      MEvent->setQueueToWaitKernel(MQueue->getHandleRef());
 
     if (PI_SUCCESS != Error) {
       // If we have got non-success error code, let's analyze it to emit nice
@@ -2288,7 +2291,10 @@ cl_int ExecCGCommand::enqueueImp() {
 }
 
 bool ExecCGCommand::producesPiEvent() const {
-  return MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask;
+  const auto &type = MCommandGroup->getType();
+  if (type == CG::CGTYPE::Kernel)
+    return MQueue->is_event_required();
+  return type != CG::CGTYPE::CodeplayHostTask;
 }
 
 } // namespace detail

@@ -168,6 +168,9 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
+  /// \return true if this queue requests the creation of a low-level event.
+  bool is_event_required() const { return MIsEventRequired; }
+
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -264,6 +267,7 @@ public:
   /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
+    bool enable_profiling = false;
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
@@ -271,6 +275,7 @@ public:
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
+      enable_profiling = true;
     }
     if (MPropList.has_property<property::queue::cuda::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
@@ -294,6 +299,11 @@ public:
       Plugin.checkPiResult(Error);
     }
 
+    MIsEventRequired =
+        enable_profiling || (!MSupportOOO) ||
+        Plugin.getBackend() == backend::level_zero
+        //|| !MIsInorder
+        || !MPropList.has_property<property::queue::avoid_event_creation>();
     return Queue;
   }
 
@@ -461,6 +471,10 @@ private:
     if (MIsInorder)
       MLastEvent = Event;
 
+    if (!MIsEventRequired) {
+      return Event;
+    }
+
     addEvent(Event);
     return Event;
   }
@@ -523,6 +537,7 @@ private:
 
   event MLastEvent;
   const bool MIsInorder;
+  bool MIsEventRequired = true;
 };
 
 } // namespace detail

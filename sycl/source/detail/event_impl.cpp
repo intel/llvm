@@ -51,6 +51,10 @@ event_impl::~event_impl() {
 }
 
 void event_impl::waitInternal() const {
+  if (MQueueToWaitKernel) {
+    getPlugin().call<PiApiKind::piQueueFinish>(MQueueToWaitKernel);
+    return;
+  }
   if (!MHostEvent && MEvent) {
     getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
     return;
@@ -195,7 +199,7 @@ void event_impl::wait(
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
-  if (MEvent)
+  if (MEvent || MQueueToWaitKernel)
     // presence of MEvent means the command has been enqueued, so no need to
     // go via the slow path event waiting in the scheduler
     waitInternal();

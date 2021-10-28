@@ -175,6 +175,8 @@ public:
     return MPreparedHostDepsEvents;
   }
 
+  void setQueueToWaitKernel(RT::PiQueue Queue) { MQueueToWaitKernel = Queue; }
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -201,6 +203,7 @@ private:
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
+  RT::PiQueue MQueueToWaitKernel = nullptr;
 };
 
 } // namespace detail

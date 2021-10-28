@@ -17,6 +17,8 @@ namespace queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
 class enable_profiling
     : public detail::DataLessProperty<detail::QueueEnableProfiling> {};
+class avoid_event_creation
+    : public detail::DataLessProperty<detail::AvoidEventCreation> {};
 namespace cuda {
 class use_default_stream
     : public detail::DataLessProperty<detail::UseDefaultStream> {};
