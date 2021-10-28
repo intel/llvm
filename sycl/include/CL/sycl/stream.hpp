@@ -330,8 +330,8 @@ EnableIfFP<T, unsigned> floatingPointToDecStr(T AbsVal, char *Digits,
     // Exponent part
     Digits[Offset++] = 'e';
     Digits[Offset++] = Exp >= 0 ? '+' : '-';
-    Digits[Offset++] = digitToChar(AbsExp) / 10);
-    Digits[Offset++] = digitToChar(AbsExp) % 10);
+    Digits[Offset++] = digitToChar(AbsExp / 10);
+    Digits[Offset++] = digitToChar(AbsExp % 10);
   } else { // normal mode
     if (Exp < 0) {
       Digits[Offset++] = '0';
