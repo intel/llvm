@@ -299,11 +299,10 @@ public:
       Plugin.checkPiResult(Error);
     }
 
-    MIsEventRequired =
-        enable_profiling || (!MSupportOOO) ||
-        Plugin.getBackend() == backend::level_zero
-        //|| !MIsInorder
-        || !MPropList.has_property<property::queue::avoid_event_creation>();
+    MIsEventRequired = enable_profiling || (!MSupportOOO) ||
+                       Plugin.getBackend() == backend::level_zero;
+    //|| !MIsInorder
+    //|| !MPropList.has_property<property::queue::avoid_event_creation>();
     return Queue;
   }
 
