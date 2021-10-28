@@ -958,7 +958,7 @@ private:
                                   const h_item<Dimensions> &RHS);
 };
 
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 // Byte (has to be converted to a numeric value)
 template <typename T>
 inline std::enable_if_t<std::is_same<T, std::byte>::value, const stream &>
