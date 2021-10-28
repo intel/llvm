@@ -14,6 +14,17 @@
 #define __SYCL_INLINE_NAMESPACE(X) namespace X
 #endif // __SYCL_DISABLE_NAMESPACE_INLINE__
 
+//#define __SYCL_INT_HEADER_NS() __sycl_integraion_header_ns
+//#define __SYCL_INT_HEADER_OPEN_NS() namespace __SYCL_INT_HEADER_NS()
+//#define __SYCL_INT_HEADER_CLOSE_NS()
+//
+#define __SYCL_INT_HEADER_NS() cl::sycl
+#define __SYCL_INT_HEADER_OPEN_NS()                                            \
+  namespace cl {                                                               \
+  namespace sycl
+
+#define __SYCL_INT_HEADER_CLOSE_NS() }
+
 #ifndef __has_attribute
 #define __has_attribute(x) 0
 #endif
