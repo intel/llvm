@@ -214,11 +214,13 @@ test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
     // CHECK-LABEL: call void @llvm.genx.oword.st.v8f32(i32 0, i32 0, <8 x float> %{{[a-zA-Z0-9.]+}})
   }
   {
-      // TODO
-      // vec<int, 8> x = __esimd_svm_block_ld<int, 8>(addr);
-  } {
     vec<int, 8> x = __esimd_svm_block_ld_unaligned<int, 8>(addr);
     // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.block.ld.unaligned.v8i32.i64(i64 %{{[a-zA-Z0-9.]+}})
+    use(x);
+  }
+  {
+    vec<int, 8> x = __esimd_svm_block_ld<int, 8>(addr);
+    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.block.ld.v8i32.i64(i64 %{{[a-zA-Z0-9.]+}})
     use(x);
   }
   {
