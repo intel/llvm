@@ -2,5 +2,3 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
 // expected-no-diagnostics
 #include <CL/sycl.hpp>
-
-int main() { return 0; }
