@@ -1014,20 +1014,9 @@ public:
       FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
       if (InvokeTy->getNumParams() > 1)
         setLocalArgBlock(BlockArgIdx);
-    } else if (NameRef.equals("enqueue_kernel")) {
-      assert(F && "lack of necessary information");
-      setEnumArg(1, SPIR::PRIMITIVE_KERNEL_ENQUEUE_FLAGS_T);
-      addUnsignedArg(3);
-      setArgAttr(4, SPIR::ATTR_CONST);
-      // If there are arguments other then block context then these are pointers
-      // to local memory so this built-in must be mangled accordingly.
-      const size_t BlockArgIdx = 6;
-      FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
-      if (InvokeTy->getNumParams() > 1) {
-        setLocalArgBlock(BlockArgIdx);
-        addUnsignedArg(BlockArgIdx + 1);
-        setVarArg(BlockArgIdx + 2);
-      }
+    } else if (NameRef.startswith("__enqueue_kernel")) {
+      // clang doesn't mangle enqueue_kernel builtins
+      setAsDontMangle();
     } else if (NameRef.startswith("get_") || NameRef.equals("nan") ||
                NameRef.equals("mem_fence") || NameRef.startswith("shuffle")) {
       addUnsignedArg(-1);

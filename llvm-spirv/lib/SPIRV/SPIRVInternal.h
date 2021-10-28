@@ -465,7 +465,7 @@ public:
   /// Translate builtin function name and set
   /// argument attributes and unsigned args.
   BuiltinFuncMangleInfo(const std::string &UniqName = "")
-      : LocalArgBlockIdx(-1), VarArgIdx(-1) {
+      : LocalArgBlockIdx(-1), VarArgIdx(-1), DontMangle(false) {
     if (!UniqName.empty())
       init(UniqName);
   }
@@ -492,6 +492,7 @@ public:
     assert(0 <= Ndx && "it is not allowed to set less than zero index");
     VarArgIdx = Ndx;
   }
+  void setAsDontMangle() { DontMangle = true; }
   bool isArgUnsigned(int Ndx) {
     return UnsignedArgs.count(-1) || UnsignedArgs.count(Ndx);
   }
@@ -511,6 +512,7 @@ public:
       *Enum = Loc->second;
     return true;
   }
+  bool avoidMangling() { return DontMangle; }
   unsigned getArgAttr(int Ndx) {
     auto Loc = Attrs.find(Ndx);
     if (Loc == Attrs.end())
@@ -549,6 +551,9 @@ protected:
   int LocalArgBlockIdx; // index of a block with local arguments, idx < 0 if
                         // none
   int VarArgIdx;        // index of ellipsis argument, idx < 0 if none
+private:
+  bool DontMangle; // clang doesn't apply mangling for some builtin functions
+                   // (i.e. enqueue_kernel)
 };
 
 /// \returns a vector of types for a collection of values.
@@ -695,7 +700,7 @@ bool getSPIRVBuiltin(const std::string &Name, spv::BuiltIn &Builtin);
 /// false for other functions
 bool oclIsBuiltin(StringRef Name, StringRef &DemangledName, bool IsCpp = false);
 
-/// Check if a function type is void(void).
+/// Check if a function returns void
 bool isVoidFuncTy(FunctionType *FT);
 
 /// \returns true if \p T is a function pointer type.
