@@ -8,6 +8,9 @@
 // RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out s 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-SMALL-BUF
 // RUN: env ZE_DEBUG=4 %GPU_RUN_PLACEHOLDER %t.out l 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-LARGE-BUF
 
+// This test is expected to fail until new pooling is enabled
+// UNSUPPORTED: level_zero
+
 #include <CL/sycl.hpp>
 using namespace sycl;
 

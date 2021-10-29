@@ -23,6 +23,9 @@
 // RUN: env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=2,,2 %t.out d 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-1245
 // RUN: env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR=2,,2 %t.out s 2> %t1.out; cat %t1.out %GPU_CHECK_PLACEHOLDER --check-prefix CHECK-1245
 
+// This test is expected to fail until new pooling is enabled
+// UNSUPPORTED: level_zero
+
 #include "CL/sycl.hpp"
 using namespace sycl;
 
