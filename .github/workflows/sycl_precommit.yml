@@ -1,4 +1,4 @@
-name: clang-format-check
+name: SYCL pre-commit checks
 
 on:
   pull_request:
@@ -6,7 +6,8 @@ on:
     - sycl
 
 jobs:
-  build:
+  lint:
+    # TODO use nightly builds of SYCL to get clang-format
     runs-on: ubuntu-latest
     steps:
     - name: Get clang-format first
@@ -19,7 +20,6 @@ jobs:
     - name: Run clang-format for the patch
       run: |
         git diff --no-color ${GITHUB_SHA}^1 ${GITHUB_SHA} --name-only -- | grep -v "/test/" | xargs git diff -U0 --no-color ${GITHUB_SHA}^1 ${GITHUB_SHA} -- | ./clang/tools/clang-format/clang-format-diff.py -p1 -binary clang-format > ./clang-format.patch
-
     # Add patch with formatting fixes to CI job artifacts
     - uses: actions/upload-artifact@v1
       with:
@@ -28,3 +28,16 @@ jobs:
 
     - name: Check if clang-format patch is empty
       run: bash -c "if [ -s ./clang-format.patch ]; then cat ./clang-format.patch; exit 1; fi"
+
+  linux_default:
+    name: Default Linux checks
+    # Only build and test patches, that have passed all linter checks, because
+    # the next commit is likely to be a follow-up on that job.
+    needs: lint
+    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    with:
+      build_cache_root: "/__w/"
+      build_cache_size: "8G"
+      build_artifact_suffix: "default"
+      build_cache_suffix: "default"
+
