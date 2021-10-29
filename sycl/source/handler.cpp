@@ -121,7 +121,8 @@ event handler::finalize() {
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                 KernelBundleImpPtr));
-        setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
+        setHandlerKernelBundle(KernelBundleImpPtr);
         break;
       }
       case bundle_state::executable:
