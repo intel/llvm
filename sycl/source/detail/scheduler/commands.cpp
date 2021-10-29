@@ -1859,12 +1859,11 @@ pi_result ExecCGCommand::SetKernelParamsAndLaunch(
       LocalSize = RequiredWGSize;
   }
 
-  const bool IsReq =
-      MQueue->is_event_required() || (ExecKernel->MRequirements.size() != 0);
   pi_result Error = Plugin.call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       MQueue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0], IsReq ? &Event : nullptr);
+      RawEvents.empty() ? nullptr : &RawEvents[0],
+      MQueue->avoid_event_creation() ? nullptr : &Event);
   return Error;
 }
 

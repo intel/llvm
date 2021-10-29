@@ -92,7 +92,9 @@ public:
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MAssertHappenedBuffer(range<1>{1}),
-        MIsInorder(has_property<property::queue::in_order>()) {
+        MIsInorder(has_property<property::queue::in_order>()),
+        MAvoidEventCreation(
+            has_property<property::queue::avoid_event_creation>()) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -117,7 +119,9 @@ public:
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
-        MIsInorder(has_property<property::queue::in_order>()) {
+        MIsInorder(has_property<property::queue::in_order>()),
+        MAvoidEventCreation(
+            has_property<property::queue::avoid_event_creation>()) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -168,8 +172,8 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
-  /// \return true if this queue requests the creation of a low-level event.
-  bool is_event_required() const { return MIsEventRequired; }
+  /// \return true if this queue has avoid_event_creation property.
+  bool avoid_event_creation() const { return MAvoidEventCreation; }
 
   /// Queries SYCL queue for information.
   ///
@@ -299,10 +303,21 @@ public:
       Plugin.checkPiResult(Error);
     }
 
-    MIsEventRequired =
-        enable_profiling || (!MSupportOOO) ||
-        Plugin.getBackend() == backend::level_zero ||
-        !MPropList.has_property<property::queue::avoid_event_creation>();
+    if (MAvoidEventCreation) {
+      if (enable_profiling)
+        throw cl::sycl::invalid_parameter_error(
+            "enable_profiling cannot be used together with "
+            "avoid_event_creation.",
+            PI_INVALID_OPERATION);
+      if (!MIsInorder)
+        throw cl::sycl::invalid_parameter_error(
+            "OOO queue cannot be used together with avoid_event_creation.",
+            PI_INVALID_OPERATION);
+      if (Plugin.getBackend() == backend::level_zero)
+        throw cl::sycl::invalid_parameter_error(
+            "Level_zero temporarily does not support avoid_event_creation",
+            PI_INVALID_OPERATION);
+    }
     return Queue;
   }
 
@@ -465,12 +480,16 @@ private:
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else {
-      if (MIsEventRequired || Handler.MRequirements.size() != 0) {
-        Event = Handler.finalize();
-      } else {
+      if (MAvoidEventCreation) {
+        if (Handler.MRequirements.size() != 0)
+          throw cl::sycl::invalid_parameter_error(
+              "Global accessors cannot be used together with "
+              "avoid_event_creation.",
+              PI_INVALID_OPERATION);
         Handler.finalize();
         return Event; // returns defalt event in this case
       }
+      Event = Handler.finalize();
     }
 
     if (MIsInorder)
@@ -538,7 +557,7 @@ private:
 
   event MLastEvent;
   const bool MIsInorder;
-  bool MIsEventRequired = true;
+  const bool MAvoidEventCreation;
 };
 
 } // namespace detail
