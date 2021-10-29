@@ -12,6 +12,9 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
+
 // <cstdint> for 'uint32_t' type is included in upper-level device
 // interface file ('esimdemu_device_interface.hpp')
 

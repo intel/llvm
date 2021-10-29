@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {

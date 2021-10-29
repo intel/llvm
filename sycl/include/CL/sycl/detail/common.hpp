@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/defines.hpp>
 #include <CL/sycl/detail/defines_elementary.hpp>
+#include <CL/sycl/detail/defines_sycl_ns.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 
