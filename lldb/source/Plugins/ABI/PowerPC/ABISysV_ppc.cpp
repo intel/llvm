@@ -112,7 +112,7 @@ enum dwarf_regnums {
 #define DEFINE_GPR(reg, alt, kind1, kind2, kind3, kind4)                       \
   {                                                                            \
     #reg, alt, 8, 0, eEncodingUint, eFormatHex, {kind1, kind2, kind3, kind4 }, \
-                                                 nullptr, nullptr, nullptr, 0  \
+                                                 nullptr, nullptr,             \
   }
 
 static const RegisterInfo g_register_infos[] = {
@@ -201,8 +201,7 @@ static const RegisterInfo g_register_infos[] = {
      {dwarf_cfa, dwarf_cfa, LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM},
      nullptr,
      nullptr,
-     nullptr,
-     0}};
+     }};
 
 static const uint32_t k_num_register_infos =
     llvm::array_lengthof(g_register_infos);
@@ -962,15 +961,4 @@ void ABISysV_ppc::Initialize() {
 
 void ABISysV_ppc::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-lldb_private::ConstString ABISysV_ppc::GetPluginNameStatic() {
-  static ConstString g_name("sysv-ppc");
-  return g_name;
-}
-
-// PluginInterface protocol
-
-lldb_private::ConstString ABISysV_ppc::GetPluginName() {
-  return GetPluginNameStatic();
 }

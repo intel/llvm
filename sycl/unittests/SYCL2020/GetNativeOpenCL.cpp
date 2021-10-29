@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
+#define __SYCL_INTERNAL_API
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>

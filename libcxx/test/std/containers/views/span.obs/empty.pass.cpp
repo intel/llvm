@@ -6,10 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: c++03, c++11, c++14, c++17
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
+
+// AppleClang 12.0.0 doesn't fully support ranges/concepts
+// XFAIL: apple-clang-12.0.0
 
 // <span>
 
-// constexpr bool empty() const noexcept;
+// [[nodiscard]] constexpr bool empty() const noexcept;
 //
 
 

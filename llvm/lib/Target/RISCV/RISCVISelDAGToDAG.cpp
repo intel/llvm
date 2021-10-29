@@ -140,6 +140,9 @@ static SDNode *selectImm(SelectionDAG *CurDAG, const SDLoc &DL, int64_t Imm,
     else if (Inst.Opc == RISCV::ADDUW)
       Result = CurDAG->getMachineNode(RISCV::ADDUW, DL, XLenVT, SrcReg,
                                       CurDAG->getRegister(RISCV::X0, XLenVT));
+    else if (Inst.Opc == RISCV::SH1ADD || Inst.Opc == RISCV::SH2ADD ||
+             Inst.Opc == RISCV::SH3ADD)
+      Result = CurDAG->getMachineNode(Inst.Opc, DL, XLenVT, SrcReg, SrcReg);
     else
       Result = CurDAG->getMachineNode(Inst.Opc, DL, XLenVT, SrcReg, SDImm);
 
@@ -1113,7 +1116,7 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
       ReplaceNode(Node, Load);
       return;
     }
-    case Intrinsic::riscv_vle1:
+    case Intrinsic::riscv_vlm:
     case Intrinsic::riscv_vle:
     case Intrinsic::riscv_vle_mask:
     case Intrinsic::riscv_vlse:
@@ -1303,7 +1306,7 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
       ReplaceNode(Node, Store);
       return;
     }
-    case Intrinsic::riscv_vse1:
+    case Intrinsic::riscv_vsm:
     case Intrinsic::riscv_vse:
     case Intrinsic::riscv_vse_mask:
     case Intrinsic::riscv_vsse:

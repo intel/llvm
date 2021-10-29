@@ -269,15 +269,15 @@ TEST_P(ImportExpr, ImportStringLiteral) {
   testImport("void declToImport() { (void)\"foo\"; }", Lang_CXX03, "",
              Lang_CXX03, Verifier,
              functionDecl(hasDescendant(
-                 stringLiteral(hasType(asString("const char [4]"))))));
+                 stringLiteral(hasType(asString("const char[4]"))))));
   testImport("void declToImport() { (void)L\"foo\"; }", Lang_CXX03, "",
              Lang_CXX03, Verifier,
              functionDecl(hasDescendant(
-                 stringLiteral(hasType(asString("const wchar_t [4]"))))));
+                 stringLiteral(hasType(asString("const wchar_t[4]"))))));
   testImport("void declToImport() { (void) \"foo\" \"bar\"; }", Lang_CXX03, "",
              Lang_CXX03, Verifier,
              functionDecl(hasDescendant(
-                 stringLiteral(hasType(asString("const char [7]"))))));
+                 stringLiteral(hasType(asString("const char[7]"))))));
 }
 
 TEST_P(ImportExpr, ImportChooseExpr) {
@@ -508,8 +508,8 @@ TEST_P(ImportExpr, ImportPredefinedExpr) {
   testImport("void declToImport() { (void)__func__; }", Lang_CXX03, "",
              Lang_CXX03, Verifier,
              functionDecl(hasDescendant(predefinedExpr(
-                 hasType(asString("const char [13]")),
-                 has(stringLiteral(hasType(asString("const char [13]"))))))));
+                 hasType(asString("const char[13]")),
+                 has(stringLiteral(hasType(asString("const char[13]"))))))));
 }
 
 TEST_P(ImportExpr, ImportInitListExpr) {
@@ -6145,6 +6145,50 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportDefaultConstructibleLambdas) {
             2u);
 }
 
+TEST_P(ASTImporterOptionSpecificTestBase,
+       ImportFunctionDeclWithTypeSourceInfoWithSourceDecl) {
+  // This code results in a lambda with implicit constructor.
+  // The constructor's TypeSourceInfo points out the function prototype.
+  // This prototype has an EST_Unevaluated in its exception information and a
+  // SourceDecl that is the function declaration itself.
+  // The test verifies that AST import of such AST does not crash.
+  // (Here the function's TypeSourceInfo references the function itself.)
+  Decl *FromTU = getTuDecl(
+      R"(
+        template<typename T> void f(T) { auto X = [](){}; }
+        void g() { f(10); }
+        )",
+      Lang_CXX11, "input0.cc");
+
+  // Use LastDeclMatcher to find the LambdaExpr in the template specialization.
+  CXXRecordDecl *FromL = LastDeclMatcher<LambdaExpr>()
+                             .match(FromTU, lambdaExpr())
+                             ->getLambdaClass();
+
+  CXXConstructorDecl *FromCtor = *FromL->ctor_begin();
+  ASSERT_TRUE(FromCtor->isCopyConstructor());
+  ASSERT_TRUE(FromCtor->getTypeSourceInfo());
+  const auto *FromFPT = FromCtor->getType()->getAs<FunctionProtoType>();
+  ASSERT_TRUE(FromFPT);
+  EXPECT_EQ(FromCtor->getTypeSourceInfo()->getType().getTypePtr(), FromFPT);
+  FunctionProtoType::ExtProtoInfo FromEPI = FromFPT->getExtProtoInfo();
+  // If type is EST_Unevaluated, SourceDecl should be set to the parent Decl.
+  EXPECT_EQ(FromEPI.ExceptionSpec.Type, EST_Unevaluated);
+  EXPECT_EQ(FromEPI.ExceptionSpec.SourceDecl, FromCtor);
+
+  auto ToL = Import(FromL, Lang_CXX11);
+
+  // Check if the import was correct.
+  CXXConstructorDecl *ToCtor = *ToL->ctor_begin();
+  EXPECT_TRUE(ToCtor->getTypeSourceInfo());
+  const auto *ToFPT = ToCtor->getType()->getAs<FunctionProtoType>();
+  ASSERT_TRUE(ToFPT);
+  EXPECT_EQ(ToCtor->getTypeSourceInfo()->getType().getTypePtr(), ToFPT);
+  FunctionProtoType::ExtProtoInfo ToEPI = ToFPT->getExtProtoInfo();
+  EXPECT_EQ(ToEPI.ExceptionSpec.Type, EST_Unevaluated);
+  EXPECT_EQ(ToEPI.ExceptionSpec.SourceDecl, ToCtor);
+}
+
 struct ImportAutoFunctions : ASTImporterOptionSpecificTestBase {};
 
 TEST_P(ImportAutoFunctions, ReturnWithTypedefDeclaredInside) {
@@ -6564,10 +6608,176 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportFormatAttr) {
   EXPECT_EQ(FromAttr->getType()->getName(), ToAttr->getType()->getName());
 }
 
+TEST_P(ImportAttributes, ImportGuardedVar) {
+  GuardedVarAttr *FromAttr, *ToAttr;
+  importAttr<VarDecl>("int test __attribute__((guarded_var));", FromAttr,
+                      ToAttr);
+}
+
+TEST_P(ImportAttributes, ImportPtGuardedVar) {
+  PtGuardedVarAttr *FromAttr, *ToAttr;
+  importAttr<VarDecl>("int *test __attribute__((pt_guarded_var));", FromAttr,
+                      ToAttr);
+}
+
+TEST_P(ImportAttributes, ImportScopedLockable) {
+  ScopedLockableAttr *FromAttr, *ToAttr;
+  importAttr<CXXRecordDecl>("struct __attribute__((scoped_lockable)) test {};",
+                            FromAttr, ToAttr);
+}
+
+TEST_P(ImportAttributes, ImportCapability) {
+  CapabilityAttr *FromAttr, *ToAttr;
+  importAttr<CXXRecordDecl>(
+      "struct __attribute__((capability(\"cap\"))) test {};", FromAttr, ToAttr);
+  EXPECT_EQ(FromAttr->getName(), ToAttr->getName());
+}
+
 TEST_P(ImportAttributes, ImportAssertCapability) {
   AssertCapabilityAttr *FromAttr, *ToAttr;
   importAttr<FunctionDecl>(
       "void test(int A1, int A2) __attribute__((assert_capability(A1, A2)));",
+      FromAttr, ToAttr);
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportAcquireCapability) {
+  AcquireCapabilityAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1, int A2) __attribute__((acquire_capability(A1, A2)));",
+      FromAttr, ToAttr);
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportTryAcquireCapability) {
+  TryAcquireCapabilityAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1, int A2) __attribute__((try_acquire_capability(1, A1, "
+      "A2)));",
+      FromAttr, ToAttr);
+  checkImported(FromAttr->getSuccessValue(), ToAttr->getSuccessValue());
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportReleaseCapability) {
+  ReleaseCapabilityAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1, int A2) __attribute__((release_capability(A1, A2)));",
+      FromAttr, ToAttr);
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportRequiresCapability) {
+  RequiresCapabilityAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1, int A2) __attribute__((requires_capability(A1, A2)));",
+      FromAttr, ToAttr);
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportNoThreadSafetyAnalysis) {
+  NoThreadSafetyAnalysisAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test() __attribute__((no_thread_safety_analysis));", FromAttr,
+      ToAttr);
+}
+
+TEST_P(ImportAttributes, ImportGuardedBy) {
+  GuardedByAttr *FromAttr, *ToAttr;
+  importAttr<VarDecl>(
+      R"(
+      int G;
+      int test __attribute__((guarded_by(G)));
+      )",
+      FromAttr, ToAttr);
+  checkImported(FromAttr->getArg(), ToAttr->getArg());
+}
+
+TEST_P(ImportAttributes, ImportPtGuardedBy) {
+  PtGuardedByAttr *FromAttr, *ToAttr;
+  importAttr<VarDecl>(
+      R"(
+      int G;
+      int *test __attribute__((pt_guarded_by(G)));
+      )",
+      FromAttr, ToAttr);
+  checkImported(FromAttr->getArg(), ToAttr->getArg());
+}
+
+TEST_P(ImportAttributes, ImportAcquiredAfter) {
+  AcquiredAfterAttr *FromAttr, *ToAttr;
+  importAttr<VarDecl>(
+      R"(
+      struct __attribute__((lockable)) L {};
+      L A1;
+      L A2;
+      L test __attribute__((acquired_after(A1, A2)));
+      )",
+      FromAttr, ToAttr);
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportAcquiredBefore) {
+  AcquiredBeforeAttr *FromAttr, *ToAttr;
+  importAttr<VarDecl>(
+      R"(
+      struct __attribute__((lockable)) L {};
+      L A1;
+      L A2;
+      L test __attribute__((acquired_before(A1, A2)));
+      )",
+      FromAttr, ToAttr);
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportAssertExclusiveLock) {
+  AssertExclusiveLockAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>("void test(int A1, int A2) "
+                           "__attribute__((assert_exclusive_lock(A1, A2)));",
+                           FromAttr, ToAttr);
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportAssertSharedLock) {
+  AssertSharedLockAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1, int A2) __attribute__((assert_shared_lock(A1, A2)));",
+      FromAttr, ToAttr);
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportExclusiveTrylockFunction) {
+  ExclusiveTrylockFunctionAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1, int A2) __attribute__((exclusive_trylock_function(1, "
+      "A1, A2)));",
+      FromAttr, ToAttr);
+  checkImported(FromAttr->getSuccessValue(), ToAttr->getSuccessValue());
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportSharedTrylockFunction) {
+  SharedTrylockFunctionAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1, int A2) __attribute__((shared_trylock_function(1, A1, "
+      "A2)));",
+      FromAttr, ToAttr);
+  checkImported(FromAttr->getSuccessValue(), ToAttr->getSuccessValue());
+  checkImportVariadicArg(FromAttr->args(), ToAttr->args());
+}
+
+TEST_P(ImportAttributes, ImportLockReturned) {
+  LockReturnedAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1) __attribute__((lock_returned(A1)));", FromAttr,
+      ToAttr);
+  checkImported(FromAttr->getArg(), ToAttr->getArg());
+}
+
+TEST_P(ImportAttributes, ImportLocksExcluded) {
+  LocksExcludedAttr *FromAttr, *ToAttr;
+  importAttr<FunctionDecl>(
+      "void test(int A1, int A2) __attribute__((locks_excluded(A1, A2)));",
       FromAttr, ToAttr);
   checkImportVariadicArg(FromAttr->args(), ToAttr->args());
 }

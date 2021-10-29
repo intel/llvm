@@ -97,7 +97,19 @@ static cl::opt<std::string> CGSCCInlineReplayFile(
     "cgscc-inline-replay", cl::init(""), cl::value_desc("filename"),
     cl::desc(
         "Optimization remarks file containing inline remarks to be replayed "
-        "by inlining from cgscc inline remarks."),
+        "by cgscc inlining."),
+    cl::Hidden);
+
+static cl::opt<ReplayInlineScope> CGSCCInlineReplayScope(
+    "cgscc-inline-replay-scope", cl::init(ReplayInlineScope::Function),
+    cl::values(clEnumValN(ReplayInlineScope::Function, "Function",
+                          "Replay on functions that have remarks associated "
+                          "with them (default)"),
+               clEnumValN(ReplayInlineScope::Module, "Module",
+                          "Replay on the entire module")),
+    cl::desc("Whether inline replay should be applied to the entire "
+             "Module or just the Functions (default) that are present as "
+             "callers in remarks during cgscc inlining."),
     cl::Hidden);
 
 static cl::opt<bool> InlineEnablePriorityOrder(
@@ -464,7 +476,7 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
         }
         ++NumInlined;
 
-        emitInlinedInto(ORE, DLoc, Block, *Callee, *Caller, *OIC);
+        emitInlinedIntoBasedOnCost(ORE, DLoc, Block, *Callee, *Caller, *OIC);
 
         // If inlining this function gave us any new call sites, throw them
         // onto our worklist to process.  They are useful inline candidates.
@@ -662,9 +674,9 @@ InlinerPass::getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
         std::make_unique<DefaultInlineAdvisor>(M, FAM, getInlineParams());
 
     if (!CGSCCInlineReplayFile.empty())
-      OwnedAdvisor = std::make_unique<ReplayInlineAdvisor>(
+      OwnedAdvisor = getReplayInlineAdvisor(
           M, FAM, M.getContext(), std::move(OwnedAdvisor),
-          CGSCCInlineReplayFile,
+          CGSCCInlineReplayFile, CGSCCInlineReplayScope,
           /*EmitRemarks=*/true);
 
     return *OwnedAdvisor;
@@ -827,8 +839,9 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
       }
 
       auto Advice = Advisor.getAdvice(*CB, OnlyMandatory);
+
       // Check whether we want to inline this callsite.
-      if (!Advice->isInliningRecommended()) {
+      if (!Advice || !Advice->isInliningRecommended()) {
         Advice->recordUnattemptedInlining();
         continue;
       }
@@ -1027,7 +1040,8 @@ ModuleInlinerWrapperPass::ModuleInlinerWrapperPass(InlineParams Params,
 PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   auto &IAA = MAM.getResult<InlineAdvisorAnalysis>(M);
-  if (!IAA.tryCreate(Params, Mode, CGSCCInlineReplayFile)) {
+  if (!IAA.tryCreate(Params, Mode, CGSCCInlineReplayFile,
+                     CGSCCInlineReplayScope)) {
     M.getContext().emitError(
         "Could not setup Inlining Advisor for the requested "
         "mode and/or options");
@@ -1048,10 +1062,11 @@ PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
         createDevirtSCCRepeatedPass(std::move(PM), MaxDevirtIterations)));
   MPM.run(M, MAM);
 
-  IAA.clear();
-
-  // The ModulePassManager has already taken care of invalidating analyses.
-  return PreservedAnalyses::all();
+  // Discard the InlineAdvisor, a subsequent inlining session should construct
+  // its own.
+  auto PA = PreservedAnalyses::all();
+  PA.abandon<InlineAdvisorAnalysis>();
+  return PA;
 }
 
 void InlinerPass::printPipeline(

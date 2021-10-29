@@ -112,6 +112,10 @@ typedef enum {
   PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = CL_INVALID_IMAGE_FORMAT_DESCRIPTOR,
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
+  PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE =
+      -998, ///< PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE indicates a fallback
+            ///< method determines the function exists but its address cannot be
+            ///< found.
   PI_ERROR_UNKNOWN = -999
 } _pi_result;
 
@@ -296,7 +300,12 @@ typedef enum {
   PI_DEVICE_INFO_MAX_MEM_BANDWIDTH = 0x10026,
   PI_DEVICE_INFO_IMAGE_SRGB = 0x10027,
   PI_DEVICE_INFO_ATOMIC_64 = 0x10110,
-  PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111
+  PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 0x10111,
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS = 0x20000,
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D = 0x20001,
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D = 0x20002,
+  PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D = 0x20003
+
 } _pi_device_info;
 
 typedef enum {
@@ -346,7 +355,9 @@ typedef enum {
   PI_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE = CL_KERNEL_LOCAL_MEM_SIZE,
   PI_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE =
       CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
-  PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = CL_KERNEL_PRIVATE_MEM_SIZE
+  PI_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = CL_KERNEL_PRIVATE_MEM_SIZE,
+  // The number of registers used by the compiled kernel (device specific)
+  PI_KERNEL_GROUP_INFO_NUM_REGS = 0x10112
 } _pi_kernel_group_info;
 
 typedef enum {
@@ -987,6 +998,9 @@ __SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device device,
 /// must present in the list of devices returned by \c get_device method for
 /// \arg \c program.
 ///
+/// If a fallback method determines the function exists but the address is
+/// not available PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE is returned. If the
+/// address does not exist PI_INVALID_KERNEL_NAME is returned.
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device device, pi_program program, const char *function_name,
     pi_uint64 *function_pointer_ret);

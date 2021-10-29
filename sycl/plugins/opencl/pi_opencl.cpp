@@ -65,6 +65,8 @@ CONSTFIX char clEnqueueMemcpyName[] = "clEnqueueMemcpyINTEL";
 CONSTFIX char clGetMemAllocInfoName[] = "clGetMemAllocInfoINTEL";
 CONSTFIX char clSetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
+CONSTFIX char clGetDeviceFunctionPointerName[] =
+    "clGetDeviceFunctionPointerINTEL";
 
 #undef CONSTFIX
 
@@ -77,8 +79,10 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
 
   // if cached, return cached FuncPtr
   if (auto F = FuncPtrs[context]) {
+    // if cached that extension is not available return nullptr and
+    // PI_INVALID_VALUE
     *fptr = F;
-    return PI_SUCCESS;
+    return F ? PI_SUCCESS : PI_INVALID_VALUE;
   }
 
   cl_uint deviceCount;
@@ -110,8 +114,11 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   T FuncPtr =
       (T)clGetExtensionFunctionAddressForPlatform(curPlatform, FuncName);
 
-  if (!FuncPtr)
+  if (!FuncPtr) {
+    // Cache that the extension is not available
+    FuncPtrs[context] = nullptr;
     return PI_INVALID_VALUE;
+  }
 
   *fptr = FuncPtr;
   FuncPtrs[context] = FuncPtr;
@@ -191,6 +198,25 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(cl_bool));
     return PI_SUCCESS;
   }
+
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D:
+    // Returns the maximum sizes of a work group for each dimension one
+    // could use to submit a kernel. There is no such query defined in OpenCL
+    // so we'll return the maximum value.
+    {
+      if (paramValueSizeRet)
+        *paramValueSizeRet = paramValueSize;
+      static constexpr size_t Max = (std::numeric_limits<size_t>::max)();
+      size_t *out = cast<size_t *>(paramValue);
+      if (paramValueSize >= sizeof(size_t))
+        out[0] = Max;
+      if (paramValueSize >= 2 * sizeof(size_t))
+        out[1] = Max;
+      if (paramValueSize >= 3 * sizeof(size_t))
+        out[2] = Max;
+      return PI_SUCCESS;
+    }
+
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
@@ -504,41 +530,97 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle nativeHandle,
   return PI_SUCCESS;
 }
 
+// Function gets characters between delimeter's in str
+// then checks if they are equal to the sub_str.
+// returns true if there is at least one instance
+// returns false if there are no instances of the name
+static bool is_in_separated_string(const std::string &str, char delimiter,
+                                   const std::string &sub_str) {
+  size_t beg = 0;
+  size_t length = 0;
+  for (const auto &x : str) {
+    if (x == delimiter) {
+      if (str.substr(beg, length) == sub_str)
+        return true;
+
+      beg += length + 1;
+      length = 0;
+      continue;
+    }
+    length++;
+  }
+  if (length != 0)
+    if (str.substr(beg, length) == sub_str)
+      return true;
+
+  return false;
+}
+
+typedef CL_API_ENTRY cl_int(CL_API_CALL *clGetDeviceFunctionPointer_fn)(
+    cl_device_id device, cl_program program, const char *FuncName,
+    cl_ulong *ret_ptr);
 pi_result piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                         const char *func_name,
                                         pi_uint64 *function_pointer_ret) {
-  pi_platform platform;
+
+  cl_context CLContext = nullptr;
   cl_int ret_err =
-      clGetDeviceInfo(cast<cl_device_id>(device), PI_DEVICE_INFO_PLATFORM,
-                      sizeof(platform), &platform, nullptr);
+      clGetProgramInfo(cast<cl_program>(program), CL_PROGRAM_CONTEXT,
+                       sizeof(CLContext), &CLContext, nullptr);
 
-  if (ret_err != CL_SUCCESS) {
+  if (ret_err != CL_SUCCESS)
     return cast<pi_result>(ret_err);
-  }
 
-  using FuncT =
-      cl_int(CL_API_CALL *)(cl_device_id, cl_program, const char *, cl_ulong *);
+  clGetDeviceFunctionPointer_fn FuncT = nullptr;
+  ret_err = getExtFuncFromContext<clGetDeviceFunctionPointerName,
+                                  clGetDeviceFunctionPointer_fn>(
+      cast<pi_context>(CLContext), &FuncT);
 
-  // TODO: add check that device supports corresponding extension
-  FuncT func_ptr =
-      reinterpret_cast<FuncT>(clGetExtensionFunctionAddressForPlatform(
-          cast<cl_platform_id>(platform), "clGetDeviceFunctionPointerINTEL"));
-  // TODO: once we have check that device supports corresponding extension,
-  // we can insert an assertion that func_ptr is not nullptr. For now, let's
-  // just return an error if failed to query such function
-  // assert(
-  //     func_ptr != nullptr &&
-  //     "Failed to get address of clGetDeviceFunctionPointerINTEL function");
+  pi_result pi_ret_err = PI_SUCCESS;
 
-  if (!func_ptr) {
-    if (function_pointer_ret)
+  // Check if kernel name exists, to prevent opencl runtime throwing exception
+  // with cpu runtime
+  // TODO: Use fallback search method if extension does not exist once CPU
+  // runtime no longer throws exceptions and prints messages when given
+  // unavailable functions.
+  *function_pointer_ret = 0;
+  size_t Size;
+  cl_int Res =
+      clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
+                       0, nullptr, &Size);
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  std::string ClResult(Size, ' ');
+  ret_err =
+      clGetProgramInfo(cast<cl_program>(program), PI_PROGRAM_INFO_KERNEL_NAMES,
+                       ClResult.size(), &ClResult[0], nullptr);
+  if (Res != CL_SUCCESS)
+    return cast<pi_result>(Res);
+
+  // Get rid of the null terminator and search for kernel_name
+  // If function cannot be found return error code to indicate it
+  // exists
+  ClResult.pop_back();
+  if (!is_in_separated_string(ClResult, ';', func_name))
+    return PI_INVALID_KERNEL_NAME;
+
+  pi_ret_err = PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+
+  // If clGetDeviceFunctionPointer is in list of extensions
+  if (FuncT) {
+    pi_ret_err = cast<pi_result>(FuncT(cast<cl_device_id>(device),
+                                       cast<cl_program>(program), func_name,
+                                       function_pointer_ret));
+    // GPU runtime sometimes returns PI_INVALID_ARG_VALUE if func address cannot
+    // be found even if kernel exits. As the kernel does exist return that the
+    // address is not available
+    if (pi_ret_err == CL_INVALID_ARG_VALUE) {
       *function_pointer_ret = 0;
-    return PI_INVALID_DEVICE;
+      return PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE;
+    }
   }
-
-  return cast<pi_result>(func_ptr(cast<cl_device_id>(device),
-                                  cast<cl_program>(program), func_name,
-                                  function_pointer_ret));
+  return pi_ret_err;
 }
 
 pi_result piContextCreate(const pi_context_properties *properties,
@@ -682,6 +764,26 @@ pi_result piKernelCreate(pi_program program, const char *kernel_name,
   *ret_kernel = cast<pi_kernel>(clCreateKernel(
       cast<cl_program>(program), kernel_name, cast<cl_int *>(&ret_err)));
   return ret_err;
+}
+
+pi_result piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
+                               pi_kernel_group_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret) {
+  if (kernel == nullptr) {
+    return PI_INVALID_KERNEL;
+  }
+
+  switch (param_name) {
+  case PI_KERNEL_GROUP_INFO_NUM_REGS:
+    return PI_INVALID_VALUE;
+  default:
+    cl_int result = clGetKernelWorkGroupInfo(
+        cast<cl_kernel>(kernel), cast<cl_device_id>(device),
+        cast<cl_kernel_work_group_info>(param_name), param_value_size,
+        param_value, param_value_size_ret);
+    return static_cast<pi_result>(result);
+  }
 }
 
 pi_result piKernelGetSubGroupInfo(pi_kernel kernel, pi_device device,
@@ -1308,7 +1410,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piKernelCreate, piKernelCreate)
   _PI_CL(piKernelSetArg, clSetKernelArg)
   _PI_CL(piKernelGetInfo, clGetKernelInfo)
-  _PI_CL(piKernelGetGroupInfo, clGetKernelWorkGroupInfo)
+  _PI_CL(piKernelGetGroupInfo, piKernelGetGroupInfo)
   _PI_CL(piKernelGetSubGroupInfo, piKernelGetSubGroupInfo)
   _PI_CL(piKernelRetain, clRetainKernel)
   _PI_CL(piKernelRelease, clReleaseKernel)

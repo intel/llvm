@@ -1677,6 +1677,15 @@ public:
 
   bool handleStructType(FieldDecl *FD, QualType FieldTy) final {
     IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+    CXXRecordDecl *RD = FieldTy->getAsCXXRecordDecl();
+    assert(RD && "Not a RecordDecl inside the handler for struct type");
+    if (RD->isLambda()) {
+      for (const LambdaCapture &LC : RD->captures())
+        if (LC.capturesThis() && LC.isImplicit()) {
+          SemaRef.Diag(LC.getLocation(), diag::err_implicit_this_capture);
+          IsInvalid = true;
+        }
+    }
     return isValid();
   }
 
@@ -3493,8 +3502,7 @@ public:
           if (UnnamedLambdaUsed) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-                << /* unnamed lambda used */ 2 << KernelNameType;
-
+                << /* unnamed type is invalid */ 2 << KernelNameType;
             IsInvalid = true;
             return;
           }
@@ -3570,7 +3578,6 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
     for (const LambdaCapture &LC : KernelObj->captures())
       if (LC.capturesThis() && LC.isImplicit()) {
         Diag(LC.getLocation(), diag::err_implicit_this_capture);
-        Diag(CallLoc.getBegin(), diag::note_used_here);
         KernelFunc->setInvalidDecl();
       }
   }
@@ -4067,7 +4074,7 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
          "Should only be called during SYCL compilation");
   assert(Callee && "Callee may not be null.");
 
-  // Errors in unevaluated context don't need to be generated,
+  // Errors in an unevaluated context don't need to be generated,
   // so we can safely skip them.
   if (isUnevaluatedContext() || isConstantEvaluated())
     return true;

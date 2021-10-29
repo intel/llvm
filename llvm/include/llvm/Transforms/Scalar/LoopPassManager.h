@@ -103,8 +103,9 @@ public:
   /// to the end of \var IsLoopNestPass so we can easily identify the types of
   /// passes in the pass manager later.
   template <typename PassT>
-  std::enable_if_t<is_detected<HasRunOnLoopT, PassT>::value>
-  addPass(PassT &&Pass) {
+  LLVM_ATTRIBUTE_MINSIZE
+      std::enable_if_t<is_detected<HasRunOnLoopT, PassT>::value>
+      addPass(PassT &&Pass) {
     using LoopPassModelT =
         detail::PassModel<Loop, PassT, PreservedAnalyses, LoopAnalysisManager,
                           LoopStandardAnalysisResults &, LPMUpdater &>;
@@ -116,13 +117,16 @@ public:
   }
 
   template <typename PassT>
-  std::enable_if_t<!is_detected<HasRunOnLoopT, PassT>::value>
-  addPass(PassT &&Pass) {
+  LLVM_ATTRIBUTE_MINSIZE
+      std::enable_if_t<!is_detected<HasRunOnLoopT, PassT>::value>
+      addPass(PassT &&Pass) {
     using LoopNestPassModelT =
         detail::PassModel<LoopNest, PassT, PreservedAnalyses,
                           LoopAnalysisManager, LoopStandardAnalysisResults &,
                           LPMUpdater &>;
     IsLoopNestPass.push_back(true);
+    // Do not use make_unique or emplace_back, they cause too many template
+    // instantiations, causing terrible compile times.
     LoopNestPasses.push_back(std::unique_ptr<LoopNestPassConceptT>(
         new LoopNestPassModelT(std::forward<PassT>(Pass))));
   }
@@ -131,25 +135,31 @@ public:
   // `RepeatedPass` has a templated `run` method that will result in incorrect
   // detection of `HasRunOnLoopT`.
   template <typename PassT>
-  std::enable_if_t<is_detected<HasRunOnLoopT, PassT>::value>
-  addPass(RepeatedPass<PassT> &&Pass) {
+  LLVM_ATTRIBUTE_MINSIZE
+      std::enable_if_t<is_detected<HasRunOnLoopT, PassT>::value>
+      addPass(RepeatedPass<PassT> &&Pass) {
     using RepeatedLoopPassModelT =
         detail::PassModel<Loop, RepeatedPass<PassT>, PreservedAnalyses,
                           LoopAnalysisManager, LoopStandardAnalysisResults &,
                           LPMUpdater &>;
     IsLoopNestPass.push_back(false);
+    // Do not use make_unique or emplace_back, they cause too many template
+    // instantiations, causing terrible compile times.
     LoopPasses.push_back(std::unique_ptr<LoopPassConceptT>(
         new RepeatedLoopPassModelT(std::move(Pass))));
   }
 
   template <typename PassT>
-  std::enable_if_t<!is_detected<HasRunOnLoopT, PassT>::value>
-  addPass(RepeatedPass<PassT> &&Pass) {
+  LLVM_ATTRIBUTE_MINSIZE
+      std::enable_if_t<!is_detected<HasRunOnLoopT, PassT>::value>
+      addPass(RepeatedPass<PassT> &&Pass) {
     using RepeatedLoopNestPassModelT =
         detail::PassModel<LoopNest, RepeatedPass<PassT>, PreservedAnalyses,
                           LoopAnalysisManager, LoopStandardAnalysisResults &,
                           LPMUpdater &>;
     IsLoopNestPass.push_back(true);
+    // Do not use make_unique or emplace_back, they cause too many template
+    // instantiations, causing terrible compile times.
     LoopNestPasses.push_back(std::unique_ptr<LoopNestPassConceptT>(
         new RepeatedLoopNestPassModelT(std::move(Pass))));
   }
@@ -271,8 +281,6 @@ public:
   /// state, this routine will mark that the current loop should be skipped by
   /// the rest of the pass management infrastructure.
   void markLoopAsDeleted(Loop &L, llvm::StringRef Name) {
-    assert((!LoopNestMode || CurrentL == &L) &&
-           "L should be a top-level loop in loop-nest mode.");
     LAM.clear(L, Name);
     assert((&L == CurrentL || CurrentL->contains(&L)) &&
            "Cannot delete a loop outside of the "
@@ -471,7 +479,6 @@ createFunctionToLoopPassAdaptor(LoopPassT &&Pass, bool UseMemorySSA = false,
                         LoopStandardAnalysisResults &, LPMUpdater &>;
   // Do not use make_unique, it causes too many template instantiations,
   // causing terrible compile times.
-
   return FunctionToLoopPassAdaptor(
       std::unique_ptr<FunctionToLoopPassAdaptor::PassConceptT>(
           new PassModelT(std::forward<LoopPassT>(Pass))),
@@ -492,6 +499,8 @@ createFunctionToLoopPassAdaptor(LoopNestPassT &&Pass, bool UseMemorySSA = false,
       detail::PassModel<Loop, LoopPassManager, PreservedAnalyses,
                         LoopAnalysisManager, LoopStandardAnalysisResults &,
                         LPMUpdater &>;
+  // Do not use make_unique, it causes too many template instantiations,
+  // causing terrible compile times.
   return FunctionToLoopPassAdaptor(
       std::unique_ptr<FunctionToLoopPassAdaptor::PassConceptT>(
           new PassModelT(std::move(LPM))),
@@ -512,6 +521,8 @@ createFunctionToLoopPassAdaptor<LoopPassManager>(
                         LoopAnalysisManager, LoopStandardAnalysisResults &,
                         LPMUpdater &>;
   bool LoopNestMode = (LPM.getNumLoopPasses() == 0);
+  // Do not use make_unique, it causes too many template instantiations,
+  // causing terrible compile times.
   return FunctionToLoopPassAdaptor(
       std::unique_ptr<FunctionToLoopPassAdaptor::PassConceptT>(
           new PassModelT(std::move(LPM))),

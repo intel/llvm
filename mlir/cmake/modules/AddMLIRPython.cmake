@@ -330,9 +330,6 @@ function(add_mlir_python_common_capi_library name)
     "INSTALL_COMPONENT;INSTALL_DESTINATION;OUTPUT_DIRECTORY;RELATIVE_INSTALL_ROOT"
     "DECLARED_SOURCES;EMBED_LIBS"
     ${ARGN})
-  # TODO: Upgrade to the aggregate utility in https://reviews.llvm.org/D106419
-  # once ready.
-
   # Collect all explicit and transitive embed libs.
   set(_embed_libs ${ARG_EMBED_LIBS})
   _flatten_mlir_python_targets(_all_source_targets ${ARG_DECLARED_SOURCES})
@@ -344,27 +341,13 @@ function(add_mlir_python_common_capi_library name)
   endforeach()
   list(REMOVE_DUPLICATES _embed_libs)
 
-  foreach(lib ${_embed_libs})
-    if(XCODE)
-      # Xcode doesn't support object libraries, so we have to trick it into
-      # linking the static libraries instead.
-      list(APPEND _deps "-force_load" ${lib})
-    else()
-      list(APPEND _objects $<TARGET_OBJECTS:obj.${lib}>)
-    endif()
-    # Accumulate transitive deps of each exported lib into _DEPS.
-    list(APPEND _deps $<TARGET_PROPERTY:${lib},LINK_LIBRARIES>)
-  endforeach()
-
-  add_mlir_library(${name}
-    PARTIAL_SOURCES_INTENDED
+  # Generate the aggregate .so that everything depends on.
+  add_mlir_aggregate(${name}
     SHARED
     DISABLE_INSTALL
-    ${_objects}
-    EXCLUDE_FROM_LIBMLIR
-    LINK_LIBS
-    ${_deps}
+    EMBED_LIBS ${_embed_libs}
   )
+
   if(MSVC)
     set_property(TARGET ${name} PROPERTY WINDOWS_EXPORT_ALL_SYMBOLS ON)
   endif()
@@ -419,51 +402,11 @@ function(add_mlir_python_extension libname extname)
     message(FATAL_ERROR " Missing SOURCES argument to add_mlir_python_extension(${libname}, ...")
   endif()
 
-  # Build-time RPath layouts require to be a directory one up from the
-  # binary root.
-  # TODO: Don't reference the LLVM_BINARY_DIR here: the invariant is that
-  # the output directory must be at the same level of the lib directory
-  # where libMLIR.so is installed. This is presently not optimal from a
-  # project separation perspective and a discussion on how to better
-  # segment MLIR libraries needs to happen.
-  # TODO: Remove this when downstreams are moved off of it.
-  if(NOT ARG_OUTPUT_DIRECTORY)
-    set(ARG_OUTPUT_DIRECTORY ${LLVM_BINARY_DIR}/python)
-  endif()
-
-  # Normally on unix-like platforms, extensions are built as "MODULE" libraries
-  # and do not explicitly link to the python shared object. This allows for
-  # some greater deployment flexibility since the extension will bind to
-  # symbols in the python interpreter on load. However, it also keeps the
-  # linker from erroring on undefined symbols, leaving this to (usually obtuse)
-  # runtime errors. Building in "SHARED" mode with an explicit link to the
-  # python libraries allows us to build with the expectation of no undefined
-  # symbols, which is better for development. Note that not all python
-  # configurations provide build-time libraries to link against, in which
-  # case, we fall back to MODULE linking.
-  if(Python3_LIBRARIES STREQUAL "" OR NOT MLIR_BINDINGS_PYTHON_LOCK_VERSION)
-    set(PYEXT_LINK_MODE MODULE)
-    set(PYEXT_LIBADD)
-  else()
-    set(PYEXT_LINK_MODE SHARED)
-    set(PYEXT_LIBADD ${Python3_LIBRARIES})
-  endif()
-
   # The actual extension library produces a shared-object or DLL and has
   # sources that must be compiled in accordance with pybind11 needs (RTTI and
   # exceptions).
-  add_library(${libname}
-    ${PYEXT_LINK_MODE}
+  pybind11_add_module(${libname}
     ${ARG_SOURCES}
-  )
-
-  target_include_directories(${libname} PRIVATE
-    "${Python3_INCLUDE_DIRS}"
-    "${pybind11_INCLUDE_DIR}"
-  )
-
-  target_link_directories(${libname} PRIVATE
-    "${Python3_LIBRARY_DIRS}"
   )
 
   # The extension itself must be compiled with RTTI and exceptions enabled.
@@ -472,9 +415,6 @@ function(add_mlir_python_extension libname extname)
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
       # Enable RTTI and exceptions.
       -frtti -fexceptions
-      # Noisy pybind warnings
-      -Wno-unused-value
-      -Wno-covered-switch-default
     >
     $<$<CXX_COMPILER_ID:MSVC>:
       # Enable RTTI and exceptions.
@@ -486,8 +426,6 @@ function(add_mlir_python_extension libname extname)
     ${libname} PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY ${ARG_OUTPUT_DIRECTORY}
     OUTPUT_NAME "${extname}"
-    PREFIX "${PYTHON_MODULE_PREFIX}"
-    SUFFIX "${PYTHON_MODULE_SUFFIX}${PYTHON_MODULE_EXTENSION}"
     NO_SONAME ON
   )
 
@@ -500,13 +438,6 @@ function(add_mlir_python_extension libname extname)
       ARCHIVE_OUTPUT_DIRECTORY ${ARG_OUTPUT_DIRECTORY}
     )
   endif()
-
-  # pybind11 requires binding code to be compiled with -fvisibility=hidden
-  # For static linkage, better code can be generated if the entire project
-  # compiles that way, but that is not enforced here. Instead, include a linker
-  # script that explicitly hides anything but the PyInit_* symbols, allowing gc
-  # to take place.
-  set_target_properties(${libname} PROPERTIES CXX_VISIBILITY_PRESET "hidden")
 
   # Python extensions depends *only* on the public API and LLVMSupport unless
   # if further dependencies are added explicitly.

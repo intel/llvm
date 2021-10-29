@@ -267,8 +267,8 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "Unified standalone build"
-    command: "libcxx/utils/ci/run-buildbot unified-standalone"
+  - label: "Legacy LLVM_ENABLE_PROJECTS build"
+    command: "libcxx/utils/ci/run-buildbot legacy-project-build"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -280,21 +280,8 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "New standalone runtimes build"
-    command: "libcxx/utils/ci/run-buildbot new-standalone"
-    artifact_paths:
-      - "**/test-results.xml"
-    agents:
-      queue: "libcxx-builders"
-      os: "linux"
-    retry:
-      automatic:
-        - exit_status: -1  # Agent was lost
-          limit: 2
-    timeout_in_minutes: 120
-
-  - label: "Runtimes build"
-    command: "libcxx/utils/ci/run-buildbot runtimes-build"
+  - label: "Bootstrapping build"
+    command: "libcxx/utils/ci/run-buildbot bootstrapping-build"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -478,6 +465,19 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
+  - label: "No wide characters"
+    command: "libcxx/utils/ci/run-buildbot generic-no-wide-characters"
+    artifact_paths:
+      - "**/test-results.xml"
+    agents:
+      queue: "libcxx-builders"
+      os: "linux"
+    retry:
+      automatic:
+        - exit_status: -1  # Agent was lost
+          limit: 2
+    timeout_in_minutes: 120
+
   # Other non-testing CI jobs
   - label: "Benchmarks"
     command: "libcxx/utils/ci/run-buildbot benchmarks"
@@ -562,7 +562,7 @@ steps:
 
   # Build with the configuration we use to generate libc++.dylib on Apple platforms
   - label: "Apple system"
-    command: "libcxx/utils/ci/run-buildbot x86_64-apple-system"
+    command: "libcxx/utils/ci/run-buildbot apple-system"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -574,23 +574,9 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  # TODO: Re-enable this once issues with the Apple-specific testing config have been resolved
-  # - label: "Apple system -fno-exceptions"
-  #   command: "libcxx/utils/ci/run-buildbot x86_64-apple-system-noexceptions"
-  #   artifact_paths:
-  #     - "**/test-results.xml"
-  #   agents:
-  #     queue: "libcxx-builders"
-  #     os: "macos"
-  #   retry:
-  #     automatic:
-  #       - exit_status: -1  # Agent was lost
-  #         limit: 2
-  #   timeout_in_minutes: 120
-
   # Test back-deployment to older Apple platforms
   - label: "Apple back-deployment macosx10.9"
-    command: "libcxx/utils/ci/run-buildbot x86_64-apple-system-backdeployment-10.9"
+    command: "libcxx/utils/ci/run-buildbot apple-system-backdeployment-10.9"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -604,7 +590,7 @@ steps:
     timeout_in_minutes: 120
 
   - label: "Apple back-deployment macosx10.15"
-    command: "libcxx/utils/ci/run-buildbot x86_64-apple-system-backdeployment-10.15"
+    command: "libcxx/utils/ci/run-buildbot apple-system-backdeployment-10.15"
     artifact_paths:
       - "**/test-results.xml"
     agents:

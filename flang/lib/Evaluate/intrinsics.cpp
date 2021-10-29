@@ -690,7 +690,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         {{"a", ExtensibleDerived, Rank::anyOrAssumedRank},
             {"b", ExtensibleDerived, Rank::anyOrAssumedRank}},
         DefaultLogical, Rank::scalar, IntrinsicClass::inquiryFunction},
-    {"scale", {{"x", SameReal}, {"i", AnyInt}}, SameReal},
+    {"scale", {{"x", SameReal}, {"i", AnyInt}}, SameReal}, // == IEEE_SCALB()
     {"scan",
         {{"string", SameChar}, {"set", SameChar},
             {"back", AnyLogical, Rank::elemental, Optionality::optional},
@@ -791,6 +791,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
             DefaultingKIND},
         KINDInt},
     {"__builtin_ieee_is_nan", {{"a", AnyFloating}}, DefaultLogical},
+    {"__builtin_ieee_next_after", {{"x", SameReal}, {"y", AnyReal}}, SameReal},
+    {"__builtin_ieee_next_down", {{"x", SameReal}}, SameReal},
+    {"__builtin_ieee_next_up", {{"x", SameReal}}, SameReal},
     {"__builtin_ieee_selected_real_kind", // alias for selected_real_kind
         {{"p", AnyInt, Rank::scalar},
             {"r", AnyInt, Rank::scalar, Optionality::optional},
@@ -1124,11 +1127,11 @@ static const IntrinsicInterface intrinsicSubroutine[]{
                 common::Intent::Out}},
         {}, Rank::elemental, IntrinsicClass::impureSubroutine},
     {"system_clock",
-        {{"count", AnyInt, Rank::scalar, Optionality::optional,
+        {{"count", SameInt, Rank::scalar, Optionality::optional,
              common::Intent::Out},
             {"count_rate", AnyIntOrReal, Rank::scalar, Optionality::optional,
                 common::Intent::Out},
-            {"count_max", AnyInt, Rank::scalar, Optionality::optional,
+            {"count_max", SameInt, Rank::scalar, Optionality::optional,
                 common::Intent::Out}},
         {}, Rank::elemental, IntrinsicClass::impureSubroutine},
 };

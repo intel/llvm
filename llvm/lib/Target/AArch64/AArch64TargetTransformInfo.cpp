@@ -710,16 +710,18 @@ static Instruction::BinaryOps intrinsicIDToBinOpCode(unsigned Intrinsic) {
 
 static Optional<Instruction *> instCombineSVEVectorBinOp(InstCombiner &IC,
                                                          IntrinsicInst &II) {
+  auto *OpPredicate = II.getOperand(0);
   auto BinOpCode = intrinsicIDToBinOpCode(II.getIntrinsicID());
   if (BinOpCode == Instruction::BinaryOpsEnd ||
-      !match(II.getOperand(0),
-             m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
-                 m_ConstantInt<AArch64SVEPredPattern::all>())))
+      !match(OpPredicate, m_Intrinsic<Intrinsic::aarch64_sve_ptrue>(
+                              m_ConstantInt<AArch64SVEPredPattern::all>())))
     return None;
   IRBuilder<> Builder(II.getContext());
   Builder.SetInsertPoint(&II);
-  return IC.replaceInstUsesWith(
-      II, Builder.CreateBinOp(BinOpCode, II.getOperand(1), II.getOperand(2)));
+  Builder.setFastMathFlags(II.getFastMathFlags());
+  auto BinOp =
+      Builder.CreateBinOp(BinOpCode, II.getOperand(1), II.getOperand(2));
+  return IC.replaceInstUsesWith(II, BinOp);
 }
 
 static Optional<Instruction *> instCombineSVEVectorMul(InstCombiner &IC,
@@ -1630,7 +1632,7 @@ InstructionCost AArch64TTIImpl::getGatherScatterOpCost(
   ElementCount LegalVF = LT.second.getVectorElementCount();
   InstructionCost MemOpCost =
       getMemoryOpCost(Opcode, VT->getElementType(), Alignment, 0, CostKind, I);
-  return LT.first * MemOpCost * getMaxNumElements(LegalVF, I->getFunction());
+  return LT.first * MemOpCost * getMaxNumElements(LegalVF);
 }
 
 bool AArch64TTIImpl::useNeonVector(const Type *Ty) const {
@@ -1979,6 +1981,8 @@ bool AArch64TTIImpl::isLegalToVectorizeReduction(
   case RecurKind::UMax:
   case RecurKind::FMin:
   case RecurKind::FMax:
+  case RecurKind::SelectICmp:
+  case RecurKind::SelectFCmp:
     return true;
   default:
     return false;

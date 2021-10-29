@@ -37,7 +37,6 @@ class DataLayout;
 class Function;
 class GlobalAlias;
 class GlobalIFunc;
-class GlobalIndirectSymbol;
 class GlobalObject;
 class GlobalValue;
 class GlobalVariable;
@@ -785,8 +784,8 @@ public:
   ///
   /// This is the greatest alignment value supported by load, store, and alloca
   /// instructions, and global values.
-  static constexpr unsigned MaxAlignmentExponent = 30;
-  static constexpr unsigned MaximumAlignment = 1u << MaxAlignmentExponent;
+  static constexpr unsigned MaxAlignmentExponent = 32;
+  static constexpr uint64_t MaximumAlignment = 1ULL << MaxAlignmentExponent;
 
   /// Mutate the type of this Value to be of the specified type.
   ///
@@ -1016,21 +1015,16 @@ template <> struct isa_impl<GlobalIFunc, Value> {
   }
 };
 
-template <> struct isa_impl<GlobalIndirectSymbol, Value> {
-  static inline bool doit(const Value &Val) {
-    return isa<GlobalAlias>(Val) || isa<GlobalIFunc>(Val);
-  }
-};
-
 template <> struct isa_impl<GlobalValue, Value> {
   static inline bool doit(const Value &Val) {
-    return isa<GlobalObject>(Val) || isa<GlobalIndirectSymbol>(Val);
+    return isa<GlobalObject>(Val) || isa<GlobalAlias>(Val);
   }
 };
 
 template <> struct isa_impl<GlobalObject, Value> {
   static inline bool doit(const Value &Val) {
-    return isa<GlobalVariable>(Val) || isa<Function>(Val);
+    return isa<GlobalVariable>(Val) || isa<Function>(Val) ||
+           isa<GlobalIFunc>(Val);
   }
 };
 

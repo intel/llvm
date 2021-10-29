@@ -153,8 +153,7 @@ void RecoveryReproducerContext::crashHandler(void *) {
     context->generate(description);
 
     // Emit an error using information only available within the context.
-    context->preCrashOperation->getContext()->printOpOnDiagnostic(false);
-    context->preCrashOperation->emitError()
+    emitError(context->preCrashOperation->getLoc())
         << "A failure has been detected while processing the MLIR module:"
         << description;
   }
@@ -227,17 +226,17 @@ formatPassOpReproducerMessage(Diagnostic &os,
 
 void PassCrashReproducerGenerator::finalize(Operation *rootOp,
                                             LogicalResult executionResult) {
+  // Don't generate a reproducer if we have no active contexts.
+  if (impl->activeContexts.empty())
+    return;
+
   // If the pass manager execution succeeded, we don't generate any reproducers.
   if (succeeded(executionResult))
     return impl->activeContexts.clear();
 
-  MLIRContext *context = rootOp->getContext();
-  bool shouldPrintOnOp = context->shouldPrintOpOnDiagnostic();
-  context->printOpOnDiagnostic(false);
-  InFlightDiagnostic diag = rootOp->emitError()
+  InFlightDiagnostic diag = emitError(rootOp->getLoc())
                             << "Failures have been detected while "
                                "processing an MLIR pass pipeline";
-  context->printOpOnDiagnostic(shouldPrintOnOp);
 
   // If we are generating a global reproducer, we include all of the running
   // passes in the error message for the only active context.
@@ -345,18 +344,18 @@ struct CrashReproducerInstrumentation : public PassInstrumentation {
       : generator(generator) {}
   ~CrashReproducerInstrumentation() override = default;
 
-  /// A callback to run before a pass is executed.
   void runBeforePass(Pass *pass, Operation *op) override {
     if (!isa<OpToOpPassAdaptor>(pass))
       generator.prepareReproducerFor(pass, op);
   }
 
-  /// A callback to run after a pass is successfully executed. This function
-  /// takes a pointer to the pass to be executed, as well as the current
-  /// operation being operated on.
   void runAfterPass(Pass *pass, Operation *op) override {
     if (!isa<OpToOpPassAdaptor>(pass))
       generator.removeLastReproducerFor(pass, op);
+  }
+
+  void runAfterPassFailed(Pass *pass, Operation *op) override {
+    generator.finalize(op, /*executionResult=*/failure());
   }
 
 private:

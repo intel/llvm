@@ -61,7 +61,7 @@ int main() {
   // expected-error@+1 {{no member named 'get' in 'sycl::kernel'}}
   (void)Kernel.get();
 
-  // expected-warning@+1 {{'program' is deprecated: program class is deprecated, use kernel_bundle instead}}
+  // expected-error@+1 {{no type named 'program' in namespace 'sycl'}}
   sycl::program Prog{Ctx};
 
   sycl::buffer<int, 1> Buffer(4);
@@ -158,6 +158,10 @@ int main() {
   auto LevelZeroBackend = sycl::backend::level_zero;
   (void)LevelZeroBackend;
 
+  // expected-warning@+1{{'esimd_cpu' is deprecated: use 'ext_oneapi_esimd_emulator' instead}}
+  auto ESIMDCPUBackend = sycl::backend::esimd_cpu;
+  (void)ESIMDCPUBackend;
+
   sycl::half Val = 1.0f;
   // expected-warning@+1{{'bit_cast<unsigned short, sycl::detail::half_impl::half>' is deprecated: use 'sycl::bit_cast' instead}}
   auto BitCastRes = sycl::detail::bit_cast<unsigned short>(Val);
@@ -169,9 +173,5 @@ int main() {
   // expected-warning@+1{{'barrier' is deprecated: use 'ext_oneapi_barrier' instead}}
   Queue.submit([&](sycl::handler &CGH) { CGH.barrier(); });
   
-  // expected-warning@+1{{'half' is deprecated: use 'sycl::half' instead}}
-  half H;
-  (void)H;
-
   return 0;
 }

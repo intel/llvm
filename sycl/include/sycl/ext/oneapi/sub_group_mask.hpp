@@ -142,7 +142,7 @@ struct sub_group_mask {
 
   template <typename Type, size_t Size,
             typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
-  void extract_bits(marray<Type, Size> &bits, id<1> pos = 0) {
+  void extract_bits(marray<Type, Size> &bits, id<1> pos = 0) const {
     size_t cur_pos = pos.get(0);
     for (auto &elem : bits) {
       if (cur_pos < size()) {

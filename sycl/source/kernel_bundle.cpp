@@ -180,7 +180,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                           "Not all devices are associated with the context or "
                           "vector of devices is empty");
 
-  bool DeviceHasRequireAspectForState = false;
+  bool DeviceHasRequireAspectForState = true;
   if (bundle_state::input == State) {
     DeviceHasRequireAspectForState =
         std::all_of(Devs.begin(), Devs.end(), [](const device &Dev) {
