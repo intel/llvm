@@ -10,13 +10,17 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/accessor.hpp>
+#include <CL/sycl/atomic_ref.hpp>
 #include <sycl/ext/oneapi/atomic_enums.hpp>
-#include <sycl/ext/oneapi/atomic_ref.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
 namespace oneapi {
+namespace detail {
+// alias for sycl::detail is needed for backward compatibility of the code
+using namespace cl::sycl::detail;
+} // namespace sycl
 
 #if __cplusplus > 201402L
 
