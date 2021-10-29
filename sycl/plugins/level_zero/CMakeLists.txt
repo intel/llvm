@@ -118,9 +118,9 @@ add_sycl_library(pi_level_zero SHARED
   INCLUDES
     ${sycl_inc_dir}
   LINK
-    Threads::Threads
+    $<$<PLATFORM_ID:UNIX>:Threads::Threads>
   COMPILE_DEFINITIONS
-    __SYCL_BUILD_SYCL_DLL
+    $<$<PLATFORM_ID:Windows>:__SYCL_BUILD_SYCL_DLL>
   # This script file is used to allow exporting pi* symbols only.
   # All other symbols are regarded as local (hidden)
   VERSION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/../ld-version-script.txt"

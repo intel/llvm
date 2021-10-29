@@ -7,7 +7,6 @@ add_sycl_executable(sycl-ls
     sycl-runtime
     OpenCL-Headers
 )
-add_dependencies(sycl-ls sycl)
 
 install(TARGETS sycl-ls
   RUNTIME DESTINATION "bin" COMPONENT sycl-ls)

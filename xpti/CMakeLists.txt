@@ -18,11 +18,6 @@ if (XPTI_ENABLE_WERROR)
   endif()
 endif()
 
-if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "No build type selected, default to Release")
-  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default Release)" FORCE)
-endif()
-
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
   # To avoid potential issues in user code we also need to provide two kinds
@@ -70,7 +65,6 @@ if (SYCL_USE_LIBCXX)
     message(FATAL_ERROR "Build with libc++ is not yet supported for this compiler")
   endif()
 endif()
-set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE})
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 

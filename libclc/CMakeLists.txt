@@ -390,6 +390,9 @@ install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
 				DESTINATION lib${LLVM_LIBDIR_SUFFIX}
 				COMPONENT libspirv-builtins
 				FILES_MATCHING PATTERN "libspirv-*")
+add_llvm_install_targets(install-libspirv-builtins
+  COMPONENT libspirv-builtins
+)
 
 install(DIRECTORY ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
 				DESTINATION lib${LLVM_LIBDIR_SUFFIX}

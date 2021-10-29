@@ -103,7 +103,6 @@ def do_configure(args):
     cmake_cmd = [
         "cmake",
         "-G", args.cmake_gen,
-        "-C", os.path.join(abs_src_dir, "sycl", "cmake", "caches", "Deploy.cmake"),
         "-DCMAKE_BUILD_TYPE={}".format(args.build_type),
         "-DLLVM_ENABLE_ASSERTIONS={}".format(llvm_enable_assertions),
         "-DLLVM_TARGETS_TO_BUILD={}".format(llvm_targets_to_build),
@@ -157,6 +156,10 @@ def do_configure(args):
             "-DSYCL_USE_LIBCXX=ON",
             "-DSYCL_LIBCXX_INCLUDE_PATH={}".format(args.libcxx_include),
             "-DSYCL_LIBCXX_LIBRARY_PATH={}".format(args.libcxx_library)])
+
+    # This options must always come last to make sure the above options are
+    # evaluated before installation script.
+    cmake_cmd.extend(["-C", os.path.join(abs_src_dir, "sycl", "cmake", "caches", "Deploy.cmake")])
 
     print("[Cmake Command]: {}".format(" ".join(cmake_cmd)))
 

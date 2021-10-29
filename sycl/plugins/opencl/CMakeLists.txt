@@ -11,7 +11,7 @@ add_sycl_library(pi_opencl SHARED
   INCLUDES
     ${sycl_inc_dir}
   COMPILE_DEFINITIONS
-    __SYCL_BUILD_SYCL_DLL
+    $<$<PLATFORM_ID:Windows>:__SYCL_BUILD_SYCL_DLL>
   LINK
     OpenCL-Headers
     OpenCL-ICD

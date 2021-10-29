@@ -35,7 +35,7 @@ add_sycl_library(pi_cuda SHARED
     OpenCL-Headers
     cudadrv
   COMPILE_DEFINITIONS
-    __SYCL_BUILD_SYCL_DLL
+    $<$<PLATFORM_ID:Windows>:__SYCL_BUILD_SYCL_DLL>
   # Filter symbols based on the scope defined in the script file,
   # and export pi* function symbols in the library.
   VERSION_SCRIPT "${linker_script}"
