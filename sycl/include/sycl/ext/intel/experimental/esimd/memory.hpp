@@ -231,8 +231,8 @@ __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
 
 /// Flat-address block-load.
 /// \ingroup sycl_esimd
-template <typename T, int n, CacheHint L1H = CacheHint::None,
-          CacheHint L3H = CacheHint::None, typename Flags = vector_aligned_tag,
+template <typename T, int n, typename Flags = vector_aligned_tag,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None,
           typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
 __ESIMD_API simd<T, n> block_load(const T *addr, Flags = {}) {
   detail::IfNotNone<L1H, L3H>::warn();

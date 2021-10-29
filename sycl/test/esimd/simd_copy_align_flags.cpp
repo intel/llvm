@@ -11,6 +11,10 @@ using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;
 
 // simd constructor
+SYCL_EXTERNAL simd<float, 8> test_simd_constructor_default(float *ptr) {
+  simd<float, 8> v(ptr);
+  return v;
+}
 SYCL_EXTERNAL simd<float, 8> test_simd_constructor_element_aligned(float *ptr) {
   simd<float, 8> v(ptr, element_aligned);
   return v;
@@ -25,6 +29,10 @@ SYCL_EXTERNAL simd<float, 8> test_simd_constructor_overaligned(float *ptr) {
 }
 
 // simd constructor accessor-based
+SYCL_EXTERNAL simd<float, 8> test_simd_constructor_default(accessor<float, 1, access::mode::read_write, access::target::device> &acc) {
+  simd<float, 8> v(acc, 0);
+  return v;
+}
 SYCL_EXTERNAL simd<float, 8> test_simd_constructor_element_aligned(accessor<float, 1, access::mode::read_write, access::target::device> &acc) {
   simd<float, 8> v(acc, 0, element_aligned);
   return v;

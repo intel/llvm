@@ -26,17 +26,28 @@ namespace esimd {
 /// Flags for use with simd load/store operation.
 /// \ingroup sycl_esimd
 /// @{
+/// element_aligned_tag type. Flag of this type should be used in load and store
+/// operations when memory address is aligned by simd object's element type.
 struct element_aligned_tag {
   template <typename VT, typename ET = typename detail::element_type<VT>::type>
   static constexpr unsigned alignment = alignof(ET);
 };
 
+/// vector_aligned_tag type. Flag of this type should be used in load and store
+/// operations when memory address is guaranteed to be aligned by simd object's
+/// vector type.
 struct vector_aligned_tag {
   template <typename VT> static constexpr unsigned alignment = alignof(VT);
 };
 
-template <unsigned N, typename = std::enable_if_t<detail::isPowerOf2(N)>>
-struct overaligned_tag {
+/// overaligned_tag type. Flag of this type should be used in load and store
+/// operations when memory address is aligned by the user-provided alignment
+/// value N.
+/// \tparam N is the alignment value. N must be a power of two.
+template <unsigned N> struct overaligned_tag {
+  static_assert(
+      detail::isPowerOf2(N),
+      "Alignment value N for overaligned_tag<N> must be a power of two");
   template <typename> static constexpr unsigned alignment = N;
 };
 
@@ -179,17 +190,21 @@ public:
   }
 
   /// Load constructor.
-  template <typename Flags,
+  template <typename Flags = element_aligned_tag,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  simd_obj_impl(const Ty *ptr, Flags) noexcept {
+  simd_obj_impl(const Ty *ptr, Flags = {}) noexcept {
     __esimd_dbg_print(simd_obj_impl(const Ty *ptr, Flags));
     copy_from(ptr, Flags{});
   }
 
   /// Accessor-based load constructor.
-  template <typename AccessorT, typename Flags,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  simd_obj_impl(AccessorT acc, uint32_t offset, Flags) noexcept {
+  template <typename AccessorT, typename Flags = element_aligned_tag,
+            typename = std::enable_if_t<
+                detail::is_sycl_accessor_with<
+                    AccessorT, accessor_mode_cap::can_read,
+                    sycl::access::target::global_buffer>::value &&
+                is_simd_flag_type_v<Flags>>>
+  simd_obj_impl(AccessorT acc, uint32_t offset, Flags = {}) noexcept {
     __esimd_dbg_print(simd_obj_impl(AccessorT acc, uint32_t offset, Flags));
     copy_from(acc, offset, Flags{});
   }
@@ -561,6 +576,7 @@ public:
   /// is element_aligned_tag, \p addr must be aligned by alignof(T). If Flags is
   /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's vector_type
   /// alignment. If Flags is overaligned_tag<N>, \p addr must be aligned by N.
+  /// Program not meeting alignment requirements results in undefined behavior.
   template <typename Flags = element_aligned_tag,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE void copy_from(const Ty *addr, Flags = {}) SYCL_ESIMD_FUNCTION;
@@ -575,6 +591,7 @@ public:
   /// is element_aligned_tag, offset must be aligned by alignof(T). If Flags is
   /// vector_aligned_tag, offset must be aligned by simd_obj_impl's vector_type
   /// alignment. If Flags is overaligned_tag<N>, offset must be aligned by N.
+  /// Program not meeting alignment requirements results in undefined behavior.
   template <typename AccessorT, typename Flags = element_aligned_tag,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
@@ -588,6 +605,7 @@ public:
   /// is element_aligned_tag, \p addr must be aligned by alignof(T). If Flags is
   /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's vector_type
   /// alignment. If Flags is overaligned_tag<N>, \p addr must be aligned by N.
+  /// Program not meeting alignment requirements results in undefined behavior.
   template <typename Flags = element_aligned_tag,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE void copy_to(Ty *addr, Flags = {}) const SYCL_ESIMD_FUNCTION;
@@ -601,6 +619,7 @@ public:
   /// is element_aligned_tag, offset must be aligned by alignof(T). If Flags is
   /// vector_aligned_tag, offset must be aligned by simd_obj_impl's vector_type
   /// alignment. If Flags is overaligned_tag<N>, offset must be aligned by N.
+  /// Program not meeting alignment requirements results in undefined behavior.
   template <typename AccessorT, typename Flags = element_aligned_tag,
             typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
@@ -717,8 +736,7 @@ template <typename T, int N, class T1, class SFINAE>
 template <typename Flags, typename>
 void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *Addr,
                                                 Flags) SYCL_ESIMD_FUNCTION {
-  *this =
-      block_load<T, N, CacheHint::None, CacheHint::None, Flags>(Addr, Flags{});
+  *this = block_load<T, N, Flags>(Addr, Flags{});
 }
 
 template <typename T, int N, class T1, class SFINAE>
