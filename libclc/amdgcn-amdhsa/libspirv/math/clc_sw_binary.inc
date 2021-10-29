@@ -5,13 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <utils.h>
 
- #include <spirv/spirv.h>
- #include <clcmacro.h>
- double __ocml_sqrt_f64(double);
- float __ocml_sqrt_f32(float);
- #define __CLC_FUNCTION __spirv_ocl_sqrt
- #define __CLC_BUILTIN __ocml_sqrt
- #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
- #define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
- #include <math/unary_builtin.inc>
+_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __CLC_FUNC(__CLC_GENTYPE x,
+                                                __CLC_GENTYPE y) {
+  return __CLC_SW_FUNC(x, y);
+}
