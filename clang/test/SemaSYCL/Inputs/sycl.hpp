@@ -317,7 +317,6 @@ private:
   int FlushBufferSize;
 };
   
-  // zahira
 using psg_propertyListT = ext::oneapi::__mm_host_property_list<>; 
 
 template <typename DT>
