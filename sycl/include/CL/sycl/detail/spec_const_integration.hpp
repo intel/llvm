@@ -11,8 +11,7 @@
 // This header file must not be included to any DPC++ headers.
 // This header file should only be included to integration footer.
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 
 #if __cplusplus >= 201703L
@@ -24,5 +23,5 @@ template <auto &SpecName> const char *get_spec_constant_symbolic_ID() {
 #endif
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()

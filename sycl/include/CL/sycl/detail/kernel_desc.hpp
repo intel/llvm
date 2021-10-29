@@ -13,8 +13,7 @@
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/export.hpp>
 
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
+__SYCL_INT_HEADER_OPEN_NS() {
 namespace detail {
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -137,5 +136,5 @@ template <class KernelNameType> struct KernelInfo {
 #endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
-} // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
+} // __SYCL_INT_HEADER_OPEN_NS()
+__SYCL_INT_HEADER_CLOSE_NS()
