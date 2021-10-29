@@ -23,7 +23,7 @@ namespace intel {
 namespace experimental {
 namespace esimd {
 
-/// Flags for use with simd load/store operation.
+/// Flags for use with simd load/store operations.
 /// \ingroup sycl_esimd
 /// @{
 /// element_aligned_tag type. Flag of this type should be used in load and store
