@@ -489,6 +489,7 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 // point names from the same module separated by \n.
 std::string collectSymbolsList(const FuncPtrVector *ModuleEntryPoints) {
   std::string ResSymbolsStr;
+  // ModuleEntryPoints is nullptr if there are no entry points in input module.
   if (ModuleEntryPoints)
     for (const auto *F : *ModuleEntryPoints) {
       ResSymbolsStr =
@@ -856,9 +857,10 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   return TblFiles;
 }
 
-// This function splits a module with a mix of SYCL and ESIMD kernels
-// into two separate modules.
-std::pair<ModuleUPtr, ModuleUPtr> splitSyclEsimd(ModuleUPtr M) {
+TableFiles processInputModule(ModuleUPtr M) {
+  if (!SplitEsimd)
+    return processOneModule(std::move(M), false, false);
+
   FuncPtrVector SyclFunctions;
   FuncPtrVector EsimdFunctions;
   // Collect information about the SYCL and ESIMD functions in the module.
@@ -872,33 +874,30 @@ std::pair<ModuleUPtr, ModuleUPtr> splitSyclEsimd(ModuleUPtr M) {
     }
   }
 
+  // Do we have both Sycl and Esimd code?
+  bool SyclAndEsimdCode = !SyclFunctions.empty() && !EsimdFunctions.empty();
+
   // If only SYCL kernels or only ESIMD kernels, no splitting needed.
+  // Otherwise splitting a module with a mix of SYCL and ESIMD kernels into two
+  // separate modules.
+  // Note: if one global ValueToValueMapTy object is used for splitting then we
+  // can keep only one split module in memory at a time. Otherwise, if several
+  // split modules are in memory then some of Values in ValueToValueMapTy may be
+  // shared between those modules and then destruction of any module is crashed
+  // because it has Values that are still used by other modules.
   ModuleUPtr SyclModule{nullptr};
-  ModuleUPtr EsimdModule{nullptr};
   if (EsimdFunctions.empty())
     SyclModule = std::move(M);
-  else if (SyclFunctions.empty())
-    EsimdModule = std::move(M);
-  else {
+  else if (!SyclFunctions.empty())
     SyclModule = splitModule(*M, SyclFunctions);
-    EsimdModule = splitModule(*M, EsimdFunctions);
-  }
-  return std::make_pair(std::move(SyclModule), std::move(EsimdModule));
-}
-
-TableFiles processInputModule(ModuleUPtr M) {
-  if (!SplitEsimd)
-    return processOneModule(std::move(M), false, false);
-
-  ModuleUPtr SyclModule;
-  ModuleUPtr EsimdModule;
-  std::tie(SyclModule, EsimdModule) = splitSyclEsimd(std::move(M));
-
-  // Do we have both Sycl and Esimd code?
-  bool SyclAndEsimdCode = SyclModule && EsimdModule;
-
   TableFiles SyclTblFiles =
       processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
+
+  ModuleUPtr EsimdModule{nullptr};
+  if (SyclFunctions.empty())
+    EsimdModule = std::move(M);
+  else if (!EsimdFunctions.empty())
+    EsimdModule = splitModule(*M, EsimdFunctions);
   TableFiles EsimdTblFiles =
       processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
 
