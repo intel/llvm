@@ -19,32 +19,32 @@ class TestKernel;
 class TestKernelExeOnly;
 
 __SYCL_INT_HEADER_OPEN_NS() {
-  namespace detail {
-  template <> struct KernelInfo<TestKernel> {
-    static constexpr unsigned getNumParams() { return 0; }
-    static const kernel_param_desc_t &getParamDesc(int) {
-      static kernel_param_desc_t Dummy;
-      return Dummy;
-    }
-    static constexpr const char *getName() { return "TestKernel"; }
-    static constexpr bool isESIMD() { return false; }
-    static constexpr bool callsThisItem() { return false; }
-    static constexpr bool callsAnyThisFreeFunction() { return false; }
-  };
+namespace detail {
+template <> struct KernelInfo<TestKernel> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() { return "TestKernel"; }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
 
-  template <> struct KernelInfo<TestKernelExeOnly> {
-    static constexpr unsigned getNumParams() { return 0; }
-    static const kernel_param_desc_t &getParamDesc(int) {
-      static kernel_param_desc_t Dummy;
-      return Dummy;
-    }
-    static constexpr const char *getName() { return "TestKernelExeOnly"; }
-    static constexpr bool isESIMD() { return false; }
-    static constexpr bool callsThisItem() { return false; }
-    static constexpr bool callsAnyThisFreeFunction() { return false; }
-  };
+template <> struct KernelInfo<TestKernelExeOnly> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() { return "TestKernelExeOnly"; }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
 
-  } // namespace detail
+} // namespace detail
 } // __SYCL_INT_HEADER_OPEN_NS()
 __SYCL_INT_HEADER_CLOSE_NS()
 

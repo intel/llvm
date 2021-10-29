@@ -24,32 +24,32 @@ const char EAMTestKernel2Name[] = "EAMTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs = 4;
 
 __SYCL_INT_HEADER_OPEN_NS() {
-  namespace detail {
-  template <> struct KernelInfo<EAMTestKernel> {
-    static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
-    static const kernel_param_desc_t &getParamDesc(int) {
-      static kernel_param_desc_t Dummy;
-      return Dummy;
-    }
-    static constexpr const char *getName() { return EAMTestKernelName; }
-    static constexpr bool isESIMD() { return false; }
-    static constexpr bool callsThisItem() { return false; }
-    static constexpr bool callsAnyThisFreeFunction() { return false; }
-  };
+namespace detail {
+template <> struct KernelInfo<EAMTestKernel> {
+  static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() { return EAMTestKernelName; }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
 
-  template <> struct KernelInfo<EAMTestKernel2> {
-    static constexpr unsigned getNumParams() { return 0; }
-    static const kernel_param_desc_t &getParamDesc(int) {
-      static kernel_param_desc_t Dummy;
-      return Dummy;
-    }
-    static constexpr const char *getName() { return EAMTestKernel2Name; }
-    static constexpr bool isESIMD() { return false; }
-    static constexpr bool callsThisItem() { return false; }
-    static constexpr bool callsAnyThisFreeFunction() { return false; }
-  };
+template <> struct KernelInfo<EAMTestKernel2> {
+  static constexpr unsigned getNumParams() { return 0; }
+  static const kernel_param_desc_t &getParamDesc(int) {
+    static kernel_param_desc_t Dummy;
+    return Dummy;
+  }
+  static constexpr const char *getName() { return EAMTestKernel2Name; }
+  static constexpr bool isESIMD() { return false; }
+  static constexpr bool callsThisItem() { return false; }
+  static constexpr bool callsAnyThisFreeFunction() { return false; }
+};
 
-  } // namespace detail
+} // namespace detail
 } // __SYCL_INT_HEADER_OPEN_NS()
 __SYCL_INT_HEADER_CLOSE_NS()
 
