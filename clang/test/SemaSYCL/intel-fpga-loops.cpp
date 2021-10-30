@@ -149,19 +149,19 @@ void goo() {
   // expected-error@+1 {{unknown argument to 'ivdep'; expected integer or array variable}}
   [[intel::ivdep("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[8]'}}
   [[intel::initiation_interval("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[8]'}}
   [[intel::max_concurrency("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[8]'}}
   [[intel::loop_coalesce("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[8]'}}
   [[intel::max_interleaving("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [8]'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[8]'}}
   [[intel::speculated_iterations("test123")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{unknown argument to 'ivdep'; expected integer or array variable}}
@@ -200,7 +200,7 @@ void goo() {
   // expected-error@+1 {{'loop_count_avg' attribute requires a non-negative integral compile time constant expression}}
   [[intel::loop_count_avg(-1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+  // expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
   [[intel::loop_count_avg("abc")]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 }

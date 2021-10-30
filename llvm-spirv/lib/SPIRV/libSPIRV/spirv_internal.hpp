@@ -73,6 +73,7 @@ enum InternalCapability {
   ICapTokenTypeINTEL = 6112,
   ICapBfloat16ConversionINTEL = 6115,
   ICapabilityJointMatrixINTEL = 6118,
+  ICapabilityHWThreadQueryINTEL = 6134,
   ICapFPArithmeticFenceINTEL = 6144
 };
 
@@ -95,12 +96,23 @@ constexpr LinkageType LinkageTypeInternal =
 
 enum InternalJointMatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
 
+enum InternalBuiltIn {
+  IBuiltInSubDeviceIDINTEL = 6135,
+  IBuiltInHWThreadIDINTEL = 6136,
+  IBuiltInMaxHWThreadIDPerSubDeviceINTEL = 6137
+};
+
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
 _SPIRV_OP(Capability, JointMatrixINTEL)
 _SPIRV_OP(Op, TypeJointMatrixINTEL)
 _SPIRV_OP(Op, JointMatrixLoadINTEL)
 _SPIRV_OP(Op, JointMatrixStoreINTEL)
 _SPIRV_OP(Op, JointMatrixMadINTEL)
+
+_SPIRV_OP(Capability, HWThreadQueryINTEL)
+_SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
+_SPIRV_OP(BuiltIn, HWThreadIDINTEL)
+_SPIRV_OP(BuiltIn, MaxHWThreadIDPerSubDeviceINTEL)
 #undef _SPIRV_OP
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
