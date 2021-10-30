@@ -498,29 +498,36 @@ std::string collectSymbolsList(const FuncPtrVector *ModuleEntryPoints) {
   return ResSymbolsStr;
 }
 
-// The function produces a copy of input LLVM IR module M with only those entry
-// points that are specified in ModuleEntryPoints vector.
-ModuleUPtr splitModule(const Module &M,
-                       const FuncPtrVector &ModuleEntryPoints) {
-  // This map is shared between calls to fix memory leaks after its deletion and
-  // reduce number of allocations and deallocations of memory for Module objects
-  // during llvm::CloneModule call.
-  static ValueToValueMapTy VMap;
+// During cloning of Module ValueMap tries to reuse already created old to new
+// Value mappings and asserts if a new Value pointer is nullptr. It may happen
+// after one cloned module is destroyed and we try to reuse ValueToValueMapTy
+// object for the next module to clone.
+// Proper solution is to improve CloneModule to support multiple clonings from
+// one source Module.
+// Current workaround is to drop all records that contain nullptr values from
+// ValueToValueMapTy after cloned module is destroyed.
+struct VMapCleaner {
+  VMapCleaner(ValueToValueMapTy &VMap)
+    : VMapRef(VMap)
+    {}
 
-  // During cloning of Module ValueMap tries to reuse already created old to new
-  // Value mappings and asserts if a new Value pointer is nullptr. It may happen
-  // after one cloned module is destroyed and we try to reuse ValueToValueMapTy
-  // object for the next module to clone.
-  // Proper solution is to improve CloneModule to support multiple clonings from
-  // one source Module.
-  // Current workaround is to drop all records that contain nullptr values.
-  for (auto It = VMap.begin(), End = VMap.end(); It != End;) {
-    if (It->second)
-      ++It;
-    else
-      VMap.erase(It++);
+  ~VMapCleaner() {
+    for (auto It = VMapRef.begin(), End = VMapRef.end(); It != End;) {
+      if (It->second)
+        ++It;
+      else
+        VMapRef.erase(It++);
+    }
   }
 
+private:
+  ValueToValueMapTy &VMapRef;
+};
+
+// The function produces a copy of input LLVM IR module M with only those entry
+// points that are specified in ModuleEntryPoints vector.
+ModuleUPtr splitModule(const Module &M, ValueToValueMapTy &VMap,
+                       const FuncPtrVector &ModuleEntryPoints) {
   // For each group of entry points collect all dependencies.
   SetVector<const GlobalValue *> GVs;
   FuncPtrVector Workqueue;
@@ -788,14 +795,24 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   size_t I = 0;
   auto GlobSetIt = GlobalsSet.cbegin();
 
+  // This map is shared between splitModules calls to reduce number of
+  // allocations and deallocations of memory for Module objects during
+  // llvm::CloneModule call.
+  ValueToValueMapTy SplitVMap;
+
   do {
     const FuncPtrVector *ResModuleGlobals{nullptr};
     if (GlobSetIt != GlobalsSet.cend())
       ResModuleGlobals = &(GlobSetIt->second);
 
+    // VMapCleaner should be defined before split module variable to call
+    // destructor of module first and only after that to clear null Value
+    // pointers.
+    VMapCleaner SplitVMapCleaner(SplitVMap);
     ModuleUPtr ResM{nullptr};
+
     if (DoSplit && ResModuleGlobals) {
-      ResM = splitModule(*M, *ResModuleGlobals);
+      ResM = splitModule(*M, SplitVMap, *ResModuleGlobals);
     } else {
       // sycl-post-link always produces a code result, even if it doesn't modify
       // input.
@@ -876,30 +893,39 @@ TableFiles processInputModule(ModuleUPtr M) {
 
   // Do we have both Sycl and Esimd code?
   bool SyclAndEsimdCode = !SyclFunctions.empty() && !EsimdFunctions.empty();
+  ValueToValueMapTy SyclEsimdVMap;
 
   // If only SYCL kernels or only ESIMD kernels, no splitting needed.
   // Otherwise splitting a module with a mix of SYCL and ESIMD kernels into two
   // separate modules.
-  // Note: if one global ValueToValueMapTy object is used for splitting then we
-  // can keep only one split module in memory at a time. Otherwise, if several
-  // split modules are in memory then some of Values in ValueToValueMapTy may be
+  // Warning: if one global ValueToValueMapTy object is used for splitting then
+  // we can keep only one split module in memory at a time. Otherwise, if
+  // several split modules are in memory then some of Values in that map may be
   // shared between those modules and then destruction of any module is crashed
   // because it has Values that are still used by other modules.
-  ModuleUPtr SyclModule{nullptr};
-  if (EsimdFunctions.empty())
-    SyclModule = std::move(M);
-  else if (!SyclFunctions.empty())
-    SyclModule = splitModule(*M, SyclFunctions);
-  TableFiles SyclTblFiles =
-      processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
+  TableFiles SyclTblFiles;
+  {
+    VMapCleaner SyclEsimdVMapCleaner(SyclEsimdVMap);
+    ModuleUPtr SyclModule{nullptr};
+    if (EsimdFunctions.empty())
+      SyclModule = std::move(M);
+    else if (!SyclFunctions.empty())
+      SyclModule = splitModule(*M, SyclEsimdVMap, SyclFunctions);
+    SyclTblFiles =
+        processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
+  }
 
-  ModuleUPtr EsimdModule{nullptr};
-  if (SyclFunctions.empty())
-    EsimdModule = std::move(M);
-  else if (!EsimdFunctions.empty())
-    EsimdModule = splitModule(*M, EsimdFunctions);
-  TableFiles EsimdTblFiles =
-      processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
+  TableFiles EsimdTblFiles;
+  {
+    VMapCleaner SyclEsimdVMapCleaner(SyclEsimdVMap);
+    ModuleUPtr EsimdModule{nullptr};
+    if (SyclFunctions.empty())
+      EsimdModule = std::move(M);
+    else if (!EsimdFunctions.empty())
+      EsimdModule = splitModule(*M, SyclEsimdVMap, EsimdFunctions);
+    EsimdTblFiles =
+        processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
+  }
 
   // Merge the two resulting file maps
   TableFiles MergedTblFiles;
