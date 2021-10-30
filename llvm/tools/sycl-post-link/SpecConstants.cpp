@@ -733,8 +733,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       }
 
       if (IsNewSpecConstant && DefaultValue)
-            DefaultsMetadata.push_back(
-                generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
+        DefaultsMetadata.push_back(
+            generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
 
       if (HasSretParameter) {
         // If __sycl_getCompositeSpecConstant returns through argument, then the
@@ -766,7 +766,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   for (const auto &P : SCMetadata)
     MD->addOperand(P.second);
 
-  // Emit default values metadata 
+  // Emit default values metadata
   NamedMDNode *MDDefaults =
       M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
   for (const auto &P : DefaultsMetadata)
