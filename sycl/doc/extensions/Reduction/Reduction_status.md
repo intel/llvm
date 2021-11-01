@@ -12,7 +12,7 @@ There are 2 specifications of the reduction feature and both are still actual:
 
 * `sycl::reduction` is described in [SYCL 2020 standard](https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reduction).
 
-These two specifications for reduction are pretty similar. The implementatoin of `sycl::reduction` is based on (basically re-uses) the implementation of `sycl::ext::oneapi::reduction`. 
+These two specifications for reduction are pretty similar. The implementation of `sycl::reduction` is based on (basically re-uses) the implementation of `sycl::ext::oneapi::reduction`. 
 
 There are non-critical differences in API to create the reduction object. `sycl::reduction` accepts either `sycl::buffer` or `usm memory` and optional property `property::reduction::initialize_to_identity` as parameter to create a reduction, while `sycl::ext::oneapi::reduction` accepts `sycl::accessor` that has `access::mode` equal to either `read_write` (which corresponds to SYCL 2020 reduction initialized without `property::reduction::initialize_to_identity`) or `discard_write`(corresponds to case when `property::reduction::initialize_to_identity` is used).
 
@@ -95,20 +95,20 @@ TODO #2 (Performance): There are 4 implementations for `parallel_for()` acceptin
 Accordingly to the latest performance results/experiments it may be more efficient to replace (A) and (B) with one implementation using `fast atomics` for 1) reducing inside work group - use atomic ops to 1 scalar allocated in group local memory, 2) use atomics to store the partial sum for work-group to final/global reduction variable.
 
 ---
-TODO #3 (Performance): Currently, there is more or less efficient implementation for 1 reduction variable. Using `fast atomics` and `fast reduce` does give better results. The implementation for any number of reduction variables used in same `parallel_for()` currently uses only the most basic implementation usign `tree-reduction` algorithm for all reduction operations/types even those that do have `fast atomics` or `fast reduce` algorithm.
+TODO #3 (Performance): Currently, there is more or less efficient implementation for 1 reduction variable. Using `fast atomics` and `fast reduce` does give better results. The implementation for any number of reduction variables used in same `parallel_for()` currently uses only the most basic implementation using `tree-reduction` algorithm for all reduction operations/types even those that do have `fast atomics` or `fast reduce` algorithm.
 
 ---
 ---
 # Implementation details: `reduction` in `parallel_for()` accepting `range`
 
-For `parallel_for()` accepting 1 reductin variable the implementation chooses one of 3 algorithms depending on existence of `fast atomics` and `fast reduce` features in the target device, which gives 3 variants:
+For `parallel_for()` accepting 1 reduction variable the implementation chooses one of 3 algorithms depending on existence of `fast atomics` and `fast reduce` features in the target device, which gives 3 variants:
 *  `fast atomics` (A)
 *  `no fast atomics` and `fast reduce` (B)
 *  `no fast atomics` and `no fast reduce` (C)
 
 The implementation of reduction accepting `range` has more freedom comparing to `nd_range` case as the order of reducing elements in each work-items is not specificed and the work-group sizes not specified too.
 
-The implementation queries the target device on the number of execution units and max work-group-size, after which it chooses number and size of work-groups, then calls `parallel_for()` accepting `nd_range` inside the original/users's `parallel_for()` accepting `range`. Each of work-items in that nd-range space gets 1 or more indices from the global index space for which it calls user's function.
+The implementation queries the target device on the number of execution units and max work-group-size, after which it chooses number and size of work-groups, then calls `parallel_for()` accepting `nd_range` inside the original/user's `parallel_for()` accepting `range`. Each of work-items in that nd-range space gets 1 or more indices from the global index space for which it calls user's function.
 
 For the case (A) `fast atomics` the implementation looks this way:
 
@@ -118,7 +118,7 @@ For the case (A) `fast atomics` the implementation looks this way:
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
     reductionLoop(Range, Reducer, NDId, KernelFunc); // Each work-item handles 1 or many indices
-                                                     // from the original/users's global index space.
+                                                     // from the original/user's global index space.
 
     // Store the accumulated partial sum for the work-item to local var holding the partial sum for the work-group.
     auto LID = NDId.get_local_id(0);
@@ -143,7 +143,7 @@ Variants (B) and (C) use the same approach. The only difference is how the parti
 TODO #4 (Performance): The `reductionLoop()` has some order in which it choses indexes from the global index space. Currently it has huge stride to help vectorizer and get more vector insturction for the device code, which though may cause competition among devices for the memory due to pretty bad memory locality. On two-socket server CPUs using smaller stride to prioritize better memory locality gives additional perf improvement. 
 
 ---
-TODO #5 (Performance): Some devices may provide unique-thread-id where the number of worker threads running similteneously is limited. Such feature opens way for more efficient implementations (up to 2x faster, especially on many stacks/tiles devices).
+TODO #5 (Performance): Some devices may provide unique-thread-id where the number of worker threads running simultaneously is limited. Such feature opens way for more efficient implementations (up to 2x faster, especially on many stacks/tiles devices). See this extension for reference: https://github.com/intel/llvm/pull/4747
 
 ---
 ---
