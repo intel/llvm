@@ -84,6 +84,17 @@ using namespace llvm::PatternMatch;
 static cl::opt<unsigned> DomConditionsMaxUses("dom-conditions-max-uses",
                                               cl::Hidden, cl::init(20));
 
+// According to the LangRef, branching on a poison condition is absolutely
+// immediate full UB.  However, historically we haven't implemented that
+// consistently as we have an important transformation (non-trivial unswitch)
+// which introduces instances of branch on poison/undef to otherwise well
+// defined programs.  This flag exists to let us test optimization benefit
+// of exploiting the specified behavior (in combination with enabling the
+// unswitch fix.)
+static cl::opt<bool> BranchOnPoisonAsUB("branch-on-poison-as-ub",
+                                        cl::Hidden, cl::init(false));
+
+
 /// Returns the bitwidth of the given scalar or pointer type. For vector types,
 /// returns the element type's bitwidth.
 static unsigned getBitWidth(Type *Ty, const DataLayout &DL) {
@@ -4952,19 +4963,9 @@ bool llvm::isOverflowIntrinsicNoWrap(const WithOverflowInst *WO,
 
 static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly,
                                    bool ConsiderFlags) {
-  if (ConsiderFlags) {
-    // See whether I has flags that may create poison
-    if (const auto *OvOp = dyn_cast<OverflowingBinaryOperator>(Op)) {
-      if (OvOp->hasNoSignedWrap() || OvOp->hasNoUnsignedWrap())
-        return true;
-    }
-    if (const auto *ExactOp = dyn_cast<PossiblyExactOperator>(Op))
-      if (ExactOp->isExact())
-        return true;
-    if (const auto *GEP = dyn_cast<GEPOperator>(Op))
-      if (GEP->isInBounds())
-        return true;
-  }
+
+  if (ConsiderFlags && Op->hasPoisonGeneratingFlags())
+    return true;
 
   // TODO: this should really be under the ConsiderFlags block, but currently
   // these are not dropped by dropPoisonGeneratingFlags
@@ -5468,7 +5469,16 @@ void llvm::getGuaranteedNonPoisonOps(const Instruction *I,
   case Instruction::SRem:
     Operands.insert(I->getOperand(1));
     break;
-
+  case Instruction::Switch:
+    if (BranchOnPoisonAsUB)
+      Operands.insert(cast<SwitchInst>(I)->getCondition());
+    break;
+  case Instruction::Br: {
+    auto *BR = cast<BranchInst>(I);
+    if (BranchOnPoisonAsUB && BR->isConditional())
+      Operands.insert(BR->getCondition());
+    break;
+  }
   default:
     break;
   }
@@ -7054,6 +7064,23 @@ static void setLimitsForSelectPattern(const SelectInst &SI, APInt &Lower,
   }
 }
 
+static void setLimitForFPToI(const Instruction *I, APInt &Lower, APInt &Upper) {
+  // The maximum representable value of a half is 65504. For floats the maximum
+  // value is 3.4e38 which requires roughly 129 bits.
+  unsigned BitWidth = I->getType()->getScalarSizeInBits();
+  if (!I->getOperand(0)->getType()->getScalarType()->isHalfTy())
+    return;
+  if (isa<FPToSIInst>(I) && BitWidth >= 17) {
+    Lower = APInt(BitWidth, -65504);
+    Upper = APInt(BitWidth, 65505);
+  }
+
+  if (isa<FPToUIInst>(I) && BitWidth >= 16) {
+    // For a fptoui the lower limit is left as 0.
+    Upper = APInt(BitWidth, 65505);
+  }
+}
+
 ConstantRange llvm::computeConstantRange(const Value *V, bool UseInstrInfo,
                                          AssumptionCache *AC,
                                          const Instruction *CtxI,
@@ -7078,6 +7105,8 @@ ConstantRange llvm::computeConstantRange(const Value *V, bool UseInstrInfo,
     setLimitsForIntrinsic(*II, Lower, Upper);
   else if (auto *SI = dyn_cast<SelectInst>(V))
     setLimitsForSelectPattern(*SI, Lower, Upper, IIQ);
+  else if (isa<FPToUIInst>(V) || isa<FPToSIInst>(V))
+    setLimitForFPToI(cast<Instruction>(V), Lower, Upper);
 
   ConstantRange CR = ConstantRange::getNonEmpty(Lower, Upper);
 
