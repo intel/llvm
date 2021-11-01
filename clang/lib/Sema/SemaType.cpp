@@ -7897,7 +7897,7 @@ static bool isPermittedNeonBaseType(QualType &Ty,
 static bool verifyValidIntegerConstantExpr(Sema &S, const ParsedAttr &Attr,
                                            llvm::APSInt &Result) {
   const auto *AttrExpr = Attr.getArgAsExpr(0);
-  if (!AttrExpr->isTypeDependent() && !AttrExpr->isValueDependent()) {
+  if (!AttrExpr->isTypeDependent()) {
     if (Optional<llvm::APSInt> Res =
             AttrExpr->getIntegerConstantExpr(S.Context)) {
       Result = *Res;
@@ -8212,12 +8212,6 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     case ParsedAttr::IgnoredAttribute:
       break;
 
-    case ParsedAttr::AT_BTFTag:
-      // FIXME: Linux kernel may also use this attribute for type casting check,
-      // which clang doesn's support for now. Let us ignore them so linux kernel
-      // build won't break.
-      attr.setUsedAsTypeAttr();
-      break;
     case ParsedAttr::AT_MayAlias:
       // FIXME: This attribute needs to actually be handled, but if we ignore
       // it it breaks large amounts of Linux software.

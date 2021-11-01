@@ -344,6 +344,7 @@ void NVPTXPassConfig::addIRPasses() {
     addEarlyCSEOrGVNPass();
     if (!DisableLoadStoreVectorizer)
       addPass(createLoadStoreVectorizerPass());
+    addPass(createSROAPass());
   }
 }
 
@@ -366,7 +367,7 @@ void NVPTXPassConfig::addPreRegAlloc() {
 }
 
 void NVPTXPassConfig::addPostRegAlloc() {
-  addPass(createNVPTXPrologEpilogPass(), false);
+  addPass(createNVPTXPrologEpilogPass());
   if (getOptLevel() != CodeGenOpt::None) {
     // NVPTXPrologEpilogPass calculates frame object offset and replace frame
     // index with VRFrame register. NVPTXPeephole need to be run after that and

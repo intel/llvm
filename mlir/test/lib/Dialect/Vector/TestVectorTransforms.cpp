@@ -59,7 +59,7 @@ struct TestVectorToVectorConversion
 private:
   // Return the target shape based on op type.
   static Optional<SmallVector<int64_t, 4>> getShape(Operation *op) {
-    if (isa<AddFOp, SelectOp, CmpFOp>(op))
+    if (isa<arith::AddFOp, SelectOp, arith::CmpFOp>(op))
       return SmallVector<int64_t, 4>(2, 2);
     if (isa<vector::ContractionOp>(op))
       return SmallVector<int64_t, 4>(3, 2);
@@ -90,8 +90,8 @@ private:
   }
 
   static LogicalResult filter(Operation *op) {
-    return success(isa<AddFOp, SelectOp, CmpFOp, ContractionOp, TransferReadOp,
-                       TransferWriteOp>(op));
+    return success(isa<arith::AddFOp, SelectOp, arith::CmpFOp, ContractionOp,
+                       TransferReadOp, TransferWriteOp>(op));
   }
 };
 
@@ -191,7 +191,7 @@ struct TestVectorUnrollingPatterns
         patterns, UnrollVectorOptions()
                       .setNativeShape(ArrayRef<int64_t>{2, 2})
                       .setFilterConstraint([](Operation *op) {
-                        return success(isa<AddFOp, vector::FMAOp>(op));
+                        return success(isa<arith::AddFOp, vector::FMAOp>(op));
                       }));
 
     if (unrollBasedOnType) {
@@ -255,7 +255,7 @@ struct TestVectorDistributePatterns
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
     FuncOp func = getFunction();
-    func.walk([&](AddFOp op) {
+    func.walk([&](arith::AddFOp op) {
       OpBuilder builder(op);
       if (auto vecType = op.getType().dyn_cast<VectorType>()) {
         SmallVector<int64_t, 2> mul;
@@ -308,29 +308,24 @@ struct TestVectorToLoopPatterns
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
     FuncOp func = getFunction();
-    func.walk([&](AddFOp op) {
+    func.walk([&](arith::AddFOp op) {
       // Check that the operation type can be broken down into a loop.
       VectorType type = op.getType().dyn_cast<VectorType>();
       if (!type || type.getRank() != 1 ||
           type.getNumElements() % multiplicity != 0)
         return mlir::WalkResult::advance();
       auto filterAlloc = [](Operation *op) {
-        if (isa<ConstantOp, memref::AllocOp, CallOp>(op))
+        if (isa<arith::ConstantOp, memref::AllocOp, CallOp>(op))
           return false;
         return true;
       };
       auto dependentOps = getSlice(op, filterAlloc);
       // Create a loop and move instructions from the Op slice into the loop.
       OpBuilder builder(op);
-      auto zero = builder.create<ConstantOp>(
-          op.getLoc(), builder.getIndexType(),
-          builder.getIntegerAttr(builder.getIndexType(), 0));
-      auto one = builder.create<ConstantOp>(
-          op.getLoc(), builder.getIndexType(),
-          builder.getIntegerAttr(builder.getIndexType(), 1));
-      auto numIter = builder.create<ConstantOp>(
-          op.getLoc(), builder.getIndexType(),
-          builder.getIntegerAttr(builder.getIndexType(), multiplicity));
+      auto zero = builder.create<arith::ConstantIndexOp>(op.getLoc(), 0);
+      auto one = builder.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+      auto numIter =
+          builder.create<arith::ConstantIndexOp>(op.getLoc(), multiplicity);
       auto forOp = builder.create<scf::ForOp>(op.getLoc(), zero, numIter, one);
       for (Operation *it : dependentOps) {
         it->moveBefore(forOp.getBody()->getTerminator());
@@ -471,6 +466,50 @@ struct TestVectorMultiReductionLoweringPatterns
   }
 };
 
+struct TestVectorTransferCollapseInnerMostContiguousDims
+    : public PassWrapper<TestVectorTransferCollapseInnerMostContiguousDims,
+                         FunctionPass> {
+  TestVectorTransferCollapseInnerMostContiguousDims() = default;
+  TestVectorTransferCollapseInnerMostContiguousDims(
+      const TestVectorTransferCollapseInnerMostContiguousDims &pass) {}
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<memref::MemRefDialect, AffineDialect>();
+  }
+
+  StringRef getArgument() const final {
+    return "test-vector-transfer-collapse-inner-most-dims";
+  }
+
+  StringRef getDescription() const final {
+    return "Test conversion patterns that reducedes the rank of the vector "
+           "transfer memory and vector operands.";
+  }
+
+  void runOnFunction() override {
+    RewritePatternSet patterns(&getContext());
+    populateVectorTransferCollapseInnerMostContiguousDimsPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+  }
+};
+
+struct TestVectorReduceToContractPatternsPatterns
+    : public PassWrapper<TestVectorReduceToContractPatternsPatterns,
+                         FunctionPass> {
+  StringRef getArgument() const final {
+    return "test-vector-reduction-to-contract-patterns";
+  }
+  StringRef getDescription() const final {
+    return "Test patterns to convert multireduce op to contract and combine "
+           "broadcast/transpose to contract";
+  }
+  void runOnFunction() override {
+    RewritePatternSet patterns(&getContext());
+    populateVetorReductionToContractPatterns(patterns);
+    (void)applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+  }
+};
+
 } // end anonymous namespace
 
 namespace mlir {
@@ -495,6 +534,10 @@ void registerTestVectorConversions() {
   PassRegistration<TestVectorTransferLoweringPatterns>();
 
   PassRegistration<TestVectorMultiReductionLoweringPatterns>();
+
+  PassRegistration<TestVectorTransferCollapseInnerMostContiguousDims>();
+
+  PassRegistration<TestVectorReduceToContractPatternsPatterns>();
 }
 } // namespace test
 } // namespace mlir

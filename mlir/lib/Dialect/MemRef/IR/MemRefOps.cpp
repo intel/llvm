@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Utils/MemRefUtils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -30,7 +31,11 @@ using namespace mlir::memref;
 Operation *MemRefDialect::materializeConstant(OpBuilder &builder,
                                               Attribute value, Type type,
                                               Location loc) {
-  return builder.create<mlir::ConstantOp>(loc, type, value);
+  if (arith::ConstantOp::isBuildableWith(value, type))
+    return builder.create<arith::ConstantOp>(loc, value, type);
+  if (ConstantOp::isBuildableWith(value, type))
+    return builder.create<ConstantOp>(loc, value, type);
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -83,8 +88,8 @@ static LogicalResult verifyAllocLikeOp(AllocLikeOp op) {
                           "dynamic dimension count");
 
   unsigned numSymbols = 0;
-  if (!memRefType.getAffineMaps().empty())
-    numSymbols = memRefType.getAffineMaps().front().getNumSymbols();
+  if (!memRefType.getLayout().isIdentity())
+    numSymbols = memRefType.getLayout().getAffineMap().getNumSymbols();
   if (op.symbolOperands().size() != numSymbols)
     return op.emitOpError("symbol operand count does not equal memref symbol "
                           "count: expected ")
@@ -137,9 +142,10 @@ struct SimplifyAllocConst : public OpRewritePattern<AllocLikeOp> {
       }
       auto dynamicSize = alloc.dynamicSizes()[dynamicDimPos];
       auto *defOp = dynamicSize.getDefiningOp();
-      if (auto constantIndexOp = dyn_cast_or_null<ConstantIndexOp>(defOp)) {
+      if (auto constantIndexOp =
+              dyn_cast_or_null<arith::ConstantIndexOp>(defOp)) {
         // Dynamic shape dimension will be folded.
-        newShapeConstants.push_back(constantIndexOp.getValue());
+        newShapeConstants.push_back(constantIndexOp.value());
       } else {
         // Dynamic shape dimension not folded; copy dynamicSize from old memref.
         newShapeConstants.push_back(-1);
@@ -365,7 +371,7 @@ struct TensorLoadToMemRef : public OpRewritePattern<BufferCastOp> {
       for (int i = 0; i < resultType.getRank(); ++i) {
         if (resultType.getShape()[i] != ShapedType::kDynamicSize)
           continue;
-        auto index = rewriter.createOrFold<ConstantIndexOp>(loc, i);
+        auto index = rewriter.createOrFold<arith::ConstantIndexOp>(loc, i);
         Value size = rewriter.create<tensor::DimOp>(loc, tensorLoad, index);
         dynamicOperands.push_back(size);
       }
@@ -490,7 +496,7 @@ bool CastOp::areCastCompatible(TypeRange inputs, TypeRange outputs) {
   if (aT && bT) {
     if (aT.getElementType() != bT.getElementType())
       return false;
-    if (aT.getAffineMaps() != bT.getAffineMaps()) {
+    if (aT.getLayout() != bT.getLayout()) {
       int64_t aOffset, bOffset;
       SmallVector<int64_t, 4> aStrides, bStrides;
       if (failed(getStridesAndOffset(aT, aStrides, aOffset)) ||
@@ -673,7 +679,7 @@ LogicalResult DeallocOp::fold(ArrayRef<Attribute> cstOperands,
 void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
                   int64_t index) {
   auto loc = result.location;
-  Value indexValue = builder.create<ConstantIndexOp>(loc, index);
+  Value indexValue = builder.create<arith::ConstantIndexOp>(loc, index);
   build(builder, result, source, indexValue);
 }
 
@@ -684,8 +690,8 @@ void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
 }
 
 Optional<int64_t> DimOp::getConstantIndex() {
-  if (auto constantOp = index().getDefiningOp<ConstantOp>())
-    return constantOp.getValue().cast<IntegerAttr>().getInt();
+  if (auto constantOp = index().getDefiningOp<arith::ConstantOp>())
+    return constantOp.value().cast<IntegerAttr>().getInt();
   return {};
 }
 
@@ -881,7 +887,7 @@ struct DimOfMemRefReshape : public OpRewritePattern<DimOp> {
     Location loc = dim.getLoc();
     Value load = rewriter.create<LoadOp>(loc, reshape.shape(), dim.index());
     if (load.getType() != dim.getType())
-      load = rewriter.create<IndexCastOp>(loc, dim.getType(), load);
+      load = rewriter.create<arith::IndexCastOp>(loc, dim.getType(), load);
     rewriter.replaceOp(dim, load);
     return success();
   }
@@ -1402,7 +1408,7 @@ static LogicalResult verify(ReinterpretCastOp op) {
 
   // Match offset and strides in static_offset and static_strides attributes if
   // result memref type has an affine map specified.
-  if (!resultType.getAffineMaps().empty()) {
+  if (!resultType.getLayout().isIdentity()) {
     int64_t resultOffset;
     SmallVector<int64_t, 4> resultStrides;
     if (failed(getStridesAndOffset(resultType, resultStrides, resultOffset)))
@@ -1520,8 +1526,8 @@ computeReshapeCollapsedType(MemRefType type,
   }
 
   // Early-exit: if `type` is contiguous, the result must be contiguous.
-  if (canonicalizeStridedLayout(type).getAffineMaps().empty())
-    return MemRefType::Builder(type).setShape(newSizes).setAffineMaps({});
+  if (canonicalizeStridedLayout(type).getLayout().isIdentity())
+    return MemRefType::Builder(type).setShape(newSizes).setLayout({});
 
   // Convert back to int64_t because we don't have enough information to create
   // new strided layouts from AffineExpr only. This corresponds to a case where
@@ -1540,7 +1546,8 @@ computeReshapeCollapsedType(MemRefType type,
   auto layout =
       makeStridedLinearLayoutMap(intStrides, intOffset, type.getContext());
   return canonicalizeStridedLayout(
-      MemRefType::Builder(type).setShape(newSizes).setAffineMaps({layout}));
+      MemRefType::Builder(type).setShape(newSizes).setLayout(
+          AffineMapAttr::get(layout)));
 }
 
 void ExpandShapeOp::build(OpBuilder &b, OperationState &result, Value src,
@@ -1656,14 +1663,14 @@ static LogicalResult verify(ReshapeOp op) {
                           "types should be the same");
 
   if (auto operandMemRefType = operandType.dyn_cast<MemRefType>())
-    if (!operandMemRefType.getAffineMaps().empty())
+    if (!operandMemRefType.getLayout().isIdentity())
       return op.emitOpError(
           "source memref type should have identity affine map");
 
   int64_t shapeSize = op.shape().getType().cast<MemRefType>().getDimSize(0);
   auto resultMemRefType = resultType.dyn_cast<MemRefType>();
   if (resultMemRefType) {
-    if (!resultMemRefType.getAffineMaps().empty())
+    if (!resultMemRefType.getLayout().isIdentity())
       return op.emitOpError(
           "result memref type should have identity affine map");
     if (shapeSize == ShapedType::kDynamicSize)
@@ -1818,10 +1825,9 @@ Type SubViewOp::inferRankReducedResultType(
       if (!dimsToProject.contains(pos))
         projectedShape.push_back(shape[pos]);
 
-    AffineMap map;
-    auto maps = inferredType.getAffineMaps();
-    if (!maps.empty() && maps.front())
-      map = getProjectedMap(maps.front(), dimsToProject);
+    AffineMap map = inferredType.getLayout().getAffineMap();
+    if (!map.isIdentity())
+      map = getProjectedMap(map, dimsToProject);
     inferredType =
         MemRefType::get(projectedShape, inferredType.getElementType(), map,
                         inferredType.getMemorySpace());
@@ -2066,7 +2072,7 @@ static LogicalResult verify(SubViewOp op) {
   return produceSubViewErrorMsg(result, op, expectedType, errMsg);
 }
 
-raw_ostream &mlir::operator<<(raw_ostream &os, Range &range) {
+raw_ostream &mlir::operator<<(raw_ostream &os, const Range &range) {
   return os << "range " << range.offset << ":" << range.size << ":"
             << range.stride;
 }
@@ -2086,14 +2092,15 @@ SmallVector<Range, 8> mlir::getOrCreateRanges(OffsetSizeAndStrideOpInterface op,
     Value offset =
         op.isDynamicOffset(idx)
             ? op.getDynamicOffset(idx)
-            : b.create<ConstantIndexOp>(loc, op.getStaticOffset(idx));
-    Value size = op.isDynamicSize(idx)
-                     ? op.getDynamicSize(idx)
-                     : b.create<ConstantIndexOp>(loc, op.getStaticSize(idx));
+            : b.create<arith::ConstantIndexOp>(loc, op.getStaticOffset(idx));
+    Value size =
+        op.isDynamicSize(idx)
+            ? op.getDynamicSize(idx)
+            : b.create<arith::ConstantIndexOp>(loc, op.getStaticSize(idx));
     Value stride =
         op.isDynamicStride(idx)
             ? op.getDynamicStride(idx)
-            : b.create<ConstantIndexOp>(loc, op.getStaticStride(idx));
+            : b.create<arith::ConstantIndexOp>(loc, op.getStaticStride(idx));
     res.emplace_back(Range{offset, size, stride});
   }
   return res;
@@ -2272,7 +2279,9 @@ static MemRefType inferTransposeResultType(MemRefType memRefType,
   auto map =
       makeStridedLinearLayoutMap(strides, offset, memRefType.getContext());
   map = permutationMap ? map.compose(permutationMap) : map;
-  return MemRefType::Builder(memRefType).setShape(sizes).setAffineMaps(map);
+  return MemRefType::Builder(memRefType)
+      .setShape(sizes)
+      .setLayout(AffineMapAttr::get(map));
 }
 
 void TransposeOp::build(OpBuilder &b, OperationState &result, Value in,
@@ -2380,15 +2389,11 @@ static LogicalResult verify(ViewOp op) {
   auto viewType = op.getType();
 
   // The base memref should have identity layout map (or none).
-  if (baseType.getAffineMaps().size() > 1 ||
-      (baseType.getAffineMaps().size() == 1 &&
-       !baseType.getAffineMaps()[0].isIdentity()))
+  if (!baseType.getLayout().isIdentity())
     return op.emitError("unsupported map for base memref type ") << baseType;
 
   // The result memref should have identity layout map (or none).
-  if (viewType.getAffineMaps().size() > 1 ||
-      (viewType.getAffineMaps().size() == 1 &&
-       !viewType.getAffineMaps()[0].isIdentity()))
+  if (!viewType.getLayout().isIdentity())
     return op.emitError("unsupported map for result memref type ") << viewType;
 
   // The base memref and the view memref should be in the same memory space.
@@ -2449,9 +2454,10 @@ struct ViewOpShapeFolder : public OpRewritePattern<ViewOp> {
         continue;
       }
       auto *defOp = viewOp.sizes()[dynamicDimPos].getDefiningOp();
-      if (auto constantIndexOp = dyn_cast_or_null<ConstantIndexOp>(defOp)) {
+      if (auto constantIndexOp =
+              dyn_cast_or_null<arith::ConstantIndexOp>(defOp)) {
         // Dynamic shape dimension will be folded.
-        newShapeConstants.push_back(constantIndexOp.getValue());
+        newShapeConstants.push_back(constantIndexOp.value());
       } else {
         // Dynamic shape dimension not folded; copy operand from old memref.
         newShapeConstants.push_back(dimSize);

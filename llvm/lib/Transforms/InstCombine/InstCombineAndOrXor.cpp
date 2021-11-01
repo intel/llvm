@@ -185,14 +185,15 @@ enum MaskedICmpType {
 /// satisfies.
 static unsigned getMaskedICmpType(Value *A, Value *B, Value *C,
                                   ICmpInst::Predicate Pred) {
-  ConstantInt *ACst = dyn_cast<ConstantInt>(A);
-  ConstantInt *BCst = dyn_cast<ConstantInt>(B);
-  ConstantInt *CCst = dyn_cast<ConstantInt>(C);
+  const APInt *ConstA = nullptr, *ConstB = nullptr, *ConstC = nullptr;
+  match(A, m_APInt(ConstA));
+  match(B, m_APInt(ConstB));
+  match(C, m_APInt(ConstC));
   bool IsEq = (Pred == ICmpInst::ICMP_EQ);
-  bool IsAPow2 = (ACst && !ACst->isZero() && ACst->getValue().isPowerOf2());
-  bool IsBPow2 = (BCst && !BCst->isZero() && BCst->getValue().isPowerOf2());
+  bool IsAPow2 = ConstA && ConstA->isPowerOf2();
+  bool IsBPow2 = ConstB && ConstB->isPowerOf2();
   unsigned MaskVal = 0;
-  if (CCst && CCst->isZero()) {
+  if (ConstC && ConstC->isZero()) {
     // if C is zero, then both A and B qualify as mask
     MaskVal |= (IsEq ? (Mask_AllZeros | AMask_Mixed | BMask_Mixed)
                      : (Mask_NotAllZeros | AMask_NotMixed | BMask_NotMixed));
@@ -211,7 +212,7 @@ static unsigned getMaskedICmpType(Value *A, Value *B, Value *C,
     if (IsAPow2)
       MaskVal |= (IsEq ? (Mask_NotAllZeros | AMask_NotMixed)
                        : (Mask_AllZeros | AMask_Mixed));
-  } else if (ACst && CCst && ConstantExpr::getAnd(ACst, CCst) == CCst) {
+  } else if (ConstA && ConstC && ConstC->isSubsetOf(*ConstA)) {
     MaskVal |= (IsEq ? AMask_Mixed : AMask_NotMixed);
   }
 
@@ -221,7 +222,7 @@ static unsigned getMaskedICmpType(Value *A, Value *B, Value *C,
     if (IsBPow2)
       MaskVal |= (IsEq ? (Mask_NotAllZeros | BMask_NotMixed)
                        : (Mask_AllZeros | BMask_Mixed));
-  } else if (BCst && CCst && ConstantExpr::getAnd(BCst, CCst) == CCst) {
+  } else if (ConstB && ConstC && ConstC->isSubsetOf(*ConstB)) {
     MaskVal |= (IsEq ? BMask_Mixed : BMask_NotMixed);
   }
 
@@ -269,9 +270,9 @@ getMaskedTypeForICmpPair(Value *&A, Value *&B, Value *&C,
                          ICmpInst *RHS,
                          ICmpInst::Predicate &PredL,
                          ICmpInst::Predicate &PredR) {
-  // vectors are not (yet?) supported. Don't support pointers either.
-  if (!LHS->getOperand(0)->getType()->isIntegerTy() ||
-      !RHS->getOperand(0)->getType()->isIntegerTy())
+  // Don't allow pointers. Splat vectors are fine.
+  if (!LHS->getOperand(0)->getType()->isIntOrIntVectorTy() ||
+      !RHS->getOperand(0)->getType()->isIntOrIntVectorTy())
     return None;
 
   // Here comes the tricky part:
@@ -619,8 +620,8 @@ static Value *foldLogOpOfMaskedICmps(ICmpInst *LHS, ICmpInst *RHS, bool IsAnd,
   // Remaining cases assume at least that B and D are constant, and depend on
   // their actual values. This isn't strictly necessary, just a "handle the
   // easy cases for now" decision.
-  ConstantInt *BCst, *DCst;
-  if (!match(B, m_ConstantInt(BCst)) || !match(D, m_ConstantInt(DCst)))
+  const APInt *ConstB, *ConstD;
+  if (!match(B, m_APInt(ConstB)) || !match(D, m_APInt(ConstD)))
     return nullptr;
 
   if (Mask & (Mask_NotAllZeros | BMask_NotAllOnes)) {
@@ -629,11 +630,10 @@ static Value *foldLogOpOfMaskedICmps(ICmpInst *LHS, ICmpInst *RHS, bool IsAnd,
     //     -> (icmp ne (A & B), 0) or (icmp ne (A & D), 0)
     // Only valid if one of the masks is a superset of the other (check "B&D" is
     // the same as either B or D).
-    APInt NewMask = BCst->getValue() & DCst->getValue();
-
-    if (NewMask == BCst->getValue())
+    APInt NewMask = *ConstB & *ConstD;
+    if (NewMask == *ConstB)
       return LHS;
-    else if (NewMask == DCst->getValue())
+    else if (NewMask == *ConstD)
       return RHS;
   }
 
@@ -642,11 +642,10 @@ static Value *foldLogOpOfMaskedICmps(ICmpInst *LHS, ICmpInst *RHS, bool IsAnd,
     //     -> (icmp ne (A & B), A) or (icmp ne (A & D), A)
     // Only valid if one of the masks is a superset of the other (check "B|D" is
     // the same as either B or D).
-    APInt NewMask = BCst->getValue() | DCst->getValue();
-
-    if (NewMask == BCst->getValue())
+    APInt NewMask = *ConstB | *ConstD;
+    if (NewMask == *ConstB)
       return LHS;
-    else if (NewMask == DCst->getValue())
+    else if (NewMask == *ConstD)
       return RHS;
   }
 
@@ -661,23 +660,21 @@ static Value *foldLogOpOfMaskedICmps(ICmpInst *LHS, ICmpInst *RHS, bool IsAnd,
     // We can't simply use C and E because we might actually handle
     //   (icmp ne (A & B), B) & (icmp eq (A & D), D)
     // with B and D, having a single bit set.
-    ConstantInt *CCst, *ECst;
-    if (!match(C, m_ConstantInt(CCst)) || !match(E, m_ConstantInt(ECst)))
+    const APInt *OldConstC, *OldConstE;
+    if (!match(C, m_APInt(OldConstC)) || !match(E, m_APInt(OldConstE)))
       return nullptr;
-    if (PredL != NewCC)
-      CCst = cast<ConstantInt>(ConstantExpr::getXor(BCst, CCst));
-    if (PredR != NewCC)
-      ECst = cast<ConstantInt>(ConstantExpr::getXor(DCst, ECst));
+
+    const APInt ConstC = PredL != NewCC ? *ConstB ^ *OldConstC : *OldConstC;
+    const APInt ConstE = PredR != NewCC ? *ConstD ^ *OldConstE : *OldConstE;
 
     // If there is a conflict, we should actually return a false for the
     // whole construct.
-    if (((BCst->getValue() & DCst->getValue()) &
-         (CCst->getValue() ^ ECst->getValue())).getBoolValue())
+    if (((*ConstB & *ConstD) & (ConstC ^ ConstE)).getBoolValue())
       return ConstantInt::get(LHS->getType(), !IsAnd);
 
     Value *NewOr1 = Builder.CreateOr(B, D);
-    Value *NewOr2 = ConstantExpr::getOr(CCst, ECst);
     Value *NewAnd = Builder.CreateAnd(A, NewOr1);
+    Constant *NewOr2 = ConstantInt::get(A->getType(), ConstC | ConstE);
     return Builder.CreateICmp(NewCC, NewAnd, NewOr2);
   }
 
@@ -1524,25 +1521,43 @@ static Instruction *reassociateFCmps(BinaryOperator &BO,
   return BinaryOperator::Create(Opcode, NewFCmp, BO11);
 }
 
-/// Match De Morgan's Laws:
+/// Match variations of De Morgan's Laws:
 /// (~A & ~B) == (~(A | B))
 /// (~A | ~B) == (~(A & B))
 static Instruction *matchDeMorgansLaws(BinaryOperator &I,
                                        InstCombiner::BuilderTy &Builder) {
-  auto Opcode = I.getOpcode();
+  const Instruction::BinaryOps Opcode = I.getOpcode();
   assert((Opcode == Instruction::And || Opcode == Instruction::Or) &&
          "Trying to match De Morgan's Laws with something other than and/or");
 
   // Flip the logic operation.
-  Opcode = (Opcode == Instruction::And) ? Instruction::Or : Instruction::And;
+  const Instruction::BinaryOps FlippedOpcode =
+      (Opcode == Instruction::And) ? Instruction::Or : Instruction::And;
 
+  Value *Op0 = I.getOperand(0), *Op1 = I.getOperand(1);
   Value *A, *B;
-  if (match(I.getOperand(0), m_OneUse(m_Not(m_Value(A)))) &&
-      match(I.getOperand(1), m_OneUse(m_Not(m_Value(B)))) &&
+  if (match(Op0, m_OneUse(m_Not(m_Value(A)))) &&
+      match(Op1, m_OneUse(m_Not(m_Value(B)))) &&
       !InstCombiner::isFreeToInvert(A, A->hasOneUse()) &&
       !InstCombiner::isFreeToInvert(B, B->hasOneUse())) {
-    Value *AndOr = Builder.CreateBinOp(Opcode, A, B, I.getName() + ".demorgan");
+    Value *AndOr =
+        Builder.CreateBinOp(FlippedOpcode, A, B, I.getName() + ".demorgan");
     return BinaryOperator::CreateNot(AndOr);
+  }
+
+  // The 'not' ops may require reassociation.
+  // (A & ~B) & ~C --> A & ~(B | C)
+  // (~B & A) & ~C --> A & ~(B | C)
+  // (A | ~B) | ~C --> A | ~(B & C)
+  // (~B | A) | ~C --> A | ~(B & C)
+  BinaryOperator *BO;
+  if (match(Op0, m_OneUse(m_BinOp(BO))) && BO->getOpcode() == Opcode) {
+    Value *C;
+    if (match(BO, m_c_BinOp(m_Value(A), m_Not(m_Value(B)))) &&
+        match(Op1, m_Not(m_Value(C)))) {
+      Value *FlippedBO = Builder.CreateBinOp(FlippedOpcode, B, C);
+      return BinaryOperator::Create(Opcode, A, Builder.CreateNot(FlippedBO));
+    }
   }
 
   return nullptr;
@@ -2064,13 +2079,13 @@ Instruction *InstCombinerImpl::visitAnd(BinaryOperator &I) {
       A->getType()->isIntOrIntVectorTy(1))
     return SelectInst::Create(A, Op0, Constant::getNullValue(Ty));
 
-  // and(ashr(subNSW(Y, X), ScalarSizeInBits(Y)-1), X) --> X s> Y ? X : 0.
-  if (match(&I, m_c_And(m_OneUse(m_AShr(
-                            m_NSWSub(m_Value(Y), m_Value(X)),
-                            m_SpecificInt(Ty->getScalarSizeInBits() - 1))),
-                        m_Deferred(X)))) {
-    Value *NewICmpInst = Builder.CreateICmpSGT(X, Y);
-    return SelectInst::Create(NewICmpInst, X, ConstantInt::getNullValue(Ty));
+  // (iN X s>> (N-1)) & Y --> (X s< 0) ? Y : 0
+  unsigned FullShift = Ty->getScalarSizeInBits() - 1;
+  if (match(&I, m_c_And(m_OneUse(m_AShr(m_Value(X), m_SpecificInt(FullShift))),
+                        m_Value(Y)))) {
+    Constant *Zero = ConstantInt::getNullValue(Ty);
+    Value *Cmp = Builder.CreateICmpSLT(X, Zero, "isneg");
+    return SelectInst::Create(Cmp, Y, Zero);
   }
 
   // (~x) & y  -->  ~(x | (~y))  iff that gets rid of inversions

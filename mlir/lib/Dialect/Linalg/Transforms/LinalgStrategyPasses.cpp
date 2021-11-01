@@ -189,6 +189,9 @@ struct LinalgStrategyVectorizePass
       vectorizationPatterns.add<LinalgVectorizationPattern>(funcOp.getContext(),
                                                             filter, options);
     }
+    vector::populateVectorTransferPermutationMapLoweringPatterns(
+        vectorizationPatterns);
+    vector::populateVetorReductionToContractPatterns(vectorizationPatterns);
     vectorizationPatterns.add<linalg::LinalgCopyVTRForwardingPattern,
                               linalg::LinalgCopyVTWForwardingPattern>(
         funcOp.getContext(), /*benefit=*/2);
@@ -260,6 +263,10 @@ struct LinalgStrategyLowerVectorsPass
 
     MLIRContext *context = funcOp.getContext();
     RewritePatternSet patterns(context);
+    if (options.enableVectorTransferLowering) {
+      vector::populateVectorTransferLoweringPatterns(patterns,
+                                                     options.maxTransferRank);
+    }
     if (options.enableVectorTransferPartialRewrite) {
       patterns.add<vector::VectorTransferFullPartialRewriter>(
           context, options.vectorTransformOptions);
@@ -279,6 +286,21 @@ struct LinalgStrategyLowerVectorsPass
 
   LinalgVectorLoweringOptions options;
   LinalgTransformationFilter filter;
+};
+
+/// Configurable pass to lower vector operations.
+struct LinalgStrategyRemoveMarkersPass
+    : public LinalgStrategyRemoveMarkersPassBase<
+          LinalgStrategyRemoveMarkersPass> {
+
+  void runOnFunction() override {
+    auto funcOp = getFunction();
+    if (!anchorFuncName.empty() && funcOp.getName() != anchorFuncName)
+      return;
+    funcOp.walk([](LinalgOp op) {
+      op->removeAttr(LinalgTransforms::kLinalgTransformMarker);
+    });
+  }
 };
 } // namespace
 
@@ -332,4 +354,10 @@ std::unique_ptr<OperationPass<FuncOp>>
 mlir::createLinalgStrategyLowerVectorsPass(LinalgVectorLoweringOptions opt,
                                            LinalgTransformationFilter filter) {
   return std::make_unique<LinalgStrategyLowerVectorsPass>(opt, filter);
+}
+
+/// Create a LinalgStrategyRemoveMarkersPass.
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::createLinalgStrategyRemoveMarkersPass() {
+  return std::make_unique<LinalgStrategyRemoveMarkersPass>();
 }

@@ -120,6 +120,12 @@ option(LIBCXX_ENABLE_UNICODE
   "Whether to include support for Unicode in the library. Disabling Unicode can
    be useful when porting to platforms that don't support UTF-8 encoding (e.g.
    embedded)." ON)
+option(LIBCXX_ENABLE_WIDE_CHARACTERS
+  "Whether to include support for wide characters in the library. Disabling
+   wide character support can be useful when porting to platforms that don't
+   support the C functionality for wide characters. When wide characters are
+   not supported, several parts of the library will be disabled, notably the
+   wide character specializations of std::basic_string." ON)
 option(LIBCXX_ENABLE_VENDOR_AVAILABILITY_ANNOTATIONS
   "Whether to turn on vendor availability annotations on declarations that depend
    on definitions in a shared library. By default, we assume that we're not building
@@ -264,9 +270,15 @@ option(LIBCXXABI_USE_LLVM_UNWINDER "Build and use the LLVM unwinder." OFF)
 
 # Target options --------------------------------------------------------------
 option(LIBCXX_BUILD_32_BITS "Build 32 bit libc++." ${LLVM_BUILD_32_BITS})
-set(LIBCXX_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Use alternate target triple.")
-set(LIBCXX_SYSROOT "" CACHE STRING "Use alternate sysroot.")
-set(LIBCXX_GCC_TOOLCHAIN "" CACHE STRING "Use alternate GCC toolchain.")
+
+if(CMAKE_CXX_COMPILER_TARGET)
+  set(LIBCXX_DEFAULT_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
+else()
+  set(LIBCXX_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+endif()
+set(LIBCXX_TARGET_TRIPLE "${LIBCXX_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Use alternate target triple.")
+set(LIBCXX_SYSROOT "${CMAKE_SYSROOT}" CACHE STRING "Use alternate sysroot.")
+set(LIBCXX_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}" CACHE STRING "Use alternate GCC toolchain.")
 
 # Feature options -------------------------------------------------------------
 option(LIBCXX_ENABLE_EXCEPTIONS "Use exceptions." ON)
@@ -478,21 +490,14 @@ include(HandleLibcxxFlags)
 # 'config-ix' use them during feature checks. It also adds them to both
 # 'LIBCXX_COMPILE_FLAGS' and 'LIBCXX_LINK_FLAGS'
 add_target_flags_if(LIBCXX_BUILD_32_BITS "-m32")
-
 if(LIBCXX_TARGET_TRIPLE)
   add_target_flags_if_supported("--target=${LIBCXX_TARGET_TRIPLE}")
-elseif(CMAKE_CXX_COMPILER_TARGET)
-  set(LIBCXX_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
 endif()
 if(LIBCXX_SYSROOT)
   add_target_flags_if_supported("--sysroot=${LIBCXX_SYSROOT}")
-elseif(CMAKE_SYSROOT)
-  set(LIBCXX_SYSROOT "${CMAKE_SYSROOT}")
 endif()
 if(LIBCXX_GCC_TOOLCHAIN)
   add_target_flags_if_supported("--gcc-toolchain=${LIBCXX_GCC_TOOLCHAIN}")
-elseif(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN)
-  set(LIBCXX_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}")
 endif()
 
 # Configure compiler.
@@ -893,6 +898,7 @@ config_define_if_not(LIBCXX_ENABLE_FILESYSTEM _LIBCPP_HAS_NO_FILESYSTEM_LIBRARY)
 config_define_if_not(LIBCXX_ENABLE_RANDOM_DEVICE _LIBCPP_HAS_NO_RANDOM_DEVICE)
 config_define_if_not(LIBCXX_ENABLE_LOCALIZATION _LIBCPP_HAS_NO_LOCALIZATION)
 config_define_if_not(LIBCXX_ENABLE_UNICODE _LIBCPP_HAS_NO_UNICODE)
+config_define_if_not(LIBCXX_ENABLE_WIDE_CHARACTERS _LIBCPP_HAS_NO_WIDE_CHARACTERS)
 config_define_if_not(LIBCXX_ENABLE_VENDOR_AVAILABILITY_ANNOTATIONS _LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS)
 # Incomplete features get their own specific disabling flags. This makes it
 # easier to grep for target specific flags once the feature is complete.

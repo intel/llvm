@@ -35,7 +35,6 @@ class SILowerSGPRSpills : public MachineFunctionPass {
 private:
   const SIRegisterInfo *TRI = nullptr;
   const SIInstrInfo *TII = nullptr;
-  VirtRegMap *VRM = nullptr;
   LiveIntervals *LIS = nullptr;
 
   // Save and Restore blocks of the current function. Typically there is a
@@ -289,7 +288,6 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
   TII = ST.getInstrInfo();
   TRI = &TII->getRegisterInfo();
 
-  VRM = getAnalysisIfAvailable<VirtRegMap>();
   LIS = getAnalysisIfAvailable<LiveIntervals>();
 
   assert(SaveBlocks.empty() && RestoreBlocks.empty());
@@ -372,6 +370,13 @@ bool SILowerSGPRSpills::runOnMachineFunction(MachineFunction &MF) {
         }
       }
     }
+
+    // All those frame indices which are dead by now should be removed from the
+    // function frame. Othewise, there is a side effect such as re-mapping of
+    // free frame index ids by the later pass(es) like "stack slot coloring"
+    // which in turn could mess-up with the book keeping of "frame index to VGPR
+    // lane".
+    FuncInfo->removeDeadFrameIndices(MFI);
 
     MadeChange = true;
   } else if (FuncInfo->VGPRReservedForSGPRSpill) {

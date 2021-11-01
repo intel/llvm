@@ -1889,7 +1889,7 @@ Instruction *InstCombinerImpl::foldICmpAndConstant(ICmpInst &Cmp,
   // X & -C == -C -> X >  u ~C
   // X & -C != -C -> X <= u ~C
   //   iff C is a power of 2
-  if (Cmp.getOperand(1) == Y && (-C).isPowerOf2()) {
+  if (Cmp.getOperand(1) == Y && C.isNegatedPowerOf2()) {
     auto NewPred =
         Pred == CmpInst::ICMP_EQ ? CmpInst::ICMP_UGT : CmpInst::ICMP_ULE;
     return new ICmpInst(NewPred, X, SubOne(cast<Constant>(Cmp.getOperand(1))));
@@ -1948,6 +1948,17 @@ Instruction *InstCombinerImpl::foldICmpOrConstant(ICmpInst &Cmp,
       Constant *NewC = ConstantInt::get(Or->getType(), C ^ (*MaskC));
       return new ICmpInst(Pred, And, NewC);
     }
+  }
+
+  // (X | (X-1)) s<  0 --> X s< 1
+  // (X | (X-1)) s> -1 --> X s> 0
+  Value *X;
+  bool TrueIfSigned;
+  if (isSignBitCheck(Pred, C, TrueIfSigned) &&
+      match(Or, m_c_Or(m_Add(m_Value(X), m_AllOnes()), m_Deferred(X)))) {
+    auto NewPred = TrueIfSigned ? ICmpInst::ICMP_SLT : ICmpInst::ICMP_SGT;
+    Constant *NewC = ConstantInt::get(X->getType(), TrueIfSigned ? 1 : 0);
+    return new ICmpInst(NewPred, X, NewC);
   }
 
   if (!Cmp.isEquality() || !C.isZero() || !Or->hasOneUse())

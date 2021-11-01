@@ -139,8 +139,6 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "scalar-evolution"
 
-STATISTIC(NumArrayLenItCounts,
-          "Number of trip counts computed with array length");
 STATISTIC(NumTripCountsComputed,
           "Number of loops with predictable loop counts");
 STATISTIC(NumTripCountsNotComputed,
@@ -4410,24 +4408,24 @@ const SCEV *ScalarEvolution::getPointerBase(const SCEV *V) {
 }
 
 /// Push users of the given Instruction onto the given Worklist.
-static void
-PushDefUseChildren(Instruction *I,
-                   SmallVectorImpl<Instruction *> &Worklist) {
+static void PushDefUseChildren(Instruction *I,
+                               SmallVectorImpl<Instruction *> &Worklist,
+                               SmallPtrSetImpl<Instruction *> &Visited) {
   // Push the def-use children onto the Worklist stack.
-  for (User *U : I->users())
-    Worklist.push_back(cast<Instruction>(U));
+  for (User *U : I->users()) {
+    auto *UserInsn = cast<Instruction>(U);
+    if (Visited.insert(UserInsn).second)
+      Worklist.push_back(UserInsn);
+  }
 }
 
 void ScalarEvolution::forgetSymbolicName(Instruction *PN, const SCEV *SymName) {
   SmallVector<Instruction *, 16> Worklist;
-  PushDefUseChildren(PN, Worklist);
-
   SmallPtrSet<Instruction *, 8> Visited;
   Visited.insert(PN);
+  Worklist.push_back(PN);
   while (!Worklist.empty()) {
     Instruction *I = Worklist.pop_back_val();
-    if (!Visited.insert(I).second)
-      continue;
 
     auto It = ValueExprMap.find_as(static_cast<Value *>(I));
     if (It != ValueExprMap.end()) {
@@ -4453,7 +4451,7 @@ void ScalarEvolution::forgetSymbolicName(Instruction *PN, const SCEV *SymName) {
       }
     }
 
-    PushDefUseChildren(I, Worklist);
+    PushDefUseChildren(I, Worklist, Visited);
   }
 }
 
@@ -7370,13 +7368,15 @@ bool ScalarEvolution::isBackedgeTakenCountMaxOrZero(const Loop *L) {
 }
 
 /// Push PHI nodes in the header of the given loop onto the given Worklist.
-static void
-PushLoopPHIs(const Loop *L, SmallVectorImpl<Instruction *> &Worklist) {
+static void PushLoopPHIs(const Loop *L,
+                         SmallVectorImpl<Instruction *> &Worklist,
+                         SmallPtrSetImpl<Instruction *> &Visited) {
   BasicBlock *Header = L->getHeader();
 
   // Push all Loop-header PHIs onto the Worklist stack.
   for (PHINode &PN : Header->phis())
-    Worklist.push_back(&PN);
+    if (Visited.insert(&PN).second)
+      Worklist.push_back(&PN);
 }
 
 const ScalarEvolution::BackedgeTakenInfo &
@@ -7437,9 +7437,8 @@ ScalarEvolution::getBackedgeTakenInfo(const Loop *L) {
   // it handles SCEVUnknown PHI nodes specially.
   if (Result.hasAnyInfo()) {
     SmallVector<Instruction *, 16> Worklist;
-    PushLoopPHIs(L, Worklist);
-
     SmallPtrSet<Instruction *, 8> Discovered;
+    PushLoopPHIs(L, Worklist, Discovered);
     while (!Worklist.empty()) {
       Instruction *I = Worklist.pop_back_val();
 
@@ -7551,12 +7550,10 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
     }
 
     // Drop information about expressions based on loop-header PHIs.
-    PushLoopPHIs(CurrL, Worklist);
+    PushLoopPHIs(CurrL, Worklist, Visited);
 
     while (!Worklist.empty()) {
       Instruction *I = Worklist.pop_back_val();
-      if (!Visited.insert(I).second)
-        continue;
 
       ValueExprMapType::iterator It =
           ValueExprMap.find_as(static_cast<Value *>(I));
@@ -7567,7 +7564,7 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
           ConstantEvolutionLoopExitValue.erase(PN);
       }
 
-      PushDefUseChildren(I, Worklist);
+      PushDefUseChildren(I, Worklist, Visited);
     }
 
     LoopPropertiesCache.erase(CurrL);
@@ -7589,14 +7586,12 @@ void ScalarEvolution::forgetValue(Value *V) {
 
   // Drop information about expressions based on loop-header PHIs.
   SmallVector<Instruction *, 16> Worklist;
-  Worklist.push_back(I);
-
   SmallPtrSet<Instruction *, 8> Visited;
+  Worklist.push_back(I);
+  Visited.insert(I);
+
   while (!Worklist.empty()) {
     I = Worklist.pop_back_val();
-    if (!Visited.insert(I).second)
-      continue;
-
     ValueExprMapType::iterator It =
       ValueExprMap.find_as(static_cast<Value *>(I));
     if (It != ValueExprMap.end()) {
@@ -7606,7 +7601,7 @@ void ScalarEvolution::forgetValue(Value *V) {
         ConstantEvolutionLoopExitValue.erase(PN);
     }
 
-    PushDefUseChildren(I, Worklist);
+    PushDefUseChildren(I, Worklist, Visited);
   }
 }
 
@@ -7681,7 +7676,7 @@ ScalarEvolution::BackedgeTakenInfo::getConstantMax(ScalarEvolution *SE) const {
     return !ENT.hasAlwaysTruePredicate();
   };
 
-  if (any_of(ExitNotTaken, PredicateNotAlwaysTrue) || !getConstantMax())
+  if (!getConstantMax() || any_of(ExitNotTaken, PredicateNotAlwaysTrue))
     return SE->getCouldNotCompute();
 
   assert((isa<SCEVCouldNotCompute>(getConstantMax()) ||
@@ -7829,7 +7824,7 @@ ScalarEvolution::computeBackedgeTakenCount(const Loop *L,
     if (auto *BI = dyn_cast<BranchInst>(ExitBB->getTerminator()))
       if (auto *CI = dyn_cast<ConstantInt>(BI->getCondition())) {
         bool ExitIfTrue = !L->contains(BI->getSuccessor(0));
-        if ((ExitIfTrue && CI->isZero()) || (!ExitIfTrue && CI->isOne()))
+        if (ExitIfTrue == CI->isZero())
           continue;
       }
 
@@ -8119,15 +8114,6 @@ ScalarEvolution::computeExitLimitFromICmp(const Loop *L,
     Pred = ExitCond->getInversePredicate();
   const ICmpInst::Predicate OriginalPred = Pred;
 
-  // Handle common loops like: for (X = "string"; *X; ++X)
-  if (LoadInst *LI = dyn_cast<LoadInst>(ExitCond->getOperand(0)))
-    if (Constant *RHS = dyn_cast<Constant>(ExitCond->getOperand(1))) {
-      ExitLimit ItCnt =
-        computeLoadConstantCompareExitLimit(LI, RHS, L, Pred);
-      if (ItCnt.hasAnyInfo())
-        return ItCnt;
-    }
-
   const SCEV *LHS = getSCEV(ExitCond->getOperand(0));
   const SCEV *RHS = getSCEV(ExitCond->getOperand(1));
 
@@ -8256,85 +8242,6 @@ EvaluateConstantChrecAtConstant(const SCEVAddRecExpr *AddRec, ConstantInt *C,
   assert(isa<SCEVConstant>(Val) &&
          "Evaluation of SCEV at constant didn't fold correctly?");
   return cast<SCEVConstant>(Val)->getValue();
-}
-
-/// Given an exit condition of 'icmp op load X, cst', try to see if we can
-/// compute the backedge execution count.
-ScalarEvolution::ExitLimit
-ScalarEvolution::computeLoadConstantCompareExitLimit(
-  LoadInst *LI,
-  Constant *RHS,
-  const Loop *L,
-  ICmpInst::Predicate predicate) {
-  if (LI->isVolatile()) return getCouldNotCompute();
-
-  // Check to see if the loaded pointer is a getelementptr of a global.
-  // TODO: Use SCEV instead of manually grubbing with GEPs.
-  GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(LI->getOperand(0));
-  if (!GEP) return getCouldNotCompute();
-
-  // Make sure that it is really a constant global we are gepping, with an
-  // initializer, and make sure the first IDX is really 0.
-  GlobalVariable *GV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
-  if (!GV || !GV->isConstant() || !GV->hasDefinitiveInitializer() ||
-      GEP->getNumOperands() < 3 || !isa<Constant>(GEP->getOperand(1)) ||
-      !cast<Constant>(GEP->getOperand(1))->isNullValue())
-    return getCouldNotCompute();
-
-  // Okay, we allow one non-constant index into the GEP instruction.
-  Value *VarIdx = nullptr;
-  std::vector<Constant*> Indexes;
-  unsigned VarIdxNum = 0;
-  for (unsigned i = 2, e = GEP->getNumOperands(); i != e; ++i)
-    if (ConstantInt *CI = dyn_cast<ConstantInt>(GEP->getOperand(i))) {
-      Indexes.push_back(CI);
-    } else if (!isa<ConstantInt>(GEP->getOperand(i))) {
-      if (VarIdx) return getCouldNotCompute();  // Multiple non-constant idx's.
-      VarIdx = GEP->getOperand(i);
-      VarIdxNum = i-2;
-      Indexes.push_back(nullptr);
-    }
-
-  // Loop-invariant loads may be a byproduct of loop optimization. Skip them.
-  if (!VarIdx)
-    return getCouldNotCompute();
-
-  // Okay, we know we have a (load (gep GV, 0, X)) comparison with a constant.
-  // Check to see if X is a loop variant variable value now.
-  const SCEV *Idx = getSCEV(VarIdx);
-  Idx = getSCEVAtScope(Idx, L);
-
-  // We can only recognize very limited forms of loop index expressions, in
-  // particular, only affine AddRec's like {C1,+,C2}<L>.
-  const SCEVAddRecExpr *IdxExpr = dyn_cast<SCEVAddRecExpr>(Idx);
-  if (!IdxExpr || IdxExpr->getLoop() != L || !IdxExpr->isAffine() ||
-      isLoopInvariant(IdxExpr, L) ||
-      !isa<SCEVConstant>(IdxExpr->getOperand(0)) ||
-      !isa<SCEVConstant>(IdxExpr->getOperand(1)))
-    return getCouldNotCompute();
-
-  unsigned MaxSteps = MaxBruteForceIterations;
-  for (unsigned IterationNum = 0; IterationNum != MaxSteps; ++IterationNum) {
-    ConstantInt *ItCst = ConstantInt::get(
-                           cast<IntegerType>(IdxExpr->getType()), IterationNum);
-    ConstantInt *Val = EvaluateConstantChrecAtConstant(IdxExpr, ItCst, *this);
-
-    // Form the GEP offset.
-    Indexes[VarIdxNum] = Val;
-
-    Constant *Result = ConstantFoldLoadThroughGEPIndices(GV->getInitializer(),
-                                                         Indexes);
-    if (!Result) break;  // Cannot compute!
-
-    // Evaluate the condition for this iteration.
-    Result = ConstantExpr::getICmp(predicate, Result, RHS);
-    if (!isa<ConstantInt>(Result)) break;  // Couldn't decide for sure
-    if (cast<ConstantInt>(Result)->getValue().isMinValue()) {
-      ++NumArrayLenItCounts;
-      return getConstant(ItCst);   // Found terminating iteration!
-    }
-  }
-  return getCouldNotCompute();
 }
 
 ScalarEvolution::ExitLimit ScalarEvolution::computeShiftCompareExitLimit(
@@ -10672,8 +10579,10 @@ bool ScalarEvolution::isImpliedCond(ICmpInst::Predicate Pred, const SCEV *LHS,
       auto BitWidth = getTypeSizeInBits(NarrowType);
       const SCEV *MaxValue = getZeroExtendExpr(
           getConstant(APInt::getMaxValue(BitWidth)), WideType);
-      if (isKnownPredicate(ICmpInst::ICMP_ULE, FoundLHS, MaxValue) &&
-          isKnownPredicate(ICmpInst::ICMP_ULE, FoundRHS, MaxValue)) {
+      if (isKnownViaNonRecursiveReasoning(ICmpInst::ICMP_ULE, FoundLHS,
+                                          MaxValue) &&
+          isKnownViaNonRecursiveReasoning(ICmpInst::ICMP_ULE, FoundRHS,
+                                          MaxValue)) {
         const SCEV *TruncFoundLHS = getTruncateExpr(FoundLHS, NarrowType);
         const SCEV *TruncFoundRHS = getTruncateExpr(FoundRHS, NarrowType);
         if (isImpliedCondBalancedTypes(Pred, LHS, RHS, FoundPred, TruncFoundLHS,
@@ -10773,18 +10682,49 @@ bool ScalarEvolution::isImpliedCondBalancedTypes(
     return false;
   }
 
-  // Unsigned comparison is the same as signed comparison when both the operands
-  // are non-negative or negative.
   auto IsSignFlippedPredicate = [](CmpInst::Predicate P1,
                                    CmpInst::Predicate P2) {
     assert(P1 != P2 && "Handled earlier!");
     return CmpInst::isRelational(P2) &&
            P1 == CmpInst::getFlippedSignednessPredicate(P2);
   };
-  if (IsSignFlippedPredicate(Pred, FoundPred) &&
-      ((isKnownNonNegative(FoundLHS) && isKnownNonNegative(FoundRHS)) ||
-       (isKnownNegative(FoundLHS) && isKnownNegative(FoundRHS))))
-    return isImpliedCondOperands(Pred, LHS, RHS, FoundLHS, FoundRHS, CtxI);
+  if (IsSignFlippedPredicate(Pred, FoundPred)) {
+    // Unsigned comparison is the same as signed comparison when both the
+    // operands are non-negative or negative.
+    if ((isKnownNonNegative(FoundLHS) && isKnownNonNegative(FoundRHS)) ||
+        (isKnownNegative(FoundLHS) && isKnownNegative(FoundRHS)))
+      return isImpliedCondOperands(Pred, LHS, RHS, FoundLHS, FoundRHS, CtxI);
+    // Create local copies that we can freely swap and canonicalize our
+    // conditions to "le/lt".
+    ICmpInst::Predicate CanonicalPred = Pred, CanonicalFoundPred = FoundPred;
+    const SCEV *CanonicalLHS = LHS, *CanonicalRHS = RHS,
+               *CanonicalFoundLHS = FoundLHS, *CanonicalFoundRHS = FoundRHS;
+    if (ICmpInst::isGT(CanonicalPred) || ICmpInst::isGE(CanonicalPred)) {
+      CanonicalPred = ICmpInst::getSwappedPredicate(CanonicalPred);
+      CanonicalFoundPred = ICmpInst::getSwappedPredicate(CanonicalFoundPred);
+      std::swap(CanonicalLHS, CanonicalRHS);
+      std::swap(CanonicalFoundLHS, CanonicalFoundRHS);
+    }
+    assert((ICmpInst::isLT(CanonicalPred) || ICmpInst::isLE(CanonicalPred)) &&
+           "Must be!");
+    assert((ICmpInst::isLT(CanonicalFoundPred) ||
+            ICmpInst::isLE(CanonicalFoundPred)) &&
+           "Must be!");
+    if (ICmpInst::isSigned(CanonicalPred) && isKnownNonNegative(CanonicalRHS))
+      // Use implication:
+      // x <u y && y >=s 0 --> x <s y.
+      // If we can prove the left part, the right part is also proven.
+      return isImpliedCondOperands(CanonicalFoundPred, CanonicalLHS,
+                                   CanonicalRHS, CanonicalFoundLHS,
+                                   CanonicalFoundRHS);
+    if (ICmpInst::isUnsigned(CanonicalPred) && isKnownNegative(CanonicalRHS))
+      // Use implication:
+      // x <s y && y <s 0 --> x <u y.
+      // If we can prove the left part, the right part is also proven.
+      return isImpliedCondOperands(CanonicalFoundPred, CanonicalLHS,
+                                   CanonicalRHS, CanonicalFoundLHS,
+                                   CanonicalFoundRHS);
+  }
 
   // Check if we can make progress by sharpening ranges.
   if (FoundPred == ICmpInst::ICMP_NE &&

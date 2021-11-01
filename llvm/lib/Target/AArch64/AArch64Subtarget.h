@@ -50,6 +50,7 @@ public:
     CortexA35,
     CortexA53,
     CortexA55,
+    CortexA510,
     CortexA57,
     CortexA65,
     CortexA72,
@@ -123,6 +124,7 @@ protected:
   // SVE extensions
   bool HasSVE = false;
   bool UseExperimentalZeroingPseudos = false;
+  bool UseScalarIncVL = false;
 
   // Armv8.2 Crypto extensions
   bool HasSM4 = false;
@@ -194,6 +196,9 @@ protected:
   bool HasSMEF64 = false;
   bool HasSMEI64 = false;
   bool HasStreamingSVE = false;
+
+  // AppleA7 system register.
+  bool HasAppleA7SysReg = false;
 
   // Future architecture extensions.
   bool HasETE = false;
@@ -275,6 +280,7 @@ protected:
 
   unsigned MinSVEVectorSizeInBits;
   unsigned MaxSVEVectorSizeInBits;
+  unsigned VScaleForTuning = 2;
 
   /// TargetTriple - What processor and OS we're targeting.
   Triple TargetTriple;
@@ -296,7 +302,8 @@ private:
   /// passed in feature string so that we can use initializer lists for
   /// subtarget initialization.
   AArch64Subtarget &initializeSubtargetDependencies(StringRef FS,
-                                                    StringRef CPUString);
+                                                    StringRef CPUString,
+                                                    StringRef TuneCPUString);
 
   /// Initialize properties based on the selected processor family.
   void initializeProperties();
@@ -305,8 +312,8 @@ public:
   /// This constructor initializes the data members to match that
   /// of the specified triple.
   AArch64Subtarget(const Triple &TT, const std::string &CPU,
-                   const std::string &FS, const TargetMachine &TM,
-                   bool LittleEndian,
+                   const std::string &TuneCPU, const std::string &FS,
+                   const TargetMachine &TM, bool LittleEndian,
                    unsigned MinSVEVectorSizeInBitsOverride = 0,
                    unsigned MaxSVEVectorSizeInBitsOverride = 0);
 
@@ -456,6 +463,8 @@ public:
   bool useExperimentalZeroingPseudos() const {
     return UseExperimentalZeroingPseudos;
   }
+
+  bool useScalarIncVL() const { return UseScalarIncVL; }
 
   /// CPU has TBI (top byte of addresses is ignored during HW address
   /// translation) and OS enables it.
@@ -647,6 +656,8 @@ public:
   }
 
   bool useSVEForFixedLengthVectors() const;
+
+  unsigned getVScaleForTuning() const { return VScaleForTuning; }
 };
 } // End llvm namespace
 

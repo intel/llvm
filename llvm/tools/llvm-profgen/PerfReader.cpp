@@ -12,22 +12,22 @@
 
 #define DEBUG_TYPE "perf-reader"
 
-static cl::opt<bool> ShowMmapEvents("show-mmap-events", cl::ReallyHidden,
-                                    cl::init(false), cl::ZeroOrMore,
-                                    cl::desc("Print binary load events."));
-
-cl::opt<bool> SkipSymbolization("skip-symbolization", cl::ReallyHidden,
-                                cl::init(false), cl::ZeroOrMore,
+cl::opt<bool> SkipSymbolization("skip-symbolization", cl::init(false),
+                                cl::ZeroOrMore,
                                 cl::desc("Dump the unsymbolized profile to the "
                                          "output file. It will show unwinder "
                                          "output for CS profile generation."));
-cl::opt<bool> UseOffset("use-offset", cl::ReallyHidden, cl::init(true),
-                        cl::ZeroOrMore,
-                        cl::desc("Work with `--skip-symbolization` to dump the "
-                                 "offset instead of virtual address."));
-cl::opt<bool>
-    IgnoreStackSamples("ignore-stack-samples", cl::ReallyHidden,
-                       cl::init(false), cl::ZeroOrMore,
+
+static cl::opt<bool> ShowMmapEvents("show-mmap-events", cl::init(false),
+                                    cl::ZeroOrMore,
+                                    cl::desc("Print binary load events."));
+
+static cl::opt<bool>
+    UseOffset("use-offset", cl::init(true), cl::ZeroOrMore,
+              cl::desc("Work with `--skip-symbolization` to dump the "
+                       "offset instead of virtual address."));
+static cl::opt<bool>
+    IgnoreStackSamples("ignore-stack-samples", cl::init(false), cl::ZeroOrMore,
                        cl::desc("Ignore call stack samples for hybrid samples "
                                 "and produce context-insensitive profile."));
 
@@ -449,7 +449,7 @@ bool PerfReaderBase::extractLBRStack(TraceStream &TraceIt,
   // Skip the leading instruction pointer.
   size_t Index = 0;
   uint64_t LeadingAddr;
-  if (!Records.empty() && Records[0].find('/') == StringRef::npos) {
+  if (!Records.empty() && !Records[0].contains('/')) {
     if (Records[0].getAsInteger(16, LeadingAddr)) {
       WarnInvalidLBR(TraceIt);
       TraceIt.advance();
@@ -492,13 +492,13 @@ bool PerfReaderBase::extractLBRStack(TraceStream &TraceIt,
     if (IsExternal) {
       if (PrevTrDst)
         continue;
-      else if (!LBRStack.empty()) {
+      if (!LBRStack.empty()) {
         WithColor::warning()
             << "Invalid transfer to external code in LBR record at line "
             << TraceIt.getLineNumber() << ": " << TraceIt.getCurrentLine()
             << "\n";
-        break;
       }
+      break;
     }
 
     if (IsOutgoing) {
@@ -647,9 +647,13 @@ void HybridPerfReader::parseSample(TraceStream &TraceIt, uint64_t Count) {
   if (!TraceIt.isAtEoF() && TraceIt.getCurrentLine().startswith(" 0x")) {
     // Parsing LBR stack and populate into PerfSample.LBRStack
     if (extractLBRStack(TraceIt, Sample->LBRStack)) {
-      // Canonicalize stack leaf to avoid 'random' IP from leaf frame skew LBR
-      // ranges
-      Sample->CallStack.front() = Sample->LBRStack[0].Target;
+      if (IgnoreStackSamples) {
+        Sample->CallStack.clear();
+      } else {
+        // Canonicalize stack leaf to avoid 'random' IP from leaf frame skew LBR
+        // ranges
+        Sample->CallStack.front() = Sample->LBRStack[0].Target;
+      }
       // Record samples by aggregation
       AggregatedSamples[Hashable<PerfSample>(Sample)] += Count;
     }
@@ -858,7 +862,7 @@ bool PerfReaderBase::isLBRSample(StringRef Line) {
   Line.trim().split(Records, " ", 2, false);
   if (Records.size() < 2)
     return false;
-  if (Records[1].startswith("0x") && Records[1].find('/') != StringRef::npos)
+  if (Records[1].startswith("0x") && Records[1].contains('/'))
     return true;
   return false;
 }
@@ -873,7 +877,7 @@ bool PerfReaderBase::isMMap2Event(StringRef Line) {
 
   // PERF_RECORD_MMAP2 does not appear at the beginning of the line
   // for ` perf script  --show-mmap-events  -i ...`
-  return Line.find("PERF_RECORD_MMAP2") != StringRef::npos;
+  return Line.contains("PERF_RECORD_MMAP2");
 }
 
 // The raw hybird sample is like

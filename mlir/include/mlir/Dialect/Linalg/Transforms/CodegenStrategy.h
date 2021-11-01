@@ -224,6 +224,14 @@ struct CodegenStrategy {
         .enableHoistRedundantVectorTransfersOnTensor = val;
     return *this;
   }
+  CodegenStrategy &setMaxTransferRank(int64_t val) {
+    this->lateCodegenStrategyOptions.maxTransferRank = val;
+    return *this;
+  }
+  CodegenStrategy &setEnableVectorTransferLowering(bool val) {
+    this->lateCodegenStrategyOptions.enableVectorTransferLowering = val;
+    return *this;
+  }
   CodegenStrategy &setEnableVectorTransferPartialRewrite(bool val) {
     this->lateCodegenStrategyOptions.enableVectorTransferPartialRewrite = val;
     return *this;
@@ -239,7 +247,6 @@ struct CodegenStrategy {
 
   /// Apply the transformation patterns in sequence with cleanup
   /// transformations interleaved.
-  LogicalResult transform(FuncOp func) const;
   void configurePassPipeline(OpPassManager &pm, MLIRContext *context) const;
 
 private:

@@ -1014,8 +1014,9 @@ private:
   /// had their instruction creation deferred.
   void flushPendingLocs(VarLocInMBB &PendingInLocs, VarLocMap &VarLocIDs);
 
-  bool ExtendRanges(MachineFunction &MF, TargetPassConfig *TPC,
-                    unsigned InputBBLimit, unsigned InputDbgValLimit) override;
+  bool ExtendRanges(MachineFunction &MF, MachineDominatorTree *DomTree,
+                    TargetPassConfig *TPC, unsigned InputBBLimit,
+                    unsigned InputDbgValLimit) override;
 
 public:
   /// Default construct and initialize the pass.
@@ -1524,8 +1525,7 @@ void VarLocBasedLDV::transferRegisterDef(MachineInstr &MI,
       for (MCRegAliasIterator RAI(MO.getReg(), TRI, true); RAI.isValid(); ++RAI)
         // FIXME: Can we break out of this loop early if no insertion occurs?
         DeadRegs.insert(*RAI);
-      if (RegSetInstrs.find(MO.getReg()) != RegSetInstrs.end())
-        RegSetInstrs.erase(MO.getReg());
+      RegSetInstrs.erase(MO.getReg());
       RegSetInstrs.insert({MO.getReg(), &MI});
     } else if (MO.isRegMask()) {
       RegMasks.push_back(MO.getRegMask());
@@ -1554,8 +1554,7 @@ void VarLocBasedLDV::transferRegisterDef(MachineInstr &MI,
       if (AnyRegMaskKillsReg)
         DeadRegs.insert(Reg);
       if (AnyRegMaskKillsReg) {
-        if (RegSetInstrs.find(Reg) != RegSetInstrs.end())
-          RegSetInstrs.erase(Reg);
+        RegSetInstrs.erase(Reg);
         RegSetInstrs.insert({Reg, &MI});
       }
     }
@@ -2107,9 +2106,11 @@ void VarLocBasedLDV::recordEntryValue(const MachineInstr &MI,
 
 /// Calculate the liveness information for the given machine function and
 /// extend ranges across basic blocks.
-bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF, TargetPassConfig *TPC,
-                                  unsigned InputBBLimit,
+bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF,
+                                  MachineDominatorTree *DomTree,
+                                  TargetPassConfig *TPC, unsigned InputBBLimit,
                                   unsigned InputDbgValLimit) {
+  (void)DomTree;
   LLVM_DEBUG(dbgs() << "\nDebug Range Extension\n");
 
   if (!MF.getFunction().getSubprogram())

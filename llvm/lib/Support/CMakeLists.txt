@@ -124,6 +124,7 @@ add_llvm_component_library(LLVMSupport
   BranchProbability.cpp
   BuryPointer.cpp
   CachePruning.cpp
+  Caching.cpp
   circular_raw_ostream.cpp
   Chrono.cpp
   COM.cpp
@@ -186,6 +187,7 @@ add_llvm_component_library(LLVMSupport
   Regex.cpp
   RISCVAttributes.cpp
   RISCVAttributeParser.cpp
+  RISCVISAInfo.cpp
   ScaledNumber.cpp
   ScopedPrinter.cpp
   SHA1.cpp

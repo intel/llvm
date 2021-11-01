@@ -137,7 +137,7 @@ public:
 
     // This errors because const decltype(SomeLambda) != decltype(SomeLambda),
     //  so this is not the unnamed lambda situation.
-    // expected-error@#KernelSingleTask {{unnamed lambda 'const}}
+    // expected-error@#KernelSingleTask {{unnamed type 'const}}
     // expected-note@+3{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       auto SomeLambda = []() {};
@@ -150,7 +150,7 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error-re@#KernelSingleTask {{unnamed lambda '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' used}}
+  // expected-error-re@#KernelSingleTask {{unnamed type '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is invalid; provide a kernel name, or use '-fsycl-unnamed-lambda' to enable unnamed kernel lambdas}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });

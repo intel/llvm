@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
@@ -111,6 +112,10 @@ struct TestLinalgTransforms
   ListOption<int64_t> paddedOperands{
       *this, "padded-operands",
       llvm::cl::desc("Operands to pad when test-tile-pattern"),
+      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  ListOption<int64_t> nofoldOperands{
+      *this, "nofold-operands",
+      llvm::cl::desc("Operands to set nofold when test-tile-pattern"),
       llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
   ListOption<int64_t> peeledLoops{
       *this, "peeled-loops",
@@ -337,8 +342,8 @@ static LogicalResult copyCallBackFn(OpBuilder &b, Value src, Value dst,
   if (!floatType.isa<FloatType>())
     return failure();
   if (!isOutput) {
-    Value cst =
-        b.create<ConstantOp>(src.getLoc(), FloatAttr::get(floatType, 42.0));
+    Value cst = b.create<arith::ConstantOp>(src.getLoc(),
+                                            FloatAttr::get(floatType, 42.0));
     b.create<FillOp>(src.getLoc(), cst, dst);
   }
   b.create<CopyOp>(src.getLoc(), src, dst);
@@ -526,6 +531,14 @@ applyMatmulToVectorPatterns(FuncOp funcOp,
     fillL1TilingAndMatmulToVectorPatterns(funcOp, Identifier::get("L2", ctx),
                                           stage1Patterns);
   }
+  {
+    // Canonicalization patterns
+    RewritePatternSet canonicalizationPatterns(funcOp.getContext());
+    vector::populateVectorTransferPermutationMapLoweringPatterns(
+        canonicalizationPatterns);
+    vector::populateVetorReductionToContractPatterns(canonicalizationPatterns);
+    stage1Patterns.push_back(std::move(canonicalizationPatterns));
+  }
   SmallVector<FrozenRewritePatternSet, 4> frozenStage1Patterns;
   llvm::move(stage1Patterns, std::back_inserter(frozenStage1Patterns));
   FrozenRewritePatternSet stage2Patterns =
@@ -548,6 +561,7 @@ static void applyLinalgToVectorPatterns(FuncOp funcOp) {
       LinalgTransformationFilter()
           .addOpFilter<ContractionOpInterface, FillOp, CopyOp, GenericOp>());
   populatePadTensorOpVectorizationPatterns(patterns);
+  populateConvolutionVectorizationPatterns(patterns);
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
 }
 
@@ -573,12 +587,14 @@ static void applyExtractSliceOfPadTensorSwapPattern(FuncOp funcOp) {
 // In the future, it should be the zero of type + op.
 static Value getNeutralOfLinalgOp(OpBuilder &b, OpOperand &op) {
   auto t = getElementTypeOrSelf(op.get());
-  return b.create<ConstantOp>(op.getOwner()->getLoc(), t, b.getZeroAttr(t));
+  return b.create<arith::ConstantOp>(op.getOwner()->getLoc(), t,
+                                     b.getZeroAttr(t));
 }
 
 static void applyTilePattern(FuncOp funcOp, std::string loopType,
                              ArrayRef<int64_t> tileSizes,
                              ArrayRef<int64_t> paddedOperands,
+                             ArrayRef<int64_t> nofoldOperands,
                              ArrayRef<int64_t> peeledLoops,
                              bool scalarizeDynamicDims) {
   MLIRContext *context = funcOp.getContext();
@@ -606,7 +622,13 @@ static void applyTilePattern(FuncOp funcOp, std::string loopType,
         return failure();
       return getNeutralOfLinalgOp(b, opOperand);
     };
+    auto nofoldFunc = [&](OpOperand &opOperand) {
+      if (llvm::count(nofoldOperands, opOperand.getOperandNumber()) != 0)
+        return true;
+      return false;
+    };
     linalgTilingOptions.setPaddingValueComputationFunction(paddingFunc);
+    linalgTilingOptions.setPaddingNoFoldComputationFunction(nofoldFunc);
   }
   tilingPattern.add<linalg::LinalgTilingPattern<linalg::MatmulOp>,
                     linalg::LinalgTilingPattern<linalg::GenericOp>>(
@@ -741,9 +763,11 @@ void TestLinalgTransforms::runOnFunction() {
                                         skipPartial);
   if (testTilePattern)
     return applyTilePattern(getFunction(), loopType, tileSizes, paddedOperands,
-                            peeledLoops, /*scalarizeDynamicDims=*/false);
+                            nofoldOperands, peeledLoops,
+                            /*scalarizeDynamicDims=*/false);
   if (testTileScalarizeDynamicDims)
     return applyTilePattern(getFunction(), loopType, tileSizes, paddedOperands,
+                            nofoldOperands,
                             /*peeledLoops=*/{}, /*scalarizeDynamicDims=*/true);
   if (testHoistPadding) {
     getFunction().walk([&](linalg::PadTensorOp padTensorOp) {

@@ -12,6 +12,7 @@
 
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
 #include "llvm/ExecutionEngine/JITLink/JITLink.h"
+#include "llvm/ExecutionEngine/JITLink/TableManager.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Support/Endian.h"
@@ -20,8 +21,6 @@
 #include "EHFrameSupportImpl.h"
 #include "ELFLinkGraphBuilder.h"
 #include "JITLinkGeneric.h"
-#include "PerGraphGOTAndPLTStubsBuilder.h"
-#include "PerGraphTLSInfoEntryBuilder.h"
 
 #define DEBUG_TYPE "jitlink"
 
@@ -31,179 +30,71 @@ using namespace llvm::jitlink::ELF_x86_64_Edges;
 
 namespace {
 
-constexpr StringRef ELFGOTSectionName = "$__GOT";
 constexpr StringRef ELFGOTSymbolName = "_GLOBAL_OFFSET_TABLE_";
 constexpr StringRef ELFTLSInfoSectionName = "$__TLSINFO";
 
-class PerGraphTLSInfoBuilder_ELF_x86_64
-    : public PerGraphTLSInfoEntryBuilder<PerGraphTLSInfoBuilder_ELF_x86_64> {
+class TLSInfoTableManager_ELF_x86_64
+    : public TableManager<TLSInfoTableManager_ELF_x86_64> {
 public:
   static const uint8_t TLSInfoEntryContent[16];
-  using PerGraphTLSInfoEntryBuilder<
-      PerGraphTLSInfoBuilder_ELF_x86_64>::PerGraphTLSInfoEntryBuilder;
 
-  bool isTLSEdgeToFix(Edge &E) {
-    return E.getKind() == x86_64::RequestTLSDescInGOTAndTransformToDelta32;
+  static StringRef getSectionName() { return ELFTLSInfoSectionName; }
+
+  bool visitEdge(LinkGraph &G, Block *B, Edge &E) {
+    if (E.getKind() == x86_64::RequestTLSDescInGOTAndTransformToDelta32) {
+      LLVM_DEBUG({
+        dbgs() << "  Fixing " << G.getEdgeKindName(E.getKind()) << " edge at "
+               << formatv("{0:x}", B->getFixupAddress(E)) << " ("
+               << formatv("{0:x}", B->getAddress()) << " + "
+               << formatv("{0:x}", E.getOffset()) << ")\n";
+      });
+      E.setKind(x86_64::Delta32);
+      E.setTarget(getEntryForTarget(G, E.getTarget()));
+      return true;
+    }
+    return false;
   }
 
-  Symbol &createTLSInfoEntry(Symbol &Target) {
+  Symbol &createEntry(LinkGraph &G, Symbol &Target) {
     // the TLS Info entry's key value will be written by the fixTLVSectionByName
     // pass, so create mutable content.
     auto &TLSInfoEntry = G.createMutableContentBlock(
-        getTLSInfoSection(), G.allocateContent(getTLSInfoEntryContent()), 0, 8,
+        getTLSInfoSection(G), G.allocateContent(getTLSInfoEntryContent()), 0, 8,
         0);
     TLSInfoEntry.addEdge(x86_64::Pointer64, 8, Target, 0);
     return G.addAnonymousSymbol(TLSInfoEntry, 0, 16, false, false);
   }
 
-  void fixTLSEdge(Edge &E, Symbol &Target) {
-    if (E.getKind() == x86_64::RequestTLSDescInGOTAndTransformToDelta32) {
-      E.setTarget(Target);
-      E.setKind(x86_64::Delta32);
-    }
-  }
-
-  Section &getTLSInfoSection() const {
-    if (!TLSInfoSection)
-      TLSInfoSection =
-          &G.createSection(ELFTLSInfoSectionName, sys::Memory::MF_READ);
-    return *TLSInfoSection;
-  }
-
 private:
-  ArrayRef<char> getTLSInfoEntryContent() {
+  Section &getTLSInfoSection(LinkGraph &G) {
+    if (!TLSInfoTable)
+      TLSInfoTable = &G.createSection(ELFTLSInfoSectionName, MemProt::Read);
+    return *TLSInfoTable;
+  }
+
+  ArrayRef<char> getTLSInfoEntryContent() const {
     return {reinterpret_cast<const char *>(TLSInfoEntryContent),
             sizeof(TLSInfoEntryContent)};
   }
 
-  mutable Section *TLSInfoSection = nullptr;
+  Section *TLSInfoTable = nullptr;
 };
 
-const uint8_t PerGraphTLSInfoBuilder_ELF_x86_64::TLSInfoEntryContent[16] = {
+const uint8_t TLSInfoTableManager_ELF_x86_64::TLSInfoEntryContent[16] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /*pthread key */
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  /*data address*/
 };
 
-class PerGraphGOTAndPLTStubsBuilder_ELF_x86_64
-    : public PerGraphGOTAndPLTStubsBuilder<
-          PerGraphGOTAndPLTStubsBuilder_ELF_x86_64> {
-public:
-  static const uint8_t NullGOTEntryContent[8];
-  static const uint8_t StubContent[6];
+Error buildTables_ELF_x86_64(LinkGraph &G) {
+  LLVM_DEBUG(dbgs() << "Visiting edges in graph:\n");
 
-  using PerGraphGOTAndPLTStubsBuilder<
-      PerGraphGOTAndPLTStubsBuilder_ELF_x86_64>::PerGraphGOTAndPLTStubsBuilder;
-
-  bool isGOTEdgeToFix(Edge &E) const {
-    if (E.getKind() == x86_64::Delta64FromGOT) {
-      // We need to make sure that the GOT section exists, but don't otherwise
-      // need to fix up this edge.
-      getGOTSection();
-      return false;
-    }
-    return E.getKind() == x86_64::RequestGOTAndTransformToDelta32 ||
-           E.getKind() == x86_64::RequestGOTAndTransformToDelta64 ||
-           E.getKind() ==
-               x86_64::RequestGOTAndTransformToPCRel32GOTLoadREXRelaxable ||
-           E.getKind() == x86_64::RequestGOTAndTransformToDelta64FromGOT ||
-           E.getKind() ==
-               x86_64::RequestGOTAndTransformToPCRel32GOTLoadRelaxable;
-  }
-
-  Symbol &createGOTEntry(Symbol &Target) {
-    auto &GOTEntryBlock = G.createContentBlock(
-        getGOTSection(), getGOTEntryBlockContent(), 0, 8, 0);
-    GOTEntryBlock.addEdge(x86_64::Pointer64, 0, Target, 0);
-    return G.addAnonymousSymbol(GOTEntryBlock, 0, 8, false, false);
-  }
-
-  void fixGOTEdge(Edge &E, Symbol &GOTEntry) {
-    // If this is a PCRel32GOT/PCRel64GOT then change it to an ordinary
-    // PCRel32/PCRel64. If it is a PCRel32GOTLoad then leave it as-is for now:
-    // We will use the kind to check for GOT optimization opportunities in the
-    // optimizeMachO_x86_64_GOTAndStubs pass below.
-    // If it's a GOT64 leave it as is.
-    switch (E.getKind()) {
-    case x86_64::RequestGOTAndTransformToPCRel32GOTLoadREXRelaxable:
-      E.setKind(x86_64::PCRel32GOTLoadREXRelaxable);
-      break;
-    case x86_64::RequestGOTAndTransformToPCRel32GOTLoadRelaxable:
-      E.setKind(x86_64::PCRel32GOTLoadRelaxable);
-      break;
-    case x86_64::RequestGOTAndTransformToDelta64:
-      E.setKind(x86_64::Delta64);
-      break;
-    case x86_64::RequestGOTAndTransformToDelta64FromGOT:
-      E.setKind(x86_64::Delta64FromGOT);
-      break;
-    case x86_64::RequestGOTAndTransformToDelta32:
-      E.setKind(x86_64::Delta32);
-      break;
-    default:
-      llvm_unreachable("Unexpected GOT edge kind");
-    }
-
-    E.setTarget(GOTEntry);
-    // Leave the edge addend as-is.
-  }
-
-  bool isExternalBranchEdge(Edge &E) {
-    return E.getKind() == x86_64::BranchPCRel32 && !E.getTarget().isDefined();
-  }
-
-  Symbol &createPLTStub(Symbol &Target) {
-    auto &StubContentBlock =
-        G.createContentBlock(getStubsSection(), getStubBlockContent(), 0, 1, 0);
-    // Re-use GOT entries for stub targets.
-    auto &GOTEntrySymbol = getGOTEntry(Target);
-    StubContentBlock.addEdge(x86_64::Delta32, 2, GOTEntrySymbol, -4);
-    return G.addAnonymousSymbol(StubContentBlock, 0, 6, true, false);
-  }
-
-  void fixPLTEdge(Edge &E, Symbol &Stub) {
-    assert(E.getKind() == x86_64::BranchPCRel32 && "Not a Branch32 edge?");
-
-    // Set the edge kind to Branch32ToPtrJumpStubBypassable to enable it to be
-    // optimized when the target is in-range.
-    E.setKind(x86_64::BranchPCRel32ToPtrJumpStubBypassable);
-    E.setTarget(Stub);
-  }
-
-private:
-  Section &getGOTSection() const {
-    if (!GOTSection)
-      GOTSection = &G.createSection(ELFGOTSectionName, sys::Memory::MF_READ);
-    return *GOTSection;
-  }
-
-  Section &getStubsSection() const {
-    if (!StubsSection) {
-      auto StubsProt = static_cast<sys::Memory::ProtectionFlags>(
-          sys::Memory::MF_READ | sys::Memory::MF_EXEC);
-      StubsSection = &G.createSection("$__STUBS", StubsProt);
-    }
-    return *StubsSection;
-  }
-
-  ArrayRef<char> getGOTEntryBlockContent() {
-    return {reinterpret_cast<const char *>(NullGOTEntryContent),
-            sizeof(NullGOTEntryContent)};
-  }
-
-  ArrayRef<char> getStubBlockContent() {
-    return {reinterpret_cast<const char *>(StubContent), sizeof(StubContent)};
-  }
-
-  mutable Section *GOTSection = nullptr;
-  mutable Section *StubsSection = nullptr;
-};
-
+  x86_64::GOTTableManager GOT;
+  x86_64::PLTTableManager PLT(GOT);
+  TLSInfoTableManager_ELF_x86_64 TLSInfo;
+  visitExistingEdges(G, GOT, PLT, TLSInfo);
+  return Error::success();
+}
 } // namespace
-
-const uint8_t PerGraphGOTAndPLTStubsBuilder_ELF_x86_64::NullGOTEntryContent[8] =
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-const uint8_t PerGraphGOTAndPLTStubsBuilder_ELF_x86_64::StubContent[6] = {
-    0xFF, 0x25, 0x00, 0x00, 0x00, 0x00};
 
 static const char *getELFX86_64RelocName(uint32_t Type) {
   switch (Type) {
@@ -396,7 +287,8 @@ private:
         createDefineExternalSectionStartAndEndSymbolsPass(
             [&](LinkGraph &LG, Symbol &Sym) -> SectionRangeSymbolDesc {
               if (Sym.getName() == ELFGOTSymbolName)
-                if (auto *GOTSection = G.findSectionByName(ELFGOTSectionName)) {
+                if (auto *GOTSection = G.findSectionByName(
+                        x86_64::GOTTableManager::getSectionName())) {
                   GOTSymbol = &Sym;
                   return {*GOTSection, true};
                 }
@@ -415,7 +307,8 @@ private:
     // Otherwise look for a GOT section: If it already has a start symbol we'll
     // record it, otherwise we'll create our own.
     // If there's a GOT section but we didn't find an external GOT symbol...
-    if (auto *GOTSection = G.findSectionByName(ELFGOTSectionName)) {
+    if (auto *GOTSection =
+            G.findSectionByName(x86_64::GOTTableManager::getSectionName())) {
 
       // Check for an existing defined symbol.
       for (auto *Sym : GOTSection->symbols())
@@ -497,11 +390,8 @@ void link_ELF_x86_64(std::unique_ptr<LinkGraph> G,
     else
       Config.PrePrunePasses.push_back(markAllSymbolsLive);
 
-    // Add an in-place GOT/Stubs pass.
-
-    Config.PostPrunePasses.push_back(PerGraphTLSInfoBuilder_ELF_x86_64::asPass);
-    Config.PostPrunePasses.push_back(
-        PerGraphGOTAndPLTStubsBuilder_ELF_x86_64::asPass);
+    // Add an in-place GOT/Stubs/TLSInfoEntry build pass.
+    Config.PostPrunePasses.push_back(buildTables_ELF_x86_64);
 
     // Resolve any external section start / end symbols.
     Config.PostAllocationPasses.push_back(
@@ -509,7 +399,7 @@ void link_ELF_x86_64(std::unique_ptr<LinkGraph> G,
             identifyELFSectionStartAndEndSymbols));
 
     // Add GOT/Stubs optimizer pass.
-    Config.PreFixupPasses.push_back(x86_64::optimize_x86_64_GOTAndStubs);
+    Config.PreFixupPasses.push_back(x86_64::optimizeGOTAndStubAccesses);
   }
 
   if (auto Err = Ctx->modifyPassConfig(*G, Config))

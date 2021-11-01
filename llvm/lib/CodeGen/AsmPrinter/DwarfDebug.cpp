@@ -480,7 +480,7 @@ static bool hasObjCCategory(StringRef Name) {
   if (!isObjCClass(Name))
     return false;
 
-  return Name.find(") ") != StringRef::npos;
+  return Name.contains(") ");
 }
 
 static void getObjCClassCategory(StringRef In, StringRef &Class,
@@ -1100,11 +1100,6 @@ DwarfDebug::getOrCreateDwarfCompileUnit(const DICompileUnit *DIUnit) {
     finishUnitAttributes(DIUnit, NewCU);
     NewCU.setSection(Asm->getObjFileLowering().getDwarfInfoSection());
   }
-
-  // Create DIEs for function declarations used for call site debug info.
-  for (auto Scope : DIUnit->getRetainedTypes())
-    if (auto *SP = dyn_cast_or_null<DISubprogram>(Scope))
-      NewCU.getOrCreateSubprogramDIE(SP);
 
   CUMap.insert({DIUnit, &NewCU});
   CUDieMap.insert({&NewCU.getUnitDie(), &NewCU});

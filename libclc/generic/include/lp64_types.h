@@ -120,7 +120,7 @@ typedef _Float16 __clc_vec8_float16_t __attribute__((ext_vector_type(8)));
 typedef _Float16 __clc_vec16_float16_t __attribute__((ext_vector_type(16)));
 
 #endif
-typedef __clc_int64_t __clc_size_t;
+typedef __clc_uint64_t __clc_size_t;
 
 typedef event_t __clc_event_t;
 
