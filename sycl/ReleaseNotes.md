@@ -52,8 +52,6 @@ Release notes for commit range 4fc5ebe..bd68232
    omit extension. For any other extension the output project directory will
    keep this extension [d8237a6e]
  - Improved handling of default device with AOCX archive [e3a579f]
- - Removed `intel::reqd_work_group_size` attribute,
-   `sycl::reqd_work_group_size` can be used instead
  - Added support for NVPTX device `printf` [4af2eb51]
  - Added support for non-const private statics in ESIMD kernels [bc51fe01]
  - Improved diagnostic generation when incorrect accessor format is used
@@ -80,7 +78,7 @@ Release notes for commit range 4fc5ebe..bd68232
  - Added version of `parallel_for` accepting `range` and a reduction variable
    [d1556e4]
  - Added verbosity to some errors handling [84ee39a]
- - Added SYCL2020 `sycl::errc_for` API [02756e3f]
+ - Added SYCL 2020 `sycl::errc_for` API [02756e3f]
  - Added SYCL 2020 `byte_size` method for `sycl::buffer` and `sycl::vec`
    classes.  `get_size` was deprecated [282d1dec]
  - Added support for USM pointers for `sycl::joint_exclusive_scan` and
@@ -190,8 +188,12 @@ Release notes for commit range 4fc5ebe..bd68232
    `fsycl-device-code-split` option [d21082f]
  - Fixed several problem in configuration file processing [2a35df0]
  - Fixed imbalance in events release and retain in Level Zero plugin [6117a1b]
+ - Fixed a problem which could lead to leaks of full paths to source files from
+   the build environment [6bbfe42b3]
 
 ## API/ABI breakages
+ - Removed `intel::reqd_work_group_size` attribute,
+   `sycl::reqd_work_group_size` can be used instead [c583a20]
 
 ## Known issues
  - [new] SYCL 2020 barriers show worse performance than SYCL 1.2.1 do [18c80fa]
@@ -204,8 +206,6 @@ Release notes for commit range 4fc5ebe..bd68232
  - [new] Driver issue. When a two-step AOT build is used and there's at least a
    single call to devicelib function from within kernel, the device binary
    image gets corrupted
- - [new] Filenames are removed from diagnostic to avoid leaks of full paths
-   from build environment [6bbfe42b3]
  - [new] Limit alignment of allocation requests at 64KB which is the only
    alignment supported by Level Zero[7dfaf3bd]
  - [new] On the following scenario on Level Zero backend:
