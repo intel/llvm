@@ -37,7 +37,6 @@ class DataLayout;
 class Function;
 class GlobalAlias;
 class GlobalIFunc;
-class GlobalIndirectSymbol;
 class GlobalObject;
 class GlobalValue;
 class GlobalVariable;
@@ -454,12 +453,16 @@ public:
 
   /// Return true if there is exactly one use of this value that cannot be
   /// dropped.
-  ///
-  /// This is specialized because it is a common request and does not require
-  /// traversing the whole use list.
   Use *getSingleUndroppableUse();
   const Use *getSingleUndroppableUse() const {
     return const_cast<Value *>(this)->getSingleUndroppableUse();
+  }
+
+  /// Return true if there is exactly one unique user of this value that cannot be
+  /// dropped (that user can have multiple uses of this value).
+  User *getUniqueUndroppableUser();
+  const User *getUniqueUndroppableUser() const {
+    return const_cast<Value *>(this)->getUniqueUndroppableUser();
   }
 
   /// Return true if there this value.
@@ -781,8 +784,8 @@ public:
   ///
   /// This is the greatest alignment value supported by load, store, and alloca
   /// instructions, and global values.
-  static constexpr unsigned MaxAlignmentExponent = 30;
-  static constexpr unsigned MaximumAlignment = 1u << MaxAlignmentExponent;
+  static constexpr unsigned MaxAlignmentExponent = 32;
+  static constexpr uint64_t MaximumAlignment = 1ULL << MaxAlignmentExponent;
 
   /// Mutate the type of this Value to be of the specified type.
   ///
@@ -1012,21 +1015,16 @@ template <> struct isa_impl<GlobalIFunc, Value> {
   }
 };
 
-template <> struct isa_impl<GlobalIndirectSymbol, Value> {
-  static inline bool doit(const Value &Val) {
-    return isa<GlobalAlias>(Val) || isa<GlobalIFunc>(Val);
-  }
-};
-
 template <> struct isa_impl<GlobalValue, Value> {
   static inline bool doit(const Value &Val) {
-    return isa<GlobalObject>(Val) || isa<GlobalIndirectSymbol>(Val);
+    return isa<GlobalObject>(Val) || isa<GlobalAlias>(Val);
   }
 };
 
 template <> struct isa_impl<GlobalObject, Value> {
   static inline bool doit(const Value &Val) {
-    return isa<GlobalVariable>(Val) || isa<Function>(Val);
+    return isa<GlobalVariable>(Val) || isa<Function>(Val) ||
+           isa<GlobalIFunc>(Val);
   }
 };
 

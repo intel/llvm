@@ -16,6 +16,8 @@ def err_drv_unsupported_opt_with_suggestion : Error<
   "unsupported option '%0'; did you mean '%1'?">;
 def err_drv_unsupported_opt_for_target : Error<
   "unsupported option '%0' for target '%1'">;
+def err_drv_unsupported_opt_for_language_mode : Error<
+  "unsupported option '%0' for language mode '%1'">;
 def err_drv_unsupported_option_argument : Error<
   "unsupported argument '%1' to option '%0'">;
 def err_drv_unknown_stdin_type : Error<
@@ -89,9 +91,8 @@ def warn_drv_partially_supported_cuda_version: Warning<
 def err_drv_cuda_host_arch : Error<
   "unsupported architecture '%0' for host compilation">;
 def err_drv_no_sycl_libspirv : Error<
-  "cannot find 'libspirv-nvptx64--nvidiacl.bc'; provide path to libspirv "
-  "library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build "
-  "without linking with libspirv">;
+  "cannot find '%0'; provide path to libspirv library via '-fsycl-libspirv-path', or "
+  "pass '-fno-sycl-libspirv' to build without linking with libspirv">;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<

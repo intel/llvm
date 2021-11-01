@@ -9,6 +9,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  atof
+  SRCS
+    atof.cpp
+  HDRS
+    atof.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
   atol
   SRCS
     atol.cpp
@@ -24,6 +34,26 @@ add_entrypoint_object(
     atoll.cpp
   HDRS
     atoll.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  strtof
+  SRCS
+    strtof.cpp
+  HDRS
+    strtof.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  strtod
+  SRCS
+    strtod.cpp
+  HDRS
+    strtod.h
   DEPENDS
     libc.src.__support.str_conv_utils
 )
@@ -68,33 +98,6 @@ add_entrypoint_object(
     libc.src.__support.str_conv_utils
 )
 
-if(NOT LLVM_LIBC_FULL_BUILD)
-  return()
-endif()
-
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
-endif()
-
-add_entrypoint_object(
-  _Exit
-  ALIAS
-  DEPENDS
-    .${LIBC_TARGET_OS}._Exit
-)
-
-add_entrypoint_object(
-  abort
-  SRCS
-    abort.cpp
-  HDRS
-    abort.h
-  DEPENDS
-    libc.include.stdlib
-    libc.src.signal.raise
-    ._Exit
-)
-
 add_entrypoint_object(
   abs
   SRCS
@@ -123,4 +126,84 @@ add_entrypoint_object(
     llabs.h
   DEPENDS
     libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  div
+  SRCS
+    div.cpp
+  HDRS
+    div.h
+  DEPENDS
+    libc.include.stdlib
+    libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  ldiv
+  SRCS
+    ldiv.cpp
+  HDRS
+    ldiv.h
+  DEPENDS
+    libc.include.stdlib
+    libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  lldiv
+  SRCS
+    lldiv.cpp
+  HDRS
+    lldiv.h
+  DEPENDS
+    libc.include.stdlib
+    libc.src.__support.integer_operations
+)
+
+add_entrypoint_object(
+  bsearch
+  SRCS
+    bsearch.cpp
+  HDRS
+    bsearch.h
+  DEPENDS
+    libc.include.stdlib
+)
+
+add_entrypoint_object(
+  qsort
+  SRCS
+    qsort.cpp
+  HDRS
+    qsort.h
+  DEPENDS
+    libc.include.stdlib
+)
+
+if(NOT LLVM_LIBC_FULL_BUILD)
+  return()
+endif()
+
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
+  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
+endif()
+
+add_entrypoint_object(
+  _Exit
+  ALIAS
+  DEPENDS
+    .${LIBC_TARGET_OS}._Exit
+)
+
+add_entrypoint_object(
+  abort
+  SRCS
+    abort.cpp
+  HDRS
+    abort.h
+  DEPENDS
+    libc.include.stdlib
+    libc.src.signal.raise
+    ._Exit
 )

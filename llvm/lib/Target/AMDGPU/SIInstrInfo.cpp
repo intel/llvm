@@ -21,6 +21,7 @@
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/LiveVariables.h"
 #include "llvm/CodeGen/MachineDominators.h"
+#include "llvm/CodeGen/MachineScheduler.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/CodeGen/ScheduleDAG.h"
 #include "llvm/IR/DiagnosticInfo.h"
@@ -108,7 +109,7 @@ static bool nodesHaveSameOperandValue(SDNode *N0, SDNode* N1, unsigned OpName) {
 
 bool SIInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
                                                     AAResults *AA) const {
-  if (isVOP1(MI) || isVOP2(MI) || isVOP3(MI) || isSDWA(MI)) {
+  if (isVOP1(MI) || isVOP2(MI) || isVOP3(MI) || isSDWA(MI) || isSALU(MI)) {
     // Normally VALU use of exec would block the rematerialization, but that
     // is OK in this case to have an implicit exec read as all VALU do.
     // We really want all of the generic logic for this except for this.
@@ -116,6 +117,10 @@ bool SIInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
     // Another potential implicit use is mode register. The core logic of
     // the RA will not attempt rematerialization if mode is set anywhere
     // in the function, otherwise it is safe since mode is not changed.
+
+    // There is difference to generic method which does not allow
+    // rematerialization if there are virtual register uses. We allow this,
+    // therefore this method includes SOP instructions as well.
     return !MI.hasImplicitDef() &&
            MI.getNumImplicitOperands() == MI.getDesc().getNumImplicitUses() &&
            !MI.mayRaiseFPException();
@@ -2459,9 +2464,12 @@ unsigned SIInstrInfo::removeBranch(MachineBasicBlock &MBB,
   unsigned RemovedSize = 0;
   while (I != MBB.end()) {
     MachineBasicBlock::iterator Next = std::next(I);
-    RemovedSize += getInstSizeInBytes(*I);
-    I->eraseFromParent();
-    ++Count;
+    // Skip over artificial terminators when removing instructions.
+    if (I->isBranch() || I->isReturn()) {
+      RemovedSize += getInstSizeInBytes(*I);
+      I->eraseFromParent();
+      ++Count;
+    }
     I = Next;
   }
 
@@ -3111,8 +3119,7 @@ static void updateLiveVariables(LiveVariables *LV, MachineInstr &MI,
   }
 }
 
-MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
-                                                 MachineInstr &MI,
+MachineInstr *SIInstrInfo::convertToThreeAddress(MachineInstr &MI,
                                                  LiveVariables *LV) const {
   unsigned Opc = MI.getOpcode();
   bool IsF16 = false;
@@ -3163,18 +3170,19 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
   const MachineOperand *Clamp = getNamedOperand(MI, AMDGPU::OpName::clamp);
   const MachineOperand *Omod = getNamedOperand(MI, AMDGPU::OpName::omod);
   MachineInstrBuilder MIB;
+  MachineBasicBlock &MBB = *MI.getParent();
 
   if (!Src0Mods && !Src1Mods && !Clamp && !Omod && !IsF64 &&
       // If we have an SGPR input, we will violate the constant bus restriction.
       (ST.getConstantBusLimit(Opc) > 1 || !Src0->isReg() ||
-       !RI.isSGPRReg(MBB->getParent()->getRegInfo(), Src0->getReg()))) {
+       !RI.isSGPRReg(MBB.getParent()->getRegInfo(), Src0->getReg()))) {
     int64_t Imm;
     if (getFoldableImm(Src2, Imm)) {
       unsigned NewOpc =
           IsFMA ? (IsF16 ? AMDGPU::V_FMAAK_F16 : AMDGPU::V_FMAAK_F32)
                 : (IsF16 ? AMDGPU::V_MADAK_F16 : AMDGPU::V_MADAK_F32);
       if (pseudoToMCOpcode(NewOpc) != -1) {
-        MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+        MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
                   .add(*Dst)
                   .add(*Src0)
                   .add(*Src1)
@@ -3188,7 +3196,7 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
                           : (IsF16 ? AMDGPU::V_MADMK_F16 : AMDGPU::V_MADMK_F32);
     if (getFoldableImm(Src1, Imm)) {
       if (pseudoToMCOpcode(NewOpc) != -1) {
-        MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+        MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
                   .add(*Dst)
                   .add(*Src0)
                   .addImm(Imm)
@@ -3202,7 +3210,7 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
           isOperandLegal(
               MI, AMDGPU::getNamedOperandIdx(NewOpc, AMDGPU::OpName::src0),
               Src1)) {
-        MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+        MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
                   .add(*Dst)
                   .add(*Src1)
                   .addImm(Imm)
@@ -3220,7 +3228,7 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
   if (pseudoToMCOpcode(NewOpc) == -1)
     return nullptr;
 
-  MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+  MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
             .add(*Dst)
             .addImm(Src0Mods ? Src0Mods->getImm() : 0)
             .add(*Src0)
@@ -3401,6 +3409,7 @@ bool SIInstrInfo::isInlineConstant(const MachineOperand &MO,
   switch (OperandType) {
   case AMDGPU::OPERAND_REG_IMM_INT32:
   case AMDGPU::OPERAND_REG_IMM_FP32:
+  case AMDGPU::OPERAND_REG_IMM_FP32_DEFERRED:
   case AMDGPU::OPERAND_REG_INLINE_C_INT32:
   case AMDGPU::OPERAND_REG_INLINE_C_FP32:
   case AMDGPU::OPERAND_REG_IMM_V2FP32:
@@ -3439,6 +3448,7 @@ bool SIInstrInfo::isInlineConstant(const MachineOperand &MO,
     // This suffers the same problem as the scalar 16-bit cases.
     return AMDGPU::isInlinableIntLiteralV216(Imm);
   case AMDGPU::OPERAND_REG_IMM_FP16:
+  case AMDGPU::OPERAND_REG_IMM_FP16_DEFERRED:
   case AMDGPU::OPERAND_REG_INLINE_C_FP16:
   case AMDGPU::OPERAND_REG_INLINE_AC_FP16: {
     if (isInt<16>(Imm) || isUInt<16>(Imm)) {
@@ -3832,6 +3842,7 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
       break;
     case AMDGPU::OPERAND_REG_IMM_INT32:
     case AMDGPU::OPERAND_REG_IMM_FP32:
+    case AMDGPU::OPERAND_REG_IMM_FP32_DEFERRED:
       break;
     case AMDGPU::OPERAND_REG_INLINE_C_INT32:
     case AMDGPU::OPERAND_REG_INLINE_C_FP32:
@@ -7460,6 +7471,20 @@ SIInstrInfo::CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
 ScheduleHazardRecognizer *
 SIInstrInfo::CreateTargetPostRAHazardRecognizer(const MachineFunction &MF) const {
   return new GCNHazardRecognizer(MF);
+}
+
+// Called during:
+// - pre-RA scheduling and post-RA scheduling
+ScheduleHazardRecognizer *
+SIInstrInfo::CreateTargetMIHazardRecognizer(const InstrItineraryData *II,
+                                            const ScheduleDAGMI *DAG) const {
+  // Borrowed from Arm Target
+  // We would like to restrict this hazard recognizer to only
+  // post-RA scheduling; we can tell that we're post-RA because we don't
+  // track VRegLiveness.
+  if (!DAG->hasVRegLiveness())
+    return new GCNHazardRecognizer(DAG->MF);
+  return TargetInstrInfo::CreateTargetMIHazardRecognizer(II, DAG);
 }
 
 std::pair<unsigned, unsigned>

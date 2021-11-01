@@ -17,7 +17,7 @@
 #include "tbb/task_group.h"
 
 #include "cl_processor.hpp"
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 
 #include <atomic>
 #include <chrono>

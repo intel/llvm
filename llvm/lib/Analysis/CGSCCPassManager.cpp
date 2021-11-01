@@ -38,6 +38,7 @@ using namespace llvm;
 // Explicit template instantiations and specialization definitions for core
 // template typedefs.
 namespace llvm {
+extern cl::opt<bool> EagerlyInvalidateAnalyses;
 
 static cl::opt<bool> AbortOnMaxDevirtIterationsReached(
     "abort-on-max-devirt-iterations-reached",
@@ -119,12 +120,6 @@ PassManager<LazyCallGraph::SCC, CGSCCAnalysisManager, LazyCallGraph &,
     // Finally, we intersect the final preserved analyses to compute the
     // aggregate preserved set for this pass manager.
     PA.intersect(std::move(PassPA));
-
-    // FIXME: Historically, the pass managers all called the LLVM context's
-    // yield function here. We don't have a generic way to acquire the
-    // context and it isn't yet clear what the right pattern is for yielding
-    // in the new pass manager so it is currently omitted.
-    // ...getContext().yield();
   }
 
   // Before we mark all of *this* SCC's analyses as preserved below, intersect
@@ -562,7 +557,8 @@ PreservedAnalyses CGSCCToFunctionPassAdaptor::run(LazyCallGraph::SCC &C,
     // We know that the function pass couldn't have invalidated any other
     // function's analyses (that's the contract of a function pass), so
     // directly handle the function analysis manager's invalidation here.
-    FAM.invalidate(F, PassPA);
+    FAM.invalidate(F, EagerlyInvalidateAnalyses ? PreservedAnalyses::none()
+                                                : PassPA);
 
     // Then intersect the preserved set so that invalidation of module
     // analyses will eventually occur when the module pass completes.

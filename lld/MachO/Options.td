@@ -290,6 +290,7 @@ def no_branch_islands : Flag<["-"], "no_branch_islands">,
     Group<grp_opts>;
 def no_deduplicate : Flag<["-"], "no_deduplicate">,
     HelpText<"Disable code deduplicaiton (synonym for `--icf=none')">,
+    Alias<icf_eq>, AliasArgs<["none"]>,
     Group<grp_opts>;
 
 def grp_version : OptionGroup<"version">, HelpText<"VERSION TARGETING">;
@@ -575,7 +576,6 @@ def non_global_symbols_no_strip_list : Separate<["-"], "non_global_symbols_no_st
 def oso_prefix : Separate<["-"], "oso_prefix">,
     MetaVarName<"<path>">,
     HelpText<"Remove the prefix <path> from OSO symbols in the debug map">,
-    Flags<[HelpHidden]>,
     Group<grp_symtab>;
 def add_ast_path : Separate<["-"], "add_ast_path">,
     MetaVarName<"<path>">,

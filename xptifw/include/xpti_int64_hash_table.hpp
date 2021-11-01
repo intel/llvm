@@ -4,7 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 #pragma once
-#include "xpti_data_types.h"
+
+#include "xpti/xpti_data_types.h"
 
 #include <atomic>
 #include <mutex>

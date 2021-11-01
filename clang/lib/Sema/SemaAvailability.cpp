@@ -268,7 +268,7 @@ tryParseObjCMethodName(StringRef Name, SmallVectorImpl<StringRef> &SlotNames,
   for (StringRef S : SlotNames) {
     if (S.empty())
       continue;
-    if (!isValidIdentifier(S, AllowDollar))
+    if (!isValidAsciiIdentifier(S, AllowDollar))
       return None;
   }
   return NumParams;
@@ -630,8 +630,7 @@ public:
                                               const CompoundStmt *Scope) {
     LastDeclUSEFinder Visitor;
     Visitor.D = D;
-    for (auto I = Scope->body_rbegin(), E = Scope->body_rend(); I != E; ++I) {
-      const Stmt *S = *I;
+    for (const Stmt *S : llvm::reverse(Scope->body())) {
       if (!Visitor.TraverseStmt(const_cast<Stmt *>(S)))
         return S;
     }

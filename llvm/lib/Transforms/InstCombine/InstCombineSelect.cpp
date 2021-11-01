@@ -38,15 +38,16 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
-#include "llvm/Transforms/InstCombine/InstCombineWorklist.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
 #include <cassert>
 #include <utility>
 
+#define DEBUG_TYPE "instcombine"
+#include "llvm/Transforms/Utils/InstructionWorklist.h"
+
 using namespace llvm;
 using namespace PatternMatch;
 
-#define DEBUG_TYPE "instcombine"
 
 static Value *createMinMax(InstCombiner::BuilderTy &Builder,
                            SelectPatternFlavor SPF, Value *A, Value *B) {
@@ -165,7 +166,7 @@ static Value *foldSelectICmpAnd(SelectInst &Sel, ICmpInst *Cmp,
   // simplify/reduce the instructions.
   APInt TC = *SelTC;
   APInt FC = *SelFC;
-  if (!TC.isNullValue() && !FC.isNullValue()) {
+  if (!TC.isZero() && !FC.isZero()) {
     // If the select constants differ by exactly one bit and that's the same
     // bit that is masked and checked by the select condition, the select can
     // be replaced by bitwise logic to set/clear one bit of the constant result.
@@ -202,7 +203,7 @@ static Value *foldSelectICmpAnd(SelectInst &Sel, ICmpInst *Cmp,
 
   // Determine which shift is needed to transform result of the 'and' into the
   // desired result.
-  const APInt &ValC = !TC.isNullValue() ? TC : FC;
+  const APInt &ValC = !TC.isZero() ? TC : FC;
   unsigned ValZeros = ValC.logBase2();
   unsigned AndZeros = AndMask.logBase2();
 
@@ -224,7 +225,7 @@ static Value *foldSelectICmpAnd(SelectInst &Sel, ICmpInst *Cmp,
 
   // Okay, now we know that everything is set up, we just don't know whether we
   // have a icmp_ne or icmp_eq and whether the true or false val is the zero.
-  bool ShouldNotVal = !TC.isNullValue();
+  bool ShouldNotVal = !TC.isZero();
   ShouldNotVal ^= Pred == ICmpInst::ICMP_NE;
   if (ShouldNotVal)
     V = Builder.CreateXor(V, ValC);
@@ -428,10 +429,9 @@ Instruction *InstCombinerImpl::foldSelectOpOp(SelectInst &SI, Instruction *TI,
 }
 
 static bool isSelect01(const APInt &C1I, const APInt &C2I) {
-  if (!C1I.isNullValue() && !C2I.isNullValue()) // One side must be zero.
+  if (!C1I.isZero() && !C2I.isZero()) // One side must be zero.
     return false;
-  return C1I.isOneValue() || C1I.isAllOnesValue() ||
-         C2I.isOneValue() || C2I.isAllOnesValue();
+  return C1I.isOne() || C1I.isAllOnes() || C2I.isOne() || C2I.isAllOnes();
 }
 
 /// Try to fold the select into one of the operands to allow further
@@ -721,6 +721,58 @@ static Instruction *foldSetClearBits(SelectInst &Sel,
   }
 
   return nullptr;
+}
+
+//   select (x == 0), 0, x * y --> freeze(y) * x
+//   select (y == 0), 0, x * y --> freeze(x) * y
+//   select (x == 0), undef, x * y --> freeze(y) * x
+//   select (x == undef), 0, x * y --> freeze(y) * x
+// Usage of mul instead of 0 will make the result more poisonous,
+// so the operand that was not checked in the condition should be frozen.
+// The latter folding is applied only when a constant compared with x is
+// is a vector consisting of 0 and undefs. If a constant compared with x
+// is a scalar undefined value or undefined vector then an expression
+// should be already folded into a constant.
+static Instruction *foldSelectZeroOrMul(SelectInst &SI, InstCombinerImpl &IC) {
+  auto *CondVal = SI.getCondition();
+  auto *TrueVal = SI.getTrueValue();
+  auto *FalseVal = SI.getFalseValue();
+  Value *X, *Y;
+  ICmpInst::Predicate Predicate;
+
+  // Assuming that constant compared with zero is not undef (but it may be
+  // a vector with some undef elements). Otherwise (when a constant is undef)
+  // the select expression should be already simplified.
+  if (!match(CondVal, m_ICmp(Predicate, m_Value(X), m_Zero())) ||
+      !ICmpInst::isEquality(Predicate))
+    return nullptr;
+
+  if (Predicate == ICmpInst::ICMP_NE)
+    std::swap(TrueVal, FalseVal);
+
+  // Check that TrueVal is a constant instead of matching it with m_Zero()
+  // to handle the case when it is a scalar undef value or a vector containing
+  // non-zero elements that are masked by undef elements in the compare
+  // constant.
+  auto *TrueValC = dyn_cast<Constant>(TrueVal);
+  if (TrueValC == nullptr ||
+      !match(FalseVal, m_c_Mul(m_Specific(X), m_Value(Y))) ||
+      !isa<Instruction>(FalseVal))
+    return nullptr;
+
+  auto *ZeroC = cast<Constant>(cast<Instruction>(CondVal)->getOperand(1));
+  auto *MergedC = Constant::mergeUndefsWith(TrueValC, ZeroC);
+  // If X is compared with 0 then TrueVal could be either zero or undef.
+  // m_Zero match vectors containing some undef elements, but for scalars
+  // m_Undef should be used explicitly.
+  if (!match(MergedC, m_Zero()) && !match(MergedC, m_Undef()))
+    return nullptr;
+
+  auto *FalseValI = cast<Instruction>(FalseVal);
+  auto *FrY = IC.InsertNewInstBefore(new FreezeInst(Y, Y->getName() + ".fr"),
+                                     *FalseValI);
+  IC.replaceOperand(*FalseValI, FalseValI->getOperand(0) == Y ? 0 : 1, FrY);
+  return IC.replaceInstUsesWith(SI, FalseValI);
 }
 
 /// Transform patterns such as (a > b) ? a - b : 0 into usub.sat(a, b).
@@ -1824,9 +1876,7 @@ foldOverflowingAddSubSelect(SelectInst &SI, InstCombiner::BuilderTy &Builder) {
                                m_Value(TrueVal), m_Value(FalseVal))))
       return false;
 
-    auto IsZeroOrOne = [](const APInt &C) {
-      return C.isNullValue() || C.isOneValue();
-    };
+    auto IsZeroOrOne = [](const APInt &C) { return C.isZero() || C.isOne(); };
     auto IsMinMax = [&](Value *Min, Value *Max) {
       APInt MinVal = APInt::getSignedMinValue(Ty->getScalarSizeInBits());
       APInt MaxVal = APInt::getSignedMaxValue(Ty->getScalarSizeInBits());
@@ -2930,6 +2980,8 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
     return Add;
   if (Instruction *Or = foldSetClearBits(SI, Builder))
     return Or;
+  if (Instruction *Mul = foldSelectZeroOrMul(SI, *this))
+    return Mul;
 
   // Turn (select C, (op X, Y), (op X, Z)) -> (op X, (select C, Y, Z))
   auto *TI = dyn_cast<Instruction>(TrueVal);
@@ -2949,8 +3001,10 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
     if (Gep->getNumOperands() != 2 || Gep->getPointerOperand() != Base ||
         !Gep->hasOneUse())
       return nullptr;
-    Type *ElementType = Gep->getResultElementType();
     Value *Idx = Gep->getOperand(1);
+    if (isa<VectorType>(CondVal->getType()) && !isa<VectorType>(Idx->getType()))
+      return nullptr;
+    Type *ElementType = Gep->getResultElementType();
     Value *NewT = Idx;
     Value *NewF = Constant::getNullValue(Idx->getType());
     if (Swap)
@@ -3198,9 +3252,9 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   if (!CondVal->getType()->isVectorTy() && !AC.assumptions().empty()) {
     KnownBits Known(1);
     computeKnownBits(CondVal, Known, 0, &SI);
-    if (Known.One.isOneValue())
+    if (Known.One.isOne())
       return replaceInstUsesWith(SI, TrueVal);
-    if (Known.Zero.isOneValue())
+    if (Known.Zero.isOne())
       return replaceInstUsesWith(SI, FalseVal);
   }
 

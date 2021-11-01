@@ -26,10 +26,10 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolWasm.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -232,9 +232,14 @@ void MCWasmStreamer::fixSymbolsInTLSFixups(const MCExpr *expr) {
 
   case MCExpr::SymbolRef: {
     const MCSymbolRefExpr &symRef = *cast<MCSymbolRefExpr>(expr);
-    if (symRef.getKind() == MCSymbolRefExpr::VK_WASM_TLSREL) {
+    switch (symRef.getKind()) {
+    case MCSymbolRefExpr::VK_WASM_TLSREL:
+    case MCSymbolRefExpr::VK_WASM_GOT_TLS:
       getAssembler().registerSymbol(symRef.getSymbol());
       cast<MCSymbolWasm>(symRef.getSymbol()).setTLS();
+      break;
+    default:
+      break;
     }
     break;
   }

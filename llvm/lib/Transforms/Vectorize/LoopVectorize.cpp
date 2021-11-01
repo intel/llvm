@@ -544,7 +544,8 @@ public:
   /// vectorized loop.
   void vectorizeMemoryInstruction(Instruction *Instr, VPTransformState &State,
                                   VPValue *Def, VPValue *Addr,
-                                  VPValue *StoredValue, VPValue *BlockInMask);
+                                  VPValue *StoredValue, VPValue *BlockInMask,
+                                  bool ConsecutiveStride, bool Reverse);
 
   /// Set the debug location in the builder \p Ptr using the debug location in
   /// \p V. If \p Ptr is None then it uses the class member's Builder.
@@ -1924,7 +1925,7 @@ class GeneratedRTChecks {
   /// The value representing the result of the generated memory runtime checks.
   /// If it is nullptr, either no memory runtime checks have been generated or
   /// they have been used.
-  Instruction *MemRuntimeCheckCond = nullptr;
+  Value *MemRuntimeCheckCond = nullptr;
 
   DominatorTree *DT;
   LoopInfo *LI;
@@ -1967,7 +1968,7 @@ public:
       MemCheckBlock = SplitBlock(Pred, Pred->getTerminator(), DT, LI, nullptr,
                                  "vector.memcheck");
 
-      std::tie(std::ignore, MemRuntimeCheckCond) =
+      MemRuntimeCheckCond =
           addRuntimeChecks(MemCheckBlock->getTerminator(), L,
                            RtPtrChecking.getChecks(), MemCheckExp);
       assert(MemRuntimeCheckCond &&
@@ -2900,7 +2901,8 @@ void InnerLoopVectorizer::vectorizeInterleaveGroup(
 
 void InnerLoopVectorizer::vectorizeMemoryInstruction(
     Instruction *Instr, VPTransformState &State, VPValue *Def, VPValue *Addr,
-    VPValue *StoredValue, VPValue *BlockInMask) {
+    VPValue *StoredValue, VPValue *BlockInMask, bool ConsecutiveStride,
+    bool Reverse) {
   // Attempt to issue a wide load.
   LoadInst *LI = dyn_cast<LoadInst>(Instr);
   StoreInst *SI = dyn_cast<StoreInst>(Instr);
@@ -2909,31 +2911,11 @@ void InnerLoopVectorizer::vectorizeMemoryInstruction(
   assert((!SI || StoredValue) && "No stored value provided for widened store");
   assert((!LI || !StoredValue) && "Stored value provided for widened load");
 
-  LoopVectorizationCostModel::InstWidening Decision =
-      Cost->getWideningDecision(Instr, VF);
-  assert((Decision == LoopVectorizationCostModel::CM_Widen ||
-          Decision == LoopVectorizationCostModel::CM_Widen_Reverse ||
-          Decision == LoopVectorizationCostModel::CM_GatherScatter) &&
-         "CM decision is not to widen the memory instruction");
-
   Type *ScalarDataTy = getLoadStoreType(Instr);
 
   auto *DataTy = VectorType::get(ScalarDataTy, VF);
   const Align Alignment = getLoadStoreAlignment(Instr);
-
-  // Determine if the pointer operand of the access is either consecutive or
-  // reverse consecutive.
-  bool Reverse = (Decision == LoopVectorizationCostModel::CM_Widen_Reverse);
-  bool ConsecutiveStride =
-      Reverse || (Decision == LoopVectorizationCostModel::CM_Widen);
-  bool CreateGatherScatter =
-      (Decision == LoopVectorizationCostModel::CM_GatherScatter);
-
-  // Either Ptr feeds a vector load/store, or a vector GEP should feed a vector
-  // gather/scatter. Otherwise Decision should have been to Scalarize.
-  assert((ConsecutiveStride || CreateGatherScatter) &&
-         "The instruction should be scalarized");
-  (void)ConsecutiveStride;
+  bool CreateGatherScatter = !ConsecutiveStride;
 
   VectorParts BlockInMaskParts(UF);
   bool isMaskRequired = BlockInMask;
@@ -3871,21 +3853,19 @@ struct CSEDenseMapInfo {
 static void cse(BasicBlock *BB) {
   // Perform simple cse.
   SmallDenseMap<Instruction *, Instruction *, 4, CSEDenseMapInfo> CSEMap;
-  for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E;) {
-    Instruction *In = &*I++;
-
-    if (!CSEDenseMapInfo::canHandle(In))
+  for (Instruction &In : llvm::make_early_inc_range(*BB)) {
+    if (!CSEDenseMapInfo::canHandle(&In))
       continue;
 
     // Check if we can replace this instruction with any of the
     // visited instructions.
-    if (Instruction *V = CSEMap.lookup(In)) {
-      In->replaceAllUsesWith(V);
-      In->eraseFromParent();
+    if (Instruction *V = CSEMap.lookup(&In)) {
+      In.replaceAllUsesWith(V);
+      In.eraseFromParent();
       continue;
     }
 
-    CSEMap[In] = In;
+    CSEMap[&In] = &In;
   }
 }
 
@@ -3895,7 +3875,7 @@ LoopVectorizationCostModel::getVectorCallCost(CallInst *CI, ElementCount VF,
   Function *F = CI->getCalledFunction();
   Type *ScalarRetTy = CI->getType();
   SmallVector<Type *, 4> Tys, ScalarTys;
-  for (auto &ArgOp : CI->arg_operands())
+  for (auto &ArgOp : CI->args())
     ScalarTys.push_back(ArgOp->getType());
 
   // Estimate cost of scalarized vector call. The source operands are assumed
@@ -4294,8 +4274,7 @@ void InnerLoopVectorizer::fixFirstOrderRecurrence(VPWidenPHIRecipe *PhiR,
   // and thus no phis which needed updated.
   if (!Cost->requiresScalarEpilogue(VF))
     for (PHINode &LCSSAPhi : LoopExitBlock->phis())
-      if (any_of(LCSSAPhi.incoming_values(),
-                 [Phi](Value *V) { return V == Phi; }))
+      if (llvm::is_contained(LCSSAPhi.incoming_values(), Phi))
         LCSSAPhi.addIncoming(ExtractForPhiUsedOutsideLoop, LoopMiddleBlock);
 }
 
@@ -4416,9 +4395,11 @@ void InnerLoopVectorizer::fixReduction(VPReductionPHIRecipe *PhiR,
       if (Op != Instruction::ICmp && Op != Instruction::FCmp) {
         ReducedPartRdx = Builder.CreateBinOp(
             (Instruction::BinaryOps)Op, RdxPart, ReducedPartRdx, "bin.rdx");
-      } else {
+      } else if (RecurrenceDescriptor::isSelectCmpRecurrenceKind(RK))
+        ReducedPartRdx = createSelectCmpOp(Builder, ReductionStartValue, RK,
+                                           ReducedPartRdx, RdxPart);
+      else
         ReducedPartRdx = createMinMaxOp(Builder, RK, ReducedPartRdx, RdxPart);
-      }
     }
   }
 
@@ -4426,7 +4407,7 @@ void InnerLoopVectorizer::fixReduction(VPReductionPHIRecipe *PhiR,
   // target reduction in the loop using a Reduction recipe.
   if (VF.isVector() && !PhiR->isInLoop()) {
     ReducedPartRdx =
-        createTargetReduction(Builder, TTI, RdxDesc, ReducedPartRdx);
+        createTargetReduction(Builder, TTI, RdxDesc, ReducedPartRdx, OrigPhi);
     // If the reduction can be performed in a smaller type, we need to extend
     // the reduction to the wider type before we branch to the original loop.
     if (PhiTy != RdxDesc.getRecurrenceType())
@@ -4451,8 +4432,7 @@ void InnerLoopVectorizer::fixReduction(VPReductionPHIRecipe *PhiR,
   // fixFirstOrderRecurrence for a more complete explaination of the logic.
   if (!Cost->requiresScalarEpilogue(VF))
     for (PHINode &LCSSAPhi : LoopExitBlock->phis())
-      if (any_of(LCSSAPhi.incoming_values(),
-                 [LoopExitInst](Value *V) { return V == LoopExitInst; }))
+      if (llvm::is_contained(LCSSAPhi.incoming_values(), LoopExitInst))
         LCSSAPhi.addIncoming(ReducedPartRdx, LoopMiddleBlock);
 
   // Fix the scalar loop reduction variable with the incoming reduction sum
@@ -4981,7 +4961,7 @@ void InnerLoopVectorizer::widenCallInstruction(CallInst &I, VPValue *Def,
   auto *CI = cast<CallInst>(&I);
 
   SmallVector<Type *, 4> Tys;
-  for (Value *ArgOperand : CI->arg_operands())
+  for (Value *ArgOperand : CI->args())
     Tys.push_back(ToVectorTy(ArgOperand->getType(), VF.getKnownMinValue()));
 
   Intrinsic::ID ID = getVectorIntrinsicIDForCall(CI, TLI);
@@ -5130,8 +5110,14 @@ void LoopVectorizationCostModel::collectLoopScalars(ElementCount VF) {
 
       Instruction *Update = cast<Instruction>(
           cast<PHINode>(Ptr)->getIncomingValueForBlock(Latch));
-      ScalarPtrs.insert(Update);
-      return;
+
+      // If there is more than one user of Update (Ptr), we shouldn't assume it
+      // will be scalar after vectorisation as other users of the instruction
+      // may require widening. Otherwise, add it to ScalarPtrs.
+      if (Update->hasOneUse() && cast<Value>(*Update->user_begin()) == Ptr) {
+        ScalarPtrs.insert(Update);
+        return;
+      }
     }
     // We only care about bitcast and getelementptr instructions contained in
     // the loop.
@@ -5302,7 +5288,7 @@ bool LoopVectorizationCostModel::interleavedAccessCanBeWidened(
   // (either a gap at the end of a load-access that may result in a speculative
   // load, or any gaps in a store-access).
   bool PredicatedAccessRequiresMasking =
-      Legal->blockNeedsPredication(I->getParent()) && Legal->isMaskRequired(I);
+      blockNeedsPredication(I->getParent()) && Legal->isMaskRequired(I);
   bool LoadAccessWithGapsRequiresEpilogMasking =
       isa<LoadInst>(I) && Group->requiresScalarEpilogue() &&
       !isScalarEpilogueAllowed();
@@ -5318,6 +5304,9 @@ bool LoopVectorizationCostModel::interleavedAccessCanBeWidened(
   // it should have been invalidated by the CostModel.
   assert(useMaskedInterleavedAccesses(TTI) &&
          "Masked interleave-groups for predicated accesses are not enabled.");
+
+  if (Group->isReverse())
+    return false;
 
   auto *Ty = getLoadStoreType(I);
   const Align Alignment = getLoadStoreAlignment(I);
@@ -6251,9 +6240,9 @@ LoopVectorizationCostModel::selectEpilogueVectorizationFactor(
 
   if (EpilogueVectorizationForceVF > 1) {
     LLVM_DEBUG(dbgs() << "LEV: Epilogue vectorization factor is forced.\n";);
-    if (LVP.hasPlanWithVFs(
-            {MainLoopVF, ElementCount::getFixed(EpilogueVectorizationForceVF)}))
-      return {ElementCount::getFixed(EpilogueVectorizationForceVF), 0};
+    ElementCount ForcedEC = ElementCount::getFixed(EpilogueVectorizationForceVF);
+    if (LVP.hasPlanWithVFs({MainLoopVF, ForcedEC}))
+      return {ForcedEC, 0};
     else {
       LLVM_DEBUG(
           dbgs()
@@ -6519,6 +6508,22 @@ unsigned LoopVectorizationCostModel::selectInterleaveCount(ElementCount VF,
     unsigned NumLoads = Legal->getNumLoads();
     unsigned StoresIC = IC / (NumStores ? NumStores : 1);
     unsigned LoadsIC = IC / (NumLoads ? NumLoads : 1);
+
+    // There is little point in interleaving for reductions containing selects
+    // and compares when VF=1 since it may just create more overhead than it's
+    // worth for loops with small trip counts. This is because we still have to
+    // do the final reduction after the loop.
+    bool HasSelectCmpReductions =
+        HasReductions &&
+        any_of(Legal->getReductionVars(), [&](auto &Reduction) -> bool {
+          const RecurrenceDescriptor &RdxDesc = Reduction.second;
+          return RecurrenceDescriptor::isSelectCmpRecurrenceKind(
+              RdxDesc.getRecurrenceKind());
+        });
+    if (HasSelectCmpReductions) {
+      LLVM_DEBUG(dbgs() << "LV: Not interleaving select-cmp reductions.\n");
+      return 1;
+    }
 
     // If we have a scalar reduction (vector reductions are already dealt with
     // by this point), we can increase the critical path length if the loop
@@ -7420,7 +7425,7 @@ LoopVectorizationCostModel::getScalarizationOverhead(Instruction *I,
 
   // Collect operands to consider.
   CallInst *CI = dyn_cast<CallInst>(I);
-  Instruction::op_range Ops = CI ? CI->arg_operands() : I->operands();
+  Instruction::op_range Ops = CI ? CI->args() : I->operands();
 
   // Skip operands that do not require extraction/scalarization and do not incur
   // any overhead.
@@ -8785,12 +8790,21 @@ VPRecipeBase *VPRecipeBuilder::tryToWidenMemory(Instruction *I,
   if (Legal->isMaskRequired(I))
     Mask = createBlockInMask(I->getParent(), Plan);
 
+  // Determine if the pointer operand of the access is either consecutive or
+  // reverse consecutive.
+  LoopVectorizationCostModel::InstWidening Decision =
+      CM.getWideningDecision(I, Range.Start);
+  bool Reverse = Decision == LoopVectorizationCostModel::CM_Widen_Reverse;
+  bool Consecutive =
+      Reverse || Decision == LoopVectorizationCostModel::CM_Widen;
+
   if (LoadInst *Load = dyn_cast<LoadInst>(I))
-    return new VPWidenMemoryInstructionRecipe(*Load, Operands[0], Mask);
+    return new VPWidenMemoryInstructionRecipe(*Load, Operands[0], Mask,
+                                              Consecutive, Reverse);
 
   StoreInst *Store = cast<StoreInst>(I);
   return new VPWidenMemoryInstructionRecipe(*Store, Operands[1], Operands[0],
-                                            Mask);
+                                            Mask, Consecutive, Reverse);
 }
 
 VPWidenIntOrFpInductionRecipe *
@@ -8906,7 +8920,7 @@ VPWidenCallRecipe *VPRecipeBuilder::tryToWidenCall(CallInst *CI,
   if (!LoopVectorizationPlanner::getDecisionAndClampRange(willWiden, Range))
     return nullptr;
 
-  ArrayRef<VPValue *> Ops = Operands.take_front(CI->getNumArgOperands());
+  ArrayRef<VPValue *> Ops = Operands.take_front(CI->arg_size());
   return new VPWidenCallRecipe(*CI, make_range(Ops.begin(), Ops.end()));
 }
 
@@ -9245,6 +9259,8 @@ VPlanPtr LoopVectorizationPlanner::buildVPlanWithVPRecipes(
       RecipeBuilder.recordRecipeOf(R);
       // For min/max reducitons, where we have a pair of icmp/select, we also
       // need to record the ICmp recipe, so it can be removed later.
+      assert(!RecurrenceDescriptor::isSelectCmpRecurrenceKind(Kind) &&
+             "Only min/max recurrences allowed for inloop reductions");
       if (RecurrenceDescriptor::isMinMaxRecurrenceKind(Kind))
         RecipeBuilder.recordRecipeOf(cast<Instruction>(R->getOperand(0)));
     }
@@ -9568,6 +9584,8 @@ void LoopVectorizationPlanner::adjustRecipesForReductions(
 
       VPValue *ChainOp = Plan->getVPValue(Chain);
       unsigned FirstOpId;
+      assert(!RecurrenceDescriptor::isSelectCmpRecurrenceKind(Kind) &&
+             "Only min/max recurrences allowed for inloop reductions");
       if (RecurrenceDescriptor::isMinMaxRecurrenceKind(Kind)) {
         assert(isa<VPWidenSelectRecipe>(WidenRecipe) &&
                "Expected to replace a VPWidenSelectSC");
@@ -9740,10 +9758,10 @@ void VPReductionRecipe::execute(VPTransformState &State) {
     if (VPValue *Cond = getCondOp()) {
       Value *NewCond = State.get(Cond, Part);
       VectorType *VecTy = cast<VectorType>(NewVecOp->getType());
-      Constant *Iden = RecurrenceDescriptor::getRecurrenceIdentity(
+      Value *Iden = RdxDesc->getRecurrenceIdentity(
           Kind, VecTy->getElementType(), RdxDesc->getFastMathFlags());
-      Constant *IdenVec =
-          ConstantVector::getSplat(VecTy->getElementCount(), Iden);
+      Value *IdenVec =
+          State.Builder.CreateVectorSplat(VecTy->getElementCount(), Iden);
       Value *Select = State.Builder.CreateSelect(NewCond, NewVecOp, IdenVec);
       NewVecOp = Select;
     }
@@ -9885,7 +9903,7 @@ void VPWidenMemoryInstructionRecipe::execute(VPTransformState &State) {
   VPValue *StoredValue = isStore() ? getStoredValue() : nullptr;
   State.ILV->vectorizeMemoryInstruction(
       &Ingredient, State, StoredValue ? nullptr : getVPSingleValue(), getAddr(),
-      StoredValue, getMask());
+      StoredValue, getMask(), Consecutive, Reverse);
 }
 
 // Determine how to lower the scalar epilogue, which depends on 1) optimising
@@ -10559,8 +10577,8 @@ PreservedAnalyses LoopVectorizePass::run(Function &F,
     auto &LAM = AM.getResult<LoopAnalysisManagerFunctionProxy>(F).getManager();
     std::function<const LoopAccessInfo &(Loop &)> GetLAA =
         [&](Loop &L) -> const LoopAccessInfo & {
-      LoopStandardAnalysisResults AR = {AA,  AC,  DT,      LI,  SE,
-                                        TLI, TTI, nullptr, nullptr};
+      LoopStandardAnalysisResults AR = {AA,  AC,  DT,      LI,      SE,
+                                        TLI, TTI, nullptr, nullptr, nullptr};
       return LAM.getResult<LoopAccessAnalysis>(L, AR);
     };
     auto &MAMProxy = AM.getResult<ModuleAnalysisManagerFunctionProxy>(F);
@@ -10583,4 +10601,15 @@ PreservedAnalyses LoopVectorizePass::run(Function &F,
     if (!Result.MadeCFGChange)
       PA.preserveSet<CFGAnalyses>();
     return PA;
+}
+
+void LoopVectorizePass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<LoopVectorizePass> *>(this)->printPipeline(
+      OS, MapClassName2PassName);
+
+  OS << "<";
+  OS << (InterleaveOnlyWhenForced ? "" : "no-") << "interleave-forced-only;";
+  OS << (VectorizeOnlyWhenForced ? "" : "no-") << "vectorize-forced-only;";
+  OS << ">";
 }

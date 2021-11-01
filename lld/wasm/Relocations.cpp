@@ -32,17 +32,13 @@ static bool requiresGOTAccess(const Symbol *sym) {
 }
 
 static bool allowUndefined(const Symbol* sym) {
-  // Undefined functions and globals with explicit import name are allowed to be
-  // undefined at link time.
-  if (auto *f = dyn_cast<UndefinedFunction>(sym))
-    if (f->importName || config->importUndefined)
-      return true;
-  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
-    if (g->importName)
-      return true;
-  if (auto *g = dyn_cast<UndefinedGlobal>(sym))
-    if (g->importName)
-      return true;
+  // Symbols with explicit import names are always allowed to be undefined at
+  // link time.
+  if (sym->importName)
+    return true;
+  if (isa<UndefinedFunction>(sym) && config->importUndefined)
+    return true;
+
   return config->allowUndefinedSymbols.count(sym->getName()) != 0;
 }
 
@@ -139,12 +135,6 @@ void scanRelocations(InputChunk *chunk) {
     }
 
     if (config->isPic) {
-      if (sym->isTLS() && sym->isUndefined()) {
-        error(toString(file) +
-              ": TLS symbol is undefined, but TLS symbols cannot yet be "
-              "imported: `" +
-              toString(*sym) + "`");
-      }
       switch (reloc.Type) {
       case R_WASM_TABLE_INDEX_SLEB:
       case R_WASM_TABLE_INDEX_SLEB64:

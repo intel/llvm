@@ -3029,7 +3029,7 @@ TEST(CompletionTest, CompletionRange) {
 
   // Sema doesn't trigger at all here, while the no-sema completion runs
   // heuristics as normal and reports a range. It'd be nice to be consistent.
-  const char *NoCompletion = "/* [[]]^ */";
+  const char *NoCompletion = "/* foo [[]]^ */";
   Completions = completions(NoCompletion);
   EXPECT_EQ(Completions.CompletionRange, llvm::None);
   Completions = completionsNoCompile(NoCompletion);
@@ -3262,6 +3262,52 @@ TEST(CompletionTest, ObjCCategoryDecls) {
     EXPECT_THAT(Results.Completions, UnorderedElementsAre(Labeled("BarExt")));
   }
 }
+
+TEST(CompletionTest, PreambleCodeComplete) {
+  llvm::StringLiteral Baseline = "\n#define MACRO 12\nint num = MACRO;";
+  llvm::StringLiteral ModifiedCC =
+      "#include \"header.h\"\n#define MACRO 12\nint num = MACRO; int num2 = M^";
+
+  Annotations Test(ModifiedCC);
+  auto BaselineTU = TestTU::withCode(Baseline);
+  auto ModifiedTU = TestTU::withCode(Test.code());
+
+  MockFS FS;
+  auto Inputs = ModifiedTU.inputs(FS);
+  auto Result = codeComplete(testPath(ModifiedTU.Filename), Test.point(),
+                             BaselineTU.preamble().get(), Inputs, {});
+  EXPECT_THAT(Result.Completions, Not(testing::IsEmpty()));
+}
+
+TEST(CompletionTest, CommentParamName) {
+  clangd::CodeCompleteOptions Opts;
+  const std::string Code = R"cpp(
+    void fun(int foo, int bar);
+    void overloaded(int param_int);
+    void overloaded(int param_int, int param_other);
+    void overloaded(char param_char);
+    int main() {
+  )cpp";
+
+  EXPECT_THAT(completions(Code + "fun(/*^", {}, Opts).Completions,
+              UnorderedElementsAre(Labeled("foo=")));
+  EXPECT_THAT(completions(Code + "fun(1, /*^", {}, Opts).Completions,
+              UnorderedElementsAre(Labeled("bar=")));
+  EXPECT_THAT(completions(Code + "/*^", {}, Opts).Completions, IsEmpty());
+  // Test de-duplication.
+  EXPECT_THAT(
+      completions(Code + "overloaded(/*^", {}, Opts).Completions,
+      UnorderedElementsAre(Labeled("param_int="), Labeled("param_char=")));
+  // Comment already has some text in it.
+  EXPECT_THAT(completions(Code + "fun(/*  ^", {}, Opts).Completions,
+              UnorderedElementsAre(Labeled("foo=")));
+  EXPECT_THAT(completions(Code + "fun(/* f^", {}, Opts).Completions,
+              UnorderedElementsAre(Labeled("foo=")));
+  EXPECT_THAT(completions(Code + "fun(/* x^", {}, Opts).Completions, IsEmpty());
+  EXPECT_THAT(completions(Code + "fun(/* f ^", {}, Opts).Completions,
+              IsEmpty());
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

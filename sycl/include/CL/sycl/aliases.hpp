@@ -24,9 +24,6 @@ class half;
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-using half __SYCL2020_DEPRECATED("use 'sycl::half' instead") =
-    cl::sycl::detail::half_impl::half;
-
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = cl::sycl::vec<TYPE, N>;
 

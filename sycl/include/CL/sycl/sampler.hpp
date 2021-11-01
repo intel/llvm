@@ -62,14 +62,15 @@ class sampler_impl;
 /// \sa sycl_api_acc
 ///
 /// \ingroup sycl_api
-class __SYCL_EXPORT sampler {
+class __SYCL_EXPORT __SYCL_SPECIAL_CLASS sampler {
 public:
   sampler(coordinate_normalization_mode normalizationMode,
           addressing_mode addressingMode, filtering_mode filteringMode,
           const property_list &propList = {});
 
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   sampler(cl_sampler clSampler, const context &syclContext);
+#endif
 
   sampler(const sampler &rhs) = default;
 

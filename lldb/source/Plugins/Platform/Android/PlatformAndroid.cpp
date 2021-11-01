@@ -11,7 +11,6 @@
 #include "lldb/Core/Section.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Host/HostInfo.h"
-#include "lldb/Host/StringConvert.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/Scalar.h"
 #include "lldb/Utility/UriParser.h"
@@ -147,22 +146,16 @@ const char *PlatformAndroid::GetPluginDescriptionStatic(bool is_host) {
     return "Remote Android user platform plug-in.";
 }
 
-ConstString PlatformAndroid::GetPluginName() {
-  return GetPluginNameStatic(IsHost());
-}
-
 Status PlatformAndroid::ConnectRemote(Args &args) {
   m_device_id.clear();
 
-  if (IsHost()) {
-    return Status("can't connect to the host platform '%s', always connected",
-                  GetPluginName().GetCString());
-  }
+  if (IsHost())
+    return Status("can't connect to the host platform, always connected");
 
   if (!m_remote_platform_sp)
     m_remote_platform_sp = PlatformSP(new PlatformAndroidRemoteGDBServer());
 
-  int port;
+  llvm::Optional<uint16_t> port;
   llvm::StringRef scheme, host, path;
   const char *url = args.GetArgumentAtIndex(0);
   if (!url)
@@ -290,7 +283,8 @@ uint32_t PlatformAndroid::GetSdkVersion() {
     return 0;
   }
 
-  m_sdk_version = StringConvert::ToUInt32(version_string.c_str());
+  // FIXME: improve error handling
+  llvm::to_integer(version_string, m_sdk_version);
   return m_sdk_version;
 }
 

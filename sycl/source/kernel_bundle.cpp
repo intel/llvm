@@ -99,9 +99,8 @@ void kernel_bundle_plain::set_specialization_constant_impl(
   impl->set_specialization_constant_raw_value(SpecName, Value, Size);
 }
 
-void kernel_bundle_plain::get_specialization_constant_impl(const char *SpecName,
-                                                           void *Value) const
-    noexcept {
+void kernel_bundle_plain::get_specialization_constant_impl(
+    const char *SpecName, void *Value) const noexcept {
   impl->get_specialization_constant_raw_value(SpecName, Value);
 }
 
@@ -181,7 +180,7 @@ bool has_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                           "Not all devices are associated with the context or "
                           "vector of devices is empty");
 
-  bool DeviceHasRequireAspectForState = false;
+  bool DeviceHasRequireAspectForState = true;
   if (bundle_state::input == State) {
     DeviceHasRequireAspectForState =
         std::all_of(Devs.begin(), Devs.end(), [](const device &Dev) {

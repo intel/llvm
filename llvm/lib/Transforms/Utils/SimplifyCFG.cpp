@@ -160,6 +160,13 @@ static cl::opt<unsigned>
                         cl::desc("Maximum cost of combining conditions when "
                                  "folding branches"));
 
+static cl::opt<unsigned> BranchFoldToCommonDestVectorMultiplier(
+    "simplifycfg-branch-fold-common-dest-vector-multiplier", cl::Hidden,
+    cl::init(2),
+    cl::desc("Multiplier to apply to threshold when determining whether or not "
+             "to fold branch to common destination when vector operations are "
+             "present"));
+
 STATISTIC(NumBitMaps, "Number of switch instructions turned into bitmaps");
 STATISTIC(NumLinearMaps,
           "Number of switch instructions turned into linear mapping");
@@ -2570,17 +2577,17 @@ static bool BlockIsSimpleEnoughToThreadThrough(BasicBlock *BB) {
   int Size = 0;
 
   SmallPtrSet<const Value *, 32> EphValues;
-  auto IsEphemeral = [&](const Value *V) {
-    if (isa<AssumeInst>(V))
+  auto IsEphemeral = [&](const Instruction *I) {
+    if (isa<AssumeInst>(I))
       return true;
-    return isSafeToSpeculativelyExecute(V) &&
-           all_of(V->users(),
+    return !I->mayHaveSideEffects() && !I->isTerminator() &&
+           all_of(I->users(),
                   [&](const User *U) { return EphValues.count(U); });
   };
 
   // Walk the loop in reverse so that we can identify ephemeral values properly
   // (values only feeding assumes).
-  for (Instruction &I : reverse(BB->instructionsWithoutDebug())) {
+  for (Instruction &I : reverse(BB->instructionsWithoutDebug(false))) {
     // Can't fold blocks that contain noduplicate or convergent calls.
     if (CallInst *CI = dyn_cast<CallInst>(&I))
       if (CI->cannotDuplicate() || CI->isConvergent())
@@ -2884,8 +2891,7 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
   // instructions.
   for (BasicBlock *IfBlock : IfBlocks)
     for (BasicBlock::iterator I = IfBlock->begin(); !I->isTerminator(); ++I)
-      if (!AggressiveInsts.count(&*I) && !isa<DbgInfoIntrinsic>(I) &&
-          !isa<PseudoProbeInst>(I)) {
+      if (!AggressiveInsts.count(&*I) && !I->isDebugOrPseudoInst()) {
         // This is not an aggressive instruction that we can promote.
         // Because of this, we won't be able to get rid of the control flow, so
         // the xform is not worth it.
@@ -3144,6 +3150,14 @@ static bool performBranchToCommonDestFolding(BranchInst *BI, BranchInst *PBI,
   return true;
 }
 
+/// Return if an instruction's type or any of its operands' types are a vector
+/// type.
+static bool isVectorOp(Instruction &I) {
+  return I.getType()->isVectorTy() || any_of(I.operands(), [](Use &U) {
+           return U->getType()->isVectorTy();
+         });
+}
+
 /// If this basic block is simple enough, and if a predecessor branches to us
 /// and one of our successors, fold the block into the predecessor and use
 /// logical operations to pick the right destination.
@@ -3228,6 +3242,7 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
   // number of the bonus instructions we'll need to create when cloning into
   // each predecessor does not exceed a certain threshold.
   unsigned NumBonusInsts = 0;
+  bool SawVectorOp = false;
   const unsigned PredCount = Preds.size();
   for (Instruction &I : *BB) {
     // Don't check the branch condition comparison itself.
@@ -3239,13 +3254,19 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
     // I must be safe to execute unconditionally.
     if (!isSafeToSpeculativelyExecute(&I))
       return false;
+    SawVectorOp |= isVectorOp(I);
 
     // Account for the cost of duplicating this instruction into each
-    // predecessor.
-    NumBonusInsts += PredCount;
-    // Early exits once we reach the limit.
-    if (NumBonusInsts > BonusInstThreshold)
-      return false;
+    // predecessor. Ignore free instructions.
+    if (!TTI ||
+        TTI->getUserCost(&I, CostKind) != TargetTransformInfo::TCC_Free) {
+      NumBonusInsts += PredCount;
+
+      // Early exits once we reach the limit.
+      if (NumBonusInsts >
+          BonusInstThreshold * BranchFoldToCommonDestVectorMultiplier)
+        return false;
+    }
 
     auto IsBCSSAUse = [BB, &I](Use &U) {
       auto *UI = cast<Instruction>(U.getUser());
@@ -3258,6 +3279,10 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, DomTreeUpdater *DTU,
     if (!all_of(I.uses(), IsBCSSAUse))
       return false;
   }
+  if (NumBonusInsts >
+      BonusInstThreshold *
+          (SawVectorOp ? BranchFoldToCommonDestVectorMultiplier : 1))
+    return false;
 
   // Ok, we have the budget. Perform the transformation.
   for (BasicBlock *PredBlock : Preds) {
@@ -3390,7 +3415,7 @@ static bool mergeConditionalStoreToAddress(
     InstructionCost Cost = 0;
     InstructionCost Budget =
         PHINodeFoldingThreshold * TargetTransformInfo::TCC_Basic;
-    for (auto &I : BB->instructionsWithoutDebug()) {
+    for (auto &I : BB->instructionsWithoutDebug(false)) {
       // Consider terminator instruction to be free.
       if (I.isTerminator())
         continue;
@@ -3463,10 +3488,7 @@ static bool mergeConditionalStoreToAddress(
                                       /*BranchWeights=*/nullptr, DTU);
   QB.SetInsertPoint(T);
   StoreInst *SI = cast<StoreInst>(QB.CreateStore(QPHI, Address));
-  AAMDNodes AAMD;
-  PStore->getAAMetadata(AAMD, /*Merge=*/false);
-  PStore->getAAMetadata(AAMD, /*Merge=*/true);
-  SI->setAAMetadata(AAMD);
+  SI->setAAMetadata(PStore->getAAMetadata().merge(QStore->getAAMetadata()));
   // Choose the minimum alignment. If we could prove both stores execute, we
   // could use biggest one.  In this case, though, we only know that one of the
   // stores executes.  And we don't know it's safe to take the alignment from a
@@ -3716,7 +3738,7 @@ static bool SimplifyCondBranchToCondBranch(BranchInst *PBI, BranchInst *BI,
   // fold the conditions into logical ops and one cond br.
 
   // Ignore dbg intrinsics.
-  if (&*BB->instructionsWithoutDebug().begin() != BI)
+  if (&*BB->instructionsWithoutDebug(false).begin() != BI)
     return false;
 
   int PBIOp, BIOp;
@@ -4761,6 +4783,26 @@ static bool CasesAreContiguous(SmallVectorImpl<ConstantInt *> &Cases) {
   return true;
 }
 
+static void createUnreachableSwitchDefault(SwitchInst *Switch,
+                                           DomTreeUpdater *DTU) {
+  LLVM_DEBUG(dbgs() << "SimplifyCFG: switch default is dead.\n");
+  auto *BB = Switch->getParent();
+  auto *OrigDefaultBlock = Switch->getDefaultDest();
+  OrigDefaultBlock->removePredecessor(BB);
+  BasicBlock *NewDefaultBlock = BasicBlock::Create(
+      BB->getContext(), BB->getName() + ".unreachabledefault", BB->getParent(),
+      OrigDefaultBlock);
+  new UnreachableInst(Switch->getContext(), NewDefaultBlock);
+  Switch->setDefaultDest(&*NewDefaultBlock);
+  if (DTU) {
+    SmallVector<DominatorTree::UpdateType, 2> Updates;
+    Updates.push_back({DominatorTree::Insert, BB, &*NewDefaultBlock});
+    if (!is_contained(successors(BB), OrigDefaultBlock))
+      Updates.push_back({DominatorTree::Delete, BB, &*OrigDefaultBlock});
+    DTU->applyUpdates(Updates);
+  }
+}
+
 /// Turn a switch with two reachable destinations into an integer range
 /// comparison and branch.
 bool SimplifyCFGOpt::TurnSwitchRangeIntoICmp(SwitchInst *SI,
@@ -5066,9 +5108,10 @@ static bool ValidLookupTableConstant(Constant *C, const TargetTransformInfo &TTI
     return false;
 
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
-    if (!CE->isGEPWithNoNotionalOverIndexing())
-      return false;
-    if (!ValidLookupTableConstant(CE->getOperand(0), TTI))
+    // Pointer casts and in-bounds GEPs will not prohibit the backend from
+    // materializing the array of constants.
+    Constant *StrippedC = cast<Constant>(CE->stripInBoundsConstantOffsets());
+    if (StrippedC == C || !ValidLookupTableConstant(StrippedC, TTI))
       return false;
   }
 
@@ -5138,7 +5181,7 @@ GetCaseResults(SwitchInst *SI, ConstantInt *CaseVal, BasicBlock *CaseDest,
   // which we can constant-propagate the CaseVal, continue to its successor.
   SmallDenseMap<Value *, Constant *> ConstantPool;
   ConstantPool.insert(std::make_pair(SI->getCondition(), CaseVal));
-  for (Instruction &I :CaseDest->instructionsWithoutDebug()) {
+  for (Instruction &I : CaseDest->instructionsWithoutDebug(false)) {
     if (I.isTerminator()) {
       // If the terminator is a simple branch, continue to the next block.
       if (I.getNumSuccessors() != 1 || I.isExceptionalTerminator())
@@ -6153,7 +6196,7 @@ bool SimplifyCFGOpt::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
 
     // If the block only contains the switch, see if we can fold the block
     // away into any preds.
-    if (SI == &*BB->instructionsWithoutDebug().begin())
+    if (SI == &*BB->instructionsWithoutDebug(false).begin())
       if (FoldValueComparisonIntoPredecessors(SI, Builder))
         return requestResimplify();
   }
@@ -6297,12 +6340,9 @@ static bool TryToMergeLandingPad(LandingPadInst *LPad, BranchInst *BI,
 
     // The debug info in OtherPred doesn't cover the merged control flow that
     // used to go through BB.  We need to delete it or update it.
-    for (auto I = OtherPred->begin(), E = OtherPred->end(); I != E;) {
-      Instruction &Inst = *I;
-      I++;
+    for (Instruction &Inst : llvm::make_early_inc_range(*OtherPred))
       if (isa<DbgInfoIntrinsic>(Inst))
         Inst.eraseFromParent();
-    }
 
     SmallPtrSet<BasicBlock *, 16> Succs(succ_begin(BB), succ_end(BB));
     for (BasicBlock *Succ : Succs) {
@@ -6611,8 +6651,30 @@ static bool removeUndefIntroducingPredecessor(BasicBlock *BB,
           if (DTU)
             DTU->applyUpdates({{DominatorTree::Delete, Predecessor, BB}});
           return true;
+        } else if (SwitchInst *SI = dyn_cast<SwitchInst>(T)) {
+          // Redirect all branches leading to UB into
+          // a newly created unreachable block.
+          BasicBlock *Unreachable = BasicBlock::Create(
+              Predecessor->getContext(), "unreachable", BB->getParent(), BB);
+          Builder.SetInsertPoint(Unreachable);
+          // The new block contains only one instruction: Unreachable
+          Builder.CreateUnreachable();
+          for (auto &Case : SI->cases())
+            if (Case.getCaseSuccessor() == BB) {
+              BB->removePredecessor(Predecessor);
+              Case.setSuccessor(Unreachable);
+            }
+          if (SI->getDefaultDest() == BB) {
+            BB->removePredecessor(Predecessor);
+            SI->setDefaultDest(Unreachable);
+          }
+
+          if (DTU)
+            DTU->applyUpdates(
+                { { DominatorTree::Insert, Predecessor, Unreachable },
+                  { DominatorTree::Delete, Predecessor, BB } });
+          return true;
         }
-        // TODO: SwitchInst.
       }
 
   return false;

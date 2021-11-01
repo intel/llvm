@@ -72,7 +72,7 @@ static int32_t nvptx_parallel_reduce_nowait(int32_t TId, int32_t num_vars,
                                             InterWarpCopyFnTy cpyFct,
                                             bool isSPMDExecutionMode, bool) {
   uint32_t BlockThreadId = mapping::getThreadIdInBlock();
-  if (mapping::isMainThreadInGenericMode())
+  if (mapping::isMainThreadInGenericMode(/* IsSPMD */ false))
     BlockThreadId = 0;
   uint32_t NumThreads = omp_get_num_threads();
   if (NumThreads == 1)
@@ -209,7 +209,7 @@ int32_t __kmpc_nvptx_teams_reduce_nowait_v2(
   // to the number of slots in the buffer.
   bool IsMaster = (ThreadId == 0);
   while (IsMaster) {
-    Bound = atomic::read((uint32_t *)&IterCnt, __ATOMIC_SEQ_CST);
+    Bound = atomic::load((uint32_t *)&IterCnt, __ATOMIC_SEQ_CST);
     if (TeamId < Bound + num_of_records)
       break;
   }

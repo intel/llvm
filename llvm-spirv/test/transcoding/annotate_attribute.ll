@@ -5,14 +5,19 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "42"
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "bar"
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "{FOO}"
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "my_custom_annotations: 30, 60"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 1 UserSemantic "128"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 2 UserSemantic "qux"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 UserSemantic "{baz}"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 3 UserSemantic "my_custom_annotations: 20, 60, 80"
+; Check that even when FPGA memory extensions are enabled - yet we have
+; UserSemantic decoration be generated
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "42"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "bar"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "{FOO}"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "my_custom_annotations: 30, 60"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 1 UserSemantic "128"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 2 UserSemantic "qux"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "{baz}"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 3 UserSemantic "my_custom_annotations: 20, 60, 80"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"

@@ -533,6 +533,7 @@ public:
       : parentOperation(std::move(parentOperation)), region(region) {
     assert(!mlirRegionIsNull(region) && "python region cannot be null");
   }
+  operator MlirRegion() const { return region; }
 
   MlirRegion get() { return region; }
   PyOperationRef &getParentOperation() { return parentOperation; }
@@ -678,8 +679,12 @@ public:
   }
 
   static void bind(pybind11::module &m) {
-    auto cls = ClassTy(m, DerivedTy::pyClassName, pybind11::buffer_protocol());
+    auto cls = ClassTy(m, DerivedTy::pyClassName, pybind11::buffer_protocol(),
+                       pybind11::module_local());
     cls.def(pybind11::init<PyAttribute &>(), pybind11::keep_alive<0, 1>());
+    cls.def_static("isinstance", [](PyAttribute &otherAttr) -> bool {
+      return DerivedTy::isaFunction(otherAttr);
+    });
     DerivedTy::bindDerived(cls);
   }
 
@@ -741,7 +746,7 @@ public:
   }
 
   static void bind(pybind11::module &m) {
-    auto cls = ClassTy(m, DerivedTy::pyClassName);
+    auto cls = ClassTy(m, DerivedTy::pyClassName, pybind11::module_local());
     cls.def(pybind11::init<PyType &>(), pybind11::keep_alive<0, 1>());
     cls.def_static("isinstance", [](PyType &otherType) -> bool {
       return DerivedTy::isaFunction(otherType);
@@ -763,6 +768,7 @@ class PyValue {
 public:
   PyValue(PyOperationRef parentOperation, MlirValue value)
       : parentOperation(parentOperation), value(value) {}
+  operator MlirValue() const { return value; }
 
   MlirValue get() { return value; }
   PyOperationRef &getParentOperation() { return parentOperation; }

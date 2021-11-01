@@ -41,12 +41,14 @@ template <> struct interop<backend::cuda, queue> { using type = CUstream; };
 
 template <> struct interop<backend::cuda, event> { using type = CUevent; };
 
+#ifdef __SYCL_INTERNAL_API
 template <> struct interop<backend::cuda, program> { using type = CUmodule; };
+#endif
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::cuda, accessor<DataT, Dimensions, AccessMode,
-                                       access::target::global_buffer,
-                                       access::placeholder::false_t>> {
+struct interop<backend::cuda,
+               accessor<DataT, Dimensions, AccessMode, access::target::device,
+                        access::placeholder::false_t>> {
   using type = CUdeviceptr;
 };
 

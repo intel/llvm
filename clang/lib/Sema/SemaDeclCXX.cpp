@@ -26,6 +26,7 @@
 #include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/PartialDiagnostic.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/Preprocessor.h"
@@ -2050,6 +2051,13 @@ CheckConstexprFunctionStmt(Sema &SemaRef, const FunctionDecl *Dcl, Stmt *S,
     ReturnStmts.push_back(S->getBeginLoc());
     return true;
 
+  case Stmt::AttributedStmtClass:
+    // Attributes on a statement don't affect its formal kind and hence don't
+    // affect its validity in a constexpr function.
+    return CheckConstexprFunctionStmt(SemaRef, Dcl,
+                                      cast<AttributedStmt>(S)->getSubStmt(),
+                                      ReturnStmts, Cxx1yLoc, Cxx2aLoc, Kind);
+
   case Stmt::CompoundStmtClass: {
     // C++1y allows compound-statements.
     if (!Cxx1yLoc.isValid())
@@ -2063,11 +2071,6 @@ CheckConstexprFunctionStmt(Sema &SemaRef, const FunctionDecl *Dcl, Stmt *S,
     }
     return true;
   }
-
-  case Stmt::AttributedStmtClass:
-    if (!Cxx1yLoc.isValid())
-      Cxx1yLoc = S->getBeginLoc();
-    return true;
 
   case Stmt::IfStmtClass: {
     // C++1y allows if-statements.
@@ -4114,7 +4117,7 @@ Sema::ActOnMemInitializer(Decl *ConstructorD,
 namespace {
 
 // Callback to only accept typo corrections that can be a valid C++ member
-// intializer: either a non-static field member or a base class.
+// initializer: either a non-static field member or a base class.
 class MemInitializerValidatorCCC final : public CorrectionCandidateCallback {
 public:
   explicit MemInitializerValidatorCCC(CXXRecordDecl *ClassDecl)
@@ -5882,6 +5885,7 @@ struct CheckAbstractUsage {
     if (CT != Info.AbstractType) return;
 
     // It matched; do some magic.
+    // FIXME: These should be at most warnings. See P0929R2, CWG1640, CWG1646.
     if (Sel == Sema::AbstractArrayType) {
       Info.S.Diag(Ctx->getLocation(), diag::err_array_of_abstract_type)
         << T << TL.getSourceRange();
@@ -5900,19 +5904,31 @@ void AbstractUsageInfo::CheckType(const NamedDecl *D, TypeLoc TL,
 
 }
 
-/// Check for invalid uses of an abstract type in a method declaration.
+/// Check for invalid uses of an abstract type in a function declaration.
 static void CheckAbstractClassUsage(AbstractUsageInfo &Info,
-                                    CXXMethodDecl *MD) {
+                                    FunctionDecl *FD) {
   // No need to do the check on definitions, which require that
   // the return/param types be complete.
-  if (MD->doesThisDeclarationHaveABody())
+  if (FD->doesThisDeclarationHaveABody())
     return;
 
   // For safety's sake, just ignore it if we don't have type source
   // information.  This should never happen for non-implicit methods,
   // but...
-  if (TypeSourceInfo *TSI = MD->getTypeSourceInfo())
-    Info.CheckType(MD, TSI->getTypeLoc(), Sema::AbstractNone);
+  if (TypeSourceInfo *TSI = FD->getTypeSourceInfo())
+    Info.CheckType(FD, TSI->getTypeLoc(), Sema::AbstractNone);
+}
+
+/// Check for invalid uses of an abstract type in a variable0 declaration.
+static void CheckAbstractClassUsage(AbstractUsageInfo &Info,
+                                    VarDecl *VD) {
+  // No need to do the check on definitions, which require that
+  // the type is complete.
+  if (VD->isThisDeclarationADefinition())
+    return;
+
+  Info.CheckType(VD, VD->getTypeSourceInfo()->getTypeLoc(),
+                 Sema::AbstractVariableType);
 }
 
 /// Check for invalid uses of an abstract type within a class definition.
@@ -5921,29 +5937,32 @@ static void CheckAbstractClassUsage(AbstractUsageInfo &Info,
   for (auto *D : RD->decls()) {
     if (D->isImplicit()) continue;
 
-    // Methods and method templates.
-    if (isa<CXXMethodDecl>(D)) {
-      CheckAbstractClassUsage(Info, cast<CXXMethodDecl>(D));
-    } else if (isa<FunctionTemplateDecl>(D)) {
-      FunctionDecl *FD = cast<FunctionTemplateDecl>(D)->getTemplatedDecl();
-      CheckAbstractClassUsage(Info, cast<CXXMethodDecl>(FD));
+    // Step through friends to the befriended declaration.
+    if (auto *FD = dyn_cast<FriendDecl>(D)) {
+      D = FD->getFriendDecl();
+      if (!D) continue;
+    }
+
+    // Functions and function templates.
+    if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+      CheckAbstractClassUsage(Info, FD);
+    } else if (auto *FTD = dyn_cast<FunctionTemplateDecl>(D)) {
+      CheckAbstractClassUsage(Info, FTD->getTemplatedDecl());
 
     // Fields and static variables.
-    } else if (isa<FieldDecl>(D)) {
-      FieldDecl *FD = cast<FieldDecl>(D);
+    } else if (auto *FD = dyn_cast<FieldDecl>(D)) {
       if (TypeSourceInfo *TSI = FD->getTypeSourceInfo())
         Info.CheckType(FD, TSI->getTypeLoc(), Sema::AbstractFieldType);
-    } else if (isa<VarDecl>(D)) {
-      VarDecl *VD = cast<VarDecl>(D);
-      if (TypeSourceInfo *TSI = VD->getTypeSourceInfo())
-        Info.CheckType(VD, TSI->getTypeLoc(), Sema::AbstractVariableType);
+    } else if (auto *VD = dyn_cast<VarDecl>(D)) {
+      CheckAbstractClassUsage(Info, VD);
+    } else if (auto *VTD = dyn_cast<VarTemplateDecl>(D)) {
+      CheckAbstractClassUsage(Info, VTD->getTemplatedDecl());
 
     // Nested classes and class templates.
-    } else if (isa<CXXRecordDecl>(D)) {
-      CheckAbstractClassUsage(Info, cast<CXXRecordDecl>(D));
-    } else if (isa<ClassTemplateDecl>(D)) {
-      CheckAbstractClassUsage(Info,
-                             cast<ClassTemplateDecl>(D)->getTemplatedDecl());
+    } else if (auto *RD = dyn_cast<CXXRecordDecl>(D)) {
+      CheckAbstractClassUsage(Info, RD);
+    } else if (auto *CTD = dyn_cast<ClassTemplateDecl>(D)) {
+      CheckAbstractClassUsage(Info, CTD->getTemplatedDecl());
     }
   }
 }
@@ -7804,9 +7823,21 @@ private:
            DCK == DefaultedComparisonKind::Relational) &&
           !Best->RewriteKind) {
         if (Diagnose == ExplainDeleted) {
-          S.Diag(Best->Function->getLocation(),
-                 diag::note_defaulted_comparison_not_rewritten_callee)
-              << FD;
+          if (Best->Function) {
+            S.Diag(Best->Function->getLocation(),
+                   diag::note_defaulted_comparison_not_rewritten_callee)
+                << FD;
+          } else {
+            assert(Best->Conversions.size() == 2 &&
+                   Best->Conversions[0].isUserDefined() &&
+                   "non-user-defined conversion from class to built-in "
+                   "comparison");
+            S.Diag(Best->Conversions[0]
+                       .UserDefined.FoundConversionFunction.getDecl()
+                       ->getLocation(),
+                   diag::note_defaulted_comparison_not_rewritten_conversion)
+                << FD;
+          }
         }
         return Result::deleted();
       }
@@ -7962,7 +7993,7 @@ private:
 
       if (Diagnose == ExplainDeleted) {
         S.Diag(Subobj.Loc, diag::note_defaulted_comparison_no_viable_function)
-            << FD << Subobj.Kind << Subobj.Decl;
+            << FD << (OO == OO_ExclaimEqual) << Subobj.Kind << Subobj.Decl;
 
         // For a three-way comparison, list both the candidates for the
         // original operator and the candidates for the synthesized operator.
@@ -8190,7 +8221,7 @@ private:
     if (ReturnFalse.isInvalid())
       return StmtError();
 
-    return S.ActOnIfStmt(Loc, false, Loc, nullptr,
+    return S.ActOnIfStmt(Loc, IfStatementKind::Ordinary, Loc, nullptr,
                          S.ActOnCondition(nullptr, Loc, NotCond.get(),
                                           Sema::ConditionKind::Boolean),
                          Loc, ReturnFalse.get(), SourceLocation(), nullptr);
@@ -8345,8 +8376,8 @@ private:
         return StmtError();
 
       // if (...)
-      return S.ActOnIfStmt(Loc, /*IsConstexpr=*/false, Loc, InitStmt, Cond, Loc,
-                           ReturnStmt.get(),
+      return S.ActOnIfStmt(Loc, IfStatementKind::Ordinary, Loc, InitStmt, Cond,
+                           Loc, ReturnStmt.get(),
                            /*ElseLoc=*/SourceLocation(), /*Else=*/nullptr);
     }
 
@@ -9811,7 +9842,7 @@ public:
 };
 } // end anonymous namespace
 
-/// Add the most overriden methods from MD to Methods
+/// Add the most overridden methods from MD to Methods
 static void AddMostOverridenMethods(const CXXMethodDecl *MD,
                         llvm::SmallPtrSetImpl<const CXXMethodDecl *>& Methods) {
   if (MD->size_overridden_methods() == 0)
@@ -15300,8 +15331,17 @@ Sema::BuildCXXConstructExpr(SourceLocation ConstructLoc, QualType DeclInitType,
   //       can be omitted by constructing the temporary object
   //       directly into the target of the omitted copy/move
   if (ConstructKind == CXXConstructExpr::CK_Complete && Constructor &&
+      // FIXME: Converting constructors should also be accepted.
+      // But to fix this, the logic that digs down into a CXXConstructExpr
+      // to find the source object needs to handle it.
+      // Right now it assumes the source object is passed directly as the
+      // first argument.
       Constructor->isCopyOrMoveConstructor() && hasOneRealArgument(ExprArgs)) {
     Expr *SubExpr = ExprArgs[0];
+    // FIXME: Per above, this is also incorrect if we want to accept
+    //        converting constructors, as isTemporaryObject will
+    //        reject temporaries with different type from the
+    //        CXXRecord itself.
     Elidable = SubExpr->isTemporaryObject(
         Context, cast<CXXRecordDecl>(FoundDecl->getDeclContext()));
   }
@@ -15439,7 +15479,7 @@ ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
 void Sema::FinalizeVarWithDestructor(VarDecl *VD, const RecordType *Record) {
   if (VD->isInvalidDecl()) return;
   // If initializing the variable failed, don't also diagnose problems with
-  // the desctructor, they're likely related.
+  // the destructor, they're likely related.
   if (VD->getInit() && VD->getInit()->containsErrors())
     return;
 
@@ -15869,7 +15909,7 @@ checkLiteralOperatorTemplateParameterList(Sema &SemaRef,
     //
     // As a DR resolution, we also allow placeholders for deduced class
     // template specializations.
-    if (SemaRef.getLangOpts().CPlusPlus20 &&
+    if (SemaRef.getLangOpts().CPlusPlus20 && PmDecl &&
         !PmDecl->isTemplateParameterPack() &&
         (PmDecl->getType()->isRecordType() ||
          PmDecl->getType()->getAs<DeducedTemplateSpecializationType>()))
@@ -17608,16 +17648,12 @@ bool Sema::DefineUsedVTables() {
     // no key function or the key function is inlined. Don't warn in C++ ABIs
     // that lack key functions, since the user won't be able to make one.
     if (Context.getTargetInfo().getCXXABI().hasKeyFunctions() &&
-        Class->isExternallyVisible() && ClassTSK != TSK_ImplicitInstantiation) {
+        Class->isExternallyVisible() && ClassTSK != TSK_ImplicitInstantiation &&
+        ClassTSK != TSK_ExplicitInstantiationDefinition) {
       const FunctionDecl *KeyFunctionDef = nullptr;
       if (!KeyFunction || (KeyFunction->hasBody(KeyFunctionDef) &&
-                           KeyFunctionDef->isInlined())) {
-        Diag(Class->getLocation(),
-             ClassTSK == TSK_ExplicitInstantiationDefinition
-                 ? diag::warn_weak_template_vtable
-                 : diag::warn_weak_vtable)
-            << Class;
-      }
+                           KeyFunctionDef->isInlined()))
+        Diag(Class->getLocation(), diag::warn_weak_vtable) << Class;
     }
   }
   VTableUses.clear();

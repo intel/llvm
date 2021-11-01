@@ -1141,7 +1141,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
         return ConstantInt::get(CI1->getContext(), C1V.udiv(C2V));
       case Instruction::SDiv:
         assert(!CI2->isZero() && "Div by zero handled above");
-        if (C2V.isAllOnesValue() && C1V.isMinSignedValue())
+        if (C2V.isAllOnes() && C1V.isMinSignedValue())
           return PoisonValue::get(CI1->getType());   // MIN_INT / -1 -> poison
         return ConstantInt::get(CI1->getContext(), C1V.sdiv(C2V));
       case Instruction::URem:
@@ -1149,7 +1149,7 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
         return ConstantInt::get(CI1->getContext(), C1V.urem(C2V));
       case Instruction::SRem:
         assert(!CI2->isZero() && "Div by zero handled above");
-        if (C2V.isAllOnesValue() && C1V.isMinSignedValue())
+        if (C2V.isAllOnes() && C1V.isMinSignedValue())
           return PoisonValue::get(CI1->getType());   // MIN_INT % -1 -> poison
         return ConstantInt::get(CI1->getContext(), C1V.srem(C2V));
       case Instruction::And:
@@ -2326,7 +2326,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
       if (isIndexInRangeOfArrayType(STy->getNumElements(), CI))
         // It's in range, skip to the next index.
         continue;
-      if (CI->getSExtValue() < 0) {
+      if (CI->isNegative()) {
         // It's out of range and negative, don't try to factor it.
         Unknown = true;
         continue;
@@ -2337,7 +2337,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
       for (unsigned I = 0, E = CV->getNumElements(); I != E; ++I) {
         auto *CI = cast<ConstantInt>(CV->getElementAsConstant(I));
         InRange &= isIndexInRangeOfArrayType(STy->getNumElements(), CI);
-        if (CI->getSExtValue() < 0) {
+        if (CI->isNegative()) {
           Unknown = true;
           break;
         }

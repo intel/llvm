@@ -15,6 +15,7 @@
 // CHECK-NEXT: apiModeling.StdCLibraryFunctions:DisplayLoadedSummaries = false
 // CHECK-NEXT: apiModeling.StdCLibraryFunctions:ModelPOSIX = false
 // CHECK-NEXT: apply-fixits = false
+// CHECK-NEXT: assume-controlled-environment = false
 // CHECK-NEXT: avoid-suppressing-null-argument-paths = false
 // CHECK-NEXT: c++-allocator-inlining = true
 // CHECK-NEXT: c++-container-inlining = false
@@ -117,7 +118,7 @@
 // CHECK-NEXT: suppress-null-return-paths = true
 // CHECK-NEXT: track-conditions = true
 // CHECK-NEXT: track-conditions-debug = false
-// CHECK-NEXT: unix.DynamicMemoryModeling:AddNoOwnershipChangeNotes = false
+// CHECK-NEXT: unix.DynamicMemoryModeling:AddNoOwnershipChangeNotes = true
 // CHECK-NEXT: unix.DynamicMemoryModeling:Optimistic = false
 // CHECK-NEXT: unroll-loops = false
 // CHECK-NEXT: verbose-report-filename = false

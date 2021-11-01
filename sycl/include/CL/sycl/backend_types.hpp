@@ -26,7 +26,9 @@ enum class backend : char {
       ext_oneapi_level_zero,
   cuda = 3,
   all = 4,
-  esimd_cpu = 5,
+  ext_intel_esimd_emulator = 5,
+  esimd_cpu __SYCL2020_DEPRECATED("use 'ext_oneapi_esimd_emulator' instead") =
+      ext_intel_esimd_emulator,
   hip = 6,
 };
 
@@ -55,8 +57,8 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::cuda:
     Out << "cuda";
     break;
-  case backend::esimd_cpu:
-    Out << "esimd_cpu";
+  case backend::ext_intel_esimd_emulator:
+    Out << "ext_intel_esimd_emulator";
     break;
   case backend::hip:
     Out << "hip";

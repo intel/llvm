@@ -19,8 +19,6 @@
 
 using namespace mlir;
 
-OpAsmParser::~OpAsmParser() {}
-
 //===----------------------------------------------------------------------===//
 // OperationName
 //===----------------------------------------------------------------------===//
@@ -182,7 +180,7 @@ Operation::Operation(Location location, OperationName name, unsigned numResults,
         name.getStringRef() +
         " created with unregistered dialect. If this is intended, please call "
         "allowUnregisteredDialects() on the MLIRContext, or use "
-        "-allow-unregistered-dialect with the MLIR opt tool used");
+        "-allow-unregistered-dialect with the MLIR tool used.");
 #endif
 }
 
@@ -278,17 +276,9 @@ void Operation::insertOperands(unsigned index, ValueRange operands) {
 InFlightDiagnostic Operation::emitError(const Twine &message) {
   InFlightDiagnostic diag = mlir::emitError(getLoc(), message);
   if (getContext()->shouldPrintOpOnDiagnostic()) {
-    // Print out the operation explicitly here so that we can print the generic
-    // form.
-    // TODO: It would be nice if we could instead provide the
-    // specific printing flags when adding the operation as an argument to the
-    // diagnostic.
-    std::string printedOp;
-    {
-      llvm::raw_string_ostream os(printedOp);
-      print(os, OpPrintingFlags().printGenericOpForm().useLocalScope());
-    }
-    diag.attachNote(getLoc()) << "see current operation: " << printedOp;
+    diag.attachNote(getLoc())
+        .append("see current operation: ")
+        .appendOp(*this, OpPrintingFlags().printGenericOpForm());
   }
   return diag;
 }
@@ -648,8 +638,9 @@ void OpState::printOpName(Operation *op, OpAsmPrinter &p,
   StringRef name = op->getName().getStringRef();
   if (name.startswith((defaultDialect + ".").str()))
     name = name.drop_front(defaultDialect.size() + 1);
-  // TODO: remove this special case.
-  else if (name.startswith("std."))
+  // TODO: remove this special case (and update test/IR/parser.mlir)
+  else if ((defaultDialect.empty() || defaultDialect == "builtin") &&
+           name.startswith("std."))
     name = name.drop_front(4);
   p.getStream() << name;
 }
@@ -727,7 +718,8 @@ LogicalResult OpTrait::impl::verifyAtLeastNOperands(Operation *op,
                                                     unsigned numOperands) {
   if (op->getNumOperands() < numOperands)
     return op->emitOpError()
-           << "expected " << numOperands << " or more operands";
+           << "expected " << numOperands << " or more operands, but found "
+           << op->getNumOperands();
   return success();
 }
 
@@ -1023,7 +1015,7 @@ LogicalResult OpTrait::impl::verifyValueSizeAttr(Operation *op,
     return op->emitOpError("requires 1D i32 elements attribute '")
            << attrName << "'";
 
-  if (llvm::any_of(sizeAttr.getIntValues(), [](const APInt &element) {
+  if (llvm::any_of(sizeAttr.getValues<APInt>(), [](const APInt &element) {
         return !element.isNonNegative();
       }))
     return op->emitOpError("'")

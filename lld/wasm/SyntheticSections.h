@@ -198,6 +198,7 @@ protected:
   llvm::DenseMap<ImportKey<WasmGlobalType>, uint32_t> importedGlobals;
   llvm::DenseMap<ImportKey<WasmSignature>, uint32_t> importedFunctions;
   llvm::DenseMap<ImportKey<WasmTableType>, uint32_t> importedTables;
+  llvm::DenseMap<ImportKey<WasmSignature>, uint32_t> importedTags;
 };
 
 class FunctionSection : public SyntheticSection {
@@ -287,9 +288,9 @@ public:
   // transform a `global.get` to an `i32.const`.
   void addInternalGOTEntry(Symbol *sym);
   bool needsRelocations() { return internalGotSymbols.size(); }
-  void generateRelocationCode(raw_ostream &os) const;
+  void generateRelocationCode(raw_ostream &os, bool TLS) const;
 
-  std::vector<const DefinedData *> dataAddressGlobals;
+  std::vector<DefinedData *> dataAddressGlobals;
   std::vector<InputGlobal *> inputGlobals;
   std::vector<Symbol *> internalGotSymbols;
 

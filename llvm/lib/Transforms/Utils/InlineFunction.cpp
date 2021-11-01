@@ -539,12 +539,10 @@ static Value *getUnwindDestToken(Instruction *EHPad,
 static BasicBlock *HandleCallsInBlockInlinedThroughInvoke(
     BasicBlock *BB, BasicBlock *UnwindEdge,
     UnwindDestMemoTy *FuncletUnwindMap = nullptr) {
-  for (BasicBlock::iterator BBI = BB->begin(), E = BB->end(); BBI != E; ) {
-    Instruction *I = &*BBI++;
-
+  for (Instruction &I : llvm::make_early_inc_range(*BB)) {
     // We only need to check for function calls: inlined invoke
     // instructions require no special handling.
-    CallInst *CI = dyn_cast<CallInst>(I);
+    CallInst *CI = dyn_cast<CallInst>(&I);
 
     if (!CI || CI->doesNotThrow())
       continue;
@@ -1179,14 +1177,8 @@ static bool MayContainThrowingOrExitingCall(Instruction *Begin,
 
   assert(Begin->getParent() == End->getParent() &&
          "Expected to be in same basic block!");
-  unsigned NumInstChecked = 0;
-  // Check that all instructions in the range [Begin, End) are guaranteed to
-  // transfer execution to successor.
-  for (auto &I : make_range(Begin->getIterator(), End->getIterator()))
-    if (NumInstChecked++ > InlinerAttributeWindow ||
-        !isGuaranteedToTransferExecutionToSuccessor(&I))
-      return true;
-  return false;
+  return !llvm::isGuaranteedToTransferExecutionToSuccessor(
+      Begin->getIterator(), End->getIterator(), InlinerAttributeWindow + 1);
 }
 
 static AttrBuilder IdentifyValidAttributes(CallBase &CB) {
@@ -2112,7 +2104,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
   SmallVector<Value*,4> VarArgsToForward;
   SmallVector<AttributeSet, 4> VarArgsAttrs;
   for (unsigned i = CalledFunc->getFunctionType()->getNumParams();
-       i < CB.getNumArgOperands(); i++) {
+       i < CB.arg_size(); i++) {
     VarArgsToForward.push_back(CB.getArgOperand(i));
     VarArgsAttrs.push_back(CB.getAttributes().getParamAttrs(i));
   }
@@ -2129,8 +2121,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
 
     for (Function::iterator BB = FirstNewBlock, E = Caller->end(); BB != E;
          ++BB) {
-      for (auto II = BB->begin(); II != BB->end();) {
-        Instruction &I = *II++;
+      for (Instruction &I : llvm::make_early_inc_range(*BB)) {
         CallInst *CI = dyn_cast<CallInst>(&I);
         if (!CI)
           continue;
@@ -2155,7 +2146,7 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
           Attrs = AttributeList::get(CI->getContext(), Attrs.getFnAttrs(),
                                      Attrs.getRetAttrs(), ArgAttrs);
           // Add VarArgs to existing parameters.
-          SmallVector<Value *, 6> Params(CI->arg_operands());
+          SmallVector<Value *, 6> Params(CI->args());
           Params.append(VarArgsToForward.begin(), VarArgsToForward.end());
           CallInst *NewCI = CallInst::Create(
               CI->getFunctionType(), CI->getCalledOperand(), Params, "", CI);

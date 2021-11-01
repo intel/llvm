@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/Linalg/Passes.h"
@@ -59,7 +60,7 @@ using namespace mlir::linalg;
 ///        tensor<5xf32> into tensor<5x1xf32>
 ///   %2 = linalg.generic #trait %0, %1 {
 ///        ^bb0(%arg2: f32, %arg3: f32):
-///          %3 = addf %arg2, %arg3 : f32
+///          %3 = arith.addf %arg2, %arg3 : f32
 ///          linalg.yield %3 : f32
 ///        } : tensor<1x5xf32>, tensor<5x1xf32> -> tensor<5x5xf32>
 ///   return %2 : tensor<5x5xf32>
@@ -87,7 +88,7 @@ using namespace mlir::linalg;
 /// {
 ///   %0 = linalg.generic #trait %arg0, %arg1 {
 ///        ^bb0(%arg2: f32, %arg3: f32):
-///          %3 = addf %arg2, %arg3 : f32
+///          %3 = arith.addf %arg2, %arg3 : f32
 ///          linalg.yield %3 : f32
 ///        } : tensor<5xf32>, tensor<5xf32> -> tensor<5x5xf32>
 ///   return %0 : tensor<5x5xf32>
@@ -148,16 +149,12 @@ static ArrayAttr replaceUnitDims(DenseSet<unsigned> &unitDims,
 static void replaceUnitDimIndexOps(GenericOp genericOp,
                                    const DenseSet<unsigned> &unitDims,
                                    PatternRewriter &rewriter) {
-  assert(genericOp->getNumRegions() == 1 &&
-         genericOp->getRegion(0).getBlocks().size() == 1 &&
-         "expected generic operation to have one block.");
-  Block &block = genericOp->getRegion(0).front();
-
-  for (IndexOp indexOp : llvm::make_early_inc_range(block.getOps<IndexOp>())) {
+  for (IndexOp indexOp :
+       llvm::make_early_inc_range(genericOp.getBody()->getOps<IndexOp>())) {
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPoint(indexOp);
     if (unitDims.count(indexOp.dim()) != 0) {
-      rewriter.replaceOpWithNewOp<ConstantIndexOp>(indexOp, 0);
+      rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(indexOp, 0);
     } else {
       // Update the dimension of the index operation if needed.
       unsigned droppedDims = llvm::count_if(
@@ -187,40 +184,13 @@ struct FoldUnitDimLoops : public OpRewritePattern<GenericOp> {
       return failure();
     SmallVector<int64_t> dims = genericOp.getStaticShape();
 
-    // Find all the reduction iterators. Those need some special consideration
-    // (see below).
-    auto getLoopDimsOfType =
-        [&](StringRef iteratorTypeName) -> SmallVector<unsigned, 4> {
-      SmallVector<AffineExpr> dimExprs;
-      getDimsOfType(genericOp, iteratorTypeName, dimExprs);
-      return llvm::to_vector<4>(llvm::map_range(dimExprs, [](AffineExpr expr) {
-        return expr.cast<AffineDimExpr>().getPosition();
-      }));
-    };
-    auto reductionDims = getLoopDimsOfType(getReductionIteratorTypeName());
-
     DenseSet<unsigned> unitDims;
     SmallVector<unsigned, 4> unitDimsReductionLoops;
     ArrayAttr iteratorTypes = genericOp.iterator_types();
     for (auto expr : enumerate(invertedMap.getResults())) {
       if (AffineDimExpr dimExpr = expr.value().dyn_cast<AffineDimExpr>())
-        if (dims[dimExpr.getPosition()] == 1) {
-          if (isParallelIterator(iteratorTypes[expr.index()]))
-            unitDims.insert(expr.index());
-          else if (isReductionIterator(iteratorTypes[expr.index()]))
-            unitDimsReductionLoops.push_back(expr.index());
-        }
-    }
-
-    // Reduction loops can be dropped if there is at least one other reduction
-    // loop that is not dropped. This accounts for the initial value read in the
-    // reduction loop.
-    if (!unitDimsReductionLoops.empty() && reductionDims.size() > 1) {
-      if (unitDimsReductionLoops.size() == reductionDims.size())
-        unitDims.insert(reductionDims.begin(), std::prev(reductionDims.end()));
-      else
-        unitDims.insert(unitDimsReductionLoops.begin(),
-                        unitDimsReductionLoops.end());
+        if (dims[dimExpr.getPosition()] == 1)
+          unitDims.insert(expr.index());
     }
 
     if (unitDims.empty())
@@ -288,7 +258,7 @@ replaceUnitExtents(GenericOp genericOp, OpOperand *opOperand,
   // leave them unchanged.
   Type actualType = opOperand->get().getType();
   if (auto memref = actualType.dyn_cast<MemRefType>()) {
-    if (!memref.getAffineMaps().empty())
+    if (!memref.getLayout().isIdentity())
       return llvm::None;
   }
 
@@ -388,6 +358,12 @@ struct ReplaceUnitExtents : public OpRewritePattern<GenericOp> {
 
   LogicalResult matchAndRewrite(GenericOp genericOp,
                                 PatternRewriter &rewriter) const override {
+    // Skip the pattern if the op has any tensor with special encoding.
+    if (llvm::any_of(genericOp->getOperandTypes(), [](Type type) {
+          auto tensorType = type.dyn_cast<RankedTensorType>();
+          return tensorType && tensorType.getEncoding() != nullptr;
+        }))
+      return failure();
     MLIRContext *context = rewriter.getContext();
     Location loc = genericOp.getLoc();
 

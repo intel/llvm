@@ -1,19 +1,17 @@
-file(GLOB SOURCES *.cpp)
-include_directories(${XPTIFW_DIR}/include)
-include_directories(${XPTI_DIR}/include)
-include_directories(${XPTIFW_DIR}/samples/include)
-
-remove_definitions(-DXPTI_STATIC_LIBRARY)
-add_definitions(-DXPTI_API_EXPORTS)
-add_library(syclpi_collector SHARED ${SOURCES})
-add_dependencies(syclpi_collector xptifw)
-target_link_libraries(syclpi_collector PRIVATE xptifw)
-if(UNIX)
-  target_link_libraries(syclpi_collector PRIVATE dl)
-endif()
+add_library(xpti_syclpi_collector SHARED
+  syclpi_collector.cpp
+)
+target_link_libraries(xpti_syclpi_collector PRIVATE
+  xptifw
+  ${CMAKE_DL_LIBS}
+)
+target_include_directories(xpti_syclpi_collector PRIVATE
+  ${XPTIFW_DIR}/include
+  ${XPTI_DIR}/include
+  ${XPTIFW_DIR}/samples/include
+)
 
 if (XPTI_ENABLE_TBB)
-  target_link_libraries(syclpi_collector PRIVATE tbb)
+  target_link_libraries(xpti_syclpi_collector PRIVATE tbb)
 endif()
-# Set the location of the library installation
-install(TARGETS syclpi_collector DESTINATION ${CMAKE_BINARY_DIR})
+

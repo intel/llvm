@@ -1555,6 +1555,12 @@ CodeGenFunction::generateObjCSetterBody(const ObjCImplementationDecl *classImpl,
       argCK = CK_AnyPointerToBlockPointerCast;
   } else if (ivarRef.getType()->isPointerType()) {
     argCK = CK_BitCast;
+  } else if (argLoad.getType()->isAtomicType() &&
+             !ivarRef.getType()->isAtomicType()) {
+    argCK = CK_AtomicToNonAtomic;
+  } else if (!argLoad.getType()->isAtomicType() &&
+             ivarRef.getType()->isAtomicType()) {
+    argCK = CK_NonAtomicToAtomic;
   }
   ImplicitCastExpr argCast(ImplicitCastExpr::OnStack, ivarRef.getType(), argCK,
                            &argLoad, VK_PRValue, FPOptionsOverride());
@@ -3332,7 +3338,8 @@ struct ARCRetainExprEmitter :
     TryEmitResult result = visitExpr(e);
     // Avoid the block-retain if this is a block literal that doesn't need to be
     // copied to the heap.
-    if (e->getBlockDecl()->canAvoidCopyToHeap())
+    if (CGF.CGM.getCodeGenOpts().ObjCAvoidHeapifyLocalBlocks &&
+        e->getBlockDecl()->canAvoidCopyToHeap())
       result.setInt(true);
     return result;
   }

@@ -176,7 +176,7 @@ public:
 class SPSEmpty {};
 
 /// Represents an address in the executor.
-class SPSExecutorAddress {};
+class SPSExecutorAddr {};
 
 /// SPS tag type for tuples.
 ///
@@ -396,10 +396,12 @@ public:
     uint64_t Size;
     if (!SPSArgList<uint64_t>::deserialize(IB, Size))
       return false;
+    if (Size > std::numeric_limits<size_t>::max())
+      return false;
     Data = IB.data();
     if (!IB.skip(Size))
       return false;
-    S = {Data, Size};
+    S = {Data, static_cast<size_t>(Size)};
     return true;
   }
 };

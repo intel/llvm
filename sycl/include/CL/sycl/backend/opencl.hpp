@@ -16,6 +16,8 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/kernel_bundle.hpp>
 
+#include <vector>
+
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
@@ -35,16 +37,18 @@ template <> struct interop<backend::opencl, queue> {
   using type = cl_command_queue;
 };
 
+#ifdef __SYCL_INTERNAL_API
 template <> struct interop<backend::opencl, program> {
   using type = cl_program;
 };
+#endif
 
 template <> struct interop<backend::opencl, event> { using type = cl_event; };
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::global_buffer,
-                                         access::placeholder::false_t>> {
+struct interop<backend::opencl,
+               accessor<DataT, Dimensions, AccessMode, access::target::device,
+                        access::placeholder::false_t>> {
   using type = cl_mem;
 };
 
@@ -75,8 +79,7 @@ struct BackendInput<backend::opencl, kernel_bundle<State>> {
 
 template <bundle_state State>
 struct BackendReturn<backend::opencl, kernel_bundle<State>> {
-  // TODO: Per SYCL 2020 this should be std::vector<cl_program>
-  using type = cl_program;
+  using type = std::vector<cl_program>;
 };
 
 template <> struct BackendInput<backend::opencl, kernel> {
@@ -109,8 +112,10 @@ namespace opencl {
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle);
 __SYCL_EXPORT device make_device(pi_native_handle NativeHandle);
 __SYCL_EXPORT context make_context(pi_native_handle NativeHandle);
+#ifdef __SYCL_INTERNAL_API
 __SYCL_EXPORT program make_program(const context &Context,
                                    pi_native_handle NativeHandle);
+#endif
 __SYCL_EXPORT queue make_queue(const context &Context,
                                pi_native_handle InteropHandle);
 
@@ -136,12 +141,14 @@ T make(typename interop<backend::opencl, T>::type Interop) {
 }
 
 // Construction of SYCL program.
+#ifdef __SYCL_INTERNAL_API
 template <typename T, typename detail::enable_if_t<
                           std::is_same<T, program>::value> * = nullptr>
 T make(const context &Context,
        typename interop<backend::opencl, T>::type Interop) {
   return make_program(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
+#endif
 
 // Construction of SYCL queue.
 template <typename T, typename detail::enable_if_t<

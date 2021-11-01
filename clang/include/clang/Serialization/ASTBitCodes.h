@@ -402,6 +402,9 @@ enum UnhashedControlBlockRecordTypes {
 
   /// Record code for \#pragma diagnostic mappings.
   DIAG_PRAGMA_MAPPINGS,
+
+  /// Record code for the indices of used header search entries.
+  HEADER_SEARCH_ENTRY_USAGE,
 };
 
 /// Record code for extension blocks.
@@ -1898,6 +1901,7 @@ enum StmtCode {
   STMT_SEH_TRY,                     // SEHTryStmt
 
   // OpenMP directives
+  STMT_OMP_META_DIRECTIVE,
   STMT_OMP_CANONICAL_LOOP,
   STMT_OMP_PARALLEL_DIRECTIVE,
   STMT_OMP_SIMD_DIRECTIVE,

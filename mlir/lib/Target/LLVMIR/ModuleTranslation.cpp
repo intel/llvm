@@ -119,9 +119,12 @@ convertDenseElementsAttr(Location loc, DenseElementsAttr denseElementsAttr,
   if (!llvm::ConstantDataSequential::isElementTypeCompatible(innermostLLVMType))
     return nullptr;
 
+  ShapedType type = denseElementsAttr.getType();
+  if (type.getNumElements() == 0)
+    return nullptr;
+
   // Compute the shape of all dimensions but the innermost. Note that the
   // innermost dimension may be that of the vector element type.
-  ShapedType type = denseElementsAttr.getType();
   bool hasVectorElementType = type.getElementType().isa<VectorType>();
   unsigned numAggregates =
       denseElementsAttr.getNumElements() /
@@ -944,11 +947,7 @@ void ModuleTranslation::setAliasScopeMetadata(Operation *op,
     SmallVector<llvm::Metadata *> scopeMDs;
     for (SymbolRefAttr scopeRef : scopes.getAsRange<SymbolRefAttr>())
       scopeMDs.push_back(getAliasScope(*op, scopeRef));
-    llvm::MDNode *unionMD = nullptr;
-    if (scopeMDs.size() == 1)
-      unionMD = llvm::cast<llvm::MDNode>(scopeMDs.front());
-    else if (scopeMDs.size() >= 2)
-      unionMD = llvm::MDNode::get(module->getContext(), scopeMDs);
+    llvm::MDNode *unionMD = llvm::MDNode::get(module->getContext(), scopeMDs);
     inst->setMetadata(module->getMDKindID(llvmMetadataName), unionMD);
   };
 

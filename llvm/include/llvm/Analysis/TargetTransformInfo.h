@@ -1103,8 +1103,8 @@ public:
   /// is using a compare with the specified predicate as condition. When vector
   /// types are passed, \p VecPred must be used for all lanes.
   InstructionCost
-  getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy = nullptr,
-                     CmpInst::Predicate VecPred = CmpInst::BAD_ICMP_PREDICATE,
+  getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                     CmpInst::Predicate VecPred,
                      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
                      const Instruction *I = nullptr) const;
 
@@ -1743,8 +1743,8 @@ public:
   InstructionCost
   getGEPCost(Type *PointeeType, const Value *Ptr,
              ArrayRef<const Value *> Operands,
-             enum TargetTransformInfo::TargetCostKind CostKind) override {
-    return Impl.getGEPCost(PointeeType, Ptr, Operands);
+             TargetTransformInfo::TargetCostKind CostKind) override {
+    return Impl.getGEPCost(PointeeType, Ptr, Operands, CostKind);
   }
   unsigned getInliningThresholdMultiplier() override {
     return Impl.getInliningThresholdMultiplier();

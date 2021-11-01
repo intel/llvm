@@ -78,15 +78,24 @@ cmake_dependent_option(LIBUNWIND_INSTALL_STATIC_LIBRARY
 cmake_dependent_option(LIBUNWIND_INSTALL_SHARED_LIBRARY
   "Install the shared libunwind library." ON
   "LIBUNWIND_ENABLE_SHARED;LIBUNWIND_INSTALL_LIBRARY" OFF)
-set(LIBUNWIND_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Target triple for cross compiling.")
-set(LIBUNWIND_GCC_TOOLCHAIN "" CACHE PATH "GCC toolchain for cross compiling.")
-set(LIBUNWIND_SYSROOT "" CACHE PATH "Sysroot for cross compiling.")
+if(CMAKE_CXX_COMPILER_TARGET)
+  set(LIBUNWIND_DEFAULT_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
+else()
+  set(LIBUNWIND_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+endif()
+set(LIBUNWIND_TARGET_TRIPLE "${LIBUNWIND_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Target triple for cross compiling.")
+set(LIBUNWIND_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}" CACHE PATH "GCC toolchain for cross compiling.")
+set(LIBUNWIND_SYSROOT "${CMAKE_SYSROOT}" CACHE PATH "Sysroot for cross compiling.")
 set(LIBUNWIND_TEST_LINKER_FLAGS "" CACHE STRING
     "Additional linker flags for test programs.")
 set(LIBUNWIND_TEST_COMPILER_FLAGS "" CACHE STRING
     "Additional compiler flags for test programs.")
 set(LIBUNWIND_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/lit.site.cfg.in" CACHE STRING
-    "The Lit testing configuration to use when running the tests.")
+  "The path to the Lit testing configuration to use when running the tests.
+   If a relative path is provided, it is assumed to be relative to '<monorepo>/libunwind/test/configs'.")
+if (NOT IS_ABSOLUTE "${LIBUNWIND_TEST_CONFIG}")
+  set(LIBUNWIND_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/configs/${LIBUNWIND_TEST_CONFIG}")
+endif()
 set(LIBUNWIND_TEST_PARAMS "" CACHE STRING
     "A list of parameters to run the Lit test suite with.")
 
@@ -164,18 +173,12 @@ add_target_flags_if(LIBUNWIND_BUILD_32_BITS "-m32")
 
 if(LIBUNWIND_TARGET_TRIPLE)
   add_target_flags_if_supported("--target=${LIBUNWIND_TARGET_TRIPLE}")
-elseif(CMAKE_CXX_COMPILER_TARGET)
-  set(LIBUNWIND_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
 endif()
 if(LIBUNWIND_GCC_TOOLCHAIN)
   add_target_flags_if_supported("--gcc-toolchain=${LIBUNWIND_GCC_TOOLCHAIN}")
-elseif(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN)
-  set(LIBUNWIND_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}")
 endif()
 if(LIBUNWIND_SYSROOT)
   add_target_flags_if_supported("--sysroot=${LIBUNWIND_SYSROOT}")
-elseif(CMAKE_SYSROOT)
-  set(LIBUNWIND_SYSROOT "${CMAKE_SYSROOT}")
 endif()
 
 # Configure compiler.
@@ -364,6 +367,6 @@ if (LIBUNWIND_INCLUDE_DOCS)
   add_subdirectory(docs)
 endif()
 
-if (LIBUNWIND_INCLUDE_TESTS AND EXISTS ${LLVM_CMAKE_PATH})
+if (LIBUNWIND_INCLUDE_TESTS AND EXISTS ${LLVM_CMAKE_DIR})
   add_subdirectory(test)
 endif()

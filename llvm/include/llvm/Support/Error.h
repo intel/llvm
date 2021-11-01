@@ -577,6 +577,16 @@ public:
     return const_cast<Expected<T> *>(this)->get();
   }
 
+  /// Returns \a takeError() after moving the held T (if any) into \p V.
+  template <class OtherT>
+  Error moveInto(OtherT &Value,
+                 std::enable_if_t<std::is_assignable<OtherT &, T &&>::value> * =
+                     nullptr) && {
+    if (*this)
+      Value = std::move(get());
+    return takeError();
+  }
+
   /// Check that this Expected<T> is an error of type ErrT.
   template <typename ErrT> bool errorIsA() const {
     return HasError && (*getErrorStorage())->template isA<ErrT>();
@@ -1155,7 +1165,7 @@ protected:
 /// It should only be used in this situation, and should never be used where a
 /// sensible conversion to std::error_code is available, as attempts to convert
 /// to/from this error will result in a fatal error. (i.e. it is a programmatic
-///error to try to convert such a value).
+/// error to try to convert such a value).
 std::error_code inconvertibleErrorCode();
 
 /// Helper for converting an std::error_code to a Error.

@@ -1364,11 +1364,33 @@ void X86FrameLowering::emitPrologue(MachineFunction &MF,
   unsigned StackProbeSize = STI.getTargetLowering()->getStackProbeSize(MF);
 
   if (HasFP && X86FI->hasSwiftAsyncContext()) {
-    BuildMI(MBB, MBBI, DL, TII.get(X86::BTS64ri8),
-            MachineFramePtr)
-        .addUse(MachineFramePtr)
-        .addImm(60)
-        .setMIFlag(MachineInstr::FrameSetup);
+    switch (MF.getTarget().Options.SwiftAsyncFramePointer) {
+    case SwiftAsyncFramePointerMode::DeploymentBased:
+      if (STI.swiftAsyncContextIsDynamicallySet()) {
+        // The special symbol below is absolute and has a *value* suitable to be
+        // combined with the frame pointer directly.
+        BuildMI(MBB, MBBI, DL, TII.get(X86::OR64rm), MachineFramePtr)
+            .addUse(MachineFramePtr)
+            .addUse(X86::RIP)
+            .addImm(1)
+            .addUse(X86::NoRegister)
+            .addExternalSymbol("swift_async_extendedFramePointerFlags",
+                               X86II::MO_GOTPCREL)
+            .addUse(X86::NoRegister);
+        break;
+      }
+      LLVM_FALLTHROUGH;
+
+    case SwiftAsyncFramePointerMode::Always:
+      BuildMI(MBB, MBBI, DL, TII.get(X86::BTS64ri8), MachineFramePtr)
+          .addUse(MachineFramePtr)
+          .addImm(60)
+          .setMIFlag(MachineInstr::FrameSetup);
+      break;
+
+    case SwiftAsyncFramePointerMode::Never:
+      break;
+    }
   }
 
   // Re-align the stack on 64-bit if the x86-interrupt calling convention is
@@ -3082,8 +3104,7 @@ void X86FrameLowering::adjustForHiPEPrologue(
         // having a ".", such as a simple <Module>.<Function>.<Arity>, or an
         // "_", such as the BIF "suspend_0") as they are executed on another
         // stack.
-        if (F->getName().find("erlang.") != StringRef::npos ||
-            F->getName().find("bif_") != StringRef::npos ||
+        if (F->getName().contains("erlang.") || F->getName().contains("bif_") ||
             F->getName().find_first_of("._") == StringRef::npos)
           continue;
 

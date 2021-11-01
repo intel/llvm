@@ -92,7 +92,7 @@ static Optional<StringRef> findLibrary(StringRef name) {
                              {".tbd", ".dylib", ".a"});
 }
 
-static Optional<std::string> findFramework(StringRef name) {
+static Optional<StringRef> findFramework(StringRef name) {
   SmallString<260> symlink;
   StringRef suffix;
   std::tie(name, suffix) = name.split(",");
@@ -108,12 +108,12 @@ static Optional<std::string> findFramework(StringRef name) {
         // only append suffix if realpath() succeeds
         Twine suffixed = location + suffix;
         if (fs::exists(suffixed))
-          return suffixed.str();
+          return saver.save(suffixed.str());
       }
       // Suffix lookup failed, fall through to the no-suffix case.
     }
 
-    if (Optional<std::string> path = resolveDylibPath(symlink))
+    if (Optional<StringRef> path = resolveDylibPath(symlink.str()))
       return path;
   }
   return {};
@@ -351,7 +351,7 @@ static void addLibrary(StringRef name, bool isNeeded, bool isWeak,
 
 static void addFramework(StringRef name, bool isNeeded, bool isWeak,
                          bool isReexport, bool isExplicit) {
-  if (Optional<std::string> path = findFramework(name)) {
+  if (Optional<StringRef> path = findFramework(name)) {
     if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
             addFile(*path, /*forceLoadArchive=*/false, isExplicit))) {
       if (isNeeded)
@@ -705,7 +705,6 @@ getUndefinedSymbolTreatment(const ArgList &args) {
 }
 
 static ICFLevel getICFLevel(const ArgList &args) {
-  bool noDeduplicate = args.hasArg(OPT_no_deduplicate);
   StringRef icfLevelStr = args.getLastArgValue(OPT_icf_eq);
   auto icfLevel = StringSwitch<ICFLevel>(icfLevelStr)
                       .Cases("none", "", ICFLevel::none)
@@ -715,10 +714,6 @@ static ICFLevel getICFLevel(const ArgList &args) {
   if (icfLevel == ICFLevel::unknown) {
     warn(Twine("unknown --icf=OPTION `") + icfLevelStr +
          "', defaulting to `none'");
-    icfLevel = ICFLevel::none;
-  } else if (icfLevel != ICFLevel::none && noDeduplicate) {
-    warn(Twine("`--icf=" + icfLevelStr +
-               "' conflicts with -no_deduplicate, setting to `none'"));
     icfLevel = ICFLevel::none;
   } else if (icfLevel == ICFLevel::safe) {
     warn(Twine("`--icf=safe' is not yet implemented, reverting to `none'"));
@@ -1100,6 +1095,29 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   depTracker =
       make<DependencyTracker>(args.getLastArgValue(OPT_dependency_info));
 
+  config->osoPrefix = args.getLastArgValue(OPT_oso_prefix);
+  if (!config->osoPrefix.empty()) {
+    // Expand special characters, such as ".", "..", or  "~", if present.
+    // Note: LD64 only expands "." and not other special characters.
+    // That seems silly to imitate so we will not try to follow it, but rather
+    // just use real_path() to do it.
+
+    // The max path length is 4096, in theory. However that seems quite long
+    // and seems unlikely that any one would want to strip everything from the
+    // path. Hence we've picked a reasonably large number here.
+    SmallString<1024> expanded;
+    if (!fs::real_path(config->osoPrefix, expanded,
+                       /*expand_tilde=*/true)) {
+      // Note: LD64 expands "." to be `<current_dir>/`
+      // (ie., it has a slash suffix) whereas real_path() doesn't.
+      // So we have to append '/' to be consistent.
+      StringRef sep = sys::path::get_separator();
+      if (config->osoPrefix.equals(".") && !expanded.endswith(sep))
+        expanded += sep;
+      config->osoPrefix = saver.save(expanded.str());
+    }
+  }
+
   // Must be set before any InputSections and Symbols are created.
   config->deadStrip = args.hasArg(OPT_dead_strip);
 
@@ -1441,12 +1459,9 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   }
 
   if (config->timeTraceEnabled) {
-    if (auto E = timeTraceProfilerWrite(
-            args.getLastArgValue(OPT_time_trace_file_eq).str(),
-            config->outputFile)) {
-      handleAllErrors(std::move(E),
-                      [&](const StringError &SE) { error(SE.getMessage()); });
-    }
+    checkError(timeTraceProfilerWrite(
+        args.getLastArgValue(OPT_time_trace_file_eq).str(),
+        config->outputFile));
 
     timeTraceProfilerCleanup();
   }

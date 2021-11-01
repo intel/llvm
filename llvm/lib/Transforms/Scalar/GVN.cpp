@@ -421,13 +421,12 @@ uint32_t GVN::ValueTable::lookupOrAddCall(CallInst *C) {
       // a normal load or store instruction.
       CallInst *local_cdep = dyn_cast<CallInst>(local_dep.getInst());
 
-      if (!local_cdep ||
-          local_cdep->getNumArgOperands() != C->getNumArgOperands()) {
+      if (!local_cdep || local_cdep->arg_size() != C->arg_size()) {
         valueNumbering[C] = nextValueNumber;
         return nextValueNumber++;
       }
 
-      for (unsigned i = 0, e = C->getNumArgOperands(); i < e; ++i) {
+      for (unsigned i = 0, e = C->arg_size(); i < e; ++i) {
         uint32_t c_vn = lookupOrAdd(C->getArgOperand(i));
         uint32_t cd_vn = lookupOrAdd(local_cdep->getArgOperand(i));
         if (c_vn != cd_vn) {
@@ -477,11 +476,11 @@ uint32_t GVN::ValueTable::lookupOrAddCall(CallInst *C) {
       return nextValueNumber++;
     }
 
-    if (cdep->getNumArgOperands() != C->getNumArgOperands()) {
+    if (cdep->arg_size() != C->arg_size()) {
       valueNumbering[C] = nextValueNumber;
       return nextValueNumber++;
     }
-    for (unsigned i = 0, e = C->getNumArgOperands(); i < e; ++i) {
+    for (unsigned i = 0, e = C->arg_size(); i < e; ++i) {
       uint32_t c_vn = lookupOrAdd(C->getArgOperand(i));
       uint32_t cd_vn = lookupOrAdd(cdep->getArgOperand(i));
       if (c_vn != cd_vn) {
@@ -682,6 +681,24 @@ PreservedAnalyses GVN::run(Function &F, FunctionAnalysisManager &AM) {
   if (LI)
     PA.preserve<LoopAnalysis>();
   return PA;
+}
+
+void GVN::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  static_cast<PassInfoMixin<GVN> *>(this)->printPipeline(OS,
+                                                         MapClassName2PassName);
+
+  OS << "<";
+  if (Options.AllowPRE != None)
+    OS << (Options.AllowPRE.getValue() ? "" : "no-") << "pre;";
+  if (Options.AllowLoadPRE != None)
+    OS << (Options.AllowLoadPRE.getValue() ? "" : "no-") << "load-pre;";
+  if (Options.AllowLoadPRESplitBackedge != None)
+    OS << (Options.AllowLoadPRESplitBackedge.getValue() ? "" : "no-")
+       << "split-backedge-load-pre;";
+  if (Options.AllowMemDep != None)
+    OS << (Options.AllowMemDep.getValue() ? "" : "no-") << "memdep";
+  OS << ">";
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -1212,8 +1229,7 @@ void GVN::eliminatePartiallyRedundantLoad(
     }
 
     // Transfer the old load's AA tags to the new load.
-    AAMDNodes Tags;
-    Load->getAAMetadata(Tags);
+    AAMDNodes Tags = Load->getAAMetadata();
     if (Tags)
       NewLoad->setAAMetadata(Tags);
 

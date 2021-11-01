@@ -82,7 +82,7 @@ define double @fms64(double %a, double %b, double %c) nounwind readnone ssp {
 ; CHECK-NEXT:    fmsub d0, d0, d1, d2
 ; CHECK-NEXT:    ret
 entry:
-  %mul = fmul double %b, -1.000000e+00
+  %mul = fneg double %b
   %0 = tail call double @llvm.fma.f64(double %a, double %mul, double %c)
   ret double %0
 }
@@ -93,7 +93,7 @@ define double @fms64_com(double %a, double %b, double %c) nounwind readnone ssp 
 ; CHECK-NEXT:    fmsub d0, d1, d0, d2
 ; CHECK-NEXT:    ret
 entry:
-  %mul = fmul double %b, -1.000000e+00
+  %mul = fneg double %b
   %0 = tail call double @llvm.fma.f64(double %mul, double %a, double %c)
   ret double %0
 }
@@ -104,7 +104,7 @@ define double @fnms64(double %a, double %b, double %c) nounwind readnone ssp {
 ; CHECK-NEXT:    fnmsub d0, d0, d1, d2
 ; CHECK-NEXT:    ret
 entry:
-  %mul = fmul double %c, -1.000000e+00
+  %mul = fneg double %c
   %0 = tail call double @llvm.fma.f64(double %a, double %b, double %mul)
   ret double %0
 }
@@ -115,10 +115,10 @@ define float @negated_constant(float %x) {
 ; CHECK-LABEL: negated_constant:
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    mov w8, #-1037565952
-; CHECK-NEXT:    mov w9, #1109917696
 ; CHECK-NEXT:    fmov s1, w8
+; CHECK-NEXT:    mov w8, #1109917696
 ; CHECK-NEXT:    fmul s1, s0, s1
-; CHECK-NEXT:    fmov s2, w9
+; CHECK-NEXT:    fmov s2, w8
 ; CHECK-NEXT:    fmadd s0, s0, s2, s1
 ; CHECK-NEXT:    ret
   %m = fmul float %x, 42.0

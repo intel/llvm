@@ -17,6 +17,7 @@
 #include "mlir-c/Debug.h"
 #include "mlir-c/IR.h"
 #include "mlir-c/Registration.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include <pybind11/stl.h>
 
@@ -40,8 +41,14 @@ Returns a Type object or raises a ValueError if the type cannot be parsed.
 See also: https://mlir.llvm.org/docs/LangRef/#type-system
 )";
 
+static const char kContextGetCallSiteLocationDocstring[] =
+    R"(Gets a Location representing a caller and callsite)";
+
 static const char kContextGetFileLocationDocstring[] =
     R"(Gets a Location representing a file, line and column)";
+
+static const char kContextGetNameLocationDocString[] =
+    R"(Gets a Location representing a named location with optional child location)";
 
 static const char kModuleParseDocstring[] =
     R"(Parses a module's assembly format from a string.
@@ -1541,6 +1548,9 @@ public:
   static void bind(py::module &m) {
     auto cls = ClassTy(m, DerivedTy::pyClassName, py::module_local());
     cls.def(py::init<PyValue &>(), py::keep_alive<0, 1>());
+    cls.def_static("isinstance", [](PyValue &otherValue) -> bool {
+      return DerivedTy::isaFunction(otherValue);
+    });
     DerivedTy::bindDerived(cls);
   }
 
@@ -1590,36 +1600,58 @@ public:
   }
 };
 
+/// Returns the list of types of the values held by container.
+template <typename Container>
+static std::vector<PyType> getValueTypes(Container &container,
+                                         PyMlirContextRef &context) {
+  std::vector<PyType> result;
+  result.reserve(container.getNumElements());
+  for (int i = 0, e = container.getNumElements(); i < e; ++i) {
+    result.push_back(
+        PyType(context, mlirValueGetType(container.getElement(i).get())));
+  }
+  return result;
+}
+
 /// A list of block arguments. Internally, these are stored as consecutive
 /// elements, random access is cheap. The argument list is associated with the
 /// operation that contains the block (detached blocks are not allowed in
 /// Python bindings) and extends its lifetime.
-class PyBlockArgumentList {
+class PyBlockArgumentList
+    : public Sliceable<PyBlockArgumentList, PyBlockArgument> {
 public:
-  PyBlockArgumentList(PyOperationRef operation, MlirBlock block)
-      : operation(std::move(operation)), block(block) {}
+  static constexpr const char *pyClassName = "BlockArgumentList";
 
-  /// Returns the length of the block argument list.
-  intptr_t dunderLen() {
+  PyBlockArgumentList(PyOperationRef operation, MlirBlock block,
+                      intptr_t startIndex = 0, intptr_t length = -1,
+                      intptr_t step = 1)
+      : Sliceable(startIndex,
+                  length == -1 ? mlirBlockGetNumArguments(block) : length,
+                  step),
+        operation(std::move(operation)), block(block) {}
+
+  /// Returns the number of arguments in the list.
+  intptr_t getNumElements() {
     operation->checkValid();
     return mlirBlockGetNumArguments(block);
   }
 
-  /// Returns `index`-th element of the block argument list.
-  PyBlockArgument dunderGetItem(intptr_t index) {
-    if (index < 0 || index >= dunderLen()) {
-      throw SetPyError(PyExc_IndexError,
-                       "attempt to access out of bounds region");
-    }
-    PyValue value(operation, mlirBlockGetArgument(block, index));
-    return PyBlockArgument(value);
+  /// Returns `pos`-the element in the list. Asserts on out-of-bounds.
+  PyBlockArgument getElement(intptr_t pos) {
+    MlirValue argument = mlirBlockGetArgument(block, pos);
+    return PyBlockArgument(operation, argument);
   }
 
-  /// Defines a Python class in the bindings.
-  static void bind(py::module &m) {
-    py::class_<PyBlockArgumentList>(m, "BlockArgumentList", py::module_local())
-        .def("__len__", &PyBlockArgumentList::dunderLen)
-        .def("__getitem__", &PyBlockArgumentList::dunderGetItem);
+  /// Returns a sublist of this list.
+  PyBlockArgumentList slice(intptr_t startIndex, intptr_t length,
+                            intptr_t step) {
+    return PyBlockArgumentList(operation, block, startIndex, length, step);
+  }
+
+  static void bindDerived(ClassTy &c) {
+    c.def_property_readonly("types", [](PyBlockArgumentList &self) {
+      return getValueTypes(self, self.operation->getContext());
+    });
   }
 
 private:
@@ -1707,6 +1739,12 @@ public:
 
   PyOpResultList slice(intptr_t startIndex, intptr_t length, intptr_t step) {
     return PyOpResultList(operation, startIndex, length, step);
+  }
+
+  static void bindDerived(ClassTy &c) {
+    c.def_property_readonly("types", [](PyOpResultList &self) {
+      return getValueTypes(self, self.operation->getContext());
+    });
   }
 
 private:
@@ -1932,6 +1970,21 @@ void mlir::python::populateIRCore(py::module &m) {
           py::arg("context") = py::none(),
           "Gets a Location representing an unknown location")
       .def_static(
+          "callsite",
+          [](PyLocation callee, const std::vector<PyLocation> &frames,
+             DefaultingPyMlirContext context) {
+            if (frames.empty())
+              throw py::value_error("No caller frames provided");
+            MlirLocation caller = frames.back().get();
+            for (const PyLocation &frame :
+                 llvm::reverse(llvm::makeArrayRef(frames).drop_back()))
+              caller = mlirLocationCallSiteGet(frame.get(), caller);
+            return PyLocation(context->getRef(),
+                              mlirLocationCallSiteGet(callee.get(), caller));
+          },
+          py::arg("callee"), py::arg("frames"), py::arg("context") = py::none(),
+          kContextGetCallSiteLocationDocstring)
+      .def_static(
           "file",
           [](std::string filename, int line, int col,
              DefaultingPyMlirContext context) {
@@ -1942,6 +1995,19 @@ void mlir::python::populateIRCore(py::module &m) {
           },
           py::arg("filename"), py::arg("line"), py::arg("col"),
           py::arg("context") = py::none(), kContextGetFileLocationDocstring)
+      .def_static(
+          "name",
+          [](std::string name, llvm::Optional<PyLocation> childLoc,
+             DefaultingPyMlirContext context) {
+            return PyLocation(
+                context->getRef(),
+                mlirLocationNameGet(
+                    context->get(), toMlirStringRef(name),
+                    childLoc ? childLoc->get()
+                             : mlirLocationUnknownGet(context->get())));
+          },
+          py::arg("name"), py::arg("childLoc") = py::none(),
+          py::arg("context") = py::none(), kContextGetNameLocationDocString)
       .def_property_readonly(
           "context",
           [](PyLocation &self) { return self.getContext().getObject(); },
@@ -2026,6 +2092,10 @@ void mlir::python::populateIRCore(py::module &m) {
   // Mapping of Operation.
   //----------------------------------------------------------------------------
   py::class_<PyOperationBase>(m, "_OperationBase", py::module_local())
+      .def_property_readonly(MLIR_PYTHON_CAPI_PTR_ATTR,
+                             [](PyOperationBase &self) {
+                               return self.getOperation().getCapsule();
+                             })
       .def("__eq__",
            [](PyOperationBase &self, PyOperationBase &other) {
              return &self.getOperation() == &other.getOperation();
@@ -2073,6 +2143,15 @@ void mlir::python::populateIRCore(py::module &m) {
           },
           "Shortcut to get an op result if it has only one (throws an error "
           "otherwise).")
+      .def_property_readonly(
+          "location",
+          [](PyOperationBase &self) {
+            PyOperation &operation = self.getOperation();
+            return PyLocation(operation.getContext(),
+                              mlirOperationGetLocation(operation.get()));
+          },
+          "Returns the source location the operation was defined or derived "
+          "from.")
       .def("__iter__",
            [](PyOperationBase &self) {
              return PyRegionIterator(self.getOperation().getRef());
@@ -2181,6 +2260,12 @@ void mlir::python::populateIRCore(py::module &m) {
             return PyBlockList(self.getParentOperation(), self.get());
           },
           "Returns a forward-optimized sequence of blocks.")
+      .def_property_readonly(
+          "owner",
+          [](PyRegion &self) {
+            return self.getParentOperation()->createOpView();
+          },
+          "Returns the operation owning this region.")
       .def(
           "__iter__",
           [](PyRegion &self) {
@@ -2224,6 +2309,23 @@ void mlir::python::populateIRCore(py::module &m) {
             return PyOperationList(self.getParentOperation(), self.get());
           },
           "Returns a forward-optimized sequence of operations.")
+      .def_static(
+          "create_at_start",
+          [](PyRegion &parent, py::list pyArgTypes) {
+            parent.checkValid();
+            llvm::SmallVector<MlirType, 4> argTypes;
+            argTypes.reserve(pyArgTypes.size());
+            for (auto &pyArg : pyArgTypes) {
+              argTypes.push_back(pyArg.cast<PyType &>());
+            }
+
+            MlirBlock block = mlirBlockCreate(argTypes.size(), argTypes.data());
+            mlirRegionInsertOwnedBlock(parent, 0, block);
+            return PyBlock(parent.getParentOperation(), block);
+          },
+          py::arg("parent"), py::arg("pyArgTypes") = py::list(),
+          "Creates and returns a new Block at the beginning of the given "
+          "region (with given argument types).")
       .def(
           "create_before",
           [](PyBlock &self, py::args pyArgTypes) {
@@ -2360,6 +2462,7 @@ void mlir::python::populateIRCore(py::module &m) {
       .def("__eq__",
            [](PyAttribute &self, PyAttribute &other) { return self == other; })
       .def("__eq__", [](PyAttribute &self, py::object &other) { return false; })
+      .def("__hash__", [](PyAttribute &self) { return (size_t)self.get().ptr; })
       .def(
           "dump", [](PyAttribute &self) { mlirAttributeDump(self); },
           kDumpDocstring)
@@ -2453,6 +2556,7 @@ void mlir::python::populateIRCore(py::module &m) {
           "Context that owns the Type")
       .def("__eq__", [](PyType &self, PyType &other) { return self == other; })
       .def("__eq__", [](PyType &self, py::object &other) { return false; })
+      .def("__hash__", [](PyType &self) { return (size_t)self.get().ptr; })
       .def(
           "dump", [](PyType &self) { mlirTypeDump(self); }, kDumpDocstring)
       .def(

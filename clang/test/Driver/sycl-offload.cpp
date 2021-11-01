@@ -68,7 +68,7 @@
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %S/Inputs/SYCL/objlin64.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_OBJ %s
-// IMPLIED_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"{{.*}} "-targets={{.*}}sycl-spir64-unknown-unknown,sycl-spir64_{{.*}}-unknown-unknown"{{.*}} "-unbundle"
+// IMPLIED_DEVICE_OBJ: clang-offload-bundler{{.*}} "-type=o"{{.*}} "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64_{{.*}}-unknown-unknown,{{.*}}sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
@@ -78,7 +78,7 @@
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga %S/Inputs/SYCL/liblin64.a %s 2>&1 \
 // RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_LIB %s
-// IMPLIED_DEVICE_LIB: clang-offload-bundler{{.*}} "-type=a"{{.*}} "-targets=sycl-spir64-unknown-unknown,sycl-spir64_{{.*}}-unknown-unknown"{{.*}} "-unbundle"
+// IMPLIED_DEVICE_LIB: clang-offload-bundler{{.*}} "-type=a"{{.*}} "-targets=sycl-spir64_{{.*}}-unknown-unknown,sycl-spir64-unknown-unknown"{{.*}} "-unbundle"
 
 /// Check that the default device triple is not used with -fno-sycl-link-spirv
 // RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-link-spirv -fsycl-targets=spir64_x86_64 %S/Inputs/SYCL/objlin64.o %s 2>&1 \

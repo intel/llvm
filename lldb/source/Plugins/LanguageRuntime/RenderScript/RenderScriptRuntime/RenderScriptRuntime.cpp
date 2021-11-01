@@ -17,7 +17,6 @@
 #include "lldb/DataFormatters/DumpValueObjectOptions.h"
 #include "lldb/Expression/UserExpression.h"
 #include "lldb/Host/OptionParser.h"
-#include "lldb/Host/StringConvert.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
 #include "lldb/Interpreter/CommandObjectMultiword.h"
 #include "lldb/Interpreter/CommandReturnObject.h"
@@ -1012,11 +1011,6 @@ void RenderScriptRuntime::ModulesDidLoad(const ModuleList &module_list) {
       LoadModule(mod);
     }
   }
-}
-
-// PluginInterface protocol
-lldb_private::ConstString RenderScriptRuntime::GetPluginName() {
-  return GetPluginNameStatic();
 }
 
 bool RenderScriptRuntime::GetDynamicTypeAndAddress(
@@ -4566,10 +4560,8 @@ public:
             eLanguageTypeExtRenderScript));
 
     const char *id_cstr = command.GetArgumentAtIndex(0);
-    bool success = false;
-    const uint32_t id =
-        StringConvert::ToUInt32(id_cstr, UINT32_MAX, 0, &success);
-    if (!success) {
+    uint32_t id;
+    if (!llvm::to_integer(id_cstr, id)) {
       result.AppendErrorWithFormat("invalid allocation id argument '%s'",
                                    id_cstr);
       return false;
@@ -4713,10 +4705,8 @@ public:
             eLanguageTypeExtRenderScript));
 
     const char *id_cstr = command.GetArgumentAtIndex(0);
-    bool success = false;
-    const uint32_t id =
-        StringConvert::ToUInt32(id_cstr, UINT32_MAX, 0, &success);
-    if (!success) {
+    uint32_t id;
+    if (!llvm::to_integer(id_cstr, id)) {
       result.AppendErrorWithFormat("invalid allocation id argument '%s'",
                                    id_cstr);
       return false;
@@ -4762,10 +4752,8 @@ public:
             eLanguageTypeExtRenderScript));
 
     const char *id_cstr = command.GetArgumentAtIndex(0);
-    bool success = false;
-    const uint32_t id =
-        StringConvert::ToUInt32(id_cstr, UINT32_MAX, 0, &success);
-    if (!success) {
+    uint32_t id;
+    if (!llvm::to_integer(id_cstr, id)) {
       result.AppendErrorWithFormat("invalid allocation id argument '%s'",
                                    id_cstr);
       return false;

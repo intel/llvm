@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TestDialect.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/FuncConversions.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -31,8 +32,8 @@ static void createOpI(PatternRewriter &rewriter, Location loc, Value input) {
 static void handleNoResultOp(PatternRewriter &rewriter,
                              OpSymbolBindingNoResult op) {
   // Turn the no result op to a one-result op.
-  rewriter.create<OpSymbolBindingB>(op.getLoc(), op.operand().getType(),
-                                    op.operand());
+  rewriter.create<OpSymbolBindingB>(op.getLoc(), op.getOperand().getType(),
+                                    op.getOperand());
 }
 
 static bool getFirstI32Result(Operation *op, Value &value) {
@@ -114,8 +115,8 @@ public:
       return failure();
     rewriter.setInsertionPointToStart(op->getBlock());
 
-    auto constOp =
-        rewriter.create<ConstantOp>(op.getLoc(), rewriter.getBoolAttr(true));
+    auto constOp = rewriter.create<arith::ConstantOp>(
+        op.getLoc(), rewriter.getBoolAttr(true));
     rewriter.replaceOpWithNewOp<TestCastOp>(op, rewriter.getI32Type(),
                                             Value(constOp));
     return success();
@@ -530,7 +531,7 @@ struct TestBoundedRecursiveRewrite
                                 PatternRewriter &rewriter) const final {
     // Decrement the depth of the op in-place.
     rewriter.updateRootInPlace(op, [&] {
-      op->setAttr("depth", rewriter.getI64IntegerAttr(op.depth() - 1));
+      op->setAttr("depth", rewriter.getI64IntegerAttr(op.getDepth() - 1));
     });
     return success();
   }
@@ -559,6 +560,20 @@ struct TestReplaceEraseOp : public OpRewritePattern<BlackHoleOp> {
     // this correctly.
     rewriter.eraseOp(op);
     rewriter.eraseOp(producer);
+    return success();
+  };
+};
+
+// This pattern replaces explicitly illegal op with explicitly legal op,
+// but in addition creates unregistered operation.
+struct TestCreateUnregisteredOp : public OpRewritePattern<ILLegalOpG> {
+  using OpRewritePattern<ILLegalOpG>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ILLegalOpG op,
+                                PatternRewriter &rewriter) const final {
+    IntegerAttr attr = rewriter.getI32IntegerAttr(0);
+    Value val = rewriter.create<ConstantOp>(op->getLoc(), attr);
+    rewriter.replaceOpWithNewOp<LegalOpC>(op, val);
     return success();
   };
 };
@@ -632,6 +647,10 @@ struct TestLegalizePatternDriver
 
   TestLegalizePatternDriver(ConversionMode mode) : mode(mode) {}
 
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<StandardOpsDialect>();
+  }
+
   void runOnOperation() override {
     TestTypeConverter converter;
     mlir::RewritePatternSet patterns(&getContext());
@@ -643,8 +662,8 @@ struct TestLegalizePatternDriver
              TestChangeProducerTypeI32ToF32, TestChangeProducerTypeF32ToF64,
              TestChangeProducerTypeF32ToInvalid, TestUpdateConsumerType,
              TestNonRootReplacement, TestBoundedRecursiveRewrite,
-             TestNestedOpCreationUndoRewrite, TestReplaceEraseOp>(
-            &getContext());
+             TestNestedOpCreationUndoRewrite, TestReplaceEraseOp,
+             TestCreateUnregisteredOp>(&getContext());
     patterns.add<TestDropOpSignatureConversion>(&getContext(), converter);
     mlir::populateFuncOpTypeConversionPattern(patterns, converter);
     mlir::populateCallOpTypeConversionPattern(patterns, converter);
@@ -652,7 +671,7 @@ struct TestLegalizePatternDriver
     // Define the conversion target used for the test.
     ConversionTarget target(getContext());
     target.addLegalOp<ModuleOp>();
-    target.addLegalOp<LegalOpA, LegalOpB, TestCastOp, TestValidOp,
+    target.addLegalOp<LegalOpA, LegalOpB, LegalOpC, TestCastOp, TestValidOp,
                       TerminatorOp>();
     target
         .addIllegalOp<ILLegalOpF, TestRegionBuilderOp, TestOpWithRegionFold>();
@@ -665,6 +684,11 @@ struct TestLegalizePatternDriver
       return converter.isSignatureLegal(op.getType()) &&
              converter.isLegal(&op.getBody());
     });
+
+    // TestCreateUnregisteredOp creates `arith.constant` operation,
+    // which was not added to target intentionally to test
+    // correct error code from conversion driver.
+    target.addDynamicallyLegalOp<ILLegalOpG>([](ILLegalOpG) { return false; });
 
     // Expect the type_producer/type_consumer operations to only operate on f64.
     target.addDynamicallyLegalOp<TestTypeProducerOp>(
@@ -681,13 +705,15 @@ struct TestLegalizePatternDriver
 
     // Mark the bound recursion operation as dynamically legal.
     target.addDynamicallyLegalOp<TestRecursiveRewriteOp>(
-        [](TestRecursiveRewriteOp op) { return op.depth() == 0; });
+        [](TestRecursiveRewriteOp op) { return op.getDepth() == 0; });
 
     // Handle a partial conversion.
     if (mode == ConversionMode::Partial) {
       DenseSet<Operation *> unlegalizedOps;
-      (void)applyPartialConversion(getOperation(), target, std::move(patterns),
-                                   &unlegalizedOps);
+      if (failed(applyPartialConversion(
+              getOperation(), target, std::move(patterns), &unlegalizedOps))) {
+        getOperation()->emitRemark() << "applyPartialConversion failed";
+      }
       // Emit remarks for each legalizable operation.
       for (auto *op : unlegalizedOps)
         op->emitRemark() << "op '" << op->getName() << "' is not legalizable";
@@ -701,7 +727,10 @@ struct TestLegalizePatternDriver
         return (bool)op->getAttrOfType<UnitAttr>("test.dynamically_legal");
       });
 
-      (void)applyFullConversion(getOperation(), target, std::move(patterns));
+      if (failed(applyFullConversion(getOperation(), target,
+                                     std::move(patterns)))) {
+        getOperation()->emitRemark() << "applyFullConversion failed";
+      }
       return;
     }
 
@@ -755,7 +784,7 @@ struct OneVResOneVOperandOp1Converter
   using OpConversionPattern<OneVResOneVOperandOp1>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(OneVResOneVOperandOp1 op, ArrayRef<Value> operands,
+  matchAndRewrite(OneVResOneVOperandOp1 op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto origOps = op.getOperands();
     assert(std::distance(origOps.begin(), origOps.end()) == 1 &&
@@ -850,7 +879,7 @@ struct TestTypeConversionProducer
     : public OpConversionPattern<TestTypeProducerOp> {
   using OpConversionPattern<TestTypeProducerOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(TestTypeProducerOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TestTypeProducerOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     Type resultType = op.getType();
     if (resultType.isa<FloatType>())
@@ -872,7 +901,7 @@ struct TestSignatureConversionUndo
   using OpConversionPattern<TestSignatureConversionUndoOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(TestSignatureConversionUndoOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TestSignatureConversionUndoOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     (void)rewriter.convertRegionTypes(&op->getRegion(0), *getTypeConverter());
     return failure();
@@ -886,9 +915,10 @@ struct TestTypeConsumerForward
   using OpConversionPattern<TestTypeConsumerOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(TestTypeConsumerOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TestTypeConsumerOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriter.updateRootInPlace(op, [&] { op->setOperands(operands); });
+    rewriter.updateRootInPlace(op,
+                               [&] { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };
@@ -994,11 +1024,11 @@ struct TestMergeBlock : public OpConversionPattern<TestMergeBlocksOp> {
   using OpConversionPattern<TestMergeBlocksOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(TestMergeBlocksOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TestMergeBlocksOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    Block &firstBlock = op.body().front();
+    Block &firstBlock = op.getBody().front();
     Operation *branchOp = firstBlock.getTerminator();
-    Block *secondBlock = &*(std::next(op.body().begin()));
+    Block *secondBlock = &*(std::next(op.getBody().begin()));
     auto succOperands = branchOp->getOperands();
     SmallVector<Value, 2> replacements(succOperands);
     rewriter.eraseOp(branchOp);
@@ -1037,13 +1067,13 @@ struct TestMergeSingleBlockOps
       SingleBlockImplicitTerminatorOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(SingleBlockImplicitTerminatorOp op, ArrayRef<Value> operands,
+  matchAndRewrite(SingleBlockImplicitTerminatorOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     SingleBlockImplicitTerminatorOp parentOp =
         op->getParentOfType<SingleBlockImplicitTerminatorOp>();
     if (!parentOp)
       return failure();
-    Block &innerBlock = op.region().front();
+    Block &innerBlock = op.getRegion().front();
     TerminatorOp innerTerminator =
         cast<TerminatorOp>(innerBlock.getTerminator());
     rewriter.mergeBlockBefore(&innerBlock, op);
@@ -1074,7 +1104,7 @@ struct TestMergeBlocksPatternDriver
     /// Expect the op to have a single block after legalization.
     target.addDynamicallyLegalOp<TestMergeBlocksOp>(
         [&](TestMergeBlocksOp op) -> bool {
-          return llvm::hasSingleElement(op.body());
+          return llvm::hasSingleElement(op.getBody());
         });
 
     /// Only allow `test.br` within test.merge_blocks op.

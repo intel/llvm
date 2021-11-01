@@ -159,6 +159,27 @@ if(LLVM_ENABLE_LIBXML2)
   set(LLVM_ENABLE_LIBXML2 "${HAVE_LIBXML2}")
 endif()
 
+if(LLVM_ENABLE_CURL)
+  if(LLVM_ENABLE_CURL STREQUAL FORCE_ON)
+    find_package(CURL REQUIRED)
+  else()
+    find_package(CURL)
+  endif()
+  if(CURL_FOUND)
+    # Check if curl we found is usable; for example, we may have found a 32-bit
+    # library on a 64-bit system which would result in a link-time failure.
+    cmake_push_check_state()
+    list(APPEND CMAKE_REQUIRED_INCLUDES ${CURL_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${CURL_LIBRARY})
+    check_symbol_exists(curl_easy_init curl/curl.h HAVE_CURL)
+    cmake_pop_check_state()
+    if(LLVM_ENABLE_CURL STREQUAL FORCE_ON AND NOT HAVE_CURL)
+      message(FATAL_ERROR "Failed to configure curl")
+    endif()
+  endif()
+  set(LLVM_ENABLE_CURL "${HAVE_CURL}")
+endif()
+
 # Don't look for these libraries if we're using MSan, since uninstrumented third
 # party code may call MSan interceptors like strlen, leading to false positives.
 if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
@@ -503,10 +524,19 @@ if( MSVC )
   set(stricmp "_stricmp")
   set(strdup "_strdup")
 
-  # See if the DIA SDK is available and usable.
-  set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK" CACHE PATH
-      "Path to the DIA SDK")
+  # Allow setting clang-cl's /winsysroot flag.
+  set(LLVM_WINSYSROOT "" CACHE STRING
+    "If set, argument to clang-cl's /winsysroot")
 
+  if (LLVM_WINSYSROOT)
+    set(MSVC_DIA_SDK_DIR "${LLVM_WINSYSROOT}/DIA SDK" CACHE PATH
+        "Path to the DIA SDK")
+  else()
+    set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK" CACHE PATH
+        "Path to the DIA SDK")
+  endif()
+
+  # See if the DIA SDK is available and usable.
   # Due to a bug in MSVC 2013's installation software, it is possible
   # for MSVC 2013 to write the DIA SDK into the Visual Studio 2012
   # install directory.  If this happens, the installation is corrupt
@@ -589,7 +619,7 @@ endif()
 
 find_program(GOLD_EXECUTABLE NAMES ${LLVM_DEFAULT_TARGET_TRIPLE}-ld.gold ld.gold ${LLVM_DEFAULT_TARGET_TRIPLE}-ld ld DOC "The gold linker")
 set(LLVM_BINUTILS_INCDIR "" CACHE PATH
-	"PATH to binutils/include containing plugin-api.h for gold plugin.")
+    "PATH to binutils/include containing plugin-api.h for gold plugin.")
 
 if(CMAKE_GENERATOR STREQUAL "Ninja")
   execute_process(COMMAND ${CMAKE_MAKE_PROGRAM} --version

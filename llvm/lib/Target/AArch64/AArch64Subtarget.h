@@ -50,6 +50,7 @@ public:
     CortexA35,
     CortexA53,
     CortexA55,
+    CortexA510,
     CortexA57,
     CortexA65,
     CortexA72,
@@ -89,6 +90,9 @@ protected:
   bool HasV8_5aOps = false;
   bool HasV8_6aOps = false;
   bool HasV8_7aOps = false;
+  bool HasV9_0aOps = false;
+  bool HasV9_1aOps = false;
+  bool HasV9_2aOps = false;
 
   bool HasV8_0rOps = false;
   bool HasCONTEXTIDREL2 = false;
@@ -99,6 +103,7 @@ protected:
   bool HasDotProd = false;
   bool HasCRC = false;
   bool HasLSE = false;
+  bool HasLSE2 = false;
   bool HasRAS = false;
   bool HasRDM = false;
   bool HasPerfMon = false;
@@ -119,6 +124,7 @@ protected:
   // SVE extensions
   bool HasSVE = false;
   bool UseExperimentalZeroingPseudos = false;
+  bool UseScalarIncVL = false;
 
   // Armv8.2 Crypto extensions
   bool HasSM4 = false;
@@ -190,6 +196,9 @@ protected:
   bool HasSMEF64 = false;
   bool HasSMEI64 = false;
   bool HasStreamingSVE = false;
+
+  // AppleA7 system register.
+  bool HasAppleA7SysReg = false;
 
   // Future architecture extensions.
   bool HasETE = false;
@@ -271,6 +280,7 @@ protected:
 
   unsigned MinSVEVectorSizeInBits;
   unsigned MaxSVEVectorSizeInBits;
+  unsigned VScaleForTuning = 2;
 
   /// TargetTriple - What processor and OS we're targeting.
   Triple TargetTriple;
@@ -292,7 +302,8 @@ private:
   /// passed in feature string so that we can use initializer lists for
   /// subtarget initialization.
   AArch64Subtarget &initializeSubtargetDependencies(StringRef FS,
-                                                    StringRef CPUString);
+                                                    StringRef CPUString,
+                                                    StringRef TuneCPUString);
 
   /// Initialize properties based on the selected processor family.
   void initializeProperties();
@@ -301,8 +312,8 @@ public:
   /// This constructor initializes the data members to match that
   /// of the specified triple.
   AArch64Subtarget(const Triple &TT, const std::string &CPU,
-                   const std::string &FS, const TargetMachine &TM,
-                   bool LittleEndian,
+                   const std::string &TuneCPU, const std::string &FS,
+                   const TargetMachine &TM, bool LittleEndian,
                    unsigned MinSVEVectorSizeInBitsOverride = 0,
                    unsigned MaxSVEVectorSizeInBitsOverride = 0);
 
@@ -343,6 +354,9 @@ public:
   bool hasV8_3aOps() const { return HasV8_3aOps; }
   bool hasV8_4aOps() const { return HasV8_4aOps; }
   bool hasV8_5aOps() const { return HasV8_5aOps; }
+  bool hasV9_0aOps() const { return HasV9_0aOps; }
+  bool hasV9_1aOps() const { return HasV9_1aOps; }
+  bool hasV9_2aOps() const { return HasV9_2aOps; }
   bool hasV8_0rOps() const { return HasV8_0rOps; }
 
   bool hasZeroCycleRegMove() const { return HasZeroCycleRegMove; }
@@ -375,6 +389,7 @@ public:
   bool hasDotProd() const { return HasDotProd; }
   bool hasCRC() const { return HasCRC; }
   bool hasLSE() const { return HasLSE; }
+  bool hasLSE2() const { return HasLSE2; }
   bool hasRAS() const { return HasRAS; }
   bool hasRDM() const { return HasRDM; }
   bool hasSM4() const { return HasSM4; }
@@ -448,6 +463,8 @@ public:
   bool useExperimentalZeroingPseudos() const {
     return UseExperimentalZeroingPseudos;
   }
+
+  bool useScalarIncVL() const { return UseScalarIncVL; }
 
   /// CPU has TBI (top byte of addresses is ignored during HW address
   /// translation) and OS enables it.
@@ -598,6 +615,31 @@ public:
     }
   }
 
+  /// Return whether FrameLowering should always set the "extended frame
+  /// present" bit in FP, or set it based on a symbol in the runtime.
+  bool swiftAsyncContextIsDynamicallySet() const {
+    // Older OS versions (particularly system unwinders) are confused by the
+    // Swift extended frame, so when building code that might be run on them we
+    // must dynamically query the concurrency library to determine whether
+    // extended frames should be flagged as present.
+    const Triple &TT = getTargetTriple();
+
+    unsigned Major, Minor, Micro;
+    TT.getOSVersion(Major, Minor, Micro);
+    switch(TT.getOS()) {
+    default:
+      return false;
+    case Triple::IOS:
+    case Triple::TvOS:
+      return Major < 15;
+    case Triple::WatchOS:
+      return Major < 8;
+    case Triple::MacOSX:
+    case Triple::Darwin:
+      return Major < 12;
+    }
+  }
+
   void mirFileLoaded(MachineFunction &MF) const override;
 
   // Return the known range for the bit length of SVE data registers. A value
@@ -614,6 +656,8 @@ public:
   }
 
   bool useSVEForFixedLengthVectors() const;
+
+  unsigned getVScaleForTuning() const { return VScaleForTuning; }
 };
 } // End llvm namespace
 

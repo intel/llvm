@@ -1776,7 +1776,7 @@ void CXXRecordDecl::removeConversion(const NamedDecl *ConvDecl) {
   for (unsigned I = 0, E = Convs.size(); I != E; ++I) {
     if (Convs[I].getDecl() == ConvDecl) {
       Convs.erase(I);
-      assert(llvm::find(Convs, ConvDecl) == Convs.end() &&
+      assert(!llvm::is_contained(Convs, ConvDecl) &&
              "conversion was found multiple times in unresolved set");
       return;
     }
@@ -2156,12 +2156,9 @@ CXXMethodDecl::getCorrespondingMethodInClass(const CXXRecordDecl *RD,
     }
 
     // Other candidate final overriders might be overridden by this function.
-    FinalOverriders.erase(
-        std::remove_if(FinalOverriders.begin(), FinalOverriders.end(),
-                       [&](CXXMethodDecl *OtherD) {
-                         return recursivelyOverrides(D, OtherD);
-                       }),
-        FinalOverriders.end());
+    llvm::erase_if(FinalOverriders, [&](CXXMethodDecl *OtherD) {
+      return recursivelyOverrides(D, OtherD);
+    });
 
     FinalOverriders.push_back(D);
   };
@@ -2337,7 +2334,7 @@ bool CXXMethodDecl::isUsualDeallocationFunction(
   // In C++17 onwards, all potential usual deallocation functions are actual
   // usual deallocation functions. Honor this behavior when post-C++14
   // deallocation functions are offered as extensions too.
-  // FIXME(EricWF): Destrying Delete should be a language option. How do we
+  // FIXME(EricWF): Destroying Delete should be a language option. How do we
   // handle when destroying delete is used prior to C++17?
   if (Context.getLangOpts().CPlusPlus17 ||
       Context.getLangOpts().AlignedAllocation ||
@@ -3014,8 +3011,7 @@ CXXRecordDecl *ConstructorUsingShadowDecl::getNominatedBaseClass() const {
 void BaseUsingDecl::anchor() {}
 
 void BaseUsingDecl::addShadowDecl(UsingShadowDecl *S) {
-  assert(std::find(shadow_begin(), shadow_end(), S) == shadow_end() &&
-         "declaration already in set");
+  assert(!llvm::is_contained(shadows(), S) && "declaration already in set");
   assert(S->getIntroducer() == this);
 
   if (FirstUsingShadow.getPointer())
@@ -3024,8 +3020,7 @@ void BaseUsingDecl::addShadowDecl(UsingShadowDecl *S) {
 }
 
 void BaseUsingDecl::removeShadowDecl(UsingShadowDecl *S) {
-  assert(std::find(shadow_begin(), shadow_end(), S) != shadow_end() &&
-         "declaration not in set");
+  assert(llvm::is_contained(shadows(), S) && "declaration not in set");
   assert(S->getIntroducer() == this);
 
   // Remove S from the shadow decl chain. This is O(n) but hopefully rare.

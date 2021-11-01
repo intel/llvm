@@ -950,10 +950,9 @@ duration_cast(const duration<_Rep, _Period>& __fd)
 template <class _Rep>
 struct _LIBCPP_TEMPLATE_VIS treat_as_floating_point : is_floating_point<_Rep> {};
 
-#if _LIBCPP_STD_VER > 14 && !defined(_LIBCPP_HAS_NO_VARIABLE_TEMPLATES)
+#if _LIBCPP_STD_VER > 14
 template <class _Rep>
-_LIBCPP_INLINE_VAR _LIBCPP_CONSTEXPR bool treat_as_floating_point_v
-    = treat_as_floating_point<_Rep>::value;
+inline constexpr bool treat_as_floating_point_v = treat_as_floating_point<_Rep>::value;
 #endif
 
 template <class _Rep>
@@ -1840,6 +1839,7 @@ class weekday_last;
 class weekday {
 private:
     unsigned char __wd;
+    static constexpr unsigned char __weekday_from_days(int __days) noexcept;
 public:
   weekday() = default;
   inline explicit constexpr weekday(unsigned __val) noexcept : __wd(static_cast<unsigned char>(__val == 7 ? 0 : __val)) {}
@@ -1859,9 +1859,6 @@ public:
   inline constexpr bool ok() const noexcept { return __wd <= 6; }
          constexpr weekday_indexed operator[](unsigned __index) const noexcept;
          constexpr weekday_last    operator[](last_spec) const noexcept;
-
-  // TODO: Make private?
-  static constexpr unsigned char __weekday_from_days(int __days) noexcept;
 };
 
 
