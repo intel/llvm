@@ -46,7 +46,7 @@ the following form:
         int reserved; 
         R (*invoke)(struct Block_literal_1 *, P...);
         struct Block_descriptor_1 {
-        unsigned long int reserved;         // NULL
+            unsigned long int reserved;     // NULL
             unsigned long int size;         // sizeof(struct Block_literal_1)
             // optional helper functions
             void (*copy_helper)(void *dst, void *src);     // IFF (1<<25)
@@ -765,7 +765,7 @@ The compiler would synthesize:
        printf("%d\n", _block->foo.value());
     }
     
-    void __block_literal_10(struct __block_literal_10 *dst, struct __block_literal_10 *src) {
+    void __block_copy_10(struct __block_literal_10 *dst, struct __block_literal_10 *src) {
          FOO_ctor(&dst->foo, &src->foo);
     }
     

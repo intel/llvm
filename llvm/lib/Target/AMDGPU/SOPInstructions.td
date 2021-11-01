@@ -558,19 +558,19 @@ def S_XNOR_B64 : SOP2_64 <"s_xnor_b64",
 >;
 
 def S_NAND_B32 : SOP2_32 <"s_nand_b32",
-  [(set i32:$sdst, (not (and_oneuse i32:$src0, i32:$src1)))]
+  [(set i32:$sdst, (UniformUnaryFrag<not> (and_oneuse i32:$src0, i32:$src1)))]
 >;
 
 def S_NAND_B64 : SOP2_64 <"s_nand_b64",
-  [(set i64:$sdst, (not (and_oneuse i64:$src0, i64:$src1)))]
+  [(set i64:$sdst, (UniformUnaryFrag<not> (and_oneuse i64:$src0, i64:$src1)))]
 >;
 
 def S_NOR_B32 : SOP2_32 <"s_nor_b32",
-  [(set i32:$sdst, (not (or_oneuse i32:$src0, i32:$src1)))]
+  [(set i32:$sdst, (UniformUnaryFrag<not> (or_oneuse i32:$src0, i32:$src1)))]
 >;
 
 def S_NOR_B64 : SOP2_64 <"s_nor_b64",
-  [(set i64:$sdst, (not (or_oneuse i64:$src0, i64:$src1)))]
+  [(set i64:$sdst, (UniformUnaryFrag<not> (or_oneuse i64:$src0, i64:$src1)))]
 >;
 } // End isCommutable = 1
 
@@ -622,9 +622,8 @@ def S_BFM_B32 : SOP2_32 <"s_bfm_b32",
   [(set i32:$sdst, (UniformBinFrag<AMDGPUbfm> i32:$src0, i32:$src1))]>;
 def S_BFM_B64 : SOP2_64_32_32 <"s_bfm_b64">;
 
-// TODO: S_MUL_I32 require V_MUL_LO_I32 from VOP3 change
 def S_MUL_I32 : SOP2_32 <"s_mul_i32",
-  [(set i32:$sdst, (mul i32:$src0, i32:$src1))]> {
+  [(set i32:$sdst, (UniformBinFrag<mul> i32:$src0, i32:$src1))]> {
   let isCommutable = 1;
 }
 } // End isReMaterializable = 1

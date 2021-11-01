@@ -68,7 +68,7 @@ char ESIMDLowerLoadStore::ID = 0;
 INITIALIZE_PASS(ESIMDLowerLoadStore, "ESIMDLowerLoadStore",
                 "Lower ESIMD reference loads and stores", false, false)
 
-// Lower non-volatilE vload/vstore intrinsic calls into normal load/store
+// Lower non-volatile vload/vstore intrinsic calls into normal load/store
 // instructions.
 PreservedAnalyses ESIMDLowerLoadStorePass::run(Function &F,
                                                FunctionAnalysisManager &FAM) {

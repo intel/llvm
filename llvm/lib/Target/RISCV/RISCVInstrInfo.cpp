@@ -25,8 +25,8 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/MC/MCInstBuilder.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -113,9 +113,7 @@ unsigned RISCVInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
 
 static bool forwardCopyWillClobberTuple(unsigned DstReg, unsigned SrcReg,
                                         unsigned NumRegs) {
-  // We really want the positive remainder mod 32 here, that happens to be
-  // easily obtainable with a mask.
-  return ((DstReg - SrcReg) & 0x1f) < NumRegs;
+  return DstReg > SrcReg && (DstReg - SrcReg) < NumRegs;
 }
 
 void RISCVInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
@@ -311,17 +309,10 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
         MemoryLocation::UnknownSize, MFI.getObjectAlign(FI));
 
     MFI.setStackID(FI, TargetStackID::ScalableVector);
-    auto MIB = BuildMI(MBB, I, DL, get(Opcode));
-    if (IsZvlsseg) {
-      // We need a GPR register to hold the incremented address for each subreg
-      // after expansion.
-      Register AddrInc =
-          MF->getRegInfo().createVirtualRegister(&RISCV::GPRRegClass);
-      MIB.addReg(AddrInc, RegState::Define);
-    }
-    MIB.addReg(SrcReg, getKillRegState(IsKill))
-        .addFrameIndex(FI)
-        .addMemOperand(MMO);
+    auto MIB = BuildMI(MBB, I, DL, get(Opcode))
+                   .addReg(SrcReg, getKillRegState(IsKill))
+                   .addFrameIndex(FI)
+                   .addMemOperand(MMO);
     if (IsZvlsseg) {
       // For spilling/reloading Zvlsseg registers, append the dummy field for
       // the scaled vector length. The argument will be used when expanding
@@ -412,15 +403,9 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
         MemoryLocation::UnknownSize, MFI.getObjectAlign(FI));
 
     MFI.setStackID(FI, TargetStackID::ScalableVector);
-    auto MIB = BuildMI(MBB, I, DL, get(Opcode), DstReg);
-    if (IsZvlsseg) {
-      // We need a GPR register to hold the incremented address for each subreg
-      // after expansion.
-      Register AddrInc =
-          MF->getRegInfo().createVirtualRegister(&RISCV::GPRRegClass);
-      MIB.addReg(AddrInc, RegState::Define);
-    }
-    MIB.addFrameIndex(FI).addMemOperand(MMO);
+    auto MIB = BuildMI(MBB, I, DL, get(Opcode), DstReg)
+                   .addFrameIndex(FI)
+                   .addMemOperand(MMO);
     if (IsZvlsseg) {
       // For spilling/reloading Zvlsseg registers, append the dummy field for
       // the scaled vector length. The argument will be used when expanding
@@ -470,6 +455,12 @@ void RISCVInstrInfo::movImm(MachineBasicBlock &MBB,
       BuildMI(MBB, MBBI, DL, get(RISCV::ADDUW), Result)
           .addReg(SrcReg, RegState::Kill)
           .addReg(RISCV::X0)
+          .setMIFlag(Flag);
+    } else if (Inst.Opc == RISCV::SH1ADD || Inst.Opc == RISCV::SH2ADD ||
+               Inst.Opc == RISCV::SH3ADD) {
+      BuildMI(MBB, MBBI, DL, get(Inst.Opc), Result)
+          .addReg(SrcReg, RegState::Kill)
+          .addReg(SrcReg, RegState::Kill)
           .setMIFlag(Flag);
     } else {
       BuildMI(MBB, MBBI, DL, get(Inst.Opc), Result)
@@ -919,11 +910,20 @@ bool RISCVInstrInfo::verifyInstruction(const MachineInstr &MI,
         switch (OpType) {
         default:
           llvm_unreachable("Unexpected operand type");
+        case RISCVOp::OPERAND_UIMM2:
+          Ok = isUInt<2>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMM3:
+          Ok = isUInt<3>(Imm);
+          break;
         case RISCVOp::OPERAND_UIMM4:
           Ok = isUInt<4>(Imm);
           break;
         case RISCVOp::OPERAND_UIMM5:
           Ok = isUInt<5>(Imm);
+          break;
+        case RISCVOp::OPERAND_UIMM7:
+          Ok = isUInt<7>(Imm);
           break;
         case RISCVOp::OPERAND_UIMM12:
           Ok = isUInt<12>(Imm);
@@ -1472,8 +1472,8 @@ MachineInstr *RISCVInstrInfo::commuteInstructionImpl(MachineInstr &MI,
   CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, M2)                                     \
   CASE_WIDEOP_CHANGE_OPCODE_COMMON(OP, M4)
 
-MachineInstr *RISCVInstrInfo::convertToThreeAddress(
-    MachineFunction::iterator &MBB, MachineInstr &MI, LiveVariables *LV) const {
+MachineInstr *RISCVInstrInfo::convertToThreeAddress(MachineInstr &MI,
+                                                    LiveVariables *LV) const {
   switch (MI.getOpcode()) {
   default:
     break;
@@ -1497,7 +1497,8 @@ MachineInstr *RISCVInstrInfo::convertToThreeAddress(
     }
     //clang-format on
 
-    MachineInstrBuilder MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineInstrBuilder MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
                                   .add(MI.getOperand(0))
                                   .add(MI.getOperand(1))
                                   .add(MI.getOperand(2))

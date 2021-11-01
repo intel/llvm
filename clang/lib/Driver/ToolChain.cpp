@@ -29,6 +29,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/MC/MCTargetOptions.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
@@ -38,7 +39,6 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TargetParser.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <cassert>
@@ -652,7 +652,7 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
   // for the linker flavor is brittle. In addition, prepending "ld." or "ld64."
   // to a relative path is surprising. This is more complex due to priorities
   // among -B, COMPILER_PATH and PATH. --ld-path= should be used instead.
-  if (UseLinker.find('/') != StringRef::npos)
+  if (UseLinker.contains('/'))
     getDriver().Diag(diag::warn_drv_fuse_ld_path);
 
   if (llvm::sys::path::is_absolute(UseLinker)) {
@@ -1095,7 +1095,7 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
-llvm::SmallVector<std::string, 12>
+llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 ToolChain::getHIPDeviceLibs(const ArgList &DriverArgs) const {
   return {};
 }
@@ -1247,12 +1247,19 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     if (XOffloadTargetNoTriple && XOffloadTargetArg) {
       // TODO: similar behaviors with OpenMP and SYCL offloading, can be
       // improved upon
+      auto SingleTargetTripleCount = [&Args](OptSpecifier Opt) {
+        const Arg *TargetArg = Args.getLastArg(Opt);
+        if (TargetArg && TargetArg->getValues().size() == 1)
+          return true;
+        return false;
+      };
       if (DeviceOffloadKind == Action::OFK_OpenMP &&
-          Args.getAllArgValues(options::OPT_fopenmp_targets_EQ).size() != 1) {
+          !SingleTargetTripleCount(options::OPT_fopenmp_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
-      } else if (DeviceOffloadKind == Action::OFK_SYCL &&
-          Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() > 1) {
+      }
+      if (DeviceOffloadKind == Action::OFK_SYCL &&
+          !SingleTargetTripleCount(options::OPT_fsycl_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
         continue;

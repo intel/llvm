@@ -178,6 +178,9 @@ isl::schedule applyFullUnroll(isl::schedule_node BandToUnroll);
 /// Replace the AST band @p BandToUnroll by a partially unrolled equivalent.
 isl::schedule applyPartialUnroll(isl::schedule_node BandToUnroll, int Factor);
 
+/// Loop-distribute the band @p BandToFission as much as possible.
+isl::schedule applyMaxFission(isl::schedule_node BandToFission);
+
 /// Build the desired set of partial tile prefixes.
 ///
 /// We build a set of partial tile prefixes, which are prefixes of the vector
@@ -236,6 +239,14 @@ isl::schedule_node tileNode(isl::schedule_node Node, const char *Identifier,
 isl::schedule_node applyRegisterTiling(isl::schedule_node Node,
                                        llvm::ArrayRef<int> TileSizes,
                                        int DefaultTileSize);
+
+/// Apply greedy fusion. That is, fuse any loop that is possible to be fused
+/// top-down.
+///
+/// @param Sched  Sched tree to fuse all the loops in.
+/// @param Deps   Validity constraints that must be preserved.
+isl::schedule applyGreedyFusion(isl::schedule Sched,
+                                const isl::union_map &Deps);
 
 } // namespace polly
 

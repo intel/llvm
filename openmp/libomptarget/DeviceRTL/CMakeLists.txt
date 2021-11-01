@@ -6,56 +6,38 @@
 #
 ##===----------------------------------------------------------------------===##
 #
-# Build the Device RTL for all toolchains that are available
+# Build the DeviceRTL for all toolchains that are available
 #
 ##===----------------------------------------------------------------------===##
 
-# TODO: copied from NVPTX, need to be generalized.
+set(LIBOMPTARGET_BUILD_DEVICERTL_BCLIB TRUE CACHE BOOL
+  "Can be set to false to disable building this library.")
 
-# By default we will not build NVPTX deviceRTL on a CUDA free system
-set(LIBOMPTARGET_BUILD_NVPTX_BCLIB FALSE CACHE BOOL
-  "Whether build NVPTX deviceRTL on CUDA free system.")
-
-if (NOT (LIBOMPTARGET_DEP_CUDA_FOUND OR LIBOMPTARGET_BUILD_NVPTX_BCLIB))
-  libomptarget_say("Not building NVPTX deviceRTL by default on CUDA free system.")
+if (NOT LIBOMPTARGET_BUILD_DEVICERTL_BCLIB)
+  libomptarget_say("Not building DeviceRTL: Disabled by LIBOMPTARGET_BUILD_DEVICERTL_BCLIB")
   return()
 endif()
 
 if (NOT LIBOMPTARGET_LLVM_INCLUDE_DIRS)
-  libomptarget_say("Not building device RTL: Missing definition for LIBOMPTARGET_LLVM_INCLUDE_DIRS")
+  libomptarget_say("Not building DeviceRTL: Missing definition for LIBOMPTARGET_LLVM_INCLUDE_DIRS")
   return()
 endif()
 
-
-# Check if we can create an LLVM bitcode implementation of the runtime library
-# that could be inlined in the user application. For that we need to find
-# a Clang compiler capable of compiling our CUDA files to LLVM bitcode and
-# an LLVM linker.
-set(LIBOMPTARGET_NVPTX_CUDA_COMPILER "" CACHE STRING
-  "Location of a CUDA compiler capable of emitting LLVM bitcode.")
-set(LIBOMPTARGET_NVPTX_BC_LINKER "" CACHE STRING
-  "Location of a linker capable of linking LLVM bitcode objects.")
-
-if (NOT LIBOMPTARGET_NVPTX_CUDA_COMPILER STREQUAL "")
-  set(cuda_compiler ${LIBOMPTARGET_NVPTX_CUDA_COMPILER})
-elseif(${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
-  set(cuda_compiler ${CMAKE_C_COMPILER})
+if (LLVM_DIR)
+  # Builds that use pre-installed LLVM have LLVM_DIR set.
+  find_program(CLANG_TOOL clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
+  find_program(LINK_TOOL llvm-link PATHS ${LLVM_TOOLS_BINARY_DIR}
+    NO_DEFAULT_PATH)
+  find_program(OPT_TOOL opt PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
+  libomptarget_say("Building Device RTL. Using clang: ${CLANG_TOOL}")
+elseif (LLVM_TOOL_CLANG_BUILD AND NOT CMAKE_CROSSCOMPILING AND NOT OPENMP_STANDALONE_BUILD)
+  # LLVM in-tree builds may use CMake target names to discover the tools.
+  set(CLANG_TOOL $<TARGET_FILE:clang>)
+  set(LINK_TOOL $<TARGET_FILE:llvm-link>)
+  set(OPT_TOOL $<TARGET_FILE:opt>)
+  libomptarget_say("Building DeviceRTL. Using clang from in-tree build")
 else()
-  libomptarget_say("Not building NVPTX deviceRTL: clang not found")
-  return()
-endif()
-
-# Get compiler directory to try to locate a suitable linker.
-get_filename_component(compiler_dir ${cuda_compiler} DIRECTORY)
-set(llvm_link "${compiler_dir}/llvm-link")
-set(opt "${compiler_dir}/opt")
-
-if (NOT LIBOMPTARGET_NVPTX_BC_LINKER STREQUAL "")
-  set(bc_linker ${LIBOMPTARGET_NVPTX_BC_LINKER})
-elseif (EXISTS ${llvm_link})
-  set(bc_linker ${llvm_link})
-else()
-  libomptarget_say("Not building NVPTX deviceRTL: llvm-link not found")
+  libomptarget_say("Not building DeviceRTL. No appropriate clang found")
   return()
 endif()
 
@@ -70,7 +52,7 @@ elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "ppc64le")
 elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64")
   set(aux_triple aarch64-unknown-linux-gnu)
 else()
-  libomptarget_say("Not building CUDA offloading device RTL: unknown host arch: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
+  libomptarget_say("Not building DeviceRTL: unknown host arch: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
   return()
 endif()
 
@@ -109,16 +91,10 @@ foreach(sm ${nvptx_sm_list})
   endif()
 endforeach()
 
-# Override default MAX_SM in src/target_impl.h if requested
-if (DEFINED LIBOMPTARGET_NVPTX_MAX_SM)
-  set(MAX_SM_DEFINITION "-DMAX_SM=${LIBOMPTARGET_NVPTX_MAX_SM}")
-endif()
-
 # Activate RTL message dumps if requested by the user.
 set(LIBOMPTARGET_DEVICE_DEBUG FALSE CACHE BOOL
-  "Activate NVPTX device RTL debug messages.")
+  "Activate DeviceRTL debug messages.")
 
-libomptarget_say("Building CUDA LLVM bitcode offloading device RTL.")
 
 set(src_files
   ${source_directory}/Configuration.cpp
@@ -151,6 +127,7 @@ set(bc_flags -S -x c++ -std=c++17
              -fopenmp -fopenmp-cuda-mode -Xclang -fopenmp-is-device
              -Xclang -target-feature -Xclang +ptx61
              -I${include_directory}
+             -I${devicertl_base_directory}/../include
              ${LIBOMPTARGET_LLVM_INCLUDE_DIRS_DEVICERTL}
 )
 
@@ -175,13 +152,22 @@ foreach(sm ${nvptx_sm_list})
     set(outfile "${outfile}-sm_${sm}.bc")
 
     add_custom_command(OUTPUT ${outfile}
-      COMMAND ${cuda_compiler} ${bc_flags}
-        ${cuda_flags} ${MAX_SM_DEFINITION} ${infile} -o ${outfile}
+      COMMAND ${CLANG_TOOL} ${bc_flags}
+        ${cuda_flags} ${infile} -o ${outfile}
       DEPENDS ${infile}
       IMPLICIT_DEPENDS CXX ${infile}
       COMMENT "Building LLVM bitcode ${outfile}"
       VERBATIM
     )
+    if("${CLANG_TOOL}" STREQUAL "$<TARGET_FILE:clang>")
+      # Add a file-level dependency to ensure that clang is up-to-date.
+      # By default, add_custom_command only builds clang if the
+      # executable is missing.
+      add_custom_command(OUTPUT ${outfile}
+        DEPENDS clang
+        APPEND
+      )
+    endif()
     set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${outfile})
 
     list(APPEND bc_files ${outfile})
@@ -191,18 +177,32 @@ foreach(sm ${nvptx_sm_list})
 
   # Link to a bitcode library.
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
-      COMMAND ${bc_linker}
+      COMMAND ${LINK_TOOL}
         -o ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name} ${bc_files}
       DEPENDS ${bc_files}
       COMMENT "Linking LLVM bitcode ${bclib_name}"
   )
 
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}_opt
-      COMMAND ${opt} ${link_opt_flags} ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+      COMMAND ${OPT_TOOL} ${link_opt_flags} ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
                       -o ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
       DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
       COMMENT "Optimizing LLVM bitcode ${bclib_name}"
   )
+
+  # Add a file-level dependency to ensure that llvm-link and opt are up-to-date.
+  # By default, add_custom_command only builds the tool if the executable is missing
+  if("${LINK_TOOL}" STREQUAL "$<TARGET_FILE:llvm-link>")
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}
+      DEPENDS llvm-link
+      APPEND)
+  endif()
+  if("${OPT_TOOL}" STREQUAL "$<TARGET_FILE:opt>")
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${bclib_name}_opt
+      DEPENDS opt
+      APPEND)
+  endif()
+
   set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${bclib_name})
 
   set(bclib_target_name "omptarget-new-nvptx-sm_${sm}-bc")

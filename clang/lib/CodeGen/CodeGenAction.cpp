@@ -25,8 +25,10 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
 #include "clang/Lex/Preprocessor.h"
+#include "llvm/ADT/Hashing.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -51,6 +53,8 @@
 #include <memory>
 using namespace clang;
 using namespace llvm;
+
+#define DEBUG_TYPE "codegenaction"
 
 namespace clang {
   class BackendConsumer;
@@ -126,6 +130,17 @@ namespace clang {
     std::unique_ptr<CodeGenerator> Gen;
 
     SmallVector<LinkModule, 4> LinkModules;
+
+    // A map from mangled names to their function's source location, used for
+    // backend diagnostics as the Clang AST may be unavailable. We actually use
+    // the mangled name's hash as the key because mangled names can be very
+    // long and take up lots of space. Using a hash can cause name collision,
+    // but that is rare and the consequences are pointing to a wrong source
+    // location which is not severe. This is a vector instead of an actual map
+    // because we optimize for time building this map rather than time
+    // retrieving an entry, as backend diagnostics are uncommon.
+    std::vector<std::pair<llvm::hash_code, FullSourceLoc>>
+        ManglingFullSourceLocs;
 
     // This is here so that the diagnostic printer knows the module a diagnostic
     // refers to.
@@ -326,6 +341,27 @@ namespace clang {
       if (LinkInModules())
         return;
 
+      for (auto &F : getModule()->functions()) {
+        if (const Decl *FD = Gen->GetDeclForMangledName(F.getName())) {
+          auto Loc = FD->getASTContext().getFullLoc(FD->getLocation());
+          // TODO: use a fast content hash when available.
+          auto NameHash = llvm::hash_value(F.getName());
+          ManglingFullSourceLocs.push_back(std::make_pair(NameHash, Loc));
+        }
+      }
+
+      if (CodeGenOpts.ClearASTBeforeBackend) {
+        LLVM_DEBUG(llvm::dbgs() << "Clearing AST...\n");
+        // Access to the AST is no longer available after this.
+        // Other things that the ASTContext manages are still available, e.g.
+        // the SourceManager. It'd be nice if we could separate out all the
+        // things in ASTContext used after this point and null out the
+        // ASTContext, but too many various parts of the ASTContext are still
+        // used in various parts.
+        C.cleanup();
+        C.getAllocator().Reset();
+      }
+
       EmbedBitcode(getModule(), CodeGenOpts, llvm::MemoryBufferRef());
 
       EmitBackendOutput(Diags, HeaderSearchOpts, CodeGenOpts, TargetOpts,
@@ -368,6 +404,8 @@ namespace clang {
     getBestLocationFromDebugLoc(const llvm::DiagnosticInfoWithLocationBase &D,
                                 bool &BadDebugInfo, StringRef &Filename,
                                 unsigned &Line, unsigned &Column) const;
+
+    Optional<FullSourceLoc> getFunctionSourceLocation(const Function &F) const;
 
     void DiagnosticHandlerImpl(const llvm::DiagnosticInfo &DI);
     /// Specialized handler for InlineAsm diagnostic.
@@ -562,17 +600,16 @@ BackendConsumer::StackSizeDiagHandler(const llvm::DiagnosticInfoStackSize &D) {
     // We do not know how to format other severities.
     return false;
 
-  if (const Decl *ND = Gen->GetDeclForMangledName(D.getFunction().getName())) {
-    // FIXME: Shouldn't need to truncate to uint32_t
-    Diags.Report(ND->getASTContext().getFullLoc(ND->getLocation()),
-                 diag::warn_fe_frame_larger_than)
-        << static_cast<uint32_t>(D.getStackSize())
-        << static_cast<uint32_t>(D.getStackLimit())
-        << Decl::castToDeclContext(ND);
-    return true;
-  }
+  auto Loc = getFunctionSourceLocation(D.getFunction());
+  if (!Loc)
+    return false;
 
-  return false;
+  // FIXME: Shouldn't need to truncate to uint32_t
+  Diags.Report(*Loc, diag::warn_fe_frame_larger_than)
+      << static_cast<uint32_t>(D.getStackSize())
+      << static_cast<uint32_t>(D.getStackLimit())
+      << llvm::demangle(D.getFunction().getName().str());
+  return true;
 }
 
 const FullSourceLoc BackendConsumer::getBestLocationFromDebugLoc(
@@ -601,9 +638,10 @@ const FullSourceLoc BackendConsumer::getBestLocationFromDebugLoc(
   // function definition. We use the definition's right brace to differentiate
   // from diagnostics that genuinely relate to the function itself.
   FullSourceLoc Loc(DILoc, SourceMgr);
-  if (Loc.isInvalid())
-    if (const Decl *FD = Gen->GetDeclForMangledName(D.getFunction().getName()))
-      Loc = FD->getASTContext().getFullLoc(FD->getLocation());
+  if (Loc.isInvalid()) {
+    if (auto MaybeLoc = getFunctionSourceLocation(D.getFunction()))
+      Loc = *MaybeLoc;
+  }
 
   if (DILoc.isInvalid() && D.isLocationAvailable())
     // If we were not able to translate the file:line:col information
@@ -614,6 +652,16 @@ const FullSourceLoc BackendConsumer::getBestLocationFromDebugLoc(
         << Filename << Line << Column;
 
   return Loc;
+}
+
+Optional<FullSourceLoc>
+BackendConsumer::getFunctionSourceLocation(const Function &F) const {
+  auto Hash = llvm::hash_value(F.getName());
+  for (const auto &Pair : ManglingFullSourceLocs) {
+    if (Pair.first == Hash)
+      return Pair.second;
+  }
+  return Optional<FullSourceLoc>();
 }
 
 void BackendConsumer::UnsupportedDiagHandler(
@@ -754,30 +802,18 @@ void BackendConsumer::OptimizationFailureHandler(
 }
 
 void BackendConsumer::DontCallDiagHandler(const DiagnosticInfoDontCall &D) {
-  if (const Decl *DE = Gen->GetDeclForMangledName(D.getFunctionName()))
-    if (const auto *FD = dyn_cast<FunctionDecl>(DE)) {
-      assert(FD->hasAttr<ErrorAttr>() &&
-             "expected error or warning function attribute");
+  SourceLocation LocCookie =
+      SourceLocation::getFromRawEncoding(D.getLocCookie());
 
-      if (const auto *EA = FD->getAttr<ErrorAttr>()) {
-        assert((EA->isError() || EA->isWarning()) &&
-               "ErrorAttr neither error or warning");
+  // FIXME: we can't yet diagnose indirect calls. When/if we can, we
+  // should instead assert that LocCookie.isValid().
+  if (!LocCookie.isValid())
+    return;
 
-        SourceLocation LocCookie =
-            SourceLocation::getFromRawEncoding(D.getLocCookie());
-
-        // FIXME: we can't yet diagnose indirect calls. When/if we can, we
-        // should instead assert that LocCookie.isValid().
-        if (!LocCookie.isValid())
-          return;
-
-        Diags.Report(LocCookie, EA->isError()
-                                    ? diag::err_fe_backend_error_attr
-                                    : diag::warn_fe_backend_warning_attr)
-            << FD << EA->getUserDiagnostic();
-      }
-    }
-  // TODO: assert if DE or FD were nullptr?
+  Diags.Report(LocCookie, D.getSeverity() == DiagnosticSeverity::DS_Error
+                              ? diag::err_fe_backend_error_attr
+                              : diag::warn_fe_backend_warning_attr)
+      << llvm::demangle(D.getFunctionName().str()) << D.getNote();
 }
 
 /// This function is invoked when the backend needs

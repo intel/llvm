@@ -2101,9 +2101,7 @@ static QualType deduceOpenCLPointeeAddrSpace(Sema &S, QualType PointeeType) {
       !PointeeType->isSamplerT() &&
       !PointeeType.hasAddressSpace())
     PointeeType = S.getASTContext().getAddrSpaceQualType(
-        PointeeType, S.getLangOpts().OpenCLGenericAddressSpace
-                         ? LangAS::opencl_generic
-                         : LangAS::opencl_private);
+        PointeeType, S.getASTContext().getDefaultOpenCLPointeeAddrSpace());
   return PointeeType;
 }
 
@@ -7899,7 +7897,7 @@ static bool isPermittedNeonBaseType(QualType &Ty,
 static bool verifyValidIntegerConstantExpr(Sema &S, const ParsedAttr &Attr,
                                            llvm::APSInt &Result) {
   const auto *AttrExpr = Attr.getArgAsExpr(0);
-  if (!AttrExpr->isTypeDependent() && !AttrExpr->isValueDependent()) {
+  if (!AttrExpr->isTypeDependent()) {
     if (Optional<llvm::APSInt> Res =
             AttrExpr->getIntegerConstantExpr(S.Context)) {
       Result = *Res;

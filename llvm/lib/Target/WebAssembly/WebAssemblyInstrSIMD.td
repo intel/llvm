@@ -11,16 +11,33 @@
 ///
 //===----------------------------------------------------------------------===//
 
-// Instructions requiring HasSIMD128 and the simd128 prefix byte
-multiclass SIMD_I<dag oops_r, dag iops_r, dag oops_s, dag iops_s,
-                  list<dag> pattern_r, string asmstr_r = "",
-                  string asmstr_s = "", bits<32> simdop = -1> {
+// Instructions using the SIMD opcode prefix and requiring one of the SIMD
+// feature predicates.
+multiclass ABSTRACT_SIMD_I<dag oops_r, dag iops_r, dag oops_s, dag iops_s,
+                           list<dag> pattern_r, string asmstr_r,
+                           string asmstr_s, bits<32> simdop,
+                           Predicate simd_level> {
   defm "" : I<oops_r, iops_r, oops_s, iops_s, pattern_r, asmstr_r, asmstr_s,
               !if(!ge(simdop, 0x100),
                   !or(0xfd0000, !and(0xffff, simdop)),
                   !or(0xfd00, !and(0xff, simdop)))>,
-            Requires<[HasSIMD128]>;
+            Requires<[simd_level]>;
 }
+
+multiclass SIMD_I<dag oops_r, dag iops_r, dag oops_s, dag iops_s,
+                  list<dag> pattern_r, string asmstr_r = "",
+                  string asmstr_s = "", bits<32> simdop = -1> {
+  defm "" : ABSTRACT_SIMD_I<oops_r, iops_r, oops_s, iops_s, pattern_r, asmstr_r,
+                            asmstr_s, simdop, HasSIMD128>;
+}
+
+multiclass RELAXED_I<dag oops_r, dag iops_r, dag oops_s, dag iops_s,
+                     list<dag> pattern_r, string asmstr_r = "",
+                     string asmstr_s = "", bits<32> simdop = -1> {
+  defm "" : ABSTRACT_SIMD_I<oops_r, iops_r, oops_s, iops_s, pattern_r, asmstr_r,
+                            asmstr_s, simdop, HasRelaxedSIMD>;
+}
+
 
 defm "" : ARGUMENT<V128, v16i8>;
 defm "" : ARGUMENT<V128, v8i16>;
@@ -1307,3 +1324,71 @@ def : Pat<(v2f64 (extloadv2f32 (i64 I64:$addr))),
 
 defm Q15MULR_SAT_S :
   SIMDBinary<I16x8, int_wasm_q15mulr_sat_signed, "q15mulr_sat_s", 0x82>;
+
+//===----------------------------------------------------------------------===//
+// Fused Multiply- Add and Subtract (FMA/FMS)
+//===----------------------------------------------------------------------===//
+
+multiclass SIMDFM<Vec vec, bits<32> simdopA, bits<32> simdopS> {
+  defm FMA_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b, V128:$c), (outs), (ins),
+              [(set (vec.vt V128:$dst), (int_wasm_fma
+                (vec.vt V128:$a), (vec.vt V128:$b), (vec.vt V128:$c)))],
+              vec.prefix#".fma\t$dst, $a, $b, $c", vec.prefix#".fma", simdopA>;
+  defm FMS_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b, V128:$c), (outs), (ins),
+              [(set (vec.vt V128:$dst), (int_wasm_fms
+                (vec.vt V128:$a), (vec.vt V128:$b), (vec.vt V128:$c)))],
+              vec.prefix#".fms\t$dst, $a, $b, $c", vec.prefix#".fms", simdopS>;
+}
+
+defm "" : SIMDFM<F32x4, 0xaf, 0xb0>;
+defm "" : SIMDFM<F64x2, 0xcf, 0xd0>;
+
+//===----------------------------------------------------------------------===//
+// Laneselect
+//===----------------------------------------------------------------------===//
+
+multiclass SIMDLANESELECT<Vec vec, bits<32> op> {
+  defm LANESELECT_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b, V128:$c), (outs), (ins),
+              [(set (vec.vt V128:$dst), (int_wasm_laneselect
+                (vec.vt V128:$a), (vec.vt V128:$b), (vec.vt V128:$c)))],
+              vec.prefix#".laneselect\t$dst, $a, $b, $c", vec.prefix#".laneselect", op>;
+}
+
+defm "" : SIMDLANESELECT<I8x16, 0xb2>;
+defm "" : SIMDLANESELECT<I16x8, 0xb3>;
+defm "" : SIMDLANESELECT<I32x4, 0xd2>;
+defm "" : SIMDLANESELECT<I64x2, 0xd3>;
+
+
+//===----------------------------------------------------------------------===//
+// Relaxed swizzle
+//===----------------------------------------------------------------------===//
+
+defm RELAXED_SWIZZLE :
+  RELAXED_I<(outs V128:$dst), (ins V128:$src, V128:$mask), (outs), (ins),
+         [(set (v16i8 V128:$dst),
+           (int_wasm_relaxed_swizzle (v16i8 V128:$src), (v16i8 V128:$mask)))],
+         "i8x16.relaxed_swizzle\t$dst, $src, $mask", "i8x16.relaxed_swizzle", 162>;
+
+//===----------------------------------------------------------------------===//
+// Relaxed floating-point min and max.
+//===----------------------------------------------------------------------===//
+
+multiclass SIMD_RELAXED_FMINMAX<Vec vec, bits<32> simdopMin, bits<32> simdopMax> {
+  defm RELAXED_FMIN_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b), (outs), (ins),
+              [(set (vec.vt V128:$dst), (int_wasm_relaxed_min
+                (vec.vt V128:$a), (vec.vt V128:$b)))],
+              vec.prefix#".relaxed_min\t$dst, $a, $b", vec.prefix#".relaxed_min", simdopMin>;
+  defm RELAXED_FMAX_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b), (outs), (ins),
+              [(set (vec.vt V128:$dst), (int_wasm_relaxed_max
+                (vec.vt V128:$a), (vec.vt V128:$b)))],
+              vec.prefix#".relaxed_max\t$dst, $a, $b", vec.prefix#".relaxed_max", simdopMax>;
+}
+
+defm "" : SIMD_RELAXED_FMINMAX<F32x4, 0xb4, 0xe2>;
+defm "" : SIMD_RELAXED_FMINMAX<F64x2, 0xd4, 0xee>;

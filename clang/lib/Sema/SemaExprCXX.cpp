@@ -494,7 +494,7 @@ bool Sema::checkLiteralOperatorId(const CXXScopeSpec &SS,
     IdentifierInfo *II = Name.Identifier;
     ReservedIdentifierStatus Status = II->isReserved(PP.getLangOpts());
     SourceLocation Loc = Name.getEndLoc();
-    if (Status != ReservedIdentifierStatus::NotReserved &&
+    if (isReservedInAllContexts(Status) &&
         !PP.getSourceManager().isInSystemHeader(Loc)) {
       Diag(Loc, diag::warn_reserved_extern_symbol)
           << II << static_cast<int>(Status)
@@ -898,9 +898,8 @@ ExprResult Sema::BuildCXXThrow(SourceLocation OpLoc, Expr *Ex,
     if (CheckCXXThrowOperand(OpLoc, ExceptionObjectTy, Ex))
       return ExprError();
 
-    InitializedEntity Entity = InitializedEntity::InitializeException(
-        OpLoc, ExceptionObjectTy,
-        /*NRVO=*/NRInfo.isCopyElidable());
+    InitializedEntity Entity =
+        InitializedEntity::InitializeException(OpLoc, ExceptionObjectTy);
     ExprResult Res = PerformMoveOrCopyInitialization(Entity, NRInfo, Ex);
     if (Res.isInvalid())
       return ExprError();
@@ -1973,10 +1972,10 @@ Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
   if (Deduced && isa<DeducedTemplateSpecializationType>(Deduced)) {
     if (ArraySize)
       return ExprError(
-          Diag(ArraySize ? (*ArraySize)->getExprLoc() : TypeRange.getBegin(),
+          Diag(*ArraySize ? (*ArraySize)->getExprLoc() : TypeRange.getBegin(),
                diag::err_deduced_class_template_compound_type)
           << /*array*/ 2
-          << (ArraySize ? (*ArraySize)->getSourceRange() : TypeRange));
+          << (*ArraySize ? (*ArraySize)->getSourceRange() : TypeRange));
 
     InitializedEntity Entity
       = InitializedEntity::InitializeNew(StartLoc, AllocType);
@@ -2143,39 +2142,38 @@ Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
     // Let's see if this is a constant < 0. If so, we reject it out of hand,
     // per CWG1464. Otherwise, if it's not a constant, we must have an
     // unparenthesized array type.
-    if (!(*ArraySize)->isValueDependent()) {
-      // We've already performed any required implicit conversion to integer or
-      // unscoped enumeration type.
-      // FIXME: Per CWG1464, we are required to check the value prior to
-      // converting to size_t. This will never find a negative array size in
-      // C++14 onwards, because Value is always unsigned here!
-      if (Optional<llvm::APSInt> Value =
-              (*ArraySize)->getIntegerConstantExpr(Context)) {
-        if (Value->isSigned() && Value->isNegative()) {
-          return ExprError(Diag((*ArraySize)->getBeginLoc(),
-                                diag::err_typecheck_negative_array_size)
-                           << (*ArraySize)->getSourceRange());
-        }
 
-        if (!AllocType->isDependentType()) {
-          unsigned ActiveSizeBits = ConstantArrayType::getNumAddressingBits(
-              Context, AllocType, *Value);
-          if (ActiveSizeBits > ConstantArrayType::getMaxSizeBits(Context))
-            return ExprError(
-                Diag((*ArraySize)->getBeginLoc(), diag::err_array_too_large)
-                << toString(*Value, 10) << (*ArraySize)->getSourceRange());
-        }
-
-        KnownArraySize = Value->getZExtValue();
-      } else if (TypeIdParens.isValid()) {
-        // Can't have dynamic array size when the type-id is in parentheses.
-        Diag((*ArraySize)->getBeginLoc(), diag::ext_new_paren_array_nonconst)
-            << (*ArraySize)->getSourceRange()
-            << FixItHint::CreateRemoval(TypeIdParens.getBegin())
-            << FixItHint::CreateRemoval(TypeIdParens.getEnd());
-
-        TypeIdParens = SourceRange();
+    // We've already performed any required implicit conversion to integer or
+    // unscoped enumeration type.
+    // FIXME: Per CWG1464, we are required to check the value prior to
+    // converting to size_t. This will never find a negative array size in
+    // C++14 onwards, because Value is always unsigned here!
+    if (Optional<llvm::APSInt> Value =
+            (*ArraySize)->getIntegerConstantExpr(Context)) {
+      if (Value->isSigned() && Value->isNegative()) {
+        return ExprError(Diag((*ArraySize)->getBeginLoc(),
+                              diag::err_typecheck_negative_array_size)
+                         << (*ArraySize)->getSourceRange());
       }
+
+      if (!AllocType->isDependentType()) {
+        unsigned ActiveSizeBits =
+            ConstantArrayType::getNumAddressingBits(Context, AllocType, *Value);
+        if (ActiveSizeBits > ConstantArrayType::getMaxSizeBits(Context))
+          return ExprError(
+              Diag((*ArraySize)->getBeginLoc(), diag::err_array_too_large)
+              << toString(*Value, 10) << (*ArraySize)->getSourceRange());
+      }
+
+      KnownArraySize = Value->getZExtValue();
+    } else if (TypeIdParens.isValid()) {
+      // Can't have dynamic array size when the type-id is in parentheses.
+      Diag((*ArraySize)->getBeginLoc(), diag::ext_new_paren_array_nonconst)
+          << (*ArraySize)->getSourceRange()
+          << FixItHint::CreateRemoval(TypeIdParens.getBegin())
+          << FixItHint::CreateRemoval(TypeIdParens.getEnd());
+
+      TypeIdParens = SourceRange();
     }
 
     // Note that we do *not* convert the argument in any way.  It can
@@ -6684,8 +6682,15 @@ QualType Sema::FindCompositePointerType(SourceLocation Loc,
       } else if (Steps.size() == 1) {
         bool MaybeQ1 = Q1.isAddressSpaceSupersetOf(Q2);
         bool MaybeQ2 = Q2.isAddressSpaceSupersetOf(Q1);
-        if (MaybeQ1 == MaybeQ2)
-          return QualType(); // No unique best address space.
+        if (MaybeQ1 == MaybeQ2) {
+          // Exception for ptr size address spaces. Should be able to choose
+          // either address space during comparison.
+          if (isPtrSizeAddressSpace(Q1.getAddressSpace()) ||
+              isPtrSizeAddressSpace(Q2.getAddressSpace()))
+            MaybeQ1 = true;
+          else
+            return QualType(); // No unique best address space.
+        }
         Quals.setAddressSpace(MaybeQ1 ? Q1.getAddressSpace()
                                       : Q2.getAddressSpace());
       } else {
@@ -6714,6 +6719,36 @@ QualType Sema::FindCompositePointerType(SourceLocation Loc,
     }
 
     // FIXME: Can we unify the following with UnwrapSimilarTypes?
+
+    const ArrayType *Arr1, *Arr2;
+    if ((Arr1 = Context.getAsArrayType(Composite1)) &&
+        (Arr2 = Context.getAsArrayType(Composite2))) {
+      auto *CAT1 = dyn_cast<ConstantArrayType>(Arr1);
+      auto *CAT2 = dyn_cast<ConstantArrayType>(Arr2);
+      if (CAT1 && CAT2 && CAT1->getSize() == CAT2->getSize()) {
+        Composite1 = Arr1->getElementType();
+        Composite2 = Arr2->getElementType();
+        Steps.emplace_back(Step::Array, CAT1);
+        continue;
+      }
+      bool IAT1 = isa<IncompleteArrayType>(Arr1);
+      bool IAT2 = isa<IncompleteArrayType>(Arr2);
+      if ((IAT1 && IAT2) ||
+          (getLangOpts().CPlusPlus20 && (IAT1 != IAT2) &&
+           ((bool)CAT1 != (bool)CAT2) &&
+           (Steps.empty() || Steps.back().K != Step::Array))) {
+        // In C++20 onwards, we can unify an array of N T with an array of
+        // a different or unknown bound. But we can't form an array whose
+        // element type is an array of unknown bound by doing so.
+        Composite1 = Arr1->getElementType();
+        Composite2 = Arr2->getElementType();
+        Steps.emplace_back(Step::Array);
+        if (CAT1 || CAT2)
+          NeedConstBefore = Steps.size();
+        continue;
+      }
+    }
+
     const PointerType *Ptr1, *Ptr2;
     if ((Ptr1 = Composite1->getAs<PointerType>()) &&
         (Ptr2 = Composite2->getAs<PointerType>())) {
@@ -6773,8 +6808,6 @@ QualType Sema::FindCompositePointerType(SourceLocation Loc,
       Steps.emplace_back(Step::Pointer);
       continue;
     }
-
-    // FIXME: arrays
 
     // FIXME: block pointer types?
 

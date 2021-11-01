@@ -412,6 +412,30 @@ static void applyOptionsFromEnvironment(std::string &CompileOpts,
   }
 }
 
+std::pair<RT::PiProgram, bool> ProgramManager::getOrCreatePIProgram(
+    const RTDeviceBinaryImage &Img, const context &Context,
+    const device &Device, const std::string &CompileAndLinkOptions,
+    SerializedObj SpecConsts) {
+  RT::PiProgram NativePrg;
+
+  auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
+      Device, Img, SpecConsts, CompileAndLinkOptions);
+  if (BinProg.size()) {
+    // Get program metadata from properties
+    auto ProgMetadata = Img.getProgramMetadata();
+    std::vector<pi_device_binary_property> ProgMetadataVector{
+        ProgMetadata.begin(), ProgMetadata.end()};
+
+    // TODO: Build for multiple devices once supported by program manager
+    NativePrg = createBinaryProgram(getSyclObjImpl(Context), Device,
+                                    (const unsigned char *)BinProg[0].data(),
+                                    BinProg[0].size(), ProgMetadataVector);
+  } else {
+    NativePrg = createPIProgram(Img, Context, Device);
+  }
+  return {NativePrg, BinProg.size()};
+}
+
 RT::PiProgram ProgramManager::getBuiltPIProgram(
     OSModuleHandle M, const ContextImplPtr &ContextImpl,
     const DeviceImplPtr &DeviceImpl, const std::string &KernelName,
@@ -455,27 +479,14 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     applyOptionsFromImage(CompileOpts, LinkOpts, Img);
 
     const detail::plugin &Plugin = ContextImpl->getPlugin();
-    RT::PiProgram NativePrg;
+    auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
+        Img, Context, Device, CompileOpts + LinkOpts, SpecConsts);
 
-    // Get program metadata from properties
-    auto ProgMetadata = Img.getProgramMetadata();
-    std::vector<pi_device_binary_property> ProgMetadataVector{
-        ProgMetadata.begin(), ProgMetadata.end()};
-
-    auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
-        Device, Img, SpecConsts, CompileOpts + LinkOpts);
-    if (BinProg.size()) {
-      // TODO: Build for multiple devices once supported by program manager
-      NativePrg = createBinaryProgram(ContextImpl, Device,
-                                      (const unsigned char *)BinProg[0].data(),
-                                      BinProg[0].size(), ProgMetadataVector);
-    } else {
-      NativePrg = createPIProgram(Img, Context, Device);
+    if (!DeviceCodeWasInCache) {
       if (Prg)
         flushSpecConstants(*Prg, NativePrg, &Img);
       if (Img.supportsSpecConstants())
-        enableITTAnnotationsIfNeeded(NativePrg,
-                                     getSyclObjImpl(Device)->getPlugin());
+        enableITTAnnotationsIfNeeded(NativePrg, Plugin);
     }
 
     ProgramPtr ProgramManaged(
@@ -488,7 +499,8 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (!BinProg.size() && Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
+    if (!DeviceCodeWasInCache &&
+        Img.getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
@@ -503,7 +515,7 @@ RT::PiProgram ProgramManager::getBuiltPIProgram(
     }
 
     // Save program to persistent cache if it is not there
-    if (!BinProg.size())
+    if (!DeviceCodeWasInCache)
       PersistentDeviceCodeCache::putItemToDisc(
           Device, Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
     return BuiltProgram.release();
@@ -1549,9 +1561,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   RT::PiProgram Prog = createPIProgram(*InputImpl->get_bin_image_ref(),
                                        InputImpl->get_context(), Devs[0]);
 
-  for (const device &Dev : Devs)
-    if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
-      enableITTAnnotationsIfNeeded(Prog, getSyclObjImpl(Dev)->getPlugin());
+  if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
+    enableITTAnnotationsIfNeeded(Prog, Plugin);
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
@@ -1674,9 +1685,11 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
 
+  SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
+
   // TODO: Unify this code with getBuiltPIProgram
   auto BuildF = [this, &Context, Img, &Devs, &CompileOpts, &LinkOpts,
-                 &InputImpl] {
+                 &InputImpl, SpecConsts] {
     applyOptionsFromImage(CompileOpts, LinkOpts, Img);
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const detail::plugin &Plugin = ContextImpl->getPlugin();
@@ -1692,29 +1705,27 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.
-    RT::PiProgram NativePrg = createPIProgram(Img, Context, Devs[0]);
+    auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
+        Img, Context, Devs[0], CompileOpts + LinkOpts, SpecConsts);
 
-    for (const device &Dev : Devs)
+    if (!DeviceCodeWasInCache) {
       if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
-        enableITTAnnotationsIfNeeded(NativePrg,
-                                     getSyclObjImpl(Dev)->getPlugin());
+        enableITTAnnotationsIfNeeded(NativePrg, Plugin);
 
-    const std::vector<unsigned char> &SpecConstsBlob =
-        InputImpl->get_spec_const_blob_ref();
+      {
+        std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
+        const std::map<std::string,
+                       std::vector<device_image_impl::SpecConstDescT>>
+            &SpecConstData = InputImpl->get_spec_const_data_ref();
 
-    {
-      std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
-      const std::map<std::string,
-                     std::vector<device_image_impl::SpecConstDescT>>
-          &SpecConstData = InputImpl->get_spec_const_data_ref();
-
-      for (const auto &DescPair : SpecConstData) {
-        for (const device_image_impl::SpecConstDescT &SpecIDDesc :
-             DescPair.second) {
-          if (SpecIDDesc.IsSet) {
-            Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
-                NativePrg, SpecIDDesc.ID, SpecIDDesc.Size,
-                SpecConstsBlob.data() + SpecIDDesc.BlobOffset);
+        for (const auto &DescPair : SpecConstData) {
+          for (const device_image_impl::SpecConstDescT &SpecIDDesc :
+               DescPair.second) {
+            if (SpecIDDesc.IsSet) {
+              Plugin.call<PiApiKind::piextProgramSetSpecializationConstant>(
+                  NativePrg, SpecIDDesc.ID, SpecIDDesc.Size,
+                  SpecConsts.data() + SpecIDDesc.BlobOffset);
+            }
           }
         }
       }
@@ -1743,10 +1754,13 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       NativePrograms[BuiltProgram.get()] = &Img;
     }
 
+    // Save program to persistent cache if it is not there
+    if (!DeviceCodeWasInCache)
+      PersistentDeviceCodeCache::putItemToDisc(
+          Devs[0], Img, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
+
     return BuiltProgram.release();
   };
-
-  SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
 
   const RT::PiDevice PiDevice = getRawSyclObjImpl(Devs[0])->getHandleRef();
   // TODO: Throw SYCL2020 style exception

@@ -1098,6 +1098,50 @@ private:
   const SymbolIndex *Index;
 }; // SignatureHelpCollector
 
+// Used only for completion of C-style comments in function call (i.e.
+// /*foo=*/7). Similar to SignatureHelpCollector, but needs to do less work.
+class ParamNameCollector final : public CodeCompleteConsumer {
+public:
+  ParamNameCollector(const clang::CodeCompleteOptions &CodeCompleteOpts,
+                     std::set<std::string> &ParamNames)
+      : CodeCompleteConsumer(CodeCompleteOpts),
+        Allocator(std::make_shared<clang::GlobalCodeCompletionAllocator>()),
+        CCTUInfo(Allocator), ParamNames(ParamNames) {}
+
+  void ProcessOverloadCandidates(Sema &S, unsigned CurrentArg,
+                                 OverloadCandidate *Candidates,
+                                 unsigned NumCandidates,
+                                 SourceLocation OpenParLoc) override {
+    assert(CurrentArg <= (unsigned)std::numeric_limits<int>::max() &&
+           "too many arguments");
+
+    for (unsigned I = 0; I < NumCandidates; ++I) {
+      OverloadCandidate Candidate = Candidates[I];
+      auto *Func = Candidate.getFunction();
+      if (!Func || Func->getNumParams() <= CurrentArg)
+        continue;
+      auto *PVD = Func->getParamDecl(CurrentArg);
+      if (!PVD)
+        continue;
+      auto *Ident = PVD->getIdentifier();
+      if (!Ident)
+        continue;
+      auto Name = Ident->getName();
+      if (!Name.empty())
+        ParamNames.insert(Name.str());
+    }
+  }
+
+private:
+  GlobalCodeCompletionAllocator &getAllocator() override { return *Allocator; }
+
+  CodeCompletionTUInfo &getCodeCompletionTUInfo() override { return CCTUInfo; }
+
+  std::shared_ptr<clang::GlobalCodeCompletionAllocator> Allocator;
+  CodeCompletionTUInfo CCTUInfo;
+  std::set<std::string> &ParamNames;
+};
+
 struct SemaCompleteInput {
   PathRef FileName;
   size_t Offset;
@@ -1203,7 +1247,7 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
   loadMainFilePreambleMacros(Clang->getPreprocessor(), Input.Preamble);
   if (Includes)
     Clang->getPreprocessor().addPPCallbacks(
-        collectIncludeStructureCallback(Clang->getSourceManager(), Includes));
+        Includes->collect(Clang->getSourceManager()));
   if (llvm::Error Err = Action.Execute()) {
     log("Execute() failed when running codeComplete for {0}: {1}",
         Input.FileName, toString(std::move(Err)));
@@ -1379,14 +1423,17 @@ public:
       FileDistanceOptions ProxOpts{}; // Use defaults.
       const auto &SM = Recorder->CCSema->getSourceManager();
       llvm::StringMap<SourceParams> ProxSources;
-      for (auto &Entry : Includes.includeDepth(
-               SM.getFileEntryForID(SM.getMainFileID())->getName())) {
-        auto &Source = ProxSources[Entry.getKey()];
-        Source.Cost = Entry.getValue() * ProxOpts.IncludeCost;
+      auto MainFileID =
+          Includes.getID(SM.getFileEntryForID(SM.getMainFileID()));
+      assert(MainFileID);
+      for (auto &HeaderIDAndDepth : Includes.includeDepth(*MainFileID)) {
+        auto &Source =
+            ProxSources[Includes.getRealPath(HeaderIDAndDepth.getFirst())];
+        Source.Cost = HeaderIDAndDepth.getSecond() * ProxOpts.IncludeCost;
         // Symbols near our transitive includes are good, but only consider
         // things in the same directory or below it. Otherwise there can be
         // many false positives.
-        if (Entry.getValue() > 0)
+        if (HeaderIDAndDepth.getSecond() > 0)
           Source.MaxUpTraversals = 1;
       }
       FileProximity.emplace(ProxSources, ProxOpts);
@@ -1857,6 +1904,59 @@ CompletionPrefix guessCompletionPrefix(llvm::StringRef Content,
   return Result;
 }
 
+// Code complete the argument name on "/*" inside function call.
+// Offset should be pointing to the start of the comment, i.e.:
+// foo(^/*, rather than foo(/*^) where the cursor probably is.
+CodeCompleteResult codeCompleteComment(PathRef FileName, unsigned Offset,
+                                       llvm::StringRef Prefix,
+                                       const PreambleData *Preamble,
+                                       const ParseInputs &ParseInput) {
+  if (Preamble == nullptr) // Can't run without Sema.
+    return CodeCompleteResult();
+
+  clang::CodeCompleteOptions Options;
+  Options.IncludeGlobals = false;
+  Options.IncludeMacros = false;
+  Options.IncludeCodePatterns = false;
+  Options.IncludeBriefComments = false;
+  std::set<std::string> ParamNames;
+  // We want to see signatures coming from newly introduced includes, hence a
+  // full patch.
+  semaCodeComplete(
+      std::make_unique<ParamNameCollector>(Options, ParamNames), Options,
+      {FileName, Offset, *Preamble,
+       PreamblePatch::createFullPatch(FileName, ParseInput, *Preamble),
+       ParseInput});
+  if (ParamNames.empty())
+    return CodeCompleteResult();
+
+  CodeCompleteResult Result;
+  Result.Context = CodeCompletionContext::CCC_NaturalLanguage;
+  for (llvm::StringRef Name : ParamNames) {
+    if (!Name.startswith(Prefix))
+      continue;
+    CodeCompletion Item;
+    Item.Name = Name.str() + "=";
+    Item.Kind = CompletionItemKind::Text;
+    Result.Completions.push_back(Item);
+  }
+
+  return Result;
+}
+
+// If Offset is inside what looks like argument comment (e.g.
+// "/*^" or "/* foo^"), returns new offset pointing to the start of the /*
+// (place where semaCodeComplete should run).
+llvm::Optional<unsigned>
+maybeFunctionArgumentCommentStart(llvm::StringRef Content) {
+  while (!Content.empty() && isAsciiIdentifierContinue(Content.back()))
+    Content = Content.drop_back();
+  Content = Content.rtrim();
+  if (Content.endswith("/*"))
+    return Content.size() - 2;
+  return None;
+}
+
 CodeCompleteResult codeComplete(PathRef FileName, Position Pos,
                                 const PreambleData *Preamble,
                                 const ParseInputs &ParseInput,
@@ -1867,6 +1967,19 @@ CodeCompleteResult codeComplete(PathRef FileName, Position Pos,
     elog("Code completion position was invalid {0}", Offset.takeError());
     return CodeCompleteResult();
   }
+
+  auto Content = llvm::StringRef(ParseInput.Contents).take_front(*Offset);
+  if (auto OffsetBeforeComment = maybeFunctionArgumentCommentStart(Content)) {
+    // We are doing code completion of a comment, where we currently only
+    // support completing param names in function calls. To do this, we
+    // require information from Sema, but Sema's comment completion stops at
+    // parsing, so we must move back the position before running it, extract
+    // information we need and construct completion items ourselves.
+    auto CommentPrefix = Content.substr(*OffsetBeforeComment + 2).trim();
+    return codeCompleteComment(FileName, *OffsetBeforeComment, CommentPrefix,
+                               Preamble, ParseInput);
+  }
+
   auto Flow = CodeCompleteFlow(
       FileName, Preamble ? Preamble->Includes : IncludeStructure(),
       SpecFuzzyFind, Opts);
@@ -2050,7 +2163,8 @@ bool allowImplicitCompletion(llvm::StringRef Content, unsigned Offset) {
     Content = Content.substr(Pos + 1);
 
   // Complete after scope operators.
-  if (Content.endswith(".") || Content.endswith("->") || Content.endswith("::"))
+  if (Content.endswith(".") || Content.endswith("->") ||
+      Content.endswith("::") || Content.endswith("/*"))
     return true;
   // Complete after `#include <` and #include `<foo/`.
   if ((Content.endswith("<") || Content.endswith("\"") ||

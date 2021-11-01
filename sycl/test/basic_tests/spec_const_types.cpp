@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
+// RUN: %clangxx -fsycl -fsycl-device-only -D__SYCL_INTERNAL_API -c -o %t.bc %s
 // RUN: sycl-post-link %t.bc -spec-const=rt -o %t-split.txt
 // RUN: cat %t-split_0.prop | FileCheck %s
 // RUN: llvm-spirv -o %t-split_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split_0.bc

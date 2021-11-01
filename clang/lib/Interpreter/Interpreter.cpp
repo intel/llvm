@@ -30,6 +30,7 @@
 #include "clang/Lex/PreprocessorOptions.h"
 
 #include "llvm/IR/Module.h"
+#include "llvm/Support/Errc.h"
 #include "llvm/Support/Host.h"
 
 using namespace clang;
@@ -47,14 +48,14 @@ GetCC1Arguments(DiagnosticsEngine *Diagnostics,
   // failed. Extract that job from the Compilation.
   const driver::JobList &Jobs = Compilation->getJobs();
   if (!Jobs.size() || !isa<driver::Command>(*Jobs.begin()))
-    return llvm::createStringError(std::errc::state_not_recoverable,
+    return llvm::createStringError(llvm::errc::not_supported,
                                    "Driver initialization failed. "
                                    "Unable to create a driver job");
 
   // The one job we find should be to invoke clang again.
   const driver::Command *Cmd = cast<driver::Command>(&(*Jobs.begin()));
   if (llvm::StringRef(Cmd->getCreator().getName()) != "clang")
-    return llvm::createStringError(std::errc::state_not_recoverable,
+    return llvm::createStringError(llvm::errc::not_supported,
                                    "Driver initialization failed");
 
   return &Cmd->getArguments();
@@ -89,13 +90,13 @@ CreateCI(const llvm::opt::ArgStringList &Argv) {
   // Create the actual diagnostics engine.
   Clang->createDiagnostics();
   if (!Clang->hasDiagnostics())
-    return llvm::createStringError(std::errc::state_not_recoverable,
+    return llvm::createStringError(llvm::errc::not_supported,
                                    "Initialization failed. "
                                    "Unable to create diagnostics engine");
 
   DiagsBuffer->FlushDiagnostics(Clang->getDiagnostics());
   if (!Success)
-    return llvm::createStringError(std::errc::state_not_recoverable,
+    return llvm::createStringError(llvm::errc::not_supported,
                                    "Initialization failed. "
                                    "Unable to flush diagnostics");
 
@@ -106,11 +107,15 @@ CreateCI(const llvm::opt::ArgStringList &Argv) {
   Clang->setTarget(TargetInfo::CreateTargetInfo(
       Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
   if (!Clang->hasTarget())
-    return llvm::createStringError(std::errc::state_not_recoverable,
+    return llvm::createStringError(llvm::errc::not_supported,
                                    "Initialization failed. "
                                    "Target is missing");
 
   Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
+
+  // Don't clear the AST before backend codegen since we do codegen multiple
+  // times, reusing the same AST.
+  Clang->getCodeGenOpts().ClearASTBeforeBackend = false;
 
   return std::move(Clang);
 }
@@ -143,7 +148,6 @@ IncrementalCompilerBuilder::create(std::vector<const char *> &ClangArgv) {
   // driver to construct.
   ClangArgv.push_back("<<< inputs >>>");
 
-  CompilerInvocation Invocation;
   // Buffer diagnostics from argument parsing so that we can output them using a
   // well formed diagnostic object.
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());

@@ -1391,13 +1391,11 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
         // Special case: For virtual methods, report decl/def of overrides and
         // references to all overridden methods in complete type hierarchy.
         if (const auto *CMD = llvm::dyn_cast<CXXMethodDecl>(ND)) {
-          if (CMD->isVirtual())
-            if (IdentifierAtCursor && SM.getSpellingLoc(CMD->getLocation()) ==
-                                          IdentifierAtCursor->location()) {
-              if (auto ID = getSymbolID(CMD))
-                OverriddenBy.Subjects.insert(ID);
-              getOverriddenMethods(CMD, OverriddenMethods);
-            }
+          if (CMD->isVirtual()) {
+            if (auto ID = getSymbolID(CMD))
+              OverriddenBy.Subjects.insert(ID);
+            getOverriddenMethods(CMD, OverriddenMethods);
+          }
         }
       }
     }
@@ -1431,17 +1429,20 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
         !OverriddenBy.Subjects.empty())
       Index->relations(
           OverriddenBy, [&](const SymbolID &Subject, const Symbol &Object) {
-            if (auto LSPLoc =
-                    toLSPLocation(Object.CanonicalDeclaration, *MainFilePath)) {
+            const auto LSPLocDecl =
+                toLSPLocation(Object.CanonicalDeclaration, *MainFilePath);
+            const auto LSPLocDef =
+                toLSPLocation(Object.Definition, *MainFilePath);
+            if (LSPLocDecl && LSPLocDecl != LSPLocDef) {
               ReferencesResult::Reference Result;
-              Result.Loc = std::move(*LSPLoc);
+              Result.Loc = std::move(*LSPLocDecl);
               Result.Attributes =
                   ReferencesResult::Declaration | ReferencesResult::Override;
               Results.References.push_back(std::move(Result));
             }
-            if (auto LSPLoc = toLSPLocation(Object.Definition, *MainFilePath)) {
+            if (LSPLocDef) {
               ReferencesResult::Reference Result;
-              Result.Loc = std::move(*LSPLoc);
+              Result.Loc = std::move(*LSPLocDef);
               Result.Attributes = ReferencesResult::Declaration |
                                   ReferencesResult::Definition |
                                   ReferencesResult::Override;

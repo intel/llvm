@@ -9,6 +9,7 @@
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 
 #include "../PassDetail.h"
+#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
@@ -29,10 +30,10 @@ struct RegionOpConversion : public ConvertOpToLLVMPattern<OpType> {
   using ConvertOpToLLVMPattern<OpType>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(OpType curOp, ArrayRef<Value> operands,
+  matchAndRewrite(OpType curOp, typename OpType::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto newOp = rewriter.create<OpType>(curOp.getLoc(), TypeRange(), operands,
-                                         curOp->getAttrs());
+    auto newOp = rewriter.create<OpType>(
+        curOp.getLoc(), TypeRange(), adaptor.getOperands(), curOp->getAttrs());
     rewriter.inlineRegionBefore(curOp.region(), newOp.region(),
                                 newOp.region().end());
     if (failed(rewriter.convertRegionTypes(&newOp.region(),
@@ -65,6 +66,7 @@ void ConvertOpenMPToLLVMPass::runOnOperation() {
   // Convert to OpenMP operations with LLVM IR dialect
   RewritePatternSet patterns(&getContext());
   LLVMTypeConverter converter(&getContext());
+  mlir::arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
   populateMemRefToLLVMConversionPatterns(converter, patterns);
   populateStdToLLVMConversionPatterns(converter, patterns);
   populateOpenMPToLLVMConversionPatterns(converter, patterns);

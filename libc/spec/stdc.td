@@ -120,7 +120,9 @@ def StdC : StandardSpec<"stdc"> {
           Macro<"FE_DOWNWARD">,
           Macro<"FE_TONEAREST">,
           Macro<"FE_TOWARDZERO">,
-          Macro<"FE_UPWARD">
+          Macro<"FE_UPWARD">,
+
+          Macro<"FE_DFL_ENV">
       ],
       [
           NamedType<"fenv_t">,
@@ -479,15 +481,21 @@ def StdC : StandardSpec<"stdc"> {
           DivTType,
           LDivTType,
           LLDivTType,
+          SizeTType,
+          BSearchCompareT,
+          QSortCompareT,
       ], // Types
       [], // Enumerations
       [
           FunctionSpec<"abort", RetValSpec<NoReturn>, [ArgSpec<VoidType>]>,
 
+          FunctionSpec<"bsearch", RetValSpec<VoidPtr>, [ArgSpec<ConstVoidPtr>, ArgSpec<ConstVoidPtr>, ArgSpec<SizeTType>, ArgSpec<SizeTType>, ArgSpec<BSearchCompareT>]>,
+
           FunctionSpec<"abs", RetValSpec<IntType>, [ArgSpec<IntType>]>,
           FunctionSpec<"labs", RetValSpec<LongType>, [ArgSpec<LongType>]>,
           FunctionSpec<"llabs", RetValSpec<LongLongType>, [ArgSpec<LongLongType>]>,
 
+          FunctionSpec<"atof", RetValSpec<DoubleType>, [ArgSpec<ConstCharRestrictedPtr>]>,
           FunctionSpec<"atoi", RetValSpec<IntType>, [ArgSpec<ConstCharPtr>]>,
           FunctionSpec<"atol", RetValSpec<LongType>, [ArgSpec<ConstCharPtr>]>,
           FunctionSpec<"atoll", RetValSpec<LongLongType>, [ArgSpec<ConstCharPtr>]>,
@@ -496,6 +504,10 @@ def StdC : StandardSpec<"stdc"> {
           FunctionSpec<"ldiv", RetValSpec<LDivTType>, [ArgSpec<LongType>, ArgSpec<LongType>]>,
           FunctionSpec<"lldiv", RetValSpec<LLDivTType>, [ArgSpec<LongLongType>, ArgSpec<LongLongType>]>,
 
+          FunctionSpec<"qsort", RetValSpec<VoidType>, [ArgSpec<VoidPtr>, ArgSpec<SizeTType>, ArgSpec<SizeTType>, ArgSpec<QSortCompareT>]>,
+
+          FunctionSpec<"strtod", RetValSpec<DoubleType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>]>,
+          FunctionSpec<"strtof", RetValSpec<FloatType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>]>,
           FunctionSpec<"strtol", RetValSpec<LongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
           FunctionSpec<"strtoll", RetValSpec<LongLongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,
           FunctionSpec<"strtoul", RetValSpec<UnsignedLongType>, [ArgSpec<ConstCharRestrictedPtr>, ArgSpec<CharRestrictedPtrPtr>, ArgSpec<IntType>]>,

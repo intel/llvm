@@ -221,18 +221,17 @@ void elf::combineEhSections() {
     }
   }
 
-  std::vector<InputSectionBase *> &v = inputSections;
-  v.erase(std::remove(v.begin(), v.end(), nullptr), v.end());
+  llvm::erase_value(inputSections, nullptr);
 }
 
 static Defined *addOptionalRegular(StringRef name, SectionBase *sec,
-                                   uint64_t val, uint8_t stOther = STV_HIDDEN,
-                                   uint8_t binding = STB_GLOBAL) {
+                                   uint64_t val, uint8_t stOther = STV_HIDDEN) {
   Symbol *s = symtab->find(name);
   if (!s || s->isDefined())
     return nullptr;
 
-  s->resolve(Defined{/*file=*/nullptr, name, binding, stOther, STT_NOTYPE, val,
+  s->resolve(Defined{/*file=*/nullptr, name, STB_GLOBAL, stOther, STT_NOTYPE,
+                     val,
                      /*size=*/0, sec});
   return cast<Defined>(s);
 }
@@ -1098,11 +1097,11 @@ template <class ELFT> void Writer<ELFT>::addRelIpltSymbols() {
   // sure that .rela.plt exists in output.
   ElfSym::relaIpltStart = addOptionalRegular(
       config->isRela ? "__rela_iplt_start" : "__rel_iplt_start",
-      Out::elfHeader, 0, STV_HIDDEN, STB_WEAK);
+      Out::elfHeader, 0, STV_HIDDEN);
 
   ElfSym::relaIpltEnd = addOptionalRegular(
       config->isRela ? "__rela_iplt_end" : "__rel_iplt_end",
-      Out::elfHeader, 0, STV_HIDDEN, STB_WEAK);
+      Out::elfHeader, 0, STV_HIDDEN);
 }
 
 template <class ELFT>
@@ -1256,15 +1255,24 @@ findOrphanPos(std::vector<BaseCommand *>::iterator b,
   });
   if (i == e)
     return e;
+  auto foundSec = dyn_cast<OutputSection>(*i);
+  if (!foundSec)
+    return e;
 
   // Consider all existing sections with the same proximity.
   int proximity = getRankProximity(sec, *i);
+  unsigned sortRank = sec->sortRank;
+  if (script->hasPhdrsCommands())
+    // Prevent the orphan section to be placed before the found section because
+    // that can result in adding it to a previous segment and changing flags of
+    // that segment, for example, making a read-only segment writable.
+    sortRank = std::max(sortRank, foundSec->sortRank);
   for (; i != e; ++i) {
     auto *curSec = dyn_cast<OutputSection>(*i);
     if (!curSec || !curSec->hasInputSections)
       continue;
     if (getRankProximity(sec, curSec) != proximity ||
-        sec->sortRank < curSec->sortRank)
+        sortRank < curSec->sortRank)
       break;
   }
 
@@ -1966,7 +1974,7 @@ template <class ELFT> void Writer<ELFT>::finalizeSections() {
     OutputSection *sec = findSection(".sdata");
     ElfSym::riscvGlobalPointer =
         addOptionalRegular("__global_pointer$", sec ? sec : Out::elfHeader,
-                           0x800, STV_DEFAULT, STB_GLOBAL);
+                           0x800, STV_DEFAULT);
   }
 
   if (config->emachine == EM_X86_64) {

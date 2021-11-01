@@ -13,14 +13,24 @@ add_header_library(
 )
 
 add_header_library(
+  high_precision_decimal
+  HDRS
+    high_precision_decimal.h
+
+)
+
+add_header_library(
   str_conv_utils
   HDRS
     str_conv_utils.h
+    str_to_float.h
   DEPENDS
     .ctype_utils
+    .high_precision_decimal
     libc.include.errno
     libc.src.errno.__errno_location
     libc.utils.CPP.standalone_cpp
+    libc.src.__support.FPUtil.fputil
 )
 
 add_header_library(

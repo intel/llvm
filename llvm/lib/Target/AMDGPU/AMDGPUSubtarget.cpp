@@ -82,12 +82,12 @@ GCNSubtarget::initializeSubtargetDependencies(const Triple &TT,
   FullFS += "+enable-prt-strict-null,"; // This is overridden by a disable in FS
 
   // Disable mutually exclusive bits.
-  if (FS.find_insensitive("+wavefrontsize") != StringRef::npos) {
-    if (FS.find_insensitive("wavefrontsize16") == StringRef::npos)
+  if (FS.contains_insensitive("+wavefrontsize")) {
+    if (!FS.contains_insensitive("wavefrontsize16"))
       FullFS += "-wavefrontsize16,";
-    if (FS.find_insensitive("wavefrontsize32") == StringRef::npos)
+    if (!FS.contains_insensitive("wavefrontsize32"))
       FullFS += "-wavefrontsize32,";
-    if (FS.find_insensitive("wavefrontsize64") == StringRef::npos)
+    if (!FS.contains_insensitive("wavefrontsize64"))
       FullFS += "-wavefrontsize64,";
   }
 
@@ -533,12 +533,9 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getFlatWorkGroupSizes(
 }
 
 std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
-  const Function &F) const {
+    const Function &F, std::pair<unsigned, unsigned> FlatWorkGroupSizes) const {
   // Default minimum/maximum number of waves per execution unit.
   std::pair<unsigned, unsigned> Default(1, getMaxWavesPerEU());
-
-  // Default/requested minimum/maximum flat work group sizes.
-  std::pair<unsigned, unsigned> FlatWorkGroupSizes = getFlatWorkGroupSizes(F);
 
   // If minimum/maximum flat work group sizes were explicitly requested using
   // "amdgpu-flat-work-group-size" attribute, then set default minimum/maximum
@@ -547,8 +544,6 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
   unsigned MinImpliedByFlatWorkGroupSize =
     getWavesPerEUForWorkGroup(FlatWorkGroupSizes.second);
   Default.first = MinImpliedByFlatWorkGroupSize;
-  bool RequestedFlatWorkGroupSize =
-      F.hasFnAttribute("amdgpu-flat-work-group-size");
 
   // Requested minimum/maximum number of waves per execution unit.
   std::pair<unsigned, unsigned> Requested = AMDGPU::getIntegerPairAttribute(
@@ -565,8 +560,7 @@ std::pair<unsigned, unsigned> AMDGPUSubtarget::getWavesPerEU(
 
   // Make sure requested values are compatible with values implied by requested
   // minimum/maximum flat work group sizes.
-  if (RequestedFlatWorkGroupSize &&
-      Requested.first < MinImpliedByFlatWorkGroupSize)
+  if (Requested.first < MinImpliedByFlatWorkGroupSize)
     return Default;
 
   return Requested;
@@ -772,7 +766,7 @@ GCNSubtarget::getBaseReservedNumSGPRs(const bool HasFlatScratchInit) const {
   if (getGeneration() >= AMDGPUSubtarget::GFX10)
     return 2; // VCC. FLAT_SCRATCH and XNACK are no longer in SGPRs.
 
-  if (HasFlatScratchInit) {
+  if (HasFlatScratchInit || HasArchitectedFlatScratch) {
     if (getGeneration() >= AMDGPUSubtarget::VOLCANIC_ISLANDS)
       return 6; // FLAT_SCRATCH, XNACK, VCC (in that order).
     if (getGeneration() == AMDGPUSubtarget::SEA_ISLANDS)
@@ -970,6 +964,13 @@ void GCNSubtarget::adjustSchedDependency(SUnit *Def, int DefOpIdx, SUnit *Use,
       --Lat;
     }
     Dep.setLatency(Lat);
+  } else if (Dep.getLatency() == 0 && Dep.getReg() == AMDGPU::VCC_LO) {
+    // Work around the fact that SIInstrInfo::fixImplicitOperands modifies
+    // implicit operands which come from the MCInstrDesc, which can fool
+    // ScheduleDAGInstrs::addPhysRegDataDeps into treating them as implicit
+    // pseudo operands.
+    Dep.setLatency(InstrInfo.getSchedModel().computeOperandLatency(
+        DefI, DefOpIdx, UseI, UseOpIdx));
   }
 }
 

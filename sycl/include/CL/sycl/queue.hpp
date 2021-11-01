@@ -22,7 +22,11 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <inttypes.h>
+// Explicitly request format macros
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
+#include <cinttypes>
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
@@ -195,9 +199,10 @@ public:
   /// \param ClQueue is a valid instance of OpenCL queue.
   /// \param SyclContext is a valid SYCL context.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   queue(cl_command_queue ClQueue, const context &SyclContext,
         const async_handler &AsyncHandler = {});
+#endif
 
   queue(const queue &RHS) = default;
 
@@ -213,8 +218,9 @@ public:
 
   /// \return a valid instance of OpenCL queue, which is retained before being
   /// returned.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_command_queue get() const;
+#endif
 
   /// \return an associated SYCL context.
   context get_context() const;
@@ -289,22 +295,31 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
-                           bool IsKernel, bool KernelUsesAssert, event &E) {
-      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-          KernelUsesAssert) {
-        // __devicelib_assert_fail isn't supported by Device-side Runtime
-        // Linking against fallback impl of __devicelib_assert_fail is performed
-        // by program manager class
-        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
-      }
-    };
+    if (!is_host()) {
+      auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+                             bool IsKernel, bool KernelUsesAssert, event &E) {
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert) {
+          // Only secondary queues on devices need to be added to the assert
+          // capture.
+          // TODO: Handle case where primary queue is host but the secondary
+          // queue is not.
+          queue *DeviceSecondaryQueue =
+              SecondaryQueue.is_host() ? nullptr : &SecondaryQueue;
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
+        }
+      };
 
-    Event =
-        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
-#else
-    Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                          PostProcess);
+    } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
+    {
+      Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+    }
 
     return Event;
   }

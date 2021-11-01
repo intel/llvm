@@ -412,6 +412,10 @@ def ext_embedded_directive : Extension<
 def ext_missing_varargs_arg : Extension<
   "must specify at least one argument for '...' parameter of variadic macro">,
   InGroup<GNUZeroVariadicMacroArguments>;
+def warn_cxx17_compat_missing_varargs_arg : Warning<
+  "passing no argument for the '...' parameter of a variadic macro is "
+  "incompatible with C++ standards before C++20">,
+  InGroup<CXXPre20Compat>, DefaultIgnore;
 def ext_empty_fnmacro_arg : Extension<
   "empty macro arguments are a C99 feature">, InGroup<C99>;
 def warn_cxx98_compat_empty_fnmacro_arg : Warning<
@@ -442,6 +446,9 @@ def warn_pp_hdrstop_filename_ignored : Warning<
   "#pragma hdrstop filename not supported, "
   "/Fp can be used to specify precompiled header filename">,
   InGroup<ClangClPch>;
+def remark_pp_search_path_usage : Remark<
+  "search path used: '%0'">,
+  InGroup<UsedSearchPath>;
 def err_pp_file_not_found_angled_include_not_fatal : Error<
   "'%0' file not found with <angled> %select{include|import}1; "
   "use \"quotes\" instead">;
@@ -551,7 +558,13 @@ def warn_pragma_restrict_expansion_macro_use :
 
 // - Note for macro annotations.
 def note_pp_macro_annotation :
-  Note<"macro marked '%select{deprecated|restrict_expansion}0' here">;
+  Note<"macro marked '%select{deprecated|restrict_expansion|final}0' here">;
+
+// - #pragma clang final(...)
+def warn_pragma_final_macro :
+  ExtWarn<"macro %0 has been marked as final and should not be "
+          "%select{undefined|redefined}1">,
+  InGroup<FinalMacro>;
 
 // - #pragma execution_character_set(...)
 def warn_pragma_exec_charset_expected :

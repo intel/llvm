@@ -24,13 +24,6 @@ namespace scf {
 class IfOp;
 } // namespace scf
 
-/// Collect a set of patterns to convert from the Vector dialect to itself.
-/// Should be merged with populateVectorToSCFLoweringPattern.
-void populateVectorToVectorConversionPatterns(
-    MLIRContext *context, RewritePatternSet &patterns,
-    ArrayRef<int64_t> coarseVectorShape = {},
-    ArrayRef<int64_t> fineVectorShape = {});
-
 namespace vector {
 
 /// Options that control the vector unrolling.
@@ -96,6 +89,13 @@ struct UnrollVectorOptions {
 /// to combine the ExtractStridedSlice/InsertStridedSlice.
 void populateVectorUnrollPatterns(RewritePatternSet &patterns,
                                   const UnrollVectorOptions &options);
+
+/// Collect a set of patterns to reduce the rank of the operands of vector
+/// transfer ops to operate on the largest contigious vector.
+/// These patterns are useful when lowering to dialects with 1d vector type
+/// such as llvm and it will result fewer memory reads.
+void populateVectorTransferCollapseInnerMostContiguousDimsPatterns(
+    RewritePatternSet &patterns);
 
 /// Split a vector.transfer operation into an in-bounds (i.e., no out-of-bounds
 /// masking) fastpath and a slowpath.
@@ -173,9 +173,9 @@ struct DistributeOps {
 /// canonicalizations pattern to propagate and fold the vector
 /// insert_map/extract_map operations.
 /// Transforms:
-//  %v = addf %a, %b : vector<32xf32>
+//  %v = arith.addf %a, %b : vector<32xf32>
 /// to:
-/// %v = addf %a, %b : vector<32xf32>
+/// %v = arith.addf %a, %b : vector<32xf32>
 /// %ev = vector.extract_map %v, %id, 32 : vector<32xf32> into vector<1xf32>
 /// %nv = vector.insert_map %ev, %id, 32 : vector<1xf32> into vector<32xf32>
 Optional<DistributeOps>
@@ -218,17 +218,17 @@ public:
   }
 
   ContractionOpToMatmulOpLowering(
-      vector::VectorTransformsOptions vectorTransformsOptions,
+      vector::VectorTransformsOptions vectorTransformOptions,
       MLIRContext *context, FilterConstraintType constraint = defaultFilter)
       : OpRewritePattern<vector::ContractionOp>(context),
-        vectorTransformsOptions(vectorTransformsOptions), filter(constraint) {}
+        vectorTransformOptions(vectorTransformOptions), filter(constraint) {}
 
   LogicalResult matchAndRewrite(vector::ContractionOp op,
                                 PatternRewriter &rewriter) const override;
 
 private:
   /// Options to control the vector patterns.
-  vector::VectorTransformsOptions vectorTransformsOptions;
+  vector::VectorTransformsOptions vectorTransformOptions;
   FilterConstraintType filter;
 };
 
@@ -259,24 +259,24 @@ public:
   }
 
   ContractionOpToOuterProductOpLowering(
-      vector::VectorTransformsOptions vectorTransformsOptions,
+      vector::VectorTransformsOptions vectorTransformOptions,
       MLIRContext *context, FilterConstraintType constraint = defaultFilter)
       : OpRewritePattern<vector::ContractionOp>(context),
-        vectorTransformsOptions(vectorTransformsOptions), filter(constraint) {}
+        vectorTransformOptions(vectorTransformOptions), filter(constraint) {}
 
   LogicalResult matchAndRewrite(vector::ContractionOp op,
                                 PatternRewriter &rewriter) const override;
 
 private:
   /// Options to control the vector patterns.
-  vector::VectorTransformsOptions vectorTransformsOptions;
+  vector::VectorTransformsOptions vectorTransformOptions;
   FilterConstraintType filter;
 };
 
 /// Progressive lowering of a `vector.contract %a, %b, %c` with row-major matmul
 /// semantics to an output-size-unrolled sequence:
 /// ```
-///    %out = constant ... : vector<MxNxelt_type>
+///    %out = arith.constant ... : vector<MxNxelt_type>
 ///    %bt = vector.transpose %b, [1, 0]
 ///    %aRow0 = vector.extract %a[0]
 ///    %btRow0 = vector.extract %bt[0]
@@ -303,18 +303,17 @@ public:
   }
 
   ContractionOpToDotLowering(
-      vector::VectorTransformsOptions vectorTransformsOptions,
+      vector::VectorTransformsOptions vectorTransformOptions,
       MLIRContext *context, FilterConstraintType constraint = defaultFilter)
       : OpRewritePattern<vector::ContractionOp>(context),
-        vectorTransformsOptions(vectorTransformsOptions),
-        filter(defaultFilter) {}
+        vectorTransformOptions(vectorTransformOptions), filter(defaultFilter) {}
 
   LogicalResult matchAndRewrite(vector::ContractionOp op,
                                 PatternRewriter &rewriter) const override;
 
 private:
   /// Options to control the vector patterns.
-  vector::VectorTransformsOptions vectorTransformsOptions;
+  vector::VectorTransformsOptions vectorTransformOptions;
   FilterConstraintType filter;
 };
 
@@ -342,18 +341,18 @@ public:
     return success();
   }
 
-  ContractionOpLowering(vector::VectorTransformsOptions vectorTransformsOptions,
+  ContractionOpLowering(vector::VectorTransformsOptions vectorTransformOptions,
                         MLIRContext *context,
                         FilterConstraintType constraint = defaultFilter)
       : OpRewritePattern<vector::ContractionOp>(context),
-        vectorTransformsOptions(vectorTransformsOptions), filter(constraint) {}
+        vectorTransformOptions(vectorTransformOptions), filter(constraint) {}
 
   LogicalResult matchAndRewrite(vector::ContractionOp op,
                                 PatternRewriter &rewriter) const override;
 
 private:
   /// Options to control the vector patterns.
-  vector::VectorTransformsOptions vectorTransformsOptions;
+  vector::VectorTransformsOptions vectorTransformOptions;
   FilterConstraintType filter;
   // Lower one parallel dimension.
   Value lowerParallel(vector::ContractionOp op, int64_t lhsIndex,

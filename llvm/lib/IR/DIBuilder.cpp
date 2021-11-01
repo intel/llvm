@@ -254,7 +254,7 @@ DIEnumerator *DIBuilder::createEnumerator(StringRef Name, uint64_t Val,
                            Name);
 }
 
-DIEnumerator *DIBuilder::createEnumerator(StringRef Name, APSInt Value) {
+DIEnumerator *DIBuilder::createEnumerator(StringRef Name, const APSInt &Value) {
   assert(!Name.empty() && "Unable to create enumerator without name");
   return DIEnumerator::get(VMContext, APInt(Value), Value.isUnsigned(), Name);
 }
@@ -324,10 +324,12 @@ DIDerivedType *DIBuilder::createReferenceType(
 DIDerivedType *DIBuilder::createTypedef(DIType *Ty, StringRef Name,
                                         DIFile *File, unsigned LineNo,
                                         DIScope *Context,
-                                        uint32_t AlignInBits) {
+                                        uint32_t AlignInBits,
+                                        DINodeArray Annotations) {
   return DIDerivedType::get(VMContext, dwarf::DW_TAG_typedef, Name, File,
                             LineNo, getNonCompileUnitScope(Context), Ty, 0,
-                            AlignInBits, 0, None, DINode::FlagZero);
+                            AlignInBits, 0, None, DINode::FlagZero, nullptr,
+                            Annotations);
 }
 
 DIDerivedType *DIBuilder::createFriend(DIType *Ty, DIType *FriendTy) {

@@ -396,6 +396,7 @@
 ;     ap_float_pow<8, 8, 9, 9, 10, 10>();
 ;     ap_float_powr<18, 35, 19, 35, 20, 35>();
 ;     ap_float_pown<4, 7, 10, 5, 9>();
+;     ap_float_pown<64, 7, 10, 5, 9>();
 ;   });
 ;   return 0;
 ; }
@@ -467,6 +468,7 @@
 ; CHECK-SPIRV: 4 TypeInt [[Ty_56:[0-9]+]] 56 0
 ; CHECK-SPIRV: 4 TypeInt [[Ty_12:[0-9]+]] 12 0
 ; CHECK-SPIRV: 4 TypeInt [[Ty_66:[0-9]+]] 66 0
+; CHECK-SPIRV: 4 TypeInt [[Ty_72:[0-9]+]] 72 0
 ; CHECK-SPIRV: 2 TypeBool [[Ty_Bool:[0-9]+]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -537,6 +539,7 @@ define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.an
   call spir_func void @_Z13ap_float_pownILi4ELi7ELi10ELi5ELi9EEvv()
   call spir_func void @_Z15ap_float_sincosILi8ELi18ELi10ELi20EEvv_()
   call spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi17ELi8ELi18EEvv_()
+  call spir_func void @_Z13ap_float_pownILi64ELi7ELi10ELi5ELi9EEvv()
   ret void
 }
 
@@ -1578,7 +1581,8 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_sincosILi8ELi18ELi10E
   %7 = load i34, i34 addrspace(4)* %2, align 8
   call spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi66EEU7_ExtIntIXmlLi2ET0_EEiU7_ExtIntIXT_EEiiiiii(i66 addrspace(4)* sret(i66) align 8 %4, i34 %7, i32 18, i32 20, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_34]] [[SinCos_AId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_66]] [[#]] [[SinCos_AId]] 18 20 0 2 1
+; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_66]] [[SinCos_ResultId:[0-9]+]] [[SinCos_AId]] 18 20 0 2 1
+; CHECK-SPIRV: 3 Store [[#]] [[SinCos_ResultId]]
 ; CHECK-LLVM: call i66 @intel_arbitrary_float_sincos.i66.i34(i34 %[[#]], i32 18, i32 20, i32 0, i32 2, i32 1)
   %8 = load i66, i66 addrspace(4)* %4, align 8
   store i66 %8, i66 addrspace(4)* %4, align 8
@@ -1606,7 +1610,8 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi
   call spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i66 addrspace(4)* sret(i66) align 8 %4, i24 signext %8, i32 16, i25 signext %9, i32 17, i32 18, i32 0, i32 2, i32 1) #5
 ; CHECK-SPIRV: 6 Load [[Ty_24]] [[ATan2_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_25]] [[ATan2_BId:[0-9]+]]
-; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_66]] [[#]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
+; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_66]] [[ATan2_ResultId:[0-9]+]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
+; CHECK-SPIRV: 3 Store [[#]] [[ATan2_ResultId]]
 ; CHECK-LLVM: call i66 @intel_arbitrary_float_atan2.i66.i24.i25(i24 %[[#]], i32 16, i25 %[[#]], i32 17, i32 18, i32 0, i32 2, i32 1)
   %10 = load i66, i66 addrspace(4)* %4, align 8
   store i66 %10, i66 addrspace(4)* %4, align 8
@@ -1616,6 +1621,42 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %12) #5
   %13 = bitcast i24* %1 to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %13) #5
+  ret void
+}
+
+; Function Attrs: norecurse nounwind
+define linkonce_odr dso_local spir_func void @_Z13ap_float_pownILi64ELi7ELi10ELi5ELi9EEvv() #3 {
+entry:
+  %A = alloca i72, align 8
+  %A.ascast = addrspacecast i72* %A to i72 addrspace(4)*
+  %B = alloca i10, align 2
+  %B.ascast = addrspacecast i10* %B to i10 addrspace(4)*
+  %pown_res = alloca i15, align 2
+  %pown_res.ascast = addrspacecast i15* %pown_res to i15 addrspace(4)*
+  %indirect-arg-temp = alloca i72, align 8
+  %0 = bitcast i72* %A to i8*
+  call void @llvm.lifetime.start.p0i8(i64 16, i8* %0) #5
+  %1 = bitcast i10* %B to i8*
+  call void @llvm.lifetime.start.p0i8(i64 2, i8* %1) #5
+  %2 = bitcast i15* %pown_res to i8*
+  call void @llvm.lifetime.start.p0i8(i64 2, i8* %2) #5
+  %3 = load i72, i72 addrspace(4)* %A.ascast, align 8
+  %4 = load i10, i10 addrspace(4)* %B.ascast, align 2
+  store i72 %3, i72* %indirect-arg-temp, align 8
+; CHECK-SPIRV: 6 Load [[Ty_72]] [[ResAId:[0-9]+]]
+; CHECK-SPIRV-NEXT: 6 Load [[Ty_10]] [[PowN_BId:[0-9]+]]
+; CHECK-SPIRV-NEXT: 5 Store [[PtrId:[0-9]+]] [[ResAId]]
+; CHECK-SPIRV-NEXT: 4 Load [[Ty_72]] [[PowN_AId:[0-9]+]]
+; CHECK-SPIRV-NEXT: 10 ArbitraryFloatPowNINTEL [[Ty_15]] [[#]] [[PowN_AId]] 7 [[PowN_BId]] 9 0 2 1
+; CHECK-LLVM: call i15 @intel_arbitrary_float_pown.i15.i72.i10(i72 %[[#]], i32 7, i10 %[[#]], i32 9, i32 0, i32 2, i32 1)
+  %call = call spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i72* byval(i72) align 8 %indirect-arg-temp, i32 7, i10 signext %4, i32 9, i32 0, i32 2, i32 1) #4
+  store i15 %call, i15 addrspace(4)* %pown_res.ascast, align 2
+  %5 = bitcast i15* %pown_res to i8*
+  call void @llvm.lifetime.end.p0i8(i64 2, i8* %5) #5
+  %6 = bitcast i10* %B to i8*
+  call void @llvm.lifetime.end.p0i8(i64 2, i8* %6) #5
+  %7 = bitcast i72* %A to i8*
+  call void @llvm.lifetime.end.p0i8(i64 16, i8* %7) #5
   ret void
 }
 
@@ -1750,6 +1791,9 @@ declare dso_local spir_func void @_Z33__spirv_ArbitraryFloatSinCosINTELILi34ELi6
 
 ; Function Attrs: nounwind
 declare dso_local spir_func void @_Z32__spirv_ArbitraryFloatATan2INTELILi24ELi25ELi66EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiiii(i66 addrspace(4)* sret(i66) align 8, i24 signext, i32, i25 signext, i32, i32, i32, i32, i32) #4
+
+; Function Attrs: nounwind
+declare dso_local spir_func signext i15 @_Z31__spirv_ArbitraryFloatPowNINTELILi72ELi10ELi15EEU7_ExtIntIXT1_EEiU7_ExtIntIXT_EEiiU7_ExtIntIXT0_EEiiiii(i72* byval(i72) align 8, i32, i10 signext, i32, i32, i32, i32) #4
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind willreturn }

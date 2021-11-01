@@ -49,10 +49,9 @@ repository is to run:
 
 Sometime you may want to create a draft revision to show the proof of concept
 or for experimental purposes, In that case you can use the `--draft` option. It
-will either create a new draft revisoin or convert the original revision to a
-draft revision depending on your local branch status. The good part is: it will not
-send mail to llvm-commit mailing list, patch reviewers, and all other subscribers,
-buildbot will also run on every patch update:
+will create a new draft revision. The good part is: it will not send mail to
+llvm-commit mailing list, patch reviewers, and all other subscribers, buildbot
+will also run on every patch update:
 
 ::
 
@@ -181,7 +180,12 @@ branch - thus the term *pre-merge testing*.
 
 When a user uploads a patch to Phabricator, Phabricator triggers the checks and
 then displays the results. This way bugs in a patch are contained during the 
-code review stage and do not pollute the main branch. 
+code review stage and do not pollute the main branch.
+
+Our goal with pre-merge testing is to report most true problems while strongly
+minimizing the number of false positive reports.  Our goal is that problems
+reported are always actionable.  If you notice a false positive, please report
+it so that we can identify the cause.
 
 If you notice issues or have an idea on how to improve pre-merge checks, please 
 `create a new issue <https://github.com/google/llvm-premerge-checks/issues/new>`_ 
@@ -216,6 +220,25 @@ If a unit test failed, this is shown below the build status. You can also expand
 the unit test to see the details:
 
   .. image:: Phabricator_premerge_unit_tests.png
+
+Opting Out
+^^^^^^^^^^
+
+In case you want to opt-out entirely of pre-merge testing, add yourself to the
+`OPT OUT project <https://reviews.llvm.org/project/view/83/>`_.  If you decide
+to opt-out, please let us know why, so we might be able to improve in the future.
+
+Operational Details
+^^^^^^^^^^^^^^^^^^^
+
+The code responsible for running the pre-merge flow can be found in the `external
+repository <https://github.com/google/llvm-premerge-checks>`_.  For enhancement
+ideas and most bugs, please file an issue on said repository.  For immediate
+operational problems, the point of contact is
+`Mikhail Goncharov <mailto:goncharo@google.com>`_.
+
+Background on the pre-merge infrastructure can be found in `this 2020 DevMeeting
+talk <https://llvm.org/devmtg/2020-09/slides/Goncharov-Pre-merge_checks.pdf>`_
 
 Committing a change
 -------------------

@@ -1,12 +1,22 @@
 ; RUN: sycl-post-link -spec-const=rt -S %s --ir-output-only -o %t.ll
-; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast"
+; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast" --check-prefixes=CHECK,CHECK-RT
+; RUN: sycl-post-link -spec-const=default -S %s --ir-output-only -o %t.ll
+; RUN: FileCheck %s --input-file=%t.ll --check-prefixes=CHECK,CHECK-DEF
 
 ; CHECK-LABEL: void @kernel_A
-; CHECK: %[[CALL:.*]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8 1)
-; CHECK: trunc i8 %[[CALL]] to i1
+; CHECK-RT: %[[CALL:.*]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8 1)
+; CHECK-RT: trunc i8 %[[CALL]] to i1
+;
+; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, i8 addrspace(4)* null, i32 0
+; CHECK-DEF: %[[LOAD:load.*]] = load i8, i8 addrspace(4)* %[[GEP]], align 1
+; CHECK-DEF: %[[TOBOOL:tobool.*]] = trunc i8 %[[LOAD]] to i1
 ;
 ; CHECK-LABEL: void @kernel_B
-; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8
+; CHECK-RT: call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8
+;
+; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, i8 addrspace(4)* null, i32 1
+; CHECK-DEF: %[[BC:bc.*]] = bitcast i8 addrspace(4)* %[[GEP]] to %struct.user_type addrspace(4)*
+; CHECK-DEF: %[[LOAD:load.*]] = load %struct.user_type, %struct.user_type addrspace(4)* %[[BC]], align 4
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

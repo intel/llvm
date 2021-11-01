@@ -360,7 +360,7 @@ class _BaseProcess(object):
         """Returns process PID if has been launched already."""
 
     @abc.abstractmethod
-    def launch(self, executable, args):
+    def launch(self, executable, args, extra_env):
         """Launches new process with given executable and args."""
 
     @abc.abstractmethod
@@ -379,13 +379,19 @@ class _LocalProcess(_BaseProcess):
     def pid(self):
         return self._proc.pid
 
-    def launch(self, executable, args):
+    def launch(self, executable, args, extra_env):
+        env=None
+        if extra_env:
+            env = dict(os.environ)
+            env.update([kv.split("=", 1) for kv in extra_env])
+
         self._proc = Popen(
             [executable] + args,
             stdout=open(
                 os.devnull) if not self._trace_on else None,
             stdin=PIPE,
-            preexec_fn=lldbplatformutil.enable_attach)
+            preexec_fn=lldbplatformutil.enable_attach,
+            env=env)
 
     def terminate(self):
         if self._proc.poll() is None:
@@ -424,7 +430,7 @@ class _RemoteProcess(_BaseProcess):
     def pid(self):
         return self._pid
 
-    def launch(self, executable, args):
+    def launch(self, executable, args, extra_env):
         if self._install_remote:
             src_path = executable
             dst_path = lldbutil.join_remote_paths(
@@ -449,6 +455,9 @@ class _RemoteProcess(_BaseProcess):
         # Redirect stdout and stderr to /dev/null
         launch_info.AddSuppressFileAction(1, False, True)
         launch_info.AddSuppressFileAction(2, False, True)
+
+        if extra_env:
+            launch_info.SetEnvironmentEntries(extra_env, True)
 
         err = lldb.remote_platform.Launch(launch_info)
         if err.Fail():
@@ -485,24 +494,16 @@ def system(commands, **kwargs):
     'ls: non_existent_file: No such file or directory\n'
     """
 
-    # Assign the sender object to variable 'test' and remove it from kwargs.
-    test = kwargs.pop('sender', None)
-
-    # [['make', 'clean', 'foo'], ['make', 'foo']] -> ['make clean foo', 'make foo']
-    commandList = [' '.join(x) for x in commands]
     output = ""
     error = ""
-    for shellCommand in commandList:
+    for shellCommand in commands:
         if 'stdout' in kwargs:
             raise ValueError(
                 'stdout argument not allowed, it will be overridden.')
-        if 'shell' in kwargs and kwargs['shell'] == False:
-            raise ValueError('shell=False not allowed')
         process = Popen(
             shellCommand,
             stdout=PIPE,
             stderr=STDOUT,
-            shell=True,
             **kwargs)
         pid = process.pid
         this_output, this_error = process.communicate()
@@ -737,14 +738,6 @@ class Base(unittest2.TestCase):
         return os.path.join(configuration.test_build_dir, self.mydir,
                             self.getBuildDirBasename())
 
-    def getReproducerDir(self):
-        """Return the full path to the reproducer if enabled."""
-        if configuration.capture_path:
-            return configuration.capture_path
-        if configuration.replay_path:
-            return configuration.replay_path
-        return None
-
     def makeBuildDir(self):
         """Create the test-specific working directory, deleting any previous
         contents."""
@@ -760,16 +753,6 @@ class Base(unittest2.TestCase):
     def getSourcePath(self, name):
         """Return absolute path to a file in the test's source directory."""
         return os.path.join(self.getSourceDir(), name)
-
-    def getReproducerArtifact(self, name):
-        lldbutil.mkdir_p(self.getReproducerDir())
-        return os.path.join(self.getReproducerDir(), name)
-
-    def getReproducerRemappedPath(self, path):
-        assert configuration.replay_path
-        assert os.path.isabs(path)
-        path = os.path.relpath(path, '/')
-        return os.path.join(configuration.replay_path, 'root', path)
 
     @classmethod
     def setUpCommands(cls):
@@ -952,13 +935,13 @@ class Base(unittest2.TestCase):
             del p
         del self.subprocesses[:]
 
-    def spawnSubprocess(self, executable, args=[], install_remote=True):
+    def spawnSubprocess(self, executable, args=[], extra_env=None, install_remote=True):
         """ Creates a subprocess.Popen object with the specified executable and arguments,
             saves it in self.subprocesses, and returns the object.
         """
         proc = _RemoteProcess(
             install_remote) if lldb.remote_platform else _LocalProcess(self.TraceOn())
-        proc.launch(executable, args)
+        proc.launch(executable, args, extra_env=extra_env)
         self.subprocesses.append(proc)
         return proc
 
@@ -1088,11 +1071,8 @@ class Base(unittest2.TestCase):
         # the shared module cache.
         lldb.SBModule.GarbageCollectAllocatedModules()
 
-        # Modules are not orphaned during reproducer replay because they're
-        # leaked on purpose.
-        if not configuration.is_reproducer():
-            # Assert that the global module cache is empty.
-            self.assertEqual(lldb.SBModule.GetNumberAllocatedModules(), 0)
+        # Assert that the global module cache is empty.
+        self.assertEqual(lldb.SBModule.GetNumberAllocatedModules(), 0)
 
 
     # =========================================================
@@ -1367,15 +1347,18 @@ class Base(unittest2.TestCase):
             return str(configuration.dwarf_version)
         if 'clang' in self.getCompiler():
             try:
+                triple = builder_module().getTriple(self.getArchitecture())
+                target = ['-target', triple] if triple else []
                 driver_output = check_output(
-                    [self.getCompiler()] + '-g -c -x c - -o - -###'.split(),
+                    [self.getCompiler()] + target + '-g -c -x c - -o - -###'.split(),
                     stderr=STDOUT)
                 driver_output = driver_output.decode("utf-8")
                 for line in driver_output.split(os.linesep):
                     m = re.search('dwarf-version=([0-9])', line)
                     if m:
                         return m.group(1)
-            except: pass
+            except CalledProcessError:
+                pass
         return '0'
 
     def platformIsDarwin(self):
@@ -1466,6 +1449,29 @@ class Base(unittest2.TestCase):
         method = getattr(self, self.testMethodName)
         return getattr(method, "debug_info", None)
 
+    def build(
+            self,
+            debug_info=None,
+            architecture=None,
+            compiler=None,
+            dictionary=None):
+        """Platform specific way to build binaries."""
+        if not architecture and configuration.arch:
+            architecture = configuration.arch
+
+        if debug_info is None:
+            debug_info = self.getDebugInfo()
+
+        dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
+
+        testdir = self.mydir
+        testname = self.getBuildDirBasename()
+
+        module = builder_module()
+        if not module.build(debug_info, architecture, compiler, dictionary,
+                testdir, testname):
+            raise Exception("Don't know how to build binary")
+
     # ==================================================
     # Build methods supported through a plugin interface
     # ==================================================
@@ -1526,7 +1532,7 @@ class Base(unittest2.TestCase):
                 "Building LLDB Driver (%s) from sources %s" %
                 (exe_name, sources))
 
-        self.buildDefault(dictionary=d)
+        self.build(dictionary=d)
 
     def buildLibrary(self, sources, lib_name):
         """Platform specific way to build a default library. """
@@ -1564,101 +1570,13 @@ class Base(unittest2.TestCase):
                 "Building LLDB Library (%s) from sources %s" %
                 (lib_name, sources))
 
-        self.buildDefault(dictionary=d)
+        self.build(dictionary=d)
 
     def buildProgram(self, sources, exe_name):
         """ Platform specific way to build an executable from C/C++ sources. """
         d = {'CXX_SOURCES': sources,
              'EXE': exe_name}
-        self.buildDefault(dictionary=d)
-
-    def buildDefault(
-            self,
-            architecture=None,
-            compiler=None,
-            dictionary=None):
-        """Platform specific way to build the default binaries."""
-        testdir = self.mydir
-        testname = self.getBuildDirBasename()
-
-        if not architecture and configuration.arch:
-            architecture = configuration.arch
-
-        if self.getDebugInfo():
-            raise Exception("buildDefault tests must set NO_DEBUG_INFO_TESTCASE")
-        module = builder_module()
-        dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
-        if not module.buildDefault(self, architecture, compiler,
-                                   dictionary, testdir, testname):
-            raise Exception("Don't know how to build default binary")
-
-    def buildDsym(
-            self,
-            architecture=None,
-            compiler=None,
-            dictionary=None):
-        """Platform specific way to build binaries with dsym info."""
-        testdir = self.mydir
-        testname = self.getBuildDirBasename()
-        if self.getDebugInfo() != "dsym":
-            raise Exception("NO_DEBUG_INFO_TESTCASE must build with buildDefault")
-
-        module = builder_module()
-        dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
-        if not module.buildDsym(self, architecture, compiler,
-                                dictionary, testdir, testname):
-            raise Exception("Don't know how to build binary with dsym")
-
-    def buildDwarf(
-            self,
-            architecture=None,
-            compiler=None,
-            dictionary=None):
-        """Platform specific way to build binaries with dwarf maps."""
-        testdir = self.mydir
-        testname = self.getBuildDirBasename()
-        if self.getDebugInfo() != "dwarf":
-            raise Exception("NO_DEBUG_INFO_TESTCASE must build with buildDefault")
-
-        module = builder_module()
-        dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
-        if not module.buildDwarf(self, architecture, compiler,
-                                   dictionary, testdir, testname):
-            raise Exception("Don't know how to build binary with dwarf")
-
-    def buildDwo(
-            self,
-            architecture=None,
-            compiler=None,
-            dictionary=None):
-        """Platform specific way to build binaries with dwarf maps."""
-        testdir = self.mydir
-        testname = self.getBuildDirBasename()
-        if self.getDebugInfo() != "dwo":
-            raise Exception("NO_DEBUG_INFO_TESTCASE must build with buildDefault")
-
-        module = builder_module()
-        dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
-        if not module.buildDwo(self, architecture, compiler,
-                                   dictionary, testdir, testname):
-            raise Exception("Don't know how to build binary with dwo")
-
-    def buildGModules(
-            self,
-            architecture=None,
-            compiler=None,
-            dictionary=None):
-        """Platform specific way to build binaries with gmodules info."""
-        testdir = self.mydir
-        testname = self.getBuildDirBasename()
-        if self.getDebugInfo() != "gmodules":
-            raise Exception("NO_DEBUG_INFO_TESTCASE must build with buildDefault")
-
-        module = builder_module()
-        dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
-        if not module.buildGModules(self, architecture, compiler,
-                                    dictionary, testdir, testname):
-            raise Exception("Don't know how to build binary with gmodules")
+        self.build(dictionary=d)
 
     def signBinary(self, binary_path):
         if sys.platform.startswith("darwin"):
@@ -1750,7 +1668,7 @@ class Base(unittest2.TestCase):
     def cleanup(self, dictionary=None):
         """Platform specific way to do cleanup after build."""
         module = builder_module()
-        if not module.cleanup(self, dictionary):
+        if not module.cleanup(dictionary):
             raise Exception(
                 "Don't know how to do cleanup with dictionary: " +
                 dictionary)
@@ -1900,10 +1818,10 @@ class TestBase(Base):
           expect method also provides a mode to peform string/pattern matching
           without running a command.
 
-        - The build methods buildDefault, buildDsym, and buildDwarf are used to
-          build the binaries used during a particular test scenario.  A plugin
-          should be provided for the sys.platform running the test suite.  The
-          Mac OS X implementation is located in builders/darwin.py.
+        - The build method is used to build the binaries used during a
+          particular test scenario.  A plugin should be provided for the
+          sys.platform running the test suite.  The Mac OS X implementation is
+          located in builders/darwin.py.
     """
 
     # Subclasses can set this to true (if they don't depend on debug info) to avoid running the
@@ -2092,9 +2010,8 @@ class TestBase(Base):
         for target in targets:
             self.dbg.DeleteTarget(target)
 
-        if not configuration.is_reproducer():
-            # Assert that all targets are deleted.
-            self.assertEqual(self.dbg.GetNumTargets(), 0)
+        # Assert that all targets are deleted.
+        self.assertEqual(self.dbg.GetNumTargets(), 0)
 
         # Do this last, to make sure it's in reverse order from how we setup.
         Base.tearDown(self)
@@ -2626,31 +2543,6 @@ FileCheck output:
                                  summary=summary, children=children)
         value_check.check_value(self, eval_result, str(eval_result))
         return eval_result
-
-    def build(
-            self,
-            architecture=None,
-            compiler=None,
-            dictionary=None):
-        """Platform specific way to build the default binaries."""
-        module = builder_module()
-
-        if not architecture and configuration.arch:
-            architecture = configuration.arch
-
-        dictionary = lldbplatformutil.finalize_build_dictionary(dictionary)
-        if self.getDebugInfo() is None:
-            return self.buildDefault(architecture, compiler, dictionary)
-        elif self.getDebugInfo() == "dsym":
-            return self.buildDsym(architecture, compiler, dictionary)
-        elif self.getDebugInfo() == "dwarf":
-            return self.buildDwarf(architecture, compiler, dictionary)
-        elif self.getDebugInfo() == "dwo":
-            return self.buildDwo(architecture, compiler, dictionary)
-        elif self.getDebugInfo() == "gmodules":
-            return self.buildGModules(architecture, compiler, dictionary)
-        else:
-            self.fail("Can't build for debug info: %s" % self.getDebugInfo())
 
     """Assert that an lldb.SBError is in the "success" state."""
     def assertSuccess(self, obj, msg=None):

@@ -1653,7 +1653,8 @@ static void InsertReturnAddressAuth(MachineFunction &MF,
   // The AUTIASP instruction assembles to a hint instruction before v8.3a so
   // this instruction can safely used for any v8a architecture.
   // From v8.3a onwards there are optimised authenticate LR and return
-  // instructions, namely RETA{A,B}, that can be used instead.
+  // instructions, namely RETA{A,B}, that can be used instead. In this case the
+  // DW_CFA_AARCH64_negate_ra_state can't be emitted.
   if (Subtarget.hasPAuth() && MBBI != MBB.end() &&
       MBBI->getOpcode() == AArch64::RET_ReallyLR) {
     BuildMI(MBB, MBBI, DL,
@@ -1665,6 +1666,12 @@ static void InsertReturnAddressAuth(MachineFunction &MF,
         MBB, MBBI, DL,
         TII->get(MFI.shouldSignWithBKey() ? AArch64::AUTIBSP : AArch64::AUTIASP))
         .setMIFlag(MachineInstr::FrameDestroy);
+
+    unsigned CFIIndex =
+        MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
+    BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+        .addCFIIndex(CFIIndex)
+        .setMIFlags(MachineInstr::FrameDestroy);
   }
 }
 
@@ -2494,22 +2501,20 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
       BuildMI(MBB, MI, DL, TII.get(AArch64::SEH_Nop))
           .setMIFlag(MachineInstr::FrameSetup);
 
-    if (!MF.getFunction().hasFnAttribute(Attribute::NoUnwind)) {
-      // Emit a CFI instruction that causes 8 to be subtracted from the value of
-      // x18 when unwinding past this frame.
-      static const char CFIInst[] = {
-          dwarf::DW_CFA_val_expression,
-          18, // register
-          2,  // length
-          static_cast<char>(unsigned(dwarf::DW_OP_breg18)),
-          static_cast<char>(-8) & 0x7f, // addend (sleb128)
-      };
-      unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createEscape(
-          nullptr, StringRef(CFIInst, sizeof(CFIInst))));
-      BuildMI(MBB, MI, DL, TII.get(AArch64::CFI_INSTRUCTION))
-          .addCFIIndex(CFIIndex)
-          .setMIFlag(MachineInstr::FrameSetup);
-    }
+    // Emit a CFI instruction that causes 8 to be subtracted from the value of
+    // x18 when unwinding past this frame.
+    static const char CFIInst[] = {
+        dwarf::DW_CFA_val_expression,
+        18, // register
+        2,  // length
+        static_cast<char>(unsigned(dwarf::DW_OP_breg18)),
+        static_cast<char>(-8) & 0x7f, // addend (sleb128)
+    };
+    unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createEscape(
+        nullptr, StringRef(CFIInst, sizeof(CFIInst))));
+    BuildMI(MBB, MI, DL, TII.get(AArch64::CFI_INSTRUCTION))
+        .addCFIIndex(CFIIndex)
+        .setMIFlag(MachineInstr::FrameSetup);
 
     // This instruction also makes x18 live-in to the entry block.
     MBB.addLiveIn(AArch64::X18);

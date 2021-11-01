@@ -205,8 +205,7 @@ SPIRVToOCL12Base::visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI) {
       &Attrs);
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
-                                                            Op OC) {
+Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
@@ -247,7 +246,7 @@ Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
     break;
   case OpAtomicCompareExchange:
   case OpAtomicCompareExchangeWeak:
-    NewCI = visitCallSPIRVAtomicCmpExchg(CI, OC);
+    NewCI = visitCallSPIRVAtomicCmpExchg(CI);
     break;
   default:
     NewCI = mutateCommonAtomicArguments(CI, OC);
