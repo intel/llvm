@@ -1,4 +1,4 @@
-name: SYCL pre-commit
+name: SYCL
 
 on:
   pull_request:
@@ -17,24 +17,16 @@ jobs:
       with:
         fetch-depth: 2
 
-    - name: Run clang-format for the patch
-      run: |
-        git diff --no-color ${GITHUB_SHA}^1 ${GITHUB_SHA} --name-only -- | grep -v "/test/" | xargs git diff -U0 --no-color ${GITHUB_SHA}^1 ${GITHUB_SHA} -- | ./clang/tools/clang-format/clang-format-diff.py -p1 -binary clang-format > ./clang-format.patch
-    # Add patch with formatting fixes to CI job artifacts
-    - uses: actions/upload-artifact@v1
-      with:
-        name: clang-format-patch
-        path: ./clang-format.patch
-
-    - name: Check if clang-format patch is empty
-      if: ${{ !(contains( github.event.pull_request.labels.*.name, 'pulldown') || contains( github.event.pull_request.labels.*.name, 'nolint')) }}
-      run: bash -c "if [ -s ./clang-format.patch ]; then cat ./clang-format.patch; exit 1; fi"
+    - name: Run clang-format
+      if: ${{ !contains(github.event.pull_request.labels.*.name, 'pulldown') }}
+      uses: ./devops/actions/clang-format
 
   linux_default:
-    name: Default Linux checks
+    name: Default Linux
     # Only build and test patches, that have passed all linter checks, because
     # the next commit is likely to be a follow-up on that job.
     needs: lint
+    if: always() && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
     uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
     with:
       build_runs_on: "sycl-precommit-linux"
