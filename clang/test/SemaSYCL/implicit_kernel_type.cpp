@@ -23,10 +23,10 @@ int main() {
   queue q;
 
 #if defined(WARN)
-  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
+  // expected-error@#KernelSingleTask {{non-forward-declarable type 'InvalidKernelName1' is invalid; provide a forward declarable kernel name at namespace scope}}
   // expected-note@+7 {{in instantiation of function template specialization}}
 #elif defined(ERROR)
-  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
+  // expected-error@#KernelSingleTask {{non-forward-declarable type 'InvalidKernelName1' is invalid; provide a forward declarable kernel name at namespace scope}}
   // expected-note@+4 {{in instantiation of function template specialization}}
 #endif
   class InvalidKernelName1 {};

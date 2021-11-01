@@ -37,7 +37,7 @@ public:
       h.single_task<ValidNS::StructinValidNS>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'ParentStruct::ChildStruct' should be globally visible}}
+    // expected-error@#KernelSingleTask {{non-forward-declarable type 'ParentStruct::ChildStruct' is invalid; provide a forward declarable kernel name at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<ParentStruct::ChildStruct>([] {});
