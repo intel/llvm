@@ -20,7 +20,7 @@ namespace oneapi {
 namespace detail {
 // alias for sycl::detail is needed for backward compatibility of the code
 using namespace cl::sycl::detail;
-} // namespace sycl
+} // namespace detail
 
 #if __cplusplus > 201402L
 

@@ -40,11 +40,11 @@ __SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst __SYCL2020_DEPRECATED(
 using memory_scope __SYCL2020_DEPRECATED("use 'sycl::memory_scope' instead") =
     cl::sycl::memory_scope;
 __SYCL_INLINE_CONSTEXPR
-    memory_scope memory_scope_work_item __SYCL2020_DEPRECATED(
-        "use 'sycl::memory_scope_work_item' instead") = memory_scope::work_item;
+memory_scope memory_scope_work_item __SYCL2020_DEPRECATED(
+    "use 'sycl::memory_scope_work_item' instead") = memory_scope::work_item;
 __SYCL_INLINE_CONSTEXPR
-    memory_scope memory_scope_sub_group __SYCL2020_DEPRECATED(
-        "use 'sycl::memory_scope_sub_group' instead") = memory_scope::sub_group;
+memory_scope memory_scope_sub_group __SYCL2020_DEPRECATED(
+    "use 'sycl::memory_scope_sub_group' instead") = memory_scope::sub_group;
 __SYCL_INLINE_CONSTEXPR memory_scope memory_scope_work_group
     __SYCL2020_DEPRECATED("use 'sycl::memory_scope_work_group' instead") =
         memory_scope::work_group;

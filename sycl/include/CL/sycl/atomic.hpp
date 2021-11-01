@@ -21,9 +21,9 @@
 #include <type_traits>
 
 #define __SYCL_STATIC_ASSERT_NOT_FLOAT(T)                                      \
-  static_assert(!std::is_same<T, float>::value &&                              \
-                !std::is_same<T, double>::value,                               \
-                "SYCL atomic function not available for float and double types")
+  static_assert(                                                               \
+      !std::is_same<T, float>::value && !std::is_same<T, double>::value,       \
+      "SYCL atomic function not available for float and double types")
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -42,8 +42,7 @@ template <typename T> struct IsValidAtomicType {
        std::is_same<T, long>::value || std::is_same<T, unsigned long>::value ||
        std::is_same<T, long long>::value ||
        std::is_same<T, unsigned long long>::value ||
-       std::is_same<T, float>::value ||
-       std::is_same<T, double>::value);
+       std::is_same<T, float>::value || std::is_same<T, double>::value);
 };
 
 template <cl::sycl::access::address_space AS> struct IsValidAtomicAddressSpace {

@@ -31,11 +31,16 @@ using memory_order = cl::sycl::memory_order;
 using memory_scope = cl::sycl::memory_scope;
 
 #if __cplusplus < 201703L
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_relaxed = memory_order::relaxed;
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_acquire = memory_order::acquire;
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_release = memory_order::release;
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_acq_rel = memory_order::acq_rel;
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst = memory_order::seq_cst;
+__SYCL_INLINE_CONSTEXPR memory_order memory_order_relaxed =
+    memory_order::relaxed;
+__SYCL_INLINE_CONSTEXPR memory_order memory_order_acquire =
+    memory_order::acquire;
+__SYCL_INLINE_CONSTEXPR memory_order memory_order_release =
+    memory_order::release;
+__SYCL_INLINE_CONSTEXPR memory_order memory_order_acq_rel =
+    memory_order::acq_rel;
+__SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst =
+    memory_order::seq_cst;
 #endif
 
 template <typename T>
