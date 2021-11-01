@@ -256,9 +256,9 @@ The table below provides a description for each of the member variables and type
 |`type_a`| validation, default values|type alias for the type of matrix A
 |`type_b`|  validation, default values|type alias for the type of matrix B
 |`type_c`|  validation, default values|type alias for the type of matrix C
-|`defaultM`|  validation, default values, general query|when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports
-|`defaultN`|  validation, default values, general query|when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports
-|`defaultK`|  validation, default values, general query|when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports
+|`defaultM`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for M; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value M that the user provides if M is supported by the implementation
+|`defaultN`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for N; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value N that the user provides if N is supported by the implementation
+|`defaultK`|  validation, default values|when no sizes are provided by the user, indicates the suggested default size for K; usually this corresponds to the maximum size the implementation supports. In validation mode, where the user does provide sizes, this is the same value K that the user provides if K is supported by the implementation
 |`joint_matrix_a`|  validation, default values|type alias for `joint_matrix` for matrix A
 |`joint_matrix_b`| validation, default values| type alias for `joint_matrix` for matrix B
 |`joint_matrix_c`|  validation, default values| type alias for `joint_matrix` for matrix C
@@ -266,10 +266,10 @@ The table below provides a description for each of the member variables and type
 |numtiles|  validation, default values, general query|indicates number of tiles in Intel AMX (does not apply to DPAS)
 |scope| validation, default values, general query| indicates the memory and execution scope supported by the TPU implementation
 |`combination` |  validation, default values, general query|composes the types and sizes of A, B, C matrices allowed in one combination
-|`max_msize`, `max_nsize`, `max_ksize`|  validation, default values, general query|When one of these members is non-zero, it indicates that the TPU supports all element sizes in the range from 1 up to the given value. By contrast, a zero value indicates that the TPU implementation supports only a discrete set of element sizes, which are given by the corresponding msize, nsize, or ksize members
-|`msize`, `nsize`, `ksize`|  validation, default values, general query|presents one of the sizes that the TPU implementation supports 
+|`max_msize`, `max_nsize`, `max_ksize`|  validation, default values, general query| if the TPU implementation supports a continuous number of element sizes, each of these members is non-zero, and the TPU implementation supports all element sizes from 1 up to (and including) that number. By contrast, if the TPU implementation supports a discrete number of element sizes, each of these members has the value zero
+|`msize`, `nsize`, `ksize`|  validation, default values, general query| if the TPU implementation supports a discrete number of element sizes, each of these members is non-zero, and the value tells one of the supported element sizes. By contrast, if the TPU supports a continuous number of element sizes, each of these members has the value zero
 |`atype`, `btype`, `ctype`| validation, default values, general query| indicates the types supported in the combination
-|`combinations`    | validation, default values, general query|Tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes so only this specific combination is returned in the combinations array. 
+|`combinations`    | validation, default values, general query| tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes so only this specific combination is returned in the combinations array. 
 |`num_combinations`|  validation, default values, general query|indicates number of combinations supported by the TPU implementation which corresponds to the size of the `combinations` array
 |======================
 
@@ -397,10 +397,6 @@ struct tpu_params<tpu::amx, Ta, Tb, Tc, 0, 0, 0,
 // types are not given, no default sizes and no implicit matrix construction
 template <int M, int N, int K>
 struct tpu_params<tpu::amx, void, void, void, M, N, K> {
-  static constexpr std::size_t defaultM = -1; // depends on the type
-  static constexpr std::size_t defaultN = -1;
-  static constexpr std::size_t defaultK = -1;
-
   static constexpr bool dynamic_p = false; // should be true in future implementations because
                           // Intel AMX hardware supports dynamic sizes
   static constexpr uint32_t numtiles = 8;
