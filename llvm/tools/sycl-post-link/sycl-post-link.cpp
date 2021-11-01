@@ -788,9 +788,11 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   size_t I = 0;
   auto GlobSetIt = GlobalsSet.cbegin();
 
-  // This map is shared between splitModules calls to reduce number of
-  // allocations and deallocations of memory for Module objects during
-  // llvm::CloneModule call.
+  // ValueToValueMapTy map should be shared between split Module objects during
+  // llvm::CloneModule call. Otherwise, some Value* instances allocated for
+  // split module may remain in memory after both split module and
+  // ValueToValueMapTy are destroyed. In case if there a lot of split modules
+  // and/or they utilize a lot of memory it may lead to memory overflow.
   ValueToValueMapTy SplitVMap;
 
   do {
