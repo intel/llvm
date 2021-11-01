@@ -22,17 +22,14 @@ class myWrapper2;
 int main() {
   queue q;
 
-#if defined(WARN)
-  // expected-error@#KernelSingleTask {{non-forward-declarable type 'InvalidKernelName1' is invalid; provide a forward declarable kernel name at namespace scope}}
-  // expected-note@+7 {{in instantiation of function template specialization}}
-#elif defined(ERROR)
-  // expected-error@#KernelSingleTask {{non-forward-declarable type 'InvalidKernelName1' is invalid; provide a forward declarable kernel name at namespace scope}}
-  // expected-note@+4 {{in instantiation of function template specialization}}
-#endif
+#if defined(ERROR)
   class InvalidKernelName1 {};
+  // expected-error@#KernelSingleTask {{'InvalidKernelName1' is invalid; kernel name should be forward declarable at namespace scope}}
+  // expected-note@+2 {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     h.single_task<InvalidKernelName1>([]() {});
   });
+#endif
 
 #if defined(WARN)
   // expected-warning@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
