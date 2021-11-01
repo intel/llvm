@@ -25,7 +25,8 @@ namespace detail {
 /// It is an internal class implementing basic functionality of simd_view.
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename RegionTy =
+template <typename BaseTy,
+          typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
 class simd_view_impl {
   using Derived = simd_view<BaseTy, RegionTy>;

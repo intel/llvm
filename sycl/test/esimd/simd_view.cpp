@@ -111,11 +111,12 @@ SYCL_ESIMD_FUNCTION void test_simd_view_from_vector() {
   simd<int, 16> s = 0;
   simd_view v1 = s;
   simd_view v2(s);
-  // expected-error@+4 {{no matching constructor for initialization of 'simd_view}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd_view.hpp:* {{candidate constructor not viable: expects an lvalue for 1st argument}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd_view.hpp:* 4+ {{candidate constructor not viable:}}
-  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{candidate template ignored:}}
-  simd_view<simd<int, 16>, region_base<false, int, 1, 0, 16, 1>> v3(
+  // expected-error@+5 {{no matching constructor for initialization of 'simd_view}}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd_view.hpp:* 3 {{candidate }}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{candidate }}
+  // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp:* {{candidate }}
+  // expected-note@sycl/ext/intel/experimental/esimd/simd_view.hpp:* 2 {{candidate }}
+  simd_view<simd<int, 16>, region_base<false, int, 1, 1, 16, 1>> v3(
       (simd<int, 16>()));
 }
 

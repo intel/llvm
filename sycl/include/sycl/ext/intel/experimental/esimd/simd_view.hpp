@@ -25,7 +25,8 @@ namespace esimd {
 /// via an instance of this class.
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename RegionTy =
+template <typename BaseTy,
+          typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
 class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
   template <typename, int, class, class> friend class detail::simd_obj_impl;
