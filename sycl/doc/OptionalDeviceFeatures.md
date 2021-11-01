@@ -259,10 +259,10 @@ optimization that controls JIT-time overhead.  These users do not expect
 an exception at runtime.
 
 To satisfy both users, the meaning of `-fsycl-device-code-split` is changed as
-follows.  When used without `-fsycl-assume-all-kernels-run-on-targets`, it is
-just an optimization hint.  The implementation splits device code according to
-the switch, but it may also perform additional device code splits in order to
-preserve the correctness of the code.
+follows.  When used without `-fsycl-assume-all-kernels-run-on-targets`, it
+specifies a minimum granularity of splitting, but the implementation may
+perform additional device code splits in order to preserve the correctness of
+the code.
 
 However, when `-fsycl-device-code-split` is used in conjunction with
 `-fsycl-assume-all-kernels-run-on-targets`, we can guarantee that additional
