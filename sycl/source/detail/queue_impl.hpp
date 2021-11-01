@@ -461,6 +461,21 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
+    const bool IsKernel = Type == CG::Kernel;
+    if (IsKernel && MAvoidEventCreation) {
+      if (Handler.MRequirements.size() != 0)
+        throw cl::sycl::invalid_parameter_error(
+            "Global accessors cannot be used together with "
+            "avoid_event_creation.",
+            PI_INVALID_OPERATION);
+      if (PostProcess)
+        throw cl::sycl::invalid_parameter_error(
+            "Fallback assert cannot be used together with "
+            "avoid_event_creation.",
+            PI_INVALID_OPERATION);
+      Handler.finalize();
+      return event();
+    }
     if (MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
                        Type == CG::CGTYPE::CodeplayInteropTask))
       Handler.depends_on(MLastEvent);
@@ -468,7 +483,6 @@ private:
     event Event;
 
     if (PostProcess) {
-      bool IsKernel = Type == CG::Kernel;
       bool KernelUsesAssert = false;
       if (IsKernel)
         KernelUsesAssert =
@@ -479,18 +493,8 @@ private:
       Event = Handler.finalize();
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
-    } else {
-      if (MAvoidEventCreation) {
-        if (Handler.MRequirements.size() != 0)
-          throw cl::sycl::invalid_parameter_error(
-              "Global accessors cannot be used together with "
-              "avoid_event_creation.",
-              PI_INVALID_OPERATION);
-        Handler.finalize();
-        return Event; // returns defalt event in this case
-      }
+    } else
       Event = Handler.finalize();
-    }
 
     if (MIsInorder)
       MLastEvent = Event;
