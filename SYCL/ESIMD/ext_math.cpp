@@ -7,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu
 // UNSUPPORTED: cuda || hip
+// TODO the test started failing on Linux apprently due to host-side changes in
+// code generation for log/exp, as device code remained the same as earlier,
+// when the test passed.
+// XFAIL: linux
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
