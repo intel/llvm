@@ -506,28 +506,22 @@ std::string collectSymbolsList(const FuncPtrVector *ModuleEntryPoints) {
 // one source Module.
 // Current workaround is to drop all records that contain nullptr values from
 // ValueToValueMapTy after cloned module is destroyed.
-struct VMapCleaner {
-  VMapCleaner(ValueToValueMapTy &VMap)
-    : VMapRef(VMap)
-    {}
-
-  ~VMapCleaner() {
-    for (auto It = VMapRef.begin(), End = VMapRef.end(); It != End;) {
-      if (It->second)
-        ++It;
-      else
-        VMapRef.erase(It++);
+void cleanupVMap(ValueToValueMapTy &VMap) {
+  for (auto It = VMap.begin(), End = VMap.end(); It != End;) {
+    if (It->second) {
+      ++It;
     }
+    else
+      VMap.erase(It++);
   }
-
-private:
-  ValueToValueMapTy &VMapRef;
-};
+}
 
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
 ModuleUPtr splitModule(const Module &M, ValueToValueMapTy &VMap,
                        const FuncPtrVector &ModuleEntryPoints) {
+  cleanupVMap(VMap);
+
   // For each group of entry points collect all dependencies.
   SetVector<const GlobalValue *> GVs;
   FuncPtrVector Workqueue;
@@ -805,10 +799,6 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
     if (GlobSetIt != GlobalsSet.cend())
       ResModuleGlobals = &(GlobSetIt->second);
 
-    // VMapCleaner should be defined before split module variable to call
-    // destructor of module first and only after that to clear null Value
-    // pointers.
-    VMapCleaner SplitVMapCleaner(SplitVMap);
     ModuleUPtr ResM{nullptr};
 
     if (DoSplit && ResModuleGlobals) {
@@ -903,29 +893,21 @@ TableFiles processInputModule(ModuleUPtr M) {
   // several split modules are in memory then some of Values in that map may be
   // shared between those modules and then destruction of any module is crashed
   // because it has Values that are still used by other modules.
-  TableFiles SyclTblFiles;
-  {
-    VMapCleaner SyclEsimdVMapCleaner(SyclEsimdVMap);
-    ModuleUPtr SyclModule{nullptr};
-    if (EsimdFunctions.empty())
-      SyclModule = std::move(M);
-    else if (!SyclFunctions.empty())
-      SyclModule = splitModule(*M, SyclEsimdVMap, SyclFunctions);
-    SyclTblFiles =
-        processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
-  }
+  ModuleUPtr SyclModule{nullptr};
+  if (EsimdFunctions.empty())
+    SyclModule = std::move(M);
+  else if (!SyclFunctions.empty())
+    SyclModule = splitModule(*M, SyclEsimdVMap, SyclFunctions);
+  TableFiles SyclTblFiles =
+      processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
 
-  TableFiles EsimdTblFiles;
-  {
-    VMapCleaner SyclEsimdVMapCleaner(SyclEsimdVMap);
-    ModuleUPtr EsimdModule{nullptr};
-    if (SyclFunctions.empty())
-      EsimdModule = std::move(M);
-    else if (!EsimdFunctions.empty())
-      EsimdModule = splitModule(*M, SyclEsimdVMap, EsimdFunctions);
-    EsimdTblFiles =
-        processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
-  }
+  ModuleUPtr EsimdModule{nullptr};
+  if (SyclFunctions.empty())
+    EsimdModule = std::move(M);
+  else if (!EsimdFunctions.empty())
+    EsimdModule = splitModule(*M, SyclEsimdVMap, EsimdFunctions);
+  TableFiles EsimdTblFiles =
+      processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
 
   // Merge the two resulting file maps
   TableFiles MergedTblFiles;
