@@ -508,9 +508,8 @@ std::string collectSymbolsList(const FuncPtrVector *ModuleEntryPoints) {
 // ValueToValueMapTy after cloned module is destroyed.
 void cleanupVMap(ValueToValueMapTy &VMap) {
   for (auto It = VMap.begin(), End = VMap.end(); It != End;) {
-    if (It->second) {
+    if (It->second)
       ++It;
-    }
     else
       VMap.erase(It++);
   }
