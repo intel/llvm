@@ -3511,9 +3511,9 @@ public:
           if (Tag->isCompleteDefinition()) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-		<< /* kernel name should be forward declarable at namespace
-                      scope */ 0
-                << KernelNameType;
+                << /* kernel name should be forward declarable at namespace
+                      scope */
+                0 << KernelNameType;
             IsInvalid = true;
           } else {
             S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
