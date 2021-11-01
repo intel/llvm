@@ -2012,6 +2012,9 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
       if (ParamTy.getTypePtr()->isPointerType() &&
           Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
         handleAccessorType(RecordDecl, FD->getBeginLoc());
+      // TODO:
+      // if (Util::isSyclType(FieldTy, "__mm_host", true /*Tmp*/))
+      //   handleMMHostPropertyList()
     }
     LastParamIndex = ParamIndex;
     return true;
@@ -2127,6 +2130,9 @@ public:
       if (ParamTy.getTypePtr()->isPointerType() &&
           Util::isSyclType(FieldTy, "accessor", true /*Tmp*/))
         handleAccessorType(RecordDecl, BS.getBeginLoc());
+      // TODO:
+      // if (Util::isSyclType(FieldTy, "__mm_host", true /*Tmp*/))
+      //   handleMMHostPropertyList()
     }
     LastParamIndex = ParamIndex;
     return true;

@@ -120,6 +120,17 @@ struct no_alias {
 } // namespace oneapi
 } // namespace ext
 
+namespace ext {
+namespace oneapi {
+namespace property {
+// Compile time known accessor property
+struct interface_idx {
+  template <bool> class instance {};
+};
+} // namespace property
+} // namespace oneapi
+}
+
 template <int dim>
 struct id {
   template <typename... T>

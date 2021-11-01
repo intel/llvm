@@ -53,7 +53,6 @@ namespace ext {
 namespace oneapi {
 template <typename... properties>
 class accessor_property_list {};
-class __mm_host_property_list {};
 } // namespace oneapi
 } // namespace ext
 
@@ -317,43 +316,26 @@ private:
   int FlushBufferSize;
 };
   
-using psg_propertyListT = ext::oneapi::__mm_host_property_list<>; 
 
-template <typename DT>
-struct mmhost_interface_idx;
-template <typename DT, mmhost_intera, typename propertyListT>
-struct InterfaceType;
+using psg_propertyListT = __mm_host_property_list<>;
 
-  /*
-template <typename DT, typename psg_propertyListT>
-struct mmhost_awidth<DT, psg_propertyListT> {};
+template <typename... properties>
+class __mm_host_property_list {};
 
-template <typename DT, typename psg_propertyListT>
-struct mmhost_dwidth<DT, psg_propertyListT> {};
-
-template <typename DT, typename psg_propertyListT>
-struct mmhost_latency<DT, psg_propertyListT> {};
-
-template <typename DT, typename psg_propertyListT>
-struct mmhost_readwrite_mode<DT, psg_propertyListT> {};
-
-template <typename DT, typename psg_propertyListT>
-struct mmhost_maxburst<DT, psg_propertyListT> {};
-
-template <typename DT, typename psg_propertyListT>
-struct mmhost_align<DT, psg_propertyListT> {};
-
-template <typename DT, typename psg_propertyListT>
-struct mmhost_waitrequest<DT, psg_propertyListT> ;
-  */
 template <typename DT,
-          typename psg_propertyListT = ext::oneapi::__mm_host_property_list<>>
+	  typename psg_propertyListT = __mm_host_property_list<>>
 class __attribute__((sycl_special_class)) __mm_host {
 public:
   void use(void) const {}
 
 private:
-  void __init() {}
+  using PtrType = typename DVType<DT, psg_propertyListT>::type *;
+  // Apply attribute to __init parameter. DPC++ headers will parse propertyList
+  // and apply corresponding attribute. For instance:
+  // __mm_host mh(Ty, accessor_property_list{interface_idx<5>}
+  // DPC++ headers convert interface_idx to an attribute(?) for the __init
+  // member declaration.
+  void __init(PtrType Ptr) {}
 };
 
 namespace ext {
