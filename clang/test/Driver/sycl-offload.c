@@ -171,6 +171,19 @@
 
 /// ###########################################################################
 
+/// Check -Xsycl-target-frontend= accepts triple aliases
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64 -Xsycl-target-frontend=spir64 -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-UNUSED-ARG-WARNING %s
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_x86_64 -Xsycl-target-frontend=spir64_x86_64 -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-UNUSED-ARG-WARNING %s
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_gen -Xsycl-target-frontend=spir64_gen -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-UNUSED-ARG-WARNING %s
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga -Xsycl-target-frontend=spir64_fpga -DFOO %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-UNUSED-ARG-WARNING %s
+// CHK-UNUSED-ARG-WARNING-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
+
+/// ###########################################################################
+
 /// Check the phases graph when using a single target, different from the host.
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
