@@ -108,16 +108,20 @@ SYCL_ESIMD_FUNCTION void test_simd_view_copy_ctor() {
 
 // test construction from vector.
 SYCL_ESIMD_FUNCTION void test_simd_view_from_vector() {
-  simd<int, 16> s = 0;
-  simd_view v1 = s;
-  simd_view v2(s);
+  simd<int, 16> v16 = 0;
+  simd_view sv16a = v16;
+  simd_view sv16b(v16);
   // expected-error@+5 {{no matching constructor for initialization of 'simd_view}}
   // expected-note@sycl/ext/intel/experimental/esimd/simd_view.hpp:* 3 {{candidate }}
   // expected-note@sycl/ext/intel/experimental/esimd/simd.hpp:* {{candidate }}
   // expected-note@sycl/ext/intel/experimental/esimd/detail/simd_obj_impl.hpp:* {{candidate }}
   // expected-note@sycl/ext/intel/experimental/esimd/simd_view.hpp:* 2 {{candidate }}
-  simd_view<simd<int, 16>, region_base<false, int, 1, 1, 16, 1>> v3(
+  simd_view<simd<int, 16>, region_base<false, int, 1, 1, 16, 1>> sv16c(
       (simd<int, 16>()));
+
+  simd<int, 1> v1 = 0;
+  simd_view sv1a = v1;
+  simd_view sv1b(v1);
 }
 
 // move constructor transfers the same view of the underlying data.

@@ -142,6 +142,9 @@ private:
   simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
+  // Construct a complete view of a vector
+  simd_view(BaseTy &Base) : BaseClass(Base) {}
+
   operator element_type() const {
     const auto v = BaseClass::read();
     return v[0];
