@@ -306,6 +306,10 @@ template <> inline void SPIRVMap<BuiltIn, std::string>::init() {
   add(BuiltInWarpIDNV, "BuiltInWarpIDNV");
   add(BuiltInSMIDNV, "BuiltInSMIDNV");
   add(BuiltInMax, "BuiltInMax");
+  add(internal::BuiltInSubDeviceIDINTEL, "BuiltInSubDeviceIDINTEL");
+  add(internal::BuiltInHWThreadIDINTEL, "BuiltInHWThreadIDINTEL");
+  add(internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL,
+      "BuiltInMaxHWThreadIDPerSubDeviceINTEL");
 }
 SPIRV_DEF_NAMEMAP(BuiltIn, SPIRVBuiltInNameMap)
 
@@ -526,7 +530,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityAtomicFloat16MinMaxEXT, "AtomicFloat16MinMaxEXT");
   add(CapabilityVectorComputeINTEL, "VectorComputeINTEL");
   add(CapabilityVectorAnyINTEL, "VectorAnyINTEL");
-  add(internal::CapabilityOptimizationHintsINTEL, "OptimizationHintsINTEL");
+  add(CapabilityExpectAssumeKHR, "ExpectAssumeKHR");
   add(CapabilitySubgroupAvcMotionEstimationINTEL,
       "SubgroupAvcMotionEstimationINTEL");
   add(CapabilitySubgroupAvcMotionEstimationIntraINTEL,
@@ -582,6 +586,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(internal::CapabilityFPArithmeticFenceINTEL, "FPArithmeticFenceINTEL");
   add(internal::CapabilityBfloat16ConversionINTEL, "Bfloat16ConversionINTEL");
   add(internal::CapabilityJointMatrixINTEL, "JointMatrixINTEL");
+  add(internal::CapabilityHWThreadQueryINTEL, "HWThreadQueryINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 

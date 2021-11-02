@@ -672,6 +672,14 @@ std::string CudaToolChain::getInputFilename(const InputInfo &Input) const {
   return std::string(Filename.str());
 }
 
+// Select remangled libclc variant. 64-bit longs default, 32-bit longs on
+// Windows
+static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
+  if (HostTC.getTriple().isOSWindows())
+    return "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc";
+  return "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
+}
+
 void CudaToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args,
@@ -722,13 +730,8 @@ void CudaToolChain::addClangTargetOptions(
       llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
       LibraryPaths.emplace_back(WithInstallPath.c_str());
 
-      // Select remangled libclc variant. 64-bit longs default, 32-bit longs on
-      // Windows
-      std::string LibSpirvTargetName =
-          "remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc";
-      if (HostTC.getTriple().isOSWindows())
-        LibSpirvTargetName =
-            "remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc";
+      // Select remangled libclc variant
+      std::string LibSpirvTargetName = getLibSpirvTargetName(HostTC);
 
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> LibSpirvTargetFile(LibraryPath);
@@ -742,7 +745,8 @@ void CudaToolChain::addClangTargetOptions(
     }
 
     if (LibSpirvFile.empty()) {
-      getDriver().Diag(diag::err_drv_no_sycl_libspirv);
+      getDriver().Diag(diag::err_drv_no_sycl_libspirv)
+          << getLibSpirvTargetName(HostTC);
       return;
     }
 
@@ -892,17 +896,9 @@ CudaToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
   // flags are not duplicated.
   // Also append the compute capability.
   if (DeviceOffloadKind == Action::OFK_OpenMP) {
-    for (Arg *A : Args) {
-      bool IsDuplicate = false;
-      for (Arg *DALArg : *DAL) {
-        if (A == DALArg) {
-          IsDuplicate = true;
-          break;
-        }
-      }
-      if (!IsDuplicate)
+    for (Arg *A : Args)
+      if (!llvm::is_contained(*DAL, A))
         DAL->append(A);
-    }
 
     StringRef Arch = DAL->getLastArgValue(options::OPT_march_EQ);
     if (Arch.empty())
