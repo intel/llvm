@@ -756,7 +756,7 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr,
     block_store<T, N>(addr, cast_this_to_derived());
   } else {
     simd<uint32_t, N> offsets(0u, sizeof(T));
-    scatter<T, N>(addr, cast_this_to_derived(), offsets);
+    scatter<T, N>(addr, offsets, cast_this_to_derived());
   }
 }
 
@@ -770,7 +770,7 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
     block_store<T, N, AccessorT>(acc, offset, cast_this_to_derived());
   } else {
     simd<uint32_t, N> offsets(0u, sizeof(T));
-    scatter<T, N, AccessorT>(acc, cast_this_to_derived(), offsets);
+    scatter<T, N, AccessorT>(acc, offsets, cast_this_to_derived());
   }
 }
 } // namespace detail
