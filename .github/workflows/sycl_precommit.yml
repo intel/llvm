@@ -18,7 +18,6 @@ jobs:
         fetch-depth: 2
 
     - name: Run clang-format
-      if: ${{ !contains(github.event.pull_request.labels.*.name, 'pulldown') }}
       uses: ./devops/actions/clang-format
 
   linux_default:
