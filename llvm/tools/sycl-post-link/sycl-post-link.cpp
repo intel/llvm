@@ -563,6 +563,9 @@ ModuleUPtr splitModule(const Module &M, ValueToValueMapTy &VMap,
 
   ModuleUPtr MClone{nullptr};
   {
+    // If '-reduce-memory-usage=true' is set then use shared ValueToValueMapTy.
+    // Otherwise, old behaviour of using local value map for splitting each
+    // module is utilized.
     ValueToValueMapTy TempVMap;
     ValueToValueMapTy &VMapRef = !ReduceMemoryUsage ? TempVMap : VMap;
     // Clone definitions only for needed globals. Others will be added as

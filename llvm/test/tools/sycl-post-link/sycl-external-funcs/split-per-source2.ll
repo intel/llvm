@@ -16,16 +16,10 @@
 ; RUN: sycl-post-link -split=source -emit-only-kernels-as-entry-points -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM2
 ; RUN: FileCheck %s -input-file=%t.table --check-prefixes CHECK-TABLE
-; CHECK-TABLE: [Code|Properties|Symbols]
-; CHECK-TABLE-NEXT: {{.*}}.ll|{{.*}}_0.prop|{{.*}}_0.sym
-; CHECK-TABLE-EMPTY:
 
 ; RUN: sycl-post-link -split=source -emit-only-kernels-as-entry-points -symbols -reduce-memory-usage=true -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM2
 ; RUN: FileCheck %s -input-file=%t.table --check-prefixes CHECK-TABLE
-; CHECK-TABLE: [Code|Properties|Symbols]
-; CHECK-TABLE-NEXT: {{.*}}.ll|{{.*}}_0.prop|{{.*}}_0.sym
-; CHECK-TABLE-EMPTY:
 
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -51,3 +45,7 @@ attributes #1 = { "sycl-module-id"="b.cpp" }
 ; CHECK-SYM1-EMPTY:
 ; CHECK-SYM2: kernel1
 ; CHECK-SYM2-EMPTY:
+
+; CHECK-TABLE: [Code|Properties|Symbols]
+; CHECK-TABLE-NEXT: {{.*}}.ll|{{.*}}_0.prop|{{.*}}_0.sym
+; CHECK-TABLE-EMPTY:
