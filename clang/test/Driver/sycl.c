@@ -69,7 +69,7 @@
 // RUN:  | FileCheck --check-prefix=DEVICE-32 %s
 // RUN: %clang_cl -fsycl-device-only --target=i386-unknown-linux-gnu -### %s 2>&1 \
 // RUN:  | FileCheck --check-prefix=DEVICE-32 %s
-// DEVICE-32: clang{{.*}} "-triple" "spir-unknown-unknown" "-aux-triple" "i386-unknown-linux-gnu"
+// DEVICE-32: clang{{.*}} "-triple" "spir64-unknown-unknown" "-aux-triple" "i386-unknown-linux-gnu"
 
 /// Verify that the sycl header directory is before /usr/include
 // RUN: %clangxx -### -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=HEADER_ORDER

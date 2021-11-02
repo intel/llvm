@@ -1017,10 +1017,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // For -fsycl-device-only, we also setup the implied triple as needed.
     StringRef SYCLTargetArch;
     if (C.getInputArgs().hasArg(options::OPT_fsycl_device_only))
-      if (C.getDefaultToolChain().getTriple().getArch() == llvm::Triple::x86)
-        SYCLTargetArch = "spir";
-      else
-        SYCLTargetArch = "spir64";
+      SYCLTargetArch = "spir64";
     else if (HasValidSYCLRuntime)
       // Triple for -fintelfpga is spir64_fpga.
       SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
