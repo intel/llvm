@@ -14,9 +14,11 @@
 // USM system memory allocation/deallocation interface.
 class SystemMemory {
 public:
+  enum MemType { Host, Device, Shared, All };
   virtual void *allocate(size_t size) = 0;
   virtual void *allocate(size_t size, size_t aligned) = 0;
   virtual void deallocate(void *ptr) = 0;
+  virtual MemType getMemType() = 0;
   virtual ~SystemMemory() = default;
 };
 
@@ -35,5 +37,8 @@ public:
 private:
   std::unique_ptr<USMAllocImpl> pImpl;
 };
+
+// Temporary interface to allow pooling to be reverted, i.e., no buffer support
+bool enableBufferPooling();
 
 #endif

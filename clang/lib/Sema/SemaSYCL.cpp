@@ -3502,8 +3502,7 @@ public:
           if (UnnamedLambdaUsed) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
-                << /* unnamed lambda used */ 2 << KernelNameType;
-
+                << /* unnamed type is invalid */ 2 << KernelNameType;
             IsInvalid = true;
             return;
           }
@@ -4075,7 +4074,7 @@ bool Sema::checkSYCLDeviceFunction(SourceLocation Loc, FunctionDecl *Callee) {
          "Should only be called during SYCL compilation");
   assert(Callee && "Callee may not be null.");
 
-  // Errors in unevaluated context don't need to be generated,
+  // Errors in an unevaluated context don't need to be generated,
   // so we can safely skip them.
   if (isUnevaluatedContext() || isConstantEvaluated())
     return true;

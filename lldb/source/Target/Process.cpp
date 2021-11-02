@@ -363,9 +363,8 @@ ProcessSP Process::FindPlugin(lldb::TargetSP target_sp,
   ProcessSP process_sp;
   ProcessCreateInstance create_callback = nullptr;
   if (!plugin_name.empty()) {
-    ConstString const_plugin_name(plugin_name);
     create_callback =
-        PluginManager::GetProcessCreateCallbackForPluginName(const_plugin_name);
+        PluginManager::GetProcessCreateCallbackForPluginName(plugin_name);
     if (create_callback) {
       process_sp = create_callback(target_sp, listener_sp, crash_file_path,
                                    can_connect);
@@ -1297,6 +1296,17 @@ StateType Process::GetState() {
 }
 
 void Process::SetPublicState(StateType new_state, bool restarted) {
+  const bool new_state_is_stopped = StateIsStoppedState(new_state, false);
+  if (new_state_is_stopped) {
+    // This will only set the time if the public stop time has no value, so
+    // it is ok to call this multiple times. With a public stop we can't look
+    // at the stop ID because many private stops might have happened, so we
+    // can't check for a stop ID of zero. This allows the "statistics" command
+    // to dump the time it takes to reach somewhere in your code, like a
+    // breakpoint you set.
+    GetTarget().GetStatistics().SetFirstPublicStopTime();
+  }
+
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_STATE |
                                                   LIBLLDB_LOG_PROCESS));
   LLDB_LOGF(log, "Process::SetPublicState (state = %s, restarted = %i)",
@@ -1315,7 +1325,6 @@ void Process::SetPublicState(StateType new_state, bool restarted) {
       m_public_run_lock.SetStopped();
     } else {
       const bool old_state_is_stopped = StateIsStoppedState(old_state, false);
-      const bool new_state_is_stopped = StateIsStoppedState(new_state, false);
       if ((old_state_is_stopped != new_state_is_stopped)) {
         if (new_state_is_stopped && !restarted) {
           LLDB_LOGF(log, "Process::SetPublicState (%s) -- unlocking run lock",
@@ -1446,7 +1455,9 @@ void Process::SetPrivateState(StateType new_state) {
       // before we get here.
       m_thread_list.DidStop();
 
-      m_mod_id.BumpStopID();
+      if (m_mod_id.BumpStopID() == 0)
+        GetTarget().GetStatistics().SetFirstPrivateStopTime();
+
       if (!m_mod_id.IsLastResumeForUserExpression())
         m_mod_id.SetStopEventForLastNaturalStopID(event_sp);
       m_memory_cache.Clear();
@@ -2569,6 +2580,9 @@ Status Process::Launch(ProcessLaunchInfo &launch_info) {
           // stopped or crashed. Directly set the state.  This is done to
           // prevent a stop message with a bunch of spurious output on thread
           // status, as well as not pop a ProcessIOHandler.
+          // We are done with the launch hijack listener, and this stop should
+          // go to the public state listener:
+          RestoreProcessEvents();
           SetPublicState(state, false);
 
           if (PrivateStateThreadIsValid())
@@ -2644,7 +2658,7 @@ Status Process::LoadCore() {
 
 DynamicLoader *Process::GetDynamicLoader() {
   if (!m_dyld_up)
-    m_dyld_up.reset(DynamicLoader::FindPlugin(this, nullptr));
+    m_dyld_up.reset(DynamicLoader::FindPlugin(this, ""));
   return m_dyld_up.get();
 }
 
@@ -4349,8 +4363,9 @@ public:
     const int read_fd = m_read_file.GetDescriptor();
     Terminal terminal(read_fd);
     TerminalState terminal_state(terminal, false);
-    terminal.SetCanonical(false);
-    terminal.SetEcho(false);
+    // FIXME: error handling?
+    llvm::consumeError(terminal.SetCanonical(false));
+    llvm::consumeError(terminal.SetEcho(false));
 // FD_ZERO, FD_SET are not supported on windows
 #ifndef _WIN32
     const int pipe_read_fd = m_pipe.GetReadFileDescriptor();

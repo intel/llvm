@@ -549,6 +549,8 @@ private:
   void verifyFunctionAttrs(FunctionType *FT, AttributeList Attrs,
                            const Value *V, bool IsIntrinsic);
   void verifyFunctionMetadata(ArrayRef<std::pair<unsigned, MDNode *>> MDs);
+  template <typename T>
+  void verifyODRTypeAsScopeOperand(const MDNode &MD, T * = nullptr);
 
   void visitConstantExprsRecursively(const Constant *EntryC);
   void visitConstantExpr(const ConstantExpr *CE);
@@ -839,6 +841,19 @@ void Verifier::visitNamedMDNode(const NamedMDNode &NMD) {
   }
 }
 
+template <typename T>
+void Verifier::verifyODRTypeAsScopeOperand(const MDNode &MD, T *) {
+  if (isa<T>(MD)) {
+    if (auto *N = dyn_cast_or_null<DICompositeType>(cast<T>(MD).getScope()))
+      // Of all the supported tags for DICompositeType(see visitDICompositeType)
+      // we know that enum type cannot be a scope.
+      AssertDI(N->getTag() != dwarf::DW_TAG_enumeration_type,
+               "enum type is not a scope; check enum type ODR "
+               "violation",
+               N, &MD);
+  }
+}
+
 void Verifier::visitMDNode(const MDNode &MD, AreDebugLocsAllowed AllowLocs) {
   // Only visit each node once.  Metadata can be mutually recursive, so this
   // avoids infinite recursion here, as well as being an optimization.
@@ -847,6 +862,12 @@ void Verifier::visitMDNode(const MDNode &MD, AreDebugLocsAllowed AllowLocs) {
 
   Assert(&MD.getContext() == &Context,
          "MDNode context does not match Module context!", &MD);
+
+  // Makes sure when a scope operand is a ODR type, the ODR type uniquing does
+  // not create invalid debug metadata.
+  // TODO: check that the non-ODR-type scope operand is valid.
+  verifyODRTypeAsScopeOperand<DIType>(MD);
+  verifyODRTypeAsScopeOperand<DILocalScope>(MD);
 
   switch (MD.getMetadataID()) {
   default:
@@ -4652,33 +4673,34 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
     for (auto &Elem : Call.bundle_op_infos()) {
       Assert(Elem.Tag->getKey() == "ignore" ||
                  Attribute::isExistingAttribute(Elem.Tag->getKey()),
-             "tags must be valid attribute names");
+             "tags must be valid attribute names", Call);
       Attribute::AttrKind Kind =
           Attribute::getAttrKindFromName(Elem.Tag->getKey());
       unsigned ArgCount = Elem.End - Elem.Begin;
       if (Kind == Attribute::Alignment) {
         Assert(ArgCount <= 3 && ArgCount >= 2,
-               "alignment assumptions should have 2 or 3 arguments");
+               "alignment assumptions should have 2 or 3 arguments", Call);
         Assert(Call.getOperand(Elem.Begin)->getType()->isPointerTy(),
-               "first argument should be a pointer");
+               "first argument should be a pointer", Call);
         Assert(Call.getOperand(Elem.Begin + 1)->getType()->isIntegerTy(),
-               "second argument should be an integer");
+               "second argument should be an integer", Call);
         if (ArgCount == 3)
           Assert(Call.getOperand(Elem.Begin + 2)->getType()->isIntegerTy(),
-                 "third argument should be an integer if present");
+                 "third argument should be an integer if present", Call);
         return;
       }
-      Assert(ArgCount <= 2, "to many arguments");
+      Assert(ArgCount <= 2, "too many arguments", Call);
       if (Kind == Attribute::None)
         break;
       if (Attribute::isIntAttrKind(Kind)) {
-        Assert(ArgCount == 2, "this attribute should have 2 arguments");
+        Assert(ArgCount == 2, "this attribute should have 2 arguments", Call);
         Assert(isa<ConstantInt>(Call.getOperand(Elem.Begin + 1)),
-               "the second argument should be a constant integral value");
+               "the second argument should be a constant integral value", Call);
       } else if (Attribute::canUseAsParamAttr(Kind)) {
-        Assert((ArgCount) == 1, "this attribute should have one argument");
+        Assert((ArgCount) == 1, "this attribute should have one argument",
+               Call);
       } else if (Attribute::canUseAsFnAttr(Kind)) {
-        Assert((ArgCount) == 0, "this attribute has no argument");
+        Assert((ArgCount) == 0, "this attribute has no argument", Call);
       }
     }
     break;

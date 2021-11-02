@@ -77,6 +77,11 @@ class Pred;
 //   type constraints directly to an operand/result, $_self will be replaced
 //   by the operand/result's type. E.g., for `F32` in `F32:$operand`, its
 //   `$_self` will be expanded as `getOperand(...).getType()`.
+//
+// One thing to be noticed, while using these placeholders in the C expression,
+// the type of placeholder is only guaranteed to be the base type. For example,
+// if you have a predicate in the form `CPred<"CheckType($_self)">, the argument
+// type of the function `CheckType` should be `mlir::Type`.
 class CPred<code pred> : Pred {
   code predExpr = "(" # pred # ")";
 }
@@ -955,6 +960,19 @@ def AnyAttr : Attr<CPred<"true">, "any attribute"> {
   let constBuilderCall = "$0";
 }
 
+// Any attribute from the given list
+class AnyAttrOf<list<Attr> allowedAttrs, string summary = "",
+                string cppClassName = "::mlir::Attribute",
+                string fromStorage = "$_self"> : Attr<
+    // Satisfy any of the allowed attribute's condition
+    Or<!foreach(allowedattr, allowedAttrs, allowedattr.predicate)>,
+    !if(!eq(summary, ""),
+        !interleave(!foreach(t, allowedAttrs, t.summary), " or "),
+        summary)> {
+    let returnType = cppClassName;
+    let convertFromStorage = fromStorage;
+}
+
 def BoolAttr : Attr<CPred<"$_self.isa<::mlir::BoolAttr>()">, "bool attribute"> {
   let storageType = [{ ::mlir::BoolAttr }];
   let returnType = [{ bool }];
@@ -1620,6 +1638,11 @@ def FlatSymbolRefAttr : Attr<CPred<"$_self.isa<::mlir::FlatSymbolRefAttr>()">,
 
 def SymbolRefArrayAttr :
   TypedArrayAttrBase<SymbolRefAttr, "symbol ref array attribute"> {
+  let constBuilderCall = ?;
+}
+
+def FlatSymbolRefArrayAttr :
+  TypedArrayAttrBase<FlatSymbolRefAttr, "flat symbol ref array attribute"> {
   let constBuilderCall = ?;
 }
 

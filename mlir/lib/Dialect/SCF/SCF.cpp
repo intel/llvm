@@ -714,8 +714,8 @@ struct SimplifyTrivialLoops : public OpRewritePattern<ForOp> {
       return failure();
 
     // If the loop is known to have 0 iterations, remove it.
-    llvm::APInt lbValue = lb.value().cast<IntegerAttr>().getValue();
-    llvm::APInt ubValue = ub.value().cast<IntegerAttr>().getValue();
+    llvm::APInt lbValue = lb.getValue().cast<IntegerAttr>().getValue();
+    llvm::APInt ubValue = ub.getValue().cast<IntegerAttr>().getValue();
     if (lbValue.sge(ubValue)) {
       rewriter.replaceOp(op, op.getIterOperands());
       return success();
@@ -727,7 +727,7 @@ struct SimplifyTrivialLoops : public OpRewritePattern<ForOp> {
 
     // If the loop is known to have 1 iteration, inline its body and remove the
     // loop.
-    llvm::APInt stepValue = step.value().cast<IntegerAttr>().getValue();
+    llvm::APInt stepValue = step.getValue().cast<IntegerAttr>().getValue();
     if ((lbValue + stepValue).sge(ubValue)) {
       SmallVector<Value, 4> blockArgs;
       blockArgs.reserve(op.getNumIterOperands() + 1);
@@ -1010,6 +1010,26 @@ void ForOp::getCanonicalizationPatterns(RewritePatternSet &results,
 // IfOp
 //===----------------------------------------------------------------------===//
 
+bool mlir::scf::insideMutuallyExclusiveBranches(Operation *a, Operation *b) {
+  assert(a && "expected non-empty operation");
+  assert(b && "expected non-empty operation");
+
+  IfOp ifOp = a->getParentOfType<IfOp>();
+  while (ifOp) {
+    // Check if b is inside ifOp. (We already know that a is.)
+    if (ifOp->isProperAncestor(b))
+      // b is contained in ifOp. a and b are in mutually exclusive branches if
+      // they are in different blocks of ifOp.
+      return static_cast<bool>(ifOp.thenBlock()->findAncestorOpInBlock(*a)) !=
+             static_cast<bool>(ifOp.thenBlock()->findAncestorOpInBlock(*b));
+    // Check next enclosing IfOp.
+    ifOp = ifOp->getParentOfType<IfOp>();
+  }
+
+  // Could not find a common IfOp among a's and b's ancestors.
+  return false;
+}
+
 void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
                  bool withElseRegion) {
   build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
@@ -1221,7 +1241,7 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
     if (!constant)
       return failure();
 
-    if (constant.value().cast<BoolAttr>().getValue())
+    if (constant.getValue().cast<BoolAttr>().getValue())
       replaceOpWithRegion(rewriter, op, op.thenRegion());
     else if (!op.elseRegion().empty())
       replaceOpWithRegion(rewriter, op, op.elseRegion());
@@ -1405,8 +1425,8 @@ struct ReplaceIfYieldWithConditionOrValue : public OpRewritePattern<IfOp> {
       if (!falseYield)
         continue;
 
-      bool trueVal = trueYield.value().cast<BoolAttr>().getValue();
-      bool falseVal = falseYield.value().cast<BoolAttr>().getValue();
+      bool trueVal = trueYield.getValue().cast<BoolAttr>().getValue();
+      bool falseVal = falseYield.getValue().cast<BoolAttr>().getValue();
       if (!trueVal && falseVal) {
         if (!opResult.use_empty()) {
           Value notCond = rewriter.create<arith::XOrIOp>(

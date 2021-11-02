@@ -334,15 +334,6 @@ void ObjectFileELF::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString ObjectFileELF::GetPluginNameStatic() {
-  static ConstString g_name("elf");
-  return g_name;
-}
-
-const char *ObjectFileELF::GetPluginDescriptionStatic() {
-  return "ELF object file reader.";
-}
-
 ObjectFile *ObjectFileELF::CreateInstance(const lldb::ModuleSP &module_sp,
                                           DataBufferSP &data_sp,
                                           lldb::offset_t data_offset,
@@ -2701,9 +2692,6 @@ Symtab *ObjectFileELF::GetSymtab() {
   if (!module_sp)
     return nullptr;
 
-  Progress progress(llvm::formatv("Parsing symbol table for {0}",
-                                  m_file.GetFilename().AsCString("<Unknown>")));
-
   // We always want to use the main object file so we (hopefully) only have one
   // cached copy of our symtab, dynamic sections, etc.
   ObjectFile *module_obj_file = module_sp->GetObjectFile();
@@ -2711,6 +2699,10 @@ Symtab *ObjectFileELF::GetSymtab() {
     return module_obj_file->GetSymtab();
 
   if (m_symtab_up == nullptr) {
+    Progress progress(
+        llvm::formatv("Parsing symbol table for {0}",
+                      m_file.GetFilename().AsCString("<Unknown>")));
+    ElapsedTime elapsed(module_sp->GetSymtabParseTime());
     SectionList *section_list = module_sp->GetSectionList();
     if (!section_list)
       return nullptr;
