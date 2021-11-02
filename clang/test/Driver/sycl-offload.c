@@ -173,14 +173,16 @@
 
 /// Check -Xsycl-target-frontend= accepts triple aliases
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64 -Xsycl-target-frontend=spir64 -DFOO %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-UNUSED-ARG-WARNING %s
+// RUN:   | FileCheck -DARCH=spir64 -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64_x86_64 -Xsycl-target-frontend=spir64_x86_64 -DFOO %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-UNUSED-ARG-WARNING %s
+// RUN:   | FileCheck -DARCH=spir64_x86_64 -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64_gen -Xsycl-target-frontend=spir64_gen -DFOO %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-UNUSED-ARG-WARNING %s
+// RUN:   | FileCheck -DARCH=spir64_gen -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga -Xsycl-target-frontend=spir64_fpga -DFOO %s 2>&1 \
-// RUN:   | FileCheck -check-prefix=CHK-UNUSED-ARG-WARNING %s
+// RUN:   | FileCheck -DARCH=spir64_fpga -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
 // CHK-UNUSED-ARG-WARNING-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
+// CHK-TARGET: clang{{.*}} "-cc1" "-triple" "[[ARCH]]-unknown-unknown"
+// CHK-TARGET: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-[[ARCH]]-unknown-unknown"
 
 /// ###########################################################################
 
