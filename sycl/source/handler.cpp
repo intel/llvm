@@ -153,22 +153,14 @@ event handler::finalize() {
         std::make_shared<detail::event_impl>(MQueue);
     NewEvent->setContextImpl(MQueue->getContextImplPtr());
 
-    auto RunKernelOnHost =
-        [](detail::NDRDescT &NDRDesc, std::vector<detail::ArgDesc> &Args,
-           const std::unique_ptr<detail::HostKernelBase> &HostKernel) {
-          for (detail::ArgDesc &Arg : Args)
-            if (detail::kernel_param_kind_t::kind_accessor == Arg.MType) {
-              throw cl::sycl::feature_not_supported(
-                  "Unsupported accessor case.", PI_INVALID_OPERATION);
-            }
-          HostKernel->call(NDRDesc, nullptr);
-          return CL_SUCCESS;
-        };
-
-    auto Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, MHostKernel,
-                                KernelBundleImpPtr, MKernel, MKernelName,
-                                MOSModuleHandle, RawEvents, NewEvent, nullptr,
-                                RunKernelOnHost);
+    cl_int Res = CL_SUCCESS;
+    if (MQueue->is_host()) {
+      MHostKernel->call(MNDRDesc, NewEvent->getHostProfilingInfo());
+    } else {
+      Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                             MKernel, MKernelName, MOSModuleHandle, RawEvents,
+                             NewEvent, nullptr);
+    }
 
     if (CL_SUCCESS != Res)
       throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);

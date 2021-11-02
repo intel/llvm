@@ -1889,19 +1889,11 @@ void DispatchNativeKernel(void *Blob) {
 
 cl_int enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
-    const std::unique_ptr<HostKernelBase> &HostKernel,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, const EventImplPtr &EventImpl,
-    std::function<void *(Requirement *Req)> getMemAllocationFunc,
-    std::function<cl_int(NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
-                         const std::unique_ptr<HostKernelBase> &HostKernel)>
-        RunKernelOnHost) {
-
-  if (Queue->is_host()) {
-    return RunKernelOnHost(NDRDesc, Args, HostKernel);
-  }
+    std::function<void *(Requirement *Req)> getMemAllocationFunc) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2134,40 +2126,38 @@ cl_int ExecCGCommand::enqueueImp() {
     }
   }
   case CG::CGTYPE::Kernel: {
+    CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
+
+    NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
+    std::vector<ArgDesc> &Args = ExecKernel->MArgs;
+
+    if (MQueue->is_host()) {
+      for (ArgDesc &Arg : Args)
+        if (kernel_param_kind_t::kind_accessor == Arg.MType) {
+          Requirement *Req = (Requirement *)(Arg.MPtr);
+          AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+          Req->MData = AllocaCmd->getMemAllocation();
+        }
+      if (!RawEvents.empty()) {
+        // Assuming that the events are for devices to the same Plugin.
+        const detail::plugin &Plugin = EventImpls[0]->getPlugin();
+        Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+      }
+      ExecKernel->MHostKernel->call(NDRDesc,
+                                    getEvent()->getHostProfilingInfo());
+
+      return CL_SUCCESS;
+    }
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
       return AllocaCmd->getMemAllocation();
     };
 
-    auto RunKernelOnHost =
-        [this, EventImpls,
-         RawEvents](NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
-                    const std::unique_ptr<detail::HostKernelBase> &HostKernel) {
-          for (ArgDesc &Arg : Args)
-            if (kernel_param_kind_t::kind_accessor == Arg.MType) {
-              Requirement *Req = (Requirement *)(Arg.MPtr);
-              AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-              Req->MData = AllocaCmd->getMemAllocation();
-            }
-          if (!RawEvents.empty()) {
-            // Assuming that the events are for devices to the same Plugin.
-            const detail::plugin &Plugin = EventImpls[0]->getPlugin();
-            Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                 &RawEvents[0]);
-          }
-          HostKernel->call(NDRDesc, getEvent()->getHostProfilingInfo());
-
-          return CL_SUCCESS;
-        };
-
-    CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
-    return enqueueImpKernel(MQueue, ExecKernel->MNDRDesc, ExecKernel->MArgs,
-                            ExecKernel->MHostKernel,
-                            ExecKernel->getKernelBundle(),
-                            ExecKernel->MSyclKernel, ExecKernel->MKernelName,
-                            ExecKernel->MOSModuleHandle, RawEvents, MEvent,
-                            getMemAllocationFunc, RunKernelOnHost);
+    return enqueueImpKernel(
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
+        ExecKernel->MSyclKernel, ExecKernel->MKernelName,
+        ExecKernel->MOSModuleHandle, RawEvents, MEvent, getMemAllocationFunc);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
