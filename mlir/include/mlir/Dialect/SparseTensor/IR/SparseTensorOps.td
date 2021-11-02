@@ -74,15 +74,17 @@ def SparseTensor_InitOp : SparseTensor_Op<"init", []>,
 }
 
 def SparseTensor_ConvertOp : SparseTensor_Op<"convert",
-  [NoSideEffect, SameOperandsAndResultType]>,
+  [NoSideEffect, SameOperandsAndResultElementType]>,
     Arguments<(ins AnyTensor:$source)>,
     Results<(outs AnyTensor:$dest)> {
   string summary = "Converts between different tensor types";
   string description = [{
     Converts one sparse or dense tensor type to another tensor type. The rank
-    and dimensions of the source and destination types must match exactly,
-    only the sparse encoding of these types may be different. The name `convert`
-    was preferred over `cast`, since the operation may incur a non-trivial cost.
+    of the source and destination types must match exactly, and the dimension
+    sizes must either match exactly or relax from a static to a dynamic size.
+    The sparse encoding of the two types can obviously be completely different.
+    The name `convert` was preferred over `cast`, since the operation may incur
+    a non-trivial cost.
 
     When converting between two different sparse tensor types, only explicitly
     stored values are moved from one underlying sparse storage format to
@@ -97,9 +99,14 @@ def SparseTensor_ConvertOp : SparseTensor_Op<"convert",
     Examples:
 
     ```mlir
-    %0 = sparse_tensor.convert %1 : tensor<32x32xf32> to tensor<32x32xf32, #CSR>
+    %0 = sparse_tensor.convert %a : tensor<32x32xf32> to tensor<32x32xf32, #CSR>
+    %1 = sparse_tensor.convert %a : tensor<32x32xf32> to tensor<?x?xf32, #CSR>
+    %2 = sparse_tensor.convert %b : tensor<8x8xi32, #CSC> to tensor<8x8xi32, #CSR>
+    %3 = sparse_tensor.convert %c : tensor<4x8xf64, #CSR> to tensor<4x?xf64, #CSC>
 
-    %2 = sparse_tensor.convert %3 : tensor<8x8xi32, #CSC> to tensor<8x8xi32, #CSR>
+    // The following conversion is not allowed (since it would require a
+    // runtime assertion that the source's dimension size is actually 100).
+    %4 = sparse_tensor.convert %d : tensor<?xf64> to tensor<100xf64, #SV>
     ```
 
   }];

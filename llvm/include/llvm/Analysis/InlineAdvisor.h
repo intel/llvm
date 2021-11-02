@@ -22,6 +22,7 @@ class CallBase;
 class Function;
 class Module;
 class OptimizationRemarkEmitter;
+struct ReplayInlinerSettings;
 
 /// There are 3 scenarios we can use the InlineAdvisor:
 /// - Default - use manual heuristics.
@@ -143,7 +144,11 @@ public:
   /// be up-to-date wrt previous inlining decisions. \p MandatoryOnly indicates
   /// only mandatory (always-inline) call sites should be recommended - this
   /// allows the InlineAdvisor track such inlininings.
-  /// Returns an InlineAdvice with the inlining recommendation.
+  /// Returns:
+  /// - An InlineAdvice with the inlining recommendation.
+  /// - Null when no recommendation is made (https://reviews.llvm.org/D110658).
+  /// TODO: Consider removing the Null return scenario by incorporating the
+  /// SampleProfile inliner into an InlineAdvisor
   std::unique_ptr<InlineAdvice> getAdvice(CallBase &CB,
                                           bool MandatoryOnly = false);
 
@@ -227,7 +232,7 @@ public:
       return !PAC.preservedWhenStateless();
     }
     bool tryCreate(InlineParams Params, InliningAdvisorMode Mode,
-                   StringRef ReplayFile);
+                   const ReplayInlinerSettings &ReplaySettings);
     InlineAdvisor *getAdvisor() const { return Advisor.get(); }
 
   private:
@@ -274,9 +279,6 @@ void emitInlinedIntoBasedOnCost(OptimizationRemarkEmitter &ORE, DebugLoc DLoc,
                                 const Function &Caller, const InlineCost &IC,
                                 bool ForProfileContext = false,
                                 const char *PassName = nullptr);
-
-/// get call site location as string
-std::string getCallSiteLocation(DebugLoc DLoc);
 
 /// Add location info to ORE message.
 void addLocationToRemarks(OptimizationRemark &Remark, DebugLoc DLoc);

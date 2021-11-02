@@ -174,8 +174,8 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "Clang 11"
-    command: "libcxx/utils/ci/run-buildbot generic-clang-11"
+  - label: "Clang 12"
+    command: "libcxx/utils/ci/run-buildbot generic-clang-12"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -187,8 +187,8 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "Clang 12"
-    command: "libcxx/utils/ci/run-buildbot generic-clang-12"
+  - label: "Clang 13"
+    command: "libcxx/utils/ci/run-buildbot generic-clang-13"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -267,8 +267,8 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "New standalone runtimes build"
-    command: "libcxx/utils/ci/run-buildbot new-standalone"
+  - label: "Legacy LLVM_ENABLE_PROJECTS build"
+    command: "libcxx/utils/ci/run-buildbot legacy-project-build"
     artifact_paths:
       - "**/test-results.xml"
     agents:
@@ -280,8 +280,8 @@ steps:
           limit: 2
     timeout_in_minutes: 120
 
-  - label: "Runtimes build"
-    command: "libcxx/utils/ci/run-buildbot runtimes-build"
+  - label: "Bootstrapping build"
+    command: "libcxx/utils/ci/run-buildbot bootstrapping-build"
     artifact_paths:
       - "**/test-results.xml"
     agents:

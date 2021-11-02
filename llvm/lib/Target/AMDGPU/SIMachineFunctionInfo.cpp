@@ -651,3 +651,38 @@ bool SIMachineFunctionInfo::removeVGPRForSGPRSpill(Register ReservedVGPR,
   }
   return false;
 }
+
+bool SIMachineFunctionInfo::usesAGPRs(const MachineFunction &MF) const {
+  if (UsesAGPRs)
+    return *UsesAGPRs;
+
+  if (!AMDGPU::isEntryFunctionCC(MF.getFunction().getCallingConv()) ||
+      MF.getFrameInfo().hasCalls()) {
+    UsesAGPRs = true;
+    return true;
+  }
+
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  for (unsigned I = 0, E = MRI.getNumVirtRegs(); I != E; ++I) {
+    const Register Reg = Register::index2VirtReg(I);
+    const TargetRegisterClass *RC = MRI.getRegClassOrNull(Reg);
+    if (RC && SIRegisterInfo::isAGPRClass(RC)) {
+      UsesAGPRs = true;
+      return true;
+    } else if (!RC && !MRI.use_empty(Reg) && MRI.getType(Reg).isValid()) {
+      // Defer caching UsesAGPRs, function might not yet been regbank selected.
+      return true;
+    }
+  }
+
+  for (MCRegister Reg : AMDGPU::AGPR_32RegClass) {
+    if (MRI.isPhysRegUsed(Reg)) {
+      UsesAGPRs = true;
+      return true;
+    }
+  }
+
+  UsesAGPRs = false;
+  return false;
+}

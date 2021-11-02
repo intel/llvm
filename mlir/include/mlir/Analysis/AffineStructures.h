@@ -432,7 +432,8 @@ public:
 
   /// Merge local ids of `this` and `other`. This is done by appending local ids
   /// of `other` to `this` and inserting local ids of `this` to `other` at start
-  /// of its local ids.
+  /// of its local ids. Number of dimension and symbol ids should match in
+  /// `this` and `other`.
   void mergeLocalIds(FlatAffineConstraints &other);
 
   /// Removes all equalities and inequalities.
@@ -884,8 +885,9 @@ public:
   }
 
   /// Merge and align symbols of `this` and `other` such that both get union of
-  /// of symbols that are unique. Symbols with Value as `None` are considered
-  /// to be inequal to all other symbols.
+  /// of symbols that are unique. Symbols in `this` and `other` should be
+  /// unique. Symbols with Value as `None` are considered to be inequal to all
+  /// other symbols.
   void mergeSymbolIds(FlatAffineValueConstraints &other);
 
 protected:
