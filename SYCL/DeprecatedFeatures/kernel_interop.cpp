@@ -52,10 +52,9 @@ int main() {
 
   // Try to create kernel with another context
   bool Pass = false;
-  queue Queue1;
-  context Context1 = Queue1.get_context();
+  context OtherContext{Context.get_devices()[0]};
   try {
-    kernel Kernel(ClKernel, Context1);
+    kernel Kernel(ClKernel, OtherContext);
   } catch (cl::sycl::invalid_parameter_error e) {
     Pass = true;
   }
