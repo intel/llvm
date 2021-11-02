@@ -567,8 +567,8 @@ ModuleUPtr splitModule(const Module &M, ValueToValueMapTy &VMap,
     ValueToValueMapTy &VMapRef = !ReduceMemoryUsage ? TempVMap : VMap;
     // Clone definitions only for needed globals. Others will be added as
     // declarations and removed later.
-    MClone = CloneModule(
-        M, VMapRef, [&](const GlobalValue *GV) { return GVs.count(GV); });
+    MClone = CloneModule(M, VMapRef,
+                         [&](const GlobalValue *GV) { return GVs.count(GV); });
   }
 
   // TODO: Use the new PassManager instead?
