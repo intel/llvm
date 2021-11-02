@@ -21,8 +21,7 @@ kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
                          KernelBundleImplPtr KernelBundleImpl)
     : kernel_impl(Kernel, Context,
                   std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true,
-                  KernelBundleImpl) {
+                  /*IsCreatedFromSource*/ true, KernelBundleImpl) {
   // This constructor is only called in the interoperability kernel constructor.
   // Let the runtime caller handle native kernel retaining in other cases if
   // it's needed.
