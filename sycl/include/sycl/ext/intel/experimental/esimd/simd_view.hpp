@@ -68,11 +68,11 @@ protected:
   /// @}
 
 public:
-  // Default copy and move constructors for simd_view.
+  /// Default copy and move constructors for simd_view.
   simd_view(const simd_view &Other) = default;
   simd_view(simd_view &&Other) = default;
 
-  // Construct a complete view of a vector
+  /// Construct a complete view of a vector
   simd_view(BaseTy &Base) : BaseClass(Base) {}
 
   simd_view &operator=(const simd_view &Other) {
@@ -142,7 +142,7 @@ private:
   simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
-  // Construct a complete view of a vector
+  /// Construct a complete view of a vector
   simd_view(BaseTy &Base) : BaseClass(Base) {}
 
   operator element_type() const {
