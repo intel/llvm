@@ -35,9 +35,15 @@ using namespace ::cl::sycl::detail;
 using memory_order = cl::sycl::ext::oneapi::memory_order;
 using memory_scope = cl::sycl::ext::oneapi::memory_scope;
 
-template <typename T>
-using IsValidAtomicRefType =
-    bool_constant<IsValidAtomicType<T>::value || std::is_pointer<T>::value>;
+template <typename T> struct IsValidAtomicRefType {
+  static constexpr bool value =
+      (std::is_same<T, int>::value || std::is_same<T, unsigned int>::value ||
+       std::is_same<T, long>::value || std::is_same<T, unsigned long>::value ||
+       std::is_same<T, long long>::value ||
+       std::is_same<T, unsigned long long>::value ||
+       std::is_same<T, float>::value || std::is_same<T, double>::value ||
+       std::is_pointer<T>::value);
+};
 
 template <cl::sycl::access::address_space AS>
 using IsValidAtomicAddressSpace =
