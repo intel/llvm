@@ -9,7 +9,22 @@
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM1
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-SYM2
 
+; RUN: sycl-post-link -split=kernel -symbols -reduce-memory-usage=true -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR0
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR1
+; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-IR2
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM0
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM1
+; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-SYM2
+
 ; RUN: sycl-post-link -split=kernel -emit-only-kernels-as-entry-points -symbols -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR1
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR2
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM1
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYM2
+; RUN: FileCheck %s -input-file=%t.table --check-prefixes CHECK-TABLE
+
+; RUN: sycl-post-link -split=kernel -emit-only-kernels-as-entry-points -symbols -reduce-memory-usage=true -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-IR1
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-IR2
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM1

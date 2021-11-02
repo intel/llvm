@@ -3,6 +3,10 @@
 // RUN: cat %t-split1_0.ll | FileCheck %s -check-prefixes=CHECK-IR
 // RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK-PROP
 //
+// RUN: sycl-post-link %t.bc -spec-const=default -reduce-memory-usage=true -S -o %t-split1.txt
+// RUN: cat %t-split1_0.ll | FileCheck %s -check-prefixes=CHECK-IR
+// RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK-PROP
+//
 //==----------- SYCL-2020-spec-const-ids-order.cpp -------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

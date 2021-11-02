@@ -5,6 +5,13 @@
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-SYCL-PROP
 ; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-PROP
 
+; RUN: sycl-post-link -split-esimd -reduce-memory-usage=true -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t.table
+; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-IR
+; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-IR
+; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-SYCL-PROP
+; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-PROP
+
 ; This is basic test of splitting SYCL and ESIMD kernels into separate modules.
 ; ESIMD module should have isEsimdImage=1 property set after splitting.
 

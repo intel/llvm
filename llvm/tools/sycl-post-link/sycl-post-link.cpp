@@ -185,6 +185,17 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
              "device code split"),
     cl::cat(PostLinkCat), cl::init(false)};
 
+// The option turns on using one ValueToValueMapTy instance for all split
+// modules. Sharing may reduce RAM memory utilization significantly, but in some
+// cases necessary data may be lost.
+// For example, metadata that collects all kernels in a split module may be lost
+// for CUDA target.
+// This option is off by default.
+cl::opt<bool> ReduceMemoryUsage{
+    "reduce-memory-usage",
+    cl::desc("Share temporary auxiliary memory to reduce RAM utilization"),
+    cl::cat(PostLinkCat), cl::init(false)};
+
 struct ImagePropSaveInfo {
   bool SetSpecConstAtRT;
   bool SpecConstsMet;
@@ -550,10 +561,15 @@ ModuleUPtr splitModule(const Module &M, ValueToValueMapTy &VMap,
     GVs.insert(&G);
   }
 
-  // Clone definitions only for needed globals. Others will be added as
-  // declarations and removed later.
-  ModuleUPtr MClone = CloneModule(
-      M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
+  ModuleUPtr MClone{nullptr};
+  {
+    ValueToValueMapTy TempVMap;
+    ValueToValueMapTy &VMapRef = !ReduceMemoryUsage ? TempVMap : VMap;
+    // Clone definitions only for needed globals. Others will be added as
+    // declarations and removed later.
+    MClone = CloneModule(
+        M, VMapRef, [&](const GlobalValue *GV) { return GVs.count(GV); });
+  }
 
   // TODO: Use the new PassManager instead?
   legacy::PassManager Passes;

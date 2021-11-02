@@ -1,4 +1,5 @@
 ; RUN: sycl-post-link --ir-output-only --spec-const=rt %s -S -o - | FileCheck %s
+; RUN: sycl-post-link --ir-output-only --spec-const=rt -reduce-memory-usage=true %s -S -o - | FileCheck %s
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants have zeroinitializer in LLVM IR

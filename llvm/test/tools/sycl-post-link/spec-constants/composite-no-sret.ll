@@ -1,6 +1,9 @@
 ; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -o - \
 ; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue" --implicit-check-not "call {{.*}} __sycl_getComposite2020SpecConstantValue"
 
+; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -reduce-memory-usage=true -o - \
+; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue" --implicit-check-not "call {{.*}} __sycl_getComposite2020SpecConstantValue"
+
 ; CHECK: %[[#NS0:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID:]], i32
 ; CHECK: %[[#NS1:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID + 1]], i32 42)
 ; CHECK: %[[#NA0:]] = call %struct._ZTS10TestStruct.TestStruct @_Z29__spirv_SpecConstantCompositeii_Rstruct._ZTS10TestStruct.TestStruct(i32 %[[#NS0]], i32 %[[#NS1]])

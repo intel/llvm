@@ -3,6 +3,10 @@
 // RUN: cat %t-split_0.prop | FileCheck %s
 // RUN: llvm-spirv -o %t-split_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split_0.bc
 //
+// RUN: sycl-post-link %t.bc -spec-const=rt -reduce-memory-usage=true -o %t-split.txt
+// RUN: cat %t-split_0.prop | FileCheck %s
+// RUN: llvm-spirv -o %t-split_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split_0.bc
+//
 //==----------- spec_const.cpp ---------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

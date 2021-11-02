@@ -1,7 +1,10 @@
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
 ; In precense of indirectly callable function auto mode is equal to no split,
 ; which means that separate LLVM IR file for device is not generated and we only
 ; need to check generated symbol table
+; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK
+
+; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table -reduce-memory-usage=true
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

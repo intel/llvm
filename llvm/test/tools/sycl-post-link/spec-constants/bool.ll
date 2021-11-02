@@ -1,6 +1,9 @@
 ; RUN: sycl-post-link -spec-const=rt -S %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast"
 
+; RUN: sycl-post-link -spec-const=rt -S %s --ir-output-only -o %t.ll -reduce-memory-usage=true
+; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast"
+
 ; CHECK-LABEL: void @kernel_A
 ; CHECK: %[[CALL:.*]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8 1)
 ; CHECK: trunc i8 %[[CALL]] to i1

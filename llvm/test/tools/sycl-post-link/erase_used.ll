@@ -6,10 +6,20 @@
 ; RUN: FileCheck %s -input-file=%t.files_0.ll
 ; RUN: FileCheck %s -input-file=%t.files_1.ll
 ;
+; RUN: sycl-post-link -split=kernel -S %s -o %t.files.table -reduce-memory-usage=true
+; RUN: FileCheck %s -input-file=%t.files_0.ll
+; RUN: FileCheck %s -input-file=%t.files_1.ll
+;
 ; RUN: sycl-post-link -S -split=auto -symbols -split-esimd -lower-esimd -O2 -spec-const=default %s -o %t.out.table
 ; RUN: FileCheck %s --input-file=%t.out_0.ll
 ;
+; RUN: sycl-post-link -S -split=auto -symbols -split-esimd -lower-esimd -O2 -spec-const=default %s -o %t.out.table -reduce-memory-usage=true
+; RUN: FileCheck %s --input-file=%t.out_0.ll
+;
 ; RUN: sycl-post-link -S -split=auto -ir-output-only %s -o %t.out_ir_only.ll
+; RUN: FileCheck %s --input-file %t.out_ir_only.ll
+;
+; RUN: sycl-post-link -S -split=auto -ir-output-only %s -o %t.out_ir_only.ll -reduce-memory-usage=true
 ; RUN: FileCheck %s --input-file %t.out_ir_only.ll
 
 target triple = "spir64-unknown-unknown"

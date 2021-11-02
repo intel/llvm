@@ -1,6 +1,9 @@
 ; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.sym
 
+; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table -reduce-memory-usage=true
+; RUN: FileCheck %s -input-file=%t_0.sym
+
 ; This test checkes that module is not split if function pointer's user is not
 ; CallInst.
 

@@ -3,6 +3,11 @@
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYCL-SYM
 ; RUN: FileCheck %s -input-file=%t_esimd_0.sym --check-prefixes CHECK-ESIMD-SYM
 
+; RUN: sycl-post-link -split-esimd -symbols -reduce-memory-usage=true -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t.table
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYCL-SYM
+; RUN: FileCheck %s -input-file=%t_esimd_0.sym --check-prefixes CHECK-ESIMD-SYM
+
 ; This test checks symbols generation when we split SYCL and ESIMD kernels into
 ; separate modules.
 

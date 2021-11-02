@@ -2,6 +2,9 @@
 // RUN: sycl-post-link -split-esimd -lower-esimd -O2 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
+// RUN: sycl-post-link -split-esimd -lower-esimd -O2 -reduce-memory-usage=true -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+
 // This test checks that unreferenced SYCL_EXTERNAL functions are not dropped
 // from the module and go through sycl-post-link. This test also checks that
 // ESIMD lowering happens for such functions as well.

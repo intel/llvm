@@ -1,6 +1,9 @@
 ; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -o - \
 ; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue"
 ;
+; RUN: sycl-post-link -spec-const=rt --ir-output-only %s -S -reduce-memory-usage=true -o - \
+; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getCompositeSpecConstantValue"
+;
 ; This test is intended to check that sycl-post-link tool is capable of handling
 ; situations when the same composite specialization constants is used more than
 ; once. Unlike multiple-composite-spec-const-usages.ll test, this is a real life

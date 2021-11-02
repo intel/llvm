@@ -1,5 +1,11 @@
-; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
 ; By default auto mode is equal to source mode
+; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table
+; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-TU0,CHECK
+; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-TU1,CHECK
+; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-TXT
+; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-TXT
+
+; RUN: sycl-post-link -split=auto -symbols -S %s -o %t.table -reduce-memory-usage=true
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-TU0,CHECK
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-TU1,CHECK
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-TXT

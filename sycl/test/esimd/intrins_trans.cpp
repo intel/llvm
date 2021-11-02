@@ -2,6 +2,9 @@
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
+// RUN: sycl-post-link -split-esimd -lower-esimd -O0 -reduce-memory-usage=true -S %t -o %t.table
+// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+
 // Checks ESIMD intrinsic translation.
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code
 
