@@ -12,7 +12,7 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Reads Flag of AssertHappened on device
-SYCL_EXTERNAL __attribute__((weak)) extern "C" void
+SYCL_EXTERNAL __kernel __attribute__((weak)) extern "C" void
 __devicelib_assert_read(void *);
 #endif
 

@@ -25,7 +25,7 @@ SPIR_GLOBAL AssertHappened SPIR_AssertHappenedMem;
 #define KERNEL_ATTRS __attribute__((weak))
 #endif
 
-KERNEL_ATTRS EXTERN_C /* DEVICE_EXTERN_C */ void __devicelib_assert_read(void *_Dst) {
+KERNEL_ATTRS EXTERN_C /* DEVICE_EXTERN_C */ void __devicelib_assert_read(__SYCL_GLOBAL__ void *_Dst) {
   if (!_Dst)
     return;
 
@@ -52,7 +52,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   // FIXME make offline linking against __devicelib_assert_fail enforce linking
   // against __devicelib_assert_read also
   {
- #if 0
+#if 0
     void (*Ptr)(void *) = &__devicelib_assert_read;
     void *Ptr2 = (void *)Ptr;
     int X = *(int *)Ptr2;
