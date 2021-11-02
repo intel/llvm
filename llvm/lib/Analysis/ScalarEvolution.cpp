@@ -1098,7 +1098,7 @@ const SCEV *ScalarEvolution::getLosslessPtrToIntExpr(const SCEV *Op,
     SCEV *S = new (SCEVAllocator)
         SCEVPtrToIntExpr(ID.Intern(SCEVAllocator), Op, IntPtrTy);
     UniqueSCEVs.InsertNode(S, IP);
-    addToLoopUseLists(S);
+    registerUser(S, Op);
     return S;
   }
 
@@ -1218,7 +1218,7 @@ const SCEV *ScalarEvolution::getTruncateExpr(const SCEV *Op, Type *Ty,
     SCEV *S =
         new (SCEVAllocator) SCEVTruncateExpr(ID.Intern(SCEVAllocator), Op, Ty);
     UniqueSCEVs.InsertNode(S, IP);
-    addToLoopUseLists(S);
+    registerUser(S, Op);
     return S;
   }
 
@@ -1272,7 +1272,7 @@ const SCEV *ScalarEvolution::getTruncateExpr(const SCEV *Op, Type *Ty,
   SCEV *S = new (SCEVAllocator) SCEVTruncateExpr(ID.Intern(SCEVAllocator),
                                                  Op, Ty);
   UniqueSCEVs.InsertNode(S, IP);
-  addToLoopUseLists(S);
+  registerUser(S, Op);
   return S;
 }
 
@@ -1601,7 +1601,7 @@ ScalarEvolution::getZeroExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth) {
     SCEV *S = new (SCEVAllocator) SCEVZeroExtendExpr(ID.Intern(SCEVAllocator),
                                                      Op, Ty);
     UniqueSCEVs.InsertNode(S, IP);
-    addToLoopUseLists(S);
+    registerUser(S, Op);
     return S;
   }
 
@@ -1870,7 +1870,7 @@ ScalarEvolution::getZeroExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth) {
   SCEV *S = new (SCEVAllocator) SCEVZeroExtendExpr(ID.Intern(SCEVAllocator),
                                                    Op, Ty);
   UniqueSCEVs.InsertNode(S, IP);
-  addToLoopUseLists(S);
+  registerUser(S, Op);
   return S;
 }
 
@@ -1909,7 +1909,7 @@ ScalarEvolution::getSignExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth) {
     SCEV *S = new (SCEVAllocator) SCEVSignExtendExpr(ID.Intern(SCEVAllocator),
                                                      Op, Ty);
     UniqueSCEVs.InsertNode(S, IP);
-    addToLoopUseLists(S);
+    registerUser(S, Op);
     return S;
   }
 
@@ -2106,7 +2106,7 @@ ScalarEvolution::getSignExtendExpr(const SCEV *Op, Type *Ty, unsigned Depth) {
   SCEV *S = new (SCEVAllocator) SCEVSignExtendExpr(ID.Intern(SCEVAllocator),
                                                    Op, Ty);
   UniqueSCEVs.InsertNode(S, IP);
-  addToLoopUseLists(S);
+  registerUser(S, { Op });
   return S;
 }
 
@@ -2891,7 +2891,7 @@ ScalarEvolution::getOrCreateAddExpr(ArrayRef<const SCEV *> Ops,
     S = new (SCEVAllocator)
         SCEVAddExpr(ID.Intern(SCEVAllocator), O, Ops.size());
     UniqueSCEVs.InsertNode(S, IP);
-    addToLoopUseLists(S);
+    registerUser(S, Ops);
   }
   S->setNoWrapFlags(Flags);
   return S;
@@ -2914,7 +2914,8 @@ ScalarEvolution::getOrCreateAddRecExpr(ArrayRef<const SCEV *> Ops,
     S = new (SCEVAllocator)
         SCEVAddRecExpr(ID.Intern(SCEVAllocator), O, Ops.size(), L);
     UniqueSCEVs.InsertNode(S, IP);
-    addToLoopUseLists(S);
+    LoopUsers[L].push_back(S);
+    registerUser(S, Ops);
   }
   setNoWrapFlags(S, Flags);
   return S;
@@ -2936,7 +2937,7 @@ ScalarEvolution::getOrCreateMulExpr(ArrayRef<const SCEV *> Ops,
     S = new (SCEVAllocator) SCEVMulExpr(ID.Intern(SCEVAllocator),
                                         O, Ops.size());
     UniqueSCEVs.InsertNode(S, IP);
-    addToLoopUseLists(S);
+    registerUser(S, Ops);
   }
   S->setNoWrapFlags(Flags);
   return S;
@@ -3445,7 +3446,7 @@ const SCEV *ScalarEvolution::getUDivExpr(const SCEV *LHS,
   SCEV *S = new (SCEVAllocator) SCEVUDivExpr(ID.Intern(SCEVAllocator),
                                              LHS, RHS);
   UniqueSCEVs.InsertNode(S, IP);
-  addToLoopUseLists(S);
+  registerUser(S, {LHS, RHS});
   return S;
 }
 
@@ -3839,7 +3840,7 @@ const SCEV *ScalarEvolution::getMinMaxExpr(SCEVTypes Kind,
       SCEVMinMaxExpr(ID.Intern(SCEVAllocator), Kind, O, Ops.size());
 
   UniqueSCEVs.InsertNode(S, IP);
-  addToLoopUseLists(S);
+  registerUser(S, Ops);
   return S;
 }
 
@@ -4065,24 +4066,6 @@ void ScalarEvolution::eraseValueFromMap(Value *V) {
   }
 }
 
-/// Check whether value has nuw/nsw/exact set but SCEV does not.
-/// TODO: In reality it is better to check the poison recursively
-/// but this is better than nothing.
-static bool SCEVLostPoisonFlags(const SCEV *S, const Value *V) {
-  if (auto *I = dyn_cast<Instruction>(V)) {
-    if (isa<OverflowingBinaryOperator>(I)) {
-      if (auto *NS = dyn_cast<SCEVNAryExpr>(S)) {
-        if (I->hasNoSignedWrap() && !NS->hasNoSignedWrap())
-          return true;
-        if (I->hasNoUnsignedWrap() && !NS->hasNoUnsignedWrap())
-          return true;
-      }
-    } else if (isa<PossiblyExactOperator>(I) && I->isExact())
-      return true;
-  }
-  return false;
-}
-
 /// Return an existing SCEV if it exists, otherwise analyze the expression and
 /// create a new one.
 const SCEV *ScalarEvolution::getSCEV(Value *V) {
@@ -4096,7 +4079,7 @@ const SCEV *ScalarEvolution::getSCEV(Value *V) {
     // ValueExprMap before insert S->{V, 0} into ExprValueMap.
     std::pair<ValueExprMapType::iterator, bool> Pair =
         ValueExprMap.insert({SCEVCallbackVH(V, this), S});
-    if (Pair.second && !SCEVLostPoisonFlags(S, V)) {
+    if (Pair.second) {
       ExprValueMap[S].insert({V, nullptr});
 
       // If S == Stripped + Offset, add Stripped -> {V, Offset} into
@@ -4422,6 +4405,7 @@ static void PushDefUseChildren(Instruction *I,
 void ScalarEvolution::forgetSymbolicName(Instruction *PN, const SCEV *SymName) {
   SmallVector<Instruction *, 16> Worklist;
   SmallPtrSet<Instruction *, 8> Visited;
+  SmallVector<const SCEV *, 8> ToForget;
   Visited.insert(PN);
   Worklist.push_back(PN);
   while (!Worklist.empty()) {
@@ -4447,12 +4431,13 @@ void ScalarEvolution::forgetSymbolicName(Instruction *PN, const SCEV *SymName) {
           !isa<SCEVUnknown>(Old) ||
           (I != PN && Old == SymName)) {
         eraseValueFromMap(It->first);
-        forgetMemoizedResults(Old);
+        ToForget.push_back(Old);
       }
     }
 
     PushDefUseChildren(I, Worklist, Visited);
   }
+  forgetMemoizedResults(ToForget);
 }
 
 namespace {
@@ -6593,6 +6578,26 @@ ScalarEvolution::getNonTrivialDefiningScopeBound(const SCEV *S) {
   return nullptr;
 }
 
+/// Fills \p Ops with unique operands of \p S, if it has operands. If not,
+/// \p Ops remains unmodified.
+static void collectUniqueOps(const SCEV *S,
+                             SmallVectorImpl<const SCEV *> &Ops) {
+  SmallPtrSet<const SCEV *, 4> Unique;
+  auto InsertUnique = [&](const SCEV *S) {
+    if (Unique.insert(S).second)
+      Ops.push_back(S);
+  };
+  if (auto *S2 = dyn_cast<SCEVCastExpr>(S))
+    for (auto *Op : S2->operands())
+      InsertUnique(Op);
+  else if (auto *S2 = dyn_cast<SCEVNAryExpr>(S))
+    for (auto *Op : S2->operands())
+      InsertUnique(Op);
+  else if (auto *S2 = dyn_cast<SCEVUDivExpr>(S))
+    for (auto *Op : S2->operands())
+      InsertUnique(Op);
+}
+
 const Instruction *
 ScalarEvolution::getDefiningScopeBound(ArrayRef<const SCEV *> Ops) {
   // Do a bounded search of the def relation of the requested SCEVs.
@@ -6616,15 +6621,12 @@ ScalarEvolution::getDefiningScopeBound(ArrayRef<const SCEV *> Ops) {
     if (auto *DefI = getNonTrivialDefiningScopeBound(S)) {
       if (!Bound || DT.dominates(Bound, DefI))
         Bound = DefI;
-    } else if (auto *S2 = dyn_cast<SCEVCastExpr>(S))
-      for (auto *Op : S2->operands())
+    } else {
+      SmallVector<const SCEV *, 4> Ops;
+      collectUniqueOps(S, Ops);
+      for (auto *Op : Ops)
         pushOp(Op);
-    else if (auto *S2 = dyn_cast<SCEVNAryExpr>(S))
-      for (auto *Op : S2->operands())
-        pushOp(Op);
-    else if (auto *S2 = dyn_cast<SCEVUDivExpr>(S))
-      for (auto *Op : S2->operands())
-        pushOp(Op);
+    }
   }
   return Bound ? Bound : &*F.getEntryBlock().begin();
 }
@@ -7438,6 +7440,7 @@ ScalarEvolution::getBackedgeTakenInfo(const Loop *L) {
   if (Result.hasAnyInfo()) {
     SmallVector<Instruction *, 16> Worklist;
     SmallPtrSet<Instruction *, 8> Discovered;
+    SmallVector<const SCEV *, 8> ToForget;
     PushLoopPHIs(L, Worklist, Discovered);
     while (!Worklist.empty()) {
       Instruction *I = Worklist.pop_back_val();
@@ -7455,7 +7458,7 @@ ScalarEvolution::getBackedgeTakenInfo(const Loop *L) {
         // own when it gets to that point.
         if (!isa<PHINode>(I) || !isa<SCEVUnknown>(Old)) {
           eraseValueFromMap(It->first);
-          forgetMemoizedResults(Old);
+          ToForget.push_back(Old);
         }
         if (PHINode *PN = dyn_cast<PHINode>(I))
           ConstantEvolutionLoopExitValue.erase(PN);
@@ -7487,6 +7490,7 @@ ScalarEvolution::getBackedgeTakenInfo(const Loop *L) {
             Worklist.push_back(I);
         }
     }
+    forgetMemoizedResults(ToForget);
   }
 
   // Re-lookup the insert position, since the call to
@@ -7523,6 +7527,7 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
   SmallVector<const Loop *, 16> LoopWorklist(1, L);
   SmallVector<Instruction *, 32> Worklist;
   SmallPtrSet<Instruction *, 16> Visited;
+  SmallVector<const SCEV *, 16> ToForget;
 
   // Iterate over all the loops and sub-loops to drop SCEV information.
   while (!LoopWorklist.empty()) {
@@ -7544,8 +7549,8 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
 
     auto LoopUsersItr = LoopUsers.find(CurrL);
     if (LoopUsersItr != LoopUsers.end()) {
-      for (auto *S : LoopUsersItr->second)
-        forgetMemoizedResults(S);
+      ToForget.insert(ToForget.end(), LoopUsersItr->second.begin(),
+                LoopUsersItr->second.end());
       LoopUsers.erase(LoopUsersItr);
     }
 
@@ -7559,7 +7564,7 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
           ValueExprMap.find_as(static_cast<Value *>(I));
       if (It != ValueExprMap.end()) {
         eraseValueFromMap(It->first);
-        forgetMemoizedResults(It->second);
+        ToForget.push_back(It->second);
         if (PHINode *PN = dyn_cast<PHINode>(I))
           ConstantEvolutionLoopExitValue.erase(PN);
       }
@@ -7572,6 +7577,7 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
     // ValuesAtScopes map.
     LoopWorklist.append(CurrL->begin(), CurrL->end());
   }
+  forgetMemoizedResults(ToForget);
 }
 
 void ScalarEvolution::forgetTopmostLoop(const Loop *L) {
@@ -7587,6 +7593,7 @@ void ScalarEvolution::forgetValue(Value *V) {
   // Drop information about expressions based on loop-header PHIs.
   SmallVector<Instruction *, 16> Worklist;
   SmallPtrSet<Instruction *, 8> Visited;
+  SmallVector<const SCEV *, 8> ToForget;
   Worklist.push_back(I);
   Visited.insert(I);
 
@@ -7596,13 +7603,14 @@ void ScalarEvolution::forgetValue(Value *V) {
       ValueExprMap.find_as(static_cast<Value *>(I));
     if (It != ValueExprMap.end()) {
       eraseValueFromMap(It->first);
-      forgetMemoizedResults(It->second);
+      ToForget.push_back(It->second);
       if (PHINode *PN = dyn_cast<PHINode>(I))
         ConstantEvolutionLoopExitValue.erase(PN);
     }
 
     PushDefUseChildren(I, Worklist, Visited);
   }
+  forgetMemoizedResults(ToForget);
 }
 
 void ScalarEvolution::forgetLoopDispositions(const Loop *L) {
@@ -12325,6 +12333,7 @@ ScalarEvolution::ScalarEvolution(ScalarEvolution &&Arg)
       LoopDispositions(std::move(Arg.LoopDispositions)),
       LoopPropertiesCache(std::move(Arg.LoopPropertiesCache)),
       BlockDispositions(std::move(Arg.BlockDispositions)),
+      SCEVUsers(std::move(Arg.SCEVUsers)),
       UnsignedRanges(std::move(Arg.UnsignedRanges)),
       SignedRanges(std::move(Arg.SignedRanges)),
       UniqueSCEVs(std::move(Arg.UniqueSCEVs)),
@@ -12733,8 +12742,48 @@ bool ScalarEvolution::hasOperand(const SCEV *S, const SCEV *Op) const {
   return SCEVExprContains(S, [&](const SCEV *Expr) { return Expr == Op; });
 }
 
-void
-ScalarEvolution::forgetMemoizedResults(const SCEV *S) {
+void ScalarEvolution::forgetMemoizedResults(ArrayRef<const SCEV *> SCEVs) {
+  SmallPtrSet<const SCEV *, 8> ToForget(SCEVs.begin(), SCEVs.end());
+  SmallVector<const SCEV *, 8> Worklist(ToForget.begin(), ToForget.end());
+
+  while (!Worklist.empty()) {
+    const SCEV *Curr = Worklist.pop_back_val();
+    auto Users = SCEVUsers.find(Curr);
+    if (Users != SCEVUsers.end())
+      for (auto *User : Users->second)
+        if (ToForget.insert(User).second)
+          Worklist.push_back(User);
+  }
+
+  for (auto *S : ToForget)
+    forgetMemoizedResultsImpl(S);
+
+  for (auto I = PredicatedSCEVRewrites.begin();
+       I != PredicatedSCEVRewrites.end();) {
+    std::pair<const SCEV *, const Loop *> Entry = I->first;
+    if (ToForget.count(Entry.first))
+      PredicatedSCEVRewrites.erase(I++);
+    else
+      ++I;
+  }
+
+  auto RemoveSCEVFromBackedgeMap = [&ToForget](
+      DenseMap<const Loop *, BackedgeTakenInfo> &Map) {
+        for (auto I = Map.begin(), E = Map.end(); I != E;) {
+          BackedgeTakenInfo &BEInfo = I->second;
+          if (any_of(ToForget,
+                     [&BEInfo](const SCEV *S) { return BEInfo.hasOperand(S); }))
+            Map.erase(I++);
+          else
+            ++I;
+        }
+  };
+
+  RemoveSCEVFromBackedgeMap(BackedgeTakenCounts);
+  RemoveSCEVFromBackedgeMap(PredicatedBackedgeTakenCounts);
+}
+
+void ScalarEvolution::forgetMemoizedResultsImpl(const SCEV *S) {
   ValuesAtScopes.erase(S);
   LoopDispositions.erase(S);
   BlockDispositions.erase(S);
@@ -12743,29 +12792,6 @@ ScalarEvolution::forgetMemoizedResults(const SCEV *S) {
   ExprValueMap.erase(S);
   HasRecMap.erase(S);
   MinTrailingZerosCache.erase(S);
-
-  for (auto I = PredicatedSCEVRewrites.begin();
-       I != PredicatedSCEVRewrites.end();) {
-    std::pair<const SCEV *, const Loop *> Entry = I->first;
-    if (Entry.first == S)
-      PredicatedSCEVRewrites.erase(I++);
-    else
-      ++I;
-  }
-
-  auto RemoveSCEVFromBackedgeMap =
-      [S](DenseMap<const Loop *, BackedgeTakenInfo> &Map) {
-        for (auto I = Map.begin(), E = Map.end(); I != E;) {
-          BackedgeTakenInfo &BEInfo = I->second;
-          if (BEInfo.hasOperand(S))
-            Map.erase(I++);
-          else
-            ++I;
-        }
-      };
-
-  RemoveSCEVFromBackedgeMap(BackedgeTakenCounts);
-  RemoveSCEVFromBackedgeMap(PredicatedBackedgeTakenCounts);
 }
 
 void
@@ -12786,13 +12812,6 @@ ScalarEvolution::getUsedLoops(const SCEV *S,
 
   FindUsedLoops F(LoopsUsed);
   SCEVTraversal<FindUsedLoops>(F).visitAll(S);
-}
-
-void ScalarEvolution::addToLoopUseLists(const SCEV *S) {
-  SmallPtrSet<const Loop *, 8> LoopsUsed;
-  getUsedLoops(S, LoopsUsed);
-  for (auto *L : LoopsUsed)
-    LoopUsers[L].push_back(S);
 }
 
 void ScalarEvolution::verify() const {
@@ -12884,6 +12903,23 @@ void ScalarEvolution::verify() const {
       continue;
     assert(ValidLoops.contains(AR->getLoop()) &&
            "AddRec references invalid loop");
+  }
+
+  // Verify intergity of SCEV users.
+  for (const auto &S : UniqueSCEVs) {
+    SmallVector<const SCEV *, 4> Ops;
+    collectUniqueOps(&S, Ops);
+    for (const auto *Op : Ops) {
+      // We do not store dependencies of constants.
+      if (isa<SCEVConstant>(Op))
+        continue;
+      auto It = SCEVUsers.find(Op);
+      if (It != SCEVUsers.end() && It->second.count(&S))
+        continue;
+      dbgs() << "Use of operand  " << *Op << " by user " << S
+             << " is not being tracked!\n";
+      std::abort();
+    }
   }
 }
 
@@ -13287,6 +13323,16 @@ void SCEVUnionPredicate::add(const SCEVPredicate *N) {
 PredicatedScalarEvolution::PredicatedScalarEvolution(ScalarEvolution &SE,
                                                      Loop &L)
     : SE(SE), L(L) {}
+
+void ScalarEvolution::registerUser(const SCEV *User,
+                                   ArrayRef<const SCEV *> Ops) {
+  for (auto *Op : Ops)
+    // We do not expect that forgetting cached data for SCEVConstants will ever
+    // open any prospects for sharpening or introduce any correctness issues,
+    // so we don't bother storing their dependencies.
+    if (!isa<SCEVConstant>(Op))
+      SCEVUsers[Op].insert(User);
+}
 
 const SCEV *PredicatedScalarEvolution::getSCEV(Value *V) {
   const SCEV *Expr = SE.getSCEV(V);

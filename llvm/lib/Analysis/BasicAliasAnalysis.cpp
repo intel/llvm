@@ -318,15 +318,6 @@ struct CastedValue {
     return N;
   }
 
-  KnownBits evaluateWith(KnownBits N) const {
-    assert(N.getBitWidth() == V->getType()->getPrimitiveSizeInBits() &&
-           "Incompatible bit width");
-    if (TruncBits) N = N.trunc(N.getBitWidth() - TruncBits);
-    if (SExtBits) N = N.sext(N.getBitWidth() + SExtBits);
-    if (ZExtBits) N = N.zext(N.getBitWidth() + ZExtBits);
-    return N;
-  }
-
   ConstantRange evaluateWith(ConstantRange N) const {
     assert(N.getBitWidth() == V->getType()->getPrimitiveSizeInBits() &&
            "Incompatible bit width");
@@ -366,6 +357,11 @@ struct LinearExpression {
     unsigned BitWidth = Val.getBitWidth();
     Scale = APInt(BitWidth, 1);
     Offset = APInt(BitWidth, 0);
+  }
+
+  LinearExpression mul(const APInt &Other, bool MulIsNSW) const {
+    return LinearExpression(Val, Scale * Other, Offset * Other,
+                            IsNSW && (Other.isOne() || MulIsNSW));
   }
 };
 }
@@ -429,14 +425,11 @@ static LinearExpression GetLinearExpression(
         E.IsNSW &= NSW;
         break;
       }
-      case Instruction::Mul: {
+      case Instruction::Mul:
         E = GetLinearExpression(Val.withValue(BOp->getOperand(0)), DL,
-                                Depth + 1, AC, DT);
-        E.Offset *= RHS;
-        E.Scale *= RHS;
-        E.IsNSW &= NSW;
+                                Depth + 1, AC, DT)
+                .mul(RHS, NSW);
         break;
-      }
       case Instruction::Shl:
         // We're trying to linearize an expression of the kind:
         //   shl i8 -128, 36
@@ -654,8 +647,6 @@ BasicAAResult::DecomposeGEPExpression(const Value *V, const DataLayout &DL,
 
       GepHasConstantOffset = false;
 
-      APInt Scale(MaxPointerSize,
-                  DL.getTypeAllocSize(GTI.getIndexedType()).getFixedSize());
       // If the integer type is smaller than the pointer size, it is implicitly
       // sign extended to pointer size.
       unsigned Width = Index->getType()->getIntegerBitWidth();
@@ -664,25 +655,12 @@ BasicAAResult::DecomposeGEPExpression(const Value *V, const DataLayout &DL,
       LinearExpression LE = GetLinearExpression(
           CastedValue(Index, 0, SExtBits, TruncBits), DL, 0, AC, DT);
 
-      // The GEP index scale ("Scale") scales C1*V+C2, yielding (C1*V+C2)*Scale.
-      // This gives us an aggregate computation of (C1*Scale)*V + C2*Scale.
-
-      // It can be the case that, even through C1*V+C2 does not overflow for
-      // relevant values of V, (C2*Scale) can overflow. In that case, we cannot
-      // decompose the expression in this way.
-      //
-      // FIXME: C1*Scale and the other operations in the decomposed
-      // (C1*Scale)*V+C2*Scale can also overflow. We should check for this
-      // possibility.
-      bool Overflow;
-      APInt ScaledOffset = LE.Offset.sextOrTrunc(MaxPointerSize)
-                           .smul_ov(Scale, Overflow);
-      if (Overflow) {
-        LE = LinearExpression(CastedValue(Index, 0, SExtBits, TruncBits));
-      } else {
-        Decomposed.Offset += ScaledOffset;
-        Scale *= LE.Scale.sextOrTrunc(MaxPointerSize);
-      }
+      // Scale by the type size.
+      unsigned TypeSize =
+          DL.getTypeAllocSize(GTI.getIndexedType()).getFixedSize();
+      LE = LE.mul(APInt(PointerSize, TypeSize), GEPOp->isInBounds());
+      Decomposed.Offset += LE.Offset.sextOrSelf(MaxPointerSize);
+      APInt Scale = LE.Scale.sextOrSelf(MaxPointerSize);
 
       // If we already had an occurrence of this index variable, merge this
       // scale into it.  For example, we want to handle:
@@ -1250,8 +1228,7 @@ AliasResult BasicAAResult::aliasGEP(
 
   if (!DecompGEP1.VarIndices.empty()) {
     APInt GCD;
-    bool AllNonNegative = DecompGEP1.Offset.isNonNegative();
-    bool AllNonPositive = DecompGEP1.Offset.isNonPositive();
+    ConstantRange OffsetRange = ConstantRange(DecompGEP1.Offset);
     for (unsigned i = 0, e = DecompGEP1.VarIndices.size(); i != e; ++i) {
       const VariableGEPIndex &Index = DecompGEP1.VarIndices[i];
       const APInt &Scale = Index.Scale;
@@ -1265,16 +1242,19 @@ AliasResult BasicAAResult::aliasGEP(
       else
         GCD = APIntOps::GreatestCommonDivisor(GCD, ScaleForGCD.abs());
 
-      if (AllNonNegative || AllNonPositive) {
-        KnownBits Known = Index.Val.evaluateWith(
-            computeKnownBits(Index.Val.V, DL, 0, &AC, Index.CxtI, DT));
-        bool SignKnownZero = Known.isNonNegative();
-        bool SignKnownOne = Known.isNegative();
-        AllNonNegative &= (SignKnownZero && Scale.isNonNegative()) ||
-                          (SignKnownOne && Scale.isNonPositive());
-        AllNonPositive &= (SignKnownZero && Scale.isNonPositive()) ||
-                          (SignKnownOne && Scale.isNonNegative());
-      }
+      ConstantRange CR =
+          computeConstantRange(Index.Val.V, true, &AC, Index.CxtI);
+      KnownBits Known =
+          computeKnownBits(Index.Val.V, DL, 0, &AC, Index.CxtI, DT);
+      CR = CR.intersectWith(
+          ConstantRange::fromKnownBits(Known, /* Signed */ true),
+          ConstantRange::Signed);
+
+      assert(OffsetRange.getBitWidth() == Scale.getBitWidth() &&
+             "Bit widths are normalized to MaxPointerSize");
+      OffsetRange = OffsetRange.add(
+          Index.Val.evaluateWith(CR).sextOrTrunc(OffsetRange.getBitWidth())
+                                    .smul_fast(ConstantRange(Scale)));
     }
 
     // We now have accesses at two offsets from the same base:
@@ -1291,28 +1271,22 @@ AliasResult BasicAAResult::aliasGEP(
         (GCD - ModOffset).uge(V1Size.getValue()))
       return AliasResult::NoAlias;
 
-    // If we know all the variables are non-negative, then the total offset is
-    // also non-negative and >= DecompGEP1.Offset. We have the following layout:
-    // [0, V2Size) ... [TotalOffset, TotalOffer+V1Size]
-    // If DecompGEP1.Offset >= V2Size, the accesses don't alias.
-    if (AllNonNegative && V2Size.hasValue() &&
-        DecompGEP1.Offset.uge(V2Size.getValue()))
-      return AliasResult::NoAlias;
-    // Similarly, if the variables are non-positive, then the total offset is
-    // also non-positive and <= DecompGEP1.Offset. We have the following layout:
-    // [TotalOffset, TotalOffset+V1Size) ... [0, V2Size)
-    // If -DecompGEP1.Offset >= V1Size, the accesses don't alias.
-    if (AllNonPositive && V1Size.hasValue() &&
-        (-DecompGEP1.Offset).uge(V1Size.getValue()))
-      return AliasResult::NoAlias;
+    if (V1Size.hasValue() && V2Size.hasValue()) {
+      // Compute ranges of potentially accessed bytes for both accesses. If the
+      // interseciton is empty, there can be no overlap.
+      unsigned BW = OffsetRange.getBitWidth();
+      ConstantRange Range1 = OffsetRange.add(
+          ConstantRange(APInt(BW, 0), APInt(BW, V1Size.getValue())));
+      ConstantRange Range2 =
+          ConstantRange(APInt(BW, 0), APInt(BW, V2Size.getValue()));
+      if (Range1.intersectWith(Range2).isEmptySet())
+        return AliasResult::NoAlias;
+    }
 
     if (V1Size.hasValue() && V2Size.hasValue()) {
-      // Try to determine the range of values for VarIndex.
-      // VarIndexRange is such that:
-      //    (VarIndex <= -MinAbsVarIndex || MinAbsVarIndex <= VarIndex) &&
-      //    VarIndexRange.contains(VarIndex)
+      // Try to determine the range of values for VarIndex such that
+      // VarIndex <= -MinAbsVarIndex || MinAbsVarIndex <= VarIndex.
       Optional<APInt> MinAbsVarIndex;
-      Optional<ConstantRange> VarIndexRange;
       if (DecompGEP1.VarIndices.size() == 1) {
         // VarIndex = Scale*V.
         const VariableGEPIndex &Var = DecompGEP1.VarIndices[0];
@@ -1321,11 +1295,6 @@ AliasResult BasicAAResult::aliasGEP(
           // If V != 0 then abs(VarIndex) >= abs(Scale).
           MinAbsVarIndex = Var.Scale.abs();
         }
-        ConstantRange R = Var.Val.evaluateWith(
-            computeConstantRange(Var.Val.V, true, &AC, Var.CxtI));
-        if (!R.isFullSet() && !R.isEmptySet())
-          VarIndexRange = R.sextOrTrunc(Var.Scale.getBitWidth())
-                              .smul_fast(ConstantRange(Var.Scale));
       } else if (DecompGEP1.VarIndices.size() == 2) {
         // VarIndex = Scale*V0 + (-Scale)*V1.
         // If V0 != V1 then abs(VarIndex) >= abs(Scale).
@@ -1347,21 +1316,6 @@ AliasResult BasicAAResult::aliasGEP(
         // We know that Offset <= OffsetLo || Offset >= OffsetHi
         if (OffsetLo.isNegative() && (-OffsetLo).uge(V1Size.getValue()) &&
             OffsetHi.isNonNegative() && OffsetHi.uge(V2Size.getValue()))
-          return AliasResult::NoAlias;
-      }
-
-      if (VarIndexRange) {
-        ConstantRange OffsetRange =
-            VarIndexRange->add(ConstantRange(DecompGEP1.Offset));
-
-        // We know that Offset >= MinOffset.
-        // (MinOffset >= V2Size) => (Offset >= V2Size) => NoAlias.
-        if (OffsetRange.getSignedMin().sge(V2Size.getValue()))
-          return AliasResult::NoAlias;
-
-        // We know that Offset <= MaxOffset.
-        // (MaxOffset <= -V1Size) => (Offset <= -V1Size) => NoAlias.
-        if (OffsetRange.getSignedMax().sle(-V1Size.getValue()))
           return AliasResult::NoAlias;
       }
     }

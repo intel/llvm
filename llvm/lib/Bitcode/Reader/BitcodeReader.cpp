@@ -241,10 +241,9 @@ static Expected<std::string> readIdentificationCode(BitstreamCursor &Stream) {
         return std::move(Err);
       continue;
     case BitstreamEntry::Record:
-      if (Expected<unsigned> Skipped = Stream.skipRecord(Entry.ID))
-        continue;
-      else
-        return Skipped.takeError();
+      if (Error E = Stream.skipRecord(Entry.ID).takeError())
+        return std::move(E);
+      continue;
     }
   }
 }
@@ -320,10 +319,9 @@ static Expected<bool> hasObjCCategory(BitstreamCursor &Stream) {
       continue;
 
     case BitstreamEntry::Record:
-      if (Expected<unsigned> Skipped = Stream.skipRecord(Entry.ID))
-        continue;
-      else
-        return Skipped.takeError();
+      if (Error E = Stream.skipRecord(Entry.ID).takeError())
+        return std::move(E);
+      continue;
     }
   }
 }
@@ -2281,7 +2279,11 @@ Error BitcodeReader::resolveGlobalAndIndirectSymbolInits() {
           return error("Alias and aliasee types don't match");
         GA->setAliasee(C);
       } else if (auto *GI = dyn_cast<GlobalIFunc>(GV)) {
-        GI->setResolver(C);
+        Type *ResolverFTy =
+            GlobalIFunc::getResolverFunctionType(GI->getValueType());
+        // Transparently fix up the type for compatiblity with older bitcode
+        GI->setResolver(
+            ConstantExpr::getBitCast(C, ResolverFTy->getPointerTo()));
       } else {
         return error("Expected an alias or an ifunc");
       }
@@ -6772,10 +6774,9 @@ llvm::getBitcodeFileContents(MemoryBufferRef Buffer) {
       continue;
     }
     case BitstreamEntry::Record:
-      if (Expected<unsigned> StreamFailed = Stream.skipRecord(Entry.ID))
-        continue;
-      else
-        return StreamFailed.takeError();
+      if (Error E = Stream.skipRecord(Entry.ID).takeError())
+        return std::move(E);
+      continue;
     }
   }
 }
@@ -6798,12 +6799,9 @@ BitcodeModule::getModuleImpl(LLVMContext &Context, bool MaterializeAll,
   if (IdentificationBit != -1ull) {
     if (Error JumpFailed = Stream.JumpToBit(IdentificationBit))
       return std::move(JumpFailed);
-    Expected<std::string> ProducerIdentificationOrErr =
-        readIdentificationBlock(Stream);
-    if (!ProducerIdentificationOrErr)
-      return ProducerIdentificationOrErr.takeError();
-
-    ProducerIdentification = *ProducerIdentificationOrErr;
+    if (Error E =
+            readIdentificationBlock(Stream).moveInto(ProducerIdentification))
+      return std::move(E);
   }
 
   if (Error JumpFailed = Stream.JumpToBit(ModuleBit))
@@ -6877,10 +6875,9 @@ static Expected<bool> getEnableSplitLTOUnitFlag(BitstreamCursor &Stream,
   SmallVector<uint64_t, 64> Record;
 
   while (true) {
-    Expected<BitstreamEntry> MaybeEntry = Stream.advanceSkippingSubblocks();
-    if (!MaybeEntry)
-      return MaybeEntry.takeError();
-    BitstreamEntry Entry = MaybeEntry.get();
+    BitstreamEntry Entry;
+    if (Error E = Stream.advanceSkippingSubblocks().moveInto(Entry))
+      return std::move(E);
 
     switch (Entry.Kind) {
     case BitstreamEntry::SubBlock: // Handled for us already.
@@ -6925,10 +6922,9 @@ Expected<BitcodeLTOInfo> BitcodeModule::getLTOInfo() {
     return std::move(Err);
 
   while (true) {
-    Expected<llvm::BitstreamEntry> MaybeEntry = Stream.advance();
-    if (!MaybeEntry)
-      return MaybeEntry.takeError();
-    llvm::BitstreamEntry Entry = MaybeEntry.get();
+    llvm::BitstreamEntry Entry;
+    if (Error E = Stream.advance().moveInto(Entry))
+      return std::move(E);
 
     switch (Entry.Kind) {
     case BitstreamEntry::Error:

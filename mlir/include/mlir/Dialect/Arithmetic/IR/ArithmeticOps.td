@@ -92,16 +92,16 @@ def SignlessFixedWidthIntegerLike : TypeConstraint<Or<[
 // Cast from an integer type to another integer type.
 class Arith_IToICastOp<string mnemonic, list<OpTrait> traits = []> :
     Arith_CastOp<mnemonic, SignlessFixedWidthIntegerLike,
-                           SignlessFixedWidthIntegerLike>;
+                           SignlessFixedWidthIntegerLike, traits>;
 // Cast from an integer type to a floating point type.
 class Arith_IToFCastOp<string mnemonic, list<OpTrait> traits = []> :
-    Arith_CastOp<mnemonic, SignlessFixedWidthIntegerLike, FloatLike>;
+    Arith_CastOp<mnemonic, SignlessFixedWidthIntegerLike, FloatLike, traits>;
 // Cast from a floating point type to an integer type.
 class Arith_FToICastOp<string mnemonic, list<OpTrait> traits = []> :
-    Arith_CastOp<mnemonic, FloatLike, SignlessFixedWidthIntegerLike>;
+    Arith_CastOp<mnemonic, FloatLike, SignlessFixedWidthIntegerLike, traits>;
 // Cast from a floating point type to another floating point type.
 class Arith_FToFCastOp<string mnemonic, list<OpTrait> traits = []> :
-    Arith_CastOp<mnemonic, FloatLike, FloatLike>;
+    Arith_CastOp<mnemonic, FloatLike, FloatLike, traits>;
 
 // Base class for compare operations. Requires two operands of the same type
 // and returns a single `BoolLike` result. If the operand type is a vector or
@@ -956,13 +956,7 @@ def Arith_CmpIOp : Arith_CompareOp<"cmpi"> {
   ];
 
   let extraClassDeclaration = [{
-    static StringRef getPredicateAttrName() { return "predicate"; }
     static arith::CmpIPredicate getPredicateByName(StringRef name);
-
-    arith::CmpIPredicate getPredicate() {
-      return (arith::CmpIPredicate) (*this)->getAttrOfType<IntegerAttr>(
-          getPredicateAttrName()).getInt();
-    }
   }];
 
   let hasFolder = 1;
@@ -1012,13 +1006,7 @@ def Arith_CmpFOp : Arith_CompareOp<"cmpf"> {
   ];
 
   let extraClassDeclaration = [{
-    static StringRef getPredicateAttrName() { return "predicate"; }
     static arith::CmpFPredicate getPredicateByName(StringRef name);
-
-    arith::CmpFPredicate getPredicate() {
-      return (arith::CmpFPredicate) (*this)->getAttrOfType<IntegerAttr>(
-          getPredicateAttrName()).getInt();
-    }
   }];
 
   let hasFolder = 1;

@@ -410,6 +410,7 @@ const Value *stripAndAccumulateMinimalOffsets(
   };
 
   return Val->stripAndAccumulateConstantOffsets(DL, Offset, AllowNonInbounds,
+                                                /* AllowInvariant */ false,
                                                 AttributorAnalysis);
 }
 
@@ -1223,7 +1224,11 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         }
 
         // Check if the PHI operand is not dependent on the PHI itself.
-        APInt Offset(DL.getIndexTypeSizeInBits(AssociatedValue.getType()), 0);
+        // TODO: This is not great as we look at the pointer type. However, it
+        // is unclear where the Offset size comes from with typeless pointers.
+        APInt Offset(
+            DL.getIndexSizeInBits(CurPtr->getType()->getPointerAddressSpace()),
+            0);
         if (&AssociatedValue == CurPtr->stripAndAccumulateConstantOffsets(
                                     DL, Offset, /* AllowNonInbounds */ true)) {
           if (Offset != PtrOI.Offset) {
@@ -7317,10 +7322,12 @@ void AAMemoryBehaviorFloating::analyzeUseIn(Attributor &A, const Use &U,
 
   case Instruction::Store:
     // Stores cause the NO_WRITES property to disappear if the use is the
-    // pointer operand. Note that we do assume that capturing was taken care of
-    // somewhere else.
+    // pointer operand. Note that while capturing was taken care of somewhere
+    // else we need to deal with stores of the value that is not looked through.
     if (cast<StoreInst>(UserI)->getPointerOperand() == U.get())
       removeAssumedBits(NO_WRITES);
+    else
+      indicatePessimisticFixpoint();
     return;
 
   case Instruction::Call:
@@ -8644,31 +8651,7 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
 
   static bool calculateICmpInst(const ICmpInst *ICI, const APInt &LHS,
                                 const APInt &RHS) {
-    ICmpInst::Predicate Pred = ICI->getPredicate();
-    switch (Pred) {
-    case ICmpInst::ICMP_UGT:
-      return LHS.ugt(RHS);
-    case ICmpInst::ICMP_SGT:
-      return LHS.sgt(RHS);
-    case ICmpInst::ICMP_EQ:
-      return LHS.eq(RHS);
-    case ICmpInst::ICMP_UGE:
-      return LHS.uge(RHS);
-    case ICmpInst::ICMP_SGE:
-      return LHS.sge(RHS);
-    case ICmpInst::ICMP_ULT:
-      return LHS.ult(RHS);
-    case ICmpInst::ICMP_SLT:
-      return LHS.slt(RHS);
-    case ICmpInst::ICMP_NE:
-      return LHS.ne(RHS);
-    case ICmpInst::ICMP_ULE:
-      return LHS.ule(RHS);
-    case ICmpInst::ICMP_SLE:
-      return LHS.sle(RHS);
-    default:
-      llvm_unreachable("Invalid ICmp predicate!");
-    }
+    return ICmpInst::compare(LHS, RHS, ICI->getPredicate());
   }
 
   static APInt calculateCastInst(const CastInst *CI, const APInt &Src,

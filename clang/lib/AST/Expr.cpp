@@ -817,9 +817,9 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
         StringRef Param = Params->getParam(i)->getName();
         if (Param.empty()) continue;
         TOut << Param << " = ";
-        Args.get(i).print(
-            Policy, TOut,
-            TemplateParameterList::shouldIncludeTypeForArgument(Params, i));
+        Args.get(i).print(Policy, TOut,
+                          TemplateParameterList::shouldIncludeTypeForArgument(
+                              Policy, Params, i));
         TOut << ", ";
       }
     }
@@ -4754,6 +4754,7 @@ unsigned AtomicExpr::getNumSubExprs(AtomicOp Op) {
   case AO__c11_atomic_fetch_and:
   case AO__c11_atomic_fetch_or:
   case AO__c11_atomic_fetch_xor:
+  case AO__c11_atomic_fetch_nand:
   case AO__c11_atomic_fetch_max:
   case AO__c11_atomic_fetch_min:
   case AO__atomic_fetch_add:
