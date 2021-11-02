@@ -217,9 +217,8 @@ kernel
 make_kernel(const typename backend_traits<Backend>::template input_type<kernel>
                 &BackendObject,
             const context &TargetContext) {
-  return detail::make_kernel(
-      TargetContext, get_kernel_bundle<bundle_state::executable>(TargetContext),
-      detail::pi::cast<pi_native_handle>(BackendObject), false, Backend);
+  return detail::make_kernel(detail::pi::cast<pi_native_handle>(BackendObject),
+                             TargetContext, Backend);
 }
 
 template <backend Backend, bundle_state State>
