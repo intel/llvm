@@ -10594,7 +10594,6 @@ public:
 
   bool checkNSReturnsRetainedReturnType(SourceLocation loc, QualType type);
   bool checkAllowedSYCLInitializer(VarDecl *VD);
-
   //===--------------------------------------------------------------------===//
   // C++ Coroutines TS
   //
