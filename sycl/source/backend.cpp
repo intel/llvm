@@ -208,6 +208,7 @@ kernel make_kernel(const context &TargetContext,
                    backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
+  const auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
 
   // For Level-Zero expect exactly one device image in the bundle. This is
   // natural for interop kernel to get created out of a single native
@@ -218,7 +219,6 @@ kernel make_kernel(const context &TargetContext,
   //
   pi::PiProgram PiProgram = nullptr;
   if (Backend == backend::level_zero) {
-    auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
     if (KernelBundleImpl->size() != 1)
       throw sycl::runtime_error{
           "make_kernel: kernel_bundle must have single program image",
@@ -241,7 +241,7 @@ kernel make_kernel(const context &TargetContext,
 
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(PiKernel, ContextImpl));
+      std::make_shared<kernel_impl>(PiKernel, ContextImpl, KernelBundleImpl));
 }
 
 kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
