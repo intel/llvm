@@ -222,7 +222,8 @@ and not recommended to use in production environment.
 
 **`-fsycl-device-only`**
 
-    Compile only device part of the code and ignore host part.
+    Compile only device part of the code and ignore host part. If specified
+    without -fsycl-targets=<arg>, spir64 is the default triple.
 
 **`-f[no-]sycl-use-bitcode`** [EXPERIMENTAL]
 
