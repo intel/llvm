@@ -116,7 +116,8 @@ program::get_info() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <> __SYCL_EXPORT bool program::has_property<param_type>() const {   \
+  template <>                                                                  \
+  __SYCL_EXPORT bool program::has_property<param_type>() const noexcept {      \
     return impl->has_property<param_type>();                                   \
   }
 #include <sycl/detail/properties_traits.def>

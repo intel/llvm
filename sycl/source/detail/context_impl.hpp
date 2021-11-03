@@ -74,7 +74,7 @@ public:
   /// Checks if this context_impl has a property of type propertyT.
   ///
   /// \return true if this context_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return MPropList.has_property<propertyT>();
   }
 

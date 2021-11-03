@@ -94,7 +94,8 @@ public:
     return (getSize() + AllocatorValueSize - 1) / AllocatorValueSize;
   }
 
-  template <typename propertyT> __SYCL_DLL_LOCAL bool has_property() const {
+  template <typename propertyT>
+  __SYCL_DLL_LOCAL bool has_property() const noexcept {
     return MProps.has_property<propertyT>();
   }
 

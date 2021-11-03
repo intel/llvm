@@ -44,7 +44,8 @@ bool sampler::operator!=(const sampler &rhs) const {
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <> __SYCL_EXPORT bool sampler::has_property<param_type>() const {   \
+  template <>                                                                  \
+  __SYCL_EXPORT bool sampler::has_property<param_type>() const noexcept {      \
     return impl->has_property<param_type>();                                   \
   }
 #include <sycl/detail/properties_traits.def>
