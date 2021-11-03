@@ -1931,6 +1931,17 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   if (isUnevaluatedContext() || Ty.isNull())
     return;
 
+  // The original idea behind checkTypeSupport function is that unused
+  // declarations can be replaced with an array of bytes of the same size during
+  // codegen, however this is not yet implemented for SYCL and cause production
+  // of incorrect SPIR-V.
+  // In addition such replacement doesn't seem to be possible for types without
+  // constant byte size like zero length arrays. So, do a deep check for SYCL.
+  if (D && LangOpts.SYCLIsDevice) {
+    llvm::DenseSet<QualType> Visited;
+    deepTypeCheckForSYCLDevice(Loc, Visited, D);
+  }
+
   Decl *C = cast<Decl>(getCurLexicalContext());
 
   // Memcpy operations for structs containing a member with unsupported type

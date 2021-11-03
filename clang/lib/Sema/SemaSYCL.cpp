@@ -422,10 +422,97 @@ bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   return false;
 }
 
-static bool isZeroSizedArray(QualType Ty) {
-  if (const auto *CATy = dyn_cast<ConstantArrayType>(Ty))
-    return CATy->getSize() == 0;
+static bool isZeroSizedArray(Sema &SemaRef, QualType Ty) {
+  if (const auto *CAT = SemaRef.getASTContext().getAsConstantArrayType(Ty))
+    return CAT->getSize() == 0;
   return false;
+}
+
+// NOTE: In case this function gets upstreamed and other single source
+// offloading models also need it, it can be generalized via using of
+// `targetDiag` instead of `SYCLDiagIfDeviceCode` and removing assertion at the
+// beginning.
+void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
+                                      llvm::DenseSet<QualType> Visited,
+                                      ValueDecl *DeclToCheck) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Should only be called during SYCL compilation");
+  auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
+    bool ErrorFound = false;
+    if (isZeroSizedArray(*this, TypeToCheck)) {
+      SYCLDiagIfDeviceCode(UsedAt, diag::err_typecheck_zero_array_size);
+      ErrorFound = true;
+    }
+    // Checks for other types can also be done here.
+    if (ErrorFound) {
+      if (auto *FD = dyn_cast<FieldDecl>(D)) {
+        SYCLDiagIfDeviceCode(FD->getLocation(),
+                             diag::note_illegal_field_declared_here)
+            << FD->getType()->isPointerType() << FD->getType();
+      } else {
+        SYCLDiagIfDeviceCode(D->getLocation(),
+                             diag::note_illegal_type_decl_here)
+            << D << D->getType();
+      }
+    }
+
+    return ErrorFound;
+  };
+
+  // In case we have a Record used do the DFS for a bad field
+  SmallVector<const ValueDecl *, 4> StackForRecursion;
+  StackForRecursion.push_back(DeclToCheck);
+
+  // While doing DFS save how we get there to emit a nice set of notes.
+  SmallVector<const FieldDecl *, 4> History;
+  History.push_back(nullptr);
+
+  do {
+    const ValueDecl *Next = StackForRecursion.pop_back_val();
+    if (!Next) {
+      assert(!History.empty());
+      // Found a marker, we have gone up a level.
+      History.pop_back();
+      continue;
+    }
+    QualType NextTy = Next->getType();
+
+    if (!Visited.insert(NextTy).second)
+      continue;
+
+    auto EmitHistory = [&]() {
+      // The first element is always nullptr.
+      for (uint64_t Index = 1; Index < History.size(); ++Index) {
+        SYCLDiagIfDeviceCode(History[Index]->getLocation(),
+                             diag::note_within_field_of_type)
+            << History[Index]->getType();
+      }
+    };
+    if (Check(NextTy, Next))
+      EmitHistory();
+
+    // In case pointer/array/reference type is met get pointeetype, then proceed
+    // with that type.
+    while (NextTy->isAnyPointerType() || NextTy->isArrayType() ||
+           NextTy->isReferenceType()) {
+      if (NextTy->isArrayType())
+        NextTy = QualType{NextTy->getArrayElementTypeNoTypeQual(), 0};
+      else
+        NextTy = NextTy->getPointeeType();
+      if (Check(NextTy, Next))
+        EmitHistory();
+    }
+
+    if (const auto *RecDecl = NextTy->getAsRecordDecl()) {
+      if (auto *NextFD = dyn_cast<FieldDecl>(Next))
+        History.push_back(NextFD);
+      // When nullptr is discovered, this means we've gone back up a level, so
+      // the history should be cleaned
+      StackForRecursion.push_back(nullptr);
+      for (const auto *FD : RecDecl->fields())
+        StackForRecursion.push_back(FD);
+    }
+  } while (!StackForRecursion.empty());
 }
 
 static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
@@ -446,7 +533,7 @@ static void checkSYCLType(Sema &S, QualType Ty, SourceRange Loc,
   //--- check types ---
 
   // zero length arrays
-  if (isZeroSizedArray(Ty)) {
+  if (isZeroSizedArray(S, Ty)) {
     S.SYCLDiagIfDeviceCode(Loc.getBegin(), diag::err_typecheck_zero_array_size);
     Emitting = true;
   }
@@ -1277,7 +1364,6 @@ class KernelObjVisitor {
     assert(CAT && "Should only be called on constant-size array.");
     QualType ET = CAT->getElementType();
     uint64_t ElemCount = CAT->getSize().getZExtValue();
-    assert(ElemCount > 0 && "SYCL prohibits 0 sized arrays");
 
     (void)std::initializer_list<int>{
         (Handlers.enterArray(Field, ArrayTy, ET), 0)...};
@@ -3083,10 +3169,6 @@ public:
     CollectionInitExprs.pop_back();
     ArrayInfos.pop_back();
 
-    assert(
-        !SemaRef.getASTContext().getAsConstantArrayType(ArrayType)->getSize() ==
-            0 &&
-        "Constant arrays must have at least 1 element");
     // Remove the IndexExpr.
     MemberExprBases.pop_back();
 

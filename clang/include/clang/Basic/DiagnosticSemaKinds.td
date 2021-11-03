@@ -10129,6 +10129,8 @@ def note_within_field_of_type : Note<
   "within field of type %0 declared here">;
 def note_illegal_field_declared_here : Note<
   "field of illegal %select{type|pointer type}0 %1 declared here">;
+def note_illegal_type_decl_here : Note<
+  "declaration %0 of illegal type %1 is here">;
 def err_opencl_type_struct_or_union_field : Error<
   "the %0 type cannot be used to declare a structure or union field">;
 def err_event_t_addr_space_qual : Error<
