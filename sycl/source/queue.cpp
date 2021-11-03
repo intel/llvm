@@ -167,7 +167,7 @@ queue::get_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-template <typename PropertyT> bool queue::has_property() const {
+template <typename PropertyT> bool queue::has_property() const noexcept {
   return impl->has_property<PropertyT>();
 }
 
@@ -176,7 +176,7 @@ template <typename PropertyT> PropertyT queue::get_property() const {
 }
 
 template __SYCL_EXPORT bool
-queue::has_property<property::queue::enable_profiling>() const;
+queue::has_property<property::queue::enable_profiling>() const noexcept;
 template __SYCL_EXPORT property::queue::enable_profiling
 queue::get_property<property::queue::enable_profiling>() const;
 

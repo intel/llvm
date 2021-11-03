@@ -123,7 +123,7 @@ public:
   /// Checks if this program has a property of type propertyT.
   ///
   /// \return true if this context has a property of type propertyT.
-  template <typename propertyT> bool has_property() const;
+  template <typename propertyT> bool has_property() const noexcept;
 
   /// Gets the specified property of this program.
   ///

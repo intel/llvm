@@ -105,7 +105,7 @@ public:
   /// Checks if this program_impl has a property of type propertyT.
   ///
   /// \return true if this program_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const {
+  template <typename propertyT> bool has_property() const noexcept {
     return MPropList.has_property<propertyT>();
   }
 

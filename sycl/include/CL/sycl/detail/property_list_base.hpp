@@ -60,7 +60,7 @@ protected:
   template <typename PropT>
   typename detail::enable_if_t<
       std::is_base_of<DataLessPropertyBase, PropT>::value, bool>
-  has_property_helper() const {
+  has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind > detail::DataLessPropKind::LastKnownDataLessPropKind)
       return false;
@@ -70,7 +70,7 @@ protected:
   template <typename PropT>
   typename detail::enable_if_t<
       std::is_base_of<PropertyWithDataBase, PropT>::value, bool>
-  has_property_helper() const {
+  has_property_helper() const noexcept {
     const int PropKind = static_cast<int>(PropT::getKind());
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
