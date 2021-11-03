@@ -156,6 +156,7 @@ enum class device : cl_device_info {
   ext_intel_gpu_subslices_per_slice = PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
   ext_intel_gpu_eu_count_per_subslice =
       PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+  ext_intel_gpu_hw_threads_per_eu = PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
   ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
   ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
   ext_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,

@@ -2463,6 +2463,8 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
     return ReturnValue(
         pi_uint32{Device->ZeDeviceProperties->numEUsPerSubslice});
+  case PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
+    return ReturnValue(pi_uint32{Device->ZeDeviceProperties->numThreadsPerEU});
   case PI_DEVICE_INFO_MAX_MEM_BANDWIDTH:
     // currently not supported in level zero runtime
     return PI_INVALID_VALUE;
