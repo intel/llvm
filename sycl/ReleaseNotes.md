@@ -4,8 +4,6 @@ Release notes for commit range 4fc5ebe..bd68232
 
 ## New features
 ### SYCL Compiler
- - Disabled kernel function propagating up the call tree to callee when in
-   SYCL 2020 mode [2667e3e]
  - Added support for HIP backend
    [06fdabb5][da138cc][de6e848c][104b45ee][2e08d0e][bfbd5af][c19294f]
 ### SYCL Library
@@ -45,7 +43,7 @@ Release notes for commit range 4fc5ebe..bd68232
    [c1324e6]
  - Added `-fsycl-footer-path=<path>` command-line option to set path where to
    store integration footer [155acd1]
- - Improved read only accessor handling - add `readonly` attribute to the
+ - Improved read only accessor handling - added `readonly` attribute to the
    associated pointer to memory [3661685]
  - Improved the output project name generation. If the output value has one of
    .a .o .out .lib .obj .exe extension, the output project directory name will
@@ -58,6 +56,8 @@ Release notes for commit range 4fc5ebe..bd68232
    [a2922141]
  - Allowed passing `-Xsycl-target-backend` and `-Xsycl-target-link` when
    default target is used [d37b832]
+ - Disabled kernel function propagation up the call tree to callee when in
+   SYCL 2020 mode [2667e3e]
 ### SYCL Library
  - Improved information passed to XPTI subscribers [2af0599] [66770f0]
  - Added event interoperability to Level Zero plugin [ef33c57]
@@ -141,12 +141,12 @@ Release notes for commit range 4fc5ebe..bd68232
    of `pi_mem_advice` [af2bf96]
  - Prevented passing of `-fopenmp-simd` to device compilation when used along
    with `-fsycl` [226ed8b]
- - Correctly form the integration header when non-base-ascii chars are used in
-   the kernel name [91f50477]
+ - Fixed generation of the integration header when non-base-ascii chars are
+   used in the kernel name [91f50477]
  - Fixed a problem which could lead to picking up incorrect kernel at runtime in
    some situations when unnamed lambda feature is used [27c632e]
  - Fixed suggested target triple in the warning message [7cc89fa]
- - Fix identity for multiplication on CUDA backend [a6447ca4]
+ - Fixed identity for multiplication on CUDA backend [a6447ca4]
  - Fixed a problem with dependency file generation [fd6d948] [1d5b2cb]
  - Fixed builtins address space type for CUDA backend [1e3136e4]
  - Fixed a problem which could lead to incorrect user header to be picked up
