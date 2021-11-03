@@ -86,7 +86,7 @@ IndirectReferencesINTEL
 Instructions added under the *FunctionPointersINTEL* capability:
 
 ----
-OpFunctionPointerINTEL
+OpConstantFunctionPointerINTEL
 OpFunctionPointerCallINTEL
 ----
 
@@ -113,12 +113,12 @@ CodeSectionINTEL
 [cols="70%,30%"]
 [grid="rows"]
 |====
-|OpFunctionPointerINTEL     | 5600
-|OpFunctionPointerCallINTEL | 5601
-|ReferencedIndirectlyINTEL  | 5602
-|FunctionPointersINTEL      | 5603
-|IndirectReferencesINTEL    | 5604
-|CodeSectionINTEL           | 5605
+|OpConstantFunctionPointerINTEL     | 5600
+|OpFunctionPointerCallINTEL         | 5601
+|ReferencedIndirectlyINTEL          | 5602
+|FunctionPointersINTEL              | 5603
+|IndirectReferencesINTEL            | 5604
+|CodeSectionINTEL                   | 5605
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.4
@@ -133,7 +133,7 @@ Modify Section 2.2.2, Types, add the following at the end of the section: ::
 [[FunctionPointer]]'Function Pointer': A pointer that results from the following
 instruction:
 
-- *OpFunctionPointerINTEL*
+- *OpConstantFunctionPointerINTEL*
 
 Additionally, any *OpSelect*, *OpPhi*, *OpFunctionCall*, *OpPtrAccessChain*,
 *OpLoad*, *OpAccessChain*, *OpInBoundAccessChain*, or *OpCopyObject* thas takes
@@ -147,7 +147,7 @@ Modify Section 2.9, Function Calling, add the following after the first sentence
 
 Functions can be called indirectly using function pointers: to do so, use
 *OpFunctionPointerCallINTEL* with an operand that is the _<id>_ obtained using
-*OpFunctionPointerINTEL* of the *OpFunction* to call, and the _<id>s_ of the
+*OpConstantFunctionPointerINTEL* of the *OpFunction* to call, and the _<id>s_ of the
 arguments to pass. All arguments are passed by value into the called function.
 This includes pointers, through which a callee object could be modified.
 
@@ -211,7 +211,7 @@ Modify Section 3.32.9, Function Instructions, adding to the end of the list of i
 
 [cols="2*1,3*3",width="100%"]
 |=====
-4+|[[OpFunctionPointerINTEL]]*OpFunctionPointerINTEL* +
+4+|[[OpConstantFunctionPointerINTEL]]*OpConstantFunctionPointerINTEL* +
  +
 Obtains address of the specified function. +
  +
@@ -336,4 +336,5 @@ be used for ones out of the box and we don't have much use-cases for it.
 |F|2019-06-21|Alexey Sachkov|Added new storage class dedicated for function
 pointers. Updated validation rules. Misc updates.
 |G|2019-07-19|Ben Ashbaugh|Assigned SPIR-V enums, added preview extension disclaimer text.
+|H|2021-11-03|Dmitry Sidorov|Update OpFunctionPointerINTEL name to OpConstantFunctionPointerINTEL.
 |========================================
