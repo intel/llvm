@@ -26,7 +26,6 @@ using namespace cl::sycl;
 
 int main() {
   // Accessor is_property
-  CHECK_IS_PROPERTY(property::noinit);
   CHECK_IS_PROPERTY(property::no_init);
   CHECK_IS_PROPERTY(ext::oneapi::property::no_offset);
   CHECK_IS_PROPERTY(ext::oneapi::property::no_alias);
@@ -56,9 +55,6 @@ int main() {
   CHECK_IS_PROPERTY(property::reduction::initialize_to_identity);
 
   // Accessor is_property_of
-  CHECK_IS_PROPERTY_OF(property::noinit,
-                       accessor<float, 1, access_mode::write, target::device,
-                                access::placeholder::true_t>);
   CHECK_IS_PROPERTY_OF(
       property::no_init,
       accessor<unsigned long, 2, access_mode::read, target::host_buffer,
@@ -76,17 +72,11 @@ int main() {
 
   // Image-accessor is_property_of
   CHECK_IS_PROPERTY_OF(
-      property::noinit,
-      image_accessor<float, 1, access_mode::write, target::device,
-                     access::placeholder::true_t>);
-  CHECK_IS_PROPERTY_OF(
       property::no_init,
       image_accessor<unsigned long, 2, access_mode::read, target::host_buffer,
                      access::placeholder::true_t>);
 
   // Host-accessor is_property_of
-  CHECK_IS_PROPERTY_OF(property::noinit,
-                       host_accessor<float, 1, access_mode::write>);
   CHECK_IS_PROPERTY_OF(property::no_init,
                        accessor<unsigned long, 2, access_mode::read>);
 
@@ -113,7 +103,6 @@ int main() {
 
 #if __cplusplus > 201402L
   // Accessor is_property_v
-  CHECK_IS_PROPERTY_V(property::noinit);
   CHECK_IS_PROPERTY_V(property::no_init);
   CHECK_IS_PROPERTY_V(ext::oneapi::property::no_offset);
   CHECK_IS_PROPERTY_V(ext::oneapi::property::no_alias);
@@ -140,9 +129,6 @@ int main() {
   CHECK_IS_PROPERTY_V(property::queue::cuda::use_default_stream);
 
   // Accessor is_property_of_v
-  CHECK_IS_PROPERTY_OF_V(property::noinit,
-                         accessor<float, 1, access_mode::write, target::device,
-                                  access::placeholder::true_t>);
   CHECK_IS_PROPERTY_OF_V(
       property::no_init,
       accessor<unsigned long, 2, access_mode::read, target::host_buffer,
@@ -160,17 +146,11 @@ int main() {
 
   // Image-accessor is_property_of_v
   CHECK_IS_PROPERTY_OF_V(
-      property::noinit,
-      image_accessor<float, 1, access_mode::write, target::device,
-                     access::placeholder::true_t>);
-  CHECK_IS_PROPERTY_OF_V(
       property::no_init,
       image_accessor<unsigned long, 2, access_mode::read, target::host_buffer,
                      access::placeholder::true_t>);
 
   // Host-ccessor is_property_of_v
-  CHECK_IS_PROPERTY_OF_V(property::noinit,
-                         host_accessor<float, 1, access_mode::write>);
   CHECK_IS_PROPERTY_OF_V(property::no_init,
                          accessor<unsigned long, 2, access_mode::read>);
 
