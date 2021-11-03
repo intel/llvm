@@ -74,6 +74,16 @@ int main() {
       accessor<sycl::half, 2, access_mode::write, target::host_buffer,
                access::placeholder::false_t>);
 
+  // Image-accessor is_property_of
+  CHECK_IS_PROPERTY_OF(
+      property::noinit,
+      image_accessor<float, 1, access_mode::write, target::device,
+                     access::placeholder::true_t>);
+  CHECK_IS_PROPERTY_OF(
+      property::no_init,
+      image_accessor<unsigned long, 2, access_mode::read, target::host_buffer,
+                     access::placeholder::true_t>);
+
   // Host-accessor is_property_of
   CHECK_IS_PROPERTY_OF(property::noinit,
                        host_accessor<float, 1, access_mode::write>);
@@ -147,6 +157,16 @@ int main() {
       ext::intel::property::buffer_location,
       accessor<sycl::half, 2, access_mode::write, target::host_buffer,
                access::placeholder::false_t>);
+
+  // Image-accessor is_property_of_v
+  CHECK_IS_PROPERTY_OF_V(
+      property::noinit,
+      image_accessor<float, 1, access_mode::write, target::device,
+                     access::placeholder::true_t>);
+  CHECK_IS_PROPERTY_OF_V(
+      property::no_init,
+      image_accessor<unsigned long, 2, access_mode::read, target::host_buffer,
+                     access::placeholder::true_t>);
 
   // Host-ccessor is_property_of_v
   CHECK_IS_PROPERTY_OF_V(property::noinit,
