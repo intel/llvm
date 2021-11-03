@@ -2414,12 +2414,6 @@ struct is_device_copyable<std::tuple<T, Ts...>>
     : detail::bool_constant<is_device_copyable<T>::value &&
                             is_device_copyable<std::tuple<Ts...>>::value> {};
 
-// marray is device copyable if element type is device copyable
-template <typename T, std::size_t N>
-struct is_device_copyable<sycl::marray<T, N>,
-                          std::enable_if_t<is_device_copyable<T>::value>>
-    : std::true_type {};
-
 namespace detail {
 template <typename T, typename = void>
 struct IsDeprecatedDeviceCopyable : std::false_type {};
