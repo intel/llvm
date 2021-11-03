@@ -335,8 +335,8 @@ void collectCompositeElementsDefaultValuesRecursive(
 
     // Additional padding may be needed at the end of the struct if size does
     // not match the number of bytes inserted.
-    while (DefaultValues.size() < BaseDefaultValueOffset + SLSize)
-      DefaultValues.push_back(0);
+    if (DefaultValues.size() < BaseDefaultValueOffset + SLSize)
+      DefaultValues.resize(BaseDefaultValueOffset + SLSize);
 
     // Update "global" offset according to the total size of a handled struct
     // type.
