@@ -91,6 +91,10 @@ attributes #5 = { nounwind }
 !12 = !{!13, !13, i64 0}
 !13 = !{!"bool", !9, i64 0}
 
+; Make sure the specialization constants occur in the order with the padded
+; struct first followed by the boolean specialization constant.
+; Most important information from the corresponding encoded data is the size of
+; the specialization constants, i.e. 8 and 1 bytes respectively.
 ; CHECK: [SYCL/specialization constants]
 ; CHECK-NEXT: 9d329ad59055e972____ZL12StructSpecId=2|gBAAAAAAAAAAAAAAAAAAAgAAAAA
 ; CHECK-NEXT: 9d329ad59055e972____ZL10BoolSpecId=2|gBAAAAAAAAQAAAAAAAAAAEAAAAA
