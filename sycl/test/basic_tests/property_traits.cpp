@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -c
+// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// expected-no-diagnostics
 
 #include <CL/sycl.hpp>
 #include <cassert>
