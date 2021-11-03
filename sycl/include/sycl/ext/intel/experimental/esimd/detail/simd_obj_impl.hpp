@@ -137,6 +137,12 @@ public:
     init_from_array(std::move(Arr));
   }
 
+  /// Construct from simd_view object.
+  template <int ViewedSimdLength, typename RegionT,
+            typename = std::enable_if_t<RegionT::length == N>>
+  simd_obj_impl(simd_view<simd<Ty, ViewedSimdLength>, RegionT> &View)
+      : M_data(View.read().M_data) {}
+
   /// @}
 
   // Load the object's value from array.

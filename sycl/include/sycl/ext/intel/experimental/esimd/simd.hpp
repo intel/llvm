@@ -50,8 +50,8 @@ public:
   using vector_type = typename base_type::vector_type;
   static constexpr int length = N;
 
-  // Implicit conversion constructor from another simd object of the same
-  // length.
+  /// Implicit conversion constructor from another simd object of the same
+  /// length.
   template <typename SimdT,
             class = std::enable_if_t<__SEIEED::is_simd_type_v<SimdT> &&
                                      (length == SimdT::length)>>
@@ -60,12 +60,18 @@ public:
     __esimd_dbg_print(simd(const SimdT &RHS));
   }
 
-  // Broadcast constructor with conversion.
+  /// Broadcast constructor with conversion.
   template <typename T1,
             class = std::enable_if_t<detail::is_vectorizable_v<T1>>>
   simd(T1 Val) : base_type((Ty)Val) {
     __esimd_dbg_print(simd(T1 Val));
   }
+
+  /// Construct from simd_view.
+  template <int ViewedSimdLength, typename RegionT,
+            typename = std::enable_if_t<RegionT::length == N>>
+  simd(simd_view<simd<element_type, ViewedSimdLength>, RegionT> &View)
+      : base_type(View) {}
 
   /// Explicit conversion for simd_obj_impl<T, 1> into T.
   template <class To, class T = simd,
@@ -112,6 +118,10 @@ public:
   __ESIMD_DEF_SIMD_ARITH_UNARY_OP(+)
 #undef __ESIMD_DEF_SIMD_ARITH_UNARY_OP
 };
+
+// Deduction guide for simd constructor from a simd_view object.
+template <typename T, int ViewedSimdLength, typename RegionT>
+simd(simd_view<simd<T, ViewedSimdLength>, RegionT>) -> simd<T, RegionT::length>;
 
 /// Covert from a simd object with element type \c From to a simd object with
 /// element type \c To.

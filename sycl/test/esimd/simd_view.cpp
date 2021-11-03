@@ -124,6 +124,16 @@ SYCL_ESIMD_FUNCTION void test_simd_view_from_vector() {
   simd_view sv1b(v1);
 }
 
+// test deducing arguments during simd construction from simd_view.
+SYCL_ESIMD_FUNCTION void test_simd_from_simd_view() {
+  simd<int, 16> v16 = 0;
+  auto view8 = v16.select<8,1>(0);
+  simd v8 = view8;
+
+  auto view1 = v16.select<1,1>(0);
+  simd v1 = view1;
+}
+
 // move constructor transfers the same view of the underlying data.
 SYCL_ESIMD_FUNCTION void test_simd_view_move_ctor() {
   simd<int, 16> v0 = 1;
