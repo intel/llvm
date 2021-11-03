@@ -77,10 +77,8 @@ bool test(queue q) {
             << " STRIDE=" << STRIDE << " MASK=" << convertMaskToStr(CH_MASK)
             << "...\n";
 
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
-  T *A = static_cast<T *>(malloc_shared(size * sizeof(T), dev, ctxt));
-  T *B = static_cast<T *>(malloc_shared(size * sizeof(T), dev, ctxt));
+  T *A = malloc_shared<T>(size, q);
+  T *B = malloc_shared<T>(size, q);
   T *gold = new T[size];
 
   for (int i = 0; i < size; ++i) {
@@ -114,12 +112,12 @@ bool test(queue q) {
       cgh.parallel_for(glob_range, kernel);
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    free(A, ctxt);
-    free(B, ctxt);
+    free(A, q);
+    free(B, q);
     delete[] gold;
-    return e.get_cl_code();
+    return false; // not success
   }
 
   int err_cnt = 0;
@@ -138,8 +136,8 @@ bool test(queue q) {
               << (size - err_cnt) << "/" << size << ")\n";
   }
 
-  free(A, ctxt);
-  free(B, ctxt);
+  free(A, q);
+  free(B, q);
   delete[] gold;
 
   std::cout << (err_cnt > 0 ? "  FAILED\n" : "  Passed\n");

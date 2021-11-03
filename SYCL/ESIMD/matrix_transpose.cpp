@@ -284,11 +284,11 @@ bool runTest(unsigned MZ, unsigned block_size) {
 
   // create ranges
   // We need that many workitems
-  auto GlobalRange = cl::sycl::range<2>(thread_width, thread_height);
+  auto GlobalRange = range<2>(thread_width, thread_height);
 
   // Number of workitems in a workgroup
-  cl::sycl::range<2> LocalRange{1, 1};
-  cl::sycl::nd_range<2> Range(GlobalRange, LocalRange);
+  range<2> LocalRange{1, 1};
+  nd_range<2> Range(GlobalRange, LocalRange);
 
   // Start timer.
   esimd_test::Timer timer;
@@ -334,10 +334,10 @@ bool runTest(unsigned MZ, unsigned block_size) {
       else
         start = timer.Elapsed();
     }
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     delete[] M;
-    return e.get_cl_code();
+    return false; // not success
   }
 
   // End timer.

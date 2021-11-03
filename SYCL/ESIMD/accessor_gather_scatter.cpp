@@ -70,10 +70,10 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
       cgh.parallel_for(glob_range, kernel);
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     delete[] A;
-    return e.get_cl_code();
+    return false; // not success
   }
 
   int err_cnt = 0;

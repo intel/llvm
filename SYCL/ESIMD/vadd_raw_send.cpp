@@ -30,7 +30,7 @@ ESIMD_INLINE simd<T, N> dwaligned_block_read(AccessorTy acc,
 
   src0.select<1, 1>(2) = offset;
   uint32_t exDesc = 0xA;
-  uint32_t desc = esimd::get_value(acc);
+  SurfaceIndex desc = esimd::get_surface_index(acc);
   desc += 0x2284300;
   constexpr uint8_t execSize = 0x84;
   constexpr uint8_t sfid = 0x0;
@@ -48,7 +48,7 @@ ESIMD_INLINE void block_write1(AccessorTy acc, unsigned int offset,
 
   src0.template select<1, 1>(2) = offset >> 4;
   uint32_t exDesc = 0x4A;
-  uint32_t desc = esimd::get_value(acc);
+  SurfaceIndex desc = esimd::get_surface_index(acc);
   desc += 0x20A0200;
   constexpr uint8_t execSize = 0x83;
   constexpr uint8_t sfid = 0x0;
@@ -70,7 +70,7 @@ ESIMD_INLINE void block_write2(AccessorTy acc, unsigned int offset,
   src0_ref1.template select<1, 1>(2) = offset >> 4;
   src0_ref2 = data;
   uint32_t exDesc = 0xA;
-  uint32_t desc = esimd::get_value(acc);
+  SurfaceIndex desc = esimd::get_surface_index(acc);
   desc += 0x40A0200;
   constexpr uint8_t execSize = 0x83;
   constexpr uint8_t sfid = 0x0;
@@ -98,10 +98,10 @@ int main(void) {
     buffer<float, 1> bufc(C, range<1>(Size));
 
     // We need that many workgroups
-    cl::sycl::range<1> GlobalRange{Size / VL};
+    range<1> GlobalRange{Size / VL};
 
     // We need that many threads in each group
-    cl::sycl::range<1> LocalRange{1};
+    range<1> LocalRange{1};
 
     queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
@@ -125,14 +125,13 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
 
     delete[] A;
     delete[] B;
     delete[] C;
-
-    return e.get_cl_code();
+    return 1;
   }
 
   int err_cnt = 0;

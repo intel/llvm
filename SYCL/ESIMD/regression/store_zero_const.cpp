@@ -28,18 +28,16 @@ using namespace cl::sycl;
 
 template <typename T> bool test(queue Q) {
   std::cout << "  Testing " << typeid(T).name() << "...\n";
-  auto Ctx = Q.get_context();
-  auto Dev = Q.get_device();
 
   constexpr unsigned Size = 1024;
   constexpr unsigned VL = 32;
   constexpr unsigned GroupSize = 8;
 
-  T *A = malloc_shared<T>(Size * sizeof(T), Dev, Ctx);
+  T *A = malloc_shared<T>(Size * sizeof(T), Q);
 
-  cl::sycl::range<1> GlobalRange{Size / VL};
-  cl::sycl::range<1> LocalRange{GroupSize};
-  cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
+  range<1> GlobalRange{Size / VL};
+  range<1> LocalRange{GroupSize};
+  nd_range<1> Range(GlobalRange, LocalRange);
 
 #define GOLD_VAL 0
 
@@ -54,9 +52,10 @@ template <typename T> bool test(queue Q) {
       });
     });
     E.wait();
-  } catch (cl::sycl::exception const &E) {
+  } catch (sycl::exception const &E) {
     std::cout << "SYCL exception caught: " << E.what() << '\n';
-    return E.get_cl_code();
+    free(A, Q);
+    return false; // not success
   }
   int ErrCnt = 0;
 

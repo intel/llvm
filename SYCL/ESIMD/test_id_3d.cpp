@@ -36,9 +36,7 @@ int main(void) {
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto ctxt = q.get_context();
-  int *C = static_cast<int *>(
-      malloc_shared(ScalarGlobalRange.size() * sizeof(int), dev, ctxt));
+  int *C = malloc_shared<int>(ScalarGlobalRange.size(), q);
 
   try {
     auto e = q.submit([&](handler &cgh) {
@@ -55,9 +53,10 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    free(C, q);
+    return 1;
   }
 
   int err_cnt = 0;
@@ -70,6 +69,7 @@ int main(void) {
       }
     }
   }
+  free(C, q);
   if (err_cnt > 0) {
     std::cout << "FAILED. " << err_cnt << "/" << ScalarGlobalRange.size()
               << " errors\n";

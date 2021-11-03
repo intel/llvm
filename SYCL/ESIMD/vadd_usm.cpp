@@ -28,25 +28,21 @@ int main(void) {
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto ctxt = q.get_context();
-  // TODO: release memory in the end of the test
-  float *A =
-      static_cast<float *>(malloc_shared(Size * sizeof(float), dev, ctxt));
-  float *B =
-      static_cast<float *>(malloc_shared(Size * sizeof(float), dev, ctxt));
-  float *C =
-      static_cast<float *>(malloc_shared(Size * sizeof(float), dev, ctxt));
+
+  float *A = malloc_shared<float>(Size, q);
+  float *B = malloc_shared<float>(Size, q);
+  float *C = malloc_shared<float>(Size, q);
 
   for (unsigned i = 0; i < Size; ++i) {
     A[i] = B[i] = i;
   }
 
   // We need that many workitems. Each processes VL elements of data.
-  cl::sycl::range<1> GlobalRange{Size / VL};
+  range<1> GlobalRange{Size / VL};
   // Number of workitems in each workgroup.
-  cl::sycl::range<1> LocalRange{GroupSize};
+  range<1> LocalRange{GroupSize};
 
-  cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
+  nd_range<1> Range(GlobalRange, LocalRange);
 
   try {
     auto e = q.submit([&](handler &cgh) {
@@ -64,9 +60,12 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    free(A, q);
+    free(B, q);
+    free(C, q);
+    return 1;
   }
 
   int err_cnt = 0;
@@ -85,6 +84,9 @@ int main(void) {
               << (Size - err_cnt) << "/" << Size << ")\n";
   }
 
+  free(A, q);
+  free(B, q);
+  free(C, q);
   std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
   return err_cnt > 0 ? 1 : 0;
 }

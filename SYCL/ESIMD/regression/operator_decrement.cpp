@@ -34,10 +34,10 @@ int main(void) {
     buffer<float, 1> bufa(A, range<1>(Size));
 
     // We need that many workgroups
-    cl::sycl::range<1> GlobalRange{Size / VL};
+    range<1> GlobalRange{Size / VL};
 
     // We need that many threads in each group
-    cl::sycl::range<1> LocalRange{1};
+    range<1> LocalRange{1};
 
     queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
@@ -58,11 +58,11 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
 
     delete[] A;
-    return e.get_cl_code();
+    return 1;
   }
 
   int err_cnt = 0;

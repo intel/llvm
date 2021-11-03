@@ -79,11 +79,10 @@ template <typename T, int N, bool IsAcc> bool test(queue q, size_t size) {
   std::cout << "Testing T=" << typeid(T).name() << ", N=" << N
             << " using accessor=" << IsAcc << "...\n";
   T *A;
-  if constexpr (IsAcc) {
+  if constexpr (IsAcc)
     A = new T[size];
-  } else {
-    A = reinterpret_cast<T *>(sycl::malloc_shared(size, q));
-  }
+  else
+    A = sycl::malloc_shared<T>(size, q);
 
   for (unsigned i = 0; i < size; ++i) {
     A[i] = i; // should not be zero to test `copy_from` really works
@@ -108,10 +107,10 @@ template <typename T, int N, bool IsAcc> bool test(queue q, size_t size) {
       });
     }
     q.wait_and_throw();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     free_mem<IsAcc>(A, q);
-    return e.get_cl_code();
+    return false; // not success
   }
 
   int err_cnt = 0;

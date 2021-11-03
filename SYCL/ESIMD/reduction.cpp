@@ -32,12 +32,8 @@ int main(void) {
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto ctxt = q.get_context();
-  // TODO: release memory in the end of the test
-  TYPE *A =
-      static_cast<TYPE *>(malloc_shared(InputSize * sizeof(TYPE), dev, ctxt));
-  int *B =
-      static_cast<int *>(malloc_shared(OutputSize * sizeof(int), dev, ctxt));
+  TYPE *A = malloc_shared<TYPE>(InputSize, q);
+  int *B = malloc_shared<int>(OutputSize, q);
 
   for (unsigned i = 0; i < InputSize; ++i) {
     if (i == 19) {
@@ -48,9 +44,9 @@ int main(void) {
   }
 
   try {
-    cl::sycl::range<1> GroupRange{InputSize / VL};
-    cl::sycl::range<1> TaskRange{GroupSize};
-    cl::sycl::nd_range<1> Range(GroupRange, TaskRange);
+    range<1> GroupRange{InputSize / VL};
+    range<1> TaskRange{GroupSize};
+    nd_range<1> Range(GroupRange, TaskRange);
 
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class Test>(
@@ -70,9 +66,11 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    free(A, q);
+    free(B, q);
+    return 1;
   }
 
   auto compute_reduce_sum = [](TYPE A[InputSize]) -> int {
@@ -135,6 +133,9 @@ int main(void) {
     std::cout << "Incorrect min " << B[3] << ", expected " << ref << "\n";
     TestPass = false;
   }
+
+  free(A, q);
+  free(B, q);
 
   if (!TestPass) {
     std::cout << "Failed\n";

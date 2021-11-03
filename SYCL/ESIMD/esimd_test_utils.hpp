@@ -56,7 +56,7 @@ inline auto createExceptionHandler() {
     for (auto ep : l) {
       try {
         std::rethrow_exception(ep);
-      } catch (cl::sycl::exception &e0) {
+      } catch (sycl::exception &e0) {
         std::cout << "sycl::exception: " << e0.what() << std::endl;
       } catch (std::exception &e) {
         std::cout << "std::exception: " << e.what() << std::endl;

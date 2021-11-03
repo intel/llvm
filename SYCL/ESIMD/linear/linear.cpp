@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Loads an input image named "image_in.bmp".
-  auto input_image = sycl::intel::util::bitmap::BitMap::load(argv[1]);
+  auto input_image = sycl::ext::intel::util::bitmap::BitMap::load(argv[1]);
 
   // Gets the width and height of the input image.
   unsigned int width = input_image.getWidth();
@@ -64,35 +64,32 @@ int main(int argc, char *argv[]) {
   try {
     unsigned int img_width = width * bpp / (8 * sizeof(int));
 
-    cl::sycl::image<2> imgInput(
+    sycl::image<2> imgInput(
         (unsigned int *)input_image.getData(), image_channel_order::rgba,
         image_channel_type::unsigned_int8, range<2>{img_width, height});
 
-    cl::sycl::image<2> imgOutput(
+    sycl::image<2> imgOutput(
         (unsigned int *)output_image.getData(), image_channel_order::rgba,
         image_channel_type::unsigned_int8, range<2>{img_width, height});
 
     // We need that many workitems
     uint range_width = width / 8;
     uint range_height = height / 6;
-    cl::sycl::range<2> GlobalRange{range_width, range_height};
+    range<2> GlobalRange{range_width, range_height};
 
     // Number of workitems in a workgroup
-    cl::sycl::range<2> LocalRange{1, 1};
+    range<2> LocalRange{1, 1};
 
     queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
             property::queue::enable_profiling{});
 
     auto dev = q.get_device();
-    auto ctxt = q.get_context();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
     for (int iter = 0; iter <= num_iters; ++iter) {
-      auto e = q.submit([&](cl::sycl::handler &cgh) {
-        auto accInput =
-            imgInput.get_access<uint4, cl::sycl::access::mode::read>(cgh);
-        auto accOutput =
-            imgOutput.get_access<uint4, cl::sycl::access::mode::write>(cgh);
+      auto e = q.submit([&](handler &cgh) {
+        auto accInput = imgInput.get_access<uint4, access::mode::read>(cgh);
+        auto accOutput = imgOutput.get_access<uint4, access::mode::write>(cgh);
 
         cgh.parallel_for<class Test>(
             GlobalRange * LocalRange, [=](item<2> it) SYCL_ESIMD_KERNEL {
@@ -137,7 +134,7 @@ int main(int argc, char *argv[]) {
       else
         start = timer.Elapsed();
     }
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     return 1;
   }
@@ -149,8 +146,8 @@ int main(int argc, char *argv[]) {
                                    (end - start) * 1000);
 
   output_image.save("linear_out.bmp");
-  bool passed = sycl::intel::util::bitmap::BitMap::checkResult("linear_out.bmp",
-                                                               argv[2], 5);
+  bool passed = sycl::ext::intel::util::bitmap::BitMap::checkResult(
+      "linear_out.bmp", argv[2], 5);
 
   if (passed) {
     std::cerr << "PASSED\n";

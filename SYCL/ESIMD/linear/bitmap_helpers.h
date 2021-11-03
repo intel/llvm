@@ -26,6 +26,7 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
   namespace sycl {
+  namespace ext {
   namespace intel {
   namespace util {
   namespace bitmap {
@@ -286,6 +287,7 @@ __SYCL_INLINE_NAMESPACE(cl) {
   } // end namespace bitmap
   } // end namespace util
   } // end namespace intel
+  } // end namespace ext
   } // end namespace sycl
 } // end __SYCL_INLINE_NAMESPACE(cl)
 

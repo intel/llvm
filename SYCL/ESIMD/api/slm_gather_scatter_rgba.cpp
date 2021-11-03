@@ -58,7 +58,7 @@ template <typename T, unsigned VL, auto CH_MASK> struct Kernel {
     slm_scatter_rgba<T, VL, CH_MASK>(byteOffsets, valsIn);
 
     // Load back values from SLM. They will be transposed back to SOA.
-    simd<uint16_t, VL> pred = 1;
+    simd_mask<VL> pred = 1;
     pred[VL - MASKED_LANE_NUM_REV] = 0; // mask out the last lane
     simd<T, VL *numChannels> valsOut =
         slm_gather_rgba<T, VL, CH_MASK>(byteOffsets, pred);

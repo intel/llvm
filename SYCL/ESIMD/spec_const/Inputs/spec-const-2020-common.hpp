@@ -58,9 +58,9 @@ int main(int argc, char **argv) {
            do_store(acc, i, kh.get_specialization_constant<ConstID>());
          });
        }).wait();
-    } catch (cl::sycl::exception const &e) {
+    } catch (sycl::exception const &e) {
       std::cout << "SYCL exception caught: " << e.what() << '\n';
-      return e.get_cl_code();
+      return 1;
     }
 
     if (output[i] != etalon[i]) {

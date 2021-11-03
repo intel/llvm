@@ -53,7 +53,7 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
       // Accumulate local histogram for each pixel value
       simd<uint, 16> dataOffset = in.select<16, 1>(j).read();
       dataOffset *= sizeof(int);
-      slm_atomic<atomic_op::inc, uint, 16>(dataOffset, 1);
+      slm_atomic_update<atomic_op::inc, uint, 16>(dataOffset, 1);
     }
     start_off += BLOCK_WIDTH;
   }
@@ -106,22 +106,17 @@ int CheckHistogram(unsigned int *cpu_histogram, unsigned int *gpu_histogram) {
 int main() {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
 
   const char *input_file = nullptr;
-  unsigned int width = 1024 * sizeof(unsigned int);
+  unsigned int width = 1024;
   unsigned int height = 1024;
 
   // Initializes input.
   unsigned int input_size = width * height;
-  unsigned int *input_ptr =
-      (unsigned int *)malloc_shared(input_size, dev, ctxt);
-  printf("Processing %dx%d inputs\n", (int)(width / sizeof(unsigned int)),
-         height);
+  unsigned int *input_ptr = malloc_shared<unsigned int>(input_size, q);
+  printf("Processing %dx%d inputs\n", width, height);
 
   srand(2009);
-  input_size = input_size / sizeof(int);
   for (int i = 0; i < input_size; ++i) {
     input_ptr[i] = rand() % 256;
     input_ptr[i] |= (rand() % 256) << 8;
@@ -133,6 +128,7 @@ int main() {
   int buffer_size = sizeof(unsigned int) * NUM_BINS;
   unsigned int *hist = new unsigned int[buffer_size];
   if (hist == nullptr) {
+    free(input_ptr, q);
     std::cerr << "Out of memory\n";
     exit(1);
   }
@@ -147,15 +143,14 @@ int main() {
   std::cout << "finish cpu_histogram\n";
 
   // Uses the GPU to calculate the histogram output data.
-  unsigned int *output_surface =
-      (uint32_t *)malloc_shared(4 * NUM_BINS, dev, ctxt);
+  unsigned int *output_surface = malloc_shared<unsigned int>(NUM_BINS, q);
 
   unsigned int num_threads;
-  num_threads = width * height / (NUM_BLOCKS * BLOCK_WIDTH * sizeof(int));
+  num_threads = width * height / (NUM_BLOCKS * BLOCK_WIDTH);
 
-  auto GlobalRange = cl::sycl::range<1>(num_threads);
-  auto LocalRange = cl::sycl::range<1>(NUM_BINS / 16);
-  cl::sycl::nd_range<1> Range(GlobalRange, LocalRange);
+  auto GlobalRange = range<1>(num_threads);
+  auto LocalRange = range<1>(NUM_BINS / 16);
+  nd_range<1> Range(GlobalRange, LocalRange);
 
   // Start Timer
   esimd_test::Timer timer;
@@ -167,10 +162,10 @@ int main() {
   try {
     for (int iter = 0; iter <= num_iters; ++iter) {
       double etime = 0;
-      memset(output_surface, 0, 4 * NUM_BINS);
-      auto e = q.submit([&](cl::sycl::handler &cgh) {
+      memset(output_surface, 0, sizeof(unsigned int) * NUM_BINS);
+      auto e = q.submit([&](handler &cgh) {
         cgh.parallel_for<class histogram_slm>(
-            Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
               histogram_atomic(input_ptr, output_surface, ndi.get_group(0),
                                ndi.get_local_id(0), 16);
             });
@@ -182,8 +177,8 @@ int main() {
       else
         start = timer.Elapsed();
     }
-  } catch (cl::sycl::exception const &e) {
-    std::cout << "SYCL exception caught: " << e.what() << '\n';
+  } catch (sycl::exception const &e) {
+    std::cerr << "SYCL exception caught: " << e.what() << '\n';
     return 1;
   }
 
@@ -197,9 +192,8 @@ int main() {
 
   memcpy(hist, output_surface, 4 * NUM_BINS);
 
-  free(output_surface, ctxt);
-
-  free(input_ptr, ctxt);
+  free(output_surface, q);
+  free(input_ptr, q);
 
   // Compares the CPU histogram output data with the
   // GPU histogram output data.

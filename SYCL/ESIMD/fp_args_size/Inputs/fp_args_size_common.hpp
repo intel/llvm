@@ -40,20 +40,16 @@ int main(void) {
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto ctx = q.get_context();
 
-  a_data_t *A = static_cast<a_data_t *>(
-      sycl::malloc_shared(SIZE * sizeof(a_data_t), dev, ctx));
+  a_data_t *A = sycl::malloc_shared<a_data_t>(SIZE, q);
   for (int i = 0; i < SIZE; i++)
     A[i] = (a_data_t)1;
 
-  b_data_t *B = static_cast<b_data_t *>(
-      sycl::malloc_shared(SIZE * sizeof(b_data_t), dev, ctx));
+  b_data_t *B = sycl::malloc_shared<b_data_t>(SIZE, q);
   for (int i = 0; i < SIZE; i++)
     B[i] = (b_data_t)i;
 
-  c_data_t *C = static_cast<c_data_t *>(
-      sycl::malloc_shared(SIZE * sizeof(c_data_t), dev, ctx));
+  c_data_t *C = sycl::malloc_shared<c_data_t>(SIZE, q);
   memset(C, 0, SIZE * sizeof(c_data_t));
 
   try {
@@ -85,12 +81,12 @@ int main(void) {
     });
 
     qq.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << std::endl;
-    sycl::free(A, ctx);
-    sycl::free(B, ctx);
-    sycl::free(C, ctx);
-    return e.get_cl_code();
+    sycl::free(A, q);
+    sycl::free(B, q);
+    sycl::free(C, q);
+    return 1;
   }
 
   unsigned err_cnt = 0;
@@ -98,9 +94,9 @@ int main(void) {
     if (C[i] != A[i] + B[i])
       err_cnt++;
 
-  sycl::free(A, ctx);
-  sycl::free(B, ctx);
-  sycl::free(C, ctx);
+  sycl::free(A, q);
+  sycl::free(B, q);
+  sycl::free(C, q);
 
   if (err_cnt > 0) {
     std::cout << "FAILED" << std::endl;

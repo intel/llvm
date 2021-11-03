@@ -33,31 +33,31 @@ int main(void) {
   }
 
   try {
-    cl::sycl::image<2> imgA(A, image_channel_order::rgba,
-                            image_channel_type::unsigned_int32,
-                            range<2>{Size / 4, 1});
-    cl::sycl::image<2> imgB(B, image_channel_order::rgba,
-                            image_channel_type::unsigned_int32,
-                            range<2>{Size / 4, 1});
-    cl::sycl::image<2> imgC(C, image_channel_order::rgba,
-                            image_channel_type::unsigned_int32,
-                            range<2>{Size / 4, 1});
+    sycl::image<2> imgA(A, image_channel_order::rgba,
+                        image_channel_type::unsigned_int32,
+                        range<2>{Size / 4, 1});
+    sycl::image<2> imgB(B, image_channel_order::rgba,
+                        image_channel_type::unsigned_int32,
+                        range<2>{Size / 4, 1});
+    sycl::image<2> imgC(C, image_channel_order::rgba,
+                        image_channel_type::unsigned_int32,
+                        range<2>{Size / 4, 1});
 
     // We need that many workitems
-    cl::sycl::range<1> GlobalRange{(Size / VL)};
+    range<1> GlobalRange{(Size / VL)};
 
     // Number of workitems in a workgroup
-    cl::sycl::range<1> LocalRange{GroupSize};
+    range<1> LocalRange{GroupSize};
 
     queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler());
 
     auto dev = q.get_device();
     std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
 
-    auto e = q.submit([&](cl::sycl::handler &cgh) {
-      auto accA = imgA.get_access<uint4, cl::sycl::access::mode::read>(cgh);
-      auto accB = imgB.get_access<uint4, cl::sycl::access::mode::read>(cgh);
-      auto accC = imgC.get_access<uint4, cl::sycl::access::mode::write>(cgh);
+    auto e = q.submit([&](handler &cgh) {
+      auto accA = imgA.get_access<uint4, access::mode::read>(cgh);
+      auto accB = imgB.get_access<uint4, access::mode::read>(cgh);
+      auto accC = imgC.get_access<uint4, access::mode::write>(cgh);
 
       cgh.parallel_for<class Test>(
           GlobalRange * LocalRange, [=](id<1> i) SYCL_ESIMD_KERNEL {
@@ -82,9 +82,9 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    return 1;
   }
 
   for (unsigned i = 0; i < Size; ++i) {

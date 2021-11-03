@@ -62,10 +62,10 @@ template <typename T> bool test(queue q, size_t size) {
       Kernel<T> kernel(acc);
       cgh.parallel_for(glob_range, kernel);
     });
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
     delete[] A;
-    return e.get_cl_code();
+    return false; // not success
   }
 
   int err_cnt = 0;

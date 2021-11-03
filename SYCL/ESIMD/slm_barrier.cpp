@@ -79,10 +79,9 @@ int main(void) {
 
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-  auto ctxt = q.get_context();
-  // TODO: release memory in the end of the test
-  uint *A = static_cast<uint *>(malloc_shared(Size * sizeof(uint), dev, ctxt));
-  uint *B = static_cast<uint *>(malloc_shared(Size * sizeof(uint), dev, ctxt));
+
+  uint *A = malloc_shared<uint>(Size, q);
+  uint *B = malloc_shared<uint>(Size, q);
 
   // Checking with specific inputs
   for (int i = 0; i < NUM_THREADS; i++) {
@@ -95,16 +94,16 @@ int main(void) {
   }
 
   // We need that many workitems
-  cl::sycl::range<1> GlobalRange{GLOBAL_SIZE};
+  range<1> GlobalRange{GLOBAL_SIZE};
 
   // Number of workitems in a workgroup
-  cl::sycl::range<1> LocalRange{LOCAL_SIZE};
-  cl::sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+  range<1> LocalRange{LOCAL_SIZE};
+  nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
 
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<class Test>(
-          Range, [=](cl::sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+          Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             simd<uint, VL> v_slmData;
             simd<uint, VL> v_Off(0, 4);
 
@@ -130,9 +129,11 @@ int main(void) {
           });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return e.get_cl_code();
+    free(A, q);
+    free(B, q);
+    return 1;
   }
 
   std::cout << "result" << std::endl;
@@ -159,6 +160,8 @@ int main(void) {
     std::cout << std::endl;
   }
 
+  free(A, q);
+  free(B, q);
   std::cout << (result < 0 ? "FAILED\n" : "Passed\n");
   return result < 0 ? 1 : 0;
 }

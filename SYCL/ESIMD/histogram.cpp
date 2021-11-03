@@ -83,20 +83,16 @@ int main(int argc, char *argv[]) {
           property::queue::enable_profiling{});
 
   auto dev = q.get_device();
-  auto ctxt = q.get_context();
-  unsigned char *srcY =
-      static_cast<unsigned char *>(malloc_shared(width * height, dev, ctxt));
-  unsigned int *bins = static_cast<unsigned int *>(
-      malloc_shared(NUM_BINS * sizeof(unsigned int), dev, ctxt));
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
-  uint range_width = width / BLOCK_WIDTH;
-  uint range_height = height / BLOCK_HEIGHT;
-
+  unsigned char *srcY = malloc_shared<unsigned char>(width * height, q);
   if (srcY == NULL) {
     std::cerr << "Out of memory\n";
     exit(1);
   }
+  unsigned int *bins = malloc_shared<unsigned int>(NUM_BINS, q);
+  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+
+  uint range_width = width / BLOCK_WIDTH;
+  uint range_height = height / BLOCK_HEIGHT;
 
   // Initializes input.
   unsigned int input_size = width * height;
@@ -106,12 +102,16 @@ int main(int argc, char *argv[]) {
     FILE *f = fopen(input_file, "rb");
     if (f == NULL) {
       std::cerr << "Error opening file " << input_file;
+      free(srcY, q);
+      free(bins, q);
       std::exit(1);
     }
 
     unsigned int cnt = fread(srcY, sizeof(unsigned char), input_size, f);
     if (cnt != input_size) {
       std::cerr << "Error reading input from " << input_file;
+      free(srcY, q);
+      free(bins, q);
       std::exit(1);
     }
   } else {
@@ -128,9 +128,9 @@ int main(int argc, char *argv[]) {
   memset(cpuHistogram, 0, sizeof(cpuHistogram));
   histogram_CPU(width, height, srcY, cpuHistogram);
 
-  cl::sycl::image<2> Img(srcY, image_channel_order::rgba,
-                         image_channel_type::unsigned_int32,
-                         range<2>{width / sizeof(uint4), height});
+  sycl::image<2> Img(srcY, image_channel_order::rgba,
+                     image_channel_type::unsigned_int32,
+                     range<2>{width / sizeof(uint4), height});
 
   // Start Timer
   esimd_test::Timer timer;
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
       nd_range<1> Range(GlobalRange, LocalRange);
 
       auto e = q.submit([&](handler &cgh) {
-        auto readAcc = Img.get_access<uint4, cl::sycl::access::mode::read>(cgh);
+        auto readAcc = Img.get_access<uint4, access::mode::read>(cgh);
 
         cgh.parallel_for<class Hist>(
             Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
@@ -204,8 +204,8 @@ int main(int argc, char *argv[]) {
                 src = histogram.select<8, 1>(i);
 
 #ifdef __SYCL_DEVICE_ONLY__
-                flat_atomic<atomic_op::add, unsigned int, 8>(bins, offset, src,
-                                                             1);
+                atomic_update<atomic_op::add, unsigned int, 8>(bins, offset,
+                                                               src, 1);
                 offset += 8 * sizeof(unsigned int);
 #else
                 simd<unsigned int, 8> vals;
@@ -226,8 +226,10 @@ int main(int argc, char *argv[]) {
     // SYCL will enqueue and run the kernel. Recall that the buffer's data is
     // given back to the host at the end of scope.
     // make sure data is given back to the host at the end of this scope
-  } catch (cl::sycl::exception const &e) {
-    std::cout << "SYCL exception caught: " << e.what() << '\n';
+  } catch (sycl::exception const &e) {
+    std::cerr << "SYCL exception caught: " << e.what() << '\n';
+    free(srcY, q);
+    free(bins, q);
     return 1;
   }
 
@@ -240,13 +242,14 @@ int main(int argc, char *argv[]) {
   writeHist(bins);
   writeHist(cpuHistogram);
   // Checking Histogram
-  if (checkHistogram(cpuHistogram, bins)) {
-    std::cerr << "PASSED\n";
-    return 0;
-  } else {
+  bool Success = checkHistogram(cpuHistogram, bins);
+  free(srcY, q);
+  free(bins, q);
+
+  if (!Success) {
     std::cerr << "FAILED\n";
     return 1;
   }
-
+  std::cout << "PASSED\n";
   return 0;
 }

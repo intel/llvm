@@ -24,12 +24,8 @@ constexpr int VL = 8;
 
 template <int Width> bool test(queue q, const std::vector<int> &gold) {
   std::cout << "Testing Width=" << Width << " ...\n";
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
-  int *A =
-      static_cast<int *>(malloc_shared(VL * Width * sizeof(int), dev, ctxt));
-  int *B =
-      static_cast<int *>(malloc_shared(VL * Width * sizeof(int), dev, ctxt));
+  int *A = malloc_shared<int>(VL * Width, q);
+  int *B = malloc_shared<int>(VL * Width, q);
 
   for (int i = 0; i < VL * Width; ++i) {
     A[i] = i;
@@ -48,11 +44,11 @@ template <int Width> bool test(queue q, const std::vector<int> &gold) {
       });
     });
     e.wait();
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    free(A, ctxt);
-    free(B, ctxt);
-    return e.get_cl_code();
+    free(A, q);
+    free(B, q);
+    return false; // not success
   }
 
   int err_cnt = 0;
@@ -70,8 +66,8 @@ template <int Width> bool test(queue q, const std::vector<int> &gold) {
               << "% (" << (VL * Width - err_cnt) << "/" << VL << ")\n";
   }
 
-  free(A, ctxt);
-  free(B, ctxt);
+  free(A, q);
+  free(B, q);
 
   std::cout << (err_cnt > 0 ? "  FAILED\n" : "  Passed\n");
   return err_cnt > 0 ? false : true;

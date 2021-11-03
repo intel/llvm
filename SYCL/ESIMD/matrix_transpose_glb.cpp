@@ -239,9 +239,7 @@ ESIMD_INLINE void transpose16(int *buf, int MZ, int block_col, int block_row) {
 bool runTest(unsigned MZ, unsigned block_size) {
   queue q(esimd_test::ESIMDSelector{}, esimd_test::createExceptionHandler(),
           property::queue::enable_profiling{});
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
-  int *M = static_cast<int *>(malloc_shared(MZ * MZ * sizeof(int), dev, ctxt));
+  int *M = malloc_shared<int>(MZ * MZ, q);
 
   initMatrix(M, MZ);
   cerr << "\nTranspose square matrix of size " << MZ << "\n";
@@ -253,11 +251,11 @@ bool runTest(unsigned MZ, unsigned block_size) {
 
   // create ranges
   // We need that many workitems
-  auto GlobalRange = cl::sycl::range<2>(thread_width, thread_height);
+  auto GlobalRange = range<2>(thread_width, thread_height);
 
   // Number of workitems in a workgroup
-  cl::sycl::range<2> LocalRange{1, 1};
-  cl::sycl::nd_range<2> Range(GlobalRange, LocalRange);
+  range<2> LocalRange{1, 1};
+  nd_range<2> Range(GlobalRange, LocalRange);
 
   // Start timer.
   esimd_test::Timer timer;
@@ -296,10 +294,10 @@ bool runTest(unsigned MZ, unsigned block_size) {
       else
         start = timer.Elapsed();
     }
-  } catch (cl::sycl::exception const &e) {
+  } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    free(M, ctxt);
-    return e.get_cl_code();
+    free(M, q);
+    return false; // not success
   }
 
   // End timer.
@@ -320,7 +318,7 @@ bool runTest(unsigned MZ, unsigned block_size) {
 
   // printMatrix("\nTransposed matrix:", M, MZ);
   bool success = checkResult(M, MZ);
-  free(M, ctxt);
+  free(M, q);
   return success;
 }
 
