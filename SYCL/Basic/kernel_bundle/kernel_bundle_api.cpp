@@ -369,5 +369,28 @@ int main() {
         "is empty");
   }
 
+  {
+    // no duplicate devices
+    sycl::kernel_bundle KernelBundleDupTest =
+        sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev, Dev},
+                                                           {Kernel1ID});
+    assert(KernelBundleDupTest.get_devices().size() == 1);
+
+    sycl::kernel_bundle<sycl::bundle_state::object>
+        KernelBundleDupeTestCompiled =
+            sycl::compile(KernelBundleDupTest, {Dev, Dev});
+    assert(KernelBundleDupeTestCompiled.get_devices().size() == 1);
+
+    sycl::kernel_bundle<sycl::bundle_state::executable>
+        KernelBundleDupeTestLinked =
+            sycl::link({KernelBundleDupeTestCompiled}, {Dev, Dev});
+    assert(KernelBundleDupeTestLinked.get_devices().size() == 1);
+
+    sycl::kernel_bundle<sycl::bundle_state::executable>
+        KernelBundleDupeTestBuilt =
+            sycl::build(KernelBundleDupTest, {Dev, Dev});
+    assert(KernelBundleDupeTestBuilt.get_devices().size() == 1);
+  }
+
   return 0;
 }
