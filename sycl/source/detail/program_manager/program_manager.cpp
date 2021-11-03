@@ -386,7 +386,10 @@ static void applyOptionsFromImage(std::string &CompileOpts,
   if (isEsimdImage && pi::DeviceBinaryProperty(isEsimdImage).asUint32()) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
-    CompileOpts += "-vc-codegen";
+    // TODO: "-vc-enable-preemption" is added temporarily until the option
+    // is enabled by default in vc-codegen. That has not been done yet due to
+    // still unresolved issues with non-sycl users of vc-backend.
+    CompileOpts += "-vc-codegen -vc-enable-preemption";
   }
 
   // Update only if link options are not overwritten by environment variable
