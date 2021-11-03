@@ -94,5 +94,17 @@ attributes #5 = { nounwind }
 ; CHECK: [SYCL/specialization constants]
 ; CHECK-NEXT: 9d329ad59055e972____ZL12StructSpecId=2|gBAAAAAAAAAAAAAAAAAAAgAAAAA
 ; CHECK-NEXT: 9d329ad59055e972____ZL10BoolSpecId=2|gBAAAAAAAAQAAAAAAAAAAEAAAAA
+
+; Ensure that the default values are correct.
+; IBAAAAAAAAAFAAAAjBAAAEA is decoded to "0x48 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x14
+; 0x0 0x0 0x0 0x63 0x0 0x0 0x0 0x1" which consists of:
+;  1. 8 bytes denoting the bit-size of the byte array, here 72 bits or 9 bytes.
+;  2. 4 bytes with the default value of the 32-bit integer member of
+;     %struct.TestStruct. Its value being 20.
+;  3. 1 byte with the default value of the char member of %struct.TestStruct.
+;     Its value being 'c'.
+;  4. 3 bytes of padding for %struct.TestStruct.
+;  5. 1 byte with the default value of the boolean specialization constant. Its
+;     value being true.
 ; CHECK: [SYCL/specialization constants default values]
 ; CHECK-NEXT: all=2|IBAAAAAAAAAFAAAAjBAAAEA
