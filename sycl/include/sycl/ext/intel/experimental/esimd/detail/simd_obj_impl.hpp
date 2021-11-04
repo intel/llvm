@@ -736,7 +736,27 @@ template <typename T, int N, class T1, class SFINAE>
 template <typename Flags, typename>
 void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *Addr,
                                                 Flags) SYCL_ESIMD_FUNCTION {
-  *this = block_load<T, N, Flags>(Addr, Flags{});
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  simd<T, N> Tmp;
+  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(Size / OperandSize::OWORD)) {
+    Tmp = block_load<T, N, Flags>(Addr, Flags{});
+  } else if constexpr (N == 1) {
+    Tmp = *Addr;
+  } else if constexpr (N == 8 || N == 16 || N == 32) {
+    simd<uint32_t, N> Offsets(0u, sizeof(T));
+    Tmp = gather<T, N>(Addr, Offsets);
+  } else {
+    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
+    simd_mask_type<N1> Pred(0);
+    Pred.template select<N, 1>() = 1;
+    simd<uint32_t, N1> Offsets(0u, sizeof(T));
+    simd<T, N1> Vals = gather<T, N1>(Addr, Offsets, Pred);
+    Tmp = Vals.template select<N, 1>();
+  }
+  *this = Tmp.data();
 }
 
 template <typename T, int N, class T1, class SFINAE>
@@ -745,18 +765,50 @@ ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                               sycl::access::target::global_buffer, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
                                            Flags) SYCL_ESIMD_FUNCTION {
-  *this = block_load<T, N, AccessorT, Flags>(acc, offset, Flags{});
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  simd<T, N> Tmp;
+  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(Size / OperandSize::OWORD)) {
+    Tmp = block_load<T, N, AccessorT, Flags>(acc, offset, Flags{});
+  } else if constexpr (N == 1 || N == 8 || N == 16 || N == 32) {
+    simd<uint32_t, N> Offsets(0u, sizeof(T));
+    Tmp = gather<T, N, AccessorT>(acc, Offsets, offset);
+  } else {
+    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
+    simd_mask_type<N1> Pred(0);
+    Pred.template select<N, 1>() = 1;
+    simd<uint32_t, N1> Offsets(0u, sizeof(T));
+    simd<T, N1> Vals = gather<T, N1>(acc, Offsets, offset, Pred);
+    Tmp = Vals.template select<N, 1>();
+  }
+  *this = Tmp.data();
 }
 
 template <typename T, int N, class T1, class SFINAE>
 template <typename Flags, typename>
 void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr,
                                               Flags) const SYCL_ESIMD_FUNCTION {
-  if constexpr (Flags::template alignment<T1> >= OperandSize::OWORD) {
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(Size / OperandSize::OWORD)) {
     block_store<T, N>(addr, cast_this_to_derived());
-  } else {
+  } else if constexpr (N == 1) {
+    *addr = data()[0];
+  } else if constexpr (N == 8 || N == 16 || N == 32) {
     simd<uint32_t, N> offsets(0u, sizeof(T));
-    scatter<T, N>(addr, offsets, cast_this_to_derived());
+    scatter<T, N>(addr, offsets, cast_this_to_derived().data());
+  } else {
+    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
+    simd_mask_type<N1> pred(0);
+    pred.template select<N, 1>() = 1;
+    simd<T, N1> vals(0);
+    vals.template select<N, 1>() = cast_this_to_derived().data();
+    simd<uint32_t, N1> offsets(0u, sizeof(T));
+    scatter<T, N1>(addr, offsets, vals, pred);
   }
 }
 
@@ -766,11 +818,24 @@ ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                               sycl::access::target::global_buffer, void>
 simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
                                          Flags) const SYCL_ESIMD_FUNCTION {
-  if constexpr (Flags::template alignment<T1> >= OperandSize::OWORD) {
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(Size / OperandSize::OWORD)) {
     block_store<T, N, AccessorT>(acc, offset, cast_this_to_derived());
-  } else {
+  } else if constexpr (N == 1 || N == 8 || N == 16 || N == 32) {
     simd<uint32_t, N> offsets(0u, sizeof(T));
-    scatter<T, N, AccessorT>(acc, offsets, cast_this_to_derived());
+    scatter<T, N, AccessorT>(acc, offsets, cast_this_to_derived().data(),
+                             offset);
+  } else {
+    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
+    simd_mask_type<N1> pred(0);
+    pred.template select<N, 1>() = 1;
+    simd<T, N1> vals(0);
+    vals.template select<N, 1>() = cast_this_to_derived().data();
+    simd<uint32_t, N1> offsets(0u, sizeof(T));
+    scatter<T, N1, AccessorT>(acc, offsets, vals, offset, pred);
   }
 }
 } // namespace detail

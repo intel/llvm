@@ -274,15 +274,14 @@ __ESIMD_API simd<T, n> block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
-  return __esimd_oword_ld<T, n>(surf_ind, offset);
 #endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (Flags::template alignment<simd<T, n>> >=
                 detail::OperandSize::OWORD) {
 #if defined(__SYCL_DEVICE_ONLY__)
-    return __esimd_oword_ld<T, n>(surf_ind, offset);
+    return __esimd_oword_ld<T, n>(surf_ind, offset >> 4);
 #else
-    return __esimd_oword_ld<T, n>(acc, offset);
+    return __esimd_oword_ld<T, n>(acc, offset >> 4);
 #endif // __SYCL_DEVICE_ONLY__
   } else {
 #if defined(__SYCL_DEVICE_ONLY__)
