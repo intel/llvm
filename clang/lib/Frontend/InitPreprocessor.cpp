@@ -488,11 +488,9 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
 
   if (LangOpts.SYCLIsDevice || LangOpts.SYCLIsHost) {
     // SYCL Version is set to a value when building SYCL applications
-    if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017) {
-      Builder.defineMacro("CL_SYCL_LANGUAGE_VERSION", "121");
-      Builder.defineMacro("SYCL_LANGUAGE_VERSION", "201707");
-    } else if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
-      Builder.defineMacro("SYCL_LANGUAGE_VERSION", "202001");
+    for (const std::pair<StringRef, StringRef> &Macro :
+         getSYCLVersionMacros(LangOpts))
+      Builder.defineMacro(Macro.first, Macro.second);
 
     if (LangOpts.SYCLValueFitInMaxInt)
       Builder.defineMacro("__SYCL_ID_QUERIES_FIT_IN_INT__");

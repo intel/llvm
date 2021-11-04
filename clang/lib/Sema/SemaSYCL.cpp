@@ -20,6 +20,7 @@
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/Version.h"
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
@@ -4749,16 +4750,18 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   // Predefines which need to be set for custom host compilation
   // must be defined in integration header.
-  if (S.getLangOpts().getSYCLVersion() == LangOptions::SYCL_2017) {
-    O << "#define CL_SYCL_LANGUAGE_VERSION 121\n";
-    O << "#define SYCL_LANGUAGE_VERSION 201707\n";
-  } else if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2020)
-    O << "#define SYCL_LANGUAGE_VERSION 202001\n";
+  for (const std::pair<StringRef, StringRef> &Macro :
+       getSYCLVersionMacros(S.getLangOpts())) {
+    O << "#ifndef " << Macro.first << '\n';
+    O << "#define " << Macro.first << " " << Macro.second << '\n';
+    O << "#endif //" << Macro.first << "\n\n";
+  }
 
-  if (S.getLangOpts().SYCLDisableRangeRounding)
+  if (S.getLangOpts().SYCLDisableRangeRounding) {
+    O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
     O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
-
-  O << "\n";
+    O << "#endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+  }
 
   if (SpecConsts.size() > 0) {
     O << "// Forward declarations of templated spec constant types:\n";

@@ -15,7 +15,9 @@
 #ifndef LLVM_CLANG_BASIC_VERSION_H
 #define LLVM_CLANG_BASIC_VERSION_H
 
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Version.inc"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
 namespace clang {
@@ -56,6 +58,9 @@ namespace clang {
   /// for use in the CPP __VERSION__ macro, which includes the clang version
   /// number, the repository version, and the vendor tag.
   std::string getClangFullCPPVersion();
+
+  llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
+  getSYCLVersionMacros(const LangOptions &LangOpts);
 }
 
 #endif // LLVM_CLANG_BASIC_VERSION_H
