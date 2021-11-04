@@ -179,7 +179,6 @@ int main() {
   // Invalid properties with invalid object type
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, NotASYCLObject);
 
-#if __cplusplus > 201402L
   //----------------------------------------------------------------------------
   // is_property_v positive tests
   //----------------------------------------------------------------------------
@@ -312,5 +311,4 @@ int main() {
 
   // Invalid properties with invalid object type
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, NotASYCLObject);
-#endif
 }

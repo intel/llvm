@@ -17,16 +17,12 @@ template <typename propertyT> struct is_property : public std::false_type {};
 template <typename propertyT, typename syclObjectT>
 struct is_property_of : public std::false_type {};
 
-#if __cplusplus > 201402L
-
 template <typename propertyT>
-inline constexpr bool is_property_v = is_property<propertyT>::value;
+__SYCL_INLINE_CONSTEXPR bool is_property_v = is_property<propertyT>::value;
 
 template <typename propertyT, typename syclObjectT>
-inline constexpr bool is_property_of_v =
+__SYCL_INLINE_CONSTEXPR bool is_property_of_v =
     is_property_of<propertyT, syclObjectT>::value;
-
-#endif
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
