@@ -53,6 +53,7 @@ set(LLVM_TEST_DEPENDS
           FileCheck
           LLVMHello
           UnitTests
+          append-file
           bugpoint
           count
           file-table-tform
