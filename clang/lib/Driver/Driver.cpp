@@ -4145,6 +4145,8 @@ class OffloadingActionBuilder final {
               continue;
             }
           }
+          if (Args.hasArg(options::OPT_fsyntax_only))
+            OutputType = types::TY_Nothing;
           A = C.MakeAction<CompileJobAction>(A, OutputType);
           DeviceCompilerInput = A;
         }
