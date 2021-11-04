@@ -59,6 +59,8 @@ namespace clang {
   /// number, the repository version, and the vendor tag.
   std::string getClangFullCPPVersion();
 
+  /// Retrieves a string representing the SYCL standard version for use in
+  /// the CL_SYCL_LANGUAGE_VERSION and SYCL_LANGUAGE_VERSION macros.
   llvm::SmallVector<std::pair<llvm::StringRef, llvm::StringRef>, 2>
   getSYCLVersionMacros(const LangOptions &LangOpts);
 }
