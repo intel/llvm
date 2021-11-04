@@ -137,7 +137,14 @@ public:
     init_from_array(std::move(Arr));
   }
 
-  /// Construct from simd_view object.
+  /// Construct from \ref simd_view object \p View.
+  /// The constructed object has the same element type as the viewed simd.
+  /// and the size that is specified by the RegionT parameter of \p View.
+  ///
+  /// \tparam ViewedSimdLength is the size in elements of the \ref simd
+  /// object being viewed by \p View.
+  /// \tparam RegionT is the region defining \p View.
+  /// \param View is the object from which the \ref simd is created.
   template <int ViewedSimdLength, typename RegionT,
             typename = std::enable_if_t<RegionT::length == N>>
   simd_obj_impl(simd_view<simd<Ty, ViewedSimdLength>, RegionT> &View)

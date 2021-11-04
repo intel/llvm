@@ -67,7 +67,14 @@ public:
     __esimd_dbg_print(simd(T1 Val));
   }
 
-  /// Construct from simd_view.
+  /// Construct \ref simd from \ref simd_view object \p View.
+  /// The constructed \ref simd object has the same element type as the viewed
+  /// simd and the size that is specified by the RegionT parameter of \p View.
+  ///
+  /// \tparam ViewedSimdLength is the size in elements of the \ref simd
+  /// object being viewed by \p View.
+  /// \tparam RegionT is the region defining the \p View.
+  /// \param View is the object from which the \ref simd is created.
   template <int ViewedSimdLength, typename RegionT,
             typename = std::enable_if_t<RegionT::length == N>>
   simd(simd_view<simd<element_type, ViewedSimdLength>, RegionT> &View)
