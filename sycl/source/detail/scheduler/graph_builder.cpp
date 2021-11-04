@@ -625,7 +625,6 @@ Scheduler::GraphBuilder::findAllocaForReq(MemObjRecord *Record,
 }
 
 static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
-  return true;
   if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
     if (std::strcmp(HUMConfig, "0") == 0)
       return Ctx->is_host();
