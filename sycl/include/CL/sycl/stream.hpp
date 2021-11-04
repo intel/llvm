@@ -750,6 +750,11 @@ public:
   // Throws exception in case of invalid input parameters
   stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH);
 
+  // Property-list constructor variant.
+  // TODO: Merge with other stream constructor and give PropList default value.
+  stream(size_t BufferSize, size_t MaxStatementSize, handler &CGH,
+         const property_list &PropList);
+
   size_t get_size() const;
 
   size_t get_max_statement_size() const;
@@ -763,6 +768,10 @@ public:
   bool operator==(const stream &RHS) const;
 
   bool operator!=(const stream &LHS) const;
+
+  template <typename propertyT> bool has_property() const noexcept;
+
+  template <typename propertyT> propertyT get_property() const;
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
