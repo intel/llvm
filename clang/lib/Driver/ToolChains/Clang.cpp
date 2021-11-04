@@ -9021,8 +9021,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
       addArgs(CmdArgs, TCArgs, {"-split=auto"});
     else { // Device code split is off
     }
-  } else {
-    // auto is the default split mode
+  } else if (getToolChain().getTriple().getArchName() != "spir64_fpga") {
+    // for FPGA targets, off is the default split mode,
+    // otherwise auto is the default split mode
     addArgs(CmdArgs, TCArgs, {"-split=auto"});
   }
 
