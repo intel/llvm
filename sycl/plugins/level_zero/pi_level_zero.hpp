@@ -754,6 +754,9 @@ struct _pi_mem : _pi_object {
   // Flag to indicate that this memory is allocated in host memory
   bool OnHost;
 
+  // Flag to indicate that the host ptr has been imported into USM
+  bool HostPtrImported;
+
   // Supplementary data to keep track of the mappings of this memory
   // created with piEnqueueMemBufferMap and piEnqueueMemImageMap.
   struct Mapping {
@@ -779,6 +782,10 @@ struct _pi_mem : _pi_object {
   // Thread-safe methods to work with memory mappings
   pi_result addMapping(void *MappedTo, size_t Size, size_t Offset);
   pi_result removeMapping(void *MappedTo, Mapping &MapInfo);
+
+  // Get/set whether host ptr was imported into USM
+  void setHostPtrImported(bool flag) { HostPtrImported = flag; }
+  bool getHostPtrImported() { return HostPtrImported; }
 
 protected:
   _pi_mem(pi_context Ctx, char *HostPtr, bool MemOnHost = false)
