@@ -119,7 +119,8 @@ public:
 #undef __ESIMD_DEF_SIMD_ARITH_UNARY_OP
 };
 
-// Deduction guide for simd constructor from a simd_view object.
+// Deduction guide for 'simd' constructor from a 'simd_view' object. It helps
+// to infer the template parameter 'N' of the class 'simd'.
 template <typename T, int ViewedSimdLength, typename RegionT>
 simd(simd_view<simd<T, ViewedSimdLength>, RegionT>) -> simd<T, RegionT::length>;
 
