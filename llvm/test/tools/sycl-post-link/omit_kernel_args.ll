@@ -6,9 +6,9 @@
 ; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --match-full-lines --check-prefixes CHECK-PROP
 ;
-; RUN: sycl-post-link -emit-param-info -S %s -o %t.files.table -reduce-memory-usage=true
-; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
-; RUN: FileCheck %s -input-file=%t.files_0.prop --match-full-lines --check-prefixes CHECK-PROP
+; RUN: sycl-post-link -emit-param-info -reduce-memory-usage=true -S %s -o %t-red.files.table
+; RUN: FileCheck %s -input-file=%t-red.files.table --check-prefixes CHECK-TABLE
+; RUN: FileCheck %s -input-file=%t-red.files_0.prop --match-full-lines --check-prefixes CHECK-PROP
 
 target triple = "spir64-unknown-unknown"
 

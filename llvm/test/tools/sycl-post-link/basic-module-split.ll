@@ -4,11 +4,11 @@
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-TXT
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-TXT
 
-; RUN: sycl-post-link -split=source -symbols -S %s -o %t.table -reduce-memory-usage=true
-; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-TU0,CHECK
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-TU1,CHECK
-; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-TXT
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-TXT
+; RUN: sycl-post-link -split=source -symbols -reduce-memory-usage=true -S %s -o %t-red.table
+; RUN: FileCheck %s -input-file=%t-red_0.ll --check-prefixes CHECK-TU0,CHECK
+; RUN: FileCheck %s -input-file=%t-red_1.ll --check-prefixes CHECK-TU1,CHECK
+; RUN: FileCheck %s -input-file=%t-red_0.sym --check-prefixes CHECK-TU0-TXT
+; RUN: FileCheck %s -input-file=%t-red_1.sym --check-prefixes CHECK-TU1-TXT
 
 ; ModuleID = 'basic-module-split.ll'
 source_filename = "basic-module-split.ll"

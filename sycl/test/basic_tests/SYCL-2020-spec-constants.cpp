@@ -6,12 +6,12 @@
 // RUN: cat %t-split2_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-DEF
 // RUN: llvm-spirv -o %t-split2_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split2_0.bc
 //
-// RUN: sycl-post-link %t.bc -spec-const=rt -reduce-memory-usage=true -o %t-split1.txt
-// RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
-// RUN: llvm-spirv -o %t-split1_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split1_0.bc
-// RUN: sycl-post-link %t.bc -spec-const=default -reduce-memory-usage=true -o %t-split2.txt
-// RUN: cat %t-split2_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-DEF
-// RUN: llvm-spirv -o %t-split2_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split2_0.bc
+// RUN: sycl-post-link %t.bc -spec-const=rt -reduce-memory-usage=true -o %t-split1-red.txt
+// RUN: cat %t-split1-red_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
+// RUN: llvm-spirv -o %t-split1-red_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split1-red_0.bc
+// RUN: sycl-post-link %t.bc -spec-const=default -reduce-memory-usage=true -o %t-split2-red.txt
+// RUN: cat %t-split2-red_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-DEF
+// RUN: llvm-spirv -o %t-split2-red_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t-split2-red_0.bc
 //
 //==----------- SYCL-2020-spec-constants.cpp -------------------------------==//
 //

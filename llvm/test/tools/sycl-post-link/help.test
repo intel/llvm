@@ -36,21 +36,22 @@ CHECK: OPTIONS:
 
 CHECK: Generic Options:
 
-CHECK: --help               - Display available options (--help-hidden for more)
-CHECK: --help-list          - Display list of available options (--help-list-hidden for more)
-CHECK: --version            - Display the version of this program
+CHECK: --help                - Display available options (--help-hidden for more)
+CHECK: --help-list           - Display list of available options (--help-list-hidden for more)
+CHECK: --version             - Display the version of this program
 
 CHECK: sycl-post-link options:
 
-CHECK: -f                   - Enable binary output on terminals
-CHECK: --ir-output-only     - Output single IR file
-CHECK: -o=<filename>        - Output filename
-CHECK: --out-dir=<dirname>  - Directory where files listed in the result file table will be output
-CHECK: --spec-const=<value> - lower and generate specialization constants information
-CHECK:   =rt                -   spec constants are set at runtime
-CHECK:   =default           -   set spec constants to C++ defaults
-CHECK: --split=<value>      - split input module
-CHECK:   =source            -   1 output module per source (translation unit)
-CHECK:   =kernel            -   1 output module per kernel
-CHECK:   =auto              -   Choose split mode automatically
-CHECK: --symbols            - generate exported symbol files
+CHECK: -f                    - Enable binary output on terminals
+CHECK: --ir-output-only      - Output single IR file
+CHECK: -o=<filename>         - Output filename
+CHECK: --out-dir=<dirname>   - Directory where files listed in the result file table will be output
+CHECK: --reduce-memory-usage - Share temporary auxiliary memory to reduce RAM utilization
+CHECK: --spec-const=<value>  - lower and generate specialization constants information
+CHECK:   =rt                 -   spec constants are set at runtime
+CHECK:   =default            -   set spec constants to C++ defaults
+CHECK: --split=<value>       - split input module
+CHECK:   =source             -   1 output module per source (translation unit)
+CHECK:   =kernel             -   1 output module per kernel
+CHECK:   =auto               -   Choose split mode automatically
+CHECK: --symbols             - generate exported symbol files

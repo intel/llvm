@@ -3,8 +3,10 @@
 ; RUN: sycl-post-link -spec-const=default -S %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --check-prefixes=CHECK,CHECK-DEF
 
-; RUN: sycl-post-link -spec-const=rt -S %s --ir-output-only -o %t.ll -reduce-memory-usage=true
-; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast"
+; RUN: sycl-post-link -spec-const=rt -reduce-memory-usage=true -S %s --ir-output-only -o %t-red.ll
+; RUN: FileCheck %s --input-file=%t-red.ll --implicit-check-not "call i8 bitcast"
+; RUN: sycl-post-link -spec-const=default -reduce-memory-usage=true -S %s --ir-output-only -o %t-red.ll
+; RUN: FileCheck %s --input-file=%t-red.ll --check-prefixes=CHECK,CHECK-DEF
 
 ; CHECK-LABEL: void @kernel_A
 ; CHECK-RT: %[[CALL:.*]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8 1)

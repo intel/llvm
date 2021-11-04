@@ -5,12 +5,12 @@
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-IR-0
 ; RUN: FileCheck %s -input-file=%t_esimd_1.ll --check-prefixes CHECK-ESIMD-IR-1
 
-; RUN: sycl-post-link -split-esimd -split=source -reduce-memory-usage=true -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t.table
-; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-IR-0
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-SYCL-IR-1
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-IR-0
-; RUN: FileCheck %s -input-file=%t_esimd_1.ll --check-prefixes CHECK-ESIMD-IR-1
+; RUN: sycl-post-link -split-esimd -split=source -reduce-memory-usage=true -S %s -o %t-red.table
+; RUN: FileCheck %s -input-file=%t-red.table
+; RUN: FileCheck %s -input-file=%t-red_0.ll --check-prefixes CHECK-SYCL-IR-0
+; RUN: FileCheck %s -input-file=%t-red_1.ll --check-prefixes CHECK-SYCL-IR-1
+; RUN: FileCheck %s -input-file=%t-red_esimd_0.ll --check-prefixes CHECK-ESIMD-IR-0
+; RUN: FileCheck %s -input-file=%t-red_esimd_1.ll --check-prefixes CHECK-ESIMD-IR-1
 
 ; This test checks that after we split SYCL and ESIMD kernels into
 ; separate modules, we split those two modules further according to

@@ -6,13 +6,13 @@
 ; RUN: FileCheck %s -input-file=%t.files_1.sym --check-prefixes CHECK-MODULE1-TXT
 ; RUN: FileCheck %s -input-file=%t.files_2.sym --check-prefixes CHECK-MODULE2-TXT
 
-; RUN: sycl-post-link -split=kernel -symbols -S %s -o %t.files.table -reduce-memory-usage=true
-; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefixes CHECK-MODULE0,CHECK
-; RUN: FileCheck %s -input-file=%t.files_1.ll --check-prefixes CHECK-MODULE1,CHECK
-; RUN: FileCheck %s -input-file=%t.files_2.ll --check-prefixes CHECK-MODULE2,CHECK
-; RUN: FileCheck %s -input-file=%t.files_0.sym --check-prefixes CHECK-MODULE0-TXT
-; RUN: FileCheck %s -input-file=%t.files_1.sym --check-prefixes CHECK-MODULE1-TXT
-; RUN: FileCheck %s -input-file=%t.files_2.sym --check-prefixes CHECK-MODULE2-TXT
+; RUN: sycl-post-link -split=kernel -symbols -reduce-memory-usage=true -S %s -o %t-red.files.table
+; RUN: FileCheck %s -input-file=%t-red.files_0.ll --check-prefixes CHECK-MODULE0,CHECK
+; RUN: FileCheck %s -input-file=%t-red.files_1.ll --check-prefixes CHECK-MODULE1,CHECK
+; RUN: FileCheck %s -input-file=%t-red.files_2.ll --check-prefixes CHECK-MODULE2,CHECK
+; RUN: FileCheck %s -input-file=%t-red.files_0.sym --check-prefixes CHECK-MODULE0-TXT
+; RUN: FileCheck %s -input-file=%t-red.files_1.sym --check-prefixes CHECK-MODULE1-TXT
+; RUN: FileCheck %s -input-file=%t-red.files_2.sym --check-prefixes CHECK-MODULE2-TXT
 
 ; ModuleID = 'one-kernel-per-module.ll'
 source_filename = "one-kernel-per-module.ll"

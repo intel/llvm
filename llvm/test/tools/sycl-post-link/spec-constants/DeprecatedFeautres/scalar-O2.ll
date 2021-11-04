@@ -3,9 +3,9 @@
 ; RUN: sycl-post-link --ir-output-only -spec-const=rt %s -S -o - | \
 ; RUN:   FileCheck %s -check-prefixes=CHECK,CHECK-RT
 
-; RUN: sycl-post-link --ir-output-only -spec-const=default %s -S -reduce-memory-usage=true -o - | \
+; RUN: sycl-post-link --ir-output-only -spec-const=default -reduce-memory-usage=true %s -S -o - | \
 ; RUN:   FileCheck %s -check-prefixes=CHECK,CHECK-DEF
-; RUN: sycl-post-link --ir-output-only -spec-const=rt %s -S -reduce-memory-usage=true -o - | \
+; RUN: sycl-post-link --ir-output-only -spec-const=rt -reduce-memory-usage=true %s -S -o - | \
 ; RUN:   FileCheck %s -check-prefixes=CHECK,CHECK-RT
 
 ; This test checks that the post link tool is able to correctly transform

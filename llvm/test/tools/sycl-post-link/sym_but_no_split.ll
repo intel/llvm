@@ -6,9 +6,9 @@
 ; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t.files_0.sym --match-full-lines --check-prefixes CHECK-SYM
 ;
-; RUN: sycl-post-link -symbols -spec-const=rt -S %s -o %t.files.table -reduce-memory-usage=true
-; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
-; RUN: FileCheck %s -input-file=%t.files_0.sym --match-full-lines --check-prefixes CHECK-SYM
+; RUN: sycl-post-link -symbols -spec-const=rt -reduce-memory-usage=true -S %s -o %t-red.files.table
+; RUN: FileCheck %s -input-file=%t-red.files.table --check-prefixes CHECK-TABLE
+; RUN: FileCheck %s -input-file=%t-red.files_0.sym --match-full-lines --check-prefixes CHECK-SYM
 
 define dso_local spir_kernel void @KERNEL_AAA() {
 ; CHECK-SYM-NOT: {{[a-zA-Z0-9._@]+}}

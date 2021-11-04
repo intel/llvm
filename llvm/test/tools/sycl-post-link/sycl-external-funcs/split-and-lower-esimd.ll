@@ -1,8 +1,8 @@
 ; RUN: sycl-post-link -split=auto -split-esimd -lower-esimd -O0 -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
-; RUN: sycl-post-link -split=auto -split-esimd -lower-esimd -O0 -reduce-memory-usage=true -S %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll
+; RUN: sycl-post-link -split=auto -split-esimd -lower-esimd -O0 -reduce-memory-usage=true -S %s -o %t-red.table
+; RUN: FileCheck %s -input-file=%t-red_esimd_0.ll
 
 ; This test checks that unreferenced functions with sycl-module-id
 ; attribute are not dropped from the module and ESIMD lowering

@@ -2,8 +2,8 @@
 // RUN: sycl-post-link -split-esimd -lower-esimd -O2 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
-// RUN: sycl-post-link -split-esimd -lower-esimd -O2 -reduce-memory-usage=true -S %t -o %t.table
-// RUN: FileCheck %s -input-file=%t_esimd_0.ll
+// RUN: sycl-post-link -split-esimd -lower-esimd -O2 -reduce-memory-usage=true -S %t -o %t-red.table
+// RUN: FileCheck %s -input-file=%t-red_esimd_0.ll
 
 // This test checks that globals with register attribute are allowed in ESIMD
 // mode, can be accessed in functions and correct LLVM IR is generated
