@@ -95,6 +95,9 @@ cl::opt<bool> SplitEsimd{"split-esimd",
                          cl::desc("Split SYCL and ESIMD entry points"),
                          cl::cat(PostLinkCat)};
 
+cl::opt<bool> LowerEsimd{"lower-esimd", cl::desc("Lower ESIMD constructs"),
+                         cl::cat(PostLinkCat)};
+
 // TODO Design note: sycl-post-link should probably separate different kinds of
 // its functionality on  logical and source level:
 //  - LLVM IR module splitting
@@ -103,9 +106,6 @@ cl::opt<bool> SplitEsimd{"split-esimd",
 // The tool itself could be just a "driver" creating needed pipelines from the
 // above actions. This could help make the tool structure clearer and more
 // maintainable.
-
-cl::opt<bool> LowerEsimd{"lower-esimd", cl::desc("Lower ESIMD constructs"),
-                         cl::cat(PostLinkCat)};
 
 cl::opt<bool> OptLevelO0("O0",
                          cl::desc("Optimization level 0. Similar to clang -O0"),
@@ -1012,13 +1012,14 @@ int main(int argc, char **argv) {
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
   bool DoSplitEsimd = SplitEsimd.getNumOccurrences() > 0;
+  bool DoLowerEsimd = LowerEsimd.getNumOccurrences() > 0;
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   bool DoParamInfo = EmitKernelParamInfo.getNumOccurrences() > 0;
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
-      !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms) {
+      !DoProgMetadata && !DoSplitEsimd && !DoLowerEsimd && !DoExportedSyms) {
     errs() << "no actions specified; try --help for usage info\n";
     return 1;
   }
