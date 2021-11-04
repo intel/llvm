@@ -154,6 +154,7 @@
 ??$get_property@Vcontext_bound@buffer@property@sycl@cl@@@context@sycl@cl@@QEBA?AVcontext_bound@buffer@property@12@XZ
 ??$get_property@Vcontext_bound@buffer@property@sycl@cl@@@program@sycl@cl@@QEBA?AVcontext_bound@buffer@property@12@XZ
 ??$get_property@Vcontext_bound@buffer@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVcontext_bound@buffer@property@12@XZ
+??$get_property@Vcontext_bound@buffer@property@sycl@cl@@@stream@sycl@cl@@QEBA?AVcontext_bound@buffer@property@12@XZ
 ??$get_property@Vcontext_bound@image@property@sycl@cl@@@context@sycl@cl@@QEBA?AVcontext_bound@image@property@12@XZ
 ??$get_property@Vcontext_bound@image@property@sycl@cl@@@program@sycl@cl@@QEBA?AVcontext_bound@image@property@12@XZ
 ??$get_property@Vcontext_bound@image@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVcontext_bound@image@property@12@XZ
@@ -166,12 +167,15 @@
 ??$get_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@context@sycl@cl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
 ??$get_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@program@sycl@cl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
 ??$get_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
+??$get_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@stream@sycl@cl@@QEBA?AVinitialize_to_identity@reduction@property@12@XZ
 ??$get_property@Vno_init@property@sycl@cl@@@context@sycl@cl@@QEBA?AVno_init@property@12@XZ
 ??$get_property@Vno_init@property@sycl@cl@@@program@sycl@cl@@QEBA?AVno_init@property@12@XZ
 ??$get_property@Vno_init@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVno_init@property@12@XZ
+??$get_property@Vno_init@property@sycl@cl@@@stream@sycl@cl@@QEBA?AVno_init@property@12@XZ
 ??$get_property@Vnoinit@property@sycl@cl@@@context@sycl@cl@@QEBA?AVnoinit@property@12@XZ
 ??$get_property@Vnoinit@property@sycl@cl@@@program@sycl@cl@@QEBA?AVnoinit@property@12@XZ
 ??$get_property@Vnoinit@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVnoinit@property@12@XZ
+??$get_property@Vnoinit@property@sycl@cl@@@stream@sycl@cl@@QEBA?AVnoinit@property@12@XZ
 ??$get_property@Vuse_host_ptr@buffer@property@sycl@cl@@@context@sycl@cl@@QEBA?AVuse_host_ptr@buffer@property@12@XZ
 ??$get_property@Vuse_host_ptr@buffer@property@sycl@cl@@@program@sycl@cl@@QEBA?AVuse_host_ptr@buffer@property@12@XZ
 ??$get_property@Vuse_host_ptr@buffer@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVuse_host_ptr@buffer@property@12@XZ
@@ -179,6 +183,7 @@
 ??$get_property@Vuse_host_ptr@image@property@sycl@cl@@@context@sycl@cl@@QEBA?AVuse_host_ptr@image@property@12@XZ
 ??$get_property@Vuse_host_ptr@image@property@sycl@cl@@@program@sycl@cl@@QEBA?AVuse_host_ptr@image@property@12@XZ
 ??$get_property@Vuse_host_ptr@image@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVuse_host_ptr@image@property@12@XZ
+??$get_property@Vuse_host_ptr@image@property@sycl@cl@@@stream@sycl@cl@@QEBA?AVuse_host_ptr@image@property@12@XZ
 ??$get_property@Vuse_mutex@buffer@property@sycl@cl@@@context@sycl@cl@@QEBA?AVuse_mutex@buffer@property@12@XZ
 ??$get_property@Vuse_mutex@buffer@property@sycl@cl@@@program@sycl@cl@@QEBA?AVuse_mutex@buffer@property@12@XZ
 ??$get_property@Vuse_mutex@buffer@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVuse_mutex@buffer@property@12@XZ
@@ -194,6 +199,7 @@
 ??$get_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@context@sycl@cl@@QEBA?AVuse_primary_context@cuda@0property@12@XZ
 ??$get_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@program@sycl@cl@@QEBA?AVuse_primary_context@cuda@context@property@12@XZ
 ??$get_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVuse_primary_context@cuda@context@property@12@XZ
+??$get_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@stream@sycl@cl@@QEBA?AVuse_primary_context@cuda@context@property@12@XZ
 ??$get_sub_group_info@$0BBLJ@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_sub_group_info@$0BBLK@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_sub_group_info@$0CADD@@kernel@sycl@cl@@QEBAIAEBVdevice@12@V?$range@$02@12@@Z
@@ -210,10 +216,12 @@
 ??$has_property@Vcontext_bound@image@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vcontext_bound@image@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vcontext_bound@image@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
+??$has_property@Vcontext_bound@image@property@sycl@cl@@@stream@sycl@cl@@QEBA_NXZ
 ??$has_property@Venable_profiling@queue@property@sycl@cl@@@queue@sycl@cl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vin_order@queue@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
+??$has_property@Vin_order@queue@property@sycl@cl@@@stream@sycl@cl@@QEBA_NXZ
 ??$has_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vinitialize_to_identity@reduction@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
@@ -233,6 +241,7 @@
 ??$has_property@Vuse_host_ptr@image@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_host_ptr@image@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_host_ptr@image@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
+??$has_property@Vuse_host_ptr@image@property@sycl@cl@@@stream@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_mutex@buffer@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_mutex@buffer@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_mutex@buffer@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
@@ -248,6 +257,7 @@
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
+??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@stream@sycl@cl@@QEBA_NXZ
 ??0?$image_impl@$00@detail@sycl@cl@@QEAA@AEAV?$shared_ptr@X@std@@W4image_channel_order@23@W4image_channel_type@23@AEBV?$range@$00@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@5@AEBVproperty_list@23@@Z
 ??0?$image_impl@$00@detail@sycl@cl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@Vevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0?$image_impl@$00@detail@sycl@cl@@QEAA@PEAXW4image_channel_order@23@W4image_channel_type@23@AEBV?$range@$00@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@AEBVproperty_list@23@@Z
@@ -413,6 +423,7 @@
 ??0stream@sycl@cl@@QEAA@_K0AEAVhandler@12@@Z
 ??0stream@sycl@cl@@QEAA@_K0AEAVhandler@12@AEBVproperty_list@12@@Z
 ??0stream_impl@detail@sycl@cl@@QEAA@$$QEAV0123@@Z
+??0stream_impl@detail@sycl@cl@@QEAA@AEBV0123@@Z
 ??0stream_impl@detail@sycl@cl@@QEAA@_K0AEAVhandler@23@@Z
 ??0stream_impl@detail@sycl@cl@@QEAA@_K0AEBVproperty_list@23@@Z
 ??1?$image_impl@$00@detail@sycl@cl@@UEAA@XZ
@@ -447,6 +458,7 @@
 ??1sampler@sycl@cl@@QEAA@XZ
 ??1sampler_impl@detail@sycl@cl@@QEAA@XZ
 ??1stream@sycl@cl@@QEAA@XZ
+??1stream_impl@detail@sycl@cl@@QEAA@XZ
 ??4AccessorImplHost@detail@sycl@cl@@QEAAAEAV0123@AEBV0123@@Z
 ??4HostProfilingInfo@detail@sycl@cl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4HostProfilingInfo@detail@sycl@cl@@QEAAAEAV0123@AEBV0123@@Z
