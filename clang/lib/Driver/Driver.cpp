@@ -4122,7 +4122,11 @@ class OffloadingActionBuilder final {
             // header.
             Action *CompileAction =
                 C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
-            DA.add(*CompileAction, *ToolChains.front(), nullptr,
+            // Make sure that bound arch is also passed, as it might be
+            // required, for example in: CudaToolChain::addClangTargetOptions.
+            assert(!SYCLTargetInfoList.empty() && "Expected target info.");
+            const auto *BoundArch = SYCLTargetInfoList.back().BoundArch;
+            DA.add(*CompileAction, *ToolChains.front(), BoundArch,
                    Action::OFK_SYCL);
           }
           return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
