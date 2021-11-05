@@ -4122,10 +4122,10 @@ class OffloadingActionBuilder final {
             // header.
             Action *CompileAction =
                 C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
-            // Make sure that bound arch is also passed, as it might be
-            // required, for example in: CudaToolChain::addClangTargetOptions.
-            assert(!SYCLTargetInfoList.empty() && "Expected target info.");
-            const auto *BoundArch = SYCLTargetInfoList.back().BoundArch;
+            // If the bound arch is provided make sure to propagate it.
+            const char *BoundArch = !SYCLTargetInfoList.empty()
+                                        ? SYCLTargetInfoList.back().BoundArch
+                                        : nullptr;
             DA.add(*CompileAction, *ToolChains.front(), BoundArch,
                    Action::OFK_SYCL);
           }
