@@ -84,6 +84,28 @@ fir.global internal @_QEmultiarray : !fir.array<32x32xi32> {
 
 // -----
 
+// Test global with insert_on_range operation not covering the full array
+// in initializer region.
+
+fir.global internal @_QEmultiarray : !fir.array<32xi32> {
+  %c0_i32 = arith.constant 1 : i32
+  %0 = fir.undefined !fir.array<32xi32>
+  %2 = fir.insert_on_range %0, %c0_i32, [5 : index, 31 : index] : (!fir.array<32xi32>, i32) -> !fir.array<32xi32>
+  fir.has_value %2 : !fir.array<32xi32>
+}
+
+// CHECK:          llvm.mlir.global internal @_QEmultiarray() : !llvm.array<32 x i32> {
+// CHECK:            %[[CST:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK:            %{{.*}} = llvm.mlir.undef : !llvm.array<32 x i32>
+// CHECK:            %{{.*}} = llvm.insertvalue %[[CST]], %{{.*}}[5] : !llvm.array<32 x i32>
+// CHECK-COUNT-24:   %{{.*}} = llvm.insertvalue %[[CST]], %{{.*}}[{{.*}}] : !llvm.array<32 x i32>
+// CHECK:            %{{.*}} = llvm.insertvalue %[[CST]], %{{.*}}[31] : !llvm.array<32 x i32>
+// CHECK-NOT:        llvm.insertvalue
+// CHECK:            llvm.return %{{.*}} : !llvm.array<32 x i32>
+// CHECK:          }
+
+// -----
+
 // Test fir.zero_bits operation with LLVM ptr type
 
 func @zero_test_ptr() {
@@ -133,3 +155,15 @@ func @zero_test_float() {
 // CHECK: %{{.*}} = llvm.mlir.constant(0.000000e+00 : f80) : f80
 // CHECK: %{{.*}} = llvm.mlir.constant(0.000000e+00 : f128) : f128
 // CHECK-NOT: fir.zero_bits
+
+// -----
+
+// Verify that fir.unreachable is transformed to llvm.unreachable
+
+// CHECK:  llvm.func @test_unreachable() {
+// CHECK-NEXT:    llvm.unreachable
+// CHECK-NEXT:  }
+
+func @test_unreachable() {
+  fir.unreachable
+}

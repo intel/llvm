@@ -3742,13 +3742,19 @@ void VarArgsLoweringHelper::createVarArgAreaAndStoreRegisters(
       SmallVector<SDValue, 12> SaveXMMOps;
       SaveXMMOps.push_back(Chain);
       SaveXMMOps.push_back(ALVal);
-      SaveXMMOps.push_back(
-          DAG.getTargetConstant(FuncInfo->getRegSaveFrameIndex(), DL, MVT::i32));
+      SaveXMMOps.push_back(RSFIN);
       SaveXMMOps.push_back(
           DAG.getTargetConstant(FuncInfo->getVarArgsFPOffset(), DL, MVT::i32));
       llvm::append_range(SaveXMMOps, LiveXMMRegs);
-      MemOps.push_back(DAG.getNode(X86ISD::VASTART_SAVE_XMM_REGS, DL,
-                                   MVT::Other, SaveXMMOps));
+      MachineMemOperand *StoreMMO =
+          DAG.getMachineFunction().getMachineMemOperand(
+              MachinePointerInfo::getFixedStack(
+                  DAG.getMachineFunction(), FuncInfo->getRegSaveFrameIndex(),
+                  Offset),
+              MachineMemOperand::MOStore, 128, Align(16));
+      MemOps.push_back(DAG.getMemIntrinsicNode(X86ISD::VASTART_SAVE_XMM_REGS,
+                                               DL, DAG.getVTList(MVT::Other),
+                                               SaveXMMOps, MVT::i8, StoreMMO));
     }
 
     if (!MemOps.empty())
@@ -4531,7 +4537,7 @@ X86TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     // address into a register.
     Callee = LowerGlobalOrExternal(Callee, DAG, /*ForCall=*/true);
   } else if (Subtarget.isTarget64BitILP32() &&
-             Callee->getValueType(0) == MVT::i32) {
+             Callee.getValueType() == MVT::i32) {
     // Zero-extend the 32-bit Callee address into a 64-bit according to x32 ABI
     Callee = DAG.getNode(ISD::ZERO_EXTEND, dl, MVT::i64, Callee);
   }
@@ -39736,17 +39742,24 @@ bool X86TargetLowering::SimplifyDemandedVectorEltsForTargetNode(
     SDValue RHS = Op.getOperand(1);
     APInt DemandedSrcElts = APIntOps::ScaleBitMask(DemandedElts, 2 * NumElts);
 
-    APInt DemandedRHSElts = DemandedSrcElts;
-    if (SimplifyDemandedVectorElts(RHS, DemandedRHSElts, RHSUndef, RHSZero, TLO,
+    if (SimplifyDemandedVectorElts(LHS, DemandedSrcElts, LHSUndef, LHSZero, TLO,
+                                   Depth + 1))
+      return true;
+    if (SimplifyDemandedVectorElts(RHS, DemandedSrcElts, RHSUndef, RHSZero, TLO,
                                    Depth + 1))
       return true;
 
-    // If RHS elements are known zero then we don't need the LHS equivalent.
+    // TODO: Multiply by zero.
+
+    // If RHS/LHS elements are known zero then we don't need the LHS/RHS equivalent.
     APInt DemandedLHSElts = DemandedSrcElts & ~RHSZero;
     if (SimplifyDemandedVectorElts(LHS, DemandedLHSElts, LHSUndef, LHSZero, TLO,
                                    Depth + 1))
       return true;
-    // TODO: Multiply by zero.
+    APInt DemandedRHSElts = DemandedSrcElts & ~LHSZero;
+    if (SimplifyDemandedVectorElts(RHS, DemandedRHSElts, RHSUndef, RHSZero, TLO,
+                                   Depth + 1))
+      return true;
     break;
   }
   case X86ISD::PSADBW: {
@@ -51665,9 +51678,11 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
     if (Op0.getOpcode() == X86ISD::VBROADCAST)
       return DAG.getNode(Op0.getOpcode(), DL, VT, Op0.getOperand(0));
 
-    // If this scalar/subvector broadcast_load is inserted into both halves, use
-    // a larger broadcast_load. Update other uses to use an extracted subvector.
-    if (Op0.getOpcode() == X86ISD::VBROADCAST_LOAD ||
+    // If this simple subvector or scalar/subvector broadcast_load is inserted
+    // into both halves, use a larger broadcast_load. Update other uses to use
+    // an extracted subvector.
+    if (ISD::isNormalLoad(Op0.getNode()) ||
+        Op0.getOpcode() == X86ISD::VBROADCAST_LOAD ||
         Op0.getOpcode() == X86ISD::SUBV_BROADCAST_LOAD) {
       auto *Mem = cast<MemSDNode>(Op0);
       unsigned Opc = Op0.getOpcode() == X86ISD::VBROADCAST_LOAD
@@ -51678,24 +51693,6 @@ static SDValue combineConcatVectorOps(const SDLoc &DL, MVT VT,
         SDValue BcastSrc =
             extractSubVector(BcastLd, 0, DAG, DL, Op0.getValueSizeInBits());
         DAG.ReplaceAllUsesOfValueWith(Op0, BcastSrc);
-        return BcastLd;
-      }
-    }
-
-    // If this is a simple subvector load repeated across multiple lanes, then
-    // broadcast the load. Update other uses to use an extracted subvector.
-    if (auto *Ld = dyn_cast<LoadSDNode>(Op0)) {
-      if (Ld->isSimple() && !Ld->isNonTemporal() &&
-          Ld->getExtensionType() == ISD::NON_EXTLOAD) {
-        SDVTList Tys = DAG.getVTList(VT, MVT::Other);
-        SDValue Ops[] = {Ld->getChain(), Ld->getBasePtr()};
-        SDValue BcastLd =
-            DAG.getMemIntrinsicNode(X86ISD::SUBV_BROADCAST_LOAD, DL, Tys, Ops,
-                                    Ld->getMemoryVT(), Ld->getMemOperand());
-        DAG.ReplaceAllUsesOfValueWith(
-            Op0,
-            extractSubVector(BcastLd, 0, DAG, DL, Op0.getValueSizeInBits()));
-        DAG.ReplaceAllUsesOfValueWith(SDValue(Ld, 1), BcastLd.getValue(1));
         return BcastLd;
       }
     }
@@ -52458,6 +52455,7 @@ static SDValue combinePMULDQ(SDNode *N, SelectionDAG &DAG,
 // Simplify VPMADDUBSW/VPMADDWD operations.
 static SDValue combineVPMADD(SDNode *N, SelectionDAG &DAG,
                              TargetLowering::DAGCombinerInfo &DCI) {
+  EVT VT = N->getValueType(0);
   SDValue LHS = N->getOperand(0);
   SDValue RHS = N->getOperand(1);
 
@@ -52465,7 +52463,14 @@ static SDValue combineVPMADD(SDNode *N, SelectionDAG &DAG,
   // Don't return LHS/RHS as it may contain UNDEFs.
   if (ISD::isBuildVectorAllZeros(LHS.getNode()) ||
       ISD::isBuildVectorAllZeros(RHS.getNode()))
-    return DAG.getConstant(0, SDLoc(N), N->getValueType(0));
+    return DAG.getConstant(0, SDLoc(N), VT);
+
+  APInt KnownUndef, KnownZero;
+  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
+  APInt DemandedElts = APInt::getAllOnes(VT.getVectorNumElements());
+  if (TLI.SimplifyDemandedVectorElts(SDValue(N, 0), DemandedElts, KnownUndef,
+                                     KnownZero, DCI))
+    return SDValue(N, 0);
 
   return SDValue();
 }
