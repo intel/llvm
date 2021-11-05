@@ -4876,7 +4876,7 @@ class OffloadingActionBuilder final {
       bool ShouldAddDefaultTriple = true;
       bool GpuInitHasErrors = false;
       bool HasSYCLTargetsOption =
-               SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
+          SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
       if (HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {
           Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
