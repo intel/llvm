@@ -1,0 +1,238 @@
+= SYCL_EXT_ONEAPI_NON_UNIFORM_SUB_GROUP
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This document describes an extension which introduces a new
+`non_uniform_sub_group` class representing a subset of work-items in a
+sub-group which are executing the same control-flow path within a SYCL
+application.
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to
+a feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+
+== Version
+
+Built On: {docdate} +
+Revision: 1
+
+== Contacts
+
+John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com) +
+Roland Schulz, Intel (roland 'dot' schulz 'at' intel 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 3 and
+the following extensions:
+
+- https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/SubGroupMask/SubGroupMask.asciidoc[SYCL_EXT_ONEAPI_SUB_GROUP_MASK]
+
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_NON_UNIFORM_SUB_GROUP` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's APIs the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+== Overview
+
+Control flow in a SYCL program is initially uniform/converged, and becomes
+diverged/non-uniform whenever different work-items in a sub-group execute
+different paths as a result of a branch instruction.  The set of work-items in
+a sub-group executing a given control-flow path are referred to as _active_
+work-items, and the set of work-items in the same sub-group not executing the
+control-flow path are referred to as _inactive_ work-items.  The points at
+which work-items diverge and later reconverge are implementation-defined.
+
+By default, sub-group functions can only be called in converged/uniform
+control-flow (i.e. they must be encountered by all work-items in the
+sub-group), making them difficult to use in several real-life scenarios.  When
+a user requires support for sub-group functions in diverged/non-uniform
+control-flow, they must opt-in to using a specialized version of the
+`sub_group` class -- the `non_uniform_sub_group` class.
+
+A `non_uniform_sub_group` can be constructed _implicitly_ to represent the set
+of active work-items in a sub-group that are executing a given control-flow
+path, or _explicitly_ to represent a known subset of work-items in the
+sub-group.
+
+An example usage of the `non_uniform_sub_group` class is given below:
+
+[source,c++]
+----
+// get group representing work-items which execute the constructor together
+non_uniform_sub_group outer = it.get_non_uniform_sub_group();
+
+sub_group::mask_type m = outer.ballot(it.get_local_id() % 2 == 0);
+if (it.get_local_id() % 2 == 0)
+{
+  // get group representing subset of outer work-items that took the branch
+  non_uniform_sub_group<active_mask::explicit> inner = it.get_masked_sub_group(m);
+
+  // reduce across subset of outer work-items that took the branch
+  float ix = reduce(inner, x, plus<>());
+}
+
+// reduce across work-items that executed outer constructor together
+float ox = reduce(outer, x, plus<>());
+
+// reduce across work-items that execute reduction function together
+float ux = reduce(it.get_non_uniform_sub_group(), x, plus<>());
+----
+
+SYCL group functions and group algorithms act as synchronization points
+and must be called by all work-items that are members of the non-uniform
+sub-group.  If a group or sub-group library function is called using a
+non-uniform sub-group that does not contain the calling work-item, the behavior
+is undefined.  All work-items in the sub-group encountering a specific dynamic
+function call-site must use the same non-uniform sub-group.
+
+NOTE: This final restriction may be lifted or relaxed in a future version of
+the extension.
+
+=== The `non_uniform_sub_group` Class
+
+The `non_uniform_sub_group` class encapsulates all functionality required to
+represent a subset of work-items within a particular sub-group.  It has common
+by-value semantics and is not default or user-constructible, and can only be
+accessed via methods in the `nd_item` class.
+
+The `Members` template parameter of the `non_uniform_sub_group` class controls
+whether the group's members are determined based on the set of work-items which
+are active when the group is constructed or via an explicit user-provided mask.
+The set of work-items in any `non_uniform_sub_group` is fixed upon construction
+and is constant for the lifetime of the group.  The set of work-items in an
+implicitly created `non_uniform_sub_group` is an implementation-defined subset
+of active work-items.
+
+The default template parameter value is
+`group_members::active_at_construction`.  For convenience, non-default values
+of the `Members` template are also exposed via aliases:
+[source, c++]
+----
+using masked_sub_group = non_uniform_sub_group<group_members::explicit_mask>;
+----
+
+To provide access to the `non_uniform_sub_group` class, new member functions
+are added to the `nd_item` class:
+
+|===
+|Member Functions|Description
+
+|`non_uniform_sub_group get_non_uniform_sub_group() const;`
+|Return a `non_uniform_sub_group` representing the active members of the
+ sub-group.
+
+|`masked_sub_group get_masked_sub_group(sub_group::mask_type m) const;`
+|Return a `non_uniform_sub_group` representing members of the sub-group
+ specified by mask _m_.
+|===
+
+==== Member Functions and Algorithms
+
+The definitions of most sub-group functions and algorithms are unchanged.  The
+changes between sub-group and non-uniform sub-group behavior is summarized
+below:
+
+- If any function (e.g. a call to one of the `shift_left`, `shift_right`,
+`permute` or `select` algorithms) accesses work-items outside of the
+non-uniform sub-group, the result is undefined.
+
+NOTE: The values returned by query functions like `get_local_id` are unchanged,
+and work-items retain the same numbering as in a normal (uniform) `sub_group`.
+
+==== Sample Header
+
+[source, c++]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+enum class group_members
+{
+  active_at_construction,
+  explicit_mask
+};
+
+template <group_members Members = group_members::explicit_mask>
+struct non_uniform_sub_group {
+
+  typedef Members members_type;
+
+  /* Remainder of the class identical to sub_group */
+
+};
+} // oneapi
+} // ext
+} // sycl
+----
+
+== Issues
+
+. What is the best mapping of these constructs to SPIR-V?
++
+--
+*UNRESOLVED*: Most constructs have a straightforward mapping to the
+`OpGroupNonUniform` instructions.  However, it is unclear what code to generate
+for barriers, since the OpenCL SPIR-V environment does not allow for
+`OpControlBarrier` to appear in diverged control flow.  Although SPIR-V has no
+sub-group instructions accepting explicit masks, it should be possible to build
+the required logic on top of regular control flow instructions.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-11-05|John Pennycook|*Initial public working draft*
+|========================================
