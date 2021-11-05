@@ -1,0 +1,253 @@
+# Sub Group Bitmask Group Functions Extension for DPC++: SYCL_EXT_ONEAPI_SUB_GROUP_MASK_GROUP_FUNCTIONS
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 2020 revision 3 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+## Contributors
+
+* Gordon Brown
+* Tadej Ciglaric
+* Jack Kirk
+* Finlay Marno
+
+## Introduction
+
+This extension builds on the link:../SubGroupMask/SubGroupMask.asciidoc[`sub_group_mask`]
+extension to propose implementations of `group_barrier`, `joint_reduce`,
+`reduce_over_group` and the proposed `async_group_copy`, that perform operations using
+the work-items comprising a subset of a sub-group, using a bitmask to specify that subset.
+To aid the creation of helpful bitmasks, two member functions will be added to
+`nd_item`: `ext_oneapi_partition_sub_group` and `ext_oneapi_active_sub_group_items`. `ext_oneapi_partition_sub_group`
+will create a bitmask that splits the sub-group evenly. `ext_oneapi_active_sub_group_items`
+will create a bitmask representing the currently active work-items in the sub-group.
+
+This document also proposes that `async_work_group_copy` be deprecated and
+replaced with `async_group_copy`. `async_group_copy` is a non-member function,
+in line with the other group functions, which generalizes `async_work_group_copy`
+to also work with sub-groups.
+
+## Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro
+SYCL_EXT_ONEAPI_SUB_GROUP_MASK_GROUP_FUNCTIONS to one of the values defined in the
+table below. Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro’s value to determine which of the extension’s APIs the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension implementation on CUDA.
+|===
+
+## Changes to `nd_item` class
+Addition of three new member functions, `ext_oneapi_partition_sub_group`, `ext_oneapi_active_sub_group_items` and `ext_oneapi_rank_in_mask`.
+
+`ext_oneapi_partition_sub_group` will create a bitmask with contiguous bits set to represent a partition of a subgroup.
+The size of the partition must be a power of two and less than or equal to  `sub_group_mask::max_bits`.
+The partition represented will be the partition the calling work-item is part of.
+For example, if `sub_group::get_local_linear_range()` is 32, `sub_group::get_local_linear_id()` is 18,
+and the partition size is 8, then the bitmask created would be `0b00000000 00000000 11111111 00000000`.
+Partitioning sub-groups to compile-time known sizes can allow for optimisations like loop unrolling.
+Care should be taken when modifying the value of the returned `sub_group_mask`
+since this will change the behavior of masked group functions.
+
+`ext_oneapi_active_sub_group_items` will create a bitmask with bits set to represent the
+work-items that are actively executing the command at the same time. Querying
+the currently active work-items should not be used to select the work-items that
+follow the same control flow since no synchronisation takes place; a
+`group_ballot` call will synchronize the work-items before testing the predicate, so is
+likely the best option. Querying the active work-items can be helpful for
+amortizing the cost of operations where unknown size groups of work-items
+could opportunistically perform the action together, such as atomic operation.
+Some modern architecture, like NVIDIA's Volta and later, do not guarantee
+synchronized forward progress of work-items in the same sub-group. This
+divergence is why work-items following the same control flow may not be
+active at the same time. Care should be taken when modifying the value of the 
+returned `sub_group_mask` since this will change the behavior of masked group functions.
+
+`ext_oneapi_rank_in_mask` returns an integer id representing the calling work-item's
+position within sub-group subset represented by the provided `sub_group_mask`. This is
+undefined behavior if bit `n` of the `sub_group_mask` is not set, where `n` is the
+integer id of the work-item in the sub-group. As an example, if the bitmask was 
+`0b00000000 00000000 11110000 11110000` and `get_sub_group().get_local_linear_id() == 13`,
+ext_oneapi_rank_in_mask would return 5.
+
+
+```c++
+namespace sycl {
+template <int dimensions = 1>
+class nd_item {
+  public:
+...
+  // create a bitmask of the sub-group subset this work-item would be a part of
+  // if the sub-group was split into contiguous groups of size `partition_size`
+  sub_group_mask ext_oneapi_partition_sub_group(size_t partition_size) const;
+
+  // get the bitmask representing the work-items of the sub-group that are
+  // actively executing.
+  sub_group_mask ext_oneapi_active_sub_group_items() const;
+
+  //Returns an integer id representing the calling work-item's position within the provided sub_group_mask.
+  size_t ext_oneapi_rank_in_mask(sub_group_mask mask) const;
+...
+};
+}
+```
+
+possible implementation of `ext_oneapi_rank_in_mask`:
+```c++
+size_t ext_oneapi_rank_in_mask(sub_group_mask mask){
+  // taking 1 from a power of two will give all 1s below the bit of our work-item
+  // anding this with the mask will leave only 1s where there are work-items with lower ids
+  // the popcount of this is the linear id in that sub_group_mask
+  return popcount(mask & ((1 << get_sub_group().get_local_linear_id()) -1));
+}
+```
+
+## Changes to `joint_reduce` and `reduce_over_group`
+Addition of bitmasked version of methods for sub-groups.
+
+```c++
+namespace sycl::ext::oneapi {
+template <typename Ptr, class BinaryOperation>
+joint_reduce(sycl::sub_group, Ptr first, Ptr last, BinaryOperation binary_op, sycl::sub_group_mask);
+
+template <typename Ptr, typename T, class BinaryOperation>
+joint_reduce(sycl::sub_group, Ptr first, Ptr last, T init, BinaryOperation binary_op, sycl::sub_group_mask);
+
+template <typename T, class BinaryOperation>
+reduce_over_group(sycl::sub_group, T x, BinaryOperation binary_op, sycl::sub_group_mask);
+
+template <typename V, typename T, class BinaryOperation>
+reduce_over_group(sycl::sub_group, V x, T init, BinaryOperation binary_op, sycl::sub_group_mask);
+} // namespace sycl::ext::oneapi
+```
+
+## Group_barrier
+New overloads will be required for `sub_group` that takes a bitmask.
+
+```c++
+namespace sycl::ext::oneapi {
+group_barrier(sycl::sub_group, sycl::sub_group_mask mask, memory_scope fence_scope = sub_group::fence_scope);
+} // namespace sycl::ext::oneapi
+```
+
+## New `async_group_copy` function.
+Currently the `nd_item` and `group` classes have the member function
+`async_work_group_copy`. This will be deprecated in favor of a
+`async_group_copy` that will have the group type as a template parameter, much
+like `group_barrier`.
+
+`async_group_copy` methods would be valid for groups `group and `sub_group`.
+For subgroup, a new bitmasked implementation will also be required.
+
+```c++
+namespace sycl::ext::oneapi {
+template <typename Group, typename dataT>
+device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> dest, sycl::decorated_global_ptr<dataT> src, size_t numElements);
+
+template <typename Group, typename dataT>
+device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> dest, sycl::decorated_local_ptr<dataT> src, size_t numElements);
+
+template <typename Group, typename dataT>
+device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> dest, sycl::decorated_global_ptr<dataT> src, size_t numElements, size_t srcStride);
+
+template <typename Group, typename dataT>
+device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> dest, sycl::decorated_local_ptr<dataT> src, size_t numElements, size_t destStride);
+
+template <typename dataT>
+device_event async_group_copy(sycl::sub_group group, sycl::decorated_local_ptr<dataT> dest, sycl::decorated_global_ptr<dataT> src, size_t numElements, sycl::sub_group_mask mask);
+
+template <typename dataT>
+device_event async_group_copy(sycl::sub_group group, sycl::decorated_global_ptr<dataT> dest, sycl::decorated_local_ptr<dataT> src, size_t numElements, sycl::sub_group_mask mask);
+
+template <typename dataT>
+device_event async_group_copy(sycl::sub_group group, sycl::decorated_local_ptr<dataT> dest, sycl::decorated_global_ptr<dataT> src, size_t numElements, size_t srcStride, sycl::sub_group_mask mask);
+
+template <typename dataT>
+device_event async_group_copy(sycl::sub_group group, sycl::decorated_global_ptr<dataT> dest, sycl::decorated_local_ptr<dataT> src, size_t numElements, size_t destStride, sycl::sub_group_mask mask);
+} // namespace sycl::ext::oneapi
+```
+
+## Change to `device_event::wait` function
+`device_event::wait` will be modified to take the group that will be synchonised in the wait.
+This will be valid for the same groups as `async_group_copy` i.e. `group` or `sub_group`.
+An overload with a `sub_group_mask` parameter will be required for `sub_group`.
+
+```c++
+namespace sycl {
+  class device_event {
+  ...
+  public:
+    template <typename Group>
+    void ext_oneapi_wait(Group group) noexcept;
+    void ext_oneapi_wait(sycl::sub_group group, sycl::sub_group_mask mask) noexcept;
+  ...
+  };
+}  // namespace sycl
+```
+
+## Open Questions
+
+* Do the `sub_group_mask` overloads of functions also need the `sub_group` class as an argument, since this is implicit.
+* How to handle the bitmask partition not dividing the sub_group size evenly?
+* What to do if the bitmask sub_group partition doesn't divide the size of the nd_range evenly? Potentially UB.
+* Should async_group_copy destination and source be flipped to match sycl::handler::copy and sycl::handler::memcopy.
+* Do we need to introduce an instance of sub_group_mask with the number of bits set as a compile-time known value to allow optimisation?
+
+## Alternate Implementation
+
+This work is a draft and other implementations have been considered. One
+possible alternative is to introduce new classes that will store the bitmask
+internally, hiding it from the user. This would potentially allow for more
+expressive code when using the types, e.g. as function arguments, helping the
+user to "do the right thing". This could also allow more flexibility in the
+implementation. The suggested classes would be `class active_group;` and 
+`template <size_t partition_size> class sized_sub_group;`. Neither class would
+be default constructable, and each should be created from member functions of
+the `nd_item` class.
+
+One benefit of a templated `sized_sub_group` class would be the ability to 
+easily pass the size of the partition around the code and to the compiler,
+potentially allowing for optimizations.
+
+## Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author        |Changes
+|1   |2021-11-03 |Finlay Marno  |Initial working draft.
+|======================
