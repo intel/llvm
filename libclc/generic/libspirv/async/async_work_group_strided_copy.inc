@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 _CLC_OVERLOAD _CLC_DEF event_t
 __spirv_GroupAsyncCopy(unsigned int scope, global __CLC_GENTYPE *dst,
                        const local __CLC_GENTYPE *src, size_t num_gentypes,
