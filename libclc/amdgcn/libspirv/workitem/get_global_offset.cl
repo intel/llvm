@@ -16,20 +16,10 @@
 #define CONST_AS __attribute__((address_space(2)))
 #endif
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_x() {
-    CONST_AS uint * ptr =
-        (CONST_AS uint *) __builtin_amdgcn_implicitarg_ptr();
-    return ptr[1];
-}
+// TODO: implement proper support for global offsets, this also requires
+// changes in the compiler and the HIP plugin.
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_x() { return 0; }
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_y() {
-    CONST_AS uint * ptr =
-        (CONST_AS uint *) __builtin_amdgcn_implicitarg_ptr();
-    return ptr[2];
-}
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_y() { return 0; }
 
-_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_z() {
-    CONST_AS uint * ptr =
-        (CONST_AS uint *) __builtin_amdgcn_implicitarg_ptr();
-    return ptr[3];
-}
+_CLC_DEF _CLC_OVERLOAD size_t __spirv_GlobalOffset_z() { return 0; }
