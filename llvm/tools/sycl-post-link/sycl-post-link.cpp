@@ -27,6 +27,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IRReader/IRReader.h"
+#include "llvm/SYCLLowerIR/DelimitESIMDandSYCL.h"
 #include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -749,9 +750,17 @@ string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
 // When ESIMD code was separated from the regular SYCL code,
 // we can safely process ESIMD part.
 // TODO: support options like -debug-pass, -print-[before|after], and others
-void LowerEsimdConstructs(Module &M) {
+bool LowerEsimdConstructs(Module &M) {
+  bool Unmodified = true;
+  {
+    legacy::PassManager MPM;
+    MPM.add(createSYCLLowerESIMDPass());
+    Unmodified &= !MPM.run(M);
+  }
+  if (Unmodified)
+    return false; // no ESIMD functions met - done
   legacy::PassManager MPM;
-  MPM.add(createSYCLLowerESIMDPass());
+
   if (!OptLevelO0) {
     // Force-inline all functions marked 'alwaysinline' by the LowerESIMD pass.
     MPM.add(createAlwaysInlinerLegacyPass());
@@ -771,13 +780,16 @@ void LowerEsimdConstructs(Module &M) {
     MPM.add(createDeadCodeEliminationPass());
   }
   MPM.add(createGenXSPIRVWriterAdaptorPass(/*RewriteTypes=*/true));
-  MPM.run(M);
+  return MPM.run(M);
 }
 
 using TableFiles = std::map<StringRef, string_vector>;
 
-TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
-                            bool SyclAndEsimdCode) {
+// Applies necessary transformations (controlled by options) to given device code module.
+// @param M - the module pointer wrapper
+// @param NoEsimd - whether the module is known not to contain any ESIMD constructs.
+// @return a file table object referencing resulting filenames.
+TableFiles processOneModule(std::unique_ptr<Module> M, bool DoLowerEsimd, StringRef Pref = "", bool TryReuse=false) {
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
@@ -789,15 +801,18 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   // and these declarations cause an assertion in llvm-spirv. To workaround this
   // issue remove "llvm.used" from the input module before performing any other
   // actions.
-  bool IsLLVMUsedRemoved = false;
+  bool Modified = false;
   if (GlobalVariable *GV = M->getGlobalVariable("llvm.used")) {
     assert(GV->user_empty() && "unexpected llvm.used users");
     GV->eraseFromParent();
-    IsLLVMUsedRemoved = true;
+    Modified = true;
   }
+  bool HasEsimd = false;
 
-  if (IsEsimd && LowerEsimd)
-    LowerEsimdConstructs(*M);
+  if (DoLowerEsimd) {
+    HasEsimd = LowerEsimdConstructs(*M);
+    Modified |= HasEsimd;
+  }
 
   std::map<StringRef, std::vector<const Function *>> GlobalsSet;
 
@@ -814,8 +829,10 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   bool SpecConstsMet = false;
   bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
 
-  if (DoSplit)
+  if (DoSplit) {
     splitModule(*M, GlobalsSet, ResultModules);
+    Modified |= ResultModules.size() > 0;
+  }
   // post-link always produces a code result, even if it is unmodified input
   if (ResultModules.empty())
     ResultModules.push_back({GLOBAL_SCOPE_NAME, std::move(M)});
@@ -834,6 +851,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       PreservedAnalyses Res = RunSpecConst.run(*ResultModule.ModulePtr, MAM);
       SpecConstsMet |= !Res.areAllPreserved();
     }
+    Modified |= SpecConstsMet;
   }
 
   if (IROutputOnly) {
@@ -841,18 +859,13 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     saveModule(*ResultModules.front().ModulePtr, OutputFilename);
     return TblFiles;
   }
-
+  TryReuse &= !Modified;
   {
-    // Reuse input module with only regular SYCL kernels if there were
-    // no spec constants and no splitting.
-    // We cannot reuse input module for ESIMD code since it was transformed.
-    bool CanReuseInputModule = !SpecConstsMet && (ResultModules.size() == 1) &&
-                               !SyclAndEsimdCode && !IsEsimd &&
-                               !IsLLVMUsedRemoved;
+    // Reuse the input module if it has not been modified in any way.
     string_vector Files =
-        CanReuseInputModule
+      TryReuse
             ? string_vector{InputFilename}
-            : saveResultModules(ResultModules, IsEsimd ? "esimd_" : "");
+            : saveResultModules(ResultModules, Pref);
 
     // "Code" column is always output
     std::copy(Files.begin(), Files.end(),
@@ -860,6 +873,11 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   }
 
   {
+    // If no SYCL/ESIMD splitting was requested, this means we want the BE to
+    // compile the module as a whole even if it contains both SYCL and ESIMD
+    // code. Other wise, the split happened and we deal either with all-SYCL or
+    // all-ESIMD module - reflect this in IsEsimd.
+    bool IsEsimd = SplitEsimd && HasEsimd;
     ImagePropSaveInfo ImgPSInfo = {SetSpecConstAtRT,    SpecConstsMet,
                                    EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitExportedSymbols, IsEsimd};
@@ -879,7 +897,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
       ResultSymbolsLists.push_back("");
     }
     string_vector Files =
-        saveResultSymbolsLists(ResultSymbolsLists, IsEsimd ? "esimd_" : "");
+        saveResultSymbolsLists(ResultSymbolsLists, Pref);
     std::copy(Files.begin(), Files.end(),
               std::back_inserter(TblFiles[COL_SYM]));
   }
@@ -926,8 +944,15 @@ ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
 }
 
 TableFiles processInputModule(std::unique_ptr<Module> M) {
-  if (!SplitEsimd)
-    return processOneModule(std::move(M), false, false);
+  if (!SplitEsimd) {
+    ModulePassManager RunDelimit;
+    ModuleAnalysisManager MAM;
+    // Register required analysis
+    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+    RunDelimit.addPass(DelimitESIMDandSYCLPass{});
+    PreservedAnalyses Res = RunDelimit.run(*M, MAM);
+    return processOneModule(std::move(M), LowerEsimd, "", Res.areAllPreserved());
+  }
 
   std::unique_ptr<Module> SyclModule;
   std::unique_ptr<Module> EsimdModule;
@@ -937,9 +962,9 @@ TableFiles processInputModule(std::unique_ptr<Module> M) {
   bool SyclAndEsimdCode = SyclModule && EsimdModule;
 
   TableFiles SyclTblFiles =
-      processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
+      processOneModule(std::move(SyclModule), false, "", true);
   TableFiles EsimdTblFiles =
-      processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
+      processOneModule(std::move(EsimdModule), LowerEsimd, SyclAndEsimdCode ? "esimd_" : "", !SyclAndEsimdCode);
 
   // Merge the two resulting file maps
   TableFiles MergedTblFiles;
