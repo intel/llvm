@@ -16,6 +16,7 @@
 #include "llvm/Pass.h"
 //#include "llvm/Support/raw_ostream.h"
 
+#include <iostream>
 //#include <cctype>
 //#include <cstring>
 //#include <unordered_map>
@@ -75,6 +76,13 @@ void traverseCalls(Function *F, ActOnCallF Action) {
   }
 }
 
+void prnfset(const char *msg, FuncPtrSet &S) {
+  std::cout << msg << ":\n";
+  for (const auto *F : S) {
+    std::cout << "  " << F->getName().data() << "\n";
+  }
+}
+
 template <class CfgARootTestF>
 void divideModuleCFGs(Module &M, FuncPtrSet &A, FuncPtrSet &AB, CfgARootTestF IsRootInA) {
   SmallPtrSet<Function*, 32> B;
@@ -90,10 +98,12 @@ void divideModuleCFGs(Module &M, FuncPtrSet &A, FuncPtrSet &AB, CfgARootTestF Is
         B.insert(&F); // all non-A-roots go to B for now, clean up below
       }
     }
+    prnfset("A", A);
+    prnfset("B", B);
     // Build and traverse the CFGs.
     while (Workq.size() > 0) {
       Function *F = Workq.pop_back_val();
-      B.erase(F); // F is reached from A, then it can't be part of B
+      B.erase(F); // cleanup B: F is reached from A, then it can't be part of B
       traverseCalls(F, [&A, &Workq](Function *F1) {
         if (A.count(F1) == 0) {
           A.insert(F1);
@@ -102,6 +112,9 @@ void divideModuleCFGs(Module &M, FuncPtrSet &A, FuncPtrSet &AB, CfgARootTestF Is
       });
     }
   }
+  prnfset("A1", A);
+  prnfset("B1", B);
+
   // Now B contains only functions not reacheable from A, but some of A
   // functions can be also reacheable from B - identify them, remove from A and
   // add to AB.
@@ -122,7 +135,8 @@ void divideModuleCFGs(Module &M, FuncPtrSet &A, FuncPtrSet &AB, CfgARootTestF Is
       });
     }
   }
-
+  prnfset("A2", A);
+  prnfset("AB", AB);
 }
 
 Function* clone(Function *F, Twine suff) {
@@ -169,12 +183,13 @@ PreservedAnalyses DelimitESIMDandSYCLPass::run(Module &M, ModuleAnalysisManager 
   // TODO now the "usage" means only calls, function pointers are not supported.
   for (auto *F : CommonFuncs) {
     auto *EsimdF = Sycl2Esimd[F];
-    F->replaceUsesWithIf(EsimdF, [&Modified, &EsimdOnlyFuncs](Use &U) -> bool {
+    F->replaceUsesWithIf(EsimdF, [F, &Modified, &EsimdOnlyFuncs](Use &U) -> bool {
       if (const CallBase *CB = dyn_cast<const CallBase>(U.getUser())) {
         Function *CF = CB->getCalledFunction();
-        if (!CF)
+        if (CF != F)
           llvm_unreachable_internal("Unsupported call form", __FILE__, __LINE__);
-        bool CalledFromEsimd = EsimdOnlyFuncs.count(CF) > 0;
+        // see if the call happens within a function from the ESIMD call graph:
+        bool CalledFromEsimd = EsimdOnlyFuncs.count(CB->getFunction()) > 0;
         Modified |= CalledFromEsimd;
         return CalledFromEsimd;
       }
