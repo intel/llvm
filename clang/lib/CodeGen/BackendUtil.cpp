@@ -1340,9 +1340,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   get##Ext##PluginInfo().RegisterPassBuilderCallbacks(PB);
 #include "llvm/Support/Extension.def"
 
-  // Register the AA manager first so that our version is the one used.
-  FAM.registerPass([&] { return PB.buildDefaultAAPipeline(); });
-
   // Register the target library analysis directly and give it a customized
   // preset TLI.
   Triple TargetTriple(TheModule->getTargetTriple());
@@ -1587,7 +1584,7 @@ static void runThinLTOBackend(
     return;
 
   auto AddStream = [&](size_t Task) {
-    return std::make_unique<NativeObjectStream>(std::move(OS));
+    return std::make_unique<CachedFileStream>(std::move(OS));
   };
   lto::Config Conf;
   if (CGOpts.SaveTempsFilePrefix != "") {

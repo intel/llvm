@@ -23,7 +23,7 @@ int main() {
   kernel<class test_kernel>([=]() {
     // Global variables used directly
     foo(global_value);
-    // CHECK: call spir_func void @{{.*}}foo{{.*}}(i32 addrspace(4)* align 4 dereferenceable(4) addrspacecast (i32 addrspace(1)* @{{.*}}global_value to i32 addrspace(4)*))
+    // CHECK: call spir_func void @{{.*}}foo{{.*}}(i32 addrspace(4)* noundef align 4 dereferenceable(4) addrspacecast (i32 addrspace(1)* @{{.*}}global_value to i32 addrspace(4)*))
     int a = my_array[0];
     // CHECK: [[LOAD:%[0-9]+]] = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @{{.*}}my_array to [1 x i32] addrspace(4)*), i64 0, i64 0)
     // CHECK: store i32 [[LOAD]], i32 addrspace(4)* %a
@@ -33,7 +33,7 @@ int main() {
     foo(local_value);
     // Local variables and constexprs captured by lambda
     // CHECK:  [[GEP:%[0-9]+]] = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %{{.*}}, i32 0, i32 0
-    // CHECK: call spir_func void @{{.*}}foo{{.*}}(i32 addrspace(4)* align 4 dereferenceable(4) [[GEP]])
+    // CHECK: call spir_func void @{{.*}}foo{{.*}}(i32 addrspace(4)* noundef align 4 dereferenceable(4) [[GEP]])
     int some_device_local_var = some_local_var;
     // CHECK:  [[GEP1:%[0-9]+]] = getelementptr inbounds %class.anon, %class.anon addrspace(4)* %{{.*}}, i32 0, i32 1
     // CHECK:  [[LOAD1:%[0-9]+]] = load i32, i32 addrspace(4)* [[GEP1]]
