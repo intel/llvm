@@ -25,14 +25,18 @@ public:
   static lldb::PlatformSP CreateInstance(bool force,
                                          const lldb_private::ArchSpec *arch);
 
-  static lldb_private::ConstString GetPluginNameStatic(bool is_host);
+  static llvm::StringRef GetPluginNameStatic(bool is_host) {
+    return is_host ? Platform::GetHostPlatformName() : "remote-windows";
+  }
 
-  static const char *GetPluginDescriptionStatic(bool is_host);
+  static llvm::StringRef GetPluginDescriptionStatic(bool is_host);
 
-  lldb_private::ConstString GetPluginName() override;
+  llvm::StringRef GetPluginName() override {
+    return GetPluginNameStatic(IsHost());
+  }
 
   // lldb_private::Platform functions
-  const char *GetDescription() override {
+  llvm::StringRef GetDescription() override {
     return GetPluginDescriptionStatic(IsHost());
   }
 
@@ -61,6 +65,9 @@ public:
   void CalculateTrapHandlerSymbolNames() override {}
 
   ConstString GetFullNameForDylib(ConstString basename) override;
+
+  size_t GetSoftwareBreakpointTrapOpcode(Target &target,
+                                         BreakpointSite *bp_site) override;
 };
 
 } // namespace lldb_private

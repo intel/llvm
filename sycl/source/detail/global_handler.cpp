@@ -89,10 +89,8 @@ std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
   return getOrCreate(MHandlerExtendedMembersMutex);
 }
 
-void shutdown() {
-  // First, release resources, that may access plugins.
-  GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
-  GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
+void releaseDefaultContexts() {
+  // Release shared-pointers to SYCL objects.
 #ifndef _WIN32
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.reset(nullptr);
 #else
@@ -103,7 +101,28 @@ void shutdown() {
   // routines will be called in the end.
   GlobalHandler::instance().MPlatformToDefaultContextCache.Inst.release();
 #endif
+}
+
+struct DefaultContextReleaseHandler {
+  ~DefaultContextReleaseHandler() { releaseDefaultContexts(); }
+};
+
+void GlobalHandler::registerDefaultContextReleaseHandler() {
+  static DefaultContextReleaseHandler handler{};
+}
+
+void shutdown() {
+  // If default contexts are requested after the first default contexts have
+  // been released there may be a new default context. These must be released
+  // prior to closing the plugins.
+  // Note: Releasing a default context here may cause failures in plugins with
+  // global state as the global state may have been released.
+  releaseDefaultContexts();
+
+  // First, release resources, that may access plugins.
   GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
+  GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
+  GlobalHandler::instance().MProgramManager.Inst.reset(nullptr);
 
   // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
   // user application has loaded SYCL runtime, and never called any APIs,

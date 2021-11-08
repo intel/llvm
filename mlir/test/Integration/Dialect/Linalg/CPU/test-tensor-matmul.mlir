@@ -5,7 +5,7 @@
 // RUN:   -shared-libs=%mlir_integration_test_dir/libmlir_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
-// RUN: mlir-opt %s  -linalg-tile="linalg-tile-sizes=1,2,3" -linalg-bufferize \
+// RUN: mlir-opt %s  -linalg-tile="tile-sizes=1,2,3" -linalg-bufferize \
 // RUN: -scf-bufferize -std-bufferize -tensor-constant-bufferize -tensor-bufferize \
 // RUN: -func-bufferize \
 // RUN: -finalizing-bufferize -convert-linalg-to-loops -convert-scf-to-std -convert-scf-to-std \
@@ -15,11 +15,11 @@
 // RUN: | FileCheck %s
 
 func @main() {
-  %A = constant dense<[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]> : tensor<2x3xf32>
-  %B = constant dense<[[1.0, 2.0, 3.0, 4.0],
+  %A = arith.constant dense<[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]> : tensor<2x3xf32>
+  %B = arith.constant dense<[[1.0, 2.0, 3.0, 4.0],
                        [5.0, 6.0, 7.0, 8.0],
                        [9.0, 10.0, 11.0, 12.0]]> : tensor<3x4xf32>
-  %C = constant dense<1000.0> : tensor<2x4xf32>
+  %C = arith.constant dense<1000.0> : tensor<2x4xf32>
 
   %D = linalg.matmul ins(%A, %B: tensor<2x3xf32>, tensor<3x4xf32>)
                      outs(%C: tensor<2x4xf32>) -> tensor<2x4xf32>

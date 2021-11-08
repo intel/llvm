@@ -683,9 +683,8 @@ public:
                           omp::IdentFlag Flags = omp::IdentFlag(0),
                           unsigned Reserve2Flags = 0);
 
-  /// Create a global value containing the \p DebugLevel to control debuggin in
-  /// the module.
-  GlobalValue *createDebugKind(unsigned DebugLevel);
+  /// Create a global flag \p Namein the module with initial value \p Value.
+  GlobalValue *createGlobalFlag(unsigned Value, StringRef Name);
 
   /// Generate control flow and cleanup for cancellation.
   ///
@@ -1005,14 +1004,16 @@ public:
   /// \param Loc The insert and source location description.
   /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
   /// \param RequiresFullRuntime Indicate if a full device runtime is necessary.
-  InsertPointTy createTargetInit(const LocationDescription &Loc, bool IsSPMD, bool RequiresFullRuntime);
+  InsertPointTy createTargetInit(const LocationDescription &Loc, bool IsSPMD,
+                                 bool RequiresFullRuntime);
 
   /// Create a runtime call for kmpc_target_deinit
   ///
   /// \param Loc The insert and source location description.
   /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
   /// \param RequiresFullRuntime Indicate if a full device runtime is necessary.
-  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD, bool RequiresFullRuntime);
+  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD,
+                          bool RequiresFullRuntime);
 
   ///}
 

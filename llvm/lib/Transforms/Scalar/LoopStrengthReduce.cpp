@@ -136,6 +136,12 @@ using namespace llvm;
 /// worst cases before LSR burns too much compile time and stack space.
 static const unsigned MaxIVUsers = 200;
 
+/// Limit the size of expression that SCEV-based salvaging will attempt to
+/// translate into a DIExpression.
+/// Choose a maximum size such that debuginfo is not excessively increased and
+/// the salvaging is not too expensive for the compiler.
+static const unsigned MaxSCEVSalvageExpressionSize = 64;
+
 // Temporary flag to cleanup congruent phis after LSR phi expansion.
 // It's currently disabled until we can determine whether it's truly useful or
 // not. The flag should be removed after the v3.0 release.
@@ -689,7 +695,7 @@ static const SCEV *getExactSDiv(const SCEV *LHS, const SCEV *RHS,
     const APInt &RA = RC->getAPInt();
     // Handle x /s -1 as x * -1, to give ScalarEvolution a chance to do
     // some folding.
-    if (RA.isAllOnesValue()) {
+    if (RA.isAllOnes()) {
       if (LHS->getType()->isPointerTy())
         return nullptr;
       return SE.getMulExpr(LHS, RC);
@@ -2816,9 +2822,7 @@ static const SCEV *getExprBase(const SCEV *S) {
     // there's nothing more complex.
     // FIXME: not sure if we want to recognize negation.
     const SCEVAddExpr *Add = cast<SCEVAddExpr>(S);
-    for (std::reverse_iterator<SCEVAddExpr::op_iterator> I(Add->op_end()),
-           E(Add->op_begin()); I != E; ++I) {
-      const SCEV *SubExpr = *I;
+    for (const SCEV *SubExpr : reverse(Add->operands())) {
       if (SubExpr->getSCEVType() == scAddExpr)
         return getExprBase(SubExpr);
 
@@ -3385,7 +3389,7 @@ void LSRInstance::CollectFixupsAndInitialFormulae() {
 void
 LSRInstance::InsertInitialFormula(const SCEV *S, LSRUse &LU, size_t LUIdx) {
   // Mark uses whose expressions cannot be expanded.
-  if (!isSafeToExpand(S, SE))
+  if (!isSafeToExpand(S, SE, /*CanonicalMode*/ false))
     LU.RigidFormula = true;
 
   Formula F;
@@ -3934,6 +3938,9 @@ void LSRInstance::GenerateICmpZeroScales(LSRUse &LU, unsigned LUIdx,
 
   // Check each interesting stride.
   for (int64_t Factor : Factors) {
+    // Check that Factor can be represented by IntTy
+    if (!ConstantInt::isValueValidForType(IntTy, Factor))
+      continue;
     // Check that the multiplication doesn't overflow.
     if (Base.BaseOffset == std::numeric_limits<int64_t>::min() && Factor == -1)
       continue;
@@ -5697,23 +5704,6 @@ LSRInstance::LSRInstance(Loop *L, IVUsers &IU, ScalarEvolution &SE,
     }
   }
 
-#ifndef NDEBUG
-  // All dominating loops must have preheaders, or SCEVExpander may not be able
-  // to materialize an AddRecExpr whose Start is an outer AddRecExpr.
-  //
-  // IVUsers analysis should only create users that are dominated by simple loop
-  // headers. Since this loop should dominate all of its users, its user list
-  // should be empty if this loop itself is not within a simple loop nest.
-  for (DomTreeNode *Rung = DT.getNode(L->getLoopPreheader());
-       Rung; Rung = Rung->getIDom()) {
-    BasicBlock *BB = Rung->getBlock();
-    const Loop *DomLoop = LI.getLoopFor(BB);
-    if (DomLoop && DomLoop->getHeader() == BB) {
-      assert(DomLoop->getLoopPreheader() && "LSR needs a simplified loop nest");
-    }
-  }
-#endif // DEBUG
-
   LLVM_DEBUG(dbgs() << "\nLSR on loop ";
              L->getHeader()->printAsOperand(dbgs(), /*PrintType=*/false);
              dbgs() << ":\n");
@@ -6149,6 +6139,9 @@ static void RewriteDVIUsingIterCount(DVIRecoveryRec CachedDVI,
   if (!Rec->isAffine())
     return;
 
+  if (CachedDVI.SCEV->getExpressionSize() > MaxSCEVSalvageExpressionSize)
+    return;
+
   // Initialise a new builder with the iteration count expression. In
   // combination with the value's SCEV this enables recovery.
   SCEVDbgValueBuilder RecoverValue(IterationCount);
@@ -6193,7 +6186,10 @@ DbgRewriteSalvageableDVIs(llvm::Loop *L, ScalarEvolution &SE,
     if (!IVAddRec->isAffine())
       return;
 
-    // The iteratioun count is required to recover location values.
+    if (IVAddRec->getExpressionSize() > MaxSCEVSalvageExpressionSize)
+      return;
+
+    // The iteration count is required to recover location values.
     SCEVDbgValueBuilder IterCountExpr;
     IterCountExpr.pushValue(LSRInductionVar);
     if (!IterCountExpr.SCEVToIterCountExpr(*IVAddRec, SE))

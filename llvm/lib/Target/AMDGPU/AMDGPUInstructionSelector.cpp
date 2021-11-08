@@ -1826,8 +1826,9 @@ bool AMDGPUInstructionSelector::selectG_SELECT(MachineInstr &I) const {
             .add(I.getOperand(2))
             .add(I.getOperand(3));
 
-    bool Ret = constrainSelectedInstRegOperands(*Select, TII, TRI, RBI) |
-               constrainSelectedInstRegOperands(*CopySCC, TII, TRI, RBI);
+    bool Ret = false;
+    Ret |= constrainSelectedInstRegOperands(*Select, TII, TRI, RBI);
+    Ret |= constrainSelectedInstRegOperands(*CopySCC, TII, TRI, RBI);
     I.eraseFromParent();
     return Ret;
   }
@@ -3248,6 +3249,9 @@ bool AMDGPUInstructionSelector::select(MachineInstr &I) {
   case AMDGPU::G_SBFX:
   case AMDGPU::G_UBFX:
     return selectG_SBFX_UBFX(I);
+  case AMDGPU::G_SI_CALL:
+    I.setDesc(TII.get(AMDGPU::SI_CALL));
+    return true;
   default:
     return selectImpl(I, *CoverageInfo);
   }

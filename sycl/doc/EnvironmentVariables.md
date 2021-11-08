@@ -3,44 +3,16 @@
 This document describes environment variables that are having effect on DPC++
 compiler and runtime.
 
-## Controlling DPC++ RT
-
-**Warning:** the environment variables described in this document are used for
-development and debugging of DPC++ compiler and runtime. Their semantics are
-subject to change. Do not rely on these variables in production code.
+## Controlling DPC++ runtime
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `SYCL_PI_TRACE` | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
 | `SYCL_BE` (deprecated) | `PI_OPENCL`, `PI_LEVEL_ZERO`, `PI_CUDA` | Force SYCL RT to consider only devices of the specified backend during the device selection. We are planning to deprecate `SYCL_BE` environment variable in the future. The specific grace period is not decided yet. Please use the new env var `SYCL_DEVICE_FILTER` instead. |
 | `SYCL_DEVICE_TYPE` (deprecated) | CPU, GPU, ACC, HOST | Force SYCL to use the specified device type. If unset, default selection rules are applied. If set to any unlisted value, this control has no effect. If the requested device type is not found, a `cl::sycl::runtime_error` exception is thrown. If a non-default device selector is used, a device must satisfy both the selector and this control to be chosen. This control only has effect on devices created with a selector. We are planning to deprecate `SYCL_DEVICE_TYPE` environment variable in the future. The specific grace period is not decided yet. Please use the new env var `SYCL_DEVICE_FILTER` instead. |
 | `SYCL_DEVICE_FILTER` | `backend:device_type:device_num` | See Section [`SYCL_DEVICE_FILTER`](#sycl_device_filter)  below. |
-| `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid OpenCL compile options | Override compile options for all programs. |
-| `SYCL_PROGRAM_LINK_OPTIONS` | String of valid OpenCL link options | Override link options for all programs. |
-| `SYCL_USE_KERNEL_SPV` | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `cl::sycl::runtime_error` exception is thrown.|
-| `SYCL_DUMP_IMAGES` | Any(\*) | Dump device image binaries to file. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
-| `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
-| `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable cleanup of finished command nodes at host-device synchronization points. |
-| `SYCL_THROW_ON_BLOCK` | Any(\*) | Throw an exception on attempt to wait for a blocked command.  |
-| `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
-| `SYCL_DEVICE_ALLOWLIST` | A list of devices and their driver version following the pattern: `BackendName:XXX,DeviceType:YYY,DeviceVendorId:0xXYZW,DriverVersion:{{X.Y.Z.W}}`. Also may contain `PlatformVersion`, `DeviceName` and `PlatformName`. There is no fixed order of properties in the pattern. | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
-| `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
-| `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
-| `SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE` | Positive integer | Maximum number of oneAPI Level Zero Command lists that can be allocated with no reuse before throwing an "out of resources" error. Default is 20000, threshold may be increased based on resource availabilty and workload demand. |
-| `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
-| `SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR` | MaxPoolableSize,Capacity,MaxPoolSize | Values specified as positive integers. Defaults are 1, 4, 256. MaxPoolableSize is the maximum allocation size in MB that may be pooled. Capacity is the number of allocations in each size range that are freed by the program but retained in the pool for reallocation. Size ranges follow this pattern: 32, 48, 64, 96, 128, 192, and so on, i.e., powers of 2, with one range in between. MaxPoolSize is the maximum size of the pool in MB. |
-| `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
-| `SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST` | Integer | When set to 0, disables filtering of signaled events from wait lists when using the Level Zero backend. The default is 1. |
-| `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE` | Any(\*) | This environment variable enables users to control use of copy engines for copy operations. If the value is an integer, it will allow the use of copy engines, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The value of this environment variable can also be a pair of the form "lower_index:upper_index" where the indices point to copy engines in a list of all available copy engines. The default is 1. |
-| `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
-| `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero plugin. |
-| `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. The default is 0, meaning all events are host-visible. |
-| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE` | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |
+| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
-| `SYCL_ENABLE_PCI` | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
-| `SYCL_HOST_UNIFIED_MEMORY` | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
-| `SYCL_CACHE_TRACE` | Any(\*) | If the variable is set, messages are sent to std::cerr when caching events or non-blocking failures happen (e.g. unable to access cache item file). |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
 | `SYCL_CACHE_PERSISTENT` | Integer | Controls persistent device compiled code cache. Turns it on if set to '1' and turns it off if set to '0'. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is off. |
 | `SYCL_CACHE_EVICTION_DISABLE` | Any(\*) | Switches cache eviction off when the variable is set. |
@@ -49,9 +21,15 @@ subject to change. Do not rely on these variables in production code.
 | `SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE` | Positive integer | Minimum size of device code image in bytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it. Default value is 0 to cache all images. |
 | `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in bytes which is cached. Too big kernels may overload disk too fast. Default value is 1 GB. |
 | `SYCL_ENABLE_DEFAULT_CONTEXTS` | '1' or '0' | Enable ('1') or disable ('0') creation of default platform contexts in SYCL runtime. The default context for each platform contains all devices in the platform. Refer to [Platform Default Contexts](extensions/PlatformContext/PlatformContext.adoc) extension to learn more. Enabled by default on Linux and disabled on Windows. |
-| `INTEL_ENABLE_OFFLOAD_ANNOTATIONS` | Any(\*) | Enables ITT Annotations support for SYCL runtime. This variable should only be used by tools, that support ITT Annotations. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
+
+### `SYCL_DEVICE_ALLOWLIST`
+
+A list of devices and their driver version following the pattern:
+`BackendName:XXX,DeviceType:YYY,DeviceVendorId:0xXYZW,DriverVersion:{{X.Y.Z.W}}`.
+Also may contain `PlatformVersion`, `DeviceName` and `PlatformName`. There is no
+fixed order of properties in the pattern.
 
 ### `SYCL_DEVICE_FILTER`
 
@@ -77,6 +55,54 @@ Assuming a filter has all three elements of the triple, it selects only those de
 
 Note that all device selectors will throw an exception if the filtered list of devices does not include a device that satisfies the selector. For instance, `SYCL_DEVICE_FILTER=cpu,level_zero` will cause `host_selector()` to throw an exception. `SYCL_DEVICE_FILTER` also limits loading only specified plugins into the SYCL RT. In particular, `SYCL_DEVICE_FILTER=level_zero` will cause the `cpu_selector` to throw an exception since SYCL RT will only load the `level_zero` backend which does not support any CPU devices at this time. When multiple devices satisfy the filter (e..g, `SYCL_DEVICE_FILTER=gpu`), only one of them will be selected.
 
+## Controlling DPC++ Level Zero Plugin
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_ENABLE_PCI` | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
+| `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
+| `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero plugin. |
+
+`(*) Note: Any means this environment variable is effective when set to any non-null value.`
+
+## Tools variables
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `INTEL_ENABLE_OFFLOAD_ANNOTATIONS` | Any(\*) | Enables ITT Annotations support for SYCL runtime. This variable should only be used by tools, that support ITT Annotations. |
+| `XPTI_FRAMEWORK_DISPATCHER`(\*\*) | Path to dispatcher library | Loads XPTI instrumentation dispatcher framework library. See [XPTI Framework documentation][xpti] for more info |
+| `XPTI_TRACE_ENABLE`(\*\*) | `1`, `true`, `0`, `false` | Enables XPTI instrumentation. See [XPTI Framework documentation][xpti] for more info |
+| `XPTI_SUBSCRIBERS`(\*\*) | Comma separated list of subscriber libraries | Loads XPTI subscribers. See [XPTI Framework documentation][xpti] for more info |
+
+`(*) Note: Any means this environment variable is effective when set to any non-null value.`
+`(**) Note: These variables come from XPTI framework`
+
+## Debugging variables for DPC++ Runtime
+
+:warning: **Warning:** <span style="color:red">the environment variables
+described below are used for development and debugging of DPC++ compiler
+and runtime. Their semantics are subject to change. Do not rely on these
+variables in production code.</span>
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_PI_TRACE` | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
+| `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
+| `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
+| `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
+| `SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP` | Any(\*) | Disable cleanup of finished command nodes at host-device synchronization points. |
+| `SYCL_THROW_ON_BLOCK` | Any(\*) | Throw an exception on attempt to wait for a blocked command.  |
+| `SYCL_DEVICELIB_INHIBIT_NATIVE` | String of device library extensions (separated by a whitespace) | Do not rely on device native support for devicelib extensions listed in this option. |
+| `SYCL_PROGRAM_COMPILE_OPTIONS` | String of valid OpenCL compile options | Override compile options for all programs. |
+| `SYCL_PROGRAM_LINK_OPTIONS` | String of valid OpenCL link options | Override link options for all programs. |
+| `SYCL_USE_KERNEL_SPV` | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `cl::sycl::runtime_error` exception is thrown.|
+| `SYCL_DUMP_IMAGES` | Any(\*) | Dump device image binaries to file. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
+| `SYCL_HOST_UNIFIED_MEMORY` | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
+| `SYCL_CACHE_TRACE` | Any(\*) | If the variable is set, messages are sent to std::cerr when caching events or non-blocking failures happen (e.g. unable to access cache item file). |
+| `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE` | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |
+
+`(*) Note: Any means this environment variable is effective when set to any non-null value.`
+
 ### `SYCL_PRINT_EXECUTION_GRAPH` Options
 
 `SYCL_PRINT_EXECUTION_GRAPH` can accept one or more comma separated values from the table below
@@ -100,3 +126,22 @@ Note that all device selectors will throw an exception if the filtered list of d
 | 1 | Enable basic tracing, which is tracing of PI plugins/devices discovery |
 | 2 | Enable tracing of the PI calls |
 | -1 | Enable all levels of tracing |
+
+## Debugging variables for Level Zero Plugin
+
+:warning: **Warning:** <span style="color:red">the environment variables
+described below are used for development and debugging of DPC++ compiler
+and runtime. Their semantics are subject to change. Do not rely on these
+variables in production code.</span>
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_PI_LEVEL_ZERO_MAX_COMMAND_LIST_CACHE` | Positive integer | Maximum number of oneAPI Level Zero Command lists that can be allocated with no reuse before throwing an "out of resources" error. Default is 20000, threshold may be increased based on resource availabilty and workload demand. |
+| `SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR` | EnableBuffers, MaxPoolSize [, MemType, MaxPoolableSize, Capacity, SlabMinSize]... | EnableBuffers enables pooling for SYCL buffers, default false. MaxPoolSize is the maximum size of the pool, default 0. MemType is host, device or shared. Other parameters are values specified as positive integers with optional K, M or G suffix. MaxPoolableSize is the maximum allocation size that may be pooled, default 0 for host and shared, 32KB for device. Capacity is the number of allocations in each size range freed by the program but retained in the pool for reallocation, default 0. Size ranges follow this pattern: 64, 96, 128, 192, and so on, i.e., powers of 2, with one range in between. SlabMinSize is the minimum allocation size, 64KB for host and device, 2MB for shared. |
+| `SYCL_PI_LEVEL_ZERO_BATCH_SIZE` | Integer | Sets a preferred number of commands to batch into a command list before executing the command list. A value of 0 causes the batch size to be adjusted dynamically. A value greater than 0 specifies fixed size batching, with the batch size set to the specified value. The default is 0. |
+| `SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST` | Integer | When set to 0, disables filtering of signaled events from wait lists when using the Level Zero backend. The default is 1. |
+| `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE` | Any(\*) | This environment variable enables users to control use of copy engines for copy operations. If the value is an integer, it will allow the use of copy engines, if available in the device, in Level Zero plugin to transfer SYCL buffer or image data between the host and/or device(s) and to fill SYCL buffer or image data in device or shared memory. The value of this environment variable can also be a pair of the form "lower_index:upper_index" where the indices point to copy engines in a list of all available copy engines. The default is 1. |
+| `SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE_FOR_D2D_COPY` (experimental) | Integer | Allows the use of copy engine, if available in the device, in Level Zero plugin for device to device copy operations. The default is 0. This option is experimental and will be removed once heuristics are added to make a decision about use of copy engine for device to device copy operations. |
+| `SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS` | Any(\*) | Enable support of device-scope events whose state is not visible to the host. If enabled the Level Zero plugin would create all events having device-scope only and create proxy host-visible events for them when their status is needed (wait/query) on the host. The default is 0, meaning all events are host-visible. |
+
+[xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md

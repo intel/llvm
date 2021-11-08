@@ -267,6 +267,22 @@ None.
 *RESOLUTION*: The `is_native_function_object` trait has been removed.  It proved too difficult to implement something that returned sensible values for transparent function objects (e.g. `std::plus<void>`) that did not also require checking additional traits for each individual group algorithm.  Requiring the user to implement their own checks based on type requirements outlined in the specification would make it significantly harder for implementers to extend the algorithms to types and function objects beyond what is specified.  Using constrained forms of the algorithms instead allows a user to determine whether an implementation of a particular algorithm exists using the C++ detection idiom.
 --
 
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro `SYCL_EXT_ONEAPI_GROUP_ALGORITHMS`
+to one of the values defined in the table below. Applications can test for the
+existence of this macro to determine if the implementation supports this
+feature, or applications can test the macro's value to determine which of the
+extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
 == Revision History
 
 [cols="5,15,15,70"]

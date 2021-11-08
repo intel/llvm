@@ -99,7 +99,7 @@ public:
   MLIRContext *getContext() { return location->getContext(); }
 
   /// Return the dialect this operation is associated with, or nullptr if the
-  /// associated dialect is not registered.
+  /// associated dialect is not loaded.
   Dialect *getDialect() { return getName().getDialect(); }
 
   /// The source location the operation was defined or derived from.
@@ -151,21 +151,8 @@ public:
 
   /// Replace all uses of results of this operation with the provided 'values'.
   template <typename ValuesT>
-  std::enable_if_t<!std::is_convertible<ValuesT, Operation *>::value>
-  replaceAllUsesWith(ValuesT &&values) {
-    assert(std::distance(values.begin(), values.end()) == getNumResults() &&
-           "expected 'values' to correspond 1-1 with the number of results");
-
-    auto valueIt = values.begin();
-    for (unsigned i = 0, e = getNumResults(); i != e; ++i)
-      getResult(i).replaceAllUsesWith(*(valueIt++));
-  }
-
-  /// Replace all uses of results of this operation with results of 'op'.
-  void replaceAllUsesWith(Operation *op) {
-    assert(getNumResults() == op->getNumResults());
-    for (unsigned i = 0, e = getNumResults(); i != e; ++i)
-      getResult(i).replaceAllUsesWith(op->getResult(i));
+  void replaceAllUsesWith(ValuesT &&values) {
+    getResults().replaceAllUsesWith(std::forward<ValuesT>(values));
   }
 
   /// Destroys this operation and its subclass data.
@@ -264,7 +251,9 @@ public:
                                           : MutableArrayRef<OpOperand>();
   }
 
-  OpOperand &getOpOperand(unsigned idx) { return getOpOperands()[idx]; }
+  OpOperand &getOpOperand(unsigned idx) {
+    return getOperandStorage().getOperands()[idx];
+  }
 
   // Support operand type iteration.
   using operand_type_iterator = operand_range::type_iterator;
@@ -717,8 +706,8 @@ private:
   size_t numTrailingObjects(OverloadToken<Region>) const { return numRegions; }
 };
 
-inline raw_ostream &operator<<(raw_ostream &os, Operation &op) {
-  op.print(os, OpPrintingFlags().useLocalScope());
+inline raw_ostream &operator<<(raw_ostream &os, const Operation &op) {
+  const_cast<Operation &>(op).print(os, OpPrintingFlags().useLocalScope());
   return os;
 }
 

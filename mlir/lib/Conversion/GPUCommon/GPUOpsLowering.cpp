@@ -14,10 +14,8 @@
 using namespace mlir;
 
 LogicalResult
-GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp,
-                                   ArrayRef<Value> operands,
+GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
                                    ConversionPatternRewriter &rewriter) const {
-  assert(operands.empty() && "func op is not expected to have operands");
   Location loc = gpuFuncOp.getLoc();
 
   SmallVector<LLVM::GlobalOp, 3> workgroupBuffers;
@@ -95,7 +93,7 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp,
       auto elementType =
           global.getType().cast<LLVM::LLVMArrayType>().getElementType();
       Value memory = rewriter.create<LLVM::GEPOp>(
-          loc, LLVM::LLVMPointerType::get(elementType, global.addr_space()),
+          loc, LLVM::LLVMPointerType::get(elementType, global.getAddrSpace()),
           address, ArrayRef<Value>{zero, zero});
 
       // Build a memref descriptor pointing to the buffer to plug with the

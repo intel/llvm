@@ -648,13 +648,20 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent &OutEvent) {
-  if (!Len)
+  sycl::context Context = SrcQueue->get_context();
+
+  if (!Len) { // no-op, but ensure DepEvents will still be waited on
+    if (!Context.is_host() && !DepEvents.empty()) {
+      SrcQueue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
+          SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
+          &OutEvent);
+    }
     return;
+  }
+
   if (!SrcMem || !DstMem)
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_INVALID_VALUE);
-
-  sycl::context Context = SrcQueue->get_context();
 
   if (Context.is_host()) {
     std::memcpy(DstMem, SrcMem, Len);
@@ -670,13 +677,19 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern, std::vector<RT::PiEvent> DepEvents,
                              RT::PiEvent &OutEvent) {
-  if (!Length)
+  sycl::context Context = Queue->get_context();
+
+  if (!Length) { // no-op, but ensure DepEvents will still be waited on
+    if (!Context.is_host() && !DepEvents.empty()) {
+      Queue->getPlugin().call<PiApiKind::piEnqueueEventsWait>(
+          Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), &OutEvent);
+    }
     return;
+  }
+
   if (!Mem)
     throw runtime_error("NULL pointer argument in memory fill operation.",
                         PI_INVALID_VALUE);
-
-  sycl::context Context = Queue->get_context();
 
   if (Context.is_host()) {
     std::memset(Mem, Pattern, Length);

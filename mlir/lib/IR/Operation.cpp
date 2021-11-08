@@ -19,8 +19,6 @@
 
 using namespace mlir;
 
-OpAsmParser::~OpAsmParser() {}
-
 //===----------------------------------------------------------------------===//
 // OperationName
 //===----------------------------------------------------------------------===//
@@ -182,7 +180,7 @@ Operation::Operation(Location location, OperationName name, unsigned numResults,
         name.getStringRef() +
         " created with unregistered dialect. If this is intended, please call "
         "allowUnregisteredDialects() on the MLIRContext, or use "
-        "-allow-unregistered-dialect with the MLIR opt tool used");
+        "-allow-unregistered-dialect with the MLIR tool used.");
 #endif
 }
 
@@ -278,17 +276,9 @@ void Operation::insertOperands(unsigned index, ValueRange operands) {
 InFlightDiagnostic Operation::emitError(const Twine &message) {
   InFlightDiagnostic diag = mlir::emitError(getLoc(), message);
   if (getContext()->shouldPrintOpOnDiagnostic()) {
-    // Print out the operation explicitly here so that we can print the generic
-    // form.
-    // TODO: It would be nice if we could instead provide the
-    // specific printing flags when adding the operation as an argument to the
-    // diagnostic.
-    std::string printedOp;
-    {
-      llvm::raw_string_ostream os(printedOp);
-      print(os, OpPrintingFlags().printGenericOpForm().useLocalScope());
-    }
-    diag.attachNote(getLoc()) << "see current operation: " << printedOp;
+    diag.attachNote(getLoc())
+        .append("see current operation: ")
+        .appendOp(*this, OpPrintingFlags().printGenericOpForm());
   }
   return diag;
 }
@@ -515,7 +505,7 @@ void Operation::moveAfter(Operation *existingOp) {
 void Operation::moveAfter(Block *block,
                           llvm::iplist<Operation>::iterator iterator) {
   assert(iterator != block->end() && "cannot move after end of block");
-  moveBefore(&*std::next(iterator));
+  moveBefore(block, std::next(iterator));
 }
 
 /// This drops all operand uses from this operation, which is an essential
@@ -648,8 +638,9 @@ void OpState::printOpName(Operation *op, OpAsmPrinter &p,
   StringRef name = op->getName().getStringRef();
   if (name.startswith((defaultDialect + ".").str()))
     name = name.drop_front(defaultDialect.size() + 1);
-  // TODO: remove this special case.
-  else if (name.startswith("std."))
+  // TODO: remove this special case (and update test/IR/parser.mlir)
+  else if ((defaultDialect.empty() || defaultDialect == "builtin") &&
+           name.startswith("std."))
     name = name.drop_front(4);
   p.getStream() << name;
 }

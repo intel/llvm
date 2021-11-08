@@ -158,15 +158,15 @@ class Remangler {
   SmallVector<std::string, 16> Subs;
   bool Failed = false;
 
-  OutputStream printNode(const Node *node) {
-    OutputStream nodeOutStream;
-    initializeOutputStream(nullptr, nullptr, nodeOutStream, 1024);
-    node->print(nodeOutStream);
-    return nodeOutStream;
+  OutputBuffer printNode(const Node *node) {
+    OutputBuffer nodeOutBuffer;
+    initializeOutputBuffer(nullptr, nullptr, nodeOutBuffer, 1024);
+    node->print(nodeOutBuffer);
+    return nodeOutBuffer;
   }
 
   void addSub(const Node *node) {
-    OutputStream nodeOut = printNode(node);
+    OutputBuffer nodeOut = printNode(node);
     char *nodeOutBuf = nodeOut.getBuffer();
     auto nodeOutStr =
         std::string(nodeOutBuf, nodeOutBuf + nodeOut.getCurrentPosition());
@@ -175,7 +175,7 @@ class Remangler {
   }
 
   bool findSub(const Node *node, size_t *index) {
-    OutputStream nodeOut = printNode(node);
+    OutputBuffer nodeOut = printNode(node);
     char *nodeOutBuf = nodeOut.getBuffer();
     auto nodeOutStr =
         std::string(nodeOutBuf, nodeOutBuf + nodeOut.getCurrentPosition());
@@ -190,39 +190,39 @@ class Remangler {
     return false;
   }
 
-  bool remangleSub(const Node *node, OutputStream &S) {
+  bool remangleSub(const Node *node, OutputBuffer &OB) {
     size_t index = 0;
     if (findSub(node, &index)) {
-      S << 'S';
+      OB << 'S';
       if (index != 0)
-        S << index;
-      S << '_';
+        OB << index;
+      OB << '_';
       return true;
     }
     return false;
   }
 
-  void remangleOpenCLCName(const Node *nameNode, OutputStream &S,
+  void remangleOpenCLCName(const Node *nameNode, OutputBuffer &OB,
                            bool Substitutable, bool isNameRoot = true) {
-    if (Substitutable && remangleSub(nameNode, S))
+    if (Substitutable && remangleSub(nameNode, OB))
       return;
     switch (nameNode->getKind()) {
     case Node::Kind::KNameType: {
       const NameType *name = static_cast<const NameType *>(nameNode);
-      S << name->getName().size();
-      S << name->getName();
+      OB << name->getName().size();
+      OB << name->getName();
       break;
     }
     case Node::Kind::KNestedName: {
       if (isNameRoot)
-        S << 'N';
+        OB << 'N';
       const NestedName *nestedName = static_cast<const NestedName *>(nameNode);
-      remangleOpenCLCName(nestedName->Qual, S, Substitutable,
+      remangleOpenCLCName(nestedName->Qual, OB, Substitutable,
                           /* isNameRoot= */ false);
-      remangleOpenCLCName(nestedName->Name, S, /* Substitutable= */ false,
+      remangleOpenCLCName(nestedName->Name, OB, /* Substitutable= */ false,
                           /* isNameRoot= */ false);
       if (isNameRoot)
-        S << 'E';
+        OB << 'E';
       break;
     }
     case Node::Kind::KNameWithTemplateArgs: {
@@ -230,19 +230,19 @@ class Remangler {
           static_cast<const NameWithTemplateArgs *>(nameNode);
       assert(templateName->TemplateArgs->getKind() ==
              Node::Kind::KTemplateArgs);
-      remangleOpenCLCName(templateName->Name, S, /* Substitutable= */ false,
+      remangleOpenCLCName(templateName->Name, OB, /* Substitutable= */ false,
                           /* isNameRoot= */ false);
-      S << 'I';
+      OB << 'I';
       const TemplateArgs *templateArgs =
           static_cast<const TemplateArgs *>(templateName->TemplateArgs);
       for (auto templateArgType : templateArgs->getParams())
-        remangleOpenCLCType(templateArgType, S);
-      S << 'E';
+        remangleOpenCLCType(templateArgType, OB);
+      OB << 'E';
       break;
     }
     default: {
-      OutputStream errorTypeOut;
-      initializeOutputStream(nullptr, nullptr, errorTypeOut, 1024);
+      OutputBuffer errorTypeOut;
+      initializeOutputBuffer(nullptr, nullptr, errorTypeOut, 1024);
       errorTypeOut << "Unhandled name : ";
       nameNode->print(errorTypeOut);
       errorTypeOut << "\n";
@@ -255,7 +255,7 @@ class Remangler {
       addSub(nameNode);
   }
 
-  void remangleOpenCLCTypeName(const NameType *typeName, OutputStream &S) {
+  void remangleOpenCLCTypeName(const NameType *typeName, OutputBuffer &OB) {
     StringView name = typeName->getName();
 
     auto it = TypeReplacements.find(name.begin());
@@ -263,96 +263,96 @@ class Remangler {
       name = StringView(it->second);
 
     if (name == "void")
-      S << 'v';
+      OB << 'v';
     else if (name == "wchar_t")
-      S << 'w';
+      OB << 'w';
     else if (name == "bool")
-      S << 'b';
+      OB << 'b';
     else if (name == "char")
-      S << 'c';
+      OB << 'c';
     else if (name == "signed char")
-      S << 'a';
+      OB << 'a';
     else if (name == "unsigned char")
-      S << 'h';
+      OB << 'h';
     else if (name == "short")
-      S << 's';
+      OB << 's';
     else if (name == "unsigned short")
-      S << 't';
+      OB << 't';
     else if (name == "int")
-      S << 'i';
+      OB << 'i';
     else if (name == "unsigned int")
-      S << 'j';
+      OB << 'j';
     else if (name == "long")
-      S << 'l';
+      OB << 'l';
     else if (name == "unsigned long")
-      S << 'm';
+      OB << 'm';
     else if (name == "long long")
-      S << 'x';
+      OB << 'x';
     else if (name == "unsigned long long")
-      S << 'y';
+      OB << 'y';
     else if (name == "__int128")
-      S << 'n';
+      OB << 'n';
     else if (name == "unsigned __int128")
-      S << 'o';
+      OB << 'o';
     else if (name == "float")
-      S << 'f';
+      OB << 'f';
     else if (name == "double")
-      S << 'd';
+      OB << 'd';
     else if (name == "long double")
-      S << 'e';
+      OB << 'e';
     else if (name == "__float128")
-      S << 'g';
+      OB << 'g';
     else if (name == "...")
-      S << 'z';
+      OB << 'z';
     // TODO: u
     else if (name == "decimal64")
-      S << "Dd";
+      OB << "Dd";
     else if (name == "decimal128")
-      S << "De";
+      OB << "De";
     else if (name == "decimal32")
-      S << "Df";
+      OB << "Df";
     else if (name == "decimal16")
-      S << "Dh";
+      OB << "Dh";
     else if (name == "char32_t")
-      S << "Di";
+      OB << "Di";
     else if (name == "char16_t")
-      S << "Ds";
+      OB << "Ds";
     else if (name == "char8_t")
-      S << "Du";
+      OB << "Du";
     else if (name == "_Float16")
-      S << "DF16_";
+      OB << "DF16_";
     else if (name == "auto")
-      S << 'a';
+      OB << 'a';
     else if (name == "decltype(auto)")
-      S << 'c';
+      OB << 'c';
     else if (name == "std::nullptr_t")
-      S << 'n';
+      OB << 'n';
     // Enum
     else
-      remangleOpenCLCName(typeName, S, /* Substitutable= */ true);
+      remangleOpenCLCName(typeName, OB, /* Substitutable= */ true);
   }
 
   void remangleOpenCLCQualifiers(const itanium_demangle::Qualifiers quals,
-                                 OutputStream &S) {
+                                 OutputBuffer &OB) {
     if (quals & QualConst)
-      S << "K";
+      OB << "K";
     if (quals & QualVolatile)
-      S << "V";
+      OB << "V";
     if (quals & QualRestrict)
-      S << "r";
+      OB << "r";
   }
 
-  void remangleOpenCLCType(const Node *typeNode, OutputStream &S) {
+  void remangleOpenCLCType(const Node *typeNode, OutputBuffer &OB) {
     switch (typeNode->getKind()) {
     case Node::Kind::KPointerType: {
       const itanium_demangle::PointerType *ptype =
           static_cast<const itanium_demangle::PointerType *>(typeNode);
-      S << 'P';
-      remangleOpenCLCType(ptype->getPointee(), S);
+      OB << 'P';
+      remangleOpenCLCType(ptype->getPointee(), OB);
       break;
     }
     case Node::Kind::KVectorType: {
-      if (remangleSub(typeNode, S))
+      if (remangleSub(typeNode, OB))
         return;
 
       const itanium_demangle::VectorType *vecType =
@@ -360,46 +360,60 @@ class Remangler {
       assert(vecType->getDimension()->getKind() == Node::Kind::KNameType);
       const NameType *dims =
           static_cast<const NameType *>(vecType->getDimension());
-      S << "Dv";
-      S << dims->getName();
-      S << '_';
-      remangleOpenCLCType(vecType->getBaseType(), S);
+      OB << "Dv";
+      OB << dims->getName();
+      OB << '_';
+      remangleOpenCLCType(vecType->getBaseType(), OB);
       addSub(typeNode);
       break;
     }
+    case Node::Kind::KBinaryFPType: {
+      if (remangleSub(typeNode, OB))
+        return;
+
+      const BinaryFPType *BFPType = static_cast<const BinaryFPType *>(typeNode);
+      assert(BFPType->getDimension()->getKind() == Node::Kind::KNameType);
+      const NameType *dims =
+          static_cast<const NameType *>(BFPType->getDimension());
+
+      OB << "DF";
+      OB << dims->getName();
+      OB << '_';
+      break;
+    }
     case Node::Kind::KVendorExtQualType: {
-      if (remangleSub(typeNode, S))
+      if (remangleSub(typeNode, OB))
         return;
 
       const VendorExtQualType *extQualType =
           static_cast<const VendorExtQualType *>(typeNode);
-      S << 'U';
-      S << extQualType->getExt().size();
-      S << extQualType->getExt();
-      remangleOpenCLCType(extQualType->getTy(), S);
+      OB << 'U';
+      OB << extQualType->getExt().size();
+      OB << extQualType->getExt();
+      remangleOpenCLCType(extQualType->getTy(), OB);
       addSub(typeNode);
       break;
     }
     case Node::Kind::KQualType: {
       const itanium_demangle::QualType *qtype =
           static_cast<const itanium_demangle::QualType *>(typeNode);
-      remangleOpenCLCQualifiers(qtype->getQuals(), S);
-      remangleOpenCLCType(qtype->getChild(), S);
+      remangleOpenCLCQualifiers(qtype->getQuals(), OB);
+      remangleOpenCLCType(qtype->getChild(), OB);
       break;
     }
     case Node::Kind::KNameType: {
       const NameType *typeName = static_cast<const NameType *>(typeNode);
-      remangleOpenCLCTypeName(typeName, S);
+      remangleOpenCLCTypeName(typeName, OB);
       break;
     }
     case Node::Kind::KNestedName: {
       // Enum type with nested name
-      remangleOpenCLCName(typeNode, S, /* Substitutable= */ true);
+      remangleOpenCLCName(typeNode, OB, /* Substitutable= */ true);
       break;
     }
     default: {
-      OutputStream errorTypeOut;
-      initializeOutputStream(nullptr, nullptr, errorTypeOut, 1024);
+      OutputBuffer errorTypeOut;
+      initializeOutputBuffer(nullptr, nullptr, errorTypeOut, 1024);
       errorTypeOut << "Unhandled type : ";
       typeNode->print(errorTypeOut);
       errorTypeOut << "\n";
@@ -410,23 +424,23 @@ class Remangler {
     }
   }
 
-  void remangleOpenCLCFunction(const Node *root, OutputStream &S) {
+  void remangleOpenCLCFunction(const Node *root, OutputBuffer &OB) {
     assert(root->getKind() == Node::Kind::KFunctionEncoding);
-    S << "_Z";
+    OB << "_Z";
 
     const FunctionEncoding *encoding =
         static_cast<const FunctionEncoding *>(root);
 
-    remangleOpenCLCName(encoding->getName(), S, /* Substitutable= */ false);
+    remangleOpenCLCName(encoding->getName(), OB, /* Substitutable= */ false);
 
     if (encoding->getReturnType())
-      remangleOpenCLCType(encoding->getReturnType(), S);
+      remangleOpenCLCType(encoding->getReturnType(), OB);
 
     for (const Node *paramType : encoding->getParams())
-      remangleOpenCLCType(paramType, S);
+      remangleOpenCLCType(paramType, OB);
 
     if (encoding->getParams().size() == 0)
-      S << 'v';
+      OB << 'v';
   }
 
 public:
@@ -438,8 +452,8 @@ public:
 
   std::string remangle() {
     Subs.clear();
-    OutputStream remanglingStream;
-    initializeOutputStream(nullptr, nullptr, remanglingStream, 1024);
+    OutputBuffer remanglingStream;
+    initializeOutputBuffer(nullptr, nullptr, remanglingStream, 1024);
     remangleOpenCLCFunction(Root, remanglingStream);
     std::string remangled = std::string(remanglingStream.getBuffer(),
                                         remanglingStream.getCurrentPosition());

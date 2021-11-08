@@ -119,8 +119,8 @@ defm call_graph_profile_sort: BB<"call-graph-profile-sort",
     "Reorder sections with call graph profile (default)",
     "Do not reorder sections with call graph profile">;
 
-// -chroot doesn't have a help text because it is an internal option.
-def chroot: Separate<["--", "-"], "chroot">;
+// --chroot doesn't have a help text because it is an internal option.
+def chroot: Separate<["--"], "chroot">;
 
 defm color_diagnostics: B<"color-diagnostics",
   "Alias for --color-diagnostics=always",
@@ -256,7 +256,7 @@ def ignore_function_address_equality: F<"ignore-function-address-equality">,
 def ignore_data_address_equality: F<"ignore-data-address-equality">,
   HelpText<"lld can break the address equality of data">;
 
-defm image_base: Eq<"image-base", "Set the base address">;
+defm image_base: EEq<"image-base", "Set the base address">;
 
 defm init: Eq<"init", "Specify an initializer function">,
   MetaVarName<"<symbol>">;
@@ -314,7 +314,7 @@ defm orphan_handling:
   Eq<"orphan-handling", "Control how orphan sections are handled when linker script used">;
 
 defm pack_dyn_relocs:
-  Eq<"pack-dyn-relocs", "Pack dynamic relocations in the given format">,
+  EEq<"pack-dyn-relocs", "Pack dynamic relocations in the given format">,
   MetaVarName<"[none,android,relr,android+relr]">;
 
 defm use_android_relr_tags: BB<"use-android-relr-tags",
@@ -524,7 +524,6 @@ def: Separate<["-"], "F">, Alias<filter>, HelpText<"Alias for --filter">;
 def: Separate<["-"], "b">, Alias<format>, HelpText<"Alias for --format">;
 def: JoinedOrSeparate<["-"], "l">, Alias<library>, HelpText<"Alias for --library">;
 def: JoinedOrSeparate<["-"], "L">, Alias<library_path>, HelpText<"Alias for --library-path">;
-def: F<"no-pic-executable">, Alias<no_pie>, HelpText<"Alias for --no-pie">;
 def: Flag<["-"], "n">, Alias<nmagic>, HelpText<"Alias for --nmagic">;
 def: Flag<["-"], "N">, Alias<omagic>, HelpText<"Alias for --omagic">;
 def: Joined<["--"], "output=">, Alias<o>, HelpText<"Alias for -o">;
@@ -574,8 +573,6 @@ def lto_sample_profile: JJ<"lto-sample-profile=">,
 defm lto_whole_program_visibility: BB<"lto-whole-program-visibility",
   "Asserts that the LTO link has whole program visibility",
   "Asserts that the LTO link does not have whole program visibility">;
-def lto_pseudo_probe_for_profiling: F<"lto-pseudo-probe-for-profiling">,
-  HelpText<"Emit pseudo probes for sample profiling">;
 def disable_verify: F<"disable-verify">;
 defm mllvm: Eq<"mllvm", "Additional arguments to forward to LLVM's option processing">;
 def opt_remarks_filename: Separate<["--"], "opt-remarks-filename">,
@@ -651,8 +648,6 @@ def: F<"plugin-opt=opt-remarks-with-hotness">,
 def: J<"plugin-opt=opt-remarks-hotness-threshold=">,
   Alias<opt_remarks_hotness_threshold>,
   HelpText<"Alias for --opt-remarks-hotness-threshold">;
-def: J<"plugin-opt=pseudo-probe-for-profiling">,
-  Alias<lto_pseudo_probe_for_profiling>, HelpText<"Alias for --lto-pseudo-probe-for-profiling">;
 def: J<"plugin-opt=sample-profile=">,
   Alias<lto_sample_profile>, HelpText<"Alias for --lto-sample-profile">;
 def: F<"plugin-opt=save-temps">, Alias<save_temps>, HelpText<"Alias for --save-temps">;
@@ -697,14 +692,11 @@ def plugin_opt_eq : J<"plugin-opt=">;
 def: F<"detect-odr-violations">;
 def: Flag<["-"], "g">;
 def: F<"long-plt">;
-def: F<"no-add-needed">;
 def: F<"no-copy-dt-needed-entries">;
 def: F<"no-ctors-in-init-array">;
 def: F<"no-keep-memory">;
-def: F<"no-pipeline-knowledge">;
 def: F<"no-relax">;
 def: F<"no-warn-mismatch">;
-def: Flag<["-"], "p">;
 def: Separate<["--", "-"], "rpath-link">;
 def: J<"rpath-link=">;
 def: F<"secure-plt">;
@@ -714,7 +706,6 @@ def: F<"warn-execstack">;
 def: F<"warn-once">;
 def: F<"warn-shared-textrel">;
 def: JoinedOrSeparate<["-"], "G">;
-def: F<"Qy">;
 
 // Hidden option used for testing MIPS multi-GOT implementation.
 defm mips_got_size:

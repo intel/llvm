@@ -11,8 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/Transforms/HoistPadding.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
@@ -94,6 +96,9 @@ struct TestLinalgTransforms
   Option<int> testHoistPadding{*this, "test-hoist-padding",
                                llvm::cl::desc("Test hoist padding"),
                                llvm::cl::init(0)};
+  Option<bool> testPadPattern{*this, "test-pad-pattern",
+                              llvm::cl::desc("Test pad pattern"),
+                              llvm::cl::init(false)};
   Option<bool> testTransformPadTensor{
       *this, "test-transform-pad-tensor",
       llvm::cl::desc("Test transform pad tensor by copying with generic ops"),
@@ -107,9 +112,22 @@ struct TestLinalgTransforms
       llvm::cl::desc("Test rewrite of subtensor(pad_tensor) into "
                      "pad_tensor(subtensor)"),
       llvm::cl::init(false)};
-  Option<bool> padTiles{*this, "pad-tiles",
-                        llvm::cl::desc("Pad tiles when test-tile-pattern"),
-                        llvm::cl::init(false)};
+  ListOption<int64_t> paddedOperands{
+      *this, "padded-operands",
+      llvm::cl::desc("Operands to pad when test-tile-pattern"),
+      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  ListOption<int64_t> nofoldOperands{
+      *this, "nofold-operands",
+      llvm::cl::desc("Operands to set nofold when test-tile-pattern"),
+      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  ListOption<int64_t> packPaddings{
+      *this, "pack-paddings",
+      llvm::cl::desc("Operand packing flags when test-pad-pattern"),
+      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  ListOption<int64_t> hoistPaddings{
+      *this, "hoist-paddings",
+      llvm::cl::desc("Operand hoisting depths when test-pad-pattern"),
+      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
   ListOption<int64_t> peeledLoops{
       *this, "peeled-loops",
       llvm::cl::desc("Loops to be peeled when test-tile-pattern"),
@@ -129,6 +147,11 @@ struct TestLinalgTransforms
       *this, "skip-partial",
       llvm::cl::desc("Skip loops inside partial iterations during peeling"),
       llvm::cl::init(false)};
+  Option<std::string> loopType{
+      *this, "loop-type",
+      llvm::cl::desc("Specify the type of loops to generate: for, parallel or "
+                     "tiled_loop"),
+      llvm::cl::init("for")};
 };
 } // end anonymous namespace
 
@@ -330,8 +353,8 @@ static LogicalResult copyCallBackFn(OpBuilder &b, Value src, Value dst,
   if (!floatType.isa<FloatType>())
     return failure();
   if (!isOutput) {
-    Value cst =
-        b.create<ConstantOp>(src.getLoc(), FloatAttr::get(floatType, 42.0));
+    Value cst = b.create<arith::ConstantOp>(src.getLoc(),
+                                            FloatAttr::get(floatType, 42.0));
     b.create<FillOp>(src.getLoc(), cst, dst);
   }
   b.create<CopyOp>(src.getLoc(), src, dst);
@@ -519,6 +542,14 @@ applyMatmulToVectorPatterns(FuncOp funcOp,
     fillL1TilingAndMatmulToVectorPatterns(funcOp, Identifier::get("L2", ctx),
                                           stage1Patterns);
   }
+  {
+    // Canonicalization patterns
+    RewritePatternSet canonicalizationPatterns(funcOp.getContext());
+    vector::populateVectorTransferPermutationMapLoweringPatterns(
+        canonicalizationPatterns);
+    vector::populateVectorReductionToContractPatterns(canonicalizationPatterns);
+    stage1Patterns.push_back(std::move(canonicalizationPatterns));
+  }
   SmallVector<FrozenRewritePatternSet, 4> frozenStage1Patterns;
   llvm::move(stage1Patterns, std::back_inserter(frozenStage1Patterns));
   FrozenRewritePatternSet stage2Patterns =
@@ -541,6 +572,7 @@ static void applyLinalgToVectorPatterns(FuncOp funcOp) {
       LinalgTransformationFilter()
           .addOpFilter<ContractionOpInterface, FillOp, CopyOp, GenericOp>());
   populatePadTensorOpVectorizationPatterns(patterns);
+  populateConvolutionVectorizationPatterns(patterns);
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
 }
 
@@ -566,16 +598,27 @@ static void applyExtractSliceOfPadTensorSwapPattern(FuncOp funcOp) {
 // In the future, it should be the zero of type + op.
 static Value getNeutralOfLinalgOp(OpBuilder &b, OpOperand &op) {
   auto t = getElementTypeOrSelf(op.get());
-  return b.create<ConstantOp>(op.getOwner()->getLoc(), t, b.getZeroAttr(t));
+  return b.create<arith::ConstantOp>(op.getOwner()->getLoc(), t,
+                                     b.getZeroAttr(t));
 }
 
-static void applyTilePattern(FuncOp funcOp, ArrayRef<int64_t> tileSizes,
-                             bool padTiles, ArrayRef<int64_t> peeledLoops,
+static void applyTilePattern(FuncOp funcOp, std::string loopType,
+                             ArrayRef<int64_t> tileSizes,
+                             ArrayRef<int64_t> paddedOperands,
+                             ArrayRef<int64_t> nofoldOperands,
+                             ArrayRef<int64_t> peeledLoops,
                              bool scalarizeDynamicDims) {
   MLIRContext *context = funcOp.getContext();
   RewritePatternSet tilingPattern(context);
-  auto linalgTilingOptions =
-      linalg::LinalgTilingOptions().setPeeledLoops(peeledLoops);
+  LinalgTilingLoopType type =
+      llvm::StringSwitch<LinalgTilingLoopType>(loopType)
+          .Case("for", LinalgTilingLoopType::Loops)
+          .Case("affine", LinalgTilingLoopType::AffineLoops)
+          .Case("parallel", LinalgTilingLoopType::ParallelLoops)
+          .Case("tiled_loop", LinalgTilingLoopType::TiledLoops);
+  auto linalgTilingOptions = linalg::LinalgTilingOptions()
+                                 .setPeeledLoops(peeledLoops)
+                                 .setLoopType(type);
   if (scalarizeDynamicDims) {
     linalgTilingOptions.scalarizeDynamicDims();
     assert(tileSizes.empty() &&
@@ -583,16 +626,50 @@ static void applyTilePattern(FuncOp funcOp, ArrayRef<int64_t> tileSizes,
   } else {
     linalgTilingOptions.setTileSizes(tileSizes);
   }
-  if (padTiles)
-    linalgTilingOptions.setPaddingValueComputationFunction(
-        getNeutralOfLinalgOp);
-
+  if (!paddedOperands.empty()) {
+    auto paddingFunc = [&](OpBuilder &b,
+                           OpOperand &opOperand) -> FailureOr<Value> {
+      if (llvm::count(paddedOperands, opOperand.getOperandNumber()) == 0)
+        return failure();
+      return getNeutralOfLinalgOp(b, opOperand);
+    };
+    auto nofoldFunc = [&](OpOperand &opOperand) {
+      if (llvm::count(nofoldOperands, opOperand.getOperandNumber()) != 0)
+        return true;
+      return false;
+    };
+    linalgTilingOptions.setPaddingValueComputationFunction(paddingFunc);
+    linalgTilingOptions.setPaddingNoFoldComputationFunction(nofoldFunc);
+  }
   tilingPattern.add<linalg::LinalgTilingPattern<linalg::MatmulOp>,
-                    linalg::LinalgTilingPattern<linalg::MatmulI8I8I32Op>,
                     linalg::LinalgTilingPattern<linalg::GenericOp>>(
       context, linalgTilingOptions,
       linalg::LinalgTransformationFilter(Identifier::get("tile", context)));
   (void)applyPatternsAndFoldGreedily(funcOp, std::move(tilingPattern));
+}
+
+static void applyPadPattern(FuncOp funcOp, ArrayRef<int64_t> packPaddings,
+                            ArrayRef<int64_t> hoistPaddings) {
+  MLIRContext *context = funcOp.getContext();
+  RewritePatternSet padPattern(context);
+  auto linalgPaddingOptions = linalg::LinalgPaddingOptions();
+  auto packFunc = [&](OpOperand &opOperand) {
+    return opOperand.getOperandNumber() < packPaddings.size()
+               ? packPaddings[opOperand.getOperandNumber()]
+               : false;
+  };
+  auto hoistingFunc = [&](OpOperand &opOperand) {
+    return opOperand.getOperandNumber() < hoistPaddings.size()
+               ? hoistPaddings[opOperand.getOperandNumber()]
+               : 0;
+  };
+  linalgPaddingOptions.setPaddingValueComputationFunction(getNeutralOfLinalgOp);
+  linalgPaddingOptions.setPaddingNoFoldComputationFunction(packFunc);
+  linalgPaddingOptions.setPaddingHoistComputationFunction(hoistingFunc);
+  padPattern.add<LinalgPaddingPattern>(
+      context, linalgPaddingOptions,
+      LinalgTransformationFilter(Identifier::get("pad", context)));
+  (void)applyPatternsAndFoldGreedily(funcOp, std::move(padPattern));
 }
 
 static void applyInterchangePattern(FuncOp funcOp,
@@ -720,16 +797,26 @@ void TestLinalgTransforms::runOnFunction() {
     return applyTiledLoopPeelingPattern(getFunction(), testTiledLoopPeeling,
                                         skipPartial);
   if (testTilePattern)
-    return applyTilePattern(getFunction(), tileSizes, padTiles, peeledLoops,
+    return applyTilePattern(getFunction(), loopType, tileSizes, paddedOperands,
+                            nofoldOperands, peeledLoops,
                             /*scalarizeDynamicDims=*/false);
   if (testTileScalarizeDynamicDims)
-    return applyTilePattern(getFunction(), tileSizes, padTiles,
+    return applyTilePattern(getFunction(), loopType, tileSizes, paddedOperands,
+                            nofoldOperands,
                             /*peeledLoops=*/{}, /*scalarizeDynamicDims=*/true);
   if (testHoistPadding) {
     getFunction().walk([&](linalg::PadTensorOp padTensorOp) {
-      (void)linalg::hoistPaddingOnTensors(padTensorOp, testHoistPadding);
+      PadTensorOp hoistedOp;
+      FailureOr<Value> newResult = linalg::hoistPaddingOnTensors(
+          padTensorOp, testHoistPadding, hoistedOp);
+      if (succeeded(newResult)) {
+        padTensorOp.getResult().replaceAllUsesWith(newResult.getValue());
+        padTensorOp->erase();
+      }
     });
   }
+  if (testPadPattern)
+    return applyPadPattern(getFunction(), packPaddings, hoistPaddings);
   if (testInterchangePattern.hasValue())
     return applyInterchangePattern(getFunction(), testInterchangePattern);
 }

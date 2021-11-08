@@ -2422,6 +2422,54 @@ INTERCEPTOR(int, glob64, const char *pattern, int flags,
 #define INIT_GLOB64
 #endif  // SANITIZER_INTERCEPT_GLOB64
 
+#if SANITIZER_INTERCEPT_POSIX_SPAWN
+
+template <class RealSpawnPtr>
+static int PosixSpawnImpl(void *ctx, RealSpawnPtr *real_posix_spawn, pid_t *pid,
+                          const char *file_or_path, const void *file_actions,
+                          const void *attrp, char *const argv[],
+                          char *const envp[]) {
+  COMMON_INTERCEPTOR_READ_RANGE(ctx, file_or_path,
+                                internal_strlen(file_or_path) + 1);
+  char *const *s = argv;
+  for (; *s; ++s)
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, *s, internal_strlen(*s) + 1);
+  COMMON_INTERCEPTOR_READ_RANGE(ctx, argv, (s - argv + 1) / sizeof(*s));
+  s = envp;
+  for (; *s; ++s)
+    COMMON_INTERCEPTOR_READ_RANGE(ctx, *s, internal_strlen(*s) + 1);
+  COMMON_INTERCEPTOR_READ_RANGE(ctx, s, (s - envp + 1) / sizeof(*s));
+  int res =
+      real_posix_spawn(pid, file_or_path, file_actions, attrp, argv, envp);
+  if (res == 0)
+    COMMON_INTERCEPTOR_WRITE_RANGE(ctx, pid, sizeof(*pid));
+  return res;
+}
+INTERCEPTOR(int, posix_spawn, pid_t *pid, const char *path,
+            const void *file_actions, const void *attrp, char *const argv[],
+            char *const envp[]) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, posix_spawn, pid, path, file_actions, attrp,
+                           argv, envp);
+  return PosixSpawnImpl(ctx, REAL(posix_spawn), pid, path, file_actions, attrp,
+                        argv, envp);
+}
+INTERCEPTOR(int, posix_spawnp, pid_t *pid, const char *file,
+            const void *file_actions, const void *attrp, char *const argv[],
+            char *const envp[]) {
+  void *ctx;
+  COMMON_INTERCEPTOR_ENTER(ctx, posix_spawnp, pid, file, file_actions, attrp,
+                           argv, envp);
+  return PosixSpawnImpl(ctx, REAL(posix_spawnp), pid, file, file_actions, attrp,
+                        argv, envp);
+}
+#  define INIT_POSIX_SPAWN                  \
+    COMMON_INTERCEPT_FUNCTION(posix_spawn); \
+    COMMON_INTERCEPT_FUNCTION(posix_spawnp);
+#else  // SANITIZER_INTERCEPT_POSIX_SPAWN
+#  define INIT_POSIX_SPAWN
+#endif  // SANITIZER_INTERCEPT_POSIX_SPAWN
+
 #if SANITIZER_INTERCEPT_WAIT
 // According to sys/wait.h, wait(), waitid(), waitpid() may have symbol version
 // suffixes on Darwin. See the declaration of INTERCEPTOR_WITH_SUFFIX for
@@ -7418,7 +7466,7 @@ INTERCEPTOR(void *, mmap, void *addr, SIZE_T sz, int prot, int flags, int fd,
             OFF_T off) {
   void *ctx;
   if (common_flags()->detect_write_exec)
-    ReportMmapWriteExec(prot);
+    ReportMmapWriteExec(prot, flags);
   if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)
     return (void *)internal_mmap(addr, sz, prot, flags, fd, off);
   COMMON_INTERCEPTOR_ENTER(ctx, mmap, addr, sz, prot, flags, fd, off);
@@ -7428,7 +7476,7 @@ INTERCEPTOR(void *, mmap, void *addr, SIZE_T sz, int prot, int flags, int fd,
 INTERCEPTOR(int, mprotect, void *addr, SIZE_T sz, int prot) {
   void *ctx;
   if (common_flags()->detect_write_exec)
-    ReportMmapWriteExec(prot);
+    ReportMmapWriteExec(prot, 0);
   if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)
     return (int)internal_mprotect(addr, sz, prot);
   COMMON_INTERCEPTOR_ENTER(ctx, mprotect, addr, sz, prot);
@@ -7447,7 +7495,7 @@ INTERCEPTOR(void *, mmap64, void *addr, SIZE_T sz, int prot, int flags, int fd,
             OFF64_T off) {
   void *ctx;
   if (common_flags()->detect_write_exec)
-    ReportMmapWriteExec(prot);
+    ReportMmapWriteExec(prot, flags);
   if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)
     return (void *)internal_mmap(addr, sz, prot, flags, fd, off);
   COMMON_INTERCEPTOR_ENTER(ctx, mmap64, addr, sz, prot, flags, fd, off);
@@ -7543,6 +7591,14 @@ INTERCEPTOR(struct __sanitizer_ttyent *, getttynam, char *name) {
     COMMON_INTERCEPTOR_WRITE_RANGE(ctx, ttyent, struct_ttyent_sz);
   return ttyent;
 }
+#define INIT_TTYENT \
+  COMMON_INTERCEPT_FUNCTION(getttyent); \
+  COMMON_INTERCEPT_FUNCTION(getttynam);
+#else
+#define INIT_TTYENT
+#endif
+
+#if SANITIZER_INTERCEPT_TTYENTPATH
 INTERCEPTOR(int, setttyentpath, char *path) {
   void *ctx;
   COMMON_INTERCEPTOR_ENTER(ctx, setttyentpath, path);
@@ -7550,12 +7606,9 @@ INTERCEPTOR(int, setttyentpath, char *path) {
     COMMON_INTERCEPTOR_READ_RANGE(ctx, path, internal_strlen(path) + 1);
   return REAL(setttyentpath)(path);
 }
-#define INIT_TTYENT \
-  COMMON_INTERCEPT_FUNCTION(getttyent); \
-  COMMON_INTERCEPT_FUNCTION(getttynam); \
-  COMMON_INTERCEPT_FUNCTION(setttyentpath)
+#define INIT_TTYENTPATH COMMON_INTERCEPT_FUNCTION(setttyentpath);
 #else
-#define INIT_TTYENT
+#define INIT_TTYENTPATH
 #endif
 
 #if SANITIZER_INTERCEPT_PROTOENT
@@ -10224,6 +10277,7 @@ static void InitializeCommonInterceptors() {
   INIT_TIME;
   INIT_GLOB;
   INIT_GLOB64;
+  INIT_POSIX_SPAWN;
   INIT_WAIT;
   INIT_WAIT4;
   INIT_INET;

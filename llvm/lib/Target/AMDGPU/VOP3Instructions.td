@@ -304,7 +304,7 @@ defm V_MAX_F64 : VOP3Inst <"v_max_f64", VOP3_Profile<VOP_F64_F64_F64>, fmaxnum_l
 } // End SchedRW = [WriteDoubleAdd]
 
 let SchedRW = [WriteIntMul] in {
-defm V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>, mul>;
+defm V_MUL_LO_U32 : VOP3Inst <"v_mul_lo_u32", VOP3_Profile<VOP_I32_I32_I32>, DivergentBinFrag<mul>>;
 defm V_MUL_HI_U32 : VOP3Inst <"v_mul_hi_u32", VOP3_Profile<VOP_I32_I32_I32>, mulhu>;
 defm V_MUL_LO_I32 : VOP3Inst <"v_mul_lo_i32", VOP3_Profile<VOP_I32_I32_I32>>;
 defm V_MUL_HI_I32 : VOP3Inst <"v_mul_hi_i32", VOP3_Profile<VOP_I32_I32_I32>, mulhs>;
@@ -400,15 +400,15 @@ defm V_TRIG_PREOP_F64 : VOP3Inst <"v_trig_preop_f64", VOP3_Profile<VOP_F64_F64_I
 
 let SchedRW = [Write64Bit] in {
   let SubtargetPredicate = isGFX6GFX7 in {
-  defm V_LSHL_B64 : VOP3Inst <"v_lshl_b64", VOP3_Profile<VOP_I64_I64_I32>, shl>;
-  defm V_LSHR_B64 : VOP3Inst <"v_lshr_b64", VOP3_Profile<VOP_I64_I64_I32>, srl>;
-  defm V_ASHR_I64 : VOP3Inst <"v_ashr_i64", VOP3_Profile<VOP_I64_I64_I32>, sra>;
+  defm V_LSHL_B64 : VOP3Inst <"v_lshl_b64", VOP3_Profile<VOP_I64_I64_I32>, cshl_64>;
+  defm V_LSHR_B64 : VOP3Inst <"v_lshr_b64", VOP3_Profile<VOP_I64_I64_I32>, csrl_64>;
+  defm V_ASHR_I64 : VOP3Inst <"v_ashr_i64", VOP3_Profile<VOP_I64_I64_I32>, csra_64>;
   } // End SubtargetPredicate = isGFX6GFX7
 
   let SubtargetPredicate = isGFX8Plus in {
-  defm V_LSHLREV_B64 : VOP3Inst <"v_lshlrev_b64", VOP3_Profile<VOP_I64_I32_I64>, lshl_rev>;
-  defm V_LSHRREV_B64 : VOP3Inst <"v_lshrrev_b64", VOP3_Profile<VOP_I64_I32_I64>, lshr_rev>;
-  defm V_ASHRREV_I64 : VOP3Inst <"v_ashrrev_i64", VOP3_Profile<VOP_I64_I32_I64>, ashr_rev>;
+  defm V_LSHLREV_B64 : VOP3Inst <"v_lshlrev_b64", VOP3_Profile<VOP_I64_I32_I64>, clshl_rev_64>;
+  defm V_LSHRREV_B64 : VOP3Inst <"v_lshrrev_b64", VOP3_Profile<VOP_I64_I32_I64>, clshr_rev_64>;
+  defm V_ASHRREV_I64 : VOP3Inst <"v_ashrrev_i64", VOP3_Profile<VOP_I64_I32_I64>, cashr_rev_64>;
   } // End SubtargetPredicate = isGFX8Plus
 } // End SchedRW = [Write64Bit]
 } // End isReMaterializable = 1
@@ -656,10 +656,10 @@ class ThreeOp_i32_Pats <SDPatternOperator op1, SDPatternOperator op2, Instructio
   (inst VSrc_b32:$src0, VSrc_b32:$src1, VSrc_b32:$src2)
 >;
 
-def : ThreeOp_i32_Pats<shl, add, V_LSHL_ADD_U32_e64>;
-def : ThreeOp_i32_Pats<add, shl, V_ADD_LSHL_U32_e64>;
+def : ThreeOp_i32_Pats<cshl_32, add, V_LSHL_ADD_U32_e64>;
+def : ThreeOp_i32_Pats<add, cshl_32, V_ADD_LSHL_U32_e64>;
 def : ThreeOp_i32_Pats<add, add, V_ADD3_U32_e64>;
-def : ThreeOp_i32_Pats<shl, or, V_LSHL_OR_B32_e64>;
+def : ThreeOp_i32_Pats<cshl_32, or, V_LSHL_OR_B32_e64>;
 def : ThreeOp_i32_Pats<and, or, V_AND_OR_B32_e64>;
 def : ThreeOp_i32_Pats<or, or, V_OR3_B32_e64>;
 def : ThreeOp_i32_Pats<xor, add, V_XAD_U32_e64>;
@@ -667,6 +667,14 @@ def : ThreeOp_i32_Pats<xor, add, V_XAD_U32_e64>;
 def : VOPBinOpClampPat<saddsat, V_ADD_I32_e64, i32>;
 def : VOPBinOpClampPat<ssubsat, V_SUB_I32_e64, i32>;
 
+def : GCNPat<(getDivergentFrag<or>.ret (or_oneuse i64:$src0, i64:$src1), i64:$src2),
+             (REG_SEQUENCE VReg_64,
+               (V_OR3_B32_e64 (i32 (EXTRACT_SUBREG $src0, sub0)),
+                              (i32 (EXTRACT_SUBREG $src1, sub0)),
+                              (i32 (EXTRACT_SUBREG $src2, sub0))), sub0,
+               (V_OR3_B32_e64 (i32 (EXTRACT_SUBREG $src0, sub1)),
+                              (i32 (EXTRACT_SUBREG $src1, sub1)),
+                              (i32 (EXTRACT_SUBREG $src2, sub1))), sub1)>;
 
 // FIXME: Probably should hardcode clamp bit in pseudo and avoid this.
 class OpSelBinOpClampPat<SDPatternOperator node,

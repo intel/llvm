@@ -52,6 +52,7 @@
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 
 using namespace llvm;
@@ -69,6 +70,7 @@ private:
   const SIRegisterInfo *TRI = nullptr;
   const SIInstrInfo *TII = nullptr;
   LiveIntervals *LIS = nullptr;
+  MachineDominatorTree *MDT = nullptr;
   MachineRegisterInfo *MRI = nullptr;
   SetVector<MachineInstr*> LoweredEndCf;
   DenseSet<Register> LoweredIf;
@@ -141,6 +143,7 @@ public:
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     // Should preserve the same set that TwoAddressInstructions does.
+    AU.addPreserved<MachineDominatorTree>();
     AU.addPreserved<SlotIndexes>();
     AU.addPreserved<LiveIntervals>();
     AU.addPreservedID(LiveVariablesID);
@@ -471,6 +474,14 @@ MachineBasicBlock *SILowerControlFlow::emitEndCf(MachineInstr &MI) {
   MachineBasicBlock *SplitBB = &MBB;
   if (NeedBlockSplit) {
     SplitBB = MBB.splitAt(MI, /*UpdateLiveIns*/true, LIS);
+    if (MDT && SplitBB != &MBB) {
+      MachineDomTreeNode *MBBNode = (*MDT)[&MBB];
+      SmallVector<MachineDomTreeNode *> Children(MBBNode->begin(),
+                                                 MBBNode->end());
+      MachineDomTreeNode *SplitBBNode = MDT->addNewBlock(SplitBB, &MBB);
+      for (MachineDomTreeNode *Child : Children)
+        MDT->changeImmediateDominator(Child, SplitBBNode);
+    }
     Opcode = OrTermrOpc;
     InsPt = MI;
   }
@@ -719,23 +730,6 @@ void SILowerControlFlow::lowerInitExec(MachineBasicBlock *MBB,
 }
 
 bool SILowerControlFlow::removeMBBifRedundant(MachineBasicBlock &MBB) {
-  auto GetFallThroughSucc = [=](MachineBasicBlock *B) -> MachineBasicBlock * {
-    auto *S = B->getNextNode();
-    if (!S)
-      return nullptr;
-    if (B->isSuccessor(S)) {
-      // The only fallthrough candidate
-      MachineBasicBlock::iterator I(B->getFirstInstrTerminator());
-      MachineBasicBlock::iterator E = B->end();
-      for (; I != E; I++) {
-        if (I->isBranch() && TII->getBranchDestBlock(*I) == S)
-          // We have unoptimized branch to layout successor
-          return nullptr;
-      }
-    }
-    return S;
-  };
-
   for (auto &I : MBB.instrs()) {
     if (!I.isDebugInstr() && !I.isUnconditionalBranch())
       return false;
@@ -748,7 +742,7 @@ bool SILowerControlFlow::removeMBBifRedundant(MachineBasicBlock &MBB) {
 
   while (!MBB.predecessors().empty()) {
     MachineBasicBlock *P = *MBB.pred_begin();
-    if (GetFallThroughSucc(P) == &MBB)
+    if (P->getFallThrough() == &MBB)
       FallThrough = P;
     P->ReplaceUsesOfBlockWith(&MBB, Succ);
   }
@@ -757,10 +751,19 @@ bool SILowerControlFlow::removeMBBifRedundant(MachineBasicBlock &MBB) {
     for (auto &I : MBB.instrs())
       LIS->RemoveMachineInstrFromMaps(I);
   }
+  if (MDT) {
+    // If Succ, the single successor of MBB, is dominated by MBB, MDT needs
+    // updating by changing Succ's idom to the one of MBB; otherwise, MBB must
+    // be a leaf node in MDT and could be erased directly.
+    if (MDT->dominates(&MBB, Succ))
+      MDT->changeImmediateDominator(MDT->getNode(Succ),
+                                    MDT->getNode(&MBB)->getIDom());
+    MDT->eraseNode(&MBB);
+  }
   MBB.clear();
   MBB.eraseFromParent();
   if (FallThrough && !FallThrough->isLayoutSuccessor(Succ)) {
-    if (!GetFallThroughSucc(Succ)) {
+    if (!Succ->canFallThrough()) {
       MachineFunction *MF = FallThrough->getParent();
       MachineFunction::iterator FallThroughPos(FallThrough);
       MF->splice(std::next(FallThroughPos), Succ);
@@ -774,12 +777,18 @@ bool SILowerControlFlow::removeMBBifRedundant(MachineBasicBlock &MBB) {
 }
 
 bool SILowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
+  // FIXME: This pass causes verification failures.
+  // See: https://bugs.llvm.org/show_bug.cgi?id=52204
+  MF.getProperties().set(
+      MachineFunctionProperties::Property::FailsVerification);
+
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
   TII = ST.getInstrInfo();
   TRI = &TII->getRegisterInfo();
 
   // This doesn't actually need LiveIntervals, but we can preserve them.
   LIS = getAnalysisIfAvailable<LiveIntervals>();
+  MDT = getAnalysisIfAvailable<MachineDominatorTree>();
   MRI = &MF.getRegInfo();
   BoolRC = TRI->getBoolRC();
 

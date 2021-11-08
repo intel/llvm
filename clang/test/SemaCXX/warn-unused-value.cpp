@@ -150,9 +150,15 @@ void foo() {
             [false ? (1, 2) : 3]; // expected-warning {{left operand of comma operator has no effect}}
 }
 } // namespace test5
+
+// comma operator diagnostics should be suppressed in a SFINAE context.
+template <typename T, int = (T{},0)> int c(int) { return 0; }
+template <typename T, int> int c(double) { return 1; }
+int foo() { return c<int>(0); }
+
 #endif
 
-#if __cplusplus >= 201703L // C++11 or later
+#if __cplusplus >= 201703L // C++17 or later
 namespace test6 {
 auto b() {
   if constexpr (false)

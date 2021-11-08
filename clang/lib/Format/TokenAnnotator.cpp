@@ -2467,7 +2467,7 @@ static bool isFunctionDeclarationName(bool IsCpp, const FormatToken &Current,
   // Check whether parameter list can belong to a function declaration.
   if (!Next || !Next->is(tok::l_paren) || !Next->MatchingParen)
     return false;
-  // If the lines ends with "{", this is likely an function definition.
+  // If the lines ends with "{", this is likely a function definition.
   if (Line.Last->is(tok::l_brace))
     return true;
   if (Next->Next == Next->MatchingParen)
@@ -3587,7 +3587,7 @@ static bool isAllmanBrace(const FormatToken &Tok) {
          !Tok.isOneOf(TT_ObjCBlockLBrace, TT_LambdaLBrace, TT_DictLiteral);
 }
 
-// Returns 'true' if 'Tok' is an function argument.
+// Returns 'true' if 'Tok' is a function argument.
 static bool IsFunctionArgument(const FormatToken &Tok) {
   return Tok.MatchingParen && Tok.MatchingParen->Next &&
          Tok.MatchingParen->Next->isOneOf(tok::comma, tok::r_paren);
@@ -3830,6 +3830,10 @@ bool TokenAnnotator::mustBreakBefore(const AnnotatedLine &Line,
 
   if (Left.is(TT_ObjCBlockLBrace) &&
       Style.AllowShortBlocksOnASingleLine == FormatStyle::SBS_Never)
+    return true;
+
+  // Ensure wrapping after __attribute__((XX)) and @interface etc.
+  if (Left.is(TT_AttributeParen) && Right.is(TT_ObjCDecl))
     return true;
 
   if (Left.is(TT_LambdaLBrace)) {

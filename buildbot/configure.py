@@ -29,7 +29,7 @@ def do_configure(args):
     libclc_targets_to_build = ''
     libclc_gen_remangled_variants = 'OFF'
     sycl_build_pi_cuda = 'OFF'
-    sycl_build_pi_esimd_cpu = 'OFF'
+    sycl_build_pi_esimd_emulator = 'OFF'
     sycl_build_pi_hip = 'OFF'
     sycl_build_pi_hip_platform = 'AMD'
     sycl_clang_extra_flags = ''
@@ -48,12 +48,15 @@ def do_configure(args):
         print("# Default CI configuration will be applied. #")
         print("#############################################")
 
+        # For clang-format and clang-tidy
+        llvm_enable_projects += ";clang-tools-extra"
+
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
 
     if args.enable_esimd_cpu_emulation:
-        sycl_build_pi_esimd_cpu = 'ON'
+        sycl_build_pi_esimd_emulator = 'ON'
 
     if args.cuda or args.hip:
         llvm_enable_projects += ';libclc'
@@ -128,7 +131,7 @@ def do_configure(args):
         "-DBUILD_SHARED_LIBS={}".format(llvm_build_shared_libs),
         "-DSYCL_ENABLE_XPTI_TRACING={}".format(sycl_enable_xpti_tracing),
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
-        "-DSYCL_BUILD_PI_ESIMD_CPU={}".format(sycl_build_pi_esimd_cpu),
+        "-DSYCL_BUILD_PI_ESIMD_EMULATOR={}".format(sycl_build_pi_esimd_emulator),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags)
     ]

@@ -37,9 +37,9 @@ public:
   static void Initialize();
   static void Terminate();
   static void DebuggerInitialize(Debugger &debugger) {}
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "breakpad"; }
 
-  static const char *GetPluginDescriptionStatic() {
+  static llvm::StringRef GetPluginDescriptionStatic() {
     return "Breakpad debug symbol file reader.";
   }
 
@@ -146,7 +146,9 @@ public:
   GetUnwindPlan(const Address &address,
                 const RegisterInfoResolver &resolver) override;
 
-  ConstString GetPluginName() override { return GetPluginNameStatic(); }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
+
+  uint64_t GetDebugInfoSize() override;
 
 private:
   // A class representing a position in the breakpad file. Useful for

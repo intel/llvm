@@ -62,8 +62,8 @@ private:
     : P(r, k), Data(offset) {
     assert(r && "Must have known regions.");
     assert(getOffset() == offset && "Failed to store offset");
-    assert((r == r->getBaseRegion() || isa<ObjCIvarRegion>(r) ||
-            isa <CXXDerivedObjectRegion>(r)) &&
+    assert((r == r->getBaseRegion() ||
+            isa<ObjCIvarRegion, CXXDerivedObjectRegion>(r)) &&
            "Not a base");
   }
 public:
@@ -437,6 +437,12 @@ public:
 
   RegionBindingsRef removeSubRegionBindings(RegionBindingsConstRef B,
                                             const SubRegion *R);
+  Optional<SVal> getConstantValFromConstArrayInitializer(
+      RegionBindingsConstRef B, const VarRegion *VR, const ElementRegion *R);
+  Optional<SVal> getSValFromInitListExpr(const InitListExpr *ILE,
+                                         uint64_t Offset, QualType ElemT);
+  SVal getSValFromStringLiteral(const StringLiteral *SL, uint64_t Offset,
+                                QualType ElemT);
 
 public: // Part of public interface to class.
 
@@ -1135,7 +1141,7 @@ void InvalidateRegionsWorker::VisitCluster(const MemRegion *baseR,
   if (Regions)
     Regions->push_back(baseR);
 
-  if (isa<AllocaRegion>(baseR) || isa<SymbolicRegion>(baseR)) {
+  if (isa<AllocaRegion, SymbolicRegion>(baseR)) {
     // Invalidate the region by setting its default value to
     // conjured symbol. The type of the symbol is irrelevant.
     DefinedOrUnknownSVal V =
@@ -1224,7 +1230,7 @@ void InvalidateRegionsWorker::VisitCluster(const MemRegion *baseR,
           // detection.
           SVal V = I.getData();
           const MemRegion *R = V.getAsRegion();
-          if (R && isa<SymbolicRegion>(R))
+          if (isa_and_nonnull<SymbolicRegion>(R))
             VisitBinding(V);
         }
       }
@@ -1625,6 +1631,156 @@ RegionStoreManager::findLazyBinding(RegionBindingsConstRef B,
   return Result;
 }
 
+Optional<SVal> RegionStoreManager::getConstantValFromConstArrayInitializer(
+    RegionBindingsConstRef B, const VarRegion *VR, const ElementRegion *R) {
+  assert(R && VR && "Regions should not be null");
+
+  // Check if the containing array has an initialized value that we can trust.
+  // We can trust a const value or a value of a global initializer in main().
+  const VarDecl *VD = VR->getDecl();
+  if (!VD->getType().isConstQualified() &&
+      !R->getElementType().isConstQualified() &&
+      (!B.isMainAnalysis() || !VD->hasGlobalStorage()))
+    return None;
+
+  // Array's declaration should have `ConstantArrayType` type, because only this
+  // type contains an array extent. It may happen that array type can be of
+  // `IncompleteArrayType` type. To get the declaration of `ConstantArrayType`
+  // type, we should find the declaration in the redeclarations chain that has
+  // the initialization expression.
+  // NOTE: `getAnyInitializer` has an out-parameter, which returns a new `VD`
+  // from which an initializer is obtained. We replace current `VD` with the new
+  // `VD`. If the return value of the function is null than `VD` won't be
+  // replaced.
+  const Expr *Init = VD->getAnyInitializer(VD);
+  // NOTE: If `Init` is non-null, then a new `VD` is non-null for sure. So check
+  // `Init` for null only and don't worry about the replaced `VD`.
+  if (!Init)
+    return None;
+
+  // Array's declaration should have ConstantArrayType type, because only this
+  // type contains an array extent.
+  const ConstantArrayType *CAT = Ctx.getAsConstantArrayType(VD->getType());
+  if (!CAT)
+    return None;
+
+  // Array should be one-dimensional.
+  // TODO: Support multidimensional array.
+  if (isa<ConstantArrayType>(CAT->getElementType())) // is multidimensional
+    return None;
+
+  // Array's offset should be a concrete value.
+  // Return Unknown value if symbolic index presented.
+  // FIXME: We also need to take ElementRegions with symbolic
+  // indexes into account.
+  const auto OffsetVal = R->getIndex().getAs<nonloc::ConcreteInt>();
+  if (!OffsetVal.hasValue())
+    return UnknownVal();
+
+  // Check offset for being out of bounds.
+  // C++20 [expr.add] 7.6.6.4 (excerpt):
+  //   If P points to an array element i of an array object x with n
+  //   elements, where i < 0 or i > n, the behavior is undefined.
+  //   Dereferencing is not allowed on the "one past the last
+  //   element", when i == n.
+  // Example:
+  //   const int arr[4] = {1, 2};
+  //   const int *ptr = arr;
+  //   int x0 = ptr[0];  // 1
+  //   int x1 = ptr[1];  // 2
+  //   int x2 = ptr[2];  // 0
+  //   int x3 = ptr[3];  // 0
+  //   int x4 = ptr[4];  // UB
+  //   int x5 = ptr[-1]; // UB
+  const llvm::APSInt &OffsetInt = OffsetVal->getValue();
+  const auto Offset = static_cast<uint64_t>(OffsetInt.getExtValue());
+  // Use `getZExtValue` because array extent can not be negative.
+  const uint64_t Extent = CAT->getSize().getZExtValue();
+  // Check for `OffsetInt < 0` but NOT for `Offset < 0`, because `OffsetInt`
+  // CAN be negative, but `Offset` can NOT, because `Offset` is an uint64_t.
+  if (OffsetInt < 0 || Offset >= Extent)
+    return UndefinedVal();
+  // From here `Offset` is in the bounds.
+
+  // Handle InitListExpr.
+  // Example:
+  //   const char arr[] = { 1, 2, 3 };
+  if (const auto *ILE = dyn_cast<InitListExpr>(Init))
+    return getSValFromInitListExpr(ILE, Offset, R->getElementType());
+
+  // Handle StringLiteral.
+  // Example:
+  //   const char arr[] = "abc";
+  if (const auto *SL = dyn_cast<StringLiteral>(Init))
+    return getSValFromStringLiteral(SL, Offset, R->getElementType());
+
+  // FIXME: Handle CompoundLiteralExpr.
+
+  return None;
+}
+
+Optional<SVal>
+RegionStoreManager::getSValFromInitListExpr(const InitListExpr *ILE,
+                                            uint64_t Offset, QualType ElemT) {
+  assert(ILE && "InitListExpr should not be null");
+
+  // C++20 [dcl.init.string] 9.4.2.1:
+  //   An array of ordinary character type [...] can be initialized by [...]
+  //   an appropriately-typed string-literal enclosed in braces.
+  // Example:
+  //   const char arr[] = { "abc" };
+  if (ILE->isStringLiteralInit())
+    if (const auto *SL = dyn_cast<StringLiteral>(ILE->getInit(0)))
+      return getSValFromStringLiteral(SL, Offset, ElemT);
+
+  // C++20 [expr.add] 9.4.17.5 (excerpt):
+  //   i-th array element is value-initialized for each k < i ≤ n,
+  //   where k is an expression-list size and n is an array extent.
+  if (Offset >= ILE->getNumInits())
+    return svalBuilder.makeZeroVal(ElemT);
+
+  // Return a constant value, if it is presented.
+  // FIXME: Support other SVals.
+  const Expr *E = ILE->getInit(Offset);
+  return svalBuilder.getConstantVal(E);
+}
+
+/// Returns an SVal, if possible, for the specified position in a string
+/// literal.
+///
+/// \param SL The given string literal.
+/// \param Offset The unsigned offset. E.g. for the expression
+///   `char x = str[42];` an offset should be 42.
+///   E.g. for the string "abc" offset:
+///   - 1 returns SVal{b}, because it's the second position in the string.
+///   - 42 returns SVal{0}, because there's no explicit value at this
+///     position in the string.
+/// \param ElemT The type of the result SVal expression.
+///
+/// NOTE: We return `0` for every offset >= the literal length for array
+/// declarations, like:
+///   const char str[42] = "123"; // Literal length is 4.
+///   char c = str[41];           // Offset is 41.
+/// FIXME: Nevertheless, we can't do the same for pointer declaraions, like:
+///   const char * const str = "123"; // Literal length is 4.
+///   char c = str[41];               // Offset is 41. Returns `0`, but Undef
+///                                   // expected.
+/// It should be properly handled before reaching this point.
+/// The main problem is that we can't distinguish between these declarations,
+/// because in case of array we can get the Decl from VarRegion, but in case
+/// of pointer the region is a StringRegion, which doesn't contain a Decl.
+/// Possible solution could be passing an array extent along with the offset.
+SVal RegionStoreManager::getSValFromStringLiteral(const StringLiteral *SL,
+                                                  uint64_t Offset,
+                                                  QualType ElemT) {
+  assert(SL && "StringLiteral should not be null");
+  // C++20 [dcl.init.string] 9.4.2.3:
+  //   If there are fewer initializers than there are array elements, each
+  //   element not explicitly initialized shall be zero-initialized [dcl.init].
+  uint32_t Code = (Offset >= SL->getLength()) ? 0 : SL->getCodeUnit(Offset);
+  return svalBuilder.makeIntVal(Code, ElemT);
+}
+
 SVal RegionStoreManager::getBindingForElement(RegionBindingsConstRef B,
                                               const ElementRegion* R) {
   // Check if the region has a binding.
@@ -1636,59 +1792,21 @@ SVal RegionStoreManager::getBindingForElement(RegionBindingsConstRef B,
   // Check if the region is an element region of a string literal.
   if (const StringRegion *StrR = dyn_cast<StringRegion>(superR)) {
     // FIXME: Handle loads from strings where the literal is treated as
-    // an integer, e.g., *((unsigned int*)"hello")
+    // an integer, e.g., *((unsigned int*)"hello"). Such loads are UB according
+    // to C++20 7.2.1.11 [basic.lval].
     QualType T = Ctx.getAsArrayType(StrR->getValueType())->getElementType();
     if (!Ctx.hasSameUnqualifiedType(T, R->getElementType()))
       return UnknownVal();
-
-    const StringLiteral *Str = StrR->getStringLiteral();
-    SVal Idx = R->getIndex();
-    if (Optional<nonloc::ConcreteInt> CI = Idx.getAs<nonloc::ConcreteInt>()) {
-      int64_t i = CI->getValue().getSExtValue();
-      // Abort on string underrun.  This can be possible by arbitrary
-      // clients of getBindingForElement().
-      if (i < 0)
+    if (const auto CI = R->getIndex().getAs<nonloc::ConcreteInt>()) {
+      const llvm::APSInt &Idx = CI->getValue();
+      if (Idx < 0)
         return UndefinedVal();
-      int64_t length = Str->getLength();
-      // Technically, only i == length is guaranteed to be null.
-      // However, such overflows should be caught before reaching this point;
-      // the only time such an access would be made is if a string literal was
-      // used to initialize a larger array.
-      char c = (i >= length) ? '\0' : Str->getCodeUnit(i);
-      return svalBuilder.makeIntVal(c, T);
+      const StringLiteral *SL = StrR->getStringLiteral();
+      return getSValFromStringLiteral(SL, Idx.getZExtValue(), T);
     }
   } else if (const VarRegion *VR = dyn_cast<VarRegion>(superR)) {
-    // Check if the containing array has an initialized value that we can trust.
-    // We can trust a const value or a value of a global initializer in main().
-    const VarDecl *VD = VR->getDecl();
-    if (VD->getType().isConstQualified() ||
-        R->getElementType().isConstQualified() ||
-        (B.isMainAnalysis() && VD->hasGlobalStorage())) {
-      if (const Expr *Init = VD->getAnyInitializer()) {
-        if (const auto *InitList = dyn_cast<InitListExpr>(Init)) {
-          // The array index has to be known.
-          if (auto CI = R->getIndex().getAs<nonloc::ConcreteInt>()) {
-            int64_t i = CI->getValue().getSExtValue();
-            // If it is known that the index is out of bounds, we can return
-            // an undefined value.
-            if (i < 0)
-              return UndefinedVal();
-
-            if (auto CAT = Ctx.getAsConstantArrayType(VD->getType()))
-              if (CAT->getSize().sle(i))
-                return UndefinedVal();
-
-            // If there is a list, but no init, it must be zero.
-            if (i >= InitList->getNumInits())
-              return svalBuilder.makeZeroVal(R->getElementType());
-
-            if (const Expr *ElemInit = InitList->getInit(i))
-              if (Optional<SVal> V = svalBuilder.getConstantVal(ElemInit))
-                return *V;
-          }
-        }
-      }
-    }
+    if (Optional<SVal> V = getConstantValFromConstArrayInitializer(B, VR, R))
+      return *V;
   }
 
   // Check for loads from a code text region.  For such loads, just give up.

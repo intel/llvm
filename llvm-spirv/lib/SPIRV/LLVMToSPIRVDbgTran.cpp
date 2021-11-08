@@ -1014,9 +1014,10 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgExpression(const DIExpression *Expr) {
     SPIRVDebug::ExpressionOpCode OC =
         SPIRV::DbgExpressionOpCodeMap::map(DWARFOpCode);
     if (OpCountMap.find(OC) == OpCountMap.end())
-      report_fatal_error("unknown opcode found in DIExpression");
+      report_fatal_error(llvm::Twine("unknown opcode found in DIExpression"));
     if (OC > SPIRVDebug::Fragment && !BM->allowExtraDIExpressions())
-      report_fatal_error("unsupported opcode found in DIExpression");
+      report_fatal_error(
+          llvm::Twine("unsupported opcode found in DIExpression"));
 
     unsigned OpCount = OpCountMap[OC];
     SPIRVWordVec Op(OpCount);

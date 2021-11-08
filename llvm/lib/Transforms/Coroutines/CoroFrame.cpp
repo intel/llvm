@@ -16,6 +16,7 @@
 
 #include "CoroInternal.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Analysis/PtrUseVisitor.h"
 #include "llvm/Analysis/StackLifetime.h"
@@ -435,7 +436,7 @@ private:
   DenseMap<Value*, unsigned> FieldIndexByKey;
 
 public:
-  FrameTypeBuilder(LLVMContext &Context, DataLayout const &DL,
+  FrameTypeBuilder(LLVMContext &Context, const DataLayout &DL,
                    Optional<Align> MaxFrameAlignment)
       : DL(DL), Context(Context), MaxFrameAlignment(MaxFrameAlignment) {}
 
@@ -576,13 +577,8 @@ void FrameTypeBuilder::addFieldForAllocas(const Function &F,
   using AllocaSetType = SmallVector<AllocaInst *, 4>;
   SmallVector<AllocaSetType, 4> NonOverlapedAllocas;
 
-  // We need to add field for allocas at the end of this function. However, this
-  // function has multiple exits, so we use this helper to avoid redundant code.
-  struct RTTIHelper {
-    std::function<void()> func;
-    RTTIHelper(std::function<void()> &&func) : func(func) {}
-    ~RTTIHelper() { func(); }
-  } Helper([&]() {
+  // We need to add field for allocas at the end of this function.
+  auto AddFieldForAllocasAtExit = make_scope_exit([&]() {
     for (auto AllocaList : NonOverlapedAllocas) {
       auto *LargestAI = *AllocaList.begin();
       FieldIDType Id = addFieldForAlloca(LargestAI);
@@ -840,8 +836,9 @@ static StringRef solveTypeName(Type *Ty) {
   return "UnknownType";
 }
 
-static DIType *solveDIType(DIBuilder &Builder, Type *Ty, DataLayout &Layout,
-                           DIScope *Scope, unsigned LineNum,
+static DIType *solveDIType(DIBuilder &Builder, Type *Ty,
+                           const DataLayout &Layout, DIScope *Scope,
+                           unsigned LineNum,
                            DenseMap<Type *, DIType *> &DITypeCache) {
   if (DIType *DT = DITypeCache.lookup(Ty))
     return DT;
@@ -1348,13 +1345,17 @@ struct AllocaUseVisitor : PtrUseVisitor<AllocaUseVisitor> {
   }
 
   void visitIntrinsicInst(IntrinsicInst &II) {
-    if (II.getIntrinsicID() != Intrinsic::lifetime_start)
+    // When we found the lifetime markers refers to a
+    // subrange of the original alloca, ignore the lifetime
+    // markers to avoid misleading the analysis.
+    if (II.getIntrinsicID() != Intrinsic::lifetime_start || !IsOffsetKnown ||
+        !Offset.isZero())
       return Base::visitIntrinsicInst(II);
     LifetimeStarts.insert(&II);
   }
 
   void visitCallBase(CallBase &CB) {
-    for (unsigned Op = 0, OpCount = CB.getNumArgOperands(); Op < OpCount; ++Op)
+    for (unsigned Op = 0, OpCount = CB.arg_size(); Op < OpCount; ++Op)
       if (U->get() == CB.getArgOperand(Op) && !CB.doesNotCapture(Op))
         PI.setEscaped(&CB);
     handleMayWrite(CB);

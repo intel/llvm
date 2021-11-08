@@ -574,10 +574,6 @@ ConstString TypeSystemClang::GetPluginNameStatic() {
   return ConstString("clang");
 }
 
-ConstString TypeSystemClang::GetPluginName() {
-  return TypeSystemClang::GetPluginNameStatic();
-}
-
 lldb::TypeSystemSP TypeSystemClang::CreateInstance(lldb::LanguageType language,
                                                    lldb_private::Module *module,
                                                    Target *target) {
@@ -981,21 +977,25 @@ CompilerType TypeSystemClang::GetBuiltinTypeForDWARFEncodingAndBitSize(
     }
     break;
 
-  case DW_ATE_complex_float:
-    if (QualTypeMatchesBitSize(bit_size, ast, ast.FloatComplexTy))
-      return GetType(ast.FloatComplexTy);
-    else if (QualTypeMatchesBitSize(bit_size, ast, ast.DoubleComplexTy))
-      return GetType(ast.DoubleComplexTy);
-    else if (QualTypeMatchesBitSize(bit_size, ast, ast.LongDoubleComplexTy))
-      return GetType(ast.LongDoubleComplexTy);
-    else {
-      CompilerType complex_float_clang_type =
-          GetBuiltinTypeForDWARFEncodingAndBitSize("float", DW_ATE_float,
-                                                   bit_size / 2);
-      return GetType(
-          ast.getComplexType(ClangUtil::GetQualType(complex_float_clang_type)));
-    }
-    break;
+  case DW_ATE_complex_float: {
+    CanQualType FloatComplexTy = ast.getComplexType(ast.FloatTy);
+    if (QualTypeMatchesBitSize(bit_size, ast, FloatComplexTy))
+      return GetType(FloatComplexTy);
+
+    CanQualType DoubleComplexTy = ast.getComplexType(ast.DoubleTy);
+    if (QualTypeMatchesBitSize(bit_size, ast, DoubleComplexTy))
+      return GetType(DoubleComplexTy);
+
+    CanQualType LongDoubleComplexTy = ast.getComplexType(ast.LongDoubleTy);
+    if (QualTypeMatchesBitSize(bit_size, ast, LongDoubleComplexTy))
+      return GetType(LongDoubleComplexTy);
+
+    CompilerType complex_float_clang_type =
+        GetBuiltinTypeForDWARFEncodingAndBitSize("float", DW_ATE_float,
+                                                 bit_size / 2);
+    return GetType(
+        ast.getComplexType(ClangUtil::GetQualType(complex_float_clang_type)));
+  }
 
   case DW_ATE_float:
     if (type_name == "float" &&
@@ -1151,20 +1151,12 @@ CompilerType TypeSystemClang::GetBuiltinTypeForDWARFEncodingAndBitSize(
     }
     break;
   }
-  // This assert should fire for anything that we don't catch above so we know
-  // to fix any issues we run into.
-  if (!type_name.empty()) {
-    std::string type_name_str = type_name.str();
-    Host::SystemLog(Host::eSystemLogError,
-                    "error: need to add support for DW_TAG_base_type '%s' "
-                    "encoded with DW_ATE = 0x%x, bit_size = %u\n",
-                    type_name_str.c_str(), dw_ate, bit_size);
-  } else {
-    Host::SystemLog(Host::eSystemLogError, "error: need to add support for "
-                                           "DW_TAG_base_type encoded with "
-                                           "DW_ATE = 0x%x, bit_size = %u\n",
-                    dw_ate, bit_size);
-  }
+
+  Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_TYPES);
+  LLDB_LOG(log,
+           "error: need to add support for DW_TAG_base_type '{0}' "
+           "encoded with DW_ATE = {1:x}, bit_size = {2}",
+           type_name, dw_ate, bit_size);
   return CompilerType();
 }
 
@@ -2051,11 +2043,11 @@ TypeSystemClang::GetOpaqueCompilerType(clang::ASTContext *ast,
   case eBasicTypeLongDouble:
     return ast->LongDoubleTy.getAsOpaquePtr();
   case eBasicTypeFloatComplex:
-    return ast->FloatComplexTy.getAsOpaquePtr();
+    return ast->getComplexType(ast->FloatTy).getAsOpaquePtr();
   case eBasicTypeDoubleComplex:
-    return ast->DoubleComplexTy.getAsOpaquePtr();
+    return ast->getComplexType(ast->DoubleTy).getAsOpaquePtr();
   case eBasicTypeLongDoubleComplex:
-    return ast->LongDoubleComplexTy.getAsOpaquePtr();
+    return ast->getComplexType(ast->LongDoubleTy).getAsOpaquePtr();
   case eBasicTypeObjCID:
     return ast->getObjCIdType().getAsOpaquePtr();
   case eBasicTypeObjCClass:
@@ -2948,7 +2940,12 @@ bool TypeSystemClang::IsCharType(lldb::opaque_compiler_type_t type) {
 }
 
 bool TypeSystemClang::IsCompleteType(lldb::opaque_compiler_type_t type) {
-  const bool allow_completion = false;
+  // If the type hasn't been lazily completed yet, complete it now so that we
+  // can give the caller an accurate answer whether the type actually has a
+  // definition. Without completing the type now we would just tell the user
+  // the current (internal) completeness state of the type and most users don't
+  // care (or even know) about this behavior.
+  const bool allow_completion = true;
   return GetCompleteQualType(&getASTContext(), GetQualType(type),
                              allow_completion);
 }
@@ -4246,7 +4243,13 @@ static clang::QualType GetFullyUnqualifiedType_Impl(clang::ASTContext *ast,
   if (qual_type->isPointerType())
     qual_type = ast->getPointerType(
         GetFullyUnqualifiedType_Impl(ast, qual_type->getPointeeType()));
-  else
+  else if (const ConstantArrayType *arr =
+               ast->getAsConstantArrayType(qual_type)) {
+    qual_type = ast->getConstantArrayType(
+        GetFullyUnqualifiedType_Impl(ast, arr->getElementType()),
+        arr->getSize(), arr->getSizeExpr(), arr->getSizeModifier(),
+        arr->getIndexTypeQualifiers().getAsOpaqueValue());
+  } else
     qual_type = qual_type.getUnqualifiedType();
   qual_type.removeLocalConst();
   qual_type.removeLocalRestrict();
@@ -8366,9 +8369,8 @@ TypeSystemClang::dump(lldb::opaque_compiler_type_t type) const {
 }
 #endif
 
-void TypeSystemClang::Dump(Stream &s) {
-  Decl *tu = Decl::castFromDeclContext(GetTranslationUnitDecl());
-  tu->dump(s.AsRawOstream());
+void TypeSystemClang::Dump(llvm::raw_ostream &output) {
+  GetTranslationUnitDecl()->dump(output);
 }
 
 void TypeSystemClang::DumpFromSymbolFile(Stream &s,
@@ -9752,6 +9754,41 @@ ScratchTypeSystemClang::GetForTarget(Target &target,
     return &scratch_ast;
   // Search the sub-ASTs.
   return &scratch_ast.GetIsolatedAST(*ast_kind);
+}
+
+/// Returns a human-readable name that uniquely identifiers the sub-AST kind.
+static llvm::StringRef
+GetNameForIsolatedASTKind(ScratchTypeSystemClang::IsolatedASTKind kind) {
+  switch (kind) {
+  case ScratchTypeSystemClang::IsolatedASTKind::CppModules:
+    return "C++ modules";
+  }
+  llvm_unreachable("Unimplemented IsolatedASTKind?");
+}
+
+void ScratchTypeSystemClang::Dump(llvm::raw_ostream &output) {
+  // First dump the main scratch AST.
+  output << "State of scratch Clang type system:\n";
+  TypeSystemClang::Dump(output);
+
+  // Now sort the isolated sub-ASTs.
+  typedef std::pair<IsolatedASTKey, TypeSystem *> KeyAndTS;
+  std::vector<KeyAndTS> sorted_typesystems;
+  for (const auto &a : m_isolated_asts)
+    sorted_typesystems.emplace_back(a.first, a.second.get());
+  llvm::stable_sort(sorted_typesystems,
+                    [](const KeyAndTS &lhs, const KeyAndTS &rhs) {
+                      return lhs.first < rhs.first;
+                    });
+
+  // Dump each sub-AST too.
+  for (const auto &a : sorted_typesystems) {
+    IsolatedASTKind kind =
+        static_cast<ScratchTypeSystemClang::IsolatedASTKind>(a.first);
+    output << "State of scratch Clang type subsystem "
+           << GetNameForIsolatedASTKind(kind) << ":\n";
+    a.second->Dump(output);
+  }
 }
 
 UserExpression *ScratchTypeSystemClang::GetUserExpression(

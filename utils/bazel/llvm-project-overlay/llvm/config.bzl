@@ -25,15 +25,17 @@ posix_defines = [
     r'LTDL_SHLIB_EXT=\".so\"',
     r'LLVM_PLUGIN_EXT=\".so\"',
     "LLVM_ENABLE_THREADS=1",
-    "HAVE_SYSEXITS_H=1",
-    "HAVE_UNISTD_H=1",
-    "HAVE_STRERROR_R=1",
+    "HAVE_DEREGISTER_FRAME=1",
     "HAVE_LIBPTHREAD=1",
     "HAVE_PTHREAD_GETNAME_NP=1",
-    "HAVE_PTHREAD_SETNAME_NP=1",
     "HAVE_PTHREAD_GETSPECIFIC=1",
+    "HAVE_PTHREAD_H=1",
+    "HAVE_PTHREAD_SETNAME_NP=1",
     "HAVE_REGISTER_FRAME=1",
-    "HAVE_DEREGISTER_FRAME=1",
+    "HAVE_SETENV_R=1",
+    "HAVE_STRERROR_R=1",
+    "HAVE_SYSEXITS_H=1",
+    "HAVE_UNISTD_H=1",
 ]
 
 linux_defines = posix_defines + [
@@ -76,7 +78,8 @@ os_defines = select({
 # TODO: We should split out host vs. target here.
 llvm_config_defines = os_defines + select({
     "@bazel_tools//src/conditions:windows": native_arch_defines("X86", "x86_64-pc-win32"),
-    "@bazel_tools//src/conditions:darwin": native_arch_defines("X86", "x86_64-unknown-darwin"),
+    "@bazel_tools//src/conditions:darwin_arm64": native_arch_defines("AArch64", "arm64-apple-darwin"),
+    "@bazel_tools//src/conditions:darwin_x86_64": native_arch_defines("X86", "x86_64-unknown-darwin"),
     "@bazel_tools//src/conditions:linux_aarch64": native_arch_defines("AArch64", "aarch64-unknown-linux-gnu"),
     "//conditions:default": native_arch_defines("X86", "x86_64-unknown-linux-gnu"),
 }) + [

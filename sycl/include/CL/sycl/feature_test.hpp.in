@@ -1,0 +1,83 @@
+//==----- feature_test.hpp - SYCL Feature Test Definitions -----*- C++ -*---==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+// ===--------------------------------------------------------------------=== //
+#pragma once
+
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+
+#ifdef __clang__
+#ifndef __has_extension
+#define __has_extension(x) 0
+#endif
+#endif
+
+#define SYCL_BACKEND_OPENCL 1
+
+// Feature test macro definitions
+
+// TODO: Move these feature-test macros to compiler driver.
+#define SYCL_EXT_INTEL_DEVICE_INFO 2
+#define SYCL_EXT_ONEAPI_SUB_GROUP_MASK 1
+#define SYCL_EXT_ONEAPI_LOCAL_MEMORY 1
+// As for SYCL_EXT_ONEAPI_MATRIX:
+// 1- provides AOT initial implementation for AMX for the experimental matrix
+// extension
+// 2- provides JIT implementation (target agnostic) for the
+// experimental matrix extension
+#ifndef SYCL_EXT_ONEAPI_MATRIX
+#define SYCL_EXT_ONEAPI_MATRIX 2
+#endif
+#define SYCL_EXT_ONEAPI_ASSERT 1
+#define SYCL_EXT_ONEAPI_ENQUEUE_BARRIER 1
+#define SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES 1
+#define SYCL_EXT_ONEAPI_GROUP_ALGORITHMS 1
+#define SYCL_EXT_ONEAPI_GROUP_SORT 1
+#define SYCL_EXT_ONEAPI_MAX_WORK_GROUP_QUERY 1
+#define SYCL_EXT_ONEAPI_ND_RANGE_REDUCTIONS 1
+#define SYCL_EXT_ONEAPI_DEFAULT_CONTEXT 1
+#define SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY 1
+#define SYCL_EXT_ONEAPI_SUB_GROUP 1
+#define SYCL_EXT_INTEL_BF16_CONVERSION 1
+#define SYCL_EXT_INTEL_BITCAST 1
+#define SYCL_EXT_INTEL_DATAFLOW_PIPES 1
+#ifdef __clang__
+#if __has_extension(sycl_extended_atomics)
+#define SYCL_EXT_INTEL_EXTENDED_ATOMICS 1
+#endif
+#endif
+#define SYCL_EXT_INTEL_FPGA_DEVICE_SELECTOR 1
+#define SYCL_EXT_INTEL_FPGA_LSU 1
+#define SYCL_EXT_INTEL_FPGA_REG 1
+#define SYCL_EXT_INTEL_KERNEL_ARGS_RESTRICT 1
+#define SYCL_EXT_INTEL_MEM_CHANNEL_PROPERTY 1
+#define SYCL_EXT_INTEL_USM_ADDRESS_SPACES 1
+#define SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO 1
+#cmakedefine01 SYCL_BUILD_PI_CUDA
+#if SYCL_BUILD_PI_CUDA
+#define SYCL_EXT_ONEAPI_BACKEND_CUDA 1
+#endif
+#cmakedefine01 SYCL_BUILD_PI_ESIMD_EMULATOR
+#if SYCL_BUILD_PI_ESIMD_EMULATOR
+#define SYCL_EXT_INTEL_BACKEND_ESIMD_EMULATOR 1
+#endif
+#cmakedefine01 SYCL_BUILD_PI_HIP
+#if SYCL_BUILD_PI_HIP
+#define SYCL_EXT_ONEAPI_BACKEND_HIP 1
+#endif
+
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
+
+#include <CL/sycl/backend/opencl.hpp>
+// Level Zero backend header depends on external headers and should be
+// included by user application directly
+// #include <sycl/ext/oneapi/backend/level_zero.hpp>
+
+#if SYCL_EXT_ONEAPI_BACKEND_CUDA
+#include <CL/sycl/backend/cuda.hpp>
+#endif

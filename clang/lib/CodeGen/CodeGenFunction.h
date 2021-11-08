@@ -2545,15 +2545,6 @@ public:
   Address CreateDefaultAlignTempAlloca(llvm::Type *Ty,
                                        const Twine &Name = "tmp");
 
-  /// InitTempAlloca - Provide an initial value for the given alloca which
-  /// will be observable at all locations in the function.
-  ///
-  /// The address should be something that was returned from one of
-  /// the CreateTempAlloca or CreateMemTemp routines, and the
-  /// initializer must be valid in the entry block (i.e. it must
-  /// either be a constant or an argument value).
-  void InitTempAlloca(Address Alloca, llvm::Value *Value);
-
   /// CreateIRTemp - Create a temporary IR object of the given type, with
   /// appropriate alignment. This routine should only be used when an temporary
   /// value needs to be stored into an alloca (for example, to avoid explicit
@@ -3538,6 +3529,7 @@ public:
       const OMPTargetTeamsDistributeParallelForSimdDirective &S);
   void EmitOMPTargetTeamsDistributeSimdDirective(
       const OMPTargetTeamsDistributeSimdDirective &S);
+  void EmitOMPGenericLoopDirective(const OMPGenericLoopDirective &S);
 
   /// Emit device code for the target directive.
   static void EmitOMPTargetDeviceFunction(CodeGenModule &CGM,

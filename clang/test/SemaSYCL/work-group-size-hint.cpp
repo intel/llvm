@@ -3,7 +3,7 @@
 // Check the basics.
 [[sycl::work_group_size_hint]] void f0(); // expected-error {{'work_group_size_hint' attribute requires exactly 3 arguments}}
 [[sycl::work_group_size_hint(12, 12, 12, 12)]] void f1(); // expected-error {{'work_group_size_hint' attribute requires exactly 3 arguments}}
-[[sycl::work_group_size_hint("derp", 1, 2)]] void f2(); // expected-error {{integral constant expression must have integral or unscoped enumeration type, not 'const char [5]'}}
+[[sycl::work_group_size_hint("derp", 1, 2)]] void f2(); // expected-error {{integral constant expression must have integral or unscoped enumeration type, not 'const char[5]'}}
 [[sycl::work_group_size_hint(1, 1, 1)]] int i; // expected-error {{'work_group_size_hint' attribute only applies to functions}}
 
 // Produce a conflicting attribute warning when the args are different.

@@ -82,6 +82,8 @@ def Tosa_AvgPool2dOp : Tosa_Op<"avg_pool2d", [
   );
 
   let builders = [Tosa_AvgPool2dOpQuantInfoBuilder];
+
+  let verifier = [{ return verifyAveragePoolOp(*this); }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -1534,6 +1536,7 @@ def Tosa_TransposeOp : Tosa_Op<"transpose", [
     outs Tosa_Tensor1Dto6D:$output
   );
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 

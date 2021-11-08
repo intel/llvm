@@ -6,7 +6,6 @@
 //
 //==-----------------------------------------------------------------------===//
 
-#include "AMDGPU.h"
 #include "MCTargetDesc/R600MCTargetDesc.h"
 #include "R600.h"
 #include "R600RegisterInfo.h"
@@ -128,6 +127,10 @@ public:
   bool prepare();
 
   bool runOnMachineFunction(MachineFunction &MF) override {
+    // FIXME: This pass causes verification failures.
+    MF.getProperties().set(
+        MachineFunctionProperties::Property::FailsVerification);
+
     TII = MF.getSubtarget<R600Subtarget>().getInstrInfo();
     TRI = &TII->getRegisterInfo();
     LLVM_DEBUG(MF.dump(););
