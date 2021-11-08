@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/property_helper.hpp>
+#include <CL/sycl/properties/property_traits.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -23,5 +24,26 @@ class use_default_stream
 } // namespace cuda
 } // namespace queue
 } // namespace property
+
+// Forward declaration
+class queue;
+
+// Queue property trait specializations
+template <> struct is_property<property::queue::in_order> : std::true_type {};
+template <>
+struct is_property<property::queue::enable_profiling> : std::true_type {};
+template <>
+struct is_property<property::queue::cuda::use_default_stream> : std::true_type {
+};
+
+template <>
+struct is_property_of<property::queue::in_order, queue> : std::true_type {};
+template <>
+struct is_property_of<property::queue::enable_profiling, queue>
+    : std::true_type {};
+template <>
+struct is_property_of<property::queue::cuda::use_default_stream, queue>
+    : std::true_type {};
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

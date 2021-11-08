@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/property_list_base.hpp>
+#include <CL/sycl/properties/property_traits.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -28,10 +29,8 @@ class property_list : protected detail::PropertyListBase {
   template <typename... Tail> struct AllProperties : std::true_type {};
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
-      : detail::conditional_t<
-            std::is_base_of<detail::DataLessPropertyBase, T>::value ||
-                std::is_base_of<detail::PropertyWithDataBase, T>::value,
-            AllProperties<Tail...>, std::false_type> {};
+      : detail::conditional_t<is_property<T>::value, AllProperties<Tail...>,
+                              std::false_type> {};
 
 public:
   template <typename... PropsT, typename = typename detail::enable_if_t<

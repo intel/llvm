@@ -310,6 +310,7 @@ void collectCompositeElementsDefaultValuesRecursive(
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
+    const size_t BaseDefaultValueOffset = DefaultValues.size();
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
       Constant *El = nullptr;
       if (C->isZeroValue())
@@ -330,9 +331,16 @@ void collectCompositeElementsDefaultValuesRecursive(
       collectCompositeElementsDefaultValuesRecursive(M, El, LocalOffset,
                                                      DefaultValues);
     }
+    const size_t SLSize = SL->getSizeInBytes();
+
+    // Additional padding may be needed at the end of the struct if size does
+    // not match the number of bytes inserted.
+    if (DefaultValues.size() < BaseDefaultValueOffset + SLSize)
+      DefaultValues.resize(BaseDefaultValueOffset + SLSize);
+
     // Update "global" offset according to the total size of a handled struct
     // type.
-    Offset += SL->getSizeInBytes();
+    Offset += SLSize;
   } else { // Assume that we encountered some scalar element
     int NumBytes = M.getDataLayout().getTypeStoreSize(Ty);
 
