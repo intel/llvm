@@ -294,7 +294,8 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
       if (!nested)
         return nullptr;
 
-      values.append(nested.attr_value_begin(), nested.attr_value_end());
+      values.append(nested.value_begin<Attribute>(),
+                    nested.value_end<Attribute>());
     }
 
     return DenseElementsAttr::get(outerType, values);
@@ -338,10 +339,10 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *GV) {
     b.create<ReturnOp>(op.getLoc(), ArrayRef<Value>({v}));
   }
   if (GV->hasAtLeastLocalUnnamedAddr())
-    op.unnamed_addrAttr(UnnamedAddrAttr::get(
+    op.setUnnamedAddrAttr(UnnamedAddrAttr::get(
         context, convertUnnamedAddrFromLLVM(GV->getUnnamedAddr())));
   if (GV->hasSection())
-    op.sectionAttr(b.getStringAttr(GV->getSection()));
+    op.setSectionAttr(b.getStringAttr(GV->getSection()));
 
   return globals[GV] = op;
 }
@@ -652,7 +653,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     llvm::CallInst *ci = cast<llvm::CallInst>(inst);
     SmallVector<Value, 4> ops;
     ops.reserve(inst->getNumOperands());
-    for (auto &op : ci->arg_operands()) {
+    for (auto &op : ci->args()) {
       Value arg = processValue(op.get());
       if (!arg)
         return failure();
@@ -704,7 +705,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
 
     SmallVector<Value, 4> ops;
     ops.reserve(inst->getNumOperands() + 1);
-    for (auto &op : ii->arg_operands())
+    for (auto &op : ii->args())
       ops.push_back(processValue(op.get()));
 
     SmallVector<Value, 4> normalArgs, unwindArgs;
@@ -813,7 +814,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
   // Eagerly create all blocks.
   SmallVector<Block *, 4> blockList;
   for (llvm::BasicBlock &bb : *f) {
-    blockList.push_back(b.createBlock(&fop.body(), fop.body().end()));
+    blockList.push_back(b.createBlock(&fop.getBody(), fop.getBody().end()));
     blocks[&bb] = blockList.back();
   }
   currentEntryBlock = blockList[0];

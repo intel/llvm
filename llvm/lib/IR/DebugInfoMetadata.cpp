@@ -640,6 +640,9 @@ DICompositeType *DICompositeType::buildODRType(
                VTableHolder, TemplateParams, &Identifier, Discriminator,
                DataLocation, Associated, Allocated, Rank, Annotations);
 
+  if (CT->getTag() != Tag)
+    return nullptr;
+
   // Only mutate CT if it's a forward declaration and the new operands aren't.
   assert(CT->getRawIdentifier() == &Identifier && "Wrong ODR identifier?");
   if (!CT->isForwardDecl() || (Flags & DINode::FlagFwdDecl))
@@ -672,12 +675,16 @@ DICompositeType *DICompositeType::getODRType(
   if (!Context.isODRUniquingDebugTypes())
     return nullptr;
   auto *&CT = (*Context.pImpl->DITypeMap)[&Identifier];
-  if (!CT)
+  if (!CT) {
     CT = DICompositeType::getDistinct(
         Context, Tag, Name, File, Line, Scope, BaseType, SizeInBits,
         AlignInBits, OffsetInBits, Flags, Elements, RuntimeLang, VTableHolder,
         TemplateParams, &Identifier, Discriminator, DataLocation, Associated,
         Allocated, Rank, Annotations);
+  } else {
+    if (CT->getTag() != Tag)
+      return nullptr;
+  }
   return CT;
 }
 
@@ -1602,12 +1609,13 @@ DIObjCProperty *DIObjCProperty::getImpl(
 DIImportedEntity *DIImportedEntity::getImpl(LLVMContext &Context, unsigned Tag,
                                             Metadata *Scope, Metadata *Entity,
                                             Metadata *File, unsigned Line,
-                                            MDString *Name, StorageType Storage,
+                                            MDString *Name, Metadata *Elements,
+                                            StorageType Storage,
                                             bool ShouldCreate) {
   assert(isCanonical(Name) && "Expected canonical MDString");
   DEFINE_GETIMPL_LOOKUP(DIImportedEntity,
-                        (Tag, Scope, Entity, File, Line, Name));
-  Metadata *Ops[] = {Scope, Entity, Name, File};
+                        (Tag, Scope, Entity, File, Line, Name, Elements));
+  Metadata *Ops[] = {Scope, Entity, Name, File, Elements};
   DEFINE_GETIMPL_STORE(DIImportedEntity, (Tag, Line), Ops);
 }
 

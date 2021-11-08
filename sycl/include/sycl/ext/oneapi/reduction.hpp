@@ -376,12 +376,11 @@ public:
   using result_type = T;
   using binary_operation = BinaryOperation;
   using rw_accessor_type =
-      accessor<T, Dims, access::mode::read_write, access::target::global_buffer,
+      accessor<T, Dims, access::mode::read_write, access::target::device,
                IsPlaceholder, ext::oneapi::accessor_property_list<>>;
   using dw_accessor_type =
-      accessor<T, Dims, access::mode::discard_write,
-               access::target::global_buffer, IsPlaceholder,
-               ext::oneapi::accessor_property_list<>>;
+      accessor<T, Dims, access::mode::discard_write, access::target::device,
+               IsPlaceholder, ext::oneapi::accessor_property_list<>>;
   static constexpr int accessor_dim = Dims;
   static constexpr int buffer_dim = (Dims == 0) ? 1 : Dims;
 
@@ -625,9 +624,9 @@ public:
   void associateWithHandler(handler &CGH) {
 #ifndef __SYCL_DEVICE_ONLY__
     if (MRWAcc)
-      CGH.associateWithHandler(MRWAcc.get(), access::target::global_buffer);
+      CGH.associateWithHandler(MRWAcc.get(), access::target::device);
     else if (MDWAcc)
-      CGH.associateWithHandler(MDWAcc.get(), access::target::global_buffer);
+      CGH.associateWithHandler(MDWAcc.get(), access::target::device);
 #else
     (void)CGH;
 #endif
@@ -714,7 +713,7 @@ public:
     return createHandlerWiredReadWriteAccessor(CGH, *MOutBufPtr);
   }
 
-  accessor<int, 1, access::mode::read_write, access::target::global_buffer,
+  accessor<int, 1, access::mode::read_write, access::target::device,
            access::placeholder::false_t>
   getReadWriteAccessorToInitializedGroupsCounter(handler &CGH) {
     auto CounterMem = std::make_shared<int>(0);
@@ -2009,7 +2008,7 @@ tuple_select_elements(TupleT Tuple, std::index_sequence<Is...>) {
 template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 detail::reduction_impl<T, BinaryOperation, Dims, false, IsPH>
-reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
+reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           const T &Identity, BinaryOperation BOp) {
   return {Acc, Identity, BOp};
 }
@@ -2022,7 +2021,7 @@ template <typename T, class BinaryOperation, int Dims, access::mode AccMode,
           access::placeholder IsPH>
 std::enable_if_t<detail::IsKnownIdentityOp<T, BinaryOperation>::value,
                  detail::reduction_impl<T, BinaryOperation, Dims, false, IsPH>>
-reduction(accessor<T, Dims, AccMode, access::target::global_buffer, IsPH> &Acc,
+reduction(accessor<T, Dims, AccMode, access::target::device, IsPH> &Acc,
           BinaryOperation) {
   return {Acc};
 }
@@ -2069,15 +2068,17 @@ __SYCL_INLINE_CONSTEXPR AccumulatorT known_identity_v =
 } // namespace oneapi
 } // namespace ext
 
+#ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
   namespace detail {
   using cl::sycl::detail::queue_impl;
-  __SYCL_EXPORT size_t reduGetMaxWGSize(shared_ptr_class<queue_impl> Queue,
+  __SYCL_EXPORT size_t reduGetMaxWGSize(std::shared_ptr<queue_impl> Queue,
                                         size_t LocalMemBytesPerWorkItem);
   __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
                                          size_t &NWorkGroups);
   } // namespace detail
 } // namespace ONEAPI
+#endif // __SYCL_INTERNAL_API
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -15,8 +15,8 @@ int main() {
   //expected-note@+1 {{'CapturedToDevice' defined here}}
   long double CapturedToDevice = 1;
   kernel<class variables>([=]() {
-    // expected-error@+2 {{'foo' requires 128 bit size 'long double' type support, but device 'spir64' does not support it}}
-    // expected-error@+1 {{'CapturedToDevice' requires 128 bit size 'long double' type support, but device 'spir64' does not support it}}
+    // expected-error@+2 {{'foo' requires 128 bit size 'long double' type support, but target 'spir64' does not support it}}
+    // expected-error@+1 {{'CapturedToDevice' requires 128 bit size 'long double' type support, but target 'spir64' does not support it}}
     foo(CapturedToDevice);
   });
 

@@ -220,6 +220,22 @@
 
 /// ###########################################################################
 
+/// Check parallel compilation enforcement for split modules when running SPIR-V translation and AOT compilation
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64-unknown-unknown %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_fpga-unknown-unknown -Xshardware %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=aoc
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-max-parallel-link-jobs=4 -fintelfpga -Xshardware %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=aoc
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_gen-unknown-unknown %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=ocloc
+// RUN: %clang -target x86_64-unknown-linux-gnu -fsycl -fsycl-max-parallel-link-jobs=4 -fsycl-targets=spir64_x86_64-unknown-unknown %s -### 2>&1 \
+// RUN:  | FileCheck %s -check-prefixes=CHK-PARALLEL-JOBS,CHK-PARALLEL-JOBS-AOT -DBE_COMPILER=opencl-aot
+// CHK-PARALLEL-JOBS: llvm-foreach{{.*}} "--jobs=4" "--" "{{.*}}llvm-spirv{{.*}}"
+// CHK-PARALLEL-JOBS-AOT: llvm-foreach{{.*}} "--jobs=4" "--" "{{.*}}[[BE_COMPILER]]{{.*}}
+
+/// ###########################################################################
+
 /// offload with multiple targets, including AOT
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown,spir64_fpga-unknown-unknown,spir64_gen-unknown-unknown -ccc-print-phases %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG %s
@@ -229,7 +245,7 @@
 // CHK-PHASE-MULTI-TARG: 3: input, "[[INPUT]]", c++, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
 // CHK-PHASE-MULTI-TARG: 5: compiler, {4}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown)" {5}, c++-cpp-output
+// CHK-PHASE-MULTI-TARG: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64_gen-unknown-unknown)" {5}, c++-cpp-output
 // CHK-PHASE-MULTI-TARG: 7: compiler, {6}, ir, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG: 9: assembler, {8}, object, (host-sycl)
@@ -295,6 +311,16 @@
 // RUN:   %clang_cl -### -fsycl -fsycl-device-code-split -fsycl-device-code-split=off %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 // CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} -split{{.*}}
+
+// Check no device code split mode is passed to sycl-post-link when -fsycl-device-code-split is not set and the target is FPGA
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-SPLIT
+
+// Check device code split mode is honored when -fsycl-device-code-split is set and the target is FPGA
+// RUN:   %clang -### -fsycl -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=auto -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=per_source -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-PER-SOURCE
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=off -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 
 // Check ESIMD device code split.
 // RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT

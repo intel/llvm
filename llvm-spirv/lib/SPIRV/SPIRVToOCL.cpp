@@ -92,6 +92,12 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
                     << "BuiltinKind = " << BuiltinKind << '\n');
 
   if (BuiltinKind != SPIRVBuiltinVariableKind::BuiltInMax) {
+    if (static_cast<uint32_t>(BuiltinKind) >=
+            internal::BuiltInSubDeviceIDINTEL &&
+        static_cast<uint32_t>(BuiltinKind) <=
+            internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL)
+      return;
+
     visitCallSPIRVBuiltin(&CI, BuiltinKind);
     return;
   }
@@ -982,8 +988,6 @@ void SPIRVToOCLBase::visitCallSPIRVVLoadn(CallInst *CI, OCLExtOpKind Kind) {
         std::string Name = OCLExtOpMap::map(Kind);
         if (ConstantInt *C = dyn_cast<ConstantInt>(Args.back())) {
           uint64_t NumComponents = C->getZExtValue();
-          assert(NumComponents > 1 &&
-                 "vloada_halfn instruction is not for scalar types");
           std::stringstream SS;
           SS << NumComponents;
           Name.replace(Name.find("n"), 1, SS.str());

@@ -52,13 +52,11 @@ ARM::ARM() {
   relativeRel = R_ARM_RELATIVE;
   iRelativeRel = R_ARM_IRELATIVE;
   gotRel = R_ARM_GLOB_DAT;
-  noneRel = R_ARM_NONE;
   pltRel = R_ARM_JUMP_SLOT;
   symbolicRel = R_ARM_ABS32;
   tlsGotRel = R_ARM_TLS_TPOFF32;
   tlsModuleIndexRel = R_ARM_TLS_DTPMOD32;
   tlsOffsetRel = R_ARM_TLS_DTPOFF32;
-  gotBaseSymInGotPlt = false;
   pltHeaderSize = 32;
   pltEntrySize = 16;
   ipltEntrySize = 16;
@@ -382,20 +380,25 @@ bool ARM::inBranchRange(RelType type, uint64_t src, uint64_t dst) const {
 // or Thumb.
 static void stateChangeWarning(uint8_t *loc, RelType relt, const Symbol &s) {
   assert(!s.isFunc());
+  const ErrorPlace place = getErrorPlace(loc);
+  std::string hint;
+  if (!place.srcLoc.empty())
+    hint = "; " + place.srcLoc;
   if (s.isSection()) {
     // Section symbols must be defined and in a section. Users cannot change
     // the type. Use the section name as getName() returns an empty string.
-    warn(getErrorLocation(loc) + "branch and link relocation: " +
-         toString(relt) + " to STT_SECTION symbol " +
-         cast<Defined>(s).section->name + " ; interworking not performed");
+    warn(place.loc + "branch and link relocation: " + toString(relt) +
+         " to STT_SECTION symbol " + cast<Defined>(s).section->name +
+         " ; interworking not performed" + hint);
   } else {
     // Warn with hint on how to alter the symbol type.
     warn(getErrorLocation(loc) + "branch and link relocation: " +
          toString(relt) + " to non STT_FUNC symbol: " + s.getName() +
          " interworking not performed; consider using directive '.type " +
          s.getName() +
-         ", %function' to give symbol type STT_FUNC if"
-         " interworking between ARM and Thumb is required");
+         ", %function' to give symbol type STT_FUNC if interworking between "
+         "ARM and Thumb is required" +
+         hint);
   }
 }
 
@@ -838,6 +841,7 @@ int64_t ARM::getImplicitAddend(const uint8_t *buf, RelType type) const {
     return u ? imm12 : -imm12;
   }
   case R_ARM_NONE:
+  case R_ARM_V4BX:
   case R_ARM_JUMP_SLOT:
     // These relocations are defined as not having an implicit addend.
     return 0;

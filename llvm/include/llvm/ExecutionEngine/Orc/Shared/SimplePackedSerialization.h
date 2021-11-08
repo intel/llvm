@@ -33,6 +33,7 @@
 #define LLVM_EXECUTIONENGINE_ORC_SHARED_SIMPLEPACKEDSERIALIZATION_H
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/SwapByteOrder.h"
@@ -193,13 +194,6 @@ template <typename SPSElementTagT> class SPSSequence;
 
 /// SPS tag type for strings, which are equivalent to sequences of chars.
 using SPSString = SPSSequence<char>;
-
-/// SPS tag type for executor addresseses.
-class SPSExecutorAddress {};
-
-template <>
-class SPSSerializationTraits<SPSExecutorAddress, uint64_t>
-    : public SPSSerializationTraits<uint64_t, uint64_t> {};
 
 /// SPS tag type for maps.
 ///
@@ -449,6 +443,49 @@ public:
     if (!IB.skip(Size))
       return false;
     S = StringRef(Data, Size);
+    return true;
+  }
+};
+
+/// Serialization for StringMap<ValueT>s.
+template <typename SPSValueT, typename ValueT>
+class SPSSerializationTraits<SPSSequence<SPSTuple<SPSString, SPSValueT>>,
+                             StringMap<ValueT>> {
+public:
+  static size_t size(const StringMap<ValueT> &M) {
+    size_t Sz = SPSArgList<uint64_t>::size(static_cast<uint64_t>(M.size()));
+    for (auto &E : M)
+      Sz += SPSArgList<SPSString, SPSValueT>::size(E.first(), E.second);
+    return Sz;
+  }
+
+  static bool serialize(SPSOutputBuffer &OB, const StringMap<ValueT> &M) {
+    if (!SPSArgList<uint64_t>::serialize(OB, static_cast<uint64_t>(M.size())))
+      return false;
+
+    for (auto &E : M)
+      if (!SPSArgList<SPSString, SPSValueT>::serialize(OB, E.first(), E.second))
+        return false;
+
+    return true;
+  }
+
+  static bool deserialize(SPSInputBuffer &IB, StringMap<ValueT> &M) {
+    uint64_t Size;
+    assert(M.empty() && "M already contains elements");
+
+    if (!SPSArgList<uint64_t>::deserialize(IB, Size))
+      return false;
+
+    while (Size--) {
+      StringRef S;
+      ValueT V;
+      if (!SPSArgList<SPSString, SPSValueT>::deserialize(IB, S, V))
+        return false;
+      if (!M.insert(std::make_pair(S, V)).second)
+        return false;
+    }
+
     return true;
   }
 };

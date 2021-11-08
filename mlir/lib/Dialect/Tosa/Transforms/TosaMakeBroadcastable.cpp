@@ -185,6 +185,8 @@ struct ConvertTosaOp : public OpRewritePattern<OpTy> {
     Value output = tosaBinaryOp.getResult();
 
     auto outputType = output.getType().dyn_cast<RankedTensorType>();
+    if (!outputType)
+      return failure();
 
     Value outInput1, outInput2;
     if (reshapeLowerToHigher(rewriter, tosaBinaryOp.getLoc(), outputType,
@@ -213,6 +215,8 @@ struct ConvertTosaOp<tosa::MulOp> : public OpRewritePattern<tosa::MulOp> {
     int32_t shift = tosaBinaryOp.shift();
     Value output = tosaBinaryOp.getResult();
     auto outputType = output.getType().dyn_cast<RankedTensorType>();
+    if (!outputType)
+      return failure();
 
     Value outInput1, outInput2;
     if (reshapeLowerToHigher(rewriter, tosaBinaryOp.getLoc(), outputType,
@@ -243,6 +247,8 @@ struct ConvertTosaOp<tosa::ArithmeticRightShiftOp>
     int32_t round = tosaBinaryOp.round();
     Value output = tosaBinaryOp.getResult();
     auto outputType = output.getType().dyn_cast<RankedTensorType>();
+    if (!outputType)
+      return failure();
 
     Value outInput1, outInput2;
     if (reshapeLowerToHigher(rewriter, tosaBinaryOp.getLoc(), outputType,
@@ -269,6 +275,9 @@ public:
     RewritePatternSet patterns(func.getContext());
     MLIRContext *ctx = func.getContext();
     // Add the generated patterns to the list.
+    patterns.add<ConvertTosaOp<tosa::BitwiseAndOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::BitwiseOrOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::BitwiseXorOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::AddOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::SubOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::MulOp>>(ctx);
@@ -281,6 +290,10 @@ public:
     patterns.add<ConvertTosaOp<tosa::LogicalLeftShiftOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::ArithmeticRightShiftOp>>(ctx);
     patterns.add<ConvertTosaOp<tosa::LogicalRightShiftOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::LogicalAndOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::LogicalOrOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::LogicalXorOp>>(ctx);
+    patterns.add<ConvertTosaOp<tosa::PowOp>>(ctx);
     (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
   }
 };

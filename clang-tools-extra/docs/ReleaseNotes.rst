@@ -67,7 +67,11 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-The improvements are...
+- Added support for globbing in `NOLINT*` expressions, to simplify suppressing
+  multiple warnings in the same line.
+
+- Added support for `NOLINTBEGIN` ... `NOLINTEND` comments to suppress
+  Clang-Tidy warnings over multiple lines.
 
 New checks
 ^^^^^^^^^^
@@ -75,12 +79,26 @@ New checks
 - New :doc:`bugprone-suspicious-memory-comparison
   <clang-tidy/checks/bugprone-suspicious-memory-comparison>` check.
 
-  Finds potentially incorrect calls to ``memcmp()`` based on properties of the arguments.
+  Finds potentially incorrect calls to ``memcmp()`` based on properties of the
+  arguments.
+
+- New :doc:`cppcoreguidelines-virtual-class-destructor
+  <clang-tidy/checks/cppcoreguidelines-virtual-class-destructor>` check.
+
+  Finds virtual classes whose destructor is neither public and virtual nor
+  protected and non-virtual.
 
 - New :doc:`readability-identifier-length
   <clang-tidy/checks/readability-identifier-length>` check.
 
-  Reports identifiers whose names are too short. Currently checks local variables and function parameters only.
+  Reports identifiers whose names are too short. Currently checks local
+  variables and function parameters only.
+
+
+- New :doc:`readability-data-pointer <clang-tidy/checks/readability-data-pointer>` check.
+
+  Finds cases where code could use ``data()`` rather than the address of the
+  element at index 0 in a container.
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
@@ -97,6 +115,10 @@ New check aliases
 
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Removed default setting `cppcoreguidelines-explicit-virtual-functions.IgnoreDestructors = "true"`,
+  to match the current state of the C++ Core Guidelines.
+
 
 Removed checks
 ^^^^^^^^^^^^^^

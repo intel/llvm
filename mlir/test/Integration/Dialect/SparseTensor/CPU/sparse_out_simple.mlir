@@ -3,7 +3,7 @@
 // RUN:   --convert-vector-to-scf --convert-scf-to-std \
 // RUN:   --func-bufferize --tensor-constant-bufferize --tensor-bufferize \
 // RUN:   --std-bufferize --finalizing-bufferize  \
-// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm | \
+// RUN:   --convert-vector-to-llvm --convert-memref-to-llvm --convert-std-to-llvm --reconcile-unrealized-casts | \
 // RUN: TENSOR0="%mlir_integration_test_dir/data/test.mtx" \
 // RUN: mlir-cpu-runner \
 // RUN:  -e entry -entry-point-result=void  \
@@ -42,7 +42,7 @@ module {
     %0 = linalg.generic #eltwise_mult
       outs(%argx: tensor<?x?xf64, #DCSR>) {
       ^bb(%x: f64):
-        %0 = mulf %x, %x : f64
+        %0 = arith.mulf %x, %x : f64
         linalg.yield %0 : f64
     } -> tensor<?x?xf64, #DCSR>
     return %0 : tensor<?x?xf64, #DCSR>
@@ -54,8 +54,8 @@ module {
   // Main driver that reads matrix from file and calls the sparse kernel.
   //
   func @entry() {
-    %d0 = constant 0.0 : f64
-    %c0 = constant 0 : index
+    %d0 = arith.constant 0.0 : f64
+    %c0 = arith.constant 0 : index
 
     // Read the sparse matrix from file, construct sparse storage.
     %fileName = call @getTensorFilename(%c0) : (index) -> (!Filename)
@@ -71,6 +71,9 @@ module {
     %m = sparse_tensor.values %0 : tensor<?x?xf64, #DCSR> to memref<?xf64>
     %v = vector.transfer_read %m[%c0], %d0: memref<?xf64>, vector<9xf64>
     vector.print %v : vector<9xf64>
+
+    // Release the resources.
+    sparse_tensor.release %x : tensor<?x?xf64, #DCSR>
 
     return
   }

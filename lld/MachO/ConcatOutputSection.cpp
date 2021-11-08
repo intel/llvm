@@ -240,7 +240,7 @@ void ConcatOutputSection::finalize() {
 
     // Assign addresses up-to the forward branch-range limit.
     // Every call instruction needs a small number of bytes (on Arm64: 4),
-    // and each inserted thunk needs a slighly larger number of bytes
+    // and each inserted thunk needs a slightly larger number of bytes
     // (on Arm64: 12). If a section starts with a branch instruction and
     // contains several branch instructions in succession, then the distance
     // from the current position to the position where the thunks are inserted
@@ -330,6 +330,7 @@ void ConcatOutputSection::finalize() {
           /*size=*/thunkSize, /*isWeakDef=*/false, /*isPrivateExtern=*/true,
           /*isThumb=*/false, /*isReferencedDynamically=*/false,
           /*noDeadStrip=*/false);
+      thunkInfo.sym->used = true;
       target->populateThunk(thunkInfo.isec, funcSym);
       finalizeOne(thunkInfo.isec);
       thunks.push_back(thunkInfo.isec);

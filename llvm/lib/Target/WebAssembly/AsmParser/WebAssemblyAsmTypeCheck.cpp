@@ -31,10 +31,10 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolWasm.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -89,8 +89,7 @@ bool WebAssemblyAsmTypeCheck::popType(SMLoc ErrorLoc,
                           : StringRef(
                                     "empty stack while popping value"));
   }
-  auto PVT = Stack.back();
-  Stack.pop_back();
+  auto PVT = Stack.pop_back_val();
   if (EVT.hasValue() && EVT.getValue() != PVT) {
     return typeError(
         ErrorLoc, StringRef("popped ") + WebAssembly::typeToString(PVT) +
@@ -155,8 +154,12 @@ bool WebAssemblyAsmTypeCheck::getGlobal(SMLoc ErrorLoc, const MCInst &Inst,
     break;
   case wasm::WASM_SYMBOL_TYPE_FUNCTION:
   case wasm::WASM_SYMBOL_TYPE_DATA:
-    if (SymRef->getKind() == MCSymbolRefExpr::VK_GOT) {
+    switch (SymRef->getKind()) {
+    case MCSymbolRefExpr::VK_GOT:
+    case MCSymbolRefExpr::VK_WASM_GOT_TLS:
       Type = is64 ? wasm::ValType::I64 : wasm::ValType::I32;
+      return false;
+    default:
       break;
     }
     LLVM_FALLTHROUGH;

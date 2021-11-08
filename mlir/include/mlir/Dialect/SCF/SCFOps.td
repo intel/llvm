@@ -20,6 +20,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def SCF_Dialect : Dialect {
   let name = "scf";
   let cppNamespace = "::mlir::scf";
+  let dependentDialects = ["arith::ArithmeticDialect"];
 }
 
 // Base class for SCF dialect ops.
@@ -90,11 +91,11 @@ def ExecuteRegionOp : SCF_Op<"execute_region"> {
         cond_br %cond, ^bb1, ^bb2
 
       ^bb1:
-        %c1 = constant 1 : i64
+        %c1 = arith.constant 1 : i64
         br ^bb3(%c1 : i64)
 
       ^bb2:
-        %c2 = constant 2 : i64
+        %c2 = arith.constant 2 : i64
         br ^bb3(%c2 : i64)
 
       ^bb3(%x : i64):
@@ -147,17 +148,16 @@ def ForOp : SCF_Op<"for",
     passed as additional SSA operands to the "scf.for" following the 3 loop
     control SSA values mentioned above (lower bound, upper bound and step). The
     operation region has an argument for the induction variable, followed by
-    one argument for each loop-carried variable, representing he value of the
+    one argument for each loop-carried variable, representing the value of the
     variable at the current iteration.
 
     The region must terminate with a "scf.yield" that passes the current
-    values of loop-carried variables to the next iteration, or to the "scf.for"
-    result, if at the last iteration. The type (static or dynamic) of a
-    loop-carried variable may not change with iterations. E.g., it is illegal
-    to pass a tensor of larger size to the next iteration; even if the tensor's
-    dimensions are dynamic (i.e., same static type). Note, that when the
-    loop-carried variables are present, calling ForOp::build will not insert the
-    terminator implicitly. The caller must insert "scf.yield" in that case.
+    values of all loop-carried variables to the next iteration, or to the
+    "scf.for" result, if at the last iteration. The static type of a
+    loop-carried variable may not change with iterations; its runtime type is
+    allowed to change. Note, that when the loop-carried variables are present,
+    calling ForOp::build will not insert the terminator implicitly. The caller
+    must insert "scf.yield" in that case.
 
     "scf.for" results hold the final values after the last iteration.
     For example, to sum-reduce a memref:
@@ -166,12 +166,12 @@ def ForOp : SCF_Op<"for",
     func @reduce(%buffer: memref<1024xf32>, %lb: index,
                  %ub: index, %step: index) -> (f32) {
       // Initial sum set to 0.
-      %sum_0 = constant 0.0 : f32
+      %sum_0 = arith.constant 0.0 : f32
       // iter_args binds initial values to the loop's region arguments.
       %sum = scf.for %iv = %lb to %ub step %step
           iter_args(%sum_iter = %sum_0) -> (f32) {
         %t = load %buffer[%iv] : memref<1024xf32>
-        %sum_next = addf %sum_iter, %t : f32
+        %sum_next = arith.addf %sum_iter, %t : f32
         // Yield current iteration sum to next iteration %sum_iter or to %sum
         // if final iteration.
         scf.yield %sum_next : f32
@@ -190,14 +190,14 @@ def ForOp : SCF_Op<"for",
     ```mlir
     func @conditional_reduce(%buffer: memref<1024xf32>, %lb: index,
                              %ub: index, %step: index) -> (f32) {
-      %sum_0 = constant 0.0 : f32
-      %c0 = constant 0.0 : f32
+      %sum_0 = arith.constant 0.0 : f32
+      %c0 = arith.constant 0.0 : f32
       %sum = scf.for %iv = %lb to %ub step %step
           iter_args(%sum_iter = %sum_0) -> (f32) {
         %t = load %buffer[%iv] : memref<1024xf32>
-        %cond = cmpf "ugt", %t, %c0 : f32
+        %cond = arith.cmpf "ugt", %t, %c0 : f32
         %sum_next = scf.if %cond -> (f32) {
-          %new_sum = addf %sum_iter, %t : f32
+          %new_sum = arith.addf %sum_iter, %t : f32
           scf.yield %new_sum : f32
         } else {
           scf.yield %sum_iter : f32
@@ -447,12 +447,12 @@ def ParallelOp : SCF_Op<"parallel",
     Example:
 
     ```mlir
-    %init = constant 0.0 : f32
+    %init = arith.constant 0.0 : f32
     scf.parallel (%iv) = (%lb) to (%ub) step (%step) init (%init) -> f32 {
       %elem_to_reduce = load %buffer[%iv] : memref<100xf32>
       scf.reduce(%elem_to_reduce) : f32 {
         ^bb0(%lhs : f32, %rhs: f32):
-          %res = addf %lhs, %rhs : f32
+          %res = arith.addf %lhs, %rhs : f32
           scf.reduce.return %res : f32
       }
     }
@@ -517,10 +517,10 @@ def ReduceOp : SCF_Op<"reduce", [HasParent<"ParallelOp">]> {
     Example:
 
     ```mlir
-    %operand = constant 1.0 : f32
+    %operand = arith.constant 1.0 : f32
     scf.reduce(%operand) : f32 {
       ^bb0(%lhs : f32, %rhs: f32):
-        %res = addf %lhs, %rhs : f32
+        %res = arith.addf %lhs, %rhs : f32
         scf.reduce.return %res : f32
     }
     ```

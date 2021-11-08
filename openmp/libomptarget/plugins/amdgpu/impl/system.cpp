@@ -177,12 +177,7 @@ hsa_status_t callbackEvent(const hsa_amd_event_t *event, void *data) {
 }
 
 hsa_status_t atl_init_gpu_context() {
-  hsa_status_t err;
-  err = hsa_init();
-  if (err != HSA_STATUS_SUCCESS)
-    return HSA_STATUS_ERROR;
-
-  err = hsa_amd_register_system_event_handler(callbackEvent, NULL);
+  hsa_status_t err = hsa_amd_register_system_event_handler(callbackEvent, NULL);
   if (err != HSA_STATUS_SUCCESS) {
     printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
            "Registering the system for memory faults", get_error_string(err));
@@ -597,12 +592,8 @@ populate_InfoTables(hsa_executable_symbol_t symbol,
     // because the non-ROCr custom code object parsing is called before
     // iterating over the code object symbols using ROCr
     if (KernelInfoTable.find(kernelName) == KernelInfoTable.end()) {
-      if (HSA_STATUS_ERROR_INVALID_CODE_OBJECT != HSA_STATUS_SUCCESS) {
-        printf("[%s:%d] %s failed: %s\n", __FILE__, __LINE__,
-               "Finding the entry kernel info table",
-               get_error_string(HSA_STATUS_ERROR_INVALID_CODE_OBJECT));
-        exit(1);
-      }
+      DP("amdgpu internal consistency error\n");
+      return HSA_STATUS_ERROR;
     }
     // found, so assign and update
     info = KernelInfoTable[kernelName];

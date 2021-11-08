@@ -12,6 +12,7 @@ group("default") {
     "//compiler-rt/include",
     "//compiler-rt/lib/scudo",
     "//lld/test",
+    "//lldb/test",
     "//llvm/test",
   ]
   if (current_os == "linux") {

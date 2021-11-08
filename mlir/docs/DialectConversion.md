@@ -66,7 +66,7 @@ legality actions below:
 
     -   This action signals that only some instances of a given operation are
         legal. This allows for defining fine-tune constraints, e.g. saying that
-        `addi` is only legal when operating on 32-bit integers.
+        `arith.addi` is only legal when operating on 32-bit integers.
 
 *   Illegal
 
@@ -86,8 +86,8 @@ struct MyTarget : public ConversionTarget {
     /// Mark all operations within the LLVM dialect are legal.
     addLegalDialect<LLVMDialect>();
 
-    /// Mark `std.constant` op is always legal on this target.
-    addLegalOp<ConstantOp>();
+    /// Mark `arith.constant` op is always legal on this target.
+    addLegalOp<arith::ConstantOp>();
 
     //--------------------------------------------------------------------------
     // Marking an operation as dynamically legal.

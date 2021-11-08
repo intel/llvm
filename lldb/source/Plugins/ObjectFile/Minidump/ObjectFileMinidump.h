@@ -29,15 +29,13 @@ public:
   static void Initialize();
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "minidump"; }
   static const char *GetPluginDescriptionStatic() {
     return "Minidump object file.";
   }
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   static lldb_private::ObjectFile *
   CreateInstance(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
@@ -54,8 +52,6 @@ public:
                                         lldb::offset_t file_offset,
                                         lldb::offset_t length,
                                         lldb_private::ModuleSpecList &specs);
-
-  uint32_t GetPluginVersion() override { return 1; }
 
   // Saves dump in Minidump file format
   static bool SaveCore(const lldb::ProcessSP &process_sp,

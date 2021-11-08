@@ -94,6 +94,7 @@ set(files
   __algorithm/upper_bound.h
   __availability
   __bit_reference
+  __bit/bit_cast.h
   __bits
   __bsd_locale_defaults.h
   __bsd_locale_fallbacks.h
@@ -101,8 +102,12 @@ set(files
   __charconv/from_chars_result.h
   __charconv/to_chars_result.h
   __compare/common_comparison_category.h
+  __compare/compare_three_way.h
   __compare/compare_three_way_result.h
+  __compare/is_eq.h
   __compare/ordering.h
+  __compare/synth_three_way.h
+  __compare/three_way_comparable.h
   __concepts/arithmetic.h
   __concepts/assignable.h
   __concepts/boolean_testable.h
@@ -134,6 +139,14 @@ set(files
   __format/format_error.h
   __format/format_fwd.h
   __format/format_parse_context.h
+  __format/format_string.h
+  __format/formatter.h
+  __format/formatter_bool.h
+  __format/formatter_char.h
+  __format/formatter_integer.h
+  __format/formatter_integral.h
+  __format/formatter_string.h
+  __format/parser_std_format_spec.h
   __function_like.h
   __functional_base
   __functional/binary_function.h
@@ -198,6 +211,7 @@ set(files
   __iterator/wrap_iter.h
   __libcpp_version
   __locale
+  __mbstate_t.h
   __memory/addressof.h
   __memory/allocation_guard.h
   __memory/allocator_arg_t.h
@@ -250,7 +264,6 @@ set(files
   __support/fuchsia/xlocale.h
   __support/ibm/gettod_zos.h
   __support/ibm/limits.h
-  __support/ibm/locale_mgmt_aix.h
   __support/ibm/locale_mgmt_zos.h
   __support/ibm/nanosleep.h
   __support/ibm/support.h

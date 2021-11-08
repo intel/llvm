@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "CrashHandlerFixture.h"
-#include "../../runtime/descriptor.h"
-#include "../../runtime/io-api.h"
+#include "flang/Runtime/descriptor.h"
+#include "flang/Runtime/io-api.h"
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -66,7 +66,7 @@ TEST(IOApiTests, HelloWorldOutputTest) {
   // Write string, integer, and logical values to buffer
   IONAME(OutputAscii)(cookie, "WORLD", 5);
   IONAME(OutputInteger64)(cookie, 678);
-  IONAME(OutputInteger64)(cookie, 0xfeedface);
+  IONAME(OutputInteger32)(cookie, 0xfeedface);
   IONAME(OutputLogical)(cookie, true);
 
   // Ensure IO succeeded

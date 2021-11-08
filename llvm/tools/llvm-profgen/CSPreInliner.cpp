@@ -45,7 +45,7 @@ cl::opt<bool> EnableCSPreInliner(
              "estimated global top-down inline decisions"));
 
 cl::opt<bool> UseContextCostForPreInliner(
-    "use-context-cost-for-preinliner", cl::Hidden, cl::init(false),
+    "use-context-cost-for-preinliner", cl::Hidden, cl::init(true),
     cl::desc("Use context-sensitive byte size cost for preinliner decisions"));
 
 static cl::opt<bool> SamplePreInlineReplay(
@@ -252,7 +252,7 @@ void CSPreInliner::run() {
   // trim out such profiles from the output.
   std::vector<SampleContext> ProfilesToBeRemoved;
   for (auto &It : ProfileMap) {
-    SampleContext Context = It.second.getContext();
+    SampleContext &Context = It.second.getContext();
     if (!Context.isBaseContext() && !Context.hasState(InlinedContext)) {
       assert(Context.hasState(MergedContext) &&
              "Not inlined context profile should be merged already");

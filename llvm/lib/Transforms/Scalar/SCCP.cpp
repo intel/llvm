@@ -500,6 +500,7 @@ bool llvm::runIPSCCP(
           CB->removeFnAttrs(AttributesToRemove);
         }
       }
+      MadeChanges |= ReplacedPointerArg;
     }
 
     SmallPtrSet<Value *, 32> InsertedValues;
@@ -539,14 +540,13 @@ bool llvm::runIPSCCP(
       DTU.deleteBB(DeadBB);
 
     for (BasicBlock &BB : F) {
-      for (BasicBlock::iterator BI = BB.begin(), E = BB.end(); BI != E;) {
-        Instruction *Inst = &*BI++;
-        if (Solver.getPredicateInfoFor(Inst)) {
-          if (auto *II = dyn_cast<IntrinsicInst>(Inst)) {
+      for (Instruction &Inst : llvm::make_early_inc_range(BB)) {
+        if (Solver.getPredicateInfoFor(&Inst)) {
+          if (auto *II = dyn_cast<IntrinsicInst>(&Inst)) {
             if (II->getIntrinsicID() == Intrinsic::ssa_copy) {
               Value *Op = II->getOperand(0);
-              Inst->replaceAllUsesWith(Op);
-              Inst->eraseFromParent();
+              Inst.replaceAllUsesWith(Op);
+              Inst.eraseFromParent();
             }
           }
         }

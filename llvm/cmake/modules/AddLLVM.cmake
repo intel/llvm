@@ -193,7 +193,10 @@ if (NOT DEFINED LLVM_LINKER_DETECTED)
       OUTPUT_VARIABLE stdout
       ERROR_VARIABLE stderr
       )
-    if("${stdout}" MATCHES "GNU gold")
+    if("${stdout}" MATCHES "^mold")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: mold")
+    elseif("${stdout}" MATCHES "GNU gold")
       set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
       set(LLVM_LINKER_IS_GOLD YES CACHE INTERNAL "")
       message(STATUS "Linker detection: GNU Gold")
@@ -263,7 +266,7 @@ function(add_link_opts target_name)
           set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                        LINK_FLAGS " -Wl,-z,discard-unused=sections")
         endif()
-      elseif(NOT MSVC AND NOT CMAKE_SYSTEM_NAME MATCHES "OpenBSD|AIX|OS390")
+      elseif(NOT MSVC AND NOT CMAKE_SYSTEM_NAME MATCHES "AIX|OS390")
         # TODO Revisit this later on z/OS.
         set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                      LINK_FLAGS " -Wl,--gc-sections")
@@ -1204,6 +1207,7 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     llvm-cxxfilt
     llvm-ranlib
     llvm-lib
+    llvm-ml
     llvm-nm
     llvm-objcopy
     llvm-objdump
@@ -1465,7 +1469,9 @@ function(add_unittest test_suite test_name)
     list(APPEND LLVM_COMPILE_FLAGS "-Wno-gnu-zero-variadic-macro-arguments")
   endif()
 
-  set(LLVM_REQUIRES_RTTI OFF)
+  if (NOT DEFINED LLVM_REQUIRES_RTTI)
+    set(LLVM_REQUIRES_RTTI OFF)
+  endif()
 
   list(APPEND LLVM_LINK_COMPONENTS Support) # gtest needs it for raw_ostream
   add_llvm_executable(${test_name} IGNORE_EXTERNALIZE_DEBUGINFO NO_INSTALL_RPATH ${ARGN})
@@ -1637,7 +1643,7 @@ function(configure_lit_site_cfg site_in site_out)
     set(ENABLE_SHARED "0")
   endif()
 
-  if(LLVM_ENABLE_ASSERTIONS AND NOT MSVC_IDE)
+  if(LLVM_ENABLE_ASSERTIONS)
     set(ENABLE_ASSERTIONS "1")
   else()
     set(ENABLE_ASSERTIONS "0")

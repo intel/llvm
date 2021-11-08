@@ -27,33 +27,70 @@ namespace orc {
 class EPCGenericJITLinkMemoryManager : public jitlink::JITLinkMemoryManager {
 public:
   /// Function addresses for memory access.
-  struct FuncAddrs {
-    ExecutorAddress Reserve;
-    ExecutorAddress Finalize;
-    ExecutorAddress Deallocate;
+  struct SymbolAddrs {
+    ExecutorAddr Allocator;
+    ExecutorAddr Reserve;
+    ExecutorAddr Finalize;
+    ExecutorAddr Deallocate;
   };
 
   /// Create an EPCGenericJITLinkMemoryManager instance from a given set of
   /// function addrs.
-  EPCGenericJITLinkMemoryManager(ExecutorProcessControl &EPC, FuncAddrs FAs)
-      : EPC(EPC), FAs(FAs) {}
+  EPCGenericJITLinkMemoryManager(ExecutorProcessControl &EPC, SymbolAddrs SAs)
+      : EPC(EPC), SAs(SAs) {}
 
-  /// Create using the standard memory access function names from the ORC
-  /// runtime.
-  static Expected<std::unique_ptr<EPCGenericJITLinkMemoryManager>>
-  CreateUsingOrcRTFuncs(ExecutionSession &ES, JITDylib &OrcRuntimeJD);
+  void allocate(const jitlink::JITLinkDylib *JD, jitlink::LinkGraph &G,
+                OnAllocatedFunction OnAllocated) override;
 
-  Expected<std::unique_ptr<Allocation>>
-  allocate(const jitlink::JITLinkDylib *JD,
-           const SegmentsRequestMap &Request) override;
+  // Use overloads from base class.
+  using JITLinkMemoryManager::allocate;
+
+  void deallocate(std::vector<FinalizedAlloc> Allocs,
+                  OnDeallocatedFunction OnDeallocated) override;
+
+  // Use overloads from base class.
+  using JITLinkMemoryManager::deallocate;
 
 private:
-  class Alloc;
+  class InFlightAlloc;
+
+  void completeAllocation(ExecutorAddr AllocAddr, jitlink::BasicLayout BL,
+                          OnAllocatedFunction OnAllocated);
 
   ExecutorProcessControl &EPC;
-  FuncAddrs FAs;
+  SymbolAddrs SAs;
 };
 
+namespace shared {
+
+/// FIXME: This specialization should be moved into TargetProcessControlTypes.h
+///        (or whereever those types get merged to) once ORC depends on JITLink.
+template <>
+class SPSSerializationTraits<SPSExecutorAddr,
+                             jitlink::JITLinkMemoryManager::FinalizedAlloc> {
+public:
+  static size_t size(const jitlink::JITLinkMemoryManager::FinalizedAlloc &FA) {
+    return SPSArgList<SPSExecutorAddr>::size(ExecutorAddr(FA.getAddress()));
+  }
+
+  static bool
+  serialize(SPSOutputBuffer &OB,
+            const jitlink::JITLinkMemoryManager::FinalizedAlloc &FA) {
+    return SPSArgList<SPSExecutorAddr>::serialize(
+        OB, ExecutorAddr(FA.getAddress()));
+  }
+
+  static bool deserialize(SPSInputBuffer &IB,
+                          jitlink::JITLinkMemoryManager::FinalizedAlloc &FA) {
+    ExecutorAddr A;
+    if (!SPSArgList<SPSExecutorAddr>::deserialize(IB, A))
+      return false;
+    FA = jitlink::JITLinkMemoryManager::FinalizedAlloc(A.getValue());
+    return true;
+  }
+};
+
+} // end namespace shared
 } // end namespace orc
 } // end namespace llvm
 

@@ -7,7 +7,7 @@
 
 [[intel::initiation_interval(5)]] int a; // expected-error{{'initiation_interval' attribute only applies to 'for', 'while', 'do' statements, and functions}}
 
-[[intel::initiation_interval("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char [4]'}}
+[[intel::initiation_interval("foo")]] void func() {} // expected-error{{integral constant expression must have integral or unscoped enumeration type, not 'const char[4]'}}
 
 [[intel::initiation_interval(-1)]] void func1() {} // expected-error{{'initiation_interval' attribute requires a positive integral compile time constant expression}}
 

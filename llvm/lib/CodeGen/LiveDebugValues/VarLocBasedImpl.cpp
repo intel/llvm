@@ -546,7 +546,6 @@ private:
               EVKind == EntryValueLocKind::EntryValueKind ? Orig.getReg()
                                                           : Register(Loc.RegNo),
               false));
-          MOs.back().setIsDebug();
           break;
         case MachineLocKind::SpillLocKind: {
           // Spills are indirect DBG_VALUEs, with a base register and offset.
@@ -556,9 +555,10 @@ private:
           unsigned Base = Loc.SpillLocation.SpillBase;
           auto *TRI = MF.getSubtarget().getRegisterInfo();
           if (MI.isNonListDebugValue()) {
-            DIExpr =
-                TRI->prependOffsetExpression(DIExpr, DIExpression::ApplyOffset,
-                                             Loc.SpillLocation.SpillOffset);
+            auto Deref = Indirect ? DIExpression::DerefAfter : 0;
+            DIExpr = TRI->prependOffsetExpression(
+                DIExpr, DIExpression::ApplyOffset | Deref,
+                Loc.SpillLocation.SpillOffset);
             Indirect = true;
           } else {
             SmallVector<uint64_t, 4> Ops;
@@ -567,7 +567,6 @@ private:
             DIExpr = DIExpression::appendOpsToArg(DIExpr, Ops, I);
           }
           MOs.push_back(MachineOperand::CreateReg(Base, false));
-          MOs.back().setIsDebug();
           break;
         }
         case MachineLocKind::ImmediateKind: {
@@ -617,7 +616,7 @@ private:
     unsigned getRegIdx(Register Reg) const {
       for (unsigned Idx = 0; Idx < Locs.size(); ++Idx)
         if (Locs[Idx].Kind == MachineLocKind::RegisterKind &&
-            Locs[Idx].Value.RegNo == Reg)
+            Register{static_cast<unsigned>(Locs[Idx].Value.RegNo)} == Reg)
           return Idx;
       llvm_unreachable("Could not find given Reg in Locs");
     }
@@ -626,7 +625,7 @@ private:
     /// add each of them to \p Regs and return true.
     bool getDescribingRegs(SmallVectorImpl<uint32_t> &Regs) const {
       bool AnyRegs = false;
-      for (auto Loc : Locs)
+      for (const auto &Loc : Locs)
         if (Loc.Kind == MachineLocKind::RegisterKind) {
           Regs.push_back(Loc.Value.RegNo);
           AnyRegs = true;
@@ -1015,8 +1014,9 @@ private:
   /// had their instruction creation deferred.
   void flushPendingLocs(VarLocInMBB &PendingInLocs, VarLocMap &VarLocIDs);
 
-  bool ExtendRanges(MachineFunction &MF, TargetPassConfig *TPC,
-                    unsigned InputBBLimit, unsigned InputDbgValLimit) override;
+  bool ExtendRanges(MachineFunction &MF, MachineDominatorTree *DomTree,
+                    TargetPassConfig *TPC, unsigned InputBBLimit,
+                    unsigned InputDbgValLimit) override;
 
 public:
   /// Default construct and initialize the pass.
@@ -1525,8 +1525,7 @@ void VarLocBasedLDV::transferRegisterDef(MachineInstr &MI,
       for (MCRegAliasIterator RAI(MO.getReg(), TRI, true); RAI.isValid(); ++RAI)
         // FIXME: Can we break out of this loop early if no insertion occurs?
         DeadRegs.insert(*RAI);
-      if (RegSetInstrs.find(MO.getReg()) != RegSetInstrs.end())
-        RegSetInstrs.erase(MO.getReg());
+      RegSetInstrs.erase(MO.getReg());
       RegSetInstrs.insert({MO.getReg(), &MI});
     } else if (MO.isRegMask()) {
       RegMasks.push_back(MO.getRegMask());
@@ -1555,8 +1554,7 @@ void VarLocBasedLDV::transferRegisterDef(MachineInstr &MI,
       if (AnyRegMaskKillsReg)
         DeadRegs.insert(Reg);
       if (AnyRegMaskKillsReg) {
-        if (RegSetInstrs.find(Reg) != RegSetInstrs.end())
-          RegSetInstrs.erase(Reg);
+        RegSetInstrs.erase(Reg);
         RegSetInstrs.insert({Reg, &MI});
       }
     }
@@ -2108,9 +2106,11 @@ void VarLocBasedLDV::recordEntryValue(const MachineInstr &MI,
 
 /// Calculate the liveness information for the given machine function and
 /// extend ranges across basic blocks.
-bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF, TargetPassConfig *TPC,
-                                  unsigned InputBBLimit,
+bool VarLocBasedLDV::ExtendRanges(MachineFunction &MF,
+                                  MachineDominatorTree *DomTree,
+                                  TargetPassConfig *TPC, unsigned InputBBLimit,
                                   unsigned InputDbgValLimit) {
+  (void)DomTree;
   LLVM_DEBUG(dbgs() << "\nDebug Range Extension\n");
 
   if (!MF.getFunction().getSubprogram())

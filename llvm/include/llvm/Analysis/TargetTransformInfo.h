@@ -98,7 +98,7 @@ struct HardwareLoopInfo {
   Loop *L = nullptr;
   BasicBlock *ExitBlock = nullptr;
   BranchInst *ExitBranch = nullptr;
-  const SCEV *TripCount = nullptr;
+  const SCEV *ExitCount = nullptr;
   IntegerType *CountType = nullptr;
   Value *LoopDecrement = nullptr; // Decrement the loop counter by this
                                   // value in every iteration.
@@ -382,6 +382,10 @@ public:
                                   Intrinsic::ID IID) const;
 
   bool isNoopAddrSpaceCast(unsigned FromAS, unsigned ToAS) const;
+
+  /// Return true if globals in this address space can have initializers other
+  /// than `undef`.
+  bool canHaveNonUndefGlobalInitializerInAddressSpace(unsigned AS) const;
 
   unsigned getAssumedAddrSpace(const Value *V) const;
 
@@ -1099,8 +1103,8 @@ public:
   /// is using a compare with the specified predicate as condition. When vector
   /// types are passed, \p VecPred must be used for all lanes.
   InstructionCost
-  getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy = nullptr,
-                     CmpInst::Predicate VecPred = CmpInst::BAD_ICMP_PREDICATE,
+  getCmpSelInstrCost(unsigned Opcode, Type *ValTy, Type *CondTy,
+                     CmpInst::Predicate VecPred,
                      TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput,
                      const Instruction *I = nullptr) const;
 
@@ -1457,6 +1461,8 @@ public:
   virtual bool collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
                                           Intrinsic::ID IID) const = 0;
   virtual bool isNoopAddrSpaceCast(unsigned FromAS, unsigned ToAS) const = 0;
+  virtual bool
+  canHaveNonUndefGlobalInitializerInAddressSpace(unsigned AS) const = 0;
   virtual unsigned getAssumedAddrSpace(const Value *V) const = 0;
   virtual Value *rewriteIntrinsicWithAddressSpace(IntrinsicInst *II,
                                                   Value *OldV,
@@ -1737,8 +1743,8 @@ public:
   InstructionCost
   getGEPCost(Type *PointeeType, const Value *Ptr,
              ArrayRef<const Value *> Operands,
-             enum TargetTransformInfo::TargetCostKind CostKind) override {
-    return Impl.getGEPCost(PointeeType, Ptr, Operands);
+             TargetTransformInfo::TargetCostKind CostKind) override {
+    return Impl.getGEPCost(PointeeType, Ptr, Operands, CostKind);
   }
   unsigned getInliningThresholdMultiplier() override {
     return Impl.getInliningThresholdMultiplier();
@@ -1780,6 +1786,11 @@ public:
 
   bool isNoopAddrSpaceCast(unsigned FromAS, unsigned ToAS) const override {
     return Impl.isNoopAddrSpaceCast(FromAS, ToAS);
+  }
+
+  bool
+  canHaveNonUndefGlobalInitializerInAddressSpace(unsigned AS) const override {
+    return Impl.canHaveNonUndefGlobalInitializerInAddressSpace(AS);
   }
 
   unsigned getAssumedAddrSpace(const Value *V) const override {

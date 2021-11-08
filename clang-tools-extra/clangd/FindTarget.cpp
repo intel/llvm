@@ -94,6 +94,16 @@ const NamedDecl *getTemplatePattern(const NamedDecl *D) {
   return nullptr;
 }
 
+// Returns true if the `TypedefNameDecl` should not be reported.
+bool shouldSkipTypedef(const TypedefNameDecl *TD) {
+  // These should be treated as keywords rather than decls - the typedef is an
+  // odd implementation detail.
+  if (TD == TD->getASTContext().getObjCInstanceTypeDecl() ||
+      TD == TD->getASTContext().getObjCIdDecl())
+    return true;
+  return false;
+}
+
 // TargetFinder locates the entities that an AST node refers to.
 //
 // Typically this is (possibly) one declaration and (possibly) one type, but
@@ -395,6 +405,8 @@ public:
         }
       }
       void VisitTypedefType(const TypedefType *TT) {
+        if (shouldSkipTypedef(TT->getDecl()))
+          return;
         Outer.add(TT->getDecl(), Flags);
       }
       void
@@ -495,7 +507,8 @@ public:
     // DeclRefExpr).
     if (Arg.getKind() == TemplateArgument::Template ||
         Arg.getKind() == TemplateArgument::TemplateExpansion) {
-      if (TemplateDecl *TD = Arg.getAsTemplate().getAsTemplateDecl()) {
+      if (TemplateDecl *TD =
+              Arg.getAsTemplateOrTemplatePattern().getAsTemplateDecl()) {
         report(TD, Flags);
       }
     }
@@ -903,6 +916,8 @@ refInTypeLoc(TypeLoc L, const HeuristicResolver *Resolver) {
     }
 
     void VisitTypedefTypeLoc(TypedefTypeLoc L) {
+      if (shouldSkipTypedef(L.getTypedefNameDecl()))
+        return;
       Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
                                   L.getNameLoc(),
                                   /*IsDecl=*/false,

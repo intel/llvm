@@ -3413,7 +3413,7 @@ struct AADereferenceable
 };
 
 using AAAlignmentStateType =
-    IncIntegerState<uint32_t, Value::MaximumAlignment, 1>;
+    IncIntegerState<uint64_t, Value::MaximumAlignment, 1>;
 /// An abstract interface for all align attributes.
 struct AAAlign : public IRAttribute<
                      Attribute::Alignment,
@@ -3421,10 +3421,10 @@ struct AAAlign : public IRAttribute<
   AAAlign(const IRPosition &IRP, Attributor &A) : IRAttribute(IRP) {}
 
   /// Return assumed alignment.
-  unsigned getAssumedAlign() const { return getAssumed(); }
+  uint64_t getAssumedAlign() const { return getAssumed(); }
 
   /// Return known alignment.
-  unsigned getKnownAlign() const { return getKnown(); }
+  uint64_t getKnownAlign() const { return getKnown(); }
 
   /// See AbstractAttribute::getName()
   const std::string getName() const override { return "AAAlign"; }
@@ -3795,7 +3795,7 @@ struct AAMemoryLocation
   /// Return true if we assume that the associated functions has no observable
   /// accesses.
   bool isAssumedReadNone() const {
-    return isAssumed(NO_LOCATIONS) | isAssumedStackOnly();
+    return isAssumed(NO_LOCATIONS) || isAssumedStackOnly();
   }
 
   /// Return true if we know that the associated functions has at most
@@ -3939,19 +3939,19 @@ struct AAValueConstantRange
   static AAValueConstantRange &createForPosition(const IRPosition &IRP,
                                                  Attributor &A);
 
-  /// Return an assumed range for the assocaited value a program point \p CtxI.
+  /// Return an assumed range for the associated value a program point \p CtxI.
   /// If \p I is nullptr, simply return an assumed range.
   virtual ConstantRange
   getAssumedConstantRange(Attributor &A,
                           const Instruction *CtxI = nullptr) const = 0;
 
-  /// Return a known range for the assocaited value at a program point \p CtxI.
+  /// Return a known range for the associated value at a program point \p CtxI.
   /// If \p I is nullptr, simply return a known range.
   virtual ConstantRange
   getKnownConstantRange(Attributor &A,
                         const Instruction *CtxI = nullptr) const = 0;
 
-  /// Return an assumed constant for the assocaited value a program point \p
+  /// Return an assumed constant for the associated value a program point \p
   /// CtxI.
   Optional<ConstantInt *>
   getAssumedConstantInt(Attributor &A,
@@ -4453,6 +4453,9 @@ struct AAFunctionReachability
 
   /// If the function represented by this possition can reach \p Fn.
   virtual bool canReach(Attributor &A, Function *Fn) const = 0;
+
+  /// Can \p CB reach \p Fn
+  virtual bool canReach(Attributor &A, CallBase &CB, Function *Fn) const = 0;
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAFunctionReachability &createForPosition(const IRPosition &IRP,

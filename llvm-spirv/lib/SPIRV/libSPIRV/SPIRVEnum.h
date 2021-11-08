@@ -261,6 +261,8 @@ template <> inline void SPIRVMap<SPIRVExecutionModeKind, SPIRVCapVec>::init() {
                {CapabilityVectorComputeINTEL});
   ADD_VEC_INIT(internal::ExecutionModeFastCompositeKernelINTEL,
                {internal::CapabilityFastCompositeINTEL});
+  ADD_VEC_INIT(internal::ExecutionModeStreamingInterfaceINTEL,
+               {CapabilityFPGAKernelAttributesINTEL});
 }
 
 template <> inline void SPIRVMap<SPIRVMemoryModelKind, SPIRVCapVec>::init() {
@@ -489,6 +491,12 @@ template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
   ADD_VEC_INIT(BuiltInSubgroupLtMask, {CapabilityGroupNonUniformBallot});
   ADD_VEC_INIT(BuiltInVertexIndex, {CapabilityShader});
   ADD_VEC_INIT(BuiltInInstanceIndex, {CapabilityShader});
+  ADD_VEC_INIT(internal::BuiltInSubDeviceIDINTEL,
+               {internal::CapabilityHWThreadQueryINTEL});
+  ADD_VEC_INIT(internal::BuiltInHWThreadIDINTEL,
+               {internal::CapabilityHWThreadQueryINTEL});
+  ADD_VEC_INIT(internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL,
+               {internal::CapabilityHWThreadQueryINTEL});
 }
 
 template <> inline void SPIRVMap<MemorySemanticsMask, SPIRVCapVec>::init() {

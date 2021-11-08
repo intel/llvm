@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/assert_happened.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
+#include <CL/sycl/detail/service_kernel_names.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
@@ -21,7 +22,11 @@
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
 
-#include <inttypes.h>
+// Explicitly request format macros
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
+#include <cinttypes>
 #include <utility>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
@@ -79,7 +84,6 @@ class queue;
 namespace detail {
 class queue_impl;
 #if __SYCL_USE_FALLBACK_ASSERT
-class AssertInfoCopier;
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
 #endif
@@ -195,9 +199,10 @@ public:
   /// \param ClQueue is a valid instance of OpenCL queue.
   /// \param SyclContext is a valid SYCL context.
   /// \param AsyncHandler is a SYCL asynchronous exception handler.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   queue(cl_command_queue ClQueue, const context &SyclContext,
         const async_handler &AsyncHandler = {});
+#endif
 
   queue(const queue &RHS) = default;
 
@@ -213,8 +218,9 @@ public:
 
   /// \return a valid instance of OpenCL queue, which is retained before being
   /// returned.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_command_queue get() const;
+#endif
 
   /// \return an associated SYCL context.
   context get_context() const;
@@ -289,22 +295,31 @@ public:
     event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
-                           bool IsKernel, bool KernelUsesAssert, event &E) {
-      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-          KernelUsesAssert) {
-        // __devicelib_assert_fail isn't supported by Device-side Runtime
-        // Linking against fallback impl of __devicelib_assert_fail is performed
-        // by program manager class
-        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
-      }
-    };
+    if (!is_host()) {
+      auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+                             bool IsKernel, bool KernelUsesAssert, event &E) {
+        if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+            KernelUsesAssert) {
+          // Only secondary queues on devices need to be added to the assert
+          // capture.
+          // TODO: Handle case where primary queue is host but the secondary
+          // queue is not.
+          queue *DeviceSecondaryQueue =
+              SecondaryQueue.is_host() ? nullptr : &SecondaryQueue;
+          // __devicelib_assert_fail isn't supported by Device-side Runtime
+          // Linking against fallback impl of __devicelib_assert_fail is
+          // performed by program manager class
+          submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
+        }
+      };
 
-    Event =
-        submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc, PostProcess);
-#else
-    Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                          PostProcess);
+    } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
+    {
+      Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+    }
 
     return Event;
   }
@@ -452,7 +467,7 @@ public:
   /// \return an event representing fill operation.
   template <typename T>
   event fill(void *Ptr, const T &Pattern, size_t Count,
-             const vector_class<event> &DepEvents) {
+             const std::vector<event> &DepEvents) {
     return submit([&](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.fill<T>(Ptr, Pattern, Count);
@@ -494,7 +509,7 @@ public:
   /// dependencies.
   /// \return an event representing fill operation.
   event memset(void *Ptr, int Value, size_t Count,
-               const vector_class<event> &DepEvents);
+               const std::vector<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -534,7 +549,7 @@ public:
   /// dependencies.
   /// \return an event representing copy operation.
   event memcpy(void *Dest, const void *Src, size_t Count,
-               const vector_class<event> &DepEvents);
+               const std::vector<event> &DepEvents);
 
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
@@ -579,7 +594,7 @@ public:
   /// \return an event representing copy operation.
   template <typename T>
   event copy(const T *Src, T *Dest, size_t Count,
-             const vector_class<event> &DepEvents) {
+             const std::vector<event> &DepEvents) {
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
 
@@ -622,7 +637,7 @@ public:
   /// dependencies.
   /// \return an event representing advice operation.
   event mem_advise(const void *Ptr, size_t Length, int Advice,
-                   const vector_class<event> &DepEvents);
+                   const std::vector<event> &DepEvents);
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -660,7 +675,7 @@ public:
   /// dependencies.
   /// \return an event representing prefetch operation.
   event prefetch(const void *Ptr, size_t Count,
-                 const vector_class<event> &DepEvents) {
+                 const std::vector<event> &DepEvents) {
     return submit([=](handler &CGH) {
       CGH.depends_on(DepEvents);
       CGH.prefetch(Ptr, Count);
@@ -1066,7 +1081,7 @@ private:
   /// \param CodeLoc code location
   ///
   /// This method stores additional information within event_impl class instance
-  event submit_impl_and_postprocess(function_class<void(handler &)> CGH,
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
   /// A template-free version of submit.
@@ -1075,7 +1090,7 @@ private:
   /// \param CodeLoc code location
   ///
   /// This method stores additional information within event_impl class instance
-  event submit_impl_and_postprocess(function_class<void(handler &)> CGH,
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
                                     queue secondQueue,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
@@ -1172,7 +1187,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 
     auto Acc = Buffer.get_access<access::mode::write>(CGH);
 
-    CGH.single_task<AssertInfoCopier>([Acc] {
+    CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
 #ifdef __SYCL_DEVICE_ONLY__
       __devicelib_assert_read(&Acc[0]);
 #else

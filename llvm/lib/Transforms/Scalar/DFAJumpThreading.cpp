@@ -144,8 +144,7 @@ private:
       Stack.push_back(SIToUnfold);
 
     while (!Stack.empty()) {
-      SelectInstToUnfold SIToUnfold = Stack.back();
-      Stack.pop_back();
+      SelectInstToUnfold SIToUnfold = Stack.pop_back_val();
 
       std::vector<SelectInstToUnfold> NewSIsToUnfold;
       std::vector<BasicBlock *> NewBBs;
@@ -491,7 +490,7 @@ private:
   }
 
   bool isPredictableValue(Value *InpVal, SmallSet<Value *, 16> &SeenValues) {
-    if (SeenValues.find(InpVal) != SeenValues.end())
+    if (SeenValues.contains(InpVal))
       return true;
 
     if (isa<ConstantInt>(InpVal))
@@ -506,7 +505,7 @@ private:
 
   void addInstToQueue(Value *Val, std::deque<Instruction *> &Q,
                       SmallSet<Value *, 16> &SeenValues) {
-    if (SeenValues.find(Val) != SeenValues.end())
+    if (SeenValues.contains(Val))
       return;
     if (Instruction *I = dyn_cast<Instruction>(Val))
       Q.push_back(I);
@@ -662,15 +661,14 @@ private:
     SmallSet<Value *, 16> SeenValues;
 
     while (!Stack.empty()) {
-      PHINode *CurPhi = Stack.back();
-      Stack.pop_back();
+      PHINode *CurPhi = Stack.pop_back_val();
 
       Res[CurPhi->getParent()] = CurPhi;
       SeenValues.insert(CurPhi);
 
       for (Value *Incoming : CurPhi->incoming_values()) {
         if (Incoming == FirstDef || isa<ConstantInt>(Incoming) ||
-            SeenValues.find(Incoming) != SeenValues.end()) {
+            SeenValues.contains(Incoming)) {
           continue;
         }
 

@@ -38,11 +38,13 @@
  */
 
 #include "__cxxabi_config.h"
-#include "include/atomic_support.h"
-#include <unistd.h>
+#include "include/atomic_support.h" // from libc++
 #if defined(__has_include)
 #  if __has_include(<sys/syscall.h>)
 #    include <sys/syscall.h>
+#  endif
+#  if __has_include(<unistd.h>)
+#    include <unistd.h>
 #  endif
 #endif
 

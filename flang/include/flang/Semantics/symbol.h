@@ -511,7 +511,7 @@ public:
       // OpenMP data-copying attribute
       OmpCopyIn, OmpCopyPrivate,
       // OpenMP miscellaneous flags
-      OmpCommonBlock, OmpReduction, OmpAligned, OmpAllocate,
+      OmpCommonBlock, OmpReduction, OmpAligned, OmpNontemporal, OmpAllocate,
       OmpDeclarativeAllocateDirective, OmpExecutableAllocateDirective,
       OmpDeclareSimd, OmpDeclareTarget, OmpThreadprivate, OmpDeclareReduction,
       OmpFlushed, OmpCriticalLock, OmpIfSpecified, OmpNone, OmpPreDetermined);
@@ -657,6 +657,9 @@ public:
   const DerivedTypeSpec *GetParentTypeSpec(const Scope * = nullptr) const;
 
   SemanticsContext &GetSemanticsContext() const;
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  LLVM_DUMP_METHOD void dump() const;
+#endif
 
 private:
   const Scope *owner_;
@@ -680,7 +683,7 @@ private:
   const Symbol *GetParentComponent(const Scope * = nullptr) const;
 
   template <std::size_t> friend class Symbols;
-  template <class, std::size_t> friend struct std::array;
+  template <class, std::size_t> friend class std::array;
 };
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, Symbol::Flag);

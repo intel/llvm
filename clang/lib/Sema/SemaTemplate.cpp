@@ -485,8 +485,7 @@ bool Sema::LookupTemplateName(LookupResult &Found,
     // all language modes, and diagnose the empty lookup in ActOnCallExpr if we
     // successfully form a call to an undeclared template-id.
     bool AllFunctions =
-        getLangOpts().CPlusPlus20 &&
-        std::all_of(Found.begin(), Found.end(), [](NamedDecl *ND) {
+        getLangOpts().CPlusPlus20 && llvm::all_of(Found, [](NamedDecl *ND) {
           return isa<FunctionDecl>(ND->getUnderlyingDecl());
         });
     if (AllFunctions || (Found.empty() && !IsDependent)) {
@@ -1206,7 +1205,7 @@ static ExprResult formImmediatelyDeclaredConstraint(
 }
 
 /// Attach a type-constraint to a template parameter.
-/// \returns true if an error occured. This can happen if the
+/// \returns true if an error occurred. This can happen if the
 /// immediately-declared constraint could not be formed (e.g. incorrect number
 /// of arguments for the named concept).
 bool Sema::AttachTypeConstraint(NestedNameSpecifierLoc NS,
@@ -2267,22 +2266,8 @@ private:
           TTP->isParameterPack(), TTP->hasTypeConstraint(),
           TTP->isExpandedParameterPack() ?
           llvm::Optional<unsigned>(TTP->getNumExpansionParameters()) : None);
-      if (const auto *TC = TTP->getTypeConstraint()) {
-        TemplateArgumentListInfo TransformedArgs;
-        const auto *ArgsAsWritten = TC->getTemplateArgsAsWritten();
-        if (!ArgsAsWritten ||
-            SemaRef.Subst(ArgsAsWritten->getTemplateArgs(),
-                          ArgsAsWritten->NumTemplateArgs, TransformedArgs,
-                          Args))
-          SemaRef.AttachTypeConstraint(
-              TC->getNestedNameSpecifierLoc(), TC->getConceptNameInfo(),
-              TC->getNamedConcept(), ArgsAsWritten ? &TransformedArgs : nullptr,
-              NewTTP,
-              NewTTP->isParameterPack()
-                 ? cast<CXXFoldExpr>(TC->getImmediatelyDeclaredConstraint())
-                     ->getEllipsisLoc()
-                 : SourceLocation());
-      }
+      if (const auto *TC = TTP->getTypeConstraint())
+        SemaRef.SubstTypeConstraint(NewTTP, TC, Args);
       if (TTP->hasDefaultArgument()) {
         TypeSourceInfo *InstantiatedDefaultArg =
             SemaRef.SubstType(TTP->getDefaultArgumentInfo(), Args,
@@ -3511,8 +3496,10 @@ checkBuiltinTemplateIdType(Sema &SemaRef, BuiltinTemplateDecl *BTD,
 }
 
 /// Determine whether this alias template is "enable_if_t".
+/// libc++ >=14 uses "__enable_if_t" in C++11 mode.
 static bool isEnableIfAliasTemplate(TypeAliasTemplateDecl *AliasTemplate) {
-  return AliasTemplate->getName().equals("enable_if_t");
+  return AliasTemplate->getName().equals("enable_if_t") ||
+         AliasTemplate->getName().equals("__enable_if_t");
 }
 
 /// Collect all of the separable terms in the given condition, which
@@ -5110,7 +5097,11 @@ SubstDefaultTemplateArgument(Sema &SemaRef,
     for (unsigned i = 0, e = Param->getDepth(); i != e; ++i)
       TemplateArgLists.addOuterTemplateArguments(None);
 
-    Sema::ContextRAII SavedContext(SemaRef, Template->getDeclContext());
+    bool ForLambdaCallOperator = false;
+    if (const auto *Rec = dyn_cast<CXXRecordDecl>(Template->getDeclContext()))
+      ForLambdaCallOperator = Rec->isLambda();
+    Sema::ContextRAII SavedContext(SemaRef, Template->getDeclContext(),
+                                   !ForLambdaCallOperator);
     ArgType =
         SemaRef.SubstType(ArgType, TemplateArgLists,
                           Param->getDefaultArgumentLoc(), Param->getDeclName());
@@ -7416,9 +7407,7 @@ bool Sema::CheckTemplateTemplateArgument(TemplateTemplateParmDecl *Param,
   // C++1z [temp.arg.template]p3: (DR 150)
   //   A template-argument matches a template template-parameter P when P
   //   is at least as specialized as the template-argument A.
-  // FIXME: We should enable RelaxedTemplateTemplateArgs by default as it is a
-  //  defect report resolution from C++17 and shouldn't be introduced by
-  //  concepts.
+  // FIXME: RelaxedTemplateTemplateArgs is deprecated, should be always on.
   if (getLangOpts().RelaxedTemplateTemplateArgs) {
     // Quick check for the common case:
     //   If P contains a parameter pack, then A [...] matches P if each of A's
@@ -8702,7 +8691,7 @@ static SourceLocation DiagLocForExplicitInstantiation(
 ///
 /// \param PrevTSK the kind of the old explicit specialization or instantiatin.
 ///
-/// \param PrevPointOfInstantiation if valid, indicates where the previus
+/// \param PrevPointOfInstantiation if valid, indicates where the previous
 /// declaration was instantiated (either implicitly or explicitly).
 ///
 /// \param HasNoEffect will be set to true to indicate that the new

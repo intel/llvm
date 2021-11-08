@@ -42,6 +42,9 @@ def FeatureCMOV    : SubtargetFeature<"cmov","HasCMov", "true",
 def FeatureCMPXCHG8B : SubtargetFeature<"cx8", "HasCmpxchg8b", "true",
                                         "Support CMPXCHG8B instructions">;
 
+def FeatureCRC32   : SubtargetFeature<"crc32", "HasCRC32", "true",
+                                      "Enable SSE 4.2 CRC32 instruction">;
+
 def FeaturePOPCNT   : SubtargetFeature<"popcnt", "HasPOPCNT", "true",
                                        "Support POPCNT instruction">;
 
@@ -371,6 +374,13 @@ def FeatureLVILoadHardening
           "Insert LFENCE instructions to prevent data speculatively injected "
           "into loads from being used maliciously.">;
 
+def FeatureTaggedGlobals
+    : SubtargetFeature<
+          "tagged-globals", "AllowTaggedGlobals", "true",
+          "Use an instruction sequence for taking the address of a global "
+          "that allows a memory tag in the upper address bits. Currently "
+          "also requires -mrelax-relocations=no to work properly.">;
+
 //===----------------------------------------------------------------------===//
 // X86 Subtarget Tuning features
 //===----------------------------------------------------------------------===//
@@ -561,6 +571,10 @@ def TuningFastMOVBE
     : SubtargetFeature<"fast-movbe", "HasFastMOVBE", "true",
     "Prefer a movbe over a single-use load + bswap / single-use bswap + store">;
 
+def TuningUseSLMArithCosts
+    : SubtargetFeature<"use-slm-arith-costs", "UseSLMArithCosts", "true",
+        "Use Silvermont specific arithmetic costs">;
+
 def TuningUseGLMDivSqrtCosts
     : SubtargetFeature<"use-glm-div-sqrt-costs", "UseGLMDivSqrtCosts", "true",
         "Use Goldmont specific floating point div/sqrt costs">;
@@ -576,8 +590,6 @@ def FeatureUseAA : SubtargetFeature<"use-aa", "UseAA", "true",
 
 // Bonnell
 def ProcIntelAtom : SubtargetFeature<"", "X86ProcFamily", "IntelAtom", "">;
-// Silvermont
-def ProcIntelSLM  : SubtargetFeature<"", "X86ProcFamily", "IntelSLM", "">;
 
 //===----------------------------------------------------------------------===//
 // Register File Description
@@ -624,9 +636,10 @@ def ProcessorFeatures {
     FeatureX87, FeatureCMPXCHG8B, FeatureCMOV, FeatureMMX, FeatureSSE2,
     FeatureFXSR, FeatureNOPL, Feature64Bit
   ];
-  list<SubtargetFeature> X86_64V2Features = !listconcat(
-      X86_64V1Features,
-      [FeatureCMPXCHG16B, FeatureLAHFSAHF, FeaturePOPCNT, FeatureSSE42]);
+  list<SubtargetFeature> X86_64V2Features = !listconcat(X86_64V1Features, [
+    FeatureCMPXCHG16B, FeatureLAHFSAHF, FeatureCRC32, FeaturePOPCNT,
+    FeatureSSE42
+  ]);
   list<SubtargetFeature> X86_64V3Features = !listconcat(X86_64V2Features, [
     FeatureAVX2, FeatureBMI, FeatureBMI2, FeatureF16C, FeatureFMA, FeatureLZCNT,
     FeatureMOVBE, FeatureXSAVE
@@ -799,7 +812,18 @@ def ProcessorFeatures {
                                                   FeatureGFNI,
                                                   FeatureRDPID,
                                                   FeatureFSRM];
-  list<SubtargetFeature> ICLTuning = CNLTuning;
+  list<SubtargetFeature> ICLTuning = [TuningFastGather,
+                                      TuningMacroFusion,
+                                      TuningSlow3OpsLEA,
+                                      TuningSlowDivide64,
+                                      TuningFastScalarFSQRT,
+                                      TuningFastVectorFSQRT,
+                                      TuningFastSHLDRotate,
+                                      TuningFast15ByteNOP,
+                                      TuningFastVariableCrossLaneShuffle,
+                                      TuningFastVariablePerLaneShuffle,
+                                      TuningPrefer256Bit,
+                                      TuningInsertVZEROUPPER];
   list<SubtargetFeature> ICLFeatures =
     !listconcat(CNLFeatures, ICLAdditionalFeatures);
 
@@ -807,7 +831,7 @@ def ProcessorFeatures {
   list<SubtargetFeature> ICXAdditionalFeatures = [FeaturePCONFIG,
                                                   FeatureCLWB,
                                                   FeatureWBNOINVD];
-  list<SubtargetFeature> ICXTuning = CNLTuning;
+  list<SubtargetFeature> ICXTuning = ICLTuning;
   list<SubtargetFeature> ICXFeatures =
     !listconcat(ICLFeatures, ICXAdditionalFeatures);
 
@@ -817,7 +841,7 @@ def ProcessorFeatures {
                                                   FeatureMOVDIRI,
                                                   FeatureMOVDIR64B,
                                                   FeatureSHSTK];
-  list<SubtargetFeature> TGLTuning = CNLTuning;
+  list<SubtargetFeature> TGLTuning = ICLTuning;
   list<SubtargetFeature> TGLFeatures =
     !listconcat(ICLFeatures, TGLAdditionalFeatures );
 
@@ -867,11 +891,12 @@ def ProcessorFeatures {
 
   // Silvermont
   list<SubtargetFeature> SLMAdditionalFeatures = [FeatureSSE42,
+                                                  FeatureCRC32,
                                                   FeaturePOPCNT,
                                                   FeaturePCLMUL,
                                                   FeaturePRFCHW,
                                                   FeatureRDRAND];
-  list<SubtargetFeature> SLMTuning = [ProcIntelSLM,
+  list<SubtargetFeature> SLMTuning = [TuningUseSLMArithCosts,
                                       TuningSlowTwoMemOps,
                                       TuningSlowLEA,
                                       TuningSlowIncDec,
@@ -957,6 +982,7 @@ def ProcessorFeatures {
                                         FeatureNOPL,
                                         Feature64Bit,
                                         FeatureCMPXCHG16B,
+                                        FeatureCRC32,
                                         FeaturePOPCNT,
                                         FeaturePCLMUL,
                                         FeatureXSAVE,
@@ -1033,6 +1059,7 @@ def ProcessorFeatures {
   // Jaguar
   list<SubtargetFeature> BtVer2AdditionalFeatures = [FeatureAVX,
                                                      FeatureAES,
+                                                     FeatureCRC32,
                                                      FeaturePCLMUL,
                                                      FeatureBMI,
                                                      FeatureF16C,
@@ -1058,6 +1085,7 @@ def ProcessorFeatures {
                                            Feature64Bit,
                                            FeatureCMPXCHG16B,
                                            FeatureAES,
+                                           FeatureCRC32,
                                            FeaturePRFCHW,
                                            FeaturePCLMUL,
                                            FeatureMMX,
@@ -1115,6 +1143,7 @@ def ProcessorFeatures {
                                        FeatureCMOV,
                                        Feature64Bit,
                                        FeatureCMPXCHG16B,
+                                       FeatureCRC32,
                                        FeatureF16C,
                                        FeatureFMA,
                                        FeatureFSGSBase,

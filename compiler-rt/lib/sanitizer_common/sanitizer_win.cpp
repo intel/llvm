@@ -16,6 +16,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #define NOGDI
+#include <direct.h>
 #include <windows.h>
 #include <io.h>
 #include <psapi.h>
@@ -565,6 +566,8 @@ void Abort() {
   internal__exit(3);
 }
 
+bool CreateDir(const char *pathname) { return _mkdir(pathname) == 0; }
+
 #if !SANITIZER_GO
 // Read the file to extract the ImageBase field from the PE header. If ASLR is
 // disabled and this virtual address is available, the loader will typically
@@ -1110,7 +1113,7 @@ bool IsProcessRunning(pid_t pid) {
 int WaitForProcess(pid_t pid) { return -1; }
 
 // FIXME implement on this platform.
-void GetMemoryProfile(fill_profile_f cb, uptr *stats, uptr stats_size) { }
+void GetMemoryProfile(fill_profile_f cb, uptr *stats) {}
 
 void CheckNoDeepBind(const char *filename, int flag) {
   // Do nothing.

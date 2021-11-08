@@ -129,12 +129,12 @@ public:
         b.wait();
         detail::PersistentDeviceCodeCache::putItemToDisc(
             Dev, Img,
-            sycl::vector_class<unsigned char>(
+            std::vector<unsigned char>(
                 {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}),
             BuildOptions, NativeProg);
         auto Res = detail::PersistentDeviceCodeCache::getItemFromDisc(
             Dev, Img,
-            sycl::vector_class<unsigned char>(
+            std::vector<unsigned char>(
                 {'S', 'p', 'e', 'c', 'C', 'o', 'n', 's', 't', ProgramID}),
             BuildOptions);
         for (size_t i = 0; i < Res.size(); ++i) {

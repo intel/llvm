@@ -250,9 +250,9 @@ bb13:
 ; GCN:     s_cbranch_execz
 ; GCN:   BB{{.*}}:
 
-; GFX1032: s_or_b32 [[MASK1]], [[MASK1]], exec_lo
-; GFX1064: s_or_b64 [[MASK1]], [[MASK1]], exec
-; GCN: global_load_dword [[LOAD:v[0-9]+]]
+; GFX1032-DAG: s_or_b32 [[MASK1]], [[MASK1]], exec_lo
+; GFX1064-DAG: s_or_b64 [[MASK1]], [[MASK1]], exec
+; GCN-DAG: global_load_dword [[LOAD:v[0-9]+]]
 ; GFX1032: v_cmp_gt_i32_e32 vcc_lo, 11, [[LOAD]]
 ; GFX1064: v_cmp_gt_i32_e32 vcc, 11, [[LOAD]]
 define amdgpu_kernel void @test_loop_with_if_else_break(i32 addrspace(1)* %arg) #0 {
@@ -521,7 +521,7 @@ two:
 }
 
 ; GCN-LABEL: {{^}}test_brcc_i1:
-; GCN:      s_cmp_eq_u32 s{{[0-9]+}}, 0
+; GCN:      s_bitcmp0_b32 s{{[0-9]+}}, 0
 ; GCN-NEXT: s_cbranch_scc1
 define amdgpu_kernel void @test_brcc_i1(i32 addrspace(1)* noalias %out, i32 addrspace(1)* noalias %in, i1 %val) #0 {
   %cmp0 = icmp ne i1 %val, 0

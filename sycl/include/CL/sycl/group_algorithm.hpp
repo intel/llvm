@@ -1,4 +1,4 @@
-//==----------- group_algorithm.hpp ------------------------------------==//
+//==------------------------ group_algorithm.hpp ---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -18,6 +18,7 @@
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/sub_group.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/ext/oneapi/group_sort.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

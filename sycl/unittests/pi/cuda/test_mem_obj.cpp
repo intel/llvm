@@ -10,6 +10,7 @@
 
 #include <cuda.h>
 
+#include "CudaUtils.hpp"
 #include "TestGetPlugin.hpp"
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/cuda_definitions.hpp>
@@ -34,7 +35,7 @@ protected:
       GTEST_SKIP();
     }
 
-    cuCtxSetCurrent(nullptr);
+    pi::clearCudaContext();
     pi_uint32 numPlatforms = 0;
     ASSERT_EQ(plugin->getBackend(), backend::cuda);
 

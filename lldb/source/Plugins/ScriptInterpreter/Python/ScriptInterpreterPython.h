@@ -13,8 +13,6 @@
 
 #if LLDB_ENABLE_PYTHON
 
-#include "ScriptedProcessPythonInterface.h"
-
 #include "lldb/Breakpoint/BreakpointOptions.h"
 #include "lldb/Core/IOHandler.h"
 #include "lldb/Core/StructuredDataImpl.h"
@@ -50,8 +48,8 @@ public:
 
   static void Initialize();
   static void Terminate();
-  static lldb_private::ConstString GetPluginNameStatic();
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "script-python"; }
+  static llvm::StringRef GetPluginDescriptionStatic();
   static FileSpec GetPythonDir();
   static void SharedLibraryDirectoryHelper(FileSpec &this_file);
 

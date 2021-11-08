@@ -55,7 +55,6 @@ private:
   void SetDefaultModuleCacheDirectory(const FileSpec &dir_spec);
 };
 
-typedef std::shared_ptr<PlatformProperties> PlatformPropertiesSP;
 typedef llvm::SmallVector<lldb::addr_t, 6> MmapArgList;
 
 /// \class Platform Platform.h "lldb/Target/Platform.h"
@@ -74,8 +73,6 @@ public:
   /// Default Constructor
   Platform(bool is_host_platform);
 
-  /// Destructor.
-  ///
   /// The destructor is virtual since this class is designed to be inherited
   /// from by the plug-in instance.
   ~Platform() override;
@@ -84,7 +81,7 @@ public:
 
   static void Terminate();
 
-  static const PlatformPropertiesSP &GetGlobalPlatformProperties();
+  static PlatformProperties &GetGlobalPlatformProperties();
 
   /// Get the native host platform plug-in.
   ///
@@ -215,9 +212,9 @@ public:
 
   bool SetOSVersion(llvm::VersionTuple os_version);
 
-  bool GetOSBuildString(std::string &s);
+  llvm::Optional<std::string> GetOSBuildString();
 
-  bool GetOSKernelDescription(std::string &s);
+  llvm::Optional<std::string> GetOSKernelDescription();
 
   // Returns the name of the platform
   ConstString GetName();
@@ -226,7 +223,7 @@ public:
 
   virtual ConstString GetFullNameForDylib(ConstString basename);
 
-  virtual const char *GetDescription() = 0;
+  virtual llvm::StringRef GetDescription() = 0;
 
   /// Report the current status for this platform.
   ///
@@ -243,14 +240,12 @@ public:
   // HostInfo::GetOSVersion().
   virtual bool GetRemoteOSVersion() { return false; }
 
-  virtual bool GetRemoteOSBuildString(std::string &s) {
-    s.clear();
-    return false;
+  virtual llvm::Optional<std::string> GetRemoteOSBuildString() {
+    return llvm::None;
   }
 
-  virtual bool GetRemoteOSKernelDescription(std::string &s) {
-    s.clear();
-    return false;
+  virtual llvm::Optional<std::string> GetRemoteOSKernelDescription() {
+    return llvm::None;
   }
 
   // Remote Platform subclasses need to override this function
@@ -363,11 +358,9 @@ public:
   /// platforms will want to subclass this function in order to be able to
   /// intercept STDIO and possibly launch a separate process that will debug
   /// the debuggee.
-  virtual lldb::ProcessSP
-  DebugProcess(ProcessLaunchInfo &launch_info, Debugger &debugger,
-               Target *target, // Can be nullptr, if nullptr create a new
-                               // target, else use existing one
-               Status &error);
+  virtual lldb::ProcessSP DebugProcess(ProcessLaunchInfo &launch_info,
+                                       Debugger &debugger, Target &target,
+                                       Status &error);
 
   virtual lldb::ProcessSP ConnectProcess(llvm::StringRef connect_url,
                                          llvm::StringRef plugin_name,

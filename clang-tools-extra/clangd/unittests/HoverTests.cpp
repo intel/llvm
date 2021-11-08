@@ -899,7 +899,7 @@ class Foo {})cpp";
        [](HoverInfo &HI) {
          HI.Name = "expression";
          HI.Kind = index::SymbolKind::Unknown;
-         HI.Type = "int [10]";
+         HI.Type = "int[10]";
          HI.Value = "{1}";
        }}};
   for (const auto &Case : Cases) {
@@ -936,6 +936,39 @@ class Foo {})cpp";
     EXPECT_EQ(H->AccessSpecifier, Expected.AccessSpecifier);
     EXPECT_EQ(H->CalleeArgInfo, Expected.CalleeArgInfo);
     EXPECT_EQ(H->CallPassType, Expected.CallPassType);
+  }
+}
+
+TEST(Hover, DefinitionLanuage) {
+  struct {
+    const char *const Code;
+    const std::string ClangLanguageFlag;
+    const char *const ExpectedDefinitionLanguage;
+  } Cases[] = {{R"cpp(
+          void [[some^Global]]() {}
+          )cpp",
+                "", "cpp"},
+               {R"cpp(
+          void [[some^Global]]() {}
+          )cpp",
+                "-xobjective-c++", "objective-cpp"},
+               {R"cpp(
+          void [[some^Global]]() {}
+          )cpp",
+                "-xobjective-c", "objective-c"}};
+  for (const auto &Case : Cases) {
+    SCOPED_TRACE(Case.Code);
+
+    Annotations T(Case.Code);
+    TestTU TU = TestTU::withCode(T.code());
+    if (!Case.ClangLanguageFlag.empty())
+      TU.ExtraArgs.push_back(Case.ClangLanguageFlag);
+    auto AST = TU.build();
+
+    auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
+    ASSERT_TRUE(H);
+
+    EXPECT_STREQ(H->DefinitionLanguage, Case.ExpectedDefinitionLanguage);
   }
 }
 
@@ -2901,6 +2934,35 @@ Value = val
 def)pt";
   EXPECT_EQ(HI.present().asPlainText(), ExpectedPlaintext);
 }
+
+TEST(Hover, SpaceshipTemplateNoCrash) {
+  Annotations T(R"cpp(
+  namespace std {
+  struct strong_ordering {
+    int n;
+    constexpr operator int() const { return n; }
+    static const strong_ordering equal, greater, less;
+  };
+  constexpr strong_ordering strong_ordering::equal = {0};
+  constexpr strong_ordering strong_ordering::greater = {1};
+  constexpr strong_ordering strong_ordering::less = {-1};
+  }
+
+  template <typename T>
+  struct S {
+    // Foo bar baz
+    friend auto operator<=>(S, S) = default;
+  };
+  static_assert(S<void>() =^= S<void>());
+    )cpp");
+
+  TestTU TU = TestTU::withCode(T.code());
+  TU.ExtraArgs.push_back("-std=c++20");
+  auto AST = TU.build();
+  auto HI = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
+  EXPECT_EQ(HI->Documentation, "Foo bar baz");
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

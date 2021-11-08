@@ -8,11 +8,14 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   ElementwiseOpFusion.cpp
   ElementwiseToLinalg.cpp
   Fusion.cpp
+  FusionOnTensors.cpp
   Generalization.cpp
   Hoisting.cpp
+  HoistPadding.cpp
   InlineScalarOperands.cpp
   Interchange.cpp
   Loops.cpp
+  LinalgStrategyPasses.cpp
   Promotion.cpp
   Tiling.cpp
   Transforms.cpp
@@ -28,7 +31,9 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRAffine
   MLIRAffineUtils
   MLIRAnalysis
+  MLIRArithmetic
   MLIRComplex
+  MLIRInferTypeOpInterface
   MLIRIR
   MLIRMemRef
   MLIRLinalgAnalysis

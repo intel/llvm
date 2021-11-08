@@ -134,15 +134,15 @@ int main() {
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [2]'
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int [2]' lvalue .
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int[2]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int [2]' lvalue .
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 
 // Check Kernel_Array_Ptrs parameters
@@ -177,7 +177,7 @@ int main() {
 // CHECK-NEXT: VarDecl {{.*}} used '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}} 'StructWithAccessors'
-// CHECK-NEXT: InitListExpr {{.*}} 'Accessor [2]'
+// CHECK-NEXT: InitListExpr {{.*}} 'Accessor[2]'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'Accessor'
 
@@ -219,7 +219,7 @@ int main() {
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
 
 // Initializer for struct array i.e. DecomposedStruct DecompStructArray[2]
-// CHECK-NEXT: InitListExpr {{.*}} 'DecomposedStruct [2]'
+// CHECK-NEXT: InitListExpr {{.*}} 'DecomposedStruct[2]'
 
 // Initializer for first element of DecompStructArray
 // CHECK-NEXT: InitListExpr {{.*}} 'DecomposedStruct'
@@ -227,7 +227,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
 
 // Initializer for struct array inside DecomposedStruct i.e. StructWithPointers SWPtrsMem[2]
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers [2]'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
 // Initializer for first element of inner struct array
 // CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
@@ -278,7 +278,7 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} '_arg_a' 'int'
 
 // Initializer for struct array inside DecomposedStruct i.e. StructWithPointers SWPtrsMem[2]
-// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers [2]'
+// CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
 // Initializer for first element of inner struct array
 // CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
@@ -340,26 +340,26 @@ int main() {
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [2][3]'
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int[2][3]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2][3]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int [3]'
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [3]' lvalue
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int [3]' lvalue
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'int[3]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[3]' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int[3]' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int (*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2][3]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [3]' lvalue
-// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int [3]' lvalue
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[3]' lvalue
+// CHECK-NEXT: ArraySubscriptExpr {{.*}} 'int[3]' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'int (*)[3]' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int [2][3]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'int [2][3]' lvalue .
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'int[2][3]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'int[2][3]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned
@@ -372,15 +372,15 @@ int main() {
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} cinit
 // CHECK-NEXT: InitListExpr
-// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'NonDecomposedStruct [2]'
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct [2]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct [2]' lvalue .
+// CHECK-NEXT: ArrayInitLoopExpr {{.*}} 'NonDecomposedStruct[2]'
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 // CHECK-NEXT: CXXConstructExpr {{.*}} 'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct' lvalue <NoOp>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} 'NonDecomposedStruct' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'NonDecomposedStruct *' <ArrayToPointerDecay>
-// CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct [2]' lvalue
-// CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct [2]' lvalue .
+// CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
+// CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_' '__wrapper_class'
 // CHECK-NEXT: ArrayInitIndexExpr {{.*}} 'unsigned

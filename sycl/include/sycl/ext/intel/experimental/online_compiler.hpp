@@ -227,9 +227,5 @@ namespace __SYCL2020_DEPRECATED(
 } // namespace intel
 } // namespace ext
 
-namespace __SYCL2020_DEPRECATED(
-    "use 'ext::intel::experimental' instead") INTEL {
-  using namespace ext::intel::experimental;
-} // namespace INTEL
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -1,4 +1,4 @@
-//===-- runtime/environment.cpp ---------------------------------*- C++ -*-===//
+//===-- runtime/environment.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "environment.h"
+#include "memory.h"
 #include "tools.h"
 #include <cstdio>
 #include <cstdlib>
@@ -67,5 +68,16 @@ void ExecutionEnvironment::Configure(
   }
 
   // TODO: Set RP/ROUND='PROCESSOR_DEFINED' from environment
+}
+
+const char *ExecutionEnvironment::GetEnv(
+    const char *name, std::size_t name_length, const Terminator &terminator) {
+  RUNTIME_CHECK(terminator, name && name_length);
+
+  OwningPtr<char> cStyleName{
+      SaveDefaultCharacter(name, name_length, terminator)};
+  RUNTIME_CHECK(terminator, cStyleName);
+
+  return std::getenv(cStyleName.get());
 }
 } // namespace Fortran::runtime

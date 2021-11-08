@@ -14,7 +14,7 @@ struct S {
 // CHECK-NEXT:    [[FROMBOOL:%.*]] = zext i1 [[COND:%.*]] to i8
 // CHECK-NEXT:    store i8 [[FROMBOOL]], i8 addrspace(4)* [[COND_ADDR_ASCAST]], align 1, [[TBAA12:!tbaa !.*]]
 // CHECK-NEXT:    store [[STRUCT__ZTS1S_S]] addrspace(4)* [[LHS:%.*]], [[STRUCT__ZTS1S_S]] addrspace(4)* addrspace(4)* [[LHS_ADDR_ASCAST]], align 8, [[TBAA5:!tbaa !.*]]
-// CHECK-NEXT:    [[RHS_ASCAST:%.*]] = addrspacecast %struct._ZTS1S.S* [[RHS:%.*]] to [[STRUCT__ZTS1S_S]] addrspace(4)*
+// CHECK-NEXT:    [[RHS_ASCAST:%.*]] = addrspacecast %struct.S* [[RHS:%.*]] to [[STRUCT__ZTS1S_S]] addrspace(4)*
 // CHECK-NEXT:    [[TMP0:%.*]] = load i8, i8 addrspace(4)* [[COND_ADDR_ASCAST]], align 1, [[TBAA12]], [[RNG14:!range !.*]]
 // CHECK-NEXT:    [[TOBOOL:%.*]] = trunc i8 [[TMP0]] to i1
 // CHECK-NEXT:    br i1 [[TOBOOL]], label [[COND_TRUE:%.*]], label [[COND_FALSE:%.*]]

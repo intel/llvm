@@ -18,12 +18,15 @@ size_t caller() {
 
   size_t DoNotOpt;
   cl::sycl::buffer<size_t, 1> buf(&DoNotOpt, 1);
+  uint32_t DoNotOpt32;
+  cl::sycl::buffer<uint32_t, 1> buf32(&DoNotOpt32, 1);
 
   size_t DoNotOptXYZ[3];
   cl::sycl::buffer<size_t, 1> bufXYZ(&DoNotOptXYZ[0], sycl::range<1>(3));
 
   cl::sycl::queue().submit([&](cl::sycl::handler &cgh) {
     auto DoNotOptimize = buf.get_access<cl::sycl::access::mode::write>(cgh);
+    auto DoNotOptimize32 = buf32.get_access<cl::sycl::access::mode::write>(cgh);
 
     kernel<class kernel_GlobalInvocationId_x>([=]() SYCL_ESIMD_KERNEL {
       *DoNotOptimize.get_pointer() = __spirv_GlobalInvocationId_x();
@@ -213,6 +216,33 @@ size_t caller() {
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.x()
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.y()
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.z()
+
+    kernel<class kernel_SubgroupLocalInvocationId>([=]() SYCL_ESIMD_KERNEL {
+      *DoNotOptimize.get_pointer() = __spirv_SubgroupLocalInvocationId();
+      *DoNotOptimize32.get_pointer() = __spirv_SubgroupLocalInvocationId() + 3;
+    });
+    // CHECK-LABEL: @{{.*}}kernel_SubgroupLocalInvocationId
+    // CHECK: [[ZEXT0:%.*]] = zext i32 0 to i64
+    // CHECK: store i64 [[ZEXT0]]
+    // CHECK: add i32 0, 3
+
+    kernel<class kernel_SubgroupSize>([=]() SYCL_ESIMD_KERNEL {
+      *DoNotOptimize.get_pointer() = __spirv_SubgroupSize();
+      *DoNotOptimize32.get_pointer() = __spirv_SubgroupSize() + 7;
+    });
+    // CHECK-LABEL: @{{.*}}kernel_SubgroupSize
+    // CHECK: [[ZEXT0:%.*]] = zext i32 1 to i64
+    // CHECK: store i64 [[ZEXT0]]
+    // CHECK: add i32 1, 7
+
+    kernel<class kernel_SubgroupMaxSize>([=]() SYCL_ESIMD_KERNEL {
+      *DoNotOptimize.get_pointer() = __spirv_SubgroupMaxSize();
+      *DoNotOptimize32.get_pointer() = __spirv_SubgroupMaxSize() + 9;
+    });
+    // CHECK-LABEL: @{{.*}}kernel_SubgroupMaxSize
+    // CHECK: [[ZEXT0:%.*]] = zext i32 1 to i64
+    // CHECK: store i64 [[ZEXT0]]
+    // CHECK: add i32 1, 9
   });
   return DoNotOpt;
 }

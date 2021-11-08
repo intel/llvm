@@ -16,7 +16,8 @@ endfunction()
 check_library_exists(c fopen "" COMPILER_RT_HAS_LIBC)
 if (COMPILER_RT_USE_BUILTINS_LIBRARY)
   include(HandleCompilerRT)
-  find_compiler_rt_library(builtins "" COMPILER_RT_BUILTINS_LIBRARY)
+  find_compiler_rt_library(builtins COMPILER_RT_BUILTINS_LIBRARY
+                           FLAGS ${SANITIZER_COMMON_FLAGS})
   # TODO(PR51389): We should check COMPILER_RT_BUILTINS_LIBRARY and report an
   # error if the value is NOTFOUND rather than silenty continuing but we first
   # need to fix find_compiler_rt_library on Darwin.
@@ -61,6 +62,7 @@ endif ()
 
 # CodeGen options.
 check_c_compiler_flag(-ffreestanding         COMPILER_RT_HAS_FFREESTANDING_FLAG)
+check_c_compiler_flag(-fomit-frame-pointer   COMPILER_RT_HAS_OMIT_FRAME_POINTER_FLAG)
 check_c_compiler_flag(-std=c11               COMPILER_RT_HAS_STD_C11_FLAG)
 check_cxx_compiler_flag(-fPIC                COMPILER_RT_HAS_FPIC_FLAG)
 check_cxx_compiler_flag(-fPIE                COMPILER_RT_HAS_FPIE_FLAG)
@@ -250,7 +252,35 @@ function(get_test_cflags_for_apple_platform platform arch cflags_out)
   endif()
   set(test_cflags "")
   get_target_flags_for_arch(${arch} test_cflags)
-  list(APPEND test_cflags ${DARWIN_${platform}_CFLAGS})
+
+  if (NOT "${arch}" STREQUAL "arm64e")
+    list(APPEND test_cflags ${DARWIN_${platform}_CFLAGS})
+  else()
+    # arm64e is not currently ABI stable so we need to build for the
+    # OS version being tested. Rather than querying the device under test
+    # we use the SDK version which "should" be the same as the
+    # device under test (it is a configuration error for these not to match).
+    # FIXME(dliew): We can remove this if we build the runtimes with the appropriate
+    # deployment target for arm64e.
+    foreach (flag ${DARWIN_${platform}_CFLAGS})
+      if ("${flag}" MATCHES "^${DARWIN_${platform}_MIN_VER_FLAG}=.+")
+        # Find the SDK version
+        get_xcrun_platform_from_apple_platform("${platform}" xcrun_platform_name)
+        # TODO(dliew): Remove this check once get_xcrun_platform_from_apple_platform
+        # emits a fatal error for unrecognised platforms.
+        if (NOT "${xcrun_platform_name}" STREQUAL "")
+          find_darwin_sdk_version(platform_sdk_version "${xcrun_platform_name}")
+          # Patch flag with correct deployment target
+          set(replacement_flag "${DARWIN_${platform}_MIN_VER_FLAG}=${platform_sdk_version}")
+          list(APPEND test_cflags "${replacement_flag}")
+        endif()
+      else()
+        # Copy through
+        list(APPEND test_cflags "${flag}")
+      endif()
+    endforeach()
+  endif()
+
   string(REPLACE ";" " " test_cflags_str "${test_cflags}")
   string(APPEND test_cflags_str "${COMPILER_RT_TEST_COMPILER_CFLAGS}")
   set(${cflags_out} "${test_cflags_str}" PARENT_SCOPE)
@@ -277,6 +307,31 @@ function(is_valid_apple_platform platform is_valid_out)
     set(is_valid TRUE)
   endif()
   set(${is_valid_out} ${is_valid} PARENT_SCOPE)
+endfunction()
+
+# Maps the Apple platform name used in Compiler-rt's CMake code
+# to the name recognised by xcrun's `--sdk` argument
+function(get_xcrun_platform_from_apple_platform platform out_var)
+  set(xcrun_platform "")
+  if ("${platform}" STREQUAL "osx")
+    set(xcrun_platform "macosx")
+  elseif ("${platform}" STREQUAL "iossim")
+    set(xcrun_platform "iphonesimulator")
+  elseif ("${platform}" STREQUAL "ios")
+    set(xcrun_platform "iphoneos")
+  elseif ("${platform}" STREQUAL "watchossim")
+    set(xcrun_platform "watchsimulator")
+  elseif ("${platform}" STREQUAL "watchos")
+    set(xcrun_platform "watchos")
+  elseif ("${platform}" STREQUAL "tvossim")
+    set(xcrun_platform "appletvsimulator")
+  elseif ("${platform}" STREQUAL "tvos")
+    set(xcrun_platform "appletvos")
+  else()
+    # TODO(dliew): Make this an error.
+    message(WARNING "\"${platform}\" is not a handled apple platform")
+  endif()
+  set(${out_var} ${xcrun_platform} PARENT_SCOPE)
 endfunction()
 
 include(AllSupportedArchDefs)
@@ -423,6 +478,7 @@ if(APPLE)
           list(APPEND PROFILE_SUPPORTED_OS ${platform}sim)
           list(APPEND TSAN_SUPPORTED_OS ${platform}sim)
           list(APPEND FUZZER_SUPPORTED_OS ${platform}sim)
+          list(APPEND ORC_SUPPORTED_OS ${platform}sim)
         endif()
         foreach(arch ${DARWIN_${platform}sim_ARCHS})
           list(APPEND COMPILER_RT_SUPPORTED_ARCH ${arch})
@@ -453,6 +509,7 @@ if(APPLE)
             list(APPEND TSAN_SUPPORTED_OS ${platform})
           endif()
           list(APPEND FUZZER_SUPPORTED_OS ${platform})
+          list(APPEND ORC_SUPPORTED_OS ${platform})
         endif()
         foreach(arch ${DARWIN_${platform}_ARCHS})
           list(APPEND COMPILER_RT_SUPPORTED_ARCH ${arch})
@@ -462,7 +519,7 @@ if(APPLE)
     endforeach()
   endif()
 
-  # Explictly disable unsupported Sanitizer configurations.
+  # Explicitly disable unsupported Sanitizer configurations.
   list(REMOVE_ITEM FUZZER_SUPPORTED_OS "watchos")
   list(REMOVE_ITEM FUZZER_SUPPORTED_OS "watchossim")
 
@@ -564,8 +621,19 @@ else()
 endif()
 
 if (MSVC)
+  # Allow setting clang-cl's /winsysroot flag.
+  set(LLVM_WINSYSROOT "" CACHE STRING
+    "If set, argument to clang-cl's /winsysroot")
+
+  if (LLVM_WINSYSROOT)
+    set(MSVC_DIA_SDK_DIR "${LLVM_WINSYSROOT}/DIA SDK" CACHE PATH
+        "Path to the DIA SDK")
+  else()
+    set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK" CACHE PATH
+        "Path to the DIA SDK")
+  endif()
+
   # See if the DIA SDK is available and usable.
-  set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK")
   if (IS_DIRECTORY ${MSVC_DIA_SDK_DIR})
     set(CAN_SYMBOLIZE 1)
   else()

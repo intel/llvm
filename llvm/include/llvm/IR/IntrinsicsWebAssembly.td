@@ -183,6 +183,59 @@ def int_wasm_extadd_pairwise_unsigned :
             [IntrNoMem, IntrSpeculatable]>;
 
 //===----------------------------------------------------------------------===//
+// Relaxed SIMD intrinsics (experimental)
+//===----------------------------------------------------------------------===//
+
+def int_wasm_fma :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_fms :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_laneselect :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>, LLVMMatchType<0>, LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_relaxed_swizzle :
+  Intrinsic<[llvm_v16i8_ty],
+            [llvm_v16i8_ty, llvm_v16i8_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_relaxed_min :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>, LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+def int_wasm_relaxed_max :
+  Intrinsic<[llvm_anyvector_ty],
+            [LLVMMatchType<0>, LLVMMatchType<0>],
+            [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_relaxed_trunc_signed:
+  Intrinsic<[llvm_v4i32_ty],
+            [llvm_v4f32_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_relaxed_trunc_unsigned:
+  Intrinsic<[llvm_v4i32_ty],
+            [llvm_v4f32_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_relaxed_trunc_zero_signed:
+  Intrinsic<[llvm_v4i32_ty],
+            [llvm_v2f64_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+
+def int_wasm_relaxed_trunc_zero_unsigned:
+  Intrinsic<[llvm_v4i32_ty],
+            [llvm_v2f64_ty],
+            [IntrNoMem, IntrSpeculatable]>;
+
+
+//===----------------------------------------------------------------------===//
 // Thread-local storage intrinsics
 //===----------------------------------------------------------------------===//
 

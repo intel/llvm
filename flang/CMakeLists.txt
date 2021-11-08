@@ -35,7 +35,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   endif()
 
   # We need a pre-built/installed version of LLVM.
-  find_package(LLVM REQUIRED HINTS "${LLVM_CMAKE_PATH}")
+  find_package(LLVM REQUIRED HINTS "${LLVM_CMAKE_DIR}")
   # If the user specifies a relative path to LLVM_DIR, the calls to include
   # LLVM modules fail. Append the absolute path to LLVM_DIR instead.
   get_filename_component(LLVM_DIR_ABSOLUTE ${LLVM_DIR} REALPATH)
@@ -294,6 +294,14 @@ set(FLANG_REPOSITORY_STRING "" CACHE STRING
 if (FLANG_REPOSITORY_STRING)
   add_definitions(-DFLANG_REPOSITORY_STRING="${FLANG_REPOSITORY_STRING}")
 endif()
+
+include(TestBigEndian)
+test_big_endian(IS_BIGENDIAN)
+if (IS_BIGENDIAN)
+  add_compile_definitions(FLANG_BIG_ENDIAN=1)
+else ()
+  add_compile_definitions(FLANG_LITTLE_ENDIAN=1)
+endif ()
 
 # Configure Flang's Version.inc file.
 configure_file(

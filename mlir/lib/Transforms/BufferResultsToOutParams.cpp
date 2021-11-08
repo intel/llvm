@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Operation.h"
@@ -71,7 +70,7 @@ static void updateReturnOps(FuncOp func,
     }
     OpBuilder builder(op);
     for (auto t : llvm::zip(copyIntoOutParams, appendedEntryArgs))
-      builder.create<linalg::CopyOp>(op.getLoc(), std::get<0>(t),
+      builder.create<memref::CopyOp>(op.getLoc(), std::get<0>(t),
                                      std::get<1>(t));
     builder.create<ReturnOp>(op.getLoc(), keepAsReturnOperands);
     op.erase();
@@ -110,7 +109,7 @@ static LogicalResult updateCalls(ModuleOp module) {
     newOperands.append(outParams.begin(), outParams.end());
     auto newResultTypes = llvm::to_vector<6>(llvm::map_range(
         replaceWithNewCallResults, [](Value v) { return v.getType(); }));
-    auto newCall = builder.create<CallOp>(op.getLoc(), op.calleeAttr(),
+    auto newCall = builder.create<CallOp>(op.getLoc(), op.getCalleeAttr(),
                                           newResultTypes, newOperands);
     for (auto t : llvm::zip(replaceWithNewCallResults, newCall.getResults()))
       std::get<0>(t).replaceAllUsesWith(std::get<1>(t));

@@ -30,6 +30,7 @@ static void inititializeRuntime(bool IsSPMD) {
 
 /// Simple generic state machine for worker threads.
 static void genericStateMachine(IdentTy *Ident) {
+  FunctionTracingRAII();
 
   uint32_t TId = mapping::getThreadIdInBlock();
 
@@ -64,11 +65,13 @@ extern "C" {
 ///
 /// \param Ident               Source location identification, can be NULL.
 ///
-int32_t __kmpc_target_init(IdentTy *Ident, bool IsSPMD,
+int32_t __kmpc_target_init(IdentTy *Ident, int8_t Mode,
                            bool UseGenericStateMachine, bool) {
+  FunctionTracingRAII();
+  const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
   if (IsSPMD) {
     inititializeRuntime(/* IsSPMD */ true);
-    synchronize::threads();
+    synchronize::threadsAligned();
   } else {
     inititializeRuntime(/* IsSPMD */ false);
     // No need to wait since only the main threads will execute user
@@ -80,7 +83,7 @@ int32_t __kmpc_target_init(IdentTy *Ident, bool IsSPMD,
     return -1;
   }
 
-  if (mapping::isMainThreadInGenericMode())
+  if (mapping::isMainThreadInGenericMode(IsSPMD))
     return -1;
 
   if (UseGenericStateMachine)
@@ -96,7 +99,9 @@ int32_t __kmpc_target_init(IdentTy *Ident, bool IsSPMD,
 ///
 /// \param Ident Source location identification, can be NULL.
 ///
-void __kmpc_target_deinit(IdentTy *Ident, bool IsSPMD, bool) {
+void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode, bool) {
+  FunctionTracingRAII();
+  const bool IsSPMD = Mode & OMP_TGT_EXEC_MODE_SPMD;
   state::assumeInitialState(IsSPMD);
   if (IsSPMD)
     return;
@@ -105,7 +110,10 @@ void __kmpc_target_deinit(IdentTy *Ident, bool IsSPMD, bool) {
   state::ParallelRegionFn = nullptr;
 }
 
-int8_t __kmpc_is_spmd_exec_mode() { return mapping::isSPMDMode(); }
+int8_t __kmpc_is_spmd_exec_mode() {
+  FunctionTracingRAII();
+  return mapping::isSPMDMode();
+}
 }
 
 #pragma omp end declare target

@@ -291,6 +291,10 @@ public:
   /// nest would extend.
   SmallVector<llvm::CanonicalLoopInfo *, 4> OMPLoopNestStack;
 
+  /// Number of nested loop to be consumed by the last surrounding
+  /// loop-associated directive.
+  int ExpectedOMPLoopDepth = 0;
+
   // CodeGen lambda for loops and support for ordered clause
   typedef llvm::function_ref<void(CodeGenFunction &, const OMPLoopDirective &,
                                   JumpDest)>
@@ -1775,6 +1779,24 @@ public:
         CGF.Builder.CreateBr(&FiniBB);
     }
 
+    static void EmitCaptureStmt(CodeGenFunction &CGF, InsertPointTy CodeGenIP,
+                                llvm::BasicBlock &FiniBB, llvm::Function *Fn,
+                                ArrayRef<llvm::Value *> Args) {
+      llvm::BasicBlock *CodeGenIPBB = CodeGenIP.getBlock();
+      if (llvm::Instruction *CodeGenIPBBTI = CodeGenIPBB->getTerminator())
+        CodeGenIPBBTI->eraseFromParent();
+
+      CGF.Builder.SetInsertPoint(CodeGenIPBB);
+
+      if (Fn->doesNotThrow())
+        CGF.EmitNounwindRuntimeCall(Fn, Args);
+      else
+        CGF.EmitRuntimeCall(Fn, Args);
+
+      if (CGF.Builder.saveIP().isSet())
+        CGF.Builder.CreateBr(&FiniBB);
+    }
+
     /// RAII for preserving necessary info during Outlined region body codegen.
     class OutlinedRegionBodyRAII {
 
@@ -2522,15 +2544,6 @@ public:
   /// properly ABI-aligned value.
   Address CreateDefaultAlignTempAlloca(llvm::Type *Ty,
                                        const Twine &Name = "tmp");
-
-  /// InitTempAlloca - Provide an initial value for the given alloca which
-  /// will be observable at all locations in the function.
-  ///
-  /// The address should be something that was returned from one of
-  /// the CreateTempAlloca or CreateMemTemp routines, and the
-  /// initializer must be valid in the entry block (i.e. it must
-  /// either be a constant or an argument value).
-  void InitTempAlloca(Address Alloca, llvm::Value *Value);
 
   /// CreateIRTemp - Create a temporary IR object of the given type, with
   /// appropriate alignment. This routine should only be used when an temporary
@@ -3442,6 +3455,7 @@ public:
                                        const RegionCodeGenTy &BodyGen,
                                        OMPTargetDataInfo &InputInfo);
 
+  void EmitOMPMetaDirective(const OMPMetaDirective &S);
   void EmitOMPParallelDirective(const OMPParallelDirective &S);
   void EmitOMPSimdDirective(const OMPSimdDirective &S);
   void EmitOMPTileDirective(const OMPTileDirective &S);
@@ -3515,6 +3529,7 @@ public:
       const OMPTargetTeamsDistributeParallelForSimdDirective &S);
   void EmitOMPTargetTeamsDistributeSimdDirective(
       const OMPTargetTeamsDistributeSimdDirective &S);
+  void EmitOMPGenericLoopDirective(const OMPGenericLoopDirective &S);
 
   /// Emit device code for the target directive.
   static void EmitOMPTargetDeviceFunction(CodeGenModule &CGM,

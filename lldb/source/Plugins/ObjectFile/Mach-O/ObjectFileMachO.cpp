@@ -21,7 +21,6 @@
 #include "lldb/Core/Section.h"
 #include "lldb/Core/StreamFile.h"
 #include "lldb/Host/Host.h"
-#include "lldb/Host/SafeMachO.h"
 #include "lldb/Symbol/DWARFCallFrameInfo.h"
 #include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
@@ -44,6 +43,8 @@
 #include "lldb/Utility/Timer.h"
 #include "lldb/Utility/UUID.h"
 
+#include "lldb/Host/SafeMachO.h"
+
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -65,48 +66,65 @@
 #include <bitset>
 #include <memory>
 
-#if LLVM_SUPPORT_XCODE_SIGNPOSTS
 // Unfortunately the signpost header pulls in the system MachO header, too.
+#ifdef CPU_TYPE_ARM
 #undef CPU_TYPE_ARM
+#endif
+#ifdef CPU_TYPE_ARM64
 #undef CPU_TYPE_ARM64
+#endif
+#ifdef CPU_TYPE_ARM64_32
 #undef CPU_TYPE_ARM64_32
+#endif
+#ifdef CPU_TYPE_I386
 #undef CPU_TYPE_I386
+#endif
+#ifdef CPU_TYPE_X86_64
 #undef CPU_TYPE_X86_64
-#undef MH_BINDATLOAD
-#undef MH_BUNDLE
-#undef MH_CIGAM
-#undef MH_CIGAM_64
-#undef MH_CORE
-#undef MH_DSYM
-#undef MH_DYLDLINK
-#undef MH_DYLIB
-#undef MH_DYLIB_STUB
+#endif
+#ifdef MH_DYLINKER
 #undef MH_DYLINKER
-#undef MH_DYLINKER
-#undef MH_EXECUTE
-#undef MH_FVMLIB
-#undef MH_INCRLINK
-#undef MH_KEXT_BUNDLE
-#undef MH_MAGIC
-#undef MH_MAGIC_64
-#undef MH_NOUNDEFS
+#endif
+#ifdef MH_OBJECT
 #undef MH_OBJECT
-#undef MH_OBJECT
-#undef MH_PRELOAD
-
-#undef LC_BUILD_VERSION
+#endif
+#ifdef LC_VERSION_MIN_MACOSX
 #undef LC_VERSION_MIN_MACOSX
+#endif
+#ifdef LC_VERSION_MIN_IPHONEOS
 #undef LC_VERSION_MIN_IPHONEOS
+#endif
+#ifdef LC_VERSION_MIN_TVOS
 #undef LC_VERSION_MIN_TVOS
+#endif
+#ifdef LC_VERSION_MIN_WATCHOS
 #undef LC_VERSION_MIN_WATCHOS
-
+#endif
+#ifdef LC_BUILD_VERSION
+#undef LC_BUILD_VERSION
+#endif
+#ifdef PLATFORM_MACOS
 #undef PLATFORM_MACOS
+#endif
+#ifdef PLATFORM_MACCATALYST
 #undef PLATFORM_MACCATALYST
+#endif
+#ifdef PLATFORM_IOS
 #undef PLATFORM_IOS
+#endif
+#ifdef PLATFORM_IOSSIMULATOR
 #undef PLATFORM_IOSSIMULATOR
+#endif
+#ifdef PLATFORM_TVOS
 #undef PLATFORM_TVOS
+#endif
+#ifdef PLATFORM_TVOSSIMULATOR
 #undef PLATFORM_TVOSSIMULATOR
+#endif
+#ifdef PLATFORM_WATCHOS
 #undef PLATFORM_WATCHOS
+#endif
+#ifdef PLATFORM_WATCHOSSIMULATOR
 #undef PLATFORM_WATCHOSSIMULATOR
 #endif
 
@@ -745,13 +763,14 @@ public:
       PrintRegisterValue(reg_ctx, "sp", nullptr, 8, data);
       PrintRegisterValue(reg_ctx, "pc", nullptr, 8, data);
       PrintRegisterValue(reg_ctx, "cpsr", nullptr, 4, data);
+      data.PutHex32(0); // uint32_t pad at the end
 
       // Write out the EXC registers
-      //            data.PutHex32 (EXCRegSet);
-      //            data.PutHex32 (EXCWordCount);
-      //            WriteRegister (reg_ctx, "far", NULL, 8, data);
-      //            WriteRegister (reg_ctx, "esr", NULL, 4, data);
-      //            WriteRegister (reg_ctx, "exception", NULL, 4, data);
+      data.PutHex32(EXCRegSet);
+      data.PutHex32(EXCWordCount);
+      PrintRegisterValue(reg_ctx, "far", NULL, 8, data);
+      PrintRegisterValue(reg_ctx, "esr", NULL, 4, data);
+      PrintRegisterValue(reg_ctx, "exception", NULL, 4, data);
       return true;
     }
     return false;
@@ -812,15 +831,6 @@ void ObjectFileMachO::Initialize() {
 
 void ObjectFileMachO::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-lldb_private::ConstString ObjectFileMachO::GetPluginNameStatic() {
-  static ConstString g_name("mach-o");
-  return g_name;
-}
-
-const char *ObjectFileMachO::GetPluginDescriptionStatic() {
-  return "Mach-o object file reader (32 and 64 bit)";
 }
 
 ObjectFile *ObjectFileMachO::CreateInstance(const lldb::ModuleSP &module_sp,
@@ -1306,6 +1316,7 @@ Symtab *ObjectFileMachO::GetSymtab() {
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
     if (m_symtab_up == nullptr) {
+      ElapsedTime elapsed(module_sp->GetSymtabParseTime());
       m_symtab_up = std::make_unique<Symtab>(this);
       std::lock_guard<std::recursive_mutex> symtab_guard(
           m_symtab_up->GetMutex());
@@ -4996,10 +5007,14 @@ struct OSEnv {
     case llvm::MachO::PLATFORM_WATCHOS:
       os_type = llvm::Triple::getOSTypeName(llvm::Triple::WatchOS);
       return;
-      // NEED_BRIDGEOS_TRIPLE      case llvm::MachO::PLATFORM_BRIDGEOS:
-      // NEED_BRIDGEOS_TRIPLE        os_type =
-      // llvm::Triple::getOSTypeName(llvm::Triple::BridgeOS);
-      // NEED_BRIDGEOS_TRIPLE        return;
+    // TODO: add BridgeOS & DriverKit once in llvm/lib/Support/Triple.cpp
+    // NEED_BRIDGEOS_TRIPLE
+    // case llvm::MachO::PLATFORM_BRIDGEOS:
+    //   os_type = llvm::Triple::getOSTypeName(llvm::Triple::BridgeOS);
+    //   return;
+    // case llvm::MachO::PLATFORM_DRIVERKIT:
+    //   os_type = llvm::Triple::getOSTypeName(llvm::Triple::DriverKit);
+    //   return;
     case llvm::MachO::PLATFORM_MACCATALYST:
       os_type = llvm::Triple::getOSTypeName(llvm::Triple::IOS);
       environment = llvm::Triple::getEnvironmentTypeName(llvm::Triple::MacABI);
@@ -6168,13 +6183,6 @@ bool ObjectFileMachO::AllowAssemblyEmulationUnwindPlans() {
   return m_allow_assembly_emulation_unwind_plans;
 }
 
-// PluginInterface protocol
-lldb_private::ConstString ObjectFileMachO::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t ObjectFileMachO::GetPluginVersion() { return 1; }
-
 Section *ObjectFileMachO::GetMachHeaderSection() {
   // Find the first address of the mach header which is the first non-zero file
   // sized section whose file offset is zero. This is the base file address of
@@ -7035,12 +7043,8 @@ bool ObjectFileMachO::LoadCoreFileImages(lldb_private::Process &process) {
                                                    image.load_address);
         }
       }
-      if (module_sp.get() && module_sp->GetObjectFile()) {
+      if (module_sp.get()) {
         added_images = true;
-        if (module_sp->GetObjectFile()->GetType() ==
-            ObjectFile::eTypeExecutable) {
-          process.GetTarget().SetExecutableModule(module_sp, eLoadDependentsNo);
-        }
         for (auto name_vmaddr_tuple : image.segment_load_addresses) {
           SectionList *sectlist = module_sp->GetObjectFile()->GetSectionList();
           if (sectlist) {

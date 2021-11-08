@@ -58,17 +58,28 @@ if(compiler_rt_path)
   endif()
 endif()
 
+# If building standalone by pointing CMake at this runtimes directory,
+# LLVM_BINARY_DIR isn't set, find_package(LLVM) will fail and these
+# intermediate paths are unset.
+if (NOT LLVM_BINARY_DIR)
+  set(LLVM_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+endif()
+if (NOT LLVM_FOUND)
+  set(LLVM_TOOLS_BINARY_DIR ${LLVM_BINARY_DIR}/bin)
+  set(LLVM_LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib)
+endif()
+
 # Setting these variables will allow the sub-build to put their outputs into
 # the library and bin directories of the top-level build.
 set(LLVM_LIBRARY_OUTPUT_INTDIR ${LLVM_LIBRARY_DIR})
 set(LLVM_RUNTIME_OUTPUT_INTDIR ${LLVM_TOOLS_BINARY_DIR})
 
 # This variable makes sure that e.g. llvm-lit is found.
-set(LLVM_MAIN_SRC_DIR ${LLVM_BUILD_MAIN_SRC_DIR})
-set(LLVM_CMAKE_PATH ${LLVM_MAIN_SRC_DIR}/cmake/modules)
+set(LLVM_MAIN_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../llvm)
+set(LLVM_CMAKE_DIR ${LLVM_MAIN_SRC_DIR}/cmake/modules)
 
 # This variable is used by individual runtimes to locate LLVM files.
-set(LLVM_PATH ${LLVM_BUILD_MAIN_SRC_DIR})
+set(LLVM_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../llvm)
 
 if(APPLE)
   set(LLVM_ENABLE_LIBCXX ON CACHE BOOL "")
@@ -76,12 +87,19 @@ endif()
 
 include(CheckLibraryExists)
 include(CheckCCompilerFlag)
+include(CheckCXXCompilerFlag)
 
-# Disable use of the installed C++ standard library when building runtimes. If
-# MSVC is true, we must be using the clang-cl driver, which doesn't understand
-# these flags.
-if (NOT MSVC)
-  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdinc++ -nostdlib++")
+# Disable use of the installed C++ standard library when building runtimes.
+# Check for -nostdlib++ first; if there's no C++ standard library yet,
+# all check_cxx_compiler_flag commands will fail until we add -nostdlib++
+# (or -nodefaultlibs).
+check_c_compiler_flag(-nostdlib++ LLVM_RUNTIMES_SUPPORT_NOSTDLIBXX_FLAG)
+if (LLVM_RUNTIMES_SUPPORT_NOSTDLIBXX_FLAG)
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdlib++")
+endif()
+check_cxx_compiler_flag(-nostdinc++ LLVM_RUNTIMES_SUPPORT_NOSTDINCXX_FLAG)
+if (LLVM_RUNTIMES_SUPPORT_NOSTDINCXX_FLAG)
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -nostdinc++")
 endif()
 
 # Avoid checking whether the compiler is working.
@@ -92,6 +110,15 @@ include(AddLLVM)
 include(HandleLLVMOptions)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+if (NOT LLVM_DEFAULT_TARGET_TRIPLE)
+  include(GetHostTriple)
+  get_host_triple(LLVM_DEFAULT_TARGET_TRIPLE)
+endif()
+
+option(LLVM_INCLUDE_TESTS "Generate build targets for the runtimes unit tests." ON)
+option(LLVM_INCLUDE_DOCS "Generate build targets for the runtimes documentation." ON)
+option(LLVM_ENABLE_SPHINX "Use Sphinx to generate the runtimes documentation." OFF)
 
 # Use libtool instead of ar if you are both on an Apple host, and targeting Apple.
 if(CMAKE_HOST_APPLE AND APPLE)
@@ -125,6 +152,14 @@ foreach(entry ${runtimes})
   set(HAVE_${canon_name} ON)
 endforeach()
 
+if(LLVM_INCLUDE_TESTS)
+  set(LIT_ARGS_DEFAULT "-sv --show-xfail --show-unsupported")
+  if (MSVC OR XCODE)
+    set(LIT_ARGS_DEFAULT "${LIT_ARGS_DEFAULT} --no-progress-bar")
+  endif()
+  set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
+endif()
+
 # We do this in two loops so that HAVE_* is set for each runtime before the
 # other runtimes are added.
 foreach(entry ${runtimes})
@@ -152,7 +187,6 @@ endforeach()
 if(LLVM_INCLUDE_TESTS)
   # Add a global check rule now that all subdirectories have been traversed
   # and we know the total set of lit testsuites.
-
   add_lit_target(check-runtimes
     "Running all regression tests"
     ${RUNTIMES_LIT_TESTSUITES}
@@ -161,6 +195,14 @@ if(LLVM_INCLUDE_TESTS)
     ARGS ${RUNTIMES_LIT_EXTRA_ARGS}
     )
   add_custom_target(runtimes-test-depends DEPENDS ${RUNTIMES_LIT_DEPENDS})
+
+  if (NOT HAVE_LLVM_LIT)
+    # If built by manually invoking cmake on this directory, we don't have
+    # llvm-lit. If invoked via llvm/runtimes, the toplevel llvm cmake
+    # invocation already generated the llvm-lit script.
+    add_subdirectory(${LLVM_MAIN_SRC_DIR}/utils/llvm-lit
+                     ${CMAKE_CURRENT_BINARY_DIR}/llvm-lit)
+  endif()
 endif()
 
 get_property(SUB_COMPONENTS GLOBAL PROPERTY SUB_COMPONENTS)

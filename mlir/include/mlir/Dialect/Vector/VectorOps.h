@@ -40,6 +40,18 @@ namespace detail {
 struct BitmaskEnumStorage;
 } // namespace detail
 
+/// Return whether `srcType` can be broadcast to `dstVectorType` under the
+/// semantics of the `vector.broadcast` op.
+enum class BroadcastableToResult {
+  Success = 0,
+  SourceRankHigher = 1,
+  DimensionMismatch = 2,
+  SourceTypeNotAVector = 3
+};
+BroadcastableToResult
+isBroadcastableTo(Type srcType, VectorType dstVectorType,
+                  std::pair<int, int> *mismatchingDims = nullptr);
+
 /// Collect a set of vector-to-vector canonicalization patterns.
 void populateVectorToVectorCanonicalizationPatterns(
     RewritePatternSet &patterns);
@@ -69,20 +81,9 @@ void populateVectorTransferLoweringPatterns(
     RewritePatternSet &patterns,
     llvm::Optional<unsigned> maxTransferRank = llvm::None);
 
-/// Collect a set of transfer read/write lowering patterns that simplify the
-/// permutation map (e.g., converting it to a minor identity map) by inserting
-/// broadcasts and transposes.
-void populateVectorTransferPermutationMapLoweringPatterns(
-    RewritePatternSet &patterns);
-
 /// These patterns materialize masks for various vector ops such as transfers.
 void populateVectorMaskMaterializationPatterns(RewritePatternSet &patterns,
-                                               bool enableIndexOptimizations);
-
-// Collect a set of patterns to convert vector.multi_reduction op into
-// a sequence of vector.reduction ops.
-void populateVectorMultiReductionLoweringPatterns(
-    RewritePatternSet &patterns, bool useInnerDimsForReduction = false);
+                                               bool indexOptimizations);
 
 /// Collect a set of patterns to propagate insert_map/extract_map in the ssa
 /// chain.
@@ -104,78 +105,18 @@ public:
   static Attribute parse(DialectAsmParser &parser);
 };
 
-/// Enum to control the lowering of `vector.contract` operations.
-enum class VectorContractLowering {
-  /// Progressively lower to finer grained `vector.contract` and dot-products.
-  Dot = 0,
-  /// Lower to `vector.matrix_multiply`, maps 1-1 to LLVM matrix intrinsics.
-  Matmul = 1,
-  /// Lower to `vector.outerproduct`.
-  OuterProduct = 2,
-};
-/// Enum to control the lowering of `vector.transpose` operations.
-enum class VectorTransposeLowering {
-  /// Lower transpose into element-wise extract and inserts.
-  EltWise = 0,
-  /// Lower 2-D transpose to `vector.flat_transpose`, maps 1-1 to LLVM matrix
-  /// intrinsics.
-  Flat = 1,
-};
-/// Enum to control the splitting of `vector.transfer` operations into
-/// in-bounds and out-of-bounds variants.
-enum class VectorTransferSplit {
-  /// Do not split vector transfer operations.
-  None = 0,
-  /// Split using in-bounds + out-of-bounds vector.transfer operations.
-  VectorTransfer = 1,
-  /// Split using an in-bounds vector.transfer + linalg.fill + linalg.copy
-  /// operations.
-  LinalgCopy = 2,
-  /// Do not split vector transfer operation but instead mark it as "in-bounds".
-  ForceInBounds = 3
-};
-/// Structure to control the behavior of vector transform patterns.
-struct VectorTransformsOptions {
-  /// Option to control the lowering of vector.contract.
-  VectorContractLowering vectorContractLowering = VectorContractLowering::Dot;
-  VectorTransformsOptions &
-  setVectorTransformsOptions(VectorContractLowering opt) {
-    vectorContractLowering = opt;
-    return *this;
-  }
-  /// Option to control the lowering of vector.transpose.
-  VectorTransposeLowering vectorTransposeLowering =
-      VectorTransposeLowering::EltWise;
-  VectorTransformsOptions &
-  setVectorTransposeLowering(VectorTransposeLowering opt) {
-    vectorTransposeLowering = opt;
-    return *this;
-  }
-  /// Option to control the splitting of vector transfers.
-  VectorTransferSplit vectorTransferSplit = VectorTransferSplit::None;
-  VectorTransformsOptions &setVectorTransferSplit(VectorTransferSplit opt) {
-    vectorTransferSplit = opt;
-    return *this;
-  }
-};
+/// Collects patterns to progressively lower vector.broadcast ops on high-D
+/// vectors to low-D vector ops.
+void populateVectorBroadcastLoweringPatterns(RewritePatternSet &patterns);
 
-/// Collect a set of transformation patterns that are related to contracting
-/// or expanding vector operations:
-///   ContractionOpLowering,
-///   ShapeCastOp2DDownCastRewritePattern,
-///   ShapeCastOp2DUpCastRewritePattern
-///   BroadcastOpLowering,
-///   OuterproductOpLowering
-/// These transformation express higher level vector ops in terms of more
-/// elementary extraction, insertion, reduction, product, and broadcast ops.
-void populateVectorContractLoweringPatterns(
-    RewritePatternSet &patterns,
-    VectorTransformsOptions vectorTransformOptions = VectorTransformsOptions());
+/// Collects patterns to progressively lower vector mask ops into elementary
+/// selection and insertion ops.
+void populateVectorMaskOpLoweringPatterns(RewritePatternSet &patterns);
 
-/// Insert TransposeLowering patterns into extraction/insertion.
-void populateVectorTransposeLoweringPatterns(
-    RewritePatternSet &patterns,
-    VectorTransformsOptions vectorTransformOptions = VectorTransformsOptions());
+/// Collects patterns to progressively lower vector.shape_cast ops on high-D
+/// vectors into 1-D/2-D vector ops by generating data movement extract/insert
+/// ops.
+void populateVectorShapeCastLoweringPatterns(RewritePatternSet &patterns);
 
 /// Returns the integer type required for subscripts in the vector dialect.
 IntegerType getVectorSubscriptType(Builder &builder);
