@@ -171,6 +171,21 @@
 
 /// ###########################################################################
 
+/// Check -Xsycl-target-frontend= accepts triple aliases
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64 -Xsycl-target-frontend=spir64 -DFOO %s 2>&1 \
+// RUN:   | FileCheck -DARCH=spir64 -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_x86_64 -Xsycl-target-frontend=spir64_x86_64 -DFOO %s 2>&1 \
+// RUN:   | FileCheck -DARCH=spir64_x86_64 -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_gen -Xsycl-target-frontend=spir64_gen -DFOO %s 2>&1 \
+// RUN:   | FileCheck -DARCH=spir64_gen -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga -Xsycl-target-frontend=spir64_fpga -DFOO %s 2>&1 \
+// RUN:   | FileCheck -DARCH=spir64_fpga -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
+// CHK-UNUSED-ARG-WARNING-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
+// CHK-TARGET: clang{{.*}} "-cc1" "-triple" "[[ARCH]]-unknown-unknown"{{.*}} "-D" "FOO"
+// CHK-TARGET: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-[[ARCH]]-unknown-unknown"
+
+/// ###########################################################################
+
 /// Check the phases graph when using a single target, different from the host.
 /// We should have an offload action joining the host compile and device
 /// preprocessor and another one joining the device linking outputs to the host
@@ -1103,3 +1118,9 @@
 // RUN:   %clang -### -fsycl -ffreestanding %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s
 // CHK-INCOMPATIBILITY: error: The option -fsycl conflicts with -ffreestanding
+
+/// Using -fsyntax-only with -fsycl should not emit IR
+// RUN:   %clang -### -fsycl -fsyntax-only %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY,CHK-NO-EMIT-IR %s
+// CHK-FSYNTAX-ONLY: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsyntax-only"
+// CHK-NO-EMIT-IR-NOT: "-emit-llvm-bc"
