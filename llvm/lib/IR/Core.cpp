@@ -2844,7 +2844,7 @@ unsigned LLVMGetNumArgOperands(LLVMValueRef Instr) {
   if (FuncletPadInst *FPI = dyn_cast<FuncletPadInst>(unwrap(Instr))) {
     return FPI->getNumArgOperands();
   }
-  return unwrap<CallBase>(Instr)->getNumArgOperands();
+  return unwrap<CallBase>(Instr)->arg_size();
 }
 
 /*--.. Call and invoke instructions ........................................--*/
@@ -3131,6 +3131,10 @@ LLVMValueRef LLVMGetCurrentDebugLocation(LLVMBuilderRef Builder) {
 
 void LLVMSetInstDebugLocation(LLVMBuilderRef Builder, LLVMValueRef Inst) {
   unwrap(Builder)->SetInstDebugLocation(unwrap<Instruction>(Inst));
+}
+
+void LLVMAddMetadataToInst(LLVMBuilderRef Builder, LLVMValueRef Inst) {
+  unwrap(Builder)->AddMetadataToInst(unwrap<Instruction>(Inst));
 }
 
 void LLVMBuilderSetDefaultFPMathTag(LLVMBuilderRef Builder,

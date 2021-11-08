@@ -889,32 +889,37 @@ bool llvm::hasIterationCountInvariantInParent(Loop *InnerLoop,
   return true;
 }
 
-Value *llvm::createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
-                            Value *Right) {
-  CmpInst::Predicate Pred;
+CmpInst::Predicate llvm::getMinMaxReductionPredicate(RecurKind RK) {
   switch (RK) {
   default:
     llvm_unreachable("Unknown min/max recurrence kind");
   case RecurKind::UMin:
-    Pred = CmpInst::ICMP_ULT;
-    break;
+    return CmpInst::ICMP_ULT;
   case RecurKind::UMax:
-    Pred = CmpInst::ICMP_UGT;
-    break;
+    return CmpInst::ICMP_UGT;
   case RecurKind::SMin:
-    Pred = CmpInst::ICMP_SLT;
-    break;
+    return CmpInst::ICMP_SLT;
   case RecurKind::SMax:
-    Pred = CmpInst::ICMP_SGT;
-    break;
+    return CmpInst::ICMP_SGT;
   case RecurKind::FMin:
-    Pred = CmpInst::FCMP_OLT;
-    break;
+    return CmpInst::FCMP_OLT;
   case RecurKind::FMax:
-    Pred = CmpInst::FCMP_OGT;
-    break;
+    return CmpInst::FCMP_OGT;
   }
+}
 
+Value *llvm::createSelectCmpOp(IRBuilderBase &Builder, Value *StartVal,
+                               RecurKind RK, Value *Left, Value *Right) {
+  if (auto VTy = dyn_cast<VectorType>(Left->getType()))
+    StartVal = Builder.CreateVectorSplat(VTy->getElementCount(), StartVal);
+  Value *Cmp =
+      Builder.CreateCmp(CmpInst::ICMP_NE, Left, StartVal, "rdx.select.cmp");
+  return Builder.CreateSelect(Cmp, Left, Right, "rdx.select");
+}
+
+Value *llvm::createMinMaxOp(IRBuilderBase &Builder, RecurKind RK, Value *Left,
+                            Value *Right) {
+  CmpInst::Predicate Pred = getMinMaxReductionPredicate(RK);
   Value *Cmp = Builder.CreateCmp(Pred, Left, Right, "rdx.minmax.cmp");
   Value *Select = Builder.CreateSelect(Cmp, Left, Right, "rdx.minmax.select");
   return Select;
@@ -992,6 +997,46 @@ Value *llvm::getShuffleReduction(IRBuilderBase &Builder, Value *Src,
   return Builder.CreateExtractElement(TmpVec, Builder.getInt32(0));
 }
 
+Value *llvm::createSelectCmpTargetReduction(IRBuilderBase &Builder,
+                                            const TargetTransformInfo *TTI,
+                                            Value *Src,
+                                            const RecurrenceDescriptor &Desc,
+                                            PHINode *OrigPhi) {
+  assert(RecurrenceDescriptor::isSelectCmpRecurrenceKind(
+             Desc.getRecurrenceKind()) &&
+         "Unexpected reduction kind");
+  Value *InitVal = Desc.getRecurrenceStartValue();
+  Value *NewVal = nullptr;
+
+  // First use the original phi to determine the new value we're trying to
+  // select from in the loop.
+  SelectInst *SI = nullptr;
+  for (auto *U : OrigPhi->users()) {
+    if ((SI = dyn_cast<SelectInst>(U)))
+      break;
+  }
+  assert(SI && "One user of the original phi should be a select");
+
+  if (SI->getTrueValue() == OrigPhi)
+    NewVal = SI->getFalseValue();
+  else {
+    assert(SI->getFalseValue() == OrigPhi &&
+           "At least one input to the select should be the original Phi");
+    NewVal = SI->getTrueValue();
+  }
+
+  // Create a splat vector with the new value and compare this to the vector
+  // we want to reduce.
+  ElementCount EC = cast<VectorType>(Src->getType())->getElementCount();
+  Value *Right = Builder.CreateVectorSplat(EC, InitVal);
+  Value *Cmp =
+      Builder.CreateCmp(CmpInst::ICMP_NE, Src, Right, "rdx.select.cmp");
+
+  // If any predicate is true it means that we want to select the new value.
+  Cmp = Builder.CreateOrReduce(Cmp);
+  return Builder.CreateSelect(Cmp, NewVal, InitVal, "rdx.select");
+}
+
 Value *llvm::createSimpleTargetReduction(IRBuilderBase &Builder,
                                          const TargetTransformInfo *TTI,
                                          Value *Src, RecurKind RdxKind,
@@ -1032,14 +1077,19 @@ Value *llvm::createSimpleTargetReduction(IRBuilderBase &Builder,
 
 Value *llvm::createTargetReduction(IRBuilderBase &B,
                                    const TargetTransformInfo *TTI,
-                                   const RecurrenceDescriptor &Desc,
-                                   Value *Src) {
+                                   const RecurrenceDescriptor &Desc, Value *Src,
+                                   PHINode *OrigPhi) {
   // TODO: Support in-order reductions based on the recurrence descriptor.
   // All ops in the reduction inherit fast-math-flags from the recurrence
   // descriptor.
   IRBuilderBase::FastMathFlagGuard FMFGuard(B);
   B.setFastMathFlags(Desc.getFastMathFlags());
-  return createSimpleTargetReduction(B, TTI, Src, Desc.getRecurrenceKind());
+
+  RecurKind RK = Desc.getRecurrenceKind();
+  if (RecurrenceDescriptor::isSelectCmpRecurrenceKind(RK))
+    return createSelectCmpTargetReduction(B, TTI, Src, Desc, OrigPhi);
+
+  return createSimpleTargetReduction(B, TTI, Src, RK);
 }
 
 Value *llvm::createOrderedReduction(IRBuilderBase &B,
@@ -1239,13 +1289,6 @@ int llvm::rewriteLoopExitValues(Loop *L, LoopInfo *LI, TargetLibraryInfo *TLI,
       if (!SE->isSCEVable(PN->getType()))
         continue;
 
-      // It's necessary to tell ScalarEvolution about this explicitly so that
-      // it can walk the def-use list and forget all SCEVs, as it may not be
-      // watching the PHI itself. Once the new exit value is in place, there
-      // may not be a def-use connection between the loop and every instruction
-      // which got a SCEVAddRecExpr for that loop.
-      SE->forgetValue(PN);
-
       // Iterate over all of the values in all the PHI nodes.
       for (unsigned i = 0; i != NumPreds; ++i) {
         // If the value being merged in is not integer or is not defined
@@ -1351,6 +1394,12 @@ int llvm::rewriteLoopExitValues(Loop *L, LoopInfo *LI, TargetLibraryInfo *TLI,
     NumReplaced++;
     Instruction *Inst = cast<Instruction>(PN->getIncomingValue(Phi.Ith));
     PN->setIncomingValue(Phi.Ith, ExitVal);
+    // It's necessary to tell ScalarEvolution about this explicitly so that
+    // it can walk the def-use list and forget all SCEVs, as it may not be
+    // watching the PHI itself. Once the new exit value is in place, there
+    // may not be a def-use connection between the loop and every instruction
+    // which got a SCEVAddRecExpr for that loop.
+    SE->forgetValue(PN);
 
     // If this instruction is dead now, delete it. Don't do it now to avoid
     // invalidating iterators.
@@ -1511,7 +1560,7 @@ expandBounds(const SmallVectorImpl<RuntimePointerCheck> &PointerChecks, Loop *L,
   return ChecksWithBounds;
 }
 
-std::pair<Instruction *, Instruction *> llvm::addRuntimeChecks(
+Value *llvm::addRuntimeChecks(
     Instruction *Loc, Loop *TheLoop,
     const SmallVectorImpl<RuntimePointerCheck> &PointerChecks,
     SCEVExpander &Exp) {
@@ -1520,21 +1569,9 @@ std::pair<Instruction *, Instruction *> llvm::addRuntimeChecks(
   auto ExpandedChecks = expandBounds(PointerChecks, TheLoop, Loc, Exp);
 
   LLVMContext &Ctx = Loc->getContext();
-  Instruction *FirstInst = nullptr;
   IRBuilder<> ChkBuilder(Loc);
   // Our instructions might fold to a constant.
   Value *MemoryRuntimeCheck = nullptr;
-
-  // FIXME: this helper is currently a duplicate of the one in
-  // LoopVectorize.cpp.
-  auto GetFirstInst = [](Instruction *FirstInst, Value *V,
-                         Instruction *Loc) -> Instruction * {
-    if (FirstInst)
-      return FirstInst;
-    if (Instruction *I = dyn_cast<Instruction>(V))
-      return I->getParent() == Loc->getParent() ? I : nullptr;
-    return nullptr;
-  };
 
   for (const auto &Check : ExpandedChecks) {
     const PointerBounds &A = Check.first, &B = Check.second;
@@ -1564,30 +1601,16 @@ std::pair<Instruction *, Instruction *> llvm::addRuntimeChecks(
     // bound1 = (A.Start < B.End)
     //  IsConflict = bound0 & bound1
     Value *Cmp0 = ChkBuilder.CreateICmpULT(Start0, End1, "bound0");
-    FirstInst = GetFirstInst(FirstInst, Cmp0, Loc);
     Value *Cmp1 = ChkBuilder.CreateICmpULT(Start1, End0, "bound1");
-    FirstInst = GetFirstInst(FirstInst, Cmp1, Loc);
     Value *IsConflict = ChkBuilder.CreateAnd(Cmp0, Cmp1, "found.conflict");
-    FirstInst = GetFirstInst(FirstInst, IsConflict, Loc);
     if (MemoryRuntimeCheck) {
       IsConflict =
           ChkBuilder.CreateOr(MemoryRuntimeCheck, IsConflict, "conflict.rdx");
-      FirstInst = GetFirstInst(FirstInst, IsConflict, Loc);
     }
     MemoryRuntimeCheck = IsConflict;
   }
 
-  if (!MemoryRuntimeCheck)
-    return std::make_pair(nullptr, nullptr);
-
-  // We have to do this trickery because the IRBuilder might fold the check to a
-  // constant expression in which case there is no Instruction anchored in a
-  // the block.
-  Instruction *Check =
-      BinaryOperator::CreateAnd(MemoryRuntimeCheck, ConstantInt::getTrue(Ctx));
-  ChkBuilder.Insert(Check, "memcheck.conflict");
-  FirstInst = GetFirstInst(FirstInst, Check, Loc);
-  return std::make_pair(FirstInst, Check);
+  return MemoryRuntimeCheck;
 }
 
 Optional<IVConditionInfo> llvm::hasPartialIVCondition(Loop &L,

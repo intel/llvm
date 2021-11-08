@@ -109,11 +109,11 @@ public:
   uint64_t getImageBase() const;
 
   // True if _GLOBAL_OFFSET_TABLE_ is relative to .got.plt, false if .got.
-  bool gotBaseSymInGotPlt = true;
+  bool gotBaseSymInGotPlt = false;
 
+  static constexpr RelType noneRel = 0;
   RelType copyRel;
   RelType gotRel;
-  RelType noneRel;
   RelType pltRel;
   RelType relativeRel;
   RelType iRelativeRel;
@@ -188,6 +188,7 @@ template <class ELFT> TargetInfo *getMipsTargetInfo();
 struct ErrorPlace {
   InputSectionBase *isec;
   std::string loc;
+  std::string srcLoc;
 };
 
 // Returns input section and corresponding source string for the given location.

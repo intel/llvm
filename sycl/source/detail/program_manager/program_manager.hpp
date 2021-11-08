@@ -82,6 +82,29 @@ public:
                                       bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device);
+  /// Creates a PI program using either a cached device code binary if present
+  /// in the persistent cache or from the supplied device image otherwise.
+  /// \param Img The device image to find a cached device code binary for or
+  ///        create the PI program with.
+  /// \param Context The context to find or create the PI program with.
+  /// \param Device The device to find or create the PI program for.
+  /// \param CompileAndLinkOptions The compile and linking options to be used
+  ///        for building the PI program. These options must appear in the
+  ///        mentioned order. This parameter is used as a partial key in the
+  ///        cache and has no effect if no cached device code binary is found in
+  ///        the persistent cache.
+  /// \param SpecConsts Specialization constants associated with the device
+  ///        image. This parameter is used  as a partial key in the cache and
+  ///        has no effect if no cached device code binary is found in the
+  ///        persistent cache.
+  /// \return A pair consisting of the PI program created with the corresponding
+  ///         device code binary and a boolean that is true if the device code
+  ///         binary was found in the persistent cache and false otherwise.
+  std::pair<RT::PiProgram, bool>
+  getOrCreatePIProgram(const RTDeviceBinaryImage &Img, const context &Context,
+                       const device &Device,
+                       const std::string &CompileAndLinkOptions,
+                       SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M idenfies the OS module the kernel comes from (multiple OS modules

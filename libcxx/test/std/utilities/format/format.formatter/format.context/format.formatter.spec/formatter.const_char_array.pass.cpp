@@ -8,7 +8,6 @@
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
-// UNSUPPORTED: clang-11
 // TODO FMT Evaluate gcc-11 status
 // UNSUPPORTED: gcc-11
 // UNSUPPORTED: apple-clang-12
@@ -96,11 +95,27 @@ void test_array() {
 
   std::basic_string<CharT> s(CSTR("abc\0abc"), 7);
   test_helper_wrapper<"abc\0abc">(s, STR("}"));
+
+  test_helper_wrapper<"world">(STR("world"), STR("}"));
+  test_helper_wrapper<"world">(STR("world"), STR("_>}"));
+
+  test_helper_wrapper<"world">(STR("   world"), STR(">8}"));
+  test_helper_wrapper<"world">(STR("___world"), STR("_>8}"));
+  test_helper_wrapper<"world">(STR("_world__"), STR("_^8}"));
+  test_helper_wrapper<"world">(STR("world___"), STR("_<8}"));
+
+  test_helper_wrapper<"world">(STR("world"), STR(".5}"));
+  test_helper_wrapper<"universe">(STR("unive"), STR(".5}"));
+
+  test_helper_wrapper<"world">(STR("%world%"), STR("%^7.7}"));
+  test_helper_wrapper<"universe">(STR("univers"), STR("%^7.7}"));
 }
 
 int main(int, char**) {
   test_array<char>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test_array<wchar_t>();
+#endif
 
   return 0;
 }

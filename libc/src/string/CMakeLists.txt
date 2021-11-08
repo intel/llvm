@@ -5,7 +5,26 @@ add_header_library(
   HDRS
     string_utils.h
   DEPENDS
-    libc.utils.CPP.standalone_cpp
+    libc.src.__support.CPP.standalone_cpp
+)
+
+add_entrypoint_object(
+  memccpy
+  SRCS
+    memccpy.cpp
+  HDRS
+    memccpy.h
+)
+
+
+add_entrypoint_object(
+  mempcpy
+  SRCS
+    mempcpy.cpp
+  HDRS
+    mempcpy.h
+  DEPENDS
+    libc.src.string.memcpy
 )
 
 add_entrypoint_object(
@@ -86,6 +105,18 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strdup
+  SRCS
+    strdup.cpp
+  HDRS
+    strdup.h
+  DEPENDS
+    .memcpy
+    .string_utils
+    libc.include.stdlib
+)
+
+add_entrypoint_object(
   strlen
   SRCS
     strlen.cpp
@@ -93,6 +124,17 @@ add_entrypoint_object(
     strlen.h
   DEPENDS
     libc.include.string
+)
+
+add_entrypoint_object(
+  strncat
+  SRCS
+    strncat.cpp
+  HDRS
+    strncat.h
+  DEPENDS
+    .strncpy
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -146,7 +188,7 @@ add_entrypoint_object(
   HDRS
     strspn.h
   DEPENDS
-    libc.utils.CPP.standalone_cpp
+    libc.src.__support.CPP.standalone_cpp
 )
 
 add_entrypoint_object(
@@ -341,7 +383,7 @@ endif()
 
 function(add_memset memset_name)
   add_implementation(memset ${memset_name}
-    SRCS ${LIBC_SOURCE_DIR}/src/string/memset.cpp
+    SRCS ${MEMSET_SRC}
     HDRS ${LIBC_SOURCE_DIR}/src/string/memset.h
     DEPENDS
       .memory_utils.memory_utils
@@ -353,13 +395,20 @@ function(add_memset memset_name)
 endfunction()
 
 if(${LIBC_TARGET_ARCHITECTURE_IS_X86})
+  set(MEMSET_SRC ${LIBC_SOURCE_DIR}/src/string/memset.cpp)
   add_memset(memset_x86_64_opt_sse2   COMPILE_OPTIONS -march=k8             REQUIRE SSE2)
   add_memset(memset_x86_64_opt_sse4   COMPILE_OPTIONS -march=nehalem        REQUIRE SSE4_2)
   add_memset(memset_x86_64_opt_avx2   COMPILE_OPTIONS -march=haswell        REQUIRE AVX2)
   add_memset(memset_x86_64_opt_avx512 COMPILE_OPTIONS -march=skylake-avx512 REQUIRE AVX512F)
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memset(memset)
+elseif(${LIBC_TARGET_ARCHITECTURE_IS_AARCH64})
+  set(MEMSET_SRC ${LIBC_SOURCE_DIR}/src/string/aarch64/memset.cpp)
+  add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE}
+                                      COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
+  add_memset(memset                   COMPILE_OPTIONS "SHELL:-mllvm --tail-merge-threshold=0")
 else()
+  set(MEMSET_SRC ${LIBC_SOURCE_DIR}/src/string/memset.cpp)
   add_memset(memset_opt_host          COMPILE_OPTIONS ${LIBC_COMPILE_OPTIONS_NATIVE})
   add_memset(memset)
 endif()

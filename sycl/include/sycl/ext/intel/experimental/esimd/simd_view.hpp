@@ -25,7 +25,9 @@ namespace esimd {
 /// via an instance of this class.
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename RegionTy>
+template <typename BaseTy,
+          typename RegionTy =
+              region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
 class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
   template <typename, int, class, class> friend class detail::simd_obj_impl;
   template <typename, int> friend class detail::simd_mask_impl;
@@ -66,9 +68,12 @@ protected:
   /// @}
 
 public:
-  // Default copy and move constructors for simd_view.
+  /// Default copy and move constructors for simd_view.
   simd_view(const simd_view &Other) = default;
   simd_view(simd_view &&Other) = default;
+
+  /// Construct a complete view of a vector
+  simd_view(BaseTy &Base) : BaseClass(Base) {}
 
   simd_view &operator=(const simd_view &Other) {
     BaseClass::operator=(Other);
@@ -137,6 +142,9 @@ private:
   simd_view(BaseTy &&Base, RegionTy Region) : BaseClass(Base, Region) {}
 
 public:
+  /// Construct a complete view of a vector
+  simd_view(BaseTy &Base) : BaseClass(Base) {}
+
   operator element_type() const {
     const auto v = BaseClass::read();
     return v[0];

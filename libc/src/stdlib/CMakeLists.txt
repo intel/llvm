@@ -9,6 +9,16 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  atof
+  SRCS
+    atof.cpp
+  HDRS
+    atof.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
   atol
   SRCS
     atol.cpp
@@ -24,6 +34,26 @@ add_entrypoint_object(
     atoll.cpp
   HDRS
     atoll.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  strtof
+  SRCS
+    strtof.cpp
+  HDRS
+    strtof.h
+  DEPENDS
+    libc.src.__support.str_conv_utils
+)
+
+add_entrypoint_object(
+  strtod
+  SRCS
+    strtod.cpp
+  HDRS
+    strtod.h
   DEPENDS
     libc.src.__support.str_conv_utils
 )
@@ -130,6 +160,68 @@ add_entrypoint_object(
     libc.include.stdlib
     libc.src.__support.integer_operations
 )
+
+add_entrypoint_object(
+  bsearch
+  SRCS
+    bsearch.cpp
+  HDRS
+    bsearch.h
+  DEPENDS
+    libc.include.stdlib
+)
+
+add_entrypoint_object(
+  qsort
+  SRCS
+    qsort.cpp
+  HDRS
+    qsort.h
+  DEPENDS
+    libc.include.stdlib
+)
+
+if(LLVM_LIBC_INCLUDE_SCUDO)
+  set(SCUDO_DEPS "")
+
+  include(${LIBC_SOURCE_DIR}/../compiler-rt/cmake/Modules/AllSupportedArchDefs.cmake)
+  if(NOT (LIBC_TARGET_ARCHITECTURE IN_LIST ALL_SCUDO_STANDALONE_SUPPORTED_ARCH))
+    message(FATAL_ERROR "Architecture ${LIBC_TARGET_ARCHITECTURE} is not supported by SCUDO. 
+      Either disable LLVM_LIBC_INCLUDE_SCUDO or change your target architecture.")
+  endif()
+  list(APPEND SCUDO_DEPS RTScudoStandalone.${LIBC_TARGET_ARCHITECTURE} 
+       RTScudoStandaloneCWrappers.${LIBC_TARGET_ARCHITECTURE})
+  if((LIBC_TARGET_ARCHITECTURE IN_LIST ALL_GWP_ASAN_SUPPORTED_ARCH) 
+      AND COMPILER_RT_BUILD_GWP_ASAN)
+    list(APPEND SCUDO_DEPS RTGwpAsan.${LIBC_TARGET_ARCHITECTURE} 
+                            RTGwpAsanBacktraceLibc.${LIBC_TARGET_ARCHITECTURE} 
+                            RTGwpAsanSegvHandler.${LIBC_TARGET_ARCHITECTURE})
+  elseif(COMPILER_RT_BUILD_GWP_ASAN)
+    message(WARNING "Architecture ${LIBC_TARGET_ARCHITECTURE} is not supported by GWP-ASan. Skipping.")
+  endif()
+
+  add_entrypoint_external(
+    malloc
+    DEPENDS
+      ${SCUDO_DEPS}
+  )
+  add_entrypoint_external(
+    calloc
+    DEPENDS
+      ${SCUDO_DEPS}
+  )
+  add_entrypoint_external(
+    realloc
+    DEPENDS
+      ${SCUDO_DEPS}
+  )
+  add_entrypoint_external(
+    free
+    DEPENDS
+      ${SCUDO_DEPS}
+  )
+
+endif()
 
 if(NOT LLVM_LIBC_FULL_BUILD)
   return()

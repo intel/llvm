@@ -372,6 +372,9 @@ public:
   bool matchCombineFAbsOfFAbs(MachineInstr &MI, Register &Src);
   void applyCombineFAbsOfFAbs(MachineInstr &MI, Register &Src);
 
+  /// Transform fabs(fneg(x)) to fabs(x).
+  bool matchCombineFAbsOfFNeg(MachineInstr &MI, BuildFnTy &MatchInfo);
+
   /// Transform trunc ([asz]ext x) to x or ([asz]ext x) or (trunc x).
   bool matchCombineTruncOfExt(MachineInstr &MI,
                               std::pair<Register, unsigned> &MatchInfo);
@@ -572,6 +575,9 @@ public:
   matchICmpToLHSKnownBits(MachineInstr &MI,
                           BuildFnTy &MatchInfo);
 
+  /// \returns true if (and (or x, c1), c2) can be replaced with (and x, c2)
+  bool matchAndOrDisjointMask(MachineInstr &MI, BuildFnTy &MatchInfo);
+
   bool matchBitfieldExtractFromSExtInReg(MachineInstr &MI,
                                          BuildFnTy &MatchInfo);
   /// Match: and (lshr x, cst), mask -> ubfx x, cst, width
@@ -579,6 +585,9 @@ public:
 
   /// Match: shr (shl x, n), k -> sbfx/ubfx x, pos, width
   bool matchBitfieldExtractFromShr(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Match: shr (and x, n), k -> ubfx x, pos, width
+  bool matchBitfieldExtractFromShrAnd(MachineInstr &MI, BuildFnTy &MatchInfo);
 
   // Helpers for reassociation:
   bool matchReassocConstantInnerRHS(GPtrAdd &MI, MachineInstr *RHS,
@@ -599,6 +608,18 @@ public:
   /// feeding a G_AND instruction \p MI.
   bool matchNarrowBinopFeedingAnd(MachineInstr &MI, BuildFnTy &MatchInfo);
 
+  /// Given an G_UDIV \p MI expressing a divide by constant, return an
+  /// expression that implements it by multiplying by a magic number.
+  /// Ref: "Hacker's Delight" or "The PowerPC Compiler Writer's Guide".
+  MachineInstr *buildUDivUsingMul(MachineInstr &MI);
+  /// Combine G_UDIV by constant into a multiply by magic constant.
+  bool matchUDivByConst(MachineInstr &MI);
+  void applyUDivByConst(MachineInstr &MI);
+
+  // G_UMULH x, (1 << c)) -> x >> (bitwidth - c)
+  bool matchUMulHToLShr(MachineInstr &MI);
+  void applyUMulHToLShr(MachineInstr &MI);
+
   /// Try to transform \p MI by using all of the above
   /// combine functions. Returns true if changed.
   bool tryCombine(MachineInstr &MI);
@@ -608,6 +629,20 @@ public:
   /// TODO: implement dynamically sized inline memcpy,
   ///       and rename: s/bool tryEmit/void emit/
   bool tryEmitMemcpyInline(MachineInstr &MI);
+
+  /// Match:
+  ///   (G_UMULO x, 2) -> (G_UADDO x, x)
+  ///   (G_SMULO x, 2) -> (G_SADDO x, x)
+  bool matchMulOBy2(MachineInstr &MI, BuildFnTy &MatchInfo);
+
+  /// Transform (fadd x, fneg(y)) -> (fsub x, y)
+  ///           (fadd fneg(x), y) -> (fsub y, x)
+  ///           (fsub x, fneg(y)) -> (fadd x, y)
+  ///           (fmul fneg(x), fneg(y)) -> (fmul x, y)
+  ///           (fdiv fneg(x), fneg(y)) -> (fdiv x, y)
+  ///           (fmad fneg(x), fneg(y), z) -> (fmad x, y, z)
+  ///           (fma fneg(x), fneg(y), z) -> (fma x, y, z)
+  bool matchRedundantNegOperands(MachineInstr &MI, BuildFnTy &MatchInfo);
 
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that

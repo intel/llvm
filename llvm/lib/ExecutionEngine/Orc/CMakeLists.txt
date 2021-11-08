@@ -7,7 +7,9 @@ add_llvm_component_library(LLVMOrcJIT
   EPCDynamicLibrarySearchGenerator.cpp
   EPCDebugObjectRegistrar.cpp
   EPCEHFrameRegistrar.cpp
+  EPCGenericDylibManager.cpp
   EPCGenericJITLinkMemoryManager.cpp
+  EPCGenericRTDyldMemoryManager.cpp
   EPCIndirectionUtils.cpp
   ExecutionUtils.cpp
   IndirectionUtils.cpp
@@ -30,12 +32,16 @@ add_llvm_component_library(LLVMOrcJIT
   Speculation.cpp
   SpeculateAnalyses.cpp
   ExecutorProcessControl.cpp
+  TaskDispatch.cpp
   ThreadSafeModule.cpp
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/ExecutionEngine/Orc
 
   DEPENDS
   intrinsics_gen
+
+  LINK_LIBS
+  ${LLVM_PTHREAD_LIB}
 
   LINK_COMPONENTS
   Core

@@ -60,6 +60,7 @@
 #include "lldb/Utility/Timer.h"
 
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SetVector.h"
 
 #include <memory>
 #include <mutex>
@@ -95,14 +96,10 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch,
       m_watchpoint_list(), m_process_sp(), m_search_filter_sp(),
       m_image_search_paths(ImageSearchPathsChanged, this),
       m_source_manager_up(), m_stop_hooks(), m_stop_hook_next_id(0),
-      m_latest_stop_hook_id(0),
-      m_valid(true), m_suppress_stop_hooks(false),
+      m_latest_stop_hook_id(0), m_valid(true), m_suppress_stop_hooks(false),
       m_is_dummy_target(is_dummy_target),
       m_frame_recognizer_manager_up(
-          std::make_unique<StackFrameRecognizerManager>()),
-      m_stats_storage(static_cast<int>(StatisticKind::StatisticMax))
-
-{
+          std::make_unique<StackFrameRecognizerManager>()) {
   SetEventName(eBroadcastBitBreakpointChanged, "breakpoint-changed");
   SetEventName(eBroadcastBitModulesLoaded, "modules-loaded");
   SetEventName(eBroadcastBitModulesUnloaded, "modules-unloaded");
@@ -1400,6 +1397,7 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
   ClearModules(false);
 
   if (executable_sp) {
+    ElapsedTime elapsed(m_stats.GetCreateTime());
     LLDB_SCOPED_TIMERF("Target::SetExecutableModule (executable = '%s')",
                        executable_sp->GetFileSpec().GetPath().c_str());
 
@@ -2231,7 +2229,10 @@ std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
   if (!m_valid)
     return {};
 
-  std::vector<TypeSystem *> scratch_type_systems;
+  // Some TypeSystem instances are associated with several LanguageTypes so
+  // they will show up several times in the loop below. The SetVector filters
+  // out all duplicates as they serve no use for the caller.
+  llvm::SetVector<TypeSystem *> scratch_type_systems;
 
   LanguageSet languages_for_expressions =
       Language::GetLanguagesSupportingTypeSystemsForExpressions();
@@ -2247,10 +2248,10 @@ std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
                      "system available",
                      Language::GetNameForLanguageType(language));
     else
-      scratch_type_systems.emplace_back(&type_system_or_err.get());
+      scratch_type_systems.insert(&type_system_or_err.get());
   }
 
-  return scratch_type_systems;
+  return scratch_type_systems.takeVector();
 }
 
 PersistentExpressionState *
@@ -2345,35 +2346,22 @@ void Target::SettingsInitialize() { Process::SettingsInitialize(); }
 void Target::SettingsTerminate() { Process::SettingsTerminate(); }
 
 FileSpecList Target::GetDefaultExecutableSearchPaths() {
-  TargetPropertiesSP properties_sp(Target::GetGlobalProperties());
-  if (properties_sp)
-    return properties_sp->GetExecutableSearchPaths();
-  return FileSpecList();
+  return Target::GetGlobalProperties().GetExecutableSearchPaths();
 }
 
 FileSpecList Target::GetDefaultDebugFileSearchPaths() {
-  TargetPropertiesSP properties_sp(Target::GetGlobalProperties());
-  if (properties_sp)
-    return properties_sp->GetDebugFileSearchPaths();
-  return FileSpecList();
+  return Target::GetGlobalProperties().GetDebugFileSearchPaths();
 }
 
 ArchSpec Target::GetDefaultArchitecture() {
-  TargetPropertiesSP properties_sp(Target::GetGlobalProperties());
-  if (properties_sp)
-    return properties_sp->GetDefaultArchitecture();
-  return ArchSpec();
+  return Target::GetGlobalProperties().GetDefaultArchitecture();
 }
 
 void Target::SetDefaultArchitecture(const ArchSpec &arch) {
-  TargetPropertiesSP properties_sp(Target::GetGlobalProperties());
-  if (properties_sp) {
-    LLDB_LOG(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_TARGET),
-             "Target::SetDefaultArchitecture setting target's "
-             "default architecture to  {0} ({1})",
-             arch.GetArchitectureName(), arch.GetTriple().getTriple());
-    return properties_sp->SetDefaultArchitecture(arch);
-  }
+  LLDB_LOG(GetLogIfAllCategoriesSet(LIBLLDB_LOG_TARGET),
+           "setting target's default architecture to  {0} ({1})",
+           arch.GetArchitectureName(), arch.GetTriple().getTriple());
+  Target::GetGlobalProperties().SetDefaultArchitecture(arch);
 }
 
 Target *Target::GetTargetFromContexts(const ExecutionContext *exe_ctx_ptr,
@@ -2399,8 +2387,10 @@ ExpressionResults Target::EvaluateExpression(
 
   ExpressionResults execution_results = eExpressionSetupError;
 
-  if (expr.empty())
+  if (expr.empty()) {
+    m_stats.GetExpressionStats().NotifyFailure();
     return execution_results;
+  }
 
   // We shouldn't run stop hooks in expressions.
   bool old_suppress_value = m_suppress_stop_hooks;
@@ -2445,6 +2435,10 @@ ExpressionResults Target::EvaluateExpression(
                                                  fixed_expression, ctx_obj);
   }
 
+  if (execution_results == eExpressionCompleted)
+    m_stats.GetExpressionStats().NotifySuccess();
+  else
+    m_stats.GetExpressionStats().NotifyFailure();
   return execution_results;
 }
 
@@ -2768,12 +2762,12 @@ bool Target::RunStopHooks() {
   return false;
 }
 
-const TargetPropertiesSP &Target::GetGlobalProperties() {
+TargetProperties &Target::GetGlobalProperties() {
   // NOTE: intentional leak so we don't crash if global destructor chain gets
   // called as other threads still use the result of this function
-  static TargetPropertiesSP *g_settings_sp_ptr =
-      new TargetPropertiesSP(new TargetProperties(nullptr));
-  return *g_settings_sp_ptr;
+  static TargetProperties *g_settings_ptr =
+      new TargetProperties(nullptr);
+  return *g_settings_ptr;
 }
 
 Status Target::Install(ProcessLaunchInfo *launch_info) {
@@ -2908,6 +2902,7 @@ bool Target::SetSectionUnloaded(const lldb::SectionSP &section_sp,
 void Target::ClearAllLoadedSections() { m_section_load_history.Clear(); }
 
 Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
+  m_stats.SetLaunchOrAttachTime();
   Status error;
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_TARGET));
 
@@ -2936,17 +2931,9 @@ Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
   launch_info.GetFlags().Set(eLaunchFlagDebug);
 
   if (launch_info.IsScriptedProcess()) {
-    TargetPropertiesSP properties_sp = GetGlobalProperties();
-
-    if (!properties_sp) {
-      LLDB_LOGF(log, "Target::%s Couldn't fetch target global properties.",
-                __FUNCTION__);
-      return error;
-    }
-
     // Only copy scripted process launch options.
-    ProcessLaunchInfo &default_launch_info =
-        const_cast<ProcessLaunchInfo &>(properties_sp->GetProcessLaunchInfo());
+    ProcessLaunchInfo &default_launch_info = const_cast<ProcessLaunchInfo &>(
+        GetGlobalProperties().GetProcessLaunchInfo());
 
     default_launch_info.SetProcessPluginName("ScriptedProcess");
     default_launch_info.SetScriptedProcessClassName(
@@ -3119,6 +3106,7 @@ llvm::Expected<TraceSP> Target::GetTraceOrCreate() {
 }
 
 Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
+  m_stats.SetLaunchOrAttachTime();
   auto state = eStateInvalid;
   auto process_sp = GetProcessSP();
   if (process_sp) {
@@ -3731,7 +3719,7 @@ TargetProperties::TargetProperties(Target *target)
     : Properties(), m_launch_info(), m_target(target) {
   if (target) {
     m_collection_sp =
-        OptionValueProperties::CreateLocalCopy(*Target::GetGlobalProperties());
+        OptionValueProperties::CreateLocalCopy(Target::GetGlobalProperties());
 
     // Set callbacks to update launch_info whenever "settins set" updated any
     // of these properties
@@ -3781,7 +3769,7 @@ TargetProperties::TargetProperties(Target *target)
         true, m_experimental_properties_up->GetValueProperties());
     m_collection_sp->AppendProperty(
         ConstString("process"), ConstString("Settings specific to processes."),
-        true, Process::GetGlobalProperties()->GetValueProperties());
+        true, Process::GetGlobalProperties().GetValueProperties());
   }
 }
 
@@ -4288,16 +4276,6 @@ void TargetProperties::SetDisplayRecognizedArguments(bool b) {
   m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
 }
 
-bool TargetProperties::GetNonStopModeEnabled() const {
-  const uint32_t idx = ePropertyNonStopModeEnabled;
-  return m_collection_sp->GetPropertyAtIndexAsBoolean(nullptr, idx, false);
-}
-
-void TargetProperties::SetNonStopModeEnabled(bool b) {
-  const uint32_t idx = ePropertyNonStopModeEnabled;
-  m_collection_sp->SetPropertyAtIndexAsBoolean(nullptr, idx, b);
-}
-
 const ProcessLaunchInfo &TargetProperties::GetProcessLaunchInfo() const {
   return m_launch_info;
 }
@@ -4474,3 +4452,6 @@ std::recursive_mutex &Target::GetAPIMutex() {
   else
     return m_mutex;
 }
+
+/// Get metrics associated with this target in JSON format.
+llvm::json::Value Target::ReportStatistics() { return m_stats.ToJSON(*this); }

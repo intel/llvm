@@ -672,6 +672,12 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
     return Triple::ARMSubArch_v8_6a;
   case ARM::ArchKind::ARMV8_7A:
     return Triple::ARMSubArch_v8_7a;
+  case ARM::ArchKind::ARMV9A:
+    return Triple::ARMSubArch_v9;
+  case ARM::ArchKind::ARMV9_1A:
+    return Triple::ARMSubArch_v9_1a;
+  case ARM::ArchKind::ARMV9_2A:
+    return Triple::ARMSubArch_v9_2a;
   case ARM::ArchKind::ARMV8R:
     return Triple::ARMSubArch_v8r;
   case ARM::ArchKind::ARMV8MBaseline:
@@ -1044,6 +1050,30 @@ StringRef Triple::getArchName() const {
   return StringRef(Data).split('-').first;           // Isolate first component
 }
 
+StringRef Triple::getArchName(ArchType Kind, SubArchType SubArch) const {
+  switch (Kind) {
+  case Triple::mips:
+    if (SubArch == MipsSubArch_r6)
+      return "mipsisa32r6";
+    break;
+  case Triple::mipsel:
+    if (SubArch == MipsSubArch_r6)
+      return "mipsisa32r6el";
+    break;
+  case Triple::mips64:
+    if (SubArch == MipsSubArch_r6)
+      return "mipsisa64r6";
+    break;
+  case Triple::mips64el:
+    if (SubArch == MipsSubArch_r6)
+      return "mipsisa64r6el";
+    break;
+  default:
+    break;
+  }
+  return getArchTypeName(Kind);
+}
+
 StringRef Triple::getVendorName() const {
   StringRef Tmp = StringRef(Data).split('-').second; // Strip first component
   return Tmp.split('-').first;                       // Isolate second component
@@ -1225,8 +1255,8 @@ void Triple::setTriple(const Twine &Str) {
   *this = Triple(Str);
 }
 
-void Triple::setArch(ArchType Kind) {
-  setArchName(getArchTypeName(Kind));
+void Triple::setArch(ArchType Kind, SubArchType SubArch) {
+  setArchName(getArchName(Kind, SubArch));
 }
 
 void Triple::setVendor(VendorType Kind) {
@@ -1420,8 +1450,12 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::amdil64:        T.setArch(Triple::amdil);   break;
   case Triple::hsail64:        T.setArch(Triple::hsail);   break;
   case Triple::le64:           T.setArch(Triple::le32);    break;
-  case Triple::mips64:         T.setArch(Triple::mips);    break;
-  case Triple::mips64el:       T.setArch(Triple::mipsel);  break;
+  case Triple::mips64:
+    T.setArch(Triple::mips, getSubArch());
+    break;
+  case Triple::mips64el:
+    T.setArch(Triple::mipsel, getSubArch());
+    break;
   case Triple::nvptx64:        T.setArch(Triple::nvptx);   break;
   case Triple::ppc64:          T.setArch(Triple::ppc);     break;
   case Triple::ppc64le:        T.setArch(Triple::ppcle);   break;
@@ -1487,8 +1521,12 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::armeb:           T.setArch(Triple::aarch64_be); break;
   case Triple::hsail:           T.setArch(Triple::hsail64);    break;
   case Triple::le32:            T.setArch(Triple::le64);       break;
-  case Triple::mips:            T.setArch(Triple::mips64);     break;
-  case Triple::mipsel:          T.setArch(Triple::mips64el);   break;
+  case Triple::mips:
+    T.setArch(Triple::mips64, getSubArch());
+    break;
+  case Triple::mipsel:
+    T.setArch(Triple::mips64el, getSubArch());
+    break;
   case Triple::nvptx:           T.setArch(Triple::nvptx64);    break;
   case Triple::ppc:             T.setArch(Triple::ppc64);      break;
   case Triple::ppcle:           T.setArch(Triple::ppc64le);    break;
@@ -1549,8 +1587,12 @@ Triple Triple::getBigEndianArchVariant() const {
 
   case Triple::aarch64: T.setArch(Triple::aarch64_be); break;
   case Triple::bpfel:   T.setArch(Triple::bpfeb);      break;
-  case Triple::mips64el:T.setArch(Triple::mips64);     break;
-  case Triple::mipsel:  T.setArch(Triple::mips);       break;
+  case Triple::mips64el:
+    T.setArch(Triple::mips64, getSubArch());
+    break;
+  case Triple::mipsel:
+    T.setArch(Triple::mips, getSubArch());
+    break;
   case Triple::ppcle:   T.setArch(Triple::ppc);        break;
   case Triple::ppc64le: T.setArch(Triple::ppc64);      break;
   case Triple::sparcel: T.setArch(Triple::sparc);      break;
@@ -1582,8 +1624,12 @@ Triple Triple::getLittleEndianArchVariant() const {
 
   case Triple::aarch64_be: T.setArch(Triple::aarch64);  break;
   case Triple::bpfeb:      T.setArch(Triple::bpfel);    break;
-  case Triple::mips64:     T.setArch(Triple::mips64el); break;
-  case Triple::mips:       T.setArch(Triple::mipsel);   break;
+  case Triple::mips64:
+    T.setArch(Triple::mips64el, getSubArch());
+    break;
+  case Triple::mips:
+    T.setArch(Triple::mipsel, getSubArch());
+    break;
   case Triple::ppc:        T.setArch(Triple::ppcle);    break;
   case Triple::ppc64:      T.setArch(Triple::ppc64le);  break;
   case Triple::sparc:      T.setArch(Triple::sparcel);  break;
@@ -1732,6 +1778,7 @@ StringRef Triple::getARMCPUForArch(StringRef MArch) const {
   switch (getOS()) {
   case llvm::Triple::FreeBSD:
   case llvm::Triple::NetBSD:
+  case llvm::Triple::OpenBSD:
     if (!MArch.empty() && MArch == "v6")
       return "arm1176jzf-s";
     if (!MArch.empty() && MArch == "v7")

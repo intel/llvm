@@ -59,11 +59,11 @@ protected:
   // Template alias so that all Instruction storing alignment use the same
   // definiton.
   // Valid alignments are powers of two from 2^0 to 2^MaxAlignmentExponent =
-  // 2^30. We store them as Log2(Alignment), so we need 5 bits to encode the 31
+  // 2^32. We store them as Log2(Alignment), so we need 6 bits to encode the 33
   // possible values.
   template <unsigned Offset>
   using AlignmentBitfieldElementT =
-      typename Bitfield::Element<unsigned, Offset, 5,
+      typename Bitfield::Element<unsigned, Offset, 6,
                                  Value::MaxAlignmentExponent>;
 
   template <unsigned Offset>
@@ -307,9 +307,6 @@ public:
     Value::getAllMetadata(MDs);
   }
 
-  /// Returns the AA metadata for this instruction.
-  AAMDNodes getAAMetadata() const;
-
   /// Set the metadata of the specified kind to the specified node. This updates
   /// or replaces metadata if already present, or removes it if Node is null.
   void setMetadata(unsigned KindID, MDNode *Node);
@@ -350,7 +347,10 @@ public:
   /// to the existing node.
   void addAnnotationMetadata(StringRef Annotation);
 
-  /// Sets the metadata on this instruction from the AAMDNodes structure.
+  /// Returns the AA metadata for this instruction.
+  AAMDNodes getAAMetadata() const;
+
+  /// Sets the AA metadata on this instruction from the AAMDNodes structure.
   void setAAMetadata(const AAMDNodes &N);
 
   /// Retrieve the raw weight values of a conditional branch or select.

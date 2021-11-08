@@ -471,6 +471,13 @@ Range halfOpenToRange(const SourceManager &SM, CharSourceRange R) {
   return {Begin, End};
 }
 
+void unionRanges(Range &A, Range B) {
+  if (B.start < A.start)
+    A.start = B.start;
+  if (A.end < B.end)
+    A.end = B.end;
+}
+
 std::pair<size_t, size_t> offsetToClangLineColumn(llvm::StringRef Code,
                                                   size_t Offset) {
   Offset = std::min(Code.size(), Offset);
@@ -968,6 +975,8 @@ llvm::Optional<SpelledWord> SpelledWord::touching(SourceLocation SpelledLoc,
 
 llvm::Optional<DefinedMacro> locateMacroAt(const syntax::Token &SpelledTok,
                                            Preprocessor &PP) {
+  if (SpelledTok.kind() != tok::identifier)
+    return None;
   SourceLocation Loc = SpelledTok.location();
   assert(Loc.isFileID());
   const auto &SM = PP.getSourceManager();

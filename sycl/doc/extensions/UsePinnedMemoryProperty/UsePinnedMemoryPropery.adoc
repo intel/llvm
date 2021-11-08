@@ -20,3 +20,20 @@ This document describes an extension that introduces a +sycl::ext::oneapi::prope
 |`syc::ext::oneapi::property::buffer::use_pinned_host_memory`
 | The `use_pinned_host_memory` property adds the requirement that the SYCL runtime must allocate host pinned memory for the `sycl::buffer`. The property cannot be used with the `sycl::buffer` constructors that take hostData parameter, an invalid_object_error SYCL exception must be thrown in this case.
 |===
+
+== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro 
+`SYCL_EXT_ONEAPI_USE_PINNED_HOST_MEMORY_PROPERTY` to one of the values defined
+in the table below. Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro’s value to determine which of the extension’s APIs the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===

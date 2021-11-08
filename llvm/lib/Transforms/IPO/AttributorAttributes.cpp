@@ -203,46 +203,25 @@ static Value *constructPointer(Type *ResTy, Type *PtrElemTy, Value *Ptr,
                     << "-bytes as " << *ResTy << "\n");
 
   if (Offset) {
-    SmallVector<Value *, 4> Indices;
-    std::string GEPName = Ptr->getName().str() + ".0";
-
-    // Add 0 index to look through the pointer.
-    assert((uint64_t)Offset < DL.getTypeAllocSize(PtrElemTy) &&
-           "Offset out of bounds");
-    Indices.push_back(Constant::getNullValue(IRB.getInt32Ty()));
-
     Type *Ty = PtrElemTy;
-    do {
-      auto *STy = dyn_cast<StructType>(Ty);
-      if (!STy)
-        // Non-aggregate type, we cast and make byte-wise progress now.
-        break;
+    APInt IntOffset(DL.getIndexTypeSizeInBits(Ptr->getType()), Offset);
+    SmallVector<APInt> IntIndices = DL.getGEPIndicesForOffset(Ty, IntOffset);
 
-      const StructLayout *SL = DL.getStructLayout(STy);
-      if (int64_t(SL->getSizeInBytes()) < Offset)
-        break;
-
-      uint64_t Idx = SL->getElementContainingOffset(Offset);
-      assert(Idx < STy->getNumElements() && "Offset calculation error!");
-      uint64_t Rem = Offset - SL->getElementOffset(Idx);
-      Ty = STy->getElementType(Idx);
-
-      LLVM_DEBUG(errs() << "Ty: " << *Ty << " Offset: " << Offset
-                        << " Idx: " << Idx << " Rem: " << Rem << "\n");
-
-      GEPName += "." + std::to_string(Idx);
-      Indices.push_back(ConstantInt::get(IRB.getInt32Ty(), Idx));
-      Offset = Rem;
-    } while (Offset);
+    SmallVector<Value *, 4> ValIndices;
+    std::string GEPName = Ptr->getName().str();
+    for (const APInt &Index : IntIndices) {
+      ValIndices.push_back(IRB.getInt(Index));
+      GEPName += "." + std::to_string(Index.getZExtValue());
+    }
 
     // Create a GEP for the indices collected above.
-    Ptr = IRB.CreateGEP(PtrElemTy, Ptr, Indices, GEPName);
+    Ptr = IRB.CreateGEP(PtrElemTy, Ptr, ValIndices, GEPName);
 
     // If an offset is left we use byte-wise adjustment.
-    if (Offset) {
+    if (IntOffset != 0) {
       Ptr = IRB.CreateBitCast(Ptr, IRB.getInt8PtrTy());
-      Ptr = IRB.CreateGEP(IRB.getInt8Ty(), Ptr, IRB.getInt32(Offset),
-                          GEPName + ".b" + Twine(Offset));
+      Ptr = IRB.CreateGEP(IRB.getInt8Ty(), Ptr, IRB.getInt(IntOffset),
+                          GEPName + ".b" + Twine(IntOffset.getZExtValue()));
     }
   }
 
@@ -431,6 +410,7 @@ const Value *stripAndAccumulateMinimalOffsets(
   };
 
   return Val->stripAndAccumulateConstantOffsets(DL, Offset, AllowNonInbounds,
+                                                /* AllowInvariant */ false,
                                                 AttributorAnalysis);
 }
 
@@ -1244,7 +1224,11 @@ struct AAPointerInfoFloating : public AAPointerInfoImpl {
         }
 
         // Check if the PHI operand is not dependent on the PHI itself.
-        APInt Offset(DL.getIndexTypeSizeInBits(AssociatedValue.getType()), 0);
+        // TODO: This is not great as we look at the pointer type. However, it
+        // is unclear where the Offset size comes from with typeless pointers.
+        APInt Offset(
+            DL.getIndexSizeInBits(CurPtr->getType()->getPointerAddressSpace()),
+            0);
         if (&AssociatedValue == CurPtr->stripAndAccumulateConstantOffsets(
                                     DL, Offset, /* AllowNonInbounds */ true)) {
           if (Offset != PtrOI.Offset) {
@@ -2515,7 +2499,7 @@ struct AAUndefinedBehaviorImpl : public AAUndefinedBehavior {
       Function *Callee = CB.getCalledFunction();
       if (!Callee)
         return true;
-      for (unsigned idx = 0; idx < CB.getNumArgOperands(); idx++) {
+      for (unsigned idx = 0; idx < CB.arg_size(); idx++) {
         // If current argument is known to be simplified to null pointer and the
         // corresponding argument position is known to have nonnull attribute,
         // the argument is poison. Furthermore, if the argument is poison and
@@ -3183,8 +3167,7 @@ struct AANoAliasCallSiteArgument final : AANoAliasImpl {
     // value passed at this call site.
     // TODO: AbstractCallSite
     const auto &CB = cast<CallBase>(getAnchorValue());
-    for (unsigned OtherArgNo = 0; OtherArgNo < CB.getNumArgOperands();
-         OtherArgNo++)
+    for (unsigned OtherArgNo = 0; OtherArgNo < CB.arg_size(); OtherArgNo++)
       if (mayAliasWithArgument(A, AAR, MemBehaviorAA, CB, OtherArgNo))
         return false;
 
@@ -6516,7 +6499,7 @@ struct AAPrivatizablePtrArgument final : public AAPrivatizablePtrImpl {
     auto IsCompatiblePrivArgOfDirectCS = [&](AbstractCallSite ACS) {
       CallBase *DC = cast<CallBase>(ACS.getInstruction());
       int DCArgNo = ACS.getCallArgOperandNo(ArgNo);
-      assert(DCArgNo >= 0 && unsigned(DCArgNo) < DC->getNumArgOperands() &&
+      assert(DCArgNo >= 0 && unsigned(DCArgNo) < DC->arg_size() &&
              "Expected a direct call operand for callback call operand");
 
       LLVM_DEBUG({
@@ -7339,10 +7322,12 @@ void AAMemoryBehaviorFloating::analyzeUseIn(Attributor &A, const Use &U,
 
   case Instruction::Store:
     // Stores cause the NO_WRITES property to disappear if the use is the
-    // pointer operand. Note that we do assume that capturing was taken care of
-    // somewhere else.
+    // pointer operand. Note that while capturing was taken care of somewhere
+    // else we need to deal with stores of the value that is not looked through.
     if (cast<StoreInst>(UserI)->getPointerOperand() == U.get())
       removeAssumedBits(NO_WRITES);
+    else
+      indicatePessimisticFixpoint();
     return;
 
   case Instruction::Call:
@@ -7733,7 +7718,7 @@ void AAMemoryLocationImpl::categorizePtrValue(
 void AAMemoryLocationImpl::categorizeArgumentPointerLocations(
     Attributor &A, CallBase &CB, AAMemoryLocation::StateType &AccessedLocs,
     bool &Changed) {
-  for (unsigned ArgNo = 0, E = CB.getNumArgOperands(); ArgNo < E; ++ArgNo) {
+  for (unsigned ArgNo = 0, E = CB.arg_size(); ArgNo < E; ++ArgNo) {
 
     // Skip non-pointer arguments.
     const Value *ArgOp = CB.getArgOperand(ArgNo);
@@ -8666,31 +8651,7 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
 
   static bool calculateICmpInst(const ICmpInst *ICI, const APInt &LHS,
                                 const APInt &RHS) {
-    ICmpInst::Predicate Pred = ICI->getPredicate();
-    switch (Pred) {
-    case ICmpInst::ICMP_UGT:
-      return LHS.ugt(RHS);
-    case ICmpInst::ICMP_SGT:
-      return LHS.sgt(RHS);
-    case ICmpInst::ICMP_EQ:
-      return LHS.eq(RHS);
-    case ICmpInst::ICMP_UGE:
-      return LHS.uge(RHS);
-    case ICmpInst::ICMP_SGE:
-      return LHS.sge(RHS);
-    case ICmpInst::ICMP_ULT:
-      return LHS.ult(RHS);
-    case ICmpInst::ICMP_SLT:
-      return LHS.slt(RHS);
-    case ICmpInst::ICMP_NE:
-      return LHS.ne(RHS);
-    case ICmpInst::ICMP_ULE:
-      return LHS.ule(RHS);
-    case ICmpInst::ICMP_SLE:
-      return LHS.sle(RHS);
-    default:
-      llvm_unreachable("Invalid ICmp predicate!");
-    }
+    return ICmpInst::compare(LHS, RHS, ICI->getPredicate());
   }
 
   static APInt calculateCastInst(const CastInst *CI, const APInt &Src,
@@ -8730,25 +8691,25 @@ struct AAPotentialValuesFloating : AAPotentialValuesImpl {
     case Instruction::Mul:
       return LHS * RHS;
     case Instruction::UDiv:
-      if (RHS.isNullValue()) {
+      if (RHS.isZero()) {
         SkipOperation = true;
         return LHS;
       }
       return LHS.udiv(RHS);
     case Instruction::SDiv:
-      if (RHS.isNullValue()) {
+      if (RHS.isZero()) {
         SkipOperation = true;
         return LHS;
       }
       return LHS.sdiv(RHS);
     case Instruction::URem:
-      if (RHS.isNullValue()) {
+      if (RHS.isZero()) {
         SkipOperation = true;
         return LHS;
       }
       return LHS.urem(RHS);
     case Instruction::SRem:
-      if (RHS.isNullValue()) {
+      if (RHS.isZero()) {
         SkipOperation = true;
         return LHS;
       }

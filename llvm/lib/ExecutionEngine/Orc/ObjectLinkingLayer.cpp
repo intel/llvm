@@ -279,8 +279,9 @@ public:
 
       // If there were missing symbols then report the error.
       if (!MissingSymbols.empty())
-        return make_error<MissingSymbolDefinitions>(G.getName(),
-                                                    std::move(MissingSymbols));
+        return make_error<MissingSymbolDefinitions>(
+            Layer.getExecutionSession().getSymbolStringPool(), G.getName(),
+            std::move(MissingSymbols));
 
       // If there are more definitions than expected, add them to the
       // ExtraSymbols vector.
@@ -293,8 +294,9 @@ public:
 
       // If there were extra definitions then report the error.
       if (!ExtraSymbols.empty())
-        return make_error<UnexpectedSymbolDefinitions>(G.getName(),
-                                                       std::move(ExtraSymbols));
+        return make_error<UnexpectedSymbolDefinitions>(
+            Layer.getExecutionSession().getSymbolStringPool(), G.getName(),
+            std::move(ExtraSymbols));
     }
 
     if (auto Err = MR->notifyResolved(InternedResult))
@@ -304,8 +306,7 @@ public:
     return Error::success();
   }
 
-  void notifyFinalized(
-      std::unique_ptr<JITLinkMemoryManager::Allocation> A) override {
+  void notifyFinalized(JITLinkMemoryManager::FinalizedAlloc A) override {
     if (auto Err = Layer.notifyEmitted(*MR, std::move(A))) {
       Layer.getExecutionSession().reportError(std::move(Err));
       MR->failMaterialization();
@@ -678,7 +679,7 @@ void ObjectLinkingLayer::notifyLoaded(MaterializationResponsibility &MR) {
 }
 
 Error ObjectLinkingLayer::notifyEmitted(MaterializationResponsibility &MR,
-                                        AllocPtr Alloc) {
+                                        FinalizedAlloc FA) {
   Error Err = Error::success();
   for (auto &P : Plugins)
     Err = joinErrors(std::move(Err), P->notifyEmitted(MR));
@@ -687,17 +688,20 @@ Error ObjectLinkingLayer::notifyEmitted(MaterializationResponsibility &MR,
     return Err;
 
   return MR.withResourceKeyDo(
-      [&](ResourceKey K) { Allocs[K].push_back(std::move(Alloc)); });
+      [&](ResourceKey K) { Allocs[K].push_back(std::move(FA)); });
 }
 
 Error ObjectLinkingLayer::handleRemoveResources(ResourceKey K) {
 
-  Error Err = Error::success();
+  {
+    Error Err = Error::success();
+    for (auto &P : Plugins)
+      Err = joinErrors(std::move(Err), P->notifyRemovingResources(K));
+    if (Err)
+      return Err;
+  }
 
-  for (auto &P : Plugins)
-    Err = joinErrors(std::move(Err), P->notifyRemovingResources(K));
-
-  std::vector<AllocPtr> AllocsToRemove;
+  std::vector<FinalizedAlloc> AllocsToRemove;
   getExecutionSession().runSessionLocked([&] {
     auto I = Allocs.find(K);
     if (I != Allocs.end()) {
@@ -706,12 +710,10 @@ Error ObjectLinkingLayer::handleRemoveResources(ResourceKey K) {
     }
   });
 
-  while (!AllocsToRemove.empty()) {
-    Err = joinErrors(std::move(Err), AllocsToRemove.back()->deallocate());
-    AllocsToRemove.pop_back();
-  }
+  if (AllocsToRemove.empty())
+    return Error::success();
 
-  return Err;
+  return MemMgr.deallocate(std::move(AllocsToRemove));
 }
 
 void ObjectLinkingLayer::handleTransferResources(ResourceKey DstKey,

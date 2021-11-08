@@ -1785,8 +1785,11 @@ defm reciprocal_math : BoolFOption<"reciprocal-math",
   PosFlag<SetTrue, [CC1Option], "Allow division operations to be reassociated",
           [menable_unsafe_fp_math.KeyPath]>,
   NegFlag<SetFalse>>;
-def fapprox_func : Flag<["-"], "fapprox-func">, Group<f_Group>, Flags<[CC1Option, NoDriverOption]>,
-  MarshallingInfoFlag<LangOpts<"ApproxFunc">>, ImpliedByAnyOf<[menable_unsafe_fp_math.KeyPath]>;
+defm approx_func : BoolFOption<"approx-func", LangOpts<"ApproxFunc">, DefaultFalse,
+   PosFlag<SetTrue, [CC1Option], "Allow certain math function calls to be replaced "
+           "with an approximately equivalent calculation",
+           [menable_unsafe_fp_math.KeyPath]>,
+   NegFlag<SetFalse>>;
 defm finite_math_only : BoolFOption<"finite-math-only",
   LangOpts<"FiniteMathOnly">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "", [cl_finite_math_only.KeyPath, ffast_math.KeyPath]>,
@@ -1826,7 +1829,7 @@ defm strict_float_cast_overflow : BoolFOption<"strict-float-cast-overflow",
 
 defm protect_parens : BoolFOption<"protect-parens",
   LangOpts<"ProtectParens">, DefaultFalse,
-  PosFlag<SetTrue, [CoreOption, CC1Option], 
+  PosFlag<SetTrue, [CoreOption, CC1Option],
           "Determines whether the optimizer honors parentheses when "
           "floating-point expressions are evaluated">,
   NegFlag<SetFalse>>;
@@ -2353,9 +2356,9 @@ defm application_extension : BoolFOption<"application-extension",
   PosFlag<SetTrue, [CC1Option], "Restrict code to those available for App Extensions">,
   NegFlag<SetFalse>>;
 defm relaxed_template_template_args : BoolFOption<"relaxed-template-template-args",
-  LangOpts<"RelaxedTemplateTemplateArgs">, DefaultFalse,
-  PosFlag<SetTrue, [CC1Option], "Enable C++17 relaxed template template argument matching">,
-  NegFlag<SetFalse>>;
+  LangOpts<"RelaxedTemplateTemplateArgs">, DefaultTrue,
+  PosFlag<SetTrue>,
+  NegFlag<SetFalse, [CC1Option], "Disable C++17 relaxed template template argument matching">>;
 defm sized_deallocation : BoolFOption<"sized-deallocation",
   LangOpts<"SizedDeallocation">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Enable C++14 sized global deallocation functions">,
@@ -2450,6 +2453,14 @@ def fopenmp_target_debug : Flag<["-"], "fopenmp-target-debug">, Group<f_Group>, 
   HelpText<"Enable debugging in the OpenMP offloading device RTL">;
 def fno_openmp_target_debug : Flag<["-"], "fno-openmp-target-debug">, Group<f_Group>, Flags<[NoArgumentUnused]>;
 def fopenmp_target_debug_EQ : Joined<["-"], "fopenmp-target-debug=">, Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
+def fopenmp_assume_teams_oversubscription : Flag<["-"], "fopenmp-assume-teams-oversubscription">, 
+  Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
+def fopenmp_assume_threads_oversubscription : Flag<["-"], "fopenmp-assume-threads-oversubscription">, 
+  Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
+def fno_openmp_assume_teams_oversubscription : Flag<["-"], "fno-openmp-assume-teams-oversubscription">, 
+  Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
+def fno_openmp_assume_threads_oversubscription : Flag<["-"], "fno-openmp-assume-threads-oversubscription">, 
+  Group<f_Group>, Flags<[CC1Option, NoArgumentUnused, HelpHidden]>;
 defm openmp_target_new_runtime: BoolFOption<"openmp-target-new-runtime",
   LangOpts<"OpenMPTargetNewRuntime">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Use the new bitcode library for OpenMP offloading">,
@@ -2571,7 +2582,7 @@ defm signed_char : BoolFOption<"signed-char",
   ShouldParseIf<!strconcat("!", open_cl.KeyPath)>;
 defm split_stack : BoolFOption<"split-stack",
   CodeGenOpts<"EnableSegmentedStacks">, DefaultFalse,
-  NegFlag<SetFalse, [], "Wouldn't use segmented stack">, 
+  NegFlag<SetFalse, [], "Wouldn't use segmented stack">,
   PosFlag<SetTrue, [CC1Option], "Use segmented stack">>;
 def fstack_protector_all : Flag<["-"], "fstack-protector-all">, Group<f_Group>,
   HelpText<"Enable stack protectors for all functions">;
@@ -3063,6 +3074,14 @@ def gsplit_dwarf_EQ : Joined<["-"], "gsplit-dwarf=">, Group<g_flags_Group>,
   HelpText<"Set DWARF fission mode to either 'split' or 'single'">,
   Values<"split,single">;
 def gno_split_dwarf : Flag<["-"], "gno-split-dwarf">, Group<g_flags_Group>;
+def gsimple_template_names : Flag<["-"], "gsimple-template-names">, Group<g_flags_Group>;
+def gsimple_template_names_EQ
+    : Joined<["-"], "gsimple-template-names=">,
+      HelpText<"Use simple template names in DWARF, or include the full "
+               "template name with a modified prefix for validation">,
+      Values<"simple,mangled">, Flags<[CC1Option, NoDriverOption]>;
+def gno_simple_template_names : Flag<["-"], "gno-simple-template-names">,
+                                Group<g_flags_Group>;
 def ggnu_pubnames : Flag<["-"], "ggnu-pubnames">, Group<g_flags_Group>, Flags<[CC1Option]>;
 def gno_gnu_pubnames : Flag<["-"], "gno-gnu-pubnames">, Group<g_flags_Group>;
 def gpubnames : Flag<["-"], "gpubnames">, Group<g_flags_Group>, Flags<[CC1Option]>;
@@ -3250,6 +3269,9 @@ def mlinker_version_EQ : Joined<["-"], "mlinker-version=">,
 def mllvm : Separate<["-"], "mllvm">, Flags<[CC1Option,CC1AsOption,CoreOption]>,
   HelpText<"Additional arguments to forward to LLVM's option processing">,
   MarshallingInfoStringVector<FrontendOpts<"LLVMArgs">>;
+def ffuchsia_api_level_EQ : Joined<["-"], "ffuchsia-api-level=">,
+  Group<m_Group>, Flags<[CC1Option]>, HelpText<"Set Fuchsia API level">,
+  MarshallingInfoInt<LangOpts<"FuchsiaAPILevel">>;
 def mmacosx_version_min_EQ : Joined<["-"], "mmacosx-version-min=">,
   Group<m_Group>, HelpText<"Set Mac OS X deployment target">;
 def mmacos_version_min_EQ : Joined<["-"], "mmacos-version-min=">,
@@ -3405,13 +3427,20 @@ foreach i = {8-15,18} in
   def fcall_saved_x#i : Flag<["-"], "fcall-saved-x"#i>, Group<m_aarch64_Features_Group>,
     HelpText<"Make the x"#i#" register call-saved (AArch64 only)">;
 
-def msve_vector_bits_EQ : Joined<["-"], "msve-vector-bits=">,
-  Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
+def msve_vector_bits_EQ : Joined<["-"], "msve-vector-bits=">, Group<m_aarch64_Features_Group>,
   HelpText<"Specify the size in bits of an SVE vector register. Defaults to the"
-           " vector length agnostic value of \"scalable\". (AArch64 only)">,
-  Values<"128,256,512,1024,2048,scalable">,
-  NormalizedValues<["128", "256", "512", "1024", "2048", "0"]>,
-  MarshallingInfoEnum<LangOpts<"ArmSveVectorBits">, "0">;
+           " vector length agnostic value of \"scalable\". (AArch64 only)">;
+
+def mvscale_min_EQ : Joined<["-"], "mvscale-min=">,
+  Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
+  HelpText<"Specify the vscale minimum. Defaults to the"
+           " vector length agnostic value of \"0\". (AArch64 only)">,
+  MarshallingInfoInt<LangOpts<"VScaleMin">>;
+def mvscale_max_EQ : Joined<["-"], "mvscale-max=">,
+  Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
+  HelpText<"Specify the vscale maximum. Defaults to the"
+           " vector length agnostic value of \"0\". (AArch64 only)">,
+  MarshallingInfoInt<LangOpts<"VScaleMax">>;
 
 def msign_return_address_EQ : Joined<["-"], "msign-return-address=">,
   Flags<[CC1Option]>, Group<m_Group>, Values<"none,all,non-leaf">,
@@ -3424,6 +3453,8 @@ def mharden_sls_EQ : Joined<["-"], "mharden-sls=">,
 
 def msimd128 : Flag<["-"], "msimd128">, Group<m_wasm_Features_Group>;
 def mno_simd128 : Flag<["-"], "mno-simd128">, Group<m_wasm_Features_Group>;
+def mrelaxed_simd : Flag<["-"], "mrelaxed-simd">, Group<m_wasm_Features_Group>;
+def mno_relaxed_simd : Flag<["-"], "mno-relaxed-simd">, Group<m_wasm_Features_Group>;
 def mnontrapping_fptoint : Flag<["-"], "mnontrapping-fptoint">, Group<m_wasm_Features_Group>;
 def mno_nontrapping_fptoint : Flag<["-"], "mno-nontrapping-fptoint">, Group<m_wasm_Features_Group>;
 def msign_ext : Flag<["-"], "msign-ext">, Group<m_wasm_Features_Group>;
@@ -4687,7 +4718,7 @@ def falternative_parameter_statement : Flag<["-"], "falternative-parameter-state
   HelpText<"Enable the old style PARAMETER statement">;
 def fintrinsic_modules_path : Separate<["-"], "fintrinsic-modules-path">,  Group<f_Group>, MetaVarName<"<dir>">,
   HelpText<"Specify where to find the compiled intrinsic modules">,
-  DocBrief<[{This option specifies the location of pre-compiled intrinsic modules, 
+  DocBrief<[{This option specifies the location of pre-compiled intrinsic modules,
   if they are not in the default location expected by the compiler.}]>;
 
 defm backslash : OptInFC1FFlag<"backslash", "Specify that backslash in string introduces an escape character">;
@@ -5134,9 +5165,9 @@ def mregparm : Separate<["-"], "mregparm">,
 def msmall_data_limit : Separate<["-"], "msmall-data-limit">,
   HelpText<"Put global and static data smaller than the limit into a special section">,
   MarshallingInfoInt<CodeGenOpts<"SmallDataLimit">>;
-def munwind_tables : Flag<["-"], "munwind-tables">,
+def funwind_tables_EQ : Joined<["-"], "funwind-tables=">,
   HelpText<"Generate unwinding tables for all functions">,
-  MarshallingInfoFlag<CodeGenOpts<"UnwindTables">>;
+  MarshallingInfoInt<CodeGenOpts<"UnwindTables">>;
 def mconstructor_aliases : Flag<["-"], "mconstructor-aliases">,
   HelpText<"Emit complete constructors and destructors as aliases when possible">,
   MarshallingInfoFlag<CodeGenOpts<"CXXCtorDtorAliases">>;
@@ -5411,6 +5442,13 @@ def code_completion_with_fixits : Flag<["-"], "code-completion-with-fixits">,
 def disable_free : Flag<["-"], "disable-free">,
   HelpText<"Disable freeing of memory on exit">,
   MarshallingInfoFlag<FrontendOpts<"DisableFree">>;
+defm clear_ast_before_backend : BoolOption<"",
+  "clear-ast-before-backend",
+  CodeGenOpts<"ClearASTBeforeBackend">,
+  DefaultFalse,
+  PosFlag<SetTrue, [], "Clear">,
+  NegFlag<SetFalse, [], "Don't clear">,
+  BothFlags<[], " the Clang AST before running backend code generation">>;
 def enable_noundef_analysis : Flag<["-"], "enable-noundef-analysis">, Group<f_Group>,
   HelpText<"Enable analyzing function argument and return types for mandatory definedness">,
   MarshallingInfoFlag<CodeGenOpts<"EnableNoundefAttrs">>;
@@ -6260,16 +6298,7 @@ def _SLASH_WX_ : CLFlag<"WX-">,
   HelpText<"Do not treat warnings as errors (default)">,
   Alias<W_Joined>, AliasArgs<["no-error"]>;
 def _SLASH_w_flag : CLFlag<"w">, HelpText<"Disable all warnings">, Alias<w>;
-def _SLASH_wd4005 : CLFlag<"wd4005">, Alias<W_Joined>,
-  AliasArgs<["no-macro-redefined"]>;
-def _SLASH_wd4018 : CLFlag<"wd4018">, Alias<W_Joined>,
-  AliasArgs<["no-sign-compare"]>;
-def _SLASH_wd4100 : CLFlag<"wd4100">, Alias<W_Joined>,
-  AliasArgs<["no-unused-parameter"]>;
-def _SLASH_wd4910 : CLFlag<"wd4910">, Alias<W_Joined>,
-  AliasArgs<["no-dllexport-explicit-instantiation-decl"]>;
-def _SLASH_wd4996 : CLFlag<"wd4996">, Alias<W_Joined>,
-  AliasArgs<["no-deprecated-declarations"]>;
+def _SLASH_wd : CLCompileJoined<"wd">;
 def _SLASH_vd : CLJoined<"vd">, HelpText<"Control vtordisp placement">,
   Alias<vtordisp_mode_EQ>;
 def _SLASH_X : CLFlag<"X">,

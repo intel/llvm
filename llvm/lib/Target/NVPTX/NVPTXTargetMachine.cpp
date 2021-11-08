@@ -26,10 +26,10 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
@@ -344,6 +344,7 @@ void NVPTXPassConfig::addIRPasses() {
     addEarlyCSEOrGVNPass();
     if (!DisableLoadStoreVectorizer)
       addPass(createLoadStoreVectorizerPass());
+    addPass(createSROAPass());
   }
 }
 
@@ -366,7 +367,7 @@ void NVPTXPassConfig::addPreRegAlloc() {
 }
 
 void NVPTXPassConfig::addPostRegAlloc() {
-  addPass(createNVPTXPrologEpilogPass(), false);
+  addPass(createNVPTXPrologEpilogPass());
   if (getOptLevel() != CodeGenOpt::None) {
     // NVPTXPrologEpilogPass calculates frame object offset and replace frame
     // index with VRFrame register. NVPTXPeephole need to be run after that and

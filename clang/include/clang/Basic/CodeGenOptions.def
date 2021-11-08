@@ -54,6 +54,7 @@ CODEGENOPT(UniqueBasicBlockSectionNames, 1, 1) ///< Set for -funique-basic-block
 CODEGENOPT(EnableAIXExtendedAltivecABI, 1, 0) ///< Set for -mabi=vec-extabi. Enables the extended Altivec ABI on AIX.
 ENUM_CODEGENOPT(FramePointer, FramePointerKind, 2, FramePointerKind::None) /// frame-pointer: all,non-leaf,none
 
+CODEGENOPT(ClearASTBeforeBackend , 1, 0) ///< Free the AST before running backend code generation. Only works with -disable-free.
 CODEGENOPT(DisableFree       , 1, 0) ///< Don't free memory.
 CODEGENOPT(DiscardValueNames , 1, 0) ///< Discard Value Names from the IR (LLVMContext flag)
 CODEGENOPT(DisableLLVMPasses , 1, 0) ///< Don't run any LLVM IR passes to get
@@ -275,7 +276,7 @@ VALUE_CODEGENOPT(TimeTraceGranularity, 32, 500) ///< Minimum time granularity (i
 CODEGENOPT(UnrollLoops       , 1, 0) ///< Control whether loops are unrolled.
 CODEGENOPT(RerollLoops       , 1, 0) ///< Control whether loops are rerolled.
 CODEGENOPT(NoUseJumpTables   , 1, 0) ///< Set when -fno-jump-tables is enabled.
-CODEGENOPT(UnwindTables      , 1, 0) ///< Emit unwind tables.
+VALUE_CODEGENOPT(UnwindTables, 2, 0) ///< Unwind tables (1) or asynchronous unwind tables (2)
 CODEGENOPT(VectorizeLoop     , 1, 0) ///< Run loop vectorizer.
 CODEGENOPT(VectorizeSLP      , 1, 0) ///< Run SLP vectorizer.
 CODEGENOPT(ProfileSampleAccurate, 1, 0) ///< Sample profile is accurate.
@@ -320,6 +321,12 @@ CODEGENOPT(DebugFwdTemplateParams, 1, 0) ///< Whether to emit complete
                                          ///< template parameter descriptions in
                                          ///< forward declarations (versus just
                                          ///< including them in the name).
+ENUM_CODEGENOPT(DebugSimpleTemplateNames, codegenoptions::DebugTemplateNamesKind, 2, codegenoptions::DebugTemplateNamesKind::Full) ///< Whether to emit template parameters
+                                           ///< in the textual names of template
+					   ///< specializations.
+					   ///< Implies DebugFwdTemplateNames to
+					   ///< allow decorated names to be
+					   ///< reconstructed when needed.
 CODEGENOPT(EmitLLVMUseLists, 1, 0) ///< Control whether to serialize use-lists.
 
 CODEGENOPT(WholeProgramVTables, 1, 0) ///< Whether to apply whole-program

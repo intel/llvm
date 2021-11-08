@@ -38,16 +38,7 @@ void DynamicLoaderPOSIXDYLD::Initialize() {
 
 void DynamicLoaderPOSIXDYLD::Terminate() {}
 
-lldb_private::ConstString DynamicLoaderPOSIXDYLD::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-lldb_private::ConstString DynamicLoaderPOSIXDYLD::GetPluginNameStatic() {
-  static ConstString g_name("linux-dyld");
-  return g_name;
-}
-
-const char *DynamicLoaderPOSIXDYLD::GetPluginDescriptionStatic() {
+llvm::StringRef DynamicLoaderPOSIXDYLD::GetPluginDescriptionStatic() {
   return "Dynamic loader plug-in that watches for shared library "
          "loads/unloads in POSIX processes.";
 }
@@ -449,14 +440,18 @@ void DynamicLoaderPOSIXDYLD::RefreshModules() {
         if (module_sp->GetObjectFile()->GetBaseAddress().GetLoadAddress(
                 &m_process->GetTarget()) == m_interpreter_base &&
             module_sp != m_interpreter_module.lock()) {
-          // If this is a duplicate instance of ld.so, unload it.  We may end up
-          // with it if we load it via a different path than before (symlink
-          // vs real path).
-          // TODO: remove this once we either fix library matching or avoid
-          // loading the interpreter when setting the rendezvous breakpoint.
-          UnloadSections(module_sp);
-          loaded_modules.Remove(module_sp);
-          continue;
+          if (m_interpreter_module.lock() == nullptr) {
+            m_interpreter_module = module_sp;
+          } else {
+            // If this is a duplicate instance of ld.so, unload it.  We may end
+            // up with it if we load it via a different path than before
+            // (symlink vs real path).
+            // TODO: remove this once we either fix library matching or avoid
+            // loading the interpreter when setting the rendezvous breakpoint.
+            UnloadSections(module_sp);
+            loaded_modules.Remove(module_sp);
+            continue;
+          }
         }
 
         loaded_modules.AppendIfNeeded(module_sp);
@@ -627,6 +622,7 @@ void DynamicLoaderPOSIXDYLD::LoadAllCurrentModules() {
   }
 
   m_process->GetTarget().ModulesDidLoad(module_list);
+  m_initial_modules_added = true;
 }
 
 addr_t DynamicLoaderPOSIXDYLD::ComputeLoadOffset() {

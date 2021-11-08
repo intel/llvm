@@ -378,8 +378,12 @@ void Sema::DiagnoseUnusedExprResult(const Stmt *S, unsigned DiagID) {
     return;
   }
 
-  DiagIfReachable(Loc, S ? llvm::makeArrayRef(S) : llvm::None,
-                  PDiag(DiagID) << R1 << R2);
+  // Do not diagnose use of a comma operator in a SFINAE context because the
+  // type of the left operand could be used for SFINAE, so technically it is
+  // *used*.
+  if (DiagID != diag::warn_unused_comma_left_operand || !isSFINAEContext())
+    DiagIfReachable(Loc, S ? llvm::makeArrayRef(S) : llvm::None,
+                    PDiag(DiagID) << R1 << R2);
 }
 
 void Sema::ActOnStartOfCompoundStmt(bool IsStmtExpr) {
@@ -543,7 +547,7 @@ Sema::ActOnLabelStmt(SourceLocation IdentLoc, LabelDecl *TheDecl,
   }
 
   ReservedIdentifierStatus Status = TheDecl->isReserved(getLangOpts());
-  if (Status != ReservedIdentifierStatus::NotReserved &&
+  if (isReservedInAllContexts(Status) &&
       !Context.getSourceManager().isInSystemHeader(IdentLoc))
     Diag(IdentLoc, diag::warn_reserved_extern_symbol)
         << TheDecl << static_cast<int>(Status);
@@ -858,7 +862,8 @@ public:
 };
 }
 
-StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc, bool IsConstexpr,
+StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc,
+                             IfStatementKind StatementKind,
                              SourceLocation LParenLoc, Stmt *InitStmt,
                              ConditionResult Cond, SourceLocation RParenLoc,
                              Stmt *thenStmt, SourceLocation ElseLoc,
@@ -871,25 +876,36 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc, bool IsConstexpr,
                      IfLoc),
         false);
 
+  bool ConstevalOrNegatedConsteval =
+      StatementKind == IfStatementKind::ConstevalNonNegated ||
+      StatementKind == IfStatementKind::ConstevalNegated;
+
   Expr *CondExpr = Cond.get().second;
+  assert((CondExpr || ConstevalOrNegatedConsteval) &&
+         "If statement: missing condition");
   // Only call the CommaVisitor when not C89 due to differences in scope flags.
-  if ((getLangOpts().C99 || getLangOpts().CPlusPlus) &&
+  if (CondExpr && (getLangOpts().C99 || getLangOpts().CPlusPlus) &&
       !Diags.isIgnored(diag::warn_comma_operator, CondExpr->getExprLoc()))
     CommaVisitor(*this).Visit(CondExpr);
 
-  if (!elseStmt)
+  if (!ConstevalOrNegatedConsteval && !elseStmt)
     DiagnoseEmptyStmtBody(CondExpr->getEndLoc(), thenStmt,
                           diag::warn_empty_if_body);
 
-  if (IsConstexpr) {
+  if (ConstevalOrNegatedConsteval ||
+      StatementKind == IfStatementKind::Constexpr) {
     auto DiagnoseLikelihood = [&](const Stmt *S) {
       if (const Attr *A = Stmt::getLikelihoodAttr(S)) {
         Diags.Report(A->getLocation(),
-                     diag::warn_attribute_has_no_effect_on_if_constexpr)
-            << A << A->getRange();
+                     diag::warn_attribute_has_no_effect_on_compile_time_if)
+            << A << ConstevalOrNegatedConsteval << A->getRange();
         Diags.Report(IfLoc,
-                     diag::note_attribute_has_no_effect_on_if_constexpr_here)
-            << SourceRange(IfLoc, LParenLoc.getLocWithOffset(-1));
+                     diag::note_attribute_has_no_effect_on_compile_time_if_here)
+            << ConstevalOrNegatedConsteval
+            << SourceRange(IfLoc, (ConstevalOrNegatedConsteval
+                                       ? thenStmt->getBeginLoc()
+                                       : LParenLoc)
+                                      .getLocWithOffset(-1));
       }
     };
     DiagnoseLikelihood(thenStmt);
@@ -908,11 +924,24 @@ StmtResult Sema::ActOnIfStmt(SourceLocation IfLoc, bool IsConstexpr,
     }
   }
 
-  return BuildIfStmt(IfLoc, IsConstexpr, LParenLoc, InitStmt, Cond, RParenLoc,
+  if (ConstevalOrNegatedConsteval) {
+    bool Immediate = isImmediateFunctionContext();
+    if (CurContext->isFunctionOrMethod()) {
+      const auto *FD =
+          dyn_cast<FunctionDecl>(Decl::castFromDeclContext(CurContext));
+      if (FD && FD->isConsteval())
+        Immediate = true;
+    }
+    if (isUnevaluatedContext() || Immediate)
+      Diags.Report(IfLoc, diag::warn_consteval_if_always_true) << Immediate;
+  }
+
+  return BuildIfStmt(IfLoc, StatementKind, LParenLoc, InitStmt, Cond, RParenLoc,
                      thenStmt, ElseLoc, elseStmt);
 }
 
-StmtResult Sema::BuildIfStmt(SourceLocation IfLoc, bool IsConstexpr,
+StmtResult Sema::BuildIfStmt(SourceLocation IfLoc,
+                             IfStatementKind StatementKind,
                              SourceLocation LParenLoc, Stmt *InitStmt,
                              ConditionResult Cond, SourceLocation RParenLoc,
                              Stmt *thenStmt, SourceLocation ElseLoc,
@@ -920,12 +949,13 @@ StmtResult Sema::BuildIfStmt(SourceLocation IfLoc, bool IsConstexpr,
   if (Cond.isInvalid())
     return StmtError();
 
-  if (IsConstexpr || isa<ObjCAvailabilityCheckExpr>(Cond.get().second))
+  if (StatementKind != IfStatementKind::Ordinary ||
+      isa<ObjCAvailabilityCheckExpr>(Cond.get().second))
     setFunctionHasBranchProtectedScope();
 
-  return IfStmt::Create(Context, IfLoc, IsConstexpr, InitStmt, Cond.get().first,
-                        Cond.get().second, LParenLoc, RParenLoc, thenStmt,
-                        ElseLoc, elseStmt);
+  return IfStmt::Create(Context, IfLoc, StatementKind, InitStmt,
+                        Cond.get().first, Cond.get().second, LParenLoc,
+                        RParenLoc, thenStmt, ElseLoc, elseStmt);
 }
 
 namespace {
@@ -3653,8 +3683,8 @@ StmtResult Sema::ActOnCapScopeReturnStmt(SourceLocation ReturnLoc,
 
     // In C++ the return statement is handled via a copy initialization.
     // the C version of which boils down to CheckSingleAssignmentConstraints.
-    InitializedEntity Entity = InitializedEntity::InitializeResult(
-        ReturnLoc, FnRetType, NRVOCandidate != nullptr);
+    InitializedEntity Entity =
+        InitializedEntity::InitializeResult(ReturnLoc, FnRetType);
     ExprResult Res = PerformMoveOrCopyInitialization(
         Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
     if (Res.isInvalid()) {
@@ -4085,8 +4115,8 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
     // the C version of which boils down to CheckSingleAssignmentConstraints.
     if (!HasDependentReturnType && !RetValExp->isTypeDependent()) {
       // we have a non-void function with an expression, continue checking
-      InitializedEntity Entity = InitializedEntity::InitializeResult(
-          ReturnLoc, RetType, NRVOCandidate != nullptr);
+      InitializedEntity Entity =
+          InitializedEntity::InitializeResult(ReturnLoc, RetType);
       ExprResult Res = PerformMoveOrCopyInitialization(
           Entity, NRInfo, RetValExp, SupressSimplerImplicitMoves);
       if (Res.isInvalid()) {
@@ -4157,7 +4187,14 @@ Sema::ActOnObjCAtTryStmt(SourceLocation AtLoc, Stmt *Try,
   if (!getLangOpts().ObjCExceptions)
     Diag(AtLoc, diag::err_objc_exceptions_disabled) << "@try";
 
-  setFunctionHasBranchProtectedScope();
+  // Objective-C try is incompatible with SEH __try.
+  sema::FunctionScopeInfo *FSI = getCurFunction();
+  if (FSI->FirstSEHTryLoc.isValid()) {
+    Diag(AtLoc, diag::err_mixing_cxx_try_seh_try) << 1;
+    Diag(FSI->FirstSEHTryLoc, diag::note_conflicting_try_here) << "'__try'";
+  }
+
+  FSI->setHasObjCTry(AtLoc);
   unsigned NumCatchStmts = CatchStmts.size();
   return ObjCAtTryStmt::Create(Context, AtLoc, Try, CatchStmts.data(),
                                NumCatchStmts, Finally);
@@ -4398,7 +4435,7 @@ StmtResult Sema::ActOnCXXTryBlock(SourceLocation TryLoc, Stmt *TryBlock,
 
   // C++ try is incompatible with SEH __try.
   if (!getLangOpts().Borland && FSI->FirstSEHTryLoc.isValid()) {
-    Diag(TryLoc, diag::err_mixing_cxx_try_seh_try);
+    Diag(TryLoc, diag::err_mixing_cxx_try_seh_try) << 0;
     Diag(FSI->FirstSEHTryLoc, diag::note_conflicting_try_here) << "'__try'";
   }
 
@@ -4482,9 +4519,12 @@ StmtResult Sema::ActOnSEHTryBlock(bool IsCXXTry, SourceLocation TryLoc,
   // SEH __try is incompatible with C++ try. Borland appears to support this,
   // however.
   if (!getLangOpts().Borland) {
-    if (FSI->FirstCXXTryLoc.isValid()) {
-      Diag(TryLoc, diag::err_mixing_cxx_try_seh_try);
-      Diag(FSI->FirstCXXTryLoc, diag::note_conflicting_try_here) << "'try'";
+    if (FSI->FirstCXXOrObjCTryLoc.isValid()) {
+      Diag(TryLoc, diag::err_mixing_cxx_try_seh_try) << FSI->FirstTryType;
+      Diag(FSI->FirstCXXOrObjCTryLoc, diag::note_conflicting_try_here)
+          << (FSI->FirstTryType == sema::FunctionScopeInfo::TryLocIsCXX
+                  ? "'try'"
+                  : "'@try'");
     }
   }
 

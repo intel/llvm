@@ -1,4 +1,4 @@
-//===------- pi_level_zero.hpp - Level Zero Plugin -------------------===//
+//===--------- pi_level_zero.hpp - Level Zero Plugin ----------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -226,6 +226,7 @@ struct _pi_platform {
   // Cache versions info from zeDriverGetProperties.
   std::string ZeDriverVersion;
   std::string ZeDriverApiVersion;
+  ze_api_version_t ZeApiVersion;
 
   // Cache driver extensions
   std::unordered_map<std::string, uint32_t> zeDriverExtensionMap;
@@ -264,6 +265,7 @@ protected:
   // type
   virtual pi_result allocateImpl(void **ResultPtr, size_t Size,
                                  pi_uint32 Alignment) = 0;
+  virtual MemType getMemTypeImpl() = 0;
 
 public:
   USMMemoryAllocBase(pi_context Ctx, pi_device Dev)
@@ -271,6 +273,7 @@ public:
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
   void deallocate(void *Ptr) override final;
+  MemType getMemType() override final;
 };
 
 // Allocation routines for shared memory type
@@ -278,6 +281,7 @@ class USMSharedMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -289,6 +293,7 @@ class USMDeviceMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMDeviceMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -300,6 +305,7 @@ class USMHostMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}
@@ -415,10 +421,8 @@ typedef pi_command_list_map_t::iterator pi_command_list_ptr_t;
 struct _pi_context : _pi_object {
   _pi_context(ze_context_handle_t ZeContext, pi_uint32 NumDevices,
               const pi_device *Devs, bool OwnZeContext)
-      : ZeContext{ZeContext},
-        OwnZeContext{OwnZeContext}, Devices{Devs, Devs + NumDevices},
-        ZeCommandListInit{nullptr}, ZeEventPool{nullptr},
-        NumEventsAvailableInEventPool{}, NumEventsUnreleasedInEventPool{} {
+      : ZeContext{ZeContext}, OwnZeContext{OwnZeContext},
+        Devices{Devs, Devs + NumDevices}, ZeCommandListInit{nullptr} {
     // NOTE: one must additionally call initialize() to complete
     // PI context creation.
 
@@ -541,9 +545,9 @@ struct _pi_context : _pi_object {
   pi_result getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
                                            bool HostVisible = false);
 
-  // If event is destroyed then decrement number of events living in the pool
-  // and destroy the pool if there are no unreleased events.
-  pi_result decrementUnreleasedEventsInPool(ze_event_pool_handle_t &ZePool);
+  // Decrement number of events living in the pool upon event destroy
+  // and return the pool to the cache if there are no unreleased events.
+  pi_result decrementUnreleasedEventsInPool(pi_event Event);
 
   // Store USM allocator context(internal allocator structures)
   // for USM shared and device allocations. There is 1 allocator context
@@ -569,10 +573,16 @@ private:
   // pi_context overall.
   //
 
-  // Event pool to which events are being added to.
-  ze_event_pool_handle_t ZeEventPool = {nullptr};
-  // Event pool to which host-visible events are added to.
-  ze_event_pool_handle_t ZeHostVisibleEventPool = {nullptr};
+  // The cache of event pools from where new events are allocated from.
+  // The head event pool is where the next event would be added to if there
+  // is still some room there. If there is no room in the head then
+  // the following event pool is taken (guranteed to be empty) and made the
+  // head. In case there is no next pool, a new pool is created and made the
+  // head.
+  //
+  std::list<ze_event_pool_handle_t> ZeEventPoolCache;
+  // Cache of event pools to which host-visible events are added to.
+  std::list<ze_event_pool_handle_t> ZeHostVisibleEventPoolCache;
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -585,14 +595,9 @@ private:
   std::unordered_map<ze_event_pool_handle_t, pi_uint32>
       NumEventsUnreleasedInEventPool;
 
-  // TODO: we'd like to create a thread safe map class instead of mutex + map,
-  // that must be carefully used together.
-
-  // Mutex to control operations on NumEventsAvailableInEventPool map.
-  std::mutex NumEventsAvailableInEventPoolMutex;
-
-  // Mutex to control operations on NumEventsUnreleasedInEventPool.
-  std::mutex NumEventsUnreleasedInEventPoolMutex;
+  // Mutex to control operations on event pool caches and the helper maps
+  // holding the current pool usage counts.
+  std::mutex ZeEventPoolCacheMutex;
 };
 
 struct _pi_queue : _pi_object {
@@ -1133,8 +1138,9 @@ struct _pi_program : _pi_object {
 };
 
 struct _pi_kernel : _pi_object {
-  _pi_kernel(ze_kernel_handle_t Kernel, pi_program Program)
-      : ZeKernel{Kernel}, Program{Program}, MemAllocs{}, SubmissionsCount{0} {}
+  _pi_kernel(ze_kernel_handle_t Kernel, bool OwnZeKernel, pi_program Program)
+      : ZeKernel{Kernel}, OwnZeKernel{OwnZeKernel}, Program{Program},
+        MemAllocs{}, SubmissionsCount{0} {}
 
   // Returns true if kernel has indirect access, false otherwise.
   bool hasIndirectAccess() {
@@ -1145,6 +1151,10 @@ struct _pi_kernel : _pi_object {
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
+
+  // Indicates if we own the ZeKernel or it came from interop that
+  // asked to not transfer the ownership to SYCL RT.
+  bool OwnZeKernel;
 
   // Keep the program of the kernel.
   pi_program Program;

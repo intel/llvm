@@ -6,12 +6,12 @@
 ; RUN: llvm-spirv %t.spv -r -o - | llvm-dis -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: Decorate [[#SC3:]] SpecId 3
-; CHECK-SPIRV: Decorate [[#SC4:]] SpecId 4
-; CHECK-SPIRV: Decorate [[#SC6:]] SpecId 6
-; CHECK-SPIRV: Decorate [[#SC7:]] SpecId 7
-; CHECK-SPIRV: Decorate [[#SC10:]] SpecId 10
-; CHECK-SPIRV: Decorate [[#SC11:]] SpecId 11
+; CHECK-SPIRV-DAG: Decorate [[#SC3:]] SpecId 3
+; CHECK-SPIRV-DAG: Decorate [[#SC4:]] SpecId 4
+; CHECK-SPIRV-DAG: Decorate [[#SC6:]] SpecId 6
+; CHECK-SPIRV-DAG: Decorate [[#SC7:]] SpecId 7
+; CHECK-SPIRV-DAG: Decorate [[#SC10:]] SpecId 10
+; CHECK-SPIRV-DAG: Decorate [[#SC11:]] SpecId 11
 
 ; CHECK-SPIRV-DAG: TypeInt [[#Int:]] 32
 ; CHECK-SPIRV-DAG: TypeFloat [[#Float:]] 32

@@ -11,6 +11,7 @@ SRCS="
 	../rtl/tsan_md5.cpp
 	../rtl/tsan_report.cpp
 	../rtl/tsan_rtl.cpp
+	../rtl/tsan_rtl_access.cpp
 	../rtl/tsan_rtl_mutex.cpp
 	../rtl/tsan_rtl_report.cpp
 	../rtl/tsan_rtl_thread.cpp
@@ -27,7 +28,6 @@ SRCS="
 	../../sanitizer_common/sanitizer_flags.cpp
 	../../sanitizer_common/sanitizer_libc.cpp
 	../../sanitizer_common/sanitizer_mutex.cpp
-	../../sanitizer_common/sanitizer_persistent_allocator.cpp
 	../../sanitizer_common/sanitizer_printf.cpp
 	../../sanitizer_common/sanitizer_suppressions.cpp
 	../../sanitizer_common/sanitizer_thread_registry.cpp

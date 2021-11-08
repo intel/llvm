@@ -33,30 +33,30 @@ class SimpleExecutorMemoryManager : public ExecutorBootstrapService {
 public:
   virtual ~SimpleExecutorMemoryManager();
 
-  Expected<ExecutorAddress> allocate(uint64_t Size);
+  Expected<ExecutorAddr> allocate(uint64_t Size);
   Error finalize(tpctypes::FinalizeRequest &FR);
-  Error deallocate(const std::vector<ExecutorAddress> &Bases);
+  Error deallocate(const std::vector<ExecutorAddr> &Bases);
 
   Error shutdown() override;
-  void addBootstrapSymbols(StringMap<ExecutorAddress> &M) override;
+  void addBootstrapSymbols(StringMap<ExecutorAddr> &M) override;
 
 private:
   struct Allocation {
     size_t Size = 0;
-    std::vector<tpctypes::SupportFunctionCall> DeallocationActions;
+    std::vector<tpctypes::WrapperFunctionCall> DeallocationActions;
   };
 
   using AllocationsMap = DenseMap<void *, Allocation>;
 
   Error deallocateImpl(void *Base, Allocation &A);
 
-  static llvm::orc::shared::detail::CWrapperFunctionResult
+  static llvm::orc::shared::CWrapperFunctionResult
   reserveWrapper(const char *ArgData, size_t ArgSize);
 
-  static llvm::orc::shared::detail::CWrapperFunctionResult
+  static llvm::orc::shared::CWrapperFunctionResult
   finalizeWrapper(const char *ArgData, size_t ArgSize);
 
-  static llvm::orc::shared::detail::CWrapperFunctionResult
+  static llvm::orc::shared::CWrapperFunctionResult
   deallocateWrapper(const char *ArgData, size_t ArgSize);
 
   std::mutex M;

@@ -138,6 +138,8 @@ void ThreadContext::OnCreated(void *arg) {
   creation_stack_id = CurrentStackId(args->thr, args->pc);
 }
 
+extern "C" void __tsan_stack_initialization() {}
+
 struct OnStartedArgs {
   ThreadState *thr;
   uptr stk_addr;
@@ -156,13 +158,6 @@ void ThreadStart(ThreadState *thr, Tid tid, tid_t os_id,
   if (thread_type != ThreadType::Fiber)
     GetThreadStackAndTls(tid == kMainTid, &stk_addr, &stk_size, &tls_addr,
                          &tls_size);
-
-  if (tid != kMainTid) {
-    if (stk_addr && stk_size)
-      MemoryRangeImitateWrite(thr, /*pc=*/ 1, stk_addr, stk_size);
-
-    if (tls_addr && tls_size) ImitateTlsWrite(thr, tls_addr, tls_size);
-  }
 #endif
 
   ThreadRegistry *tr = &ctx->thread_registry;
@@ -178,6 +173,22 @@ void ThreadStart(ThreadState *thr, Tid tid, tid_t os_id,
     ThreadIgnoreSyncBegin(thr, 0);
   }
 #endif
+
+#if !SANITIZER_GO
+  // Don't imitate stack/TLS writes for the main thread,
+  // because its initialization is synchronized with all
+  // subsequent threads anyway.
+  if (tid != kMainTid) {
+    if (stk_addr && stk_size) {
+      const uptr pc = StackTrace::GetNextInstructionPc(
+          reinterpret_cast<uptr>(__tsan_stack_initialization));
+      MemoryRangeImitateWrite(thr, pc, stk_addr, stk_size);
+    }
+
+    if (tls_addr && tls_size)
+      ImitateTlsWrite(thr, tls_addr, tls_size);
+  }
+#endif
 }
 
 void ThreadContext::OnStarted(void *arg) {
@@ -190,17 +201,6 @@ void ThreadContext::OnStarted(void *arg) {
   new (thr)
       ThreadState(ctx, tid, unique_id, epoch0, reuse_count, args->stk_addr,
                   args->stk_size, args->tls_addr, args->tls_size);
-#if !SANITIZER_GO
-  thr->shadow_stack = &ThreadTrace(thr->tid)->shadow_stack[0];
-  thr->shadow_stack_pos = thr->shadow_stack;
-  thr->shadow_stack_end = thr->shadow_stack + kShadowStackSize;
-#else
-  // Setup dynamic shadow stack.
-  const int kInitStackSize = 8;
-  thr->shadow_stack = (uptr *)Alloc(kInitStackSize * sizeof(uptr));
-  thr->shadow_stack_pos = thr->shadow_stack;
-  thr->shadow_stack_end = thr->shadow_stack + kInitStackSize;
-#endif
   if (common_flags()->detect_deadlocks)
     thr->dd_lt = ctx->dd->CreateLogicalThread(unique_id);
   thr->fast_state.SetHistorySize(flags()->history_size);
@@ -321,85 +321,6 @@ void ThreadNotJoined(ThreadState *thr, uptr pc, Tid tid, uptr uid) {
 
 void ThreadSetName(ThreadState *thr, const char *name) {
   ctx->thread_registry.SetThreadName(thr->tid, name);
-}
-
-void MemoryAccessRange(ThreadState *thr, uptr pc, uptr addr,
-                       uptr size, bool is_write) {
-  if (size == 0)
-    return;
-
-  RawShadow *shadow_mem = MemToShadow(addr);
-  DPrintf2("#%d: MemoryAccessRange: @%p %p size=%d is_write=%d\n",
-      thr->tid, (void*)pc, (void*)addr,
-      (int)size, is_write);
-
-#if SANITIZER_DEBUG
-  if (!IsAppMem(addr)) {
-    Printf("Access to non app mem %zx\n", addr);
-    DCHECK(IsAppMem(addr));
-  }
-  if (!IsAppMem(addr + size - 1)) {
-    Printf("Access to non app mem %zx\n", addr + size - 1);
-    DCHECK(IsAppMem(addr + size - 1));
-  }
-  if (!IsShadowMem(shadow_mem)) {
-    Printf("Bad shadow addr %p (%zx)\n", shadow_mem, addr);
-    DCHECK(IsShadowMem(shadow_mem));
-  }
-  if (!IsShadowMem(shadow_mem + size * kShadowCnt / 8 - 1)) {
-    Printf("Bad shadow addr %p (%zx)\n",
-               shadow_mem + size * kShadowCnt / 8 - 1, addr + size - 1);
-    DCHECK(IsShadowMem(shadow_mem + size * kShadowCnt / 8 - 1));
-  }
-#endif
-
-  if (*shadow_mem == kShadowRodata) {
-    DCHECK(!is_write);
-    // Access to .rodata section, no races here.
-    // Measurements show that it can be 10-20% of all memory accesses.
-    return;
-  }
-
-  FastState fast_state = thr->fast_state;
-  if (fast_state.GetIgnoreBit())
-    return;
-
-  fast_state.IncrementEpoch();
-  thr->fast_state = fast_state;
-  TraceAddEvent(thr, fast_state, EventTypeMop, pc);
-
-  bool unaligned = (addr % kShadowCell) != 0;
-
-  // Handle unaligned beginning, if any.
-  for (; addr % kShadowCell && size; addr++, size--) {
-    int const kAccessSizeLog = 0;
-    Shadow cur(fast_state);
-    cur.SetWrite(is_write);
-    cur.SetAddr0AndSizeLog(addr & (kShadowCell - 1), kAccessSizeLog);
-    MemoryAccessImpl(thr, addr, kAccessSizeLog, is_write, false,
-        shadow_mem, cur);
-  }
-  if (unaligned)
-    shadow_mem += kShadowCnt;
-  // Handle middle part, if any.
-  for (; size >= kShadowCell; addr += kShadowCell, size -= kShadowCell) {
-    int const kAccessSizeLog = 3;
-    Shadow cur(fast_state);
-    cur.SetWrite(is_write);
-    cur.SetAddr0AndSizeLog(0, kAccessSizeLog);
-    MemoryAccessImpl(thr, addr, kAccessSizeLog, is_write, false,
-        shadow_mem, cur);
-    shadow_mem += kShadowCnt;
-  }
-  // Handle ending, if any.
-  for (; size; addr++, size--) {
-    int const kAccessSizeLog = 0;
-    Shadow cur(fast_state);
-    cur.SetWrite(is_write);
-    cur.SetAddr0AndSizeLog(addr & (kShadowCell - 1), kAccessSizeLog);
-    MemoryAccessImpl(thr, addr, kAccessSizeLog, is_write, false,
-        shadow_mem, cur);
-  }
 }
 
 #if !SANITIZER_GO

@@ -3829,11 +3829,8 @@ Expr::isNullPointerConstant(ASTContext &Ctx,
         // has non-default address space it is not treated as nullptr.
         // (__generic void*)0 in OpenCL 2.0 should not be treated as nullptr
         // since it cannot be assigned to a pointer to constant address space.
-        if ((Ctx.getLangOpts().OpenCLVersion >= 200 &&
-             Pointee.getAddressSpace() == LangAS::opencl_generic) ||
-            (Ctx.getLangOpts().OpenCL &&
-             Ctx.getLangOpts().OpenCLVersion < 200 &&
-             Pointee.getAddressSpace() == LangAS::opencl_private))
+        if (Ctx.getLangOpts().OpenCL &&
+            Pointee.getAddressSpace() == Ctx.getDefaultOpenCLPointeeAddrSpace())
           Qs.removeAddressSpace();
 
         if (Pointee->isVoidType() && Qs.empty() && // to void*
@@ -4178,7 +4175,7 @@ bool ExtVectorElementExpr::containsDuplicateElements() const {
     Comp = Comp.substr(1);
 
   for (unsigned i = 0, e = Comp.size(); i != e; ++i)
-    if (Comp.substr(i + 1).find(Comp[i]) != StringRef::npos)
+    if (Comp.substr(i + 1).contains(Comp[i]))
         return true;
 
   return false;
@@ -4757,6 +4754,7 @@ unsigned AtomicExpr::getNumSubExprs(AtomicOp Op) {
   case AO__c11_atomic_fetch_and:
   case AO__c11_atomic_fetch_or:
   case AO__c11_atomic_fetch_xor:
+  case AO__c11_atomic_fetch_nand:
   case AO__c11_atomic_fetch_max:
   case AO__c11_atomic_fetch_min:
   case AO__atomic_fetch_add:

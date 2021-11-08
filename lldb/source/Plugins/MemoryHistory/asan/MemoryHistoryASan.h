@@ -27,11 +27,9 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "asan"; }
 
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   lldb_private::HistoryThreads GetHistoryThreads(lldb::addr_t address) override;
 
