@@ -259,3 +259,120 @@ func @select_rank(%arg : i32, %arg2 : i32) -> i32 {
 // CHECK:           3: ^bb3(%[[ARG1]], %[[C2]] : i32, i32),
 // CHECK:           4: ^bb4(%[[C1]] : i32)
 // CHECK:         ]
+
+// -----
+
+// Test fir.extract_value operation conversion with derived type.
+
+func @extract_derived_type() -> f32 {
+  %0 = fir.undefined !fir.type<derived{f:f32}>
+  %1 = fir.extract_value %0, ["f", !fir.type<derived{f:f32}>] : (!fir.type<derived{f:f32}>) -> f32
+  return %1 : f32
+}
+
+// CHECK-LABEL: llvm.func @extract_derived_type
+// CHECK:         %[[STRUCT:.*]] = llvm.mlir.undef : !llvm.struct<"derived", (f32)>
+// CHECK:         %[[VALUE:.*]] = llvm.extractvalue %[[STRUCT]][0 : i32] : !llvm.struct<"derived", (f32)>
+// CHECK:         llvm.return %[[VALUE]] : f32
+
+// -----
+
+// Test fir.extract_value operation conversion with a multi-dimensional array
+// of tuple.
+
+func @extract_array(%a : !fir.array<10x10xtuple<i32, f32>>) -> f32 {
+  %0 = fir.extract_value %a, [5 : index, 4 : index, 1 : index] : (!fir.array<10x10xtuple<i32, f32>>) -> f32
+  return %0 : f32
+}
+
+// CHECK-LABEL: llvm.func @extract_array(
+// CHECK-SAME:                           %[[ARR:.*]]: !llvm.array<10 x array<10 x struct<(i32, f32)>>>
+// CHECK:         %[[VALUE:.*]] = llvm.extractvalue %[[ARR]][4 : index, 5 : index, 1 : index] : !llvm.array<10 x array<10 x struct<(i32, f32)>>>
+// CHECK:         llvm.return %[[VALUE]] : f32
+
+// -----
+
+// Test fir.insert_value operation conversion with a multi-dimensional array
+// of tuple.
+
+func @extract_array(%a : !fir.array<10x10xtuple<i32, f32>>) {
+  %f = arith.constant 2.0 : f32
+  %i = arith.constant 1 : i32
+  %0 = fir.insert_value %a, %i, [5 : index, 4 : index, 0 : index] : (!fir.array<10x10xtuple<i32, f32>>, i32) -> !fir.array<10x10xtuple<i32, f32>>
+  %1 = fir.insert_value %a, %f, [5 : index, 4 : index, 1 : index] : (!fir.array<10x10xtuple<i32, f32>>, f32) -> !fir.array<10x10xtuple<i32, f32>>
+  return
+}
+
+// CHECK-LABEL: llvm.func @extract_array(
+// CHECK-SAME:                           %[[ARR:.*]]: !llvm.array<10 x array<10 x struct<(i32, f32)>>>
+// CHECK:         %{{.*}} = llvm.insertvalue %{{.*}}, %[[ARR]][4 : index, 5 : index, 0 : index] : !llvm.array<10 x array<10 x struct<(i32, f32)>>>
+// CHECK:         %{{.*}} = llvm.insertvalue %{{.*}}, %[[ARR]][4 : index, 5 : index, 1 : index] : !llvm.array<10 x array<10 x struct<(i32, f32)>>>
+// CHECK:         llvm.return
+
+// -----
+
+// Test fir.insert_value operation conversion with derived type.
+
+func @insert_tuple(%a : tuple<i32, f32>) {
+  %f = arith.constant 2.0 : f32
+  %1 = fir.insert_value %a, %f, [1 : index] : (tuple<i32, f32>, f32) -> tuple<i32, f32>
+  return
+}
+
+// CHECK-LABEL: func @insert_tuple(
+// CHECK-SAME:                     %[[TUPLE:.*]]: !llvm.struct<(i32, f32)>
+// CHECK:         %{{.*}} = llvm.insertvalue %{{.*}}, %[[TUPLE]][1 : index] : !llvm.struct<(i32, f32)>
+// CHECK:         llvm.return
+
+// -----
+// Test `fir.call` -> `llvm.call` conversion for functions that take no arguments
+// and return nothing
+
+func @dummy_basic() {
+  return
+}
+
+func @test_call_basic() {
+  fir.call @dummy_basic() : () -> ()
+  return
+}
+
+// CHECK-LABEL: func @test_call_basic() {
+// CHECK-NEXT:  llvm.call @dummy_basic() : () -> ()
+// CHECK-NEXT:  return
+// CHECK-NEXT: }
+
+// Test `fir.call` -> `llvm.call` conversion for functions that take one
+// argument and return nothing
+
+func @dummy_with_arg(%arg0 : i32) {
+  return
+}
+
+func @test_call_with_arg(%arg0 : i32) {
+  fir.call @dummy_with_arg(%arg0) : (i32) -> ()
+  return
+}
+
+// CHECK-LABEL:  llvm.func @test_call_with_arg(%arg0: i32) {
+// CHECK-NEXT:    llvm.call @dummy_with_arg(%arg0) : (i32) -> ()
+// CHECK-NEXT:    llvm.return
+// CHECK-NEXT:  }
+
+// Test `fir.call` -> `llvm.call` conversion for functions that take no
+// arguments, but return a value
+
+func @dummy_return_val() -> i32 {
+  %1 = arith.constant 123 : i32
+  return %1 : i32
+}
+
+func @test_call_return_val() -> i32 {
+  %1 = fir.call @dummy_return_val() : () -> (i32)
+  return %1 : i32
+}
+
+// CHECK-LABEL:  llvm.func @test_call_return_val() -> i32 {
+// CHECK-NEXT:    %0 = llvm.call @dummy_return_val() : () -> i32
+// CHECK-NEXT:    llvm.return %0 : i32
+// CHECK-NEXT:  }
