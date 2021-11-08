@@ -149,8 +149,6 @@ else:
     config.substitutions.append( ('%debug_option',  '-g' ) )
     config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
 
-llvm_config.add_tool_substitutions(['llvm-spirv'], [config.sycl_tools_dir])
-
 if not config.sycl_be:
      lit_config.error("SYCL backend is not specified")
 
