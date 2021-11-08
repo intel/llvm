@@ -85,7 +85,7 @@ if config.extra_environment:
     for env_pair in config.extra_environment.split(','):
         [var,val]=env_pair.split("=")
         if val:
-           llvm_config.with_environment(var,val)
+           llvm_config.with_environment(var,val,append_path=True)
            lit_config.note("\t"+var+"="+val)
         else:
            lit_config.note("\tUnset "+var)
