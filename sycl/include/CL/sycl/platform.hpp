@@ -28,9 +28,6 @@ namespace detail {
 class platform_impl;
 }
 
-// Feature test macro for Default Context
-#define SYCL_EXT_ONEAPI_DEFAULT_CONTEXT 1
-
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api

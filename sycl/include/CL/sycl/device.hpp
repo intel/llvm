@@ -25,6 +25,7 @@ namespace sycl {
 class device_selector;
 namespace detail {
 class device_impl;
+auto getDeviceComparisonLambda();
 }
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
@@ -216,6 +217,8 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  friend auto detail::getDeviceComparisonLambda();
 };
 
 } // namespace sycl

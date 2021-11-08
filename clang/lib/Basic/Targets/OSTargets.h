@@ -179,6 +179,8 @@ protected:
     Builder.defineMacro("__KPRINTF_ATTRIBUTE__");
     Builder.defineMacro("__tune_i386__");
     DefineStd(Builder, "unix", Opts);
+    if (this->HasFloat128)
+      Builder.defineMacro("__FLOAT128__");
   }
 
 public:
@@ -188,6 +190,7 @@ public:
     default:
     case llvm::Triple::x86:
     case llvm::Triple::x86_64:
+      this->HasFloat128 = true;
       this->MCountName = ".mcount";
       break;
     }
@@ -461,10 +464,8 @@ protected:
     if (this->HasFloat128)
       Builder.defineMacro("__FLOAT128__");
 
-    if (Opts.C11) {
-      Builder.defineMacro("__STDC_NO_ATOMICS__");
+    if (Opts.C11)
       Builder.defineMacro("__STDC_NO_THREADS__");
-    }
   }
 
 public:

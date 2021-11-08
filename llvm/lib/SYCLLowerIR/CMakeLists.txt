@@ -12,13 +12,17 @@ endif()
 # NOTE: could have been added earlier from llvm/projects
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
-    message(STATUS "vc-intrinsics are missing. Will try to download them from github.com")
+    set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    set( LLVMGenXIntrinsics_GIT_TAG dpcpp_staging )
+    # Author: Aleksander Us <aleksander.us@intel.com>
+    # Date:   Mon Oct 18 18:03:24 2021 +0000
+    #     Wrap arg_size for call instructions
+    set(LLVMGenXIntrinsics_GIT_TAG 6a7e93d3d90638b6565d97cef96ffaf0f77d688c)
 
+    message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
     FetchContent_Declare(vc-intrinsics
-      GIT_REPOSITORY https://github.com/intel/vc-intrinsics.git
+      GIT_REPOSITORY ${LLVMGenXIntrinsics_GIT_REPO}
       GIT_TAG        ${LLVMGenXIntrinsics_GIT_TAG}
     )
     FetchContent_MakeAvailable(vc-intrinsics)
@@ -26,19 +30,19 @@ if (NOT TARGET LLVMGenXIntrinsics)
 
     set(LLVMGenXIntrinsics_SOURCE_DIR ${vc-intrinsics_SOURCE_DIR})
     set(LLVMGenXIntrinsics_BINARY_DIR ${vc-intrinsics_BINARY_DIR})
-  else()
+  else (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     # -DLLVMGenXIntrinsics_SOURCE_DIR is provided
     message(STATUS "vc-intrinsics are added manually ${LLVMGenXIntrinsics_SOURCE_DIR}")
 
     set(LLVMGenXIntrinsics_BINARY_DIR ${CMAKE_BINARY_DIR}/vc-intrinsics-build)
     add_subdirectory(${LLVMGenXIntrinsics_SOURCE_DIR} ${LLVMGenXIntrinsics_BINARY_DIR})
-  endif()
+  endif (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
 
   target_include_directories(LLVMGenXIntrinsics
     PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_SOURCE_DIR}/GenXIntrinsics/include>
     PUBLIC $<BUILD_INTERFACE:${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include>
   )
-endif()
+endif (NOT TARGET LLVMGenXIntrinsics)
 
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics_SOURCE_DIR})
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP ${LLVMGenXIntrinsics_BINARY_DIR})
