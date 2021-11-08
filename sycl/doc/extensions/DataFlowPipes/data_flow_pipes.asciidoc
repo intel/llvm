@@ -170,6 +170,14 @@ The pipe class exposes static member functions for writing a data word to a pipe
 
 Blocking and non-blocking forms of the read and write members are defined, with the form chosen based on overload resolution.
 
+Read/write methods take a property_list argument, which can contain the latency control properties `latency_anchor_id` and/or `latency_constraint`.
+
+* `sycl::ext::intel::latency_anchor_id<N>`, where `N` is an integer: An ID to associate with the current read/write function call, which can then be referenced by other `latency_constraint` properties elsewhere in the program to define relative latency constaints. ID must be unique within the application, and a diagnostic is required if that condition is not met.
+* `sycl::ext::intel::latency_constraint<A, B, C>`: A tuple of three values which cause the current read/write function call to act as an endpoint of a latency constraint relative to a specified `latency_anchor_id` defined by a different instruction.
+** `A` is an integer: The ID of the target anchor defined on a different instruction through a `latency_anchor_id` property.
+** `B` is an enum value: The type of control from the set {`latency::exact`, `latency::min`, `latency::max`}.
+** `C` is an integer: The relative clock cycle difference between the target anchor and the current function call, that the constraint should infer subject to the type of the control (exact, min, max).
+
 [source,c++,Read write members,linenums]
 ----
 template <typename name,
@@ -178,11 +186,25 @@ template <typename name,
 class pipe {
   // Blocking
   static dataT read();
+
+  template <typename props>
+  static dataT read( props p ); // p must be a property_lis
+
   static void write( const dataT &data );
+
+  template <typename props>
+  static void write( const dataT &data, props p ); // p must be a property_list
 
   // Non-blocking
   static dataT read( bool &success_code );
+
+  template <typename props>
+  static dataT read( bool &success_code, props p ); // p must be a property_list
+
   static void write( const dataT &data, bool &success_code );
+
+  template <typename props>
+  static void write( const dataT &data, bool &success_code, props p ); // p must be a property_list
 }
 ----
 
