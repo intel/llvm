@@ -22,12 +22,12 @@ template <typename T> void seq_cst_test(queue q, size_t N) {
       auto b_acc = b_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<atomic_memory_order_seq_cst_kernel<T>>(
           range<1>(N), [=](item<1> it) {
-            auto aar =
-                atomic_ref<T, memory_order::seq_cst, memory_scope::device,
-                           access::address_space::global_space>(a_acc[0]);
-            auto bar =
-                atomic_ref<T, memory_order::seq_cst, memory_scope::device,
-                           access::address_space::global_space>(b_acc[0]);
+            auto aar = ::sycl::ext::oneapi::atomic_ref<
+                T, memory_order::seq_cst, memory_scope::device,
+                access::address_space::global_space>(a_acc[0]);
+            auto bar = ::sycl::ext::oneapi::atomic_ref<
+                T, memory_order::seq_cst, memory_scope::device,
+                access::address_space::global_space>(b_acc[0]);
             auto ald = aar.load();
             auto bld = bar.load();
             ald += 1;

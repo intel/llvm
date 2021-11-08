@@ -24,9 +24,9 @@ template <typename T> void max_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = atomic_ref<T, memory_order::relaxed, memory_scope::device,
-                              access::address_space::global_space>(val[0]);
-
+        auto atm = ::sycl::ext::oneapi::atomic_ref<
+            T, memory_order::relaxed, memory_scope::device,
+            access::address_space::global_space>(val[0]);
         // +1 accounts for lowest() returning 0 for unsigned types
         out[gid] = atm.fetch_max(T(gid) + 1);
       });

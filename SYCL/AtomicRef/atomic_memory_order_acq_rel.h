@@ -19,9 +19,9 @@ template <typename T> void acq_rel_test(queue q, size_t N) {
       auto a_acc = a_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<atomic_memory_order_acq_rel_kernel<T>>(
           range<1>(N), [=](item<1> it) {
-            auto aar =
-                atomic_ref<T, memory_order::acq_rel, memory_scope::device,
-                           access::address_space::global_space>(a_acc[0]);
+            auto aar = ::sycl::ext::oneapi::atomic_ref<
+                T, memory_order::acq_rel, memory_scope::device,
+                access::address_space::global_space>(a_acc[0]);
             auto ld = aar.load();
             ld += 1;
             aar.store(ld);

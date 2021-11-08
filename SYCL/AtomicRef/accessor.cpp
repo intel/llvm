@@ -38,10 +38,10 @@ template <typename T> void accessor_test(queue q, size_t N) {
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
         static_assert(
-            std::is_same<
-                decltype(sum[0]),
-                atomic_ref<T, memory_order::relaxed, memory_scope::device,
-                           access::address_space::global_space>>::value,
+            std::is_same<decltype(sum[0]),
+                         ::sycl::ext::oneapi::atomic_ref<
+                             T, memory_order::relaxed, memory_scope::device,
+                             access::address_space::global_space>>::value,
             "atomic_accessor returns incorrect atomic_ref");
         out[gid] = sum[0].fetch_add(T(1));
       });
@@ -78,10 +78,10 @@ void local_accessor_test(queue q, size_t N, size_t L = 8) {
         sum[0].store(0);
         it.barrier();
         static_assert(
-            std::is_same<
-                decltype(sum[0]),
-                atomic_ref<T, memory_order::relaxed, memory_scope::device,
-                           access::address_space::local_space>>::value,
+            std::is_same<decltype(sum[0]),
+                         ::sycl::ext::oneapi::atomic_ref<
+                             T, memory_order::relaxed, memory_scope::device,
+                             access::address_space::local_space>>::value,
             "local atomic_accessor returns incorrect atomic_ref");
         T result = sum[0].fetch_add(T(1));
         if (result == it.get_local_range(0) - 1) {
