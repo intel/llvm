@@ -343,9 +343,9 @@ kernel program_impl::get_kernel(std::string KernelName,
     return createSyclObjFromImpl<kernel>(
         std::make_shared<kernel_impl>(MContext, PtrToSelf));
   }
-  return createSyclObjFromImpl<kernel>(std::make_shared<kernel_impl>(
-      get_pi_kernel(KernelName), MContext, PtrToSelf,
-      /*IsCreatedFromSource*/ IsCreatedFromSource));
+  return createSyclObjFromImpl<kernel>(
+      std::make_shared<kernel_impl>(get_pi_kernel(KernelName), MContext,
+                                    PtrToSelf, IsCreatedFromSource, nullptr));
 }
 
 std::vector<std::vector<char>> program_impl::get_binaries() const {
