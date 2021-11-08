@@ -8886,7 +8886,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
       // Don't enable several freshly added extensions on FPGA H/W
       ExtArg += ",+SPV_INTEL_token_type"
                 ",+SPV_INTEL_bfloat16_conversion"
-                ",+SPV_INTEL_joint_matrix";
+                ",+SPV_INTEL_joint_matrix"
+                ",+SPV_INTEL_hw_thread_queries";
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));
   }
   for (auto I : Inputs) {
