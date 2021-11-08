@@ -49,5 +49,13 @@ template <>
 struct is_property_of<property::context::cuda::use_primary_context, context>
     : std::true_type {};
 
+template <>
+struct is_property<ext::oneapi::cuda::property::context::use_primary_context>
+    : std::true_type {};
+
+template <>
+struct is_property_of<ext::oneapi::cuda::property::context::use_primary_context,
+                      context> : std::true_type {};
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

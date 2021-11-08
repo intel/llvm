@@ -54,6 +54,9 @@ struct is_property<property::queue::enable_profiling> : std::true_type {};
 template <>
 struct is_property<property::queue::cuda::use_default_stream> : std::true_type {
 };
+template <>
+struct is_property<ext::oneapi::cuda::property::queue::use_default_stream>
+    : std::true_type {};
 
 template <>
 struct is_property_of<property::queue::in_order, queue> : std::true_type {};
@@ -63,6 +66,9 @@ struct is_property_of<property::queue::enable_profiling, queue>
 template <>
 struct is_property_of<property::queue::cuda::use_default_stream, queue>
     : std::true_type {};
+template <>
+struct is_property_of<ext::oneapi::cuda::property::queue::use_default_stream,
+                      queue> : std::true_type {};
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
