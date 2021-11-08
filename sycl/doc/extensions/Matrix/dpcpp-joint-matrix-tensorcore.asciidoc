@@ -59,9 +59,9 @@ value to determine which of the extension's APIs the implementation supports.
 
 ## Currently implemented additions with respect to the AMX proposal
 
-### Matrix Type
+### Matrix Use
 
-We introduce a new `matrix_type` enum which is necessary to distingush the correct low level PTX instruction for each operation.
+We introduce a new `matrix_use` enum which is necessary to distingush the correct low level PTX instruction for each operation.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
@@ -120,7 +120,7 @@ Since the matrix functions are group operations (as defined in Section 4.17.3 of
 For the CUDA backend the work-items that share a `joint_matrix` instance belong to the same sub-group. The group template parameter provided to `joint_matrix` is always a `sycl::sub_group`.  For example a column major matrix must be declared as follows:
 
 ```c++
-joint_matrix<sub_group, T, K, N, matrix_layout::col_major> tB;
+joint_matrix<T, matrix_use::b, K, N, matrix_layout::col_major> tB;
 ```   
 
 where currently only `T = double` is supported.
@@ -233,11 +233,11 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-g
 ### Dealing with tf32 and bf16 matrix element types
 
 Alternative CUDA floating point types, bf16 and tf32, use the same number of bits for the exponent as fp32, so that these data types can cover the same range of numbers as float using lower precision.  For this reason a DPC++ programmer will be able to use these more efficient low precision data types in matrix operations by providing a matrix array consisting of fp32 elements as an argument to `joint_matrix_load` or `joint_matrix_store`.
-We will introduce a new enum, `matrix::precision`, that must be provided to the `joint_matrix` interface as an additional argument when the user desires bf16 or tf32 to be used as the A, B matrix element data type.  A future implementation will make use of the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cvt[cvt PTX instruction] to cast the fp32 elements to either the tf32 or bf16 type.
+We will introduce a new enum, `matrix::matrix_type`, that must be provided to the `joint_matrix` interface as an additional argument when the user desires bf16 or tf32 to be used as the A, B matrix element data type.  A future implementation will make use of the https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#data-movement-and-conversion-instructions-cvt[cvt PTX instruction] to cast the fp32 elements to either the tf32 or bf16 type.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
-enum class precision
+enum class matrix_type
 {
     tf32,
     bf16
