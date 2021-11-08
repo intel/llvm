@@ -50,7 +50,7 @@ struct sub_group_mask {
     }
 
     reference(sub_group_mask &gmask, size_t pos) : Ref(gmask.Bits) {
-      RefBit = 1 << pos % word_size;
+      RefBit = (pos < gmask.bits_num) ? (1UL << pos) : 0;
     }
 
   private:
@@ -61,7 +61,7 @@ struct sub_group_mask {
   };
 
   bool operator[](id<1> id) const {
-    return Bits & (1 << (id.get(0) % word_size));
+    return (Bits & ((id.get(0) < bits_num) ? (1UL << id.get(0)) : 0));
   }
   reference operator[](id<1> id) { return {*this, id.get(0)}; }
   bool test(id<1> id) const { return operator[](id); }
@@ -101,7 +101,7 @@ struct sub_group_mask {
     if (pos.get(0) + insert_size < size())
       mask |= (0xffffffff << (pos.get(0) + insert_size));
     if (pos.get(0) < size() && pos.get(0))
-      mask |= (0xffffffff >> (size() - pos.get(0)));
+      mask |= (0xffffffff >> (max_bits - pos.get(0)));
     Bits &= mask;
     Bits += insert_data;
   }
@@ -125,14 +125,15 @@ struct sub_group_mask {
   template <typename Type,
             typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
   void extract_bits(Type &bits, id<1> pos = 0) const {
-    uint32_t Res = Bits;
+    auto Res = Bits;
+    Res &= (1UL << bits_num) - 1UL;
     if (pos.get(0) < size()) {
       if (pos.get(0) > 0) {
         Res >>= pos.get(0);
       }
 
-      if (sizeof(Type) * CHAR_BIT < size()) {
-        Res &= (0xffffffff >> (size() - (sizeof(Type) * CHAR_BIT)));
+      if (sizeof(Type) * CHAR_BIT < max_bits) {
+        Res &= (1U << (sizeof(Type) * CHAR_BIT)) - 1U;
       }
       bits = (Type)Res;
     } else {
