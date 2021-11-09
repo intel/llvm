@@ -22,8 +22,6 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
-#include <detail/scheduler/scheduler_helpers.hpp>
-#include <detail/stream_impl.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -137,11 +135,11 @@ event handler::finalize() {
   }
 
   const auto &type = getType();
-  // if user does not add a new dependency to the dependency graph, i.e.
-  // the graph is not changed, then this faster path is used to submit the
-  // kernel
   if (type == detail::CG::Kernel &&
       MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
+    // if user does not add a new dependency to the dependency graph, i.e.
+    // the graph is not changed, then this faster path is used to submit kernel
+    // bypassing scheduler and avoiding CommandGroup, Command objects creation.
 
     std::vector<RT::PiEvent> RawEvents;
     detail::EventImplPtr NewEvent =
