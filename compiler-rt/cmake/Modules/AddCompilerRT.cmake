@@ -254,7 +254,7 @@ function(add_compiler_rt_runtime name type)
       if(COMPILER_RT_USE_BUILTINS_LIBRARY AND NOT type STREQUAL "OBJECT" AND
          NOT name STREQUAL "clang_rt.builtins")
         get_compiler_rt_target(${arch} target)
-        find_compiler_rt_library(builtins ${target} builtins_${libname})
+        find_compiler_rt_library(builtins builtins_${libname} TARGET ${target})
         if(builtins_${libname} STREQUAL "NOTFOUND")
           message(FATAL_ERROR "Cannot find builtins library for the target architecture")
         endif()
@@ -598,6 +598,7 @@ macro(add_custom_libcxx name prefix)
     CMAKE_OBJCOPY
     CMAKE_OBJDUMP
     CMAKE_STRIP
+    CMAKE_READELF
     CMAKE_SYSROOT
     LIBCXX_HAS_MUSL_LIBC
     PYTHON_EXECUTABLE

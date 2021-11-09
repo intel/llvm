@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/IR/LinalgTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -38,8 +39,8 @@ using namespace mlir::linalg;
 using namespace mlir::scf;
 
 static bool isZero(Value v) {
-  if (auto cst = v.getDefiningOp<ConstantIndexOp>())
-    return cst.getValue() == 0;
+  if (auto cst = v.getDefiningOp<arith::ConstantIndexOp>())
+    return cst.value() == 0;
   return false;
 }
 
@@ -110,7 +111,7 @@ RegionMatcher::matchAsScalarBinaryOp(GenericOp op) {
   auto a = m_Val(block.getArgument(0));
   auto b = m_Val(block.getArgument(1));
 
-  auto addPattern = m_Op<linalg::YieldOp>(m_Op<AddIOp>(a, b));
+  auto addPattern = m_Op<linalg::YieldOp>(m_Op<arith::AddIOp>(a, b));
   if (addPattern.match(&ops.back()))
     return BinaryOpKind::IAdd;
 
@@ -137,6 +138,19 @@ static void unpackRanges(ArrayRef<Range> ranges, SmallVectorImpl<Value> &lbs,
 
 namespace mlir {
 namespace linalg {
+
+bool isPermutation(ArrayRef<int64_t> permutation) {
+  // Count the number of appearances for all indices.
+  SmallVector<int64_t> indexCounts(permutation.size(), 0);
+  for (auto index : permutation) {
+    // Exit if the index is out-of-range.
+    if (index < 0 || index >= static_cast<int64_t>(permutation.size()))
+      return false;
+    indexCounts[index]++;
+  }
+  // Return true if all indices appear once.
+  return count(indexCounts, 1) == static_cast<int64_t>(permutation.size());
+}
 
 /// Helper function that creates a memref::DimOp or tensor::DimOp depending on
 /// the type of `source`.
@@ -171,9 +185,9 @@ IntegerAttr getSmallestBoundingIndex(Value size) {
         boundingConst = boundingConst
                             ? std::min(boundingConst.getValue(), cst.getValue())
                             : cst.getValue();
-  } else if (auto constIndexOp = size.getDefiningOp<ConstantOp>()) {
+  } else if (auto constIndexOp = size.getDefiningOp<arith::ConstantOp>()) {
     if (constIndexOp.getType().isa<IndexType>())
-      boundingConst = constIndexOp.value().cast<IntegerAttr>().getInt();
+      boundingConst = constIndexOp.getValue().cast<IntegerAttr>().getInt();
   } else if (auto affineApplyOp = size.getDefiningOp<AffineApplyOp>()) {
     if (auto cExpr = affineApplyOp.getAffineMap()
                          .getResult(0)
@@ -181,8 +195,8 @@ IntegerAttr getSmallestBoundingIndex(Value size) {
       boundingConst = cExpr.getValue();
   } else if (auto dimOp = size.getDefiningOp<tensor::DimOp>()) {
     auto shape = dimOp.source().getType().dyn_cast<ShapedType>();
-    if (auto constOp = dimOp.index().getDefiningOp<ConstantOp>()) {
-      if (auto indexAttr = constOp.value().dyn_cast<IntegerAttr>()) {
+    if (auto constOp = dimOp.index().getDefiningOp<arith::ConstantOp>()) {
+      if (auto indexAttr = constOp.getValue().dyn_cast<IntegerAttr>()) {
         auto dimIndex = indexAttr.getInt();
         if (!shape.isDynamicDim(dimIndex)) {
           boundingConst = shape.getShape()[dimIndex];
@@ -315,9 +329,9 @@ void GenerateLoopNest<AffineForOp>::doit(
   SmallVector<int64_t, 4> constantSteps;
   constantSteps.reserve(steps.size());
   for (Value v : steps) {
-    auto op = v.getDefiningOp<ConstantIndexOp>();
+    auto op = v.getDefiningOp<arith::ConstantIndexOp>();
     assert(op && "Affine loops require constant steps");
-    constantSteps.push_back(op.getValue());
+    constantSteps.push_back(op.value());
   }
 
   mlir::buildAffineLoopNest(b, loc, lbs, ubs, constantSteps,
@@ -616,22 +630,41 @@ Value makeTiledShape(OpBuilder &builder, Location loc, Value valueToTile,
     // b. The subshape size is 1. According to the way the loops are set up,
     //    tensors with "0" dimensions would never be constructed.
     int64_t shapeSize = shape[r];
-    auto sizeCst = size.getDefiningOp<ConstantIndexOp>();
-    auto hasTileSizeOne = sizeCst && sizeCst.getValue() == 1;
+    auto sizeCst = size.getDefiningOp<arith::ConstantIndexOp>();
+    auto hasTileSizeOne = sizeCst && sizeCst.value() == 1;
     auto dividesEvenly = sizeCst && !ShapedType::isDynamic(shapeSize) &&
-                         ((shapeSize % sizeCst.getValue()) == 0);
+                         ((shapeSize % sizeCst.value()) == 0);
     if (!hasTileSizeOne && !dividesEvenly) {
       LLVM_DEBUG(llvm::dbgs() << "makeTiledShape: shapeSize=" << shapeSize
                               << ", size: " << size
                               << ": make sure in bound with affine.min\n");
+
       AffineExpr dim0, dim1, dim2;
       bindDims(builder.getContext(), dim0, dim1, dim2);
-      // Compute min(size, dim - offset) to avoid out-of-bounds accesses.
-      AffineMap minMap =
-          AffineMap::inferFromExprList(
-              ArrayRef<ArrayRef<AffineExpr>>{{dim0, dim1 - dim2}})
+
+      // Get the dimension size for this dimension. We need to first calculate
+      // the max index and then plus one. This is important because for
+      // convolution ops, we have its input window dimension's affine map of the
+      // form `(d0 * s0 + d1)`, where `d0`/`d1 is an output/filter window
+      // dimension and `s0` is stride. Directly use the dimension size of
+      // output/filer window dimensions will cause incorrect calculation.
+      AffineMap minusOneMap =
+          AffineMap::inferFromExprList({ArrayRef<AffineExpr>{dim0 - 1}})
               .front();
-      Value d = applyMapToValues(builder, loc, m, ubs).front();
+      AffineMap plusOneMap =
+          AffineMap::inferFromExprList({ArrayRef<AffineExpr>{dim0 + 1}})
+              .front();
+      auto maxIndices = llvm::to_vector<8>(llvm::map_range(ubs, [&](Value ub) {
+        return makeComposedAffineApply(builder, loc, minusOneMap, {ub})
+            .getResult();
+      }));
+      Value maxIndex = applyMapToValues(builder, loc, m, maxIndices).front();
+      Value d = makeComposedAffineApply(builder, loc, plusOneMap, {maxIndex});
+
+      // Compute min(size, dim - offset) to avoid out-of-bounds accesses.
+      AffineMap minMap = AffineMap::inferFromExprList(
+                             {ArrayRef<AffineExpr>{dim0, dim1 - dim2}})
+                             .front();
       SmallVector<Value, 4> operands{size, d, offset};
       fullyComposeAffineMapAndOperands(&minMap, &operands);
       canonicalizeMapAndOperands(&minMap, &operands);
@@ -667,8 +700,9 @@ SmallVector<Value> computeTileOffsets(OpBuilder &b, Location loc,
   for (unsigned idx = 0, idxIvs = 0, e = tileSizes.size(); idx < e; ++idx) {
     LLVM_DEBUG(llvm::dbgs() << "makeTiledShapes: for loop#" << idx << "\n");
     bool isTiled = !isZero(tileSizes[idx]);
-    offsets.push_back(isTiled ? ivs[idxIvs++]
-                              : b.create<ConstantIndexOp>(loc, 0).getResult());
+    offsets.push_back(
+        isTiled ? ivs[idxIvs++]
+                : b.create<arith::ConstantIndexOp>(loc, 0).getResult());
     LLVM_DEBUG(llvm::dbgs()
                << "computeTileOffsets: " << offsets.back() << "\n");
   }
@@ -734,12 +768,7 @@ SmallVector<Value, 4> makeTiledShapes(OpBuilder &b, Location loc,
 void addTileLoopIvsToIndexOpResults(OpBuilder &b, LinalgOp tiledOp,
                                     ArrayRef<Value> ivs) {
   if (tiledOp.hasIndexSemantics()) {
-    assert(tiledOp->getNumRegions() == 1 &&
-           tiledOp->getRegion(0).getBlocks().size() == 1 &&
-           "expect producer to have one block.");
-    // Shift all IndexOp results by the tile offset.
-    Block &block = tiledOp->getRegion(0).front();
-    for (IndexOp indexOp : block.getOps<IndexOp>()) {
+    for (IndexOp indexOp : tiledOp.getBlock()->getOps<IndexOp>()) {
       if (ivs[indexOp.dim()] == nullptr)
         continue;
       OpBuilder::InsertionGuard guard(b);

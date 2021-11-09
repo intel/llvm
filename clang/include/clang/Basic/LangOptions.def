@@ -149,7 +149,7 @@ LANGOPT(NoMathBuiltin     , 1, 0, "disable math builtin functions")
 LANGOPT(GNUAsm            , 1, 1, "GNU-style inline assembly")
 LANGOPT(Coroutines        , 1, 0, "C++20 coroutines")
 LANGOPT(DllExportInlines  , 1, 1, "dllexported classes dllexport inline methods")
-LANGOPT(RelaxedTemplateTemplateArgs, 1, 0, "C++17 relaxed matching of template template arguments")
+LANGOPT(RelaxedTemplateTemplateArgs, 1, 1, "C++17 relaxed matching of template template arguments")
 
 LANGOPT(DoubleSquareBracketAttributes, 1, 0, "'[[]]' attributes extension for all language standard modes")
 
@@ -244,6 +244,8 @@ LANGOPT(OpenMPCUDAReductionBufNum , 32, 1024, "Number of the reduction records i
 LANGOPT(OpenMPTargetNewRuntime , 1, 0, "Use the new bitcode library for OpenMP offloading")
 LANGOPT(OpenMPTargetDebug , 32, 0, "Enable debugging in the OpenMP offloading device RTL")
 LANGOPT(OpenMPOptimisticCollapse  , 1, 0, "Use at most 32 bits to represent the collapsed loop nest counter.")
+LANGOPT(OpenMPThreadSubscription  , 1, 0, "Assume work-shared loops do not have more iterations than participating threads.")
+LANGOPT(OpenMPTeamSubscription  , 1, 0, "Assume distributed loops do not have more iterations than participating teams.")
 LANGOPT(RenderScript      , 1, 0, "RenderScript")
 
 LANGOPT(CUDAIsDevice      , 1, 0, "compiling for CUDA device")
@@ -435,7 +437,8 @@ LANGOPT(SpeculativeLoadHardening, 1, 0, "Speculative load hardening enabled")
 LANGOPT(RelativeCXXABIVTables, 1, 0,
         "Use an ABI-incompatible v-table layout that uses relative references")
 
-LANGOPT(ArmSveVectorBits, 32, 0, "SVE vector size in bits")
+LANGOPT(VScaleMin, 32, 0, "Minimum vscale value")
+LANGOPT(VScaleMax, 32, 0, "Maximum vscale value")
 
 ENUM_LANGOPT(DefaultSubGroupSizeType, SubGroupSizeType, 2,
              SubGroupSizeType::None,
@@ -445,9 +448,11 @@ ENUM_LANGOPT(DefaultSubGroupSizeType, SubGroupSizeType, 2,
 VALUE_LANGOPT(DefaultSubGroupSize, 32, 0,
               "If DefaultSubGroupSizeType is Integer contains the value")
 
-ENUM_LANGOPT(ExtendIntArgs, ExtendArgsKind, 1, ExtendArgsKind::ExtendTo32, 
+ENUM_LANGOPT(ExtendIntArgs, ExtendArgsKind, 1, ExtendArgsKind::ExtendTo32,
              "Controls how scalar integer arguments are extended in calls "
              "to unprototyped and varargs functions")
+
+VALUE_LANGOPT(FuchsiaAPILevel, 32, 0, "Fuchsia API level")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

@@ -412,18 +412,18 @@ enum ContextAttributeMask {
   ContextShouldBeInlined = 0x2, // Leaf of context should be inlined
 };
 
-// Represents a callsite with caller function name and line location
+// Represents a context frame with function name and line location
 struct SampleContextFrame {
-  StringRef CallerName;
-  LineLocation Callsite;
+  StringRef FuncName;
+  LineLocation Location;
 
-  SampleContextFrame() : Callsite(0, 0) {}
+  SampleContextFrame() : Location(0, 0) {}
 
-  SampleContextFrame(StringRef CallerName, LineLocation Callsite)
-      : CallerName(CallerName), Callsite(Callsite) {}
+  SampleContextFrame(StringRef FuncName, LineLocation Location)
+      : FuncName(FuncName), Location(Location) {}
 
   bool operator==(const SampleContextFrame &That) const {
-    return Callsite == That.Callsite && CallerName == That.CallerName;
+    return Location == That.Location && FuncName == That.FuncName;
   }
 
   bool operator!=(const SampleContextFrame &That) const {
@@ -432,19 +432,19 @@ struct SampleContextFrame {
 
   std::string toString(bool OutputLineLocation) const {
     std::ostringstream OContextStr;
-    OContextStr << CallerName.str();
+    OContextStr << FuncName.str();
     if (OutputLineLocation) {
-      OContextStr << ":" << Callsite.LineOffset;
-      if (Callsite.Discriminator)
-        OContextStr << "." << Callsite.Discriminator;
+      OContextStr << ":" << Location.LineOffset;
+      if (Location.Discriminator)
+        OContextStr << "." << Location.Discriminator;
     }
     return OContextStr.str();
   }
 };
 
 static inline hash_code hash_value(const SampleContextFrame &arg) {
-  return hash_combine(arg.CallerName, arg.Callsite.LineOffset,
-                      arg.Callsite.Discriminator);
+  return hash_combine(arg.FuncName, arg.Location.LineOffset,
+                      arg.Location.Discriminator);
 }
 
 using SampleContextFrameVector = SmallVector<SampleContextFrame, 10>;
@@ -495,25 +495,29 @@ public:
       State = UnknownContext;
       Name = ContextStr;
     } else {
-      // Remove encapsulating '[' and ']' if any
-      ContextStr = ContextStr.substr(1, ContextStr.size() - 2);
       CSNameTable.emplace_back();
       SampleContextFrameVector &Context = CSNameTable.back();
-      /// Create a context vector from a given context string and save it in
-      /// `Context`.
-      StringRef ContextRemain = ContextStr;
-      StringRef ChildContext;
-      StringRef CalleeName;
-      while (!ContextRemain.empty()) {
-        auto ContextSplit = ContextRemain.split(" @ ");
-        ChildContext = ContextSplit.first;
-        ContextRemain = ContextSplit.second;
-        LineLocation CallSiteLoc(0, 0);
-        decodeContextString(ChildContext, CalleeName, CallSiteLoc);
-        Context.emplace_back(CalleeName, CallSiteLoc);
-      }
-
+      createCtxVectorFromStr(ContextStr, Context);
       setContext(Context, CState);
+    }
+  }
+
+  /// Create a context vector from a given context string and save it in
+  /// `Context`.
+  static void createCtxVectorFromStr(StringRef ContextStr,
+                                     SampleContextFrameVector &Context) {
+    // Remove encapsulating '[' and ']' if any
+    ContextStr = ContextStr.substr(1, ContextStr.size() - 2);
+    StringRef ContextRemain = ContextStr;
+    StringRef ChildContext;
+    StringRef CalleeName;
+    while (!ContextRemain.empty()) {
+      auto ContextSplit = ContextRemain.split(" @ ");
+      ChildContext = ContextSplit.first;
+      ContextRemain = ContextSplit.second;
+      LineLocation CallSiteLoc(0, 0);
+      decodeContextString(ChildContext, CalleeName, CallSiteLoc);
+      Context.emplace_back(CalleeName, CallSiteLoc);
     }
   }
 
@@ -598,7 +602,7 @@ public:
                   ContextStateMask CState = RawContext) {
     assert(CState != UnknownContext);
     FullContext = Context;
-    Name = Context.back().CallerName;
+    Name = Context.back().FuncName;
     State = CState;
   }
 
@@ -621,11 +625,11 @@ public:
     while (I < std::min(FullContext.size(), That.FullContext.size())) {
       auto &Context1 = FullContext[I];
       auto &Context2 = That.FullContext[I];
-      auto V = Context1.CallerName.compare(Context2.CallerName);
+      auto V = Context1.FuncName.compare(Context2.FuncName);
       if (V)
         return V == -1;
-      if (Context1.Callsite != Context2.Callsite)
-        return Context1.Callsite < Context2.Callsite;
+      if (Context1.Location != Context2.Location)
+        return Context1.Location < Context2.Location;
       I++;
     }
 
@@ -645,7 +649,7 @@ public:
       return false;
     ThatContext = ThatContext.take_front(ThisContext.size());
     // Compare Leaf frame first
-    if (ThisContext.back().CallerName != ThatContext.back().CallerName)
+    if (ThisContext.back().FuncName != ThatContext.back().FuncName)
       return false;
     // Compare leading context
     return ThisContext.drop_back() == ThatContext.drop_back();
@@ -725,6 +729,20 @@ public:
     SampleRecord S;
     S.addSamples(Num, Weight);
     return BodySamples[LineLocation(Index, 0)].merge(S, Weight);
+  }
+
+  // Accumulate all body samples to set total samples.
+  void updateTotalSamples() {
+    setTotalSamples(0);
+    for (const auto &I : BodySamples)
+      addTotalSamples(I.second.getSamples());
+
+    for (auto &I : CallsiteSamples) {
+      for (auto &CS : I.second) {
+        CS.second.updateTotalSamples();
+        addTotalSamples(CS.second.getTotalSamples());
+      }
+    }
   }
 
   /// Return the number of samples collected at the given location.
@@ -1124,11 +1142,18 @@ private:
 class SampleContextTrimmer {
 public:
   SampleContextTrimmer(SampleProfileMap &Profiles) : ProfileMap(Profiles){};
-  // Trim and merge cold context profile when requested.
+  // Trim and merge cold context profile when requested. TrimBaseProfileOnly
+  // should only be effective when TrimColdContext is true. On top of
+  // TrimColdContext, TrimBaseProfileOnly can be used to specify to trim all
+  // cold profiles or only cold base profiles. Trimming base profiles only is
+  // mainly to honor the preinliner decsion. Note that when MergeColdContext is
+  // true, preinliner decsion is not honored anyway so TrimBaseProfileOnly will
+  // be ignored.
   void trimAndMergeColdContextProfiles(uint64_t ColdCountThreshold,
                                        bool TrimColdContext,
                                        bool MergeColdContext,
-                                       uint32_t ColdContextFrameLength);
+                                       uint32_t ColdContextFrameLength,
+                                       bool TrimBaseProfileOnly);
   // Canonicalize context profile name and attributes.
   void canonicalizeContextProfiles();
 

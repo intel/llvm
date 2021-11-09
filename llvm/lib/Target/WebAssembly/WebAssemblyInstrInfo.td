@@ -26,6 +26,10 @@ def HasSIMD128 :
     Predicate<"Subtarget->hasSIMD128()">,
     AssemblerPredicate<(all_of FeatureSIMD128), "simd128">;
 
+def HasRelaxedSIMD :
+    Predicate<"Subtarget->hasRelaxedSIMD()">,
+    AssemblerPredicate<(all_of FeatureRelaxedSIMD), "relaxed-simd">;
+
 def HasAtomics :
     Predicate<"Subtarget->hasAtomics()">,
     AssemblerPredicate<(all_of FeatureAtomics), "atomics">;
@@ -413,8 +417,10 @@ def : Pat<(i32 (WebAssemblyWrapper texternalsym:$addr)),
 def : Pat<(i64 (WebAssemblyWrapper texternalsym:$addr)),
           (CONST_I64 texternalsym:$addr)>, Requires<[IsNotPIC, HasAddr64]>;
 
-def : Pat<(i32 (WebAssemblyWrapper mcsym:$sym)), (CONST_I32 mcsym:$sym)>;
-def : Pat<(i64 (WebAssemblyWrapper mcsym:$sym)), (CONST_I64 mcsym:$sym)>;
+def : Pat<(i32 (WebAssemblyWrapperREL texternalsym:$addr)),
+          (CONST_I32 texternalsym:$addr)>, Requires<[IsPIC, HasAddr32]>;
+def : Pat<(i64 (WebAssemblyWrapperREL texternalsym:$addr)),
+          (CONST_I64 texternalsym:$addr)>, Requires<[IsPIC, HasAddr64]>;
 
 //===----------------------------------------------------------------------===//
 // Additional sets of instructions.

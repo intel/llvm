@@ -21,6 +21,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
@@ -641,4 +642,80 @@ auto Operator::VariableDecoratorIterator::unwrap(llvm::Init *init)
 auto Operator::getArgToOperandOrAttribute(int index) const
     -> OperandOrAttribute {
   return attrOrOperandMapping[index];
+}
+
+// Helper to return the names for accessor.
+static SmallVector<std::string, 2>
+getGetterOrSetterNames(bool isGetter, const Operator &op, StringRef name) {
+  Dialect::EmitPrefix prefixType = op.getDialect().getEmitAccessorPrefix();
+  std::string prefix;
+  if (prefixType != Dialect::EmitPrefix::Raw)
+    prefix = isGetter ? "get" : "set";
+
+  SmallVector<std::string, 2> names;
+  bool rawToo = prefixType == Dialect::EmitPrefix::Both;
+
+  // Whether to skip generating prefixed form for argument. This just does some
+  // basic checks.
+  //
+  // There are a little bit more invasive checks possible for cases where not
+  // all ops have the trait that would cause overlap. For many cases here,
+  // renaming would be better (e.g., we can only guard in limited manner against
+  // methods from traits and interfaces here, so avoiding these in op definition
+  // is safer).
+  auto skip = [&](StringRef newName) {
+    bool shouldSkip = newName == "getAttributeNames" ||
+                      newName == "getAttributes" || newName == "getOperation" ||
+                      newName == "getType";
+    if (newName == "getOperands") {
+      // To reduce noise, skip generating the prefixed form and the warning if
+      // $operands correspond to single variadic argument.
+      if (op.getNumOperands() == 1 && op.getNumVariableLengthOperands() == 1)
+        return true;
+      shouldSkip = true;
+    }
+    if (newName == "getRegions") {
+      if (op.getNumRegions() == 1 && op.getNumVariadicRegions() == 1)
+        return true;
+      shouldSkip = true;
+    }
+    if (!shouldSkip)
+      return false;
+
+    // This note could be avoided where the final function generated would
+    // have been identical. But preferably in the op definition avoiding using
+    // the generic name and then getting a more specialize type is better.
+    PrintNote(op.getLoc(),
+              "Skipping generation of prefixed accessor `" + newName +
+                  "` as it overlaps with default one; generating raw form (`" +
+                  name + "`) still");
+    return true;
+  };
+
+  if (!prefix.empty()) {
+    names.push_back(
+        prefix + convertToCamelFromSnakeCase(name, /*capitalizeFirst=*/true));
+    // Skip cases which would overlap with default ones for now.
+    if (skip(names.back())) {
+      rawToo = true;
+      names.clear();
+    } else if (rawToo) {
+      LLVM_DEBUG(llvm::errs() << "WITH_GETTER(\"" << op.getQualCppClassName()
+                              << "::" << name << "\")\n"
+                              << "WITH_GETTER(\"" << op.getQualCppClassName()
+                              << "Adaptor::" << name << "\")\n";);
+    }
+  }
+
+  if (prefix.empty() || rawToo)
+    names.push_back(name.str());
+  return names;
+}
+
+SmallVector<std::string, 2> Operator::getGetterNames(StringRef name) const {
+  return getGetterOrSetterNames(/*isGetter=*/true, *this, name);
+}
+
+SmallVector<std::string, 2> Operator::getSetterNames(StringRef name) const {
+  return getGetterOrSetterNames(/*isGetter=*/false, *this, name);
 }

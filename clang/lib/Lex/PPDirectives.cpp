@@ -129,7 +129,7 @@ static bool isForModuleBuilding(Module *M, StringRef CurrentModule,
 
 static MacroDiag shouldWarnOnMacroDef(Preprocessor &PP, IdentifierInfo *II) {
   const LangOptions &Lang = PP.getLangOpts();
-  if (II->isReserved(Lang) != ReservedIdentifierStatus::NotReserved) {
+  if (isReservedInAllContexts(II->isReserved(Lang))) {
     // list from:
     // - https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html
     // - https://docs.microsoft.com/en-us/cpp/c-runtime-library/security-features-in-the-crt?view=msvc-160
@@ -183,7 +183,7 @@ static MacroDiag shouldWarnOnMacroDef(Preprocessor &PP, IdentifierInfo *II) {
 static MacroDiag shouldWarnOnMacroUndef(Preprocessor &PP, IdentifierInfo *II) {
   const LangOptions &Lang = PP.getLangOpts();
   // Do not warn on keyword undef.  It is generally harmless and widely used.
-  if (II->isReserved(Lang) != ReservedIdentifierStatus::NotReserved)
+  if (isReservedInAllContexts(II->isReserved(Lang)))
     return MD_ReservedMacro;
   return MD_NoWarn;
 }
@@ -745,7 +745,7 @@ Module *Preprocessor::getModuleForLocation(SourceLocation Loc) {
   // to the current module, if there is one.
   return getLangOpts().CurrentModule.empty()
              ? nullptr
-             : HeaderInfo.lookupModule(getLangOpts().CurrentModule);
+             : HeaderInfo.lookupModule(getLangOpts().CurrentModule, Loc);
 }
 
 const FileEntry *
@@ -2012,20 +2012,16 @@ Preprocessor::ImportAction Preprocessor::HandleHeaderIncludeOrImport(
   SourceLocation FilenameLoc = FilenameTok.getLocation();
   StringRef LookupFilename = Filename;
 
-#ifdef _WIN32
-  llvm::sys::path::Style BackslashStyle = llvm::sys::path::Style::windows;
-#else
   // Normalize slashes when compiling with -fms-extensions on non-Windows. This
   // is unnecessary on Windows since the filesystem there handles backslashes.
   SmallString<128> NormalizedPath;
-  llvm::sys::path::Style BackslashStyle = llvm::sys::path::Style::posix;
-  if (LangOpts.MicrosoftExt) {
+  llvm::sys::path::Style BackslashStyle = llvm::sys::path::Style::native;
+  if (is_style_posix(BackslashStyle) && LangOpts.MicrosoftExt) {
     NormalizedPath = Filename.str();
     llvm::sys::path::native(NormalizedPath);
     LookupFilename = NormalizedPath;
     BackslashStyle = llvm::sys::path::Style::windows;
   }
-#endif
 
   Optional<FileEntryRef> File = LookupHeaderIncludeOrImport(
       CurDir, Filename, FilenameLoc, FilenameRange, FilenameTok,
@@ -2537,7 +2533,7 @@ bool Preprocessor::ReadMacroParameterList(MacroInfo *MI, Token &Tok) {
 
       // If this is already used as a parameter, it is used multiple times (e.g.
       // #define X(A,A.
-      if (llvm::find(Parameters, II) != Parameters.end()) { // C99 6.10.3p6
+      if (llvm::is_contained(Parameters, II)) { // C99 6.10.3p6
         Diag(Tok, diag::err_pp_duplicate_name_in_arg_list) << II;
         return true;
       }
@@ -2867,6 +2863,12 @@ void Preprocessor::HandleDefineDirective(
   if (MacroNameTok.is(tok::eod))
     return;
 
+  IdentifierInfo *II = MacroNameTok.getIdentifierInfo();
+  // Issue a final pragma warning if we're defining a macro that was has been
+  // undefined and is being redefined.
+  if (!II->hasMacroDefinition() && II->hadMacroDefinition() && II->isFinal())
+    emitFinalMacroWarning(MacroNameTok, /*IsUndef=*/false);
+
   // If we are supposed to keep comments in #defines, reenable comment saving
   // mode.
   if (CurLexer) CurLexer->SetCommentRetentionState(KeepMacroComments);
@@ -2909,6 +2911,12 @@ void Preprocessor::HandleDefineDirective(
   // Finally, if this identifier already had a macro defined for it, verify that
   // the macro bodies are identical, and issue diagnostics if they are not.
   if (const MacroInfo *OtherMI=getMacroInfo(MacroNameTok.getIdentifierInfo())) {
+    // Final macros are hard-mode: they always warn. Even if the bodies are
+    // identical. Even if they are in system headers. Even if they are things we
+    // would silently allow in the past.
+    if (MacroNameTok.getIdentifierInfo()->isFinal())
+      emitFinalMacroWarning(MacroNameTok, /*IsUndef=*/false);
+
     // In Objective-C, ignore attempts to directly redefine the builtin
     // definitions of the ownership qualifiers.  It's still possible to
     // #undef them.
@@ -2938,6 +2946,7 @@ void Preprocessor::HandleDefineDirective(
     // then don't bother calling MacroInfo::isIdenticalTo.
     if (!getDiagnostics().getSuppressSystemWarnings() ||
         !SourceMgr.isInSystemHeader(DefineTok.getLocation())) {
+
       if (!OtherMI->isUsed() && OtherMI->isWarnIfUnused())
         Diag(OtherMI->getDefinitionLoc(), diag::pp_macro_not_used);
 
@@ -3014,6 +3023,9 @@ void Preprocessor::HandleUndefDirective() {
   auto *II = MacroNameTok.getIdentifierInfo();
   auto MD = getMacroDefinition(II);
   UndefMacroDirective *Undef = nullptr;
+
+  if (II->isFinal())
+    emitFinalMacroWarning(MacroNameTok, /*IsUndef=*/true);
 
   // If the macro is not defined, this is a noop undef.
   if (const MacroInfo *MI = MD.getMacroInfo()) {

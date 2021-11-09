@@ -92,7 +92,12 @@ static LogicalResult extractValueFromConstOp(Operation *op, int32_t &value) {
   if (!integerValueAttr) {
     return failure();
   }
-  value = integerValueAttr.getInt();
+
+  if (integerValueAttr.getType().isSignlessInteger())
+    value = integerValueAttr.getInt();
+  else
+    value = integerValueAttr.getSInt();
+
   return success();
 }
 
@@ -321,8 +326,7 @@ static ParseResult parseImageOperands(OpAsmParser &parser,
   if (parseEnumStrAttr(imageOperands, parser))
     return failure();
 
-  attr = spirv::ImageOperandsAttr::get(parser.getBuilder().getContext(),
-                                       imageOperands);
+  attr = spirv::ImageOperandsAttr::get(parser.getContext(), imageOperands);
 
   return parser.parseRSquare();
 }
@@ -493,15 +497,14 @@ static LogicalResult verifySourceMemoryAccessAttribute(MemoryOpTy memoryOp) {
   return success();
 }
 
-template <typename BarrierOp>
-static LogicalResult verifyMemorySemantics(BarrierOp op) {
+static LogicalResult
+verifyMemorySemantics(Operation *op, spirv::MemorySemantics memorySemantics) {
   // According to the SPIR-V specification:
   // "Despite being a mask and allowing multiple bits to be combined, it is
   // invalid for more than one of these four bits to be set: Acquire, Release,
   // AcquireRelease, or SequentiallyConsistent. Requesting both Acquire and
   // Release semantics is done by setting the AcquireRelease bit, not by setting
   // two bits."
-  auto memorySemantics = op.memory_semantics();
   auto atMostOneInSet = spirv::MemorySemantics::Acquire |
                         spirv::MemorySemantics::Release |
                         spirv::MemorySemantics::AcquireRelease |
@@ -510,9 +513,10 @@ static LogicalResult verifyMemorySemantics(BarrierOp op) {
   auto bitCount = llvm::countPopulation(
       static_cast<uint32_t>(memorySemantics & atMostOneInSet));
   if (bitCount > 1) {
-    return op.emitError("expected at most one of these four memory constraints "
-                        "to be set: `Acquire`, `Release`,"
-                        "`AcquireRelease` or `SequentiallyConsistent`");
+    return op->emitError(
+        "expected at most one of these four memory constraints "
+        "to be set: `Acquire`, `Release`,"
+        "`AcquireRelease` or `SequentiallyConsistent`");
   }
   return success();
 }
@@ -767,6 +771,11 @@ static LogicalResult verifyAtomicUpdateOp(Operation *op) {
       return op->emitOpError("expected value to have the same type as the "
                              "pointer operand's pointee type ")
              << elementType << ", but found " << valueType;
+  }
+  auto memorySemantics = static_cast<spirv::MemorySemantics>(
+      op->getAttrOfType<IntegerAttr>(kSemanticsAttrName).getInt());
+  if (failed(verifyMemorySemantics(op, memorySemantics))) {
+    return failure();
   }
   return success();
 }
@@ -2067,8 +2076,7 @@ Operation::operand_range spirv::FunctionCallOp::getArgOperands() {
 void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
                                     Type type, StringRef name,
                                     unsigned descriptorSet, unsigned binding) {
-  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name),
-        nullptr);
+  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name));
   state.addAttribute(
       spirv::SPIRVDialect::getAttributeName(spirv::Decoration::DescriptorSet),
       builder.getI32IntegerAttr(descriptorSet));
@@ -2080,8 +2088,7 @@ void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
 void spirv::GlobalVariableOp::build(OpBuilder &builder, OperationState &state,
                                     Type type, StringRef name,
                                     spirv::BuiltIn builtin) {
-  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name),
-        nullptr);
+  build(builder, state, TypeAttr::get(type), builder.getStringAttr(name));
   state.addAttribute(
       spirv::SPIRVDialect::getAttributeName(spirv::Decoration::BuiltIn),
       builder.getStringAttr(spirv::stringifyBuiltIn(builtin)));
@@ -3590,7 +3597,7 @@ static ParseResult parseSpecConstantOperationOp(OpAsmParser &parser,
   if (!wrappedOp)
     return failure();
 
-  OpBuilder builder(parser.getBuilder().getContext());
+  OpBuilder builder(parser.getContext());
   builder.setInsertionPointToEnd(&block);
   builder.create<spirv::YieldOp>(wrappedOp->getLoc(), wrappedOp->getResult(0));
   state.location = wrappedOp->getLoc();
@@ -3913,14 +3920,9 @@ static LogicalResult verify(spirv::PtrAccessChainOp accessChainOp) {
   return verifyAccessChain(accessChainOp, accessChainOp.indices());
 }
 
-namespace mlir {
-namespace spirv {
-
 // TableGen'erated operation interfaces for querying versions, extensions, and
 // capabilities.
 #include "mlir/Dialect/SPIRV/IR/SPIRVAvailability.cpp.inc"
-} // namespace spirv
-} // namespace mlir
 
 // TablenGen'erated operation definitions.
 #define GET_OP_CLASSES
@@ -3930,6 +3932,5 @@ namespace mlir {
 namespace spirv {
 // TableGen'erated operation availability interface implementations.
 #include "mlir/Dialect/SPIRV/IR/SPIRVOpAvailabilityImpl.inc"
-
 } // namespace spirv
 } // namespace mlir

@@ -10,6 +10,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
+#include <CL/sycl/properties/property_traits.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -21,5 +22,18 @@ class use_primary_context
 } // namespace cuda
 } // namespace context
 } // namespace property
+
+// Forward declaration
+class context;
+
+// Context property trait specializations
+template <>
+struct is_property<property::context::cuda::use_primary_context>
+    : std::true_type {};
+
+template <>
+struct is_property_of<property::context::cuda::use_primary_context, context>
+    : std::true_type {};
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -109,7 +109,7 @@ static bool nodesHaveSameOperandValue(SDNode *N0, SDNode* N1, unsigned OpName) {
 
 bool SIInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
                                                     AAResults *AA) const {
-  if (isVOP1(MI) || isVOP2(MI) || isVOP3(MI) || isSDWA(MI)) {
+  if (isVOP1(MI) || isVOP2(MI) || isVOP3(MI) || isSDWA(MI) || isSALU(MI)) {
     // Normally VALU use of exec would block the rematerialization, but that
     // is OK in this case to have an implicit exec read as all VALU do.
     // We really want all of the generic logic for this except for this.
@@ -117,6 +117,10 @@ bool SIInstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
     // Another potential implicit use is mode register. The core logic of
     // the RA will not attempt rematerialization if mode is set anywhere
     // in the function, otherwise it is safe since mode is not changed.
+
+    // There is difference to generic method which does not allow
+    // rematerialization if there are virtual register uses. We allow this,
+    // therefore this method includes SOP instructions as well.
     return !MI.hasImplicitDef() &&
            MI.getNumImplicitOperands() == MI.getDesc().getNumImplicitUses() &&
            !MI.mayRaiseFPException();
@@ -2219,15 +2223,17 @@ MachineBasicBlock *SIInstrInfo::getBranchDestBlock(
   return MI.getOperand(0).getMBB();
 }
 
-unsigned SIInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
-                                           MachineBasicBlock &DestBB,
-                                           const DebugLoc &DL,
-                                           int64_t BrOffset,
-                                           RegScavenger *RS) const {
+void SIInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
+                                       MachineBasicBlock &DestBB,
+                                       MachineBasicBlock &RestoreBB,
+                                       const DebugLoc &DL, int64_t BrOffset,
+                                       RegScavenger *RS) const {
   assert(RS && "RegScavenger required for long branching");
   assert(MBB.empty() &&
          "new block should be inserted for expanding unconditional branch");
   assert(MBB.pred_size() == 1);
+  assert(RestoreBB.empty() &&
+         "restore block should be inserted for restoring clobbered registers");
 
   MachineFunction *MF = MBB.getParent();
   MachineRegisterInfo &MRI = MF->getRegInfo();
@@ -2263,14 +2269,6 @@ unsigned SIInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
   // Insert the indirect branch after the other terminator.
   BuildMI(&MBB, DL, get(AMDGPU::S_SETPC_B64))
     .addReg(PCReg);
-
-  auto ComputeBlockSize = [](const TargetInstrInfo *TII,
-                             const MachineBasicBlock &MBB) {
-    unsigned Size = 0;
-    for (const MachineInstr &MI : MBB)
-      Size += TII->getInstSizeInBytes(MI);
-    return Size;
-  };
 
   // FIXME: If spilling is necessary, this will fail because this scavenger has
   // no emergency stack slots. It is non-trivial to spill in this situation,
@@ -2310,22 +2308,34 @@ unsigned SIInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
 
   RS->enterBasicBlockEnd(MBB);
   Register Scav = RS->scavengeRegisterBackwards(
-    AMDGPU::SReg_64RegClass,
-    MachineBasicBlock::iterator(GetPC), false, 0);
-  MRI.replaceRegWith(PCReg, Scav);
-  MRI.clearVirtRegs();
-  RS->setRegUsed(Scav);
+      AMDGPU::SReg_64RegClass, MachineBasicBlock::iterator(GetPC),
+      /* RestoreAfter */ false, 0, /* AllowSpill */ false);
+  if (Scav) {
+    RS->setRegUsed(Scav);
+    MRI.replaceRegWith(PCReg, Scav);
+    MRI.clearVirtRegs();
+  } else {
+    // As SGPR needs VGPR to be spilled, we reuse the slot of temporary VGPR for
+    // SGPR spill.
+    const GCNSubtarget &ST = MF->getSubtarget<GCNSubtarget>();
+    const SIRegisterInfo *TRI = ST.getRegisterInfo();
+    TRI->spillEmergencySGPR(GetPC, RestoreBB, AMDGPU::SGPR0_SGPR1, RS);
+    MRI.replaceRegWith(PCReg, AMDGPU::SGPR0_SGPR1);
+    MRI.clearVirtRegs();
+  }
 
+  MCSymbol *DestLabel = Scav ? DestBB.getSymbol() : RestoreBB.getSymbol();
   // Now, the distance could be defined.
   auto *Offset = MCBinaryExpr::createSub(
-      MCSymbolRefExpr::create(DestBB.getSymbol(), MCCtx),
+      MCSymbolRefExpr::create(DestLabel, MCCtx),
       MCSymbolRefExpr::create(PostGetPCLabel, MCCtx), MCCtx);
   // Add offset assignments.
   auto *Mask = MCConstantExpr::create(0xFFFFFFFFULL, MCCtx);
   OffsetLo->setVariableValue(MCBinaryExpr::createAnd(Offset, Mask, MCCtx));
   auto *ShAmt = MCConstantExpr::create(32, MCCtx);
   OffsetHi->setVariableValue(MCBinaryExpr::createAShr(Offset, ShAmt, MCCtx));
-  return ComputeBlockSize(this, MBB);
+
+  return;
 }
 
 unsigned SIInstrInfo::getBranchOpcode(SIInstrInfo::BranchPredicate Cond) {
@@ -2454,16 +2464,15 @@ bool SIInstrInfo::analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
 
 unsigned SIInstrInfo::removeBranch(MachineBasicBlock &MBB,
                                    int *BytesRemoved) const {
-  MachineBasicBlock::iterator I = MBB.getFirstTerminator();
-
   unsigned Count = 0;
   unsigned RemovedSize = 0;
-  while (I != MBB.end()) {
-    MachineBasicBlock::iterator Next = std::next(I);
-    RemovedSize += getInstSizeInBytes(*I);
-    I->eraseFromParent();
-    ++Count;
-    I = Next;
+  for (MachineInstr &MI : llvm::make_early_inc_range(MBB.terminators())) {
+    // Skip over artificial terminators when removing instructions.
+    if (MI.isBranch() || MI.isReturn()) {
+      RemovedSize += getInstSizeInBytes(MI);
+      MI.eraseFromParent();
+      ++Count;
+    }
   }
 
   if (BytesRemoved)
@@ -3112,8 +3121,7 @@ static void updateLiveVariables(LiveVariables *LV, MachineInstr &MI,
   }
 }
 
-MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
-                                                 MachineInstr &MI,
+MachineInstr *SIInstrInfo::convertToThreeAddress(MachineInstr &MI,
                                                  LiveVariables *LV) const {
   unsigned Opc = MI.getOpcode();
   bool IsF16 = false;
@@ -3164,18 +3172,19 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
   const MachineOperand *Clamp = getNamedOperand(MI, AMDGPU::OpName::clamp);
   const MachineOperand *Omod = getNamedOperand(MI, AMDGPU::OpName::omod);
   MachineInstrBuilder MIB;
+  MachineBasicBlock &MBB = *MI.getParent();
 
   if (!Src0Mods && !Src1Mods && !Clamp && !Omod && !IsF64 &&
       // If we have an SGPR input, we will violate the constant bus restriction.
       (ST.getConstantBusLimit(Opc) > 1 || !Src0->isReg() ||
-       !RI.isSGPRReg(MBB->getParent()->getRegInfo(), Src0->getReg()))) {
+       !RI.isSGPRReg(MBB.getParent()->getRegInfo(), Src0->getReg()))) {
     int64_t Imm;
     if (getFoldableImm(Src2, Imm)) {
       unsigned NewOpc =
           IsFMA ? (IsF16 ? AMDGPU::V_FMAAK_F16 : AMDGPU::V_FMAAK_F32)
                 : (IsF16 ? AMDGPU::V_MADAK_F16 : AMDGPU::V_MADAK_F32);
       if (pseudoToMCOpcode(NewOpc) != -1) {
-        MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+        MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
                   .add(*Dst)
                   .add(*Src0)
                   .add(*Src1)
@@ -3189,7 +3198,7 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
                           : (IsF16 ? AMDGPU::V_MADMK_F16 : AMDGPU::V_MADMK_F32);
     if (getFoldableImm(Src1, Imm)) {
       if (pseudoToMCOpcode(NewOpc) != -1) {
-        MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+        MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
                   .add(*Dst)
                   .add(*Src0)
                   .addImm(Imm)
@@ -3203,7 +3212,7 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
           isOperandLegal(
               MI, AMDGPU::getNamedOperandIdx(NewOpc, AMDGPU::OpName::src0),
               Src1)) {
-        MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+        MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
                   .add(*Dst)
                   .add(*Src1)
                   .addImm(Imm)
@@ -3221,7 +3230,7 @@ MachineInstr *SIInstrInfo::convertToThreeAddress(MachineFunction::iterator &MBB,
   if (pseudoToMCOpcode(NewOpc) == -1)
     return nullptr;
 
-  MIB = BuildMI(*MBB, MI, MI.getDebugLoc(), get(NewOpc))
+  MIB = BuildMI(MBB, MI, MI.getDebugLoc(), get(NewOpc))
             .add(*Dst)
             .addImm(Src0Mods ? Src0Mods->getImm() : 0)
             .add(*Src0)
@@ -3402,6 +3411,7 @@ bool SIInstrInfo::isInlineConstant(const MachineOperand &MO,
   switch (OperandType) {
   case AMDGPU::OPERAND_REG_IMM_INT32:
   case AMDGPU::OPERAND_REG_IMM_FP32:
+  case AMDGPU::OPERAND_REG_IMM_FP32_DEFERRED:
   case AMDGPU::OPERAND_REG_INLINE_C_INT32:
   case AMDGPU::OPERAND_REG_INLINE_C_FP32:
   case AMDGPU::OPERAND_REG_IMM_V2FP32:
@@ -3440,6 +3450,7 @@ bool SIInstrInfo::isInlineConstant(const MachineOperand &MO,
     // This suffers the same problem as the scalar 16-bit cases.
     return AMDGPU::isInlinableIntLiteralV216(Imm);
   case AMDGPU::OPERAND_REG_IMM_FP16:
+  case AMDGPU::OPERAND_REG_IMM_FP16_DEFERRED:
   case AMDGPU::OPERAND_REG_INLINE_C_FP16:
   case AMDGPU::OPERAND_REG_INLINE_AC_FP16: {
     if (isInt<16>(Imm) || isUInt<16>(Imm)) {
@@ -3833,6 +3844,7 @@ bool SIInstrInfo::verifyInstruction(const MachineInstr &MI,
       break;
     case AMDGPU::OPERAND_REG_IMM_INT32:
     case AMDGPU::OPERAND_REG_IMM_FP32:
+    case AMDGPU::OPERAND_REG_IMM_FP32_DEFERRED:
       break;
     case AMDGPU::OPERAND_REG_INLINE_C_INT32:
     case AMDGPU::OPERAND_REG_INLINE_C_FP32:

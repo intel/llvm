@@ -25,7 +25,7 @@ using namespace llvm;
 
 /// Replaces BB Terminator with one that only contains Chunk BBs
 static void replaceBranchTerminator(BasicBlock &BB,
-                                    std::set<BasicBlock *> BBsToKeep) {
+                                    const std::set<BasicBlock *> &BBsToKeep) {
   auto *Term = BB.getTerminator();
   std::vector<BasicBlock *> ChunkSucessors;
   for (auto *Succ : successors(&BB))
@@ -66,8 +66,9 @@ static void replaceBranchTerminator(BasicBlock &BB,
 /// Removes uninteresting BBs from switch, if the default case ends up being
 /// uninteresting, the switch is replaced with a void return (since it has to be
 /// replace with something)
-static void removeUninterestingBBsFromSwitch(SwitchInst &SwInst,
-                                             std::set<BasicBlock *> BBsToKeep) {
+static void
+removeUninterestingBBsFromSwitch(SwitchInst &SwInst,
+                                 const std::set<BasicBlock *> &BBsToKeep) {
   if (!BBsToKeep.count(SwInst.getDefaultDest())) {
     auto *FnRetTy = SwInst.getParent()->getParent()->getReturnType();
     ReturnInst::Create(SwInst.getContext(),
@@ -87,19 +88,21 @@ static void removeUninterestingBBsFromSwitch(SwitchInst &SwInst,
 
 /// Removes out-of-chunk arguments from functions, and modifies their calls
 /// accordingly. It also removes allocations of out-of-chunk arguments.
-static void extractBasicBlocksFromModule(std::vector<Chunk> ChunksToKeep,
-                                         Module *Program) {
-  Oracle O(ChunksToKeep);
+static void extractBasicBlocksFromModule(Oracle &O, Module &Program) {
+  std::vector<BasicBlock *> InitBBsToKeep;
 
-  std::set<BasicBlock *> BBsToKeep;
-
-  for (auto &F : *Program)
+  for (auto &F : Program)
     for (auto &BB : F)
       if (O.shouldKeep())
-        BBsToKeep.insert(&BB);
+        InitBBsToKeep.push_back(&BB);
+
+  // We create a vector first, then convert it to a set, so that we don't have
+  // to pay the cost of rebalancing the set frequently if the order we insert
+  // the elements doesn't match the order they should appear inside the set.
+  std::set<BasicBlock *> BBsToKeep(InitBBsToKeep.begin(), InitBBsToKeep.end());
 
   std::vector<BasicBlock *> BBsToDelete;
-  for (auto &F : *Program)
+  for (auto &F : Program)
     for (auto &BB : F) {
       if (!BBsToKeep.count(&BB)) {
         BBsToDelete.push_back(&BB);
@@ -110,7 +113,7 @@ static void extractBasicBlocksFromModule(std::vector<Chunk> ChunksToKeep,
     }
 
   // Replace terminators that reference out-of-chunk BBs
-  for (auto &F : *Program)
+  for (auto &F : Program)
     for (auto &BB : F) {
       if (auto *SwInst = dyn_cast<SwitchInst>(BB.getTerminator()))
         removeUninterestingBBsFromSwitch(*SwInst, BBsToKeep);
@@ -128,11 +131,11 @@ static void extractBasicBlocksFromModule(std::vector<Chunk> ChunksToKeep,
 }
 
 /// Counts the amount of basic blocks and prints their name & respective index
-static int countBasicBlocks(Module *Program) {
+static int countBasicBlocks(Module &Program) {
   // TODO: Silence index with --quiet flag
   outs() << "----------------------------\n";
   int BBCount = 0;
-  for (auto &F : *Program)
+  for (auto &F : Program)
     for (auto &BB : F) {
       if (BB.hasName())
         outs() << "\t" << ++BBCount << ": " << BB.getName() << "\n";

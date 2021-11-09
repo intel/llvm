@@ -319,7 +319,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
 
 // Unsampled images
 #define _CLC_DEFINE_IMAGE1D_READ_BUILTIN(elem_t, elem_t_mangled, elem_size)         \
-  _CLC_DECL                                                                         \
+  _CLC_DEF                                                                          \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image1d_roiET_T0_T1_( \
       read_only image1d_t image, int x) {                                           \
     return out_##elem_t(                                                            \
@@ -327,7 +327,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
   }
 
 #define _CLC_DEFINE_IMAGE2D_READ_BUILTIN(elem_t, elem_t_mangled, elem_size)             \
-  _CLC_DECL                                                                             \
+  _CLC_DEF                                                                              \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image2d_roDv2_iET_T0_T1_( \
       read_only image2d_t image, int2 coord) {                                          \
     return out_##elem_t(__nvvm_suld_2d_v4i##elem_size##_clamp(                          \
@@ -336,7 +336,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
 
 #define _CLC_DEFINE_IMAGE3D_READ_BUILTIN(elem_t, elem_t_mangled, elem_size,                         \
                                          coord_mangled)                                             \
-  _CLC_DECL                                                                                         \
+  _CLC_DEF                                                                                          \
   elem_t##4 _Z17__spirv_ImageReadIDv4_##elem_t_mangled##14ocl_image3d_ro##coord_mangled##ET_T0_T1_( \
       read_only image3d_t image, int4 coord) {                                                      \
     return out_##elem_t(__nvvm_suld_3d_v4i##elem_size##_clamp(                                      \
@@ -345,7 +345,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
 
 #define _CLC_DEFINE_IMAGE1D_WRITE_BUILTIN(elem_t, elem_t_mangled, elem_size,    \
                                           int_rep)                              \
-  _CLC_DECL void                                                                \
+  _CLC_DEF void                                                                 \
       _Z18__spirv_ImageWriteI14ocl_image1d_woiDv4_##elem_t_mangled##EvT_T0_T1_( \
           write_only image1d_t image, int x, elem_t##4 c) {                     \
     __nvvm_sust_1d_v4i##elem_size##_clamp(                                      \
@@ -355,7 +355,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
 
 #define _CLC_DEFINE_IMAGE2D_WRITE_BUILTIN(elem_t, elem_t_mangled, elem_size,        \
                                           int_rep)                                  \
-  _CLC_DECL void                                                                    \
+  _CLC_DEF void                                                                     \
       _Z18__spirv_ImageWriteI14ocl_image2d_woDv2_iDv4_##elem_t_mangled##EvT_T0_T1_( \
           write_only image2d_t image, int2 coord, elem_t##4 c) {                    \
     __nvvm_sust_2d_v4i##elem_size##_clamp(                                          \
@@ -365,7 +365,7 @@ _DEFINE_READ_3D_PIXELF(16, clamp)
 
 #define _CLC_DEFINE_IMAGE3D_WRITE_BUILTIN(elem_t, elem_t_mangled, elem_size,   \
                                           int_rep, val_mangled)                \
-  _CLC_DECL void                                                               \
+  _CLC_DEF void                                                                \
       _Z18__spirv_ImageWriteI14ocl_image3d_woDv4_i##val_mangled##EvT_T0_T1_(   \
           write_only image3d_t image, int4 coord, elem_t##4 c) {               \
     __nvvm_sust_3d_v4i##elem_size##_clamp(                                     \
@@ -414,7 +414,7 @@ _CLC_DEFINE_IMAGE3D_WRITE_BUILTIN(half, DF16_, 16, short, Dv4_DF16_)
 
 // Sampled images
 #define _CLC_DEFINE_SAMPLED_IMAGE_BUILTIN(dims)                                                                     \
-  _CLC_DECL __ocl_sampled_image##dims##d_ro_t                                                                       \
+  _CLC_DEF __ocl_sampled_image##dims##d_ro_t                                                                        \
       _Z20__spirv_SampledImageI14ocl_image##dims##d_ro32__spirv_SampledImage__image##dims##d_roET0_T_11ocl_sampler( \
           read_only image##dims##d_t image, sampler_t sampler) {                                                    \
     return __clc__sampled_image##dims##d_pack(image, sampler);                                                      \
@@ -899,7 +899,7 @@ _DEFINE_SAMPLED_LOADS(half, 16)
 #define _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(                                                                                                   \
     elem_t, elem_t_mangled, dims, input_coord_t, input_coord_t_mangled,                                                                           \
     sampling_coord_t)                                                                                                                             \
-  _CLC_DECL                                                                                                                                       \
+  _CLC_DEF                                                                                                                                        \
   elem_t##4 _Z30__spirv_ImageSampleExplicitLodI32__spirv_SampledImage__image##dims##d_roDv4_##elem_t_mangled##input_coord_t_mangled##ET0_T_T1_if( \
       __ocl_sampled_image##dims##d_ro_t sampled_image,                                                                                            \
       input_coord_t input_coord, int operands, float lod) {                                                                                       \
@@ -973,19 +973,19 @@ _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN(half, DF16_, 3, int4, Dv4_i, float4)
 #undef _CLC_DEFINE_IMAGE_SAMPLED_READ_BUILTIN
 
 // Size Queries
-_CLC_DECL int _Z22__spirv_ImageQuerySizeIDv1_i14ocl_image1d_roET_T0_(
+_CLC_DEF int _Z22__spirv_ImageQuerySizeIDv1_i14ocl_image1d_roET_T0_(
     read_only image1d_t image) {
   return __nvvm_suq_width_1i(image);
 }
 
-_CLC_DECL int2 _Z22__spirv_ImageQuerySizeIDv2_i14ocl_image2d_roET_T0_(
+_CLC_DEF int2 _Z22__spirv_ImageQuerySizeIDv2_i14ocl_image2d_roET_T0_(
     read_only image2d_t image) {
   int width = __nvvm_suq_width_2i(image);
   int height = __nvvm_suq_height_2i(image);
   return (int2)(width, height);
 }
 
-_CLC_DECL int3 _Z22__spirv_ImageQuerySizeIDv3_i14ocl_image3d_roET_T0_(
+_CLC_DEF int3 _Z22__spirv_ImageQuerySizeIDv3_i14ocl_image3d_roET_T0_(
     read_only image3d_t image) {
   int width = __nvvm_suq_width_3i(image);
   int height = __nvvm_suq_height_3i(image);

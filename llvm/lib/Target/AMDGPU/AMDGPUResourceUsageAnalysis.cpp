@@ -29,6 +29,8 @@
 #include "SIMachineFunctionInfo.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/GlobalAlias.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
@@ -61,7 +63,8 @@ static const Function *getCalleeFunction(const MachineOperand &Op) {
     assert(Op.getImm() == 0);
     return nullptr;
   }
-
+  if (auto *GA = dyn_cast<GlobalAlias>(Op.getGlobal()))
+    return cast<Function>(GA->getOperand(0));
   return cast<Function>(Op.getGlobal());
 }
 
@@ -83,10 +86,15 @@ int32_t AMDGPUResourceUsageAnalysis::SIFunctionResourceInfo::getTotalNumSGPRs(
 }
 
 int32_t AMDGPUResourceUsageAnalysis::SIFunctionResourceInfo::getTotalNumVGPRs(
+    const GCNSubtarget &ST, int32_t ArgNumAGPR, int32_t ArgNumVGPR) const {
+  if (ST.hasGFX90AInsts() && ArgNumAGPR)
+    return alignTo(ArgNumVGPR, 4) + ArgNumAGPR;
+  return std::max(ArgNumVGPR, ArgNumAGPR);
+}
+
+int32_t AMDGPUResourceUsageAnalysis::SIFunctionResourceInfo::getTotalNumVGPRs(
     const GCNSubtarget &ST) const {
-  if (ST.hasGFX90AInsts() && NumAGPR)
-    return alignTo(NumVGPR, 4) + NumAGPR;
-  return std::max(NumVGPR, NumAGPR);
+  return getTotalNumVGPRs(ST, NumAGPR, NumVGPR);
 }
 
 bool AMDGPUResourceUsageAnalysis::runOnSCC(CallGraphSCC &SCC) {

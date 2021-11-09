@@ -33,6 +33,7 @@
 #include "llvm/LTO/LTOBackend.h"
 #include "llvm/LTO/SummaryBasedOptimizations.h"
 #include "llvm/Linker/IRMover.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/IRObjectFile.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
@@ -42,7 +43,6 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/Threading.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -537,12 +537,12 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
   auto *ResI = Res.begin();
   auto *ResE = Res.end();
   (void)ResE;
+  const Triple TT(RegularLTO.CombinedModule->getTargetTriple());
   for (const InputFile::Symbol &Sym : Syms) {
     assert(ResI != ResE);
     SymbolResolution Res = *ResI++;
 
     StringRef Name = Sym.getName();
-    Triple TT(RegularLTO.CombinedModule->getTargetTriple());
     // Strip the __imp_ prefix from COFF dllimport symbols (similar to the
     // way they are handled by lld), otherwise we can end up with two
     // global resolutions (one with and one for a copy of the symbol without).
@@ -733,7 +733,7 @@ LTO::addRegularLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
 
   DenseSet<GlobalObject *> AliasedGlobals;
   for (auto &GA : M.aliases())
-    if (GlobalObject *GO = GA.getBaseObject())
+    if (GlobalObject *GO = GA.getAliaseeObject())
       AliasedGlobals.insert(GO);
 
   // In this function we need IR GlobalValues matching the symbols in Syms
@@ -857,10 +857,14 @@ Error LTO::linkRegularLTO(RegularLTOState::AddedModule Mod,
   for (GlobalValue *GV : Mod.Keep) {
     if (LivenessFromIndex && !ThinLTO.CombinedIndex.isGUIDLive(GV->getGUID())) {
       if (Function *F = dyn_cast<Function>(GV)) {
-        OptimizationRemarkEmitter ORE(F, nullptr);
-        ORE.emit(OptimizationRemark(DEBUG_TYPE, "deadfunction", F)
-                 << ore::NV("Function", F)
-                 << " not added to the combined module ");
+        if (DiagnosticOutputFile) {
+          if (Error Err = F->materialize())
+            return Err;
+          OptimizationRemarkEmitter ORE(F, nullptr);
+          ORE.emit(OptimizationRemark(DEBUG_TYPE, "deadfunction", F)
+                   << ore::NV("Function", F)
+                   << " not added to the combined module ");
+        }
       }
       continue;
     }
@@ -1049,6 +1053,7 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
       Conf.RemarksHotnessThreshold);
   if (!DiagFileOrErr)
     return DiagFileOrErr.takeError();
+  DiagnosticOutputFile = std::move(*DiagFileOrErr);
 
   // Finalize linking of regular LTO modules containing summaries now that
   // we have computed liveness information.
@@ -1137,7 +1142,7 @@ Error LTO::runRegularLTO(AddStreamFn AddStream) {
       return Err;
   }
 
-  return finalizeOptimizationRemarks(std::move(*DiagFileOrErr));
+  return finalizeOptimizationRemarks(std::move(DiagnosticOutputFile));
 }
 
 static const char *libcallRoutineNames[] = {
@@ -1515,6 +1520,8 @@ Error LTO::runThinLTO(AddStreamFn AddStream, NativeObjectCache Cache,
   };
   thinLTOResolvePrevailingInIndex(Conf, ThinLTO.CombinedIndex, isPrevailing,
                                   recordNewLinkage, GUIDPreservedSymbols);
+
+  thinLTOPropagateFunctionAttrs(ThinLTO.CombinedIndex, isPrevailing);
 
   generateParamAccessSummary(ThinLTO.CombinedIndex);
 

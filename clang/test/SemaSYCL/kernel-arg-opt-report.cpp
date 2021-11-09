@@ -132,7 +132,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '3'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::accessor<char, 1, sycl::access::mode::read>,'
 // SPIR-NEXT: String:          decompAcc
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -153,7 +153,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '4'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::accessor<char, 1, sycl::access::mode::read>,'
 // SPIR-NEXT: String:          decompAcc
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -174,7 +174,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '5'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::accessor<char, 1, sycl::access::mode::read>,'
 // SPIR-NEXT: String:          decompAcc
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -195,7 +195,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '6'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::accessor<char, 1, sycl::access::mode::read>,'
 // SPIR-NEXT: String:          decompAcc
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -216,7 +216,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '7'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::stream,'
 // SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -237,7 +237,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '8'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::stream,'
 // SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -258,7 +258,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '9'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::stream,'
 // SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -279,7 +279,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '10'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::stream,'
 // SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -300,7 +300,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '11'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for stream,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::stream,'
 // SPIR-NEXT: String:          DecompStream
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -384,7 +384,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '15'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for sampler,
+// SPIR-NEXT: String:          'Compiler generated argument for sycl::sampler,'
 // SPIR-NEXT: String:          Sampl
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -407,7 +407,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '0'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor base class,
+// SPIR-NEXT: String:          'Compiler generated argument for base class sycl::accessor<char, 1, sycl::access::mode::read>,'
 // SPIR-NEXT: String:          'sycl::accessor<char, 1, sycl::access::mode::read>'
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -428,7 +428,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '1'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor base class,
+// SPIR-NEXT: String:          'Compiler generated argument for base class sycl::accessor<char, 1, sycl::access::mode::read>,'
 // SPIR-NEXT: String:          'sycl::accessor<char, 1, sycl::access::mode::read>'
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -449,7 +449,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '2'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor base class,
+// SPIR-NEXT: String:          'Compiler generated argument for base class sycl::accessor<char, 1, sycl::access::mode::read>,'
 // SPIR-NEXT: String:          'sycl::accessor<char, 1, sycl::access::mode::read>'
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''
@@ -470,7 +470,7 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '3'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          Compiler generated argument for accessor base class,
+// SPIR-NEXT: String:          'Compiler generated argument for base class sycl::accessor<char, 1, sycl::access::mode::read>,'
 // SPIR-NEXT: String:          'sycl::accessor<char, 1, sycl::access::mode::read>'
 // SPIR-NEXT: String:          '  ('
 // SPIR-NEXT: String:          ''

@@ -193,7 +193,10 @@ if (NOT DEFINED LLVM_LINKER_DETECTED)
       OUTPUT_VARIABLE stdout
       ERROR_VARIABLE stderr
       )
-    if("${stdout}" MATCHES "GNU gold")
+    if("${stdout}" MATCHES "^mold")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: mold")
+    elseif("${stdout}" MATCHES "GNU gold")
       set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
       set(LLVM_LINKER_IS_GOLD YES CACHE INTERNAL "")
       message(STATUS "Linker detection: GNU Gold")
@@ -1466,7 +1469,9 @@ function(add_unittest test_suite test_name)
     list(APPEND LLVM_COMPILE_FLAGS "-Wno-gnu-zero-variadic-macro-arguments")
   endif()
 
-  set(LLVM_REQUIRES_RTTI OFF)
+  if (NOT DEFINED LLVM_REQUIRES_RTTI)
+    set(LLVM_REQUIRES_RTTI OFF)
+  endif()
 
   list(APPEND LLVM_LINK_COMPONENTS Support) # gtest needs it for raw_ostream
   add_llvm_executable(${test_name} IGNORE_EXTERNALIZE_DEBUGINFO NO_INSTALL_RPATH ${ARGN})

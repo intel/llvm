@@ -455,24 +455,30 @@ void CheckHelper::CheckObjectEntity(
   CheckAssumedTypeEntity(symbol, details);
   WarnMissingFinal(symbol);
   if (!details.coshape().empty()) {
-    bool isDeferredShape{details.coshape().IsDeferredShape()};
+    bool isDeferredCoshape{details.coshape().IsDeferredShape()};
     if (IsAllocatable(symbol)) {
-      if (!isDeferredShape) { // C827
+      if (!isDeferredCoshape) { // C827
         messages_.Say("'%s' is an ALLOCATABLE coarray and must have a deferred"
                       " coshape"_err_en_US,
             symbol.name());
       }
     } else if (symbol.owner().IsDerivedType()) { // C746
       std::string deferredMsg{
-          isDeferredShape ? "" : " and have a deferred coshape"};
+          isDeferredCoshape ? "" : " and have a deferred coshape"};
       messages_.Say("Component '%s' is a coarray and must have the ALLOCATABLE"
                     " attribute%s"_err_en_US,
           symbol.name(), deferredMsg);
     } else {
       if (!details.coshape().IsAssumedSize()) { // C828
         messages_.Say(
-            "Component '%s' is a non-ALLOCATABLE coarray and must have"
-            " an explicit coshape"_err_en_US,
+            "'%s' is a non-ALLOCATABLE coarray and must have an explicit coshape"_err_en_US,
+            symbol.name());
+      }
+    }
+    if (const DeclTypeSpec * type{details.type()}) {
+      if (IsBadCoarrayType(type->AsDerived())) { // C747 & C824
+        messages_.Say(
+            "Coarray '%s' may not have type TEAM_TYPE, C_PTR, or C_FUNPTR"_err_en_US,
             symbol.name());
       }
     }
@@ -618,10 +624,14 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
         // or an unrestricted specific intrinsic function.
         const Symbol &ultimate{(*proc->init())->GetUltimate()};
         if (ultimate.attrs().test(Attr::INTRINSIC)) {
-          if (!context_.intrinsics().IsSpecificIntrinsicFunction(
-                  ultimate.name().ToString())) { // C1030
+          if (const auto intrinsic{
+                  context_.intrinsics().IsSpecificIntrinsicFunction(
+                      ultimate.name().ToString())};
+              !intrinsic || intrinsic->isRestrictedSpecific) { // C1030
             context_.Say(
-                "Intrinsic procedure '%s' is not a specific intrinsic permitted for use as the initializer for procedure pointer '%s'"_err_en_US,
+                "Intrinsic procedure '%s' is not an unrestricted specific "
+                "intrinsic permitted for use as the initializer for procedure "
+                "pointer '%s'"_err_en_US,
                 ultimate.name(), symbol.name());
           }
         } else if (!ultimate.attrs().test(Attr::EXTERNAL) &&
@@ -768,10 +778,14 @@ void CheckHelper::CheckProcEntity(
     CheckPointerInitialization(symbol);
     if (const Symbol * interface{details.interface().symbol()}) {
       if (interface->attrs().test(Attr::INTRINSIC)) {
-        if (!context_.intrinsics().IsSpecificIntrinsicFunction(
-                interface->name().ToString())) { // C1515
+        if (const auto intrinsic{
+                context_.intrinsics().IsSpecificIntrinsicFunction(
+                    interface->name().ToString())};
+            !intrinsic || intrinsic->isRestrictedSpecific) { // C1515
           messages_.Say(
-              "Intrinsic procedure '%s' is not a specific intrinsic permitted for use as the definition of the interface to procedure pointer '%s'"_err_en_US,
+              "Intrinsic procedure '%s' is not an unrestricted specific "
+              "intrinsic permitted for use as the definition of the interface "
+              "to procedure pointer '%s'"_err_en_US,
               interface->name(), symbol.name());
         }
       } else if (interface->attrs().test(Attr::ELEMENTAL)) {
@@ -893,9 +907,6 @@ void CheckHelper::CheckSubprogram(
     // See comment on the similar check in CheckProcEntity()
     if (details.isDummy()) {
       messages_.Say("A dummy procedure may not be ELEMENTAL"_err_en_US);
-    } else if (details.dummyArgs().empty()) {
-      messages_.Say(
-          "An ELEMENTAL subprogram must have at least one dummy argument"_err_en_US);
     } else {
       for (const Symbol *dummy : details.dummyArgs()) {
         if (!dummy) { // C15100
@@ -1094,7 +1105,8 @@ bool CheckHelper::CheckDistinguishableFinals(const Symbol &f1,
   const Procedure *p1{Characterize(f1)};
   const Procedure *p2{Characterize(f2)};
   if (p1 && p2) {
-    if (characteristics::Distinguishable(*p1, *p2)) {
+    if (characteristics::Distinguishable(
+            context_.languageFeatures(), *p1, *p2)) {
       return true;
     }
     if (auto *msg{messages_.Say(f1Name,
@@ -1319,14 +1331,18 @@ bool CheckHelper::CheckDefinedAssignment(
   } else if (proc.dummyArguments.size() != 2) {
     msg = "Defined assignment subroutine '%s' must have"
           " two dummy arguments"_err_en_US;
-  } else if (!CheckDefinedAssignmentArg(specific, proc.dummyArguments[0], 0) |
-      !CheckDefinedAssignmentArg(specific, proc.dummyArguments[1], 1)) {
-    return false; // error was reported
-  } else if (ConflictsWithIntrinsicAssignment(proc)) {
-    msg = "Defined assignment subroutine '%s' conflicts with"
-          " intrinsic assignment"_err_en_US;
   } else {
-    return true; // OK
+    // Check both arguments even if the first has an error.
+    bool ok0{CheckDefinedAssignmentArg(specific, proc.dummyArguments[0], 0)};
+    bool ok1{CheckDefinedAssignmentArg(specific, proc.dummyArguments[1], 1)};
+    if (!(ok0 && ok1)) {
+      return false; // error was reported
+    } else if (ConflictsWithIntrinsicAssignment(proc)) {
+      msg = "Defined assignment subroutine '%s' conflicts with"
+            " intrinsic assignment"_err_en_US;
+    } else {
+      return true; // OK
+    }
   }
   SayWithDeclaration(specific, std::move(msg.value()), specific.name());
   context_.SetError(specific);
@@ -2287,7 +2303,8 @@ void DistinguishabilityHelper::Check(const Scope &scope) {
         auto distinguishable{kind.IsName()
                 ? evaluate::characteristics::Distinguishable
                 : evaluate::characteristics::DistinguishableOpOrAssign};
-        if (!distinguishable(proc, info[i2].procedure)) {
+        if (!distinguishable(
+                context_.languageFeatures(), proc, info[i2].procedure)) {
           SayNotDistinguishable(GetTopLevelUnitContaining(scope), name, kind,
               symbol, info[i2].symbol);
         }
@@ -2313,14 +2330,11 @@ void DistinguishabilityHelper::SayNotDistinguishable(const Scope &scope,
   parser::Message *msg;
   if (scope.sourceRange().Contains(name)) {
     msg = &context_.Say(name,
-        "Generic '%s' may not have specific procedures '%s' and"
-        " '%s' as their interfaces are not distinguishable"_err_en_US,
+        "Generic '%s' may not have specific procedures '%s' and '%s' as their interfaces are not distinguishable"_err_en_US,
         MakeOpName(name), name1, name2);
   } else {
     msg = &context_.Say(*GetTopLevelUnitContaining(proc1).GetName(),
-        "USE-associated generic '%s' may not have specific procedures '%s' "
-        "and"
-        " '%s' as their interfaces are not distinguishable"_err_en_US,
+        "USE-associated generic '%s' may not have specific procedures '%s' and '%s' as their interfaces are not distinguishable"_err_en_US,
         MakeOpName(name), name1, name2);
   }
   AttachDeclaration(*msg, scope, proc1);

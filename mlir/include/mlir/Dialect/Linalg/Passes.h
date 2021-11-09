@@ -13,9 +13,12 @@
 #ifndef MLIR_DIALECT_LINALG_PASSES_H_
 #define MLIR_DIALECT_LINALG_PASSES_H_
 
+#include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+
 std::unique_ptr<OperationPass<FuncOp>> createConvertElementwiseToLinalgPass();
 
 std::unique_ptr<OperationPass<FuncOp>> createLinalgFoldUnitExtentDimsPass();
@@ -23,15 +26,10 @@ std::unique_ptr<OperationPass<FuncOp>> createLinalgFoldUnitExtentDimsPass();
 std::unique_ptr<Pass> createLinalgElementwiseOpFusionPass();
 std::unique_ptr<Pass> createFoldReshapeOpsByLinearizationPass();
 
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgTilingPass(ArrayRef<int64_t> tileSizes = {});
-
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgTilingToParallelLoopsPass(ArrayRef<int64_t> tileSizes = {});
-
-std::unique_ptr<OperationPass<FuncOp>>
-createLinalgTilingToTiledLoopPass(ArrayRef<int64_t> tileSizes = {},
-                                  ArrayRef<StringRef> distributionTypes = {});
+std::unique_ptr<OperationPass<FuncOp>> createLinalgTilingPass(
+    ArrayRef<int64_t> tileSizes = {},
+    linalg::LinalgTilingLoopType loopType = linalg::LinalgTilingLoopType::Loops,
+    ArrayRef<StringRef> distributionTypes = {});
 
 std::unique_ptr<OperationPass<FuncOp>>
 createLinalgPromotionPass(bool dynamicBuffers, bool useAlloca);
@@ -79,6 +77,66 @@ std::unique_ptr<Pass> createLinalgDetensorizePass();
 
 /// Create a pass to tile a LinalgOp and fuse its producers.
 std::unique_ptr<OperationPass<FuncOp>> createLinalgTileAndFuseTensorOpsPass();
+
+//===----------------------------------------------------------------------===//
+/// Linalg strategy passes.
+//===----------------------------------------------------------------------===//
+/// Create a LinalgStrategyTilePass.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyTilePass(
+    StringRef opName = "",
+    linalg::LinalgTilingOptions opt = linalg::LinalgTilingOptions(),
+    linalg::LinalgTransformationFilter filter =
+        linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyPadPass.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyPadPass(
+    StringRef opName = "",
+    linalg::LinalgPaddingOptions opt = linalg::LinalgPaddingOptions(),
+    linalg::LinalgTransformationFilter filter =
+        linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyPromotePass.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyPromotePass(
+    StringRef opName = "",
+    linalg::LinalgPromotionOptions opt = linalg::LinalgPromotionOptions(),
+    linalg::LinalgTransformationFilter filter =
+        linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyGeneralizePass.
+std::unique_ptr<OperationPass<FuncOp>>
+createLinalgStrategyGeneralizePass(StringRef opName = "",
+                                   linalg::LinalgTransformationFilter filter =
+                                       linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyInterchangePass.
+std::unique_ptr<OperationPass<FuncOp>>
+createLinalgStrategyInterchangePass(ArrayRef<int64_t> iteratorInterchange = {},
+                                    linalg::LinalgTransformationFilter filter =
+                                        linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyVectorizePass.
+std::unique_ptr<OperationPass<FuncOp>>
+createLinalgStrategyVectorizePass(StringRef opName = "",
+                                  linalg::LinalgVectorizationOptions opt =
+                                      linalg::LinalgVectorizationOptions(),
+                                  linalg::LinalgTransformationFilter filter =
+                                      linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyEnablePass.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyEnablePass(
+    linalg::LinalgEnablingOptions opt = linalg::LinalgEnablingOptions(),
+    linalg::LinalgTransformationFilter filter =
+        linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyLowerVectorsPass.
+std::unique_ptr<OperationPass<FuncOp>>
+createLinalgStrategyLowerVectorsPass(linalg::LinalgVectorLoweringOptions opt =
+                                         linalg::LinalgVectorLoweringOptions(),
+                                     linalg::LinalgTransformationFilter filter =
+                                         linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyRemoveMarkersPass.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyRemoveMarkersPass();
 
 //===----------------------------------------------------------------------===//
 // Registration

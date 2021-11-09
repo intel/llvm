@@ -1413,8 +1413,6 @@ static bool valueCoversEntireFragment(Type *ValTy, DbgVariableIntrinsic *DII) {
     if (auto *AI =
             dyn_cast_or_null<AllocaInst>(DII->getVariableLocationOp(0))) {
       if (Optional<TypeSize> FragmentSize = AI->getAllocationSizeInBits(DL)) {
-        assert(ValueSize.isScalable() == FragmentSize->isScalable() &&
-               "Both sizes should agree on the scalable flag.");
         return TypeSize::isKnownGE(ValueSize, *FragmentSize);
       }
     }
@@ -1733,9 +1731,11 @@ void llvm::salvageDebugInfo(Instruction &I) {
 
 void llvm::salvageDebugInfoForDbgValues(
     Instruction &I, ArrayRef<DbgVariableIntrinsic *> DbgUsers) {
-  // This is an arbitrary chosen limit on the maximum number of values we can
-  // salvage up to in a DIArgList, used for performance reasons.
+  // These are arbitrary chosen limits on the maximum number of values and the
+  // maximum size of a debug expression we can salvage up to, used for
+  // performance reasons.
   const unsigned MaxDebugArgs = 16;
+  const unsigned MaxExpressionSize = 128;
   bool Salvaged = false;
 
   for (auto *DII : DbgUsers) {
@@ -1772,9 +1772,10 @@ void llvm::salvageDebugInfoForDbgValues(
       break;
 
     DII->replaceVariableLocationOp(&I, Op0);
-    if (AdditionalValues.empty()) {
+    bool IsValidSalvageExpr = SalvagedExpr->getNumElements() <= MaxExpressionSize;
+    if (AdditionalValues.empty() && IsValidSalvageExpr) {
       DII->setExpression(SalvagedExpr);
-    } else if (isa<DbgValueInst>(DII) &&
+    } else if (isa<DbgValueInst>(DII) && IsValidSalvageExpr &&
                DII->getNumVariableLocationOps() + AdditionalValues.size() <=
                    MaxDebugArgs) {
       DII->addVariableLocationOps(AdditionalValues, SalvagedExpr);
@@ -1908,12 +1909,19 @@ Value *llvm::salvageDebugInfoImpl(Instruction &I, uint64_t CurrentLocOps,
     }
 
     Type *Type = CI->getType();
+    if (Type->isPointerTy())
+      Type = DL.getIntPtrType(Type);
     // Casts other than Trunc, SExt, or ZExt to scalar types cannot be salvaged.
     if (Type->isVectorTy() ||
-        !(isa<TruncInst>(&I) || isa<SExtInst>(&I) || isa<ZExtInst>(&I)))
+        !(isa<TruncInst>(&I) || isa<SExtInst>(&I) || isa<ZExtInst>(&I) ||
+          isa<IntToPtrInst>(&I) || isa<PtrToIntInst>(&I)))
       return nullptr;
 
-    unsigned FromTypeBitSize = FromValue->getType()->getScalarSizeInBits();
+    llvm::Type *FromType = FromValue->getType();
+    if (FromType->isPointerTy())
+      FromType = DL.getIntPtrType(FromType);
+
+    unsigned FromTypeBitSize = FromType->getScalarSizeInBits();
     unsigned ToTypeBitSize = Type->getScalarSizeInBits();
 
     auto ExtOps = DIExpression::getExtOps(FromTypeBitSize, ToTypeBitSize,
@@ -1924,9 +1932,9 @@ Value *llvm::salvageDebugInfoImpl(Instruction &I, uint64_t CurrentLocOps,
 
   if (auto *GEP = dyn_cast<GetElementPtrInst>(&I))
     return getSalvageOpsForGEP(GEP, DL, CurrentLocOps, Ops, AdditionalValues);
-  else if (auto *BI = dyn_cast<BinaryOperator>(&I)) {
+  if (auto *BI = dyn_cast<BinaryOperator>(&I))
     return getSalvageOpsForBinOp(BI, CurrentLocOps, Ops, AdditionalValues);
-  }
+
   // *Not* to do: we should not attempt to salvage load instructions,
   // because the validity and lifetime of a dbg.value containing
   // DW_OP_deref becomes difficult to analyze. See PR40628 for examples.
@@ -2180,26 +2188,6 @@ void llvm::changeToCall(InvokeInst *II, DomTreeUpdater *DTU) {
   II->eraseFromParent();
   if (DTU)
     DTU->applyUpdates({{DominatorTree::Delete, BB, UnwindDestBB}});
-}
-
-void llvm::createUnreachableSwitchDefault(SwitchInst *Switch,
-                                          DomTreeUpdater *DTU) {
-  LLVM_DEBUG(dbgs() << "SimplifyCFG: switch default is dead.\n");
-  auto *BB = Switch->getParent();
-  auto *OrigDefaultBlock = Switch->getDefaultDest();
-  OrigDefaultBlock->removePredecessor(BB);
-  BasicBlock *NewDefaultBlock = BasicBlock::Create(
-      BB->getContext(), BB->getName() + ".unreachabledefault", BB->getParent(),
-      OrigDefaultBlock);
-  new UnreachableInst(Switch->getContext(), NewDefaultBlock);
-  Switch->setDefaultDest(&*NewDefaultBlock);
-  if (DTU) {
-    SmallVector<DominatorTree::UpdateType, 2> Updates;
-    Updates.push_back({DominatorTree::Insert, BB, &*NewDefaultBlock});
-    if (!is_contained(successors(BB), OrigDefaultBlock))
-      Updates.push_back({DominatorTree::Delete, BB, &*OrigDefaultBlock});
-    DTU->applyUpdates(Updates);
-  }
 }
 
 BasicBlock *llvm::changeToInvokeAndSplitBasicBlock(CallInst *CI,
@@ -3212,7 +3200,7 @@ bool llvm::recognizeBSwapOrBitReverseIdiom(
   Instruction *Result = CallInst::Create(F, Provider, "rev", I);
   InsertedInsts.push_back(Result);
 
-  if (!DemandedMask.isAllOnesValue()) {
+  if (!DemandedMask.isAllOnes()) {
     auto *Mask = ConstantInt::get(DemandedTy, DemandedMask);
     Result = BinaryOperator::Create(Instruction::And, Result, Mask, "mask", I);
     InsertedInsts.push_back(Result);
@@ -3267,7 +3255,7 @@ bool llvm::canReplaceOperandWithVariable(const Instruction *I, unsigned OpIdx) {
     if (CB.isBundleOperand(OpIdx))
       return false;
 
-    if (OpIdx < CB.getNumArgOperands()) {
+    if (OpIdx < CB.arg_size()) {
       // Some variadic intrinsics require constants in the variadic arguments,
       // which currently aren't markable as immarg.
       if (isa<IntrinsicInst>(CB) &&

@@ -77,12 +77,7 @@ void SymbolVendorMacOSX::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString SymbolVendorMacOSX::GetPluginNameStatic() {
-  static ConstString g_name("macosx");
-  return g_name;
-}
-
-const char *SymbolVendorMacOSX::GetPluginDescriptionStatic() {
+llvm::StringRef SymbolVendorMacOSX::GetPluginDescriptionStatic() {
   return "Symbol vendor for MacOSX that looks for dSYM files that match "
          "executables.";
 }
@@ -309,9 +304,4 @@ SymbolVendorMacOSX::CreateInstance(const lldb::ModuleSP &module_sp,
     symbol_vendor->AddSymbolFileRepresentation(obj_file->shared_from_this());
   }
   return symbol_vendor;
-}
-
-// PluginInterface protocol
-ConstString SymbolVendorMacOSX::GetPluginName() {
-  return GetPluginNameStatic();
 }

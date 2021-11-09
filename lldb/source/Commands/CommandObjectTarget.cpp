@@ -2834,6 +2834,7 @@ protected:
   OptionGroupUInt64 m_slide_option;
 };
 
+#pragma mark CommandObjectTargetModulesList
 // List images with associated information
 #define LLDB_OPTIONS_target_modules_list
 #include "CommandOptions.inc"
@@ -3962,14 +3963,20 @@ public:
             "name."),
         m_current_frame_option(
             LLDB_OPT_SET_2, false, "frame", 'F',
-            "Locate the debug symbols for the currently selected frame.",
-            false, true)
+            "Locate the debug symbols for the currently selected frame.", false,
+            true),
+        m_current_stack_option(LLDB_OPT_SET_2, false, "stack", 'S',
+                               "Locate the debug symbols for every frame in "
+                               "the current call stack.",
+                               false, true)
 
   {
     m_option_group.Append(&m_uuid_option_group, LLDB_OPT_SET_ALL,
                           LLDB_OPT_SET_1);
     m_option_group.Append(&m_file_option, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
     m_option_group.Append(&m_current_frame_option, LLDB_OPT_SET_2,
+                          LLDB_OPT_SET_2);
+    m_option_group.Append(&m_current_stack_option, LLDB_OPT_SET_2,
                           LLDB_OPT_SET_2);
     m_option_group.Finalize();
   }
@@ -4247,6 +4254,63 @@ protected:
     return true;
   }
 
+  bool AddSymbolsForStack(CommandReturnObject &result, bool &flush) {
+    assert(m_current_stack_option.GetOptionValue().OptionWasSet());
+
+    Process *process = m_exe_ctx.GetProcessPtr();
+    if (!process) {
+      result.AppendError(
+          "a process must exist in order to use the --stack option");
+      return false;
+    }
+
+    const StateType process_state = process->GetState();
+    if (!StateIsStoppedState(process_state, true)) {
+      result.AppendErrorWithFormat("process is not stopped: %s",
+                                   StateAsCString(process_state));
+      return false;
+    }
+
+    Thread *thread = m_exe_ctx.GetThreadPtr();
+    if (!thread) {
+      result.AppendError("invalid current thread");
+      return false;
+    }
+
+    bool symbols_found = false;
+    uint32_t frame_count = thread->GetStackFrameCount();
+    for (uint32_t i = 0; i < frame_count; ++i) {
+      lldb::StackFrameSP frame_sp = thread->GetStackFrameAtIndex(i);
+
+      ModuleSP frame_module_sp(
+          frame_sp->GetSymbolContext(eSymbolContextModule).module_sp);
+      if (!frame_module_sp)
+        continue;
+
+      ModuleSpec module_spec;
+      module_spec.GetUUID() = frame_module_sp->GetUUID();
+
+      if (FileSystem::Instance().Exists(
+              frame_module_sp->GetPlatformFileSpec())) {
+        module_spec.GetArchitecture() = frame_module_sp->GetArchitecture();
+        module_spec.GetFileSpec() = frame_module_sp->GetPlatformFileSpec();
+      }
+
+      bool current_frame_flush = false;
+      if (DownloadObjectAndSymbolFile(module_spec, result, current_frame_flush))
+        symbols_found = true;
+      flush |= current_frame_flush;
+    }
+
+    if (!symbols_found) {
+      result.AppendError(
+          "unable to find debug symbols in the current call stack");
+      return false;
+    }
+
+    return true;
+  }
+
   bool DoExecute(Args &args, CommandReturnObject &result) override {
     Target *target = m_exe_ctx.GetTargetPtr();
     result.SetStatus(eReturnStatusFailed);
@@ -4257,6 +4321,8 @@ protected:
     const bool file_option_set = m_file_option.GetOptionValue().OptionWasSet();
     const bool frame_option_set =
         m_current_frame_option.GetOptionValue().OptionWasSet();
+    const bool stack_option_set =
+        m_current_stack_option.GetOptionValue().OptionWasSet();
     const size_t argc = args.GetArgumentCount();
 
     if (argc == 0) {
@@ -4266,6 +4332,8 @@ protected:
         AddSymbolsForFile(result, flush);
       else if (frame_option_set)
         AddSymbolsForFrame(result, flush);
+      else if (stack_option_set)
+        AddSymbolsForStack(result, flush);
       else
         result.AppendError("one or more symbol file paths must be specified, "
                            "or options must be specified");
@@ -4335,6 +4403,7 @@ protected:
   OptionGroupUUID m_uuid_option_group;
   OptionGroupFile m_file_option;
   OptionGroupBoolean m_current_frame_option;
+  OptionGroupBoolean m_current_stack_option;
 };
 
 #pragma mark CommandObjectTargetSymbols
@@ -4921,6 +4990,55 @@ public:
   ~CommandObjectMultiwordTargetStopHooks() override = default;
 };
 
+#pragma mark CommandObjectTargetDumpTypesystem
+
+/// Dumps the TypeSystem of the selected Target.
+class CommandObjectTargetDumpTypesystem : public CommandObjectParsed {
+public:
+  CommandObjectTargetDumpTypesystem(CommandInterpreter &interpreter)
+      : CommandObjectParsed(
+            interpreter, "target dump typesystem",
+            "Dump the state of the target's internal type system.\n"
+            "Intended to be used for debugging LLDB itself.",
+            nullptr, eCommandRequiresTarget) {}
+
+  ~CommandObjectTargetDumpTypesystem() override = default;
+
+protected:
+  bool DoExecute(Args &command, CommandReturnObject &result) override {
+    if (!command.empty()) {
+      result.AppendError("target dump typesystem doesn't take arguments.");
+      return result.Succeeded();
+    }
+
+    // Go over every scratch TypeSystem and dump to the command output.
+    for (TypeSystem *ts : GetSelectedTarget().GetScratchTypeSystems())
+      ts->Dump(result.GetOutputStream().AsRawOstream());
+
+    result.SetStatus(eReturnStatusSuccessFinishResult);
+    return result.Succeeded();
+  }
+};
+
+#pragma mark CommandObjectTargetDump
+
+/// Multi-word command for 'target dump'.
+class CommandObjectTargetDump : public CommandObjectMultiword {
+public:
+  // Constructors and Destructors
+  CommandObjectTargetDump(CommandInterpreter &interpreter)
+      : CommandObjectMultiword(
+            interpreter, "target dump",
+            "Commands for dumping information about the target.",
+            "target dump [typesystem]") {
+    LoadSubCommand(
+        "typesystem",
+        CommandObjectSP(new CommandObjectTargetDumpTypesystem(interpreter)));
+  }
+
+  ~CommandObjectTargetDump() override = default;
+};
+
 #pragma mark CommandObjectMultiwordTarget
 
 // CommandObjectMultiwordTarget
@@ -4934,6 +5052,8 @@ CommandObjectMultiwordTarget::CommandObjectMultiwordTarget(
                  CommandObjectSP(new CommandObjectTargetCreate(interpreter)));
   LoadSubCommand("delete",
                  CommandObjectSP(new CommandObjectTargetDelete(interpreter)));
+  LoadSubCommand("dump",
+                 CommandObjectSP(new CommandObjectTargetDump(interpreter)));
   LoadSubCommand("list",
                  CommandObjectSP(new CommandObjectTargetList(interpreter)));
   LoadSubCommand("select",

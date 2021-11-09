@@ -558,19 +558,19 @@ def S_XNOR_B64 : SOP2_64 <"s_xnor_b64",
 >;
 
 def S_NAND_B32 : SOP2_32 <"s_nand_b32",
-  [(set i32:$sdst, (not (and_oneuse i32:$src0, i32:$src1)))]
+  [(set i32:$sdst, (UniformUnaryFrag<not> (and_oneuse i32:$src0, i32:$src1)))]
 >;
 
 def S_NAND_B64 : SOP2_64 <"s_nand_b64",
-  [(set i64:$sdst, (not (and_oneuse i64:$src0, i64:$src1)))]
+  [(set i64:$sdst, (UniformUnaryFrag<not> (and_oneuse i64:$src0, i64:$src1)))]
 >;
 
 def S_NOR_B32 : SOP2_32 <"s_nor_b32",
-  [(set i32:$sdst, (not (or_oneuse i32:$src0, i32:$src1)))]
+  [(set i32:$sdst, (UniformUnaryFrag<not> (or_oneuse i32:$src0, i32:$src1)))]
 >;
 
 def S_NOR_B64 : SOP2_64 <"s_nor_b64",
-  [(set i64:$sdst, (not (or_oneuse i64:$src0, i64:$src1)))]
+  [(set i64:$sdst, (UniformUnaryFrag<not> (or_oneuse i64:$src0, i64:$src1)))]
 >;
 } // End isCommutable = 1
 
@@ -598,22 +598,22 @@ let AddedComplexity = 1 in {
 let Defs = [SCC] in {
 // TODO: b64 versions require VOP3 change since v_lshlrev_b64 is VOP3
 def S_LSHL_B32 : SOP2_32 <"s_lshl_b32",
-  [(set SReg_32:$sdst, (UniformBinFrag<shl> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_32:$sdst, (UniformBinFrag<cshl_32> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHL_B64 : SOP2_64_32 <"s_lshl_b64",
-  [(set SReg_64:$sdst, (UniformBinFrag<shl> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_64:$sdst, (UniformBinFrag<cshl_64> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHR_B32 : SOP2_32 <"s_lshr_b32",
-  [(set SReg_32:$sdst, (UniformBinFrag<srl> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_32:$sdst, (UniformBinFrag<csrl_32> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_LSHR_B64 : SOP2_64_32 <"s_lshr_b64",
-  [(set SReg_64:$sdst, (UniformBinFrag<srl> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_64:$sdst, (UniformBinFrag<csrl_64> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_ASHR_I32 : SOP2_32 <"s_ashr_i32",
-  [(set SReg_32:$sdst, (UniformBinFrag<sra> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_32:$sdst, (UniformBinFrag<csra_32> (i32 SSrc_b32:$src0), (i32 SSrc_b32:$src1)))]
 >;
 def S_ASHR_I64 : SOP2_64_32 <"s_ashr_i64",
-  [(set SReg_64:$sdst, (UniformBinFrag<sra> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
+  [(set SReg_64:$sdst, (UniformBinFrag<csra_64> (i64 SSrc_b64:$src0), (i32 SSrc_b32:$src1)))]
 >;
 } // End Defs = [SCC]
 
@@ -622,9 +622,8 @@ def S_BFM_B32 : SOP2_32 <"s_bfm_b32",
   [(set i32:$sdst, (UniformBinFrag<AMDGPUbfm> i32:$src0, i32:$src1))]>;
 def S_BFM_B64 : SOP2_64_32_32 <"s_bfm_b64">;
 
-// TODO: S_MUL_I32 require V_MUL_LO_I32 from VOP3 change
 def S_MUL_I32 : SOP2_32 <"s_mul_i32",
-  [(set i32:$sdst, (mul i32:$src0, i32:$src1))]> {
+  [(set i32:$sdst, (UniformBinFrag<mul> i32:$src0, i32:$src1))]> {
   let isCommutable = 1;
 }
 } // End isReMaterializable = 1

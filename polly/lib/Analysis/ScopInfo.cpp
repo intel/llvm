@@ -298,32 +298,6 @@ void ScopArrayInfo::updateElementType(Type *NewElementType) {
   }
 }
 
-/// Make the ScopArrayInfo model a Fortran Array
-void ScopArrayInfo::applyAndSetFAD(Value *FAD) {
-  assert(FAD && "got invalid Fortran array descriptor");
-  if (this->FAD) {
-    assert(this->FAD == FAD &&
-           "receiving different array descriptors for same array");
-    return;
-  }
-
-  assert(DimensionSizesPw.size() > 0 && DimensionSizesPw[0].is_null());
-  assert(!this->FAD);
-  this->FAD = FAD;
-
-  isl::space Space(S.getIslCtx(), 1, 0);
-
-  std::string param_name = getName();
-  param_name += "_fortranarr_size";
-  isl::id IdPwAff = isl::id::alloc(S.getIslCtx(), param_name, this);
-
-  Space = Space.set_dim_id(isl::dim::param, 0, IdPwAff);
-  isl::pw_aff PwAff =
-      isl::aff::var_on_domain(isl::local_space(Space), isl::dim::param, 0);
-
-  DimensionSizesPw[0] = PwAff;
-}
-
 bool ScopArrayInfo::updateSizes(ArrayRef<const SCEV *> NewSizes,
                                 bool CheckConsistency) {
   int SharedDims = std::min(NewSizes.size(), DimensionSizes.size());
@@ -372,12 +346,8 @@ LLVM_DUMP_METHOD void ScopArrayInfo::dump() const { print(errs()); }
 void ScopArrayInfo::print(raw_ostream &OS, bool SizeAsPwAff) const {
   OS.indent(8) << *getElementType() << " " << getName();
   unsigned u = 0;
-  // If this is a Fortran array, then we can print the outermost dimension
-  // as a isl_pw_aff even though there is no SCEV information.
-  bool IsOutermostSizeKnown = SizeAsPwAff && FAD;
 
-  if (!IsOutermostSizeKnown && getNumberOfDimensions() > 0 &&
-      !getDimensionSize(0)) {
+  if (getNumberOfDimensions() > 0 && !getDimensionSize(0)) {
     OS << "[*]";
     u++;
   }
@@ -894,7 +864,7 @@ MemoryAccess::MemoryAccess(ScopStmt *Stmt, Instruction *AccessInst,
       Sizes(Sizes.begin(), Sizes.end()), AccessInstruction(AccessInst),
       AccessValue(AccessValue), IsAffine(Affine),
       Subscripts(Subscripts.begin(), Subscripts.end()), AccessRelation(),
-      NewAccessRelation(), FAD(nullptr) {
+      NewAccessRelation() {
   static const std::string TypeStrings[] = {"", "_Read", "_Write", "_MayWrite"};
   const std::string Access = TypeStrings[AccType] + utostr(Stmt->size());
 
@@ -904,8 +874,7 @@ MemoryAccess::MemoryAccess(ScopStmt *Stmt, Instruction *AccessInst,
 
 MemoryAccess::MemoryAccess(ScopStmt *Stmt, AccessType AccType, isl::map AccRel)
     : Kind(MemoryKind::Array), AccType(AccType), Statement(Stmt),
-      InvalidDomain(), AccessRelation(), NewAccessRelation(AccRel),
-      FAD(nullptr) {
+      InvalidDomain(), AccessRelation(), NewAccessRelation(AccRel) {
   isl::id ArrayInfoId = NewAccessRelation.get_tuple_id(isl::dim::out);
   auto *SAI = ScopArrayInfo::getFromId(ArrayInfoId);
   Sizes.push_back(nullptr);
@@ -949,8 +918,6 @@ raw_ostream &polly::operator<<(raw_ostream &OS,
   return OS;
 }
 
-void MemoryAccess::setFortranArrayDescriptor(Value *FAD) { this->FAD = FAD; }
-
 void MemoryAccess::print(raw_ostream &OS) const {
   switch (AccType) {
   case READ:
@@ -965,11 +932,6 @@ void MemoryAccess::print(raw_ostream &OS) const {
   }
 
   OS << "[Reduction Type: " << getReductionType() << "] ";
-
-  if (FAD) {
-    OS << "[Fortran array descriptor: " << FAD->getName();
-    OS << "] ";
-  };
 
   OS << "[Scalar: " << isScalarKind() << "]\n";
   OS.indent(16) << getOriginalAccessRelationStr() << ";\n";
@@ -1341,8 +1303,7 @@ void ScopStmt::removeMemoryAccess(MemoryAccess *MA) {
       Parent.removeAccessData(MA);
     }
   }
-  MemAccs.erase(std::remove_if(MemAccs.begin(), MemAccs.end(), Predicate),
-                MemAccs.end());
+  llvm::erase_if(MemAccs, Predicate);
   InstructionToAccess.erase(MA->getAccessInstruction());
 }
 
@@ -1468,37 +1429,6 @@ const SCEV *Scop::getRepresentingInvariantLoadSCEV(const SCEV *E) const {
   return SCEVSensitiveParameterRewriter::rewrite(E, *SE, InvEquivClassVMap);
 }
 
-// This table of function names is used to translate parameter names in more
-// human-readable names. This makes it easier to interpret Polly analysis
-// results.
-StringMap<std::string> KnownNames = {
-    {"_Z13get_global_idj", "global_id"},
-    {"_Z12get_local_idj", "local_id"},
-    {"_Z15get_global_sizej", "global_size"},
-    {"_Z14get_local_sizej", "local_size"},
-    {"_Z12get_work_dimv", "work_dim"},
-    {"_Z17get_global_offsetj", "global_offset"},
-    {"_Z12get_group_idj", "group_id"},
-    {"_Z14get_num_groupsj", "num_groups"},
-};
-
-static std::string getCallParamName(CallInst *Call) {
-  std::string Result;
-  raw_string_ostream OS(Result);
-  std::string Name = Call->getCalledFunction()->getName().str();
-
-  auto Iterator = KnownNames.find(Name);
-  if (Iterator != KnownNames.end())
-    Name = "__" + Iterator->getValue();
-  OS << Name;
-  for (auto &Operand : Call->arg_operands()) {
-    ConstantInt *Op = cast<ConstantInt>(&Operand);
-    OS << "_" << Op->getValue();
-  }
-  OS.flush();
-  return Result;
-}
-
 void Scop::createParameterId(const SCEV *Parameter) {
   assert(Parameters.count(Parameter));
   assert(!ParameterIds.count(Parameter));
@@ -1507,11 +1437,8 @@ void Scop::createParameterId(const SCEV *Parameter) {
 
   if (const SCEVUnknown *ValueParameter = dyn_cast<SCEVUnknown>(Parameter)) {
     Value *Val = ValueParameter->getValue();
-    CallInst *Call = dyn_cast<CallInst>(Val);
 
-    if (Call && isConstCall(Call)) {
-      ParameterName = getCallParamName(Call);
-    } else if (UseInstructionNames) {
+    if (UseInstructionNames) {
       // If this parameter references a specific Value and this value has a name
       // we use this name as it is likely to be unique and more useful than just
       // a number.
@@ -1573,41 +1500,6 @@ void Scop::addParameterBounds() {
   intersectDefinedBehavior(Context, AS_ASSUMPTION);
 }
 
-static std::vector<isl::id> getFortranArrayIds(Scop::array_range Arrays) {
-  std::vector<isl::id> OutermostSizeIds;
-  for (auto Array : Arrays) {
-    // To check if an array is a Fortran array, we check if it has a isl_pw_aff
-    // for its outermost dimension. Fortran arrays will have this since the
-    // outermost dimension size can be picked up from their runtime description.
-    // TODO: actually need to check if it has a FAD, but for now this works.
-    if (Array->getNumberOfDimensions() > 0) {
-      isl::pw_aff PwAff = Array->getDimensionSizePw(0);
-      if (PwAff.is_null())
-        continue;
-
-      isl::id Id = PwAff.get_dim_id(isl::dim::param, 0);
-      assert(!Id.is_null() &&
-             "Invalid Id for PwAff expression in Fortran array");
-      OutermostSizeIds.push_back(Id);
-    }
-  }
-  return OutermostSizeIds;
-}
-
-// The FORTRAN array size parameters are known to be non-negative.
-static isl::set boundFortranArrayParams(isl::set Context,
-                                        Scop::array_range Arrays) {
-  std::vector<isl::id> OutermostSizeIds;
-  OutermostSizeIds = getFortranArrayIds(Arrays);
-
-  for (isl::id Id : OutermostSizeIds) {
-    int dim = Context.find_dim_by_id(isl::dim::param, Id);
-    Context = Context.lower_bound_si(isl::dim::param, dim, 0);
-  }
-
-  return Context;
-}
-
 void Scop::realignParams() {
   if (PollyIgnoreParamBounds)
     return;
@@ -1619,9 +1511,6 @@ void Scop::realignParams() {
   Context = Context.align_params(Space);
   AssumedContext = AssumedContext.align_params(Space);
   InvalidContext = InvalidContext.align_params(Space);
-
-  // Bound the size of the fortran array dimensions.
-  Context = boundFortranArrayParams(Context, arrays());
 
   // As all parameters are known add bounds to them.
   addParameterBounds();
@@ -1710,6 +1599,10 @@ Scop::Scop(Region &R, ScalarEvolution &ScalarEvolution, LoopInfo &LI,
     : IslCtx(isl_ctx_alloc(), isl_ctx_free), SE(&ScalarEvolution), DT(&DT),
       R(R), name(None), HasSingleExitEdge(R.getExitingBlock()), DC(DC),
       ORE(ORE), Affinator(this, LI), ID(ID) {
+
+  // Options defaults that are different from ISL's.
+  isl_options_set_schedule_serialize_sccs(IslCtx.get(), true);
+
   SmallVector<char *, 8> IslArgv;
   IslArgv.reserve(1 + IslArgs.size());
 
@@ -1931,20 +1824,14 @@ isl::set Scop::getContext() const { return Context; }
 isl::space Scop::getParamSpace() const { return getContext().get_space(); }
 
 isl::space Scop::getFullParamSpace() const {
-  std::vector<isl::id> FortranIDs;
-  FortranIDs = getFortranArrayIds(arrays());
 
-  isl::space Space = isl::space::params_alloc(
-      getIslCtx(), ParameterIds.size() + FortranIDs.size());
+  isl::space Space = isl::space::params_alloc(getIslCtx(), ParameterIds.size());
 
   unsigned PDim = 0;
   for (const SCEV *Parameter : Parameters) {
     isl::id Id = getIdForParam(Parameter);
     Space = Space.set_dim_id(isl::dim::param, PDim++, Id);
   }
-
-  for (isl::id Id : FortranIDs)
-    Space = Space.set_dim_id(isl::dim::param, PDim++, Id);
 
   return Space;
 }

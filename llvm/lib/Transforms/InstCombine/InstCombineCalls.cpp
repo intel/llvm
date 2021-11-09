@@ -67,7 +67,6 @@
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/InstCombine/InstCombineWorklist.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
 #include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -79,10 +78,11 @@
 #include <utility>
 #include <vector>
 
+#define DEBUG_TYPE "instcombine"
+#include "llvm/Transforms/Utils/InstructionWorklist.h"
+
 using namespace llvm;
 using namespace PatternMatch;
-
-#define DEBUG_TYPE "instcombine"
 
 STATISTIC(NumSimplified, "Number of library calls simplified");
 
@@ -513,7 +513,7 @@ static Instruction *foldCttzCtlz(IntrinsicInst &II, InstCombinerImpl &IC) {
   // If the input to cttz/ctlz is known to be non-zero,
   // then change the 'ZeroIsUndef' parameter to 'true'
   // because we know the zero behavior can't affect the result.
-  if (!Known.One.isNullValue() ||
+  if (!Known.One.isZero() ||
       isKnownNonZero(Op0, IC.getDataLayout(), 0, &IC.getAssumptionCache(), &II,
                      &IC.getDominatorTree())) {
     if (!match(II.getArgOperand(1), m_One()))
@@ -656,8 +656,8 @@ static Value *simplifyNeonTbl1(const IntrinsicInst &II,
 // comparison to the first NumOperands.
 static bool haveSameOperands(const IntrinsicInst &I, const IntrinsicInst &E,
                              unsigned NumOperands) {
-  assert(I.getNumArgOperands() >= NumOperands && "Not enough operands");
-  assert(E.getNumArgOperands() >= NumOperands && "Not enough operands");
+  assert(I.arg_size() >= NumOperands && "Not enough operands");
+  assert(E.arg_size() >= NumOperands && "Not enough operands");
   for (unsigned i = 0; i < NumOperands; i++)
     if (I.getArgOperand(i) != E.getArgOperand(i))
       return false;
@@ -682,11 +682,11 @@ removeTriviallyEmptyRange(IntrinsicInst &EndI, InstCombinerImpl &IC,
   BasicBlock::reverse_iterator BI(EndI), BE(EndI.getParent()->rend());
   for (; BI != BE; ++BI) {
     if (auto *I = dyn_cast<IntrinsicInst>(&*BI)) {
-      if (isa<DbgInfoIntrinsic>(I) ||
+      if (I->isDebugOrPseudoInst() ||
           I->getIntrinsicID() == EndI.getIntrinsicID())
         continue;
       if (IsStart(*I)) {
-        if (haveSameOperands(EndI, *I, EndI.getNumArgOperands())) {
+        if (haveSameOperands(EndI, *I, EndI.arg_size())) {
           IC.eraseInstFromFunction(*I);
           IC.eraseInstFromFunction(EndI);
           return true;
@@ -710,7 +710,7 @@ Instruction *InstCombinerImpl::visitVAEndInst(VAEndInst &I) {
 }
 
 static CallInst *canonicalizeConstantArg0ToArg1(CallInst &Call) {
-  assert(Call.getNumArgOperands() > 1 && "Need at least 2 args to swap");
+  assert(Call.arg_size() > 1 && "Need at least 2 args to swap");
   Value *Arg0 = Call.getArgOperand(0), *Arg1 = Call.getArgOperand(1);
   if (isa<Constant>(Arg0) && !isa<Constant>(Arg1)) {
     Call.setArgOperand(0, Arg1);
@@ -752,6 +752,45 @@ static Optional<bool> getKnownSign(Value *Op, Instruction *CxtI,
 
   return isImpliedByDomCondition(
       ICmpInst::ICMP_SLT, Op, Constant::getNullValue(Op->getType()), CxtI, DL);
+}
+
+/// Try to canonicalize min/max(X + C0, C1) as min/max(X, C1 - C0) + C0. This
+/// can trigger other combines.
+static Instruction *moveAddAfterMinMax(IntrinsicInst *II,
+                                       InstCombiner::BuilderTy &Builder) {
+  Intrinsic::ID MinMaxID = II->getIntrinsicID();
+  assert((MinMaxID == Intrinsic::smax || MinMaxID == Intrinsic::smin ||
+          MinMaxID == Intrinsic::umax || MinMaxID == Intrinsic::umin) &&
+         "Expected a min or max intrinsic");
+
+  // TODO: Match vectors with undef elements, but undef may not propagate.
+  Value *Op0 = II->getArgOperand(0), *Op1 = II->getArgOperand(1);
+  Value *X;
+  const APInt *C0, *C1;
+  if (!match(Op0, m_OneUse(m_Add(m_Value(X), m_APInt(C0)))) ||
+      !match(Op1, m_APInt(C1)))
+    return nullptr;
+
+  // Check for necessary no-wrap and overflow constraints.
+  bool IsSigned = MinMaxID == Intrinsic::smax || MinMaxID == Intrinsic::smin;
+  auto *Add = cast<BinaryOperator>(Op0);
+  if ((IsSigned && !Add->hasNoSignedWrap()) ||
+      (!IsSigned && !Add->hasNoUnsignedWrap()))
+    return nullptr;
+
+  // If the constant difference overflows, then instsimplify should reduce the
+  // min/max to the add or C1.
+  bool Overflow;
+  APInt CDiff =
+      IsSigned ? C1->ssub_ov(*C0, Overflow) : C1->usub_ov(*C0, Overflow);
+  assert(!Overflow && "Expected simplify of min/max");
+
+  // min/max (add X, C0), C1 --> add (min/max X, C1 - C0), C0
+  // Note: the "mismatched" no-overflow setting does not propagate.
+  Constant *NewMinMaxC = ConstantInt::get(II->getType(), CDiff);
+  Value *NewMinMax = Builder.CreateBinaryIntrinsic(MinMaxID, X, NewMinMaxC);
+  return IsSigned ? BinaryOperator::CreateNSWAdd(NewMinMax, Add->getOperand(1))
+                  : BinaryOperator::CreateNUWAdd(NewMinMax, Add->getOperand(1));
 }
 
 /// If we have a clamp pattern like max (min X, 42), 41 -- where the output
@@ -1099,6 +1138,9 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     if (Instruction *I = moveNotAfterMinMax(I0, I1))
       return I;
     if (Instruction *I = moveNotAfterMinMax(I1, I0))
+      return I;
+
+    if (Instruction *I = moveAddAfterMinMax(II, Builder))
       return I;
 
     // smax(X, -X) --> abs(X)
@@ -2475,7 +2517,7 @@ static IntrinsicInst *findInitTrampoline(Value *Callee) {
 }
 
 void InstCombinerImpl::annotateAnyAllocSite(CallBase &Call, const TargetLibraryInfo *TLI) {
-  unsigned NumArgs = Call.getNumArgOperands();
+  unsigned NumArgs = Call.arg_size();
   ConstantInt *Op0C = dyn_cast<ConstantInt>(Call.getOperand(0));
   ConstantInt *Op1C =
       (NumArgs == 1) ? nullptr : dyn_cast<ConstantInt>(Call.getOperand(1));

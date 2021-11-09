@@ -27,6 +27,12 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
+    : handler(Queue, Queue, nullptr, IsHost) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
+                 bool IsHost)
     : MQueue(std::move(Queue)), MIsHost(IsHost) {
   // Create extended members and insert handler_impl
   // TODO: When allowed to break ABI the handler_impl should be made a member
@@ -35,7 +41,8 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
       std::make_shared<std::vector<detail::ExtendedMemberT>>();
   detail::ExtendedMemberT HandlerImplMember = {
       detail::ExtendedMembersType::HANDLER_IMPL,
-      std::make_shared<detail::handler_impl>()};
+      std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
+                                             std::move(SecondaryQueue))};
   ExtendedMembers->push_back(std::move(HandlerImplMember));
   MSharedPtrStorage.push_back(std::move(ExtendedMembers));
 }
@@ -542,6 +549,20 @@ std::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
 
+void handler::verifyUsedKernelBundle(const std::string &KernelName) {
+  auto UsedKernelBundleImplPtr =
+      getOrInsertHandlerKernelBundle(/*Insert=*/false);
+  if (!UsedKernelBundleImplPtr)
+    return;
+
+  kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
+  device Dev = detail::getDeviceFromHandler(*this);
+  if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
+    throw sycl::exception(
+        make_error_code(errc::kernel_not_supported),
+        "The kernel bundle in use does not contain the kernel");
+}
+
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
@@ -614,5 +635,30 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
 
   ExtendedMembersVec->push_back(EMember);
 }
+
+void handler::use_kernel_bundle(
+    const kernel_bundle<bundle_state::executable> &ExecBundle) {
+
+  std::shared_ptr<detail::queue_impl> PrimaryQueue =
+      getHandlerImpl()->MSubmissionPrimaryQueue;
+  if (PrimaryQueue->get_context() != ExecBundle.get_context())
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Context associated with the primary queue is different from the "
+        "context associated with the kernel bundle");
+
+  std::shared_ptr<detail::queue_impl> SecondaryQueue =
+      getHandlerImpl()->MSubmissionSecondaryQueue;
+  if (SecondaryQueue &&
+      SecondaryQueue->get_context() != ExecBundle.get_context())
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Context associated with the secondary queue is different from the "
+        "context associated with the kernel bundle");
+
+  setStateExplicitKernelBundle();
+  setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

@@ -1,0 +1,456 @@
+:extension_name: SPV_INTEL_uniform_group_instructions
+:capability_name: GroupUniformArithmeticINTEL
+:capability_token: 6400
+:OpGroupIMulINTEL_token: 6401
+:OpGroupFMulINTEL_token: 6402
+:OpGroupBitwiseAndINTEL_token: 6403
+:OpGroupBitwiseOrINTEL_token: 6404
+:OpGroupBitwiseXorINTEL_token: 6405
+:OpGroupLogicalAndINTEL_token: 6406
+:OpGroupLogicalOrINTEL_token: 6407
+:OpGroupLogicalXorINTEL_token: 6408
+
+{extension_name}
+================
+
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm
+
+== Contributors
+
+- Dmitry Sidorov, Intel +
+- Alexey Sotkin, Intel +
+- John Pennycook, Intel +
+- Ben Ashbaugh, Intel +
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback. When the feature matures, this
+specification may be released as a formal extension.
+
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products. If you are interested in using this feature in your software product,
+please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | A
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.5 Revision 5.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension adds eight new instructions in SPIR-V to enable additional group operations.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the appropriate *OpExtension* must
+be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== New Capabilities
+
+This extension introduces new capabilities:
+
+[subs="attributes"]
+----
+{capability_name}
+----
+
+== New Instructions
+
+Instructions added under the *{capability_name}* capability:
+
+----
+
+OpGroupIMulINTEL
+OpGroupFMulINTEL
+OpGroupBitwiseAndINTEL
+OpGroupBitwiseOrINTEL
+OpGroupBitwiseXorINTEL
+OpGroupLogicalAndINTEL
+OpGroupLogicalOrINTEL
+OpGroupLogicalXorINTEL
+
+----
+
+== Token Number Assignments
+
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|*{capability_name}*       | {capability_token}
+|*OpGroupIMulINTEL*        | {OpGroupIMulINTEL_token}
+|*OpGroupFMulINTEL*        | {OpGroupFMulINTEL_token}
+|*OpGroupBitwiseAndINTEL*  | {OpGroupBitwiseAndINTEL_token}
+|*OpGroupBitwiseOrINTEL*   | {OpGroupBitwiseOrINTEL_token}
+|*OpGroupBitwiseXorINTEL*  | {OpGroupBitwiseXorINTEL_token}
+|*OpGroupLogicalAndINTEL*  | {OpGroupLogicalAndINTEL_token}
+|*OpGroupLogicalOrINTEL*   | {OpGroupLogicalOrINTEL_token}
+|*OpGroupLogicalXorINTEL*  | {OpGroupLogicalXorINTEL_token}
+|====
+
+== Modifications to the SPIR-V Specification, Version 1.5
+
+
+=== Capabilities
+
+Modify Section 3.31, Capability, adding rows to the Capability table:
+
+--
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares 
+| {capability_token} | *{capability_name}*
+| *Groups* +
+ +
+Reserved. +
+ +
+See also extension: *{extension_name}*
+|====
+--
+
+=== Instructions
+
+==== 3.37.21 Group and Subgroup Instructions
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpGroupIMulINTEL]]*OpGroupIMulINTEL* +
+ +
+An integer multiplication <<group operation,group operation>> specified for all values of 'X'
+specified by <<invocations,invocations>> in the group. +
+ +
+Behavior is undefined if not all <<invocations,invocations>> of this module within 'Execution'
+reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Execution' execute the
+same dynamic instance of this instruction. +
+ +
+'Result Type' must be a scalar or vector of <<integer type,integer type>>. +
+ +
+'Execution' is a <<Scope,Scope>>. It must be either *Workgroup* or *Subgroup*. +
+ +
+The identity _I_ for 'Operation' is 1. +
+ +
+The type of 'X' must be the same as 'Result Type'. +
+
+
+1+|Capability: +
+*{capability_name}*
+1+| 6 | {OpGroupIMulINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Scope <id>' +
+'Execution'
+| '<Group Operation>' +
+'Operation'
+| '<id>' +
+'X'
+|=====
+
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpGroupFMulINTEL]]*OpGroupFMulINTEL* +
+ +
+A floating-point multiplication <<group operation,group operation>> specified for all values of 'X'
+specified by <<invocations,invocations>> in the group. +
+ +
+Behavior is undefined if not all <<invocations,invocations>> of this module within 'Execution'
+reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Execution' execute the
+same dynamic instance of this instruction. +
+ +
+'Result Type' must be a scalar or vector of <<floating-point type,floating-point type>>. +
+ +
+'Execution' is a <<Scope,Scope>>. It must be either *Workgroup* or *Subgroup*. +
+ +
+The identity _I_ for 'Operation' is 1. +
+ +
+The type of 'X' must be the same as 'Result Type'. +
+
+
+1+|Capability: +
+*{capability_name}*
+1+| 6 | {OpGroupFMulINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Scope <id>' +
+'Execution'
+| '<Group Operation>' +
+'Operation'
+| '<id>' +
+'X'
+|=====
+
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpGroupBitwiseAndINTEL]]*OpGroupBitwiseAndINTEL* +
+ +
+A bitwise 'And' <<group operation,group operation>> specified for all values of 'X'
+specified by <<invocations,invocations>> in the group. +
+ +
+Behavior is undefined if not all <<invocations,invocations>> of this module within 'Execution'
+reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Execution' execute the
+same dynamic instance of this instruction. +
+ +
+'Result Type' must be a scalar or vector of <<integer type,integer type>>. +
+ +
+'Execution' is a <<Scope, Scope>>. It must be either *Workgroup* or *Subgroup*. +
+ +
+The identity _I_ for 'Operation' is ~0. +
+ +
+The type of 'X' must be the same as 'Result Type'. +
+
+
+1+|Capability: +
+*{capability_name}*
+1+| 6 | {OpGroupBitwiseAndINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Scope <id>' +
+'Execution'
+| '<Group Operation>' +
+'Operation'
+| '<id>' +
+'X'
+|=====
+
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpGroupBitwiseOrINTEL]]*OpGroupBitwiseOrINTEL* +
+ +
+A bitwise 'Or' <<group operation,group operation>> specified for all values of 'X'
+specified by <<invocations,invocations>> in the group. +
+ +
+Behavior is undefined if not all <<invocations,invocations>> of this module within 'Execution'
+reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Execution' execute the
+same dynamic instance of this instruction. +
+ +
+'Result Type' must be a scalar or vector of <<integer type,integer type>>. +
+ +
+'Execution' is a <<Scope,Scope>>. It must be either *Workgroup* or *Subgroup*. +
+ +
+The identity _I_ for 'Operation' is 0. +
+ +
+The type of 'X' must be the same as 'Result Type'. +
+
+
+1+|Capability: +
+*{capability_name}*
+1+| 6 | {OpGroupBitwiseOrINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Scope <id>' +
+'Execution'
+| '<Group Operation>' +
+'Operation'
+| '<id>' +
+'X'
+|=====
+
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpGroupBitwiseXorINTEL]]*OpGroupBitwiseXorINTEL* +
+ +
+A bitwise 'Xor' <<group operation,group operation>> specified for all values of 'X'
+specified by <<invocations,invocations>> in the group. +
+ +
+Behavior is undefined if not all <<invocations,invocations>> of this module within 'Execution'
+reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Execution' execute the
+same dynamic instance of this instruction. +
+ +
+'Result Type' must be a scalar or vector of <<integer type,integer type>>. +
+ +
+'Execution' is a <<Scope,Scope>>. It must be either *Workgroup* or *Subgroup*. +
+ +
+The identity _I_ for 'Operation' is 0. +
+ +
+The type of 'X' must be the same as 'Result Type'. +
+
+
+1+|Capability: +
+*{capability_name}*
+1+| 6 | {OpGroupBitwiseXorINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Scope <id>' +
+'Execution'
+| '<Group Operation>' +
+'Operation'
+| '<id>' +
+'X'
+|=====
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpGroupBitwiseLogicalAndINTEL]]*OpGroupLogicalAndINTEL* +
+ +
+A logical 'And' <<group operation,group operation>> specified for all values of 'X'
+specified by <<invocations,invocations>> in the group. +
+ +
+Behavior is undefined if not all <<invocations,invocations>> of this module within 'Execution'
+reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Execution' execute the
+same dynamic instance of this instruction. +
+ +
+'Result Type' must be a scalar or vector of <<Boolean type,Boolean type>>. +
+ +
+'Execution' is a <<Scope, Scope>>. It must be either *Workgroup* or *Subgroup*. +
+ +
+The identity _I_ for 'Operation' is ~0. +
+ +
+The type of 'X' must be the same as 'Result Type'. +
+
+
+1+|Capability: +
+*{capability_name}*
+1+| 6 | {OpGroupLogicalAndINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Scope <id>' +
+'Execution'
+| '<Group Operation>' +
+'Operation'
+| '<id>' +
+'X'
+|=====
+
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpGroupLogicalOrINTEL]]*OpGroupLogicalOrINTEL* +
+ +
+A logical 'Or' <<group operation,group operation>> specified for all values of 'X'
+specified by <<invocations,invocations>> in the group. +
+ +
+Behavior is undefined if not all <<invocations,invocations>> of this module within 'Execution'
+reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Execution' execute the
+same dynamic instance of this instruction. +
+ +
+'Result Type' must be a scalar or vector of <<Boolean type,Boolean type>>. +
+ +
+'Execution' is a <<Scope,Scope>>. It must be either *Workgroup* or *Subgroup*. +
+ +
+The identity _I_ for 'Operation' is 0. +
+ +
+The type of 'X' must be the same as 'Result Type'. +
+
+
+1+|Capability: +
+*{capability_name}*
+1+| 6 | {OpGroupLogicalOrINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Scope <id>' +
+'Execution'
+| '<Group Operation>' +
+'Operation'
+| '<id>' +
+'X'
+|=====
+
+
+[cols="1,1,5*3",width="100%"]
+|=====
+6+|[[OpGroupLogicalXorINTEL]]*OpGroupLogicalXorINTEL* +
+ +
+A logical 'Xor' <<group operation,group operation>> specified for all values of 'X'
+specified by <<invocations,invocations>> in the group. +
+ +
+Behavior is undefined if not all <<invocations,invocations>> of this module within 'Execution'
+reach this point of execution. +
+ +
+Behavior is undefined unless all invocations within 'Execution' execute the
+same dynamic instance of this instruction. +
+ +
+'Result Type' must be a scalar or vector of <<Boolean type,Boolean type>>. +
+ +
+'Execution' is a <<Scope,Scope>>. It must be either *Workgroup* or *Subgroup*. +
+ +
+The identity _I_ for 'Operation' is 0. +
+ +
+The type of 'X' must be the same as 'Result Type'. +
+
+
+1+|Capability: +
+*{capability_name}*
+1+| 6 | {OpGroupLogicalXorINTEL_token}
+| '<id>' +
+'Result Type'
+| 'Result <id>'
+| 'Scope <id>' +
+'Execution'
+| '<Group Operation>' +
+'Operation'
+| '<id>' +
+'X'
+|=====
+
+
+=== Issues
+
+None
+
+Revision History
+----------------
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-09-16|Dmitry Sidorov|Initial revision
+|========================================

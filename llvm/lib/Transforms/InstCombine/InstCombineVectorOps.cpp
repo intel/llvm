@@ -35,17 +35,17 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Transforms/InstCombine/InstCombineWorklist.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
 #include <cassert>
 #include <cstdint>
 #include <iterator>
 #include <utility>
 
+#define DEBUG_TYPE "instcombine"
+#include "llvm/Transforms/Utils/InstructionWorklist.h"
+
 using namespace llvm;
 using namespace PatternMatch;
-
-#define DEBUG_TYPE "instcombine"
 
 STATISTIC(NumAggregateReconstructionsSimplified,
           "Number of aggregate reconstructions turned into reuse of the "
@@ -178,24 +178,46 @@ Instruction *InstCombinerImpl::scalarizePHI(ExtractElementInst &EI,
   return &EI;
 }
 
-static Instruction *foldBitcastExtElt(ExtractElementInst &Ext,
-                                      InstCombiner::BuilderTy &Builder,
-                                      bool IsBigEndian) {
+Instruction *InstCombinerImpl::foldBitcastExtElt(ExtractElementInst &Ext) {
   Value *X;
   uint64_t ExtIndexC;
   if (!match(Ext.getVectorOperand(), m_BitCast(m_Value(X))) ||
-      !X->getType()->isVectorTy() ||
       !match(Ext.getIndexOperand(), m_ConstantInt(ExtIndexC)))
+    return nullptr;
+
+  ElementCount NumElts =
+      cast<VectorType>(Ext.getVectorOperandType())->getElementCount();
+  Type *DestTy = Ext.getType();
+  bool IsBigEndian = DL.isBigEndian();
+
+  // If we are casting an integer to vector and extracting a portion, that is
+  // a shift-right and truncate.
+  // TODO: Allow FP dest type by casting the trunc to FP?
+  if (X->getType()->isIntegerTy() && DestTy->isIntegerTy() &&
+      isDesirableIntType(X->getType()->getPrimitiveSizeInBits())) {
+    assert(isa<FixedVectorType>(Ext.getVectorOperand()->getType()) &&
+           "Expected fixed vector type for bitcast from scalar integer");
+
+    // Big endian requires adjusting the extract index since MSB is at index 0.
+    // LittleEndian: extelt (bitcast i32 X to v4i8), 0 -> trunc i32 X to i8
+    // BigEndian: extelt (bitcast i32 X to v4i8), 0 -> trunc i32 (X >> 24) to i8
+    if (IsBigEndian)
+      ExtIndexC = NumElts.getKnownMinValue() - 1 - ExtIndexC;
+    unsigned ShiftAmountC = ExtIndexC * DestTy->getPrimitiveSizeInBits();
+    if (!ShiftAmountC || Ext.getVectorOperand()->hasOneUse()) {
+      Value *Lshr = Builder.CreateLShr(X, ShiftAmountC, "extelt.offset");
+      return new TruncInst(Lshr, DestTy);
+    }
+  }
+
+  if (!X->getType()->isVectorTy())
     return nullptr;
 
   // If this extractelement is using a bitcast from a vector of the same number
   // of elements, see if we can find the source element from the source vector:
   // extelt (bitcast VecX), IndexC --> bitcast X[IndexC]
   auto *SrcTy = cast<VectorType>(X->getType());
-  Type *DestTy = Ext.getType();
   ElementCount NumSrcElts = SrcTy->getElementCount();
-  ElementCount NumElts =
-      cast<VectorType>(Ext.getVectorOperandType())->getElementCount();
   if (NumSrcElts == NumElts)
     if (Value *Elt = findScalarElement(X, ExtIndexC))
       return new BitCastInst(Elt, DestTy);
@@ -410,7 +432,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
       }
     }
 
-    if (Instruction *I = foldBitcastExtElt(EI, Builder, DL.isBigEndian()))
+    if (Instruction *I = foldBitcastExtElt(EI))
       return I;
 
     // If there's a vector PHI feeding a scalar use through this extractelement
@@ -659,8 +681,7 @@ static void replaceExtractElements(InsertElementInst *InsElt,
   if (InsElt->hasOneUse() && isa<InsertElementInst>(InsElt->user_back()))
     return;
 
-  auto *WideVec =
-      new ShuffleVectorInst(ExtVecOp, PoisonValue::get(ExtVecType), ExtendMask);
+  auto *WideVec = new ShuffleVectorInst(ExtVecOp, ExtendMask);
 
   // Insert the new shuffle after the vector operand of the extract is defined
   // (as long as it's not a PHI) or at the start of the basic block of the
@@ -1187,7 +1208,7 @@ static Instruction *foldInsSequenceIntoSplat(InsertElementInst &InsElt) {
     if (!ElementPresent[i])
       Mask[i] = -1;
 
-  return new ShuffleVectorInst(FirstIE, PoisonVec, Mask);
+  return new ShuffleVectorInst(FirstIE, Mask);
 }
 
 /// Try to fold an insert element into an existing splat shuffle by changing
@@ -1216,15 +1237,15 @@ static Instruction *foldInsEltIntoSplat(InsertElementInst &InsElt) {
 
   // Replace the shuffle mask element at the index of this insert with a zero.
   // For example:
-  // inselt (shuf (inselt undef, X, 0), undef, <0,undef,0,undef>), X, 1
-  //   --> shuf (inselt undef, X, 0), undef, <0,0,0,undef>
+  // inselt (shuf (inselt undef, X, 0), _, <0,undef,0,undef>), X, 1
+  //   --> shuf (inselt undef, X, 0), poison, <0,0,0,undef>
   unsigned NumMaskElts =
       cast<FixedVectorType>(Shuf->getType())->getNumElements();
   SmallVector<int, 16> NewMask(NumMaskElts);
   for (unsigned i = 0; i != NumMaskElts; ++i)
     NewMask[i] = i == IdxC ? 0 : Shuf->getMaskValue(i);
 
-  return new ShuffleVectorInst(Op0, UndefValue::get(Op0->getType()), NewMask);
+  return new ShuffleVectorInst(Op0, NewMask);
 }
 
 /// Try to fold an extract+insert element into an existing identity shuffle by
@@ -1974,8 +1995,8 @@ static Instruction *canonicalizeInsertSplat(ShuffleVectorInst &Shuf,
 
   // Splat from element 0. Any mask element that is undefined remains undefined.
   // For example:
-  // shuf (inselt undef, X, 2), undef, <2,2,undef>
-  //   --> shuf (inselt undef, X, 0), undef, <0,0,undef>
+  // shuf (inselt undef, X, 2), _, <2,2,undef>
+  //   --> shuf (inselt undef, X, 0), poison, <0,0,undef>
   unsigned NumMaskElts =
       cast<FixedVectorType>(Shuf.getType())->getNumElements();
   SmallVector<int, 16> NewMask(NumMaskElts, 0);
@@ -1983,7 +2004,7 @@ static Instruction *canonicalizeInsertSplat(ShuffleVectorInst &Shuf,
     if (Mask[i] == UndefMaskElem)
       NewMask[i] = Mask[i];
 
-  return new ShuffleVectorInst(NewIns, UndefVec, NewMask);
+  return new ShuffleVectorInst(NewIns, NewMask);
 }
 
 /// Try to fold shuffles that are the equivalent of a vector select.
@@ -2463,16 +2484,7 @@ Instruction *InstCombinerImpl::visitShuffleVectorInst(ShuffleVectorInst &SVI) {
   if (LHS == RHS) {
     assert(!match(RHS, m_Undef()) &&
            "Shuffle with 2 undef ops not simplified?");
-    // Remap any references to RHS to use LHS.
-    SmallVector<int, 16> Elts;
-    for (unsigned i = 0; i != VWidth; ++i) {
-      // Propagate undef elements or force mask to LHS.
-      if (Mask[i] < 0)
-        Elts.push_back(UndefMaskElem);
-      else
-        Elts.push_back(Mask[i] % LHSWidth);
-    }
-    return new ShuffleVectorInst(LHS, UndefValue::get(RHS->getType()), Elts);
+    return new ShuffleVectorInst(LHS, createUnaryMask(Mask, LHSWidth));
   }
 
   // shuffle undef, x, mask --> shuffle x, undef, mask'

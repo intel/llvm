@@ -155,9 +155,9 @@ void Platform::Terminate() {
   }
 }
 
-const PlatformPropertiesSP &Platform::GetGlobalPlatformProperties() {
-  static const auto g_settings_sp(std::make_shared<PlatformProperties>());
-  return g_settings_sp;
+PlatformProperties &Platform::GetGlobalPlatformProperties() {
+  static PlatformProperties g_settings;
+  return g_settings;
 }
 
 void Platform::SetHostPlatform(const lldb::PlatformSP &platform_sp) {
@@ -294,8 +294,8 @@ PlatformSP Platform::Create(ConstString name, Status &error) {
     if (name == g_host_platform_name)
       return GetHostPlatform();
 
-    create_callback =
-        PluginManager::GetPlatformCreateCallbackForPluginName(name);
+    create_callback = PluginManager::GetPlatformCreateCallbackForPluginName(
+        name.GetStringRef());
     if (create_callback)
       platform_sp = create_callback(true, nullptr);
     else
@@ -395,18 +395,10 @@ Platform::Platform(bool is_host)
   LLDB_LOGF(log, "%p Platform::Platform()", static_cast<void *>(this));
 }
 
-/// Destructor.
-///
-/// The destructor is virtual since this class is designed to be
-/// inherited from by the plug-in instance.
-Platform::~Platform() {
-  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_OBJECT));
-  LLDB_LOGF(log, "%p Platform::~Platform()", static_cast<void *>(this));
-}
+Platform::~Platform() = default;
 
 void Platform::GetStatus(Stream &strm) {
-  std::string s;
-  strm.Printf("  Platform: %s\n", GetPluginName().GetCString());
+  strm.Format("  Platform: {0}\n", GetPluginName());
 
   ArchSpec arch(GetSystemArchitecture());
   if (arch.IsValid()) {
@@ -421,8 +413,8 @@ void Platform::GetStatus(Stream &strm) {
   if (!os_version.empty()) {
     strm.Format("OS Version: {0}", os_version.getAsString());
 
-    if (GetOSBuildString(s))
-      strm.Printf(" (%s)", s.c_str());
+    if (llvm::Optional<std::string> s = GetOSBuildString())
+      strm.Format(" ({0})", *s);
 
     strm.EOL();
   }
@@ -447,8 +439,8 @@ void Platform::GetStatus(Stream &strm) {
   if (!specific_info.empty())
     strm.Printf("Platform-specific connection: %s\n", specific_info.c_str());
 
-  if (GetOSKernelDescription(s))
-    strm.Printf("    Kernel: %s\n", s.c_str());
+  if (llvm::Optional<std::string> s = GetOSKernelDescription())
+    strm.Format("    Kernel: {0}\n", *s);
 }
 
 llvm::VersionTuple Platform::GetOSVersion(Process *process) {
@@ -493,18 +485,16 @@ llvm::VersionTuple Platform::GetOSVersion(Process *process) {
   return llvm::VersionTuple();
 }
 
-bool Platform::GetOSBuildString(std::string &s) {
-  s.clear();
-
+llvm::Optional<std::string> Platform::GetOSBuildString() {
   if (IsHost())
-    return HostInfo::GetOSBuildString(s);
-  return GetRemoteOSBuildString(s);
+    return HostInfo::GetOSBuildString();
+  return GetRemoteOSBuildString();
 }
 
-bool Platform::GetOSKernelDescription(std::string &s) {
+llvm::Optional<std::string> Platform::GetOSKernelDescription() {
   if (IsHost())
-    return HostInfo::GetOSKernelDescription(s);
-  return GetRemoteOSKernelDescription(s);
+    return HostInfo::GetOSKernelDescription();
+  return GetRemoteOSKernelDescription();
 }
 
 void Platform::AddClangModuleCompilationOptions(
@@ -759,9 +749,8 @@ Status Platform::MakeDirectory(const FileSpec &file_spec,
     return llvm::sys::fs::create_directory(file_spec.GetPath(), permissions);
   else {
     Status error;
-    error.SetErrorStringWithFormat("remote platform %s doesn't support %s",
-                                   GetPluginName().GetCString(),
-                                   LLVM_PRETTY_FUNCTION);
+    error.SetErrorStringWithFormatv("remote platform {0} doesn't support {1}",
+                                    GetPluginName(), LLVM_PRETTY_FUNCTION);
     return error;
   }
 }
@@ -775,9 +764,8 @@ Status Platform::GetFilePermissions(const FileSpec &file_spec,
     return Status(Value.getError());
   } else {
     Status error;
-    error.SetErrorStringWithFormat("remote platform %s doesn't support %s",
-                                   GetPluginName().GetCString(),
-                                   LLVM_PRETTY_FUNCTION);
+    error.SetErrorStringWithFormatv("remote platform {0} doesn't support {1}",
+                                    GetPluginName(), LLVM_PRETTY_FUNCTION);
     return error;
   }
 }
@@ -789,14 +777,13 @@ Status Platform::SetFilePermissions(const FileSpec &file_spec,
     return llvm::sys::fs::setPermissions(file_spec.GetPath(), Perms);
   } else {
     Status error;
-    error.SetErrorStringWithFormat("remote platform %s doesn't support %s",
-                                   GetPluginName().GetCString(),
-                                   LLVM_PRETTY_FUNCTION);
+    error.SetErrorStringWithFormatv("remote platform {0} doesn't support {1}",
+                                    GetPluginName(), LLVM_PRETTY_FUNCTION);
     return error;
   }
 }
 
-ConstString Platform::GetName() { return GetPluginName(); }
+ConstString Platform::GetName() { return ConstString(GetPluginName()); }
 
 const char *Platform::GetHostname() {
   if (IsHost())
@@ -956,26 +943,27 @@ ArchSpec Platform::GetAugmentedArchSpec(llvm::StringRef triple) {
 Status Platform::ConnectRemote(Args &args) {
   Status error;
   if (IsHost())
-    error.SetErrorStringWithFormat("The currently selected platform (%s) is "
-                                   "the host platform and is always connected.",
-                                   GetPluginName().GetCString());
+    error.SetErrorStringWithFormatv(
+        "The currently selected platform ({0}) is "
+        "the host platform and is always connected.",
+        GetPluginName());
   else
-    error.SetErrorStringWithFormat(
-        "Platform::ConnectRemote() is not supported by %s",
-        GetPluginName().GetCString());
+    error.SetErrorStringWithFormatv(
+        "Platform::ConnectRemote() is not supported by {0}", GetPluginName());
   return error;
 }
 
 Status Platform::DisconnectRemote() {
   Status error;
   if (IsHost())
-    error.SetErrorStringWithFormat("The currently selected platform (%s) is "
-                                   "the host platform and is always connected.",
-                                   GetPluginName().GetCString());
+    error.SetErrorStringWithFormatv(
+        "The currently selected platform ({0}) is "
+        "the host platform and is always connected.",
+        GetPluginName());
   else
-    error.SetErrorStringWithFormat(
-        "Platform::DisconnectRemote() is not supported by %s",
-        GetPluginName().GetCString());
+    error.SetErrorStringWithFormatv(
+        "Platform::DisconnectRemote() is not supported by {0}",
+        GetPluginName());
   return error;
 }
 
@@ -1124,8 +1112,8 @@ lldb::ProcessSP Platform::DebugProcess(ProcessLaunchInfo &launch_info,
       ProcessAttachInfo attach_info(launch_info);
       process_sp = Attach(attach_info, debugger, &target, error);
       if (process_sp) {
-        LLDB_LOGF(log, "Platform::%s Attach() succeeded, Process plugin: %s",
-                  __FUNCTION__, process_sp->GetPluginName().AsCString());
+        LLDB_LOG(log, "Attach() succeeded, Process plugin: {0}",
+                 process_sp->GetPluginName());
         launch_info.SetHijackListener(attach_info.GetHijackListener());
 
         // Since we attached to the process, it will think it needs to detach
@@ -1606,8 +1594,8 @@ Status Platform::GetRemoteSharedModule(const ModuleSpec &module_spec,
 bool Platform::GetCachedSharedModule(const ModuleSpec &module_spec,
                                      lldb::ModuleSP &module_sp,
                                      bool *did_create_ptr) {
-  if (IsHost() || !GetGlobalPlatformProperties()->GetUseModuleCache() ||
-      !GetGlobalPlatformProperties()->GetModuleCacheDirectory())
+  if (IsHost() || !GetGlobalPlatformProperties().GetUseModuleCache() ||
+      !GetGlobalPlatformProperties().GetModuleCacheDirectory())
     return false;
 
   Log *log = GetLogIfAnyCategoriesSet(LIBLLDB_LOG_PLATFORM);
@@ -1691,7 +1679,7 @@ Status Platform::DownloadSymbolFile(const lldb::ModuleSP &module_sp,
 }
 
 FileSpec Platform::GetModuleCacheRoot() {
-  auto dir_spec = GetGlobalPlatformProperties()->GetModuleCacheDirectory();
+  auto dir_spec = GetGlobalPlatformProperties().GetModuleCacheDirectory();
   dir_spec.AppendPathComponent(GetName().AsCString());
   return dir_spec;
 }

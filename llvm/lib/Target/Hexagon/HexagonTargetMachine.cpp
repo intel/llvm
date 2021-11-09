@@ -23,9 +23,9 @@
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Scalar.h"
 
@@ -447,11 +447,11 @@ void HexagonPassConfig::addPreEmitPass() {
   }
 
   // Packetization is mandatory: it handles gather/scatter at all opt levels.
-  addPass(createHexagonPacketizer(NoOpt), false);
+  addPass(createHexagonPacketizer(NoOpt));
 
   if (EnableVectorPrint)
-    addPass(createHexagonVectorPrint(), false);
+    addPass(createHexagonVectorPrint());
 
   // Add CFI instructions if necessary.
-  addPass(createHexagonCallFrameInformation(), false);
+  addPass(createHexagonCallFrameInformation());
 }

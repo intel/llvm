@@ -637,7 +637,7 @@ SomeExpr RuntimeTableBuilder::SaveNameAsPointerTarget(
     object.set_type(scope.MakeCharacterType(
         ParamValue{len, common::TypeParamAttr::Len}, KindExpr{1}));
   }
-  using Ascii = evaluate::Type<TypeCategory::Character, 1>;
+  using evaluate::Ascii;
   using AsciiExpr = evaluate::Expr<Ascii>;
   object.set_init(evaluate::AsGenericExpr(AsciiExpr{name}));
   Symbol &symbol{*scope
@@ -1071,11 +1071,8 @@ void RuntimeTableBuilder::IncorporateDefinedIoGenericInterfaces(
 
 RuntimeDerivedTypeTables BuildRuntimeDerivedTypeTables(
     SemanticsContext &context) {
-  ModFileReader reader{context};
   RuntimeDerivedTypeTables result;
-  static const char schemataName[]{"__fortran_type_info"};
-  SourceName schemataModule{schemataName, std::strlen(schemataName)};
-  result.schemata = reader.Read(schemataModule);
+  result.schemata = context.GetBuiltinModule("__fortran_type_info");
   if (result.schemata) {
     RuntimeTableBuilder builder{context, result};
     builder.DescribeTypes(context.globalScope(), false);

@@ -115,7 +115,7 @@ enum dwarf_regnums {
     #name, alt, size, 0, eEncodingUint, eFormatHex,                            \
         {dwarf_##name##_s390x, dwarf_##name##_s390x, generic,                  \
          LLDB_INVALID_REGNUM, LLDB_INVALID_REGNUM },                           \
-         nullptr, nullptr, nullptr, 0                                          \
+         nullptr, nullptr,                                                     \
   }
 
 static const RegisterInfo g_register_infos[] = {
@@ -715,15 +715,4 @@ void ABISysV_s390x::Initialize() {
 
 void ABISysV_s390x::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
-}
-
-lldb_private::ConstString ABISysV_s390x::GetPluginNameStatic() {
-  static ConstString g_name("sysv-s390x");
-  return g_name;
-}
-
-// PluginInterface protocol
-
-lldb_private::ConstString ABISysV_s390x::GetPluginName() {
-  return GetPluginNameStatic();
 }

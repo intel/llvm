@@ -419,7 +419,9 @@ def fir_SequenceType : FIR_Type<"Sequence", "array"> {
     bool hasConstantInterior() const;
 
     // Is the shape of the sequence constant?
-    bool hasConstantShape() const { return getConstantRows() == getDimension(); }
+    bool hasConstantShape() const {
+      return getConstantRows() == getDimension();
+    }
 
     // Does the sequence have unknown shape? (`array<* x T>`)
     bool hasUnknownShape() const { return getShape().empty(); }
@@ -550,5 +552,10 @@ def AnyCoordinateType : Type<AnyCoordinateLike.predicate, "coordinate type">;
 // The legal types of global symbols
 def AnyAddressableLike : TypeConstraint<Or<[fir_ReferenceType.predicate,
     FunctionType.predicate]>, "any addressable">;
+
+def ArrayOrBoxOrRecord : TypeConstraint<Or<[fir_SequenceType.predicate,
+    fir_BoxType.predicate, fir_RecordType.predicate]>,
+    "fir.box, fir.array or fir.type">;
+
 
 #endif // FIR_DIALECT_FIR_TYPES

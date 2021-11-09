@@ -14,6 +14,8 @@ cmake_minimum_required(VERSION 3.13.4)
 set(CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../cmake"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/Modules"
   ${CMAKE_MODULE_PATH}
   )
 
@@ -111,9 +113,16 @@ option(LIBCXXABI_INCLUDE_TESTS "Generate build targets for the libc++abi unit te
 set(LIBCXXABI_LIBDIR_SUFFIX "${LLVM_LIBDIR_SUFFIX}" CACHE STRING
     "Define suffix of library directory name (32/64)")
 option(LIBCXXABI_INSTALL_LIBRARY "Install the libc++abi library." ON)
-set(LIBCXXABI_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Target triple for cross compiling.")
-set(LIBCXXABI_GCC_TOOLCHAIN "" CACHE PATH "GCC toolchain for cross compiling.")
-set(LIBCXXABI_SYSROOT "" CACHE PATH "Sysroot for cross compiling.")
+
+if(CMAKE_CXX_COMPILER_TARGET)
+  set(LIBCXXABI_DEFAULT_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
+else()
+  set(LIBCXXABI_DEFAULT_TARGET_TRIPLE "${LLVM_DEFAULT_TARGET_TRIPLE}")
+endif()
+set(LIBCXXABI_TARGET_TRIPLE "${LIBCXXABI_DEFAULT_TARGET_TRIPLE}" CACHE STRING "Target triple for cross compiling.")
+set(LIBCXXABI_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}" CACHE PATH "GCC toolchain for cross compiling.")
+set(LIBCXXABI_SYSROOT "${CMAKE_SYSROOT}" CACHE PATH "Sysroot for cross compiling.")
+
 set(LIBCXXABI_LIBCXX_LIBRARY_PATH "" CACHE PATH "The path to libc++ library.")
 set(LIBCXXABI_LIBRARY_VERSION "1.0" CACHE STRING
 "Version of libc++abi. This will be reflected in the name of the shared \
@@ -177,7 +186,11 @@ option(LIBCXXABI_HERMETIC_STATIC_LIBRARY
   "Do not export any symbols from the static library." OFF)
 
 set(LIBCXXABI_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/lit.site.cfg.in" CACHE STRING
-    "The Lit testing configuration to use when running the tests.")
+  "The path to the Lit testing configuration to use when running the tests.
+   If a relative path is provided, it is assumed to be relative to '<monorepo>/libcxxabi/test/configs'.")
+if (NOT IS_ABSOLUTE "${LIBCXXABI_TEST_CONFIG}")
+  set(LIBCXXABI_TEST_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/test/configs/${LIBCXXABI_TEST_CONFIG}")
+endif()
 set(LIBCXXABI_TEST_PARAMS "" CACHE STRING
     "A list of parameters to run the Lit test suite with.")
 
@@ -265,18 +278,12 @@ add_target_flags_if(LIBCXXABI_BUILD_32_BITS "-m32")
 
 if(LIBCXXABI_TARGET_TRIPLE)
   add_target_flags_if_supported("--target=${LIBCXXABI_TARGET_TRIPLE}")
-elseif(CMAKE_CXX_COMPILER_TARGET)
-  set(LIBCXXABI_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
 endif()
-if(LIBCXX_GCC_TOOLCHAIN)
+if(LIBCXXABI_GCC_TOOLCHAIN)
   add_target_flags_if_supported("--gcc-toolchain=${LIBCXXABI_GCC_TOOLCHAIN}")
-elseif(CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN)
-  set(LIBCXXABI_GCC_TOOLCHAIN "${CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN}")
 endif()
 if(LIBCXXABI_SYSROOT)
   add_target_flags_if_supported("--sysroot=${LIBCXXABI_SYSROOT}")
-elseif(CMAKE_SYSROOT)
-  set(LIBCXXABI_SYSROOT "${CMAKE_SYSROOT}")
 endif()
 
 # Configure compiler. Must happen after setting the target flags.

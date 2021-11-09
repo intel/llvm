@@ -428,7 +428,7 @@ define <5 x float> @insert_not_undef_shuffle_translate_commute_lengthen(float %x
 define <4 x float> @insert_nonzero_index_splat(float %x) {
 ; CHECK-LABEL: @insert_nonzero_index_splat(
 ; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <4 x float> undef, float [[X:%.*]], i32 0
-; CHECK-NEXT:    [[SPLAT:%.*]] = shufflevector <4 x float> [[TMP1]], <4 x float> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 undef>
+; CHECK-NEXT:    [[SPLAT:%.*]] = shufflevector <4 x float> [[TMP1]], <4 x float> poison, <4 x i32> <i32 undef, i32 0, i32 0, i32 undef>
 ; CHECK-NEXT:    ret <4 x float> [[SPLAT]]
 ;
   %xv = insertelement <4 x float> undef, float %x, i32 2
@@ -439,7 +439,7 @@ define <4 x float> @insert_nonzero_index_splat(float %x) {
 define <3 x double> @insert_nonzero_index_splat_narrow(double %x) {
 ; CHECK-LABEL: @insert_nonzero_index_splat_narrow(
 ; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <3 x double> undef, double [[X:%.*]], i32 0
-; CHECK-NEXT:    [[SPLAT:%.*]] = shufflevector <3 x double> [[TMP1]], <3 x double> undef, <3 x i32> <i32 0, i32 undef, i32 0>
+; CHECK-NEXT:    [[SPLAT:%.*]] = shufflevector <3 x double> [[TMP1]], <3 x double> poison, <3 x i32> <i32 0, i32 undef, i32 0>
 ; CHECK-NEXT:    ret <3 x double> [[SPLAT]]
 ;
   %xv = insertelement <4 x double> undef, double %x, i32 3
@@ -450,7 +450,7 @@ define <3 x double> @insert_nonzero_index_splat_narrow(double %x) {
 define <5 x i7> @insert_nonzero_index_splat_widen(i7 %x) {
 ; CHECK-LABEL: @insert_nonzero_index_splat_widen(
 ; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <5 x i7> undef, i7 [[X:%.*]], i32 0
-; CHECK-NEXT:    [[SPLAT:%.*]] = shufflevector <5 x i7> [[TMP1]], <5 x i7> undef, <5 x i32> <i32 undef, i32 0, i32 0, i32 undef, i32 0>
+; CHECK-NEXT:    [[SPLAT:%.*]] = shufflevector <5 x i7> [[TMP1]], <5 x i7> poison, <5 x i32> <i32 undef, i32 0, i32 0, i32 undef, i32 0>
 ; CHECK-NEXT:    ret <5 x i7> [[SPLAT]]
 ;
   %xv = insertelement <4 x i7> undef, i7 %x, i32 1
@@ -502,7 +502,7 @@ define <4 x float> @insert_nonzero_index_splat_wrong_index(float %x, i32 %index)
 define <4 x float> @insert_in_splat(float %x) {
 ; CHECK-LABEL: @insert_in_splat(
 ; CHECK-NEXT:    [[XV:%.*]] = insertelement <4 x float> undef, float [[X:%.*]], i32 0
-; CHECK-NEXT:    [[R:%.*]] = shufflevector <4 x float> [[XV]], <4 x float> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
+; CHECK-NEXT:    [[R:%.*]] = shufflevector <4 x float> [[XV]], <4 x float> poison, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
 ; CHECK-NEXT:    ret <4 x float> [[R]]
 ;
   %xv = insertelement <4 x float> undef, float %x, i32 0
@@ -517,7 +517,7 @@ define <4 x float> @insert_in_splat_extra_uses(float %x) {
 ; CHECK-NEXT:    call void @use(<4 x float> [[XV]])
 ; CHECK-NEXT:    [[SPLAT:%.*]] = shufflevector <4 x float> [[XV]], <4 x float> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 undef>
 ; CHECK-NEXT:    call void @use(<4 x float> [[SPLAT]])
-; CHECK-NEXT:    [[R:%.*]] = shufflevector <4 x float> [[XV]], <4 x float> undef, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
+; CHECK-NEXT:    [[R:%.*]] = shufflevector <4 x float> [[XV]], <4 x float> poison, <4 x i32> <i32 undef, i32 0, i32 0, i32 0>
 ; CHECK-NEXT:    ret <4 x float> [[R]]
 ;
   %xv = insertelement <4 x float> undef, float %x, i32 0
@@ -692,6 +692,32 @@ define <4 x float> @insert_undemanded_element_op1(<4 x float> %x, <4 x float> %y
   ret <4 x float> %s
 }
 
+define <5 x float> @insert_undemanded_element_unequal_length_op0(<4 x float> %x, <4 x float> %y) {
+; CHECK-LABEL: @insert_undemanded_element_unequal_length_op0(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x float> [[X:%.*]], float 4.200000e+01, i32 3
+; CHECK-NEXT:    call void @use(<4 x float> [[INS]])
+; CHECK-NEXT:    [[S:%.*]] = shufflevector <4 x float> [[INS]], <4 x float> [[Y:%.*]], <5 x i32> <i32 undef, i32 0, i32 7, i32 1, i32 4>
+; CHECK-NEXT:    ret <5 x float> [[S]]
+;
+  %ins = insertelement <4 x float> %x, float 42.0, i32 3
+  call void @use(<4 x float> %ins)
+  %s = shufflevector <4 x float> %ins, <4 x float> %y, <5 x i32> <i32 undef, i32 0, i32 7, i32 1, i32 4>
+  ret <5 x float> %s
+}
+
+define <5 x float> @insert_undemanded_element_unequal_length_op1(<4 x float> %x, <4 x float> %y) {
+; CHECK-LABEL: @insert_undemanded_element_unequal_length_op1(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x float> [[X:%.*]], float 4.200000e+01, i32 3
+; CHECK-NEXT:    call void @use(<4 x float> [[INS]])
+; CHECK-NEXT:    [[S:%.*]] = shufflevector <4 x float> [[Y:%.*]], <4 x float> [[INS]], <5 x i32> <i32 undef, i32 3, i32 2, i32 1, i32 4>
+; CHECK-NEXT:    ret <5 x float> [[S]]
+;
+  %ins = insertelement <4 x float> %x, float 42.0, i32 3
+  call void @use(<4 x float> %ins)
+  %s = shufflevector <4 x float> %y, <4 x float> %ins, <5 x i32> <i32 undef, i32 3, i32 2, i32 1, i32 4>
+  ret <5 x float> %s
+}
+
 ; Negative test - shuffle chooses the inserted constant.
 
 define <4 x float> @insert_demanded_element_op0(<4 x float> %x, <4 x float> %y) {
@@ -720,6 +746,36 @@ define <4 x float> @insert_demanded_element_op1(<4 x float> %x, <4 x float> %y) 
   call void @use(<4 x float> %ins)
   %s = shufflevector <4 x float> %y, <4 x float> %ins, <4 x i32> <i32 0, i32 7, i32 1, i32 4>
   ret <4 x float> %s
+}
+
+; Negative test - shuffle chooses the inserted constant.
+
+define <5 x float> @insert_demanded_element_unequal_length_op0(<4 x float> %x, <4 x float> %y) {
+; CHECK-LABEL: @insert_demanded_element_unequal_length_op0(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x float> [[X:%.*]], float 4.200000e+01, i32 3
+; CHECK-NEXT:    call void @use(<4 x float> [[INS]])
+; CHECK-NEXT:    [[S:%.*]] = shufflevector <4 x float> [[INS]], <4 x float> [[Y:%.*]], <5 x i32> <i32 undef, i32 3, i32 2, i32 1, i32 4>
+; CHECK-NEXT:    ret <5 x float> [[S]]
+;
+  %ins = insertelement <4 x float> %x, float 42.0, i32 3
+  call void @use(<4 x float> %ins)
+  %s = shufflevector <4 x float> %ins, <4 x float> %y, <5 x i32> <i32 undef, i32 3, i32 2, i32 1, i32 4>
+  ret <5 x float> %s
+}
+
+; Negative test - shuffle chooses the inserted constant.
+
+define <5 x float> @insert_demanded_element_unequal_length_op1(<4 x float> %x, <4 x float> %y) {
+; CHECK-LABEL: @insert_demanded_element_unequal_length_op1(
+; CHECK-NEXT:    [[INS:%.*]] = insertelement <4 x float> [[X:%.*]], float 4.300000e+01, i32 3
+; CHECK-NEXT:    call void @use(<4 x float> [[INS]])
+; CHECK-NEXT:    [[S:%.*]] = shufflevector <4 x float> [[Y:%.*]], <4 x float> [[INS]], <5 x i32> <i32 undef, i32 0, i32 7, i32 1, i32 4>
+; CHECK-NEXT:    ret <5 x float> [[S]]
+;
+  %ins = insertelement <4 x float> %x, float 43.0, i32 3
+  call void @use(<4 x float> %ins)
+  %s = shufflevector <4 x float> %y, <4 x float> %ins, <5 x i32> <i32 undef, i32 0, i32 7, i32 1, i32 4>
+  ret <5 x float> %s
 }
 
 define <4 x float> @splat_constant(<4 x float> %x) {

@@ -29,7 +29,9 @@ struct LogicalResult;
 class MLIRContext;
 class Operation;
 class OperationName;
+class OpPrintingFlags;
 class Type;
+class Value;
 
 namespace detail {
 struct DiagnosticEngineImpl;
@@ -217,6 +219,11 @@ public:
   Diagnostic &operator<<(Operation *val) {
     return *this << *val;
   }
+  /// Append an operation with the given printing flags.
+  Diagnostic &appendOp(Operation &val, const OpPrintingFlags &flags);
+
+  /// Stream in a Value.
+  Diagnostic &operator<<(Value val);
 
   /// Stream in a range.
   template <typename T, typename ValueT = llvm::detail::ValueOfRange<T>>

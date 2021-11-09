@@ -25,9 +25,6 @@ int main() {
     context MovedContext(std::move(Context));
     assert(hash == std::hash<context>()(MovedContext));
     assert(deviceA.is_host() == MovedContext.is_host());
-    if (!deviceA.is_host()) {
-      assert(MovedContext.get() != nullptr);
-    }
   }
   {
     std::cout << "move assignment operator" << std::endl;
@@ -37,9 +34,6 @@ int main() {
     WillMovedContext = std::move(Context);
     assert(hash == std::hash<context>()(WillMovedContext));
     assert(deviceA.is_host() == WillMovedContext.is_host());
-    if (!deviceA.is_host()) {
-      assert(WillMovedContext.get() != nullptr);
-    }
   }
   {
     std::cout << "copy constructor" << std::endl;

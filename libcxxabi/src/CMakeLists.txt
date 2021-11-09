@@ -56,8 +56,8 @@ if (MSVC_IDE OR XCODE)
   endif()
 endif()
 
-# stdlib_stdexcept.cpp depends on libc++ internals.
-include_directories("${LIBCXXABI_LIBCXX_PATH}")
+# Some files depend on libc++ internals.
+include_directories("${LIBCXXABI_LIBCXX_PATH}/src")
 
 if (LIBCXXABI_HAS_CXA_THREAD_ATEXIT_IMPL)
   add_definitions(-DHAVE___CXA_THREAD_ATEXIT_IMPL)
@@ -136,7 +136,8 @@ if ( APPLE )
       message(WARNING "LLVM_USE_SANITIZER=${LLVM_USE_SANITIZER} is not supported on OS X")
     endif()
     if (LIBFILE)
-      find_compiler_rt_dir(LIBDIR)
+      find_compiler_rt_library(builtins LIBCXXABI_BUILTINS_LIBRARY)
+      get_filename_component(LIBDIR "${LIBCXXABI_BUILTINS_LIBRARY}" DIRECTORY)
       if (NOT IS_DIRECTORY "${LIBDIR}")
         message(FATAL_ERROR "Cannot find compiler-rt directory on OS X required for LLVM_USE_SANITIZER")
       endif()

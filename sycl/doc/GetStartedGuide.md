@@ -148,18 +148,24 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 
 There is experimental support for DPC++ for CUDA devices.
 
-To enable support for CUDA devices, follow the instructions for the Linux
-DPC++ toolchain, but add the `--cuda` flag to `configure.py`
+To enable support for CUDA devices, follow the instructions for the Linux or
+Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, 
+the CUDA backend has experimental Windows support, windows subsystem for 
+linux (WSL) is not needed to build and run the CUDA backend.
 
 Enabling this flag requires an installation of
 [CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
 the system, refer to
-[NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
+[NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
+or
+[NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
 
 Currently, the only combination tested is Ubuntu 18.04 with CUDA 10.2 using
-a Titan RTX GPU (SM 71), but it should work on any GPU compatible with SM 50 or
-above. The default SM for the NVIDIA CUDA backend is 5.0. Users can specify
-lower values, but some features may not be supported.
+a Titan RTX GPU (SM 71). The CUDA backend should work on Windows or Linux 
+operating systems with any GPU compatible with SM 50 or above. The default 
+SM for the NVIDIA CUDA backend is 5.0. Users can specify lower values, 
+but some features may not be supported. Windows CUDA support is experimental
+as it is not currently tested on the CI.
 
 **Non-standard CUDA location**
 
