@@ -1758,7 +1758,8 @@ static pi_result SetKernelParamsAndLaunch(
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
       assert(getMemAllocationFunc != nullptr &&
-             "The function should not be nullptr as we followed the path for which accessors are used");
+             "The function should not be nullptr as we followed the path for "
+             "which accessors are used");
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
