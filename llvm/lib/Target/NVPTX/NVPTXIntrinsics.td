@@ -1769,8 +1769,8 @@ multiclass ATOM2N_impl<string OpStr, string IntTypeStr, string TypeStr,
                      !cast<Intrinsic>(
                             "int_nvvm_atomic_" # OpStr
                             # "_" # SpaceStr # "_" # IntTypeStr
-                            # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr)
-                            # !if(!eq(SemStr, "relaxed"), "", "_" # SemStr)),
+                            # !if(!eq(SemStr, "relaxed"), "", "_" # SemStr)
+                            # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr)),
                      regclass, ImmType, Imm, ImmTy, Preds>;
 }
 multiclass ATOM3N_impl<string OpStr, string IntTypeStr, string TypeStr,
@@ -1785,8 +1785,8 @@ multiclass ATOM3N_impl<string OpStr, string IntTypeStr, string TypeStr,
                      !cast<Intrinsic>(
                             "int_nvvm_atomic_" # OpStr
                             # "_" # SpaceStr # "_" # IntTypeStr
-                            # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr)
-                            # !if(!eq(SemStr, "relaxed"), "", "_" # SemStr)),
+                            # !if(!eq(SemStr, "relaxed"), "", "_" # SemStr)
+                            # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr)),
                      regclass, ImmType, Imm, ImmTy, Preds>;
 }
 

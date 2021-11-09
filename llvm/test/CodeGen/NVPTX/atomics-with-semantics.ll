@@ -48,58 +48,58 @@ entry:
   %tmp8 = tail call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.add.s32
-  %tmp9 = tail call i32 @llvm.nvvm.atomic.add.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp9 = tail call i32 @llvm.nvvm.atomic.add.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.add.s32
-  %tmp10 = tail call i32 @llvm.nvvm.atomic.add.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp10 = tail call i32 @llvm.nvvm.atomic.add.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.add.s32
-  %tmp11 = tail call i32 @llvm.nvvm.atomic.add.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp11 = tail call i32 @llvm.nvvm.atomic.add.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.add.s32
-  %tmp12 = tail call i32 @llvm.nvvm.atomic.add.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp12 = tail call i32 @llvm.nvvm.atomic.add.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.add.s32
-  %tmp13 = tail call i32 @llvm.nvvm.atomic.add.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp13 = tail call i32 @llvm.nvvm.atomic.add.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.add.s32
-  %tmp14 = tail call i32 @llvm.nvvm.atomic.add.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp14 = tail call i32 @llvm.nvvm.atomic.add.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.add.s32
-  %tmp15 = tail call i32 @llvm.nvvm.atomic.add.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp15 = tail call i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.add.s32
-  %tmp16 = tail call i32 @llvm.nvvm.atomic.add.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp16 = tail call i32 @llvm.nvvm.atomic.add.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.add.s32
-  %tmp17 = tail call i32 @llvm.nvvm.atomic.add.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp17 = tail call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.add.s32
-  %tmp18 = tail call i32 @llvm.nvvm.atomic.add.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp18 = tail call i32 @llvm.nvvm.atomic.add.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.add.s32
-  %tmp19 = tail call i32 @llvm.nvvm.atomic.add.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp19 = tail call i32 @llvm.nvvm.atomic.add.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.add.s32
-  %tmp20 = tail call i32 @llvm.nvvm.atomic.add.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp20 = tail call i32 @llvm.nvvm.atomic.add.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.add.s32
-  %tmp21 = tail call i32 @llvm.nvvm.atomic.add.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp21 = tail call i32 @llvm.nvvm.atomic.add.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.add.s32
-  %tmp22 = tail call i32 @llvm.nvvm.atomic.add.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp22 = tail call i32 @llvm.nvvm.atomic.add.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.add.s32
-  %tmp23 = tail call i32 @llvm.nvvm.atomic.add.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp23 = tail call i32 @llvm.nvvm.atomic.add.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.add.s32
-  %tmp24 = tail call i32 @llvm.nvvm.atomic.add.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp24 = tail call i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.add.s32
-  %tmp25 = tail call i32 @llvm.nvvm.atomic.add.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp25 = tail call i32 @llvm.nvvm.atomic.add.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.add.s32
-  %tmp26 = tail call i32 @llvm.nvvm.atomic.add.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp26 = tail call i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.add.u64
   %tmp27 = tail call i64 @llvm.nvvm.atomic.add.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -129,58 +129,58 @@ entry:
   %tmp35 = tail call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.add.u64
-  %tmp36 = tail call i64 @llvm.nvvm.atomic.add.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp36 = tail call i64 @llvm.nvvm.atomic.add.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.add.u64
-  %tmp37 = tail call i64 @llvm.nvvm.atomic.add.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp37 = tail call i64 @llvm.nvvm.atomic.add.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.add.u64
-  %tmp38 = tail call i64 @llvm.nvvm.atomic.add.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp38 = tail call i64 @llvm.nvvm.atomic.add.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.add.u64
-  %tmp39 = tail call i64 @llvm.nvvm.atomic.add.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp39 = tail call i64 @llvm.nvvm.atomic.add.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.add.u64
-  %tmp40 = tail call i64 @llvm.nvvm.atomic.add.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp40 = tail call i64 @llvm.nvvm.atomic.add.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.add.u64
-  %tmp41 = tail call i64 @llvm.nvvm.atomic.add.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp41 = tail call i64 @llvm.nvvm.atomic.add.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.add.u64
-  %tmp42 = tail call i64 @llvm.nvvm.atomic.add.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp42 = tail call i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.add.u64
-  %tmp43 = tail call i64 @llvm.nvvm.atomic.add.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp43 = tail call i64 @llvm.nvvm.atomic.add.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.add.u64
-  %tmp44 = tail call i64 @llvm.nvvm.atomic.add.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp44 = tail call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.add.u64
-  %tmp45 = tail call i64 @llvm.nvvm.atomic.add.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp45 = tail call i64 @llvm.nvvm.atomic.add.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.add.u64
-  %tmp46 = tail call i64 @llvm.nvvm.atomic.add.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp46 = tail call i64 @llvm.nvvm.atomic.add.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.add.u64
-  %tmp47 = tail call i64 @llvm.nvvm.atomic.add.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp47 = tail call i64 @llvm.nvvm.atomic.add.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.add.u64
-  %tmp48 = tail call i64 @llvm.nvvm.atomic.add.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp48 = tail call i64 @llvm.nvvm.atomic.add.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.add.u64
-  %tmp49 = tail call i64 @llvm.nvvm.atomic.add.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp49 = tail call i64 @llvm.nvvm.atomic.add.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.add.u64
-  %tmp50 = tail call i64 @llvm.nvvm.atomic.add.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp50 = tail call i64 @llvm.nvvm.atomic.add.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.add.u64
-  %tmp51 = tail call i64 @llvm.nvvm.atomic.add.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp51 = tail call i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.add.u64
-  %tmp52 = tail call i64 @llvm.nvvm.atomic.add.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp52 = tail call i64 @llvm.nvvm.atomic.add.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.add.u64
-  %tmp53 = tail call i64 @llvm.nvvm.atomic.add.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp53 = tail call i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.add.f32
   %tmp54 = tail call float @llvm.nvvm.atomic.add.gen.f.acquire.f32.p0f32(float* %fp, float %f);
@@ -210,58 +210,58 @@ entry:
   %tmp62 = tail call float @llvm.nvvm.atomic.add.shared.f.acq.rel.f32.p3f32(float addrspace(3)* %fp3, float %f);
 
   ; CHECK: atom.acquire.sys.add.f32
-  %tmp63 = tail call float @llvm.nvvm.atomic.add.gen.f.sys.acquire.f32.p0f32(float* %fp, float %f);
+  %tmp63 = tail call float @llvm.nvvm.atomic.add.gen.f.acquire.sys.f32.p0f32(float* %fp, float %f);
 
   ; CHECK: atom.acquire.sys.global.add.f32
-  %tmp64 = tail call float @llvm.nvvm.atomic.add.global.f.sys.acquire.f32.p1f32(float addrspace(1)* %fp1, float %f);
+  %tmp64 = tail call float @llvm.nvvm.atomic.add.global.f.acquire.sys.f32.p1f32(float addrspace(1)* %fp1, float %f);
 
   ; CHECK: atom.acquire.sys.shared.add.f32
-  %tmp65 = tail call float @llvm.nvvm.atomic.add.shared.f.sys.acquire.f32.p3f32(float addrspace(3)* %fp3, float %f);
+  %tmp65 = tail call float @llvm.nvvm.atomic.add.shared.f.acquire.sys.f32.p3f32(float addrspace(3)* %fp3, float %f);
 
   ; CHECK: atom.release.sys.add.f32
-  %tmp66 = tail call float @llvm.nvvm.atomic.add.gen.f.sys.release.f32.p0f32(float* %fp, float %f);
+  %tmp66 = tail call float @llvm.nvvm.atomic.add.gen.f.release.sys.f32.p0f32(float* %fp, float %f);
 
   ; CHECK: atom.release.sys.global.add.f32
-  %tmp67 = tail call float @llvm.nvvm.atomic.add.global.f.sys.release.f32.p1f32(float addrspace(1)* %fp1, float %f);
+  %tmp67 = tail call float @llvm.nvvm.atomic.add.global.f.release.sys.f32.p1f32(float addrspace(1)* %fp1, float %f);
 
   ; CHECK: atom.release.sys.shared.add.f32
-  %tmp68 = tail call float @llvm.nvvm.atomic.add.shared.f.sys.release.f32.p3f32(float addrspace(3)* %fp3, float %f);
+  %tmp68 = tail call float @llvm.nvvm.atomic.add.shared.f.release.sys.f32.p3f32(float addrspace(3)* %fp3, float %f);
 
   ; CHECK: atom.acq_rel.sys.add.f32
-  %tmp69 = tail call float @llvm.nvvm.atomic.add.gen.f.sys.acq.rel.f32.p0f32(float* %fp, float %f);
+  %tmp69 = tail call float @llvm.nvvm.atomic.add.gen.f.acq.rel.sys.f32.p0f32(float* %fp, float %f);
 
   ; CHECK: atom.acq_rel.sys.global.add.f32
-  %tmp70 = tail call float @llvm.nvvm.atomic.add.global.f.sys.acq.rel.f32.p1f32(float addrspace(1)* %fp1, float %f);
+  %tmp70 = tail call float @llvm.nvvm.atomic.add.global.f.acq.rel.sys.f32.p1f32(float addrspace(1)* %fp1, float %f);
 
   ; CHECK: atom.acq_rel.sys.shared.add.f32
-  %tmp71 = tail call float @llvm.nvvm.atomic.add.shared.f.sys.acq.rel.f32.p3f32(float addrspace(3)* %fp3, float %f);
+  %tmp71 = tail call float @llvm.nvvm.atomic.add.shared.f.acq.rel.sys.f32.p3f32(float addrspace(3)* %fp3, float %f);
 
   ; CHECK: atom.acquire.cta.add.f32
-  %tmp72 = tail call float @llvm.nvvm.atomic.add.gen.f.cta.acquire.f32.p0f32(float* %fp, float %f);
+  %tmp72 = tail call float @llvm.nvvm.atomic.add.gen.f.acquire.cta.f32.p0f32(float* %fp, float %f);
 
   ; CHECK: atom.acquire.cta.global.add.f32
-  %tmp73 = tail call float @llvm.nvvm.atomic.add.global.f.cta.acquire.f32.p1f32(float addrspace(1)* %fp1, float %f);
+  %tmp73 = tail call float @llvm.nvvm.atomic.add.global.f.acquire.cta.f32.p1f32(float addrspace(1)* %fp1, float %f);
 
   ; CHECK: atom.acquire.cta.shared.add.f32
-  %tmp74 = tail call float @llvm.nvvm.atomic.add.shared.f.cta.acquire.f32.p3f32(float addrspace(3)* %fp3, float %f);
+  %tmp74 = tail call float @llvm.nvvm.atomic.add.shared.f.acquire.cta.f32.p3f32(float addrspace(3)* %fp3, float %f);
 
   ; CHECK: atom.release.cta.add.f32
-  %tmp75 = tail call float @llvm.nvvm.atomic.add.gen.f.cta.release.f32.p0f32(float* %fp, float %f);
+  %tmp75 = tail call float @llvm.nvvm.atomic.add.gen.f.release.cta.f32.p0f32(float* %fp, float %f);
 
   ; CHECK: atom.release.cta.global.add.f32
-  %tmp76 = tail call float @llvm.nvvm.atomic.add.global.f.cta.release.f32.p1f32(float addrspace(1)* %fp1, float %f);
+  %tmp76 = tail call float @llvm.nvvm.atomic.add.global.f.release.cta.f32.p1f32(float addrspace(1)* %fp1, float %f);
 
   ; CHECK: atom.release.cta.shared.add.f32
-  %tmp77 = tail call float @llvm.nvvm.atomic.add.shared.f.cta.release.f32.p3f32(float addrspace(3)* %fp3, float %f);
+  %tmp77 = tail call float @llvm.nvvm.atomic.add.shared.f.release.cta.f32.p3f32(float addrspace(3)* %fp3, float %f);
 
   ; CHECK: atom.acq_rel.cta.add.f32
-  %tmp78 = tail call float @llvm.nvvm.atomic.add.gen.f.cta.acq.rel.f32.p0f32(float* %fp, float %f);
+  %tmp78 = tail call float @llvm.nvvm.atomic.add.gen.f.acq.rel.cta.f32.p0f32(float* %fp, float %f);
 
   ; CHECK: atom.acq_rel.cta.global.add.f32
-  %tmp79 = tail call float @llvm.nvvm.atomic.add.global.f.cta.acq.rel.f32.p1f32(float addrspace(1)* %fp1, float %f);
+  %tmp79 = tail call float @llvm.nvvm.atomic.add.global.f.acq.rel.cta.f32.p1f32(float addrspace(1)* %fp1, float %f);
 
   ; CHECK: atom.acq_rel.cta.shared.add.f32
-  %tmp80 = tail call float @llvm.nvvm.atomic.add.shared.f.cta.acq.rel.f32.p3f32(float addrspace(3)* %fp3, float %f);
+  %tmp80 = tail call float @llvm.nvvm.atomic.add.shared.f.acq.rel.cta.f32.p3f32(float addrspace(3)* %fp3, float %f);
 
   ; CHECK: atom.acquire.add.f64
   %tmp81 = tail call double @llvm.nvvm.atomic.add.gen.f.acquire.f64.p0f64(double* %dfp, double %df);
@@ -291,58 +291,58 @@ entry:
   %tmp89 = tail call double @llvm.nvvm.atomic.add.shared.f.acq.rel.f64.p3f64(double addrspace(3)* %dfp3, double %df);
 
   ; CHECK: atom.acquire.sys.add.f64
-  %tmp90 = tail call double @llvm.nvvm.atomic.add.gen.f.sys.acquire.f64.p0f64(double* %dfp, double %df);
+  %tmp90 = tail call double @llvm.nvvm.atomic.add.gen.f.acquire.sys.f64.p0f64(double* %dfp, double %df);
 
   ; CHECK: atom.acquire.sys.global.add.f64
-  %tmp91 = tail call double @llvm.nvvm.atomic.add.global.f.sys.acquire.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+  %tmp91 = tail call double @llvm.nvvm.atomic.add.global.f.acquire.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df);
 
   ; CHECK: atom.acquire.sys.shared.add.f64
-  %tmp92 = tail call double @llvm.nvvm.atomic.add.shared.f.sys.acquire.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+  %tmp92 = tail call double @llvm.nvvm.atomic.add.shared.f.acquire.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df);
 
   ; CHECK: atom.release.sys.add.f64
-  %tmp93 = tail call double @llvm.nvvm.atomic.add.gen.f.sys.release.f64.p0f64(double* %dfp, double %df);
+  %tmp93 = tail call double @llvm.nvvm.atomic.add.gen.f.release.sys.f64.p0f64(double* %dfp, double %df);
 
   ; CHECK: atom.release.sys.global.add.f64
-  %tmp94 = tail call double @llvm.nvvm.atomic.add.global.f.sys.release.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+  %tmp94 = tail call double @llvm.nvvm.atomic.add.global.f.release.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df);
 
   ; CHECK: atom.release.sys.shared.add.f64
-  %tmp95 = tail call double @llvm.nvvm.atomic.add.shared.f.sys.release.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+  %tmp95 = tail call double @llvm.nvvm.atomic.add.shared.f.release.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df);
 
   ; CHECK: atom.acq_rel.sys.add.f64
-  %tmp96 = tail call double @llvm.nvvm.atomic.add.gen.f.sys.acq.rel.f64.p0f64(double* %dfp, double %df);
+  %tmp96 = tail call double @llvm.nvvm.atomic.add.gen.f.acq.rel.sys.f64.p0f64(double* %dfp, double %df);
 
   ; CHECK: atom.acq_rel.sys.global.add.f64
-  %tmp97 = tail call double @llvm.nvvm.atomic.add.global.f.sys.acq.rel.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+  %tmp97 = tail call double @llvm.nvvm.atomic.add.global.f.acq.rel.sys.f64.p1f64(double addrspace(1)* %dfp1, double %df);
 
   ; CHECK: atom.acq_rel.sys.shared.add.f64
-  %tmp98 = tail call double @llvm.nvvm.atomic.add.shared.f.sys.acq.rel.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+  %tmp98 = tail call double @llvm.nvvm.atomic.add.shared.f.acq.rel.sys.f64.p3f64(double addrspace(3)* %dfp3, double %df);
 
   ; CHECK: atom.acquire.cta.add.f64
-  %tmp99 = tail call double @llvm.nvvm.atomic.add.gen.f.cta.acquire.f64.p0f64(double* %dfp, double %df);
+  %tmp99 = tail call double @llvm.nvvm.atomic.add.gen.f.acquire.cta.f64.p0f64(double* %dfp, double %df);
 
   ; CHECK: atom.acquire.cta.global.add.f64
-  %tmp100 = tail call double @llvm.nvvm.atomic.add.global.f.cta.acquire.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+  %tmp100 = tail call double @llvm.nvvm.atomic.add.global.f.acquire.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df);
 
   ; CHECK: atom.acquire.cta.shared.add.f64
-  %tmp101 = tail call double @llvm.nvvm.atomic.add.shared.f.cta.acquire.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+  %tmp101 = tail call double @llvm.nvvm.atomic.add.shared.f.acquire.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df);
 
   ; CHECK: atom.release.cta.add.f64
-  %tmp102 = tail call double @llvm.nvvm.atomic.add.gen.f.cta.release.f64.p0f64(double* %dfp, double %df);
+  %tmp102 = tail call double @llvm.nvvm.atomic.add.gen.f.release.cta.f64.p0f64(double* %dfp, double %df);
 
   ; CHECK: atom.release.cta.global.add.f64
-  %tmp103 = tail call double @llvm.nvvm.atomic.add.global.f.cta.release.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+  %tmp103 = tail call double @llvm.nvvm.atomic.add.global.f.release.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df);
 
   ; CHECK: atom.release.cta.shared.add.f64
-  %tmp104 = tail call double @llvm.nvvm.atomic.add.shared.f.cta.release.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+  %tmp104 = tail call double @llvm.nvvm.atomic.add.shared.f.release.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df);
 
   ; CHECK: atom.acq_rel.cta.add.f64
-  %tmp105 = tail call double @llvm.nvvm.atomic.add.gen.f.cta.acq.rel.f64.p0f64(double* %dfp, double %df);
+  %tmp105 = tail call double @llvm.nvvm.atomic.add.gen.f.acq.rel.cta.f64.p0f64(double* %dfp, double %df);
 
   ; CHECK: atom.acq_rel.cta.global.add.f64
-  %tmp106 = tail call double @llvm.nvvm.atomic.add.global.f.cta.acq.rel.f64.p1f64(double addrspace(1)* %dfp1, double %df);
+  %tmp106 = tail call double @llvm.nvvm.atomic.add.global.f.acq.rel.cta.f64.p1f64(double addrspace(1)* %dfp1, double %df);
 
   ; CHECK: atom.acq_rel.cta.shared.add.f64
-  %tmp107 = tail call double @llvm.nvvm.atomic.add.shared.f.cta.acq.rel.f64.p3f64(double addrspace(3)* %dfp3, double %df);
+  %tmp107 = tail call double @llvm.nvvm.atomic.add.shared.f.acq.rel.cta.f64.p3f64(double addrspace(3)* %dfp3, double %df);
 
   ; CHECK: atom.acquire.exch.b32
   %tmp108 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -372,58 +372,58 @@ entry:
   %tmp116 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.exch.b32
-  %tmp117 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp117 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.exch.b32
-  %tmp118 = tail call i32 @llvm.nvvm.atomic.exch.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp118 = tail call i32 @llvm.nvvm.atomic.exch.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.exch.b32
-  %tmp119 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp119 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.exch.b32
-  %tmp120 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp120 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.exch.b32
-  %tmp121 = tail call i32 @llvm.nvvm.atomic.exch.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp121 = tail call i32 @llvm.nvvm.atomic.exch.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.exch.b32
-  %tmp122 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp122 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.exch.b32
-  %tmp123 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp123 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.exch.b32
-  %tmp124 = tail call i32 @llvm.nvvm.atomic.exch.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp124 = tail call i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.exch.b32
-  %tmp125 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp125 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.exch.b32
-  %tmp126 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp126 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.exch.b32
-  %tmp127 = tail call i32 @llvm.nvvm.atomic.exch.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp127 = tail call i32 @llvm.nvvm.atomic.exch.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.exch.b32
-  %tmp128 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp128 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.exch.b32
-  %tmp129 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp129 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.exch.b32
-  %tmp130 = tail call i32 @llvm.nvvm.atomic.exch.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp130 = tail call i32 @llvm.nvvm.atomic.exch.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.exch.b32
-  %tmp131 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp131 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.exch.b32
-  %tmp132 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp132 = tail call i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.exch.b32
-  %tmp133 = tail call i32 @llvm.nvvm.atomic.exch.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp133 = tail call i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.exch.b32
-  %tmp134 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp134 = tail call i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.exch.b64
   %tmp135 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -453,58 +453,58 @@ entry:
   %tmp143 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.exch.b64
-  %tmp144 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp144 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.exch.b64
-  %tmp145 = tail call i64 @llvm.nvvm.atomic.exch.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp145 = tail call i64 @llvm.nvvm.atomic.exch.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.exch.b64
-  %tmp146 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp146 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.exch.b64
-  %tmp147 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp147 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.exch.b64
-  %tmp148 = tail call i64 @llvm.nvvm.atomic.exch.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp148 = tail call i64 @llvm.nvvm.atomic.exch.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.exch.b64
-  %tmp149 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp149 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.exch.b64
-  %tmp150 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp150 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.exch.b64
-  %tmp151 = tail call i64 @llvm.nvvm.atomic.exch.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp151 = tail call i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.exch.b64
-  %tmp152 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp152 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.exch.b64
-  %tmp153 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp153 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.exch.b64
-  %tmp154 = tail call i64 @llvm.nvvm.atomic.exch.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp154 = tail call i64 @llvm.nvvm.atomic.exch.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.exch.b64
-  %tmp155 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp155 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.exch.b64
-  %tmp156 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp156 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.exch.b64
-  %tmp157 = tail call i64 @llvm.nvvm.atomic.exch.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp157 = tail call i64 @llvm.nvvm.atomic.exch.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.exch.b64
-  %tmp158 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp158 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.exch.b64
-  %tmp159 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp159 = tail call i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.exch.b64
-  %tmp160 = tail call i64 @llvm.nvvm.atomic.exch.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp160 = tail call i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.exch.b64
-  %tmp161 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp161 = tail call i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.max.s32
   %tmp162 = tail call i32 @llvm.nvvm.atomic.max.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -534,58 +534,58 @@ entry:
   %tmp170 = tail call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.max.s32
-  %tmp171 = tail call i32 @llvm.nvvm.atomic.max.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp171 = tail call i32 @llvm.nvvm.atomic.max.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.max.s32
-  %tmp172 = tail call i32 @llvm.nvvm.atomic.max.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp172 = tail call i32 @llvm.nvvm.atomic.max.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.max.s32
-  %tmp173 = tail call i32 @llvm.nvvm.atomic.max.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp173 = tail call i32 @llvm.nvvm.atomic.max.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.max.s32
-  %tmp174 = tail call i32 @llvm.nvvm.atomic.max.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp174 = tail call i32 @llvm.nvvm.atomic.max.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.max.s32
-  %tmp175 = tail call i32 @llvm.nvvm.atomic.max.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp175 = tail call i32 @llvm.nvvm.atomic.max.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.max.s32
-  %tmp176 = tail call i32 @llvm.nvvm.atomic.max.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp176 = tail call i32 @llvm.nvvm.atomic.max.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.max.s32
-  %tmp177 = tail call i32 @llvm.nvvm.atomic.max.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp177 = tail call i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.max.s32
-  %tmp178 = tail call i32 @llvm.nvvm.atomic.max.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp178 = tail call i32 @llvm.nvvm.atomic.max.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.max.s32
-  %tmp179 = tail call i32 @llvm.nvvm.atomic.max.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp179 = tail call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.max.s32
-  %tmp180 = tail call i32 @llvm.nvvm.atomic.max.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp180 = tail call i32 @llvm.nvvm.atomic.max.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.max.s32
-  %tmp181 = tail call i32 @llvm.nvvm.atomic.max.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp181 = tail call i32 @llvm.nvvm.atomic.max.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.max.s32
-  %tmp182 = tail call i32 @llvm.nvvm.atomic.max.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp182 = tail call i32 @llvm.nvvm.atomic.max.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.max.s32
-  %tmp183 = tail call i32 @llvm.nvvm.atomic.max.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp183 = tail call i32 @llvm.nvvm.atomic.max.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.max.s32
-  %tmp184 = tail call i32 @llvm.nvvm.atomic.max.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp184 = tail call i32 @llvm.nvvm.atomic.max.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.max.s32
-  %tmp185 = tail call i32 @llvm.nvvm.atomic.max.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp185 = tail call i32 @llvm.nvvm.atomic.max.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.max.s32
-  %tmp186 = tail call i32 @llvm.nvvm.atomic.max.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp186 = tail call i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.max.s32
-  %tmp187 = tail call i32 @llvm.nvvm.atomic.max.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp187 = tail call i32 @llvm.nvvm.atomic.max.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.max.s32
-  %tmp188 = tail call i32 @llvm.nvvm.atomic.max.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp188 = tail call i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.max.s64
   %tmp189 = tail call i64 @llvm.nvvm.atomic.max.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -615,58 +615,58 @@ entry:
   %tmp197 = tail call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.max.s64
-  %tmp198 = tail call i64 @llvm.nvvm.atomic.max.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp198 = tail call i64 @llvm.nvvm.atomic.max.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.max.s64
-  %tmp199 = tail call i64 @llvm.nvvm.atomic.max.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp199 = tail call i64 @llvm.nvvm.atomic.max.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.max.s64
-  %tmp200 = tail call i64 @llvm.nvvm.atomic.max.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp200 = tail call i64 @llvm.nvvm.atomic.max.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.max.s64
-  %tmp201 = tail call i64 @llvm.nvvm.atomic.max.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp201 = tail call i64 @llvm.nvvm.atomic.max.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.max.s64
-  %tmp202 = tail call i64 @llvm.nvvm.atomic.max.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp202 = tail call i64 @llvm.nvvm.atomic.max.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.max.s64
-  %tmp203 = tail call i64 @llvm.nvvm.atomic.max.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp203 = tail call i64 @llvm.nvvm.atomic.max.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.max.s64
-  %tmp204 = tail call i64 @llvm.nvvm.atomic.max.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp204 = tail call i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.max.s64
-  %tmp205 = tail call i64 @llvm.nvvm.atomic.max.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp205 = tail call i64 @llvm.nvvm.atomic.max.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.max.s64
-  %tmp206 = tail call i64 @llvm.nvvm.atomic.max.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp206 = tail call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.max.s64
-  %tmp207 = tail call i64 @llvm.nvvm.atomic.max.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp207 = tail call i64 @llvm.nvvm.atomic.max.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.max.s64
-  %tmp208 = tail call i64 @llvm.nvvm.atomic.max.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp208 = tail call i64 @llvm.nvvm.atomic.max.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.max.s64
-  %tmp209 = tail call i64 @llvm.nvvm.atomic.max.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp209 = tail call i64 @llvm.nvvm.atomic.max.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.max.s64
-  %tmp210 = tail call i64 @llvm.nvvm.atomic.max.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp210 = tail call i64 @llvm.nvvm.atomic.max.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.max.s64
-  %tmp211 = tail call i64 @llvm.nvvm.atomic.max.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp211 = tail call i64 @llvm.nvvm.atomic.max.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.max.s64
-  %tmp212 = tail call i64 @llvm.nvvm.atomic.max.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp212 = tail call i64 @llvm.nvvm.atomic.max.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.max.s64
-  %tmp213 = tail call i64 @llvm.nvvm.atomic.max.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp213 = tail call i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.max.s64
-  %tmp214 = tail call i64 @llvm.nvvm.atomic.max.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp214 = tail call i64 @llvm.nvvm.atomic.max.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.max.s64
-  %tmp215 = tail call i64 @llvm.nvvm.atomic.max.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp215 = tail call i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.max.u32
   %tmp216 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -696,58 +696,58 @@ entry:
   %tmp224 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.max.u32
-  %tmp225 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp225 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.max.u32
-  %tmp226 = tail call i32 @llvm.nvvm.atomic.max.global.ui.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp226 = tail call i32 @llvm.nvvm.atomic.max.global.ui.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.max.u32
-  %tmp227 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp227 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.max.u32
-  %tmp228 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp228 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.max.u32
-  %tmp229 = tail call i32 @llvm.nvvm.atomic.max.global.ui.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp229 = tail call i32 @llvm.nvvm.atomic.max.global.ui.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.max.u32
-  %tmp230 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp230 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.max.u32
-  %tmp231 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp231 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.max.u32
-  %tmp232 = tail call i32 @llvm.nvvm.atomic.max.global.ui.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp232 = tail call i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.max.u32
-  %tmp233 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp233 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.max.u32
-  %tmp234 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp234 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.max.u32
-  %tmp235 = tail call i32 @llvm.nvvm.atomic.max.global.ui.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp235 = tail call i32 @llvm.nvvm.atomic.max.global.ui.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.max.u32
-  %tmp236 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp236 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.max.u32
-  %tmp237 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp237 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.max.u32
-  %tmp238 = tail call i32 @llvm.nvvm.atomic.max.global.ui.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp238 = tail call i32 @llvm.nvvm.atomic.max.global.ui.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.max.u32
-  %tmp239 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp239 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.max.u32
-  %tmp240 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp240 = tail call i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.max.u32
-  %tmp241 = tail call i32 @llvm.nvvm.atomic.max.global.ui.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp241 = tail call i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.max.u32
-  %tmp242 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp242 = tail call i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.max.u64
   %tmp243 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -777,58 +777,58 @@ entry:
   %tmp251 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.max.u64
-  %tmp252 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp252 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.max.u64
-  %tmp253 = tail call i64 @llvm.nvvm.atomic.max.global.ui.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp253 = tail call i64 @llvm.nvvm.atomic.max.global.ui.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.max.u64
-  %tmp254 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp254 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.max.u64
-  %tmp255 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp255 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.max.u64
-  %tmp256 = tail call i64 @llvm.nvvm.atomic.max.global.ui.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp256 = tail call i64 @llvm.nvvm.atomic.max.global.ui.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.max.u64
-  %tmp257 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp257 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.max.u64
-  %tmp258 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp258 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.max.u64
-  %tmp259 = tail call i64 @llvm.nvvm.atomic.max.global.ui.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp259 = tail call i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.max.u64
-  %tmp260 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp260 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.max.u64
-  %tmp261 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp261 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.max.u64
-  %tmp262 = tail call i64 @llvm.nvvm.atomic.max.global.ui.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp262 = tail call i64 @llvm.nvvm.atomic.max.global.ui.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.max.u64
-  %tmp263 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp263 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.max.u64
-  %tmp264 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp264 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.max.u64
-  %tmp265 = tail call i64 @llvm.nvvm.atomic.max.global.ui.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp265 = tail call i64 @llvm.nvvm.atomic.max.global.ui.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.max.u64
-  %tmp266 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp266 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.max.u64
-  %tmp267 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp267 = tail call i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.max.u64
-  %tmp268 = tail call i64 @llvm.nvvm.atomic.max.global.ui.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp268 = tail call i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.max.u64
-  %tmp269 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp269 = tail call i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.min.s32
   %tmp270 = tail call i32 @llvm.nvvm.atomic.min.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -858,58 +858,58 @@ entry:
   %tmp278 = tail call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.min.s32
-  %tmp279 = tail call i32 @llvm.nvvm.atomic.min.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp279 = tail call i32 @llvm.nvvm.atomic.min.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.min.s32
-  %tmp280 = tail call i32 @llvm.nvvm.atomic.min.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp280 = tail call i32 @llvm.nvvm.atomic.min.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.min.s32
-  %tmp281 = tail call i32 @llvm.nvvm.atomic.min.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp281 = tail call i32 @llvm.nvvm.atomic.min.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.min.s32
-  %tmp282 = tail call i32 @llvm.nvvm.atomic.min.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp282 = tail call i32 @llvm.nvvm.atomic.min.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.min.s32
-  %tmp283 = tail call i32 @llvm.nvvm.atomic.min.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp283 = tail call i32 @llvm.nvvm.atomic.min.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.min.s32
-  %tmp284 = tail call i32 @llvm.nvvm.atomic.min.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp284 = tail call i32 @llvm.nvvm.atomic.min.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.min.s32
-  %tmp285 = tail call i32 @llvm.nvvm.atomic.min.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp285 = tail call i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.min.s32
-  %tmp286 = tail call i32 @llvm.nvvm.atomic.min.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp286 = tail call i32 @llvm.nvvm.atomic.min.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.min.s32
-  %tmp287 = tail call i32 @llvm.nvvm.atomic.min.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp287 = tail call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.min.s32
-  %tmp288 = tail call i32 @llvm.nvvm.atomic.min.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp288 = tail call i32 @llvm.nvvm.atomic.min.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.min.s32
-  %tmp289 = tail call i32 @llvm.nvvm.atomic.min.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp289 = tail call i32 @llvm.nvvm.atomic.min.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.min.s32
-  %tmp290 = tail call i32 @llvm.nvvm.atomic.min.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp290 = tail call i32 @llvm.nvvm.atomic.min.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.min.s32
-  %tmp291 = tail call i32 @llvm.nvvm.atomic.min.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp291 = tail call i32 @llvm.nvvm.atomic.min.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.min.s32
-  %tmp292 = tail call i32 @llvm.nvvm.atomic.min.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp292 = tail call i32 @llvm.nvvm.atomic.min.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.min.s32
-  %tmp293 = tail call i32 @llvm.nvvm.atomic.min.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp293 = tail call i32 @llvm.nvvm.atomic.min.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.min.s32
-  %tmp294 = tail call i32 @llvm.nvvm.atomic.min.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp294 = tail call i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.min.s32
-  %tmp295 = tail call i32 @llvm.nvvm.atomic.min.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp295 = tail call i32 @llvm.nvvm.atomic.min.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.min.s32
-  %tmp296 = tail call i32 @llvm.nvvm.atomic.min.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp296 = tail call i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.min.s64
   %tmp297 = tail call i64 @llvm.nvvm.atomic.min.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -939,58 +939,58 @@ entry:
   %tmp305 = tail call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.min.s64
-  %tmp306 = tail call i64 @llvm.nvvm.atomic.min.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp306 = tail call i64 @llvm.nvvm.atomic.min.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.min.s64
-  %tmp307 = tail call i64 @llvm.nvvm.atomic.min.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp307 = tail call i64 @llvm.nvvm.atomic.min.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.min.s64
-  %tmp308 = tail call i64 @llvm.nvvm.atomic.min.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp308 = tail call i64 @llvm.nvvm.atomic.min.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.min.s64
-  %tmp309 = tail call i64 @llvm.nvvm.atomic.min.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp309 = tail call i64 @llvm.nvvm.atomic.min.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.min.s64
-  %tmp310 = tail call i64 @llvm.nvvm.atomic.min.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp310 = tail call i64 @llvm.nvvm.atomic.min.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.min.s64
-  %tmp311 = tail call i64 @llvm.nvvm.atomic.min.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp311 = tail call i64 @llvm.nvvm.atomic.min.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.min.s64
-  %tmp312 = tail call i64 @llvm.nvvm.atomic.min.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp312 = tail call i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.min.s64
-  %tmp313 = tail call i64 @llvm.nvvm.atomic.min.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp313 = tail call i64 @llvm.nvvm.atomic.min.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.min.s64
-  %tmp314 = tail call i64 @llvm.nvvm.atomic.min.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp314 = tail call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.min.s64
-  %tmp315 = tail call i64 @llvm.nvvm.atomic.min.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp315 = tail call i64 @llvm.nvvm.atomic.min.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.min.s64
-  %tmp316 = tail call i64 @llvm.nvvm.atomic.min.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp316 = tail call i64 @llvm.nvvm.atomic.min.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.min.s64
-  %tmp317 = tail call i64 @llvm.nvvm.atomic.min.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp317 = tail call i64 @llvm.nvvm.atomic.min.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.min.s64
-  %tmp318 = tail call i64 @llvm.nvvm.atomic.min.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp318 = tail call i64 @llvm.nvvm.atomic.min.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.min.s64
-  %tmp319 = tail call i64 @llvm.nvvm.atomic.min.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp319 = tail call i64 @llvm.nvvm.atomic.min.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.min.s64
-  %tmp320 = tail call i64 @llvm.nvvm.atomic.min.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp320 = tail call i64 @llvm.nvvm.atomic.min.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.min.s64
-  %tmp321 = tail call i64 @llvm.nvvm.atomic.min.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp321 = tail call i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.min.s64
-  %tmp322 = tail call i64 @llvm.nvvm.atomic.min.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp322 = tail call i64 @llvm.nvvm.atomic.min.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.min.s64
-  %tmp323 = tail call i64 @llvm.nvvm.atomic.min.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp323 = tail call i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.min.u32
   %tmp324 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -1020,58 +1020,58 @@ entry:
   %tmp332 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.min.u32
-  %tmp333 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp333 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.min.u32
-  %tmp334 = tail call i32 @llvm.nvvm.atomic.min.global.ui.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp334 = tail call i32 @llvm.nvvm.atomic.min.global.ui.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.min.u32
-  %tmp335 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp335 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.min.u32
-  %tmp336 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp336 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.min.u32
-  %tmp337 = tail call i32 @llvm.nvvm.atomic.min.global.ui.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp337 = tail call i32 @llvm.nvvm.atomic.min.global.ui.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.min.u32
-  %tmp338 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp338 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.min.u32
-  %tmp339 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp339 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.min.u32
-  %tmp340 = tail call i32 @llvm.nvvm.atomic.min.global.ui.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp340 = tail call i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.min.u32
-  %tmp341 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp341 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.min.u32
-  %tmp342 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp342 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.min.u32
-  %tmp343 = tail call i32 @llvm.nvvm.atomic.min.global.ui.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp343 = tail call i32 @llvm.nvvm.atomic.min.global.ui.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.min.u32
-  %tmp344 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp344 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.min.u32
-  %tmp345 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp345 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.min.u32
-  %tmp346 = tail call i32 @llvm.nvvm.atomic.min.global.ui.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp346 = tail call i32 @llvm.nvvm.atomic.min.global.ui.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.min.u32
-  %tmp347 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp347 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.min.u32
-  %tmp348 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp348 = tail call i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.min.u32
-  %tmp349 = tail call i32 @llvm.nvvm.atomic.min.global.ui.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp349 = tail call i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.min.u32
-  %tmp350 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp350 = tail call i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.min.u64
   %tmp351 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -1101,58 +1101,58 @@ entry:
   %tmp359 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.min.u64
-  %tmp360 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp360 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.min.u64
-  %tmp361 = tail call i64 @llvm.nvvm.atomic.min.global.ui.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp361 = tail call i64 @llvm.nvvm.atomic.min.global.ui.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.min.u64
-  %tmp362 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp362 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.min.u64
-  %tmp363 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp363 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.min.u64
-  %tmp364 = tail call i64 @llvm.nvvm.atomic.min.global.ui.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp364 = tail call i64 @llvm.nvvm.atomic.min.global.ui.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.min.u64
-  %tmp365 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp365 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.min.u64
-  %tmp366 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp366 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.min.u64
-  %tmp367 = tail call i64 @llvm.nvvm.atomic.min.global.ui.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp367 = tail call i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.min.u64
-  %tmp368 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp368 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.min.u64
-  %tmp369 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp369 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.min.u64
-  %tmp370 = tail call i64 @llvm.nvvm.atomic.min.global.ui.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp370 = tail call i64 @llvm.nvvm.atomic.min.global.ui.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.min.u64
-  %tmp371 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp371 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.min.u64
-  %tmp372 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp372 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.min.u64
-  %tmp373 = tail call i64 @llvm.nvvm.atomic.min.global.ui.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp373 = tail call i64 @llvm.nvvm.atomic.min.global.ui.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.min.u64
-  %tmp374 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp374 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.min.u64
-  %tmp375 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp375 = tail call i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.min.u64
-  %tmp376 = tail call i64 @llvm.nvvm.atomic.min.global.ui.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp376 = tail call i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.min.u64
-  %tmp377 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp377 = tail call i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.inc.u32
   %tmp378 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -1182,58 +1182,58 @@ entry:
   %tmp386 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.inc.u32
-  %tmp387 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp387 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.inc.u32
-  %tmp388 = tail call i32 @llvm.nvvm.atomic.inc.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp388 = tail call i32 @llvm.nvvm.atomic.inc.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.inc.u32
-  %tmp389 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp389 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.inc.u32
-  %tmp390 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp390 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.inc.u32
-  %tmp391 = tail call i32 @llvm.nvvm.atomic.inc.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp391 = tail call i32 @llvm.nvvm.atomic.inc.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.inc.u32
-  %tmp392 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp392 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.inc.u32
-  %tmp393 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp393 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.inc.u32
-  %tmp394 = tail call i32 @llvm.nvvm.atomic.inc.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp394 = tail call i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.inc.u32
-  %tmp395 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp395 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.inc.u32
-  %tmp396 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp396 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.inc.u32
-  %tmp397 = tail call i32 @llvm.nvvm.atomic.inc.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp397 = tail call i32 @llvm.nvvm.atomic.inc.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.inc.u32
-  %tmp398 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp398 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.inc.u32
-  %tmp399 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp399 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.inc.u32
-  %tmp400 = tail call i32 @llvm.nvvm.atomic.inc.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp400 = tail call i32 @llvm.nvvm.atomic.inc.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.inc.u32
-  %tmp401 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp401 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.inc.u32
-  %tmp402 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp402 = tail call i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.inc.u32
-  %tmp403 = tail call i32 @llvm.nvvm.atomic.inc.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp403 = tail call i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.inc.u32
-  %tmp404 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp404 = tail call i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.inc.u64
   %tmp405 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -1263,58 +1263,58 @@ entry:
   %tmp413 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.inc.u64
-  %tmp414 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp414 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.inc.u64
-  %tmp415 = tail call i64 @llvm.nvvm.atomic.inc.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp415 = tail call i64 @llvm.nvvm.atomic.inc.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.inc.u64
-  %tmp416 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp416 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.inc.u64
-  %tmp417 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp417 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.inc.u64
-  %tmp418 = tail call i64 @llvm.nvvm.atomic.inc.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp418 = tail call i64 @llvm.nvvm.atomic.inc.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.inc.u64
-  %tmp419 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp419 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.inc.u64
-  %tmp420 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp420 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.inc.u64
-  %tmp421 = tail call i64 @llvm.nvvm.atomic.inc.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp421 = tail call i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.inc.u64
-  %tmp422 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp422 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.inc.u64
-  %tmp423 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp423 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.inc.u64
-  %tmp424 = tail call i64 @llvm.nvvm.atomic.inc.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp424 = tail call i64 @llvm.nvvm.atomic.inc.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.inc.u64
-  %tmp425 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp425 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.inc.u64
-  %tmp426 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp426 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.inc.u64
-  %tmp427 = tail call i64 @llvm.nvvm.atomic.inc.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp427 = tail call i64 @llvm.nvvm.atomic.inc.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.inc.u64
-  %tmp428 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp428 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.inc.u64
-  %tmp429 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp429 = tail call i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.inc.u64
-  %tmp430 = tail call i64 @llvm.nvvm.atomic.inc.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp430 = tail call i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.inc.u64
-  %tmp431 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp431 = tail call i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.dec.u32
   %tmp432 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -1344,58 +1344,58 @@ entry:
   %tmp440 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.dec.u32
-  %tmp441 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp441 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.dec.u32
-  %tmp442 = tail call i32 @llvm.nvvm.atomic.dec.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp442 = tail call i32 @llvm.nvvm.atomic.dec.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.dec.u32
-  %tmp443 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp443 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.dec.u32
-  %tmp444 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp444 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.dec.u32
-  %tmp445 = tail call i32 @llvm.nvvm.atomic.dec.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp445 = tail call i32 @llvm.nvvm.atomic.dec.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.dec.u32
-  %tmp446 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp446 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.dec.u32
-  %tmp447 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp447 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.dec.u32
-  %tmp448 = tail call i32 @llvm.nvvm.atomic.dec.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp448 = tail call i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.dec.u32
-  %tmp449 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp449 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.dec.u32
-  %tmp450 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp450 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.dec.u32
-  %tmp451 = tail call i32 @llvm.nvvm.atomic.dec.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp451 = tail call i32 @llvm.nvvm.atomic.dec.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.dec.u32
-  %tmp452 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp452 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.dec.u32
-  %tmp453 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp453 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.dec.u32
-  %tmp454 = tail call i32 @llvm.nvvm.atomic.dec.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp454 = tail call i32 @llvm.nvvm.atomic.dec.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.dec.u32
-  %tmp455 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp455 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.dec.u32
-  %tmp456 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp456 = tail call i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.dec.u32
-  %tmp457 = tail call i32 @llvm.nvvm.atomic.dec.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp457 = tail call i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.dec.u32
-  %tmp458 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp458 = tail call i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.dec.u64
   %tmp459 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -1425,58 +1425,58 @@ entry:
   %tmp467 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.dec.u64
-  %tmp468 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp468 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.dec.u64
-  %tmp469 = tail call i64 @llvm.nvvm.atomic.dec.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp469 = tail call i64 @llvm.nvvm.atomic.dec.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.dec.u64
-  %tmp470 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp470 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.dec.u64
-  %tmp471 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp471 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.dec.u64
-  %tmp472 = tail call i64 @llvm.nvvm.atomic.dec.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp472 = tail call i64 @llvm.nvvm.atomic.dec.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.dec.u64
-  %tmp473 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp473 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.dec.u64
-  %tmp474 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp474 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.dec.u64
-  %tmp475 = tail call i64 @llvm.nvvm.atomic.dec.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp475 = tail call i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.dec.u64
-  %tmp476 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp476 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.dec.u64
-  %tmp477 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp477 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.dec.u64
-  %tmp478 = tail call i64 @llvm.nvvm.atomic.dec.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp478 = tail call i64 @llvm.nvvm.atomic.dec.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.dec.u64
-  %tmp479 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp479 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.dec.u64
-  %tmp480 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp480 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.dec.u64
-  %tmp481 = tail call i64 @llvm.nvvm.atomic.dec.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp481 = tail call i64 @llvm.nvvm.atomic.dec.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.dec.u64
-  %tmp482 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp482 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.dec.u64
-  %tmp483 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp483 = tail call i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.dec.u64
-  %tmp484 = tail call i64 @llvm.nvvm.atomic.dec.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp484 = tail call i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.dec.u64
-  %tmp485 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp485 = tail call i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.and.b32
   %tmp486 = tail call i32 @llvm.nvvm.atomic.and.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -1506,58 +1506,58 @@ entry:
   %tmp494 = tail call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.and.b32
-  %tmp495 = tail call i32 @llvm.nvvm.atomic.and.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp495 = tail call i32 @llvm.nvvm.atomic.and.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.and.b32
-  %tmp496 = tail call i32 @llvm.nvvm.atomic.and.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp496 = tail call i32 @llvm.nvvm.atomic.and.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.and.b32
-  %tmp497 = tail call i32 @llvm.nvvm.atomic.and.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp497 = tail call i32 @llvm.nvvm.atomic.and.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.and.b32
-  %tmp498 = tail call i32 @llvm.nvvm.atomic.and.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp498 = tail call i32 @llvm.nvvm.atomic.and.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.and.b32
-  %tmp499 = tail call i32 @llvm.nvvm.atomic.and.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp499 = tail call i32 @llvm.nvvm.atomic.and.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.and.b32
-  %tmp500 = tail call i32 @llvm.nvvm.atomic.and.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp500 = tail call i32 @llvm.nvvm.atomic.and.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.and.b32
-  %tmp501 = tail call i32 @llvm.nvvm.atomic.and.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp501 = tail call i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.and.b32
-  %tmp502 = tail call i32 @llvm.nvvm.atomic.and.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp502 = tail call i32 @llvm.nvvm.atomic.and.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.and.b32
-  %tmp503 = tail call i32 @llvm.nvvm.atomic.and.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp503 = tail call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.and.b32
-  %tmp504 = tail call i32 @llvm.nvvm.atomic.and.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp504 = tail call i32 @llvm.nvvm.atomic.and.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.and.b32
-  %tmp505 = tail call i32 @llvm.nvvm.atomic.and.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp505 = tail call i32 @llvm.nvvm.atomic.and.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.and.b32
-  %tmp506 = tail call i32 @llvm.nvvm.atomic.and.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp506 = tail call i32 @llvm.nvvm.atomic.and.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.and.b32
-  %tmp507 = tail call i32 @llvm.nvvm.atomic.and.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp507 = tail call i32 @llvm.nvvm.atomic.and.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.and.b32
-  %tmp508 = tail call i32 @llvm.nvvm.atomic.and.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp508 = tail call i32 @llvm.nvvm.atomic.and.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.and.b32
-  %tmp509 = tail call i32 @llvm.nvvm.atomic.and.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp509 = tail call i32 @llvm.nvvm.atomic.and.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.and.b32
-  %tmp510 = tail call i32 @llvm.nvvm.atomic.and.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp510 = tail call i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.and.b32
-  %tmp511 = tail call i32 @llvm.nvvm.atomic.and.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp511 = tail call i32 @llvm.nvvm.atomic.and.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.and.b32
-  %tmp512 = tail call i32 @llvm.nvvm.atomic.and.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp512 = tail call i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.and.b64
   %tmp513 = tail call i64 @llvm.nvvm.atomic.and.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -1587,58 +1587,58 @@ entry:
   %tmp521 = tail call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.and.b64
-  %tmp522 = tail call i64 @llvm.nvvm.atomic.and.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp522 = tail call i64 @llvm.nvvm.atomic.and.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.and.b64
-  %tmp523 = tail call i64 @llvm.nvvm.atomic.and.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp523 = tail call i64 @llvm.nvvm.atomic.and.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.and.b64
-  %tmp524 = tail call i64 @llvm.nvvm.atomic.and.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp524 = tail call i64 @llvm.nvvm.atomic.and.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.and.b64
-  %tmp525 = tail call i64 @llvm.nvvm.atomic.and.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp525 = tail call i64 @llvm.nvvm.atomic.and.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.and.b64
-  %tmp526 = tail call i64 @llvm.nvvm.atomic.and.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp526 = tail call i64 @llvm.nvvm.atomic.and.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.and.b64
-  %tmp527 = tail call i64 @llvm.nvvm.atomic.and.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp527 = tail call i64 @llvm.nvvm.atomic.and.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.and.b64
-  %tmp528 = tail call i64 @llvm.nvvm.atomic.and.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp528 = tail call i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.and.b64
-  %tmp529 = tail call i64 @llvm.nvvm.atomic.and.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp529 = tail call i64 @llvm.nvvm.atomic.and.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.and.b64
-  %tmp530 = tail call i64 @llvm.nvvm.atomic.and.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp530 = tail call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.and.b64
-  %tmp531 = tail call i64 @llvm.nvvm.atomic.and.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp531 = tail call i64 @llvm.nvvm.atomic.and.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.and.b64
-  %tmp532 = tail call i64 @llvm.nvvm.atomic.and.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp532 = tail call i64 @llvm.nvvm.atomic.and.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.and.b64
-  %tmp533 = tail call i64 @llvm.nvvm.atomic.and.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp533 = tail call i64 @llvm.nvvm.atomic.and.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.and.b64
-  %tmp534 = tail call i64 @llvm.nvvm.atomic.and.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp534 = tail call i64 @llvm.nvvm.atomic.and.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.and.b64
-  %tmp535 = tail call i64 @llvm.nvvm.atomic.and.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp535 = tail call i64 @llvm.nvvm.atomic.and.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.and.b64
-  %tmp536 = tail call i64 @llvm.nvvm.atomic.and.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp536 = tail call i64 @llvm.nvvm.atomic.and.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.and.b64
-  %tmp537 = tail call i64 @llvm.nvvm.atomic.and.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp537 = tail call i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.and.b64
-  %tmp538 = tail call i64 @llvm.nvvm.atomic.and.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp538 = tail call i64 @llvm.nvvm.atomic.and.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.and.b64
-  %tmp539 = tail call i64 @llvm.nvvm.atomic.and.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp539 = tail call i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.or.b32
   %tmp540 = tail call i32 @llvm.nvvm.atomic.or.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -1668,58 +1668,58 @@ entry:
   %tmp548 = tail call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.or.b32
-  %tmp549 = tail call i32 @llvm.nvvm.atomic.or.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp549 = tail call i32 @llvm.nvvm.atomic.or.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.or.b32
-  %tmp550 = tail call i32 @llvm.nvvm.atomic.or.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp550 = tail call i32 @llvm.nvvm.atomic.or.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.or.b32
-  %tmp551 = tail call i32 @llvm.nvvm.atomic.or.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp551 = tail call i32 @llvm.nvvm.atomic.or.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.or.b32
-  %tmp552 = tail call i32 @llvm.nvvm.atomic.or.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp552 = tail call i32 @llvm.nvvm.atomic.or.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.or.b32
-  %tmp553 = tail call i32 @llvm.nvvm.atomic.or.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp553 = tail call i32 @llvm.nvvm.atomic.or.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.or.b32
-  %tmp554 = tail call i32 @llvm.nvvm.atomic.or.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp554 = tail call i32 @llvm.nvvm.atomic.or.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.or.b32
-  %tmp555 = tail call i32 @llvm.nvvm.atomic.or.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp555 = tail call i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.or.b32
-  %tmp556 = tail call i32 @llvm.nvvm.atomic.or.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp556 = tail call i32 @llvm.nvvm.atomic.or.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.or.b32
-  %tmp557 = tail call i32 @llvm.nvvm.atomic.or.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp557 = tail call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.or.b32
-  %tmp558 = tail call i32 @llvm.nvvm.atomic.or.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp558 = tail call i32 @llvm.nvvm.atomic.or.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.or.b32
-  %tmp559 = tail call i32 @llvm.nvvm.atomic.or.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp559 = tail call i32 @llvm.nvvm.atomic.or.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.or.b32
-  %tmp560 = tail call i32 @llvm.nvvm.atomic.or.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp560 = tail call i32 @llvm.nvvm.atomic.or.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.or.b32
-  %tmp561 = tail call i32 @llvm.nvvm.atomic.or.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp561 = tail call i32 @llvm.nvvm.atomic.or.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.or.b32
-  %tmp562 = tail call i32 @llvm.nvvm.atomic.or.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp562 = tail call i32 @llvm.nvvm.atomic.or.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.or.b32
-  %tmp563 = tail call i32 @llvm.nvvm.atomic.or.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp563 = tail call i32 @llvm.nvvm.atomic.or.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.or.b32
-  %tmp564 = tail call i32 @llvm.nvvm.atomic.or.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp564 = tail call i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.or.b32
-  %tmp565 = tail call i32 @llvm.nvvm.atomic.or.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp565 = tail call i32 @llvm.nvvm.atomic.or.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.or.b32
-  %tmp566 = tail call i32 @llvm.nvvm.atomic.or.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp566 = tail call i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.or.b64
   %tmp567 = tail call i64 @llvm.nvvm.atomic.or.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -1749,58 +1749,58 @@ entry:
   %tmp575 = tail call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.or.b64
-  %tmp576 = tail call i64 @llvm.nvvm.atomic.or.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp576 = tail call i64 @llvm.nvvm.atomic.or.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.or.b64
-  %tmp577 = tail call i64 @llvm.nvvm.atomic.or.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp577 = tail call i64 @llvm.nvvm.atomic.or.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.or.b64
-  %tmp578 = tail call i64 @llvm.nvvm.atomic.or.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp578 = tail call i64 @llvm.nvvm.atomic.or.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.or.b64
-  %tmp579 = tail call i64 @llvm.nvvm.atomic.or.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp579 = tail call i64 @llvm.nvvm.atomic.or.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.or.b64
-  %tmp580 = tail call i64 @llvm.nvvm.atomic.or.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp580 = tail call i64 @llvm.nvvm.atomic.or.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.or.b64
-  %tmp581 = tail call i64 @llvm.nvvm.atomic.or.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp581 = tail call i64 @llvm.nvvm.atomic.or.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.or.b64
-  %tmp582 = tail call i64 @llvm.nvvm.atomic.or.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp582 = tail call i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.or.b64
-  %tmp583 = tail call i64 @llvm.nvvm.atomic.or.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp583 = tail call i64 @llvm.nvvm.atomic.or.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.or.b64
-  %tmp584 = tail call i64 @llvm.nvvm.atomic.or.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp584 = tail call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.or.b64
-  %tmp585 = tail call i64 @llvm.nvvm.atomic.or.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp585 = tail call i64 @llvm.nvvm.atomic.or.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.or.b64
-  %tmp586 = tail call i64 @llvm.nvvm.atomic.or.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp586 = tail call i64 @llvm.nvvm.atomic.or.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.or.b64
-  %tmp587 = tail call i64 @llvm.nvvm.atomic.or.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp587 = tail call i64 @llvm.nvvm.atomic.or.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.or.b64
-  %tmp588 = tail call i64 @llvm.nvvm.atomic.or.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp588 = tail call i64 @llvm.nvvm.atomic.or.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.or.b64
-  %tmp589 = tail call i64 @llvm.nvvm.atomic.or.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp589 = tail call i64 @llvm.nvvm.atomic.or.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.or.b64
-  %tmp590 = tail call i64 @llvm.nvvm.atomic.or.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp590 = tail call i64 @llvm.nvvm.atomic.or.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.or.b64
-  %tmp591 = tail call i64 @llvm.nvvm.atomic.or.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp591 = tail call i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.or.b64
-  %tmp592 = tail call i64 @llvm.nvvm.atomic.or.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp592 = tail call i64 @llvm.nvvm.atomic.or.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.or.b64
-  %tmp593 = tail call i64 @llvm.nvvm.atomic.or.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp593 = tail call i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.xor.b32
   %tmp594 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i);
@@ -1830,58 +1830,58 @@ entry:
   %tmp602 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.sys.xor.b32
-  %tmp603 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp603 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.xor.b32
-  %tmp604 = tail call i32 @llvm.nvvm.atomic.xor.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp604 = tail call i32 @llvm.nvvm.atomic.xor.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.xor.b32
-  %tmp605 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp605 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.sys.xor.b32
-  %tmp606 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp606 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.sys.global.xor.b32
-  %tmp607 = tail call i32 @llvm.nvvm.atomic.xor.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp607 = tail call i32 @llvm.nvvm.atomic.xor.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.sys.shared.xor.b32
-  %tmp608 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp608 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.xor.b32
-  %tmp609 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp609 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.xor.b32
-  %tmp610 = tail call i32 @llvm.nvvm.atomic.xor.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp610 = tail call i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.xor.b32
-  %tmp611 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp611 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.cta.xor.b32
-  %tmp612 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i);
+  %tmp612 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.xor.b32
-  %tmp613 = tail call i32 @llvm.nvvm.atomic.xor.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp613 = tail call i32 @llvm.nvvm.atomic.xor.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.xor.b32
-  %tmp614 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp614 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.release.cta.xor.b32
-  %tmp615 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i);
+  %tmp615 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.release.cta.global.xor.b32
-  %tmp616 = tail call i32 @llvm.nvvm.atomic.xor.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp616 = tail call i32 @llvm.nvvm.atomic.xor.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.release.cta.shared.xor.b32
-  %tmp617 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp617 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.xor.b32
-  %tmp618 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i);
+  %tmp618 = tail call i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.xor.b32
-  %tmp619 = tail call i32 @llvm.nvvm.atomic.xor.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
+  %tmp619 = tail call i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.xor.b32
-  %tmp620 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
+  %tmp620 = tail call i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i);
 
   ; CHECK: atom.acquire.xor.b64
   %tmp621 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll);
@@ -1911,58 +1911,58 @@ entry:
   %tmp629 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.sys.xor.b64
-  %tmp630 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp630 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.xor.b64
-  %tmp631 = tail call i64 @llvm.nvvm.atomic.xor.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp631 = tail call i64 @llvm.nvvm.atomic.xor.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.xor.b64
-  %tmp632 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp632 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.sys.xor.b64
-  %tmp633 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp633 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.sys.global.xor.b64
-  %tmp634 = tail call i64 @llvm.nvvm.atomic.xor.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp634 = tail call i64 @llvm.nvvm.atomic.xor.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.xor.b64
-  %tmp635 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp635 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.xor.b64
-  %tmp636 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp636 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.xor.b64
-  %tmp637 = tail call i64 @llvm.nvvm.atomic.xor.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp637 = tail call i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.xor.b64
-  %tmp638 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp638 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cta.xor.b64
-  %tmp639 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp639 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.xor.b64
-  %tmp640 = tail call i64 @llvm.nvvm.atomic.xor.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp640 = tail call i64 @llvm.nvvm.atomic.xor.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.xor.b64
-  %tmp641 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp641 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.release.cta.xor.b64
-  %tmp642 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp642 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.release.cta.global.xor.b64
-  %tmp643 = tail call i64 @llvm.nvvm.atomic.xor.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp643 = tail call i64 @llvm.nvvm.atomic.xor.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.xor.b64
-  %tmp644 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp644 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.xor.b64
-  %tmp645 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll);
+  %tmp645 = tail call i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.xor.b64
-  %tmp646 = tail call i64 @llvm.nvvm.atomic.xor.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
+  %tmp646 = tail call i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.xor.b64
-  %tmp647 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
+  %tmp647 = tail call i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll);
 
   ; CHECK: atom.acquire.cas.b32
   %tmp648 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.i32.p0i32(i32* %ip, i32 %i, i32 %i);
@@ -1992,58 +1992,58 @@ entry:
   %tmp656 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
 
   ; CHECK: atom.acquire.sys.cas.b32
-  %tmp657 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.sys.acquire.i32.p0i32(i32* %ip, i32 %i, i32 %i);
+  %tmp657 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.sys.i32.p0i32(i32* %ip, i32 %i, i32 %i);
 
   ; CHECK: atom.acquire.sys.global.cas.b32
-  %tmp658 = tail call i32 @llvm.nvvm.atomic.cas.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
+  %tmp658 = tail call i32 @llvm.nvvm.atomic.cas.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
 
   ; CHECK: atom.acquire.sys.shared.cas.b32
-  %tmp659 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
+  %tmp659 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
 
   ; CHECK: atom.release.sys.cas.b32
-  %tmp660 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.sys.release.i32.p0i32(i32* %ip, i32 %i, i32 %i);
+  %tmp660 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.release.sys.i32.p0i32(i32* %ip, i32 %i, i32 %i);
 
   ; CHECK: atom.release.sys.global.cas.b32
-  %tmp661 = tail call i32 @llvm.nvvm.atomic.cas.global.i.sys.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
+  %tmp661 = tail call i32 @llvm.nvvm.atomic.cas.global.i.release.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
 
   ; CHECK: atom.release.sys.shared.cas.b32
-  %tmp662 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
+  %tmp662 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.cas.b32
-  %tmp663 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.sys.acq.rel.i32.p0i32(i32* %ip, i32 %i, i32 %i);
+  %tmp663 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.sys.i32.p0i32(i32* %ip, i32 %i, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.global.cas.b32
-  %tmp664 = tail call i32 @llvm.nvvm.atomic.cas.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
+  %tmp664 = tail call i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
 
   ; CHECK: atom.acq_rel.sys.shared.cas.b32
-  %tmp665 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
+  %tmp665 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
 
   ; CHECK: atom.acquire.cta.cas.b32
-  %tmp666 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.cta.acquire.i32.p0i32(i32* %ip, i32 %i, i32 %i);
+  %tmp666 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.acquire.cta.i32.p0i32(i32* %ip, i32 %i, i32 %i);
 
   ; CHECK: atom.acquire.cta.global.cas.b32
-  %tmp667 = tail call i32 @llvm.nvvm.atomic.cas.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
+  %tmp667 = tail call i32 @llvm.nvvm.atomic.cas.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
 
   ; CHECK: atom.acquire.cta.shared.cas.b32
-  %tmp668 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
+  %tmp668 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
 
   ; CHECK: atom.release.cta.cas.b32
-  %tmp669 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.cta.release.i32.p0i32(i32* %ip, i32 %i, i32 %i);
+  %tmp669 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.release.cta.i32.p0i32(i32* %ip, i32 %i, i32 %i);
 
   ; CHECK: atom.release.cta.global.cas.b32
-  %tmp670 = tail call i32 @llvm.nvvm.atomic.cas.global.i.cta.release.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
+  %tmp670 = tail call i32 @llvm.nvvm.atomic.cas.global.i.release.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
 
   ; CHECK: atom.release.cta.shared.cas.b32
-  %tmp671 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
+  %tmp671 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.cas.b32
-  %tmp672 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.cta.acq.rel.i32.p0i32(i32* %ip, i32 %i, i32 %i);
+  %tmp672 = tail call i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i32.p0i32(i32* %ip, i32 %i, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.global.cas.b32
-  %tmp673 = tail call i32 @llvm.nvvm.atomic.cas.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
+  %tmp673 = tail call i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* %ip1, i32 %i, i32 %i);
 
   ; CHECK: atom.acq_rel.cta.shared.cas.b32
-  %tmp674 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
+  %tmp674 = tail call i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* %ip3, i32 %i, i32 %i);
 
   ; CHECK: atom.acquire.cas.b64
   %tmp675 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
@@ -2073,58 +2073,58 @@ entry:
   %tmp683 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acquire.sys.cas.b64
-  %tmp684 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.sys.acquire.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
+  %tmp684 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.sys.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acquire.sys.global.cas.b64
-  %tmp685 = tail call i64 @llvm.nvvm.atomic.cas.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
+  %tmp685 = tail call i64 @llvm.nvvm.atomic.cas.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acquire.sys.shared.cas.b64
-  %tmp686 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
+  %tmp686 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
   ; CHECK: atom.release.sys.cas.b64
-  %tmp687 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.sys.release.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
+  %tmp687 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.release.sys.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
 
   ; CHECK: atom.release.sys.global.cas.b64
-  %tmp688 = tail call i64 @llvm.nvvm.atomic.cas.global.i.sys.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
+  %tmp688 = tail call i64 @llvm.nvvm.atomic.cas.global.i.release.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
 
   ; CHECK: atom.release.sys.shared.cas.b64
-  %tmp689 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
+  %tmp689 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.cas.b64
-  %tmp690 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.sys.acq.rel.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
+  %tmp690 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.sys.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.global.cas.b64
-  %tmp691 = tail call i64 @llvm.nvvm.atomic.cas.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
+  %tmp691 = tail call i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acq_rel.sys.shared.cas.b64
-  %tmp692 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
+  %tmp692 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acquire.cta.cas.b64
-  %tmp693 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.cta.acquire.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
+  %tmp693 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.acquire.cta.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acquire.cta.global.cas.b64
-  %tmp694 = tail call i64 @llvm.nvvm.atomic.cas.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
+  %tmp694 = tail call i64 @llvm.nvvm.atomic.cas.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acquire.cta.shared.cas.b64
-  %tmp695 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
+  %tmp695 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
   ; CHECK: atom.release.cta.cas.b64
-  %tmp696 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.cta.release.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
+  %tmp696 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.release.cta.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
 
   ; CHECK: atom.release.cta.global.cas.b64
-  %tmp697 = tail call i64 @llvm.nvvm.atomic.cas.global.i.cta.release.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
+  %tmp697 = tail call i64 @llvm.nvvm.atomic.cas.global.i.release.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
 
   ; CHECK: atom.release.cta.shared.cas.b64
-  %tmp698 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
+  %tmp698 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.cas.b64
-  %tmp699 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.cta.acq.rel.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
+  %tmp699 = tail call i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i64.p0i64(i64* %llp, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.global.cas.b64
-  %tmp700 = tail call i64 @llvm.nvvm.atomic.cas.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
+  %tmp700 = tail call i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* %llp1, i64 %ll, i64 %ll);
 
   ; CHECK: atom.acq_rel.cta.shared.cas.b64
-  %tmp701 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
+  %tmp701 = tail call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* %llp3, i64 %ll, i64 %ll);
 
 
   ; CHECK: ret
@@ -2155,24 +2155,24 @@ declare i32 @llvm.nvvm.atomic.add.shared.i.release.i32.p3i32(i32 addrspace(3)* n
 declare i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.add.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.add.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.add.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.add.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.add.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.add.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2182,24 +2182,24 @@ declare i64 @llvm.nvvm.atomic.add.shared.i.release.i64.p3i64(i64 addrspace(3)* n
 declare i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.add.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.add.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.add.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare float @llvm.nvvm.atomic.add.gen.f.acquire.f32.p0f32(float* nocapture, float) #1
 declare float @llvm.nvvm.atomic.add.global.f.acquire.f32.p1f32(float addrspace(1)* nocapture, float) #1
 declare float @llvm.nvvm.atomic.add.shared.f.acquire.f32.p3f32(float addrspace(3)* nocapture, float) #1
@@ -2209,24 +2209,24 @@ declare float @llvm.nvvm.atomic.add.shared.f.release.f32.p3f32(float addrspace(3
 declare float @llvm.nvvm.atomic.add.gen.f.acq.rel.f32.p0f32(float* nocapture, float) #1
 declare float @llvm.nvvm.atomic.add.global.f.acq.rel.f32.p1f32(float addrspace(1)* nocapture, float) #1
 declare float @llvm.nvvm.atomic.add.shared.f.acq.rel.f32.p3f32(float addrspace(3)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.gen.f.sys.acquire.f32.p0f32(float* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.global.f.sys.acquire.f32.p1f32(float addrspace(1)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.shared.f.sys.acquire.f32.p3f32(float addrspace(3)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.gen.f.sys.release.f32.p0f32(float* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.global.f.sys.release.f32.p1f32(float addrspace(1)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.shared.f.sys.release.f32.p3f32(float addrspace(3)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.gen.f.sys.acq.rel.f32.p0f32(float* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.global.f.sys.acq.rel.f32.p1f32(float addrspace(1)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.shared.f.sys.acq.rel.f32.p3f32(float addrspace(3)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.gen.f.cta.acquire.f32.p0f32(float* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.global.f.cta.acquire.f32.p1f32(float addrspace(1)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.shared.f.cta.acquire.f32.p3f32(float addrspace(3)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.gen.f.cta.release.f32.p0f32(float* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.global.f.cta.release.f32.p1f32(float addrspace(1)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.shared.f.cta.release.f32.p3f32(float addrspace(3)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.gen.f.cta.acq.rel.f32.p0f32(float* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.global.f.cta.acq.rel.f32.p1f32(float addrspace(1)* nocapture, float) #1
-declare float @llvm.nvvm.atomic.add.shared.f.cta.acq.rel.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.gen.f.acquire.sys.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.global.f.acquire.sys.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.shared.f.acquire.sys.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.gen.f.release.sys.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.global.f.release.sys.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.shared.f.release.sys.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.gen.f.acq.rel.sys.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.global.f.acq.rel.sys.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.shared.f.acq.rel.sys.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.gen.f.acquire.cta.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.global.f.acquire.cta.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.shared.f.acquire.cta.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.gen.f.release.cta.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.global.f.release.cta.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.shared.f.release.cta.f32.p3f32(float addrspace(3)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.gen.f.acq.rel.cta.f32.p0f32(float* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.global.f.acq.rel.cta.f32.p1f32(float addrspace(1)* nocapture, float) #1
+declare float @llvm.nvvm.atomic.add.shared.f.acq.rel.cta.f32.p3f32(float addrspace(3)* nocapture, float) #1
 declare double @llvm.nvvm.atomic.add.gen.f.acquire.f64.p0f64(double* nocapture, double) #1
 declare double @llvm.nvvm.atomic.add.global.f.acquire.f64.p1f64(double addrspace(1)* nocapture, double) #1
 declare double @llvm.nvvm.atomic.add.shared.f.acquire.f64.p3f64(double addrspace(3)* nocapture, double) #1
@@ -2236,24 +2236,24 @@ declare double @llvm.nvvm.atomic.add.shared.f.release.f64.p3f64(double addrspace
 declare double @llvm.nvvm.atomic.add.gen.f.acq.rel.f64.p0f64(double* nocapture, double) #1
 declare double @llvm.nvvm.atomic.add.global.f.acq.rel.f64.p1f64(double addrspace(1)* nocapture, double) #1
 declare double @llvm.nvvm.atomic.add.shared.f.acq.rel.f64.p3f64(double addrspace(3)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.gen.f.sys.acquire.f64.p0f64(double* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.global.f.sys.acquire.f64.p1f64(double addrspace(1)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.shared.f.sys.acquire.f64.p3f64(double addrspace(3)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.gen.f.sys.release.f64.p0f64(double* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.global.f.sys.release.f64.p1f64(double addrspace(1)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.shared.f.sys.release.f64.p3f64(double addrspace(3)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.gen.f.sys.acq.rel.f64.p0f64(double* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.global.f.sys.acq.rel.f64.p1f64(double addrspace(1)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.shared.f.sys.acq.rel.f64.p3f64(double addrspace(3)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.gen.f.cta.acquire.f64.p0f64(double* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.global.f.cta.acquire.f64.p1f64(double addrspace(1)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.shared.f.cta.acquire.f64.p3f64(double addrspace(3)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.gen.f.cta.release.f64.p0f64(double* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.global.f.cta.release.f64.p1f64(double addrspace(1)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.shared.f.cta.release.f64.p3f64(double addrspace(3)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.gen.f.cta.acq.rel.f64.p0f64(double* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.global.f.cta.acq.rel.f64.p1f64(double addrspace(1)* nocapture, double) #1
-declare double @llvm.nvvm.atomic.add.shared.f.cta.acq.rel.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.gen.f.acquire.sys.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.global.f.acquire.sys.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.shared.f.acquire.sys.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.gen.f.release.sys.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.global.f.release.sys.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.shared.f.release.sys.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.gen.f.acq.rel.sys.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.global.f.acq.rel.sys.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.shared.f.acq.rel.sys.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.gen.f.acquire.cta.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.global.f.acquire.cta.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.shared.f.acquire.cta.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.gen.f.release.cta.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.global.f.release.cta.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.shared.f.release.cta.f64.p3f64(double addrspace(3)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.gen.f.acq.rel.cta.f64.p0f64(double* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.global.f.acq.rel.cta.f64.p1f64(double addrspace(1)* nocapture, double) #1
+declare double @llvm.nvvm.atomic.add.shared.f.acq.rel.cta.f64.p3f64(double addrspace(3)* nocapture, double) #1
 declare i32 @llvm.nvvm.atomic.exch.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.exch.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.exch.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2263,24 +2263,24 @@ declare i32 @llvm.nvvm.atomic.exch.shared.i.release.i32.p3i32(i32 addrspace(3)* 
 declare i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.exch.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.exch.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.exch.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.exch.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2290,24 +2290,24 @@ declare i64 @llvm.nvvm.atomic.exch.shared.i.release.i64.p3i64(i64 addrspace(3)* 
 declare i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.exch.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.exch.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.max.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2317,24 +2317,24 @@ declare i32 @llvm.nvvm.atomic.max.shared.i.release.i32.p3i32(i32 addrspace(3)* n
 declare i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.max.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.max.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.max.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2344,24 +2344,24 @@ declare i64 @llvm.nvvm.atomic.max.shared.i.release.i64.p3i64(i64 addrspace(3)* n
 declare i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.max.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.max.gen.ui.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.global.ui.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.shared.ui.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2371,24 +2371,24 @@ declare i32 @llvm.nvvm.atomic.max.shared.ui.release.i32.p3i32(i32 addrspace(3)* 
 declare i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.ui.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.ui.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.ui.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.ui.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.ui.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.ui.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.ui.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.ui.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.ui.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.ui.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.ui.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.ui.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.ui.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.ui.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.ui.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.gen.ui.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.global.ui.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.max.shared.ui.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.ui.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.ui.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.ui.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.ui.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.ui.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.ui.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.ui.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.ui.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.ui.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.ui.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.ui.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.ui.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.gen.ui.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.global.ui.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.max.shared.ui.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.max.gen.ui.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.max.global.ui.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.max.shared.ui.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2398,24 +2398,24 @@ declare i64 @llvm.nvvm.atomic.max.shared.ui.release.i64.p3i64(i64 addrspace(3)* 
 declare i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.ui.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.ui.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.ui.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.ui.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.ui.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.ui.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.ui.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.ui.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.ui.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.ui.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.ui.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.ui.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.ui.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.ui.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.ui.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.gen.ui.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.global.ui.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.max.shared.ui.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.ui.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.ui.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.ui.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.ui.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.ui.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.ui.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.ui.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.ui.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.ui.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.ui.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.ui.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.ui.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.gen.ui.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.global.ui.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.max.shared.ui.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.min.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.min.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.min.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2425,24 +2425,24 @@ declare i32 @llvm.nvvm.atomic.min.shared.i.release.i32.p3i32(i32 addrspace(3)* n
 declare i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.min.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.min.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.min.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.min.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2452,24 +2452,24 @@ declare i64 @llvm.nvvm.atomic.min.shared.i.release.i64.p3i64(i64 addrspace(3)* n
 declare i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.min.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.min.gen.ui.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.min.global.ui.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.min.shared.ui.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2479,24 +2479,24 @@ declare i32 @llvm.nvvm.atomic.min.shared.ui.release.i32.p3i32(i32 addrspace(3)* 
 declare i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.ui.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.ui.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.ui.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.ui.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.ui.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.ui.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.ui.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.ui.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.ui.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.ui.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.ui.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.ui.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.ui.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.ui.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.ui.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.gen.ui.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.global.ui.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.min.shared.ui.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.ui.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.ui.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.ui.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.ui.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.ui.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.ui.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.ui.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.ui.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.ui.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.ui.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.ui.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.ui.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.gen.ui.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.global.ui.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.min.shared.ui.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.min.gen.ui.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.min.global.ui.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.min.shared.ui.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2506,24 +2506,24 @@ declare i64 @llvm.nvvm.atomic.min.shared.ui.release.i64.p3i64(i64 addrspace(3)* 
 declare i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.ui.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.ui.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.ui.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.ui.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.ui.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.ui.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.ui.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.ui.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.ui.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.ui.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.ui.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.ui.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.ui.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.ui.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.ui.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.gen.ui.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.global.ui.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.min.shared.ui.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.ui.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.ui.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.ui.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.ui.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.ui.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.ui.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.ui.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.ui.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.ui.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.ui.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.ui.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.ui.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.gen.ui.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.global.ui.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.min.shared.ui.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.inc.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.inc.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.inc.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2533,24 +2533,24 @@ declare i32 @llvm.nvvm.atomic.inc.shared.i.release.i32.p3i32(i32 addrspace(3)* n
 declare i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.inc.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.inc.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.inc.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.inc.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.inc.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2560,24 +2560,24 @@ declare i64 @llvm.nvvm.atomic.inc.shared.i.release.i64.p3i64(i64 addrspace(3)* n
 declare i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.inc.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.inc.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.dec.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.dec.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.dec.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2587,24 +2587,24 @@ declare i32 @llvm.nvvm.atomic.dec.shared.i.release.i32.p3i32(i32 addrspace(3)* n
 declare i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.dec.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.dec.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.dec.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.dec.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.dec.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2614,24 +2614,24 @@ declare i64 @llvm.nvvm.atomic.dec.shared.i.release.i64.p3i64(i64 addrspace(3)* n
 declare i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.dec.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.dec.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.and.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.and.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.and.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2641,24 +2641,24 @@ declare i32 @llvm.nvvm.atomic.and.shared.i.release.i32.p3i32(i32 addrspace(3)* n
 declare i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.and.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.and.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.and.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.and.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.and.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.and.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2668,24 +2668,24 @@ declare i64 @llvm.nvvm.atomic.and.shared.i.release.i64.p3i64(i64 addrspace(3)* n
 declare i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.and.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.and.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.and.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.or.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.or.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.or.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2695,24 +2695,24 @@ declare i32 @llvm.nvvm.atomic.or.shared.i.release.i32.p3i32(i32 addrspace(3)* no
 declare i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.or.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.or.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.or.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.or.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.or.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.or.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2722,24 +2722,24 @@ declare i64 @llvm.nvvm.atomic.or.shared.i.release.i64.p3i64(i64 addrspace(3)* no
 declare i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.or.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.or.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.or.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.xor.gen.i.acquire.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.xor.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.xor.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
@@ -2749,24 +2749,24 @@ declare i32 @llvm.nvvm.atomic.xor.shared.i.release.i32.p3i32(i32 addrspace(3)* n
 declare i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
 declare i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.gen.i.sys.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.gen.i.cta.release.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
-declare i32 @llvm.nvvm.atomic.xor.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.gen.i.release.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.gen.i.release.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32) #1
+declare i32 @llvm.nvvm.atomic.xor.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32) #1
 declare i64 @llvm.nvvm.atomic.xor.gen.i.acquire.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.xor.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.xor.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
@@ -2776,24 +2776,24 @@ declare i64 @llvm.nvvm.atomic.xor.shared.i.release.i64.p3i64(i64 addrspace(3)* n
 declare i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
 declare i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.gen.i.sys.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.gen.i.cta.release.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
-declare i64 @llvm.nvvm.atomic.xor.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.gen.i.release.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.gen.i.release.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64) #1
+declare i64 @llvm.nvvm.atomic.xor.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64) #1
 declare i32 @llvm.nvvm.atomic.cas.gen.i.acquire.i32.p0i32(i32* nocapture, i32, i32) #1
 declare i32 @llvm.nvvm.atomic.cas.global.i.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
 declare i32 @llvm.nvvm.atomic.cas.shared.i.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
@@ -2803,24 +2803,24 @@ declare i32 @llvm.nvvm.atomic.cas.shared.i.release.i32.p3i32(i32 addrspace(3)* n
 declare i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.i32.p0i32(i32* nocapture, i32, i32) #1
 declare i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
 declare i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.gen.i.sys.acquire.i32.p0i32(i32* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.global.i.sys.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.shared.i.sys.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.gen.i.sys.release.i32.p0i32(i32* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.global.i.sys.release.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.shared.i.sys.release.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.gen.i.sys.acq.rel.i32.p0i32(i32* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.global.i.sys.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.shared.i.sys.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.gen.i.cta.acquire.i32.p0i32(i32* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.global.i.cta.acquire.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.shared.i.cta.acquire.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.gen.i.cta.release.i32.p0i32(i32* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.global.i.cta.release.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.shared.i.cta.release.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.gen.i.cta.acq.rel.i32.p0i32(i32* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.global.i.cta.acq.rel.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
-declare i32 @llvm.nvvm.atomic.cas.shared.i.cta.acq.rel.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.gen.i.acquire.sys.i32.p0i32(i32* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.global.i.acquire.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.shared.i.acquire.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.gen.i.release.sys.i32.p0i32(i32* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.global.i.release.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.shared.i.release.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.sys.i32.p0i32(i32* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.sys.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.sys.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.gen.i.acquire.cta.i32.p0i32(i32* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.global.i.acquire.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.shared.i.acquire.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.gen.i.release.cta.i32.p0i32(i32* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.global.i.release.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.shared.i.release.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i32.p0i32(i32* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i32.p1i32(i32 addrspace(1)* nocapture, i32, i32) #1
+declare i32 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i32.p3i32(i32 addrspace(3)* nocapture, i32, i32) #1
 declare i64 @llvm.nvvm.atomic.cas.gen.i.acquire.i64.p0i64(i64* nocapture, i64, i64) #1
 declare i64 @llvm.nvvm.atomic.cas.global.i.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
 declare i64 @llvm.nvvm.atomic.cas.shared.i.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
@@ -2830,23 +2830,23 @@ declare i64 @llvm.nvvm.atomic.cas.shared.i.release.i64.p3i64(i64 addrspace(3)* n
 declare i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.i64.p0i64(i64* nocapture, i64, i64) #1
 declare i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
 declare i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.gen.i.sys.acquire.i64.p0i64(i64* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.global.i.sys.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.shared.i.sys.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.gen.i.sys.release.i64.p0i64(i64* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.global.i.sys.release.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.shared.i.sys.release.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.gen.i.sys.acq.rel.i64.p0i64(i64* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.global.i.sys.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.shared.i.sys.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.gen.i.cta.acquire.i64.p0i64(i64* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.global.i.cta.acquire.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.shared.i.cta.acquire.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.gen.i.cta.release.i64.p0i64(i64* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.global.i.cta.release.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.shared.i.cta.release.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.gen.i.cta.acq.rel.i64.p0i64(i64* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.global.i.cta.acq.rel.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
-declare i64 @llvm.nvvm.atomic.cas.shared.i.cta.acq.rel.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.gen.i.acquire.sys.i64.p0i64(i64* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.global.i.acquire.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.shared.i.acquire.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.gen.i.release.sys.i64.p0i64(i64* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.global.i.release.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.shared.i.release.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.sys.i64.p0i64(i64* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.sys.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.sys.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.gen.i.acquire.cta.i64.p0i64(i64* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.global.i.acquire.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.shared.i.acquire.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.gen.i.release.cta.i64.p0i64(i64* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.global.i.release.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.shared.i.release.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.gen.i.acq.rel.cta.i64.p0i64(i64* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.global.i.acq.rel.cta.i64.p1i64(i64 addrspace(1)* nocapture, i64, i64) #1
+declare i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i64.p3i64(i64 addrspace(3)* nocapture, i64, i64) #1
 
 attributes #1 = { argmemonly nounwind }
