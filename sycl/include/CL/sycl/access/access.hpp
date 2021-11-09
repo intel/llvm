@@ -123,6 +123,7 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
 #define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
 #define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
+#define __OPENCL_GENERIC_AS__ __attribute__((opencl_generic))
 #else
 #define __OPENCL_GLOBAL_AS__
 #define __OPENCL_GLOBAL_DEVICE_AS__
@@ -130,6 +131,7 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_LOCAL_AS__
 #define __OPENCL_CONSTANT_AS__
 #define __OPENCL_PRIVATE_AS__
+#define __OPENCL_GENERIC_AS__
 #endif
 
 template <access::target accessTarget> struct TargetToAS {
@@ -195,6 +197,12 @@ template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::local_space> {
   using type = __OPENCL_LOCAL_AS__ ElementType;
 };
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = __OPENCL_GENERIC_AS__ ElementType;
+};
+
 template <class T> struct remove_AS { typedef T type; };
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -261,6 +269,7 @@ template <class T> struct deduce_AS<__OPENCL_CONSTANT_AS__ T> {
 #undef __OPENCL_LOCAL_AS__
 #undef __OPENCL_CONSTANT_AS__
 #undef __OPENCL_PRIVATE_AS__
+#undef __OPENCL_GENERIC_AS__
 } // namespace detail
 
 } // namespace sycl

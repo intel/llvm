@@ -38,5 +38,9 @@ template <typename ElementType>
 using private_ptr =
     multi_ptr<ElementType, access::address_space::private_space>;
 
+template <typename ElementType>
+using generic_ptr =
+    multi_ptr<ElementType, access::address_space::generic_space>;
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

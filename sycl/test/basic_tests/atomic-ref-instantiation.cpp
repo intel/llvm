@@ -21,8 +21,7 @@ int main() {
   A a;
   A* p = &a;
   auto ref_p = sycl::atomic_ref<A *, sycl::memory_order_acq_rel,
-                                sycl::memory_scope_device,
-                                sycl::access::address_space::local_space>(p);
+                                sycl::memory_scope_device>(p);
 
   return 0;
 }
