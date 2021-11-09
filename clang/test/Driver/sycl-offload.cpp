@@ -132,3 +132,9 @@
 // RUN:  %clangxx -### -Wl,-rpath,%S -fsycl -fintelfpga %t_empty.o %s 2>&1 \
 // RUN:    | FileCheck -check-prefix NO_DIR_CHECK %s
 // NO_DIR_CHECK-NOT: clang-offload-bundler: error: '{{.*}}': Is a directory
+
+/// Check that exception handline is disabled for device for Windows
+// RUN: %clang_cl -### -fsycl -EHsc -c %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHECK_EXCEPTIONS %s
+// CHECK_EXCEPTIONS-NOT: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fcxx-exceptions" "-fexceptions"
+// CHECK_EXCEPTIONS: clang{{.*}} "-fsycl-is-host"{{.*}} "-fcxx-exceptions" "-fexceptions"
