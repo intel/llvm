@@ -437,6 +437,10 @@ static bool addExceptionArgs(const ArgList &Args, types::ID InputType,
     return false;
   }
 
+  if (Triple.isSPIR())
+    // spir targets do not support exception handling.
+    return false;
+
   // See if the user explicitly enabled exceptions.
   bool EH = Args.hasFlag(options::OPT_fexceptions, options::OPT_fno_exceptions,
                          false);

@@ -128,5 +128,13 @@
 // RUN: %clang -### -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 // RUN: %clangxx -### -fsycl %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
 // RUN: %clang_cl -### -fsycl -- %s 2>&1 | FileCheck %s --check-prefix=DEFAULT_STD
-
 // DEFAULT_STD: "-sycl-std=2020"
+
+// spir targets should not imply exception handling, also we should not enable
+// if passed on the command line.
+// RUN: %clangxx -### -fsycl -c %s 2>&1 | FileCheck %s --check-prefixes=EXCEPTION,EXCEPTION_HOST
+// RUN: %clangxx -### -fsycl -fexceptions -c %s 2>&1 | FileCheck %s --check-prefixes=EXCEPTION,EXCEPTION_HOST
+// RUN: %clangxx -### -fsycl -fsycl-device-only -c %s 2>&1 | FileCheck %s --check-prefix=EXCEPTION
+// RUN: %clangxx -### -target spir64-unknown-unknown -c %s 2>&1 | FileCheck %s --check-prefix=EXCEPTION
+// EXCEPTION-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-fcxx-exceptions" "-fexceptions"
+// EXCEPTION_HOST: clang{{.*}} "-fsycl-is-host"{{.*}} "-fcxx-exceptions" "-fexceptions"
