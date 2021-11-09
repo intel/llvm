@@ -113,14 +113,14 @@ enum class matrix_layout {
 }
 ```
 
-Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for Intel AMX should be specified in user code as follows: 
+Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed layout.  However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for Intel AMX should be specified in user code as follows:
 
 ```c++
 joint_matrix<int8_t, matrix_use::b, K, N, packed_b> tB(sg);
 ```   
-IMPORTANT: In the current implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
+IMPORTANT: In the current AMX and DPAS implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
 
-**_NOTE:_** _The "packed" layout is only applicable to the AMX implementation: matrix_layout::packed is not required by the implementation of Nvidia wmma and mma instructions.  We suggest that the AMX matrix extension could consider replacing its usage of matrix_layout::packed_a and matrix_layout::packed_b with the single matrix_layout::packed, in conjunction with matrix_type::a and matrix_type::b introduced here._
+**_NOTE:_** _The "packed" layouts are only applicable to the AMX implementation: matrix_layout::packed_a and matrix_layout::packed_b are not required by the implementation of Nvidia wmma and mma instructions._
 
 
 ## Matrix Operations and their Execution Scope
@@ -130,7 +130,7 @@ The base pointer determines the starting address of the matrix to be loaded/stor
 
 Note that for getting maximum performance on Intel AMX and DPAS, prepacking data in the memory is necessary. If users did not specify the packed layouts (`packed_a` when matrix `C` is column major, `packed_b` when matrix `C` is row major), transforms done by the implementation will be slow due to extra scatter/gather operations. Hence, we expose these layouts `packed_a` and `packed_b` to the user to specify that A or B have already been VNNIed. The packed or VNNI layout is introduced in `VNNI layout` section below.
 	
-IMPORTANT: In the current implementation, the layout in the load of matrix B must be `packed_b`.  Therefore, both the template parameter for the declaration of the B matrix and the call to `joint_matrix_load` for the B matrix must specify the `packed_b` layout.  The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
+IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of matrix B must be `packed_b`.  Therefore, both the template parameter for the declaration of the B matrix and the call to `joint_matrix_load` for the B matrix must specify the `packed_b` layout.  The layout in the load of matrices A and C must be `row_major`, and the layout in the store of matrix C must also be `row_major`.
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
@@ -254,6 +254,28 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
    joint_matrix_store(sg, tC, memC + sg_startx * tM * N + sg_starty/SG_SIZE*tN, N, matrix_layout::row_major);
 }).wait();
 ```
+
+## Nvidia Compilation instructions
+
+When compiling for Nvidia the matrix extension requires specification of the architecture version.
+This is the compilation command line needed to invoke the matrix extension on program "matrix-nvidia.cpp":
+
+```c++
+clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX=3 matrix-nvidia.cpp -o output
+```
+**_NOTE:_** _--cuda-gpu-arch may be set lower than sm_80 depending on the required matrix operation and whether it is supported by the desired arch._
+
+### Current Nvidia Implementation status
+
+Currently only a single case, fp64, is implemented.  All other available data types/sizes will be added shortly.
+
+[frame="none",options="header"]
+|======================
+|data type |M       |N     |K | required SM version
+|double (fp64)   |8 |8 |4| sm_80
+
+
+|======================
 
 == Query Interface
 Intel AMX, DPAS and Nvidia TPUs support different sizes and types. 
