@@ -45,61 +45,7 @@ cl_event event_impl::get() const {
   return pi::cast<cl_event>(MEvent);
 }
 
-class DepIter {
-public:
-  DepIter(event_impl *event) : CurrentEvent(event), Idx(0) {
-    DepsSize = CurrentEvent->MPreparedDepsEvents.size() +
-               CurrentEvent->MPreparedHostDepsEvents.size();
-  }
-
-  void operator++() { ++Idx; }
-  std::shared_ptr<event_impl> &operator*() {
-    assert(Idx < DepsSize);
-    auto size = CurrentEvent->MPreparedDepsEvents.size();
-    if (Idx < size)
-      return CurrentEvent->MPreparedDepsEvents[Idx];
-    else
-      return CurrentEvent->MPreparedHostDepsEvents[Idx - size];
-  }
-
-  bool is_end() { return Idx >= DepsSize; }
-
-private:
-  event_impl *CurrentEvent;
-  size_t Idx, DepsSize;
-};
-
 event_impl::~event_impl() {
-  // Use DFS for dependencies graph cleanup
-  {
-    std::deque<DepIter> Q;
-
-    if (MPreparedDepsEvents.size() > 0 || MPreparedHostDepsEvents.size() > 0) {
-      Q.emplace_back(this);
-    }
-
-    while (Q.size() > 0) {
-      while (!Q.back().is_end()) {
-        if (*Q.back()) {
-          Q.emplace_back((*Q.back()).get());
-        } else {
-          ++Q.back();
-        }
-      }
-
-      Q.pop_back();
-
-      if (Q.size() > 0) {
-        (*Q.back()).get()->MPreparedDepsEvents.clear();
-        (*Q.back()).get()->MPreparedHostDepsEvents.clear();
-        (*Q.back()).reset();
-        ++Q.back();
-      }
-    }
-    MPreparedDepsEvents.clear();
-    MPreparedHostDepsEvents.clear();
-  }
-
   if (MEvent)
     getPlugin().call<PiApiKind::piEventRelease>(MEvent);
 }

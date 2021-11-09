@@ -24,8 +24,17 @@ static Command *getCommand(const EventImplPtr &Event) {
 std::vector<EventImplPtr>
 Scheduler::GraphProcessor::getWaitList(EventImplPtr Event) {
   std::vector<EventImplPtr> Result;
-  const std::vector<EventImplPtr> &PDeps = Event->getPreparedDepsEvents();
-  const std::vector<EventImplPtr> &PHDeps = Event->getPreparedHostDepsEvents();
+  std::vector<EventImplPtr> PDeps;
+  for (size_t i = 0; i < Event->getPreparedDepsEvents().size(); ++i) {
+    if (auto Ptr = Event->getPreparedDepsEvents()[i].lock())
+      PDeps.push_back(Ptr);
+  }
+
+  std::vector<EventImplPtr> PHDeps;
+  for (size_t i = 0; i < Event->getPreparedHostDepsEvents().size(); ++i) {
+    if (auto Ptr = Event->getPreparedHostDepsEvents()[i].lock())
+      PHDeps.push_back(Ptr);
+  }
 
   Result.reserve(PDeps.size() + PHDeps.size());
   Result.insert(Result.end(), PDeps.begin(), PDeps.end());
@@ -87,10 +96,12 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   // enqueue operation is idempotent and the second call will result in no-op.
   // TODO remove the workaround when proper fix for host-task dispatching is
   // implemented.
-  for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
-    if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, Blocking))
-        return false;
+  for (const auto &WeakEvent : Cmd->getPreparedHostDepsEvents()) {
+    if (EventImplPtr Event = WeakEvent.lock()) {
+      if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
+        if (!enqueueCommand(DepCmd, EnqueueResult, Blocking))
+          return false;
+    }
   }
 
   // Only graph read lock is to be held here.
