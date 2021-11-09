@@ -4113,7 +4113,10 @@ class OffloadingActionBuilder final {
             Args.getLastArg(options::OPT__SLASH_EP, options::OPT__SLASH_P) ||
             Args.getLastArg(options::OPT_M, options::OPT_MM);
         if (IsPreprocessOnly) {
-          for (Action *&A : SYCLDeviceActions) {
+          for (auto TargetActionInfo :
+               llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+            Action *&A = std::get<0>(TargetActionInfo);
+            auto &TargetInfo = std::get<1>(TargetActionInfo);
             A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                    AssociatedOffloadKind);
             if (SYCLDeviceOnly)
@@ -4122,7 +4125,7 @@ class OffloadingActionBuilder final {
             // header.
             Action *CompileAction =
                 C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
-            DA.add(*CompileAction, *ToolChains.front(), nullptr,
+            DA.add(*CompileAction, *TargetInfo.TC, TargetInfo.BoundArch,
                    Action::OFK_SYCL);
           }
           return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
