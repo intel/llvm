@@ -4,7 +4,7 @@
 
 #include <CL/sycl/atomic_ref.hpp>
 
-struct A{};
+struct A {};
 
 int main() {
   double d = 10.0;
@@ -20,8 +20,8 @@ int main() {
 
   A a;
   A* p = &a;
-  auto ref_p = sycl::atomic_ref<A*, sycl::memory_order_acq_rel,
-                                sycl::memory_scope_device, 
+  auto ref_p = sycl::atomic_ref<A *, sycl::memory_order_acq_rel,
+                                sycl::memory_scope_device,
                                 sycl::access::address_space::local_space>(p);
 
   return 0;
