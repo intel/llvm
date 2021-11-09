@@ -400,7 +400,7 @@ that has the following two public member functions:
 ----
 /* unspecified */ get_group() const;
 
-/* unspecified */ get_memory() const;
+sycl::span<std::byte, Extent> get_memory() const
 ----
 
 Table 8. Member functions of group helpers.
@@ -411,10 +411,9 @@ Table 8. Member functions of group helpers.
 |Returns the group that is handled by the group helper object.
 Assuming `Group` is a type of method's result `sycl::is_group_v<std::decay_t<Group>>` must be true.
 
-|`/* unspecified */ get_memory() const`
-|Returns the memory object that represents a memory handled by the group helper object.
-A type of the returned value must be the same as the type of the `default_sorter` 's constructor
-that passes an additional memory to `default_sorter`.
+|`sycl::span<std::byte, Extent> get_memory() const`
+|Returns the memory object that the default sorter can use.
+The return type is aligned with the first parameter of constructor for `default_sorter`.
 |===
 
 ==== Predefined Group Helpers
