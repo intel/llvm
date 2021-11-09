@@ -17309,6 +17309,14 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
                                        Ptr->getType()}),
         {Ptr, EmitScalarExpr(E->getArg(1))});
   };
+  auto MakeScopedCasAtomic = [&](unsigned IntrinsicID) {
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+    return Builder.CreateCall(
+        CGM.getIntrinsic(
+            IntrinsicID,
+            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
+        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
+  };
   switch (BuiltinID) {
   case NVPTX::BI__nvvm_atom_add_gen_i:
   case NVPTX::BI__nvvm_atom_add_gen_l:
@@ -17522,25 +17530,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_gen_i_sys);
   case NVPTX::BI__nvvm_atom_cta_cas_gen_i:
   case NVPTX::BI__nvvm_atom_cta_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_cta_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_cta,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_cta);
   case NVPTX::BI__nvvm_atom_sys_cas_gen_i:
   case NVPTX::BI__nvvm_atom_sys_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_sys_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_sys,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_sys);
   case NVPTX::BI__nvvm_atom_acquire_add_gen_i:
   case NVPTX::BI__nvvm_atom_acquire_add_gen_l:
   case NVPTX::BI__nvvm_atom_acquire_add_gen_ll:
@@ -17590,14 +17585,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_gen_i_acquire);
   case NVPTX::BI__nvvm_atom_acquire_cas_gen_i:
   case NVPTX::BI__nvvm_atom_acquire_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_acquire_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_acquire_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_acquire);
   case NVPTX::BI__nvvm_atom_cta_acquire_add_gen_i:
   case NVPTX::BI__nvvm_atom_cta_acquire_add_gen_l:
   case NVPTX::BI__nvvm_atom_cta_acquire_add_gen_ll:
@@ -17694,25 +17683,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_gen_i_sys_acquire);
   case NVPTX::BI__nvvm_atom_cta_acquire_cas_gen_i:
   case NVPTX::BI__nvvm_atom_cta_acquire_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_cta_acquire_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_cta_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_acquire_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_cta_acquire);
   case NVPTX::BI__nvvm_atom_sys_acquire_cas_gen_i:
   case NVPTX::BI__nvvm_atom_sys_acquire_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_sys_acquire_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_sys_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_acquire_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_sys_acquire);
   case NVPTX::BI__nvvm_atom_release_add_gen_i:
   case NVPTX::BI__nvvm_atom_release_add_gen_l:
   case NVPTX::BI__nvvm_atom_release_add_gen_ll:
@@ -17762,14 +17738,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_gen_i_release);
   case NVPTX::BI__nvvm_atom_release_cas_gen_i:
   case NVPTX::BI__nvvm_atom_release_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_release_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_release_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_release);
   case NVPTX::BI__nvvm_atom_cta_release_add_gen_i:
   case NVPTX::BI__nvvm_atom_cta_release_add_gen_l:
   case NVPTX::BI__nvvm_atom_cta_release_add_gen_ll:
@@ -17866,25 +17836,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_gen_i_sys_release);
   case NVPTX::BI__nvvm_atom_cta_release_cas_gen_i:
   case NVPTX::BI__nvvm_atom_cta_release_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_cta_release_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_cta_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_release_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_cta_release);
   case NVPTX::BI__nvvm_atom_sys_release_cas_gen_i:
   case NVPTX::BI__nvvm_atom_sys_release_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_sys_release_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_sys_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_release_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_sys_release);
   case NVPTX::BI__nvvm_atom_acq_rel_add_gen_i:
   case NVPTX::BI__nvvm_atom_acq_rel_add_gen_l:
   case NVPTX::BI__nvvm_atom_acq_rel_add_gen_ll:
@@ -17934,14 +17891,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_gen_i_acq_rel);
   case NVPTX::BI__nvvm_atom_acq_rel_cas_gen_i:
   case NVPTX::BI__nvvm_atom_acq_rel_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_acq_rel_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_acq_rel_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_acq_rel);
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_gen_i:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_gen_l:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_gen_ll:
@@ -18038,25 +17989,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_gen_i_sys_acq_rel);
   case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_gen_i:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_cta_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_cta_acq_rel);
   case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_gen_i:
   case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_gen_l:
-  case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_gen_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_gen_i_sys_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_gen_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_gen_i_sys_acq_rel);
   case NVPTX::BI__nvvm_atom_add_global_i:
   case NVPTX::BI__nvvm_atom_add_global_l:
   case NVPTX::BI__nvvm_atom_add_global_ll:
@@ -18106,15 +18044,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_global_i);
   case NVPTX::BI__nvvm_atom_cas_global_i:
   case NVPTX::BI__nvvm_atom_cas_global_l:
-  case NVPTX::BI__nvvm_atom_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i);
   case NVPTX::BI__nvvm_atom_cta_add_global_i:
   case NVPTX::BI__nvvm_atom_cta_add_global_l:
   case NVPTX::BI__nvvm_atom_cta_add_global_ll:
@@ -18211,25 +18142,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_global_i_sys);
   case NVPTX::BI__nvvm_atom_cta_cas_global_i:
   case NVPTX::BI__nvvm_atom_cta_cas_global_l:
-  case NVPTX::BI__nvvm_atom_cta_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_cta,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_cta);
   case NVPTX::BI__nvvm_atom_sys_cas_global_i:
   case NVPTX::BI__nvvm_atom_sys_cas_global_l:
-  case NVPTX::BI__nvvm_atom_sys_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_sys,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_sys);
   case NVPTX::BI__nvvm_atom_acquire_add_global_i:
   case NVPTX::BI__nvvm_atom_acquire_add_global_l:
   case NVPTX::BI__nvvm_atom_acquire_add_global_ll:
@@ -18279,14 +18197,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_global_i_acquire);
   case NVPTX::BI__nvvm_atom_acquire_cas_global_i:
   case NVPTX::BI__nvvm_atom_acquire_cas_global_l:
-  case NVPTX::BI__nvvm_atom_acquire_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_acquire_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_acquire);
   case NVPTX::BI__nvvm_atom_cta_acquire_add_global_i:
   case NVPTX::BI__nvvm_atom_cta_acquire_add_global_l:
   case NVPTX::BI__nvvm_atom_cta_acquire_add_global_ll:
@@ -18383,25 +18295,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_global_i_sys_acquire);
   case NVPTX::BI__nvvm_atom_cta_acquire_cas_global_i:
   case NVPTX::BI__nvvm_atom_cta_acquire_cas_global_l:
-  case NVPTX::BI__nvvm_atom_cta_acquire_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_cta_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_acquire_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_cta_acquire);
   case NVPTX::BI__nvvm_atom_sys_acquire_cas_global_i:
   case NVPTX::BI__nvvm_atom_sys_acquire_cas_global_l:
-  case NVPTX::BI__nvvm_atom_sys_acquire_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_sys_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_acquire_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_sys_acquire);
   case NVPTX::BI__nvvm_atom_release_add_global_i:
   case NVPTX::BI__nvvm_atom_release_add_global_l:
   case NVPTX::BI__nvvm_atom_release_add_global_ll:
@@ -18451,14 +18350,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_global_i_release);
   case NVPTX::BI__nvvm_atom_release_cas_global_i:
   case NVPTX::BI__nvvm_atom_release_cas_global_l:
-  case NVPTX::BI__nvvm_atom_release_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_release_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_release);
   case NVPTX::BI__nvvm_atom_cta_release_add_global_i:
   case NVPTX::BI__nvvm_atom_cta_release_add_global_l:
   case NVPTX::BI__nvvm_atom_cta_release_add_global_ll:
@@ -18555,25 +18448,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_global_i_sys_release);
   case NVPTX::BI__nvvm_atom_cta_release_cas_global_i:
   case NVPTX::BI__nvvm_atom_cta_release_cas_global_l:
-  case NVPTX::BI__nvvm_atom_cta_release_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_cta_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_release_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_cta_release);
   case NVPTX::BI__nvvm_atom_sys_release_cas_global_i:
   case NVPTX::BI__nvvm_atom_sys_release_cas_global_l:
-  case NVPTX::BI__nvvm_atom_sys_release_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_sys_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_release_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_sys_release);
   case NVPTX::BI__nvvm_atom_acq_rel_add_global_i:
   case NVPTX::BI__nvvm_atom_acq_rel_add_global_l:
   case NVPTX::BI__nvvm_atom_acq_rel_add_global_ll:
@@ -18623,14 +18503,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_global_i_acq_rel);
   case NVPTX::BI__nvvm_atom_acq_rel_cas_global_i:
   case NVPTX::BI__nvvm_atom_acq_rel_cas_global_l:
-  case NVPTX::BI__nvvm_atom_acq_rel_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_acq_rel_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_acq_rel);
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_global_i:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_global_l:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_global_ll:
@@ -18727,25 +18601,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_global_i_sys_acq_rel);
   case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_global_i:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_global_l:
-  case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_cta_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_cta_acq_rel);
   case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_global_i:
   case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_global_l:
-  case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_global_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_global_i_sys_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_global_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_global_i_sys_acq_rel);
   case NVPTX::BI__nvvm_atom_add_shared_i:
   case NVPTX::BI__nvvm_atom_add_shared_l:
   case NVPTX::BI__nvvm_atom_add_shared_ll:
@@ -18795,15 +18656,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_shared_i);
   case NVPTX::BI__nvvm_atom_cas_shared_i:
   case NVPTX::BI__nvvm_atom_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i);
   case NVPTX::BI__nvvm_atom_cta_add_shared_i:
   case NVPTX::BI__nvvm_atom_cta_add_shared_l:
   case NVPTX::BI__nvvm_atom_cta_add_shared_ll:
@@ -18900,25 +18754,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_shared_i_sys);
   case NVPTX::BI__nvvm_atom_cta_cas_shared_i:
   case NVPTX::BI__nvvm_atom_cta_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_cta_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_cta,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_cta);
   case NVPTX::BI__nvvm_atom_sys_cas_shared_i:
   case NVPTX::BI__nvvm_atom_sys_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_sys_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_sys,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_sys);
   case NVPTX::BI__nvvm_atom_acquire_add_shared_i:
   case NVPTX::BI__nvvm_atom_acquire_add_shared_l:
   case NVPTX::BI__nvvm_atom_acquire_add_shared_ll:
@@ -18968,14 +18809,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_shared_i_acquire);
   case NVPTX::BI__nvvm_atom_acquire_cas_shared_i:
   case NVPTX::BI__nvvm_atom_acquire_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_acquire_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_acquire_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_acquire);
   case NVPTX::BI__nvvm_atom_cta_acquire_add_shared_i:
   case NVPTX::BI__nvvm_atom_cta_acquire_add_shared_l:
   case NVPTX::BI__nvvm_atom_cta_acquire_add_shared_ll:
@@ -19072,25 +18907,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_shared_i_sys_acquire);
   case NVPTX::BI__nvvm_atom_cta_acquire_cas_shared_i:
   case NVPTX::BI__nvvm_atom_cta_acquire_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_cta_acquire_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_cta_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_acquire_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_cta_acquire);
   case NVPTX::BI__nvvm_atom_sys_acquire_cas_shared_i:
   case NVPTX::BI__nvvm_atom_sys_acquire_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_sys_acquire_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_sys_acquire,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_acquire_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_sys_acquire);
   case NVPTX::BI__nvvm_atom_release_add_shared_i:
   case NVPTX::BI__nvvm_atom_release_add_shared_l:
   case NVPTX::BI__nvvm_atom_release_add_shared_ll:
@@ -19140,14 +18962,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_shared_i_release);
   case NVPTX::BI__nvvm_atom_release_cas_shared_i:
   case NVPTX::BI__nvvm_atom_release_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_release_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_release_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_release);
   case NVPTX::BI__nvvm_atom_cta_release_add_shared_i:
   case NVPTX::BI__nvvm_atom_cta_release_add_shared_l:
   case NVPTX::BI__nvvm_atom_cta_release_add_shared_ll:
@@ -19244,25 +19060,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_shared_i_sys_release);
   case NVPTX::BI__nvvm_atom_cta_release_cas_shared_i:
   case NVPTX::BI__nvvm_atom_cta_release_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_cta_release_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_cta_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_release_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_cta_release);
   case NVPTX::BI__nvvm_atom_sys_release_cas_shared_i:
   case NVPTX::BI__nvvm_atom_sys_release_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_sys_release_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_sys_release,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
-
+  case NVPTX::BI__nvvm_atom_sys_release_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_sys_release);
   case NVPTX::BI__nvvm_atom_acq_rel_add_shared_i:
   case NVPTX::BI__nvvm_atom_acq_rel_add_shared_l:
   case NVPTX::BI__nvvm_atom_acq_rel_add_shared_ll:
@@ -19312,14 +19115,8 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_shared_i_acq_rel);
   case NVPTX::BI__nvvm_atom_acq_rel_cas_shared_i:
   case NVPTX::BI__nvvm_atom_acq_rel_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_acq_rel_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_acq_rel_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_acq_rel);
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_shared_i:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_shared_l:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_add_shared_ll:
@@ -19416,24 +19213,12 @@ CodeGenFunction::EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E) {
     return MakeScopedAtomic(Intrinsic::nvvm_atomic_xor_shared_i_sys_acq_rel);
   case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_shared_i:
   case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_cta_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_cta_acq_rel_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_cta_acq_rel);
   case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_shared_i:
   case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_shared_l:
-  case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_shared_ll: {
-    Value *Ptr = EmitScalarExpr(E->getArg(0));
-    return Builder.CreateCall(
-        CGM.getIntrinsic(
-            Intrinsic::nvvm_atomic_cas_shared_i_sys_acq_rel,
-            {Ptr->getType()->getPointerElementType(), Ptr->getType()}),
-        {Ptr, EmitScalarExpr(E->getArg(1)), EmitScalarExpr(E->getArg(2))});
-  }
+  case NVPTX::BI__nvvm_atom_sys_acq_rel_cas_shared_ll:
+    return MakeScopedCasAtomic(Intrinsic::nvvm_atomic_cas_shared_i_sys_acq_rel);
 
   case NVPTX::BI__nvvm_match_all_sync_i32p:
   case NVPTX::BI__nvvm_match_all_sync_i64p: {

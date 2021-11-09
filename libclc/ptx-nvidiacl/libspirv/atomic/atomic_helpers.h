@@ -12,8 +12,6 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-int __nvvm_reflect(const char __constant *);
-
 #define __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,       \
                                      ADDR_SPACE, ADDR_SPACE_NV, ORDER)         \
   switch (scope) {                                                             \
