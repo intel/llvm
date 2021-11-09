@@ -30,19 +30,6 @@ namespace detail {
 using memory_order = cl::sycl::memory_order;
 using memory_scope = cl::sycl::memory_scope;
 
-#if __cplusplus < 201703L
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_relaxed =
-    memory_order::relaxed;
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_acquire =
-    memory_order::acquire;
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_release =
-    memory_order::release;
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_acq_rel =
-    memory_order::acq_rel;
-__SYCL_INLINE_CONSTEXPR memory_order memory_order_seq_cst =
-    memory_order::seq_cst;
-#endif
-
 template <typename T> struct IsValidAtomicRefType {
   static constexpr bool value =
       (std::is_same<T, int>::value || std::is_same<T, unsigned int>::value ||
@@ -78,17 +65,17 @@ template <> struct memory_order_traits<memory_order::seq_cst> {
 
 inline constexpr memory_order getLoadOrder(memory_order order) {
   switch (order) {
-  case memory_order_relaxed:
-    return memory_order_relaxed;
+  case memory_order::relaxed:
+    return memory_order::relaxed;
 
-  case memory_order_acquire:
+  case memory_order::acquire:
   case memory_order::__consume_unsupported:
-  case memory_order_acq_rel:
-  case memory_order_release:
-    return memory_order_acquire;
+  case memory_order::acq_rel:
+  case memory_order::release:
+    return memory_order::acquire;
 
-  case memory_order_seq_cst:
-    return memory_order_seq_cst;
+  case memory_order::seq_cst:
+    return memory_order::seq_cst;
   }
 }
 
