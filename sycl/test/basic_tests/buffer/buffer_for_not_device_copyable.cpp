@@ -3,7 +3,7 @@
 #include <sycl/sycl.hpp>
 #include <string>
 
-using namespace cl::sycl;
+using namespace sycl;
 
 int main() {
   static_assert(is_device_copyable_v<int>);
