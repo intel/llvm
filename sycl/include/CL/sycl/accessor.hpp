@@ -841,13 +841,14 @@ protected:
     __SYCL_UNROLL(3)
     for (int I = 0; I < Dims; ++I) {
       Result = Result * getMemoryRange()[I] + Id[I];
-      #if __cplusplus >= 201703L
-      if constexpr (!(PropertyListT::template has_property<sycl::ext::oneapi::property::no_offset>())) {
-          Result += getOffset()[I];
-        }
-      #else
+#if __cplusplus >= 201703L
+      if constexpr (!(PropertyListT::template has_property<
+                        sycl::ext::oneapi::property::no_offset>())) {
         Result += getOffset()[I];
-      #endif
+      }
+#else
+      Result += getOffset()[I];
+#endif
     }
     return Result;
   }
@@ -905,26 +906,28 @@ protected:
     MData = Ptr;
 #pragma unroll
     for (int I = 0; I < AdjustedDim; ++I) {
-      #if __cplusplus >= 201703L
-        if constexpr (!(PropertyListT::template has_property<sycl::ext::oneapi::property::no_offset>())) {
-          getOffset()[I] = Offset[I];
-        }
-      #else 
+#if __cplusplus >= 201703L
+      if constexpr (!(PropertyListT::template has_property<
+                        sycl::ext::oneapi::property::no_offset>())) {
         getOffset()[I] = Offset[I];
-      #endif
+      }
+#else
+      getOffset()[I] = Offset[I];
+#endif
       getAccessRange()[I] = AccessRange[I];
       getMemoryRange()[I] = MemRange[I];
     }
     // In case of 1D buffer, adjust pointer during initialization rather
     // then each time in operator[] or get_pointer functions.
     if (1 == AdjustedDim)
-    #if __cplusplus >= 201703L
-      if constexpr (!(PropertyListT::template has_property<sycl::ext::oneapi::property::no_offset>())) {
+#if __cplusplus >= 201703L
+      if constexpr (!(PropertyListT::template has_property<
+                        sycl::ext::oneapi::property::no_offset>())) {
         MData += Offset[0];
       }
-    #else
+#else
       MData += Offset[0];
-    #endif
+#endif
   }
 
   // __init variant used by the device compiler for ESIMD kernels.
@@ -1550,10 +1553,12 @@ public:
 
   template <int Dims = Dimensions, typename = detail::enable_if_t<(Dims > 0)>>
   id<Dimensions> get_offset() const {
-    #if __cplusplus >= 201703L
-      static_assert (!(PropertyListT::template has_property<sycl::ext::oneapi::property::no_offset>()), 
-                        "Accessor has no_offset property, get_offset() can not be used");
-    #endif
+#if __cplusplus >= 201703L
+    static_assert(
+        !(PropertyListT::template has_property<
+            sycl::ext::oneapi::property::no_offset>()),
+        "Accessor has no_offset property, get_offset() can not be used");
+#endif
     return detail::convertToArrayOfN<Dimensions, 0>(getOffset());
   }
 
