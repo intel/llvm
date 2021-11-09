@@ -99,7 +99,7 @@ using the `exec` group helper object. Elements are compared by `operator<`.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
-_Constraints_: Only available if `GroupHelper` was created with a work group or sub_group and
+_Constraints_: Only available if `GroupHelper` was created with a work-group or sub-group and
 some associated scratch space.
 
 2._Preconditions_: `first`, `last` must be the same for all work-items in the group.
@@ -112,7 +112,7 @@ binary comparison function object `comp` using the `exec` group helper object.
 
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
-_Constraints_: Only available if `GroupHelper` was created with a work group or a sub_group and
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
 some associated scratch space.
 
 3._Preconditions_: `first`, `last` must be the same for all work-items in the group.
@@ -129,9 +129,9 @@ using the `exec` group helper object.
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
-_Complexity_: Let `N` be the work group size. `O(N*log(N)*log(N))` comparisons.
+_Complexity_: Let `N` be the work-group size. `O(N*log(N)*log(N))` comparisons.
 
-_Constraints_: Only available if `GroupHelper` was created with a work group or a sub_group and
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
 some associated scratch space.
 
 5._Mandates_: `comp` must satisfy the requirements of `Compare` from the {cpp} standard.
@@ -143,15 +143,15 @@ using the `exec` group helper object.
 For multi-dimensional groups, the order of work-items in the group is
 determined by their linear id.
 
-_Complexity_: Let `N` be the work group or sub-group size. `O(N*log(N)*log(N))` comparisons.
+_Complexity_: Let `N` be the work-group or sub-group size. `O(N*log(N)*log(N))` comparisons.
 
-_Constraints_: Only available if `GroupHelper` was created with a work group or a sub_group and
+_Constraints_: Only available if `GroupHelper` was created with a work-group or a sub-group and
 some associated scratch space.
 
 6._Effects_: Equivalent to: `return sorter(g, val)`.
 
 _Constraints_: All functions are available only if `Sorter` is a SYCL Sorter and
-it provides `operator()(Group, Ptr, Ptr)` overload.
+it provides `operator()(Group, T)` overload.
 
 == Sorters
 
@@ -191,31 +191,10 @@ T operator()(Group g, T val);`
 Available only if `sycl::is_group_v<std::decay_t<Group>>` is true.
 |===
 
-Example of custom Sorter is below. This implementation is not recommended as a performant way
-to implement bubble sort. It's just an example of a custom sorter.
-
-[source,c++]
-----
-template<typename Compare>
-class bubble_sorter{
-public:
-  Compare comp;
-
-  template<typename Group, typename Ptr>
-  void operator()(Group g, Ptr first, Ptr last){
-    size_t n = last - first;
-    size_t idx = g.get_local_id().get(0);
-    if(idx == 0)
-      for(size_t i = 0; i < n; ++i)
-        for(size_t j = i + 1; j < n; ++j)
-          if(comp(first[j], first[i]))
-            std::swap(first[i], first[j]);
-  }
-};
-----
-
-This sorter can be invoked by `joint_sort`, but won't work with `sort_over_group`
-due to the absence of corresponding `operator()`
+SYCL provides some predefined sorters mentioned below.
+However, custom sorters are particularly useful when the application knows the data has some
+special property. For example, an application could implement a fast bitonic sort
+if it knows the data size is a power of 2.
 
 === Predefined Sorters
 
@@ -346,8 +325,8 @@ the default sorting algorithm defined by the sorter calling by `joint_sort`.
 `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
-use `sycl::memory_scope::work_group` to get memory size required for each work_group;
-use `sycl::memory_scope::sub_group` to get memory size required for each sub_group`.
+use `sycl::memory_scope::work_group` to get memory size required for each work-group;
+use `sycl::memory_scope::sub_group` to get memory size required for each sub-group`.
 If other `scope` values are passed, behavior is unspecified.
 
 |`static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
@@ -392,8 +371,8 @@ memory_required(sycl::memory_scope scope, std::size_t range_size)`
 calling by `joint_sort`. `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
-use `sycl::memory_scope::work_group` to get memory size required for each work_group;
-use `sycl::memory_scope::sub_group` to get memory size required for each sub_group`.
+use `sycl::memory_scope::work_group` to get memory size required for each work-group;
+use `sycl::memory_scope::sub_group` to get memory size required for each sub-group`.
 If other `scope` values are passed, behavior is unspecified.
 
 |`template<int dimensions = 1>
@@ -411,11 +390,11 @@ NOTE: Predefined sorters are in the `experimental` namespace: interfaces might b
 
 === Group Helper
 
-To pass additional memory to algorithms that don't have the Sorter
-parameter SYCL introduces special type: group helper.
-It encapsulates a group and a memory.
-
-Group helper must have following methods:
+The overloads of `joint_sort` and `sort_over_group` that do not take a Sorter parameter implicitly
+use the default sorter. Since the default sorter requires the application to allocate some
+temporary memory, the application must use a Group Helper object to communicate the location of
+this memory. A Group Helper object is any object
+that has the following two public member functions:
 
 [source,c++]
 ----
@@ -636,4 +615,5 @@ will be added to the Spec to be used with other Group algorithms, e.g. find, red
 |Rev|Date|Author|Changes
 |1|2021-04-28|Andrey Fedorov|Initial public working draft
 |2|{docdate}|Andrey Fedorov|Changes related to additional memory providing
+|3|{docdate}|Andrey Fedorov|Some refactoring and sections reordering
 |========================================
