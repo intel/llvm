@@ -86,7 +86,7 @@ In the example above, the application doesn't use sycl events: `e1`, `e2`, `e3`
 and is waiting for the end of work by `queue::wait()`. The returned events will be
 `null events` - means that low-level events from backend are not created for them.
 `null event` is the event created by the default event constructor, i.e `null event`
-has the same behavior as if the event is created by the default constructor.
+has the same behavior as if the event was created by the default constructor.
 
 == Limitations
 
