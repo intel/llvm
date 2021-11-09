@@ -82,7 +82,7 @@ In this experimental API version, we used the terminology of `joint_matrix` inst
 
 IMPORTANT: In the current implementation, only the subgroup scope is supported.  For Nvidia Tensorcore only the subgroup scope is supported.
 
-When the group is a `sycl::sub_group`, a matrix is declared as follows:
+When the group is a `sycl::sub_group`, an example matrix declaration is as follows:
 
 ```c++
 joint_matrix<double, matrix_use::accumulator, M, N, matrix_layout::col_major, sub_group> tC(sg);
@@ -98,9 +98,22 @@ The same class `joint_matrix` should handle both cases where sizes are constant 
 
 IMPORTANT: In the current implementation, only the static extent is supported
 
+**_NOTE:_** _Nvidia tensorcore instructions only support a discrete set of matrix shapes. The supported matrix shapes depend upon the data types of the "a", "b", and "accumulator" matrices involved in the MMA operation._
+
+##### Current Nvidia Implementation status
+
+Currently only a single case, where all matrices consist of elements of double (fp64) type, is implemented.  All other available matrix types/shapes will be added shortly.
+
+[frame="none",options="header"]
+|======================
+|"a" data type |"b" data type |"accumulator" data type |M       |N     |K | required SM version
+|double |double |double   |8 |8 |4| sm_80
+
+
+|======================
 
 #### Layout
-Besides row major and column major layouts, `matrix_layout` is flexible enough to introduce customed layouts such as symmetric or tiled layouts.
+Besides row major and column major layouts, `matrix_layout` is flexible enough to introduce custom layouts such as symmetric or tiled layouts.
 	
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -120,7 +133,7 @@ joint_matrix<int8_t, matrix_use::b, K, N, packed_b> tB(sg);
 ```   
 IMPORTANT: In the current AMX and DPAS implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
 
-**_NOTE:_** _The "packed" layouts are only applicable to the AMX implementation: matrix_layout::packed_a and matrix_layout::packed_b are not required by the implementation of Nvidia wmma and mma instructions._
+IMPORTANT: For the CUDA backend the layout in the load of matrices A B and C must be either `row_major` or `col_major`, and `Layout` in the store of matrix C must also be either `row_major` or `col_major`. The "packed" layouts are only applicable to the AMX implementation: matrix_layout::packed_a and matrix_layout::packed_b are not required by the implementation of Nvidia wmma and mma instructions.
 
 
 ## Matrix Operations and their Execution Scope
@@ -134,7 +147,7 @@ IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
-**_NOTE:_** _The CUDA backend does not require any other sub-group size than 32, which is the size of a warp which acts as the sub-groups. The requirement that kernels make use of the `sycl::reqd_sub_group_size` decorator is only for specific backends._
+**_NOTE:_** _The CUDA backend does not require any other sub-group size than 32, which is the size of a warp which acts as the sub-group, and also the default DPC++ sub-group size for the CUDA backend._
 
 To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
 
@@ -151,9 +164,6 @@ void joint_matrix_load(
 }
 ```
 This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS or to the matrix "fragments" for Nvidia Tensorcore.  Note that `Layout` is not included as an argument since it may be determined from the joint_matrix argument.
-
-IMPORTANT: For the CUDA backend the layout in the load of matrices A B and C must be either `row_major` or `col_major`, and `Layout` in the store of matrix C must also be either `row_major` or `col_major`.
-
 
 #### Store 
 ```c++
@@ -265,18 +275,6 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-g
 ```
 **_NOTE:_** _--cuda-gpu-arch may be set lower than sm_80 depending on the required matrix operation and whether it is supported by the desired arch._
 
-### Current Nvidia Implementation status
-
-Currently only a single case, fp64, is implemented.  All other available data types/sizes will be added shortly.
-
-[frame="none",options="header"]
-|======================
-|data type |M       |N     |K | required SM version
-|double (fp64)   |8 |8 |4| sm_80
-
-
-|======================
-
 == Query Interface
 Intel AMX, DPAS and Nvidia TPUs support different sizes and types. 
 The query interface is used to validate user code and inform them about supported types, sizes, scope, and layouts by the implementation.
@@ -314,8 +312,6 @@ The table below provides a description for each of the member variables and type
 |`combinations`    | validation, default values, general query| tells the set of supported matrix sizes and types according to the template parameters that are provided. In the "general query" form, the user provides only the TPU type, so the combinations array contains all supported tile sizes and element types for that TPU. In the "default values" form, the user provides the TPU type and element types, so the combinations array contains only those supported matrix sizes and element types that match those element types on that TPU. In the "validation" form, the user provides the TPU type, element types, and element sizes so only this specific combination is returned in the combinations array. 
 |`num_combinations`|  validation, default values, general query|indicates number of combinations supported by the TPU implementation which corresponds to the size of the `combinations` array
 |======================
-
-
 
 
 
