@@ -30,7 +30,7 @@ template <typename T> class testMultPtrKernel;
 template <typename T> class testMultPtrArrowOperatorKernel;
 
 template <typename T> struct point {
-  point(const point &rhs) : x(rhs.x), y(rhs.y) {}
+  point(const point &rhs) = default;
   point(T x, T y) : x(x), y(y) {}
   point(T v) : x(v), y(v) {}
   point() : x(0), y(0) {}
