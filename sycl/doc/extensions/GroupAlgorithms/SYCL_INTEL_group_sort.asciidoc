@@ -326,7 +326,7 @@ the default sorting algorithm defined by the sorter calling by `joint_sort`.
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
 use `sycl::memory_scope::work_group` to get memory size required for each work-group;
-use `sycl::memory_scope::sub_group` to get memory size required for each sub-group`.
+use `sycl::memory_scope::sub_group` to get memory size required for each sub-group.
 If other `scope` values are passed, behavior is unspecified.
 
 |`static std::size_t memory_required(sycl::memory_scope scope, sycl::range<dimensions> local_range)`
@@ -372,7 +372,7 @@ calling by `joint_sort`. `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
 Result depends on the `scope` parameter:
 use `sycl::memory_scope::work_group` to get memory size required for each work-group;
-use `sycl::memory_scope::sub_group` to get memory size required for each sub-group`.
+use `sycl::memory_scope::sub_group` to get memory size required for each sub-group.
 If other `scope` values are passed, behavior is unspecified.
 
 |`template<int dimensions = 1>
