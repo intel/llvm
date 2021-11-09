@@ -36,12 +36,23 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue);
 
 namespace {
 
+// The following supports an experimental feature to import host ptrs
+// into USM, improving data transfer performance.
+// Environment variable control over the feature.
+static const bool USMHostPtrImport = [] {
+  const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
+  const pi_uint32 USMHostPtrImportValue =
+      USMHostPtrImportStr ? std::atoi(USMHostPtrImportStr) : 0;
+  return USMHostPtrImportValue;
+}();
 // Pointers to functions that import/release host memory into USM
 static ze_result_t (*zexDriverImportExternalPointer)(ze_driver_handle_t hDriver,
                                                      void *, size_t);
 static ze_result_t (*zexDriverReleaseImportedPointer)(ze_driver_handle_t,
                                                       void *);
-static bool USMHostPtrImport = false;
+// Flag to indicate USM import feature has been requested by user
+// and runtime environment supports it.
+static bool USMHostPtrImportEnabled = false;
 
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
 // ready. Recognized values (can be used as a bit mask):
@@ -1669,24 +1680,29 @@ pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
   if (NumPlatforms) {
     *NumPlatforms = PiPlatformsCache->size();
 
-    // Check if the import user ptr into USM feature is available.
-    // Since L0 is not platform-specific, just check the first Platform.
-    auto Platform = PiPlatformsCache->front();
-    ze_driver_handle_t driverHandle = Platform->ZeDriver;
-    bool ImportSupported =
-        zeDriverGetExtensionFunctionAddress(
-            driverHandle, "zexDriverImportExternalPointer",
-            reinterpret_cast<void **>(&zexDriverImportExternalPointer)) == 0;
-    if (ImportSupported) {
-      zeDriverGetExtensionFunctionAddress(
-          driverHandle, "zexDriverReleaseImportedPointer",
-          reinterpret_cast<void **>(&zexDriverReleaseImportedPointer));
-      // Turn on hostptr import only if supported and explicitly requested.
-      USMHostPtrImport = std::getenv("SYCL_USM_HOSTPTR_IMPORT") != nullptr;
-      // Hostptr import is only possible if piMemBufferCreate receives a
-      // hostptr as an argument. The SYCL runtime does that only when
-      // SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
-      setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
+    // Check if import user ptr into USM feature has been requested.
+    if (USMHostPtrImport) {
+      // Check if the feature is available.
+      // Since L0 is not platform-specific, just check the first Platform.
+      auto Platform = PiPlatformsCache->front();
+      ze_driver_handle_t driverHandle = Platform->ZeDriver;
+      bool ImportSupported =
+          ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                          (driverHandle, "zexDriverImportExternalPointer",
+                           reinterpret_cast<void **>(
+                               &zexDriverImportExternalPointer))) == 0;
+      if (ImportSupported) {
+        ZE_CALL_NOCHECK(
+            zeDriverGetExtensionFunctionAddress,
+            (driverHandle, "zexDriverReleaseImportedPointer",
+             reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
+        // Turn on hostptr import only if supported and explicitly requested.
+        USMHostPtrImportEnabled = true;
+        // Hostptr import is only possible if piMemBufferCreate receives a
+        // hostptr as an argument. The SYCL runtime does that only when
+        // SYCL_HOST_UNIFIED_MEMORY is enabled. Therefore we turn it on.
+        setEnvVar("SYCL_HOST_UNIFIED_MEMORY", "1");
+      }
     }
   }
 
@@ -3185,11 +3201,11 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   else
     Alignment = 1UL;
 
-  pi_result Result;
-
-  // Check if a host ptr is supplied and it could be imported into USM.
-  bool ImportableMemory = false;
-  if (HostPtr != nullptr && (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
+  // If USM Import feature is enabled and hostptr is supplied,
+  // import the hostptr if not already imported into USM.
+  bool HostPtrImported = false;
+  if (USMHostPtrImportEnabled && HostPtr != nullptr &&
+      (Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0) {
     // Query memory type of the host pointer
     ze_device_handle_t ZeDeviceHandle;
     ze_memory_allocation_properties_t ZeMemoryAllocationProperties = {};
@@ -3198,89 +3214,80 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
              &ZeDeviceHandle));
 
     // If not shared of any type, we can import the ptr
-    ImportableMemory =
-        (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN);
+    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
+      // Promote the host ptr to USM host memory
+      ze_driver_handle_t driverHandle = Context->Devices[0]->Platform->ZeDriver;
+      ZE_CALL(zexDriverImportExternalPointer, (driverHandle, HostPtr, Size));
+      HostPtrImported = true;
+    }
   }
 
-  bool HostPtrImported = false;
-  if (ImportableMemory && USMHostPtrImport) {
-    // Promote the host ptr to USM host memory
-    ze_driver_handle_t driverHandle = Context->Devices[0]->Platform->ZeDriver;
-    ZE_CALL(zexDriverImportExternalPointer, (driverHandle, HostPtr, Size));
-
-    // For integrated devices and when we have multiple discrete devices we
-    // just use the host ptr promoted to host USM memory.
-    // For the case of a single discrete devices we allocate on device.
-    HostPtrImported = true;
-    if (!DeviceIsIntegrated && Context->SingleRootDevice) {
-      if (enableBufferPooling()) {
-        Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
-                                     nullptr, Size, Alignment);
-        if (Result != PI_SUCCESS)
-          return Result;
-      } else {
-        ZeDeviceMemAllocHelper(&Ptr, Context, Context->SingleRootDevice, Size);
-      }
-      // Initialize the buffer synchronously with immediate offload
-      ZE_CALL(zeCommandListAppendMemoryCopy,
-              (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
-               nullptr));
+  pi_result Result;
+  if (DeviceIsIntegrated) {
+    if (HostPtrImported)
+      // When HostPtr is imported we use it for the buffer.
+      Ptr = HostPtr;
+    else {
+      if (enableBufferPooling())
+        Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
+      else
+        Result = ZeHostMemAllocHelper(&Ptr, Context, Size);
     }
+  } else if (Context->SingleRootDevice) {
+    // If we have a single discrete device or all devices in the context are
+    // sub-devices of the same device then we can allocate on device
+    if (enableBufferPooling())
+      Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                   nullptr, Size, Alignment);
+    else
+      Result = ZeDeviceMemAllocHelper(&Ptr, Context, Context->SingleRootDevice,
+                                      Size);
   } else {
-    if (DeviceIsIntegrated) {
+    // Context with several gpu cards. Temporarily use host allocation because
+    // it is accessible by all devices. But it is not good in terms of
+    // performance.
+    // TODO: We need to either allow remote access to device memory using IPC,
+    // or do explicit memory transfers from one device to another using host
+    // resources as backing buffers to allow those transfers.
+    if (HostPtrImported)
+      // When HostPtr is imported we use it for the buffer.
+      Ptr = HostPtr;
+    else {
       if (enableBufferPooling())
         Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-      else {
-        ZeHostMemAllocHelper(&Ptr, Context, Size);
-      }
-    } else if (Context->SingleRootDevice) {
-      // If we have a single discrete device or all devices in the context are
-      // sub-devices of the same device then we can allocate on device
-      if (enableBufferPooling())
-        Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
-                                     nullptr, Size, Alignment);
-      else {
-        ZeDeviceMemAllocHelper(&Ptr, Context, Context->SingleRootDevice, Size);
-      }
-    } else {
-      // Context with several gpu cards. Temporarily use host allocation because
-      // it is accessible by all devices. But it is not good in terms of
-      // performance.
-      // TODO: We need to either allow remote access to device memory using IPC,
-      // or do explicit memory transfers from one device to another using host
-      // resources as backing buffers to allow those transfers.
-      if (enableBufferPooling())
-        Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-      else {
-        ZeHostMemAllocHelper(&Ptr, Context, Size);
-      }
+      else
+        Result = ZeHostMemAllocHelper(&Ptr, Context, Size);
     }
+  }
 
-    if (enableBufferPooling() && Result != PI_SUCCESS)
-      return Result;
+  if (enableBufferPooling() && Result != PI_SUCCESS)
+    return Result;
 
-    if (HostPtr) {
-      if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
-          (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
-        // Initialize the buffer with user data
-        if (DeviceIsIntegrated) {
-          // Do a host to host copy
+  if (HostPtr) {
+    if ((Flags & PI_MEM_FLAGS_HOST_PTR_USE) != 0 ||
+        (Flags & PI_MEM_FLAGS_HOST_PTR_COPY) != 0) {
+      // Initialize the buffer with user data
+      if (DeviceIsIntegrated) {
+        // Do a host to host copy.
+        // For an imported HostPtr the copy is unneeded.
+        if (!HostPtrImported)
           memcpy(Ptr, HostPtr, Size);
-        } else if (Context->SingleRootDevice) {
-          // Initialize the buffer synchronously with immediate offload
-          ZE_CALL(zeCommandListAppendMemoryCopy,
-                  (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
-                   nullptr));
-        } else {
-          // Multiple root devices, do a host to host copy because we use a host
-          // allocation for this case.
-          memcpy(Ptr, HostPtr, Size);
-        }
-      } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
-        // Nothing more to do.
+      } else if (Context->SingleRootDevice) {
+        // Initialize the buffer synchronously with immediate offload
+        ZE_CALL(zeCommandListAppendMemoryCopy,
+                (Context->ZeCommandListInit, Ptr, HostPtr, Size, nullptr, 0,
+                 nullptr));
       } else {
-        die("piMemBufferCreate: not implemented");
+        // Multiple root devices, do a host to host copy because we use a host
+        // allocation for this case.
+        // For an imported HostPtr the copy is unneeded.
+        if (!HostPtrImported)
+          memcpy(Ptr, HostPtr, Size);
       }
+    } else if (Flags == 0 || (Flags == PI_MEM_FLAGS_ACCESS_RW)) {
+      // Nothing more to do.
+    } else {
+      die("piMemBufferCreate: not implemented");
     }
   }
 
