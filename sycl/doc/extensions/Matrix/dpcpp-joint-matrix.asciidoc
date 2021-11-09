@@ -98,7 +98,7 @@ The same class `joint_matrix` should handle both cases where sizes are constant 
 
 IMPORTANT: In the current implementation, only the static extent is supported
 
-**_NOTE:_** _Nvidia tensorcore instructions only support a discrete set of matrix shapes. The supported matrix shapes depend upon the data types of the "a", "b", and "accumulator" matrices involved in the MMA operation._
+**_NOTE:_** _Nvidia tensorcore instructions only support a discrete set of matrix shapes. The supported matrix shapes correspond with particular data types of the "a", "b", and "accumulator" matrices involved in the MMA operation._
 
 ##### Current Nvidia Implementation status
 
@@ -192,7 +192,7 @@ joint_matrix_mad(
     joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group> C);
 }
 ```
-The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulate the result with `C` and return the result.
+The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulates the result with `C` and returns the result.
 
 
 ## VNNI/Packed Layout
