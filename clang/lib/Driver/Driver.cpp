@@ -4877,11 +4877,14 @@ class OffloadingActionBuilder final {
       bool SYCLfpgaTriple = false;
       bool ShouldAddDefaultTriple = true;
       bool GpuInitHasErrors = false;
-      if (SYCLTargets || SYCLAddTargets) {
-        if (SYCLTargets) {
+      bool HasSYCLTargetsOption =
+          SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
+      if (HasSYCLTargetsOption) {
+        if (SYCLTargets || SYCLLinkTargets) {
+          Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
           // Fill SYCLTripleList
           llvm::StringMap<StringRef> FoundNormalizedTriples;
-          for (const char *Val : SYCLTargets->getValues()) {
+          for (const char *Val : SYCLTargetsValues->getValues()) {
             llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
             std::string NormalizedName = TT.normalize();
 
