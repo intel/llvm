@@ -51,7 +51,7 @@ products.
 
 == Introduction
 
-This extension adds avoid_event_creation property for sycl::queue, by using this property
+This extension adds `avoid_event_creation` property for `sycl::queue`, by using this property
 the application informs SYCL RT library that it doesn't care about the returned event,
 i.e the application doesn't use the returned event and just ignores it.
 
@@ -64,41 +64,44 @@ Below is a usage example:
 
 [source,c++]
 ----
+  // in order queue is required for avoid_event_creation
   sycl::queue Queue( {property::queue::in_order{}, property::queue::avoid_event_creation{}} );
 
   // some USM preparations ..
 
   // creating "null" events
-  sycl::event e1, e2, e3, e4;
+  sycl::event e1, e2, e3;
 
-  // returning "null" events from submission functions
+  // returning "null" events from each submission function:
   e1 = Queue.parallel_for(NDRange, [=](nd_item<1> item){ do_smth1(); });
 
   e2 = Queue.single_task([=](){ do_smth2(); });
 
   e3 = Queue.submit([&](handler &CGH) { CGH.parallel_for(NDRange, [=](nd_item<1> item){ do_smth3(); }); });
 
-  e4 = Queue.submit([&](handler &CGH) { CGH.parallel_for(NDRange, Redu, [=](nd_item<1> item, auto &Sum){ do_smth4(); }); });
-
   Queue.wait();
 ----
 
-In the example above, the application doesn't use sycl events: e1, e2, e3, e4,
-and is waiting for the end of work by queue::wait().
-The returned events will be "null" events - means that low-level event from backend is not created for them.
-"null" event is the event created by the default event constructor.
-i.e "null" event has the same behavior as if the event is created by the default constructor.
+In the example above, the application doesn't use sycl events: `e1`, `e2`, `e3`
+and is waiting for the end of work by `queue::wait()`. The returned events will be
+`null events` - means that low-level events from backend are not created for them.
+`null event` is the event created by the default event constructor, i.e `null event`
+has the same behavior as if the event is created by the default constructor.
 
 == Limitations
 
 If the queue has this property and for some reason an event needs to be created,
-then an exception with the errc::invalid_operation error code will be thrown.
+then an exception with the `errc::invalid_operation` error code will be thrown.
 
 The reasons for throwing the exception:
-- using buffer/image accessors, except local accessors
-- using together with enable_profiling property
+
+- using streams, buffer/image accessors (excluding local accessors)
+- using together with `enable_profiling` property
 - using OOO queue
-- using fallback assert feature
+- using https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Assert/SYCL_ONEAPI_ASSERT.asciidoc[fallback assert feature]
+
+
+*Using this extension is well suited for kernels that use USM only, since sycl accessors are used to build a dependency graph, in which case low-level events are needed.
 
 == Version
 
