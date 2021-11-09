@@ -29,16 +29,27 @@ jobs:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Build and Push Container
+    - name: Build and Push Container (with drivers)
       uses: docker/build-push-action@v2
       with:
         push: true
         build-args: |
           base_image=ghcr.io/intel/llvm/ubuntu2004_intel_drivers
-          base_tag=stable
+          base_tag=latest
         tags: |
           ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:${{ github.sha }}
           ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:latest
         context: ${{ github.workspace }}/devops
         file: ${{ github.workspace }}/devops/containers/ubuntu2004_preinstalled.Dockerfile
-
+    - name: Build and Push Container (no drivers)
+      uses: docker/build-push-action@v2
+      with:
+        push: true
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2004_base
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers-${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers
+        context: ${{ github.workspace }}/devops
+        file: ${{ github.workspace }}/devops/containers/ubuntu2004_preinstalled.Dockerfile
