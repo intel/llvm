@@ -137,16 +137,11 @@ event handler::finalize() {
   }
 
   const auto &type = getType();
+  // if user does not add a new dependency to the dependency graph, i.e.
+  // the graph is not changed, then this faster path is used to submit the
+  // kernel
   if (type == detail::CG::Kernel &&
-      MRequirements.size() + MEvents.size() == 0) {
-    // Stream's flush buffer memory is mainly initialized in stream's __init
-    // method. However, this method is not available on host device.
-    // Initializing stream's flush buffer on the host side in a separate task.
-    if (MQueue->is_host()) {
-      for (const detail::StreamImplPtr &Stream : MStreamStorage) {
-        initStream(Stream, MQueue);
-      }
-    }
+      MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
 
     std::vector<RT::PiEvent> RawEvents;
     detail::EventImplPtr NewEvent =
@@ -166,10 +161,6 @@ event handler::finalize() {
       throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
     else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
       NewEvent->setComplete();
-
-    for (auto StreamImplPtr : MStreamStorage) {
-      StreamImplPtr->flush();
-    }
 
     MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
     return MLastEvent;

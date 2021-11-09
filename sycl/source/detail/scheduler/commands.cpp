@@ -1747,7 +1747,7 @@ static pi_result SetKernelParamsAndLaunch(
     RT::PiKernel Kernel, NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
     const EventImplPtr &EventImpl,
     const ProgramManager::KernelArgMask &EliminatedArgMask,
-    std::function<void *(Requirement *Req)> getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   const detail::plugin &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -1757,6 +1757,8 @@ static pi_result SetKernelParamsAndLaunch(
       break;
     case kernel_param_kind_t::kind_accessor: {
       Requirement *Req = (Requirement *)(Arg.MPtr);
+      assert(getMemAllocationFunc != nullptr &&
+             "The function should not be nullptr as we followed the path for which accessors are used");
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
         Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
@@ -1893,7 +1895,7 @@ cl_int enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
     std::vector<RT::PiEvent> &RawEvents, const EventImplPtr &EventImpl,
-    std::function<void *(Requirement *Req)> getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
