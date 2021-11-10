@@ -111,12 +111,12 @@ file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
-  DEPENDS ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  DEPENDS ${SYCL_INCLUDE_BUILD_DIR}/sycl/ext
           ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
           ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL)
 
 add_custom_command(
-  OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl/ext
           ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
           ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
   DEPENDS ${HEADERS_IN_SYCL_DIR}
