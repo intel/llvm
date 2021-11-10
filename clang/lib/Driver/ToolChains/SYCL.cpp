@@ -123,6 +123,20 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
   if (!ParallelJobs.empty())
     ForeachArgs.push_back(C.getArgs().MakeArgString("--jobs=" + ParallelJobs));
 
+  SmallString<128> OutputDirName(
+      T->getToolChain().GetFilePath(OutputFileName.c_str()).c_str());
+  if (C.getDriver().isSaveTempsEnabled()) {
+    llvm::sys::path::remove_filename(OutputDirName);
+    // Use the current dir if the `GetFilePath` returns empty string, which is
+    // the case when the `OutputFileName` does not contain any directory
+    // information. This is necessary for `llvm-foreach`, as it would disregard
+    // the parameter otherwise.
+    if (OutputDirName.empty())
+      llvm::sys::path::native(OutputDirName = "./");
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
+  }
+
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));
