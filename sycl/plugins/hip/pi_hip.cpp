@@ -2536,6 +2536,11 @@ pi_result hip_piEnqueueKernelLaunch(
     }
   }
 
+  if (maxWorkGroupSize <
+      size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
+    return PI_INVALID_WORK_GROUP_SIZE;
+  }
+
   int blocksPerGrid[3] = {1, 1, 1};
 
   for (size_t i = 0; i < work_dim; i++) {
