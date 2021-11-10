@@ -11,11 +11,11 @@ typedef float ZEROARR[0];
 
 struct Wrapper {
   int A;
-  int BadArray[0]; // expected-note 7{{field of illegal type 'int[0]' declared here}}
+  int BadArray[0]; // expected-note 3{{field of illegal type 'int[0]' declared here}}
 };
 
 struct WrapperOfWrapper { // expected-error 2{{zero-length arrays are not permitted in C++}}
-  Wrapper F; // expected-note 6{{within field of type 'Wrapper' declared here}}
+  Wrapper F; // expected-note 2{{within field of type 'Wrapper' declared here}}
   ZEROARR *Ptr; //expected-note 5{{field of illegal pointer type 'ZEROARR *' (aka 'float (*)[0]') declared here}}
 };
 
@@ -25,8 +25,7 @@ template <unsigned Size> struct InnerTemplated {
 
 template <unsigned Size, typename Ty> struct Templated {
   unsigned A;
-  // expected-note@+1 2{{field of illegal type 'double[0]' declared here}}
-  Ty Arr[Size]; // expected-note 7{{field of illegal type 'float[0]' declared here}}
+  Ty Arr[Size];
   InnerTemplated<Size> Array[Size + 1]; // expected-note 8{{within field of type 'InnerTemplated<0U>[1]' declared here}}
 };
 
@@ -52,7 +51,7 @@ void templatedContext() {
   q.submit([&](handler &h) {
     // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class TempContext>([=] {
-      // expected-note@+1 2{{within field of type 'Templated<0U, float>' declared here}}
+      // expected-note@+1 {{within field of type 'Templated<0U, float>' declared here}}
       (void)Var; // expected-error 2{{zero-length arrays are not permitted in C++}}
     });
   });
@@ -60,7 +59,7 @@ void templatedContext() {
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+2 {{in instantiation of function template specialization}}
-    // expected-note@+1 2{{within field of type 'Templated<0U, float>' declared here}}
+    // expected-note@+1 {{within field of type 'Templated<0U, float>' declared here}}
     h.single_task<class TempContext1>([Var] {
     });
   });
@@ -76,9 +75,7 @@ void foo(const unsigned X) {
   q.submit([&](handler &h) {
     // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class Simple>([=]() {
-      // expected-note@+1 {{field of illegal type 'int[0]' declared here}}
       (void)Arr; // expected-error {{zero-length arrays are not permitted in C++}}
-      // expected-note@+1 {{field of illegal type 'ZEROARR' (aka 'float[0]') declared here}}
       (void)TypeDef; // expected-error {{zero-length arrays are not permitted in C++}}
       // expected-note@+1 {{field of illegal pointer type 'ZEROARR *' (aka 'float (*)[0]') declared here}}
       (void)Ptr; // expected-error {{zero-length arrays are not permitted in C++}}
@@ -100,7 +97,7 @@ void foo(const unsigned X) {
   q.submit([&](handler &h) {
     // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class SimpleStruct>([=]{
-      // expected-note@+1 2{{within field of type 'WrapperOfWrapper' declared here}}
+      // expected-note@+1 {{within field of type 'WrapperOfWrapper' declared here}}
       (void)St.F.BadArray; // expected-error 4{{zero-length arrays are not permitted in C++}}
     });
   });
@@ -109,7 +106,7 @@ void foo(const unsigned X) {
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+2 {{in instantiation of function template specialization}}
-    // expected-note@+1 2{{within field of type 'WrapperOfWrapper' declared here}}
+    // expected-note@+1 {{within field of type 'WrapperOfWrapper' declared here}}
     h.single_task<class SimpleStruct1>([St]{ // expected-error 2{{zero-length arrays are not permitted in C++}}
     });
   });
@@ -124,9 +121,8 @@ void foo(const unsigned X) {
   // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class UseTemplated>([=]{
       (void)OK; // No errors expected
-      // expected-note@+1 {{within field of type 'Templated<0, float>' declared here}}
       (void)Zero; // expected-error 2{{zero-length arrays are not permitted in C++}}
-      // expected-note@+1 2{{within field of type 'Templated<1 - 1, double>' declared here}}
+      // expected-note@+1 {{within field of type 'Templated<1 - 1, double>' declared here}}
       int A = Weirdo.A; // expected-error 2{{zero-length arrays are not permitted in C++}}
     });
   });
@@ -136,7 +132,7 @@ void foo(const unsigned X) {
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+2 {{in instantiation of function template specialization}}
-    // expected-note@+1 2{{within field of type 'Templated<0, float>' declared here}}
+    // expected-note@+1 {{within field of type 'Templated<0, float>' declared here}}
     h.single_task<class UseTemplated1>([Zero]{ // expected-error 2{{zero-length arrays are not permitted in C++}}
     });
   });

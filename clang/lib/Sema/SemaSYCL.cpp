@@ -437,6 +437,10 @@ void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
                                       ValueDecl *DeclToCheck) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
+  // Emit notes only for the first discovered declaration of unsupported type
+  // to avoid mess of notes. This flag is to track that error already happened.
+  bool NeedToEmitNotes = true;
+
   auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
     bool ErrorFound = false;
     if (isZeroSizedArray(*this, TypeToCheck)) {
@@ -445,14 +449,16 @@ void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
     }
     // Checks for other types can also be done here.
     if (ErrorFound) {
-      if (auto *FD = dyn_cast<FieldDecl>(D)) {
-        SYCLDiagIfDeviceCode(FD->getLocation(),
-                             diag::note_illegal_field_declared_here)
-            << FD->getType()->isPointerType() << FD->getType();
-      } else {
-        SYCLDiagIfDeviceCode(D->getLocation(),
-                             diag::note_illegal_type_decl_here)
-            << D << D->getType();
+      if (NeedToEmitNotes) {
+        if (auto *FD = dyn_cast<FieldDecl>(D)) {
+          SYCLDiagIfDeviceCode(FD->getLocation(),
+                               diag::note_illegal_field_declared_here)
+              << FD->getType()->isPointerType() << FD->getType();
+        } else {
+          SYCLDiagIfDeviceCode(D->getLocation(),
+                               diag::note_illegal_type_decl_here)
+              << D << D->getType();
+        }
       }
     }
 
@@ -488,8 +494,11 @@ void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
             << History[Index]->getType();
       }
     };
-    if (Check(NextTy, Next))
-      EmitHistory();
+    if (Check(NextTy, Next)) {
+      if (NeedToEmitNotes)
+        EmitHistory();
+      NeedToEmitNotes = false;
+    }
 
     // In case pointer/array/reference type is met get pointeetype, then proceed
     // with that type.
@@ -499,8 +508,11 @@ void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
         NextTy = QualType{NextTy->getArrayElementTypeNoTypeQual(), 0};
       else
         NextTy = NextTy->getPointeeType();
-      if (Check(NextTy, Next))
-        EmitHistory();
+      if (Check(NextTy, Next)) {
+        if (NeedToEmitNotes)
+          EmitHistory();
+        NeedToEmitNotes = false;
+      }
     }
 
     if (const auto *RecDecl = NextTy->getAsRecordDecl()) {
