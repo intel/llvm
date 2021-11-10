@@ -3161,18 +3161,17 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   if (DeviceIsIntegrated) {
     if (enableBufferPooling())
       Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-    else {
-      ZeHostMemAllocHelper(&Ptr, Context, Size);
-    }
+    else
+      Result = ZeHostMemAllocHelper(&Ptr, Context, Size);
   } else if (Context->SingleRootDevice) {
     // If we have a single discrete device or all devices in the context are
     // sub-devices of the same device then we can allocate on device
     if (enableBufferPooling())
       Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
                                    nullptr, Size, Alignment);
-    else {
-      ZeDeviceMemAllocHelper(&Ptr, Context, Context->SingleRootDevice, Size);
-    }
+    else
+      Result = ZeDeviceMemAllocHelper(&Ptr, Context, Context->SingleRootDevice,
+                                      Size);
   } else {
     // Context with several gpu cards. Temporarily use host allocation because
     // it is accessible by all devices. But it is not good in terms of
@@ -3182,9 +3181,8 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     // resources as backing buffers to allow those transfers.
     if (enableBufferPooling())
       Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-    else {
-      ZeHostMemAllocHelper(&Ptr, Context, Size);
-    }
+    else
+      Result = ZeHostMemAllocHelper(&Ptr, Context, Size);
   }
 
   if (enableBufferPooling() && Result != PI_SUCCESS)
