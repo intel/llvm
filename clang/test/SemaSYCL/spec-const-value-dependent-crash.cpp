@@ -2,8 +2,6 @@
 // This test checks that Clang doesn't crash if a specialization constant is
 // value dependent.
 
-
-
 #include "sycl.hpp"
 sycl::queue myQueue;
 
