@@ -57,6 +57,8 @@
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/group_algorithm.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <sycl/ext/oneapi/property_list/property_list.hpp>
+#include <sycl/ext/oneapi/property_list/property_value.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>

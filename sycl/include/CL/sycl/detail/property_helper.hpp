@@ -49,6 +49,12 @@ enum PropWithDataKind {
   PropWithDataKindSize = 5
 };
 
+// Base class for all properties to expose a unique ID.
+template<int ID> class IdentifyablePropertyBase {
+public:
+  static constexpr int PropertyID = ID;
+};
+
 // Base class for dataless properties, needed to check that the type of an
 // object passed to the property_list is a property.
 class DataLessPropertyBase {};
@@ -56,7 +62,9 @@ class DataLessPropertyBase {};
 // Helper class for the dataless properties. Every such property is supposed
 // to inherit from it. The ID template parameter should be one from
 // DataLessPropKind.
-template <int ID> class DataLessProperty : DataLessPropertyBase {
+template <int ID>
+class DataLessProperty : DataLessPropertyBase,
+                         public IdentifyablePropertyBase<ID> {
 public:
   static constexpr int getKind() { return ID; }
 };
@@ -77,7 +85,11 @@ private:
 // Helper class for the properties with data. Every such property is supposed
 // to inherit from it. The ID template parameter should be one from
 // PropWithDataKind.
-template <int ID> class PropertyWithData : public PropertyWithDataBase {
+template <int ID>
+class PropertyWithData
+    : public PropertyWithDataBase,
+      public IdentifyablePropertyBase<
+          ID + static_cast<int>(DataLessPropKind::DataLessPropKindSize)> {
 public:
   PropertyWithData() : PropertyWithDataBase(ID) {}
   static int getKind() { return ID; }
