@@ -56,7 +56,7 @@ template <class To, class From> To cast(From value) {
 CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
 CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
 CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
-CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
+CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
 CONSTFIX char clSetKernelArgMemPointerName[] = "clSetKernelArgMemPointerINTEL";
@@ -968,11 +968,13 @@ pi_result piextUSMSharedAlloc(void **result_ptr, pi_context context,
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
 pi_result piextUSMFree(pi_context context, void *ptr) {
-
-  clMemFreeINTEL_fn FuncPtr = nullptr;
+  // Use a blocking free to avoid issues with indirect access from kernels that
+  // might be still running.
+  clMemBlockingFreeINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = PI_INVALID_OPERATION;
-  RetVal = getExtFuncFromContext<clMemFreeName, clMemFreeINTEL_fn>(context,
-                                                                   &FuncPtr);
+  RetVal =
+      getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
+          context, &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
