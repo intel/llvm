@@ -232,10 +232,12 @@ protected:
 
   friend class DispatchHostTask;
 
-  std::vector<EventImplPtr> getSharedEventsFromPreparedEvents(); 
+  /// Returns vector of EventImplPtr converted from MPreparedDepsEvents
+  std::vector<EventImplPtr> getSharedEventsFromPreparedEvents();
 
 public:
-  const std::vector<std::weak_ptr<event_impl>> &getPreparedHostDepsEvents() const {
+  const std::vector<std::weak_ptr<event_impl>> &
+  getPreparedHostDepsEvents() const {
     return MPreparedHostDepsEvents;
   }
 

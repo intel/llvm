@@ -819,7 +819,6 @@ void AllocaCommand::emitInstrumentationData() {
 
 cl_int AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
-
   std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
 
   RT::PiEvent &Event = MEvent->getHandleRef();

@@ -192,6 +192,8 @@ private:
   void *MCommand = nullptr;
 
   /// Dependency events prepared for waiting by backend.
+  /// It uses weak_ptr for the reason to avoid stack overflow
+  /// when releasing event_impl.
   std::vector<std::weak_ptr<event_impl>> MPreparedDepsEvents;
   std::vector<std::weak_ptr<event_impl>> MPreparedHostDepsEvents;
 
