@@ -14,7 +14,7 @@ struct Wrapper {
   int BadArray[0]; // expected-note 3{{field of illegal type 'int[0]' declared here}}
 };
 
-struct WrapperOfWrapper { // expected-error 2{{zero-length arrays are not permitted in C++}}
+struct WrapperOfWrapper { // expected-error 2{{zero-length arrays are not permitted in SYCL device code}}
   Wrapper F; // expected-note 2{{within field of type 'Wrapper' declared here}}
   ZEROARR *Ptr; //expected-note 5{{field of illegal pointer type 'ZEROARR *' (aka 'float (*)[0]') declared here}}
 };
@@ -46,16 +46,16 @@ SYCL_EXTERNAL WrapperOfWrapper offendingFooExt();
 template <unsigned Size>
 void templatedContext() {
   Templated<Size, float> Var;
-  // expected-error@#KernelSingleTaskKernelFuncCall 2{{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall 2{{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<TempContext, (lambda at}}
   q.submit([&](handler &h) {
     // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class TempContext>([=] {
       // expected-note@+1 {{within field of type 'Templated<0U, float>' declared here}}
-      (void)Var; // expected-error 2{{zero-length arrays are not permitted in C++}}
+      (void)Var; // expected-error 2{{zero-length arrays are not permitted in SYCL device code}}
     });
   });
-  // expected-error@#KernelSingleTaskKernelFuncCall {{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall {{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+2 {{in instantiation of function template specialization}}
@@ -70,44 +70,44 @@ void foo(const unsigned X) {
   ZEROARR TypeDef; // expected-note {{declaration 'TypeDef' of illegal type 'ZEROARR' (aka 'float[0]') is here}}
   ZEROARR *Ptr; // expected-note {{declaration 'Ptr' of illegal type 'ZEROARR *' (aka 'float (*)[0]') is here}}
   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<Simple, (lambda at}}
-  // expected-error@#KernelSingleTaskKernelFuncCall 3{{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall 3{{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class Simple>([=]() {
-      (void)Arr; // expected-error {{zero-length arrays are not permitted in C++}}
-      (void)TypeDef; // expected-error {{zero-length arrays are not permitted in C++}}
+      (void)Arr; // expected-error {{zero-length arrays are not permitted in SYCL device code}}
+      (void)TypeDef; // expected-error {{zero-length arrays are not permitted in SYCL device code}}
       // expected-note@+1 {{field of illegal pointer type 'ZEROARR *' (aka 'float (*)[0]') declared here}}
-      (void)Ptr; // expected-error {{zero-length arrays are not permitted in C++}}
+      (void)Ptr; // expected-error {{zero-length arrays are not permitted in SYCL device code}}
     });
   });
   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<Simple1, (lambda at}}
-  // expected-error@#KernelSingleTaskKernelFuncCall {{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall {{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+2 {{in instantiation of function template specialization}}
     // expected-note@+1 {{field of illegal type 'int[0]' declared here}}
-    h.single_task<class Simple1>([Arr]{ // expected-error {{zero-length arrays are not permitted in C++}}
+    h.single_task<class Simple1>([Arr]{ // expected-error {{zero-length arrays are not permitted in SYCL device code}}
     });
   });
   WrapperOfWrapper St;
   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<SimpleStruct, (lambda at}}
-  // expected-error@#KernelSingleTaskKernelFuncCall 2{{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall 2{{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class SimpleStruct>([=]{
       // expected-note@+1 {{within field of type 'WrapperOfWrapper' declared here}}
-      (void)St.F.BadArray; // expected-error 4{{zero-length arrays are not permitted in C++}}
+      (void)St.F.BadArray; // expected-error 4{{zero-length arrays are not permitted in SYCL device code}}
     });
   });
   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<SimpleStruct1, (lambda at}}
-  // expected-error@#KernelSingleTaskKernelFuncCall 2{{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall 2{{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+2 {{in instantiation of function template specialization}}
     // expected-note@+1 {{within field of type 'WrapperOfWrapper' declared here}}
-    h.single_task<class SimpleStruct1>([St]{ // expected-error 2{{zero-length arrays are not permitted in C++}}
+    h.single_task<class SimpleStruct1>([St]{ // expected-error 2{{zero-length arrays are not permitted in SYCL device code}}
     });
   });
 
@@ -115,25 +115,25 @@ void foo(const unsigned X) {
   Templated<1 - 1, double> Weirdo;
   Templated<0, float> Zero;
   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<UseTemplated, (lambda at}}
-  // expected-error@#KernelSingleTaskKernelFuncCall 4{{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall 4{{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
   // expected-note@+1 {{in instantiation of function template specialization}}
     h.single_task<class UseTemplated>([=]{
       (void)OK; // No errors expected
-      (void)Zero; // expected-error 2{{zero-length arrays are not permitted in C++}}
+      (void)Zero; // expected-error 2{{zero-length arrays are not permitted in SYCL device code}}
       // expected-note@+1 {{within field of type 'Templated<1 - 1, double>' declared here}}
-      int A = Weirdo.A; // expected-error 2{{zero-length arrays are not permitted in C++}}
+      int A = Weirdo.A; // expected-error 2{{zero-length arrays are not permitted in SYCL device code}}
     });
   });
 
   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<UseTemplated1, (lambda at}}
-  // expected-error@#KernelSingleTaskKernelFuncCall 2{{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall 2{{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     // expected-note@+2 {{in instantiation of function template specialization}}
     // expected-note@+1 {{within field of type 'Templated<0, float>' declared here}}
-    h.single_task<class UseTemplated1>([Zero]{ // expected-error 2{{zero-length arrays are not permitted in C++}}
+    h.single_task<class UseTemplated1>([Zero]{ // expected-error 2{{zero-length arrays are not permitted in SYCL device code}}
     });
   });
 
@@ -142,7 +142,7 @@ void foo(const unsigned X) {
   templatedContext<0>();
 
   KernelSt K;
-  // expected-error@#KernelSingleTaskKernelFuncCall {{zero-length arrays are not permitted in C++}}
+  // expected-error@#KernelSingleTaskKernelFuncCall {{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {

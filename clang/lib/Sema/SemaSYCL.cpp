@@ -444,7 +444,7 @@ void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
   auto Check = [&](QualType TypeToCheck, const ValueDecl *D) {
     bool ErrorFound = false;
     if (isZeroSizedArray(*this, TypeToCheck)) {
-      SYCLDiagIfDeviceCode(UsedAt, diag::err_typecheck_zero_array_size);
+      SYCLDiagIfDeviceCode(UsedAt, diag::err_sycl_zero_array_size);
       ErrorFound = true;
     }
     // Checks for other types can also be done here.
