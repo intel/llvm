@@ -1540,6 +1540,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
 
   SyclOptReportHandler &SyclOptReport = CGM.getDiags().getSYCLOptReport();
+  assert(Fn && "Function cannot be null");
   if (SyclOptReport.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
     for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
