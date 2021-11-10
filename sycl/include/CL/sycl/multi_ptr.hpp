@@ -529,12 +529,12 @@ public:
       : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == local_space || generic_space
-  template <typename ElementType, int dimensions, access::mode Mode,
-            typename PropertyListT, access::address_space _Space = Space,
-            typename = typename detail::enable_if_t<
-                _Space == Space &&
-                       (Space == access::address_space::local_space ||
-                        Space == access::address_space::generic_space)>>
+  template <
+      typename ElementType, int dimensions, access::mode Mode,
+      typename PropertyListT, access::address_space _Space = Space,
+      typename = typename detail::enable_if_t<
+          _Space == Space && (Space == access::address_space::local_space ||
+                              Space == access::address_space::generic_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
