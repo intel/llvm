@@ -337,6 +337,16 @@ void Command::waitForEvents(QueueImplPtr Queue,
   }
 }
 
+std::vector<EventImplPtr> Command::getSharedEventsFromPreparedEvents() {
+  std::vector<EventImplPtr> EventImpls;
+  EventImpls.reserve(MPreparedDepsEvents.size());
+  for (auto &WeakEvent : MPreparedDepsEvents) {
+    if (auto Event = WeakEvent.lock())
+      EventImpls.push_back(Event);
+  }
+  return EventImpls;
+}
+
 /// It is safe to bind MPreparedDepsEvents and MPreparedHostDepsEvents
 /// references to event_impl class members because Command
 /// should not outlive the event connected to it.
@@ -809,11 +819,8 @@ void AllocaCommand::emitInstrumentationData() {
 
 cl_int AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -909,11 +916,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 
 cl_int AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
   RT::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -973,11 +976,7 @@ void ReleaseCommand::emitInstrumentationData() {
 
 cl_int ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -1088,11 +1087,7 @@ void MapMemObject::emitInstrumentationData() {
 
 cl_int MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1169,11 +1164,7 @@ bool UnMapMemObject::producesPiEvent() const {
 
 cl_int UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1270,11 +1261,7 @@ bool MemCpyCommand::producesPiEvent() const {
 
 cl_int MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1332,11 +1319,7 @@ void ExecCGCommand::clearStreams() {
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
   RT::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1419,11 +1402,7 @@ const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
 cl_int MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1454,11 +1433,7 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
 
 cl_int EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
   waitForEvents(MQueue, EventImpls, MEvent->getHandleRef());
 
   return CL_SUCCESS;
@@ -1931,11 +1906,7 @@ void DispatchNativeKernel(void *Blob) {
 cl_int ExecCGCommand::enqueueImp() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls;
-  for (size_t i = 0; i < MPreparedDepsEvents.size(); ++i) {
-    if (auto Ptr = MPreparedDepsEvents[i].lock())
-      EventImpls.push_back(Ptr);
-  }
+  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
   auto RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
