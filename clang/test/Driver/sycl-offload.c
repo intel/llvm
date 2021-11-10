@@ -1143,3 +1143,8 @@
 // RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
 // CHK-FSYNTAX-ONLY-NOT: "-emit-llvm-bc"
 // CHK-FSYNTAX-ONLY: "-fsyntax-only"
+
+/// ###########################################################################
+/// Verify that -save-temps puts header/footer in a correct place
+// RUN: %clang -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-DIR
+// CHECK-SAVE-TEMPS-DIR: clang{{.*}} "-fsycl-int-header=./sycl-offload-header-{{[a-z0-9]*}}.h"{{.*}}"-fsycl-int-footer=./sycl-offload-footer-{{[a-z0-9]*}}.h"

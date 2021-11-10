@@ -5568,6 +5568,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   handleArguments(C, Args, Inputs, Actions);
 
+  auto *OptO = C.getArgs().getLastArg(options::OPT_o);
+  SmallString<128> OutFileDir(OptO ? OptO->getValues()[0] : "");
+  llvm::sys::path::remove_filename(OutFileDir);
+  // `remove_filename` will return an empty string if in CWD, patch it.
+  if (OutFileDir.empty())
+    llvm::sys::path::native(OutFileDir = "./");
+  const bool IsSaveTemps = isSaveTempsEnabled();
   // When compiling for -fsycl, generate the integration header files and the
   // Unique ID that will be used during the compilation.
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
@@ -5582,12 +5589,23 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       }
       if (!types::isSrcFile(I.first))
         continue;
-      std::string TmpFileNameHeader = C.getDriver().GetTemporaryPath(
-          llvm::sys::path::stem(SrcFileName).str() + "-header", "h");
+
+      std::string TmpFileNameHeader;
+      std::string TmpFileNameFooter;
+      auto StemedSrcFileName = llvm::sys::path::stem(SrcFileName).str();
+      if (IsSaveTemps) {
+        TmpFileNameHeader.append(C.getDriver().GetUniquePath(
+            OutFileDir.c_str() + StemedSrcFileName + "-header", "h"));
+        TmpFileNameFooter.append(C.getDriver().GetUniquePath(
+            OutFileDir.c_str() + StemedSrcFileName + "-footer", "h"));
+      } else {
+        TmpFileNameHeader.assign(
+            C.getDriver().GetTemporaryPath(StemedSrcFileName + "-header", "h"));
+        TmpFileNameFooter =
+            C.getDriver().GetTemporaryPath(StemedSrcFileName + "-footer", "h");
+      }
       StringRef TmpFileHeader =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
-      std::string TmpFileNameFooter = C.getDriver().GetTemporaryPath(
-          llvm::sys::path::stem(SrcFileName).str() + "-footer", "h");
       StringRef TmpFileFooter =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameFooter));
       // Use of -fsycl-footer-path puts the integration footer into that
