@@ -12,8 +12,9 @@ int main() {
                                     sycl::ext::oneapi::memory_scope_device,
                                     sycl::access::address_space::local_space>(
           d);
-  // expected-warning@-4 {{'memory_order_acq_rel' is deprecated: use 'sycl::memory_order_acq_rel' instead}}
-  // expected-warning@-4 {{'memory_scope_device' is deprecated: use 'sycl::memory_scope_device' instead}}
+  // expected-warning@-5 {{is deprecated: use 'sycl::atomic_ref' instead}}
+  // expected-warning@-5 {{'memory_order_acq_rel' is deprecated: use 'sycl::memory_order_acq_rel' instead}}
+  // expected-warning@-5 {{'memory_scope_device' is deprecated: use 'sycl::memory_scope_device' instead}}
 
   int i = 10;
   auto ref_i =
@@ -22,8 +23,9 @@ int main() {
                                     sycl::ext::oneapi::memory_scope_device,
                                     sycl::access::address_space::local_space>(
           i);
-  // expected-warning@-4 {{'memory_order_acq_rel' is deprecated: use 'sycl::memory_order_acq_rel' instead}}
-  // expected-warning@-4 {{'memory_scope_device' is deprecated: use 'sycl::memory_scope_device' instead}}
+  // expected-warning@-5 {{is deprecated: use 'sycl::atomic_ref' instead}}
+  // expected-warning@-5 {{'memory_order_acq_rel' is deprecated: use 'sycl::memory_order_acq_rel' instead}}
+  // expected-warning@-5 {{'memory_scope_device' is deprecated: use 'sycl::memory_scope_device' instead}}
 
   A a;
   A *p = &a;
@@ -33,8 +35,9 @@ int main() {
                                     sycl::ext::oneapi::memory_scope_device,
                                     sycl::access::address_space::local_space>(
           p);
-  // expected-warning@-4 {{'memory_order_acq_rel' is deprecated: use 'sycl::memory_order_acq_rel' instead}}
-  // expected-warning@-4 {{'memory_scope_device' is deprecated: use 'sycl::memory_scope_device' instead}}
+  // expected-warning@-5 {{is deprecated: use 'sycl::atomic_ref' instead}}
+  // expected-warning@-5 {{'memory_order_acq_rel' is deprecated: use 'sycl::memory_order_acq_rel' instead}}
+  // expected-warning@-5 {{'memory_scope_device' is deprecated: use 'sycl::memory_scope_device' instead}}
 
   return 0;
 }
