@@ -5,7 +5,6 @@
 // with alignment tags.
 
 #include <sycl/ext/intel/experimental/esimd.hpp>
-#include <stdio.h>
 
 using namespace sycl::ext::intel::experimental::esimd;
 using namespace cl::sycl;

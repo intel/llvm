@@ -743,6 +743,14 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *Addr,
   if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
                 detail::isPowerOf2(Size / OperandSize::OWORD)) {
     Tmp = block_load<T, N, Flags>(Addr, Flags{});
+  } else if constexpr (sizeof(T) == 8) {
+    constexpr unsigned AlignUH =
+        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
+    simd<int32_t, N> LH(reinterpret_cast<const int32_t *>(Addr), Flags{});
+    simd<int32_t, N> UH(reinterpret_cast<const int32_t *>(Addr) + N,
+                        overaligned<AlignUH>);
+    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0) = LH;
+    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N) = UH;
   } else if constexpr (N == 1) {
     Tmp = *Addr;
   } else if constexpr (N == 8 || N == 16 || N == 32) {
@@ -772,6 +780,13 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
   if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
                 detail::isPowerOf2(Size / OperandSize::OWORD)) {
     Tmp = block_load<T, N, AccessorT, Flags>(acc, offset, Flags{});
+  } else if constexpr (sizeof(T) == 8) {
+    constexpr unsigned AlignUH =
+        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
+    simd<int32_t, N> LH(acc, offset, Flags{});
+    simd<int32_t, N> UH(acc, offset + N * 4, overaligned<AlignUH>);
+    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0) = LH;
+    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N) = UH;
   } else if constexpr (N == 1 || N == 8 || N == 16 || N == 32) {
     simd<uint32_t, N> Offsets(0u, sizeof(T));
     Tmp = gather<T, N, AccessorT>(acc, Offsets, offset);
@@ -796,6 +811,16 @@ void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr,
   if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
                 detail::isPowerOf2(Size / OperandSize::OWORD)) {
     block_store<T, N>(addr, cast_this_to_derived());
+  } else if constexpr (sizeof(T) == 8) {
+    constexpr unsigned AlignUH =
+        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
+    simd<T, N> Tmp = data();
+    simd<int32_t, N> LH =
+        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0);
+    simd<int32_t, N> UH =
+        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N);
+    LH.copy_to(reinterpret_cast<int32_t *>(addr), Flags{});
+    UH.copy_to(reinterpret_cast<int32_t *>(addr) + N, overaligned<AlignUH>);
   } else if constexpr (N == 1) {
     *addr = data()[0];
   } else if constexpr (N == 8 || N == 16 || N == 32) {
@@ -824,6 +849,16 @@ simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
   if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
                 detail::isPowerOf2(Size / OperandSize::OWORD)) {
     block_store<T, N, AccessorT>(acc, offset, cast_this_to_derived());
+  } else if constexpr (sizeof(T) == 8) {
+    constexpr unsigned AlignUH =
+        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
+    simd<T, N> Tmp = data();
+    simd<int32_t, N> LH =
+        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0);
+    simd<int32_t, N> UH =
+        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N);
+    LH.copy_to(acc, offset, Flags{});
+    UH.copy_to(acc, offset + N * 4, overaligned<AlignUH>);
   } else if constexpr (N == 1 || N == 8 || N == 16 || N == 32) {
     simd<uint32_t, N> offsets(0u, sizeof(T));
     scatter<T, N, AccessorT>(acc, offsets, cast_this_to_derived().data(),
