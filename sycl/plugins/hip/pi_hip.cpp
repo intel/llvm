@@ -2936,6 +2936,18 @@ pi_result hip_piProgramGetInfo(pi_program program, pi_program_info param_name,
   return {};
 }
 
+pi_result hip_piProgramLink(pi_context context, pi_uint32 num_devices,
+                            const pi_device *device_list, const char *options,
+                            pi_uint32 num_input_programs,
+                            const pi_program *input_programs,
+                            void (*pfn_notify)(pi_program program,
+                                               void *user_data),
+                            void *user_data, pi_program *ret_program) {
+  cl::sycl::detail::pi::die(
+      "hip_piProgramLink: linking not supported with hip backend");
+  return {};
+}
+
 /// Creates a new program that is the outcome of the compilation of the headers
 ///  and the program.
 /// \TODO Implement asynchronous compilation
@@ -4813,6 +4825,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piProgramGetInfo, hip_piProgramGetInfo)
   _PI_CL(piProgramCompile, hip_piProgramCompile)
   _PI_CL(piProgramBuild, hip_piProgramBuild)
+  _PI_CL(piProgramLink, hip_piProgramLink)
   _PI_CL(piProgramGetBuildInfo, hip_piProgramGetBuildInfo)
   _PI_CL(piProgramRetain, hip_piProgramRetain)
   _PI_CL(piProgramRelease, hip_piProgramRelease)
