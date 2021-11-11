@@ -80,11 +80,12 @@ ModulePass *llvm::createSYCLLowerESIMDPass() {
 namespace {
 // The regexp for ESIMD intrinsics:
 // /^_Z(\d+)__esimd_\w+/
-static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
-static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
-static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
+constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
+constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
+constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
 
-static constexpr char GENX_KERNEL_METADATA[] = "genx.kernels";
+constexpr char GENX_KERNEL_METADATA[] = "genx.kernels";
+constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
@@ -1297,7 +1298,7 @@ void generateKernelMetadata(Module &M) {
   for (auto &F : M.functions()) {
     // Skip non-SIMD kernels.
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL ||
-        F.getMetadata("sycl_explicit_simd") == nullptr)
+        F.getMetadata(ESIMD_MARKER_MD) == nullptr)
       continue;
 
     // Metadata node containing N i32s, where N is the number of kernel
@@ -1420,9 +1421,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
 
   size_t AmountOfESIMDIntrCalls = 0;
   for (auto &F : M.functions()) {
-    AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
+    if (!DetectESIMDByMetadata || F.getMetadata(ESIMD_MARKER_MD) != nullptr)
+      AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
-
   // TODO FIXME ESIMD figure out less conservative result
   return AmountOfESIMDIntrCalls > 0 ? PreservedAnalyses::none()
                                     : PreservedAnalyses::all();

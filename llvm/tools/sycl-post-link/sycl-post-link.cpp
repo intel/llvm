@@ -753,9 +753,11 @@ string_vector saveResultSymbolsLists(string_vector &ResSymbolsLists,
 bool LowerEsimdConstructs(Module &M) {
   bool Unmodified = true;
   {
-    legacy::PassManager MPM;
-    MPM.add(createSYCLLowerESIMDPass());
-    Unmodified &= !MPM.run(M);
+    ModulePassManager MPM;
+    ModuleAnalysisManager MAM;
+    MPM.addPass(SYCLLowerESIMDPass{SplitEsimd});
+    PreservedAnalyses Res = MPM.run(M, MAM);
+    Unmodified &= Res.areAllPreserved();
   }
   if (Unmodified)
     return false; // no ESIMD functions met - done

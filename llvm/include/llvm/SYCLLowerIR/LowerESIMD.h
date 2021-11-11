@@ -19,6 +19,7 @@
 #ifndef LLVM_SYCLLOWERIR_LOWERESIMD_H
 #define LLVM_SYCLLOWERIR_LOWERESIMD_H
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 
@@ -28,10 +29,13 @@ namespace llvm {
 /// like intrinsics to a form parsable by the ESIMD-aware SPIRV translator.
 class SYCLLowerESIMDPass : public PassInfoMixin<SYCLLowerESIMDPass> {
 public:
+  SYCLLowerESIMDPass(bool DetectESIMDByMetadata = false)
+      : DetectESIMDByMetadata(DetectESIMDByMetadata) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
   size_t runOnFunction(Function &F, SmallPtrSet<Type *, 4> &);
+  bool DetectESIMDByMetadata;
 };
 
 ModulePass *createSYCLLowerESIMDPass();
