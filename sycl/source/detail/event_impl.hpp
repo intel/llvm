@@ -27,6 +27,8 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+class event_impl;
+using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
 
 class event_impl {
 public:
@@ -164,16 +166,24 @@ public:
   /// Returns vector of event dependencies.
   ///
   /// @return a reference to MPreparedDepsEvents.
-  std::vector<std::weak_ptr<event_impl>> &getPreparedDepsEvents() {
+  std::vector<std::shared_ptr<event_impl>> &getPreparedDepsEvents() {
     return MPreparedDepsEvents;
   }
 
   /// Returns vector of host event dependencies.
   ///
   /// @return a reference to MPreparedHostDepsEvents.
-  std::vector<std::weak_ptr<event_impl>> &getPreparedHostDepsEvents() {
+  std::vector<std::shared_ptr<event_impl>> &getPreparedHostDepsEvents() {
     return MPreparedHostDepsEvents;
   }
+
+  /// Returns vector of event_impl that this event_impl depends on.
+  ///
+  /// @return a vector of "immediate" dependencies for this event_impl.
+  std::vector<EventImplPtr> getWaitList();
+
+  /// Cleans dependencies of this event_impl
+  void cleanupDependencyEvents();
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -192,10 +202,8 @@ private:
   void *MCommand = nullptr;
 
   /// Dependency events prepared for waiting by backend.
-  /// It uses weak_ptr for the reason to avoid stack overflow
-  /// when releasing event_impl.
-  std::vector<std::weak_ptr<event_impl>> MPreparedDepsEvents;
-  std::vector<std::weak_ptr<event_impl>> MPreparedHostDepsEvents;
+  std::vector<EventImplPtr> MPreparedDepsEvents;
+  std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
 
@@ -203,6 +211,8 @@ private:
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
+
+  std::mutex MMutex;
 };
 
 } // namespace detail

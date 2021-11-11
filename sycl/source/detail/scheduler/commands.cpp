@@ -177,11 +177,9 @@ class DispatchHostTask {
     std::map<const detail::plugin *, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
-    for (const auto &WeakEvent : MThisCmd->MPreparedDepsEvents) {
-      if (EventImplPtr Event = WeakEvent.lock()) {
-        const detail::plugin &Plugin = Event->getPlugin();
-        RequiredEventsPerPlugin[&Plugin].push_back(Event);
-      }
+    for (const EventImplPtr &Event : MThisCmd->MPreparedDepsEvents) {
+      const detail::plugin &Plugin = Event->getPlugin();
+      RequiredEventsPerPlugin[&Plugin].push_back(Event);
     }
 
     // wait for dependency device events
@@ -207,9 +205,8 @@ class DispatchHostTask {
 
     // Wait for dependency host events.
     // Host events can't throw exceptions so don't try to catch it.
-    for (const auto &WeakEvent : MThisCmd->MPreparedHostDepsEvents) {
-      if (EventImplPtr Event = WeakEvent.lock())
-        Event->waitInternal();
+    for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
+      Event->waitInternal();
     }
 
     return PI_SUCCESS;
@@ -281,10 +278,8 @@ public:
 };
 
 void Command::waitForPreparedHostEvents() const {
-  for (const auto &WeakEvent : MPreparedHostDepsEvents) {
-    if (EventImplPtr HostEvent = WeakEvent.lock())
-      HostEvent->waitInternal();
-  }
+  for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
+    HostEvent->waitInternal();
 }
 
 void Command::waitForEvents(QueueImplPtr Queue,
@@ -335,16 +330,6 @@ void Command::waitForEvents(QueueImplPtr Queue,
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
   }
-}
-
-std::vector<EventImplPtr> Command::getSharedEventsFromPreparedEvents() {
-  std::vector<EventImplPtr> EventImpls;
-  EventImpls.reserve(MPreparedDepsEvents.size());
-  for (auto &WeakEvent : MPreparedDepsEvents) {
-    if (auto Event = WeakEvent.lock())
-      EventImpls.push_back(Event);
-  }
-  return EventImpls;
 }
 
 /// It is safe to bind MPreparedDepsEvents and MPreparedHostDepsEvents
@@ -564,7 +549,7 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep) {
     Scheduler::GraphBuilder &GB = Scheduler::getInstance().MGraphBuilder;
     ConnectionCmd = GB.connectDepEvent(this, DepEvent, Dep);
   } else
-    MPreparedDepsEvents.push_back(DepEvent);
+    MPreparedDepsEvents.push_back(std::move(DepEvent));
 
   return ConnectionCmd;
 }
@@ -819,7 +804,7 @@ void AllocaCommand::emitInstrumentationData() {
 
 cl_int AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -915,7 +900,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 
 cl_int AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -975,7 +960,7 @@ void ReleaseCommand::emitInstrumentationData() {
 
 cl_int ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -1086,7 +1071,7 @@ void MapMemObject::emitInstrumentationData() {
 
 cl_int MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1163,7 +1148,7 @@ bool UnMapMemObject::producesPiEvent() const {
 
 cl_int UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1260,7 +1245,7 @@ bool MemCpyCommand::producesPiEvent() const {
 
 cl_int MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
   RT::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1318,7 +1303,7 @@ void ExecCGCommand::clearStreams() {
 
 cl_int UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   RT::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1401,7 +1386,7 @@ const QueueImplPtr &MemCpyCommandHost::getWorkerQueue() const {
 cl_int MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<RT::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();
@@ -1432,8 +1417,7 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
 
 cl_int EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
-  waitForEvents(MQueue, EventImpls, MEvent->getHandleRef());
+  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
   return CL_SUCCESS;
 }
@@ -1905,7 +1889,7 @@ void DispatchNativeKernel(void *Blob) {
 cl_int ExecCGCommand::enqueueImp() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = getSharedEventsFromPreparedEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
 
   RT::PiEvent &Event = MEvent->getHandleRef();

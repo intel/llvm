@@ -201,8 +201,8 @@ protected:
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
-  std::vector<std::weak_ptr<event_impl>> &MPreparedDepsEvents;
-  std::vector<std::weak_ptr<event_impl>> &MPreparedHostDepsEvents;
+  std::vector<EventImplPtr> &MPreparedDepsEvents;
+  std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
@@ -232,12 +232,8 @@ protected:
 
   friend class DispatchHostTask;
 
-  /// Returns vector of EventImplPtr converted from MPreparedDepsEvents
-  std::vector<EventImplPtr> getSharedEventsFromPreparedEvents();
-
 public:
-  const std::vector<std::weak_ptr<event_impl>> &
-  getPreparedHostDepsEvents() const {
+  const std::vector<EventImplPtr> &getPreparedHostDepsEvents() const {
     return MPreparedHostDepsEvents;
   }
 

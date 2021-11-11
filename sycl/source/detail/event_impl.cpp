@@ -217,8 +217,7 @@ void event_impl::wait_and_throw(
 
   wait(Self);
 
-  for (auto &EventImpl :
-       detail::Scheduler::getInstance().getWaitList(std::move(Self))) {
+  for (auto &EventImpl : getWaitList()) {
     Command *Cmd = (Command *)EventImpl->getCommand();
     if (Cmd)
       Cmd->getSubmittedQueue()->throw_asynchronous();
@@ -323,6 +322,23 @@ pi_native_handle event_impl::getNative() const {
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
+}
+
+std::vector<EventImplPtr> event_impl::getWaitList() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+
+  std::vector<EventImplPtr> Result;
+  Result.reserve(MPreparedDepsEvents.size() + MPreparedHostDepsEvents.size());
+  Result.insert(Result.end(), MPreparedDepsEvents.begin(), MPreparedDepsEvents.end());
+  Result.insert(Result.end(), MPreparedHostDepsEvents.begin(), MPreparedHostDepsEvents.end());
+
+  return Result;
+}
+
+void event_impl::cleanupDependencyEvents() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  MPreparedDepsEvents.clear();
+  MPreparedHostDepsEvents.clear();
 }
 
 } // namespace detail
