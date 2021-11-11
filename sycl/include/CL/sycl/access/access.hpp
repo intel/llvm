@@ -123,8 +123,6 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
 #define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
 #define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
-// TODO cannot be defined as __attribute__((opencl_generic)) since clang doesn't
-// support the generic address space for SYCL.
 #define __OPENCL_GENERIC_AS__
 #else
 #define __OPENCL_GLOBAL_AS__
