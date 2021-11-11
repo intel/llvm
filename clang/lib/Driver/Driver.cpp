@@ -4113,7 +4113,10 @@ class OffloadingActionBuilder final {
             Args.getLastArg(options::OPT__SLASH_EP, options::OPT__SLASH_P) ||
             Args.getLastArg(options::OPT_M, options::OPT_MM);
         if (IsPreprocessOnly) {
-          for (Action *&A : SYCLDeviceActions) {
+          for (auto TargetActionInfo :
+               llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+            Action *&A = std::get<0>(TargetActionInfo);
+            auto &TargetInfo = std::get<1>(TargetActionInfo);
             A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                    AssociatedOffloadKind);
             if (SYCLDeviceOnly)
@@ -4122,7 +4125,7 @@ class OffloadingActionBuilder final {
             // header.
             Action *CompileAction =
                 C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
-            DA.add(*CompileAction, *ToolChains.front(), nullptr,
+            DA.add(*CompileAction, *TargetInfo.TC, TargetInfo.BoundArch,
                    Action::OFK_SYCL);
           }
           return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
@@ -4147,6 +4150,8 @@ class OffloadingActionBuilder final {
               continue;
             }
           }
+          if (Args.hasArg(options::OPT_fsyntax_only))
+            OutputType = types::TY_Nothing;
           A = C.MakeAction<CompileJobAction>(A, OutputType);
           DeviceCompilerInput = A;
         }
@@ -4875,11 +4880,14 @@ class OffloadingActionBuilder final {
       bool SYCLfpgaTriple = false;
       bool ShouldAddDefaultTriple = true;
       bool GpuInitHasErrors = false;
-      if (SYCLTargets || SYCLAddTargets) {
-        if (SYCLTargets) {
+      bool HasSYCLTargetsOption =
+          SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
+      if (HasSYCLTargetsOption) {
+        if (SYCLTargets || SYCLLinkTargets) {
+          Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
           // Fill SYCLTripleList
           llvm::StringMap<StringRef> FoundNormalizedTriples;
-          for (const char *Val : SYCLTargets->getValues()) {
+          for (const char *Val : SYCLTargetsValues->getValues()) {
             llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
             std::string NormalizedName = TT.normalize();
 
