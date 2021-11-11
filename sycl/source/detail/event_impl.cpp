@@ -329,8 +329,10 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 
   std::vector<EventImplPtr> Result;
   Result.reserve(MPreparedDepsEvents.size() + MPreparedHostDepsEvents.size());
-  Result.insert(Result.end(), MPreparedDepsEvents.begin(), MPreparedDepsEvents.end());
-  Result.insert(Result.end(), MPreparedHostDepsEvents.begin(), MPreparedHostDepsEvents.end());
+  Result.insert(Result.end(), MPreparedDepsEvents.begin(),
+                MPreparedDepsEvents.end());
+  Result.insert(Result.end(), MPreparedHostDepsEvents.begin(),
+                MPreparedHostDepsEvents.end());
 
   return Result;
 }

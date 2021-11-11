@@ -719,7 +719,6 @@ protected:
   /// \ingroup sycl_graph
   class GraphProcessor {
   public:
-
     /// Waits for the command, associated with Event passed, is completed.
     /// \param GraphReadLock read-lock which is already acquired for reading
     /// \param LockTheLock selects if graph lock should be locked upon return
