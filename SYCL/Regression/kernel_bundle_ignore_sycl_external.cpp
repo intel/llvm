@@ -3,7 +3,7 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// XFAIL: cuda || hip
+// XFAIL: cuda || hip_nvidia
 
 #include <CL/sycl.hpp>
 

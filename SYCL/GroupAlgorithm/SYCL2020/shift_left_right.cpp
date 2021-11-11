@@ -3,10 +3,6 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //
-// Missing __spirv_SubgroupId, __spirv_SubgroupMaxSize, __spirv_SubgroupShuffle*
-// on AMD:
-// XFAIL: hip_amd
-//
 //==------------ shift_left_right.cpp -*- C++ -*----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

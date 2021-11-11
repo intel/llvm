@@ -19,6 +19,7 @@ bool check(backend be) {
   case backend::level_zero:
   case backend::cuda:
   case backend::host:
+  case backend::hip:
     return true;
   default:
     return false;
