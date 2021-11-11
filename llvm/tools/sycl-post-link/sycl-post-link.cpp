@@ -495,17 +495,13 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 }
 
 // Input parameter ModuleEntryPoints contains group of entry points with same
-// values of the sycl-module-id attribute. ResSymbolsStr is a string with entry
+// values of the sycl-module-id attribute. SymbolsStr is a string with entry
 // point names from the same module separated by \n.
-std::string collectSymbolsList(const FuncPtrVector *ModuleEntryPoints) {
-  std::string ResSymbolsStr;
-  // ModuleEntryPoints is nullptr if there are no entry points in input module.
-  if (ModuleEntryPoints)
-    for (const auto *F : *ModuleEntryPoints) {
-      ResSymbolsStr =
-          (Twine(ResSymbolsStr) + Twine(F->getName()) + Twine("\n")).str();
-    }
-  return ResSymbolsStr;
+std::string collectSymbolsList(const FuncPtrVector &ModuleEntryPoints) {
+  std::string SymbolsStr;
+  for (const auto *F : ModuleEntryPoints)
+    SymbolsStr = (Twine(SymbolsStr) + Twine(F->getName()) + Twine('\n')).str();
+  return SymbolsStr;
 }
 
 // During cloning of Module ValueMap tries to reuse already created old to new
@@ -611,7 +607,7 @@ void saveModule(Module &M, StringRef OutFilename) {
   PrintModule.run(M);
 }
 
-void saveDeviceImageProperty(Module &M, const FuncPtrVector *ModuleEntryPoints,
+void saveDeviceImageProperty(Module &M, const FuncPtrVector &ModuleEntryPoints,
                              const ImagePropSaveInfo &ImgPSInfo,
                              const std::string &PropSetFile) {
   PropSetRegTy PropSet;
@@ -668,9 +664,9 @@ void saveDeviceImageProperty(Module &M, const FuncPtrVector *ModuleEntryPoints,
     }
   }
 
-  if (ImgPSInfo.EmitExportedSymbols && ModuleEntryPoints) {
+  if (ImgPSInfo.EmitExportedSymbols) {
     // Extract the exported functions for a result module
-    for (const auto *F : *ModuleEntryPoints)
+    for (const auto *F : ModuleEntryPoints)
       if (F->getCallingConv() == CallingConv::SPIR_FUNC)
         PropSet[PropSetRegTy::SYCL_EXPORTED_SYMBOLS].insert(
             {F->getName(), true});
@@ -795,10 +791,12 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
     KernelMapEntryScope Scope = selectDeviceCodeSplitScope(*M);
     collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
   }
+  // sycl-post-link always produces a code result, even if input isn't modified.
+  if (GlobalsSet.empty())
+    GlobalsSet[GLOBAL_SCOPE_NAME] = {};
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
   size_t I = 0;
-  auto GlobSetIt = GlobalsSet.cbegin();
 
   // ValueToValueMapTy map should be shared between split Module objects during
   // llvm::CloneModule call. Otherwise, some Value* instances allocated for
@@ -807,20 +805,15 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   // and/or they utilize a lot of memory it may lead to memory overflow.
   ValueToValueMapTy SplitVMap;
 
-  do {
-    const FuncPtrVector *ResModuleGlobals{nullptr};
-    if (GlobSetIt != GlobalsSet.cend())
-      ResModuleGlobals = &(GlobSetIt->second);
-
+  for (const auto &GlobSetIt : GlobalsSet) {
+    const FuncPtrVector &ResModuleGlobals = GlobSetIt.second;
     ModuleUPtr ResM{nullptr};
 
-    if (DoSplit && ResModuleGlobals) {
-      ResM = splitModule(*M, SplitVMap, *ResModuleGlobals);
-    } else {
-      // sycl-post-link always produces a code result, even if it doesn't modify
-      // input.
-      assert(GlobalsSet.size() <= 1);
-      // NOTE: Do not forget that M is no more usable after that.
+    if (DoSplit && !ResModuleGlobals.empty())
+      ResM = splitModule(*M, SplitVMap, ResModuleGlobals);
+    else {
+      // M is no more usable after that. So, only one iteration is expected.
+      assert(GlobalsSet.size() == 1);
       ResM = std::move(M);
     }
 
@@ -840,7 +833,7 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
       std::string ResModuleFile{};
       bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
                                  !IsLLVMUsedRemoved && !SpecConstsMet &&
-                                 (!DoSplit || GlobalsSet.size() <= 1);
+                                 (!DoSplit || GlobalsSet.size() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
       else {
@@ -870,9 +863,7 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
     }
 
     ++I;
-    if (GlobSetIt != GlobalsSet.cend())
-      ++GlobSetIt;
-  } while (GlobSetIt != GlobalsSet.cend());
+  }
 
   return TblFiles;
 }
