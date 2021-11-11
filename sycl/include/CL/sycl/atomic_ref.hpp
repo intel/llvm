@@ -662,7 +662,7 @@ class atomic_ref : public detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
                                                   AddressSpace> {
   static_assert(
       AddressSpace != access::address_space::generic_space,
-      "access::address_space::generic_space is a valid address space but the"
+      "access::address_space::generic_space is a valid address space but the "
       "address space is not supported yet.");
 
 public:
