@@ -1,6 +1,6 @@
 # SYCL(TM) Proposals: Reductions for ND-Range Parallelism
 
-**IMPORTANT**: This specification is a draft.
+**IMPORTANT**: The functionality introduced by this extension is deprecated in favor of the standard reduction functionality outlined in [Section 4.9.2 "Reduction variables"](https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reduction) of the SYCL 2020 Specification, Revision 3.
 
 **NOTE**: Khronos(R) is a registered trademark and SYCL(TM) is a trademark of the Khronos Group, Inc.
 
