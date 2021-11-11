@@ -212,8 +212,8 @@ public:
   /// @}
 
   // Load the object's value from array.
-  template <int N1> std::enable_if_t<N1 == N> copy_from(const Ty (&Arr)[N1]) {
-    __esimd_dbg_print(copy_from(const Ty(&Arr)[N1]));
+  template <int N1> std::enable_if_t<N1 == N> copy_from(const Ty(&&Arr)[N1]) {
+    __esimd_dbg_print(copy_from(const Ty(&&Arr)[N1]));
     vector_type Tmp;
     for (auto I = 0; I < N; ++I) {
       Tmp[I] = Arr[I];
@@ -222,8 +222,8 @@ public:
   }
 
   // Store the object's value to array.
-  template <int N1> std::enable_if_t<N1 == N> copy_to(Ty (&Arr)[N1]) const {
-    __esimd_dbg_print(copy_to(Ty(&Arr)[N1]));
+  template <int N1> std::enable_if_t<N1 == N> copy_to(Ty(&&Arr)[N1]) const {
+    __esimd_dbg_print(copy_to(Ty(&&Arr)[N1]));
     for (auto I = 0; I < N; ++I) {
       Arr[I] = data()[I];
     }
