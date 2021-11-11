@@ -1421,7 +1421,6 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
 
   size_t AmountOfESIMDIntrCalls = 0;
   for (auto &F : M.functions()) {
-    if (!DetectESIMDByMetadata || F.getMetadata(ESIMD_MARKER_MD) != nullptr)
       AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
   }
   // TODO FIXME ESIMD figure out less conservative result
@@ -1431,6 +1430,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
 
 size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
                                          SmallPtrSet<Type *, 4> &GVTS) {
+  if (!FilterF(F))
+    return 0;
+
   // There is a current limitation of GPU vector backend that requires kernel
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with

@@ -64,6 +64,7 @@ constexpr char COL_CODE[] = "Code";
 constexpr char COL_SYM[] = "Symbols";
 constexpr char COL_PROPS[] = "Properties";
 constexpr char ATTR_SYCL_MODULE_ID[] = "sycl-module-id";
+constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
 // Identifying name for global scope
 constexpr char GLOBAL_SCOPE_NAME[] = "<GLOBAL>";
@@ -755,7 +756,16 @@ bool LowerEsimdConstructs(Module &M) {
   {
     ModulePassManager MPM;
     ModuleAnalysisManager MAM;
-    MPM.addPass(SYCLLowerESIMDPass{SplitEsimd});
+    // Register required analysis
+    MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+    auto FilterF = [](const Function& F) {
+      // If SYCL/ESIMD splitting is in effect, LowerEsimdConstructs is
+      // invoked only on ESIMD modules, and lowering must be done on
+      // all functions regardless of presence of ESIMD_MARKER_MD,
+      // otherwise - only on marked functions (by the delimiter pass).
+      return SplitEsimd || F.getMetadata(ESIMD_MARKER_MD) != nullptr;
+    };
+    MPM.addPass(SYCLLowerESIMDPass{ FilterF });
     PreservedAnalyses Res = MPM.run(M, MAM);
     Unmodified &= Res.areAllPreserved();
   }
@@ -918,7 +928,7 @@ ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   // Only process module entry points.
   for (const auto &F : M->functions()) {
     if (isEntryPoint(F)) {
-      if (F.getMetadata("sycl_explicit_simd"))
+      if (F.getMetadata(ESIMD_MARKER_MD))
         EsimdFunctions.push_back(&F);
       else
         SyclFunctions.push_back(&F);

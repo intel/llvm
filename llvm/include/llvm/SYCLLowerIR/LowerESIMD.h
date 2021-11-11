@@ -24,18 +24,20 @@
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
-
 /// SPIRV (ESIMD) target specific pass to transform ESIMD specific constructs
 /// like intrinsics to a form parsable by the ESIMD-aware SPIRV translator.
 class SYCLLowerESIMDPass : public PassInfoMixin<SYCLLowerESIMDPass> {
+  struct AcceptAll {
+    bool operator()(const Function&) const { return true; }
+  };
 public:
-  SYCLLowerESIMDPass(bool DetectESIMDByMetadata = false)
-      : DetectESIMDByMetadata(DetectESIMDByMetadata) {}
+  template <class FuncFilter = AcceptAll>
+  SYCLLowerESIMDPass(FuncFilter F = AcceptAll{}) : FilterF(F) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
   size_t runOnFunction(Function &F, SmallPtrSet<Type *, 4> &);
-  bool DetectESIMDByMetadata;
+  std::function<bool(const Function&)> FilterF;
 };
 
 ModulePass *createSYCLLowerESIMDPass();
