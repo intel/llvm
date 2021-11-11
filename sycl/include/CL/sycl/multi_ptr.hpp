@@ -51,13 +51,6 @@ public:
   multi_ptr(const multi_ptr &rhs) = default;
   multi_ptr(multi_ptr &&) = default;
 #ifdef __SYCL_DEVICE_ONLY__
-  // The attribute opencl_generic used for the generic address space generates
-  // nothing and this constructor is considered as a duplicate for the
-  // multi_ptr(ElementType *pointer) one, so the check is required.
-  template <
-      access::address_space _Space = Space,
-      typename = typename detail::enable_if_t<
-          _Space == Space && Space != access::address_space::generic_space>>
   multi_ptr(pointer_t pointer) : m_Pointer(pointer) {}
 #endif
 
@@ -78,13 +71,6 @@ public:
   multi_ptr &operator=(multi_ptr &&) = default;
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // The attribute opencl_generic used for the generic address space generates
-  // nothing and this operator is considered as a duplicate for the
-  // multi_ptr &operator=(ElementType *pointer) one, so the check is required.
-  template <
-      access::address_space _Space = Space,
-      typename = typename detail::enable_if_t<
-          _Space == Space && Space != access::address_space::generic_space>>
   multi_ptr &operator=(pointer_t pointer) {
     m_Pointer = pointer;
     return *this;
@@ -123,28 +109,26 @@ public:
     return reinterpret_cast<ReturnPtr>(m_Pointer)[index];
   }
 
-  // Only if Space == global_space || global_device_space || generic_space
+  // Only if Space == global_space || global_device_space
   template <int dimensions, access::mode Mode,
             access::placeholder isPlaceholder, typename PropertyListT,
             access::address_space _Space = Space,
             typename = typename detail::enable_if_t<
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
-                 Space == access::address_space::global_device_space ||
-                 Space == access::address_space::generic_space)>>
+                 Space == access::address_space::global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      isPlaceholder, PropertyListT>
                 Accessor) {
     m_Pointer = (pointer_t)(Accessor.get_pointer().get());
   }
 
-  // Only if Space == local_space || generic_space
-  template <
-      int dimensions, access::mode Mode, access::placeholder isPlaceholder,
-      typename PropertyListT, access::address_space _Space = Space,
-      typename = typename detail::enable_if_t<
-          _Space == Space && (Space == access::address_space::local_space ||
-                              Space == access::address_space::generic_space)>>
+  // Only if Space == local_space
+  template <int dimensions, access::mode Mode,
+            access::placeholder isPlaceholder, typename PropertyListT,
+            access::address_space _Space = Space,
+            typename = typename detail::enable_if_t<
+                _Space == Space && Space == access::address_space::local_space>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
                      isPlaceholder, PropertyListT>
                 Accessor)
@@ -170,8 +154,8 @@ public:
   //    2. from multi_ptr<ElementType, Space> to multi_ptr<const ElementType,
   //    Space>
 
-  // Only if Space == global_space || global_device_space || generic_space
-  // and element type is const
+  // Only if Space == global_space || global_device_space and element type is
+  // const
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
@@ -179,23 +163,20 @@ public:
       typename = typename detail::enable_if_t<
           _Space == Space &&
           (Space == access::address_space::global_space ||
-           Space == access::address_space::global_device_space ||
-           Space == access::address_space::generic_space) &&
+           Space == access::address_space::global_device_space) &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
   multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
                      access::target::device, isPlaceholder, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
-  // Only if Space == local_space || generic_space and element type is const
+  // Only if Space == local_space and element type is const
   template <
       int dimensions, access::mode Mode, access::placeholder isPlaceholder,
       typename PropertyListT, access::address_space _Space = Space,
       typename ET = ElementType,
       typename = typename detail::enable_if_t<
-          _Space == Space &&
-          (Space == access::address_space::local_space ||
-           Space == access::address_space::generic_space) &&
+          _Space == Space && Space == access::address_space::local_space &&
           std::is_const<ET>::value && std::is_same<ET, ElementType>::value>>
   multi_ptr(accessor<typename detail::remove_const_t<ET>, dimensions, Mode,
                      access::target::local, isPlaceholder, PropertyListT>
@@ -392,26 +373,23 @@ public:
     return *this;
   }
 
-  // Only if Space == global_space || global_device_space || generic_space
+  // Only if Space == global_space || global_device_space
   template <typename ElementType, int dimensions, access::mode Mode,
             typename PropertyListT, access::address_space _Space = Space,
             typename = typename detail::enable_if_t<
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
-                 Space == access::address_space::global_device_space ||
-                 Space == access::address_space::generic_space)>>
+                 Space == access::address_space::global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
-  // Only if Space == local_space || generic_space
-  template <
-      typename ElementType, int dimensions, access::mode Mode,
-      typename PropertyListT, access::address_space _Space = Space,
-      typename = typename detail::enable_if_t<
-          _Space == Space && (Space == access::address_space::local_space ||
-                              Space == access::address_space::generic_space)>>
+  // Only if Space == local_space
+  template <typename ElementType, int dimensions, access::mode Mode,
+            typename PropertyListT, access::address_space _Space = Space,
+            typename = typename detail::enable_if_t<
+                _Space == Space && Space == access::address_space::local_space>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
@@ -515,26 +493,23 @@ public:
     return *this;
   }
 
-  // Only if Space == global_space || global_device_space || generic_space
+  // Only if Space == global_space || global_device_space
   template <typename ElementType, int dimensions, access::mode Mode,
             typename PropertyListT, access::address_space _Space = Space,
             typename = typename detail::enable_if_t<
                 _Space == Space &&
                 (Space == access::address_space::global_space ||
-                 Space == access::address_space::global_device_space ||
-                 Space == access::address_space::generic_space)>>
+                 Space == access::address_space::global_device_space)>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::device,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
       : multi_ptr(Accessor.get_pointer()) {}
 
-  // Only if Space == local_space || generic_space
+  // Only if Space == local_space
   template <typename ElementType, int dimensions, access::mode Mode,
             typename PropertyListT, access::address_space _Space = Space,
             typename = typename detail::enable_if_t<
-                _Space == Space &&
-                       (Space == access::address_space::local_space ||
-                        Space == access::address_space::generic_space)>>
+                _Space == Space && Space == access::address_space::local_space>>
   multi_ptr(accessor<ElementType, dimensions, Mode, access::target::local,
                      access::placeholder::false_t, PropertyListT>
                 Accessor)
