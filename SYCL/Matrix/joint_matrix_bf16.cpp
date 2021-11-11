@@ -70,18 +70,14 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
-           joint_matrix<ext::oneapi::sub_group, unsigned short, TM, TK> sub_a(
-               sg);
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<unsigned short, TM, TK> sub_a(sg);
            // For B, since current implementation does not support non-packed
-           // layout, users need to specify the updated VNNI sizes along with
-           // the packed_b layout. By default, the layout is row_major and size
-           // is (TK, TN).
-           joint_matrix<ext::oneapi::sub_group, unsigned short, TK, TN,
-                        matrix_layout::packed_b>
-               sub_b(sg);
-           joint_matrix<ext::oneapi::sub_group, float, TM, TN> sub_c(sg);
-
+           // layout, users need to specify the packed_b layout.
+           // By default, the layout is row_major
+           joint_matrix<unsigned short, TK, TN, matrix_layout::packed_b> sub_b(
+               sg);
+           joint_matrix<float, TM, TN> sub_c(sg);
            joint_matrix_load(sg, sub_c,
                              accC.get_pointer() + (sg_startx * TM) * N +
                                  sg_starty / SG_SZ * TN,
