@@ -2,6 +2,8 @@
 
 // Tests for IR of Intel FPGA [[intel::use_stall_enable_clusters]] function attribute on Host (no-op in IR-CodeGen for host-mode).
 
+class kernel_name_1;
+
 [[intel::use_stall_enable_clusters]] void test() {}
 
 void test1() {

@@ -6,6 +6,8 @@
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/online_compiler.hpp>
 
+class Test;
+
 int main() {
   cl_context ClCtx;
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::context'}}

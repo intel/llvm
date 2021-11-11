@@ -5,6 +5,8 @@ __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {
   kernelFunc();
 }
 
+class kernel_name_1;
+
 template <int SIZE>
 class KernelFunctor5 {
 public:

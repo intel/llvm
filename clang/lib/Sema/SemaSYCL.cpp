@@ -3506,9 +3506,29 @@ public:
             IsInvalid = true;
             return;
           }
-          // Check if the declaration is completely defined within a
-          // function or class/struct.
-          if (Tag->isCompleteDefinition()) {
+
+          // Diagnose used types without complete definition only on host
+          // because only on host with help of integration header possible to
+          // differentiate case like this:
+          // int main() {
+          //   parallel_for<class KernelName>(..);
+          // }
+          // which uses technically non-forward declarable kernel name type but
+          // still allowed by SYCL spec, from case like this:
+          // int main() {
+          //   class KernelName;
+          //   parallel_for<class KernelName>(..);
+          // }
+          // which should be diagnosed, since the errors are emitted in runtime.
+          //
+          // Everything works when KernelName typename is used directly in
+          // parallel_for, because in this case when the type KernelName is
+          // forward declared by integration header, host uses ::KernelName
+          // typename.
+          // However when KernelName is forward declared in non-global/namespace
+          // scope it actually produces a separate delclaration main::KernelName
+          // which is not visible for runtime code that submits kernels.
+          if (Tag->isCompleteDefinition() || S.getLangOpts().SYCLIsHost) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
                 << /* kernel name should be forward declarable at namespace
@@ -3558,14 +3578,20 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
+  QualType KernelNameType =
+      calculateKernelNameType(getASTContext(), KernelFunc);
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
+      *this, Args[0]->getExprLoc(), KernelNameType,
+      IsSYCLUnnamedKernel(*this, KernelFunc));
+    KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
+
   // FIXME: In place until the library works around its 'host' invocation
   // issues.
   if (!LangOpts.SYCLIsDevice)
     return;
+
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
-  QualType KernelNameType =
-      calculateKernelNameType(getASTContext(), KernelFunc);
 
   if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
@@ -3606,15 +3632,10 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                             IsSIMDKernel);
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
-      *this, Args[0]->getExprLoc(), KernelNameType,
-      IsSYCLUnnamedKernel(*this, KernelFunc));
 
   DiagnosingSYCLKernel = true;
 
   // Emit diagnostics for SYCL device kernels only
-  if (LangOpts.SYCLIsDevice)
-    KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
