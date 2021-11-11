@@ -170,10 +170,11 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
 /// present and lower-casing the string on Windows.
 static std::string normalizeProgramName(llvm::StringRef Argv0) {
   std::string ProgName = std::string(llvm::sys::path::stem(Argv0));
-#ifdef _WIN32
-  // Transform to lowercase for case insensitive file systems.
-  std::transform(ProgName.begin(), ProgName.end(), ProgName.begin(), ::tolower);
-#endif
+  if (is_style_windows(llvm::sys::path::Style::native)) {
+    // Transform to lowercase for case insensitive file systems.
+    std::transform(ProgName.begin(), ProgName.end(), ProgName.begin(),
+                   ::tolower);
+  }
   return ProgName;
 }
 
@@ -1218,7 +1219,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (A->getValue(0) == getTripleString())
+        if (getDriver().MakeSYCLDeviceTriple(A->getValue(0)) == getTriple())
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;
