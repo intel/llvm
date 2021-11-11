@@ -123,7 +123,7 @@ constexpr bool modeWritesNewData(access::mode m) {
 #define __OPENCL_LOCAL_AS__ __attribute__((opencl_local))
 #define __OPENCL_CONSTANT_AS__ __attribute__((opencl_constant))
 #define __OPENCL_PRIVATE_AS__ __attribute__((opencl_private))
-#define __OPENCL_GENERIC_AS__
+#define __OPENCL_GENERIC_AS__ __attribute__((opencl_generic))
 #else
 #define __OPENCL_GLOBAL_AS__
 #define __OPENCL_GLOBAL_DEVICE_AS__
