@@ -397,8 +397,7 @@ public:
     if (!PostAllocaInsertPt) {
       assert(AllocaInsertPt &&
              "Expected static alloca insertion point at function prologue");
-      auto *EBB = AllocaInsertPt->getParent();
-      assert(EBB->isEntryBlock() &&
+      assert(AllocaInsertPt->getParent()->isEntryBlock() &&
              "EBB should be entry block of the current code gen function");
       PostAllocaInsertPt = AllocaInsertPt->clone();
       PostAllocaInsertPt->setName("postallocapt");
@@ -4099,10 +4098,9 @@ public:
   RValue EmitCUDAKernelCallExpr(const CUDAKernelCallExpr *E,
                                 ReturnValueSlot ReturnValue);
 
-  RValue EmitNVPTXDevicePrintfCallExpr(const CallExpr *E,
-                                       ReturnValueSlot ReturnValue);
-  RValue EmitAMDGPUDevicePrintfCallExpr(const CallExpr *E,
-                                        ReturnValueSlot ReturnValue);
+  RValue EmitNVPTXDevicePrintfCallExpr(const CallExpr *E);
+  RValue EmitAMDGPUDevicePrintfCallExpr(const CallExpr *E);
+  RValue EmitOpenMPDevicePrintfCallExpr(const CallExpr *E);
 
   RValue EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
                          const CallExpr *E, ReturnValueSlot ReturnValue);
