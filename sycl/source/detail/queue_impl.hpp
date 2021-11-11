@@ -94,8 +94,7 @@ public:
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
-        MAvoidEventCreation(
-            has_property<property::queue::avoid_event_creation>()) {
+        MDiscardEvents(has_property<property::queue::discard_events>()) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -121,8 +120,7 @@ public:
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
-        MAvoidEventCreation(
-            has_property<property::queue::avoid_event_creation>()) {
+        MDiscardEvents(has_property<property::queue::discard_events>()) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -173,8 +171,8 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
-  /// \return true if this queue has avoid_event_creation property.
-  bool avoid_event_creation() const { return MAvoidEventCreation; }
+  /// \return true if this queue has discard_events property.
+  bool discard_events() const { return MDiscardEvents; }
 
   /// Queries SYCL queue for information.
   ///
@@ -306,19 +304,19 @@ public:
       Plugin.checkPiResult(Error);
     }
 
-    if (MAvoidEventCreation) {
+    if (MDiscardEvents) {
       if (enable_profiling)
         throw cl::sycl::invalid_parameter_error(
             "enable_profiling cannot be used together with "
-            "avoid_event_creation.",
+            "discard_events.",
             PI_INVALID_OPERATION);
       if (!MIsInorder)
         throw cl::sycl::invalid_parameter_error(
-            "OOO queue cannot be used together with avoid_event_creation.",
+            "OOO queue cannot be used together with discard_events.",
             PI_INVALID_OPERATION);
       if (Plugin.getBackend() == backend::level_zero)
         throw cl::sycl::invalid_parameter_error(
-            "Level_zero temporarily does not support avoid_event_creation",
+            "Level_zero temporarily does not support discard_events.",
             PI_INVALID_OPERATION);
     }
     return Queue;
@@ -488,16 +486,16 @@ private:
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
     const bool IsKernel = Type == CG::Kernel;
-    if (IsKernel && MAvoidEventCreation) {
+    if (IsKernel && MDiscardEvents) {
       if (Handler.MRequirements.size() != 0)
         throw cl::sycl::invalid_parameter_error(
             "Global accessors cannot be used together with "
-            "avoid_event_creation.",
+            "discard_events.",
             PI_INVALID_OPERATION);
       if (PostProcess)
         throw cl::sycl::invalid_parameter_error(
             "Fallback assert cannot be used together with "
-            "avoid_event_creation.",
+            "discard_events.",
             PI_INVALID_OPERATION);
       Handler.finalize();
       return event();
@@ -589,7 +587,7 @@ private:
   std::mutex MLastEventMtx;
 
   const bool MIsInorder;
-  const bool MAvoidEventCreation;
+  const bool MDiscardEvents;
 };
 
 } // namespace detail

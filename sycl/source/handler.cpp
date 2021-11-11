@@ -211,7 +211,7 @@ event handler::finalize() {
                               NewEvent, nullptr);
     };
 
-    if (MQueue->avoid_event_creation()) {
+    if (MQueue->discard_events()) {
       if (CL_SUCCESS != EnqueueKernel())
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
     } else {
