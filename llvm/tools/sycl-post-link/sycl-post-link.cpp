@@ -197,7 +197,6 @@ cl::opt<bool> ReduceMemoryUsage{
     cl::cat(PostLinkCat), cl::init(false)};
 
 struct ImagePropSaveInfo {
-  bool SetSpecConstAtRT;
   bool SpecConstsMet;
   bool EmitKernelParamInfo;
   bool EmitProgramMetadata;
@@ -750,8 +749,8 @@ bool transformSpecConstants(Module &M) {
   bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
   if (!DoSpecConst)
     return false;
-
   bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
+
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
   SpecConstantsPass SCP(SetSpecConstAtRT);
@@ -796,9 +795,6 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
     KernelMapEntryScope Scope = selectDeviceCodeSplitScope(*M);
     collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
   }
-
-  bool DoSpecConst = SpecConstLower.getNumOccurrences() > 0;
-  bool SetSpecConstAtRT = DoSpecConst && (SpecConstLower == SC_USE_RT_VAL);
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
   size_t I = 0;
@@ -857,9 +853,9 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
     }
 
     {
-      ImagePropSaveInfo ImgPSInfo = {SetSpecConstAtRT,    SpecConstsMet,
-                                     EmitKernelParamInfo, EmitProgramMetadata,
-                                     EmitExportedSymbols, IsEsimd};
+      ImagePropSaveInfo ImgPSInfo = {SpecConstsMet, EmitKernelParamInfo,
+                                     EmitProgramMetadata, EmitExportedSymbols,
+                                     IsEsimd};
       std::string PropSetFile = makeResultFileName(".prop", I, FileSuffix);
       saveDeviceImageProperty(*ResM, ResModuleGlobals, ImgPSInfo, PropSetFile);
       TblFiles[COL_PROPS].push_back(PropSetFile);
