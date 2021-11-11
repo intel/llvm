@@ -1,7 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -o %t.out
 
-// expected-no-diagnostics
-
 #include <CL/sycl/atomic_ref.hpp>
 
 struct A {};
@@ -22,6 +20,6 @@ int main() {
   A* p = &a;
   auto ref_p = sycl::atomic_ref<A *, sycl::memory_order_acq_rel,
                                 sycl::memory_scope_device>(p);
-
+  // expected-error@-2 {{access::address_space::generic_space is a valid address space but the address space is not supported yet.}}
   return 0;
 }

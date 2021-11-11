@@ -660,6 +660,11 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
               access::address_space::generic_space>
 class atomic_ref : public detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
                                                   AddressSpace> {
+  static_assert(
+      AddressSpace != access::address_space::generic_space,
+      "access::address_space::generic_space is a valid address space but the"
+      "address space is not supported yet.");
+
 public:
   using detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
                                 AddressSpace>::atomic_ref_impl;
