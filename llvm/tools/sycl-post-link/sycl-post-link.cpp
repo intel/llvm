@@ -630,8 +630,8 @@ void saveDeviceImageProperty(Module &M, const FuncPtrVector &ModuleEntryPoints,
 
     // Add property with the default values of spec constants
     std::vector<char> DefaultValues;
-    SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
-        M, DefaultValues);
+    SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(M,
+                                                                DefaultValues);
     PropSet.add(PropSetRegTy::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES, "all",
                 DefaultValues);
   }
