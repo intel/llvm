@@ -14,6 +14,13 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+template <backend Backend, typename SYCLObjectT> struct interop;
+
+template <backend Backend, typename T> struct BackendInput;
+
+template <backend Backend, typename T> struct BackendReturn;
+
 template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakePlatform = false;
   static constexpr bool MakeDevice = false;
