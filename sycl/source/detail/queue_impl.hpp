@@ -94,7 +94,8 @@ public:
         MPropList(PropList), MHostQueue(MDevice->is_host()),
         MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(has_property<property::queue::discard_events>()) {
+        MDiscardEvents(
+            has_property<ext::oneapi::property::queue::discard_events>()) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -120,7 +121,8 @@ public:
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(),
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
-        MDiscardEvents(has_property<property::queue::discard_events>()) {
+        MDiscardEvents(
+            has_property<ext::oneapi::property::queue::discard_events>()) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 

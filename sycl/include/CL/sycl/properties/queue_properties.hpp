@@ -18,13 +18,19 @@ namespace queue {
 class in_order : public detail::DataLessProperty<detail::InOrder> {};
 class enable_profiling
     : public detail::DataLessProperty<detail::QueueEnableProfiling> {};
-class discard_events : public detail::DataLessProperty<detail::DiscardEvents> {
-};
 } // namespace queue
 } // namespace property
 
 namespace ext {
 namespace oneapi {
+
+namespace property {
+namespace queue {
+class discard_events : public ::cl::sycl::detail::DataLessProperty<
+                           ::cl::sycl::detail::DiscardEvents> {};
+} // namespace queue
+} // namespace property
+
 namespace cuda {
 namespace property {
 namespace queue {
@@ -54,7 +60,8 @@ template <> struct is_property<property::queue::in_order> : std::true_type {};
 template <>
 struct is_property<property::queue::enable_profiling> : std::true_type {};
 template <>
-struct is_property<property::queue::discard_events> : std::true_type {};
+struct is_property<ext::oneapi::property::queue::discard_events>
+    : std::true_type {};
 template <>
 struct is_property<property::queue::cuda::use_default_stream> : std::true_type {
 };
@@ -68,8 +75,8 @@ template <>
 struct is_property_of<property::queue::enable_profiling, queue>
     : std::true_type {};
 template <>
-struct is_property_of<property::queue::discard_events, queue> : std::true_type {
-};
+struct is_property_of<ext::oneapi::property::queue::discard_events, queue>
+    : std::true_type {};
 template <>
 struct is_property_of<property::queue::cuda::use_default_stream, queue>
     : std::true_type {};
