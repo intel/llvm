@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 // This pass "delimits" SYCL and ESIMD code within a module - makes sure
 // callgraphs starting from SYCL and ESIMD roots do not intersect, cloning
-// functions participating in both callgraphs. Functions from ESIMD callgrpahs
-// are also marked with "sycl_explicit_simd" metadata. This is done for easier
-// JIT-time SYCL/ESIMD device code redirection to scalar/vector backends.
+// functions participating in both callgraphs. Functions from both callgrpahs
+// are marked with specific attributes. This is done for faster JIT-time
+// SYCL/ESIMD device code separation and redirection to scalar/vector backends.
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_SYCLLOWERIR_DELIMITESIMDANDSYCL_H
