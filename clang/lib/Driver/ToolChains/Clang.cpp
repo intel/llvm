@@ -9060,7 +9060,10 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   // Enable PI program metadata
   if (getToolChain().getTriple().isNVPTX())
     addArgs(CmdArgs, TCArgs, {"-emit-program-metadata"});
-  if (SYCLPostLink->getTrueType() == types::TY_LLVM_BC) {
+
+  bool SingleOutput = SYCLPostLink->getTrueType() == types::TY_LLVM_BC;
+
+  if (SingleOutput) {
     // single file output requested - this means only perform necessary IR
     // transformations (like specialization constant intrinsic lowering) and
     // output LLVMIR
@@ -9071,8 +9074,22 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     // add options unconditionally
     addArgs(CmdArgs, TCArgs, {"-symbols"});
     addArgs(CmdArgs, TCArgs, {"-emit-exported-symbols"});
-    addArgs(CmdArgs, TCArgs, {"-split-esimd"});
-    addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
+  }
+  {
+    bool EsimdDefault = getToolChain().getTriple().isSPIR();
+    bool SplitEsimd =
+        TCArgs.hasFlag(options::OPT_fsycl_device_code_split_esimd,
+                       options::OPT_fno_sycl_device_code_split_esimd,
+                       EsimdDefault && !SingleOutput);
+    bool LowerEsimd =
+        TCArgs.hasFlag(options::OPT_fsycl_lower_esimd,
+                       options::OPT_fno_sycl_lower_esimd, EsimdDefault);
+    // TODO diagnose incompatible options usage
+
+    if (SplitEsimd)
+      addArgs(CmdArgs, TCArgs, {"-split-esimd"});
+    if (LowerEsimd)
+      addArgs(CmdArgs, TCArgs, {"-lower-esimd"});
   }
   addArgs(CmdArgs, TCArgs,
           {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
