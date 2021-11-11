@@ -8,9 +8,9 @@
 
 #include <spirv/spirv.h>
 
+#include "utils.h"
 #include <../../include/libdevice.h>
 #include <clcmacro.h>
-#include "utils.h"
 
 #define __CLC_FUNCTION __spirv_ocl_nextafter
 #define __CLC_BUILTIN __nv_nextafter
@@ -33,4 +33,3 @@ _CLC_DEFINE_BINARY_BUILTIN(double, __CLC_FUNCTION, __CLC_BUILTIN_D, double,
 #include "../../../generic/libspirv/math/half_nextafter.inc"
 
 #endif
-

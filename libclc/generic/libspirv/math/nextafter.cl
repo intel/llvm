@@ -22,4 +22,3 @@ _CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_nextafter, __builtin_nextafter,
 #endif
 
 #include "half_nextafter.inc"
-
