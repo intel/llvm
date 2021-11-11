@@ -54,6 +54,8 @@ template <> struct is_property<property::queue::in_order> : std::true_type {};
 template <>
 struct is_property<property::queue::enable_profiling> : std::true_type {};
 template <>
+struct is_property<property::queue::avoid_event_creation> : std::true_type {};
+template <>
 struct is_property<property::queue::cuda::use_default_stream> : std::true_type {
 };
 template <>
@@ -64,6 +66,9 @@ template <>
 struct is_property_of<property::queue::in_order, queue> : std::true_type {};
 template <>
 struct is_property_of<property::queue::enable_profiling, queue>
+    : std::true_type {};
+template <>
+struct is_property_of<property::queue::avoid_event_creation, queue>
     : std::true_type {};
 template <>
 struct is_property_of<property::queue::cuda::use_default_stream, queue>
