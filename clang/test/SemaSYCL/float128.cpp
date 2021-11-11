@@ -29,7 +29,7 @@ void host_ok(void) {
   C.field1 = A;
 }
 
-long double ld_func(long double arg);
+long double ld_func(long double arg) { return 0; };
 
 void usage() {
   // expected-note@+2 3{{'A' defined here}}
