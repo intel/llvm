@@ -1,4 +1,4 @@
-// RUN:  %clangxx -fsycl-device-only -fsycl-early-optimizations -fsycl-dead-args-optimization -D__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ -Xclang -verify -Xclang -verify-ignore-unexpected=note -S -emit-llvm -o - %s
+// RUN:  %clangxx -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -emit-llvm -o - %s
 
 #include <CL/sycl.hpp>
 
