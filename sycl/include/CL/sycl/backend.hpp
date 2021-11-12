@@ -9,11 +9,20 @@
 #pragma once
 
 #include <CL/sycl/accessor.hpp>
-#include <CL/sycl/backend.hpp>
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/backend_traits.hpp>
+#include <CL/sycl/feature_test.hpp>
+#if SYCL_BACKEND_OPENCL
+#include <CL/sycl/detail/backend_traits_opencl.hpp>
+#endif
+#if SYCL_EXT_ONEAPI_BACKEND_CUDA
+#include <CL/sycl/detail/backend_traits_cuda.hpp>
+#endif
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+#include <CL/sycl/detail/backend_traits_level_zero.hpp>
+#endif
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/pi.h>
@@ -31,16 +40,6 @@ __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 namespace detail {
-template <backend Backend, typename T> struct BackendInput {
-  // TODO replace usage of interop with specializations.
-  using type = typename interop<Backend, T>::type;
-};
-
-template <backend Backend, typename T> struct BackendReturn {
-  // TODO replace usage of interop with specializations.
-  using type = typename interop<Backend, T>::type;
-};
-
 // TODO each backend can have its own custom errc enumeration
 // but the details for this are not fully specified yet
 enum class backend_errc : unsigned int {};
@@ -69,8 +68,10 @@ template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT> {
   // TODO use SYCL 2020 exception when implemented
-  if (Obj.get_backend() != BackendName)
+  if (Obj.get_backend() != BackendName) {
     throw runtime_error("Backends mismatch", PI_INVALID_OPERATION);
+  }
+
   return Obj.template get_native<BackendName>();
 }
 
@@ -80,9 +81,9 @@ template <backend BackendName, typename DataT, int Dimensions,
           access::placeholder IsPlaceholder>
 auto get_native(const accessor<DataT, Dimensions, AccessMode, AccessTarget,
                                IsPlaceholder> &Obj) ->
-    typename interop<BackendName, accessor<DataT, Dimensions, AccessMode,
-                                           AccessTarget, IsPlaceholder>>::type =
-    delete;
+    typename detail::interop<
+        BackendName, accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                              IsPlaceholder>>::type = delete;
 
 namespace detail {
 // Forward declaration

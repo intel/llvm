@@ -310,6 +310,7 @@ void collectCompositeElementsDefaultValuesRecursive(
     }
   } else if (auto *StructTy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = M.getDataLayout().getStructLayout(StructTy);
+    const size_t BaseDefaultValueOffset = DefaultValues.size();
     for (size_t I = 0, E = StructTy->getNumElements(); I < E; ++I) {
       Constant *El = nullptr;
       if (C->isZeroValue())
@@ -330,9 +331,16 @@ void collectCompositeElementsDefaultValuesRecursive(
       collectCompositeElementsDefaultValuesRecursive(M, El, LocalOffset,
                                                      DefaultValues);
     }
+    const size_t SLSize = SL->getSizeInBytes();
+
+    // Additional padding may be needed at the end of the struct if size does
+    // not match the number of bytes inserted.
+    if (DefaultValues.size() < BaseDefaultValueOffset + SLSize)
+      DefaultValues.resize(BaseDefaultValueOffset + SLSize);
+
     // Update "global" offset according to the total size of a handled struct
     // type.
-    Offset += SL->getSizeInBytes();
+    Offset += SLSize;
   } else { // Assume that we encountered some scalar element
     int NumBytes = M.getDataLayout().getTypeStoreSize(Ty);
 
@@ -648,13 +656,14 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
       }
 
+      bool IsNewSpecConstant = false;
       if (SetValAtRT) {
         // 2. Spec constant value will be set at run time - then add the literal
         // to a "spec const string literal ID" -> "vector of integer IDs" map,
         // uniquing the integer IDs if this is a new literal
         auto Ins =
             IDMap.insert(std::make_pair(SymID, SmallVector<unsigned, 1>{}));
-        bool IsNewSpecConstant = Ins.second;
+        IsNewSpecConstant = Ins.second;
         auto &IDs = Ins.first->second;
         if (IsNewSpecConstant) {
           // For any spec constant type there will be always at least one ID
@@ -693,7 +702,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           // "offset" map, uniquing the integer offsets if this is new
           // literal.
           auto Ins = OffsetMap.insert(std::make_pair(SymID, NextOffset));
-          bool IsNewSpecConstant = Ins.second;
+          IsNewSpecConstant = Ins.second;
           unsigned CurrentOffset = Ins.first->second;
           if (IsNewSpecConstant) {
             unsigned Size = M.getDataLayout().getTypeStoreSize(SCTy);
@@ -724,16 +733,16 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           if (SCTy->isIntegerTy(1)) // trunc back to i1 if necessary
             Replacement = CastInst::CreateIntegerCast(
                 Replacement, SCTy, /* IsSigned */ false, "tobool", CI);
-
-          if (IsNewSpecConstant && DefaultValue)
-            DefaultsMetadata.push_back(
-                generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
         } else {
           // Replace the intrinsic with default C++ value for the spec constant
           // type.
           Replacement = getDefaultCPPValue(SCTy);
         }
       }
+
+      if (IsNewSpecConstant && DefaultValue)
+        DefaultsMetadata.push_back(
+            generateSpecConstDefaultValueMetadata(SymID, DefaultValue));
 
       if (HasSretParameter) {
         // If __sycl_getCompositeSpecConstant returns through argument, then the
@@ -765,13 +774,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   for (const auto &P : SCMetadata)
     MD->addOperand(P.second);
 
-  // Emit default values metadata only in native (default) spec constants mode.
-  if (!SetValAtRT) {
-    NamedMDNode *MDDefaults =
-        M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
-    for (const auto &P : DefaultsMetadata)
-      MDDefaults->addOperand(P);
-  }
+  // Emit default values metadata
+  NamedMDNode *MDDefaults =
+      M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
+  for (const auto &P : DefaultsMetadata)
+    MDDefaults->addOperand(P);
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
