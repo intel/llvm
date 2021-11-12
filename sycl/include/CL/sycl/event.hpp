@@ -141,8 +141,8 @@ public:
   /// \return a native handle vector for opencl according to specification.
   template <backend BackendName>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  detail::enable_if_t<(BackendName == backend::opencl), std::vector<cl_event>>
-  get_native() const {
+  detail::enable_if_t<(BackendName == backend::opencl),
+                      std::vector<cl_event>> get_native() const {
     backend_return_t<BackendName, event> ReturnValue;
     for (auto const &element : getNativeVector()) {
       ReturnValue.push_back(
