@@ -552,7 +552,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
     std::ios_base::fmtflags FlagsBackup = Out.flags();
     Out << std::hex;
     for (const auto &Byte : BA) {
-      Out << "0x" << Byte << " ";
+      Out << "0x" << static_cast<unsigned>(Byte) << " ";
     }
     Out.flags(FlagsBackup);
     break;
