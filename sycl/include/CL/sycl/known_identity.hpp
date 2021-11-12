@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/detail/generic_type_traits.hpp>
+#include <CL/sycl/functional.hpp>
 #include <functional>
 #include <limits>
 #include <type_traits>

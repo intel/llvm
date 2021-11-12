@@ -23,14 +23,14 @@ using namespace detail;
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<platform>
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle) {
-  return detail::make_platform(NativeHandle, backend::level_zero);
+  return detail::make_platform(NativeHandle, backend::ext_oneapi_level_zero);
 }
 
 //----------------------------------------------------------------------------
 // Implementation of level_zero::make<device>
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  pi_native_handle NativeHandle) {
-  const auto &Plugin = pi::getPlugin<backend::level_zero>();
+  const auto &Plugin = pi::getPlugin<backend::ext_oneapi_level_zero>();
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create PI device first.
   pi::PiDevice PiDevice;
@@ -46,7 +46,7 @@ __SYCL_EXPORT device make_device(const platform &Platform,
 __SYCL_EXPORT context make_context(const std::vector<device> &DeviceList,
                                    pi_native_handle NativeHandle,
                                    bool KeepOwnership) {
-  const auto &Plugin = pi::getPlugin<backend::level_zero>();
+  const auto &Plugin = pi::getPlugin<backend::ext_oneapi_level_zero>();
   // Create PI context first.
   pi_context PiContext;
   std::vector<pi_device> DeviceHandles;
@@ -86,7 +86,7 @@ __SYCL_EXPORT queue make_queue(const context &Context,
   const auto &ContextImpl = getSyclObjImpl(Context);
   return detail::make_queue(NativeHandle, Context, KeepOwnership,
                             ContextImpl->get_async_handler(),
-                            backend::level_zero);
+                            backend::ext_oneapi_level_zero);
 }
 
 // TODO: remove this version (without ownership) when allowed to break ABI.
@@ -101,7 +101,7 @@ __SYCL_EXPORT event make_event(const context &Context,
                                pi_native_handle NativeHandle,
                                bool KeepOwnership) {
   return detail::make_event(NativeHandle, Context, KeepOwnership,
-                            backend::level_zero);
+                            backend::ext_oneapi_level_zero);
 }
 
 } // namespace level_zero
