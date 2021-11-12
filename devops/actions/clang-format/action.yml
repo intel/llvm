@@ -4,9 +4,10 @@ runs:
   using: "composite"
   steps:
   - name: Run clang-format for the patch
-    shell: bash
+    shell: bash {0}
     run: |
-      git clang-format ${GITHUB_SHA}^1 > ./clang-format.patch
+      git clang-format ${GITHUB_SHA}^1
+      git diff > ./clang-format.patch
   # Add patch with formatting fixes to CI job artifacts
   - uses: actions/upload-artifact@v1
     with:
