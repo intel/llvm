@@ -462,9 +462,12 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
 }
 
 // ---- group_broadcast
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     std::is_trivially_copyable<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -479,7 +482,8 @@ group_broadcast(Group, T x, typename Group::id_type local_id) {
 
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     std::is_trivially_copyable<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -497,7 +501,8 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     std::is_trivially_copyable<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
