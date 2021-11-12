@@ -1,4 +1,4 @@
-//==----- atomic_ref.hpp - SYCL_ONEAPI_extended_atomics atomic_ref ---------==//
+//==----- atomic_ref.hpp - SYCL 2020 atomic_ref ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,8 @@
 
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/atomic.hpp>
-#include <sycl/ext/oneapi/atomic_enums.hpp>
+#include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/memory_enums.hpp>
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/multi_ptr.hpp>
@@ -23,15 +24,10 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ext {
-namespace oneapi {
 namespace detail {
 
-// Import from detail:: into ext::oneapi::detail:: to improve readability later
-using namespace ::cl::sycl::detail;
-
-using memory_order = cl::sycl::ext::oneapi::memory_order;
-using memory_scope = cl::sycl::ext::oneapi::memory_scope;
+using memory_order = cl::sycl::memory_order;
+using memory_scope = cl::sycl::memory_scope;
 
 template <typename T> struct IsValidAtomicRefType {
   static constexpr bool value =
@@ -44,10 +40,13 @@ template <typename T> struct IsValidAtomicRefType {
 };
 
 template <cl::sycl::access::address_space AS>
-using IsValidAtomicAddressSpace =
-    bool_constant<AS == access::address_space::global_space ||
-                  AS == access::address_space::local_space ||
-                  AS == access::address_space::global_device_space>;
+struct IsValidAtomicRefAddressSpace {
+  static constexpr bool value =
+      (AS == access::address_space::global_space ||
+       AS == access::address_space::local_space ||
+       AS == access::address_space::global_device_space ||
+       AS == access::address_space::generic_space);
+};
 
 // DefaultOrder parameter is limited to read-modify-write orders
 template <memory_order Order>
@@ -74,17 +73,17 @@ template <> struct memory_order_traits<memory_order::seq_cst> {
 
 inline constexpr memory_order getLoadOrder(memory_order order) {
   switch (order) {
-  case memory_order_relaxed:
-    return memory_order_relaxed;
+  case memory_order::relaxed:
+    return memory_order::relaxed;
 
-  case memory_order_acquire:
+  case memory_order::acquire:
   case memory_order::__consume_unsupported:
-  case memory_order_acq_rel:
-  case memory_order_release:
-    return memory_order_acquire;
+  case memory_order::acq_rel:
+  case memory_order::release:
+    return memory_order::acquire;
 
-  case memory_order_seq_cst:
-    return memory_order_seq_cst;
+  case memory_order::seq_cst:
+    return memory_order::seq_cst;
   }
 }
 
@@ -116,13 +115,19 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
 class atomic_ref_base {
   static_assert(
+      AddressSpace != access::address_space::generic_space,
+      "access::address_space::generic_space is a valid address space but the "
+      "address space is not supported yet.");
+
+  static_assert(
       detail::IsValidAtomicRefType<T>::value,
       "Invalid atomic type.  Valid types are int, unsigned int, long, "
       "unsigned long, long long, unsigned long long, float, double "
       "and pointer types");
-  static_assert(detail::IsValidAtomicAddressSpace<AddressSpace>::value,
-                "Invalid atomic address_space.  Valid address spaces are: "
-                "global_space, local_space, global_device_space");
+  static_assert(
+      detail::IsValidAtomicRefAddressSpace<AddressSpace>::value,
+      "Invalid atomic address_space.  Valid address spaces are: "
+      "global_space, local_space, global_device_space, generic_space");
   static_assert(
       detail::IsValidDefaultOrder<DefaultOrder>::value,
       "Invalid default memory_order for atomics.  Valid defaults are: "
@@ -656,19 +661,16 @@ private:
 } // namespace detail
 
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
-          access::address_space AddressSpace>
-class __SYCL2020_DEPRECATED("use 'sycl::atomic_ref' instead") atomic_ref
-    : public detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
-                                     AddressSpace> {
+          access::address_space AddressSpace =
+              access::address_space::generic_space>
+class atomic_ref : public detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
+                                                  AddressSpace> {
 public:
   using detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
                                 AddressSpace>::atomic_ref_impl;
   using detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
                                 AddressSpace>::operator=;
 };
-
-} // namespace oneapi
-} // namespace ext
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
