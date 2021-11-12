@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-  #include <spirv/spirv.h>
   #include <clcmacro.h>
+  #include <spirv/spirv.h>
  
   void __ocml_sincos_f64(double, double *, double *);
   void __ocml_sincos_f32(float, float *, float * ); 

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
  
-#include <spirv/spirv.h>
 #include <clcmacro.h>
+#include <spirv/spirv.h>
  
 double __ocml_fmin_f64(double,double);
 float __ocml_fmin_f32(float,float);

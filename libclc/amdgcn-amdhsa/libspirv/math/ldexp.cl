@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <spirv/spirv.h>
 #include <clcmacro.h>
 #include <config.h>
 #include <math/math.h>
+#include <spirv/spirv.h>
 
 double __ocml_ldexp_f64(double, int);
 float __ocml_ldexp_f32(float, int);
