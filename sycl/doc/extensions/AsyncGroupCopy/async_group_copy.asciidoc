@@ -1,0 +1,115 @@
+# Async Group Copy Extension for DPC++: SYCL_EXT_ONEAPI_ASYNC_GROUP_COPY
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+:dpcpp: pass:[DPC++]
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
+
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+This extension is written against the SYCL 2020 revision 3 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+## Contributors
+
+* Gordon Brown
+* Tadej Ciglaric
+* Jack Kirk
+* Finlay Marno
+
+## Introduction
+
+This document proposes that `async_work_group_copy` be deprecated and replaced 
+with `async_group_copy`. `async_group_copy` is a non-member function, in line
+with the other group functions, which generalizes `async_work_group_copy` to
+also work with sub-groups.
+
+## Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro
+SYCL_EXT_ONEAPI_ASYNC_GROUP_COPY to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro’s value
+to determine which of the extension’s APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension implementation.
+|===
+
+
+## New `async_group_copy` function.
+Currently the `nd_item` and `group` classes have the member function
+`async_work_group_copy`. These will be deprecated in favor of a single function 
+`async_group_copy` that will have the group as a template parameter, much
+like `group_barrier`.
+
+`async_group_copy` methods would be valid for groups `group` and `sub_group`.
+Note that the destination and source arguments have been have been swapped to be
+more in line with other SYCL copy functions.
+```c++
+namespace sycl::ext::oneapi {
+template <typename Group, typename dataT>
+device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t numElements);
+
+template <typename Group, typename dataT>
+device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t numElements);
+
+template <typename Group, typename dataT>
+device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t numElements, size_t destStride);
+
+template <typename Group, typename dataT>
+device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t numElements, size_t srcStride);
+} // namespace sycl::ext::oneapi
+```
+
+## Change to `device_event::wait` function
+`device_event::wait` will be modified to take the group that will be synchronized in the wait.
+This will be valid for the same groups as `async_group_copy` i.e. `group` or `sub_group`.
+For NVIDIA architectures of sm_80 or higher, the group will be blocked until all
+outstanding async_group_copy requests are completed.
+
+```c++
+namespace sycl {
+  class device_event {
+  ...
+  public:
+    template <typename Group>
+    void ext_oneapi_wait(Group group) noexcept;
+  ...
+  };
+}  // namespace sycl
+```
+
+## Revision History
+
+[frame="none",options="header"]
+|======================
+|Rev |Date       |Author        |Changes
+|1   |2021-11-08 |Finlay Marno  |Initial working draft.
+|======================
