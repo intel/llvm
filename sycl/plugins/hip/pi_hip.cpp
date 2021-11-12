@@ -421,6 +421,23 @@ pi_result _pi_event::start() {
   return result;
 }
 
+bool _pi_event::is_completed() const noexcept {
+  if (!isRecorded_) {
+    return false;
+  }
+  if (!isCompleted_) {
+    const hipError_t ret = hipEventQuery(evEnd_);
+    if (ret != hipSuccess && ret != hipErrorNotReady) {
+      PI_CHECK_ERROR(ret);
+      return false;
+    }
+    if (ret == hipErrorNotReady) {
+      return false;
+    }
+  }
+  return true;
+}
+
 pi_uint64 _pi_event::get_queued_time() const {
   float miliSeconds = 0.0f;
   assert(is_started());

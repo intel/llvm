@@ -423,7 +423,7 @@ public:
 
   bool is_started() const noexcept { return isStarted_; }
 
-  bool is_completed() const noexcept { return isCompleted_; };
+  bool is_completed() const noexcept;
 
   pi_int32 get_execution_status() const noexcept {
 
