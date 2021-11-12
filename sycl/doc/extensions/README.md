@@ -30,7 +30,7 @@ DPC++ extensions status:
 | [LocalMemory](LocalMemory/LocalMemory.asciidoc)                                                                             | Supported(OpenCL; CUDA)                   | Revision 1 of the spec is fully supported, future revisions are expected to expand the functionality |
 | [SYCL_INTEL_static_local_memory_query](StaticLocalMemoryQuery/SYCL_INTEL_static_local_memory_query.asciidoc)                | Proposal                                  | |
 | [Sub-groups for NDRange Parallelism](SubGroupNDRange/SubGroupNDRange.md)                                                    | Deprecated(OpenCL: CPU, GPU)              | |
-| [Sub-groups](SubGroup/SYCL_INTEL_sub_group.asciidoc)                                                                        | Partially supported(OpenCL)               | Not supported: auto/stable sizes, stable query, compiler flags |
+| [Sub-groups](SubGroup/SYCL_INTEL_sub_group.asciidoc)                                                                        | Deprecated                                | |
 | [SYCL_INTEL_unnamed_kernel_lambda](UnnamedKernelLambda/SYCL_INTEL_unnamed_kernel_lambda.asciidoc)                           | Supported(OpenCL)                         | |
 | [Unified Shared Memory](USM/USM.adoc)                                                                                       | Supported(OpenCL)                         | |
 | [Use Pinned Memory Property](UsePinnedMemoryProperty/UsePinnedMemoryPropery.adoc)                                           | Supported                                 | |
