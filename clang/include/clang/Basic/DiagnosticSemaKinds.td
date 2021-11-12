@@ -11451,7 +11451,8 @@ def err_invalid_std_type_in_sycl_kernel : Error<"%0 is an invalid kernel name, "
                                           "%q1 is declared in the 'std' namespace ">;
 
 def err_sycl_kernel_incorrectly_named : Error<
-  "%select{%1 should be globally visible"
+  "%select{%1 is invalid; kernel name should be forward declarable "
+  "at namespace scope"
   "|unscoped enum %1 requires fixed underlying type"
   "|unnamed type %1 is invalid; provide a kernel name, or use "
   "'-fsycl-unnamed-lambda' to enable unnamed kernel lambdas"

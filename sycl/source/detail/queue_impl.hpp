@@ -274,7 +274,8 @@ public:
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
     }
-    if (MPropList.has_property<property::queue::cuda::use_default_stream>()) {
+    if (MPropList.has_property<
+            ext::oneapi::cuda::property::queue::use_default_stream>()) {
       CreationFlags |= __SYCL_PI_CUDA_USE_DEFAULT_STREAM;
     }
     RT::PiQueue Queue{};
