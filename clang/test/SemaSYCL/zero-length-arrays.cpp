@@ -66,9 +66,9 @@ void templatedContext() {
 }
 
 void foo(const unsigned X) {
-  int Arr[0]; // expected-note 2{{declaration 'Arr' of illegal type 'int[0]' is here}}
-  ZEROARR TypeDef; // expected-note {{declaration 'TypeDef' of illegal type 'ZEROARR' (aka 'float[0]') is here}}
-  ZEROARR *Ptr; // expected-note {{declaration 'Ptr' of illegal type 'ZEROARR *' (aka 'float (*)[0]') is here}}
+  int Arr[0]; // expected-note 2{{declared here}}
+  ZEROARR TypeDef; // expected-note {{declared here}}
+  ZEROARR *Ptr; // expected-note {{declared here}}
   // expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<Simple, (lambda at}}
   // expected-error@#KernelSingleTaskKernelFuncCall 3{{zero-length arrays are not permitted in SYCL device code}}
   // expected-note@#KernelSingleTask {{in instantiation of function template specialization}}

@@ -455,9 +455,7 @@ void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
                                diag::note_illegal_field_declared_here)
               << FD->getType()->isPointerType() << FD->getType();
         } else {
-          SYCLDiagIfDeviceCode(D->getLocation(),
-                               diag::note_illegal_type_decl_here)
-              << D << D->getType();
+          SYCLDiagIfDeviceCode(D->getLocation(), diag::note_declared_at);
         }
       }
     }
@@ -465,7 +463,7 @@ void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
     return ErrorFound;
   };
 
-  // In case we have a Record used do the DFS for a bad field
+  // In case we have a Record used do the DFS for a bad field.
   SmallVector<const ValueDecl *, 4> StackForRecursion;
   StackForRecursion.push_back(DeclToCheck);
 
@@ -519,10 +517,9 @@ void Sema::deepTypeCheckForSYCLDevice(SourceLocation UsedAt,
       if (auto *NextFD = dyn_cast<FieldDecl>(Next))
         History.push_back(NextFD);
       // When nullptr is discovered, this means we've gone back up a level, so
-      // the history should be cleaned
+      // the history should be cleaned.
       StackForRecursion.push_back(nullptr);
-      for (const auto *FD : RecDecl->fields())
-        StackForRecursion.push_back(FD);
+      llvm::copy(RecDecl->fields(), std::back_inserter(StackForRecursion));
     }
   } while (!StackForRecursion.empty());
 }
