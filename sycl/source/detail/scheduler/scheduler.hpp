@@ -757,6 +757,7 @@ protected:
   friend class Command;
   friend class DispatchHostTask;
   friend class queue_impl;
+  friend class event_impl;
 
   /// Stream buffers structure.
   ///

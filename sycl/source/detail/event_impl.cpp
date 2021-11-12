@@ -210,6 +210,9 @@ void event_impl::wait(
 
 void event_impl::wait_and_throw(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) {
+  Scheduler &Sched = Scheduler::getInstance();
+  Scheduler::ReadLockT Lock(Sched.MGraphLock);
+
   Command *Cmd = static_cast<Command *>(Self->getCommand());
   QueueImplPtr submittedQueue = nullptr;
   if (Cmd)
