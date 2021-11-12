@@ -9,60 +9,6 @@
 
 #pragma once
 
-#include <CL/sycl/accessor.hpp>
-#include <CL/sycl/backend_types.hpp>
-#include <CL/sycl/context.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/device.hpp>
-#include <CL/sycl/event.hpp>
-#include <CL/sycl/queue.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 
-typedef int CUdevice;
-typedef struct CUctx_st *CUcontext;
-typedef struct CUstream_st *CUstream;
-typedef struct CUevent_st *CUevent;
-typedef struct CUmod_st *CUmodule;
-
-// As defined in the CUDA 10.1 header file. This requires CUDA version > 3.2
-#if defined(_WIN64) || defined(__LP64__)
-typedef unsigned long long CUdeviceptr;
-#else
-typedef unsigned int CUdeviceptr;
-#endif
-
-__SYCL_INLINE_NAMESPACE(cl) {
-namespace sycl {
-
-template <> struct interop<backend::cuda, device> { using type = CUdevice; };
-
-template <> struct interop<backend::cuda, context> { using type = CUcontext; };
-
-template <> struct interop<backend::cuda, queue> { using type = CUstream; };
-
-template <> struct interop<backend::cuda, event> { using type = CUevent; };
-
-#ifdef __SYCL_INTERNAL_API
-template <> struct interop<backend::cuda, program> { using type = CUmodule; };
-#endif
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::cuda,
-               accessor<DataT, Dimensions, AccessMode, access::target::device,
-                        access::placeholder::false_t>> {
-  using type = CUdeviceptr;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::cuda, accessor<DataT, Dimensions, AccessMode,
-                                       access::target::constant_buffer,
-                                       access::placeholder::false_t>> {
-  using type = CUdeviceptr;
-};
-
-template <typename DataT, int Dimensions, typename AllocatorT>
-struct interop<backend::cuda, buffer<DataT, Dimensions, AllocatorT>> {
-  using type = CUdeviceptr;
-};
-
-} // namespace sycl
-} // namespace cl
+__SYCL_WARNING("CL/sycl/backend/cuda.hpp is deprecated and no required anymore")
