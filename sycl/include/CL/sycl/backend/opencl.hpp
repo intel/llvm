@@ -43,7 +43,10 @@ template <> struct interop<backend::opencl, program> {
 };
 #endif
 
-template <> struct interop<backend::opencl, event> { using type = cl_event; };
+template <> struct interop<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
 
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct interop<backend::opencl,
@@ -72,6 +75,17 @@ struct interop<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
 };
 
 namespace detail {
+
+template <> struct BackendInput<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
+
+template <> struct BackendReturn<backend::opencl, event> {
+  using type = std::vector<cl_event>;
+  using value_type = cl_event;
+};
+
 template <bundle_state State>
 struct BackendInput<backend::opencl, kernel_bundle<State>> {
   using type = cl_program;

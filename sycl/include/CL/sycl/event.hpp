@@ -132,15 +132,31 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> typename interop<BackendName, event>::type {
+  detail::enable_if_t<(BackendName != backend::opencl),
+                      typename interop<BackendName, event>::type> get_native()
+      const {
     return reinterpret_cast<typename interop<BackendName, event>::type>(
         getNative());
+  }
+  ///
+  template <backend BackendName>
+  detail::enable_if_t<(BackendName == backend::opencl), std::vector<cl_event>>
+  get_native() const {
+    backend_return_t<BackendName, event> ReturnValue;
+    for (auto const &element : getNativeVector()) {
+      ReturnValue.push_back(
+          reinterpret_cast<typename interop<BackendName, event>::value_type>(
+              element));
+    }
+    return ReturnValue;
   }
 
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
   pi_native_handle getNative() const;
+
+  std::vector<pi_native_handle> getNativeVector() const;
 
   std::shared_ptr<detail::event_impl> impl;
 
