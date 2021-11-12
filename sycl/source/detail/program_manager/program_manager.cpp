@@ -252,7 +252,7 @@ static bool isDeviceBinaryTypeSupported(const context &C,
       detail::getSyclObjImpl(C)->getPlugin().getBackend();
 
   // The CUDA backend cannot use SPIR-V
-  if (ContextBackend == backend::cuda)
+  if (ContextBackend == backend::ext_oneapi_cuda)
     return false;
 
   std::vector<device> Devices = C.get_devices();
