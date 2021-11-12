@@ -1,5 +1,11 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
+//
+//===----------------------------------------------------------------------===//
+// This test checks that sycl::get_native<sycl::backend::opencl>(event) return 
+// std::vector<cl_event> when backend = opencl, according to:
+// SYCL™ 2020 Specification (revision 3)
+//===----------------------------------------------------------------------===//
 
 #include <sycl/sycl.hpp>
 
