@@ -78,7 +78,7 @@ struct PrintingPolicy {
         PrintCanonicalTypes(false),
         SkipCanonicalizationOfTemplateTypeParms(false),
         PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
-        UseIntegerTypeSuffixesAlways(false) {}
+        AlwaysIncludeTypeForTemplateArgument(false) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -339,7 +339,7 @@ struct PrintingPolicy {
 
   /// Whether to use type suffixes (eg: 1U) on integral non-type template
   /// parameters.
-  unsigned UseIntegerTypeSuffixesAlways : 1;
+  unsigned AlwaysIncludeTypeForTemplateArgument : 1;
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;
