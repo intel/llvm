@@ -17,7 +17,7 @@
 :language: {basebackend@docbook:c++:cpp}
 
 == Introduction
-IMPORTANT: This specification is a draft.
+IMPORTANT: The functionality introduced by this extension is deprecated in favor of the standard sub-group functionality outlined in https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sub-group-class[Section 4.9.1.8 "sub_group_class"], https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:group-functions[Section 4.17.3 "Group functions"] and https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:algorithms[Section 4.17.4 "Group algorithms library"] of the SYCL 2020 Specification, Revision 3. All functionality related to a device's "primary" sub-group size will be redefined in a future extension written against SYCL 2020.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
