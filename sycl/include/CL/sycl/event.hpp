@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -132,20 +132,22 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  detail::enable_if_t<(BackendName != backend::opencl),
-                      typename interop<BackendName, event>::type> get_native()
-      const {
-    return reinterpret_cast<typename interop<BackendName, event>::type>(
+  detail::enable_if_t<
+      (BackendName != backend::opencl),
+      typename detail::interop<BackendName, event>::type> get_native() const {
+    return reinterpret_cast<typename detail::interop<BackendName, event>::type>(
         getNative());
   }
-  ///
+  /// \return a native handle vector for opencl according to specification.
   template <backend BackendName>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   detail::enable_if_t<(BackendName == backend::opencl), std::vector<cl_event>>
   get_native() const {
     backend_return_t<BackendName, event> ReturnValue;
     for (auto const &element : getNativeVector()) {
       ReturnValue.push_back(
-          reinterpret_cast<typename interop<BackendName, event>::value_type>(
+          reinterpret_cast<
+              typename detail::interop<BackendName, event>::value_type>(
               element));
     }
     return ReturnValue;

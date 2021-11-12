@@ -238,6 +238,12 @@
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
+??$has_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
+??$get_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@program@sycl@cl@@QEBA?AVuse_primary_context@context@property@cuda@oneapi@ext@12@XZ
+??$get_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@sampler@sycl@cl@@QEBA?AVuse_primary_context@context@property@cuda@oneapi@ext@12@XZ
+??$has_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
+??$get_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@context@sycl@cl@@QEBA?AVuse_primary_context@0property@cuda@oneapi@ext@12@XZ
+??$has_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??0?$image_impl@$00@detail@sycl@cl@@QEAA@AEAV?$shared_ptr@X@std@@W4image_channel_order@23@W4image_channel_type@23@AEBV?$range@$00@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@5@AEBVproperty_list@23@@Z
 ??0?$image_impl@$00@detail@sycl@cl@@QEAA@PEAU_cl_mem@@AEBVcontext@23@Vevent@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@@Z
 ??0?$image_impl@$00@detail@sycl@cl@@QEAA@PEAXW4image_channel_order@23@W4image_channel_type@23@AEBV?$range@$00@23@V?$unique_ptr@VSYCLMemObjAllocator@detail@sycl@cl@@U?$default_delete@VSYCLMemObjAllocator@detail@sycl@cl@@@std@@@std@@AEBVproperty_list@23@@Z

@@ -319,7 +319,14 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 template <typename T, typename ID = T>
-class spec_constant {};
+class spec_constant {
+public:
+  spec_constant() {}
+  explicit constexpr spec_constant(T defaultVal) : DefaultValue(defaultVal) {}
+
+private:
+  T DefaultValue;
+};
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
