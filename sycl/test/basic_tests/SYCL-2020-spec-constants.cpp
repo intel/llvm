@@ -116,6 +116,6 @@ int main() {
 // CHECK-DAG: [[UNIQUE_PREFIX]]____ZL9uint64_id=2|
 // FIXME: check line for half constant
 
-// CHECK-RT-NOT: [SYCL/specialization constants default values]
+// CHECK-RT: [SYCL/specialization constants default values]
 // CHECK-DEF: [SYCL/specialization constants default values]
 // CHECK-DEF: all=2|

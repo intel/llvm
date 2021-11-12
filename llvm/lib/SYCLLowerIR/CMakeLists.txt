@@ -13,7 +13,11 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
+
+    # Author: Aleksander Us <aleksander.us@intel.com>
+    # Date:   Mon Oct 18 18:03:24 2021 +0000
+    #     Wrap arg_size for call instructions
+    set(LLVMGenXIntrinsics_GIT_TAG 6a7e93d3d90638b6565d97cef96ffaf0f77d688c)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)

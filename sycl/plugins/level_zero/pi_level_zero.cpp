@@ -3157,22 +3157,21 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
   else
     Alignment = 1UL;
 
-  pi_result Result;
+  pi_result Result = PI_SUCCESS;
   if (DeviceIsIntegrated) {
-    if (enableBufferPooling())
-      Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-    else {
-      ZeHostMemAllocHelper(&Ptr, Context, Size);
-    }
+    if (enableBufferPooling()) {
+      PI_CALL(piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment));
+    } else
+      Result = ZeHostMemAllocHelper(&Ptr, Context, Size);
   } else if (Context->SingleRootDevice) {
     // If we have a single discrete device or all devices in the context are
     // sub-devices of the same device then we can allocate on device
-    if (enableBufferPooling())
-      Result = piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
-                                   nullptr, Size, Alignment);
-    else {
-      ZeDeviceMemAllocHelper(&Ptr, Context, Context->SingleRootDevice, Size);
-    }
+    if (enableBufferPooling()) {
+      PI_CALL(piextUSMDeviceAlloc(&Ptr, Context, Context->SingleRootDevice,
+                                  nullptr, Size, Alignment));
+    } else
+      Result = ZeDeviceMemAllocHelper(&Ptr, Context, Context->SingleRootDevice,
+                                      Size);
   } else {
     // Context with several gpu cards. Temporarily use host allocation because
     // it is accessible by all devices. But it is not good in terms of
@@ -3180,14 +3179,13 @@ pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags, size_t Size,
     // TODO: We need to either allow remote access to device memory using IPC,
     // or do explicit memory transfers from one device to another using host
     // resources as backing buffers to allow those transfers.
-    if (enableBufferPooling())
-      Result = piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment);
-    else {
-      ZeHostMemAllocHelper(&Ptr, Context, Size);
-    }
+    if (enableBufferPooling()) {
+      PI_CALL(piextUSMHostAlloc(&Ptr, Context, nullptr, Size, Alignment));
+    } else
+      Result = ZeHostMemAllocHelper(&Ptr, Context, Size);
   }
 
-  if (enableBufferPooling() && Result != PI_SUCCESS)
+  if (Result != PI_SUCCESS)
     return Result;
 
   if (HostPtr) {
@@ -3293,7 +3291,8 @@ pi_result piMemRelease(pi_mem Mem) {
         if (enableBufferPooling()) {
           PI_CALL(piextUSMFree(Mem->Context, Mem->getZeHandle()));
         } else {
-          ZeMemFreeHelper(Mem->Context, Mem->getZeHandle());
+          if (auto Res = ZeMemFreeHelper(Mem->Context, Mem->getZeHandle()))
+            return Res;
         }
       }
     }
@@ -5113,7 +5112,8 @@ static pi_result EventRelease(pi_event Event, pi_queue LockedQueue) {
     if (Event->CommandType == PI_COMMAND_TYPE_MEM_BUFFER_UNMAP &&
         Event->CommandData) {
       // Free the memory allocated in the piEnqueueMemBufferMap.
-      ZeMemFreeHelper(Event->Context, Event->CommandData);
+      if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
+        return Res;
       Event->CommandData = nullptr;
     }
     if (Event->OwnZeEvent) {
@@ -5904,7 +5904,8 @@ pi_result piEnqueueMemBufferMap(pi_queue Queue, pi_mem Buffer,
   if (Buffer->MapHostPtr) {
     *RetMap = Buffer->MapHostPtr + Offset;
   } else {
-    ZeHostMemAllocHelper(RetMap, Queue->Context, Size);
+    if (auto Res = ZeHostMemAllocHelper(RetMap, Queue->Context, Size))
+      return Res;
   }
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
