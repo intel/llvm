@@ -54,6 +54,8 @@ using namespace llvm;
 
 using string_vector = std::vector<std::string>;
 using FuncPtrVector = std::vector<const Function *>;
+using StringRefVector = std::vector<StringRef>;
+using GlobalVectorsSet = std::map<StringRef, StringRefVector>;
 using ModuleUPtr = std::unique_ptr<Module>;
 using PropSetRegTy = llvm::util::PropertySetRegistry;
 
@@ -323,10 +325,9 @@ bool isEntryPoint(const Function &F) {
 // ResKernelModuleMap which maps some key to a group of entry points. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-void collectEntryPointToModuleMap(
-    const Module &M, std::map<StringRef, FuncPtrVector> &ResKernelModuleMap,
-    KernelMapEntryScope EntryScope) {
-
+void collectEntryPointToModuleMap(const Module &M,
+                                  GlobalVectorsSet &ResKernelModuleMap,
+                                  KernelMapEntryScope EntryScope) {
   // Only process module entry points:
   for (const auto &F : M.functions()) {
     if (!isEntryPoint(F))
@@ -334,7 +335,7 @@ void collectEntryPointToModuleMap(
 
     switch (EntryScope) {
     case Scope_PerKernel:
-      ResKernelModuleMap[F.getName()].push_back(&F);
+      ResKernelModuleMap[F.getName()].push_back(F.getName());
       break;
     case Scope_PerModule: {
       if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
@@ -347,15 +348,22 @@ void collectEntryPointToModuleMap(
 
       Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
-      ResKernelModuleMap[Val].push_back(&F);
+      ResKernelModuleMap[Val].push_back(F.getName());
       break;
     }
     case Scope_Global:
       // the map key is not significant here
-      ResKernelModuleMap[GLOBAL_SCOPE_NAME].push_back(&F);
+      ResKernelModuleMap[GLOBAL_SCOPE_NAME].push_back(F.getName());
       break;
     }
   }
+}
+
+FuncPtrVector getGlobals(const Module &M, const StringRefVector &GlobalsNames) {
+  FuncPtrVector FuncPtrs;
+  for (const auto &GlobalName : GlobalsNames)
+    FuncPtrs.push_back(M.getFunction(GlobalName));
+  return FuncPtrs;
 }
 
 enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
@@ -735,6 +743,13 @@ bool transformSpecConstants(Module &M) {
 
 using TableFiles = std::map<StringRef, string_vector>;
 
+struct SplitModeInfo {
+  KernelMapEntryScope Scope;
+  bool IsSplit;
+  bool IsSymGen;
+  bool ReduceMemUsage;
+};
+
 // Module split helper.
 // 3 modes of splitting:
 //   1. No split (IsSplit = false). Just provide source module.
@@ -749,47 +764,85 @@ using TableFiles = std::map<StringRef, string_vector>;
 //      the cost of greatly increased processing time.
 class ModuleSplitter {
   ModuleUPtr SrcM{nullptr};
+  GlobalVectorsSet GlobalsSet;
+  GlobalVectorsSet::const_iterator GlobalsSetIt;
+
   SmallVector<char, 1> MBuffer;
   std::unique_ptr<LLVMContext> SplitCtx{nullptr};
+  ModuleUPtr SrcMInNewCtx{nullptr};
 
-  bool IsSplit;
-  bool ReduceMemUse;
+  SplitModeInfo SplitMode;
+  // Using this counter to reduce number of LLVMContext recreations and module
+  // parsings.
+  // TODO: add limit calculation depending on free RAM memory and speed of
+  // memory growth.
+  size_t SplitsInOneContextAmount = 0;
+  size_t SplitsInOneContextLimit = 200;
+
+  void copySourceModuleInNewContext() {
+    // Module will be destroyed in LLVMContext destructor.
+    SrcMInNewCtx.release();
+    // Reconstruct context without memory reallocation.
+    SplitCtx->~LLVMContext();
+    new (SplitCtx.get()) LLVMContext();
+    // Allocate memory for temporary context.
+    SplitCtx.reset(new LLVMContext());
+
+    // Load source module copy in new temporary context.
+    MemoryBufferRef MBufRef(StringRef(MBuffer.data(), MBuffer.size()),
+                            InputFilename);
+    SrcMInNewCtx = cantFail(parseBitcodeFile(MBufRef, *SplitCtx));
+  }
 
 public:
-  ModuleSplitter(ModuleUPtr M, bool Split, bool ReduceMem)
-      : SrcM(std::move(M)), IsSplit(Split), ReduceMemUse(ReduceMem) {
-    if (IsSplit && ReduceMemUse) {
+  ModuleSplitter(ModuleUPtr M, SplitModeInfo SMI)
+      : SrcM(std::move(M)), SplitMode(SMI) {
+    if (SplitMode.IsSplit || SplitMode.IsSymGen)
+      collectEntryPointToModuleMap(*SrcM, GlobalsSet, SplitMode.Scope);
+    // sycl-post-link always produces a code result, even if input isn't
+    // modified.
+    if (GlobalsSet.empty())
+      GlobalsSet[GLOBAL_SCOPE_NAME] = {};
+
+    SplitMode.ReduceMemUsage = (SplitMode.IsSplit && SplitMode.ReduceMemUsage &&
+                                GlobalsSet.size() > SplitsInOneContextLimit);
+
+    if (SplitMode.ReduceMemUsage) {
       // Make source module bitcode buffer for re-reading it in a new context.
       BitcodeWriter BCWriter(MBuffer);
       BCWriter.writeModule(*SrcM);
       BCWriter.writeSymtab();
       BCWriter.writeStrtab();
-
-      // Allocate memory for temporary context.
-      SplitCtx.reset(new LLVMContext());
     }
   }
 
-  ModuleUPtr getSplitModule(const FuncPtrVector &ResModuleGlobals) {
+  std::pair<ModuleUPtr, FuncPtrVector> nextSplit() {
     assert(SrcM);
 
-    if (!IsSplit)
-      return std::move(SrcM);
+    GlobalsSetIt =
+        (SplitsInOneContextAmount > 0) ? ++GlobalsSetIt : GlobalsSet.cbegin();
+    if (GlobalsSetIt == GlobalsSet.cend())
+      return {};
 
-    if (!ReduceMemUse)
-      return splitModule(*SrcM, ResModuleGlobals);
+    if (SplitMode.ReduceMemUsage) {
+      if (SplitsInOneContextAmount >= SplitsInOneContextLimit ||
+          SplitsInOneContextAmount == 0) {
+        copySourceModuleInNewContext();
+        SplitsInOneContextAmount = 1;
+      } else
+        ++SplitsInOneContextAmount;
+    }
 
-    // Reconstruct context without memory reallocation.
-    SplitCtx->~LLVMContext();
-    new (SplitCtx.get()) LLVMContext();
+    ModuleUPtr &SrcMRef = (!SplitMode.ReduceMemUsage) ? SrcM : SrcMInNewCtx;
+    FuncPtrVector ResModuleGlobals = getGlobals(*SrcMRef, GlobalsSetIt->second);
 
-    // Load source module copy in new temporary context.
-    MemoryBufferRef MBufRef(StringRef(MBuffer.data(), MBuffer.size()),
-                            InputFilename);
-    ModuleUPtr MInNewCtx = cantFail(parseBitcodeFile(MBufRef, *SplitCtx));
+    if (SplitMode.IsSplit)
+      return {splitModule(*SrcMRef, ResModuleGlobals), ResModuleGlobals};
 
-    return splitModule(*MInNewCtx, ResModuleGlobals);
+    return {std::move(SrcMRef), ResModuleGlobals};
   }
+
+  size_t totalSplits() { return GlobalsSet.size(); }
 };
 
 TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
@@ -814,29 +867,16 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   if (IsEsimd && LowerEsimd)
     LowerEsimdConstructs(*M);
 
-  std::map<StringRef, FuncPtrVector> GlobalsSet;
-
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
-
-  if (DoSplit || DoSymGen) {
-    KernelMapEntryScope Scope = selectDeviceCodeSplitScope(*M);
-    collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
-  }
-
-  ModuleSplitter MSplit(std::move(M), DoSplit && !GlobalsSet.empty(),
-                        ReduceMemoryUsage);
-
-  // sycl-post-link always produces a code result, even if input isn't modified.
-  if (GlobalsSet.empty())
-    GlobalsSet[GLOBAL_SCOPE_NAME] = {};
+  SplitModeInfo SplitMode = {selectDeviceCodeSplitScope(*M), DoSplit, DoSymGen,
+                             ReduceMemoryUsage};
+  ModuleSplitter MSplit(std::move(M), SplitMode);
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
-  size_t I = 0;
-
-  for (const auto &GlobSetIt : GlobalsSet) {
-    const FuncPtrVector &ResModuleGlobals = GlobSetIt.second;
-
-    ModuleUPtr ResM = MSplit.getSplitModule(ResModuleGlobals);
+  for (size_t I = 0; I < MSplit.totalSplits(); ++I) {
+    ModuleUPtr ResM;
+    FuncPtrVector ResModuleGlobals;
+    std::tie(ResM, ResModuleGlobals) = MSplit.nextSplit();
 
     bool SpecConstsMet = transformSpecConstants(*ResM);
 
@@ -854,7 +894,7 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
       std::string ResModuleFile{};
       bool CanReuseInputModule = !SyclAndEsimdCode && !IsEsimd &&
                                  !IsLLVMUsedRemoved && !SpecConstsMet &&
-                                 (!DoSplit || GlobalsSet.size() == 1);
+                                 (!DoSplit || MSplit.totalSplits() == 1);
       if (CanReuseInputModule)
         ResModuleFile = InputFilename;
       else {
@@ -882,8 +922,6 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
       writeToFile(ResultSymbolsFile, ResultSymbolsList);
       TblFiles[COL_SYM].push_back(ResultSymbolsFile);
     }
-
-    ++I;
   }
 
   return TblFiles;
