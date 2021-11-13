@@ -3,9 +3,6 @@
 // RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
 // RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
 
-// Disabled until sporadic failure is fixed
-// REQUIRES: TEMPORARY_DISABLED
-
 // Check that buffer used by a stream object is released.
 
 #include <CL/sycl.hpp>
