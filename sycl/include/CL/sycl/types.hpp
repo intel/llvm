@@ -542,10 +542,11 @@ using vec_data_t = typename detail::vec_helper<T>::RetType;
 // For information on calling conventions for x64 processors, see
 // Calling Convention
 // (https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention).
-#pragma message ("Alignment of class vec is not in accordance with SYCL \
+#pragma message("Alignment of class vec is not in accordance with SYCL \
 specification requirements, a limitation of the MSVC compiler(Error C2719).\
 Requested alignment applied, limited at 64.")
-#define __SYCL_ALIGNED_VAR(type, x, var) type __declspec(align((x<64)?x:64)) var
+#define __SYCL_ALIGNED_VAR(type, x, var)                                       \
+  type __declspec(align((x < 64) ? x : 64)) var
 #else
 #define __SYCL_ALIGNED_VAR(type, x, var) alignas(x) type var
 #endif
@@ -1368,7 +1369,9 @@ private:
   // alignment of 128 and MSVC compiler cann't align a parameter with requested
   // alignment of 128. For alignment request larger than 64, 64-alignment
   // is applied
-  __SYCL_ALIGNED_VAR(DataType, (detail::vector_alignment<DataT, NumElements>::value), m_Data);
+  __SYCL_ALIGNED_VAR(DataType,
+                     (detail::vector_alignment<DataT, NumElements>::value),
+                     m_Data);
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
