@@ -7,8 +7,8 @@
 ; RUN: sycl-post-link -split=kernel -emit-program-metadata -symbols -emit-exported-symbols \
 ; RUN:     -split-esimd -lower-esimd -O2 -spec-const=default -reduce-memory-usage=true -S %s -o %t-red.table
 ; RUN: FileCheck %s -input-file=%t-red_0.ll --check-prefix CHECK-IR0
-; TODO: FileCheck %s -input-file=%t-red_1.ll --check-prefix CHECK-IR1
-; TODO: FileCheck %s -input-file=%t-red_2.ll --check-prefix CHECK-IR2
+; RUN: FileCheck %s -input-file=%t-red_1.ll --check-prefix CHECK-IR1
+; RUN: FileCheck %s -input-file=%t-red_2.ll --check-prefix CHECK-IR2
 
 ; This test checks that kernel info is saved for CUDA target during device code
 ; splitting.

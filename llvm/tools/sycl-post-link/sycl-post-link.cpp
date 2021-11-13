@@ -18,6 +18,8 @@
 #include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -504,29 +506,10 @@ std::string collectSymbolsList(const FuncPtrVector &ModuleEntryPoints) {
   return SymbolsStr;
 }
 
-// During cloning of Module ValueMap tries to reuse already created old to new
-// Value mappings and asserts if a new Value pointer is nullptr. It may happen
-// after one cloned module is destroyed and we try to reuse ValueToValueMapTy
-// object for the next module to clone.
-// Proper solution is to improve CloneModule to support multiple clonings from
-// one source Module.
-// Current workaround is to drop all records that contain nullptr values from
-// ValueToValueMapTy after cloned module is destroyed.
-void cleanupVMap(ValueToValueMapTy &VMap) {
-  for (auto It = VMap.begin(), End = VMap.end(); It != End;) {
-    if (It->second)
-      ++It;
-    else
-      VMap.erase(It++);
-  }
-}
-
 // The function produces a copy of input LLVM IR module M with only those entry
 // points that are specified in ModuleEntryPoints vector.
-ModuleUPtr splitModule(const Module &M, ValueToValueMapTy &VMap,
+ModuleUPtr splitModule(const Module &M,
                        const FuncPtrVector &ModuleEntryPoints) {
-  cleanupVMap(VMap);
-
   // For each group of entry points collect all dependencies.
   SetVector<const GlobalValue *> GVs;
   FuncPtrVector Workqueue;
@@ -556,18 +539,9 @@ ModuleUPtr splitModule(const Module &M, ValueToValueMapTy &VMap,
     GVs.insert(&G);
   }
 
-  ModuleUPtr MClone{nullptr};
-  {
-    // If '-reduce-memory-usage=true' is set then use shared ValueToValueMapTy.
-    // Otherwise, old behaviour of using local value map for splitting each
-    // module is utilized.
-    ValueToValueMapTy TempVMap;
-    ValueToValueMapTy &VMapRef = !ReduceMemoryUsage ? TempVMap : VMap;
-    // Clone definitions only for needed globals. Others will be added as
-    // declarations and removed later.
-    MClone = CloneModule(M, VMapRef,
-                         [&](const GlobalValue *GV) { return GVs.count(GV); });
-  }
+  ValueToValueMapTy VMap;
+  ModuleUPtr MClone = CloneModule(
+      M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
 
   // TODO: Use the new PassManager instead?
   legacy::PassManager Passes;
@@ -761,6 +735,63 @@ bool transformSpecConstants(Module &M) {
 
 using TableFiles = std::map<StringRef, string_vector>;
 
+// Module split helper.
+// 3 modes of splitting:
+//   1. No split (IsSplit = false). Just provide source module.
+//   2. Split in source module's context (IsSplit = true, ReduceMemUse = false).
+//      MDNode* instances for split module are allocated in source module's
+//      context and kept in memory after split module is destroyed. In case if
+//      there are a lot of split modules and/or they have a lot of metadata
+//      nodes it may lead to memory overflow.
+//   3. Split in a separate temporary context (IsSplit = true,
+//      ReduceMemUse = true). Create new context, load source module copy in new
+//      context and clone submodule from that copy. Fixes memory growth, but at
+//      the cost of greatly increased processing time.
+class ModuleSplitter {
+  ModuleUPtr SrcM{nullptr};
+  SmallVector<char, 1> MBuffer;
+  std::unique_ptr<LLVMContext> SplitCtx{nullptr};
+
+  bool IsSplit;
+  bool ReduceMemUse;
+
+public:
+  ModuleSplitter(ModuleUPtr M, bool Split, bool ReduceMem)
+      : SrcM(std::move(M)), IsSplit(Split), ReduceMemUse(ReduceMem) {
+    if (IsSplit && ReduceMemUse) {
+      // Make source module bitcode buffer for re-reading it in a new context.
+      BitcodeWriter BCWriter(MBuffer);
+      BCWriter.writeModule(*SrcM);
+      BCWriter.writeSymtab();
+      BCWriter.writeStrtab();
+
+      // Allocate memory for temporary context.
+      SplitCtx.reset(new LLVMContext());
+    }
+  }
+
+  ModuleUPtr getSplitModule(const FuncPtrVector &ResModuleGlobals) {
+    assert(SrcM);
+
+    if (!IsSplit)
+      return std::move(SrcM);
+
+    if (!ReduceMemUse)
+      return splitModule(*SrcM, ResModuleGlobals);
+
+    // Reconstruct context without memory reallocation.
+    SplitCtx->~LLVMContext();
+    new (SplitCtx.get()) LLVMContext();
+
+    // Load source module copy in new temporary context.
+    MemoryBufferRef MBufRef(StringRef(MBuffer.data(), MBuffer.size()),
+                            InputFilename);
+    ModuleUPtr MInNewCtx = cantFail(parseBitcodeFile(MBufRef, *SplitCtx));
+
+    return splitModule(*MInNewCtx, ResModuleGlobals);
+  }
+};
+
 TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   TableFiles TblFiles;
   if (!M)
@@ -791,6 +822,10 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
     KernelMapEntryScope Scope = selectDeviceCodeSplitScope(*M);
     collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
   }
+
+  ModuleSplitter MSplit(std::move(M), DoSplit && !GlobalsSet.empty(),
+                        ReduceMemoryUsage);
+
   // sycl-post-link always produces a code result, even if input isn't modified.
   if (GlobalsSet.empty())
     GlobalsSet[GLOBAL_SCOPE_NAME] = {};
@@ -798,24 +833,10 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
   size_t I = 0;
 
-  // ValueToValueMapTy map should be shared between split Module objects during
-  // llvm::CloneModule call. Otherwise, some Value* instances allocated for
-  // split module may remain in memory after both split module and
-  // ValueToValueMapTy are destroyed. In case if there a lot of split modules
-  // and/or they utilize a lot of memory it may lead to memory overflow.
-  ValueToValueMapTy SplitVMap;
-
   for (const auto &GlobSetIt : GlobalsSet) {
     const FuncPtrVector &ResModuleGlobals = GlobSetIt.second;
-    ModuleUPtr ResM{nullptr};
 
-    if (DoSplit && !ResModuleGlobals.empty())
-      ResM = splitModule(*M, SplitVMap, ResModuleGlobals);
-    else {
-      // M is no more usable after that. So, only one iteration is expected.
-      assert(GlobalsSet.size() == 1);
-      ResM = std::move(M);
-    }
+    ModuleUPtr ResM = MSplit.getSplitModule(ResModuleGlobals);
 
     bool SpecConstsMet = transformSpecConstants(*ResM);
 
@@ -887,29 +908,23 @@ TableFiles processInputModule(ModuleUPtr M) {
 
   // Do we have both Sycl and Esimd code?
   bool SyclAndEsimdCode = !SyclFunctions.empty() && !EsimdFunctions.empty();
-  ValueToValueMapTy SyclEsimdVMap;
 
   // If only SYCL kernels or only ESIMD kernels, no splitting needed.
   // Otherwise splitting a module with a mix of SYCL and ESIMD kernels into two
   // separate modules.
-  // Warning: if one global ValueToValueMapTy object is used for splitting then
-  // we can keep only one split module in memory at a time. Otherwise, if
-  // several split modules are in memory then some of Values in that map may be
-  // shared between those modules and then destruction of any module is crashed
-  // because it has Values that are still used by other modules.
   ModuleUPtr SyclModule{nullptr};
+  ModuleUPtr EsimdModule{nullptr};
   if (EsimdFunctions.empty())
     SyclModule = std::move(M);
-  else if (!SyclFunctions.empty())
-    SyclModule = splitModule(*M, SyclEsimdVMap, SyclFunctions);
+  else if (SyclFunctions.empty())
+    EsimdModule = std::move(M);
+  else {
+    SyclModule = splitModule(*M, SyclFunctions);
+    EsimdModule = splitModule(*M, EsimdFunctions);
+  }
+
   TableFiles SyclTblFiles =
       processOneModule(std::move(SyclModule), false, SyclAndEsimdCode);
-
-  ModuleUPtr EsimdModule{nullptr};
-  if (SyclFunctions.empty())
-    EsimdModule = std::move(M);
-  else if (!EsimdFunctions.empty())
-    EsimdModule = splitModule(*M, SyclEsimdVMap, EsimdFunctions);
   TableFiles EsimdTblFiles =
       processOneModule(std::move(EsimdModule), true, SyclAndEsimdCode);
 
