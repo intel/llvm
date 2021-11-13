@@ -544,10 +544,10 @@ using vec_data_t = typename detail::vec_helper<T>::RetType;
 // (https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention).
 #pragma message ("Alignment of class vec is not in accordance with SYCL \
 specification requirements, a limitation of the MSVC compiler(Error C2719).\
-Applied default alignment.")
-#define __SYCL_ALIGNAS(x)
+Requested alignment applied, limited at 64.")
+#define __SYCL_ALIGNED_VAR(type, x, var) type __declspec(align((x<64)?x:64)) var
 #else
-#define __SYCL_ALIGNAS(N) alignas(N)
+#define __SYCL_ALIGNED_VAR(type, x, var) alignas(x) type var
 #endif
 
 /// Provides a cross-patform vector class template that works efficiently on
@@ -1363,12 +1363,12 @@ private:
   }
 
   // fields
-  // Used "__SYCL_ALIGNAS" instead "alignas" to handle MSVC compiler.
+  // Used "__SYCL_ALIGNED_VAR" instead "alignas" to handle MSVC compiler.
   // For MSVC compiler max alignment is 64, e.g. vec<double, 16> required
   // alignment of 128 and MSVC compiler cann't align a parameter with requested
-  // alignment of 128.
-  __SYCL_ALIGNAS((detail::vector_alignment<DataT, NumElements>::value))
-  DataType m_Data;
+  // alignment of 128. For alignment request larger than 64, 64-alignment
+  // is applied
+  __SYCL_ALIGNED_VAR(DataType, (detail::vector_alignment<DataT, NumElements>::value), m_Data);
 
   // friends
   template <typename T1, typename T2, typename T3, template <typename> class T4,
@@ -2494,4 +2494,4 @@ struct CheckDeviceCopyable<
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
 
-#undef __SYCL_ALIGNAS
+#undef __SYCL_ALIGNED_VAR
