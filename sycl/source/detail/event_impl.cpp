@@ -217,7 +217,7 @@ void event_impl::wait_and_throw(
     Scheduler::ReadLockT Lock(Sched.MGraphLock);
     Command *Cmd = static_cast<Command *>(Self->getCommand());
     if (Cmd)
-        submittedQueue = Cmd->getSubmittedQueue();
+      submittedQueue = Cmd->getSubmittedQueue();
   }
   wait(Self);
 
