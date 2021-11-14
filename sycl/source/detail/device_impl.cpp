@@ -342,6 +342,17 @@ bool device_impl::isAssertFailSupported() const {
   return MIsAssertFailSupported;
 }
 
+std::string device_impl::getDeviceName() const {
+  if (MDeviceName.empty()) {
+    std::lock_guard Lock{MDeviceNameMutex};
+    if (MDeviceName.empty()) {
+      MDeviceName = get_info<info::device::name>();
+    }
+  }
+
+  return MDeviceName;
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

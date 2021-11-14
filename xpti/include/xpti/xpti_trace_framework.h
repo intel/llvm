@@ -97,6 +97,11 @@ XPTI_EXPORT_API xpti::string_id_t xptiRegisterString(const char *string,
 /// @return A reference to the string identified by the string ID.
 XPTI_EXPORT_API const char *xptiLookupString(xpti::string_id_t id);
 
+XPTI_EXPORT_API xpti::object_id_t xptiRegisterObject(const char *data,
+                                                     size_t size, uint8_t type);
+
+XPTI_EXPORT_API xpti::object_data_t xptiLookupObject(xpti::object_id_t id);
+
 /// @brief Register a payload with the framework
 /// @details Since a payload may contain multiple strings that may have been
 /// defined on the stack, it is recommended the payload object is registered
@@ -367,7 +372,7 @@ xptiNotifySubscribers(uint8_t stream_id, uint16_t trace_type,
 ///            3. XPTI_RESULT_DUPLICATE when the key-value pair already exists
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *e,
                                                const char *key,
-                                               const char *value);
+                                               xpti::object_id_t value_id);
 
 /// @brief Query the metadata table for a given event
 /// @details In order to retrieve metadata information for a given event, you
@@ -420,6 +425,9 @@ typedef void (*xpti_finalize_t)(const char *);
 typedef uint64_t (*xpti_get_unique_id_t)();
 typedef xpti::string_id_t (*xpti_register_string_t)(const char *, char **);
 typedef const char *(*xpti_lookup_string_t)(xpti::string_id_t);
+typedef xpti::string_id_t (*xpti_register_object_t)(const char *, size_t,
+                                                    uint8_t);
+typedef xpti::object_data_t (*xpti_lookup_object_t)(xpti::object_id_t);
 typedef uint64_t (*xpti_register_payload_t)(xpti::payload_t *);
 typedef uint8_t (*xpti_register_stream_t)(const char *);
 typedef xpti::result_t (*xpti_unregister_stream_t)(const char *);
@@ -440,7 +448,7 @@ typedef xpti::result_t (*xpti_notify_subscribers_t)(
     uint8_t, uint16_t, xpti::trace_event_data_t *, xpti::trace_event_data_t *,
     uint64_t instance, const void *temporal_user_data);
 typedef xpti::result_t (*xpti_add_metadata_t)(xpti::trace_event_data_t *,
-                                              const char *, const char *);
+                                              const char *, xpti::object_id_t);
 typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
 }

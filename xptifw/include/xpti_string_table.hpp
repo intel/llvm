@@ -321,8 +321,24 @@ public:
 
   void printStatistics() {
 #ifdef XPTI_STATISTICS
-    printf("String table inserts: [%llu]\n", MInsertions.load());
-    printf("String table lookups: [%llu]\n", MRetrievals.load());
+    // printf("String table inserts: [%llu]\n", MInsertions.load());
+    // printf("String table lookups: [%llu]\n", MRetrievals.load());
+#endif
+  }
+
+  int getInsertions() const noexcept {
+#ifdef XPTI_STATISTICS
+    return MInsertions;
+#else
+    return 0;
+#endif
+  }
+
+  int getRetrievals() const noexcept {
+#ifdef XPTI_STATISTICS
+    return MRetrievals;
+#else
+    return 0;
 #endif
   }
 
