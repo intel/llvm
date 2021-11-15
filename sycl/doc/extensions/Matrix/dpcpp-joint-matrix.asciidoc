@@ -74,7 +74,7 @@ struct joint_matrix {
 ### New `matrix_use` Enumeration used in Nvidia® case
 
 A new parameter has been added to the Tensor Core implementation of joint_matrix.  The type of the new parameter is an enum, `matrix_use` (a, b, accumulator).
-`matrix_use` is used to distinguish the suitable place for a given matrix in a Multiply and Add operation. The Multiply and Add operation is decribed later on in this document. The long term plan is to incorporate the use argument for other TPUs (AMX and DPAS). In the Tensor Cores architecture the supported matrix shapes and data types depend upon the `matrix_use`.
+`matrix_use` is used to distinguish the suitable place for a given matrix in a Multiply and Add operation. The Multiply and Add operation is described later on in this document. The long term plan is to incorporate the use argument for other TPUs (AMX and DPAS). In the Tensor Cores architecture the supported matrix shapes and data types depend upon the `matrix_use`.
 The joint_matrix interface used by the Tensor Cores implementation is:
 
 ```c++
@@ -101,7 +101,7 @@ When the group is a `sycl::sub_group`, an example matrix declaration is as follo
 joint_matrix<int8_t, tM, tN> tA(sg);
 ```
 
-In the Nvidia case an example declaration adds the matrix_use parameter, e.g.:
+In the Nvidia case an example declaration adds the `matrix_use` parameter, e.g.:
 
 ```c++
 joint_matrix<double, matrix_use::a, tM, tN> tA(sg);
@@ -133,8 +133,8 @@ Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed lay
 joint_matrix<int8_t, K, N, packed_b> tB(sg);
 ```
 
-IMPORTANT: * AMX and DPAS: In the current AMX and DPAS implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
-           * Tensor Cores: For the CUDA backend the layout in the load of matrices A B and C must be either `row_major` or `col_major`, and `Layout` in the store of matrix C must also be either `row_major` or `col_major`.
+IMPORTANT: AMX and DPAS: In the current AMX and DPAS implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
+           Tensor Cores: For the CUDA backend the layout in the load of matrices A B and C must be either `row_major` or `col_major`, and `Layout` in the store of matrix C must also be either `row_major` or `col_major`.
 
 
 ## Matrix Operations and their Execution Scope
@@ -150,9 +150,7 @@ Since the matrix functions are group operations (as defined in Section 4.17.3 of
 
 IMPORTANT: The CUDA backend does not require any other sub-group size than 32, which is the size of a warp which acts as the sub-group, and also the default DPC++ sub-group size for the CUDA backend.
 
-To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
-
-IMPORTANT: In the current implementation, only the subgroup scope is supported.  
+To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following:
 
 #### Load 
 
@@ -170,7 +168,7 @@ This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS
 
 #### Tensor Cores syntax
 
-In the Tensor Cores implementation the matrix_use enum is added:
+In the Tensor Cores implementation the `matrix_use` enum is added:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -210,7 +208,7 @@ void joint_matrix_store(Group sg,
                         multi_ptr<T, Space> dst, size_t stride);
 }
 ```
-Note that this function is only available for matrix_use::accumulator.
+Note that this function is only available for `matrix_use::accumulator`.
 
 #### Multiply and Add
 
@@ -225,7 +223,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 }
 ```
 
-Multiply and Add (MAD) operations, also known as Matrix Multiply and Accumulate (MMA), multiply matrices A (matrix_use::a) with shape (M, K) and B (matrix_use::b) with shape (K, N) and add the result to matrix C (matrix_use::accumulator) with shape (M, N). The logical sizes are M, K, N.
+Multiply and Add (MAD) operations, also known as Matrix Multiply and Accumulate (MMA), multiply matrices A (`matrix_use::a`) with shape (M, K) and B (`matrix_use::b`) with shape (K, N) and add the result to matrix C (`matrix_use::accumulator`) with shape (M, N). The logical sizes are M, K, N.
 
 C = A * B + C
 
@@ -619,7 +617,7 @@ for (int i = 0; i < 8; i++)
  for (int j = 0; j < 8; j++)
    C(i,j) *= alpha; //Align with mdspan
 ```
-#### Option2: Restrictive fast element indexing 
+#### Option 2: Restrictive fast element indexing
 In the DPC++ context, the expectation is that all element-wise operations will happen in a converged control path by all work items in the group.
 Option 2 proposes a new set of element-wise operations by overloading existing operations to work on `matrix` object. An example is shown below:
 ```c++
@@ -628,7 +626,7 @@ joint_matrix<ONEAPI::sub_group, int, 8, 8> C(sg);
 ```
 The problem with this option is that it is restrictive to a very limited set of operations. 
 
-#### Option3: Restrictive conversion in the interface from SIMD to SPMD
+#### Option 3: Restrictive conversion in the interface from SIMD to SPMD
 Nvidia® wmma interface added a new member to `fragment` class to designate the WI owned part of the matrix.
 While this provides fast element indexing on the GPU compared to the non-restrictive option, the user does not know the mapping of the owned data to the original matrix. 
  However using the `mma` ptx instructions as opposed to the `wmma` ptx instructions the mapping is known. Knowing this mapping is important for the user to implement new operations like sum of rows of a matrix for quantized algorithms.
@@ -665,7 +663,7 @@ We did not utilize this extension for this matrix API version because sub-group 
 ## Open Questions
 - Besides row, col major and packed (VNNI) layout, what are the additional layouts that should absolutely be added?
 - Are there alternative names for the `packed_a` and `packed_b` layouts that would be clearer to distinguish between the VNNI Layout in matrix A and VNNI layout in matrix B of a matrix multiply and add operation on Intel AMX?
--- Yes, this will be addressed in the next revision where `use` argument will be introduced to distinguish between right (B) , left (A), and accumulator matrix. 
+-- Yes, this will be addressed in the next revision where `matrix_use` argument will be introduced to distinguish between right (B) , left (A), and accumulator matrix.
 - Ronan Keryell: "It would be interesting to investigate whether providing also member functions would simplify the API. Provide both so it is possible to use the best one for each use case, while waiting for https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax to land into C++?"
 
 - In the future looking APIs, `get_wi_slice` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
@@ -683,7 +681,7 @@ Tensor Cores:
 - Clarify USM compatibility
 - Add support for other combinations, the query interface, and consider how the future looking API can be added here
 
-  AMX and DPAS:
+AMX and DPAS:
 - Add 'matrix_use' parameter to the matrix to distinguish between matrix A, B, and matrix accumulator. This is necessary for supporting VNNI and transpose transform
 
 ## Revision History
