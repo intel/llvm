@@ -5592,7 +5592,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
       std::string TmpFileNameHeader;
       std::string TmpFileNameFooter;
-      auto StemedSrcFileName = llvm::sys::path::stem(SrcFileName).str();
+      auto StemmedSrcFileName = llvm::sys::path::stem(SrcFileName).str();
       if (IsSaveTemps) {
         TmpFileNameHeader.append(C.getDriver().GetUniquePath(
             OutFileDir.c_str() + StemedSrcFileName + "-header", "h"));
