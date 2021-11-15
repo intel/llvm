@@ -201,7 +201,6 @@ Function Parameter Attribute +
 Optional Argument_ |
 *FunctionPointersINTEL*|
 |====
-Index of the argument
 
 === Capabilities
 
