@@ -22,7 +22,6 @@
 #endif
 #include <type_traits>
 
-__SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
 
@@ -673,4 +672,3 @@ public:
 };
 
 } // namespace sycl
-} // __SYCL_INLINE_NAMESPACE(cl)
