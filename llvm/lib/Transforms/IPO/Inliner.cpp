@@ -35,6 +35,7 @@
 #include "llvm/Analysis/LazyCallGraph.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
+#include "llvm/Analysis/ReplayInlineAdvisor.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/Utils/ImportedFunctionsInliningStatistics.h"
@@ -97,8 +98,52 @@ static cl::opt<std::string> CGSCCInlineReplayFile(
     "cgscc-inline-replay", cl::init(""), cl::value_desc("filename"),
     cl::desc(
         "Optimization remarks file containing inline remarks to be replayed "
-        "by inlining from cgscc inline remarks."),
+        "by cgscc inlining."),
     cl::Hidden);
+
+static cl::opt<ReplayInlinerSettings::Scope> CGSCCInlineReplayScope(
+    "cgscc-inline-replay-scope",
+    cl::init(ReplayInlinerSettings::Scope::Function),
+    cl::values(clEnumValN(ReplayInlinerSettings::Scope::Function, "Function",
+                          "Replay on functions that have remarks associated "
+                          "with them (default)"),
+               clEnumValN(ReplayInlinerSettings::Scope::Module, "Module",
+                          "Replay on the entire module")),
+    cl::desc("Whether inline replay should be applied to the entire "
+             "Module or just the Functions (default) that are present as "
+             "callers in remarks during cgscc inlining."),
+    cl::Hidden);
+
+static cl::opt<ReplayInlinerSettings::Fallback> CGSCCInlineReplayFallback(
+    "cgscc-inline-replay-fallback",
+    cl::init(ReplayInlinerSettings::Fallback::Original),
+    cl::values(
+        clEnumValN(
+            ReplayInlinerSettings::Fallback::Original, "Original",
+            "All decisions not in replay send to original advisor (default)"),
+        clEnumValN(ReplayInlinerSettings::Fallback::AlwaysInline,
+                   "AlwaysInline", "All decisions not in replay are inlined"),
+        clEnumValN(ReplayInlinerSettings::Fallback::NeverInline, "NeverInline",
+                   "All decisions not in replay are not inlined")),
+    cl::desc(
+        "How cgscc inline replay treats sites that don't come from the replay. "
+        "Original: defers to original advisor, AlwaysInline: inline all sites "
+        "not in replay, NeverInline: inline no sites not in replay"),
+    cl::Hidden);
+
+static cl::opt<CallSiteFormat::Format> CGSCCInlineReplayFormat(
+    "cgscc-inline-replay-format",
+    cl::init(CallSiteFormat::Format::LineColumnDiscriminator),
+    cl::values(
+        clEnumValN(CallSiteFormat::Format::Line, "Line", "<Line Number>"),
+        clEnumValN(CallSiteFormat::Format::LineColumn, "LineColumn",
+                   "<Line Number>:<Column Number>"),
+        clEnumValN(CallSiteFormat::Format::LineDiscriminator,
+                   "LineDiscriminator", "<Line Number>.<Discriminator>"),
+        clEnumValN(CallSiteFormat::Format::LineColumnDiscriminator,
+                   "LineColumnDiscriminator",
+                   "<Line Number>:<Column Number>.<Discriminator> (default)")),
+    cl::desc("How cgscc inline replay file is formatted"), cl::Hidden);
 
 static cl::opt<bool> InlineEnablePriorityOrder(
     "inline-enable-priority-order", cl::Hidden, cl::init(false),
@@ -464,7 +509,7 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
         }
         ++NumInlined;
 
-        emitInlinedInto(ORE, DLoc, Block, *Callee, *Caller, *OIC);
+        emitInlinedIntoBasedOnCost(ORE, DLoc, Block, *Callee, *Caller, *OIC);
 
         // If inlining this function gave us any new call sites, throw them
         // onto our worklist to process.  They are useful inline candidates.
@@ -662,9 +707,12 @@ InlinerPass::getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
         std::make_unique<DefaultInlineAdvisor>(M, FAM, getInlineParams());
 
     if (!CGSCCInlineReplayFile.empty())
-      OwnedAdvisor = std::make_unique<ReplayInlineAdvisor>(
+      OwnedAdvisor = getReplayInlineAdvisor(
           M, FAM, M.getContext(), std::move(OwnedAdvisor),
-          CGSCCInlineReplayFile,
+          ReplayInlinerSettings{CGSCCInlineReplayFile,
+                                CGSCCInlineReplayScope,
+                                CGSCCInlineReplayFallback,
+                                {CGSCCInlineReplayFormat}},
           /*EmitRemarks=*/true);
 
     return *OwnedAdvisor;
@@ -826,8 +874,13 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         continue;
       }
 
-      auto Advice = Advisor.getAdvice(*CB, OnlyMandatory);
+      std::unique_ptr<InlineAdvice> Advice =
+          Advisor.getAdvice(*CB, OnlyMandatory);
+
       // Check whether we want to inline this callsite.
+      if (!Advice)
+        continue;
+
       if (!Advice->isInliningRecommended()) {
         Advice->recordUnattemptedInlining();
         continue;
@@ -1027,7 +1080,11 @@ ModuleInlinerWrapperPass::ModuleInlinerWrapperPass(InlineParams Params,
 PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   auto &IAA = MAM.getResult<InlineAdvisorAnalysis>(M);
-  if (!IAA.tryCreate(Params, Mode, CGSCCInlineReplayFile)) {
+  if (!IAA.tryCreate(Params, Mode,
+                     {CGSCCInlineReplayFile,
+                      CGSCCInlineReplayScope,
+                      CGSCCInlineReplayFallback,
+                      {CGSCCInlineReplayFormat}})) {
     M.getContext().emitError(
         "Could not setup Inlining Advisor for the requested "
         "mode and/or options");
@@ -1048,10 +1105,11 @@ PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
         createDevirtSCCRepeatedPass(std::move(PM), MaxDevirtIterations)));
   MPM.run(M, MAM);
 
-  IAA.clear();
-
-  // The ModulePassManager has already taken care of invalidating analyses.
-  return PreservedAnalyses::all();
+  // Discard the InlineAdvisor, a subsequent inlining session should construct
+  // its own.
+  auto PA = PreservedAnalyses::all();
+  PA.abandon<InlineAdvisorAnalysis>();
+  return PA;
 }
 
 void InlinerPass::printPipeline(
@@ -1060,4 +1118,22 @@ void InlinerPass::printPipeline(
       OS, MapClassName2PassName);
   if (OnlyMandatory)
     OS << "<only-mandatory>";
+}
+
+void ModuleInlinerWrapperPass::printPipeline(
+    raw_ostream &OS, function_ref<StringRef(StringRef)> MapClassName2PassName) {
+  // Print some info about passes added to the wrapper. This is however
+  // incomplete as InlineAdvisorAnalysis part isn't included (which also depends
+  // on Params and Mode).
+  if (!MPM.isEmpty()) {
+    MPM.printPipeline(OS, MapClassName2PassName);
+    OS << ",";
+  }
+  OS << "cgscc(";
+  if (MaxDevirtIterations != 0)
+    OS << "devirt<" << MaxDevirtIterations << ">(";
+  PM.printPipeline(OS, MapClassName2PassName);
+  if (MaxDevirtIterations != 0)
+    OS << ")";
+  OS << ")";
 }

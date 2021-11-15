@@ -28,7 +28,7 @@
 #   $ docker push ldionne/libcxx-builder
 #
 
-FROM ubuntu:bionic
+FROM ubuntu:focal
 
 # Make sure apt-get doesn't try to prompt for stuff like our time zone, etc.
 ENV DEBIAN_FRONTEND=noninteractive
@@ -45,8 +45,17 @@ RUN apt-get update && apt-get install -y bash curl
 RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils git gdb
 RUN apt-get update && apt-get install -y libc6-dev-i386 # Required to cross-compile to 32 bits
 
+# Locales for gdb and localization tests
+RUN apt-get update && apt-get install -y language-pack-en language-pack-fr \
+                                         language-pack-ru language-pack-zh-hans
+# These two are not enabled by default so generate them
+RUN printf "fr_CA ISO-8859-1\ncs_CZ ISO-8859-2" >> /etc/locale.gen
+RUN mkdir /usr/local/share/i1en/
+RUN printf "fr_CA ISO-8859-1\ncs_CZ ISO-8859-2" >> /usr/local/share/i1en/SUPPORTED
+RUN locale-gen
+
 # Install Clang <latest>, <latest-1> and ToT, which are the ones we support.
-ENV LLVM_LATEST_VERSION=12
+ENV LLVM_LATEST_VERSION=13
 RUN apt-get update && apt-get install -y lsb-release wget software-properties-common
 RUN wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
 RUN bash /tmp/llvm.sh $(($LLVM_LATEST_VERSION - 1)) # previous release

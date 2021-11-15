@@ -1810,8 +1810,8 @@ llvm::GlobalVariable *MicrosoftCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
 #endif
   }
 
-  const std::unique_ptr<VPtrInfo> *VFPtrI = std::find_if(
-      VFPtrs.begin(), VFPtrs.end(), [&](const std::unique_ptr<VPtrInfo>& VPI) {
+  const std::unique_ptr<VPtrInfo> *VFPtrI =
+      llvm::find_if(VFPtrs, [&](const std::unique_ptr<VPtrInfo> &VPI) {
         return VPI->FullOffsetInMDC == VPtrOffset;
       });
   if (VFPtrI == VFPtrs.end()) {
@@ -1844,7 +1844,7 @@ llvm::GlobalVariable *MicrosoftCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
     VFTablesMap[ID] = VFTable;
     VTable = VTableAliasIsRequred
                  ? cast<llvm::GlobalVariable>(
-                       cast<llvm::GlobalAlias>(VFTable)->getBaseObject())
+                       cast<llvm::GlobalAlias>(VFTable)->getAliaseeObject())
                  : cast<llvm::GlobalVariable>(VFTable);
     return VTable;
   }

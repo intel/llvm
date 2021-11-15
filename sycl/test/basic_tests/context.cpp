@@ -25,9 +25,6 @@ int main() {
     context MovedContext(std::move(Context));
     assert(hash == std::hash<context>()(MovedContext));
     assert(deviceA.is_host() == MovedContext.is_host());
-    if (!deviceA.is_host()) {
-      assert(MovedContext.get() != nullptr);
-    }
   }
   {
     std::cout << "move assignment operator" << std::endl;
@@ -37,9 +34,6 @@ int main() {
     WillMovedContext = std::move(Context);
     assert(hash == std::hash<context>()(WillMovedContext));
     assert(deviceA.is_host() == WillMovedContext.is_host());
-    if (!deviceA.is_host()) {
-      assert(WillMovedContext.get() != nullptr);
-    }
   }
   {
     std::cout << "copy constructor" << std::endl;
@@ -76,17 +70,15 @@ int main() {
     sycl::context Context8(
         std::vector<sycl::device>{deviceA}, AsyncHandler,
         sycl::property_list{
-            sycl::property::context::cuda::use_primary_context{}});
+            sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
 
     if (!Context8.has_property<
-            sycl::property::context::cuda::use_primary_context>()) {
+            sycl::ext::oneapi::cuda::property::context::use_primary_context>()) {
       std::cerr << "Line " << __LINE__ << ": Property was not found"
                 << std::endl;
       return 1;
     }
 
-    sycl::property::context::cuda::use_primary_context Prop =
-        Context8
-            .get_property<sycl::property::context::cuda::use_primary_context>();
+    auto Prop = Context8.get_property<sycl::ext::oneapi::cuda::property::context::use_primary_context>();
   }
 }

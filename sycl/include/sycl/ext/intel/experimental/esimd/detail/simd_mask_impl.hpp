@@ -112,7 +112,7 @@ public:
 
   template <class T1 = simd_mask_impl,
             class = std::enable_if_t<T1::length == 1>>
-  operator bool() {
+  operator bool() const {
     return base_type::data()[0] != 0;
   }
 };

@@ -105,7 +105,7 @@ public:
 
   CommandObjectFrameDiagnose(CommandInterpreter &interpreter)
       : CommandObjectParsed(interpreter, "frame diagnose",
-                            "Try to determine what path path the current stop "
+                            "Try to determine what path the current stop "
                             "location used to get to a register or address",
                             nullptr,
                             eCommandRequiresThread | eCommandTryTargetAPILock |
@@ -708,11 +708,11 @@ protected:
 
     // Increment statistics.
     bool res = result.Succeeded();
-    Target &target = GetSelectedOrDummyTarget();
+    TargetStats &target_stats = GetSelectedOrDummyTarget().GetStatistics();
     if (res)
-      target.IncrementStats(StatisticKind::FrameVarSuccess);
+      target_stats.GetFrameVariableStats().NotifySuccess();
     else
-      target.IncrementStats(StatisticKind::FrameVarFailure);
+      target_stats.GetFrameVariableStats().NotifyFailure();
     return res;
   }
 

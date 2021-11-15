@@ -339,7 +339,7 @@ Value *CallBase::getReturnedArgOperand() const {
 
 /// Determine whether the argument or parameter has the given attribute.
 bool CallBase::paramHasAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
-  assert(ArgNo < getNumArgOperands() && "Param index out of bounds!");
+  assert(ArgNo < arg_size() && "Param index out of bounds!");
 
   if (Attrs.hasParamAttr(ArgNo, Kind))
     return true;
@@ -349,14 +349,26 @@ bool CallBase::paramHasAttr(unsigned ArgNo, Attribute::AttrKind Kind) const {
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(Attribute::AttrKind Kind) const {
-  if (const Function *F = getCalledFunction())
+  Value *V = getCalledOperand();
+  if (auto *CE = dyn_cast<ConstantExpr>(V))
+    if (CE->getOpcode() == BitCast)
+      V = CE->getOperand(0);
+
+  if (auto *F = dyn_cast<Function>(V))
     return F->getAttributes().hasFnAttr(Kind);
+
   return false;
 }
 
 bool CallBase::hasFnAttrOnCalledFunction(StringRef Kind) const {
-  if (const Function *F = getCalledFunction())
+  Value *V = getCalledOperand();
+  if (auto *CE = dyn_cast<ConstantExpr>(V))
+    if (CE->getOpcode() == BitCast)
+      V = CE->getOperand(0);
+
+  if (auto *F = dyn_cast<Function>(V))
     return F->getAttributes().hasFnAttr(Kind);
+
   return false;
 }
 
@@ -931,7 +943,7 @@ void CallBrInst::updateArgBlockAddresses(unsigned i, BasicBlock *B) {
   if (BasicBlock *OldBB = getIndirectDest(i)) {
     BlockAddress *Old = BlockAddress::get(OldBB);
     BlockAddress *New = BlockAddress::get(B);
-    for (unsigned ArgNo = 0, e = getNumArgOperands(); ArgNo != e; ++ArgNo)
+    for (unsigned ArgNo = 0, e = arg_size(); ArgNo != e; ++ArgNo)
       if (dyn_cast<BlockAddress>(getArgOperand(ArgNo)) == Old)
         setArgOperand(ArgNo, New);
   }
@@ -2318,9 +2330,9 @@ bool ShuffleVectorInst::isInsertSubvectorMask(ArrayRef<int> Mask,
     Src1Identity &= (M == (i + NumSrcElts));
     continue;
   }
-  assert((Src0Elts | Src1Elts | UndefElts).isAllOnesValue() &&
+  assert((Src0Elts | Src1Elts | UndefElts).isAllOnes() &&
          "unknown shuffle elements");
-  assert(!Src0Elts.isNullValue() && !Src1Elts.isNullValue() &&
+  assert(!Src0Elts.isZero() && !Src1Elts.isZero() &&
          "2-source shuffle not found");
 
   // Determine lo/hi span ranges.
@@ -4041,6 +4053,35 @@ bool CmpInst::isSigned(Predicate predicate) {
     case ICmpInst::ICMP_SLT: case ICmpInst::ICMP_SLE: case ICmpInst::ICMP_SGT:
     case ICmpInst::ICMP_SGE: return true;
   }
+}
+
+bool ICmpInst::compare(const APInt &LHS, const APInt &RHS,
+                       ICmpInst::Predicate Pred) {
+  assert(ICmpInst::isIntPredicate(Pred) && "Only for integer predicates!");
+  switch (Pred) {
+  case ICmpInst::Predicate::ICMP_EQ:
+    return LHS.eq(RHS);
+  case ICmpInst::Predicate::ICMP_NE:
+    return LHS.ne(RHS);
+  case ICmpInst::Predicate::ICMP_UGT:
+    return LHS.ugt(RHS);
+  case ICmpInst::Predicate::ICMP_UGE:
+    return LHS.uge(RHS);
+  case ICmpInst::Predicate::ICMP_ULT:
+    return LHS.ult(RHS);
+  case ICmpInst::Predicate::ICMP_ULE:
+    return LHS.ule(RHS);
+  case ICmpInst::Predicate::ICMP_SGT:
+    return LHS.sgt(RHS);
+  case ICmpInst::Predicate::ICMP_SGE:
+    return LHS.sge(RHS);
+  case ICmpInst::Predicate::ICMP_SLT:
+    return LHS.slt(RHS);
+  case ICmpInst::Predicate::ICMP_SLE:
+    return LHS.sle(RHS);
+  default:
+    llvm_unreachable("Unexpected non-integer predicate.");
+  };
 }
 
 CmpInst::Predicate CmpInst::getFlippedSignednessPredicate(Predicate pred) {

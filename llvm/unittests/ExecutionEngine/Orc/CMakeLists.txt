@@ -16,6 +16,7 @@ set(LLVM_LINK_COMPONENTS
 
 add_llvm_unittest(OrcJITTests
   CoreAPIsTest.cpp
+  ExecutorAddressTest.cpp
   ExecutionSessionWrapperFunctionCallsTest.cpp
   EPCGenericJITLinkMemoryManagerTest.cpp
   EPCGenericMemoryAccessTest.cpp
@@ -26,13 +27,12 @@ add_llvm_unittest(OrcJITTests
   ObjectLinkingLayerTest.cpp
   OrcCAPITest.cpp
   OrcTestCommon.cpp
-  QueueChannel.cpp
   ResourceTrackerTest.cpp
-  RPCUtilsTest.cpp
   RTDyldObjectLinkingLayerTest.cpp
   SimpleExecutorMemoryManagerTest.cpp
   SimplePackedSerializationTest.cpp
   SymbolStringPoolTest.cpp
+  TaskDispatchTest.cpp
   ThreadSafeModuleTest.cpp
   WrapperFunctionUtilsTest.cpp
   )

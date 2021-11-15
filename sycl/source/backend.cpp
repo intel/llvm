@@ -33,8 +33,8 @@ static const plugin &getPlugin(backend Backend) {
   switch (Backend) {
   case backend::opencl:
     return pi::getPlugin<backend::opencl>();
-  case backend::level_zero:
-    return pi::getPlugin<backend::level_zero>();
+  case backend::ext_oneapi_level_zero:
+    return pi::getPlugin<backend::ext_oneapi_level_zero>();
   default:
     throw sycl::runtime_error{"Unsupported backend", PI_INVALID_OPERATION};
   }
@@ -202,22 +202,56 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
   return make_kernel_bundle(NativeHandle, TargetContext, false, State, Backend);
 }
 
-kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
+kernel make_kernel(const context &TargetContext,
+                   const kernel_bundle<bundle_state::executable> &KernelBundle,
+                   pi_native_handle NativeHandle, bool KeepOwnership,
                    backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
+  const auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
+
+  // For Level-Zero expect exactly one device image in the bundle. This is
+  // natural for interop kernel to get created out of a single native
+  // program/module. This way we don't need to search the exact device image for
+  // the kernel, which may not be trivial.
+  //
+  // Other backends don't need PI program.
+  //
+  pi::PiProgram PiProgram = nullptr;
+  if (Backend == backend::ext_oneapi_level_zero) {
+    if (KernelBundleImpl->size() != 1)
+      throw sycl::runtime_error{
+          "make_kernel: kernel_bundle must have single program image",
+          PI_INVALID_PROGRAM};
+
+    const device_image<bundle_state::executable> &DeviceImage =
+        *KernelBundle.begin();
+    const auto &DeviceImageImpl = getSyclObjImpl(DeviceImage);
+    PiProgram = DeviceImageImpl->get_program_ref();
+  }
+
   // Create PI kernel first.
   pi::PiKernel PiKernel = nullptr;
   Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), false, &PiKernel);
+      NativeHandle, ContextImpl->getHandleRef(), PiProgram, KeepOwnership,
+      &PiKernel);
 
   if (Backend == backend::opencl)
     Plugin.call<PiApiKind::piKernelRetain>(PiKernel);
 
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(PiKernel, ContextImpl));
+      std::make_shared<kernel_impl>(PiKernel, ContextImpl, KernelBundleImpl));
 }
+
+kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
+                   backend Backend) {
+  return make_kernel(TargetContext,
+                     get_kernel_bundle<bundle_state::executable>(
+                         TargetContext, std::vector<kernel_id>{}),
+                     NativeHandle, false, Backend);
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

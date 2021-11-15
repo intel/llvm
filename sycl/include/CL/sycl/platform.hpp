@@ -10,6 +10,7 @@
 
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/stl.hpp>
@@ -27,9 +28,6 @@ namespace detail {
 class platform_impl;
 }
 
-// Feature test macro for Default Context
-#define SYCL_EXT_ONEAPI_DEFAULT_CONTEXT 1
-
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
@@ -44,8 +42,9 @@ public:
   /// construction.
   ///
   /// \param PlatformId is an OpenCL cl_platform_id instance.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   explicit platform(cl_platform_id PlatformId);
+#endif
 
   /// Constructs a SYCL platform instance using device selector.
   ///
@@ -71,8 +70,9 @@ public:
   /// Returns an OpenCL interoperability platform.
   ///
   /// \return an instance of OpenCL cl_platform_id.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_platform_id get() const;
+#endif
 
   /// Checks if platform supports specified extension.
   ///
@@ -122,9 +122,10 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> typename interop<BackendName, platform>::type {
-    return reinterpret_cast<typename interop<BackendName, platform>::type>(
-        getNative());
+  auto get_native() const ->
+      typename detail::interop<BackendName, platform>::type {
+    return reinterpret_cast<
+        typename detail::interop<BackendName, platform>::type>(getNative());
   }
 
   /// Indicates if all of the SYCL devices on this platform have the

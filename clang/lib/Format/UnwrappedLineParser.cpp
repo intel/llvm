@@ -489,6 +489,17 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
         if (Style.Language == FormatStyle::LK_Proto) {
           ProbablyBracedList = NextTok->isOneOf(tok::comma, tok::r_square);
         } else {
+          // Skip NextTok over preprocessor lines, otherwise we may not
+          // properly diagnose the block as a braced intializer
+          // if the comma separator appears after the pp directive.
+          while (NextTok->is(tok::hash)) {
+            ScopedMacroState MacroState(*Line, Tokens, NextTok);
+            do {
+              NextTok = Tokens->getNextToken();
+              ++ReadTokens;
+            } while (NextTok->isNot(tok::eof));
+          }
+
           // Using OriginalColumn to distinguish between ObjC methods and
           // binary operators is a bit hacky.
           bool NextIsObjCMethod = NextTok->isOneOf(tok::plus, tok::minus) &&
@@ -1064,10 +1075,9 @@ void UnwrappedLineParser::readTokenWithJavaScriptASI() {
   if (PreviousMustBeValue || Previous->is(tok::r_paren)) {
     // If the line contains an '@' sign, the previous token might be an
     // annotation, which can precede another identifier/value.
-    bool HasAt = std::find_if(Line->Tokens.begin(), Line->Tokens.end(),
-                              [](UnwrappedLineNode &LineNode) {
-                                return LineNode.Tok->is(tok::at);
-                              }) != Line->Tokens.end();
+    bool HasAt = llvm::any_of(Line->Tokens, [](UnwrappedLineNode &LineNode) {
+      return LineNode.Tok->is(tok::at);
+    });
     if (HasAt)
       return;
   }

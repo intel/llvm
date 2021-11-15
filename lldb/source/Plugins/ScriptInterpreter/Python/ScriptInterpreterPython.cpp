@@ -355,7 +355,6 @@ private:
     PyEval_InitThreads();
   }
 
-  TerminalState m_stdin_tty_state;
   PyGILState_STATE m_gil_state = PyGILState_UNLOCKED;
   bool m_was_already_initialized = false;
 };
@@ -437,12 +436,7 @@ void ScriptInterpreterPython::SharedLibraryDirectoryHelper(
 #endif
 }
 
-lldb_private::ConstString ScriptInterpreterPython::GetPluginNameStatic() {
-  static ConstString g_name("script-python");
-  return g_name;
-}
-
-const char *ScriptInterpreterPython::GetPluginDescriptionStatic() {
+llvm::StringRef ScriptInterpreterPython::GetPluginDescriptionStatic() {
   return "Embedded Python interpreter";
 }
 
@@ -589,10 +583,6 @@ ScriptInterpreterPythonImpl::~ScriptInterpreterPythonImpl() {
   auto gil_state = PyGILState_Ensure();
   m_session_dict.Reset();
   PyGILState_Release(gil_state);
-}
-
-lldb_private::ConstString ScriptInterpreterPythonImpl::GetPluginName() {
-  return GetPluginNameStatic();
 }
 
 void ScriptInterpreterPythonImpl::IOHandlerActivated(IOHandler &io_handler,

@@ -25,6 +25,7 @@
 #include "lldb/Host/Host.h"
 #include "lldb/Host/HostInfo.h"
 #include "lldb/Host/PosixApi.h"
+#include "lldb/Host/Socket.h"
 #include "lldb/Host/common/NativeProcessProtocol.h"
 #include "lldb/Host/common/NativeRegisterContext.h"
 #include "lldb/Host/common/NativeThreadProtocol.h"
@@ -1827,13 +1828,6 @@ GDBRemoteCommunicationServerLLGS::Handle_qRegisterInfo(
     response.PutChar(';');
   }
 
-  if (reg_info->dynamic_size_dwarf_expr_bytes) {
-    const size_t dwarf_opcode_len = reg_info->dynamic_size_dwarf_len;
-    response.PutCString("dynamic_size_dwarf_expr_bytes:");
-    for (uint32_t i = 0; i < dwarf_opcode_len; ++i)
-      response.PutHex8(reg_info->dynamic_size_dwarf_expr_bytes[i]);
-    response.PutChar(';');
-  }
   return SendPacketNoLock(response.GetString());
 }
 
@@ -2071,12 +2065,8 @@ GDBRemoteCommunicationServerLLGS::Handle_P(StringExtractorGDBRemote &packet) {
     return SendErrorResponse(0x47);
   }
 
-  // The dwarf expression are evaluate on host site which may cause register
-  // size to change Hence the reg_size may not be same as reg_info->bytes_size
-  if ((reg_size != reg_info->byte_size) &&
-      !(reg_info->dynamic_size_dwarf_expr_bytes)) {
+  if (reg_size != reg_info->byte_size)
     return SendIllFormedResponse(packet, "P packet register size is incorrect");
-  }
 
   // Build the reginfos response.
   StreamGDBRemote response;
@@ -2916,14 +2906,6 @@ GDBRemoteCommunicationServerLLGS::BuildTargetXml() {
       response.Printf("\" ");
     }
 
-    if (reg_info->dynamic_size_dwarf_expr_bytes) {
-      const size_t dwarf_opcode_len = reg_info->dynamic_size_dwarf_len;
-      response.PutCString("dynamic_size_dwarf_expr_bytes=\"");
-      for (uint32_t i = 0; i < dwarf_opcode_len; ++i)
-        response.PutHex8(reg_info->dynamic_size_dwarf_expr_bytes[i]);
-      response.Printf("\" ");
-    }
-
     response.Printf("/>");
   }
 
@@ -3656,10 +3638,7 @@ GDBRemoteCommunicationServerLLGS::Handle_qSaveCore(
   StringRef packet_str{packet.GetStringRef()};
   assert(packet_str.startswith("qSaveCore"));
   if (packet_str.consume_front("qSaveCore;")) {
-    llvm::SmallVector<llvm::StringRef, 2> fields;
-    packet_str.split(fields, ';');
-
-    for (auto x : fields) {
+    for (auto x : llvm::split(packet_str, ';')) {
       if (x.consume_front("path-hint:"))
         StringExtractor(x).GetHexByteString(path_hint);
       else
@@ -3910,4 +3889,39 @@ void GDBRemoteCommunicationServerLLGS::SetEnabledExtensions(
   NativeProcessProtocol::Extension flags = m_extensions_supported;
   assert(!bool(flags & ~m_process_factory.GetSupportedExtensions()));
   process.SetEnabledExtensions(flags);
+}
+
+std::string
+lldb_private::process_gdb_remote::LLGSArgToURL(llvm::StringRef url_arg,
+                                               bool reverse_connect) {
+  // Try parsing the argument as URL.
+  if (llvm::Optional<URI> url = URI::Parse(url_arg)) {
+    if (reverse_connect)
+      return url_arg.str();
+
+    // Translate the scheme from LLGS notation to ConnectionFileDescriptor.
+    // If the scheme doesn't match any, pass it through to support using CFD
+    // schemes directly.
+    std::string new_url = llvm::StringSwitch<std::string>(url->scheme)
+                              .Case("tcp", "listen")
+                              .Case("unix", "unix-accept")
+                              .Case("unix-abstract", "unix-abstract-accept")
+                              .Default(url->scheme.str());
+    llvm::append_range(new_url, url_arg.substr(url->scheme.size()));
+    return new_url;
+  }
+
+  std::string host_port = url_arg.str();
+  // If host_and_port starts with ':', default the host to be "localhost" and
+  // expect the remainder to be the port.
+  if (url_arg.startswith(":"))
+    host_port.insert(0, "localhost");
+
+  // Try parsing the (preprocessed) argument as host:port pair.
+  if (!llvm::errorToBool(Socket::DecodeHostAndPort(host_port).takeError()))
+    return (reverse_connect ? "connect://" : "listen://") + host_port;
+
+  // If none of the above applied, interpret the argument as UNIX socket path.
+  return (reverse_connect ? "unix-connect://" : "unix-accept://") +
+         url_arg.str();
 }

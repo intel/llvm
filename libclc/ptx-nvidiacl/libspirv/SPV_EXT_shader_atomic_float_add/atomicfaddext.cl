@@ -65,14 +65,14 @@ float __clc__atomic_fetch_add_float_local_seq_cst(__local float *, float) __asm(
 __CLC_ATOMICFADDEXT(float, global)
 __CLC_ATOMICFADDEXT(float, local)
 
-_CLC_DECL float
+_CLC_DEF float
 _Z21__spirv_AtomicFAddEXTPU3AS1fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
     __global float *pointer, unsigned int scope, unsigned int semantics,
     float value) {
   return __spirv_AtomicFAddEXT(pointer, scope, semantics, value);
 }
 
-_CLC_DECL float
+_CLC_DEF float
 _Z21__spirv_AtomicFAddEXTPU3AS3fN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEf(
     __local float *pointer, unsigned int scope, unsigned int semantics,
     float value) {
@@ -116,7 +116,7 @@ double __clc__atomic_fetch_add_double_local_seq_cst(
 __CLC_ATOMICFADDEXT(double, global)
 __CLC_ATOMICFADDEXT(double, local)
 
-_CLC_DECL double
+_CLC_DEF double
 _Z21__spirv_AtomicFAddEXTPU3AS1dN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEd(
     __global double *pointer, unsigned int scope, unsigned int semantics,
     double value) {
@@ -124,7 +124,7 @@ _Z21__spirv_AtomicFAddEXTPU3AS1dN5__spv5Scope4FlagENS1_19MemorySemanticsMask4Fla
   return __spirv_AtomicFAddEXT(pointer, scope, semantics, value);
 }
 
-_CLC_DECL double
+_CLC_DEF double
 _Z21__spirv_AtomicFAddEXTPU3AS3dN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagEd(
     __local double *pointer, unsigned int scope, unsigned int semantics,
     double value) {

@@ -60,6 +60,7 @@ Changes to the LLVM IR
   will be removed after LLVM 14. In the meantime, only minimal effort will be
   made to maintain the legacy pass manager for the optimization pipeline.
 * Max allowed integer type was reduced from 2^24-1 bits to 2^23 bits.
+* Max allowed alignment was increased from 2^29 to 2^32.
 
 Changes to building LLVM
 ------------------------
@@ -72,12 +73,16 @@ Changes to TableGen
 Changes to the AArch64 Backend
 ------------------------------
 
-* ...
+* Added support for the Armv9-A, Armv9.1-A and Armv9.2-A architectures.
+* The compiler now recognises the "tune-cpu" function attribute to support
+  the use of the -mtune frontend flag. This allows certain scheduling features
+  and optimisations to be enabled independently of the architecture. If the
+  "tune-cpu" attribute is absent it tunes according to the "target-cpu".
 
 Changes to the ARM Backend
 --------------------------
 
-During this release ...
+* Added support for the Armv9-A, Armv9.1-A and Armv9.2-A architectures.
 
 Changes to the MIPS Target
 --------------------------
@@ -123,7 +128,8 @@ Changes to the OCaml bindings
 Changes to the C API
 --------------------
 
-* ...
+* ``LLVMSetInstDebugLocation`` has been deprecated in favor of the more general
+  ``LLVMAddMetadataToInst``.
 
 Changes to the Go bindings
 --------------------------
@@ -150,6 +156,10 @@ Changes to the LLVM tools
 
 Changes to LLDB
 ---------------------------------
+
+* A change in Clang's type printing has changed the way LLDB names array types
+  (from ``int [N]`` to ``int[N]``) - LLDB pretty printer type name matching
+  code may need to be updated to handle this.
 
 Changes to Sanitizers
 ---------------------

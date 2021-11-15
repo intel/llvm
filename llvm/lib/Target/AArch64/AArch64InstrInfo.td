@@ -27,6 +27,21 @@ def HasV8_6a         : Predicate<"Subtarget->hasV8_6aOps()">,
                                  AssemblerPredicate<(all_of HasV8_6aOps), "armv8.6a">;
 def HasV8_7a         : Predicate<"Subtarget->hasV8_7aOps()">,
                                  AssemblerPredicate<(all_of HasV8_7aOps), "armv8.7a">;
+def HasV9_0a         : Predicate<"Subtarget->hasV9_0aOps()">,
+                                 AssemblerPredicate<(all_of HasV9_0aOps), "armv9-a">;
+def HasV9_1a         : Predicate<"Subtarget->hasV9_1aOps()">,
+                                 AssemblerPredicate<(all_of HasV9_1aOps), "armv9.1a">;
+def HasV9_2a         : Predicate<"Subtarget->hasV9_2aOps()">,
+                                 AssemblerPredicate<(all_of HasV9_2aOps), "armv9.2a">;
+def HasV8_0r         : Predicate<"Subtarget->hasV8_0rOps()">,
+                                 AssemblerPredicate<(all_of HasV8_0rOps), "armv8-r">;
+
+def HasEL2VMSA       : Predicate<"Subtarget->hasEL2VMSA()">,
+                       AssemblerPredicate<(all_of FeatureEL2VMSA), "el2vmsa">;
+
+def HasEL3           : Predicate<"Subtarget->hasEL3()">,
+                       AssemblerPredicate<(all_of FeatureEL3), "el3">;
+
 def HasVH            : Predicate<"Subtarget->hasVH()">,
                        AssemblerPredicate<(all_of FeatureVH), "vh">;
 
@@ -194,6 +209,8 @@ def UseAlternateSExtLoadCVTF32
 def UseNegativeImmediates
     : Predicate<"false">, AssemblerPredicate<(all_of (not FeatureNoNegativeImmediates)),
                                              "NegativeImmediates">;
+
+def UseScalarIncVL : Predicate<"Subtarget->useScalarIncVL()">;
 
 def AArch64LocalRecover : SDNode<"ISD::LOCAL_RECOVER",
                                   SDTypeProfile<1, 1, [SDTCisSameAs<0, 1>,
@@ -1298,6 +1315,7 @@ def : InstAlias<"clrex", (CLREX 0xf)>;
 def : InstAlias<"isb", (ISB 0xf)>;
 def : InstAlias<"ssbb", (DSB 0)>;
 def : InstAlias<"pssbb", (DSB 4)>;
+def : InstAlias<"dfb", (DSB 0b1100)>, Requires<[HasV8_0r]>;
 
 def MRS    : MRSI;
 def MSR    : MSRI;
@@ -1351,7 +1369,7 @@ def TSTART : TMSystemI<0b0000, "tstart",
 def TCOMMIT : TMSystemINoOperand<0b0000, "tcommit", [(int_aarch64_tcommit)]>;
 
 def TCANCEL : TMSystemException<0b011, "tcancel",
-                                [(int_aarch64_tcancel i64_imm0_65535:$imm)]>;
+                                [(int_aarch64_tcancel timm64_0_65535:$imm)]>;
 
 def TTEST : TMSystemI<0b0001, "ttest", [(set GPR64:$Rt, (int_aarch64_ttest))]> {
   let mayLoad = 0;
@@ -1370,12 +1388,12 @@ let PostEncoderMethod = "fixMOVZ" in
 defm MOVZ : MoveImmediate<0b10, "movz">;
 
 // First group of aliases covers an implicit "lsl #0".
-def : InstAlias<"movk $dst, $imm", (MOVKWi GPR32:$dst, i32_imm0_65535:$imm, 0), 0>;
-def : InstAlias<"movk $dst, $imm", (MOVKXi GPR64:$dst, i32_imm0_65535:$imm, 0), 0>;
-def : InstAlias<"movn $dst, $imm", (MOVNWi GPR32:$dst, i32_imm0_65535:$imm, 0)>;
-def : InstAlias<"movn $dst, $imm", (MOVNXi GPR64:$dst, i32_imm0_65535:$imm, 0)>;
-def : InstAlias<"movz $dst, $imm", (MOVZWi GPR32:$dst, i32_imm0_65535:$imm, 0)>;
-def : InstAlias<"movz $dst, $imm", (MOVZXi GPR64:$dst, i32_imm0_65535:$imm, 0)>;
+def : InstAlias<"movk $dst, $imm", (MOVKWi GPR32:$dst, timm32_0_65535:$imm, 0), 0>;
+def : InstAlias<"movk $dst, $imm", (MOVKXi GPR64:$dst, timm32_0_65535:$imm, 0), 0>;
+def : InstAlias<"movn $dst, $imm", (MOVNWi GPR32:$dst, timm32_0_65535:$imm, 0)>;
+def : InstAlias<"movn $dst, $imm", (MOVNXi GPR64:$dst, timm32_0_65535:$imm, 0)>;
+def : InstAlias<"movz $dst, $imm", (MOVZWi GPR32:$dst, timm32_0_65535:$imm, 0)>;
+def : InstAlias<"movz $dst, $imm", (MOVZXi GPR64:$dst, timm32_0_65535:$imm, 0)>;
 
 // Next, we have various ELF relocations with the ":XYZ_g0:sym" syntax.
 def : InstAlias<"movz $Rd, $sym", (MOVZXi GPR64:$Rd, movw_symbol_g3:$sym, 48)>;
@@ -2360,16 +2378,16 @@ def BRK   : ExceptionGeneration<0b001, 0b00, "brk">;
 }
 def DCPS1 : ExceptionGeneration<0b101, 0b01, "dcps1">;
 def DCPS2 : ExceptionGeneration<0b101, 0b10, "dcps2">;
-def DCPS3 : ExceptionGeneration<0b101, 0b11, "dcps3">;
+def DCPS3 : ExceptionGeneration<0b101, 0b11, "dcps3">, Requires<[HasEL3]>;
 def HLT   : ExceptionGeneration<0b010, 0b00, "hlt">;
 def HVC   : ExceptionGeneration<0b000, 0b10, "hvc">;
-def SMC   : ExceptionGeneration<0b000, 0b11, "smc">;
+def SMC   : ExceptionGeneration<0b000, 0b11, "smc">, Requires<[HasEL3]>;
 def SVC   : ExceptionGeneration<0b000, 0b01, "svc">;
 
 // DCPSn defaults to an immediate operand of zero if unspecified.
 def : InstAlias<"dcps1", (DCPS1 0)>;
 def : InstAlias<"dcps2", (DCPS2 0)>;
-def : InstAlias<"dcps3", (DCPS3 0)>;
+def : InstAlias<"dcps3", (DCPS3 0)>, Requires<[HasEL3]>;
 
 def UDF : UDFType<0, "udf">;
 
@@ -7006,9 +7024,9 @@ def AESIMCrr : AESInst<    0b0111, "aesimc", int_aarch64_crypto_aesimc>;
 // for AES fusion on some CPUs.
 let hasSideEffects = 0, mayStore = 0, mayLoad = 0 in {
 def AESMCrrTied: Pseudo<(outs V128:$Rd), (ins V128:$Rn), [], "$Rn = $Rd">,
-                        Sched<[WriteV]>;
+                        Sched<[WriteVq]>;
 def AESIMCrrTied: Pseudo<(outs V128:$Rd), (ins V128:$Rn), [], "$Rn = $Rd">,
-                         Sched<[WriteV]>;
+                         Sched<[WriteVq]>;
 }
 
 // Only use constrained versions of AES(I)MC instructions if they are paired with
@@ -8169,6 +8187,10 @@ let Defs = [X16, X17], mayStore = 1, isCodeGenOnly = 1 in
 def StoreSwiftAsyncContext
       : Pseudo<(outs), (ins GPR64:$ctx, GPR64sp:$base, simm9:$offset),
                []>, Sched<[]>;
+
+def AArch64AssertZExtBool : SDNode<"AArch64ISD::ASSERT_ZEXT_BOOL", SDT_assert>;
+def : Pat<(AArch64AssertZExtBool GPR32:$op),
+          (i32 GPR32:$op)>;
 
 include "AArch64InstrAtomics.td"
 include "AArch64SVEInstrInfo.td"

@@ -39,19 +39,19 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
     func @producer_consumer_fusion(%arg0: memref<10xf32>, %arg1: memref<10xf32>) {
       %0 = alloc() : memref<10xf32>
       %1 = alloc() : memref<10xf32>
-      %cst = constant 0.000000e+00 : f32
+      %cst = arith.constant 0.000000e+00 : f32
       affine.for %arg2 = 0 to 10 {
         affine.store %cst, %0[%arg2] : memref<10xf32>
         affine.store %cst, %1[%arg2] : memref<10xf32>
       }
       affine.for %arg2 = 0 to 10 {
         %2 = affine.load %0[%arg2] : memref<10xf32>
-        %3 = addf %2, %2 : f32
+        %3 = arith.addf %2, %2 : f32
         affine.store %3, %arg0[%arg2] : memref<10xf32>
       }
       affine.for %arg2 = 0 to 10 {
         %2 = affine.load %1[%arg2] : memref<10xf32>
-        %3 = mulf %2, %2 : f32
+        %3 = arith.mulf %2, %2 : f32
         affine.store %3, %arg1[%arg2] : memref<10xf32>
       }
       return
@@ -62,15 +62,15 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
     func @producer_consumer_fusion(%arg0: memref<10xf32>, %arg1: memref<10xf32>) {
       %0 = alloc() : memref<1xf32>
       %1 = alloc() : memref<1xf32>
-      %cst = constant 0.000000e+00 : f32
+      %cst = arith.constant 0.000000e+00 : f32
       affine.for %arg2 = 0 to 10 {
         affine.store %cst, %0[0] : memref<1xf32>
         affine.store %cst, %1[0] : memref<1xf32>
         %2 = affine.load %1[0] : memref<1xf32>
-        %3 = mulf %2, %2 : f32
+        %3 = arith.mulf %2, %2 : f32
         affine.store %3, %arg1[%arg2] : memref<10xf32>
         %4 = affine.load %0[0] : memref<1xf32>
-        %5 = addf %4, %4 : f32
+        %5 = arith.addf %4, %4 : f32
         affine.store %5, %arg0[%arg2] : memref<10xf32>
       }
       return
@@ -87,7 +87,7 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
         affine.for %arg6 = 0 to 3 {
           %0 = affine.load %arg0[%arg5, %arg6] : memref<10x10xf32>
           %1 = affine.load %arg1[%arg5, %arg6] : memref<10x10xf32>
-          %2 = mulf %0, %1 : f32
+          %2 = arith.mulf %0, %1 : f32
           affine.store %2, %arg3[%arg5, %arg6] : memref<10x10xf32>
         }
       }
@@ -95,7 +95,7 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
         affine.for %arg6 = 0 to 3 {
           %0 = affine.load %arg0[%arg5, %arg6] : memref<10x10xf32>
           %1 = affine.load %arg2[%arg5, %arg6] : memref<10x10xf32>
-          %2 = addf %0, %1 : f32
+          %2 = arith.addf %0, %1 : f32
           affine.store %2, %arg4[%arg5, %arg6] : memref<10x10xf32>
         }
       }
@@ -111,11 +111,11 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
         affine.for %arg6 = 0 to 3 {
           %0 = affine.load %arg0[%arg5, %arg6] : memref<10x10xf32>
           %1 = affine.load %arg1[%arg5, %arg6] : memref<10x10xf32>
-          %2 = mulf %0, %1 : f32
+          %2 = arith.mulf %0, %1 : f32
           affine.store %2, %arg3[%arg5, %arg6] : memref<10x10xf32>
           %3 = affine.load %arg0[%arg5, %arg6] : memref<10x10xf32>
           %4 = affine.load %arg2[%arg5, %arg6] : memref<10x10xf32>
-          %5 = addf %3, %4 : f32
+          %5 = arith.addf %3, %4 : f32
           affine.store %5, %arg4[%arg5, %arg6] : memref<10x10xf32>
         }
       }
@@ -136,7 +136,15 @@ def AffineLoopFusion : FunctionPass<"affine-loop-fusion"> {
                             "to fast memory space">,
     Option<"maximalFusion", "fusion-maximal", "bool", /*default=*/"false",
            "Enables maximal loop fusion">,
-  ];
+    Option<"affineFusionMode", "mode", "enum FusionMode",
+           "mlir::FusionMode::Greedy", "fusion mode to attempt",
+           "llvm::cl::values(clEnumValN(mlir::FusionMode::Greedy,"
+           " \"greedy\", \"Perform greedy (both producer-consumer and sibling)  fusion\"), "
+           "clEnumValN( mlir::FusionMode::ProducerConsumer, "
+           "\"producer\", \"Perform only producer-consumer fusion\"), "
+           "clEnumValN( mlir::FusionMode::Sibling, "
+           "\"sibling\", \"Perform only sibling fusion\"))">,
+    ];
   let dependentDialects = ["memref::MemRefDialect"];
 }
 
@@ -156,8 +164,8 @@ def AffinePipelineDataTransfer
       %0 = alloc() : memref<256xf32>
       %1 = alloc() : memref<32xf32, 1>
       %2 = alloc() : memref<1xf32>
-      %c0 = constant 0 : index
-      %c128 = constant 128 : index
+      %c0 = arith.constant 0 : index
+      %c128 = arith.constant 128 : index
       affine.for %i0 = 0 to 8 {
         affine.dma_start %0[%i0], %1[%i0], %2[%c0], %c128 : memref<256xf32>, memref<32xf32, 1>, memref<1xf32>
         affine.dma_wait %2[%c0], %c128 : memref<1xf32>
@@ -174,11 +182,11 @@ def AffinePipelineDataTransfer
     ```mlir
     module {
       func @pipelinedatatransfer() {
-        %c8 = constant 8 : index
-        %c0 = constant 0 : index
+        %c8 = arith.constant 8 : index
+        %c0 = arith.constant 0 : index
         %0 = alloc() : memref<256xf32>
-        %c0_0 = constant 0 : index
-        %c128 = constant 128 : index
+        %c0_0 = arith.constant 0 : index
+        %c128 = arith.constant 128 : index
         %1 = alloc() : memref<2x32xf32, 1>
         %2 = alloc() : memref<2x1xf32>
         affine.dma_start %0[%c0], %1[%c0 mod 2, %c0], %2[%c0 mod 2, symbol(%c0_0)], %c128 : memref<256xf32>, memref<2x32xf32, 1>, memref<2x1xf32>
@@ -370,7 +378,7 @@ def Canonicalizer : Pass<"canonicalize"> {
     Option<"enableRegionSimplification", "region-simplify", "bool",
            /*default=*/"true",
            "Seed the worklist in general top-down order">,
-    Option<"maxIterations", "max-iterations", "unsigned",
+    Option<"maxIterations", "max-iterations", "int64_t",
            /*default=*/"10",
            "Seed the worklist in general top-down order">
   ] # RewritePassUtils.options;
@@ -473,6 +481,7 @@ def LoopCoalescing : FunctionPass<"loop-coalescing"> {
   let summary = "Coalesce nested loops with independent bounds into a single "
                 "loop";
   let constructor = "mlir::createLoopCoalescingPass()";
+  let dependentDialects = ["arith::ArithmeticDialect"];
 }
 
 def LoopInvariantCodeMotion : Pass<"loop-invariant-code-motion"> {
@@ -516,7 +525,7 @@ def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
                  %B: index, %C: memref<16xf64>) -> (memref<16xf64, #tile>) {
       affine.for %arg3 = 0 to 16 {
             %a = affine.load %A[%arg3] : memref<16xf64, #tile>
-            %p = mulf %a, %a : f64
+            %p = arith.mulf %a, %a : f64
             affine.store %p, %A[%arg3] : memref<16xf64, #tile>
       }
       %c = alloc() : memref<16xf64, #tile>
@@ -532,7 +541,7 @@ def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
       -> memref<4x4xf64> {
       affine.for %arg3 = 0 to 16 {
         %3 = affine.load %arg0[%arg3 floordiv 4, %arg3 mod 4]: memref<4x4xf64>
-        %4 = mulf %3, %3 : f64
+        %4 = arith.mulf %3, %3 : f64
         affine.store %4, %arg0[%arg3 floordiv 4, %arg3 mod 4]: memref<4x4xf64>
       }
       %0 = alloc() : memref<4x4xf64>
@@ -549,17 +558,17 @@ def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
     func @linearize(%arg0: memref<8x8xi32, #linear8>,
                     %arg1: memref<8x8xi32, #linear8>,
                     %arg2: memref<8x8xi32, #linear8>) {
-      %c8 = constant 8 : index
-      %c0 = constant 0 : index
-      %c1 = constant 1 : index
+      %c8 = arith.constant 8 : index
+      %c0 = arith.constant 0 : index
+      %c1 = arith.constant 1 : index
       affine.for %arg3 = %c0 to %c8  {
       affine.for %arg4 = %c0 to %c8  {
         affine.for %arg5 = %c0 to %c8 {
           %0 = affine.load %arg0[%arg3, %arg5] : memref<8x8xi32, #linear8>
           %1 = affine.load %arg1[%arg5, %arg4] : memref<8x8xi32, #linear8>
           %2 = affine.load %arg2[%arg3, %arg4] : memref<8x8xi32, #linear8>
-          %3 = muli %0, %1 : i32
-          %4 = addi %2, %3 : i32
+          %3 = arith.muli %0, %1 : i32
+          %4 = arith.addi %2, %3 : i32
           affine.store %4, %arg2[%arg3, %arg4] : memref<8x8xi32, #linear8>
         }
       }
@@ -574,16 +583,16 @@ def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
     func @linearize(%arg0: memref<64xi32>,
                     %arg1: memref<64xi32>,
                     %arg2: memref<64xi32>) {
-    %c8 = constant 8 : index
-    %c0 = constant 0 : index
+    %c8 = arith.constant 8 : index
+    %c0 = arith.constant 0 : index
     affine.for %arg3 = %c0 to %c8 {
       affine.for %arg4 = %c0 to %c8 {
         affine.for %arg5 = %c0 to %c8 {
           %0 = affine.load %arg0[%arg3 * 8 + %arg5] : memref<64xi32>
           %1 = affine.load %arg1[%arg5 * 8 + %arg4] : memref<64xi32>
           %2 = affine.load %arg2[%arg3 * 8 + %arg4] : memref<64xi32>
-          %3 = muli %0, %1 : i32
-          %4 = addi %2, %3 : i32
+          %3 = arith.muli %0, %1 : i32
+          %4 = arith.addi %2, %3 : i32
           affine.store %4, %arg2[%arg3 * 8 + %arg4] : memref<64xi32>
         }
       }

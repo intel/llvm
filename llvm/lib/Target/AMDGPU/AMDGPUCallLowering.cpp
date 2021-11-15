@@ -60,7 +60,7 @@ struct AMDGPUOutgoingValueHandler : public CallLowering::OutgoingValueHandler {
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     Register ExtReg = extendRegisterMin32(*this, ValVReg, VA);
 
     // If this is a scalar return, insert a readfirstlane just in case the value
@@ -103,7 +103,7 @@ struct AMDGPUIncomingArgHandler : public CallLowering::IncomingValueHandler {
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     markPhysRegUsed(PhysReg);
 
     if (VA.getLocVT().getSizeInBits() < 32) {
@@ -203,7 +203,7 @@ struct AMDGPUOutgoingArgHandler : public AMDGPUOutgoingValueHandler {
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     MIB.addUse(PhysReg, RegState::Implicit);
     Register ExtReg = extendRegisterMin32(*this, ValVReg, VA);
     MIRBuilder.buildCopy(PhysReg, ExtReg);
@@ -932,7 +932,9 @@ getAssignFnsForCC(CallingConv::ID CC, const SITargetLowering &TLI) {
 
 static unsigned getCallOpcode(const MachineFunction &CallerF, bool IsIndirect,
                               bool IsTailCall) {
-  return IsTailCall ? AMDGPU::SI_TCRETURN : AMDGPU::SI_CALL;
+  assert(!(IsIndirect && IsTailCall) && "Indirect calls can't be tail calls, "
+                                        "because the address can be divergent");
+  return IsTailCall ? AMDGPU::SI_TCRETURN : AMDGPU::G_SI_CALL;
 }
 
 // Add operands to call instruction to track the callee.
@@ -1060,6 +1062,11 @@ bool AMDGPUCallLowering::isEligibleForTailCallOptimization(
     SmallVectorImpl<ArgInfo> &InArgs, SmallVectorImpl<ArgInfo> &OutArgs) const {
   // Must pass all target-independent checks in order to tail call optimize.
   if (!Info.IsTailCall)
+    return false;
+
+  // Indirect calls can't be tail calls, because the address can be divergent.
+  // TODO Check divergence info if the call really is divergent.
+  if (Info.Callee.isReg())
     return false;
 
   MachineFunction &MF = B.getMF();

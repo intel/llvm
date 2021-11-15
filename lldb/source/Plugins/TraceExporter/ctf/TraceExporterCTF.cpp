@@ -39,13 +39,6 @@ void TraceExporterCTF::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-ConstString TraceExporterCTF::GetPluginNameStatic() {
-  static ConstString g_name("ctf");
-  return g_name;
-}
-
-ConstString TraceExporterCTF::GetPluginName() { return GetPluginNameStatic(); }
-
 Expected<TraceExporterUP> TraceExporterCTF::CreateInstance() {
   return std::make_unique<TraceExporterCTF>();
 }

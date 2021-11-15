@@ -29,16 +29,20 @@ class LinalgDependenceGraph;
 // General utilities
 //===----------------------------------------------------------------------===//
 
+/// Check if `permutation` is a permutation of the range
+/// `[0, permutation.size())`.
+bool isPermutation(ArrayRef<int64_t> permutation);
+
 /// Apply the permutation defined by `permutation` to `inVec`.
 /// Element `i` in `inVec` is mapped to location `j = permutation[i]`.
 /// E.g.: for an input vector `inVec = ['a', 'b', 'c']` and a permutation vector
 /// `permutation = [2, 0, 1]`, this function leaves `inVec = ['c', 'a', 'b']`.
 template <typename T, unsigned N>
 void applyPermutationToVector(SmallVector<T, N> &inVec,
-                              ArrayRef<unsigned> permutation) {
+                              ArrayRef<int64_t> permutation) {
   SmallVector<T, N> auxVec(inVec.size());
-  for (unsigned i = 0; i < permutation.size(); ++i)
-    auxVec[i] = inVec[permutation[i]];
+  for (auto en : enumerate(permutation))
+    auxVec[en.index()] = inVec[en.value()];
   inVec = auxVec;
 }
 
@@ -76,8 +80,16 @@ tensor::ExtractSliceOp makeComposedExtractSliceOp(
     ArrayRef<OpFoldResult> sizes, ArrayRef<OpFoldResult> strides);
 
 //===----------------------------------------------------------------------===//
-// Fusion utilities
+// Fusion / Tiling utilities
 //===----------------------------------------------------------------------===//
+
+/// The type of loops to be generated during tiling.
+enum class LinalgTilingLoopType {
+  Loops = 0,
+  AffineLoops = 1,
+  ParallelLoops = 2,
+  TiledLoops = 3,
+};
 
 /// Checks whether the specific `producer` is the last write to exactly the
 /// whole `consumedView`. This checks structural dominance, that the dependence
@@ -152,25 +164,25 @@ struct FusionInfo {
 /// Implements the fusion part of the "tileAndFuse on buffers" transformation
 /// and thus requires the `consumerOpOperand` to be a `subview` op (generally
 /// obtained by applying the tiling transformation).
-Optional<FusionInfo> fuseProducerOfBuffer(OpBuilder &b,
-                                          OpOperand &consumerOpOperand,
-                                          const LinalgDependenceGraph &graph);
+FailureOr<FusionInfo> fuseProducerOfBuffer(OpBuilder &b,
+                                           OpOperand &consumerOpOperand,
+                                           const LinalgDependenceGraph &graph);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
 /// transformation and thus requires the `consumerOpOperand` to be a
 /// `extract_slice` op (generally obtained by applying the tiling
 /// transformation).
-Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
-                                          OpOperand &consumerOpOperand);
+FailureOr<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
+                                           OpOperand &consumerOpOperand);
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
 /// transformation and thus requires the `consumerOpOperand` to be a
 /// `extract_slice` op (generally obtained by applying the tiling
 /// transformation). Assumes `producerOfTensor` is a Linalg op that produces
 /// `consumerOpOperand`.
-Optional<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
-                                          OpResult producerOpResult,
-                                          OpOperand &consumerOpOperand);
+FailureOr<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
+                                           OpResult producerOpResult,
+                                           OpOperand &consumerOpOperand);
 
 //===----------------------------------------------------------------------===//
 // Fusion on tensor utilities
@@ -187,8 +199,10 @@ public:
 
   /// Fuse the producer of `rootOpOperand` into the tile loop nest. Returns the
   /// fused producer of fails if fusion is not possible.
-  // TODO: add replace uses callback to support passes and patterns.
   FailureOr<LinalgOp> fuseProducer(OpBuilder &b, OpOperand *rootOpOperand);
+
+  /// Returns the replacement results for the original untiled root operation.
+  ValueRange getRootOpReplacementResults();
 
   /// Returns the tiled root operation.
   LinalgOp getRootOp() { return rootOp; }
@@ -257,7 +271,7 @@ enum class DistributionMethod {
   /// to
   ///
   /// %iv = %lb + %procId * %step
-  /// %cond = cmpi "slt", %iv, %ub
+  /// %cond = arith.cmpi "slt", %iv, %ub
   /// scf.if %cond {
   ///   ...
   /// }

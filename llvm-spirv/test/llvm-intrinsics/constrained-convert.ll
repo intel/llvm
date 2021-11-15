@@ -10,14 +10,14 @@
 ; CHECK: Name [[fe:[0-9]+]] "conv4"
 ; CHECK: Name [[ft:[0-9]+]] "conv5"
 
-; CHECK: Decorate [[sf]] FPRoundingMode 0
-; CHECK: Decorate [[uf]] FPRoundingMode 1
+; CHECK-DAG: Decorate [[sf]] FPRoundingMode 0
+; CHECK-DAG: Decorate [[uf]] FPRoundingMode 1
+; CHECK-DAG: Decorate [[ft]] FPRoundingMode 2
 
 ; CHECK-NOT: Decorate [[fs]] FPRoundingMode
 ; CHECK-NOT: Decorate [[fu]] FPRoundingMode
 ; CHECK-NOT: Decorate [[fe]] FPRoundingMode
 
-; CHECK: Decorate [[ft]] FPRoundingMode 2
 
 ;CHECK: ConvertSToF {{[0-9]+}} [[sf]]
 ;CHECK: ConvertUToF {{[0-9]+}} [[uf]]

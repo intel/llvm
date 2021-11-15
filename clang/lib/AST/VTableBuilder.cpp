@@ -1070,7 +1070,7 @@ void ItaniumVTableBuilder::AddThunk(const CXXMethodDecl *MD,
   SmallVectorImpl<ThunkInfo> &ThunksVector = Thunks[MD];
 
   // Check if we have this thunk already.
-  if (llvm::find(ThunksVector, Thunk) != ThunksVector.end())
+  if (llvm::is_contained(ThunksVector, Thunk))
     return;
 
   ThunksVector.push_back(Thunk);
@@ -2498,7 +2498,7 @@ private:
     SmallVector<ThunkInfo, 1> &ThunksVector = Thunks[MD];
 
     // Check if we have this thunk already.
-    if (llvm::find(ThunksVector, Thunk) != ThunksVector.end())
+    if (llvm::is_contained(ThunksVector, Thunk))
       return;
 
     ThunksVector.push_back(Thunk);
@@ -3454,7 +3454,7 @@ static void removeRedundantPaths(std::list<FullPathTy> &FullPaths) {
       if (&SpecificPath == &OtherPath)
         continue;
       if (llvm::all_of(SpecificPath, [&](const BaseSubobject &BSO) {
-            return OtherPath.count(BSO) != 0;
+            return OtherPath.contains(BSO);
           })) {
         return true;
       }

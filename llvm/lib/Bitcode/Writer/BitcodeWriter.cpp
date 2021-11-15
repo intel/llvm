@@ -58,6 +58,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueSymbolTable.h"
 #include "llvm/MC/StringTableBuilder.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/IRSymtab.h"
 #include "llvm/Support/AtomicOrdering.h"
 #include "llvm/Support/Casting.h"
@@ -67,7 +68,6 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SHA1.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -835,7 +835,7 @@ void ModuleBitcodeWriter::writeAttributeTable() {
   SmallVector<uint64_t, 64> Record;
   for (unsigned i = 0, e = Attrs.size(); i != e; ++i) {
     AttributeList AL = Attrs[i];
-    for (unsigned i = AL.index_begin(), e = AL.index_end(); i != e; ++i) {
+    for (unsigned i : AL.indexes()) {
       AttributeSet AS = AL.getAttributes(i);
       if (AS.hasAttributes())
         Record.push_back(VE.getAttributeGroupID({i, AS}));
@@ -1066,6 +1066,9 @@ static uint64_t getEncodedFFlags(FunctionSummary::FFlags Flags) {
   RawFlags |= (Flags.ReturnDoesNotAlias << 3);
   RawFlags |= (Flags.NoInline << 4);
   RawFlags |= (Flags.AlwaysInline << 5);
+  RawFlags |= (Flags.NoUnwind << 6);
+  RawFlags |= (Flags.MayThrow << 7);
+  RawFlags |= (Flags.HasUnknownCall << 8);
   return RawFlags;
 }
 
@@ -2914,8 +2917,7 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
 
     // Emit type/value pairs for varargs params.
     if (FTy->isVarArg()) {
-      for (unsigned i = FTy->getNumParams(), e = II->getNumArgOperands();
-           i != e; ++i)
+      for (unsigned i = FTy->getNumParams(), e = II->arg_size(); i != e; ++i)
         pushValueAndType(I.getOperand(i), InstID, Vals); // vararg
     }
     break;
@@ -2996,8 +2998,7 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
 
     // Emit type/value pairs for varargs params.
     if (FTy->isVarArg()) {
-      for (unsigned i = FTy->getNumParams(), e = CBI->getNumArgOperands();
-           i != e; ++i)
+      for (unsigned i = FTy->getNumParams(), e = CBI->arg_size(); i != e; ++i)
         pushValueAndType(I.getOperand(i), InstID, Vals); // vararg
     }
     break;
@@ -3054,7 +3055,11 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     Vals.push_back(VE.getValueID(I.getOperand(0))); // size.
     using APV = AllocaPackedValues;
     unsigned Record = 0;
-    Bitfield::set<APV::Align>(Record, getEncodedAlign(AI.getAlign()));
+    unsigned EncodedAlign = getEncodedAlign(AI.getAlign());
+    Bitfield::set<APV::AlignLower>(
+        Record, EncodedAlign & ((1 << APV::AlignLower::Bits) - 1));
+    Bitfield::set<APV::AlignUpper>(Record,
+                                   EncodedAlign >> APV::AlignLower::Bits);
     Bitfield::set<APV::UsedWithInAlloca>(Record, AI.isUsedWithInAlloca());
     Bitfield::set<APV::ExplicitType>(Record, true);
     Bitfield::set<APV::SwiftError>(Record, AI.isSwiftError());
@@ -3161,8 +3166,7 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
 
     // Emit type/value pairs for varargs params.
     if (FTy->isVarArg()) {
-      for (unsigned i = FTy->getNumParams(), e = CI.getNumArgOperands();
-           i != e; ++i)
+      for (unsigned i = FTy->getNumParams(), e = CI.arg_size(); i != e; ++i)
         pushValueAndType(CI.getArgOperand(i), InstID, Vals); // varargs
     }
     break;
@@ -4035,7 +4039,7 @@ void ModuleBitcodeWriterBase::writePerModuleGlobalValueSummary() {
                                FSModVTableRefsAbbrev);
 
   for (const GlobalAlias &A : M.aliases()) {
-    auto *Aliasee = A.getBaseObject();
+    auto *Aliasee = A.getAliaseeObject();
     if (!Aliasee->hasName())
       // Nameless function don't have an entry in the summary, skip it.
       continue;
@@ -4148,7 +4152,14 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
   // For local linkage, we also emit the original name separately
   // immediately after the record.
   auto MaybeEmitOriginalName = [&](GlobalValueSummary &S) {
-    if (!GlobalValue::isLocalLinkage(S.linkage()))
+    // We don't need to emit the original name if we are writing the index for
+    // distributed backends (in which case ModuleToSummariesForIndex is
+    // non-null). The original name is only needed during the thin link, since
+    // for SamplePGO the indirect call targets for local functions have
+    // have the original name annotated in profile.
+    // Continue to emit it when writing out the entire combined index, which is
+    // used in testing the thin link via llvm-lto.
+    if (ModuleToSummariesForIndex || !GlobalValue::isLocalLinkage(S.linkage()))
       return;
     NameVals.push_back(S.getOriginalName());
     Stream.EmitRecord(bitc::FS_COMBINED_ORIGINAL_NAME, NameVals);
@@ -4201,33 +4212,7 @@ void IndexBitcodeWriter::writeCombinedGlobalValueSummary() {
     }
 
     auto GetValueId = [&](const ValueInfo &VI) -> Optional<unsigned> {
-      GlobalValue::GUID GUID = VI.getGUID();
-      Optional<unsigned> CallValueId = getValueId(GUID);
-      if (CallValueId)
-        return CallValueId;
-      // For SamplePGO, the indirect call targets for local functions will
-      // have its original name annotated in profile. We try to find the
-      // corresponding PGOFuncName as the GUID.
-      GUID = Index.getGUIDFromOriginalID(GUID);
-      if (!GUID)
-        return None;
-      CallValueId = getValueId(GUID);
-      if (!CallValueId)
-        return None;
-      // The mapping from OriginalId to GUID may return a GUID
-      // that corresponds to a static variable. Filter it out here.
-      // This can happen when
-      // 1) There is a call to a library function which does not have
-      // a CallValidId;
-      // 2) There is a static variable with the  OriginalGUID identical
-      // to the GUID of the library function in 1);
-      // When this happens, the logic for SamplePGO kicks in and
-      // the static variable in 2) will be found, which needs to be
-      // filtered out.
-      auto *GVSum = Index.getGlobalValueSummary(GUID, false);
-      if (GVSum && GVSum->getSummaryKind() == GlobalValueSummary::GlobalVarKind)
-        return None;
-      return CallValueId;
+      return getValueId(VI.getGUID());
     };
 
     auto *FS = cast<FunctionSummary>(S);

@@ -132,6 +132,8 @@ int omp_get_team_num();
 
 int omp_get_initial_device(void);
 
+void *llvm_omp_get_dynamic_shared();
+
 /// Synchronization
 ///
 ///{
@@ -198,15 +200,21 @@ void __kmpc_end_sharing_variables();
 /// Called by the worker threads in the parallel region (function).
 void __kmpc_get_shared_variables(void ***GlobalArgs);
 
+/// External interface to get the thread ID.
+uint32_t __kmpc_get_hardware_thread_id_in_block();
+
+/// External interface to get the number of threads.
+uint32_t __kmpc_get_hardware_num_threads_in_block();
+
 /// Kernel
 ///
 ///{
 int8_t __kmpc_is_spmd_exec_mode();
 
-int32_t __kmpc_target_init(IdentTy *Ident, bool IsSPMD,
+int32_t __kmpc_target_init(IdentTy *Ident, int8_t Mode,
                            bool UseGenericStateMachine, bool);
 
-void __kmpc_target_deinit(IdentTy *Ident, bool IsSPMD, bool);
+void __kmpc_target_deinit(IdentTy *Ident, int8_t Mode, bool);
 
 ///}
 
@@ -271,12 +279,6 @@ bool __kmpc_kernel_parallel(ParallelRegionFnTy *WorkFn);
 
 /// TODO
 void __kmpc_kernel_end_parallel();
-
-/// TODO
-void __kmpc_serialized_parallel(IdentTy *Loc, uint32_t);
-
-/// TODO
-void __kmpc_end_serialized_parallel(IdentTy *Loc, uint32_t);
 
 /// TODO
 void __kmpc_push_proc_bind(IdentTy *Loc, uint32_t TId, int ProcBind);

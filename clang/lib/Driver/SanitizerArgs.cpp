@@ -683,7 +683,8 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         Arg->claim();
         if (LegacySanitizeCoverage != 0) {
           D.Diag(diag::warn_drv_deprecated_arg)
-              << Arg->getAsString(Args) << "-fsanitize-coverage=trace-pc-guard";
+              << Arg->getAsString(Args) << true
+              << "-fsanitize-coverage=trace-pc-guard";
         }
         continue;
       }
@@ -718,11 +719,11 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   // enabled.
   if (CoverageFeatures & CoverageTraceBB)
     D.Diag(clang::diag::warn_drv_deprecated_arg)
-        << "-fsanitize-coverage=trace-bb"
+        << "-fsanitize-coverage=trace-bb" << true
         << "-fsanitize-coverage=trace-pc-guard";
   if (CoverageFeatures & Coverage8bitCounters)
     D.Diag(clang::diag::warn_drv_deprecated_arg)
-        << "-fsanitize-coverage=8bit-counters"
+        << "-fsanitize-coverage=8bit-counters" << true
         << "-fsanitize-coverage=trace-pc-guard";
 
   int InsertionPointTypes = CoverageFunc | CoverageBB | CoverageEdge;
@@ -732,7 +733,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   if ((CoverageFeatures & InsertionPointTypes) &&
       !(CoverageFeatures & InstrumentationTypes)) {
     D.Diag(clang::diag::warn_drv_deprecated_arg)
-        << "-fsanitize-coverage=[func|bb|edge]"
+        << "-fsanitize-coverage=[func|bb|edge]" << true
         << "-fsanitize-coverage=[func|bb|edge],[trace-pc-guard|trace-pc]";
   }
 
@@ -755,7 +756,7 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     parseSpecialCaseListArg(
         D, Args, CoverageAllowlistFiles,
         options::OPT_fsanitize_coverage_allowlist, OptSpecifier(),
-        clang::diag::err_drv_malformed_sanitizer_coverage_whitelist);
+        clang::diag::err_drv_malformed_sanitizer_coverage_allowlist);
     parseSpecialCaseListArg(
         D, Args, CoverageIgnorelistFiles,
         options::OPT_fsanitize_coverage_ignorelist, OptSpecifier(),
@@ -1146,7 +1147,7 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString("hwasan-abi=" + HwasanAbi));
   }
 
-  if (Sanitizers.has(SanitizerKind::HWAddress) && TC.getTriple().isAArch64()) {
+  if (Sanitizers.has(SanitizerKind::HWAddress) && !HwasanUseAliases) {
     CmdArgs.push_back("-target-feature");
     CmdArgs.push_back("+tagged-globals");
   }

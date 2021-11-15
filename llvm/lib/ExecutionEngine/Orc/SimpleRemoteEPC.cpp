@@ -16,88 +16,46 @@
 
 namespace llvm {
 namespace orc {
-namespace shared {
-
-template <>
-class SPSSerializationTraits<SPSRemoteSymbolLookupSetElement,
-                             SymbolLookupSet::value_type> {
-public:
-  static size_t size(const SymbolLookupSet::value_type &V) {
-    return SPSArgList<SPSString, bool>::size(
-        *V.first, V.second == SymbolLookupFlags::RequiredSymbol);
-  }
-
-  static bool serialize(SPSOutputBuffer &OB,
-                        const SymbolLookupSet::value_type &V) {
-    return SPSArgList<SPSString, bool>::serialize(
-        OB, *V.first, V.second == SymbolLookupFlags::RequiredSymbol);
-  }
-};
-
-template <>
-class TrivialSPSSequenceSerialization<SPSRemoteSymbolLookupSetElement,
-                                      SymbolLookupSet> {
-public:
-  static constexpr bool available = true;
-};
-
-template <>
-class SPSSerializationTraits<SPSRemoteSymbolLookup,
-                             ExecutorProcessControl::LookupRequest> {
-  using MemberSerialization =
-      SPSArgList<SPSExecutorAddress, SPSRemoteSymbolLookupSet>;
-
-public:
-  static size_t size(const ExecutorProcessControl::LookupRequest &LR) {
-    return MemberSerialization::size(ExecutorAddress(LR.Handle), LR.Symbols);
-  }
-
-  static bool serialize(SPSOutputBuffer &OB,
-                        const ExecutorProcessControl::LookupRequest &LR) {
-    return MemberSerialization::serialize(OB, ExecutorAddress(LR.Handle),
-                                          LR.Symbols);
-  }
-};
-
-} // end namespace shared
 
 SimpleRemoteEPC::~SimpleRemoteEPC() {
+#ifndef NDEBUG
+  std::lock_guard<std::mutex> Lock(SimpleRemoteEPCMutex);
   assert(Disconnected && "Destroyed without disconnection");
+#endif // NDEBUG
 }
 
 Expected<tpctypes::DylibHandle>
 SimpleRemoteEPC::loadDylib(const char *DylibPath) {
-  Expected<tpctypes::DylibHandle> H((tpctypes::DylibHandle()));
-  if (auto Err = callSPSWrapper<shared::SPSLoadDylibSignature>(
-          LoadDylibAddr.getValue(), H, JDI.JITDispatchContextAddress,
-          StringRef(DylibPath), (uint64_t)0))
-    return std::move(Err);
-  return H;
+  return DylibMgr->open(DylibPath, 0);
 }
 
 Expected<std::vector<tpctypes::LookupResult>>
 SimpleRemoteEPC::lookupSymbols(ArrayRef<LookupRequest> Request) {
-  Expected<std::vector<tpctypes::LookupResult>> R(
-      (std::vector<tpctypes::LookupResult>()));
+  std::vector<tpctypes::LookupResult> Result;
 
-  if (auto Err = callSPSWrapper<shared::SPSLookupSymbolsSignature>(
-          LookupSymbolsAddr.getValue(), R, JDI.JITDispatchContextAddress,
-          Request))
-    return std::move(Err);
-  return R;
+  for (auto &Element : Request) {
+    if (auto R = DylibMgr->lookup(Element.Handle, Element.Symbols)) {
+      Result.push_back({});
+      Result.back().reserve(R->size());
+      for (auto Addr : *R)
+        Result.back().push_back(Addr.getValue());
+    } else
+      return R.takeError();
+  }
+  return std::move(Result);
 }
 
-Expected<int32_t> SimpleRemoteEPC::runAsMain(JITTargetAddress MainFnAddr,
+Expected<int32_t> SimpleRemoteEPC::runAsMain(ExecutorAddr MainFnAddr,
                                              ArrayRef<std::string> Args) {
   int64_t Result = 0;
   if (auto Err = callSPSWrapper<rt::SPSRunAsMainSignature>(
-          RunAsMainAddr.getValue(), Result, ExecutorAddress(MainFnAddr), Args))
+          RunAsMainAddr, Result, ExecutorAddr(MainFnAddr), Args))
     return std::move(Err);
   return Result;
 }
 
-void SimpleRemoteEPC::callWrapperAsync(SendResultFunction OnComplete,
-                                       JITTargetAddress WrapperFnAddr,
+void SimpleRemoteEPC::callWrapperAsync(ExecutorAddr WrapperFnAddr,
+                                       IncomingWFRHandler OnComplete,
                                        ArrayRef<char> ArgBuffer) {
   uint64_t SeqNo;
   {
@@ -107,22 +65,71 @@ void SimpleRemoteEPC::callWrapperAsync(SendResultFunction OnComplete,
     PendingCallWrapperResults[SeqNo] = std::move(OnComplete);
   }
 
-  if (auto Err = T->sendMessage(SimpleRemoteEPCOpcode::CallWrapper, SeqNo,
-                                ExecutorAddress(WrapperFnAddr), ArgBuffer)) {
+  if (auto Err = sendMessage(SimpleRemoteEPCOpcode::CallWrapper, SeqNo,
+                             WrapperFnAddr, ArgBuffer)) {
+    IncomingWFRHandler H;
+
+    // We just registered OnComplete, but there may be a race between this
+    // thread returning from sendMessage and handleDisconnect being called from
+    // the transport's listener thread. If handleDisconnect gets there first
+    // then it will have failed 'H' for us. If we get there first (or if
+    // handleDisconnect already ran) then we need to take care of it.
+    {
+      std::lock_guard<std::mutex> Lock(SimpleRemoteEPCMutex);
+      auto I = PendingCallWrapperResults.find(SeqNo);
+      if (I != PendingCallWrapperResults.end()) {
+        H = std::move(I->second);
+        PendingCallWrapperResults.erase(I);
+      }
+    }
+
+    if (H)
+      H(shared::WrapperFunctionResult::createOutOfBandError("disconnecting"));
+
     getExecutionSession().reportError(std::move(Err));
   }
 }
 
 Error SimpleRemoteEPC::disconnect() {
-  Disconnected = true;
   T->disconnect();
-  return Error::success();
+  D->shutdown();
+  std::unique_lock<std::mutex> Lock(SimpleRemoteEPCMutex);
+  DisconnectCV.wait(Lock, [this] { return Disconnected; });
+  return std::move(DisconnectErr);
 }
 
 Expected<SimpleRemoteEPCTransportClient::HandleMessageAction>
 SimpleRemoteEPC::handleMessage(SimpleRemoteEPCOpcode OpC, uint64_t SeqNo,
-                               ExecutorAddress TagAddr,
+                               ExecutorAddr TagAddr,
                                SimpleRemoteEPCArgBytesVector ArgBytes) {
+
+  LLVM_DEBUG({
+    dbgs() << "SimpleRemoteEPC::handleMessage: opc = ";
+    switch (OpC) {
+    case SimpleRemoteEPCOpcode::Setup:
+      dbgs() << "Setup";
+      assert(SeqNo == 0 && "Non-zero SeqNo for Setup?");
+      assert(TagAddr.getValue() == 0 && "Non-zero TagAddr for Setup?");
+      break;
+    case SimpleRemoteEPCOpcode::Hangup:
+      dbgs() << "Hangup";
+      assert(SeqNo == 0 && "Non-zero SeqNo for Hangup?");
+      assert(TagAddr.getValue() == 0 && "Non-zero TagAddr for Hangup?");
+      break;
+    case SimpleRemoteEPCOpcode::Result:
+      dbgs() << "Result";
+      assert(TagAddr.getValue() == 0 && "Non-zero TagAddr for Result?");
+      break;
+    case SimpleRemoteEPCOpcode::CallWrapper:
+      dbgs() << "CallWrapper";
+      break;
+    }
+    dbgs() << ", seqno = " << SeqNo
+           << ", tag-addr = " << formatv("{0:x}", TagAddr.getValue())
+           << ", arg-buffer = " << formatv("{0:x}", ArgBytes.size())
+           << " bytes\n";
+  });
+
   using UT = std::underlying_type_t<SimpleRemoteEPCOpcode>;
   if (static_cast<UT>(OpC) > static_cast<UT>(SimpleRemoteEPCOpcode::LastOpC))
     return make_error<StringError>("Unexpected opcode",
@@ -134,8 +141,10 @@ SimpleRemoteEPC::handleMessage(SimpleRemoteEPCOpcode OpC, uint64_t SeqNo,
       return std::move(Err);
     break;
   case SimpleRemoteEPCOpcode::Hangup:
-    // FIXME: Put EPC into 'detached' state.
-    return SimpleRemoteEPCTransportClient::EndSession;
+    T->disconnect();
+    if (auto Err = handleHangup(std::move(ArgBytes)))
+      return std::move(Err);
+    return EndSession;
   case SimpleRemoteEPCOpcode::Result:
     if (auto Err = handleResult(SeqNo, TagAddr, std::move(ArgBytes)))
       return std::move(Err);
@@ -148,6 +157,11 @@ SimpleRemoteEPC::handleMessage(SimpleRemoteEPCOpcode OpC, uint64_t SeqNo,
 }
 
 void SimpleRemoteEPC::handleDisconnect(Error Err) {
+  LLVM_DEBUG({
+    dbgs() << "SimpleRemoteEPC::handleDisconnect: "
+           << (Err ? "failure" : "success") << "\n";
+  });
+
   PendingCallWrapperResultsMap TmpPending;
 
   {
@@ -159,19 +173,16 @@ void SimpleRemoteEPC::handleDisconnect(Error Err) {
     KV.second(
         shared::WrapperFunctionResult::createOutOfBandError("disconnecting"));
 
-  if (Err) {
-    // FIXME: Move ReportError to EPC.
-    if (ES)
-      ES->reportError(std::move(Err));
-    else
-      logAllUnhandledErrors(std::move(Err), errs(), "SimpleRemoteEPC: ");
-  }
+  std::lock_guard<std::mutex> Lock(SimpleRemoteEPCMutex);
+  DisconnectErr = joinErrors(std::move(DisconnectErr), std::move(Err));
+  Disconnected = true;
+  DisconnectCV.notify_all();
 }
 
 Expected<std::unique_ptr<jitlink::JITLinkMemoryManager>>
-SimpleRemoteEPC::createMemoryManager() {
+SimpleRemoteEPC::createDefaultMemoryManager(SimpleRemoteEPC &SREPC) {
   EPCGenericJITLinkMemoryManager::SymbolAddrs SAs;
-  if (auto Err = getBootstrapSymbols(
+  if (auto Err = SREPC.getBootstrapSymbols(
           {{SAs.Allocator, rt::SimpleExecutorMemoryManagerInstanceName},
            {SAs.Reserve, rt::SimpleExecutorMemoryManagerReserveWrapperName},
            {SAs.Finalize, rt::SimpleExecutorMemoryManagerFinalizeWrapperName},
@@ -179,16 +190,52 @@ SimpleRemoteEPC::createMemoryManager() {
             rt::SimpleExecutorMemoryManagerDeallocateWrapperName}}))
     return std::move(Err);
 
-  return std::make_unique<EPCGenericJITLinkMemoryManager>(*this, SAs);
+  return std::make_unique<EPCGenericJITLinkMemoryManager>(SREPC, SAs);
 }
 
 Expected<std::unique_ptr<ExecutorProcessControl::MemoryAccess>>
-SimpleRemoteEPC::createMemoryAccess() {
-
+SimpleRemoteEPC::createDefaultMemoryAccess(SimpleRemoteEPC &SREPC) {
   return nullptr;
 }
 
-Error SimpleRemoteEPC::handleSetup(uint64_t SeqNo, ExecutorAddress TagAddr,
+Error SimpleRemoteEPC::sendMessage(SimpleRemoteEPCOpcode OpC, uint64_t SeqNo,
+                                   ExecutorAddr TagAddr,
+                                   ArrayRef<char> ArgBytes) {
+  assert(OpC != SimpleRemoteEPCOpcode::Setup &&
+         "SimpleRemoteEPC sending Setup message? That's the wrong direction.");
+
+  LLVM_DEBUG({
+    dbgs() << "SimpleRemoteEPC::sendMessage: opc = ";
+    switch (OpC) {
+    case SimpleRemoteEPCOpcode::Hangup:
+      dbgs() << "Hangup";
+      assert(SeqNo == 0 && "Non-zero SeqNo for Hangup?");
+      assert(TagAddr.getValue() == 0 && "Non-zero TagAddr for Hangup?");
+      break;
+    case SimpleRemoteEPCOpcode::Result:
+      dbgs() << "Result";
+      assert(TagAddr.getValue() == 0 && "Non-zero TagAddr for Result?");
+      break;
+    case SimpleRemoteEPCOpcode::CallWrapper:
+      dbgs() << "CallWrapper";
+      break;
+    default:
+      llvm_unreachable("Invalid opcode");
+    }
+    dbgs() << ", seqno = " << SeqNo
+           << ", tag-addr = " << formatv("{0:x}", TagAddr.getValue())
+           << ", arg-buffer = " << formatv("{0:x}", ArgBytes.size())
+           << " bytes\n";
+  });
+  auto Err = T->sendMessage(OpC, SeqNo, TagAddr, ArgBytes);
+  LLVM_DEBUG({
+    if (Err)
+      dbgs() << "  \\--> SimpleRemoteEPC::sendMessage failed\n";
+  });
+  return Err;
+}
+
+Error SimpleRemoteEPC::handleSetup(uint64_t SeqNo, ExecutorAddr TagAddr,
                                    SimpleRemoteEPCArgBytesVector ArgBytes) {
   if (SeqNo != 0)
     return make_error<StringError>("Setup packet SeqNo not zero",
@@ -212,12 +259,18 @@ Error SimpleRemoteEPC::handleSetup(uint64_t SeqNo, ExecutorAddress TagAddr,
   return Error::success();
 }
 
-void SimpleRemoteEPC::prepareToReceiveSetupMessage(
-    std::promise<MSVCPExpected<SimpleRemoteEPCExecutorInfo>> &ExecInfoP) {
+Error SimpleRemoteEPC::setup(Setup S) {
+  using namespace SimpleRemoteEPCDefaultBootstrapSymbolNames;
+
+  std::promise<MSVCPExpected<SimpleRemoteEPCExecutorInfo>> EIP;
+  auto EIF = EIP.get_future();
+
+  // Prepare a handler for the setup packet.
   PendingCallWrapperResults[0] =
+    RunInPlace()(
       [&](shared::WrapperFunctionResult SetupMsgBytes) {
         if (const char *ErrMsg = SetupMsgBytes.getOutOfBandError()) {
-          ExecInfoP.set_value(
+          EIP.set_value(
               make_error<StringError>(ErrMsg, inconvertibleErrorCode()));
           return;
         }
@@ -226,45 +279,63 @@ void SimpleRemoteEPC::prepareToReceiveSetupMessage(
         shared::SPSInputBuffer IB(SetupMsgBytes.data(), SetupMsgBytes.size());
         SimpleRemoteEPCExecutorInfo EI;
         if (SPSSerialize::deserialize(IB, EI))
-          ExecInfoP.set_value(EI);
+          EIP.set_value(EI);
         else
-          ExecInfoP.set_value(make_error<StringError>(
+          EIP.set_value(make_error<StringError>(
               "Could not deserialize setup message", inconvertibleErrorCode()));
-      };
-}
+      });
 
-Error SimpleRemoteEPC::setup(std::unique_ptr<SimpleRemoteEPCTransport> T,
-                             SimpleRemoteEPCExecutorInfo EI) {
-  using namespace SimpleRemoteEPCDefaultBootstrapSymbolNames;
+  // Start the transport.
+  if (auto Err = T->start())
+    return Err;
+
+  // Wait for setup packet to arrive.
+  auto EI = EIF.get();
+  if (!EI) {
+    T->disconnect();
+    return EI.takeError();
+  }
+
   LLVM_DEBUG({
     dbgs() << "SimpleRemoteEPC received setup message:\n"
-           << "  Triple: " << EI.TargetTriple << "\n"
-           << "  Page size: " << EI.PageSize << "\n"
+           << "  Triple: " << EI->TargetTriple << "\n"
+           << "  Page size: " << EI->PageSize << "\n"
            << "  Bootstrap symbols:\n";
-    for (const auto &KV : EI.BootstrapSymbols)
+    for (const auto &KV : EI->BootstrapSymbols)
       dbgs() << "    " << KV.first() << ": "
              << formatv("{0:x16}", KV.second.getValue()) << "\n";
   });
-  this->T = std::move(T);
-  TargetTriple = Triple(EI.TargetTriple);
-  PageSize = EI.PageSize;
-  BootstrapSymbols = std::move(EI.BootstrapSymbols);
+  TargetTriple = Triple(EI->TargetTriple);
+  PageSize = EI->PageSize;
+  BootstrapSymbols = std::move(EI->BootstrapSymbols);
 
   if (auto Err = getBootstrapSymbols(
-          {{JDI.JITDispatchContextAddress, ExecutorSessionObjectName},
-           {JDI.JITDispatchFunctionAddress, DispatchFnName},
-           {LoadDylibAddr, "__llvm_orc_load_dylib"},
-           {LookupSymbolsAddr, "__llvm_orc_lookup_symbols"},
+          {{JDI.JITDispatchContext, ExecutorSessionObjectName},
+           {JDI.JITDispatchFunction, DispatchFnName},
            {RunAsMainAddr, rt::RunAsMainWrapperName}}))
     return Err;
 
-  if (auto MemMgr = createMemoryManager()) {
+  if (auto DM =
+          EPCGenericDylibManager::CreateWithDefaultBootstrapSymbols(*this))
+    DylibMgr = std::make_unique<EPCGenericDylibManager>(std::move(*DM));
+  else
+    return DM.takeError();
+
+  // Set a default CreateMemoryManager if none is specified.
+  if (!S.CreateMemoryManager)
+    S.CreateMemoryManager = createDefaultMemoryManager;
+
+  if (auto MemMgr = S.CreateMemoryManager(*this)) {
     OwnedMemMgr = std::move(*MemMgr);
     this->MemMgr = OwnedMemMgr.get();
   } else
     return MemMgr.takeError();
 
-  if (auto MemAccess = createMemoryAccess()) {
+  // Set a default CreateMemoryAccess if none is specified.
+  if (!S.CreateMemoryAccess)
+    S.CreateMemoryAccess = createDefaultMemoryAccess;
+
+  if (auto MemAccess = S.CreateMemoryAccess(*this)) {
     OwnedMemAccess = std::move(*MemAccess);
     this->MemAccess = OwnedMemAccess.get();
   } else
@@ -273,9 +344,9 @@ Error SimpleRemoteEPC::setup(std::unique_ptr<SimpleRemoteEPCTransport> T,
   return Error::success();
 }
 
-Error SimpleRemoteEPC::handleResult(uint64_t SeqNo, ExecutorAddress TagAddr,
+Error SimpleRemoteEPC::handleResult(uint64_t SeqNo, ExecutorAddr TagAddr,
                                     SimpleRemoteEPCArgBytesVector ArgBytes) {
-  SendResultFunction SendResult;
+  IncomingWFRHandler SendResult;
 
   if (TagAddr)
     return make_error<StringError>("Unexpected TagAddr in result message",
@@ -300,17 +371,30 @@ Error SimpleRemoteEPC::handleResult(uint64_t SeqNo, ExecutorAddress TagAddr,
 }
 
 void SimpleRemoteEPC::handleCallWrapper(
-    uint64_t RemoteSeqNo, ExecutorAddress TagAddr,
+    uint64_t RemoteSeqNo, ExecutorAddr TagAddr,
     SimpleRemoteEPCArgBytesVector ArgBytes) {
   assert(ES && "No ExecutionSession attached");
   ES->runJITDispatchHandler(
       [this, RemoteSeqNo](shared::WrapperFunctionResult WFR) {
-        if (auto Err =
-                T->sendMessage(SimpleRemoteEPCOpcode::Result, RemoteSeqNo,
-                               ExecutorAddress(), {WFR.data(), WFR.size()}))
+        if (auto Err = sendMessage(SimpleRemoteEPCOpcode::Result, RemoteSeqNo,
+                                   ExecutorAddr(), {WFR.data(), WFR.size()}))
           getExecutionSession().reportError(std::move(Err));
       },
       TagAddr.getValue(), ArgBytes);
+}
+
+Error SimpleRemoteEPC::handleHangup(SimpleRemoteEPCArgBytesVector ArgBytes) {
+  using namespace llvm::orc::shared;
+  auto WFR = WrapperFunctionResult::copyFrom(ArgBytes.data(), ArgBytes.size());
+  if (const char *ErrMsg = WFR.getOutOfBandError())
+    return make_error<StringError>(ErrMsg, inconvertibleErrorCode());
+
+  detail::SPSSerializableError Info;
+  SPSInputBuffer IB(WFR.data(), WFR.size());
+  if (!SPSArgList<SPSError>::deserialize(IB, Info))
+    return make_error<StringError>("Could not deserialize hangup info",
+                                   inconvertibleErrorCode());
+  return fromSPSSerializable(std::move(Info));
 }
 
 } // end namespace orc

@@ -25,6 +25,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecordLayout.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
@@ -242,6 +243,10 @@ PrintingPolicy CGDebugInfo::getPrintingPolicy() const {
     // SplitTemplateClosers yields better interop with GCC and GDB (PR46052).
     PP.SplitTemplateClosers = true;
   }
+
+  PP.SuppressInlineNamespace = false;
+  PP.PrintCanonicalTypes = true;
+  PP.UsePreferredNames = false;
 
   // Apply -fdebug-prefix-map.
   PP.Callbacks = &PrintCB;
@@ -875,23 +880,7 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
     break;
   }
 
-  switch (BT->getKind()) {
-  case BuiltinType::Long:
-    BTName = "long int";
-    break;
-  case BuiltinType::LongLong:
-    BTName = "long long int";
-    break;
-  case BuiltinType::ULong:
-    BTName = "long unsigned int";
-    break;
-  case BuiltinType::ULongLong:
-    BTName = "long long unsigned int";
-    break;
-  default:
-    BTName = BT->getName(CGM.getLangOpts());
-    break;
-  }
+  BTName = BT->getName(CGM.getLangOpts());
   // Bit size and offset of the type.
   uint64_t Size = CGM.getContext().getTypeSize(BT);
   return DBuilder.createBasicType(BTName, Size, Encoding);
@@ -1294,9 +1283,11 @@ llvm::DIType *CGDebugInfo::CreateType(const TypedefType *Ty,
 
   uint32_t Align = getDeclAlignIfRequired(Ty->getDecl(), CGM.getContext());
   // Typedefs are derived from some other type.
+  llvm::DINodeArray Annotations = CollectBTFDeclTagAnnotations(Ty->getDecl());
   return DBuilder.createTypedef(Underlying, Ty->getDecl()->getName(),
                                 getOrCreateFile(Loc), getLineNumber(Loc),
-                                getDeclContextDescriptor(Ty->getDecl()), Align);
+                                getDeclContextDescriptor(Ty->getDecl()), Align,
+                                Annotations);
 }
 
 static unsigned getDwarfCC(CallingConv CC) {
@@ -1442,7 +1433,7 @@ llvm::DIType *CGDebugInfo::createBitFieldType(const FieldDecl *BitFieldDecl,
     Offset = BitFieldInfo.StorageSize - BitFieldInfo.Size - Offset;
   uint64_t OffsetInBits = StorageOffsetInBits + Offset;
   llvm::DINode::DIFlags Flags = getAccessFlag(BitFieldDecl->getAccess(), RD);
-  llvm::DINodeArray Annotations = CollectBTFTagAnnotations(BitFieldDecl);
+  llvm::DINodeArray Annotations = CollectBTFDeclTagAnnotations(BitFieldDecl);
   return DBuilder.createBitFieldMemberType(
       RecordTy, Name, File, Line, SizeInBits, OffsetInBits, StorageOffsetInBits,
       Flags, DebugType, Annotations);
@@ -1559,7 +1550,7 @@ void CGDebugInfo::CollectRecordNormalField(
     FieldType = createBitFieldType(field, RecordTy, RD);
   } else {
     auto Align = getDeclAlignIfRequired(field, CGM.getContext());
-    llvm::DINodeArray Annotations = CollectBTFTagAnnotations(field);
+    llvm::DINodeArray Annotations = CollectBTFDeclTagAnnotations(field);
     FieldType =
         createFieldType(name, type, field->getLocation(), field->getAccess(),
                         OffsetInBits, Align, tunit, RecordTy, RD, Annotations);
@@ -2070,11 +2061,15 @@ CGDebugInfo::CollectTemplateParams(Optional<TemplateArgs> OArgs,
       TemplateParams.push_back(DBuilder.createTemplateValueParameter(
           TheCU, Name, TTy, defaultParameter, V));
     } break;
-    case TemplateArgument::Template:
+    case TemplateArgument::Template: {
+      std::string QualName;
+      llvm::raw_string_ostream OS(QualName);
+      TA.getAsTemplate().getAsTemplateDecl()->printQualifiedName(
+          OS, getPrintingPolicy());
       TemplateParams.push_back(DBuilder.createTemplateTemplateParameter(
-          TheCU, Name, nullptr,
-          TA.getAsTemplate().getAsTemplateDecl()->getQualifiedNameAsString()));
+          TheCU, Name, nullptr, OS.str()));
       break;
+    }
     case TemplateArgument::Pack:
       TemplateParams.push_back(DBuilder.createTemplateParameterPack(
           TheCU, Name, nullptr,
@@ -2155,15 +2150,15 @@ llvm::DINodeArray CGDebugInfo::CollectCXXTemplateParams(const RecordDecl *RD,
   return CollectTemplateParams(GetTemplateArgs(RD), Unit);
 }
 
-llvm::DINodeArray CGDebugInfo::CollectBTFTagAnnotations(const Decl *D) {
-  if (!D->hasAttr<BTFTagAttr>())
+llvm::DINodeArray CGDebugInfo::CollectBTFDeclTagAnnotations(const Decl *D) {
+  if (!D->hasAttr<BTFDeclTagAttr>())
     return nullptr;
 
   SmallVector<llvm::Metadata *, 4> Annotations;
-  for (const auto *I : D->specific_attrs<BTFTagAttr>()) {
+  for (const auto *I : D->specific_attrs<BTFDeclTagAttr>()) {
     llvm::Metadata *Ops[2] = {
-        llvm::MDString::get(CGM.getLLVMContext(), StringRef("btf_tag")),
-        llvm::MDString::get(CGM.getLLVMContext(), I->getBTFTag())};
+        llvm::MDString::get(CGM.getLLVMContext(), StringRef("btf_decl_tag")),
+        llvm::MDString::get(CGM.getLLVMContext(), I->getBTFDeclTag())};
     Annotations.push_back(llvm::MDNode::get(CGM.getLLVMContext(), Ops));
   }
   return DBuilder.getOrCreateArray(Annotations);
@@ -3541,7 +3536,7 @@ llvm::DICompositeType *CGDebugInfo::CreateLimitedType(const RecordType *Ty) {
         Flags |= llvm::DINode::FlagExportSymbols;
   }
 
-  llvm::DINodeArray Annotations = CollectBTFTagAnnotations(D);
+  llvm::DINodeArray Annotations = CollectBTFDeclTagAnnotations(D);
   llvm::DICompositeType *RealDecl = DBuilder.createReplaceableCompositeType(
       getTagForRecord(RD), RDName, RDContext, DefUnit, Line, 0, Size, Align,
       Flags, Identifier, Annotations);
@@ -3968,6 +3963,20 @@ llvm::DISubroutineType *CGDebugInfo::getOrCreateFunctionType(const Decl *D,
   return cast<llvm::DISubroutineType>(getOrCreateType(FnType, F));
 }
 
+QualType
+CGDebugInfo::getFunctionType(const FunctionDecl *FD, QualType RetTy,
+                             const SmallVectorImpl<const VarDecl *> &Args) {
+  CallingConv CC = CallingConv::CC_C;
+  if (FD)
+    if (const auto *SrcFnTy = FD->getType()->getAs<FunctionType>())
+      CC = SrcFnTy->getCallConv();
+  SmallVector<QualType, 16> ArgTypes;
+  for (const VarDecl *VD : Args)
+    ArgTypes.push_back(VD->getType());
+  return CGM.getContext().getFunctionType(RetTy, ArgTypes,
+                                          FunctionProtoType::ExtProtoInfo(CC));
+}
+
 void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
                                     SourceLocation ScopeLoc, QualType FnType,
                                     llvm::Function *Fn, bool CurFuncIsThunk) {
@@ -4047,7 +4056,7 @@ void CGDebugInfo::emitFunctionStart(GlobalDecl GD, SourceLocation Loc,
     Decl = isa<ObjCMethodDecl>(D)
                ? getObjCMethodDeclaration(D, DIFnType, LineNo, Flags, SPFlags)
                : getFunctionDeclaration(D);
-    Annotations = CollectBTFTagAnnotations(D);
+    Annotations = CollectBTFDeclTagAnnotations(D);
   }
 
   // FIXME: The function declaration we're constructing here is mostly reusing
@@ -4117,7 +4126,7 @@ void CGDebugInfo::EmitFunctionDecl(GlobalDecl GD, SourceLocation Loc,
   if (CGM.getLangOpts().Optimize)
     SPFlags |= llvm::DISubprogram::SPFlagOptimized;
 
-  llvm::DINodeArray Annotations = CollectBTFTagAnnotations(D);
+  llvm::DINodeArray Annotations = CollectBTFDeclTagAnnotations(D);
   llvm::DISubprogram *SP = DBuilder.createFunction(
       FDContext, Name, LinkageName, Unit, LineNo,
       getOrCreateFunctionType(D, FnType, Unit), ScopeLine, Flags, SPFlags,
@@ -4449,8 +4458,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
   // Use DW_OP_deref to tell the debugger to load the pointer and treat it as
   // the address of the variable.
   if (UsePointerValue) {
-    assert(std::find(Expr.begin(), Expr.end(), llvm::dwarf::DW_OP_deref) ==
-               Expr.end() &&
+    assert(!llvm::is_contained(Expr, llvm::dwarf::DW_OP_deref) &&
            "Debug info already contains DW_OP_deref.");
     Expr.push_back(llvm::dwarf::DW_OP_deref);
   }
@@ -4458,7 +4466,7 @@ llvm::DILocalVariable *CGDebugInfo::EmitDeclare(const VarDecl *VD,
   // Create the descriptor for the variable.
   llvm::DILocalVariable *D = nullptr;
   if (ArgNo) {
-    llvm::DINodeArray Annotations = CollectBTFTagAnnotations(VD);
+    llvm::DINodeArray Annotations = CollectBTFDeclTagAnnotations(VD);
     D = DBuilder.createParameterVariable(Scope, Name, *ArgNo, Unit, Line, Ty,
                                          CGM.getLangOpts().Optimize, Flags,
                                          Annotations);
@@ -4854,14 +4862,172 @@ llvm::DIGlobalVariableExpression *CGDebugInfo::CollectAnonRecordDecls(
   return GVE;
 }
 
+namespace {
+struct ReconstitutableType : public RecursiveASTVisitor<ReconstitutableType> {
+  bool Reconstitutable = true;
+  bool VisitVectorType(VectorType *FT) {
+    Reconstitutable = false;
+    return false;
+  }
+  bool VisitAtomicType(AtomicType *FT) {
+    Reconstitutable = false;
+    return false;
+  }
+  bool TraverseEnumType(EnumType *ET) {
+    // Unnamed enums can't be reconstituted due to a lack of column info we
+    // produce in the DWARF, so we can't get Clang's full name back.
+    if (const auto *ED = dyn_cast<EnumDecl>(ET->getDecl())) {
+      if (!ED->getIdentifier()) {
+        Reconstitutable = false;
+        return false;
+      }
+    }
+    return true;
+  }
+  bool VisitFunctionProtoType(FunctionProtoType *FT) {
+    // noexcept is not encoded in DWARF, so the reversi
+    Reconstitutable &= !isNoexceptExceptionSpec(FT->getExceptionSpecType());
+    return Reconstitutable;
+  }
+  bool TraverseRecordType(RecordType *RT) {
+    // Unnamed classes/lambdas can't be reconstituted due to a lack of column
+    // info we produce in the DWARF, so we can't get Clang's full name back.
+    // But so long as it's not one of those, it doesn't matter if some sub-type
+    // of the record (a template parameter) can't be reconstituted - because the
+    // un-reconstitutable type itself will carry its own name.
+    const auto *RD = dyn_cast<CXXRecordDecl>(RT->getDecl());
+    if (!RD)
+      return true;
+    if (RD->isLambda() || !RD->getIdentifier()) {
+      Reconstitutable = false;
+      return false;
+    }
+    return true;
+  }
+};
+} // anonymous namespace
+
+// Test whether a type name could be rebuilt from emitted debug info.
+static bool IsReconstitutableType(QualType QT) {
+  ReconstitutableType T;
+  T.TraverseType(QT);
+  return T.Reconstitutable;
+}
+
 std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
   std::string Name;
   llvm::raw_string_ostream OS(Name);
-  if (const NamedDecl *ND = dyn_cast<NamedDecl>(D)) {
-    PrintingPolicy PP = getPrintingPolicy();
-    PP.PrintCanonicalTypes = true;
-    PP.SuppressInlineNamespace = false;
+  const NamedDecl *ND = dyn_cast<NamedDecl>(D);
+  if (!ND)
+    return Name;
+  codegenoptions::DebugTemplateNamesKind TemplateNamesKind =
+      CGM.getCodeGenOpts().getDebugSimpleTemplateNames();
+  Optional<TemplateArgs> Args;
+
+  bool IsOperatorOverload = false; // isa<CXXConversionDecl>(ND);
+  if (auto *RD = dyn_cast<CXXRecordDecl>(ND)) {
+    Args = GetTemplateArgs(RD);
+  } else if (auto *FD = dyn_cast<FunctionDecl>(ND)) {
+    Args = GetTemplateArgs(FD);
+    auto NameKind = ND->getDeclName().getNameKind();
+    IsOperatorOverload |=
+        NameKind == DeclarationName::CXXOperatorName ||
+        NameKind == DeclarationName::CXXConversionFunctionName;
+  } else if (auto *VD = dyn_cast<VarDecl>(ND)) {
+    Args = GetTemplateArgs(VD);
+  }
+  std::function<bool(ArrayRef<TemplateArgument>)> HasReconstitutableArgs =
+      [&](ArrayRef<TemplateArgument> Args) {
+        return llvm::all_of(Args, [&](const TemplateArgument &TA) {
+          switch (TA.getKind()) {
+          case TemplateArgument::Template:
+            // Easy to reconstitute - the value of the parameter in the debug
+            // info is the string name of the template. (so the template name
+            // itself won't benefit from any name rebuilding, but that's a
+            // representational limitation - maybe DWARF could be
+            // changed/improved to use some more structural representation)
+            return true;
+          case TemplateArgument::Declaration:
+            // Reference and pointer non-type template parameters point to
+            // variables, functions, etc and their value is, at best (for
+            // variables) represented as an address - not a reference to the
+            // DWARF describing the variable/function/etc. This makes it hard,
+            // possibly impossible to rebuild the original name - looking up the
+            // address in the executable file's symbol table would be needed.
+            return false;
+          case TemplateArgument::NullPtr:
+            // These could be rebuilt, but figured they're close enough to the
+            // declaration case, and not worth rebuilding.
+            return false;
+          case TemplateArgument::Pack:
+            // A pack is invalid if any of the elements of the pack are invalid.
+            return HasReconstitutableArgs(TA.getPackAsArray());
+          case TemplateArgument::Integral:
+            // Larger integers get encoded as DWARF blocks which are a bit
+            // harder to parse back into a large integer, etc - so punting on
+            // this for now. Re-parsing the integers back into APInt is probably
+            // feasible some day.
+            return TA.getAsIntegral().getBitWidth() <= 64;
+          case TemplateArgument::Type:
+            return IsReconstitutableType(TA.getAsType());
+          default:
+            llvm_unreachable("Other, unresolved, template arguments should "
+                             "not be seen here");
+          }
+        });
+      };
+  // A conversion operator presents complications/ambiguity if there's a
+  // conversion to class template that is itself a template, eg:
+  // template<typename T>
+  // operator ns::t1<T, int>();
+  // This should be named, eg: "operator ns::t1<float, int><float>"
+  // (ignoring clang bug that means this is currently "operator t1<float>")
+  // but if the arguments were stripped, the consumer couldn't differentiate
+  // whether the template argument list for the conversion type was the
+  // function's argument list (& no reconstitution was needed) or not.
+  // This could be handled if reconstitutable names had a separate attribute
+  // annotating them as such - this would remove the ambiguity.
+  //
+  // Alternatively the template argument list could be parsed enough to check
+  // whether there's one list or two, then compare that with the DWARF
+  // description of the return type and the template argument lists to determine
+  // how many lists there should be and if one is missing it could be assumed(?)
+  // to be the function's template argument list  & then be rebuilt.
+  //
+  // Other operator overloads that aren't conversion operators could be
+  // reconstituted but would require a bit more nuance about detecting the
+  // difference between these different operators during that rebuilding.
+  bool Reconstitutable =
+      Args && HasReconstitutableArgs(Args->Args) && !IsOperatorOverload;
+
+  PrintingPolicy PP = getPrintingPolicy();
+
+  if (TemplateNamesKind == codegenoptions::DebugTemplateNamesKind::Full ||
+      !Reconstitutable) {
     ND->getNameForDiagnostic(OS, PP, Qualified);
+  } else {
+    bool Mangled =
+        TemplateNamesKind == codegenoptions::DebugTemplateNamesKind::Mangled;
+    // check if it's a template
+    if (Mangled)
+      OS << "_STN";
+
+    OS << ND->getDeclName();
+    std::string EncodedOriginalName;
+    llvm::raw_string_ostream EncodedOriginalNameOS(EncodedOriginalName);
+    EncodedOriginalNameOS << ND->getDeclName();
+
+    if (Mangled) {
+      OS << "|";
+      printTemplateArgumentList(OS, Args->Args, PP);
+      printTemplateArgumentList(EncodedOriginalNameOS, Args->Args, PP);
+#ifndef NDEBUG
+      std::string CanonicalOriginalName;
+      llvm::raw_string_ostream OriginalOS(CanonicalOriginalName);
+      ND->getNameForDiagnostic(OriginalOS, PP, Qualified);
+      assert(EncodedOriginalNameOS.str() == OriginalOS.str());
+#endif
+    }
   }
   return Name;
 }
@@ -4921,7 +5087,7 @@ void CGDebugInfo::EmitGlobalVariable(llvm::GlobalVariable *Var,
     }
     AppendAddressSpaceXDeref(AddressSpace, Expr);
 
-    llvm::DINodeArray Annotations = CollectBTFTagAnnotations(D);
+    llvm::DINodeArray Annotations = CollectBTFDeclTagAnnotations(D);
     GVE = DBuilder.createGlobalVariableExpression(
         DContext, DeclName, LinkageName, Unit, LineNo, getOrCreateType(T, Unit),
         Var->hasLocalLinkage(), true,

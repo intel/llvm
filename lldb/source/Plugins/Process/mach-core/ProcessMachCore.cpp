@@ -48,12 +48,7 @@ using namespace lldb_private;
 
 LLDB_PLUGIN_DEFINE(ProcessMachCore)
 
-ConstString ProcessMachCore::GetPluginNameStatic() {
-  static ConstString g_name("mach-o-core");
-  return g_name;
-}
-
-const char *ProcessMachCore::GetPluginDescriptionStatic() {
+llvm::StringRef ProcessMachCore::GetPluginDescriptionStatic() {
   return "Mach-O core file debugging plug-in.";
 }
 
@@ -116,7 +111,7 @@ ProcessMachCore::ProcessMachCore(lldb::TargetSP target_sp,
     : PostMortemProcess(target_sp, listener_sp), m_core_aranges(),
       m_core_range_infos(), m_core_module_sp(), m_core_file(core_file),
       m_dyld_addr(LLDB_INVALID_ADDRESS),
-      m_mach_kernel_addr(LLDB_INVALID_ADDRESS), m_dyld_plugin_name() {}
+      m_mach_kernel_addr(LLDB_INVALID_ADDRESS) {}
 
 // Destructor
 ProcessMachCore::~ProcessMachCore() {
@@ -127,9 +122,6 @@ ProcessMachCore::~ProcessMachCore() {
   // destroy the broadcaster.
   Finalize();
 }
-
-// PluginInterface
-ConstString ProcessMachCore::GetPluginName() { return GetPluginNameStatic(); }
 
 bool ProcessMachCore::GetDynamicLoaderAddress(lldb::addr_t addr) {
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_DYNAMIC_LOADER |
@@ -287,7 +279,7 @@ Status ProcessMachCore::DoLoadCore() {
   addr_t vm_addr = 0;
   for (uint32_t i = 0; i < num_sections; ++i) {
     Section *section = section_list->GetSectionAtIndex(i).get();
-    if (section) {
+    if (section && section->GetFileSize() > 0) {
       lldb::addr_t section_vm_addr = section->GetFileAddress();
       FileRange file_range(section->GetFileOffset(), section->GetFileSize());
       VMRangeToFileOffset::Entry range_entry(
@@ -297,20 +289,12 @@ Status ProcessMachCore::DoLoadCore() {
         ranges_are_sorted = false;
       vm_addr = section->GetFileAddress();
       VMRangeToFileOffset::Entry *last_entry = m_core_aranges.Back();
-      //            printf ("LC_SEGMENT[%u] arange=[0x%16.16" PRIx64 " -
-      //            0x%16.16" PRIx64 "), frange=[0x%8.8x - 0x%8.8x)\n",
-      //                    i,
-      //                    range_entry.GetRangeBase(),
-      //                    range_entry.GetRangeEnd(),
-      //                    range_entry.data.GetRangeBase(),
-      //                    range_entry.data.GetRangeEnd());
 
       if (last_entry &&
           last_entry->GetRangeEnd() == range_entry.GetRangeBase() &&
           last_entry->data.GetRangeEnd() == range_entry.data.GetRangeBase()) {
         last_entry->SetRangeEnd(range_entry.GetRangeEnd());
         last_entry->data.SetRangeEnd(range_entry.data.GetRangeEnd());
-        // puts("combine");
       } else {
         m_core_aranges.Append(range_entry);
       }
@@ -479,7 +463,7 @@ Status ProcessMachCore::DoLoadCore() {
     }
   }
 
-  if (m_dyld_plugin_name.IsEmpty()) {
+  if (m_dyld_plugin_name.empty()) {
     // If we found both a user-process dyld and a kernel binary, we need to
     // decide which to prefer.
     if (GetCorefilePreference() == eKernelCorefile) {
@@ -549,9 +533,7 @@ Status ProcessMachCore::DoLoadCore() {
 
 lldb_private::DynamicLoader *ProcessMachCore::GetDynamicLoader() {
   if (m_dyld_up.get() == nullptr)
-    m_dyld_up.reset(DynamicLoader::FindPlugin(
-        this, m_dyld_plugin_name.IsEmpty() ? nullptr
-                                           : m_dyld_plugin_name.GetCString()));
+    m_dyld_up.reset(DynamicLoader::FindPlugin(this, m_dyld_plugin_name));
   return m_dyld_up.get();
 }
 

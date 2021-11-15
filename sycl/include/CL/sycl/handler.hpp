@@ -366,6 +366,19 @@ private:
   /// \param IsHost indicates if this handler is created for SYCL host device.
   handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost);
 
+  /// Constructs SYCL handler from the associated queue and the submission's
+  /// primary and secondary queue.
+  ///
+  /// \param Queue is a SYCL queue. This is equal to either PrimaryQueue or
+  ///        SecondaryQueue.
+  /// \param PrimaryQueue is the primary SYCL queue of the submission.
+  /// \param SecondaryQueue is the secondary SYCL queue of the submission. This
+  ///        is null if no secondary queue is associated with the submission.
+  /// \param IsHost indicates if this handler is created for SYCL host device.
+  handler(std::shared_ptr<detail::queue_impl> Queue,
+          std::shared_ptr<detail::queue_impl> PrimaryQueue,
+          std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
+
   /// Stores copy of Arg passed to the MArgsStorage.
   template <typename T, typename F = typename detail::remove_const_t<
                             typename detail::remove_reference_t<T>>>
@@ -547,6 +560,15 @@ private:
                                  PI_INVALID_KERNEL);
     }
   }
+
+  /// Verifies the kernel bundle to be used if any is set. This throws a
+  /// sycl::exception with error code errc::kernel_not_supported if the used
+  /// kernel bundle does not contain a suitable device image with the requested
+  /// kernel.
+  ///
+  /// \param KernelName is the name of the SYCL kernel to check that the used
+  ///                   kernel bundle contains.
+  void verifyUsedKernelBundle(const std::string &KernelName);
 
   /// Stores lambda to the template-free object
   ///
@@ -800,6 +822,8 @@ private:
                                   item<Dims>, LambdaArgType>::type;
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
 
     // Range rounding can be disabled by the user.
     // Range rounding is not done on the host device.
@@ -1183,10 +1207,7 @@ public:
 #endif
 
   void
-  use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle) {
-    setStateExplicitKernelBundle();
-    setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
-  }
+  use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);
 
   /// Requires access to the memory object associated with the placeholder
   /// accessor.
@@ -1287,6 +1308,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     kernel_single_task_wrapper<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -1384,6 +1406,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)NumWorkItems;
     (void)WorkItemOffset;
@@ -1415,6 +1438,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     (void)ExecutionRange;
@@ -1747,6 +1771,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
@@ -1779,6 +1804,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
@@ -1803,6 +1829,8 @@ public:
   void single_task(kernel Kernel) {
     throwIfActionIsCreated();
     verifyKernelInvoc(Kernel);
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant
     MNDRDesc.set(range<1>{1});
@@ -1874,8 +1902,11 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   void single_task(kernel Kernel, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     (void)Kernel;
     kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1917,8 +1948,11 @@ public:
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
@@ -1952,8 +1986,11 @@ public:
   void parallel_for(kernel Kernel, range<Dims> NumWorkItems,
                     id<Dims> WorkItemOffset, _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
@@ -1987,8 +2024,11 @@ public:
   void parallel_for(kernel Kernel, nd_range<Dims> NDRange,
                     _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     (void)Kernel;
@@ -2026,8 +2066,11 @@ public:
   void parallel_for_work_group(kernel Kernel, range<Dims> NumWorkGroups,
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
@@ -2063,8 +2106,11 @@ public:
                                range<Dims> WorkGroupSize,
                                _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
+    // Ignore any set kernel bundles and use the one associated with the kernel
+    setHandlerKernelBundle(detail::getSyclObjImpl(Kernel.get_kernel_bundle()));
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;

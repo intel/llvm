@@ -240,7 +240,7 @@ std::error_code SampleProfileWriterExtBinaryBase::writeNameTableSection(
   // so compiler won't strip the suffix during profile matching after
   // seeing the flag in the profile.
   for (const auto &I : NameTable) {
-    if (I.first.find(FunctionSamples::UniqSuffix) != StringRef::npos) {
+    if (I.first.contains(FunctionSamples::UniqSuffix)) {
       addSectionFlag(SecNameTable, SecNameTableFlags::SecFlagUniqSuffix);
       break;
     }
@@ -269,10 +269,10 @@ std::error_code SampleProfileWriterExtBinaryBase::writeCSNameTableSection() {
     auto Frames = Context.getContextFrames();
     encodeULEB128(Frames.size(), OS);
     for (auto &Callsite : Frames) {
-      if (std::error_code EC = writeNameIdx(Callsite.CallerName))
+      if (std::error_code EC = writeNameIdx(Callsite.FuncName))
         return EC;
-      encodeULEB128(Callsite.Callsite.LineOffset, OS);
-      encodeULEB128(Callsite.Callsite.Discriminator, OS);
+      encodeULEB128(Callsite.Location.LineOffset, OS);
+      encodeULEB128(Callsite.Location.Discriminator, OS);
     }
   }
 
@@ -542,7 +542,7 @@ void SampleProfileWriterExtBinaryBase::addContext(
     const SampleContext &Context) {
   if (Context.hasContext()) {
     for (auto &Callsite : Context.getContextFrames())
-      SampleProfileWriterBinary::addName(Callsite.CallerName);
+      SampleProfileWriterBinary::addName(Callsite.FuncName);
     CSNameTable.insert(std::make_pair(Context, 0));
   } else {
     SampleProfileWriterBinary::addName(Context.getName());
@@ -734,7 +734,8 @@ std::error_code SampleProfileWriterBinary::writeSummary() {
   encodeULEB128(Summary->getMaxFunctionCount(), OS);
   encodeULEB128(Summary->getNumCounts(), OS);
   encodeULEB128(Summary->getNumFunctions(), OS);
-  std::vector<ProfileSummaryEntry> &Entries = Summary->getDetailedSummary();
+  const std::vector<ProfileSummaryEntry> &Entries =
+      Summary->getDetailedSummary();
   encodeULEB128(Entries.size(), OS);
   for (auto Entry : Entries) {
     encodeULEB128(Entry.Cutoff, OS);

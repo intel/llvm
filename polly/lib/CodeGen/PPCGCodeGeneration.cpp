@@ -31,8 +31,8 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Linker/Linker.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -3249,6 +3249,7 @@ public:
     PPCGGen->kernel_id = 0;
 
     // Set scheduling strategy to same strategy PPCG is using.
+    isl_options_set_schedule_serialize_sccs(PPCGGen->ctx, false);
     isl_options_set_schedule_outer_coincidence(PPCGGen->ctx, true);
     isl_options_set_schedule_maximize_band_depth(PPCGGen->ctx, true);
     isl_options_set_schedule_whole_component(PPCGGen->ctx, false);

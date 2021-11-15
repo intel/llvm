@@ -123,7 +123,27 @@ func @omp_parallel_pretty(%data_var : memref<i32>, %if_cond : i1, %num_threads :
    omp.terminator
  }
 
- return
+  // CHECK: omp.parallel default(private)
+  omp.parallel default(private) {
+    omp.terminator
+  }
+
+  // CHECK: omp.parallel default(firstprivate)
+  omp.parallel default(firstprivate) {
+    omp.terminator
+  }
+
+  // CHECK: omp.parallel default(shared)
+  omp.parallel default(shared) {
+    omp.terminator
+  }
+
+  // CHECK: omp.parallel default(none)
+  omp.parallel default(none) {
+    omp.terminator
+  }
+
+  return
 }
 
 // CHECK-LABEL: omp_wsloop
@@ -177,7 +197,7 @@ func @omp_wsloop_pretty(%lb : index, %ub : index, %step : index,
   }
 
   // CHECK: omp.wsloop (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}}) linear(%{{.*}} = %{{.*}} : memref<i32>) schedule(static)
-  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) schedule(static) lastprivate(%data_var : memref<i32>) linear(%data_var = %linear_var : memref<i32>) {
+  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) schedule(static, none) lastprivate(%data_var : memref<i32>) linear(%data_var = %linear_var : memref<i32>) {
     omp.yield
   }
 
@@ -188,8 +208,37 @@ func @omp_wsloop_pretty(%lb : index, %ub : index, %step : index,
     omp.yield
   }
 
+  // CHECK: omp.wsloop (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}}) private(%{{.*}} : memref<i32>) firstprivate(%{{.*}} : memref<i32>) lastprivate(%{{.*}} : memref<i32>) linear(%{{.*}} = %{{.*}} : memref<i32>) schedule(dynamic = %{{.*}}, nonmonotonic) collapse(3) ordered(2)
+  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) ordered(2) private(%data_var : memref<i32>)
+     firstprivate(%data_var : memref<i32>) lastprivate(%data_var : memref<i32>) linear(%data_var = %linear_var : memref<i32>)
+     schedule(dynamic = %chunk_var, nonmonotonic) collapse(3) {
+    omp.yield
+  }
+
+  // CHECK: omp.wsloop (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}}) private(%{{.*}} : memref<i32>) firstprivate(%{{.*}} : memref<i32>) lastprivate(%{{.*}} : memref<i32>) linear(%{{.*}} = %{{.*}} : memref<i32>) schedule(dynamic = %{{.*}}, monotonic) collapse(3) ordered(2)
+  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) ordered(2) private(%data_var : memref<i32>)
+     firstprivate(%data_var : memref<i32>) lastprivate(%data_var : memref<i32>) linear(%data_var = %linear_var : memref<i32>)
+     schedule(dynamic = %chunk_var, monotonic) collapse(3) {
+    omp.yield
+  }
+
   // CHECK: omp.wsloop (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}}) private({{.*}} : memref<i32>)
   omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) private(%data_var : memref<i32>) {
+    omp.yield
+  }
+
+  // CHECK: omp.wsloop (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) inclusive step (%{{.*}})
+  omp.wsloop (%iv) : index = (%lb) to (%ub) inclusive step (%step) {
+    omp.yield
+  }
+
+  // CHECK: omp.wsloop (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}}) nowait
+  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) nowait {
+    omp.yield
+  }
+
+  // CHECK: omp.wsloop (%{{.*}}) : index = (%{{.*}}) to (%{{.*}}) step (%{{.*}}) nowait order(concurrent)
+  omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step) order(concurrent) nowait {
     omp.yield
   }
 
@@ -310,12 +359,12 @@ func @omp_target(%if_cond : i1, %device : si32,  %num_threads : si32) -> () {
 omp.reduction.declare @add_f32 : f32
 init {
 ^bb0(%arg: f32):
-  %0 = constant 0.0 : f32
+  %0 = arith.constant 0.0 : f32
   omp.yield (%0 : f32)
 }
 combiner {
 ^bb1(%arg0: f32, %arg1: f32):
-  %1 = addf %arg0, %arg1 : f32
+  %1 = arith.addf %arg0, %arg1 : f32
   omp.yield (%1 : f32)
 }
 atomic {
@@ -326,12 +375,12 @@ atomic {
 }
 
 func @reduction(%lb : index, %ub : index, %step : index) {
-  %c1 = constant 1 : i32
+  %c1 = arith.constant 1 : i32
   %0 = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr<f32>
   // CHECK: reduction(@add_f32 -> %{{.+}} : !llvm.ptr<f32>)
   omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step)
   reduction(@add_f32 -> %0 : !llvm.ptr<f32>) {
-    %1 = constant 2.0 : f32
+    %1 = arith.constant 2.0 : f32
     // CHECK: omp.reduction %{{.+}}, %{{.+}}
     omp.reduction %1, %0 : !llvm.ptr<f32>
     omp.yield
@@ -345,13 +394,13 @@ omp.reduction.declare @add2_f32 : f32
 // CHECK: init
 init {
 ^bb0(%arg: f32):
-  %0 = constant 0.0 : f32
+  %0 = arith.constant 0.0 : f32
   omp.yield (%0 : f32)
 }
 // CHECK: combiner
 combiner {
 ^bb1(%arg0: f32, %arg1: f32):
-  %1 = addf %arg0, %arg1 : f32
+  %1 = arith.addf %arg0, %arg1 : f32
   omp.yield (%1 : f32)
 }
 // CHECK-NOT: atomic
@@ -361,7 +410,7 @@ func @reduction2(%lb : index, %ub : index, %step : index) {
   // CHECK: reduction
   omp.wsloop (%iv) : index = (%lb) to (%ub) step (%step)
   reduction(@add2_f32 -> %0 : memref<1xf32>) {
-    %1 = constant 2.0 : f32
+    %1 = arith.constant 2.0 : f32
     // CHECK: omp.reduction
     omp.reduction %1, %0 : memref<1xf32>
     omp.yield
@@ -369,18 +418,108 @@ func @reduction2(%lb : index, %ub : index, %step : index) {
   return
 }
 
-// CHECK: omp.critical.declare
-// CHECK-LABEL: @mutex
-omp.critical.declare @mutex
+// CHECK: omp.critical.declare @mutex1 hint(uncontended)
+omp.critical.declare @mutex1 hint(uncontended)
+// CHECK: omp.critical.declare @mutex2 hint(contended)
+omp.critical.declare @mutex2 hint(contended)
+// CHECK: omp.critical.declare @mutex3 hint(nonspeculative)
+omp.critical.declare @mutex3 hint(nonspeculative)
+// CHECK: omp.critical.declare @mutex4 hint(speculative)
+omp.critical.declare @mutex4 hint(speculative)
+// CHECK: omp.critical.declare @mutex5 hint(uncontended, nonspeculative)
+omp.critical.declare @mutex5 hint(uncontended, nonspeculative)
+// CHECK: omp.critical.declare @mutex6 hint(contended, nonspeculative)
+omp.critical.declare @mutex6 hint(contended, nonspeculative)
+// CHECK: omp.critical.declare @mutex7 hint(uncontended, speculative)
+omp.critical.declare @mutex7 hint(uncontended, speculative)
+// CHECK: omp.critical.declare @mutex8 hint(contended, speculative)
+omp.critical.declare @mutex8 hint(contended, speculative)
+
 
 // CHECK-LABEL: omp_critical
 func @omp_critical() -> () {
+  // CHECK: omp.critical
   omp.critical {
     omp.terminator
   }
 
-  omp.critical(@mutex) hint(nonspeculative) {
+  // CHECK: omp.critical(@{{.*}})
+  omp.critical(@mutex1) {
     omp.terminator
   }
+  return
+}
+
+func @omp_ordered(%arg1 : i32, %arg2 : i32, %arg3 : i32,
+    %vec0 : i64, %vec1 : i64, %vec2 : i64, %vec3 : i64) -> () {
+  // CHECK: omp.ordered_region
+  omp.ordered_region {
+    // CHECK: omp.terminator
+    omp.terminator
+  }
+
+  omp.wsloop (%0) : i32 = (%arg1) to (%arg2) step (%arg3) ordered(0) {
+    omp.ordered_region {
+      omp.terminator
+    }
+    omp.yield
+  }
+
+  omp.wsloop (%0) : i32 = (%arg1) to (%arg2) step (%arg3) ordered(1) {
+    // Only one DEPEND(SINK: vec) clause
+    // CHECK: omp.ordered depend_type("dependsink") depend_vec(%{{.*}} : i64) {num_loops_val = 1 : i64}
+    omp.ordered depend_type("dependsink") depend_vec(%vec0 : i64) {num_loops_val = 1 : i64}
+
+    // CHECK: omp.ordered depend_type("dependsource") depend_vec(%{{.*}} : i64) {num_loops_val = 1 : i64}
+    omp.ordered depend_type("dependsource") depend_vec(%vec0 : i64) {num_loops_val = 1 : i64}
+
+    omp.yield
+  }
+
+  omp.wsloop (%0) : i32 = (%arg1) to (%arg2) step (%arg3) ordered(2) {
+    // Multiple DEPEND(SINK: vec) clauses
+    // CHECK: omp.ordered depend_type("dependsink") depend_vec(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : i64, i64, i64, i64) {num_loops_val = 2 : i64}
+    omp.ordered depend_type("dependsink") depend_vec(%vec0, %vec1, %vec2, %vec3 : i64, i64, i64, i64) {num_loops_val = 2 : i64}
+
+    // CHECK: omp.ordered depend_type("dependsource") depend_vec(%{{.*}}, %{{.*}} : i64, i64) {num_loops_val = 2 : i64}
+    omp.ordered depend_type("dependsource") depend_vec(%vec0, %vec1 : i64, i64) {num_loops_val = 2 : i64}
+
+    omp.yield
+  }
+
+  return
+}
+
+// CHECK-LABEL: omp_atomic_read
+// CHECK-SAME: (%[[ADDR:.*]]: memref<i32>)
+func @omp_atomic_read(%addr : memref<i32>) {
+  // CHECK: %{{.*}} = omp.atomic.read %[[ADDR]] : memref<i32> -> i32
+  %1 = omp.atomic.read %addr : memref<i32> -> i32
+  // CHECK: %{{.*}} = omp.atomic.read %[[ADDR]] memory_order(seq_cst) : memref<i32> -> i32
+  %2 = omp.atomic.read %addr memory_order(seq_cst) : memref<i32> -> i32
+  // CHECK: %{{.*}} = omp.atomic.read %[[ADDR]] memory_order(acquire) : memref<i32> -> i32
+  %5 = omp.atomic.read %addr memory_order(acquire) : memref<i32> -> i32
+  // CHECK: %{{.*}} = omp.atomic.read %[[ADDR]] memory_order(relaxed) : memref<i32> -> i32
+  %6 = omp.atomic.read %addr memory_order(relaxed) : memref<i32> -> i32
+  // CHECK: %{{.*}} = omp.atomic.read %[[ADDR]] hint(contended, nonspeculative) : memref<i32> -> i32
+  %7 = omp.atomic.read %addr hint(nonspeculative, contended) : memref<i32> -> i32
+  // CHECK: %{{.*}} = omp.atomic.read %[[ADDR]] memory_order(seq_cst) hint(contended, speculative) : memref<i32> -> i32
+  %8 = omp.atomic.read %addr hint(speculative, contended) memory_order(seq_cst) : memref<i32> -> i32
+  return
+}
+
+// CHECK-LABEL: omp_atomic_write
+// CHECK-SAME: (%[[ADDR:.*]]: memref<i32>, %[[VAL:.*]]: i32)
+func @omp_atomic_write(%addr : memref<i32>, %val : i32) {
+  // CHECK: omp.atomic.write %[[ADDR]], %[[VAL]] : memref<i32>, i32
+  omp.atomic.write %addr, %val : memref<i32>, i32
+  // CHECK: omp.atomic.write %[[ADDR]], %[[VAL]] memory_order(seq_cst) : memref<i32>, i32
+  omp.atomic.write %addr, %val memory_order(seq_cst) : memref<i32>, i32
+  // CHECK: omp.atomic.write %[[ADDR]], %[[VAL]] memory_order(release) : memref<i32>, i32
+  omp.atomic.write %addr, %val memory_order(release) : memref<i32>, i32
+  // CHECK: omp.atomic.write %[[ADDR]], %[[VAL]] memory_order(relaxed) : memref<i32>, i32
+  omp.atomic.write %addr, %val memory_order(relaxed) : memref<i32>, i32
+  // CHECK: omp.atomic.write %[[ADDR]], %[[VAL]] hint(uncontended, speculative) : memref<i32>, i32
+  omp.atomic.write %addr, %val hint(speculative, uncontended) : memref<i32>, i32
   return
 }

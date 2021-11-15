@@ -89,9 +89,11 @@ static StringRef twineToStrRef(const Twine &val,
   // Allocate memory to hold this string.
   SmallString<64> data;
   auto strRef = val.toStringRef(data);
+  if (strRef.empty())
+    return strRef;
+
   strings.push_back(std::unique_ptr<char[]>(new char[strRef.size()]));
   memcpy(&strings.back()[0], strRef.data(), strRef.size());
-
   // Return a reference to the new string.
   return StringRef(&strings.back()[0], strRef.size());
 }
@@ -125,9 +127,21 @@ Diagnostic &Diagnostic::operator<<(OperationName val) {
 
 /// Stream in an Operation.
 Diagnostic &Diagnostic::operator<<(Operation &val) {
+  return appendOp(val, OpPrintingFlags());
+}
+Diagnostic &Diagnostic::appendOp(Operation &val, const OpPrintingFlags &flags) {
   std::string str;
   llvm::raw_string_ostream os(str);
-  val.print(os, OpPrintingFlags().useLocalScope().elideLargeElementsAttrs());
+  val.print(os,
+            OpPrintingFlags(flags).useLocalScope().elideLargeElementsAttrs());
+  return *this << os.str();
+}
+
+/// Stream in a Value.
+Diagnostic &Diagnostic::operator<<(Value val) {
+  std::string str;
+  llvm::raw_string_ostream os(str);
+  val.print(os);
   return *this << os.str();
 }
 

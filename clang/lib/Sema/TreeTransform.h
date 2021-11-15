@@ -1324,12 +1324,12 @@ public:
   ///
   /// By default, performs semantic analysis to build the new statement.
   /// Subclasses may override this routine to provide different behavior.
-  StmtResult RebuildIfStmt(SourceLocation IfLoc, bool IsConstexpr,
+  StmtResult RebuildIfStmt(SourceLocation IfLoc, IfStatementKind Kind,
                            SourceLocation LParenLoc, Sema::ConditionResult Cond,
                            SourceLocation RParenLoc, Stmt *Init, Stmt *Then,
                            SourceLocation ElseLoc, Stmt *Else) {
-    return getSema().ActOnIfStmt(IfLoc, IsConstexpr, LParenLoc, Init, Cond,
-                                 RParenLoc, Then, ElseLoc, Else);
+    return getSema().ActOnIfStmt(IfLoc, Kind, LParenLoc, Init, Cond, RParenLoc,
+                                 Then, ElseLoc, Else);
   }
 
   /// Start building a new switch statement.
@@ -4775,8 +4775,8 @@ QualType TreeTransform<Derived>::RebuildQualifiedType(QualType T,
   SourceLocation Loc = TL.getBeginLoc();
   Qualifiers Quals = TL.getType().getLocalQualifiers();
 
-  if (((T.getAddressSpace() != LangAS::Default &&
-        Quals.getAddressSpace() != LangAS::Default)) &&
+  if ((T.getAddressSpace() != LangAS::Default &&
+       Quals.getAddressSpace() != LangAS::Default) &&
       T.getAddressSpace() != Quals.getAddressSpace()) {
     SemaRef.Diag(Loc, diag::err_address_space_mismatch_templ_inst)
         << TL.getType() << T;
@@ -7404,13 +7404,16 @@ TreeTransform<Derived>::TransformIfStmt(IfStmt *S) {
   if (Init.isInvalid())
     return StmtError();
 
-  // Transform the condition
-  Sema::ConditionResult Cond = getDerived().TransformCondition(
-      S->getIfLoc(), S->getConditionVariable(), S->getCond(),
-      S->isConstexpr() ? Sema::ConditionKind::ConstexprIf
-                       : Sema::ConditionKind::Boolean);
-  if (Cond.isInvalid())
-    return StmtError();
+  Sema::ConditionResult Cond;
+  if (!S->isConsteval()) {
+    // Transform the condition
+    Cond = getDerived().TransformCondition(
+        S->getIfLoc(), S->getConditionVariable(), S->getCond(),
+        S->isConstexpr() ? Sema::ConditionKind::ConstexprIf
+                         : Sema::ConditionKind::Boolean);
+    if (Cond.isInvalid())
+      return StmtError();
+  }
 
   // If this is a constexpr if, determine which arm we should instantiate.
   llvm::Optional<bool> ConstexprConditionValue;
@@ -7443,7 +7446,7 @@ TreeTransform<Derived>::TransformIfStmt(IfStmt *S) {
     return S;
 
   return getDerived().RebuildIfStmt(
-      S->getIfLoc(), S->isConstexpr(), S->getLParenLoc(), Cond,
+      S->getIfLoc(), S->getStatementKind(), S->getLParenLoc(), Cond,
       S->getRParenLoc(), Init.get(), Then.get(), S->getElseLoc(), Else.get());
 }
 
@@ -9196,6 +9199,17 @@ StmtResult
 TreeTransform<Derived>::TransformOMPMaskedDirective(OMPMaskedDirective *D) {
   DeclarationNameInfo DirName;
   getDerived().getSema().StartOpenMPDSABlock(OMPD_masked, DirName, nullptr,
+                                             D->getBeginLoc());
+  StmtResult Res = getDerived().TransformOMPExecutableDirective(D);
+  getDerived().getSema().EndOpenMPDSABlock(Res.get());
+  return Res;
+}
+
+template <typename Derived>
+StmtResult TreeTransform<Derived>::TransformOMPGenericLoopDirective(
+    OMPGenericLoopDirective *D) {
+  DeclarationNameInfo DirName;
+  getDerived().getSema().StartOpenMPDSABlock(OMPD_loop, DirName, nullptr,
                                              D->getBeginLoc());
   StmtResult Res = getDerived().TransformOMPExecutableDirective(D);
   getDerived().getSema().EndOpenMPDSABlock(Res.get());

@@ -1765,6 +1765,52 @@ TEST(APIntTest, isShiftedMask) {
   }
 }
 
+TEST(APIntTest, isPowerOf2) {
+  EXPECT_FALSE(APInt(5, 0x00).isPowerOf2());
+  EXPECT_FALSE(APInt(32, 0x11).isPowerOf2());
+  EXPECT_TRUE(APInt(17, 0x01).isPowerOf2());
+  EXPECT_TRUE(APInt(32, (unsigned)(0xffu << 31)).isPowerOf2());
+
+  for (int N : {1, 2, 3, 4, 7, 8, 16, 32, 64, 127, 128, 129, 256}) {
+    EXPECT_FALSE(APInt(N, 0).isPowerOf2());
+    EXPECT_TRUE(APInt::getSignedMinValue(N).isPowerOf2());
+
+    APInt One(N, 1);
+    for (int I = 1; I < N - 1; ++I) {
+      EXPECT_TRUE(APInt::getOneBitSet(N, I).isPowerOf2());
+
+      APInt MaskVal = One.shl(I);
+      EXPECT_TRUE(MaskVal.isPowerOf2());
+    }
+  }
+}
+
+TEST(APIntTest, isNegatedPowerOf2) {
+  EXPECT_FALSE(APInt(5, 0x00).isNegatedPowerOf2());
+  EXPECT_TRUE(APInt(15, 0x7ffe).isNegatedPowerOf2());
+  EXPECT_TRUE(APInt(16, 0xfffc).isNegatedPowerOf2());
+  EXPECT_TRUE(APInt(32, 0xffffffff).isNegatedPowerOf2());
+
+  for (int N : {1, 2, 3, 4, 7, 8, 16, 32, 64, 127, 128, 129, 256}) {
+    EXPECT_FALSE(APInt(N, 0).isNegatedPowerOf2());
+    EXPECT_TRUE(APInt::getAllOnes(N).isNegatedPowerOf2());
+    EXPECT_TRUE(APInt::getSignedMinValue(N).isNegatedPowerOf2());
+    EXPECT_TRUE((-APInt::getSignedMinValue(N)).isNegatedPowerOf2());
+
+    APInt One(N, 1);
+    for (int I = 1; I < N - 1; ++I) {
+      EXPECT_FALSE(APInt::getOneBitSet(N, I).isNegatedPowerOf2());
+      EXPECT_TRUE((-APInt::getOneBitSet(N, I)).isNegatedPowerOf2());
+
+      APInt MaskVal = One.shl(I);
+      EXPECT_TRUE((-MaskVal).isNegatedPowerOf2());
+
+      APInt ShiftMaskVal = One.getHighBitsSet(N, I);
+      EXPECT_TRUE(ShiftMaskVal.isNegatedPowerOf2());
+    }
+  }
+}
+
 // Test that self-move works with EXPENSIVE_CHECKS. It calls std::shuffle which
 // does self-move on some platforms.
 #ifdef EXPENSIVE_CHECKS
@@ -1873,6 +1919,10 @@ TEST(APIntTest, insertBits) {
   APInt i63(63, 0x01234567FFFFFFFFull);
   i63.insertBits(iSrc, 4);
   EXPECT_EQ(static_cast<int64_t>(0x012345600123456Full), i63.getSExtValue());
+
+  // Zero width insert is a noop.
+  i31.insertBits(APInt::getZeroWidth(), 1);
+  EXPECT_EQ(static_cast<int64_t>(0x00123456ull), i31.getSExtValue());
 
   // Insert single word src into one word of dst.
   APInt i120(120, UINT64_MAX, true);
@@ -2587,7 +2637,7 @@ TEST(APIntTest, truncOrSelf) {
   EXPECT_EQ(0xFFFFFFFF, val.truncOrSelf(64));
 }
 
-TEST(APIntTest, concatMSB) {
+TEST(APIntTest, concat) {
   APInt Int1(4, 0x1ULL);
   APInt Int3(4, 0x3ULL);
 
@@ -2597,6 +2647,11 @@ TEST(APIntTest, concatMSB) {
 
   APInt I64(64, 0x3ULL);
   EXPECT_EQ(I64, I64.concat(I64).lshr(64).trunc(64));
+
+  APInt I65(65, 0x3ULL);
+  APInt I0 = APInt::getZeroWidth();
+  EXPECT_EQ(I65, I65.concat(I0));
+  EXPECT_EQ(I65, I0.concat(I65));
 }
 
 TEST(APIntTest, multiply) {
@@ -2720,9 +2775,24 @@ TEST(APIntTest, umul_ov) {
   for (unsigned Bits = 1; Bits <= 5; ++Bits)
     for (unsigned A = 0; A != 1u << Bits; ++A)
       for (unsigned B = 0; B != 1u << Bits; ++B) {
-        APInt C = APInt(Bits, A).umul_ov(APInt(Bits, B), Overflow);
-        APInt D = APInt(2 * Bits, A) * APInt(2 * Bits, B);
-        EXPECT_TRUE(D.getHiBits(Bits).isNullValue() != Overflow);
+        APInt N1 = APInt(Bits, A), N2 = APInt(Bits, B);
+        APInt Narrow = N1.umul_ov(N2, Overflow);
+        APInt Wide = N1.zext(2 * Bits) * N2.zext(2 * Bits);
+        EXPECT_EQ(Wide.trunc(Bits), Narrow);
+        EXPECT_EQ(Narrow.zext(2 * Bits) != Wide, Overflow);
+      }
+}
+
+TEST(APIntTest, smul_ov) {
+  for (unsigned Bits = 1; Bits <= 5; ++Bits)
+    for (unsigned A = 0; A != 1u << Bits; ++A)
+      for (unsigned B = 0; B != 1u << Bits; ++B) {
+        bool Overflow;
+        APInt N1 = APInt(Bits, A), N2 = APInt(Bits, B);
+        APInt Narrow = N1.smul_ov(N2, Overflow);
+        APInt Wide = N1.sext(2 * Bits) * N2.sext(2 * Bits);
+        EXPECT_EQ(Wide.trunc(Bits), Narrow);
+        EXPECT_EQ(Narrow.sext(2 * Bits) != Wide, Overflow);
       }
 }
 
@@ -2939,6 +3009,7 @@ TEST(APIntTest, ZeroWidth) {
   // Methods like getLowBitsSet work with zero bits.
   EXPECT_EQ(0U, APInt::getLowBitsSet(0, 0).getBitWidth());
   EXPECT_EQ(0U, APInt::getSplat(0, ZW).getBitWidth());
+  EXPECT_EQ(0U, APInt(4, 10).extractBits(0, 2).getBitWidth());
 
   // Logical operators.
   ZW |= ZW2;
@@ -2981,6 +3052,7 @@ TEST(APIntTest, ZeroWidth) {
   EXPECT_EQ(0U, ZW.getLoBits(0).getBitWidth());
   EXPECT_EQ(0, ZW.zext(4));
   EXPECT_EQ(0U, APInt(4, 3).trunc(0).getBitWidth());
+  EXPECT_TRUE(ZW.isAllOnes());
 
   SmallString<42> STR;
   ZW.toStringUnsigned(STR);

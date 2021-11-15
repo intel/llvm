@@ -398,9 +398,10 @@ protected:
     }
 
     StreamString stream;
+    ProcessSP process_sp;
     const auto error = target->Attach(m_options.attach_info, &stream);
     if (error.Success()) {
-      ProcessSP process_sp(target->GetProcessSP());
+      process_sp = target->GetProcessSP();
       if (process_sp) {
         result.AppendMessage(stream.GetString());
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
@@ -452,8 +453,13 @@ protected:
 
     // This supports the use-case scenario of immediately continuing the
     // process once attached.
-    if (m_options.attach_info.GetContinueOnceAttached())
-      m_interpreter.HandleCommand("process continue", eLazyBoolNo, result);
+    if (m_options.attach_info.GetContinueOnceAttached()) {
+      // We have made a process but haven't told the interpreter about it yet,
+      // so CheckRequirements will fail for "process continue".  Set the override
+      // here:
+      ExecutionContext exe_ctx(process_sp);
+      m_interpreter.HandleCommand("process continue", eLazyBoolNo, exe_ctx, result);
+    }
 
     return result.Succeeded();
   }
@@ -1210,7 +1216,7 @@ public:
 
       switch (short_option) {
       case 'p':
-        m_requested_plugin_name.SetString(option_arg);
+        m_requested_plugin_name = option_arg.str();
         break;
       case 's':
         m_requested_save_core_style =
@@ -1227,12 +1233,12 @@ public:
 
     void OptionParsingStarting(ExecutionContext *execution_context) override {
       m_requested_save_core_style = eSaveCoreUnspecified;
-      m_requested_plugin_name.Clear();
+      m_requested_plugin_name.clear();
     }
 
     // Instance variables to hold the values for command options.
     SaveCoreStyle m_requested_save_core_style;
-    ConstString m_requested_plugin_name;
+    std::string m_requested_plugin_name;
   };
 
 protected:

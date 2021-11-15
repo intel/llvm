@@ -28,16 +28,16 @@ public:
 
   static lldb::PlatformSP CreateInstance(bool force, const ArchSpec *arch);
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "remote-gdb-server"; }
 
-  static const char *GetDescriptionStatic();
+  static llvm::StringRef GetDescriptionStatic();
 
   PlatformRemoteGDBServer();
 
   ~PlatformRemoteGDBServer() override;
 
   // lldb_private::PluginInterface functions
-  ConstString GetPluginName() override { return GetPluginNameStatic(); }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   // lldb_private::Platform functions
   Status
@@ -47,7 +47,7 @@ public:
   bool GetModuleSpec(const FileSpec &module_file_spec, const ArchSpec &arch,
                      ModuleSpec &module_spec) override;
 
-  const char *GetDescription() override;
+  llvm::StringRef GetDescription() override;
 
   Status GetFileWithUUID(const FileSpec &platform_file, const UUID *uuid_ptr,
                          FileSpec &local_file) override;
@@ -77,9 +77,9 @@ public:
 
   bool GetRemoteOSVersion() override;
 
-  bool GetRemoteOSBuildString(std::string &s) override;
+  llvm::Optional<std::string> GetRemoteOSBuildString() override;
 
-  bool GetRemoteOSKernelDescription(std::string &s) override;
+  llvm::Optional<std::string> GetRemoteOSKernelDescription() override;
 
   // Remote Platform subclasses need to override this function
   ArchSpec GetRemoteSystemArchitecture() override;

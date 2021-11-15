@@ -21,12 +21,19 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
+    : handler(Queue, Queue, nullptr, IsHost) {}
+
+handler::handler(std::shared_ptr<detail::queue_impl> Queue,
+                 std::shared_ptr<detail::queue_impl> PrimaryQueue,
+                 std::shared_ptr<detail::queue_impl> SecondaryQueue,
+                 bool IsHost)
     : MQueue(std::move(Queue)), MIsHost(IsHost) {
   // Create extended members and insert handler_impl
   // TODO: When allowed to break ABI the handler_impl should be made a member
@@ -35,7 +42,8 @@ handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
       std::make_shared<std::vector<detail::ExtendedMemberT>>();
   detail::ExtendedMemberT HandlerImplMember = {
       detail::ExtendedMembersType::HANDLER_IMPL,
-      std::make_shared<detail::handler_impl>()};
+      std::make_shared<detail::handler_impl>(std::move(PrimaryQueue),
+                                             std::move(SecondaryQueue))};
   ExtendedMembers->push_back(std::move(HandlerImplMember));
   MSharedPtrStorage.push_back(std::move(ExtendedMembers));
 }
@@ -154,12 +162,12 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr = nullptr;
   // Kernel_bundles could not be used before CGType version 1
   if (getCGTypeVersion(MCGType) >
       static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
@@ -167,7 +175,8 @@ event handler::finalize() {
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                 KernelBundleImpPtr));
-        setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
+        setHandlerKernelBundle(KernelBundleImpPtr);
         break;
       }
       case bundle_state::executable:
@@ -181,8 +190,38 @@ event handler::finalize() {
     }
   }
 
+  const auto &type = getType();
+  if (type == detail::CG::Kernel &&
+      MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
+    // if user does not add a new dependency to the dependency graph, i.e.
+    // the graph is not changed, then this faster path is used to submit kernel
+    // bypassing scheduler and avoiding CommandGroup, Command objects creation.
+
+    std::vector<RT::PiEvent> RawEvents;
+    detail::EventImplPtr NewEvent =
+        std::make_shared<detail::event_impl>(MQueue);
+    NewEvent->setContextImpl(MQueue->getContextImplPtr());
+
+    cl_int Res = CL_SUCCESS;
+    if (MQueue->is_host()) {
+      MHostKernel->call(MNDRDesc, NewEvent->getHostProfilingInfo());
+    } else {
+      Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                             MKernel, MKernelName, MOSModuleHandle, RawEvents,
+                             NewEvent, nullptr);
+    }
+
+    if (CL_SUCCESS != Res)
+      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+      NewEvent->setComplete();
+
+    MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+    return MLastEvent;
+  }
+
   std::unique_ptr<detail::CG> CommandGroup;
-  switch (getType()) {
+  switch (type) {
   case detail::CG::Kernel:
   case detail::CG::RunOnHostIntel: {
     // Copy kernel name here instead of move so that it's available after
@@ -542,6 +581,20 @@ std::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
 }
 
+void handler::verifyUsedKernelBundle(const std::string &KernelName) {
+  auto UsedKernelBundleImplPtr =
+      getOrInsertHandlerKernelBundle(/*Insert=*/false);
+  if (!UsedKernelBundleImplPtr)
+    return;
+
+  kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
+  device Dev = detail::getDeviceFromHandler(*this);
+  if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
+    throw sycl::exception(
+        make_error_code(errc::kernel_not_supported),
+        "The kernel bundle in use does not contain the kernel");
+}
+
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
@@ -614,5 +667,30 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
 
   ExtendedMembersVec->push_back(EMember);
 }
+
+void handler::use_kernel_bundle(
+    const kernel_bundle<bundle_state::executable> &ExecBundle) {
+
+  std::shared_ptr<detail::queue_impl> PrimaryQueue =
+      getHandlerImpl()->MSubmissionPrimaryQueue;
+  if (PrimaryQueue->get_context() != ExecBundle.get_context())
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Context associated with the primary queue is different from the "
+        "context associated with the kernel bundle");
+
+  std::shared_ptr<detail::queue_impl> SecondaryQueue =
+      getHandlerImpl()->MSubmissionSecondaryQueue;
+  if (SecondaryQueue &&
+      SecondaryQueue->get_context() != ExecBundle.get_context())
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Context associated with the secondary queue is different from the "
+        "context associated with the kernel bundle");
+
+  setStateExplicitKernelBundle();
+  setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
