@@ -37,7 +37,7 @@ then `sycl::ext::intel::burst_coalesce` must be set to `true`.
 4. For `load`, exactly one of `sycl::ext::intel::prefetch` and
 `sycl::ext::intel::cache` is allowed to be `true`.
 
-Member functions `load()` or `store()` can take in a property_list as argument,
+Member functions `load()` or `store()` can take in an ext::oneapi::properties as argument,
 which contains the following two properties of latency control:
 
 1. **`sycl::ext::intel::latency_anchor_id<N>`, where `N` is an integer**:
@@ -49,7 +49,7 @@ parameters when the current function performs as a non-anchor, where:
     - **`A` is an integer**: The ID of the target anchor defined on a different
     instruction through a `latency_anchor_id` property.
     - **`B` is an enum value**: The type of control from the set
-    {`latency::exact`, `latency::min`, `latency::max`}.
+    {`type::exact`, `type::min`, `type::max`}.
     - **`C` is an integer**: The relative clock cycle difference between the
     target anchor and the current function call, that the constraint should
     infer subject to the type of the control (exact, min, max).
@@ -60,6 +60,42 @@ The implementation relies on the Clang built-in `__builtin_intel_fpga_mem` when
 parsing the SYCL device code. The built-in uses the LLVM `ptr.annotation`
 intrinsic under the hood to annotate the pointer that is being accessed.
 ```c++
+namespace sycl::ext::oneapi {
+
+struct latency_anchor_id {
+  template<int32_t ID>
+  using value_t = property_value<latency_anchor_id,
+                                 std::integral_constant<int32_t, ID>>;
+};
+
+struct latency_constraint {
+  enum class type {
+    none,
+    exact,
+    max,
+    min
+  };
+  template <int32_t Target, type Type, int32_t Cycle>
+  using value_t = property_value<latency_constraint,
+                                 std::integral_constant<int32_t, Target>,
+                                 std::integral_constant<type, Type>,
+                                 std::integral_constant<int32_t, Cycle>>;
+};
+
+template<int32_t Target, type Type, int32_t Cycle>
+struct property_value<latency_constraint,
+                      std::integral_constant<int32_t, Target>,
+                      std::integral_constant<latency_constraint::type, Type>,
+                      std::integral_constant<int32_t, Cycle>> {
+  static constexpr int32_t target = Target;
+  static constexpr latency_constraint::type type = Type;
+  static constexpr int32_t cycle = Cycle;
+};
+
+} // namespace sycl::ext::oneapi
+
+namespace sycl::ext::intel {
+
 template <class... mem_access_params> class lsu final {
 public:
   lsu() = delete;
@@ -79,30 +115,34 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space, typename props>
-  static _T load(sycl::multi_ptr<_T, _space> Ptr, props p) {
+  // Added in version 2 of this extension.
+  template <typename _T, access::address_space _space, typename Properties>
+  static _T load(sycl::multi_ptr<_T, _space> Ptr, Properties p) {
     check_space<_space>();
     check_load();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    static constexpr latency _control_type = props::get_property<latency_constraint>().type;
+    statuc constexpr int32_t _target = p.get_property<latency_constraint>().target;
+
+    static constexpr sycl::ext::oneapi::latency_constraint::type _type_enum = p.get_property<latency_constraint>().type;
     int32_t _type;
-    if (_control_type == latency::none) {
+    if (_type_enum == sycl::ext::oneapi::latency_constraint::type::none) {
       _type = 0;
-    } else if (_control_type == latency::exact) {
+    } else if (_type_enum == sycl::ext::oneapi::latency_constraint::type::exact) {
       _type = 1;
-    } else if (_control_type == latency::max) {
+    } else if (_type_enum == sycl::ext::oneapi::latency_constraint::type::max) {
       _type = 2;
-    } else { // _control_type == latency::min
+    } else { // _type_enum == sycl::ext::oneapi::latency_constraint::type::min
       _type = 3;
     }
+
+    statuc constexpr int32_t _cycle = p.get_property<latency_constraint>().cycle;
+
     return *__builtin_intel_fpga_mem((_T *)Ptr,
                                      _burst_coalesce | _cache |
                                      _dont_statically_coalesce | _prefetch,
                                      _cache_val,
-                                     props::get_property<latency_anchor_id>().anchor_id,
-                                     props::get_property<latency_constraint>().target_anchor,
-                                     _type,
-                                     props::get_property<latency_constraint>().cycle);
+                                     p.get_property<latency_anchor_id>().value,
+                                     _target, _type, _cycle);
 #else
     return *Ptr;
 #endif
@@ -123,36 +163,42 @@ public:
 #endif
   }
 
-  template <typename _T, access::address_space _space, typename props>
-  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val, props p) {
+  // Added in version 2 of this extension.
+  template <typename _T, access::address_space _space, typename Properties>
+  static void store(sycl::multi_ptr<_T, _space> Ptr, _T Val, Properties p) {
     check_space<_space>();
     check_store();
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
-    static constexpr latency _control_type = props::get_property<latency_constraint>().type;
+    statuc constexpr int32_t _target = p.get_property<latency_constraint>().target;
+
+    static constexpr sycl::ext::oneapi::latency_constraint::type _type_enum = p.get_property<latency_constraint>().type;
     int32_t _type;
-    if (_control_type == latency::none) {
+    if (_type_enum == sycl::ext::oneapi::latency_constraint::type::none) {
       _type = 0;
-    } else if (_control_type == latency::exact) {
+    } else if (_type_enum == sycl::ext::oneapi::latency_constraint::type::exact) {
       _type = 1;
-    } else if (_control_type == latency::max) {
+    } else if (_type_enum == sycl::ext::oneapi::latency_constraint::type::max) {
       _type = 2;
-    } else { // _control_type == latency::min
+    } else { // _type_enum == sycl::ext::oneapi::latency_constraint::type::min
       _type = 3;
     }
+
+    statuc constexpr int32_t _cycle = p.get_property<latency_constraint>().cycle;
+
     *__builtin_intel_fpga_mem((_T *)Ptr,
                               _burst_coalesce | _cache |
                               _dont_statically_coalesce | _prefetch,
                               _cache_val,
-                              props::get_property<latency_anchor_id>().anchor_id,
-                              props::get_property<latency_constraint>().target_anchor,
-                              _type,
-                              props::get_property<latency_constraint>().cycle) = Val;
+                              p.get_property<latency_anchor_id>().value,
+                              _target, _type, _cycle) = Val;
 #else
     *Ptr = Val;
 #endif
   }
   ...
 }
+
+} // namespace sycl::ext::intel
 ```
 
 ## Usage
@@ -192,13 +238,15 @@ Queue.submit([&](sycl::handler &cgh) {
     BurstCoalescedLSU::store(output_ptr, X); // output_ptr[0] = X
     PipelinedLSU::store(output_ptr + 1, Y);  // output_ptr[1] = Y
 
-    // latency controls
+    // Latency controls. Added in version 2 of this extension.
     // Load is anchor 1
     int Z = PrefetchingLSU::load(input_ptr + 2,
-                                 property_list{latency_anchor_id<1>});
-    // Store occurs 5 cycles after the anchor 1 read
+                                 sycl::ext::oneapi::properties{latency_anchor_id<1>});
+    // Store occurs 5 cycles after the anchor 1 load
     BurstCoalescedLSU::store(output_ptr + 2, Z,
-                             property_list{latency_constraint<1, latency::exact, 5>});
+                             sycl::ext::oneapi::properties{latency_constraint<1,
+                                                                              sycl::ext::oneapi::latency_constraint::type::exact,
+                                                                              5>});
   });
 });
 ...
@@ -217,3 +265,4 @@ extension’s APIs the implementation supports.
 |Value |Description|
 |:---- |:---------:|
 |1     |Initial extension version. Base features are supported.|
+|2     |Add latency control feature to member functions.|
