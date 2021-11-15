@@ -42,9 +42,7 @@ DPC++ extensions status:
 | [Invoke SIMD](InvokeSIMD/InvokeSIMD.asciidoc)                                                                               | Proposal                                  | |
 | [Uniform](Uniform/Uniform.asciidoc)                                                                                         | Proposal                                  | |
 | [Assert](Assert/SYCL_ONEAPI_ASSERT.asciidoc)                                                                                | Proposal                                  | |
-| [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                                | Partially supported (AMX, DPAS, Tensor Cores (AOT))              | Not supported: AMX, DPAS, Tensor Cores: dynamic-extent, wg and wi scopes; Not supported: AMX, DPAS: layouts other than packed; Tensor Cores: The only supported combination is
-"a" data type |"b" data type |"accumulator" data type |M |N |K | required SM version
-|double |double |double |8 |8 |4| sm_80
+| [Matrix](Matrix/dpcpp-joint-matrix.asciidoc)                                                                                | Partially supported (AMX, DPAS, Tensor Cores (AOT))              | Not supported: AMX, DPAS, Tensor Cores: dynamic-extent, wg and wi scopes; Not supported: AMX, DPAS: layouts other than packed; Tensor Cores: The only supported data type is double
 | [SYCL_INTEL_free_function_queries](FreeFunctionQueries/SYCL_INTEL_free_function_queries.asciidoc)                           | Supported (experimental)                  | |
 | [EXT_ONEAPI_max_work_groups](MaxWorkGroupQueries/max_work_group_query.md)                                                   | Supported                                 | |
 | [SYCL_EXT_ONEAPI_DEVICE_GLOBAL](DeviceGlobal/SYCL_INTEL_device_global.asciidoc)                                             | Proposal                                  | |
