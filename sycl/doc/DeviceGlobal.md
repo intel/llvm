@@ -61,22 +61,11 @@ to a device global variable declaration.  The intent of this property is to
 allow a device global variable to be implemented directly on top of a SPIR-V
 module scope global variable.  When this property is **not** present, an
 instance of a device global variable is shared across all device images that
-are loaded onto a particular device.  This makes it easy for the user to reason
-about the scope of a variable because the user need not understand which device
-image contains each kernel.  However, this semantic makes the implementation
-less efficient, especially on FPGA targets.
-
-By contrast, the `device_image_scope` property changes the semantic of a device
-global variable such that the user must understand which device image contains
-each kernel, which is difficult to reason about.  For example, changing the
-value of a specialization constant may cause a kernel to be recompiled into a
-separate device image on some targets.  As a result, a device global variable
-referenced in a kernel may actually have several disjoint instances if the
-kernel uses specialization constants.  This problem is more tractable on FPGA
-targets because specialization constants are not implemented via separate
-device images on those targets, however, there are other factors that FPGA
-users need to be aware of when using the `device_image_scope` property.  These
-are documented more throughly in the extension specification.
+are loaded onto a particular device.  By contrast, when this property **is**
+present, each device image has its own instance of the device global variable.
+However, since multiple variable instances have confusing semantics, the API
+requires the user to ensure that each such variable exists in exactly one
+device image.  The extension specification has more details on this property.
 
 The important impact on the design, though, is that device global variables
 declared with the `device_image_scope` property have an implementation that is
