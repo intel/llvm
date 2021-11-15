@@ -127,7 +127,7 @@ struct sub_group_mask {
             typename = sycl::detail::enable_if_t<std::is_integral<Type>::value>>
   void extract_bits(Type &bits, id<1> pos = 0) const {
     auto Res = Bits;
-    Res &= aluable_bits(bits_num);
+    Res &= valuable_bits(bits_num);
     if (pos.get(0) < size()) {
       if (pos.get(0) > 0) {
         Res >>= pos.get(0);
