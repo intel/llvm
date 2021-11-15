@@ -771,7 +771,7 @@ class ModuleSplitter {
   std::unique_ptr<LLVMContext> SplitCtx{nullptr};
   ModuleUPtr SrcMInNewCtx{nullptr};
 
-  SplitModeInfo SplitMode;
+  SplitModeInfo SplitParams;
   // Using this counter to reduce number of LLVMContext recreations and module
   // parsings.
   // TODO: add limit calculation depending on free RAM memory and speed of
@@ -796,18 +796,19 @@ class ModuleSplitter {
 
 public:
   ModuleSplitter(ModuleUPtr M, SplitModeInfo SMI)
-      : SrcM(std::move(M)), SplitMode(SMI) {
-    if (SplitMode.IsSplit || SplitMode.IsSymGen)
-      collectEntryPointToModuleMap(*SrcM, GlobalsSet, SplitMode.Scope);
+      : SrcM(std::move(M)), SplitParams(SMI) {
+    if (SplitParams.IsSplit || SplitParams.IsSymGen)
+      collectEntryPointToModuleMap(*SrcM, GlobalsSet, SplitParams.Scope);
     // sycl-post-link always produces a code result, even if input isn't
     // modified.
     if (GlobalsSet.empty())
       GlobalsSet[GLOBAL_SCOPE_NAME] = {};
+    GlobalsSetIt = GlobalsSet.cbegin();
 
-    SplitMode.ReduceMemUsage = (SplitMode.IsSplit && SplitMode.ReduceMemUsage &&
+    SplitParams.ReduceMemUsage = (SplitParams.IsSplit && SplitParams.ReduceMemUsage &&
                                 GlobalsSet.size() > SplitsInOneContextLimit);
 
-    if (SplitMode.ReduceMemUsage) {
+    if (SplitParams.ReduceMemUsage) {
       // Make source module bitcode buffer for re-reading it in a new context.
       BitcodeWriter BCWriter(MBuffer);
       BCWriter.writeModule(*SrcM);
@@ -819,12 +820,10 @@ public:
   std::pair<ModuleUPtr, FuncPtrVector> nextSplit() {
     assert(SrcM);
 
-    GlobalsSetIt =
-        (SplitsInOneContextAmount > 0) ? ++GlobalsSetIt : GlobalsSet.cbegin();
     if (GlobalsSetIt == GlobalsSet.cend())
       return {};
 
-    if (SplitMode.ReduceMemUsage) {
+    if (SplitParams.ReduceMemUsage) {
       if (SplitsInOneContextAmount >= SplitsInOneContextLimit ||
           SplitsInOneContextAmount == 0) {
         copySourceModuleInNewContext();
@@ -833,10 +832,11 @@ public:
         ++SplitsInOneContextAmount;
     }
 
-    ModuleUPtr &SrcMRef = (!SplitMode.ReduceMemUsage) ? SrcM : SrcMInNewCtx;
+    ModuleUPtr &SrcMRef = (!SplitParams.ReduceMemUsage) ? SrcM : SrcMInNewCtx;
     FuncPtrVector ResModuleGlobals = getGlobals(*SrcMRef, GlobalsSetIt->second);
+    ++GlobalsSetIt;
 
-    if (SplitMode.IsSplit)
+    if (SplitParams.IsSplit)
       return {splitModule(*SrcMRef, ResModuleGlobals), ResModuleGlobals};
 
     return {std::move(SrcMRef), ResModuleGlobals};
@@ -868,9 +868,9 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
     LowerEsimdConstructs(*M);
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
-  SplitModeInfo SplitMode = {selectDeviceCodeSplitScope(*M), DoSplit, DoSymGen,
-                             ReduceMemoryUsage};
-  ModuleSplitter MSplit(std::move(M), SplitMode);
+  SplitModeInfo SMI = {selectDeviceCodeSplitScope(*M), DoSplit, DoSymGen,
+                       ReduceMemoryUsage};
+  ModuleSplitter MSplit(std::move(M), SMI);
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
   for (size_t I = 0; I < MSplit.totalSplits(); ++I) {
