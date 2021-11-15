@@ -169,7 +169,7 @@ The `discard_queue_events` property should be taken as a hint for SYCL implement
 In all kernel cases, SYCL implementation returns _invalid_ event, regardless of whether the optimization was done.
 Optimization occurs if the queue has `discard_queue_events` property and all features presented below are not met:
 
- - Using together with `enable_profiling` property
+ - Using out-of-order queue or using together with `enable_profiling` property
  - Using https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Assert/SYCL_ONEAPI_ASSERT.asciidoc[fallback assert feature]
  - Using streams, buffer/image accessors (excluding local accessors)
 
@@ -179,7 +179,7 @@ See details for each below:
 === Using out-of-order queue and/or using together with enable_profiling property
 
 No optimization if a queue is created with the `discard_queue_events` property and
-the property list includes the `enable_profiling` property or does not include `in_order`.
+the property list includes the `enable_profiling` property or does not include `in_order` property.
 
 === Using fallback assert feature
 
