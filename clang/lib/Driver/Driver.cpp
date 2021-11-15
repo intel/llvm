@@ -5568,16 +5568,22 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   handleArguments(C, Args, Inputs, Actions);
 
-  auto *OptO = C.getArgs().getLastArg(options::OPT_o);
-  SmallString<128> OutFileDir(OptO ? OptO->getValues()[0] : "");
-  llvm::sys::path::remove_filename(OutFileDir);
-  // `remove_filename` will return an empty string if in CWD, patch it.
-  if (OutFileDir.empty())
-    llvm::sys::path::native(OutFileDir = "./");
-  const bool IsSaveTemps = isSaveTempsEnabled();
   // When compiling for -fsycl, generate the integration header files and the
   // Unique ID that will be used during the compilation.
   if (Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false)) {
+    const bool IsSaveTemps = isSaveTempsEnabled();
+    SmallString<128> OutFileDir;
+    if (IsSaveTemps) {
+      if (SaveTemps == SaveTempsObj) {
+        auto *OptO = C.getArgs().getLastArg(options::OPT_o);
+        OutFileDir = (OptO ? OptO->getValues()[0] : "");
+        llvm::sys::path::remove_filename(OutFileDir);
+      }
+      // If in `SaveTempsCwd`, or `remove_filename` returned an empty string
+      // use CWD.
+      if (OutFileDir.empty())
+        llvm::sys::path::native(OutFileDir = "./");
+    }
     for (auto &I : Inputs) {
       std::string SrcFileName(I.second->getAsString(Args));
       if (I.first == types::TY_PP_C || I.first == types::TY_PP_CXX ||
@@ -5595,14 +5601,14 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       auto StemmedSrcFileName = llvm::sys::path::stem(SrcFileName).str();
       if (IsSaveTemps) {
         TmpFileNameHeader.append(C.getDriver().GetUniquePath(
-            OutFileDir.c_str() + StemedSrcFileName + "-header", "h"));
+            OutFileDir.c_str() + StemmedSrcFileName + "-header", "h"));
         TmpFileNameFooter.append(C.getDriver().GetUniquePath(
-            OutFileDir.c_str() + StemedSrcFileName + "-footer", "h"));
+            OutFileDir.c_str() + StemmedSrcFileName + "-footer", "h"));
       } else {
-        TmpFileNameHeader.assign(
-            C.getDriver().GetTemporaryPath(StemedSrcFileName + "-header", "h"));
+        TmpFileNameHeader.assign(C.getDriver().GetTemporaryPath(
+            StemmedSrcFileName + "-header", "h"));
         TmpFileNameFooter =
-            C.getDriver().GetTemporaryPath(StemedSrcFileName + "-footer", "h");
+            C.getDriver().GetTemporaryPath(StemmedSrcFileName + "-footer", "h");
       }
       StringRef TmpFileHeader =
           C.addTempFile(C.getArgs().MakeArgString(TmpFileNameHeader));
