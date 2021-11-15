@@ -3583,7 +3583,7 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
   SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
       *this, Args[0]->getExprLoc(), KernelNameType,
       IsSYCLUnnamedKernel(*this, KernelFunc));
-    KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
+  KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
 
   // FIXME: In place until the library works around its 'host' invocation
   // issues.
