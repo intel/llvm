@@ -805,8 +805,9 @@ public:
       GlobalsSet[GLOBAL_SCOPE_NAME] = {};
     GlobalsSetIt = GlobalsSet.cbegin();
 
-    SplitParams.ReduceMemUsage = (SplitParams.IsSplit && SplitParams.ReduceMemUsage &&
-                                GlobalsSet.size() > SplitsInOneContextLimit);
+    SplitParams.ReduceMemUsage =
+        (SplitParams.IsSplit && SplitParams.ReduceMemUsage &&
+         GlobalsSet.size() > SplitsInOneContextLimit);
 
     if (SplitParams.ReduceMemUsage) {
       // Make source module bitcode buffer for re-reading it in a new context.
