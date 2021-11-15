@@ -152,7 +152,7 @@ IMPORTANT: The CUDA backend does not require any other sub-group size than 32, w
 
 To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following:
 
-#### Load 
+### Load
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -166,7 +166,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS or Nvidia® Tensor Cores.
 
-#### Tensor Cores syntax
+##### Tensor Cores syntax
 
 In the Tensor Cores implementation the `matrix_use` enum is added:
 
@@ -182,7 +182,7 @@ void joint_matrix_load(
 
 Note that `Layout` is not included as an argument since it may be determined from the joint_matrix argument.
 
-#### Store 
+### Store
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -210,7 +210,7 @@ void joint_matrix_store(Group sg,
 ```
 Note that this function is only available for `matrix_use::accumulator`.
 
-#### Multiply and Add
+### Multiply and Add
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
