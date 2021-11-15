@@ -191,12 +191,9 @@ could then remove the support for `sycl_global_var`.
 The last attribute `[[__sycl_detail__::restrictions(device_global)]]` controls
 error reporting for variables declared of this type.  The device global
 extension specification places restrictions on where a `device_global` variable
-can be declared as clarified in [this PR][5] against the extension
-specification API.  Rather than have the front-end recognize the name of the
+can be declared.  Rather than have the front-end recognize the name of the
 `device_global` type, the front-end uses this attribute to know which
 restrictions to enforce for this type.
-
-[5]: <https://github.com/intel/llvm/pull/4697>
 
 **NOTE**: The front-end does currently recognize the `specialization_id` class
 by its name, and it has hard-coded knowledge that variables declared with this
@@ -227,7 +224,7 @@ There are several changes to the device compiler front-end:
   `device_global` type.  As described above, the front-end uses the
   `[[__sycl_detail__::restrictions()]]` attribute (rather than the class name)
   to know which set of restrictions to check.  The restrictions specific to
-  device global variables are documented in [this PR][5].
+  device global variables are documented in the [extension specification][1].
 
 * The front-end *avoids* diagnosing an error when variables of type
   `device_global` are referenced in device code because the type is decorated
@@ -364,10 +361,10 @@ unqualified name lookup.  Furthermore, the name of the temporary variable
 (`__sycl_UNIQUE_STRING`) is globally unique, so it is guaranteed not to be
 shadowed by any other name in the translation unit.  This problem with variable
 shadowing is also a problem for the integration footer we use for
-specialization constants.  See the [specialization constant design document][6]
+specialization constants.  See the [specialization constant design document][5]
 for more details on this topic.
 
-[6]: <SpecializationConstants.md>
+[5]: <SpecializationConstants.md>
 
 ### Changes to the `sycl-post-link` tool
 
@@ -558,9 +555,9 @@ In both cases the `name` parameter is the same as the `sycl-unique-id` string
 that is associated with the device global variable.
 
 The Level Zero backend has existing APIs that can implement these PI
-interfaces.  DPC++ first calls [`zeModuleGetGlobalPointer()`][7] to get a
+interfaces.  DPC++ first calls [`zeModuleGetGlobalPointer()`][6] to get a
 device pointer for the variable and then calls
-[`zeCommandListAppendMemoryCopy()`][8] to copy to or from that pointer.
+[`zeCommandListAppendMemoryCopy()`][7] to copy to or from that pointer.
 However, the documentation (and implementation) of `zeModuleGetGlobalPointer()`
 needs to be extended slightly.  The description currently says:
 
@@ -589,17 +586,17 @@ This must be changed to say something along these lines:
 > * If `pGlobalName` identifies an imported SPIR-V variable, the module must be
 >   dynamically linked before the variable's pointer may be queried.
 
-[7]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
-[8]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
+[6]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
+[7]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
 
 The OpenCL backend has a proposed extension
-[`cl_intel_global_variable_pointers`][9] that can implement these PI
+[`cl_intel_global_variable_pointers`][8] that can implement these PI
 interfaces.  DPC++ first calls `clGetDeviceGlobalVariablePointerINTEL()` to get
 a device pointer for the variable and then calls `clEnqueueMemcpyINTEL()` to
 copy to or from that pointer.  This DPC++ design depends upon implementation of
 that OpenCL extension.
 
-[9]: <extensions/DeviceGlobal/cl_intel_global_variable_pointers.asciidoc>
+[8]: <extensions/DeviceGlobal/cl_intel_global_variable_pointers.asciidoc>
 
 The CUDA backend has existing APIs `cudaMemcpyToSymbol()` and
 `cudaMemcpyFromSymbol()` which can be used to implement these PI interfaces.
