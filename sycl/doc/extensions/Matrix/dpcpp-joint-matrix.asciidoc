@@ -33,11 +33,11 @@ SYCL specification refer to that revision.
 
 **_NOTE:_** _This document describes the current design and API for the matrix
 extension to {dpcpp}. This is an initial experimental version to try out functionality
-and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX), DPAS, and Nvidia Tensorcore. We are going to work with the community on incrementally improving
+and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX), DPAS, and Nvidia® Tensorcore. We are going to work with the community on incrementally improving
 the API to bring them closer to standard C++ (aligned with the `std::mdspan` and `std::mdarray` proposals) and SYCL in the next several months._
 
 ## Introduction
-This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefits from the maximum performance these different hardware can offer.
+This document presents an ongoing work towards defining a unified matrix interface. This interface is intended to unify different tensor hardware: Intel AMX in CPUs, Habana Gaudi and Goya tensor and gemm cores, Nvidia® TPUs, IBM Power MMA. All these hardware provide low-level intrinsics or assembly to access and perform matrix operations. The goal is to provide a unified interface that is portable but also benefits from the maximum performance these different hardware can offer.
 
 ## Feature test macro
 
@@ -54,11 +54,28 @@ value to determine which of the extension's APIs the implementation supports.
 |Value |Description
 |1     |Initial extension implementation on Intel AMX.  Base features are supported.
 |2     |Initial extension JIT implementation on Intel AMX and DPAS. load, store, mad and the query interface are supported 
-|3     |Initial extension implementation on Nvidia Tensorcore. Base features are supported.
+|3     |Initial extension implementation on Nvidia® Tensor Cores. Base features are supported.
 |======================
 
 ## New `joint_matrix` class
-We introduce a new class called `joint_matrix`. The user needs to specify the type of the elements, matrix_use (a, b, accumulator), shape, the memory layout, and the memory scope of the matrix. This results into the following description:
+
+We introduce a new class called `joint_matrix`. The user needs to specify the type of the elements, shape, the memory layout, and the memory scope of the matrix. This results in the following description:
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+template <typename T, size_t Rows=sycl::dynamic_extent, size_t Cols=sycl::dynamic_extent,
+          matrix_layout Layout = matrix_layout::row_major, typename Group = sub_group>
+struct joint_matrix {
+  joint_matrix(Group g) {}
+};
+}
+```
+
+### New `matrix_use` Enumeration used in Nvidia® case
+
+A new parameter has been added to the Tensor Core implementation of joint_matrix.  The type of the new parameter is an enum, `matrix_use` (a, b, accumulator).
+`matrix_use` is used to distinguish the suitable place for a given matrix in a Multiply and Add operation. The Multiply and Add operation is decribed later on in this document. The long term plan is to incorporate the use argument for other TPUs (AMX and DPAS). In the Tensor Cores architecture the supported matrix shapes and data types depend upon the `matrix_use`.
+The joint_matrix interface used by the Tensor Cores implementation is:
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -66,51 +83,35 @@ template <typename T, matrix_use MT,
           size_t Rows = sycl::dynamic_extent,
           size_t Cols = sycl::dynamic_extent,
           matrix_layout Layout = matrix_layout::row_major,
-          typename Group, typename Cond = void>
+          typename Group>
 struct joint_matrix {
   joint_matrix(Group g) {}
 };
 }
 ```
 
-The final optional conditional argument can be used to remove cases for template parameter values which are incompatible with a particular backend.
-For example, the Nvidia Tensorcore backend does not allow usage of `matrix_layout::packed_a` or `matrix_layout::packed_b`.
-
-
 #### Memory Scope
 In this experimental API version, we used the terminology of `joint_matrix` instead of plain `matrix` to emphasize that the matrix is shared among a group of work items and is not private to each work item. The memory scope is added as an additional template parameter and is also part of the constructor arguments.
 
-IMPORTANT: In the current implementation, only the subgroup scope is supported.  For Nvidia Tensorcore only the subgroup scope is supported.
+IMPORTANT: In the current implementations of Intel AMX, Intel DPAS, and Nvidia® Tensor Cores, only the subgroup scope is supported.
 
 When the group is a `sycl::sub_group`, an example matrix declaration is as follows:
 
 ```c++
-joint_matrix<double, matrix_use::accumulator, M, N, matrix_layout::col_major, sub_group> tC(sg);
+joint_matrix<int8_t, tM, tN> tA(sg);
+```
+
+In the Nvidia case an example declaration adds the matrix_use parameter, e.g.:
+
+```c++
+joint_matrix<double, matrix_use::a, tM, tN> tA(sg);
 ```
 
 #### Shape
 
-MMA operations multiply matrices A (matrix_use::a) (M, K) and B (matrix_use::b) (K, N) and add the result to matrix C (matrix_use::accumulator) (M, N). The logical sizes are M, K, N.
-
-C = A * B + C
-
 The same class `joint_matrix` should handle both cases where sizes are constant (GPU case) and when sizes are variables (CPU case). Note that a Intel AMX 2d tile register permits sizes up to 1024 (16rowsx64cols) bytes. The ability to define only one interface for both makes it possible to give the user a way to make use of the flexibility introduced by the CPU but at the same time save resources on the GPU. We use `sycl::dynamic_extent`  to differentiate between static and dynamic sizes.
 
-IMPORTANT: In the current implementation, only the static extent is supported
-
-**_NOTE:_** _Nvidia tensorcore instructions only support a discrete set of matrix shapes. The supported matrix shapes correspond with particular data types of the "a", "b", and "accumulator" matrices involved in the MMA operation._
-
-##### Current Nvidia Implementation status
-
-Currently only a single case, where all matrices consist of elements of double (fp64) type, is implemented.  All other available matrix types/shapes will be added shortly.
-
-[frame="none",options="header"]
-|======================
-|"a" data type |"b" data type |"accumulator" data type |M       |N     |K | required SM version
-|double |double |double   |8 |8 |4| sm_80
-
-
-|======================
+IMPORTANT: In the current implementation, only the static extent is supported.
 
 #### Layout
 Besides row major and column major layouts, `matrix_layout` is flexible enough to introduce custom layouts such as symmetric or tiled layouts.
@@ -126,14 +127,14 @@ enum class matrix_layout {
 }
 ```
 
-Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed layout.  However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for Intel AMX should be specified in user code as follows:
+Intel AMX and DPAS hardware require B matrix to be in VNNI or 32 bits packed layout. If we multiply matrices A (M, K) and B (K, N) into a matrix C (M, N). The logical sizes are M, K, N. However, the packed shape for B tile uses the VNNI format, which is described below. The user must provide the information of packed_b layout to make the implementation allocate the right shape. The layout information for Intel AMX should be specified in user code as follows:
 
 ```c++
-joint_matrix<int8_t, matrix_use::b, K, N, packed_b> tB(sg);
-```   
-IMPORTANT: In the current AMX and DPAS implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
+joint_matrix<int8_t, K, N, packed_b> tB(sg);
+```
 
-IMPORTANT: For the CUDA backend the layout in the load of matrices A B and C must be either `row_major` or `col_major`, and `Layout` in the store of matrix C must also be either `row_major` or `col_major`. The "packed" layouts are only applicable to the AMX implementation: matrix_layout::packed_a and matrix_layout::packed_b are not required by the implementation of Nvidia wmma and mma instructions.
+IMPORTANT: * AMX and DPAS: In the current AMX and DPAS implementation, only `packed_b` layout is necessary to specify on matrix B, the layout on other matrices is ignored.
+           * Tensor Cores: For the CUDA backend the layout in the load of matrices A B and C must be either `row_major` or `col_major`, and `Layout` in the store of matrix C must also be either `row_major` or `col_major`.
 
 
 ## Matrix Operations and their Execution Scope
@@ -147,13 +148,30 @@ IMPORTANT: In the current AMX and DPAS implementation, the layout in the load of
 
 Since the matrix functions are group operations (as defined in Section 4.17.3 of the SYCL specification), the matrix API has to be accessed by all the work-items in the group in a convergent control flow. The `Group` template argument can be a work-group or a subgroup. These functions will be called once by each work item in the group.
 
-**_NOTE:_** _The CUDA backend does not require any other sub-group size than 32, which is the size of a warp which acts as the sub-group, and also the default DPC++ sub-group size for the CUDA backend._
+IMPORTANT: The CUDA backend does not require any other sub-group size than 32, which is the size of a warp which acts as the sub-group, and also the default DPC++ sub-group size for the CUDA backend.
 
 To be aligned with the SYCL 2020 group algorithms, an additional group argument is added to the matrix operations to designate that these functions are collective operations. The {dpcpp} syntax is the following: 
 
 IMPORTANT: In the current implementation, only the subgroup scope is supported.  
 
 #### Load 
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+  template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout,
+          access::address_space Space>
+  void joint_matrix_load(Group sg, joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
+		    multi_ptr<T, Space> src, size_t stride, matrix_layout MemLayout);
+}
+```
+
+This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS or Nvidia® Tensor Cores.
+
+#### Tensor Cores syntax
+
+In the Tensor Cores implementation the matrix_use enum is added:
+
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, typename T, matrix_use MT, size_t NumRows,
@@ -163,9 +181,25 @@ void joint_matrix_load(
     multi_ptr<T, Space> src, size_t stride);
 }
 ```
-This function loads data from memory to the 2d tiles/registers of Intel AMX/DPAS or to the matrix "fragments" for Nvidia Tensorcore.  Note that `Layout` is not included as an argument since it may be determined from the joint_matrix argument.
+
+Note that `Layout` is not included as an argument since it may be determined from the joint_matrix argument.
 
 #### Store 
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+  template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout L,
+          access::address_space Space>
+  void joint_matrix_store(Group sg, joint_matrix<T, NumRows, NumCols, L, Group> &res,
+		     multi_ptr<T, Space> src, size_t stride, matrix_layout memL);
+}
+```
+
+This function stores the data from the 2d tiles/registers back to memory.
+
+##### Tensor Cores syntax
+
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -176,9 +210,26 @@ void joint_matrix_store(Group sg,
                         multi_ptr<T, Space> dst, size_t stride);
 }
 ```
-This function stores the data from the 2d tiles/"fragments" back to memory.  This function is only available for matrix_use::accumulator.
+Note that this function is only available for matrix_use::accumulator.
 
 #### Multiply and Add
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+  template <typename Group, typename Ta, typename Tb, typename Tc,
+          std::size_t M, std::size_t K, std::size_t N,
+	  matrix_layout La, matrix_layout Lb,
+          matrix_layout Lc>
+  joint_matrix<Group, Tc, M, N, Lc> joint_matrix_mad(Group sg, joint_matrix<Ta, M, K, La, Group> A,
+               joint_matrix<Tb, K, N, Lb, Group> B, joint_matrix<Tc, M, N, Lc, Group> C);
+}
+```
+
+Multiply and Add (MAD) operations, also known as Matrix Multiply and Accumulate (MMA), multiply matrices A (matrix_use::a) with shape (M, K) and B (matrix_use::b) with shape (K, N) and add the result to matrix C (matrix_use::accumulator) with shape (M, N). The logical sizes are M, K, N.
+
+C = A * B + C
+
+##### Tensor Cores syntax
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -192,8 +243,6 @@ joint_matrix_mad(
     joint_matrix<T2, matrix_use::accumulator, M, N, LayoutC, Group> C);
 }
 ```
-The matrix multiply and add function performs the multiply operation on the matrices `A` and `B`, accumulates the result with `C` and returns the result.
-
 
 ## VNNI/Packed Layout
 Intel AMX and DPAS compute assumes register for B tile (src1) to be in VNNI format as they need 32bit of K-data in A and B to be contiguous in memory.
@@ -265,10 +314,9 @@ q.parallel_for(nd_range<2>(G, L), [=](nd_item<2> item)
 }).wait();
 ```
 
-## Nvidia Compilation instructions
+IMPORTANT: When compiling for Nvidia® the matrix extension requires specification of the architecture version.  The compilation invocation is given below.
 
-When compiling for Nvidia the matrix extension requires specification of the architecture version.
-This is the compilation command line needed to invoke the matrix extension on program "matrix-nvidia.cpp":
+This is the compilation command line needed to invoke the Tensor Cores matrix extension on program "matrix-nvidia.cpp":
 
 ```c++
 clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_80 -DSYCL_EXT_ONEAPI_MATRIX=3 matrix-nvidia.cpp -o output
@@ -276,7 +324,7 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-g
 **_NOTE:_** _--cuda-gpu-arch may be set lower than sm_80 depending on the required matrix operation and whether it is supported by the desired arch._
 
 == Query Interface
-Intel AMX, DPAS and Nvidia TPUs support different sizes and types. 
+Intel AMX, DPAS and Nvidia® TPUs support different sizes and types.
 The query interface is used to validate user code and inform them about supported types, sizes, scope, and layouts by the implementation.
 This also offers development and tuning productivity by both scientists and library developers. The query interface we are proposing here is a compile-time query, 
 so there will be no runtime errors.   
@@ -288,7 +336,7 @@ The query interface proposed here consists of three functionalities:
 
 - General query: the general query interface provides information  about sizes, types, static/dynamic, and scopes that are supported by a specific TPU implementation. This is needed to avoid padding by the user, for tuning, and efficient code generation if used by a library. The general query return an array of `combinations` of `combination` type. Each combination includes the sizes and the types for the matrices A, B, and C. Note that for each TPU, the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize, ksize` exclusively depending whether the implementation supports a continuous or discrete number of sizes. For example, Intel AMX implementation supports a continuous number of sizes so the `max_*` variant is applied and only the maximum number is returned. DPAS implementation, on the other hand, supports a discrete list of numbers so the  `msize, nsize, ksize` variant is applied.  This form takes place when users only specify the TPU they are interested in using.
 
-The table below provides a description for each of the member variables and type aliases in `tpu_params` class and the forms in which  they are defined.
+The table below provides a description for each of the member variables and type aliases in `tpu_params` class and the forms in which they are defined.
 
 [frame="none",options="header"]
 |======================
@@ -581,7 +629,7 @@ joint_matrix<ONEAPI::sub_group, int, 8, 8> C(sg);
 The problem with this option is that it is restrictive to a very limited set of operations. 
 
 #### Option3: Restrictive conversion in the interface from SIMD to SPMD
-Nvidia wmma interface added a new member to `fragment` class to designate the WI owned part of the matrix. 
+Nvidia® wmma interface added a new member to `fragment` class to designate the WI owned part of the matrix.
 While this provides fast element indexing on the GPU compared to the non-restrictive option, the user does not know the mapping of the owned data to the original matrix. 
  However using the `mma` ptx instructions as opposed to the `wmma` ptx instructions the mapping is known. Knowing this mapping is important for the user to implement new operations like sum of rows of a matrix for quantized algorithms.
 
@@ -623,14 +671,20 @@ We did not utilize this extension for this matrix API version because sub-group 
 - In the future looking APIs, `get_wi_slice` (that is currently under design) returns an owned object. Should this return a view object to make sure the original matrix C is changed after its slices are modified.
 - multi_ptr can be constructed from T* since https://github.com/intel/llvm/pull/1183.  However currently this cannot be used with USM for all cases.
   It is expected that eventually the `joint_matrix_load` and `joint_matrix_store` interfaces will be fully compatible with USM.
+
 ## TODO List
 - Add support for fill matrix and element-wise operations features
 - Change the names default sizes in the query from defaultM, defaultN, defaultK to M,N,K
 - Change the type of `scope` in the query interface to be able to return more than one value. This will be useful in the event we support other scopes like workgroup besides subgroups
 - Add a more realistic and complete example that shows the value of the general query
-- Clarify USM compatibility
-- Add Nvidia case to the query interface, and consider how the future looking API can be implemented for Nvidia.
 
+Tensor Cores:
+
+- Clarify USM compatibility
+- Add support for other combinations, the query interface, and consider how the future looking API can be added here
+
+  AMX and DPAS:
+- Add 'matrix_use' parameter to the matrix to distinguish between matrix A, B, and matrix accumulator. This is necessary for supporting VNNI and transpose transform
 
 ## Revision History
 
@@ -639,5 +693,5 @@ We did not utilize this extension for this matrix API version because sub-group 
 |Rev |Date       |Author     |Changes
 |1   |2021-04-13 |Dounia Khaldi |Initial public working draft.
 |2   |2021-10-05 |Dounia Khaldi |JIT implementation on both Intel AMX and DPAS
-|3   |2021-11-08 |Jack Kirk |Added matrix_use
+|3   |2021-11-08 |Jack Kirk |Initial AOT use case on Nvidia® Tensor Cores
 |======================
