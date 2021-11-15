@@ -1,5 +1,9 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only -Xclang -verify %s
-// expected-no-diagnostics
+// RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd %s
+// RUN: %clangxx -fsycl -fsycl-device-only -S %s -o %t.ll
+// RUN sycl-post-link -lower-esimd -ir-output-only -S %t.ll -o %t.lwr.ll
+
+// Tests invoke_simd support in the compiler/headers
+// TODO add IR check, add DelimitESIMDandSYCLPass tests.
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/esimd.hpp>
