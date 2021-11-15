@@ -185,8 +185,6 @@ Since _T_ is restricted to types with trivial default constructors in this versi
 
 The allocation of type _T_ is zero-initialized on each device prior to the first access to that `device_global` variable.
 
-`device_global` may only be declared with static storage duration at namespace scope or class scope. If a `device_global` is declared with any other storage duration or scope, the program is ill-formed.
-
 Properties may be specified for a `device_global` to provide semantic
 modification or optimization hint information to the compiler.  See the section
 below for a list of the properties that are allowed.
@@ -394,6 +392,94 @@ Must produce a compiler diagnostic if `PropertyListT` does not contain a `proper
 Available only if `sycl::is_property_of_v<propertyT, sycl::ext::oneapi::device_global>` is true.
 
 |===
+
+=== Restrictions on creating device global objects
+
+There are restrictions on how the application can create objects of type
+`device_global`.  Applications that violate these restrictions are ill-formed.
+
+* The application may declare a variable of type `device_global` in the
+  following ways:
++
+--
+** As a variable at namespace scope, or
+** As a static member variable, but only if the member variable is publicly
+    accessible from namespace scope.
+--
++
+The application must not create an object of type `device_global` in any other
+way.  (E.g. variables with automatic storage duration or objects created via
+`new` are not allowed.)
+
+* The `device_global` variable must not itself be an array.  The underlying
+  type _T_ may be an array type, but the `device_global` variable itself must
+  not be an array.
+
+* The `device_global` variable must not be shadowed by another identifier _X_
+  which has the same name and is declared in an inline namespace, such that the
+  `device_global` variable is no longer accessible after the declaration of
+  _X_.
+
+* If the `device_global` variable is declared in a namespace, none of the
+  enclosing namespace names _N_ may be shadowed by another identifier _X_ which
+  has the same name as _N_ and is declared in an inline namespace, such that
+  _N_ is no longer accessible after the declaration of _X_.
+
+[NOTE]
+====
+The expectation is that some implementations may conceptually insert code at
+the end of a translation unit which references each `device_global` variable
+that is declared in that translation unit.  The restrictions listed above make
+this possible by ensuring that these variables are accessible at the end of the
+translation unit.
+====
+
+The following example illustrates some of these restrictions:
+
+[source, c++]
+----
+#include <sycl/sycl.hpp>
+using namespace sycl::ext::oneapi;
+
+device_global<int> a;           // OK
+static device_global<int> b;    // OK
+inline device_global<int> c;    // OK
+
+struct Foo {
+  static device_global<int> d;  // OK
+};
+device_global<int> Foo::d;
+
+struct Bar {
+  device_global<int> e;         // ILLEGAL: non-static member variable not
+};                              // allowed
+
+struct Baz {
+ private:
+  static device_global<int> f;  // ILLEGAL: not publicly accessible from
+};                              // namespace scope
+device_global<int> Baz::f;
+
+device_global<int[4]> g;        // OK
+device_global<int> h[4];        // ILLEGAL: array of "device_global" not
+                                // allowed
+
+device_global<int> same_name;   // OK
+namespace foo {
+  device_global<int> same_name; // OK
+}
+namespace {
+  device_global<int> same_name; // OK
+}
+inline namespace other {
+  device_global<int> same_name; // ILLEGAL: shadows "device_global" variable
+}                               // with same name in enclosing namespace scope
+inline namespace {
+  namespace foo {               // ILLEGAL: namespace name shadows "::foo"
+  }                             // namespace which contains "device_global"
+                                // variable.
+}
+----
 
 === Properties for device global variables
 
