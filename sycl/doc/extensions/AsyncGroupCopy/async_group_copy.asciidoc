@@ -28,7 +28,7 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-This extension is written against the SYCL 2020 revision 3 specification.  All
+This extension is written against the SYCL 2020 revision 4 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -70,28 +70,28 @@ Currently the `nd_item` and `group` classes have the member function
 like `group_barrier`.
 
 `async_group_copy` methods would be valid for groups `group` and `sub_group`.
-Note that the destination and source arguments have been have been swapped to be
+Note that the destination and source arguments have been swapped to be
 more in line with other SYCL copy functions.
 ```c++
 namespace sycl::ext::oneapi {
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t numElements);
+device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count);
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t numElements);
+device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count);
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t numElements, size_t destStride);
+device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count, size_t destStride);
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t numElements, size_t srcStride);
+device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count, size_t srcStride);
 } // namespace sycl::ext::oneapi
 ```
 
 ## Change to `device_event::wait` function
 `device_event::wait` will be modified to take the group that will be synchronized in the wait.
 This will be valid for the same groups as `async_group_copy` i.e. `group` or `sub_group`.
-For NVIDIA architectures of sm_80 or higher, the group will be blocked until all
+NOTE: For NVIDIA architectures of sm_80 or higher, the group will be blocked until all
 outstanding async_group_copy requests are completed.
 
 ```c++
