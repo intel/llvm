@@ -557,22 +557,49 @@ pi_result piextCopyFromDeviceVariable(pi_device Device, const char *name,
 In both cases the `name` parameter is the same as the `sycl-unique-id` string
 that is associated with the device global variable.
 
-On the Level Zero backend, these PI interfaces are implemented by first calling
-[`zeModuleGetGlobalPointer()`][7] to get a device pointer for the variable and
-then calling [`zeCommandListAppendMemoryCopy()`][8] to copy to or from that
-pointer.
+The Level Zero backend has existing APIs that can implement these PI
+interfaces.  DPC++ first calls [`zeModuleGetGlobalPointer()`][7] to get a
+device pointer for the variable and then calls
+[`zeCommandListAppendMemoryCopy()`][8] to copy to or from that pointer.
+However, the documentation (and implementation) of `zeModuleGetGlobalPointer()`
+needs to be extended slightly.  The description currently says:
+
+> * The application may query global pointer from any module that either
+>   exports or imports it.
+>
+> * The application must dynamically link a module that imports a global before
+>   the global pointer can be queried from it.
+
+This must be changed to say something along these lines:
+
+> * The interpretation of `pGlobalName` depends on how the module was created.
+>   If the module was created from SPIR-V that declares the
+>   **GlobalVariableDecorationsINTEL** capability, the implementation looks
+>   first for an **OpVariable** that is decorated with **HostAccessINTEL**
+>   where the *Name* operand is the same as `pGlobalName`.  If no such variable
+>   is found, the implementation then looks for an **OpVariable** that is
+>   decorated with **LinkageAttributes** where the *Name* operand is the same
+>   as `pGlobalName`.  (The implementation considers both exported and imported
+>   variables as candidates.)
+>
+>   If the module was created from native code that came from a previous call
+>   to `zeModuleGetNativeBinary` and that other module was created from SPIR-V,
+>   then the interpretation of `pGlobalName` is the same as the SPIR-V case.
+>
+> * If `pGlobalName` identifies an imported SPIR-V variable, the module must be
+>   dynamically linked before the variable's pointer may be queried.
 
 [7]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
 [8]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
 
-On the OpenCL backend, these PI interfaces are implemented by first calling
-`clGetDeviceGlobalVariablePointerINTEL()` to get a device pointer for the
-variable.  This function is provided by the
-[`cl_intel_global_variable_pointers`][9] extension which is not yet
-productized.  Once we get a pointer, the PI layer calls
-`clEnqueueMemcpyINTEL()` to copy to or from that pointer.
+The OpenCL backend has a proposed extension
+[`cl_intel_global_variable_pointers`][9] that can implement these PI
+interfaces.  DPC++ first calls `clGetDeviceGlobalVariablePointerINTEL()` to get
+a device pointer for the variable and then calls `clEnqueueMemcpyINTEL()` to
+copy to or from that pointer.  This DPC++ design depends upon implementation of
+that OpenCL extension.
 
 [9]: <extensions/DeviceGlobal/cl_intel_global_variable_pointers.asciidoc>
 
-On the CUDA backend, these PI interfaces are implemented on top of
-`cudaMemcpyToSymbol()` and `cudaMemcpyFromSymbol()`.
+The CUDA backend has existing APIs `cudaMemcpyToSymbol()` and
+`cudaMemcpyFromSymbol()` which can be used to implement these PI interfaces.

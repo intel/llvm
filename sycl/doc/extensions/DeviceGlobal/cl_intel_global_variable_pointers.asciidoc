@@ -99,9 +99,6 @@ is used to retrieve a pointer to a user-defined global variable
 _global_variable_name_ which exists in built _program_.  The interpretation of
 _global_variable_name_ depends on how the _program_ was created:
 
-* If the _program_ was created with *clCreateProgramWithSource* from OpenCL C
-  sources, *TODO* (see Issues section below).
-
 * If the _program_ was created with *clCreateProgramWithIL* from SPIR-V, there
   are two cases:
 
