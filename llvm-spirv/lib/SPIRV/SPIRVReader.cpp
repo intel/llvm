@@ -2538,6 +2538,9 @@ Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   // iN (arbitrary precision integer of N bits length)
   // Arguments:
   // A(iN), S(i1), I(i32), rI(i32), Quantization(i32), Overflow(i32)
+  // If return value wider than 64 bit:
+  // iN addrspace(4)* sret(iN), A(iN), S(i1), I(i32), rI(i32),
+  // Quantization(i32), Overflow(i32)
 
   // SPIR-V fixed point instruction contains:
   // <id>ResTy Res<id> In<id> Literal S Literal I Literal rI Literal Q Literal O
@@ -2554,54 +2557,40 @@ Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   std::string FuncName =
       SPIRVFixedPointIntelMap::rmap(OpCode) + getFuncAPIntSuffix(RetTy, InTy);
   auto Words = Inst->getOpWords();
+  SmallVector<Type *> ArgTys;
+  std::vector<Value *> Args;
+  Args.reserve(8);
+  if (RetTy->getIntegerBitWidth() > 64) {
+    llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+    Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+    Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
+    ArgTys.push_back(RetPtrTy);
+    Args.push_back(RetValPtr);
+  }
+
+  ArgTys.push_back(InTy);
+  ArgTys.push_back(Int1Ty);
+  for (int i = 0; i < 4; i++)
+    ArgTys.push_back(Int32Ty);
+
+  Args.push_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
+  Args.push_back(ConstantInt::get(Int1Ty, Words[1]));
+  for (int i = 2; i <= 5; i++)
+    Args.push_back(ConstantInt::get(Int32Ty, Words[i]));
 
   if (RetTy->getIntegerBitWidth() <= 64) {
-    SmallVector<Type *, 7> ArgTys = {InTy,    Int1Ty,  Int32Ty,
-                                     Int32Ty, Int32Ty, Int32Ty};
-
     FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
     FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
-
     auto *Fn = cast<Function>(FCallee.getCallee());
     Fn->setCallingConv(CallingConv::SPIR_FUNC);
     if (isFuncNoUnwind())
       Fn->addFnAttr(Attribute::NoUnwind);
-
-    // Words contain:
-    // In<id> Literal S Literal I Literal rI Literal Q Literal O
-    std::vector<Value *> Args = {
-        transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-        ConstantInt::get(Int1Ty, Words[1]) /* S - indicator of signedness */,
-        ConstantInt::get(Int32Ty,
-                         Words[2]) /* I - fixed-point location of the input */,
-        ConstantInt::get(Int32Ty,
-                         Words[3]) /* rI - fixed-point location of the result*/,
-        ConstantInt::get(Int32Ty, Words[4]) /* Quantization mode */,
-        ConstantInt::get(Int32Ty, Words[5]) /* Overflow mode */};
-
     return CallInst::Create(FCallee, Args, "", BB);
   }
-
-  llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
-  SmallVector<Type *, 8> ArgTys = {RetPtrTy, InTy,    Int1Ty, Int32Ty,
-                                   Int32Ty,  Int32Ty, Int32Ty};
 
   FunctionType *FT =
       FunctionType::get(Type::getVoidTy(*Context), ArgTys, false);
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
-
-  Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
-  Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
-  std::vector<Value *> Args = {
-      RetValPtr,
-      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-      ConstantInt::get(Int1Ty, Words[1]) /* S - indicator of signedness */,
-      ConstantInt::get(Int32Ty,
-                       Words[2]) /* I - fixed-point location of the input */,
-      ConstantInt::get(Int32Ty,
-                       Words[3]) /* rI - fixed-point location of the result*/,
-      ConstantInt::get(Int32Ty, Words[4]) /* Quantization mode */,
-      ConstantInt::get(Int32Ty, Words[5]) /* Overflow mode */};
 
   auto *Func = cast<Function>(FCallee.getCallee());
   Func->setCallingConv(CallingConv::SPIR_FUNC);
@@ -2613,7 +2602,7 @@ Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   APIntInst->addParamAttr(
       0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
 
-  Value *LI = new LoadInst(RetTy, RetValPtr, "", false, BB);
+  Value *LI = new LoadInst(RetTy, Args[0], "", false, BB);
   return LI;
 }
 
