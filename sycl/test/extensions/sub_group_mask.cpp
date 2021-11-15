@@ -1,4 +1,4 @@
-// RUN: %clangxx -g -O0 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 
 //==-------- sub_group_mask.cpp - SYCL sub-group mask test -----------------==//
