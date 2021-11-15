@@ -758,14 +758,14 @@ bool LowerEsimdConstructs(Module &M) {
     ModuleAnalysisManager MAM;
     // Register required analysis
     MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
-    auto FilterF = [](const Function& F) {
-      // If SYCL/ESIMD splitting is in effect, LowerEsimdConstructs is
-      // invoked only on ESIMD modules, and lowering must be done on
-      // all functions regardless of presence of ESIMD_MARKER_MD,
-      // otherwise - only on marked functions (by the delimiter pass).
-      return SplitEsimd || F.getMetadata(ESIMD_MARKER_MD) != nullptr;
-    };
-    MPM.addPass(SYCLLowerESIMDPass{ FilterF });
+    // If SYCL/ESIMD splitting is in effect, LowerEsimdConstructs is
+    // invoked only on ESIMD modules, and lowering must be done on
+    // all functions regardless of presence of ESIMD_MARKER_MD,
+    // otherwise - only on marked functions (by the delimiter pass).
+    if (SplitEsimd)
+      MPM.addPass(SYCLLowerESIMDPass());
+    else
+      MPM.addPass(SYCLLowerESIMDFilteredPass());
     PreservedAnalyses Res = MPM.run(M, MAM);
     Unmodified &= Res.areAllPreserved();
   }

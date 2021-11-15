@@ -16,6 +16,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
@@ -60,6 +61,7 @@ ModulePass *llvm::createDelimitESIMDandSYCLPass() {
 namespace {
 
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
+constexpr char INVOKE_SIMD_PREF[] = "_Z21__builtin_invoke_simd";
 
 using FuncPtrSet = SmallPtrSetImpl<Function*>;
 
@@ -69,9 +71,9 @@ void traverseCalls(Function *F, ActOnCallF Action) {
     if (const CallBase *CB = dyn_cast<CallBase>(&I)) {
       if (Function *CF = CB->getCalledFunction()) {
         if (!CF->isDeclaration())
-          Action(CF);
+          Action(CB, CF);
       } else {
-        llvm_unreachable_internal("Unsupported call form", __FILE__, __LINE__);
+        llvm_unreachable("Unsupported call form");
       }
     }
   }
@@ -81,6 +83,166 @@ void prnfset(const char *msg, FuncPtrSet &S) {
   std::cout << msg << ":\n";
   for (const auto *F : S) {
     std::cout << "  " << F->getName().data() << "\n";
+  }
+}
+
+bool isCast(const Value *V) {
+  int Opc = Operator::getOpcode(V);
+  return (Opc == Instruction::BitCast) || (Opc == Instruction::AddrSpaceCast);
+}
+
+using ValueSetImpl = SmallPtrSetImpl<Value*>;
+using ValueSet = SmallPtrSet<Value*, 4>;
+using ConstValueSetImpl = SmallPtrSetImpl<const Value*>;
+using ConstValueSet = SmallPtrSet<const Value*, 4>;
+
+const Value* stripCasts(const Value* V) {
+  if (!V->getType()->isPtrOrPtrVectorTy())
+    return V;
+  // Even though we don't look through PHI nodes, we could be called on an
+  // instruction in an unreachable block, which may be on a cycle.
+  ConstValueSet Visited;
+  Visited.insert(V);
+
+  do {
+    if (isCast(V)) {
+      V = cast<Operator>(V)->getOperand(0);
+    }
+    assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
+  } while (Visited.insert(V).second);
+  return V;
+}
+
+const Value* getSingleUserSkipCasts(const Value *V) {
+  while (isCast(V)) {
+    if (V->getNumUses() != 1) {
+      return nullptr;
+    }
+    V = *(V->user_begin());
+  }
+  return V;
+}
+
+using UseSet = SmallPtrSet<const Use*, 4>;
+using UseSetImpl = SmallPtrSetImpl<const Use*>;
+
+void collectUsesSkipThroughCasts(const Value *V, UseSet &Uses) {
+  for (const Use &U : V->uses()) {
+    const Value *VV = U.getUser();
+
+    if (isCast(VV)) {
+      collectUsesSkipThroughCasts(VV, Uses);
+    } else {
+      Uses.insert(&U);
+    }
+  }
+}
+
+Value* getInvokeeIfInvokeSimdCall(const CallInst *CI) {
+  Function *F = CI->getCalledFunction();
+
+  if (F && F->getName().startswith(INVOKE_SIMD_PREF)) {
+    return CI->getArgOperand(0);
+  }
+  return nullptr;
+}
+
+void getStoredVals(const Value *Addr, ConstValueSetImpl &Vals) {
+  ValueSet Visited;
+  const AllocaInst *LocalVar = dyn_cast_or_null<AllocaInst>(stripCasts(Addr));
+
+  if (!LocalVar) {
+    llvm_unreachable("unsupported data flow pattern for invoke_simd 10");
+  }
+  UseSet Uses;
+  collectUsesSkipThroughCasts(LocalVar, Uses);
+
+  for (const Use *U : Uses) {
+    const Value *V = U->getUser();
+
+    if (const auto *StI = dyn_cast<StoreInst>(V)) {
+      constexpr int StoreInstValueOperandIndex = 0;
+
+      if (U != &StI->getOperandUse(StoreInst::getPointerOperandIndex())) {
+        assert(U == &StI->getOperandUse(StoreInstValueOperandIndex));
+        // this is double indirection - not supported
+        llvm_unreachable("unsupported data flow pattern for invoke_simd 11");
+      }
+      V = stripCasts(StI->getValueOperand());
+
+      if (const auto *LI = dyn_cast<LoadInst>(V)) {
+        // A value loaded from another address is stored at this address - recurse
+        // into the other addresss
+        getStoredVals(LI->getPointerOperand(), Vals);
+      } else {
+        Vals.insert(V);
+      }
+      continue;
+    }
+    if (const auto *CI = dyn_cast<CallInst>(V)) {
+      // only __builtin_invoke_simd is allowed, otherwise the pointer escapes
+      if (!getInvokeeIfInvokeSimdCall(CI)) {
+        llvm_unreachable("unsupported data flow pattern for invoke_simd 12");
+      }
+      continue;
+    }
+    if (const auto *LI = dyn_cast<LoadInst>(V)) {
+      // LoadInst from this addr is OK, as it does not affect what can be stored
+      // through the addr
+      continue;
+    }
+    V->dump();
+    llvm_unreachable("unsupported data flow pattern for invoke_simd 13");
+  }
+}
+
+// Example1 (function is direct argument to _Z21__builtin_invoke_simd):
+// %call6.i = call spir_func float @_Z21__builtin_invoke_simd...(
+//   <16 x float> (float addrspace(4)*, <16 x float>, i32)* %28, <== function pointer
+//   float addrspace(4)* %arg1,
+//   float %arg2,
+//   i32 %arg3)
+//
+// Example 2 (invoke_simd's target function pointer flows through IR):
+// %"fptr_t = <16 x float> (float addrspace(4)*, <16 x float>, i32)*
+// ...
+// %fa_as0 = alloca %fptr_t
+// ...
+// %fa = addrspacecast %fptr_t* %fa_as0 to %fptr_t addrspace(4)*
+// ...
+// store %fptr_t @__SIMD_CALLEE, %fptr_t addrspace(4)* %fa
+// ...
+// %f = load %fptr_t, %fptr_t addrspace(4)* %fa
+// ...
+// %res = call spir_func float @_Z21__builtin_invoke_simd...(
+//   %fptr_t %f, <== function pointer
+//  float addrspace(4)* %arg1,
+//  float %arg2,
+//  i32 %arg3)
+//
+void processInvokeSimdCall(const CallInst *CI) {
+  Value *V = getInvokeeIfInvokeSimdCall(CI);
+
+  if (!V) {
+    llvm_unreachable(("bad use of " + Twine(INVOKE_SIMD_PREF)).str().c_str());
+  }
+  const Function *SimdF = nullptr;
+
+  if (!(SimdF = dyn_cast<Function>(V))) {
+    const LoadInst *LI = dyn_cast<LoadInst>(stripCasts(V));
+
+    if (!LI) {
+      llvm_unreachable("unsupported data flow pattern for invoke_simd 0");
+    }
+    ConstValueSet Vals;
+    getStoredVals(LI->getPointerOperand(), Vals);
+
+    if (Vals.size() != 1 || !(SimdF = dyn_cast<Function>(*Vals.begin()))) {
+      llvm_unreachable("unsupported data flow pattern for invoke_simd 1");
+    }
+  }
+  if (!SimdF->hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall)) {
+    const_cast<Function*>(SimdF)->addFnAttr(llvm::genx::VCFunctionMD::VCStackCall);
   }
 }
 
@@ -108,8 +270,18 @@ void divideModuleCallGraph(Module &M, FuncPtrSet &A, FuncPtrSet &AB, SmallPtrSet
 
     // Collect CFG roots and populate work queue with them.
     for (Function &F : M) {
-      if (F.isDeclaration())
+      if (F.isDeclaration()) {
+        // TODO processing of invoke_simd should be moved into a separate pass generic
+        // for all BEs (maybe with some custom parts)
+        if (F.getName().startswith(INVOKE_SIMD_PREF)) {
+          for (const User *Usr : F.users()) {
+            // a call can be the only use of invoke_simd built-in
+            const CallInst *CI = cast<CallInst>(Usr);
+            processInvokeSimdCall(CI);
+          }
+        }
         continue;
+      }
       if (IsRootInA(&F)) {
         A.insert(&F);
         Workq.push_back(&F);
@@ -121,7 +293,7 @@ void divideModuleCallGraph(Module &M, FuncPtrSet &A, FuncPtrSet &AB, SmallPtrSet
     while (Workq.size() > 0) {
       Function *F = Workq.pop_back_val();
       B.erase(F); // cleanup B: F is reached from A, then it can't be part of B
-      traverseCalls(F, [&A, &Workq](Function *F1) {
+      traverseCalls(F, [&A, &Workq](const CallBase *CB, Function *F1) {
         if (A.count(F1) == 0) {
           A.insert(F1);
           Workq.push_back(F1);
@@ -138,7 +310,7 @@ void divideModuleCallGraph(Module &M, FuncPtrSet &A, FuncPtrSet &AB, SmallPtrSet
     while (Workq.size() > 0) {
       Function *F = Workq.pop_back_val();
 
-      traverseCalls(F, [&A, &B, &AB, &Workq](Function *F1) {
+      traverseCalls(F, [&A, &B, &AB, &Workq](const CallBase *CB, Function *F1) {
         if (B.count(F1) == 0 && AB.count(F1) == 0) {
           // F1 is reachable from B (by Workq construction), but not part of B
           // and hasn't been met yet - must be part of A'
@@ -152,6 +324,9 @@ void divideModuleCallGraph(Module &M, FuncPtrSet &A, FuncPtrSet &AB, SmallPtrSet
       });
     }
   }
+  // prnfset("========== A:", A);
+  // prnfset("\n========== B:", B);
+  // prnfset("\n========== AB:", AB);
 }
 
 Function* clone(Function *F, Twine suff) {
@@ -190,7 +365,7 @@ PreservedAnalyses DelimitESIMDandSYCLPass::run(Module &M, ModuleAnalysisManager 
 
   // Mark all Esimd functions with proper attribute:
   for (auto *F : EsimdOnlyFuncs) {
-    F->addFnAttr(ESIMD_MARKER_MD);
+    F->addFnAttr(llvm::genx::FunctionMD::SYCLExplicitSimd);
     Modified = true;
   }
   // TODO update GenXSPIRVWriterAdaptor and IGC SYCL/ESIMD splitter to use
@@ -199,7 +374,7 @@ PreservedAnalyses DelimitESIMDandSYCLPass::run(Module &M, ModuleAnalysisManager 
   // non-ESIMD function. llvm::genx::VCFunctionMD::VCFunction does not work,
   // because GenXSPIRVWriterAdaptor adds it to all functions.
   for (auto *F : SyclOnlyFuncs) {
-    F->addFnAttr(llvm::genx::FunctionMD::CMGenxSIMT);
+    F->addFnAttr(llvm::genx::FunctionMD::SYCLSpmd);
     Modified = true;
   }
   // Now replace common functions usages within Esimd CFGs with the clones.
@@ -210,13 +385,13 @@ PreservedAnalyses DelimitESIMDandSYCLPass::run(Module &M, ModuleAnalysisManager 
       if (const CallBase *CB = dyn_cast<const CallBase>(U.getUser())) {
         Function *CF = CB->getCalledFunction();
         if (CF != F)
-          llvm_unreachable_internal("Unsupported call form", __FILE__, __LINE__);
+          llvm_unreachable("Unsupported call form");
         // see if the call happens within a function from the ESIMD call graph:
         bool CalledFromEsimd = EsimdOnlyFuncs.count(CB->getFunction()) > 0;
         Modified |= CalledFromEsimd;
         return CalledFromEsimd;
       }
-      llvm_unreachable_internal("Unsupported use of function", __FILE__, __LINE__);
+      llvm_unreachable("Unsupported use of function");
       return false;
     });
     F->addFnAttr(llvm::genx::FunctionMD::CMGenxSIMT);

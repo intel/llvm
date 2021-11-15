@@ -19,6 +19,8 @@
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 #include <sycl/ext/intel/experimental/esimd/simd_view.hpp>
 
+#include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
+
 #ifndef __SYCL_DEVICE_ONLY__
 #include <iostream>
 #endif // __SYCL_DEVICE_ONLY__
@@ -60,6 +62,9 @@ public:
     __esimd_dbg_print(simd(const SimdT &RHS));
   }
 
+  // Implicit conversion constructor from sycl::ext::oneapi::experimental::simd
+  simd(const sycl::ext::oneapi::experimental::simd<Ty, N> &v) : simd(static_cast<vector_type>(v)) {}
+
   // Broadcast constructor with conversion.
   template <typename T1,
             class = std::enable_if_t<detail::is_vectorizable_v<T1>>>
@@ -74,6 +79,10 @@ public:
   operator To() const {
     __esimd_dbg_print(explicit operator To());
     return (To)base_type::data()[0];
+  }
+
+  operator sycl::ext::oneapi::experimental::simd<Ty, N>() const {
+    return sycl::ext::oneapi::experimental::simd<Ty, N>(base_type::data());
   }
 
   /// @{

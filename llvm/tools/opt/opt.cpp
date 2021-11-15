@@ -576,6 +576,7 @@ int main(int argc, char **argv) {
   initializeReplaceWithVeclibLegacyPass(Registry);
   initializeSYCLLowerWGScopeLegacyPassPass(Registry);
   initializeSYCLLowerESIMDLegacyPassPass(Registry);
+  initializeSYCLLowerESIMDFilteredLegacyPassPass(Registry);
   initializeDelimitESIMDandSYCLLegacyPassPass(Registry);
   initializeSPIRITTAnnotationsLegacyPassPass(Registry);
   initializeESIMDLowerLoadStorePass(Registry);

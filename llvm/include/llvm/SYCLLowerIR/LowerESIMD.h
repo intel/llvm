@@ -26,22 +26,36 @@
 namespace llvm {
 /// SPIRV (ESIMD) target specific pass to transform ESIMD specific constructs
 /// like intrinsics to a form parsable by the ESIMD-aware SPIRV translator.
-class SYCLLowerESIMDPass : public PassInfoMixin<SYCLLowerESIMDPass> {
-  struct AcceptAll {
-    bool operator()(const Function&) const { return true; }
-  };
+class SYCLLowerESIMDPassImpl {
 public:
-  template <class FuncFilter = AcceptAll>
-  SYCLLowerESIMDPass(FuncFilter F = AcceptAll{}) : FilterF(F) {}
+  SYCLLowerESIMDPassImpl(bool FilterEsimd) : FilterEsimd(FilterEsimd) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
   size_t runOnFunction(Function &F, SmallPtrSet<Type *, 4> &);
-  std::function<bool(const Function&)> FilterF;
+  const bool FilterEsimd;
+};
+
+class SYCLLowerESIMDPass : public PassInfoMixin<SYCLLowerESIMDPass> {
+public:
+  SYCLLowerESIMDPass() {}
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
+    return SYCLLowerESIMDPassImpl(false).run(M, MAM);
+  }
+};
+
+class SYCLLowerESIMDFilteredPass : public PassInfoMixin<SYCLLowerESIMDFilteredPass> {
+public:
+  SYCLLowerESIMDFilteredPass() {}
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
+    return SYCLLowerESIMDPassImpl(true).run(M, MAM);
+  }
 };
 
 ModulePass *createSYCLLowerESIMDPass();
 void initializeSYCLLowerESIMDLegacyPassPass(PassRegistry &);
+ModulePass *createSYCLLowerESIMDFilteredPass();
+void initializeSYCLLowerESIMDFilteredLegacyPassPass(PassRegistry &);
 
 class ESIMDLowerLoadStorePass : public PassInfoMixin<ESIMDLowerLoadStorePass> {
 public:

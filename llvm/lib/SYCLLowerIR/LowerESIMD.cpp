@@ -49,11 +49,16 @@ namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
 void generateKernelMetadata(Module &);
 
-class SYCLLowerESIMDLegacyPass : public ModulePass {
+template <bool UseESIMDFilter>
+class SYCLLowerESIMDLegacyPassImpl : public ModulePass {
 public:
   static char ID; // Pass identification, replacement for typeid
-  SYCLLowerESIMDLegacyPass() : ModulePass(ID) {
-    initializeSYCLLowerESIMDLegacyPassPass(*PassRegistry::getPassRegistry());
+  SYCLLowerESIMDLegacyPassImpl() : ModulePass(ID), Impl(SYCLLowerESIMDPassImpl(UseESIMDFilter)) {
+    auto &Reg = *PassRegistry::getPassRegistry();
+    if (UseESIMDFilter)
+      initializeSYCLLowerESIMDFilteredLegacyPassPass(Reg);
+    else
+      initializeSYCLLowerESIMDLegacyPassPass(Reg);
   }
 
   // run the LowerESIMD pass on the specified module
@@ -64,8 +69,12 @@ public:
   }
 
 private:
-  SYCLLowerESIMDPass Impl;
+  SYCLLowerESIMDPassImpl Impl;
 };
+
+using SYCLLowerESIMDLegacyPass = SYCLLowerESIMDLegacyPassImpl<false>;
+using SYCLLowerESIMDFilteredLegacyPass = SYCLLowerESIMDLegacyPassImpl<true>;
+
 } // namespace
 
 char SYCLLowerESIMDLegacyPass::ID = 0;
@@ -75,6 +84,15 @@ INITIALIZE_PASS(SYCLLowerESIMDLegacyPass, "LowerESIMD",
 // Public interface to the SYCLLowerESIMDPass.
 ModulePass *llvm::createSYCLLowerESIMDPass() {
   return new SYCLLowerESIMDLegacyPass();
+}
+
+char SYCLLowerESIMDFilteredLegacyPass::ID = 0;
+INITIALIZE_PASS(SYCLLowerESIMDFilteredLegacyPass, "LowerESIMDFiltered",
+  "Lower constructs specific to Close To Metal with function filtering", false, false)
+
+// Public interface to the SYCLLowerESIMDFilteredPass.
+ModulePass *llvm::createSYCLLowerESIMDFilteredPass() {
+  return new SYCLLowerESIMDFilteredLegacyPass();
 }
 
 namespace {
@@ -1415,7 +1433,7 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
 
 } // namespace
 
-PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
+PreservedAnalyses SYCLLowerESIMDPassImpl::run(Module &M, ModuleAnalysisManager &) {
   generateKernelMetadata(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
 
@@ -1428,9 +1446,9 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
                                     : PreservedAnalyses::all();
 }
 
-size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
+size_t SYCLLowerESIMDPassImpl::runOnFunction(Function &F,
                                          SmallPtrSet<Type *, 4> &GVTS) {
-  if (!FilterF(F))
+  if (FilterEsimd && (F.getMetadata(ESIMD_MARKER_MD) == nullptr))
     return 0;
 
   // There is a current limitation of GPU vector backend that requires kernel

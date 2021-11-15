@@ -18,6 +18,16 @@
 // TODO FIXME dummy implementation to kick-off testing
 constexpr int __builtin_get_reqd_subgroup_size() { return /*FE builtin*/ 16; }
 
+/// Middle End - to - Back End interface to invoke explicit SIMD functions from
+/// SPMD SYCL context.
+template <class Ret, class F, class... Args>
+Ret __builtin_invoke_simd(F, Args...) SYCL_EXTERNAL
+#ifdef __SYCL_DEVICE_ONLY__
+;
+#else
+{ throw sycl::exception(sycl::errc::feature_not_supported); }
+#endif // __SYCL_DEVICE_ONLY__
+
 namespace sycl {
 namespace ext {
 namespace oneapi {
@@ -59,7 +69,7 @@ struct simd2spmd<T, std::enable_if_t<std::is_arithmetic_v<T>>> {
   using type = uniform<T>;
 };
 
-// Unwrap the uniform object so that it is passed as unerlying type
+// Unwrap the uniform object so that it is passed as underlying type
 template <typename T> struct unwrap {
   static auto impl(T val) { return val; }
 };
@@ -72,34 +82,23 @@ template <typename T> struct unwrap<uniform<T>> {
 // template<class F, typename O, class...Args>
 // typename detail::simd2spmd<std::invoke_result_t<O,
 //             typename detail::spmd2simd<Args>::type...>>::type
-//__builtin_invoke_simd(F, O, Args...) SYCL_EXTERNAL;
-
-template <class Ret, class F, class... Args>
-Ret __builtin_invoke_simd1(F, Args...) SYCL_EXTERNAL;
+//__builtin_invoke_simd1(F, O, Args...) SYCL_EXTERNAL;
 
 template <class F, class... Args,
           class R = std::invoke_result_t<
               F, typename detail::spmd2simd<Args>::type...>>
 __attribute__((always_inline)) typename detail::simd2spmd<R>::type
 invoke_simd(sycl::sub_group sg, F f, Args... args) {
-  constexpr bool is_func_ptr = std::is_function_v<std::remove_pointer_t<F>>;
-  if constexpr (is_func_ptr) {
-    // this branch works only for function pointers
-    using RetSpmd = typename detail::simd2spmd<R>::type;
-    return __builtin_invoke_simd1<RetSpmd>(f,
-                                           detail::unwrap<Args>::impl(args)...);
-  } else {
-    static_assert(
-        is_func_ptr,
-        "Only function pointers are supported by invoke_simd for now");
-    // NOTE using the same approach with wrapper lambda leads to complex
-    // function pointer data flow, which may cause
-    // return __builtin_invoke_simd(
-    //    +[](F f1, typename detail::spmd2simd<Args>::type...a){
-    //        return f1(a...);
-    //    }, f, args...);
-    // TODO enable this for other callables.
-  }
+  // TODO works only for function pointers now, enable for other callables.
+  using RetSpmd = typename detail::simd2spmd<R>::type;
+  return __builtin_invoke_simd<RetSpmd>(f,
+                                        detail::unwrap<Args>::impl(args)...);
+  // NOTE consider wrapper approach below for other callables
+  // (might cause complex data flow for the function pointer):
+  // return __builtin_invoke_simd1(
+  //    +[](F f1, typename detail::spmd2simd<Args>::type...a){
+  //        return f1(a...);
+  //    }, f, args...);
 }
 
 } // namespace experimental
