@@ -27,7 +27,7 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-This document describes an extension that introduces a discard_queue_events property for
+This document describes an extension that introduces a discard_events property for
 SYCL queues.  This property enables developers to inform a SYCL implementation that
 the returned event can be discarded.
 
@@ -80,7 +80,7 @@ value to determine which of the extension's APIs the implementation supports.
 
 == Overview
 
-This extension adds `ext::oneapi::property::queue::discard_queue_events` property for `sycl::queue`,
+This extension adds `ext::oneapi::property::queue::discard_events` property for `sycl::queue`,
 by using this property the application informs a SYCL implementation that the returned event can be discarded.
 
 In cases where it will be possible, the implementation makes a decision about internal optimization -- avoiding
@@ -91,7 +91,7 @@ Performance improvement is the main motivation for using this property.
 Below is a usage example:
 [source,c++]
 ----
-  sycl::property_list props{ext::oneapi::property::queue::discard_queue_events{}
+  sycl::property_list props{ext::oneapi::property::queue::discard_events{}
                             property::queue::in_order{}};
   sycl::queue Queue( props );
 
@@ -112,7 +112,7 @@ Below is a usage example:
 In the example above, the application doesn't use sycl events: `e1`, `e2`, `e3`
 and is waiting for the end of work by `queue::wait()`. The returned events will be
 _invalid_ events. _invalid_ event is a `sycl::event` with a status `invalid` and the event returns from each kernel
-submission when queue is created with the `discard_queue_events` property.
+submission when queue is created with the `discard_events` property.
 See the description of behavior for this event below for details.
 
 _invalid_ event API behavior:
@@ -145,7 +145,7 @@ static void wait_and_throw(const std::vector<event> &eventList);
 // returns info::event_command_status::ext_oneapi_unknown status
 get_info<info::event::command_execution_status>() const;
 
-// the behavior is the same as for the default event, i.e. returns 0
+// the behavior is the same as for the default event
 get_info<info::event::reference_count>() const;
 
 // must throw an exception with the errc::invalid_object error code.
@@ -163,11 +163,11 @@ handler::depends_on(event Event)
 handler::depends_on(const std::vector<event> &Events)
 ----
 
-== Limitations
+== DPCPP implementation limitations
 
-The `discard_queue_events` property should be taken as a hint for SYCL implementation.
+The `discard_events` property should be taken as a hint for SYCL implementation.
 In all kernel cases, SYCL implementation returns _invalid_ event, regardless of whether the optimization was done.
-Optimization occurs if the queue has `discard_queue_events` property and all features presented below are not met:
+Optimization occurs if the queue has `discard_events` property and all features presented below are not met:
 
  - Using out-of-order queue or using together with `enable_profiling` property
  - Using https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Assert/SYCL_ONEAPI_ASSERT.asciidoc[fallback assert feature]
@@ -178,13 +178,13 @@ See details for each below:
 
 === Using out-of-order queue and/or using together with enable_profiling property
 
-No optimization if a queue is created with the `discard_queue_events` property and
+No optimization if a queue is created with the `discard_events` property and
 the property list includes the `enable_profiling` property or does not include `in_order` property.
 
 === Using fallback assert feature
 
 If a kernel that uses the fallback assert feature is submitted to a queue created with
-the `discard_queue_events` property, the implementation must throw an exception with the errc::invalid_object error code.
+the `discard_events` property, the implementation must throw an exception with the errc::invalid_object error code.
 It is important to disable the logic for detecting assertion failures in kernels in principle
 since it is not enough just not to use the `assert` macro inside kernel code or compile with `NDEBUG`.
 To disable the logic, developer must compile with SYCL_DISABLE_FALLBACK_ASSERT macro defined,
@@ -192,7 +192,7 @@ for more details see https://github.com/intel/llvm/blob/sycl/sycl/doc/Preprocess
 
 [source,c++]
 ----
-  sycl::property_list props{ext::oneapi::property::queue::discard_queue_events{},
+  sycl::property_list props{ext::oneapi::property::queue::discard_events{},
                             property::queue::in_order()};
   sycl::queue Queue( props );
   // if the submission of kernel1 is compiled with the logic for detecting assertion failures enabled,
@@ -203,7 +203,7 @@ for more details see https://github.com/intel/llvm/blob/sycl/sycl/doc/Preprocess
 === Using streams, buffer/image accessors (excluding local accessors)
 
 No optimization if a kernel that uses stream objects, buffer or image accessors is submitted to a queue created with
-the `discard_queue_events` property. But using local accessors does not affect optimization.
+the `discard_events` property. But using local accessors does not affect optimization.
 
 *NOTE : This extension is only compatible with kernels using Unified Shared Memory (USM) pointers.
 SYCL accessors are used to build a dependency graph that rely on events being created and not discarded.
