@@ -116,7 +116,7 @@ int main() {
     b.insert_bits(sbits, 7);
     b.extract_bits(ibits);
     assert(ibits ==
-           (0b1010101001110111011101111010101 & ((1UL << sgsize) - 1UL)));
+           (0b1010101001110111011101111010101 & ((1ULL << sgsize) - 1ULL)));
     sbits = 0b1100001111000011;
     b.insert_bits(sbits, 23);
     b.extract_bits(ibits);
@@ -127,7 +127,7 @@ int main() {
       lbits = -1;
       b.extract_bits(lbits, 5);
       assert(lbits ==
-             (0b111000011011101110111011110 & ((1UL << sgsize) - 1UL)));
+             (0b111000011011101110111011110 & ((1ULL << sgsize) - 1ULL)));
       lbits = -1;
       b.insert_bits(lbits);
       assert(b.all());
