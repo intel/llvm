@@ -3809,10 +3809,8 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   if (BF->hasDecorate(DecorationStackCallINTEL))
     F->addFnAttr(kVCMetadata::VCStackCall);
 
-  bool IsVectorCompute = BF->hasDecorate(DecorationVectorComputeFunctionINTEL);
-  if (!IsVectorCompute)
-    return true;
-  F->addFnAttr(kVCMetadata::VCFunction);
+  if (BF->hasDecorate(DecorationVectorComputeFunctionINTEL))
+    F->addFnAttr(kVCMetadata::VCFunction);
 
   SPIRVWord SIMTMode = 0;
   if (BF->hasDecorate(DecorationSIMTCallINTEL, 0, &SIMTMode))

@@ -722,8 +722,6 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationStackCallINTEL);
   if (Attrs.hasFnAttr(kVCMetadata::VCFunction))
     BF->addDecorate(DecorationVectorComputeFunctionINTEL);
-  else
-    return;
 
   if (Attrs.hasFnAttr(kVCMetadata::VCSIMTCall)) {
     SPIRVWord SIMTMode = 0;
