@@ -115,51 +115,32 @@ _invalid_ events. _invalid_ event is a `sycl::event` with a status `invalid` and
 submission when queue is created with the `discard_events` property.
 See the description of behavior for this event below for details.
 
-_invalid_ event API behavior:
+Here, only those methods for the _invalid_ event are described that have behavior different from the default event behavior:
 [source,c++]
 ----
-// the behavior is the same as for the default event, i.e. must throw an exception with the errc::invalid_object error code
-cl_event get() const
-
-// the behavior is the same as for the default event, i.e. must return true
-bool is_host() const;
-
-// the behavior is the same as for the default event, i.e. must return backend::host
-backend get_backend() const noexcept;
-
-// the behavior is the same as for the default event, i.e. must return a zero-sized vector
-std::vector<event> get_wait_list();
-
-// must throw an exception with the errc::invalid_object error code.
+// must throw an exception with the errc::invalid error code.
 void wait();
 
-// passing invalid event in the function must throw an exception with the errc::invalid_object error code.
+// if invalid event is passed into the function, must throw an exception with the errc::invalid error code.
 static void wait(const std::vector<event> &eventList);
 
-// must throw an exception with the errc::invalid_object error code.
+// must throw an exception with the errc::invalid error code.
 void wait_and_throw();
 
-// passing invalid event in the function must throw an exception with the errc::invalid_object error code.
+// if invalid event is passed into the function, must throw an exception with the errc::invalid error code.
 static void wait_and_throw(const std::vector<event> &eventList);
 
 // returns info::event_command_status::ext_oneapi_unknown status
 get_info<info::event::command_execution_status>() const;
-
-// the behavior is the same as for the default event
-get_info<info::event::reference_count>() const;
-
-// must throw an exception with the errc::invalid_object error code.
-template <info::event_profiling param>
-typename param::return_type get_profiling_info() const;
 ----
 
-The behavior when passing _invalid_ event to handler API:
+The behavior when _invalid_ event is passed into handler API:
 [source,c++]
 ----
-// must throw an exception with the errc::invalid_object error code.
+// must throw an exception with the errc::invalid error code.
 handler::depends_on(event Event)
 
-// must throw an exception with the errc::invalid_object error code.
+// must throw an exception with the errc::invalid error code.
 handler::depends_on(const std::vector<event> &Events)
 ----
 
@@ -182,31 +163,13 @@ No optimization if a queue is created with the `discard_events` property and
 the property list includes the `enable_profiling` property or does not include `in_order` property.
 
 === Using fallback assert feature
-
-If a kernel that uses the fallback assert feature is submitted to a queue created with
-the `discard_events` property, the implementation must throw an exception with the errc::invalid_object error code.
-It is important to disable the logic for detecting assertion failures in kernels in principle
-since it is not enough just not to use the `assert` macro inside kernel code or compile with `NDEBUG`.
-To disable the logic, developer must compile with SYCL_DISABLE_FALLBACK_ASSERT macro defined,
-for more details see https://github.com/intel/llvm/blob/sycl/sycl/doc/PreprocessorMacros.md[document]
-
-[source,c++]
-----
-  sycl::property_list props{ext::oneapi::property::queue::discard_events{},
-                            property::queue::in_order()};
-  sycl::queue Queue( props );
-  // if the submission of kernel1 is compiled with the logic for detecting assertion failures enabled,
-  // then the submission of the kernel throws an exception with the errc::invalid_object error code.
-  Queue.parallel_for<class kernel1>(NDRange, [=](nd_item<1> item){ do_smth(); });
-----
+    No optimization if the application calls the `assert` macro from a command that is submitted to the queue unless
+    the device has native support for assertions (as specified by `aspect::ext_oneapi_native_assert`).
 
 === Using streams, buffer/image accessors (excluding local accessors)
 
 No optimization if a kernel that uses stream objects, buffer or image accessors is submitted to a queue created with
 the `discard_events` property. But using local accessors does not affect optimization.
-
-*NOTE : This extension is only compatible with kernels using Unified Shared Memory (USM) pointers.
-SYCL accessors are used to build a dependency graph that rely on events being created and not discarded.
 
 == Issues
 
