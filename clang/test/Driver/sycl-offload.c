@@ -1137,7 +1137,7 @@
 // CHK-INCOMPATIBILITY: error: The option -fsycl conflicts with -ffreestanding
 
 /// Using -fsyntax-only with -fsycl should not emit IR
-// RUN:   %clang -### -target x86_64-unknown-linux-gnu -fsycl -fsyntax-only %s 2>&1 \
+// RUN:   %clang -### -fsycl -fsyntax-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY,CHK-NO-EMIT-IR %s
-// CHK-FSYNTAX-ONLY: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsyntax-only"
+// CHK-FSYNTAX-ONLY: clang{{.*}} "-cc1" "-triple" "spir{{.*}}-unknown-unknown"{{.*}} "-fsyntax-only"
 // CHK-NO-EMIT-IR-NOT: "-emit-llvm-bc"
