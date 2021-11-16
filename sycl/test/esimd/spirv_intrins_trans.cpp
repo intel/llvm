@@ -58,27 +58,24 @@ size_t caller() {
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 2
     // CHECK: {{.*}} call i32 @llvm.genx.group.id.z()
 
-    kernel<class kernel_GlobalSize_x>([=]() SYCL_ESIMD_KERNEL {
-      DoNotOptimize[0] = __spirv_GlobalSize_x();
-    });
+    kernel<class kernel_GlobalSize_x>(
+        [=]() SYCL_ESIMD_KERNEL { DoNotOptimize[0] = __spirv_GlobalSize_x(); });
     // CHECK-LABEL: @{{.*}}kernel_GlobalSize_x
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 0
     // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.group.count.v3i32()
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 0
 
-    kernel<class kernel_GlobalSize_y>([=]() SYCL_ESIMD_KERNEL {
-      DoNotOptimize[0] = __spirv_GlobalSize_y();
-    });
+    kernel<class kernel_GlobalSize_y>(
+        [=]() SYCL_ESIMD_KERNEL { DoNotOptimize[0] = __spirv_GlobalSize_y(); });
     // CHECK-LABEL: @{{.*}}kernel_GlobalSize_y
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 1
     // CHECK: [[CALL_ESIMD2:%.*]] = call <3 x i32> @llvm.genx.group.count.v3i32()
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD2]], i32 1
 
-    kernel<class kernel_GlobalSize_z>([=]() SYCL_ESIMD_KERNEL {
-      DoNotOptimize[0] = __spirv_GlobalSize_z();
-    });
+    kernel<class kernel_GlobalSize_z>(
+        [=]() SYCL_ESIMD_KERNEL { DoNotOptimize[0] = __spirv_GlobalSize_z(); });
     // CHECK-LABEL: @{{.*}}kernel_GlobalSize_z
     // CHECK: [[CALL_ESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32()
     // CHECK: {{.*}} extractelement <3 x i32> [[CALL_ESIMD1]], i32 2

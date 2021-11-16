@@ -7,6 +7,8 @@ using namespace sycl::ext::intel::experimental::esimd;
 
 // CHECK: error: function 'cl::sycl::multi_ptr<{{.+}}> cl::sycl::accessor<{{.+}}>::get_pointer<{{.+}}>() const' is not supported in ESIMD context
 
-SYCL_EXTERNAL auto test(accessor<int, 1, access::mode::read_write, access::target::device> &acc) SYCL_ESIMD_FUNCTION {
+SYCL_EXTERNAL auto
+test(accessor<int, 1, access::mode::read_write, access::target::device> &acc)
+    SYCL_ESIMD_FUNCTION {
   return acc.get_pointer();
 }
