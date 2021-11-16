@@ -33,7 +33,7 @@ SYCL specification refer to that revision.
 
 **_NOTE:_** _This document describes the current design and API for the matrix
 extension to {dpcpp}. This is an initial experimental version to try out functionality
-and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX), DPAS, and Nvidia® Tensorcore. We are going to work with the community on incrementally improving
+and performance, and **future versions of this API may change in ways that are incompatible with this experimental version**. The current implementation provides support of the matrix interface on Intel(R) Advanced Matrix Extensions (AMX), DPAS, and Nvidia® Tensor Cores. We are going to work with the community on incrementally improving
 the API to bring them closer to standard C++ (aligned with the `std::mdspan` and `std::mdarray` proposals) and SYCL in the next several months._
 
 ## Introduction
@@ -101,7 +101,7 @@ When the group is a `sycl::sub_group`, an example matrix declaration is as follo
 joint_matrix<int8_t, tM, tN> tA(sg);
 ```
 
-In the Nvidia case an example declaration adds the `matrix_use` parameter, e.g.:
+In the Tensor Cores case an example declaration adds the `matrix_use` parameter, e.g.:
 
 ```c++
 joint_matrix<double, matrix_use::a, tM, tN> tA(sg);
@@ -682,6 +682,7 @@ Tensor Cores:
 - Add support for other combinations, the query interface, and consider how the future looking API can be added here
 
 AMX and DPAS:
+
 - Add 'matrix_use' parameter to the matrix to distinguish between matrix A, B, and matrix accumulator. This is necessary for supporting VNNI and transpose transform
 
 ## Revision History
