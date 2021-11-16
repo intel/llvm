@@ -3507,27 +3507,24 @@ public:
             return;
           }
 
-          // Diagnose used types without complete definition only on host
-          // because only on host with help of integration header possible to
-          // differentiate case like this:
-          // int main() {
-          //   parallel_for<class KernelName>(..);
-          // }
-          // which uses technically non-forward declarable kernel name type but
-          // still allowed by SYCL spec, from case like this:
-          // int main() {
-          //   class KernelName;
-          //   parallel_for<class KernelName>(..);
-          // }
-          // which should be diagnosed, since the errors are emitted in runtime.
-          //
-          // Everything works when KernelName typename is used directly in
-          // parallel_for, because in this case when the type KernelName is
-          // forward declared by integration header, host uses ::KernelName
-          // typename.
-          // However when KernelName is forward declared in non-global/namespace
-          // scope it actually produces a separate delclaration main::KernelName
-          // which is not visible for runtime code that submits kernels.
+          // Diagnose used types without complete definition i.e.
+          //   int main() {
+          //     class KernelName1;
+          //     parallel_for<class KernelName1>(..);
+          //   }
+          // This case can only be diagnosed during host compilation because the
+          // integration header is required to distinguish between the invalid
+          // code (above) and the following valid code:
+          //   int main() {
+          //     parallel_for<class KernelName2>(..);
+          //   }
+          // The device compiler forward declares both KernelName1 and
+          // KernelName2 in the integration header as ::KernelName1 and
+          // ::KernelName2. The problem with the former case is the additional
+          // declaration 'class KernelName1' in non-global scope. Lookup in this
+          // case will resolve to ::main::KernelName1 (instead of
+          // ::KernelName1). Since this is not visible to runtime code that
+          // submits kernels, this is invalid.
           if (Tag->isCompleteDefinition() || S.getLangOpts().SYCLIsHost) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
