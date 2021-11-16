@@ -130,7 +130,7 @@ void wait_and_throw();
 // if invalid event is passed into the function, must throw an exception with the errc::invalid error code.
 static void wait_and_throw(const std::vector<event> &eventList);
 
-// returns info::event_command_status::ext_oneapi_unknown status
+// must return info::event_command_status::ext_oneapi_unknown
 get_info<info::event::command_execution_status>() const;
 ----
 
@@ -163,8 +163,9 @@ No optimization if a queue is created with the `discard_events` property and
 the property list includes the `enable_profiling` property or does not include `in_order` property.
 
 === Using fallback assert feature
-    No optimization if the application calls the `assert` macro from a command that is submitted to the queue unless
-    the device has native support for assertions (as specified by `aspect::ext_oneapi_native_assert`).
+
+No optimization if the application calls the `assert` macro from a command that is submitted to the queue unless
+the device has native support for assertions (as specified by `aspect::ext_oneapi_native_assert`).
 
 === Using streams, buffer/image accessors (excluding local accessors)
 
