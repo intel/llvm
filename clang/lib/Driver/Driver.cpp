@@ -5579,10 +5579,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         OutFileDir = (OptO ? OptO->getValues()[0] : "");
         llvm::sys::path::remove_filename(OutFileDir);
       }
-      // If in `SaveTempsCwd`, or `remove_filename` returned an empty string
-      // use CWD.
+      // If in `SaveTempsCwd` mode, or `remove_filename` returned an empty
+      // string use CWD, otherwise append separator.
       if (OutFileDir.empty())
         llvm::sys::path::native(OutFileDir = "./");
+      else
+        OutFileDir.append(llvm::sys::path::get_separator());
     }
     for (auto &I : Inputs) {
       std::string SrcFileName(I.second->getAsString(Args));

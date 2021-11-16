@@ -133,9 +133,11 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
     // Use the current dir if the `GetFilePath` returned en empty string, which
     // is the case when the `OutputFileName` does not contain any directory
     // information, or if in CWD mode. This is necessary for `llvm-foreach`, as
-    // it would disregard the parameter otherwise.
+    // it would disregard the parameter without it. Otherwise append separator.
     if (OutputDirName.empty())
       llvm::sys::path::native(OutputDirName = "./");
+    else
+      OutputDirName.append(llvm::sys::path::get_separator());
     ForeachArgs.push_back(
         C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
   }
