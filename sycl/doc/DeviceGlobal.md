@@ -488,11 +488,12 @@ runtime does the following:
 
     - Regardless of whether the USM buffer has already been created for the
       variable, the runtime initializes the `usmptr` member in the *device
-      instance* of the variable by using a backend-specific function which
-      copies data from the host to a device variable.  It is a simple matter to
-      use this function to overwrite the `usmptr` member with the address of
-      the USM buffer.  The details of this device-specific function are
-      described below.
+      instance* of the variable by using a new [PI interface][6] which copies
+      data from the host to a global variable in a `pi_program`.  It is a
+      simple matter to use this interface to overwrite the `usmptr` member with
+      the address of the USM buffer.
+
+[6]: <#new-pi-interface-to-copy-to-or-from-a-module-scope-variable>
 
 Note that the runtime does not need to initialize the `val` member variable of
 device global variables that are decorated with `device_image_scope` because
@@ -503,61 +504,75 @@ initialized.
 
 Each of these functions accepts a (host) pointer to a device global variable as
 one of its parameters, and the runtime uses this pointer to find the associated
-information for this variable in the device global database.  In the common
-case where a kernel using this device global has already been submitted to the
-target device, the database will contain all of the information for this device
-global variable.
+information for this variable in the device global database.  The code in the
+integration footer ensures that the database will at least contain the address
+of the variable and its unique string, even if no kernel referencing this
+variable has been submitted yet.
 
-However, in the case when the application has not previously submitted a kernel
-that uses this device global, the database will contain only the address of the
-variable and its unique string.  In this case, the runtime must scan all
-"SYCL/device globals" property sets in the application searching for an entry
-with that same unique string.  The runtime can then add the remaining
-information about the device global variable to the database.
+Each of these functions is templated on the variable's underlying type `T`, so
+it knows the size of this type.  Each function is also templated on the
+variable's property list, so it knows whether the variable has the
+`device_image_scope` property.
 
 The remaining behavior depends on whether the variable is decorated with the
 `device_image_scope` property.
 
 If the variable is not decorated with this property, the runtime uses the
 database to determine if a USM buffer has been allocated yet for this variable
-on this device.  If not, the runtime allocates the buffer using the size from
-the database and zero-initializes the buffer.  Regardless, the runtime
-implements the `copy` / `memcpy` function by copying to or from this USM
-buffer, using the normal mechanism for copying to / from a USM pointer.
+on this device.  If not, the runtime allocates the buffer using `sizeof(T)`
+and zero-initializes the buffer.  Regardless, the runtime implements the `copy`
+/ `memcpy` function by copying to or from this USM buffer, using the normal
+mechanism for copying to / from a USM pointer.
 
 The runtime avoids the future cost of looking up the variable in the database
 by caching the USM pointer in the host instance of the variable's `usmptr`
 member.
 
 If the variable is decorated with the `device_image_scope` property, the
-runtime uses the unique string identifier for the variable to call a
-backend-specific function that copies to or from the variable.  Again, the
-details of this function are described below.
+variable's value exists directly in the device code module, not in a USM
+buffer.  The runtime first uses the variable's unique string identifier to see
+if there is a `pi_program` that contains the variable.  If there is more than
+one such `pi_program`, the runtime diagnoses an error by throwing
+`errc::invalid`.  If there is no such `pi_program`, the runtime scans all
+"SYCL/device globals" property sets to find the device code module that
+contains this variable and uses its normal mechanism for creating a
+`pi_program` from this device code module.  (The algorithm for creating device
+code modules in the `sycl-post-link` tool ensures that there will be no more
+than one module that contains the variable.)  Finally, the runtime uses the
+new [PI interface][6] to copy to or from the contents of the variable in this
+`pi_program`.
 
-In all cases, the runtime diagnoses invalid calls that write beyond the device
-global variable's size by using the size in the database.
+It is possible that a device global variable with `device_image_scope` is not
+referenced by _any_ kernel, in which case the variable's unique string will not
+exist in any property set.  In this case, the runtime simply uses the host
+instance of the `device_global` variable to hold the value and copies to or
+from the `val` member.
 
-#### Back-end specific function to copy to / from a device symbol
+In all cases, the runtime uses `sizeof(T)` to determine if the copy operation
+will read or write beyond the end of the device global variable's storage.  If
+so, the runtime diagnoses an error by throwing `errc::invalid`.
 
-As noted above, we need a backend-specific function to copy to / from the
-device instance of a variable.  All backends provide this functionality, which
-is abstracted with these new PI interfaces:
+#### New PI interface to copy to or from a module scope variable
+
+As noted above, we need new PI interfaces that can copy data to or from an
+instance of a device global variable in a `pi_program`.  This functionality is
+exposed as two new PI interfaces:
 
 ```
-pi_result piextCopyToDeviceVariable(pi_device Device, const char *name,
-  const void *src, size_t count, size_t offset);
+pi_result piextCopyToDeviceVariable(pi_device Device, pi_program Program,
+  const char *name, const void *src, size_t count, size_t offset);
 
-pi_result piextCopyFromDeviceVariable(pi_device Device, const char *name,
-  void *dst, size_t count, size_t offset);
+pi_result piextCopyFromDeviceVariable(pi_device Device, pi_program Program,
+  const char *name, void *dst, size_t count, size_t offset);
 ```
 
 In both cases the `name` parameter is the same as the `sycl-unique-id` string
 that is associated with the device global variable.
 
 The Level Zero backend has existing APIs that can implement these PI
-interfaces.  DPC++ first calls [`zeModuleGetGlobalPointer()`][6] to get a
+interfaces.  The plugin first calls [`zeModuleGetGlobalPointer()`][7] to get a
 device pointer for the variable and then calls
-[`zeCommandListAppendMemoryCopy()`][7] to copy to or from that pointer.
+[`zeCommandListAppendMemoryCopy()`][8] to copy to or from that pointer.
 However, the documentation (and implementation) of `zeModuleGetGlobalPointer()`
 needs to be extended slightly.  The description currently says:
 
@@ -586,17 +601,17 @@ This must be changed to say something along these lines:
 > * If `pGlobalName` identifies an imported SPIR-V variable, the module must be
 >   dynamically linked before the variable's pointer may be queried.
 
-[6]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
-[7]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
+[7]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zemodulegetglobalpointer>
+[8]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
 
 The OpenCL backend has a proposed extension
-[`cl_intel_global_variable_pointers`][8] that can implement these PI
-interfaces.  DPC++ first calls `clGetDeviceGlobalVariablePointerINTEL()` to get
-a device pointer for the variable and then calls `clEnqueueMemcpyINTEL()` to
-copy to or from that pointer.  This DPC++ design depends upon implementation of
-that OpenCL extension.
+[`cl_intel_global_variable_pointers`][9] that can implement these PI
+interfaces.  The plugin first calls `clGetDeviceGlobalVariablePointerINTEL()`
+to get a device pointer for the variable and then calls
+`clEnqueueMemcpyINTEL()` to copy to or from that pointer.  This DPC++ design
+depends upon implementation of that OpenCL extension.
 
-[8]: <extensions/DeviceGlobal/cl_intel_global_variable_pointers.asciidoc>
+[9]: <extensions/DeviceGlobal/cl_intel_global_variable_pointers.asciidoc>
 
 The CUDA backend has existing APIs `cudaMemcpyToSymbol()` and
 `cudaMemcpyFromSymbol()` which can be used to implement these PI interfaces.
