@@ -9,9 +9,15 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
-template <typename T> class exchange_kernel;
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          typename T>
+class exchange_kernel;
 
-template <typename T> void exchange_test(queue q, size_t N) {
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          typename T>
+void exchange_test(queue q, size_t N) {
   const T initial = T(N);
   T exchange = initial;
   std::vector<T> output(N);
@@ -25,13 +31,13 @@ template <typename T> void exchange_test(queue q, size_t N) {
           exchange_buf.template get_access<access::mode::read_write>(cgh);
       auto out =
           output_buf.template get_access<access::mode::discard_write>(cgh);
-      cgh.parallel_for<exchange_kernel<T>>(range<1>(N), [=](item<1> it) {
-        size_t gid = it.get_id(0);
-        auto atm = ::sycl::ext::oneapi::atomic_ref<
-            T, memory_order::relaxed, memory_scope::device,
-            access::address_space::global_space>(exc[0]);
-        out[gid] = atm.exchange(T(gid));
-      });
+      cgh.parallel_for<exchange_kernel<AtomicRef, T>>(
+          range<1>(N), [=](item<1> it) {
+            size_t gid = it.get_id(0);
+            auto atm = AtomicRef<T, memory_order::relaxed, memory_scope::device,
+                                 access::address_space::global_space>(exc[0]);
+            out[gid] = atm.exchange(T(gid));
+          });
     });
   }
 
@@ -42,4 +48,9 @@ template <typename T> void exchange_test(queue q, size_t N) {
   // reads with its own ID
   std::sort(output.begin(), output.end());
   assert(std::unique(output.begin(), output.end()) == output.end());
+}
+
+template <typename T> void exchange_test(queue q, size_t N) {
+  exchange_test<::sycl::ext::oneapi::atomic_ref, T>(q, N);
+  exchange_test<::sycl::atomic_ref, T>(q, N);
 }

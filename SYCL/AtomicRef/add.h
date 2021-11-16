@@ -9,7 +9,9 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
-template <typename T, typename Difference = T>
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          typename T, typename Difference = T>
 void add_fetch_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
@@ -24,9 +26,8 @@ void add_fetch_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = ::sycl::ext::oneapi::atomic_ref<
-            T, memory_order::relaxed, memory_scope::device,
-            access::address_space::global_space>(sum[0]);
+        auto atm = AtomicRef<T, memory_order::relaxed, memory_scope::device,
+                             access::address_space::global_space>(sum[0]);
         out[gid] = atm.fetch_add(Difference(1));
       });
     });
@@ -45,7 +46,9 @@ void add_fetch_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T, typename Difference = T>
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          typename T, typename Difference = T>
 void add_plus_equal_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
@@ -60,9 +63,8 @@ void add_plus_equal_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = ::sycl::ext::oneapi::atomic_ref<
-            T, memory_order::relaxed, memory_scope::device,
-            access::address_space::global_space>(sum[0]);
+        auto atm = AtomicRef<T, memory_order::relaxed, memory_scope::device,
+                             access::address_space::global_space>(sum[0]);
         out[gid] = atm += Difference(1);
       });
     });
@@ -81,7 +83,9 @@ void add_plus_equal_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T, typename Difference = T>
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          typename T, typename Difference = T>
 void add_pre_inc_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
@@ -96,9 +100,8 @@ void add_pre_inc_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = ::sycl::ext::oneapi::atomic_ref<
-            T, memory_order::relaxed, memory_scope::device,
-            access::address_space::global_space>(sum[0]);
+        auto atm = AtomicRef<T, memory_order::relaxed, memory_scope::device,
+                             access::address_space::global_space>(sum[0]);
         out[gid] = ++atm;
       });
     });
@@ -117,7 +120,9 @@ void add_pre_inc_test(queue q, size_t N) {
   assert(std::unique(output.begin(), output.end()) == output.end());
 }
 
-template <typename T, typename Difference = T>
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          typename T, typename Difference = T>
 void add_post_inc_test(queue q, size_t N) {
   T sum = 0;
   std::vector<T> output(N);
@@ -132,9 +137,8 @@ void add_post_inc_test(queue q, size_t N) {
           output_buf.template get_access<access::mode::discard_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = ::sycl::ext::oneapi::atomic_ref<
-            T, memory_order::relaxed, memory_scope::device,
-            access::address_space::global_space>(sum[0]);
+        auto atm = AtomicRef<T, memory_order::relaxed, memory_scope::device,
+                             access::address_space::global_space>(sum[0]);
         out[gid] = atm++;
       });
     });
@@ -155,8 +159,12 @@ void add_post_inc_test(queue q, size_t N) {
 
 template <typename T, typename Difference = T>
 void add_test(queue q, size_t N) {
-  add_fetch_test<T, Difference>(q, N);
-  add_plus_equal_test<T, Difference>(q, N);
-  add_pre_inc_test<T, Difference>(q, N);
-  add_post_inc_test<T, Difference>(q, N);
+  add_fetch_test<::sycl::ext::oneapi::atomic_ref, T, Difference>(q, N);
+  add_fetch_test<::sycl::atomic_ref, T, Difference>(q, N);
+  add_plus_equal_test<::sycl::ext::oneapi::atomic_ref, T, Difference>(q, N);
+  add_plus_equal_test<::sycl::atomic_ref, T, Difference>(q, N);
+  add_pre_inc_test<::sycl::ext::oneapi::atomic_ref, T, Difference>(q, N);
+  add_pre_inc_test<::sycl::atomic_ref, T, Difference>(q, N);
+  add_post_inc_test<::sycl::ext::oneapi::atomic_ref, T, Difference>(q, N);
+  add_post_inc_test<::sycl::atomic_ref, T, Difference>(q, N);
 }

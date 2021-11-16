@@ -9,9 +9,15 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
-template <typename T> class compare_exchange_kernel;
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          typename T>
+class compare_exchange_kernel;
 
-template <typename T> void compare_exchange_test(queue q, size_t N) {
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          typename T>
+void compare_exchange_test(queue q, size_t N) {
   const T initial = T(N);
   T compare_exchange = initial;
   std::vector<T> output(N);
@@ -26,12 +32,11 @@ template <typename T> void compare_exchange_test(queue q, size_t N) {
               cgh);
       auto out =
           output_buf.template get_access<access::mode::discard_write>(cgh);
-      cgh.parallel_for<compare_exchange_kernel<T>>(
+      cgh.parallel_for<compare_exchange_kernel<AtomicRef, T>>(
           range<1>(N), [=](item<1> it) {
             size_t gid = it.get_id(0);
-            auto atm = ::sycl::ext::oneapi::atomic_ref<
-                T, memory_order::relaxed, memory_scope::device,
-                access::address_space::global_space>(exc[0]);
+            auto atm = AtomicRef<T, memory_order::relaxed, memory_scope::device,
+                                 access::address_space::global_space>(exc[0]);
             T result = T(N); // Avoid copying pointer
             bool success = atm.compare_exchange_strong(result, (T)gid);
             if (success) {
@@ -50,4 +55,9 @@ template <typename T> void compare_exchange_test(queue q, size_t N) {
   for (size_t i = 0; i < N; ++i) {
     assert(output[i] == T(i) || output[i] == initial);
   }
+}
+
+template <typename T> void compare_exchange_test(queue q, size_t N) {
+  compare_exchange_test<::sycl::ext::oneapi::atomic_ref, T>(q, N);
+  compare_exchange_test<::sycl::atomic_ref, T>(q, N);
 }
