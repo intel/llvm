@@ -117,6 +117,7 @@ MODULE_PASS("poison-checking", PoisonCheckingPass())
 MODULE_PASS("pseudo-probe-update", PseudoProbeUpdatePass())
 MODULE_PASS("LowerESIMD", SYCLLowerESIMDPass())
 MODULE_PASS("ESIMDLowerVecArg", ESIMDLowerVecArgPass())
+MODULE_PASS("esimd-verifier", ESIMDVerifierPass())
 MODULE_PASS("SPIRITTAnnotations", SPIRITTAnnotationsPass())
 MODULE_PASS("deadargelim-sycl", DeadArgumentEliminationSYCLPass())
 #undef MODULE_PASS

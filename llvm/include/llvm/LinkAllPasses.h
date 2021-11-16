@@ -37,6 +37,7 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRPrintingPasses.h"
+#include "llvm/SYCLLowerIR/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/LowerWGScope.h"
@@ -208,6 +209,7 @@ namespace {
       (void)llvm::createSYCLLowerESIMDPass();
       (void)llvm::createESIMDLowerLoadStorePass();
       (void)llvm::createESIMDLowerVecArgPass();
+      (void)llvm::createESIMDVerifierPass();
       (void)llvm::createSPIRITTAnnotationsLegacyPass();
       (void)llvm::createSYCLLowerWGLocalMemoryLegacyPass();
       std::string buf;

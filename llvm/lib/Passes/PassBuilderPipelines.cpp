@@ -26,6 +26,7 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/ESIMDVerifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/PGOOptions.h"
@@ -202,6 +203,9 @@ extern cl::opt<bool> EnableMatrix;
 
 extern cl::opt<bool> DisablePreInliner;
 extern cl::opt<int> PreInlineThreshold;
+
+extern cl::opt<bool> SYCLOptimizationMode;
+
 } // namespace llvm
 
 void PassBuilder::invokePeepholeEPCallbacks(FunctionPassManager &FPM,
@@ -734,6 +738,9 @@ ModulePassManager
 PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
                                                ThinOrFullLTOPhase Phase) {
   ModulePassManager MPM;
+
+  if (SYCLOptimizationMode)
+    MPM.addPass(ESIMDVerifierPass());
 
   // Place pseudo probe instrumentation as the first pass of the pipeline to
   // minimize the impact of optimization changes.

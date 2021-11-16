@@ -8,6 +8,10 @@
 // RUN: %clangxx -I %sycl_include %s -o %t.out -fsycl \
 // RUN: -fsycl-instrument-device-code
 
+// Adding xfail because cl::sycl::accessor<...>::get_pointer<...>() is not
+// supported in ESIMD context.
+// XFAIL: *
+
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/esimd.hpp>
 #include <iostream>
