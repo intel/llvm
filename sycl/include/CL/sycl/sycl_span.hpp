@@ -608,7 +608,8 @@ as_writable_bytes(span<_Tp, _Extent> __s) noexcept
 }
 
 //  Deduction guides
-template <class _Tp, size_t _Sz> span(_Tp (&)[_Sz])->span<_Tp, _Sz>;
+template <class _Tp, size_t _Sz>
+span(_Tp (&)[_Sz]) -> span<_Tp, dynamic_extent>;
 
 template <class _Tp, size_t _Sz> span(std::array<_Tp, _Sz> &)->span<_Tp, _Sz>;
 
