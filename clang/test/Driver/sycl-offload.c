@@ -1138,6 +1138,8 @@
 
 /// Using -fsyntax-only with -fsycl should not emit IR
 // RUN:   %clang -### -fsycl -fsyntax-only %s 2>&1 \
-// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY,CHK-NO-EMIT-IR %s
-// CHK-FSYNTAX-ONLY: clang{{.*}} "-cc1" "-triple" "spir{{.*}}-unknown-unknown"{{.*}} "-fsyntax-only"
-// CHK-NO-EMIT-IR-NOT: "-emit-llvm-bc"
+// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
+// RUN:   %clang -### -fsycl -fsycl-device-only -fsyntax-only %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
+// CHK-FSYNTAX-ONLY-NOT: "-emit-llvm-bc"
+// CHK-FSYNTAX-ONLY: "-fsyntax-only"
