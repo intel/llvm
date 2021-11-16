@@ -1434,7 +1434,7 @@ public:
     // known constant.
     MNDRDesc.set(range<1>{1});
 
-    StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, /*Dims*/ 0, void>(KernelFunc);
     setType(detail::CG::Kernel);
 #endif
   }
