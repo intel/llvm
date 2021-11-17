@@ -393,7 +393,7 @@ compile-time properties that need to be generated in SPIR-V.  The
 global variable:
 
 * `host_access`
-* `device_image_scope`
+* `init_mode`
 * `implement_in_csr`
 
 The `host_access` property is handled specially because the SPIR-V decoration
