@@ -44,8 +44,8 @@ Version
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2021-08-19
-| Revision           | 13
+| Last Modified Date | 2021-11-17
+| Revision           | 14
 |========================================
 
 Dependencies
@@ -157,7 +157,20 @@ If the *VectorComputeINTEL* capability is declared *Volatile* may be applied to 
 Modify Section 3.18, Access Qualifier: +
 Add *OpTypeBufferSurfaceINTEL* to the list of instructions that use Access Qualifier.
 
-Modify Section 3.31, Capability, add the following rows the 'Capability' table:
+Modify Section 3.19, Function Parameter Attribute, add the following rows to the 'Function Parameter Attribute' table:
+
+--
+[cols="1,20,10",options="header",width = "80%"]
+|====
+2+^| Decoration  | Enabling Capabilities
+| 6140 | *MediaBlockIOINTEL* +
+The image is only used in *OpSubgroupImageMediaBlockReadINTEL* or *OpSubgroupImageMediaBlockWriteINTEL*.
+Only valid for image parameters. Not valid on return values.
+| *VectorComputeINTEL*
+|====
+--
+
+Modify Section 3.31, Capability, add the following rows to the 'Capability' table:
 --
 [cols="1,20,10,10",options="header",width = "80%"]
 |====
@@ -172,7 +185,7 @@ Uses OpTypeVector to declare vectors with any number of components greater or eq
 |====
 --
 
-Modify Section 3.36.6. Type-Declaration Instructions,  add the end of type instructions list:
+Modify Section 3.36.6. Type-Declaration Instructions, add to the end of type instructions list:
 --
 [cols="1,1,1,1",width="60%"]
 |=====
@@ -212,4 +225,5 @@ Revision History
 |11|2020-12-03|Mariusz Merecki|Fix token number of *VectorComputeFastCompositeKernelINTEL*
 |12|2020-12-16|Mariusz Merecki|Remove *VectorComputeFastCompositeKernelINTEL* and *VectorComputeCallableFunctionINTEL*, moved to SPV_INTEL_fast_composition
 |13|2020-08-19|Mariusz Merecki|Allow *SingleElementVectorINTEL* on global variables, add extra operand to *SingleElementVectorINTEL* to specify the number of levels of indirection for single-element vectors of pointers, clarify that with *VectorAnyINTEL* the number of vector components must be grater or equal to 2
+|14|2020-11-17|Mariusz Merecki|Add *MediaBlockIOINTEL* Function Parameter Attribute
 |========================================
