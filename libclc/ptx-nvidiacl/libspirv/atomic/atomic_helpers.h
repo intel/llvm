@@ -18,7 +18,7 @@
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
     TYPE_NV res =                                                              \
-        __nvvm_atom_cta##ORDER##_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(         \
+        __nvvm_atom##ORDER##_cta_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(         \
             (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                \
     return *(TYPE *)&res;                                                      \
   }                                                                            \
@@ -30,7 +30,7 @@
   case CrossDevice:                                                            \
   default: {                                                                   \
     TYPE_NV res =                                                              \
-        __nvvm_atom_sys##ORDER##_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(         \
+        __nvvm_atom##ORDER##_sys_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(         \
             (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                \
     return *(TYPE *)&res;                                                      \
   }                                                                            \
