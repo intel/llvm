@@ -265,7 +265,7 @@ class __sycl_device_global_registration {
 };
 __sycl_device_global_registration __sycl_device_global_registerer;
 
-} // namepsace (unnamed)
+} // namespace (unnamed)
 } // namespace sycl::detail
 ```
 
@@ -287,7 +287,7 @@ __sycl_device_global_registration::__sycl_device_global_registration() noexcept 
     /* same string returned from __builtin_sycl_unique_stable_id(::inner::Bar) */);
 }
 
-} // namepsace (unnamed)
+} // namespace (unnamed)
 } // namespace sycl::detail
 ```
 
@@ -351,7 +351,7 @@ __sycl_device_global_registration::__sycl_device_global_registration() noexcept 
     /* same string returned from __builtin_sycl_unique_stable_id(::(unnamed)::FuBar) */);
 }
 
-} // namepsace (unnamed)
+} // namespace (unnamed)
 } // namespace sycl::detail
 ```
 
