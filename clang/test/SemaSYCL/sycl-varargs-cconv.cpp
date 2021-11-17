@@ -47,7 +47,7 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc(); //expected-note 2+ {{called by 'kernel_single_task}}
 }
 
-extern "C" int printf(const char* fmt, ...);
+extern "C" int printf(const char *fmt, ...);
 
 int main() {
   //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
