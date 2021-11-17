@@ -16,8 +16,7 @@
 // warning_extension-warning@* 0-1 {{#warning is a language extension}}
 //
 // The next warning is emitted for windows only
-// expected-warning@* 0-1 {{Alignment of class vec is not in accordance with SYCL specification requirements, a limitation of the MSVC compiler(Error C2719).Applied default alignment.}}
-
+// expected-warning@* 0-1 {{Alignment of class vec is not in accordance with SYCL specification requirements, a limitation of the MSVC compiler(Error C2719).Requested alignment applied, limited at 64.}}
 
 class KernelName1;
 
