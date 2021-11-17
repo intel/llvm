@@ -75,10 +75,10 @@ filter create_filter(const std::string &Input) {
       Result.Backend = backend::opencl;
       Result.HasBackend = true;
     } else if (Token == "level_zero" && !Result.HasBackend) {
-      Result.Backend = backend::level_zero;
+      Result.Backend = backend::ext_oneapi_level_zero;
       Result.HasBackend = true;
     } else if (Token == "cuda" && !Result.HasBackend) {
-      Result.Backend = backend::cuda;
+      Result.Backend = backend::ext_oneapi_cuda;
       Result.HasBackend = true;
     } else if (Token == "host") {
       if (!Result.HasBackend) {

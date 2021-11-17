@@ -2420,6 +2420,13 @@ struct is_device_copyable<sycl::marray<T, N>,
                           std::enable_if_t<is_device_copyable<T>::value>>
     : std::true_type {};
 
+// vec is device copyable on host, on device vec is trivially copyable
+// and therefore is device copyable too.
+#ifndef __SYCL_DEVICE_ONLY__
+template <typename T, int N>
+struct is_device_copyable<sycl::vec<T, N>> : std::true_type {};
+#endif
+
 namespace detail {
 template <typename T, typename = void>
 struct IsDeprecatedDeviceCopyable : std::false_type {};
