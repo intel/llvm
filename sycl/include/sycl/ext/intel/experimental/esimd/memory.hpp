@@ -231,9 +231,10 @@ __ESIMD_API std::enable_if_t<((n == 8 || n == 16 || n == 32) &&
 
 /// Flat-address block-load.
 /// \ingroup sycl_esimd
-template <typename T, int n, CacheHint L1H = CacheHint::None,
-          CacheHint L3H = CacheHint::None>
-__ESIMD_API simd<T, n> block_load(const T *addr) {
+template <typename T, int n, typename Flags = vector_aligned_tag,
+          CacheHint L1H = CacheHint::None, CacheHint L3H = CacheHint::None,
+          typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+__ESIMD_API simd<T, n> block_load(const T *addr, Flags = {}) {
   detail::IfNotNone<L1H, L3H>::warn();
   constexpr unsigned Sz = sizeof(T) * n;
   static_assert(Sz >= detail::OperandSize::OWORD,
@@ -246,16 +247,49 @@ __ESIMD_API simd<T, n> block_load(const T *addr) {
                 "block size must be at most 8 owords");
 
   uintptr_t Addr = reinterpret_cast<uintptr_t>(addr);
-  return __esimd_svm_block_ld_unaligned<T, n>(Addr);
+  if constexpr (Flags::template alignment<simd<T, n>> >=
+                detail::OperandSize::OWORD) {
+    return __esimd_svm_block_ld<T, n>(Addr);
+  } else {
+    return __esimd_svm_block_ld_unaligned<T, n>(Addr);
+  }
 }
 
 /// Accessor-based block-load.
 /// \ingroup sycl_esimd
-template <typename T, int n, typename AccessorTy>
-__ESIMD_API simd<T, n> block_load(AccessorTy acc, uint32_t offset) {
-  simd<T, n> Res;
-  Res.copy_from(acc, offset);
-  return Res;
+template <typename T, int n, typename AccessorTy,
+          typename Flags = vector_aligned_tag,
+          typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+__ESIMD_API simd<T, n> block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
+  constexpr unsigned Sz = sizeof(T) * n;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+
+#if defined(__SYCL_DEVICE_ONLY__)
+  auto surf_ind = __esimd_get_surface_index(
+      detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#endif // __SYCL_DEVICE_ONLY__
+
+  if constexpr (Flags::template alignment<simd<T, n>> >=
+                detail::OperandSize::OWORD) {
+#if defined(__SYCL_DEVICE_ONLY__)
+    return __esimd_oword_ld<T, n>(surf_ind, offset >> 4);
+#else
+    return __esimd_oword_ld<T, n>(acc, offset >> 4);
+#endif // __SYCL_DEVICE_ONLY__
+  } else {
+#if defined(__SYCL_DEVICE_ONLY__)
+    return __esimd_oword_ld_unaligned<T, n>(surf_ind, offset);
+#else
+    return __esimd_oword_ld_unaligned<T, n>(acc, offset);
+#endif // __SYCL_DEVICE_ONLY__
+  }
 }
 
 /// Flat-address block-store.
@@ -283,7 +317,23 @@ __ESIMD_API void block_store(T *p, simd<T, n> vals) {
 /// \ingroup sycl_esimd
 template <typename T, int n, typename AccessorTy>
 __ESIMD_API void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals) {
-  vals.copy_to(acc, offset);
+  constexpr unsigned Sz = sizeof(T) * n;
+  static_assert(Sz >= detail::OperandSize::OWORD,
+                "block size must be at least 1 oword");
+  static_assert(Sz % detail::OperandSize::OWORD == 0,
+                "block size must be whole number of owords");
+  static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
+                "block must be 1, 2, 4 or 8 owords long");
+  static_assert(Sz <= 8 * detail::OperandSize::OWORD,
+                "block size must be at most 8 owords");
+
+#if defined(__SYCL_DEVICE_ONLY__)
+  auto surf_ind = __esimd_get_surface_index(
+      detail::AccessorPrivateProxy::getNativeImageObj(acc));
+  __esimd_oword_st<T, n>(surf_ind, offset >> 4, vals.data());
+#else
+  __esimd_oword_st<T, n>(acc, offset >> 4, vals.data());
+#endif // __SYCL_DEVICE_ONLY__
 }
 
 // Implementations of accessor-based gather and scatter functions

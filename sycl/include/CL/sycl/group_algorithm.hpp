@@ -386,9 +386,12 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 }
 
 // ---- shift_group_left
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     detail::is_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -402,9 +405,12 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 }
 
 // ---- shift_group_right
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     detail::is_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -418,9 +424,12 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 }
 
 // ---- permute_group_by_xor
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     detail::is_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -434,9 +443,12 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 }
 
 // ---- select_from_group
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     detail::is_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 select_from_group(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -450,9 +462,12 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
 }
 
 // ---- group_broadcast
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -467,7 +482,8 @@ group_broadcast(Group, T x, typename Group::id_type local_id) {
 
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -485,7 +501,8 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__

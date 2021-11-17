@@ -22,14 +22,9 @@ class myWrapper2;
 int main() {
   queue q;
 
-#if defined(WARN)
-  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
-  // expected-note@+7 {{in instantiation of function template specialization}}
-#elif defined(ERROR)
-  // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
-  // expected-note@+4 {{in instantiation of function template specialization}}
-#endif
   class InvalidKernelName1 {};
+  // expected-error@#KernelSingleTask {{'InvalidKernelName1' is invalid; kernel name should be forward declarable at namespace scope}}
+  // expected-note@+2 {{in instantiation of function template specialization}}
   q.submit([&](handler &h) {
     h.single_task<InvalidKernelName1>([]() {});
   });

@@ -2414,6 +2414,13 @@ struct is_device_copyable<std::tuple<T, Ts...>>
     : detail::bool_constant<is_device_copyable<T>::value &&
                             is_device_copyable<std::tuple<Ts...>>::value> {};
 
+// vec is device copyable on host, on device vec is trivially copyable
+// and therefore is device copyable too.
+#ifndef __SYCL_DEVICE_ONLY__
+template <typename T, int N>
+struct is_device_copyable<sycl::vec<T, N>> : std::true_type {};
+#endif
+
 namespace detail {
 template <typename T, typename = void>
 struct IsDeprecatedDeviceCopyable : std::false_type {};
