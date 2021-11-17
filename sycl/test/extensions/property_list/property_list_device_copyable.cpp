@@ -1,6 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 
+// CUDA backend currently generates invalid binaries for this
+// XFAIL: cuda
+
 #include <CL/sycl.hpp>
 
 #include "mock_compile_time_properties.hpp"
