@@ -50,7 +50,7 @@ enum PropWithDataKind {
 };
 
 // Base class for all properties to expose a unique ID.
-template<int ID> class IdentifyablePropertyBase {
+template <int ID> class IdentifyablePropertyBase {
 public:
   static constexpr int PropertyID = ID;
 };

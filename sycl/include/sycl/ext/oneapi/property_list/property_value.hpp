@@ -79,8 +79,7 @@ struct property_value
           detail::CompileTimePropertyID<PropertyT>::value>,
       public detail::conditional_t<
           sizeof...(Ts) == 0 && !std::is_same<T, void>::value,
-          detail::SinglePropertyValue<T>, detail::EmptyPropertyValueBase> {
-};
+          detail::SinglePropertyValue<T>, detail::EmptyPropertyValueBase> {};
 
 template <class PropertyT, class... A, class... B>
 constexpr detail::enable_if_t<is_property<PropertyT>::value &&
