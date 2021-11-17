@@ -23,6 +23,7 @@
 ??$get_info@$0BAAA@@device@sycl@cl@@QEBA?AW4device_type@info@12@XZ
 ??$get_info@$0BAAB@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0BAABA@@context@sycl@cl@@QEBA?AV?$vector@W4memory_order@sycl@cl@@V?$allocator@W4memory_order@sycl@cl@@@std@@@std@@XZ
+??$get_info@$0BAABB@@context@sycl@cl@@QEBA?AV?$vector@W4memory_scope@sycl@cl@@V?$allocator@W4memory_scope@sycl@cl@@@std@@@std@@XZ
 ??$get_info@$0BAAC@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0BAACA@@device@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0BAACB@@device@sycl@cl@@QEBAIXZ
@@ -114,6 +115,7 @@
 ??$get_info@$0BAJA@@queue@sycl@cl@@QEBA?AVcontext@12@XZ
 ??$get_info@$0BAJB@@queue@sycl@cl@@QEBA?AVdevice@12@XZ
 ??$get_info@$0BAJC@@queue@sycl@cl@@QEBAIXZ
+??$get_info@$0BBAAA@@device@sycl@cl@@QEBA?AV?$vector@W4memory_scope@sycl@cl@@V?$allocator@W4memory_scope@sycl@cl@@@std@@@std@@XZ
 ??$get_info@$0BBGA@@program@sycl@cl@@QEBAIXZ
 ??$get_info@$0BBGB@@program@sycl@cl@@QEBA?AVcontext@12@XZ
 ??$get_info@$0BBGD@@program@sycl@cl@@QEBA?AV?$vector@Vdevice@sycl@cl@@V?$allocator@Vdevice@sycl@cl@@@std@@@std@@XZ
@@ -132,6 +134,10 @@
 ??$get_info@$0BBLK@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@$0BBNC@@event@sycl@cl@@QEBAIXZ
 ??$get_info@$0BBND@@event@sycl@cl@@QEBA?AW4event_command_status@info@12@XZ
+??$get_info@$0CAAAA@@device@sycl@cl@@QEBA_KXZ
+??$get_info@$0CAAAB@@device@sycl@cl@@QEBA?AV?$id@$00@12@XZ
+??$get_info@$0CAAAC@@device@sycl@cl@@QEBA?AV?$id@$01@12@XZ
+??$get_info@$0CAAAD@@device@sycl@cl@@QEBA?AV?$id@$02@12@XZ
 ??$get_info@$0CADD@@kernel@sycl@cl@@QEBAIAEBVdevice@12@V?$range@$02@12@@Z
 ??$get_info@$0EBAI@@device@sycl@cl@@QEBA?AV?$vector@_KV?$allocator@_K@std@@@std@@XZ
 ??$get_info@$0EBAJ@@device@sycl@cl@@QEBA?AW4partition_property@info@12@XZ
@@ -2036,7 +2042,6 @@
 ?get@platform@sycl@cl@@QEBAPEAU_cl_platform_id@@XZ
 ?get@program@sycl@cl@@QEBAPEAU_cl_program@@XZ
 ?get@queue@sycl@cl@@QEBAPEAU_cl_command_queue@@XZ
-?get_backend@kernel@sycl@cl@@QEBA?AW4backend@23@XZ
 ?getAssertHappenedBuffer@queue@sycl@cl@@AEAAAEAV?$buffer@UAssertHappened@detail@sycl@cl@@$00V?$aligned_allocator@D@234@X@23@XZ
 ?getBorderColor@detail@sycl@cl@@YA?AV?$vec@M$03@23@W4image_channel_order@23@@Z
 ?getBufSizeForContext@SYCLMemObjT@detail@sycl@cl@@SA_KAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAU_cl_mem@@@Z
@@ -2116,6 +2121,7 @@
 ?get_backend@device@sycl@cl@@QEBA?AW4backend@23@XZ
 ?get_backend@event@sycl@cl@@QEBA?AW4backend@23@XZ
 ?get_backend@interop_handle@sycl@cl@@QEBA?AW4backend@23@XZ
+?get_backend@kernel@sycl@cl@@QEBA?AW4backend@23@XZ
 ?get_backend@kernel_bundle_plain@detail@sycl@cl@@QEBA?AW4backend@34@XZ
 ?get_backend@platform@sycl@cl@@QEBA?AW4backend@23@XZ
 ?get_backend@program@sycl@cl@@QEBA?AW4backend@23@XZ
@@ -2577,8 +2583,8 @@
 ?make_event@detail@sycl@cl@@YA?AVevent@23@_KAEBVcontext@23@_NW4backend@23@@Z
 ?make_event@level_zero@oneapi@ext@sycl@cl@@YA?AVevent@45@AEBVcontext@45@_K_N@Z
 ?make_event@level_zero@sycl@cl@@YA?AVevent@23@AEBVcontext@23@_K_N@Z
-?make_kernel@detail@sycl@cl@@YA?AVkernel@23@_KAEBVcontext@23@W4backend@23@@Z
 ?make_kernel@detail@sycl@cl@@YA?AVkernel@23@AEBVcontext@23@AEBV?$kernel_bundle@$01@23@_K_NW4backend@23@@Z
+?make_kernel@detail@sycl@cl@@YA?AVkernel@23@_KAEBVcontext@23@W4backend@23@@Z
 ?make_kernel_bundle@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@_KAEBVcontext@23@W4bundle_state@23@W4backend@23@@Z
 ?make_kernel_bundle@detail@sycl@cl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@sycl@cl@@@std@@_KAEBVcontext@23@_NW4bundle_state@23@W4backend@23@@Z
 ?make_platform@detail@sycl@cl@@YA?AVplatform@23@_KW4backend@23@@Z
@@ -4585,9 +4591,5 @@
 ?what@exception@sycl@cl@@UEBAPEBDXZ
 ?wrapIntoImageBuffer@MemoryManager@detail@sycl@cl@@SAPEAXV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@PEAXPEAVSYCLMemObjI@234@@Z
 DllMain
-??$get_info@$0CAAAB@@device@sycl@cl@@QEBA?AV?$id@$00@12@XZ
-??$get_info@$0CAAAA@@device@sycl@cl@@QEBA_KXZ
-??$get_info@$0CAAAD@@device@sycl@cl@@QEBA?AV?$id@$02@12@XZ
-??$get_info@$0CAAAC@@device@sycl@cl@@QEBA?AV?$id@$01@12@XZ
 __sycl_register_lib
 __sycl_unregister_lib
