@@ -24,7 +24,7 @@ struct SomeStructure {
 };
 
 struct SomeVecStructure {
-  cl::sycl::vec<cl::sycl::cl_uchar4, 3> chars;
+  cl::sycl::vec<char, 3> chars;
 };
 
 struct SomeMarrayStructure {
