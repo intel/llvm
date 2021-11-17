@@ -94,5 +94,10 @@ int main() {
   b___ = !mint3{0, 1, 2};
   assert(b___[0] == true && b___[1] == false && b___[2] == false);
 
+  // check copyability
+  constexpr sycl::marray<double, 5> ma;
+  constexpr sycl::marray<double, 5> mb(ma);
+  constexpr sycl::marray<double, 5> mc = ma;
+
   return 0;
 }
