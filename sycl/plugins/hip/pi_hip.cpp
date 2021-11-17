@@ -2568,7 +2568,8 @@ pi_result hip_piEnqueueKernelLaunch(
           hip_implicit_offset[i] =
               static_cast<std::uint32_t>(global_work_offset[i]);
           if (global_work_offset[i] != 0) {
-            hipFunc = kernel->get_with_offset_parameter();
+            cl::sycl::detail::pi::die("Global offsets different from 0 are not "
+                                      "implemented in the HIP backend.");
           }
         }
       }
