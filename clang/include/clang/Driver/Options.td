@@ -937,7 +937,7 @@ def offload_arch_EQ : Joined<["--"], "offload-arch=">, Flags<[NoXarchOption]>,
            "device architecture followed by target ID features delimited by a colon. Each target ID feature "
            "is a pre-defined string followed by a plus or minus sign (e.g. gfx908:xnack+:sramecc-).  May be "
            "specified more than once.">;
-def cuda_gpu_arch_EQ : Joined<["--"], "cuda-gpu-arch=">, Flags<[NoXarchOption]>,
+def cuda_gpu_arch_EQ : Joined<["--"], "cuda-gpu-arch=">, Flags<[NoXarchOption, CoreOption]>,
   Alias<offload_arch_EQ>;
 def hip_link : Flag<["--"], "hip-link">,
   HelpText<"Link clang-offload-bundler bundles for HIP">;
@@ -954,7 +954,7 @@ def no_cuda_version_check : Flag<["--"], "no-cuda-version-check">,
   HelpText<"Don't error out if the detected version of the CUDA install is "
            "too low for the requested CUDA gpu architecture.">;
 def no_cuda_noopt_device_debug : Flag<["--"], "no-cuda-noopt-device-debug">;
-def cuda_path_EQ : Joined<["--"], "cuda-path=">, Group<i_Group>,
+def cuda_path_EQ : Joined<["--"], "cuda-path=">, Flags<[CoreOption]>, Group<i_Group>,
   HelpText<"CUDA installation path">;
 def cuda_path_ignore_env : Flag<["--"], "cuda-path-ignore-env">, Group<i_Group>,
   HelpText<"Ignore environment variables to detect CUDA installation">;
@@ -2356,9 +2356,9 @@ defm application_extension : BoolFOption<"application-extension",
   PosFlag<SetTrue, [CC1Option], "Restrict code to those available for App Extensions">,
   NegFlag<SetFalse>>;
 defm relaxed_template_template_args : BoolFOption<"relaxed-template-template-args",
-  LangOpts<"RelaxedTemplateTemplateArgs">, DefaultFalse,
-  PosFlag<SetTrue, [CC1Option], "Enable C++17 relaxed template template argument matching">,
-  NegFlag<SetFalse>>;
+  LangOpts<"RelaxedTemplateTemplateArgs">, DefaultTrue,
+  PosFlag<SetTrue>,
+  NegFlag<SetFalse, [CC1Option], "Disable C++17 relaxed template template argument matching">>;
 defm sized_deallocation : BoolFOption<"sized-deallocation",
   LangOpts<"SizedDeallocation">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Enable C++14 sized global deallocation functions">,
@@ -2691,7 +2691,7 @@ def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
   "from all of the offline compilation tools">;
 def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Path to libspirv library">;
-def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, HelpText<"Disable check for libspirv">;
+def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, Flags<[CoreOption]>, HelpText<"Disable check for libspirv">;
 def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
   Flags<[CoreOption]>, HelpText<"Specify C++ compiler binary to perform host "
   "compilation with during SYCL offload compiles.">;
@@ -3427,13 +3427,20 @@ foreach i = {8-15,18} in
   def fcall_saved_x#i : Flag<["-"], "fcall-saved-x"#i>, Group<m_aarch64_Features_Group>,
     HelpText<"Make the x"#i#" register call-saved (AArch64 only)">;
 
-def msve_vector_bits_EQ : Joined<["-"], "msve-vector-bits=">,
-  Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
+def msve_vector_bits_EQ : Joined<["-"], "msve-vector-bits=">, Group<m_aarch64_Features_Group>,
   HelpText<"Specify the size in bits of an SVE vector register. Defaults to the"
-           " vector length agnostic value of \"scalable\". (AArch64 only)">,
-  Values<"128,256,512,1024,2048,scalable">,
-  NormalizedValues<["128", "256", "512", "1024", "2048", "0"]>,
-  MarshallingInfoEnum<LangOpts<"ArmSveVectorBits">, "0">;
+           " vector length agnostic value of \"scalable\". (AArch64 only)">;
+
+def mvscale_min_EQ : Joined<["-"], "mvscale-min=">,
+  Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
+  HelpText<"Specify the vscale minimum. Defaults to the"
+           " vector length agnostic value of \"0\". (AArch64 only)">,
+  MarshallingInfoInt<LangOpts<"VScaleMin">>;
+def mvscale_max_EQ : Joined<["-"], "mvscale-max=">,
+  Group<m_aarch64_Features_Group>, Flags<[NoXarchOption,CC1Option]>,
+  HelpText<"Specify the vscale maximum. Defaults to the"
+           " vector length agnostic value of \"0\". (AArch64 only)">,
+  MarshallingInfoInt<LangOpts<"VScaleMax">>;
 
 def msign_return_address_EQ : Joined<["-"], "msign-return-address=">,
   Flags<[CC1Option]>, Group<m_Group>, Values<"none,all,non-leaf">,
@@ -3836,7 +3843,7 @@ def nogpuinc : Flag<["-"], "nogpuinc">, HelpText<"Do not add include paths for C
 def : Flag<["-"], "nocudainc">, Alias<nogpuinc>;
 def nogpulib : Flag<["-"], "nogpulib">,
   HelpText<"Do not link device library for CUDA/HIP device compilation">;
-def : Flag<["-"], "nocudalib">, Alias<nogpulib>;
+def : Flag<["-"], "nocudalib">, Flags<[CoreOption]>, Alias<nogpulib>;
 def nodefaultlibs : Flag<["-"], "nodefaultlibs">;
 def nofixprebinding : Flag<["-"], "nofixprebinding">;
 def nolibc : Flag<["-"], "nolibc">;

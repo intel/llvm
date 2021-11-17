@@ -614,7 +614,6 @@ protected:
                                         const ContextImplPtr &Context);
 
     friend class Command;
-    friend class Scheduler;
 
   private:
     friend class ::MockScheduler;

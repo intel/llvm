@@ -544,8 +544,11 @@ static llvm::Triple computeTargetTriple(const Driver &D,
       Target.setEnvironment(llvm::Triple::CODE16);
     }
 
-    if (AT != llvm::Triple::UnknownArch && AT != Target.getArch())
+    if (AT != llvm::Triple::UnknownArch && AT != Target.getArch()) {
       Target.setArch(AT);
+      if (Target.isWindowsGNUEnvironment())
+        toolchains::MinGW::fixTripleArch(D, Target, Args);
+    }
   }
 
   // Handle -miamcu flag.
@@ -685,6 +688,12 @@ static bool isValidSYCLTriple(llvm::Triple T) {
   return true;
 }
 
+static const char *getDefaultSYCLArch(Compilation &C) {
+  if (C.getDefaultToolChain().getTriple().getArch() == llvm::Triple::x86)
+    return "spir";
+  return "spir64";
+}
+
 static bool addSYCLDefaultTriple(Compilation &C,
                                  SmallVectorImpl<llvm::Triple> &SYCLTriples) {
   /// Returns true if a triple is added to SYCLTriples, false otherwise
@@ -699,7 +708,8 @@ static bool addSYCLDefaultTriple(Compilation &C,
       return false;
   }
   // Add the default triple as it was not found.
-  llvm::Triple DefaultTriple = C.getDriver().MakeSYCLDeviceTriple("spir64");
+  llvm::Triple DefaultTriple =
+      C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C));
   SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
   return true;
 }
@@ -951,7 +961,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             } else if (TT.getVendor() != llvm::Triple::UnknownVendor)
               SuggestedTriple += Twine("-" + TT.getVendorName()).str();
             Diag(clang::diag::warn_drv_deprecated_arg)
-                << TT.str() << SuggestedTriple;
+                << TT.str() << true << SuggestedTriple;
             // Drop environment component.
             std::string EffectiveTriple =
                 Twine(TT.getArchName() + "-" + TT.getVendorName() + "-" +
@@ -1015,16 +1025,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
     // For -fsycl-device-only, we also setup the implied triple as needed.
-    StringRef SYCLTargetArch;
-    if (C.getInputArgs().hasArg(options::OPT_fsycl_device_only))
-      if (C.getDefaultToolChain().getTriple().getArch() == llvm::Triple::x86)
-        SYCLTargetArch = "spir";
-      else
-        SYCLTargetArch = "spir64";
-    else if (HasValidSYCLRuntime)
-      // Triple for -fintelfpga is spir64_fpga.
-      SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
-    if (!SYCLTargetArch.empty()) {
+    if (HasValidSYCLRuntime) {
+      StringRef SYCLTargetArch = getDefaultSYCLArch(C);
+      if (SYCLfpga)
+        // Triple for -fintelfpga is spir64_fpga.
+        SYCLTargetArch = "spir64_fpga";
       UniqueSYCLTriplesVec.push_back(MakeSYCLDeviceTriple(SYCLTargetArch));
       addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
     }
@@ -1139,10 +1144,9 @@ bool Driver::loadConfigFile() {
     std::vector<std::string> ConfigFiles =
         CLOptions->getAllArgValues(options::OPT_config);
     if (ConfigFiles.size() > 1) {
-      if (!std::all_of(ConfigFiles.begin(), ConfigFiles.end(),
-                       [ConfigFiles](const std::string &s) {
-                         return s == ConfigFiles[0];
-                       })) {
+      if (!llvm::all_of(ConfigFiles, [ConfigFiles](const std::string &s) {
+            return s == ConfigFiles[0];
+          })) {
         Diag(diag::err_drv_duplicate_config);
         return true;
       }
@@ -2859,7 +2863,7 @@ static bool hasSYCLDefaultSection(Compilation &C, const StringRef &File) {
   if (!(IsArchive || isObjectFile(File.str())))
     return false;
 
-  llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple("spir64"));
+  llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C)));
   // Checking uses -check-section option with the input file, no output
   // file and the target triple being looked for.
   const char *Targets =
@@ -4111,7 +4115,10 @@ class OffloadingActionBuilder final {
             Args.getLastArg(options::OPT__SLASH_EP, options::OPT__SLASH_P) ||
             Args.getLastArg(options::OPT_M, options::OPT_MM);
         if (IsPreprocessOnly) {
-          for (Action *&A : SYCLDeviceActions) {
+          for (auto TargetActionInfo :
+               llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
+            Action *&A = std::get<0>(TargetActionInfo);
+            auto &TargetInfo = std::get<1>(TargetActionInfo);
             A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                    AssociatedOffloadKind);
             if (SYCLDeviceOnly)
@@ -4120,7 +4127,7 @@ class OffloadingActionBuilder final {
             // header.
             Action *CompileAction =
                 C.MakeAction<CompileJobAction>(A, types::TY_Nothing);
-            DA.add(*CompileAction, *ToolChains.front(), nullptr,
+            DA.add(*CompileAction, *TargetInfo.TC, TargetInfo.BoundArch,
                    Action::OFK_SYCL);
           }
           return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
@@ -4145,6 +4152,8 @@ class OffloadingActionBuilder final {
               continue;
             }
           }
+          if (Args.hasArg(options::OPT_fsyntax_only))
+            OutputType = types::TY_Nothing;
           A = C.MakeAction<CompileJobAction>(A, OutputType);
           DeviceCompilerInput = A;
         }
@@ -4873,11 +4882,14 @@ class OffloadingActionBuilder final {
       bool SYCLfpgaTriple = false;
       bool ShouldAddDefaultTriple = true;
       bool GpuInitHasErrors = false;
-      if (SYCLTargets || SYCLAddTargets) {
-        if (SYCLTargets) {
+      bool HasSYCLTargetsOption =
+          SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
+      if (HasSYCLTargetsOption) {
+        if (SYCLTargets || SYCLLinkTargets) {
+          Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
           // Fill SYCLTripleList
           llvm::StringMap<StringRef> FoundNormalizedTriples;
-          for (const char *Val : SYCLTargets->getValues()) {
+          for (const char *Val : SYCLTargetsValues->getValues()) {
             llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
             std::string NormalizedName = TT.normalize();
 
@@ -4939,7 +4951,8 @@ class OffloadingActionBuilder final {
         // -fsycl is provided without -fsycl-*targets.
         bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
         // -fsycl -fintelfpga implies spir64_fpga
-        const char *SYCLTargetArch = SYCLfpga ? "spir64_fpga" : "spir64";
+        const char *SYCLTargetArch =
+            SYCLfpga ? "spir64_fpga" : getDefaultSYCLArch(C);
         llvm::Triple TT = C.getDriver().MakeSYCLDeviceTriple(SYCLTargetArch);
         auto TCIt = llvm::find_if(
             ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
@@ -6773,8 +6786,14 @@ InputInfo Driver::BuildJobsForActionNoCache(
         A->getOffloadingDeviceKind()));
   }
 
-  // Always use the first input as the base input.
+  // Always use the first file input as the base input.
   const char *BaseInput = InputInfos[0].getBaseInput();
+  for (auto &Info : InputInfos) {
+    if (Info.isFilename()) {
+      BaseInput = Info.getBaseInput();
+      break;
+    }
+  }
 
   // ... except dsymutil actions, which use their actual input as the base
   // input.
@@ -7102,11 +7121,11 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
                                        bool MultipleArchs,
                                        StringRef OffloadingPrefix) const {
   std::string BoundArch = OrigBoundArch.str();
-#if defined(_WIN32)
-  // BoundArch may contains ':', which is invalid in file names on Windows,
-  // therefore replace it with '%'.
-  std::replace(BoundArch.begin(), BoundArch.end(), ':', '@');
-#endif
+  if (is_style_windows(llvm::sys::path::Style::native)) {
+    // BoundArch may contains ':', which is invalid in file names on Windows,
+    // therefore replace it with '%'.
+    std::replace(BoundArch.begin(), BoundArch.end(), ':', '@');
+  }
 
   llvm::PrettyStackTraceString CrashInfo("Computing output path");
   // Output to a user requested destination?
