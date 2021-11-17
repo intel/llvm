@@ -11,9 +11,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t1.out
 // RUN: %GPU_RUN_PLACEHOLDER %t1.out
 // RUN: %ACC_RUN_PLACEHOLDER %t1.out
-//
-// Memory access fault with HIP AMD
-// XFAIL: hip_amd
 
 #include <CL/sycl.hpp>
 
