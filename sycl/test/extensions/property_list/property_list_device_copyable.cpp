@@ -46,8 +46,8 @@ int main() {
   Q.submit([&](sycl::handler &CGH) {
     CGH.single_task([=]() {
       decltype(PropertyList)::has_property<sycl::ext::oneapi::baz>();
-      decltype(PropertyList)::has_property<
-          sycl::property::image::use_host_ptr>();
+      decltype(
+          PropertyList)::has_property<sycl::property::image::use_host_ptr>();
       PropertyList.get_property<sycl::ext::oneapi::baz>();
       PropertyList.get_property<sycl::property::image::use_host_ptr>();
     });
