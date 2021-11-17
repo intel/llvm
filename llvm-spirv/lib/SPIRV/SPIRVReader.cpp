@@ -2557,26 +2557,26 @@ Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   std::string FuncName =
       SPIRVFixedPointIntelMap::rmap(OpCode) + getFuncAPIntSuffix(RetTy, InTy);
   auto Words = Inst->getOpWords();
-  SmallVector<Type *> ArgTys;
+  SmallVector<Type *, 8> ArgTys;
   std::vector<Value *> Args;
   Args.reserve(8);
   if (RetTy->getIntegerBitWidth() > 64) {
     llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
     Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
     Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
-    ArgTys.push_back(RetPtrTy);
-    Args.push_back(RetValPtr);
+    ArgTys.emplace_back(RetPtrTy);
+    Args.emplace_back(RetValPtr);
   }
 
-  ArgTys.push_back(InTy);
-  ArgTys.push_back(Int1Ty);
-  for (int i = 0; i < 4; i++)
-    ArgTys.push_back(Int32Ty);
+  ArgTys.emplace_back(InTy);
+  ArgTys.emplace_back(Int1Ty);
+  for (int I = 0; I < 4; I++)
+    ArgTys.emplace_back(Int32Ty);
 
-  Args.push_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
-  Args.push_back(ConstantInt::get(Int1Ty, Words[1]));
-  for (int i = 2; i <= 5; i++)
-    Args.push_back(ConstantInt::get(Int32Ty, Words[i]));
+  Args.emplace_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
+  Args.emplace_back(ConstantInt::get(Int1Ty, Words[1]));
+  for (int I = 2; I <= 5; I++)
+    Args.emplace_back(ConstantInt::get(Int32Ty, Words[I]));
 
   if (RetTy->getIntegerBitWidth() <= 64) {
     FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
