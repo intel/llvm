@@ -86,6 +86,19 @@ __spirv_JointMatrixSUMadINTEL(
     __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
+template <typename T>
+using __spirv_wi_slice_t = T __attribute__((ext_vector_type(0xffffff)));
+
+template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spirv_wi_slice_t<T> &__spirv_JointMatrixGetSliceData(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *);
+
+template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL size_t __spirv_JointMatrixGetSliceLength(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *);
+
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
     "SPIR-V built-ins are not available. Please set -fdeclare-spirv-builtins flag."

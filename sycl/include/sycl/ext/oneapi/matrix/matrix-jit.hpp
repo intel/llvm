@@ -191,6 +191,64 @@ joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
                       PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
 }
+
+#ifdef __clang__
+template <typename T>
+using wi_slice_t = T __attribute__((ext_vector_type(0xffffff)));
+#else
+template <typename T>
+using wi_slice_t __attribute__((vector_size(0xffffff))) = T;
+#endif // __clang__
+
+// dummy value for initializing wi_slice::data in host code.
+wi_slice_t<int32_t> dummy_i32;
+wi_slice_t<int8_t> dummy_i8;
+wi_slice_t<uint8_t> dummy_u8;
+wi_slice_t<uint16_t> dummy_u16;
+wi_slice_t<float> dummy_f32;
+
+template <typename T> wi_slice_t<T> &getDummy() {}
+template <> wi_slice_t<int32_t> &getDummy() { return dummy_i32; }
+template <> wi_slice_t<int8_t> &getDummy() { return dummy_i8; }
+template <> wi_slice_t<uint8_t> &getDummy() { return dummy_u8; }
+template <> wi_slice_t<float> &getDummy() { return dummy_f32; }
+template <> wi_slice_t<uint16_t> &getDummy() { return dummy_u16; }
+
+template <typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout = matrix_layout::row_major,
+          typename Group = sycl::sub_group>
+class wi_slice {
+  joint_matrix<T, NumRows, NumCols, Layout, Group> &M;
+
+public:
+  wi_slice(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat)
+      : M(Mat),
+#ifdef __SYCL_DEVICE_ONLY__
+        data(__spirv_JointMatrixGetSliceData(Mat.spvm)) {
+  }
+#else
+        data(getDummy<T>()) {
+  }
+#endif // __SYCL_DEVICE_ONLY__
+  wi_slice_t<T> &data;
+  size_t length() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_JointMatrixGetSliceLength(M.spvm);
+#else
+    throw runtime_error("wi_slice is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+};
+
+// TODO: must be a member function of joint_matrix class.
+template <typename Group, typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout = matrix_layout::row_major>
+inline __SYCL_ALWAYS_INLINE wi_slice<T, NumRows, NumCols, Layout, Group>
+joint_matrix_get_slice(joint_matrix<T, NumRows, NumCols, Layout, Group> &M) {
+  return wi_slice(M);
+}
+
 } // namespace experimental::matrix
 } // namespace oneapi
 } // namespace ext
