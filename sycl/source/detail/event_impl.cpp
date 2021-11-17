@@ -56,6 +56,11 @@ void event_impl::waitInternal() const {
     return;
   }
 
+  if (MState == HES_Invalid)
+    throw invalid_object_error(
+        "This method cannot be used for an invalid event.",
+        PI_INVALID_OPERATION);
+
   while (MState != HES_Complete)
     ;
 }
@@ -93,7 +98,7 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MState = HES_NotComplete;
 }
 
-event_impl::event_impl() : MState(HES_Complete) {}
+event_impl::event_impl(HostEventState State) : MState(State) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
@@ -187,6 +192,10 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+  if (MState.load() == HES_Invalid)
+    throw invalid_object_error(
+        "This method cannot be used for an invalid event.",
+        PI_INVALID_OPERATION);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -297,6 +306,9 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
+  if (MState.load() == HES_Invalid)
+    return info::event_command_status::ext_oneapi_invalid;
+
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef(), this->getPlugin());

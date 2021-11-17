@@ -30,10 +30,12 @@ using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
 
 class event_impl {
 public:
+  enum HostEventState : int { HES_NotComplete = 0, HES_Complete, HES_Invalid };
+
   /// Constructs a ready SYCL event.
   ///
   /// If the constructed SYCL event is waited on it will complete immediately.
-  event_impl();
+  event_impl(HostEventState State = HES_Complete);
   /// Constructs an event instance from a plug-in event handle.
   ///
   /// The SyclContext must match the plug-in context associated with the
@@ -194,8 +196,6 @@ private:
   /// Dependency events prepared for waiting by backend.
   std::vector<std::shared_ptr<event_impl>> MPreparedDepsEvents;
   std::vector<std::shared_ptr<event_impl>> MPreparedHostDepsEvents;
-
-  enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
 
   // State of host event. Employed only for host events and event with no
   // backend's representation (e.g. alloca). Used values are listed in

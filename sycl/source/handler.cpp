@@ -211,7 +211,17 @@ event handler::finalize() {
                               NewEvent, nullptr);
     };
 
+    bool DiscardEvent = false;
     if (MQueue->discard_events()) {
+      // Kernel only uses assert if it's non interop one
+      bool KernelUsesAssert =
+          !(MKernel && MKernel->isInterop()) &&
+          detail::ProgramManager::getInstance().kernelUsesAssert(
+              MOSModuleHandle, MKernelName);
+      DiscardEvent = !KernelUsesAssert;
+    }
+
+    if (DiscardEvent) {
       if (CL_SUCCESS != EnqueueKernel())
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
     } else {

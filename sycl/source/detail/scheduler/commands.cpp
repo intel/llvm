@@ -2157,10 +2157,24 @@ cl_int ExecCGCommand::enqueueImp() {
       return AllocaCmd->getMemAllocation();
     };
 
+    const std::shared_ptr<detail::kernel_impl> &SyclKernel =
+        ExecKernel->MSyclKernel;
+    const std::string &KernelName = ExecKernel->MKernelName;
+    const detail::OSModuleHandle &OSModuleHandle = ExecKernel->MOSModuleHandle;
+
+    bool DiscardEvent = false;
+    if (MQueue->discard_events() && ExecKernel->MRequirements.size() == 0) {
+      // Kernel only uses assert if it's non interop one
+      bool KernelUsesAssert = !(SyclKernel && SyclKernel->isInterop()) &&
+                              ProgramManager::getInstance().kernelUsesAssert(
+                                  OSModuleHandle, KernelName);
+      DiscardEvent = !KernelUsesAssert;
+    }
+
     return enqueueImpKernel(
-        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
-        ExecKernel->MSyclKernel, ExecKernel->MKernelName,
-        ExecKernel->MOSModuleHandle, RawEvents, MEvent, getMemAllocationFunc);
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
+        KernelName, OSModuleHandle, RawEvents,
+        (DiscardEvent ? nullptr : MEvent), getMemAllocationFunc);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();

@@ -95,7 +95,13 @@ public:
         MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()) {
+            has_property<ext::oneapi::property::queue::discard_events>()),
+        MAllowDiscardEvents(
+            (MDiscardEvents &&
+             !has_property<property::queue::enable_profiling>()) &&
+            (MHostQueue ? true
+                        : (MIsInorder &&
+                           getPlugin().getBackend() != backend::level_zero))) {
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -122,7 +128,13 @@ public:
         MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
-            has_property<ext::oneapi::property::queue::discard_events>()) {
+            has_property<ext::oneapi::property::queue::discard_events>()),
+        MAllowDiscardEvents(
+            (MDiscardEvents &&
+             !has_property<property::queue::enable_profiling>()) &&
+            (MHostQueue ? true
+                        : (MIsInorder &&
+                           getPlugin().getBackend() != backend::level_zero))) {
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -173,8 +185,7 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
-  /// \return true if this queue has discard_events property.
-  bool discard_events() const { return MDiscardEvents; }
+  bool discard_events() const { return MAllowDiscardEvents; }
 
   /// Queries SYCL queue for information.
   ///
@@ -273,7 +284,6 @@ public:
   /// \param Order specifies whether the queue being constructed as in-order
   /// or out-of-order.
   RT::PiQueue createQueue(QueueOrder Order) {
-    bool enable_profiling = false;
     RT::PiQueueProperties CreationFlags = 0;
 
     if (Order == QueueOrder::OOO) {
@@ -281,7 +291,6 @@ public:
     }
     if (MPropList.has_property<property::queue::enable_profiling>()) {
       CreationFlags |= PI_QUEUE_PROFILING_ENABLE;
-      enable_profiling = true;
     }
     if (MPropList.has_property<
             ext::oneapi::cuda::property::queue::use_default_stream>()) {
@@ -304,22 +313,6 @@ public:
       Queue = createQueue(QueueOrder::Ordered);
     } else {
       Plugin.checkPiResult(Error);
-    }
-
-    if (MDiscardEvents) {
-      if (enable_profiling)
-        throw cl::sycl::invalid_parameter_error(
-            "enable_profiling cannot be used together with "
-            "discard_events.",
-            PI_INVALID_OPERATION);
-      if (!MIsInorder)
-        throw cl::sycl::invalid_parameter_error(
-            "OOO queue cannot be used together with discard_events.",
-            PI_INVALID_OPERATION);
-      if (Plugin.getBackend() == backend::level_zero)
-        throw cl::sycl::invalid_parameter_error(
-            "Level_zero temporarily does not support discard_events.",
-            PI_INVALID_OPERATION);
     }
     return Queue;
   }
@@ -446,9 +439,12 @@ public:
   }
 
 private:
-  void finalizeHandler(handler &Handler, bool NeedSeparateDependencyMgmt,
+  void finalizeHandler(handler &Handler, const CG::CGTYPE &Type,
                        event &EventRet) {
     if (MIsInorder) {
+      bool NeedSeparateDependencyMgmt =
+          (Type == CG::CGTYPE::CodeplayHostTask ||
+           Type == CG::CGTYPE::CodeplayInteropTask);
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
       std::lock_guard<std::mutex> Lock{MLastEventMtx};
@@ -483,47 +479,50 @@ private:
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
+    auto RunKernelWithDiscardEvent = [&Handler]() {
+      Handler.finalize();
+      EventImplPtr EventImpl =
+          std::make_shared<event_impl>(event_impl::HES_Invalid);
+      return createSyclObjFromImpl<event>(EventImpl);
+    };
+
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
     const bool IsKernel = Type == CG::Kernel;
-    if (IsKernel && MDiscardEvents) {
-      if (Handler.MRequirements.size() != 0)
-        throw cl::sycl::invalid_parameter_error(
-            "Global accessors cannot be used together with "
-            "discard_events.",
-            PI_INVALID_OPERATION);
-      if (PostProcess)
-        throw cl::sycl::invalid_parameter_error(
-            "Fallback assert cannot be used together with "
-            "discard_events.",
-            PI_INVALID_OPERATION);
-      Handler.finalize();
-      return event();
-    }
-    bool NeedSeparateDependencyMgmt =
-        MIsInorder && (Type == CG::CGTYPE::CodeplayHostTask ||
-                       Type == CG::CGTYPE::CodeplayInteropTask);
-
     event Event;
 
     if (PostProcess) {
       bool KernelUsesAssert = false;
 
-      if (IsKernel)
+      if (IsKernel) {
         // Kernel only uses assert if it's non interop one
         KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MOSModuleHandle, Handler.MKernelName);
-
-      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
+        if (!KernelUsesAssert && MAllowDiscardEvents &&
+            Handler.MRequirements.size() == 0) {
+          return RunKernelWithDiscardEvent();
+        }
+      }
+      finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
-    } else
-      finalizeHandler(Handler, NeedSeparateDependencyMgmt, Event);
+    } else {
+      if (IsKernel && MAllowDiscardEvents &&
+          Handler.MRequirements.size() == 0) {
+        return RunKernelWithDiscardEvent();
+      }
+      finalizeHandler(Handler, Type, Event);
+    }
 
     addEvent(Event);
+    if (IsKernel && MDiscardEvents) {
+      EventImplPtr EventImpl =
+          std::make_shared<event_impl>(event_impl::HES_Invalid);
+      return createSyclObjFromImpl<event>(EventImpl);
+    }
     return Event;
   }
 
@@ -590,6 +589,7 @@ private:
 
   const bool MIsInorder;
   const bool MDiscardEvents;
+  const bool MAllowDiscardEvents;
 };
 
 } // namespace detail
