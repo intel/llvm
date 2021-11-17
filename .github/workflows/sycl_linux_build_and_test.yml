@@ -44,10 +44,6 @@ on:
       build_artifact_suffix:
         type: string
         required: true
-      build_upload_artifact:
-        type: boolean
-        required: false
-        default: false
 
 jobs:
   configure:
@@ -142,17 +138,24 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
     - name: Install
-      if: ${{ steps.parameters.build_upload_artifact }}
-      run: cmake --build $GITHUB_WORKSPACE/build --target install
+      # TODO replace utility installation with a single CMake target
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
+        cmake --build $GITHUB_WORKSPACE/build --target utils/FileCheck/install
+        cmake --build $GITHUB_WORKSPACE/build --target utils/count/install
+        cmake --build $GITHUB_WORKSPACE/build --target utils/not/install
+        cmake --build $GITHUB_WORKSPACE/build --target utils/lit/install
+        cmake --build $GITHUB_WORKSPACE/build --target utils/llvm-lit/install
+        cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
+        cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
+
     - name: Pack
-      if: ${{ steps.parameters.build_upload_artifact }}
-      run: tar -czf llvm_sycl.tar.gz -C $GITHUB_WORKSPACE/build/install .
+      run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
     - name: Upload artifacts
       uses: actions/upload-artifact@v1
-      if: ${{ steps.parameters.build_upload_artifact }}
       with:
         name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        path: llvm_sycl.tar.gz
+        path: llvm_sycl.tar.xz
     - name: Cleanup
       if: always()
       run: rm -rf $GITHUB_WORKSPACE/*
