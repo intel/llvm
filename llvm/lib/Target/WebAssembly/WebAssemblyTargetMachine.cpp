@@ -24,7 +24,7 @@
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/Function.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/LowerAtomic.h"
@@ -133,12 +133,14 @@ WebAssemblyTargetMachine::WebAssemblyTargetMachine(
     : LLVMTargetMachine(
           T,
           TT.isArch64Bit()
-              ? (TT.isOSEmscripten()
-                     ? "e-m:e-p:64:64-i64:64-f128:64-n32:64-S128-ni:1:10:20"
-                     : "e-m:e-p:64:64-i64:64-n32:64-S128-ni:1:10:20")
-              : (TT.isOSEmscripten()
-                     ? "e-m:e-p:32:32-i64:64-f128:64-n32:64-S128-ni:1:10:20"
-                     : "e-m:e-p:32:32-i64:64-n32:64-S128-ni:1:10:20"),
+              ? (TT.isOSEmscripten() ? "e-m:e-p:64:64-p10:8:8-p20:8:8-i64:64-"
+                                       "f128:64-n32:64-S128-ni:1:10:20"
+                                     : "e-m:e-p:64:64-p10:8:8-p20:8:8-i64:64-"
+                                       "n32:64-S128-ni:1:10:20")
+              : (TT.isOSEmscripten() ? "e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-"
+                                       "f128:64-n32:64-S128-ni:1:10:20"
+                                     : "e-m:e-p:32:32-p10:8:8-p20:8:8-i64:64-"
+                                       "n32:64-S128-ni:1:10:20"),
           TT, CPU, FS, Options, getEffectiveRelocModel(RM, TT),
           getEffectiveCodeModel(CM, CodeModel::Large), OL),
       TLOF(new WebAssemblyTargetObjectFile()) {

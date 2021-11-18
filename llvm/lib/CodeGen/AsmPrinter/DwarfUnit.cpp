@@ -754,6 +754,8 @@ void DwarfUnit::constructTypeDIE(DIE &Buffer, const DIDerivedType *DTy) {
   if (!Name.empty())
     addString(Buffer, dwarf::DW_AT_name, Name);
 
+  addAnnotation(Buffer, DTy->getAnnotations());
+
   // If alignment is specified for a typedef , create and insert DW_AT_alignment
   // attribute in DW_TAG_typedef DIE.
   if (Tag == dwarf::DW_TAG_typedef && DD->getDwarfVersion() >= 5) {
@@ -841,7 +843,7 @@ void DwarfUnit::addAnnotation(DIE &Buffer, DINodeArray Annotations) {
     const MDNode *MD = cast<MDNode>(Annotation);
     const MDString *Name = cast<MDString>(MD->getOperand(0));
 
-    // Currently, only MDString is supported with btf_tag attribute.
+    // Currently, only MDString is supported with btf_decl_tag attribute.
     const MDString *Value = cast<MDString>(MD->getOperand(1));
 
     DIE &AnnotationDie = createAndAddDIE(dwarf::DW_TAG_LLVM_annotation, Buffer);

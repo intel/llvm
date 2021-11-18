@@ -129,12 +129,12 @@ static cl::opt<unsigned> StoreMergeDependenceLimit(
 
 static cl::opt<bool> EnableReduceLoadOpStoreWidth(
     "combiner-reduce-load-op-store-width", cl::Hidden, cl::init(true),
-    cl::desc("DAG cominber enable reducing the width of load/op/store "
+    cl::desc("DAG combiner enable reducing the width of load/op/store "
              "sequence"));
 
 static cl::opt<bool> EnableShrinkLoadReplaceStoreWithStore(
     "combiner-shrink-load-replace-store-with-store", cl::Hidden, cl::init(true),
-    cl::desc("DAG cominber enable load/<replace bytes>/store with "
+    cl::desc("DAG combiner enable load/<replace bytes>/store with "
              "a narrower store"));
 
 namespace {
@@ -3319,11 +3319,10 @@ SDValue DAGCombiner::visitSUB(SDNode *N) {
     }
 
     // Convert 0 - abs(x).
-    SDValue Result;
     if (N1->getOpcode() == ISD::ABS &&
-        !TLI.isOperationLegalOrCustom(ISD::ABS, VT) &&
-        TLI.expandABS(N1.getNode(), Result, DAG, true))
-      return Result;
+        !TLI.isOperationLegalOrCustom(ISD::ABS, VT))
+      if (SDValue Result = TLI.expandABS(N1.getNode(), DAG, true))
+        return Result;
 
     // Fold neg(splat(neg(x)) -> splat(x)
     if (VT.isVector()) {
@@ -3841,7 +3840,7 @@ SDValue DAGCombiner::visitMUL(SDNode *N) {
   }
 
   // fold (mul x, -(1 << c)) -> -(x << c) or (-x) << c
-  if (N1IsConst && !N1IsOpaqueConst && (-ConstValue1).isPowerOf2()) {
+  if (N1IsConst && !N1IsOpaqueConst && ConstValue1.isNegatedPowerOf2()) {
     unsigned Log2Val = (-ConstValue1).logBase2();
     SDLoc DL(N);
     // FIXME: If the input is something that is easily negated (e.g. a
@@ -4212,7 +4211,7 @@ SDValue DAGCombiner::visitSDIVLike(SDValue N0, SDValue N1, SDNode *N) {
       return false;
     if (C->getAPIntValue().isPowerOf2())
       return true;
-    if ((-C->getAPIntValue()).isPowerOf2())
+    if (C->getAPIntValue().isNegatedPowerOf2())
       return true;
     return false;
   };
@@ -5627,6 +5626,39 @@ static SDValue combineShiftAnd1ToBitTest(SDNode *And, SelectionDAG &DAG) {
   return DAG.getZExtOrTrunc(Setcc, DL, VT);
 }
 
+/// For targets that support usubsat, match a bit-hack form of that operation
+/// that ends in 'and' and convert it.
+static SDValue foldAndToUsubsat(SDNode *N, SelectionDAG &DAG) {
+  SDValue N0 = N->getOperand(0);
+  SDValue N1 = N->getOperand(1);
+  EVT VT = N1.getValueType();
+
+  // Canonicalize SRA as operand 1.
+  if (N0.getOpcode() == ISD::SRA)
+    std::swap(N0, N1);
+
+  // xor/add with SMIN (signmask) are logically equivalent.
+  if (N0.getOpcode() != ISD::XOR && N0.getOpcode() != ISD::ADD)
+    return SDValue();
+
+  if (N1.getOpcode() != ISD::SRA || !N0.hasOneUse() || !N1.hasOneUse() ||
+      N0.getOperand(0) != N1.getOperand(0))
+    return SDValue();
+
+  unsigned BitWidth = VT.getScalarSizeInBits();
+  ConstantSDNode *XorC = isConstOrConstSplat(N0.getOperand(1), true);
+  ConstantSDNode *SraC = isConstOrConstSplat(N1.getOperand(1), true);
+  if (!XorC || !XorC->getAPIntValue().isSignMask() ||
+      !SraC || SraC->getAPIntValue() != BitWidth - 1)
+    return SDValue();
+
+  // (i8 X ^ 128) & (i8 X s>> 7) --> usubsat X, 128
+  // (i8 X + 128) & (i8 X s>> 7) --> usubsat X, 128
+  SDLoc DL(N);
+  SDValue SignMask = DAG.getConstant(XorC->getAPIntValue(), DL, VT);
+  return DAG.getNode(ISD::USUBSAT, DL, VT, N0.getOperand(0), SignMask);
+}
+
 SDValue DAGCombiner::visitAND(SDNode *N) {
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
@@ -5988,6 +6020,10 @@ SDValue DAGCombiner::visitAND(SDNode *N) {
   // Replace (and (sign_extend ...) #bitmask) with (zero_extend ...).
   if (IsAndZeroExtMask(N0, N1))
     return DAG.getNode(ISD::ZERO_EXTEND, SDLoc(N), VT, N0.getOperand(0));
+
+  if (hasOperation(ISD::USUBSAT, VT))
+    if (SDValue V = foldAndToUsubsat(N, DAG))
+      return V;
 
   return SDValue();
 }
@@ -7315,7 +7351,7 @@ SDValue DAGCombiner::mergeTruncStores(StoreSDNode *N) {
   // TODO: If there is evidence that running this later would help, this
   //       limitation could be removed. Legality checks may need to be added
   //       for the created store and optional bswap/rotate.
-  if (LegalOperations)
+  if (LegalOperations || OptLevel == CodeGenOpt::None)
     return SDValue();
 
   // We only handle merging simple stores of 1-4 bytes.
@@ -12305,7 +12341,7 @@ SDValue DAGCombiner::visitTRUNCATE(SDNode *N) {
     SDValue Amt = N0.getOperand(1);
     KnownBits Known = DAG.computeKnownBits(Amt);
     unsigned Size = VT.getScalarSizeInBits();
-    if (Known.getBitWidth() - Known.countMinLeadingZeros() <= Log2_32(Size)) {
+    if (Known.countMaxActiveBits() <= Log2_32(Size)) {
       SDLoc SL(N);
       EVT AmtVT = TLI.getShiftAmountTy(VT, DAG.getDataLayout());
 
@@ -13025,7 +13061,7 @@ static bool isContractableFMUL(const TargetOptions &Options, SDValue N) {
          N->getFlags().hasAllowContract();
 }
 
-// Return true if `N` can assume no infinities involved in it's computation.
+// Returns true if `N` can assume no infinities involved in its computation.
 static bool hasNoInfs(const TargetOptions &Options, SDValue N) {
   return Options.NoInfsFPMath || N.getNode()->getFlags().hasNoInfs();
 }
@@ -20469,9 +20505,7 @@ static SDValue narrowExtractedVectorLoad(SDNode *Extract, SelectionDAG &DAG) {
     return SDValue();
 
   auto *Ld = dyn_cast<LoadSDNode>(Extract->getOperand(0));
-  auto *ExtIdx = dyn_cast<ConstantSDNode>(Extract->getOperand(1));
-  if (!Ld || Ld->getExtensionType() || !Ld->isSimple() ||
-      !ExtIdx)
+  if (!Ld || Ld->getExtensionType() || !Ld->isSimple())
     return SDValue();
 
   // Allow targets to opt-out.
@@ -20481,7 +20515,7 @@ static SDValue narrowExtractedVectorLoad(SDNode *Extract, SelectionDAG &DAG) {
   if (!VT.isByteSized())
     return SDValue();
 
-  unsigned Index = ExtIdx->getZExtValue();
+  unsigned Index = Extract->getConstantOperandVal(1);
   unsigned NumElts = VT.getVectorMinNumElements();
 
   // The definition of EXTRACT_SUBVECTOR states that the index must be a
@@ -20610,7 +20644,7 @@ SDValue DAGCombiner::visitEXTRACT_SUBVECTOR(SDNode *N) {
     // If the concatenated source types match this extract, it's a direct
     // simplification:
     // extract_subvec (concat V1, V2, ...), i --> Vi
-    if (ConcatSrcNumElts == ExtNumElts)
+    if (NVT.getVectorElementCount() == ConcatSrcVT.getVectorElementCount())
       return V.getOperand(ConcatOpIdx);
 
     // If the concatenated source vectors are a multiple length of this extract,
@@ -20618,7 +20652,8 @@ SDValue DAGCombiner::visitEXTRACT_SUBVECTOR(SDNode *N) {
     // concat operand. Example:
     //   v2i8 extract_subvec (v16i8 concat (v8i8 X), (v8i8 Y), 14 -->
     //   v2i8 extract_subvec v8i8 Y, 6
-    if (NVT.isFixedLengthVector() && ConcatSrcNumElts % ExtNumElts == 0) {
+    if (NVT.isFixedLengthVector() && ConcatSrcVT.isFixedLengthVector() &&
+        ConcatSrcNumElts % ExtNumElts == 0) {
       SDLoc DL(N);
       unsigned NewExtIdx = ExtIdx - ConcatOpIdx * ConcatSrcNumElts;
       assert(NewExtIdx + ExtNumElts <= ConcatSrcNumElts &&
@@ -21253,15 +21288,9 @@ SDValue DAGCombiner::visitVECTOR_SHUFFLE(SDNode *N) {
   ShuffleVectorSDNode *SVN = cast<ShuffleVectorSDNode>(N);
 
   // Canonicalize shuffle v, v -> v, undef
-  if (N0 == N1) {
-    SmallVector<int, 8> NewMask;
-    for (unsigned i = 0; i != NumElts; ++i) {
-      int Idx = SVN->getMaskElt(i);
-      if (Idx >= (int)NumElts) Idx -= NumElts;
-      NewMask.push_back(Idx);
-    }
-    return DAG.getVectorShuffle(VT, SDLoc(N), N0, DAG.getUNDEF(VT), NewMask);
-  }
+  if (N0 == N1)
+    return DAG.getVectorShuffle(VT, SDLoc(N), N0, DAG.getUNDEF(VT),
+                                createUnaryMask(SVN->getMask(), NumElts));
 
   // Canonicalize shuffle undef, v -> v, undef.  Commute the shuffle mask.
   if (N0.isUndef())
@@ -23045,9 +23074,10 @@ SDValue DAGCombiner::BuildDivEstimate(SDValue N, SDValue Op,
   if (LegalDAG)
     return SDValue();
 
-  // TODO: Handle half and/or extended types?
+  // TODO: Handle extended types?
   EVT VT = Op.getValueType();
-  if (VT.getScalarType() != MVT::f32 && VT.getScalarType() != MVT::f64)
+  if (VT.getScalarType() != MVT::f16 && VT.getScalarType() != MVT::f32 &&
+      VT.getScalarType() != MVT::f64)
     return SDValue();
 
   // If estimates are explicitly disabled for this function, we're done.
@@ -23184,9 +23214,10 @@ SDValue DAGCombiner::buildSqrtEstimateImpl(SDValue Op, SDNodeFlags Flags,
   if (LegalDAG)
     return SDValue();
 
-  // TODO: Handle half and/or extended types?
+  // TODO: Handle extended types?
   EVT VT = Op.getValueType();
-  if (VT.getScalarType() != MVT::f32 && VT.getScalarType() != MVT::f64)
+  if (VT.getScalarType() != MVT::f16 && VT.getScalarType() != MVT::f32 &&
+      VT.getScalarType() != MVT::f64)
     return SDValue();
 
   // If estimates are explicitly disabled for this function, we're done.

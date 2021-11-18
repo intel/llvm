@@ -1159,7 +1159,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // precise source location of the checked return statement.
   if (requiresReturnValueCheck()) {
     ReturnLocation = CreateDefaultAlignTempAlloca(Int8PtrTy, "return.sloc.ptr");
-    InitTempAlloca(ReturnLocation, llvm::ConstantPointerNull::get(Int8PtrTy));
+    Builder.CreateStore(llvm::ConstantPointerNull::get(Int8PtrTy),
+                        ReturnLocation);
   }
 
   // Emit subprogram debug descriptor.
@@ -1539,7 +1540,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
 
   SyclOptReportHandler &SyclOptReport = CGM.getDiags().getSYCLOptReport();
-  if (SyclOptReport.HasOptReportInfo(FD)) {
+  if (Fn && SyclOptReport.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
     for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
       llvm::DiagnosticLocation DL =
@@ -2747,8 +2748,7 @@ void CodeGenFunction::checkTargetFeatures(SourceLocation Loc,
     // Return if the builtin doesn't have any required features.
     if (FeatureList.empty())
       return;
-    assert(FeatureList.find(' ') == StringRef::npos &&
-           "Space in feature list");
+    assert(!FeatureList.contains(' ') && "Space in feature list");
     TargetFeatures TF(CallerFeatureMap);
     if (!TF.hasRequiredFeatures(FeatureList))
       CGM.getDiags().Report(Loc, diag::err_builtin_needs_feature)

@@ -88,12 +88,31 @@ std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyTilePass(
     linalg::LinalgTransformationFilter filter =
         linalg::LinalgTransformationFilter());
 
+/// Create a LinalgStrategyPadPass.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyPadPass(
+    StringRef opName = "",
+    linalg::LinalgPaddingOptions opt = linalg::LinalgPaddingOptions(),
+    linalg::LinalgTransformationFilter filter =
+        linalg::LinalgTransformationFilter());
+
 /// Create a LinalgStrategyPromotePass.
 std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyPromotePass(
     StringRef opName = "",
     linalg::LinalgPromotionOptions opt = linalg::LinalgPromotionOptions(),
     linalg::LinalgTransformationFilter filter =
         linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyGeneralizePass.
+std::unique_ptr<OperationPass<FuncOp>>
+createLinalgStrategyGeneralizePass(StringRef opName = "",
+                                   linalg::LinalgTransformationFilter filter =
+                                       linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyInterchangePass.
+std::unique_ptr<OperationPass<FuncOp>>
+createLinalgStrategyInterchangePass(ArrayRef<int64_t> iteratorInterchange = {},
+                                    linalg::LinalgTransformationFilter filter =
+                                        linalg::LinalgTransformationFilter());
 
 /// Create a LinalgStrategyVectorizePass.
 std::unique_ptr<OperationPass<FuncOp>>
@@ -115,6 +134,10 @@ createLinalgStrategyLowerVectorsPass(linalg::LinalgVectorLoweringOptions opt =
                                          linalg::LinalgVectorLoweringOptions(),
                                      linalg::LinalgTransformationFilter filter =
                                          linalg::LinalgTransformationFilter());
+
+/// Create a LinalgStrategyRemoveMarkersPass.
+std::unique_ptr<OperationPass<FuncOp>> createLinalgStrategyRemoveMarkersPass();
+
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//

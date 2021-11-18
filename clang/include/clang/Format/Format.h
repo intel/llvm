@@ -208,7 +208,7 @@ struct FormatStyle {
   ///      /* some comment */
   ///      #define bar(y, z)        (y + z)
   ///    \endcode
-  /// \version 13
+  /// \version 9
   AlignConsecutiveStyle AlignConsecutiveMacros;
 
   /// Style of aligning consecutive assignments.
@@ -277,7 +277,7 @@ struct FormatStyle {
   ///      /* A comment. */
   ///      double e         = 4;
   ///    \endcode
-  /// \version 13
+  /// \version 3.8
   AlignConsecutiveStyle AlignConsecutiveAssignments;
 
   /// Style of aligning consecutive bit field.
@@ -347,7 +347,7 @@ struct FormatStyle {
   ///      /* A comment. */
   ///      int ee   : 3;
   ///    \endcode
-  /// \version 13
+  /// \version 11
   AlignConsecutiveStyle AlignConsecutiveBitFields;
 
   /// Style of aligning consecutive declarations.
@@ -417,7 +417,7 @@ struct FormatStyle {
   ///      /* A comment. */
   ///      bool        c = false;
   ///    \endcode
-  /// \version 13
+  /// \version 3.8
   AlignConsecutiveStyle AlignConsecutiveDeclarations;
 
   /// Different styles for aligning escaped newlines.
@@ -930,7 +930,7 @@ struct FormatStyle {
   ///   AttributeMacros: ['__capability', '__output', '__ununsed']
   /// \endcode
   ///
-  /// \version 13
+  /// \version 12
   std::vector<std::string> AttributeMacros;
 
   /// If ``false``, a function call's arguments will either be all on the
@@ -1919,8 +1919,9 @@ struct FormatStyle {
   ///   * type
   ///
   /// Note: it MUST contain 'type'.
-  /// Items to the left of 'type' will be placed to the left of the type and aligned in the order supplied.
-  /// Items to the right of 'type' will be placed to the right of the type and aligned in the order supplied.
+  /// Items to the left of 'type' will be placed to the left of the type and
+  /// aligned in the order supplied. Items to the right of 'type' will be placed
+  /// to the right of the type and aligned in the order supplied.
   ///
   /// \code{.yaml}
   ///   QualifierOrder: ['inline', 'static', 'type', 'const', 'volatile' ]
@@ -2904,7 +2905,7 @@ struct FormatStyle {
 
   /// Penalty for each character of whitespace indentation
   /// (counted relative to leading non-whitespace column).
-  /// \version 13
+  /// \version 12
   unsigned PenaltyIndentedWhitespace;
 
   /// The ``&``, ``&&`` and ``*`` alignment style.
@@ -3131,7 +3132,7 @@ struct FormatStyle {
   /// When sorting Java imports, by default static imports are placed before
   /// non-static imports. If ``JavaStaticImportAfterImport`` is ``After``,
   /// static imports are placed after non-static imports.
-  /// \version 13
+  /// \version 12
   SortJavaStaticImportOptions SortJavaStaticImport;
 
   /// If ``true``, clang-format will sort using declarations.
@@ -3205,7 +3206,7 @@ struct FormatStyle {
   };
 
   ///  Defines in which cases to put a space before or after pointer qualifiers
-  /// \version 13
+  /// \version 12
   SpaceAroundPointerQualifiersStyle SpaceAroundPointerQualifiers;
 
   /// If ``false``, spaces will be removed before assignment operators.
@@ -3224,7 +3225,7 @@ struct FormatStyle {
   ///     case 1 : break;                         case 1: break;
   ///   }                                       }
   /// \endcode
-  /// \version 13
+  /// \version 12
   bool SpaceBeforeCaseColon;
 
   /// If ``true``, a space will be inserted before a C++11 braced list
@@ -3429,29 +3430,31 @@ struct FormatStyle {
   /// How many spaces are allowed at the start of a line comment. To disable the
   /// maximum set it to ``-1``, apart from that the maximum takes precedence
   /// over the minimum.
-  /// \code Minimum = 1 Maximum = -1
-  /// // One space is forced
+  /// \code
+  ///   Minimum = 1
+  ///   Maximum = -1
+  ///   // One space is forced
   ///
-  /// //  but more spaces are possible
+  ///   //  but more spaces are possible
   ///
-  /// Minimum = 0
-  /// Maximum = 0
-  /// //Forces to start every comment directly after the slashes
+  ///   Minimum = 0
+  ///   Maximum = 0
+  ///   //Forces to start every comment directly after the slashes
   /// \endcode
   ///
   /// Note that in line comment sections the relative indent of the subsequent
   /// lines is kept, that means the following:
   /// \code
-  /// before:                                   after:
-  /// Minimum: 1
-  /// //if (b) {                                // if (b) {
-  /// //  return true;                          //   return true;
-  /// //}                                       // }
+  ///   before:                                   after:
+  ///   Minimum: 1
+  ///   //if (b) {                                // if (b) {
+  ///   //  return true;                          //   return true;
+  ///   //}                                       // }
   ///
-  /// Maximum: 0
-  /// /// List:                                 ///List:
-  /// ///  - Foo                                /// - Foo
-  /// ///    - Bar                              ///   - Bar
+  ///   Maximum: 0
+  ///   /// List:                                 ///List:
+  ///   ///  - Foo                                /// - Foo
+  ///   ///    - Bar                              ///   - Bar
   /// \endcode
   /// \version 14
   SpacesInLineComment SpacesInLineCommentPrefix;
@@ -3511,7 +3514,7 @@ struct FormatStyle {
     BFCS_After
   };
   /// The BitFieldColonSpacingStyle to use for bitfields.
-  /// \version 13
+  /// \version 12
   BitFieldColonSpacingStyle BitFieldColonSpacing;
 
   /// Supported language standards for parsing and formatting C++ constructs.
@@ -3563,7 +3566,7 @@ struct FormatStyle {
   ///   unsigned char data = 'x';
   ///   emit signal(data); // Now it's fine again.
   /// \endcode
-  /// \version 13
+  /// \version 12
   std::vector<std::string> StatementAttributeLikeMacros;
 
   /// The number of columns used for tab stops.

@@ -11,6 +11,7 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
+include(SYCLUtils)
 
 set(SYCL_MAJOR_VERSION 5)
 set(SYCL_MINOR_VERSION 4)
@@ -48,6 +49,15 @@ if(MSVC)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
   # never throw C++ exceptions.
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+
+  # Add PDB debug information
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+  include(LLVMCheckLinkerFlag)
+  llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  if(LINKER_SUPPORTS_DEBUG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
+    add_link_options("/DEBUG")
+  endif()
 endif()
 
 # Get clang's version
@@ -100,6 +110,8 @@ set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
+set(feature_header "${sycl_inc_dir}/CL/sycl/feature_test.hpp")
+configure_file("${feature_header}.in" "${feature_header}")
 
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
@@ -310,8 +322,8 @@ endif()
 # TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
 # environment
 if (NOT MSVC)
-  if (SYCL_BUILD_PI_ESIMD_CPU)
-    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_cpu libcmrt-headers)
+  if (SYCL_BUILD_PI_ESIMD_EMULATOR)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
     if (MSVC)
       list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
     else()

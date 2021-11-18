@@ -338,12 +338,18 @@ MlirOperation mlirOperationClone(MlirOperation op) {
 
 void mlirOperationDestroy(MlirOperation op) { unwrap(op)->erase(); }
 
+void mlirOperationRemoveFromParent(MlirOperation op) { unwrap(op)->remove(); }
+
 bool mlirOperationEqual(MlirOperation op, MlirOperation other) {
   return unwrap(op) == unwrap(other);
 }
 
 MlirContext mlirOperationGetContext(MlirOperation op) {
   return wrap(unwrap(op)->getContext());
+}
+
+MlirLocation mlirOperationGetLocation(MlirOperation op) {
+  return wrap(unwrap(op)->getLoc());
 }
 
 MlirTypeID mlirOperationGetTypeID(MlirOperation op) {
@@ -445,6 +451,14 @@ void mlirOperationDump(MlirOperation op) { return unwrap(op)->dump(); }
 
 bool mlirOperationVerify(MlirOperation op) {
   return succeeded(verify(unwrap(op)));
+}
+
+void mlirOperationMoveAfter(MlirOperation op, MlirOperation other) {
+  return unwrap(op)->moveAfter(unwrap(other));
+}
+
+void mlirOperationMoveBefore(MlirOperation op, MlirOperation other) {
+  return unwrap(op)->moveBefore(unwrap(other));
 }
 
 //===----------------------------------------------------------------------===//

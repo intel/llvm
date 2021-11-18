@@ -312,8 +312,7 @@ public:
 
   template <typename ExcludePredicate>
   bool removeBindings(const ExcludePredicate &Predicate) {
-    Bindings.erase(std::remove_if(Bindings.begin(), Bindings.end(), Predicate),
-                   Bindings.end());
+    llvm::erase_if(Bindings, Predicate);
     return !Bindings.empty();
   }
 
@@ -2249,11 +2248,7 @@ public:
 
   bool matchesNode(const T &Node) const override {
     Optional<StringRef> OptOpName = getOpName(Node);
-    if (!OptOpName)
-      return false;
-    return llvm::any_of(Names, [OpName = *OptOpName](const std::string &Name) {
-      return Name == OpName;
-    });
+    return OptOpName && llvm::is_contained(Names, *OptOpName);
   }
 
 private:
@@ -2307,6 +2302,26 @@ bool matchesAnyBase(const CXXRecordDecl &Node,
 std::shared_ptr<llvm::Regex> createAndVerifyRegex(StringRef Regex,
                                                   llvm::Regex::RegexFlags Flags,
                                                   StringRef MatcherID);
+
+inline bool
+MatchTemplateArgLocAt(const DeclRefExpr &Node, unsigned int Index,
+                      internal::Matcher<TemplateArgumentLoc> InnerMatcher,
+                      internal::ASTMatchFinder *Finder,
+                      internal::BoundNodesTreeBuilder *Builder) {
+  llvm::ArrayRef<TemplateArgumentLoc> ArgLocs = Node.template_arguments();
+  return Index < ArgLocs.size() &&
+         InnerMatcher.matches(ArgLocs[Index], Finder, Builder);
+}
+
+inline bool
+MatchTemplateArgLocAt(const TemplateSpecializationTypeLoc &Node,
+                      unsigned int Index,
+                      internal::Matcher<TemplateArgumentLoc> InnerMatcher,
+                      internal::ASTMatchFinder *Finder,
+                      internal::BoundNodesTreeBuilder *Builder) {
+  return !Node.isNull() && Index < Node.getNumArgs() &&
+         InnerMatcher.matches(Node.getArgLoc(Index), Finder, Builder);
+}
 
 } // namespace internal
 

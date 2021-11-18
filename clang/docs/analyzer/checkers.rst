@@ -313,6 +313,22 @@ cplusplus.SelfAssignment (C++)
 """"""""""""""""""""""""""""""
 Checks C++ copy and move assignment operators for self assignment.
 
+.. _cplusplus-StringChecker:
+
+cplusplus.StringChecker (C++)
+"""""""""""""""""""""""""""""
+Checks std::string operations.
+
+.. code-block:: cpp
+
+ #include <string>
+
+ void f(const char *p) {
+   if (!p) {
+     std::string msg(p); // warn: p is NULL
+   }
+ }
+
 .. _deadcode-checkers:
 
 deadcode
@@ -2059,7 +2075,7 @@ SEI CERT checkers which tries to find errors based on their `C coding rules <htt
 alpha.security.cert.pos
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-SEI CERT checkers of `POSIX C coding rules <https://wiki.sei.cmu.edu/confluence/pages/viewpage.action?pageId=87152405>`_.
+SEI CERT checkers of `POSIX C coding rules <https://wiki.sei.cmu.edu/confluence/pages/viewpage.action?pageId=87152405>`__.
 
 .. _alpha-security-cert-pos-34c:
 
@@ -2082,12 +2098,12 @@ Finds calls to the ``putenv`` function which pass a pointer to an automatic vari
 alpha.security.cert.env
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-SEI CERT checkers of `POSIX C coding rules <https://wiki.sei.cmu.edu/confluence/x/JdcxBQ>`_.
+SEI CERT checkers of `POSIX C coding rules <https://wiki.sei.cmu.edu/confluence/x/JdcxBQ>`__.
 
 .. _alpha-security-cert-env-InvalidPtr:
 
 alpha.security.cert.env.InvalidPtr
-"""""""""""""""""""""""""""
+""""""""""""""""""""""""""""""""""
 
 Corresponds to SEI CERT Rules ENV31-C and ENV34-C.
 

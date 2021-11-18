@@ -13,6 +13,8 @@
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
 
+#include "ScriptedThread.h"
+
 #include <mutex>
 
 namespace lldb_private {
@@ -46,9 +48,9 @@ public:
 
   static void Terminate();
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "ScriptedProcess"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic();
 
   ScriptedProcess(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
                   const ScriptedProcess::ScriptedProcessInfo &launch_info,
@@ -61,7 +63,7 @@ public:
 
   DynamicLoader *GetDynamicLoader() override { return nullptr; }
 
-  ConstString GetPluginName() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   SystemRuntime *GetSystemRuntime() override { return nullptr; }
 
@@ -101,6 +103,8 @@ protected:
                           ThreadList &new_thread_list) override;
 
 private:
+  friend class ScriptedThread;
+
   void CheckInterpreterAndScriptObject() const;
   ScriptedProcessInterface &GetInterface() const;
   static bool IsScriptLanguageSupported(lldb::ScriptLanguage language);

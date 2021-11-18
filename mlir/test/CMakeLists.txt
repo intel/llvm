@@ -1,16 +1,9 @@
 add_subdirectory(CAPI)
 add_subdirectory(lib)
 
-llvm_canonicalize_cmake_booleans(
-  MLIR_ENABLE_BINDINGS_PYTHON
-  LLVM_BUILD_EXAMPLES
-  MLIR_ENABLE_CUDA_CONVERSIONS
-  MLIR_ENABLE_CUDA_RUNNER
-  MLIR_ENABLE_ROCM_CONVERSIONS
-  MLIR_ENABLE_ROCM_RUNNER
-  MLIR_ENABLE_SPIRV_CPU_RUNNER
-  MLIR_ENABLE_VULKAN_RUNNER
-  )
+if (MLIR_ENABLE_BINDINGS_PYTHON)
+  add_subdirectory(python)
+endif()
 
 # Passed to lit.site.cfg.py.so that the out of tree Standalone dialect test
 # can find MLIR's CMake configuration
@@ -44,6 +37,21 @@ if (MLIR_INCLUDE_INTEGRATION_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/Integration/data/zero.mtx
           DESTINATION ${MLIR_INTEGRATION_TEST_DIR}/data/)
 endif()
+
+llvm_canonicalize_cmake_booleans(
+  LLVM_BUILD_EXAMPLES
+  MLIR_ENABLE_BINDINGS_PYTHON
+  MLIR_ENABLE_CUDA_CONVERSIONS
+  MLIR_ENABLE_CUDA_RUNNER
+  MLIR_ENABLE_ROCM_CONVERSIONS
+  MLIR_ENABLE_ROCM_RUNNER
+  MLIR_ENABLE_SPIRV_CPU_RUNNER
+  MLIR_ENABLE_VULKAN_RUNNER
+  MLIR_INCLUDE_INTEGRATION_TESTS
+  MLIR_RUN_AMX_TESTS
+  MLIR_RUN_CUDA_TENSOR_CORE_TESTS
+  MLIR_RUN_X86VECTOR_TESTS
+  )
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
@@ -120,7 +128,6 @@ endif()
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   list(APPEND MLIR_TEST_DEPENDS
     MLIRPythonModules
-    MLIRPythonTestModules
   )
 endif()
 

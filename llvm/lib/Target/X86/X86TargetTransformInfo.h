@@ -80,6 +80,7 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
       X86::TuningSlowUAMem16,
       X86::TuningPreferMaskRegisters,
       X86::TuningInsertVZEROUPPER,
+      X86::TuningUseSLMArithCosts,
       X86::TuningUseGLMDivSqrtCosts,
 
       // Perf-tuning flags.
@@ -91,8 +92,7 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
       X86::TuningPrefer256Bit,
 
       // CPU name enums. These just follow CPU string.
-      X86::ProcIntelAtom,
-      X86::ProcIntelSLM,
+      X86::ProcIntelAtom
   };
 
 public:
@@ -199,11 +199,6 @@ public:
       ArrayRef<unsigned> Indices, Align Alignment, unsigned AddressSpace,
       TTI::TargetCostKind CostKind, bool UseMaskForCond = false,
       bool UseMaskForGaps = false);
-  InstructionCost getInterleavedMemoryOpCostAVX2(
-      unsigned Opcode, FixedVectorType *VecTy, unsigned Factor,
-      ArrayRef<unsigned> Indices, Align Alignment, unsigned AddressSpace,
-      TTI::TargetCostKind CostKind, bool UseMaskForCond = false,
-      bool UseMaskForGaps = false);
 
   InstructionCost getIntImmCost(int64_t);
 
@@ -240,9 +235,12 @@ public:
                                     SmallPtrSetImpl<Argument *> &Args) const;
   TTI::MemCmpExpansionOptions enableMemCmpExpansion(bool OptSize,
                                                     bool IsZeroCmp) const;
+  bool prefersVectorizedAddressing() const;
+  bool supportsEfficientVectorElementLoadStore() const;
   bool enableInterleavedAccessVectorization();
 
 private:
+  bool supportsGather() const;
   InstructionCost getGSScalarCost(unsigned Opcode, Type *DataTy,
                                   bool VariableMask, Align Alignment,
                                   unsigned AddressSpace);

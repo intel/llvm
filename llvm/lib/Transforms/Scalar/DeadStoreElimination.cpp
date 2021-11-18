@@ -1844,8 +1844,29 @@ struct DSEState {
           if (!TLI.getLibFunc(*InnerCallee, Func) || !TLI.has(Func) ||
               Func != LibFunc_malloc)
             return false;
+
+          auto shouldCreateCalloc = [](CallInst *Malloc, CallInst *Memset) {
+            // Check for br(icmp ptr, null), truebb, falsebb) pattern at the end
+            // of malloc block
+            auto *MallocBB = Malloc->getParent(),
+                 *MemsetBB = Memset->getParent();
+            if (MallocBB == MemsetBB)
+              return true;
+            auto *Ptr = Memset->getArgOperand(0);
+            auto *TI = MallocBB->getTerminator();
+            ICmpInst::Predicate Pred;
+            BasicBlock *TrueBB, *FalseBB;
+            if (!match(TI, m_Br(m_ICmp(Pred, m_Specific(Ptr), m_Zero()), TrueBB,
+                                FalseBB)))
+              return false;
+            if (Pred != ICmpInst::ICMP_EQ || MemsetBB != FalseBB)
+              return false;
+            return true;
+          };
+
           if (Malloc->getOperand(0) == MemSet->getLength()) {
-            if (DT.dominates(Malloc, MemSet) && PDT.dominates(MemSet, Malloc) &&
+            if (shouldCreateCalloc(Malloc, MemSet) &&
+                DT.dominates(Malloc, MemSet) &&
                 memoryIsNotModifiedBetween(Malloc, MemSet, BatchAA, DL, &DT)) {
               IRBuilder<> IRB(Malloc);
               const auto &DL = Malloc->getModule()->getDataLayout();
@@ -1920,6 +1941,56 @@ struct DSEState {
 
     return false;
   }
+
+  /// Eliminates writes to locations where the value that is being written
+  /// is already stored at the same location.
+  bool eliminateRedundantStoresOfExistingValues() {
+    bool MadeChange = false;
+    LLVM_DEBUG(dbgs() << "Trying to eliminate MemoryDefs that write the "
+                         "already existing value\n");
+    for (auto *Def : MemDefs) {
+      if (SkipStores.contains(Def) || MSSA.isLiveOnEntryDef(Def) ||
+          !isRemovable(Def->getMemoryInst()))
+        continue;
+      auto *UpperDef = dyn_cast<MemoryDef>(Def->getDefiningAccess());
+      if (!UpperDef || MSSA.isLiveOnEntryDef(UpperDef))
+        continue;
+
+      Instruction *DefInst = Def->getMemoryInst();
+      Instruction *UpperInst = UpperDef->getMemoryInst();
+      auto IsRedundantStore = [this, DefInst,
+                               UpperInst](MemoryLocation UpperLoc) {
+        if (DefInst->isIdenticalTo(UpperInst))
+          return true;
+        if (auto *MemSetI = dyn_cast<MemSetInst>(UpperInst)) {
+          if (auto *SI = dyn_cast<StoreInst>(DefInst)) {
+            auto MaybeDefLoc = getLocForWriteEx(DefInst);
+            if (!MaybeDefLoc)
+              return false;
+            int64_t InstWriteOffset = 0;
+            int64_t DepWriteOffset = 0;
+            auto OR = isOverwrite(UpperInst, DefInst, UpperLoc, *MaybeDefLoc,
+                                  InstWriteOffset, DepWriteOffset);
+            Value *StoredByte = isBytewiseValue(SI->getValueOperand(), DL);
+            return StoredByte && StoredByte == MemSetI->getOperand(1) &&
+                   OR == OW_Complete;
+          }
+        }
+        return false;
+      };
+
+      auto MaybeUpperLoc = getLocForWriteEx(UpperInst);
+      if (!MaybeUpperLoc || !IsRedundantStore(*MaybeUpperLoc) ||
+          isReadClobber(*MaybeUpperLoc, DefInst))
+        continue;
+      LLVM_DEBUG(dbgs() << "DSE: Remove No-Op Store:\n  DEAD: " << *DefInst
+                        << '\n');
+      deleteDeadInstruction(DefInst);
+      NumRedundantStores++;
+      MadeChange = true;
+    }
+    return MadeChange;
+  }
 };
 
 static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
@@ -1951,8 +2022,6 @@ static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
     MemoryLocation KillingLoc = *MaybeKillingLoc;
     assert(KillingLoc.Ptr && "KillingLoc should not be null");
     const Value *KillingUndObj = getUnderlyingObject(KillingLoc.Ptr);
-
-    MemoryAccess *Current = KillingDef;
     LLVM_DEBUG(dbgs() << "Trying to eliminate MemoryDefs killed by "
                       << *KillingDef << " (" << *KillingI << ")\n");
 
@@ -1967,7 +2036,7 @@ static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
     bool IsMemTerm = State.isMemTerminatorInst(KillingI);
     // Check if MemoryAccesses in the worklist are killed by KillingDef.
     for (unsigned I = 0; I < ToCheck.size(); I++) {
-      Current = ToCheck[I];
+      MemoryAccess *Current = ToCheck[I];
       if (State.SkipStores.count(Current))
         continue;
 
@@ -2087,6 +2156,7 @@ static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
     for (auto &KV : State.IOLs)
       MadeChange |= removePartiallyOverlappedStores(State.DL, KV.second, TLI);
 
+  MadeChange |= State.eliminateRedundantStoresOfExistingValues();
   MadeChange |= State.eliminateDeadWritesAtEndOfFunction();
   return MadeChange;
 }

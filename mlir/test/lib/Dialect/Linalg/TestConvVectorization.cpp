@@ -94,12 +94,12 @@ void TestConvVectorization::runOnOperation() {
   //===--------------------------------------------------------------------===//
 
   VectorTransformsOptions vectorTransformOptions{
-      VectorContractLowering::Dot, VectorTransposeLowering::EltWise};
+      VectorContractLowering::Dot, VectorMultiReductionLowering::InnerParallel,
+      VectorTransposeLowering::EltWise};
 
   RewritePatternSet vectorTransferPatterns(context);
-  // Pattern is not applied because rank-reducing vector transfer is not yet
-  // supported as can be seen in splitFullAndPartialTransferPrecondition,
-  // VectorTransforms.cpp
+  // Pattern is not applied: rank-reducing vector transfer is not yet supported
+  // (see: splitFullAndPartialTransferPrecondition in VectorTransforms.cpp).
   vectorTransferPatterns.add<VectorTransferFullPartialRewriter>(
       context, vectorTransformOptions);
   (void)applyPatternsAndFoldGreedily(module, std::move(vectorTransferPatterns));
@@ -112,8 +112,11 @@ void TestConvVectorization::runOnOperation() {
 
   // Programmatic controlled lowering of vector.contract only.
   RewritePatternSet vectorContractLoweringPatterns(context);
+  populateVectorBroadcastLoweringPatterns(vectorContractLoweringPatterns);
   populateVectorContractLoweringPatterns(vectorContractLoweringPatterns,
                                          vectorTransformOptions);
+  populateVectorMaskOpLoweringPatterns(vectorContractLoweringPatterns);
+  populateVectorShapeCastLoweringPatterns(vectorContractLoweringPatterns);
   populateVectorTransposeLoweringPatterns(vectorContractLoweringPatterns,
                                           vectorTransformOptions);
   (void)applyPatternsAndFoldGreedily(module,

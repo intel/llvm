@@ -77,6 +77,11 @@ class Pred;
 //   type constraints directly to an operand/result, $_self will be replaced
 //   by the operand/result's type. E.g., for `F32` in `F32:$operand`, its
 //   `$_self` will be expanded as `getOperand(...).getType()`.
+//
+// One thing to be noticed, while using these placeholders in the C expression,
+// the type of placeholder is only guaranteed to be the base type. For example,
+// if you have a predicate in the form `CPred<"CheckType($_self)">, the argument
+// type of the function `CheckType` should be `mlir::Type`.
 class CPred<code pred> : Pred {
   code predExpr = "(" # pred # ")";
 }
@@ -237,6 +242,11 @@ def IsTupleTypePred : CPred<"$_self.isa<::mlir::TupleType>()">;
 // Dialect definitions
 //===----------------------------------------------------------------------===//
 
+// "Enum" values for emitAccessorPrefix of Dialect.
+defvar kEmitAccessorPrefix_Raw = 0;      // Don't emit any getter/setter prefix.
+defvar kEmitAccessorPrefix_Prefixed = 1; // Only emit with getter/setter prefix.
+defvar kEmitAccessorPrefix_Both = 2;     // Emit without and with prefix.
+
 class Dialect {
   // The name of the dialect.
   string name = ?;
@@ -290,6 +300,17 @@ class Dialect {
 
   // If this dialect overrides the hook for canonicalization patterns.
   bit hasCanonicalizer = 0;
+
+  // Whether to emit raw/with no prefix or format changes, or emit with
+  // accessor with prefix only and UpperCamel suffix or to emit accessors with
+  // both.
+  //
+  // If emitting with prefix is specified then the attribute/operand's
+  // name is converted to UpperCamel from snake_case (which would result in
+  // leaving UpperCamel unchanged while also converting lowerCamel to
+  // UpperCamel) and prefixed with `get` or `set` depending on if it is a getter
+  // or setter.
+  int emitAccessorPrefix = kEmitAccessorPrefix_Raw;
 }
 
 //===----------------------------------------------------------------------===//
@@ -912,6 +933,11 @@ class OptionalAttr<Attr attr> : Attr<attr.predicate, attr.summary> {
   let baseAttr = attr;
 }
 
+// Default-valued string-based attribute. Wraps the default value in escaped
+// quotes.
+class DefaultValuedStrAttr<Attr attr, string val>
+    : DefaultValuedAttr<attr, "\"" # val # "\"">;
+
 //===----------------------------------------------------------------------===//
 // Primitive attribute kinds
 
@@ -932,6 +958,19 @@ def AnyAttr : Attr<CPred<"true">, "any attribute"> {
   let returnType = "::mlir::Attribute";
   let convertFromStorage = "$_self";
   let constBuilderCall = "$0";
+}
+
+// Any attribute from the given list
+class AnyAttrOf<list<Attr> allowedAttrs, string summary = "",
+                string cppClassName = "::mlir::Attribute",
+                string fromStorage = "$_self"> : Attr<
+    // Satisfy any of the allowed attribute's condition
+    Or<!foreach(allowedattr, allowedAttrs, allowedattr.predicate)>,
+    !if(!eq(summary, ""),
+        !interleave(!foreach(t, allowedAttrs, t.summary), " or "),
+        summary)> {
+    let returnType = cppClassName;
+    let convertFromStorage = fromStorage;
 }
 
 def BoolAttr : Attr<CPred<"$_self.isa<::mlir::BoolAttr>()">, "bool attribute"> {
@@ -1079,7 +1118,7 @@ def F64Attr : FloatAttrBase<F64, "64-bit float attribute">;
 
 // An attribute backed by a string type.
 class StringBasedAttr<Pred condition, string descr> : Attr<condition, descr> {
-  let constBuilderCall = "$_builder.getStringAttr(\"$0\")";
+  let constBuilderCall = "$_builder.getStringAttr($0)";
   let storageType = [{ ::mlir::StringAttr }];
   let returnType = [{ ::llvm::StringRef }];
   let valueType = NoneType;
@@ -1602,6 +1641,11 @@ def SymbolRefArrayAttr :
   let constBuilderCall = ?;
 }
 
+def FlatSymbolRefArrayAttr :
+  TypedArrayAttrBase<FlatSymbolRefAttr, "flat symbol ref array attribute"> {
+  let constBuilderCall = ?;
+}
+
 //===----------------------------------------------------------------------===//
 // Derive attribute kinds
 
@@ -1655,6 +1699,10 @@ class ConstF32Attr<string val> : ConstantAttr<F32Attr, val>;
 def ConstBoolAttrFalse : ConstantAttr<BoolAttr, "false">;
 def ConstBoolAttrTrue : ConstantAttr<BoolAttr, "true">;
 def ConstUnitAttr : ConstantAttr<UnitAttr, "unit">;
+
+// Constant string-based attribute. Wraps the desired string in escaped quotes.
+class ConstantStrAttr<Attr attribute, string val>
+    : ConstantAttr<attribute, "\"" # val # "\"">;
 
 //===----------------------------------------------------------------------===//
 // Common attribute constraints

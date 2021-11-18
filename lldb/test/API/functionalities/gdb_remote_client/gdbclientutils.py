@@ -200,6 +200,9 @@ class MockGDBServerResponder:
             return self.QEnvironment(packet)
         if packet.startswith("QEnvironmentHexEncoded:"):
             return self.QEnvironmentHexEncoded(packet)
+        if packet.startswith("qRegisterInfo"):
+            regnum = int(packet[len("qRegisterInfo"):], 16)
+            return self.qRegisterInfo(regnum)
 
         return self.other(packet)
 
@@ -325,6 +328,9 @@ class MockGDBServerResponder:
     def QEnvironmentHexEncoded(self, packet):
         return "OK"
 
+    def qRegisterInfo(self, num):
+        return ""
+
     """
     Raised when we receive a packet for which there is no default action.
     Override the responder class to implement behavior suitable for the test at
@@ -421,7 +427,7 @@ class PtyServerSocket(ServerSocket):
         return libc.ptsname(self._master.fileno()).decode()
 
     def get_connect_url(self):
-        return "file://" + self.get_connect_address()
+        return "serial://" + self.get_connect_address()
 
     def close_server(self):
         self._slave.close()

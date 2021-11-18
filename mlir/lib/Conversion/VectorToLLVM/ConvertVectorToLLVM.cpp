@@ -9,11 +9,12 @@
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 
 #include "mlir/Conversion/LLVMCommon/VectorPattern.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
+#include "mlir/Dialect/Vector/VectorTransforms.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
@@ -51,17 +52,6 @@ static Value insertOne(ConversionPatternRewriter &rewriter,
                                               rewriter.getI64ArrayAttr(pos));
 }
 
-// Helper that picks the proper sequence for inserting.
-static Value insertOne(PatternRewriter &rewriter, Location loc, Value from,
-                       Value into, int64_t offset) {
-  auto vectorType = into.getType().cast<VectorType>();
-  if (vectorType.getRank() > 1)
-    return rewriter.create<InsertOp>(loc, from, into, offset);
-  return rewriter.create<vector::InsertElementOp>(
-      loc, vectorType, from, into,
-      rewriter.create<ConstantIndexOp>(loc, offset));
-}
-
 // Helper that picks the proper sequence for extracting.
 static Value extractOne(ConversionPatternRewriter &rewriter,
                         LLVMTypeConverter &typeConverter, Location loc,
@@ -76,32 +66,6 @@ static Value extractOne(ConversionPatternRewriter &rewriter,
   }
   return rewriter.create<LLVM::ExtractValueOp>(loc, llvmType, val,
                                                rewriter.getI64ArrayAttr(pos));
-}
-
-// Helper that picks the proper sequence for extracting.
-static Value extractOne(PatternRewriter &rewriter, Location loc, Value vector,
-                        int64_t offset) {
-  auto vectorType = vector.getType().cast<VectorType>();
-  if (vectorType.getRank() > 1)
-    return rewriter.create<ExtractOp>(loc, vector, offset);
-  return rewriter.create<vector::ExtractElementOp>(
-      loc, vectorType.getElementType(), vector,
-      rewriter.create<ConstantIndexOp>(loc, offset));
-}
-
-// Helper that returns a subset of `arrayAttr` as a vector of int64_t.
-// TODO: Better support for attribute subtype forwarding + slicing.
-static SmallVector<int64_t, 4> getI64SubArray(ArrayAttr arrayAttr,
-                                              unsigned dropFront = 0,
-                                              unsigned dropBack = 0) {
-  assert(arrayAttr.size() > dropFront + dropBack && "Out of bounds");
-  auto range = arrayAttr.getAsRange<IntegerAttr>();
-  SmallVector<int64_t, 4> res;
-  res.reserve(arrayAttr.size() - dropFront - dropBack);
-  for (auto it = range.begin() + dropFront, eit = range.end() - dropBack;
-       it != eit; ++it)
-    res.push_back((*it).getValue().getSExtValue());
-  return res;
 }
 
 // Helper that returns data layout alignment of a memref.
@@ -434,18 +398,16 @@ public:
       else if (kind == "mul")
         rewriter.replaceOpWithNewOp<LLVM::vector_reduce_mul>(reductionOp,
                                                              llvmType, operand);
-      else if (kind == "min" &&
-               (eltType.isIndex() || eltType.isUnsignedInteger()))
+      else if (kind == "minui")
         rewriter.replaceOpWithNewOp<LLVM::vector_reduce_umin>(
             reductionOp, llvmType, operand);
-      else if (kind == "min")
+      else if (kind == "minsi")
         rewriter.replaceOpWithNewOp<LLVM::vector_reduce_smin>(
             reductionOp, llvmType, operand);
-      else if (kind == "max" &&
-               (eltType.isIndex() || eltType.isUnsignedInteger()))
+      else if (kind == "maxui")
         rewriter.replaceOpWithNewOp<LLVM::vector_reduce_umax>(
             reductionOp, llvmType, operand);
-      else if (kind == "max")
+      else if (kind == "maxsi")
         rewriter.replaceOpWithNewOp<LLVM::vector_reduce_smax>(
             reductionOp, llvmType, operand);
       else if (kind == "and")
@@ -486,10 +448,14 @@ public:
       rewriter.replaceOpWithNewOp<LLVM::vector_reduce_fmul>(
           reductionOp, llvmType, acc, operand,
           rewriter.getBoolAttr(reassociateFPReductions));
-    } else if (kind == "min")
+    } else if (kind == "minf")
+      // FIXME: MLIR's 'minf' and LLVM's 'vector_reduce_fmin' do not handle
+      // NaNs/-0.0/+0.0 in the same way.
       rewriter.replaceOpWithNewOp<LLVM::vector_reduce_fmin>(reductionOp,
                                                             llvmType, operand);
-    else if (kind == "max")
+    else if (kind == "maxf")
+      // FIXME: MLIR's 'maxf' and LLVM's 'vector_reduce_fmax' do not handle
+      // NaNs/-0.0/+0.0 in the same way.
       rewriter.replaceOpWithNewOp<LLVM::vector_reduce_fmax>(reductionOp,
                                                             llvmType, operand);
     else
@@ -537,7 +503,6 @@ public:
 
     // For all other cases, insert the individual values individually.
     Type eltType;
-    llvm::errs() << llvmType << "\n";
     if (auto arrayType = llvmType.dyn_cast<LLVM::LLVMArrayType>())
       eltType = arrayType.getElementType();
     else
@@ -795,8 +760,8 @@ public:
 
     auto loc = op.getLoc();
     auto elemType = vType.getElementType();
-    Value zero = rewriter.create<ConstantOp>(loc, elemType,
-                                             rewriter.getZeroAttr(elemType));
+    Value zero = rewriter.create<arith::ConstantOp>(
+        loc, elemType, rewriter.getZeroAttr(elemType));
     Value desc = rewriter.create<SplatOp>(loc, vType, zero);
     for (int64_t i = 0, e = vType.getShape().front(); i != e; ++i) {
       Value extrLHS = rewriter.create<ExtractOp>(loc, op.lhs(), i);
@@ -806,132 +771,6 @@ public:
       desc = rewriter.create<InsertOp>(loc, fma, desc, i);
     }
     rewriter.replaceOp(op, desc);
-    return success();
-  }
-};
-
-// When ranks are different, InsertStridedSlice needs to extract a properly
-// ranked vector from the destination vector into which to insert. This pattern
-// only takes care of this part and forwards the rest of the conversion to
-// another pattern that converts InsertStridedSlice for operands of the same
-// rank.
-//
-// RewritePattern for InsertStridedSliceOp where source and destination vectors
-// have different ranks. In this case:
-//   1. the proper subvector is extracted from the destination vector
-//   2. a new InsertStridedSlice op is created to insert the source in the
-//   destination subvector
-//   3. the destination subvector is inserted back in the proper place
-//   4. the op is replaced by the result of step 3.
-// The new InsertStridedSlice from step 2. will be picked up by a
-// `VectorInsertStridedSliceOpSameRankRewritePattern`.
-class VectorInsertStridedSliceOpDifferentRankRewritePattern
-    : public OpRewritePattern<InsertStridedSliceOp> {
-public:
-  using OpRewritePattern<InsertStridedSliceOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(InsertStridedSliceOp op,
-                                PatternRewriter &rewriter) const override {
-    auto srcType = op.getSourceVectorType();
-    auto dstType = op.getDestVectorType();
-
-    if (op.offsets().getValue().empty())
-      return failure();
-
-    auto loc = op.getLoc();
-    int64_t rankDiff = dstType.getRank() - srcType.getRank();
-    assert(rankDiff >= 0);
-    if (rankDiff == 0)
-      return failure();
-
-    int64_t rankRest = dstType.getRank() - rankDiff;
-    // Extract / insert the subvector of matching rank and InsertStridedSlice
-    // on it.
-    Value extracted =
-        rewriter.create<ExtractOp>(loc, op.dest(),
-                                   getI64SubArray(op.offsets(), /*dropFront=*/0,
-                                                  /*dropBack=*/rankRest));
-    // A different pattern will kick in for InsertStridedSlice with matching
-    // ranks.
-    auto stridedSliceInnerOp = rewriter.create<InsertStridedSliceOp>(
-        loc, op.source(), extracted,
-        getI64SubArray(op.offsets(), /*dropFront=*/rankDiff),
-        getI64SubArray(op.strides(), /*dropFront=*/0));
-    rewriter.replaceOpWithNewOp<InsertOp>(
-        op, stridedSliceInnerOp.getResult(), op.dest(),
-        getI64SubArray(op.offsets(), /*dropFront=*/0,
-                       /*dropBack=*/rankRest));
-    return success();
-  }
-};
-
-// RewritePattern for InsertStridedSliceOp where source and destination vectors
-// have the same rank. In this case, we reduce
-//   1. the proper subvector is extracted from the destination vector
-//   2. a new InsertStridedSlice op is created to insert the source in the
-//   destination subvector
-//   3. the destination subvector is inserted back in the proper place
-//   4. the op is replaced by the result of step 3.
-// The new InsertStridedSlice from step 2. will be picked up by a
-// `VectorInsertStridedSliceOpSameRankRewritePattern`.
-class VectorInsertStridedSliceOpSameRankRewritePattern
-    : public OpRewritePattern<InsertStridedSliceOp> {
-public:
-  using OpRewritePattern<InsertStridedSliceOp>::OpRewritePattern;
-
-  void initialize() {
-    // This pattern creates recursive InsertStridedSliceOp, but the recursion is
-    // bounded as the rank is strictly decreasing.
-    setHasBoundedRewriteRecursion();
-  }
-
-  LogicalResult matchAndRewrite(InsertStridedSliceOp op,
-                                PatternRewriter &rewriter) const override {
-    auto srcType = op.getSourceVectorType();
-    auto dstType = op.getDestVectorType();
-
-    if (op.offsets().getValue().empty())
-      return failure();
-
-    int64_t rankDiff = dstType.getRank() - srcType.getRank();
-    assert(rankDiff >= 0);
-    if (rankDiff != 0)
-      return failure();
-
-    if (srcType == dstType) {
-      rewriter.replaceOp(op, op.source());
-      return success();
-    }
-
-    int64_t offset =
-        op.offsets().getValue().front().cast<IntegerAttr>().getInt();
-    int64_t size = srcType.getShape().front();
-    int64_t stride =
-        op.strides().getValue().front().cast<IntegerAttr>().getInt();
-
-    auto loc = op.getLoc();
-    Value res = op.dest();
-    // For each slice of the source vector along the most major dimension.
-    for (int64_t off = offset, e = offset + size * stride, idx = 0; off < e;
-         off += stride, ++idx) {
-      // 1. extract the proper subvector (or element) from source
-      Value extractedSource = extractOne(rewriter, loc, op.source(), idx);
-      if (extractedSource.getType().isa<VectorType>()) {
-        // 2. If we have a vector, extract the proper subvector from destination
-        // Otherwise we are at the element level and no need to recurse.
-        Value extractedDest = extractOne(rewriter, loc, op.dest(), off);
-        // 3. Reduce the problem to lowering a new InsertStridedSlice op with
-        // smaller rank.
-        extractedSource = rewriter.create<InsertStridedSliceOp>(
-            loc, extractedSource, extractedDest,
-            getI64SubArray(op.offsets(), /* dropFront=*/1),
-            getI64SubArray(op.strides(), /* dropFront=*/1));
-      }
-      // 4. Insert the extractedSource into the res vector.
-      res = insertOne(rewriter, loc, extractedSource, res, off);
-    }
-
-    rewriter.replaceOp(op, res);
     return success();
   }
 };
@@ -947,8 +786,7 @@ computeContiguousStrides(MemRefType memRefType) {
   if (!strides.empty() && strides.back() != 1)
     return None;
   // If no layout or identity layout, this is contiguous by definition.
-  if (memRefType.getAffineMaps().empty() ||
-      memRefType.getAffineMaps().front().isIdentity())
+  if (memRefType.getLayout().isIdentity())
     return strides;
 
   // Otherwise, we must determine contiguity form shapes. This can only ever
@@ -1144,11 +982,11 @@ private:
     if (rank == 0) {
       switch (conversion) {
       case PrintConversion::ZeroExt64:
-        value = rewriter.create<ZeroExtendIOp>(
+        value = rewriter.create<arith::ExtUIOp>(
             loc, value, IntegerType::get(rewriter.getContext(), 64));
         break;
       case PrintConversion::SignExt64:
-        value = rewriter.create<SignExtendIOp>(
+        value = rewriter.create<arith::ExtSIOp>(
             loc, value, IntegerType::get(rewriter.getContext(), 64));
         break;
       case PrintConversion::None:
@@ -1187,67 +1025,6 @@ private:
   }
 };
 
-/// Progressive lowering of ExtractStridedSliceOp to either:
-///   1. express single offset extract as a direct shuffle.
-///   2. extract + lower rank strided_slice + insert for the n-D case.
-class VectorExtractStridedSliceOpConversion
-    : public OpRewritePattern<ExtractStridedSliceOp> {
-public:
-  using OpRewritePattern<ExtractStridedSliceOp>::OpRewritePattern;
-
-  void initialize() {
-    // This pattern creates recursive ExtractStridedSliceOp, but the recursion
-    // is bounded as the rank is strictly decreasing.
-    setHasBoundedRewriteRecursion();
-  }
-
-  LogicalResult matchAndRewrite(ExtractStridedSliceOp op,
-                                PatternRewriter &rewriter) const override {
-    auto dstType = op.getType();
-
-    assert(!op.offsets().getValue().empty() && "Unexpected empty offsets");
-
-    int64_t offset =
-        op.offsets().getValue().front().cast<IntegerAttr>().getInt();
-    int64_t size = op.sizes().getValue().front().cast<IntegerAttr>().getInt();
-    int64_t stride =
-        op.strides().getValue().front().cast<IntegerAttr>().getInt();
-
-    auto loc = op.getLoc();
-    auto elemType = dstType.getElementType();
-    assert(elemType.isSignlessIntOrIndexOrFloat());
-
-    // Single offset can be more efficiently shuffled.
-    if (op.offsets().getValue().size() == 1) {
-      SmallVector<int64_t, 4> offsets;
-      offsets.reserve(size);
-      for (int64_t off = offset, e = offset + size * stride; off < e;
-           off += stride)
-        offsets.push_back(off);
-      rewriter.replaceOpWithNewOp<ShuffleOp>(op, dstType, op.vector(),
-                                             op.vector(),
-                                             rewriter.getI64ArrayAttr(offsets));
-      return success();
-    }
-
-    // Extract/insert on a lower ranked extract strided slice op.
-    Value zero = rewriter.create<ConstantOp>(loc, elemType,
-                                             rewriter.getZeroAttr(elemType));
-    Value res = rewriter.create<SplatOp>(loc, dstType, zero);
-    for (int64_t off = offset, e = offset + size * stride, idx = 0; off < e;
-         off += stride, ++idx) {
-      Value one = extractOne(rewriter, loc, op.vector(), off);
-      Value extracted = rewriter.create<ExtractStridedSliceOp>(
-          loc, one, getI64SubArray(op.offsets(), /* dropFront=*/1),
-          getI64SubArray(op.sizes(), /* dropFront=*/1),
-          getI64SubArray(op.strides(), /* dropFront=*/1));
-      res = insertOne(rewriter, loc, extracted, res, idx);
-    }
-    rewriter.replaceOp(op, res);
-    return success();
-  }
-};
-
 } // namespace
 
 /// Populate the given list with patterns that convert from Vector to LLVM.
@@ -1255,10 +1032,8 @@ void mlir::populateVectorToLLVMConversionPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns,
     bool reassociateFPReductions) {
   MLIRContext *ctx = converter.getDialect()->getContext();
-  patterns.add<VectorFMAOpNDRewritePattern,
-               VectorInsertStridedSliceOpDifferentRankRewritePattern,
-               VectorInsertStridedSliceOpSameRankRewritePattern,
-               VectorExtractStridedSliceOpConversion>(ctx);
+  patterns.add<VectorFMAOpNDRewritePattern>(ctx);
+  populateVectorInsertExtractStridedSliceTransforms(patterns);
   patterns.add<VectorReductionOpConversion>(converter, reassociateFPReductions);
   patterns
       .add<VectorBitCastOpConversion, VectorShuffleOpConversion,

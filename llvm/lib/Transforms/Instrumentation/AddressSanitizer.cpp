@@ -176,7 +176,7 @@ const char kAMDGPUAddressPrivateName[] = "llvm.amdgcn.is.private";
 // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
 static const size_t kNumberOfAccessSizes = 5;
 
-static const unsigned kAllocaRzSize = 32;
+static const uint64_t kAllocaRzSize = 32;
 
 // ASanAccessInfo implementation constants.
 constexpr size_t kCompileKernelShift = 0;
@@ -2003,7 +2003,8 @@ bool ModuleAddressSanitizer::shouldInstrumentGlobal(GlobalVariable *G) const {
     // Globals from llvm.metadata aren't emitted, do not instrument them.
     if (Section == "llvm.metadata") return false;
     // Do not instrument globals from special LLVM sections.
-    if (Section.find("__llvm") != StringRef::npos || Section.find("__LLVM") != StringRef::npos) return false;
+    if (Section.contains("__llvm") || Section.contains("__LLVM"))
+      return false;
 
     // Do not instrument function pointers to initialization and termination
     // routines: dynamic linker will not properly handle redzones.
@@ -3179,7 +3180,7 @@ Value *FunctionStackPoisoner::createAllocaForLayout(
     assert(Alloca->isStaticAlloca());
   }
   assert((ClRealignStack & (ClRealignStack - 1)) == 0);
-  size_t FrameAlignment = std::max(L.FrameAlignment, (size_t)ClRealignStack);
+  uint64_t FrameAlignment = std::max(L.FrameAlignment, uint64_t(ClRealignStack));
   Alloca->setAlignment(Align(FrameAlignment));
   return IRB.CreatePointerCast(Alloca, IntptrTy);
 }
@@ -3323,8 +3324,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
 
   // Minimal header size (left redzone) is 4 pointers,
   // i.e. 32 bytes on 64-bit platforms and 16 bytes in 32-bit platforms.
-  size_t Granularity = 1ULL << Mapping.Scale;
-  size_t MinHeaderSize = std::max((size_t)ASan.LongSize / 2, Granularity);
+  uint64_t Granularity = 1ULL << Mapping.Scale;
+  uint64_t MinHeaderSize = std::max((uint64_t)ASan.LongSize / 2, Granularity);
   const ASanStackFrameLayout &L =
       ComputeASanStackFrameLayout(SVD, Granularity, MinHeaderSize);
 
@@ -3578,7 +3579,7 @@ void FunctionStackPoisoner::poisonAlloca(Value *V, uint64_t Size,
 void FunctionStackPoisoner::handleDynamicAllocaCall(AllocaInst *AI) {
   IRBuilder<> IRB(AI);
 
-  const unsigned Alignment = std::max(kAllocaRzSize, AI->getAlignment());
+  const uint64_t Alignment = std::max(kAllocaRzSize, AI->getAlignment());
   const uint64_t AllocaRedzoneMask = kAllocaRzSize - 1;
 
   Value *Zero = Constant::getNullValue(IntptrTy);

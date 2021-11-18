@@ -387,17 +387,8 @@ ScriptInterpreterLua::CreateInstance(Debugger &debugger) {
   return std::make_shared<ScriptInterpreterLua>(debugger);
 }
 
-lldb_private::ConstString ScriptInterpreterLua::GetPluginNameStatic() {
-  static ConstString g_name("script-lua");
-  return g_name;
-}
-
-const char *ScriptInterpreterLua::GetPluginDescriptionStatic() {
+llvm::StringRef ScriptInterpreterLua::GetPluginDescriptionStatic() {
   return "Lua script interpreter";
-}
-
-lldb_private::ConstString ScriptInterpreterLua::GetPluginName() {
-  return GetPluginNameStatic();
 }
 
 Lua &ScriptInterpreterLua::GetLua() { return *m_lua; }

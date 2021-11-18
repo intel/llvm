@@ -7897,7 +7897,7 @@ static bool isPermittedNeonBaseType(QualType &Ty,
 static bool verifyValidIntegerConstantExpr(Sema &S, const ParsedAttr &Attr,
                                            llvm::APSInt &Result) {
   const auto *AttrExpr = Attr.getArgAsExpr(0);
-  if (!AttrExpr->isTypeDependent() && !AttrExpr->isValueDependent()) {
+  if (!AttrExpr->isTypeDependent()) {
     if (Optional<llvm::APSInt> Res =
             AttrExpr->getIntegerConstantExpr(S.Context)) {
       Result = *Res;
@@ -7972,8 +7972,10 @@ static void HandleArmSveVectorBitsTypeAttr(QualType &CurType, ParsedAttr &Attr,
     return;
   }
 
-  // Attribute is unsupported if '-msve-vector-bits=<bits>' isn't specified.
-  if (!S.getLangOpts().ArmSveVectorBits) {
+  // Attribute is unsupported if '-msve-vector-bits=<bits>' isn't specified, or
+  // if <bits>+ syntax is used.
+  if (!S.getLangOpts().VScaleMin ||
+      S.getLangOpts().VScaleMin != S.getLangOpts().VScaleMax) {
     S.Diag(Attr.getLoc(), diag::err_attribute_arm_feature_sve_bits_unsupported)
         << Attr;
     Attr.setInvalid();
@@ -7996,9 +7998,9 @@ static void HandleArmSveVectorBitsTypeAttr(QualType &CurType, ParsedAttr &Attr,
   unsigned VecSize = static_cast<unsigned>(SveVectorSizeInBits.getZExtValue());
 
   // The attribute vector size must match -msve-vector-bits.
-  if (VecSize != S.getLangOpts().ArmSveVectorBits) {
+  if (VecSize != S.getLangOpts().VScaleMin * 128) {
     S.Diag(Attr.getLoc(), diag::err_attribute_bad_sve_vector_size)
-        << VecSize << S.getLangOpts().ArmSveVectorBits;
+        << VecSize << S.getLangOpts().VScaleMin * 128;
     Attr.setInvalid();
     return;
   }
@@ -8212,12 +8214,6 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     case ParsedAttr::IgnoredAttribute:
       break;
 
-    case ParsedAttr::AT_BTFTag:
-      // FIXME: Linux kernel may also use this attribute for type casting check,
-      // which clang doesn's support for now. Let us ignore them so linux kernel
-      // build won't break.
-      attr.setUsedAsTypeAttr();
-      break;
     case ParsedAttr::AT_MayAlias:
       // FIXME: This attribute needs to actually be handled, but if we ignore
       // it it breaks large amounts of Linux software.

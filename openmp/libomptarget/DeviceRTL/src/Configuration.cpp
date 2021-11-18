@@ -12,23 +12,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "Configuration.h"
+#include "DeviceEnvironment.h"
 #include "State.h"
 #include "Types.h"
 
 using namespace _OMP;
 
-struct DeviceEnvironmentTy {
-  uint32_t DebugKind;
-  uint32_t NumDevices;
-  uint32_t DeviceNum;
-  uint64_t DynamicMemSize;
-};
-
 #pragma omp declare target
 
-extern uint32_t __omp_rtl_debug_kind;
+extern uint32_t __omp_rtl_debug_kind; // defined by CGOpenMPRuntimeGPU
 
-// TOOD: We want to change the name as soon as the old runtime is gone.
+// TODO: We want to change the name as soon as the old runtime is gone.
 DeviceEnvironmentTy CONSTANT(omptarget_device_environment)
     __attribute__((used));
 

@@ -17,6 +17,7 @@
 #include "mlir-c/Debug.h"
 #include "mlir-c/IR.h"
 #include "mlir-c/Registration.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include <pybind11/stl.h>
 
@@ -40,8 +41,14 @@ Returns a Type object or raises a ValueError if the type cannot be parsed.
 See also: https://mlir.llvm.org/docs/LangRef/#type-system
 )";
 
+static const char kContextGetCallSiteLocationDocstring[] =
+    R"(Gets a Location representing a caller and callsite)";
+
 static const char kContextGetFileLocationDocstring[] =
     R"(Gets a Location representing a file, line and column)";
+
+static const char kContextGetNameLocationDocString[] =
+    R"(Gets a Location representing a named location with optional child location)";
 
 static const char kModuleParseDocstring[] =
     R"(Parses a module's assembly format from a string.
@@ -868,6 +875,24 @@ py::object PyOperationBase::getAsm(bool binary,
   return fileObject.attr("getvalue")();
 }
 
+void PyOperationBase::moveAfter(PyOperationBase &other) {
+  PyOperation &operation = getOperation();
+  PyOperation &otherOp = other.getOperation();
+  operation.checkValid();
+  otherOp.checkValid();
+  mlirOperationMoveAfter(operation, otherOp);
+  operation.parentKeepAlive = otherOp.parentKeepAlive;
+}
+
+void PyOperationBase::moveBefore(PyOperationBase &other) {
+  PyOperation &operation = getOperation();
+  PyOperation &otherOp = other.getOperation();
+  operation.checkValid();
+  otherOp.checkValid();
+  mlirOperationMoveBefore(operation, otherOp);
+  operation.parentKeepAlive = otherOp.parentKeepAlive;
+}
+
 llvm::Optional<PyOperationRef> PyOperation::getParentOperation() {
   checkValid();
   if (!isAttached())
@@ -1541,6 +1566,9 @@ public:
   static void bind(py::module &m) {
     auto cls = ClassTy(m, DerivedTy::pyClassName, py::module_local());
     cls.def(py::init<PyValue &>(), py::keep_alive<0, 1>());
+    cls.def_static("isinstance", [](PyValue &otherValue) -> bool {
+      return DerivedTy::isaFunction(otherValue);
+    });
     DerivedTy::bindDerived(cls);
   }
 
@@ -1960,6 +1988,21 @@ void mlir::python::populateIRCore(py::module &m) {
           py::arg("context") = py::none(),
           "Gets a Location representing an unknown location")
       .def_static(
+          "callsite",
+          [](PyLocation callee, const std::vector<PyLocation> &frames,
+             DefaultingPyMlirContext context) {
+            if (frames.empty())
+              throw py::value_error("No caller frames provided");
+            MlirLocation caller = frames.back().get();
+            for (const PyLocation &frame :
+                 llvm::reverse(llvm::makeArrayRef(frames).drop_back()))
+              caller = mlirLocationCallSiteGet(frame.get(), caller);
+            return PyLocation(context->getRef(),
+                              mlirLocationCallSiteGet(callee.get(), caller));
+          },
+          py::arg("callee"), py::arg("frames"), py::arg("context") = py::none(),
+          kContextGetCallSiteLocationDocstring)
+      .def_static(
           "file",
           [](std::string filename, int line, int col,
              DefaultingPyMlirContext context) {
@@ -1970,6 +2013,19 @@ void mlir::python::populateIRCore(py::module &m) {
           },
           py::arg("filename"), py::arg("line"), py::arg("col"),
           py::arg("context") = py::none(), kContextGetFileLocationDocstring)
+      .def_static(
+          "name",
+          [](std::string name, llvm::Optional<PyLocation> childLoc,
+             DefaultingPyMlirContext context) {
+            return PyLocation(
+                context->getRef(),
+                mlirLocationNameGet(
+                    context->get(), toMlirStringRef(name),
+                    childLoc ? childLoc->get()
+                             : mlirLocationUnknownGet(context->get())));
+          },
+          py::arg("name"), py::arg("childLoc") = py::none(),
+          py::arg("context") = py::none(), kContextGetNameLocationDocString)
       .def_property_readonly(
           "context",
           [](PyLocation &self) { return self.getContext().getObject(); },
@@ -2105,10 +2161,15 @@ void mlir::python::populateIRCore(py::module &m) {
           },
           "Shortcut to get an op result if it has only one (throws an error "
           "otherwise).")
-      .def("__iter__",
-           [](PyOperationBase &self) {
-             return PyRegionIterator(self.getOperation().getRef());
-           })
+      .def_property_readonly(
+          "location",
+          [](PyOperationBase &self) {
+            PyOperation &operation = self.getOperation();
+            return PyLocation(operation.getContext(),
+                              mlirOperationGetLocation(operation.get()));
+          },
+          "Returns the source location the operation was defined or derived "
+          "from.")
       .def(
           "__str__",
           [](PyOperationBase &self) {
@@ -2142,7 +2203,25 @@ void mlir::python::populateIRCore(py::module &m) {
             return mlirOperationVerify(self.getOperation());
           },
           "Verify the operation and return true if it passes, false if it "
-          "fails.");
+          "fails.")
+      .def("move_after", &PyOperationBase::moveAfter, py::arg("other"),
+           "Puts self immediately after the other operation in its parent "
+           "block.")
+      .def("move_before", &PyOperationBase::moveBefore, py::arg("other"),
+           "Puts self immediately before the other operation in its parent "
+           "block.")
+      .def(
+          "detach_from_parent",
+          [](PyOperationBase &self) {
+            PyOperation &operation = self.getOperation();
+            operation.checkValid();
+            if (!operation.isAttached())
+              throw py::value_error("Detached operation has no parent.");
+
+            operation.detachFromParent();
+            return operation.createOpView();
+          },
+          "Detaches the operation from its parent block.");
 
   py::class_<PyOperation, PyOperationBase>(m, "Operation", py::module_local())
       .def_static("create", &PyOperation::create, py::arg("name"),
@@ -2213,6 +2292,12 @@ void mlir::python::populateIRCore(py::module &m) {
             return PyBlockList(self.getParentOperation(), self.get());
           },
           "Returns a forward-optimized sequence of blocks.")
+      .def_property_readonly(
+          "owner",
+          [](PyRegion &self) {
+            return self.getParentOperation()->createOpView();
+          },
+          "Returns the operation owning this region.")
       .def(
           "__iter__",
           [](PyRegion &self) {
@@ -2256,6 +2341,23 @@ void mlir::python::populateIRCore(py::module &m) {
             return PyOperationList(self.getParentOperation(), self.get());
           },
           "Returns a forward-optimized sequence of operations.")
+      .def_static(
+          "create_at_start",
+          [](PyRegion &parent, py::list pyArgTypes) {
+            parent.checkValid();
+            llvm::SmallVector<MlirType, 4> argTypes;
+            argTypes.reserve(pyArgTypes.size());
+            for (auto &pyArg : pyArgTypes) {
+              argTypes.push_back(pyArg.cast<PyType &>());
+            }
+
+            MlirBlock block = mlirBlockCreate(argTypes.size(), argTypes.data());
+            mlirRegionInsertOwnedBlock(parent, 0, block);
+            return PyBlock(parent.getParentOperation(), block);
+          },
+          py::arg("parent"), py::arg("pyArgTypes") = py::list(),
+          "Creates and returns a new Block at the beginning of the given "
+          "region (with given argument types).")
       .def(
           "create_before",
           [](PyBlock &self, py::args pyArgTypes) {
@@ -2314,7 +2416,20 @@ void mlir::python::populateIRCore(py::module &m) {
                            printAccum.getUserData());
             return printAccum.join();
           },
-          "Returns the assembly form of the block.");
+          "Returns the assembly form of the block.")
+      .def(
+          "append",
+          [](PyBlock &self, PyOperationBase &operation) {
+            if (operation.getOperation().isAttached())
+              operation.getOperation().detachFromParent();
+
+            MlirOperation mlirOperation = operation.getOperation().get();
+            mlirBlockAppendOwnedOperation(self.get(), mlirOperation);
+            operation.getOperation().setAttached(
+                self.getParentOperation().getObject());
+          },
+          "Appends an operation to this block. If the operation is currently "
+          "in another block, it will be moved.");
 
   //----------------------------------------------------------------------------
   // Mapping of PyInsertionPoint.

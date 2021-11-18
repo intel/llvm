@@ -2662,7 +2662,7 @@ SDValue SelectionDAGLegalize::ExpandPARITY(SDValue Op, const SDLoc &dl) {
 
   // If CTPOP is legal, use it. Otherwise use shifts and xor.
   SDValue Result;
-  if (TLI.isOperationLegal(ISD::CTPOP, VT)) {
+  if (TLI.isOperationLegalOrPromote(ISD::CTPOP, VT)) {
     Result = DAG.getNode(ISD::CTPOP, dl, VT, Op);
   } else {
     Result = Op;
@@ -2684,21 +2684,21 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
   bool NeedInvert;
   switch (Node->getOpcode()) {
   case ISD::ABS:
-    if (TLI.expandABS(Node, Tmp1, DAG))
+    if ((Tmp1 = TLI.expandABS(Node, DAG)))
       Results.push_back(Tmp1);
     break;
   case ISD::CTPOP:
-    if (TLI.expandCTPOP(Node, Tmp1, DAG))
+    if ((Tmp1 = TLI.expandCTPOP(Node, DAG)))
       Results.push_back(Tmp1);
     break;
   case ISD::CTLZ:
   case ISD::CTLZ_ZERO_UNDEF:
-    if (TLI.expandCTLZ(Node, Tmp1, DAG))
+    if ((Tmp1 = TLI.expandCTLZ(Node, DAG)))
       Results.push_back(Tmp1);
     break;
   case ISD::CTTZ:
   case ISD::CTTZ_ZERO_UNDEF:
-    if (TLI.expandCTTZ(Node, Tmp1, DAG))
+    if ((Tmp1 = TLI.expandCTTZ(Node, DAG)))
       Results.push_back(Tmp1);
     break;
   case ISD::BITREVERSE:

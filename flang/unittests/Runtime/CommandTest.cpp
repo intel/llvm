@@ -11,6 +11,7 @@
 #include "gtest/gtest.h"
 #include "flang/Runtime/descriptor.h"
 #include "flang/Runtime/main.h"
+#include <cstdlib>
 
 using namespace Fortran::runtime;
 
@@ -21,6 +22,17 @@ static OwningPtr<Descriptor> CreateEmptyCharDescriptor() {
   if (descriptor->Allocate() != 0) {
     return nullptr;
   }
+  return descriptor;
+}
+
+static OwningPtr<Descriptor> CharDescriptor(const char *value) {
+  std::size_t n{std::strlen(value)};
+  OwningPtr<Descriptor> descriptor{Descriptor::Create(
+      sizeof(char), n, nullptr, 0, nullptr, CFI_attribute_allocatable)};
+  if (descriptor->Allocate() != 0) {
+    return nullptr;
+  }
+  std::memcpy(descriptor->OffsetElement(), value, n);
   return descriptor;
 }
 
@@ -174,4 +186,48 @@ TEST_F(SeveralArguments, ErrMsgTooShort) {
   OwningPtr<Descriptor> errMsg{CreateEmptyCharDescriptor<3>()};
   EXPECT_GT(RTNAME(ArgumentValue)(-1, nullptr, errMsg.get()), 0);
   CheckDescriptorEqStr(errMsg.get(), "Inv");
+}
+
+class EnvironmentVariables : public CommandFixture {
+protected:
+  EnvironmentVariables() : CommandFixture(0, nullptr) {
+    SetEnv("NAME", "VALUE");
+  }
+
+  // If we have access to setenv, we can run some more fine-grained tests.
+  template <typename ParamType = char>
+  void SetEnv(const ParamType *name, const ParamType *value,
+      decltype(setenv(name, value, 1)) *Enabled = nullptr) {
+    ASSERT_EQ(0, setenv(name, value, /*overwrite=*/1));
+    canSetEnv = true;
+  }
+
+  // Fallback method if setenv is not available.
+  template <typename Unused = void> void SetEnv(const void *, const void *) {}
+
+  bool EnableFineGrainedTests() const { return canSetEnv; }
+
+private:
+  bool canSetEnv{false};
+};
+
+TEST_F(EnvironmentVariables, Length) {
+  EXPECT_EQ(0, RTNAME(EnvVariableLength)(*CharDescriptor("DOESNT_EXIST")));
+
+  EXPECT_EQ(0, RTNAME(EnvVariableLength)(*CharDescriptor("     ")));
+  EXPECT_EQ(0, RTNAME(EnvVariableLength)(*CharDescriptor("")));
+
+  // Test a variable that's expected to exist in the environment.
+  char *path{std::getenv("PATH")};
+  auto expectedLen{static_cast<int64_t>(std::strlen(path))};
+  EXPECT_EQ(expectedLen, RTNAME(EnvVariableLength)(*CharDescriptor("PATH")));
+
+  if (EnableFineGrainedTests()) {
+    EXPECT_EQ(5, RTNAME(EnvVariableLength)(*CharDescriptor("NAME")));
+
+    EXPECT_EQ(5, RTNAME(EnvVariableLength)(*CharDescriptor("NAME  ")));
+    EXPECT_EQ(0,
+        RTNAME(EnvVariableLength)(
+            *CharDescriptor("NAME "), /*trim_name=*/false));
+  }
 }

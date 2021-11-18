@@ -135,23 +135,6 @@ def HasStdExtZbbOrZbp
                                    "'Zbb' (Base 'B' Instructions) or "
                                    "'Zbp' (Permutation 'B' Instructions)">;
 
-def FeatureStdExtB
-    : SubtargetFeature<"experimental-b", "HasStdExtB", "true",
-                       "'B' (Bit Manipulation Instructions)",
-                       [FeatureStdExtZba,
-                        FeatureStdExtZbb,
-                        FeatureStdExtZbc,
-                        FeatureStdExtZbe,
-                        FeatureStdExtZbf,
-                        FeatureStdExtZbm,
-                        FeatureStdExtZbp,
-                        FeatureStdExtZbr,
-                        FeatureStdExtZbs,
-                        FeatureStdExtZbt]>;
-def HasStdExtB : Predicate<"Subtarget->hasStdExtB()">,
-                           AssemblerPredicate<(all_of FeatureStdExtB),
-                           "'B' (Bit Manipulation Instructions)">;
-
 def FeatureNoRVCHints
     : SubtargetFeature<"no-rvc-hints", "EnableRVCHintInstrs", "false",
                        "Disable RVC Hint Instructions.">;
@@ -165,6 +148,9 @@ def FeatureStdExtV
 def HasStdExtV : Predicate<"Subtarget->hasStdExtV()">,
                            AssemblerPredicate<(all_of FeatureStdExtV),
                            "'V' (Vector Instructions)">;
+
+def HasVInstructions    : Predicate<"Subtarget->hasVInstructions()">;
+def HasVInstructionsAnyF : Predicate<"Subtarget->hasVInstructionsAnyF()">;
 
 def FeatureStdExtZvlsseg
     : SubtargetFeature<"experimental-zvlsseg", "HasStdExtZvlsseg", "true",

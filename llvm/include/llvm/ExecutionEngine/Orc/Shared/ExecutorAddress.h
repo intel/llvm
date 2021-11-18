@@ -96,7 +96,7 @@ public:
     return *this;
   }
   ExecutorAddr operator++(int) { return ExecutorAddr(Addr++); }
-  ExecutorAddr operator--(int) { return ExecutorAddr(Addr++); }
+  ExecutorAddr operator--(int) { return ExecutorAddr(Addr--); }
 
   ExecutorAddr &operator+=(const ExecutorAddrDiff Delta) {
     Addr += Delta.getValue();
@@ -159,6 +159,8 @@ struct ExecutorAddrRange {
 };
 
 namespace shared {
+
+class SPSExecutorAddr {};
 
 /// SPS serializatior for ExecutorAddr.
 template <> class SPSSerializationTraits<SPSExecutorAddr, ExecutorAddr> {

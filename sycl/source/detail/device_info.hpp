@@ -473,6 +473,62 @@ template <> struct get_device_info<id<3>, info::device::max_work_item_sizes> {
   }
 };
 
+template <>
+struct get_device_info<size_t,
+                       info::device::ext_oneapi_max_global_work_groups> {
+  static size_t get(RT::PiDevice dev, const plugin &Plugin) {
+    (void)dev; // Silence unused warning
+    (void)Plugin;
+    return static_cast<size_t>((std::numeric_limits<int>::max)());
+  }
+};
+
+template <>
+struct get_device_info<id<1>, info::device::ext_oneapi_max_work_groups_1d> {
+  static id<1> get(RT::PiDevice dev, const plugin &Plugin) {
+    size_t result[3];
+    size_t Limit = get_device_info<
+        size_t, info::device::ext_oneapi_max_global_work_groups>::get(dev,
+                                                                      Plugin);
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(info::device::ext_oneapi_max_work_groups_3d),
+        sizeof(result), &result, nullptr);
+    return id<1>(std::min(Limit, result[0]));
+  }
+};
+
+template <>
+struct get_device_info<id<2>, info::device::ext_oneapi_max_work_groups_2d> {
+  static id<2> get(RT::PiDevice dev, const plugin &Plugin) {
+    size_t result[3];
+    size_t Limit = get_device_info<
+        size_t, info::device::ext_oneapi_max_global_work_groups>::get(dev,
+                                                                      Plugin);
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(info::device::ext_oneapi_max_work_groups_3d),
+        sizeof(result), &result, nullptr);
+    return id<2>(std::min(Limit, result[1]), std::min(Limit, result[0]));
+  }
+};
+
+template <>
+struct get_device_info<id<3>, info::device::ext_oneapi_max_work_groups_3d> {
+  static id<3> get(RT::PiDevice dev, const plugin &Plugin) {
+    size_t result[3];
+    size_t Limit = get_device_info<
+        size_t, info::device::ext_oneapi_max_global_work_groups>::get(dev,
+                                                                      Plugin);
+    Plugin.call<PiApiKind::piDeviceGetInfo>(
+        dev,
+        pi::cast<RT::PiDeviceInfo>(info::device::ext_oneapi_max_work_groups_3d),
+        sizeof(result), &result, nullptr);
+    return id<3>(std::min(Limit, result[2]), std::min(Limit, result[1]),
+                 std::min(Limit, result[0]));
+  }
+};
+
 // Specialization for parent device
 template <> struct get_device_info<device, info::device::parent_device> {
   static device get(RT::PiDevice dev, const plugin &Plugin) {
@@ -524,6 +580,40 @@ template <>
 inline id<3> get_device_info_host<info::device::max_work_item_sizes>() {
   // current value is the required minimum
   return {1, 1, 1};
+}
+
+template <>
+inline constexpr size_t
+get_device_info_host<info::device::ext_oneapi_max_global_work_groups>() {
+  // See handler.hpp for the maximum value :
+  return static_cast<size_t>((std::numeric_limits<int>::max)());
+}
+
+template <>
+inline id<1>
+get_device_info_host<info::device::ext_oneapi_max_work_groups_1d>() {
+  // See handler.hpp for the maximum value :
+  static constexpr size_t Limit =
+      get_device_info_host<info::device::ext_oneapi_max_global_work_groups>();
+  return {Limit};
+}
+
+template <>
+inline id<2>
+get_device_info_host<info::device::ext_oneapi_max_work_groups_2d>() {
+  // See handler.hpp for the maximum value :
+  static constexpr size_t Limit =
+      get_device_info_host<info::device::ext_oneapi_max_global_work_groups>();
+  return {Limit, Limit};
+}
+
+template <>
+inline id<3>
+get_device_info_host<info::device::ext_oneapi_max_work_groups_3d>() {
+  // See handler.hpp for the maximum value :
+  static constexpr size_t Limit =
+      get_device_info_host<info::device::ext_oneapi_max_global_work_groups>();
+  return {Limit, Limit, Limit};
 }
 
 template <>

@@ -12,6 +12,7 @@
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -742,7 +743,7 @@ public:
         op->getLoc(), LLVM::LLVMPointerType::get(resumeFnTy), kResume);
 
     rewriter.create<CallOp>(op->getLoc(), apiFuncName, TypeRange(),
-                            ValueRange({operand, handle, resumePtr.res()}));
+                            ValueRange({operand, handle, resumePtr.getRes()}));
     rewriter.eraseOp(op);
 
     return success();
@@ -770,8 +771,8 @@ public:
 
     // Call async runtime API to execute a coroutine in the managed thread.
     auto coroHdl = adaptor.handle();
-    rewriter.replaceOpWithNewOp<CallOp>(op, TypeRange(), kExecute,
-                                        ValueRange({coroHdl, resumePtr.res()}));
+    rewriter.replaceOpWithNewOp<CallOp>(
+        op, TypeRange(), kExecute, ValueRange({coroHdl, resumePtr.getRes()}));
 
     return success();
   }
@@ -903,9 +904,9 @@ public:
   LogicalResult
   matchAndRewrite(RefCountingOp op, typename RefCountingOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto count =
-        rewriter.create<ConstantOp>(op->getLoc(), rewriter.getI64Type(),
-                                    rewriter.getI64IntegerAttr(op.count()));
+    auto count = rewriter.create<arith::ConstantOp>(
+        op->getLoc(), rewriter.getI64Type(),
+        rewriter.getI64IntegerAttr(op.count()));
 
     auto operand = adaptor.operand();
     rewriter.replaceOpWithNewOp<CallOp>(op, TypeRange(), apiFunctionName,
@@ -1008,7 +1009,8 @@ void ConvertAsyncToLLVMPass::runOnOperation() {
           converter, ctx);
 
   ConversionTarget target(*ctx);
-  target.addLegalOp<ConstantOp, UnrealizedConversionCastOp>();
+  target
+      .addLegalOp<arith::ConstantOp, ConstantOp, UnrealizedConversionCastOp>();
   target.addLegalDialect<LLVM::LLVMDialect>();
 
   // All operations from Async dialect must be lowered to the runtime API and

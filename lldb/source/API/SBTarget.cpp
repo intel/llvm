@@ -73,9 +73,7 @@ using namespace lldb_private;
 
 #define DEFAULT_DISASM_BYTE_SIZE 32
 
-namespace {
-
-Status AttachToProcess(ProcessAttachInfo &attach_info, Target &target) {
+static Status AttachToProcess(ProcessAttachInfo &attach_info, Target &target) {
   std::lock_guard<std::recursive_mutex> guard(target.GetAPIMutex());
 
   auto process_sp = target.GetProcessSP();
@@ -93,8 +91,6 @@ Status AttachToProcess(ProcessAttachInfo &attach_info, Target &target) {
 
   return target.Attach(attach_info, nullptr);
 }
-
-} // namespace
 
 // SBTarget constructor
 SBTarget::SBTarget() : m_opaque_sp() {
@@ -217,17 +213,11 @@ SBStructuredData SBTarget::GetStatistics() {
   TargetSP target_sp(GetSP());
   if (!target_sp)
     return LLDB_RECORD_RESULT(data);
-
-  auto stats_up = std::make_unique<StructuredData::Dictionary>();
-  int i = 0;
-  for (auto &Entry : target_sp->GetStatistics()) {
-    std::string Desc = lldb_private::GetStatDescription(
-        static_cast<lldb_private::StatisticKind>(i));
-    stats_up->AddIntegerItem(Desc, Entry);
-    i += 1;
-  }
-
-  data.m_impl_up->SetObjectSP(std::move(stats_up));
+  std::string json_str =
+      llvm::formatv("{0:2}", 
+          DebuggerStats::ReportStatistics(target_sp->GetDebugger(), 
+                                          target_sp.get())).str();
+  data.m_impl_up->SetObjectSP(StructuredData::ParseJSON(json_str));
   return LLDB_RECORD_RESULT(data);
 }
 
@@ -237,7 +227,7 @@ void SBTarget::SetCollectingStats(bool v) {
   TargetSP target_sp(GetSP());
   if (!target_sp)
     return;
-  return target_sp->SetCollectingStats(v);
+  return DebuggerStats::SetCollectingStats(v);
 }
 
 bool SBTarget::GetCollectingStats() {
@@ -246,7 +236,7 @@ bool SBTarget::GetCollectingStats() {
   TargetSP target_sp(GetSP());
   if (!target_sp)
     return false;
-  return target_sp->GetCollectingStats();
+  return DebuggerStats::GetCollectingStats();
 }
 
 SBProcess SBTarget::LoadCore(const char *core_file) {

@@ -13,10 +13,12 @@
 #include "flang/Parser/parse-tree.h"
 #include "flang/Parser/parsing.h"
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+
 #include <deque>
-#include <map>
 #include <string>
-#include <vector>
 
 namespace Fortran {
 namespace parser {
@@ -37,7 +39,7 @@ struct LogRecord {
   std::string file;
   int line;
   std::string construct;
-  std::vector<ClauseInfo> clauses;
+  llvm::SmallVector<ClauseInfo> clauses;
 };
 bool operator==(const LogRecord &a, const LogRecord &b);
 bool operator!=(const LogRecord &a, const LogRecord &b);
@@ -47,7 +49,7 @@ using OmpWrapperType =
 
 struct OpenMPCounterVisitor {
   std::string normalize_construct_name(std::string s);
-  ClauseInfo normalize_clause_name(const std::string &s);
+  ClauseInfo normalize_clause_name(const llvm::StringRef s);
   SourcePosition getLocation(const OmpWrapperType &w);
   SourcePosition getLocation(const OpenMPDeclarativeConstruct &c);
   SourcePosition getLocation(const OpenMPConstruct &c);
@@ -84,7 +86,6 @@ struct OpenMPCounterVisitor {
   void Post(const DoConstruct &);
 
   std::string clauseDetails{""};
-  std::map<std::pair<std::string, std::string>, int> constructClauseCount;
 
   // curLoopLogRecord and loopLogRecordStack store
   // pointers to this datastructure's entries. Hence a
@@ -95,9 +96,9 @@ struct OpenMPCounterVisitor {
   std::deque<LogRecord> constructClauses;
 
   LogRecord *curLoopLogRecord{nullptr};
-  std::vector<LogRecord *> loopLogRecordStack;
-  std::vector<OmpWrapperType *> ompWrapperStack;
-  std::map<OmpWrapperType *, std::vector<ClauseInfo>> clauseStrings;
+  llvm::SmallVector<LogRecord *> loopLogRecordStack;
+  llvm::SmallVector<OmpWrapperType *> ompWrapperStack;
+  llvm::DenseMap<OmpWrapperType *, llvm::SmallVector<ClauseInfo>> clauseStrings;
   Parsing *parsing{nullptr};
 };
 } // namespace parser

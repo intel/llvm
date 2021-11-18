@@ -159,6 +159,27 @@ if(LLVM_ENABLE_LIBXML2)
   set(LLVM_ENABLE_LIBXML2 "${HAVE_LIBXML2}")
 endif()
 
+if(LLVM_ENABLE_CURL)
+  if(LLVM_ENABLE_CURL STREQUAL FORCE_ON)
+    find_package(CURL REQUIRED)
+  else()
+    find_package(CURL)
+  endif()
+  if(CURL_FOUND)
+    # Check if curl we found is usable; for example, we may have found a 32-bit
+    # library on a 64-bit system which would result in a link-time failure.
+    cmake_push_check_state()
+    list(APPEND CMAKE_REQUIRED_INCLUDES ${CURL_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${CURL_LIBRARY})
+    check_symbol_exists(curl_easy_init curl/curl.h HAVE_CURL)
+    cmake_pop_check_state()
+    if(LLVM_ENABLE_CURL STREQUAL FORCE_ON AND NOT HAVE_CURL)
+      message(FATAL_ERROR "Failed to configure curl")
+    endif()
+  endif()
+  set(LLVM_ENABLE_CURL "${HAVE_CURL}")
+endif()
+
 # Don't look for these libraries if we're using MSan, since uninstrumented third
 # party code may call MSan interceptors like strlen, leading to false positives.
 if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
@@ -192,7 +213,13 @@ endif()
 
 check_library_exists(xar xar_open "" LLVM_HAVE_LIBXAR)
 if(LLVM_HAVE_LIBXAR)
-  set(XAR_LIB xar)
+  message(STATUS "The xar file format has been deprecated: LLVM_HAVE_LIBXAR might be removed in the future.")
+  # The xar file format has been deprecated since macOS 12.0.
+  if (CMAKE_OSX_DEPLOYMENT_TARGET VERSION_GREATER_EQUAL 12)
+    set(LLVM_HAVE_LIBXAR 0)
+  else()
+    set(XAR_LIB xar)
+  endif()
 endif()
 
 # function checks

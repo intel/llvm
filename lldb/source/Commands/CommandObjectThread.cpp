@@ -1929,15 +1929,14 @@ public:
             "process to different formats.",
             "thread trace export <export-plugin> [<subcommand objects>]") {
 
-    for (uint32_t i = 0; true; i++) {
-      if (const char *plugin_name =
-              PluginManager::GetTraceExporterPluginNameAtIndex(i)) {
-        if (ThreadTraceExportCommandCreator command_creator =
-                PluginManager::GetThreadTraceExportCommandCreatorAtIndex(i)) {
-          LoadSubCommand(plugin_name, command_creator(interpreter));
-        }
-      } else {
-        break;
+    unsigned i = 0;
+    for (llvm::StringRef plugin_name =
+             PluginManager::GetTraceExporterPluginNameAtIndex(i++);
+         !plugin_name.empty();
+         plugin_name = PluginManager::GetTraceExporterPluginNameAtIndex(i++)) {
+      if (ThreadTraceExportCommandCreator command_creator =
+              PluginManager::GetThreadTraceExportCommandCreatorAtIndex(i)) {
+        LoadSubCommand(plugin_name, command_creator(interpreter));
       }
     }
   }
@@ -2199,9 +2198,8 @@ public:
 
   bool DoExecute(Args &command, CommandReturnObject &result) override {
     Target &target = m_exe_ctx.GetTargetRef();
-    result.GetOutputStream().Printf(
-        "Trace technology: %s\n",
-        target.GetTrace()->GetPluginName().AsCString());
+    result.GetOutputStream().Format("Trace technology: {0}\n",
+                                    target.GetTrace()->GetPluginName());
     return CommandObjectIterateOverThreads::DoExecute(command, result);
   }
 

@@ -721,6 +721,7 @@ def tvecshiftR64 : Operand<i32>, TImmLeaf<i32, [{
   let ParserMatchClass = Imm1_64Operand;
 }
 
+def Imm0_0Operand : AsmImmRange<0, 0>;
 def Imm0_1Operand : AsmImmRange<0, 1>;
 def Imm0_3Operand : AsmImmRange<0, 3>;
 def Imm0_7Operand : AsmImmRange<0, 7>;
@@ -845,13 +846,13 @@ def logical_imm64_not : Operand<i64> {
   let ParserMatchClass = LogicalImm64NotOperand;
 }
 
-// iXX_imm0_65535 predicates - True if the immediate is in the range [0,65535].
+// immXX_0_65535 predicates - True if the immediate is in the range [0,65535].
 let ParserMatchClass = AsmImmRange<0, 65535>, PrintMethod = "printImmHex" in {
-def i32_imm0_65535 : Operand<i32>, TImmLeaf<i32, [{
+def timm32_0_65535 : Operand<i32>, TImmLeaf<i32, [{
   return ((uint32_t)Imm) < 65536;
 }]>;
 
-def i64_imm0_65535 : Operand<i64>, TImmLeaf<i64, [{
+def timm64_0_65535 : Operand<i64>, TImmLeaf<i64, [{
   return ((uint64_t)Imm) < 65536;
 }]>;
 }
@@ -955,8 +956,8 @@ def imm0_3 : Operand<i64>, ImmLeaf<i64, [{
   let ParserMatchClass = Imm0_3Operand;
 }
 
-// imm32_0_7 predicate - True if the 32-bit immediate is in the range [0,7]
-def imm32_0_7 : Operand<i32>, TImmLeaf<i32, [{
+// timm32_0_7 predicate - True if the 32-bit immediate is in the range [0,7]
+def timm32_0_7 : Operand<i32>, TImmLeaf<i32, [{
   return ((uint32_t)Imm) < 8;
 }]> {
   let ParserMatchClass = Imm0_7Operand;
@@ -1215,6 +1216,18 @@ def fpimm0 : FPImmLeaf<fAny, [{
   return Imm.isExactlyValue(+0.0);
 }]>;
 
+def fpimm_half : FPImmLeaf<fAny, [{
+  return Imm.isExactlyValue(+0.5);
+}]>;
+
+def fpimm_one : FPImmLeaf<fAny, [{
+  return Imm.isExactlyValue(+1.0);
+}]>;
+
+def fpimm_two : FPImmLeaf<fAny, [{
+  return Imm.isExactlyValue(+2.0);
+}]>;
+
 def gi_fpimm16 : GICustomOperandRenderer<"renderFPImm16">,
   GISDNodeXFormEquiv<fpimm16XForm>;
 def gi_fpimm32 : GICustomOperandRenderer<"renderFPImm32">,
@@ -1293,6 +1306,37 @@ defm sve_elm_idx_extdup_d
 defm sve_elm_idx_extdup_q
   : VectorIndex<i64, SVEVectorIndexExtDupQOperand,
                 [{ return ((uint64_t)Imm) < 4; }]>;
+
+def sme_elm_idx0_0 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) == 0;
+}]> {
+  let ParserMatchClass = Imm0_0Operand;
+  let PrintMethod = "printMatrixIndex";
+}
+def sme_elm_idx0_1 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) <= 1;
+}]> {
+  let ParserMatchClass = Imm0_1Operand;
+  let PrintMethod = "printMatrixIndex";
+}
+def sme_elm_idx0_3 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) <= 3;
+}]> {
+  let ParserMatchClass = Imm0_3Operand;
+  let PrintMethod = "printMatrixIndex";
+}
+def sme_elm_idx0_7 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) <= 7;
+}]> {
+  let ParserMatchClass = Imm0_7Operand;
+  let PrintMethod = "printMatrixIndex";
+}
+def sme_elm_idx0_15 : Operand<i64>, ImmLeaf<i64, [{
+  return ((uint64_t)Imm) <= 15;
+}]> {
+  let ParserMatchClass = Imm0_15Operand;
+  let PrintMethod = "printMatrixIndex";
+}
 
 // 8-bit immediate for AdvSIMD where 64-bit values of the form:
 // aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee ffffffff gggggggg hhhhhhhh
@@ -1382,7 +1426,7 @@ class TMSystemINoOperand<bits<4> CRm, string asm, list<dag> pattern>
 
 // System instructions for exit from transactions
 class TMSystemException<bits<3> op1, string asm, list<dag> pattern>
-    : I<(outs), (ins i64_imm0_65535:$imm), asm, "\t$imm", "", pattern>,
+    : I<(outs), (ins timm64_0_65535:$imm), asm, "\t$imm", "", pattern>,
       Sched<[WriteSys]> {
   bits<16> imm;
   let Inst{31-24} = 0b11010100;
@@ -4467,7 +4511,7 @@ multiclass MemTagStore<bits<2> opc1, string insn> {
 
 let mayLoad = 0, mayStore = 0, hasSideEffects = 1 in
 class ExceptionGeneration<bits<3> op1, bits<2> ll, string asm>
-    : I<(outs), (ins i32_imm0_65535:$imm), asm, "\t$imm", "", []>,
+    : I<(outs), (ins timm32_0_65535:$imm), asm, "\t$imm", "", []>,
       Sched<[WriteSys]> {
   bits<16> imm;
   let Inst{31-24} = 0b11010100;

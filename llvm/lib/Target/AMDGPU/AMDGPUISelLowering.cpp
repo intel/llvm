@@ -45,9 +45,7 @@ EVT AMDGPUTargetLowering::getEquivalentMemType(LLVMContext &Ctx, EVT VT) {
 }
 
 unsigned AMDGPUTargetLowering::numBitsUnsigned(SDValue Op, SelectionDAG &DAG) {
-  EVT VT = Op.getValueType();
-  KnownBits Known = DAG.computeKnownBits(Op);
-  return VT.getSizeInBits() - Known.countMinLeadingZeros();
+  return DAG.computeKnownBits(Op).countMaxActiveBits();
 }
 
 unsigned AMDGPUTargetLowering::numBitsSigned(SDValue Op, SelectionDAG &DAG) {
@@ -55,7 +53,7 @@ unsigned AMDGPUTargetLowering::numBitsSigned(SDValue Op, SelectionDAG &DAG) {
 
   // In order for this to be a signed 24-bit value, bit 23, must
   // be a sign bit.
-  return VT.getSizeInBits() - DAG.ComputeNumSignBits(Op);
+  return VT.getSizeInBits() - DAG.ComputeNumSignBits(Op) + 1;
 }
 
 AMDGPUTargetLowering::AMDGPUTargetLowering(const TargetMachine &TM,
@@ -1332,14 +1330,6 @@ void AMDGPUTargetLowering::ReplaceNodeResults(SDNode *N,
   default:
     return;
   }
-}
-
-bool AMDGPUTargetLowering::hasDefinedInitializer(const GlobalValue *GV) {
-  const GlobalVariable *GVar = dyn_cast<GlobalVariable>(GV);
-  if (!GVar || !GVar->hasInitializer())
-    return false;
-
-  return !isa<UndefValue>(GVar->getInitializer());
 }
 
 SDValue AMDGPUTargetLowering::LowerGlobalAddress(AMDGPUMachineFunction* MFI,
@@ -2885,7 +2875,7 @@ static bool isI24(SDValue Op, SelectionDAG &DAG) {
   EVT VT = Op.getValueType();
   return VT.getSizeInBits() >= 24 && // Types less than 24-bit should be treated
                                      // as unsigned 24-bit values.
-    AMDGPUTargetLowering::numBitsSigned(Op, DAG) < 24;
+         AMDGPUTargetLowering::numBitsSigned(Op, DAG) <= 24;
 }
 
 static SDValue simplifyMul24(SDNode *Node24,
@@ -2899,8 +2889,22 @@ static SDValue simplifyMul24(SDNode *Node24,
   unsigned NewOpcode = Node24->getOpcode();
   if (IsIntrin) {
     unsigned IID = cast<ConstantSDNode>(Node24->getOperand(0))->getZExtValue();
-    NewOpcode = IID == Intrinsic::amdgcn_mul_i24 ?
-      AMDGPUISD::MUL_I24 : AMDGPUISD::MUL_U24;
+    switch (IID) {
+    case Intrinsic::amdgcn_mul_i24:
+      NewOpcode = AMDGPUISD::MUL_I24;
+      break;
+    case Intrinsic::amdgcn_mul_u24:
+      NewOpcode = AMDGPUISD::MUL_U24;
+      break;
+    case Intrinsic::amdgcn_mulhi_i24:
+      NewOpcode = AMDGPUISD::MULHI_I24;
+      break;
+    case Intrinsic::amdgcn_mulhi_u24:
+      NewOpcode = AMDGPUISD::MULHI_U24;
+      break;
+    default:
+      llvm_unreachable("Expected 24-bit mul intrinsic");
+    }
   }
 
   APInt Demanded = APInt::getLowBitsSet(LHS.getValueSizeInBits(), 24);
@@ -3109,6 +3113,8 @@ SDValue AMDGPUTargetLowering::performIntrinsicWOChainCombine(
   switch (IID) {
   case Intrinsic::amdgcn_mul_i24:
   case Intrinsic::amdgcn_mul_u24:
+  case Intrinsic::amdgcn_mulhi_i24:
+  case Intrinsic::amdgcn_mulhi_u24:
     return simplifyMul24(N, DCI);
   case Intrinsic::amdgcn_fract:
   case Intrinsic::amdgcn_rsq:
@@ -3360,7 +3366,7 @@ SDValue AMDGPUTargetLowering::performTruncateCombine(
       KnownBits Known = DAG.computeKnownBits(Amt);
       unsigned Size = VT.getScalarSizeInBits();
       if ((Known.isConstant() && Known.getConstant().ule(Size)) ||
-          (Known.getBitWidth() - Known.countMinLeadingZeros() <= Log2_32(Size))) {
+          (Known.countMaxActiveBits() <= Log2_32(Size))) {
         EVT MidVT = VT.isVector() ?
           EVT::getVectorVT(*DAG.getContext(), MVT::i32,
                            VT.getVectorNumElements()) : MVT::i32;

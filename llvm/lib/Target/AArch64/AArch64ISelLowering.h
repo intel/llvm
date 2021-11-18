@@ -405,6 +405,10 @@ enum NodeType : unsigned {
   SSTNT1_PRED,
   SSTNT1_INDEX_PRED,
 
+  // Asserts that a function argument (i32) is zero-extended to i8 by
+  // the caller
+  ASSERT_ZEXT_BOOL,
+
   // Strict (exception-raising) floating point comparison
   STRICT_FCMP = ISD::FIRST_TARGET_STRICTFP_OPCODE,
   STRICT_FCMPE,
@@ -795,13 +799,13 @@ public:
   /// Returns true if \p VecTy is a legal interleaved access type. This
   /// function checks the vector element type and the overall width of the
   /// vector.
-  bool isLegalInterleavedAccessType(VectorType *VecTy,
-                                    const DataLayout &DL) const;
+  bool isLegalInterleavedAccessType(VectorType *VecTy, const DataLayout &DL,
+                                    bool &UseScalable) const;
 
   /// Returns the number of interleaved accesses that will be generated when
   /// lowering accesses of the given type.
-  unsigned getNumInterleavedAccesses(VectorType *VecTy,
-                                     const DataLayout &DL) const;
+  unsigned getNumInterleavedAccesses(VectorType *VecTy, const DataLayout &DL,
+                                     bool UseScalable) const;
 
   MachineMemOperand::Flags getTargetMMOFlags(
     const Instruction &I) const override;

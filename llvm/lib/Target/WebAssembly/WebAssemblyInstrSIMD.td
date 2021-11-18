@@ -1344,3 +1344,68 @@ multiclass SIMDFM<Vec vec, bits<32> simdopA, bits<32> simdopS> {
 
 defm "" : SIMDFM<F32x4, 0xaf, 0xb0>;
 defm "" : SIMDFM<F64x2, 0xcf, 0xd0>;
+
+//===----------------------------------------------------------------------===//
+// Laneselect
+//===----------------------------------------------------------------------===//
+
+multiclass SIMDLANESELECT<Vec vec, bits<32> op> {
+  defm LANESELECT_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b, V128:$c), (outs), (ins),
+              [(set (vec.vt V128:$dst), (int_wasm_laneselect
+                (vec.vt V128:$a), (vec.vt V128:$b), (vec.vt V128:$c)))],
+              vec.prefix#".laneselect\t$dst, $a, $b, $c", vec.prefix#".laneselect", op>;
+}
+
+defm "" : SIMDLANESELECT<I8x16, 0xb2>;
+defm "" : SIMDLANESELECT<I16x8, 0xb3>;
+defm "" : SIMDLANESELECT<I32x4, 0xd2>;
+defm "" : SIMDLANESELECT<I64x2, 0xd3>;
+
+
+//===----------------------------------------------------------------------===//
+// Relaxed swizzle
+//===----------------------------------------------------------------------===//
+
+defm RELAXED_SWIZZLE :
+  RELAXED_I<(outs V128:$dst), (ins V128:$src, V128:$mask), (outs), (ins),
+         [(set (v16i8 V128:$dst),
+           (int_wasm_relaxed_swizzle (v16i8 V128:$src), (v16i8 V128:$mask)))],
+         "i8x16.relaxed_swizzle\t$dst, $src, $mask", "i8x16.relaxed_swizzle", 162>;
+
+//===----------------------------------------------------------------------===//
+// Relaxed floating-point min and max.
+//===----------------------------------------------------------------------===//
+
+multiclass SIMD_RELAXED_FMINMAX<Vec vec, bits<32> simdopMin, bits<32> simdopMax> {
+  defm RELAXED_FMIN_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b), (outs), (ins),
+              [(set (vec.vt V128:$dst), (int_wasm_relaxed_min
+                (vec.vt V128:$a), (vec.vt V128:$b)))],
+              vec.prefix#".relaxed_min\t$dst, $a, $b", vec.prefix#".relaxed_min", simdopMin>;
+  defm RELAXED_FMAX_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$a, V128:$b), (outs), (ins),
+              [(set (vec.vt V128:$dst), (int_wasm_relaxed_max
+                (vec.vt V128:$a), (vec.vt V128:$b)))],
+              vec.prefix#".relaxed_max\t$dst, $a, $b", vec.prefix#".relaxed_max", simdopMax>;
+}
+
+defm "" : SIMD_RELAXED_FMINMAX<F32x4, 0xb4, 0xe2>;
+defm "" : SIMD_RELAXED_FMINMAX<F64x2, 0xd4, 0xee>;
+
+//===----------------------------------------------------------------------===//
+// Relaxed floating-point to int conversions
+//===----------------------------------------------------------------------===//
+
+multiclass SIMD_RELAXED_CONVERT<Vec vec, Vec arg, SDPatternOperator op, string name, bits<32> simdop> {
+  defm op#_#vec :
+    RELAXED_I<(outs V128:$dst), (ins V128:$vec), (outs), (ins),
+              [(set (vec.vt V128:$dst), (vec.vt (op (arg.vt V128:$vec))))],
+              vec.prefix#"."#name#"\t$dst, $vec", vec.prefix#"."#name, simdop>;
+}
+
+defm "" : SIMD_RELAXED_CONVERT<I32x4, F32x4, int_wasm_relaxed_trunc_signed, "relaxed_trunc_f32x4_s", 0xa5>;
+defm "" : SIMD_RELAXED_CONVERT<I32x4, F32x4, int_wasm_relaxed_trunc_unsigned, "relaxed_trunc_f32x4_u", 0xa6>;
+
+defm "" : SIMD_RELAXED_CONVERT<I32x4, F64x2, int_wasm_relaxed_trunc_zero_signed, "relaxed_trunc_f64x2_s_zero", 0xc5>;
+defm "" : SIMD_RELAXED_CONVERT<I32x4, F64x2, int_wasm_relaxed_trunc_zero_unsigned, "relaxed_trunc_f64x2_u_zero", 0xc6>;

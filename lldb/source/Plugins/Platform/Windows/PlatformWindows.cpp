@@ -47,10 +47,9 @@ public:
 
 private:
   void AddArch(const ArchSpec &spec) {
-    auto iter = std::find_if(
-        m_archs.begin(), m_archs.end(),
-        [spec](const ArchSpec &rhs) { return spec.IsExactMatch(rhs); });
-    if (iter != m_archs.end())
+    if (llvm::any_of(m_archs, [spec](const ArchSpec &rhs) {
+          return spec.IsExactMatch(rhs);
+        }))
       return;
     if (spec.IsValid())
       m_archs.push_back(spec);
@@ -102,23 +101,9 @@ PlatformSP PlatformWindows::CreateInstance(bool force,
   return PlatformSP();
 }
 
-lldb_private::ConstString PlatformWindows::GetPluginNameStatic(bool is_host) {
-  if (is_host) {
-    static ConstString g_host_name(Platform::GetHostPlatformName());
-    return g_host_name;
-  } else {
-    static ConstString g_remote_name("remote-windows");
-    return g_remote_name;
-  }
-}
-
-const char *PlatformWindows::GetPluginDescriptionStatic(bool is_host) {
+llvm::StringRef PlatformWindows::GetPluginDescriptionStatic(bool is_host) {
   return is_host ? "Local Windows user platform plug-in."
                  : "Remote Windows user platform plug-in.";
-}
-
-lldb_private::ConstString PlatformWindows::GetPluginName() {
-  return GetPluginNameStatic(IsHost());
 }
 
 void PlatformWindows::Initialize() {
@@ -154,9 +139,9 @@ PlatformWindows::PlatformWindows(bool is_host) : RemoteAwarePlatform(is_host) {}
 Status PlatformWindows::ConnectRemote(Args &args) {
   Status error;
   if (IsHost()) {
-    error.SetErrorStringWithFormat(
-        "can't connect to the host platform '%s', always connected",
-        GetPluginName().AsCString());
+    error.SetErrorStringWithFormatv(
+        "can't connect to the host platform '{0}', always connected",
+        GetPluginName());
   } else {
     if (!m_remote_platform_sp)
       m_remote_platform_sp =
@@ -185,9 +170,9 @@ Status PlatformWindows::DisconnectRemote() {
   Status error;
 
   if (IsHost()) {
-    error.SetErrorStringWithFormat(
-        "can't disconnect from the host platform '%s', always connected",
-        GetPluginName().AsCString());
+    error.SetErrorStringWithFormatv(
+        "can't disconnect from the host platform '{0}', always connected",
+        GetPluginName());
   } else {
     if (m_remote_platform_sp)
       error = m_remote_platform_sp->DisconnectRemote();

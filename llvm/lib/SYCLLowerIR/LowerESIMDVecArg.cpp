@@ -188,7 +188,7 @@ Function *ESIMDLowerVecArgPass::rewriteFunc(Function &F) {
     // Variadic functions not supported
     assert(!Call->getFunction()->isVarArg() &&
            "Variadic functions not supported");
-    for (unsigned int I = 0; I < Call->getNumArgOperands(); I++) {
+    for (unsigned int I = 0; I < Call->arg_size(); I++) {
       auto SrcOpnd = Call->getOperand(I);
       auto NewTy = getSimdArgPtrTyOrNull(SrcOpnd);
       if (NewTy) {

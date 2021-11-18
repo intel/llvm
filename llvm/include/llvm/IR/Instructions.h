@@ -126,7 +126,7 @@ public:
   }
 
   // FIXME: Remove this one transition to Align is over.
-  unsigned getAlignment() const { return getAlign().value(); }
+  uint64_t getAlignment() const { return getAlign().value(); }
 
   /// Return true if this alloca is in the entry block of the function and is a
   /// constant size. If so, the code generator will fold it into the
@@ -217,7 +217,7 @@ public:
   /// Return the alignment of the access that is being performed.
   /// FIXME: Remove this function once transition to Align is over.
   /// Use getAlign() instead.
-  unsigned getAlignment() const { return getAlign().value(); }
+  uint64_t getAlignment() const { return getAlign().value(); }
 
   /// Return the alignment of the access that is being performed.
   Align getAlign() const {
@@ -348,7 +348,7 @@ public:
   /// Return the alignment of the access that is being performed
   /// FIXME: Remove this function once transition to Align is over.
   /// Use getAlign() instead.
-  unsigned getAlignment() const { return getAlign().value(); }
+  uint64_t getAlignment() const { return getAlign().value(); }
 
   Align getAlign() const {
     return Align(1ULL << (getSubclassData<AlignmentField>()));
@@ -1348,6 +1348,10 @@ public:
     setPredicate(getSwappedPredicate());
     Op<0>().swap(Op<1>());
   }
+
+  /// Return result of `LHS Pred RHS` comparison.
+  static bool compare(const APInt &LHS, const APInt &RHS,
+                      ICmpInst::Predicate Pred);
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {

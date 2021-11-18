@@ -759,7 +759,7 @@ mergeSampleProfile(const WeightedFileVector &Inputs, SymbolRemapper *Remapper,
     SampleContextTrimmer(ProfileMap)
         .trimAndMergeColdContextProfiles(
             SampleProfColdThreshold, SampleTrimColdContext,
-            SampleMergeColdContext, SampleColdContextFrameDepth);
+            SampleMergeColdContext, SampleColdContextFrameDepth, false);
   }
 
   auto WriterOrErr =
@@ -836,7 +836,7 @@ static void parseInputFilenamesFile(MemoryBuffer *Buffer,
     if (SanitizedEntry.startswith("#"))
       continue;
     // If there's no comma, it's an unweighted profile.
-    else if (SanitizedEntry.find(',') == StringRef::npos)
+    else if (!SanitizedEntry.contains(','))
       addWeightedInput(WFV, {std::string(SanitizedEntry), 1});
     else
       addWeightedInput(WFV, parseWeightedFile(SanitizedEntry));
@@ -1915,22 +1915,13 @@ std::error_code SampleOverlapAggregator::loadProfiles() {
 
   // Load BaseHotThreshold and TestHotThreshold as 99-percentile threshold in
   // profile summary.
-  const uint64_t HotCutoff = 990000;
   ProfileSummary &BasePS = BaseReader->getSummary();
-  for (const auto &SummaryEntry : BasePS.getDetailedSummary()) {
-    if (SummaryEntry.Cutoff == HotCutoff) {
-      BaseHotThreshold = SummaryEntry.MinCount;
-      break;
-    }
-  }
-
   ProfileSummary &TestPS = TestReader->getSummary();
-  for (const auto &SummaryEntry : TestPS.getDetailedSummary()) {
-    if (SummaryEntry.Cutoff == HotCutoff) {
-      TestHotThreshold = SummaryEntry.MinCount;
-      break;
-    }
-  }
+  BaseHotThreshold =
+      ProfileSummaryBuilder::getHotCountThreshold(BasePS.getDetailedSummary());
+  TestHotThreshold =
+      ProfileSummaryBuilder::getHotCountThreshold(TestPS.getDetailedSummary());
+
   return std::error_code();
 }
 
@@ -2117,9 +2108,8 @@ static int showInstrProfile(const std::string &Filename, bool ShowCounts,
       if (FuncIsCS != ShowCS)
         continue;
     }
-    bool Show =
-        ShowAllFunctions || (!ShowFunction.empty() &&
-                             Func.Name.find(ShowFunction) != Func.Name.npos);
+    bool Show = ShowAllFunctions ||
+                (!ShowFunction.empty() && Func.Name.contains(ShowFunction));
 
     bool doTextFormatDump = (Show && TextFormat);
 

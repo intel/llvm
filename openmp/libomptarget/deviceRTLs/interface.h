@@ -92,6 +92,8 @@ EXTERN int omp_get_team_num(void);
 EXTERN int omp_get_initial_device(void);
 EXTERN int omp_get_max_task_priority(void);
 
+EXTERN void *llvm_omp_get_dynamic_shared();
+
 ////////////////////////////////////////////////////////////////////////////////
 // file below is swiped from kmpc host interface
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,8 +222,6 @@ typedef int32_t kmp_CriticalName[8];
 EXTERN int32_t __kmpc_global_thread_num(kmp_Ident *loc);
 EXTERN void __kmpc_push_num_threads(kmp_Ident *loc, int32_t global_tid,
                                     int32_t num_threads);
-EXTERN void __kmpc_serialized_parallel(kmp_Ident *loc, uint32_t global_tid);
-EXTERN void __kmpc_end_serialized_parallel(kmp_Ident *loc, uint32_t global_tid);
 NOINLINE EXTERN uint8_t __kmpc_parallel_level();
 
 // proc bind
@@ -498,5 +498,8 @@ EXTERN void *__kmpc_alloc_shared(uint64_t Bytes);
 /// __kmpc_alloc_shared by the same thread. \p Bytes contains the size of the
 /// paired allocation to make memory management easier.
 EXTERN void __kmpc_free_shared(void *Ptr, size_t Bytes);
+
+/// Get a pointer to the dynamic shared memory buffer in the device.
+EXTERN void *__kmpc_get_dynamic_shared();
 
 #endif

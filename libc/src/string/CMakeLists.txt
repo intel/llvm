@@ -5,7 +5,26 @@ add_header_library(
   HDRS
     string_utils.h
   DEPENDS
-    libc.utils.CPP.standalone_cpp
+    libc.src.__support.CPP.standalone_cpp
+)
+
+add_entrypoint_object(
+  memccpy
+  SRCS
+    memccpy.cpp
+  HDRS
+    memccpy.h
+)
+
+
+add_entrypoint_object(
+  mempcpy
+  SRCS
+    mempcpy.cpp
+  HDRS
+    mempcpy.h
+  DEPENDS
+    libc.src.string.memcpy
 )
 
 add_entrypoint_object(
@@ -86,6 +105,18 @@ add_entrypoint_object(
 )
 
 add_entrypoint_object(
+  strdup
+  SRCS
+    strdup.cpp
+  HDRS
+    strdup.h
+  DEPENDS
+    .memcpy
+    .string_utils
+    libc.include.stdlib
+)
+
+add_entrypoint_object(
   strlen
   SRCS
     strlen.cpp
@@ -93,6 +124,17 @@ add_entrypoint_object(
     strlen.h
   DEPENDS
     libc.include.string
+)
+
+add_entrypoint_object(
+  strncat
+  SRCS
+    strncat.cpp
+  HDRS
+    strncat.h
+  DEPENDS
+    .strncpy
+    .string_utils
 )
 
 add_entrypoint_object(
@@ -146,7 +188,7 @@ add_entrypoint_object(
   HDRS
     strspn.h
   DEPENDS
-    libc.utils.CPP.standalone_cpp
+    libc.src.__support.CPP.standalone_cpp
 )
 
 add_entrypoint_object(
