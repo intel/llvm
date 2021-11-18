@@ -34,15 +34,15 @@ sycl/include/sycl/ext/intel/sub_group.hpp @Pennycook @AlexeySachkov
 sycl/include/sycl/ext/intel/sub_group_host.hpp @Pennycook @AlexeySachkov
 
 # PI API
-sycl/include/CL/sycl/detail/pi.def @smaslov-intel @againull
-sycl/include/CL/sycl/detail/pi.h   @smaslov-intel @againull
-sycl/include/CL/sycl/detail/pi.hpp @smaslov-intel @againull
-sycl/include/CL/sycl/detail/pi* @smaslov-intel @againull
-sycl/plugins/ @smaslov-intel @againull
-sycl/source/detail/pi.cpp @smaslov-intel @againull
-sycl/source/detail/plugin.hpp @smaslov-intel @againull
-sycl/source/detail/posix_pi.cpp @smaslov-intel @againull
-sycl/source/detail/windows_pi.cpp @smaslov-intel @againull
+sycl/include/CL/sycl/detail/pi.def @smaslov-intel
+sycl/include/CL/sycl/detail/pi.h   @smaslov-intel
+sycl/include/CL/sycl/detail/pi.hpp @smaslov-intel
+sycl/include/CL/sycl/detail/pi* @smaslov-intel
+sycl/plugins/ @smaslov-intel
+sycl/source/detail/pi.cpp @smaslov-intel
+sycl/source/detail/plugin.hpp @smaslov-intel
+sycl/source/detail/posix_pi.cpp @smaslov-intel
+sycl/source/detail/windows_pi.cpp @smaslov-intel
 
 # ESIMD CPU emulator plug-in
 sycl/plugins/esimd_cpu/ @kbobrovs @smaslov-intel

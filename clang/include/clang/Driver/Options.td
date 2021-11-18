@@ -940,7 +940,7 @@ def offload_arch_EQ : Joined<["--"], "offload-arch=">, Flags<[NoXarchOption]>,
            "device architecture followed by target ID features delimited by a colon. Each target ID feature "
            "is a pre-defined string followed by a plus or minus sign (e.g. gfx908:xnack+:sramecc-).  May be "
            "specified more than once.">;
-def cuda_gpu_arch_EQ : Joined<["--"], "cuda-gpu-arch=">, Flags<[NoXarchOption]>,
+def cuda_gpu_arch_EQ : Joined<["--"], "cuda-gpu-arch=">, Flags<[NoXarchOption, CoreOption]>,
   Alias<offload_arch_EQ>;
 def hip_link : Flag<["--"], "hip-link">,
   HelpText<"Link clang-offload-bundler bundles for HIP">;
@@ -957,7 +957,7 @@ def no_cuda_version_check : Flag<["--"], "no-cuda-version-check">,
   HelpText<"Don't error out if the detected version of the CUDA install is "
            "too low for the requested CUDA gpu architecture.">;
 def no_cuda_noopt_device_debug : Flag<["--"], "no-cuda-noopt-device-debug">;
-def cuda_path_EQ : Joined<["--"], "cuda-path=">, Group<i_Group>,
+def cuda_path_EQ : Joined<["--"], "cuda-path=">, Flags<[CoreOption]>, Group<i_Group>,
   HelpText<"CUDA installation path">;
 def cuda_path_ignore_env : Flag<["--"], "cuda-path-ignore-env">, Group<i_Group>,
   HelpText<"Ignore environment variables to detect CUDA installation">;
@@ -2694,7 +2694,7 @@ def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
   "from all of the offline compilation tools">;
 def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
   Flags<[CC1Option, CoreOption]>, HelpText<"Path to libspirv library">;
-def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, HelpText<"Disable check for libspirv">;
+def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, Flags<[CoreOption]>, HelpText<"Disable check for libspirv">;
 def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
   Flags<[CoreOption]>, HelpText<"Specify C++ compiler binary to perform host "
   "compilation with during SYCL offload compiles.">;
@@ -3846,7 +3846,7 @@ def nogpuinc : Flag<["-"], "nogpuinc">, HelpText<"Do not add include paths for C
 def : Flag<["-"], "nocudainc">, Alias<nogpuinc>;
 def nogpulib : Flag<["-"], "nogpulib">,
   HelpText<"Do not link device library for CUDA/HIP device compilation">;
-def : Flag<["-"], "nocudalib">, Alias<nogpulib>;
+def : Flag<["-"], "nocudalib">, Flags<[CoreOption]>, Alias<nogpulib>;
 def nodefaultlibs : Flag<["-"], "nodefaultlibs">;
 def nofixprebinding : Flag<["-"], "nofixprebinding">;
 def nolibc : Flag<["-"], "nolibc">;

@@ -410,8 +410,11 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
 bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
-    if (FD->getBuiltinID() == Builtin::BIprintf)
-      return true;
+    // Allow to use `::printf` only for CUDA.
+    if (Context.getTargetInfo().getTriple().isNVPTX()) {
+      if (FD->getBuiltinID() == Builtin::BIprintf)
+        return true;
+    }
     const DeclContext *DC = FD->getDeclContext();
     if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&
@@ -4131,7 +4134,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   }
 }
 
-bool Sema::checkAllowedSYCLInitializer(VarDecl *VD, bool CheckValueDependent) {
+bool Sema::checkAllowedSYCLInitializer(VarDecl *VD) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
 
@@ -4139,7 +4142,7 @@ bool Sema::checkAllowedSYCLInitializer(VarDecl *VD, bool CheckValueDependent) {
     return true;
 
   const Expr *Init = VD->getInit();
-  bool ValueDependent = CheckValueDependent && Init->isValueDependent();
+  bool ValueDependent = Init->isValueDependent();
   bool isConstantInit =
       Init && !ValueDependent && Init->isConstantInitializer(Context, false);
   if (!VD->isConstexpr() && Init && !ValueDependent && !isConstantInit)
