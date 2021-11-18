@@ -189,14 +189,13 @@ usage via *OpFunctionPointerCallINTEL*. This function must not be optimized
 out based on call graph/reachability analysis 2+||
 *IndirectReferencesINTEL*|
 6409 | *ArgumentAttributeINTEL* +
-Apply to an *OpFunctionPointerCallINTEL* to preserve _Function Parameter Attribute_ of it's
-argument with the specified _Index_. +
-_Function Parameter Attribute_ and _Index_ are literal strings. _Optional Argument_ is literal string to preserve alignment value, it can exist if the _Function Parameter Attribute_ is an alignment
+Indicates an attribute of argument of an indirect function call. Apply to an *OpFunctionPointerCallINTEL*. +
+_Index_ is an unsigned 32-bit integer indicating the argument number _N_. The attribute is applied to _Argument N_ of *OpFunctionPointerCallINTEL*. _Argument Attribute_ specifies which attribute is applied, its possible values are enumerated in section "Function Parameter Attribute" of the core SPIR-V specification.
  2+|
-_<<Literal, Literals>> +
+_<<Literal, Literal>> +
 Index +
-<<Literal, Literals>> +
-Function Parameter Attribute +
+<<Argument Attribute, Argument Attribute>> +
+Argument Attribute +
 <<Literal, Literals>> +
 Optional Argument_ |
 *FunctionPointersINTEL*|
