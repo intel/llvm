@@ -3,8 +3,6 @@
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 
-// UNSUPPORTED: hip
-
 #include <CL/sycl.hpp>
 #include <stdlib.h>
 
