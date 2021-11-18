@@ -41,10 +41,10 @@ SYCL specification refer to that revision.
 
 ## Introduction
 
-This document proposes that `async_work_group_copy` be deprecated and replaced 
-with `async_group_copy`. `async_group_copy` is a non-member function, in line
-with the other group functions, which generalizes `async_work_group_copy` to
-also work with sub-groups.
+This document proposes `async_group_copy`, which will generalize 
+`async_work_group_copy` to work with sub-groups as well as work-groups. 
+A `wait_for` function will also be also be added to block until the memory
+copy is complete and to ensure memory consistency for the group.
 
 ## Feature test macro
 
@@ -64,16 +64,46 @@ to determine which of the extension’s APIs the implementation supports.
 
 
 ## New `async_group_copy` function.
-Currently the `nd_item` and `group` classes have the member function
-`async_work_group_copy`. These will be deprecated in favor of a single function 
-`async_group_copy` that will have the group as a template parameter, much
-like `group_barrier`.
+`async_group_copy` will work very similarly to `async_work_group_copy`, but 
+with the ability to utilize individual sub-groups. The group will be provided 
+as a template parameter, in the same fashion as `group_barrier`.
+`async_group_copy` is intended as a potential optimization, and may add more 
+overhead than a simple synchronous implementation in some cases.
 
-`async_group_copy` methods would be valid for groups `group` and `sub_group`.
-Note that the destination and source arguments have been swapped to be
-more in line with other SYCL copy functions.
+`async_group_copy` will asynchronously copy a given number of values of type
+`dataT` from global memory to local memory or from local memory to global
+memory. If an asynchorous copy is not supported then it will fall back on a
+synchronous copy. `async_group_copy` is a free function with the following
+properties:
+
+* The work-items will not necessarily be synchronized, so must have a
+  consistent view of the memory before the invocation.
+* The order of operations is not specified.
+* All work-items of the group are required to call the function with the same 
+  arguments, otherwise the behaviour is undefined.
+* All work-items of the group are required to call the function in convergent
+  control flow, otherwise the behaviour is undefined.
+* The type of `dataT` should be a scalar or vector type.
+* The data written by `async_group_copy` should not be read until `wait_for`
+  has been called on the returned `device_event`.
+
+The structs `dest_stride` and `src_stride` have been introduced to reduce errors
+when specifying the stride.
+
+Note that the destination and source arguments have been swapped to be more in
+line with other SYCL copy functions.
+
 ```c++
 namespace sycl::ext::oneapi {
+
+struct dest_stride {
+       std::size_t value;       
+};
+
+struct src_stride {
+       std::size_t value;
+};
+
 template <typename Group, typename dataT>
 device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count);
 
@@ -81,28 +111,39 @@ template <typename Group, typename dataT>
 device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count);
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count, size_t destStride);
+device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src, sycl::decorated_global_ptr<dataT> dest, size_t count, dest_stride destStride);
 
 template <typename Group, typename dataT>
-device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count, size_t srcStride);
+device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count, src_stride srcStride);
 } // namespace sycl::ext::oneapi
 ```
 
-## Change to `device_event::wait` function
-`device_event::wait` will be modified to take the group that will be synchronized in the wait.
-This will be valid for the same groups as `async_group_copy` i.e. `group` or `sub_group`.
+## New `wait_for` function
+`wait_for` will work very similarly to `nd_item::wait_for` or `group::wait_for`,
+but with the ability to utilize individual sub-groups. The group will be provided 
+as a template parameter, in the same fashion as `group_barrier`.  
+
+`wait_for` will block until the the asychronous copy represented by the 
+`device_event` is complete. Data written to a location by `async_group_copy`
+should not be read until `wait_for` has been called with the returned
+`device_event`. `wait_for` will also act as a group barrier to ensure memory
+consistency between the work-items of the group.
+
+`wait_for` is a free function with the following properties:
+
+* The group should be the same as the group used in the invocation of 
+  `async_group_copy` that returned the `device_event` or the behaviour is undefined.
+* All work-items of the group are required to call the function in convergent
+  control flow, otherwise the behaviour is undefined.
+
+
 NOTE: For NVIDIA architectures of sm_80 or higher, the group will be blocked until all
 outstanding async_group_copy requests are completed.
 
 ```c++
-namespace sycl {
-  class device_event {
-  ...
-  public:
-    template <typename Group>
-    void ext_oneapi_wait(Group group) noexcept;
-  ...
-  };
+namespace sycl::ext::oneapi {
+    template <typename Group, typename eventTN>
+    void wait_for(Group group, eventTN... Events) noexcept;
 }  // namespace sycl
 ```
 
