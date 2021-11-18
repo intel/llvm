@@ -12,6 +12,7 @@
 
 #ifdef __SPIR__
 
+// NOTE Align these definitions with fallback-cassert.cl
 #define ASSERT_NONE 0
 #define ASSERT_START 1
 #define ASSERT_FINISH 2
