@@ -2553,10 +2553,6 @@ Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   IntegerType *Int32Ty = IntegerType::get(*Context, 32);
   IntegerType *Int1Ty = IntegerType::get(*Context, 1);
 
-  Op OpCode = Inst->getOpCode();
-  std::string FuncName =
-      SPIRVFixedPointIntelMap::rmap(OpCode) + getFuncAPIntSuffix(RetTy, InTy);
-  auto Words = Inst->getOpWords();
   SmallVector<Type *, 8> ArgTys;
   std::vector<Value *> Args;
   Args.reserve(8);
@@ -2568,42 +2564,40 @@ Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
     Args.emplace_back(RetValPtr);
   }
 
-  ArgTys.emplace_back(InTy);
-  ArgTys.emplace_back(Int1Ty);
-  for (int I = 0; I < 4; I++)
-    ArgTys.emplace_back(Int32Ty);
+  ArgTys.insert(ArgTys.end(),
+                {InTy, Int1Ty, Int32Ty, Int32Ty, Int32Ty, Int32Ty});
 
+  auto Words = Inst->getOpWords();
   Args.emplace_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
   Args.emplace_back(ConstantInt::get(Int1Ty, Words[1]));
   for (int I = 2; I <= 5; I++)
     Args.emplace_back(ConstantInt::get(Int32Ty, Words[I]));
 
-  if (RetTy->getIntegerBitWidth() <= 64) {
-    FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
-    FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
-    auto *Fn = cast<Function>(FCallee.getCallee());
-    Fn->setCallingConv(CallingConv::SPIR_FUNC);
-    if (isFuncNoUnwind())
-      Fn->addFnAttr(Attribute::NoUnwind);
-    return CallInst::Create(FCallee, Args, "", BB);
-  }
+  Type *FuncRetTy =
+      (RetTy->getIntegerBitWidth() <= 64) ? RetTy : Type::getVoidTy(*Context);
+  FunctionType *FT = FunctionType::get(FuncRetTy, ArgTys, false);
 
-  FunctionType *FT =
-      FunctionType::get(Type::getVoidTy(*Context), ArgTys, false);
+  Op OpCode = Inst->getOpCode();
+  std::string FuncName =
+      SPIRVFixedPointIntelMap::rmap(OpCode) + getFuncAPIntSuffix(RetTy, InTy);
+
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
   auto *Func = cast<Function>(FCallee.getCallee());
   Func->setCallingConv(CallingConv::SPIR_FUNC);
   if (isFuncNoUnwind())
     Func->addFnAttr(Attribute::NoUnwind);
+
+  if (RetTy->getIntegerBitWidth() <= 64)
+    return CallInst::Create(FCallee, Args, "", BB);
+
   Func->addParamAttr(
       0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
   CallInst *APIntInst = CallInst::Create(FCallee, Args, "", BB);
   APIntInst->addParamAttr(
       0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
 
-  Value *LI = new LoadInst(RetTy, Args[0], "", false, BB);
-  return LI;
+  return static_cast<Value *>(new LoadInst(RetTy, Args[0], "", false, BB));
 }
 
 Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
@@ -2680,30 +2674,22 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   const std::vector<SPIRVWord> Words = Inst->getOpWords();
   auto WordsItr = Words.begin() + 1; /* Skip word for A input id */
 
-  SmallVector<Type *> ArgTys;
+  SmallVector<Type *, 8> ArgTys;
   std::vector<Value *> Args;
 
-  if (RetTy->getIntegerBitWidth() <= 64) {
-    SmallVector<Type *, 8> ArgTysLocal = {ATy, Int32Ty};
-    std::vector<Value *> ArgsLocal = {
-        transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-        ConstantInt::get(Int32Ty,
-                         *WordsItr++) /* MA/Mout - width of mantissa */};
-    ArgTys = std::move(ArgTysLocal);
-    Args = std::move(ArgsLocal);
-  } else {
+  if (RetTy->getIntegerBitWidth() > 64) {
     llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
-    SmallVector<Type *, 9> ArgTysLocal = {RetPtrTy, ATy, Int32Ty};
+    ArgTys.push_back(RetPtrTy);
     Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
     Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
-    std::vector<Value *> ArgsLocal = {
-        RetValPtr,
-        transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-        ConstantInt::get(Int32Ty,
-                         *WordsItr++) /* MA/Mout - width of mantissa */};
-    ArgTys = std::move(ArgTysLocal);
-    Args = std::move(ArgsLocal);
+    Args.push_back(RetValPtr);
   }
+
+  ArgTys.insert(ArgTys.end(), {ATy, Int32Ty});
+  // A - input
+  Args.emplace_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
+  // MA/Mout - width of mantissa
+  Args.emplace_back(ConstantInt::get(Int32Ty, *WordsItr++));
 
   Op OC = Inst->getOpCode();
   if (OC == OpArbitraryFloatCastFromIntINTEL ||
@@ -2729,20 +2715,10 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
 
   std::string FuncName =
       SPIRVArbFloatIntelMap::rmap(OC) + getFuncAPIntSuffix(RetTy, ATy, BTy);
-  if (RetTy->getIntegerBitWidth() <= 64) {
-    FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
-    FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
-    auto *Func = cast<Function>(FCallee.getCallee());
-    Func->setCallingConv(CallingConv::SPIR_FUNC);
-    if (isFuncNoUnwind())
-      Func->addFnAttr(Attribute::NoUnwind);
-
-    return CallInst::Create(Func, Args, "", BB);
-  }
-
-  FunctionType *FT =
-      FunctionType::get(Type::getVoidTy(*Context), ArgTys, false);
+  Type *FuncRetTy =
+      (RetTy->getIntegerBitWidth() <= 64) ? RetTy : Type::getVoidTy(*Context);
+  FunctionType *FT = FunctionType::get(FuncRetTy, ArgTys, false);
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
   auto *Func = cast<Function>(FCallee.getCallee());
@@ -2750,14 +2726,16 @@ Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   if (isFuncNoUnwind())
     Func->addFnAttr(Attribute::NoUnwind);
 
+  if (RetTy->getIntegerBitWidth() <= 64)
+    return CallInst::Create(Func, Args, "", BB);
+
   Func->addParamAttr(
       0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
   CallInst *APFloatInst = CallInst::Create(FCallee, Args, "", BB);
   APFloatInst->addParamAttr(
       0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
 
-  Value *LI = new LoadInst(RetTy, Args[0], "", false, BB);
-  return LI;
+  return static_cast<Value *>(new LoadInst(RetTy, Args[0], "", false, BB));
 }
 
 template <class SourceTy, class FuncTy>
