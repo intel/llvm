@@ -331,22 +331,24 @@ public:
     std::call_once(Flag, [&] {
       if (ValueStr)
         try {
-          Value = std::stoi(Val);
+          Value = std::stoi(ValueStr);
         } catch (...) {
           throw invalid_parameter_error(
-              "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
+              "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
+              "variable",
               PI_INVALID_VALUE);
         }
 
       if (Value < 1)
         throw invalid_parameter_error(
-            "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
+            "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
+            "variable",
             PI_INVALID_VALUE);
     });
 
     return Value;
   }
-}
+};
 
 } // namespace detail
 } // namespace sycl

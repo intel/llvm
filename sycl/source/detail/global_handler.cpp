@@ -15,6 +15,7 @@
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/thread_pool.hpp>
 #include <detail/xpti_registry.hpp>
 
 #ifdef _WIN32
