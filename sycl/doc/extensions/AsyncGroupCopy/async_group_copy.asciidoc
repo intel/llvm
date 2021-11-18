@@ -41,10 +41,11 @@ SYCL specification refer to that revision.
 
 ## Introduction
 
-This document proposes `async_group_copy`, which will generalize 
-`async_work_group_copy` to work with sub-groups as well as work-groups. 
+This document proposes `async_group_copy`, which will generalize
+`async_work_group_copy` to work with sub-groups as well as work-groups.
 A `wait_for` function will also be also be added to block until the memory
-copy is complete and to ensure memory consistency for the group.
+copy is complete and to ensure memory consistency for the group, this will use
+the same groups as `async_group_copy`.
 
 ## Feature test macro
 
@@ -64,22 +65,22 @@ to determine which of the extension’s APIs the implementation supports.
 
 
 ## New `async_group_copy` function.
-`async_group_copy` will work very similarly to `async_work_group_copy`, but 
-with the ability to utilize individual sub-groups. The group will be provided 
+`async_group_copy` will work very similarly to `async_work_group_copy`, but
+with the ability to utilize individual sub-groups. The group will be provided
 as a template parameter, in the same fashion as `group_barrier`.
-`async_group_copy` is intended as a potential optimization, and may add more 
+`async_group_copy` is intended as a potential optimization, and may add more
 overhead than a simple synchronous implementation in some cases.
 
 `async_group_copy` will asynchronously copy a given number of values of type
 `dataT` from global memory to local memory or from local memory to global
-memory. If an asynchorous copy is not supported then it will fall back on a
-synchronous copy. `async_group_copy` is a free function with the following
-properties:
+memory. If an asynchorous copy is not supported then `async_group_copy` will
+fall back on a synchronous copy. `async_group_copy` is a free function with the
+following properties:
 
 * The work-items will not necessarily be synchronized, so must have a
   consistent view of the memory before the invocation.
 * The order of operations is not specified.
-* All work-items of the group are required to call the function with the same 
+* All work-items of the group are required to call the function with the same
   arguments, otherwise the behaviour is undefined.
 * All work-items of the group are required to call the function in convergent
   control flow, otherwise the behaviour is undefined.
@@ -97,7 +98,7 @@ line with other SYCL copy functions.
 namespace sycl::ext::oneapi {
 
 struct dest_stride {
-       std::size_t value;       
+       std::size_t value;
 };
 
 struct src_stride {
@@ -120,19 +121,19 @@ device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src
 
 ## New `wait_for` function
 `wait_for` will work very similarly to `nd_item::wait_for` or `group::wait_for`,
-but with the ability to utilize individual sub-groups. The group will be provided 
-as a template parameter, in the same fashion as `group_barrier`.  
+but with the ability to utilize individual sub-groups. The group will be provided
+as a template parameter, in the same fashion as `group_barrier`.
 
-`wait_for` will block until the the asychronous copy represented by the 
-`device_event` is complete. Data written to a location by `async_group_copy`
+`wait_for` will block until all the asychronous copies represented by the
+`device_event` arguments are complete. Data written to a location by `async_group_copy`
 should not be read until `wait_for` has been called with the returned
 `device_event`. `wait_for` will also act as a group barrier to ensure memory
 consistency between the work-items of the group.
 
 `wait_for` is a free function with the following properties:
 
-* The group should be the same as the group used in the invocation of 
-  `async_group_copy` that returned the `device_event` or the behaviour is undefined.
+* The group should be the same as the group used in all invocations of
+  `async_group_copy` that returned the `device_event` arguments or the behaviour is undefined.
 * All work-items of the group are required to call the function in convergent
   control flow, otherwise the behaviour is undefined.
 
