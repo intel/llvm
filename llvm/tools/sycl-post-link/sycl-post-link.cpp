@@ -453,8 +453,8 @@ HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
   return No_Assert;
 }
 
-std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
-  std::vector<StringRef> Result;
+StringRefVector getKernelNamesUsingAssert(const Module &M) {
+  StringRefVector Result;
 
   bool HasIndirectlyCalledAssert = false;
   FuncPtrVector Kernels;
@@ -548,6 +548,8 @@ ModuleUPtr splitModule(const Module &M,
   }
 
   ValueToValueMapTy VMap;
+  // Clone definitions only for needed globals. Others will be added as
+  // declarations and removed later.
   ModuleUPtr MClone = CloneModule(
       M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
 
@@ -675,7 +677,7 @@ void saveDeviceImageProperty(Module &M, const FuncPtrVector &ModuleEntryPoints,
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
 
   {
-    std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
+    StringRefVector FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
   }
@@ -785,8 +787,6 @@ class ModuleSplitter {
     // Reconstruct context without memory reallocation.
     SplitCtx->~LLVMContext();
     new (SplitCtx.get()) LLVMContext();
-    // Allocate memory for temporary context.
-    SplitCtx.reset(new LLVMContext());
 
     // Load source module copy in new temporary context.
     MemoryBufferRef MBufRef(StringRef(MBuffer.data(), MBuffer.size()),
@@ -805,6 +805,8 @@ public:
       GlobalsSet[GLOBAL_SCOPE_NAME] = {};
     GlobalsSetIt = GlobalsSet.cbegin();
 
+    // Actual reduce memory mode will be turned on in case if number of modules
+    // to split is greater than initial splits limit.
     SplitParams.ReduceMemUsage =
         (SplitParams.IsSplit && SplitParams.ReduceMemUsage &&
          GlobalsSet.size() > SplitsInOneContextLimit);
