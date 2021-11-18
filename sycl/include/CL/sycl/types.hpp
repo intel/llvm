@@ -2414,6 +2414,15 @@ struct is_device_copyable<std::tuple<T, Ts...>>
     : detail::bool_constant<is_device_copyable<T>::value &&
                             is_device_copyable<std::tuple<Ts...>>::value> {};
 
+// marray is device copyable if element type is device copyable and it is also
+// not trivially copyable (if the element type is trivially copyable, the marray
+// is device copyable by default).
+template <typename T, std::size_t N>
+struct is_device_copyable<
+    sycl::marray<T, N>, std::enable_if_t<is_device_copyable<T>::value &&
+                                         !std::is_trivially_copyable<T>::value>>
+    : std::true_type {};
+
 // vec is device copyable on host, on device vec is trivially copyable
 // and therefore is device copyable too.
 #ifndef __SYCL_DEVICE_ONLY__
