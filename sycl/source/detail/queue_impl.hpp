@@ -129,9 +129,6 @@ public:
                                            sizeof(Device), &Device, nullptr);
     MDevice =
         DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
-
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
   }
 
   ~queue_impl() {

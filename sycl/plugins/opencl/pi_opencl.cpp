@@ -389,6 +389,7 @@ pi_result piextQueueCreateWithNativeHandle(pi_native_handle nativeHandle,
   (void)ownNativeHandle;
   assert(piQueue != nullptr);
   *piQueue = reinterpret_cast<pi_queue>(nativeHandle);
+  clRetainCommandQueue(*piQueue);
   return PI_SUCCESS;
 }
 
