@@ -194,13 +194,13 @@ device.  This is particularly true for FPGA users who always AOT compile their
 application for a specific FPGA device.
 
 To satisfy this use case, this design adds a new compile-time switch
-`-fsycl-assume-all-kernels-run-on-targets` which is an assertion by the user
-that all device code in the translation unit is expected to be runnable on the
-specified target device(s).
+`-fsycl-fixed-targets` which is an assertion by the user that all device code
+in the translation unit is expected to be runnable on the specified target
+device(s).
 
 The definition of this switch is:
 
-> `-fsycl-assume-all-kernels-run-on-targets=target,target...`
+> `-fsycl-fixed-targets=target,target...`
 >
 > This switch may be passed on the compilation line as an assertion by the
 > user that all device code in the source file (translation unit) is expected
@@ -210,20 +210,18 @@ The definition of this switch is:
 > the compiler raises a diagnostic.
 >
 > This switch may be used either with or without the `-fsycl-targets` switch.
-> When used without `-fsycl-targets`, the
-> `-fsycl-assume-all-kernels-run-on-targets` switch checks for kernels that use
-> features that are not compatible with the listed target devices, but those
-> kernels are still just-in-time (JIT) compiled when the application runs.
-> When used with `-fsycl-targets`, the compiler does the same checks, but it
-> also compiles the kernels ahead-of-time (AOT).  When both switches are used
-> together, it is typical to pass the same set of target devices to both
-> switches.
+> When used without `-fsycl-targets`, the `-fsycl-fixed-targets` switch checks
+> for kernels that use features that are not compatible with the listed target
+> devices, but those kernels are still just-in-time (JIT) compiled when the
+> application runs.  When used with `-fsycl-targets`, the compiler does the
+> same checks, but it also compiles the kernels ahead-of-time (AOT).  When both
+> switches are used together, it is typical to pass the same set of target
+> devices to both switches.
 
 In order for readers of this design document to better understand the
-relationship between the target list in
-`-fsycl-assume-all-kernels-run-on-targets` vs. the target list in
-`-fsycl-targets`, consider a weird case where both switches are specified with
-different target lists.  If `-fsycl-assume-all-kernels-run-on-targets=X` is
+relationship between the target list in `-fsycl-fixed-targets` vs. the target
+list in `-fsycl-targets`, consider a weird case where both switches are
+specified with different target lists.  If `-fsycl-fixed-targets=X` is
 specified on the command line, the compiler checks that all device code is
 compatible with all targets in list `X`, so it issues a diagnostic if any of
 that code uses a feature that is incompatible with any of those targets.  As
@@ -234,10 +232,10 @@ images.
 Let's further assume in our example that the `-fsycl-targets=Y` is also
 specified on the command line.  This causes the compiler to AOT compile all
 *eligible* device code for each target in `Y`.  However, the
-`-fsycl-assume-all-kernels-run-on-targets` indicates that the device code is
-only eligible to run on targets in the `X` list.  As a result, the
-`-fsycl-targets` switch will only AOT compile for the devices that are present
-in both lists (i.e. the intersection of the two sets `X` and `Y`).
+`-fsycl-fixed-targets` switch indicates that the device code is only eligible
+to run on targets in the `X` list.  As a result, the `-fsycl-targets` switch
+will only AOT compile for the devices that are present in both lists (i.e. the
+intersection of the two sets `X` and `Y`).
 
 
 ### Must preserve ability to precisely control device images
@@ -259,16 +257,15 @@ optimization that controls JIT-time overhead.  These users do not expect
 an exception at runtime.
 
 To satisfy both users, the meaning of `-fsycl-device-code-split` is changed as
-follows.  When used without `-fsycl-assume-all-kernels-run-on-targets`, it
-specifies a minimum granularity of splitting, but the implementation may
-perform additional device code splits in order to preserve the correctness of
-the code.
+follows.  When used without `-fsycl-fixed-targets`, it specifies a minimum
+granularity of splitting, but the implementation may perform additional device
+code splits in order to preserve the correctness of the code.
 
 However, when `-fsycl-device-code-split` is used in conjunction with
-`-fsycl-assume-all-kernels-run-on-targets`, we can guarantee that additional
-device code splits are not needed for correctness.  Thus, when both switches
-are specified together, the `-fsycl-device-code-split` provides the precise
-control over bundling of kernels into device images that FPGA users expect.
+`-fsycl-fixed-targets`, we can guarantee that additional device code splits are
+not needed for correctness.  Thus, when both switches are specified together,
+the `-fsycl-device-code-split` provides the precise control over bundling of
+kernels into device images that FPGA users expect.
 
 Note that these switches are useful even for non-FPGA users.  For example,
 non-FPGA users may want to use the `device_global` property
@@ -294,14 +291,14 @@ The new definition of `-fsycl-device-code-split` is as follows:
 > Normally, this switch specifies only a minimum granularity for device code
 > splitting, and DPC++ may perform additional device code splits beyond those
 > that are requested.  However, translation units that are compiled with
-> `-fsycl-assume-all-kernels-run-on-targets` have stricter guarantees.  All
-> kernels from translation units that are compiled with the same set of targets
-> are first logically bundled into the same device image.  Kernels in each of
-> these device images are then split exactly as specified by
+> `-fsycl-fixed-targets` have stricter guarantees.  All kernels from
+> translation units that are compiled with the same set of targets are first
+> logically bundled into the same device image.  Kernels in each of these
+> device images are then split exactly as specified by
 > `-fsycl-device-code-split`.  For example, when source files are compiled with
-> `-fsycl-assume-all-kernels-run-on-targets=X` and then linked with
-> `-fsycl-device-code-split=off`, all kernels in those source files are
-> guaranteed to be grouped into a single device image.
+> `-fsycl-fixed-targets=X` and then linked with `-fsycl-device-code-split=off`,
+> all kernels in those source files are guaranteed to be grouped into a single
+> device image.
 >
 > The `value` can be any one of the following:
 >
@@ -444,21 +441,20 @@ similar to the existing `!intel_reqd_sub_group_size`:
   constant is a value from `enum class aspect` representing the aspects that
   are used by the kernel or exported device function.
 
-* The `!intel_assumed_targets` metadata is used to decorate kernel functions
-  and `SYCL_EXTERNAL` functions, telling the value of the
-  `-fsycl-assume-all-kernels-run-on-targets` that was used to compile the
-  translation unit.  The value of this metadata node is a list of string
-  literals corresponding to the list of targets specified on that command line
-  switch.  If the translation unit is compiled without the
-  `-fsycl-assume-all-kernels-run-on-targets`, the metadata has an empty list.
+* The `!intel_fixed_targets` metadata is used to decorate kernel functions and
+  `SYCL_EXTERNAL` functions, telling the value of the `-fsycl-fixed-targets`
+  switch that was used to compile the translation unit.  The value of this
+  metadata node is a list of string literals corresponding to the list of
+  targets specified on that command line switch.  If the translation unit is
+  compiled without the `-fsycl-fixed-targets`, the metadata has an empty list.
 
   The reason an empty metadata is added to functions compiled without the
   command line switch is to aid with the error checking that happens in the
   `sycl-post-link` tool w.r.t. `SYCL_EXTERNAL` functions.  The presence of the
   empty metadata allows `sycl-post-link` to identify functions that are
-  definitely known to be compiled without
-  `-fsycl-assume-all-kernels-run-on-targets`.  Functions with no metadata might
-  be created by backend IR passes, even when this switch *is* specified.
+  definitely known to be compiled without `-fsycl-fixed-targets`.  Functions
+  with no metadata might be created by backend IR passes, even when this switch
+  *is* specified.
 
 To illustrate, the following IR corresponds to a function `foo` that is
 decorated with `[[sycl::device_has()]]` where the required aspects have the
@@ -508,15 +504,14 @@ We add a new IR phase to the device compiler which does the following:
 * Diagnoses a warning if any function that has `!intel_declared_aspects` uses
   an aspect not listed in that declared set.
 
-* Creates an `!intel_assumed_targets` metadata for each kernel function or
+* Creates an `!intel_fixed_targets` metadata for each kernel function or
   `SYCL_EXTERNAL` function that is defined.  This is done regardless of whether
-  the `-fsycl-assume-all-kernels-run-on-targets` command line switch is
-  specified.  If the switch is not specified, the metadata has an empty list
-  of targets.
+  the `-fsycl-fixed-targets` command line switch is specified.  If the switch
+  is not specified, the metadata has an empty list of targets.
 
-* If the `-fsycl-assume-all-kernels-run-on-targets` command line switch is
-  specified, diagnoses a warning if any function uses an aspect that is not
-  compatible with all target devices specified by that switch.
+* If the `-fsycl-fixed-targets` command line switch is specified, diagnoses a
+  warning if any function uses an aspect that is not compatible with all target
+  devices specified by that switch.
 
 It is important that this IR phase runs before any other optimization phase
 that might eliminate a reference to a type or inline a function call because
@@ -689,20 +684,20 @@ Therefore, it seems safest to split device code based required work-group size
 also.
 
 The algorithm is different, though, for translation units that were compiled
-with `-fsycl-assume-all-kernels-run-on-targets`.  Since the user has asserted
-that device code in these translation units will be run *only* on the targets
-listed in that switch, we know that all such device code can be bundled
-together in the same device image so long as the translation units were
-compiled with the same `-fsycl-assume-all-kernels-run-on-targets` switch.
+with `-fsycl-fixed-targets`.  Since the user has asserted that device code in
+these translation units will be run *only* on the targets listed in that
+switch, we know that all such device code can be bundled together in the same
+device image so long as the translation units were compiled with the same
+`-fsycl-fixed-targets` switch.
 
 Therefore, two kernels or exported device functions can only be bundled
 together into the same device image if:
 
-* They both have `!intel_assumed_targets` metadata with the same non-empty set
-  of targets, or
+* They both have `!intel_fixed_targets` metadata with the same non-empty set of
+  targets, or
 
 * All of the following are true:
-  - Both have an empty set of `!intel_assumed_targets` metadata,
+  - Both have an empty set of `!intel_fixed_targets` metadata,
   - They share the same set of *UsedAspects* aspects,
   - They either both have no required work-group size or both have the same
     required work-group size, and
@@ -735,12 +730,12 @@ another pass over the IR of each image to catch errors that occur with
   on a single translation unit at a time.
 
 * It's possible that a translation unit calling a `SYCL_EXTERNAL` function was
-  compiled with `-fsycl-assume-all-kernels-run-on-targets`, but the translation
-  unit defining the `SYCL_EXTERNAL` function was not compiled with this option
-  (or was compiled to assume a different set of target devices).
+  compiled with `-fsycl-fixed-targets`, but the translation unit defining the
+  `SYCL_EXTERNAL` function was not compiled with this option (or was compiled
+  to assume a different set of target devices).
 
 If the image contains kernels that were *not* compiled with
-`-fsycl-assume-all-kernels-run-on-targets`, the pass works as follows:
+`-fsycl-fixed-targets`, the pass works as follows:
 
 * Set *FinalUsedAspects* to the image's *UsedAspects* set of aspects (which
   could be the empty set if the image has no required aspects).
@@ -779,26 +774,26 @@ its calling kernel.  Missing [[sycl::reqd_sub_group()]] attribute on
 SYCL_EXTERNAL function?
 ```
 
-If the image contains kernels that *were* compiled with
-`-fsycl-assume-all-kernels-run-on-targets`, the pass works as follows:
+If the image contains kernels that *were* compiled with `-fsycl-fixed-targets`,
+the pass works as follows:
 
-* Set *FinalAssumedTargets* to the image's set of assumed target devices.
+* Set *FinalFixedTargets* to the image's set of fixed target devices.
 * Scan over all functions in the image looking for functions that have the
-  `!intel_assumed_targets` metadata.  If the metadata exists and its set
-  includes any target devices not in the image's set of assumed targets, issue
-  a warning and set *FinalAssumedTargets* to the intersection of the metadata's
-  target set and the *FinalAssumedTargets* set.  (This may result in
-  *FinalAssumedTargets* being the empty set.)
+  `!intel_fixed_targets` metadata.  If the metadata exists and its set includes
+  any target devices not in the image's set of fixed targets, issue a warning
+  and set *FinalFixedTargets* to the intersection of the metadata's target set
+  and the *FinalFixedTargets* set.  (This may result in *FinalFixedTargets*
+  being the empty set.)
 * Set the following properties in the "SYCL/device requirements" property set:
-  - Create an "assumed\_target" property (even if *FinalAssumedTargets* is the
-    empty set).  This requires converting each target name in
-    *FinalAssumedTargets* to its associated aspect.
+  - Create a "fixed\_target" property (even if *FinalFixedTargets* is the empty
+    set).  This requires converting each target name in *FinalFixedTargets* to
+    its associated aspect.
 
 Warning messages from this pass look like:
 
 ```
-warning: function 'foo' compiled with a different `-fsycl-assume-all-kernels-run-on-targets`
-switch than its calling kernel.
+warning: function 'foo' compiled with a different `-fsycl-fixed-targets` switch
+than its calling kernel.
 ```
 
 #### Create the "SYCL/device requirements" property set
@@ -816,7 +811,7 @@ Property Name             | Property Type
 "aspect"                  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
 "reqd\_sub\_group\_size"  | `PI_PROPERTY_TYPE_BYTE_ARRAY`
 "reqd\_work\_group\_size" | `PI_PROPERTY_TYPE_BYTE_ARRAY`
-"assumed\_target"         | `PI_PROPERTY_TYPE_BYTE_ARRAY`
+"fixed\_target"           | `PI_PROPERTY_TYPE_BYTE_ARRAY`
 
 The "aspect" property tells the set of aspects that a device must have in order
 to use the image.  The image is only compatible with a device that supports
@@ -847,14 +842,14 @@ Where `dim_count` is the number of work group dimensions (i.e. 1, 2, or 3), and
 `[[reqd_work_group_size()]]` attribute, in the same order as they appear in the
 attribute.  The size of the property tells the number of entries in the array.
 
-The "assumed\_target" property indicates that the image was compiled with
-`-fsycl-assume-all-kernels-run-on-targets`, and it is assumed to be runnable
-only on the set of target devices that are listed in this property.  The value
-of the property is an array of `uint32` values where each `uint32` value is the
-numerical value of an aspect from `enum class aspect`, telling one of the
-target devices from the command line switch.  (Each target device has a
-corresponding aspect.)  The size of the property (which is always divisible by
-`4`) tells the number of aspects in the array.
+The "fixed\_target" property indicates that the image was compiled with
+`-fsycl-fixed-targets`, and it is assumed to be runnable only on the set of
+target devices that are listed in this property.  The value of the property is
+an array of `uint32` values where each `uint32` value is the numerical value of
+an aspect from `enum class aspect`, telling one of the target devices from the
+command line switch.  (Each target device has a corresponding aspect.)  The
+size of the property (which is always divisible by `4`) tells the number of
+aspects in the array.
 
 
 ### Changes specific to AOT mode
@@ -992,11 +987,11 @@ In more details, the tool performs the following actions:
       - If there is a "reqd\_sub\_group\_size" property, check if entry
         `E.sub-group-sizes` contains all of the sub-group sizes listed in the
         property.  If any are missing, the check fails.
-      - If there is an "assumed\_target" property, check if `E.aspects`
-        contains at least one of the aspects from the property.  If it does
-        not, the check fails.  (The "assumed\_target" property lists the
-        corresponding aspect for each assumed target device.  The `E.aspects`
-        list will only contain this aspect if `E` corresponds to that target.)
+      - If there is a "fixed\_target" property, check if `E.aspects` contains
+        at least one of the aspects from the property.  If it does not, the
+        check fails.  (The "fixed\_target" property lists the corresponding
+        aspect for each target device.  The `E.aspects` list will only contain
+        this aspect if `E` corresponds to that target.)
 
 ##### Configuration file location and driver option
 
@@ -1048,8 +1043,8 @@ actually links these images together, it compares each image's
 device.  If any of the following checks fail, the runtime throws
 `errc::kernel_not_supported`:
 
-* The "assumed\_target" property exists, and the device is not one of the
-  target devices listed in the property, or
+* The "fixed\_target" property exists, and the device is not one of the target
+  devices listed in the property, or
 * The "aspect" property contains an aspect that is not provided by the device,
   or
 * The "reqd\_sub\_group\_size" property contains a sub-group size that the
@@ -1068,8 +1063,8 @@ The exception's `what` string contains a message describing the reason the
 device image is incompatible.  For example:
 
 ```
-Kernel was compiled with '-fsycl-assume-all-kernels-run-on-targets=intel_gpu_11_1'
-but was submitted to a different device.
+Kernel was compiled with '-fsycl-fixed-targets=intel_gpu_11_1' but was
+submitted to a different device.
 
 Kernel uses optional feature corresponding to 'aspect::fp16' but device does
 not support this aspect.
