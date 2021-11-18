@@ -267,8 +267,8 @@ public:
                            const std::vector<SPIRVValue *> &Elements) = 0;
   virtual SPIRVEntry *
   addSpecConstantCompositeContinuedINTEL(const std::vector<SPIRVValue *> &) = 0;
-  virtual SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                                   SPIRVFunction *F) = 0;
+  virtual SPIRVValue *addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                                      SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, llvm::APInt) = 0;

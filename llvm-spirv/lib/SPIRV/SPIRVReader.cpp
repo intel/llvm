@@ -1454,9 +1454,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, transValue(BI, nullptr, nullptr, false));
   }
 
-  case OpConstFunctionPointerINTEL: {
-    SPIRVConstFunctionPointerINTEL *BC =
-        static_cast<SPIRVConstFunctionPointerINTEL *>(BV);
+  case OpConstantFunctionPointerINTEL: {
+    SPIRVConstantFunctionPointerINTEL *BC =
+        static_cast<SPIRVConstantFunctionPointerINTEL *>(BV);
     SPIRVFunction *F = BC->getFunction();
     BV->setName(F->getName());
     return mapValue(BV, transFunction(F));

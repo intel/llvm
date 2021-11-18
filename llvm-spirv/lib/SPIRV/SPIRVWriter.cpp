@@ -1427,7 +1427,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
                             SPIRVEC_FunctionPointers, toString(V)))
       return nullptr;
-    return BM->addConstFunctionPointerINTEL(
+    return BM->addConstantFunctionPointerINTEL(
         transType(F->getType()),
         static_cast<SPIRVFunction *>(transValue(F, nullptr)));
   }
