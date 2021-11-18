@@ -28,7 +28,6 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/InitializePasses.h"
-#include "llvm/SYCLLowerIR/ESIMDVerifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Target/CGPassBuilderOption.h"
@@ -73,8 +72,9 @@ static cl::opt<bool>
 RunLoopRerolling("reroll-loops", cl::Hidden,
                  cl::desc("Run the loop rerolling pass"));
 
-cl::opt<bool> SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
-                                   cl::desc("Enable SYCL optimization mode."));
+static cl::opt<bool>
+    SYCLOptimizationMode("sycl-opt", cl::init(false), cl::Hidden,
+                         cl::desc("Enable SYCL optimization mode."));
 
 cl::opt<bool> RunNewGVN("enable-newgvn", cl::init(false), cl::Hidden,
                         cl::desc("Run the NewGVN pass"));
@@ -674,9 +674,6 @@ void PassManagerBuilder::populateModulePassManager(
   bool DefaultOrPreLinkPipeline = !PerformThinLTO;
 
   MPM.add(createAnnotation2MetadataLegacyPass());
-
-  if (SYCLOptimizationMode)
-    MPM.add(createESIMDVerifierPass());
 
   if (!PGOSampleUse.empty()) {
     MPM.add(createPruneEHPass());
