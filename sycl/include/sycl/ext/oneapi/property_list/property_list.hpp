@@ -9,10 +9,12 @@
 #pragma once
 
 #include <CL/sycl/detail/property_helper.hpp>
+#include <CL/sycl/types.hpp>
 #include <sycl/ext/oneapi/property_list/property_utils.hpp>
 #include <sycl/ext/oneapi/property_list/property_value.hpp>
 
 #include <tuple>
+#include <type_traits>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -191,5 +193,14 @@ inline constexpr bool is_property_list_v =
 
 } // namespace oneapi
 } // namespace ext
+
+// If property_list is not trivially copyable, allow properties to propagate
+// is_device_copyable
+template <typename PropertiesT>
+struct is_device_copyable<ext::oneapi::property_list<PropertiesT>,
+                          std::enable_if_t<!std::is_trivially_copyable<
+                              ext::oneapi::property_list<PropertiesT>>::value>>
+    : is_device_copyable<PropertiesT> {};
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
