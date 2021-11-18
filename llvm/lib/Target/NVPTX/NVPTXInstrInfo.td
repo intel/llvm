@@ -112,6 +112,7 @@ def VecElement : Operand<i32> {
 
 def hasAtomAddF64 : Predicate<"Subtarget->hasAtomAddF64()">;
 def hasAtomScope : Predicate<"Subtarget->hasAtomScope()">;
+def hasAtomSemantics : Predicate<"Subtarget->hasAtomSemantics()">;
 def hasAtomBitwise64 : Predicate<"Subtarget->hasAtomBitwise64()">;
 def hasAtomMinMax64 : Predicate<"Subtarget->hasAtomMinMax64()">;
 def hasVote : Predicate<"Subtarget->hasVote()">;
