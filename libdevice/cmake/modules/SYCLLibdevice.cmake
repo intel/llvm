@@ -7,6 +7,8 @@ else()
   set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 endif()
 set(clang $<TARGET_FILE:clang>)
+set(llvm-link $<TARGET_FILE:llvm-link>)
+set(llvm-spirv $<TARGET_FILE:llvm-spirv>)
 
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
@@ -77,14 +79,38 @@ add_custom_command(OUTPUT ${devicelib-obj-cmath-fp64}
                    DEPENDS device_math.h device.h sycl-compiler
                    VERBATIM)
 
-add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert.spv
-                   COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
+add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert_no_read.bc
+                   COMMAND ${clang} -fsycl-device-only -emit-llvm
                            ${compile_opts}
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
-                           -o ${spv_binary_dir}/libsycl-fallback-cassert.spv
+                           -o
+                           ${spv_binary_dir}/libsycl-fallback-cassert_no_read.bc
                    MAIN_DEPENDENCY fallback-cassert.cpp
                    DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
                    VERBATIM)
+add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert_read.bc
+                   COMMAND ${clang} -c -x cl -emit-llvm
+                           --target=spir64-unknown-unknown -cl-std=CL2.0
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                           -o
+                            ${spv_binary_dir}/libsycl-fallback-cassert_read.bc
+                   MAIN_DEPENDENCY fallback-cassert.cl
+                   DEPENDS sycl-compiler
+                   VERBATIM)
+add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert.bc
+                   COMMAND ${llvm-link} -o
+                           ${spv_binary_dir}/libsycl-fallback-cassert.bc
+                           ${spv_binary_dir}/libsycl-fallback-cassert_no_read.bc
+                           ${spv_binary_dir}/libsycl-fallback-cassert_read.bc
+                   DEPENDS ${spv_binary_dir}/libsycl-fallback-cassert_no_read.bc
+                           ${spv_binary_dir}/libsycl-fallback-cassert_read.bc
+                           llvm-link)
+add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert.spv
+                   COMMAND ${llvm-spirv} -o
+                           ${spv_binary_dir}/libsycl-fallback-cassert.spv
+                           ${spv_binary_dir}/libsycl-fallback-cassert.bc
+                   DEPENDS ${spv_binary_dir}/libsycl-fallback-cassert.bc
+                           llvm-spirv)
 
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cstring.spv
                    COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
@@ -98,9 +124,9 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cstring.spv
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
                    COMMAND ${clang} -fsycl -c
                            ${compile_opts} ${sycl_targets_opt}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                           ${spv_binary_dir}/libsycl-fallback-cassert.bc
                            -o ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
-                   MAIN_DEPENDENCY fallback-cassert.cpp
+                   MAIN_DEPENDENCY ${spv_binary_dir}/libsycl-fallback-cassert.bc
                    DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
                    VERBATIM)
 
