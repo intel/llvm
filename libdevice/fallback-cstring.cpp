@@ -18,9 +18,8 @@ static void *__devicelib_memcpy_uint8_aligned(void *dest, const void *src,
 
   uint8_t *dest_uint8 = reinterpret_cast<uint8_t *>(dest);
   const uint8_t *src_uint8 = reinterpret_cast<const uint8_t *>(src);
-  for (size_t idx = 0; idx < n; ++idx) {
+  for (size_t idx = 0; idx < n; ++idx)
     dest_uint8[idx] = src_uint8[idx];
-  }
 
   return dest;
 }
@@ -37,6 +36,7 @@ static void *__devicelib_memcpy_uint32_aligned(void *dest, const void *src,
   size_t idx;
   for (idx = 0; idx < copy_num; ++idx)
     dest_addr[idx] = src_addr[idx];
+
   __devicelib_memcpy_uint8_aligned(&dest_addr[idx], &src_addr[idx],
                                    tailing_bytes);
   return dest;
@@ -61,14 +61,13 @@ void *__devicelib_memcpy(void *dest, const void *src, size_t n) {
   size_t head_ua_len = sizeof(uint32_t) - dest_uint32_mod;
   if (head_ua_len >= n)
     return __devicelib_memcpy_uint8_aligned(dest, src, n);
-  else {
-    __devicelib_memcpy_uint8_aligned(dest, src, head_ua_len);
-    void *dest_aligned_addr = reinterpret_cast<void *>(dest_addr + head_ua_len);
-    const void *src_aligned_addr =
-        reinterpret_cast<const void *>(src_addr + head_ua_len);
-    n -= head_ua_len;
-    __devicelib_memcpy_uint32_aligned(dest_aligned_addr, src_aligned_addr, n);
-  }
+
+  __devicelib_memcpy_uint8_aligned(dest, src, head_ua_len);
+  void *dest_aligned_addr = reinterpret_cast<void *>(dest_addr + head_ua_len);
+  const void *src_aligned_addr =
+      reinterpret_cast<const void *>(src_addr + head_ua_len);
+  n -= head_ua_len;
+  __devicelib_memcpy_uint32_aligned(dest_aligned_addr, src_aligned_addr, n);
 
   return dest;
 }
@@ -78,9 +77,8 @@ static void *__devicelib_memset_uint8_aligned(void *dest, int c, size_t n) {
     return dest;
 
   uint8_t *dest_addr = reinterpret_cast<uint8_t *>(dest);
-  for (size_t idx = 0; idx < n; ++idx) {
+  for (size_t idx = 0; idx < n; ++idx)
     dest_addr[idx] = static_cast<uint8_t>(c);
-  }
 
   return dest;
 }
@@ -138,9 +136,7 @@ static int __devicelib_memcmp_uint8_aligned(const void *s1, const void *s2,
   const uint8_t *s2_uint8_ptr = reinterpret_cast<const uint8_t *>(s2);
 
   for (size_t idx = 0; idx < n; ++idx) {
-    if (s1_uint8_ptr[idx] == s2_uint8_ptr[idx])
-      continue;
-    else
+    if (s1_uint8_ptr[idx] != s2_uint8_ptr[idx])
       return s1_uint8_ptr[idx] - s2_uint8_ptr[idx];
   }
 
@@ -172,9 +168,9 @@ static int __devicelib_memcmp_uint32_aligned(const void *s1, const void *s2,
 
   if (tailing_bytes == 0)
     return 0;
-  else
-    return __devicelib_memcmp_uint8_aligned(
-        &s1_uint32_ptr[cmp_num], &s2_uint32_ptr[cmp_num], tailing_bytes);
+
+  return __devicelib_memcmp_uint8_aligned(
+      &s1_uint32_ptr[cmp_num], &s2_uint32_ptr[cmp_num], tailing_bytes);
 }
 
 DEVICE_EXTERN_C
