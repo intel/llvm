@@ -21,9 +21,9 @@
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ScopedPrinter.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 
 #include "lldb/Core/Address.h"
@@ -1295,11 +1295,6 @@ void DisassemblerLLVMC::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-ConstString DisassemblerLLVMC::GetPluginNameStatic() {
-  static ConstString g_name("llvm-mc");
-  return g_name;
-}
-
 int DisassemblerLLVMC::OpInfoCallback(void *disassembler, uint64_t pc,
                                       uint64_t offset, uint64_t size,
                                       int tag_type, void *tag_bug) {
@@ -1461,6 +1456,3 @@ const char *DisassemblerLLVMC::SymbolLookup(uint64_t value, uint64_t *type_ptr,
   *name = nullptr;
   return nullptr;
 }
-
-// PluginInterface protocol
-ConstString DisassemblerLLVMC::GetPluginName() { return GetPluginNameStatic(); }

@@ -35,8 +35,6 @@ enum InternalLinkageType {
 };
 
 enum InternalOp {
-  IOpAssumeTrueINTEL = 5630,
-  IOpExpectINTEL = 5631,
   IOpAliasDomainDeclINTEL = 5911,
   IOpAliasScopeDeclINTEL = 5912,
   IOpAliasScopeListDeclINTEL = 5913,
@@ -66,7 +64,6 @@ enum InternalDecoration {
 };
 
 enum InternalCapability {
-  ICapOptimizationHintsINTEL = 5629,
   ICapFPGADSPControlINTEL = 5908,
   ICapMemoryAccessAliasingINTEL = 5910,
   ICapFPGAInvocationPipeliningAttributesINTEL = 5916,
@@ -76,6 +73,7 @@ enum InternalCapability {
   ICapTokenTypeINTEL = 6112,
   ICapBfloat16ConversionINTEL = 6115,
   ICapabilityJointMatrixINTEL = 6118,
+  ICapabilityHWThreadQueryINTEL = 6134,
   ICapFPArithmeticFenceINTEL = 6144
 };
 
@@ -98,17 +96,26 @@ constexpr LinkageType LinkageTypeInternal =
 
 enum InternalJointMatrixLayout { RowMajor, ColumnMajor, PackedA, PackedB };
 
+enum InternalBuiltIn {
+  IBuiltInSubDeviceIDINTEL = 6135,
+  IBuiltInHWThreadIDINTEL = 6136,
+  IBuiltInMaxHWThreadIDPerSubDeviceINTEL = 6137
+};
+
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
 _SPIRV_OP(Capability, JointMatrixINTEL)
 _SPIRV_OP(Op, TypeJointMatrixINTEL)
 _SPIRV_OP(Op, JointMatrixLoadINTEL)
 _SPIRV_OP(Op, JointMatrixStoreINTEL)
 _SPIRV_OP(Op, JointMatrixMadINTEL)
+
+_SPIRV_OP(Capability, HWThreadQueryINTEL)
+_SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
+_SPIRV_OP(BuiltIn, HWThreadIDINTEL)
+_SPIRV_OP(BuiltIn, MaxHWThreadIDPerSubDeviceINTEL)
 #undef _SPIRV_OP
 
 constexpr Op OpForward = static_cast<Op>(IOpForward);
-constexpr Op OpAssumeTrueINTEL = static_cast<Op>(IOpAssumeTrueINTEL);
-constexpr Op OpExpectINTEL = static_cast<Op>(IOpExpectINTEL);
 constexpr Op OpAliasDomainDeclINTEL = static_cast<Op>(IOpAliasDomainDeclINTEL);
 constexpr Op OpAliasScopeDeclINTEL = static_cast<Op>(IOpAliasScopeDeclINTEL);
 constexpr Op OpAliasScopeListDeclINTEL =
@@ -137,8 +144,6 @@ constexpr Decoration DecorationFuncParamKindINTEL =
 constexpr Decoration DecorationFuncParamDescINTEL =
     static_cast<Decoration>(IDecFuncParamDescINTEL);
 
-constexpr Capability CapabilityOptimizationHintsINTEL =
-    static_cast<Capability>(ICapOptimizationHintsINTEL);
 constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);
 constexpr Capability CapabilityOptNoneINTEL =

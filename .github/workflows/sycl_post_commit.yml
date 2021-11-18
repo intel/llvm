@@ -1,0 +1,93 @@
+name: Linux Post Commit Checks
+
+on:
+  push:
+    branches:
+      - sycl
+jobs:
+  linux_default:
+    name: Linux Default
+    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    with:
+      build_cache_root: "__w/llvm"
+      build_github_cache: true
+      build_artifact_suffix: default
+  linux_no_assert:
+    name: Linux Default
+    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    with:
+      build_cache_root: "__w/llvm"
+      build_github_cache: true
+      build_cache_suffix: gcc_no_assertions
+      build_artifact_suffix: gcc_no_assertions
+      build_configure_extra_args: --no-assertions
+  linux_clang_shared_libs:
+    # TODO use nightly images when Docker containers are available
+    name: Linux + Clang + Shared libs
+    runs-on: ubuntu-20.04
+    if: github.repository == 'intel/llvm'
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: src
+    - name: Install Ubuntu deps
+      run: sudo apt install -y ninja-build ccache
+    - name: Setup Cache
+      uses: actions/cache@v2
+      id: cache
+      with:
+        path: ${{ github.workspace }}/cache
+        key: build-linux-shared-libs-${{ github.sha }}
+        restore-keys: |
+          build-linux-shared-libs-
+    - name: Configure
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb http://apt.llvm.org/focal/   llvm-toolchain-focal-13 main"
+        sudo apt-get update
+        sudo apt-get install -y clang-13
+        export CC="clang-13"
+        export CXX="clang++-13"
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+         -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+         --ci-defaults --shared-libs --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
+         --cmake-opt="-DLLVM_CCACHE_DIR=$GITHUB_WORKSPACE/cache" \
+         --cmake-opt="-DLLVM_CCACHE_MAXSIZE=2G"
+    - name: Compile
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/compile.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build
+    - name: check-llvm
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-llvm
+    - name: check-clang
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-clang
+    - name: check-sycl
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-sycl
+    - name: check-llvm-spirv
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-llvm-spirv
+    - name: check-xptifw
+      if: always()
+      run: |
+        python3 $GITHUB_WORKSPACE/src/buildbot/check.py -w  $GITHUB_WORKSPACE \
+         -s  $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t check-xptifw
+    - name: Pack
+      run: tar -czvf llvm_sycl.tar.gz -C $GITHUB_WORKSPACE/build/install .
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: sycl_linux_${{ matrix.config }}
+        path: llvm_sycl.tar.gz

@@ -181,7 +181,7 @@ namespace llvm {
                                      DIFile *File);
 
     /// Create a single enumerator value.
-    DIEnumerator *createEnumerator(StringRef Name, APSInt Value);
+    DIEnumerator *createEnumerator(StringRef Name, const APSInt &Value);
     DIEnumerator *createEnumerator(StringRef Name, uint64_t Val,
                                    bool IsUnsigned = false);
 
@@ -250,9 +250,11 @@ namespace llvm {
     /// \param LineNo      Line number.
     /// \param Context     The surrounding context for the typedef.
     /// \param AlignInBits Alignment. (optional)
+    /// \param Annotations Annotations. (optional)
     DIDerivedType *createTypedef(DIType *Ty, StringRef Name, DIFile *File,
                                  unsigned LineNo, DIScope *Context,
-                                 uint32_t AlignInBits = 0);
+                                 uint32_t AlignInBits = 0,
+                                 DINodeArray Annotations = nullptr);
 
     /// Create debugging information entry for a 'friend'.
     DIDerivedType *createFriend(DIType *Ty, DIType *FriendTy);

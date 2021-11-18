@@ -1,6 +1,6 @@
 // clang-format off
-// RUN: %clangxx -fsycl -c -emit-llvm -S -o - %s | FileCheck %s --check-prefix CHK-HOST
-// RUN: %clangxx -fsycl -fsycl-device-only -O0 -c -emit-llvm -S -o - %s | FileCheck %s --check-prefix CHK-DEVICE
+// RUN: %clangxx -fsycl -c -emit-llvm -D__SYCL_INTERNAL_API -S -o - %s | FileCheck %s --check-prefix CHK-HOST
+// RUN: %clangxx -fsycl -fsycl-device-only -D__SYCL_INTERNAL_API -O0 -c -emit-llvm -S -o - %s | FileCheck %s --check-prefix CHK-DEVICE
 // REQUIRES: linux
 // UNSUPPORTED: libcxx
 

@@ -2,7 +2,7 @@
 // An example collector/tool that prints out just the SYCL PI layer trace
 // events
 //
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 
 #include <chrono>
 #include <cstdio>

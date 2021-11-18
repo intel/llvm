@@ -506,6 +506,83 @@ See also :ref:`langext-__builtin_shufflevector`, :ref:`langext-__builtin_convert
   If it's an extension (OpenCL) vector, it's only available in C and OpenCL C.
   And it selects base on signedness of the condition operands (OpenCL v1.1 s6.3.9).
 
+Vector Builtins
+---------------
+
+**Note: The implementation of vector builtins is work-in-progress and incomplete.**
+
+In addition to the operators mentioned above, Clang provides a set of builtins
+to perform additional operations on certain scalar and vector types.
+
+Let ``T`` be one of the following types:
+
+* an integer type (as in C2x 6.2.5p19), but excluding enumerated types and _Bool
+* the standard floating types float or double
+* a half-precision floating point type, if one is supported on the target
+* a vector type.
+
+For scalar types, consider the operation applied to a vector with a single element.
+
+*Elementwise Builtins*
+
+Each builtin returns a vector equivalent to applying the specified operation
+elementwise to the input.
+
+Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±infinity
+
+========================================= ================================================================ =========================================
+         Name                              Operation                                                        Supported element types
+========================================= ================================================================ =========================================
+ T __builtin_elementwise_abs(T x)          return the absolute value of a number x; the absolute value of   signed integer and floating point types
+                                           the most negative integer remains the most negative integer
+ T __builtin_elementwise_ceil(T x)         return the smallest integral value greater than or equal to x    floating point types
+ T __builtin_elementwise_floor(T x)        return the largest integral value less than or equal to x        floating point types
+ T __builtin_elementwise_roundeven(T x)    round x to the nearest integer value in floating point format,   floating point types
+                                           rounding halfway cases to even (that is, to the nearest value
+                                           that is an even integer), regardless of the current rounding
+                                           direction.
+ T__builtin_elementwise_trunc(T x)         return the integral value nearest to but no larger in            floating point types
+                                           magnitude than x
+ T __builtin_elementwise_max(T x, T y)     return x or y, whichever is larger                               integer and floating point types
+ T __builtin_elementwise_min(T x, T y)     return x or y, whichever is smaller                              integer and floating point types
+========================================= ================================================================ =========================================
+
+
+*Reduction Builtins*
+
+Each builtin returns a scalar equivalent to applying the specified
+operation(x, y) as recursive even-odd pairwise reduction to all vector
+elements. ``operation(x, y)`` is repeatedly applied to each non-overlapping
+even-odd element pair with indices ``i * 2`` and ``i * 2 + 1`` with
+``i in [0, Number of elements / 2)``. If the numbers of elements is not a
+power of 2, the vector is widened with neutral elements for the reduction
+at the end to the next power of 2.
+
+Example:
+
+.. code-block:: c++
+
+    __builtin_reduce_add([e3, e2, e1, e0]) = __builtin_reduced_add([e3 + e2, e1 + e0])
+                                           = (e3 + e2) + (e1 + e0)
+
+
+Let ``VT`` be a vector type and ``ET`` the element type of ``VT``.
+
+======================================= ================================================================ ==================================
+         Name                            Operation                                                        Supported element types
+======================================= ================================================================ ==================================
+ ET __builtin_reduce_max(VT a)           return x or y, whichever is larger; If exactly one argument is   integer and floating point types
+                                         a NaN, return the other argument. If both arguments are NaNs,
+                                         fmax() return a NaN.
+ ET __builtin_reduce_min(VT a)           return x or y, whichever is smaller; If exactly one argument     integer and floating point types
+                                         is a NaN, return the other argument. If both arguments are
+                                         NaNs, fmax() return a NaN.
+ ET __builtin_reduce_add(VT a)           \+                                                               integer and floating point types
+ ET __builtin_reduce_and(VT a)           &                                                                integer types
+ ET __builtin_reduce_or(VT a)            \|                                                               integer types
+ ET __builtin_reduce_xor(VT a)           ^                                                                integer types
+======================================= ================================================================ ==================================
+
 Matrix Types
 ============
 
@@ -2522,7 +2599,7 @@ In order to produce the unique name, the current implementation of the bultin
 uses Itanium mangling even if the host compilation uses a different name
 mangling scheme at runtime. The mangler marks all the lambdas required to name
 the SYCL kernel and emits a stable local ordering of the respective lambdas.
-The resulting pattern is demanglable. When non-lambda types are passed to the
+The resulting pattern is demanglable.  When non-lambda types are passed to the
 builtin, the mangler emits their usual pattern without any special treatment.
 
 **Syntax**:
@@ -2810,6 +2887,7 @@ the corresponding C11 operations, are:
 * ``__c11_atomic_fetch_and``
 * ``__c11_atomic_fetch_or``
 * ``__c11_atomic_fetch_xor``
+* ``__c11_atomic_fetch_nand`` (Nand is not presented in ``<stdatomic.h>``)
 * ``__c11_atomic_fetch_max``
 * ``__c11_atomic_fetch_min``
 
@@ -3166,7 +3244,7 @@ the same purpose. The preprocessor symbols ``__SEG_FS`` and ``__SEG_GS``
 indicate their support.
 
 PowerPC Language Extensions
-------------------------------
+---------------------------
 
 Set the Floating Point Rounding Mode
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -3601,10 +3679,10 @@ governed by the pragma uses precise floating point semantics, effectively
 ``-ffast-math`` is disabled and ``-ffp-contract=on``
 (fused multiply add) is enabled.
 
-When ``pragma float_control(except, on)`` is enabled, the section of code governed
-by the pragma behaves as though the command-line option
+When ``pragma float_control(except, on)`` is enabled, the section of code
+governed by the pragma behaves as though the command-line option
 ``-ffp-exception-behavior=strict`` is enabled,
-when ``pragma float_control(precise, off)`` is enabled, the section of code
+when ``pragma float_control(except, off)`` is enabled, the section of code
 governed by the pragma behaves as though the command-line option
 ``-ffp-exception-behavior=ignore`` is enabled.
 
@@ -3961,6 +4039,25 @@ will expansion of the macro within the main source file. For example:
    #endif
 
 This warning is controlled by ``-Wpedantic-macros``.
+
+Final Macros
+============
+
+Clang supports the pragma ``#pragma clang final``, which can be used to
+mark macros as final, meaning they cannot be undef'd or re-defined. For example:
+
+.. code-block:: c
+
+   #define FINAL_MACRO 1
+   #pragma clang final(FINAL_MACRO)
+
+   #define FINAL_MACRO // warning: FINAL_MACRO is marked final and should not be redefined
+   #undef FINAL_MACRO  // warning: FINAL_MACRO is marked final and should not be undefined
+
+This is useful for enforcing system-provided macros that should not be altered
+in user headers or code. This is controlled by ``-Wpedantic-macros``. Final 
+macros will always warn on redefinition, including situations with identical
+bodies and in system headers.
 
 Extended Integer Types
 ======================

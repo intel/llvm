@@ -1571,15 +1571,14 @@ void LiveIntervals::repairOldRegInRange(const MachineBasicBlock::iterator Begin,
                                         LaneBitmask LaneMask) {
   LiveInterval::iterator LII = LR.find(EndIdx);
   SlotIndex lastUseIdx;
-  if (LII == LR.begin()) {
-    // This happens when the function is called for a subregister that only
-    // occurs _after_ the range that is to be repaired.
-    return;
-  }
-  if (LII != LR.end() && LII->start < EndIdx)
+  if (LII != LR.end() && LII->start < EndIdx) {
     lastUseIdx = LII->end;
-  else
+  } else if (LII == LR.begin()) {
+    // We may not have a liverange at all if this is a subregister untouched
+    // between \p Begin and \p End.
+  } else {
     --LII;
+  }
 
   for (MachineBasicBlock::iterator I = End; I != Begin;) {
     --I;
@@ -1608,17 +1607,9 @@ void LiveIntervals::repairOldRegInRange(const MachineBasicBlock::iterator Begin,
       if (MO.isDef()) {
         if (!isStartValid) {
           if (LII->end.isDead()) {
-            SlotIndex prevStart;
+            LII = LR.removeSegment(LII, true);
             if (LII != LR.begin())
-              prevStart = std::prev(LII)->start;
-
-            // FIXME: This could be more efficient if there was a
-            // removeSegment method that returned an iterator.
-            LR.removeSegment(*LII, true);
-            if (prevStart.isValid())
-              LII = LR.find(prevStart);
-            else
-              LII = LR.begin();
+              --LII;
           } else {
             LII->start = instrIdx.getRegSlot();
             LII->valno->def = instrIdx.getRegSlot();
@@ -1656,6 +1647,10 @@ void LiveIntervals::repairOldRegInRange(const MachineBasicBlock::iterator Begin,
       }
     }
   }
+
+  bool isStartValid = getInstructionFromIndex(LII->start);
+  if (!isStartValid && LII->end.isDead())
+    LR.removeSegment(*LII, true);
 }
 
 void
@@ -1678,6 +1673,8 @@ LiveIntervals::repairIntervalsInRange(MachineBasicBlock *MBB,
 
   Indexes->repairIndexesInRange(MBB, Begin, End);
 
+  // Make sure a live interval exists for all register operands in the range.
+  SmallVector<Register> RegsToRepair(OrigRegs.begin(), OrigRegs.end());
   for (MachineBasicBlock::iterator I = End; I != Begin;) {
     --I;
     MachineInstr &MI = *I;
@@ -1686,14 +1683,25 @@ LiveIntervals::repairIntervalsInRange(MachineBasicBlock *MBB,
     for (MachineInstr::const_mop_iterator MOI = MI.operands_begin(),
                                           MOE = MI.operands_end();
          MOI != MOE; ++MOI) {
-      if (MOI->isReg() && Register::isVirtualRegister(MOI->getReg()) &&
-          !hasInterval(MOI->getReg())) {
-        createAndComputeVirtRegInterval(MOI->getReg());
+      if (MOI->isReg() && MOI->getReg().isVirtual()) {
+        Register Reg = MOI->getReg();
+        // If the new instructions refer to subregs but the old instructions did
+        // not, throw away any old live interval so it will be recomputed with
+        // subranges.
+        if (MOI->getSubReg() && hasInterval(Reg) &&
+            !getInterval(Reg).hasSubRanges() &&
+            MRI->shouldTrackSubRegLiveness(Reg))
+          removeInterval(Reg);
+        if (!hasInterval(Reg)) {
+          createAndComputeVirtRegInterval(Reg);
+          // Don't bother to repair a freshly calculated live interval.
+          erase_value(RegsToRepair, Reg);
+        }
       }
     }
   }
 
-  for (Register Reg : OrigRegs) {
+  for (Register Reg : RegsToRepair) {
     if (!Reg.isVirtual())
       continue;
 
@@ -1704,6 +1712,7 @@ LiveIntervals::repairIntervalsInRange(MachineBasicBlock *MBB,
 
     for (LiveInterval::SubRange &S : LI.subranges())
       repairOldRegInRange(Begin, End, EndIdx, S, Reg, S.LaneMask);
+    LI.removeEmptySubRanges();
 
     repairOldRegInRange(Begin, End, EndIdx, LI, Reg);
   }

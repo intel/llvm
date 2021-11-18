@@ -8,6 +8,7 @@
 
 #include "mlir/Transforms/Bufferize.h"
 #include "PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
@@ -104,9 +105,8 @@ public:
   using OpConversionPattern<InitTensorOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(InitTensorOp op, ArrayRef<Value> operands,
+  matchAndRewrite(InitTensorOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    linalg::InitTensorOpAdaptor adaptor(operands, op->getAttrDictionary());
     rewriter.replaceOpWithNewOp<memref::AllocOp>(
         op, getTypeConverter()->convertType(op.getType()).cast<MemRefType>(),
         adaptor.sizes());
@@ -126,9 +126,8 @@ public:
       memref::ExpandShapeOp, memref::CollapseShapeOp>;
 
   LogicalResult
-  matchAndRewrite(TensorReshapeOp op, ArrayRef<Value> operands,
+  matchAndRewrite(TensorReshapeOp op, Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    Adaptor adaptor(operands, op->getAttrDictionary());
     rewriter.replaceOpWithNewOp<ReshapeOp>(op,
                                            this->getTypeConverter()
                                                ->convertType(op.getType())
@@ -145,9 +144,8 @@ public:
   using OpConversionPattern<FillOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(FillOp op, ArrayRef<Value> operands,
+  matchAndRewrite(FillOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    linalg::FillOpAdaptor adaptor(operands, op->getAttrDictionary());
     if (!op.output().getType().isa<TensorType>())
       return rewriter.notifyMatchFailure(op,
                                          "operand must be of a tensor type");
@@ -208,9 +206,8 @@ public:
   using OpConversionPattern<tensor::ExtractSliceOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(tensor::ExtractSliceOp op, ArrayRef<Value> operands,
+  matchAndRewrite(tensor::ExtractSliceOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    tensor::ExtractSliceOpAdaptor adaptor(operands, op->getAttrDictionary());
     Value sourceMemref = adaptor.source();
     assert(sourceMemref.getType().isa<MemRefType>());
 
@@ -248,9 +245,8 @@ public:
   using OpConversionPattern<tensor::InsertSliceOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(tensor::InsertSliceOp op, ArrayRef<Value> operands,
+  matchAndRewrite(tensor::InsertSliceOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    tensor::InsertSliceOpAdaptor adaptor(operands, op->getAttrDictionary());
     Value sourceMemRef = adaptor.source();
     assert(sourceMemRef.getType().isa<MemRefType>());
 
@@ -277,12 +273,10 @@ public:
   using OpConversionPattern<vector::TransferReadOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(vector::TransferReadOp readOp, ArrayRef<Value> operands,
+  matchAndRewrite(vector::TransferReadOp readOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     if (readOp.getShapedType().isa<MemRefType>())
       return failure();
-    vector::TransferReadOp::Adaptor adaptor(operands,
-                                            readOp->getAttrDictionary());
     rewriter.replaceOpWithNewOp<vector::TransferReadOp>(
         readOp, readOp.getType(), adaptor.source(), adaptor.indices(),
         adaptor.permutation_map(), adaptor.padding(), adaptor.mask(),
@@ -297,12 +291,10 @@ public:
   using OpConversionPattern<vector::TransferWriteOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(vector::TransferWriteOp writeOp, ArrayRef<Value> operands,
+  matchAndRewrite(vector::TransferWriteOp writeOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     if (writeOp.getShapedType().isa<MemRefType>())
       return failure();
-    vector::TransferWriteOp::Adaptor adaptor(operands,
-                                             writeOp->getAttrDictionary());
     rewriter.create<vector::TransferWriteOp>(
         writeOp.getLoc(), adaptor.vector(), adaptor.source(), adaptor.indices(),
         adaptor.permutation_map(),
@@ -323,8 +315,9 @@ struct LinalgBufferizePass : public LinalgBufferizeBase<LinalgBufferizePass> {
     BufferizeTypeConverter typeConverter;
 
     // Mark all Standard operations legal.
-    target.addLegalDialect<AffineDialect, memref::MemRefDialect,
-                           StandardOpsDialect, tensor::TensorDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect, AffineDialect,
+                           memref::MemRefDialect, StandardOpsDialect,
+                           tensor::TensorDialect>();
     target.addIllegalOp<InitTensorOp, tensor::ExtractSliceOp,
                         tensor::InsertSliceOp, PadTensorOp>();
 

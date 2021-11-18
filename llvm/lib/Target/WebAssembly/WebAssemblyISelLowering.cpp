@@ -88,7 +88,9 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
     }
   }
   if (Subtarget->hasReferenceTypes()) {
-    for (auto T : {MVT::externref, MVT::funcref}) {
+    // We need custom load and store lowering for both externref, funcref and
+    // Other. The MVT::Other here represents tables of reference types.
+    for (auto T : {MVT::externref, MVT::funcref, MVT::Other}) {
       setOperationAction(ISD::LOAD, T, Custom);
       setOperationAction(ISD::STORE, T, Custom);
     }
@@ -213,8 +215,8 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
       setOperationAction(ISD::SELECT_CC, T, Expand);
 
     // Expand integer operations supported for scalars but not SIMD
-    for (auto Op : {ISD::CTLZ, ISD::CTTZ, ISD::CTPOP, ISD::SDIV, ISD::UDIV,
-                    ISD::SREM, ISD::UREM, ISD::ROTL, ISD::ROTR})
+    for (auto Op :
+         {ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM, ISD::ROTL, ISD::ROTR})
       for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32, MVT::v2i64})
         setOperationAction(Op, T, Expand);
 
@@ -223,8 +225,15 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
       for (auto T : {MVT::v16i8, MVT::v8i16, MVT::v4i32})
         setOperationAction(Op, T, Legal);
 
-    // And we have popcnt for i8x16
+    // And we have popcnt for i8x16. It can be used to expand ctlz/cttz.
     setOperationAction(ISD::CTPOP, MVT::v16i8, Legal);
+    setOperationAction(ISD::CTLZ, MVT::v16i8, Expand);
+    setOperationAction(ISD::CTTZ, MVT::v16i8, Expand);
+
+    // Custom lower bit counting operations for other types to scalarize them.
+    for (auto Op : {ISD::CTLZ, ISD::CTTZ, ISD::CTPOP})
+      for (auto T : {MVT::v8i16, MVT::v4i32, MVT::v2i64})
+        setOperationAction(Op, T, Custom);
 
     // Expand float operations supported for scalars but not SIMD
     for (auto Op : {ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
@@ -334,6 +343,24 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
   // is equivalent to a simple branch. This reduces code size for wasm, and we
   // defer possible jump table optimizations to the VM.
   setMinimumJumpTableEntries(2);
+}
+
+MVT WebAssemblyTargetLowering::getPointerTy(const DataLayout &DL,
+                                            uint32_t AS) const {
+  if (AS == WebAssembly::WasmAddressSpace::WASM_ADDRESS_SPACE_EXTERNREF)
+    return MVT::externref;
+  if (AS == WebAssembly::WasmAddressSpace::WASM_ADDRESS_SPACE_FUNCREF)
+    return MVT::funcref;
+  return TargetLowering::getPointerTy(DL, AS);
+}
+
+MVT WebAssemblyTargetLowering::getPointerMemTy(const DataLayout &DL,
+                                               uint32_t AS) const {
+  if (AS == WebAssembly::WasmAddressSpace::WASM_ADDRESS_SPACE_EXTERNREF)
+    return MVT::externref;
+  if (AS == WebAssembly::WasmAddressSpace::WASM_ADDRESS_SPACE_FUNCREF)
+    return MVT::funcref;
+  return TargetLowering::getPointerMemTy(DL, AS);
 }
 
 TargetLowering::AtomicExpansionKind
@@ -549,7 +576,21 @@ LowerCallResults(MachineInstr &CallResults, DebugLoc DL, MachineBasicBlock *BB,
   if (IsIndirect) {
     auto FnPtr = CallParams.getOperand(0);
     CallParams.RemoveOperand(0);
-    CallParams.addOperand(FnPtr);
+
+    // For funcrefs, call_indirect is done through __funcref_call_table and the
+    // funcref is always installed in slot 0 of the table, therefore instead of having
+    // the function pointer added at the end of the params list, a zero (the index in
+    // __funcref_call_table is added).
+    if (IsFuncrefCall) {
+      Register RegZero =
+          MF.getRegInfo().createVirtualRegister(&WebAssembly::I32RegClass);
+      MachineInstrBuilder MIBC0 =
+          BuildMI(MF, DL, TII.get(WebAssembly::CONST_I32), RegZero).addImm(0);
+
+      BB->insert(CallResults.getIterator(), MIBC0);
+      MachineInstrBuilder(MF, CallParams).addReg(RegZero);
+    } else
+      CallParams.addOperand(FnPtr);
   }
 
   for (auto Def : CallResults.defs())
@@ -1132,7 +1173,8 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
 
   // Lastly, if this is a call to a funcref we need to add an instruction
   // table.set to the chain and transform the call.
-  if (CLI.CB && isFuncrefType(CLI.CB->getCalledOperand()->getType())) {
+  if (CLI.CB &&
+      WebAssembly::isFuncrefType(CLI.CB->getCalledOperand()->getType())) {
     // In the absence of function references proposal where a funcref call is
     // lowered to call_ref, using reference types we generate a table.set to set
     // the funcref to a special table used solely for this purpose, followed by
@@ -1150,7 +1192,8 @@ WebAssemblyTargetLowering::LowerCall(CallLoweringInfo &CLI,
         WebAssemblyISD::TABLE_SET, DL, DAG.getVTList(MVT::Other), TableSetOps,
         MVT::funcref,
         // Machine Mem Operand args
-        MachinePointerInfo(WasmAddressSpace::FUNCREF),
+        MachinePointerInfo(
+            WebAssembly::WasmAddressSpace::WASM_ADDRESS_SPACE_FUNCREF),
         CLI.CB->getCalledOperand()->getPointerAlignment(DAG.getDataLayout()),
         MachineMemOperand::MOStore);
 
@@ -1369,6 +1412,10 @@ SDValue WebAssemblyTargetLowering::LowerOperation(SDValue Op,
     return LowerLoad(Op, DAG);
   case ISD::STORE:
     return LowerStore(Op, DAG);
+  case ISD::CTPOP:
+  case ISD::CTLZ:
+  case ISD::CTTZ:
+    return DAG.UnrollVectorOp(Op.getNode());
   }
 }
 
@@ -1388,14 +1435,78 @@ static Optional<unsigned> IsWebAssemblyLocal(SDValue Op, SelectionDAG &DAG) {
   return WebAssemblyFrameLowering::getLocalForStackObject(MF, FI->getIndex());
 }
 
-bool WebAssemblyTargetLowering::isFuncrefType(const Type *Ty) {
-  return isa<PointerType>(Ty) &&
-         Ty->getPointerAddressSpace() == WasmAddressSpace::FUNCREF;
+static bool IsWebAssemblyTable(SDValue Op) {
+  const GlobalAddressSDNode *GA = dyn_cast<GlobalAddressSDNode>(Op);
+  if (GA && WebAssembly::isWasmVarAddressSpace(GA->getAddressSpace())) {
+    const GlobalValue *Value = GA->getGlobal();
+    const Type *Ty = Value->getValueType();
+
+    if (Ty->isArrayTy() && WebAssembly::isRefType(Ty->getArrayElementType()))
+      return true;
+  }
+  return false;
 }
 
-bool WebAssemblyTargetLowering::isExternrefType(const Type *Ty) {
-  return isa<PointerType>(Ty) &&
-         Ty->getPointerAddressSpace() == WasmAddressSpace::EXTERNREF;
+// This function will accept as Op any access to a table, so Op can
+// be the actual table or an offset into the table.
+static bool IsWebAssemblyTableWithOffset(SDValue Op) {
+  if (Op->getOpcode() == ISD::ADD && Op->getNumOperands() == 2)
+    return (Op->getOperand(1).getSimpleValueType() == MVT::i32 &&
+            IsWebAssemblyTableWithOffset(Op->getOperand(0))) ||
+           (Op->getOperand(0).getSimpleValueType() == MVT::i32 &&
+            IsWebAssemblyTableWithOffset(Op->getOperand(1)));
+
+  return IsWebAssemblyTable(Op);
+}
+
+// Helper for table pattern matching used in LowerStore and LowerLoad
+bool WebAssemblyTargetLowering::MatchTableForLowering(SelectionDAG &DAG,
+                                                      const SDLoc &DL,
+                                                      const SDValue &Base,
+                                                      GlobalAddressSDNode *&GA,
+                                                      SDValue &Idx) const {
+  // We expect the following graph for a load of the form:
+  // table[<var> + <constant offset>]
+  //
+  // Case 1:
+  // externref = load t1
+  // t1: i32 = add t2, i32:<constant offset>
+  // t2: i32 = add tX, table
+  //
+  // This is in some cases simplified to just:
+  // Case 2:
+  // externref = load t1
+  // t1: i32 = add t2, i32:tX
+  //
+  // So, unfortunately we need to check for both cases and if we are in the
+  // first case extract the table GlobalAddressNode and build a new node tY
+  // that's tY: i32 = add i32:<constant offset>, i32:tX
+  //
+  if (IsWebAssemblyTable(Base)) {
+    GA = cast<GlobalAddressSDNode>(Base);
+    Idx = DAG.getConstant(0, DL, MVT::i32);
+  } else {
+    GA = dyn_cast<GlobalAddressSDNode>(Base->getOperand(0));
+    if (GA) {
+      // We are in Case 2 above.
+      Idx = Base->getOperand(1);
+      if (!Idx || GA->getNumValues() != 1 || Idx->getNumValues() != 1)
+        return false;
+    } else {
+      // This might be Case 1 above (or an error)
+      SDValue V = Base->getOperand(0);
+      GA = dyn_cast<GlobalAddressSDNode>(V->getOperand(1));
+
+      if (V->getOpcode() != ISD::ADD || V->getNumOperands() != 2 || !GA)
+        return false;
+
+      SDValue IdxV = DAG.getNode(ISD::ADD, DL, MVT::i32, Base->getOperand(1),
+                                 V->getOperand(0));
+      Idx = IdxV;
+    }
+  }
+
+  return true;
 }
 
 SDValue WebAssemblyTargetLowering::LowerStore(SDValue Op,
@@ -1405,6 +1516,26 @@ SDValue WebAssemblyTargetLowering::LowerStore(SDValue Op,
   const SDValue &Value = SN->getValue();
   const SDValue &Base = SN->getBasePtr();
   const SDValue &Offset = SN->getOffset();
+
+  if (IsWebAssemblyTableWithOffset(Base)) {
+    if (!Offset->isUndef())
+      report_fatal_error(
+          "unexpected offset when loading from webassembly table", false);
+
+    SDValue Idx;
+    GlobalAddressSDNode *GA;
+
+    if (!MatchTableForLowering(DAG, DL, Base, GA, Idx))
+      report_fatal_error("failed pattern matching for lowering table store",
+                         false);
+
+    SDVTList Tys = DAG.getVTList(MVT::Other);
+    SDValue TableSetOps[] = {SN->getChain(), SDValue(GA, 0), Idx, Value};
+    SDValue TableSet =
+        DAG.getMemIntrinsicNode(WebAssemblyISD::TABLE_SET, DL, Tys, TableSetOps,
+                                SN->getMemoryVT(), SN->getMemOperand());
+    return TableSet;
+  }
 
   if (IsWebAssemblyGlobal(Base)) {
     if (!Offset->isUndef())
@@ -1437,6 +1568,26 @@ SDValue WebAssemblyTargetLowering::LowerLoad(SDValue Op,
   LoadSDNode *LN = cast<LoadSDNode>(Op.getNode());
   const SDValue &Base = LN->getBasePtr();
   const SDValue &Offset = LN->getOffset();
+
+  if (IsWebAssemblyTableWithOffset(Base)) {
+    if (!Offset->isUndef())
+      report_fatal_error(
+          "unexpected offset when loading from webassembly table", false);
+
+    GlobalAddressSDNode *GA;
+    SDValue Idx;
+
+    if (!MatchTableForLowering(DAG, DL, Base, GA, Idx))
+      report_fatal_error("failed pattern matching for lowering table load",
+                         false);
+
+    SDVTList Tys = DAG.getVTList(LN->getValueType(0), MVT::Other);
+    SDValue TableGetOps[] = {LN->getChain(), SDValue(GA, 0), Idx};
+    SDValue TableGet =
+        DAG.getMemIntrinsicNode(WebAssemblyISD::TABLE_GET, DL, Tys, TableGetOps,
+                                LN->getMemoryVT(), LN->getMemOperand());
+    return TableGet;
+  }
 
   if (IsWebAssemblyGlobal(Base)) {
     if (!Offset->isUndef())
@@ -1727,14 +1878,22 @@ SDValue WebAssemblyTargetLowering::LowerIntrinsic(SDValue Op,
     return SDValue(); // Don't custom lower most intrinsics.
 
   case Intrinsic::wasm_lsda: {
-    EVT VT = Op.getValueType();
-    const TargetLowering &TLI = DAG.getTargetLoweringInfo();
-    MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
-    auto &Context = MF.getMMI().getContext();
-    MCSymbol *S = Context.getOrCreateSymbol(Twine("GCC_except_table") +
-                                            Twine(MF.getFunctionNumber()));
-    return DAG.getNode(WebAssemblyISD::Wrapper, DL, VT,
-                       DAG.getMCSymbol(S, PtrVT));
+    auto PtrVT = getPointerTy(MF.getDataLayout());
+    const char *SymName = MF.createExternalSymbolName(
+        "GCC_except_table" + std::to_string(MF.getFunctionNumber()));
+    if (isPositionIndependent()) {
+      SDValue Node = DAG.getTargetExternalSymbol(
+          SymName, PtrVT, WebAssemblyII::MO_MEMORY_BASE_REL);
+      const char *BaseName = MF.createExternalSymbolName("__memory_base");
+      SDValue BaseAddr =
+          DAG.getNode(WebAssemblyISD::Wrapper, DL, PtrVT,
+                      DAG.getTargetExternalSymbol(BaseName, PtrVT));
+      SDValue SymAddr =
+          DAG.getNode(WebAssemblyISD::WrapperREL, DL, PtrVT, Node);
+      return DAG.getNode(ISD::ADD, DL, PtrVT, BaseAddr, SymAddr);
+    }
+    SDValue Node = DAG.getTargetExternalSymbol(SymName, PtrVT);
+    return DAG.getNode(WebAssemblyISD::Wrapper, DL, PtrVT, Node);
   }
 
   case Intrinsic::wasm_shuffle: {
@@ -1995,12 +2154,8 @@ SDValue WebAssemblyTargetLowering::LowerBUILD_VECTOR(SDValue Op,
   size_t NumShuffleLanes = 0;
   if (ShuffleCounts.size()) {
     std::tie(ShuffleSrc1, NumShuffleLanes) = GetMostCommon(ShuffleCounts);
-    ShuffleCounts.erase(std::remove_if(ShuffleCounts.begin(),
-                                       ShuffleCounts.end(),
-                                       [&](const auto &Pair) {
-                                         return Pair.first == ShuffleSrc1;
-                                       }),
-                        ShuffleCounts.end());
+    llvm::erase_if(ShuffleCounts,
+                   [&](const auto &Pair) { return Pair.first == ShuffleSrc1; });
   }
   if (ShuffleCounts.size()) {
     size_t AdditionalShuffleLanes;

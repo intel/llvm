@@ -15,7 +15,9 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+#ifdef __SYCL_INTERNAL_API
 class program;
+#endif
 class device;
 class platform;
 
@@ -158,6 +160,11 @@ enum class device : cl_device_info {
   atomic64 = PI_DEVICE_INFO_ATOMIC_64,
   atomic_memory_order_capabilities =
       PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+  ext_oneapi_max_global_work_groups =
+      PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS,
+  ext_oneapi_max_work_groups_1d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D,
+  ext_oneapi_max_work_groups_2d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D,
+  ext_oneapi_max_work_groups_3d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D
 };
 
 enum class device_type : pi_uint64 {
@@ -220,7 +227,9 @@ enum class kernel : cl_kernel_info {
   function_name = CL_KERNEL_FUNCTION_NAME,
   num_args = CL_KERNEL_NUM_ARGS,
   context = CL_KERNEL_CONTEXT,
+#ifdef __SYCL_INTERNAL_API
   program = CL_KERNEL_PROGRAM,
+#endif
   reference_count = CL_KERNEL_REFERENCE_COUNT,
   attributes = CL_KERNEL_ATTRIBUTES
 };
@@ -250,6 +259,7 @@ enum class kernel_device_specific : cl_kernel_work_group_info {
   preferred_work_group_size_multiple =
       CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
   private_mem_size = CL_KERNEL_PRIVATE_MEM_SIZE,
+  ext_codeplay_num_regs = PI_KERNEL_GROUP_INFO_NUM_REGS,
   max_sub_group_size = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
   max_num_sub_groups = CL_KERNEL_MAX_NUM_SUB_GROUPS,
   compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,
@@ -257,11 +267,13 @@ enum class kernel_device_specific : cl_kernel_work_group_info {
 };
 
 // A.6 Program information desctiptors
+#ifdef __SYCL_INTERNAL_API
 enum class program : cl_program_info {
   context = CL_PROGRAM_CONTEXT,
   devices = CL_PROGRAM_DEVICES,
   reference_count = CL_PROGRAM_REFERENCE_COUNT
 };
+#endif
 
 // A.7 Event information desctiptors
 enum class event : cl_event_info {
@@ -315,7 +327,9 @@ template <typename T, T param> struct compatibility_param_traits {};
 
 #include <CL/sycl/info/platform_traits.def>
 
+#ifdef __SYCL_INTERNAL_API
 #include <CL/sycl/info/program_traits.def>
+#endif
 
 #include <CL/sycl/info/queue_traits.def>
 

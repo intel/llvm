@@ -92,6 +92,8 @@ EXTERN int omp_get_team_num(void);
 EXTERN int omp_get_initial_device(void);
 EXTERN int omp_get_max_task_priority(void);
 
+EXTERN void *llvm_omp_get_dynamic_shared();
+
 ////////////////////////////////////////////////////////////////////////////////
 // file below is swiped from kmpc host interface
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,8 +222,6 @@ typedef int32_t kmp_CriticalName[8];
 EXTERN int32_t __kmpc_global_thread_num(kmp_Ident *loc);
 EXTERN void __kmpc_push_num_threads(kmp_Ident *loc, int32_t global_tid,
                                     int32_t num_threads);
-EXTERN void __kmpc_serialized_parallel(kmp_Ident *loc, uint32_t global_tid);
-EXTERN void __kmpc_end_serialized_parallel(kmp_Ident *loc, uint32_t global_tid);
 NOINLINE EXTERN uint8_t __kmpc_parallel_level();
 
 // proc bind
@@ -255,6 +255,27 @@ EXTERN void __kmpc_for_static_init_8u(kmp_Ident *loc, int32_t global_tid,
                                       uint64_t *plower, uint64_t *pupper,
                                       int64_t *pstride, int64_t incr,
                                       int64_t chunk);
+// distribute static (no chunk or chunk)
+EXTERN void __kmpc_distribute_static_init_4(kmp_Ident *loc, int32_t global_tid,
+                                            int32_t sched, int32_t *plastiter,
+                                            int32_t *plower, int32_t *pupper,
+                                            int32_t *pstride, int32_t incr,
+                                            int32_t chunk);
+EXTERN void __kmpc_distribute_static_init_4u(kmp_Ident *loc, int32_t global_tid,
+                                             int32_t sched, int32_t *plastiter,
+                                             uint32_t *plower, uint32_t *pupper,
+                                             int32_t *pstride, int32_t incr,
+                                             int32_t chunk);
+EXTERN void __kmpc_distribute_static_init_8(kmp_Ident *loc, int32_t global_tid,
+                                            int32_t sched, int32_t *plastiter,
+                                            int64_t *plower, int64_t *pupper,
+                                            int64_t *pstride, int64_t incr,
+                                            int64_t chunk);
+EXTERN void __kmpc_distribute_static_init_8u(kmp_Ident *loc, int32_t global_tid,
+                                             int32_t sched, int32_t *plastiter1,
+                                             uint64_t *plower, uint64_t *pupper,
+                                             int64_t *pstride, int64_t incr,
+                                             int64_t chunk);
 EXTERN
 void __kmpc_for_static_init_4_simple_spmd(kmp_Ident *loc, int32_t global_tid,
                                           int32_t sched, int32_t *plastiter,
@@ -303,6 +324,8 @@ void __kmpc_for_static_init_8u_simple_generic(
     int64_t chunk);
 
 EXTERN void __kmpc_for_static_fini(kmp_Ident *loc, int32_t global_tid);
+
+EXTERN void __kmpc_distribute_static_fini(kmp_Ident *loc, int32_t global_tid);
 
 // for dynamic
 EXTERN void __kmpc_dispatch_init_4(kmp_Ident *loc, int32_t global_tid,
@@ -416,10 +439,10 @@ EXTERN int32_t __kmpc_cancel(kmp_Ident *loc, int32_t global_tid,
                              int32_t cancelVal);
 
 // non standard
-EXTERN int32_t __kmpc_target_init(ident_t *Ident, bool IsSPMD,
+EXTERN int32_t __kmpc_target_init(ident_t *Ident, int8_t Mode,
                                   bool UseGenericStateMachine,
                                   bool RequiresFullRuntime);
-EXTERN void __kmpc_target_deinit(ident_t *Ident, bool IsSPMD,
+EXTERN void __kmpc_target_deinit(ident_t *Ident, int8_t Mode,
                                  bool RequiresFullRuntime);
 EXTERN void __kmpc_kernel_prepare_parallel(void *WorkFn);
 EXTERN bool __kmpc_kernel_parallel(void **WorkFn);
@@ -475,5 +498,8 @@ EXTERN void *__kmpc_alloc_shared(uint64_t Bytes);
 /// __kmpc_alloc_shared by the same thread. \p Bytes contains the size of the
 /// paired allocation to make memory management easier.
 EXTERN void __kmpc_free_shared(void *Ptr, size_t Bytes);
+
+/// Get a pointer to the dynamic shared memory buffer in the device.
+EXTERN void *__kmpc_get_dynamic_shared();
 
 #endif

@@ -32,27 +32,27 @@ private:
 public:
   void test() {
     cl::sycl::queue q;
-    // expected-error@#KernelSingleTask {{'InvalidKernelName1' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'InvalidKernelName1' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+3{{in instantiation of function template specialization}}
     class InvalidKernelName1 {};
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidKernelName1>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<InvalidKernelName2>' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<InvalidKernelName2>' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+3{{in instantiation of function template specialization}}
     class InvalidKernelName2 {};
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName2>>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName0' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidKernelName0>([] {});
     });
 
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName3>' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidKernelName3>>([] {});
@@ -70,19 +70,19 @@ public:
     });
 
     using InvalidAlias = InvalidKernelName4;
-    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'MyWrapper::InvalidKernelName4' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<InvalidAlias>([] {});
     });
 
     using InvalidAlias1 = InvalidKernelName5;
-    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'namespace1::KernelName<MyWrapper::InvalidKernelName5>' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<namespace1::KernelName<InvalidAlias1>>([] {});
     });
-    // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' should be globally visible}}
+    // expected-error@#KernelSingleTask {{'Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>' is invalid; kernel name should be forward declarable at namespace scope}}
     // expected-note@+2{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       h.single_task<Templated_kernel_name2<Templated_kernel_name<InvalidKernelName1>>>([] {});
@@ -137,7 +137,7 @@ public:
 
     // This errors because const decltype(SomeLambda) != decltype(SomeLambda),
     //  so this is not the unnamed lambda situation.
-    // expected-error@#KernelSingleTask {{unnamed lambda 'const}}
+    // expected-error@#KernelSingleTask {{unnamed type 'const}}
     // expected-note@+3{{in instantiation of function template specialization}}
     q.submit([&](cl::sycl::handler &h) {
       auto SomeLambda = []() {};
@@ -150,7 +150,7 @@ public:
 int main() {
   cl::sycl::queue q;
 #ifndef __SYCL_UNNAMED_LAMBDA__
-  // expected-error-re@#KernelSingleTask {{unnamed lambda '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' used}}
+  // expected-error-re@#KernelSingleTask {{unnamed type '(lambda at {{.*}}unnamed-kernel.cpp{{.*}}' is invalid; provide a kernel name, or use '-fsycl-unnamed-lambda' to enable unnamed kernel lambdas}}
   // expected-note@+2{{in instantiation of function template specialization}}
 #endif
   q.submit([&](cl::sycl::handler &h) { h.single_task([] {}); });

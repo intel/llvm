@@ -14,6 +14,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/ScalarEvolution.h"
@@ -165,6 +166,67 @@ static unsigned calculateIterationsToInvariance(
   return ToInvariance;
 }
 
+// Try to find any invariant memory reads that will become dereferenceable in
+// the remainder loop after peeling. The load must also be used (transitively)
+// by an exit condition. Returns the number of iterations to peel off (at the
+// moment either 0 or 1).
+static unsigned peelToTurnInvariantLoadsDerefencebale(Loop &L,
+                                                      DominatorTree &DT) {
+  // Skip loops with a single exiting block, because there should be no benefit
+  // for the heuristic below.
+  if (L.getExitingBlock())
+    return 0;
+
+  // All non-latch exit blocks must have an UnreachableInst terminator.
+  // Otherwise the heuristic below may not be profitable.
+  SmallVector<BasicBlock *, 4> Exits;
+  L.getUniqueNonLatchExitBlocks(Exits);
+  if (any_of(Exits, [](const BasicBlock *BB) {
+        return !isa<UnreachableInst>(BB->getTerminator());
+      }))
+    return 0;
+
+  // Now look for invariant loads that dominate the latch and are not known to
+  // be dereferenceable. If there are such loads and no writes, they will become
+  // dereferenceable in the loop if the first iteration is peeled off. Also
+  // collect the set of instructions controlled by such loads. Only peel if an
+  // exit condition uses (transitively) such a load.
+  BasicBlock *Header = L.getHeader();
+  BasicBlock *Latch = L.getLoopLatch();
+  SmallPtrSet<Value *, 8> LoadUsers;
+  const DataLayout &DL = L.getHeader()->getModule()->getDataLayout();
+  for (BasicBlock *BB : L.blocks()) {
+    for (Instruction &I : *BB) {
+      if (I.mayWriteToMemory())
+        return 0;
+
+      auto Iter = LoadUsers.find(&I);
+      if (Iter != LoadUsers.end()) {
+        for (Value *U : I.users())
+          LoadUsers.insert(U);
+      }
+      // Do not look for reads in the header; they can already be hoisted
+      // without peeling.
+      if (BB == Header)
+        continue;
+      if (auto *LI = dyn_cast<LoadInst>(&I)) {
+        Value *Ptr = LI->getPointerOperand();
+        if (DT.dominates(BB, Latch) && L.isLoopInvariant(Ptr) &&
+            !isDereferenceablePointer(Ptr, LI->getType(), DL, LI, &DT))
+          for (Value *U : I.users())
+            LoadUsers.insert(U);
+      }
+    }
+  }
+  SmallVector<BasicBlock *> ExitingBlocks;
+  L.getExitingBlocks(ExitingBlocks);
+  if (any_of(ExitingBlocks, [&LoadUsers](BasicBlock *Exiting) {
+        return LoadUsers.contains(Exiting->getTerminator());
+      }))
+    return 1;
+  return 0;
+}
+
 // Return the number of iterations to peel off that make conditions in the
 // body true/false. For example, if we peel 2 iterations off the loop below,
 // the condition i < 2 can be evaluated at compile time.
@@ -280,8 +342,8 @@ static unsigned countToEliminateCompares(Loop &L, unsigned MaxPeelCount,
 // Return the number of iterations we want to peel off.
 void llvm::computePeelCount(Loop *L, unsigned LoopSize,
                             TargetTransformInfo::PeelingPreferences &PP,
-                            unsigned &TripCount, ScalarEvolution &SE,
-                            unsigned Threshold) {
+                            unsigned &TripCount, DominatorTree &DT,
+                            ScalarEvolution &SE, unsigned Threshold) {
   assert(LoopSize > 0 && "Zero loop size is not allowed!");
   // Save the PP.PeelCount value set by the target in
   // TTI.getPeelingPreferences or by the flag -unroll-peel-count.
@@ -347,6 +409,9 @@ void llvm::computePeelCount(Loop *L, unsigned LoopSize,
 
     DesiredPeelCount = std::max(DesiredPeelCount,
                                 countToEliminateCompares(*L, MaxPeelCount, SE));
+
+    if (DesiredPeelCount == 0)
+      DesiredPeelCount = peelToTurnInvariantLoadsDerefencebale(*L, DT);
 
     if (DesiredPeelCount > 0) {
       DesiredPeelCount = std::min(DesiredPeelCount, MaxPeelCount);
@@ -667,34 +732,27 @@ bool llvm::peelLoop(Loop *L, unsigned PeelCount, LoopInfo *LI,
   SmallVector<std::pair<BasicBlock *, BasicBlock *>, 4> ExitEdges;
   L->getExitEdges(ExitEdges);
 
-  DenseMap<BasicBlock *, BasicBlock *> ExitIDom;
+  // Remember dominators of blocks we might reach through exits to change them
+  // later. Immediate dominator of such block might change, because we add more
+  // routes which can lead to the exit: we can reach it from the peeled
+  // iterations too.
+  DenseMap<BasicBlock *, BasicBlock *> NonLoopBlocksIDom;
   if (DT) {
-    // We'd like to determine the idom of exit block after peeling one
-    // iteration.
-    // Let Exit is exit block.
-    // Let ExitingSet - is a set of predecessors of Exit block. They are exiting
-    // blocks.
-    // Let Latch' and ExitingSet' are copies after a peeling.
-    // We'd like to find an idom'(Exit) - idom of Exit after peeling.
-    // It is an evident that idom'(Exit) will be the nearest common dominator
-    // of ExitingSet and ExitingSet'.
-    // idom(Exit) is a nearest common dominator of ExitingSet.
-    // idom(Exit)' is a nearest common dominator of ExitingSet'.
-    // Taking into account that we have a single Latch, Latch' will dominate
-    // Header and idom(Exit).
-    // So the idom'(Exit) is nearest common dominator of idom(Exit)' and Latch'.
-    // All these basic blocks are in the same loop, so what we find is
-    // (nearest common dominator of idom(Exit) and Latch)'.
-    // In the loop below we remember nearest common dominator of idom(Exit) and
-    // Latch to update idom of Exit later.
-    assert(L->hasDedicatedExits() && "No dedicated exits?");
-    for (auto Edge : ExitEdges) {
-      if (ExitIDom.count(Edge.second))
-        continue;
-      BasicBlock *BB = DT->findNearestCommonDominator(
-          DT->getNode(Edge.second)->getIDom()->getBlock(), Latch);
-      assert(L->contains(BB) && "IDom is not in a loop");
-      ExitIDom[Edge.second] = BB;
+    for (auto *BB : L->blocks()) {
+      auto *BBDomNode = DT->getNode(BB);
+      SmallVector<BasicBlock *, 16> ChildrenToUpdate;
+      for (auto *ChildDomNode : BBDomNode->children()) {
+        auto *ChildBB = ChildDomNode->getBlock();
+        if (!L->contains(ChildBB))
+          ChildrenToUpdate.push_back(ChildBB);
+      }
+      // The new idom of the block will be the nearest common dominator
+      // of all copies of the previous idom. This is equivalent to the
+      // nearest common dominator of the previous idom and the first latch,
+      // which dominates all copies of the previous idom.
+      BasicBlock *NewIDom = DT->findNearestCommonDominator(BB, Latch);
+      for (auto *ChildBB : ChildrenToUpdate)
+        NonLoopBlocksIDom[ChildBB] = NewIDom;
     }
   }
 
@@ -783,13 +841,11 @@ bool llvm::peelLoop(Loop *L, unsigned PeelCount, LoopInfo *LI,
     remapInstructionsInBlocks(NewBlocks, VMap);
 
     if (DT) {
-      // Latches of the cloned loops dominate over the loop exit, so idom of the
-      // latter is the first cloned loop body, as original PreHeader dominates
-      // the original loop body.
+      // Update IDoms of the blocks reachable through exits.
       if (Iter == 0)
-        for (auto Exit : ExitIDom)
-          DT->changeImmediateDominator(Exit.first,
-                                       cast<BasicBlock>(LVMap[Exit.second]));
+        for (auto BBIDom : NonLoopBlocksIDom)
+          DT->changeImmediateDominator(BBIDom.first,
+                                       cast<BasicBlock>(LVMap[BBIDom.second]));
 #ifdef EXPENSIVE_CHECKS
       assert(DT->verify(DominatorTree::VerificationLevel::Fast));
 #endif

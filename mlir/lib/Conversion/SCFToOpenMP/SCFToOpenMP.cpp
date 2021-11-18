@@ -13,6 +13,8 @@
 
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "../PassDetail.h"
+#include "mlir/Analysis/LoopAnalysis.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -34,10 +36,21 @@ static bool matchSimpleReduction(Block &block) {
   if (block.empty() || llvm::hasSingleElement(block) ||
       std::next(block.begin(), 2) != block.end())
     return false;
-  return isa<OpTy...>(block.front()) &&
+
+  if (block.getNumArguments() != 2)
+    return false;
+
+  SmallVector<Operation *, 4> combinerOps;
+  Value reducedVal = matchReduction({block.getArguments()[1]},
+                                    /*redPos=*/0, combinerOps);
+
+  if (!reducedVal || !reducedVal.isa<BlockArgument>() ||
+      combinerOps.size() != 1)
+    return false;
+
+  return isa<OpTy...>(combinerOps[0]) &&
          isa<scf::ReduceReturnOp>(block.back()) &&
-         block.front().getOperands() == block.getArguments() &&
-         block.back().getOperand(0) == block.front().getResult(0);
+         block.front().getOperands() == block.getArguments();
 }
 
 /// Matches a block containing a select-based min/max reduction. The types of
@@ -79,17 +92,17 @@ matchSelectReduction(Block &block, ArrayRef<Predicate> lessThanPredicates,
 
   // Detect whether the comparison is less-than or greater-than, otherwise bail.
   bool isLess;
-  if (llvm::find(lessThanPredicates, compare.predicate()) !=
+  if (llvm::find(lessThanPredicates, compare.getPredicate()) !=
       lessThanPredicates.end()) {
     isLess = true;
-  } else if (llvm::find(greaterThanPredicates, compare.predicate()) !=
+  } else if (llvm::find(greaterThanPredicates, compare.getPredicate()) !=
              greaterThanPredicates.end()) {
     isLess = false;
   } else {
     return false;
   }
 
-  if (select.condition() != compare.getResult())
+  if (select.getCondition() != compare.getResult())
     return false;
 
   // Detect if the operands are swapped between cmpf and select. Match the
@@ -99,10 +112,10 @@ matchSelectReduction(Block &block, ArrayRef<Predicate> lessThanPredicates,
   // positions.
   constexpr unsigned kTrueValue = 1;
   constexpr unsigned kFalseValue = 2;
-  bool sameOperands = select.getOperand(kTrueValue) == compare.lhs() &&
-                      select.getOperand(kFalseValue) == compare.rhs();
-  bool swappedOperands = select.getOperand(kTrueValue) == compare.rhs() &&
-                         select.getOperand(kFalseValue) == compare.lhs();
+  bool sameOperands = select.getOperand(kTrueValue) == compare.getLhs() &&
+                      select.getOperand(kFalseValue) == compare.getRhs();
+  bool swappedOperands = select.getOperand(kTrueValue) == compare.getRhs() &&
+                         select.getOperand(kFalseValue) == compare.getLhs();
   if (!sameOperands && !swappedOperands)
     return false;
 
@@ -236,27 +249,27 @@ static omp::ReductionDeclareOp declareReduction(PatternRewriter &builder,
   // Match simple binary reductions that can be expressed with atomicrmw.
   Type type = reduce.operand().getType();
   Block &reduction = reduce.getRegion().front();
-  if (matchSimpleReduction<AddFOp, LLVM::FAddOp>(reduction)) {
+  if (matchSimpleReduction<arith::AddFOp, LLVM::FAddOp>(reduction)) {
     omp::ReductionDeclareOp decl = createDecl(builder, symbolTable, reduce,
                                               builder.getFloatAttr(type, 0.0));
     return addAtomicRMW(builder, LLVM::AtomicBinOp::fadd, decl, reduce);
   }
-  if (matchSimpleReduction<AddIOp, LLVM::AddOp>(reduction)) {
+  if (matchSimpleReduction<arith::AddIOp, LLVM::AddOp>(reduction)) {
     omp::ReductionDeclareOp decl = createDecl(builder, symbolTable, reduce,
                                               builder.getIntegerAttr(type, 0));
     return addAtomicRMW(builder, LLVM::AtomicBinOp::add, decl, reduce);
   }
-  if (matchSimpleReduction<OrOp, LLVM::OrOp>(reduction)) {
+  if (matchSimpleReduction<arith::OrIOp, LLVM::OrOp>(reduction)) {
     omp::ReductionDeclareOp decl = createDecl(builder, symbolTable, reduce,
                                               builder.getIntegerAttr(type, 0));
     return addAtomicRMW(builder, LLVM::AtomicBinOp::_or, decl, reduce);
   }
-  if (matchSimpleReduction<XOrOp, LLVM::XOrOp>(reduction)) {
+  if (matchSimpleReduction<arith::XOrIOp, LLVM::XOrOp>(reduction)) {
     omp::ReductionDeclareOp decl = createDecl(builder, symbolTable, reduce,
                                               builder.getIntegerAttr(type, 0));
     return addAtomicRMW(builder, LLVM::AtomicBinOp::_xor, decl, reduce);
   }
-  if (matchSimpleReduction<AndOp, LLVM::AndOp>(reduction)) {
+  if (matchSimpleReduction<arith::AndIOp, LLVM::AndOp>(reduction)) {
     omp::ReductionDeclareOp decl = createDecl(
         builder, symbolTable, reduce,
         builder.getIntegerAttr(
@@ -267,25 +280,25 @@ static omp::ReductionDeclareOp declareReduction(PatternRewriter &builder,
   // Match simple binary reductions that cannot be expressed with atomicrmw.
   // TODO: add atomic region using cmpxchg (which needs atomic load to be
   // available as an op).
-  if (matchSimpleReduction<MulFOp, LLVM::FMulOp>(reduction)) {
+  if (matchSimpleReduction<arith::MulFOp, LLVM::FMulOp>(reduction)) {
     return createDecl(builder, symbolTable, reduce,
                       builder.getFloatAttr(type, 1.0));
   }
 
   // Match select-based min/max reductions.
   bool isMin;
-  if (matchSelectReduction<CmpFOp, SelectOp>(
-          reduction, {CmpFPredicate::OLT, CmpFPredicate::OLE},
-          {CmpFPredicate::OGT, CmpFPredicate::OGE}, isMin) ||
+  if (matchSelectReduction<arith::CmpFOp, SelectOp>(
+          reduction, {arith::CmpFPredicate::OLT, arith::CmpFPredicate::OLE},
+          {arith::CmpFPredicate::OGT, arith::CmpFPredicate::OGE}, isMin) ||
       matchSelectReduction<LLVM::FCmpOp, LLVM::SelectOp>(
           reduction, {LLVM::FCmpPredicate::olt, LLVM::FCmpPredicate::ole},
           {LLVM::FCmpPredicate::ogt, LLVM::FCmpPredicate::oge}, isMin)) {
     return createDecl(builder, symbolTable, reduce,
                       minMaxValueForFloat(type, !isMin));
   }
-  if (matchSelectReduction<CmpIOp, SelectOp>(
-          reduction, {CmpIPredicate::slt, CmpIPredicate::sle},
-          {CmpIPredicate::sgt, CmpIPredicate::sge}, isMin) ||
+  if (matchSelectReduction<arith::CmpIOp, SelectOp>(
+          reduction, {arith::CmpIPredicate::slt, arith::CmpIPredicate::sle},
+          {arith::CmpIPredicate::sgt, arith::CmpIPredicate::sge}, isMin) ||
       matchSelectReduction<LLVM::ICmpOp, LLVM::SelectOp>(
           reduction, {LLVM::ICmpPredicate::slt, LLVM::ICmpPredicate::sle},
           {LLVM::ICmpPredicate::sgt, LLVM::ICmpPredicate::sge}, isMin)) {
@@ -295,9 +308,9 @@ static omp::ReductionDeclareOp declareReduction(PatternRewriter &builder,
                         isMin ? LLVM::AtomicBinOp::min : LLVM::AtomicBinOp::max,
                         decl, reduce);
   }
-  if (matchSelectReduction<CmpIOp, SelectOp>(
-          reduction, {CmpIPredicate::ult, CmpIPredicate::ule},
-          {CmpIPredicate::ugt, CmpIPredicate::uge}, isMin) ||
+  if (matchSelectReduction<arith::CmpIOp, SelectOp>(
+          reduction, {arith::CmpIPredicate::ult, arith::CmpIPredicate::ule},
+          {arith::CmpIPredicate::ugt, arith::CmpIPredicate::uge}, isMin) ||
       matchSelectReduction<LLVM::ICmpOp, LLVM::SelectOp>(
           reduction, {LLVM::ICmpPredicate::ugt, LLVM::ICmpPredicate::ule},
           {LLVM::ICmpPredicate::ugt, LLVM::ICmpPredicate::uge}, isMin)) {

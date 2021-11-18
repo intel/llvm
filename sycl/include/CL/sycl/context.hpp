@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
@@ -149,8 +149,9 @@ public:
   ///
   /// \param ClContext is an instance of OpenCL cl_context.
   /// \param AsyncHandler is an instance of async_handler.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   context(cl_context ClContext, async_handler AsyncHandler = {});
+#endif
 
   /// Queries this SYCL context for information.
   ///
@@ -189,8 +190,9 @@ public:
   /// The OpenCL cl_context handle is retained on return.
   ///
   /// \return a valid instance of OpenCL cl_context.
-  __SYCL2020_DEPRECATED("OpenCL interop APIs are deprecated")
+#ifdef __SYCL_INTERNAL_API
   cl_context get() const;
+#endif
 
   /// Checks if this context is a SYCL host context.
   ///
@@ -217,9 +219,10 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> typename interop<BackendName, context>::type {
-    return reinterpret_cast<typename interop<BackendName, context>::type>(
-        getNative());
+  auto get_native() const ->
+      typename detail::interop<BackendName, context>::type {
+    return reinterpret_cast<
+        typename detail::interop<BackendName, context>::type>(getNative());
   }
 
 private:

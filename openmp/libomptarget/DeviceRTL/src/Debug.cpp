@@ -12,20 +12,16 @@
 
 #include "Debug.h"
 #include "Configuration.h"
+#include "Interface.h"
+#include "Mapping.h"
+#include "Types.h"
 
 using namespace _OMP;
 
 #pragma omp declare target
 
 extern "C" {
-void __assert_assume(bool cond, const char *exp, const char *file, int line) {
-  if (!cond && config::isDebugMode(config::DebugLevel::Assertion)) {
-    PRINTF("ASSERTION failed: %s at %s, line %d\n", exp, file, line);
-    __builtin_trap();
-  }
-
-  __builtin_assume(cond);
-}
+void __assert_assume(bool condition) { __builtin_assume(condition); }
 
 void __assert_fail(const char *assertion, const char *file, unsigned line,
                    const char *function) {
@@ -33,6 +29,30 @@ void __assert_fail(const char *assertion, const char *file, unsigned line,
          assertion);
   __builtin_trap();
 }
+}
+
+/// Current indentation level for the function trace. Only accessed by thread 0.
+static uint32_t Level = 0;
+#pragma omp allocate(Level) allocator(omp_pteam_mem_alloc)
+
+DebugEntryRAII::DebugEntryRAII(const char *File, const unsigned Line,
+                               const char *Function) {
+  if (config::isDebugMode(config::DebugKind::FunctionTracing) &&
+      mapping::getThreadIdInBlock() == 0 && mapping::getBlockId() == 0) {
+
+    for (int I = 0; I < Level; ++I)
+      PRINTF("%s", "  ");
+
+    PRINTF("%s:%u: Thread %u Entering %s\n", File, Line,
+           mapping::getThreadIdInBlock(), Function);
+    Level++;
+  }
+}
+
+DebugEntryRAII::~DebugEntryRAII() {
+  if (config::isDebugMode(config::DebugKind::FunctionTracing) &&
+      mapping::getThreadIdInBlock() == 0 && mapping::getBlockId() == 0)
+    Level--;
 }
 
 #pragma omp end declare target

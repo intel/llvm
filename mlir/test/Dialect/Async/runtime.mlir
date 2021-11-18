@@ -18,8 +18,8 @@ func @create_value() -> !async.value<f32> {
 
 // CHECK-LABEL: @create_group
 func @create_group() -> !async.group {
-  // CHECK: %[[C:.*]] = constant 10 : index
-  %c = constant 10 : index
+  // CHECK: %[[C:.*]] = arith.constant 10 : index
+  %c = arith.constant 10 : index
   // CHECK: %[[V:.*]] = async.runtime.create_group %[[C]] : !async.group
   %0 = async.runtime.create_group %c : !async.group
   // CHECK: return %[[V]] : !async.group
@@ -154,14 +154,14 @@ func @add_to_group(%arg0: !async.token, %arg1: !async.value<f32>,
 
 // CHECK-LABEL: @add_ref
 func @add_ref(%arg0: !async.token) {
-  // CHECK: async.runtime.add_ref %arg0 {count = 1 : i32}
-  async.runtime.add_ref %arg0 {count = 1 : i32} : !async.token
+  // CHECK: async.runtime.add_ref %arg0 {count = 1 : i64}
+  async.runtime.add_ref %arg0 {count = 1 : i64} : !async.token
   return
 }
 
 // CHECK-LABEL: @drop_ref
 func @drop_ref(%arg0: !async.token) {
-  // CHECK: async.runtime.drop_ref %arg0 {count = 1 : i32}
-  async.runtime.drop_ref %arg0 {count = 1 : i32} : !async.token
+  // CHECK: async.runtime.drop_ref %arg0 {count = 1 : i64}
+  async.runtime.drop_ref %arg0 {count = 1 : i64} : !async.token
   return
 }

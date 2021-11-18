@@ -1,9 +1,14 @@
 // RUN: mlir-opt %s -linalg-comprehensive-module-bufferize=allow-return-memref -split-input-file | FileCheck %s
 
+// Run fuzzer with different seeds.
+// RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="test-analysis-only analysis-fuzzer-seed=23" -split-input-file -o /dev/null
+// RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="test-analysis-only analysis-fuzzer-seed=59" -split-input-file -o /dev/null
+// RUN: mlir-opt %s -linalg-comprehensive-module-bufferize="test-analysis-only analysis-fuzzer-seed=91" -split-input-file -o /dev/null
+
 // CHECK-LABEL: func @transfer_read(%{{.*}}: memref<?xf32, #map>) -> vector<4xf32> {
 func @transfer_read(%A : tensor<?xf32>) -> (vector<4xf32>) {
-  %c0 = constant 0 : index
-  %f0 = constant 0.0 : f32
+  %c0 = arith.constant 0 : index
+  %f0 = arith.constant 0.0 : f32
 
 //       CHECK: %[[RES:.*]] = vector.transfer_read {{.*}} : memref<?xf32, #{{.*}}>, vector<4xf32>
   %0 = vector.transfer_read %A[%c0], %f0 : tensor<?xf32>, vector<4xf32>
@@ -19,8 +24,8 @@ func @transfer_read(%A : tensor<?xf32>) -> (vector<4xf32>) {
 // CHECK-LABEL: func @fill_inplace(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?xf32, #[[$map_1d_dyn]]>
 func @fill_inplace(%A : tensor<?xf32> {linalg.inplaceable = true}) -> tensor<?xf32> {
-  //     CHECK: %[[F0:.*]] = constant 0.000000e+00 : f32
-  %f0 = constant 0.0 : f32
+  //     CHECK: %[[F0:.*]] = arith.constant 0.000000e+00 : f32
+  %f0 = arith.constant 0.0 : f32
 
   /// Inplaceable, no alloc
   // CHECK-NOT: alloc
@@ -36,7 +41,7 @@ func @fill_inplace(%A : tensor<?xf32> {linalg.inplaceable = true}) -> tensor<?xf
 
 // CHECK-LABEL: func @tensor_extract(%{{.*}}: memref<?xf32, #{{.*}}>) -> f32 {
 func @tensor_extract(%A : tensor<?xf32>) -> (f32) {
-  %c0 = constant 0 : index
+  %c0 = arith.constant 0 : index
 
 //       CHECK: %[[RES:.*]] = memref.load {{.*}} : memref<?xf32, #{{.*}}>
   %0 = tensor.extract %A[%c0] : tensor<?xf32>
@@ -53,8 +58,8 @@ func @tensor_extract(%A : tensor<?xf32>) -> (f32) {
 // CHECK-LABEL: func @not_inplace(
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?xf32, #[[$map_1d_dyn]]>) -> memref<?xf32> {
 func @not_inplace(%A : tensor<?xf32>) -> tensor<?xf32> {
-  //     CHECK: %[[F0:.*]] = constant 0.000000e+00 : f32
-  %f0 = constant 0.0 : f32
+  //     CHECK: %[[F0:.*]] = arith.constant 0.000000e+00 : f32
+  %f0 = arith.constant 0.0 : f32
 
   //     CHECK: %[[D0:.*]] = memref.dim %[[A]], {{.*}} : memref<?xf32, #[[$map_1d_dyn]]>
   //     CHECK: %[[ALLOC:.*]] = memref.alloc(%[[D0]]) {alignment = 128 : i64} : memref<?xf32>
@@ -73,7 +78,7 @@ func @not_inplace(%A : tensor<?xf32>) -> tensor<?xf32> {
 // CHECK-LABEL: func @not_inplace
 //  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?x?xf32, #[[$map_2d_dyn]]>) {
 func @not_inplace(%A : tensor<?x?xf32> {linalg.inplaceable = true}) -> tensor<?x?xf32> {
-  %f0 = constant 0.0 : f32
+  %f0 = arith.constant 0.0 : f32
 
   /// Cross-op multiple uses of %A, the first op which has interfering reads must alloc.
   //       CHECK: %[[ALLOC:.*]] = memref.alloc
@@ -109,7 +114,7 @@ func @not_inplace(%A : tensor<?x?xf32> {linalg.inplaceable = true}) -> tensor<?x
 func @vec_inplace(%A : tensor<?xf32> {linalg.inplaceable = true}, %vec : vector<4xf32>)
     -> tensor<?xf32>
 {
-  %c0 = constant 0 : index
+  %c0 = arith.constant 0 : index
 
   // CHECK-NOT: alloc
   %r = vector.transfer_write %vec, %A[%c0] : vector<4xf32>, tensor<?xf32>
@@ -128,8 +133,8 @@ func @vec_inplace(%A : tensor<?xf32> {linalg.inplaceable = true}, %vec : vector<
 func @vec_not_inplace(%A : tensor<?xf32> {linalg.inplaceable = true}, %vec : vector<4xf32>)
     -> (tensor<?xf32>, tensor<?xf32>)
 {
-  %c0 = constant 0 : index
-  %c1 = constant 1 : index
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
 
   /// Cross-op multiple uses of %A, the first vector.transfer which has interfering reads must alloc.
   //      CHECK: %[[ALLOC:.*]] = memref.alloc
@@ -206,7 +211,7 @@ func @insert_slice_fun(%A0 : tensor<?xf32>,
 func @insert_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = true}, %t : tensor<4xf32>)
   -> tensor<?xf32>
 {
-  %f0 = constant 0.0 : f32
+  %f0 = arith.constant 0.0 : f32
 
   //  CHECK-NOT: alloc
   //      CHECK: %[[SV_A:.*]] = memref.subview %[[A]]
@@ -232,7 +237,7 @@ func @insert_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = true}, %t : tens
 func @insert_slice_fun(%A : tensor<?xf32> {linalg.inplaceable = true}, %t : tensor<4xf32>)
   -> tensor<?xf32>
 {
-  %f0 = constant 0.0 : f32
+  %f0 = arith.constant 0.0 : f32
 
   //      CHECK: linalg.fill({{.*}}, %[[A]]
   %r0 = linalg.fill(%f0, %A) : f32, tensor<?xf32> -> tensor<?xf32>
@@ -269,34 +274,6 @@ func @insert_slice_fun_not_inplace(%A : tensor<?xf32>, %t : tensor<4xf32>)
   return %r0: tensor<?xf32>
 }
 
-// -----
-
-// CHECK-DAG: #[[$map_1d_dyn:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s1 + s0)>
-
-// CHECK-LABEL: func @insert_slice_fun_not_inplace
-//  CHECK-SAME:   %[[A:[a-zA-Z0-9]*]]: memref<?xf32, #[[$map_1d_dyn]]>
-//  CHECK-SAME:   %[[t:[a-zA-Z0-9]*]]: memref<4xf32, #[[$map_1d_dyn]]>
-func @insert_slice_fun_not_inplace(%A : tensor<?xf32> {linalg.inplaceable = true}, %t : tensor<4xf32>)
-  -> (tensor<?xf32>, tensor<?xf32>)
-{
-  %f0 = constant 0.0 : f32
-
-  // tensor.insert_slice is bufferized first, %A is inplaceable so we can make this inplace
-  //  CHECK-DAG: %[[SV_A:.*]] = memref.subview %[[A]][0] [4] [1] : memref<?xf32, {{.*}}> to memref<4xf32, {{.*}}>
-  //  CHECK-DAG: linalg.copy(%[[t]], %[[SV_A]]) : memref<4xf32, {{.*}}>, memref<4xf32, {{.*}}>
-  %r0 = tensor.insert_slice %t into %A[0][4][1] : tensor<4xf32> into tensor<?xf32>
-
-  // fill would interfere with %r0 that is also being returned.
-  // So we need to bufferize it out of place and make a new alloc.
-  //  CHECK-DAG: %[[ALLOC:.*]] = memref.alloc({{.*}}) {alignment = 128 : i64} : memref<?xf32>
-  //      CHECK: linalg.fill(%{{.*}}, %[[ALLOC]]
-  %r1 = linalg.fill(%f0, %A) : f32, tensor<?xf32> -> tensor<?xf32>
-
-  //      CHECK: memref.dealloc %[[ALLOC]] : memref<?xf32>
-  //      CHECK: return %[[ALLOC]] : memref<?xf32>
-  return %r1, %r0: tensor<?xf32>, tensor<?xf32>
-}
-
 //===----------------------------------------------------------------------===//
 // Simple loop cases
 //===----------------------------------------------------------------------===//
@@ -329,6 +306,28 @@ func @scf_for_yield_only(%A : tensor<?xf32>,
   //     CHECK:   memref.dealloc %[[ALLOC_FOR_A]] : memref<?xf32>
   //     CHECK:   return %[[ALLOC_FOR_A]] : memref<?xf32>
   return %r0, %r1: tensor<?xf32>, tensor<?xf32>
+}
+
+// -----
+
+// Ensure that the function bufferizes without error. This tests pre-order
+// traversal of scf.for loops during bufferization. No need to check the IR,
+// just want to make sure that it does not crash.
+
+// CHECK-LABEL: func @nested_scf_for
+func @nested_scf_for(%A : tensor<?xf32> {linalg.inplaceable = true},
+                     %v : vector<5xf32>) -> tensor<?xf32> {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %c10 = arith.constant 10 : index
+  %r1 = scf.for %i = %c0 to %c10 step %c1 iter_args(%B = %A) -> tensor<?xf32> {
+    %r2 = scf.for %j = %c0 to %c10 step %c1 iter_args(%C = %B) -> tensor<?xf32> {
+      %w = vector.transfer_write %v, %C[%c0] : vector<5xf32>, tensor<?xf32>
+      scf.yield %w : tensor<?xf32>
+    }
+    scf.yield %r2 : tensor<?xf32>
+  }
+  return %r1 : tensor<?xf32>
 }
 
 // -----
@@ -389,11 +388,34 @@ func private @some_external_func(tensor<4xi32>)
 //      CHECK: func @main()
 func @main() {
 //      CHECK:   %[[A:.*]] = memref.get_global @__constant_4xi32 : memref<4xi32>
-  %A = constant dense<[1, 2, 3, 4]> : tensor<4xi32>
+  %A = arith.constant dense<[1, 2, 3, 4]> : tensor<4xi32>
 
 //      CHECK:   %[[B:.*]] = memref.cast %[[A]] : memref<4xi32> to memref<4xi32, #[[$DYN_1D_MAP]]>
 //      CHECK:   call @some_external_func(%[[B]]) : (memref<4xi32, #[[$DYN_1D_MAP]]>) -> ()
   call @some_external_func(%A) : (tensor<4xi32>) -> ()
+
+  return
+}
+
+// -----
+
+//      CHECK: #[[$DYN_1D_MAP:.*]] = affine_map<(d0)[s0, s1] -> (d0 * s1 + s0)>
+
+//      CHECK: memref.global "private" constant @__constant_4xi32 : memref<4xi32> = dense<[1, 2, 3, 4]>
+//      CHECK: func private @some_external_func_within_scf_execute(memref<4xi32, #[[$DYN_1D_MAP]]>)
+func private @some_external_func_within_scf_execute(tensor<4xi32>)
+
+//      CHECK: func @main()
+func @main() {
+//      CHECK:   %[[A:.*]] = memref.get_global @__constant_4xi32 : memref<4xi32>
+  %A = arith.constant dense<[1, 2, 3, 4]> : tensor<4xi32>
+
+//      CHECK:   %[[B:.*]] = memref.cast %[[A]] : memref<4xi32> to memref<4xi32, #[[$DYN_1D_MAP]]>
+//      CHECK:   call @some_external_func_within_scf_execute(%[[B]]) : (memref<4xi32, #[[$DYN_1D_MAP]]>) -> ()
+  scf.execute_region {
+    call @some_external_func_within_scf_execute(%A) : (tensor<4xi32>) -> ()
+    scf.yield
+  }
 
   return
 }
@@ -469,8 +491,8 @@ func @bar(
 // CHECK-SAME:    %[[B:[a-zA-Z0-9]*]]: memref<64xf32, #[[$DYN_1D_MAP]]>
 // CHECK-SAME:    %[[C:[a-zA-Z0-9]*]]: memref<f32, #[[$DYN_0D_MAP]]>
 func @init_and_dot(%a: tensor<64xf32>, %b: tensor<64xf32>, %c: tensor<f32>) -> tensor<f32> {
-  // CHECK-NEXT:   %[[C0:.*]] = constant 0{{.*}} : f32
-  %v0 = constant 0.0 : f32
+  // CHECK-NEXT:   %[[C0:.*]] = arith.constant 0{{.*}} : f32
+  %v0 = arith.constant 0.0 : f32
 
   // CHECK-NEXT:   linalg.fill(%[[C0]], %[[C]]) : f32, memref<f32, #[[$DYN_0D_MAP]]>
   %d = linalg.fill(%v0, %c) : f32, tensor<f32> -> tensor<f32>
@@ -485,12 +507,12 @@ func @init_and_dot(%a: tensor<64xf32>, %b: tensor<64xf32>, %c: tensor<f32>) -> t
 
 //      CHECK:  func @main()
 func @main() {
-  //  CHECK-DAG:   %[[C0:.*]] = constant 0{{.*}} : f32
-  //  CHECK-DAG:   %[[C1:.*]] = constant 1{{.*}} : f32
-  //  CHECK-DAG:   %[[C2:.*]] = constant 2{{.*}} : f32
-  %v0 = constant 0.0 : f32
-  %v1 = constant 1.0 : f32
-  %v2 = constant 2.0 : f32
+  //  CHECK-DAG:   %[[C0:.*]] = arith.constant 0{{.*}} : f32
+  //  CHECK-DAG:   %[[C1:.*]] = arith.constant 1{{.*}} : f32
+  //  CHECK-DAG:   %[[C2:.*]] = arith.constant 2{{.*}} : f32
+  %v0 = arith.constant 0.0 : f32
+  %v1 = arith.constant 1.0 : f32
+  %v2 = arith.constant 2.0 : f32
 
   // CHECK-NEXT:   %[[C:.*]] = memref.alloc() {alignment = 128 : i64} : memref<f32>
   // CHECK-NEXT:   %[[B:.*]] = memref.alloc() {alignment = 128 : i64} : memref<64xf32>
@@ -545,8 +567,8 @@ func private @some_use(memref<?xf32>)
 // CHECK-SAME:    %[[c:[a-zA-Z0-9]*]]: memref<f32, #[[$DYN_0D_MAP]]>
 func @tiled_dot(%A: tensor<?xf32>, %B: tensor<?xf32>, %c: tensor<f32> {linalg.inplaceable = true},
                 %effecting: memref<?xf32>) -> tensor<f32> {
-  %c3 = constant 3 : index
-  %c0 = constant 0 : index
+  %c3 = arith.constant 3 : index
+  %c0 = arith.constant 0 : index
 
   //     CHECK: %[[M:.*]] = memref.dim %[[A]], {{.*}} : memref<?xf32, #[[$DYN_1D_MAP:.*]]>
   %0 = tensor.dim %A, %c0 : tensor<?xf32>
@@ -595,9 +617,9 @@ func @tiled_dot(%A: tensor<?xf32>, %B: tensor<?xf32>, %c: tensor<f32> {linalg.in
 //      CHECK:  func @tiled_fill(
 // CHECK-SAME:    %[[A:[a-zA-Z0-9]*]]: memref<?xf32, #[[$DYN_MAP]]>
 func @tiled_fill(%A: tensor<?xf32> {linalg.inplaceable = true}) -> tensor<?xf32> {
-  %c3 = constant 3 : index
-  %c0 = constant 0 : index
-  %f0 = constant 0.0 : f32
+  %c3 = arith.constant 3 : index
+  %c0 = arith.constant 0 : index
+  %f0 = arith.constant 0.0 : f32
 
   //     CHECK: %[[M:.*]] = memref.dim %[[A]], {{.*}} : memref<?xf32, #[[$DYN_MAP:.*]]>
   %0 = tensor.dim %A, %c0 : tensor<?xf32>
@@ -680,14 +702,14 @@ func @matmul(
     %B: tensor<256x192xf32> {linalg.buffer_layout = affine_map<(d0, d1) -> (d0, d1)>, linalg.inplaceable = false},
     %C: tensor<128x192xf32> {linalg.buffer_layout = affine_map<(d0, d1) -> (d0, d1)>, linalg.inplaceable = true})
       -> tensor<128x192xf32> {
-  %c0 = constant 0 : index
-  %c256 = constant 256 : index
-  %c32 = constant 32 : index
-  %cst = constant 0.000000e+00 : f32
-  %c128 = constant 128 : index
-  %c192 = constant 192 : index
-  %c8 = constant 8 : index
-  %c16 = constant 16 : index
+  %c0 = arith.constant 0 : index
+  %c256 = arith.constant 256 : index
+  %c32 = arith.constant 32 : index
+  %cst = arith.constant 0.000000e+00 : f32
+  %c128 = arith.constant 128 : index
+  %c192 = arith.constant 192 : index
+  %c8 = arith.constant 8 : index
+  %c16 = arith.constant 16 : index
 
   // Hoisted alloc.
   // CHECK: %[[ALLOC:.*]] = memref.alloc() {alignment = 128 : i64} : memref<8x16xf32>
@@ -703,9 +725,6 @@ func @matmul(
         tensor<256x192xf32> to tensor<256x16xf32>
 
       // %4 does not match an insert_slice, it cannot be bufferized inplace and needs to alloc.
-      // CHECK: %[[T:.*]] = memref.subview %[[C]][%[[I]], %[[J]]] [8, 16] [1, 1]
-      // TODO: %4 is never read but just overwritten, this copy can be elided.
-      // CHECK: linalg.copy(%[[T]], %[[ALLOC]])
       %4 = tensor.extract_slice %C[%arg3, %arg5] [8, 16] [1, 1] :
         tensor<128x192xf32> to tensor<8x16xf32>
 
@@ -731,6 +750,7 @@ func @matmul(
       // insert_slice is inplace but its source comes from an equivalent buffer
       // that is not in place. So we must insert a copy of the small buffer into
       // the bigger buffer.
+      // CHECK: %[[T:.*]] = memref.subview %[[C]][%[[I]], %[[J]]] [8, 16] [1, 1]
       // CHECK: linalg.copy(%[[ALLOC]], %[[T]])
       %7 = tensor.insert_slice %6 into %arg6[%arg3, %arg5] [8, 16] [1, 1] :
         tensor<8x16xf32> into tensor<128x192xf32>
@@ -742,3 +762,129 @@ func @matmul(
   }
   return %0 : tensor<128x192xf32>
 }
+
+// -----
+
+// CHECK-LABEL: func @tensor_cast_not_in_place(
+//  CHECK-SAME:     %[[A:.*]]: memref<?xf32{{.*}}>, %[[B:.*]]: memref<?xf32{{.*}}>
+//       CHECK:   %[[alloc:.*]] = memref.alloc
+//       CHECK:   linalg.copy(%[[A]], %[[alloc]])
+//       CHECK:   %[[cast:.*]] = memref.cast %[[alloc]]
+func @tensor_cast_not_in_place(
+    %A : tensor<?xf32> {linalg.inplaceable = true},
+    %B : tensor<?xf32>, %idx: index)
+  -> (tensor<?xf32>)
+{
+  %r0 = tensor.cast %A : tensor<?xf32> to tensor<4xf32>
+  %r1 = tensor.insert_slice %r0 into %A[%idx][4][1] : tensor<4xf32> into tensor<?xf32>
+  return %r1 : tensor<?xf32>
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// Insertion point cases.
+//===----------------------------------------------------------------------===//
+
+/// These tests just check the produced IR is valid and does not have dominance
+/// errors in the def-use chains.
+
+// CHECK-LABEL: func @dominance_violation_bug_1
+func @dominance_violation_bug_1(%A : tensor<?x?xf32>, %idx : index) -> tensor<?x?xf32> {
+  %f0 = arith.constant 0.0 : f32
+
+  %sA = tensor.extract_slice %A[0, 0][%idx, %idx][1, 1] : tensor<?x?xf32> to tensor<?x?xf32>
+  %ssA = tensor.extract_slice %sA[0, 0][4, 4][1, 1] : tensor<?x?xf32> to tensor<4x4xf32>
+  %FA = linalg.fill(%f0, %ssA) : f32, tensor<4x4xf32> -> tensor<4x4xf32>
+  %rsA = tensor.insert_slice %FA into %sA[0, 0][4, 4][1, 1] : tensor<4x4xf32> into tensor<?x?xf32>
+  %rA = tensor.insert_slice %rsA into %A[0, 0][%idx, %idx][1, 1] : tensor<?x?xf32> into tensor<?x?xf32>
+
+  return %rA : tensor<?x?xf32>
+}
+
+// -----
+
+//      CHECK: func @buffer_forwarding_conflict(
+// CHECK-SAME:   %[[FUNC_ARG:[0-9a-zA-Z]*]]: memref<?xf32>
+// CHECK-SAME:   %[[sz:[0-9a-zA-Z]*]]: index
+func @buffer_forwarding_conflict(
+  %t: tensor<?xf32> {linalg.buffer_layout = affine_map<(d0) -> (d0)>, linalg.inplaceable = true},
+  %sz: index)
+    -> (tensor<?xf32>, tensor<?xf32>)
+{
+  %f0 = arith.constant 0.0: f32
+  // Alloc is needed for the **first** insert_slice (due to backward traversal during analysis).
+  //     CHECK: %[[DIM:.*]] = memref.dim %[[FUNC_ARG]]
+  // This allocs the whole dim to allow for a full clone of t.
+  //     CHECK: %[[ALLOC:.*]] = memref.alloc(%[[DIM]])
+
+  // init_tensor itself does not alloc but forwards to the **second**
+  // insert_slice. InitTensorOp replaces the init_tensor with an out-of-place
+  // extract_slice.
+  // CHECK: %[[EXTRACT_SLICE_ALLOC:.*]] = memref.alloc(%[[sz]])
+  %a = linalg.init_tensor[%sz] : tensor<?xf32>
+
+  //     CHECK: linalg.fill({{.*}}, %[[EXTRACT_SLICE_ALLOC]]) : f32, memref<?xf32>
+  %f = linalg.fill(%f0, %a) : f32, tensor<?xf32> -> tensor<?xf32>
+
+  //     CHECK: linalg.copy(%[[FUNC_ARG]], %[[ALLOC]]) : memref<?xf32>, memref<?xf32>
+  //     CHECK: %[[SV0_ALLOC:.*]] = memref.subview %[[ALLOC]][0] [%[[sz]]] [1] : memref<?xf32> to memref<?xf32>
+  //     CHECK: linalg.copy(%[[EXTRACT_SLICE_ALLOC]], %[[SV0_ALLOC]]) : memref<?xf32>, memref<?xf32>
+  %r0 = tensor.insert_slice %f into %t[0][%sz][1]: tensor<?xf32> into tensor<?xf32>
+
+  //     CHECK: %[[T_SUBVIEW:.*]] =  memref.subview %[[FUNC_ARG]][42] [%[[sz]]] [1]
+  //     CHECK: linalg.copy(%[[EXTRACT_SLICE_ALLOC]], %[[T_SUBVIEW]])
+  %r1 = tensor.insert_slice %f into %t[42][%sz][1]: tensor<?xf32> into tensor<?xf32>
+
+  return %r0, %r1: tensor<?xf32>, tensor<?xf32>
+}
+
+// -----
+
+//      CHECK: func @buffer_forwarding_no_conflict(
+// CHECK-SAME:   %[[FUNC_ARG:[0-9a-zA-Z]*]]: memref<?xf32>
+// CHECK-SAME:   %[[sz:[0-9a-zA-Z]*]]: index
+func @buffer_forwarding_no_conflict(
+  %t: tensor<?xf32> {linalg.buffer_layout = affine_map<(d0) -> (d0)>, linalg.inplaceable = true},
+  %sz: index)
+    -> (tensor<?xf32>)
+{
+  %f0 = arith.constant 0.0: f32
+
+  // init_tensor itself does not alloc but forwards to the insert_slice.
+  // InitTensorOp replaces the init_tensor with an inplace extract_slice.
+  // CHECK: %[[T_SUBVIEW:.*]] =  memref.subview %[[FUNC_ARG]][42] [%[[sz]]] [1]
+  %a = linalg.init_tensor[%sz] : tensor<?xf32>
+
+  // CHECK: linalg.fill({{.*}}, %[[T_SUBVIEW]]) : f32, memref<?xf32
+  %f = linalg.fill(%f0, %a) : f32, tensor<?xf32> -> tensor<?xf32>
+
+  // Self-copy canonicalizes away later.
+  // CHECK: linalg.copy(%[[T_SUBVIEW]], %[[T_SUBVIEW]])
+  %r1 = tensor.insert_slice %f into %t[42][%sz][1]: tensor<?xf32> into tensor<?xf32>
+
+  return %r1: tensor<?xf32>
+}
+
+// -----
+
+// CHECK-LABEL: func @scf_if_inplace(
+//  CHECK-SAME:     %[[cond:.*]]: i1, %[[t1:.*]]: memref<?xf32{{.*}}>, %[[v:.*]]: vector
+func @scf_if_inplace(%cond: i1,
+                     %t1: tensor<?xf32> {linalg.inplaceable = true},
+                     %v: vector<5xf32>, %idx: index) -> tensor<?xf32> {
+
+  //      CHECK: scf.if %[[cond]] {
+  // CHECK-NEXT: } else {
+  // CHECK-NEXT:   vector.transfer_write %[[v]], %[[t1]]
+  // CHECK-NEXT: }
+  // CHECK-NEXT: return
+  %r = scf.if %cond -> (tensor<?xf32>) {
+    scf.yield %t1 : tensor<?xf32>
+  } else {
+    %t2 = vector.transfer_write %v, %t1[%idx] : vector<5xf32>, tensor<?xf32>
+    scf.yield %t2 : tensor<?xf32>
+  }
+  return %r : tensor<?xf32>
+}
+

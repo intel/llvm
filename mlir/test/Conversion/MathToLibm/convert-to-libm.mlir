@@ -1,5 +1,7 @@
 // RUN: mlir-opt %s -convert-math-to-libm -canonicalize | FileCheck %s
 
+// CHECK-DAG: @erf(f64) -> f64
+// CHECK-DAG: @erff(f32) -> f32
 // CHECK-DAG: @expm1(f64) -> f64
 // CHECK-DAG: @expm1f(f32) -> f32
 // CHECK-DAG: @atan2(f64, f64) -> f64
@@ -32,6 +34,18 @@ func @atan2_caller(%float: f32, %double: f64) -> (f32, f64) {
   return %float_result, %double_result : f32, f64
 }
 
+// CHECK-LABEL: func @erf_caller
+// CHECK-SAME: %[[FLOAT:.*]]: f32
+// CHECK-SAME: %[[DOUBLE:.*]]: f64
+func @erf_caller(%float: f32, %double: f64) -> (f32, f64)  {
+  // CHECK-DAG: %[[FLOAT_RESULT:.*]] = call @erff(%[[FLOAT]]) : (f32) -> f32
+  %float_result = math.erf %float : f32
+  // CHECK-DAG: %[[DOUBLE_RESULT:.*]] = call @erf(%[[DOUBLE]]) : (f64) -> f64
+  %double_result = math.erf %double : f64
+  // CHECK: return %[[FLOAT_RESULT]], %[[DOUBLE_RESULT]]
+  return %float_result, %double_result : f32, f64
+}
+
 // CHECK-LABEL: func @expm1_caller
 // CHECK-SAME: %[[FLOAT:.*]]: f32
 // CHECK-SAME: %[[DOUBLE:.*]]: f64
@@ -52,10 +66,10 @@ func @expm1_vec_caller(%float: vector<2xf32>, %double: vector<2xf64>) -> (vector
 // CHECK-LABEL:   func @expm1_vec_caller(
 // CHECK-SAME:                           %[[VAL_0:.*]]: vector<2xf32>,
 // CHECK-SAME:                           %[[VAL_1:.*]]: vector<2xf64>) -> (vector<2xf32>, vector<2xf64>) {
-// CHECK-DAG:       %[[CVF:.*]] = constant dense<0.000000e+00> : vector<2xf32>
-// CHECK-DAG:       %[[CVD:.*]] = constant dense<0.000000e+00> : vector<2xf64>
-// CHECK-DAG:       %[[C0:.*]] = constant 0 : i32
-// CHECK-DAG:       %[[C1:.*]] = constant 1 : i32
+// CHECK-DAG:       %[[CVF:.*]] = arith.constant dense<0.000000e+00> : vector<2xf32>
+// CHECK-DAG:       %[[CVD:.*]] = arith.constant dense<0.000000e+00> : vector<2xf64>
+// CHECK-DAG:       %[[C0:.*]] = arith.constant 0 : i32
+// CHECK-DAG:       %[[C1:.*]] = arith.constant 1 : i32
 // CHECK:           %[[IN0_F32:.*]] = vector.extractelement %[[VAL_0]]{{\[}}%[[C0]] : i32] : vector<2xf32>
 // CHECK:           %[[OUT0_F32:.*]] = call @expm1f(%[[IN0_F32]]) : (f32) -> f32
 // CHECK:           %[[VAL_8:.*]] = vector.insertelement %[[OUT0_F32]], %[[CVF]]{{\[}}%[[C0]] : i32] : vector<2xf32>

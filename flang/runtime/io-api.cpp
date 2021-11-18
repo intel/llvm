@@ -268,9 +268,9 @@ Cookie BeginUnformattedIO(
     IoErrorHandler handler{terminator};
     unit.SetDirection(DIR, handler);
     if constexpr (DIR == Direction::Output) {
-      if (unit.access == Access::Sequential && !unit.isFixedRecordLength) {
+      if (unit.access == Access::Sequential) {
         // Create space for (sub)record header to be completed by
-        // ExternalUnformattedIoStatementState<Direction::Output>::EndIoStatement()
+        // ExternalFileUnit::AdvanceRecord()
         unit.recordLength.reset(); // in case of prior BACKSPACE
         io.Emit("\0\0\0\0", 4); // placeholder for record length header
       }
@@ -925,6 +925,8 @@ bool IONAME(OutputUnformattedBlock)(Cookie cookie, const char *x,
   if (auto *unf{io.get_if<
           ExternalUnformattedIoStatementState<Direction::Output>>()}) {
     return unf->Emit(x, length, elementBytes);
+  } else if (auto *inq{io.get_if<InquireIOLengthState>()}) {
+    return inq->Emit(x, length, elementBytes);
   }
   io.GetIoErrorHandler().Crash("OutputUnformattedBlock() called for an I/O "
                                "statement that is not unformatted output");
@@ -947,14 +949,52 @@ bool IONAME(InputUnformattedBlock)(
   return false;
 }
 
+bool IONAME(OutputInteger8)(Cookie cookie, std::int8_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger8");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 1, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
+bool IONAME(OutputInteger16)(Cookie cookie, std::int16_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger16");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 2, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
+bool IONAME(OutputInteger32)(Cookie cookie, std::int32_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger32");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 4, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
 bool IONAME(OutputInteger64)(Cookie cookie, std::int64_t n) {
   cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger64");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
-      TypeCategory::Integer, sizeof n, reinterpret_cast<void *>(&n), 0);
+      TypeCategory::Integer, 8, reinterpret_cast<void *>(&n), 0);
   return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
 }
+
+#ifdef __SIZEOF_INT128__
+bool IONAME(OutputInteger128)(Cookie cookie, common::int128_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger128");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 16, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+#endif
 
 bool IONAME(InputInteger)(Cookie cookie, std::int64_t &n, int kind) {
   cookie->CheckFormattedStmtType<Direction::Input>("InputInteger");
@@ -1078,6 +1118,27 @@ bool IONAME(InputLogical)(Cookie cookie, bool &truth) {
   descriptor.Establish(
       TypeCategory::Logical, sizeof truth, reinterpret_cast<void *>(&truth), 0);
   return descr::DescriptorIO<Direction::Input>(*cookie, descriptor);
+}
+
+std::size_t IONAME(GetSize)(Cookie cookie) {
+  IoStatementState &io{*cookie};
+  if (const auto *formatted{
+          io.get_if<FormattedIoStatementState<Direction::Input>>()}) {
+    return formatted->GetEditDescriptorChars();
+  }
+  io.GetIoErrorHandler().Crash(
+      "GetIoSize() called for an I/O statement that is not a formatted READ()");
+  return 0;
+}
+
+std::size_t IONAME(GetIoLength)(Cookie cookie) {
+  IoStatementState &io{*cookie};
+  if (const auto *inq{io.get_if<InquireIOLengthState>()}) {
+    return inq->bytes();
+  }
+  io.GetIoErrorHandler().Crash("GetIoLength() called for an I/O statement that "
+                               "is not INQUIRE(IOLENGTH=)");
+  return 0;
 }
 
 void IONAME(GetIoMsg)(Cookie cookie, char *msg, std::size_t length) {

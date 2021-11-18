@@ -38,6 +38,7 @@
 #include "llvm/LinkAllIR.h"
 #include "llvm/LinkAllPasses.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
@@ -46,7 +47,6 @@
 #include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
@@ -780,19 +780,32 @@ int main(int argc, char **argv) {
           << "Cannot specify passes via both -foo-pass and --passes=foo-pass\n";
       return 1;
     }
+    auto NumOLevel = OptLevelO0 + OptLevelO1 + OptLevelO2 + OptLevelO3 +
+                     OptLevelOs + OptLevelOz;
+    if (NumOLevel > 1) {
+      errs() << "Cannot specify multiple -O#\n";
+      return 1;
+    }
+    if (NumOLevel > 0 && PassPipeline.getNumOccurrences() > 0) {
+      errs() << "Cannot specify -O# and --passes=, use "
+                "-passes='default<O#>,other-pass'\n";
+      return 1;
+    }
+    std::string Pipeline = PassPipeline;
+
     SmallVector<StringRef, 4> Passes;
     if (OptLevelO0)
-      Passes.push_back("default<O0>");
+      Pipeline = "default<O0>";
     if (OptLevelO1)
-      Passes.push_back("default<O1>");
+      Pipeline = "default<O1>";
     if (OptLevelO2)
-      Passes.push_back("default<O2>");
+      Pipeline = "default<O2>";
     if (OptLevelO3)
-      Passes.push_back("default<O3>");
+      Pipeline = "default<O3>";
     if (OptLevelOs)
-      Passes.push_back("default<Os>");
+      Pipeline = "default<Os>";
     if (OptLevelOz)
-      Passes.push_back("default<Oz>");
+      Pipeline = "default<Oz>";
     for (const auto &P : PassList)
       Passes.push_back(P->getPassArgument());
     OutputKind OK = OK_NoOutput;
@@ -811,7 +824,7 @@ int main(int argc, char **argv) {
     // string. Hand off the rest of the functionality to the new code for that
     // layer.
     return runPassPipeline(argv[0], *M, TM.get(), &TLII, Out.get(),
-                           ThinLinkOut.get(), RemarksFile.get(), PassPipeline,
+                           ThinLinkOut.get(), RemarksFile.get(), Pipeline,
                            Passes, OK, VK, PreserveAssemblyUseListOrder,
                            PreserveBitcodeUseListOrder, EmitSummaryIndex,
                            EmitModuleHash, EnableDebugify)

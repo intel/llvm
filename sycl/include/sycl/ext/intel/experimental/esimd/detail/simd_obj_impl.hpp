@@ -22,6 +22,55 @@ namespace ext {
 namespace intel {
 namespace experimental {
 namespace esimd {
+
+/// Flags for use with simd load/store operations.
+/// \ingroup sycl_esimd
+/// @{
+/// element_aligned_tag type. Flag of this type should be used in load and store
+/// operations when memory address is aligned by simd object's element type.
+struct element_aligned_tag {
+  template <typename VT, typename ET = typename detail::element_type<VT>::type>
+  static constexpr unsigned alignment = alignof(ET);
+};
+
+/// vector_aligned_tag type. Flag of this type should be used in load and store
+/// operations when memory address is guaranteed to be aligned by simd object's
+/// vector type.
+struct vector_aligned_tag {
+  template <typename VT> static constexpr unsigned alignment = alignof(VT);
+};
+
+/// overaligned_tag type. Flag of this type should be used in load and store
+/// operations when memory address is aligned by the user-provided alignment
+/// value N.
+/// \tparam N is the alignment value. N must be a power of two.
+template <unsigned N> struct overaligned_tag {
+  static_assert(
+      detail::isPowerOf2(N),
+      "Alignment value N for overaligned_tag<N> must be a power of two");
+  template <typename> static constexpr unsigned alignment = N;
+};
+
+inline constexpr element_aligned_tag element_aligned = {};
+
+inline constexpr vector_aligned_tag vector_aligned = {};
+
+template <unsigned N> inline constexpr overaligned_tag<N> overaligned = {};
+/// @}
+
+/// Checks if type is a simd load/store flag.
+template <typename T> struct is_simd_flag_type : std::false_type {};
+
+template <> struct is_simd_flag_type<element_aligned_tag> : std::true_type {};
+
+template <> struct is_simd_flag_type<vector_aligned_tag> : std::true_type {};
+
+template <unsigned N>
+struct is_simd_flag_type<overaligned_tag<N>> : std::true_type {};
+
+template <typename T>
+static inline constexpr bool is_simd_flag_type_v = is_simd_flag_type<T>::value;
+
 namespace detail {
 
 /// The simd_obj_impl vector class.
@@ -70,6 +119,9 @@ protected:
 
 private:
   Derived &cast_this_to_derived() { return reinterpret_cast<Derived &>(*this); }
+  const Derived &cast_this_to_derived() const {
+    return reinterpret_cast<const Derived &>(*this);
+  }
 
 public:
   /// @{
@@ -137,11 +189,31 @@ public:
     init_from_array(std::move(Arr));
   }
 
+  /// Load constructor.
+  template <typename Flags = element_aligned_tag,
+            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+  simd_obj_impl(const Ty *ptr, Flags = {}) noexcept {
+    __esimd_dbg_print(simd_obj_impl(const Ty *ptr, Flags));
+    copy_from(ptr, Flags{});
+  }
+
+  /// Accessor-based load constructor.
+  template <typename AccessorT, typename Flags = element_aligned_tag,
+            typename = std::enable_if_t<
+                detail::is_sycl_accessor_with<
+                    AccessorT, accessor_mode_cap::can_read,
+                    sycl::access::target::global_buffer>::value &&
+                is_simd_flag_type_v<Flags>>>
+  simd_obj_impl(AccessorT acc, uint32_t offset, Flags = {}) noexcept {
+    __esimd_dbg_print(simd_obj_impl(AccessorT acc, uint32_t offset, Flags));
+    copy_from(acc, offset, Flags{});
+  }
+
   /// @}
 
   // Load the object's value from array.
-  template <int N1> std::enable_if_t<N1 == N> copy_from(const Ty (&Arr)[N1]) {
-    __esimd_dbg_print(copy_from(const Ty(&Arr)[N1]));
+  template <int N1> std::enable_if_t<N1 == N> copy_from(const Ty(&&Arr)[N1]) {
+    __esimd_dbg_print(copy_from(const Ty(&&Arr)[N1]));
     vector_type Tmp;
     for (auto I = 0; I < N; ++I) {
       Tmp[I] = Arr[I];
@@ -150,8 +222,8 @@ public:
   }
 
   // Store the object's value to array.
-  template <int N1> std::enable_if_t<N1 == N> copy_to(Ty (&Arr)[N1]) const {
-    __esimd_dbg_print(copy_to(Ty(&Arr)[N1]));
+  template <int N1> std::enable_if_t<N1 == N> copy_to(Ty(&&Arr)[N1]) const {
+    __esimd_dbg_print(copy_to(Ty(&&Arr)[N1]));
     for (auto I = 0; I < N; ++I) {
       Arr[I] = data()[I];
     }
@@ -317,7 +389,7 @@ public:
 
   /// \tparam Rep is number of times region has to be replicated.
   /// \return replicated simd_obj_impl instance.
-  template <int Rep> resize_a_simd_type_t<Derived, Rep * N> replicate() {
+  template <int Rep> resize_a_simd_type_t<Derived, Rep * N> replicate() const {
     return replicate<Rep, N>(0);
   }
 
@@ -327,7 +399,7 @@ public:
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int W>
   __SYCL_DEPRECATED("use simd_obj_impl::replicate_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
     return replicate_w<Rep, W>(Offset);
   }
 
@@ -336,7 +408,7 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int W>
-  resize_a_simd_type_t<Derived, Rep * W> replicate_w(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate_w(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, 0, W, 1>(Offset);
   }
 
@@ -347,7 +419,7 @@ public:
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W>
   __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
     return replicate_vs_w<Rep, VS, W>(Offset);
   }
 
@@ -357,7 +429,7 @@ public:
   /// \param Offset offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W>
-  resize_a_simd_type_t<Derived, Rep * W> replicate_vs_w(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate_vs_w(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, VS, W, 1>(Offset);
   }
 
@@ -369,7 +441,7 @@ public:
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W, int HS>
   __SYCL_DEPRECATED("use simd_obj_impl::replicate_vs_w_hs")
-  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W> replicate(uint16_t Offset) const {
     return replicate_vs_w_hs<Rep, VS, W, HS>(Offset);
   }
 
@@ -380,7 +452,8 @@ public:
   /// \param Offset is offset in number of elements in src region.
   /// \return replicated simd_obj_impl instance.
   template <int Rep, int VS, int W, int HS>
-  resize_a_simd_type_t<Derived, Rep * W> replicate_vs_w_hs(uint16_t Offset) {
+  resize_a_simd_type_t<Derived, Rep * W>
+  replicate_vs_w_hs(uint16_t Offset) const {
     return __esimd_rdregion<Ty, N, Rep * W, VS, W, HS, N>(data(),
                                                           Offset * sizeof(Ty));
   }
@@ -390,8 +463,8 @@ public:
   ///
   /// \return 1 if any element is set, 0 otherwise.
   template <typename T1 = Ty,
-            typename = sycl::detail::enable_if_t<std::is_integral<T1>::value>>
-  uint16_t any() {
+            typename = std::enable_if_t<std::is_integral<T1>::value>>
+  uint16_t any() const {
     return __esimd_any<Ty, N>(data());
   }
 
@@ -399,8 +472,8 @@ public:
   ///
   /// \return 1 if all elements are set, 0 otherwise.
   template <typename T1 = Ty,
-            typename = sycl::detail::enable_if_t<std::is_integral<T1>::value>>
-  uint16_t all() {
+            typename = std::enable_if_t<std::is_integral<T1>::value>>
+  uint16_t all() const {
     return __esimd_all<Ty, N>(data());
   }
 
@@ -499,45 +572,73 @@ public:
   /// elements in this object.
   /// @param addr the memory address to copy from. Must be a pointer to the
   /// global address space, otherwise behavior is undefined.
-  ESIMD_INLINE void copy_from(const Ty *const addr) SYCL_ESIMD_FUNCTION;
+  /// @param flags for the copy operation. If the template parameter Flags is
+  /// is element_aligned_tag, \p addr must be aligned by alignof(T). If Flags is
+  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's vector_type
+  /// alignment. If Flags is overaligned_tag<N>, \p addr must be aligned by N.
+  /// Program not meeting alignment requirements results in undefined behavior.
+  template <typename Flags = element_aligned_tag,
+            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+  ESIMD_INLINE void copy_from(const Ty *addr, Flags = {}) SYCL_ESIMD_FUNCTION;
 
   /// Copy a contiguous block of data from memory into this simd_obj_impl
   /// object. The amount of memory copied equals the total size of vector
   /// elements in this object. Source memory location is represented via a
   /// global accessor and offset.
   /// @param acc accessor to copy from.
-  /// @param offset offset to copy from.
-  template <typename AccessorT>
+  /// @param offset offset to copy from (in bytes).
+  /// @param flags for the copy operation. If the template parameter Flags is
+  /// is element_aligned_tag, offset must be aligned by alignof(T). If Flags is
+  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's vector_type
+  /// alignment. If Flags is overaligned_tag<N>, offset must be aligned by N.
+  /// Program not meeting alignment requirements results in undefined behavior.
+  template <typename AccessorT, typename Flags = element_aligned_tag,
+            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                                 sycl::access::target::global_buffer, void>
-  copy_from(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+  copy_from(AccessorT acc, uint32_t offset, Flags = {}) SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// @param addr the memory address to copy to. Must be a pointer to the
   /// global address space, otherwise behavior is undefined.
-  ESIMD_INLINE void copy_to(Ty *addr) SYCL_ESIMD_FUNCTION;
+  /// @param flags for the copy operation. If the template parameter Flags is
+  /// is element_aligned_tag, \p addr must be aligned by alignof(T). If Flags is
+  /// vector_aligned_tag, \p addr must be aligned by simd_obj_impl's vector_type
+  /// alignment. If Flags is overaligned_tag<N>, \p addr must be aligned by N.
+  /// Program not meeting alignment requirements results in undefined behavior.
+  template <typename Flags = element_aligned_tag,
+            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
+  ESIMD_INLINE void copy_to(Ty *addr, Flags = {}) const SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// Destination memory location is represented via a global accessor and
   /// offset.
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from.
-  template <typename AccessorT>
+  /// @param flags for the copy operation. If the template parameter Flags is
+  /// is element_aligned_tag, offset must be aligned by alignof(T). If Flags is
+  /// vector_aligned_tag, offset must be aligned by simd_obj_impl's vector_type
+  /// alignment. If Flags is overaligned_tag<N>, offset must be aligned by N.
+  /// Program not meeting alignment requirements results in undefined behavior.
+  template <typename AccessorT, typename Flags = element_aligned_tag,
+            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
   ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                                 sycl::access::target::global_buffer, void>
-  copy_to(AccessorT acc, uint32_t offset) SYCL_ESIMD_FUNCTION;
+  copy_to(AccessorT acc, uint32_t offset, Flags = {}) const SYCL_ESIMD_FUNCTION;
 
   /// @} // Memory operations
 
   /// Bitwise inversion, available in all subclasses.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
-  Derived operator~() {
+  Derived operator~() const {
     return Derived(~data());
   }
 
   /// Unary logical negation operator, available in all subclasses.
+  /// Similarly to C++, where !x returns bool, !simd returns as simd_mask, where
+  /// each element is a result of comparision with zero.
   template <class T1 = Ty, class = std::enable_if_t<std::is_integral_v<T1>>>
-  simd_mask_type<N> operator!() {
+  simd_mask_type<N> operator!() const {
     using MaskVecT = typename simd_mask_type<N>::vector_type;
     auto R = data() == vector_type(0);
     return simd_mask_type<N>{__builtin_convertvector(R, MaskVecT) &
@@ -632,83 +733,145 @@ protected:
 // ----------- Outlined implementations of simd_obj_impl class APIs.
 
 template <typename T, int N, class T1, class SFINAE>
-void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *const Addr) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(isPowerOf2(Sz / OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * OperandSize::OWORD,
-                "block size must be at most 8 owords");
+template <typename Flags, typename>
+void simd_obj_impl<T, N, T1, SFINAE>::copy_from(const T *Addr,
+                                                Flags) SYCL_ESIMD_FUNCTION {
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
 
-  uintptr_t AddrVal = reinterpret_cast<uintptr_t>(Addr);
-  *this =
-      __esimd_flat_block_read_unaligned<T, N, CacheHint::None, CacheHint::None>(
-          AddrVal);
+  simd<T, N> Tmp;
+  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(Size / OperandSize::OWORD)) {
+    Tmp = block_load<T, N, Flags>(Addr, Flags{});
+  } else if constexpr (sizeof(T) == 8) {
+    constexpr unsigned AlignUH =
+        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
+    simd<int32_t, N> LH(reinterpret_cast<const int32_t *>(Addr), Flags{});
+    simd<int32_t, N> UH(reinterpret_cast<const int32_t *>(Addr) + N,
+                        overaligned<AlignUH>);
+    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0) = LH;
+    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N) = UH;
+  } else if constexpr (N == 1) {
+    Tmp = *Addr;
+  } else if constexpr (N == 8 || N == 16 || N == 32) {
+    simd<uint32_t, N> Offsets(0u, sizeof(T));
+    Tmp = gather<T, N>(Addr, Offsets);
+  } else {
+    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
+    simd_mask_type<N1> Pred(0);
+    Pred.template select<N, 1>() = 1;
+    simd<uint32_t, N1> Offsets(0u, sizeof(T));
+    simd<T, N1> Vals = gather<T, N1>(Addr, Offsets, Pred);
+    Tmp = Vals.template select<N, 1>();
+  }
+  *this = Tmp.data();
 }
 
 template <typename T, int N, class T1, class SFINAE>
-template <typename AccessorT>
+template <typename AccessorT, typename Flags, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
                               sycl::access::target::global_buffer, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(isPowerOf2(Sz / OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * OperandSize::OWORD,
-                "block size must be at most 8 owords");
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
-  *this = __esimd_block_read<T, N>(surf_ind, offset);
-#else
-  *this = __esimd_block_read<T, N>(acc, offset);
-#endif // __SYCL_DEVICE_ONLY__
+simd_obj_impl<T, N, T1, SFINAE>::copy_from(AccessorT acc, uint32_t offset,
+                                           Flags) SYCL_ESIMD_FUNCTION {
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
+
+  simd<T, N> Tmp;
+  if constexpr (Align >= OperandSize::DWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(Size / OperandSize::OWORD)) {
+    Tmp = block_load<T, N, AccessorT, Flags>(acc, offset, Flags{});
+  } else if constexpr (sizeof(T) == 8) {
+    constexpr unsigned AlignUH =
+        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
+    simd<int32_t, N> LH(acc, offset, Flags{});
+    simd<int32_t, N> UH(acc, offset + N * 4, overaligned<AlignUH>);
+    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0) = LH;
+    Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N) = UH;
+  } else if constexpr (N == 1 || N == 8 || N == 16 || N == 32) {
+    simd<uint32_t, N> Offsets(0u, sizeof(T));
+    Tmp = gather<T, N, AccessorT>(acc, Offsets, offset);
+  } else {
+    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
+    simd_mask_type<N1> Pred(0);
+    Pred.template select<N, 1>() = 1;
+    simd<uint32_t, N1> Offsets(0u, sizeof(T));
+    simd<T, N1> Vals = gather<T, N1>(acc, Offsets, offset, Pred);
+    Tmp = Vals.template select<N, 1>();
+  }
+  *this = Tmp.data();
 }
 
 template <typename T, int N, class T1, class SFINAE>
-void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(isPowerOf2(Sz / OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * OperandSize::OWORD,
-                "block size must be at most 8 owords");
+template <typename Flags, typename>
+void simd_obj_impl<T, N, T1, SFINAE>::copy_to(T *addr,
+                                              Flags) const SYCL_ESIMD_FUNCTION {
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
 
-  uintptr_t AddrVal = reinterpret_cast<uintptr_t>(addr);
-  __esimd_flat_block_write<T, N, CacheHint::None, CacheHint::None>(AddrVal,
-                                                                   data());
+  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(Size / OperandSize::OWORD)) {
+    block_store<T, N>(addr, cast_this_to_derived());
+  } else if constexpr (sizeof(T) == 8) {
+    constexpr unsigned AlignUH =
+        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
+    simd<T, N> Tmp = data();
+    simd<int32_t, N> LH =
+        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0);
+    simd<int32_t, N> UH =
+        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N);
+    LH.copy_to(reinterpret_cast<int32_t *>(addr), Flags{});
+    UH.copy_to(reinterpret_cast<int32_t *>(addr) + N, overaligned<AlignUH>);
+  } else if constexpr (N == 1) {
+    *addr = data()[0];
+  } else if constexpr (N == 8 || N == 16 || N == 32) {
+    simd<uint32_t, N> offsets(0u, sizeof(T));
+    scatter<T, N>(addr, offsets, cast_this_to_derived().data());
+  } else {
+    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
+    simd_mask_type<N1> pred(0);
+    pred.template select<N, 1>() = 1;
+    simd<T, N1> vals(0);
+    vals.template select<N, 1>() = cast_this_to_derived().data();
+    simd<uint32_t, N1> offsets(0u, sizeof(T));
+    scatter<T, N1>(addr, offsets, vals, pred);
+  }
 }
 
 template <typename T, int N, class T1, class SFINAE>
-template <typename AccessorT>
+template <typename AccessorT, typename Flags, typename>
 ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
                               sycl::access::target::global_buffer, void>
-simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset) {
-  constexpr unsigned Sz = sizeof(T) * N;
-  static_assert(Sz >= OperandSize::OWORD,
-                "block size must be at least 1 oword");
-  static_assert(Sz % OperandSize::OWORD == 0,
-                "block size must be whole number of owords");
-  static_assert(isPowerOf2(Sz / OperandSize::OWORD),
-                "block must be 1, 2, 4 or 8 owords long");
-  static_assert(Sz <= 8 * OperandSize::OWORD,
-                "block size must be at most 8 owords");
+simd_obj_impl<T, N, T1, SFINAE>::copy_to(AccessorT acc, uint32_t offset,
+                                         Flags) const SYCL_ESIMD_FUNCTION {
+  constexpr unsigned Size = sizeof(T) * N;
+  constexpr unsigned Align = Flags::template alignment<T1>;
 
-#if defined(__SYCL_DEVICE_ONLY__)
-  auto surf_ind = AccessorPrivateProxy::getNativeImageObj(acc);
-  __esimd_block_write<T, N>(surf_ind, offset >> 4, data());
-#else
-  __esimd_block_write<T, N>(acc, offset >> 4, data());
-#endif // __SYCL_DEVICE_ONLY__
+  if constexpr (Align >= OperandSize::OWORD && Size % OperandSize::OWORD == 0 &&
+                detail::isPowerOf2(Size / OperandSize::OWORD)) {
+    block_store<T, N, AccessorT>(acc, offset, cast_this_to_derived());
+  } else if constexpr (sizeof(T) == 8) {
+    constexpr unsigned AlignUH =
+        (N * 4) % Align == 0 ? Align : std::min(Align, 4u);
+    simd<T, N> Tmp = data();
+    simd<int32_t, N> LH =
+        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(0);
+    simd<int32_t, N> UH =
+        Tmp.template bit_cast_view<int32_t>().template select<N, 1>(N);
+    LH.copy_to(acc, offset, Flags{});
+    UH.copy_to(acc, offset + N * 4, overaligned<AlignUH>);
+  } else if constexpr (N == 1 || N == 8 || N == 16 || N == 32) {
+    simd<uint32_t, N> offsets(0u, sizeof(T));
+    scatter<T, N, AccessorT>(acc, offsets, cast_this_to_derived().data(),
+                             offset);
+  } else {
+    constexpr int N1 = N < 8 ? 8 : N < 16 ? 16 : 32;
+    simd_mask_type<N1> pred(0);
+    pred.template select<N, 1>() = 1;
+    simd<T, N1> vals(0);
+    vals.template select<N, 1>() = cast_this_to_derived().data();
+    simd<uint32_t, N1> offsets(0u, sizeof(T));
+    scatter<T, N1, AccessorT>(acc, offsets, vals, offset, pred);
+  }
 }
 } // namespace detail
 

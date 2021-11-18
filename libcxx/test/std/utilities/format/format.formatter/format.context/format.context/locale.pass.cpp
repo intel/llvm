@@ -10,6 +10,9 @@
 // UNSUPPORTED: libcpp-has-no-localization
 // UNSUPPORTED: libcpp-has-no-incomplete-format
 
+// TODO(mordante): Investigate these localization/format failures since updating the Docker image in CI
+// UNSUPPORTED: stdlib=libc++
+
 // REQUIRES: locale.en_US.UTF-8
 // REQUIRES: locale.fr_FR.UTF-8
 
@@ -78,7 +81,9 @@ void test() {
 
 void test() {
   test<std::back_insert_iterator<std::basic_string<char>>, char>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test<std::back_insert_iterator<std::basic_string<wchar_t>>, wchar_t>();
+#endif
 #ifndef _LIBCPP_HAS_NO_CHAR8_T
   test<std::back_insert_iterator<std::basic_string<char8_t>>, char8_t>();
 #endif

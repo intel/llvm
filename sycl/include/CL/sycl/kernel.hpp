@@ -20,7 +20,9 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
+#ifdef __SYCL_INTERNAL_API
 class program;
+#endif
 class context;
 template <backend Backend> class backend_traits;
 template <bundle_state State> class kernel_bundle;
@@ -71,9 +73,9 @@ public:
   ///
   /// \param ClKernel is a valid OpenCL cl_kernel instance
   /// \param SyclContext is a valid SYCL context
-  __SYCL2020_DEPRECATED(
-      "OpenCL interop constructors are deprecated, use make_kernel() instead")
+#ifdef __SYCL_INTERNAL_API
   kernel(cl_kernel ClKernel, const context &SyclContext);
+#endif
 
   kernel(const kernel &RHS) = default;
 
@@ -94,9 +96,9 @@ public:
   /// an invalid_object_error exception will be thrown.
   ///
   /// \return a valid cl_kernel instance
-  __SYCL2020_DEPRECATED(
-      "OpenCL interop get() functions are deprecated, use get_native() instead")
+#ifdef __SYCL_INTERNAL_API
   cl_kernel get() const;
+#endif
 
   /// Check if the associated SYCL context is a SYCL host context.
   ///
@@ -127,7 +129,9 @@ public:
   /// get_info<info::kernel::program>().
   ///
   /// \return a valid SYCL program
+#ifdef __SYCL_INTERNAL_API
   program get_program() const;
+#endif
 
   /// Query information from the kernel object using the info::kernel_info
   /// descriptor.

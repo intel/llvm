@@ -21,8 +21,10 @@
 #include "llvm/IR/ModuleSummaryIndex.h"
 #include "llvm/LTO/Config.h"
 #include "llvm/Object/IRSymtab.h"
+#include "llvm/Support/Caching.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/thread.h"
+#include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include "llvm/Transforms/IPO/FunctionImport.h"
 
 namespace llvm {
@@ -38,7 +40,7 @@ class ToolOutputFile;
 
 /// Resolve linkage for prevailing symbols in the \p Index. Linkage changes
 /// recorded in the index and the ThinLTO backends must apply the changes to
-/// the module via thinLTOResolvePrevailingInModule.
+/// the module via thinLTOFinalizeInModule.
 ///
 /// This is done for correctness (if value exported, ensure we always
 /// emit a copy), and compile-time optimization (allow drop of duplicates).
@@ -185,40 +187,6 @@ private:
     return {Symbols.data() + Indices.first, Symbols.data() + Indices.second};
   }
 };
-
-/// This class wraps an output stream for a native object. Most clients should
-/// just be able to return an instance of this base class from the stream
-/// callback, but if a client needs to perform some action after the stream is
-/// written to, that can be done by deriving from this class and overriding the
-/// destructor.
-class NativeObjectStream {
-public:
-  NativeObjectStream(std::unique_ptr<raw_pwrite_stream> OS) : OS(std::move(OS)) {}
-  std::unique_ptr<raw_pwrite_stream> OS;
-  virtual ~NativeObjectStream() = default;
-};
-
-/// This type defines the callback to add a native object that is generated on
-/// the fly.
-///
-/// Stream callbacks must be thread safe.
-using AddStreamFn =
-    std::function<std::unique_ptr<NativeObjectStream>(unsigned Task)>;
-
-/// This is the type of a native object cache. To request an item from the
-/// cache, pass a unique string as the Key. For hits, the cached file will be
-/// added to the link and this function will return AddStreamFn(). For misses,
-/// the cache will return a stream callback which must be called at most once to
-/// produce content for the stream. The native object stream produced by the
-/// stream callback will add the file to the link after the stream is written
-/// to.
-///
-/// Clients generally look like this:
-///
-/// if (AddStreamFn AddStream = Cache(Task, Key))
-///   ProduceContent(AddStream);
-using NativeObjectCache =
-    std::function<AddStreamFn(unsigned Task, StringRef Key)>;
 
 /// A ThinBackend defines what happens after the thin-link phase during ThinLTO.
 /// The details of this type definition aren't important; clients can only
@@ -444,6 +412,9 @@ private:
   // Identify symbols exported dynamically, and that therefore could be
   // referenced by a shared library not visible to the linker.
   DenseSet<GlobalValue::GUID> DynamicExportSymbols;
+
+  // Diagnostic optimization remarks file
+  std::unique_ptr<ToolOutputFile> DiagnosticOutputFile;
 };
 
 /// The resolution for a symbol. The linker must provide a SymbolResolution for

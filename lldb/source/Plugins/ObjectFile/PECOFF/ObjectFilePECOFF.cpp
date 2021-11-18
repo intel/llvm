@@ -71,12 +71,7 @@ void ObjectFilePECOFF::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString ObjectFilePECOFF::GetPluginNameStatic() {
-  static ConstString g_name("pe-coff");
-  return g_name;
-}
-
-const char *ObjectFilePECOFF::GetPluginDescriptionStatic() {
+llvm::StringRef ObjectFilePECOFF::GetPluginDescriptionStatic() {
   return "Portable Executable and Common Object File Format object file reader "
          "(32 and 64 bit)";
 }
@@ -600,6 +595,7 @@ Symtab *ObjectFilePECOFF::GetSymtab() {
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
     if (m_symtab_up == nullptr) {
+      ElapsedTime elapsed(module_sp->GetSymtabParseTime());
       SectionList *sect_list = GetSectionList();
       m_symtab_up = std::make_unique<Symtab>(this);
       std::lock_guard<std::recursive_mutex> guard(m_symtab_up->GetMutex());
@@ -1205,6 +1201,3 @@ ObjectFile::Type ObjectFilePECOFF::CalculateType() {
 }
 
 ObjectFile::Strata ObjectFilePECOFF::CalculateStrata() { return eStrataUser; }
-
-// PluginInterface protocol
-ConstString ObjectFilePECOFF::GetPluginName() { return GetPluginNameStatic(); }

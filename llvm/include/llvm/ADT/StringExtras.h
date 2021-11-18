@@ -501,6 +501,83 @@ public:
   }
 };
 
+/// A forward iterator over partitions of string over a separator.
+class SplittingIterator
+    : public iterator_facade_base<SplittingIterator, std::forward_iterator_tag,
+                                  StringRef> {
+  char SeparatorStorage;
+  StringRef Current;
+  StringRef Next;
+  StringRef Separator;
+
+public:
+  SplittingIterator(StringRef Str, StringRef Separator)
+      : Next(Str), Separator(Separator) {
+    ++*this;
+  }
+
+  SplittingIterator(StringRef Str, char Separator)
+      : SeparatorStorage(Separator), Next(Str),
+        Separator(&SeparatorStorage, 1) {
+    ++*this;
+  }
+
+  SplittingIterator(const SplittingIterator &R)
+      : SeparatorStorage(R.SeparatorStorage), Current(R.Current), Next(R.Next),
+        Separator(R.Separator) {
+    if (R.Separator.data() == &R.SeparatorStorage)
+      Separator = StringRef(&SeparatorStorage, 1);
+  }
+
+  SplittingIterator &operator=(const SplittingIterator &R) {
+    if (this == &R)
+      return *this;
+
+    SeparatorStorage = R.SeparatorStorage;
+    Current = R.Current;
+    Next = R.Next;
+    Separator = R.Separator;
+    if (R.Separator.data() == &R.SeparatorStorage)
+      Separator = StringRef(&SeparatorStorage, 1);
+    return *this;
+  }
+
+  bool operator==(const SplittingIterator &R) const {
+    assert(Separator == R.Separator);
+    return Current.data() == R.Current.data();
+  }
+
+  const StringRef &operator*() const { return Current; }
+
+  StringRef &operator*() { return Current; }
+
+  SplittingIterator &operator++() {
+    std::tie(Current, Next) = Next.split(Separator);
+    return *this;
+  }
+};
+
+/// Split the specified string over a separator and return a range-compatible
+/// iterable over its partitions.  Used to permit conveniently iterating
+/// over separated strings like so:
+///
+/// \code
+///   for (StringRef x : llvm::split("foo,bar,baz", ","))
+///     ...;
+/// \end
+///
+/// Note that the passed string must remain valid throuhgout lifetime
+/// of the iterators.
+inline iterator_range<SplittingIterator> split(StringRef Str, StringRef Separator) {
+  return {SplittingIterator(Str, Separator),
+          SplittingIterator(StringRef(), Separator)};
+}
+
+inline iterator_range<SplittingIterator> split(StringRef Str, char Separator) {
+  return {SplittingIterator(Str, Separator),
+          SplittingIterator(StringRef(), Separator)};
+}
+
 } // end namespace llvm
 
 #endif // LLVM_ADT_STRINGEXTRAS_H

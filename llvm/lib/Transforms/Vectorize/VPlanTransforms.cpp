@@ -61,18 +61,18 @@ void VPlanTransforms::VPInstructionsToVPRecipes(
         if (LoadInst *Load = dyn_cast<LoadInst>(Inst)) {
           NewRecipe = new VPWidenMemoryInstructionRecipe(
               *Load, Plan->getOrAddVPValue(getLoadStorePointerOperand(Inst)),
-              nullptr /*Mask*/);
+              nullptr /*Mask*/, false /*Consecutive*/, false /*Reverse*/);
         } else if (StoreInst *Store = dyn_cast<StoreInst>(Inst)) {
           NewRecipe = new VPWidenMemoryInstructionRecipe(
               *Store, Plan->getOrAddVPValue(getLoadStorePointerOperand(Inst)),
-              Plan->getOrAddVPValue(Store->getValueOperand()),
-              nullptr /*Mask*/);
+              Plan->getOrAddVPValue(Store->getValueOperand()), nullptr /*Mask*/,
+              false /*Consecutive*/, false /*Reverse*/);
         } else if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Inst)) {
           NewRecipe = new VPWidenGEPRecipe(
               GEP, Plan->mapToVPValues(GEP->operands()), OrigLoop);
         } else if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
-          NewRecipe = new VPWidenCallRecipe(
-              *CI, Plan->mapToVPValues(CI->arg_operands()));
+          NewRecipe =
+              new VPWidenCallRecipe(*CI, Plan->mapToVPValues(CI->args()));
         } else if (SelectInst *SI = dyn_cast<SelectInst>(Inst)) {
           bool InvariantCond =
               SE.isLoopInvariant(SE.getSCEV(SI->getOperand(0)), OrigLoop);

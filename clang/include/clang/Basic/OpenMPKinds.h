@@ -167,6 +167,13 @@ enum OpenMPReductionClauseModifier {
   OMPC_REDUCTION_unknown,
 };
 
+/// OpenMP adjust-op kinds for 'adjust_args' clause.
+enum OpenMPAdjustArgsOpKind {
+#define OPENMP_ADJUST_ARGS_KIND(Name) OMPC_ADJUST_ARGS_##Name,
+#include "clang/Basic/OpenMPKinds.def"
+  OMPC_ADJUST_ARGS_unknown,
+};
+
 unsigned getOpenMPSimpleClauseType(OpenMPClauseKind Kind, llvm::StringRef Str,
                                    const LangOptions &LangOpts);
 const char *getOpenMPSimpleClauseTypeName(OpenMPClauseKind Kind, unsigned Type);
@@ -245,6 +252,13 @@ bool isOpenMPDistributeDirective(OpenMPDirectiveKind DKind);
 /// \return true - the directive has distribute on the outermost nest.
 /// otherwise - false.
 bool isOpenMPNestingDistributeDirective(OpenMPDirectiveKind DKind);
+
+/// Checks if the specified directive constitutes a 'loop' directive in the
+/// outermost nest.  For example, 'omp teams loop' or 'omp loop'.
+/// \param DKind Specified directive.
+/// \return true - the directive has loop on the outermost nest.
+/// otherwise - false.
+bool isOpenMPGenericLoopDirective(OpenMPDirectiveKind DKind);
 
 /// Checks if the specified clause is one of private clauses like
 /// 'private', 'firstprivate', 'reduction' etc..
