@@ -2399,6 +2399,12 @@ struct is_device_copyable<
     T, std::enable_if_t<std::is_trivially_copyable<T>::value>>
     : std::true_type {};
 
+// Specializations of device copyable should propagate onto constants.
+template <typename T>
+struct is_device_copyable<
+    const T, std::enable_if_t<!std::is_trivially_copyable<const T>::value>>
+    : is_device_copyable<T> {};
+
 #if __cplusplus >= 201703L
 template <typename T>
 inline constexpr bool is_device_copyable_v = is_device_copyable<T>::value;
