@@ -150,7 +150,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    shutdown();
+    if (!lpReserved)
+      shutdown();
     break;
   case DLL_PROCESS_ATTACH:
   case DLL_THREAD_ATTACH:
