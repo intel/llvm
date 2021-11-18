@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -317,6 +318,35 @@ private:
     return ValStr;
   }
 };
+
+template <> class SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE> {
+  using BaseT = SYCLConfigBase<SYCL_QUEUE_THREAD_POOL_SIZE>;
+
+public:
+  static int get() {
+    static std::once_flag Flag;
+    static const char *ValueStr = BaseT::getRawValue();
+    static int Value = 1;
+
+    std::call_once(Flag, [&] {
+      if (ValueStr)
+        try {
+          Value = std::stoi(Val);
+        } catch (...) {
+          throw invalid_parameter_error(
+              "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
+              PI_INVALID_VALUE);
+        }
+
+      if (Value < 1)
+        throw invalid_parameter_error(
+            "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
+            PI_INVALID_VALUE);
+    });
+
+    return Value;
+  }
+}
 
 } // namespace detail
 } // namespace sycl

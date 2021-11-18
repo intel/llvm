@@ -9,6 +9,7 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/spinlock.hpp>
+#include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/plugin.hpp>
@@ -89,6 +90,18 @@ std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
   return getOrCreate(MHandlerExtendedMembersMutex);
 }
 
+ThreadPool &GlobalHandler::getHostTaskThreadPool() {
+  static int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
+  ThreadPool &TP = getOrCreate(MHostTaskThreadPool, Size);
+
+  {
+    static std::once_flag Flag;
+    std::call_once(Flag, [&] { TP.start(); });
+  }
+
+  return TP;
+}
+
 void releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
 #ifndef _WIN32
@@ -119,6 +132,7 @@ void shutdown() {
   // global state as the global state may have been released.
   releaseDefaultContexts();
 
+  GlobalHandler::instance().MHostTaskThreadPool.Inst->finishAndWait();
   // First, release resources, that may access plugins.
   GlobalHandler::instance().MPlatformCache.Inst.reset(nullptr);
   GlobalHandler::instance().MScheduler.Inst.reset(nullptr);
