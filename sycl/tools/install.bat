@@ -22,7 +22,8 @@ IF NOT "%OCL_ICD_FILENAMES%" == "" (
     IF "!CLEAREXISTING!" == "Y" (
       echo Clean up previous configuration
       REG DELETE "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /f /v OCL_ICD_FILENAMES
-      echo Execute `set OCL_ICD_FILENAMES=` to remove variable from the current concole
+      echo Execute `set OCL_ICD_FILENAMES=` to remove variable from the current console
+
     ) else (
       echo WARNING: Incorrect input !CLEAREXISTING!. Only Y and N are allowed.
       goto USERINPUT
