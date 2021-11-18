@@ -10,18 +10,12 @@ optional kernel features.
 
 The requirements for this design come mostly from the SYCL 2020 specification
 [section 5.7 "Optional kernel features"][1] but they also encompass the C++
-attribute `[[sycl::device_has()]]` that is described in section 5.8.1 "Kernel
-attributes" and section 5.8.2 "Device function attributes".
+attribute `[[sycl::device_has()]]` that is described in [section 5.8.1 "Kernel
+attributes"][2] and [section 5.8.2 "Device function attributes"][3].
 
 [1]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features>
-
-At the time this document was written, the published version of the SYCL 2020
-specification does not include the `[[sycl::device_has()]]` attribute.  The
-published spec refers to this attribute as `[[sycl::requires()]]`, but the
-attribute was renamed to `[[sycl::device_has()]]` in [this pull request][4] to
-the SYCL 2020 specification.
-
-[4]: <https://github.com/KhronosGroup/SYCL-Docs/pull/171>
+[2]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:kernel.attributes>
+[3]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_device_function_attributes>
 
 
 ## Definition of terms
@@ -57,7 +51,7 @@ extension specification that enables indirect function calls.
 The term "exported device function" means a device function that is exported
 from a shared library as defined by [Device Code Dynamic Linking][5].
 
-[5]: <https://github.com/intel/llvm/blob/sycl/sycl/doc/SharedLibraries.md>
+[5]: <SharedLibraries.md>
 
 ### The FE compiler
 
@@ -272,7 +266,7 @@ non-FPGA users may want to use the `device_global` property
 [`device_image_scope`][6], which requires even non-FPGA users to have precise
 control over the way kernels are bundled into device images.
 
-[6]: <https://github.com/intel/llvm/pull/4675>
+[6]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc#properties-for-device-global-variables>
 
 The new definition of `-fsycl-device-code-split` is as follows:
 
