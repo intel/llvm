@@ -43,6 +43,6 @@ struct AssertHappened {
 #define __SYCL_GLOBAL__ __attribute__((opencl_global))
 
 // declaration
-extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ AssertHappened SPIR_AssertHappenedMem;
+extern "C" SPIR_GLOBAL_VAR __SYCL_GLOBAL__ AssertHappened SPIR_AssertHappenedMem;
 
 #endif
