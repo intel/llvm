@@ -96,7 +96,7 @@ using ValueSet = SmallPtrSet<Value*, 4>;
 using ConstValueSetImpl = SmallPtrSetImpl<const Value*>;
 using ConstValueSet = SmallPtrSet<const Value*, 4>;
 
-const Value* stripCasts(const Value* V) {
+Value* stripCasts(Value* V) {
   if (!V->getType()->isPtrOrPtrVectorTy())
     return V;
   // Even though we don't look through PHI nodes, we could be called on an
@@ -123,12 +123,12 @@ const Value* getSingleUserSkipCasts(const Value *V) {
   return V;
 }
 
-using UseSet = SmallPtrSet<const Use*, 4>;
+using UseSet = SmallPtrSet<Use*, 4>;
 using UseSetImpl = SmallPtrSetImpl<const Use*>;
 
-void collectUsesSkipThroughCasts(const Value *V, UseSet &Uses) {
-  for (const Use &U : V->uses()) {
-    const Value *VV = U.getUser();
+void collectUsesSkipThroughCasts(Value *V, UseSet &Uses) {
+  for (Use &U : V->uses()) {
+    Value *VV = U.getUser();
 
     if (isCast(VV)) {
       collectUsesSkipThroughCasts(VV, Uses);
@@ -147,9 +147,9 @@ Value* getInvokeeIfInvokeSimdCall(const CallInst *CI) {
   return nullptr;
 }
 
-void getStoredVals(const Value *Addr, ConstValueSetImpl &Vals) {
+void getPossibleStoredVals(Value *Addr, ValueSetImpl &Vals) {
   ValueSet Visited;
-  const AllocaInst *LocalVar = dyn_cast_or_null<AllocaInst>(stripCasts(Addr));
+  AllocaInst *LocalVar = dyn_cast_or_null<AllocaInst>(stripCasts(Addr));
 
   if (!LocalVar) {
     llvm_unreachable("unsupported data flow pattern for invoke_simd 10");
@@ -157,10 +157,10 @@ void getStoredVals(const Value *Addr, ConstValueSetImpl &Vals) {
   UseSet Uses;
   collectUsesSkipThroughCasts(LocalVar, Uses);
 
-  for (const Use *U : Uses) {
-    const Value *V = U->getUser();
+  for (Use *U : Uses) {
+    Value *V = U->getUser();
 
-    if (const auto *StI = dyn_cast<StoreInst>(V)) {
+    if (auto *StI = dyn_cast<StoreInst>(V)) {
       constexpr int StoreInstValueOperandIndex = 0;
 
       if (U != &StI->getOperandUse(StoreInst::getPointerOperandIndex())) {
@@ -170,10 +170,10 @@ void getStoredVals(const Value *Addr, ConstValueSetImpl &Vals) {
       }
       V = stripCasts(StI->getValueOperand());
 
-      if (const auto *LI = dyn_cast<LoadInst>(V)) {
+      if (auto *LI = dyn_cast<LoadInst>(V)) {
         // A value loaded from another address is stored at this address - recurse
         // into the other addresss
-        getStoredVals(LI->getPointerOperand(), Vals);
+        getPossibleStoredVals(LI->getPointerOperand(), Vals);
       } else {
         Vals.insert(V);
       }
@@ -191,7 +191,6 @@ void getStoredVals(const Value *Addr, ConstValueSetImpl &Vals) {
       // through the addr
       continue;
     }
-    V->dump();
     llvm_unreachable("unsupported data flow pattern for invoke_simd 13");
   }
 }
@@ -220,29 +219,37 @@ void getStoredVals(const Value *Addr, ConstValueSetImpl &Vals) {
 //  float %arg2,
 //  i32 %arg3)
 //
-void processInvokeSimdCall(const CallInst *CI) {
+void processInvokeSimdCall(CallInst *CI) {
   Value *V = getInvokeeIfInvokeSimdCall(CI);
 
   if (!V) {
     llvm_unreachable(("bad use of " + Twine(INVOKE_SIMD_PREF)).str().c_str());
   }
-  const Function *SimdF = nullptr;
+  Function *SimdF = nullptr;
 
   if (!(SimdF = dyn_cast<Function>(V))) {
-    const LoadInst *LI = dyn_cast<LoadInst>(stripCasts(V));
+    LoadInst *LI = dyn_cast<LoadInst>(stripCasts(V));
 
     if (!LI) {
       llvm_unreachable("unsupported data flow pattern for invoke_simd 0");
     }
-    ConstValueSet Vals;
-    getStoredVals(LI->getPointerOperand(), Vals);
+    ValueSet Vals;
+    getPossibleStoredVals(LI->getPointerOperand(), Vals);
 
     if (Vals.size() != 1 || !(SimdF = dyn_cast<Function>(*Vals.begin()))) {
       llvm_unreachable("unsupported data flow pattern for invoke_simd 1");
     }
+    // _Z21__builtin_invoke_simd invokee is an SSA value, replace it with the
+    // link-time constant SimdF as computed by getPossibleStoredVals
+    CallInst *CI1 = cast<CallInst>(CI->clone());
+    constexpr int SimdInvokeInvokeeArgIndex = 0;
+    CI1->setOperand(SimdInvokeInvokeeArgIndex, SimdF);
+    CI1->insertAfter(CI);
+    CI->replaceAllUsesWith(CI1);
+    CI->eraseFromParent();
   }
   if (!SimdF->hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall)) {
-    const_cast<Function*>(SimdF)->addFnAttr(llvm::genx::VCFunctionMD::VCStackCall);
+    SimdF->addFnAttr(llvm::genx::VCFunctionMD::VCStackCall);
   }
 }
 
@@ -274,9 +281,9 @@ void divideModuleCallGraph(Module &M, FuncPtrSet &A, FuncPtrSet &AB, SmallPtrSet
         // TODO processing of invoke_simd should be moved into a separate pass generic
         // for all BEs (maybe with some custom parts)
         if (F.getName().startswith(INVOKE_SIMD_PREF)) {
-          for (const User *Usr : F.users()) {
+          for (User *Usr : F.users()) {
             // a call can be the only use of invoke_simd built-in
-            const CallInst *CI = cast<CallInst>(Usr);
+            CallInst *CI = cast<CallInst>(Usr);
             processInvokeSimdCall(CI);
           }
         }
@@ -363,21 +370,13 @@ PreservedAnalyses DelimitESIMDandSYCLPass::run(Module &M, ModuleAnalysisManager 
   }
   bool Modified = false;
 
-  // Mark all Esimd functions with proper attribute:
+  // Mark all Esimd functions with proper attribute - VCFunction:
   for (auto *F : EsimdOnlyFuncs) {
-    F->addFnAttr(llvm::genx::FunctionMD::SYCLExplicitSimd);
+    F->addFnAttr(llvm::genx::VCFunctionMD::VCFunction);
     Modified = true;
   }
-  // TODO update GenXSPIRVWriterAdaptor and IGC SYCL/ESIMD splitter to use
-  // sycl_explicit_simd (or some other attribute) to separate ESIMD functions
-  // from SYCL so that there is no need/ to add CMGenxSIMT attribute to every
-  // non-ESIMD function. llvm::genx::VCFunctionMD::VCFunction does not work,
-  // because GenXSPIRVWriterAdaptor adds it to all functions.
-  for (auto *F : SyclOnlyFuncs) {
-    F->addFnAttr(llvm::genx::FunctionMD::SYCLSpmd);
-    Modified = true;
-  }
-  // Now replace common functions usages within Esimd CFGs with the clones.
+  // Now replace common functions usages within the Esimd call graph with the
+  // clones.
   // TODO now the "usage" means only calls, function pointers are not supported.
   for (auto *F : CommonFuncs) {
     auto *EsimdF = Sycl2Esimd[F];
@@ -394,8 +393,6 @@ PreservedAnalyses DelimitESIMDandSYCLPass::run(Module &M, ModuleAnalysisManager 
       llvm_unreachable("Unsupported use of function");
       return false;
     });
-    F->addFnAttr(llvm::genx::FunctionMD::CMGenxSIMT);
-    Modified = true; // see TODO above
   }
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
