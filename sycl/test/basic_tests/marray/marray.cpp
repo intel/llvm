@@ -108,13 +108,17 @@ int main() {
 
   static_assert(std::is_trivially_copyable<sycl::marray<Copyable, 5>>::value,
                 "sycl::marray<Copyable, 5> is not trivially copyable type");
+  static_assert(
+      !std::is_trivially_copyable<sycl::marray<std::string, 5>>::value,
+      "sycl::marray<std::string, 5> is trivially copyable type");
+
+  // check device copyability
   static_assert(sycl::is_device_copyable<sycl::marray<std::tuple<>, 5>>::value,
                 "sycl::marray<std::tuple<>, 5> is not device copyable type");
-  static_assert(
-      !std::is_trivially_copyable<sycl::marray<std::tuple<>, 5>>::value,
-      "sycl::marray<std::tuple<>, 5> is trivially copyable type");
   static_assert(!sycl::is_device_copyable<sycl::marray<std::string, 5>>::value,
                 "sycl::marray<std::string, 5> is device copyable type");
+
+  return 0;
 
   return 0;
 }
