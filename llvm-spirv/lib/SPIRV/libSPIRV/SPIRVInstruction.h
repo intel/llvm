@@ -2814,7 +2814,7 @@ protected:
   typedef SPIRVInstTemplate<SPIRVExpectKHRInstBase, Op##x, __VA_ARGS__>        \
       SPIRV##x;
 _SPIRV_OP(ExpectKHR, true, 5)
-#undef _SPIRV_OP_INTERNAL
+#undef _SPIRV_OP
 
 class SPIRVDotKHRBase : public SPIRVInstTemplateBase {
 protected:
