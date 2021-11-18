@@ -27,7 +27,8 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-This document describes an extension that introduces a discard_events property for
+This document describes an extension that introduces a `discard_events` property for
+
 SYCL queues.  This property enables developers to inform a SYCL implementation that
 the returned event can be discarded.
 
