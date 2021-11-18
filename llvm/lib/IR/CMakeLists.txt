@@ -21,7 +21,6 @@ add_llvm_component_library(LLVMCore
   DiagnosticPrinter.cpp
   Dominators.cpp
   FPEnv.cpp
-  ESIMDVerifier.cpp
   Function.cpp
   GCStrategy.cpp
   GVMaterializer.cpp

@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/IR/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/ESIMDVerifier.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
