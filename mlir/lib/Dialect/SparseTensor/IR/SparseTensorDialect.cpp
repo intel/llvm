@@ -193,7 +193,7 @@ mlir::sparse_tensor::getSparseTensorEncoding(Type type) {
 
 static LogicalResult isInBounds(Value dim, Value tensor) {
   if (auto constantOp = dim.getDefiningOp<arith::ConstantOp>()) {
-    unsigned d = constantOp.value().cast<IntegerAttr>().getInt();
+    unsigned d = constantOp.getValue().cast<IntegerAttr>().getInt();
     if (d >= tensor.getType().cast<RankedTensorType>().getRank())
       return failure();
   }
@@ -227,7 +227,7 @@ static LogicalResult verify(InitOp op) {
       continue;
     auto constantOp = op.sizes()[i].getDefiningOp<arith::ConstantOp>();
     if (!constantOp ||
-        constantOp.value().cast<IntegerAttr>().getInt() != shape[i])
+        constantOp.getValue().cast<IntegerAttr>().getInt() != shape[i])
       return op.emitError("unexpected mismatch with static dimension size ")
              << shape[i];
   }
@@ -237,11 +237,15 @@ static LogicalResult verify(InitOp op) {
 static LogicalResult verify(ConvertOp op) {
   if (auto tp1 = op.source().getType().dyn_cast<RankedTensorType>()) {
     if (auto tp2 = op.dest().getType().dyn_cast<RankedTensorType>()) {
-      assert(tp1.getRank() == tp2.getRank());
+      if (tp1.getRank() != tp2.getRank())
+        return op.emitError("unexpected conversion mismatch in rank");
       auto shape1 = tp1.getShape();
       auto shape2 = tp2.getShape();
+      // Accept size matches between the source and the destination type
+      // (e.g. 10 vs. 10, 10 vs. ?, or ? vs. ?), but reject direct mismatches or
+      // matches that would need a runtime assert (e.g. 10 vs. 20 or ? vs. 10).
       for (unsigned d = 0, rank = tp1.getRank(); d < rank; d++) {
-        if (shape1[d] != shape2[d])
+        if (shape1[d] != shape2[d] && shape2[d] != ShapedType::kDynamicSize)
           return op.emitError("unexpected conversion mismatch in dimension ")
                  << d;
       }

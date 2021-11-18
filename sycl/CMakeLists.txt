@@ -11,6 +11,7 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
+include(SYCLUtils)
 
 set(SYCL_MAJOR_VERSION 5)
 set(SYCL_MINOR_VERSION 4)
@@ -48,6 +49,15 @@ if(MSVC)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
   # never throw C++ exceptions.
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+
+  # Add PDB debug information
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+  include(LLVMCheckLinkerFlag)
+  llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  if(LINKER_SUPPORTS_DEBUG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
+    add_link_options("/DEBUG")
+  endif()
 endif()
 
 # Get clang's version

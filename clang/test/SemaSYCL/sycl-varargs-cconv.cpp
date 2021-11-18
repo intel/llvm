@@ -47,6 +47,8 @@ __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {
   kernelFunc(); //expected-note 2+ {{called by 'kernel_single_task}}
 }
 
+extern "C" int printf(const char *fmt, ...);
+
 int main() {
   //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
   kernel_single_task<class fake_kernel>([]() { foo(6); });
@@ -58,6 +60,10 @@ int main() {
   kernel_single_task<class fake_kernel>([]() { A::__spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
   //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
   kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });
+
+  // Check that default printf is not allowed.
+  //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
+  kernel_single_task<class fake_kernel>([]() { printf("Hello world! %d%d\n", 4, 2); });
 #elif defined(PRINTF_INVALID_DEF)
   //expected-error@+1 {{SYCL kernel cannot call a variadic function}}
   kernel_single_task<class fake_kernel>([]() { __spirv_ocl_printf("Hello world! %d%d\n", 4, 2); });

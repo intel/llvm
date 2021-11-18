@@ -40,7 +40,7 @@ def testTraverseOpRegionBlockIterators():
   print(f".verify = {module.operation.verify()}")
 
   # Get the regions and blocks from the default collections.
-  default_regions = list(op)
+  default_regions = list(op.regions)
   default_blocks = list(default_regions[0])
   # They should compare equal regardless of how obtained.
   assert default_regions == regions
@@ -53,7 +53,7 @@ def testTraverseOpRegionBlockIterators():
   assert default_operations == operations
 
   def walk_operations(indent, op):
-    for i, region in enumerate(op):
+    for i, region in enumerate(op.regions):
       print(f"{indent}REGION {i}:")
       for j, block in enumerate(region):
         print(f"{indent}  BLOCK {j}:")
@@ -740,3 +740,66 @@ def testOperationLoc():
     op = Operation.create("custom.op", loc=loc)
     assert op.location == loc
     assert op.operation.location == loc
+
+# CHECK-LABEL: TEST: testModuleMerge
+@run
+def testModuleMerge():
+  with Context():
+    m1 = Module.parse("func private @foo()")
+    m2 = Module.parse("""
+      func private @bar()
+      func private @qux()
+    """)
+    foo = m1.body.operations[0]
+    bar = m2.body.operations[0]
+    qux = m2.body.operations[1]
+    bar.move_before(foo)
+    qux.move_after(foo)
+
+    # CHECK: module
+    # CHECK: func private @bar
+    # CHECK: func private @foo
+    # CHECK: func private @qux
+    print(m1)
+
+    # CHECK: module {
+    # CHECK-NEXT: }
+    print(m2)
+
+
+# CHECK-LABEL: TEST: testAppendMoveFromAnotherBlock
+@run
+def testAppendMoveFromAnotherBlock():
+  with Context():
+    m1 = Module.parse("func private @foo()")
+    m2 = Module.parse("func private @bar()")
+    func = m1.body.operations[0]  
+    m2.body.append(func)
+
+    # CHECK: module
+    # CHECK: func private @bar
+    # CHECK: func private @foo
+
+    print(m2)
+    # CHECK: module {
+    # CHECK-NEXT: }
+    print(m1)
+
+
+# CHECK-LABEL: TEST: testDetachFromParent
+@run
+def testDetachFromParent():
+  with Context():
+    m1 = Module.parse("func private @foo()")
+    func = m1.body.operations[0].detach_from_parent()
+
+    try:
+      func.detach_from_parent()
+    except ValueError as e:
+      if "has no parent" not in str(e):
+        raise
+    else:
+      assert False, "expected ValueError when detaching a detached operation"
+
+    print(m1)
+    # CHECK-NOT: func private @foo

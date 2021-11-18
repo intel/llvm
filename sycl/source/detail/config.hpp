@@ -136,11 +136,12 @@ public:
     const char *ValStr = BaseT::getRawValue();
     const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
         {{"PI_OPENCL", backend::opencl},
-         {"PI_LEVEL_ZERO", backend::level_zero},
-         {"PI_LEVEL0", backend::level_zero}, // for backward compatibility
-         {"PI_CUDA", backend::cuda},
+         {"PI_LEVEL_ZERO", backend::ext_oneapi_level_zero},
+         {"PI_LEVEL0", backend::ext_oneapi_level_zero}, // for backward
+                                                        // compatibility
+         {"PI_CUDA", backend::ext_oneapi_cuda},
          {"PI_ESIMD_EMULATOR", backend::ext_intel_esimd_emulator},
-         {"PI_HIP", backend::hip}}};
+         {"PI_HIP", backend::ext_oneapi_hip}}};
     if (ValStr) {
       auto It = std::find_if(
           std::begin(SyclBeMap), std::end(SyclBeMap),

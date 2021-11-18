@@ -249,8 +249,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       // Disallow const statics and globals that are not zero-initialized
       // or constant-initialized.
       else if (IsRuntimeEvaluated && IsConst && VD->hasGlobalStorage() &&
-               !VD->isConstexpr() &&
-               !checkAllowedSYCLInitializer(VD, /*CheckValueDependent =*/true))
+               !VD->isConstexpr() && !checkAllowedSYCLInitializer(VD))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelConstStaticVariable;
     } else if (auto *FDecl = dyn_cast<FunctionDecl>(D)) {
@@ -12524,8 +12523,7 @@ static void diagnoseXorMisusedAsPow(Sema &S, const ExprResult &XorLHS,
       RHSStrRef.startswith("0x") || RHSStrRef.startswith("0X") ||
       (LHSStrRef.size() > 1 && LHSStrRef.startswith("0")) ||
       (RHSStrRef.size() > 1 && RHSStrRef.startswith("0")) ||
-      LHSStrRef.find('\'') != StringRef::npos ||
-      RHSStrRef.find('\'') != StringRef::npos)
+      LHSStrRef.contains('\'') || RHSStrRef.contains('\''))
     return;
 
   bool SuggestXor =

@@ -5319,6 +5319,11 @@ static EvalStmtResult EvaluateStmt(StmtResult &Result, EvalInfo &Info,
       return ESR;
     }
 
+    // In error-recovery cases it's possible to get here even if we failed to
+    // synthesize the __begin and __end variables.
+    if (!FS->getBeginStmt() || !FS->getEndStmt() || !FS->getCond())
+      return ESR_Failed;
+
     // Create the __begin and __end iterators.
     ESR = EvaluateStmt(Result, Info, FS->getBeginStmt());
     if (ESR != ESR_Succeeded) {
@@ -15536,8 +15541,10 @@ bool Expr::isIntegerConstantExpr(const ASTContext &Ctx,
 Optional<llvm::APSInt> Expr::getIntegerConstantExpr(const ASTContext &Ctx,
                                                     SourceLocation *Loc,
                                                     bool isEvaluated) const {
-  assert(!isValueDependent() &&
-         "Expression evaluator can't be called on a dependent expression.");
+  if (isValueDependent()) {
+    // Expression evaluator can't succeed on a dependent expression.
+    return None;
+  }
 
   APSInt Value;
 

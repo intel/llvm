@@ -514,12 +514,12 @@ TEST(Assert, TestPositive) {
       return;
     }
 
-    if (Plt.get_backend() == sycl::backend::cuda) {
+    if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda) {
       printf("Test is not supported on CUDA platform, skipping\n");
       return;
     }
 
-    if (Plt.get_backend() == sycl::backend::hip) {
+    if (Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
       printf("Test is not supported on HIP platform, skipping\n");
       return;
     }
@@ -573,8 +573,9 @@ TEST(Assert, TestInteropKernelNegative) {
 
   const sycl::backend Backend = Plt.get_backend();
 
-  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
-      Backend == sycl::backend::level_zero) {
+  if (Backend == sycl::backend::ext_oneapi_cuda ||
+      Backend == sycl::backend::ext_oneapi_hip ||
+      Backend == sycl::backend::ext_oneapi_level_zero) {
     printf(
         "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
     return;
@@ -610,8 +611,9 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
 
   const sycl::backend Backend = Plt.get_backend();
 
-  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
-      Backend == sycl::backend::level_zero) {
+  if (Backend == sycl::backend::ext_oneapi_cuda ||
+      Backend == sycl::backend::ext_oneapi_hip ||
+      Backend == sycl::backend::ext_oneapi_level_zero) {
     printf(
         "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
     return;
@@ -649,8 +651,9 @@ TEST(Assert, TestKernelFromSourceNegative) {
 
   const sycl::backend Backend = Plt.get_backend();
 
-  if (Backend == sycl::backend::cuda || Backend == sycl::backend::hip ||
-      Backend == sycl::backend::level_zero) {
+  if (Backend == sycl::backend::ext_oneapi_cuda ||
+      Backend == sycl::backend::ext_oneapi_hip ||
+      Backend == sycl::backend::ext_oneapi_level_zero) {
     printf(
         "Test is not supported on CUDA, HIP, Level Zero platforms, skipping\n");
     return;
