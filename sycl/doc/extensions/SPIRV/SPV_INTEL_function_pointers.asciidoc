@@ -195,9 +195,7 @@ _Index_ is an unsigned 32-bit integer indicating the argument number _N_. The at
 _<<Literal, Literal>> +
 Index +
 <<Argument Attribute, Argument Attribute>> +
-Argument Attribute +
-<<Literal, Literals>> +
-Optional Argument_ |
+Argument Attribute_ |
 *FunctionPointersINTEL*|
 |====
 
