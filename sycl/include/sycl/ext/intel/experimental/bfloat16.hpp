@@ -43,6 +43,12 @@ public:
 #endif
   }
 
+  static bfloat16 from_bits(const storage_t &a) {
+    bfloat16 res;
+    res.value = a;
+    return res;
+  }
+
   // Implicit conversion from float to bfloat16
   bfloat16(const float &a) { value = from_float(a); }
 

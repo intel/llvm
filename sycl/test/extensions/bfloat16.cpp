@@ -27,7 +27,7 @@ __attribute__((noinline)) float op(float a, float b) {
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
 
-  bfloat16 D = some_bf16_intrinsic(A, C);
+  bfloat16 D = bfloat16::from_bits(some_bf16_intrinsic(A, C));
   // CHECK: [[D:%.*]] = tail call spir_func zeroext i16 @_Z19some_bf16_intrinsictt(i16 zeroext [[A]], i16 zeroext [[C]])
   // CHECK-NOT: uitofp
   // CHECK-NOT: fptoui
