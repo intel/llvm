@@ -2,13 +2,32 @@ set(obj_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
 if (WIN32)
   set(lib-suffix obj)
   set(spv_binary_dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+  set(host_offload_target "host-x86_64-pc-windows-msvc")
 else()
   set(lib-suffix o)
   set(spv_binary_dir "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}")
+  set(host_offload_target "host-x86_64-unknown-linux-gnu")
 endif()
 set(clang $<TARGET_FILE:clang>)
+set(bundler $<TARGET_FILE:clang-offload-bundler>)
 set(llvm-link $<TARGET_FILE:llvm-link>)
 set(llvm-spirv $<TARGET_FILE:llvm-spirv>)
+
+string(CONCAT bundler_targets_opt
+  "-targets="
+  "sycl-spir64_x86_64-unknown-unknown,"
+  "sycl-spir64_gen-unknown-unknown,"
+  "sycl-spir64_fpga-unknown-unknown,"
+  "sycl-spir64-unknown-unknown,"
+  ${host_offload_target})
+string(CONCAT bundler_inputs_opt
+  "-inputs="
+  ${obj_binary_dir} "/fallback-cassert_spir64_x86_64." ${lib-suffix} ","
+  ${obj_binary_dir} "/fallback-cassert_spir64_gen." ${lib-suffix} ","
+  ${obj_binary_dir} "/fallback-cassert_spir64_fpga." ${lib-suffix} ","
+  ${obj_binary_dir} "/fallback-cassert_spir64." ${lib-suffix} ","
+  ${obj_binary_dir} "/assert_no_read_host." ${lib-suffix})
+
 
 string(CONCAT sycl_targets_opt
   "-fsycl-targets="
@@ -88,29 +107,30 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert_no_read.bc
                    MAIN_DEPENDENCY fallback-cassert.cpp
                    DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
                    VERBATIM)
-add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert_read.bc
+add_custom_command(OUTPUT ${spv_binary_dir}/assert_read_spir64_spv.bc
                    COMMAND ${clang} -c -x cl -emit-llvm
                            --target=spir64-unknown-unknown -cl-std=CL2.0
                            ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
-                           -o
-                            ${spv_binary_dir}/libsycl-fallback-cassert_read.bc
-                   MAIN_DEPENDENCY fallback-cassert.cl
+                           -o ${spv_binary_dir}/assert_read_spir64_spv.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
                    DEPENDS sycl-compiler
                    VERBATIM)
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert.bc
                    COMMAND ${llvm-link} -o
                            ${spv_binary_dir}/libsycl-fallback-cassert.bc
                            ${spv_binary_dir}/libsycl-fallback-cassert_no_read.bc
-                           ${spv_binary_dir}/libsycl-fallback-cassert_read.bc
+                           ${spv_binary_dir}/assert_read_spir64_spv.bc
                    DEPENDS ${spv_binary_dir}/libsycl-fallback-cassert_no_read.bc
-                           ${spv_binary_dir}/libsycl-fallback-cassert_read.bc
-                           llvm-link)
+                           ${spv_binary_dir}/assert_read_spir64_spv.bc
+                           llvm-link
+                   VERBATIM)
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cassert.spv
                    COMMAND ${llvm-spirv} -o
                            ${spv_binary_dir}/libsycl-fallback-cassert.spv
                            ${spv_binary_dir}/libsycl-fallback-cassert.bc
                    DEPENDS ${spv_binary_dir}/libsycl-fallback-cassert.bc
-                           llvm-spirv)
+                           llvm-spirv
+                   VERBATIM)
 
 add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cstring.spv
                    COMMAND ${clang} -fsycl-device-only -fno-sycl-use-bitcode
@@ -121,13 +141,121 @@ add_custom_command(OUTPUT ${spv_binary_dir}/libsycl-fallback-cstring.spv
                    DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
                    VERBATIM)
 
-add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
-                   COMMAND ${clang} -fsycl -c
-                           ${compile_opts} ${sycl_targets_opt}
-                           ${spv_binary_dir}/libsycl-fallback-cassert.bc
-                           -o ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
-                   MAIN_DEPENDENCY ${spv_binary_dir}/libsycl-fallback-cassert.bc
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_x86_64.bc
+                   COMMAND ${clang} -c -x cl -emit-llvm
+                           --target=spir64_x86_64-unknown-unknown -cl-std=CL2.0
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                           -o ${obj_binary_dir}/assert_read_spir64_x86_64.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                   DEPENDS sycl-compiler
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_gen.bc
+                   COMMAND ${clang} -c -x cl -emit-llvm
+                           --target=spir64_gen-unknown-unknown -cl-std=CL2.0
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                           -o ${obj_binary_dir}/assert_read_spir64_gen.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                   DEPENDS sycl-compiler
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64_fpga.bc
+                   COMMAND ${clang} -c -x cl -emit-llvm
+                           --target=spir64_fpga-unknown-unknown -cl-std=CL2.0
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                           -o ${obj_binary_dir}/assert_read_spir64_fpga.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                   DEPENDS sycl-compiler
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_read_spir64.bc
+                   COMMAND ${clang} -c -x cl -emit-llvm
+                           --target=spir64-unknown-unknown -cl-std=CL2.0
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                           -o ${obj_binary_dir}/assert_read_spir64.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cl
+                   DEPENDS sycl-compiler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_no_read_spir64.bc
+                   COMMAND ${clang} -fsycl-device-only -emit-llvm
+                           -fsycl-targets=spir64-unknown-unknown ${compile_opts}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                           -o ${obj_binary_dir}/assert_no_read_spir64.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
                    DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_no_read_spir64_x86_64.bc
+                   COMMAND ${clang} -fsycl-device-only -emit-llvm
+                           -fsycl-targets=spir64_x86_64-unknown-unknown ${compile_opts}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                           -o ${obj_binary_dir}/assert_no_read_spir64_x86_64.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                   DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_no_read_spir64_gen.bc
+                   COMMAND ${clang} -fsycl-device-only -emit-llvm
+                           -fsycl-targets=spir64_gen-unknown-unknown ${compile_opts}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                           -o ${obj_binary_dir}/assert_no_read_spir64_gen.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                   DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_no_read_spir64_fpga.bc
+                   COMMAND ${clang} -fsycl-device-only -emit-llvm
+                           -fsycl-targets=spir64_fpga-unknown-unknown ${compile_opts}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                           -o ${obj_binary_dir}/assert_no_read_spir64_fpga.bc
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                   DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/assert_no_read_host.o
+                   COMMAND ${clang} -c
+                           ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                           -o ${obj_binary_dir}/assert_no_read_host.o
+                   MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/fallback-cassert.cpp
+                   DEPENDS wrapper.h device.h spirv_vars.h sycl-compiler
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/fallback-cassert_spir64.${lib-suffix}
+                   COMMAND ${llvm-link} -o ${obj_binary_dir}/fallback-cassert_spir64.${lib-suffix}
+                           ${obj_binary_dir}/assert_read_spir64.bc
+                           ${obj_binary_dir}/assert_no_read_spir64.bc
+                   DEPENDS ${obj_binary_dir}/assert_read_spir64.bc
+                           ${obj_binary_dir}/assert_no_read_spir64.bc
+                           llvm-link
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/fallback-cassert_spir64_x86_64.${lib-suffix}
+                   COMMAND ${llvm-link} -o ${obj_binary_dir}/fallback-cassert_spir64_x86_64.${lib-suffix}
+                           ${obj_binary_dir}/assert_read_spir64_x86_64.bc
+                           ${obj_binary_dir}/assert_no_read_spir64_x86_64.bc
+                   DEPENDS ${obj_binary_dir}/assert_read_spir64_x86_64.bc
+                           ${obj_binary_dir}/assert_no_read_spir64_x86_64.bc
+                           llvm-link
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/fallback-cassert_spir64_gen.${lib-suffix}
+                   COMMAND ${llvm-link} -o ${obj_binary_dir}/fallback-cassert_spir64_gen.${lib-suffix}
+                           ${obj_binary_dir}/assert_read_spir64_gen.bc
+                           ${obj_binary_dir}/assert_no_read_spir64_gen.bc
+                   DEPENDS ${obj_binary_dir}/assert_read_spir64_gen.bc
+                           ${obj_binary_dir}/assert_no_read_spir64_gen.bc
+                           llvm-link
+                   VERBATIM)
+add_custom_command(OUTPUT ${obj_binary_dir}/fallback-cassert_spir64_fpga.${lib-suffix}
+                   COMMAND ${llvm-link} -o ${obj_binary_dir}/fallback-cassert_spir64_fpga.${lib-suffix}
+                           ${obj_binary_dir}/assert_read_spir64_fpga.bc
+                           ${obj_binary_dir}/assert_no_read_spir64_fpga.bc
+                   DEPENDS ${obj_binary_dir}/assert_read_spir64_fpga.bc
+                           ${obj_binary_dir}/assert_no_read_spir64_fpga.bc
+                           llvm-link
+                   VERBATIM)
+
+add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
+                   COMMAND ${bundler} -type=o ${bundler_targets_opt}
+                           -outputs=${obj_binary_dir}/libsycl-fallback-cassert.${lib-suffix}
+                           ${bundler_inputs_opt}
+                   DEPENDS ${obj_binary_dir}/fallback-cassert_spir64_x86_64.${lib-suffix}
+                           ${obj_binary_dir}/fallback-cassert_spir64_gen.${lib-suffix}
+                           ${obj_binary_dir}/fallback-cassert_spir64_fpga.${lib-suffix}
+                           ${obj_binary_dir}/fallback-cassert_spir64.${lib-suffix}
+                           ${obj_binary_dir}/assert_no_read_host.${lib-suffix}
                    VERBATIM)
 
 add_custom_command(OUTPUT ${obj_binary_dir}/libsycl-fallback-cstring.${lib-suffix}
