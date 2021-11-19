@@ -46,8 +46,10 @@ template <typename T, int dimensions = 1,
 class buffer {
   // TODO check is_device_copyable<T>::value after converting sycl::vec into a
   // trivially copyable class.
-  static_assert(!std::is_same<T, std::string>::value,
+  static_assert(
+      !std::is_same<T, std::string>::value,
       "The underlying data type of a buffer 'T' must be device copyable");
+
 public:
   using value_type = T;
   using reference = value_type &;
