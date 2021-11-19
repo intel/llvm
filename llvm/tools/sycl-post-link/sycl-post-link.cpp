@@ -210,9 +210,9 @@ void writeToFile(const std::string &Filename, const std::string &Content) {
   OS.close();
 }
 
-// Describes scope covered by each entry in the module-kernel map populated by
-// the collectKernelModuleMap function.
-enum KernelMapEntryScope {
+// Describes scope covered by each entry in the module-entry points map
+// populated by the collectEntryPointToModuleMap function.
+enum EntryPointsSplitScope {
   Scope_PerKernel, // one entry per kernel
   Scope_PerModule, // one entry per module
   Scope_Global     // single entry in the map for all kernels
@@ -245,7 +245,7 @@ bool hasIndirectFunctionCalls(const Module &M) {
   return false;
 }
 
-KernelMapEntryScope selectDeviceCodeSplitScope(const Module &M) {
+EntryPointsSplitScope selectDeviceCodeSplitScope(const Module &M) {
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
   if (DoSplit) {
     switch (SplitMode) {
@@ -288,7 +288,7 @@ bool isSpirvSyclBuiltin(StringRef FName) {
 }
 
 bool isEntryPoint(const Function &F) {
-  // Skip declarations, if any: they should not be included into KernelModuleMap
+  // Skip declarations, if any: they should not be included into EntryPointsMap
   // or otherwise we will end up with incorrectly generated list of symbols.
   if (F.isDeclaration())
     return false;
@@ -311,12 +311,12 @@ bool isEntryPoint(const Function &F) {
 // This function decides how entry points of the input module M will be
 // distributed ("split") into multiple modules based on the command options and
 // IR attributes. The decision is recorded in the output map parameter
-// ResKernelModuleMap which maps some key to a group of entry points. Each such
+// EntryPointsSplitMap which maps some key to a group of entry points. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
 void collectEntryPointToModuleMap(const Module &M,
-                                  EntryPointsMap &ResKernelModuleMap,
-                                  KernelMapEntryScope EntryScope) {
+                                  EntryPointsMap &EntryPointsSplitMap,
+                                  EntryPointsSplitScope EntryScope) {
 
   // Only process module entry points:
   for (const auto &F : M.functions()) {
@@ -325,7 +325,7 @@ void collectEntryPointToModuleMap(const Module &M,
 
     switch (EntryScope) {
     case Scope_PerKernel:
-      ResKernelModuleMap[F.getName()].push_back(&F);
+      EntryPointsSplitMap[F.getName()].push_back(&F);
       break;
     case Scope_PerModule: {
       if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
@@ -338,12 +338,12 @@ void collectEntryPointToModuleMap(const Module &M,
 
       Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
-      ResKernelModuleMap[Val].push_back(&F);
+      EntryPointsSplitMap[Val].push_back(&F);
       break;
     }
     case Scope_Global:
       // the map key is not significant here
-      ResKernelModuleMap[GLOBAL_SCOPE_NAME].push_back(&F);
+      EntryPointsSplitMap[GLOBAL_SCOPE_NAME].push_back(&F);
       break;
     }
   }
@@ -487,15 +487,15 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   return {X, Y, Z};
 }
 
-// Input parameter KernelModuleMap is a map containing groups of entry points
-// with same values of the sycl-module-id attribute. Return value is a vector
-// of entry points names lists. Each vector element is a string with entry point
-// names from the same module separated by \n.
+// Input parameter EntryPointsSplitMap contains a map of entry points or groups
+// of entry points with same values of the sycl-module-id attribute.
+// Return value is a vector of entry points names lists. Each vector element is
+// a string with entry point names from the same module separated by \n.
 // The function saves names of entry points from one group to a single
 // std::string and stores this string to the ResSymbolsLists vector.
-string_vector collectSymbolsLists(const EntryPointsMap &KernelModuleMap) {
+string_vector collectSymbolsLists(const EntryPointsMap &EntryPointsSplitMap) {
   string_vector ResSymbolsLists{};
-  for (const auto &It : KernelModuleMap) {
+  for (const auto &It : EntryPointsSplitMap) {
     std::string SymbolsList;
     for (const auto &F : It.second) {
       SymbolsList =
@@ -507,21 +507,21 @@ string_vector collectSymbolsLists(const EntryPointsMap &KernelModuleMap) {
 }
 
 struct ResultModule {
-  StringRef KernelModuleName;
+  StringRef SplitModuleId;
   std::unique_ptr<Module> ModulePtr;
 };
 
-// Input parameter KernelModuleMap is a map containing groups of entry points
-// with same values of the sycl-module-id attribute. For each group of entry
-// points a separate IR module will be produced.
-// ResModules is a vector of pairs of kernel module names and produced modules.
-// The function splits input LLVM IR module M into smaller ones and stores them
-// to the ResModules vector.
-std::vector<ResultModule> splitModule(const Module &M,
-                                      const EntryPointsMap &KernelModuleMap) {
+// Input parameter EntryPointsSplitMap contains a map of entry points or groups
+// of entry points with same values of the sycl-module-id attribute.
+// For each group of entry points a separate IR module will be produced.
+// ResModules is a vector of pairs of split module identifiers and produced
+// modules. The function splits input LLVM IR module M into smaller ones and
+// stores them to the ResModules vector.
+std::vector<ResultModule>
+splitModule(const Module &M, const EntryPointsMap &EntryPointsSplitMap) {
   std::vector<ResultModule> ResModules{};
 
-  for (const auto &It : KernelModuleMap) {
+  for (const auto &It : EntryPointsSplitMap) {
     // For each group of entry points collect all dependencies.
     SetVector<const GlobalValue *> GVs;
     std::vector<const Function *> Workqueue;
@@ -617,7 +617,7 @@ string_vector saveResultModules(const std::vector<ResultModule> &ResModules,
 
 string_vector
 saveDeviceImageProperty(const std::vector<ResultModule> &ResultModules,
-                        const EntryPointsMap &KernelModuleMap,
+                        const EntryPointsMap &EntryPointsSplitMap,
                         const ImagePropSaveInfo &ImgPSInfo) {
   using PropSetRegTy = llvm::util::PropertySetRegistry;
 
@@ -682,8 +682,8 @@ saveDeviceImageProperty(const std::vector<ResultModule> &ResultModules,
     if (ImgPSInfo.EmitExportedSymbols) {
       // For each result module, extract the exported functions
       auto ModuleFunctionsIt =
-          KernelModuleMap.find(ResultModules[I].KernelModuleName);
-      if (ModuleFunctionsIt != KernelModuleMap.end()) {
+          EntryPointsSplitMap.find(ResultModules[I].SplitModuleId);
+      if (ModuleFunctionsIt != EntryPointsSplitMap.end()) {
         for (const auto &F : ModuleFunctionsIt->second) {
           if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
             PropSet[PropSetRegTy::SYCL_EXPORTED_SYMBOLS].insert(
@@ -812,7 +812,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
 
   if (DoSplit || DoSymGen) {
-    KernelMapEntryScope Scope = selectDeviceCodeSplitScope(*M);
+    EntryPointsSplitScope Scope = selectDeviceCodeSplitScope(*M);
     collectEntryPointToModuleMap(*M, GlobalsSet, Scope);
   }
 
@@ -920,13 +920,14 @@ ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
   if (SyclFunctions.empty())
     return std::make_pair(std::unique_ptr<Module>(nullptr), std::move(M));
 
-  // Key values in KernelModuleMap are not significant, but they define the
-  // order, in which entry points are processed in the splitModule function. The
-  // caller of the splitSyclEsimd function expects a pair of 1-Sycl and 2-Esimd
-  // modules, hence the strings names below.
-  EntryPointsMap KernelModuleMap(
+  // Key values in SyclEsimdEntryPointsMap are not significant, but they define
+  // the order, in which entry points are processed in the splitModule function.
+  // The caller of the splitSyclEsimd function expects a pair of 1-Sycl and
+  // 2-Esimd modules, hence the strings names below.
+  EntryPointsMap SyclEsimdEntryPointsMap(
       {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
-  std::vector<ResultModule> ResultModules = splitModule(*M, KernelModuleMap);
+  std::vector<ResultModule> ResultModules =
+      splitModule(*M, SyclEsimdEntryPointsMap);
   assert(ResultModules.size() == 2);
   return std::make_pair(std::move(ResultModules[0].ModulePtr),
                         std::move(ResultModules[1].ModulePtr));
