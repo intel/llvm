@@ -67,8 +67,8 @@ int main(void) {
 
   std::unique_ptr<int, Deleter> BufA(sycl::malloc_shared<int>(Size, q),
                                      Deleter{q});
-  std::unique_ptr<int, Deleter> BufB(sycl::malloc_shared<int>(Size, q),
-                                     Deleter{q});
+  std::unique_ptr<int, Deleter> BufB(
+      sycl::aligned_alloc_shared<int>(16u, Size, q), Deleter{q});
   std::unique_ptr<int, Deleter> BufC(
       sycl::aligned_alloc_shared<int>(16u, Size, q), Deleter{q});
 
