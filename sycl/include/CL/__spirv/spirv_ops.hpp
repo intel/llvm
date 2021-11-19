@@ -86,6 +86,12 @@ __spirv_JointMatrixSUMadINTEL(
     __spv::__spirv_JointMatrixINTEL<T3, M, N, LC, S> *C,
     __spv::Scope::Flag Sc = __spv::Scope::Flag::Subgroup);
 
+template <typename T, std::size_t R, std::size_t C,
+          __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
+__spirv_JointMatrixFillINTEL(const T &v, __spv::Scope::Flag Sc = S);
+
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
     "SPIR-V built-ins are not available. Please set -fdeclare-spirv-builtins flag."
