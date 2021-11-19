@@ -2997,6 +2997,8 @@ pi_result piQueueFinish(pi_queue Queue) {
   return PI_SUCCESS;
 }
 
+pi_result piQueueFlush(pi_queue Queue) { return PI_SUCCESS; }
+
 pi_result piextQueueGetNativeHandle(pi_queue Queue,
                                     pi_native_handle *NativeHandle) {
   PI_ASSERT(Queue, PI_INVALID_QUEUE);

@@ -2252,6 +2252,8 @@ pi_result cuda_piQueueFinish(pi_queue command_queue) {
   return result;
 }
 
+pi_result cuda_piQueueFlush(pi_queue command_queue) { return PI_SUCCESS; }
+
 /// Gets the native CUDA handle of a PI queue object
 ///
 /// \param[in] queue The PI queue to get the native CUDA object of.
@@ -4885,6 +4887,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piQueueCreate, cuda_piQueueCreate)
   _PI_CL(piQueueGetInfo, cuda_piQueueGetInfo)
   _PI_CL(piQueueFinish, cuda_piQueueFinish)
+  _PI_CL(piQueueFlush, cuda_piQueueFlush)
   _PI_CL(piQueueRetain, cuda_piQueueRetain)
   _PI_CL(piQueueRelease, cuda_piQueueRelease)
   _PI_CL(piextQueueGetNativeHandle, cuda_piextQueueGetNativeHandle)

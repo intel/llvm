@@ -182,6 +182,10 @@ public:
   /// @return a vector of "immediate" dependencies for this event_impl.
   std::vector<EventImplPtr> getWaitList();
 
+  QueueImplPtr getQueue() const { return MQueue.lock(); }
+
+  bool isFlushed();
+
   /// Cleans dependencies of this event_impl
   void cleanupDependencyEvents();
 
@@ -200,10 +204,13 @@ private:
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
+  std::weak_ptr<queue_impl> MQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
+
+  std::atomic<bool> MIsFlushed = false;
 
   enum HostEventState : int { HES_NotComplete = 0, HES_Complete };
 

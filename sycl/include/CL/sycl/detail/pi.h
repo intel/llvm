@@ -1082,6 +1082,8 @@ __SYCL_EXPORT pi_result piQueueRelease(pi_queue command_queue);
 
 __SYCL_EXPORT pi_result piQueueFinish(pi_queue command_queue);
 
+__SYCL_EXPORT pi_result piQueueFlush(pi_queue command_queue);
+
 /// Gets the native handle of a PI queue object.
 ///
 /// \param queue is the PI queue to get the native handle of.
