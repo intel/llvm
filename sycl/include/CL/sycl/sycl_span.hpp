@@ -609,8 +609,8 @@ as_writable_bytes(span<_Tp, _Extent> __s) noexcept
 
 //  Deduction guides
 
-// array arg deduction guide. dynamic_extent arg used solely to select
-// the correct template. The _Sz will be used as Extent template value.
+// array arg deduction guide. dynamic_extent arg used to select
+// the correct template. The _Sz will be used for the __size of the span.
 template <class _Tp, size_t _Sz>
 span(_Tp (&)[_Sz]) -> span<_Tp, dynamic_extent>;
 
