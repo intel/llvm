@@ -9,7 +9,7 @@
 
 // SYCL
 #include <CL/sycl.hpp>
-#include <CL/sycl/backend/level_zero.hpp>
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
 
 using namespace sycl;
 
@@ -24,21 +24,22 @@ int main() {
                    {SIZE, SIZE});
 
     ze_context_handle_t ze_context =
-        queue.get_context().get_native<backend::level_zero>();
+        queue.get_context().get_native<backend::ext_oneapi_level_zero>();
 
     queue
         .submit([&](handler &cgh) {
           auto buffer_acc = buffer.get_access<access::mode::write>(cgh);
           auto image_acc = image.get_access<float4, access::mode::write>(cgh);
           cgh.interop_task([=](const interop_handler &ih) {
-            void *device_ptr = ih.get_mem<backend::level_zero>(buffer_acc);
+            void *device_ptr =
+                ih.get_mem<backend::ext_oneapi_level_zero>(buffer_acc);
             ze_memory_allocation_properties_t memAllocProperties{};
             ze_result_t res = zeMemGetAllocProperties(
                 ze_context, device_ptr, &memAllocProperties, nullptr);
             assert(res == ZE_RESULT_SUCCESS);
 
             ze_image_handle_t ze_image =
-                ih.get_mem<backend::level_zero>(image_acc);
+                ih.get_mem<backend::ext_oneapi_level_zero>(image_acc);
             assert(ze_image != nullptr);
           });
         })

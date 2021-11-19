@@ -46,13 +46,13 @@ int main() {
 
   for (auto &Dev : Devs) {
     auto Backend = Dev.get_platform().get_backend();
-    if (Backend == backend::level_zero) {
+    if (Backend == backend::ext_oneapi_level_zero) {
       HasLevelZeroDevices = true;
     } else if (Backend == backend::opencl) {
       HasOpenCLDevices = true;
-    } else if (Backend == backend::cuda) {
+    } else if (Backend == backend::ext_oneapi_cuda) {
       HasCUDADevices = true;
-    } else if (Backend == backend::hip) {
+    } else if (Backend == backend::ext_oneapi_hip) {
       HasHIPDevices = true;
     }
   }
@@ -60,7 +60,8 @@ int main() {
   for (const auto &GPU : GPUs) {
     if (GPU.get_platform().get_backend() == backend::opencl) {
       HasOpenCLGPU = true;
-    } else if (GPU.get_platform().get_backend() == backend::level_zero) {
+    } else if (GPU.get_platform().get_backend() ==
+               backend::ext_oneapi_level_zero) {
       HasLevelZeroGPU = true;
     }
   }
@@ -155,13 +156,13 @@ int main() {
   if (HasLevelZeroDevices && HasLevelZeroGPU) {
     std::cout << "Test 'level_zero'";
     device d12(filter_selector("level_zero"));
-    assert(d12.get_platform().get_backend() == backend::level_zero);
+    assert(d12.get_platform().get_backend() == backend::ext_oneapi_level_zero);
     std::cout << "...PASS" << std::endl;
 
     std::cout << "Test 'level_zero:gpu'";
     device d13(filter_selector("level_zero:gpu"));
     assert(d13.is_gpu() &&
-           d13.get_platform().get_backend() == backend::level_zero);
+           d13.get_platform().get_backend() == backend::ext_oneapi_level_zero);
     std::cout << "...PASS" << std::endl;
 
     if (HasOpenCLDevices && !CPUs.empty()) {
@@ -170,7 +171,8 @@ int main() {
       assert((d14.is_gpu() || d14.is_cpu()));
       std::cout << "...PASS 1/2" << std::endl;
       if (d14.is_gpu()) {
-        assert(d14.get_platform().get_backend() == backend::level_zero);
+        assert(d14.get_platform().get_backend() ==
+               backend::ext_oneapi_level_zero);
         std::cout << "...PASS 2/2" << std::endl;
       }
     }
@@ -185,12 +187,13 @@ int main() {
   if (HasCUDADevices) {
     std::cout << "Test 'cuda'";
     device d16(filter_selector("cuda"));
-    assert(d16.get_platform().get_backend() == backend::cuda);
+    assert(d16.get_platform().get_backend() == backend::ext_oneapi_cuda);
     std::cout << "...PASS" << std::endl;
 
     std::cout << "Test 'cuda:gpu'";
     device d17(filter_selector("cuda:gpu"));
-    assert(d17.is_gpu() && d17.get_platform().get_backend() == backend::cuda);
+    assert(d17.is_gpu() &&
+           d17.get_platform().get_backend() == backend::ext_oneapi_cuda);
     std::cout << "...PASS" << std::endl;
   }
 
@@ -204,12 +207,13 @@ int main() {
   if (HasHIPDevices) {
     std::cout << "Test 'hip'";
     device d19(ext::oneapi::filter_selector("hip"));
-    assert(d19.get_platform().get_backend() == backend::hip);
+    assert(d19.get_platform().get_backend() == backend::ext_oneapi_hip);
     std::cout << "...PASS" << std::endl;
 
     std::cout << "test 'hip:gpu'";
     device d20(ext::oneapi::filter_selector("hip:gpu"));
-    assert(d20.is_gpu() && d19.get_platform().get_backend() == backend::hip);
+    assert(d20.is_gpu() &&
+           d20.get_platform().get_backend() == backend::ext_oneapi_hip);
     std::cout << "...PASS" << std::endl;
   }
 

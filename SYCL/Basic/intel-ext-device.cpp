@@ -48,11 +48,11 @@ int main(int argc, char **argv) {
                     << dev.get_info<info::device::name>() << ":" << std::endl;
 
           std::cout << "Backend: ";
-          if (plt.get_backend() == backend::level_zero) {
+          if (plt.get_backend() == backend::ext_oneapi_level_zero) {
             std::cout << "Level Zero" << std::endl;
           } else if (plt.get_backend() == backend::opencl) {
             std::cout << "OpenCL" << std::endl;
-          } else if (plt.get_backend() == backend::cuda) {
+          } else if (plt.get_backend() == backend::ext_oneapi_cuda) {
             std::cout << "CUDA" << std::endl;
           } else {
             std::cout << "Unknown" << std::endl;

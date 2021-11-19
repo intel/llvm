@@ -7,7 +7,7 @@
 #include <CL/sycl.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>
-#include <CL/sycl/backend/level_zero.hpp>
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 
 using namespace cl::sycl;
@@ -22,8 +22,8 @@ int main() {
   ze_context_handle_t ZeContext;
   ze_context_desc_t ZeContextDesc = {ZE_STRUCTURE_TYPE_CONTEXT_DESC, nullptr,
                                      0};
-  auto ZeDriver = Platform.get_native<backend::level_zero>();
-  auto ZeDevice = Device.get_native<backend::level_zero>();
+  auto ZeDriver = Platform.get_native<backend::ext_oneapi_level_zero>();
+  auto ZeDevice = Device.get_native<backend::ext_oneapi_level_zero>();
   zeContextCreate(ZeDriver, &ZeContextDesc, &ZeContext);
 
   { // Scope in which SYCL interop context object is live

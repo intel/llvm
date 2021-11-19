@@ -8,7 +8,9 @@
 #include <stdio.h>
 
 #include <CL/sycl.hpp>
-#include <CL/sycl/backend/level_zero.hpp>
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
+
+using namespace sycl::ext::oneapi;
 
 /*
   The purpose of this test is to verify the expected behvior for
@@ -91,8 +93,8 @@ int queryFromNativeHandle(std::vector<cl::sycl::platform> *platform_list,
   zeDeviceGet(l0_drivers[0], &l0_device_count, l0_devices.data());
 
   // Create the platform and device objects using the native handle.
-  auto plt = cl::sycl::level_zero::make<cl::sycl::platform>(l0_drivers[0]);
-  auto dev = cl::sycl::level_zero::make<cl::sycl::device>(plt, l0_devices[0]);
+  auto plt = level_zero::make<cl::sycl::platform>(l0_drivers[0]);
+  auto dev = level_zero::make<cl::sycl::device>(plt, l0_devices[0]);
 
   // Check to see if this platform is in the platform list.
   std::cout << "Platform created with native handle: "

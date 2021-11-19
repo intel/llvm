@@ -17,7 +17,7 @@
 
 // clang-format off
 #include <level_zero/ze_api.h>
-#include <CL/sycl/backend/level_zero.hpp>
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
 // clang-format on
 
 using byte = unsigned char;
@@ -35,8 +35,8 @@ sycl::kernel getSYCLKernelWithIL(sycl::context &Context,
 
   assert(Context.get_devices().size() == 1 && "Expected to have only 1 device");
   sycl::device Device = Context.get_devices()[0];
-  auto ZeDevice = Device.get_native<sycl::backend::level_zero>();
-  auto ZeContext = Context.get_native<sycl::backend::level_zero>();
+  auto ZeDevice = Device.get_native<sycl::backend::ext_oneapi_level_zero>();
+  auto ZeContext = Context.get_native<sycl::backend::ext_oneapi_level_zero>();
 
   ze_module_build_log_handle_t ZeBuildLog;
   ze_module_handle_t ZeModule;

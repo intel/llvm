@@ -28,7 +28,7 @@ int main() {
         SG.get_local_linear_range();
   };
 
-  if (Q.get_backend() != sycl::backend::cuda) {
+  if (Q.get_backend() != sycl::backend::ext_oneapi_cuda) {
     sycl::kernel_id TestKernelID = sycl::get_kernel_id<TestKernel>();
     sycl::kernel_bundle KernelBundle =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(Q.get_context(),

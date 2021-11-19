@@ -196,7 +196,8 @@ int main() {
                    << "}}" << std::endl;
                 passed = true;
                 break;
-              } else if ((plt.get_backend() == backend::level_zero) &&
+              } else if ((plt.get_backend() ==
+                          backend::ext_oneapi_level_zero) &&
                          (sycl_be.find("level_zero") != std::string::npos)) {
                 fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                    << "}}" << std::endl;
@@ -252,7 +253,7 @@ int main() {
           std::string ver = plt.get_info<info::platform::version>();
           if (((plt.get_backend() == backend::opencl) &&
                (sycl_be.find("opencl") != std::string::npos)) ||
-              ((plt.get_backend() == backend::level_zero) &&
+              ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                (sycl_be.find("level_zero") != std::string::npos))) {
             fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
                << "}}" << std::endl;
@@ -308,7 +309,7 @@ int main() {
               std::string ver("98.76.54321");
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("opencl") != std::string::npos)) ||
-                  ((plt.get_backend() == backend::level_zero) &&
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                    (sycl_be.find("level_zero") != std::string::npos))) {
                 fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                    << "}}" << std::endl;
@@ -367,7 +368,7 @@ int main() {
                << "}}" << std::endl;
             passed = true;
             break;
-          } else if ((plt.get_backend() == backend::level_zero) &&
+          } else if ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                      (sycl_be.find("level_zero") != std::string::npos)) {
             std::string ver("12.34");
             fs << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
@@ -433,7 +434,7 @@ int main() {
               ver.replace(start, pos - start, "*");
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("opencl") != std::string::npos)) ||
-                  ((plt.get_backend() == backend::level_zero) &&
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                    (sycl_be.find("level_zero") != std::string::npos))) {
                 fs << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                    << "}}" << std::endl;
@@ -490,7 +491,7 @@ int main() {
               addEscapeSymbolToSpecialCharacters(name);
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("opencl") != std::string::npos)) ||
-                  ((plt.get_backend() == backend::level_zero) &&
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                    (sycl_be.find("level_zero") != std::string::npos))) {
                 fs << "DeviceName:{{" << name << "}}" << std::endl;
                 passed = true;
@@ -539,7 +540,7 @@ int main() {
           addEscapeSymbolToSpecialCharacters(name);
           if (((plt.get_backend() == backend::opencl) &&
                (sycl_be.find("opencl") != std::string::npos)) ||
-              ((plt.get_backend() == backend::level_zero) &&
+              ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                (sycl_be.find("level_zero") != std::string::npos))) {
             fs << "PlatformName:{{" << name << "}}" << std::endl;
             passed = true;
@@ -592,7 +593,7 @@ int main() {
               std::string ver = dev.get_info<info::device::driver_version>();
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("opencl") != std::string::npos)) ||
-                  ((plt.get_backend() == backend::level_zero) &&
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                    (sycl_be.find("level_zero") != std::string::npos))) {
                 if (count > 0) {
                   ss << " | ";
@@ -654,7 +655,7 @@ int main() {
               addEscapeSymbolToSpecialCharacters(name);
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("opencl") != std::string::npos)) ||
-                  ((plt.get_backend() == backend::level_zero) &&
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                    (sycl_be.find("level_zero") != std::string::npos))) {
                 fs << "DeviceName:HAHA{{" << name << "}}" << std::endl;
                 passed = true;
@@ -715,7 +716,7 @@ int main() {
           addEscapeSymbolToSpecialCharacters(name);
           if (((plt.get_backend() == backend::opencl) &&
                (sycl_be.find("opencl") != std::string::npos)) ||
-              ((plt.get_backend() == backend::level_zero) &&
+              ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                (sycl_be.find("level_zero") != std::string::npos))) {
             fs << "PlatformName:HAHA{{" << name << "}}" << std::endl;
             passed = true;
@@ -777,7 +778,7 @@ int main() {
               std::string ver = dev.get_info<info::device::driver_version>();
               if (((plt.get_backend() == backend::opencl) &&
                    (sycl_be.find("opencl") != std::string::npos)) ||
-                  ((plt.get_backend() == backend::level_zero) &&
+                  ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                    (sycl_be.find("level_zero") != std::string::npos))) {
                 fs << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
                    << ver << "}}" << std::endl;
@@ -840,7 +841,7 @@ int main() {
           std::string ver = plt.get_info<info::platform::version>();
           if (((plt.get_backend() == backend::opencl) &&
                (sycl_be.find("opencl") != std::string::npos)) ||
-              ((plt.get_backend() == backend::level_zero) &&
+              ((plt.get_backend() == backend::ext_oneapi_level_zero) &&
                (sycl_be.find("level_zero") != std::string::npos))) {
             fs << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
                << ver << "}}" << std::endl;

@@ -2,8 +2,7 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // REQUIRES: cuda
 
-#include <CL/sycl.hpp>
-#include <CL/sycl/backend/cuda.hpp>
+#include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue Queue{sycl::default_selector{}};
@@ -13,7 +12,7 @@ int main() {
   sycl::program Prog{Queue.get_context()};
   Prog.build_with_kernel_type<class TestKernel>();
 
-  auto NativeProgram = Prog.get_native<sycl::backend::cuda>();
+  auto NativeProgram = Prog.get_native<sycl::backend::ext_oneapi_cuda>();
 
   assert(NativeProgram != 0);
 

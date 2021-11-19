@@ -30,7 +30,8 @@ int main() {
   queue q;
   auto dev = q.get_device();
   auto ctxt = q.get_context();
-  const int mem_advice = ((dev.get_backend() == backend::cuda) ? 1 : 0);
+  const int mem_advice =
+      ((dev.get_backend() == backend::ext_oneapi_cuda) ? 1 : 0);
   if (!dev.get_info<info::device::usm_shared_allocations>())
     return 0;
 
