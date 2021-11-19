@@ -1060,19 +1060,16 @@ int main(int argc, char **argv) {
            << " -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
-  SMDiagnostic Err;
-  std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
-  // It is OK to use raw pointer here as we control that it does not outlive M
-  // or objects it is moved to
-  Module *MPtr = M.get();
-
-  if (!MPtr) {
-    Err.print(argv[0], errs());
-    return 1;
-  }
 
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
+
+  SMDiagnostic Err;
+  std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
+  if (!M) {
+    Err.print(argv[0], errs());
+    return 1;
+  }
 
   TableFiles TblFiles = processInputModule(std::move(M));
 
