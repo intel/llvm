@@ -7430,6 +7430,127 @@ static void handleSYCLIntelFPGAMaxConcurrencyAttr(Sema &S, Decl *D,
   S.AddSYCLIntelFPGAMaxConcurrencyAttr(D, A, E);
 }
 
+// Returns true if an error occured.
+static bool evaluateAddIRAttributesArgs(Expr **ArgsBegin, size_t ArgsSize,
+                                        Sema *S,
+                                        const AttributeCommonInfo &CI) {
+  ASTContext &Context = S->getASTContext();
+  llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
+  bool HasDependentExpr = false, HasFilter = false;
+  for (unsigned I = 0; I < ArgsSize; I++) {
+    Expr *&E = ArgsBegin[I];
+    assert(E && "error are handled before");
+    if (E->isValueDependent() || E->isTypeDependent()) {
+      HasDependentExpr = true;
+      continue;
+    }
+
+    Expr::EvalResult Eval;
+    Notes.clear();
+    Eval.Diag = &Notes;
+
+    bool Result = false;
+    if (const auto *FilterListE = dyn_cast<InitListExpr>(E)) {
+      if (I != 0) {
+        S->Diag(E->getBeginLoc(), diag::err_add_ir_attr_filter_list_invalid_arg)
+            << CI;
+        return true;
+      }
+      HasFilter = true;
+      for (const Expr *FilterElemE : FilterListE->inits()) {
+        Result = FilterElemE->EvaluateAsConstantExpr(Eval, Context);
+        if (!Result)
+          break;
+      }
+    } else {
+      Result = E->EvaluateAsConstantExpr(Eval, Context);
+    }
+
+    if (!Result || !Notes.empty()) {
+      S->Diag(E->getBeginLoc(), diag::err_attribute_argument_n_type)
+          << CI << (I + 1) << AANT_ArgumentConstantExpr;
+      for (auto &Note : Notes)
+        S->Diag(Note.first, Note.second);
+      return true;
+    }
+    assert(Eval.Val.hasValue());
+    E = ConstantExpr::Create(Context, E, Eval.Val);
+  }
+  // If there are no dependent expressions, check for expected number of args.
+  if (!HasDependentExpr && ArgsSize && (ArgsSize - HasFilter) & 1) {
+    S->Diag(CI.getLoc(), diag::err_sycl_add_ir_attribute_must_have_pairs) << CI;
+    return true;
+  }
+  return false;
+}
+
+void Sema::AddSYCLAddIRAttributesFunctionAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              MutableArrayRef<Expr *> Args) {
+  auto *Attr = SYCLAddIRAttributesFunctionAttr::Create(Context, Args.data(),
+                                                       Args.size(), CI);
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+                                  CI))
+    return;
+  D->addAttr(Attr);
+}
+
+static void handleSYCLAddIRAttributesFunctionAttr(Sema &S, Decl *D,
+                                                  const ParsedAttr &A) {
+  llvm::SmallVector<Expr *, 4> Args;
+  Args.reserve(A.getNumArgs() - 1);
+  for (unsigned I = 0; I < A.getNumArgs(); I++) {
+    assert(!A.isArgIdent(I));
+    Args.push_back(A.getArgAsExpr(I));
+  }
+
+  S.AddSYCLAddIRAttributesFunctionAttr(D, A, Args);
+}
+
+void Sema::AddSYCLAddIRAttributesKernelParameterAttr(
+    Decl *D, const AttributeCommonInfo &CI, MutableArrayRef<Expr *> Args) {
+  auto *Attr = SYCLAddIRAttributesKernelParameterAttr::Create(
+      Context, Args.data(), Args.size(), CI);
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+                                  CI))
+    return;
+  D->addAttr(Attr);
+}
+
+static void handleSYCLAddIRAttributesKernelParameterAttr(Sema &S, Decl *D,
+                                                         const ParsedAttr &A) {
+  llvm::SmallVector<Expr *, 4> Args;
+  Args.reserve(A.getNumArgs() - 1);
+  for (unsigned I = 0; I < A.getNumArgs(); I++) {
+    assert(!A.isArgIdent(I));
+    Args.push_back(A.getArgAsExpr(I));
+  }
+
+  S.AddSYCLAddIRAttributesKernelParameterAttr(D, A, Args);
+}
+
+void Sema::AddSYCLAddIRAttributesGlobalVariableAttr(
+    Decl *D, const AttributeCommonInfo &CI, MutableArrayRef<Expr *> Args) {
+  auto *Attr = SYCLAddIRAttributesGlobalVariableAttr::Create(
+      Context, Args.data(), Args.size(), CI);
+  if (evaluateAddIRAttributesArgs(Attr->args_begin(), Attr->args_size(), this,
+                                  CI))
+    return;
+  D->addAttr(Attr);
+}
+
+static void handleSYCLAddIRAttributesGlobalVariableAttr(Sema &S, Decl *D,
+                                                        const ParsedAttr &A) {
+  llvm::SmallVector<Expr *, 4> Args;
+  Args.reserve(A.getNumArgs() - 1);
+  for (unsigned I = 0; I < A.getNumArgs(); I++) {
+    assert(!A.isArgIdent(I));
+    Args.push_back(A.getArgAsExpr(I));
+  }
+
+  S.AddSYCLAddIRAttributesGlobalVariableAttr(D, A, Args);
+}
+
 namespace {
 struct IntrinToName {
   uint32_t Id;
@@ -10874,6 +10995,15 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelFPGAMaxConcurrency:
     handleSYCLIntelFPGAMaxConcurrencyAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAddIRAttributesFunction:
+    handleSYCLAddIRAttributesFunctionAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAddIRAttributesKernelParameter:
+    handleSYCLAddIRAttributesKernelParameterAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLAddIRAttributesGlobalVariable:
+    handleSYCLAddIRAttributesGlobalVariableAttr(S, D, AL);
     break;
 
   // Swift attributes.

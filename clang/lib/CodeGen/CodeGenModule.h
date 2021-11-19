@@ -1051,6 +1051,16 @@ public:
                                      llvm::SmallString<256> &AnnotStr);
   void addGlobalIntelFPGAAnnotation(const VarDecl *VD, llvm::GlobalValue *GV);
 
+  // Gets a set of accepted attribute names in a add_ir_attributes_* attribute.
+  Optional<llvm::SmallSet<StringRef, 4>>
+  getAttributeFilter(Expr **AttributeExprs, const size_t AttributeExprsSize,
+                     const Attr *Attribute);
+  // Gets pairs of attribute names and values from the expressions of an
+  // add_ir_attributes_* attribute.
+  SmallVector<std::pair<std::string, std::string>, 4>
+  getFilteredValidAttributeNameValuePairs(Expr **Exprs, const size_t ExprsSize,
+                                          const Attr *Attribute);
+
   /// Given a builtin id for a function like "__builtin_fabsf", return a
   /// Function* for "fabsf".
   llvm::Constant *getBuiltinLibFunction(const FunctionDecl *FD,
@@ -1314,6 +1324,10 @@ public:
   /// Add global annotations that are set on D, for the global GV. Those
   /// annotations are emitted during finalization of the LLVM code.
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
+
+  /// Add attributes from add_ir_attributes_global_variable on TND to GV.
+  void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
+                                 const RecordDecl *RD);
 
   bool isInNoSanitizeList(SanitizerMask Kind, llvm::Function *Fn,
                           SourceLocation Loc) const;
