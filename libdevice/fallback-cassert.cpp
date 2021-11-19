@@ -20,7 +20,7 @@
 // definition
 SPIR_GLOBAL AssertHappened SPIR_AssertHappenedMem;
 
-DEVICE_EXTERN_C void __devicelib_assert_read(__SYCL_GLOBAL__ void *_Dst);
+//DEVICE_EXTERN_C void __devicelib_assert_read(__SYCL_GLOBAL__ void *_Dst);
 
 DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
                                              int32_t line, const char *func,
@@ -30,7 +30,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   // FIXME make offline linking against __devicelib_assert_fail enforce linking
   // against __devicelib_assert_read also
   {
-    __devicelib_assert_read(NULL);
+//    __devicelib_assert_read(NULL);
   }
 
 
