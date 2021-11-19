@@ -166,6 +166,7 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
     size_t NameLen = strlen(OutputNames[I]);
     if (NameLen >= 4 && strstr(OutputNames[I], ".spv") != nullptr &&
         Outputs[I] != nullptr) {
+      assert(SpirV.size() == 0 && "More than one SPIR-V output found.");
       SpirV = std::vector<byte>(Outputs[I], Outputs[I] + OutputLengths[I]);
     } else if (!strcmp(OutputNames[I], "stdout.log")) {
       CompileLog = std::string(reinterpret_cast<const char *>(Outputs[I]));
