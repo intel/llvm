@@ -23,13 +23,11 @@ math/expm1.cl
 math/fabs.cl
 math/fdim.cl
 math/floor.cl
-math/fma.cl
 math/fmax.cl
 math/fmin.cl
 math/fmod.cl
 math/frexp.cl
 math/hypot.cl
-math/ilogb.cl
 math/ldexp.cl
 math/lgamma.cl
 math/log.cl
