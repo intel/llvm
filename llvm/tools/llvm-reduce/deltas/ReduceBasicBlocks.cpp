@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ReduceBasicBlocks.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -25,7 +26,7 @@ using namespace llvm;
 
 /// Replaces BB Terminator with one that only contains Chunk BBs
 static void replaceBranchTerminator(BasicBlock &BB,
-                                    const std::set<BasicBlock *> &BBsToKeep) {
+                                    const DenseSet<BasicBlock *> &BBsToKeep) {
   auto *Term = BB.getTerminator();
   std::vector<BasicBlock *> ChunkSucessors;
   for (auto *Succ : successors(&BB))
@@ -68,7 +69,7 @@ static void replaceBranchTerminator(BasicBlock &BB,
 /// replace with something)
 static void
 removeUninterestingBBsFromSwitch(SwitchInst &SwInst,
-                                 const std::set<BasicBlock *> &BBsToKeep) {
+                                 const DenseSet<BasicBlock *> &BBsToKeep) {
   if (!BBsToKeep.count(SwInst.getDefaultDest())) {
     auto *FnRetTy = SwInst.getParent()->getParent()->getReturnType();
     ReturnInst::Create(SwInst.getContext(),
@@ -99,7 +100,7 @@ static void extractBasicBlocksFromModule(Oracle &O, Module &Program) {
   // We create a vector first, then convert it to a set, so that we don't have
   // to pay the cost of rebalancing the set frequently if the order we insert
   // the elements doesn't match the order they should appear inside the set.
-  std::set<BasicBlock *> BBsToKeep(InitBBsToKeep.begin(), InitBBsToKeep.end());
+  DenseSet<BasicBlock *> BBsToKeep(InitBBsToKeep.begin(), InitBBsToKeep.end());
 
   std::vector<BasicBlock *> BBsToDelete;
   for (auto &F : Program)
@@ -138,24 +139,7 @@ static void extractBasicBlocksFromModule(Oracle &O, Module &Program) {
   }
 }
 
-/// Counts the amount of basic blocks and prints their name & respective index
-static int countBasicBlocks(Module &Program) {
-  // TODO: Silence index with --quiet flag
-  outs() << "----------------------------\n";
-  int BBCount = 0;
-  for (auto &F : Program)
-    for (auto &BB : F) {
-      if (BB.hasName())
-        outs() << "\t" << ++BBCount << ": " << BB.getName() << "\n";
-      else
-        outs() << "\t" << ++BBCount << ": Unnamed\n";
-    }
-
-  return BBCount;
-}
-
 void llvm::reduceBasicBlocksDeltaPass(TestRunner &Test) {
   outs() << "*** Reducing Basic Blocks...\n";
-  int BBCount = countBasicBlocks(Test.getProgram());
-  runDeltaPass(Test, BBCount, extractBasicBlocksFromModule);
+  runDeltaPass(Test, extractBasicBlocksFromModule);
 }

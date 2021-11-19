@@ -65,12 +65,12 @@ void scalars() {
 
 void structs() {
   // CHECK: [[S1:%.*]] = alloca [[T_ST]], align 4
-  // CHECK-NEXT: [[S1_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S1]] to [[T_ST]] addrspace(4)*
   // CHECK-NEXT: [[S2:%.*]] = alloca [[T_ST]], align 4
-  // CHECK-NEXT: [[S2_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S2]] to [[T_ST]] addrspace(4)*
   // CHECK-NEXT: [[S3:%.*]] = alloca [[T_ST]], align 4
-  // CHECK-NEXT: [[S3_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S3]] to [[T_ST]] addrspace(4)*
   // CHECK-NEXT: [[REF_TMP:%.*]] = alloca [[T_ST]], align 4
+  // CHECK-NEXT: [[S1_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S1]] to [[T_ST]] addrspace(4)*
+  // CHECK-NEXT: [[S2_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S2]] to [[T_ST]] addrspace(4)*
+  // CHECK-NEXT: [[S3_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[S3]] to [[T_ST]] addrspace(4)*
   // CHECK-NEXT: [[REF_TMP_ASCAST:%.*]] = addrspacecast [[T_ST]]* [[REF_TMP]] to [[T_ST]] addrspace(4)*
   struct st s1;
 
@@ -97,10 +97,10 @@ void structs() {
 
 void unions() {
   // CHECK: [[U1:%.*]] = alloca [[T_UN]], align 4
-  // CHECK-NEXT: [[U1_ASCAST:%.*]] = addrspacecast [[T_UN]]* [[U1]] to [[T_UN]] addrspace(4)*
   // CHECK-NEXT: [[U2:%.*]] = alloca [[T_UN]], align 4
-  // CHECK-NEXT: [[U2_ASCAST:%.*]] = addrspacecast [[T_UN]]* [[U2]] to [[T_UN]] addrspace(4)*
   // CHECK-NEXT: [[REF_TMP2:%.*]] = alloca [[T_UN]], align 4
+  // CHECK-NEXT: [[U1_ASCAST:%.*]] = addrspacecast [[T_UN]]* [[U1]] to [[T_UN]] addrspace(4)*
+  // CHECK-NEXT: [[U2_ASCAST:%.*]] = addrspacecast [[T_UN]]* [[U2]] to [[T_UN]] addrspace(4)*
   // CHECK-NEXT: [[REF_TMP2_ASCAST:%.*]] = addrspacecast [[T_UN]]* [[REF_TMP2]] to [[T_UN]] addrspace(4)*
   union un u1;
   union un u2;
@@ -119,8 +119,8 @@ void unions() {
 
 void classes() {
   // CHECK: [[CA:%.*]] = alloca [[T_CL:%.*]], align 4
-  // CHECK-NEXT: [[CA_ASCAST:%.*]] = addrspacecast [[T_CL]]* [[CA]] to [[T_CL]] addrspace(4)*
   // CHECK-NEXT: [[CB:%.*]] = alloca [[T_CL]], align 4
+  // CHECK-NEXT: [[CA_ASCAST:%.*]] = addrspacecast [[T_CL]]* [[CA]] to [[T_CL]] addrspace(4)*
   // CHECK-NEXT: [[CB_ASCAST:%.*]] = addrspacecast [[T_CL]]* [[CB]] to [[T_CL]] addrspace(4)*
   A ca(213);
 

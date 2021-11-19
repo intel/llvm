@@ -44,9 +44,9 @@ int main() {
 
 // Check alloca for kernel paramters
 // CHECK: %[[ARG_AA:[a-zA-Z0-9_.]+]] = alloca i32, align 4
-// CHECK: %[[ARG_A:[a-zA-Z0-9_.]+]] = addrspacecast i32* %[[ARG_AA]] to i32 addrspace(4)*
 // Check alloca for local functor object
 // CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = alloca %struct.derived, align 8
+// CHECK: %[[ARG_A:[a-zA-Z0-9_.]+]] = addrspacecast i32* %[[ARG_AA]] to i32 addrspace(4)*
 // CHECK: store i32 %_arg_a, i32 addrspace(4)* %[[ARG_A]], align 4
 
 // Initialize 'base' subobject

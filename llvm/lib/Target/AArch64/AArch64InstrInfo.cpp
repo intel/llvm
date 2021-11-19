@@ -5432,15 +5432,15 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
     }
     uint64_t UImm = SignExtend64(Imm, BitSize);
     uint64_t Encoding;
-    if (AArch64_AM::processLogicalImmediate(UImm, BitSize, Encoding)) {
-      MachineInstrBuilder MIB1 =
-          BuildMI(MF, Root.getDebugLoc(), TII->get(OrrOpc), NewVR)
-              .addReg(ZeroReg)
-              .addImm(Encoding);
-      InsInstrs.push_back(MIB1);
-      InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
-      MUL = genMaddR(MF, MRI, TII, Root, InsInstrs, 1, Opc, NewVR, RC);
-    }
+    if (!AArch64_AM::processLogicalImmediate(UImm, BitSize, Encoding))
+      return;
+    MachineInstrBuilder MIB1 =
+        BuildMI(MF, Root.getDebugLoc(), TII->get(OrrOpc), NewVR)
+            .addReg(ZeroReg)
+            .addImm(Encoding);
+    InsInstrs.push_back(MIB1);
+    InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
+    MUL = genMaddR(MF, MRI, TII, Root, InsInstrs, 1, Opc, NewVR, RC);
     break;
   }
   case MachineCombinerPattern::MULSUBW_OP1:
@@ -5523,15 +5523,15 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
     }
     uint64_t UImm = SignExtend64(-Imm, BitSize);
     uint64_t Encoding;
-    if (AArch64_AM::processLogicalImmediate(UImm, BitSize, Encoding)) {
-      MachineInstrBuilder MIB1 =
-          BuildMI(MF, Root.getDebugLoc(), TII->get(OrrOpc), NewVR)
-              .addReg(ZeroReg)
-              .addImm(Encoding);
-      InsInstrs.push_back(MIB1);
-      InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
-      MUL = genMaddR(MF, MRI, TII, Root, InsInstrs, 1, Opc, NewVR, RC);
-    }
+    if (!AArch64_AM::processLogicalImmediate(UImm, BitSize, Encoding))
+      return;
+    MachineInstrBuilder MIB1 =
+        BuildMI(MF, Root.getDebugLoc(), TII->get(OrrOpc), NewVR)
+            .addReg(ZeroReg)
+            .addImm(Encoding);
+    InsInstrs.push_back(MIB1);
+    InstrIdxForVirtReg.insert(std::make_pair(NewVR, 0));
+    MUL = genMaddR(MF, MRI, TII, Root, InsInstrs, 1, Opc, NewVR, RC);
     break;
   }
 
@@ -6221,9 +6221,6 @@ void AArch64InstrInfo::genAlternativeCodeSequence(
   }
   } // end switch (Pattern)
   // Record MUL and ADD/SUB for deletion
-  // FIXME: This assertion fails in CodeGen/AArch64/tailmerging_in_mbp.ll and
-  // CodeGen/AArch64/urem-seteq-nonzero.ll.
-  // assert(MUL && "MUL was never set");
   if (MUL)
     DelInstrs.push_back(MUL);
   DelInstrs.push_back(&Root);
@@ -6768,13 +6765,8 @@ outliner::OutlinedFunction AArch64InstrInfo::getOutliningCandidateInfo(
   MachineBasicBlock::iterator MBBI = RepeatedSequenceLocs[0].front();
   for (unsigned Loc = RepeatedSequenceLocs[0].getStartIdx();
        Loc < RepeatedSequenceLocs[0].getEndIdx() + 1; Loc++) {
-    const std::vector<MCCFIInstruction> &CFIInstructions =
-        RepeatedSequenceLocs[0].getMF()->getFrameInstructions();
-    if (MBBI->isCFIInstruction()) {
-      unsigned CFIIndex = MBBI->getOperand(0).getCFIIndex();
-      MCCFIInstruction CFI = CFIInstructions[CFIIndex];
+    if (MBBI->isCFIInstruction())
       CFICount++;
-    }
     MBBI++;
   }
 
