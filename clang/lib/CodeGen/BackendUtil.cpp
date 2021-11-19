@@ -850,7 +850,7 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     FPM.add(createVerifierPass());
 
   // Set up the per-module pass manager.
-  if (CodeGenOpts.VerifyModule && LangOpts.SYCLIsDevice)
+  if (LangOpts.SYCLIsDevice)
     MPM.add(createESIMDVerifierPass());
 
   if (!CodeGenOpts.RewriteMapFiles.empty())
