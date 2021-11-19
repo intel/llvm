@@ -18,6 +18,8 @@
 #include "SpecConstants.h"
 
 #include "llvm/ADT/SetVector.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -53,7 +55,7 @@ using namespace llvm;
 
 using string_vector = std::vector<std::string>;
 using EntryPointGroup = std::vector<const Function *>;
-using EntryPointGroupMap = std::map<StringRef, EntryPointGroup>;
+using EntryPointNamesGroups = std::vector<std::vector<StringRef>>;
 
 namespace {
 
@@ -183,6 +185,16 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
     "emit-only-kernels-as-entry-points",
     cl::desc("Consider only sycl_kernel functions as entry points for "
              "device code split"),
+    cl::cat(PostLinkCat), cl::init(false)};
+
+// This option turns on splitting modules in a separate LLVMContexts and
+// destroying those contexts periodically to reduce memory growth. However, this
+// mode significantly increases the time of the tool's execution.
+// This option is off by default.
+cl::opt<bool> ReduceMemoryUsage{
+    "reduce-memory-usage",
+    cl::desc("Rebalance processing load from memory to CPU to reduce RAM "
+             "utilization, if it is not enough"),
     cl::cat(PostLinkCat), cl::init(false)};
 
 struct GlobalBinImageProps {
@@ -315,8 +327,10 @@ bool isEntryPoint(const Function &F) {
 // EntryPointsGroups which maps some key to a group of entry points. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
-                      EntryPointsGroupScope EntryScope) {
+EntryPointNamesGroups groupEntryPoints(const Module &M,
+                                       EntryPointsGroupScope EntryScope) {
+  std::map<StringRef, std::vector<StringRef>> EntryPointsGroupsMap;
+
   // Only process module entry points:
   for (const auto &F : M.functions()) {
     if (!isEntryPoint(F))
@@ -324,7 +338,7 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
 
     switch (EntryScope) {
     case Scope_PerKernel:
-      EntryPointsGroups[F.getName()].push_back(&F);
+      EntryPointsGroupsMap[F.getName()].push_back(F.getName());
       break;
     case Scope_PerModule: {
       if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
@@ -337,19 +351,35 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
 
       Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
-      EntryPointsGroups[Val].push_back(&F);
+      EntryPointsGroupsMap[Val].push_back(F.getName());
       break;
     }
     case Scope_Global:
       // the map key is not significant here
-      EntryPointsGroups[GLOBAL_SCOPE_NAME].push_back(&F);
+      EntryPointsGroupsMap[GLOBAL_SCOPE_NAME].push_back(F.getName());
       break;
     }
   }
 
+  EntryPointNamesGroups EntryPointsGroups;
+  EntryPointsGroups.reserve(EntryPointsGroupsMap.size());
+  for (auto& Group : EntryPointsGroupsMap)
+    EntryPointsGroups.push_back(std::move(Group.second));
+
   // No entry points met, record this.
   if (EntryPointsGroups.empty())
-    EntryPointsGroups[GLOBAL_SCOPE_NAME] = {};
+    EntryPointsGroups.push_back({});
+
+  return EntryPointsGroups;
+}
+
+std::vector<const Function *>
+getFunctionsByNames(const Module &M,
+                    const std::vector<StringRef> &FunctionNames) {
+  std::vector<const Function *> FuncPtrs(FunctionNames.size());
+  std::transform(FunctionNames.cbegin(), FunctionNames.cend(), FuncPtrs.begin(),
+                 [&M](const StringRef &FName) { return M.getFunction(FName); });
+  return FuncPtrs;
 }
 
 enum HasAssertStatus { No_Assert, Assert, Assert_Indirect };
@@ -728,47 +758,111 @@ bool processSpecConstants(Module &M) {
   return !Res.areAllPreserved();
 }
 
+struct SplitModeInfo {
+  EntryPointsGroupScope Scope;
+  bool IsSplit;
+  bool ReduceMemUsage;
+};
+
 // Module split helper.
-// Supports 2 modes of splitting:
-// 1. No split. Just provide source module.
-// 2. Split. Split on submodules using subsequences of entry points in an input
+// Supports 3 modes of splitting:
+// 1. No split (IsSplit = false). Just provide source module.
+// 2. Split. Extract submodules using subsequences of entry points in an input
 //    module as a split condition.
+//  2.1 Split in source module's context (IsSplit = true, ReduceMemUse = false).
+//      MDNode* instances for split module are allocated in source module's
+//      context and kept in memory after split module is destroyed. In case if
+//      there are a lot of split modules and/or they have a lot of metadata
+//      nodes it may lead to memory overflow.
+//  2.2 Split in a separate temporary context (IsSplit = true,
+//      ReduceMemUse = true). Create new context, load source module copy in new
+//      context and clone submodule from that copy. Fixes memory growth, but at
+//      the cost of greatly increased processing time.
 class ModuleSplitter {
   std::unique_ptr<Module> InputModule{nullptr};
-  EntryPointGroupMap GMap;
-  EntryPointGroupMap::const_iterator GMapIt;
-  bool IsSplit;
+
+  EntryPointNamesGroups SplitGroups;
+  SplitModeInfo SplitParams;
+
+  SmallVector<char, 1> MBuffer;
+  std::unique_ptr<LLVMContext> SplitCtx{nullptr};
+  std::unique_ptr<Module> InputModuleInSplitCtx{nullptr};
+  // Using this counter to reduce number of LLVMContext recreations and module
+  // parsings.
+  // TODO: add limit calculation depending on free RAM memory and speed of
+  // memory growth.
+  size_t SplitModuleId = 0;
+  size_t SplitsInContextLimit = 200;
+
+  void copyInputModuleInNewContext() {
+    // Module will be destroyed in LLVMContext destructor.
+    InputModuleInSplitCtx.release();
+    // Reconstruct context without memory reallocation.
+    SplitCtx->~LLVMContext();
+    new (SplitCtx.get()) LLVMContext();
+
+    // Load source module copy in new temporary context.
+    MemoryBufferRef MBufRef(StringRef(MBuffer.data(), MBuffer.size()),
+                            InputFilename);
+    InputModuleInSplitCtx = cantFail(parseBitcodeFile(MBufRef, *SplitCtx));
+  }
 
 public:
-  ModuleSplitter(std::unique_ptr<Module> M, bool Split,
-                 EntryPointsGroupScope Scope)
-      : InputModule(std::move(M)), IsSplit(Split) {
-    groupEntryPoints(*InputModule, GMap, Scope);
-    assert(!GMap.empty() && "Entry points group map is empty!");
-    GMapIt = GMap.cbegin();
+  ModuleSplitter(std::unique_ptr<Module> M, SplitModeInfo SMI)
+      : InputModule(std::move(M)), SplitParams(SMI) {
+    SplitGroups = groupEntryPoints(*InputModule, SplitParams.Scope);
+    // sycl-post-link always produces a code result, even if input isn't
+    // modified.
+    assert(!SplitGroups.empty() && "Entry points group map is empty!");
+
+    // Actual reduce memory mode will be turned on in case if number of modules
+    // to split is greater than initial splits limit.
+    SplitParams.ReduceMemUsage &=
+        (SplitParams.IsSplit &&
+         SplitGroups.size() > SplitsInContextLimit);
+
+    if (SplitParams.ReduceMemUsage) {
+      // Make source module bitcode buffer for re-reading it in a new context.
+      BitcodeWriter BCWriter(MBuffer);
+      BCWriter.writeModule(*InputModule);
+      BCWriter.writeSymtab();
+      BCWriter.writeStrtab();
+
+      SplitCtx.reset(new LLVMContext());
+    }
   }
 
   // Gets next subsequence of entry points in an input module and provides split
   // submodule containing these entry points and their dependencies.
-  std::pair<std::unique_ptr<Module>, const EntryPointGroup &> nextSplit() {
-    assert(InputModule);
+  std::pair<std::unique_ptr<Module>, EntryPointGroup> nextSplit() {
+    if (!InputModule || SplitModuleId >= SplitGroups.size())
+      return {};
 
-    assert(GMapIt != GMap.cend());
-    const EntryPointGroup &SplitModuleEntryPoints = GMapIt->second;
-    ++GMapIt;
+    if (SplitParams.ReduceMemUsage &&
+        (SplitModuleId % SplitsInContextLimit == 0)) {
+      // Recreate LLVMContext to free memory which is occupied by elements of
+      // those split modules that have been already destroyed.
+      copyInputModuleInNewContext();
+    }
 
+    std::unique_ptr<Module> &MRef =
+        (!SplitParams.ReduceMemUsage) ? InputModule : InputModuleInSplitCtx;
+
+    EntryPointGroup SplitModuleEntryPoints =
+        getFunctionsByNames(*MRef, SplitGroups[SplitModuleId]);
     std::unique_ptr<Module> SplitModule{nullptr};
-    if (IsSplit && !SplitModuleEntryPoints.empty())
-      SplitModule = extractCallGraph(*InputModule, SplitModuleEntryPoints);
+    if (SplitParams.IsSplit && !SplitModuleEntryPoints.empty())
+      SplitModule = extractCallGraph(*MRef, SplitModuleEntryPoints);
     else {
-      assert(GMap.size() == 1 && "Too many entry points groups in map!");
+      assert(SplitGroups.size() == 1 && "Too many entry points groups in map!");
       SplitModule = std::move(InputModule);
     }
 
+    ++SplitModuleId;
     return {std::move(SplitModule), SplitModuleEntryPoints};
   }
 
-  size_t totalSplits() { return GMap.size(); }
+  size_t totalSplits() { return SplitGroups.size(); }
 };
 
 using TableFiles = std::map<StringRef, string_vector>;
@@ -796,9 +890,10 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   if (IsEsimd && LowerEsimd)
     lowerEsimdConstructs(*M);
 
-  EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(*M);
   bool DoSplit = (SplitMode.getNumOccurrences() > 0);
-  ModuleSplitter MSplit(std::move(M), DoSplit, Scope);
+  SplitModeInfo SMI = {selectDeviceCodeGroupScope(*M), DoSplit,
+                       ReduceMemoryUsage};
+  ModuleSplitter MSplit(std::move(M), SMI);
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
 
@@ -915,7 +1010,6 @@ TableFiles processInputModule(std::unique_ptr<Module> M) {
 int main(int argc, char **argv) {
   InitLLVM X{argc, argv};
 
-  LLVMContext Context;
   cl::HideUnrelatedOptions(PostLinkCat);
   cl::ParseCommandLineOptions(
       argc, argv,
@@ -1011,6 +1105,7 @@ int main(int argc, char **argv) {
   if (OutputFilename.getNumOccurrences() == 0)
     OutputFilename = (Twine(sys::path::stem(InputFilename)) + ".files").str();
 
+  LLVMContext Context;
   SMDiagnostic Err;
   std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
   if (!M) {
