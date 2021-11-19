@@ -12,11 +12,6 @@
 double __ocml_frexp_f64(double, int *);
 float __ocml_frexp_f32(float, int *);
 
- #define __CLC_FUNCTION __spirv_ocl_frexp
- #define __CLC_BUILTIN __ocml_frexp
- #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
- #define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
-
 _CLC_OVERLOAD _CLC_DEF float __clc_spirv_ocl_frexp(float x, private int *ep) {
   return __ocml_frexp_f32(x, ep);
 }

@@ -12,11 +12,6 @@
   void __ocml_sincos_f64(double, double *, double *);
   void __ocml_sincos_f32(float, float *, float * ); 
 
-  #define __CLC_FUNCTION __spirv_ocl_sincos
-  #define __CLC_BUILTIN __ocml_sincos
-  #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
-  #define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
-
   #define __CLC_SINCOS_IMPL(ADDRSPACE, BUILTIN, FP_TYPE, ARG_TYPE)               \
     _CLC_OVERLOAD _CLC_DEF ARG_TYPE __spirv_ocl_sincos(                          \
         ARG_TYPE x, ADDRSPACE ARG_TYPE *cosval_ptr) {                            \
