@@ -14,11 +14,6 @@
 double __ocml_ldexp_f64(double, int);
 float __ocml_ldexp_f32(float, int);
 
-#define __CLC_FUNCTION __spirv_ocl_ldexp
-#define __CLC_BUILTIN __ocml_ldexp
-#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
-#define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
-
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __ocml_ldexp_f32, float, int)
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_ldexp, __ocml_ldexp_f32, float, uint)
 
