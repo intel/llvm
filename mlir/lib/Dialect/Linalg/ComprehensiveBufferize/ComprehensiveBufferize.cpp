@@ -281,24 +281,6 @@ static std::string printValueInfo(Value value, bool prefix) {
 // Bufferization-specific alias analysis.
 //===----------------------------------------------------------------------===//
 
-/// Return true if the (ExtractSliceOp, InsertSliceOp) pair match (i.e.
-/// equivalent operand / result and same offset/sizes/strides specification).
-///
-/// This is one particular type of relationship between ops on tensors that
-/// reduce to an equivalence on buffers. This should be generalized and
-/// exposed as interfaces on the proper types.
-static bool
-areEquivalentExtractSliceOps(const BufferizationAliasInfo &aliasInfo,
-                             ExtractSliceOp st, InsertSliceOp sti) {
-  if (!st || !sti)
-    return false;
-  if (!aliasInfo.areEquivalentBufferizedValues(st.source(), sti.dest()))
-    return false;
-  if (!sameOffsetsSizesAndStrides(st, sti, isEqualConstantIntOrValue))
-    return false;
-  return true;
-}
-
 /// Return true if opOperand has been decided to bufferize in-place.
 static bool isInplaceMemoryWrite(OpOperand &opOperand,
                                  const BufferizationAliasInfo &aliasInfo) {
@@ -368,21 +350,6 @@ static bool aliasesInPlaceWrite(Value value,
   return foundInplaceWrite;
 }
 
-/// Return true if `value` is originating from an ExtractSliceOp that matches
-/// the given InsertSliceOp.
-static bool hasMatchingExtractSliceOp(const BufferizationAliasInfo &aliasInfo,
-                                      Value value, InsertSliceOp insertOp) {
-  auto condition = [&](Value val) {
-    if (auto extractOp = val.getDefiningOp<ExtractSliceOp>())
-      if (areEquivalentExtractSliceOps(aliasInfo, extractOp, insertOp))
-        return true;
-    return false;
-  };
-
-  return llvm::all_of(findValueInReverseUseDefChain(value, condition),
-                      condition);
-}
-
 /// Return true if `a` happens before `b`, i.e., `a` or one of its ancestors
 /// properly dominates `b` and `b` is not inside `a`.
 static bool happensBefore(Operation *a, Operation *b,
@@ -450,6 +417,21 @@ hasReadAfterWriteInterference(const DenseSet<OpOperand *> &usesRead,
       if (uConflictingWrite == uRead)
         continue;
 
+      // No conflict if the op interface says so.
+      if (auto bufferizableOp = dyn_cast<BufferizableOpInterface>(readingOp))
+        if (bufferizableOp.isNotConflicting(uRead, uConflictingWrite,
+                                            aliasInfo))
+          continue;
+
+      if (conflictingWritingOp != readingOp)
+        if (auto bufferizableOp =
+                dyn_cast<BufferizableOpInterface>(conflictingWritingOp))
+          if (bufferizableOp.isNotConflicting(uRead, uConflictingWrite,
+                                              aliasInfo))
+            continue;
+
+      // Special rules for branches.
+      // TODO: Use an interface.
       if (scf::insideMutuallyExclusiveBranches(readingOp, conflictingWritingOp))
         continue;
 
@@ -477,73 +459,6 @@ hasReadAfterWriteInterference(const DenseSet<OpOperand *> &usesRead,
       // use.
       if (getAliasingOpResult(*uConflictingWrite) == lastWrite)
         continue;
-
-      // Special rules for matching ExtractSliceOp/InsertSliceOp pairs. If
-      // uRead is an InsertSliceOp...
-      if (auto insertSliceOp = dyn_cast<InsertSliceOp>(readingOp)) {
-        // As an example, consider the following IR.
-        //
-        // %0 = tensor.extract_slice %t[%a, %b][%c, %d][1, 1] {inplace= [true] }
-        // %1 = linalg.fill %cst, %0 {inplace= [true] }
-        // %2 = tensor.insert_slice %1 into %t[%a, %b][%c, %d][1, 1]
-        //     {inplace= [true] }
-
-        // TODO: Use insertSliceOp.getDestOpOperand etc. when available.
-        if (uRead == &insertSliceOp->getOpOperand(1) /*dest*/ &&
-            hasMatchingExtractSliceOp(aliasInfo, uConflictingWrite->get(),
-                                      insertSliceOp))
-          // Case 1: The main insight is that InsertSliceOp reads only part of
-          // the destination tensor. The overwritten area is not read. If
-          // uConflictingWrite writes into exactly the memory location that is
-          // being read by uRead, this is not a conflict.
-          //
-          // In the above example:
-          // uRead             = OpOperand 1 (%t) of tensor.insert_slice
-          // uConflictingWrite = OpOperand 1 (%0) of linalg.fill
-          //
-          // The read of %t does not conflict with the write of the FillOp
-          // (same aliases!) because the area that the FillOp operates on is
-          // exactly the one that is *not* read via %t.
-          continue;
-
-        if (uRead == &insertSliceOp->getOpOperand(0) /*source*/ &&
-            uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
-            hasMatchingExtractSliceOp(aliasInfo, uRead->get(), insertSliceOp))
-          // Case 2: The read of the source tensor and the write to the dest
-          // tensor via an InsertSliceOp is not a conflict if the read is
-          // reading exactly that part of an equivalent tensor that the
-          // InsertSliceOp is writing.
-          //
-          // In the above example:
-          // uRead             = OpOperand 0 (%1) of tensor.insert_slice
-          // uConflictingWrite = OpOperand 1 (%t) of tensor.insert_slice
-          continue;
-      }
-
-      // If uConflictingWrite is an InsertSliceOp...
-      if (auto insertSliceOp = dyn_cast<InsertSliceOp>(conflictingWritingOp))
-        // As an example, consider the following IR.
-        //
-        // %0 = tensor.extract_slice %t[%a, %b][%c, %d][1, 1] {inplace= [true] }
-        // %1 = linalg.fill %cst, %0 {inplace= [true] }
-        // %2 = tensor.insert_slice %1 into %t[%a, %b][%c, %d][1, 1]
-        //     {inplace= [true] }
-        // %3 = vector.transfer_read %1, %cst
-        //
-        // In the above example:
-        // uRead             = OpOperand 0 (%1) of vector.transfer_read
-        // uConflictingWrite = OpOperand 1 (%t) of tensor.insert_slice
-        // lastWrite         = %1
-        //
-        // This is not a conflict because the InsertSliceOp overwrites the
-        // memory segment of %1 with the exact same data. (Effectively, there
-        // is no memory write here.)
-        if (uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
-            aliasInfo.areEquivalentBufferizedValues(uRead->get(),
-                                                    insertSliceOp.source()) &&
-            hasMatchingExtractSliceOp(aliasInfo, insertSliceOp.source(),
-                                      insertSliceOp))
-          continue;
 
       // All requirements are met. Conflict found!
       LDBG("CONFLICT CONFIRMED!\n\n");
@@ -756,53 +671,68 @@ static FunctionType getOrCreateBufferizedFunctionType(
 // Bufferization-specific scoped alloc/dealloc insertion support.
 //===----------------------------------------------------------------------===//
 
-/// Helper function that creates a memref::DimOp or tensor::DimOp depending on
-/// the type of `source`.
-static Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source,
-                               int64_t dim) {
-  if (source.getType().isa<UnrankedMemRefType, MemRefType>())
-    return b.createOrFold<memref::DimOp>(loc, source, dim);
-  if (source.getType().isa<UnrankedTensorType, RankedTensorType>())
-    return b.createOrFold<tensor::DimOp>(loc, source, dim);
-  llvm_unreachable("Expected MemRefType or TensorType");
+/// Move the insertion point of the given builder to the beginning of a
+/// surrounding block as much as possible, while not crossing any allocation
+/// hoisting barriers.
+static void moveInsertionPointToAllocationHoistingBarrier(OpBuilder &b) {
+  Operation *op = b.getInsertionBlock()->getParentOp();
+  while (op) {
+    if (auto bufferizableOp = dyn_cast<BufferizableOpInterface>(op))
+      if (bufferizableOp.isAllocationHoistingBarrier())
+        break;
+    op = op->getParentOp();
+  }
+
+  // FuncOp is an allocation hoisting barrier, so the above loop should never
+  // run out of parents.
+  assert(
+      (op && cast<BufferizableOpInterface>(op).isAllocationHoistingBarrier()) &&
+      "expected traversal to end at allocation hoisting barrier");
+
+  // TODO: Handle cases where allocation hoisting barrier has more than one
+  // region or block.
+  assert(op->getNumRegions() == 1 &&
+         "allocation hoisting barriers with >1 regions not supported");
+  assert(op->getRegion(0).getBlocks().size() == 1 &&
+         "allocation hoisting barriers with >1 blocks not supported");
+  b.setInsertionPointToStart(&(op->getRegion(0).front()));
 }
 
 /// Compute the type of the `memref` to use for allocating the buffer for
 /// `shapedValue`. Also returns (by reference in `dynShape`), the value for the
-/// dynamic dimensions in the returned `memref` type. The function also sets the
-/// insertion point of the builder `b` to the position where the allocation is
-/// to be inserted.
+/// dynamic dimensions in the returned `memref` type. The function may also set
+/// the insertion point to an earlier location, where the allocation should
+/// happen ("allocation hoisting").
 static MemRefType getAllocationTypeAndShape(OpBuilder &b, Location loc,
                                             Value shapedValue,
                                             SmallVectorImpl<Value> &dynShape) {
   MemRefType allocMemRefType =
       getContiguousMemRefType(shapedValue.getType().cast<ShapedType>());
-  if (auto bbArg = shapedValue.dyn_cast<BlockArgument>()) {
-    b.setInsertionPointToStart(bbArg.getOwner());
-    loc = bbArg.getOwner()->getParentOp()->getLoc();
-  } else {
-    b.setInsertionPoint(shapedValue.getDefiningOp());
-    loc = shapedValue.getDefiningOp()->getLoc();
-  }
 
   // Compute the dynamic part of the shape.
-  bool foundDynamicShapes = false;
+  bool reifiedShapes = false;
   if (auto rankedOp = dyn_cast_or_null<ReifyRankedShapedTypeOpInterface>(
           shapedValue.getDefiningOp())) {
     ReifiedRankedShapedTypeDims resultDims;
     if (succeeded(rankedOp.reifyResultShapes(b, resultDims))) {
-      foundDynamicShapes = true;
+      reifiedShapes = true;
       OpResult resultValue = shapedValue.dyn_cast<OpResult>();
       auto &shape = resultDims[resultValue.getResultNumber()];
       for (auto dim : enumerate(allocMemRefType.getShape()))
-        if (dim.value() == ShapedType::kDynamicSize)
+        if (ShapedType::isDynamic(dim.value()))
           dynShape.push_back(shape[dim.index()]);
     }
   }
-  if (!foundDynamicShapes) {
+
+  if (!reifiedShapes) {
     for (auto dim : enumerate(allocMemRefType.getShape()))
-      if (dim.value() == ShapedType::kDynamicSize)
-        dynShape.push_back(createOrFoldDimOp(b, loc, shapedValue, dim.index()));
+      if (ShapedType::isDynamic(dim.value())) {
+        assert((shapedValue.getType().isa<UnrankedMemRefType>() ||
+                shapedValue.getType().isa<MemRefType>()) &&
+               "expected MemRef type");
+        dynShape.push_back(
+            b.create<memref::DimOp>(loc, shapedValue, dim.index()));
+      }
   }
 
   // If the buffer is statically shaped, try to hoist it to the first enclosing
@@ -811,28 +741,9 @@ static MemRefType getAllocationTypeAndShape(OpBuilder &b, Location loc,
   // calls to LICM and buffer hoisting which will most likely not succeed.
   // TODO: when packing, allocate a static bounding box which will enable more
   // hoisting.
-  if (dynShape.empty()) {
-    Operation *parent;
-    if (auto bbArg = shapedValue.dyn_cast<BlockArgument>())
-      parent = bbArg.getOwner()->getParentOp();
-    else
-      parent = shapedValue.getDefiningOp()->getParentOp();
-    while (parent) {
-      if (auto bufferizableOp = dyn_cast<BufferizableOpInterface>(parent))
-        if (bufferizableOp.isAllocationHoistingBarrier())
-          break;
-      parent = parent->getParentOp();
-    }
+  if (dynShape.empty())
+    moveInsertionPointToAllocationHoistingBarrier(b);
 
-    // FuncOp is an allocation hoisting barrier, so the above loop should never
-    // run out of parents.
-    assert(
-        (parent &&
-         cast<BufferizableOpInterface>(parent).isAllocationHoistingBarrier()) &&
-        "expected traversal to end at allocation hoisting barrier");
-
-    b.setInsertionPointToStart(&(parent->getRegion(0).front()));
-  }
   return allocMemRefType;
 }
 
@@ -1203,16 +1114,19 @@ LogicalResult mlir::linalg::comprehensive_bufferize::bufferizeOp(
   if (isa<memref::BufferCastOp, memref::TensorLoadOp>(op))
     return success();
 
+  // Check if op has tensor results or operands.
+  auto isaTensor = [](Type t) { return t.isa<TensorType>(); };
+  bool hasTensorResult = any_of(op->getResultTypes(), isaTensor);
+  bool hasTensorOperand = any_of(op->getOperandTypes(), isaTensor);
+  if (!hasTensorResult && !hasTensorOperand)
+    return success();
+
   // Bufferize using `BufferizableOpInterface`.
   if (auto bufferizableOp = dyn_cast<BufferizableOpInterface>(op))
     return bufferizableOp.bufferize(b, state);
 
   // Other op with tensors. No bufferization method specified.
-  auto isaTensor = [](Type t) { return t.isa<TensorType>(); };
-  if (any_of(op->getOperandTypes(), isaTensor) ||
-      any_of(op->getResultTypes(), isaTensor))
-    return op->emitError() << "unsupported op with tensors";
-  return success();
+  return op->emitError() << "unsupported op with tensors";
 }
 
 static LogicalResult bufferizeFuncOpInternals(
@@ -1681,12 +1595,16 @@ LogicalResult mlir::linalg::comprehensive_bufferize::runComprehensiveBufferize(
 
     // Bufferization phase.
     if (!options.testAnalysisOnly) {
-      BlockAndValueMapping tensorToBufferMap;
-      BufferizationState state(aliasInfo, *options.allocationFns,
-                               tensorToBufferMap);
+      BufferizationState state(aliasInfo, *options.allocationFns);
+
+      // Bufferize all ops in funcOp.
       if (failed(
               bufferizeFuncOpInternals(funcOp, state, bufferizedFunctionTypes)))
         return failure();
+
+      // Erase all obsolete ops.
+      for (Operation *op : state.obsoleteOps)
+        op->erase();
     }
   }
   // Annotate operations if we only want to report the analysis.
@@ -2244,27 +2162,24 @@ struct ExtractSliceOpInterface
   LogicalResult bufferize(Operation *op, OpBuilder &b,
                           BufferizationState &state) const {
     auto extractSliceOp = cast<tensor::ExtractSliceOp>(op);
+    LDBG("bufferize: " << *extractSliceOp << '\n');
 
     // Take a guard before anything else.
     OpBuilder::InsertionGuard g(b);
-
-    LDBG("bufferize: " << *extractSliceOp << '\n');
+    b.setInsertionPoint(extractSliceOp);
 
     Location loc = extractSliceOp.getLoc();
-    // Bail if source was not bufferized.
     Value srcMemref = state.lookupBuffer(extractSliceOp.source());
     auto srcMemrefType = srcMemref.getType().cast<MemRefType>();
     auto dstTensorType =
         extractSliceOp.result().getType().cast<RankedTensorType>();
 
     // If not inplaceable, alloc.
+    bool inplace = state.aliasInfo.isInPlace(extractSliceOp->getResult(0));
     Value alloc;
-    if (!state.aliasInfo.isInPlace(extractSliceOp->getResult(0)))
+    if (!inplace)
       alloc = createNewAllocDeallocPairForShapedValue(
           b, loc, extractSliceOp.result(), state);
-
-    // Set insertion point now that potential alloc/dealloc are introduced.
-    b.setInsertionPoint(extractSliceOp);
 
     // Bufferize to subview.
     auto subviewMemRefType =
@@ -2280,7 +2195,7 @@ struct ExtractSliceOpInterface
     state.aliasInfo.insertNewBufferAlias(subView, srcMemref);
 
     /// If not inplaceable, copy.
-    if (alloc) {
+    if (!inplace) {
       // Do not copy if the copied data is never read.
       if (isValueRead(extractSliceOp.result()))
         state.allocationFns.memCpyFn(b, extractSliceOp.getLoc(), subView,
@@ -2324,6 +2239,24 @@ struct ExtractOpInterface
   }
 };
 
+/// Return true if the (ExtractSliceOp, InsertSliceOp) pair match (i.e.
+/// equivalent operand / result and same offset/sizes/strides specification).
+///
+/// This is one particular type of relationship between ops on tensors that
+/// reduce to an equivalence on buffers. This should be generalized and
+/// exposed as interfaces on the proper types.
+static bool
+areEquivalentExtractSliceOps(const BufferizationAliasInfo &aliasInfo,
+                             ExtractSliceOp st, InsertSliceOp sti) {
+  if (!st || !sti)
+    return false;
+  if (!aliasInfo.areEquivalentBufferizedValues(st.source(), sti.dest()))
+    return false;
+  if (!sameOffsetsSizesAndStrides(st, sti, isEqualConstantIntOrValue))
+    return false;
+  return true;
+}
+
 /// Return true if the source of a `insertSliceOp` bufferizes to an
 /// equivalent ExtractSliceOp that bufferizes inplace.
 static bool isSourceEquivalentToAMatchingInplaceExtractSliceOp(
@@ -2346,6 +2279,21 @@ static bool isSourceEquivalentToAMatchingInplaceExtractSliceOp(
     LDBG("\tnot equivalent\n");
 
   return foundOp;
+}
+
+/// Return true if `value` is originating from an ExtractSliceOp that matches
+/// the given InsertSliceOp.
+static bool hasMatchingExtractSliceOp(const BufferizationAliasInfo &aliasInfo,
+                                      Value value, InsertSliceOp insertOp) {
+  auto condition = [&](Value val) {
+    if (auto extractOp = val.getDefiningOp<ExtractSliceOp>())
+      if (areEquivalentExtractSliceOps(aliasInfo, extractOp, insertOp))
+        return true;
+    return false;
+  };
+
+  return llvm::all_of(findValueInReverseUseDefChain(value, condition),
+                      condition);
 }
 
 struct InsertSliceOpInterface
@@ -2374,36 +2322,101 @@ struct InsertSliceOpInterface
     return BufferRelation::Equivalent;
   }
 
+  bool isNotConflicting(Operation *op, OpOperand *uRead,
+                        OpOperand *uConflictingWrite,
+                        const BufferizationAliasInfo &aliasInfo) const {
+    Operation *readingOp = uRead->getOwner();
+    Operation *conflictingWritingOp = uConflictingWrite->getOwner();
+
+    // Special rules for matching ExtractSliceOp/InsertSliceOp pairs. If
+    // uRead is an InsertSliceOp...
+    if (auto insertSliceOp = dyn_cast<InsertSliceOp>(readingOp)) {
+      // As an example, consider the following IR.
+      //
+      // %0 = tensor.extract_slice %t[%a, %b][%c, %d][1, 1] {inplace = [true] }
+      // %1 = linalg.fill %cst, %0 {inplace= [true] }
+      // %2 = tensor.insert_slice %1 into %t[%a, %b][%c, %d][1, 1]
+      //     {inplace= [true] }
+
+      // TODO: Use insertSliceOp.getDestOpOperand etc. when available.
+      if (uRead == &insertSliceOp->getOpOperand(1) /*dest*/ &&
+          hasMatchingExtractSliceOp(aliasInfo, uConflictingWrite->get(),
+                                    insertSliceOp))
+        // Case 1: The main insight is that InsertSliceOp reads only part of
+        // the destination tensor. The overwritten area is not read. If
+        // uConflictingWrite writes into exactly the memory location that is
+        // being read by uRead, this is not a conflict.
+        //
+        // In the above example:
+        // uRead             = OpOperand 1 (%t) of tensor.insert_slice
+        // uConflictingWrite = OpOperand 1 (%0) of linalg.fill
+        //
+        // The read of %t does not conflict with the write of the FillOp
+        // (same aliases!) because the area that the FillOp operates on is
+        // exactly the one that is *not* read via %t.
+        return true;
+
+      if (uRead == &insertSliceOp->getOpOperand(0) /*source*/ &&
+          uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
+          hasMatchingExtractSliceOp(aliasInfo, uRead->get(), insertSliceOp))
+        // Case 2: The read of the source tensor and the write to the dest
+        // tensor via an InsertSliceOp is not a conflict if the read is
+        // reading exactly that part of an equivalent tensor that the
+        // InsertSliceOp is writing.
+        //
+        // In the above example:
+        // uRead             = OpOperand 0 (%1) of tensor.insert_slice
+        // uConflictingWrite = OpOperand 1 (%t) of tensor.insert_slice
+        return true;
+    }
+
+    // If uConflictingWrite is an InsertSliceOp...
+    if (auto insertSliceOp = dyn_cast<InsertSliceOp>(conflictingWritingOp))
+      // As an example, consider the following IR.
+      //
+      // %0 = tensor.extract_slice %t[%a, %b][%c, %d][1, 1] {inplace = [true] }
+      // %1 = linalg.fill %cst, %0 {inplace= [true] }
+      // %2 = tensor.insert_slice %1 into %t[%a, %b][%c, %d][1, 1]
+      //     {inplace= [true] }
+      // %3 = vector.transfer_read %1, %cst
+      //
+      // In the above example:
+      // uRead             = OpOperand 0 (%1) of vector.transfer_read
+      // uConflictingWrite = OpOperand 1 (%t) of tensor.insert_slice
+      // lastWrite         = %1
+      //
+      // This is not a conflict because the InsertSliceOp overwrites the
+      // memory segment of %1 with the exact same data. (Effectively, there
+      // is no memory write here.)
+      if (uConflictingWrite == &insertSliceOp->getOpOperand(1) /*dest*/ &&
+          aliasInfo.areEquivalentBufferizedValues(uRead->get(),
+                                                  insertSliceOp.source()) &&
+          hasMatchingExtractSliceOp(aliasInfo, insertSliceOp.source(),
+                                    insertSliceOp))
+        return true;
+
+    return false;
+  }
+
   LogicalResult bufferize(Operation *op, OpBuilder &b,
                           BufferizationState &state) const {
+    // insert_slice ops arise from tiling and bufferizing them out-of-place is
+    // generally a deal breaker. When used with loops, this ends up cloning the
+    // whole tensor on every single iteration and is a symptom of a
+    // catastrophically bad scheduling decision.
+    // TODO: be very loud about it or even consider failing the pass.
     auto insertSliceOp = cast<tensor::InsertSliceOp>(op);
+    LDBG("bufferize: " << *insertSliceOp << '\n');
 
     // Take a guard before anything else.
     OpBuilder::InsertionGuard g(b);
     b.setInsertionPoint(insertSliceOp);
-
-    LDBG("bufferize: " << *insertSliceOp << '\n');
-
     Location loc = insertSliceOp.getLoc();
-    // Since insert_slice arise from tiling and introducing loops, this
-    // case is generally a deal breaker. When used with loops, this ends up
-    // cloning the whole tensor on every single iteration and is a symptom
-    // of a catastrophically bad scheduling decision.
-    // TODO: be very loud about it or even consider failing the pass.
-    // Alloc a copy for `insertSliceOp.dest()`, it will become the result
-    // buffer.
+
+    // When bufferizing out-of-place, `getResultBuffer` allocates.
     Value dstMemref = getResultBuffer(b, insertSliceOp->getResult(0), state);
     if (!dstMemref)
       return failure();
-    auto dstMemrefType = dstMemref.getType().cast<MemRefType>();
-
-    Value srcMemref = state.lookupBuffer(insertSliceOp.source());
-    auto subviewMemRefType =
-        memref::SubViewOp::inferRankReducedResultType(
-            insertSliceOp.getSourceType().getRank(), dstMemrefType,
-            insertSliceOp.getMixedOffsets(), insertSliceOp.getMixedSizes(),
-            insertSliceOp.getMixedStrides())
-            .cast<MemRefType>();
 
     // A copy of the source buffer is needed if either:
     //   - The producer of `source` is not inplace. This is the case where a
@@ -2411,23 +2424,32 @@ struct InsertSliceOpInterface
     //   - The result is not inplace. This is the case where the whole tensor is
     //     cloned and the clone needs to be updated.
     // TODO: Is this necessary?
-    if (!isSourceEquivalentToAMatchingInplaceExtractSliceOp(state.aliasInfo,
-                                                            insertSliceOp) ||
-        !state.aliasInfo.isInPlace(insertSliceOp->getResult(0))) {
+    bool needCopy = !isSourceEquivalentToAMatchingInplaceExtractSliceOp(
+                        state.aliasInfo, insertSliceOp) ||
+                    !state.aliasInfo.isInPlace(insertSliceOp->getResult(0));
+    if (needCopy) {
       LDBG("insert_slice needs extra source copy: " << insertSliceOp.source()
                                                     << " -> copy\n");
       // Take a subview of the dst.
+      auto dstMemrefType = dstMemref.getType().cast<MemRefType>();
+      auto subviewMemRefType =
+          memref::SubViewOp::inferRankReducedResultType(
+              insertSliceOp.getSourceType().getRank(), dstMemrefType,
+              insertSliceOp.getMixedOffsets(), insertSliceOp.getMixedSizes(),
+              insertSliceOp.getMixedStrides())
+              .cast<MemRefType>();
       Value subView = b.create<memref::SubViewOp>(
           loc, subviewMemRefType, dstMemref, insertSliceOp.getMixedOffsets(),
           insertSliceOp.getMixedSizes(), insertSliceOp.getMixedStrides());
       // Insert new alias.
       state.aliasInfo.insertNewBufferAlias(subView, dstMemref);
+      // Copy tensor.
+      Value srcMemref = state.lookupBuffer(insertSliceOp.source());
       state.allocationFns.memCpyFn(b, insertSliceOp.getLoc(), srcMemref,
                                    subView);
     }
 
     state.mapBuffer(insertSliceOp.result(), dstMemref);
-
     return success();
   }
 };
@@ -2463,10 +2485,9 @@ struct TransferReadOpInterface
     OpBuilder::InsertionGuard g(b);
     b.setInsertionPoint(op);
 
-    if (transferReadOp.getShapedType().isa<MemRefType>())
-      return failure();
-
     // TransferReadOp always reads from the bufferized op.source().
+    assert(transferReadOp.getShapedType().isa<TensorType>() &&
+           "only tensor types expected");
     Value v = state.lookupBuffer(transferReadOp.source());
     transferReadOp.sourceMutable().assign(v);
     return success();
@@ -2511,12 +2532,11 @@ struct TransferWriteOpInterface
     OpBuilder::InsertionGuard g(b);
     b.setInsertionPoint(op);
 
-    if (writeOp.getShapedType().isa<MemRefType>())
-      return failure();
-
     // Create a new transfer_write on buffer that doesn't have a return value.
     // Leave the previous transfer_write to dead code as it still has uses at
     // this point.
+    assert(writeOp.getShapedType().isa<TensorType>() &&
+           "only tensor types expected");
     Value resultBuffer = getResultBuffer(b, op->getResult(0), state);
     if (!resultBuffer)
       return failure();

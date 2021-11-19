@@ -3819,7 +3819,8 @@ Multiple match rules can be specified using the ``any`` match rule, as shown
 in the example above. The ``any`` rule applies attributes to all declarations
 that are matched by at least one of the rules in the ``any``. It doesn't nest
 and can't be used inside the other match rules. Redundant match rules or rules
-that conflict with one another should not be used inside of ``any``.
+that conflict with one another should not be used inside of ``any``. Failing to
+specify a rule within the ``any`` rule results in an error.
 
 Clang supports the following match rules:
 
@@ -4055,7 +4056,7 @@ mark macros as final, meaning they cannot be undef'd or re-defined. For example:
    #undef FINAL_MACRO  // warning: FINAL_MACRO is marked final and should not be undefined
 
 This is useful for enforcing system-provided macros that should not be altered
-in user headers or code. This is controlled by ``-Wpedantic-macros``. Final 
+in user headers or code. This is controlled by ``-Wpedantic-macros``. Final
 macros will always warn on redefinition, including situations with identical
 bodies and in system headers.
 
@@ -4098,7 +4099,7 @@ Examples are:
 
 .. code-block:: c
 
-   # 57 // Advance (or return) to line 57 of the current source file		
+   # 57 // Advance (or return) to line 57 of the current source file
    # 57 "frob" // Set to line 57 of "frob"
    # 1 "foo.h" 1 // Enter "foo.h" at line 1
    # 59 "main.c" 2 // Leave current include and return to "main.c"

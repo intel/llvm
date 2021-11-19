@@ -204,6 +204,19 @@ define <16 x i8> @signbit_mask_v16i8(<16 x i8> %a, <16 x i8> %b) {
   ret <16 x i8> %r
 }
 
+; Swap cmp pred and select ops. This is logically equivalent to the above test.
+
+define <16 x i8> @signbit_mask_swap_v16i8(<16 x i8> %a, <16 x i8> %b) {
+; CHECK-LABEL: signbit_mask_swap_v16i8:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    sshr v0.16b, v0.16b, #7
+; CHECK-NEXT:    and v0.16b, v0.16b, v1.16b
+; CHECK-NEXT:    ret
+  %cond = icmp sgt <16 x i8> %a, <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
+  %r = select <16 x i1> %cond, <16 x i8> zeroinitializer, <16 x i8> %b
+  ret <16 x i8> %r
+}
+
 define <8 x i16> @signbit_mask_v8i16(<8 x i16> %a, <8 x i16> %b) {
 ; CHECK-LABEL: signbit_mask_v8i16:
 ; CHECK:       // %bb.0:
@@ -256,6 +269,19 @@ define <8 x i16> @signbit_setmask_v8i16(<8 x i16> %a, <8 x i16> %b) {
 ; CHECK-NEXT:    ret
   %cond = icmp slt <8 x i16> %a, zeroinitializer
   %r = select <8 x i1> %cond, <8 x i16> <i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1>, <8 x i16> %b
+  ret <8 x i16> %r
+}
+
+; Swap cmp pred and select ops. This is logically equivalent to the above test.
+
+define <8 x i16> @signbit_setmask_swap_v8i16(<8 x i16> %a, <8 x i16> %b) {
+; CHECK-LABEL: signbit_setmask_swap_v8i16:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    sshr v0.8h, v0.8h, #15
+; CHECK-NEXT:    orr v0.16b, v0.16b, v1.16b
+; CHECK-NEXT:    ret
+  %cond = icmp sgt <8 x i16> %a, <i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1>
+  %r = select <8 x i1> %cond, <8 x i16> %b, <8 x i16> <i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1, i16 -1>
   ret <8 x i16> %r
 }
 
@@ -314,6 +340,19 @@ define <4 x i32> @not_signbit_mask_v4i32(<4 x i32> %a, <4 x i32> %b) {
   ret <4 x i32> %r
 }
 
+; Swap cmp pred and select ops. This is logically equivalent to the above test.
+
+define <4 x i32> @not_signbit_mask_swap_v4i32(<4 x i32> %a, <4 x i32> %b) {
+; CHECK-LABEL: not_signbit_mask_swap_v4i32:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    cmge v0.4s, v0.4s, #0
+; CHECK-NEXT:    and v0.16b, v0.16b, v1.16b
+; CHECK-NEXT:    ret
+  %cond = icmp slt <4 x i32> %a, zeroinitializer
+  %r = select <4 x i1> %cond, <4 x i32> zeroinitializer, <4 x i32> %b
+  ret <4 x i32> %r
+}
+
 define <2 x i64> @not_signbit_mask_v2i64(<2 x i64> %a, <2 x i64> %b) {
 ; CHECK-LABEL: not_signbit_mask_v2i64:
 ; CHECK:       // %bb.0:
@@ -324,3 +363,21 @@ define <2 x i64> @not_signbit_mask_v2i64(<2 x i64> %a, <2 x i64> %b) {
   %r = select <2 x i1> %cond, <2 x i64> %b, <2 x i64> zeroinitializer
   ret <2 x i64> %r
 }
+
+; SVE
+
+define <vscale x 16 x i8> @signbit_mask_xor_nxv16i8(<vscale x 16 x i8> %a, <vscale x 16 x i8> %b) #0 {
+; CHECK-LABEL: signbit_mask_xor_nxv16i8:
+; CHECK:       // %bb.0:
+; CHECK-NEXT:    ptrue p0.b
+; CHECK-NEXT:    cmplt p0.b, p0/z, z0.b, #0
+; CHECK-NEXT:    eor z0.d, z0.d, z1.d
+; CHECK-NEXT:    mov z0.b, p0/m, #0 // =0x0
+; CHECK-NEXT:    ret
+  %cond = icmp slt <vscale x 16 x i8> %a, zeroinitializer
+  %xor = xor <vscale x 16 x i8> %a, %b
+  %r = select <vscale x 16 x i1> %cond, <vscale x 16 x i8> zeroinitializer, <vscale x 16 x i8> %xor
+  ret <vscale x 16 x i8> %r
+}
+
+attributes #0 = { "target-features"="+sve" }

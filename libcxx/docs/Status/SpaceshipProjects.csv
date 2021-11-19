@@ -1,6 +1,6 @@
 Section,Description,Dependencies,Assignee,Complete
 | `[cmp.concept] <https://wg21.link/cmp.concept>`_,"| `three_way_comparable <https://reviews.llvm.org/D103478>`_
-| `three_way_comparable_with <https://reviews.llvm.org/D103478>`_",None,Ruslan Arutyunyan,|In Progress|
+| `three_way_comparable_with <https://reviews.llvm.org/D103478>`_",None,Ruslan Arutyunyan,|Complete|
 | `[cmp.result] <https://wg21.link/cmp.result>`_,| `compare_three_way_result <https://reviews.llvm.org/D103581>`_,None,Arthur O'Dwyer,|Complete|
 | `[expos.only.func] <https://wg21.link/expos.only.func>`_,"| `synth-three-way <https://reviews.llvm.org/D107721>`_
 | `synth-three-way-result <https://reviews.llvm.org/D107721>`_",[cmp.concept],Kent Ross,|Complete|
@@ -9,7 +9,7 @@ Section,Description,Dependencies,Assignee,Complete
 | `weak_order <https://reviews.llvm.org/D107036>`_
 | `partial_order <https://reviews.llvm.org/D107036>`_",None,Arthur O'Dwyer,|In Progress|
 | `[alg.three.way] <https://wg21.link/alg.three.way>`_,| `lexicographical_compare_three_way <https://reviews.llvm.org/D80902>`_,[comparisons.three.way],Christopher Di Bella,|In Progress|
-| `[coroutine.handle.compare] <https://wg21.link/coroutine.handle.compare>`_,| coroutine_handle,[comparisons.three.way],Unassigned,|Not Started|
+| `[coroutine.handle.compare] <https://wg21.link/coroutine.handle.compare>`_,| coroutine_handle,[comparisons.three.way],Unassigned,|Complete|
 | `[pairs.spec] <https://wg21.link/pairs.spec>`_,| `pair <https://reviews.llvm.org/D107721>`_,[expos.only.func],Kent Ross,|Complete|
 | `[syserr.errcat.nonvirtuals] <https://wg21.link/syserr.errcat.nonvirtuals>`_,| error_category,[comparisons.three.way],Unassigned,|Not Started|
 | `[syserr.compare] <https://wg21.link/syserr.compare>`_,"| error_code
