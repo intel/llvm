@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clcmacro.h>
 #include <spirv/spirv.h>
 
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp32_t
-__spirv_ocl_sqrt(__clc_fp32_t In) {
-  return __builtin_amdgcn_sqrtf(In);
-}
+double __ocml_sqrt_f64(double);
+float __ocml_sqrt_f32(float);
 
-_CLC_OVERLOAD _CLC_DECL _CLC_CONSTFN __clc_fp64_t
-__spirv_ocl_sqrt(__clc_fp64_t In) {
-  return __builtin_amdgcn_sqrt(In);
-}
+#define __CLC_FUNCTION __spirv_ocl_sqrt
+#define __CLC_BUILTIN __ocml_sqrt
+#define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
+#define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
+#include <math/unary_builtin.inc>

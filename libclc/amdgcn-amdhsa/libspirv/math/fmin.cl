@@ -5,15 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+ 
 #include <clcmacro.h>
 #include <spirv/spirv.h>
-
-double __ocml_sin_f64(double);
-float __ocml_sin_f32(float);
  
-#define __CLC_FUNCTION __spirv_ocl_sin
-#define __CLC_BUILTIN __ocml_sin
+double __ocml_fmin_f64(double,double);
+float __ocml_fmin_f32(float,float);
+ 
+#define __CLC_FUNCTION __spirv_ocl_fmin
+#define __CLC_BUILTIN __ocml_fmin
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
 #define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
-#include <math/unary_builtin.inc>
+#include <math/binary_builtin.inc>
