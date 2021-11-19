@@ -43,9 +43,6 @@ public:
 #endif
   }
 
-  // Direct initialization
-  bfloat16(const storage_t &a) : value(a) {}
-
   // Implicit conversion from float to bfloat16
   bfloat16(const float &a) { value = from_float(a); }
 
