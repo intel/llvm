@@ -52,11 +52,7 @@
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
-using FuncPtrVector = std::vector<const Function *>;
-using EntryPointsSet = std::map<StringRef, FuncPtrVector>;
-using ModuleUPtr = std::unique_ptr<Module>;
-using PropSetRegTy = llvm::util::PropertySetRegistry;
-using StringRefVector = std::vector<StringRef>;
+using EntryPointsMap = std::map<StringRef, std::vector<const Function *>>;
 
 namespace {
 
@@ -319,7 +315,7 @@ bool isEntryPoint(const Function &F) {
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
 void collectEntryPointToModuleMap(const Module &M,
-                                  EntryPointsSet &ResKernelModuleMap,
+                                  EntryPointsMap &ResKernelModuleMap,
                                   KernelMapEntryScope EntryScope) {
 
   // Only process module entry points:
@@ -361,11 +357,11 @@ HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
   // true  - if there is an assertion in underlying functions,
   // false - if there are definetely no assertions in underlying functions.
   static std::map<const Function *, bool> hasAssertionInCallGraphMap;
-  FuncPtrVector FuncCallStack;
+  std::vector<const Function *> FuncCallStack;
 
-  static FuncPtrVector isIndirectlyCalledInGraph;
+  static std::vector<const Function *> isIndirectlyCalledInGraph;
 
-  FuncPtrVector Workstack;
+  std::vector<const Function *> Workstack;
   Workstack.push_back(Func);
 
   while (!Workstack.empty()) {
@@ -440,11 +436,11 @@ HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
   return No_Assert;
 }
 
-StringRefVector getKernelNamesUsingAssert(const Module &M) {
-  StringRefVector Result;
+std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
+  std::vector<StringRef> Result;
 
   bool HasIndirectlyCalledAssert = false;
-  FuncPtrVector Kernels;
+  std::vector<const Function *> Kernels;
   for (const auto &F : M.functions()) {
     // TODO: handle SYCL_EXTERNAL functions for dynamic linkage.
     // TODO: handle function pointers.
@@ -497,7 +493,7 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 // names from the same module separated by \n.
 // The function saves names of entry points from one group to a single
 // std::string and stores this string to the ResSymbolsLists vector.
-string_vector collectSymbolsLists(const EntryPointsSet &KernelModuleMap) {
+string_vector collectSymbolsLists(const EntryPointsMap &KernelModuleMap) {
   string_vector ResSymbolsLists{};
   for (const auto &It : KernelModuleMap) {
     std::string SymbolsList;
@@ -512,7 +508,7 @@ string_vector collectSymbolsLists(const EntryPointsSet &KernelModuleMap) {
 
 struct ResultModule {
   StringRef KernelModuleName;
-  ModuleUPtr ModulePtr;
+  std::unique_ptr<Module> ModulePtr;
 };
 
 // Input parameter KernelModuleMap is a map containing groups of entry points
@@ -522,13 +518,13 @@ struct ResultModule {
 // The function splits input LLVM IR module M into smaller ones and stores them
 // to the ResModules vector.
 std::vector<ResultModule> splitModule(const Module &M,
-                                      const EntryPointsSet &KernelModuleMap) {
+                                      const EntryPointsMap &KernelModuleMap) {
   std::vector<ResultModule> ResModules{};
 
   for (const auto &It : KernelModuleMap) {
     // For each group of entry points collect all dependencies.
     SetVector<const GlobalValue *> GVs;
-    FuncPtrVector Workqueue;
+    std::vector<const Function *> Workqueue;
 
     for (const auto &F : It.second) {
       GVs.insert(F);
@@ -559,7 +555,7 @@ std::vector<ResultModule> splitModule(const Module &M,
     ValueToValueMapTy VMap;
     // Clone definitions only for needed globals. Others will be added as
     // declarations and removed later.
-    ModuleUPtr MClone = CloneModule(
+    std::unique_ptr<Module> MClone = CloneModule(
         M, VMap, [&](const GlobalValue *GV) { return GVs.count(GV); });
 
     // TODO: Use the new PassManager instead?
@@ -621,8 +617,10 @@ string_vector saveResultModules(const std::vector<ResultModule> &ResModules,
 
 string_vector
 saveDeviceImageProperty(const std::vector<ResultModule> &ResultModules,
-                        const EntryPointsSet &KernelModuleMap,
+                        const EntryPointsMap &KernelModuleMap,
                         const ImagePropSaveInfo &ImgPSInfo) {
+  using PropSetRegTy = llvm::util::PropertySetRegistry;
+
   string_vector Res;
   legacy::PassManager GetSYCLDeviceLibReqMask;
   auto *SDLReqMaskLegacyPass = new SYCLDeviceLibReqMaskPass();
@@ -716,7 +714,7 @@ saveDeviceImageProperty(const std::vector<ResultModule> &ResultModules,
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
 
     {
-      StringRefVector FuncNames = getKernelNamesUsingAssert(M);
+      std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
       for (const StringRef &FName : FuncNames)
         PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
     }
@@ -786,7 +784,8 @@ void LowerEsimdConstructs(Module &M) {
 
 using TableFiles = std::map<StringRef, string_vector>;
 
-TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
+TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
+                            bool SyclAndEsimdCode) {
   TableFiles TblFiles;
   if (!M)
     return TblFiles;
@@ -808,7 +807,7 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   if (IsEsimd && LowerEsimd)
     LowerEsimdConstructs(*M);
 
-  EntryPointsSet GlobalsSet;
+  EntryPointsMap GlobalsSet;
 
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
 
@@ -896,13 +895,13 @@ TableFiles processOneModule(ModuleUPtr M, bool IsEsimd, bool SyclAndEsimdCode) {
   return TblFiles;
 }
 
-using ModulePair = std::pair<ModuleUPtr, ModuleUPtr>;
+using ModulePair = std::pair<std::unique_ptr<Module>, std::unique_ptr<Module>>;
 
 // This function splits a module with a mix of SYCL and ESIMD kernels
 // into two separate modules.
-ModulePair splitSyclEsimd(ModuleUPtr M) {
-  FuncPtrVector SyclFunctions;
-  FuncPtrVector EsimdFunctions;
+ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
+  std::vector<const Function *> SyclFunctions;
+  std::vector<const Function *> EsimdFunctions;
   // Collect information about the SYCL and ESIMD functions in the module.
   // Only process module entry points.
   for (const auto &F : M->functions()) {
@@ -916,16 +915,16 @@ ModulePair splitSyclEsimd(ModuleUPtr M) {
 
   // If only SYCL kernels or only ESIMD kernels, no splitting needed.
   if (EsimdFunctions.empty())
-    return std::make_pair(std::move(M), ModuleUPtr(nullptr));
+    return std::make_pair(std::move(M), std::unique_ptr<Module>(nullptr));
 
   if (SyclFunctions.empty())
-    return std::make_pair(ModuleUPtr(nullptr), std::move(M));
+    return std::make_pair(std::unique_ptr<Module>(nullptr), std::move(M));
 
   // Key values in KernelModuleMap are not significant, but they define the
   // order, in which entry points are processed in the splitModule function. The
   // caller of the splitSyclEsimd function expects a pair of 1-Sycl and 2-Esimd
   // modules, hence the strings names below.
-  EntryPointsSet KernelModuleMap(
+  EntryPointsMap KernelModuleMap(
       {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
   std::vector<ResultModule> ResultModules = splitModule(*M, KernelModuleMap);
   assert(ResultModules.size() == 2);
@@ -933,12 +932,12 @@ ModulePair splitSyclEsimd(ModuleUPtr M) {
                         std::move(ResultModules[1].ModulePtr));
 }
 
-TableFiles processInputModule(ModuleUPtr M) {
+TableFiles processInputModule(std::unique_ptr<Module> M) {
   if (!SplitEsimd)
     return processOneModule(std::move(M), false, false);
 
-  ModuleUPtr SyclModule;
-  ModuleUPtr EsimdModule;
+  std::unique_ptr<Module> SyclModule;
+  std::unique_ptr<Module> EsimdModule;
   std::tie(SyclModule, EsimdModule) = splitSyclEsimd(std::move(M));
 
   // Do we have both Sycl and Esimd code?
@@ -1061,7 +1060,7 @@ int main(int argc, char **argv) {
     return 1;
   }
   SMDiagnostic Err;
-  ModuleUPtr M = parseIRFile(InputFilename, Err, Context);
+  std::unique_ptr<Module> M = parseIRFile(InputFilename, Err, Context);
   // It is OK to use raw pointer here as we control that it does not outlive M
   // or objects it is moved to
   Module *MPtr = M.get();
