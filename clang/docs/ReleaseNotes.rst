@@ -158,7 +158,7 @@ C++2b Feature Support
 CUDA Language Changes in Clang
 ------------------------------
 
-- Clang now supports CUDA versions up to 11.4.
+- Clang now supports CUDA versions up to 11.5.
 - Default GPU architecture has been changed from sm_20 to sm_35.
 
 Objective-C Language Changes in Clang
@@ -193,13 +193,14 @@ Arm and AArch64 Support in Clang
 
 - Support has been added for the following processors (command-line identifiers in parentheses):
   - Arm Cortex-A510 (``cortex-a510``)
+  - Arm Cortex-X2 (``cortex-x2``)
+
 - The -mtune flag is no longer ignored for AArch64. It is now possible to
   tune code generation for a particular CPU with -mtune without setting any
   architectural features. For example, compiling with
   "-mcpu=generic -mtune=cortex-a57" will not enable any Cortex-A57 specific
   architecture features, but will enable certain optimizations specific to
   Cortex-A57 CPUs and enable the use of a more accurate scheduling model.
-
 
 Internal API Changes
 --------------------
@@ -219,6 +220,13 @@ AST Matchers
   matcher or the ``hasReturnTypeLoc`` matcher. The addition of these matchers
   was made possible by changes to the handling of ``TypeLoc`` nodes that
   allows them to enjoy the same static type checking as other AST node kinds.
+- ``LambdaCapture`` AST Matchers are now available. These matchers allow for
+  the binding of ``LambdaCapture`` nodes. The ``LambdaCapture`` matchers added
+  include the ``lambdaCapture`` node matcher, the ``capturesVar`` traversal
+  matcher, and ``capturesThis`` narrowing matcher.
+- The ``hasAnyCapture`` matcher now only accepts an inner matcher of type
+  ``Matcher<LambdaCapture>``. The matcher originally accepted an inner matcher
+  of type ``Matcher<CXXThisExpr>`` or ``Matcher<VarDecl>``.
 
 clang-format
 ------------

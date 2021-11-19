@@ -76,6 +76,13 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`abseil-cleanup-ctad
+  <clang-tidy/checks/abseil-cleanup-ctad>` check.
+
+  Suggests switching the initialization pattern of ``absl::Cleanup``
+  instances from the factory function to class template argument
+  deduction (CTAD), in C++17 and higher.
+
 - New :doc:`bugprone-suspicious-memory-comparison
   <clang-tidy/checks/bugprone-suspicious-memory-comparison>` check.
 
@@ -102,6 +109,11 @@ New checks
 
 New check aliases
 ^^^^^^^^^^^^^^^^^
+
+- New alias :doc:`cert-err33-c
+  <clang-tidy/checks/cert-err33-c>` to
+  :doc:`bugprone-unused-return-value
+  <clang-tidy/checks/bugprone-unused-return-value>` was added.
 
 - New alias :doc:`cert-exp42-c
   <clang-tidy/checks/cert-exp42-c>` to

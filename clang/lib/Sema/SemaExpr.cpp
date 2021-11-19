@@ -3229,9 +3229,8 @@ ExprResult Sema::BuildDeclarationNameExpr(const CXXScopeSpec &SS,
   return ULE;
 }
 
-static void
-diagnoseUncapturableValueReference(Sema &S, SourceLocation loc,
-                                   ValueDecl *var, DeclContext *DC);
+static void diagnoseUncapturableValueReference(Sema &S, SourceLocation loc,
+                                               ValueDecl *var);
 
 /// Complete semantic analysis for a reference to the given declaration.
 ExprResult Sema::BuildDeclarationNameExpr(
@@ -3395,7 +3394,7 @@ ExprResult Sema::BuildDeclarationNameExpr(
     if (BD->getDeclContext() != CurContext) {
       auto *DD = dyn_cast_or_null<VarDecl>(BD->getDecomposedDecl());
       if (DD && DD->hasLocalStorage())
-        diagnoseUncapturableValueReference(*this, Loc, BD, CurContext);
+        diagnoseUncapturableValueReference(*this, Loc, BD);
     }
     break;
   }
@@ -17483,9 +17482,8 @@ void Sema::MarkCaptureUsedInEnclosingContext(VarDecl *Capture,
   MarkVarDeclODRUsed(Capture, Loc, *this, &CapturingScopeIndex);
 }
 
-static void
-diagnoseUncapturableValueReference(Sema &S, SourceLocation loc,
-                                   ValueDecl *var, DeclContext *DC) {
+static void diagnoseUncapturableValueReference(Sema &S, SourceLocation loc,
+                                               ValueDecl *var) {
   DeclContext *VarDC = var->getDeclContext();
 
   //  If the parameter still belongs to the translation unit, then
@@ -17564,7 +17562,7 @@ static DeclContext *getParentOfCapturingContextOrNull(DeclContext *DC, VarDecl *
     return getLambdaAwareParentOfDeclContext(DC);
   else if (Var->hasLocalStorage()) {
     if (Diagnose)
-       diagnoseUncapturableValueReference(S, Loc, Var, DC);
+       diagnoseUncapturableValueReference(S, Loc, Var);
   }
   return nullptr;
 }
@@ -18038,7 +18036,7 @@ bool Sema::tryCaptureVariable(
           Diag(LSI->Lambda->getBeginLoc(), diag::note_lambda_decl);
           buildLambdaCaptureFixit(*this, LSI, Var);
         } else
-          diagnoseUncapturableValueReference(*this, ExprLoc, Var, DC);
+          diagnoseUncapturableValueReference(*this, ExprLoc, Var);
       }
       return true;
     }

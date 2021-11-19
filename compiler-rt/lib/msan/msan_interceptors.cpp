@@ -33,6 +33,7 @@
 #include "sanitizer_common/sanitizer_stackdepot.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_linux.h"
+#include "sanitizer_common/sanitizer_glibc_version.h"
 #include "sanitizer_common/sanitizer_tls_get_addr.h"
 #include "sanitizer_common/sanitizer_vector.h"
 
@@ -1032,6 +1033,7 @@ extern "C" int pthread_attr_destroy(void *attr);
 static void *MsanThreadStartFunc(void *arg) {
   MsanThread *t = (MsanThread *)arg;
   SetCurrentThread(t);
+  t->Init();
   return t->ThreadStart();
 }
 

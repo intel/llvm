@@ -64,8 +64,8 @@ struct InstructionPointer {
   uint64_t Index = 0;
   InstructionPointer(const ProfiledBinary *Binary, uint64_t Address,
                      bool RoundToNext = false);
-  void advance();
-  void backward();
+  bool advance();
+  bool backward();
   void update(uint64_t Addr);
 };
 
@@ -73,6 +73,7 @@ using RangesTy = std::vector<std::pair<uint64_t, uint64_t>>;
 
 struct BinaryFunction {
   StringRef FuncName;
+  // End of range is an exclusive bound.
   RangesTy Ranges;
 };
 
@@ -80,7 +81,7 @@ struct BinaryFunction {
 // non-continuous ranges, each range corresponds to one FuncRange.
 struct FuncRange {
   uint64_t StartOffset;
-  // EndOffset is a exclusive bound.
+  // EndOffset is an exclusive bound.
   uint64_t EndOffset;
   // Function the range belongs to
   BinaryFunction *Func;
@@ -105,7 +106,8 @@ struct PrologEpilogTracker {
     for (auto I : FuncStartOffsetMap) {
       PrologEpilogSet.insert(I.first);
       InstructionPointer IP(Binary, I.first);
-      IP.advance();
+      if (!IP.advance())
+        break;
       PrologEpilogSet.insert(IP.Offset);
     }
   }
@@ -115,7 +117,8 @@ struct PrologEpilogTracker {
     for (auto Addr : RetAddrs) {
       PrologEpilogSet.insert(Addr);
       InstructionPointer IP(Binary, Addr);
-      IP.backward();
+      if (!IP.backward())
+        break;
       PrologEpilogSet.insert(IP.Offset);
     }
   }
@@ -204,9 +207,11 @@ class ProfiledBinary {
   // sorting is needed to fast advance to the next forward/backward instruction.
   std::vector<uint64_t> CodeAddrOffsets;
   // A set of call instruction offsets. Used by virtual unwinding.
-  std::unordered_set<uint64_t> CallAddrs;
+  std::unordered_set<uint64_t> CallOffsets;
   // A set of return instruction offsets. Used by virtual unwinding.
-  std::unordered_set<uint64_t> RetAddrs;
+  std::unordered_set<uint64_t> RetOffsets;
+  // A set of branch instruction offsets.
+  std::unordered_set<uint64_t> BranchOffsets;
 
   // Estimate and track function prolog and epilog ranges.
   PrologEpilogTracker ProEpilogTracker;
@@ -305,26 +310,36 @@ public:
     return TextSegmentOffsets;
   }
 
+  bool offsetIsCode(uint64_t Offset) const {
+    return Offset2InstSizeMap.find(Offset) != Offset2InstSizeMap.end();
+  }
   bool addressIsCode(uint64_t Address) const {
     uint64_t Offset = virtualAddrToOffset(Address);
-    return Offset2InstSizeMap.find(Offset) != Offset2InstSizeMap.end();
+    return offsetIsCode(Offset);
   }
   bool addressIsCall(uint64_t Address) const {
     uint64_t Offset = virtualAddrToOffset(Address);
-    return CallAddrs.count(Offset);
+    return CallOffsets.count(Offset);
   }
   bool addressIsReturn(uint64_t Address) const {
     uint64_t Offset = virtualAddrToOffset(Address);
-    return RetAddrs.count(Offset);
+    return RetOffsets.count(Offset);
   }
   bool addressInPrologEpilog(uint64_t Address) const {
     uint64_t Offset = virtualAddrToOffset(Address);
     return ProEpilogTracker.PrologEpilogSet.count(Offset);
   }
 
+  bool offsetIsTransfer(uint64_t Offset) {
+    return BranchOffsets.count(Offset) || RetOffsets.count(Offset) ||
+           CallOffsets.count(Offset);
+  }
+
   uint64_t getAddressforIndex(uint64_t Index) const {
     return offsetToVirtualAddr(CodeAddrOffsets[Index]);
   }
+
+  size_t getCodeOffsetsSize() const { return CodeAddrOffsets.size(); }
 
   bool usePseudoProbes() const { return UsePseudoProbes; }
   // Get the index in CodeAddrOffsets for the address
@@ -376,6 +391,11 @@ public:
       return RangesTy();
 
     return FRange->Func->Ranges;
+  }
+
+  const std::unordered_map<std::string, BinaryFunction> &
+  getAllBinaryFunctions() {
+    return BinaryFunctions;
   }
 
   uint32_t getFuncSizeForContext(SampleContext &Context) {

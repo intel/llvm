@@ -563,26 +563,6 @@ TEST(Matcher, HasReceiver) {
       objcMessageExpr(hasReceiver(declRefExpr(to(varDecl(hasName("x"))))))));
 }
 
-TEST(Matcher, HasAnyCapture) {
-  auto HasCaptureX = lambdaExpr(hasAnyCapture(varDecl(hasName("x"))));
-  EXPECT_TRUE(matches("void f() { int x = 3; [x](){}; }", HasCaptureX));
-  EXPECT_TRUE(matches("void f() { int x = 3; [&x](){}; }", HasCaptureX));
-  EXPECT_TRUE(notMatches("void f() { [](){}; }", HasCaptureX));
-  EXPECT_TRUE(notMatches("void f() { int z = 3; [&z](){}; }", HasCaptureX));
-  EXPECT_TRUE(
-      notMatches("struct a { void f() { [this](){}; }; };", HasCaptureX));
-}
-
-TEST(Matcher, CapturesThis) {
-  auto HasCaptureThis = lambdaExpr(hasAnyCapture(cxxThisExpr()));
-  EXPECT_TRUE(
-      matches("struct a { void f() { [this](){}; }; };", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { [](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int x = 3; [x](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int x = 3; [&x](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int z = 3; [&z](){}; }", HasCaptureThis));
-}
-
 TEST(Matcher, MatchesMethodsOnLambda) {
   StringRef Code = R"cpp(
 struct A {
@@ -623,7 +603,6 @@ TEST(Matcher, MatchesCoroutine) {
   FileContentMappings M;
   M.push_back(std::make_pair("/coro_header", R"cpp(
 namespace std {
-namespace experimental {
 
 template <class... Args>
 struct void_t_imp {
@@ -642,7 +621,7 @@ struct traits_sfinae_base<T, void_t<typename T::promise_type>> {
 
 template <class Ret, class... Args>
 struct coroutine_traits : public traits_sfinae_base<Ret> {};
-}}  // namespace std::experimental
+}  // namespace std
 struct awaitable {
   bool await_ready() noexcept;
   template <typename F>
@@ -658,14 +637,13 @@ struct promise {
   void unhandled_exception();
 };
 template <typename... T>
-struct std::experimental::coroutine_traits<void, T...> { using promise_type = promise; };
+struct std::coroutine_traits<void, T...> { using promise_type = promise; };
 namespace std {
-namespace experimental {
 template <class PromiseType = void>
 struct coroutine_handle {
   static coroutine_handle from_address(void *) noexcept;
 };
-}} // namespace std::experimental
+} // namespace std
 )cpp"));
   StringRef CoReturnCode = R"cpp(
 #include <coro_header>

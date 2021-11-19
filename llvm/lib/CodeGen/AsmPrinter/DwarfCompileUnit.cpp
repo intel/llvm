@@ -490,7 +490,6 @@ DIE &DwarfCompileUnit::updateSubprogramScopeDIE(const DISubprogram *SP) {
         addSInt(*Loc, dwarf::DW_FORM_sdata, TI_GLOBAL_RELOC);
         if (!isDwoUnit()) {
           addLabel(*Loc, dwarf::DW_FORM_data4, SPSym);
-          DD->addArangeLabel(SymbolCU(this, SPSym));
         } else {
           // FIXME: when writing dwo, we need to avoid relocations. Probably
           // the "right" solution is to treat globals the way func and data
@@ -1119,9 +1118,14 @@ void DwarfCompileUnit::constructAbstractSubprogramScopeDIE(
     ContextCU = DD->lookupCU(ContextDIE->getUnitDie());
   }
 
-  // Passing null as the associated node because the abstract definition
-  // shouldn't be found by lookup.
-  AbsDef = &ContextCU->createAndAddDIE(dwarf::DW_TAG_subprogram, *ContextDIE, nullptr);
+  // The abstract definition can only be looked up from the associated node if
+  // the subprogram does not have a concrete function.
+  if (!ContextCU->DD->IsConcrete(SP))
+    AbsDef = ContextCU->getDIE(SP);
+  if (!AbsDef)
+    AbsDef = &ContextCU->createAndAddDIE(dwarf::DW_TAG_subprogram, *ContextDIE,
+                                         nullptr);
+
   ContextCU->applySubprogramAttributesToDefinition(SP, *AbsDef);
   ContextCU->addSInt(*AbsDef, dwarf::DW_AT_inline,
                      DD->getDwarfVersion() <= 4 ? Optional<dwarf::Form>()
@@ -1303,7 +1307,7 @@ DIE *DwarfCompileUnit::constructImportedEntityDIE(
 void DwarfCompileUnit::finishSubprogramDefinition(const DISubprogram *SP) {
   DIE *D = getDIE(SP);
   if (DIE *AbsSPDIE = getAbstractSPDies().lookup(SP)) {
-    if (D)
+    if (D && D != AbsSPDIE)
       // If this subprogram has an abstract definition, reference that
       addDIEEntry(*D, dwarf::DW_AT_abstract_origin, *AbsSPDIE);
   } else {

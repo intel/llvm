@@ -80,19 +80,39 @@ static HeaderFileType getOutputType(const InputArgList &args) {
   }
 }
 
+static DenseMap<CachedHashStringRef, StringRef> resolvedLibraries;
 static Optional<StringRef> findLibrary(StringRef name) {
-  if (config->searchDylibsFirst) {
-    if (Optional<StringRef> path = findPathCombination(
-            "lib" + name, config->librarySearchPaths, {".tbd", ".dylib"}))
-      return path;
+  CachedHashStringRef key(name);
+  auto entry = resolvedLibraries.find(key);
+  if (entry != resolvedLibraries.end())
+    return entry->second;
+
+  auto doFind = [&] {
+    if (config->searchDylibsFirst) {
+      if (Optional<StringRef> path = findPathCombination(
+              "lib" + name, config->librarySearchPaths, {".tbd", ".dylib"}))
+        return path;
+      return findPathCombination("lib" + name, config->librarySearchPaths,
+                                 {".a"});
+    }
     return findPathCombination("lib" + name, config->librarySearchPaths,
-                               {".a"});
-  }
-  return findPathCombination("lib" + name, config->librarySearchPaths,
-                             {".tbd", ".dylib", ".a"});
+                               {".tbd", ".dylib", ".a"});
+  };
+
+  Optional<StringRef> path = doFind();
+  if (path)
+    resolvedLibraries[key] = *path;
+
+  return path;
 }
 
+static DenseMap<CachedHashStringRef, StringRef> resolvedFrameworks;
 static Optional<StringRef> findFramework(StringRef name) {
+  CachedHashStringRef key(name);
+  auto entry = resolvedFrameworks.find(key);
+  if (entry != resolvedFrameworks.end())
+    return entry->second;
+
   SmallString<260> symlink;
   StringRef suffix;
   std::tie(name, suffix) = name.split(",");
@@ -108,13 +128,13 @@ static Optional<StringRef> findFramework(StringRef name) {
         // only append suffix if realpath() succeeds
         Twine suffixed = location + suffix;
         if (fs::exists(suffixed))
-          return saver.save(suffixed.str());
+          return resolvedFrameworks[key] = saver.save(suffixed.str());
       }
       // Suffix lookup failed, fall through to the no-suffix case.
     }
 
     if (Optional<StringRef> path = resolveDylibPath(symlink.str()))
-      return path;
+      return resolvedFrameworks[key] = *path;
   }
   return {};
 }
@@ -174,7 +194,7 @@ static std::vector<StringRef> getSystemLibraryRoots(InputArgList &args) {
   for (const Arg *arg : args.filtered(OPT_syslibroot))
     roots.push_back(arg->getValue());
   // NOTE: the final `-syslibroot` being `/` will ignore all roots
-  if (roots.size() && roots.back() == "/")
+  if (!roots.empty() && roots.back() == "/")
     roots.clear();
   // NOTE: roots can never be empty - add an empty root to simplify the library
   // and framework search path computation.
@@ -206,7 +226,9 @@ static llvm::CachePruningPolicy getLTOCachePolicy(InputArgList &args) {
        args.filtered(OPT_thinlto_cache_policy, OPT_prune_interval_lto,
                      OPT_prune_after_lto, OPT_max_relative_cache_size_lto)) {
     switch (arg->getOption().getID()) {
-    case OPT_thinlto_cache_policy: add(arg->getValue()); break;
+    case OPT_thinlto_cache_policy:
+      add(arg->getValue());
+      break;
     case OPT_prune_interval_lto:
       if (!strcmp("-1", arg->getValue()))
         add("prune_interval=87600h"); // 10 years
@@ -374,9 +396,10 @@ static void addFramework(StringRef name, bool isNeeded, bool isWeak,
 }
 
 // Parses LC_LINKER_OPTION contents, which can add additional command line
-// flags.
+// flags. This directly parses the flags instead of using the standard argument
+// parser to improve performance.
 void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
-  SmallVector<const char *, 4> argv;
+  SmallVector<StringRef, 4> argv;
   size_t offset = 0;
   for (unsigned i = 0; i < argc && offset < data.size(); ++i) {
     argv.push_back(data.data() + offset);
@@ -385,32 +408,20 @@ void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
   if (argv.size() != argc || offset > data.size())
     fatal(toString(f) + ": invalid LC_LINKER_OPTION");
 
-  MachOOptTable table;
-  unsigned missingIndex, missingCount;
-  InputArgList args = table.ParseArgs(argv, missingIndex, missingCount);
-  if (missingCount)
-    fatal(Twine(args.getArgString(missingIndex)) + ": missing argument");
-  for (const Arg *arg : args.filtered(OPT_UNKNOWN))
-    error("unknown argument: " + arg->getAsString(args));
-
-  for (const Arg *arg : args) {
-    switch (arg->getOption().getID()) {
-    case OPT_l: {
-      StringRef name = arg->getValue();
-      ForceLoad forceLoadArchive =
-          config->forceLoadSwift && name.startswith("swift") ? ForceLoad::Yes
-                                                             : ForceLoad::No;
-      addLibrary(name, /*isNeeded=*/false, /*isWeak=*/false,
-                 /*isReexport=*/false, /*isExplicit=*/false, forceLoadArchive);
-      break;
-    }
-    case OPT_framework:
-      addFramework(arg->getValue(), /*isNeeded=*/false, /*isWeak=*/false,
-                   /*isReexport=*/false, /*isExplicit=*/false, ForceLoad::No);
-      break;
-    default:
-      error(arg->getSpelling() + " is not allowed in LC_LINKER_OPTION");
-    }
+  unsigned i = 0;
+  StringRef arg = argv[i];
+  if (arg.consume_front("-l")) {
+    ForceLoad forceLoadArchive =
+        config->forceLoadSwift && arg.startswith("swift") ? ForceLoad::Yes
+                                                          : ForceLoad::No;
+    addLibrary(arg, /*isNeeded=*/false, /*isWeak=*/false,
+               /*isReexport=*/false, /*isExplicit=*/false, forceLoadArchive);
+  } else if (arg == "-framework") {
+    StringRef name = argv[++i];
+    addFramework(name, /*isNeeded=*/false, /*isWeak=*/false,
+                 /*isReexport=*/false, /*isExplicit=*/false, ForceLoad::No);
+  } else {
+    error(arg + " is not allowed in LC_LINKER_OPTION");
   }
 }
 
@@ -758,6 +769,8 @@ static void warnIfUnimplementedOption(const Option &opt) {
   case OPT_grp_ignored:
     warn("Option `" + opt.getPrefixedName() + "' is ignored.");
     break;
+  case OPT_grp_ignored_silently:
+    break;
   default:
     warn("Option `" + opt.getPrefixedName() +
          "' is not yet implemented. Stay tuned...");
@@ -1074,6 +1087,9 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   errorHandler().cleanupCallback = []() {
     freeArena();
 
+    resolvedFrameworks.clear();
+    resolvedLibraries.clear();
+    cachedReads.clear();
     concatOutputSections.clear();
     inputFiles.clear();
     inputSections.clear();
@@ -1202,6 +1218,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   config->printWhyLoad = args.hasArg(OPT_why_load);
   config->omitDebugInfo = args.hasArg(OPT_S);
   config->outputType = getOutputType(args);
+  config->errorForArchMismatch = args.hasArg(OPT_arch_errors_fatal);
   if (const Arg *arg = args.getLastArg(OPT_bundle_loader)) {
     if (config->outputType != MH_BUNDLE)
       error("-bundle_loader can only be used with MachO bundle output");
@@ -1362,15 +1379,17 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
           config->platform() == PlatformKind::macOS);
 
   if (args.hasArg(OPT_v)) {
-    message(getLLDVersion());
+    message(getLLDVersion(), lld::errs());
     message(StringRef("Library search paths:") +
-            (config->librarySearchPaths.empty()
-                 ? ""
-                 : "\n\t" + join(config->librarySearchPaths, "\n\t")));
+                (config->librarySearchPaths.empty()
+                     ? ""
+                     : "\n\t" + join(config->librarySearchPaths, "\n\t")),
+            lld::errs());
     message(StringRef("Framework search paths:") +
-            (config->frameworkSearchPaths.empty()
-                 ? ""
-                 : "\n\t" + join(config->frameworkSearchPaths, "\n\t")));
+                (config->frameworkSearchPaths.empty()
+                     ? ""
+                     : "\n\t" + join(config->frameworkSearchPaths, "\n\t")),
+            lld::errs());
   }
 
   config->progName = argsArr[0];

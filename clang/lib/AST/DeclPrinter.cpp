@@ -1111,9 +1111,9 @@ void DeclPrinter::printTemplateArguments(ArrayRef<TemplateArgument> Args,
     if (TemplOverloaded || !Params)
       Args[I].print(Policy, Out, /*IncludeType*/ true);
     else
-      Args[I].print(
-          Policy, Out,
-          TemplateParameterList::shouldIncludeTypeForArgument(Params, I));
+      Args[I].print(Policy, Out,
+                    TemplateParameterList::shouldIncludeTypeForArgument(
+                        Policy, Params, I));
   }
   Out << ">";
 }
@@ -1130,7 +1130,8 @@ void DeclPrinter::printTemplateArguments(ArrayRef<TemplateArgumentLoc> Args,
     else
       Args[I].getArgument().print(
           Policy, Out,
-          TemplateParameterList::shouldIncludeTypeForArgument(Params, I));
+          TemplateParameterList::shouldIncludeTypeForArgument(Policy, Params,
+                                                              I));
   }
   Out << ">";
 }
@@ -1667,10 +1668,11 @@ void DeclPrinter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
     Out << ")";
   }
   if (!D->clauselist_empty()) {
-    Out << " ";
     OMPClausePrinter Printer(Out, Policy);
-    for (OMPClause *C : D->clauselists())
+    for (OMPClause *C : D->clauselists()) {
+      Out << " ";
       Printer.Visit(C);
+    }
   }
 }
 

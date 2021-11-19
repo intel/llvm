@@ -281,11 +281,10 @@ static unsigned getMaxCalleeSavedReg(ArrayRef<CalleeSavedInfo> CSI,
 /// frame to be already in place.
 static bool needsStackFrame(const MachineBasicBlock &MBB, const BitVector &CSR,
                             const HexagonRegisterInfo &HRI) {
-    for (auto &I : MBB) {
-      const MachineInstr *MI = &I;
-      if (MI->isCall())
+    for (const MachineInstr &MI : MBB) {
+      if (MI.isCall())
         return true;
-      unsigned Opc = MI->getOpcode();
+      unsigned Opc = MI.getOpcode();
       switch (Opc) {
         case Hexagon::PS_alloca:
         case Hexagon::PS_aligna:
@@ -294,7 +293,7 @@ static bool needsStackFrame(const MachineBasicBlock &MBB, const BitVector &CSR,
           break;
       }
       // Check individual operands.
-      for (const MachineOperand &MO : MI->operands()) {
+      for (const MachineOperand &MO : MI.operands()) {
         // While the presence of a frame index does not prove that a stack
         // frame will be required, all frame indexes should be within alloc-
         // frame/deallocframe. Otherwise, the code that translates a frame
@@ -425,11 +424,10 @@ void HexagonFrameLowering::findShrunkPrologEpilog(MachineFunction &MF,
   // city don't do it right now.
   for (auto &I : MF) {
     unsigned BN = RPO[I.getNumber()];
-    for (auto SI = I.succ_begin(), SE = I.succ_end(); SI != SE; ++SI) {
+    for (MachineBasicBlock *Succ : I.successors())
       // If found a back-edge, return.
-      if (RPO[(*SI)->getNumber()] <= BN)
+      if (RPO[Succ->getNumber()] <= BN)
         return;
-    }
   }
 
   // Collect the set of blocks that need a stack frame to execute. Scan

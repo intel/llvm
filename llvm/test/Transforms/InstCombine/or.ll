@@ -99,9 +99,9 @@ define i32 @test17(i32 %A) {
 
 define i1 @test18(i32 %A) {
 ; CHECK-LABEL: @test18(
-; CHECK-NEXT:    [[A_OFF:%.*]] = add i32 [[A:%.*]], -50
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ugt i32 [[A_OFF]], 49
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[A:%.*]], -100
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult i32 [[TMP1]], -50
+; CHECK-NEXT:    ret i1 [[TMP2]]
 ;
   %B = icmp sge i32 %A, 100
   %C = icmp slt i32 %A, 50
@@ -111,9 +111,9 @@ define i1 @test18(i32 %A) {
 
 define i1 @test18_logical(i32 %A) {
 ; CHECK-LABEL: @test18_logical(
-; CHECK-NEXT:    [[A_OFF:%.*]] = add i32 [[A:%.*]], -50
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ugt i32 [[A_OFF]], 49
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[A:%.*]], -100
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult i32 [[TMP1]], -50
+; CHECK-NEXT:    ret i1 [[TMP2]]
 ;
   %B = icmp sge i32 %A, 100
   %C = icmp slt i32 %A, 50
@@ -341,9 +341,9 @@ define i32 @test30(i32 %A) {
 ; CHECK-NEXT:    [[E:%.*]] = or i32 [[D]], 32962
 ; CHECK-NEXT:    ret i32 [[E]]
 ;
-  %B = or i32 %A, 32962
-  %C = and i32 %A, -65536
-  %D = and i32 %B, 40186
+  %B = or i32 %A, 32962   ; 0b1000_0000_1100_0010
+  %C = and i32 %A, -65536 ; 0xffff0000
+  %D = and i32 %B, 40186  ; 0b1001_1100_1111_1010
   %E = or i32 %D, %C
   ret i32 %E
 }

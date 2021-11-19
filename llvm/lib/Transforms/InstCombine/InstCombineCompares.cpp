@@ -1270,9 +1270,8 @@ static Instruction *processUGT_ADDCST_ADD(ICmpInst &I, Value *A, Value *B,
   // This is only really a signed overflow check if the inputs have been
   // sign-extended; check for that condition. For example, if CI2 is 2^31 and
   // the operands of the add are 64 bits wide, we need at least 33 sign bits.
-  unsigned NeededSignBits = CI1->getBitWidth() - NewWidth + 1;
-  if (IC.ComputeNumSignBits(A, 0, &I) < NeededSignBits ||
-      IC.ComputeNumSignBits(B, 0, &I) < NeededSignBits)
+  if (IC.ComputeMinSignedBits(A, 0, &I) > NewWidth ||
+      IC.ComputeMinSignedBits(B, 0, &I) > NewWidth)
     return nullptr;
 
   // In order to replace the original add with a narrower
@@ -2748,6 +2747,14 @@ Instruction *InstCombinerImpl::foldICmpAddConstant(ICmpInst &Cmp,
   if (Pred == ICmpInst::ICMP_UGT && (C + 1).isPowerOf2() && (*C2 & C) == 0)
     return new ICmpInst(ICmpInst::ICMP_NE, Builder.CreateAnd(X, ~C),
                         ConstantExpr::getNeg(cast<Constant>(Y)));
+
+  // The range test idiom can use either ult or ugt. Arbitrarily canonicalize
+  // to the ult form.
+  // X+C2 >u C -> X+(C2-C-1) <u ~C
+  if (Pred == ICmpInst::ICMP_UGT)
+    return new ICmpInst(ICmpInst::ICMP_ULT,
+                        Builder.CreateAdd(X, ConstantInt::get(Ty, *C2 - C - 1)),
+                        ConstantInt::get(Ty, ~C));
 
   return nullptr;
 }
@@ -4614,18 +4621,22 @@ static Instruction *foldICmpWithTrunc(ICmpInst &ICmp,
   // The trunc masks high bits while the compare may effectively mask low bits.
   Value *X;
   const APInt *C;
-  if (match(Op0, m_OneUse(m_Trunc(m_Value(X)))) && match(Op1, m_Power2(C))) {
-    if (Pred == ICmpInst::ICMP_ULT) {
-      // (trunc X) u< Pow2C --> (X & MaskC) == 0
-      unsigned SrcBits = X->getType()->getScalarSizeInBits();
-      unsigned DstBits = Op0->getType()->getScalarSizeInBits();
-      APInt MaskC = APInt::getOneBitSet(SrcBits, DstBits) - C->zext(SrcBits);
+  if (!match(Op0, m_OneUse(m_Trunc(m_Value(X)))) || !match(Op1, m_APInt(C)))
+    return nullptr;
+
+  unsigned SrcBits = X->getType()->getScalarSizeInBits();
+  if (Pred == ICmpInst::ICMP_ULT) {
+    if (C->isPowerOf2()) {
+      // If C is a power-of-2:
+      // (trunc X) u< C --> (X & -C) == 0 (are all masked-high-bits clear?)
+      Constant *MaskC = ConstantInt::get(X->getType(), (-*C).zext(SrcBits));
       Value *And = Builder.CreateAnd(X, MaskC);
       Constant *Zero = ConstantInt::getNullValue(X->getType());
       return new ICmpInst(ICmpInst::ICMP_EQ, And, Zero);
     }
-    // TODO: Handle ugt.
+    // TODO: Handle C is negative-power-of-2.
   }
+  // TODO: Handle ugt.
 
   return nullptr;
 }

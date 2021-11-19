@@ -480,13 +480,16 @@ class fir_SwitchTerminatorOp<string mnemonic, list<OpTrait> traits = []> :
 
     // The number of destination conditions that may be tested
     unsigned getNumConditions() {
-      return (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr()).size();
+      return getCases().size();
     }
 
     // The selector is the value being tested to determine the destination
     mlir::Value getSelector() { return selector(); }
     mlir::Value getSelector(llvm::ArrayRef<mlir::Value> operands) {
       return operands[0];
+    }
+    mlir::Value getSelector(mlir::ValueRange operands) {
+      return operands.front();
     }
 
     // The number of blocks that may be branched to
@@ -498,6 +501,8 @@ class fir_SwitchTerminatorOp<string mnemonic, list<OpTrait> traits = []> :
 
     llvm::Optional<llvm::ArrayRef<mlir::Value>> getSuccessorOperands(
         llvm::ArrayRef<mlir::Value> operands, unsigned cond);
+    llvm::Optional<mlir::ValueRange> getSuccessorOperands(
+        mlir::ValueRange operands, unsigned cond);
     using BranchOpInterfaceTrait::getSuccessorOperands;
 
     // Helper function to deal with Optional operand forms
@@ -508,6 +513,10 @@ class fir_SwitchTerminatorOp<string mnemonic, list<OpTrait> traits = []> :
         p.printSuccessorAndUseList(succ, ops.getValue());
       else
         p.printSuccessor(succ);
+    }
+
+    mlir::ArrayAttr getCases() {
+      return (*this)->getAttrOfType<mlir::ArrayAttr>(getCasesAttr());
     }
 
     unsigned targetOffsetSize();
@@ -1725,11 +1734,6 @@ def fir_ExtractValueOp : fir_OneResultOp<"extract_value", [NoSideEffect]> {
   let assemblyFormat = [{
     $adt `,` $coor attr-dict `:` functional-type(operands, results)
   }];
-
-  let builders = [
-    OpBuilder<(ins "mlir::Type":$rty, "mlir::Value":$adt,
-      "llvm::ArrayRef<mlir::Value>":$vcoor)>
-  ];
 }
 
 def fir_FieldIndexOp : fir_OneResultOp<"field_index", [NoSideEffect]> {
@@ -1976,11 +1980,6 @@ def fir_InsertValueOp : fir_OneResultOp<"insert_value", [NoSideEffect]> {
     $adt `,` $val `,` $coor attr-dict `:` functional-type(operands, results)
   }];
 
-  let builders = [
-    OpBuilder<(ins "mlir::Type":$rty, "mlir::Value":$adt, "mlir::Value":$val,
-      "llvm::ArrayRef<mlir::Value>":$vcoor)>
-  ];
-
   let hasCanonicalizer = 1;
 }
 
@@ -1988,7 +1987,8 @@ def fir_InsertOnRangeOp : fir_OneResultOp<"insert_on_range", [NoSideEffect]> {
   let summary = "insert sub-value into a range on an existing sequence";
 
   let description = [{
-    Insert copies of a value into an entity with an array type.
+    Insert copies of a value into an entity with an array type of constant shape
+    and size.
     Returns a new ssa value with the same type as the original entity.
     The values are inserted at a contiguous range of indices in Fortran
     row-to-column element order as specified by lower and upper bound
@@ -2010,11 +2010,6 @@ def fir_InsertOnRangeOp : fir_OneResultOp<"insert_on_range", [NoSideEffect]> {
   let assemblyFormat = [{
     $seq `,` $val `,` $coor attr-dict `:` functional-type(operands, results)
   }];
-
-  let builders = [
-    OpBuilder<(ins "mlir::Type":$rty, "mlir::Value":$adt, "mlir::Value":$val,
-      "llvm::ArrayRef<mlir::Value>":$vcoor)>
-  ];
 
   let verifier = "return ::verify(*this);";
 }

@@ -13,11 +13,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "Delta.h"
+#include "ReducerWorkItem.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Transforms/Utils/Cloning.h"
 #include <fstream>
 #include <set>
 
@@ -27,13 +27,18 @@ static cl::opt<bool> AbortOnInvalidReduction(
     "abort-on-invalid-reduction",
     cl::desc("Abort if any reduction results in invalid IR"));
 
-void writeOutput(llvm::Module &M, llvm::StringRef Message);
+static cl::opt<unsigned int> StartingGranularityLevel(
+    "starting-granularity-level",
+    cl::desc("Number of times to divide chunks prior to first test"));
 
-bool isReduced(Module &M, TestRunner &Test, SmallString<128> &CurrentFilepath) {
-  // Write Module to tmp file
+void writeOutput(ReducerWorkItem &M, llvm::StringRef Message);
+
+bool isReduced(ReducerWorkItem &M, TestRunner &Test,
+               SmallString<128> &CurrentFilepath) {
+  // Write ReducerWorkItem to tmp file
   int FD;
-  std::error_code EC =
-      sys::fs::createTemporaryFile("llvm-reduce", "ll", FD, CurrentFilepath);
+  std::error_code EC = sys::fs::createTemporaryFile(
+      "llvm-reduce", M.isMIR() ? "mir" : "ll", FD, CurrentFilepath);
   if (EC) {
     errs() << "Error making unique filename: " << EC.message() << "!\n";
     exit(1);
@@ -95,9 +100,10 @@ static bool increaseGranularity(std::vector<Chunk> &Chunks) {
 /// Runs the Delta Debugging algorithm, splits the code into chunks and
 /// reduces the amount of chunks that are considered interesting by the
 /// given test.
-void llvm::runDeltaPass(
+template <typename T>
+void runDeltaPassInt(
     TestRunner &Test, int Targets,
-    function_ref<void(Oracle &, Module &)> ExtractChunksFromModule) {
+    function_ref<void(Oracle &, T &)> ExtractChunksFromModule) {
   assert(Targets >= 0);
   if (!Targets) {
     errs() << "\nNothing to reduce\n";
@@ -110,11 +116,15 @@ void llvm::runDeltaPass(
     exit(1);
   }
 
-  assert(!verifyModule(Test.getProgram(), &errs()) &&
+  assert(!verifyReducerWorkItem(Test.getProgram(), &errs()) &&
          "input module is broken before making changes");
 
   std::vector<Chunk> ChunksStillConsideredInteresting = {{1, Targets}};
-  std::unique_ptr<Module> ReducedProgram;
+  std::unique_ptr<ReducerWorkItem> ReducedProgram;
+
+  for (unsigned int Level = 0; Level < StartingGranularityLevel; Level++) {
+    increaseGranularity(ChunksStillConsideredInteresting);
+  }
 
   bool FoundAtLeastOneNewUninterestingChunkWithCurrentGranularity;
   do {
@@ -137,13 +147,14 @@ void llvm::runDeltaPass(
               });
 
       // Clone module before hacking it up..
-      std::unique_ptr<Module> Clone = CloneModule(Test.getProgram());
+      std::unique_ptr<ReducerWorkItem> Clone =
+          cloneReducerWorkItem(Test.getProgram());
       // Generate Module with only Targets inside Current Chunks
       Oracle O(CurrentChunks);
       ExtractChunksFromModule(O, *Clone);
 
       // Some reductions may result in invalid IR. Skip such reductions.
-      if (verifyModule(*Clone, &errs())) {
+      if (verifyReducerWorkItem(*Clone, &errs())) {
         if (AbortOnInvalidReduction) {
           errs() << "Invalid reduction\n";
           exit(1);
@@ -184,4 +195,16 @@ void llvm::runDeltaPass(
   if (ReducedProgram)
     Test.setProgram(std::move(ReducedProgram));
   errs() << "Couldn't increase anymore.\n";
+}
+
+void llvm::runDeltaPass(
+    TestRunner &Test, int Targets,
+    function_ref<void(Oracle &, Module &)> ExtractChunksFromModule) {
+  runDeltaPassInt<Module>(Test, Targets, ExtractChunksFromModule);
+}
+
+void llvm::runDeltaPass(
+    TestRunner &Test, int Targets,
+    function_ref<void(Oracle &, MachineFunction &)> ExtractChunksFromModule) {
+  runDeltaPassInt<MachineFunction>(Test, Targets, ExtractChunksFromModule);
 }

@@ -322,8 +322,7 @@ static void convertUnprimedAccPHIs(const PPCInstrInfo *TII,
                                    SmallVectorImpl<MachineInstr *> &PHIs,
                                    Register Dst) {
   DenseMap<MachineInstr *, MachineInstr *> ChangedPHIMap;
-  for (auto It = PHIs.rbegin(), End = PHIs.rend(); It != End; ++It) {
-    MachineInstr *PHI = *It;
+  for (MachineInstr *PHI : llvm::reverse(PHIs)) {
     SmallVector<std::pair<MachineOperand, MachineOperand>, 4> PHIOps;
     // We check if the current PHI node can be changed by looking at its
     // operands. If all the operands are either copies from primed
@@ -603,14 +602,24 @@ bool PPCMIPeephole::simplifyCode(void) {
             ToErase = &MI;
             Simplified = true;
           }
-        } else if ((Immed == 0 || Immed == 3) && DefOpc == PPC::XXPERMDIs &&
+        } else if ((Immed == 0 || Immed == 3 || Immed == 2) &&
+                   DefOpc == PPC::XXPERMDIs &&
                    (DefMI->getOperand(2).getImm() == 0 ||
                     DefMI->getOperand(2).getImm() == 3)) {
+          ToErase = &MI;
+          Simplified = true;
+          // Swap of a splat, convert to copy.
+          if (Immed == 2) {
+            LLVM_DEBUG(dbgs() << "Optimizing swap(splat) => copy(splat): ");
+            LLVM_DEBUG(MI.dump());
+            BuildMI(MBB, &MI, MI.getDebugLoc(), TII->get(PPC::COPY),
+                    MI.getOperand(0).getReg())
+                .add(MI.getOperand(1));
+            break;
+          }
           // Splat fed by another splat - switch the output of the first
           // and remove the second.
           DefMI->getOperand(0).setReg(MI.getOperand(0).getReg());
-          ToErase = &MI;
-          Simplified = true;
           LLVM_DEBUG(dbgs() << "Removing redundant splat: ");
           LLVM_DEBUG(MI.dump());
         }

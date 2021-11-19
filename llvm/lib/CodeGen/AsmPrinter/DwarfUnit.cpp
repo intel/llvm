@@ -672,7 +672,7 @@ std::string DwarfUnit::getParentContextString(const DIScope *Context) const {
 
   // Reverse iterate over our list to go from the outermost construct to the
   // innermost.
-  for (const DIScope *Ctx : make_range(Parents.rbegin(), Parents.rend())) {
+  for (const DIScope *Ctx : llvm::reverse(Parents)) {
     StringRef Name = Ctx->getName();
     if (Name.empty() && isa<DINamespace>(Ctx))
       Name = "(anonymous namespace)";
@@ -1145,6 +1145,11 @@ DIE *DwarfUnit::getOrCreateSubprogramDIE(const DISubprogram *SP, bool Minimal) {
       getOrCreateSubprogramDIE(SPDecl);
     }
   }
+
+  // Try to reference the abstract origin if the subprogram is not concrete.
+  if (!DD->IsConcrete(SP))
+    if (auto *SPDie = DU->getAbstractSPDies().lookup(SP))
+      return SPDie;
 
   // DW_TAG_inlined_subroutine may refer to this DIE.
   DIE &SPDie = createAndAddDIE(dwarf::DW_TAG_subprogram, *ContextDIE, SP);

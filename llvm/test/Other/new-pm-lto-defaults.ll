@@ -51,6 +51,7 @@
 ; CHECK-O-NEXT: Running analysis: AAManager
 ; CHECK-O-NEXT: Running analysis: BasicAA
 ; CHECK-O1-NEXT: Running analysis: AssumptionAnalysis on foo
+; CHECK-O1-NEXT: Running analysis: TargetIRAnalysis
 ; CHECK-O1-NEXT: Running analysis: DominatorTreeAnalysis
 ; CHECK-O-NEXT: Running analysis: ScopedNoAliasAA
 ; CHECK-O-NEXT: Running analysis: TypeBasedAA
@@ -79,7 +80,7 @@
 ; CHECK-EP-Peephole-NEXT: Running pass: NoOpFunctionPass
 ; CHECK-O23SZ-NEXT: Running pass: JumpThreadingPass
 ; CHECK-O23SZ-NEXT: Running analysis: LazyValueAnalysis
-; CHECK-O23SZ-NEXT: Running pass: SROA on foo
+; CHECK-O23SZ-NEXT: Running pass: SROAPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: TailCallElimPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: PostOrderFunctionAttrsPass on (foo)
 ; CHECK-O23SZ-NEXT: Running pass: RequireAnalysisPass<{{.*}}GlobalsAA
@@ -94,7 +95,7 @@
 ; CHECK-O23SZ-NEXT: Running analysis: ScalarEvolutionAnalysis on foo
 ; CHECK-O23SZ-NEXT: Running analysis: InnerAnalysisManagerProxy
 ; CHECK-O23SZ-NEXT: Running pass: LICMPass on Loop
-; CHECK-O23SZ-NEXT: Running pass: GVN on foo
+; CHECK-O23SZ-NEXT: Running pass: GVNPass on foo
 ; CHECK-O23SZ-NEXT: Running analysis: MemoryDependenceAnalysis on foo
 ; CHECK-O23SZ-NEXT: Running analysis: PhiValuesAnalysis on foo
 ; CHECK-O23SZ-NEXT: Running pass: MemCpyOptPass on foo

@@ -363,7 +363,14 @@ def OMPC_Filter : Clause<"filter"> {
   let clangClass = "OMPFilterClause";
   let flangClass = "ScalarIntExpr";
 }
+def OMPC_Align : Clause<"align"> {
+  let clangClass = "OMPAlignClause";
+}
 def OMPC_When: Clause<"when"> {}
+
+def OMPC_Bind : Clause<"bind"> {
+  let clangClass = "OMPBindClause";
+}
 
 //===----------------------------------------------------------------------===//
 // Definition of OpenMP directives
@@ -1535,7 +1542,8 @@ def OMP_TargetTeamsDistributeSimd :
 }
 def OMP_Allocate : Directive<"allocate"> {
   let allowedOnceClauses = [
-    VersionedClause<OMPC_Allocator>
+    VersionedClause<OMPC_Allocator>,
+    VersionedClause<OMPC_Align, 51>
   ];
 }
 def OMP_DeclareVariant : Directive<"declare variant"> {
@@ -1739,6 +1747,7 @@ def OMP_loop : Directive<"loop"> {
     VersionedClause<OMPC_Reduction>,
   ];
   let allowedOnceClauses = [
+    VersionedClause<OMPC_Bind, 50>,
     VersionedClause<OMPC_Collapse>,
     VersionedClause<OMPC_Order>,
   ];

@@ -1021,7 +1021,7 @@ void SPIRVToOCLBase::visitCallSPIRVVStore(CallInst *CI, OCLExtOpKind Kind) {
             Kind == OpenCLLIB::Vstorea_halfn ||
             Kind == OpenCLLIB::Vstorea_halfn_r || Kind == OpenCLLIB::Vstoren) {
           if (auto DataType = dyn_cast<VectorType>(Args[0]->getType())) {
-            uint64_t NumElements = DataType->getElementCount().getValue();
+            uint64_t NumElements = DataType->getElementCount().getFixedValue();
             assert((NumElements == 2 || NumElements == 3 || NumElements == 4 ||
                     NumElements == 8 || NumElements == 16) &&
                    "Unsupported vector size for vstore instruction!");

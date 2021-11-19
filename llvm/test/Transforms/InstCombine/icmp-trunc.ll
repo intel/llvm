@@ -91,8 +91,6 @@ define <2 x i1> @ult_2044_splat(<2 x i16> %x) {
   ret <2 x i1> %r
 }
 
-; negative test - need high-bit-mask constant
-
 define i1 @ult_96(i32 %x) {
 ; CHECK-LABEL: @ult_96(
 ; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
@@ -103,8 +101,6 @@ define i1 @ult_96(i32 %x) {
   %r = icmp ult i8 %t, 96  ; 0b0110_0000
   ret i1 %r
 }
-
-; negative test - no extra use allowed
 
 define i1 @ult_192_use(i32 %x) {
 ; CHECK-LABEL: @ult_192_use(
@@ -119,6 +115,52 @@ define i1 @ult_192_use(i32 %x) {
   ret i1 %r
 }
 
+define i1 @ugt_3(i32 %x) {
+; CHECK-LABEL: @ugt_3(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i8 [[T]], 3
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  %r = icmp ugt i8 %t, 3
+  ret i1 %r
+}
+
+define <2 x i1> @ugt_7_splat(<2 x i16> %x) {
+; CHECK-LABEL: @ugt_7_splat(
+; CHECK-NEXT:    [[T:%.*]] = trunc <2 x i16> [[X:%.*]] to <2 x i11>
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt <2 x i11> [[T]], <i11 7, i11 7>
+; CHECK-NEXT:    ret <2 x i1> [[R]]
+;
+  %t = trunc <2 x i16> %x to <2 x i11>
+  %r = icmp ugt <2 x i11> %t, <i11 7, i11 7>
+  ret <2 x i1> %r
+}
+
+define i1 @ugt_4(i32 %x) {
+; CHECK-LABEL: @ugt_4(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i8 [[T]], 4
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  %r = icmp ugt i8 %t, 4
+  ret i1 %r
+}
+
+define i1 @ugt_3_use(i32 %x) {
+; CHECK-LABEL: @ugt_3_use(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    call void @use(i8 [[T]])
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i8 [[T]], 3
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  call void @use(i8 %t)
+  %r = icmp ugt i8 %t, 3
+  ret i1 %r
+}
+
 define i1 @ugt_253(i32 %x) {
 ; CHECK-LABEL: @ugt_253(
 ; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
@@ -130,21 +172,19 @@ define i1 @ugt_253(i32 %x) {
   ret i1 %r
 }
 
-define <2 x i1> @ugt_239_splat(<2 x i16> %x) {
-; CHECK-LABEL: @ugt_239_splat(
+define <2 x i1> @ugt_2043_splat(<2 x i16> %x) {
+; CHECK-LABEL: @ugt_2043_splat(
 ; CHECK-NEXT:    [[T:%.*]] = trunc <2 x i16> [[X:%.*]] to <2 x i11>
-; CHECK-NEXT:    [[R:%.*]] = icmp ugt <2 x i11> [[T]], <i11 239, i11 239>
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt <2 x i11> [[T]], <i11 -5, i11 -5>
 ; CHECK-NEXT:    ret <2 x i1> [[R]]
 ;
   %t = trunc <2 x i16> %x to <2 x i11>
-  %r = icmp ugt <2 x i11> %t, <i11 239, i11 239>
+  %r = icmp ugt <2 x i11> %t, <i11 2043, i11 2043> ; 0b111_1111_101
   ret <2 x i1> %r
 }
 
-; negative test - need inverted power-of-2 constant
-
-define i1 @ugt_3(i32 %x) {
-; CHECK-LABEL: @ugt_3(
+define i1 @ugt_252(i32 %x) {
+; CHECK-LABEL: @ugt_252(
 ; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
 ; CHECK-NEXT:    [[R:%.*]] = icmp ugt i8 [[T]], -4
 ; CHECK-NEXT:    ret i1 [[R]]
@@ -154,10 +194,8 @@ define i1 @ugt_3(i32 %x) {
   ret i1 %r
 }
 
-; negative test - no extra use allowed
-
-define i1 @ugt_2_use(i32 %x) {
-; CHECK-LABEL: @ugt_2_use(
+define i1 @ugt_253_use(i32 %x) {
+; CHECK-LABEL: @ugt_253_use(
 ; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
 ; CHECK-NEXT:    call void @use(i8 [[T]])
 ; CHECK-NEXT:    [[R:%.*]] = icmp ugt i8 [[T]], -3
@@ -166,5 +204,97 @@ define i1 @ugt_2_use(i32 %x) {
   %t = trunc i32 %x to i8
   call void @use(i8 %t)
   %r = icmp ugt i8 %t, 253
+  ret i1 %r
+}
+
+define i1 @slt_0(i32 %x) {
+; CHECK-LABEL: @slt_0(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    [[R:%.*]] = icmp slt i8 [[T]], 0
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  %r = icmp slt i8 %t, 0
+  ret i1 %r
+}
+
+define <2 x i1> @slt_0_splat(<2 x i16> %x) {
+; CHECK-LABEL: @slt_0_splat(
+; CHECK-NEXT:    [[T:%.*]] = trunc <2 x i16> [[X:%.*]] to <2 x i11>
+; CHECK-NEXT:    [[R:%.*]] = icmp slt <2 x i11> [[T]], zeroinitializer
+; CHECK-NEXT:    ret <2 x i1> [[R]]
+;
+  %t = trunc <2 x i16> %x to <2 x i11>
+  %r = icmp slt <2 x i11> %t, zeroinitializer
+  ret <2 x i1> %r
+}
+
+define i1 @slt_1(i32 %x) {
+; CHECK-LABEL: @slt_1(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    [[R:%.*]] = icmp slt i8 [[T]], 1
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  %r = icmp slt i8 %t, 1
+  ret i1 %r
+}
+
+define i1 @slt_0_use(i32 %x) {
+; CHECK-LABEL: @slt_0_use(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    call void @use(i8 [[T]])
+; CHECK-NEXT:    [[R:%.*]] = icmp slt i8 [[T]], 0
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  call void @use(i8 %t)
+  %r = icmp slt i8 %t, 0
+  ret i1 %r
+}
+
+define i1 @sgt_n1(i32 %x) {
+; CHECK-LABEL: @sgt_n1(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt i8 [[T]], -1
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  %r = icmp sgt i8 %t, -1
+  ret i1 %r
+}
+
+define <2 x i1> @sgt_n1_splat(<2 x i16> %x) {
+; CHECK-LABEL: @sgt_n1_splat(
+; CHECK-NEXT:    [[T:%.*]] = trunc <2 x i16> [[X:%.*]] to <2 x i11>
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt <2 x i11> [[T]], <i11 -1, i11 -1>
+; CHECK-NEXT:    ret <2 x i1> [[R]]
+;
+  %t = trunc <2 x i16> %x to <2 x i11>
+  %r = icmp sgt <2 x i11> %t, <i11 -1, i11 -1>
+  ret <2 x i1> %r
+}
+
+define i1 @sgt_0(i32 %x) {
+; CHECK-LABEL: @sgt_0(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt i8 [[T]], 0
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  %r = icmp sgt i8 %t, 0
+  ret i1 %r
+}
+
+define i1 @sgt_n1_use(i32 %x) {
+; CHECK-LABEL: @sgt_n1_use(
+; CHECK-NEXT:    [[T:%.*]] = trunc i32 [[X:%.*]] to i8
+; CHECK-NEXT:    call void @use(i8 [[T]])
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt i8 [[T]], -1
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %t = trunc i32 %x to i8
+  call void @use(i8 %t)
+  %r = icmp sgt i8 %t, -1
   ret i1 %r
 }

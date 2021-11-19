@@ -12,6 +12,7 @@ Clang-Tidy Checks
 .. csv-table::
    :header: "Name", "Offers fixes"
 
+   `abseil-cleanup-ctad <abseil-cleanup-ctad.html>`_, "Yes"
    `abseil-duration-addition <abseil-duration-addition.html>`_, "Yes"
    `abseil-duration-comparison <abseil-duration-comparison.html>`_, "Yes"
    `abseil-duration-conversion-cast <abseil-duration-conversion-cast.html>`_, "Yes"
@@ -333,6 +334,7 @@ Clang-Tidy Checks
    `cert-dcl03-c <cert-dcl03-c.html>`_, `misc-static-assert <misc-static-assert.html>`_, "Yes"
    `cert-dcl16-c <cert-dcl16-c.html>`_, `readability-uppercase-literal-suffix <readability-uppercase-literal-suffix.html>`_, "Yes"
    `cert-dcl37-c <cert-dcl37-c.html>`_, `bugprone-reserved-identifier <bugprone-reserved-identifier.html>`_, "Yes"
+   `cert-err33-c <cert-err33-c.html>`_, `bugprone-unused-return-value <bugprone-unused-return-value.html>`_,
    `cert-dcl51-cpp <cert-dcl51-cpp.html>`_, `bugprone-reserved-identifier <bugprone-reserved-identifier.html>`_, "Yes"
    `cert-dcl54-cpp <cert-dcl54-cpp.html>`_, `misc-new-delete-overloads <misc-new-delete-overloads.html>`_,
    `cert-dcl59-cpp <cert-dcl59-cpp.html>`_, `google-build-namespaces <google-build-namespaces.html>`_,
@@ -447,3 +449,4 @@ Clang-Tidy Checks
    `hicpp-vararg <hicpp-vararg.html>`_, `cppcoreguidelines-pro-type-vararg <cppcoreguidelines-pro-type-vararg.html>`_,
    `llvm-else-after-return <llvm-else-after-return.html>`_, `readability-else-after-return <readability-else-after-return.html>`_, "Yes"
    `llvm-qualified-auto <llvm-qualified-auto.html>`_, `readability-qualified-auto <readability-qualified-auto.html>`_, "Yes"
+   

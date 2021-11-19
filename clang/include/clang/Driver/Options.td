@@ -620,12 +620,15 @@ def objcmt_migrate_designated_init : Flag<["-"], "objcmt-migrate-designated-init
   HelpText<"Enable migration to infer NS_DESIGNATED_INITIALIZER for initializer methods">,
   MarshallingInfoBitfieldFlag<FrontendOpts<"ObjCMTAction">, "FrontendOptions::ObjCMT_DesignatedInitializer">;
 
-def objcmt_whitelist_dir_path: Joined<["-"], "objcmt-whitelist-dir-path=">, Flags<[CC1Option]>,
+def objcmt_allowlist_dir_path: Joined<["-"], "objcmt-allowlist-dir-path=">, Flags<[CC1Option]>,
   HelpText<"Only modify files with a filename contained in the provided directory path">,
-  MarshallingInfoString<FrontendOpts<"ObjCMTWhiteListPath">>;
+  MarshallingInfoString<FrontendOpts<"ObjCMTAllowListPath">>;
+def : Joined<["-"], "objcmt-whitelist-dir-path=">, Flags<[CC1Option]>,
+  HelpText<"Alias for -objcmt-allowlist-dir-path">,
+  Alias<objcmt_allowlist_dir_path>;
 // The misspelt "white-list" [sic] alias is due for removal.
 def : Joined<["-"], "objcmt-white-list-dir-path=">, Flags<[CC1Option]>,
-    Alias<objcmt_whitelist_dir_path>;
+  Alias<objcmt_allowlist_dir_path>;
 
 // Make sure all other -ccc- options are rejected.
 def ccc_ : Joined<["-"], "ccc-">, Group<internal_Group>, Flags<[Unsupported]>;
@@ -2356,9 +2359,9 @@ defm application_extension : BoolFOption<"application-extension",
   PosFlag<SetTrue, [CC1Option], "Restrict code to those available for App Extensions">,
   NegFlag<SetFalse>>;
 defm relaxed_template_template_args : BoolFOption<"relaxed-template-template-args",
-  LangOpts<"RelaxedTemplateTemplateArgs">, DefaultTrue,
-  PosFlag<SetTrue>,
-  NegFlag<SetFalse, [CC1Option], "Disable C++17 relaxed template template argument matching">>;
+  LangOpts<"RelaxedTemplateTemplateArgs">, DefaultFalse,
+  PosFlag<SetTrue, [CC1Option], "Enable C++17 relaxed template template argument matching">,
+  NegFlag<SetFalse>>;
 defm sized_deallocation : BoolFOption<"sized-deallocation",
   LangOpts<"SizedDeallocation">, DefaultFalse,
   PosFlag<SetTrue, [CC1Option], "Enable C++14 sized global deallocation functions">,
