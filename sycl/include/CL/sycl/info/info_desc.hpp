@@ -20,6 +20,7 @@ class program;
 #endif
 class device;
 class platform;
+class kernel_id;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
@@ -109,7 +110,8 @@ enum class device : cl_device_info {
   is_linker_available = CL_DEVICE_LINKER_AVAILABLE,
   execution_capabilities = CL_DEVICE_EXECUTION_CAPABILITIES,
   queue_profiling = CL_DEVICE_QUEUE_PROPERTIES,
-  built_in_kernels = CL_DEVICE_BUILT_IN_KERNELS,
+  built_in_kernels __SYCL2020_DEPRECATED("use built_in_kernel_ids instead") =
+      CL_DEVICE_BUILT_IN_KERNELS,
   platform = CL_DEVICE_PLATFORM,
   name = CL_DEVICE_NAME,
   vendor = CL_DEVICE_VENDOR,
@@ -136,6 +138,7 @@ enum class device : cl_device_info {
   sub_group_sizes = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
   partition_type_property,
   kernel_kernel_pipe_support,
+  built_in_kernel_ids,
   // USM
   usm_device_allocations = PI_USM_DEVICE_SUPPORT,
   usm_host_allocations = PI_USM_HOST_SUPPORT,

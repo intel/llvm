@@ -58,6 +58,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, is_linker_available, bool)
 __SYCL_PARAM_TRAITS_SPEC(device, execution_capabilities,
                   std::vector<info::execution_capability>)
 __SYCL_PARAM_TRAITS_SPEC(device, queue_profiling, bool)
+__SYCL_PARAM_TRAITS_SPEC(device, built_in_kernel_ids, std::vector<kernel_id>)
 __SYCL_PARAM_TRAITS_SPEC(device, built_in_kernels, std::vector<std::string>)
 __SYCL_PARAM_TRAITS_SPEC(device, platform, cl::sycl::platform)
 __SYCL_PARAM_TRAITS_SPEC(device, name, std::string)
