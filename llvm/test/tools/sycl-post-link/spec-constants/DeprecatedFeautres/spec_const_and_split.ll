@@ -55,5 +55,6 @@ define dso_local spir_kernel void @KERNEL_CCC() {
 ; CHECK-PROP1: SpecConst=2|
 ; CHECK-PROP1-NOT: SpecConst2
 ;
-; CHECK-PROP2: [SYCL/specialization constants]
-; CHECK-PROP2: [SYCL/specialization constants default values]
+; There are no specialization constants in module 2 (created for KERNEL_CCC):
+; CHECK-PROP2-NOT: [SYCL/specialization constants]
+; CHECK-PROP2-NOT: [SYCL/specialization constants default values]

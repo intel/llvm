@@ -207,7 +207,6 @@ namespace {
       (void) llvm::createExpandVectorPredicationPass();
       (void)llvm::createSYCLLowerWGScopePass();
       (void)llvm::createSYCLLowerESIMDPass();
-      (void)llvm::createSYCLLowerESIMDFilteredPass();
       (void)llvm::createDelimitESIMDandSYCLPass();
       (void)llvm::createESIMDLowerLoadStorePass();
       (void)llvm::createESIMDLowerVecArgPass();

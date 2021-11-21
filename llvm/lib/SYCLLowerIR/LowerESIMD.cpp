@@ -47,18 +47,13 @@ namespace id = itanium_demangle;
 
 namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
-void generateKernelMetadata(Module &);
+bool generateKernelMetadata(Module &);
 
-template <bool UseESIMDFilter>
-class SYCLLowerESIMDLegacyPassImpl : public ModulePass {
+class SYCLLowerESIMDLegacyPass : public ModulePass {
 public:
   static char ID; // Pass identification, replacement for typeid
-  SYCLLowerESIMDLegacyPassImpl() : ModulePass(ID), Impl(SYCLLowerESIMDPassImpl(UseESIMDFilter)) {
-    auto &Reg = *PassRegistry::getPassRegistry();
-    if (UseESIMDFilter)
-      initializeSYCLLowerESIMDFilteredLegacyPassPass(Reg);
-    else
-      initializeSYCLLowerESIMDLegacyPassPass(Reg);
+  SYCLLowerESIMDLegacyPass() : ModulePass(ID) {
+    initializeSYCLLowerESIMDLegacyPassPass(*PassRegistry::getPassRegistry());
   }
 
   // run the LowerESIMD pass on the specified module
@@ -69,12 +64,8 @@ public:
   }
 
 private:
-  SYCLLowerESIMDPassImpl Impl;
+  SYCLLowerESIMDPass Impl;
 };
-
-using SYCLLowerESIMDLegacyPass = SYCLLowerESIMDLegacyPassImpl<false>;
-using SYCLLowerESIMDFilteredLegacyPass = SYCLLowerESIMDLegacyPassImpl<true>;
-
 } // namespace
 
 char SYCLLowerESIMDLegacyPass::ID = 0;
@@ -84,15 +75,6 @@ INITIALIZE_PASS(SYCLLowerESIMDLegacyPass, "LowerESIMD",
 // Public interface to the SYCLLowerESIMDPass.
 ModulePass *llvm::createSYCLLowerESIMDPass() {
   return new SYCLLowerESIMDLegacyPass();
-}
-
-char SYCLLowerESIMDFilteredLegacyPass::ID = 0;
-INITIALIZE_PASS(SYCLLowerESIMDFilteredLegacyPass, "LowerESIMDFiltered",
-  "Lower constructs specific to Close To Metal with function filtering", false, false)
-
-// Public interface to the SYCLLowerESIMDFilteredPass.
-ModulePass *llvm::createSYCLLowerESIMDFilteredPass() {
-  return new SYCLLowerESIMDFilteredLegacyPass();
 }
 
 namespace {
@@ -1294,9 +1276,9 @@ static std::string getMDString(MDNode *N, unsigned I) {
   return "";
 }
 
-void generateKernelMetadata(Module &M) {
+bool generateKernelMetadata(Module &M) {
   if (M.getNamedMetadata(GENX_KERNEL_METADATA))
-    return;
+    return false;
 
   auto Kernels = M.getOrInsertNamedMetadata(GENX_KERNEL_METADATA);
   assert(Kernels->getNumOperands() == 0 && "metadata out of sync");
@@ -1312,12 +1294,14 @@ void generateKernelMetadata(Module &M) {
 
   enum { AK_NORMAL, AK_SAMPLER, AK_SURFACE, AK_VME };
   enum { IK_NORMAL, IK_INPUT, IK_OUTPUT, IK_INPUT_OUTPUT };
+  bool Modified = false;
 
   for (auto &F : M.functions()) {
     // Skip non-SIMD kernels.
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL ||
         F.getMetadata(ESIMD_MARKER_MD) == nullptr)
       continue;
+    Modified = true;
 
     // Metadata node containing N i32s, where N is the number of kernel
     // arguments, and each i32 is the kind of argument,  one of:
@@ -1398,6 +1382,7 @@ void generateKernelMetadata(Module &M) {
     F.addFnAttr("oclrt", "1");
     F.addFnAttr("CMGenxMain");
   }
+  return Modified;
 }
 
 // collect all the vector-types that are used by genx-volatiles
@@ -1433,24 +1418,22 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
 
 } // namespace
 
-PreservedAnalyses SYCLLowerESIMDPassImpl::run(Module &M, ModuleAnalysisManager &) {
-  generateKernelMetadata(M);
+PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
+  bool Modified = generateKernelMetadata(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
 
-  size_t AmountOfESIMDIntrCalls = 0;
+  size_t NChanges = 0;
   for (auto &F : M.functions()) {
-      AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
+    NChanges += this->runOnFunction(F, GVTS);
   }
+  Modified |= NChanges > 0;
   // TODO FIXME ESIMD figure out less conservative result
-  return AmountOfESIMDIntrCalls > 0 ? PreservedAnalyses::none()
-                                    : PreservedAnalyses::all();
+  return Modified ? PreservedAnalyses::none()
+                  : PreservedAnalyses::all();
 }
 
-size_t SYCLLowerESIMDPassImpl::runOnFunction(Function &F,
+size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
                                          SmallPtrSet<Type *, 4> &GVTS) {
-  if (FilterEsimd && (F.getMetadata(ESIMD_MARKER_MD) == nullptr))
-    return 0;
-
   // There is a current limitation of GPU vector backend that requires kernel
   // functions to be inlined into the kernel itself. To overcome this
   // limitation, mark every function called from ESIMD kernel with
@@ -1586,5 +1569,5 @@ size_t SYCLLowerESIMDPassImpl::runOnFunction(Function &F,
     CI->eraseFromParent();
   }
 
-  return ESIMDIntrCalls.size();
+  return ToErase.size();
 }
