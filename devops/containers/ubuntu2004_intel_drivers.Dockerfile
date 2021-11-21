@@ -15,17 +15,15 @@ RUN apt update && apt install -yqq wget
 
 COPY scripts/get_release.py /
 
-# Install IGC
+# Install IGC and NEO
 RUN python3 /get_release.py intel/intel-graphics-compiler $igc_tag \
   | grep ".*deb" \
   | wget -qi - && \
-  dpkg -i *.deb && rm *.deb
-
-# Install NEO
-RUN python3 /get_release.py intel/compute-runtime $compute_runtime_tag \
-  | grep ".*deb" \
+  python3 /get_release.py intel/compute-runtime $compute_runtime_tag \
+  | grep -E ".*((deb)|(sum))" \
   | wget -qi - && \
-  dpkg -i *.deb && rm *.deb
+  sha256sum -c *.sum &&\
+  dpkg -i *.deb && rm *.deb *.sum
 
 RUN mkdir /runtimes
 
@@ -42,7 +40,11 @@ RUN cd /runtimes && \
   | grep -E ".*fpgaemu.*tar.gz" \
   | wget -qi - && \
   mkdir fpgaemu && tar -xf *.tar.gz -C fpgaemu && rm *.tar.gz && \
-  echo  /runtimes/fpgaemu/x64/libintelocl_emu.so > /etc/OpenCL/vendors/intel_fpgaemu.icd
+  if [ -e /runtimes/fpgaemu/install.sh ]; then \
+    bash -x /runtimes/fpgaemu/install.sh ; \
+  else \
+    echo  /runtimes/fpgaemu/x64/libintelocl_emu.so >  /etc/OpenCL/vendors/intel_fpgaemu.icd ; \
+  fi
 
 # Install Intel OpenCL CPU Runtime
 RUN cd /runtimes && \
@@ -50,7 +52,11 @@ RUN cd /runtimes && \
   | grep -E ".*oclcpuexp.*tar.gz" \
   | wget -qi - && \
   mkdir oclcpu && tar -xf *.tar.gz -C oclcpu && rm *.tar.gz && \
-  echo  /runtimes/oclcpu/x64/libintelocl.so > /etc/OpenCL/vendors/intel_oclcpu.icd
+  if [ -e /runtimes/oclcpu/install.sh ]; then \
+    bash -x /runtimes/oclcpu/install.sh ; \
+  else \
+    echo  /runtimes/oclcpu/x64/libintelocl.so > /etc/OpenCL/vendors/intel_oclcpu.icd  ; \
+  fi
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 
