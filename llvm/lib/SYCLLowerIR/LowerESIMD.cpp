@@ -47,7 +47,7 @@ namespace id = itanium_demangle;
 
 namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
-void generateKernelMetadata(Module &);
+bool generateKernelMetadata(Module &);
 
 class SYCLLowerESIMDLegacyPass : public ModulePass {
 public:
@@ -85,6 +85,7 @@ static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
 
 static constexpr char GENX_KERNEL_METADATA[] = "genx.kernels";
+constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
@@ -1275,9 +1276,9 @@ static std::string getMDString(MDNode *N, unsigned I) {
   return "";
 }
 
-void generateKernelMetadata(Module &M) {
+bool generateKernelMetadata(Module &M) {
   if (M.getNamedMetadata(GENX_KERNEL_METADATA))
-    return;
+    return false;
 
   auto Kernels = M.getOrInsertNamedMetadata(GENX_KERNEL_METADATA);
   assert(Kernels->getNumOperands() == 0 && "metadata out of sync");
@@ -1293,12 +1294,14 @@ void generateKernelMetadata(Module &M) {
 
   enum { AK_NORMAL, AK_SAMPLER, AK_SURFACE, AK_VME };
   enum { IK_NORMAL, IK_INPUT, IK_OUTPUT, IK_INPUT_OUTPUT };
+  bool Modified = false;
 
   for (auto &F : M.functions()) {
     // Skip non-SIMD kernels.
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL ||
-        F.getMetadata("sycl_explicit_simd") == nullptr)
+        F.getMetadata(ESIMD_MARKER_MD) == nullptr)
       continue;
+    Modified = true;
 
     // Metadata node containing N i32s, where N is the number of kernel
     // arguments, and each i32 is the kind of argument,  one of:
@@ -1379,6 +1382,7 @@ void generateKernelMetadata(Module &M) {
     F.addFnAttr("oclrt", "1");
     F.addFnAttr("CMGenxMain");
   }
+  return Modified;
 }
 
 // collect all the vector-types that are used by genx-volatiles
@@ -1415,17 +1419,17 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
 } // namespace
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M, ModuleAnalysisManager &) {
-  generateKernelMetadata(M);
+  bool Modified = generateKernelMetadata(M);
   SmallPtrSet<Type *, 4> GVTS = collectGenXVolatileTypes(M);
 
-  size_t AmountOfESIMDIntrCalls = 0;
+  size_t NChanges = 0;
   for (auto &F : M.functions()) {
-    AmountOfESIMDIntrCalls += this->runOnFunction(F, GVTS);
+    NChanges += this->runOnFunction(F, GVTS);
   }
-
+  Modified |= NChanges > 0;
   // TODO FIXME ESIMD figure out less conservative result
-  return AmountOfESIMDIntrCalls > 0 ? PreservedAnalyses::none()
-                                    : PreservedAnalyses::all();
+  return Modified ? PreservedAnalyses::none()
+                  : PreservedAnalyses::all();
 }
 
 size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
@@ -1565,5 +1569,5 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
     CI->eraseFromParent();
   }
 
-  return ESIMDIntrCalls.size();
+  return ToErase.size();
 }

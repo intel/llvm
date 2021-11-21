@@ -38,6 +38,15 @@ StringRef SimpleTable::Row::getCell(StringRef ColName,
   return (I >= 0) ? Cells[I] : DefaultVal;
 }
 
+SimpleTable::SimpleTable(ArrayRef<StringRef> ColNames) {
+  for (auto N : ColNames)
+    if (Error Err = addColumnName(N)) {
+      constexpr char Msg[] = "SimpleTable::SimpleTable internal error";
+      assert(false && Msg);
+      throw Msg;
+    }
+}
+
 Expected<SimpleTable::UPtrTy>
 SimpleTable::create(ArrayRef<StringRef> ColNames) {
   auto Res = std::make_unique<SimpleTable>();

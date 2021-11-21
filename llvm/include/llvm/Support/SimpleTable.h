@@ -81,6 +81,7 @@ public:
 
 public:
   SimpleTable() = default;
+  SimpleTable(ArrayRef<StringRef> ColNames);
   static Expected<UPtrTy> create(ArrayRef<StringRef> ColNames);
   static Expected<UPtrTy> create(int NColumns);
   int getNumColumns() const { return static_cast<int>(ColumnNames.size()); }

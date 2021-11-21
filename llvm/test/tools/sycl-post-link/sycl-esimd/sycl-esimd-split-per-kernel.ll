@@ -1,9 +1,9 @@
 ; RUN: sycl-post-link -split-esimd -split=kernel -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
-; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-IR-0
-; RUN: FileCheck %s -input-file=%t_1.ll --check-prefixes CHECK-SYCL-IR-1
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-IR-0
 ; RUN: FileCheck %s -input-file=%t_esimd_1.ll --check-prefixes CHECK-ESIMD-IR-1
+; RUN: FileCheck %s -input-file=%t_2.ll --check-prefixes CHECK-SYCL-IR-0
+; RUN: FileCheck %s -input-file=%t_3.ll --check-prefixes CHECK-SYCL-IR-1
 
 ; This test checks that after we split SYCL and ESIMD kernels into
 ; separate modules, we split those two modules further according to
@@ -52,10 +52,10 @@ attributes #1 = { "sycl-module-id"="a.cpp" }
 !3 = !{}
 
 ; CHECK: [Code|Properties]
-; CHECK: {{.*}}_0.ll|{{.*}}_0.prop
-; CHECK: {{.*}}_1.ll|{{.*}}_1.prop
 ; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop
 ; CHECK: {{.*}}_esimd_1.ll|{{.*}}_esimd_1.prop
+; CHECK: {{.*}}_2.ll|{{.*}}_2.prop
+; CHECK: {{.*}}_3.ll|{{.*}}_3.prop
 
 ; CHECK-SYCL-IR-0-DAG: define dso_local spir_kernel void @SYCL_kernel1()
 ; CHECK-SYCL-IR-0-DAG: declare dso_local spir_func i64 @_Z28__spirv_GlobalInvocationId_xv()
