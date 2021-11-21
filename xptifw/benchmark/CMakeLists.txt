@@ -10,8 +10,6 @@ target_include_directories(XPTIFWBenchmark PRIVATE
 )
 
 target_link_libraries(XPTIFWBenchmark PRIVATE benchmark)
-target_compile_options(XPTIFWBenchmark PRIVATE -O3 -fno-omit-frame-pointer
-  -gline-tables-only)
 
 if (XPTI_ENABLE_STATISTICS)
   target_compile_definitions(XPTIFWBenchmark PRIVATE XPTI_STATISTICS)
