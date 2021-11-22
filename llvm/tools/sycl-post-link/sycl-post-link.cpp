@@ -52,6 +52,7 @@
 using namespace llvm;
 
 using string_vector = std::vector<std::string>;
+// TODO: use unordered_map instead of map.
 using EntryPointsMap = std::map<StringRef, std::vector<const Function *>>;
 
 namespace {
