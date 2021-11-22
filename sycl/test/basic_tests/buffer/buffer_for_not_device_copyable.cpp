@@ -13,10 +13,7 @@ int main() {
   static_assert(!is_device_copyable_v<std::string>);
   std::vector<std::string> sv{"hello", "sycl", "world"};
   buffer b2(sv.data(), range<1>(3));
-  //expected-error@CL/sycl/buffer.hpp:* {{"The underlying data type of a buffer 'T' must be device copyable"}}
+  //expected-error@CL/sycl/buffer.hpp:* {{"'std::string' is not a device copyable type"}}
 
-  static_assert(is_device_copyable<sycl::vec<int, 4>>::value);
-  vec<int, 4> iVec;
-  buffer b3(&iVec, range<1>(1));
   return 0;
 }

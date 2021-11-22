@@ -14,7 +14,6 @@
 #include <CL/sycl/exception.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
-#include <CL/sycl/types.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -45,9 +44,10 @@ template <typename T, int dimensions = 1,
           typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
                                                             (dimensions <= 3)>>
 class buffer {
-  static_assert(
-      is_device_copyable<T>::value,
-      "The underlying data type of a buffer 'T' must be device copyable");
+  // TODO check is_device_copyable<T>::value after converting sycl::vec into a
+  // trivially copyable class.
+  static_assert(!std::is_same<T, std::string>::value,
+                "'std::string' is not a device copyable type");
 
 public:
   using value_type = T;
