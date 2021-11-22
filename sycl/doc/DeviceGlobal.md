@@ -103,16 +103,15 @@ type itself, and member functions return a reference to this value.
 ```
 template<typename T, typename PropertyListT>
 class device_global {
-  T val;
+  T val{};
  public:
-  device_global() : val() {}
   T& get() noexcept { return val; }
   /* other member functions */
 };
 ```
 
-Note that the default constructor "value initializes" the `val` member
-variable.  Since the type `T` is limited to types that are trivially
+Note that the `val` member has a default initializer that causes it to be
+"value initialized".  Since the type `T` is limited to types that are trivially
 constructible, this means that `val` will be zero initialized.
 
 In both cases the member variable (either `usmptr` or `val`) must be the first
@@ -497,8 +496,8 @@ runtime does the following:
 
 Note that the runtime does not need to initialize the `val` member variable of
 device global variables that are decorated with `device_image_scope` because
-the constructor already guarantees that this member variable is zero
-initialized.
+the `val` default initializer already guarantees that this member variable is
+zero initialized.
 
 #### Implementing the `copy` and `memcpy` functions in `queue` and `handler`
 
