@@ -126,12 +126,10 @@ string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
   DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
-          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
           ${OUT_HEADERS_IN_CL_DIR})
 
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
-          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
           ${OUT_HEADERS_IN_CL_DIR}
   DEPENDS ${HEADERS_IN_SYCL_DIR}
           ${HEADERS_IN_CL_DIR}
