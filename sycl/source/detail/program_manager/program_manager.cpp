@@ -1688,7 +1688,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
 
   // TODO: Unify this code with getBuiltPIProgram
-  auto BuildF = [this, &Context, Img, &Devs, &CompileOpts, &LinkOpts,
+  auto BuildF = [this, &Context, &Img, &Devs, &CompileOpts, &LinkOpts,
                  &InputImpl, SpecConsts] {
     applyOptionsFromImage(CompileOpts, LinkOpts, Img);
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
