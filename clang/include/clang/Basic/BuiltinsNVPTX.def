@@ -328,6 +328,9 @@ BUILTIN(__nvvm_f2i_rm, "if", "")
 BUILTIN(__nvvm_f2i_rp_ftz, "if", "")
 BUILTIN(__nvvm_f2i_rp, "if", "")
 
+
+BUILTIN(__nvvm_ff2ui_rn, "Uiff", "")
+
 BUILTIN(__nvvm_f2ui_rn_ftz, "Uif", "")
 BUILTIN(__nvvm_f2ui_rn, "Uif", "")
 BUILTIN(__nvvm_f2ui_rz_ftz, "Uif", "")
@@ -780,8 +783,8 @@ TARGET_BUILTIN(__dmma_m8n8k4_ld_c, "vd*dC*UiIi", "", AND(SM_80,PTX70))
 TARGET_BUILTIN(__dmma_m8n8k4_st_c_f64, "vd*dC*UiIi", "", AND(SM_80,PTX70))
 TARGET_BUILTIN(__dmma_m8n8k4_mma_f64, "vd*dC*dC*dC*IiIi", "", AND(SM_80,PTX70))
 
-TARGET_BUILTIN(__mma_bf16_m16n16k16_ld_a, "vi*iC*UiIi", "", AND(SM_80,PTX70))
-TARGET_BUILTIN(__mma_bf16_m16n16k16_ld_b, "vi*iC*UiIi", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__mma_bf16_m16n16k16_ld_a, "vZi*ZUiC*UiIi", "", AND(SM_80,PTX70))
+TARGET_BUILTIN(__mma_bf16_m16n16k16_ld_b, "vZi*ZUiC*UiIi", "", AND(SM_80,PTX70))
 TARGET_BUILTIN(__mma_bf16_m16n16k16_mma_f32, "vf*iC*iC*fC*IiIi", "", AND(SM_80,PTX70))
 TARGET_BUILTIN(__mma_bf16_m8n32k16_ld_a, "vi*iC*UiIi", "", AND(SM_80,PTX70))
 TARGET_BUILTIN(__mma_bf16_m8n32k16_ld_b, "vi*iC*UiIi", "", AND(SM_80,PTX70))

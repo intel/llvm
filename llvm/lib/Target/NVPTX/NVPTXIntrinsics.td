@@ -1011,6 +1011,11 @@ def : Pat<(int_nvvm_f2i_rp_ftz Float32Regs:$a),
 def : Pat<(int_nvvm_f2i_rp Float32Regs:$a),
           (CVT_s32_f32 Float32Regs:$a, CvtRPI)>;
 
+def CVT_F32_bf16x2 :
+  NVPTXInst<(outs Int32Regs:$dest), (ins Float32Regs:$a, Float32Regs:$b),
+                  "cvt.rn.bf16x2.f32 \t$dest, $a , $b;",
+      [(set Int32Regs:$dest, (int_nvvm_ff2ui_rn Float32Regs:$a, Float32Regs:$b))]>;
+
 def : Pat<(int_nvvm_f2ui_rn_ftz Float32Regs:$a),
           (CVT_u32_f32 Float32Regs:$a, CvtRNI_FTZ)>;
 def : Pat<(int_nvvm_f2ui_rn Float32Regs:$a),
