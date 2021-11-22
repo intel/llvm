@@ -20402,6 +20402,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   // Arguments
   const Expr *PtrArg = E->getArg(0);
   Value *PtrVal = EmitScalarExpr(PtrArg);
+  ASTContext &Ctx = getContext();
 
   // Create the pointer annotation
   Function *F =
@@ -20410,14 +20411,36 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   llvm::raw_svector_ostream Out(AnnotStr);
 
   Optional<llvm::APSInt> Params =
-      E->getArg(1)->getIntegerConstantExpr(getContext());
+      E->getArg(1)->getIntegerConstantExpr(Ctx);
   assert(Params.hasValue() && "Constant arg isn't actually constant?");
   Out << "{params:" << toString(*Params, 10) << "}";
 
   Optional<llvm::APSInt> CacheSize =
-      E->getArg(2)->getIntegerConstantExpr(getContext());
+      E->getArg(2)->getIntegerConstantExpr(Ctx);
   assert(CacheSize.hasValue() && "Constant arg isn't actually constant?");
   Out << "{cache-size:" << toString(*CacheSize, 10) << "}";
+
+  // There is four optional arguments with following default values:
+  // const int32_t AnchorID = -1
+  // const int32_t TargetAnchor = 0
+  // const int32_t Type = 0
+  // const int32_t Cycle = 0
+  // Emit default values or use provided.
+  auto AddOptionalArgValue = [&E, &Ctx, &Out](int DefaultValue,
+                                              unsigned NumOfArg,
+                                              StringRef StringToAdd) {
+    Optional<llvm::APSInt> IntVal =
+        (E->getNumArgs() > NumOfArg)
+            ? E->getArg(NumOfArg)->getIntegerConstantExpr(Ctx)
+            : APSInt::get(DefaultValue);
+    assert(IntVal.hasValue() && "Constant arg isn't actually constant?");
+    Out << "{" << StringToAdd << ":" << toString(*IntVal, 10) << "}";
+  };
+
+  AddOptionalArgValue(-1, 3, "anchor-id");
+  AddOptionalArgValue(0, 4, "target-anchor");
+  AddOptionalArgValue(0, 5, "type");
+  AddOptionalArgValue(0, 6, "cycle");
 
   llvm::Value *Ann = EmitAnnotationCall(F, PtrVal, AnnotStr, SourceLocation());
 

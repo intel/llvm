@@ -9,8 +9,13 @@ struct State {
   float y;
 };
 
-// CHECK: [[ANN1:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:0}
-// CHECK: [[ANN2:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}
+// CHECK: [[ANN1:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:0}{anchor-id:-1}{target-anchor:0}{type:0}{cycle:0}
+// CHECK: [[ANN2:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}{anchor-id:-1}{target-anchor:0}{type:0}{cycle:0}
+// CHECK: [[ANN3:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}{anchor-id:10}{target-anchor:20}{type:30}{cycle:40}
+// CHECK: [[ANN4:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}{anchor-id:11}{target-anchor:12}{type:0}{cycle:0}
+// CHECK: [[ANN5:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}{anchor-id:100}{target-anchor:0}{type:0}{cycle:0}
+// CHECK: [[ANN6:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:128}{anchor-id:4}{target-anchor:5}{type:6}{cycle:0}
+
 
 // CHECK: define {{.*}}spir_func void @{{.*}}(float addrspace(4)* %A, i32 addrspace(4)* %B, [[STRUCT]] addrspace(4)* %C, [[STRUCT]] addrspace(4)*{{.*}}%D)
 void foo(float *A, int *B, State *C, State &D) {
@@ -65,6 +70,26 @@ void foo(float *A, int *B, State *C, State &D) {
   // CHECK-DAG: [[PTR8:%[0-9]+]] = call double addrspace(4)* @llvm.ptr.annotation{{.*}}[[F]]{{.*}}[[ANN2]]{{.*}}[[ATT:#[0-9]+]]
   // CHECK-DAG: store double addrspace(4)* [[PTR8]], double addrspace(4)* addrspace(4)* [[f]]
   f = __builtin_intel_fpga_mem(&F, PARAM_1 | PARAM_2, 127);
+
+  // CHECK-DAG: [[A3:%[0-9]+]] = load float addrspace(4)*, float addrspace(4)* addrspace(4)* [[Aaddr]]
+  // CHECK-DAG: [[PTR9:%[0-9]+]] = call float addrspace(4)* @llvm.ptr.annotation{{.*}}[[A3]]{{.*}}[[ANN3]]{{.*}}[[ATT:#[0-9]+]]
+  // CHECK-DAG: store float addrspace(4)* [[PTR9]], float addrspace(4)* addrspace(4)* %x
+  x = __builtin_intel_fpga_mem(A, PARAM_1 | PARAM_2, 127, 10, 20, 30, 40);
+
+  // CHECK-DAG: [[A4:%[0-9]+]] = load float addrspace(4)*, float addrspace(4)* addrspace(4)* [[Aaddr]]
+  // CHECK-DAG: [[PTR10:%[0-9]+]] = call float addrspace(4)* @llvm.ptr.annotation{{.*}}[[A4]]{{.*}}[[ANN4]]{{.*}}[[ATT:#[0-9]+]]
+  // CHECK-DAG: store float addrspace(4)* [[PTR10]], float addrspace(4)* addrspace(4)* %x
+  x = __builtin_intel_fpga_mem(A, PARAM_1 | PARAM_2, 127, 11, 12);
+
+  // CHECK-DAG: [[B3:%[0-9]+]] = load i32 addrspace(4)*, i32 addrspace(4)* addrspace(4)* [[Baddr]]
+  // CHECK-DAG: [[PTR11:%[0-9]+]] = call i32 addrspace(4)* @llvm.ptr.annotation{{.*}}[[B3]]{{.*}}[[ANN5]]{{.*}}[[ATT:#[0-9]+]]
+  // CHECK-DAG: store i32 addrspace(4)* [[PTR11]], i32 addrspace(4)* addrspace(4)* %y
+  y = __builtin_intel_fpga_mem(B, PARAM_1 | PARAM_2, 127, 100);
+
+  // CHECK-DAG: [[D1:%[0-9]+]] = load [[STRUCT]] addrspace(4)*, [[STRUCT]] addrspace(4)* addrspace(4)* [[Daddr]]
+  // CHECK-DAG: [[PTR12:%[0-9]+]] = call [[STRUCT]] addrspace(4)* @llvm.ptr.annotation{{.*}}[[D1]]{{.*}}[[ANN6]]{{.*}}[[ATT:#[0-9]+]]
+  // CHECK-DAG: store [[STRUCT]] addrspace(4)* [[PTR12]], [[STRUCT]] addrspace(4)* addrspace(4)* %z
+  z = __builtin_intel_fpga_mem(&D, PARAM_1 | PARAM_2, 128, 4, 5, 6);
 }
 
 // CHECK-DAG: attributes [[ATT]] = { readnone }

@@ -4720,9 +4720,23 @@ bool Sema::CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID,
 }
 
 bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
-  // Make sure we have exactly 3 arguments
-  if (checkArgCount(*this, TheCall, 3))
-    return true;
+  const unsigned MinNumArgs = 3;
+  const unsigned MaxNumArgs = 7;
+  unsigned NumArgs = TheCall->getNumArgs();
+
+  // Make sure we have minimum number of provided arguments.
+  if (NumArgs < MinNumArgs)
+    return Diag(TheCall->getEndLoc(),
+                diag::err_typecheck_call_too_few_args_at_least)
+           << 0 /* function call */ << MinNumArgs << NumArgs
+           << TheCall->getSourceRange();
+
+  // Make sure we don't have too many arguments.
+  if (NumArgs > MaxNumArgs)
+    return Diag(TheCall->getEndLoc(),
+                diag::err_typecheck_call_too_many_args_at_most)
+           << 0 /*function call*/ << MaxNumArgs << NumArgs
+           << TheCall->getSourceRange();
 
   Expr *PointerArg = TheCall->getArg(0);
   QualType PointerArgType = PointerArg->getType();
@@ -4757,6 +4771,12 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
   if (Result < 0)
     return Diag(TheCall->getArg(2)->getBeginLoc(),
         diag::err_intel_fpga_mem_arg_mismatch) << 1;
+
+  // The last four optional arguments must be signed integers.
+  for (unsigned I = MinNumArgs; I != NumArgs; ++I) {
+    if (SemaBuiltinConstantArg(TheCall, I, Result))
+      return true;
+  }
 
   // Set the return type to be the same as the type of the first argument
   // (pointer argument)
