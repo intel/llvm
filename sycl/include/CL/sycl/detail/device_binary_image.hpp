@@ -28,7 +28,7 @@ public:
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
   // Explicitly retain move constructors to facilitate potential moves across
   // collections
-  RTDeviceBinaryImage(RTDeviceBinaryImage &&RHS) = default;
+  RTDeviceBinaryImage(RTDeviceBinaryImage &&) = default;
   RTDeviceBinaryImage &operator=(RTDeviceBinaryImage &&) = default;
 
   OSModuleHandle getOSModuleHandle() const { return ModuleHandle; }
