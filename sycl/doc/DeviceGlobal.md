@@ -614,3 +614,38 @@ depends upon implementation of that OpenCL extension.
 
 The CUDA backend has existing APIs `cudaMemcpyToSymbol()` and
 `cudaMemcpyFromSymbol()` which can be used to implement these PI interfaces.
+
+
+## Design choices
+
+This section captures some of the discussions about aspects of the design.
+
+### Should the value be zero-initialized
+
+There was some debate about whether the value in the `device_global` should
+always be zero-initialized.  We decided to require this in order to be
+consistent with C++ rules for global variables.  We want `device_global` to
+model the normal rules for global variables.  Since C++ guarantees that a
+global variable with a trivial constructor is zero-initialized, we want that
+behavior too.
+
+The downside is that some applications may allocate a very large storage for
+the underlying type `T` of a device global variable, and they may not want to
+pay the cost of zero initializing it.  We agree that this is a theoretical
+problem, but we aren't sure if this will be an issue for real applications. If
+it turns out to be a real problem, we propose adding a new property that
+prevents initialization of the device global value.  For example, we could add
+a new parameter to the `init_mode` property called `none`.
+
+### Why not include both `val` and `usmptr` member variables
+
+Rather than using partial specialization to define `device_global` differently
+based on the `device_image_scope` property, we could instead define both member
+variables regardless of the properties.  This would make the header file
+implementation easier, but it would lead to wasted space in the case when the
+`device_image_scope` property was not specified since the `val` member is
+unused in this case.  Wasting space on the host may not be such a big problem,
+but the space would also be wasted on every device that reference the device
+global variable, and this seems like a bigger problem.  We decided that the
+extra header file complexity of partial specialization is worth avoiding this
+wasted memory.
