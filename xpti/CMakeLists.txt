@@ -78,8 +78,13 @@ add_subdirectory(src)
 
 if (LLVM_BINARY_DIR)
   file(GLOB_RECURSE XPTI_HEADERS_LIST CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/include/xpti/*")
+  string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "${LLVM_BINARY_DIR}"
+    XPTI_HEADERS_OUT_LIST "${XPTI_HEADERS_LIST}")
   add_custom_target(xpti-headers
-    BYPRODUCTS ${LLVM_BINARY_DIR}/include/xpti
+    DEPENDS ${XPTI_HEADERS_OUT_LIST})
+
+  add_custom_command(
+    OUTPUT  ${XPTI_HEADERS_OUT_LIST}
     DEPENDS ${XPTI_HEADERS_LIST}
     COMMAND ${CMAKE_COMMAND} -E copy_directory
       ${CMAKE_CURRENT_SOURCE_DIR}/include/xpti
