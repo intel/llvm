@@ -127,7 +127,7 @@ extern "C" bool LLDBSWIGPythonCallThreadPlan(void *implementor,
 
 extern "C" void *LLDBSwigPythonCreateScriptedBreakpointResolver(
     const char *python_class_name, const char *session_dictionary_name,
-    lldb_private::StructuredDataImpl *args, lldb::BreakpointSP &bkpt_sp);
+    lldb_private::StructuredDataImpl *args, const lldb::BreakpointSP &bkpt_sp);
 
 extern "C" unsigned int
 LLDBSwigPythonCallBreakpointResolver(void *implementor, const char *method_name,
@@ -196,7 +196,7 @@ LLDBSwigPython_GetRecognizedArguments(void *implementor,
 
 extern "C" bool LLDBSWIGPythonRunScriptKeywordProcess(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::ProcessSP &process, std::string &output);
+    const lldb::ProcessSP &process, std::string &output);
 
 extern "C" bool LLDBSWIGPythonRunScriptKeywordThread(
     const char *python_function_name, const char *session_dictionary_name,
@@ -204,7 +204,7 @@ extern "C" bool LLDBSWIGPythonRunScriptKeywordThread(
 
 extern "C" bool LLDBSWIGPythonRunScriptKeywordTarget(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::TargetSP &target, std::string &output);
+    const lldb::TargetSP &target, std::string &output);
 
 extern "C" bool LLDBSWIGPythonRunScriptKeywordFrame(
     const char *python_function_name, const char *session_dictionary_name,
@@ -212,7 +212,7 @@ extern "C" bool LLDBSWIGPythonRunScriptKeywordFrame(
 
 extern "C" bool LLDBSWIGPythonRunScriptKeywordValue(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::ValueObjectSP &value, std::string &output);
+    const lldb::ValueObjectSP &value, std::string &output);
 
 extern "C" void *
 LLDBSWIGPython_GetDynamicSetting(void *module, const char *setting,
@@ -410,30 +410,31 @@ FileSpec ScriptInterpreterPython::GetPythonDir() {
   return g_spec;
 }
 
+static const char GetInterpreterInfoScript[] = R"(
+import os
+import sys
+
+def main(lldb_python_dir, python_exe_relative_path):
+  info = {
+    "lldb-pythonpath": lldb_python_dir,
+    "language": "python",
+    "prefix": sys.prefix,
+    "executable": os.path.join(sys.prefix, python_exe_relative_path)
+  }
+  return info
+)";
+
+static const char python_exe_relative_path[] = LLDB_PYTHON_EXE_RELATIVE_PATH;
+
 StructuredData::DictionarySP ScriptInterpreterPython::GetInterpreterInfo() {
   GIL gil;
   FileSpec python_dir_spec = GetPythonDir();
   if (!python_dir_spec)
     return nullptr;
-  PythonString python_dir(python_dir_spec.GetPath());
-  PythonDictionary info(PyInitialValue::Empty);
-  llvm::Error error = info.SetItem("lldb-pythonpath", python_dir);
-  if (error)
-    return nullptr;
-  static const char script[] = R"(
-def main(info):
-  import sys
-  import os
-  name = 'python' + str(sys.version_info.major)
-  info.update({
-    "language": "python",
-    "prefix": sys.prefix,
-    "executable": os.path.join(sys.prefix, "bin", name),
-  })
-  return info
-)";
-  PythonScript get_info(script);
-  auto info_json = unwrapIgnoringErrors(As<PythonDictionary>(get_info(info)));
+  PythonScript get_info(GetInterpreterInfoScript);
+  auto info_json = unwrapIgnoringErrors(
+      As<PythonDictionary>(get_info(PythonString(python_dir_spec.GetPath()),
+                                    PythonString(python_exe_relative_path))));
   if (!info_json)
     return nullptr;
   return info_json.CreateStructuredDictionary();
@@ -2652,11 +2653,11 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
   }
 
   {
-    ProcessSP process_sp(process->shared_from_this());
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
     ret_val = LLDBSWIGPythonRunScriptKeywordProcess(
-        impl_function, m_dictionary_name.c_str(), process_sp, output);
+        impl_function, m_dictionary_name.c_str(), process->shared_from_this(),
+        output);
     if (!ret_val)
       error.SetErrorString("python script evaluation failed");
   }
@@ -2752,11 +2753,10 @@ bool ScriptInterpreterPythonImpl::RunScriptFormatKeyword(
   }
 
   {
-    ValueObjectSP value_sp(value->GetSP());
     Locker py_lock(this,
                    Locker::AcquireLock | Locker::InitSession | Locker::NoSTDIN);
     ret_val = LLDBSWIGPythonRunScriptKeywordValue(
-        impl_function, m_dictionary_name.c_str(), value_sp, output);
+        impl_function, m_dictionary_name.c_str(), value->GetSP(), output);
     if (!ret_val)
       error.SetErrorString("python script evaluation failed");
   }

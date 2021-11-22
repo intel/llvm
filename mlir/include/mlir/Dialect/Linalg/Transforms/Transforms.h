@@ -17,7 +17,6 @@
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/Dialect/Vector/VectorTransforms.h"
 #include "mlir/Dialect/X86Vector/Transforms.h"
-#include "mlir/IR/Identifier.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/Bufferize.h"
 #include "llvm/ADT/SmallBitVector.h"
@@ -426,18 +425,19 @@ struct LinalgTransformationFilter {
   using FilterFunction = std::function<LogicalResult(Operation *)>;
 
   explicit LinalgTransformationFilter(
-      ArrayRef<Identifier> matchDisjunction = {},
-      Optional<Identifier> replacement = None);
+      ArrayRef<StringAttr> matchDisjunction = {},
+      Optional<StringAttr> replacement = None);
 
   explicit LinalgTransformationFilter(
-      FilterFunction f, ArrayRef<Identifier> matchDisjunction = {},
-      Optional<Identifier> replacement = None);
+      FilterFunction f, ArrayRef<StringAttr> matchDisjunction = {},
+      Optional<StringAttr> replacement = None);
 
   LinalgTransformationFilter(LinalgTransformationFilter &&) = default;
   LinalgTransformationFilter(const LinalgTransformationFilter &) = default;
   LogicalResult checkAndNotify(PatternRewriter &rewriter, Operation *op) const;
   void replaceLinalgTransformationFilter(PatternRewriter &rewriter,
                                          Operation *op) const;
+  bool hasReplacementFilter(Operation *op) const;
 
   LinalgTransformationFilter &addFilter(FilterFunction f) {
     if (f)
@@ -456,8 +456,8 @@ struct LinalgTransformationFilter {
 
 private:
   SmallVector<FilterFunction> filters;
-  SmallVector<Identifier> matchDisjunction;
-  Optional<Identifier> replacement;
+  SmallVector<StringAttr> matchDisjunction;
+  Optional<StringAttr> replacement;
   /// When set to true, if the attribute is not set, it will be treated as
   /// a match. Default is false.
   bool matchByDefault;
@@ -515,6 +515,13 @@ struct LinalgPaddingOptions {
     paddingHoistComputationFunction = std::move(fun);
     return *this;
   }
+};
+
+struct LinalgTilingAndFusionOptions {
+  /// Tile sizes used to tile the root operation.
+  SmallVector<int64_t> tileSizes;
+  /// Tile interchange used to permute the tile loops.
+  SmallVector<int64_t> tileInterchange;
 };
 
 struct LinalgTilingOptions {
@@ -765,6 +772,34 @@ struct LinalgTileAndFusePattern : public LinalgBaseTileAndFusePattern {
       : LinalgBaseTileAndFusePattern(
             OpTy::getOperationName(), context, dependenceGraph, tilingOptions,
             fusionOptions, filter, fusedOpMarker, originalOpMarker, benefit) {}
+};
+
+///
+/// Linalg tile and fuse tensor ops pattern.
+///
+/// Apply tiling and fusion as a pattern.
+/// `filter` controls LinalgTransformMarker matching and update when specified.
+/// See `tileConsumerAndFuseProducers` for more details.
+struct LinalgTileAndFuseTensorOpsPattern : public RewritePattern {
+  // Entry point to match any LinalgOp.
+  LinalgTileAndFuseTensorOpsPattern(
+      MLIRContext *context, LinalgTilingAndFusionOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
+  // Entry point to match a specific LinalgOp.
+  LinalgTileAndFuseTensorOpsPattern(
+      StringRef opName, MLIRContext *context,
+      LinalgTilingAndFusionOptions options,
+      LinalgTransformationFilter filter = LinalgTransformationFilter(),
+      PatternBenefit benefit = 1);
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override;
+
+private:
+  /// LinalgTransformMarker handles special attribute manipulations.
+  LinalgTransformationFilter filter;
+  /// Tile sizes and interchange used to tile the root operation.
+  LinalgTilingAndFusionOptions options;
 };
 
 ///

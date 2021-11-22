@@ -283,7 +283,7 @@ void test_class_with_owner() {
 
   const auto Owner1 = C3.buggy_but_returns_owner(); // Ok, deduces Owner1 to owner<ArbitraryClass *> const
 
-  auto Owner2 = C2.buggy_but_returns_owner(); //Ok, deduces Owner2 to owner<ArbitraryClass *>
+  auto Owner2 = C2.buggy_but_returns_owner(); // Ok, deduces Owner2 to owner<ArbitraryClass *>
 
   Owner2 = &A; // BAD, since type deduction resulted in owner<ArbitraryClass *>
   // CHECK-NOTES: [[@LINE-1]]:3: warning: expected assignment source to be of type 'gsl::owner<>'; got 'ArbitraryClass *'

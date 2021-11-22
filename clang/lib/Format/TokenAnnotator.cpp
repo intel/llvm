@@ -946,11 +946,15 @@ private:
                  !Line.First->isOneOf(tok::kw_enum, tok::kw_case,
                                       tok::kw_default)) {
         FormatToken *Prev = Tok->getPreviousNonComment();
+        if (!Prev)
+          break;
         if (Prev->isOneOf(tok::r_paren, tok::kw_noexcept))
           Tok->setType(TT_CtorInitializerColon);
         else if (Prev->is(tok::kw_try)) {
           // Member initializer list within function try block.
           FormatToken *PrevPrev = Prev->getPreviousNonComment();
+          if (!PrevPrev)
+            break;
           if (PrevPrev && PrevPrev->isOneOf(tok::r_paren, tok::kw_noexcept))
             Tok->setType(TT_CtorInitializerColon);
         } else
@@ -1578,6 +1582,8 @@ private:
         if (TemplateCloser->is(tok::l_paren)) {
           // No Matching Paren yet so skip to matching paren
           TemplateCloser = untilMatchingParen(TemplateCloser);
+          if (!TemplateCloser)
+            break;
         }
         if (TemplateCloser->is(tok::less))
           NestingLevel++;
@@ -2322,11 +2328,9 @@ private:
 void TokenAnnotator::setCommentLineLevels(
     SmallVectorImpl<AnnotatedLine *> &Lines) {
   const AnnotatedLine *NextNonCommentLine = nullptr;
-  for (SmallVectorImpl<AnnotatedLine *>::reverse_iterator I = Lines.rbegin(),
-                                                          E = Lines.rend();
-       I != E; ++I) {
+  for (AnnotatedLine *AL : llvm::reverse(Lines)) {
     bool CommentLine = true;
-    for (const FormatToken *Tok = (*I)->First; Tok; Tok = Tok->Next) {
+    for (const FormatToken *Tok = AL->First; Tok; Tok = Tok->Next) {
       if (!Tok->is(tok::comment)) {
         CommentLine = false;
         break;
@@ -2338,21 +2342,21 @@ void TokenAnnotator::setCommentLineLevels(
     if (NextNonCommentLine && CommentLine &&
         NextNonCommentLine->First->NewlinesBefore <= 1 &&
         NextNonCommentLine->First->OriginalColumn ==
-            (*I)->First->OriginalColumn) {
+        AL->First->OriginalColumn) {
       // Align comments for preprocessor lines with the # in column 0 if
       // preprocessor lines are not indented. Otherwise, align with the next
       // line.
-      (*I)->Level =
+      AL->Level =
           (Style.IndentPPDirectives != FormatStyle::PPDIS_BeforeHash &&
            (NextNonCommentLine->Type == LT_PreprocessorDirective ||
             NextNonCommentLine->Type == LT_ImportStatement))
               ? 0
               : NextNonCommentLine->Level;
     } else {
-      NextNonCommentLine = (*I)->First->isNot(tok::r_brace) ? (*I) : nullptr;
+      NextNonCommentLine = AL->First->isNot(tok::r_brace) ? AL : nullptr;
     }
 
-    setCommentLineLevels((*I)->Children);
+    setCommentLineLevels(AL->Children);
   }
 }
 
@@ -2641,8 +2645,8 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) {
     if (Current->Role)
       Current->Role->precomputeFormattingInfos(Current);
     if (Current->MatchingParen &&
-        Current->MatchingParen->opensBlockOrBlockTypeList(Style)) {
-      assert(IndentLevel > 0);
+        Current->MatchingParen->opensBlockOrBlockTypeList(Style) &&
+        IndentLevel > 0) {
       --IndentLevel;
     }
     Current->IndentLevel = IndentLevel;
@@ -2939,6 +2943,10 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
         isKeywordWithCondition(*Right.MatchingParen->Previous))
       return true;
   }
+
+  // auto{x} auto(x)
+  if (Left.is(tok::kw_auto) && Right.isOneOf(tok::l_paren, tok::l_brace))
+    return false;
 
   // requires clause Concept1<T> && Concept2<T>
   if (Left.is(TT_ConstraintJunctions) && Right.is(tok::identifier))

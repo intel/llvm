@@ -11,6 +11,7 @@
 
 include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
 include "mlir/Interfaces/CastInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/VectorInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
@@ -619,6 +620,93 @@ def Arith_SubFOp : Arith_FloatBinaryOp<"subf"> {
   let summary = "floating point subtraction operation";
   let hasFolder = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// MaxFOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MaxFOp : Arith_FloatBinaryOp<"maxf"> {
+  let summary = "floating-point maximum operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `arith.maxf` ssa-use `,` ssa-use `:` type
+    ```
+
+    Returns the maximum of the two arguments, treating -0.0 as less than +0.0.
+    If one of the arguments is NaN, then the result is also NaN.
+
+    Example:
+
+    ```mlir
+    // Scalar floating-point maximum.
+    %a = arith.maxf %b, %c : f64
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// MaxSIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MaxSIOp : Arith_IntBinaryOp<"maxsi"> {
+  let summary = "signed integer maximum operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// MaxUIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MaxUIOp : Arith_IntBinaryOp<"maxui"> {
+  let summary = "unsigned integer maximum operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// MinFOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MinFOp : Arith_FloatBinaryOp<"minf"> {
+  let summary = "floating-point minimum operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `arith.minf` ssa-use `,` ssa-use `:` type
+    ```
+
+    Returns the minimum of the two arguments, treating -0.0 as less than +0.0.
+    If one of the arguments is NaN, then the result is also NaN.
+
+    Example:
+
+    ```mlir
+    // Scalar floating-point minimum.
+    %a = arith.minf %b, %c : f64
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// MinSIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MinSIOp : Arith_IntBinaryOp<"minsi"> {
+  let summary = "signed integer minimum operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// MinUIOp
+//===----------------------------------------------------------------------===//
+
+def Arith_MinUIOp : Arith_IntBinaryOp<"minui"> {
+  let summary = "unsigned integer minimum operation";
+  let hasFolder = 1;
+}
+
 
 //===----------------------------------------------------------------------===//
 // MulFOp

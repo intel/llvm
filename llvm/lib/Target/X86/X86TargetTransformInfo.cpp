@@ -1584,50 +1584,98 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::ZERO_EXTEND, MVT::v32i16, MVT::v32i8, 1 },
 
     // Mask sign extend has an instruction.
-    { ISD::SIGN_EXTEND, MVT::v2i8,   MVT::v2i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v2i16,  MVT::v2i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v4i8,   MVT::v4i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v4i16,  MVT::v4i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v8i8,   MVT::v8i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v8i16,  MVT::v8i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v16i1, 1 },
-    { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v16i1, 1 },
-    { ISD::SIGN_EXTEND, MVT::v32i8,  MVT::v32i1, 1 },
-    { ISD::SIGN_EXTEND, MVT::v32i16, MVT::v32i1, 1 },
-    { ISD::SIGN_EXTEND, MVT::v64i8,  MVT::v64i1, 1 },
+    { ISD::SIGN_EXTEND, MVT::v2i8,   MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v2i16,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i16,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i8,   MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i16,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i16,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i8,   MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i16,  MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v16i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v16i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v32i8,  MVT::v32i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v32i16, MVT::v32i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v64i8,  MVT::v64i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v32i16, MVT::v64i1,  1 },
 
     // Mask zero extend is a sext + shift.
-    { ISD::ZERO_EXTEND, MVT::v2i8,   MVT::v2i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v2i16,  MVT::v2i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v4i8,   MVT::v4i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v4i16,  MVT::v4i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v8i8,   MVT::v8i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v8i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v16i1, 2 },
-    { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v16i1, 2 },
-    { ISD::ZERO_EXTEND, MVT::v32i8,  MVT::v32i1, 2 },
-    { ISD::ZERO_EXTEND, MVT::v32i16, MVT::v32i1, 2 },
-    { ISD::ZERO_EXTEND, MVT::v64i8,  MVT::v64i1, 2 },
+    { ISD::ZERO_EXTEND, MVT::v2i8,   MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v2i16,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i8,   MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i16,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i8,   MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v16i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v16i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v32i8,  MVT::v32i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v32i16, MVT::v32i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v64i8,  MVT::v64i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v32i16, MVT::v64i1,  2 },
+
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i8,   2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v16i8,  2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i16,  2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v8i16,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i8,   2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v16i8,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i16,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v8i16,  2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i8,   2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v16i8,  2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i16,  2 },
+    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i8,  2 },
+    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i16, 2 },
+    { ISD::TRUNCATE,    MVT::v32i1,  MVT::v32i8,  2 },
+    { ISD::TRUNCATE,    MVT::v32i1,  MVT::v32i16, 2 },
+    { ISD::TRUNCATE,    MVT::v64i1,  MVT::v64i8,  2 },
+    { ISD::TRUNCATE,    MVT::v64i1,  MVT::v32i16, 2 },
 
     { ISD::TRUNCATE,    MVT::v32i8,  MVT::v32i16, 2 },
     { ISD::TRUNCATE,    MVT::v16i8,  MVT::v16i16, 2 }, // widen to zmm
-    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i8,   2 }, // widen to zmm
-    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i16,  2 }, // widen to zmm
     { ISD::TRUNCATE,    MVT::v2i8,   MVT::v2i16,  2 }, // vpmovwb
-    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i8,   2 }, // widen to zmm
-    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i16,  2 }, // widen to zmm
     { ISD::TRUNCATE,    MVT::v4i8,   MVT::v4i16,  2 }, // vpmovwb
-    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i8,   2 }, // widen to zmm
-    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i16,  2 }, // widen to zmm
     { ISD::TRUNCATE,    MVT::v8i8,   MVT::v8i16,  2 }, // vpmovwb
-    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i8,  2 }, // widen to zmm
-    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i16, 2 }, // widen to zmm
-    { ISD::TRUNCATE,    MVT::v32i1,  MVT::v32i8,  2 }, // widen to zmm
-    { ISD::TRUNCATE,    MVT::v32i1,  MVT::v32i16, 2 },
-    { ISD::TRUNCATE,    MVT::v64i1,  MVT::v64i8,  2 },
   };
 
   static const TypeConversionCostTblEntry AVX512DQConversionTbl[] = {
+    // Mask sign extend has an instruction.
+    { ISD::SIGN_EXTEND, MVT::v2i64,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i32,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i32,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i64,  MVT::v16i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v8i64,  MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i32, MVT::v16i1,  1 },
+
+    // Mask zero extend is a sext + shift.
+    { ISD::ZERO_EXTEND, MVT::v2i64,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i32,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i32,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i64,  MVT::v16i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v8i64,  MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i32, MVT::v16i1,  2 },
+
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i64,  2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v4i32,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i32,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i64,  2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i32,  2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i64,  2 },
+    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i32, 2 },
+    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v8i64,  2 },
+
     { ISD::SINT_TO_FP,  MVT::v8f32,  MVT::v8i64,  1 },
     { ISD::SINT_TO_FP,  MVT::v8f64,  MVT::v8i64,  1 },
 
@@ -1667,17 +1715,26 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
     { ISD::TRUNCATE,  MVT::v2i8,    MVT::v2i32,  2 }, // vpmovdb
     { ISD::TRUNCATE,  MVT::v4i8,    MVT::v4i32,  2 }, // vpmovdb
     { ISD::TRUNCATE,  MVT::v16i8,   MVT::v16i32, 2 }, // vpmovdb
-    { ISD::TRUNCATE,  MVT::v16i16,  MVT::v16i32, 2 }, // vpmovdb
+    { ISD::TRUNCATE,  MVT::v32i8,   MVT::v16i32, 2 }, // vpmovdb
+    { ISD::TRUNCATE,  MVT::v64i8,   MVT::v16i32, 2 }, // vpmovdb
+    { ISD::TRUNCATE,  MVT::v16i16,  MVT::v16i32, 2 }, // vpmovdw
+    { ISD::TRUNCATE,  MVT::v32i16,  MVT::v16i32, 2 }, // vpmovdw
     { ISD::TRUNCATE,  MVT::v2i8,    MVT::v2i64,  2 }, // vpmovqb
     { ISD::TRUNCATE,  MVT::v2i16,   MVT::v2i64,  1 }, // vpshufb
     { ISD::TRUNCATE,  MVT::v8i8,    MVT::v8i64,  2 }, // vpmovqb
+    { ISD::TRUNCATE,  MVT::v16i8,   MVT::v8i64,  2 }, // vpmovqb
+    { ISD::TRUNCATE,  MVT::v32i8,   MVT::v8i64,  2 }, // vpmovqb
+    { ISD::TRUNCATE,  MVT::v64i8,   MVT::v8i64,  2 }, // vpmovqb
     { ISD::TRUNCATE,  MVT::v8i16,   MVT::v8i64,  2 }, // vpmovqw
+    { ISD::TRUNCATE,  MVT::v16i16,  MVT::v8i64,  2 }, // vpmovqw
+    { ISD::TRUNCATE,  MVT::v32i16,  MVT::v8i64,  2 }, // vpmovqw
     { ISD::TRUNCATE,  MVT::v8i32,   MVT::v8i64,  1 }, // vpmovqd
     { ISD::TRUNCATE,  MVT::v4i32,   MVT::v4i64,  1 }, // zmm vpmovqd
     { ISD::TRUNCATE,  MVT::v16i8,   MVT::v16i64, 5 },// 2*vpmovqd+concat+vpmovdb
 
     { ISD::TRUNCATE,  MVT::v16i8,  MVT::v16i16,  3 }, // extend to v16i32
     { ISD::TRUNCATE,  MVT::v32i8,  MVT::v32i16,  8 },
+    { ISD::TRUNCATE,  MVT::v64i8,  MVT::v32i16,  8 },
 
     // Sign extend is zmm vpternlogd+vptruncdb.
     // Zero extend is zmm broadcast load+vptruncdw.
@@ -1773,40 +1830,94 @@ InstructionCost X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst,
 
   static const TypeConversionCostTblEntry AVX512BWVLConversionTbl[] {
     // Mask sign extend has an instruction.
-    { ISD::SIGN_EXTEND, MVT::v2i8,   MVT::v2i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v2i16,  MVT::v2i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v4i8,   MVT::v4i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v4i16,  MVT::v4i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v8i8,   MVT::v8i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v8i16,  MVT::v8i1,  1 },
-    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v16i1, 1 },
-    { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v16i1, 1 },
-    { ISD::SIGN_EXTEND, MVT::v32i8,  MVT::v32i1, 1 },
+    { ISD::SIGN_EXTEND, MVT::v2i8,   MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v2i16,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i16,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i16,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i8,   MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i16,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i8,   MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i16,  MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v16i8,  MVT::v16i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v16i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v32i8,  MVT::v32i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v32i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v32i8,  MVT::v64i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v64i1,  1 },
 
     // Mask zero extend is a sext + shift.
-    { ISD::ZERO_EXTEND, MVT::v2i8,   MVT::v2i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v2i16,  MVT::v2i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v4i8,   MVT::v4i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v4i16,  MVT::v4i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v8i8,   MVT::v8i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v8i1,  2 },
-    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v16i1, 2 },
-    { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v16i1, 2 },
-    { ISD::ZERO_EXTEND, MVT::v32i8,  MVT::v32i1, 2 },
+    { ISD::ZERO_EXTEND, MVT::v2i8,   MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v2i16,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i8,   MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i16,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i8,   MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i16,  MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v16i8,  MVT::v16i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v16i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v32i8,  MVT::v32i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v32i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v32i8,  MVT::v64i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v64i1,  2 },
+
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i8,   2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v16i8,  2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i16,  2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v8i16,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i8,   2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v16i8,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i16,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v8i16,  2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i8,   2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v16i8,  2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i16,  2 },
+    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i8,  2 },
+    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i16, 2 },
+    { ISD::TRUNCATE,    MVT::v32i1,  MVT::v32i8,  2 },
+    { ISD::TRUNCATE,    MVT::v32i1,  MVT::v16i16, 2 },
+    { ISD::TRUNCATE,    MVT::v64i1,  MVT::v32i8,  2 },
+    { ISD::TRUNCATE,    MVT::v64i1,  MVT::v16i16, 2 },
 
     { ISD::TRUNCATE,    MVT::v16i8,  MVT::v16i16, 2 },
-    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i8,   2 }, // vpsllw+vptestmb
-    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i16,  2 }, // vpsllw+vptestmw
-    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i8,   2 }, // vpsllw+vptestmb
-    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i16,  2 }, // vpsllw+vptestmw
-    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i8,   2 }, // vpsllw+vptestmb
-    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i16,  2 }, // vpsllw+vptestmw
-    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i8,  2 }, // vpsllw+vptestmb
-    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v16i16, 2 }, // vpsllw+vptestmw
-    { ISD::TRUNCATE,    MVT::v32i1,  MVT::v32i8,  2 }, // vpsllw+vptestmb
   };
 
   static const TypeConversionCostTblEntry AVX512DQVLConversionTbl[] = {
+    // Mask sign extend has an instruction.
+    { ISD::SIGN_EXTEND, MVT::v2i64,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i32,  MVT::v2i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i32,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v16i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v8i1,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v16i1,  1 },
+    { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i1,   1 },
+
+    // Mask zero extend is a sext + shift.
+    { ISD::ZERO_EXTEND, MVT::v2i64,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i32,  MVT::v2i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i32,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v16i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v8i1,   2 },
+    { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v16i1,  2 },
+    { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i1,   2 },
+
+    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v4i64,  2 },
+    { ISD::TRUNCATE,    MVT::v16i1,  MVT::v8i32,  2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v2i64,  2 },
+    { ISD::TRUNCATE,    MVT::v2i1,   MVT::v4i32,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i32,  2 },
+    { ISD::TRUNCATE,    MVT::v4i1,   MVT::v4i64,  2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v4i64,  2 },
+    { ISD::TRUNCATE,    MVT::v8i1,   MVT::v8i32,  2 },
+
     { ISD::SINT_TO_FP,  MVT::v2f32,  MVT::v2i64,  1 },
     { ISD::SINT_TO_FP,  MVT::v2f64,  MVT::v2i64,  1 },
     { ISD::SINT_TO_FP,  MVT::v4f32,  MVT::v4i64,  1 },
@@ -3621,74 +3732,110 @@ InstructionCost X86TTIImpl::getScalarizationOverhead(VectorType *Ty,
   return Cost;
 }
 
-InstructionCost X86TTIImpl::getReplicationShuffleCost(
-    Type *EltTy, int ReplicationFactor, int VF,
-    const APInt &DemandedReplicatedElts, TTI::TargetCostKind CostKind) {
+InstructionCost
+X86TTIImpl::getReplicationShuffleCost(Type *EltTy, int ReplicationFactor,
+                                      int VF, const APInt &DemandedDstElts,
+                                      TTI::TargetCostKind CostKind) {
   const unsigned EltTyBits = DL.getTypeSizeInBits(EltTy);
+  // We don't differentiate element types here, only element bit width.
+  EltTy = IntegerType::getIntNTy(EltTy->getContext(), EltTyBits);
 
   auto bailout = [&]() {
     return BaseT::getReplicationShuffleCost(EltTy, ReplicationFactor, VF,
-                                            DemandedReplicatedElts, CostKind);
+                                            DemandedDstElts, CostKind);
   };
 
   // For now, only deal with AVX512 cases.
   if (!ST->hasAVX512())
     return bailout();
 
+  // Do we have a native shuffle for this element type, or should we promote?
+  unsigned PromEltTyBits = EltTyBits;
   switch (EltTyBits) {
   case 32:
   case 64:
     break; // AVX512F.
   case 16:
     if (!ST->hasBWI())
-      return bailout();
-    break;
+      PromEltTyBits = 32; // promote to i32, AVX512F.
+    break;                // AVX512BW
   case 8:
     if (!ST->hasVBMI())
-      return bailout();
-    break;
+      PromEltTyBits = 32; // promote to i32, AVX512F.
+    break;                // AVX512VBMI
+  case 1:
+    // There is no support for shuffling i1 elements. We *must* promote.
+    if (ST->hasBWI()) {
+      if (ST->hasVBMI())
+        PromEltTyBits = 8; // promote to i8, AVX512VBMI.
+      else
+        PromEltTyBits = 16; // promote to i16, AVX512BW.
+      break;
+    }
+    return bailout();
   default:
     return bailout();
   }
+  auto *PromEltTy = IntegerType::getIntNTy(EltTy->getContext(), PromEltTyBits);
 
   auto *SrcVecTy = FixedVectorType::get(EltTy, VF);
-  int NumReplicatedElements = VF * ReplicationFactor;
-  auto *ReplicatedVecTy = FixedVectorType::get(EltTy, NumReplicatedElements);
+  auto *PromSrcVecTy = FixedVectorType::get(PromEltTy, VF);
+
+  int NumDstElements = VF * ReplicationFactor;
+  auto *PromDstVecTy = FixedVectorType::get(PromEltTy, NumDstElements);
+  auto *DstVecTy = FixedVectorType::get(EltTy, NumDstElements);
 
   // Legalize the types.
   MVT LegalSrcVecTy = TLI->getTypeLegalizationCost(DL, SrcVecTy).second;
-  MVT LegalReplicatedVecTy =
-      TLI->getTypeLegalizationCost(DL, ReplicatedVecTy).second;
-
-  // They both should have legalized into vector types.
-  if (!LegalSrcVecTy.isVector() || !LegalReplicatedVecTy.isVector())
+  MVT LegalPromSrcVecTy = TLI->getTypeLegalizationCost(DL, PromSrcVecTy).second;
+  MVT LegalPromDstVecTy = TLI->getTypeLegalizationCost(DL, PromDstVecTy).second;
+  MVT LegalDstVecTy = TLI->getTypeLegalizationCost(DL, DstVecTy).second;
+  // They should have legalized into vector types.
+  if (!LegalSrcVecTy.isVector() || !LegalPromSrcVecTy.isVector() ||
+      !LegalPromDstVecTy.isVector() || !LegalDstVecTy.isVector())
     return bailout();
 
+  if (PromEltTyBits != EltTyBits) {
+    // If we have to perform the shuffle with wider elt type than our data type,
+    // then we will first need to anyext (we don't care about the new bits)
+    // the source elements, and then truncate Dst elements.
+    InstructionCost PromotionCost;
+    PromotionCost += getCastInstrCost(
+        Instruction::SExt, /*Dst=*/PromSrcVecTy, /*Src=*/SrcVecTy,
+        TargetTransformInfo::CastContextHint::None, CostKind);
+    PromotionCost +=
+        getCastInstrCost(Instruction::Trunc, /*Dst=*/DstVecTy,
+                         /*Src=*/PromDstVecTy,
+                         TargetTransformInfo::CastContextHint::None, CostKind);
+    return PromotionCost + getReplicationShuffleCost(PromEltTy,
+                                                     ReplicationFactor, VF,
+                                                     DemandedDstElts, CostKind);
+  }
+
   assert(LegalSrcVecTy.getScalarSizeInBits() == EltTyBits &&
-         LegalSrcVecTy.getScalarType() ==
-             LegalReplicatedVecTy.getScalarType() &&
+         LegalSrcVecTy.getScalarType() == LegalDstVecTy.getScalarType() &&
          "We expect that the legalization doesn't affect the element width, "
          "doesn't coalesce/split elements.");
 
-  unsigned NumEltsPerReplicatedVec =
-      LegalReplicatedVecTy.getVectorNumElements();
-  unsigned NumReplicatedVectors =
-      divideCeil(ReplicatedVecTy->getNumElements(), NumEltsPerReplicatedVec);
+  unsigned NumEltsPerDstVec = LegalDstVecTy.getVectorNumElements();
+  unsigned NumDstVectors =
+      divideCeil(DstVecTy->getNumElements(), NumEltsPerDstVec);
 
-  auto *SingleReplicatedVecTy =
-      FixedVectorType::get(EltTy, NumEltsPerReplicatedVec);
+  auto *SingleDstVecTy = FixedVectorType::get(EltTy, NumEltsPerDstVec);
 
-  APInt DemandedReplicatedVectors = APIntOps::ScaleBitMask(
-      DemandedReplicatedElts.zextOrSelf(NumReplicatedVectors *
-                                        NumEltsPerReplicatedVec),
-      NumReplicatedVectors);
-  unsigned NumReplicatedVectorsDemanded =
-      DemandedReplicatedVectors.countPopulation();
+  // Not all the produced Dst elements may be demanded. In our case,
+  // given that a single Dst vector is formed by a single shuffle,
+  // if all elements that will form a single Dst vector aren't demanded,
+  // then we won't need to do that shuffle, so adjust the cost accordingly.
+  APInt DemandedDstVectors = APIntOps::ScaleBitMask(
+      DemandedDstElts.zextOrSelf(NumDstVectors * NumEltsPerDstVec),
+      NumDstVectors);
+  unsigned NumDstVectorsDemanded = DemandedDstVectors.countPopulation();
 
   InstructionCost SingleShuffleCost =
-      getShuffleCost(TTI::SK_PermuteSingleSrc, SingleReplicatedVecTy,
+      getShuffleCost(TTI::SK_PermuteSingleSrc, SingleDstVecTy,
                      /*Mask=*/None, /*Index=*/0, /*SubTp=*/nullptr);
-  return NumReplicatedVectorsDemanded * SingleShuffleCost;
+  return NumDstVectorsDemanded * SingleShuffleCost;
 }
 
 InstructionCost X86TTIImpl::getMemoryOpCost(unsigned Opcode, Type *Src,

@@ -647,6 +647,23 @@ func @test_misc_ops(%arr1 : !fir.ref<!fir.array<?x?xf32>>, %m : index, %n : inde
   return
 }
 
+// CHECK-LABEL: @test_const_complex
+func @test_const_complex() {
+ // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<2, i x3000>, #fir.real<2, i x4C40>) : !fir.complex<2>
+ // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<3, i x3E80>, #fir.real<3, i x4202>) : !fir.complex<3>
+ // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<4, i x3E800000>, #fir.real<4, i x42028000>) : !fir.complex<4>
+ // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<8, i x3FD0000000000000>, #fir.real<8, i x4040500000000000>) : !fir.complex<8>
+ // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<10, i x3FFD8000000000000000>, #fir.real<10, i x40048280000000000000>) : !fir.complex<10>
+ // CHECK-DAG: {{%.*}} = fir.constc(#fir.real<16, i x3FFD0000000000000000000000000000>, #fir.real<16, i x40040500000000000000000000000000>) : !fir.complex<16>
+  %c2 = fir.constc (#fir.real<2, 0.125>, #fir.real<2, 17.0>) : !fir.complex<2>
+  %c3 = fir.constc (#fir.real<3, 0.25>, #fir.real<3, 32.625>) : !fir.complex<3>
+  %c4 = fir.constc (#fir.real<4, 0.25>, #fir.real<4, 32.625>) : !fir.complex<4>
+  %c8 = fir.constc (#fir.real<8, 0.25>, #fir.real<8, 32.625>) : !fir.complex<8>
+  %c10 = fir.constc (#fir.real<10, 0.25>, #fir.real<10, 32.625>) : !fir.complex<10>
+  %c16 = fir.constc (#fir.real<16, 0.25>, #fir.real<16, 32.625>) : !fir.complex<16>
+  return
+}
+
 // CHECK-LABEL: @test_shift
 func @test_shift(%arg0: !fir.box<!fir.array<?xf32>>) -> !fir.ref<f32> {
   %c4 = arith.constant 4 : index
@@ -706,4 +723,19 @@ func @slice_substr() {
   %0 = fir.slice %lb, %ub, %c1 substr %offset, %c1 : (index, index, index, index, index) -> !fir.slice<1>
   // CHECK: fir.slice %{{.*}}, %{{.*}}, %{{.*}} substr %{{.*}}, %{{.*}} : (index, index, index, index, index) -> !fir.slice<1>
   return
+}
+
+// Test load, store, coordinate_of with llvmptr type
+// CHECK-LABEL: llvm_ptr_load_store_coordinate
+// CHECK-SAME: (%[[ARG0:.*]]: !fir.ref<tuple<!fir.ref<!fir.box<!fir.ptr<f32>>>, !fir.ref<!fir.box<!fir.heap<f32>>>>>, %[[ARG1:.*]]: !fir.ref<!fir.box<!fir.ptr<f32>>>)
+func @llvm_ptr_load_store_coordinate(%arg0: !fir.ref<tuple<!fir.ref<!fir.box<!fir.ptr<f32>>>, !fir.ref<!fir.box<!fir.heap<f32>>>>>, %arg1: !fir.ref<!fir.box<!fir.ptr<f32>>>) -> !fir.ref<!fir.box<!fir.ptr<f32>>> {
+  // CHECK-NEXT: %[[C0:.*]] = arith.constant 0 : i32
+  %c0_i32 = arith.constant 0 : i32
+  // CHECK-NEXT: %[[LLVMPTR:.*]] = fir.coordinate_of %[[ARG0]], %[[C0]] : (!fir.ref<tuple<!fir.ref<!fir.box<!fir.ptr<f32>>>, !fir.ref<!fir.box<!fir.heap<f32>>>>>, i32) -> !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
+  %0 = fir.coordinate_of %arg0, %c0_i32 : (!fir.ref<tuple<!fir.ref<!fir.box<!fir.ptr<f32>>>, !fir.ref<!fir.box<!fir.heap<f32>>>>>, i32) -> !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
+  // CHECK-NEXT: fir.store %[[ARG1]] to %[[LLVMPTR]] : !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
+  fir.store %arg1 to %0 : !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
+  // CHECK-NEXT: fir.load %[[LLVMPTR]] : !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
+  %1 = fir.load %0 : !fir.llvm_ptr<!fir.ref<!fir.box<!fir.ptr<f32>>>>
+  return %1 : !fir.ref<!fir.box<!fir.ptr<f32>>>
 }

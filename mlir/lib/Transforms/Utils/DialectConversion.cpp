@@ -14,6 +14,7 @@
 #include "mlir/IR/FunctionSupport.h"
 #include "mlir/Rewrite/PatternApplicator.h"
 #include "mlir/Transforms/Utils.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
@@ -1816,14 +1817,7 @@ OperationLegalizer::OperationLegalizer(ConversionTarget &targetInfo,
 }
 
 bool OperationLegalizer::isIllegal(Operation *op) const {
-  // Check if the target explicitly marked this operation as illegal.
-  if (auto info = target.getOpAction(op->getName())) {
-    if (*info == LegalizationAction::Dynamic)
-      return !target.isLegal(op);
-    return *info == LegalizationAction::Illegal;
-  }
-
-  return false;
+  return target.isIllegal(op);
 }
 
 LogicalResult
@@ -2938,8 +2932,12 @@ LogicalResult TypeConverter::convertType(Type t,
   // Walk the added converters in reverse order to apply the most recently
   // registered first.
   size_t currentCount = results.size();
+  conversionCallStack.push_back(t);
+  auto popConversionCallStack =
+      llvm::make_scope_exit([this]() { conversionCallStack.pop_back(); });
   for (ConversionCallbackFn &converter : llvm::reverse(conversions)) {
-    if (Optional<LogicalResult> result = converter(t, results)) {
+    if (Optional<LogicalResult> result =
+            converter(t, results, conversionCallStack)) {
       if (!succeeded(*result)) {
         cachedDirectConversions.try_emplace(t, nullptr);
         return failure();
@@ -3135,6 +3133,22 @@ auto ConversionTarget::isLegal(Operation *op) const
     }
   }
   return legalityDetails;
+}
+
+bool ConversionTarget::isIllegal(Operation *op) const {
+  Optional<LegalizationInfo> info = getOpInfo(op->getName());
+  if (!info)
+    return false;
+
+  if (info->action == LegalizationAction::Dynamic) {
+    Optional<bool> result = info->legalityFn(op);
+    if (!result)
+      return false;
+
+    return !(*result);
+  }
+
+  return info->action == LegalizationAction::Illegal;
 }
 
 static ConversionTarget::DynamicLegalityCallbackFn composeLegalityCallbacks(

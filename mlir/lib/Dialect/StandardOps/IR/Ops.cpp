@@ -100,28 +100,6 @@ struct StdInlinerInterface : public DialectInlinerInterface {
 // StandardOpsDialect
 //===----------------------------------------------------------------------===//
 
-/// A custom binary operation printer that omits the "std." prefix from the
-/// operation names.
-static void printStandardBinaryOp(Operation *op, OpAsmPrinter &p) {
-  assert(op->getNumOperands() == 2 && "binary op should have two operands");
-  assert(op->getNumResults() == 1 && "binary op should have one result");
-
-  // If not all the operand and result types are the same, just use the
-  // generic assembly form to avoid omitting information in printing.
-  auto resultType = op->getResult(0).getType();
-  if (op->getOperand(0).getType() != resultType ||
-      op->getOperand(1).getType() != resultType) {
-    p.printGenericOp(op);
-    return;
-  }
-
-  p << ' ' << op->getOperand(0) << ", " << op->getOperand(1);
-  p.printOptionalAttrDict(op->getAttrs());
-
-  // Now we can output only one type for all operands and the result.
-  p << " : " << op->getResult(0).getType();
-}
-
 void StandardOpsDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
@@ -251,17 +229,17 @@ Value mlir::getReductionOp(AtomicRMWKind op, OpBuilder &builder, Location loc,
   case AtomicRMWKind::muli:
     return builder.create<arith::MulIOp>(loc, lhs, rhs);
   case AtomicRMWKind::maxf:
-    return builder.create<MaxFOp>(loc, lhs, rhs);
+    return builder.create<arith::MaxFOp>(loc, lhs, rhs);
   case AtomicRMWKind::minf:
-    return builder.create<MinFOp>(loc, lhs, rhs);
+    return builder.create<arith::MinFOp>(loc, lhs, rhs);
   case AtomicRMWKind::maxs:
-    return builder.create<MaxSIOp>(loc, lhs, rhs);
+    return builder.create<arith::MaxSIOp>(loc, lhs, rhs);
   case AtomicRMWKind::mins:
-    return builder.create<MinSIOp>(loc, lhs, rhs);
+    return builder.create<arith::MinSIOp>(loc, lhs, rhs);
   case AtomicRMWKind::maxu:
-    return builder.create<MaxUIOp>(loc, lhs, rhs);
+    return builder.create<arith::MaxUIOp>(loc, lhs, rhs);
   case AtomicRMWKind::minu:
-    return builder.create<MinUIOp>(loc, lhs, rhs);
+    return builder.create<arith::MinUIOp>(loc, lhs, rhs);
   // TODO: Add remaining reduction operations.
   default:
     (void)emitOptionalError(loc, "Reduction operation type not supported");
@@ -919,106 +897,6 @@ bool ConstantOp::isBuildableWith(Attribute value, Type type) {
            arrAttr[1].getType() == complexEltTy;
   }
   return value.isa<UnitAttr>();
-}
-
-//===----------------------------------------------------------------------===//
-// MaxSIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult MaxSIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // maxsi(x,x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
-
-  APInt intValue;
-  // maxsi(x,MAX_INT) -> MAX_INT
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) &&
-      intValue.isMaxSignedValue())
-    return getRhs();
-
-  // maxsi(x, MIN_INT) -> x
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) &&
-      intValue.isMinSignedValue())
-    return getLhs();
-
-  return constFoldBinaryOp<IntegerAttr>(
-      operands, [](APInt a, APInt b) { return llvm::APIntOps::smax(a, b); });
-}
-
-//===----------------------------------------------------------------------===//
-// MaxUIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult MaxUIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // maxui(x,x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
-
-  APInt intValue;
-  // maxui(x,MAX_INT) -> MAX_INT
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isMaxValue())
-    return getRhs();
-
-  // maxui(x, MIN_INT) -> x
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isMinValue())
-    return getLhs();
-
-  return constFoldBinaryOp<IntegerAttr>(
-      operands, [](APInt a, APInt b) { return llvm::APIntOps::umax(a, b); });
-}
-
-//===----------------------------------------------------------------------===//
-// MinSIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult MinSIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // minsi(x,x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
-
-  APInt intValue;
-  // minsi(x,MIN_INT) -> MIN_INT
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) &&
-      intValue.isMinSignedValue())
-    return getRhs();
-
-  // minsi(x, MAX_INT) -> x
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) &&
-      intValue.isMaxSignedValue())
-    return getLhs();
-
-  return constFoldBinaryOp<IntegerAttr>(
-      operands, [](APInt a, APInt b) { return llvm::APIntOps::smin(a, b); });
-}
-
-//===----------------------------------------------------------------------===//
-// MinUIOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult MinUIOp::fold(ArrayRef<Attribute> operands) {
-  assert(operands.size() == 2 && "binary operation takes two operands");
-
-  // minui(x,x) -> x
-  if (getLhs() == getRhs())
-    return getRhs();
-
-  APInt intValue;
-  // minui(x,MIN_INT) -> MIN_INT
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isMinValue())
-    return getRhs();
-
-  // minui(x, MAX_INT) -> x
-  if (matchPattern(getRhs(), m_ConstantInt(&intValue)) && intValue.isMaxValue())
-    return getLhs();
-
-  return constFoldBinaryOp<IntegerAttr>(
-      operands, [](APInt a, APInt b) { return llvm::APIntOps::umin(a, b); });
 }
 
 //===----------------------------------------------------------------------===//

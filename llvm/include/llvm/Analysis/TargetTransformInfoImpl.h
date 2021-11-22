@@ -552,7 +552,7 @@ public:
   }
 
   unsigned getReplicationShuffleCost(Type *EltTy, int ReplicationFactor, int VF,
-                                     const APInt &DemandedReplicatedElts,
+                                     const APInt &DemandedDstElts,
                                      TTI::TargetCostKind CostKind) {
     return 1;
   }
@@ -632,7 +632,8 @@ public:
     return 1;
   }
 
-  unsigned getNumberOfParts(Type *Tp) const { return 0; }
+  // Assume that we have a register of the right size for the type.
+  unsigned getNumberOfParts(Type *Tp) const { return 1; }
 
   InstructionCost getAddressComputationCost(Type *Tp, ScalarEvolution *,
                                             const SCEV *) const {
@@ -1114,15 +1115,15 @@ public:
 
         int ReplicationFactor, VF;
         if (Shuffle->isReplicationMask(ReplicationFactor, VF)) {
-          APInt DemandedReplicatedElts =
+          APInt DemandedDstElts =
               APInt::getNullValue(Shuffle->getShuffleMask().size());
           for (auto I : enumerate(Shuffle->getShuffleMask())) {
             if (I.value() != UndefMaskElem)
-              DemandedReplicatedElts.setBit(I.index());
+              DemandedDstElts.setBit(I.index());
           }
           return TargetTTI->getReplicationShuffleCost(
               VecSrcTy->getElementType(), ReplicationFactor, VF,
-              DemandedReplicatedElts, CostKind);
+              DemandedDstElts, CostKind);
         }
 
         return CostKind == TTI::TCK_RecipThroughput ? -1 : 1;

@@ -165,79 +165,6 @@ static cl::opt<unsigned> MemorySSAPathCheckLimit(
 using OverlapIntervalsTy = std::map<int64_t, int64_t>;
 using InstOverlapIntervalsTy = DenseMap<Instruction *, OverlapIntervalsTy>;
 
-/// Does this instruction write some memory?  This only returns true for things
-/// that we can analyze with other helpers below.
-static bool hasAnalyzableMemoryWrite(Instruction *I,
-                                     const TargetLibraryInfo &TLI) {
-  if (isa<StoreInst>(I))
-    return true;
-  if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
-    switch (II->getIntrinsicID()) {
-    default:
-      return false;
-    case Intrinsic::memset:
-    case Intrinsic::memmove:
-    case Intrinsic::memcpy:
-    case Intrinsic::memcpy_inline:
-    case Intrinsic::memcpy_element_unordered_atomic:
-    case Intrinsic::memmove_element_unordered_atomic:
-    case Intrinsic::memset_element_unordered_atomic:
-    case Intrinsic::init_trampoline:
-    case Intrinsic::lifetime_end:
-    case Intrinsic::masked_store:
-      return true;
-    }
-  }
-  if (auto *CB = dyn_cast<CallBase>(I)) {
-    LibFunc LF;
-    if (TLI.getLibFunc(*CB, LF) && TLI.has(LF)) {
-      switch (LF) {
-      case LibFunc_strcpy:
-      case LibFunc_strncpy:
-      case LibFunc_strcat:
-      case LibFunc_strncat:
-        return true;
-      default:
-        return false;
-      }
-    }
-  }
-  return false;
-}
-
-/// Return a Location stored to by the specified instruction. If isRemovable
-/// returns true, this function and getLocForRead completely describe the memory
-/// operations for this instruction.
-static MemoryLocation getLocForWrite(Instruction *Inst,
-                                     const TargetLibraryInfo &TLI) {
-  if (StoreInst *SI = dyn_cast<StoreInst>(Inst))
-    return MemoryLocation::get(SI);
-
-  // memcpy/memmove/memset.
-  if (auto *MI = dyn_cast<AnyMemIntrinsic>(Inst))
-    return MemoryLocation::getForDest(MI);
-
-  if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(Inst)) {
-    switch (II->getIntrinsicID()) {
-    default:
-      return MemoryLocation(); // Unhandled intrinsic.
-    case Intrinsic::init_trampoline:
-      return MemoryLocation::getAfter(II->getArgOperand(0));
-    case Intrinsic::masked_store:
-      return MemoryLocation::getForArgument(II, 1, TLI);
-    case Intrinsic::lifetime_end: {
-      uint64_t Len = cast<ConstantInt>(II->getArgOperand(0))->getZExtValue();
-      return MemoryLocation(II->getArgOperand(1), Len);
-    }
-    }
-  }
-  if (auto *CB = dyn_cast<CallBase>(Inst))
-    // All the supported TLI functions so far happen to have dest as their
-    // first argument.
-    return MemoryLocation::getAfter(CB->getArgOperand(0));
-  return MemoryLocation();
-}
-
 /// If the value of this instruction and the memory it writes to is unused, may
 /// we delete this instruction?
 static bool isRemovable(Instruction *I) {
@@ -247,7 +174,7 @@ static bool isRemovable(Instruction *I) {
 
   if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
     switch (II->getIntrinsicID()) {
-    default: llvm_unreachable("doesn't pass 'hasAnalyzableMemoryWrite' predicate");
+    default: llvm_unreachable("Does not have LocForWrite");
     case Intrinsic::lifetime_end:
       // Never remove dead lifetime_end's, e.g. because it is followed by a
       // free.
@@ -729,28 +656,6 @@ static bool tryToShortenBegin(Instruction *DeadI,
   return false;
 }
 
-static bool removePartiallyOverlappedStores(const DataLayout &DL,
-                                            InstOverlapIntervalsTy &IOL,
-                                            const TargetLibraryInfo &TLI) {
-  bool Changed = false;
-  for (auto OI : IOL) {
-    Instruction *DeadI = OI.first;
-    MemoryLocation Loc = getLocForWrite(DeadI, TLI);
-    assert(isRemovable(DeadI) && "Expect only removable instruction");
-
-    const Value *Ptr = Loc.Ptr->stripPointerCasts();
-    int64_t DeadStart = 0;
-    uint64_t DeadSize = Loc.Size.getValue();
-    GetPointerBaseWithConstantOffset(Ptr, DeadStart, DL);
-    OverlapIntervalsTy &IntervalMap = OI.second;
-    Changed |= tryToShortenEnd(DeadI, IntervalMap, DeadStart, DeadSize);
-    if (IntervalMap.empty())
-      continue;
-    Changed |= tryToShortenBegin(DeadI, IntervalMap, DeadStart, DeadSize);
-  }
-  return Changed;
-}
-
 static Constant *
 tryToMergePartialOverlappingStores(StoreInst *KillingI, StoreInst *DeadI,
                                    int64_t KillingOffset, int64_t DeadOffset,
@@ -1114,8 +1019,13 @@ struct DSEState {
       LibFunc LF;
       if (TLI.getLibFunc(*CB, LF) && TLI.has(LF)) {
         switch (LF) {
-        case LibFunc_strcpy:
         case LibFunc_strncpy:
+          if (const auto *Len = dyn_cast<ConstantInt>(CB->getArgOperand(2)))
+            return MemoryLocation(CB->getArgOperand(0),
+                                  LocationSize::precise(Len->getZExtValue()),
+                                  CB->getAAMetadata());
+          LLVM_FALLTHROUGH;
+        case LibFunc_strcpy:
         case LibFunc_strcat:
         case LibFunc_strncat:
           return {MemoryLocation::getAfter(CB->getArgOperand(0))};
@@ -1430,14 +1340,10 @@ struct DSEState {
         return None;
       }
 
-      // If Current cannot be analyzed or is not removable, check the next
-      // candidate.
-      if (!hasAnalyzableMemoryWrite(CurrentI, TLI) || !isRemovable(CurrentI))
-        continue;
-
-      // If Current does not have an analyzable write location, skip it
+      // If Current does not have an analyzable write location or is not
+      // removable, skip it.
       CurrentLoc = getLocForWriteEx(CurrentI);
-      if (!CurrentLoc)
+      if (!CurrentLoc || !isRemovable(CurrentI))
         continue;
 
       // AliasAnalysis does not account for loops. Limit elimination to
@@ -1942,6 +1848,26 @@ struct DSEState {
     return false;
   }
 
+  bool removePartiallyOverlappedStores(InstOverlapIntervalsTy &IOL) {
+    bool Changed = false;
+    for (auto OI : IOL) {
+      Instruction *DeadI = OI.first;
+      MemoryLocation Loc = *getLocForWriteEx(DeadI);
+      assert(isRemovable(DeadI) && "Expect only removable instruction");
+
+      const Value *Ptr = Loc.Ptr->stripPointerCasts();
+      int64_t DeadStart = 0;
+      uint64_t DeadSize = Loc.Size.getValue();
+      GetPointerBaseWithConstantOffset(Ptr, DeadStart, DL);
+      OverlapIntervalsTy &IntervalMap = OI.second;
+      Changed |= tryToShortenEnd(DeadI, IntervalMap, DeadStart, DeadSize);
+      if (IntervalMap.empty())
+        continue;
+      Changed |= tryToShortenBegin(DeadI, IntervalMap, DeadStart, DeadSize);
+    }
+    return Changed;
+  }
+
   /// Eliminates writes to locations where the value that is being written
   /// is already stored at the same location.
   bool eliminateRedundantStoresOfExistingValues() {
@@ -2154,7 +2080,7 @@ static bool eliminateDeadStores(Function &F, AliasAnalysis &AA, MemorySSA &MSSA,
 
   if (EnablePartialOverwriteTracking)
     for (auto &KV : State.IOLs)
-      MadeChange |= removePartiallyOverlappedStores(State.DL, KV.second, TLI);
+      MadeChange |= State.removePartiallyOverlappedStores(KV.second);
 
   MadeChange |= State.eliminateRedundantStoresOfExistingValues();
   MadeChange |= State.eliminateDeadWritesAtEndOfFunction();

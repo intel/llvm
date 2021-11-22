@@ -967,6 +967,29 @@ Value *InstCombinerImpl::dyn_castNegVal(Value *V) const {
   return nullptr;
 }
 
+/// A binop with a constant operand and a sign-extended boolean operand may be
+/// converted into a select of constants by applying the binary operation to
+/// the constant with the two possible values of the extended boolean (0 or -1).
+Instruction *InstCombinerImpl::foldBinopOfSextBoolToSelect(BinaryOperator &BO) {
+  // TODO: Handle non-commutative binop (constant is operand 0).
+  // TODO: Handle zext.
+  // TODO: Peek through 'not' of cast.
+  Value *BO0 = BO.getOperand(0);
+  Value *BO1 = BO.getOperand(1);
+  Value *X;
+  Constant *C;
+  if (!match(BO0, m_SExt(m_Value(X))) || !match(BO1, m_ImmConstant(C)) ||
+      !X->getType()->isIntOrIntVectorTy(1))
+    return nullptr;
+
+  // bo (sext i1 X), C --> select X, (bo -1, C), (bo 0, C)
+  Constant *Ones = ConstantInt::getAllOnesValue(BO.getType());
+  Constant *Zero = ConstantInt::getNullValue(BO.getType());
+  Constant *TVal = ConstantExpr::get(BO.getOpcode(), Ones, C);
+  Constant *FVal = ConstantExpr::get(BO.getOpcode(), Zero, C);
+  return SelectInst::Create(X, TVal, FVal);
+}
+
 static Value *foldOperationIntoSelectOperand(Instruction &I, Value *SO,
                                              InstCombiner::BuilderTy &Builder) {
   if (auto *Cast = dyn_cast<CastInst>(&I))
@@ -1729,25 +1752,20 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
     Value *X;
     ArrayRef<int> MaskC;
     int SplatIndex;
-    BinaryOperator *BO;
+    Value *Y, *OtherOp;
     if (!match(LHS,
                m_OneUse(m_Shuffle(m_Value(X), m_Undef(), m_Mask(MaskC)))) ||
         !match(MaskC, m_SplatOrUndefMask(SplatIndex)) ||
-        X->getType() != Inst.getType() || !match(RHS, m_OneUse(m_BinOp(BO))) ||
-        BO->getOpcode() != Opcode)
+        X->getType() != Inst.getType() ||
+        !match(RHS, m_OneUse(m_BinOp(Opcode, m_Value(Y), m_Value(OtherOp)))))
       return nullptr;
 
     // FIXME: This may not be safe if the analysis allows undef elements. By
     //        moving 'Y' before the splat shuffle, we are implicitly assuming
     //        that it is not undef/poison at the splat index.
-    Value *Y, *OtherOp;
-    if (isSplatValue(BO->getOperand(0), SplatIndex)) {
-      Y = BO->getOperand(0);
-      OtherOp = BO->getOperand(1);
-    } else if (isSplatValue(BO->getOperand(1), SplatIndex)) {
-      Y = BO->getOperand(1);
-      OtherOp = BO->getOperand(0);
-    } else {
+    if (isSplatValue(OtherOp, SplatIndex)) {
+      std::swap(Y, OtherOp);
+    } else if (!isSplatValue(Y, SplatIndex)) {
       return nullptr;
     }
 
@@ -1763,7 +1781,7 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
     // dropped to be safe.
     if (isa<FPMathOperator>(R)) {
       R->copyFastMathFlags(&Inst);
-      R->andIRFlags(BO);
+      R->andIRFlags(RHS);
     }
     if (auto *NewInstBO = dyn_cast<BinaryOperator>(NewBO))
       NewInstBO->copyIRFlags(R);
