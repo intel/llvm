@@ -15,8 +15,15 @@
 // Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
 // extension even if the host compiler supports it. The same can be
 // accomplished by -D__NO_EXT_VECTOR_TYPE_ON_HOST__ command line option.
+// TODO: Disabling ext vector for non-device compiler, see if it can be enabled
+// back in a safe way. Using ext vector implies:
+// 1) that two libraries are aligned on this usage, we might not be true
+//    even for libsycl.so and a user app, since ext vector and C array
+//    are passed differently according to calling convention
+// 2) the values are aligned correspondingly which cannot be achieved on
+//    windows atm(see comments near __SYCL_ALIGNAS macro definition)
 #ifndef __NO_EXT_VECTOR_TYPE_ON_HOST__
-// #define __NO_EXT_VECTOR_TYPE_ON_HOST__
+#define __NO_EXT_VECTOR_TYPE_ON_HOST__
 #endif
 
 // Check if Clang's ext_vector_type attribute is available. Host compiler
