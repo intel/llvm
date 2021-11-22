@@ -28,9 +28,8 @@ trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
 This document describes an extension that introduces a `discard_events` property for
-
-SYCL queues.  This property enables developers to inform a SYCL implementation that
-the returned event can be discarded.
+SYCL queues. This property enables developers to inform a SYCL implementation that
+the events returned from queue operations will not be used.
 
 == Notice
 
@@ -50,18 +49,18 @@ products.
 
 == Version
 
-Built On: {docdate} +
 Revision: 1
 
 == Contributors
 
 Alexander Flegontov, Intel  +
 Greg Lueck, Intel  +
-John Pennycook, Intel
+John Pennycook, Intel +
+Vlad Romanov, Intel
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 3.
+This extension is written against the SYCL 2020 specification, Revision 4.
 
 == Feature Test Macro
 
@@ -82,17 +81,17 @@ value to determine which of the extension's APIs the implementation supports.
 == Overview
 
 This extension adds `ext::oneapi::property::queue::discard_events` property for `sycl::queue`,
-by using this property the application informs a SYCL implementation that the returned event can be discarded.
-
-In cases where it will be possible, the implementation makes a decision about internal optimization -- avoiding
-the creation of low-level event from the backend. The property affects only kernel cases,
-i.e. avoid creating low-level event for submission of kernels.
-Performance improvement is the main motivation for using this property.
+by using this property the application informs a SYCL implementation that it will not use the event
+returned by any of the `queue` member functions. (i.e submit, parallel_for, copy, memset and others.)
+When the application creates a queue with this property,
+the implementation may be able to optimize some operations on the `queue`.
+The `discard_events` property is incompatible with `enable_profiling`.
+Attempts to construct a `queue` with both properties raises `errc::invalid`.
 
 Below is a usage example:
 [source,c++]
 ----
-  sycl::property_list props{ext::oneapi::property::queue::discard_events{}
+  sycl::property_list props{ext::oneapi::property::queue::discard_events{},
                             property::queue::in_order{}};
   sycl::queue Queue( props );
 
@@ -111,14 +110,17 @@ Below is a usage example:
 ----
 
 In the example above, the application doesn't use sycl events: `e1`, `e2`, `e3`
-and is waiting for the end of work by `queue::wait()`. The returned events will be
-_invalid_ events. _invalid_ event is a `sycl::event` with a status `invalid` and the event returns from each kernel
-submission when queue is created with the `discard_events` property.
+and is waiting for the end of work by `queue::wait()`.
+When the queue is created with the `discard_events` property,
+the returned events will be _invalid_ events, which are `sycl::event` objects that have limited capability.
 See the description of behavior for this event below for details.
 
-Here, only those methods for the _invalid_ event are described that have behavior different from the default event behavior:
+Here, only those member functions for the _invalid_ event are described that have behavior different from the default event behavior:
 [source,c++]
 ----
+// must throw an exception with the errc::invalid error code.
+std::vector<event> get_wait_list();
+
 // must throw an exception with the errc::invalid error code.
 void wait();
 
@@ -145,32 +147,47 @@ handler::depends_on(event Event)
 handler::depends_on(const std::vector<event> &Events)
 ----
 
-== DPCPP implementation limitations
+A new enumerator value is also added to the `info::event_command_status` enumeration,
+which is returned by `get_info<info::event::command_execution_status>()` as described above:
+[source,c++]
+----
+namespace sycl {
+namespace info {
 
-The `discard_events` property should be taken as a hint for SYCL implementation.
-In all kernel cases, SYCL implementation returns _invalid_ event, regardless of whether the optimization was done.
-Optimization occurs if the queue has `discard_events` property and all features presented below are not met:
+enum class event_command_status : int {
+  // ...
+  ext_oneapi_unknown
+};
 
- - Using out-of-order queue or using together with `enable_profiling` property
- - Using https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Assert/SYCL_ONEAPI_ASSERT.asciidoc[fallback assert feature]
- - Using streams, buffer/image accessors (excluding local accessors)
+} // namespace info
+} // namespace sycl
+----
 
+== Optimization behavior for DPC++
 
-See details for each below:
+This non-normative section describes the conditions when the DPC++ implementation provides an optimization benefit* for the `discard_events` property.
 
-=== Using out-of-order queue and/or using together with enable_profiling property
+ - The queue must be constructed with the `in_order` property.
+ - A kernel submitted to the queue must not use the https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Assert/SYCL_ONEAPI_ASSERT.asciidoc[fallback assert feature].
+ - A queue operation submitted to the queue must not use streams or buffer / image accessors. However, local accessors do not inhibit optimization.
+
+*The benefit is that a low-level event is not created from backend, thereby saving time.
+
+See the behavior details for each condition below:
+
+=== Using out-of-order queue
 
 No optimization if a queue is created with the `discard_events` property and
-the property list includes the `enable_profiling` property or does not include `in_order` property.
+the property list does not include `in_order` property.
 
 === Using fallback assert feature
 
 No optimization if the application calls the `assert` macro from a command that is submitted to the queue unless
 the device has native support for assertions (as specified by `aspect::ext_oneapi_native_assert`).
 
-=== Using streams, buffer/image accessors (excluding local accessors)
+=== Using streams or buffer / image accessors (excluding local accessors)
 
-No optimization if a kernel that uses stream objects, buffer or image accessors is submitted to a queue created with
+No optimization if a queue operation that uses stream objects or buffer / image accessors is submitted to a queue created with
 the `discard_events` property. But using local accessors does not affect optimization.
 
 == Issues
