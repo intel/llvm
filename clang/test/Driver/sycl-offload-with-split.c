@@ -310,7 +310,7 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 // RUN:   %clang_cl -### -fsycl -fsycl-device-code-split -fsycl-device-code-split=off %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
-// CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} -split{{.*}}
+// CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} "-split={{.*}}
 
 // Check no device code split mode is passed to sycl-post-link when -fsycl-device-code-split is not set and the target is FPGA
 // RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-SPLIT
