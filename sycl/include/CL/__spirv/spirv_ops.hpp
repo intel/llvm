@@ -725,9 +725,12 @@ template <typename... Args>
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
                    Args... args);
+template <typename... Args>
+extern SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, Args... args);
 #else
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
+extern SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
 #endif
 
 #else // if !__SYCL_DEVICE_ONLY__
