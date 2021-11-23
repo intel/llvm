@@ -235,12 +235,12 @@ event handler::finalize() {
         std::move(MStreamStorage), MCGType, MCodeLoc));
     break;
   }
-/*  case detail::CG::CodeplayInteropTask:
-    CommandGroup.reset(new detail::CGInteropTask(
-        std::move(MInteropTask), std::move(MArgsStorage),
-        std::move(MAccStorage), std::move(MSharedPtrStorage),
-        std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
-    break;*/
+    /*  case detail::CG::CodeplayInteropTask:
+        CommandGroup.reset(new detail::CGInteropTask(
+            std::move(MInteropTask), std::move(MArgsStorage),
+            std::move(MAccStorage), std::move(MSharedPtrStorage),
+            std::move(MRequirements), std::move(MEvents), MCGType, MCodeLoc));
+        break;*/
   case detail::CG::CopyAccToPtr:
   case detail::CG::CopyPtrToAcc:
   case detail::CG::CopyAccToAcc:
