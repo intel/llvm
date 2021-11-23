@@ -148,7 +148,7 @@
 ??$get_info@$0EBJD@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0EBJE@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0ECBD@@device@sycl@cl@@QEBA_NXZ
-??$get_info@$0BABCA@@device@sycl@cl@@QEBAIXZ
+??$get_info@$0BABBC@@device@sycl@cl@@QEBAIXZ
 ??$get_info@$0JAA@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0JAB@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_info@$0JAC@@platform@sycl@cl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
