@@ -1282,6 +1282,26 @@ void SPIRVToLLVM::addMemAliasMetadata(Instruction *I, SPIRVId AliasListId,
   I->setMetadata(AliasMDKind, MDAliasListMap[AliasListId]);
 }
 
+void transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI) {
+  std::vector<SPIRVDecorate const *> ArgumentAttributes =
+      BV->getDecorations(internal::DecorationArgumentAttributeINTEL);
+
+  for (const auto *Dec : ArgumentAttributes) {
+    std::vector<SPIRVWord> Literals = Dec->getVecLiteral();
+    SPIRVWord ArgNo = Literals[0];
+    SPIRVWord SpirvAttr = Literals[1];
+    Attribute::AttrKind LlvmAttrKind = SPIRSPIRVFuncParamAttrMap::rmap(
+        static_cast<SPIRVFuncParamAttrKind>(SpirvAttr));
+    auto LlvmAttr =
+        Attribute::isTypeAttrKind(LlvmAttrKind)
+            ? Attribute::get(CI->getContext(), LlvmAttrKind,
+                             cast<PointerType>(CI->getOperand(ArgNo)->getType())
+                                 ->getElementType())
+            : Attribute::get(CI->getContext(), LlvmAttrKind);
+    CI->addParamAttr(ArgNo, LlvmAttr);
+  }
+}
+
 /// For instructions, this function assumes they are created in order
 /// and appended to the given basic block. An instruction may use a
 /// instruction from another BB which has not been translated. Such
@@ -2219,6 +2239,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto Call = CallInst::Create(
         cast<FunctionType>(V->getType()->getPointerElementType()), V,
         transValue(BC->getArgumentValues(), F, BB), BC->getName(), BB);
+    transFunctionPointerCallArgumentAttributes(BV, Call);
     // Assuming we are calling a regular device function
     Call->setCallingConv(CallingConv::SPIR_FUNC);
     // Don't set attributes, because at translation time we don't know which
