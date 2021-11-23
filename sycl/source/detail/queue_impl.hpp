@@ -498,13 +498,15 @@ private:
     event Event;
 
     if (PostProcess) {
+      bool IsKernel = Type == CG::Kernel;
       bool KernelUsesAssert = false;
-      const bool IsKernel = Type == CG::Kernel;
+
       if (IsKernel)
         // Kernel only uses assert if it's non interop one
         KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MOSModuleHandle, Handler.MKernelName);
+
       finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
