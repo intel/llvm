@@ -508,7 +508,7 @@ string_vector collectSymbolsLists(const EntryPointGroupMap &EntryPointsGroups) {
 }
 
 struct ResultModule {
-  StringRef SplitModuleId;
+  StringRef KernelModuleName;
   std::unique_ptr<Module> ModulePtr;
 };
 
@@ -683,7 +683,7 @@ saveModuleProperties(const std::vector<ResultModule> &ResultModules,
     if (ImgPSInfo.EmitExportedSymbols) {
       // For each result module, extract the exported functions
       auto ModuleFunctionsIt =
-          EntryPointsGroups.find(ResultModules[I].SplitModuleId);
+          EntryPointsGroups.find(ResultModules[I].KernelModuleName);
       if (ModuleFunctionsIt != EntryPointsGroups.end()) {
         for (const auto &F : ModuleFunctionsIt->second) {
           if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
