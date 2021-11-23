@@ -1232,11 +1232,10 @@ public:
   ///
   /// \param Event is a valid SYCL event to wait on.
   void depends_on(event Event) {
-    if (info::event_command_status::ext_oneapi_invalid ==
+    if (info::event_command_status::ext_oneapi_unknown ==
         Event.get_info<info::event::command_execution_status>()) {
-      throw invalid_object_error(
-          "This method cannot be used for an invalid event.",
-          PI_INVALID_OPERATION);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue operation cannot depend on invalid event.");
     }
 
     MEvents.push_back(detail::getSyclObjImpl(Event));
@@ -1247,11 +1246,11 @@ public:
   /// \param Events is a vector of valid SYCL events to wait on.
   void depends_on(const std::vector<event> &Events) {
     for (const event &Event : Events) {
-      if (info::event_command_status::ext_oneapi_invalid ==
+      if (info::event_command_status::ext_oneapi_unknown ==
           Event.get_info<info::event::command_execution_status>()) {
-        throw invalid_object_error(
-            "This method cannot be used for an invalid event.",
-            PI_INVALID_OPERATION);
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue operation cannot depend on invalid event.");
       }
       MEvents.push_back(detail::getSyclObjImpl(Event));
     }

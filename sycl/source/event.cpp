@@ -53,8 +53,14 @@ void event::wait_and_throw(const std::vector<event> &EventList) {
 }
 
 std::vector<event> event::get_wait_list() {
-  std::vector<event> Result;
+  if (info::event_command_status::ext_oneapi_unknown ==
+      impl->get_info<info::event::command_execution_status>()) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_wait_list() cannot be used for an invalid event.");
+  }
 
+  std::vector<event> Result;
   for (auto &EventImpl : detail::Scheduler::getInstance().getWaitList(impl))
     Result.push_back(detail::createSyclObjFromImpl<event>(EventImpl));
 

@@ -1064,10 +1064,12 @@ private:
 
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
-                    const detail::code_location &CodeLoc);
+                    const detail::code_location &CodeLoc,
+                    bool AlreadyInsideSubmit = false);
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
-                    const detail::code_location &CodeLoc);
+                    const detail::code_location &CodeLoc,
+                    bool AlreadyInsideSubmit = false);
 
   // Function to postprocess submitted command
   // Arguments:
@@ -1232,11 +1234,11 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
   };
 
   if (SecondaryQueue) {
-    CopierEv = Self.submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
-    CheckerEv = Self.submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
+    CopierEv = Self.submit_impl(CopierCGF, *SecondaryQueue, CodeLoc, true);
+    CheckerEv = Self.submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc, true);
   } else {
-    CopierEv = Self.submit_impl(CopierCGF, CodeLoc);
-    CheckerEv = Self.submit_impl(CheckerCGF, CodeLoc);
+    CopierEv = Self.submit_impl(CopierCGF, CodeLoc, true);
+    CheckerEv = Self.submit_impl(CheckerCGF, CodeLoc, true);
   }
 
   return CheckerEv;

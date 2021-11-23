@@ -96,12 +96,17 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
-        MAllowDiscardEvents(
-            (MDiscardEvents &&
-             !has_property<property::queue::enable_profiling>()) &&
+        MHasDiscardEventsSupport(
+            MDiscardEvents &&
             (MHostQueue ? true
-                        : (MIsInorder &&
-                           getPlugin().getBackend() != backend::level_zero))) {
+                        : (MIsInorder && getPlugin().getBackend() !=
+                                             backend::ext_oneapi_level_zero))) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
     if (!Context->hasDevice(Device))
       throw cl::sycl::invalid_parameter_error(
           "Queue cannot be constructed with the given context and device "
@@ -129,12 +134,17 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
-        MAllowDiscardEvents(
-            (MDiscardEvents &&
-             !has_property<property::queue::enable_profiling>()) &&
+        MHasDiscardEventsSupport(
+            MDiscardEvents &&
             (MHostQueue ? true
-                        : (MIsInorder &&
-                           getPlugin().getBackend() != backend::level_zero))) {
+                        : (MIsInorder && getPlugin().getBackend() !=
+                                             backend::ext_oneapi_level_zero))) {
+    if (has_property<ext::oneapi::property::queue::discard_events>() &&
+        has_property<property::queue::enable_profiling>()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue cannot be constructed with both of "
+                            "discard_events and enable_profiling.");
+    }
 
     MQueues.push_back(pi::cast<RT::PiQueue>(PiQueue));
 
@@ -185,7 +195,8 @@ public:
   /// \return true if this queue is a SYCL host queue.
   bool is_host() const { return MHostQueue; }
 
-  bool discard_events() const { return MAllowDiscardEvents; }
+  /// \return true if this queue has discard_events support.
+  bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
 
   /// Queries SYCL queue for information.
   ///
@@ -479,13 +490,6 @@ private:
     Handler.saveCodeLoc(Loc);
     CGF(Handler);
 
-    auto RunKernelWithDiscardEvent = [&Handler]() {
-      Handler.finalize();
-      EventImplPtr EventImpl =
-          std::make_shared<event_impl>(event_impl::HES_Invalid);
-      return createSyclObjFromImpl<event>(EventImpl);
-    };
-
     // Scheduler will later omit events, that are not required to execute tasks.
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
@@ -501,28 +505,15 @@ private:
         KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MOSModuleHandle, Handler.MKernelName);
-        if (!KernelUsesAssert && MAllowDiscardEvents &&
-            Handler.MRequirements.size() == 0) {
-          return RunKernelWithDiscardEvent();
-        }
       }
       finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else {
-      if (IsKernel && MAllowDiscardEvents &&
-          Handler.MRequirements.size() == 0) {
-        return RunKernelWithDiscardEvent();
-      }
       finalizeHandler(Handler, Type, Event);
     }
 
     addEvent(Event);
-    if (IsKernel && MDiscardEvents) {
-      EventImplPtr EventImpl =
-          std::make_shared<event_impl>(event_impl::HES_Invalid);
-      return createSyclObjFromImpl<event>(EventImpl);
-    }
     return Event;
   }
 
@@ -588,8 +579,14 @@ private:
   std::mutex MLastEventMtx;
 
   const bool MIsInorder;
+
+public:
+  // Queue constructed with the discard_events property
   const bool MDiscardEvents;
-  const bool MAllowDiscardEvents;
+
+private:
+  // The presence of support for DiscardEvents from the queue
+  const bool MHasDiscardEventsSupport;
 };
 
 } // namespace detail

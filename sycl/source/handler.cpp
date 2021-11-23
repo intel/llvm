@@ -199,6 +199,7 @@ event handler::finalize() {
 
     std::vector<RT::PiEvent> RawEvents;
     detail::EventImplPtr NewEvent;
+    RT::PiEvent *OutEvent = nullptr;
 
     auto EnqueueKernel = [&]() {
       if (MQueue->is_host()) {
@@ -208,11 +209,11 @@ event handler::finalize() {
       }
       return enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
                               MKernel, MKernelName, MOSModuleHandle, RawEvents,
-                              NewEvent, nullptr);
+                              OutEvent, nullptr);
     };
 
     bool DiscardEvent = false;
-    if (MQueue->discard_events()) {
+    if (MQueue->has_discard_events_support()) {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert =
           !(MKernel && MKernel->isInterop()) &&
@@ -227,6 +228,7 @@ event handler::finalize() {
     } else {
       NewEvent = std::make_shared<detail::event_impl>(MQueue);
       NewEvent->setContextImpl(MQueue->getContextImplPtr());
+      OutEvent = &NewEvent->getHandleRef();
 
       if (CL_SUCCESS != EnqueueKernel())
         throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);

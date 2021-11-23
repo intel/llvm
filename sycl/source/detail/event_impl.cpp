@@ -57,9 +57,9 @@ void event_impl::waitInternal() const {
   }
 
   if (MState == HES_Invalid)
-    throw invalid_object_error(
-        "This method cannot be used for an invalid event.",
-        PI_INVALID_OPERATION);
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "waitInternal method cannot be used for an invalid event.");
 
   while (MState != HES_Complete)
     ;
@@ -192,10 +192,10 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
-  if (MState.load() == HES_Invalid)
-    throw invalid_object_error(
-        "This method cannot be used for an invalid event.",
-        PI_INVALID_OPERATION);
+  if (MState == HES_Invalid)
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait method cannot be used for an invalid event.");
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
   uint64_t IId;
@@ -306,8 +306,8 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
-  if (MState.load() == HES_Invalid)
-    return info::event_command_status::ext_oneapi_invalid;
+  if (MState == HES_Invalid)
+    return info::event_command_status::ext_oneapi_unknown;
 
   if (!MHostEvent && MEvent) {
     return get_event_info<info::event::command_execution_status>::get(
