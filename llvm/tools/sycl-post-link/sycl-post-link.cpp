@@ -98,7 +98,7 @@ cl::opt<bool> SplitEsimd{"split-esimd",
                          cl::cat(PostLinkCat)};
 
 // TODO Design note: sycl-post-link should probably separate different kinds of
-// its functionality on  logical and source level:
+// its functionality on logical and source level:
 //  - LLVM IR module splitting
 //  - Running LLVM IR passes on resulting modules
 //  - Generating additional files (like spec constants, dead arg info,...)
@@ -213,7 +213,7 @@ void writeToFile(const std::string &Filename, const std::string &Content) {
 
 // Describes scope covered by each entry in the module-entry points map
 // populated by the groupEntryPoints function.
-enum EntryPointsSplitScope {
+enum EntryPointsGroupScope {
   Scope_PerKernel, // one entry per kernel
   Scope_PerModule, // one entry per module
   Scope_Global     // single entry in the map for all kernels
@@ -246,7 +246,7 @@ bool hasIndirectFunctionCalls(const Module &M) {
   return false;
 }
 
-EntryPointsSplitScope selectDeviceCodeSplitScope(const Module &M) {
+EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M) {
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
   if (DoSplit) {
     switch (SplitMode) {
@@ -313,11 +313,11 @@ bool isEntryPoint(const Function &F) {
 // This function decides how entry points of the input module M will be
 // distributed ("split") into multiple modules based on the command options and
 // IR attributes. The decision is recorded in the output map parameter
-// EntryPointsSplitMap which maps some key to a group of entry points. Each such
+// EntryPointsGroups which maps some key to a group of entry points. Each such
 // group along with IR it depends on (globals, functions from its call graph,
 // ...) will constitute a separate module.
-void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsSplitMap,
-                      EntryPointsSplitScope EntryScope) {
+void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsGroups,
+                      EntryPointsGroupScope EntryScope) {
 
   // Only process module entry points:
   for (const auto &F : M.functions()) {
@@ -326,7 +326,7 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsSplitMap,
 
     switch (EntryScope) {
     case Scope_PerKernel:
-      EntryPointsSplitMap[F.getName()].push_back(&F);
+      EntryPointsGroups[F.getName()].push_back(&F);
       break;
     case Scope_PerModule: {
       if (!F.hasFnAttribute(ATTR_SYCL_MODULE_ID))
@@ -339,12 +339,12 @@ void groupEntryPoints(const Module &M, EntryPointGroupMap &EntryPointsSplitMap,
 
       Attribute Id = F.getFnAttribute(ATTR_SYCL_MODULE_ID);
       StringRef Val = Id.getValueAsString();
-      EntryPointsSplitMap[Val].push_back(&F);
+      EntryPointsGroups[Val].push_back(&F);
       break;
     }
     case Scope_Global:
       // the map key is not significant here
-      EntryPointsSplitMap[GLOBAL_SCOPE_NAME].push_back(&F);
+      EntryPointsGroups[GLOBAL_SCOPE_NAME].push_back(&F);
       break;
     }
   }
@@ -358,11 +358,11 @@ HasAssertStatus hasAssertInFunctionCallGraph(const Function *Func) {
   // true  - if there is an assertion in underlying functions,
   // false - if there are definetely no assertions in underlying functions.
   static std::map<const Function *, bool> hasAssertionInCallGraphMap;
-  EntryPointGroup FuncCallStack;
+  std::vector<const Function *> FuncCallStack;
 
-  static EntryPointGroup isIndirectlyCalledInGraph;
+  static std::vector<const Function *> isIndirectlyCalledInGraph;
 
-  EntryPointGroup Workstack;
+  std::vector<const Function *> Workstack;
   Workstack.push_back(Func);
 
   while (!Workstack.empty()) {
@@ -488,16 +488,15 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   return {X, Y, Z};
 }
 
-// Input parameter EntryPointsSplitMap contains a map of entry points or groups
+// Input parameter EntryPointsGroups contains a map of entry points or groups
 // of entry points with same values of the sycl-module-id attribute.
 // Return value is a vector of entry points names lists. Each vector element is
 // a string with entry point names from the same module separated by \n.
 // The function saves names of entry points from one group to a single
 // std::string and stores this string to the ResSymbolsLists vector.
-string_vector
-collectSymbolsLists(const EntryPointGroupMap &EntryPointsSplitMap) {
+string_vector collectSymbolsLists(const EntryPointGroupMap &EntryPointsGroups) {
   string_vector ResSymbolsLists{};
-  for (const auto &It : EntryPointsSplitMap) {
+  for (const auto &It : EntryPointsGroups) {
     std::string SymbolsList;
     for (const auto &F : It.second) {
       SymbolsList =
@@ -513,21 +512,20 @@ struct ResultModule {
   std::unique_ptr<Module> ModulePtr;
 };
 
-// Input parameter EntryPointsSplitMap contains a map of entry points or groups
+// Input parameter EntryPointsGroups contains a map of entry points or groups
 // of entry points with same values of the sycl-module-id attribute.
 // For each group of entry points a separate IR module will be produced.
 // ResModules is a vector of pairs of split module identifiers and produced
 // modules. The function splits input LLVM IR module M into smaller ones and
 // stores them to the ResModules vector.
 std::vector<ResultModule>
-extractCallGraph(const Module &M,
-                 const EntryPointGroupMap &EntryPointsSplitMap) {
+splitModule(const Module &M, const EntryPointGroupMap &EntryPointsGroups) {
   std::vector<ResultModule> ResModules{};
 
-  for (const auto &It : EntryPointsSplitMap) {
+  for (const auto &It : EntryPointsGroups) {
     // For each group of entry points collect all dependencies.
     SetVector<const GlobalValue *> GVs;
-    EntryPointGroup Workqueue;
+    std::vector<const Function *> Workqueue;
 
     for (const auto &F : It.second) {
       GVs.insert(F);
@@ -620,7 +618,7 @@ string_vector saveResultModules(const std::vector<ResultModule> &ResModules,
 
 string_vector
 saveModuleProperties(const std::vector<ResultModule> &ResultModules,
-                     const EntryPointGroupMap &EntryPointsSplitMap,
+                     const EntryPointGroupMap &EntryPointsGroups,
                      const GlobalBinImageProps &ImgPSInfo) {
   using PropSetRegTy = llvm::util::PropertySetRegistry;
 
@@ -685,8 +683,8 @@ saveModuleProperties(const std::vector<ResultModule> &ResultModules,
     if (ImgPSInfo.EmitExportedSymbols) {
       // For each result module, extract the exported functions
       auto ModuleFunctionsIt =
-          EntryPointsSplitMap.find(ResultModules[I].SplitModuleId);
-      if (ModuleFunctionsIt != EntryPointsSplitMap.end()) {
+          EntryPointsGroups.find(ResultModules[I].SplitModuleId);
+      if (ModuleFunctionsIt != EntryPointsGroups.end()) {
         for (const auto &F : ModuleFunctionsIt->second) {
           if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
             PropSet[PropSetRegTy::SYCL_EXPORTED_SYMBOLS].insert(
@@ -815,7 +813,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   bool DoSplit = SplitMode.getNumOccurrences() > 0;
 
   if (DoSplit || DoSymGen) {
-    EntryPointsSplitScope Scope = selectDeviceCodeSplitScope(*M);
+    EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(*M);
     groupEntryPoints(*M, GMap, Scope);
   }
 
@@ -824,7 +822,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
   std::vector<ResultModule> ResultModules;
 
   if (DoSplit)
-    ResultModules = extractCallGraph(*M, GMap);
+    ResultModules = splitModule(*M, GMap);
   // post-link always produces a code result, even if it is unmodified input
   if (ResultModules.empty())
     ResultModules.push_back({GLOBAL_SCOPE_NAME, std::move(M)});
@@ -924,13 +922,13 @@ ModulePair splitSyclEsimd(std::unique_ptr<Module> M) {
 
   // Key values in SyclEsimdEntryPointGroupMap are not significant, but they
   // define the order, in which entry points are processed in the
-  // extractCallGraph function. The caller of the splitSyclEsimd function
+  // splitModule function. The caller of the splitSyclEsimd function
   // expects a pair of 1-Sycl and 2-Esimd modules, hence the strings names
   // below.
   EntryPointGroupMap SyclEsimdEntryPointGroupMap(
       {{"1-SYCL", SyclFunctions}, {"2-ESIMD", EsimdFunctions}});
   std::vector<ResultModule> ResultModules =
-      extractCallGraph(*M, SyclEsimdEntryPointGroupMap);
+      splitModule(*M, SyclEsimdEntryPointGroupMap);
   assert(ResultModules.size() == 2);
   return std::make_pair(std::move(ResultModules[0].ModulePtr),
                         std::move(ResultModules[1].ModulePtr));
