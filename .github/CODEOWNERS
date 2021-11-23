@@ -1,7 +1,7 @@
 * @bader
 
 # Front-end compiler
-clang/ @dpcpp-cfe-reviewers
+clang/ @intel/dpcpp-cfe-reviewers
 
 # LLVM-SPIRV translator
 llvm-spirv/ @intel/dpcpp-spirv-reviewers
@@ -20,7 +20,7 @@ sycl/ @intel/llvm-reviewers-runtime
 
 # Documentation
 sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers
-sycl/doc/ @dpcpp-doc-reviewers
+sycl/doc/ @intel/dpcpp-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 sycl/doc/extensions/SPIRV/ @intel/dpcpp-spirv-reviewers
 
@@ -36,7 +36,7 @@ sycl/source/detail/posix_pi.cpp @intel/dpcpp-pi-reviewers
 sycl/source/detail/windows_pi.cpp @intel/dpcpp-pi-reviewers
 
 # ESIMD CPU emulator plug-in
-sycl/plugins/esimd_cpu/ @inteldpcpp-esimd-reviewers
+sycl/plugins/esimd_cpu/ @intel/dpcpp-esimd-reviewers
 
 # CUDA plugin
 sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
@@ -67,9 +67,9 @@ clang/tools/clang-offload-extract/ @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
 SYCLLowerIR/ @intel/dpcpp-esimd-reviewers
-esimd/ @kbobrovs @inteldpcpp-esimd-reviewers
-sycl/include/sycl/ext/intel/experimental/esimd.hpp @inteldpcpp-esimd-reviewers
-sycl/doc/extensions/ExplicitSIMD/ @inteldpcpp-esimd-reviewers
+esimd/ @kbobrovs @intel/dpcpp-esimd-reviewers
+sycl/include/sycl/ext/intel/experimental/esimd.hpp @intel/dpcpp-esimd-reviewers
+sycl/doc/extensions/ExplicitSIMD/ @intel/dpcpp-esimd-reviewers
 
 # ITT annotations
 llvm/lib/Transforms/Instrumentation/SPIRITTAnnotations.cpp @intel/dpcpp-tools-reviewers
