@@ -463,6 +463,7 @@ enum class trace_activity_type_t {
   sleep_activity = 1 << 3
 };
 
+/// Provides hints to the tools on how to interpret unknown metadata values.
 enum class metadata_type_t {
   binary = 0,
   string = 1,

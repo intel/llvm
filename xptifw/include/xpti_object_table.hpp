@@ -1,3 +1,8 @@
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
 #pragma once
 
 #include "spin_lock.hpp"
@@ -13,9 +18,18 @@
 #include <vector>
 
 namespace xpti {
-// 224 is carefully chosen for Value struct to take 4 cache lines on x86
-template <typename KeyType = uint64_t, size_t SmallSize = 224,
-          size_t SkipSize = 0>
+/// A thread-safe caching table for arbitrary objects in XPTI framework.
+///
+/// This class enables registration of arbitrary objects within XPTI framework
+/// to allow passing them as metadata. If an object being added already exists,
+/// an existing ID will be returned.
+///
+/// @tparam KeyType is the data type of the returned key.
+/// @tparam SmallSize is the size of an object, that will fit within table
+/// without allocation of additional memory (i.e. small size optimization).
+/// The default value of 224 is carefully chosen for Value struct to take
+/// 4 cache lines on x86.
+template <typename KeyType = uint64_t, size_t SmallSize = 224>
 class ObjectTable {
 public:
   using HashFunction = std::function<uint64_t(std::string_view)>;
@@ -33,44 +47,50 @@ public:
     return Hash;
   };
 
+  /// Constructs empty object table.
+  ///
+  /// @param InitialSize is the number of pre-allocated values in the table.
+  /// @param HashFunc is a callable object, that given raw bytes returns some
+  /// hash value. This is only used upon insertion to quickly scan through the
+  /// table and return an existing ID, if any.
   ObjectTable(size_t InitialSize = 4096,
               const HashFunction &HashFunc = DefaultHash)
       : MHashFunction(HashFunc) {
     MValues.reserve(InitialSize);
   }
 
+  /// Inserts an object into a table or retrieves an existing object ID.
   KeyType insert(std::string_view Data, uint8_t Type) {
     uint64_t Hash = MHashFunction(Data);
 
-    if (Data.size() <= SkipSize) {
+    SharedLock Lock(MMutex);
+    // Check if this data object already exists
+    if (MCache.count(Hash) > 0) {
+      for (KeyType Key : MCache[Hash]) {
+        // Avoid collisions
+        if (getValue(MValues[Key]).first == Data) {
 #ifdef XPTI_STATISTICS
-      MInsertTiny++;
+          MCacheHits++;
 #endif
-      // Do not try to re-use really small objects
-      return doInsert(Data, Hash, Type);
-    }
-
-    {
-      // Check if this data object already exists
-      std::shared_lock Lock(MMutex);
-      if (MCache.count(Hash) > 0) {
-        for (KeyType Key : MCache[Hash]) {
-          // Avoid collisions
-          if (getValue(MValues[Key]).first == Data) {
-#ifdef XPTI_STATISTICS
-            MCacheHits++;
-#endif
-            return Key;
-          }
+          return Key;
         }
       }
     }
 
-    return doInsert(Data, Hash, Type);
+    const Value &V = makeValue(Data, Hash, Type);
+
+    Lock.upgrade_to_writer();
+
+    MValues.push_back(std::move(V));
+    KeyType Key = MValues.size() - 1;
+    MCache[MValues.back().MHash].push_back(Key);
+
+    return Key;
   }
 
+  /// @returns a pair of raw data bytes and registered data type.
   std::pair<std::string_view, uint8_t> lookup(KeyType Key) {
-    std::shared_lock Lock(MMutex);
+    SharedLock Lock(MMutex);
 
     return getValue(MValues[Key]);
   }
@@ -79,7 +99,6 @@ public:
   size_t getCacheHits() const noexcept { return MCacheHits; }
   size_t getSmallObjectsCount() const noexcept { return MSmallObjects; }
   size_t getLargeObjectsCount() const noexcept { return MLargeObjects; }
-  size_t getInsertTinyCount() const noexcept { return MInsertTiny.load(); }
 #endif
 
 private:
@@ -119,18 +138,6 @@ private:
     return V;
   }
 
-  KeyType doInsert(std::string_view Data, uint64_t Hash, uint8_t Type) {
-    const Value &V = makeValue(Data, Hash, Type);
-
-    std::unique_lock Lock(MMutex);
-
-    MValues.push_back(std::move(V));
-    KeyType Key = MValues.size() - 1;
-    MCache[MValues.back().MHash].push_back(Key);
-
-    return Key;
-  }
-
   std::pair<std::string_view, uint8_t> getValue(const Value &V) {
     return std::visit(
         [&V](auto &&Data) {
@@ -149,7 +156,6 @@ private:
   size_t MCacheHits = 0;
   size_t MSmallObjects = 0;
   size_t MLargeObjects = 0;
-  std::atomic<size_t> MInsertTiny = 0;
 #endif
 };
 } // namespace xpti

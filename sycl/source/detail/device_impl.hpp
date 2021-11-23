@@ -237,7 +237,7 @@ private:
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
-  mutable std::mutex MDeviceNameMutex;
+  mutable std::once_flag MDeviceNameFlag;
 }; // class device_impl
 
 } // namespace detail
