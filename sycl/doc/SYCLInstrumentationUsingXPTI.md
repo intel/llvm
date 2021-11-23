@@ -9,6 +9,7 @@ performance traces.
 > **NOTE:** For additional information on the XPTI framework, please refer to
 >the [Framework Documentation](https://github.com/intel/llvm/tree/sycl/xptifw/doc/XPTI_Framework.md) for API use
 >and framework performance data.
+
 This document outlines the use of this framework API in the SYCL runtime
 library. The primary concept enable by this framework is the generation of a
 unique 64-bit ID, referred to as the Universal ID (UID), for every public
