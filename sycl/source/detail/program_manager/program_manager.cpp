@@ -1799,7 +1799,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // Cache supports key with once device only, but here we have multiple
   // devices a program is built for, so add the program to the cache for all
   // other devices.
-  auto CacheOtherDevices = [ResProgram]() { return ResProgram; };
+  const detail::plugin &Plugin = ContextImpl->getPlugin();
+  auto CacheOtherDevices = [ResProgram, &Plugin]() { 
+    Plugin.call<PiApiKind::piProgramRetain>(ResProgram);
+    return ResProgram; };
 
   // The program for device "0" is already added to the cache during the first
   // call to getOrBuild, so starting with "1"
@@ -1817,7 +1820,6 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // devive_image_impl shares ownership of PIProgram with, at least, program
   // cache. The ref counter will be descremented in the destructor of
   // device_image_impl
-  const detail::plugin &Plugin = ContextImpl->getPlugin();
   Plugin.call<PiApiKind::piProgramRetain>(ResProgram);
 
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
