@@ -19,7 +19,7 @@ libdevice/ @intel/llvm-reviewers-runtime
 sycl/ @intel/llvm-reviewers-runtime
 
 # Documentation
-sycl/ReleaseNotes.md @dpcpp-doc-reviewers
+sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers
 sycl/doc/ @dpcpp-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 sycl/doc/extensions/SPIRV/ @intel/dpcpp-spirv-reviewers
@@ -66,7 +66,7 @@ clang/tools/clang-offload-deps/ @intel/dpcpp-tools-reviewers
 clang/tools/clang-offload-extract/ @intel/dpcpp-tools-reviewers
 
 # Explicit SIMD
-SYCLLowerIR/ @inteldpcpp-esimd-reviewers
+SYCLLowerIR/ @intel/dpcpp-esimd-reviewers
 esimd/ @kbobrovs @inteldpcpp-esimd-reviewers
 sycl/include/sycl/ext/intel/experimental/esimd.hpp @inteldpcpp-esimd-reviewers
 sycl/doc/extensions/ExplicitSIMD/ @inteldpcpp-esimd-reviewers
