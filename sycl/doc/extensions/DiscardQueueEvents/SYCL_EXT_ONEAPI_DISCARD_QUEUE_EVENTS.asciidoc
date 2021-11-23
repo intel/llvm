@@ -194,7 +194,8 @@ the `discard_events` property. But using local accessors does not affect optimiz
 === Using Level Zero backend
 
 Since Level Zero Plugin support is required to be able to not create a low-level event,
-so any queue operations using the Level Zero backend temporarily work without optimization.
+any queue operations using the Level Zero backend temporarily work without optimization.
+
 
 == Issues
 
