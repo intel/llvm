@@ -59,7 +59,7 @@ using EntryPointGroupMap = std::map<StringRef, EntryPointGroup>;
 namespace {
 
 #ifndef _NDEBUG
-constexpr int DebugPostLink = 0;
+constexpr int DebugPostLink = 10;
 #endif // _NEDBUG
 
 cl::OptionCategory PostLinkCat{"sycl-post-link options"};
@@ -148,7 +148,10 @@ enum class ESIMDStatus {
   SYCL_AND_ESIMD
 };
 
-struct IRModuleDesc {
+class IRModuleDesc {
+  std::unique_ptr<std::vector<std::string>> EntryPointNamesSnip;
+
+public:
   struct Properties {
     ESIMDStatus HasEsimd = ESIMDStatus::SYCL_AND_ESIMD;
     bool SpecConstsMet = true;
@@ -159,8 +162,34 @@ struct IRModuleDesc {
   std::string Name = "";
   Properties Props;
 
+  void saveEntryPointNames() {
+    assert(!EntryPointNamesSnip && "previous snip not used");
+    EntryPointNamesSnip.reset(new std::vector<std::string>());
+    EntryPointNamesSnip->reserve(EntryPoints.size());
+    std::transform(EntryPoints.cbegin(), EntryPoints.cend(), std::inserter(*EntryPointNamesSnip, EntryPointNamesSnip->begin()),
+      [](const Function *F) { return F->getName().str(); });
+  }
+
+  void rebuildEntryPoints() {
+    assert(EntryPointNamesSnip && "snip not available");
+    EntryPoints.clear();
+    auto It0 = EntryPointNamesSnip->cbegin();
+    auto It1 = EntryPointNamesSnip->cend();
+    Module &M0 = *M;
+    std::transform(It0, It1, std::inserter(EntryPoints, EntryPoints.begin()),
+    [&M0](const std::string &Name) {
+      const Function *F = M0.getFunction(Name);
+      assert(F && "entry point lost");
+      return F;
+    });
+    EntryPointNamesSnip.reset(); // free memory occupied by the snip
+  }
+
   IRModuleDesc() = default;
   IRModuleDesc(const Properties &Props) : Props(Props) {}
+#ifndef _NDEBUG
+  void dump();
+#endif
 };
 
 enum IRSplitMode {
@@ -551,6 +580,22 @@ void dumpEntryPoints(const Module &M, const char *msg = "", int T = 0) {
   }
   tab(T); llvm::errs() << "}\n";
 }
+
+const char* toString(ESIMDStatus S) {
+  switch (S) {
+  case ESIMDStatus::ESIMD_ONLY: return "ESIMD_ONLY";
+  case ESIMDStatus::SYCL_ONLY: return "SYCL_ONLY";
+  case ESIMDStatus::SYCL_AND_ESIMD: return "SYCL_AND_ESIMD";
+  }
+}
+
+void IRModuleDesc::dump() {
+  llvm::errs() << "IRModuleDesc[" << Name << "] {\n";
+  llvm::errs() << "  ESIMD:" << toString(Props.HasEsimd) << ", SpecConstMet:" << (Props.SpecConstsMet ? "YES" : "NO") << "\n";
+  dumpEntryPoints(EntryPoints, ":", 1);
+  llvm::errs() << "}\n";
+}
+
 #endif
 
 // Input parameter KernelModuleMap is a map containing groups of entry points
@@ -812,7 +857,13 @@ bool lowerEsimdConstructs(IRModuleDesc &IrMD) {
     MPM.add(createDeadCodeEliminationPass());
   }
   MPM.add(createGenXSPIRVWriterAdaptorPass(/*RewriteTypes=*/true));
-  return MPM.run(*IrMD.M.get());
+  // GenXSPIRVWriterAdaptor pass replaced some functions with "rewritten"
+  // so versions the entry point table must be rebuilt.
+  // TODO Change entry point search to analysis?
+  IrMD.saveEntryPointNames();
+  bool IRChanged = MPM.run(*IrMD.M.get());
+  IrMD.rebuildEntryPoints();
+  return IRChanged;
 }
 
 struct IrPropSymFilenameTripple {
