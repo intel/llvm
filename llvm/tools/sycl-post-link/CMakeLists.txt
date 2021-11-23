@@ -18,6 +18,7 @@ include_directories(
   ${LLVMGenXIntrinsics_BINARY_DIR}/GenXIntrinsics/include)
 
 add_llvm_tool(sycl-post-link
+  ModuleSplitter.cpp
   sycl-post-link.cpp
   SYCLKernelParamOptInfo.cpp
   SpecConstants.cpp

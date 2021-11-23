@@ -52,6 +52,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerESIMD.cpp
   LowerESIMDVLoadVStore.cpp
   LowerESIMDVecArg.cpp
+  LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
 
   ADDITIONAL_HEADER_DIRS
