@@ -567,6 +567,7 @@ pi_result _pi_program::build_program(const char *build_options) {
 ///       has_kernel method, so an alternative would be to move the has_kernel
 ///       query to PI and use hipModuleGetFunction to check for a kernel.
 std::string getKernelNames(pi_program program) {
+  (void)program;
   cl::sycl::detail::pi::die("getKernelNames not implemented");
   return {};
 }
@@ -2949,6 +2950,15 @@ pi_result hip_piProgramLink(pi_context context, pi_uint32 num_devices,
                             void (*pfn_notify)(pi_program program,
                                                void *user_data),
                             void *user_data, pi_program *ret_program) {
+  (void)context;
+  (void)num_devices;
+  (void)device_list;
+  (void)options;
+  (void)num_input_programs;
+  (void)input_programs;
+  (void)pfn_notify;
+  (void)user_data;
+  (void)ret_program;
   cl::sycl::detail::pi::die(
       "hip_piProgramLink: linking not supported with hip backend");
   return {};

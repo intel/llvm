@@ -438,6 +438,7 @@ void initializeSYCLLowerESIMDLegacyPassPass(PassRegistry &);
 void initializeSPIRITTAnnotationsLegacyPassPass(PassRegistry &);
 void initializeESIMDLowerLoadStorePass(PassRegistry &);
 void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
+void initializeESIMDVerifierPass(PassRegistry &);
 void initializeSYCLLowerWGLocalMemoryLegacyPass(PassRegistry &);
 void initializeTailCallElimPass(PassRegistry&);
 void initializeTailDuplicatePass(PassRegistry&);
