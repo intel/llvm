@@ -48,7 +48,6 @@ set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_SOURCE_PROP ${LLVMGenXIntrinsics
 set_property(GLOBAL PROPERTY LLVMGenXIntrinsics_BINARY_PROP ${LLVMGenXIntrinsics_BINARY_DIR})
 
 add_llvm_component_library(LLVMSYCLLowerIR
-  DelimitESIMDandSYCL.cpp
   LowerWGScope.cpp
   LowerESIMD.cpp
   LowerESIMDVLoadVStore.cpp
