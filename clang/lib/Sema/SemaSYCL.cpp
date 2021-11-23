@@ -5153,7 +5153,7 @@ bool Util::matchContext(const DeclContext *Ctx,
   }
   return Ctx->isTranslationUnit() ||
          (Ctx->isExternCXXContext() &&
-             Ctx->getEnclosingNamespaceContext()->isTranslationUnit());
+          Ctx->getEnclosingNamespaceContext()->isTranslationUnit());
 }
 
 bool Util::matchQualifiedTypeName(QualType Ty,
