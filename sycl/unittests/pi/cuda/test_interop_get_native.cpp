@@ -130,6 +130,6 @@ TEST_P(CudaInteropGetNativeTests, hostTaskGetNativeContext) {
   });
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     OnCudaPlatform, CudaInteropGetNativeTests,
     ::testing::ValuesIn(pi::getPlatformsWithName("CUDA BACKEND")));
