@@ -20410,13 +20410,11 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   SmallString<256> AnnotStr;
   llvm::raw_svector_ostream Out(AnnotStr);
 
-  Optional<llvm::APSInt> Params =
-      E->getArg(1)->getIntegerConstantExpr(Ctx);
+  Optional<llvm::APSInt> Params = E->getArg(1)->getIntegerConstantExpr(Ctx);
   assert(Params.hasValue() && "Constant arg isn't actually constant?");
   Out << "{params:" << toString(*Params, 10) << "}";
 
-  Optional<llvm::APSInt> CacheSize =
-      E->getArg(2)->getIntegerConstantExpr(Ctx);
+  Optional<llvm::APSInt> CacheSize = E->getArg(2)->getIntegerConstantExpr(Ctx);
   assert(CacheSize.hasValue() && "Constant arg isn't actually constant?");
   Out << "{cache-size:" << toString(*CacheSize, 10) << "}";
 

@@ -69,7 +69,6 @@ void foo(float *A, int *B, State *C) {
 
   y = __builtin_intel_fpga_mem(A, PARAM_1 | PARAM_2, 1, 1, -1, 10, 20, 30);
   // expected-error@-1{{too many arguments to function call, expected at most 7, have 8}}
-
 }
 
 template <typename name, typename Func>
