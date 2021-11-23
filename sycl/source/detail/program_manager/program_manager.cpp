@@ -1800,9 +1800,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // devices a program is built for, so add the program to the cache for all
   // other devices.
   const detail::plugin &Plugin = ContextImpl->getPlugin();
-  auto CacheOtherDevices = [ResProgram, &Plugin]() { 
+  auto CacheOtherDevices = [ResProgram, &Plugin]() {
     Plugin.call<PiApiKind::piProgramRetain>(ResProgram);
-    return ResProgram; };
+    return ResProgram;
+  };
 
   // The program for device "0" is already added to the cache during the first
   // call to getOrBuild, so starting with "1"
