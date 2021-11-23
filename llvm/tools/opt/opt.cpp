@@ -579,6 +579,7 @@ int main(int argc, char **argv) {
   initializeSPIRITTAnnotationsLegacyPassPass(Registry);
   initializeESIMDLowerLoadStorePass(Registry);
   initializeESIMDLowerVecArgLegacyPassPass(Registry);
+  initializeESIMDVerifierPass(Registry);
   initializeSYCLLowerWGLocalMemoryLegacyPass(Registry);
 
 #ifdef BUILD_EXAMPLES

@@ -1758,55 +1758,95 @@ multiclass ATOM3P_impl<string AsmStr,  Intrinsic Intr,
 
 // Constructs instrinsic name and instruction asm strings.
 multiclass ATOM2N_impl<string OpStr, string IntTypeStr, string TypeStr,
-                       string ScopeStr, string SpaceStr,
+                       string ScopeStr, string SpaceStr, string SemStr,
                        NVPTXRegClass regclass, Operand ImmType, SDNode Imm,
                        ValueType ImmTy, list<Predicate> Preds> {
-  defm : ATOM2P_impl<"atom" # !if(!eq(SpaceStr, "gen"), "", "." # SpaceStr)
+  defm : ATOM2P_impl<"atom" # !if(!eq(SemStr, "relaxed"), "", "." # SemStr)
                             # !if(!eq(ScopeStr, "gpu"), "", "." # ScopeStr)
+                            # !if(!eq(SpaceStr, "gen"), "", "." # SpaceStr)
                             # "." # OpStr # "." # TypeStr
                             # " \t$result, [$src], $b;",
                      !cast<Intrinsic>(
                             "int_nvvm_atomic_" # OpStr
                             # "_" # SpaceStr # "_" # IntTypeStr
-                            # !if(!empty(ScopeStr), "", "_" # ScopeStr)),
+                            # !if(!eq(SemStr, "relaxed"), "", "_" # SemStr)
+                            # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr)),
                      regclass, ImmType, Imm, ImmTy, Preds>;
 }
 multiclass ATOM3N_impl<string OpStr, string IntTypeStr, string TypeStr,
-                       string ScopeStr, string SpaceStr,
+                       string ScopeStr, string SpaceStr, string SemStr,
                        NVPTXRegClass regclass, Operand ImmType, SDNode Imm,
                        ValueType ImmTy, list<Predicate> Preds> {
-  defm : ATOM3P_impl<"atom" # !if(!eq(SpaceStr, "gen"), "", "." # SpaceStr)
+  defm : ATOM3P_impl<"atom" # !if(!eq(SemStr, "relaxed"), "", "." # SemStr)
                             # !if(!eq(ScopeStr, "gpu"), "", "." # ScopeStr)
+                            # !if(!eq(SpaceStr, "gen"), "", "." # SpaceStr)
                             # "." # OpStr # "." # TypeStr
                             # " \t$result, [$src], $b, $c;",
                      !cast<Intrinsic>(
                             "int_nvvm_atomic_" # OpStr
                             # "_" # SpaceStr # "_" # IntTypeStr
-                            # !if(!empty(ScopeStr), "", "_" # ScopeStr)),
+                            # !if(!eq(SemStr, "relaxed"), "", "_" # SemStr)
+                            # !if(!eq(ScopeStr, "gpu"), "", "_" # ScopeStr)),
                      regclass, ImmType, Imm, ImmTy, Preds>;
 }
 
+
+multiclass ATOM2N_spaces_impl<string OpStr, string IntTypeStr, string TypeStr,
+                       string ScopeStr, string SemStr,
+                       NVPTXRegClass regclass, Operand ImmType, SDNode Imm,
+                       ValueType ImmTy, list<Predicate> Preds> {
+   defm _gen : ATOM2N_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "gen", SemStr,
+                            regclass, ImmType, Imm, ImmTy, Preds>;
+   defm _global : ATOM2N_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "global", SemStr,
+                            regclass, ImmType, Imm, ImmTy, Preds>;
+   defm _shared : ATOM2N_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "shared", SemStr,
+                            regclass, ImmType, Imm, ImmTy, Preds>;
+}
+multiclass ATOM3N_spaces_impl<string OpStr, string IntTypeStr, string TypeStr,
+                       string ScopeStr, string SemStr,
+                       NVPTXRegClass regclass, Operand ImmType, SDNode Imm,
+                       ValueType ImmTy, list<Predicate> Preds> {
+   defm _gen : ATOM3N_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "gen", SemStr,
+                            regclass, ImmType, Imm, ImmTy, Preds>;
+   defm _global : ATOM3N_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "global", SemStr,
+                            regclass, ImmType, Imm, ImmTy, Preds>;
+   defm _shared : ATOM3N_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "shared", SemStr,
+                            regclass, ImmType, Imm, ImmTy, Preds>;
+}
+
 // Constructs variants for different address spaces.
-// For now we only need variants for generic space pointers.
 multiclass ATOM2A_impl<string OpStr, string IntTypeStr, string TypeStr,
                        string ScopeStr, NVPTXRegClass regclass, Operand ImmType,
                        SDNode Imm, ValueType ImmTy, list<Predicate> Preds> {
-   defm _gen_ : ATOM2N_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "gen",
+   defm _relaxed_ : ATOM2N_spaces_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "relaxed",
                             regclass, ImmType, Imm, ImmTy, Preds>;
+   defm _acquire_ : ATOM2N_spaces_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "acquire",
+                            regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasAtomSemantics])>;
+   defm _release_ : ATOM2N_spaces_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "release",
+                            regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasAtomSemantics])>;
+   defm _acq_rel_ : ATOM2N_spaces_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "acq_rel",
+                            regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasAtomSemantics])>;
 }
 multiclass ATOM3A_impl<string OpStr, string IntTypeStr, string TypeStr,
                        string ScopeStr, NVPTXRegClass regclass, Operand ImmType,
                        SDNode Imm, ValueType ImmTy, list<Predicate> Preds> {
-   defm _gen_ : ATOM3N_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "gen",
+   defm _relaxed_ : ATOM3N_spaces_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "relaxed",
                             regclass, ImmType, Imm, ImmTy, Preds>;
+   defm _acquire_ : ATOM3N_spaces_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "acquire",
+                            regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasAtomSemantics])>;
+   defm _release_ : ATOM3N_spaces_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "release",
+                            regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasAtomSemantics])>;
+   defm _acq_rel_ : ATOM3N_spaces_impl<OpStr, IntTypeStr, TypeStr, ScopeStr, "acq_rel",
+                            regclass, ImmType, Imm, ImmTy, !listconcat(Preds,[hasAtomSemantics])>;
 }
 
 // Constructs variants for different scopes of atomic op.
 multiclass ATOM2S_impl<string OpStr, string IntTypeStr, string TypeStr,
                        NVPTXRegClass regclass, Operand ImmType, SDNode Imm,
                        ValueType ImmTy, list<Predicate> Preds> {
-   // .gpu scope is default and is currently covered by existing
-   // atomics w/o explicitly specified scope.
+   defm "" : ATOM2A_impl<OpStr, IntTypeStr, TypeStr, "gpu",
+                           regclass, ImmType, Imm, ImmTy,
+                           Preds>;
    defm _cta : ATOM2A_impl<OpStr, IntTypeStr, TypeStr, "cta",
                            regclass, ImmType, Imm, ImmTy,
                            !listconcat(Preds,[hasAtomScope])>;
@@ -1817,8 +1857,9 @@ multiclass ATOM2S_impl<string OpStr, string IntTypeStr, string TypeStr,
 multiclass ATOM3S_impl<string OpStr, string IntTypeStr, string TypeStr,
            NVPTXRegClass regclass, Operand ImmType, SDNode Imm, ValueType ImmTy,
            list<Predicate> Preds> {
-   // No need to define ".gpu"-scoped atomics.  They do the same thing
-   // as the regular, non-scoped atomics defined elsewhere.
+   defm "" : ATOM3A_impl<OpStr, IntTypeStr, TypeStr, "gpu",
+                           regclass, ImmType, Imm, ImmTy,
+                           Preds>;
    defm _cta : ATOM3A_impl<OpStr, IntTypeStr, TypeStr, "cta",
                            regclass, ImmType, Imm, ImmTy,
                            !listconcat(Preds,[hasAtomScope])>;
@@ -1854,16 +1895,17 @@ multiclass ATOM2_exch_impl<string OpStr> {
 // atom.{min,max}
 multiclass ATOM2_minmax_impl<string OpStr> {
    defm _s32  : ATOM2S_impl<OpStr, "i", "s32", Int32Regs, i32imm, imm, i32, []>;
-   defm _u32  : ATOM2S_impl<OpStr, "i", "u32", Int32Regs, i32imm, imm, i32, []>;
+   defm _u32  : ATOM2S_impl<OpStr, "ui", "u32", Int32Regs, i32imm, imm, i32, []>;
    defm _s64  : ATOM2S_impl<OpStr, "i", "s64", Int64Regs, i64imm, imm, i64,
                             [hasAtomMinMax64]>;
-   defm _u64  : ATOM2S_impl<OpStr, "i", "u64", Int64Regs, i64imm, imm, i64,
+   defm _u64  : ATOM2S_impl<OpStr, "ui", "u64", Int64Regs, i64imm, imm, i64,
                             [hasAtomMinMax64]>;
 }
 
 // atom.{inc,dec}
 multiclass ATOM2_incdec_impl<string OpStr> {
    defm _u32  : ATOM2S_impl<OpStr, "i", "u32", Int32Regs, i32imm, imm, i32, []>;
+   defm _u64  : ATOM2S_impl<OpStr, "i", "u64", Int64Regs, i64imm, imm, i64, []>;
 }
 
 // atom.cas

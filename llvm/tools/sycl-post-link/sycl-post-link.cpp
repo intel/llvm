@@ -288,6 +288,11 @@ bool isSpirvSyclBuiltin(StringRef FName) {
 }
 
 bool isEntryPoint(const Function &F) {
+  // Skip declarations, if any: they should not be included into KernelModuleMap
+  // or otherwise we will end up with incorrectly generated list of symbols.
+  if (F.isDeclaration())
+    return false;
+
   // Kernels are always considered to be entry points
   if (CallingConv::SPIR_KERNEL == F.getCallingConv())
     return true;
@@ -634,15 +639,12 @@ string_vector saveDeviceImageProperty(
       SpecConstantsPass::collectSpecConstantMetadata(M, TmpSpecIDMap);
       PropSet.add(PropSetRegTy::SYCL_SPECIALIZATION_CONSTANTS, TmpSpecIDMap);
 
-      // Add property with the default values of spec constants only in native
-      // (default) mode.
-      if (!ImgPSInfo.SetSpecConstAtRT) {
-        std::vector<char> DefaultValues;
-        SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
-            M, DefaultValues);
-        PropSet.add(PropSetRegTy::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES, "all",
-                    DefaultValues);
-      }
+      // Add property with the default values of spec constants
+      std::vector<char> DefaultValues;
+      SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
+          M, DefaultValues);
+      PropSet.add(PropSetRegTy::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES, "all",
+                  DefaultValues);
     }
 
     if (ImgPSInfo.EmitKernelParamInfo) {

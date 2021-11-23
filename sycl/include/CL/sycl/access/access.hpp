@@ -55,6 +55,7 @@ enum class address_space : int {
   global_host_space __SYCL2020_DEPRECATED(
       "use 'ext_intel_host_device_space' instead") =
       ext_intel_host_device_space,
+  generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
 } // namespace access

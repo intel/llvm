@@ -85,59 +85,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
         initStream(Stream, Queue);
       }
     }
-
-    if (CommandGroup->MRequirements.size() + CommandGroup->MEvents.size() ==
-        0) {
-      ExecCGCommand *NewCmd(
-          new ExecCGCommand(std::move(CommandGroup), std::move(Queue)));
-      if (!NewCmd)
-        throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
-      NewEvent = NewCmd->getEvent();
-
-      auto CleanUp = [&]() {
-        NewEvent->setCommand(nullptr);
-        delete NewCmd;
-      };
-
-      if (MGraphBuilder
-              .MPrintOptionsArray[GraphBuilder::PrintOptions::BeforeAddCG])
-        MGraphBuilder.printGraphAsDot("before_addCG");
-      if (MGraphBuilder
-              .MPrintOptionsArray[GraphBuilder::PrintOptions::AfterAddCG])
-        MGraphBuilder.printGraphAsDot("after_addCG");
-
-      try {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-        NewCmd->emitInstrumentation(xpti::trace_task_begin, nullptr);
-#endif
-
-        cl_int Res = NewCmd->enqueueImp();
-
-        // Emit this correlation signal before the task end
-        NewCmd->emitEnqueuedEventSignal(NewEvent->getHandleRef());
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-        NewCmd->emitInstrumentation(xpti::trace_task_end, nullptr);
-#endif
-
-        if (CL_SUCCESS != Res)
-          throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-        else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
-          NewEvent->setComplete();
-      } catch (...) {
-        // enqueueImp() func and if statement above may throw an exception,
-        // so destroy required resources to avoid memory leak
-        CleanUp();
-        std::rethrow_exception(std::current_exception());
-      }
-
-      CleanUp();
-
-      for (auto StreamImplPtr : Streams) {
-        StreamImplPtr->flush();
-      }
-
-      return NewEvent;
-    }
   }
 
   {
@@ -257,11 +204,6 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
 
 Scheduler &Scheduler::getInstance() {
   return GlobalHandler::instance().getScheduler();
-}
-
-std::vector<EventImplPtr> Scheduler::getWaitList(EventImplPtr Event) {
-  ReadLockT Lock(MGraphLock);
-  return GraphProcessor::getWaitList(std::move(Event));
 }
 
 void Scheduler::waitForEvent(EventImplPtr Event) {

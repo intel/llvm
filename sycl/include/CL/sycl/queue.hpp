@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/assert_happened.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/service_kernel_names.hpp>
@@ -1040,8 +1040,9 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend BackendName>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> typename interop<BackendName, queue>::type {
-    return reinterpret_cast<typename interop<BackendName, queue>::type>(
+  auto get_native() const ->
+      typename detail::interop<BackendName, queue>::type {
+    return reinterpret_cast<typename detail::interop<BackendName, queue>::type>(
         getNative());
   }
 
