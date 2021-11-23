@@ -40,6 +40,7 @@ The value of this environment variable is a comma separated list of filters, whe
 - `level_zero`
 - `opencl`
 - `cuda`
+- `hip`
 - `*`
 
 Possible values of `device_type` are:
