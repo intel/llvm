@@ -325,6 +325,7 @@ public:
     } else {
       Plugin.checkPiResult(Error);
     }
+
     return Queue;
   }
 
@@ -494,24 +495,21 @@ private:
     // Host and interop tasks, however, are not submitted to low-level runtimes
     // and require separate dependency management.
     const CG::CGTYPE Type = Handler.getType();
-    const bool IsKernel = Type == CG::Kernel;
     event Event;
 
     if (PostProcess) {
       bool KernelUsesAssert = false;
-
-      if (IsKernel) {
+      const bool IsKernel = Type == CG::Kernel;
+      if (IsKernel)
         // Kernel only uses assert if it's non interop one
         KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
                            ProgramManager::getInstance().kernelUsesAssert(
                                Handler.MOSModuleHandle, Handler.MKernelName);
-      }
       finalizeHandler(Handler, Type, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
-    } else {
+    } else
       finalizeHandler(Handler, Type, Event);
-    }
 
     addEvent(Event);
     return Event;
