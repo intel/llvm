@@ -178,6 +178,8 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
   switch (paramName) {
     // TODO: Check regularly to see if support in enabled in OpenCL.
     // Intel GPU EU device-specific information extensions.
+    // Some of the queries are enabled by cl_intel_device_attribute_query
+    // extension, but it's not yet in the Registry.
   case PI_DEVICE_INFO_PCI_ADDRESS:
   case PI_DEVICE_INFO_GPU_EU_COUNT:
   case PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
