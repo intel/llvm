@@ -21,7 +21,6 @@
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/interop_handle.hpp>
-#include <CL/sycl/interop_handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/range.hpp>
@@ -167,7 +166,7 @@ public:
     CopyUSM = 10,
     FillUSM = 11,
     PrefetchUSM = 12,
-    CodeplayInteropTask = 13,
+    CodeplayInteropTask = 13, // TODO: Use CodeplayHostTask instead
     CodeplayHostTask = 14,
     AdviseUSM = 15,
   };
@@ -451,7 +450,7 @@ public:
   }
 };
 
-class CGInteropTask : public CG {
+/*class CGInteropTask : public CG {
 public:
   std::unique_ptr<InteropTask> MInteropTask;
 
@@ -466,7 +465,7 @@ public:
            std::move(SharedPtrStorage), std::move(Requirements),
            std::move(Events), std::move(loc)),
         MInteropTask(std::move(InteropTask)) {}
-};
+};*/
 
 class CGHostTask : public CG {
 public:

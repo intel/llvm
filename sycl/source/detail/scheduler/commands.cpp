@@ -2191,7 +2191,7 @@ cl_int ExecCGCommand::enqueueImp() {
 
     return CL_SUCCESS;
   }
-  case CG::CGTYPE::CodeplayInteropTask: {
+/*  case CG::CGTYPE::CodeplayInteropTask: {
     const detail::plugin &Plugin = MQueue->getPlugin();
     CGInteropTask *ExecInterop = (CGInteropTask *)MCommandGroup.get();
     // Wait for dependencies to complete before dispatching work on the host
@@ -2218,7 +2218,7 @@ cl_int ExecCGCommand::enqueueImp() {
                                                 nullptr, &Event);
 
     return CL_SUCCESS;
-  }
+  }*/
   case CG::CGTYPE::CodeplayHostTask: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
 

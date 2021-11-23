@@ -1931,8 +1931,7 @@ public:
   template <typename FuncT>
   __SYCL_DEPRECATED("interop_task() is deprecated, use host_task() instead")
   void interop_task(FuncT Func) {
-
-    MInteropTask.reset(new detail::InteropTask(std::move(Func)));
+    MInteropTask.reset(new detail::HostTask(std::move(Func)));
     setType(detail::CG::CodeplayInteropTask);
   }
 
@@ -2515,8 +2514,10 @@ private:
   /// Storage for lambda/function when using HostTask
   std::unique_ptr<detail::HostTask> MHostTask;
   detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
-  // Storage for a lambda or function when using InteropTasks
-  std::unique_ptr<detail::InteropTask> MInteropTask;
+  // Storage for a lambda or function when using old InteropTasks, new HostTask,
+  // required to preserve the object size
+  // TODO remove in the abi break window after removing the interop_task method
+  std::unique_ptr<detail::HostTask> MInteropTask;
   /// The list of events that order this operation.
   std::vector<detail::EventImplPtr> MEvents;
   /// The list of valid SYCL events that need to complete

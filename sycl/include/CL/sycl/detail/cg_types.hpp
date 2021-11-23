@@ -13,7 +13,6 @@
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/id.hpp>
 #include <CL/sycl/interop_handle.hpp>
-#include <CL/sycl/interop_handler.hpp>
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/kernel_handler.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -215,15 +214,6 @@ public:
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
   virtual ~HostKernelBase() = default;
-};
-
-class InteropTask {
-  std::function<void(cl::sycl::interop_handler)> MFunc;
-
-public:
-  InteropTask(std::function<void(cl::sycl::interop_handler)> Func)
-      : MFunc(Func) {}
-  void call(cl::sycl::interop_handler &h) { MFunc(h); }
 };
 
 class HostTask {
