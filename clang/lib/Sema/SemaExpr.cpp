@@ -249,8 +249,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
       // Disallow const statics and globals that are not zero-initialized
       // or constant-initialized.
       else if (IsRuntimeEvaluated && IsConst && VD->hasGlobalStorage() &&
-               !VD->isConstexpr() &&
-               !checkAllowedSYCLInitializer(VD, /*CheckValueDependent =*/true))
+               !VD->isConstexpr() && !checkAllowedSYCLInitializer(VD))
         SYCLDiagIfDeviceCode(*Locs.begin(), diag::err_sycl_restrict)
             << Sema::KernelConstStaticVariable;
     } else if (auto *FDecl = dyn_cast<FunctionDecl>(D)) {

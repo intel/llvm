@@ -416,10 +416,10 @@ command:
 
     ```bash
     # Install OpenCL FPGA emulation RT
-    # Answer N to clean previous OCL_ICD_FILENAMES configuration
+    # Answer Y to clean previous OCL_ICD_FILENAMES configuration and ICD records cleanup
     c:\oclfpga_rt_<fpga_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     # Install OpenCL CPU RT
-    # Answer Y to setup CPU RT side-bi-side with FPGA RT
+    # Answer N for ICD records cleanup
     c:\oclcpu_rt_<cpu_version>\install.bat c:\oneapi-tbb-<tbb_version>\redist\intel64\vc14
     ```
 

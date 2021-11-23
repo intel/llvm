@@ -6,6 +6,14 @@
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/online_compiler.hpp>
 
+// This test uses SYCL host only mode without integration header, so
+// forward declare used kernel name class, otherwise it will be diagnosed by
+// the diagnostic implemented in https://github.com/intel/llvm/pull/4945.
+// The error happens because in host mode it is assumed that all kernel names
+// are forward declared at global or namespace scope because of integration
+// header.
+class Test;
+
 int main() {
   cl_context ClCtx;
   // expected-error@+1 {{no matching constructor for initialization of 'sycl::context'}}
@@ -133,6 +141,10 @@ int main() {
   // expected-warning@+1{{'max_constant_args' is deprecated: max_constant_args is deprecated}}
   auto MCA = sycl::info::device::max_constant_args;
   (void)MCA;
+
+  // expected-warning@+1{{'built_in_kernels' is deprecated: use built_in_kernel_ids instead}}
+  auto BIK = sycl::info::device::built_in_kernels;
+  (void)BIK;
 
   // expected-warning@+1{{'extensions' is deprecated: platform::extensions is deprecated, use device::get_info() with info::device::aspects instead.}}
   auto PE = sycl::info::platform::extensions;

@@ -95,7 +95,7 @@ bool preparePiMock(platform &Plt) {
   // TODO remove once queue:wait() is lowered to PiQueueFinish with level zero
   // as well.
   if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() ==
-      backend::level_zero) {
+      backend::ext_oneapi_level_zero) {
     std::cout << "Not run on Level Zero, old behavior is kept there temporarily"
               << std::endl;
     return false;
@@ -132,7 +132,7 @@ TEST(QueueWait, QueueWaitTest) {
   // FIXME ... unless the plugin is Level Zero, where there's a workaround that
   // releases events later.
   if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() !=
-      backend::level_zero) {
+      backend::ext_oneapi_level_zero) {
     ASSERT_EQ(TestContext.EventReferenceCount, 0);
   }
   Q.wait();

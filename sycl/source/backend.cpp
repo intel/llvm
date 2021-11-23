@@ -33,8 +33,8 @@ static const plugin &getPlugin(backend Backend) {
   switch (Backend) {
   case backend::opencl:
     return pi::getPlugin<backend::opencl>();
-  case backend::level_zero:
-    return pi::getPlugin<backend::level_zero>();
+  case backend::ext_oneapi_level_zero:
+    return pi::getPlugin<backend::ext_oneapi_level_zero>();
   default:
     throw sycl::runtime_error{"Unsupported backend", PI_INVALID_OPERATION};
   }
@@ -218,7 +218,7 @@ kernel make_kernel(const context &TargetContext,
   // Other backends don't need PI program.
   //
   pi::PiProgram PiProgram = nullptr;
-  if (Backend == backend::level_zero) {
+  if (Backend == backend::ext_oneapi_level_zero) {
     if (KernelBundleImpl->size() != 1)
       throw sycl::runtime_error{
           "make_kernel: kernel_bundle must have single program image",
