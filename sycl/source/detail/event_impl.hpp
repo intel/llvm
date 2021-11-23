@@ -27,6 +27,8 @@ class context_impl;
 using ContextImplPtr = std::shared_ptr<cl::sycl::detail::context_impl>;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<cl::sycl::detail::queue_impl>;
+class event_impl;
+using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
 
 class event_impl {
 public:
@@ -177,6 +179,14 @@ public:
     return MPreparedHostDepsEvents;
   }
 
+  /// Returns vector of event_impl that this event_impl depends on.
+  ///
+  /// @return a vector of "immediate" dependencies for this event_impl.
+  std::vector<EventImplPtr> getWaitList();
+
+  /// Cleans dependencies of this event_impl
+  void cleanupDependencyEvents();
+
 private:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -194,13 +204,15 @@ private:
   void *MCommand = nullptr;
 
   /// Dependency events prepared for waiting by backend.
-  std::vector<std::shared_ptr<event_impl>> MPreparedDepsEvents;
-  std::vector<std::shared_ptr<event_impl>> MPreparedHostDepsEvents;
+  std::vector<EventImplPtr> MPreparedDepsEvents;
+  std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   // State of host event. Employed only for host events and event with no
   // backend's representation (e.g. alloca). Used values are listed in
   // HostEventState enum.
   std::atomic<int> MState;
+
+  std::mutex MMutex;
 };
 
 } // namespace detail

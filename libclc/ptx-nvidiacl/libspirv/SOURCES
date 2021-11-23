@@ -85,5 +85,13 @@ images/image_helpers.ll
 images/image.cl
 group/collectives_helpers.ll
 group/collectives.cl
-SPV_EXT_shader_atomic_float_add/atomicfaddext.cl
-SPV_EXT_shader_atomic_float_add/faddext_helpers.ll
+atomic/atomic_add.cl
+atomic/atomic_and.cl
+atomic/atomic_cmpxchg.cl
+atomic/atomic_dec.cl
+atomic/atomic_inc.cl
+atomic/atomic_max.cl
+atomic/atomic_min.cl
+atomic/atomic_xchg.cl
+atomic/atomic_or.cl
+atomic/atomic_xor.cl

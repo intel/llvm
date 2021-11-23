@@ -10,6 +10,7 @@
 
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/detail/pi.hpp>
+#include <CL/sycl/kernel_bundle.hpp>
 #include <CL/sycl/stl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>

@@ -123,6 +123,7 @@ inline context make_context<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, context>
         &BackendObject,
     const async_handler &Handler) {
+  (void)Handler;
   return ext::oneapi::level_zero::make_context(
       BackendObject.DeviceList,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),
@@ -134,6 +135,7 @@ template <>
 inline queue make_queue<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
+  (void)Handler;
   return ext::oneapi::level_zero::make_queue(
       TargetContext,
       detail::pi::cast<pi_native_handle>(BackendObject.NativeHandle),

@@ -12,6 +12,7 @@
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/atomic_fence.hpp>
+#include <CL/sycl/atomic_ref.hpp>
 #include <CL/sycl/backend.hpp>
 #if SYCL_BACKEND_OPENCL
 #include <CL/sycl/backend/opencl.hpp>

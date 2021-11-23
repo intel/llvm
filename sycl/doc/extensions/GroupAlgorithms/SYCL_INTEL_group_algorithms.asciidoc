@@ -17,7 +17,14 @@
 :language: {basebackend@docbook:c++:cpp}
 
 == Introduction
-IMPORTANT: This specification is a draft.
+IMPORTANT: This functionality introduced by this extension is deprecated in
+favor of the standard functionality outlined in
+https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:group-functions[Section
+4.17.3 "Group functions"] and
+https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:algorithms[Section
+4.17.4 "Group algorithms library"] of the SYCL 2020 Specification, Revision 3.
+Note that the "leader" algorithm proposed here is not a free-function in SYCL
+2020, but a member function of the `group` and `sub_group` classes.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
