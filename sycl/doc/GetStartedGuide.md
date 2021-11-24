@@ -120,7 +120,7 @@ You can use the following flags with `compile.py` (full list of available flags
 can be found by launching the script with `--help`):
 
 * `-o` -> Path to build directory
-* `-t` -> Build target (e.g., `clang` or `llvm-spirv`). Default is `deploy-sycl-toolchain`
+* `-t`, `--build-target` -> Build target (e.g., `clang` or `llvm-spirv`). Default is `deploy-sycl-toolchain`
 * `-j`, `--build-parallelism` -> Number of threads to use for compilation
 
 **Please note** that no data about flags is being shared between `configure.py` and
