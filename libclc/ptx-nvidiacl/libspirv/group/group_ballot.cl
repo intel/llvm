@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "membermask.h"
+
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
@@ -25,8 +27,8 @@ __clc_vec4_uint32_t _Z29__spirv_GroupNonUniformBallotjb(unsigned flag,
   res[2] = 0;
   res[3] = 0;
 
-  // evaluate the predicate on all threads
-  unsigned threads = 0xFFFFFFFF;
+  // compute thread mask
+  unsigned threads = __clc__membermask();
 
   // run the ballot operation
   res[0] = __nvvm_vote_ballot_sync(threads, predicate);
