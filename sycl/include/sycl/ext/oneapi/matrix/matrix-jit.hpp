@@ -47,6 +47,11 @@ template <int D> struct spv_scope_traits<sycl::group<D>> {
 template <typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group>
+class wi_slice;
+
+template <typename T, size_t NumRows, size_t NumCols,
+          matrix_layout Layout = matrix_layout::row_major,
+          typename Group = sycl::sub_group>
 struct joint_matrix {
 public:
   __spv::__spirv_JointMatrixINTEL<
@@ -57,6 +62,11 @@ public:
     throw runtime_error("joint matrix is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
+  }
+
+  inline __SYCL_ALWAYS_INLINE wi_slice<T, NumRows, NumCols, Layout, Group>
+  get_wi_slice() {
+    return wi_slice(*this);
   }
 };
 
@@ -197,57 +207,70 @@ template <typename T>
 using wi_slice_t = T __attribute__((ext_vector_type(0xffffff)));
 #else
 template <typename T>
-using wi_slice_t __attribute__((vector_size(0xffffff))) = T;
+using wi_slice_t __attribute__((vector_size(0x800000))) = T;
 #endif // __clang__
-
-// dummy value for initializing wi_slice::data in host code.
-wi_slice_t<int32_t> dummy_i32;
-wi_slice_t<int8_t> dummy_i8;
-wi_slice_t<uint8_t> dummy_u8;
-wi_slice_t<uint16_t> dummy_u16;
-wi_slice_t<float> dummy_f32;
-
-template <typename T> wi_slice_t<T> &getDummy() {}
-template <> wi_slice_t<int32_t> &getDummy() { return dummy_i32; }
-template <> wi_slice_t<int8_t> &getDummy() { return dummy_i8; }
-template <> wi_slice_t<uint8_t> &getDummy() { return dummy_u8; }
-template <> wi_slice_t<float> &getDummy() { return dummy_f32; }
-template <> wi_slice_t<uint16_t> &getDummy() { return dummy_u16; }
 
 template <typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group>
+class wi_elem {
+  joint_matrix<T, NumRows, NumCols, Layout, Group> &M;
+  std::size_t idx;
+
+public:
+  wi_elem(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat, std::size_t i)
+      : M(Mat), idx(i) {}
+  operator T() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_JointMatrixGetSliceElem(M.spvm, idx);
+#else
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+  wi_elem &operator=(const T &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    M.spvm = __spirv_JointMatrixSetSliceElem(M.spvm, idx, rhs);
+    return *this;
+#else
+    (void)rhs;
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+  wi_elem &operator*=(const T &rhs) {
+#ifdef __SYCL_DEVICE_ONLY__
+    M.spvm = __spirv_JointMatrixSetSliceElem(
+        M.spvm, idx, __spirv_JointMatrixGetSliceElem(M.spvm, idx) * rhs);
+    return *this;
+#else
+    (void)rhs;
+    throw runtime_error("joint matrix is not supported on host device.",
+                        PI_INVALID_DEVICE);
+#endif // __SYCL_DEVICE_ONLY__
+  }
+  // TODO: add other arithmetic operators
+};
+
+template <typename T, size_t NumRows, size_t NumCols, matrix_layout Layout,
+          typename Group>
 class wi_slice {
   joint_matrix<T, NumRows, NumCols, Layout, Group> &M;
 
 public:
-  wi_slice(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat)
-      : M(Mat),
-#ifdef __SYCL_DEVICE_ONLY__
-        data(__spirv_JointMatrixGetSliceData(Mat.spvm)) {
-  }
-#else
-        data(getDummy<T>()) {
-  }
-#endif // __SYCL_DEVICE_ONLY__
-  wi_slice_t<T> &data;
+  wi_slice(joint_matrix<T, NumRows, NumCols, Layout, Group> &Mat) : M(Mat) {}
   size_t length() {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_JointMatrixGetSliceLength(M.spvm);
 #else
-    throw runtime_error("wi_slice is not supported on host device.",
+    throw runtime_error("joint matrix is not supported on host device.",
                         PI_INVALID_DEVICE);
 #endif // __SYCL_DEVICE_ONLY__
   }
+  wi_elem<T, NumRows, NumCols, Layout, Group> operator[](size_t i) {
+    return wi_elem<T, NumRows, NumCols, Layout, Group>(M, i);
+  }
 };
-
-// TODO: must be a member function of joint_matrix class.
-template <typename Group, typename T, size_t NumRows, size_t NumCols,
-          matrix_layout Layout = matrix_layout::row_major>
-inline __SYCL_ALWAYS_INLINE wi_slice<T, NumRows, NumCols, Layout, Group>
-joint_matrix_get_slice(joint_matrix<T, NumRows, NumCols, Layout, Group> &M) {
-  return wi_slice(M);
-}
 
 } // namespace experimental::matrix
 } // namespace oneapi

@@ -72,9 +72,9 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C, big_matrix<T2, N
                              accC.get_pointer() + (sg_startx * TM) * N +
                                  sg_starty / SG_SZ * TN,
                              N, matrix_layout::row_major);
-            auto wi_slice_c = joint_matrix_get_slice(sub_c); // M.get_wi_slice()
-            for (int i = 0; i < wi_slice.length(); i++) {
-                wi_slice_c.data[i] *= 1;
+            auto wi_slice_c = sub_c.get_wi_slice(); // M.get_wi_slice()
+            for (int i = 0; i < wi_slice_c.length(); i++) {
+                wi_slice_c[i] *= 1;
             }
            for (int k = 0; k < K / TK; k += 1) {
              joint_matrix_load(

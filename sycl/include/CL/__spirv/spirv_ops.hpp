@@ -96,8 +96,19 @@ extern SYCL_EXTERNAL __spirv_wi_slice_t<T> &__spirv_JointMatrixGetSliceData(
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL size_t __spirv_JointMatrixGetSliceLength(
-    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *);
+extern SYCL_EXTERNAL
+size_t __spirv_JointMatrixGetSliceLength(__spv::__spirv_JointMatrixINTEL<T, R, C, U, S>*);
+
+template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL T __spirv_JointMatrixGetSliceElem(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *, size_t i);
+
+template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
+          __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
+extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *
+__spirv_JointMatrixSetSliceElem(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *, size_t i, T val);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
