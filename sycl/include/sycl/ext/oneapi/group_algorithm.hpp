@@ -75,8 +75,12 @@ template <typename Group> constexpr auto group_to_scope() {
 }
 } // namespace detail
 
-struct src_stride { std::size_t value;};
-struct dest_stride { std::size_t value;};
+struct src_stride {
+  std::size_t value;
+};
+struct dest_stride {
+  std::size_t value;
+};
 
 /// Asynchronously copies a number of elements specified by \p numElements
 /// from the source pointed by \p src to destination pointed by \p dest
@@ -85,7 +89,7 @@ struct dest_stride { std::size_t value;};
 /// Permitted types for dataT are all scalar and vector types, except boolean.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !detail::is_bool<dataT>::value,
-                    device_event>
+                 device_event>
 async_group_copy(Group, global_ptr<dataT> src, local_ptr<dataT> dest,
                  size_t numElements, src_stride srcStride) {
   using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
@@ -104,7 +108,7 @@ async_group_copy(Group, global_ptr<dataT> src, local_ptr<dataT> dest,
 /// Permitted types for dataT are all scalar and vector types, except boolean.
 template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group> && !detail::is_bool<dataT>::value,
-                    device_event>
+                 device_event>
 async_group_copy(Group, local_ptr<dataT> src, global_ptr<dataT> dest,
                  size_t numElements, dest_stride destStride) {
   using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
@@ -116,42 +120,44 @@ async_group_copy(Group, local_ptr<dataT> src, global_ptr<dataT> dest,
   return device_event(&E);
 }
 
-/// Specialization for scalar bool type.
+/// Specialization for bool type.
 /// Asynchronously copies a number of elements specified by \p NumElements
 /// from the source pointed by \p Src to destination pointed by \p Dest
 /// with a stride specified by \p Stride, and returns a SYCL device_event
 /// which can be used to wait on the completion of the copy.
-template <typename Group, typename T, access::address_space DestS,
-          access::address_space SrcS>
-std::enable_if_t<is_group_v<Group> && detail::is_scalar_bool<T>::value,
-                    device_event>
-async_group_copy(Group g, multi_ptr<T, SrcS> Src, multi_ptr<T, DestS> Dest,
-                 size_t NumElements, size_t Stride) {
+template <typename Group, typename dataT>
+std::enable_if_t<is_group_v<Group> && detail::is_bool<dataT>::value,
+                 device_event>
+async_group_copy(Group g, global_ptr<dataT> Src, local_ptr<dataT> Dest,
+                 size_t NumElements, src_stride srcStride) {
   static_assert(sizeof(bool) == sizeof(char),
                 "Async copy to/from bool memory is not supported.");
-  auto DestP =
-      multi_ptr<char, DestS>(reinterpret_cast<char *>(Dest.get()));
-  auto SrcP = multi_ptr<char, SrcS>(reinterpret_cast<char *>(Src.get()));
-  return async_group_copy(g, SrcP, DestP, NumElements, Stride);
+  using BoolType =
+      std::conditional_t<detail::is_vector_bool<dataT>::value,
+                         detail::change_base_type_t<dataT, char>, char>;
+  auto DestP = local_ptr<BoolType>(reinterpret_cast<BoolType *>(Dest.get()));
+  auto SrcP = global_ptr<BoolType>(reinterpret_cast<BoolType *>(Src.get()));
+  return async_group_copy(g, SrcP, DestP, NumElements, srcStride);
 }
 
-/// Specialization for vector bool type.
+/// Specialization for bool type.
 /// Asynchronously copies a number of elements specified by \p NumElements
 /// from the source pointed by \p Src to destination pointed by \p Dest
 /// with a stride specified by \p Stride, and returns a SYCL device_event
 /// which can be used to wait on the completion of the copy.
-template <typename Group, typename T, access::address_space DestS,
-          access::address_space SrcS>
-std::enable_if_t<is_group_v<Group> && detail::is_vector_bool<T>::value,
-                    device_event>
-async_group_copy(Group g, multi_ptr<T, SrcS> Src, multi_ptr<T, DestS> Dest,
-                 size_t NumElements, size_t Stride) {
+template <typename Group, typename dataT>
+std::enable_if_t<is_group_v<Group> && detail::is_bool<dataT>::value,
+                 device_event>
+async_group_copy(Group g, local_ptr<dataT> Src, global_ptr<dataT> Dest,
+                 size_t NumElements, dest_stride destStride) {
   static_assert(sizeof(bool) == sizeof(char),
                 "Async copy to/from bool memory is not supported.");
-  using VecT = detail::change_base_type_t<T, char>;
-  auto DestP = multi_ptr<VecT, DestS>(reinterpret_cast<VecT *>(Dest.get()));
-  auto SrcP = multi_ptr<VecT, SrcS>(reinterpret_cast<VecT *>(Src.get()));
-  return async_group_copy(g, SrcP, DestP, NumElements, Stride);
+  using BoolType =
+      std::conditional_t<detail::is_vector_bool<dataT>::value,
+                         detail::change_base_type_t<dataT, char>, char>;
+  auto DestP = global_ptr<BoolType>(reinterpret_cast<BoolType *>(Dest.get()));
+  auto SrcP = local_ptr<BoolType>(reinterpret_cast<BoolType *>(Src.get()));
+  return async_group_copy(g, SrcP, DestP, NumElements, destStride);
 }
 
 /// Asynchronously copies a number of elements specified by \p numElements
@@ -163,7 +169,7 @@ template <typename Group, typename dataT>
 std::enable_if_t<is_group_v<Group>, device_event>
 async_group_copy(Group g, global_ptr<dataT> src, local_ptr<dataT> dest,
                  size_t numElements) {
-  return async_group_copy(g, src, dest, numElements, 1);
+  return async_group_copy(g, src, dest, numElements, src_stride{1});
 }
 
 /// Asynchronously copies a number of elements specified by \p numElements
@@ -174,12 +180,13 @@ async_group_copy(Group g, global_ptr<dataT> src, local_ptr<dataT> dest,
 template <typename Group, typename dataT>
 device_event async_group_copy(Group g, local_ptr<dataT> src,
                               global_ptr<dataT> dest, size_t numElements) {
-  return async_group_copy(g, src, dest, numElements, 1);
+  return async_group_copy(g, src, dest, numElements, dest_stride{1});
 }
 
 template <typename Group, typename... eventTN>
-void wait_for(Group g, eventTN... Events) {
-  (Events.ext_oneapi_wait(g), ...);
+void wait_for(Group, eventTN... Events) {
+  (__spirv_GroupWaitEvents(detail::group_to_scope<Group>(), 1, Events.m_Event),
+   ...);
 }
 
 template <typename Group>
