@@ -49,7 +49,7 @@ template <> struct interop<backend::ext_oneapi_cuda, context> {
 };
 
 template <> struct interop<backend::ext_oneapi_cuda, device> {
-  using type = CUdevice;
+  using type = CUdeviceptr;
 };
 
 template <> struct interop<backend::ext_oneapi_cuda, event> {
@@ -104,11 +104,11 @@ template <> struct BackendReturn<backend::ext_oneapi_cuda, context> {
 };
 
 template <> struct BackendInput<backend::ext_oneapi_cuda, device> {
-  using type = CUdevice;
+  using type = CUdeviceptr;
 };
 
 template <> struct BackendReturn<backend::ext_oneapi_cuda, device> {
-  using type = CUdevice;
+  using type = CUdeviceptr;
 };
 
 template <> struct BackendInput<backend::ext_oneapi_cuda, event> {
