@@ -11,9 +11,8 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-_CLC_DEF
-__clc_vec4_uint32_t _Z29__spirv_GroupNonUniformBallotjb(unsigned flag,
-                                                        bool predicate) {
+_CLC_DEF _CLC_CONVERGENT __clc_vec4_uint32_t
+_Z29__spirv_GroupNonUniformBallotjb(unsigned flag, bool predicate) {
   // only support subgroup for now
   if (flag != Subgroup) {
     __builtin_trap();
