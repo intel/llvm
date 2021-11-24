@@ -186,11 +186,10 @@ public:
   /// Gets the native handle of the SYCL device.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
+  template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const ->
-      typename detail::interop<BackendName, device>::type {
-    return (typename detail::interop<BackendName, device>::type)getNative();
+  auto get_native() const -> backend_return_t<Backend, device> {
+    return reinterpret_cast<backend_return_t<Backend, device>>(getNative());
   }
 
   /// Indicates if the SYCL device has the given feature.
