@@ -1,4 +1,4 @@
-//==--------------------- Wait.cpp --- queue unit tests --------------------==//
+//==--------------------- piInteropRetain.cpp -- check proper retain calls -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -17,10 +17,9 @@
 namespace {
 using namespace cl::sycl;
 
-static bool QueueRetainCalled;
-pi_result unexpectedQueueRetain(pi_queue Queue) { return PI_INVALID_QUEUE; }
-pi_result expectedQueueRetain(pi_queue Queue) {
-  QueueRetainCalled = true;
+static int QueueRetainCalled = 0;
+pi_result redefinedQueueRetain(pi_queue Queue) {
+  ++QueueRetainCalled;
   return PI_SUCCESS;
 }
 
@@ -48,22 +47,17 @@ TEST(PiInteropTest, CheckRetain) {
 
   // The queue construction should not call to piQueueRetain. Instead
   // piQueueCreate should return the "retained" queue.
-  QueueRetainCalled = false;
-  Mock.redefine<detail::PiApiKind::piQueueRetain>(unexpectedQueueRetain);
+  Mock.redefine<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
   queue Q{Ctx, default_selector()};
-  EXPECT_FALSE(QueueRetainCalled);
+  EXPECT_TRUE(QueueRetainCalled == 0);
 
-  QueueRetainCalled = false;
-  Mock.redefine<detail::PiApiKind::piQueueRetain>(expectedQueueRetain);
   cl_command_queue OCLQ = get_native<backend::opencl>(Q);
-  EXPECT_TRUE(QueueRetainCalled);
+  EXPECT_TRUE(QueueRetainCalled == 1);
 
   // The make_queue should not call to piQueueRetain. The
   // piextCreateQueueWithNative handle should do the "retain" if needed.
-  QueueRetainCalled = false;
-  Mock.redefine<detail::PiApiKind::piQueueRetain>(unexpectedQueueRetain);
   queue Q1 = make_queue<backend::opencl>(OCLQ, Ctx);
-  EXPECT_FALSE(QueueRetainCalled);
+  EXPECT_TRUE(QueueRetainCalled == 1);
 }
 
 } // namespace
