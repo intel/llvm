@@ -8,13 +8,25 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+enum USM_TEST_RES { USM_ALLOC_FAIL = -1, USM_TEST_PASS = 0, USM_TEST_FAIL = 1 };
+
+template <class DeviceMemcpyTest>
+void device_memcpy_invoke(sycl::queue &deviceQueue, uint8_t *dest,
+                          const uint8_t *src, size_t n) {
+  deviceQueue
+      .submit([&](sycl::handler &cgh) {
+        cgh.single_task<DeviceMemcpyTest>([=]() { memcpy(dest, src, n); });
+      })
+      .wait();
+}
 
 class KernelTestMemcpy;
-
 bool kernel_test_memcpy(sycl::queue &deviceQueue) {
   bool success = true;
   char src[20] = "abcdefg012345xyzvvv";
-  char dst[20];
+  char dst[20] = {
+      0,
+  };
   {
     sycl::buffer<char, 1> buffer1(src, sycl::range<1>(20));
     sycl::buffer<char, 1> buffer2(dst, sycl::range<1>(20));
@@ -34,6 +46,101 @@ bool kernel_test_memcpy(sycl::queue &deviceQueue) {
   }
 
   return success;
+}
+
+class KernelTestMemcpyInit;
+class KernelTestMemcpyUSM0;
+class KernelTestMemcpyUSM1;
+class KernelTestMemcpyUSM2;
+class KernelTestMemcpyUSM3;
+class KernelTestMemcpyUSM4;
+USM_TEST_RES kernel_test_memcpy_usm(sycl::queue &deviceQueue) {
+  sycl::device dev = deviceQueue.get_device();
+  sycl::context ctxt = deviceQueue.get_context();
+  uint8_t *usm_shared_dest =
+      (uint8_t *)sycl::aligned_alloc_shared(alignof(uint32_t), 32, dev, ctxt);
+  uint8_t *usm_shared_src =
+      (uint8_t *)sycl::aligned_alloc_shared(alignof(uint32_t), 32, dev, ctxt);
+  if (usm_shared_dest == nullptr || usm_shared_src == nullptr)
+    return USM_ALLOC_FAIL;
+  // Init src usm memory
+  char *host_init_str = "abcdefghijklmnopqrstuvwxyz";
+  size_t str_len = strlen(host_init_str);
+  deviceQueue
+      .submit([&](sycl::handler &cgh) {
+        cgh.single_task<class KernelTestMemcpyInit>([=]() {
+          char c = 'a';
+          for (size_t idx = 0; idx < 32; ++idx)
+            usm_shared_src[idx] = c++;
+        });
+      })
+      .wait();
+  int usm_memcheck_pass = 0;
+  // Memcpy 3 bytest from aligned src to aligned dest
+  device_memcpy_invoke<KernelTestMemcpyUSM0>(deviceQueue, usm_shared_dest,
+                                             usm_shared_src, 3);
+  usm_memcheck_pass = memcmp(usm_shared_dest, usm_shared_src, 3);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_src, ctxt);
+    sycl::free(usm_shared_dest, ctxt);
+    return USM_TEST_FAIL;
+  }
+
+  // Memcpy 15 bytest from aligned src to aligned dest
+  device_memcpy_invoke<KernelTestMemcpyUSM1>(deviceQueue, usm_shared_dest,
+                                             usm_shared_src, 15);
+  usm_memcheck_pass = memcmp(usm_shared_dest, usm_shared_src, 15);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_src, ctxt);
+    sycl::free(usm_shared_dest, ctxt);
+    return USM_TEST_FAIL;
+  }
+
+  deviceQueue
+      .submit([&](sycl::handler &cgh) { cgh.memset(usm_shared_dest, 0, 32); })
+      .wait();
+  // Memcpy 1 byte from unaligned src to unaligned dest;
+  device_memcpy_invoke<KernelTestMemcpyUSM2>(deviceQueue, usm_shared_dest + 1,
+                                             usm_shared_src + 1, 1);
+  usm_memcheck_pass = memcmp(usm_shared_dest + 1, usm_shared_src + 1, 1);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_src, ctxt);
+    sycl::free(usm_shared_dest, ctxt);
+    return USM_TEST_FAIL;
+  }
+
+  // Memcpy 12 bytes from unaligned src to unalinged dest;
+  device_memcpy_invoke<KernelTestMemcpyUSM3>(deviceQueue, usm_shared_dest + 3,
+                                             usm_shared_src + 3, 12);
+  usm_memcheck_pass = memcmp(usm_shared_dest + 3, usm_shared_src + 3, 12);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_src, ctxt);
+    sycl::free(usm_shared_dest, ctxt);
+    return USM_TEST_FAIL;
+  }
+
+  // Memcpy 7 bytes from unaligned src to unaligned dest
+  device_memcpy_invoke<KernelTestMemcpyUSM4>(deviceQueue, usm_shared_dest + 9,
+                                             usm_shared_src + 7, 7);
+  usm_memcheck_pass = memcmp(usm_shared_dest + 9, usm_shared_src + 7, 7);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_src, ctxt);
+    sycl::free(usm_shared_dest, ctxt);
+    return USM_TEST_FAIL;
+  }
+  sycl::free(usm_shared_src, ctxt);
+  sycl::free(usm_shared_dest, ctxt);
+  return USM_TEST_PASS;
+}
+
+template <class DeviceMemsetTest>
+void device_memset_invoke(sycl::queue &deviceQueue, uint8_t *dest, int c,
+                          size_t n) {
+  deviceQueue
+      .submit([&](sycl::handler &cgh) {
+        cgh.single_task<DeviceMemsetTest>([=]() { memset(dest, c, n); });
+      })
+      .wait();
 }
 
 class KernelTestMemset;
@@ -62,6 +169,71 @@ bool kernel_test_memset(sycl::queue &deviceQueue) {
     success = false;
 
   return success;
+}
+
+class KernelTestMemsetUSM0;
+class KernelTestMemsetUSM1;
+class KernelTestMemsetUSM2;
+class KernelTestMemsetUSM3;
+
+USM_TEST_RES kernel_test_memset_usm(sycl::queue &deviceQueue) {
+  sycl::device dev = deviceQueue.get_device();
+  sycl::context ctxt = deviceQueue.get_context();
+  uint8_t host_ref_buffer[32];
+  uint8_t *usm_shared_buffer =
+      (uint8_t *)sycl::aligned_alloc_shared(alignof(uint32_t), 32, dev, ctxt);
+  if (usm_shared_buffer == nullptr)
+    return USM_ALLOC_FAIL;
+
+  deviceQueue
+      .submit(
+          [&](sycl::handler &cgh) { cgh.memset(usm_shared_buffer, 0xFF, 32); })
+      .wait();
+
+  int usm_memcheck_pass = 0;
+  // memset 17 bytes on aligned address
+  device_memset_invoke<KernelTestMemsetUSM0>(deviceQueue, usm_shared_buffer,
+                                             0xEE, 17);
+  memset(host_ref_buffer, 0xFF, 32);
+  memset(host_ref_buffer, 0xEE, 17);
+  usm_memcheck_pass = memcmp(host_ref_buffer, usm_shared_buffer, 32);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_buffer, ctxt);
+    return USM_TEST_FAIL;
+  }
+
+  // memset 3 bytes on aligned address
+  device_memset_invoke<KernelTestMemsetUSM1>(deviceQueue, usm_shared_buffer,
+                                             0xCC, 3);
+  memset(host_ref_buffer, 0xCC, 3);
+  usm_memcheck_pass = memcmp(host_ref_buffer, usm_shared_buffer, 32);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_buffer, ctxt);
+    return USM_TEST_FAIL;
+  }
+
+  // memset 15 bytes on unaligned address
+  device_memset_invoke<KernelTestMemsetUSM2>(deviceQueue, usm_shared_buffer + 1,
+                                             0xAA, 21);
+  memset(host_ref_buffer + 1, 0xAA, 21);
+  usm_memcheck_pass = memcmp(host_ref_buffer, usm_shared_buffer, 32);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_buffer, ctxt);
+    return USM_TEST_FAIL;
+  }
+
+  // memset 2 bytes on unaligned address
+  device_memset_invoke<KernelTestMemsetUSM3>(deviceQueue,
+                                             usm_shared_buffer + 13, 0xBB, 2);
+  memset(host_ref_buffer + 13, 0xBB, 2);
+  usm_memcheck_pass = memcmp(host_ref_buffer, usm_shared_buffer, 32);
+  if (usm_memcheck_pass != 0) {
+    sycl::free(usm_shared_buffer, ctxt);
+    return USM_TEST_FAIL;
+  }
+
+  sycl::free(usm_shared_buffer, ctxt);
+  return USM_TEST_PASS;
 }
 
 class KernelTestMemcmp;
@@ -262,10 +434,30 @@ bool kernel_test_memcpy_addr_space(sycl::queue &deviceQueue) {
 int main() {
   bool success = true;
   sycl::queue deviceQueue;
+  sycl::device dev = deviceQueue.get_device();
+  bool shared_usm_enabled = false;
+  USM_TEST_RES usm_tres;
+  if (dev.get_info<sycl::info::device::usm_shared_allocations>())
+    shared_usm_enabled = true;
   success = kernel_test_memcpy(deviceQueue);
+  if (shared_usm_enabled) {
+    usm_tres = kernel_test_memcpy_usm(deviceQueue);
+    if (usm_tres == USM_ALLOC_FAIL)
+      std::cout << "USM shared memory alloc failed, USM tests skipped"
+                << std::endl;
+    else if (usm_tres == USM_TEST_FAIL)
+      success = false;
+  }
   assert(((void)"memcpy test failed!", success));
-
   success = kernel_test_memset(deviceQueue);
+  if (shared_usm_enabled) {
+    usm_tres = kernel_test_memset_usm(deviceQueue);
+    if (usm_tres == USM_ALLOC_FAIL)
+      std::cout << "USM shared memory alloc failed, USM tests skipped"
+                << std::endl;
+    else if (usm_tres == USM_TEST_FAIL)
+      success = false;
+  }
   assert(((void)"memset test failed!", success));
 
   success = kernel_test_memcmp(deviceQueue);
