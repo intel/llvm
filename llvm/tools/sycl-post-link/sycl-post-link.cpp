@@ -247,8 +247,7 @@ bool hasIndirectFunctionCalls(const Module &M) {
 }
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M) {
-  bool DoSplit = SplitMode.getNumOccurrences() > 0;
-  if (DoSplit) {
+  if (SplitMode.getNumOccurrences() > 0) {
     switch (SplitMode) {
     case SPLIT_PER_TU:
       return Scope_PerModule;
@@ -730,18 +729,19 @@ bool processSpecConstants(Module &M) {
 }
 
 // Module split helper.
-// 2 modes of splitting:
-//   1. No split (Scope = global). Just provide source module.
-//   2. Split (Scope = perModule/perKernel). Split on submodules using
-//   subsequences of entry points in an input module as a split condition.
+// Supports 2 modes of splitting:
+// 1. No split. Just provide source module.
+// 2. Split. Split on submodules using subsequences of entry points in an input
+//    module as a split condition.
 class ModuleSplitter {
   std::unique_ptr<Module> InputModule{nullptr};
   EntryPointGroupMap GMap;
   EntryPointGroupMap::const_iterator GMapIt;
+  bool IsSplit;
 
 public:
-  ModuleSplitter(std::unique_ptr<Module> M, EntryPointsGroupScope Scope)
-      : InputModule(std::move(M)) {
+  ModuleSplitter(std::unique_ptr<Module> M, bool Split, EntryPointsGroupScope Scope)
+      : InputModule(std::move(M)), IsSplit(Split) {
     groupEntryPoints(*InputModule, GMap, Scope);
     assert(!GMap.empty() && "Entry points group map is empty!");
     GMapIt = GMap.cbegin();
@@ -757,11 +757,12 @@ public:
     ++GMapIt;
 
     std::unique_ptr<Module> SplitModule{nullptr};
-    if (GMapIt->first == GLOBAL_SCOPE_NAME) {
+    if (IsSplit && !SplitModuleEntryPoints.empty())
+      SplitModule = extractCallGraph(*InputModule, SplitModuleEntryPoints);
+    else {
       assert(GMap.size() == 1 && "Too many entry points groups in map!");
       SplitModule = std::move(InputModule);
-    } else
-      SplitModule = extractCallGraph(*InputModule, SplitModuleEntryPoints);
+    }
 
     return {std::move(SplitModule), SplitModuleEntryPoints};
   }
@@ -795,7 +796,8 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     lowerEsimdConstructs(*M);
 
   EntryPointsGroupScope Scope = selectDeviceCodeGroupScope(*M);
-  ModuleSplitter MSplit(std::move(M), Scope);
+  bool DoSplit = (SplitMode.getNumOccurrences() > 0);
+  ModuleSplitter MSplit(std::move(M), DoSplit, Scope);
 
   StringRef FileSuffix = IsEsimd ? "esimd_" : "";
 
@@ -804,7 +806,7 @@ TableFiles processOneModule(std::unique_ptr<Module> M, bool IsEsimd,
     EntryPointGroup SplitModuleEntryPoints;
     std::tie(ResM, SplitModuleEntryPoints) = MSplit.nextSplit();
 
-    bool SpecConstsMet = transformSpecConstants(*ResM);
+    bool SpecConstsMet = processSpecConstants(*ResM);
 
     if (IROutputOnly) {
       // the result is the transformed input LLVM IR file rather than a file
