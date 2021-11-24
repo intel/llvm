@@ -11,13 +11,13 @@ int main() {
   auto code_loc = sycl::detail::code_location::current();
   const char *funcName = "main";
 #ifdef NDEBUG
-  if (code_loc.fileName() != nullptr) 
+  if (code_loc.fileName() != nullptr)
     return 1;
-  if (code_loc.functionName() != funcName) 
+  if (code_loc.functionName() != funcName)
     return 1;
-  if (code_loc.lineNumber() != 11) 
+  if (code_loc.lineNumber() != 11)
     return 1;
-  if (code_loc.columnNumber() != 19) 
+  if (code_loc.columnNumber() != 19)
     return 1;
 #else
   assert((code_loc.fileName() != nullptr));
