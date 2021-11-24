@@ -740,7 +740,8 @@ class ModuleSplitter {
   bool IsSplit;
 
 public:
-  ModuleSplitter(std::unique_ptr<Module> M, bool Split, EntryPointsGroupScope Scope)
+  ModuleSplitter(std::unique_ptr<Module> M, bool Split,
+                 EntryPointsGroupScope Scope)
       : InputModule(std::move(M)), IsSplit(Split) {
     groupEntryPoints(*InputModule, GMap, Scope);
     assert(!GMap.empty() && "Entry points group map is empty!");
