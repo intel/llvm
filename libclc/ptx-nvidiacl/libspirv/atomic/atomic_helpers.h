@@ -12,15 +12,19 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
+int __nvvm_reflect(const char __constant *);
+
 #define __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,       \
                                      ADDR_SPACE, ADDR_SPACE_NV, ORDER)         \
   switch (scope) {                                                             \
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
-    TYPE_NV res =                                                              \
-        __nvvm_atom##ORDER##_cta_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(         \
-            (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                \
-    return *(TYPE *)&res;                                                      \
+    if(__nvvm_reflect("__CUDA_ARCH") >= 600){                                  \
+      TYPE_NV res =                                                            \
+          __nvvm_atom##ORDER##_cta_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(       \
+              (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);              \
+      return *(TYPE *)&res;                                                    \
+    }                                                                          \
   }                                                                            \
   case Device: {                                                               \
     TYPE_NV res = __nvvm_atom##ORDER##_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(   \
@@ -29,10 +33,12 @@
   }                                                                            \
   case CrossDevice:                                                            \
   default: {                                                                   \
-    TYPE_NV res =                                                              \
-        __nvvm_atom##ORDER##_sys_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(         \
-            (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);                \
-    return *(TYPE *)&res;                                                      \
+    if(__nvvm_reflect("__CUDA_ARCH") >= 600){                                  \
+      TYPE_NV res =                                                            \
+          __nvvm_atom##ORDER##_sys_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(       \
+              (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value);              \
+      return *(TYPE *)&res;                                                    \
+    }                                                                          \
   }                                                                            \
   }
 
@@ -48,19 +54,25 @@ Memory order is stored in the lowest 5 bits */                                  
     unsigned int order = semantics & 0x1F;                                                                                   \
     switch (order) {                                                                                                         \
     case None:                                                                                                               \
-      __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                       \
-                                   ADDR_SPACE, ADDR_SPACE_NV, )                                                              \
+        __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                     \
+                                    ADDR_SPACE, ADDR_SPACE_NV, )                                                             \
     case Acquire:                                                                                                            \
-      __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                       \
-                                   ADDR_SPACE, ADDR_SPACE_NV, _acquire)                                                      \
+      if(__nvvm_reflect("__CUDA_ARCH") >= 700){                                                                              \
+        __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                     \
+                                     ADDR_SPACE, ADDR_SPACE_NV, _acquire)                                                    \
+      }                                                                                                                      \
     case Release:                                                                                                            \
-      __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                       \
-                                   ADDR_SPACE, ADDR_SPACE_NV, _release)                                                      \
-    default:                                                                                                                 \
+      if(__nvvm_reflect("__CUDA_ARCH") >= 700){                                                                              \
+        __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                     \
+                                     ADDR_SPACE, ADDR_SPACE_NV, _release)                                                    \
+      }                                                                                                                      \
     case AcquireRelease:                                                                                                     \
-      __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                       \
-                                   ADDR_SPACE, ADDR_SPACE_NV, _acq_rel)                                                      \
+      if(__nvvm_reflect("__CUDA_ARCH") >= 700){                                                                              \
+        __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                     \
+                                     ADDR_SPACE, ADDR_SPACE_NV, _acq_rel)                                                    \
+      }                                                                                                                      \
     }                                                                                                                        \
+    __builtin_trap();                                                                                                        \
   }
 
 #define __CLC_NVVM_ATOMIC(TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP,    \
