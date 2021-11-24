@@ -64,7 +64,7 @@ endif()
 # LLVM_EXTERNAL_${project}_SOURCE_DIR using LLVM_ALL_PROJECTS
 # This allows an easy way of setting up a build directory for llvm and another
 # one for llvm+clang+... using the same sources.
-set(LLVM_ALL_PROJECTS "clang;clang-tools-extra;compiler-rt;cross-project-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;mlir;openmp;parallel-libs;polly;pstl")
+set(LLVM_ALL_PROJECTS "clang;clang-tools-extra;compiler-rt;cross-project-tests;libc;libclc;libcxx;libcxxabi;libunwind;lld;lldb;mlir;openmp;polly;pstl")
 set(LLVM_ALL_PROJECTS "${LLVM_ALL_PROJECTS};${LLVM_EXTERNAL_PROJECTS}")
 # The flang project is not yet part of "all" projects (see C++ requirements)
 set(LLVM_EXTRA_PROJECTS "flang")
@@ -76,6 +76,12 @@ set(LLVM_ENABLE_PROJECTS "" CACHE STRING
 foreach(proj ${LLVM_ENABLE_PROJECTS})
   if (NOT proj STREQUAL "all" AND NOT proj STREQUAL "llvm" AND NOT "${proj}" IN_LIST LLVM_KNOWN_PROJECTS)
      MESSAGE(FATAL_ERROR "${proj} isn't a known project: ${LLVM_KNOWN_PROJECTS}")
+  endif()
+endforeach()
+foreach(proj "libcxx" "libcxxabi" "libunwind")
+  if (${proj} IN_LIST LLVM_ENABLE_PROJECTS)
+    message(WARNING "Using LLVM_ENABLE_PROJECTS=${proj} is deprecated now, please use -DLLVM_ENABLE_RUNTIMES=${proj} or "
+                    "see the instructions at https://libcxx.llvm.org/BuildingLibcxx.html for building the runtimes.")
   endif()
 endforeach()
 

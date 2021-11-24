@@ -141,13 +141,11 @@ void ModuloScheduleExpander::generatePipelinedLoop() {
 
   // Copy any terminator instructions to the new kernel, and update
   // names as needed.
-  for (MachineBasicBlock::iterator I = BB->getFirstTerminator(),
-                                   E = BB->instr_end();
-       I != E; ++I) {
-    MachineInstr *NewMI = MF.CloneMachineInstr(&*I);
+  for (MachineInstr &MI : BB->terminators()) {
+    MachineInstr *NewMI = MF.CloneMachineInstr(&MI);
     updateInstruction(NewMI, false, MaxStageCount, 0, VRMap);
     KernelBB->push_back(NewMI);
-    InstrMap[NewMI] = &*I;
+    InstrMap[NewMI] = &MI;
   }
 
   NewKernel = KernelBB;
@@ -759,15 +757,11 @@ void ModuloScheduleExpander::removeDeadInstructions(MachineBasicBlock *KernelBB,
     }
   // In the kernel block, check if we can remove a Phi that generates a value
   // used in an instruction removed in the epilog block.
-  for (MachineBasicBlock::iterator BBI = KernelBB->instr_begin(),
-                                   BBE = KernelBB->getFirstNonPHI();
-       BBI != BBE;) {
-    MachineInstr *MI = &*BBI;
-    ++BBI;
-    Register reg = MI->getOperand(0).getReg();
+  for (MachineInstr &MI : llvm::make_early_inc_range(KernelBB->phis())) {
+    Register reg = MI.getOperand(0).getReg();
     if (MRI.use_begin(reg) == MRI.use_end()) {
-      LIS.RemoveMachineInstrFromMaps(*MI);
-      MI->eraseFromParent();
+      LIS.RemoveMachineInstrFromMaps(MI);
+      MI.eraseFromParent();
     }
   }
 }
@@ -1223,8 +1217,7 @@ void EliminateDeadPhis(MachineBasicBlock *MBB, MachineRegisterInfo &MRI,
   bool Changed = true;
   while (Changed) {
     Changed = false;
-    for (auto I = MBB->begin(); I != MBB->getFirstNonPHI();) {
-      MachineInstr &MI = *I++;
+    for (MachineInstr &MI : llvm::make_early_inc_range(MBB->phis())) {
       assert(MI.isPHI());
       if (MRI.use_empty(MI.getOperand(0).getReg())) {
         if (LIS)
@@ -1768,8 +1761,8 @@ void PeelingModuloScheduleExpander::peelPrologAndEpilogs() {
     // Keep track at which iteration each phi belongs to. We need it to know
     // what version of the variable to use during prologue/epilogue stitching.
     EliminateDeadPhis(B, MRI, LIS, /*KeepSingleSrcPhi=*/true);
-    for (auto Phi = B->begin(), IE = B->getFirstNonPHI(); Phi != IE; ++Phi)
-      PhiNodeLoopIteration[&*Phi] = Schedule.getNumStages() - I;
+    for (MachineInstr &Phi : B->phis())
+      PhiNodeLoopIteration[&Phi] = Schedule.getNumStages() - I;
   }
   for (size_t I = 0; I < Epilogs.size(); I++) {
     LS.reset();

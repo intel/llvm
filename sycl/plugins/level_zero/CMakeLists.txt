@@ -114,6 +114,8 @@ if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
   # which are individually tagged for all pi* symbols in pi.h
   target_compile_definitions(pi_level_zero PRIVATE __SYCL_BUILD_SYCL_DLL)
+  # Install stripped PDB
+  add_stripped_pdb(pi_level_zero)
 else()
   # we set the visibility of all symbols 'hidden' by default.
   # In pi.h file, we set exported symbols with visibility==default individually

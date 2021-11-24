@@ -29,7 +29,7 @@ namespace impl {
 #pragma omp begin declare variant match(device = {arch(amdgcn)})
 
 constexpr const llvm::omp::GV &getGridValue() {
-  return llvm::omp::AMDGPUGridValues;
+  return llvm::omp::getAMDGPUGridValues<__AMDGCN_WAVEFRONT_SIZE>();
 }
 
 uint32_t getGridDim(uint32_t n, uint16_t d) {
@@ -231,10 +231,12 @@ bool mapping::isGenericMode() { return !isSPMDMode(); }
 
 extern "C" {
 __attribute__((noinline)) uint32_t __kmpc_get_hardware_thread_id_in_block() {
+  FunctionTracingRAII();
   return mapping::getThreadIdInBlock();
 }
 
 __attribute__((noinline)) uint32_t __kmpc_get_hardware_num_threads_in_block() {
+  FunctionTracingRAII();
   return mapping::getNumberOfProcessorElements();
 }
 }

@@ -2239,16 +2239,16 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, Call);
   }
 
-  case internal::OpAssumeTrueINTEL: {
+  case OpAssumeTrueKHR: {
     IRBuilder<> Builder(BB);
-    SPIRVAssumeTrueINTEL *BC = static_cast<SPIRVAssumeTrueINTEL *>(BV);
+    SPIRVAssumeTrueKHR *BC = static_cast<SPIRVAssumeTrueKHR *>(BV);
     Value *Condition = transValue(BC->getCondition(), F, BB);
     return mapValue(BV, Builder.CreateAssumption(Condition));
   }
 
-  case internal::OpExpectINTEL: {
+  case OpExpectKHR: {
     IRBuilder<> Builder(BB);
-    SPIRVExpectINTELInstBase *BC = static_cast<SPIRVExpectINTELInstBase *>(BV);
+    SPIRVExpectKHRInstBase *BC = static_cast<SPIRVExpectKHRInstBase *>(BV);
     Type *RetTy = transType(BC->getType());
     Value *Val = transValue(BC->getOperand(0), F, BB);
     Value *ExpVal = transValue(BC->getOperand(1), F, BB);

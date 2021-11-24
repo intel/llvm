@@ -1347,8 +1347,8 @@ static std::string quote(ArrayRef<StringRef> args) {
   for (StringRef a : args) {
     if (!r.empty())
       r.push_back(' ');
-    bool hasWS = a.find(' ') != StringRef::npos;
-    bool hasQ = a.find('"') != StringRef::npos;
+    bool hasWS = a.contains(' ');
+    bool hasQ = a.contains('"');
     if (hasWS || hasQ)
       r.push_back('"');
     if (hasQ) {
@@ -1588,7 +1588,7 @@ void lld::coff::createPDB(COFFLinkerContext &ctx,
 }
 
 void PDBLinker::initialize(llvm::codeview::DebugInfo *buildId) {
-  exitOnErr(builder.initialize(4096)); // 4096 is blocksize
+  exitOnErr(builder.initialize(config->pdbPageSize));
 
   buildId->Signature.CVSignature = OMF::Signature::PDB70;
   // Signature is set to a hash of the PDB contents when the PDB is done.

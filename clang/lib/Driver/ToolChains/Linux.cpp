@@ -211,7 +211,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     ExtraOpts.push_back("max-page-size=4096");
   }
 
-  if (GCCInstallation.getParentLibPath().find("opt/rh/") != StringRef::npos)
+  if (GCCInstallation.getParentLibPath().contains("opt/rh/"))
     // With devtoolset on RHEL, we want to add a bin directory that is relative
     // to the detected gcc install, because if we are using devtoolset gcc then
     // we want to use other tools from devtoolset (e.g. ld) instead of the
@@ -266,6 +266,13 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   const std::string OSLibDir = std::string(getOSLibDir(Triple, Args));
   const std::string MultiarchTriple = getMultiarchTriple(D, Triple, SysRoot);
 
+  // mips32: Debian multilib, we use /libo32, while in other case, /lib is
+  // used. We need add both libo32 and /lib.
+  if (Arch == llvm::Triple::mips || Arch == llvm::Triple::mipsel) {
+    Generic_GCC::AddMultilibPaths(D, SysRoot, "libo32", MultiarchTriple, Paths);
+    addPathIfExists(D, SysRoot + "/libo32", Paths);
+    addPathIfExists(D, SysRoot + "/usr/libo32", Paths);
+  }
   Generic_GCC::AddMultilibPaths(D, SysRoot, OSLibDir, MultiarchTriple, Paths);
 
   addPathIfExists(D, SysRoot + "/lib/" + MultiarchTriple, Paths);

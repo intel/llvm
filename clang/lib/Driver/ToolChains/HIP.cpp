@@ -240,6 +240,10 @@ HIPToolChain::HIPToolChain(const Driver &D, const llvm::Triple &Triple,
   getProgramPaths().push_back(getDriver().Dir);
 }
 
+static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
+  return "remangled-l64-signed_char.libspirv-amdgcn--amdhsa.bc";
+}
+
 void HIPToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs,
     llvm::opt::ArgStringList &CC1Args,
@@ -309,8 +313,7 @@ void HIPToolChain::addClangTargetOptions(
       llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
       LibraryPaths.emplace_back(WithInstallPath.c_str());
 
-      std::string LibSpirvTargetName =
-          "remangled-l64-signed_char.libspirv-amdgcn--amdhsa.bc";
+      std::string LibSpirvTargetName = getLibSpirvTargetName(HostTC);
       for (StringRef LibraryPath : LibraryPaths) {
         SmallString<128> LibSpirvTargetFile(LibraryPath);
         llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
@@ -322,7 +325,8 @@ void HIPToolChain::addClangTargetOptions(
     }
 
     if (LibSpirvFile.empty()) {
-      getDriver().Diag(diag::err_drv_no_sycl_libspirv);
+      getDriver().Diag(diag::err_drv_no_sycl_libspirv)
+          << getLibSpirvTargetName(HostTC);
       return;
     }
 

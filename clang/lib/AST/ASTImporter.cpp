@@ -300,11 +300,8 @@ namespace clang {
           auto *ToNamed = cast<NamedDecl>(ToD);
           DeclContextLookupResult FromLookup =
               FromDC->lookup(FromNamed->getDeclName());
-          for (NamedDecl *ND : FromLookup)
-            if (ND == FromNamed) {
-              ToDC->makeDeclVisibleInContext(ToNamed);
-              break;
-            }
+          if (llvm::is_contained(FromLookup, FromNamed))
+            ToDC->makeDeclVisibleInContext(ToNamed);
         }
       }
     }
@@ -470,18 +467,7 @@ namespace clang {
     template <typename T>
     bool hasSameVisibilityContextAndLinkage(T *Found, T *From);
 
-    bool IsStructuralMatch(Decl *From, Decl *To, bool Complain);
-    bool IsStructuralMatch(RecordDecl *FromRecord, RecordDecl *ToRecord,
-                           bool Complain = true);
-    bool IsStructuralMatch(VarDecl *FromVar, VarDecl *ToVar,
-                           bool Complain = true);
-    bool IsStructuralMatch(EnumDecl *FromEnum, EnumDecl *ToRecord);
-    bool IsStructuralMatch(EnumConstantDecl *FromEC, EnumConstantDecl *ToEC);
-    bool IsStructuralMatch(FunctionTemplateDecl *From,
-                           FunctionTemplateDecl *To);
-    bool IsStructuralMatch(FunctionDecl *From, FunctionDecl *To);
-    bool IsStructuralMatch(ClassTemplateDecl *From, ClassTemplateDecl *To);
-    bool IsStructuralMatch(VarTemplateDecl *From, VarTemplateDecl *To);
+    bool IsStructuralMatch(Decl *From, Decl *To, bool Complain = true);
     ExpectedDecl VisitDecl(Decl *D);
     ExpectedDecl VisitImportDecl(ImportDecl *D);
     ExpectedDecl VisitEmptyDecl(EmptyDecl *D);
@@ -2187,96 +2173,17 @@ getStructuralEquivalenceKind(const ASTImporter &Importer) {
 }
 
 bool ASTNodeImporter::IsStructuralMatch(Decl *From, Decl *To, bool Complain) {
-  StructuralEquivalenceContext Ctx(
-      Importer.getFromContext(), Importer.getToContext(),
-      Importer.getNonEquivalentDecls(), getStructuralEquivalenceKind(Importer),
-      false, Complain);
-  return Ctx.IsEquivalent(From, To);
-}
-
-bool ASTNodeImporter::IsStructuralMatch(RecordDecl *FromRecord,
-                                        RecordDecl *ToRecord, bool Complain) {
   // Eliminate a potential failure point where we attempt to re-import
   // something we're trying to import while completing ToRecord.
-  Decl *ToOrigin = Importer.GetOriginalDecl(ToRecord);
+  Decl *ToOrigin = Importer.GetOriginalDecl(To);
   if (ToOrigin) {
-    auto *ToOriginRecord = dyn_cast<RecordDecl>(ToOrigin);
-    if (ToOriginRecord)
-      ToRecord = ToOriginRecord;
+    To = ToOrigin;
   }
 
-  StructuralEquivalenceContext Ctx(Importer.getFromContext(),
-                                   ToRecord->getASTContext(),
-                                   Importer.getNonEquivalentDecls(),
-                                   getStructuralEquivalenceKind(Importer),
-                                   false, Complain);
-  return Ctx.IsEquivalent(FromRecord, ToRecord);
-}
-
-bool ASTNodeImporter::IsStructuralMatch(VarDecl *FromVar, VarDecl *ToVar,
-                                        bool Complain) {
   StructuralEquivalenceContext Ctx(
       Importer.getFromContext(), Importer.getToContext(),
       Importer.getNonEquivalentDecls(), getStructuralEquivalenceKind(Importer),
       false, Complain);
-  return Ctx.IsEquivalent(FromVar, ToVar);
-}
-
-bool ASTNodeImporter::IsStructuralMatch(EnumDecl *FromEnum, EnumDecl *ToEnum) {
-  // Eliminate a potential failure point where we attempt to re-import
-  // something we're trying to import while completing ToEnum.
-  if (Decl *ToOrigin = Importer.GetOriginalDecl(ToEnum))
-    if (auto *ToOriginEnum = dyn_cast<EnumDecl>(ToOrigin))
-        ToEnum = ToOriginEnum;
-
-  StructuralEquivalenceContext Ctx(
-      Importer.getFromContext(), Importer.getToContext(),
-      Importer.getNonEquivalentDecls(), getStructuralEquivalenceKind(Importer));
-  return Ctx.IsEquivalent(FromEnum, ToEnum);
-}
-
-bool ASTNodeImporter::IsStructuralMatch(FunctionTemplateDecl *From,
-                                        FunctionTemplateDecl *To) {
-  StructuralEquivalenceContext Ctx(
-      Importer.getFromContext(), Importer.getToContext(),
-      Importer.getNonEquivalentDecls(), getStructuralEquivalenceKind(Importer),
-      false, false);
-  return Ctx.IsEquivalent(From, To);
-}
-
-bool ASTNodeImporter::IsStructuralMatch(FunctionDecl *From, FunctionDecl *To) {
-  StructuralEquivalenceContext Ctx(
-      Importer.getFromContext(), Importer.getToContext(),
-      Importer.getNonEquivalentDecls(), getStructuralEquivalenceKind(Importer),
-      false, false);
-  return Ctx.IsEquivalent(From, To);
-}
-
-bool ASTNodeImporter::IsStructuralMatch(EnumConstantDecl *FromEC,
-                                        EnumConstantDecl *ToEC) {
-  const llvm::APSInt &FromVal = FromEC->getInitVal();
-  const llvm::APSInt &ToVal = ToEC->getInitVal();
-
-  return FromVal.isSigned() == ToVal.isSigned() &&
-         FromVal.getBitWidth() == ToVal.getBitWidth() &&
-         FromVal == ToVal;
-}
-
-bool ASTNodeImporter::IsStructuralMatch(ClassTemplateDecl *From,
-                                        ClassTemplateDecl *To) {
-  StructuralEquivalenceContext Ctx(Importer.getFromContext(),
-                                   Importer.getToContext(),
-                                   Importer.getNonEquivalentDecls(),
-                                   getStructuralEquivalenceKind(Importer));
-  return Ctx.IsEquivalent(From, To);
-}
-
-bool ASTNodeImporter::IsStructuralMatch(VarTemplateDecl *From,
-                                        VarTemplateDecl *To) {
-  StructuralEquivalenceContext Ctx(Importer.getFromContext(),
-                                   Importer.getToContext(),
-                                   Importer.getNonEquivalentDecls(),
-                                   getStructuralEquivalenceKind(Importer));
   return Ctx.IsEquivalent(From, To);
 }
 
@@ -3428,11 +3335,14 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     return std::move(Err);
 
   QualType FromTy = D->getType();
+  TypeSourceInfo *FromTSI = D->getTypeSourceInfo();
   // Set to true if we do not import the type of the function as is. There are
   // cases when the original type would result in an infinite recursion during
   // the import. To avoid an infinite recursion when importing, we create the
   // FunctionDecl with a simplified function type and update it only after the
   // relevant AST nodes are already imported.
+  // The type is related to TypeSourceInfo (it references the type), so we must
+  // do the same with TypeSourceInfo.
   bool UsedDifferentProtoType = false;
   if (const auto *FromFPT = FromTy->getAs<FunctionProtoType>()) {
     QualType FromReturnTy = FromFPT->getReturnType();
@@ -3459,11 +3369,13 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     }
     FromTy = Importer.getFromContext().getFunctionType(
         FromReturnTy, FromFPT->getParamTypes(), FromEPI);
+    FromTSI = Importer.getFromContext().getTrivialTypeSourceInfo(
+        FromTy, D->getBeginLoc());
   }
 
   Error Err = Error::success();
   auto T = importChecked(Err, FromTy);
-  auto TInfo = importChecked(Err, D->getTypeSourceInfo());
+  auto TInfo = importChecked(Err, FromTSI);
   auto ToInnerLocStart = importChecked(Err, D->getInnerLocStart());
   auto ToEndLoc = importChecked(Err, D->getEndLoc());
   auto ToQualifierLoc = importChecked(Err, D->getQualifierLoc());
@@ -3641,6 +3553,10 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       ToFunction->setType(*TyOrErr);
     else
       return TyOrErr.takeError();
+    if (Expected<TypeSourceInfo *> TSIOrErr = import(D->getTypeSourceInfo()))
+      ToFunction->setTypeSourceInfo(*TSIOrErr);
+    else
+      return TSIOrErr.takeError();
   }
 
   // FIXME: Other bits to merge?

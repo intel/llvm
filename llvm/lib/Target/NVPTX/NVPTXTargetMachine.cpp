@@ -344,6 +344,7 @@ void NVPTXPassConfig::addIRPasses() {
     addEarlyCSEOrGVNPass();
     if (!DisableLoadStoreVectorizer)
       addPass(createLoadStoreVectorizerPass());
+    addPass(createSROAPass());
   }
 }
 

@@ -293,6 +293,7 @@ public:
         {"vstore", {"vstore", {a(1), a(0)}}},
 
         {"svm_block_ld_unaligned", {"svm.block.ld.unaligned", {l(0)}}},
+        {"svm_block_ld", {"svm.block.ld", {l(0)}}},
         {"svm_block_st", {"svm.block.st", {l(1)}}},
         {"svm_gather", {"svm.gather", {ai1(2), a(1), a(0), u(-1)}}},
         {"svm_gather4_scaled",

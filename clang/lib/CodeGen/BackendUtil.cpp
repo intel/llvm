@@ -42,6 +42,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
+#include "llvm/SYCLLowerIR/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
@@ -849,6 +850,9 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
     FPM.add(createVerifierPass());
 
   // Set up the per-module pass manager.
+  if (LangOpts.SYCLIsDevice)
+    MPM.add(createESIMDVerifierPass());
+
   if (!CodeGenOpts.RewriteMapFiles.empty())
     addSymbolRewriterPass(CodeGenOpts, &MPM);
 
@@ -1589,7 +1593,7 @@ static void runThinLTOBackend(
     return;
 
   auto AddStream = [&](size_t Task) {
-    return std::make_unique<lto::NativeObjectStream>(std::move(OS));
+    return std::make_unique<NativeObjectStream>(std::move(OS));
   };
   lto::Config Conf;
   if (CGOpts.SaveTempsFilePrefix != "") {
@@ -1685,16 +1689,17 @@ void clang::EmitBackendOutput(DiagnosticsEngine &Diags,
     // If we are performing a ThinLTO importing compile, load the function index
     // into memory and pass it into runThinLTOBackend, which will run the
     // function importer and invoke LTO passes.
-    Expected<std::unique_ptr<ModuleSummaryIndex>> IndexOrErr =
-        llvm::getModuleSummaryIndexForFile(CGOpts.ThinLTOIndexFile,
-                                           /*IgnoreEmptyThinLTOIndexFile*/true);
-    if (!IndexOrErr) {
-      logAllUnhandledErrors(IndexOrErr.takeError(), errs(),
+    std::unique_ptr<ModuleSummaryIndex> CombinedIndex;
+    if (Error E = llvm::getModuleSummaryIndexForFile(
+                      CGOpts.ThinLTOIndexFile,
+                      /*IgnoreEmptyThinLTOIndexFile*/ true)
+                      .moveInto(CombinedIndex)) {
+      logAllUnhandledErrors(std::move(E), errs(),
                             "Error loading index file '" +
                             CGOpts.ThinLTOIndexFile + "': ");
       return;
     }
-    std::unique_ptr<ModuleSummaryIndex> CombinedIndex = std::move(*IndexOrErr);
+
     // A null CombinedIndex means we should skip ThinLTO compilation
     // (LLVM will optionally ignore empty index files, returning null instead
     // of an error).

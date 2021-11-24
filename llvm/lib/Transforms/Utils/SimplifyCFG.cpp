@@ -280,7 +280,6 @@ public:
   }
 
   bool simplifyOnce(BasicBlock *BB);
-  bool simplifyOnceImpl(BasicBlock *BB);
   bool run(BasicBlock *BB);
 
   // Helper to set Resimplify and return change indication.
@@ -2059,7 +2058,7 @@ static bool SinkCommonCodeFromPredecessors(BasicBlock *BB,
     unsigned NumPHIdValues = 0;
     for (auto *I : *LRI)
       for (auto *V : PHIOperands[I]) {
-        if (InstructionsToSink.count(V) == 0)
+        if (!InstructionsToSink.contains(V))
           ++NumPHIdValues;
         // FIXME: this check is overly optimistic. We may end up not sinking
         // said instruction, due to the very same profitability check.
@@ -2577,11 +2576,11 @@ static bool BlockIsSimpleEnoughToThreadThrough(BasicBlock *BB) {
   int Size = 0;
 
   SmallPtrSet<const Value *, 32> EphValues;
-  auto IsEphemeral = [&](const Value *V) {
-    if (isa<AssumeInst>(V))
+  auto IsEphemeral = [&](const Instruction *I) {
+    if (isa<AssumeInst>(I))
       return true;
-    return isSafeToSpeculativelyExecute(V) &&
-           all_of(V->users(),
+    return !I->mayHaveSideEffects() && !I->isTerminator() &&
+           all_of(I->users(),
                   [&](const User *U) { return EphValues.count(U); });
   };
 
@@ -6680,7 +6679,7 @@ static bool removeUndefIntroducingPredecessor(BasicBlock *BB,
   return false;
 }
 
-bool SimplifyCFGOpt::simplifyOnceImpl(BasicBlock *BB) {
+bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
   bool Changed = false;
 
   assert(BB && BB->getParent() && "Block not embedded in function!");
@@ -6756,12 +6755,6 @@ bool SimplifyCFGOpt::simplifyOnceImpl(BasicBlock *BB) {
     Changed |= simplifyIndirectBr(cast<IndirectBrInst>(Terminator));
     break;
   }
-
-  return Changed;
-}
-
-bool SimplifyCFGOpt::simplifyOnce(BasicBlock *BB) {
-  bool Changed = simplifyOnceImpl(BB);
 
   return Changed;
 }

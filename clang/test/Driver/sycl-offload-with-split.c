@@ -310,7 +310,17 @@
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 // RUN:   %clang_cl -### -fsycl -fsycl-device-code-split -fsycl-device-code-split=off %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
-// CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} -split{{.*}}
+// CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} "-split={{.*}}
+
+// Check no device code split mode is passed to sycl-post-link when -fsycl-device-code-split is not set and the target is FPGA
+// RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-SPLIT
+
+// Check device code split mode is honored when -fsycl-device-code-split is set and the target is FPGA
+// RUN:   %clang -### -fsycl -fsycl-device-code-split -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=auto -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=per_source -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-PER-SOURCE
+// RUN:   %clang -### -fsycl -fsycl-device-code-split=off -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 
 // Check ESIMD device code split.
 // RUN:   %clang    -### -fsycl %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT

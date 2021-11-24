@@ -170,10 +170,11 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
 /// present and lower-casing the string on Windows.
 static std::string normalizeProgramName(llvm::StringRef Argv0) {
   std::string ProgName = std::string(llvm::sys::path::stem(Argv0));
-#ifdef _WIN32
-  // Transform to lowercase for case insensitive file systems.
-  std::transform(ProgName.begin(), ProgName.end(), ProgName.begin(), ::tolower);
-#endif
+  if (is_style_windows(llvm::sys::path::Style::native)) {
+    // Transform to lowercase for case insensitive file systems.
+    std::transform(ProgName.begin(), ProgName.end(), ProgName.begin(),
+                   ::tolower);
+  }
   return ProgName;
 }
 
@@ -652,7 +653,7 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
   // for the linker flavor is brittle. In addition, prepending "ld." or "ld64."
   // to a relative path is surprising. This is more complex due to priorities
   // among -B, COMPILER_PATH and PATH. --ld-path= should be used instead.
-  if (UseLinker.find('/') != StringRef::npos)
+  if (UseLinker.contains('/'))
     getDriver().Diag(diag::warn_drv_fuse_ld_path);
 
   if (llvm::sys::path::is_absolute(UseLinker)) {
@@ -1218,7 +1219,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (A->getValue(0) == getTripleString())
+        if (getDriver().MakeSYCLDeviceTriple(A->getValue(0)) == getTriple())
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;

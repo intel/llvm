@@ -23,8 +23,8 @@ struct CeilDivSIOpConverter : public OpRewritePattern<arith::CeilDivSIOp> {
     Location loc = op.getLoc();
     auto signedCeilDivIOp = cast<arith::CeilDivSIOp>(op);
     Type type = signedCeilDivIOp.getType();
-    Value a = signedCeilDivIOp.lhs();
-    Value b = signedCeilDivIOp.rhs();
+    Value a = signedCeilDivIOp.getLhs();
+    Value b = signedCeilDivIOp.getRhs();
     Value plusOne = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getIntegerAttr(type, 1));
     Value zero = rewriter.create<arith::ConstantOp>(
@@ -79,11 +79,14 @@ struct FloorDivSIOpConverter : public OpRewritePattern<arith::FloorDivSIOp> {
     Location loc = op.getLoc();
     arith::FloorDivSIOp signedFloorDivIOp = cast<arith::FloorDivSIOp>(op);
     Type type = signedFloorDivIOp.getType();
-    Value a = signedFloorDivIOp.lhs();
-    Value b = signedFloorDivIOp.rhs();
-    Value plusOne = rewriter.create<arith::ConstantIntOp>(loc, 1, type);
-    Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, type);
-    Value minusOne = rewriter.create<arith::ConstantIntOp>(loc, -1, type);
+    Value a = signedFloorDivIOp.getLhs();
+    Value b = signedFloorDivIOp.getRhs();
+    Value plusOne = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIntegerAttr(type, 1));
+    Value zero = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIntegerAttr(type, 0));
+    Value minusOne = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIntegerAttr(type, -1));
     // Compute x = (b<0) ? 1 : -1.
     Value compare =
         rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, b, zero);

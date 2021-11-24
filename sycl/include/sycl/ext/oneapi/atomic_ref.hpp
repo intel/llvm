@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
 #include <CL/sycl/access/access.hpp>
 #include <CL/sycl/atomic.hpp>
-#include <CL/sycl/detail/defines.hpp>
-#include <CL/sycl/detail/spirv.hpp>
 #include <sycl/ext/oneapi/atomic_enums.hpp>
+#ifdef __SYCL_DEVICE_ONLY__
+#include <CL/sycl/detail/spirv.hpp>
+#include <CL/sycl/multi_ptr.hpp>
+#endif
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <atomic>
@@ -22,11 +23,6 @@
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-
-// Forward declaration
-template <typename pointerT, access::address_space AddressSpace>
-class multi_ptr;
-
 namespace ext {
 namespace oneapi {
 namespace detail {
@@ -37,9 +33,15 @@ using namespace ::cl::sycl::detail;
 using memory_order = cl::sycl::ext::oneapi::memory_order;
 using memory_scope = cl::sycl::ext::oneapi::memory_scope;
 
-template <typename T>
-using IsValidAtomicType =
-    bool_constant<std::is_arithmetic<T>::value || std::is_pointer<T>::value>;
+template <typename T> struct IsValidAtomicRefType {
+  static constexpr bool value =
+      (std::is_same<T, int>::value || std::is_same<T, unsigned int>::value ||
+       std::is_same<T, long>::value || std::is_same<T, unsigned long>::value ||
+       std::is_same<T, long long>::value ||
+       std::is_same<T, unsigned long long>::value ||
+       std::is_same<T, float>::value || std::is_same<T, double>::value ||
+       std::is_pointer<T>::value);
+};
 
 template <cl::sycl::access::address_space AS>
 using IsValidAtomicAddressSpace =
@@ -114,17 +116,10 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
 class atomic_ref_base {
   static_assert(
-      detail::IsValidAtomicType<T>::value,
-      "Invalid atomic type.  Valid types are arithmetic and pointer types");
-  static_assert(!std::is_same<T, bool>::value,
-                "ext::oneapi::atomic_ref does not support bool type");
-  static_assert(!(std::is_same<T, char>::value ||
-                  std::is_same<T, signed char>::value ||
-                  std::is_same<T, unsigned char>::value),
-                "ext::oneapi::atomic_ref does not support char type");
-  static_assert(!(std::is_same<T, short>::value ||
-                  std::is_same<T, unsigned short>::value),
-                "ext::oneapi::atomic_ref does not support short type");
+      detail::IsValidAtomicRefType<T>::value,
+      "Invalid atomic type.  Valid types are int, unsigned int, long, "
+      "unsigned long, long long, unsigned long long, float, double "
+      "and pointer types");
   static_assert(detail::IsValidAtomicAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
                 "global_space, local_space, global_device_space");
@@ -137,7 +132,7 @@ public:
   using value_type = T;
   static constexpr size_t required_alignment = sizeof(T);
   static constexpr bool is_always_lock_free =
-      detail::IsValidAtomicType<T>::value;
+      detail::IsValidAtomicRefType<T>::value;
   static constexpr memory_order default_read_order =
       detail::memory_order_traits<DefaultOrder>::read_order;
   static constexpr memory_order default_write_order =
@@ -146,7 +141,7 @@ public:
   static constexpr memory_scope default_scope = DefaultScope;
 
   bool is_lock_free() const noexcept {
-    return detail::IsValidAtomicType<T>::value;
+    return detail::IsValidAtomicRefType<T>::value;
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -279,7 +274,7 @@ public:
   using difference_type = value_type;
   static constexpr size_t required_alignment = sizeof(T);
   static constexpr bool is_always_lock_free =
-      detail::IsValidAtomicType<T>::value;
+      detail::IsValidAtomicRefType<T>::value;
   static constexpr memory_order default_read_order =
       detail::memory_order_traits<DefaultOrder>::read_order;
   static constexpr memory_order default_write_order =
@@ -427,7 +422,7 @@ public:
   using difference_type = value_type;
   static constexpr size_t required_alignment = sizeof(T);
   static constexpr bool is_always_lock_free =
-      detail::IsValidAtomicType<T>::value;
+      detail::IsValidAtomicRefType<T>::value;
   static constexpr memory_order default_read_order =
       detail::memory_order_traits<DefaultOrder>::read_order;
   static constexpr memory_order default_write_order =
@@ -540,7 +535,7 @@ public:
   using difference_type = ptrdiff_t;
   static constexpr size_t required_alignment = sizeof(T *);
   static constexpr bool is_always_lock_free =
-      detail::IsValidAtomicType<T>::value;
+      detail::IsValidAtomicRefType<T>::value;
   static constexpr memory_order default_read_order =
       detail::memory_order_traits<DefaultOrder>::read_order;
   static constexpr memory_order default_write_order =
@@ -662,8 +657,9 @@ private:
 
 template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace>
-class atomic_ref : public detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
-                                                  AddressSpace> {
+class __SYCL2020_DEPRECATED("use 'sycl::atomic_ref' instead") atomic_ref
+    : public detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
+                                     AddressSpace> {
 public:
   using detail::atomic_ref_impl<T, DefaultOrder, DefaultScope,
                                 AddressSpace>::atomic_ref_impl;

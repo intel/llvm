@@ -448,15 +448,44 @@ bool FlatAffineValueConstraints::areIdsAlignedWithOther(
   return areIdsAligned(*this, other);
 }
 
-/// Checks if the SSA values associated with `cst`'s identifiers are unique.
-static bool LLVM_ATTRIBUTE_UNUSED
-areIdsUnique(const FlatAffineValueConstraints &cst) {
+/// Checks if the SSA values associated with `cst`'s identifiers in range
+/// [start, end) are unique.
+static bool LLVM_ATTRIBUTE_UNUSED areIdsUnique(
+    const FlatAffineValueConstraints &cst, unsigned start, unsigned end) {
+
+  assert(start <= cst.getNumIds() && "Start position out of bounds");
+  assert(end <= cst.getNumIds() && "End position out of bounds");
+
+  if (start >= end)
+    return true;
+
   SmallPtrSet<Value, 8> uniqueIds;
-  for (auto val : cst.getMaybeValues()) {
+  ArrayRef<Optional<Value>> maybeValues = cst.getMaybeValues();
+  for (Optional<Value> val : maybeValues) {
     if (val.hasValue() && !uniqueIds.insert(val.getValue()).second)
       return false;
   }
   return true;
+}
+
+/// Checks if the SSA values associated with `cst`'s identifiers are unique.
+static bool LLVM_ATTRIBUTE_UNUSED
+areIdsUnique(const FlatAffineConstraints &cst) {
+  return areIdsUnique(cst, 0, cst.getNumIds());
+}
+
+/// Checks if the SSA values associated with `cst`'s identifiers of kind `kind`
+/// are unique.
+static bool LLVM_ATTRIBUTE_UNUSED areIdsUnique(
+    const FlatAffineValueConstraints &cst, FlatAffineConstraints::IdKind kind) {
+
+  if (kind == FlatAffineConstraints::IdKind::Dimension)
+    return areIdsUnique(cst, 0, cst.getNumDimIds());
+  if (kind == FlatAffineConstraints::IdKind::Symbol)
+    return areIdsUnique(cst, cst.getNumDimIds(), cst.getNumDimAndSymbolIds());
+  if (kind == FlatAffineConstraints::IdKind::Local)
+    return areIdsUnique(cst, cst.getNumDimAndSymbolIds(), cst.getNumIds());
+  llvm_unreachable("Unexpected IdKind");
 }
 
 /// Merge and align the identifiers of A and B starting at 'offset', so that
@@ -482,9 +511,6 @@ static void mergeAndAlignIds(unsigned offset, FlatAffineValueConstraints *a,
   assert(std::all_of(b->getMaybeValues().begin() + offset,
                      b->getMaybeValues().begin() + b->getNumDimAndSymbolIds(),
                      [](Optional<Value> id) { return id.hasValue(); }));
-
-  // Bring A and B to common local space
-  a->mergeLocalIds(*b);
 
   SmallVector<Value, 4> aDimValues;
   a->getValues(offset, a->getNumDimIds(), &aDimValues);
@@ -514,6 +540,8 @@ static void mergeAndAlignIds(unsigned offset, FlatAffineValueConstraints *a,
 
   // Merge and align symbols of A and B
   a->mergeSymbolIds(*b);
+  // Merge and align local ids of A and B
+  a->mergeLocalIds(*b);
 
   assert(areIdsAligned(*a, *b) && "IDs expected to be aligned");
 }
@@ -592,10 +620,15 @@ static void turnSymbolIntoDim(FlatAffineValueConstraints *cst, Value id) {
 }
 
 /// Merge and align symbols of `this` and `other` such that both get union of
-/// of symbols that are unique. Symbols with Value as `None` are considered
-/// to be inequal to all other symbols.
+/// of symbols that are unique. Symbols in `this` and `other` should be
+/// unique. Symbols with Value as `None` are considered to be inequal to all
+/// other symbols.
 void FlatAffineValueConstraints::mergeSymbolIds(
     FlatAffineValueConstraints &other) {
+
+  assert(areIdsUnique(*this, IdKind::Symbol) && "Symbol ids are not unique");
+  assert(areIdsUnique(other, IdKind::Symbol) && "Symbol ids are not unique");
+
   SmallVector<Value, 4> aSymValues;
   getValues(getNumDimIds(), getNumDimAndSymbolIds(), &aSymValues);
 
@@ -606,7 +639,7 @@ void FlatAffineValueConstraints::mergeSymbolIds(
     // If the id is a symbol in `other`, then align it, otherwise assume that
     // it is a new symbol
     if (other.findId(aSymValue, &loc) && loc >= other.getNumDimIds() &&
-        loc < getNumDimAndSymbolIds())
+        loc < other.getNumDimAndSymbolIds())
       other.swapId(s, loc);
     else
       other.insertSymbolId(s - other.getNumDimIds(), aSymValue);
@@ -621,6 +654,8 @@ void FlatAffineValueConstraints::mergeSymbolIds(
 
   assert(getNumSymbolIds() == other.getNumSymbolIds() &&
          "expected same number of symbols");
+  assert(areIdsUnique(*this, IdKind::Symbol) && "Symbol ids are not unique");
+  assert(areIdsUnique(other, IdKind::Symbol) && "Symbol ids are not unique");
 }
 
 // Changes all symbol identifiers which are loop IVs to dim identifiers.
@@ -1839,8 +1874,13 @@ void FlatAffineConstraints::removeRedundantConstraints() {
 
 /// Merge local ids of `this` and `other`. This is done by appending local ids
 /// of `other` to `this` and inserting local ids of `this` to `other` at start
-/// of its local ids.
+/// of its local ids. Number of dimension and symbol ids should match in
+/// `this` and `other`.
 void FlatAffineConstraints::mergeLocalIds(FlatAffineConstraints &other) {
+  assert(getNumDimIds() == other.getNumDimIds() &&
+         "Number of dimension ids should match");
+  assert(getNumSymbolIds() == other.getNumSymbolIds() &&
+         "Number of symbol ids should match");
   unsigned initLocals = getNumLocalIds();
   insertLocalId(getNumLocalIds(), other.getNumLocalIds());
   other.insertLocalId(0, initLocals);
@@ -3629,15 +3669,32 @@ void FlatAffineRelation::compose(const FlatAffineRelation &other) {
          "Domain of this and range of other do not match");
 
   FlatAffineRelation rel = other;
+
+  // Convert `rel` from
+  //    [otherDomain] -> [otherRange]
+  // to
+  //    [otherDomain] -> [otherRange thisRange]
+  // and `this` from
+  //    [thisDomain] -> [thisRange]
+  // to
+  //    [otherDomain thisDomain] -> [thisRange].
+  unsigned removeDims = rel.getNumRangeDims();
+  insertDomainId(0, rel.getNumDomainDims());
+  rel.appendRangeId(getNumRangeDims());
+
+  // Merge symbol and local identifiers.
   mergeSymbolIds(rel);
   mergeLocalIds(rel);
 
-  // Convert domain of `this` and range of `rel` to local identifiers.
-  convertDimToLocal(0, getNumDomainDims());
-  rel.convertDimToLocal(rel.getNumDomainDims(), rel.getNumDimIds());
-  // Add dimensions such that both relations become `domainRel -> rangeThis`.
-  appendDomainId(rel.getNumDomainDims());
-  rel.appendRangeId(getNumRangeDims());
+  // Convert `rel` from [otherDomain] -> [otherRange thisRange] to
+  // [otherDomain] -> [thisRange] by converting first otherRange range ids
+  // to local ids.
+  rel.convertDimToLocal(rel.getNumDomainDims(),
+                        rel.getNumDomainDims() + removeDims);
+  // Convert `this` from [otherDomain thisDomain] -> [thisRange] to
+  // [otherDomain] -> [thisRange] by converting last thisDomain domain ids
+  // to local ids.
+  convertDimToLocal(getNumDomainDims() - removeDims, getNumDomainDims());
 
   auto thisMaybeValues = getMaybeDimValues();
   auto relMaybeValues = rel.getMaybeDimValues();

@@ -662,29 +662,32 @@ size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC) {
   return 1;
 }
 
+// atomic_fetch_[add, min, max] and atomic_fetch_[add, min, max]_explicit
+// functions declared in clang headers should be translated to corresponding
+// FP-typed Atomic Instructions
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
   if (!DemangledName.startswith(kOCLBuiltinName::AtomicPrefix) &&
       !DemangledName.startswith(kOCLBuiltinName::AtomPrefix))
     return false;
 
   return llvm::StringSwitch<bool>(DemangledName)
-      .EndsWith("add", true)
       .EndsWith("sub", true)
+      .EndsWith("atomic_add", true)
+      .EndsWith("atomic_min", true)
+      .EndsWith("atomic_max", true)
+      .EndsWith("atom_add", true)
+      .EndsWith("atom_min", true)
+      .EndsWith("atom_max", true)
       .EndsWith("inc", true)
       .EndsWith("dec", true)
       .EndsWith("cmpxchg", true)
-      .EndsWith("min", true)
-      .EndsWith("max", true)
       .EndsWith("and", true)
       .EndsWith("or", true)
       .EndsWith("xor", true)
-      .EndsWith("add_explicit", true)
       .EndsWith("sub_explicit", true)
       .EndsWith("or_explicit", true)
       .EndsWith("xor_explicit", true)
       .EndsWith("and_explicit", true)
-      .EndsWith("min_explicit", true)
-      .EndsWith("max_explicit", true)
       .Default(false);
 }
 

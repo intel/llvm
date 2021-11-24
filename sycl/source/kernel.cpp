@@ -20,7 +20,7 @@ namespace sycl {
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
           detail::pi::cast<detail::RT::PiKernel>(ClKernel),
-          detail::getSyclObjImpl(SyclContext))) {}
+          detail::getSyclObjImpl(SyclContext), nullptr)) {}
 
 cl_kernel kernel::get() const { return impl->get(); }
 

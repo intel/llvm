@@ -21,6 +21,7 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -161,12 +162,12 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
+  std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr = nullptr;
   // Kernel_bundles could not be used before CGType version 1
   if (getCGTypeVersion(MCGType) >
       static_cast<unsigned int>(detail::CG::CG_VERSION::V0)) {
     // If there were uses of set_specialization_constant build the kernel_bundle
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImpPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/false);
+    KernelBundleImpPtr = getOrInsertHandlerKernelBundle(/*Insert=*/false);
     if (KernelBundleImpPtr) {
       switch (KernelBundleImpPtr->get_bundle_state()) {
       case bundle_state::input: {
@@ -174,7 +175,8 @@ event handler::finalize() {
         kernel_bundle<bundle_state::executable> ExecBundle = build(
             detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
                 KernelBundleImpPtr));
-        setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
+        KernelBundleImpPtr = detail::getSyclObjImpl(ExecBundle);
+        setHandlerKernelBundle(KernelBundleImpPtr);
         break;
       }
       case bundle_state::executable:
@@ -188,8 +190,38 @@ event handler::finalize() {
     }
   }
 
+  const auto &type = getType();
+  if (type == detail::CG::Kernel &&
+      MRequirements.size() + MEvents.size() + MStreamStorage.size() == 0) {
+    // if user does not add a new dependency to the dependency graph, i.e.
+    // the graph is not changed, then this faster path is used to submit kernel
+    // bypassing scheduler and avoiding CommandGroup, Command objects creation.
+
+    std::vector<RT::PiEvent> RawEvents;
+    detail::EventImplPtr NewEvent =
+        std::make_shared<detail::event_impl>(MQueue);
+    NewEvent->setContextImpl(MQueue->getContextImplPtr());
+
+    cl_int Res = CL_SUCCESS;
+    if (MQueue->is_host()) {
+      MHostKernel->call(MNDRDesc, NewEvent->getHostProfilingInfo());
+    } else {
+      Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                             MKernel, MKernelName, MOSModuleHandle, RawEvents,
+                             NewEvent, nullptr);
+    }
+
+    if (CL_SUCCESS != Res)
+      throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
+    else if (NewEvent->is_host() || NewEvent->getHandleRef() == nullptr)
+      NewEvent->setComplete();
+
+    MLastEvent = detail::createSyclObjFromImpl<event>(NewEvent);
+    return MLastEvent;
+  }
+
   std::unique_ptr<detail::CG> CommandGroup;
-  switch (getType()) {
+  switch (type) {
   case detail::CG::Kernel:
   case detail::CG::RunOnHostIntel: {
     // Copy kernel name here instead of move so that it's available after

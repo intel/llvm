@@ -143,6 +143,7 @@
 ??$get_info@$0EBAJ@@device@sycl@cl@@QEBA?AW4partition_property@info@12@XZ
 ??$get_info@$0EBAK@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0EBAK@@kernel@sycl@cl@@QEBAIAEBVdevice@12@@Z
+??$get_info@$0EBAL@@device@sycl@cl@@QEBA?AV?$vector@Vkernel_id@sycl@cl@@V?$allocator@Vkernel_id@sycl@cl@@@std@@@std@@XZ
 ??$get_info@$0EBJA@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0EBJB@@device@sycl@cl@@QEBA_NXZ
 ??$get_info@$0EBJC@@device@sycl@cl@@QEBA_NXZ
@@ -191,6 +192,9 @@
 ??$get_property@Vuse_pinned_host_memory@buffer@property@oneapi@ext@sycl@cl@@@context@sycl@cl@@QEBA?AVuse_pinned_host_memory@buffer@property@oneapi@ext@12@XZ
 ??$get_property@Vuse_pinned_host_memory@buffer@property@oneapi@ext@sycl@cl@@@program@sycl@cl@@QEBA?AVuse_pinned_host_memory@buffer@property@oneapi@ext@12@XZ
 ??$get_property@Vuse_pinned_host_memory@buffer@property@oneapi@ext@sycl@cl@@@sampler@sycl@cl@@QEBA?AVuse_pinned_host_memory@buffer@property@oneapi@ext@12@XZ
+??$get_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@context@sycl@cl@@QEBA?AVuse_primary_context@0property@cuda@oneapi@ext@12@XZ
+??$get_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@program@sycl@cl@@QEBA?AVuse_primary_context@context@property@cuda@oneapi@ext@12@XZ
+??$get_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@sampler@sycl@cl@@QEBA?AVuse_primary_context@context@property@cuda@oneapi@ext@12@XZ
 ??$get_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@context@sycl@cl@@QEBA?AVuse_primary_context@cuda@0property@12@XZ
 ??$get_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@program@sycl@cl@@QEBA?AVuse_primary_context@cuda@context@property@12@XZ
 ??$get_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@sampler@sycl@cl@@QEBA?AVuse_primary_context@cuda@context@property@12@XZ
@@ -237,6 +241,9 @@
 ??$has_property@Vuse_pinned_host_memory@buffer@property@oneapi@ext@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_pinned_host_memory@buffer@property@oneapi@ext@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_pinned_host_memory@buffer@property@oneapi@ext@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
+??$has_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
+??$has_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
+??$has_property@Vuse_primary_context@context@property@cuda@oneapi@ext@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@context@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@program@sycl@cl@@QEBA_NXZ
 ??$has_property@Vuse_primary_context@cuda@context@property@sycl@cl@@@sampler@sycl@cl@@QEBA_NXZ

@@ -91,9 +91,8 @@ def warn_drv_partially_supported_cuda_version: Warning<
 def err_drv_cuda_host_arch : Error<
   "unsupported architecture '%0' for host compilation">;
 def err_drv_no_sycl_libspirv : Error<
-  "cannot find 'libspirv-nvptx64--nvidiacl.bc'; provide path to libspirv "
-  "library via '-fsycl-libspirv-path', or pass '-fno-sycl-libspirv' to build "
-  "without linking with libspirv">;
+  "cannot find '%0'; provide path to libspirv library via '-fsycl-libspirv-path', or "
+  "pass '-fno-sycl-libspirv' to build without linking with libspirv">;
 def err_drv_mix_cuda_hip : Error<
   "mixed CUDA and HIP compilation is not supported">;
 def err_drv_bad_target_id : Error<
@@ -203,8 +202,8 @@ def err_drv_invalid_argument_to_option : Error<
   "invalid argument '%0' to -%1">;
 def err_drv_malformed_sanitizer_ignorelist : Error<
   "malformed sanitizer ignorelist: '%0'">;
-def err_drv_malformed_sanitizer_coverage_whitelist : Error<
-  "malformed sanitizer coverage whitelist: '%0'">;
+def err_drv_malformed_sanitizer_coverage_allowlist : Error<
+  "malformed sanitizer coverage allowlist: '%0'">;
 def err_drv_malformed_sanitizer_coverage_ignorelist : Error<
   "malformed sanitizer coverage ignorelist: '%0'">;
 def err_drv_duplicate_config : Error<
@@ -382,7 +381,7 @@ def warn_drv_diagnostics_hotness_requires_pgo : Warning<
 def warn_drv_clang_unsupported : Warning<
   "the clang compiler does not support '%0'">;
 def warn_drv_deprecated_arg : Warning<
-  "argument '%0' is deprecated, use '%1' instead">, InGroup<Deprecated>;
+  "argument '%0' is deprecated%select{|, use '%2' instead}1">, InGroup<Deprecated>;
 def warn_drv_assuming_mfloat_abi_is : Warning<
   "unknown platform, assuming -mfloat-abi=%0">;
 def warn_ignoring_ftabstop_value : Warning<

@@ -265,6 +265,7 @@ protected:
   // type
   virtual pi_result allocateImpl(void **ResultPtr, size_t Size,
                                  pi_uint32 Alignment) = 0;
+  virtual MemType getMemTypeImpl() = 0;
 
 public:
   USMMemoryAllocBase(pi_context Ctx, pi_device Dev)
@@ -272,6 +273,7 @@ public:
   void *allocate(size_t Size) override final;
   void *allocate(size_t Size, size_t Alignment) override final;
   void deallocate(void *Ptr) override final;
+  MemType getMemType() override final;
 };
 
 // Allocation routines for shared memory type
@@ -279,6 +281,7 @@ class USMSharedMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMSharedMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -290,6 +293,7 @@ class USMDeviceMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMDeviceMemoryAlloc(pi_context Ctx, pi_device Dev)
@@ -301,6 +305,7 @@ class USMHostMemoryAlloc : public USMMemoryAllocBase {
 protected:
   pi_result allocateImpl(void **ResultPtr, size_t Size,
                          pi_uint32 Alignment) override;
+  MemType getMemTypeImpl() override;
 
 public:
   USMHostMemoryAlloc(pi_context Ctx) : USMMemoryAllocBase(Ctx, nullptr) {}

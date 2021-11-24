@@ -1061,11 +1061,6 @@ void AppleObjCRuntimeV2::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString AppleObjCRuntimeV2::GetPluginNameStatic() {
-  static ConstString g_name("apple-objc-v2");
-  return g_name;
-}
-
 BreakpointResolverSP
 AppleObjCRuntimeV2::CreateExceptionResolver(const BreakpointSP &bkpt,
                                             bool catch_bp, bool throw_bp) {
@@ -1995,6 +1990,11 @@ AppleObjCRuntimeV2::SharedCacheClassInfoExtractor::UpdateISAToDescriptorMap() {
   const uint32_t num_classes = 128 * 1024;
 
   UtilityFunction *get_class_info_code = GetClassInfoUtilityFunction(exe_ctx);
+  if (!get_class_info_code) {
+    // The callee will have already logged a useful error message.
+    return DescriptorMapUpdateResult::Fail();
+  }
+
   FunctionCaller *get_shared_cache_class_info_function =
       get_class_info_code->GetFunctionCaller();
 
