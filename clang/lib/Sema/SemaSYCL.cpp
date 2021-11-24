@@ -5172,7 +5172,9 @@ bool Util::matchContext(const DeclContext *Ctx,
       return false;
     Ctx = Ctx->getParent();
   }
-  return Ctx->isTranslationUnit();
+  return Ctx->isTranslationUnit() ||
+         (Ctx->isExternCXXContext() &&
+          Ctx->getEnclosingNamespaceContext()->isTranslationUnit());
 }
 
 bool Util::matchQualifiedTypeName(QualType Ty,
