@@ -11,6 +11,7 @@
 
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LLVM.h"
@@ -240,9 +241,8 @@ struct AllocationCallbacks {
 /// BufferizationState keeps track of bufferization state and provides access to
 /// the results of the analysis.
 struct BufferizationState {
-  BufferizationState(BufferizationAliasInfo &aliasInfo,
-                     AllocationCallbacks &allocationFns)
-      : aliasInfo(aliasInfo), allocationFns(allocationFns) {}
+  BufferizationState(ModuleOp moduleOp, AllocationCallbacks &allocationFns)
+      : aliasInfo(moduleOp), allocationFns(allocationFns) {}
 
   // BufferizationState should be passed as a reference.
   BufferizationState(const BufferizationState &) = delete;
@@ -270,8 +270,11 @@ struct BufferizationState {
   /// Mark `op` as obsolete, so that it is deleted after bufferization.
   void markOpObsolete(Operation *op);
 
+  /// Erase all ops that were marked obsolete.
+  void eraseObsoleteOps();
+
   /// `aliasInfo` keeps track of aliasing and equivalent values.
-  BufferizationAliasInfo &aliasInfo;
+  BufferizationAliasInfo aliasInfo;
 
   /// `allocationFns` contains helper functions for creating alloc ops, dealloc
   /// ops and memcpy ops.
@@ -283,12 +286,27 @@ struct BufferizationState {
 
   /// Obsolete ops that should be deleted after bufferization.
   SmallVector<Operation *> obsoleteOps;
+
+  /// A map for looking up bufferized function types.
+  // TODO: Entangle function calls and FuncOps from the remaining bufferization.
+  DenseMap<FuncOp, FunctionType> bufferizedFunctionTypes;
 };
 
 /// Return the result buffer (memref) for a given OpResult (tensor). Allocate
 /// a new buffer and copy over data from the existing buffer if out-of-place
 /// bufferization is necessary.
 Value getResultBuffer(OpBuilder &b, OpResult result, BufferizationState &state);
+
+/// Bufferize all ops in the given region.
+LogicalResult bufferize(Region *region, BufferizationState &state);
+
+/// Bufferize all ops in the given block.
+LogicalResult bufferize(Block *block, BufferizationState &state);
+
+/// Bufferize the given op. If the op has no tensor OpOperands/OpResults, this
+/// function returns immediately. Otherwise, it calls the `bufferize` interface
+/// method of `BufferizableOpInterface`.
+LogicalResult bufferize(Operation *op, BufferizationState &state);
 
 /// PostAnalysisSteps can be registered with `BufferizationOptions` and are
 /// executed after the analysis, but before bufferization. They can be used
@@ -303,6 +321,26 @@ struct PostAnalysisStep {
                             DominanceInfo &domInfo,
                             SmallVector<Operation *> &newOps) = 0;
 };
+
+/// Return a contiguous MemRefType (i.e. with canonical/empty layout map)
+/// with the same shape as `shapedType` and specified `layout` and
+/// `addressSpace`.
+MemRefType getContiguousMemRefType(ShapedType shapedType,
+                                   MemRefLayoutAttrInterface layout = {},
+                                   Attribute memorySpace = {});
+
+/// Return a contiguous MemRefType (i.e. with canonical/empty layout map)
+/// with the same shape as `shapedType` and specified `layout` and
+/// `addressSpace` or an UnrankedMemRefType otherwise.
+Type getContiguousOrUnrankedMemRefType(Type type,
+                                       MemRefLayoutAttrInterface layout = {},
+                                       Attribute memorySpace = {});
+
+/// Return a MemRefType to which the `tensorType` can be bufferized in a
+/// composable fashion. The layout must be the most dynamic possible and
+/// canonicalize away once bufferization is finished.
+MemRefType getDynamicMemRefType(RankedTensorType tensorType,
+                                unsigned addressSpace = 0);
 
 } // namespace comprehensive_bufferize
 } // namespace linalg

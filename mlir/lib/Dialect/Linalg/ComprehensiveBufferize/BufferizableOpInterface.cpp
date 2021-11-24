@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/IR/Value.h"
 #include "llvm/Support/Debug.h"
 
@@ -390,6 +392,56 @@ Value mlir::linalg::comprehensive_bufferize::getResultBuffer(
   return operandBuffer;
 }
 
+LogicalResult
+mlir::linalg::comprehensive_bufferize::bufferize(Region *region,
+                                                 BufferizationState &state) {
+  for (Block &block : *region)
+    if (failed(bufferize(&block, state)))
+      return failure();
+  return success();
+}
+
+LogicalResult
+mlir::linalg::comprehensive_bufferize::bufferize(Block *block,
+                                                 BufferizationState &state) {
+  for (Operation &op : *block)
+    if (failed(bufferize(&op, state)))
+      return failure();
+  return success();
+}
+
+LogicalResult
+mlir::linalg::comprehensive_bufferize::bufferize(Operation *op,
+                                                 BufferizationState &state) {
+  OpBuilder b(op->getContext());
+
+  // Skip BufferCast and TensorLoad ops.
+  if (isa<memref::BufferCastOp, memref::TensorLoadOp>(op))
+    return success();
+
+  // Check if op has tensor results or operands.
+  auto isaTensor = [](Type t) { return t.isa<TensorType>(); };
+  bool hasTensorResult = any_of(op->getResultTypes(), isaTensor);
+  bool hasTensorOperand = any_of(op->getOperandTypes(), isaTensor);
+
+  // No tensor results or operands: Simply bufferize all nested ops.
+  if (!hasTensorResult && !hasTensorOperand) {
+    for (Region &region : op->getRegions())
+      if (failed(bufferize(&region, state)))
+        return failure();
+    return success();
+  }
+
+  // Bufferize using `BufferizableOpInterface`. Interface implementations are
+  // responsible for bufferizing nested ops.
+  b.setInsertionPoint(op);
+  if (auto bufferizableOp = dyn_cast<BufferizableOpInterface>(op))
+    return bufferizableOp.bufferize(b, state);
+
+  // Emit error if tensor op is not bufferizable.
+  return op->emitError() << "unsupported op with tensors";
+}
+
 //===----------------------------------------------------------------------===//
 // Bufferization-specific BlockAndValueMapping support with debugging.
 //===----------------------------------------------------------------------===//
@@ -469,4 +521,39 @@ bool mlir::linalg::comprehensive_bufferize::BufferizationState::isMapped(
 void mlir::linalg::comprehensive_bufferize::BufferizationState::markOpObsolete(
     Operation *op) {
   obsoleteOps.push_back(op);
+}
+
+void mlir::linalg::comprehensive_bufferize::BufferizationState::
+    eraseObsoleteOps() {
+  for (Operation *op : obsoleteOps)
+    op->erase();
+  obsoleteOps.clear();
+}
+
+MemRefType mlir::linalg::comprehensive_bufferize::getContiguousMemRefType(
+    ShapedType shapedType, MemRefLayoutAttrInterface layout,
+    Attribute memorySpace) {
+  return MemRefType::get(shapedType.getShape(), shapedType.getElementType(),
+                         layout, memorySpace);
+}
+
+Type mlir::linalg::comprehensive_bufferize::getContiguousOrUnrankedMemRefType(
+    Type type, MemRefLayoutAttrInterface layout, Attribute memorySpace) {
+  if (type.isa<RankedTensorType, MemRefType>())
+    return getContiguousMemRefType(type.cast<ShapedType>(), layout,
+                                   memorySpace);
+  assert(!layout && "expected empty layout with UnrankedMemRefType");
+  return UnrankedMemRefType::get(getElementTypeOrSelf(type), memorySpace);
+}
+
+MemRefType mlir::linalg::comprehensive_bufferize::getDynamicMemRefType(
+    RankedTensorType tensorType, unsigned addressSpace) {
+  // TODO: address space decisions to connect with the actual alloc.
+  int64_t dynamicOffset = ShapedType::kDynamicStrideOrOffset;
+  SmallVector<int64_t> dynamicStrides(tensorType.getRank(),
+                                      ShapedType::kDynamicStrideOrOffset);
+  AffineMap stridedLayout = makeStridedLinearLayoutMap(
+      dynamicStrides, dynamicOffset, tensorType.getContext());
+  return MemRefType::get(tensorType.getShape(), tensorType.getElementType(),
+                         stridedLayout, addressSpace);
 }

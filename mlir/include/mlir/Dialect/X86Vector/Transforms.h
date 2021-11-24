@@ -25,8 +25,8 @@ namespace x86vector {
 struct MaskHelper {
   /// b0 captures the lowest bit, b7 captures the highest bit.
   /// Meant to be used with instructions such as mm256BlendPs.
-  template <uint b0, uint b1, uint b2, uint b3, uint b4, uint b5, uint b6,
-            uint b7>
+  template <uint8_t b0, uint8_t b1, uint8_t b2, uint8_t b3, uint8_t b4,
+            uint8_t b5, uint8_t b6, uint8_t b7>
   static uint8_t blend() {
     static_assert(b0 <= 1 && b1 <= 1 && b2 <= 1 && b3 <= 1, "overflow");
     static_assert(b4 <= 1 && b5 <= 1 && b6 <= 1 && b7 <= 1, "overflow");
