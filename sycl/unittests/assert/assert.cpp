@@ -632,12 +632,8 @@ TEST(Assert, TestInteropKernelFromProgramNegative) {
 
   setupMockForInterop(Mock, Ctx, Dev);
 
-  //sycl::program POrig{Ctx};
   sycl::kernel_bundle Bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx);
-  //sycl::program
-  //POrig.build_with_kernel_type<TestKernel>();
-  //sycl::kernel KOrig = POrig.get_kernel<TestKernel>();
   sycl::kernel KOrig = Bundle.get_kernel(sycl::get_kernel_id<TestKernel>());
 
   cl_kernel CLKernel = sycl::get_native<sycl::backend::opencl>(KOrig);
