@@ -1729,25 +1729,20 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
     Value *X;
     ArrayRef<int> MaskC;
     int SplatIndex;
-    BinaryOperator *BO;
+    Value *Y, *OtherOp;
     if (!match(LHS,
                m_OneUse(m_Shuffle(m_Value(X), m_Undef(), m_Mask(MaskC)))) ||
         !match(MaskC, m_SplatOrUndefMask(SplatIndex)) ||
-        X->getType() != Inst.getType() || !match(RHS, m_OneUse(m_BinOp(BO))) ||
-        BO->getOpcode() != Opcode)
+        X->getType() != Inst.getType() ||
+        !match(RHS, m_OneUse(m_BinOp(Opcode, m_Value(Y), m_Value(OtherOp)))))
       return nullptr;
 
     // FIXME: This may not be safe if the analysis allows undef elements. By
     //        moving 'Y' before the splat shuffle, we are implicitly assuming
     //        that it is not undef/poison at the splat index.
-    Value *Y, *OtherOp;
-    if (isSplatValue(BO->getOperand(0), SplatIndex)) {
-      Y = BO->getOperand(0);
-      OtherOp = BO->getOperand(1);
-    } else if (isSplatValue(BO->getOperand(1), SplatIndex)) {
-      Y = BO->getOperand(1);
-      OtherOp = BO->getOperand(0);
-    } else {
+    if (isSplatValue(OtherOp, SplatIndex)) {
+      std::swap(Y, OtherOp);
+    } else if (!isSplatValue(Y, SplatIndex)) {
       return nullptr;
     }
 
@@ -1763,7 +1758,7 @@ Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
     // dropped to be safe.
     if (isa<FPMathOperator>(R)) {
       R->copyFastMathFlags(&Inst);
-      R->andIRFlags(BO);
+      R->andIRFlags(RHS);
     }
     if (auto *NewInstBO = dyn_cast<BinaryOperator>(NewBO))
       NewInstBO->copyIRFlags(R);
@@ -3138,26 +3133,21 @@ Instruction *InstCombinerImpl::visitExtractValueInst(ExtractValueInst &EV) {
       // checking for overflow.
       const APInt *C;
       if (match(WO->getRHS(), m_APInt(C))) {
-        // Compute the no-wrap range [X,Y) for LHS given RHS=C, then
-        // check for the inverted range using range offset trick (i.e.
-        // use a subtract to shift the range to bottom of either the
-        // signed or unsigned domain and then use a single compare to
-        // check range membership).
+        // Compute the no-wrap range for LHS given RHS=C, then construct an
+        // equivalent icmp, potentially using an offset.
         ConstantRange NWR =
           ConstantRange::makeExactNoWrapRegion(WO->getBinaryOp(), *C,
                                                WO->getNoWrapKind());
-        APInt Min = WO->isSigned() ? NWR.getSignedMin() : NWR.getUnsignedMin();
-        NWR = NWR.subtract(Min);
 
         CmpInst::Predicate Pred;
-        APInt NewRHSC;
-        if (NWR.getEquivalentICmp(Pred, NewRHSC)) {
-          auto *OpTy = WO->getRHS()->getType();
-          auto *NewLHS = Builder.CreateSub(WO->getLHS(),
-                                           ConstantInt::get(OpTy, Min));
-          return new ICmpInst(ICmpInst::getInversePredicate(Pred), NewLHS,
-                              ConstantInt::get(OpTy, NewRHSC));
-        }
+        APInt NewRHSC, Offset;
+        NWR.getEquivalentICmp(Pred, NewRHSC, Offset);
+        auto *OpTy = WO->getRHS()->getType();
+        auto *NewLHS = WO->getLHS();
+        if (Offset != 0)
+          NewLHS = Builder.CreateAdd(NewLHS, ConstantInt::get(OpTy, Offset));
+        return new ICmpInst(ICmpInst::getInversePredicate(Pred), NewLHS,
+                            ConstantInt::get(OpTy, NewRHSC));
       }
     }
   }

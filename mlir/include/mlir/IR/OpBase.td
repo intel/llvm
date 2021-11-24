@@ -298,6 +298,14 @@ class Dialect {
   // If this dialect overrides the hook for op interface fallback.
   bit hasOperationInterfaceFallback = 0;
 
+  // If this dialect should use default generated attribute parser boilerplate:
+  // it'll dispatch the parsing to every individual attributes directly.
+  bit useDefaultAttributePrinterParser = 0;
+
+  // If this dialect should use default generated type parser boilerplate:
+  // it'll dispatch the parsing to every individual types directly.
+  bit useDefaultTypePrinterParser = 0;
+
   // If this dialect overrides the hook for canonicalization patterns.
   bit hasCanonicalizer = 0;
 
@@ -494,6 +502,10 @@ def Index : Type<CPred<"$_self.isa<::mlir::IndexType>()">, "index",
                  "::mlir::IndexType">,
             BuildableType<"$_builder.getIndexType()">;
 
+// Any signless integer type or index type.
+def AnySignlessIntegerOrIndex : Type<CPred<"$_self.isSignlessIntOrIndex()">,
+                                     "signless integer or index">;
+
 // Floating point types.
 
 // Any float type irrespective of its width.
@@ -541,7 +553,7 @@ class OpaqueType<string dialect, string name, string summary>
   : Type<CPred<"isOpaqueTypeWithName($_self, \""#dialect#"\", \""#name#"\")">,
          summary, "::mlir::OpaqueType">,
     BuildableType<"::mlir::OpaqueType::get("
-                  "$_builder.getIdentifier(\"" # dialect # "\"), \""
+                  "$_builder.getStringAttr(\"" # dialect # "\"), \""
                   # name # "\")">;
 
 // Function Type
@@ -558,20 +570,17 @@ class ContainerType<Type etype, Pred containerPred, code elementTypeCall,
     Type<And<[containerPred,
                 SubstLeaves<"$_self", !cast<string>(elementTypeCall),
                 etype.predicate>]>,
-         descr # " of " # etype.summary # " values", cppClassName> {
-  // The type of elements in the container.
-  Type elementType = etype;
-
-  // Call to retrieve.
-  code getElementTypeCall = elementTypeCall;
-}
+         descr # " of " # etype.summary # " values", cppClassName>;
 
 class ShapedContainerType<list<Type> allowedTypes,
                           Pred containerPred, string descr,
                           string cppClassName = "::mlir::Type"> :
-    ContainerType<AnyTypeOf<allowedTypes>, containerPred,
-                  "$_self.cast<::mlir::ShapedType>().getElementType()", descr,
-                  cppClassName>;
+    Type<And<[containerPred,
+              Concat<"[](::mlir::Type elementType) { return ",
+                SubstLeaves<"$_self", "elementType",
+                AnyTypeOf<allowedTypes>.predicate>,
+                "; }($_self.cast<::mlir::ShapedType>().getElementType())">]>,
+         descr # " of " # AnyTypeOf<allowedTypes>.summary # " values", cppClassName>;
 
 // Whether a shaped type is ranked.
 def HasRankPred : CPred<"$_self.cast<::mlir::ShapedType>().hasRank()">;
@@ -818,9 +827,9 @@ def BoolLike : TypeConstraint<Or<[I1.predicate, VectorOf<[I1]>.predicate,
 // Type constraint for signless-integer-like types: signless integers, indices,
 // vectors of signless integers or indices, tensors of signless integers.
 def SignlessIntegerLike : TypeConstraint<Or<[
-        AnySignlessInteger.predicate, Index.predicate,
-        VectorOf<[AnySignlessInteger, Index]>.predicate,
-        TensorOf<[AnySignlessInteger, Index]>.predicate]>,
+        AnySignlessIntegerOrIndex.predicate,
+        VectorOf<[AnySignlessIntegerOrIndex]>.predicate,
+        TensorOf<[AnySignlessIntegerOrIndex]>.predicate]>,
     "signless-integer-like">;
 
 // Type constraint for float-like types: floats, vectors or tensors thereof.
@@ -1187,11 +1196,11 @@ class EnumAttrCaseInfo<string sym, int intVal, string strVal> {
 }
 
 // An enum attribute case stored with StringAttr.
-class StrEnumAttrCase<string sym, int val = -1> :
-    EnumAttrCaseInfo<sym, val, sym>,
+class StrEnumAttrCase<string sym, int val = -1, string str = sym> :
+    EnumAttrCaseInfo<sym, val, str>,
     StringBasedAttr<
-      CPred<"$_self.cast<::mlir::StringAttr>().getValue() == \"" # sym # "\"">,
-      "case " # sym>;
+      CPred<"$_self.cast<::mlir::StringAttr>().getValue() == \"" # str # "\"">,
+      "case " # str>;
 
 // An enum attribute case stored with IntegerAttr, which has an integer value,
 // its representation as a string and a C++ symbol name which may be different.
@@ -1748,7 +1757,7 @@ def IntNonNegative : AttrConstraint<
     "whose value is non-negative">;
 
 def IntPositive : AttrConstraint<
-    CPred<"$_self.cast<IntegerAttr>().getValue().isStrictlyPositive()">,
+    CPred<"$_self.cast<::mlir::IntegerAttr>().getValue().isStrictlyPositive()">,
     "whose value is positive">;
 
 class ArrayMinCount<int n> : AttrConstraint<
@@ -2730,6 +2739,21 @@ def location;
 
 def returnType;
 
+// Directive used to specify the operands may be matched in either order. When
+// two adjacents are marked with `either`, it'll try to match the operands in
+// either ordering of constraints. Example:
+//
+// ```
+// (TwoArgOp (either $firstArg, (AnOp $secondArg)))
+// ```
+// The above pattern will accept either `"test.TwoArgOp"(%I32Arg, %AnOpArg)` and
+// `"test.TwoArgOp"(%AnOpArg, %I32Arg)`.
+//
+// Only operand is supported with `either` and note that an operation with
+// `Commutative` trait doesn't imply that it'll have the same behavior than
+// `either` while pattern matching.
+def either;
+
 //===----------------------------------------------------------------------===//
 // Attribute and Type generation
 //===----------------------------------------------------------------------===//
@@ -2886,6 +2910,11 @@ class AttrOrTypeDef<string valueType, string name, list<Trait> defTraits,
   code printer = ?;
   code parser = ?;
 
+  // Custom assembly format. Requires 'mnemonic' to be specified. Cannot be
+  // specified at the same time as either 'printer' or 'parser'. The generated
+  // printer requires 'genAccessors' to be true.
+  string assemblyFormat = ?;
+
   // If set, generate accessors for each parameter.
   bit genAccessors = 1;
 
@@ -2912,6 +2941,9 @@ class AttrDef<Dialect dialect, string name, list<Trait> traits = [],
 
   // The underlying C++ value type
   let returnType = dialect.cppNamespace # "::" # cppClassName;
+
+  // Make it possible to use such attributes as parameters for other attributes.
+  string cppType = dialect.cppNamespace # "::" # cppClassName;
 
   // The call expression to convert from the storage type to the return
   // type. For example, an enum can be stored as an int but returned as an
@@ -2964,10 +2996,22 @@ class AttrOrTypeParameter<string type, string desc, string accessorType = ""> {
   string cppType = type;
   // The C++ type of the accessor for this parameter.
   string cppAccessorType = !if(!empty(accessorType), type, accessorType);
+  // The C++ storage type of of this parameter if it is a reference, e.g.
+  // `std::string` for `StringRef` or `SmallVector` for `ArrayRef`.
+  string cppStorageType = ?;
   // One-line human-readable description of the argument.
   string summary = desc;
   // The format string for the asm syntax (documentation only).
   string syntax = ?;
+  // The default parameter parser is `::mlir::parseField<T>($_parser)`, which
+  // returns `FailureOr<T>`. Overload `parseField` to support parsing for your
+  // type. Or you can provide a customer printer. For attributes, "$_type" will
+  // be replaced with the required attribute type.
+  string parser = ?;
+  // The default parameter printer is `$_printer << $_self`. Overload the stream
+  // operator of `AsmPrinter` as necessary to print your type. Or you can
+  // provide a custom printer.
+  string printer = ?;
 }
 class AttrParameter<string type, string desc, string accessorType = "">
  : AttrOrTypeParameter<type, desc, accessorType>;
@@ -2978,6 +3022,8 @@ class TypeParameter<string type, string desc, string accessorType = "">
 class StringRefParameter<string desc = ""> :
     AttrOrTypeParameter<"::llvm::StringRef", desc> {
   let allocator = [{$_dst = $_allocator.copyInto($_self);}];
+  let printer = [{$_printer << '"' << $_self << '"';}];
+  let cppStorageType = "std::string";
 }
 
 // For APFloats, which require comparison.
@@ -2990,6 +3036,7 @@ class APFloatParameter<string desc> :
 class ArrayRefParameter<string arrayOf, string desc = ""> :
     AttrOrTypeParameter<"::llvm::ArrayRef<" # arrayOf # ">", desc> {
   let allocator = [{$_dst = $_allocator.copyInto($_self);}];
+  let cppStorageType = "::llvm::SmallVector<" # arrayOf # ">";
 }
 
 // For classes which require allocation and have their own allocateInto method.

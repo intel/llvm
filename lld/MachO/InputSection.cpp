@@ -26,6 +26,11 @@ using namespace llvm::support;
 using namespace lld;
 using namespace lld::macho;
 
+// Verify ConcatInputSection's size on 64-bit builds.
+static_assert(sizeof(void *) != 8 || sizeof(ConcatInputSection) == 120,
+              "Try to minimize ConcatInputSection's size, we create many "
+              "instances of it");
+
 std::vector<ConcatInputSection *> macho::inputSections;
 
 uint64_t InputSection::getFileSize() const {
@@ -110,15 +115,16 @@ void ConcatInputSection::foldIdentical(ConcatInputSection *copy) {
   copy->symbols.clear();
 
   // Remove duplicate compact unwind info for symbols at the same address.
-  if (symbols.size() == 0)
+  if (symbols.empty())
     return;
   it = symbols.begin();
   uint64_t v = (*it)->value;
   for (++it; it != symbols.end(); ++it) {
-    if ((*it)->value == v)
-      (*it)->compactUnwind = nullptr;
+    Defined *d = *it;
+    if (d->value == v)
+      d->unwindEntry = nullptr;
     else
-      v = (*it)->value;
+      v = d->value;
   }
 }
 

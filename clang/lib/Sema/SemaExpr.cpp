@@ -3229,9 +3229,8 @@ ExprResult Sema::BuildDeclarationNameExpr(const CXXScopeSpec &SS,
   return ULE;
 }
 
-static void
-diagnoseUncapturableValueReference(Sema &S, SourceLocation loc,
-                                   ValueDecl *var, DeclContext *DC);
+static void diagnoseUncapturableValueReference(Sema &S, SourceLocation loc,
+                                               ValueDecl *var);
 
 /// Complete semantic analysis for a reference to the given declaration.
 ExprResult Sema::BuildDeclarationNameExpr(
@@ -3395,7 +3394,7 @@ ExprResult Sema::BuildDeclarationNameExpr(
     if (BD->getDeclContext() != CurContext) {
       auto *DD = dyn_cast_or_null<VarDecl>(BD->getDecomposedDecl());
       if (DD && DD->hasLocalStorage())
-        diagnoseUncapturableValueReference(*this, Loc, BD, CurContext);
+        diagnoseUncapturableValueReference(*this, Loc, BD);
     }
     break;
   }
@@ -5794,7 +5793,7 @@ Sema::VariadicCallType
 Sema::getVariadicCallType(FunctionDecl *FDecl, const FunctionProtoType *Proto,
                           Expr *Fn) {
   if (Proto && Proto->isVariadic()) {
-    if (dyn_cast_or_null<CXXConstructorDecl>(FDecl))
+    if (isa_and_nonnull<CXXConstructorDecl>(FDecl))
       return VariadicConstructor;
     else if (Fn && Fn->getType()->isBlockPointerType())
       return VariadicBlock;
@@ -17483,9 +17482,8 @@ void Sema::MarkCaptureUsedInEnclosingContext(VarDecl *Capture,
   MarkVarDeclODRUsed(Capture, Loc, *this, &CapturingScopeIndex);
 }
 
-static void
-diagnoseUncapturableValueReference(Sema &S, SourceLocation loc,
-                                   ValueDecl *var, DeclContext *DC) {
+static void diagnoseUncapturableValueReference(Sema &S, SourceLocation loc,
+                                               ValueDecl *var) {
   DeclContext *VarDC = var->getDeclContext();
 
   //  If the parameter still belongs to the translation unit, then
@@ -17564,7 +17562,7 @@ static DeclContext *getParentOfCapturingContextOrNull(DeclContext *DC, VarDecl *
     return getLambdaAwareParentOfDeclContext(DC);
   else if (Var->hasLocalStorage()) {
     if (Diagnose)
-       diagnoseUncapturableValueReference(S, Loc, Var, DC);
+       diagnoseUncapturableValueReference(S, Loc, Var);
   }
   return nullptr;
 }
@@ -18038,7 +18036,7 @@ bool Sema::tryCaptureVariable(
           Diag(LSI->Lambda->getBeginLoc(), diag::note_lambda_decl);
           buildLambdaCaptureFixit(*this, LSI, Var);
         } else
-          diagnoseUncapturableValueReference(*this, ExprLoc, Var, DC);
+          diagnoseUncapturableValueReference(*this, ExprLoc, Var);
       }
       return true;
     }
@@ -18960,12 +18958,20 @@ class EvaluatedExprMarker : public UsedDeclVisitor<EvaluatedExprMarker> {
 public:
   typedef UsedDeclVisitor<EvaluatedExprMarker> Inherited;
   bool SkipLocalVariables;
+  ArrayRef<const Expr *> StopAt;
 
-  EvaluatedExprMarker(Sema &S, bool SkipLocalVariables)
-      : Inherited(S), SkipLocalVariables(SkipLocalVariables) {}
+  EvaluatedExprMarker(Sema &S, bool SkipLocalVariables,
+                      ArrayRef<const Expr *> StopAt)
+      : Inherited(S), SkipLocalVariables(SkipLocalVariables), StopAt(StopAt) {}
 
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     S.MarkFunctionReferenced(Loc, cast<FunctionDecl>(D));
+  }
+
+  void Visit(Expr *E) {
+    if (std::find(StopAt.begin(), StopAt.end(), E) != StopAt.end())
+      return;
+    Inherited::Visit(E);
   }
 
   void VisitDeclRefExpr(DeclRefExpr *E) {
@@ -18994,9 +19000,11 @@ public:
 ///
 /// \param SkipLocalVariables If true, don't mark local variables as
 /// 'referenced'.
+/// \param StopAt Subexpressions that we shouldn't recurse into.
 void Sema::MarkDeclarationsReferencedInExpr(Expr *E,
-                                            bool SkipLocalVariables) {
-  EvaluatedExprMarker(*this, SkipLocalVariables).Visit(E);
+                                            bool SkipLocalVariables,
+                                            ArrayRef<const Expr*> StopAt) {
+  EvaluatedExprMarker(*this, SkipLocalVariables, StopAt).Visit(E);
 }
 
 /// Emit a diagnostic when statements are reachable.

@@ -263,8 +263,8 @@ enum NodeType : unsigned {
   VSEXT_VL,
   VZEXT_VL,
 
-  //  vpopc.m with additional mask and VL operands.
-  VPOPC_VL,
+  //  vcpop.m with additional mask and VL operands.
+  VCPOP_VL,
 
   // Reads value of CSR.
   // The first operand is a chain pointer. The second specifies address of the
@@ -315,6 +315,7 @@ public:
   bool isSExtCheaperThanZExt(EVT SrcVT, EVT DstVT) const override;
   bool isCheapToSpeculateCttz() const override;
   bool isCheapToSpeculateCtlz() const override;
+  bool hasAndNot(SDValue Y) const override;
   bool shouldSinkOperands(Instruction *I,
                           SmallVectorImpl<Use *> &Ops) const override;
   bool isFPImmLegal(const APFloat &Imm, EVT VT,

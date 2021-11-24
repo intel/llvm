@@ -1215,23 +1215,25 @@ let Predicates = [HasPAuth] in {
   def : InstAlias<"autib1716", (AUTIB1716), 1>;
   def : InstAlias<"xpaclri", (XPACLRI), 1>;
 
-  multiclass SignAuth<bits<3> prefix, bits<3> prefix_z, string asm> {
-    def IA   : SignAuthOneData<prefix, 0b00, !strconcat(asm, "ia")>;
-    def IB   : SignAuthOneData<prefix, 0b01, !strconcat(asm, "ib")>;
-    def DA   : SignAuthOneData<prefix, 0b10, !strconcat(asm, "da")>;
-    def DB   : SignAuthOneData<prefix, 0b11, !strconcat(asm, "db")>;
-    def IZA  : SignAuthZero<prefix_z, 0b00, !strconcat(asm, "iza")>;
-    def DZA  : SignAuthZero<prefix_z, 0b10, !strconcat(asm, "dza")>;
-    def IZB  : SignAuthZero<prefix_z, 0b01, !strconcat(asm, "izb")>;
-    def DZB  : SignAuthZero<prefix_z, 0b11, !strconcat(asm, "dzb")>;
+  multiclass SignAuth<bits<3> prefix, bits<3> prefix_z, string asm,
+                      SDPatternOperator op> {
+    def IA   : SignAuthOneData<prefix, 0b00, !strconcat(asm,  "ia"), op>;
+    def IB   : SignAuthOneData<prefix, 0b01, !strconcat(asm,  "ib"), op>;
+    def DA   : SignAuthOneData<prefix, 0b10, !strconcat(asm,  "da"), op>;
+    def DB   : SignAuthOneData<prefix, 0b11, !strconcat(asm,  "db"), op>;
+    def IZA  : SignAuthZero<prefix_z,  0b00, !strconcat(asm, "iza"), op>;
+    def DZA  : SignAuthZero<prefix_z,  0b10, !strconcat(asm, "dza"), op>;
+    def IZB  : SignAuthZero<prefix_z,  0b01, !strconcat(asm, "izb"), op>;
+    def DZB  : SignAuthZero<prefix_z,  0b11, !strconcat(asm, "dzb"), op>;
   }
 
-  defm PAC : SignAuth<0b000, 0b010, "pac">;
-  defm AUT : SignAuth<0b001, 0b011, "aut">;
+  defm PAC : SignAuth<0b000, 0b010, "pac", int_ptrauth_sign>;
+  defm AUT : SignAuth<0b001, 0b011, "aut", null_frag>;
 
   def XPACI : ClearAuth<0, "xpaci">;
   def XPACD : ClearAuth<1, "xpacd">;
-  def PACGA : SignAuthTwoOperand<0b1100, "pacga", null_frag>;
+
+  def PACGA : SignAuthTwoOperand<0b1100, "pacga", int_ptrauth_sign_generic>;
 
   // Combined Instructions
   let isBranch = 1, isTerminator = 1, isBarrier = 1, isIndirectBranch = 1  in {
@@ -3754,35 +3756,56 @@ defm FCVTZU : FPToIntegerScaled<0b11, 0b001, "fcvtzu", any_fp_to_uint>;
 
 // AArch64's FCVT instructions saturate when out of range.
 multiclass FPToIntegerSatPats<SDNode to_int_sat, string INST> {
+  let Predicates = [HasFullFP16] in {
   def : Pat<(i32 (to_int_sat f16:$Rn, i32)),
             (!cast<Instruction>(INST # UWHr) f16:$Rn)>;
-  def : Pat<(i32 (to_int_sat f32:$Rn, i32)),
-            (!cast<Instruction>(INST # UWSr) f32:$Rn)>;
-  def : Pat<(i32 (to_int_sat f64:$Rn, i32)),
-            (!cast<Instruction>(INST # UWDr) f64:$Rn)>;
   def : Pat<(i64 (to_int_sat f16:$Rn, i64)),
             (!cast<Instruction>(INST # UXHr) f16:$Rn)>;
+  }
+  def : Pat<(i32 (to_int_sat f32:$Rn, i32)),
+            (!cast<Instruction>(INST # UWSr) f32:$Rn)>;
   def : Pat<(i64 (to_int_sat f32:$Rn, i64)),
             (!cast<Instruction>(INST # UXSr) f32:$Rn)>;
+  def : Pat<(i32 (to_int_sat f64:$Rn, i32)),
+            (!cast<Instruction>(INST # UWDr) f64:$Rn)>;
   def : Pat<(i64 (to_int_sat f64:$Rn, i64)),
             (!cast<Instruction>(INST # UXDr) f64:$Rn)>;
+
+  let Predicates = [HasFullFP16] in {
+  def : Pat<(i32 (to_int_sat (fmul f16:$Rn, fixedpoint_f16_i32:$scale), i32)),
+            (!cast<Instruction>(INST # SWHri) $Rn, $scale)>;
+  def : Pat<(i64 (to_int_sat (fmul f16:$Rn, fixedpoint_f16_i64:$scale), i64)),
+            (!cast<Instruction>(INST # SXHri) $Rn, $scale)>;
+  }
+  def : Pat<(i32 (to_int_sat (fmul f32:$Rn, fixedpoint_f32_i32:$scale), i32)),
+            (!cast<Instruction>(INST # SWSri) $Rn, $scale)>;
+  def : Pat<(i64 (to_int_sat (fmul f32:$Rn, fixedpoint_f32_i64:$scale), i64)),
+            (!cast<Instruction>(INST # SXSri) $Rn, $scale)>;
+  def : Pat<(i32 (to_int_sat (fmul f64:$Rn, fixedpoint_f64_i32:$scale), i32)),
+            (!cast<Instruction>(INST # SWDri) $Rn, $scale)>;
+  def : Pat<(i64 (to_int_sat (fmul f64:$Rn, fixedpoint_f64_i64:$scale), i64)),
+            (!cast<Instruction>(INST # SXDri) $Rn, $scale)>;
 }
 
 defm : FPToIntegerSatPats<fp_to_sint_sat, "FCVTZS">;
 defm : FPToIntegerSatPats<fp_to_uint_sat, "FCVTZU">;
 
 multiclass FPToIntegerIntPats<Intrinsic round, string INST> {
+  let Predicates = [HasFullFP16] in {
   def : Pat<(i32 (round f16:$Rn)), (!cast<Instruction>(INST # UWHr) $Rn)>;
   def : Pat<(i64 (round f16:$Rn)), (!cast<Instruction>(INST # UXHr) $Rn)>;
+  }
   def : Pat<(i32 (round f32:$Rn)), (!cast<Instruction>(INST # UWSr) $Rn)>;
   def : Pat<(i64 (round f32:$Rn)), (!cast<Instruction>(INST # UXSr) $Rn)>;
   def : Pat<(i32 (round f64:$Rn)), (!cast<Instruction>(INST # UWDr) $Rn)>;
   def : Pat<(i64 (round f64:$Rn)), (!cast<Instruction>(INST # UXDr) $Rn)>;
 
+  let Predicates = [HasFullFP16] in {
   def : Pat<(i32 (round (fmul f16:$Rn, fixedpoint_f16_i32:$scale))),
             (!cast<Instruction>(INST # SWHri) $Rn, $scale)>;
   def : Pat<(i64 (round (fmul f16:$Rn, fixedpoint_f16_i64:$scale))),
             (!cast<Instruction>(INST # SXHri) $Rn, $scale)>;
+  }
   def : Pat<(i32 (round (fmul f32:$Rn, fixedpoint_f32_i32:$scale))),
             (!cast<Instruction>(INST # SWSri) $Rn, $scale)>;
   def : Pat<(i64 (round (fmul f32:$Rn, fixedpoint_f32_i64:$scale))),
@@ -3807,10 +3830,12 @@ multiclass FPToIntegerPats<SDNode to_int, SDNode to_int_sat, SDNode round, strin
             (!cast<Instruction>(INST # UXDr) f64:$Rn)>;
 
   // These instructions saturate like fp_to_[su]int_sat.
+  let Predicates = [HasFullFP16] in {
   def : Pat<(i32 (to_int_sat (round f16:$Rn), i32)),
             (!cast<Instruction>(INST # UWHr) f16:$Rn)>;
   def : Pat<(i64 (to_int_sat (round f16:$Rn), i64)),
             (!cast<Instruction>(INST # UXHr) f16:$Rn)>;
+  }
   def : Pat<(i32 (to_int_sat (round f32:$Rn), i32)),
             (!cast<Instruction>(INST # UWSr) f32:$Rn)>;
   def : Pat<(i64 (to_int_sat (round f32:$Rn), i64)),
@@ -5753,7 +5778,7 @@ def : Pat<(i32 (vector_extract (v8i16 (insert_subvector undef,
             (v4i16 (AArch64uaddv (v4i16 (AArch64uaddlp (v8i8 V64:$op))))),
             (i64 0))), (i64 0))),
           (EXTRACT_SUBREG (INSERT_SUBREG (v4i16 (IMPLICIT_DEF)),
-           (UADDLVv4i16v V64:$op), ssub), ssub)>;
+           (UADDLVv8i8v V64:$op), hsub), ssub)>;
 def : Pat<(i32 (vector_extract (v8i16 (AArch64uaddv (v8i16 (AArch64uaddlp
            (v16i8 V128:$op))))), (i64 0))),
           (EXTRACT_SUBREG (INSERT_SUBREG (v8i16 (IMPLICIT_DEF)),

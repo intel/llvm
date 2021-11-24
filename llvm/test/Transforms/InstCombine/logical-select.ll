@@ -19,8 +19,8 @@ define i32 @foo(i32 %a, i32 %b, i32 %c, i32 %d) {
 
 define i32 @bar(i32 %a, i32 %b, i32 %c, i32 %d) {
 ; CHECK-LABEL: @bar(
-; CHECK-NEXT:    [[E_NOT:%.*]] = icmp slt i32 [[A:%.*]], [[B:%.*]]
-; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[E_NOT]], i32 [[C:%.*]], i32 [[D:%.*]]
+; CHECK-NEXT:    [[E:%.*]] = icmp slt i32 [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[E]], i32 [[C:%.*]], i32 [[D:%.*]]
 ; CHECK-NEXT:    ret i32 [[TMP1]]
 ;
   %e = icmp slt i32 %a, %b
@@ -472,9 +472,9 @@ define <4 x i1> @vec_of_bools(<4 x i1> %a, <4 x i1> %b, <4 x i1> %c) {
 
 define i4 @vec_of_casted_bools(i4 %a, i4 %b, <4 x i1> %c) {
 ; CHECK-LABEL: @vec_of_casted_bools(
-; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i4 [[A:%.*]] to <4 x i1>
-; CHECK-NEXT:    [[TMP2:%.*]] = bitcast i4 [[B:%.*]] to <4 x i1>
-; CHECK-NEXT:    [[TMP3:%.*]] = select <4 x i1> [[C:%.*]], <4 x i1> [[TMP2]], <4 x i1> [[TMP1]]
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i4 [[B:%.*]] to <4 x i1>
+; CHECK-NEXT:    [[TMP2:%.*]] = bitcast i4 [[A:%.*]] to <4 x i1>
+; CHECK-NEXT:    [[TMP3:%.*]] = select <4 x i1> [[C:%.*]], <4 x i1> [[TMP1]], <4 x i1> [[TMP2]]
 ; CHECK-NEXT:    [[TMP4:%.*]] = bitcast <4 x i1> [[TMP3]] to i4
 ; CHECK-NEXT:    ret i4 [[TMP4]]
 ;
@@ -582,8 +582,8 @@ define <4 x i32> @vec_sel_xor_multi_use(<4 x i32> %a, <4 x i32> %b, <4 x i1> %c)
 
 define i32 @allSignBits(i32 %cond, i32 %tval, i32 %fval) {
 ; CHECK-LABEL: @allSignBits(
-; CHECK-NEXT:    [[DOTNOT:%.*]] = icmp slt i32 [[COND:%.*]], 0
-; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[DOTNOT]], i32 [[TVAL:%.*]], i32 [[FVAL:%.*]]
+; CHECK-NEXT:    [[DOTNOT:%.*]] = icmp sgt i32 [[COND:%.*]], -1
+; CHECK-NEXT:    [[TMP1:%.*]] = select i1 [[DOTNOT]], i32 [[FVAL:%.*]], i32 [[TVAL:%.*]]
 ; CHECK-NEXT:    ret i32 [[TMP1]]
 ;
   %bitmask = ashr i32 %cond, 31
@@ -682,3 +682,148 @@ define <4 x i32> @computesignbits_through_two_input_shuffle(<4 x i32> %x, <4 x i
   ret <4 x i32> %sel
 }
 
+; Bitcast of condition from narrow source element type can be converted to select.
+
+define <2 x i64> @bitcast_vec_cond(<16 x i1> %cond, <2 x i64> %c, <2 x i64> %d) {
+; CHECK-LABEL: @bitcast_vec_cond(
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <2 x i64> [[D:%.*]] to <16 x i8>
+; CHECK-NEXT:    [[TMP2:%.*]] = bitcast <2 x i64> [[C:%.*]] to <16 x i8>
+; CHECK-NEXT:    [[TMP3:%.*]] = select <16 x i1> [[COND:%.*]], <16 x i8> [[TMP1]], <16 x i8> [[TMP2]]
+; CHECK-NEXT:    [[TMP4:%.*]] = bitcast <16 x i8> [[TMP3]] to <2 x i64>
+; CHECK-NEXT:    ret <2 x i64> [[TMP4]]
+;
+  %s = sext <16 x i1> %cond to <16 x i8>
+  %t9 = bitcast <16 x i8> %s to <2 x i64>
+  %nott9 = xor <2 x i64> %t9, <i64 -1, i64 -1>
+  %t11 = and <2 x i64> %nott9, %c
+  %t12 = and <2 x i64> %t9, %d
+  %r = or <2 x i64> %t11, %t12
+  ret <2 x i64> %r
+}
+
+; Negative test - bitcast of condition from wide source element type cannot be converted to select.
+
+define <8 x i3> @bitcast_vec_cond_commute1(<3 x i1> %cond, <8 x i3> %pc, <8 x i3> %d) {
+; CHECK-LABEL: @bitcast_vec_cond_commute1(
+; CHECK-NEXT:    [[C:%.*]] = mul <8 x i3> [[PC:%.*]], [[PC]]
+; CHECK-NEXT:    [[S:%.*]] = sext <3 x i1> [[COND:%.*]] to <3 x i8>
+; CHECK-NEXT:    [[T9:%.*]] = bitcast <3 x i8> [[S]] to <8 x i3>
+; CHECK-NEXT:    [[NOTT9:%.*]] = xor <8 x i3> [[T9]], <i3 -1, i3 -1, i3 -1, i3 -1, i3 -1, i3 -1, i3 -1, i3 -1>
+; CHECK-NEXT:    [[T11:%.*]] = and <8 x i3> [[C]], [[NOTT9]]
+; CHECK-NEXT:    [[T12:%.*]] = and <8 x i3> [[T9]], [[D:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or <8 x i3> [[T11]], [[T12]]
+; CHECK-NEXT:    ret <8 x i3> [[R]]
+;
+  %c = mul <8 x i3> %pc, %pc ; thwart complexity-based canonicalization
+  %s = sext <3 x i1> %cond to <3 x i8>
+  %t9 = bitcast <3 x i8> %s to <8 x i3>
+  %nott9 = xor <8 x i3> %t9, <i3 -1, i3 -1, i3 -1, i3 -1, i3 -1, i3 -1, i3 -1, i3 -1>
+  %t11 = and <8 x i3> %c, %nott9
+  %t12 = and <8 x i3> %t9, %d
+  %r = or <8 x i3> %t11, %t12
+  ret <8 x i3> %r
+}
+
+define <2 x i16> @bitcast_vec_cond_commute2(<4 x i1> %cond, <2 x i16> %pc, <2 x i16> %pd) {
+; CHECK-LABEL: @bitcast_vec_cond_commute2(
+; CHECK-NEXT:    [[C:%.*]] = mul <2 x i16> [[PC:%.*]], [[PC]]
+; CHECK-NEXT:    [[D:%.*]] = mul <2 x i16> [[PD:%.*]], [[PD]]
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <2 x i16> [[D]] to <4 x i8>
+; CHECK-NEXT:    [[TMP2:%.*]] = bitcast <2 x i16> [[C]] to <4 x i8>
+; CHECK-NEXT:    [[TMP3:%.*]] = select <4 x i1> [[COND:%.*]], <4 x i8> [[TMP1]], <4 x i8> [[TMP2]]
+; CHECK-NEXT:    [[TMP4:%.*]] = bitcast <4 x i8> [[TMP3]] to <2 x i16>
+; CHECK-NEXT:    ret <2 x i16> [[TMP4]]
+;
+  %c = mul <2 x i16> %pc, %pc ; thwart complexity-based canonicalization
+  %d = mul <2 x i16> %pd, %pd ; thwart complexity-based canonicalization
+  %s = sext <4 x i1> %cond to <4 x i8>
+  %t9 = bitcast <4 x i8> %s to <2 x i16>
+  %nott9 = xor <2 x i16> %t9, <i16 -1, i16 -1>
+  %t11 = and <2 x i16> %c, %nott9
+  %t12 = and <2 x i16> %d, %t9
+  %r = or <2 x i16> %t11, %t12
+  ret <2 x i16> %r
+}
+
+; Condition doesn't have to be a bool vec - just all signbits.
+
+define <2 x i16> @bitcast_vec_cond_commute3(<4 x i8> %cond, <2 x i16> %pc, <2 x i16> %pd) {
+; CHECK-LABEL: @bitcast_vec_cond_commute3(
+; CHECK-NEXT:    [[C:%.*]] = mul <2 x i16> [[PC:%.*]], [[PC]]
+; CHECK-NEXT:    [[D:%.*]] = mul <2 x i16> [[PD:%.*]], [[PD]]
+; CHECK-NEXT:    [[DOTNOT:%.*]] = icmp sgt <4 x i8> [[COND:%.*]], <i8 -1, i8 -1, i8 -1, i8 -1>
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <2 x i16> [[D]] to <4 x i8>
+; CHECK-NEXT:    [[TMP2:%.*]] = bitcast <2 x i16> [[C]] to <4 x i8>
+; CHECK-NEXT:    [[TMP3:%.*]] = select <4 x i1> [[DOTNOT]], <4 x i8> [[TMP2]], <4 x i8> [[TMP1]]
+; CHECK-NEXT:    [[TMP4:%.*]] = bitcast <4 x i8> [[TMP3]] to <2 x i16>
+; CHECK-NEXT:    ret <2 x i16> [[TMP4]]
+;
+  %c = mul <2 x i16> %pc, %pc ; thwart complexity-based canonicalization
+  %d = mul <2 x i16> %pd, %pd ; thwart complexity-based canonicalization
+  %s = ashr <4 x i8> %cond, <i8 7, i8 7, i8 7, i8 7>
+  %t9 = bitcast <4 x i8> %s to <2 x i16>
+  %nott9 = xor <2 x i16> %t9, <i16 -1, i16 -1>
+  %t11 = and <2 x i16> %c, %nott9
+  %t12 = and <2 x i16> %d, %t9
+  %r = or <2 x i16> %t11, %t12
+  ret <2 x i16> %r
+}
+
+; Don't crash on invalid type for compute signbits.
+
+define <2 x i64> @bitcast_fp_vec_cond(<2 x double> %s, <2 x i64> %c, <2 x i64> %d) {
+; CHECK-LABEL: @bitcast_fp_vec_cond(
+; CHECK-NEXT:    [[T9:%.*]] = bitcast <2 x double> [[S:%.*]] to <2 x i64>
+; CHECK-NEXT:    [[NOTT9:%.*]] = xor <2 x i64> [[T9]], <i64 -1, i64 -1>
+; CHECK-NEXT:    [[T11:%.*]] = and <2 x i64> [[NOTT9]], [[C:%.*]]
+; CHECK-NEXT:    [[T12:%.*]] = and <2 x i64> [[T9]], [[D:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or <2 x i64> [[T11]], [[T12]]
+; CHECK-NEXT:    ret <2 x i64> [[R]]
+;
+  %t9 = bitcast <2 x double> %s to <2 x i64>
+  %nott9 = xor <2 x i64> %t9, <i64 -1, i64 -1>
+  %t11 = and <2 x i64> %nott9, %c
+  %t12 = and <2 x i64> %t9, %d
+  %r = or <2 x i64> %t11, %t12
+  ret <2 x i64> %r
+}
+
+; Wider source type would be ok except poison could leak across elements.
+
+define <2 x i64> @bitcast_int_vec_cond(i1 %b, <2 x i64> %c, <2 x i64> %d) {
+; CHECK-LABEL: @bitcast_int_vec_cond(
+; CHECK-NEXT:    [[S:%.*]] = sext i1 [[B:%.*]] to i128
+; CHECK-NEXT:    [[T9:%.*]] = bitcast i128 [[S]] to <2 x i64>
+; CHECK-NEXT:    [[NOTT9:%.*]] = xor <2 x i64> [[T9]], <i64 -1, i64 -1>
+; CHECK-NEXT:    [[T11:%.*]] = and <2 x i64> [[NOTT9]], [[C:%.*]]
+; CHECK-NEXT:    [[T12:%.*]] = and <2 x i64> [[T9]], [[D:%.*]]
+; CHECK-NEXT:    [[R:%.*]] = or <2 x i64> [[T11]], [[T12]]
+; CHECK-NEXT:    ret <2 x i64> [[R]]
+;
+  %s = sext i1 %b to i128
+  %t9 = bitcast i128 %s to <2 x i64>
+  %nott9 = xor <2 x i64> %t9, <i64 -1, i64 -1>
+  %t11 = and <2 x i64> %nott9, %c
+  %t12 = and <2 x i64> %t9, %d
+  %r = or <2 x i64> %t11, %t12
+  ret <2 x i64> %r
+}
+
+; Converting integer logic ops to vector select is allowed.
+
+define i64 @bitcast_int_scalar_cond(<2 x i1> %b, i64 %c, i64 %d) {
+; CHECK-LABEL: @bitcast_int_scalar_cond(
+; CHECK-NEXT:    [[TMP1:%.*]] = bitcast i64 [[D:%.*]] to <2 x i32>
+; CHECK-NEXT:    [[TMP2:%.*]] = bitcast i64 [[C:%.*]] to <2 x i32>
+; CHECK-NEXT:    [[TMP3:%.*]] = select <2 x i1> [[B:%.*]], <2 x i32> [[TMP1]], <2 x i32> [[TMP2]]
+; CHECK-NEXT:    [[TMP4:%.*]] = bitcast <2 x i32> [[TMP3]] to i64
+; CHECK-NEXT:    ret i64 [[TMP4]]
+;
+  %s = sext <2 x i1> %b to <2 x i32>
+  %t9 = bitcast <2 x i32> %s to i64
+  %nott9 = xor i64 %t9, -1
+  %t11 = and i64 %nott9, %c
+  %t12 = and i64 %t9, %d
+  %r = or i64 %t11, %t12
+  ret i64 %r
+}

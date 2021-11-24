@@ -575,12 +575,9 @@ bool AMDGPUCFGStructurizer::isUncondBranch(MachineInstr *MI) {
 DebugLoc AMDGPUCFGStructurizer::getLastDebugLocInBB(MachineBasicBlock *MBB) {
   //get DebugLoc from the first MachineBasicBlock instruction with debug info
   DebugLoc DL;
-  for (MachineBasicBlock::iterator It = MBB->begin(); It != MBB->end();
-      ++It) {
-    MachineInstr *instr = &(*It);
-    if (instr->getDebugLoc())
-      DL = instr->getDebugLoc();
-  }
+  for (MachineInstr &MI : *MBB)
+    if (MI.getDebugLoc())
+      DL = MI.getDebugLoc();
   return DL;
 }
 
@@ -632,9 +629,8 @@ bool AMDGPUCFGStructurizer::isReturnBlock(MachineBasicBlock *MBB) {
 
 void AMDGPUCFGStructurizer::cloneSuccessorList(MachineBasicBlock *DstMBB,
     MachineBasicBlock *SrcMBB) {
-  for (MachineBasicBlock::succ_iterator It = SrcMBB->succ_begin(),
-       iterEnd = SrcMBB->succ_end(); It != iterEnd; ++It)
-    DstMBB->addSuccessor(*It);  // *iter's predecessor is also taken care of
+  for (MachineBasicBlock *Succ : SrcMBB->successors())
+    DstMBB->addSuccessor(Succ);  // *iter's predecessor is also taken care of
 }
 
 MachineBasicBlock *AMDGPUCFGStructurizer::clone(MachineBasicBlock *MBB) {
@@ -1323,12 +1319,9 @@ int AMDGPUCFGStructurizer::improveSimpleJumpintoIf(MachineBasicBlock *HeadMBB,
     insertInstrBefore(I, R600::ENDIF);
 
     // put initReg = 2 to other predecessors of landBlk
-    for (MachineBasicBlock::pred_iterator PI = LandBlk->pred_begin(),
-         PE = LandBlk->pred_end(); PI != PE; ++PI) {
-      MachineBasicBlock *MBB = *PI;
+    for (MachineBasicBlock *MBB : LandBlk->predecessors())
       if (MBB != TrueMBB && MBB != FalseMBB)
         report_fatal_error("Extra register needed to handle CFG");
-    }
   }
   LLVM_DEBUG(
       dbgs() << "result from improveSimpleJumpintoIf: ";

@@ -415,15 +415,18 @@ public:
     for (const GlobalAlias &GA : M.aliases())
       visitGlobalAlias(GA);
 
+    for (const GlobalIFunc &GI : M.ifuncs())
+      visitGlobalIFunc(GI);
+
     for (const NamedMDNode &NMD : M.named_metadata())
       visitNamedMDNode(NMD);
 
     for (const StringMapEntry<Comdat> &SMEC : M.getComdatSymbolTable())
       visitComdat(SMEC.getValue());
 
-    visitModuleFlags(M);
-    visitModuleIdents(M);
-    visitModuleCommandLines(M);
+    visitModuleFlags();
+    visitModuleIdents();
+    visitModuleCommandLines();
 
     verifyCompileUnits();
 
@@ -440,6 +443,7 @@ private:
   void visitGlobalValue(const GlobalValue &GV);
   void visitGlobalVariable(const GlobalVariable &GV);
   void visitGlobalAlias(const GlobalAlias &GA);
+  void visitGlobalIFunc(const GlobalIFunc &GI);
   void visitAliaseeSubExpr(const GlobalAlias &A, const Constant &C);
   void visitAliaseeSubExpr(SmallPtrSetImpl<const GlobalAlias *> &Visited,
                            const GlobalAlias &A, const Constant &C);
@@ -448,9 +452,9 @@ private:
   void visitMetadataAsValue(const MetadataAsValue &MD, Function *F);
   void visitValueAsMetadata(const ValueAsMetadata &MD, Function *F);
   void visitComdat(const Comdat &C);
-  void visitModuleIdents(const Module &M);
-  void visitModuleCommandLines(const Module &M);
-  void visitModuleFlags(const Module &M);
+  void visitModuleIdents();
+  void visitModuleCommandLines();
+  void visitModuleFlags();
   void visitModuleFlag(const MDNode *Op,
                        DenseMap<const MDString *, const MDNode *> &SeenIDs,
                        SmallVectorImpl<const MDNode *> &Requirements);
@@ -821,6 +825,21 @@ void Verifier::visitGlobalAlias(const GlobalAlias &GA) {
   visitAliaseeSubExpr(GA, *Aliasee);
 
   visitGlobalValue(GA);
+}
+
+void Verifier::visitGlobalIFunc(const GlobalIFunc &GI) {
+  // Pierce through ConstantExprs and GlobalAliases and check that the resolver
+  // has a Function 
+  const Function *Resolver = GI.getResolverFunction();
+  Assert(Resolver, "IFunc must have a Function resolver", &GI);
+
+  // Check that the immediate resolver operand (prior to any bitcasts) has the
+  // correct type
+  const Type *ResolverTy = GI.getResolver()->getType();
+  const Type *ResolverFuncTy =
+      GlobalIFunc::getResolverFunctionType(GI.getValueType());
+  Assert(ResolverTy == ResolverFuncTy->getPointerTo(),
+         "IFunc resolver has incorrect type", &GI);
 }
 
 void Verifier::visitNamedMDNode(const NamedMDNode &NMD) {
@@ -1497,7 +1516,7 @@ void Verifier::visitComdat(const Comdat &C) {
              "comdat global value has private linkage", GV);
 }
 
-void Verifier::visitModuleIdents(const Module &M) {
+void Verifier::visitModuleIdents() {
   const NamedMDNode *Idents = M.getNamedMetadata("llvm.ident");
   if (!Idents)
     return;
@@ -1514,7 +1533,7 @@ void Verifier::visitModuleIdents(const Module &M) {
   }
 }
 
-void Verifier::visitModuleCommandLines(const Module &M) {
+void Verifier::visitModuleCommandLines() {
   const NamedMDNode *CommandLines = M.getNamedMetadata("llvm.commandline");
   if (!CommandLines)
     return;
@@ -1532,7 +1551,7 @@ void Verifier::visitModuleCommandLines(const Module &M) {
   }
 }
 
-void Verifier::visitModuleFlags(const Module &M) {
+void Verifier::visitModuleFlags() {
   const NamedMDNode *Flags = M.getModuleFlagsMetadata();
   if (!Flags) return;
 
@@ -6147,11 +6166,7 @@ static bool isNewFormatTBAATypeNode(llvm::MDNode *Type) {
 
   // In the new format type nodes shall have a reference to the parent type as
   // its first operand.
-  MDNode *Parent = dyn_cast_or_null<MDNode>(Type->getOperand(0));
-  if (!Parent)
-    return false;
-
-  return true;
+  return isa_and_nonnull<MDNode>(Type->getOperand(0));
 }
 
 bool TBAAVerifier::visitTBAAMetadata(Instruction &I, const MDNode *MD) {

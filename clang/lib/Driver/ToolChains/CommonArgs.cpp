@@ -795,7 +795,7 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
                          SmallVectorImpl<StringRef> &NonWholeStaticRuntimes,
                          SmallVectorImpl<StringRef> &HelperStaticRuntimes,
                          SmallVectorImpl<StringRef> &RequiredSymbols) {
-  const SanitizerArgs &SanArgs = TC.getSanitizerArgs();
+  const SanitizerArgs &SanArgs = TC.getSanitizerArgs(Args);
   // Collect shared runtimes.
   if (SanArgs.needsSharedRt()) {
     if (SanArgs.needsAsanRt() && SanArgs.linkRuntimes()) {
@@ -931,7 +931,7 @@ bool tools::addSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
                            NonWholeStaticRuntimes, HelperStaticRuntimes,
                            RequiredSymbols);
 
-  const SanitizerArgs &SanArgs = TC.getSanitizerArgs();
+  const SanitizerArgs &SanArgs = TC.getSanitizerArgs(Args);
   // Inject libfuzzer dependencies.
   if (SanArgs.needsFuzzer() && SanArgs.linkRuntimes() &&
       !Args.hasArg(options::OPT_shared)) {
@@ -1124,7 +1124,7 @@ tools::ParsePICArgs(const ToolChain &ToolChain, const ArgList &Args) {
   const llvm::Triple &EffectiveTriple = ToolChain.getEffectiveTriple();
   const llvm::Triple &Triple = ToolChain.getTriple();
 
-  bool PIE = ToolChain.isPIEDefault();
+  bool PIE = ToolChain.isPIEDefault(Args);
   bool PIC = PIE || ToolChain.isPICDefault();
   // The Darwin/MachO default to use PIC does not apply when using -static.
   if (Triple.isOSBinFormatMachO() && Args.hasArg(options::OPT_static))
@@ -1898,12 +1898,12 @@ void tools::checkAMDGPUCodeObjectVersion(const Driver &D,
 
   // Emit warnings for legacy options even if they are overridden.
   if (Args.hasArg(options::OPT_mno_code_object_v3_legacy))
-    D.Diag(diag::warn_drv_deprecated_arg)
-        << "-mno-code-object-v3" << true << "-mcode-object-version=2";
+    D.Diag(diag::warn_drv_deprecated_arg) << "-mno-code-object-v3"
+                                          << "-mcode-object-version=2";
 
   if (Args.hasArg(options::OPT_mcode_object_v3_legacy))
-    D.Diag(diag::warn_drv_deprecated_arg)
-        << "-mcode-object-v3" << true << "-mcode-object-version=3";
+    D.Diag(diag::warn_drv_deprecated_arg) << "-mcode-object-v3"
+                                          << "-mcode-object-version=3";
 
   if (auto *CodeObjArg = getAMDGPUCodeObjectArgument(D, Args)) {
     if (CodeObjArg->getOption().getID() ==

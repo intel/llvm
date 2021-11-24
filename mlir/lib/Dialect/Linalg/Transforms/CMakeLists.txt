@@ -1,7 +1,7 @@
 add_mlir_dialect_library(MLIRLinalgTransforms
   Bufferize.cpp
   CodegenStrategy.cpp
-  ComprehensiveBufferize.cpp
+  ComprehensiveBufferizePass.cpp
   Detensorize.cpp
   Distribution.cpp
   DropUnitDims.cpp
@@ -32,12 +32,15 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRAffineUtils
   MLIRAnalysis
   MLIRArithmetic
+  MLIRBufferizableOpInterface
   MLIRComplex
+  MLIRComprehensiveBufferize
   MLIRInferTypeOpInterface
   MLIRIR
   MLIRMemRef
-  MLIRLinalgAnalysis
   MLIRLinalg
+  MLIRLinalgAnalysis
+  MLIRLinalgBufferizableOpInterfaceImpl
   MLIRLinalgUtils
   MLIRSCF
   MLIRSCFTransforms
@@ -49,5 +52,6 @@ add_mlir_dialect_library(MLIRLinalgTransforms
   MLIRTransforms
   MLIRTransformUtils
   MLIRVector
+  MLIRX86VectorTransforms
   MLIRVectorToSCF
 )

@@ -70,6 +70,12 @@ static cl::opt<unsigned> TailDupIndirectBranchSize(
              "end with indirect branches."), cl::init(20),
     cl::Hidden);
 
+static cl::opt<unsigned> TailDupJmpTableLoopSize(
+    "tail-dup-jmptable-loop-size",
+    cl::desc("Maximum loop latches to consider tail duplication that are "
+             "successors of loop header."),
+    cl::init(128), cl::Hidden);
+
 static cl::opt<bool>
     TailDupVerify("tail-dup-verify",
                   cl::desc("Verify sanity of PHI instructions during taildup"),
@@ -563,6 +569,29 @@ bool TailDuplicator::shouldTailDuplicate(bool IsSimple,
   if (TailBB.isSuccessor(&TailBB))
     return false;
 
+  // When doing tail-duplication with jumptable loops like:
+  //    1 -> 2 <-> 3                 |
+  //          \  <-> 4               |
+  //           \   <-> 5             |
+  //            \    <-> ...         |
+  //             \---> rest          |
+  // quadratic number of edges and much more loops are added to CFG. This
+  // may cause compile time regression when jumptable is quiet large.
+  // So set the limit on jumptable cases.
+  auto isLargeJumpTableLoop = [](const MachineBasicBlock &TailBB) {
+    const SmallPtrSet<const MachineBasicBlock *, 8> Preds(TailBB.pred_begin(),
+                                                          TailBB.pred_end());
+    // Check the basic block has large number of successors, all of them only
+    // have one successor which is the basic block itself.
+    return llvm::count_if(
+               TailBB.successors(), [&](const MachineBasicBlock *SuccBB) {
+                 return Preds.count(SuccBB) && SuccBB->succ_size() == 1;
+               }) > TailDupJmpTableLoopSize;
+  };
+
+  if (isLargeJumpTableLoop(TailBB))
+    return false;
+
   // Set the limit on the cost to duplicate. When optimizing for size,
   // duplicate only one, because one branch instruction can be eliminated to
   // compensate for the duplication.
@@ -872,18 +901,15 @@ bool TailDuplicator::tailDuplicate(bool IsSimple, MachineBasicBlock *TailBB,
     // Clone the contents of TailBB into PredBB.
     DenseMap<Register, RegSubRegPair> LocalVRMap;
     SmallVector<std::pair<Register, RegSubRegPair>, 4> CopyInfos;
-    for (MachineBasicBlock::iterator I = TailBB->begin(), E = TailBB->end();
-         I != E; /* empty */) {
-      MachineInstr *MI = &*I;
-      ++I;
-      if (MI->isPHI()) {
+    for (MachineInstr &MI : llvm::make_early_inc_range(*TailBB)) {
+      if (MI.isPHI()) {
         // Replace the uses of the def of the PHI with the register coming
         // from PredBB.
-        processPHI(MI, TailBB, PredBB, LocalVRMap, CopyInfos, UsedByPhi, true);
+        processPHI(&MI, TailBB, PredBB, LocalVRMap, CopyInfos, UsedByPhi, true);
       } else {
         // Replace def of virtual registers with new registers, and update
         // uses with PHI source register or the new registers.
-        duplicateInstruction(MI, TailBB, PredBB, LocalVRMap, UsedByPhi);
+        duplicateInstruction(&MI, TailBB, PredBB, LocalVRMap, UsedByPhi);
       }
     }
     appendCopies(PredBB, CopyInfos, Copies);

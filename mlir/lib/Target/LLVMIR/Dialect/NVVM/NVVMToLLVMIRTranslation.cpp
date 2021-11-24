@@ -22,7 +22,6 @@
 using namespace mlir;
 using namespace mlir::LLVM;
 using mlir::LLVM::detail::createIntrinsicCall;
-using mlir::LLVM::detail::createNvvmIntrinsicCall;
 
 static llvm::Intrinsic::ID getShflBflyIntrinsicId(llvm::Type *resultType,
                                                   bool withPredicate) {
@@ -58,7 +57,7 @@ public:
   LogicalResult
   amendOperation(Operation *op, NamedAttribute attribute,
                  LLVM::ModuleTranslation &moduleTranslation) const final {
-    if (attribute.first == NVVM::NVVMDialect::getKernelFuncAttrName()) {
+    if (attribute.getName() == NVVM::NVVMDialect::getKernelFuncAttrName()) {
       auto func = dyn_cast<LLVM::LLVMFuncOp>(op);
       if (!func)
         return failure();

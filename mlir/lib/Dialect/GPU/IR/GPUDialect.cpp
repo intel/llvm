@@ -174,8 +174,8 @@ void GPUDialect::printType(Type type, DialectAsmPrinter &os) const {
 
 LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
                                                    NamedAttribute attr) {
-  if (!attr.second.isa<UnitAttr>() ||
-      attr.first != getContainerModuleAttrName())
+  if (!attr.getValue().isa<UnitAttr>() ||
+      attr.getName() != getContainerModuleAttrName())
     return success();
 
   auto module = dyn_cast<ModuleOp>(op);
@@ -1185,6 +1185,7 @@ void AllocOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 #include "mlir/Dialect/GPU/GPUOpInterfaces.cpp.inc"
+#include "mlir/Dialect/GPU/GPUOpsEnums.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/GPU/GPUOps.cpp.inc"

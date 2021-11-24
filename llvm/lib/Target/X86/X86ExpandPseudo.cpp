@@ -394,10 +394,10 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
     MachineInstrBuilder MIB;
     if (StackAdj == 0) {
       MIB = BuildMI(MBB, MBBI, DL,
-                    TII->get(STI->is64Bit() ? X86::RETQ : X86::RETL));
+                    TII->get(STI->is64Bit() ? X86::RET64 : X86::RET32));
     } else if (isUInt<16>(StackAdj)) {
       MIB = BuildMI(MBB, MBBI, DL,
-                    TII->get(STI->is64Bit() ? X86::RETIQ : X86::RETIL))
+                    TII->get(STI->is64Bit() ? X86::RETI64 : X86::RETI32))
                 .addImm(StackAdj);
     } else {
       assert(!STI->is64Bit() &&
@@ -407,7 +407,7 @@ bool X86ExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       BuildMI(MBB, MBBI, DL, TII->get(X86::POP32r)).addReg(X86::ECX, RegState::Define);
       X86FL->emitSPUpdate(MBB, MBBI, DL, StackAdj, /*InEpilogue=*/true);
       BuildMI(MBB, MBBI, DL, TII->get(X86::PUSH32r)).addReg(X86::ECX);
-      MIB = BuildMI(MBB, MBBI, DL, TII->get(X86::RETL));
+      MIB = BuildMI(MBB, MBBI, DL, TII->get(X86::RET32));
     }
     for (unsigned I = 1, E = MBBI->getNumOperands(); I != E; ++I)
       MIB.add(MBBI->getOperand(I));
@@ -648,35 +648,24 @@ void X86ExpandPseudo::ExpandVastartSaveXmmRegs(
                   EntryBlk->end());
   TailBlk->transferSuccessorsAndUpdatePHIs(EntryBlk);
 
-  int64_t FrameIndex = VAStartPseudoInstr->getOperand(1).getImm();
-  Register BaseReg;
-  uint64_t FrameOffset =
-      X86FL->getFrameIndexReference(*Func, FrameIndex, BaseReg).getFixed();
-  uint64_t VarArgsRegsOffset = VAStartPseudoInstr->getOperand(2).getImm();
+  uint64_t FrameOffset = VAStartPseudoInstr->getOperand(4).getImm();
+  uint64_t VarArgsRegsOffset = VAStartPseudoInstr->getOperand(6).getImm();
 
   // TODO: add support for YMM and ZMM here.
   unsigned MOVOpc = STI->hasAVX() ? X86::VMOVAPSmr : X86::MOVAPSmr;
 
   // In the XMM save block, save all the XMM argument registers.
-  for (int64_t OpndIdx = 3, RegIdx = 0;
+  for (int64_t OpndIdx = 7, RegIdx = 0;
        OpndIdx < VAStartPseudoInstr->getNumOperands() - 1;
        OpndIdx++, RegIdx++) {
-
-    int64_t Offset = FrameOffset + VarArgsRegsOffset + RegIdx * 16;
-
-    MachineMemOperand *MMO = Func->getMachineMemOperand(
-        MachinePointerInfo::getFixedStack(*Func, FrameIndex, Offset),
-        MachineMemOperand::MOStore,
-        /*Size=*/16, Align(16));
-
-    BuildMI(GuardedRegsBlk, DL, TII->get(MOVOpc))
-        .addReg(BaseReg)
-        .addImm(/*Scale=*/1)
-        .addReg(/*IndexReg=*/0)
-        .addImm(/*Disp=*/Offset)
-        .addReg(/*Segment=*/0)
-        .addReg(VAStartPseudoInstr->getOperand(OpndIdx).getReg())
-        .addMemOperand(MMO);
+    auto NewMI = BuildMI(GuardedRegsBlk, DL, TII->get(MOVOpc));
+    for (int i = 0; i < X86::AddrNumOperands; ++i) {
+      if (i == X86::AddrDisp)
+        NewMI.addImm(FrameOffset + VarArgsRegsOffset + RegIdx * 16);
+      else
+        NewMI.add(VAStartPseudoInstr->getOperand(i + 1));
+    }
+    NewMI.addReg(VAStartPseudoInstr->getOperand(OpndIdx).getReg());
     assert(Register::isPhysicalRegister(
         VAStartPseudoInstr->getOperand(OpndIdx).getReg()));
   }

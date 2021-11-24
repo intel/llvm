@@ -13,6 +13,7 @@ if (MLIR_ENABLE_ROCM_CONVERSIONS)
     AMDGPUCodeGen
     AMDGPUDesc
     AMDGPUInfo
+    target
   )
 endif()
 
@@ -24,6 +25,7 @@ add_mlir_dialect_library(MLIRGPUOps
 
   DEPENDS
   MLIRGPUOpsIncGen
+  MLIRGPUOpsEnumsGen
   MLIRGPUOpInterfacesIncGen
 
   LINK_LIBS PUBLIC

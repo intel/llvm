@@ -2265,6 +2265,19 @@ static Value *SimplifyOrInst(Value *Op0, Value *Op1, const SimplifyQuery &Q,
        match(Op0, m_c_Xor(m_Not(m_Specific(A)), m_Specific(B)))))
     return Op0;
 
+  // (A | B) | (A ^ B) --> A | B
+  // (B | A) | (A ^ B) --> B | A
+  if (match(Op1, m_Xor(m_Value(A), m_Value(B))) &&
+      match(Op0, m_c_Or(m_Specific(A), m_Specific(B))))
+    return Op0;
+
+  // Commute the outer 'or' operands.
+  // (A ^ B) | (A | B) --> A | B
+  // (A ^ B) | (B | A) --> B | A
+  if (match(Op0, m_Xor(m_Value(A), m_Value(B))) &&
+      match(Op1, m_c_Or(m_Specific(A), m_Specific(B))))
+    return Op1;
+
   // (~A & B) | ~(A | B) --> ~A
   // (~A & B) | ~(B | A) --> ~A
   // (B & ~A) | ~(A | B) --> ~A
@@ -3664,30 +3677,6 @@ static Value *SimplifyICmpInst(unsigned Predicate, Value *LHS, Value *RHS,
         if (auto *C = computePointerICmp(Pred, CLHS->getPointerOperand(),
                                          CRHS->getPointerOperand(), Q))
           return C;
-
-  if (GetElementPtrInst *GLHS = dyn_cast<GetElementPtrInst>(LHS)) {
-    if (GEPOperator *GRHS = dyn_cast<GEPOperator>(RHS)) {
-      if (GLHS->getPointerOperand() == GRHS->getPointerOperand() &&
-          GLHS->hasAllConstantIndices() && GRHS->hasAllConstantIndices() &&
-          (ICmpInst::isEquality(Pred) ||
-           (GLHS->isInBounds() && GRHS->isInBounds() &&
-            Pred == ICmpInst::getSignedPredicate(Pred)))) {
-        // The bases are equal and the indices are constant.  Build a constant
-        // expression GEP with the same indices and a null base pointer to see
-        // what constant folding can make out of it.
-        Constant *Null = Constant::getNullValue(GLHS->getPointerOperandType());
-        SmallVector<Value *, 4> IndicesLHS(GLHS->indices());
-        Constant *NewLHS = ConstantExpr::getGetElementPtr(
-            GLHS->getSourceElementType(), Null, IndicesLHS);
-
-        SmallVector<Value *, 4> IndicesRHS(GRHS->indices());
-        Constant *NewRHS = ConstantExpr::getGetElementPtr(
-            GLHS->getSourceElementType(), Null, IndicesRHS);
-        Constant *NewICmp = ConstantExpr::getICmp(Pred, NewLHS, NewRHS);
-        return ConstantFoldConstant(NewICmp, Q.DL);
-      }
-    }
-  }
 
   // If the comparison is with the result of a select instruction, check whether
   // comparing with either branch of the select always yields the same value.

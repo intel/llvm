@@ -206,6 +206,9 @@ uint32_t __kmpc_get_hardware_thread_id_in_block();
 /// External interface to get the number of threads.
 uint32_t __kmpc_get_hardware_num_threads_in_block();
 
+/// External interface to get the warp size.
+uint32_t __kmpc_get_warp_size();
+
 /// Kernel
 ///
 ///{
@@ -248,6 +251,8 @@ int32_t __kmpc_cancel_barrier(IdentTy *Loc_ref, int32_t TId);
 void __kmpc_barrier(IdentTy *Loc_ref, int32_t TId);
 
 void __kmpc_barrier_simple_spmd(IdentTy *Loc_ref, int32_t TId);
+
+void __kmpc_barrier_simple_generic(IdentTy *Loc_ref, int32_t TId);
 
 int32_t __kmpc_master(IdentTy *Loc, int32_t TId);
 

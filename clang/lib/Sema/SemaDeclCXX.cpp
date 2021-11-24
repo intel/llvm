@@ -984,9 +984,9 @@ static std::string printTemplateArgs(const PrintingPolicy &PrintingPolicy,
   for (auto &Arg : Args.arguments()) {
     if (!First)
       OS << ", ";
-    Arg.getArgument().print(
-        PrintingPolicy, OS,
-        TemplateParameterList::shouldIncludeTypeForArgument(Params, I));
+    Arg.getArgument().print(PrintingPolicy, OS,
+                            TemplateParameterList::shouldIncludeTypeForArgument(
+                                PrintingPolicy, Params, I));
     First = false;
     I++;
   }
@@ -2729,6 +2729,8 @@ bool Sema::AttachBaseSpecifiers(CXXRecordDecl *Class,
       KnownBase = Bases[idx];
       Bases[NumGoodBases++] = Bases[idx];
 
+      if (NewBaseType->isDependentType())
+        continue;
       // Note this base's direct & indirect bases, if there could be ambiguity.
       if (Bases.size() > 1)
         NoteIndirectBases(Context, IndirectBaseTypes, NewBaseType);
@@ -3583,9 +3585,8 @@ namespace {
       llvm::SmallVector<unsigned, 4> UsedFieldIndex;
       // Discard the first field since it is the field decl that is being
       // initialized.
-      for (auto I = Fields.rbegin() + 1, E = Fields.rend(); I != E; ++I) {
-        UsedFieldIndex.push_back((*I)->getFieldIndex());
-      }
+      for (const FieldDecl *FD : llvm::drop_begin(llvm::reverse(Fields)))
+        UsedFieldIndex.push_back(FD->getFieldIndex());
 
       for (auto UsedIter = UsedFieldIndex.begin(),
                 UsedEnd = UsedFieldIndex.end(),
@@ -4217,7 +4218,7 @@ Sema::BuildMemInitializer(Decl *ConstructorD,
     if (BaseType.isNull())
       return true;
   } else if (DS.getTypeSpecType() == TST_decltype) {
-    BaseType = BuildDecltypeType(DS.getRepAsExpr(), DS.getTypeSpecTypeLoc());
+    BaseType = BuildDecltypeType(DS.getRepAsExpr());
   } else if (DS.getTypeSpecType() == TST_decltype_auto) {
     Diag(DS.getTypeSpecTypeLoc(), diag::err_decltype_auto_invalid);
     return true;

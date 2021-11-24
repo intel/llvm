@@ -408,6 +408,64 @@ static bool SemaBuiltinCallWithStaticChain(Sema &S, CallExpr *BuiltinCall) {
 
 namespace {
 
+class ScanfDiagnosticFormatHandler
+    : public analyze_format_string::FormatStringHandler {
+  // Accepts the argument index (relative to the first destination index) of the
+  // argument whose size we want.
+  using ComputeSizeFunction =
+      llvm::function_ref<Optional<llvm::APSInt>(unsigned)>;
+
+  // Accepts the argument index (relative to the first destination index), the
+  // destination size, and the source size).
+  using DiagnoseFunction =
+      llvm::function_ref<void(unsigned, unsigned, unsigned)>;
+
+  ComputeSizeFunction ComputeSizeArgument;
+  DiagnoseFunction Diagnose;
+
+public:
+  ScanfDiagnosticFormatHandler(ComputeSizeFunction ComputeSizeArgument,
+                               DiagnoseFunction Diagnose)
+      : ComputeSizeArgument(ComputeSizeArgument), Diagnose(Diagnose) {}
+
+  bool HandleScanfSpecifier(const analyze_scanf::ScanfSpecifier &FS,
+                            const char *StartSpecifier,
+                            unsigned specifierLen) override {
+    if (!FS.consumesDataArgument())
+      return true;
+
+    unsigned NulByte = 0;
+    switch ((FS.getConversionSpecifier().getKind())) {
+    default:
+      return true;
+    case analyze_format_string::ConversionSpecifier::sArg:
+    case analyze_format_string::ConversionSpecifier::ScanListArg:
+      NulByte = 1;
+      break;
+    case analyze_format_string::ConversionSpecifier::cArg:
+      break;
+    }
+
+    auto OptionalFW = FS.getFieldWidth();
+    if (OptionalFW.getHowSpecified() !=
+        analyze_format_string::OptionalAmount::HowSpecified::Constant)
+      return true;
+
+    unsigned SourceSize = OptionalFW.getConstantAmount() + NulByte;
+
+    auto DestSizeAPS = ComputeSizeArgument(FS.getArgIndex());
+    if (!DestSizeAPS)
+      return true;
+
+    unsigned DestSize = DestSizeAPS->getZExtValue();
+
+    if (DestSize < SourceSize)
+      Diagnose(FS.getArgIndex(), DestSize, SourceSize);
+
+    return true;
+  }
+};
+
 class EstimateSizeFormatHandler
     : public analyze_format_string::FormatStringHandler {
   size_t Size;
@@ -615,9 +673,12 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     // (potentially) more strict checking mode. Otherwise, conservatively assume
     // type 0.
     int BOSType = 0;
-    if (const auto *POS =
-            FD->getParamDecl(Index)->getAttr<PassObjectSizeAttr>())
-      BOSType = POS->getType();
+    // This check can fail for variadic functions.
+    if (Index < FD->getNumParams()) {
+      if (const auto *POS =
+              FD->getParamDecl(Index)->getAttr<PassObjectSizeAttr>())
+        BOSType = POS->getType();
+    }
 
     const Expr *ObjArg = TheCall->getArg(Index);
     uint64_t Result;
@@ -642,6 +703,20 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
   unsigned DiagID = 0;
   bool IsChkVariant = false;
 
+  auto GetFunctionName = [&]() {
+    StringRef FunctionName = getASTContext().BuiltinInfo.getName(BuiltinID);
+    // Skim off the details of whichever builtin was called to produce a better
+    // diagnostic, as it's unlikely that the user wrote the __builtin
+    // explicitly.
+    if (IsChkVariant) {
+      FunctionName = FunctionName.drop_front(std::strlen("__builtin___"));
+      FunctionName = FunctionName.drop_back(std::strlen("_chk"));
+    } else if (FunctionName.startswith("__builtin_")) {
+      FunctionName = FunctionName.drop_front(std::strlen("__builtin_"));
+    }
+    return FunctionName;
+  };
+
   switch (BuiltinID) {
   default:
     return;
@@ -659,6 +734,61 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
     DestinationSize = ComputeExplicitObjectSizeArgument(2);
     IsChkVariant = true;
     break;
+  }
+
+  case Builtin::BIscanf:
+  case Builtin::BIfscanf:
+  case Builtin::BIsscanf: {
+    unsigned FormatIndex = 1;
+    unsigned DataIndex = 2;
+    if (BuiltinID == Builtin::BIscanf) {
+      FormatIndex = 0;
+      DataIndex = 1;
+    }
+
+    const auto *FormatExpr =
+        TheCall->getArg(FormatIndex)->IgnoreParenImpCasts();
+
+    const auto *Format = dyn_cast<StringLiteral>(FormatExpr);
+    if (!Format)
+      return;
+
+    if (!Format->isAscii() && !Format->isUTF8())
+      return;
+
+    auto Diagnose = [&](unsigned ArgIndex, unsigned DestSize,
+                        unsigned SourceSize) {
+      DiagID = diag::warn_fortify_scanf_overflow;
+      unsigned Index = ArgIndex + DataIndex;
+      StringRef FunctionName = GetFunctionName();
+      DiagRuntimeBehavior(TheCall->getArg(Index)->getBeginLoc(), TheCall,
+                          PDiag(DiagID) << FunctionName << (Index + 1)
+                                        << DestSize << SourceSize);
+    };
+
+    StringRef FormatStrRef = Format->getString();
+    auto ShiftedComputeSizeArgument = [&](unsigned Index) {
+      return ComputeSizeArgument(Index + DataIndex);
+    };
+    ScanfDiagnosticFormatHandler H(ShiftedComputeSizeArgument, Diagnose);
+    const char *FormatBytes = FormatStrRef.data();
+    const ConstantArrayType *T =
+        Context.getAsConstantArrayType(Format->getType());
+    assert(T && "String literal not of constant array type!");
+    size_t TypeSize = T->getSize().getZExtValue();
+
+    // In case there's a null byte somewhere.
+    size_t StrLen =
+        std::min(std::max(TypeSize, size_t(1)) - 1, FormatStrRef.find(0));
+
+    analyze_format_string::ParseScanfString(H, FormatBytes,
+                                            FormatBytes + StrLen, getLangOpts(),
+                                            Context.getTargetInfo());
+
+    // Unlike the other cases, in this one we have already issued the diagnostic
+    // here, so no need to continue (because unlike the other cases, here the
+    // diagnostic refers to the argument number).
+    return;
   }
 
   case Builtin::BIsprintf:
@@ -771,15 +901,7 @@ void Sema::checkFortifiedBuiltinMemoryFunction(FunctionDecl *FD,
       SourceSize.getValue().ule(DestinationSize.getValue()))
     return;
 
-  StringRef FunctionName = getASTContext().BuiltinInfo.getName(BuiltinID);
-  // Skim off the details of whichever builtin was called to produce a better
-  // diagnostic, as it's unlikely that the user wrote the __builtin explicitly.
-  if (IsChkVariant) {
-    FunctionName = FunctionName.drop_front(std::strlen("__builtin___"));
-    FunctionName = FunctionName.drop_back(std::strlen("_chk"));
-  } else if (FunctionName.startswith("__builtin_")) {
-    FunctionName = FunctionName.drop_front(std::strlen("__builtin_"));
-  }
+  StringRef FunctionName = GetFunctionName();
 
   SmallString<16> DestinationStr;
   SmallString<16> SourceStr;
@@ -2005,6 +2127,11 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (SemaBuiltinElementwiseMath(TheCall))
       return ExprError();
     break;
+  case Builtin::BI__builtin_reduce_max:
+  case Builtin::BI__builtin_reduce_min:
+    if (SemaBuiltinReduceMath(TheCall))
+      return ExprError();
+    break;
   case Builtin::BI__builtin_matrix_transpose:
     return SemaBuiltinMatrixTranspose(TheCall, TheCallResult);
 
@@ -2639,8 +2766,8 @@ static bool isValidBPFPreserveFieldInfoArg(Expr *Arg) {
   // to BPF backend to check whether the access is a
   // field access or not.
   return (Arg->IgnoreParens()->getObjectKind() == OK_BitField ||
-          dyn_cast<MemberExpr>(Arg->IgnoreParens()) ||
-          dyn_cast<ArraySubscriptExpr>(Arg->IgnoreParens()));
+          isa<MemberExpr>(Arg->IgnoreParens()) ||
+          isa<ArraySubscriptExpr>(Arg->IgnoreParens()));
 }
 
 static bool isEltOfVectorTy(ASTContext &Context, CallExpr *Call, Sema &S,
@@ -2664,8 +2791,8 @@ static bool isValidBPFPreserveTypeInfoArg(Expr *Arg) {
   //   1. __builtin_preserve_type_info(*(<type> *)0, flag);
   //   2. <type> var;
   //      __builtin_preserve_type_info(var, flag);
-  if (!dyn_cast<DeclRefExpr>(Arg->IgnoreParens()) &&
-      !dyn_cast<UnaryOperator>(Arg->IgnoreParens()))
+  if (!isa<DeclRefExpr>(Arg->IgnoreParens()) &&
+      !isa<UnaryOperator>(Arg->IgnoreParens()))
     return false;
 
   // Typedef type.
@@ -3402,6 +3529,18 @@ bool Sema::CheckPPCBuiltinFunctionCall(const TargetInfo &TI, unsigned BuiltinID,
   case PPC::BI__builtin_tabortdci:
     return SemaBuiltinConstantArgRange(TheCall, 0, 0, 31) ||
            SemaBuiltinConstantArgRange(TheCall, 2, 0, 31);
+  // According to GCC 'Basic PowerPC Built-in Functions Available on ISA 2.05',
+  // __builtin_(un)pack_longdouble are available only if long double uses IBM
+  // extended double representation.
+  case PPC::BI__builtin_unpack_longdouble:
+    if (SemaBuiltinConstantArgRange(TheCall, 1, 0, 1))
+      return true;
+    LLVM_FALLTHROUGH;
+  case PPC::BI__builtin_pack_longdouble:
+    if (&TI.getLongDoubleFormat() != &llvm::APFloat::PPCDoubleDouble())
+      return Diag(TheCall->getBeginLoc(), diag::err_ppc_builtin_requires_abi)
+             << "ibmlongdouble";
+    return false;
   case PPC::BI__builtin_altivec_dst:
   case PPC::BI__builtin_altivec_dstt:
   case PPC::BI__builtin_altivec_dstst:
@@ -7553,11 +7692,11 @@ bool Sema::SemaBuiltinPPCMMACall(CallExpr *TheCall, unsigned BuiltinID,
       StrippedRVType = StrippedRVType.getCanonicalType().getUnqualifiedType();
 
     // The only case where the argument type and expected type are allowed to
-    // mismatch is if the argument type is a non-void pointer and expected type
-    // is a void pointer.
+    // mismatch is if the argument type is a non-void pointer (or array) and
+    // expected type is a void pointer.
     if (StrippedRVType != ExpectedType)
       if (!(ExpectedType->isVoidPointerType() &&
-            StrippedRVType->isPointerType()))
+            (StrippedRVType->isPointerType() || StrippedRVType->isArrayType())))
         return Diag(Arg->getBeginLoc(),
                     diag::err_typecheck_convert_incompatible)
                << PassedType << ExpectedType << 1 << 0 << 0;
@@ -16611,10 +16750,8 @@ void Sema::RefersToMemberWithReducedAlignment(
 
   // Synthesize offset of the whole access.
   CharUnits Offset;
-  for (auto I = ReverseMemberChain.rbegin(); I != ReverseMemberChain.rend();
-       I++) {
-    Offset += Context.toCharUnitsFromBits(Context.getFieldOffset(*I));
-  }
+  for (const FieldDecl *FD : llvm::reverse(ReverseMemberChain))
+    Offset += Context.toCharUnitsFromBits(Context.getFieldOffset(FD));
 
   // Compute the CompleteObjectAlignment as the alignment of the whole chain.
   CharUnits CompleteObjectAlignment = Context.getTypeAlignInChars(
@@ -16732,6 +16869,26 @@ bool Sema::SemaBuiltinElementwiseMath(CallExpr *TheCall) {
   TheCall->setArg(0, A.get());
   TheCall->setArg(1, B.get());
   TheCall->setType(Res);
+  return false;
+}
+
+bool Sema::SemaBuiltinReduceMath(CallExpr *TheCall) {
+  if (checkArgCount(*this, TheCall, 1))
+    return true;
+
+  ExprResult A = UsualUnaryConversions(TheCall->getArg(0));
+  if (A.isInvalid())
+    return true;
+
+  TheCall->setArg(0, A.get());
+  const VectorType *TyA = A.get()->getType()->getAs<VectorType>();
+  if (!TyA) {
+    SourceLocation ArgLoc = TheCall->getArg(0)->getBeginLoc();
+    return Diag(ArgLoc, diag::err_builtin_invalid_arg_type)
+           << 1 << /* vector ty*/ 4 << A.get()->getType();
+  }
+
+  TheCall->setType(TyA->getElementType());
   return false;
 }
 

@@ -27,7 +27,7 @@ static bool isPotentiallyUnknownSymbolTable(Operation *op) {
 static StringAttr getNameIfSymbol(Operation *op) {
   return op->getAttrOfType<StringAttr>(SymbolTable::getSymbolAttrName());
 }
-static StringAttr getNameIfSymbol(Operation *op, Identifier symbolAttrNameId) {
+static StringAttr getNameIfSymbol(Operation *op, StringAttr symbolAttrNameId) {
   return op->getAttrOfType<StringAttr>(symbolAttrNameId);
 }
 
@@ -52,8 +52,8 @@ collectValidReferencesFor(Operation *symbol, StringAttr symbolName,
 
   // Collect references until 'symbolTableOp' reaches 'within'.
   SmallVector<FlatSymbolRefAttr, 1> nestedRefs(1, leafRef);
-  Identifier symbolNameId =
-      Identifier::get(SymbolTable::getSymbolAttrName(), ctx);
+  StringAttr symbolNameId =
+      StringAttr::get(ctx, SymbolTable::getSymbolAttrName());
   do {
     // Each parent of 'symbol' should define a symbol table.
     if (!symbolTableOp->hasTrait<OpTrait::SymbolTable>())
@@ -111,8 +111,8 @@ SymbolTable::SymbolTable(Operation *symbolTableOp)
   assert(llvm::hasSingleElement(symbolTableOp->getRegion(0)) &&
          "expected operation to have a single block");
 
-  Identifier symbolNameId = Identifier::get(SymbolTable::getSymbolAttrName(),
-                                            symbolTableOp->getContext());
+  StringAttr symbolNameId = StringAttr::get(symbolTableOp->getContext(),
+                                            SymbolTable::getSymbolAttrName());
   for (auto &op : symbolTableOp->getRegion(0).front()) {
     StringAttr name = getNameIfSymbol(&op, symbolNameId);
     if (!name)
@@ -151,8 +151,9 @@ void SymbolTable::erase(Operation *symbol) {
 
 // TODO: Consider if this should be renamed to something like insertOrUpdate
 /// Insert a new symbol into the table and associated operation if not already
-/// there and rename it as necessary to avoid collisions.
-void SymbolTable::insert(Operation *symbol, Block::iterator insertPt) {
+/// there and rename it as necessary to avoid collisions. Return the name of
+/// the symbol after insertion as attribute.
+StringAttr SymbolTable::insert(Operation *symbol, Block::iterator insertPt) {
   // The symbol cannot be the child of another op and must be the child of the
   // symbolTableOp after this.
   //
@@ -180,10 +181,10 @@ void SymbolTable::insert(Operation *symbol, Block::iterator insertPt) {
   // detected.
   StringAttr name = getSymbolName(symbol);
   if (symbolTable.insert({name, symbol}).second)
-    return;
+    return name;
   // If the symbol was already in the table, also return.
   if (symbolTable.lookup(name) == symbol)
-    return;
+    return name;
   // If a conflict was detected, then the symbol will not have been added to
   // the symbol table. Try suffixes until we get to a unique name that works.
   SmallString<128> nameBuffer(name.getValue());
@@ -199,6 +200,7 @@ void SymbolTable::insert(Operation *symbol, Block::iterator insertPt) {
   } while (!symbolTable.insert({StringAttr::get(context, nameBuffer), symbol})
                 .second);
   setSymbolName(symbol, nameBuffer);
+  return getSymbolName(symbol);
 }
 
 /// Returns the name of the given symbol operation.
@@ -233,7 +235,7 @@ void SymbolTable::setSymbolVisibility(Operation *symbol, Visibility vis) {
   // If the visibility is public, just drop the attribute as this is the
   // default.
   if (vis == Visibility::Public) {
-    symbol->removeAttr(Identifier::get(getVisibilityAttrName(), ctx));
+    symbol->removeAttr(StringAttr::get(ctx, getVisibilityAttrName()));
     return;
   }
 
@@ -303,8 +305,8 @@ Operation *SymbolTable::lookupSymbolIn(Operation *symbolTableOp,
     return nullptr;
 
   // Look for a symbol with the given name.
-  Identifier symbolNameId = Identifier::get(SymbolTable::getSymbolAttrName(),
-                                            symbolTableOp->getContext());
+  StringAttr symbolNameId = StringAttr::get(symbolTableOp->getContext(),
+                                            SymbolTable::getSymbolAttrName());
   for (auto &op : region.front())
     if (getNameIfSymbol(&op, symbolNameId) == symbol)
       return &op;
