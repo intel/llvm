@@ -251,8 +251,6 @@ public:
   template <typename T> event submit(T CGF _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
 
-    event Event;
-
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
       auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
@@ -267,14 +265,14 @@ public:
         }
       };
 
-      Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      auto Event = submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+      return discard_or_return(Event);
     } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
     {
-      Event = submit_impl(CGF, CodeLoc);
+      auto Event = submit_impl(CGF, CodeLoc);
+      return discard_or_return(Event);
     }
-
-    return discard_or_return(Event);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -291,8 +289,6 @@ public:
   template <typename T>
   event submit(T CGF, queue &SecondaryQueue _CODELOCPARAM(&CodeLoc)) {
     _CODELOCARG(&CodeLoc);
-
-    event Event;
 
 #if __SYCL_USE_FALLBACK_ASSERT
     if (!is_host()) {
@@ -313,15 +309,15 @@ public:
         }
       };
 
-      Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
-                                          PostProcess);
+      auto Event = submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
+                                               PostProcess);
+      return discard_or_return(Event);
     } else
 #endif // __SYCL_USE_FALLBACK_ASSERT
     {
-      Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      auto Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
+      return discard_or_return(Event);
     }
-
-    return discard_or_return(Event);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
