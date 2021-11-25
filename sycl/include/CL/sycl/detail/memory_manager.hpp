@@ -12,6 +12,7 @@
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/sycl_mem_obj_i.hpp>
+#include <CL/sycl/id.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/range.hpp>
 
@@ -124,11 +125,28 @@ public:
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent);
 
+  // TODO: Delete this function when ABI breaking changes are allowed.
+  static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
+                   unsigned int DimSrc, sycl::range<3> SrcSize,
+                   sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+                   unsigned int SrcElemSize, void *DstMem,
+                   QueueImplPtr TgtQueue, unsigned int DimDst,
+                   sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
+                   sycl::id<3> DstOffset, unsigned int DstElemSize,
+                   std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
+
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent);
+
+  // TODO: Delete this function when ABI breaking changes are allowed.
+  static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+                   size_t PatternSize, const char *Pattern, unsigned int Dim,
+                   sycl::range<3> Size, sycl::range<3> AccessRange,
+                   sycl::id<3> AccessOffset, unsigned int ElementSize,
+                   std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
   static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    access::mode AccessMode, unsigned int Dim,
@@ -144,18 +162,39 @@ public:
                        void *DstMem, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent *OutEvent);
 
+  // TODO: Delete this function when ABI breaking changes are allowed.
+  static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
+                       void *DstMem, std::vector<RT::PiEvent> DepEvents,
+                       RT::PiEvent &OutEvent);
+
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent *OutEvent);
+
+  // TODO: Delete this function when ABI breaking changes are allowed.
+  static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
+                       int Pattern, std::vector<RT::PiEvent> DepEvents,
+                       RT::PiEvent &OutEvent);
 
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<RT::PiEvent> DepEvents,
                            RT::PiEvent *OutEvent);
 
+  // TODO: Delete this function when ABI breaking changes are allowed.
+  static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
+                           std::vector<RT::PiEvent> DepEvents,
+                           RT::PiEvent &OutEvent);
+
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
                          pi_mem_advice Advice,
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent *OutEvent);
+
+  // TODO: Delete this function when ABI breaking changes are allowed.
+  static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
+                         pi_mem_advice Advice,
+                         std::vector<RT::PiEvent> DepEvents,
+                         RT::PiEvent &OutEvent);
 };
 } // namespace detail
 } // namespace sycl

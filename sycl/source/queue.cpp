@@ -123,29 +123,22 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
 }
 
-static event createInvalidEvent() {
-  detail::EventImplPtr EventImpl =
-      std::make_shared<detail::event_impl>(detail::event_impl::HES_Invalid);
-  return detail::createSyclObjFromImpl<event>(EventImpl);
+event queue::discard_or_return(const event &Event) {
+  if (impl->MDiscardEvents) {
+    using detail::event_impl;
+    auto Impl = std::make_shared<event_impl>(event_impl::HES_Invalid);
+    return detail::createSyclObjFromImpl<event>(Impl);
+  }
+  return Event;
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH,
-                         const detail::code_location &CodeLoc,
-                         bool AlreadyInsideSubmit) {
-  if (impl->MDiscardEvents && !AlreadyInsideSubmit) {
-    impl->submit(CGH, impl, CodeLoc);
-    return createInvalidEvent();
-  }
+                         const detail::code_location &CodeLoc) {
   return impl->submit(CGH, impl, CodeLoc);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
-                         const detail::code_location &CodeLoc,
-                         bool AlreadyInsideSubmit) {
-  if (impl->MDiscardEvents && !AlreadyInsideSubmit) {
-    impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
-    return createInvalidEvent();
-  }
+                         const detail::code_location &CodeLoc) {
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
 }
 

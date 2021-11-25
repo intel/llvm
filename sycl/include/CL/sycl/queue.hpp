@@ -274,7 +274,7 @@ public:
       Event = submit_impl(CGF, CodeLoc);
     }
 
-    return Event;
+    return discard_or_return(Event);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -321,7 +321,7 @@ public:
       Event = submit_impl(CGF, SecondaryQueue, CodeLoc);
     }
 
-    return Event;
+    return discard_or_return(Event);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -1064,12 +1064,14 @@ private:
 
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
-                    const detail::code_location &CodeLoc,
-                    bool AlreadyInsideSubmit = false);
+                    const detail::code_location &CodeLoc);
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
-                    const detail::code_location &CodeLoc,
-                    bool AlreadyInsideSubmit = false);
+                    const detail::code_location &CodeLoc);
+
+  /// Checks if the event needs to be discarded and if so, discards it and
+  /// returns an invalid event. Otherwise, it returns input event.
+  event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command
   // Arguments:
@@ -1234,11 +1236,11 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
   };
 
   if (SecondaryQueue) {
-    CopierEv = Self.submit_impl(CopierCGF, *SecondaryQueue, CodeLoc, true);
-    CheckerEv = Self.submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc, true);
+    CopierEv = Self.submit_impl(CopierCGF, *SecondaryQueue, CodeLoc);
+    CheckerEv = Self.submit_impl(CheckerCGF, *SecondaryQueue, CodeLoc);
   } else {
-    CopierEv = Self.submit_impl(CopierCGF, CodeLoc, true);
-    CheckerEv = Self.submit_impl(CheckerCGF, CodeLoc, true);
+    CopierEv = Self.submit_impl(CopierCGF, CodeLoc);
+    CheckerEv = Self.submit_impl(CheckerCGF, CodeLoc);
   }
 
   return CheckerEv;
