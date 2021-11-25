@@ -1616,6 +1616,7 @@
 ?determineHostPtr@SYCLMemObjT@detail@sycl@cl@@IEAAXAEBV?$shared_ptr@Vcontext_impl@detail@sycl@cl@@@std@@_NAEAPEAXAEA_N@Z
 ?device_has@queue@sycl@cl@@QEBA_NW4aspect@23@@Z
 ?die@pi@detail@sycl@cl@@YAXPEBD@Z
+?discard_or_return@queue@sycl@cl@@AEAA?AVevent@23@AEBV423@@Z
 ?distance@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V34562@0@Z
 ?distance@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$01@62@0@Z
 ?distance@__host_std@cl@@YA?AVhalf@half_impl@detail@sycl@2@V?$vec@Vhalf@half_impl@detail@sycl@cl@@$02@62@0@Z
