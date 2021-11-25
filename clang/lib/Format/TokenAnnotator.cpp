@@ -946,11 +946,15 @@ private:
                  !Line.First->isOneOf(tok::kw_enum, tok::kw_case,
                                       tok::kw_default)) {
         FormatToken *Prev = Tok->getPreviousNonComment();
+        if (!Prev)
+          break;
         if (Prev->isOneOf(tok::r_paren, tok::kw_noexcept))
           Tok->setType(TT_CtorInitializerColon);
         else if (Prev->is(tok::kw_try)) {
           // Member initializer list within function try block.
           FormatToken *PrevPrev = Prev->getPreviousNonComment();
+          if (!PrevPrev)
+            break;
           if (PrevPrev && PrevPrev->isOneOf(tok::r_paren, tok::kw_noexcept))
             Tok->setType(TT_CtorInitializerColon);
         } else
@@ -1578,6 +1582,8 @@ private:
         if (TemplateCloser->is(tok::l_paren)) {
           // No Matching Paren yet so skip to matching paren
           TemplateCloser = untilMatchingParen(TemplateCloser);
+          if (!TemplateCloser)
+            break;
         }
         if (TemplateCloser->is(tok::less))
           NestingLevel++;
@@ -2336,16 +2342,15 @@ void TokenAnnotator::setCommentLineLevels(
     if (NextNonCommentLine && CommentLine &&
         NextNonCommentLine->First->NewlinesBefore <= 1 &&
         NextNonCommentLine->First->OriginalColumn ==
-        AL->First->OriginalColumn) {
+            AL->First->OriginalColumn) {
       // Align comments for preprocessor lines with the # in column 0 if
       // preprocessor lines are not indented. Otherwise, align with the next
       // line.
-      AL->Level =
-          (Style.IndentPPDirectives != FormatStyle::PPDIS_BeforeHash &&
-           (NextNonCommentLine->Type == LT_PreprocessorDirective ||
-            NextNonCommentLine->Type == LT_ImportStatement))
-              ? 0
-              : NextNonCommentLine->Level;
+      AL->Level = (Style.IndentPPDirectives != FormatStyle::PPDIS_BeforeHash &&
+                   (NextNonCommentLine->Type == LT_PreprocessorDirective ||
+                    NextNonCommentLine->Type == LT_ImportStatement))
+                      ? 0
+                      : NextNonCommentLine->Level;
     } else {
       NextNonCommentLine = AL->First->isNot(tok::r_brace) ? AL : nullptr;
     }
@@ -2639,8 +2644,8 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) {
     if (Current->Role)
       Current->Role->precomputeFormattingInfos(Current);
     if (Current->MatchingParen &&
-        Current->MatchingParen->opensBlockOrBlockTypeList(Style)) {
-      assert(IndentLevel > 0);
+        Current->MatchingParen->opensBlockOrBlockTypeList(Style) &&
+        IndentLevel > 0) {
       --IndentLevel;
     }
     Current->IndentLevel = IndentLevel;
@@ -3240,6 +3245,12 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
   };
   if (Right.Tok.getIdentifierInfo() && Left.Tok.getIdentifierInfo())
     return true; // Never ever merge two identifiers.
+
+  // Leave a space between * and /* to avoid C4138 `comment end` found outside
+  // of comment.
+  if (Left.is(tok::star) && Right.is(tok::comment))
+    return true;
+
   if (Style.isCpp()) {
     if (Left.is(tok::kw_operator))
       return Right.is(tok::coloncolon);

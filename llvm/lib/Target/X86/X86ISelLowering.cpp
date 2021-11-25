@@ -19751,7 +19751,7 @@ unsigned X86TargetLowering::getGlobalWrapperKind(
     return X86ISD::WrapperRIP;
 
   // GOTPCREL references must always use RIP.
-  if (OpFlags == X86II::MO_GOTPCREL)
+  if (OpFlags == X86II::MO_GOTPCREL || OpFlags == X86II::MO_GOTPCREL_NORELAX)
     return X86ISD::WrapperRIP;
 
   return X86ISD::Wrapper;
@@ -44004,7 +44004,11 @@ static SDValue combineSetCCMOVMSK(SDValue EFLAGS, X86::CondCode &CC,
   // signbits extend down to all the sub-elements as well.
   // Calling MOVMSK with the wider type, avoiding the bitcast, helps expose
   // potential SimplifyDemandedBits/Elts cases.
-  if (Vec.getOpcode() == ISD::BITCAST) {
+  // If we looked through a truncate that discard bits, we can't do this
+  // transform.
+  // FIXME: We could do this transform for truncates that discarded bits by
+  // inserting an AND mask between the new MOVMSK and the CMP.
+  if (Vec.getOpcode() == ISD::BITCAST && NumElts <= CmpBits) {
     SDValue BC = peekThroughBitcasts(Vec);
     MVT BCVT = BC.getSimpleValueType();
     unsigned BCNumElts = BCVT.getVectorNumElements();

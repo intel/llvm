@@ -34,6 +34,9 @@ extern "C" void __tsan_resume() {
   __tsan_resumed = 1;
 }
 
+SANITIZER_WEAK_DEFAULT_IMPL
+void __tsan_test_only_on_fork() {}
+
 namespace __tsan {
 
 #if !SANITIZER_GO
@@ -491,6 +494,7 @@ void ForkBefore(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   ctx->thread_registry.Lock();
   ctx->report_mtx.Lock();
   ScopedErrorReportLock::Lock();
+  AllocatorLock();
   // Suppress all reports in the pthread_atfork callbacks.
   // Reports will deadlock on the report_mtx.
   // We could ignore sync operations as well,
@@ -499,12 +503,17 @@ void ForkBefore(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   thr->suppress_reports++;
   // On OS X, REAL(fork) can call intercepted functions (OSSpinLockLock), and
   // we'll assert in CheckNoLocks() unless we ignore interceptors.
+  // On OS X libSystem_atfork_prepare/parent/child callbacks are called
+  // after/before our callbacks and they call free.
   thr->ignore_interceptors++;
+
+  __tsan_test_only_on_fork();
 }
 
 void ForkParentAfter(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   thr->suppress_reports--;  // Enabled in ForkBefore.
   thr->ignore_interceptors--;
+  AllocatorUnlock();
   ScopedErrorReportLock::Unlock();
   ctx->report_mtx.Unlock();
   ctx->thread_registry.Unlock();
@@ -514,6 +523,7 @@ void ForkChildAfter(ThreadState *thr, uptr pc,
                     bool start_thread) NO_THREAD_SAFETY_ANALYSIS {
   thr->suppress_reports--;  // Enabled in ForkBefore.
   thr->ignore_interceptors--;
+  AllocatorUnlock();
   ScopedErrorReportLock::Unlock();
   ctx->report_mtx.Unlock();
   ctx->thread_registry.Unlock();
@@ -747,14 +757,17 @@ using namespace __tsan;
 MutexMeta mutex_meta[] = {
     {MutexInvalid, "Invalid", {}},
     {MutexThreadRegistry, "ThreadRegistry", {}},
-    {MutexTypeTrace, "Trace", {MutexLeaf}},
-    {MutexTypeReport, "Report", {MutexTypeSyncVar}},
-    {MutexTypeSyncVar, "SyncVar", {}},
+    {MutexTypeTrace, "Trace", {}},
+    {MutexTypeReport,
+     "Report",
+     {MutexTypeSyncVar, MutexTypeGlobalProc, MutexTypeTrace}},
+    {MutexTypeSyncVar, "SyncVar", {MutexTypeTrace}},
     {MutexTypeAnnotations, "Annotations", {}},
     {MutexTypeAtExit, "AtExit", {MutexTypeSyncVar}},
     {MutexTypeFired, "Fired", {MutexLeaf}},
     {MutexTypeRacy, "Racy", {MutexLeaf}},
     {MutexTypeGlobalProc, "GlobalProc", {}},
+    {MutexTypeInternalAlloc, "InternalAlloc", {MutexLeaf}},
     {},
 };
 

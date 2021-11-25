@@ -26,6 +26,7 @@ add_mlir_library(MLIRExecutionEngine
   intrinsics_gen
 
   LINK_COMPONENTS
+  ${LLVM_NATIVE_ARCH}AsmParser
   Core
   Coroutines
   ExecutionEngine
@@ -202,8 +203,11 @@ if(MLIR_ENABLE_ROCM_RUNNER)
     ${HIP_PATH}/include
     ${ROCM_PATH}/include
   )
+  set_property(TARGET mlir_rocm_runtime
+    PROPERTY INSTALL_RPATH_USE_LINK_PATH ON)
+
   target_link_libraries(mlir_rocm_runtime
-    PRIVATE
+    PUBLIC
     ${ROCM_RUNTIME_LIBRARY}
   )
 endif()
