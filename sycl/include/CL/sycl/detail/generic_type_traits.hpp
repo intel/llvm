@@ -502,7 +502,7 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
 }
 
 template <typename T>
-using common_rel_ret_t =
+using rel_ret_t =
     conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, int>;
 
 // forward declaration
@@ -521,17 +521,6 @@ struct TryToGetNumElements<
     T, typename detail::enable_if_t<!TryToGetVectorT<T>::value>> {
   static constexpr int value = 1;
 };
-
-// Used for relational comparison built-in functions
-template <typename T> struct RelationalReturnType {
-#ifdef __SYCL_DEVICE_ONLY__
-  using type = Boolean<TryToGetNumElements<T>::value>;
-#else
-  using type = common_rel_ret_t<T>;
-#endif
-};
-
-template <typename T> using rel_ret_t = typename RelationalReturnType<T>::type;
 
 // Used for any and all built-in functions
 template <typename T> struct RelationalTestForSignBitType {
@@ -558,25 +547,8 @@ template <typename T>
 struct RelConverter<
     T, typename detail::enable_if_t<TryToGetElementType<T>::value>> {
   static const int N = T::size();
-#ifdef __SYCL_DEVICE_ONLY__
-  using bool_t = typename Boolean<N>::vector_t;
-  using ret_t = common_rel_ret_t<T>;
-#else
-  using bool_t = Boolean<N>;
   using ret_t = rel_ret_t<T>;
-#endif
-
-  static ret_t apply(bool_t value) {
-#ifdef __SYCL_DEVICE_ONLY__
-    typename ret_t::vector_t result(0);
-    for (size_t I = 0; I < N; ++I) {
-      result[I] = value[I];
-    }
-    return result;
-#else
-    return value;
-#endif
-  }
+  static ret_t apply(ret_t value) { return value; }
 };
 
 template <typename T>

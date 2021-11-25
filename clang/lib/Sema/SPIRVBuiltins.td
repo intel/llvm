@@ -860,9 +860,9 @@ foreach name = ["IsNan", "IsInf", "IsFinite", "IsNormal", "SignBitSet"] in {
   def : SPVBuiltin<name, [Bool, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeIntVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeLongVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeShortVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["LessOrGreater",
@@ -876,9 +876,9 @@ foreach name = ["LessOrGreater",
   def : SPVBuiltin<name, [Bool, Float, Float], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Double, Double], Attr.Const>;
   def : SPVBuiltin<name, [Bool, Half, Half], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
-  def : SPVBuiltin<name, [GenTypeSCharVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeIntVecNoScalar, GenTypeFloatVecNoScalar, GenTypeFloatVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeLongVecNoScalar, GenTypeDoubleVecNoScalar, GenTypeDoubleVecNoScalar], Attr.Const>;
+  def : SPVBuiltin<name, [GenTypeShortVecNoScalar, GenTypeHalfVecNoScalar, GenTypeHalfVecNoScalar], Attr.Const>;
 }
 
 foreach name = ["BitCount"] in {
