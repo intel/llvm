@@ -189,6 +189,10 @@ public:
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   auto get_native() const -> backend_return_t<Backend, device> {
+    // In CUDA CUdevice isn't an opaque pointer, unlike a lot of the others,
+    // but instead a 32-bit int (on all relevant systems). Different
+    // backends use the same function for this purpose so static_cast is
+    // needed in some cases but not others, so a C-style cast was chosen.
     return (backend_return_t<Backend, device>)getNative();
   }
 
