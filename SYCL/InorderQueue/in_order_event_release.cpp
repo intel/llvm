@@ -54,6 +54,7 @@ int main() {
       if (A[i] != 3)
         return 1;
     }
+    free(A, ctx);
   }
 
   return 0;

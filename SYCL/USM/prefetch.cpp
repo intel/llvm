@@ -71,6 +71,8 @@ int main() {
         assert(dest[i] == i * 3);
       }
     }
+    free(src, q);
+    free(dest, q);
   }
   return 0;
 }
