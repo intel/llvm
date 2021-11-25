@@ -189,7 +189,7 @@ public:
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
   auto get_native() const -> backend_return_t<Backend, device> {
-    return detail::pi::cast<backend_return_t<Backend, device>>(getNative());
+    return (backend_return_t<Backend, device>)getNative();
   }
 
   /// Indicates if the SYCL device has the given feature.
