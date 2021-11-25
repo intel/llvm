@@ -243,6 +243,11 @@ option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
 
+# Ensure that HIP platform is uppercase, to match buildbot's output.
+if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+endif()
+
 # Plugin Library
 add_subdirectory( plugins )
 
