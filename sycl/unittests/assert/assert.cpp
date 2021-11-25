@@ -259,6 +259,15 @@ static pi_result redefinedExtKernelSetArgMemObj(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
+inline pi_result redefinedEventGetInfo(pi_event Event, pi_event_info ParamName,
+                                       size_t ParamValueSize, void *ParamValue,
+                                       size_t *ParamValueSizeRet) {
+  if (ParamName == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    *static_cast<pi_event_status *>(ParamValue) = PI_EVENT_COMPLETE;
+  }
+  return PI_SUCCESS;
+}
+
 static void setupMock(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
   setupDefaultMockAPIs(Mock);
@@ -272,6 +281,7 @@ static void setupMock(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWait);
   Mock.redefine<PiApiKind::piextKernelSetArgMemObj>(
       redefinedExtKernelSetArgMemObj);
+  Mock.redefine<PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
 }
 
 namespace TestInteropKernel {
