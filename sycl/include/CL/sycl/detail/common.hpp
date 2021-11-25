@@ -26,44 +26,44 @@ namespace sycl {
 namespace detail {
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
-#define __XPTI_FILE_NAME __builtin_FILE()
+#define __CODELOC_FILE_NAME __builtin_FILE()
 #else
-#define __XPTI_FILE_NAME nullptr
+#define __CODELOC_FILE_NAME nullptr
 #endif
 
 #if _MSC_VER > 1929 || __has_builtin(__builtin_FUNCTION)
-#define __XPTI_FUNCTION __builtin_FUNCTION()
+#define __CODELOC_FUNCTION __builtin_FUNCTION()
 #else
-#define __XPTI_FUNCTION nullptr
+#define __CODELOC_FUNCTION nullptr
 #endif
 
 #if _MSC_VER > 1929 || __has_builtin(__builtin_LINE)
-#define __XPTI_LINE __builtin_LINE()
+#define __CODELOC_LINE __builtin_LINE()
 #else
-#define __XPTI_LINE 0
+#define __CODELOC_LINE 0
 #endif
 
 #if _MSC_VER > 1929 || __has_builtin(__builtin_LINE)
-#define __XPTI_COLUMN __builtin_COLUMN()
+#define __CODELOC_COLUMN __builtin_COLUMN()
 #else
-#define __XPTI_COLUMN 0
+#define __CODELOC_COLUMN 0
 #endif
 
 // Data structure that captures the user code location information using the
 // builtin capabilities of the compiler
 struct code_location {
   static constexpr code_location
-  current(const char *fileName = __XPTI_FILE_NAME,
-          const char *funcName = __XPTI_FUNCTION,
-          unsigned long lineNo = __XPTI_LINE,
-          unsigned long columnNo = __XPTI_COLUMN) noexcept {
+  current(const char *fileName = __CODELOC_FILE_NAME,
+          const char *funcName = __CODELOC_FUNCTION,
+          unsigned long lineNo = __CODELOC_LINE,
+          unsigned long columnNo = __CODELOC_COLUMN) noexcept {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
 
-#undef __XPTI_FILE_NAME
-#undef __XPTI_FUNCTION
-#undef __XPTI_LINE
-#undef __XPTI_COLUMN
+#undef __CODELOC_FILE_NAME
+#undef __CODELOC_FUNCTION
+#undef __CODELOC_LINE
+#undef __CODELOC_COLUMN
 
   constexpr code_location(const char *file, const char *func, int line,
                           int col) noexcept
