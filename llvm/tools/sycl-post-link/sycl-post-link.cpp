@@ -363,7 +363,7 @@ EntryPointNamesGroups groupEntryPoints(const Module &M,
 
   EntryPointNamesGroups EntryPointsGroups;
   EntryPointsGroups.reserve(EntryPointsGroupsMap.size());
-  for (auto& Group : EntryPointsGroupsMap)
+  for (auto &Group : EntryPointsGroupsMap)
     EntryPointsGroups.push_back(std::move(Group.second));
 
   // No entry points met, record this.
@@ -818,8 +818,7 @@ public:
     // Actual reduce memory mode will be turned on in case if number of modules
     // to split is greater than initial splits limit.
     SplitParams.ReduceMemUsage &=
-        (SplitParams.IsSplit &&
-         SplitGroups.size() > SplitsInContextLimit);
+        (SplitParams.IsSplit && SplitGroups.size() > SplitsInContextLimit);
 
     if (SplitParams.ReduceMemUsage) {
       // Make source module bitcode buffer for re-reading it in a new context.
