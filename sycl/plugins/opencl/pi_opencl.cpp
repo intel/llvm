@@ -56,6 +56,7 @@ template <class To, class From> To cast(From value) {
 CONSTFIX char clHostMemAllocName[] = "clHostMemAllocINTEL";
 CONSTFIX char clDeviceMemAllocName[] = "clDeviceMemAllocINTEL";
 CONSTFIX char clSharedMemAllocName[] = "clSharedMemAllocINTEL";
+CONSTFIX char clMemFreeName[] = "clMemFreeINTEL";
 CONSTFIX char clMemBlockingFreeName[] = "clMemBlockingFreeINTEL";
 CONSTFIX char clCreateBufferWithPropertiesName[] =
     "clCreateBufferWithPropertiesINTEL";
@@ -113,6 +114,80 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
 
   T FuncPtr =
       (T)clGetExtensionFunctionAddressForPlatform(curPlatform, FuncName);
+
+  if (!FuncPtr) {
+    // Cache that the extension is not available
+    FuncPtrs[context] = nullptr;
+    return PI_INVALID_VALUE;
+  }
+
+  *fptr = FuncPtr;
+  FuncPtrs[context] = FuncPtr;
+
+  return cast<pi_result>(ret_err);
+}
+
+// This is a temporary workaround for a clMemBlockingFreeINTEL bug in OpenCL CPU
+// runtime. Chooses clMemBlockingFreeINTEL for GPU and clMemFreeINTEL for other
+// devices.
+// TODO remove this workaround once the OpenCL CPU RT version with the fix is
+// uplifted
+static pi_result getUSMFreeFunc(pi_context context,
+                                clMemBlockingFreeINTEL_fn *fptr) {
+  static_assert(
+      std::is_same<clMemBlockingFreeINTEL_fn, clMemFreeINTEL_fn>::value);
+  thread_local static std::map<pi_context, clMemBlockingFreeINTEL_fn> FuncPtrs;
+
+  // if cached, return cached FuncPtr
+  if (auto F = FuncPtrs[context]) {
+    // if cached that extension is not available return nullptr and
+    // PI_INVALID_VALUE
+    *fptr = F;
+    return F ? PI_SUCCESS : PI_INVALID_VALUE;
+  }
+
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
+
+  if (ret_err != CL_SUCCESS || deviceCount < 1) {
+    return PI_INVALID_CONTEXT;
+  }
+
+  std::vector<cl_device_id> devicesInCtx(deviceCount);
+  ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
+                             deviceCount * sizeof(cl_device_id),
+                             devicesInCtx.data(), nullptr);
+
+  if (ret_err != CL_SUCCESS) {
+    return PI_INVALID_CONTEXT;
+  }
+
+  bool useBlockingFree = true;
+  for (const cl_device_id &dev : devicesInCtx) {
+    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
+    ret_err = clGetDeviceInfo(dev, CL_DEVICE_TYPE, sizeof(cl_device_type),
+                              &devType, nullptr);
+    if (ret_err != CL_SUCCESS) {
+      return PI_INVALID_DEVICE;
+    }
+    useBlockingFree &= devType == CL_DEVICE_TYPE_GPU;
+  }
+  const char *FuncName =
+      useBlockingFree ? clMemBlockingFreeName : clMemFreeName;
+
+  cl_platform_id curPlatform;
+  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
+                            sizeof(cl_platform_id), &curPlatform, nullptr);
+
+  if (ret_err != CL_SUCCESS) {
+    return PI_INVALID_CONTEXT;
+  }
+
+  clMemBlockingFreeINTEL_fn FuncPtr =
+      (clMemBlockingFreeINTEL_fn)clGetExtensionFunctionAddressForPlatform(
+          curPlatform, FuncName);
 
   if (!FuncPtr) {
     // Cache that the extension is not available
@@ -972,9 +1047,7 @@ pi_result piextUSMFree(pi_context context, void *ptr) {
   // might be still running.
   clMemBlockingFreeINTEL_fn FuncPtr = nullptr;
   pi_result RetVal = PI_INVALID_OPERATION;
-  RetVal =
-      getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
-          context, &FuncPtr);
+  RetVal = getUSMFreeFunc(context, &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
