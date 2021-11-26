@@ -2915,8 +2915,8 @@ ScalarEvolution::getOrCreateAddRecExpr(ArrayRef<const SCEV *> Ops,
                                        const Loop *L, SCEV::NoWrapFlags Flags) {
   FoldingSetNodeID ID;
   ID.AddInteger(scAddRecExpr);
-  for (unsigned i = 0, e = Ops.size(); i != e; ++i)
-    ID.AddPointer(Ops[i]);
+  for (const SCEV *Op : Ops)
+    ID.AddPointer(Op);
   ID.AddPointer(L);
   void *IP = nullptr;
   SCEVAddRecExpr *S =
@@ -2939,8 +2939,8 @@ ScalarEvolution::getOrCreateMulExpr(ArrayRef<const SCEV *> Ops,
                                     SCEV::NoWrapFlags Flags) {
   FoldingSetNodeID ID;
   ID.AddInteger(scMulExpr);
-  for (unsigned i = 0, e = Ops.size(); i != e; ++i)
-    ID.AddPointer(Ops[i]);
+  for (const SCEV *Op : Ops)
+    ID.AddPointer(Op);
   void *IP = nullptr;
   SCEVMulExpr *S =
     static_cast<SCEVMulExpr *>(UniqueSCEVs.FindNodeOrInsertPos(ID, IP));
@@ -3708,8 +3708,8 @@ SCEV *ScalarEvolution::findExistingSCEVInCache(SCEVTypes SCEVType,
                                                ArrayRef<const SCEV *> Ops) {
   FoldingSetNodeID ID;
   ID.AddInteger(SCEVType);
-  for (unsigned i = 0, e = Ops.size(); i != e; ++i)
-    ID.AddPointer(Ops[i]);
+  for (const SCEV *Op : Ops)
+    ID.AddPointer(Op);
   void *IP = nullptr;
   return UniqueSCEVs.FindNodeOrInsertPos(ID, IP);
 }
@@ -8321,14 +8321,8 @@ ScalarEvolution::computeExitLimitFromICmp(const Loop *L,
   // the same values on self-wrap of the IV, then we can infer that IV
   // doesn't self wrap because if it did, we'd have an infinite (undefined)
   // loop.
-  if (ControlsExit) {
-    auto deferredLoopProperties = [&]() {
-      // Conceptually, these two checks should be in the immediately guarding
-      // if clause, but we defer their actual execution to after the cheaper
-      // checks have all been done.
-      return isLoopInvariant(RHS, L) && loopHasNoAbnormalExits(L) &&
-        loopIsFiniteByAssumption(L);
-    };
+  if (ControlsExit && isLoopInvariant(RHS, L) && loopHasNoAbnormalExits(L) &&
+      loopIsFiniteByAssumption(L)) {
 
     // TODO: We can peel off any functions which are invertible *in L*.  Loop
     // invariant terms are effectively constants for our purposes here.
@@ -8336,16 +8330,14 @@ ScalarEvolution::computeExitLimitFromICmp(const Loop *L,
     if (auto *ZExt = dyn_cast<SCEVZeroExtendExpr>(LHS))
       InnerLHS = ZExt->getOperand();
     if (const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(InnerLHS)) {
-      if (!AR->hasNoSelfWrap() && AR->getLoop() == L && AR->isAffine()) {
-        auto *StrideC = dyn_cast<SCEVConstant>(AR->getStepRecurrence(*this));
-        if (StrideC && StrideC->getAPInt().isPowerOf2() &&
-            deferredLoopProperties()) {
-          auto Flags = AR->getNoWrapFlags();
-          Flags = setFlags(Flags, SCEV::FlagNW);
-          SmallVector<const SCEV*> Operands{AR->operands()};
-          Flags = StrengthenNoWrapFlags(this, scAddRecExpr, Operands, Flags);
-          setNoWrapFlags(const_cast<SCEVAddRecExpr *>(AR), Flags);
-        }
+      auto *StrideC = dyn_cast<SCEVConstant>(AR->getStepRecurrence(*this));
+      if (!AR->hasNoSelfWrap() && AR->getLoop() == L && AR->isAffine() && 
+          StrideC && StrideC->getAPInt().isPowerOf2()) {
+        auto Flags = AR->getNoWrapFlags();
+        Flags = setFlags(Flags, SCEV::FlagNW);
+        SmallVector<const SCEV*> Operands{AR->operands()};
+        Flags = StrengthenNoWrapFlags(this, scAddRecExpr, Operands, Flags);
+        setNoWrapFlags(const_cast<SCEVAddRecExpr *>(AR), Flags);
       }
     }
   }
@@ -12395,7 +12387,7 @@ const SCEV *SCEVAddRecExpr::getNumIterationsInRange(const ConstantRange &Range,
     if (Range.contains(Val->getValue()))
       return SE.getCouldNotCompute();  // Something strange happened
 
-    // Ensure that the previous value is in the range.  This is a sanity check.
+    // Ensure that the previous value is in the range.
     assert(Range.contains(
            EvaluateConstantChrecAtConstant(this,
            ConstantInt::get(SE.getContext(), ExitVal - 1), SE)->getValue()) &&

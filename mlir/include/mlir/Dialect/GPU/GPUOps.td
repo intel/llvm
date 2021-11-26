@@ -18,6 +18,7 @@ include "mlir/Dialect/GPU/GPUBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/DataLayoutInterfaces.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 //===----------------------------------------------------------------------===//
@@ -647,13 +648,21 @@ def GPU_AllReduceOp : GPU_Op<"all_reduce",
 }
 
 def GPU_ShuffleOpXor : StrEnumAttrCase<"XOR", -1, "xor">;
+def GPU_ShuffleOpDown : StrEnumAttrCase<"DOWN", -1, "down">;
+def GPU_ShuffleOpUp : StrEnumAttrCase<"UP", -1, "up">;
+def GPU_ShuffleOpIdx : StrEnumAttrCase<"IDX", -1, "idx">;
 
 def GPU_ShuffleModeAttr : StrEnumAttr<"ShuffleModeAttr",
     "Indexing modes supported by gpu.shuffle.",
     [
-      GPU_ShuffleOpXor,
+      GPU_ShuffleOpXor, GPU_ShuffleOpUp, GPU_ShuffleOpDown, GPU_ShuffleOpIdx,
     ]>{
   let cppNamespace = "::mlir::gpu";
+  let storageType = "mlir::StringAttr";
+  let returnType = "::mlir::gpu::ShuffleModeAttr";
+  let convertFromStorage =
+    "*symbolizeEnum<::mlir::gpu::ShuffleModeAttr>($_self.getValue())";
+  let constBuilderCall = "$_builder.getStringAttr(stringifyEnum($0))";
 }
 
 
