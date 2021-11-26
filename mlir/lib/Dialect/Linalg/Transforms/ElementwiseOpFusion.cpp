@@ -26,6 +26,38 @@
 using namespace mlir;
 using namespace mlir::linalg;
 
+/// Append to `fusedOpIndexingMapAttrs` the indexing maps for the operands of
+/// the `producer` to use in the fused operation given the indexing map of the
+/// result of the producer in the consumer.
+static AffineMap getIndexingMapOfProducerOperandsInCoordinatesOfFusedOp(
+    OpOperand *producerOpOperand, AffineMap producerResultIndexMap,
+    AffineMap fusedConsumerArgIndexMap) {
+  // The indexing map in the consumer op (fusedConsumerArgIndexMap) is a map
+  // from consumer loop -> consumer arg tensor index/producer result tensor
+  // index. The fused loop is same as the consumer loop. For each producer arg
+  // the indexing map to be computed is a map from consumer loop -> producer
+  // arg tensor index.
+  // producerResultIndexMap is a map from producer loop -> tensor index.
+  // Compute the inverse to get map from tensor index -> producer loop.
+  // The inverse is a map from producer result tensor index -> producer loop.
+  AffineMap invProducerResultIndexMap =
+      inversePermutation(producerResultIndexMap);
+  assert(invProducerResultIndexMap &&
+         "expected producer result indexig map to be invertible");
+
+  LinalgOp producer = cast<LinalgOp>(producerOpOperand->getOwner());
+  // argMap is a map from producer loop -> producer arg tensor index.
+  AffineMap argMap = producer.getTiedIndexingMap(producerOpOperand);
+
+  // Compose argMap with invProducerResultIndexMap to get a map from
+  // producer result tensor index -> producer arg tensor index.
+  AffineMap t1 = argMap.compose(invProducerResultIndexMap);
+
+  // Compose t1 with fusedConsumerArgIndexMap gives an indexing map from
+  // consumer loop/ fused loop -> producer arg tensor index.
+  return t1.compose(fusedConsumerArgIndexMap);
+}
+
 /// Conditions for elementwise fusion of generic operations.
 static bool areElementwiseOpsFusable(GenericOp producer, GenericOp consumer,
                                      OpOperand *consumerOpOperand) {
@@ -57,39 +89,42 @@ static bool areElementwiseOpsFusable(GenericOp producer, GenericOp consumer,
   // verify it is a permutation.
   AffineMap producerResultIndexMap =
       producer.getTiedIndexingMap(producer.getOutputOperand(0));
-  return producerResultIndexMap.isPermutation();
-}
+  if (!producerResultIndexMap.isPermutation())
+    return false;
 
-/// Append to `fusedOpIndexingMapAttrs` the indexing maps for the operands of
-/// the `producer` to use in the fused operation given the indexing map of the
-/// result of the producer in the consumer.
-static AffineMap getIndexingMapOfProducerOperandsInCoordinatesOfFusedOp(
-    OpOperand *producerOpOperand, AffineMap producerResultIndexMap,
-    AffineMap fusedConsumerArgIndexMap) {
-  // The indexing map in the consumer op (fusedConsumerArgIndexMap) is a map
-  // from consumer loop -> consumer arg tensor index/producer result tensor
-  // index. The fused loop is same as the consumer loop. For each producer arg
-  // the indexing map to be computed is a map from consumer loop -> producer
-  // arg tensor index.
-  // producerResultIndexMap is a map from producer loop -> tensor index.
-  // Compute the inverse to get map from tensor index -> producer loop.
-  // The inverse is a map from producer result tensor index -> producer loop.
-  AffineMap invProducerResultIndexMap =
-      inversePermutation(producerResultIndexMap);
-  assert(invProducerResultIndexMap &&
-         "expected producer result indexig map to be invertible");
+  // Ensure that the fusion does not remove size information required to
+  // get the loop bounds. For non-reduction generics, this is trivially the
+  // case due to the output operand. For reductions, we need to check that after
+  // the fusion, each loop dimension has at least one input that defines it.
+  if ((consumer.getNumReductionLoops())) {
+    llvm::BitVector coveredDims(consumer.getNumLoops(), false);
 
-  LinalgOp producer = cast<LinalgOp>(producerOpOperand->getOwner());
-  // argMap is a map from producer loop -> producer arg tensor index.
-  AffineMap argMap = producer.getTiedIndexingMap(producerOpOperand);
+    auto addToCoveredDims = [&](AffineMap map) {
+      for (auto result : map.getResults())
+        if (auto dimExpr = result.dyn_cast<AffineDimExpr>())
+          coveredDims[dimExpr.getPosition()] = true;
+    };
 
-  // Compose argMap with invProducerResultIndexMap to get a map from
-  // producer result tensor index -> producer arg tensor index.
-  AffineMap t1 = argMap.compose(invProducerResultIndexMap);
+    for (auto pair :
+         llvm::zip(consumer->getOperands(), consumer.getIndexingMaps())) {
+      Value operand = std::get<0>(pair);
+      if (operand == consumerOpOperand->get())
+        continue;
+      AffineMap operandMap = std::get<1>(pair);
+      addToCoveredDims(operandMap);
+    }
 
-  // Compose t1 with fusedConsumerArgIndexMap gives an indexing map from
-  // consumer loop/ fused loop -> producer arg tensor index.
-  return t1.compose(fusedConsumerArgIndexMap);
+    for (OpOperand *operand : producer.getInputOperands()) {
+      AffineMap newIndexingMap =
+          getIndexingMapOfProducerOperandsInCoordinatesOfFusedOp(
+              operand, producerResultIndexMap, consumerIndexMap);
+      addToCoveredDims(newIndexingMap);
+    }
+    if (!coveredDims.all())
+      return false;
+  }
+
+  return true;
 }
 
 /// Generate the region of the fused tensor operation. The region of the fused
@@ -1184,7 +1219,7 @@ public:
           if (matchPattern(def, m_Constant<DenseElementsAttr>(&splatAttr)) &&
               splatAttr.isSplat() &&
               splatAttr.getType().getElementType().isIntOrFloat()) {
-            constantAttr = splatAttr.getSplatValue();
+            constantAttr = splatAttr.getSplatValue<Attribute>();
             return true;
           }
         }
@@ -1455,10 +1490,9 @@ public:
 
     bool isFloat = elementType.isa<FloatType>();
     if (isFloat) {
-      SmallVector<iterator_range<DenseElementsAttr::FloatElementIterator>>
-          inputFpIterators;
+      SmallVector<DenseElementsAttr::iterator_range<APFloat>> inFpRanges;
       for (int i = 0; i < numInputs; ++i)
-        inputFpIterators.push_back(inputValues[i].getValues<APFloat>());
+        inFpRanges.push_back(inputValues[i].getValues<APFloat>());
 
       computeFnInputs.apFloats.resize(numInputs, APFloat(0.f));
 
@@ -1469,22 +1503,17 @@ public:
         computeRemappedLinearIndex(linearIndex);
 
         // Collect constant elements for all inputs at this loop iteration.
-        for (int i = 0; i < numInputs; ++i) {
-          computeFnInputs.apFloats[i] =
-              *(inputFpIterators[i].begin() + srcLinearIndices[i]);
-        }
+        for (int i = 0; i < numInputs; ++i)
+          computeFnInputs.apFloats[i] = inFpRanges[i][srcLinearIndices[i]];
 
         // Invoke the computation to get the corresponding constant output
         // element.
-        APIntOrFloat outputs = computeFn(computeFnInputs);
-
-        fpOutputValues[dstLinearIndex] = outputs.apFloat.getValue();
+        fpOutputValues[dstLinearIndex] = *computeFn(computeFnInputs).apFloat;
       }
     } else {
-      SmallVector<iterator_range<DenseElementsAttr::IntElementIterator>>
-          inputIntIterators;
+      SmallVector<DenseElementsAttr::iterator_range<APInt>> inIntRanges;
       for (int i = 0; i < numInputs; ++i)
-        inputIntIterators.push_back(inputValues[i].getValues<APInt>());
+        inIntRanges.push_back(inputValues[i].getValues<APInt>());
 
       computeFnInputs.apInts.resize(numInputs);
 
@@ -1495,25 +1524,19 @@ public:
         computeRemappedLinearIndex(linearIndex);
 
         // Collect constant elements for all inputs at this loop iteration.
-        for (int i = 0; i < numInputs; ++i) {
-          computeFnInputs.apInts[i] =
-              *(inputIntIterators[i].begin() + srcLinearIndices[i]);
-        }
+        for (int i = 0; i < numInputs; ++i)
+          computeFnInputs.apInts[i] = inIntRanges[i][srcLinearIndices[i]];
 
         // Invoke the computation to get the corresponding constant output
         // element.
-        APIntOrFloat outputs = computeFn(computeFnInputs);
-
-        intOutputValues[dstLinearIndex] = outputs.apInt.getValue();
+        intOutputValues[dstLinearIndex] = *computeFn(computeFnInputs).apInt;
       }
     }
 
-    DenseIntOrFPElementsAttr outputAttr;
-    if (isFloat) {
-      outputAttr = DenseFPElementsAttr::get(outputType, fpOutputValues);
-    } else {
-      outputAttr = DenseIntElementsAttr::get(outputType, intOutputValues);
-    }
+    DenseElementsAttr outputAttr =
+        isFloat ? DenseElementsAttr::get(outputType, fpOutputValues)
+                : DenseElementsAttr::get(outputType, intOutputValues);
+
     rewriter.replaceOpWithNewOp<ConstantOp>(genericOp, outputAttr);
     return success();
   }

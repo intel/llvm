@@ -23,16 +23,15 @@ KernelProgramCache::~KernelProgramCache() {
 
     auto KernIt = MKernelsPerProgramCache.find(ToBeDeleted);
 
-    if (KernIt == MKernelsPerProgramCache.end())
-      continue;
+    if (KernIt != MKernelsPerProgramCache.end()) {
+      for (auto &p : KernIt->second) {
+        KernelWithBuildStateT &KernelWithState = p.second;
+        PiKernelT *Kern = KernelWithState.Ptr.load();
 
-    for (auto &p : KernIt->second) {
-      KernelWithBuildStateT &KernelWithState = p.second;
-      PiKernelT *Kern = KernelWithState.Ptr.load();
-
-      if (Kern) {
-        const detail::plugin &Plugin = MParentContext->getPlugin();
-        Plugin.call<PiApiKind::piKernelRelease>(Kern);
+        if (Kern) {
+          const detail::plugin &Plugin = MParentContext->getPlugin();
+          Plugin.call<PiApiKind::piKernelRelease>(Kern);
+        }
       }
     }
 

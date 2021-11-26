@@ -80,6 +80,9 @@ const NamedDecl *getDefinition(const NamedDecl *D) {
     return VD->getDefinition();
   if (const auto *FD = dyn_cast<FunctionDecl>(D))
     return FD->getDefinition();
+  if (const auto *CTD = dyn_cast<ClassTemplateDecl>(D))
+    if (const auto *RD = CTD->getTemplatedDecl())
+      return RD->getDefinition();
   // Objective-C classes can have three types of declarations:
   //
   // - forward declaration: @class MyClass;
@@ -823,10 +826,9 @@ std::vector<LocatedSymbol> locateSymbolAt(ParsedAST &AST, Position Pos,
         log("Found definition heuristically using nearby identifier {0}",
             NearbyIdent->text(SM));
         return ASTResults;
-      } else {
-        vlog("No definition found using nearby identifier {0} at {1}",
-             Word->Text, Word->Location.printToString(SM));
       }
+      vlog("No definition found using nearby identifier {0} at {1}", Word->Text,
+           Word->Location.printToString(SM));
     }
     // No nearby word, or it didn't refer to anything either. Try the index.
     auto TextualResults =

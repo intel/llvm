@@ -1,4 +1,4 @@
-; RUN: llc -O1 -filetype=asm -mtriple x86_64-unknown-linux-gnu -mcpu=x86-64 -o - %s -stop-after=livedebugvars | FileCheck %s
+; RUN: llc -O1 -filetype=asm -mtriple x86_64-unknown-linux-gnu -mcpu=x86-64 -o - %s -stop-after=livedebugvars -experimental-debug-variable-locations=false | FileCheck %s
 
 ; CHECK: $eax = MOV32rm
 ; CHECK: DBG_VALUE $eax
@@ -8,7 +8,7 @@
 ; CHECK: DBG_VALUE $eax
 ; CHECK: $eax = SHL32rCL killed renamable $eax
 ; CHECK: DBG_VALUE $eax
-; CHECK: RETQ $eax
+; CHECK: RET64 $eax
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"

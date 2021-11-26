@@ -410,8 +410,11 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
 bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
-    if (FD->getBuiltinID() == Builtin::BIprintf)
-      return true;
+    // Allow to use `::printf` only for CUDA.
+    if (Context.getTargetInfo().getTriple().isNVPTX()) {
+      if (FD->getBuiltinID() == Builtin::BIprintf)
+        return true;
+    }
     const DeclContext *DC = FD->getDeclContext();
     if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&
@@ -3506,9 +3509,26 @@ public:
             IsInvalid = true;
             return;
           }
-          // Check if the declaration is completely defined within a
-          // function or class/struct.
-          if (Tag->isCompleteDefinition()) {
+
+          // Diagnose used types without complete definition i.e.
+          //   int main() {
+          //     class KernelName1;
+          //     parallel_for<class KernelName1>(..);
+          //   }
+          // This case can only be diagnosed during host compilation because the
+          // integration header is required to distinguish between the invalid
+          // code (above) and the following valid code:
+          //   int main() {
+          //     parallel_for<class KernelName2>(..);
+          //   }
+          // The device compiler forward declares both KernelName1 and
+          // KernelName2 in the integration header as ::KernelName1 and
+          // ::KernelName2. The problem with the former case is the additional
+          // declaration 'class KernelName1' in non-global scope. Lookup in this
+          // case will resolve to ::main::KernelName1 (instead of
+          // ::KernelName1). Since this is not visible to runtime code that
+          // submits kernels, this is invalid.
+          if (Tag->isCompleteDefinition() || S.getLangOpts().SYCLIsHost) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
                 << /* kernel name should be forward declarable at namespace
@@ -3558,14 +3578,20 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
+  QualType KernelNameType =
+      calculateKernelNameType(getASTContext(), KernelFunc);
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
+      *this, Args[0]->getExprLoc(), KernelNameType,
+      IsSYCLUnnamedKernel(*this, KernelFunc));
+  KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
+
   // FIXME: In place until the library works around its 'host' invocation
   // issues.
   if (!LangOpts.SYCLIsDevice)
     return;
+
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
-  QualType KernelNameType =
-      calculateKernelNameType(getASTContext(), KernelFunc);
 
   if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
@@ -3606,15 +3632,10 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                             IsSIMDKernel);
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
-      *this, Args[0]->getExprLoc(), KernelNameType,
-      IsSYCLUnnamedKernel(*this, KernelFunc));
 
   DiagnosingSYCLKernel = true;
 
   // Emit diagnostics for SYCL device kernels only
-  if (LangOpts.SYCLIsDevice)
-    KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
@@ -4131,7 +4152,7 @@ void Sema::finalizeSYCLDelayedAnalysis(const FunctionDecl *Caller,
   }
 }
 
-bool Sema::checkAllowedSYCLInitializer(VarDecl *VD, bool CheckValueDependent) {
+bool Sema::checkAllowedSYCLInitializer(VarDecl *VD) {
   assert(getLangOpts().SYCLIsDevice &&
          "Should only be called during SYCL compilation");
 
@@ -4139,7 +4160,7 @@ bool Sema::checkAllowedSYCLInitializer(VarDecl *VD, bool CheckValueDependent) {
     return true;
 
   const Expr *Init = VD->getInit();
-  bool ValueDependent = CheckValueDependent && Init->isValueDependent();
+  bool ValueDependent = Init->isValueDependent();
   bool isConstantInit =
       Init && !ValueDependent && Init->isConstantInitializer(Context, false);
   if (!VD->isConstexpr() && Init && !ValueDependent && !isConstantInit)
@@ -5151,7 +5172,9 @@ bool Util::matchContext(const DeclContext *Ctx,
       return false;
     Ctx = Ctx->getParent();
   }
-  return Ctx->isTranslationUnit();
+  return Ctx->isTranslationUnit() ||
+         (Ctx->isExternCXXContext() &&
+          Ctx->getEnclosingNamespaceContext()->isTranslationUnit());
 }
 
 bool Util::matchQualifiedTypeName(QualType Ty,

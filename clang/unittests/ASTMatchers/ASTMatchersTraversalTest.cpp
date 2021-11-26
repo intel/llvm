@@ -563,26 +563,6 @@ TEST(Matcher, HasReceiver) {
       objcMessageExpr(hasReceiver(declRefExpr(to(varDecl(hasName("x"))))))));
 }
 
-TEST(Matcher, HasAnyCapture) {
-  auto HasCaptureX = lambdaExpr(hasAnyCapture(varDecl(hasName("x"))));
-  EXPECT_TRUE(matches("void f() { int x = 3; [x](){}; }", HasCaptureX));
-  EXPECT_TRUE(matches("void f() { int x = 3; [&x](){}; }", HasCaptureX));
-  EXPECT_TRUE(notMatches("void f() { [](){}; }", HasCaptureX));
-  EXPECT_TRUE(notMatches("void f() { int z = 3; [&z](){}; }", HasCaptureX));
-  EXPECT_TRUE(
-      notMatches("struct a { void f() { [this](){}; }; };", HasCaptureX));
-}
-
-TEST(Matcher, CapturesThis) {
-  auto HasCaptureThis = lambdaExpr(hasAnyCapture(cxxThisExpr()));
-  EXPECT_TRUE(
-      matches("struct a { void f() { [this](){}; }; };", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { [](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int x = 3; [x](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int x = 3; [&x](){}; }", HasCaptureThis));
-  EXPECT_TRUE(notMatches("void f() { int z = 3; [&z](){}; }", HasCaptureThis));
-}
-
 TEST(Matcher, MatchesMethodsOnLambda) {
   StringRef Code = R"cpp(
 struct A {
@@ -623,7 +603,6 @@ TEST(Matcher, MatchesCoroutine) {
   FileContentMappings M;
   M.push_back(std::make_pair("/coro_header", R"cpp(
 namespace std {
-namespace experimental {
 
 template <class... Args>
 struct void_t_imp {
@@ -642,7 +621,7 @@ struct traits_sfinae_base<T, void_t<typename T::promise_type>> {
 
 template <class Ret, class... Args>
 struct coroutine_traits : public traits_sfinae_base<Ret> {};
-}}  // namespace std::experimental
+}  // namespace std
 struct awaitable {
   bool await_ready() noexcept;
   template <typename F>
@@ -658,14 +637,13 @@ struct promise {
   void unhandled_exception();
 };
 template <typename... T>
-struct std::experimental::coroutine_traits<void, T...> { using promise_type = promise; };
+struct std::coroutine_traits<void, T...> { using promise_type = promise; };
 namespace std {
-namespace experimental {
 template <class PromiseType = void>
 struct coroutine_handle {
   static coroutine_handle from_address(void *) noexcept;
 };
-}} // namespace std::experimental
+} // namespace std
 )cpp"));
   StringRef CoReturnCode = R"cpp(
 #include <coro_header>
@@ -4789,6 +4767,66 @@ TEST(ForEachConstructorInitializer, MatchesInitializers) {
   EXPECT_TRUE(matches(
     "struct X { X() : i(42), j(42) {} int i, j; };",
     cxxConstructorDecl(forEachConstructorInitializer(cxxCtorInitializer()))));
+}
+
+TEST(ForEachLambdaCapture, MatchesCaptures) {
+  EXPECT_TRUE(matches(
+      "int main() { int x, y; auto f = [x, y]() { return x + y; }; }",
+      lambdaExpr(forEachLambdaCapture(lambdaCapture())), langCxx11OrLater()));
+  auto matcher = lambdaExpr(forEachLambdaCapture(
+      lambdaCapture(capturesVar(varDecl(hasType(isInteger())))).bind("LC")));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y; float z; auto f = [=]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 2)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y; float z; auto f = [x, y, z]() { return x + y + "
+      "z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 2)));
+}
+
+TEST(ForEachLambdaCapture, IgnoreUnlessSpelledInSource) {
+  auto matcher =
+      traverse(TK_IgnoreUnlessSpelledInSource,
+               lambdaExpr(forEachLambdaCapture(
+                   lambdaCapture(capturesVar(varDecl(hasType(isInteger()))))
+                       .bind("LC"))));
+  EXPECT_TRUE(
+      notMatches("int main() { int x, y; auto f = [=]() { return x + y; }; }",
+                 matcher, langCxx11OrLater()));
+  EXPECT_TRUE(
+      notMatches("int main() { int x, y; auto f = [&]() { return x + y; }; }",
+                 matcher, langCxx11OrLater()));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      R"cc(
+      int main() {
+        int x, y;
+        float z;
+        auto f = [=, &y]() { return x + y + z; };
+      }
+      )cc",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 1)));
+}
+
+TEST(ForEachLambdaCapture, MatchImplicitCapturesOnly) {
+  auto matcher =
+      lambdaExpr(forEachLambdaCapture(lambdaCapture(isImplicit()).bind("LC")));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y, z; auto f = [=, &z]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 2)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y, z; auto f = [&, z]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 2)));
+}
+
+TEST(ForEachLambdaCapture, MatchExplicitCapturesOnly) {
+  auto matcher = lambdaExpr(
+      forEachLambdaCapture(lambdaCapture(unless(isImplicit())).bind("LC")));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y, z; auto f = [=, &z]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 1)));
+  EXPECT_TRUE(matchAndVerifyResultTrue(
+      "int main() { int x, y, z; auto f = [&, z]() { return x + y + z; }; }",
+      matcher, std::make_unique<VerifyIdIsBoundTo<LambdaCapture>>("LC", 1)));
 }
 
 TEST(HasConditionVariableStatement, DoesNotMatchCondition) {

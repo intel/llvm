@@ -2320,6 +2320,10 @@ void OMPClauseEnqueue::VisitOMPFilterClause(const OMPFilterClause *C) {
   Visitor->AddStmt(C->getThreadID());
 }
 
+void OMPClauseEnqueue::VisitOMPAlignClause(const OMPAlignClause *C) {
+  Visitor->AddStmt(C->getAlignment());
+}
+
 void OMPClauseEnqueue::VisitOMPUnifiedAddressClause(
     const OMPUnifiedAddressClause *) {}
 
@@ -2586,6 +2590,8 @@ void OMPClauseEnqueue::VisitOMPAffinityClause(const OMPAffinityClause *C) {
   for (const Expr *E : C->varlists())
     Visitor->AddStmt(E);
 }
+void OMPClauseEnqueue::VisitOMPBindClause(const OMPBindClause *C) {}
+
 } // namespace
 
 void EnqueueVisitor::EnqueueChildren(const OMPClause *S) {

@@ -322,6 +322,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 		endforeach()
 	endforeach()
 
+        # Please NOTE that variables in the foreach are not local and thus need
+        # to be reset every iteration.
 	foreach( d ${${t}_devices} )
 		# Some targets don't have a specific GPU to target
 		if( ${d} STREQUAL "none" OR ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
@@ -330,6 +332,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# Disables NVVM reflection to defer to after linking
 				set( flags "SHELL:-Xclang -target-feature" "SHELL:-Xclang +ptx72"
 						 "SHELL:-march=sm_86" "SHELL:-mllvm --nvvm-reflect-enable=false")
+                        else()
+                                set ( flags )
 			endif()
 			set( arch_suffix "${t}" )
 		else()

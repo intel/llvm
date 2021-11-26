@@ -102,7 +102,12 @@ public:
   /// located in.
   static lldb_private::FileSpec GetCurrentCommandLineToolsDirectory();
 
+  std::vector<lldb_private::ArchSpec> GetSupportedArchitectures() override;
+
 protected:
+  static const char *GetCompatibleArch(lldb_private::ArchSpec::Core core,
+                                       size_t idx);
+
   struct CrashInfoAnnotations {
     uint64_t version;          // unsigned long
     uint64_t message;          // char *
@@ -168,6 +173,10 @@ protected:
 
   static std::string FindComponentInPath(llvm::StringRef path,
                                          llvm::StringRef component);
+
+  virtual bool
+  GetSupportedArchitectureAtIndex(uint32_t idx,
+                                  lldb_private::ArchSpec &arch) = 0;
 
   std::string m_developer_directory;
   llvm::StringMap<std::string> m_sdk_path;
