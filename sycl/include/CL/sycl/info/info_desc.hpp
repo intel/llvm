@@ -288,7 +288,9 @@ enum class event_command_status : cl_int {
   submitted = CL_SUBMITTED,
   running = CL_RUNNING,
   complete = CL_COMPLETE,
-  ext_oneapi_unknown
+  ext_oneapi_unknown =
+      submitted + running + complete +
+      1 // TODO: a more elegant way to ensure that the unique value is here
 };
 
 enum class event_profiling : cl_profiling_info {
