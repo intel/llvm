@@ -1797,6 +1797,7 @@ static pi_result SetKernelParamsAndLaunch(
       }
       assert(DeviceImageImpl != nullptr);
       RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
+      // Avoid taking an address of nullptr
       RT::PiMem *SpecConstsBufferArg =
           SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
       Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
