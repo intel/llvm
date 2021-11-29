@@ -202,14 +202,6 @@ joint_matrix_mad(Group sg, joint_matrix<T1, M, K, LayoutA, Group> &mA,
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-#ifdef __clang__
-template <typename T>
-using wi_slice_t = T __attribute__((ext_vector_type(0xffffff)));
-#else
-template <typename T>
-using wi_slice_t __attribute__((vector_size(0x800000))) = T;
-#endif // __clang__
-
 template <typename T, size_t NumRows, size_t NumCols,
           matrix_layout Layout = matrix_layout::row_major,
           typename Group = sycl::sub_group>
