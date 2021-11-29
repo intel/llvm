@@ -49,9 +49,9 @@ extension specification that enables indirect function calls.
 ### An exported device function
 
 The term "exported device function" means a device function that is exported
-from a shared library as defined by [Device Code Dynamic Linking][5].
+from a shared library as defined by [Device Code Dynamic Linking][4].
 
-[5]: <SharedLibraries.md>
+[4]: <SharedLibraries.md>
 
 ### The FE compiler
 
@@ -263,10 +263,10 @@ kernels into device images that FPGA users expect.
 
 Note that these switches are useful even for non-FPGA users.  For example,
 non-FPGA users may want to use the `device_global` property
-[`device_image_scope`][6], which requires even non-FPGA users to have precise
+[`device_image_scope`][5], which requires even non-FPGA users to have precise
 control over the way kernels are bundled into device images.
 
-[6]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc#properties-for-device-global-variables>
+[5]: <extensions/DeviceGlobal/SYCL_INTEL_device_global.asciidoc#properties-for-device-global-variables>
 
 The new definition of `-fsycl-device-code-split` is as follows:
 
@@ -367,11 +367,11 @@ void amx_multiply();
 
 This attribute can also be used to decorate class templates where only certain
 instantiations correspond to optional features.  See ["Appendix: Adding an
-attribute to 8-byte `atomic_ref`"][7] for an illustration of how this attribute
+attribute to 8-byte `atomic_ref`"][6] for an illustration of how this attribute
 can be used in conjunction with partial specialization to mark only certain
 instantiations of `sycl::atomic_ref` as an optional feature.
 
-[7]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
+[6]: <#appendix-adding-an-attribute-to-8-byte-atomic_ref>
 
 Although the examples above show only a single aspect parameter to the
 `[[sycl_detail::uses_aspects()]]` attribute, this attribute should support a
@@ -546,7 +546,7 @@ uses an aspect that is not in the declared set, the implementation issues a
 warning.
 
 Diagnosing warnings for the fifth bullet point requires the [device
-configuration file][8] which gives the set of allowed optional features for
+configuration file][7] which gives the set of allowed optional features for
 each target device.  The implementation looks for functions that have either
 `!intel_declared_aspects` or `!intel_used_aspects`, and it compares the aspects
 from these metadata to the allowed list in the configuration file.  If any
@@ -557,7 +557,7 @@ sub-group size or the required work-group size is not allowed for the target
 devices according to the configuration file, the implementation issues a
 warning.
 
-[8]: <#device-configuration-file>
+[7]: <#device-configuration-file>
 
 One weakness of this design is that the warning message will only be able to
 contain the source location of the problem if the compiler was invoked with
@@ -1031,7 +1031,7 @@ raise a synchronous `errc::kernel_not_supported` exception.
 
 When the application submits a kernel to a device, the runtime identifies all
 the other device images that export device functions which are needed by the
-kernel as described in [Device Code Dynamic Linking][5].  Before the runtime
+kernel as described in [Device Code Dynamic Linking][4].  Before the runtime
 actually links these images together, it compares each image's
 "SYCL/device requirements" against the features provided by the target
 device.  If any of the following checks fail, the runtime throws
@@ -1070,7 +1070,7 @@ sub-group size.
 
 ## Appendix: Adding an attribute to 8-byte `atomic_ref`
 
-As described above under ["Changes to DPC++ headers"][9], we need to decorate
+As described above under ["Changes to DPC++ headers"][8], we need to decorate
 any SYCL type representing an optional device feature with the
 `[[sycl_detail::uses_aspects()]]` attribute.  This is somewhat tricky for
 `atomic_ref`, though, because it is only an optional feature when specialized
@@ -1078,7 +1078,7 @@ for a 8-byte type.  However, we can accomplish this by using partial
 specialization techniques.  The following code snippet demonstrates (best read
 from bottom to top):
 
-[9]: <#changes-to-dpc-headers>
+[8]: <#changes-to-dpc-headers>
 
 ```
 namespace sycl {
