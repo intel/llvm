@@ -59,6 +59,7 @@ enum InternalDecoration {
   IDecPipelineEnableINTEL = 5919,
   IDecRuntimeAlignedINTEL = 5940,
   IDecCallableFunctionINTEL = 6087,
+  IDecArgumentAttributeINTEL = 6409,
   IDecFuncParamKindINTEL = 9624,
   IDecFuncParamDescINTEL = 9625
 };
@@ -139,6 +140,8 @@ constexpr Decoration DecorationCallableFunctionINTEL =
     static_cast<Decoration>(IDecCallableFunctionINTEL);
 constexpr Decoration DecorationRuntimeAlignedINTEL =
     static_cast<Decoration>(IDecRuntimeAlignedINTEL);
+constexpr Decoration DecorationArgumentAttributeINTEL =
+    static_cast<Decoration>(IDecArgumentAttributeINTEL);
 constexpr Decoration DecorationFuncParamKindINTEL =
     static_cast<Decoration>(IDecFuncParamKindINTEL);
 constexpr Decoration DecorationFuncParamDescINTEL =
