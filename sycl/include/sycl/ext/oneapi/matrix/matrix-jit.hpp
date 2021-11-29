@@ -65,8 +65,8 @@ public:
   }
 
   inline __SYCL_ALWAYS_INLINE wi_slice<T, NumRows, NumCols, Layout, Group>
-  get_wi_slice() {
-    return wi_slice(*this);
+  get_wi_data() {
+    return wi_slice<T, NumRows, NumCols, Layout, Group>(*this);
   }
 };
 

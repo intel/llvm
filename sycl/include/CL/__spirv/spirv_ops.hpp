@@ -96,8 +96,8 @@ extern SYCL_EXTERNAL __spirv_wi_slice_t<T> &__spirv_JointMatrixGetSliceData(
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
-extern SYCL_EXTERNAL
-size_t __spirv_JointMatrixGetSliceLength(__spv::__spirv_JointMatrixINTEL<T, R, C, U, S>*);
+extern SYCL_EXTERNAL size_t __spirv_JointMatrixGetSliceLength(
+    __spv::__spirv_JointMatrixINTEL<T, R, C, U, S> *);
 
 template <typename T, std::size_t R, std::size_t C, __spv::MatrixLayout U,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
