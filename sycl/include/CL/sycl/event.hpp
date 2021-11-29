@@ -132,7 +132,7 @@ public:
   /// \return a native handle, the type of which defined by the backend.
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> backend_return_t<Backend, event> {
+  backend_return_t<Backend, event> get_native() const {
     return reinterpret_cast<backend_return_t<Backend, event>>(getNative());
   }
 
