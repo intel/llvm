@@ -34,6 +34,9 @@ extern "C" void __tsan_resume() {
   __tsan_resumed = 1;
 }
 
+SANITIZER_WEAK_DEFAULT_IMPL
+void __tsan_test_only_on_fork() {}
+
 namespace __tsan {
 
 #if !SANITIZER_GO
@@ -148,15 +151,19 @@ ThreadState::ThreadState(Context *ctx, Tid tid, int unique_id, u64 epoch,
 {
   CHECK_EQ(reinterpret_cast<uptr>(this) % SANITIZER_CACHE_LINE_SIZE, 0);
 #if !SANITIZER_GO
-  shadow_stack_pos = shadow_stack;
-  shadow_stack_end = shadow_stack + kShadowStackSize;
+  // C/C++ uses fixed size shadow stack.
+  const int kInitStackSize = kShadowStackSize;
+  shadow_stack = static_cast<uptr *>(
+      MmapNoReserveOrDie(kInitStackSize * sizeof(uptr), "shadow stack"));
+  SetShadowRegionHugePageMode(reinterpret_cast<uptr>(shadow_stack),
+                              kInitStackSize * sizeof(uptr));
 #else
-  // Setup dynamic shadow stack.
+  // Go uses malloc-allocated shadow stack with dynamic size.
   const int kInitStackSize = 8;
-  shadow_stack = (uptr *)Alloc(kInitStackSize * sizeof(uptr));
+  shadow_stack = static_cast<uptr *>(Alloc(kInitStackSize * sizeof(uptr)));
+#endif
   shadow_stack_pos = shadow_stack;
   shadow_stack_end = shadow_stack + kInitStackSize;
-#endif
 }
 
 #if !SANITIZER_GO
@@ -487,6 +494,7 @@ void ForkBefore(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   ctx->thread_registry.Lock();
   ctx->report_mtx.Lock();
   ScopedErrorReportLock::Lock();
+  AllocatorLock();
   // Suppress all reports in the pthread_atfork callbacks.
   // Reports will deadlock on the report_mtx.
   // We could ignore sync operations as well,
@@ -495,20 +503,27 @@ void ForkBefore(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   thr->suppress_reports++;
   // On OS X, REAL(fork) can call intercepted functions (OSSpinLockLock), and
   // we'll assert in CheckNoLocks() unless we ignore interceptors.
+  // On OS X libSystem_atfork_prepare/parent/child callbacks are called
+  // after/before our callbacks and they call free.
   thr->ignore_interceptors++;
+
+  __tsan_test_only_on_fork();
 }
 
 void ForkParentAfter(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   thr->suppress_reports--;  // Enabled in ForkBefore.
   thr->ignore_interceptors--;
+  AllocatorUnlock();
   ScopedErrorReportLock::Unlock();
   ctx->report_mtx.Unlock();
   ctx->thread_registry.Unlock();
 }
 
-void ForkChildAfter(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
+void ForkChildAfter(ThreadState *thr, uptr pc,
+                    bool start_thread) NO_THREAD_SAFETY_ANALYSIS {
   thr->suppress_reports--;  // Enabled in ForkBefore.
   thr->ignore_interceptors--;
+  AllocatorUnlock();
   ScopedErrorReportLock::Unlock();
   ctx->report_mtx.Unlock();
   ctx->thread_registry.Unlock();
@@ -518,7 +533,8 @@ void ForkChildAfter(ThreadState *thr, uptr pc) NO_THREAD_SAFETY_ANALYSIS {
   VPrintf(1, "ThreadSanitizer: forked new process with pid %d,"
       " parent had %d threads\n", (int)internal_getpid(), (int)nthread);
   if (nthread == 1) {
-    StartBackgroundThread();
+    if (start_thread)
+      StartBackgroundThread();
   } else {
     // We've just forked a multi-threaded process. We cannot reasonably function
     // after that (some mutexes may be locked before fork). So just enable
@@ -741,14 +757,17 @@ using namespace __tsan;
 MutexMeta mutex_meta[] = {
     {MutexInvalid, "Invalid", {}},
     {MutexThreadRegistry, "ThreadRegistry", {}},
-    {MutexTypeTrace, "Trace", {MutexLeaf}},
-    {MutexTypeReport, "Report", {MutexTypeSyncVar}},
-    {MutexTypeSyncVar, "SyncVar", {}},
+    {MutexTypeTrace, "Trace", {}},
+    {MutexTypeReport,
+     "Report",
+     {MutexTypeSyncVar, MutexTypeGlobalProc, MutexTypeTrace}},
+    {MutexTypeSyncVar, "SyncVar", {MutexTypeTrace}},
     {MutexTypeAnnotations, "Annotations", {}},
     {MutexTypeAtExit, "AtExit", {MutexTypeSyncVar}},
     {MutexTypeFired, "Fired", {MutexLeaf}},
     {MutexTypeRacy, "Racy", {MutexLeaf}},
     {MutexTypeGlobalProc, "GlobalProc", {}},
+    {MutexTypeInternalAlloc, "InternalAlloc", {MutexLeaf}},
     {},
 };
 

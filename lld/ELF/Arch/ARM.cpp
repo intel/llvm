@@ -84,6 +84,13 @@ uint32_t ARM::calcEFlags() const {
 RelExpr ARM::getRelExpr(RelType type, const Symbol &s,
                         const uint8_t *loc) const {
   switch (type) {
+  case R_ARM_ABS32:
+  case R_ARM_MOVW_ABS_NC:
+  case R_ARM_MOVT_ABS:
+  case R_ARM_THM_MOVW_ABS_NC:
+  case R_ARM_THM_MOVT_ABS:
+    return R_ABS;
+  case R_ARM_THM_JUMP8:
   case R_ARM_THM_JUMP11:
     return R_PC;
   case R_ARM_CALL:
@@ -156,7 +163,9 @@ RelExpr ARM::getRelExpr(RelType type, const Symbol &s,
     // not ARMv4 output, we can just ignore it.
     return R_NONE;
   default:
-    return R_ABS;
+    error(getErrorLocation(loc) + "unknown relocation (" + Twine(type) +
+          ") against symbol " + toString(s));
+    return R_NONE;
   }
 }
 
@@ -512,7 +521,13 @@ void ARM::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     checkInt(loc, val, 26, rel);
     write32le(loc, (read32le(loc) & ~0x00ffffff) | ((val >> 2) & 0x00ffffff));
     break;
+  case R_ARM_THM_JUMP8:
+    // We do a 9 bit check because val is right-shifted by 1 bit.
+    checkInt(loc, val, 9, rel);
+    write16le(loc, (read32le(loc) & 0xff00) | ((val >> 1) & 0x00ff));
+    break;
   case R_ARM_THM_JUMP11:
+    // We do a 12 bit check because val is right-shifted by 1 bit.
     checkInt(loc, val, 12, rel);
     write16le(loc, (read32le(loc) & 0xf800) | ((val >> 1) & 0x07ff));
     break;
@@ -702,8 +717,7 @@ void ARM::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     break;
   }
   default:
-    error(getErrorLocation(loc) + "unrecognized relocation " +
-          toString(rel.type));
+    llvm_unreachable("unknown relocation");
   }
 }
 
@@ -741,6 +755,8 @@ int64_t ARM::getImplicitAddend(const uint8_t *buf, RelType type) const {
   case R_ARM_PC24:
   case R_ARM_PLT32:
     return SignExtend64<26>(read32le(buf) << 2);
+  case R_ARM_THM_JUMP8:
+    return SignExtend64<9>(read16le(buf) << 1);
   case R_ARM_THM_JUMP11:
     return SignExtend64<12>(read16le(buf) << 1);
   case R_ARM_THM_JUMP19: {

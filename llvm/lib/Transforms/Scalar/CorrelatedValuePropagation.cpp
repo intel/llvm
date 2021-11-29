@@ -52,6 +52,11 @@ using namespace llvm;
 
 #define DEBUG_TYPE "correlated-value-propagation"
 
+static cl::opt<bool> CanonicalizeICmpPredicatesToUnsigned(
+    "canonicalize-icmp-predicates-to-unsigned", cl::init(true), cl::Hidden,
+    cl::desc("Enables canonicalization of signed relational predicates to "
+             "unsigned (e.g. sgt => ugt)"));
+
 STATISTIC(NumPhis,      "Number of phis propagated");
 STATISTIC(NumPhiCommon, "Number of phis deleted via common incoming value");
 STATISTIC(NumSelects,   "Number of selects propagated");
@@ -67,6 +72,7 @@ STATISTIC(NumUDivURemsNarrowed,
 STATISTIC(NumAShrs,     "Number of ashr converted to lshr");
 STATISTIC(NumSRems,     "Number of srem converted to urem");
 STATISTIC(NumSExt,      "Number of sext converted to zext");
+STATISTIC(NumSICmps,    "Number of signed icmp preds simplified to unsigned");
 STATISTIC(NumAnd,       "Number of ands removed");
 STATISTIC(NumNW,        "Number of no-wrap deductions");
 STATISTIC(NumNSW,       "Number of no-signed-wrap deductions");
@@ -295,11 +301,37 @@ static bool processMemAccess(Instruction *I, LazyValueInfo *LVI) {
   return true;
 }
 
+static bool processICmp(ICmpInst *Cmp, LazyValueInfo *LVI) {
+  if (!CanonicalizeICmpPredicatesToUnsigned)
+    return false;
+
+  // Only for signed relational comparisons of scalar integers.
+  if (Cmp->getType()->isVectorTy() ||
+      !Cmp->getOperand(0)->getType()->isIntegerTy())
+    return false;
+
+  if (!Cmp->isSigned())
+    return false;
+
+  ICmpInst::Predicate UnsignedPred =
+      ConstantRange::getEquivalentPredWithFlippedSignedness(
+          Cmp->getPredicate(), LVI->getConstantRange(Cmp->getOperand(0), Cmp),
+          LVI->getConstantRange(Cmp->getOperand(1), Cmp));
+
+  if (UnsignedPred == ICmpInst::Predicate::BAD_ICMP_PREDICATE)
+    return false;
+
+  ++NumSICmps;
+  Cmp->setPredicate(UnsignedPred);
+
+  return true;
+}
+
 /// See if LazyValueInfo's ability to exploit edge conditions or range
 /// information is sufficient to prove this comparison. Even for local
 /// conditions, this can sometimes prove conditions instcombine can't by
 /// exploiting range information.
-static bool processCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
+static bool constantFoldCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
   Value *Op0 = Cmp->getOperand(0);
   auto *C = dyn_cast<Constant>(Cmp->getOperand(1));
   if (!C)
@@ -316,6 +348,17 @@ static bool processCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
   Cmp->replaceAllUsesWith(TorF);
   Cmp->eraseFromParent();
   return true;
+}
+
+static bool processCmp(CmpInst *Cmp, LazyValueInfo *LVI) {
+  if (constantFoldCmp(Cmp, LVI))
+    return true;
+
+  if (auto *ICmp = dyn_cast<ICmpInst>(Cmp))
+    if (processICmp(ICmp, LVI))
+      return true;
+
+  return false;
 }
 
 /// Simplify a switch instruction by removing cases which can never fire. If the
@@ -628,7 +671,7 @@ static bool processCallSite(CallBase &CB, LazyValueInfo *LVI) {
     ArgNo++;
   }
 
-  assert(ArgNo == CB.arg_size() && "sanity check");
+  assert(ArgNo == CB.arg_size() && "Call arguments not processed correctly.");
 
   if (ArgNos.empty())
     return Changed;

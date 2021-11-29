@@ -96,7 +96,7 @@ Address CodeGenFunction::CreateTempAlloca(llvm::Type *Ty, CharUnits Align,
     // otherwise alloca is inserted at the current insertion point of the
     // builder.
     if (!ArraySize)
-      Builder.SetInsertPoint(AllocaInsertPt);
+      Builder.SetInsertPoint(getPostAllocaInsertPoint());
     V = getTargetHooks().performAddrSpaceCast(
         *this, V, getASTAllocaAddressSpace(), LangAS::Default,
         Ty->getPointerTo(DestAddrSpace), /*non-null*/ true);
@@ -569,8 +569,7 @@ EmitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *M) {
   // Perform derived-to-base casts and/or field accesses, to get from the
   // temporary object we created (and, potentially, for which we extended
   // the lifetime) to the subobject we're binding the reference to.
-  for (unsigned I = Adjustments.size(); I != 0; --I) {
-    SubobjectAdjustment &Adjustment = Adjustments[I-1];
+  for (SubobjectAdjustment &Adjustment : llvm::reverse(Adjustments)) {
     switch (Adjustment.Kind) {
     case SubobjectAdjustment::DerivedToBaseAdjustment:
       Object =

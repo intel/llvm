@@ -1017,6 +1017,9 @@ ARMTargetLowering::ARMTargetLowering(const TargetMachine &TM,
     setTargetDAGCombine(ISD::SELECT);
     setTargetDAGCombine(ISD::SELECT_CC);
   }
+  if (Subtarget->hasMVEFloatOps()) {
+    setTargetDAGCombine(ISD::FADD);
+  }
 
   if (!Subtarget->hasFP64()) {
     // When targeting a floating-point unit with only single-precision
@@ -3278,26 +3281,24 @@ bool ARMTargetLowering::isUsedByReturnOnly(SDNode *N, SDValue &Chain) const {
     SDNode *VMov = Copy;
     // f64 returned in a pair of GPRs.
     SmallPtrSet<SDNode*, 2> Copies;
-    for (SDNode::use_iterator UI = VMov->use_begin(), UE = VMov->use_end();
-         UI != UE; ++UI) {
-      if (UI->getOpcode() != ISD::CopyToReg)
+    for (SDNode *U : VMov->uses()) {
+      if (U->getOpcode() != ISD::CopyToReg)
         return false;
-      Copies.insert(*UI);
+      Copies.insert(U);
     }
     if (Copies.size() > 2)
       return false;
 
-    for (SDNode::use_iterator UI = VMov->use_begin(), UE = VMov->use_end();
-         UI != UE; ++UI) {
-      SDValue UseChain = UI->getOperand(0);
+    for (SDNode *U : VMov->uses()) {
+      SDValue UseChain = U->getOperand(0);
       if (Copies.count(UseChain.getNode()))
         // Second CopyToReg
-        Copy = *UI;
+        Copy = U;
       else {
         // We are at the top of this chain.
         // If the copy has a glue operand, we conservatively assume it
         // isn't safe to perform a tail call.
-        if (UI->getOperand(UI->getNumOperands()-1).getValueType() == MVT::Glue)
+        if (U->getOperand(U->getNumOperands() - 1).getValueType() == MVT::Glue)
           return false;
         // First CopyToReg
         TCChain = UseChain;
@@ -3320,10 +3321,9 @@ bool ARMTargetLowering::isUsedByReturnOnly(SDNode *N, SDValue &Chain) const {
   }
 
   bool HasRet = false;
-  for (SDNode::use_iterator UI = Copy->use_begin(), UE = Copy->use_end();
-       UI != UE; ++UI) {
-    if (UI->getOpcode() != ARMISD::RET_FLAG &&
-        UI->getOpcode() != ARMISD::INTRET_FLAG)
+  for (const SDNode *U : Copy->uses()) {
+    if (U->getOpcode() != ARMISD::RET_FLAG &&
+        U->getOpcode() != ARMISD::INTRET_FLAG)
       return false;
     HasRet = true;
   }
@@ -4536,7 +4536,7 @@ SDValue ARMTargetLowering::LowerFormalArguments(
 
       InVals.push_back(ArgValue);
     } else { // VA.isRegLoc()
-      // sanity check
+      // Only arguments passed on the stack should make it here.
       assert(VA.isMemLoc());
       assert(VA.getValVT() != MVT::i64 && "i64 should already be lowered");
 
@@ -8108,7 +8108,7 @@ SDValue ARMTargetLowering::ReconstructShuffle(SDValue Op,
     Src.WindowBase *= Src.WindowScale;
   }
 
-  // Final sanity check before we try to actually produce a shuffle.
+  // Final check before we try to actually produce a shuffle.
   LLVM_DEBUG(for (auto Src
                   : Sources)
                  assert(Src.ShuffleVec.getValueType() == ShuffleVT););
@@ -10590,10 +10590,9 @@ void ARMTargetLowering::EmitSjLjDispatchBlock(MachineInstr &MI,
   LPadList.reserve(CallSiteNumToLPad.size());
   for (unsigned I = 1; I <= MaxCSNum; ++I) {
     SmallVectorImpl<MachineBasicBlock*> &MBBList = CallSiteNumToLPad[I];
-    for (SmallVectorImpl<MachineBasicBlock*>::iterator
-           II = MBBList.begin(), IE = MBBList.end(); II != IE; ++II) {
-      LPadList.push_back(*II);
-      InvokeBBs.insert((*II)->pred_begin(), (*II)->pred_end());
+    for (MachineBasicBlock *MBB : MBBList) {
+      LPadList.push_back(MBB);
+      InvokeBBs.insert(MBB->pred_begin(), MBB->pred_end());
     }
   }
 
@@ -10882,9 +10881,7 @@ void ARMTargetLowering::EmitSjLjDispatchBlock(MachineInstr &MI,
 
   // Add the jump table entries as successors to the MBB.
   SmallPtrSet<MachineBasicBlock*, 8> SeenMBBs;
-  for (std::vector<MachineBasicBlock*>::iterator
-         I = LPadList.begin(), E = LPadList.end(); I != E; ++I) {
-    MachineBasicBlock *CurMBB = *I;
+  for (MachineBasicBlock *CurMBB : LPadList) {
     if (SeenMBBs.insert(CurMBB).second)
       DispContBB->addSuccessor(CurMBB);
   }
@@ -10946,9 +10943,8 @@ void ARMTargetLowering::EmitSjLjDispatchBlock(MachineInstr &MI,
 
   // Mark all former landing pads as non-landing pads. The dispatch is the only
   // landing pad now.
-  for (SmallVectorImpl<MachineBasicBlock*>::iterator
-         I = MBBLPads.begin(), E = MBBLPads.end(); I != E; ++I)
-    (*I)->setIsEHPad(false);
+  for (MachineBasicBlock *MBBLPad : MBBLPads)
+    MBBLPad->setIsEHPad(false);
 
   // The instruction is gone now.
   MI.eraseFromParent();
@@ -10956,10 +10952,9 @@ void ARMTargetLowering::EmitSjLjDispatchBlock(MachineInstr &MI,
 
 static
 MachineBasicBlock *OtherSucc(MachineBasicBlock *MBB, MachineBasicBlock *Succ) {
-  for (MachineBasicBlock::succ_iterator I = MBB->succ_begin(),
-       E = MBB->succ_end(); I != E; ++I)
-    if (*I != Succ)
-      return *I;
+  for (MachineBasicBlock *S : MBB->successors())
+    if (S != Succ)
+      return S;
   llvm_unreachable("Expecting a BB with two successors!");
 }
 
@@ -11457,13 +11452,9 @@ static bool checkAndUpdateCPSRKill(MachineBasicBlock::iterator SelectItr,
   // If we hit the end of the block, check whether CPSR is live into a
   // successor.
   if (miI == BB->end()) {
-    for (MachineBasicBlock::succ_iterator sItr = BB->succ_begin(),
-                                          sEnd = BB->succ_end();
-         sItr != sEnd; ++sItr) {
-      MachineBasicBlock* succ = *sItr;
-      if (succ->isLiveIn(ARM::CPSR))
+    for (MachineBasicBlock *Succ : BB->successors())
+      if (Succ->isLiveIn(ARM::CPSR))
         return false;
-    }
   }
 
   // We found a def, or hit the end of the basic block and CPSR wasn't live
@@ -16419,6 +16410,42 @@ static SDValue PerformVCVTCombine(SDNode *N, SelectionDAG &DAG,
   return FixConv;
 }
 
+static SDValue PerformFAddVSelectCombine(SDNode *N, SelectionDAG &DAG,
+                                         const ARMSubtarget *Subtarget) {
+  if (!Subtarget->hasMVEFloatOps())
+    return SDValue();
+
+  // Turn (fadd x, (vselect c, y, -0.0)) into (vselect c, (fadd x, y), x)
+  // The second form can be more easily turned into a predicated vadd, and
+  // possibly combined into a fma to become a predicated vfma.
+  SDValue Op0 = N->getOperand(0);
+  SDValue Op1 = N->getOperand(1);
+  EVT VT = N->getValueType(0);
+  SDLoc DL(N);
+
+  // The identity element for a fadd is -0.0, which these VMOV's represent.
+  auto isNegativeZeroSplat = [&](SDValue Op) {
+    if (Op.getOpcode() != ISD::BITCAST ||
+        Op.getOperand(0).getOpcode() != ARMISD::VMOVIMM)
+      return false;
+    if (VT == MVT::v4f32 && Op.getOperand(0).getConstantOperandVal(0) == 1664)
+      return true;
+    if (VT == MVT::v8f16 && Op.getOperand(0).getConstantOperandVal(0) == 2688)
+      return true;
+    return false;
+  };
+
+  if (Op0.getOpcode() == ISD::VSELECT && Op1.getOpcode() != ISD::VSELECT)
+    std::swap(Op0, Op1);
+
+  if (Op1.getOpcode() != ISD::VSELECT ||
+      !isNegativeZeroSplat(Op1.getOperand(2)))
+    return SDValue();
+  SDValue FAdd =
+      DAG.getNode(ISD::FADD, DL, VT, Op0, Op1.getOperand(1), N->getFlags());
+  return DAG.getNode(ISD::VSELECT, DL, VT, Op1.getOperand(0), FAdd, Op0);
+}
+
 /// PerformVDIVCombine - VCVT (fixed-point to floating-point, Advanced SIMD)
 /// can replace combinations of VCVT (integer to floating-point) and VDIV
 /// when the VDIV has a constant operand that is a power of 2.
@@ -18213,6 +18240,8 @@ SDValue ARMTargetLowering::PerformDAGCombine(SDNode *N,
   case ISD::FP_TO_SINT:
   case ISD::FP_TO_UINT:
     return PerformVCVTCombine(N, DCI.DAG, Subtarget);
+  case ISD::FADD:
+    return PerformFAddVSelectCombine(N, DCI.DAG, Subtarget);
   case ISD::FDIV:
     return PerformVDIVCombine(N, DCI.DAG, Subtarget);
   case ISD::INTRINSIC_WO_CHAIN:
@@ -20687,10 +20716,7 @@ bool ARMTargetLowering::shouldInsertFencesForAtomic(
   return InsertFencesForAtomic;
 }
 
-// This has so far only been implemented for MachO.
-bool ARMTargetLowering::useLoadStackGuardNode() const {
-  return Subtarget->isTargetMachO();
-}
+bool ARMTargetLowering::useLoadStackGuardNode() const { return true; }
 
 void ARMTargetLowering::insertSSPDeclarations(Module &M) const {
   if (!Subtarget->getTargetTriple().isWindowsMSVCEnvironment())

@@ -118,17 +118,19 @@ configure_file("${feature_header}.in" "${feature_header}")
 # TODO: detect and process remove header/directory case
 file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
 file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
+string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
+  OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
+string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
+  OUT_HEADERS_IN_CL_DIR "${HEADERS_IN_CL_DIR}")
 
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
-  DEPENDS ${SYCL_INCLUDE_BUILD_DIR}/sycl
-          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
-          ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL)
+  DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
+          ${OUT_HEADERS_IN_CL_DIR})
 
 add_custom_command(
-  OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl
-          ${SYCL_INCLUDE_BUILD_DIR}/sycl/sycl.hpp
-          ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
+          ${OUT_HEADERS_IN_CL_DIR}
   DEPENDS ${HEADERS_IN_SYCL_DIR}
           ${HEADERS_IN_CL_DIR}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
@@ -240,6 +242,11 @@ endif()
 option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
+
+# Ensure that HIP platform is uppercase, to match buildbot's output.
+if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+endif()
 
 # Plugin Library
 add_subdirectory( plugins )

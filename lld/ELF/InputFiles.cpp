@@ -837,21 +837,25 @@ template <class ELFT> static uint32_t readAndFeatures(const InputSection &sec) {
 }
 
 template <class ELFT>
-InputSectionBase *ObjFile<ELFT>::getRelocTarget(const Elf_Shdr &sec) {
-  uint32_t idx = sec.sh_info;
-  if (idx >= this->sections.size())
-    fatal(toString(this) + ": invalid relocated section index: " + Twine(idx));
-  InputSectionBase *target = this->sections[idx];
+InputSectionBase *ObjFile<ELFT>::getRelocTarget(uint32_t idx, StringRef name,
+                                                const Elf_Shdr &sec) {
+  uint32_t info = sec.sh_info;
+  if (info < this->sections.size()) {
+    InputSectionBase *target = this->sections[info];
 
-  // Strictly speaking, a relocation section must be included in the
-  // group of the section it relocates. However, LLVM 3.3 and earlier
-  // would fail to do so, so we gracefully handle that case.
-  if (target == &InputSection::discarded)
-    return nullptr;
+    // Strictly speaking, a relocation section must be included in the
+    // group of the section it relocates. However, LLVM 3.3 and earlier
+    // would fail to do so, so we gracefully handle that case.
+    if (target == &InputSection::discarded)
+      return nullptr;
 
-  if (!target)
-    fatal(toString(this) + ": unsupported relocation reference");
-  return target;
+    if (target != nullptr)
+      return target;
+  }
+
+  error(toString(this) + Twine(": relocation section ") + name + " (index " +
+        Twine(idx) + ") has invalid sh_info (" + Twine(info) + ")");
+  return nullptr;
 }
 
 // Create a regular InputSection class that has the same contents
@@ -939,7 +943,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
     // and the group is discarded, even though it's a violation of the
     // spec. We handle that situation gracefully by discarding dangling
     // relocation sections.
-    InputSectionBase *target = getRelocTarget(sec);
+    InputSectionBase *target = getRelocTarget(idx, name, sec);
     if (!target)
       return nullptr;
 
@@ -962,7 +966,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
     // `nullptr` for the normal case. However, if -r or --emit-relocs is
     // specified, we need to copy them to the output. (Some post link analysis
     // tools specify --emit-relocs to obtain the information.)
-    if (!config->relocatable && !config->emitRelocs)
+    if (!config->copyRelocs)
       return nullptr;
     InputSection *relocSec = make<InputSection>(*this, sec, name);
     // If the relocated section is discarded (due to /DISCARD/ or
