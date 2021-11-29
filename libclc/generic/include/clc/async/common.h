@@ -9,24 +9,26 @@
 #ifndef CLC_ASYNC_COMMON
 #define CLC_ASYNC_COMMON
 
-// Macro used by all data types, for generic and nvidia, for async copy when
-// arch < sm80
-#define STRIDED_COPY(DST_AS, SRC_AS, DST_STRIDE, SRC_STRIDE)                   \
-  size_t size, id;                                                             \
+#define SET_GROUP_SIZE_AND_ID(SIZE, ID)                                        \
   if (scope == Workgroup) {                                                    \
-    size = __spirv_WorkgroupSize_x() * __spirv_WorkgroupSize_y() *             \
+    SIZE = __spirv_WorkgroupSize_x() * __spirv_WorkgroupSize_y() *             \
            __spirv_WorkgroupSize_z();                                          \
-    id = (__spirv_WorkgroupSize_y() * __spirv_WorkgroupSize_x() *              \
+    ID = (__spirv_WorkgroupSize_y() * __spirv_WorkgroupSize_x() *              \
           __spirv_LocalInvocationId_z()) +                                     \
          (__spirv_WorkgroupSize_x() * __spirv_LocalInvocationId_y()) +         \
          __spirv_LocalInvocationId_x();                                        \
   } else {                                                                     \
-    size = __spirv_SubgroupSize();                                             \
-    id = __spirv_SubgroupLocalInvocationId();                                  \
-  }                                                                            \
-  size_t i;                                                                    \
-                                                                               \
-  for (i = id; i < num_gentypes; i += size) {                                  \
+    SIZE = __spirv_SubgroupSize();                                             \
+    ID = __spirv_SubgroupLocalInvocationId();                                  \
+  }
+
+
+// Macro used by all data types, for generic and nvidia, for async copy when
+// arch < sm80
+#define STRIDED_COPY(DST_AS, SRC_AS, DST_STRIDE, SRC_STRIDE)                   \
+  size_t size, id;                                                             \
+  SET_GROUP_SIZE_AND_ID(size, id);                                             \
+  for (size_t i = id; i < num_gentypes; i += size) {                           \
     dst[i * DST_STRIDE] = src[i * SRC_STRIDE];                                 \
   }
 

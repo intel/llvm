@@ -40,19 +40,8 @@ __CLC_GROUP_CP_ASYNC_DST_GLOBAL(double);
       size_t stride, event_t event) {                                          \
     if (__nvvm_reflect("__CUDA_ARCH") >= 800) {                                \
       size_t id, size;                                                         \
-      if (scope == Workgroup) {                                                \
-        id = (__spirv_WorkgroupSize_y() * __spirv_WorkgroupSize_x() *          \
-              __spirv_LocalInvocationId_z()) +                                 \
-             (__spirv_WorkgroupSize_x() * __spirv_LocalInvocationId_y()) +     \
-             __spirv_LocalInvocationId_x();                                    \
-        size = __spirv_WorkgroupSize_x() * __spirv_WorkgroupSize_y() *         \
-               __spirv_WorkgroupSize_z();                                      \
-      } else {                                                                 \
-        size = __spirv_SubgroupSize();                                         \
-        id = __spirv_SubgroupLocalInvocationId();                              \
-      }                                                                        \
-      size_t i;                                                                \
-      for (i = id; i < num_gentypes; i += size) {                              \
+      SET_GROUP_SIZE_AND_ID(size, id);                                         \
+      for (size_t i = id; i < num_gentypes; i += size) {                       \
         __nvvm_cp_async_ca_shared_global_4(dst + i, src + i * stride);         \
       }                                                                        \
       __nvvm_cp_async_commit_group();                                          \
@@ -76,19 +65,8 @@ __CLC_GROUP_CP_ASYNC_4(float);
       size_t stride, event_t event) {                                          \
     if (__nvvm_reflect("__CUDA_ARCH") >= 800) {                                \
       size_t id, size;                                                         \
-      if (scope == Workgroup) {                                                \
-        id = (__spirv_WorkgroupSize_y() * __spirv_WorkgroupSize_x() *          \
-              __spirv_LocalInvocationId_z()) +                                 \
-             (__spirv_WorkgroupSize_x() * __spirv_LocalInvocationId_y()) +     \
-             __spirv_LocalInvocationId_x();                                    \
-        size = __spirv_WorkgroupSize_x() * __spirv_WorkgroupSize_y() *         \
-               __spirv_WorkgroupSize_z();                                      \
-      } else {                                                                 \
-        size = __spirv_SubgroupSize();                                         \
-        id = __spirv_SubgroupLocalInvocationId();                              \
-      }                                                                        \
-      size_t i;                                                                \
-      for (i = id; i < num_gentypes; i += size) {                              \
+      SET_GROUP_SIZE_AND_ID(size, id);                                         \
+      for (size_t i = id; i < num_gentypes; i += size) {                       \
         __nvvm_cp_async_ca_shared_global_8(dst + i, src + i * stride);         \
       }                                                                        \
       __nvvm_cp_async_commit_group();                                          \
