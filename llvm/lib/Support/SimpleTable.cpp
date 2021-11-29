@@ -39,12 +39,10 @@ StringRef SimpleTable::Row::getCell(StringRef ColName,
 }
 
 SimpleTable::SimpleTable(ArrayRef<StringRef> ColNames) {
-  for (auto N : ColNames)
-    if (Error Err = addColumnName(N)) {
-      constexpr char Msg[] = "SimpleTable::SimpleTable internal error";
-      assert(false && Msg);
-      throw Msg;
-    }
+  for (auto N : ColNames) {
+    Error Err = addColumnName(N);
+    assert(!Err && "SimpleTable::SimpleTable internal error");
+  }
 }
 
 Expected<SimpleTable::UPtrTy>
