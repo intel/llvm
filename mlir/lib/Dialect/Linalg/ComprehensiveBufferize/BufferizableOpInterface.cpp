@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/Linalg/ComprehensiveBufferize/BufferizableOpInterface.h"
 
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -415,8 +416,8 @@ mlir::linalg::comprehensive_bufferize::bufferize(Operation *op,
                                                  BufferizationState &state) {
   OpBuilder b(op->getContext());
 
-  // Skip BufferCast and TensorLoad ops.
-  if (isa<memref::BufferCastOp, memref::TensorLoadOp>(op))
+  // Skip ToMemrefOp and ToTensorOp.
+  if (isa<bufferization::ToMemrefOp, bufferization::ToTensorOp>(op))
     return success();
 
   // Check if op has tensor results or operands.
@@ -458,11 +459,13 @@ static void moveInsertionPointToAllocationHoistingBarrier(OpBuilder &b) {
     op = op->getParentOp();
   }
 
-  // FuncOp is an allocation hoisting barrier, so the above loop should never
-  // run out of parents.
-  assert(
-      (op && cast<BufferizableOpInterface>(op).isAllocationHoistingBarrier()) &&
-      "expected traversal to end at allocation hoisting barrier");
+  if (!op) {
+    // No allocation hoisting barrier found. Hoist to FuncOp.
+    op = b.getInsertionBlock()->getParentOp();
+    if (!isa<FuncOp>(op))
+      op = op->getParentOfType<FuncOp>();
+    assert(op && "could not find enclosing FuncOp");
+  }
 
   // TODO: Handle cases where allocation hoisting barrier has more than one
   // region or block.
