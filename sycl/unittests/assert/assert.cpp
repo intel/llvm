@@ -286,12 +286,10 @@ static pi_result redefinedKernelGetInfo(pi_kernel Kernel,
   if (PI_KERNEL_INFO_CONTEXT == ParamName) {
     cl_context Ctx = sycl::get_native<sycl::backend::opencl>(*Context);
 
-    if (ParamValue) {
+    if (ParamValue)
       memcpy(ParamValue, &Ctx, sizeof(Ctx));
-    }
-    if (ParamValueSizeRet) {
+    if (ParamValueSizeRet)
       *ParamValueSizeRet = sizeof(Ctx);
-    }
 
     return PI_SUCCESS;
   }
@@ -361,12 +359,10 @@ static pi_result redefinedProgramGetInfo(pi_program P,
 
     cl_device_id Dev = sycl::get_native<sycl::backend::opencl>(*Device);
 
-    if (ParamValue) {
+    if (ParamValue)
       memcpy(ParamValue, &Dev, sizeof(Dev));
-    }
-    if (ParamValueSizeRet) {
+    if (ParamValueSizeRet)
       *ParamValueSizeRet = sizeof(Dev);
-    }
 
     return PI_SUCCESS;
   }
