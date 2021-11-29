@@ -212,6 +212,9 @@ private:
 
   pi_native_handle getNative() const;
 
+  __SYCL_DEPRECATED("Use getNative() member function")
+  pi_native_handle getNativeImpl() const;
+
   std::shared_ptr<detail::kernel_impl> impl;
 
   template <class Obj>

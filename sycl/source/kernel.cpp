@@ -130,5 +130,7 @@ kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 pi_native_handle kernel::getNative() const { return impl->getNative(); }
 
+pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
