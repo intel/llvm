@@ -890,7 +890,6 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::ADD);
   setTargetDAGCombine(ISD::ABS);
   setTargetDAGCombine(ISD::SUB);
-  setTargetDAGCombine(ISD::SRL);
   setTargetDAGCombine(ISD::XOR);
   setTargetDAGCombine(ISD::SINT_TO_FP);
   setTargetDAGCombine(ISD::UINT_TO_FP);
@@ -1950,6 +1949,7 @@ const char *AArch64TargetLowering::getTargetNodeName(unsigned Opcode) const {
     MAKE_CASE(AArch64ISD::UDIV_PRED)
     MAKE_CASE(AArch64ISD::UMAX_PRED)
     MAKE_CASE(AArch64ISD::UMIN_PRED)
+    MAKE_CASE(AArch64ISD::SRAD_MERGE_OP1)
     MAKE_CASE(AArch64ISD::FNEG_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::SIGN_EXTEND_INREG_MERGE_PASSTHRU)
     MAKE_CASE(AArch64ISD::ZERO_EXTEND_INREG_MERGE_PASSTHRU)
@@ -2316,6 +2316,8 @@ static SDValue convertToScalableVector(SelectionDAG &DAG, EVT VT, SDValue V);
 static SDValue convertFromScalableVector(SelectionDAG &DAG, EVT VT, SDValue V);
 static SDValue convertFixedMaskToScalableVector(SDValue Mask,
                                                 SelectionDAG &DAG);
+static SDValue getPredicateForScalableVector(SelectionDAG &DAG, SDLoc &DL,
+                                             EVT VT);
 
 /// isZerosVector - Check whether SDNode N is a zero-filled vector.
 static bool isZerosVector(const SDNode *N) {
@@ -10963,8 +10965,40 @@ SDValue AArch64TargetLowering::LowerINSERT_SUBVECTOR(SDValue Op,
   return SDValue();
 }
 
+static bool isPow2Splat(SDValue Op, uint64_t &SplatVal, bool &Negated) {
+  if (Op.getOpcode() != AArch64ISD::DUP &&
+      Op.getOpcode() != ISD::SPLAT_VECTOR &&
+      Op.getOpcode() != ISD::BUILD_VECTOR)
+    return false;
+
+  if (Op.getOpcode() == ISD::BUILD_VECTOR &&
+      !isAllConstantBuildVector(Op, SplatVal))
+    return false;
+
+  if (Op.getOpcode() != ISD::BUILD_VECTOR &&
+      !isa<ConstantSDNode>(Op->getOperand(0)))
+    return false;
+
+  SplatVal = Op->getConstantOperandVal(0);
+  if (Op.getValueType().getVectorElementType() != MVT::i64)
+    SplatVal = (int32_t)SplatVal;
+
+  Negated = false;
+  if (isPowerOf2_64(SplatVal))
+    return true;
+
+  Negated = true;
+  if (isPowerOf2_64(-SplatVal)) {
+    SplatVal = -SplatVal;
+    return true;
+  }
+
+  return false;
+}
+
 SDValue AArch64TargetLowering::LowerDIV(SDValue Op, SelectionDAG &DAG) const {
   EVT VT = Op.getValueType();
+  SDLoc dl(Op);
 
   if (useSVEForFixedLengthVectorVT(VT, /*OverrideNEON=*/true))
     return LowerFixedLengthVectorIntDivideToSVE(Op, DAG);
@@ -10973,6 +11007,19 @@ SDValue AArch64TargetLowering::LowerDIV(SDValue Op, SelectionDAG &DAG) const {
 
   bool Signed = Op.getOpcode() == ISD::SDIV;
   unsigned PredOpcode = Signed ? AArch64ISD::SDIV_PRED : AArch64ISD::UDIV_PRED;
+
+  bool Negated;
+  uint64_t SplatVal;
+  if (Signed && isPow2Splat(Op.getOperand(1), SplatVal, Negated)) {
+    SDValue Pg = getPredicateForScalableVector(DAG, dl, VT);
+    SDValue Res =
+        DAG.getNode(AArch64ISD::SRAD_MERGE_OP1, dl, VT, Pg, Op->getOperand(0),
+                    DAG.getTargetConstant(Log2_64(SplatVal), dl, MVT::i32));
+    if (Negated)
+      Res = DAG.getNode(ISD::SUB, dl, VT, DAG.getConstant(0, dl, VT), Res);
+
+    return Res;
+  }
 
   if (VT == MVT::nxv4i32 || VT == MVT::nxv2i64)
     return LowerToPredicatedOp(Op, DAG, PredOpcode);
@@ -10987,7 +11034,6 @@ SDValue AArch64TargetLowering::LowerDIV(SDValue Op, SelectionDAG &DAG) const {
   else
     llvm_unreachable("Unexpected Custom DIV operation");
 
-  SDLoc dl(Op);
   unsigned UnpkLo = Signed ? AArch64ISD::SUNPKLO : AArch64ISD::UUNPKLO;
   unsigned UnpkHi = Signed ? AArch64ISD::SUNPKHI : AArch64ISD::UUNPKHI;
   SDValue Op0Lo = DAG.getNode(UnpkLo, dl, WidenedVT, Op.getOperand(0));
@@ -12979,8 +13025,14 @@ AArch64TargetLowering::BuildSDIVPow2(SDNode *N, const APInt &Divisor,
   if (isIntDivCheap(N->getValueType(0), Attr))
     return SDValue(N,0); // Lower SDIV as SDIV
 
-  // fold (sdiv X, pow2)
   EVT VT = N->getValueType(0);
+
+  // For scalable and fixed types, mark them as cheap so we can handle it much
+  // later. This allows us to handle larger than legal types.
+  if (VT.isScalableVector() || Subtarget->useSVEForFixedLengthVectors())
+    return SDValue(N, 0);
+
+  // fold (sdiv X, pow2)
   if ((VT != MVT::i32 && VT != MVT::i64) ||
       !(Divisor.isPowerOf2() || Divisor.isNegatedPowerOf2()))
     return SDValue();
@@ -13873,34 +13925,6 @@ static SDValue performANDCombine(SDNode *N,
       return NewOp;
   }
 
-  return SDValue();
-}
-
-static SDValue performSRLCombine(SDNode *N,
-                                 TargetLowering::DAGCombinerInfo &DCI) {
-  SelectionDAG &DAG = DCI.DAG;
-  EVT VT = N->getValueType(0);
-  if (VT != MVT::i32 && VT != MVT::i64)
-    return SDValue();
-
-  // Canonicalize (srl (bswap i32 x), 16) to (rotr (bswap i32 x), 16), if the
-  // high 16-bits of x are zero. Similarly, canonicalize (srl (bswap i64 x), 32)
-  // to (rotr (bswap i64 x), 32), if the high 32-bits of x are zero.
-  SDValue N0 = N->getOperand(0);
-  if (N0.getOpcode() == ISD::BSWAP) {
-    SDLoc DL(N);
-    SDValue N1 = N->getOperand(1);
-    SDValue N00 = N0.getOperand(0);
-    if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(N1)) {
-      uint64_t ShiftAmt = C->getZExtValue();
-      if (VT == MVT::i32 && ShiftAmt == 16 &&
-          DAG.MaskedValueIsZero(N00, APInt::getHighBitsSet(32, 16)))
-        return DAG.getNode(ISD::ROTR, DL, VT, N0, N1);
-      if (VT == MVT::i64 && ShiftAmt == 32 &&
-          DAG.MaskedValueIsZero(N00, APInt::getHighBitsSet(64, 32)))
-        return DAG.getNode(ISD::ROTR, DL, VT, N0, N1);
-    }
-  }
   return SDValue();
 }
 
@@ -15107,6 +15131,9 @@ static SDValue performIntrinsicCombine(SDNode *N,
   case Intrinsic::aarch64_sve_uqsub_x:
     return DAG.getNode(ISD::USUBSAT, SDLoc(N), N->getValueType(0),
                        N->getOperand(1), N->getOperand(2));
+  case Intrinsic::aarch64_sve_asrd:
+    return DAG.getNode(AArch64ISD::SRAD_MERGE_OP1, SDLoc(N), N->getValueType(0),
+                       N->getOperand(1), N->getOperand(2), N->getOperand(3));
   case Intrinsic::aarch64_sve_cmphs:
     if (!N->getOperand(2).getValueType().isFloatingPoint())
       return DAG.getNode(AArch64ISD::SETCC_MERGE_ZERO, SDLoc(N),
@@ -17271,8 +17298,6 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     return performORCombine(N, DCI, Subtarget);
   case ISD::AND:
     return performANDCombine(N, DCI);
-  case ISD::SRL:
-    return performSRLCombine(N, DCI);
   case ISD::INTRINSIC_WO_CHAIN:
     return performIntrinsicCombine(N, DCI, Subtarget);
   case ISD::ANY_EXTEND:
@@ -18726,6 +18751,21 @@ SDValue AArch64TargetLowering::LowerFixedLengthVectorIntDivideToSVE(
 
   bool Signed = Op.getOpcode() == ISD::SDIV;
   unsigned PredOpcode = Signed ? AArch64ISD::SDIV_PRED : AArch64ISD::UDIV_PRED;
+
+  bool Negated;
+  uint64_t SplatVal;
+  if (Signed && isPow2Splat(Op.getOperand(1), SplatVal, Negated)) {
+    EVT ContainerVT = getContainerForFixedLengthVector(DAG, VT);
+    SDValue Op1 = convertToScalableVector(DAG, ContainerVT, Op.getOperand(0));
+    SDValue Op2 = DAG.getTargetConstant(Log2_64(SplatVal), dl, MVT::i32);
+
+    SDValue Pg = getPredicateForFixedLengthVector(DAG, dl, VT);
+    SDValue Res = DAG.getNode(AArch64ISD::SRAD_MERGE_OP1, dl, ContainerVT, Pg, Op1, Op2);
+    if (Negated)
+      Res = DAG.getNode(ISD::SUB, dl, VT, DAG.getConstant(0, dl, VT), Res);
+
+    return convertFromScalableVector(DAG, VT, Res);
+  }
 
   // Scalable vector i32/i64 DIV is supported.
   if (EltVT == MVT::i32 || EltVT == MVT::i64)
