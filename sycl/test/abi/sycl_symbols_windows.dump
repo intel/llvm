@@ -2095,6 +2095,7 @@
 ?getNativeContext@interop_handle@sycl@cl@@AEBA_KXZ
 ?getNativeDevice@interop_handle@sycl@cl@@AEBA_KXZ
 ?getNativeImpl@kernel@sycl@cl@@AEBA_KXZ
+?getNative@kernel@sycl@cl@@AEBA_KXZ
 ?getNativeMem@interop_handle@sycl@cl@@AEBA_KPEAVAccessorImplHost@detail@23@@Z
 ?getNativeQueue@interop_handle@sycl@cl@@AEBA_KXZ
 ?getOSMemSize@OSUtil@detail@sycl@cl@@SA_KXZ

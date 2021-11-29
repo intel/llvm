@@ -40,8 +40,8 @@ TEST_P(CudaPrimaryContextTests, piSingleContext) {
       deviceA_, async_handler{},
       {sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
 
-  CUdevice CudaDevice = deviceA_.get_native<backend::ext_oneapi_cuda>();
-  CUcontext CudaContext = Context.get_native<backend::ext_oneapi_cuda>();
+  CUdevice CudaDevice = get_native<backend::ext_oneapi_cuda>(deviceA_);
+  CUcontext CudaContext = get_native<backend::ext_oneapi_cuda>(Context);
 
   CUcontext PrimaryCudaContext;
   cuDevicePrimaryCtxRetain(&PrimaryCudaContext, CudaDevice);
@@ -60,8 +60,8 @@ TEST_P(CudaPrimaryContextTests, piMultiContextSingleDevice) {
       deviceA_, async_handler{},
       {sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
 
-  CUcontext CudaContextA = ContextA.get_native<backend::ext_oneapi_cuda>();
-  CUcontext CudaContextB = ContextB.get_native<backend::ext_oneapi_cuda>();
+  CUcontext CudaContextA = get_native<backend::ext_oneapi_cuda>(ContextA);
+  CUcontext CudaContextB = get_native<backend::ext_oneapi_cuda>(ContextB);
 
   ASSERT_EQ(CudaContextA, CudaContextB);
 }
@@ -70,8 +70,8 @@ TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
   if (deviceA_ == deviceB_)
     return;
 
-  CUdevice CudaDeviceA = deviceA_.get_native<backend::ext_oneapi_cuda>();
-  CUdevice CudaDeviceB = deviceB_.get_native<backend::ext_oneapi_cuda>();
+  CUdevice CudaDeviceA = get_native<backend::ext_oneapi_cuda>(deviceA_);
+  CUdevice CudaDeviceB = get_native<backend::ext_oneapi_cuda>(deviceB_);
 
   ASSERT_NE(CudaDeviceA, CudaDeviceB);
 
@@ -83,8 +83,8 @@ TEST_P(CudaPrimaryContextTests, piMultiContextMultiDevice) {
       deviceB_, async_handler{},
       {sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
 
-  CUcontext CudaContextA = ContextA.get_native<backend::ext_oneapi_cuda>();
-  CUcontext CudaContextB = ContextB.get_native<backend::ext_oneapi_cuda>();
+  CUcontext CudaContextA = get_native<backend::ext_oneapi_cuda>(ContextA);
+  CUcontext CudaContextB = get_native<backend::ext_oneapi_cuda>(ContextB);
 
   ASSERT_NE(CudaContextA, CudaContextB);
 }
