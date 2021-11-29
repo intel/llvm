@@ -130,6 +130,10 @@ public:
                    LiveIntervals *LIS = nullptr,
                    bool OnlyToVGPR = false) const;
 
+  bool spillEmergencySGPR(MachineBasicBlock::iterator MI,
+                          MachineBasicBlock &RestoreMBB, Register SGPR,
+                          RegScavenger *RS) const;
+
   void eliminateFrameIndex(MachineBasicBlock::iterator MI, int SPAdj,
                            unsigned FIOperandNum,
                            RegScavenger *RS) const override;
@@ -367,10 +371,11 @@ public:
   // For creating spill instructions during frame lowering, where no scavenger
   // is available, LiveRegs can be used.
   void buildSpillLoadStore(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator MI, unsigned LoadStoreOp,
-                           int Index, Register ValueReg, bool ValueIsKill,
-                           MCRegister ScratchOffsetReg, int64_t InstrOffset,
-                           MachineMemOperand *MMO, RegScavenger *RS,
+                           MachineBasicBlock::iterator MI, const DebugLoc &DL,
+                           unsigned LoadStoreOp, int Index, Register ValueReg,
+                           bool ValueIsKill, MCRegister ScratchOffsetReg,
+                           int64_t InstrOffset, MachineMemOperand *MMO,
+                           RegScavenger *RS,
                            LivePhysRegs *LiveRegs = nullptr) const;
 };
 

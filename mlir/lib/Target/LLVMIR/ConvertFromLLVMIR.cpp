@@ -339,10 +339,10 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *GV) {
     b.create<ReturnOp>(op.getLoc(), ArrayRef<Value>({v}));
   }
   if (GV->hasAtLeastLocalUnnamedAddr())
-    op.unnamed_addrAttr(UnnamedAddrAttr::get(
+    op.setUnnamedAddrAttr(UnnamedAddrAttr::get(
         context, convertUnnamedAddrFromLLVM(GV->getUnnamedAddr())));
   if (GV->hasSection())
-    op.sectionAttr(b.getStringAttr(GV->getSection()));
+    op.setSectionAttr(b.getStringAttr(GV->getSection()));
 
   return globals[GV] = op;
 }
@@ -803,7 +803,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
                            convertLinkageFromLLVM(f->getLinkage()));
 
   if (FlatSymbolRefAttr personality = getPersonalityAsAttr(f))
-    fop->setAttr(b.getIdentifier("personality"), personality);
+    fop->setAttr(b.getStringAttr("personality"), personality);
   else if (f->hasPersonalityFn())
     emitWarning(UnknownLoc::get(context),
                 "could not deduce personality, skipping it");
@@ -814,7 +814,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
   // Eagerly create all blocks.
   SmallVector<Block *, 4> blockList;
   for (llvm::BasicBlock &bb : *f) {
-    blockList.push_back(b.createBlock(&fop.body(), fop.body().end()));
+    blockList.push_back(b.createBlock(&fop.getBody(), fop.getBody().end()));
     blocks[&bb] = blockList.back();
   }
   currentEntryBlock = blockList[0];

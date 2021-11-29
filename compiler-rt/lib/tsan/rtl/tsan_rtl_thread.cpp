@@ -227,15 +227,14 @@ void ThreadFinish(ThreadState *thr) {
   if (thr->tls_addr && thr->tls_size)
     DontNeedShadowFor(thr->tls_addr, thr->tls_size);
   thr->is_dead = true;
+  thr->is_inited = false;
+#if !SANITIZER_GO
+  thr->ignore_interceptors++;
+#endif
   ctx->thread_registry.FinishThread(thr->tid);
 }
 
 void ThreadContext::OnFinished() {
-#if SANITIZER_GO
-  Free(thr->shadow_stack);
-  thr->shadow_stack_pos = nullptr;
-  thr->shadow_stack_end = nullptr;
-#endif
   if (!detached) {
     thr->fast_state.IncrementEpoch();
     // Can't increment epoch w/o writing to the trace as well.
@@ -243,6 +242,15 @@ void ThreadContext::OnFinished() {
     ReleaseImpl(thr, 0, &sync);
   }
   epoch1 = thr->fast_state.epoch();
+
+#if !SANITIZER_GO
+  UnmapOrDie(thr->shadow_stack, kShadowStackSize * sizeof(uptr));
+#else
+  Free(thr->shadow_stack);
+#endif
+  thr->shadow_stack = nullptr;
+  thr->shadow_stack_pos = nullptr;
+  thr->shadow_stack_end = nullptr;
 
   if (common_flags()->detect_deadlocks)
     ctx->dd->DestroyLogicalThread(thr->dd_lt);
@@ -262,29 +270,8 @@ struct ConsumeThreadContext {
   ThreadContextBase *tctx;
 };
 
-static bool ConsumeThreadByUid(ThreadContextBase *tctx, void *arg) {
-  ConsumeThreadContext *findCtx = (ConsumeThreadContext *)arg;
-  if (tctx->user_id == findCtx->uid && tctx->status != ThreadStatusInvalid) {
-    if (findCtx->tctx) {
-      // Ensure that user_id is unique. If it's not the case we are screwed.
-      // Something went wrong before, but now there is no way to recover.
-      // Returning a wrong thread is not an option, it may lead to very hard
-      // to debug false positives (e.g. if we join a wrong thread).
-      Report("ThreadSanitizer: dup thread with used id 0x%zx\n", findCtx->uid);
-      Die();
-    }
-    findCtx->tctx = tctx;
-    tctx->user_id = 0;
-  }
-  return false;
-}
-
 Tid ThreadConsumeTid(ThreadState *thr, uptr pc, uptr uid) {
-  ConsumeThreadContext findCtx = {uid, nullptr};
-  ctx->thread_registry.FindThread(ConsumeThreadByUid, &findCtx);
-  Tid tid = findCtx.tctx ? findCtx.tctx->tid : kInvalidTid;
-  DPrintf("#%d: ThreadTid uid=%zu tid=%d\n", thr->tid, uid, tid);
-  return tid;
+  return ctx->thread_registry.ConsumeThreadUserId(uid);
 }
 
 void ThreadJoin(ThreadState *thr, uptr pc, Tid tid) {
@@ -321,85 +308,6 @@ void ThreadNotJoined(ThreadState *thr, uptr pc, Tid tid, uptr uid) {
 
 void ThreadSetName(ThreadState *thr, const char *name) {
   ctx->thread_registry.SetThreadName(thr->tid, name);
-}
-
-void MemoryAccessRange(ThreadState *thr, uptr pc, uptr addr,
-                       uptr size, bool is_write) {
-  if (size == 0)
-    return;
-
-  RawShadow *shadow_mem = MemToShadow(addr);
-  DPrintf2("#%d: MemoryAccessRange: @%p %p size=%d is_write=%d\n",
-      thr->tid, (void*)pc, (void*)addr,
-      (int)size, is_write);
-
-#if SANITIZER_DEBUG
-  if (!IsAppMem(addr)) {
-    Printf("Access to non app mem %zx\n", addr);
-    DCHECK(IsAppMem(addr));
-  }
-  if (!IsAppMem(addr + size - 1)) {
-    Printf("Access to non app mem %zx\n", addr + size - 1);
-    DCHECK(IsAppMem(addr + size - 1));
-  }
-  if (!IsShadowMem(shadow_mem)) {
-    Printf("Bad shadow addr %p (%zx)\n", shadow_mem, addr);
-    DCHECK(IsShadowMem(shadow_mem));
-  }
-  if (!IsShadowMem(shadow_mem + size * kShadowCnt / 8 - 1)) {
-    Printf("Bad shadow addr %p (%zx)\n",
-               shadow_mem + size * kShadowCnt / 8 - 1, addr + size - 1);
-    DCHECK(IsShadowMem(shadow_mem + size * kShadowCnt / 8 - 1));
-  }
-#endif
-
-  if (*shadow_mem == kShadowRodata) {
-    DCHECK(!is_write);
-    // Access to .rodata section, no races here.
-    // Measurements show that it can be 10-20% of all memory accesses.
-    return;
-  }
-
-  FastState fast_state = thr->fast_state;
-  if (fast_state.GetIgnoreBit())
-    return;
-
-  fast_state.IncrementEpoch();
-  thr->fast_state = fast_state;
-  TraceAddEvent(thr, fast_state, EventTypeMop, pc);
-
-  bool unaligned = (addr % kShadowCell) != 0;
-
-  // Handle unaligned beginning, if any.
-  for (; addr % kShadowCell && size; addr++, size--) {
-    int const kAccessSizeLog = 0;
-    Shadow cur(fast_state);
-    cur.SetWrite(is_write);
-    cur.SetAddr0AndSizeLog(addr & (kShadowCell - 1), kAccessSizeLog);
-    MemoryAccessImpl(thr, addr, kAccessSizeLog, is_write, false,
-        shadow_mem, cur);
-  }
-  if (unaligned)
-    shadow_mem += kShadowCnt;
-  // Handle middle part, if any.
-  for (; size >= kShadowCell; addr += kShadowCell, size -= kShadowCell) {
-    int const kAccessSizeLog = 3;
-    Shadow cur(fast_state);
-    cur.SetWrite(is_write);
-    cur.SetAddr0AndSizeLog(0, kAccessSizeLog);
-    MemoryAccessImpl(thr, addr, kAccessSizeLog, is_write, false,
-        shadow_mem, cur);
-    shadow_mem += kShadowCnt;
-  }
-  // Handle ending, if any.
-  for (; size; addr++, size--) {
-    int const kAccessSizeLog = 0;
-    Shadow cur(fast_state);
-    cur.SetWrite(is_write);
-    cur.SetAddr0AndSizeLog(addr & (kShadowCell - 1), kAccessSizeLog);
-    MemoryAccessImpl(thr, addr, kAccessSizeLog, is_write, false,
-        shadow_mem, cur);
-  }
 }
 
 #if !SANITIZER_GO

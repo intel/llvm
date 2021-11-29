@@ -1037,7 +1037,7 @@ Optional<FileEntryRef> HeaderSearch::LookupFile(
   // resolve "foo.h" any other way, change the include to <Foo/foo.h>, where
   // "Foo" is the name of the framework in which the including header was found.
   if (!Includers.empty() && Includers.front().first && !isAngled &&
-      Filename.find('/') == StringRef::npos) {
+      !Filename.contains('/')) {
     HeaderFileInfo &IncludingHFI = getFileInfo(Includers.front().first);
     if (IncludingHFI.IndexHeaderMapHeader) {
       SmallString<128> ScratchFilename;
@@ -1310,8 +1310,11 @@ void HeaderSearch::MarkFileModuleHeader(const FileEntry *FE,
 
 bool HeaderSearch::ShouldEnterIncludeFile(Preprocessor &PP,
                                           const FileEntry *File, bool isImport,
-                                          bool ModulesEnabled, Module *M) {
+                                          bool ModulesEnabled, Module *M,
+                                          bool &IsFirstIncludeOfFile) {
   ++NumIncluded; // Count # of attempted #includes.
+
+  IsFirstIncludeOfFile = false;
 
   // Get information about this file.
   HeaderFileInfo &FileInfo = getFileInfo(File);
@@ -1386,6 +1389,8 @@ bool HeaderSearch::ShouldEnterIncludeFile(Preprocessor &PP,
 
   // Increment the number of times this file has been included.
   ++FileInfo.NumIncludes;
+
+  IsFirstIncludeOfFile = FileInfo.NumIncludes == 1;
 
   return true;
 }

@@ -19,6 +19,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/plugin.hpp>
+#include <detail/program_manager/program_manager.hpp>
 
 #include <chrono>
 #include <thread>
@@ -276,6 +277,25 @@ struct get_device_info<std::vector<info::execution_capability>,
         dev, pi::cast<RT::PiDeviceInfo>(info::device::execution_capabilities),
         sizeof(result), &result, nullptr);
     return read_execution_bitfield(result);
+  }
+};
+
+// Specialization for built in kernel identifiers
+template <>
+struct get_device_info<std::vector<kernel_id>,
+                       info::device::built_in_kernel_ids> {
+  static std::vector<kernel_id> get(RT::PiDevice dev, const plugin &Plugin) {
+    std::string result =
+        get_device_info<std::string, info::device::built_in_kernels>::get(
+            dev, Plugin);
+    auto names = split_string(result, ';');
+
+    std::vector<kernel_id> ids;
+    ids.reserve(names.size());
+    for (const auto &name : names) {
+      ids.push_back(ProgramManager::getInstance().getBuiltInKernelID(name));
+    }
+    return ids;
   }
 };
 
@@ -977,6 +997,12 @@ get_device_info_host<info::device::execution_capabilities>() {
 
 template <> inline bool get_device_info_host<info::device::queue_profiling>() {
   return true;
+}
+
+template <>
+inline std::vector<kernel_id>
+get_device_info_host<info::device::built_in_kernel_ids>() {
+  return {};
 }
 
 template <>

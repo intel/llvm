@@ -282,9 +282,9 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   if (!FilterList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                             backend::level_zero);
-    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
-    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::hip);
+                             backend::ext_oneapi_level_zero);
+    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
+    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
@@ -298,18 +298,22 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
         PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
       }
-      if (!LevelZeroFound &&
-          (Backend == backend::level_zero || Backend == backend::all)) {
+      if (!LevelZeroFound && (Backend == backend::ext_oneapi_level_zero ||
+                              Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                                 backend::level_zero);
+                                 backend::ext_oneapi_level_zero);
         LevelZeroFound = true;
       }
-      if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+      if (!CudaFound &&
+          (Backend == backend::ext_oneapi_cuda || Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
+                                 backend::ext_oneapi_cuda);
         CudaFound = true;
       }
-      if (!HIPFound && (Backend == backend::hip || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::hip);
+      if (!HIPFound &&
+          (Backend == backend::ext_oneapi_hip || Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME,
+                                 backend::ext_oneapi_hip);
         HIPFound = true;
       }
     }
@@ -410,21 +414,21 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       // Use the OpenCL plugin as the GlobalPlugin
       GlobalPlugin =
           std::make_shared<plugin>(PluginInformation, backend::opencl, Library);
-    } else if (InteropBE == backend::cuda &&
+    } else if (InteropBE == backend::ext_oneapi_cuda &&
                PluginNames[I].first.find("cuda") != std::string::npos) {
       // Use the CUDA plugin as the GlobalPlugin
-      GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::cuda, Library);
-    } else if (InteropBE == backend::hip &&
+      GlobalPlugin = std::make_shared<plugin>(
+          PluginInformation, backend::ext_oneapi_cuda, Library);
+    } else if (InteropBE == backend::ext_oneapi_hip &&
                PluginNames[I].first.find("hip") != std::string::npos) {
       // Use the HIP plugin as the GlobalPlugin
-      GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::hip, Library);
-    } else if (InteropBE == backend::level_zero &&
+      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
+                                              backend::ext_oneapi_hip, Library);
+    } else if (InteropBE == backend::ext_oneapi_level_zero &&
                PluginNames[I].first.find("level_zero") != std::string::npos) {
       // Use the LEVEL_ZERO plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
-                                              backend::level_zero, Library);
+      GlobalPlugin = std::make_shared<plugin>(
+          PluginInformation, backend::ext_oneapi_level_zero, Library);
     }
     Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
@@ -435,6 +439,8 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
+
   if (!(xptiTraceEnabled() && !XPTIInitDone))
     return;
   // Not sure this is the best place to initialize the framework; SYCL runtime
@@ -503,7 +509,8 @@ template <backend BE> const plugin &getPlugin() {
 }
 
 template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
-template __SYCL_EXPORT const plugin &getPlugin<backend::level_zero>();
+template __SYCL_EXPORT const plugin &
+getPlugin<backend::ext_oneapi_level_zero>();
 template __SYCL_EXPORT const plugin &
 getPlugin<backend::ext_intel_esimd_emulator>();
 
@@ -547,7 +554,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
     std::ios_base::fmtflags FlagsBackup = Out.flags();
     Out << std::hex;
     for (const auto &Byte : BA) {
-      Out << "0x" << Byte << " ";
+      Out << "0x" << static_cast<unsigned>(Byte) << " ";
     }
     Out.flags(FlagsBackup);
     break;

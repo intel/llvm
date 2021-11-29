@@ -9,6 +9,7 @@
 #ifndef MLIR_IR_BUILTINATTRIBUTEINTERFACES_H
 #define MLIR_IR_BUILTINATTRIBUTEINTERFACES_H
 
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LogicalResult.h"
@@ -226,7 +227,49 @@ private:
   ElementsAttrIndexer indexer;
   ptrdiff_t index;
 };
+
+/// This class provides iterator utilities for an ElementsAttr range.
+template <typename IteratorT>
+class ElementsAttrRange : public llvm::iterator_range<IteratorT> {
+public:
+  using reference = typename IteratorT::reference;
+
+  ElementsAttrRange(Type shapeType,
+                    const llvm::iterator_range<IteratorT> &range)
+      : llvm::iterator_range<IteratorT>(range), shapeType(shapeType) {}
+  ElementsAttrRange(Type shapeType, IteratorT beginIt, IteratorT endIt)
+      : ElementsAttrRange(shapeType, llvm::make_range(beginIt, endIt)) {}
+
+  /// Return the value at the given index.
+  reference operator[](ArrayRef<uint64_t> index) const;
+  reference operator[](uint64_t index) const {
+    return *std::next(this->begin(), index);
+  }
+
+  /// Return the size of this range.
+  size_t size() const { return llvm::size(*this); }
+
+private:
+  /// The shaped type of the parent ElementsAttr.
+  Type shapeType;
+};
+
 } // namespace detail
+
+//===----------------------------------------------------------------------===//
+// MemRefLayoutAttrInterface
+//===----------------------------------------------------------------------===//
+
+namespace detail {
+
+// Verify the affine map 'm' can be used as a layout specification
+// for memref with 'shape'.
+LogicalResult
+verifyAffineMapAsLayout(AffineMap m, ArrayRef<int64_t> shape,
+                        function_ref<InFlightDiagnostic()> emitError);
+
+} // namespace detail
+
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//
@@ -240,6 +283,16 @@ private:
 //===----------------------------------------------------------------------===//
 
 namespace mlir {
+namespace detail {
+/// Return the value at the given index.
+template <typename IteratorT>
+auto ElementsAttrRange<IteratorT>::operator[](ArrayRef<uint64_t> index) const
+    -> reference {
+  // Skip to the element corresponding to the flattened index.
+  return (*this)[ElementsAttr::getFlattenedIndex(shapeType, index)];
+}
+} // namespace detail
+
 /// Return the elements of this attribute as a value of type 'T'.
 template <typename T>
 auto ElementsAttr::value_begin() const -> DefaultValueCheckT<T, iterator<T>> {

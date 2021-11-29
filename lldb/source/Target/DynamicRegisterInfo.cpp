@@ -422,35 +422,6 @@ size_t DynamicRegisterInfo::SetRegisterInfo(
   return m_regs.size();
 }
 
-void DynamicRegisterInfo::AddRegister(RegisterInfo reg_info,
-                                      ConstString &set_name) {
-  assert(!m_finalized);
-  const uint32_t reg_num = m_regs.size();
-  assert(reg_info.name);
-  uint32_t i;
-  if (reg_info.value_regs) {
-    for (i = 0; reg_info.value_regs[i] != LLDB_INVALID_REGNUM; ++i)
-      m_value_regs_map[reg_num].push_back(reg_info.value_regs[i]);
-
-    // invalidate until Finalize() is called
-    reg_info.value_regs = nullptr;
-  }
-  if (reg_info.invalidate_regs) {
-    for (i = 0; reg_info.invalidate_regs[i] != LLDB_INVALID_REGNUM; ++i)
-      m_invalidate_regs_map[reg_num].push_back(reg_info.invalidate_regs[i]);
-
-    // invalidate until Finalize() is called
-    reg_info.invalidate_regs = nullptr;
-  }
-
-  m_regs.push_back(reg_info);
-  uint32_t set = GetRegisterSetIndexByName(set_name, true);
-  assert(set < m_sets.size());
-  assert(set < m_set_reg_nums.size());
-  assert(set < m_set_names.size());
-  m_set_reg_nums[set].push_back(reg_num);
-}
-
 void DynamicRegisterInfo::Finalize(const ArchSpec &arch) {
   if (m_finalized)
     return;
@@ -463,20 +434,11 @@ void DynamicRegisterInfo::Finalize(const ArchSpec &arch) {
     m_sets[set].registers = m_set_reg_nums[set].data();
   }
 
-  // sort and unique all value registers and make sure each is terminated with
-  // LLDB_INVALID_REGNUM
+  // make sure value_regs are terminated with LLDB_INVALID_REGNUM
 
   for (reg_to_regs_map::iterator pos = m_value_regs_map.begin(),
                                  end = m_value_regs_map.end();
        pos != end; ++pos) {
-    if (pos->second.size() > 1) {
-      llvm::sort(pos->second.begin(), pos->second.end());
-      reg_num_collection::iterator unique_end =
-          std::unique(pos->second.begin(), pos->second.end());
-      if (unique_end != pos->second.end())
-        pos->second.erase(unique_end, pos->second.end());
-    }
-    assert(!pos->second.empty());
     if (pos->second.back() != LLDB_INVALID_REGNUM)
       pos->second.push_back(LLDB_INVALID_REGNUM);
   }
@@ -678,13 +640,16 @@ void DynamicRegisterInfo::ConfigureOffsets() {
   // Now update all value_regs with each register info as needed
   for (auto &reg : m_regs) {
     if (reg.value_regs != nullptr) {
-      // Assign a valid offset to all pseudo registers if not assigned by stub.
-      // Pseudo registers with value_regs list populated will share same offset
-      // as that of their corresponding primary register in value_regs list.
+      // Assign a valid offset to all pseudo registers that have only a single
+      // parent register in value_regs list, if not assigned by stub.  Pseudo
+      // registers with value_regs list populated will share same offset as
+      // that of their corresponding parent register.
       if (reg.byte_offset == LLDB_INVALID_INDEX32) {
         uint32_t value_regnum = reg.value_regs[0];
-        if (value_regnum != LLDB_INVALID_INDEX32) {
-          reg.byte_offset = GetRegisterInfoAtIndex(value_regnum)->byte_offset;
+        if (value_regnum != LLDB_INVALID_INDEX32 &&
+            reg.value_regs[1] == LLDB_INVALID_INDEX32) {
+          reg.byte_offset =
+              GetRegisterInfoAtIndex(value_regnum)->byte_offset;
           auto it = m_value_reg_offset_map.find(reg.kinds[eRegisterKindLLDB]);
           if (it != m_value_reg_offset_map.end())
             reg.byte_offset += it->second;

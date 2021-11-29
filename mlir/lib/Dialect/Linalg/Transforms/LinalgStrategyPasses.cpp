@@ -22,7 +22,6 @@
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/SCF/Transforms.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/Dialect/Vector/VectorTransforms.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -32,9 +31,47 @@
 #include "mlir/Transforms/Utils.h"
 
 using namespace mlir;
+using namespace mlir::vector;
 using namespace linalg;
 
 namespace {
+
+/// Configurable pass to apply pattern-based tiling and fusion.
+struct LinalgStrategyTileAndFusePass
+    : public LinalgStrategyTileAndFusePassBase<LinalgStrategyTileAndFusePass> {
+
+  LinalgStrategyTileAndFusePass() = default;
+
+  LinalgStrategyTileAndFusePass(StringRef opName,
+                                LinalgTilingAndFusionOptions opt,
+                                LinalgTransformationFilter filt)
+      : options(opt), filter(filt) {
+    this->anchorOpName.setValue(opName.str());
+  }
+
+  void runOnFunction() override {
+    auto funcOp = getFunction();
+    if (!anchorFuncName.empty() && funcOp.getName() != anchorFuncName)
+      return;
+
+    RewritePatternSet tilingAndFusionPattern(funcOp.getContext());
+    if (!anchorOpName.empty()) {
+      tilingAndFusionPattern.add<LinalgTileAndFuseTensorOpsPattern>(
+          anchorOpName, funcOp.getContext(), options, filter);
+    } else {
+      tilingAndFusionPattern.add<LinalgTileAndFuseTensorOpsPattern>(
+          funcOp.getContext(), options, filter);
+    }
+    // Search the root operation using bottom up traversal.
+    GreedyRewriteConfig grc;
+    grc.useTopDownTraversal = false;
+    (void)applyPatternsAndFoldGreedily(funcOp,
+                                       std::move(tilingAndFusionPattern), grc);
+  }
+
+  LinalgTilingAndFusionOptions options;
+  LinalgTransformationFilter filter;
+};
 
 /// Configurable pass to apply pattern-based linalg tiling.
 struct LinalgStrategyTilePass
@@ -65,6 +102,39 @@ struct LinalgStrategyTilePass
   }
 
   LinalgTilingOptions options;
+  LinalgTransformationFilter filter;
+};
+
+/// Configurable pass to apply hoisting and padding.
+struct LinalgStrategyPadPass
+    : public LinalgStrategyPadPassBase<LinalgStrategyPadPass> {
+
+  LinalgStrategyPadPass() = default;
+
+  LinalgStrategyPadPass(StringRef opName, LinalgPaddingOptions opt,
+                        LinalgTransformationFilter filt)
+      : options(opt), filter(filt) {
+    this->anchorOpName.setValue(opName.str());
+  }
+
+  void runOnFunction() override {
+    auto funcOp = getFunction();
+    if (!anchorFuncName.empty() && funcOp.getName() != anchorFuncName)
+      return;
+
+    RewritePatternSet paddingPattern(funcOp.getContext());
+    if (!anchorOpName.empty()) {
+      paddingPattern.add<LinalgPaddingPattern>(
+          anchorOpName, funcOp.getContext(), options, filter);
+    } else {
+      paddingPattern.add<LinalgPaddingPattern>(funcOp.getContext(), options,
+                                               filter);
+    }
+    if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(paddingPattern))))
+      signalPassFailure();
+  }
+
+  LinalgPaddingOptions options;
   LinalgTransformationFilter filter;
 };
 
@@ -99,6 +169,25 @@ struct LinalgStrategyGeneralizePass
   }
 
   LinalgTransformationFilter filter;
+};
+
+/// Configurable pass to apply lowering of coarser-grained named linalg ops into
+/// finer-grained named versions.
+struct LinalgStrategyDecomposePass
+    : public LinalgStrategyDecomposePassBase<LinalgStrategyDecomposePass> {
+
+  LinalgStrategyDecomposePass() = default;
+
+  void runOnFunction() override {
+    auto funcOp = getFunction();
+    if (!anchorFuncName.empty() && funcOp.getName() != anchorFuncName)
+      return;
+    RewritePatternSet decompositionPattern(funcOp.getContext());
+    populateDecomposeConvolutionPatterns(decompositionPattern);
+    if (failed(applyPatternsAndFoldGreedily(funcOp,
+                                            std::move(decompositionPattern))))
+      signalPassFailure();
+  }
 };
 
 /// Configurable pass to apply pattern-based linalg generalization.
@@ -171,9 +260,11 @@ struct LinalgStrategyVectorizePass
   LinalgStrategyVectorizePass() = default;
 
   LinalgStrategyVectorizePass(StringRef opName, LinalgVectorizationOptions opt,
-                              LinalgTransformationFilter filt)
+                              LinalgTransformationFilter filt,
+                              bool padVectorize = false)
       : options(opt), filter(filt) {
     this->anchorOpName.setValue(opName.str());
+    this->vectorizePadding.setValue(padVectorize);
   }
 
   void runOnFunction() override {
@@ -189,9 +280,15 @@ struct LinalgStrategyVectorizePass
       vectorizationPatterns.add<LinalgVectorizationPattern>(funcOp.getContext(),
                                                             filter, options);
     }
+    vector::populateVectorTransferPermutationMapLoweringPatterns(
+        vectorizationPatterns);
+    vector::populateVectorReductionToContractPatterns(vectorizationPatterns);
     vectorizationPatterns.add<linalg::LinalgCopyVTRForwardingPattern,
                               linalg::LinalgCopyVTWForwardingPattern>(
         funcOp.getContext(), /*benefit=*/2);
+    if (vectorizePadding) {
+      linalg::populatePadTensorOpVectorizationPatterns(vectorizationPatterns);
+    }
     (void)applyPatternsAndFoldGreedily(funcOp,
                                        std::move(vectorizationPatterns));
   }
@@ -221,7 +318,7 @@ struct LinalgStrategyEnablePass
     if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(patterns))))
       return signalPassFailure();
 
-    if (options.enableLICM) {
+    if (options.licm) {
       if (funcOp
               ->walk([&](LoopLikeOpInterface loopLike) {
                 if (failed(moveLoopInvariantCode(loopLike)))
@@ -233,10 +330,10 @@ struct LinalgStrategyEnablePass
     }
 
     promoteSingleIterationLoops(funcOp);
-    if (options.enableHoistRedundantVectorTransfers)
+    if (options.hoistRedundantVectorTransfers)
       hoistRedundantVectorTransfers(funcOp);
 
-    if (options.enableHoistRedundantVectorTransfersOnTensor)
+    if (options.hoistRedundantVectorTransfersOnTensor)
       hoistRedundantVectorTransfersOnTensor(funcOp);
   }
 
@@ -260,23 +357,47 @@ struct LinalgStrategyLowerVectorsPass
 
     MLIRContext *context = funcOp.getContext();
     RewritePatternSet patterns(context);
-    if (options.enableVectorTransferLowering) {
-      vector::populateVectorTransferLoweringPatterns(patterns,
-                                                     options.maxTransferRank);
-    }
-    if (options.enableVectorTransferPartialRewrite) {
-      patterns.add<vector::VectorTransferFullPartialRewriter>(
-          context, options.vectorTransformOptions);
-    }
-    if (options.enableVectorContractLowering) {
+    vector::populateVectorToVectorCanonicalizationPatterns(patterns);
+    // In a progressive lowering of vectors, this would be the 1st step.
+    if (options.contractionLowering) {
       patterns.add<ContractionOpToOuterProductOpLowering,
                    ContractionOpToMatmulOpLowering, ContractionOpLowering>(
           options.vectorTransformOptions, context);
       vector::populateVectorTransferPermutationMapLoweringPatterns(patterns);
     }
-    if (options.enableVectorToSCFConversion) {
-      populateVectorToSCFConversionPatterns(patterns,
-                                            options.vectorTransferToSCFOptions);
+    // In a progressive lowering of vectors, this would be the 2nd step.
+    if (options.multiReductionLowering) {
+      vector::populateVectorMultiReductionLoweringPatterns(
+          patterns,
+          options.vectorTransformOptions.vectorMultiReductionLowering);
+    }
+    // In a progressive lowering of vectors, this would be the 3rd step.
+    if (options.transferPartialRewrite) {
+      patterns.add<vector::VectorTransferFullPartialRewriter>(
+          context, options.vectorTransformOptions);
+    }
+    // In a progressive lowering of vectors, this would be the 4th step.
+    if (options.transferLowering) {
+      vector::populateVectorTransferLoweringPatterns(patterns,
+                                                     options.maxTransferRank);
+    }
+    // In a progressive lowering of vectors, this would be the 5th step.
+    if (options.transferToSCFConversion) {
+      populateVectorToSCFConversionPatterns(
+          patterns, options.vectorTransferToSCFOptions.setTargetRank(
+                        options.maxTransferRank));
+    }
+    // In a progressive lowering of vectors, this would be the 6th step.
+    if (options.shapeCastLowering) {
+      vector::populateVectorShapeCastLoweringPatterns(patterns);
+    }
+    // In a progressive lowering of vectors, this would be the 7th step.
+    if (options.transposeLowering) {
+      vector::populateVectorTransposeLoweringPatterns(
+          patterns, options.vectorTransformOptions);
+      if (options.avx2Lowering)
+        x86vector::avx2::populateSpecializedTransposeLoweringPatterns(
+            patterns, options.avx2LoweringOptions, /*benefit=*/10);
     }
     (void)applyPatternsAndFoldGreedily(funcOp, std::move(patterns));
   }
@@ -284,13 +405,44 @@ struct LinalgStrategyLowerVectorsPass
   LinalgVectorLoweringOptions options;
   LinalgTransformationFilter filter;
 };
+
+/// Configurable pass to lower vector operations.
+struct LinalgStrategyRemoveMarkersPass
+    : public LinalgStrategyRemoveMarkersPassBase<
+          LinalgStrategyRemoveMarkersPass> {
+
+  void runOnFunction() override {
+    auto funcOp = getFunction();
+    if (!anchorFuncName.empty() && funcOp.getName() != anchorFuncName)
+      return;
+    funcOp.walk([](LinalgOp op) {
+      op->removeAttr(LinalgTransforms::kLinalgTransformMarker);
+    });
+  }
+};
 } // namespace
+
+/// Create a LinalgStrategyTileAndFusePass.
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::createLinalgStrategyTileAndFusePass(StringRef opName,
+                                          LinalgTilingAndFusionOptions options,
+                                          LinalgTransformationFilter filter) {
+  return std::make_unique<LinalgStrategyTileAndFusePass>(opName, options,
+                                                         filter);
+}
 
 /// Create a LinalgStrategyTilePass.
 std::unique_ptr<OperationPass<FuncOp>>
 mlir::createLinalgStrategyTilePass(StringRef opName, LinalgTilingOptions opt,
                                    LinalgTransformationFilter filter) {
   return std::make_unique<LinalgStrategyTilePass>(opName, opt, filter);
+}
+
+/// Create a LinalgStrategyPadPass.
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::createLinalgStrategyPadPass(StringRef opName, LinalgPaddingOptions opt,
+                                  LinalgTransformationFilter filter) {
+  return std::make_unique<LinalgStrategyPadPass>(opName, opt, filter);
 }
 
 /// Create a LinalgStrategyPromotePass.
@@ -307,6 +459,13 @@ mlir::createLinalgStrategyGeneralizePass(StringRef opName,
                                          LinalgTransformationFilter filter) {
   return std::make_unique<LinalgStrategyGeneralizePass>(opName, filter);
 }
+/// Create a LinalgStrategyDecomposePass.
+// TODO: atm this is applied to all supported ops. If/when we need finer control
+// this should be exposed with an opName + filter and a proper pattern.
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::createLinalgStrategyDecomposePass() {
+  return std::make_unique<LinalgStrategyDecomposePass>();
+}
 
 /// Create a LinalgStrategyInterchangePass.
 std::unique_ptr<OperationPass<FuncOp>>
@@ -317,11 +476,11 @@ mlir::createLinalgStrategyInterchangePass(ArrayRef<int64_t> iteratorInterchange,
 }
 
 /// Create a LinalgStrategyVectorizePass.
-std::unique_ptr<OperationPass<FuncOp>>
-mlir::createLinalgStrategyVectorizePass(StringRef opName,
-                                        LinalgVectorizationOptions opt,
-                                        LinalgTransformationFilter filter) {
-  return std::make_unique<LinalgStrategyVectorizePass>(opName, opt, filter);
+std::unique_ptr<OperationPass<FuncOp>> mlir::createLinalgStrategyVectorizePass(
+    StringRef opName, LinalgVectorizationOptions opt,
+    LinalgTransformationFilter filter, bool padVectorize) {
+  return std::make_unique<LinalgStrategyVectorizePass>(opName, opt, filter,
+                                                       padVectorize);
 }
 
 /// Create a LinalgStrategyEnablePass.
@@ -336,4 +495,10 @@ std::unique_ptr<OperationPass<FuncOp>>
 mlir::createLinalgStrategyLowerVectorsPass(LinalgVectorLoweringOptions opt,
                                            LinalgTransformationFilter filter) {
   return std::make_unique<LinalgStrategyLowerVectorsPass>(opt, filter);
+}
+
+/// Create a LinalgStrategyRemoveMarkersPass.
+std::unique_ptr<OperationPass<FuncOp>>
+mlir::createLinalgStrategyRemoveMarkersPass() {
+  return std::make_unique<LinalgStrategyRemoveMarkersPass>();
 }

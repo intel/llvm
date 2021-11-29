@@ -68,8 +68,10 @@ public:
   XPTIRegistry &getXPTIRegistry();
   std::mutex &getHandlerExtendedMembersMutex();
 
+  static void registerDefaultContextReleaseHandler();
+
 private:
-  friend void releaseSharedGlobalHandles();
+  friend void releaseDefaultContexts();
   friend void shutdown();
 
   // Constructor and destructor are declared out-of-line to allow incomplete

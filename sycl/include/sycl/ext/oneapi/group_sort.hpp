@@ -8,16 +8,13 @@
 
 #pragma once
 
-#if __cplusplus >= 201703L
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 #include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/group_sort_impl.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
 #include <type_traits>
 
 #include "experimental/group_helpers_sorters.hpp"
-
-// define feature macro for group sorting algorithms
-#define SYCL_EXT_ONEAPI_GROUP_SORT 1
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {

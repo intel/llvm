@@ -14,7 +14,6 @@
 #include "llvm/Analysis/InlineAdvisor.h"
 #include "llvm/Analysis/InlineCost.h"
 #include "llvm/Analysis/LazyCallGraph.h"
-#include "llvm/Analysis/ReplayInlineAdvisor.h"
 #include "llvm/Analysis/Utils/ImportedFunctionsInliningStatistics.h"
 #include "llvm/IR/PassManager.h"
 #include <utility>
@@ -133,9 +132,14 @@ public:
   /// before run is called, as part of pass pipeline building.
   CGSCCPassManager &getPM() { return PM; }
 
-  /// Allow adding module-level passes benefiting the contained CGSCC passes.
+  /// Add a module pass that runs before the CGSCC passes.
   template <class T> void addModulePass(T Pass) {
     MPM.addPass(std::move(Pass));
+  }
+
+  /// Add a module pass that runs after the CGSCC passes.
+  template <class T> void addLateModulePass(T Pass) {
+    AfterCGMPM.addPass(std::move(Pass));
   }
 
   void printPipeline(raw_ostream &OS,
@@ -145,8 +149,10 @@ private:
   const InlineParams Params;
   const InliningAdvisorMode Mode;
   const unsigned MaxDevirtIterations;
+  // TODO: Clean this up so we only have one ModulePassManager.
   CGSCCPassManager PM;
   ModulePassManager MPM;
+  ModulePassManager AfterCGMPM;
 };
 } // end namespace llvm
 

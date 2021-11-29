@@ -72,9 +72,25 @@ func @shuffle_empty_mask(%arg0: vector<2xf32>, %arg1: vector<2xf32>) {
 
 // -----
 
+func @extract_element(%arg0: vector<f32>) {
+  %c = arith.constant 3 : i32
+  // expected-error@+1 {{expected position to be empty with 0-D vector}}
+  %1 = vector.extractelement %arg0[%c : i32] : vector<f32>
+}
+
+// -----
+ 
+func @extract_element(%arg0: vector<4xf32>) {
+  %c = arith.constant 3 : i32
+  // expected-error@+1 {{expected position for 1-D vector}}
+  %1 = vector.extractelement %arg0[] : vector<4xf32>
+}
+
+// -----
+
 func @extract_element(%arg0: vector<4x4xf32>) {
   %c = arith.constant 3 : i32
-  // expected-error@+1 {{'vector.extractelement' op expected 1-D vector}}
+  // expected-error@+1 {{unexpected >1 vector rank}}
   %1 = vector.extractelement %arg0[%c : i32] : vector<4x4xf32>
 }
 
@@ -122,9 +138,25 @@ func @extract_position_overflow(%arg0: vector<4x8x16xf32>) {
 
 // -----
 
+func @insert_element(%arg0: f32, %arg1: vector<f32>) {
+  %c = arith.constant 3 : i32
+  // expected-error@+1 {{expected position to be empty with 0-D vector}}
+  %0 = vector.insertelement %arg0, %arg1[%c : i32] : vector<f32>
+}
+
+// -----
+
+func @insert_element(%arg0: f32, %arg1: vector<4xf32>) {
+  %c = arith.constant 3 : i32
+  // expected-error@+1 {{expected position for 1-D vector}}
+  %0 = vector.insertelement %arg0, %arg1[] : vector<4xf32>
+}
+
+// -----
+
 func @insert_element(%arg0: f32, %arg1: vector<4x4xf32>) {
   %c = arith.constant 3 : i32
-  // expected-error@+1 {{'vector.insertelement' op expected 1-D vector}}
+  // expected-error@+1 {{unexpected >1 vector rank}}
   %0 = vector.insertelement %arg0, %arg1[%c : i32] : vector<4x4xf32>
 }
 
@@ -1095,7 +1127,7 @@ func @flat_transpose_type_mismatch(%arg0: vector<16xf32>) {
 // -----
 
 func @type_cast_layout(%arg0: memref<4x3xf32, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s0 + d1 * s1 + s2)>>) {
-  // expected-error@+1 {{expects operand to be a memref with no layout}}
+  // expected-error@+1 {{expects operand to be a memref with identity layout}}
   %0 = vector.type_cast %arg0: memref<4x3xf32, affine_map<(d0, d1)[s0, s1, s2] -> (d0 * s0 + d1 * s1 + s2)>> to memref<vector<4x3xf32>>
 }
 

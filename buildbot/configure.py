@@ -48,6 +48,9 @@ def do_configure(args):
         print("# Default CI configuration will be applied. #")
         print("#############################################")
 
+        # For clang-format and clang-tidy
+        llvm_enable_projects += ";clang-tools-extra"
+
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'

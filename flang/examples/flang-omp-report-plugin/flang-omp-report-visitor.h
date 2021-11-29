@@ -13,10 +13,10 @@
 #include "flang/Parser/parse-tree.h"
 #include "flang/Parser/parsing.h"
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 
-#include <deque>
-#include <map>
 #include <string>
 
 namespace Fortran {
@@ -48,7 +48,7 @@ using OmpWrapperType =
 
 struct OpenMPCounterVisitor {
   std::string normalize_construct_name(std::string s);
-  ClauseInfo normalize_clause_name(const std::string &s);
+  ClauseInfo normalize_clause_name(const llvm::StringRef s);
   SourcePosition getLocation(const OmpWrapperType &w);
   SourcePosition getLocation(const OpenMPDeclarativeConstruct &c);
   SourcePosition getLocation(const OpenMPConstruct &c);
@@ -61,13 +61,10 @@ struct OpenMPCounterVisitor {
   template <typename A> void Post(const A &) {}
   bool Pre(const OpenMPDeclarativeConstruct &c);
   bool Pre(const OpenMPConstruct &c);
-  bool Pre(const OmpEndLoopDirective &c);
-  bool Pre(const DoConstruct &);
 
   void Post(const OpenMPDeclarativeConstruct &);
   void Post(const OpenMPConstruct &);
   void PostConstructsCommon();
-  void Post(const OmpEndLoopDirective &c);
 
   void Post(const OmpProcBindClause::Type &c);
   void Post(const OmpDefaultClause::Type &c);
@@ -82,23 +79,11 @@ struct OpenMPCounterVisitor {
   void Post(const OmpCancelType::Type &c);
   void Post(const OmpClause &c);
   void PostClauseCommon(const ClauseInfo &ci);
-  void Post(const DoConstruct &);
 
   std::string clauseDetails{""};
-  std::map<std::pair<std::string, std::string>, int> constructClauseCount;
-
-  // curLoopLogRecord and loopLogRecordStack store
-  // pointers to this datastructure's entries. Hence a
-  // vector cannot be used since pointers are invalidated
-  // on resize. Next best option seems to be deque. Also a
-  // list cannot be used since YAML gen requires a
-  // datastructure which can be accessed through indices.
-  std::deque<LogRecord> constructClauses;
-
-  LogRecord *curLoopLogRecord{nullptr};
-  llvm::SmallVector<LogRecord *> loopLogRecordStack;
+  llvm::SmallVector<LogRecord> constructClauses;
   llvm::SmallVector<OmpWrapperType *> ompWrapperStack;
-  std::map<OmpWrapperType *, llvm::SmallVector<ClauseInfo>> clauseStrings;
+  llvm::DenseMap<OmpWrapperType *, llvm::SmallVector<ClauseInfo>> clauseStrings;
   Parsing *parsing{nullptr};
 };
 } // namespace parser

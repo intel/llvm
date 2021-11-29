@@ -49,10 +49,71 @@ using namespace lld::elf;
 
 LinkerScript *elf::script;
 
+static bool isSectionPrefix(StringRef prefix, StringRef name) {
+  return name.startswith(prefix) || name == prefix.drop_back();
+}
+
 static uint64_t getOutputSectionVA(SectionBase *sec) {
   OutputSection *os = sec->getOutputSection();
   assert(os && "input section has no output section assigned");
   return os ? os->addr : 0;
+}
+
+static StringRef getOutputSectionName(const InputSectionBase *s) {
+  if (config->relocatable)
+    return s->name;
+
+  // This is for --emit-relocs. If .text.foo is emitted as .text.bar, we want
+  // to emit .rela.text.foo as .rela.text.bar for consistency (this is not
+  // technically required, but not doing it is odd). This code guarantees that.
+  if (auto *isec = dyn_cast<InputSection>(s)) {
+    if (InputSectionBase *rel = isec->getRelocatedSection()) {
+      OutputSection *out = rel->getOutputSection();
+      if (s->type == SHT_RELA)
+        return saver.save(".rela" + out->name);
+      return saver.save(".rel" + out->name);
+    }
+  }
+
+  // A BssSection created for a common symbol is identified as "COMMON" in
+  // linker scripts. It should go to .bss section.
+  if (s->name == "COMMON")
+    return ".bss";
+
+  if (script->hasSectionsCommand)
+    return s->name;
+
+  // When no SECTIONS is specified, emulate GNU ld's internal linker scripts
+  // by grouping sections with certain prefixes.
+
+  // GNU ld places text sections with prefix ".text.hot.", ".text.unknown.",
+  // ".text.unlikely.", ".text.startup." or ".text.exit." before others.
+  // We provide an option -z keep-text-section-prefix to group such sections
+  // into separate output sections. This is more flexible. See also
+  // sortISDBySectionOrder().
+  // ".text.unknown" means the hotness of the section is unknown. When
+  // SampleFDO is used, if a function doesn't have sample, it could be very
+  // cold or it could be a new function never being sampled. Those functions
+  // will be kept in the ".text.unknown" section.
+  // ".text.split." holds symbols which are split out from functions in other
+  // input sections. For example, with -fsplit-machine-functions, placing the
+  // cold parts in .text.split instead of .text.unlikely mitigates against poor
+  // profile inaccuracy. Techniques such as hugepage remapping can make
+  // conservative decisions at the section granularity.
+  if (config->zKeepTextSectionPrefix)
+    for (StringRef v : {".text.hot.", ".text.unknown.", ".text.unlikely.",
+                        ".text.startup.", ".text.exit.", ".text.split."})
+      if (isSectionPrefix(v, s->name))
+        return v.drop_back();
+
+  for (StringRef v :
+       {".text.", ".rodata.", ".data.rel.ro.", ".data.", ".bss.rel.ro.",
+        ".bss.", ".init_array.", ".fini_array.", ".ctors.", ".dtors.", ".tbss.",
+        ".gcc_except_table.", ".tdata.", ".ARM.exidx.", ".ARM.extab."})
+    if (isSectionPrefix(v, s->name))
+      return v.drop_back();
+
+  return s->name;
 }
 
 uint64_t ExprValue::getValue() const {
@@ -102,23 +163,22 @@ OutputSection *LinkerScript::getOrCreateOutputSection(StringRef name) {
 
 // Expands the memory region by the specified size.
 static void expandMemoryRegion(MemoryRegion *memRegion, uint64_t size,
-                               StringRef regionName, StringRef secName) {
+                               StringRef secName) {
   memRegion->curPos += size;
   uint64_t newSize = memRegion->curPos - (memRegion->origin)().getValue();
   uint64_t length = (memRegion->length)().getValue();
   if (newSize > length)
-    error("section '" + secName + "' will not fit in region '" + regionName +
-          "': overflowed by " + Twine(newSize - length) + " bytes");
+    error("section '" + secName + "' will not fit in region '" +
+          memRegion->name + "': overflowed by " + Twine(newSize - length) +
+          " bytes");
 }
 
 void LinkerScript::expandMemoryRegions(uint64_t size) {
   if (ctx->memRegion)
-    expandMemoryRegion(ctx->memRegion, size, ctx->memRegion->name,
-                       ctx->outSec->name);
+    expandMemoryRegion(ctx->memRegion, size, ctx->outSec->name);
   // Only expand the LMARegion if it is different from memRegion.
   if (ctx->lmaRegion && ctx->memRegion != ctx->lmaRegion)
-    expandMemoryRegion(ctx->lmaRegion, size, ctx->lmaRegion->name,
-                       ctx->outSec->name);
+    expandMemoryRegion(ctx->lmaRegion, size, ctx->outSec->name);
 }
 
 void LinkerScript::expandOutputSection(uint64_t size) {
@@ -457,7 +517,7 @@ LinkerScript::computeInputSections(const InputSectionDescription *cmd,
       if (!sec->isLive() || sec->parent || seen.contains(i))
         continue;
 
-      // For -emit-relocs we have to ignore entries like
+      // For --emit-relocs we have to ignore entries like
       //   .rela.dyn : { *(.rela.data) }
       // which are common because they are in the default bfd script.
       // We do not ignore SHT_REL[A] linker-synthesized sections here because
@@ -882,34 +942,48 @@ void LinkerScript::switchTo(OutputSection *sec) {
 
 // This function searches for a memory region to place the given output
 // section in. If found, a pointer to the appropriate memory region is
-// returned. Otherwise, a nullptr is returned.
-MemoryRegion *LinkerScript::findMemoryRegion(OutputSection *sec) {
+// returned in the first member of the pair. Otherwise, a nullptr is returned.
+// The second member of the pair is a hint that should be passed to the
+// subsequent call of this method.
+std::pair<MemoryRegion *, MemoryRegion *>
+LinkerScript::findMemoryRegion(OutputSection *sec, MemoryRegion *hint) {
+  // Non-allocatable sections are not part of the process image.
+  if (!(sec->flags & SHF_ALLOC)) {
+    if (!sec->memoryRegionName.empty())
+      warn("ignoring memory region assignment for non-allocatable section '" +
+           sec->name + "'");
+    return {nullptr, nullptr};
+  }
+
   // If a memory region name was specified in the output section command,
   // then try to find that region first.
   if (!sec->memoryRegionName.empty()) {
     if (MemoryRegion *m = memoryRegions.lookup(sec->memoryRegionName))
-      return m;
+      return {m, m};
     error("memory region '" + sec->memoryRegionName + "' not declared");
-    return nullptr;
+    return {nullptr, nullptr};
   }
 
   // If at least one memory region is defined, all sections must
   // belong to some memory region. Otherwise, we don't need to do
   // anything for memory regions.
   if (memoryRegions.empty())
-    return nullptr;
+    return {nullptr, nullptr};
+
+  // An orphan section should continue the previous memory region.
+  if (sec->sectionIndex == UINT32_MAX && hint)
+    return {hint, hint};
 
   // See if a region can be found by matching section flags.
   for (auto &pair : memoryRegions) {
     MemoryRegion *m = pair.second;
-    if ((m->flags & sec->flags) && (m->negFlags & sec->flags) == 0)
-      return m;
+    if (m->compatibleWith(sec->flags))
+      return {m, nullptr};
   }
 
   // Otherwise, no suitable region was found.
-  if (sec->flags & SHF_ALLOC)
-    error("no memory region specified for section '" + sec->name + "'");
-  return nullptr;
+  error("no memory region specified for section '" + sec->name + "'");
+  return {nullptr, nullptr};
 }
 
 static OutputSection *findFirstSection(PhdrEntry *load) {
@@ -951,7 +1025,7 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
     // between the previous section, if any, and the start of this section.
     if (ctx->memRegion && ctx->memRegion->curPos < dot)
       expandMemoryRegion(ctx->memRegion, dot - ctx->memRegion->curPos,
-                         ctx->memRegion->name, sec->name);
+                         sec->name);
   }
 
   switchTo(sec);
@@ -962,12 +1036,16 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
   // reuse previous lmaOffset; otherwise, reset lmaOffset to 0. This emulates
   // heuristics described in
   // https://sourceware.org/binutils/docs/ld/Output-Section-LMA.html
-  if (sec->lmaExpr)
+  if (sec->lmaExpr) {
     ctx->lmaOffset = sec->lmaExpr().getValue() - dot;
-  else if (MemoryRegion *mr = sec->lmaRegion)
-    ctx->lmaOffset = alignTo(mr->curPos, sec->alignment) - dot;
-  else if (!sameMemRegion || !prevLMARegionIsDefault)
+  } else if (MemoryRegion *mr = sec->lmaRegion) {
+    uint64_t lmaStart = alignTo(mr->curPos, sec->alignment);
+    if (mr->curPos < lmaStart)
+      expandMemoryRegion(mr, lmaStart - mr->curPos, sec->name);
+    ctx->lmaOffset = lmaStart - dot;
+  } else if (!sameMemRegion || !prevLMARegionIsDefault) {
     ctx->lmaOffset = 0;
+  }
 
   // Propagate ctx->lmaOffset to the first "non-header" section.
   if (PhdrEntry *l = ctx->outSec->ptLoad)
@@ -1016,7 +1094,7 @@ void LinkerScript::assignOffsets(OutputSection *sec) {
   }
 }
 
-static bool isDiscardable(OutputSection &sec) {
+static bool isDiscardable(const OutputSection &sec) {
   if (sec.name == "/DISCARD/")
     return true;
 
@@ -1043,6 +1121,11 @@ static bool isDiscardable(OutputSection &sec) {
       return false;
   }
   return true;
+}
+
+bool LinkerScript::isDiscarded(const OutputSection *sec) const {
+  return hasSectionsCommand && (getFirstInputSection(sec) == nullptr) &&
+         isDiscardable(*sec);
 }
 
 static void maybePropagatePhdrs(OutputSection &sec,
@@ -1132,6 +1215,7 @@ void LinkerScript::adjustSectionsBeforeSorting() {
 
 void LinkerScript::adjustSectionsAfterSorting() {
   // Try and find an appropriate memory region to assign offsets in.
+  MemoryRegion *hint = nullptr;
   for (BaseCommand *base : sectionCommands) {
     if (auto *sec = dyn_cast<OutputSection>(base)) {
       if (!sec->lmaRegionName.empty()) {
@@ -1140,7 +1224,7 @@ void LinkerScript::adjustSectionsAfterSorting() {
         else
           error("memory region '" + sec->lmaRegionName + "' not declared");
       }
-      sec->memRegion = findMemoryRegion(sec);
+      std::tie(sec->memRegion, hint) = findMemoryRegion(sec, hint);
     }
   }
 

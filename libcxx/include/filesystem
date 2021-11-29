@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===--------------------------- filesystem -------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -966,6 +966,7 @@ public:
     _PathCVT<_ItVal>::__append_range(__pn_, __first, __last);
   }
 
+/*
 #if !defined(_LIBCPP_HAS_NO_LOCALIZATION)
   // TODO Implement locale conversions.
   template <class _Source, class = _EnableIfPathable<_Source, void> >
@@ -974,6 +975,7 @@ public:
   path(_InputIt __first, _InputIt _last, const locale& __loc,
        format = format::auto_format);
 #endif
+*/
 
   _LIBCPP_INLINE_VISIBILITY
   ~path() = default;
@@ -3022,13 +3024,17 @@ _LIBCPP_END_NAMESPACE_FILESYSTEM
 
 #if !defined(_LIBCPP_HAS_NO_RANGES)
 template <>
+_LIBCPP_AVAILABILITY_FILESYSTEM
 inline constexpr bool _VSTD::ranges::enable_borrowed_range<_VSTD_FS::directory_iterator> = true;
 template <>
+_LIBCPP_AVAILABILITY_FILESYSTEM
 inline constexpr bool _VSTD::ranges::enable_borrowed_range<_VSTD_FS::recursive_directory_iterator> = true;
 
 template <>
+_LIBCPP_AVAILABILITY_FILESYSTEM
 inline constexpr bool _VSTD::ranges::enable_view<_VSTD_FS::directory_iterator> = true;
 template <>
+_LIBCPP_AVAILABILITY_FILESYSTEM
 inline constexpr bool _VSTD::ranges::enable_view<_VSTD_FS::recursive_directory_iterator> = true;
 #endif
 

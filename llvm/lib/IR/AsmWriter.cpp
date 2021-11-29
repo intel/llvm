@@ -45,7 +45,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalAlias.h"
 #include "llvm/IR/GlobalIFunc.h"
-#include "llvm/IR/GlobalIndirectSymbol.h"
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -556,16 +555,13 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
     FunctionType *FTy = cast<FunctionType>(Ty);
     print(FTy->getReturnType(), OS);
     OS << " (";
-    for (FunctionType::param_iterator I = FTy->param_begin(),
-         E = FTy->param_end(); I != E; ++I) {
-      if (I != FTy->param_begin())
-        OS << ", ";
-      print(*I, OS);
+    ListSeparator LS;
+    for (Type *Ty : FTy->params()) {
+      OS << LS;
+      print(Ty, OS);
     }
-    if (FTy->isVarArg()) {
-      if (FTy->getNumParams()) OS << ", ";
-      OS << "...";
-    }
+    if (FTy->isVarArg())
+      OS << LS << "...";
     OS << ')';
     return;
   }
@@ -635,12 +631,11 @@ void TypePrinting::printStructBody(StructType *STy, raw_ostream &OS) {
   if (STy->getNumElements() == 0) {
     OS << "{}";
   } else {
-    StructType::element_iterator I = STy->element_begin();
     OS << "{ ";
-    print(*I++, OS);
-    for (StructType::element_iterator E = STy->element_end(); I != E; ++I) {
-      OS << ", ";
-      print(*I, OS);
+    ListSeparator LS;
+    for (Type *Ty : STy->elements()) {
+      OS << LS;
+      print(Ty, OS);
     }
 
     OS << " }";
@@ -1314,27 +1309,8 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Metadata *MD,
                                    bool FromValue = false);
 
 static void WriteOptimizationInfo(raw_ostream &Out, const User *U) {
-  if (const FPMathOperator *FPO = dyn_cast<const FPMathOperator>(U)) {
-    // 'Fast' is an abbreviation for all fast-math-flags.
-    if (FPO->isFast())
-      Out << " fast";
-    else {
-      if (FPO->hasAllowReassoc())
-        Out << " reassoc";
-      if (FPO->hasNoNaNs())
-        Out << " nnan";
-      if (FPO->hasNoInfs())
-        Out << " ninf";
-      if (FPO->hasNoSignedZeros())
-        Out << " nsz";
-      if (FPO->hasAllowReciprocal())
-        Out << " arcp";
-      if (FPO->hasAllowContract())
-        Out << " contract";
-      if (FPO->hasApproxFunc())
-        Out << " afn";
-    }
-  }
+  if (const FPMathOperator *FPO = dyn_cast<const FPMathOperator>(U))
+    Out << FPO->getFastMathFlags();
 
   if (const OverflowingBinaryOperator *OBO =
         dyn_cast<OverflowingBinaryOperator>(U)) {
@@ -2594,7 +2570,8 @@ public:
 
   void printTypeIdentities();
   void printGlobal(const GlobalVariable *GV);
-  void printIndirectSymbol(const GlobalIndirectSymbol *GIS);
+  void printAlias(const GlobalAlias *GA);
+  void printIFunc(const GlobalIFunc *GI);
   void printComdat(const Comdat *C);
   void printFunction(const Function *F);
   void printArgument(const Argument *FA, AttributeSet Attrs);
@@ -2832,12 +2809,12 @@ void AssemblyWriter::printModule(const Module *M) {
   // Output all aliases.
   if (!M->alias_empty()) Out << "\n";
   for (const GlobalAlias &GA : M->aliases())
-    printIndirectSymbol(&GA);
+    printAlias(&GA);
 
   // Output all ifuncs.
   if (!M->ifunc_empty()) Out << "\n";
   for (const GlobalIFunc &GI : M->ifuncs())
-    printIndirectSymbol(&GI);
+    printIFunc(&GI);
 
   // Output all of the functions.
   for (const Function &F : *M) {
@@ -3566,50 +3543,76 @@ void AssemblyWriter::printGlobal(const GlobalVariable *GV) {
   printInfoComment(*GV);
 }
 
-void AssemblyWriter::printIndirectSymbol(const GlobalIndirectSymbol *GIS) {
-  if (GIS->isMaterializable())
+void AssemblyWriter::printAlias(const GlobalAlias *GA) {
+  if (GA->isMaterializable())
     Out << "; Materializable\n";
 
-  AsmWriterContext WriterCtx(&TypePrinter, &Machine, GIS->getParent());
-  WriteAsOperandInternal(Out, GIS, WriterCtx);
+  AsmWriterContext WriterCtx(&TypePrinter, &Machine, GA->getParent());
+  WriteAsOperandInternal(Out, GA, WriterCtx);
   Out << " = ";
 
-  Out << getLinkageNameWithSpace(GIS->getLinkage());
-  PrintDSOLocation(*GIS, Out);
-  PrintVisibility(GIS->getVisibility(), Out);
-  PrintDLLStorageClass(GIS->getDLLStorageClass(), Out);
-  PrintThreadLocalModel(GIS->getThreadLocalMode(), Out);
-  StringRef UA = getUnnamedAddrEncoding(GIS->getUnnamedAddr());
+  Out << getLinkageNameWithSpace(GA->getLinkage());
+  PrintDSOLocation(*GA, Out);
+  PrintVisibility(GA->getVisibility(), Out);
+  PrintDLLStorageClass(GA->getDLLStorageClass(), Out);
+  PrintThreadLocalModel(GA->getThreadLocalMode(), Out);
+  StringRef UA = getUnnamedAddrEncoding(GA->getUnnamedAddr());
   if (!UA.empty())
       Out << UA << ' ';
 
-  if (isa<GlobalAlias>(GIS))
-    Out << "alias ";
-  else if (isa<GlobalIFunc>(GIS))
-    Out << "ifunc ";
-  else
-    llvm_unreachable("Not an alias or ifunc!");
+  Out << "alias ";
 
-  TypePrinter.print(GIS->getValueType(), Out);
-
+  TypePrinter.print(GA->getValueType(), Out);
   Out << ", ";
 
-  const Constant *IS = GIS->getIndirectSymbol();
-
-  if (!IS) {
-    TypePrinter.print(GIS->getType(), Out);
-    Out << " <<NULL ALIASEE>>";
+  if (const Constant *Aliasee = GA->getAliasee()) {
+    writeOperand(Aliasee, !isa<ConstantExpr>(Aliasee));
   } else {
-    writeOperand(IS, !isa<ConstantExpr>(IS));
+    TypePrinter.print(GA->getType(), Out);
+    Out << " <<NULL ALIASEE>>";
   }
 
-  if (GIS->hasPartition()) {
+  if (GA->hasPartition()) {
     Out << ", partition \"";
-    printEscapedString(GIS->getPartition(), Out);
+    printEscapedString(GA->getPartition(), Out);
     Out << '"';
   }
 
-  printInfoComment(*GIS);
+  printInfoComment(*GA);
+  Out << '\n';
+}
+
+void AssemblyWriter::printIFunc(const GlobalIFunc *GI) {
+  if (GI->isMaterializable())
+    Out << "; Materializable\n";
+
+  AsmWriterContext WriterCtx(&TypePrinter, &Machine, GI->getParent());
+  WriteAsOperandInternal(Out, GI, WriterCtx);
+  Out << " = ";
+
+  Out << getLinkageNameWithSpace(GI->getLinkage());
+  PrintDSOLocation(*GI, Out);
+  PrintVisibility(GI->getVisibility(), Out);
+
+  Out << "ifunc ";
+
+  TypePrinter.print(GI->getValueType(), Out);
+  Out << ", ";
+
+  if (const Constant *Resolver = GI->getResolver()) {
+    writeOperand(Resolver, !isa<ConstantExpr>(Resolver));
+  } else {
+    TypePrinter.print(GI->getType(), Out);
+    Out << " <<NULL RESOLVER>>";
+  }
+
+  if (GI->hasPartition()) {
+    Out << ", partition \"";
+    printEscapedString(GI->getPartition(), Out);
+    Out << '"';
+  }
+
+  printInfoComment(*GI);
   Out << '\n';
 }
 
@@ -4600,8 +4603,12 @@ void Value::print(raw_ostream &ROS, ModuleSlotTracker &MST,
       W.printGlobal(V);
     else if (const Function *F = dyn_cast<Function>(GV))
       W.printFunction(F);
+    else if (const GlobalAlias *A = dyn_cast<GlobalAlias>(GV))
+      W.printAlias(A);
+    else if (const GlobalIFunc *I = dyn_cast<GlobalIFunc>(GV))
+      W.printIFunc(I);
     else
-      W.printIndirectSymbol(cast<GlobalIndirectSymbol>(GV));
+      llvm_unreachable("Unknown GlobalValue to print out!");
   } else if (const MetadataAsValue *V = dyn_cast<MetadataAsValue>(this)) {
     V->getMetadata()->print(ROS, MST, getModuleFromVal(V));
   } else if (const Constant *C = dyn_cast<Constant>(this)) {

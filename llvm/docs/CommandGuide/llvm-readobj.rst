@@ -116,7 +116,7 @@ file formats.
  section index or section name.
 
 .. option:: --string-table
- 
+
  Display contents of the string table.
 
 .. option:: --symbols, --syms, -s
@@ -310,6 +310,15 @@ The following options are implemented only for the PE/COFF file format.
 .. option:: --coff-resources
 
  Display the .rsrc section.
+
+XCOFF SPECIFIC OPTIONS
+----------------------
+
+The following options are implemented only for the XCOFF file format.
+
+.. option:: --auxiliary-header
+
+  Display XCOFF Auxiliary header.
 
 EXIT STATUS
 -----------

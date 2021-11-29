@@ -40,7 +40,6 @@ Paper Status
 
 .. note::
 
-   .. [#note-P0433] P0433: So far, only the ``<string>``, sequence containers, container adaptors and ``<regex>`` portions of P0433 have been implemented.
    .. [#note-P0607] P0607: The parts of P0607 that are not done are the ``<regex>`` bits.
 
 

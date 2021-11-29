@@ -17,6 +17,8 @@
 
 namespace Fortran::runtime::io {
 
+class IoStatementState;
+
 enum class Direction { Output, Input };
 enum class Access { Sequential, Direct, Stream };
 
@@ -57,14 +59,26 @@ struct ConnectionState : public ConnectionAttributes {
   // or an end-of-file READ condition on a sequential access file
   std::optional<std::int64_t> endfileRecordNumber;
 
+  // Mutable modes set at OPEN() that can be overridden in READ/WRITE & FORMAT
+  MutableModes modes; // BLANK=, DECIMAL=, SIGN=, ROUND=, PAD=, DELIM=, kP
+
   // Set when processing repeated items during list-directed & NAMELIST input
   // in order to keep a span of records in frame on a non-positionable file,
   // so that backspacing to the beginning of the repeated item doesn't require
   // repositioning the external storage medium when that's impossible.
-  std::optional<std::int64_t> resumptionRecordNumber;
-
-  // Mutable modes set at OPEN() that can be overridden in READ/WRITE & FORMAT
-  MutableModes modes; // BLANK=, DECIMAL=, SIGN=, ROUND=, PAD=, DELIM=, kP
+  bool pinnedFrame{false};
 };
+
+// Utility class for capturing and restoring a position in an input stream.
+class SavedPosition {
+public:
+  explicit SavedPosition(IoStatementState &);
+  ~SavedPosition();
+
+private:
+  IoStatementState &io_;
+  ConnectionState saved_;
+};
+
 } // namespace Fortran::runtime::io
 #endif // FORTRAN_RUNTIME_IO_CONNECTION_H_

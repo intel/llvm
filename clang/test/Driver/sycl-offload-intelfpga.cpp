@@ -504,3 +504,10 @@
 // RUN:   | FileCheck -check-prefix=ERROR_BUNDLE_CHECK %s
 // ERROR_BUNDLE_CHECK-NOT: clang-offload-bundler{{.*}} "-targets=sycl-fpga_aoc{{(x|r|r_emu|o)}}-intel-unknown"{{.*}} "-check-section"
 // ERROR_BUNDLE_CHECK-NOT: error: file too small to be an archive
+
+/// Implied default device should not prevent hardware/simulation
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xshardware %S/Inputs/SYCL/liblin64.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_HARDWARE -DBEOPT=hardware %s
+// RUN:  %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fintelfpga -Xssimulation %S/Inputs/SYCL/liblin64.a %s 2>&1 \
+// RUN:    | FileCheck -check-prefix IMPLIED_DEVICE_HARDWARE -DBEOPT=simulation %s
+// IMPLIED_DEVICE_HARDWARE: aoc{{.*}} "-[[BEOPT]]"

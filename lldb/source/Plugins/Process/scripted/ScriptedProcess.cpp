@@ -20,7 +20,6 @@
 #include "lldb/Interpreter/ScriptInterpreter.h"
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Target/RegisterContext.h"
-
 #include "lldb/Utility/State.h"
 
 #include <mutex>
@@ -30,12 +29,7 @@ LLDB_PLUGIN_DEFINE(ScriptedProcess)
 using namespace lldb;
 using namespace lldb_private;
 
-ConstString ScriptedProcess::GetPluginNameStatic() {
-  static ConstString g_name("ScriptedProcess");
-  return g_name;
-}
-
-const char *ScriptedProcess::GetPluginDescriptionStatic() {
+llvm::StringRef ScriptedProcess::GetPluginDescriptionStatic() {
   return "Scripted Process plug-in.";
 }
 
@@ -111,7 +105,7 @@ ScriptedProcess::ScriptedProcess(
 
   StructuredData::GenericSP object_sp = GetInterface().CreatePluginObject(
       m_scripted_process_info.GetClassName().c_str(), exe_ctx,
-      m_scripted_process_info.GetDictionarySP());
+      m_scripted_process_info.GetArgsSP());
 
   if (!object_sp || !object_sp->IsValid()) {
     error.SetErrorStringWithFormat("ScriptedProcess::%s () - ERROR: %s",
@@ -254,8 +248,8 @@ ArchSpec ScriptedProcess::GetArchitecture() {
   return GetTarget().GetArchitecture();
 }
 
-Status ScriptedProcess::GetMemoryRegionInfo(lldb::addr_t load_addr,
-                                            MemoryRegionInfo &region) {
+Status ScriptedProcess::DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                                              MemoryRegionInfo &region) {
   CheckInterpreterAndScriptObject();
 
   Status error;
@@ -296,6 +290,7 @@ bool ScriptedProcess::DoUpdateThreadList(ThreadList &old_thread_list,
   // actually new threads will get added to new_thread_list.
 
   CheckInterpreterAndScriptObject();
+  m_thread_plans.ClearThreadCache();
 
   Status error;
   ScriptLanguage language = m_interpreter->GetLanguage();
@@ -319,6 +314,12 @@ bool ScriptedProcess::DoUpdateThreadList(ThreadList &old_thread_list,
   new_thread_list.AddThread(thread_sp);
 
   return new_thread_list.GetSize(false) > 0;
+}
+
+void ScriptedProcess::RefreshStateAfterStop() {
+  // Let all threads recover from stopping and do any clean up based on the
+  // previous thread state (if any).
+  m_thread_list.RefreshStateAfterStop();
 }
 
 bool ScriptedProcess::GetProcessInfo(ProcessInstanceInfo &info) {

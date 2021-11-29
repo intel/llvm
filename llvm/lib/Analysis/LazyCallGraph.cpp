@@ -1961,6 +1961,29 @@ void LazyCallGraph::buildRefSCCs() {
       });
 }
 
+void LazyCallGraph::visitReferences(SmallVectorImpl<Constant *> &Worklist,
+                                    SmallPtrSetImpl<Constant *> &Visited,
+                                    function_ref<void(Function &)> Callback) {
+  while (!Worklist.empty()) {
+    Constant *C = Worklist.pop_back_val();
+
+    if (Function *F = dyn_cast<Function>(C)) {
+      if (!F->isDeclaration())
+        Callback(*F);
+      continue;
+    }
+
+    // blockaddresses are weird and don't participate in the call graph anyway,
+    // skip them.
+    if (isa<BlockAddress>(C))
+      continue;
+
+    for (Value *Op : C->operand_values())
+      if (Visited.insert(cast<Constant>(Op)).second)
+        Worklist.push_back(cast<Constant>(Op));
+  }
+}
+
 AnalysisKey LazyCallGraphAnalysis::Key;
 
 LazyCallGraphPrinterPass::LazyCallGraphPrinterPass(raw_ostream &OS) : OS(OS) {}

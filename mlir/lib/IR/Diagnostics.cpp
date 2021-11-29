@@ -8,7 +8,6 @@
 
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Attributes.h"
-#include "mlir/IR/Identifier.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
@@ -109,11 +108,8 @@ Diagnostic &Diagnostic::operator<<(Twine &&val) {
   return *this;
 }
 
-/// Stream in an Identifier.
-Diagnostic &Diagnostic::operator<<(Identifier val) {
-  // An identifier is stored in the context, so we don't need to worry about the
-  // lifetime of its data.
-  arguments.push_back(DiagnosticArgument(val.strref()));
+Diagnostic &Diagnostic::operator<<(StringAttr val) {
+  arguments.push_back(DiagnosticArgument(val));
   return *this;
 }
 
@@ -127,9 +123,13 @@ Diagnostic &Diagnostic::operator<<(OperationName val) {
 
 /// Stream in an Operation.
 Diagnostic &Diagnostic::operator<<(Operation &val) {
+  return appendOp(val, OpPrintingFlags());
+}
+Diagnostic &Diagnostic::appendOp(Operation &val, const OpPrintingFlags &flags) {
   std::string str;
   llvm::raw_string_ostream os(str);
-  val.print(os, OpPrintingFlags().useLocalScope().elideLargeElementsAttrs());
+  val.print(os,
+            OpPrintingFlags(flags).useLocalScope().elideLargeElementsAttrs());
   return *this << os.str();
 }
 
@@ -465,7 +465,7 @@ void SourceMgrDiagnosticHandler::emitDiagnostic(Location loc, Twine message,
   // the constructor of SMDiagnostic that takes a location.
   std::string locStr;
   llvm::raw_string_ostream locOS(locStr);
-  locOS << fileLoc->getFilename() << ":" << fileLoc->getLine() << ":"
+  locOS << fileLoc->getFilename().getValue() << ":" << fileLoc->getLine() << ":"
         << fileLoc->getColumn();
   llvm::SMDiagnostic diag(locOS.str(), getDiagKind(kind), message.str());
   diag.print(nullptr, os);

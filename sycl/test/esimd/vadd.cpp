@@ -54,19 +54,33 @@ int main(void) {
   constexpr unsigned VL = 32;
   constexpr unsigned GroupSize = 2;
 
-  int A[Size];
-  int B[Size];
-  int C[Size] = {};
+  struct Deleter {
+    queue Q;
+    void operator()(int *Ptr) {
+      if (Ptr) {
+        sycl::free(Ptr, Q);
+      }
+    }
+  };
+
+  queue q(ESIMDSelector{}, exception_handler);
+
+  std::unique_ptr<int, Deleter> BufA(sycl::malloc_shared<int>(Size, q),
+                                     Deleter{q});
+  std::unique_ptr<int, Deleter> BufB(
+      sycl::aligned_alloc_shared<int>(16u, Size, q), Deleter{q});
+  std::unique_ptr<int, Deleter> BufC(
+      sycl::aligned_alloc_shared<int>(16u, Size, q), Deleter{q});
+
+  int *A = BufA.get();
+  int *B = BufB.get();
+  int *C = BufC.get();
 
   for (unsigned i = 0; i < Size; ++i) {
     A[i] = B[i] = i;
   }
 
   {
-    cl::sycl::buffer<int, 1> bufA(A, Size);
-    cl::sycl::buffer<int, 1> bufB(B, Size);
-    cl::sycl::buffer<int, 1> bufC(C, Size);
-
     // We need that many task groups
     cl::sycl::range<1> GroupRange{Size / VL};
 
@@ -75,28 +89,20 @@ int main(void) {
 
     cl::sycl::nd_range<1> Range{GroupRange, TaskRange};
 
-    queue q(ESIMDSelector{}, exception_handler);
     q.submit([&](cl::sycl::handler &cgh) {
-      auto accA = bufA.get_access<cl::sycl::access::mode::read>(cgh);
-      auto accB = bufB.get_access<cl::sycl::access::mode::read>(cgh);
-      auto accC = bufC.get_access<cl::sycl::access::mode::write>(cgh);
-
       cgh.parallel_for<class Test>(
           Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             using namespace sycl::ext::intel::experimental::esimd;
-            auto pA = accA.get_pointer().get();
-            auto pB = accB.get_pointer().get();
-            auto pC = accC.get_pointer().get();
 
             int i = ndi.get_global_id(0);
             constexpr int ESIZE = sizeof(int);
             simd<uint32_t, VL> offsets(0, ESIZE);
 
-            simd<int, VL> va = gather<int, VL>(pA + i * VL, offsets);
-            simd<int, VL> vb = block_load<int, VL>(pB + i * VL);
+            simd<int, VL> va = gather<int, VL>(A + i * VL, offsets);
+            simd<int, VL> vb = block_load<int, VL>(B + i * VL);
             simd<int, VL> vc = va + vb;
 
-            block_store<int, VL>(pC + i * VL, vc);
+            block_store<int, VL>(C + i * VL, vc);
           });
     });
   }

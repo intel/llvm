@@ -173,9 +173,9 @@ const std::array<std::pair<std::string, backend>, 6> &getSyclBeMap() {
   static const std::array<std::pair<std::string, backend>, 6> SyclBeMap = {
       {{"host", backend::host},
        {"opencl", backend::opencl},
-       {"level_zero", backend::level_zero},
-       {"cuda", backend::cuda},
-       {"hip", backend::hip},
+       {"level_zero", backend::ext_oneapi_level_zero},
+       {"cuda", backend::ext_oneapi_cuda},
+       {"hip", backend::ext_oneapi_hip},
        {"*", backend::all}}};
   return SyclBeMap;
 }

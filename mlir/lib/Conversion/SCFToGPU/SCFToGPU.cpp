@@ -421,7 +421,7 @@ static LogicalResult processParallelLoop(
       return val;
     if (auto constOp = val.getDefiningOp<arith::ConstantOp>())
       return rewriter.create<arith::ConstantOp>(constOp.getLoc(),
-                                                constOp.value());
+                                                constOp.getValue());
     return {};
   };
 
@@ -544,10 +544,10 @@ static LogicalResult processParallelLoop(
   // Propagate custom user defined optional attributes, that can be used at
   // later stage, such as extension data for GPU kernel dispatch
   for (const auto &namedAttr : parallelOp->getAttrs()) {
-    if (namedAttr.first == gpu::getMappingAttrName() ||
-        namedAttr.first == ParallelOp::getOperandSegmentSizeAttr())
+    if (namedAttr.getName() == gpu::getMappingAttrName() ||
+        namedAttr.getName() == ParallelOp::getOperandSegmentSizeAttr())
       continue;
-    launchOp->setAttr(namedAttr.first, namedAttr.second);
+    launchOp->setAttr(namedAttr.getName(), namedAttr.getValue());
   }
 
   Block *body = parallelOp.getBody();

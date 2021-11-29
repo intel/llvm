@@ -381,8 +381,8 @@ if 'darwin' == sys.platform:
         if 'hw.optional.fma: 1' in result:
             config.available_features.add('fma3')
 
-# .debug_frame is not emitted for targeting Windows x64 or arm64.
-if not re.match(r'^(x86_64|arm64).*-(windows-gnu|windows-msvc)', config.target_triple):
+# .debug_frame is not emitted for targeting Windows x64, arm64, or AIX.
+if not re.match(r'^(x86_64|arm64|powerpc|powerpc64).*-(windows-gnu|windows-msvc|aix)', config.target_triple):
     config.available_features.add('debug_frame')
 
 if config.have_libxar:
@@ -399,3 +399,6 @@ if config.have_opt_viewer_modules:
 
 if config.expensive_checks:
     config.available_features.add('expensive_checks')
+
+if "MemoryWithOrigins" in config.llvm_use_sanitizer:
+    config.available_features.add('use_msan_with_origins')

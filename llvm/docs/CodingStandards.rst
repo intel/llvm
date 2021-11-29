@@ -93,8 +93,8 @@ use LLVM's streams library (raw_ostream_). More detailed information on these
 subjects is available in the :doc:`ProgrammersManual`.
 
 For more information about LLVM's data structures and the tradeoffs they make,
-please consult [that section of the programmer's
-manual](https://llvm.org/docs/ProgrammersManual.html#picking-the-right-data-structure-for-a-task).
+please consult `that section of the programmer's manual
+<https://llvm.org/docs/ProgrammersManual.html#picking-the-right-data-structure-for-a-task>`_.
 
 Guidelines for Go code
 ----------------------
@@ -178,10 +178,10 @@ Header Guard
 """"""""""""
 
 The header file's guard should be the all-caps path that a user of this header
-would #include, using '_' instead of path separator and extension marker. 
+would #include, using '_' instead of path separator and extension marker.
 For example, the header file
-``llvm/include/llvm/Analysis/Utils/Local.h`` would be ``#include``-ed as 
-``#include "llvm/Analysis/Utils/Local.h"``, so its guard is 
+``llvm/include/llvm/Analysis/Utils/Local.h`` would be ``#include``-ed as
+``#include "llvm/Analysis/Utils/Local.h"``, so its guard is
 ``LLVM_ANALYSIS_UTILS_LOCAL_H``.
 
 Class overviews

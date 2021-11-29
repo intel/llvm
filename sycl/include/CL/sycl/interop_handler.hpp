@@ -32,8 +32,8 @@ public:
       : MQueue(std::move(Queue)), MMemObjs(std::move(MemObjs)) {}
 
   template <backend BackendName = backend::opencl>
-  auto get_queue() const -> typename interop<BackendName, queue>::type {
-    return reinterpret_cast<typename interop<BackendName, queue>::type>(
+  auto get_queue() const -> typename detail::interop<BackendName, queue>::type {
+    return reinterpret_cast<typename detail::interop<BackendName, queue>::type>(
         GetNativeQueue());
   }
 
@@ -43,9 +43,9 @@ public:
   auto get_mem(accessor<DataT, Dims, AccessMode, AccessTarget,
                         access::placeholder::false_t>
                    Acc) const ->
-      typename interop<BackendName,
-                       accessor<DataT, Dims, AccessMode, AccessTarget,
-                                access::placeholder::false_t>>::type {
+      typename detail::interop<BackendName,
+                               accessor<DataT, Dims, AccessMode, AccessTarget,
+                                        access::placeholder::false_t>>::type {
     detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Acc;
     return getMemImpl<BackendName, DataT, Dims, AccessMode, AccessTarget,
                       access::placeholder::false_t>(
@@ -59,12 +59,12 @@ private:
   template <backend BackendName, typename DataT, int Dims,
             access::mode AccessMode, access::target AccessTarget,
             access::placeholder IsPlaceholder>
-  auto getMemImpl(detail::Requirement *Req) const -> typename interop<
+  auto getMemImpl(detail::Requirement *Req) const -> typename detail::interop<
       BackendName,
       accessor<DataT, Dims, AccessMode, AccessTarget, IsPlaceholder>>::type {
-    return (typename interop<BackendName,
-                             accessor<DataT, Dims, AccessMode, AccessTarget,
-                                      IsPlaceholder>>::type)GetNativeMem(Req);
+    return (typename detail::interop<
+            BackendName, accessor<DataT, Dims, AccessMode, AccessTarget,
+                                  IsPlaceholder>>::type)GetNativeMem(Req);
   }
 
   __SYCL_EXPORT pi_native_handle GetNativeMem(detail::Requirement *Req) const;

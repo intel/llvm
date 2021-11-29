@@ -76,9 +76,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 } // __SYCL_INLINE_NAMESPACE(cl)
 
 // flat_read does flat-address gather
-template <typename Ty, int N, int NumBlk = 0,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N, int NumBlk = 0>
 __ESIMD_INTRIN
     __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
     __esimd_svm_gather(__SEIEED::vector_type_t<uint64_t, N> addrs,
@@ -91,12 +89,12 @@ __ESIMD_INTRIN
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
   __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)> V;
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
+  if (sizeof(Ty) == 2)
+    ElemsPerAddr = ElemsPerAddr / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) == 2)
-        ElemsPerAddr = ElemsPerAddr / 2;
       if (sizeof(Ty) <= 2) {
         for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
           V[I * NumBlkDecoded + J] = *(Addr + J);
@@ -111,9 +109,7 @@ __ESIMD_INTRIN
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_write does flat-address scatter
-template <typename Ty, int N, int NumBlk = 0,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N, int NumBlk = 0>
 __ESIMD_INTRIN void __esimd_svm_scatter(
     __SEIEED::vector_type_t<uint64_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * __SEIEED::ElemsPerAddrDecoding(NumBlk)>
@@ -125,12 +121,12 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
 {
   auto NumBlkDecoded = __SEIEED::ElemsPerAddrDecoding(NumBlk);
   ElemsPerAddr = __SEIEED::ElemsPerAddrDecoding(ElemsPerAddr);
+  if (sizeof(Ty) == 2)
+    ElemsPerAddr = ElemsPerAddr / 2;
 
   for (int I = 0; I < N; I++) {
     if (pred[I]) {
       Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) == 2)
-        ElemsPerAddr = ElemsPerAddr / 2;
       if (sizeof(Ty) <= 2) {
         for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddr; J++)
           *(Addr + J) = vals[I * NumBlkDecoded + J];
@@ -144,8 +140,7 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_block_read reads a block of data from one flat address
-template <typename Ty, int N, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_block_ld_unaligned(uint64_t addr)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -162,9 +157,26 @@ __esimd_svm_block_ld_unaligned(uint64_t addr)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
+// Read a block of data from the given address. Address must be 16-byte aligned.
+template <typename Ty, int N>
+__ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
+__esimd_svm_block_ld(uint64_t addr)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __SEIEED::vector_type_t<Ty, N> V;
+
+  for (int I = 0; I < N; I++) {
+    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
+    V[I] = *Addr;
+  }
+  return V;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
 // flat_block_write writes a block of data using one flat address
-template <typename Ty, int N, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N>
 __ESIMD_INTRIN void __esimd_svm_block_st(uint64_t addr,
                                          __SEIEED::vector_type_t<Ty, N> vals)
 #ifdef __SYCL_DEVICE_ONLY__
@@ -203,9 +215,7 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_read4 does flat-address gather4
-template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> __ESIMD_INTRIN
 __esimd_svm_gather4_scaled(__SEIEED::vector_type_t<uint64_t, N> addrs,
                            __SEIEED::simd_mask_storage_t<N> pred = 1)
@@ -258,9 +268,7 @@ __esimd_svm_gather4_scaled(__SEIEED::vector_type_t<uint64_t, N> addrs,
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_write does flat-address scatter
-template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <typename Ty, int N, __SEIEE::rgba_channel_mask Mask>
 __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
     __SEIEED::vector_type_t<uint64_t, N> addrs,
     __SEIEED::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
@@ -333,8 +341,7 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
 // @param elem_offsets - per-element offsets
 //
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+          int16_t Scale = 0>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
                        __SEIEED::vector_type_t<uint32_t, N> elem_offsets)
@@ -374,8 +381,7 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 // @param vals - values to write
 //
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0, __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+          int16_t Scale = 0>
 __ESIMD_INTRIN void
 __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
                        SurfIndAliasTy surf_ind, uint32_t global_offset,
@@ -393,9 +399,7 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
 #endif // __SYCL_DEVICE_ONLY__
 
 // flat_atomic: flat-address atomic
-template <__SEIEE::atomic_op Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
                     __SEIEED::simd_mask_storage_t<N> pred)
@@ -407,9 +411,7 @@ __esimd_svm_atomic0(__SEIEED::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-template <__SEIEE::atomic_op Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,
@@ -422,9 +424,7 @@ __esimd_svm_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-template <__SEIEE::atomic_op Op, typename Ty, int N,
-          __SEIEE::CacheHint L1H = __SEIEE::CacheHint::None,
-          __SEIEE::CacheHint L3H = __SEIEE::CacheHint::None>
+template <__SEIEE::atomic_op Op, typename Ty, int N>
 __ESIMD_INTRIN __SEIEED::vector_type_t<Ty, N>
 __esimd_svm_atomic2(__SEIEED::vector_type_t<uint64_t, N> addrs,
                     __SEIEED::vector_type_t<Ty, N> src0,

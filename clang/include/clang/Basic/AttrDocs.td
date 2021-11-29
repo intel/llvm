@@ -22,7 +22,7 @@
 // Windows (from within the clang\docs directory):
 //   make.bat html
 // Non-Windows (from within the clang\docs directory):
-//   make -f Makefile.sphinx html
+//   sphinx-build -b html _build/html
 
 def GlobalDocumentation {
   code Intro =[{..
@@ -417,11 +417,11 @@ The types that own this attribute are excluded from device-copyable and other
 type-legalization steps.
 
 .. code-block:: c++
-  class __attribute__((sycl_special_class)) accessor {
 
-private:
-  void __init() {}
-};
+  class __attribute__((sycl_special_class)) accessor {
+    private:
+      void __init() {}
+  };
   }];
 }
 
@@ -2064,9 +2064,27 @@ def BTFDeclTagDocs : Documentation {
   let Content = [{
 Clang supports the ``__attribute__((btf_decl_tag("ARGUMENT")))`` attribute for
 all targets. This attribute may be attached to a struct/union, struct/union
-field, function, function parameter or variable declaration. If -g is specified,
-the ``ARGUMENT`` info will be preserved in IR and be emitted to dwarf.
-For BPF targets, the ``ARGUMENT`` info will be emitted to .BTF ELF section too.
+field, function, function parameter, variable or typedef declaration. If -g is
+specified, the ``ARGUMENT`` info will be preserved in IR and be emitted to
+dwarf. For BPF targets, the ``ARGUMENT`` info will be emitted to .BTF ELF
+section too.
+  }];
+}
+
+def BTFTypeTagDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+Clang supports the ``__attribute__((btf_type_tag("ARGUMENT")))`` attribute for
+all targets. It only has effect when ``-g`` is specified on the command line and
+is currently silently ignored when not applied to a pointer type (note: this
+scenario may be diagnosed in the future).
+
+The ``ARGUMENT`` string will be preserved in IR and emitted to DWARF for the
+types used in variable declarations, function declarations, or typedef
+declarations.
+
+For BPF targets, the ``ARGUMENT`` string will also be emitted to .BTF ELF
+section.
   }];
 }
 

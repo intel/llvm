@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang-omp-report-visitor.h"
+#include "llvm/ADT/StringExtras.h"
 
 namespace Fortran {
 namespace parser {
@@ -26,23 +27,24 @@ bool operator!=(const LogRecord &a, const LogRecord &b) { return !(a == b); }
 
 std::string OpenMPCounterVisitor::normalize_construct_name(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(),
-      [](unsigned char c) { return std::tolower(c); });
+      [](unsigned char c) { return llvm::toLower(c); });
   return s;
 }
-ClauseInfo OpenMPCounterVisitor::normalize_clause_name(const std::string &s) {
+ClauseInfo OpenMPCounterVisitor::normalize_clause_name(
+    const llvm::StringRef s) {
   std::size_t start = s.find('(');
   std::size_t end = s.find(')');
   std::string clauseName;
-  if (start != std::string::npos && end != std::string::npos) {
+  if (start != llvm::StringRef::npos && end != llvm::StringRef::npos) {
     clauseName = s.substr(0, start);
     clauseDetails = s.substr(start + 1, end - start - 1);
   } else {
     clauseName = s;
   }
   std::transform(clauseName.begin(), clauseName.end(), clauseName.begin(),
-      [](unsigned char c) { return std::tolower(c); });
+      [](unsigned char c) { return llvm::toLower(c); });
   std::transform(clauseDetails.begin(), clauseDetails.end(),
-      clauseDetails.begin(), [](unsigned char c) { return std::tolower(c); });
+      clauseDetails.begin(), [](unsigned char c) { return llvm::toLower(c); });
   return ClauseInfo{clauseName, clauseDetails};
 }
 SourcePosition OpenMPCounterVisitor::getLocation(const OmpWrapperType &w) {
@@ -154,11 +156,6 @@ bool OpenMPCounterVisitor::Pre(const OpenMPConstruct &c) {
   ompWrapperStack.push_back(ow);
   return true;
 }
-bool OpenMPCounterVisitor::Pre(const OmpEndLoopDirective &c) { return true; }
-bool OpenMPCounterVisitor::Pre(const DoConstruct &) {
-  loopLogRecordStack.push_back(curLoopLogRecord);
-  return true;
-}
 
 void OpenMPCounterVisitor::Post(const OpenMPDeclarativeConstruct &) {
   PostConstructsCommon();
@@ -176,27 +173,11 @@ void OpenMPCounterVisitor::PostConstructsCommon() {
       clauseStrings[curConstruct]};
   constructClauses.push_back(r);
 
-  // Keep track of loop log records if it can potentially have the
-  // nowait clause added on later.
-  if (const auto *oc = std::get_if<const OpenMPConstruct *>(curConstruct)) {
-    if (const auto *olc = std::get_if<OpenMPLoopConstruct>(&(*oc)->u)) {
-      const auto &beginLoopDir{
-          std::get<Fortran::parser::OmpBeginLoopDirective>(olc->t)};
-      const auto &beginDir{
-          std::get<Fortran::parser::OmpLoopDirective>(beginLoopDir.t)};
-      if (beginDir.v == llvm::omp::Directive::OMPD_do ||
-          beginDir.v == llvm::omp::Directive::OMPD_do_simd) {
-        curLoopLogRecord = &constructClauses.back();
-      }
-    }
-  }
-
   auto it = clauseStrings.find(curConstruct);
   clauseStrings.erase(it);
   ompWrapperStack.pop_back();
   delete curConstruct;
 }
-void OpenMPCounterVisitor::Post(const OmpEndLoopDirective &c) {}
 
 void OpenMPCounterVisitor::Post(const OmpProcBindClause::Type &c) {
   clauseDetails += "type=" + OmpProcBindClause::EnumToString(c) + ";";
@@ -240,30 +221,9 @@ void OpenMPCounterVisitor::Post(const OmpClause &c) {
   clauseDetails.clear();
 }
 void OpenMPCounterVisitor::PostClauseCommon(const ClauseInfo &ci) {
-  // The end loop construct (!$omp end do) can contain a nowait clause.
-  // The flang parser does not parse the end loop construct as part of
-  // the OpenMP construct for the loop construct. So the end loop is left
-  // hanging as a separate executable construct. If a nowait clause is seen in
-  // an end loop construct we have to find the associated loop construct and
-  // add nowait to its list of clauses. Note: This is not a bug in flang, the
-  // parse tree is corrected during semantic analysis.
-  if (ci.clause == "nowait") {
-    assert(curLoopLogRecord &&
-        "loop Construct should be visited before a nowait clause");
-    constructClauseCount[std::make_pair(
-        curLoopLogRecord->construct, ci.clause)]++;
-    curLoopLogRecord->clauses.push_back(ci);
-  } else {
-    assert(!ompWrapperStack.empty() &&
-        "Construct should be visited before clause");
-    constructClauseCount[std::make_pair(
-        getName(*ompWrapperStack.back()), ci.clause)]++;
-    clauseStrings[ompWrapperStack.back()].push_back(ci);
-  }
-}
-void OpenMPCounterVisitor::Post(const DoConstruct &) {
-  curLoopLogRecord = loopLogRecordStack.back();
-  loopLogRecordStack.pop_back();
+  assert(
+      !ompWrapperStack.empty() && "Construct should be visited before clause");
+  clauseStrings[ompWrapperStack.back()].push_back(ci);
 }
 } // namespace parser
 } // namespace Fortran

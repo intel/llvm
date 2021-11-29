@@ -210,7 +210,7 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
 // To account for general boundary effects, padding must be performed on the
 // boundary tiles. For now this is done with an unconditional `fill` op followed
 // by a partial `copy` op.
-Optional<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
+FailureOr<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
     OpBuilder &b, Location loc, memref::SubViewOp subView,
     AllocBufferCallbackFn allocationFn, DataLayout &layout) {
   auto viewType = subView.getType();
@@ -223,9 +223,12 @@ Optional<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
     auto rangeValue = en.value();
     // Try to extract a tight constant.
     LLVM_DEBUG(llvm::dbgs() << "Extract tightest: " << rangeValue.size << "\n");
-    IntegerAttr sizeAttr = getSmallestBoundingIndex(rangeValue.size);
-    Value size = (!sizeAttr) ? rangeValue.size
-                             : b.create<arith::ConstantOp>(loc, sizeAttr);
+    FailureOr<int64_t> upperBound =
+        getConstantUpperBoundForIndex(rangeValue.size);
+    Value size =
+        failed(upperBound)
+            ? rangeValue.size
+            : b.create<arith::ConstantIndexOp>(loc, upperBound.getValue());
     LLVM_DEBUG(llvm::dbgs() << "Extracted tightest: " << size << "\n");
     fullSizes.push_back(size);
     partialSizes.push_back(
@@ -236,7 +239,7 @@ Optional<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
   // allocating the promoted buffer.
   Optional<Value> fullLocalView = allocationFn(b, subView, fullSizes, layout);
   if (!fullLocalView)
-    return {};
+    return failure();
   SmallVector<OpFoldResult, 4> zeros(fullSizes.size(), b.getIndexAttr(0));
   SmallVector<OpFoldResult, 4> ones(fullSizes.size(), b.getIndexAttr(1));
   auto partialLocalView = b.createOrFold<memref::SubViewOp>(
@@ -244,21 +247,21 @@ Optional<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
   return PromotionInfo{*fullLocalView, partialLocalView};
 }
 
-static Optional<MapVector<int64_t, PromotionInfo>>
+static FailureOr<MapVector<int64_t, PromotionInfo>>
 promoteSubViews(ImplicitLocOpBuilder &b,
                 LinalgOpInstancePromotionOptions options, DataLayout &layout) {
   if (options.subViews.empty())
-    return {};
+    return failure();
 
   MapVector<int64_t, PromotionInfo> promotionInfoMap;
 
   for (auto v : options.subViews) {
     memref::SubViewOp subView =
         cast<memref::SubViewOp>(v.second.getDefiningOp());
-    Optional<PromotionInfo> promotionInfo = promoteSubviewAsNewBuffer(
+    auto promotionInfo = promoteSubviewAsNewBuffer(
         b, b.getLoc(), subView, options.allocationFn, layout);
-    if (!promotionInfo)
-      return {};
+    if (failed(promotionInfo))
+      return failure();
     promotionInfoMap[v.first] = *promotionInfo;
 
     // Only fill the buffer if the full local view is used
@@ -283,7 +286,7 @@ promoteSubViews(ImplicitLocOpBuilder &b,
             })
             .Default([](auto) { return Value(); });
     if (!fillVal)
-      return {};
+      return failure();
     b.create<linalg::FillOp>(fillVal, promotionInfo->fullLocalView);
   }
 
@@ -295,21 +298,21 @@ promoteSubViews(ImplicitLocOpBuilder &b,
     if (failed(options.copyInFn(
             b, cast<memref::SubViewOp>(v.second.getDefiningOp()),
             info->second.partialLocalView)))
-      return {};
+      return failure();
   }
   return promotionInfoMap;
 }
 
-static Optional<LinalgOp>
+static FailureOr<LinalgOp>
 promoteSubViews(ImplicitLocOpBuilder &b, LinalgOp op,
                 LinalgOpInstancePromotionOptions options, DataLayout &layout) {
   assert(op.hasBufferSemantics() && "expected linalg op with buffer semantics");
 
   // 1. Promote the specified views and use them in the new op.
   auto promotedBuffersAndViews = promoteSubViews(b, options, layout);
-  if (!promotedBuffersAndViews ||
+  if (failed(promotedBuffersAndViews) ||
       promotedBuffersAndViews->size() != options.subViews.size())
-    return {};
+    return failure();
 
   // 2. Append all other operands as they appear, this enforces that such
   // operands are not views. This is to support cases such as FillOp taking
@@ -343,7 +346,7 @@ promoteSubViews(ImplicitLocOpBuilder &b, LinalgOp op,
   for (auto viewAndPartialLocalView : writebackViews) {
     if (failed(options.copyOutFn(b, viewAndPartialLocalView.second,
                                  viewAndPartialLocalView.first)))
-      return {};
+      return failure();
   }
 
   // 4. Dealloc all local buffers.
@@ -374,13 +377,16 @@ mlir::linalg::promoteSubviewsPrecondition(Operation *op,
   return failure();
 }
 
-Optional<LinalgOp>
+FailureOr<LinalgOp>
 mlir::linalg::promoteSubViews(OpBuilder &builder, LinalgOp linalgOp,
                               LinalgPromotionOptions options) {
   LinalgOpInstancePromotionOptions linalgOptions(linalgOp, options);
   auto layout = DataLayout::closest(linalgOp);
   ImplicitLocOpBuilder b(linalgOp.getLoc(), builder);
-  return ::promoteSubViews(b, linalgOp, linalgOptions, layout);
+  auto res = ::promoteSubViews(b, linalgOp, linalgOptions, layout);
+  if (failed(res))
+    return failure();
+  return res;
 }
 
 namespace {
@@ -400,7 +406,8 @@ struct LinalgPromotionPass : public LinalgPromotionBase<LinalgPromotionPass> {
         return;
       LLVM_DEBUG(llvm::dbgs() << "Promote: " << *(op.getOperation()) << "\n");
       ImplicitLocOpBuilder b(op.getLoc(), op);
-      promoteSubViews(b, op, options);
+      // TODO: signalPassFailure() ?
+      (void)promoteSubViews(b, op, options);
     });
   }
 };

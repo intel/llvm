@@ -19,6 +19,31 @@
 #include "ConstantsContext.h"
 
 namespace llvm {
+bool Operator::hasPoisonGeneratingFlags() const {
+  switch (getOpcode()) {
+  case Instruction::Add:
+  case Instruction::Sub:
+  case Instruction::Mul:
+  case Instruction::Shl: {
+    auto *OBO = cast<OverflowingBinaryOperator>(this);
+    return OBO->hasNoUnsignedWrap() || OBO->hasNoSignedWrap();
+  }
+  case Instruction::UDiv:
+  case Instruction::SDiv:
+  case Instruction::AShr:
+  case Instruction::LShr:
+    return cast<PossiblyExactOperator>(this)->isExact();
+  case Instruction::GetElementPtr: {
+    auto *GEP = cast<GEPOperator>(this);
+    // Note: inrange exists on constexpr only
+    return GEP->isInBounds() || GEP->getInRangeIndex() != None;
+  }
+  default:
+    return false;
+  }
+  // TODO: FastMathFlags!  (On instructions, but not constexpr)
+}
+
 Type *GEPOperator::getSourceElementType() const {
   if (auto *I = dyn_cast<GetElementPtrInst>(this))
     return I->getSourceElementType();
@@ -200,5 +225,26 @@ bool GEPOperator::collectOffset(
     }
   }
   return true;
+}
+
+void FastMathFlags::print(raw_ostream &O) const {
+  if (all())
+    O << " fast";
+  else {
+    if (allowReassoc())
+      O << " reassoc";
+    if (noNaNs())
+      O << " nnan";
+    if (noInfs())
+      O << " ninf";
+    if (noSignedZeros())
+      O << " nsz";
+    if (allowReciprocal())
+      O << " arcp";
+    if (allowContract())
+      O << " contract";
+    if (approxFunc())
+      O << " afn";
+  }
 }
 } // namespace llvm

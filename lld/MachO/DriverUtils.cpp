@@ -183,7 +183,7 @@ static void searchedDylib(const Twine &path, bool found) {
     depTracker->logFileNotFound(path);
 }
 
-Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
+Optional<StringRef> macho::resolveDylibPath(StringRef dylibPath) {
   // TODO: if a tbd and dylib are both present, we should check to make sure
   // they are consistent.
   SmallString<261> tbdPath = dylibPath;
@@ -191,12 +191,12 @@ Optional<std::string> macho::resolveDylibPath(StringRef dylibPath) {
   bool tbdExists = fs::exists(tbdPath);
   searchedDylib(tbdPath, tbdExists);
   if (tbdExists)
-    return std::string(tbdPath);
+    return saver.save(tbdPath.str());
 
   bool dylibExists = fs::exists(dylibPath);
   searchedDylib(dylibPath, dylibExists);
   if (dylibExists)
-    return std::string(dylibPath);
+    return saver.save(dylibPath);
   return {};
 }
 
@@ -245,6 +245,8 @@ DylibFile *macho::loadDylib(MemoryBufferRef mbref, DylibFile *umbrella,
   }
   return newFile;
 }
+
+void macho::resetLoadedDylibs() { loadedDylibs.clear(); }
 
 Optional<StringRef>
 macho::findPathCombination(const Twine &name,

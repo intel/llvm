@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
+#include <CL/sycl/properties/property_traits.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <type_traits>
 
@@ -110,6 +111,85 @@ struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
     : std::true_type {};
 } // namespace oneapi
 } // namespace ext
+
+// Forward declaration
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+class accessor;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
+template <typename DataT, int Dimensions, access::mode AccessMode>
+class host_accessor;
+
+// Accessor property trait specializations
+template <> struct is_property<property::noinit> : std::true_type {};
+template <> struct is_property<property::no_init> : std::true_type {};
+template <>
+struct is_property<ext::oneapi::property::no_offset> : std::true_type {};
+template <>
+struct is_property<ext::oneapi::property::no_alias> : std::true_type {};
+template <>
+struct is_property<ext::intel::property::buffer_location> : std::true_type {};
+
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_property_of<property::noinit,
+                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                               IsPlaceholder, PropertyListT>> : std::true_type {
+};
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_property_of<property::no_init,
+                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                               IsPlaceholder, PropertyListT>> : std::true_type {
+};
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_property_of<ext::oneapi::property::no_offset,
+                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                               IsPlaceholder, PropertyListT>> : std::true_type {
+};
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_property_of<ext::oneapi::property::no_alias,
+                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                               IsPlaceholder, PropertyListT>> : std::true_type {
+};
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+struct is_property_of<ext::intel::property::buffer_location,
+                      accessor<DataT, Dimensions, AccessMode, AccessTarget,
+                               IsPlaceholder, PropertyListT>> : std::true_type {
+};
+
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+struct is_property_of<
+    property::noinit,
+    image_accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>>
+    : std::true_type {};
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+struct is_property_of<
+    property::no_init,
+    image_accessor<DataT, Dimensions, AccessMode, AccessTarget, IsPlaceholder>>
+    : std::true_type {};
+
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct is_property_of<property::noinit,
+                      host_accessor<DataT, Dimensions, AccessMode>>
+    : std::true_type {};
+template <typename DataT, int Dimensions, access::mode AccessMode>
+struct is_property_of<property::no_init,
+                      host_accessor<DataT, Dimensions, AccessMode>>
+    : std::true_type {};
 
 namespace detail {
 template <int I>
