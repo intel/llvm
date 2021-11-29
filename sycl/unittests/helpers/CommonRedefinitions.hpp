@@ -114,6 +114,17 @@ inline pi_result redefinedEventsWaitCommon(pi_uint32 num_events,
   return PI_SUCCESS;
 }
 
+inline pi_result redefinedEventGetInfoCommon(pi_event Event,
+                                             pi_event_info ParamName,
+                                             size_t ParamValueSize,
+                                             void *ParamValue,
+                                             size_t *ParamValueSizeRet) {
+  if (ParamName == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    *static_cast<pi_event_status *>(ParamValue) = PI_EVENT_COMPLETE;
+  }
+  return PI_SUCCESS;
+}
+
 inline pi_result redefinedEventReleaseCommon(pi_event event) {
   if (event != nullptr)
     delete reinterpret_cast<int *>(event);
@@ -166,6 +177,7 @@ inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piKernelSetExecInfo>(
       redefinedKernelSetExecInfoCommon);
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWaitCommon);
+  Mock.redefine<PiApiKind::piEventGetInfo>(redefinedEventGetInfoCommon);
   Mock.redefine<PiApiKind::piEventRelease>(redefinedEventReleaseCommon);
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunchCommon);

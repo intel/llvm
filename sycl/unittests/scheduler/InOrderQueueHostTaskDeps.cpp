@@ -74,15 +74,6 @@ inline pi_result redefinedEventsWait(pi_uint32 num_events,
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedEventGetInfo(pi_event Event, pi_event_info ParamName,
-                                       size_t ParamValueSize, void *ParamValue,
-                                       size_t *ParamValueSizeRet) {
-  if (ParamName == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
-    *static_cast<pi_event_status *>(ParamValue) = PI_EVENT_COMPLETE;
-  }
-  return PI_SUCCESS;
-}
-
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   default_selector Selector;
   platform Plt{default_selector()};
@@ -100,7 +91,6 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   unittest::PiMock Mock{Plt};
   setupDefaultMockAPIs(Mock);
   Mock.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
-  Mock.redefine<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, Selector, property::queue::in_order()};
