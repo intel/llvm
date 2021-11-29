@@ -83,9 +83,11 @@ class queue;
 
 namespace detail {
 class queue_impl;
+#if 0
 #if __SYCL_USE_FALLBACK_ASSERT
 static event submitAssertCapture(queue &, event &, queue *,
                                  const detail::code_location &);
+#endif
 #endif
 } // namespace detail
 
@@ -262,8 +264,8 @@ public:
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
           // performed by program manager class
-          submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
-                              CodeLoc);
+          //submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
+          //                    CodeLoc);
         }
       };
 
@@ -309,7 +311,7 @@ public:
           // __devicelib_assert_fail isn't supported by Device-side Runtime
           // Linking against fallback impl of __devicelib_assert_fail is
           // performed by program manager class
-          submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
+          //submitAssertCapture(*this, E, DeviceSecondaryQueue, CodeLoc);
         }
       };
 
@@ -1057,9 +1059,11 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
+#if 0
 #if __SYCL_USE_FALLBACK_ASSERT
   friend event detail::submitAssertCapture(queue &, event &, queue *,
                                            const detail::code_location &);
+#endif
 #endif
 
   /// A template-free version of submit.
@@ -1163,6 +1167,7 @@ private:
 };
 
 namespace detail {
+#if 0
 #if __SYCL_USE_FALLBACK_ASSERT
 #define __SYCL_ASSERT_START 1
 /**
@@ -1243,6 +1248,7 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 }
 #undef __SYCL_ASSERT_START
 #endif // __SYCL_USE_FALLBACK_ASSERT
+#endif
 } // namespace detail
 
 } // namespace sycl
