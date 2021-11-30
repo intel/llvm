@@ -16,7 +16,7 @@ int __clc_nvvm_reflect_arch();
   switch (scope) {                                                             \
   case Subgroup:                                                               \
   case Workgroup: {                                                            \
-    if(__clc_nvvm_reflect_arch() >= 600){                              \
+    if (__clc_nvvm_reflect_arch() >= 600) {                                    \
       TYPE_NV res =                                                            \
            __nvvm_atom##ORDER##_cta_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(      \
               (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value, cmp);         \
@@ -30,7 +30,7 @@ int __clc_nvvm_reflect_arch();
   }                                                                            \
   case CrossDevice:                                                            \
   default: {                                                                   \
-    if(__clc_nvvm_reflect_arch() >= 600){                              \
+    if (__clc_nvvm_reflect_arch() >= 600) {                                    \
       TYPE_NV res =                                                            \
            __nvvm_atom##ORDER##_sys_##OP##ADDR_SPACE_NV##TYPE_MANGLED_NV(      \
               (ADDR_SPACE TYPE_NV *)pointer, *(TYPE_NV *)&value, cmp);         \
@@ -55,17 +55,17 @@ Memory order is stored in the lowest 5 bits */                                  
       __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                                                      \
                                        ADDR_SPACE, ADDR_SPACE_NV, )                                                                                             \
     case Acquire:                                                                                                                                               \
-      if(__clc_nvvm_reflect_arch() >= 700){                                                                                                             \
+      if (__clc_nvvm_reflect_arch() >= 700) {                                                                                                                   \
         __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                                                    \
                                          ADDR_SPACE, ADDR_SPACE_NV, _acquire)                                                                                   \
       }                                                                                                                                                         \
     case Release:                                                                                                                                               \
-      if(__clc_nvvm_reflect_arch() >= 700){                                                                                                             \
+      if (__clc_nvvm_reflect_arch() >= 700) {                                                                                                                   \
         __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                                                    \
                                          ADDR_SPACE, ADDR_SPACE_NV, _release)                                                                                   \
       }                                                                                                                                                         \
     case AcquireRelease:                                                                                                                                        \
-      if(__clc_nvvm_reflect_arch() >= 700){                                                                                                             \
+      if (__clc_nvvm_reflect_arch() >= 700) {                                                                                                                   \
         __CLC_NVVM_ATOMIC_CAS_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,                                                                                    \
                                          ADDR_SPACE, ADDR_SPACE_NV, _acq_rel)                                                                                   \
       }                                                                                                                                                         \
