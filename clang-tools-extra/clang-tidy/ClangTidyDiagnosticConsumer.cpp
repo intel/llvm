@@ -66,7 +66,7 @@ protected:
             ? tooling::DiagnosticMessage(Message, Loc.getManager(), Loc)
             : tooling::DiagnosticMessage(Message);
 
-    // Make sure that if a TokenRange is receieved from the check it is unfurled
+    // Make sure that if a TokenRange is received from the check it is unfurled
     // into a real CharRange for the diagnostic printer later.
     // Whatever we store here gets decoupled from the current SourceManager, so
     // we **have to** know the exact position and length of the highlight.
@@ -376,10 +376,10 @@ static ClangTidyError createNolintError(const ClangTidyContext &Context,
                        Context.getCurrentBuildDirectory(), false);
   StringRef Message =
       IsNolintBegin
-          ? "unmatched 'NOLINTBEGIN' comment without a subsequent 'NOLINTEND' "
-            "comment"
-          : "unmatched 'NOLINTEND' comment without a previous 'NOLINTBEGIN' "
-            "comment";
+          ? ("unmatched 'NOLINTBEGIN' comment without a subsequent 'NOLINT"
+             "END' comment")
+          : ("unmatched 'NOLINTEND' comment without a previous 'NOLINT"
+             "BEGIN' comment");
   Error.Message = tooling::DiagnosticMessage(Message, SM, Loc);
   return Error;
 }
@@ -516,16 +516,6 @@ static bool lineIsMarkedWithNOLINTinMacro(
 
 namespace clang {
 namespace tidy {
-
-bool shouldSuppressDiagnostic(DiagnosticsEngine::Level DiagLevel,
-                              const Diagnostic &Info, ClangTidyContext &Context,
-                              bool AllowIO) {
-  SmallVector<ClangTidyError, 1> Unused;
-  bool ShouldSuppress =
-      shouldSuppressDiagnostic(DiagLevel, Info, Context, Unused, AllowIO);
-  assert(Unused.empty());
-  return ShouldSuppress;
-}
 
 bool shouldSuppressDiagnostic(
     DiagnosticsEngine::Level DiagLevel, const Diagnostic &Info,

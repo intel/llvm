@@ -23,6 +23,10 @@ struct SomeStructure {
   } v;
 };
 
+struct SomeMarrayStructure {
+  cl::sycl::marray<double, 5> points;
+};
+
 #define CHECK_PASSING_TO_KERNEL_BY_VALUE(Type)                                 \
   static_assert(std::is_standard_layout<Type>::value,                          \
                 "Is not standard layouti type.");                     \
@@ -34,3 +38,4 @@ CHECK_PASSING_TO_KERNEL_BY_VALUE(int)
 CHECK_PASSING_TO_KERNEL_BY_VALUE(cl::sycl::cl_uchar4)
 CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeStructure)
 #endif
+CHECK_PASSING_TO_KERNEL_BY_VALUE(SomeMarrayStructure)

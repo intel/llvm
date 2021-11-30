@@ -1014,12 +1014,10 @@ bool HexagonHardwareLoops::containsInvalidInstruction(MachineLoop *L,
   LLVM_DEBUG(dbgs() << "\nhw_loop head, "
                     << printMBBReference(**L->block_begin()));
   for (MachineBasicBlock *MBB : L->getBlocks()) {
-    for (MachineBasicBlock::iterator
-           MII = MBB->begin(), E = MBB->end(); MII != E; ++MII) {
-      const MachineInstr *MI = &*MII;
-      if (isInvalidLoopOperation(MI, IsInnerHWLoop)) {
+    for (const MachineInstr &MI : *MBB) {
+      if (isInvalidLoopOperation(&MI, IsInnerHWLoop)) {
         LLVM_DEBUG(dbgs() << "\nCannot convert to hw_loop due to:";
-                   MI->dump(););
+                   MI.dump(););
         return true;
       }
     }
@@ -1094,15 +1092,15 @@ void HexagonHardwareLoops::removeIfDead(MachineInstr *MI) {
       if (!MO.isReg() || !MO.isDef())
         continue;
       Register Reg = MO.getReg();
-      MachineRegisterInfo::use_iterator nextI;
-      for (MachineRegisterInfo::use_iterator I = MRI->use_begin(Reg),
-           E = MRI->use_end(); I != E; I = nextI) {
-        nextI = std::next(I);  // I is invalidated by the setReg
-        MachineInstr *UseMI = I->getParent();
+      // We use make_early_inc_range here because setReg below invalidates the
+      // iterator.
+      for (MachineOperand &MO :
+           llvm::make_early_inc_range(MRI->use_operands(Reg))) {
+        MachineInstr *UseMI = MO.getParent();
         if (UseMI == MI)
           continue;
-        if (I->isDebug())
-          I->setReg(0U);
+        if (MO.isDebug())
+          MO.setReg(0U);
       }
     }
 
@@ -1123,7 +1121,7 @@ void HexagonHardwareLoops::removeIfDead(MachineInstr *MI) {
 bool HexagonHardwareLoops::convertToHardwareLoop(MachineLoop *L,
                                                  bool &RecL0used,
                                                  bool &RecL1used) {
-  // This is just for sanity.
+  // This is just to confirm basic correctness.
   assert(L->getHeader() && "Loop without a header?");
 
   bool Changed = false;
@@ -1877,8 +1875,7 @@ MachineBasicBlock *HexagonHardwareLoops::createPreheaderForLoop(
   if (TII->analyzeBranch(*ExitingBlock, TB, FB, Tmp1, false))
     return nullptr;
 
-  for (MBBVector::iterator I = Preds.begin(), E = Preds.end(); I != E; ++I) {
-    MachineBasicBlock *PB = *I;
+  for (MachineBasicBlock *PB : Preds) {
     bool NotAnalyzed = TII->analyzeBranch(*PB, TB, FB, Tmp1, false);
     if (NotAnalyzed)
       return nullptr;
@@ -1960,8 +1957,7 @@ MachineBasicBlock *HexagonHardwareLoops::createPreheaderForLoop(
 
   TB = FB = nullptr;
 
-  for (MBBVector::iterator I = Preds.begin(), E = Preds.end(); I != E; ++I) {
-    MachineBasicBlock *PB = *I;
+  for (MachineBasicBlock *PB : Preds) {
     if (PB != Latch) {
       Tmp2.clear();
       bool NotAnalyzed = TII->analyzeBranch(*PB, TB, FB, Tmp2, false);

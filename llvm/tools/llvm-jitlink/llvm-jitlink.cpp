@@ -16,11 +16,13 @@
 
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
+#include "llvm/ExecutionEngine/Orc/DebuggerSupportPlugin.h"
 #include "llvm/ExecutionEngine/Orc/ELFNixPlatform.h"
 #include "llvm/ExecutionEngine/Orc/EPCDebugObjectRegistrar.h"
 #include "llvm/ExecutionEngine/Orc/EPCDynamicLibrarySearchGenerator.h"
 #include "llvm/ExecutionEngine/Orc/EPCEHFrameRegistrar.h"
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
+#include "llvm/ExecutionEngine/Orc/IndirectionUtils.h"
 #include "llvm/ExecutionEngine/Orc/MachOPlatform.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/JITLoaderGDB.h"
 #include "llvm/ExecutionEngine/Orc/TargetProcess/RegisterEHFrames.h"
@@ -28,6 +30,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCInstPrinter.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -97,6 +100,11 @@ static cl::list<std::string> InputArgv("args", cl::Positional,
                                        cl::desc("<program arguments>..."),
                                        cl::ZeroOrMore, cl::PositionalEatsArgs,
                                        cl::cat(JITLinkCategory));
+
+static cl::opt<bool>
+    DebuggerSupport("debugger-support",
+                    cl::desc("Enable debugger suppport (default = !-noexec)"),
+                    cl::init(true), cl::Hidden, cl::cat(JITLinkCategory));
 
 static cl::opt<bool>
     NoProcessSymbols("no-process-syms",
@@ -178,6 +186,11 @@ static cl::opt<std::string>
     OrcRuntime("orc-runtime", cl::desc("Use ORC runtime from given path"),
                cl::init(""), cl::cat(JITLinkCategory));
 
+static cl::opt<bool> AddSelfRelocations(
+    "add-self-relocations",
+    cl::desc("Add relocations to function pointers to the current function"),
+    cl::init(false), cl::cat(JITLinkCategory));
+
 ExitOnError ExitOnErr;
 
 LLVM_ATTRIBUTE_USED void linkComponents() {
@@ -193,6 +206,8 @@ extern "C" void llvm_jitlink_setTestResultOverride(int64_t Value) {
   TestResultOverride = Value;
   UseTestResultOverride = true;
 }
+
+static Error addSelfRelocations(LinkGraph &G);
 
 namespace llvm {
 
@@ -978,8 +993,13 @@ Session::Session(std::unique_ptr<ExecutorProcessControl> EPC, Error &Err)
     ExitOnErr(loadProcessSymbols(*this));
   ExitOnErr(loadDylibs(*this));
 
-  // Set up the platform.
   auto &TT = ES.getExecutorProcessControl().getTargetTriple();
+
+  if (DebuggerSupport && TT.isOSBinFormatMachO())
+    ObjLayer.addPlugin(ExitOnErr(
+        GDBJITDebugInfoRegistrationPlugin::Create(this->ES, *MainJD, TT)));
+
+  // Set up the platform.
   if (TT.isOSBinFormatMachO() && !OrcRuntime.empty()) {
     if (auto P =
             MachOPlatform::Create(ES, ObjLayer, *MainJD, OrcRuntime.c_str()))
@@ -996,11 +1016,13 @@ Session::Session(std::unique_ptr<ExecutorProcessControl> EPC, Error &Err)
       Err = P.takeError();
       return;
     }
-  } else if (!NoExec && !TT.isOSWindows() && !TT.isOSBinFormatMachO()) {
-    ObjLayer.addPlugin(std::make_unique<EHFrameRegistrationPlugin>(
-        ES, ExitOnErr(EPCEHFrameRegistrar::Create(this->ES))));
-    ObjLayer.addPlugin(std::make_unique<DebugObjectManagerPlugin>(
-        ES, ExitOnErr(createJITLoaderGDBRegistrar(this->ES))));
+  } else if (!TT.isOSWindows() && !TT.isOSBinFormatMachO()) {
+    if (!NoExec)
+      ObjLayer.addPlugin(std::make_unique<EHFrameRegistrationPlugin>(
+          ES, ExitOnErr(EPCEHFrameRegistrar::Create(this->ES))));
+    if (DebuggerSupport)
+      ObjLayer.addPlugin(std::make_unique<DebugObjectManagerPlugin>(
+          ES, ExitOnErr(createJITLoaderGDBRegistrar(this->ES))));
   }
 
   ObjLayer.addPlugin(std::make_unique<JITLinkSessionPlugin>(*this));
@@ -1086,6 +1108,9 @@ void Session::modifyPassConfig(const Triple &TT,
       dumpSectionContents(outs(), G);
       return Error::success();
     });
+
+  if (AddSelfRelocations)
+    PassConfig.PostPrunePasses.push_back(addSelfRelocations);
 }
 
 Expected<Session::FileInfo &> Session::findFileInfo(StringRef FileName) {
@@ -1187,6 +1212,10 @@ static Error sanitizeArguments(const Triple &TT, const char *ArgV0) {
   // Set the entry point name if not specified.
   if (EntryPointName.empty())
     EntryPointName = TT.getObjectFormat() == Triple::MachO ? "_main" : "main";
+
+  // Disable debugger support by default in noexec tests.
+  if (DebuggerSupport.getNumOccurrences() == 0 && NoExec)
+    DebuggerSupport = false;
 
   // If -slab-allocate is passed, check that we're not trying to use it in
   // -oop-executor or -oop-executor-connect mode.
@@ -1374,14 +1403,21 @@ static Error loadObjects(Session &S) {
   return Error::success();
 }
 
-static Error runChecks(Session &S) {
-  const auto &TT = S.ES.getExecutorProcessControl().getTargetTriple();
+namespace {
+struct TargetInfo {
+  const Target *TheTarget;
+  std::unique_ptr<MCSubtargetInfo> STI;
+  std::unique_ptr<MCRegisterInfo> MRI;
+  std::unique_ptr<MCAsmInfo> MAI;
+  std::unique_ptr<MCContext> Ctx;
+  std::unique_ptr<MCDisassembler> Disassembler;
+  std::unique_ptr<MCInstrInfo> MII;
+  std::unique_ptr<MCInstrAnalysis> MIA;
+  std::unique_ptr<MCInstPrinter> InstPrinter;
+};
+} // anonymous namespace
 
-  if (CheckFiles.empty())
-    return Error::success();
-
-  LLVM_DEBUG(dbgs() << "Running checks...\n");
-
+static TargetInfo getTargetInfo(const Triple &TT) {
   auto TripleName = TT.str();
   std::string ErrorStr;
   const Target *TheTarget = TargetRegistry::lookupTarget(TripleName, ErrorStr);
@@ -1412,19 +1448,49 @@ static Error runChecks(Session &S) {
                                           TripleName,
                                       inconvertibleErrorCode()));
 
-  MCContext Ctx(Triple(TripleName), MAI.get(), MRI.get(), STI.get());
+  auto Ctx = std::make_unique<MCContext>(Triple(TripleName), MAI.get(),
+                                         MRI.get(), STI.get());
 
   std::unique_ptr<MCDisassembler> Disassembler(
-      TheTarget->createMCDisassembler(*STI, Ctx));
+      TheTarget->createMCDisassembler(*STI, *Ctx));
   if (!Disassembler)
     ExitOnErr(make_error<StringError>("Unable to create disassembler for " +
                                           TripleName,
                                       inconvertibleErrorCode()));
 
   std::unique_ptr<MCInstrInfo> MII(TheTarget->createMCInstrInfo());
+  if (!MII)
+    ExitOnErr(make_error<StringError>("Unable to create instruction info for" +
+                                          TripleName,
+                                      inconvertibleErrorCode()));
+
+  std::unique_ptr<MCInstrAnalysis> MIA(
+      TheTarget->createMCInstrAnalysis(MII.get()));
+  if (!MIA)
+    ExitOnErr(make_error<StringError>(
+        "Unable to create instruction analysis for" + TripleName,
+        inconvertibleErrorCode()));
 
   std::unique_ptr<MCInstPrinter> InstPrinter(
       TheTarget->createMCInstPrinter(Triple(TripleName), 0, *MAI, *MII, *MRI));
+  if (!InstPrinter)
+    ExitOnErr(make_error<StringError>(
+        "Unable to create instruction printer for" + TripleName,
+        inconvertibleErrorCode()));
+  return {TheTarget,      std::move(STI), std::move(MRI),
+          std::move(MAI), std::move(Ctx), std::move(Disassembler),
+          std::move(MII), std::move(MIA), std::move(InstPrinter)};
+}
+
+static Error runChecks(Session &S) {
+  const auto &TT = S.ES.getExecutorProcessControl().getTargetTriple();
+
+  if (CheckFiles.empty())
+    return Error::success();
+
+  LLVM_DEBUG(dbgs() << "Running checks...\n");
+
+  auto TI = getTargetInfo(TT);
 
   auto IsSymbolValid = [&S](StringRef Symbol) {
     return S.isSymbolRegistered(Symbol);
@@ -1448,8 +1514,8 @@ static Error runChecks(Session &S) {
 
   RuntimeDyldChecker Checker(
       IsSymbolValid, GetSymbolInfo, GetSectionInfo, GetStubInfo, GetGOTInfo,
-      TT.isLittleEndian() ? support::little : support::big, Disassembler.get(),
-      InstPrinter.get(), dbgs());
+      TT.isLittleEndian() ? support::little : support::big,
+      TI.Disassembler.get(), TI.InstPrinter.get(), dbgs());
 
   std::string CheckLineStart = "# " + CheckName + ":";
   for (auto &CheckFile : CheckFiles) {
@@ -1460,6 +1526,16 @@ static Error runChecks(Session &S) {
           "Some checks in " + CheckFile + " failed", inconvertibleErrorCode()));
   }
 
+  return Error::success();
+}
+
+static Error addSelfRelocations(LinkGraph &G) {
+  auto TI = getTargetInfo(G.getTargetTriple());
+  for (auto *Sym : G.defined_symbols())
+    if (Sym->isCallable())
+      if (auto Err = addFunctionPointerRelocationsToCurrentSymbol(
+              *Sym, G, *TI.Disassembler, *TI.MIA))
+        return Err;
   return Error::success();
 }
 
@@ -1584,6 +1660,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Destroy the session.
+  ExitOnErr(S->ES.endSession());
   S.reset();
 
   // If the executing code set a test result override then use that.

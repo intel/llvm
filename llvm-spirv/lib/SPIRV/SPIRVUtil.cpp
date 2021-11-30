@@ -244,9 +244,7 @@ void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
   }
 }
 
-bool isVoidFuncTy(FunctionType *FT) {
-  return FT->getReturnType()->isVoidTy() && FT->getNumParams() == 0;
-}
+bool isVoidFuncTy(FunctionType *FT) { return FT->getReturnType()->isVoidTy(); }
 
 bool isPointerToOpaqueStructType(llvm::Type *Ty) {
   if (auto PT = dyn_cast<PointerType>(Ty))
@@ -1426,6 +1424,8 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
   if (!BtnInfo)
     return std::string(UniqName);
   BtnInfo->init(UniqName);
+  if (BtnInfo->avoidMangling())
+    return std::string(UniqName);
   std::string MangledName;
   LLVM_DEBUG(dbgs() << "[mangle] " << UniqName << " => ");
   SPIR::FunctionDescriptor FD;
@@ -2054,6 +2054,71 @@ public:
       break;
     case OpEnqueueMarker:
       addUnsignedArg(1);
+      break;
+    case OpSubgroupAvcBmeInitializeINTEL:
+      addUnsignedArgs(0, 7);
+      break;
+    case OpSubgroupAvcFmeInitializeINTEL:
+    case OpSubgroupAvcSicConfigureIpeLumaINTEL:
+      addUnsignedArgs(0, 6);
+      break;
+    case OpSubgroupAvcImeAdjustRefOffsetINTEL:
+      addUnsignedArgs(1, 3);
+      break;
+    case OpSubgroupAvcImeGetBorderReachedINTEL:
+    case OpSubgroupAvcImeRefWindowSizeINTEL:
+    case OpSubgroupAvcImeSetEarlySearchTerminationThresholdINTEL:
+    case OpSubgroupAvcImeSetMaxMotionVectorCountINTEL:
+    case OpSubgroupAvcImeSetWeightedSadINTEL:
+    case OpSubgroupAvcMceSetInterBaseMultiReferencePenaltyINTEL:
+    case OpSubgroupAvcMceSetInterDirectionPenaltyINTEL:
+    case OpSubgroupAvcMceSetInterShapePenaltyINTEL:
+    case OpSubgroupAvcMceSetSingleReferenceInterlacedFieldPolarityINTEL:
+    case OpSubgroupAvcMceSetSourceInterlacedFieldPolarityINTEL:
+    case OpSubgroupAvcSicInitializeINTEL:
+    case OpSubgroupAvcSicSetBlockBasedRawSkipSadINTEL:
+    case OpSubgroupAvcSicSetIntraChromaModeCostFunctionINTEL:
+    case OpSubgroupAvcSicSetIntraLumaShapePenaltyINTEL:
+    case OpSubgroupAvcSicSetSkcForwardTransformEnableINTEL:
+      addUnsignedArg(0);
+      break;
+    case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeDistortionsINTEL:
+    case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeMotionVectorsINTEL:
+    case OpSubgroupAvcImeGetStreamoutDualReferenceMajorShapeReferenceIdsINTEL:
+    case OpSubgroupAvcRefEvaluateWithMultiReferenceINTEL:
+    case OpSubgroupAvcSicEvaluateWithMultiReferenceINTEL:
+      addUnsignedArgs(1, 2);
+      break;
+    case OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeDistortionsINTEL:
+    case OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeMotionVectorsINTEL:
+    case OpSubgroupAvcImeGetStreamoutSingleReferenceMajorShapeReferenceIdsINTEL:
+    case OpSubgroupAvcImeSetSingleReferenceINTEL:
+      addUnsignedArg(1);
+      break;
+    case OpSubgroupAvcImeInitializeINTEL:
+    case OpSubgroupAvcMceSetMotionVectorCostFunctionINTEL:
+    case OpSubgroupAvcSicSetIntraLumaModeCostFunctionINTEL:
+      addUnsignedArgs(0, 2);
+      break;
+    case OpSubgroupAvcImeSetDualReferenceINTEL:
+      addUnsignedArg(2);
+      break;
+    case OpSubgroupAvcMceGetDefaultInterBaseMultiReferencePenaltyINTEL:
+    case OpSubgroupAvcMceGetDefaultInterDirectionPenaltyINTEL:
+    case OpSubgroupAvcMceGetDefaultInterMotionVectorCostTableINTEL:
+    case OpSubgroupAvcMceGetDefaultInterShapePenaltyINTEL:
+    case OpSubgroupAvcMceGetDefaultIntraLumaModePenaltyINTEL:
+    case OpSubgroupAvcMceGetDefaultIntraLumaShapePenaltyINTEL:
+    case OpSubgroupAvcMceGetInterReferenceInterlacedFieldPolaritiesINTEL:
+    case OpSubgroupAvcMceSetDualReferenceInterlacedFieldPolaritiesINTEL:
+    case OpSubgroupAvcSicGetMotionVectorMaskINTEL:
+      addUnsignedArgs(0, 1);
+      break;
+    case OpSubgroupAvcSicConfigureIpeLumaChromaINTEL:
+      addUnsignedArgs(0, 9);
+      break;
+    case OpSubgroupAvcSicConfigureSkcINTEL:
+      addUnsignedArgs(0, 4);
       break;
     default:;
       // No special handling is needed

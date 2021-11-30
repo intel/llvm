@@ -691,6 +691,14 @@ def CCR_SGPR_64 : RegisterClass<"AMDGPU", SGPR_64.RegTypes, 32,
   let AllocationPriority = SGPR_64.AllocationPriority;
 }
 
+// Call clobbered 64-bit SGPRs for AMDGPU_Gfx CC
+def Gfx_CCR_SGPR_64 : RegisterClass<"AMDGPU", SGPR_64.RegTypes, 32,
+                                (add (trunc (shl SGPR_64, 15), 1), // s[30:31]
+                                     (trunc (shl SGPR_64, 18), 14))> { // s[36:37]-s[s62:63]
+  let CopyCost = SGPR_64.CopyCost;
+  let AllocationPriority = SGPR_64.AllocationPriority;
+}
+
 def TTMP_64 : RegisterClass<"AMDGPU", [v2i32, i64, f64, v4i16, v4f16], 32,
                             (add TTMP_64Regs)> {
   let isAllocatable = 0;
@@ -826,7 +834,7 @@ defm AReg_1024 : ARegClass<32, [v32i32, v32f32, v16i64, v16f64], (add AGPR_1024)
 
 // This is not a real register. This is just to have a register to add
 // to VReg_1 that does not alias any real register that would
-// introduce inferred register classess.
+// introduce inferred register classes.
 def ARTIFICIAL_VGPR : SIReg <"invalid vgpr", 0> {
   let isArtificial = 1;
 }

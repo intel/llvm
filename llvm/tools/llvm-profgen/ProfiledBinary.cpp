@@ -48,6 +48,8 @@ static cl::list<std::string> DisassembleFunctions(
     cl::desc("List of functions to print disassembly for. Accept demangled "
              "names only. Only work with show-disassembly-only"));
 
+extern cl::opt<bool> ShowDetailedWarning;
+
 namespace llvm {
 namespace sampleprof {
 
@@ -154,6 +156,34 @@ void BinarySizeContextTracker::trackInlineesOptimizedAway(
   ProbeContext.pop_back();
 }
 
+void ProfiledBinary::warnNoFuncEntry() {
+  uint64_t NoFuncEntryNum = 0;
+  for (auto &F : BinaryFunctions) {
+    if (F.second.Ranges.empty())
+      continue;
+    bool hasFuncEntry = false;
+    for (auto &R : F.second.Ranges) {
+      if (FuncRange *FR = findFuncRangeForStartOffset(R.first)) {
+        if (FR->IsFuncEntry) {
+          hasFuncEntry = true;
+          break;
+        }
+      }
+    }
+
+    if (!hasFuncEntry) {
+      NoFuncEntryNum++;
+      if (ShowDetailedWarning)
+        WithColor::warning()
+            << "Failed to determine function entry for " << F.first
+            << " due to inconsistent name from symbol table and dwarf info.\n";
+    }
+  }
+  emitWarningSummary(NoFuncEntryNum, BinaryFunctions.size(),
+                     "of functions failed to determine function entry due to "
+                     "inconsistent name from symbol table and dwarf info.");
+}
+
 void ProfiledBinary::load() {
   // Attempt to open the binary.
   OwningBinary<Binary> OBinary = unwrapOrError(createBinary(Path), Path);
@@ -187,7 +217,9 @@ void ProfiledBinary::load() {
 
   // Use function start and return address to infer prolog and epilog
   ProEpilogTracker.inferPrologOffsets(StartOffset2FuncRangeMap);
-  ProEpilogTracker.inferEpilogOffsets(RetAddrs);
+  ProEpilogTracker.inferEpilogOffsets(RetOffsets);
+
+  warnNoFuncEntry();
 
   // TODO: decode other sections.
 }
@@ -253,12 +285,16 @@ void ProfiledBinary::setPreferredTextSegmentAddresses(const ELFFile<ELFT> &Obj, 
   // because we may build the tools on non-linux.
   uint32_t PageSize = 0x1000;
   for (const typename ELFT::Phdr &Phdr : PhdrRange) {
-    if ((Phdr.p_type == ELF::PT_LOAD) && (Phdr.p_flags & ELF::PF_X)) {
+    if (Phdr.p_type == ELF::PT_LOAD) {
+      if (!FirstLoadableAddress)
+        FirstLoadableAddress = Phdr.p_vaddr & ~(PageSize - 1U);
+      if (Phdr.p_flags & ELF::PF_X) {
         // Segments will always be loaded at a page boundary.
         PreferredTextSegmentAddresses.push_back(Phdr.p_vaddr &
                                                 ~(PageSize - 1U));
         TextSegmentOffsets.push_back(Phdr.p_offset & ~(PageSize - 1U));
       }
+    }
   }
 
   if (PreferredTextSegmentAddresses.empty())
@@ -317,9 +353,10 @@ void ProfiledBinary::setIsFuncEntry(uint64_t Offset, StringRef RangeSymName) {
   if (!FuncRange)
     return;
 
-  // Set IsFuncEntry to ture if the RangeSymName from ELF is equal to its
-  // DWARF-based function name.
-  if (!FuncRange->IsFuncEntry && FuncRange->getFuncName() == RangeSymName)
+  // Set IsFuncEntry to ture if there is only one range in the function or the
+  // RangeSymName from ELF is equal to its DWARF-based function name.
+  if (FuncRange->Func->Ranges.size() == 1 ||
+      (!FuncRange->IsFuncEntry && FuncRange->getFuncName() == RangeSymName))
     FuncRange->IsFuncEntry = true;
 }
 
@@ -333,8 +370,8 @@ bool ProfiledBinary::dissassembleSymbol(std::size_t SI, ArrayRef<uint8_t> Bytes,
   uint64_t NextStartOffset =
       (SI + 1 < SE) ? Symbols[SI + 1].Addr - getPreferredBaseAddress()
                     : SectionOffset + SectSize;
-  if (StartOffset > NextStartOffset)
-    return true;
+  setIsFuncEntry(StartOffset,
+                 FunctionSamples::getCanonicalFnName(Symbols[SI].Name));
 
   StringRef SymbolName =
       ShowCanonicalFnName
@@ -397,9 +434,11 @@ bool ProfiledBinary::dissassembleSymbol(std::size_t SI, ArrayRef<uint8_t> Bytes,
       // Populate address maps.
       CodeAddrOffsets.push_back(Offset);
       if (MCDesc.isCall())
-        CallAddrs.insert(Offset);
+        CallOffsets.insert(Offset);
       else if (MCDesc.isReturn())
-        RetAddrs.insert(Offset);
+        RetOffsets.insert(Offset);
+      else if (MCDesc.isBranch())
+        BranchOffsets.insert(Offset);
 
       if (InvalidInstLength) {
         WarnInvalidInsts(Offset - InvalidInstLength, Offset - 1);
@@ -417,8 +456,6 @@ bool ProfiledBinary::dissassembleSymbol(std::size_t SI, ArrayRef<uint8_t> Bytes,
 
   if (ShowDisassembly)
     outs() << "\n";
-
-  setIsFuncEntry(StartOffset, Symbols[SI].Name);
 
   return true;
 }
@@ -655,13 +692,19 @@ SampleContextFrameVector ProfiledBinary::symbolize(const InstructionPointer &IP,
 
 void ProfiledBinary::computeInlinedContextSizeForRange(uint64_t StartOffset,
                                                        uint64_t EndOffset) {
-  uint32_t Index = getIndexForOffset(StartOffset);
-  if (CodeAddrOffsets[Index] != StartOffset)
-    WithColor::warning() << "Invalid start instruction at "
-                         << format("%8" PRIx64, StartOffset) << "\n";
+  uint64_t RangeBegin = offsetToVirtualAddr(StartOffset);
+  uint64_t RangeEnd = offsetToVirtualAddr(EndOffset);
+  InstructionPointer IP(this, RangeBegin, true);
 
-  uint64_t Offset = CodeAddrOffsets[Index];
-  while (Offset < EndOffset) {
+  if (IP.Address != RangeBegin)
+    WithColor::warning() << "Invalid start instruction at "
+                         << format("%8" PRIx64, RangeBegin) << "\n";
+
+  if (IP.Address >= RangeEnd)
+    return;
+
+  do {
+    uint64_t Offset = virtualAddrToOffset(IP.Address);
     const SampleContextFrameVector &SymbolizedCallStack =
         getFrameLocationStack(Offset, UsePseudoProbes);
     uint64_t Size = Offset2InstSizeMap[Offset];
@@ -669,8 +712,7 @@ void ProfiledBinary::computeInlinedContextSizeForRange(uint64_t StartOffset,
     // Record instruction size for the corresponding context
     FuncSizeTracker.addInstructionForContext(SymbolizedCallStack, Size);
 
-    Offset = CodeAddrOffsets[++Index];
-  }
+  } while (IP.advance() && IP.Address < RangeEnd);
 }
 
 InstructionPointer::InstructionPointer(const ProfiledBinary *Binary,
@@ -680,18 +722,31 @@ InstructionPointer::InstructionPointer(const ProfiledBinary *Binary,
   if (RoundToNext) {
     // we might get address which is not the code
     // it should round to the next valid address
-    this->Address = Binary->getAddressforIndex(Index);
+    if (Index >= Binary->getCodeOffsetsSize())
+      this->Address = UINT64_MAX;
+    else
+      this->Address = Binary->getAddressforIndex(Index);
   }
 }
 
-void InstructionPointer::advance() {
+bool InstructionPointer::advance() {
   Index++;
+  if (Index >= Binary->getCodeOffsetsSize()) {
+    Address = UINT64_MAX;
+    return false;
+  }
   Address = Binary->getAddressforIndex(Index);
+  return true;
 }
 
-void InstructionPointer::backward() {
+bool InstructionPointer::backward() {
+  if (Index == 0) {
+    Address = 0;
+    return false;
+  }
   Index--;
   Address = Binary->getAddressforIndex(Index);
+  return true;
 }
 
 void InstructionPointer::update(uint64_t Addr) {

@@ -89,7 +89,6 @@ public:
                     bool CreatePlaceHolder = true);
   Value *transValueWithoutDecoration(SPIRVValue *, Function *F, BasicBlock *,
                                      bool CreatePlaceHolder = true);
-  Value *transDeviceEvent(SPIRVValue *BV, Function *F, BasicBlock *BB);
   bool transDecoration(SPIRVValue *, Value *);
   bool transAlign(SPIRVValue *, Value *);
   Instruction *transOCLBuiltinFromExtInst(SPIRVExtInst *BC, BasicBlock *BB);
@@ -97,7 +96,6 @@ public:
                                   Function *F, BasicBlock *);
   Function *transFunction(SPIRVFunction *F);
   Value *transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB);
-  Instruction *transEnqueueKernelBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   bool transFPContractMetadata();

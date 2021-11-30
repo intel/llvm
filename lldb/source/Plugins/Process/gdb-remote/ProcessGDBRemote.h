@@ -144,9 +144,6 @@ public:
   lldb::addr_t DoAllocateMemory(size_t size, uint32_t permissions,
                                 Status &error) override;
 
-  Status GetMemoryRegionInfo(lldb::addr_t load_addr,
-                             MemoryRegionInfo &region_info) override;
-
   Status DoDeallocateMemory(lldb::addr_t ptr) override;
 
   // Process STDIO
@@ -346,8 +343,6 @@ protected:
 
   size_t UpdateThreadIDsFromStopReplyThreadsValue(llvm::StringRef value);
 
-  bool HandleNotifyPacket(StringExtractorGDBRemote &packet);
-
   bool StartAsyncThread();
 
   void StopAsyncThread();
@@ -377,8 +372,6 @@ protected:
                     lldb_private::LazyBool associated_with_libdispatch_queue,
                     lldb::addr_t dispatch_queue_t, std::string &queue_name,
                     lldb::QueueKind queue_kind, uint64_t queue_serial);
-
-  void HandleStopReplySequence();
 
   void ClearThreadIDList();
 
@@ -423,6 +416,9 @@ protected:
 
   Status DoWriteMemoryTags(lldb::addr_t addr, size_t len, int32_t type,
                            const std::vector<uint8_t> &tags) override;
+
+  Status DoGetMemoryRegionInfo(lldb::addr_t load_addr,
+                               MemoryRegionInfo &region_info) override;
 
 private:
   // For ProcessGDBRemote only

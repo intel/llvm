@@ -1288,6 +1288,24 @@ void InstrRefBasedLDV::transferRegisterDef(MachineInstr &MI) {
   } else if (MI.isMetaInstruction())
     return;
 
+  // We always ignore SP defines on call instructions, they don't actually
+  // change the value of the stack pointer... except for win32's _chkstk. This
+  // is rare: filter quickly for the common case (no stack adjustments, not a
+  // call, etc). If it is a call that modifies SP, recognise the SP register
+  // defs.
+  bool CallChangesSP = false;
+  if (AdjustsStackInCalls && MI.isCall() && MI.getOperand(0).isSymbol() &&
+      !strcmp(MI.getOperand(0).getSymbolName(), StackProbeSymbolName.data()))
+    CallChangesSP = true;
+
+  // Test whether we should ignore a def of this register due to it being part
+  // of the stack pointer.
+  auto IgnoreSPAlias = [this, &MI, CallChangesSP](Register R) -> bool {
+    if (CallChangesSP)
+      return false;
+    return MI.isCall() && MTracker->SPAliases.count(R);
+  };
+
   // Find the regs killed by MI, and find regmasks of preserved regs.
   // Max out the number of statically allocated elements in `DeadRegs`, as this
   // prevents fallback to std::set::count() operations.
@@ -1298,7 +1316,7 @@ void InstrRefBasedLDV::transferRegisterDef(MachineInstr &MI) {
     // Determine whether the operand is a register def.
     if (MO.isReg() && MO.isDef() && MO.getReg() &&
         Register::isPhysicalRegister(MO.getReg()) &&
-        !(MI.isCall() && MTracker->SPAliases.count(MO.getReg()))) {
+        !IgnoreSPAlias(MO.getReg())) {
       // Remove ranges of all aliased registers.
       for (MCRegAliasIterator RAI(MO.getReg(), TRI, true); RAI.isValid(); ++RAI)
         // FIXME: Can we break out of this loop early if no insertion occurs?
@@ -1347,6 +1365,9 @@ void InstrRefBasedLDV::transferRegisterDef(MachineInstr &MI) {
       continue;
 
     Register Reg = MTracker->LocIdxToLocID[L.Idx];
+    if (IgnoreSPAlias(Reg))
+      continue;
+
     for (auto *MO : RegMaskPtrs)
       if (MO->clobbersPhysReg(Reg))
         TTracker->clobberMloc(L.Idx, MI.getIterator(), false);
@@ -2879,6 +2900,12 @@ bool InstrRefBasedLDV::ExtendRanges(MachineFunction &MF,
   MFI = &MF.getFrameInfo();
   LS.initialize(MF);
 
+  const auto &STI = MF.getSubtarget();
+  AdjustsStackInCalls = MFI->adjustsStack() &&
+                        STI.getFrameLowering()->stackProbeFunctionModifiesSP();
+  if (AdjustsStackInCalls)
+    StackProbeSymbolName = STI.getTargetLowering()->getStackProbeSymbolName(MF);
+
   MTracker =
       new MLocTracker(MF, *TII, *TRI, *MF.getSubtarget().getTargetLowering());
   VTracker = nullptr;
@@ -3240,10 +3267,8 @@ public:
   /// vector.
   static void FindPredecessorBlocks(LDVSSABlock *BB,
                                     SmallVectorImpl<LDVSSABlock *> *Preds) {
-    for (MachineBasicBlock::pred_iterator PI = BB->BB.pred_begin(),
-                                          E = BB->BB.pred_end();
-         PI != E; ++PI)
-      Preds->push_back(BB->Updater.getSSALDVBlock(*PI));
+    for (MachineBasicBlock *Pred : BB->BB.predecessors())
+      Preds->push_back(BB->Updater.getSSALDVBlock(Pred));
   }
 
   /// GetUndefVal - Normally creates an IMPLICIT_DEF instruction with a new

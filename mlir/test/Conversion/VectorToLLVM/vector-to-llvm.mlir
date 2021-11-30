@@ -418,6 +418,16 @@ func @shuffle_2D(%a: vector<1x4xf32>, %b: vector<2x4xf32>) -> vector<3x4xf32> {
 
 // -----
 
+// CHECK-LABEL: @extract_element_0d
+func @extract_element_0d(%a: vector<f32>) -> f32 {
+  // CHECK: %[[C0:.*]] = llvm.mlir.constant(0 : index) : i64
+  // CHECK: llvm.extractelement %{{.*}}[%[[C0]] : {{.*}}] : vector<1xf32>
+  %1 = vector.extractelement %a[] : vector<f32>
+  return %1 : f32
+}
+
+// -----
+
 func @extract_element(%arg0: vector<16xf32>) -> f32 {
   %0 = arith.constant 15 : i32
   %1 = vector.extractelement %arg0[%0 : i32]: vector<16xf32>
@@ -427,6 +437,20 @@ func @extract_element(%arg0: vector<16xf32>) -> f32 {
 // CHECK-SAME: %[[A:.*]]: vector<16xf32>)
 //       CHECK:   %[[c:.*]] = arith.constant 15 : i32
 //       CHECK:   %[[x:.*]] = llvm.extractelement %[[A]][%[[c]] : i32] : vector<16xf32>
+//       CHECK:   return %[[x]] : f32
+
+// -----
+
+func @extract_element_index(%arg0: vector<16xf32>) -> f32 {
+  %0 = arith.constant 15 : index
+  %1 = vector.extractelement %arg0[%0 : index]: vector<16xf32>
+  return %1 : f32
+}
+// CHECK-LABEL: @extract_element_index(
+// CHECK-SAME: %[[A:.*]]: vector<16xf32>)
+//       CHECK:   %[[c:.*]] = arith.constant 15 : index
+//       CHECK:   %[[i:.*]] = builtin.unrealized_conversion_cast %[[c]] : index to i64
+//       CHECK:   %[[x:.*]] = llvm.extractelement %[[A]][%[[i]] : i64] : vector<16xf32>
 //       CHECK:   return %[[x]] : f32
 
 // -----
@@ -488,6 +512,19 @@ func @extract_element_from_vec_3d(%arg0: vector<4x3x16xf32>) -> f32 {
 
 // -----
 
+// CHECK-LABEL: @insert_element_0d
+// CHECK-SAME: %[[A:.*]]: f32,
+func @insert_element_0d(%a: f32, %b: vector<f32>) -> vector<f32> {
+  // CHECK: %[[B:.*]] =  builtin.unrealized_conversion_cast %{{.*}} :
+  // CHECK:   vector<f32> to vector<1xf32>
+  // CHECK: %[[C0:.*]] = llvm.mlir.constant(0 : index) : i64
+  // CHECK: %[[x:.*]] = llvm.insertelement %[[A]], %[[B]][%[[C0]] : {{.*}}] : vector<1xf32>
+  %1 = vector.insertelement %a, %b[] : vector<f32>
+  return %1 : vector<f32>
+}
+
+// -----
+
 func @insert_element(%arg0: f32, %arg1: vector<4xf32>) -> vector<4xf32> {
   %0 = arith.constant 3 : i32
   %1 = vector.insertelement %arg0, %arg1[%0 : i32] : vector<4xf32>
@@ -498,6 +535,21 @@ func @insert_element(%arg0: f32, %arg1: vector<4xf32>) -> vector<4xf32> {
 // CHECK-SAME: %[[B:.*]]: vector<4xf32>)
 //       CHECK:   %[[c:.*]] = arith.constant 3 : i32
 //       CHECK:   %[[x:.*]] = llvm.insertelement %[[A]], %[[B]][%[[c]] : i32] : vector<4xf32>
+//       CHECK:   return %[[x]] : vector<4xf32>
+
+// -----
+
+func @insert_element_index(%arg0: f32, %arg1: vector<4xf32>) -> vector<4xf32> {
+  %0 = arith.constant 3 : index
+  %1 = vector.insertelement %arg0, %arg1[%0 : index] : vector<4xf32>
+  return %1 : vector<4xf32>
+}
+// CHECK-LABEL: @insert_element_index(
+//  CHECK-SAME: %[[A:.*]]: f32,
+//  CHECK-SAME: %[[B:.*]]: vector<4xf32>)
+//       CHECK:   %[[c:.*]] = arith.constant 3 : index
+//       CHECK:   %[[i:.*]] = builtin.unrealized_conversion_cast %[[c]] : index to i64
+//       CHECK:   %[[x:.*]] = llvm.insertelement %[[A]], %[[B]][%[[i]] : i64] : vector<4xf32>
 //       CHECK:   return %[[x]] : vector<4xf32>
 
 // -----
@@ -941,10 +993,11 @@ func @insert_strided_slice3(%arg0: vector<2x4xf32>, %arg1: vector<16x4x8xf32>) -
 
 // -----
 
-func @vector_fma(%a: vector<8xf32>, %b: vector<2x4xf32>) -> (vector<8xf32>, vector<2x4xf32>) {
+func @vector_fma(%a: vector<8xf32>, %b: vector<2x4xf32>, %c: vector<1x1x1xf32>) -> (vector<8xf32>, vector<2x4xf32>, vector<1x1x1xf32>) {
   // CHECK-LABEL: @vector_fma
   //  CHECK-SAME: %[[A:.*]]: vector<8xf32>
   //  CHECK-SAME: %[[B:.*]]: vector<2x4xf32>
+  //  CHECK-SAME: %[[C:.*]]: vector<1x1x1xf32>
   //       CHECK: %[[BL:.*]] = builtin.unrealized_conversion_cast %[[B]] : vector<2x4xf32> to !llvm.array<2 x vector<4xf32>>
   //       CHECK: "llvm.intr.fmuladd"
   //  CHECK-SAME:   (vector<8xf32>, vector<8xf32>, vector<8xf32>) -> vector<8xf32>
@@ -964,7 +1017,11 @@ func @vector_fma(%a: vector<8xf32>, %b: vector<2x4xf32>) -> (vector<8xf32>, vect
   //       CHECK: llvm.insertvalue %[[B1]], {{.*}}[1] : !llvm.array<2 x vector<4xf32>>
   %1 = vector.fma %b, %b, %b : vector<2x4xf32>
 
-  return %0, %1: vector<8xf32>, vector<2x4xf32>
+  //       CHECK: %[[C0:.*]] = "llvm.intr.fmuladd"
+  //  CHECK-SAME:   (vector<1xf32>, vector<1xf32>, vector<1xf32>) -> vector<1xf32>
+  %2 = vector.fma %c, %c, %c : vector<1x1x1xf32>
+
+  return %0, %1, %2: vector<8xf32>, vector<2x4xf32>, vector<1x1x1xf32>
 }
 
 // -----

@@ -1339,6 +1339,10 @@ public:
     return P == ICMP_SLE || P == ICMP_ULE;
   }
 
+  /// Returns the sequence of all ICmp predicates.
+  ///
+  static auto predicates() { return ICmpPredicates(); }
+
   /// Exchange the two operands to this instruction in such a way that it does
   /// not modify the semantics of the instruction. The predicate value may be
   /// changed to retain the same result if the predicate is order dependent
@@ -1460,6 +1464,10 @@ public:
     setPredicate(getSwappedPredicate());
     Op<0>().swap(Op<1>());
   }
+
+  /// Returns the sequence of all FCmp predicates.
+  ///
+  static auto predicates() { return FCmpPredicates(); }
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
@@ -2345,6 +2353,27 @@ public:
         cast<FixedVectorType>(Op<0>()->getType())->getNumElements();
     return isInsertSubvectorMask(ShuffleMask, NumSrcElts, NumSubElts, Index);
   }
+
+  /// Return true if this shuffle mask replicates each of the \p VF elements
+  /// in a vector \p ReplicationFactor times.
+  /// For example, the mask for \p ReplicationFactor=3 and \p VF=4 is:
+  ///   <0,0,0,1,1,1,2,2,2,3,3,3>
+  static bool isReplicationMask(ArrayRef<int> Mask, int &ReplicationFactor,
+                                int &VF);
+  static bool isReplicationMask(const Constant *Mask, int &ReplicationFactor,
+                                int &VF) {
+    assert(Mask->getType()->isVectorTy() && "Shuffle needs vector constant.");
+    // Not possible to express a shuffle mask for a scalable vector for this
+    // case.
+    if (isa<ScalableVectorType>(Mask->getType()))
+      return false;
+    SmallVector<int, 16> MaskAsInts;
+    getShuffleMask(Mask, MaskAsInts);
+    return isReplicationMask(MaskAsInts, ReplicationFactor, VF);
+  }
+
+  /// Return true if this shuffle mask is a replication mask.
+  bool isReplicationMask(int &ReplicationFactor, int &VF) const;
 
   /// Change values in a shuffle permute mask assuming the two vector operands
   /// of length InVecNumElts have swapped position.
@@ -3321,14 +3350,14 @@ public:
     CaseHandle(SwitchInst *SI, ptrdiff_t Index) : CaseHandleImpl(SI, Index) {}
 
     /// Sets the new value for current case.
-    void setValue(ConstantInt *V) {
+    void setValue(ConstantInt *V) const {
       assert((unsigned)Index < SI->getNumCases() &&
              "Index out the number of cases.");
       SI->setOperand(2 + Index*2, reinterpret_cast<Value*>(V));
     }
 
     /// Sets the new successor for current case.
-    void setSuccessor(BasicBlock *S) {
+    void setSuccessor(BasicBlock *S) const {
       SI->setSuccessor(getSuccessorIndex(), S);
     }
   };
@@ -3337,7 +3366,7 @@ public:
   class CaseIteratorImpl
       : public iterator_facade_base<CaseIteratorImpl<CaseHandleT>,
                                     std::random_access_iterator_tag,
-                                    CaseHandleT> {
+                                    const CaseHandleT> {
     using SwitchInstT = typename CaseHandleT::SwitchInstType;
 
     CaseHandleT Case;
@@ -3396,7 +3425,6 @@ public:
       assert(Case.SI == RHS.Case.SI && "Incompatible operators.");
       return Case.Index < RHS.Case.Index;
     }
-    CaseHandleT &operator*() { return Case; }
     const CaseHandleT &operator*() const { return Case; }
   };
 
@@ -3486,15 +3514,12 @@ public:
   /// default case iterator to indicate that it is handled by the default
   /// handler.
   CaseIt findCaseValue(const ConstantInt *C) {
-    CaseIt I = llvm::find_if(
-        cases(), [C](CaseHandle &Case) { return Case.getCaseValue() == C; });
-    if (I != case_end())
-      return I;
-
-    return case_default();
+    return CaseIt(
+        this,
+        const_cast<const SwitchInst *>(this)->findCaseValue(C)->getCaseIndex());
   }
   ConstCaseIt findCaseValue(const ConstantInt *C) const {
-    ConstCaseIt I = llvm::find_if(cases(), [C](ConstCaseHandle &Case) {
+    ConstCaseIt I = llvm::find_if(cases(), [C](const ConstCaseHandle &Case) {
       return Case.getCaseValue() == C;
     });
     if (I != case_end())

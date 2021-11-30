@@ -19,6 +19,7 @@ set(LIBCXX_SOURCES
   include/atomic_support.h
   include/config_elast.h
   include/refstring.h
+  legacy_pointer_safety.cpp
   memory.cpp
   mutex.cpp
   mutex_destructor.cpp
@@ -196,6 +197,7 @@ split_list(LIBCXX_LINK_FLAGS)
 # Build the shared library.
 if (LIBCXX_ENABLE_SHARED)
   add_library(cxx_shared SHARED ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
+  target_include_directories(cxx_shared PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(cxx_shared PUBLIC cxx-headers
                                    PRIVATE ${LIBCXX_LIBRARIES})
   set_target_properties(cxx_shared
@@ -274,6 +276,7 @@ set(CMAKE_STATIC_LIBRARY_PREFIX "lib")
 # Build the static library.
 if (LIBCXX_ENABLE_STATIC)
   add_library(cxx_static STATIC ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
+  target_include_directories(cxx_static PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(cxx_static PUBLIC cxx-headers
                                    PRIVATE ${LIBCXX_LIBRARIES})
   set_target_properties(cxx_static
@@ -285,6 +288,13 @@ if (LIBCXX_ENABLE_STATIC)
   )
   cxx_add_common_build_flags(cxx_static)
   cxx_set_common_defines(cxx_static)
+
+  if (LIBCXXABI_USE_LLVM_UNWINDER)
+    # If we intend to use the just-built unwinder, add a dependency so that it
+    # gets built, even if we technically aren't going to link it in at this
+    # stage.
+    add_dependencies(cxx_static unwind)
+  endif()
 
   if (LIBCXX_HERMETIC_STATIC_LIBRARY)
     # If the hermetic library doesn't define the operator new/delete functions
