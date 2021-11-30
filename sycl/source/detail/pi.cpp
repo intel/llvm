@@ -382,7 +382,7 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
   std::shared_ptr<PiPlugin> PluginInformation;
   {
     PiPlugin PluginInformationInstance{
-      _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
+        _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
     PluginInformationInstance.PiFunctionTable = {};
 
     PluginInformation.reset(new PiPlugin);
