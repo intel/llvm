@@ -932,12 +932,8 @@ RegisterCoalescer::removeCopyByCommutingDef(const CoalescerPair &CP,
   //   = B
 
   // Update uses of IntA of the specific Val# with IntB.
-  for (MachineRegisterInfo::use_iterator UI = MRI->use_begin(IntA.reg()),
-                                         UE = MRI->use_end();
-       UI != UE;
-       /* ++UI is below because of possible MI removal */) {
-    MachineOperand &UseMO = *UI;
-    ++UI;
+  for (MachineOperand &UseMO :
+       llvm::make_early_inc_range(MRI->use_operands(IntA.reg()))) {
     if (UseMO.isUndef())
       continue;
     MachineInstr *UseMI = UseMO.getParent();
@@ -1573,9 +1569,8 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
   // If the virtual SrcReg is completely eliminated, update all DBG_VALUEs
   // to describe DstReg instead.
   if (MRI->use_nodbg_empty(SrcReg)) {
-    for (MachineRegisterInfo::use_iterator UI = MRI->use_begin(SrcReg);
-         UI != MRI->use_end();) {
-      MachineOperand &UseMO = *UI++;
+    for (MachineOperand &UseMO :
+         llvm::make_early_inc_range(MRI->use_operands(SrcReg))) {
       MachineInstr *UseMI = UseMO.getParent();
       if (UseMI->isDebugInstr()) {
         if (Register::isPhysicalRegister(DstReg))
@@ -3913,20 +3908,20 @@ void RegisterCoalescer::lateLiveIntervalUpdate() {
 bool RegisterCoalescer::
 copyCoalesceWorkList(MutableArrayRef<MachineInstr*> CurrList) {
   bool Progress = false;
-  for (unsigned i = 0, e = CurrList.size(); i != e; ++i) {
-    if (!CurrList[i])
+  for (MachineInstr *&MI : CurrList) {
+    if (!MI)
       continue;
     // Skip instruction pointers that have already been erased, for example by
     // dead code elimination.
-    if (ErasedInstrs.count(CurrList[i])) {
-      CurrList[i] = nullptr;
+    if (ErasedInstrs.count(MI)) {
+      MI = nullptr;
       continue;
     }
     bool Again = false;
-    bool Success = joinCopy(CurrList[i], Again);
+    bool Success = joinCopy(MI, Again);
     Progress |= Success;
     if (Success || !Again)
-      CurrList[i] = nullptr;
+      MI = nullptr;
   }
   return Progress;
 }

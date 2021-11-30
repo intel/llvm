@@ -2298,6 +2298,8 @@ std::string ELFDumper<ELFT>::getDynamicEntry(uint64_t Type,
   case DT_INIT_ARRAYSZ:
   case DT_FINI_ARRAYSZ:
   case DT_PREINIT_ARRAYSZ:
+  case DT_RELRSZ:
+  case DT_RELRENT:
   case DT_ANDROID_RELSZ:
   case DT_ANDROID_RELASZ:
     return std::to_string(Value) + " (bytes)";
@@ -5331,6 +5333,14 @@ const NoteType FreeBSDNoteTypes[] = {
      "NT_FREEBSD_FEATURE_CTL (FreeBSD feature control)"},
 };
 
+const NoteType OpenBSDCoreNoteTypes[] = {
+    {ELF::NT_OPENBSD_PROCINFO, "NT_OPENBSD_PROCINFO (procinfo structure)"},
+    {ELF::NT_OPENBSD_AUXV, "NT_OPENBSD_AUXV (ELF auxiliary vector data)"},
+    {ELF::NT_OPENBSD_REGS, "NT_OPENBSD_REGS (regular registers)"},
+    {ELF::NT_OPENBSD_FPREGS, "NT_OPENBSD_FPREGS (floating point registers)"},
+    {ELF::NT_OPENBSD_WCOOKIE, "NT_OPENBSD_WCOOKIE (window cookie)"},
+};
+
 const NoteType AMDNoteTypes[] = {
     {ELF::NT_AMD_HSA_CODE_OBJECT_VERSION,
      "NT_AMD_HSA_CODE_OBJECT_VERSION (AMD HSA Code Object Version)"},
@@ -5442,6 +5452,13 @@ StringRef getNoteTypeName(const typename ELFT::Note &Note, unsigned ELFType) {
     } else {
       return FindNote(FreeBSDNoteTypes);
     }
+  }
+  if (Name.startswith("OpenBSD") && ELFType == ELF::ET_CORE) {
+    // OpenBSD also places the generic core notes in the OpenBSD namespace.
+    StringRef Result = FindNote(OpenBSDCoreNoteTypes);
+    if (!Result.empty())
+      return Result;
+    return FindNote(CoreNoteTypes);
   }
   if (Name == "AMD")
     return FindNote(AMDNoteTypes);
@@ -6879,14 +6896,14 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printBBAddrMaps() {
       FunctionSec =
           unwrapOrError(this->FileName, this->Obj.getSection(Sec.sh_link));
     ListScope L(W, "BBAddrMap");
-    Expected<std::vector<Elf_BBAddrMap>> BBAddrMapOrErr =
+    Expected<std::vector<BBAddrMap>> BBAddrMapOrErr =
         this->Obj.decodeBBAddrMap(Sec);
     if (!BBAddrMapOrErr) {
       this->reportUniqueWarning("unable to dump " + this->describe(Sec) + ": " +
                                 toString(BBAddrMapOrErr.takeError()));
       continue;
     }
-    for (const Elf_BBAddrMap &AM : *BBAddrMapOrErr) {
+    for (const BBAddrMap &AM : *BBAddrMapOrErr) {
       DictScope D(W, "Function");
       W.printHex("At", AM.Addr);
       SmallVector<uint32_t> FuncSymIndex =
@@ -6901,7 +6918,7 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printBBAddrMaps() {
       W.printString("Name", FuncName);
 
       ListScope L(W, "BB entries");
-      for (const typename Elf_BBAddrMap::BBEntry &BBE : AM.BBEntries) {
+      for (const BBAddrMap::BBEntry &BBE : AM.BBEntries) {
         DictScope L(W);
         W.printHex("Offset", BBE.Offset);
         W.printHex("Size", BBE.Size);

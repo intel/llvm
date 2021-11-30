@@ -426,6 +426,14 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   AllocaInsertPt = nullptr;
   Ptr->eraseFromParent();
 
+  // PostAllocaInsertPt, if created, was lazily created when it was required,
+  // remove it now since it was just created for our own convenience.
+  if (PostAllocaInsertPt) {
+    llvm::Instruction *PostPtr = PostAllocaInsertPt;
+    PostAllocaInsertPt = nullptr;
+    PostPtr->eraseFromParent();
+  }
+
   // If someone took the address of a label but never did an indirect goto, we
   // made a zero entry PHI node, which is illegal, zap it now.
   if (IndirectBranch) {
@@ -1477,18 +1485,40 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   // When generating code for a builtin with an inline declaration, use a
   // mangled name to hold the actual body, while keeping an external definition
   // in case the function pointer is referenced somewhere.
-  if (FD->isInlineBuiltinDeclaration() && Fn) {
-    std::string FDInlineName = (Fn->getName() + ".inline").str();
-    llvm::Module *M = Fn->getParent();
-    llvm::Function *Clone = M->getFunction(FDInlineName);
-    if (!Clone) {
-      Clone = llvm::Function::Create(Fn->getFunctionType(),
-                                     llvm::GlobalValue::InternalLinkage,
-                                     Fn->getAddressSpace(), FDInlineName, M);
-      Clone->addFnAttr(llvm::Attribute::AlwaysInline);
+  if (Fn) {
+    if (FD->isInlineBuiltinDeclaration()) {
+      std::string FDInlineName = (Fn->getName() + ".inline").str();
+      llvm::Module *M = Fn->getParent();
+      llvm::Function *Clone = M->getFunction(FDInlineName);
+      if (!Clone) {
+        Clone = llvm::Function::Create(Fn->getFunctionType(),
+                                       llvm::GlobalValue::InternalLinkage,
+                                       Fn->getAddressSpace(), FDInlineName, M);
+        Clone->addFnAttr(llvm::Attribute::AlwaysInline);
+      }
+      Fn->setLinkage(llvm::GlobalValue::ExternalLinkage);
+      Fn = Clone;
     }
-    Fn->setLinkage(llvm::GlobalValue::ExternalLinkage);
-    Fn = Clone;
+
+    // Detect the unusual situation where an inline version is shadowed by a
+    // non-inline version. In that case we should pick the external one
+    // everywhere. That's GCC behavior too. Unfortunately, I cannot find a way
+    // to detect that situation before we reach codegen, so do some late
+    // replacement.
+    else {
+      for (const FunctionDecl *PD = FD->getPreviousDecl(); PD;
+           PD = PD->getPreviousDecl()) {
+        if (LLVM_UNLIKELY(PD->isInlineBuiltinDeclaration())) {
+          std::string FDInlineName = (Fn->getName() + ".inline").str();
+          llvm::Module *M = Fn->getParent();
+          if (llvm::Function *Clone = M->getFunction(FDInlineName)) {
+            Clone->replaceAllUsesWith(Fn);
+            Clone->eraseFromParent();
+          }
+          break;
+        }
+      }
+    }
   }
 
   // Check if we should generate debug info for this function.
@@ -1540,7 +1570,7 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
   StartFunction(GD, ResTy, Fn, FnInfo, Args, Loc, BodyRange.getBegin());
 
   SyclOptReportHandler &SyclOptReport = CGM.getDiags().getSYCLOptReport();
-  if (SyclOptReport.HasOptReportInfo(FD)) {
+  if (Fn && SyclOptReport.HasOptReportInfo(FD)) {
     llvm::OptimizationRemarkEmitter ORE(Fn);
     for (auto ORI : llvm::enumerate(SyclOptReport.GetInfo(FD))) {
       llvm::DiagnosticLocation DL =

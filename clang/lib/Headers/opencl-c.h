@@ -23,11 +23,14 @@
 #endif //cl_khr_3d_image_writes
 #endif //__OPENCL_C_VERSION__ < CL_VERSION_2_0
 
-
-#if (defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)) && defined(__SPIR__)
+#if (defined(__OPENCL_CPP_VERSION__) ||                                        \
+     (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)) &&                              \
+    (defined(__SPIR__) || defined(__SPIRV__))
 #pragma OPENCL EXTENSION cl_intel_planar_yuv : begin
 #pragma OPENCL EXTENSION cl_intel_planar_yuv : end
-#endif // (defined(__OPENCL_CPP_VERSION__) || (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)) && defined(__SPIR__)
+#endif // (defined(__OPENCL_CPP_VERSION__) ||
+       //  (__OPENCL_C_VERSION__ >= CL_VERSION_1_2)) &&
+       // (defined(__SPIR__) || defined(__SPIRV__))
 
 #define __ovld __attribute__((overloadable))
 #define __conv __attribute__((convergent))
@@ -13333,7 +13336,7 @@ uint __ovld atomic_fetch_or(volatile __local atomic_uint *object, uint operand);
 int __ovld atomic_fetch_xor(volatile __global atomic_int *object, int operand);
 int __ovld atomic_fetch_xor(volatile __local atomic_int *object, int operand);
 uint __ovld atomic_fetch_xor(volatile __global atomic_uint *object, uint operand);
-uint __ovld atomic_fetch_xor(volatile __local atomic_uint *object, uint operand);i
+uint __ovld atomic_fetch_xor(volatile __local atomic_uint *object, uint operand);
 int __ovld atomic_fetch_and(volatile __global atomic_int *object, int operand);
 int __ovld atomic_fetch_and(volatile __local atomic_int *object, int operand);
 uint __ovld atomic_fetch_and(volatile __global atomic_uint *object, uint operand);
