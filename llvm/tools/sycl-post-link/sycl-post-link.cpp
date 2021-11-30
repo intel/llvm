@@ -173,7 +173,7 @@ public:
   }
 
   void saveEntryPointNames(std::vector<std::string> *Dest = nullptr) {
-    assert(Dest || !EntryPointNamesSnip && "previous snip not used");
+    assert((Dest || !EntryPointNamesSnip) && "previous snip not used");
 
     if (!Dest) {
       EntryPointNamesSnip.reset(new std::vector<std::string>());
@@ -581,22 +581,22 @@ void tab(int N) {
   }
 }
 template <class T>
-void dumpEntryPoints(const T &C, const char *msg = "", int T = 0) {
-  tab(T);  llvm::errs() << "ENTRY POINTS" << " " << msg << " {\n";
+void dumpEntryPoints(const T &C, const char *msg = "", int Tab = 0) {
+  tab(Tab);  llvm::errs() << "ENTRY POINTS" << " " << msg << " {\n";
   for (const auto *F : C) {
-    tab(T); llvm::errs() << "  " << F->getName() << "\n";
+    tab(Tab); llvm::errs() << "  " << F->getName() << "\n";
   }
-  tab(T); llvm::errs() << "}\n";
+  tab(Tab); llvm::errs() << "}\n";
 }
 
-void dumpEntryPoints(const Module &M, const char *msg = "", int T = 0) {
-  tab(T);  llvm::errs() << "ENTRY POINTS (Module)" << " " << msg << " {\n";
+void dumpEntryPoints(const Module &M, const char *msg = "", int Tab = 0) {
+  tab(Tab);  llvm::errs() << "ENTRY POINTS (Module)" << " " << msg << " {\n";
   for (const auto &F : M) {
     if (isEntryPoint(F)) {
-      tab(T); llvm::errs() << "  " << F.getName() << "\n";
+      tab(Tab); llvm::errs() << "  " << F.getName() << "\n";
     }
   }
-  tab(T); llvm::errs() << "}\n";
+  tab(Tab); llvm::errs() << "}\n";
 }
 
 const char* toString(ESIMDStatus S) {
@@ -868,7 +868,7 @@ IRModuleDesc link(IRModuleDesc &&IrMD1, IRModuleDesc &&IrMD2) {
   bool link_error = llvm::Linker::linkModules(*IrMD1.Impl.M, std::move(IrMD2.Impl.M));
 
   if (link_error) {
-    throw "link error occurred";
+    error(" error when linking SYCL and ESIMD modules");
   }
   Res.Impl.M = std::move(IrMD1.Impl.M);
   Res.rebuildEntryPoints(&Names);
@@ -904,7 +904,7 @@ void addTableRow(util::SimpleTable &Table, const IrPropSymFilenameTripple &RowDa
       Row.push_back(StringRef(*S));
     }
   }
-  assert(Table.getNumColumns() == Row.size());
+  assert(static_cast<size_t>(Table.getNumColumns()) == Row.size());
   Table.addRow(Row);
 }
 
