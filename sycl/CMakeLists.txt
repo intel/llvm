@@ -57,6 +57,12 @@ if(MSVC)
   if(LINKER_SUPPORTS_DEBUG)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
     add_link_options("/DEBUG")
+
+    # Enable unreferenced removal and ICF in Release mode.
+    llvm_check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
+      add_link_options("/OPT:REF" "/OPT:ICF")
+    endif()
   endif()
 endif()
 
