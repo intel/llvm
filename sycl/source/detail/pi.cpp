@@ -379,15 +379,9 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  std::shared_ptr<PiPlugin> PluginInformation;
-  {
-    PiPlugin PluginInformationInstance{
-        _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
-    PluginInformationInstance.PiFunctionTable = {};
-
-    PluginInformation.reset(new PiPlugin);
-    *PluginInformation = PluginInformationInstance;
-  }
+  std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
+      PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING, /*Targets=*/nullptr,
+               /*FunctionPointers=*/{}});
 
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     void *Library = loadPlugin(PluginNames[I].first);
