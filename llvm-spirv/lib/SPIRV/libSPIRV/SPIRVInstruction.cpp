@@ -230,11 +230,25 @@ SPIRVSpecConstantOp *createSpecConstantOpInst(SPIRVInstruction *Inst) {
   auto OC = Inst->getOpCode();
   assert(isSpecConstantOpAllowedOp(OC) &&
          "Op code not allowed for OpSpecConstantOp");
-  auto Ops = Inst->getIds(Inst->getOperands());
+
+  std::vector<SPIRVId> Ops;
+  SPIRVType *Type = Inst->getType();
+  SPIRVModule *Module = Inst->getModule();
+
+  if (OC == OpCompositeExtract || OC == OpCompositeInsert) {
+    auto *SPIRVInst = static_cast<SPIRVInstTemplateBase *>(Inst);
+    Ops = SPIRVInst->getOpWords();
+    for (unsigned I = 1; I < Ops.size(); I++) {
+      SPIRVValue *Val = Module->addConstant(Type, Ops[I]);
+      Ops[I] = Val->getId();
+    }
+  } else {
+    Ops = Inst->getIds(Inst->getOperands());
+  }
+
   Ops.insert(Ops.begin(), OC);
   return static_cast<SPIRVSpecConstantOp *>(SPIRVSpecConstantOp::create(
-      OpSpecConstantOp, Inst->getType(), Inst->getId(), Ops, nullptr,
-      Inst->getModule()));
+      OpSpecConstantOp, Type, Inst->getId(), Ops, nullptr, Module));
 }
 
 SPIRVInstruction *createInstFromSpecConstantOp(SPIRVSpecConstantOp *Inst) {

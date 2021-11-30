@@ -1551,14 +1551,9 @@ SPIRVInstruction *
 SPIRVModuleImpl::addCompositeExtractInst(SPIRVType *Type, SPIRVValue *TheVector,
                                          const std::vector<SPIRVWord> &Indices,
                                          SPIRVBasicBlock *BB) {
-  std::vector<SPIRVWord> OpCodes(Indices.size(),0);
-  for (int Idx = 0 ; Idx < Indices.size(); Idx++) {
-    SPIRVValue* Val = addConstant(Type, Indices[Idx]);
-    OpCodes[Idx] = Val->getId();
-  }
   return addInstruction(SPIRVInstTemplateBase::create(
                             OpCompositeExtract, Type, getId(),
-                            getVec(TheVector->getId(), OpCodes), BB, this),
+                            getVec(TheVector->getId(), Indices), BB, this),
                         BB);
 }
 
