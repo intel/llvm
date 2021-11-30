@@ -1715,7 +1715,7 @@ private:
 template<class _Tp, class _Abi>                               \
 simd_mask<_Tp, _Abi> operator op (const simd<_Tp, _Abi> &a,   \
                                   const simd<_Tp, _Abi> &b) { \
-  using S = typename simd<_Tp, _Abi>>::raw_storage_type;      \
+  using S = typename simd<_Tp, _Abi>::raw_storage_type;       \
   return static_cast<S>(a) op static_cast<S>(b);              \
 }
 
