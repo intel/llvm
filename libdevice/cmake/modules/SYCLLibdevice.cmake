@@ -27,6 +27,10 @@ set(compile_opts
   -sycl-std=2017
   )
 
+if (WIN32)
+	set(compile_opts "-D_ALLOW_RUNTIME_LIBRARY_MISMATCH ${compile_opts}")
+endif()
+
 set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})
 add_custom_command(OUTPUT ${devicelib-obj-file}
                    COMMAND ${clang} -fsycl -c
