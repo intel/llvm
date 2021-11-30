@@ -130,8 +130,7 @@ See also extension: *{extension_name}*
 
 === Decorations
 
-Modify Section 3.20, Decoration, adding <<Literal>> _BuiltIn parameter_ to +
- <<Extra Operands>> of *BuiltIn* decoration.
+Modify Section 3.20, Decoration, adding <<Literal>> _BuiltIn parameter_ to <<Extra Operands>> of *BuiltIn* decoration.
 
 Modify Section 3.21, BuiltIn, adding these rows to the BuiltIn table:
 
