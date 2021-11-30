@@ -482,11 +482,14 @@ class TargetTypeReplacements {
   SmallDenseMap<const char *, const char *> RemangledAliasTypeReplacements;
 
   void CreateRemangledTypeReplacements() {
+    // RemangleTypes which are not aliases or not the exact same alias type
     for (auto &TypeReplacementPair : ParameterTypeReplacements)
       if (AliasTypeReplacements.find(TypeReplacementPair.getFirst()) ==
-              AliasTypeReplacements.end() ||
-          AliasTypeReplacements[TypeReplacementPair.getFirst()] !=
-              TypeReplacementPair.getSecond())
+          AliasTypeReplacements.end())
+        RemangledAliasTypeReplacements[TypeReplacementPair.getFirst()] =
+            TypeReplacementPair.getSecond();
+      else if (AliasTypeReplacements[TypeReplacementPair.getFirst()] !=
+               TypeReplacementPair.getSecond())
         RemangledAliasTypeReplacements[TypeReplacementPair.getFirst()] =
             TypeReplacementPair.getSecond();
   }
@@ -550,22 +553,21 @@ bool createAliasFromMap(
   if (RemangledName == originalName)
     return true;
 
+  StringRef AliasName, AliaseeName;
   if (AliaseeTypeReplacement) {
-    Function *Aliasee = M->getFunction(RemangledName);
-    if (Aliasee) {
-      GlobalAlias::create(originalName, Aliasee);
-    } else if (Verbose) {
-      std::cout << "Could not create alias " << originalName << " : missing "
-                << RemangledName << std::endl;
-    }
+    AliasName = originalName;
+    AliaseeName = RemangledName;
   } else {
-    Function *Alias = M->getFunction(originalName);
-    if (Alias) {
-      GlobalAlias::create(RemangledName, Alias);
-    } else if (Verbose) {
-      std::cout << "Could not create alias " << RemangledName << " : missing "
-                << originalName << std::endl;
-    }
+    AliasName = RemangledName;
+    AliaseeName = originalName;
+  }
+
+  Function *Aliasee = M->getFunction(AliaseeName);
+  if (Aliasee) {
+    GlobalAlias::create(AliasName, Aliasee);
+  } else if (Verbose) {
+    std::cout << "Could not create alias " << AliasName.data() << " : missing "
+              << AliaseeName.data() << std::endl;
   }
 
   return true;
