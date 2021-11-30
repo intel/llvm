@@ -1150,5 +1150,5 @@
 // CHECK-SAVE-TEMPS-DIR: clang{{.*}} "-fsycl-int-header=sycl-offload-header-{{[a-z0-9]*}}.h"{{.*}}"-fsycl-int-footer=sycl-offload-footer-{{[a-z0-9]*}}.h"
 
 /// Verify that -save-temps=obj respects the -o dir
-// RUN: %clang -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps=obj -o /proc/self/cwd/sycl-offload %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-OBJ-DIR
-// CHECK-SAVE-TEMPS-OBJ-DIR: clang{{.*}} "-fsycl-int-header=/proc/self/cwd/sycl-offload-header-{{[a-z0-9]*}}.h"{{.*}}"-fsycl-int-footer=/proc/self/cwd/sycl-offload-footer-{{[a-z0-9]*}}.h"
+// RUN: %clang -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps=obj -o %S %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-OBJ-DIR
+// CHECK-SAVE-TEMPS-OBJ-DIR: clang{{.*}}-fsycl-int-header={{.*[/\\]+clang[/\\]+test[/\\]+sycl-offload-header-[a-z0-9]*}}.h{{.*}}-fsycl-int-footer={{.*[/\\]+clang[/\\]+test[/\\]+sycl-offload-footer-[a-z0-9]*}}.h
