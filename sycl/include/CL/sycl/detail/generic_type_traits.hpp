@@ -541,29 +541,6 @@ template <typename T>
 using rel_sign_bit_test_arg_t =
     typename RelationalTestForSignBitType<T>::argument_type;
 
-template <typename T, typename Enable = void> struct RelConverter;
-
-template <typename T>
-struct RelConverter<
-    T, typename detail::enable_if_t<TryToGetElementType<T>::value>> {
-  static const int N = T::size();
-  using ret_t = rel_ret_t<T>;
-  static ret_t apply(ret_t value) { return value; }
-};
-
-template <typename T>
-struct RelConverter<
-    T, typename detail::enable_if_t<!TryToGetElementType<T>::value>> {
-  using R = rel_ret_t<T>;
-#ifdef __SYCL_DEVICE_ONLY__
-  using value_t = bool;
-#else
-  using value_t = R;
-#endif
-
-  static R apply(value_t value) { return value; }
-};
-
 template <typename T> static constexpr T max_v() {
   return (std::numeric_limits<T>::max)();
 }
