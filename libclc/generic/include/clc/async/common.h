@@ -21,8 +21,6 @@
     SIZE = __spirv_SubgroupSize();                                             \
     ID = __spirv_SubgroupLocalInvocationId();                                  \
   }
-
-
 // Macro used by all data types, for generic and nvidia, for async copy when
 // arch < sm80
 #define STRIDED_COPY(DST_AS, SRC_AS, DST_STRIDE, SRC_STRIDE)                   \
