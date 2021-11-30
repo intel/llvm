@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -sycl-std=2020 -fsycl-int-header=%t.h %s
-// RUN: %clang_cc1 -fsycl-is-host -DHEADER_FLAG -fsycl-enable-int-header -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -verify -include %t.h %s
+// RUN: %clang_cc1 -fsycl-is-host -DHEADER_FLAG -fsycl-enable-int-header-diags -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -verify -include %t.h %s
 // RUN: %clang_cc1 -fsycl-is-host -DNO_HEADER_FLAG -internal-isystem %S/Inputs -fno-sycl-unnamed-lambda -fsyntax-only -verify -include %t.h %s
 
 // This test verifies that incorrect kernel names are diagnosed correctly if

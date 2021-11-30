@@ -4854,9 +4854,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-dependency-filter");
         CmdArgs.push_back(Args.MakeArgString(Header));
 
-        // Since this is host compilation and integration header is included,
-        // enable integration header based diagnostics.
-        CmdArgs.push_back("-fsycl-enable-int-header");
+        // Since this is a host compilation and the integration header is
+        // included, enable the integration header based diagnostics.
+        CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.

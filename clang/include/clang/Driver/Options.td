@@ -6057,9 +6057,9 @@ def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
 def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
   HelpText<"Disable parallel for range rounding.">,
   MarshallingInfoFlag<LangOpts<"SYCLDisableRangeRounding">>;
-def fsycl_enable_int_header: Flag<["-"], "fsycl-enable-int-header">,
+def fsycl_enable_int_header: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics based on SYCL integration header.">,
-  MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeader">>;
+  MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 
