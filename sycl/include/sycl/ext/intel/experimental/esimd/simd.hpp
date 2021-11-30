@@ -63,7 +63,12 @@ public:
   }
 
   // Implicit conversion constructor from sycl::ext::oneapi::experimental::simd
-  simd(const sycl::ext::oneapi::experimental::simd<Ty, N> &v) : simd(static_cast<vector_type>(v)) {}
+  template <
+      int N1 = N,
+      class SFINAE = std::enable_if_t<
+          (N1 == N) && (N1 <= std::experimental::simd_abi::max_fixed_size<Ty>)>>
+  simd(const sycl::ext::oneapi::experimental::simd<Ty, N1> &v)
+      : simd(static_cast<vector_type>(v)) {}
 
   // Broadcast constructor with conversion.
   template <typename T1,
@@ -81,8 +86,12 @@ public:
     return (To)base_type::data()[0];
   }
 
-  operator sycl::ext::oneapi::experimental::simd<Ty, N>() const {
-    return sycl::ext::oneapi::experimental::simd<Ty, N>(base_type::data());
+  template <
+      int N1,
+      class SFINAE = std::enable_if_t<
+          (N1 == N) && (N1 <= std::experimental::simd_abi::max_fixed_size<Ty>)>>
+  operator sycl::ext::oneapi::experimental::simd<Ty, N1>() {
+    return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
   }
 
   /// @{
