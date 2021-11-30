@@ -127,11 +127,13 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   return cast<pi_result>(ret_err);
 }
 
-// This is a temporary workaround for a clMemBlockingFreeINTEL bug in OpenCL CPU
-// runtime. Chooses clMemBlockingFreeINTEL for GPU and clMemFreeINTEL for other
-// devices.
-// TODO remove this workaround once the OpenCL CPU RT version with the fix is
-// uplifted
+// We need to use clMemBlockingFreeINTEL here, however, due to a bug in OpenCL
+// CPU runtime this call fails with CL_INVALID_EVENT on CPU devices in certain
+// cases. As a temporary workaround, this function replicates caching of
+// extension function pointers in getExtFuncFromContext, while choosing
+// clMemBlockingFreeINTEL for GPU and clMemFreeINTEL for other device types.
+// TODO remove this workaround and switch to using getExtFuncFromContext
+// instead when the new OpenCL CPU runtime version is uplifted in CI.
 static pi_result getUSMFreeFunc(pi_context context,
                                 clMemBlockingFreeINTEL_fn *fptr) {
   static_assert(
