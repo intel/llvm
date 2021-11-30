@@ -337,14 +337,15 @@ int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 // call is done to get all Interface API mapping. The plugin interface also
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
-bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
+bool bindPlugin(void *Library,
+                const std::shared_ptr<PiPlugin> &PluginInformation) {
 
   decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
       &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
-  int Err = PluginInitializeFunction(PluginInformation);
+  int Err = PluginInitializeFunction(PluginInformation.get());
 
   // TODO: Compare Supported versions and check for backward compatibility.
   // Make sure err is PI_SUCCESS.
@@ -378,9 +379,15 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  PiPlugin PluginInformation{
+  std::shared_ptr<PiPlugin> PluginInformation;
+  {
+    PiPlugin PluginInformationInstance{
       _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
-  PluginInformation.PiFunctionTable = {};
+    PluginInformationInstance.PiFunctionTable = {};
+
+    PluginInformation.reset(new PiPlugin);
+    *PluginInformation = PluginInformationInstance;
+  }
 
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     void *Library = loadPlugin(PluginNames[I].first);
@@ -395,7 +402,7 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       continue;
     }
 
-    if (!bindPlugin(Library, &PluginInformation)) {
+    if (!bindPlugin(Library, PluginInformation)) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
                   << "Failed to bind PI APIs to the plugin: "
@@ -439,8 +446,6 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
-
   if (!(xptiTraceEnabled() && !XPTIInitDone))
     return;
   // Not sure this is the best place to initialize the framework; SYCL runtime
