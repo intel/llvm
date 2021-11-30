@@ -9,6 +9,7 @@
 #include "InlayHints.h"
 #include "Protocol.h"
 #include "TestTU.h"
+#include "TestWorkspace.h"
 #include "XRefs.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -398,6 +399,28 @@ TEST(ParameterHints, SetterFunctions) {
                        ExpectedHint{"timeout_millis: ", "timeout_millis"});
 }
 
+TEST(ParameterHints, IncludeAtNonGlobalScope) {
+  Annotations FooInc(R"cpp(
+    void bar() { foo(42); }
+  )cpp");
+  Annotations FooCC(R"cpp(
+    struct S {
+      void foo(int param);
+      #include "foo.inc"
+    };
+  )cpp");
+
+  TestWorkspace Workspace;
+  Workspace.addSource("foo.inc", FooInc.code());
+  Workspace.addMainFile("foo.cc", FooCC.code());
+
+  auto AST = Workspace.openFile("foo.cc");
+  ASSERT_TRUE(bool(AST));
+
+  // Ensure the hint for the call in foo.inc is NOT materialized in foo.cc.
+  EXPECT_EQ(hintsOfKind(*AST, InlayHintKind::ParameterHint).size(), 0u);
+}
+
 TEST(TypeHints, Smoke) {
   assertTypeHints(R"cpp(
     auto $waldo[[waldo]] = 42;
@@ -443,7 +466,14 @@ TEST(TypeHints, NoQualifiers) {
       }
     }
   )cpp",
-                  ExpectedHint{": S1", "x"}, ExpectedHint{": Inner<int>", "y"});
+                  ExpectedHint{": S1", "x"},
+                  // FIXME: We want to suppress scope specifiers
+                  //        here because we are into the whole
+                  //        brevity thing, but the ElaboratedType
+                  //        printer does not honor the SuppressScope
+                  //        flag by design, so we need to extend the
+                  //        PrintingPolicy to support this use case.
+                  ExpectedHint{": S2::Inner<int>", "y"});
 }
 
 TEST(TypeHints, Lambda) {
@@ -566,6 +596,39 @@ TEST(TypeHints, DependentType) {
       auto $var2[[var2]] = arg;
     }
   )cpp");
+}
+
+TEST(TypeHints, LongTypeName) {
+  assertTypeHints(R"cpp(
+    template <typename, typename, typename>
+    struct A {};
+    struct MultipleWords {};
+    A<MultipleWords, MultipleWords, MultipleWords> foo();
+    // Omit type hint past a certain length (currently 32)
+    auto var = foo();
+  )cpp");
+}
+
+TEST(TypeHints, DefaultTemplateArgs) {
+  assertTypeHints(R"cpp(
+    template <typename, typename = int>
+    struct A {};
+    A<float> foo();
+    auto $var[[var]] = foo();
+  )cpp",
+                  ExpectedHint{": A<float>", "var"});
+}
+
+TEST(TypeHints, Deduplication) {
+  assertTypeHints(R"cpp(
+    template <typename T>
+    void foo() {
+      auto $var[[var]] = 42;
+    }
+    template void foo<int>();
+    template void foo<float>();
+  )cpp",
+                  ExpectedHint{": int", "var"});
 }
 
 // FIXME: Low-hanging fruit where we could omit a type hint:

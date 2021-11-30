@@ -52,9 +52,7 @@ public:
             access::mode Mode, access::target Target, access::placeholder IsPlh>
   backend_return_t<Backend, buffer<DataT, Dims>>
   get_native_mem(const accessor<DataT, Dims, Mode, Target, IsPlh> &Acc) const {
-    // TODO: the method is available when the target is target::device. Add it
-    // to the assert below when target::device enum is created.
-    static_assert(Target == access::target::global_buffer ||
+    static_assert(Target == access::target::device ||
                       Target == access::target::constant_buffer,
                   "The method is available only for target::device accessors");
 #ifndef __SYCL_DEVICE_ONLY__
@@ -86,7 +84,7 @@ public:
   template <backend Backend = backend::opencl>
   backend_return_t<Backend, queue> get_native_queue() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
@@ -107,7 +105,7 @@ public:
   template <backend Backend = backend::opencl>
   backend_return_t<Backend, device> get_native_device() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
@@ -129,7 +127,7 @@ public:
   template <backend Backend = backend::opencl>
   backend_return_t<Backend, context> get_native_context() const {
 #ifndef __SYCL_DEVICE_ONLY__
-    // TODO: replace the exception thrown below with the SYCL-2020 exception
+    // TODO: replace the exception thrown below with the SYCL 2020 exception
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())

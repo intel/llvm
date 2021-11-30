@@ -273,6 +273,36 @@ const char *mangledPrimitiveStringfromName(std::string Type) {
   return NULL;
 }
 
+std::string getPointerAttributesMangling(const PointerType *P) {
+  std::string QualStr;
+  QualStr += getMangledAttribute((P->getAddressSpace()));
+  for (unsigned int I = ATTR_QUALIFIER_FIRST; I <= ATTR_QUALIFIER_LAST; I++) {
+    TypeAttributeEnum Qualifier = (TypeAttributeEnum)I;
+    if (P->hasQualifier(Qualifier)) {
+      QualStr += getMangledAttribute(Qualifier);
+    }
+  }
+  return QualStr;
+}
+
+std::string getPointeeMangling(RefParamType Pointee) {
+  std::string Mangling;
+
+  while (const PointerType *P = SPIR::dynCast<PointerType>(Pointee)) {
+    Mangling += "P" + getPointerAttributesMangling(P);
+    Pointee = P->getPointee();
+  }
+
+  if (const UserDefinedType *U = SPIR::dynCast<UserDefinedType>(Pointee)) {
+    std::string Name = U->toString();
+    Mangling += std::to_string(Name.size()) + Name;
+  } else if (const char *PrimitiveMangling =
+                 mangledPrimitiveStringfromName(Pointee->toString())) {
+    Mangling += PrimitiveMangling;
+  }
+  return Mangling;
+}
+
 const char *getSPIRVersionAsString(SPIRversion Version) {
   switch (Version) {
   case SPIR12:

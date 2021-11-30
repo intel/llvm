@@ -285,10 +285,10 @@ int main() {
   MLIRContext context;
   /* ... */;
 
-  // Register the interface model with the type in the given context before
-  // using it. The dialect contaiing the type is expected to have been loaded
+  // Attach the interface model to the type in the given context before
+  // using it. The dialect containing the type is expected to have been loaded
   // at this point.
-  IntegerType::registerInterface<ExternalModelExample>(context);
+  IntegerType::attachInterface<ExternalModelExample>(context);
 }
 ```
 
@@ -327,7 +327,7 @@ operations by overriding the `getRegisteredInterfaceForOp` method :
 
 ```c++
 void *TestDialect::getRegisteredInterfaceForOp(TypeID typeID,
-                                               Identifier opName) {
+                                               StringAttr opName) {
   if (typeID == TypeID::get<ExampleOpInterface>()) {
     if (isSupported(opName))
       return fallbackExampleOpInterface;

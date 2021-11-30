@@ -95,6 +95,7 @@ class SPIRVAsmINTEL;
 class SPIRVAsmCallINTEL;
 class SPIRVTypeBufferSurfaceINTEL;
 class SPIRVTypeTokenINTEL;
+class SPIRVTypeJointMatrixINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -242,6 +243,9 @@ public:
   virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
   virtual SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) = 0;
+  virtual SPIRVTypeJointMatrixINTEL *
+  addJointMatrixINTELType(SPIRVType *, SPIRVValue *, SPIRVValue *, SPIRVValue *,
+                          SPIRVValue *) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;
@@ -263,8 +267,8 @@ public:
                            const std::vector<SPIRVValue *> &Elements) = 0;
   virtual SPIRVEntry *
   addSpecConstantCompositeContinuedINTEL(const std::vector<SPIRVValue *> &) = 0;
-  virtual SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                                   SPIRVFunction *F) = 0;
+  virtual SPIRVValue *addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                                      SPIRVFunction *F) = 0;
   virtual SPIRVValue *addConstant(SPIRVValue *) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, uint64_t) = 0;
   virtual SPIRVValue *addConstant(SPIRVType *, llvm::APInt) = 0;
@@ -450,18 +454,18 @@ public:
   virtual SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *,
                                                 SPIRVValue *,
                                                 SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addAssumeTrueINTELInst(SPIRVValue *Condition,
-                                                   SPIRVBasicBlock *BB) = 0;
-  virtual SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy,
-                                               SPIRVValue *Value,
-                                               SPIRVValue *ExpectedValue,
-                                               SPIRVBasicBlock *BB) = 0;
   virtual SPIRVEntry *getOrAddAliasDomainDeclINTELInst(
       std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
   virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(
       std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
   virtual SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(
       std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
+                                                 SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy,
+                                             SPIRVValue *Value,
+                                             SPIRVValue *ExpectedValue,
+                                             SPIRVBasicBlock *BB) = 0;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 

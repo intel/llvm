@@ -64,14 +64,13 @@ tool_dirs = [config.clang_tools_dir, config.llvm_tools_dir]
 
 tools = [
     'apinotes-test', 'c-index-test', 'clang-diff', 'clang-format', 'clang-repl',
-    'clang-tblgen', 'opt', 'llvm-ifs', 'yaml2obj',
+    'clang-tblgen', 'clang-scan-deps', 'opt', 'llvm-ifs', 'yaml2obj',
     ToolSubst('%clang_extdef_map', command=FindTool(
         'clang-extdef-mapping'), unresolved='ignore'),
 ]
 
 if config.clang_examples:
     config.available_features.add('examples')
-    tools.append('clang-interpreter')
 
 def have_host_jit_support():
     clang_repl_exe = lit.util.which('clang-repl', config.clang_tools_dir)

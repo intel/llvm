@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "AArch64InstrInfo.h"
 #include "MCTargetDesc/AArch64AddressingModes.h"
 #include "MCTargetDesc/AArch64InstPrinter.h"
 #include "MCTargetDesc/AArch64MCExpr.h"
 #include "MCTargetDesc/AArch64MCTargetDesc.h"
 #include "MCTargetDesc/AArch64TargetStreamer.h"
 #include "TargetInfo/AArch64TargetInfo.h"
-#include "AArch64InstrInfo.h"
 #include "Utils/AArch64BaseInfo.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
@@ -40,15 +40,15 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/MC/SubtargetFeature.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/TargetParser.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
 #include <cctype>
@@ -1511,7 +1511,7 @@ public:
   }
 
   bool isAdrpLabel() const {
-    // Validation was handled during parsing, so we just sanity check that
+    // Validation was handled during parsing, so we just verify that
     // something didn't go haywire.
     if (!isImm())
         return false;
@@ -1527,7 +1527,7 @@ public:
   }
 
   bool isAdrLabel() const {
-    // Validation was handled during parsing, so we just sanity check that
+    // Validation was handled during parsing, so we just verify that
     // something didn't go haywire.
     if (!isImm())
         return false;
@@ -3296,6 +3296,8 @@ static const struct Extension {
 };
 
 static void setRequiredFeatureString(FeatureBitset FBS, std::string &Str) {
+  if (FBS[AArch64::HasV8_0aOps])
+    Str += "ARMv8a";
   if (FBS[AArch64::HasV8_1aOps])
     Str += "ARMv8.1a";
   else if (FBS[AArch64::HasV8_2aOps])
@@ -3310,6 +3312,14 @@ static void setRequiredFeatureString(FeatureBitset FBS, std::string &Str) {
     Str += "ARMv8.6a";
   else if (FBS[AArch64::HasV8_7aOps])
     Str += "ARMv8.7a";
+  else if (FBS[AArch64::HasV9_0aOps])
+    Str += "ARMv9-a";
+  else if (FBS[AArch64::HasV9_1aOps])
+    Str += "ARMv9.1a";
+  else if (FBS[AArch64::HasV9_2aOps])
+    Str += "ARMv9.2a";
+  else if (FBS[AArch64::HasV8_0rOps])
+    Str += "ARMv8r";
   else {
     SmallVector<std::string, 2> ExtMatches;
     for (const auto& Ext : ExtensionMap) {
@@ -3345,7 +3355,7 @@ void AArch64AsmParser::createSysAlias(uint16_t Encoding, OperandVector &Operands
 /// the SYS instruction. Parse them specially so that we create a SYS MCInst.
 bool AArch64AsmParser::parseSysAlias(StringRef Name, SMLoc NameLoc,
                                    OperandVector &Operands) {
-  if (Name.find('.') != StringRef::npos)
+  if (Name.contains('.'))
     return TokError("invalid operand");
 
   Mnemonic = Name;
@@ -3362,7 +3372,7 @@ bool AArch64AsmParser::parseSysAlias(StringRef Name, SMLoc NameLoc,
     else if (!IC->haveFeatures(getSTI().getFeatureBits())) {
       std::string Str("IC " + std::string(IC->Name) + " requires: ");
       setRequiredFeatureString(IC->getRequiredFeatures(), Str);
-      return TokError(Str.c_str());
+      return TokError(Str);
     }
     createSysAlias(IC->Encoding, Operands, S);
   } else if (Mnemonic == "dc") {
@@ -3372,7 +3382,7 @@ bool AArch64AsmParser::parseSysAlias(StringRef Name, SMLoc NameLoc,
     else if (!DC->haveFeatures(getSTI().getFeatureBits())) {
       std::string Str("DC " + std::string(DC->Name) + " requires: ");
       setRequiredFeatureString(DC->getRequiredFeatures(), Str);
-      return TokError(Str.c_str());
+      return TokError(Str);
     }
     createSysAlias(DC->Encoding, Operands, S);
   } else if (Mnemonic == "at") {
@@ -3382,7 +3392,7 @@ bool AArch64AsmParser::parseSysAlias(StringRef Name, SMLoc NameLoc,
     else if (!AT->haveFeatures(getSTI().getFeatureBits())) {
       std::string Str("AT " + std::string(AT->Name) + " requires: ");
       setRequiredFeatureString(AT->getRequiredFeatures(), Str);
-      return TokError(Str.c_str());
+      return TokError(Str);
     }
     createSysAlias(AT->Encoding, Operands, S);
   } else if (Mnemonic == "tlbi") {
@@ -3392,7 +3402,7 @@ bool AArch64AsmParser::parseSysAlias(StringRef Name, SMLoc NameLoc,
     else if (!TLBI->haveFeatures(getSTI().getFeatureBits())) {
       std::string Str("TLBI " + std::string(TLBI->Name) + " requires: ");
       setRequiredFeatureString(TLBI->getRequiredFeatures(), Str);
-      return TokError(Str.c_str());
+      return TokError(Str);
     }
     createSysAlias(TLBI->Encoding, Operands, S);
   } else if (Mnemonic == "cfp" || Mnemonic == "dvp" || Mnemonic == "cpp") {
@@ -3403,7 +3413,7 @@ bool AArch64AsmParser::parseSysAlias(StringRef Name, SMLoc NameLoc,
       std::string Str(
           Mnemonic.upper() + std::string(PRCTX->Name) + " requires: ");
       setRequiredFeatureString(PRCTX->getRequiredFeatures(), Str);
-      return TokError(Str.c_str());
+      return TokError(Str);
     }
     uint16_t PRCTX_Op2 =
       Mnemonic == "cfp" ? 4 :
@@ -5058,6 +5068,8 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "index must be a multiple of 8 in range [0, 32760].");
   case Match_InvalidMemoryIndexed16:
     return Error(Loc, "index must be a multiple of 16 in range [0, 65520].");
+  case Match_InvalidImm0_0:
+    return Error(Loc, "immediate must be 0.");
   case Match_InvalidImm0_1:
     return Error(Loc, "immediate must be an integer in range [0, 1].");
   case Match_InvalidImm0_3:
@@ -5102,6 +5114,8 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
   case Match_InvalidSVECpyImm64:
     return Error(Loc, "immediate must be an integer in range [-128, 127] or a "
                       "multiple of 256 in range [-32768, 32512]");
+  case Match_InvalidIndexRange0_0:
+    return Error(Loc, "expected lane specifier '[0]'");
   case Match_InvalidIndexRange1_1:
     return Error(Loc, "expected lane specifier '[1]'");
   case Match_InvalidIndexRange0_15:
@@ -5230,14 +5244,6 @@ bool AArch64AsmParser::showMatchError(SMLoc Loc, unsigned ErrCode,
     return Error(Loc, "invalid predicate register.");
   case Match_InvalidSVEPredicate3bAnyReg:
     return Error(Loc, "invalid restricted predicate register, expected p0..p7 (without element suffix)");
-  case Match_InvalidSVEPredicate3bBReg:
-    return Error(Loc, "invalid restricted predicate register, expected p0.b..p7.b");
-  case Match_InvalidSVEPredicate3bHReg:
-    return Error(Loc, "invalid restricted predicate register, expected p0.h..p7.h");
-  case Match_InvalidSVEPredicate3bSReg:
-    return Error(Loc, "invalid restricted predicate register, expected p0.s..p7.s");
-  case Match_InvalidSVEPredicate3bDReg:
-    return Error(Loc, "invalid restricted predicate register, expected p0.d..p7.d");
   case Match_InvalidSVEExactFPImmOperandHalfOne:
     return Error(Loc, "Invalid floating point constant, expected 0.5 or 1.0.");
   case Match_InvalidSVEExactFPImmOperandHalfTwo:
@@ -5698,6 +5704,7 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidMemoryIndexedSImm9:
   case Match_InvalidMemoryIndexed16SImm9:
   case Match_InvalidMemoryIndexed8SImm10:
+  case Match_InvalidImm0_0:
   case Match_InvalidImm0_1:
   case Match_InvalidImm0_3:
   case Match_InvalidImm0_7:
@@ -5719,6 +5726,7 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidSVECpyImm16:
   case Match_InvalidSVECpyImm32:
   case Match_InvalidSVECpyImm64:
+  case Match_InvalidIndexRange0_0:
   case Match_InvalidIndexRange1_1:
   case Match_InvalidIndexRange0_15:
   case Match_InvalidIndexRange0_7:
@@ -5785,10 +5793,6 @@ bool AArch64AsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidSVEPredicateSReg:
   case Match_InvalidSVEPredicateDReg:
   case Match_InvalidSVEPredicate3bAnyReg:
-  case Match_InvalidSVEPredicate3bBReg:
-  case Match_InvalidSVEPredicate3bHReg:
-  case Match_InvalidSVEPredicate3bSReg:
-  case Match_InvalidSVEPredicate3bDReg:
   case Match_InvalidSVEExactFPImmOperandHalfOne:
   case Match_InvalidSVEExactFPImmOperandHalfTwo:
   case Match_InvalidSVEExactFPImmOperandZeroOne:
@@ -5932,6 +5936,9 @@ static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
     case AArch64::ArchKind::ARMV8_5A:
     case AArch64::ArchKind::ARMV8_6A:
     case AArch64::ArchKind::ARMV8_7A:
+    case AArch64::ArchKind::ARMV9A:
+    case AArch64::ArchKind::ARMV9_1A:
+    case AArch64::ArchKind::ARMV9_2A:
     case AArch64::ArchKind::ARMV8R:
       RequestedExtensions.push_back("sm4");
       RequestedExtensions.push_back("sha3");
@@ -5954,6 +5961,9 @@ static void ExpandCryptoAEK(AArch64::ArchKind ArchKind,
     case AArch64::ArchKind::ARMV8_5A:
     case AArch64::ArchKind::ARMV8_6A:
     case AArch64::ArchKind::ARMV8_7A:
+    case AArch64::ArchKind::ARMV9A:
+    case AArch64::ArchKind::ARMV9_1A:
+    case AArch64::ArchKind::ARMV9_2A:
       RequestedExtensions.push_back("nosm4");
       RequestedExtensions.push_back("nosha3");
       RequestedExtensions.push_back("nosha2");

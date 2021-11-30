@@ -132,12 +132,8 @@ void MutexDestroy(ThreadState *thr, uptr pc, uptr addr, u32 flagz) {
   // Imitate a memory write to catch unlock-destroy races.
   // Do this outside of sync mutex, because it can report a race which locks
   // sync mutexes.
-  if (IsAppMem(addr)) {
-    CHECK(!thr->is_freeing);
-    thr->is_freeing = true;
-    MemoryAccess(thr, pc, addr, 1, kAccessWrite);
-    thr->is_freeing = false;
-  }
+  if (IsAppMem(addr))
+    MemoryAccess(thr, pc, addr, 1, kAccessWrite | kAccessFree);
   // s will be destroyed and freed in MetaMap::FreeBlock.
 }
 
@@ -481,7 +477,7 @@ static void UpdateSleepClockCallback(ThreadContextBase *tctx_base, void *arg) {
 }
 
 void AfterSleep(ThreadState *thr, uptr pc) {
-  DPrintf("#%d: AfterSleep %zx\n", thr->tid);
+  DPrintf("#%d: AfterSleep\n", thr->tid);
   if (thr->ignore_sync)
     return;
   thr->last_sleep_stack_id = CurrentStackId(thr, pc);

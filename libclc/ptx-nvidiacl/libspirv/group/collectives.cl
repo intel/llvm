@@ -211,17 +211,17 @@ __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, half, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, char, 0)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uchar, 0)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, short, 0)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ushort, 0)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, int, 0)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uint, 0)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, long, 0)
-__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ulong, 0)
-__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, half, 0)
-__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, float, 0)
-__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, double, 0)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, char, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uchar, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, short, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ushort, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, int, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, uint, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, long, 1)
+__CLC_SUBGROUP_COLLECTIVE(IMul, __CLC_MUL, ulong, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, half, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, float, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMul, __CLC_MUL, double, 1)
 
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)
@@ -332,17 +332,17 @@ __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
 // There is no Mul group op in SPIR-V, use non-uniform variant instead.
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, char, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uchar, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, short, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ushort, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, int, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uint, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, long, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ulong, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, half, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, float, 0)
-__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, double, 0)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, char, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uchar, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, short, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ushort, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, int, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, uint, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, long, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformIMul, IMul, __CLC_MUL, ulong, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, half, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, float, 1)
+__CLC_GROUP_COLLECTIVE(NonUniformFMul, FMul, __CLC_MUL, double, 1)
 
 __CLC_GROUP_COLLECTIVE(SMin, __CLC_MIN, char, CHAR_MAX)
 __CLC_GROUP_COLLECTIVE(UMin, __CLC_MIN, uchar, UCHAR_MAX)
@@ -369,16 +369,16 @@ __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
 
 // half requires additional mangled entry points
-_CLC_DECL _CLC_CONVERGENT half _Z17__spirv_GroupFAddjjDF16_(uint scope, uint op,
-                                                            half x) {
+_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFAddjjDF16_(uint scope, uint op,
+                                                           half x) {
   return __spirv_GroupFAdd(scope, op, x);
 }
-_CLC_DECL _CLC_CONVERGENT half _Z17__spirv_GroupFMinjjDF16_(uint scope, uint op,
-                                                            half x) {
+_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFMinjjDF16_(uint scope, uint op,
+                                                           half x) {
   return __spirv_GroupFMin(scope, op, x);
 }
-_CLC_DECL _CLC_CONVERGENT half _Z17__spirv_GroupFMaxjjDF16_(uint scope, uint op,
-                                                            half x) {
+_CLC_DEF _CLC_CONVERGENT half _Z17__spirv_GroupFMaxjjDF16_(uint scope, uint op,
+                                                           half x) {
   return __spirv_GroupFMax(scope, op, x);
 }
 
@@ -461,20 +461,21 @@ __CLC_GROUP_BROADCAST(float)
 __CLC_GROUP_BROADCAST(double)
 
 // half requires additional mangled entry points
-_CLC_DECL _CLC_CONVERGENT half
+_CLC_DEF _CLC_CONVERGENT half
 _Z17__spirv_GroupBroadcastjDF16_m(uint scope, half x, ulong local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
-_CLC_DECL _CLC_CONVERGENT half
+_CLC_DEF _CLC_CONVERGENT half
 _Z17__spirv_GroupBroadcastjDF16_Dv2_m(uint scope, half x, ulong2 local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
-_CLC_DECL _CLC_CONVERGENT half
+_CLC_DEF _CLC_CONVERGENT half
 _Z17__spirv_GroupBroadcastjDF16_Dv3_m(uint scope, half x, ulong3 local_id) {
   return __spirv_GroupBroadcast(scope, x, local_id);
 }
-_CLC_DECL _CLC_CONVERGENT half
-_Z22__spirv_GroupBroadcastjDF16_j(uint scope, half x, uint local_id) {
+_CLC_DEF _CLC_CONVERGENT half _Z22__spirv_GroupBroadcastjDF16_j(uint scope,
+                                                                half x,
+                                                                uint local_id) {
   return __spirv_GroupBroadcast(scope, x, (ulong)local_id);
 }
 

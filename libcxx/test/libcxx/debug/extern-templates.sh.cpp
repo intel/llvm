@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -6,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+// XFAIL: LIBCXX-AIX-FIXME
 
 // This test checks that we retain extern template instantiation declarations
 // for members of <locale> even when the debug mode is enabled, which is

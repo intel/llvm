@@ -1231,7 +1231,7 @@ HexagonTargetLowering::LowerGLOBALADDRESS(SDValue Op, SelectionDAG &DAG) const {
 
   if (RM == Reloc::Static) {
     SDValue GA = DAG.getTargetGlobalAddress(GV, dl, PtrVT, Offset);
-    const GlobalObject *GO = GV->getBaseObject();
+    const GlobalObject *GO = GV->getAliaseeObject();
     if (GO && Subtarget.useSmallData() && HLOF.isGlobalInSmallSection(GO, HTM))
       return DAG.getNode(HexagonISD::CONST32_GP, dl, PtrVT, GA);
     return DAG.getNode(HexagonISD::CONST32, dl, PtrVT, GA);
@@ -2549,14 +2549,15 @@ HexagonTargetLowering::extractVector(SDValue VecV, SDValue IdxV,
   // Special case for v{8,4,2}i1 (the only boolean vectors legal in Hexagon
   // without any coprocessors).
   if (ElemWidth == 1) {
-    assert(VecWidth == VecTy.getVectorNumElements() && "Sanity failure");
+    assert(VecWidth == VecTy.getVectorNumElements() &&
+           "Vector elements should equal vector width size");
     assert(VecWidth == 8 || VecWidth == 4 || VecWidth == 2);
     // Check if this is an extract of the lowest bit.
     if (IdxN) {
       // Extracting the lowest bit is a no-op, but it changes the type,
       // so it must be kept as an operation to avoid errors related to
       // type mismatches.
-      if (IdxN->isNullValue() && ValTy.getSizeInBits() == 1)
+      if (IdxN->isZero() && ValTy.getSizeInBits() == 1)
         return DAG.getNode(HexagonISD::TYPECAST, dl, MVT::i1, VecV);
     }
 
@@ -2863,8 +2864,7 @@ HexagonTargetLowering::LowerCONCAT_VECTORS(SDValue Op,
       Scale /= 2;
     }
 
-    // Another sanity check. At this point there should only be two words
-    // left, and Scale should be 2.
+    // At this point there should only be two words left, and Scale should be 2.
     assert(Scale == 2 && Words[IdxW].size() == 2);
 
     SDValue WW = DAG.getNode(HexagonISD::COMBINE, dl, MVT::i64,

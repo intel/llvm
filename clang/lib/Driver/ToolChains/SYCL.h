@@ -36,7 +36,8 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  std::unique_ptr<Command> InputCommand,
                                  const InputInfoList &InputFiles,
                                  const InputInfo &Output, const Tool *T,
-                                 StringRef Increment, StringRef Ext);
+                                 StringRef Increment, StringRef Ext = "out",
+                                 StringRef ParallelJobs = "");
 
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -160,7 +161,9 @@ public:
 
   bool useIntegratedAs() const override { return true; }
   bool isPICDefault() const override { return false; }
-  bool isPIEDefault() const override { return false; }
+  bool isPIEDefault(const llvm::opt::ArgList &Args) const override {\
+    return false;
+  }
   bool isPICDefaultForced() const override { return false; }
 
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;

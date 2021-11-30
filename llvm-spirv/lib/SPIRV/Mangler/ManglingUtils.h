@@ -27,6 +27,9 @@ SPIRversion getSupportedVersion(TypePrimitiveEnum T);
 const char *getSPIRVersionAsString(SPIRversion Version);
 
 const char *mangledPrimitiveStringfromName(std::string Type);
+
+std::string getPointerAttributesMangling(const PointerType *P);
+std::string getPointeeMangling(RefParamType Pointee);
 } // namespace SPIR
 
 #endif // SPIRV_MANGLER_MANGLINGUTILS_H

@@ -9,9 +9,9 @@
 #ifndef LLVM_LIBC_TEST_SRC_MATH_FMATEST_H
 #define LLVM_LIBC_TEST_SRC_MATH_FMATEST_H
 
-#include "utils/FPUtil/FPBits.h"
-#include "utils/FPUtil/TestHelpers.h"
+#include "src/__support/FPUtil/FPBits.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include "utils/UnitTest/FPMatcher.h"
 #include "utils/UnitTest/Test.h"
 #include "utils/testutils/RandUtils.h"
 

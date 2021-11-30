@@ -244,6 +244,9 @@ public:
   SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) override;
   void closeStructType(SPIRVTypeStruct *T, bool) override;
   SPIRVTypeVector *addVectorType(SPIRVType *, SPIRVWord) override;
+  SPIRVTypeJointMatrixINTEL *addJointMatrixINTELType(SPIRVType *, SPIRVValue *,
+                                                     SPIRVValue *, SPIRVValue *,
+                                                     SPIRVValue *) override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -269,8 +272,8 @@ public:
                            const std::vector<SPIRVValue *> &Elements) override;
   SPIRVEntry *addSpecConstantCompositeContinuedINTEL(
       const std::vector<SPIRVValue *> &) override;
-  SPIRVValue *addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                           SPIRVFunction *F) override;
+  SPIRVValue *addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                              SPIRVFunction *F) override;
   SPIRVValue *addConstant(SPIRVValue *) override;
   SPIRVValue *addConstant(SPIRVType *, uint64_t) override;
   SPIRVValue *addConstant(SPIRVType *, llvm::APInt) override;
@@ -441,11 +444,6 @@ public:
                                         SPIRVBasicBlock *) override;
   SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *, SPIRVValue *,
                                         SPIRVBasicBlock *) override;
-  SPIRVInstruction *addAssumeTrueINTELInst(SPIRVValue *Condition,
-                                           SPIRVBasicBlock *BB) override;
-  SPIRVInstruction *addExpectINTELInst(SPIRVType *ResultTy, SPIRVValue *Value,
-                                       SPIRVValue *ExpectedValue,
-                                       SPIRVBasicBlock *BB) override;
   template <typename AliasingInstType>
   SPIRVEntry *getOrAddMemAliasingINTELInst(std::vector<SPIRVId> Args,
                                            llvm::MDNode *MD);
@@ -455,6 +453,11 @@ public:
                                               llvm::MDNode *MD) override;
   SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
                                                   llvm::MDNode *MD) override;
+  SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
+                                         SPIRVBasicBlock *BB) override;
+  SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy, SPIRVValue *Value,
+                                     SPIRVValue *ExpectedValue,
+                                     SPIRVBasicBlock *BB) override;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const override;
 
@@ -515,7 +518,7 @@ private:
   SPIRVStringVec StringVec;
   SPIRVMemberNameVec MemberNameVec;
   std::shared_ptr<const SPIRVLine> CurrentLine;
-  SPIRVDecorateSet DecorateSet;
+  SPIRVDecorateVec DecorateVec;
   SPIRVDecGroupVec DecGroupVec;
   SPIRVGroupDecVec GroupDecVec;
   SPIRVAsmTargetVector AsmTargetVec;
@@ -897,6 +900,14 @@ SPIRVTypeVector *SPIRVModuleImpl::addVectorType(SPIRVType *CompType,
                                                 SPIRVWord CompCount) {
   return addType(new SPIRVTypeVector(this, getId(), CompType, CompCount));
 }
+
+SPIRVTypeJointMatrixINTEL *SPIRVModuleImpl::addJointMatrixINTELType(
+    SPIRVType *CompType, SPIRVValue *Rows, SPIRVValue *Columns,
+    SPIRVValue *Layout, SPIRVValue *Scope) {
+  return addType(new SPIRVTypeJointMatrixINTEL(this, getId(), CompType, Rows,
+                                               Columns, Layout, Scope));
+}
+
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {
   return addType(new SPIRVTypeOpaqueGeneric(TheOpCode, this, getId()));
 }
@@ -982,7 +993,7 @@ SPIRVModuleImpl::addDecorate(SPIRVDecorateGeneric *Dec) {
   (void)Found;
   assert(Found && "Decorate target does not exist");
   if (!Dec->getOwner())
-    DecorateSet.insert(Dec);
+    DecorateVec.push_back(Dec);
   addCapabilities(Dec->getRequiredCapability());
   return Dec;
 }
@@ -1142,9 +1153,10 @@ SPIRVEntry *SPIRVModuleImpl::addSpecConstantCompositeContinuedINTEL(
   return add(new SPIRVSpecConstantCompositeContinuedINTEL(this, Elements));
 }
 
-SPIRVValue *SPIRVModuleImpl::addConstFunctionPointerINTEL(SPIRVType *Ty,
-                                                          SPIRVFunction *F) {
-  return addConstant(new SPIRVConstFunctionPointerINTEL(getId(), Ty, F, this));
+SPIRVValue *SPIRVModuleImpl::addConstantFunctionPointerINTEL(SPIRVType *Ty,
+                                                             SPIRVFunction *F) {
+  return addConstant(
+      new SPIRVConstantFunctionPointerINTEL(getId(), Ty, F, this));
 }
 
 SPIRVValue *SPIRVModuleImpl::addUndef(SPIRVType *TheType) {
@@ -1596,17 +1608,17 @@ SPIRVInstruction *SPIRVModuleImpl::addSampledImageInst(SPIRVType *ResultTy,
                         BB);
 }
 
-SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueINTELInst(SPIRVValue *Condition,
-                                                          SPIRVBasicBlock *BB) {
-  return addInstruction(new SPIRVAssumeTrueINTEL(Condition->getId(), BB), BB);
+SPIRVInstruction *SPIRVModuleImpl::addAssumeTrueKHRInst(SPIRVValue *Condition,
+                                                        SPIRVBasicBlock *BB) {
+  return addInstruction(new SPIRVAssumeTrueKHR(Condition->getId(), BB), BB);
 }
 
-SPIRVInstruction *SPIRVModuleImpl::addExpectINTELInst(SPIRVType *ResultTy,
-                                                      SPIRVValue *Value,
-                                                      SPIRVValue *ExpectedValue,
-                                                      SPIRVBasicBlock *BB) {
+SPIRVInstruction *SPIRVModuleImpl::addExpectKHRInst(SPIRVType *ResultTy,
+                                                    SPIRVValue *Value,
+                                                    SPIRVValue *ExpectedValue,
+                                                    SPIRVBasicBlock *BB) {
   return addInstruction(SPIRVInstTemplateBase::create(
-                            internal::OpExpectINTEL, ResultTy, getId(),
+                            OpExpectKHR, ResultTy, getId(),
                             getVec(Value->getId(), ExpectedValue->getId()), BB,
                             this),
                         BB);
@@ -1667,8 +1679,8 @@ spv_ostream &operator<<(spv_ostream &O, const std::vector<T *> &V) {
   return O;
 }
 
-template <class T, class B>
-spv_ostream &operator<<(spv_ostream &O, const std::multiset<T *, B> &V) {
+template <class T, class B = std::less<T>>
+spv_ostream &operator<<(spv_ostream &O, const std::unordered_set<T *, B> &V) {
   for (auto &I : V)
     O << *I;
   return O;
@@ -1859,7 +1871,7 @@ spv_ostream &operator<<(spv_ostream &O, SPIRVModule &M) {
                      MI.ForwardPointerVec);
 
   O << MI.MemberNameVec << MI.ModuleProcessedVec << MI.DecGroupVec
-    << MI.DecorateSet << MI.GroupDecVec << MI.ForwardPointerVec << TS;
+    << MI.DecorateVec << MI.GroupDecVec << MI.ForwardPointerVec << TS;
 
   if (M.isAllowedToUseExtension(ExtensionID::SPV_INTEL_inline_assembly)) {
     O << SPIRVNL() << MI.AsmTargetVec << MI.AsmVec;
@@ -1884,11 +1896,11 @@ SPIRVDecorationGroup *SPIRVModuleImpl::addDecorationGroup() {
 SPIRVDecorationGroup *
 SPIRVModuleImpl::addDecorationGroup(SPIRVDecorationGroup *Group) {
   add(Group);
-  Group->takeDecorates(DecorateSet);
+  Group->takeDecorates(DecorateVec);
   DecGroupVec.push_back(Group);
   SPIRVDBG(spvdbgs() << "[addDecorationGroup] {" << *Group << "}\n";
-           spvdbgs() << "  Remaining DecorateSet: {" << DecorateSet << "}\n");
-  assert(DecorateSet.empty());
+           spvdbgs() << "  Remaining DecorateVec: {" << DecorateVec << "}\n");
+  assert(DecorateVec.empty());
   return Group;
 }
 
@@ -1948,6 +1960,9 @@ static std::string to_string(uint32_t Version) {
     break;
   case static_cast<uint32_t>(VersionNumber::SPIRV_1_3):
     Res = "1.3";
+    break;
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_4):
+    Res = "1.4";
     break;
   default:
     Res = "unknown";

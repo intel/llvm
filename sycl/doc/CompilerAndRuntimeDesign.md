@@ -312,7 +312,7 @@ option mechanism, similar to OpenMP.
 For example, to support offload to Gen9/vISA3.3, the following options would be
 used:
 
-`-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-device skl"`
+`-fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device skl"`
 
 The driver passes the `-device skl` parameter directly to the Gen device backend
 compiler `ocloc` without parsing it.
@@ -321,10 +321,7 @@ compiler `ocloc` without parsing it.
 versions/Gen architectures. For example, to make the device binary
 compatible with all Intel Gen9 GPU platforms, one could use:
 
-```
--fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice
--Xsycl-target-backend "-device gen9"
-```
+`-fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen9"`
 
 For more details on supported platforms and argument syntax, refer to
 the GPU offline compiler manual by detecting your local `ocloc`
@@ -535,14 +532,18 @@ See [corresponding documentation](SpecializationConstants.md)
 
 #### CUDA support
 
-The driver supports compilation to NVPTX when the
-`nvptx64-nvidia-cuda-sycldevice` is passed to `-fsycl-targets`.
+The driver supports compilation to NVPTX when the `nvptx64-nvidia-cuda` is
+passed to `-fsycl-targets`.
 
 Unlike other AOT targets, the bitcode module linked from intermediate compiled
 objects never goes through SPIR-V. Instead it is passed directly in bitcode form
 down to the NVPTX Back End. All produced bitcode depends on two libraries,
-`libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc`
-(built by the libclc project).
+`libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc` variants
+(built by the libclc project). `libspirv-nvptx64--nvidiacl.bc` is not used directly. 
+Instead it is used to generate remangled variants 
+`remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` and
+`remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` to handle primitive type
+differences between Linux and Windows.
 
 ##### Device code post-link step for CUDA
 
@@ -570,6 +571,19 @@ path in SYCL kernels.
 *Note: these macros are defined only during the device compilation phase.*
 
 ##### NVPTX Builtins
+
+Builtins are implemented in OpenCL C within libclc. OpenCL C treats `long` 
+types as 64 bit and has no `long long` types while Windows DPC++ treats `long`
+types like 32-bit integers and `long long` types like 64-bit integers. 
+Differences between the primitive types can cause applications to use 
+incompatible libclc built-ins. A remangler creates multiple libspriv files 
+with different remangled function names to support both Windows and Linux. 
+When building a SYCL application targeting the CUDA backend the driver 
+will link the device code with 
+`remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
+Windows or it will link the device code with
+`remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
+Linux.
 
 When the SYCL compiler is in device mode and targeting the NVPTX backend, the
 compiler exposes NVPTX builtins supported by clang.
@@ -697,7 +711,7 @@ entry:
 }
 ```
 
-Is transformed into this in the `sycldevice` environment:
+Is transformed into this:
 
 ```LLVM
 define weak_odr dso_local i64 @other_function(i32* %0) {
@@ -918,8 +932,8 @@ space attributes in SYCL mode:
 | Address space attribute | SYCL address_space enumeration |
 |-------------------------|--------------------------------|
 | `__attribute__((opencl_global))` | global_space, constant_space |
-| `__attribute__((opencl_global_host))` | global_host_space |
-| `__attribute__((opencl_global_device))` | global_device_space |
+| `__attribute__((opencl_global_host))` | ext_intel_global_host_space |
+| `__attribute__((opencl_global_device))` | ext_intel_global_device_space |
 | `__attribute__((opencl_local))` | local_space |
 | `__attribute__((opencl_private))` | private_space |
 | `__attribute__((opencl_constant))` | N/A

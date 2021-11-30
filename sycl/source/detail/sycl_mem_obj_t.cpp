@@ -19,10 +19,16 @@ namespace detail {
 SYCLMemObjT::SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
                          const size_t SizeInBytes, event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator)
+    : SYCLMemObjT(pi::cast<pi_native_handle>(MemObject), SyclContext,
+                  SizeInBytes, AvailableEvent, std::move(Allocator)) {}
+
+SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+                         const size_t SizeInBytes, event AvailableEvent,
+                         std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
-      MInteropMemObject(MemObject), MOpenCLInterop(true),
+      MInteropMemObject(pi::cast<cl_mem>(MemObject)), MOpenCLInterop(true),
       MHostPtrReadOnly(false), MNeedWriteBack(true), MSizeInBytes(SizeInBytes),
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr) {
@@ -92,8 +98,13 @@ const plugin &SYCLMemObjT::getPlugin() const {
 
 size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
                                          cl_mem MemObject) {
+  return getBufSizeForContext(Context, pi::cast<pi_native_handle>(MemObject));
+}
+size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
+                                         pi_native_handle MemObject) {
   size_t BufSize = 0;
   const detail::plugin &Plugin = Context->getPlugin();
+  // TODO is there something required to support non-OpenCL backends?
   Plugin.call<detail::PiApiKind::piMemGetInfo>(
       detail::pi::cast<detail::RT::PiMem>(MemObject), CL_MEM_SIZE,
       sizeof(size_t), &BufSize, nullptr);

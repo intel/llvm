@@ -541,27 +541,17 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context) const {
                                                getTypeSourceInfo()->getType());
 }
 
-static llvm::Optional<unsigned> SYCLMangleCallback(ASTContext &Ctx,
-                                                   const NamedDecl *ND) {
-  // This replaces the 'lambda number' in the mangling with a unique number
-  // based on its order in the declaration.  To provide some level of visual
-  // notability (actual uniqueness from normal lambdas isn't necessary, as
-  // these are used differently), we add 10,000 to the number.
-  // For example:
-  // _ZTSZ3foovEUlvE10005_
-  // Demangles to: typeinfo name for foo()::'lambda10005'()
-  // Note that the mangler subtracts 2, since with normal lambdas the lambda
-  // mangling number '0' is an anonymous struct mangle, and '1' is omitted.
-  // So 10,002 results in the first number being 10,000.
-  if (Ctx.IsSYCLKernelNamingDecl(ND))
-    return 10'002 + Ctx.GetSYCLKernelNamingIndex(ND);
+static llvm::Optional<unsigned>
+UniqueStableNameDiscriminator(ASTContext &, const NamedDecl *ND) {
+  if (const auto *RD = dyn_cast<CXXRecordDecl>(ND))
+    return RD->getDeviceLambdaManglingNumber();
   return llvm::None;
 }
 
 std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
                                                   QualType Ty) {
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), SYCLMangleCallback)};
+      Context, Context.getDiagnostics(), UniqueStableNameDiscriminator)};
 
   std::string Buffer;
   Buffer.reserve(128);
@@ -612,7 +602,7 @@ std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context) const {
 std::string SYCLUniqueStableIdExpr::ComputeName(ASTContext &Context,
                                                 const VarDecl *VD) {
   std::unique_ptr<MangleContext> Ctx{ItaniumMangleContext::create(
-      Context, Context.getDiagnostics(), SYCLMangleCallback)};
+      Context, Context.getDiagnostics(), UniqueStableNameDiscriminator)};
 
   std::string Buffer;
   Buffer.reserve(128);
@@ -817,19 +807,18 @@ std::string PredefinedExpr::ComputeName(IdentKind IK, const Decl *CurrentDecl) {
 
     std::string TemplateParams;
     llvm::raw_string_ostream TOut(TemplateParams);
-    for (SpecsTy::reverse_iterator I = Specs.rbegin(), E = Specs.rend();
-         I != E; ++I) {
-      const TemplateParameterList *Params
-                  = (*I)->getSpecializedTemplate()->getTemplateParameters();
-      const TemplateArgumentList &Args = (*I)->getTemplateArgs();
+    for (const ClassTemplateSpecializationDecl *D : llvm::reverse(Specs)) {
+      const TemplateParameterList *Params =
+          D->getSpecializedTemplate()->getTemplateParameters();
+      const TemplateArgumentList &Args = D->getTemplateArgs();
       assert(Params->size() == Args.size());
       for (unsigned i = 0, numParams = Params->size(); i != numParams; ++i) {
         StringRef Param = Params->getParam(i)->getName();
         if (Param.empty()) continue;
         TOut << Param << " = ";
-        Args.get(i).print(
-            Policy, TOut,
-            TemplateParameterList::shouldIncludeTypeForArgument(Params, i));
+        Args.get(i).print(Policy, TOut,
+                          TemplateParameterList::shouldIncludeTypeForArgument(
+                              Policy, Params, i));
         TOut << ", ";
       }
     }
@@ -2288,8 +2277,11 @@ APValue SourceLocExpr::EvaluateInContext(const ASTContext &Ctx,
   };
 
   switch (getIdentKind()) {
-  case SourceLocExpr::File:
-    return MakeStringLiteral(PLoc.getFilename());
+  case SourceLocExpr::File: {
+    SmallString<256> Path(PLoc.getFilename());
+    Ctx.getLangOpts().remapPathPrefix(Path);
+    return MakeStringLiteral(Path);
+  }
   case SourceLocExpr::Function: {
     const Decl *CurDecl = dyn_cast_or_null<Decl>(Context);
     return MakeStringLiteral(
@@ -2360,7 +2352,7 @@ bool InitListExpr::isStringLiteralInit() const {
   const Expr *Init = getInit(0);
   if (!Init)
     return false;
-  Init = Init->IgnoreParens();
+  Init = Init->IgnoreParenImpCasts();
   return isa<StringLiteral>(Init) || isa<ObjCEncodeExpr>(Init);
 }
 
@@ -2422,10 +2414,8 @@ SourceLocation InitListExpr::getEndLoc() const {
   SourceLocation End = RBraceLoc;
   if (End.isInvalid()) {
     // Find the first non-null initializer from the end.
-    for (InitExprsTy::const_reverse_iterator I = InitExprs.rbegin(),
-         E = InitExprs.rend();
-         I != E; ++I) {
-      if (Stmt *S = *I) {
+    for (Stmt *S : llvm::reverse(InitExprs)) {
+      if (S) {
         End = S->getEndLoc();
         break;
       }
@@ -3836,11 +3826,8 @@ Expr::isNullPointerConstant(ASTContext &Ctx,
         // has non-default address space it is not treated as nullptr.
         // (__generic void*)0 in OpenCL 2.0 should not be treated as nullptr
         // since it cannot be assigned to a pointer to constant address space.
-        if ((Ctx.getLangOpts().OpenCLVersion >= 200 &&
-             Pointee.getAddressSpace() == LangAS::opencl_generic) ||
-            (Ctx.getLangOpts().OpenCL &&
-             Ctx.getLangOpts().OpenCLVersion < 200 &&
-             Pointee.getAddressSpace() == LangAS::opencl_private))
+        if (Ctx.getLangOpts().OpenCL &&
+            Pointee.getAddressSpace() == Ctx.getDefaultOpenCLPointeeAddrSpace())
           Qs.removeAddressSpace();
 
         if (Pointee->isVoidType() && Qs.empty() && // to void*
@@ -4185,7 +4172,7 @@ bool ExtVectorElementExpr::containsDuplicateElements() const {
     Comp = Comp.substr(1);
 
   for (unsigned i = 0, e = Comp.size(); i != e; ++i)
-    if (Comp.substr(i + 1).find(Comp[i]) != StringRef::npos)
+    if (Comp.substr(i + 1).contains(Comp[i]))
         return true;
 
   return false;
@@ -4764,6 +4751,7 @@ unsigned AtomicExpr::getNumSubExprs(AtomicOp Op) {
   case AO__c11_atomic_fetch_and:
   case AO__c11_atomic_fetch_or:
   case AO__c11_atomic_fetch_xor:
+  case AO__c11_atomic_fetch_nand:
   case AO__c11_atomic_fetch_max:
   case AO__c11_atomic_fetch_min:
   case AO__atomic_fetch_add:
@@ -4784,6 +4772,13 @@ unsigned AtomicExpr::getNumSubExprs(AtomicOp Op) {
   case AO__atomic_fetch_max:
     return 3;
 
+  case AO__hip_atomic_exchange:
+  case AO__hip_atomic_fetch_add:
+  case AO__hip_atomic_fetch_and:
+  case AO__hip_atomic_fetch_or:
+  case AO__hip_atomic_fetch_xor:
+  case AO__hip_atomic_fetch_min:
+  case AO__hip_atomic_fetch_max:
   case AO__opencl_atomic_store:
   case AO__opencl_atomic_exchange:
   case AO__opencl_atomic_fetch_add:
@@ -4799,7 +4794,7 @@ unsigned AtomicExpr::getNumSubExprs(AtomicOp Op) {
   case AO__c11_atomic_compare_exchange_strong:
   case AO__c11_atomic_compare_exchange_weak:
     return 5;
-
+  case AO__hip_atomic_compare_exchange_strong:
   case AO__opencl_atomic_compare_exchange_strong:
   case AO__opencl_atomic_compare_exchange_weak:
   case AO__atomic_compare_exchange:

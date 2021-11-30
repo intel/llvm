@@ -48,7 +48,8 @@
 # CHECK-NEXT:          ">",
 # CHECK-NEXT:          ":",
 # CHECK-NEXT:          "\"",
-# CHECK-NEXT:          "/"
+# CHECK-NEXT:          "/",
+# CHECK-NEXT:          "*"
 # CHECK-NEXT:        ]
 # CHECK-NEXT:      },
 # CHECK-NEXT:      "declarationProvider": true,
@@ -91,6 +92,7 @@
 # CHECK-NEXT:            "virtual",
 # CHECK-NEXT:            "dependentName",
 # CHECK-NEXT:            "defaultLibrary",
+# CHECK-NEXT:            "usedAsMutableReference",
 # CHECK-NEXT:            "functionScope",
 # CHECK-NEXT:            "classScope",
 # CHECK-NEXT:            "fileScope",

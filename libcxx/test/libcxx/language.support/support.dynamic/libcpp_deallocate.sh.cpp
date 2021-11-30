@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// XFAIL: LIBCXX-AIX-FIXME
+
 // test libc++'s implementation of align_val_t, and the relevant new/delete
 // overloads in all dialects when -faligned-allocation is present.
 
@@ -21,10 +23,6 @@
 // Libcxx when built for z/OS doesn't contain the aligned allocation functions,
 // nor does the dynamic library shipped with z/OS.
 // UNSUPPORTED: target={{.+}}-zos{{.*}}
-
-// AppleClang < 10 incorrectly warns that aligned allocation is not supported
-// even when it is supported.
-// UNSUPPORTED: apple-clang-9
 
 // XFAIL: sanitizer-new-delete, ubsan
 

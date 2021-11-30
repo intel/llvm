@@ -33,6 +33,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFUnitIndex.h"
 #include "llvm/DebugInfo/DWARF/DWARFVerifier.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/Decompressor.h"
 #include "llvm/Object/MachO.h"
 #include "llvm/Object/ObjectFile.h"
@@ -44,7 +45,6 @@
 #include "llvm/Support/LEB128.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cstdint>
@@ -691,6 +691,18 @@ void DWARFContext::dump(
   if (shouldDump(Explicit, ".debug_names", DIDT_ID_DebugNames,
                  DObj->getNamesSection().Data))
     getDebugNames().dump(OS);
+}
+
+DWARFTypeUnit *DWARFContext::getTypeUnitForHash(uint16_t Version, uint64_t Hash,
+                                                bool IsDWO) {
+  // FIXME: Check for/use the tu_index here, if there is one.
+  for (const auto &U : IsDWO ? dwo_units() : normal_units()) {
+    if (DWARFTypeUnit *TU = dyn_cast<DWARFTypeUnit>(U.get())) {
+      if (TU->getTypeHash() == Hash)
+        return TU;
+    }
+  }
+  return nullptr;
 }
 
 DWARFCompileUnit *DWARFContext::getDWOCompileUnitForHash(uint64_t Hash) {

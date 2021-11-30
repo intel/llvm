@@ -12,10 +12,15 @@
 #include <CL/sycl/aspects.hpp>
 #include <CL/sycl/atomic.hpp>
 #include <CL/sycl/atomic_fence.hpp>
+#include <CL/sycl/atomic_ref.hpp>
 #include <CL/sycl/backend.hpp>
+#if SYCL_BACKEND_OPENCL
+#include <CL/sycl/backend/opencl.hpp>
+#endif
 #include <CL/sycl/buffer.hpp>
 #include <CL/sycl/builtins.hpp>
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/define_vendors.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/device_selector.hpp>
 #include <CL/sycl/event.hpp>
@@ -52,10 +57,13 @@
 #include <CL/sycl/usm.hpp>
 #include <CL/sycl/version.hpp>
 #include <sycl/ext/oneapi/atomic.hpp>
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
+#endif
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
-#include <sycl/ext/oneapi/function_pointer.hpp>
 #include <sycl/ext/oneapi/group_algorithm.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 #include <sycl/ext/oneapi/reduction.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>

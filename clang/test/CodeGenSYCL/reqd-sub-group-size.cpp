@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -sycl-std=2017 -triple spir64-unknown-unknown-sycldevice -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -sycl-std=2017 -triple spir64-unknown-unknown -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 

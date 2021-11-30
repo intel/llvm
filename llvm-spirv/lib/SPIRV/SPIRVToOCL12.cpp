@@ -59,6 +59,9 @@ bool SPIRVToOCL12Base::runSPIRVToOCL(Module &Module) {
 
   visit(*M);
 
+  postProcessBuiltinsReturningStruct(M);
+  postProcessBuiltinsWithArrayArguments(M);
+
   eraseUselessFunctions(&Module);
 
   LLVM_DEBUG(dbgs() << "After SPIRVToOCL12:\n" << *M);
@@ -86,8 +89,6 @@ void SPIRVToOCL12Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
 
 void SPIRVToOCL12Base::visitCallSPIRVControlBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Attrs = Attrs.addAttribute(CI->getContext(), AttributeList::FunctionIndex,
-                             Attribute::Convergent);
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
@@ -204,8 +205,7 @@ SPIRVToOCL12Base::visitCallSPIRVAtomicFlagTestAndSet(CallInst *CI) {
       &Attrs);
 }
 
-Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
-                                                            Op OC) {
+Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
@@ -246,13 +246,17 @@ Instruction *SPIRVToOCL12Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
     break;
   case OpAtomicCompareExchange:
   case OpAtomicCompareExchangeWeak:
-    NewCI = visitCallSPIRVAtomicCmpExchg(CI, OC);
+    NewCI = visitCallSPIRVAtomicCmpExchg(CI);
     break;
   default:
     NewCI = mutateCommonAtomicArguments(CI, OC);
   }
 
   return NewCI;
+}
+
+void SPIRVToOCL12Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
+  assert(0 && "OpenCL 1.2 doesn't support enqueue_kernel!");
 }
 
 std::string SPIRVToOCL12Base::mapFPAtomicName(Op OC) {

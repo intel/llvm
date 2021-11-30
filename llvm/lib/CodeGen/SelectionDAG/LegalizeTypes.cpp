@@ -28,7 +28,7 @@ using namespace llvm;
 static cl::opt<bool>
 EnableExpensiveChecks("enable-legalize-types-checking", cl::Hidden);
 
-/// Do extensive, expensive, sanity checking.
+/// Do extensive, expensive, basic correctness checking.
 void DAGTypeLegalizer::PerformExpensiveChecks() {
   // If a node is not processed, then none of its values should be mapped by any
   // of PromotedIntegers, ExpandedIntegers, ..., ReplacedValues.
@@ -223,8 +223,7 @@ bool DAGTypeLegalizer::run() {
 #endif
       PerformExpensiveChecks();
 
-    SDNode *N = Worklist.back();
-    Worklist.pop_back();
+    SDNode *N = Worklist.pop_back_val();
     assert(N->getNodeId() == ReadyToProcess &&
            "Node should be ready if on worklist!");
 
@@ -535,7 +534,8 @@ SDNode *DAGTypeLegalizer::AnalyzeNewNode(SDNode *N) {
       // The node morphed into a different node.  Normally for this to happen
       // the original node would have to be marked NewNode.  However this can
       // in theory momentarily not be the case while ReplaceValueWith is doing
-      // its stuff.  Mark the original node NewNode to help sanity checking.
+      // its stuff.  Mark the original node NewNode to help basic correctness
+      // checking.
       N->setNodeId(NewNode);
       if (M->getNodeId() != NewNode && M->getNodeId() != Unanalyzed)
         // It morphed into a previously analyzed node - nothing more to do.

@@ -15,7 +15,11 @@
 #include "mlir/ExecutionEngine/CRunnerUtils.h"
 
 #ifndef _WIN32
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
+#include <cstdlib>
+#else
 #include <alloca.h>
+#endif
 #include <sys/time.h>
 #else
 #include "malloc.h"

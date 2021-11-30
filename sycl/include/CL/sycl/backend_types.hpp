@@ -21,14 +21,18 @@ namespace sycl {
 enum class backend : char {
   host = 0,
   opencl = 1,
-  level_zero = 2,
-  cuda = 3,
+  ext_oneapi_level_zero = 2,
+  level_zero __SYCL2020_DEPRECATED("use 'ext_oneapi_level_zero' instead") =
+      ext_oneapi_level_zero,
+  ext_oneapi_cuda = 3,
+  cuda __SYCL2020_DEPRECATED("use 'ext_oneapi_cuda' instead") = ext_oneapi_cuda,
   all = 4,
-  esimd_cpu = 5,
-  rocm = 6,
+  ext_intel_esimd_emulator = 5,
+  esimd_cpu __SYCL2020_DEPRECATED("use 'ext_oneapi_esimd_emulator' instead") =
+      ext_intel_esimd_emulator,
+  ext_oneapi_hip = 6,
+  hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip,
 };
-
-template <backend Backend, typename SYCLObjectT> struct interop;
 
 template <backend Backend> class backend_traits;
 
@@ -47,17 +51,17 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::opencl:
     Out << "opencl";
     break;
-  case backend::level_zero:
-    Out << "level_zero";
+  case backend::ext_oneapi_level_zero:
+    Out << "ext_oneapi_level_zero";
     break;
-  case backend::cuda:
-    Out << "cuda";
+  case backend::ext_oneapi_cuda:
+    Out << "ext_oneapi_cuda";
     break;
-  case backend::esimd_cpu:
-    Out << "esimd_cpu";
+  case backend::ext_intel_esimd_emulator:
+    Out << "ext_intel_esimd_emulator";
     break;
-  case backend::rocm:
-    Out << "rocm";
+  case backend::ext_oneapi_hip:
+    Out << "ext_oneapi_hip";
     break;
   case backend::all:
     Out << "all";

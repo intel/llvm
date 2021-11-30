@@ -27,6 +27,7 @@ static_library("COFF") {
     "//llvm/lib/WindowsManifest",
   ]
   sources = [
+    "COFFLinkerContext.cpp",
     "CallGraphSort.cpp",
     "Chunks.cpp",
     "DLL.cpp",

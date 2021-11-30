@@ -8,7 +8,6 @@
 
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Attributes.h"
-#include "mlir/IR/Identifier.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
@@ -89,9 +88,11 @@ static StringRef twineToStrRef(const Twine &val,
   // Allocate memory to hold this string.
   SmallString<64> data;
   auto strRef = val.toStringRef(data);
+  if (strRef.empty())
+    return strRef;
+
   strings.push_back(std::unique_ptr<char[]>(new char[strRef.size()]));
   memcpy(&strings.back()[0], strRef.data(), strRef.size());
-
   // Return a reference to the new string.
   return StringRef(&strings.back()[0], strRef.size());
 }
@@ -107,11 +108,8 @@ Diagnostic &Diagnostic::operator<<(Twine &&val) {
   return *this;
 }
 
-/// Stream in an Identifier.
-Diagnostic &Diagnostic::operator<<(Identifier val) {
-  // An identifier is stored in the context, so we don't need to worry about the
-  // lifetime of its data.
-  arguments.push_back(DiagnosticArgument(val.strref()));
+Diagnostic &Diagnostic::operator<<(StringAttr val) {
+  arguments.push_back(DiagnosticArgument(val));
   return *this;
 }
 
@@ -125,9 +123,21 @@ Diagnostic &Diagnostic::operator<<(OperationName val) {
 
 /// Stream in an Operation.
 Diagnostic &Diagnostic::operator<<(Operation &val) {
+  return appendOp(val, OpPrintingFlags());
+}
+Diagnostic &Diagnostic::appendOp(Operation &val, const OpPrintingFlags &flags) {
   std::string str;
   llvm::raw_string_ostream os(str);
-  val.print(os, OpPrintingFlags().useLocalScope().elideLargeElementsAttrs());
+  val.print(os,
+            OpPrintingFlags(flags).useLocalScope().elideLargeElementsAttrs());
+  return *this << os.str();
+}
+
+/// Stream in a Value.
+Diagnostic &Diagnostic::operator<<(Value val) {
+  std::string str;
+  llvm::raw_string_ostream os(str);
+  val.print(os);
   return *this << os.str();
 }
 
@@ -455,7 +465,7 @@ void SourceMgrDiagnosticHandler::emitDiagnostic(Location loc, Twine message,
   // the constructor of SMDiagnostic that takes a location.
   std::string locStr;
   llvm::raw_string_ostream locOS(locStr);
-  locOS << fileLoc->getFilename() << ":" << fileLoc->getLine() << ":"
+  locOS << fileLoc->getFilename().getValue() << ":" << fileLoc->getLine() << ":"
         << fileLoc->getColumn();
   llvm::SMDiagnostic diag(locOS.str(), getDiagKind(kind), message.str());
   diag.print(nullptr, os);
@@ -466,7 +476,7 @@ void SourceMgrDiagnosticHandler::emitDiagnostic(Diagnostic &diag) {
   SmallVector<std::pair<Location, StringRef>> locationStack;
   auto addLocToStack = [&](Location loc, StringRef locContext) {
     if (Optional<Location> showableLoc = findLocToShow(loc))
-      locationStack.emplace_back(loc, locContext);
+      locationStack.emplace_back(*showableLoc, locContext);
   };
 
   // Add locations to display for this diagnostic.

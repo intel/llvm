@@ -16,6 +16,15 @@ inline pi_result redefinedProgramCreateCommon(pi_context, const void *, size_t,
   return PI_SUCCESS;
 }
 
+inline pi_result
+redefinedProgramCreateWithBinary(pi_context, pi_uint32, const pi_device *,
+                                 const size_t *, const unsigned char **, size_t,
+                                 const pi_device_binary_property *, pi_int32 *,
+                                 pi_program *ret_program) {
+  *ret_program = reinterpret_cast<pi_program>(1);
+  return PI_SUCCESS;
+}
+
 inline pi_result redefinedProgramBuildCommon(
     pi_program prog, pi_uint32, const pi_device *, const char *,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
@@ -106,18 +115,42 @@ inline pi_result redefinedEventsWaitCommon(pi_uint32 num_events,
 }
 
 inline pi_result redefinedEventReleaseCommon(pi_event event) {
+  if (event != nullptr)
+    delete reinterpret_cast<int *>(event);
   return PI_SUCCESS;
 }
 
 inline pi_result redefinedEnqueueKernelLaunchCommon(
     pi_queue, pi_kernel, pi_uint32, const size_t *, const size_t *,
-    const size_t *, pi_uint32, const pi_event *, pi_event *) {
+    const size_t *, pi_uint32, const pi_event *, pi_event *event) {
+  *event = reinterpret_cast<pi_event>(new int{});
+  return PI_SUCCESS;
+}
+
+inline pi_result redefinedKernelGetGroupInfoCommon(
+    pi_kernel kernel, pi_device device, pi_kernel_group_info param_name,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
+  if (param_name == PI_KERNEL_GROUP_INFO_WORK_GROUP_SIZE && param_value) {
+    auto RealVal = reinterpret_cast<size_t *>(param_value);
+    RealVal[0] = 0;
+    RealVal[1] = 0;
+    RealVal[2] = 0;
+  }
+  return PI_SUCCESS;
+}
+inline pi_result redefinedDeviceSelectBinary(pi_device device,
+                                             pi_device_binary *binaries,
+                                             pi_uint32 num_binaries,
+                                             pi_uint32 *selected_binary_ind) {
+  *selected_binary_ind = 0;
   return PI_SUCCESS;
 }
 
 inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
   Mock.redefine<PiApiKind::piProgramCreate>(redefinedProgramCreateCommon);
+  Mock.redefine<PiApiKind::piProgramCreateWithBinary>(
+      redefinedProgramCreateWithBinary);
   Mock.redefine<PiApiKind::piProgramCompile>(redefinedProgramCompileCommon);
   Mock.redefine<PiApiKind::piProgramLink>(redefinedProgramLinkCommon);
   Mock.redefine<PiApiKind::piProgramBuild>(redefinedProgramBuildCommon);
@@ -128,10 +161,14 @@ inline void setupDefaultMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefine<PiApiKind::piKernelRetain>(redefinedKernelRetainCommon);
   Mock.redefine<PiApiKind::piKernelRelease>(redefinedKernelReleaseCommon);
   Mock.redefine<PiApiKind::piKernelGetInfo>(redefinedKernelGetInfoCommon);
+  Mock.redefine<PiApiKind::piKernelGetGroupInfo>(
+      redefinedKernelGetGroupInfoCommon);
   Mock.redefine<PiApiKind::piKernelSetExecInfo>(
       redefinedKernelSetExecInfoCommon);
   Mock.redefine<PiApiKind::piEventsWait>(redefinedEventsWaitCommon);
   Mock.redefine<PiApiKind::piEventRelease>(redefinedEventReleaseCommon);
   Mock.redefine<PiApiKind::piEnqueueKernelLaunch>(
       redefinedEnqueueKernelLaunchCommon);
+  Mock.redefine<PiApiKind::piextDeviceSelectBinary>(
+      redefinedDeviceSelectBinary);
 }

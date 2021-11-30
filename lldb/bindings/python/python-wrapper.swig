@@ -1,9 +1,5 @@
 %header %{
 
-template <typename T>
-PyObject *
-SBTypeToSWIGWrapper (T* item);
-
 class PyErr_Cleaner
 {
 public:
@@ -83,8 +79,9 @@ LLDBSwigPythonBreakpointCallbackFunction
         if (max_positional_args < 4) {
             return pfunc.Call(frame_arg, bp_loc_arg, dict);
         } else {
+            // FIXME: SBStructuredData leaked here
             lldb::SBStructuredData *args_value = new lldb::SBStructuredData(args_impl);
-            PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(args_value));
+            PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(*args_value));
             return pfunc.Call(frame_arg, bp_loc_arg, args_arg, dict);
         }
     } ();
@@ -148,7 +145,6 @@ LLDBSwigPythonCallTypeScript
     std::string& retval
 )
 {
-    lldb::SBValue sb_value (valobj_sp);
     lldb::SBTypeSummaryOptions sb_options(options_sp.get());
 
     retval.clear();
@@ -198,7 +194,7 @@ LLDBSwigPythonCallTypeScript
         return false;
     }
 
-    PythonObject value_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_value));
+    PythonObject value_arg = ToSWIGWrapper(valobj_sp);
     PythonObject options_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_options));
 
     if (argc.get().max_positional_args < 3)
@@ -230,12 +226,10 @@ LLDBSwigPythonCreateSyntheticProvider
     if (!pfunc.IsAllocated())
         Py_RETURN_NONE;
 
-    // I do not want the SBValue to be deallocated when going out of scope because python
-    // has ownership of it and will manage memory for this object by itself
-    lldb::SBValue *sb_value = new lldb::SBValue(valobj_sp);
+    auto sb_value = std::make_unique<lldb::SBValue>(valobj_sp);
     sb_value->SetPreferSyntheticValue(false);
 
-    PythonObject val_arg(PyRefType::Owned, SBTypeToSWIGWrapper(sb_value));
+    PythonObject val_arg = ToSWIGWrapper(std::move(sb_value));
     if (!val_arg.IsAllocated())
         Py_RETURN_NONE;
 
@@ -288,7 +282,6 @@ LLDBSwigPythonCreateScriptedProcess
     if (python_class_name == NULL || python_class_name[0] == '\0' || !session_dictionary_name)
         Py_RETURN_NONE;
 
-
     PyErr_Cleaner py_err_cleaner(true);
 
     auto dict = PythonModule::MainModule().ResolveName<PythonDictionary>(session_dictionary_name);
@@ -300,13 +293,7 @@ LLDBSwigPythonCreateScriptedProcess
         return nullptr;
     }
 
-    // I do not want the SBTarget to be deallocated when going out of scope
-    // because python has ownership of it and will manage memory for this
-    // object by itself
-    PythonObject target_arg(PyRefType::Owned, SBTypeToSWIGWrapper(new lldb::SBTarget(target_sp)));
-
-    if (!target_arg.IsAllocated())
-        Py_RETURN_NONE;
+    PythonObject target_arg = ToSWIGWrapper(target_sp);
 
     llvm::Expected<PythonCallable::ArgInfo> arg_info = pfunc.GetArgInfo();
     if (!arg_info) {
@@ -323,16 +310,63 @@ LLDBSwigPythonCreateScriptedProcess
 
     PythonObject result = {};
     if (arg_info.get().max_positional_args == 2) {
-        if (args_impl != nullptr) {
-           error_string.assign("args passed, but __init__ does not take an args dictionary");
-           Py_RETURN_NONE;
-        }
-        result = pfunc(target_arg, dict);
-    } else if (arg_info.get().max_positional_args >= 3) {
-        PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(new lldb::SBStructuredData(args_impl)));
-        result = pfunc(target_arg, args_arg, dict);
+        // FIXME: SBStructuredData leaked here
+        PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(*new lldb::SBStructuredData(args_impl)));
+        result = pfunc(target_arg, args_arg);
     } else {
-        error_string.assign("wrong number of arguments in __init__, should be 2 or 3 (not including self)");
+        error_string.assign("wrong number of arguments in __init__, should be 2 (not including self)");
+        Py_RETURN_NONE;
+    }
+
+    if (result.IsAllocated())
+        return result.release();
+    Py_RETURN_NONE;
+}
+
+SWIGEXPORT void*
+LLDBSwigPythonCreateScriptedThread
+(
+    const char *python_class_name,
+    const char *session_dictionary_name,
+    const lldb::ProcessSP& process_sp,
+    lldb_private::StructuredDataImpl *args_impl,
+    std::string &error_string
+)
+{
+    if (python_class_name == NULL || python_class_name[0] == '\0' || !session_dictionary_name)
+        Py_RETURN_NONE;
+
+    PyErr_Cleaner py_err_cleaner(true);
+
+    auto dict = PythonModule::MainModule().ResolveName<PythonDictionary>(session_dictionary_name);
+    auto pfunc = PythonObject::ResolveNameWithDictionary<PythonCallable>(python_class_name, dict);
+
+    if (!pfunc.IsAllocated()) {
+        error_string.append("could not find script class: ");
+        error_string.append(python_class_name);
+        return nullptr;
+    }
+
+    llvm::Expected<PythonCallable::ArgInfo> arg_info = pfunc.GetArgInfo();
+    if (!arg_info) {
+        llvm::handleAllErrors(
+            arg_info.takeError(),
+            [&](PythonException &E) {
+                error_string.append(E.ReadBacktrace());
+            },
+            [&](const llvm::ErrorInfoBase &E) {
+                error_string.append(E.message());
+            });
+        Py_RETURN_NONE;
+    }
+
+    PythonObject result = {};
+    if (arg_info.get().max_positional_args == 2) {
+        // FIXME: SBStructuredData leaked here
+        PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(*new lldb::SBStructuredData(args_impl)));
+        result = pfunc(ToSWIGWrapper(process_sp), args_arg);
+    } else {
+        error_string.assign("wrong number of arguments in __init__, should be 2 (not including self)");
         Py_RETURN_NONE;
     }
 
@@ -366,13 +400,7 @@ LLDBSwigPythonCreateScriptedThreadPlan
         return nullptr;
     }
 
-    // I do not want the SBThreadPlan to be deallocated when going out of scope
-    // because python has ownership of it and will manage memory for this
-    // object by itself
-    PythonObject tp_arg(PyRefType::Owned, SBTypeToSWIGWrapper(new lldb::SBThreadPlan(thread_plan_sp)));
-
-    if (!tp_arg.IsAllocated())
-        Py_RETURN_NONE;
+    PythonObject tp_arg = ToSWIGWrapper(thread_plan_sp);
 
     llvm::Expected<PythonCallable::ArgInfo> arg_info = pfunc.GetArgInfo();
     if (!arg_info) {
@@ -395,7 +423,8 @@ LLDBSwigPythonCreateScriptedThreadPlan
         }
         result = pfunc(tp_arg, dict);
     } else if (arg_info.get().max_positional_args >= 3) {
-        PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(new lldb::SBStructuredData(args_impl)));
+        // FIXME: SBStructuredData leaked here
+        PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(*new lldb::SBStructuredData(args_impl)));
         result = pfunc(tp_arg, args_arg, dict);
     } else {
         error_string.assign("wrong number of arguments in __init__, should be 2 or 3 (not including self)");
@@ -457,15 +486,11 @@ LLDBSWIGPythonCallThreadPlan
     return false;
 }
 
-SWIGEXPORT void *
-LLDBSwigPythonCreateScriptedBreakpointResolver
-(
-    const char *python_class_name,
-    const char *session_dictionary_name,
+SWIGEXPORT void *LLDBSwigPythonCreateScriptedBreakpointResolver(
+    const char *python_class_name, const char *session_dictionary_name,
     lldb_private::StructuredDataImpl *args_impl,
-    lldb::BreakpointSP &breakpoint_sp
-)
-{
+    const lldb::BreakpointSP &breakpoint_sp) {
+
     if (python_class_name == NULL || python_class_name[0] == '\0' || !session_dictionary_name)
         Py_RETURN_NONE;
 
@@ -477,14 +502,11 @@ LLDBSwigPythonCreateScriptedBreakpointResolver
     if (!pfunc.IsAllocated())
         return nullptr;
 
-    lldb::SBBreakpoint *bkpt_value = new lldb::SBBreakpoint(breakpoint_sp);
-
-    PythonObject bkpt_arg(PyRefType::Owned, SBTypeToSWIGWrapper(bkpt_value));
-
+    // FIXME: SBStructuredData leaked here
     lldb::SBStructuredData *args_value = new lldb::SBStructuredData(args_impl);
-    PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(args_value));
+    PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(*args_value));
 
-    PythonObject result = pfunc(bkpt_arg, args_arg, dict);
+    PythonObject result = pfunc(ToSWIGWrapper(breakpoint_sp), args_arg, dict);
     // FIXME: At this point we should check that the class we found supports all the methods
     // that we need.
 
@@ -585,15 +607,11 @@ LLDBSwigPythonCreateScriptedStopHook
         return nullptr;
     }
 
-    lldb::SBTarget *target_val 
-        = new lldb::SBTarget(target_sp);
-
-    PythonObject target_arg(PyRefType::Owned, SBTypeToSWIGWrapper(target_val));
-
+    // FIXME: SBStructuredData leaked here
     lldb::SBStructuredData *args_value = new lldb::SBStructuredData(args_impl);
-    PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(args_value));
+    PythonObject args_arg(PyRefType::Owned, SBTypeToSWIGWrapper(*args_value));
 
-    PythonObject result = pfunc(target_arg, args_arg, dict);
+    PythonObject result = pfunc(ToSWIGWrapper(target_sp), args_arg, dict);
 
     if (result.IsAllocated())
     {
@@ -918,6 +936,22 @@ LLDBSWIGPython_CastPyObjectToSBValue
     return sb_ptr;
 }
 
+SWIGEXPORT void*
+LLDBSWIGPython_CastPyObjectToSBMemoryRegionInfo
+(
+    PyObject* data
+)
+{
+    lldb::SBMemoryRegionInfo* sb_ptr = NULL;
+
+    int valid_cast = SWIG_ConvertPtr(data, (void**)&sb_ptr, SWIGTYPE_p_lldb__SBMemoryRegionInfo, 0);
+
+    if (valid_cast == -1)
+        return NULL;
+
+    return sb_ptr;
+}
+
 SWIGEXPORT bool
 LLDBSwigPythonCallCommand
 (
@@ -940,8 +974,6 @@ LLDBSwigPythonCallCommand
     if (!pfunc.IsAllocated())
         return false;
 
-    // pass the pointer-to cmd_retobj_sb or watch the underlying object disappear from under you
-    // see comment above for SBCommandReturnObjectReleaser for further details
     auto argc = pfunc.GetArgInfo();
     if (!argc) {
         llvm::consumeError(argc.takeError());
@@ -949,7 +981,7 @@ LLDBSwigPythonCallCommand
     }
     PythonObject debugger_arg(PyRefType::Owned, SBTypeToSWIGWrapper(debugger_sb));
     PythonObject exe_ctx_arg(PyRefType::Owned, SBTypeToSWIGWrapper(exe_ctx_sb));
-    PythonObject cmd_retobj_arg(PyRefType::Owned, SBTypeToSWIGWrapper(&cmd_retobj_sb));
+    PythonObject cmd_retobj_arg(PyRefType::Owned, SBTypeToSWIGWrapper(cmd_retobj_sb));
 
     if (argc.get().max_positional_args < 5u)
         pfunc(debugger_arg, PythonString(args), cmd_retobj_arg, dict);
@@ -981,11 +1013,9 @@ LLDBSwigPythonCallCommandObject
     if (!pfunc.IsAllocated())
         return false;
 
-    // pass the pointer-to cmd_retobj_sb or watch the underlying object disappear from under you
-    // see comment above for SBCommandReturnObjectReleaser for further details
     PythonObject debugger_arg(PyRefType::Owned, SBTypeToSWIGWrapper(debugger_sb));
     PythonObject exe_ctx_arg(PyRefType::Owned, SBTypeToSWIGWrapper(exe_ctx_sb));
-    PythonObject cmd_retobj_arg(PyRefType::Owned, SBTypeToSWIGWrapper(&cmd_retobj_sb));
+    PythonObject cmd_retobj_arg(PyRefType::Owned, SBTypeToSWIGWrapper(cmd_retobj_sb));
 
     pfunc(debugger_arg, PythonString(args), exe_ctx_arg, cmd_retobj_arg);
 
@@ -1011,14 +1041,7 @@ LLDBSWIGPythonCreateOSPlugin
     if (!pfunc.IsAllocated())
         Py_RETURN_NONE;
 
-    // I do not want the SBProcess to be deallocated when going out of scope because python
-    // has ownership of it and will manage memory for this object by itself
-    lldb::SBProcess *process_sb = new lldb::SBProcess(process_sp);
-    PythonObject process_arg(PyRefType::Owned, SBTypeToSWIGWrapper(process_sb));
-    if (!process_arg.IsAllocated())
-        Py_RETURN_NONE;
-
-    auto result = pfunc(process_arg);
+    auto result = pfunc(ToSWIGWrapper(process_sp));
 
     if (result.IsAllocated())
         return result.release();
@@ -1083,21 +1106,15 @@ LLDBSWIGPython_GetDynamicSetting (void* module, const char* setting, const lldb:
     if (!pfunc.IsAllocated())
         Py_RETURN_NONE;
 
-    lldb::SBTarget target_sb(target_sp);
-    PythonObject target_arg(PyRefType::Owned, SBTypeToSWIGWrapper(target_sb));
-    auto result = pfunc(target_arg, PythonString(setting));
+    auto result = pfunc(ToSWIGWrapper(target_sp), PythonString(setting));
 
     return result.release();
 }
 
-SWIGEXPORT bool
-LLDBSWIGPythonRunScriptKeywordProcess
-(const char* python_function_name,
-const char* session_dictionary_name,
-lldb::ProcessSP& process,
-std::string& output)
+SWIGEXPORT bool LLDBSWIGPythonRunScriptKeywordProcess(
+    const char *python_function_name, const char *session_dictionary_name,
+    const lldb::ProcessSP &process, std::string &output) {
 
-{
     if (python_function_name == NULL || python_function_name[0] == '\0' || !session_dictionary_name)
         return false;
 
@@ -1109,9 +1126,7 @@ std::string& output)
     if (!pfunc.IsAllocated())
         return false;
 
-    lldb::SBProcess process_sb(process);
-    PythonObject process_arg(PyRefType::Owned, SBTypeToSWIGWrapper(process_sb));
-    auto result = pfunc(process_arg, dict);
+    auto result = pfunc(ToSWIGWrapper(process), dict);
 
     output = result.Str().GetString().str();
 
@@ -1146,14 +1161,10 @@ std::string& output)
     return true;
 }
 
-SWIGEXPORT bool
-LLDBSWIGPythonRunScriptKeywordTarget
-(const char* python_function_name,
-const char* session_dictionary_name,
-lldb::TargetSP& target,
-std::string& output)
+SWIGEXPORT bool LLDBSWIGPythonRunScriptKeywordTarget(
+    const char *python_function_name, const char *session_dictionary_name,
+    const lldb::TargetSP &target, std::string &output) {
 
-{
     if (python_function_name == NULL || python_function_name[0] == '\0' || !session_dictionary_name)
         return false;
 
@@ -1165,9 +1176,7 @@ std::string& output)
     if (!pfunc.IsAllocated())
         return false;
 
-    lldb::SBTarget target_sb(target);
-    PythonObject target_arg(PyRefType::Owned, SBTypeToSWIGWrapper(target_sb));
-    auto result = pfunc(target_arg, dict);
+    auto result = pfunc(ToSWIGWrapper(target), dict);
 
     output = result.Str().GetString().str();
 
@@ -1202,14 +1211,10 @@ std::string& output)
     return true;
 }
 
-SWIGEXPORT bool
-LLDBSWIGPythonRunScriptKeywordValue
-(const char* python_function_name,
-const char* session_dictionary_name,
-lldb::ValueObjectSP& value,
-std::string& output)
+SWIGEXPORT bool LLDBSWIGPythonRunScriptKeywordValue(
+    const char *python_function_name, const char *session_dictionary_name,
+    const lldb::ValueObjectSP &value, std::string &output) {
 
-{
     if (python_function_name == NULL || python_function_name[0] == '\0' || !session_dictionary_name)
         return false;
 
@@ -1221,9 +1226,7 @@ std::string& output)
     if (!pfunc.IsAllocated())
         return false;
 
-    lldb::SBValue value_sb(value);
-    PythonObject value_arg(PyRefType::Owned, SBTypeToSWIGWrapper(value_sb));
-    auto result = pfunc(value_arg, dict);
+    auto result = pfunc(ToSWIGWrapper(value), dict);
 
     output = result.Str().GetString().str();
 

@@ -1112,6 +1112,11 @@ TEST(CommandLineTest, PositionalEatArgsError) {
 }
 
 #ifdef _WIN32
+void checkSeparators(StringRef Path) {
+  char UndesiredSeparator = sys::path::get_separator()[0] == '/' ? '\\' : '/';
+  ASSERT_EQ(Path.find(UndesiredSeparator), StringRef::npos);
+}
+
 TEST(CommandLineTest, GetCommandLineArguments) {
   int argc = __argc;
   char **argv = __argv;
@@ -1121,6 +1126,7 @@ TEST(CommandLineTest, GetCommandLineArguments) {
 
   EXPECT_EQ(llvm::sys::path::is_absolute(argv[0]),
             llvm::sys::path::is_absolute(__argv[0]));
+  checkSeparators(argv[0]);
 
   EXPECT_TRUE(
       llvm::sys::path::filename(argv[0]).equals_insensitive("supporttests.exe"))
@@ -1892,6 +1898,36 @@ TEST(CommandLineTest, ConsumeAfterTwoPositionals) {
   EXPECT_TRUE(ExtraArgs[0] == "arg1");
   EXPECT_TRUE(ExtraArgs[1] == "arg2");
   EXPECT_TRUE(Errs.empty());
+}
+
+TEST(CommandLineTest, ResetAllOptionOccurrences) {
+  cl::ResetCommandLineParser();
+
+  // -option [sink] input [args]
+  StackOption<bool> Option("option");
+  StackOption<std::string, cl::list<std::string>> Sink(cl::Sink);
+  StackOption<std::string> Input(cl::Positional);
+  StackOption<std::string, cl::list<std::string>> ExtraArgs(cl::ConsumeAfter);
+
+  const char *Args[] = {"prog", "-option", "-unknown", "input", "-arg"};
+
+  std::string Errs;
+  raw_string_ostream OS(Errs);
+  EXPECT_TRUE(cl::ParseCommandLineOptions(5, Args, StringRef(), &OS));
+  EXPECT_TRUE(OS.str().empty());
+
+  EXPECT_TRUE(Option);
+  EXPECT_EQ(1, (int)Sink.size());
+  EXPECT_EQ("-unknown", Sink[0]);
+  EXPECT_EQ("input", Input);
+  EXPECT_EQ(1, (int)ExtraArgs.size());
+  EXPECT_EQ("-arg", ExtraArgs[0]);
+
+  cl::ResetAllOptionOccurrences();
+  EXPECT_FALSE(Option);
+  EXPECT_EQ(0, (int)Sink.size());
+  EXPECT_EQ(0, Input.getNumOccurrences());
+  EXPECT_EQ(0, (int)ExtraArgs.size());
 }
 
 } // anonymous namespace

@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // sentinel() = default;
@@ -28,13 +27,13 @@ constexpr bool test() {
 
   {
     // Test the default ctor.
-    std::ranges::take_view<ContiguousView> tv(ContiguousView{buffer}, 4);
+    std::ranges::take_view<MoveOnlyView> tv(MoveOnlyView{buffer}, 4);
     assert(decltype(tv.end()){} == std::ranges::next(tv.begin(), 4));
   }
 
   {
-    std::ranges::take_view<ContiguousView> nonConst(ContiguousView{buffer}, 5);
-    const std::ranges::take_view<ContiguousView> tvConst(ContiguousView{buffer}, 5);
+    std::ranges::take_view<MoveOnlyView> nonConst(MoveOnlyView{buffer}, 5);
+    const std::ranges::take_view<MoveOnlyView> tvConst(MoveOnlyView{buffer}, 5);
     auto sent1 = nonConst.end();
     // Convert to const. Note, we cannot go the other way.
     std::remove_cv_t<decltype(tvConst.end())> sent2 = sent1;

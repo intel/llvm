@@ -458,6 +458,32 @@ cleanup:
   ret float* %retval.0
 }
 
+; This should not create a calloc
+define i8* @malloc_with_no_nointer_null_check(i64 %0, i32 %1) {
+; CHECK-LABEL: @malloc_with_no_nointer_null_check
+; CHECK:       entry:
+; CHECK-NEXT:    [[CALL:%.*]] = call i8* @malloc(i64 [[TMP0:%.*]])
+; CHECK-NEXT:    [[A:%.*]] = and i32 [[TMP1:%.*]], 32
+; CHECK-NEXT:    [[CMP:%.*]] = icmp eq i32 [[A]], 0
+; CHECK-NEXT:    br i1 [[CMP]], label [[CLEANUP:%.*]], label [[IF_END:%.*]]
+; CHECK:       if.end:
+; CHECK-NEXT:    call void @llvm.memset.p0i8.i64(i8* [[CALL]], i8 0, i64 [[TMP0]], i1 false)
+; CHECK-NEXT:    br label [[CLEANUP]]
+; CHECK:       cleanup:
+; CHECK-NEXT:    ret i8* [[CALL]]
+;
+entry:
+  %call = call i8* @malloc(i64 %0) inaccessiblememonly
+  %a = and i32 %1, 32
+  %cmp = icmp eq i32 %a, 0
+  br i1 %cmp, label %cleanup, label %if.end
+if.end:
+  call void @llvm.memset.p0i8.i64(i8* %call, i8 0, i64 %0, i1 false)
+  br label %cleanup
+cleanup:
+  ret i8* %call
+}
+
 ; PR50143
 define i8* @store_zero_after_calloc_inaccessiblememonly() {
 ; CHECK-LABEL: @store_zero_after_calloc_inaccessiblememonly(
@@ -599,4 +625,53 @@ define i8* @memset_pattern16_after_calloc(i8* %pat) {
   call void @llvm.memset.p0i8.i64(i8* align 4 %call, i8 0, i64 40000, i1 false)
   call void @memset_pattern16(i8* %call, i8* %pat, i64 40000) #1
   ret i8* %call
+}
+
+@n = global i32 0, align 4
+@a = external global i32, align 4
+@b = external global i32*, align 8
+
+; GCC calloc-1.c test case should create calloc
+define i8* @test_malloc_memset_to_calloc(i64* %0) {
+; CHECK-LABEL: @test_malloc_memset_to_calloc(
+; CHECK:       entry:
+; CHECK-NEXT:    [[TMP1:%.*]] = load i32, i32* @n, align 4
+; CHECK-NEXT:    [[TMP2:%.*]] = sext i32 [[TMP1]] to i64
+; CHECK-NEXT:    [[CALLOC:%.*]] = call i8* @calloc(i64 1, i64 [[TMP2]])
+; CHECK-NEXT:    [[TMP3:%.*]] = load i64, i64* [[TMP0:%.*]], align 8
+; CHECK-NEXT:    [[TMP4:%.*]] = add nsw i64 [[TMP3]], 1
+; CHECK-NEXT:    store i64 [[TMP4]], i64* [[TMP0]], align 8
+; CHECK-NEXT:    [[TMP5:%.*]] = icmp eq i8* [[CALLOC]], null
+; CHECK-NEXT:    br i1 [[TMP5]], label [[IF_END:%.*]], label [[IF_THEN:%.*]]
+; CHECK:       if.then:                                          ; preds = %entry
+; CHECK-NEXT:    [[TMP6:%.*]] = add nsw i64 [[TMP3]], 2
+; CHECK-NEXT:    store i64 [[TMP6]], i64* [[TMP0]], align 8
+; CHECK-NEXT:    store i32 2, i32* @a, align 4
+; CHECK-NEXT:    [[TMP7:%.*]] = load i32*, i32** @b, align 8
+; CHECK-NEXT:    store i32 3, i32* [[TMP7]], align 4
+; CHECK-NEXT:    br label [[IF_END]]
+; CHECK:       if.end:                                           ; preds = %if.then, %entry
+; CHECK-NEXT:    ret i8* [[CALLOC]]
+;
+entry:
+  %1 = load i32, i32* @n, align 4
+  %2 = sext i32 %1 to i64
+  %3 = tail call i8* @malloc(i64 %2) inaccessiblememonly
+  %4 = load i64, i64* %0, align 8
+  %5 = add nsw i64 %4, 1
+  store i64 %5, i64* %0, align 8
+  %6 = icmp eq i8* %3, null
+  br i1 %6, label %if.end, label %if.then
+
+if.then:
+  %7 = add nsw i64 %4, 2
+  store i64 %7, i64* %0, align 8
+  store i32 2, i32* @a, align 4
+  tail call void @llvm.memset.p0i8.i64(i8* align 4 %3, i8 0, i64 %2, i1 false)
+  %8 = load i32*, i32** @b, align 8
+  store i32 3, i32* %8, align 4
+  br label %if.end
+
+if.end:
+  ret i8* %3
 }

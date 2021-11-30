@@ -1492,6 +1492,8 @@ void JSONNodeDumper::VisitIfStmt(const IfStmt *IS) {
   attributeOnlyIfTrue("hasVar", IS->hasVarStorage());
   attributeOnlyIfTrue("hasElse", IS->hasElseStorage());
   attributeOnlyIfTrue("isConstexpr", IS->isConstexpr());
+  attributeOnlyIfTrue("isConsteval", IS->isConsteval());
+  attributeOnlyIfTrue("constevalIsNegated", IS->isNegatedConsteval());
 }
 
 void JSONNodeDumper::VisitSwitchStmt(const SwitchStmt *SS) {

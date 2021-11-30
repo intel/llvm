@@ -26,15 +26,12 @@ class ELFSectionRef;
 class MachOObjectFile;
 class MachOUniversalBinary;
 class RelocationRef;
+struct VersionEntry;
 } // namespace object
 
 namespace objdump {
 
-enum DebugVarsFormat {
-  DVDisabled,
-  DVUnicode,
-  DVASCII,
-};
+enum DebugVarsFormat { DVDisabled, DVUnicode, DVASCII, DVInvalid };
 
 extern bool ArchiveHeaders;
 extern int DbgIndent;
@@ -137,6 +134,7 @@ void printSymbolTable(const object::ObjectFile *O, StringRef ArchiveName,
                       StringRef ArchitectureName = StringRef(),
                       bool DumpDynamic = false);
 void printSymbol(const object::ObjectFile *O, const object::SymbolRef &Symbol,
+                 ArrayRef<object::VersionEntry> SymbolVersions,
                  StringRef FileName, StringRef ArchiveName,
                  StringRef ArchitectureName, bool DumpDynamic);
 [[noreturn]] void reportError(StringRef File, const Twine &Message);

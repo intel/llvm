@@ -159,6 +159,27 @@ if(LLVM_ENABLE_LIBXML2)
   set(LLVM_ENABLE_LIBXML2 "${HAVE_LIBXML2}")
 endif()
 
+if(LLVM_ENABLE_CURL)
+  if(LLVM_ENABLE_CURL STREQUAL FORCE_ON)
+    find_package(CURL REQUIRED)
+  else()
+    find_package(CURL)
+  endif()
+  if(CURL_FOUND)
+    # Check if curl we found is usable; for example, we may have found a 32-bit
+    # library on a 64-bit system which would result in a link-time failure.
+    cmake_push_check_state()
+    list(APPEND CMAKE_REQUIRED_INCLUDES ${CURL_INCLUDE_DIRS})
+    list(APPEND CMAKE_REQUIRED_LIBRARIES ${CURL_LIBRARY})
+    check_symbol_exists(curl_easy_init curl/curl.h HAVE_CURL)
+    cmake_pop_check_state()
+    if(LLVM_ENABLE_CURL STREQUAL FORCE_ON AND NOT HAVE_CURL)
+      message(FATAL_ERROR "Failed to configure curl")
+    endif()
+  endif()
+  set(LLVM_ENABLE_CURL "${HAVE_CURL}")
+endif()
+
 # Don't look for these libraries if we're using MSan, since uninstrumented third
 # party code may call MSan interceptors like strlen, leading to false positives.
 if(NOT LLVM_USE_SANITIZER MATCHES "Memory.*")
@@ -192,7 +213,13 @@ endif()
 
 check_library_exists(xar xar_open "" LLVM_HAVE_LIBXAR)
 if(LLVM_HAVE_LIBXAR)
-  set(XAR_LIB xar)
+  message(STATUS "The xar file format has been deprecated: LLVM_HAVE_LIBXAR might be removed in the future.")
+  # The xar file format has been deprecated since macOS 12.0.
+  if (CMAKE_OSX_DEPLOYMENT_TARGET VERSION_GREATER_EQUAL 12)
+    set(LLVM_HAVE_LIBXAR 0)
+  else()
+    set(XAR_LIB xar)
+  endif()
 endif()
 
 # function checks
@@ -211,6 +238,7 @@ endif()
 # Determine whether we can register EH tables.
 check_symbol_exists(__register_frame "${CMAKE_CURRENT_LIST_DIR}/unwind.h" HAVE_REGISTER_FRAME)
 check_symbol_exists(__deregister_frame "${CMAKE_CURRENT_LIST_DIR}/unwind.h" HAVE_DEREGISTER_FRAME)
+check_symbol_exists(__unw_add_dynamic_fde "${CMAKE_CURRENT_LIST_DIR}/unwind.h" HAVE_UNW_ADD_DYNAMIC_FDE)
 
 check_symbol_exists(_Unwind_Backtrace "unwind.h" HAVE__UNWIND_BACKTRACE)
 check_symbol_exists(getpagesize unistd.h HAVE_GETPAGESIZE)
@@ -502,10 +530,19 @@ if( MSVC )
   set(stricmp "_stricmp")
   set(strdup "_strdup")
 
-  # See if the DIA SDK is available and usable.
-  set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK" CACHE PATH
-      "Path to the DIA SDK")
+  # Allow setting clang-cl's /winsysroot flag.
+  set(LLVM_WINSYSROOT "" CACHE STRING
+    "If set, argument to clang-cl's /winsysroot")
 
+  if (LLVM_WINSYSROOT)
+    set(MSVC_DIA_SDK_DIR "${LLVM_WINSYSROOT}/DIA SDK" CACHE PATH
+        "Path to the DIA SDK")
+  else()
+    set(MSVC_DIA_SDK_DIR "$ENV{VSINSTALLDIR}DIA SDK" CACHE PATH
+        "Path to the DIA SDK")
+  endif()
+
+  # See if the DIA SDK is available and usable.
   # Due to a bug in MSVC 2013's installation software, it is possible
   # for MSVC 2013 to write the DIA SDK into the Visual Studio 2012
   # install directory.  If this happens, the installation is corrupt
@@ -588,7 +625,7 @@ endif()
 
 find_program(GOLD_EXECUTABLE NAMES ${LLVM_DEFAULT_TARGET_TRIPLE}-ld.gold ld.gold ${LLVM_DEFAULT_TARGET_TRIPLE}-ld ld DOC "The gold linker")
 set(LLVM_BINUTILS_INCDIR "" CACHE PATH
-	"PATH to binutils/include containing plugin-api.h for gold plugin.")
+    "PATH to binutils/include containing plugin-api.h for gold plugin.")
 
 if(CMAKE_GENERATOR STREQUAL "Ninja")
   execute_process(COMMAND ${CMAKE_MAKE_PROGRAM} --version
@@ -689,3 +726,30 @@ if(PY_PYGMENTS_FOUND AND PY_PYGMENTS_LEXERS_C_CPP_FOUND AND PY_YAML_FOUND)
 else()
   set (LLVM_HAVE_OPT_VIEWER_MODULES 0)
 endif()
+
+function(llvm_get_host_prefixes_and_suffixes)
+  # Not all platform files will set these variables (relying on them being
+  # implicitly empty if they're unset), so unset the variables before including
+  # the platform file, to prevent any values from the target system leaking.
+  unset(CMAKE_STATIC_LIBRARY_PREFIX)
+  unset(CMAKE_STATIC_LIBRARY_SUFFIX)
+  unset(CMAKE_SHARED_LIBRARY_PREFIX)
+  unset(CMAKE_SHARED_LIBRARY_SUFFIX)
+  unset(CMAKE_IMPORT_LIBRARY_PREFIX)
+  unset(CMAKE_IMPORT_LIBRARY_SUFFIX)
+  unset(CMAKE_EXECUTABLE_SUFFIX)
+  unset(CMAKE_LINK_LIBRARY_SUFFIX)
+  include(Platform/${CMAKE_HOST_SYSTEM_NAME} OPTIONAL RESULT_VARIABLE _includedFile)
+  if (_includedFile)
+    set(LLVM_HOST_STATIC_LIBRARY_PREFIX ${CMAKE_STATIC_LIBRARY_PREFIX} PARENT_SCOPE)
+    set(LLVM_HOST_STATIC_LIBRARY_SUFFIX ${CMAKE_STATIC_LIBRARY_SUFFIX} PARENT_SCOPE)
+    set(LLVM_HOST_SHARED_LIBRARY_PREFIX ${CMAKE_SHARED_LIBRARY_PREFIX} PARENT_SCOPE)
+    set(LLVM_HOST_SHARED_LIBRARY_SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX} PARENT_SCOPE)
+    set(LLVM_HOST_IMPORT_LIBRARY_PREFIX ${CMAKE_IMPORT_LIBRARY_PREFIX} PARENT_SCOPE)
+    set(LLVM_HOST_IMPORT_LIBRARY_SUFFIX ${CMAKE_IMPORT_LIBRARY_SUFFIX} PARENT_SCOPE)
+    set(LLVM_HOST_EXECUTABLE_SUFFIX ${CMAKE_EXECUTABLE_SUFFIX} PARENT_SCOPE)
+    set(LLVM_HOST_LINK_LIBRARY_SUFFIX ${CMAKE_LINK_LIBRARY_SUFFIX} PARENT_SCOPE)
+  endif()
+endfunction()
+
+llvm_get_host_prefixes_and_suffixes()

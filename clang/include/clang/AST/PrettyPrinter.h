@@ -75,7 +75,10 @@ struct PrintingPolicy {
         MSVCFormatting(false), ConstantsAsWritten(false),
         SuppressImplicitBase(false), FullyQualifiedName(false),
         SuppressDefinition(false), SuppressDefaultTemplateArguments(false),
-        PrintCanonicalTypes(false), PrintInjectedClassNameWithArguments(true) {}
+        PrintCanonicalTypes(false),
+        SkipCanonicalizationOfTemplateTypeParms(false),
+        PrintInjectedClassNameWithArguments(true), UsePreferredNames(true),
+        AlwaysIncludeTypeForTemplateArgument(false) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -311,10 +314,32 @@ struct PrintingPolicy {
   /// Whether to print types as written or canonically.
   unsigned PrintCanonicalTypes : 1;
 
+  /// Whether to skip the canonicalization (when PrintCanonicalTypes is set) for
+  /// TemplateTypeParmTypes. This has no effect if PrintCanonicalTypes isn't
+  /// set. This is useful for non-type-template-parameters, since the canonical
+  /// version of:
+  ///   \code
+  ///   TemplateTypeParmType '_Tp'
+  ///     TemplateTypeParm '_Tp'
+  ///   \endcode
+  /// is:
+  ///   \code
+  ///   TemplateTypeParmType 'type-parameter-0-0'
+  ///   \endcode
+  unsigned SkipCanonicalizationOfTemplateTypeParms : 1;
+
   /// Whether to print an InjectedClassNameType with template arguments or as
   /// written. When a template argument is unnamed, printing it results in
   /// invalid C++ code.
   unsigned PrintInjectedClassNameWithArguments : 1;
+
+  /// Whether to use C++ template preferred_name attributes when printing
+  /// templates.
+  unsigned UsePreferredNames : 1;
+
+  /// Whether to use type suffixes (eg: 1U) on integral non-type template
+  /// parameters.
+  unsigned AlwaysIncludeTypeForTemplateArgument : 1;
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;

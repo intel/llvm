@@ -755,6 +755,8 @@ SANITIZER_INTERFACE_ATTRIBUTE void *__dfso_dlopen(
 static void *DFsanThreadStartFunc(void *arg) {
   DFsanThread *t = (DFsanThread *)arg;
   SetCurrentThread(t);
+  t->Init();
+  SetSigProcMask(&t->starting_sigset_, nullptr);
   return t->ThreadStart();
 }
 
@@ -775,6 +777,7 @@ static int dfsan_pthread_create(pthread_t *thread, const pthread_attr_t *attr,
   DFsanThread *t =
       DFsanThread::Create(start_routine_trampoline,
                           (thread_callback_t)start_routine, arg, track_origins);
+  ScopedBlockSignals block(&t->starting_sigset_);
   int res = pthread_create(thread, attr, DFsanThreadStartFunc, t);
 
   if (attr == &myattr)
@@ -1024,6 +1027,33 @@ SANITIZER_INTERFACE_ATTRIBUTE
 char *__dfso_get_current_dir_name(dfsan_label *ret_label,
                                   dfsan_origin *ret_origin) {
   return __dfsw_get_current_dir_name(ret_label);
+}
+
+// This function is only available for glibc 2.25 or newer.  Mark it weak so
+// linking succeeds with older glibcs.
+SANITIZER_WEAK_ATTRIBUTE int getentropy(void *buffer, size_t length);
+
+SANITIZER_INTERFACE_ATTRIBUTE int __dfsw_getentropy(void *buffer, size_t length,
+                                                    dfsan_label buffer_label,
+                                                    dfsan_label length_label,
+                                                    dfsan_label *ret_label) {
+  int ret = getentropy(buffer, length);
+  if (ret == 0) {
+    dfsan_set_label(0, buffer, length);
+  }
+  *ret_label = 0;
+  return ret;
+}
+
+SANITIZER_INTERFACE_ATTRIBUTE int __dfso_getentropy(void *buffer, size_t length,
+                                                    dfsan_label buffer_label,
+                                                    dfsan_label length_label,
+                                                    dfsan_label *ret_label,
+                                                    dfsan_origin buffer_origin,
+                                                    dfsan_origin length_origin,
+                                                    dfsan_origin *ret_origin) {
+  return __dfsw_getentropy(buffer, length, buffer_label, length_label,
+                           ret_label);
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE
@@ -2489,7 +2519,8 @@ pid_t __dfso_fork(dfsan_label *ret_label, dfsan_origin *ret_origin) {
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_pc_guard, u32 *) {}
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_pc_guard_init, u32 *,
                              u32 *) {}
-SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_pcs_init, void) {}
+SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_pcs_init, const uptr *beg,
+                             const uptr *end) {}
 SANITIZER_INTERFACE_WEAK_DEF(void, __sanitizer_cov_trace_pc_indir, void) {}
 
 SANITIZER_INTERFACE_WEAK_DEF(void, __dfsw___sanitizer_cov_trace_cmp, void) {}

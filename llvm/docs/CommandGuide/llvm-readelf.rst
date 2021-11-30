@@ -20,7 +20,7 @@ input. Otherwise, it will read from the specified ``filenames``.
 OPTIONS
 -------
 
-.. option:: --all
+.. option:: --all, -a
 
  Equivalent to specifying all the main display options relevant to the file
  format.
@@ -41,6 +41,10 @@ OPTIONS
 .. option:: --demangle, -C
 
  Display demangled symbol names in the output.
+
+.. option:: --dependent-libraries
+
+ Display the dependent libraries section.
 
 .. option:: --dyn-relocations
 
@@ -115,6 +119,10 @@ OPTIONS
 
  Display the needed libraries.
 
+.. option:: --no-demangle
+
+ Do not display demangled symbol names in the output. On by default.
+
 .. option:: --notes, -n
 
  Display all notes.
@@ -175,7 +183,7 @@ OPTIONS
 
 .. option:: --symbols, --syms, -s
 
- Display the symbol table.
+ Display the symbol table. Also display the dynamic symbol table when using GNU output style for ELF.
 
 .. option:: --unwind, -u
 
@@ -188,6 +196,10 @@ OPTIONS
 .. option:: --version-info, -V
 
  Display version sections.
+
+.. option:: --wide, -W
+
+ Ignored for GNU readelf compatibility. The output is already similar to when using -W with GNU readelf.
 
 .. option:: @<FILE>
 

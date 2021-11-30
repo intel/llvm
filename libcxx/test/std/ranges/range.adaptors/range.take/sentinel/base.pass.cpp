@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // sentinel() = default;
@@ -28,13 +27,13 @@ constexpr bool test() {
   auto sw = sentinel_wrapper<int *>(buffer + 8); // Note: not 4, but that's OK.
 
   {
-    const std::ranges::take_view<ContiguousView> tv(ContiguousView{buffer}, 4);
+    const std::ranges::take_view<MoveOnlyView> tv(MoveOnlyView{buffer}, 4);
     assert(tv.end().base().base() == sw.base());
     ASSERT_SAME_TYPE(decltype(tv.end().base()), sentinel_wrapper<int *>);
   }
 
   {
-    std::ranges::take_view<ContiguousView> tv(ContiguousView{buffer}, 4);
+    std::ranges::take_view<MoveOnlyView> tv(MoveOnlyView{buffer}, 4);
     assert(tv.end().base().base() == sw.base());
     ASSERT_SAME_TYPE(decltype(tv.end().base()), sentinel_wrapper<int *>);
   }

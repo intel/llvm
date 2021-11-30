@@ -64,6 +64,8 @@ Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::tlsModuleBase;
 DenseMap<const Symbol *, std::pair<const InputFile *, const InputFile *>>
     elf::backwardReferences;
+SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>, 0>
+    elf::whyExtract;
 
 static uint64_t getSymVA(const Symbol &sym, int64_t &addend) {
   switch (sym.kind()) {
@@ -208,6 +210,9 @@ OutputSection *Symbol::getOutputSection() const {
 // If a symbol name contains '@', the characters after that is
 // a symbol version name. This function parses that.
 void Symbol::parseSymbolVersion() {
+  // Return if localized by a local: pattern in a version script.
+  if (versionId == VER_NDX_LOCAL)
+    return;
   StringRef s = getName();
   size_t pos = s.find('@');
   if (pos == 0 || pos == StringRef::npos)
@@ -316,6 +321,11 @@ void elf::printTraceSymbol(const Symbol *sym) {
     s = ": definition of ";
 
   message(toString(sym->file) + s + sym->getName());
+}
+
+static void recordWhyExtract(const InputFile *reference,
+                             const InputFile &extracted, const Symbol &sym) {
+  whyExtract.emplace_back(toString(reference), &extracted, sym);
 }
 
 void elf::maybeWarnUnorderableSymbol(const Symbol *sym) {
@@ -530,6 +540,9 @@ void Symbol::resolveUndefined(const Undefined &other) {
                    file->groupId < other.file->groupId;
     fetch();
 
+    if (!config->whyExtract.empty())
+      recordWhyExtract(other.file, *file, *this);
+
     // We don't report backward references to weak symbols as they can be
     // overridden later.
     //
@@ -739,7 +752,10 @@ template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
     return;
   }
 
+  const InputFile *oldFile = file;
   other.fetch();
+  if (!config->whyExtract.empty())
+    recordWhyExtract(oldFile, *file, *this);
 }
 
 void Symbol::resolveShared(const SharedSymbol &other) {

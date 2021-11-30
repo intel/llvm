@@ -46,6 +46,8 @@ enum MutexFlags {
                                  MutexFlagNotStatic,
 };
 
+// SyncVar is a descriptor of a user synchronization object
+// (mutex or an atomic variable).
 struct SyncVar {
   SyncVar();
 
@@ -101,10 +103,8 @@ struct SyncVar {
   }
 };
 
-/* MetaMap allows to map arbitrary user pointers onto various descriptors.
-   Currently it maps pointers to heap block descriptors and sync var descs.
-   It uses 1/2 direct shadow, see tsan_platform.h.
-*/
+// MetaMap maps app addresses to heap block (MBlock) and sync var (SyncVar)
+// descriptors. It uses 1/2 direct shadow, see tsan_platform.h for the mapping.
 class MetaMap {
  public:
   MetaMap();
@@ -126,6 +126,13 @@ class MetaMap {
   void MoveMemory(uptr src, uptr dst, uptr sz);
 
   void OnProcIdle(Processor *proc);
+
+  struct MemoryStats {
+    uptr mem_block;
+    uptr sync_obj;
+  };
+
+  MemoryStats GetMemoryStats() const;
 
  private:
   static const u32 kFlagMask  = 3u << 30;

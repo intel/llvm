@@ -29,8 +29,10 @@ add_subdirectory(__support)
 add_subdirectory(ctype)
 add_subdirectory(errno)
 add_subdirectory(fenv)
+add_subdirectory(inttypes)
 add_subdirectory(math)
 add_subdirectory(string)
+add_subdirectory(stdlib)
 
 if(NOT LLVM_LIBC_FULL_BUILD)
   return()
@@ -39,7 +41,6 @@ endif()
 add_subdirectory(assert)
 add_subdirectory(signal)
 add_subdirectory(stdio)
-add_subdirectory(stdlib)
 add_subdirectory(sys)
 add_subdirectory(threads)
 add_subdirectory(time)
@@ -89,7 +90,7 @@ set_target_properties(
 target_include_directories(
   libc-integration-test BEFORE
   PRIVATE
-    "${LIBC_SOURCE_DIR}/utils/CPP"
+    "${LIBC_SOURCE_DIR}/src/__support/CPP"
     "${LIBC_BUILD_DIR}/include"
 )
 target_compile_options(

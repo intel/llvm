@@ -97,6 +97,7 @@ public:
           "Not all devices are associated with the context or "
           "vector of devices is empty");
     MDeviceImages.push_back(DevImage);
+    MIsInterop = true;
   }
 
   // Matches sycl::build and sycl::compile
@@ -157,6 +158,10 @@ public:
       std::vector<device> Devs, const property_list &PropList)
       : MDevices(std::move(Devs)) {
 
+    if (MDevices.empty())
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Vector of devices is empty");
+
     if (ObjectBundles.empty())
       return;
 
@@ -183,16 +188,21 @@ public:
                                                         Dev);
               });
         });
-    if (MDevices.empty() || !AllDevsAssociatedWithInputBundles)
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Not all devices are in the set of associated "
-          "devices for input bundles or vector of devices is empty");
+    if (!AllDevsAssociatedWithInputBundles)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Not all devices are in the set of associated "
+                            "devices for input bundles");
 
     // TODO: Unify with c'tor for sycl::comile and sycl::build by calling
     // sycl::join on vector of kernel_bundles
 
-    std::vector<device_image_plain> DeviceImages;
+    // The loop below just links each device image separately, not linking any
+    // two device images together. This is correct so long as each device image
+    // has no unresolved symbols. That's the case when device images are created
+    // from generic SYCL APIs. There's no way in generic SYCL to create a kernel
+    // which references an undefined symbol. If we decide in the future to allow
+    // a backend interop API to create a "sycl::kernel_bundle" that references
+    // undefined symbols, then the logic in this loop will need to be changed.
     for (const kernel_bundle<bundle_state::object> &ObjectBundle :
          ObjectBundles) {
       for (const device_image_plain &DeviceImage : ObjectBundle) {
@@ -205,12 +215,14 @@ public:
                          }))
           continue;
 
-        DeviceImages.insert(DeviceImages.end(), DeviceImage);
+        const std::vector<device_image_plain> VectorOfOneImage{DeviceImage};
+        std::vector<device_image_plain> LinkedResults =
+            detail::ProgramManager::getInstance().link(VectorOfOneImage,
+                                                       MDevices, PropList);
+        MDeviceImages.insert(MDeviceImages.end(), LinkedResults.begin(),
+                             LinkedResults.end());
       }
     }
-
-    MDeviceImages = detail::ProgramManager::getInstance().link(
-        std::move(DeviceImages), MDevices, PropList);
 
     for (const kernel_bundle<bundle_state::object> &Bundle : ObjectBundles) {
       const KernelBundleImplPtr BundlePtr = getSyclObjImpl(Bundle);
@@ -455,13 +467,11 @@ public:
     return SetInDevImg || MSpecConstValues.count(std::string{SpecName}) != 0;
   }
 
-  const device_image_plain *begin() const {
-    assert(!MDeviceImages.empty() && "MDeviceImages can't be empty");
-    // UB in case MDeviceImages is empty
-    return &MDeviceImages.front();
-  }
+  const device_image_plain *begin() const { return MDeviceImages.data(); }
 
-  const device_image_plain *end() const { return &MDeviceImages.back() + 1; }
+  const device_image_plain *end() const {
+    return MDeviceImages.data() + MDeviceImages.size();
+  }
 
   size_t size() const noexcept { return MDeviceImages.size(); }
 
@@ -476,6 +486,8 @@ public:
     return MSpecConstValues;
   }
 
+  bool isInterop() const { return MIsInterop; }
+
 private:
   context MContext;
   std::vector<device> MDevices;
@@ -483,6 +495,7 @@ private:
   // This map stores values for specialization constants, that are missing
   // from any device image.
   SpecConstMapT MSpecConstValues;
+  bool MIsInterop = false;
 };
 
 } // namespace detail

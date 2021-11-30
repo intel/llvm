@@ -37,9 +37,11 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "mach-o"; }
 
-  static const char *GetPluginDescriptionStatic();
+  static llvm::StringRef GetPluginDescriptionStatic() {
+    return "Mach-o object file reader (32 and 64 bit)";
+  }
 
   static lldb_private::ObjectFile *
   CreateInstance(const lldb::ModuleSP &module_sp, lldb::DataBufferSP &data_sp,
@@ -83,6 +85,8 @@ public:
   bool IsExecutable() const override;
 
   bool IsDynamicLoader() const;
+
+  bool IsSharedCacheBinary() const;
 
   uint32_t GetAddressByteSize() const override;
 
@@ -144,9 +148,7 @@ public:
   bool AllowAssemblyEmulationUnwindPlans() override;
 
   // PluginInterface protocol
-  lldb_private::ConstString GetPluginName() override;
-
-  uint32_t GetPluginVersion() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
 protected:
   static lldb_private::UUID

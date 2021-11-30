@@ -20,8 +20,10 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/PGOOptions.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/Inliner.h"
+#include "llvm/Transforms/IPO/ModuleInliner.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include <vector>
@@ -31,57 +33,6 @@ class StringRef;
 class AAManager;
 class TargetMachine;
 class ModuleSummaryIndex;
-
-/// A struct capturing PGO tunables.
-struct PGOOptions {
-  enum PGOAction { NoAction, IRInstr, IRUse, SampleUse };
-  enum CSPGOAction { NoCSAction, CSIRInstr, CSIRUse };
-  PGOOptions(std::string ProfileFile = "", std::string CSProfileGenFile = "",
-             std::string ProfileRemappingFile = "", PGOAction Action = NoAction,
-             CSPGOAction CSAction = NoCSAction,
-             bool DebugInfoForProfiling = false,
-             bool PseudoProbeForProfiling = false)
-      : ProfileFile(ProfileFile), CSProfileGenFile(CSProfileGenFile),
-        ProfileRemappingFile(ProfileRemappingFile), Action(Action),
-        CSAction(CSAction), DebugInfoForProfiling(DebugInfoForProfiling ||
-                                                  (Action == SampleUse &&
-                                                   !PseudoProbeForProfiling)),
-        PseudoProbeForProfiling(PseudoProbeForProfiling) {
-    // Note, we do allow ProfileFile.empty() for Action=IRUse LTO can
-    // callback with IRUse action without ProfileFile.
-
-    // If there is a CSAction, PGOAction cannot be IRInstr or SampleUse.
-    assert(this->CSAction == NoCSAction ||
-           (this->Action != IRInstr && this->Action != SampleUse));
-
-    // For CSIRInstr, CSProfileGenFile also needs to be nonempty.
-    assert(this->CSAction != CSIRInstr || !this->CSProfileGenFile.empty());
-
-    // If CSAction is CSIRUse, PGOAction needs to be IRUse as they share
-    // a profile.
-    assert(this->CSAction != CSIRUse || this->Action == IRUse);
-
-    // If neither Action nor CSAction, DebugInfoForProfiling or
-    // PseudoProbeForProfiling needs to be true.
-    assert(this->Action != NoAction || this->CSAction != NoCSAction ||
-           this->DebugInfoForProfiling || this->PseudoProbeForProfiling);
-
-    // Pseudo probe emission does not work with -fdebug-info-for-profiling since
-    // they both use the discriminator field of debug lines but for different
-    // purposes.
-    if (this->DebugInfoForProfiling && this->PseudoProbeForProfiling) {
-      report_fatal_error(
-          "Pseudo probes cannot be used with -debug-info-for-profiling", false);
-    }
-  }
-  std::string ProfileFile;
-  std::string CSProfileGenFile;
-  std::string ProfileRemappingFile;
-  PGOAction Action;
-  CSPGOAction CSAction;
-  bool DebugInfoForProfiling;
-  bool PseudoProbeForProfiling;
-};
 
 /// Tunable parameters for passes in the default pipelines.
 class PipelineTuningOptions {
@@ -123,6 +74,15 @@ public:
   /// Tuning option to enable/disable function merging. Its default value is
   /// false.
   bool MergeFunctions;
+
+  // Experimental option to eagerly invalidate more analyses. This has the
+  // potential to decrease max memory usage in exchange for more compile time.
+  // This may affect codegen due to either passes using analyses only when
+  // cached, or invalidating and recalculating an analysis that was
+  // stale/imprecise but still valid. Currently this invalidates all function
+  // analyses after various module->function or cgscc->function adaptors in the
+  // default pipelines.
+  bool EagerlyInvalidateAnalyses;
 };
 
 /// This class provides access to building LLVM's passes.
@@ -236,6 +196,11 @@ public:
   /// the inlining-driven cleanups.
   ModuleInlinerWrapperPass buildInlinerPipeline(OptimizationLevel Level,
                                                 ThinOrFullLTOPhase Phase);
+
+  /// Construct the module pipeline that performs inlining with
+  /// module inliner pass.
+  ModuleInlinerPass buildModuleInlinerPipeline(OptimizationLevel Level,
+                                               ThinOrFullLTOPhase Phase);
 
   /// Construct the core LLVM module optimization pipeline.
   ///

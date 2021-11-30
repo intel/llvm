@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // template<class R>
@@ -20,26 +19,19 @@
 #include "test_iterators.h"
 
 struct View : std::ranges::view_base {
-  friend int* begin(View&);
-  friend int* begin(View const&);
-  friend sentinel_wrapper<int*> end(View&);
-  friend sentinel_wrapper<int*> end(View const&);
+  int *begin() const;
+  sentinel_wrapper<int*> end() const;
 };
 
 struct Range {
-  friend int* begin(Range&);
-  friend int* begin(Range const&);
-  friend sentinel_wrapper<int*> end(Range&);
-  friend sentinel_wrapper<int*> end(Range const&);
+  int *begin() const;
+  sentinel_wrapper<int*> end() const;
 };
 
 struct BorrowedRange {
-  friend int* begin(BorrowedRange&);
-  friend int* begin(BorrowedRange const&);
-  friend sentinel_wrapper<int*> end(BorrowedRange&);
-  friend sentinel_wrapper<int*> end(BorrowedRange const&);
+  int *begin() const;
+  sentinel_wrapper<int*> end() const;
 };
-
 template<>
 inline constexpr bool std::ranges::enable_borrowed_range<BorrowedRange> = true;
 

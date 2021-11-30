@@ -16,15 +16,15 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: Name [[Name2:[0-9]+]] "llvm.global_dtors"
 ; CHECK: Name [[NameInit:[0-9]+]] "__cxx_global_var_init"
 
-; CHECK: LinkageAttributes "llvm.global_ctors" Export
-; CHECK: LinkageAttributes "llvm.global_dtors" Export
+; CHECK-DAG: Decorate {{[0-9]+}} LinkageAttributes "llvm.global_ctors" Export
+; CHECK-DAG: Decorate {{[0-9]+}} LinkageAttributes "llvm.global_dtors" Export
 
 ; CHECK: TypeFunction {{[0-9]+}} [[TF:[0-9]+]]
 
 ; CHECK: TypePointer [[TP:[0-9]+]]
-; CHECK: ConstFunctionPointerINTEL [[TP]] [[FPCtor:[0-9]+]] [[NameCtor]]
+; CHECK: ConstantFunctionPointerINTEL [[TP]] [[FPCtor:[0-9]+]] [[NameCtor]]
 ; CHECK: ConstantComposite {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[FPCtor]]
-; CHECK: ConstFunctionPointerINTEL [[TP]] [[FPDtor:[0-9]+]] [[NameDtor]]
+; CHECK: ConstantFunctionPointerINTEL [[TP]] [[FPDtor:[0-9]+]] [[NameDtor]]
 ; CHECK: ConstantComposite {{[0-9]+}} {{[0-9]+}} {{[0-9]+}} [[FPDtor]]
 
 ; CHECK: 5 Function [[TF]] [[NameCtor]] 0

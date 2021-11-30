@@ -238,19 +238,6 @@ public:
   /// Possible exception handling behavior.
   enum class ExceptionHandlingKind { None, SjLj, WinEH, DwarfCFI, Wasm };
 
-  /// Possible float expression evaluation method choices.
-  enum FPEvalMethodKind {
-    /// Use the declared type for fp arithmetic.
-    FEM_Source,
-    /// Use the type double for fp arithmetic.
-    FEM_Double,
-    /// Use extended type for fp arithmetic.
-    FEM_Extended,
-    /// Use the default float eval method specified by Target:
-    //  most targets are defined with evaluation method FEM_Source.
-    FEM_TargetDefault
-  };
-
   enum class LaxVectorConversionKind {
     /// Permit no implicit vector bitcasts.
     None,
@@ -373,6 +360,9 @@ public:
   /// A list of all -fno-builtin-* function names (e.g., memset).
   std::vector<std::string> NoBuiltinFuncs;
 
+  /// A prefix map for __FILE__, __BASE_FILE__ and __builtin_FILE().
+  std::map<std::string, std::string, std::greater<std::string>> MacroPrefixMap;
+
   /// Triples of the OpenMP targets that the host code codegen should
   /// take into account in order to generate accurate offloading descriptors.
   std::vector<llvm::Triple> OMPTargetTriples;
@@ -459,6 +449,13 @@ public:
   /// Return the OpenCL C or C++ version as a VersionTuple.
   VersionTuple getOpenCLVersionTuple() const;
 
+  /// Return the OpenCL version that kernel language is compatible with
+  unsigned getOpenCLCompatibleVersion() const;
+
+  /// Return the OpenCL C or C++ for OpenCL language name and version
+  /// as a string.
+  std::string getOpenCLVersionString() const;
+
   /// Check if return address signing is enabled.
   bool hasSignReturnAddress() const {
     return getSignReturnAddressScope() != SignReturnAddressScopeKind::None;
@@ -491,6 +488,9 @@ public:
   }
 
   bool isSYCL() const { return SYCLIsDevice || SYCLIsHost; }
+
+  /// Remap path prefix according to -fmacro-prefix-path option.
+  void remapPathPrefix(SmallString<256> &Path) const;
 };
 
 /// Floating point control options
@@ -555,7 +555,6 @@ public:
       setAllowFEnvAccess(true);
     else
       setAllowFEnvAccess(LangOptions::FPM_Off);
-    setFPEvalMethod(LO.getFPEvalMethod());
   }
 
   bool allowFPContractWithinStatement() const {

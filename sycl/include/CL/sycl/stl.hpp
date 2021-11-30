@@ -47,32 +47,6 @@ namespace sycl {
 #endif
 #endif // defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
 
-// TODO deprecation attribute can not be applied to template alias. Find a way
-// to show deprecation warning with those aliases anyway.
-
-template <class T, class Alloc = std::allocator<T>>
-using vector_class = std::vector<T, Alloc>;
-
-using string_class
-    __SYCL2020_DEPRECATED("use STL classes directly") = std::string;
-
-template <class Sig> using function_class = std::function<Sig>;
-
-using mutex_class
-    __SYCL2020_DEPRECATED("use STL classes directly") = std::mutex;
-
-template <class T, class Deleter = std::default_delete<T>>
-using unique_ptr_class = std::unique_ptr<T, Deleter>;
-
-template <class T> using shared_ptr_class = std::shared_ptr<T>;
-
-template <class T> using weak_ptr_class = std::weak_ptr<T>;
-
-template <class T> using hash_class = std::hash<T>;
-
-using exception_ptr_class
-    __SYCL2020_DEPRECATED("use STL classes directly") = std::exception_ptr;
-
 template <typename T, typename... ArgsT>
 std::unique_ptr<T> make_unique_ptr(ArgsT &&... Args) {
   return std::unique_ptr<T>(new T(std::forward<ArgsT>(Args)...));

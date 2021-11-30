@@ -215,7 +215,8 @@ inline bool isTypeOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpTypeVoid <= OC && OC <= OpTypePipe) || OC == OpTypePipeStorage ||
          isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL ||
-         isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL;
+         isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL ||
+         OC == internal::OpTypeJointMatrixINTEL;
 }
 
 inline bool isSpecConstantOpCode(Op OpCode) {
@@ -226,7 +227,7 @@ inline bool isSpecConstantOpCode(Op OpCode) {
 inline bool isConstantOpCode(Op OpCode) {
   unsigned OC = OpCode;
   return (OpConstantTrue <= OC && OC <= OpSpecConstantOp) || OC == OpUndef ||
-         OC == OpConstantPipeStorage || OC == OpConstFunctionPointerINTEL;
+         OC == OpConstantPipeStorage || OC == OpConstantFunctionPointerINTEL;
 }
 
 inline bool isModuleScopeAllowedOpCode(Op OpCode) {

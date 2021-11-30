@@ -367,12 +367,12 @@ Error appendToError(Error Err, StringRef After) {
   Stream << Err;
   Stream << " " << After;
   consumeError(std::move(Err));
-  return createError(Stream.str().c_str());
+  return createError(Stream.str());
 }
 
 /// This function populates a DynamicEntries struct using an ELFT::DynRange.
 /// After populating the struct, the members are validated with
-/// some basic sanity checks.
+/// some basic correctness checks.
 ///
 /// @param Dyn Target DynamicEntries struct to populate.
 /// @param DynTable Source dynamic table.

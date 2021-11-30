@@ -87,6 +87,40 @@ inline bool isPtrSizeAddressSpace(LangAS AS) {
           AS == LangAS::ptr64);
 }
 
+inline LangAS asSYCLLangAS(LangAS AS) {
+  switch (AS) {
+  case LangAS::opencl_global:
+    return LangAS::sycl_global;
+  case LangAS::opencl_global_device:
+    return LangAS::sycl_global_device;
+  case LangAS::opencl_global_host:
+    return LangAS::sycl_global_host;
+  case LangAS::opencl_local:
+    return LangAS::sycl_local;
+  case LangAS::opencl_private:
+    return LangAS::sycl_private;
+  default:
+    return AS;
+  }
+}
+
+inline LangAS asOpenCLLangAS(LangAS AS) {
+  switch (AS) {
+  case LangAS::sycl_global:
+    return LangAS::opencl_global;
+  case LangAS::sycl_global_device:
+    return LangAS::opencl_global_device;
+  case LangAS::sycl_global_host:
+    return LangAS::opencl_global_host;
+  case LangAS::sycl_local:
+    return LangAS::opencl_local;
+  case LangAS::sycl_private:
+    return LangAS::opencl_private;
+  default:
+    return AS;
+  }
+}
+
 } // namespace clang
 
 #endif // LLVM_CLANG_BASIC_ADDRESSSPACES_H

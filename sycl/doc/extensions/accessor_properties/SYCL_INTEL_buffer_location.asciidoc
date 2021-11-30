@@ -31,7 +31,7 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: A
+Revision: 1
 
 == Contact
 Michael Kinsner, Intel (michael 'dot' kinsner 'at' intel 'dot' com)
@@ -95,5 +95,5 @@ It also notifies the SYCL runtime to store the given accessor in that memory. | 
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2020-09-08|Joe Garvey|*Initial public draft*
+|1|2020-09-08|Joe Garvey|*Initial public draft*
 |========================================

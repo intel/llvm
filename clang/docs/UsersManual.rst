@@ -777,22 +777,22 @@ compilations steps.
     ld,"a.out",900,8000,53568
 
   The data on each row represent:
-  
+
   * file name of the tool executable,
   * output file name in quotes,
   * total execution time in microseconds,
   * execution time in user mode in microseconds,
   * peak memory usage in Kb.
-  
+
   It is possible to specify this option without any value. In this case statistics
   are printed on standard output in human readable format:
-  
+
   .. code-block:: console
 
     $ clang -fproc-stat-report foo.c
     clang-11: output=/tmp/foo-855a8e.o, total=68.000 ms, user=60.000 ms, mem=86920 Kb
     ld: output=a.out, total=8.000 ms, user=4.000 ms, mem=52320 Kb
-  
+
   The report file specified in the option is locked for write, so this option
   can be used to collect statistics in parallel builds. The report file is not
   cleared, new data is appended to it, thus making posible to accumulate build
@@ -1268,20 +1268,19 @@ describes the various floating point semantic modes and the corresponding option
   :header: "Mode", "Values"
   :widths: 15, 30, 30
 
-  "except_behavior", "{ignore, strict, may_trap}", "ffp-exception-behavior"
+  "ffp-exception-behavior", "{ignore, strict, may_trap}",
   "fenv_access", "{off, on}", "(none)"
-  "rounding_mode", "{dynamic, tonearest, downward, upward, towardzero}", "frounding-math"
-  "contract", "{on, off, fast}", "ffp-contract"
-  "denormal_fp_math", "{IEEE, PreserveSign, PositiveZero}", "fdenormal-fp-math"
-  "denormal_fp32_math", "{IEEE, PreserveSign, PositiveZero}", "fdenormal-fp-math-fp32"
-  "support_math_errno", "{on, off}", "fmath-errno"
-  "no_honor_nans", "{on, off}", "fhonor-nans"
-  "no_honor_infinities", "{on, off}", "fhonor-infinities"
-  "no_signed_zeros", "{on, off}", "fsigned-zeros"
-  "allow_reciprocal", "{on, off}", "freciprocal-math"
-  "allow_approximate_fns", "{on, off}", "(none)"
-  "allow_reassociation", "{on, off}", "fassociative-math"
-
+  "frounding-math", "{dynamic, tonearest, downward, upward, towardzero}"
+  "ffp-contract", "{on, off, fast, fast-honor-pragmas}"
+  "fdenormal-fp-math", "{IEEE, PreserveSign, PositiveZero}"
+  "fdenormal-fp-math-fp32", "{IEEE, PreserveSign, PositiveZero}"
+  "fmath-errno", "{on, off}"
+  "fhonor-nans", "{on, off}"
+  "fhonor-infinities", "{on, off}"
+  "fsigned-zeros", "{on, off}"
+  "freciprocal-math", "{on, off}"
+  "allow_approximate_fns", "{on, off}"
+  "fassociative-math", "{on, off}"
 
 This table describes the option settings that correspond to the three
 floating point semantic models: precise (the default), strict, and fast.
@@ -1348,7 +1347,7 @@ floating point semantic models: precise (the default), strict, and fast.
 
    Select which denormal numbers the code is permitted to require.
 
-   Valid values are: 
+   Valid values are:
 
    * ``ieee`` - IEEE 754 denormal numbers
    * ``preserve-sign`` - the sign of a flushed-to-zero number is preserved in the sign of 0
@@ -1360,7 +1359,7 @@ floating point semantic models: precise (the default), strict, and fast.
 
 **-f[no-]strict-float-cast-overflow**
 
-   When a floating-point value is not representable in a destination integer 
+   When a floating-point value is not representable in a destination integer
    type, the code has undefined behavior according to the language standard.
    By default, Clang will not guarantee any particular result in that case.
    With the 'no-strict' option, Clang attempts to match the overflowing behavior
@@ -1427,6 +1426,17 @@ floating point semantic models: precise (the default), strict, and fast.
 
    If both ``-fno-honor-infinities`` and ``-fno-honor-nans`` are used,
    has the same effect as specifying ``-ffinite-math-only``.
+
+.. _opt_fapprox-func:
+
+**-f[no-]approx-func**
+
+   Allow certain math function calls (such as ``log``, ``sqrt``, ``pow``, etc)
+   to be replaced with an approximately equivalent set of instructions
+   or alternative math function calls. For example, a ``pow(x, 0.25)``
+   may be replaced with ``sqrt(sqrt(x))``, despite being an inexact result
+   in cases where ``x`` is ``-0.0`` or ``-inf``.
+   Defaults to ``-fno-approx-func``.
 
 .. _opt_fsigned-zeros:
 
@@ -1520,17 +1530,6 @@ Note that floating-point operations performed as part of constant initialization
    * ``maytrap`` The compiler avoids transformations that may raise exceptions that would not have been raised by the original code. Constant folding performed by the compiler is exempt from this option.
    * ``strict`` The compiler ensures that all transformations strictly preserve the floating point exception semantics of the original code.
 
-.. option:: -ffp-eval-method=<value>
-
-   Specify the floating-point evaluation method.
-
-   Valid values are: ``source``, ``double``, and ``extended``.
-   The default value is target-specific, typically ``source``.  Details:
-
-   * ``source`` The compiler uses the floating-point type declared in the source program as the evaluation method.
-   * ``double`` The compiler uses ``double`` as the floating-point evaluation method for all float expressions of type that is narrower than ``double``.
-   * ``extended`` The compiler uses ``long double`` as the floating-point evaluation method for all float expressions of type that is narrower than ``long double``.
-
 .. option:: -f[no-]protect-parens:
 
    This option pertains to floating-point types, complex types with
@@ -1541,7 +1540,7 @@ Note that floating-point operations performed as part of constant initialization
    the optimizer may ignore parentheses when computing arithmetic expressions
    in circumstances where the parenthesized and unparenthesized expression
    express the same mathematical value. For example (a+b)+c is the same
-   mathematical value as a+(b+c), but the optimizer is free to evaluate the 
+   mathematical value as a+(b+c), but the optimizer is free to evaluate the
    additions in any order regardless of the parentheses. When enabled, this
    option forces the optimizer to honor the order of operations with respect
    to parentheses in all circumstances.
@@ -2214,7 +2213,7 @@ instrumentation:
 2. Run the instrumented executable with inputs that reflect the typical usage.
    By default, the profile data will be written to a ``default.profraw`` file
    in the current directory. You can override that default by using option
-   ``-fprofile-instr-generate=`` or by setting the ``LLVM_PROFILE_FILE`` 
+   ``-fprofile-instr-generate=`` or by setting the ``LLVM_PROFILE_FILE``
    environment variable to specify an alternate file. If non-default file name
    is specified by both the environment variable and the command line option,
    the environment variable takes precedence. The file name pattern specified
@@ -2304,7 +2303,7 @@ programs using the same instrumentation method as ``-fprofile-generate``.
   When ``code`` is executed, the profile will be written to the file
   ``yyy/zzz/default_xxxx.profraw``.
 
-  To generate the profile data file with the compiler readable format, the 
+  To generate the profile data file with the compiler readable format, the
   ``llvm-profdata`` tool can be used with the profile directory as the input:
 
    .. code-block:: console
@@ -2386,6 +2385,14 @@ In these cases, you can use the flag ``-fno-profile-instr-generate`` (or
 
 Note that these flags should appear after the corresponding profile
 flags to have an effect.
+
+.. note::
+
+  When none of the translation units inside a binary is instrumented, in the
+  case of Fuchsia the profile runtime will not be linked into the binary and
+  no profile will be produced, while on other platforms the profile runtime
+  will be linked and profile will be produced but there will not be any
+  counters.
 
 Instrumenting only selected files or functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2560,7 +2567,7 @@ from ``-fprofile-exclude-list``.
 
    $ clang --coverage -fprofile-exclude-files="^/usr/include/.*$" \
            -fprofile-filter-files="^/usr/.*$"
-          
+
 In that case ``/usr/foo/oof.h`` is instrumented since it matches the filter regex and
 doesn't match the exclude regex, but ``/usr/include/foo.h`` doesn't since it matches
 the exclude regex.
@@ -2897,7 +2904,7 @@ clang fully implements all of standard C++98 except for exported
 templates (which were removed in C++11), all of standard C++11,
 C++14, and C++17, and most of C++20.
 
-See the `C++ support in Clang <https://clang.llvm.org/cxx_status.html>` page
+See the `C++ support in Clang <https://clang.llvm.org/cxx_status.html>`_ page
 for detailed information on C++ feature support across Clang versions.
 
 Controlling implementation limits
@@ -3013,7 +3020,7 @@ tools
 
 Clang currently supports OpenCL C language standards up to v2.0. Clang mainly
 supports full profile. There is only very limited support of the embedded
-profile. 
+profile.
 Starting from clang 9 a C++ mode is available for OpenCL (see
 :ref:`C++ for OpenCL <cxx_for_opencl>`).
 
@@ -3173,7 +3180,7 @@ extension should use reserved identifier prefix e.g. amd, arm, intel.
 
 Clang also supports language extensions documented in `The OpenCL C Language
 Extensions Documentation
-<https://github.com/KhronosGroup/Khronosdotorg/blob/master/api/opencl/assets/OpenCL_LangExt.pdf>`_.
+<https://github.com/KhronosGroup/Khronosdotorg/blob/main/api/opencl/assets/OpenCL_LangExt.pdf>`_.
 
 OpenCL-Specific Attributes
 --------------------------
@@ -3206,14 +3213,14 @@ convergent
 To make sure no invalid optimizations occur for single program multiple data
 (SPMD) / single instruction multiple thread (SIMT) Clang provides attributes that
 can be used for special functions that have cross work item semantics.
-An example is the subgroup operations such as `intel_sub_group_shuffle 
+An example is the subgroup operations such as `intel_sub_group_shuffle
 <https://www.khronos.org/registry/cl/extensions/intel/cl_intel_subgroups.txt>`_
 
    .. code-block:: c
 
      // Define custom my_sub_group_shuffle(data, c)
      // that makes use of intel_sub_group_shuffle
-     r1 = ... 
+     r1 = ...
      if (r0) r1 = computeA();
      // Shuffle data from r1 into r3
      // of threads id r2.
@@ -3245,7 +3252,7 @@ would prevent this:
 Using ``convergent`` guarantees correct execution by keeping CFG equivalence
 wrt operations marked as ``convergent``. CFG ``G´`` is equivalent to ``G`` wrt
 node ``Ni`` : ``iff ∀ Nj (i≠j)`` domination and post-domination relations with
-respect to ``Ni`` remain the same in both ``G`` and ``G´``. 
+respect to ``Ni`` remain the same in both ``G`` and ``G´``.
 
 noduplicate
 ^^^^^^^^^^^
@@ -3326,7 +3333,7 @@ mode.
 
      clang test.clcpp
 
-C++ for OpenCL kernel sources can also be compiled online in drivers supporting 
+C++ for OpenCL kernel sources can also be compiled online in drivers supporting
 `cl_ext_cxx_for_opencl
 <https://www.khronos.org/registry/OpenCL/extensions/ext/cl_ext_cxx_for_opencl.html>`_
 extension.
@@ -3343,7 +3350,7 @@ constructors. However, an easy workaround is to manually enqueue the
 constructor initialization kernel that has the following name scheme
 ``_GLOBAL__sub_I_<compiled file name>``.
 This kernel is only present if there are global objects with non-trivial
-constructors present in the compiled binary. One way to check this is by 
+constructors present in the compiled binary. One way to check this is by
 passing ``CL_PROGRAM_KERNEL_NAMES`` to ``clGetProgramInfo`` (OpenCL v2.0
 s5.8.7) and then checking whether any kernel name matches the naming scheme of
 global constructor initialization kernel above.

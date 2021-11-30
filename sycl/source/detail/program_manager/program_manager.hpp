@@ -21,7 +21,9 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <set>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // +++ Entry points referenced by the offload wrapper object {
@@ -80,6 +82,29 @@ public:
                                       bool JITCompilationIsRequired = false);
   RT::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device);
+  /// Creates a PI program using either a cached device code binary if present
+  /// in the persistent cache or from the supplied device image otherwise.
+  /// \param Img The device image to find a cached device code binary for or
+  ///        create the PI program with.
+  /// \param Context The context to find or create the PI program with.
+  /// \param Device The device to find or create the PI program for.
+  /// \param CompileAndLinkOptions The compile and linking options to be used
+  ///        for building the PI program. These options must appear in the
+  ///        mentioned order. This parameter is used as a partial key in the
+  ///        cache and has no effect if no cached device code binary is found in
+  ///        the persistent cache.
+  /// \param SpecConsts Specialization constants associated with the device
+  ///        image. This parameter is used  as a partial key in the cache and
+  ///        has no effect if no cached device code binary is found in the
+  ///        persistent cache.
+  /// \return A pair consisting of the PI program created with the corresponding
+  ///         device code binary and a boolean that is true if the device code
+  ///         binary was found in the persistent cache and false otherwise.
+  std::pair<RT::PiProgram, bool>
+  getOrCreatePIProgram(const RTDeviceBinaryImage &Img, const context &Context,
+                       const device &Device,
+                       const std::string &CompileAndLinkOptions,
+                       SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M idenfies the OS module the kernel comes from (multiple OS modules
@@ -106,7 +131,7 @@ public:
                                   const property_list &PropList,
                                   bool JITCompilationIsRequired = false);
 
-  std::pair<RT::PiKernel, std::mutex *>
+  std::tuple<RT::PiKernel, std::mutex *, RT::PiProgram>
   getOrCreateKernel(OSModuleHandle M, const ContextImplPtr &ContextImpl,
                     const DeviceImplPtr &DeviceImpl,
                     const std::string &KernelName, const program_impl *Prg);
@@ -139,19 +164,23 @@ public:
   /// within the native program.
   /// \param M identifies the OS module the kernel comes from (multiple OS
   ///        modules may have kernels with the same name).
-  /// \param Context the context associated with the kernel.
-  /// \param Device the device associated with the context.
   /// \param NativePrg the PI program associated with the kernel.
   /// \param KernelName the name of the kernel.
-  /// \param KnownProgram indicates whether the PI program is guaranteed to
-  ///        be known to program manager (built with its API) or not (not
-  ///        cacheable or constructed with interoperability).
   KernelArgMask getEliminatedKernelArgMask(OSModuleHandle M,
-                                           const ContextImplPtr &ContextImpl,
-                                           const DeviceImplPtr &DeviceImpl,
                                            pi::PiProgram NativePrg,
-                                           const std::string &KernelName,
-                                           bool KnownProgram);
+                                           const std::string &KernelName);
+
+  // The function returns the unique SYCL kernel identifier associated with a
+  // kernel name.
+  kernel_id getSYCLKernelID(const std::string &KernelName);
+
+  // The function returns a vector containing all unique SYCL kernel identifiers
+  // in SYCL device images.
+  std::vector<kernel_id> getAllSYCLKernelIDs();
+
+  // The function returns the unique SYCL kernel identifier associated with a
+  // built-in kernel name.
+  kernel_id getBuiltInKernelID(const std::string &KernelName);
 
   // The function returns a vector of SYCL device images that are compiled with
   // the required state and at least one device from the passed list of devices.
@@ -212,6 +241,8 @@ public:
   ProgramManager();
   ~ProgramManager() = default;
 
+  bool kernelUsesAssert(OSModuleHandle M, const std::string &KernelName) const;
+
 private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
@@ -236,6 +267,9 @@ private:
                              const std::string &KernelName) const;
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId) const;
+
+  /// Add info on kernels using assert into cache
+  void cacheKernelUsesAssertInfo(OSModuleHandle M, RTDeviceBinaryImage &Img);
 
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name and the OS module it's coming from, allowing
@@ -272,6 +306,38 @@ private:
   /// Access must be guarded by the \ref Sync::getGlobalLock()
   std::unordered_map<OSModuleHandle, KernelSetId> m_OSModuleKernelSets;
 
+  /// Maps names of kernels to their unique kernel IDs.
+  /// TODO: Use std::unordered_set with transparent hash and equality functions
+  ///       when C++20 is enabled for the runtime library.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_map<std::string, kernel_id> m_KernelIDs;
+
+  /// Protects kernel ID cache.
+  /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
+  /// avoid deadlocks care must be taken not to acquire
+  /// \ref Sync::getGlobalLock() while holding this mutex.
+  std::mutex m_KernelIDsMutex;
+
+  /// Caches all found service kernels to expedite future checks. A SYCL service
+  /// kernel is a kernel that has not been defined by the user but is instead
+  /// generated by the SYCL runtime. Service kernel name types must be declared
+  /// in the sycl::detail::__sycl_service_kernel__ namespace which is
+  /// exclusively used for this purpose.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_set<std::string> m_ServiceKernels;
+
+  /// Caches all exported symbols to allow faster lookup when excluding these
+  // from kernel bundles.
+  /// Access must be guarded by the m_KernelIDsMutex mutex.
+  std::unordered_set<std::string> m_ExportedSymbols;
+
+  /// Maps names of built-in kernels to their unique kernel IDs.
+  /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
+  std::unordered_map<std::string, kernel_id> m_BuiltInKernelIDs;
+
+  /// Protects built-in kernel ID cache.
+  std::mutex m_BuiltInKernelIDsMutex;
+
   // Keeps track of pi_program to image correspondence. Needed for:
   // - knowing which specialization constants are used in the program and
   //   injecting their current values before compiling the SPIR-V; the binary
@@ -298,6 +364,9 @@ private:
 
   /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
+
+  using KernelNameWithOSModule = std::pair<std::string, OSModuleHandle>;
+  std::set<KernelNameWithOSModule> m_KernelUsesAssert;
 };
 } // namespace detail
 } // namespace sycl

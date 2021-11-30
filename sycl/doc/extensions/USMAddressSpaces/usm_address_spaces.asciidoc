@@ -1,4 +1,4 @@
-= SYCL_INTEL_usm_address_spaces
+= SYCL_EXT_INTEL_USM_ADDRESS_SPACES
 
 == Introduction
 This extension introduces two new address spaces and their corresponding multi_ptr specializations.  
@@ -10,9 +10,6 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are tradema
 
 NOTE: This document is better viewed when rendered as html with asciidoctor.  GitHub does not render image icons.
 This document describes an extension to the SYCL USM extension that adds new explicit address spaces for the possible locations that USM pointers can be allocated.  Users can create pointers that point into these address spaces explicitly in order to pass additional information to their compiler so as to enable optimizations.  
-
-== Name Strings
-+SYCL_INTEL_usm_address_spaces+
 
 == Notice
 Copyright (c) 2020 Intel Corporation.  All rights reserved.
@@ -28,13 +25,29 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: 1
+Revision: 2
 
 == Dependencies
 
-This extension is written against the SYCL 1.2.1 specification, Revision 7.  It requires the Unified Shared Memory SYCL proposal.
+This extension is written against the SYCL 2020 specification, Revision 3.
 
 If SPIR-V is used by the implementation, this extension also requires support for the SPV_INTEL_usm_storage_classes SPIR-V extension.
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_INTEL_USM_ADDRESS_SPACES` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
 
 == Overview
 
@@ -45,9 +58,9 @@ The goal of this division of the global address space is to enable users to expl
 While automatic address space inference is often possible for accessors, it is harder for USM pointers as it requires inter-procedural optimization with the host code.
 This additional information can be particularly beneficial on FPGA targets where knowing that a pointer only ever accesses host or device memory can allow compilers to produce more area efficient memory-accessing hardware.  
 
-== Modifications to the SYCL Specification, Version 1.2.1 revision 7
+== Modifications to the SYCL Specification, Version 2020 revision 3
 
-=== Section 3.5.2 SYCL Device Memory Model
+=== Section 3.8.2 SYCL Device Memory Model
 
 Add to the end of the definition of global memory:
 Global memory is a virtual address space which overlaps the device and host address spaces.  
@@ -58,32 +71,33 @@ Add two new memory regions as follows:
 
 *Host memory* is a sub-region of global memory.  USM pointers allocated with the host alloc type reside in this address space.  
 
-=== Section 3.5.2.1 Access to memory
+=== Section 3.8.2.1 Access to memory
 
-In the second last paragraph, add cl::sycl::device_ptr and cl::sycl::host_ptr to the list of explicit pointer classes.  
+In the second last paragraph, add sycl::device_ptr and sycl::host_ptr to the list of explicit pointer classes.  
 
 === Section 4.7.7.1 Multi-pointer Class
 
 In the overview of the multi_ptr class replace the address_space enum with the following:
 ```c++
 enum class address_space : int {
-    global_space,
-    local_space,
-    constant_space,
-    private_space,
-    device_space,
-    host_space
+  global_space,
+  local_space,
+  constant_space, // Deprecated in SYCL 2020
+  private_space,
+  generic_space,
+  ext_intel_global_device_space,
+  ext_intel_global_host_space
 };
 ```
 
 Add the following new conversion operator:
 ```c++
 // Explicit conversion to global_space
-// Only available if Space == address_space::device_space || Space == address_space::host_space
+// Only available if Space == address_space::ext_intel_global_device_space || Space == address_space::ext_intel_global_host_space
 explicit operator multi_ptr<ElementType, access::address_space::global_space>() const; 
 ```
 
-Add a new row to Table 4.54: Constructors of the SYCL multi_ptr class template, as follows:
+Add a new row to Table 91: Constructors of the SYCL multi_ptr class template, as follows:
 
 --
 [options="header"]
@@ -93,12 +107,12 @@ a|
 ```c++
 template<typename ElementType, access::
 address_space Space = access::address_space::
-device_space>
+ext_intel_global_device_space>
     template <int dimensions, access::mode Mode>
     multi_ptr(
     accessor<ElementType, dimensions, Mode, access::
     target::global_buffer>)
-``` | Constructs a multi_ptr<ElementType, access::address_space::device_space> from an accessor of access::target::global_buffer.
+``` | Constructs a multi_ptr<ElementType, access::address_space::ext_intel_global_device_space> from an accessor of access::target::global_buffer.
 |===
 --
 
@@ -107,10 +121,10 @@ device_space>
 Add device_ptr and host_ptr aliases to the list of multi_ptr aliases as follows:
 ```c++
 template<typename ElementType>
-using device_ptr = multi_ptr<ElementType, access::address_space::device_space>
+using device_ptr = multi_ptr<ElementType, access::address_space::ext_intel_global_device_space>
 
 template<typename ElementType>
-using host_ptr = multi_ptr<ElementType, access::address_space::host_space>
+using host_ptr = multi_ptr<ElementType, access::address_space::ext_intel_global_host_space>
 ```
 
 == Revision History
@@ -120,5 +134,6 @@ using host_ptr = multi_ptr<ElementType, access::address_space::host_space>
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2020-06-18|Joe Garvey|Initial public draft
+|1|2020-06-18|Joe Garvey|Initial public draft
+|2|2021-08-30|Dmitry Vodopyanov|Updated according to SYCL 2020 reqs for extensions
 |======================================== 

@@ -353,12 +353,13 @@
 // CHECK-C11: -std=c11
 
 // For some warning ids, we can map from MSVC warning to Clang warning.
-// RUN: %clang_cl -wd4005 -wd4100 -wd4910 -wd4996 -### -- %s 2>&1 | FileCheck -check-prefix=Wno %s
+// RUN: %clang_cl -wd4005 -wd4100 -wd4910 -wd4996 -wd12345678 -### -- %s 2>&1 | FileCheck -check-prefix=Wno %s
 // Wno: "-cc1"
 // Wno: "-Wno-macro-redefined"
 // Wno: "-Wno-unused-parameter"
 // Wno: "-Wno-dllexport-explicit-instantiation-decl"
 // Wno: "-Wno-deprecated-declarations"
+// Wno-NOT: "-wd
 
 // Ignored options. Check that we don't get "unused during compilation" errors.
 // RUN: %clang_cl /c \
@@ -538,7 +539,7 @@
 // for other flags too, but this is the one people run into.)
 // RUN: %clang_cl /c /Users/me/myfile.c -### 2>&1 | FileCheck -check-prefix=SlashU %s
 // SlashU: warning: '/Users/me/myfile.c' treated as the '/U' option
-// SlashU: note: Use '--' to treat subsequent arguments as filenames
+// SlashU: note: use '--' to treat subsequent arguments as filenames
 
 // RTTI is on by default. /GR- controls -fno-rtti-data.
 // RUN: %clang_cl /c /GR- -### -- %s 2>&1 | FileCheck -check-prefix=NoRTTI %s

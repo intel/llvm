@@ -245,7 +245,7 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
       return b.getFloatAttr(FloatType::getF32(context), c->getValueAPF());
   }
   if (auto *f = dyn_cast<llvm::Function>(value))
-    return b.getSymbolRefAttr(f->getName());
+    return SymbolRefAttr::get(b.getContext(), f->getName());
 
   // Convert constant data to a dense elements attribute.
   if (auto *cd = dyn_cast<llvm::ConstantDataSequential>(value)) {
@@ -294,7 +294,8 @@ Attribute Importer::getConstantAsAttr(llvm::Constant *value) {
       if (!nested)
         return nullptr;
 
-      values.append(nested.attr_value_begin(), nested.attr_value_end());
+      values.append(nested.value_begin<Attribute>(),
+                    nested.value_end<Attribute>());
     }
 
     return DenseElementsAttr::get(outerType, values);
@@ -338,10 +339,10 @@ GlobalOp Importer::processGlobal(llvm::GlobalVariable *GV) {
     b.create<ReturnOp>(op.getLoc(), ArrayRef<Value>({v}));
   }
   if (GV->hasAtLeastLocalUnnamedAddr())
-    op.unnamed_addrAttr(UnnamedAddrAttr::get(
+    op.setUnnamedAddrAttr(UnnamedAddrAttr::get(
         context, convertUnnamedAddrFromLLVM(GV->getUnnamedAddr())));
   if (GV->hasSection())
-    op.sectionAttr(b.getStringAttr(GV->getSection()));
+    op.setSectionAttr(b.getStringAttr(GV->getSection()));
 
   return globals[GV] = op;
 }
@@ -652,7 +653,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     llvm::CallInst *ci = cast<llvm::CallInst>(inst);
     SmallVector<Value, 4> ops;
     ops.reserve(inst->getNumOperands());
-    for (auto &op : ci->arg_operands()) {
+    for (auto &op : ci->args()) {
       Value arg = processValue(op.get());
       if (!arg)
         return failure();
@@ -668,8 +669,8 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
     }
     Operation *op;
     if (llvm::Function *callee = ci->getCalledFunction()) {
-      op = b.create<CallOp>(loc, tys, b.getSymbolRefAttr(callee->getName()),
-                            ops);
+      op = b.create<CallOp>(
+          loc, tys, SymbolRefAttr::get(b.getContext(), callee->getName()), ops);
     } else {
       Value calledValue = processValue(ci->getCalledOperand());
       if (!calledValue)
@@ -704,7 +705,7 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
 
     SmallVector<Value, 4> ops;
     ops.reserve(inst->getNumOperands() + 1);
-    for (auto &op : ii->arg_operands())
+    for (auto &op : ii->args())
       ops.push_back(processValue(op.get()));
 
     SmallVector<Value, 4> normalArgs, unwindArgs;
@@ -713,9 +714,10 @@ LogicalResult Importer::processInstruction(llvm::Instruction *inst) {
 
     Operation *op;
     if (llvm::Function *callee = ii->getCalledFunction()) {
-      op = b.create<InvokeOp>(loc, tys, b.getSymbolRefAttr(callee->getName()),
-                              ops, blocks[ii->getNormalDest()], normalArgs,
-                              blocks[ii->getUnwindDest()], unwindArgs);
+      op = b.create<InvokeOp>(
+          loc, tys, SymbolRefAttr::get(b.getContext(), callee->getName()), ops,
+          blocks[ii->getNormalDest()], normalArgs, blocks[ii->getUnwindDest()],
+          unwindArgs);
     } else {
       ops.insert(ops.begin(), processValue(ii->getCalledOperand()));
       op = b.create<InvokeOp>(loc, tys, ops, blocks[ii->getNormalDest()],
@@ -771,7 +773,7 @@ FlatSymbolRefAttr Importer::getPersonalityAsAttr(llvm::Function *f) {
 
   // If it directly has a name, we can use it.
   if (pf->hasName())
-    return b.getSymbolRefAttr(pf->getName());
+    return SymbolRefAttr::get(b.getContext(), pf->getName());
 
   // If it doesn't have a name, currently, only function pointers that are
   // bitcast to i8* are parsed.
@@ -779,7 +781,7 @@ FlatSymbolRefAttr Importer::getPersonalityAsAttr(llvm::Function *f) {
     if (ce->getOpcode() == llvm::Instruction::BitCast &&
         ce->getType() == llvm::Type::getInt8PtrTy(f->getContext())) {
       if (auto func = dyn_cast<llvm::Function>(ce->getOperand(0)))
-        return b.getSymbolRefAttr(func->getName());
+        return SymbolRefAttr::get(b.getContext(), func->getName());
     }
   }
   return FlatSymbolRefAttr();
@@ -801,7 +803,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
                            convertLinkageFromLLVM(f->getLinkage()));
 
   if (FlatSymbolRefAttr personality = getPersonalityAsAttr(f))
-    fop->setAttr(b.getIdentifier("personality"), personality);
+    fop->setAttr(b.getStringAttr("personality"), personality);
   else if (f->hasPersonalityFn())
     emitWarning(UnknownLoc::get(context),
                 "could not deduce personality, skipping it");
@@ -812,7 +814,7 @@ LogicalResult Importer::processFunction(llvm::Function *f) {
   // Eagerly create all blocks.
   SmallVector<Block *, 4> blockList;
   for (llvm::BasicBlock &bb : *f) {
-    blockList.push_back(b.createBlock(&fop.body(), fop.body().end()));
+    blockList.push_back(b.createBlock(&fop.getBody(), fop.getBody().end()));
     blocks[&bb] = blockList.back();
   }
   currentEntryBlock = blockList[0];

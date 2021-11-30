@@ -224,6 +224,16 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
   EXPECT_EQ(Triple::UnknownOS, T.getOS());
 
+  T = Triple("spirv32-unknown-unknown");
+  EXPECT_EQ(Triple::spirv32, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+
+  T = Triple("spirv64-unknown-unknown");
+  EXPECT_EQ(Triple::spirv64, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+
   T = Triple("x86_64-unknown-ananas");
   EXPECT_EQ(Triple::x86_64, T.getArch());
   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
@@ -865,6 +875,16 @@ TEST(TripleTest, BitWidthPredicates) {
   EXPECT_FALSE(T.isArch32Bit());
   EXPECT_TRUE(T.isArch64Bit());
 
+  T.setArch(Triple::spirv32);
+  EXPECT_FALSE(T.isArch16Bit());
+  EXPECT_TRUE(T.isArch32Bit());
+  EXPECT_FALSE(T.isArch64Bit());
+
+  T.setArch(Triple::spirv64);
+  EXPECT_FALSE(T.isArch16Bit());
+  EXPECT_FALSE(T.isArch32Bit());
+  EXPECT_TRUE(T.isArch64Bit());
+
   T.setArch(Triple::sparc);
   EXPECT_FALSE(T.isArch16Bit());
   EXPECT_TRUE(T.isArch32Bit());
@@ -930,11 +950,27 @@ TEST(TripleTest, BitWidthArchVariants) {
 
   T.setArch(Triple::mips);
   EXPECT_EQ(Triple::mips, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.get32BitArchVariant().getSubArch());
   EXPECT_EQ(Triple::mips64, T.get64BitArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.get64BitArchVariant().getSubArch());
+
+  T.setArch(Triple::mips, Triple::MipsSubArch_r6);
+  EXPECT_EQ(Triple::mips, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.get32BitArchVariant().getSubArch());
+  EXPECT_EQ(Triple::mips64, T.get64BitArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.get64BitArchVariant().getSubArch());
 
   T.setArch(Triple::mipsel);
   EXPECT_EQ(Triple::mipsel, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.get32BitArchVariant().getSubArch());
   EXPECT_EQ(Triple::mips64el, T.get64BitArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.get64BitArchVariant().getSubArch());
+
+  T.setArch(Triple::mipsel, Triple::MipsSubArch_r6);
+  EXPECT_EQ(Triple::mipsel, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.get32BitArchVariant().getSubArch());
+  EXPECT_EQ(Triple::mips64el, T.get64BitArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.get64BitArchVariant().getSubArch());
 
   T.setArch(Triple::ppc);
   EXPECT_EQ(Triple::ppc, T.get32BitArchVariant().getArch());
@@ -954,11 +990,27 @@ TEST(TripleTest, BitWidthArchVariants) {
 
   T.setArch(Triple::mips64);
   EXPECT_EQ(Triple::mips, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.get32BitArchVariant().getSubArch());
   EXPECT_EQ(Triple::mips64, T.get64BitArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.get64BitArchVariant().getSubArch());
+
+  T.setArch(Triple::mips64, Triple::MipsSubArch_r6);
+  EXPECT_EQ(Triple::mips, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.get32BitArchVariant().getSubArch());
+  EXPECT_EQ(Triple::mips64, T.get64BitArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.get64BitArchVariant().getSubArch());
 
   T.setArch(Triple::mips64el);
   EXPECT_EQ(Triple::mipsel, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.get32BitArchVariant().getSubArch());
   EXPECT_EQ(Triple::mips64el, T.get64BitArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.get64BitArchVariant().getSubArch());
+
+  T.setArch(Triple::mips64el, Triple::MipsSubArch_r6);
+  EXPECT_EQ(Triple::mipsel, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.get32BitArchVariant().getSubArch());
+  EXPECT_EQ(Triple::mips64el, T.get64BitArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.get64BitArchVariant().getSubArch());
 
   T.setArch(Triple::ppc64);
   EXPECT_EQ(Triple::ppc, T.get32BitArchVariant().getArch());
@@ -999,6 +1051,14 @@ TEST(TripleTest, BitWidthArchVariants) {
   T.setArch(Triple::spir64);
   EXPECT_EQ(Triple::spir, T.get32BitArchVariant().getArch());
   EXPECT_EQ(Triple::spir64, T.get64BitArchVariant().getArch());
+
+  T.setArch(Triple::spirv32);
+  EXPECT_EQ(Triple::spirv32, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::spirv64, T.get64BitArchVariant().getArch());
+
+  T.setArch(Triple::spirv64);
+  EXPECT_EQ(Triple::spirv32, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::spirv64, T.get64BitArchVariant().getArch());
 
   T.setArch(Triple::wasm32);
   EXPECT_EQ(Triple::wasm32, T.get32BitArchVariant().getArch());
@@ -1104,19 +1164,55 @@ TEST(TripleTest, EndianArchVariants) {
 
   T.setArch(Triple::mips64);
   EXPECT_EQ(Triple::mips64, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.getBigEndianArchVariant().getSubArch());
   EXPECT_EQ(Triple::mips64el, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.getLittleEndianArchVariant().getSubArch());
+
+  T.setArch(Triple::mips64, Triple::MipsSubArch_r6);
+  EXPECT_EQ(Triple::mips64, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.getBigEndianArchVariant().getSubArch());
+  EXPECT_EQ(Triple::mips64el, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6,
+            T.getLittleEndianArchVariant().getSubArch());
 
   T.setArch(Triple::mips64el);
   EXPECT_EQ(Triple::mips64, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.getBigEndianArchVariant().getSubArch());
   EXPECT_EQ(Triple::mips64el, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.getLittleEndianArchVariant().getSubArch());
+
+  T.setArch(Triple::mips64el, Triple::MipsSubArch_r6);
+  EXPECT_EQ(Triple::mips64, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.getBigEndianArchVariant().getSubArch());
+  EXPECT_EQ(Triple::mips64el, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6,
+            T.getLittleEndianArchVariant().getSubArch());
 
   T.setArch(Triple::mips);
   EXPECT_EQ(Triple::mips, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.getBigEndianArchVariant().getSubArch());
   EXPECT_EQ(Triple::mipsel, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.getLittleEndianArchVariant().getSubArch());
+
+  T.setArch(Triple::mips, Triple::MipsSubArch_r6);
+  EXPECT_EQ(Triple::mips, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.getBigEndianArchVariant().getSubArch());
+  EXPECT_EQ(Triple::mipsel, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6,
+            T.getLittleEndianArchVariant().getSubArch());
 
   T.setArch(Triple::mipsel);
   EXPECT_EQ(Triple::mips, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.getBigEndianArchVariant().getSubArch());
   EXPECT_EQ(Triple::mipsel, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::NoSubArch, T.getLittleEndianArchVariant().getSubArch());
+
+  T.setArch(Triple::mipsel, Triple::MipsSubArch_r6);
+  EXPECT_EQ(Triple::mips, T.getBigEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6, T.getBigEndianArchVariant().getSubArch());
+  EXPECT_EQ(Triple::mipsel, T.getLittleEndianArchVariant().getArch());
+  EXPECT_EQ(Triple::MipsSubArch_r6,
+            T.getLittleEndianArchVariant().getSubArch());
 
   T.setArch(Triple::ppc);
   EXPECT_EQ(Triple::ppc, T.getBigEndianArchVariant().getArch());

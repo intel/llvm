@@ -363,8 +363,8 @@ define i1 @ult_add_nonuw(i8 %in) {
 
 define i1 @uge_add_nonuw(i32 %in) {
 ; CHECK-LABEL: @uge_add_nonuw(
-; CHECK-NEXT:    [[A6:%.*]] = add i32 [[IN:%.*]], 3
-; CHECK-NEXT:    [[A18:%.*]] = icmp ugt i32 [[A6]], 11
+; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[IN:%.*]], -9
+; CHECK-NEXT:    [[A18:%.*]] = icmp ult i32 [[TMP1]], -12
 ; CHECK-NEXT:    ret i1 [[A18]]
 ;
   %a6 = add i32 %in, 3
@@ -785,8 +785,8 @@ define <2 x i1> @ugt_offset_splat(<2 x i5> %a) {
 
 define i1 @ugt_wrong_offset(i8 %a) {
 ; CHECK-LABEL: @ugt_wrong_offset(
-; CHECK-NEXT:    [[T:%.*]] = add i8 [[A:%.*]], 123
-; CHECK-NEXT:    [[OV:%.*]] = icmp ugt i8 [[T]], -5
+; CHECK-NEXT:    [[TMP1:%.*]] = add i8 [[A:%.*]], 127
+; CHECK-NEXT:    [[OV:%.*]] = icmp ult i8 [[TMP1]], 4
 ; CHECK-NEXT:    ret i1 [[OV]]
 ;
   %t = add i8 %a, 123
@@ -970,4 +970,61 @@ define i1 @slt_offset_nsw(i8 %a, i8 %c) {
   %t = add nsw i8 %a, 42
   %ov = icmp slt i8 %t, 42
   ret i1 %ov
+}
+
+; In the following 4 tests, we could push the inc/dec
+; through the min/max, but we should not break up the
+; min/max idiom by using different icmp and select
+; operands.
+
+define i32 @increment_max(i32 %x) {
+; CHECK-LABEL: @increment_max(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp sgt i32 [[X:%.*]], -1
+; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP1]], i32 [[X]], i32 -1
+; CHECK-NEXT:    [[S:%.*]] = add nsw i32 [[TMP2]], 1
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %a = add nsw i32 %x, 1
+  %c = icmp sgt i32 %a, 0
+  %s = select i1 %c, i32 %a, i32 0
+  ret i32 %s
+}
+
+define i32 @decrement_max(i32 %x) {
+; CHECK-LABEL: @decrement_max(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp sgt i32 [[X:%.*]], 1
+; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP1]], i32 [[X]], i32 1
+; CHECK-NEXT:    [[S:%.*]] = add nsw i32 [[TMP2]], -1
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %a = add nsw i32 %x, -1
+  %c = icmp sgt i32 %a, 0
+  %s = select i1 %c, i32 %a, i32 0
+  ret i32 %s
+}
+
+define i32 @increment_min(i32 %x) {
+; CHECK-LABEL: @increment_min(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp slt i32 [[X:%.*]], -1
+; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP1]], i32 [[X]], i32 -1
+; CHECK-NEXT:    [[S:%.*]] = add nsw i32 [[TMP2]], 1
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %a = add nsw i32 %x, 1
+  %c = icmp slt i32 %a, 0
+  %s = select i1 %c, i32 %a, i32 0
+  ret i32 %s
+}
+
+define i32 @decrement_min(i32 %x) {
+; CHECK-LABEL: @decrement_min(
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp slt i32 [[X:%.*]], 1
+; CHECK-NEXT:    [[TMP2:%.*]] = select i1 [[TMP1]], i32 [[X]], i32 1
+; CHECK-NEXT:    [[S:%.*]] = add nsw i32 [[TMP2]], -1
+; CHECK-NEXT:    ret i32 [[S]]
+;
+  %a = add nsw i32 %x, -1
+  %c = icmp slt i32 %a, 0
+  %s = select i1 %c, i32 %a, i32 0
+  ret i32 %s
 }

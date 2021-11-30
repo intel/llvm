@@ -41,7 +41,9 @@ public:
   ///
   /// \param Kernel is a valid PiKernel instance
   /// \param Context is a valid SYCL context
-  kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context);
+  /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
+  kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
+              KernelBundleImplPtr KernelBundleImpl);
 
   /// Constructs a SYCL kernel instance from a SYCL program and a PiKernel
   ///
@@ -55,15 +57,17 @@ public:
   /// \param ProgramImpl is a valid instance of program_impl
   /// \param IsCreatedFromSource is a flag that indicates whether program
   /// is created from source code
+  /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
-              ProgramImplPtr ProgramImpl, bool IsCreatedFromSource);
+              ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
+              KernelBundleImplPtr KernelBundleImpl);
 
   /// Constructs a SYCL kernel_impl instance from a SYCL device_image,
   /// kernel_bundle and / PiKernel.
   ///
   /// \param Kernel is a valid PiKernel instance
   /// \param ContextImpl is a valid SYCL context
-  /// \param ProgramImpl is a valid instance of kernel_bundle_impl
+  /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
   kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               KernelBundleImplPtr KernelBundleImpl);
@@ -200,6 +204,8 @@ public:
 
   KernelBundleImplPtr get_kernel_bundle() const { return MKernelBundleImpl; }
 
+  bool isInterop() const { return MIsInterop; }
+
 private:
   RT::PiKernel MKernel;
   const ContextImplPtr MContext;
@@ -207,6 +213,7 @@ private:
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;
+  bool MIsInterop = false;
 };
 
 template <info::kernel param>
@@ -226,10 +233,12 @@ inline context kernel_impl::get_info<info::kernel::context>() const {
   return createSyclObjFromImpl<context>(MContext);
 }
 
+#ifdef __SYCL_INTERNAL_API
 template <>
 inline program kernel_impl::get_info<info::kernel::program>() const {
   return createSyclObjFromImpl<program>(MProgramImpl);
 }
+#endif
 
 template <info::kernel_device_specific param>
 inline typename info::param_traits<info::kernel_device_specific,

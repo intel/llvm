@@ -76,11 +76,11 @@
 
 // CHECK: @[[LOCAL_LAMBDA_2:.+]] = private unnamed_addr constant
 // PREFIX-SAME: THE_PREFIX
-// CHECK-SAME: ____ZZZ4mainENKUlvE10000_clEvE12LocalLambda2\00
+// CHECK-SAME: ____ZZZ4mainENKUlvE0_clEvE12LocalLambda2\00
 
 // CHECK: @[[LOCAL_LAMBDA_3:.+]] = private unnamed_addr constant
 // PREFIX-SAME: THE_PREFIX
-// CHECK-SAME: ____ZZZ4mainENKUlvE10001_clEvE12LocalLambda3\00
+// CHECK-SAME: ____ZZZ4mainENKUlvE1_clEvE12LocalLambda3\00
 
 // Because this one is in a template, it is a linkonce_odr global.
 // CHECK: @[[TEMPL_FUNC_VAR:.+]] = private unnamed_addr constant{{.+}} c"_ZZ12TemplateFuncIfEvvE7FuncVar\00"
@@ -203,7 +203,6 @@ int main() {
   // Modified by mark-kernel-name builtin.
   []() {
     static int LocalLambda3;
-    (void)__builtin_sycl_mark_kernel_name(class J);
     puts(__builtin_sycl_unique_stable_id(LocalLambda3));
     // CHECK: call i32 @puts({{.+}} @[[LOCAL_LAMBDA_3]],
   }();

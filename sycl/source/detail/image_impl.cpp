@@ -329,7 +329,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_width))
     throw invalid_parameter_error(
         "For a 1D/2D image/image array, the width must be a Value >= 1 and "
-        "<= CL_DEVICE_IMAGE2D_MAX_WIDTH.",
+        "<= info::device::image2d_max_width",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
@@ -337,7 +337,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_width))
     throw invalid_parameter_error(
         "For a 3D image, the width must be a Value >= 1 and <= "
-        "CL_DEVICE_IMAGE3D_MAX_WIDTH",
+        "info::device::image3d_max_width",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE2D,
@@ -346,7 +346,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_height))
     throw invalid_parameter_error("For a 2D image or image array, the height "
                                   "must be a Value >= 1 and <= "
-                                  "CL_DEVICE_IMAGE2D_MAX_HEIGHT",
+                                  "info::device::image2d_max_height",
                                   PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
@@ -354,7 +354,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_height))
     throw invalid_parameter_error(
         "For a 3D image, the heightmust be a Value >= 1 and <= "
-        "CL_DEVICE_IMAGE3D_MAX_HEIGHT",
+        "info::device::image3d_max_height",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
@@ -362,7 +362,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_depth))
     throw invalid_parameter_error(
         "For a 3D image, the depth must be a Value >= 1 and <= "
-        "CL_DEVICE_IMAGE3D_MAX_DEPTH",
+        "info::device::image2d_max_depth",
         PI_INVALID_VALUE);
 
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
@@ -371,7 +371,7 @@ bool image_impl<Dimensions>::checkImageDesc(const RT::PiMemImageDesc &Desc,
           getDevices(Context), Desc.image_array_size))
     throw invalid_parameter_error(
         "For a 1D and 2D image array, the array_size must be a "
-        "Value >= 1 and <= CL_DEVICE_IMAGE_MAX_ARRAY_SIZE.",
+        "Value >= 1 and <= info::device::image_max_array_size.",
         PI_INVALID_VALUE);
 
   if ((nullptr == UserPtr) && (0 != Desc.image_row_pitch))

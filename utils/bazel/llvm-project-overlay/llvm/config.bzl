@@ -6,7 +6,7 @@
 
 def native_arch_defines(arch, triple):
     return [
-        "LLVM_NATIVE_ARCH=\\\"{}\\\"".format(arch),
+        r'LLVM_NATIVE_ARCH=\"{}\"'.format(arch),
         "LLVM_NATIVE_ASMPARSER=LLVMInitialize{}AsmParser".format(arch),
         "LLVM_NATIVE_ASMPRINTER=LLVMInitialize{}AsmPrinter".format(arch),
         "LLVM_NATIVE_DISASSEMBLER=LLVMInitialize{}Disassembler".format(arch),
@@ -14,24 +14,29 @@ def native_arch_defines(arch, triple):
         "LLVM_NATIVE_TARGETINFO=LLVMInitialize{}TargetInfo".format(arch),
         "LLVM_NATIVE_TARGETMC=LLVMInitialize{}TargetMC".format(arch),
         "LLVM_NATIVE_TARGETMCA=LLVMInitialize{}TargetMCA".format(arch),
-        "LLVM_HOST_TRIPLE=\\\"{}\\\"".format(triple),
-        "LLVM_DEFAULT_TARGET_TRIPLE=\\\"{}\\\"".format(triple),
+        r'LLVM_HOST_TRIPLE=\"{}\"'.format(triple),
+        r'LLVM_DEFAULT_TARGET_TRIPLE=\"{}\"'.format(triple),
     ]
 
 posix_defines = [
     "LLVM_ON_UNIX=1",
     "HAVE_BACKTRACE=1",
     "BACKTRACE_HEADER=<execinfo.h>",
-    "LTDL_SHLIB_EXT=\\\".so\\\"",
-    "LLVM_PLUGIN_EXT=\\\".so\\\"",
+    r'LTDL_SHLIB_EXT=\".so\"',
+    r'LLVM_PLUGIN_EXT=\".so\"',
     "LLVM_ENABLE_THREADS=1",
-    "HAVE_SYSEXITS_H=1",
-    "HAVE_UNISTD_H=1",
-    "HAVE_STRERROR_R=1",
+    "HAVE_DEREGISTER_FRAME=1",
     "HAVE_LIBPTHREAD=1",
     "HAVE_PTHREAD_GETNAME_NP=1",
-    "HAVE_PTHREAD_SETNAME_NP=1",
     "HAVE_PTHREAD_GETSPECIFIC=1",
+    "HAVE_PTHREAD_H=1",
+    "HAVE_PTHREAD_SETNAME_NP=1",
+    "HAVE_REGISTER_FRAME=1",
+    "HAVE_SETENV_R=1",
+    "HAVE_STRERROR_R=1",
+    "HAVE_SYSEXITS_H=1",
+    "HAVE_UNISTD_H=1",
+    "LLVM_WINDOWS_PREFER_FORWARD_SLASH=0",
 ]
 
 linux_defines = posix_defines + [
@@ -49,16 +54,24 @@ macos_defines = posix_defines + [
     "HAVE_MALLOC_MALLOC_H=1",
     "HAVE_MALLOC_ZONE_STATISTICS=1",
     "HAVE_PROC_PID_RUSAGE=1",
+    "HAVE_UNW_ADD_DYNAMIC_FDE=1",
 ]
 
 win32_defines = [
-    # MSVC specific
-    "stricmp=_stricmp",
-    "strdup=_strdup",
+    # Windows system library specific defines.
+    "_CRT_SECURE_NO_DEPRECATE",
+    "_CRT_SECURE_NO_WARNINGS",
+    "_CRT_NONSTDC_NO_DEPRECATE",
+    "_CRT_NONSTDC_NO_WARNINGS",
+    "_SCL_SECURE_NO_DEPRECATE",
+    "_SCL_SECURE_NO_WARNINGS",
+    "UNICODE",
+    "_UNICODE",
 
     # LLVM features
-    "LTDL_SHLIB_EXT=\\\".dll\\\"",
-    "LLVM_PLUGIN_EXT=\\\".dll\\\"",
+    r'LTDL_SHLIB_EXT=\".dll\"',
+    r'LLVM_PLUGIN_EXT=\".dll\"',
+    "LLVM_WINDOWS_PREFER_FORWARD_SLASH=1",
 ]
 
 # TODO: We should switch to platforms-based config settings to make this easier
@@ -66,13 +79,15 @@ win32_defines = [
 os_defines = select({
     "@bazel_tools//src/conditions:windows": win32_defines,
     "@bazel_tools//src/conditions:darwin": macos_defines,
+    "@bazel_tools//src/conditions:freebsd": posix_defines,
     "//conditions:default": linux_defines,
 })
 
 # TODO: We should split out host vs. target here.
 llvm_config_defines = os_defines + select({
     "@bazel_tools//src/conditions:windows": native_arch_defines("X86", "x86_64-pc-win32"),
-    "@bazel_tools//src/conditions:darwin": native_arch_defines("X86", "x86_64-unknown-darwin"),
+    "@bazel_tools//src/conditions:darwin_arm64": native_arch_defines("AArch64", "arm64-apple-darwin"),
+    "@bazel_tools//src/conditions:darwin_x86_64": native_arch_defines("X86", "x86_64-unknown-darwin"),
     "@bazel_tools//src/conditions:linux_aarch64": native_arch_defines("AArch64", "aarch64-unknown-linux-gnu"),
     "//conditions:default": native_arch_defines("X86", "x86_64-unknown-linux-gnu"),
 }) + [

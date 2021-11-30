@@ -16,6 +16,7 @@
 
 #include "AMDGPUISelLowering.h"
 #include "AMDGPUArgumentUsageInfo.h"
+#include "llvm/CodeGen/MachineFunction.h"
 
 namespace llvm {
 
@@ -134,6 +135,7 @@ private:
   SDValue lowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFMINNUM_FMAXNUM(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerXMULO(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerXMUL_LOHI(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue getSegmentAperture(unsigned AS, const SDLoc &DL,
                              SelectionDAG &DAG) const;
@@ -267,7 +269,7 @@ public:
                              Instruction *I = nullptr) const override;
 
   bool canMergeStoresTo(unsigned AS, EVT MemVT,
-                        const SelectionDAG &DAG) const override;
+                        const MachineFunction &MF) const override;
 
   bool allowsMisalignedMemoryAccessesImpl(
       unsigned Size, unsigned AddrSpace, Align Alignment,

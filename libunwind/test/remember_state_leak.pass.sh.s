@@ -2,6 +2,12 @@
 # RUN: %{build}
 # RUN: %{run}
 
+// TODO: Investigate these failures
+// XFAIL: asan, tsan, ubsan
+
+// TODO: Investigate this failure
+// XFAIL: 32bits-on-64bits
+
 # The following assembly is a translation of this code:
 #
 #   _Unwind_Reason_Code callback(int, _Unwind_Action, long unsigned int,

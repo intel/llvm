@@ -71,9 +71,8 @@ void MSP430FrameLowering::emitPrologue(MachineFunction &MF,
       .addReg(MSP430::SP);
 
     // Mark the FramePtr as live-in in every block except the entry.
-    for (MachineFunction::iterator I = std::next(MF.begin()), E = MF.end();
-         I != E; ++I)
-      I->addLiveIn(MSP430::R4);
+    for (MachineBasicBlock &MBBJ : llvm::drop_begin(MF))
+      MBBJ.addLiveIn(MSP430::R4);
 
   } else
     NumBytes = StackSize - MSP430FI->getCalleeSavedFrameSize();
@@ -212,8 +211,8 @@ bool MSP430FrameLowering::restoreCalleeSavedRegisters(
   MachineFunction &MF = *MBB.getParent();
   const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
 
-  for (unsigned i = 0, e = CSI.size(); i != e; ++i)
-    BuildMI(MBB, MI, DL, TII.get(MSP430::POP16r), CSI[i].getReg());
+  for (const CalleeSavedInfo &I : CSI)
+    BuildMI(MBB, MI, DL, TII.get(MSP430::POP16r), I.getReg());
 
   return true;
 }

@@ -48,11 +48,11 @@ void testKnown(T Identity, BinaryOperation BOp, T A, T B) {
   T *ReduUSMPtr = malloc_host<T>(1, Q);
 
   Q.submit([&](handler &CGH) {
-    // Reduction needs a global_buffer accessor as a parameter.
+    // Reduction needs a device accessor as a parameter.
     // This accessor is not really used in this test.
-    accessor<T, Dim, access::mode::read_write, access::target::global_buffer>
+    accessor<T, Dim, access::mode::read_write, access::target::device>
         ReduRWAcc(ReduBuf, CGH);
-    accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
+    accessor<T, Dim, access::mode::discard_write, access::target::device>
         ReduDWAcc(ReduBuf, CGH);
     auto ReduRW = ext::oneapi::reduction(ReduRWAcc, BOp);
     auto ReduDW = ext::oneapi::reduction(ReduDWAcc, BOp);
@@ -92,11 +92,11 @@ void testUnknown(T Identity, BinaryOperation BOp, T A, T B) {
   buffer<T, 1> ReduBuf(1);
   T *ReduUSMPtr = malloc_host<T>(1, Q);
   Q.submit([&](handler &CGH) {
-    // Reduction needs a global_buffer accessor as a parameter.
+    // Reduction needs a device accessor as a parameter.
     // This accessor is not really used in this test.
-    accessor<T, Dim, access::mode::read_write, access::target::global_buffer>
+    accessor<T, Dim, access::mode::read_write, access::target::device>
         ReduRWAcc(ReduBuf, CGH);
-    accessor<T, Dim, access::mode::discard_write, access::target::global_buffer>
+    accessor<T, Dim, access::mode::discard_write, access::target::device>
         ReduDWAcc(ReduBuf, CGH);
     auto ReduRW = ext::oneapi::reduction(ReduRWAcc, Identity, BOp);
     auto ReduDW = ext::oneapi::reduction(ReduDWAcc, Identity, BOp);

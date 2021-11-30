@@ -9,6 +9,10 @@
 #ifndef LLVM_LIBC_SRC_STRING_MEMORY_UTILS_ELEMENTS_X86_H
 #define LLVM_LIBC_SRC_STRING_MEMORY_UTILS_ELEMENTS_X86_H
 
+#include "src/__support/architectures.h"
+
+#if defined(LLVM_LIBC_ARCH_X86)
+
 #include <stddef.h> // size_t
 #include <stdint.h> // uint8_t, uint16_t, uint32_t, uint64_t
 
@@ -26,7 +30,11 @@ namespace x86 {
 
 #ifdef __SSE2__
 template <typename Base> struct Vector : public Base {
-  static void Copy(char *dst, const char *src) {
+  static void Copy(char *__restrict dst, const char *__restrict src) {
+    Base::Store(dst, Base::Load(src));
+  }
+
+  static void Move(char *dst, const char *src) {
     Base::Store(dst, Base::Load(src));
   }
 
@@ -160,7 +168,15 @@ using _64 = __llvm_libc::Repeated<_8, 8>;
 using _128 = __llvm_libc::Repeated<_8, 16>;
 #endif
 
+struct Accelerator {
+  static void Copy(char *dst, const char *src, size_t count) {
+    asm volatile("rep movsb" : "+D"(dst), "+S"(src), "+c"(count) : : "memory");
+  }
+};
+
 } // namespace x86
 } // namespace __llvm_libc
+
+#endif // defined(LLVM_LIBC_ARCH_X86)
 
 #endif // LLVM_LIBC_SRC_STRING_MEMORY_UTILS_ELEMENTS_X86_H

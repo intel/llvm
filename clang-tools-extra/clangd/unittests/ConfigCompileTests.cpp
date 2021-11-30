@@ -9,7 +9,7 @@
 #include "Config.h"
 #include "ConfigFragment.h"
 #include "ConfigTesting.h"
-#include "Features.h"
+#include "Feature.h"
 #include "TestFS.h"
 #include "clang/Basic/DiagnosticSema.h"
 #include "llvm/ADT/None.h"
@@ -242,6 +242,25 @@ TEST_F(ConfigCompileTests, PathSpecMatch) {
     EXPECT_NE(compileAndApply(), Case.ShouldMatch);
     ASSERT_THAT(Diags.Diagnostics, IsEmpty());
   }
+}
+
+TEST_F(ConfigCompileTests, DiagnosticsIncludeCleaner) {
+  // Defaults to None.
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
+            Config::UnusedIncludesPolicy::None);
+
+  Frag = {};
+  Frag.Diagnostics.UnusedIncludes.emplace("None");
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
+            Config::UnusedIncludesPolicy::None);
+
+  Frag = {};
+  Frag.Diagnostics.UnusedIncludes.emplace("Strict");
+  EXPECT_TRUE(compileAndApply());
+  EXPECT_EQ(Conf.Diagnostics.UnusedIncludes,
+            Config::UnusedIncludesPolicy::Strict);
 }
 
 TEST_F(ConfigCompileTests, DiagnosticSuppression) {

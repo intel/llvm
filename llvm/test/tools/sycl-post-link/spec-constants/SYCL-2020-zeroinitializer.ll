@@ -4,7 +4,7 @@
 ; situation where specialization constants have zeroinitializer in LLVM IR
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 %"class._ZTSN2cl4sycl17specialization_idIiEE.cl::sycl::specialization_id" = type { i32 }
 %"class._ZTSN2cl4sycl17specialization_idIdEE.cl::sycl::specialization_id" = type { double }

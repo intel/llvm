@@ -17,7 +17,7 @@ Section,Description,Dependencies,Assignee,Complete
 | *no-throw-input-range*
 | *no-throw-forward-iterator*
 | *no-throw-forward-range*","| [iterator.concepts]
-| [range.refinements]",Unassigned,Not started
+| [range.refinements]",Konstantin Varlamov,Not started
 `[specialized.algorithms] <http://wg21.link/specialized.algorithms>`_,"| ranges::uninitialized_default_construct
 | ranges::uninitialized_default_construct_n
 | ranges::uninitialized_value_construct
@@ -31,7 +31,7 @@ Section,Description,Dependencies,Assignee,Complete
 | ranges::construct_at
 | ranges::destroy
 | ranges::destroy_at
-| ranges::destroy_n",[special.mem.concepts],Unassigned,Not started
+| ranges::destroy_n",[special.mem.concepts],Konstantin Varlamov,Not started
 [strings],Adds begin/end and updates const_iterator.,[iterator.concepts],Unassigned,Not started
 [views.span],Same as [strings],[iterator.concepts],Unassigned,Not started
 `[iterator.cust.move] <http://wg21.link/iterator.cust.move>`_,`ranges::iter_move <https://llvm.org/D99873>`_,,Zoe Carver,✅
@@ -49,7 +49,8 @@ Section,Description,Dependencies,Assignee,Complete
 | `bidirectional_iterator <https://llvm.org/D100278>`_
 | `random_access_iterator <https://llvm.org/D101316>`_
 | `contiguous_iterator <https://llvm.org/D101396>`_",,Various,✅
-`[indirectcallable.indirectinvocable] <http://wg21.link/indirectcallable.indirectinvocable>`_,"| indirectly_unary_invocable
+`[indirectcallable.indirectinvocable] <http://wg21.link/indirectcallable.indirectinvocable>`_,"
+| `indirectly_unary_invocable <https://llvm.org/D101277>`_
 | `indirectly_regular_unary_invocable <https://llvm.org/D101277>`_
 | `indirectly_unary_predicate <https://llvm.org/D101277>`_
 | `indirectly_binary_predicate <https://llvm.org/D101277>`_
@@ -138,12 +139,12 @@ Section,Description,Dependencies,Assignee,Complete
 `[range.view.ref] <http://wg21.link/range.view>`_,`ref-view <https://llvm.org/D102020>`_,[view.interface],Zoe Carver,✅
 `[range.filter] <http://wg21.link/range.filter>`_,filter_view,[range.all],Louis Dionne,Not started
 `[range.transform] <http://wg21.link/range.transform>`_,`transform_view <https://llvm.org/D103056>`_,[range.all],Zoe Carver,✅
-`[range.iota] <http://wg21.link/range.iota>`_,iota_view,[range.all],Zoe Carver,In Progress
+`[range.iota] <http://wg21.link/range.iota>`_,iota_view,[range.all],Zoe Carver,✅
 `[range.take] <http://wg21.link/range.take>`_,take_view,[range.all],Zoe Carver,✅
-`[range.join] <http://wg21.link/range.join>`_,join_view,[range.all],Zoe Carver,In Progress
+`[range.join] <http://wg21.link/range.join>`_,join_view,[range.all],Zoe Carver,✅
 `[range.empty] <http://wg21.link/range.empty>`_,`empty_view <https://llvm.org/D103208>`_,[view.interface],Zoe Carver,✅
 `[range.single] <http://wg21.link/range.single>`_,single_view,[view.interface],Zoe Carver,✅
 `[range.split] <http://wg21.link/range.split>`_,split_view,[range.all],Zoe Carver,In Progress
-`[range.counted] <http://wg21.link/range.counted>`_,view::counted,[range.subrange],Zoe Carver,Not started
+`[range.counted] <http://wg21.link/range.counted>`_,view::counted,[range.subrange],Zoe Carver,✅
 `[range.common] <http://wg21.link/range.common>`_,common_view,[range.all],Zoe Carver,✅
-`[range.reverse] <http://wg21.link/range.reverse>`_,reverse_view,[range.all],Unassigned,Not started
+`[range.reverse] <http://wg21.link/range.reverse>`_,reverse_view,[range.all],Zoe Carver,✅

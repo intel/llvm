@@ -264,9 +264,8 @@ namespace {
 /// This class represents all of the information pertaining to a specific MLIR
 /// document.
 struct MLIRDocument {
-  MLIRDocument(const lsp::URIForFile &uri, StringRef contents,
-               DialectRegistry &registry,
-               std::vector<lsp::Diagnostic> &diagnostics);
+  MLIRDocument(MLIRContext &context, const lsp::URIForFile &uri,
+               StringRef contents, std::vector<lsp::Diagnostic> &diagnostics);
   MLIRDocument(const MLIRDocument &) = delete;
   MLIRDocument &operator=(const MLIRDocument &) = delete;
 
@@ -310,9 +309,6 @@ struct MLIRDocument {
   // Fields
   //===--------------------------------------------------------------------===//
 
-  /// The context used to hold the state contained by the parsed document.
-  MLIRContext context;
-
   /// The high level parser state used to find definitions and references within
   /// the source file.
   AsmParserState asmState;
@@ -325,11 +321,9 @@ struct MLIRDocument {
 };
 } // namespace
 
-MLIRDocument::MLIRDocument(const lsp::URIForFile &uri, StringRef contents,
-                           DialectRegistry &registry,
-                           std::vector<lsp::Diagnostic> &diagnostics)
-    : context(registry, MLIRContext::Threading::DISABLED) {
-  context.allowUnregisteredDialects();
+MLIRDocument::MLIRDocument(MLIRContext &context, const lsp::URIForFile &uri,
+                           StringRef contents,
+                           std::vector<lsp::Diagnostic> &diagnostics) {
   ScopedDiagnosticHandler handler(&context, [&](Diagnostic &diag) {
     diagnostics.push_back(getLspDiagnoticFromDiag(sourceMgr, diag, uri));
   });
@@ -373,7 +367,7 @@ void MLIRDocument::getLocationsOf(const lsp::URIForFile &uri,
     if (contains(op.loc, posLoc))
       return collectLocationsFromLoc(op.op->getLoc(), locations, uri);
     for (const auto &result : op.resultGroups)
-      if (containsPosition(result.second))
+      if (containsPosition(result.definition))
         return collectLocationsFromLoc(op.op->getLoc(), locations, uri);
     for (const auto &symUse : op.symbolUses) {
       if (contains(symUse, posLoc)) {
@@ -410,15 +404,15 @@ void MLIRDocument::findReferencesOf(const lsp::URIForFile &uri,
   for (const AsmParserState::OperationDefinition &op : asmState.getOpDefs()) {
     if (contains(op.loc, posLoc)) {
       for (const auto &result : op.resultGroups)
-        appendSMDef(result.second);
+        appendSMDef(result.definition);
       for (const auto &symUse : op.symbolUses)
         if (contains(symUse, posLoc))
           references.push_back(getLocationFromLoc(sourceMgr, symUse, uri));
       return;
     }
     for (const auto &result : op.resultGroups)
-      if (isDefOrUse(result.second, posLoc))
-        return appendSMDef(result.second);
+      if (isDefOrUse(result.definition, posLoc))
+        return appendSMDef(result.definition);
     for (const auto &symUse : op.symbolUses) {
       if (!contains(symUse, posLoc))
         continue;
@@ -462,13 +456,13 @@ Optional<lsp::Hover> MLIRDocument::findHover(const lsp::URIForFile &uri,
     // Check if the position points at a result group.
     for (unsigned i = 0, e = op.resultGroups.size(); i < e; ++i) {
       const auto &result = op.resultGroups[i];
-      if (!isDefOrUse(result.second, posLoc, &hoverRange))
+      if (!isDefOrUse(result.definition, posLoc, &hoverRange))
         continue;
 
       // Get the range of results covered by the over position.
-      unsigned resultStart = result.first;
-      unsigned resultEnd =
-          (i == e - 1) ? op.op->getNumResults() : op.resultGroups[i + 1].first;
+      unsigned resultStart = result.startIndex;
+      unsigned resultEnd = (i == e - 1) ? op.op->getNumResults()
+                                        : op.resultGroups[i + 1].startIndex;
       return buildHoverForOperationResult(hoverRange, op.op, resultStart,
                                           resultEnd, posLoc);
     }
@@ -657,11 +651,10 @@ void MLIRDocument::findDocumentSymbols(
 namespace {
 /// This class represents a single chunk of an MLIR text file.
 struct MLIRTextFileChunk {
-  MLIRTextFileChunk(uint64_t lineOffset, const lsp::URIForFile &uri,
-                    StringRef contents, DialectRegistry &registry,
+  MLIRTextFileChunk(MLIRContext &context, uint64_t lineOffset,
+                    const lsp::URIForFile &uri, StringRef contents,
                     std::vector<lsp::Diagnostic> &diagnostics)
-      : lineOffset(lineOffset), document(uri, contents, registry, diagnostics) {
-  }
+      : lineOffset(lineOffset), document(context, uri, contents, diagnostics) {}
 
   /// Adjust the line number of the given range to anchor at the beginning of
   /// the file, instead of the beginning of this chunk.
@@ -713,6 +706,9 @@ private:
   /// beginning of the file.
   MLIRTextFileChunk &getChunkFor(lsp::Position &pos);
 
+  /// The context used to hold the state contained by the parsed document.
+  MLIRContext context;
+
   /// The full string contents of the file.
   std::string contents;
 
@@ -731,7 +727,10 @@ private:
 MLIRTextFile::MLIRTextFile(const lsp::URIForFile &uri, StringRef fileContents,
                            int64_t version, DialectRegistry &registry,
                            std::vector<lsp::Diagnostic> &diagnostics)
-    : contents(fileContents.str()), version(version), totalNumLines(0) {
+    : context(registry, MLIRContext::Threading::DISABLED),
+      contents(fileContents.str()), version(version), totalNumLines(0) {
+  context.allowUnregisteredDialects();
+
   // Split the file into separate MLIR documents.
   // TODO: Find a way to share the split file marker with other tools. We don't
   // want to use `splitAndProcessBuffer` here, but we do want to make sure this
@@ -739,13 +738,13 @@ MLIRTextFile::MLIRTextFile(const lsp::URIForFile &uri, StringRef fileContents,
   SmallVector<StringRef, 8> subContents;
   StringRef(contents).split(subContents, "// -----");
   chunks.emplace_back(std::make_unique<MLIRTextFileChunk>(
-      /*lineOffset=*/0, uri, subContents.front(), registry, diagnostics));
+      context, /*lineOffset=*/0, uri, subContents.front(), diagnostics));
 
   uint64_t lineOffset = subContents.front().count('\n');
   for (StringRef docContents : llvm::drop_begin(subContents)) {
     unsigned currentNumDiags = diagnostics.size();
-    auto chunk = std::make_unique<MLIRTextFileChunk>(
-        lineOffset, uri, docContents, registry, diagnostics);
+    auto chunk = std::make_unique<MLIRTextFileChunk>(context, lineOffset, uri,
+                                                     docContents, diagnostics);
     lineOffset += docContents.count('\n');
 
     // Adjust locations used in diagnostics to account for the offset from the

@@ -11,9 +11,10 @@ option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
+include(SYCLUtils)
 
 set(SYCL_MAJOR_VERSION 5)
-set(SYCL_MINOR_VERSION 3)
+set(SYCL_MINOR_VERSION 4)
 set(SYCL_PATCH_VERSION 0)
 set(SYCL_DEV_ABI_VERSION 0)
 if (SYCL_ADD_DEV_VERSION_POSTFIX)
@@ -48,6 +49,15 @@ if(MSVC)
   # Skip asynchronous C++ exceptions catching and assume "extern C" functions
   # never throw C++ exceptions.
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+
+  # Add PDB debug information
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+  include(LLVMCheckLinkerFlag)
+  llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  if(LINKER_SUPPORTS_DEBUG)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
+    add_link_options("/DEBUG")
+  endif()
 endif()
 
 # Get clang's version
@@ -90,8 +100,8 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
 option(SYCL_BUILD_PI_CUDA
   "Enables the CUDA backend for the Plugin Interface" OFF)
 
-option(SYCL_BUILD_PI_ROCM
-  "Enables the ROCM backend for the Plugin Interface" OFF)
+option(SYCL_BUILD_PI_HIP
+  "Enables the HIP backend for the Plugin Interface" OFF)
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -100,14 +110,34 @@ set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 set(version_header "${sycl_inc_dir}/CL/sycl/version.hpp")
 configure_file("${version_header}.in" "${version_header}")
+set(feature_header "${sycl_inc_dir}/CL/sycl/feature_test.hpp")
+configure_file("${feature_header}.in" "${feature_header}")
+
+# This is workaround to detect changes (add or modify) in subtree which
+# are not detected by copy_directory command.
+# TODO: detect and process remove header/directory case
+file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
+file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
+string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
+  OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
+string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
+  OUT_HEADERS_IN_CL_DIR "${HEADERS_IN_CL_DIR}")
 
 # Copy SYCL headers from sources to build directory
-add_custom_target(sycl-headers ALL
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
-COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
-COMMENT "Copying SYCL headers ...")
+add_custom_target(sycl-headers
+  DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
+          ${OUT_HEADERS_IN_CL_DIR})
 
-# Copy SYCL headers from sources to install directory
+add_custom_command(
+  OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
+          ${OUT_HEADERS_IN_CL_DIR}
+  DEPENDS ${HEADERS_IN_SYCL_DIR}
+          ${HEADERS_IN_CL_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  COMMENT "Copying SYCL headers ...")
+
+# Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
 
@@ -172,7 +202,7 @@ if (NOT WIN32)
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  set(XPTIFW_LIBS xptifw)
+  set(XPTIFW_LIBS xpti xptifw)
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -212,6 +242,11 @@ endif()
 option(SYCL_INCLUDE_TESTS
   "Generate build targets for the SYCL unit tests."
   ${LLVM_INCLUDE_TESTS})
+
+# Ensure that HIP platform is uppercase, to match buildbot's output.
+if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
+  string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
+endif()
 
 # Plugin Library
 add_subdirectory( plugins )
@@ -259,7 +294,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl
      pi_opencl
      pi_level_zero
-     pi_esimd_cpu
      libsycldevice
      ${XPTIFW_LIBS}
 )
@@ -280,16 +314,29 @@ if(SYCL_BUILD_PI_CUDA)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_cuda)
 endif()
 
-if(SYCL_BUILD_PI_ROCM)
+if(SYCL_BUILD_PI_HIP)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
     message(FATAL_ERROR
-      "ROCM support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+      "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  add_dependencies(sycl-toolchain libspirv-builtins pi_rocm)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_rocm)
+  add_dependencies(sycl-toolchain libspirv-builtins pi_hip)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins pi_hip)
+endif()
+
+# TODO : Remove 'if (NOT MSVC)' when CM_EMU supports Windows
+# environment
+if (NOT MSVC)
+  if (SYCL_BUILD_PI_ESIMD_EMULATOR)
+    list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_esimd_emulator libcmrt-headers)
+    if (MSVC)
+      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-libs libcmrt-dlls)
+    else()
+      list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libcmrt-sos)
+    endif()
+  endif()
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

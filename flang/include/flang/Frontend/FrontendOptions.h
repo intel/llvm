@@ -77,7 +77,10 @@ enum ActionKind {
   GetSymbolsSources,
 
   /// Only execute frontend initialization
-  InitOnly
+  InitOnly,
+
+  /// Run a plugin action
+  PluginAction
 
   /// TODO: RunPreprocessor, EmitLLVM, EmitLLVMOnly,
   /// EmitCodeGenOnly, EmitAssembly, (...)
@@ -86,10 +89,6 @@ enum ActionKind {
 /// \param suffix The file extension
 /// \return True if the file extension should be processed as fixed form
 bool isFixedFormSuffix(llvm::StringRef suffix);
-
-// TODO: Find a more suitable location for this. Added for compability with
-// f18.cpp (this is equivalent to `asFortran` defined there).
-Fortran::parser::AnalyzedObjectsAsFortran getBasicAsFortran();
 
 /// \param suffix The file extension
 /// \return True if the file extension should be processed as free form
@@ -251,6 +250,12 @@ struct FrontendOptions {
 
   // Source file encoding
   Fortran::parser::Encoding encoding{Fortran::parser::Encoding::UTF_8};
+
+  /// The list of plugins to load.
+  std::vector<std::string> plugins;
+
+  /// The name of the action to run when using a plugin action.
+  std::string ActionName;
 
   // Return the appropriate input kind for a file extension. For example,
   /// "*.f" would return Language::Fortran.

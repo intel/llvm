@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include "utils/UnitTest/FPMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 #include <math.h>

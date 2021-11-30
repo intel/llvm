@@ -78,7 +78,6 @@ public:
   SPIRVToLLVM(Module *LLVMModule, SPIRVModule *TheSPIRVModule);
 
   static const StringSet<> BuiltInConstFunc;
-  std::string getOCLBuiltinName(SPIRVInstruction *BI);
 
   Type *transType(SPIRVType *BT, bool IsClassMember = false);
   std::string transTypeToOCLTypeName(SPIRVType *BT, bool IsSigned = true);
@@ -90,7 +89,6 @@ public:
                     bool CreatePlaceHolder = true);
   Value *transValueWithoutDecoration(SPIRVValue *, Function *F, BasicBlock *,
                                      bool CreatePlaceHolder = true);
-  Value *transDeviceEvent(SPIRVValue *BV, Function *F, BasicBlock *BB);
   bool transDecoration(SPIRVValue *, Value *);
   bool transAlign(SPIRVValue *, Value *);
   Instruction *transOCLBuiltinFromExtInst(SPIRVExtInst *BC, BasicBlock *BB);
@@ -98,7 +96,6 @@ public:
                                   Function *F, BasicBlock *);
   Function *transFunction(SPIRVFunction *F);
   Value *transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB);
-  Instruction *transEnqueueKernelBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   bool transFPContractMetadata();
@@ -123,33 +120,7 @@ public:
   Value *transConvertInst(SPIRVValue *BV, Function *F, BasicBlock *BB);
   Instruction *transBuiltinFromInst(const std::string &FuncName,
                                     SPIRVInstruction *BI, BasicBlock *BB);
-  Instruction *transOCLBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSPIRVBuiltinFromInst(SPIRVInstruction *BI, BasicBlock *BB);
-
-  /// Post-process translated LLVM module for OpenCL.
-  bool postProcessOCL();
-
-  /// \brief Post-process OpenCL builtin functions returning struct type.
-  ///
-  /// Some OpenCL builtin functions are translated to SPIR-V instructions with
-  /// struct type result, e.g. NDRange creation functions. Such functions
-  /// need to be post-processed to return the struct through sret argument.
-  bool postProcessOCLBuiltinReturnStruct(Function *F);
-
-  /// \brief Post-process OpenCL builtin functions having array argument.
-  ///
-  /// These functions are translated to functions with array type argument
-  /// first, then post-processed to have pointer arguments.
-  bool postProcessOCLBuiltinWithArrayArguments(Function *F,
-                                               StringRef DemangledName);
-
-  /// \brief Post-process OpBuildNDRange.
-  ///   OpBuildNDRange GlobalWorkSize, LocalWorkSize, GlobalWorkOffset
-  /// =>
-  ///   call ndrange_XD(GlobalWorkOffset, GlobalWorkSize, LocalWorkSize)
-  /// \return transformed call instruction.
-  CallInst *postProcessOCLBuildNDRange(SPIRVInstruction *BI, CallInst *CI,
-                                       const std::string &DemangledName);
 
   /// \brief Expand OCL builtin functions with scalar argument, e.g.
   /// step, smoothstep.
@@ -185,7 +156,15 @@ private:
   SPIRVBlockToLLVMStructMap BlockMap;
   SPIRVToLLVMPlaceholderMap PlaceholderMap;
   std::unique_ptr<SPIRVToLLVMDbgTran> DbgTran;
+  // GlobalAnnotations collects array of annotation entries for global variables
+  // and functions. They are used in translation of llvm.global.annotations
+  // instruction.
   std::vector<Constant *> GlobalAnnotations;
+  // AnnotationsMap helps to translate annotation strings for local variables.
+  // Map values are pointers on global strings in LLVM-IR. It is used to avoid
+  // duplication of these annotation strings in LLVM-IR, which can be caused by
+  // multiple translation of UserSemantic decorations with the same literal.
+  std::unordered_map<std::string, Constant *> AnnotationsMap;
 
   // Loops metadata is translated in the end of a function translation.
   // This storage contains pairs of translated loop header basic block and loop
@@ -213,7 +192,6 @@ private:
     return BuiltInConstFunc.count(Name);
   }
 
-  bool isSPIRVCmpInstTransToLLVMInst(SPIRVInstruction *BI) const;
   bool isDirectlyTranslatedToOCL(Op OpCode) const;
   MDString *transOCLKernelArgTypeName(SPIRVFunctionParameter *);
   Value *mapFunction(SPIRVFunction *BF, Function *F);

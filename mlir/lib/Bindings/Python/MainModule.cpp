@@ -26,7 +26,7 @@ using namespace mlir::python;
 PYBIND11_MODULE(_mlir, m) {
   m.doc() = "MLIR Python Native Extension";
 
-  py::class_<PyGlobals>(m, "_Globals")
+  py::class_<PyGlobals>(m, "_Globals", py::module_local())
       .def_property("dialect_search_modules",
                     &PyGlobals::getDialectSearchPrefixes,
                     &PyGlobals::setDialectSearchPrefixes)
@@ -85,6 +85,7 @@ PYBIND11_MODULE(_mlir, m) {
   populateIRCore(irModule);
   populateIRAffine(irModule);
   populateIRAttributes(irModule);
+  populateIRInterfaces(irModule);
   populateIRTypes(irModule);
 
   // Define and populate PassManager submodule.

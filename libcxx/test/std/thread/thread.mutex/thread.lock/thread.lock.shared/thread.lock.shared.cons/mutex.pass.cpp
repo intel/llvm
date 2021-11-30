@@ -8,11 +8,13 @@
 //
 // UNSUPPORTED: libcpp-has-no-threads
 // UNSUPPORTED: c++03, c++11
+// ALLOW_RETRIES: 2
 
 // dylib support for shared_mutex was added in macosx10.12
 // XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11}}
 
-// ALLOW_RETRIES: 2
+// TODO(ldionne): This test fails on Ubuntu Focal on our CI nodes (and only there), in 32 bit mode.
+// UNSUPPORTED: linux && 32bits-on-64bits
 
 // <shared_mutex>
 
@@ -99,7 +101,7 @@ int main(int, char**)
         q.join();
     }
 
-#ifdef __cpp_deduction_guides
+#if TEST_STD_VER >= 17
     std::shared_lock sl(m);
     static_assert((std::is_same<decltype(sl), std::shared_lock<decltype(m)>>::value), "" );
 #endif

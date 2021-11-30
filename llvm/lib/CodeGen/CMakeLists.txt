@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMCodeGen
   CFGuardLongjmp.cpp
   CFIInstrInserter.cpp
   CodeGen.cpp
+  CodeGenCommonISel.cpp
   CodeGenPassBuilder.cpp
   CodeGenPrepare.cpp
   CommandFlags.cpp
@@ -108,6 +109,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineTraceMetrics.cpp
   MachineVerifier.cpp
   MIRFSDiscriminator.cpp
+  MIRSampleProfile.cpp
   MIRYamlMapping.cpp
   ModuloSchedule.cpp
   MultiHazardRecognizer.cpp

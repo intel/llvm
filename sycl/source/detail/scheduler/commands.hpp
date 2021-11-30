@@ -138,6 +138,8 @@ public:
 
   const QueueImplPtr &getQueue() const { return MQueue; }
 
+  const QueueImplPtr &getSubmittedQueue() const { return MSubmittedQueue; }
+
   const EventImplPtr &getEvent() const { return MEvent; }
 
   // Methods needed to support SYCL instrumentation
@@ -193,13 +195,14 @@ public:
   virtual bool producesPiEvent() const;
 
 protected:
-  EventImplPtr MEvent;
   QueueImplPtr MQueue;
+  QueueImplPtr MSubmittedQueue;
+  EventImplPtr MEvent;
 
   /// Dependency events prepared for waiting by backend.
   /// See processDepEvent for details.
-  std::vector<EventImplPtr> MPreparedDepsEvents;
-  std::vector<EventImplPtr> MPreparedHostDepsEvents;
+  std::vector<EventImplPtr> &MPreparedDepsEvents;
+  std::vector<EventImplPtr> &MPreparedHostDepsEvents;
 
   void waitForEvents(QueueImplPtr Queue, std::vector<EventImplPtr> &RawEvents,
                      RT::PiEvent &Event);
@@ -500,6 +503,14 @@ private:
   void **MDstPtr = nullptr;
 };
 
+cl_int enqueueImpKernel(
+    const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
+    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
+    const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
+    const std::string &KernelName, const detail::OSModuleHandle &OSModuleHandle,
+    std::vector<RT::PiEvent> &RawEvents, const EventImplPtr &EventImpl,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc);
+
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
 class ExecCGCommand : public Command {
@@ -535,17 +546,9 @@ private:
 
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
-  pi_result SetKernelParamsAndLaunch(
-      CGExecKernel *ExecKernel,
-      std::shared_ptr<device_image_impl> DeviceImageImpl, RT::PiKernel Kernel,
-      NDRDescT &NDRDesc, std::vector<RT::PiEvent> &RawEvents,
-      RT::PiEvent &Event,
-      const ProgramManager::KernelArgMask &EliminatedArgMask);
-
   std::unique_ptr<detail::CG> MCommandGroup;
 
   friend class Command;
-  friend class Scheduler;
 };
 
 class UpdateHostRequirementCommand : public Command {

@@ -4,7 +4,7 @@
 ; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --match-full-lines --check-prefixes CHECK-PROP
 
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 !0 = !{i32 1, i32 2, i32 4}
 

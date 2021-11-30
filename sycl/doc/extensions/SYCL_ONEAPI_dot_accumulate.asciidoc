@@ -46,7 +46,7 @@ Because the interfaces defined by this specification are not final and are subje
 == Version
 
 Built On: {docdate} +
-Revision: B
+Revision: 3
 
 == Contact
 
@@ -135,9 +135,9 @@ None.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2019-12-13|Ben Ashbaugh|*Initial draft*
-|B|2019-12-18|Ben Ashbaugh|Switched to standard C++ fixed width types.
-|C|2020-10-26|Rajiv Deodhar|Added int32 types.
+|1|2019-12-13|Ben Ashbaugh|*Initial draft*
+|2|2019-12-18|Ben Ashbaugh|Switched to standard C++ fixed width types.
+|3|2020-10-26|Rajiv Deodhar|Added int32 types.
 |========================================
 
 //************************************************************************

@@ -26,7 +26,7 @@ void SyncVar::Init(ThreadState *thr, uptr pc, uptr addr, u64 uid,
   this->uid = uid;
   this->next = 0;
 
-  creation_stack_id = 0;
+  creation_stack_id = kInvalidStackID;
   if (save_stack && !SANITIZER_GO)  // Go does not use them
     creation_stack_id = CurrentStackId(thr, pc);
   if (common_flags()->detect_deadlocks)
@@ -35,7 +35,7 @@ void SyncVar::Init(ThreadState *thr, uptr pc, uptr addr, u64 uid,
 
 void SyncVar::Reset(Processor *proc) {
   uid = 0;
-  creation_stack_id = 0;
+  creation_stack_id = kInvalidStackID;
   owner_tid = kInvalidTid;
   last_lock = 0;
   recursion = 0;
@@ -212,12 +212,12 @@ SyncVar *MetaMap::GetSync(ThreadState *thr, uptr pc, uptr addr, bool create,
     }
     if (!create)
       return nullptr;
-    if (*meta != idx0) {
+    if (UNLIKELY(*meta != idx0)) {
       idx0 = *meta;
       continue;
     }
 
-    if (myidx == 0) {
+    if (LIKELY(myidx == 0)) {
       const u64 uid = atomic_fetch_add(&uid_gen_, 1, memory_order_relaxed);
       myidx = sync_alloc_.Alloc(&thr->proc()->sync_cache);
       mys = sync_alloc_.Map(myidx);
@@ -267,6 +267,13 @@ void MetaMap::MoveMemory(uptr src, uptr dst, uptr sz) {
 void MetaMap::OnProcIdle(Processor *proc) {
   block_alloc_.FlushCache(&proc->block_cache);
   sync_alloc_.FlushCache(&proc->sync_cache);
+}
+
+MetaMap::MemoryStats MetaMap::GetMemoryStats() const {
+  MemoryStats stats;
+  stats.mem_block = block_alloc_.AllocatedMemory();
+  stats.sync_obj = sync_alloc_.AllocatedMemory();
+  return stats;
 }
 
 }  // namespace __tsan

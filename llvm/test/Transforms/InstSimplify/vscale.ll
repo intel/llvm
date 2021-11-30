@@ -128,13 +128,25 @@ define i32 @insert_extract_element_same_vec_idx_4() {
   ret i32 %r
 }
 
+; Known values of vscale intrinsic
+
+define i64 @vscale64_range4_4() vscale_range(4,4) {
+; CHECK-LABEL: @vscale64_range4_4(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    ret i64 4
+;
+entry:
+  %vscale = call i64 @llvm.vscale.i64()
+  ret i64 %vscale
+}
+
 ; more complicated expressions
 
 define <vscale x 2 x i1> @cmp_le_smax_always_true(<vscale x 2 x i64> %x) {
 ; CHECK-LABEL: @cmp_le_smax_always_true(
-; CHECK-NEXT:    ret <vscale x 2 x i1> shufflevector (<vscale x 2 x i1> insertelement (<vscale x 2 x i1> undef, i1 true, i32 0), <vscale x 2 x i1> undef, <vscale x 2 x i32> zeroinitializer)
+; CHECK-NEXT:    ret <vscale x 2 x i1> shufflevector (<vscale x 2 x i1> insertelement (<vscale x 2 x i1> poison, i1 true, i32 0), <vscale x 2 x i1> poison, <vscale x 2 x i32> zeroinitializer)
 ;
-  %cmp = icmp sle <vscale x 2 x i64> %x, shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> undef, i64 9223372036854775807, i32 0), <vscale x 2 x i64> undef, <vscale x 2 x i32> zeroinitializer)
+  %cmp = icmp sle <vscale x 2 x i64> %x, shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> poison, i64 9223372036854775807, i32 0), <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer)
   ret <vscale x 2 x i1> %cmp
 }
 
@@ -217,3 +229,6 @@ define i32 @extractelement_splat_variable_index(i32 %v, i32 %idx) {
   %r = extractelement <vscale x 4 x i32> %splat, i32 %idx
   ret i32 %r
 }
+
+
+declare i64 @llvm.vscale.i64()

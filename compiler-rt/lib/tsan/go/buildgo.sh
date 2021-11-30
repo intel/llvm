@@ -11,6 +11,7 @@ SRCS="
 	../rtl/tsan_md5.cpp
 	../rtl/tsan_report.cpp
 	../rtl/tsan_rtl.cpp
+	../rtl/tsan_rtl_access.cpp
 	../rtl/tsan_rtl_mutex.cpp
 	../rtl/tsan_rtl_report.cpp
 	../rtl/tsan_rtl_thread.cpp
@@ -27,10 +28,10 @@ SRCS="
 	../../sanitizer_common/sanitizer_flags.cpp
 	../../sanitizer_common/sanitizer_libc.cpp
 	../../sanitizer_common/sanitizer_mutex.cpp
-	../../sanitizer_common/sanitizer_persistent_allocator.cpp
 	../../sanitizer_common/sanitizer_printf.cpp
 	../../sanitizer_common/sanitizer_suppressions.cpp
 	../../sanitizer_common/sanitizer_thread_registry.cpp
+	../../sanitizer_common/sanitizer_stack_store.cpp
 	../../sanitizer_common/sanitizer_stackdepot.cpp
 	../../sanitizer_common/sanitizer_stacktrace.cpp
 	../../sanitizer_common/sanitizer_symbolizer.cpp
@@ -59,7 +60,7 @@ if [ "`uname -a | grep Linux`" != "" ]; then
 	elif [ "`uname -a | grep x86_64`" != "" ]; then
 		SUFFIX="linux_amd64"
 		ARCHCFLAGS="-m64 -msse4.2"
-		OSCFLAGS="$OSCFLAGS -ffreestanding -Wno-unused-const-variable -Werror -Wno-unknown-warning-option"
+		OSCFLAGS="$OSCFLAGS -ffreestanding -Wno-unused-const-variable -Wno-unknown-warning-option"
 	elif [ "`uname -a | grep aarch64`" != "" ]; then
 		SUFFIX="linux_arm64"
 		ARCHCFLAGS=""

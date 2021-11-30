@@ -21,7 +21,7 @@ add_libc_unittest(
     libc.src.fenv.feclearexcept
     libc.src.fenv.feraiseexcept
     libc.src.fenv.fetestexcept
-    libc.utils.FPUtil.fputil
+    libc.src.__support.FPUtil.fputil
 )
 
 add_libc_unittest(
@@ -32,8 +32,10 @@ add_libc_unittest(
     getenv_and_setenv_test.cpp
   DEPENDS
     libc.src.fenv.fegetenv
+    libc.src.fenv.fegetround
     libc.src.fenv.fesetenv
-    libc.utils.FPUtil.fputil
+    libc.src.fenv.fesetround
+    libc.src.__support.FPUtil.fputil
 )
 
 add_libc_unittest(
@@ -45,7 +47,7 @@ add_libc_unittest(
   DEPENDS
     libc.src.fenv.fegetexceptflag
     libc.src.fenv.fesetexceptflag
-    libc.utils.FPUtil.fputil
+    libc.src.__support.FPUtil.fputil
 )
 
 add_libc_unittest(
@@ -57,7 +59,7 @@ add_libc_unittest(
   DEPENDS
     libc.include.signal
     libc.src.fenv.feupdateenv
-    libc.utils.FPUtil.fputil
+    libc.src.__support.FPUtil.fputil
 )
 
 add_libc_unittest(
@@ -68,7 +70,19 @@ add_libc_unittest(
     feclearexcept_test.cpp
   DEPENDS
     libc.src.fenv.feclearexcept
-    libc.utils.FPUtil.fputil
+    libc.src.__support.FPUtil.fputil
+)
+
+add_libc_unittest(
+  feenableexcept_test
+  SUITE
+    libc_fenv_unittests
+  SRCS
+    feenableexcept_test.cpp
+  DEPENDS
+    libc.src.fenv.fedisableexcept
+    libc.src.fenv.feenableexcept
+    libc.src.fenv.fegetexcept
 )
 
 if (NOT (LLVM_USE_SANITIZER OR (${LIBC_TARGET_OS} STREQUAL "windows")))
@@ -87,7 +101,7 @@ if (NOT (LLVM_USE_SANITIZER OR (${LIBC_TARGET_OS} STREQUAL "windows")))
       libc.src.fenv.feclearexcept
       libc.src.fenv.feraiseexcept
       libc.src.fenv.fetestexcept
-      libc.utils.FPUtil.fputil
+      libc.src.__support.FPUtil.fputil
   )
 
   add_fp_unittest(
@@ -99,6 +113,6 @@ if (NOT (LLVM_USE_SANITIZER OR (${LIBC_TARGET_OS} STREQUAL "windows")))
     DEPENDS
       libc.include.fenv
       libc.src.fenv.feholdexcept
-      libc.utils.FPUtil.fputil
+      libc.src.__support.FPUtil.fputil
   )
 endif()

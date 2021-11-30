@@ -41,6 +41,7 @@ private:
 } // namespace oneapi
 } // namespace ext
 
+#ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
   using namespace ext::oneapi;
   class __SYCL_EXPORT filter_selector : public ext::oneapi::filter_selector {
@@ -51,5 +52,6 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
     device select_device() const override;
   };
 } // namespace ONEAPI
+#endif // __SYCL_INTERNAL_API
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

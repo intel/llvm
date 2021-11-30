@@ -78,6 +78,9 @@ EXTERN void __kmpc_barrier_simple_spmd(kmp_Ident *loc_ref, int32_t tid) {
   __kmpc_impl_syncthreads();
   PRINT0(LD_SYNC, "completed kmpc_barrier_simple_spmd\n");
 }
+EXTERN void __kmpc_barrier_simple_generic(kmp_Ident *loc_ref, int32_t tid) {
+  return __kmpc_barrier_simple_spmd(loc_ref, tid);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // KMP MASTER
@@ -123,7 +126,7 @@ EXTERN void __kmpc_flush(kmp_Ident *loc) {
 // Vote
 ////////////////////////////////////////////////////////////////////////////////
 
-EXTERN __kmpc_impl_lanemask_t __kmpc_warp_active_thread_mask() {
+EXTERN uint64_t __kmpc_warp_active_thread_mask(void) {
   PRINT0(LD_IO, "call __kmpc_warp_active_thread_mask\n");
   return __kmpc_impl_activemask();
 }
@@ -132,7 +135,7 @@ EXTERN __kmpc_impl_lanemask_t __kmpc_warp_active_thread_mask() {
 // Syncwarp
 ////////////////////////////////////////////////////////////////////////////////
 
-EXTERN void __kmpc_syncwarp(__kmpc_impl_lanemask_t Mask) {
+EXTERN void __kmpc_syncwarp(uint64_t Mask) {
   PRINT0(LD_IO, "call __kmpc_syncwarp\n");
   __kmpc_impl_syncwarp(Mask);
 }

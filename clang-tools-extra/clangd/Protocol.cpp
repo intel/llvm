@@ -695,7 +695,8 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R,
   if (ArgsArray->size() > 1) {
     P.field("arguments").report("Command should have 0 or 1 argument");
     return false;
-  } else if (ArgsArray->size() == 1) {
+  }
+  if (ArgsArray->size() == 1) {
     R.argument = ArgsArray->front();
   }
   return true;
@@ -1325,6 +1326,14 @@ llvm::json::Value toJSON(InlayHintKind K) {
 llvm::json::Value toJSON(const InlayHint &H) {
   return llvm::json::Object{
       {"range", H.range}, {"kind", H.kind}, {"label", H.label}};
+}
+bool operator==(const InlayHint &A, const InlayHint &B) {
+  return std::tie(A.kind, A.range, A.label) ==
+         std::tie(B.kind, B.range, B.label);
+}
+bool operator<(const InlayHint &A, const InlayHint &B) {
+  return std::tie(A.kind, A.range, A.label) <
+         std::tie(B.kind, B.range, B.label);
 }
 
 static const char *toString(OffsetEncoding OE) {

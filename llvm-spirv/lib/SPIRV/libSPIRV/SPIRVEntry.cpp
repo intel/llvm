@@ -552,7 +552,7 @@ void SPIRVExecutionMode::encode(spv_ostream &O) const {
 
 void SPIRVExecutionMode::decode(std::istream &I) {
   getDecoder(I) >> Target >> ExecMode;
-  switch (ExecMode) {
+  switch (static_cast<uint32_t>(ExecMode)) {
   case ExecutionModeLocalSize:
   case ExecutionModeLocalSizeHint:
   case ExecutionModeMaxWorkgroupSizeINTEL:
@@ -575,6 +575,7 @@ void SPIRVExecutionMode::decode(std::istream &I) {
   case ExecutionModeMaxWorkDimINTEL:
   case ExecutionModeNumSIMDWorkitemsINTEL:
   case ExecutionModeSchedulerTargetFmaxMhzINTEL:
+  case internal::ExecutionModeStreamingInterfaceINTEL:
     WordLiterals.resize(1);
     break;
   default:

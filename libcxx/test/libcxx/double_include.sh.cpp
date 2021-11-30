@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -13,11 +12,6 @@
 // RUN: %{cxx} -c %s -o %t.second.o -DWITH_MAIN %{flags} %{compile_flags}
 // RUN: %{cxx} -o %t.exe %t.first.o %t.second.o %{flags} %{link_flags}
 // RUN: %{run}
-
-// GCC 5 pretends it supports C++17 features, but some features like static_assert
-// without a message are not actually supported. This causes some headers to fail
-// when included.
-// UNSUPPORTED: gcc-5 && c++17
 
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
@@ -37,9 +31,7 @@
 #include <algorithm>
 #include <any>
 #include <array>
-#ifndef _LIBCPP_HAS_NO_THREADS
-#    include <atomic>
-#endif
+#include <atomic>
 #ifndef _LIBCPP_HAS_NO_THREADS
 #    include <barrier>
 #endif
@@ -68,6 +60,9 @@
 #include <complex.h>
 #include <concepts>
 #include <condition_variable>
+#ifndef _LIBCPP_HAS_NO_CXX20_COROUTINES
+#    include <coroutine>
+#endif
 #include <csetjmp>
 #include <csignal>
 #include <cstdarg>
@@ -80,8 +75,12 @@
 #include <ctgmath>
 #include <ctime>
 #include <ctype.h>
-#include <cwchar>
-#include <cwctype>
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#    include <cwchar>
+#endif
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#    include <cwctype>
+#endif
 #include <deque>
 #include <errno.h>
 #include <exception>
@@ -197,13 +196,17 @@
 #include <variant>
 #include <vector>
 #include <version>
-#include <wchar.h>
-#include <wctype.h>
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#    include <wchar.h>
+#endif
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#    include <wctype.h>
+#endif
 
 // experimental headers
 #if __cplusplus >= 201103L
 #    include <experimental/algorithm>
-#    if defined(__cpp_coroutines)
+#    ifndef _LIBCPP_HAS_NO_EXPERIMENTAL_COROUTINES
 #        include <experimental/coroutine>
 #    endif
 #    include <experimental/deque>

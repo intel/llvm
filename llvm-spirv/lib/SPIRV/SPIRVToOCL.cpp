@@ -92,6 +92,12 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
                     << "BuiltinKind = " << BuiltinKind << '\n');
 
   if (BuiltinKind != SPIRVBuiltinVariableKind::BuiltInMax) {
+    if (static_cast<uint32_t>(BuiltinKind) >=
+            internal::BuiltInSubDeviceIDINTEL &&
+        static_cast<uint32_t>(BuiltinKind) <=
+            internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL)
+      return;
+
     visitCallSPIRVBuiltin(&CI, BuiltinKind);
     return;
   }
@@ -135,6 +141,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallSPIRVAvcINTELInstructionBuiltin(&CI, OC);
     return;
   }
+  if (OC == OpBuildNDRange) {
+    visitCallBuildNDRangeBuiltIn(&CI, OC, DemangledName);
+    return;
+  }
   if (OC == OpGenericCastToPtrExplicit) {
     visitCallGenericCastToPtrExplicitBuiltIn(&CI, OC);
     return;
@@ -165,6 +175,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   }
   if (OC == OpImageQueryOrder || OC == OpImageQueryFormat) {
     visitCallSPIRVImageQueryBuiltIn(&CI, OC);
+    return;
+  }
+  if (OC == OpEnqueueKernel) {
+    visitCallSPIRVEnqueueKernel(&CI, OC);
     return;
   }
   if (OCLSPIRVBuiltinMap::rfind(OC))
@@ -576,6 +590,34 @@ void SPIRVToOCLBase::visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC) {
       },
       &Attrs);
 }
+void SPIRVToOCLBase::visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
+                                                  StringRef DemangledName) {
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *Call, std::vector<Value *> &Args) {
+        assert(Args.size() == 3);
+        // OpenCL built-in has another order of parameters.
+        auto *GlobalWorkSize = Args[0];
+        auto *LocalWorkSize = Args[1];
+        auto *GlobalWorkOffset = Args[2];
+        Args[0] = GlobalWorkOffset;
+        Args[1] = GlobalWorkSize;
+        Args[2] = LocalWorkSize;
+        // __spirv_BuildNDRange_nD, drop __spirv_
+        StringRef S = DemangledName;
+        S = S.drop_front(strlen(kSPIRVName::Prefix));
+        SmallVector<StringRef, 8> Split;
+        // BuildNDRange_nD
+        S.split(Split, kSPIRVPostfix::Divider,
+                /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+        assert(Split.size() >= 2 && "Invalid SPIRV function name");
+        // Cut _nD and add it to function name.
+        return std::string(kOCLBuiltinName::NDRangePrefix) +
+               Split[1].substr(0, 3).str();
+      },
+      &Attrs);
+}
 
 void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,
                                                               Op OC) {
@@ -983,7 +1025,7 @@ void SPIRVToOCLBase::visitCallSPIRVVStore(CallInst *CI, OCLExtOpKind Kind) {
             Kind == OpenCLLIB::Vstorea_halfn ||
             Kind == OpenCLLIB::Vstorea_halfn_r || Kind == OpenCLLIB::Vstoren) {
           if (auto DataType = dyn_cast<VectorType>(Args[0]->getType())) {
-            uint64_t NumElements = DataType->getElementCount().getValue();
+            uint64_t NumElements = DataType->getElementCount().getFixedValue();
             assert((NumElements == 2 || NumElements == 3 || NumElements == 4 ||
                     NumElements == 8 || NumElements == 16) &&
                    "Unsupported vector size for vstore instruction!");

@@ -10,18 +10,16 @@ optional kernel features.
 
 The requirements for this design come mostly from the SYCL 2020 specification
 [section 5.7 "Optional kernel features"][1] but they also encompass the C++
-attribute `[[sycl::requires()]]` that is described in [section 5.8.1 "Kernel
-attributes"][2] and [section 5.8.2 "Device function attributes"][3].
+attribute `[[sycl::device_has()]]` that is described in section 5.8.1 "Kernel
+attributes" and section 5.8.2 "Device function attributes".
 
 [1]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:optional-kernel-features>
-[2]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:kernel.attributes>
-[3]: <https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_device_function_attributes>
 
-**NOTE**: At the time this document was written, there is a
-[proposed change][4] to the SYCL 2020 specification that will rename
-`[[sycl::requires()]]` to `[[sycl::device_has()]]`.  Since that proposal has
-not yet been adopted, this design document continues to use the
-`[[sycl::requires()]]` name.
+At the time this document was written, the published version of the SYCL 2020
+specification does not include the `[[sycl::device_has()]]` attribute.  The
+published spec refers to this attribute as `[[sycl::requires()]]`, but the
+attribute was renamed to `[[sycl::device_has()]]` in [this pull request][4] to
+the SYCL 2020 specification.
 
 [4]: <https://github.com/KhronosGroup/SYCL-Docs/pull/171>
 
@@ -99,19 +97,19 @@ compiler must not issue any diagnostic simply because a kernel uses an optional
 feature.
 
 The only exception to this rule occurs when the application uses the C++
-attribute `[[sycl::requires()]]`.  When the application decorates a kernel or
+attribute `[[sycl::device_has()]]`.  When the application decorates a kernel or
 device function with this attribute, it is an assertion that the kernel or
 device function is allowed to use only those optional features which are listed
 by the attribute.  Therefore, the FE compiler must issue a diagnostic if the
 kernel or device function uses any other optional kernel features.
 
 The SYCL 2020 specification only mandates this diagnostic when a kernel or
-device function that is decorated with `[[sycl::requires()]]` uses an optional
-kernel feature (not listed in the attribute), **and** when that use is in the
-kernel's static call graph as computed for the translation unit that contains
-the kernel function.  Thus, the compiler is not required to issue a diagnostic
-if the use is in a `SYCL_EXTERNAL` function that is defined in another
-translation unit.
+device function that is decorated with `[[sycl::device_has()]]` uses an
+optional kernel feature (not listed in the attribute), **and** when that use is
+in the kernel's static call graph as computed for the translation unit that
+contains the kernel function.  Thus, the compiler is not required to issue a
+diagnostic if the use is in a `SYCL_EXTERNAL` function that is defined in
+another translation unit.
 
 Note that this behavior does not change when the compiler runs in AOT mode.
 Even if the user specifies a target device via "-fsycl-targets", that does not
@@ -147,16 +145,17 @@ is required.
 To further clarify, this exception must be thrown in the following
 circumstances:
 
-* For a kernel that is not decorated with `[[sycl::requires()]]`, the exception
-  must be thrown if the kernel uses a feature that the device does not support.
+* For a kernel that is not decorated with `[[sycl::device_has()]]`, the
+  exception must be thrown if the kernel uses a feature that the device does
+  not support.
 
-* For a kernel that is decorated with `[[sycl::requires()]]`, the exception
+* For a kernel that is decorated with `[[sycl::device_has()]]`, the exception
   must be thrown if the device does not have the aspects listed in that
   attribute.  Note that the exception must be thrown even if the kernel does
   not actually use a feature corresponding to the aspect, and it must be
   thrown even if the aspect does not correspond to any optional feature.
 
-* For a kernel that is decorated with `[[sycl::requires()]]`, the FE compiler
+* For a kernel that is decorated with `[[sycl::device_has()]]`, the FE compiler
   will mostly check (at compile time) whether the kernel uses any features that
   are not listed in the attribute.  However, this check only results in a
   warning, so the runtime is still responsible for throwing the exception if
@@ -198,8 +197,8 @@ of the required work-group or sub-group size).
 
 As we will see later, it is helpful to decorate all APIs in DPC++ headers that
 correspond to optional kernel features with a C++ attribute that identifies the
-associated aspect.  We cannot use the `[[sycl::requires()]]` attribute for this
-purpose, though, because that attribute is allowed only for functions.
+associated aspect.  We cannot use the `[[sycl::device_has()]]` attribute for
+this purpose, though, because that attribute is allowed only for functions.
 Instead, we invent a new internal attribute `[[sycl_detail::uses_aspects()]]`
 that can be used to decorate both functions and types.  This attribute is not
 documented for user code; instead it is an internal implementation detail of
@@ -246,7 +245,7 @@ instantiations of `sycl::atomic_ref` as an optional feature.
 
 Although the examples above show only a single aspect parameter to the
 `[[sycl_detail::uses_aspects()]]` attribute, this attribute should support a
-list of aspects, similar to the `[[sycl::requires()]]` attribute.  This will
+list of aspects, similar to the `[[sycl::device_has()]]` attribute.  This will
 allow us to support future features that depend on a conjunction of aspects
 (e.g. a feature that does atomic operations on 64-bit floating point values
 might be decorated with
@@ -261,7 +260,7 @@ attribute for any device code that uses the `double` type.
 
 ### New LLVM IR metadata
 
-In order to communicate the information from `[[sycl::requires()]]` and
+In order to communicate the information from `[[sycl::device_has()]]` and
 `[[sycl_detail::uses_aspects()]]` attributes to the DPC++ post-link tool, we
 introduce several new LLVM IR metadata.
 
@@ -295,18 +294,18 @@ type's name.
 We also introduce two metadata that can be attached to a function definition
 similar to the existing `!intel_reqd_sub_group_size`.  The
 `!intel_declared_aspects` metadata is used for functions that are decorated
-with `[[sycl::requires()]]`, and the `!intel_used_aspects` metadata is used to
-store the propagated information about all aspects used by a kernel or exported
-device function.
+with `[[sycl::device_has()]]`, and the `!intel_used_aspects` metadata is used
+to store the propagated information about all aspects used by a kernel or
+exported device function.
 
 In each case, the metadata's parameter is an unnamed metadata node, and the
 value of the metadata node is a list of `i32` constants, where each constant is
 a value from `enum class aspect`.
 
 For example, the following illustrates the IR that corresponds to a function
-`foo` that is decorated with `[[sycl::requires()]]` where the required aspects
-have the numerical values `8` and `9`.  In addition, the function uses an
-optional feature that corresponds to an aspect with numerical value `8`.
+`foo` that is decorated with `[[sycl::device_has()]]` where the required
+aspects have the numerical values `8` and `9`.  In addition, the function uses
+an optional feature that corresponds to an aspect with numerical value `8`.
 
 ```
 define void @foo() !intel_declared_aspects !1 !intel_used_aspects !2 {}
@@ -318,7 +317,7 @@ define void @foo() !intel_declared_aspects !1 !intel_used_aspects !2 {}
 ### Changes to the DPC++ front-end
 
 The front-end of the device compiler is responsible for parsing the
-`[[sycl::requires()]]` and `[[sycl_detail::uses_aspects()]]` attributes and
+`[[sycl::device_has()]]` and `[[sycl_detail::uses_aspects()]]` attributes and
 transferring the information to the LLVM IR metadata described above according
 to the following rules:
 
@@ -331,7 +330,7 @@ to the following rules:
   front-end adds an `!intel_used_aspects` metadata to the function's definition
   listing the aspects from that attribute.
 
-* If a function is decorated with `[[sycl::requires()]]`, the front-end adds
+* If a function is decorated with `[[sycl::device_has()]]`, the front-end adds
   an `!intel_declared_aspects` metadata to the function's definition listing
   the aspects from that attribute.
 
@@ -395,7 +394,7 @@ location information into the IR.  To compensate, the warning message displays
 the static call chain that leads to the problem.  For example:
 
 ```
-warning: function 'foo' uses aspect 'fp64' not listed in 'sycl::requires'
+warning: function 'foo' uses aspect 'fp64' not listed in 'sycl::device_has'
 use is from this call chain:
   foo()
   bar()
@@ -412,7 +411,7 @@ When the compiler is invoked with `-g`, the implementation uses the
 and column information like so:
 
 ```
-hw.cpp:27:4: warning: function 'foo' uses aspect 'fp64' not listed in 'sycl::requires'
+hw.cpp:27:4: warning: function 'foo' uses aspect 'fp64' not listed in 'sycl::device_has'
 use is from this call chain:
   foo()
   bar() hw.cpp:15:3
@@ -460,7 +459,7 @@ We do not propose this change as part of this design, though.  We expect that
 this will not be a common error because applications can avoid this problem by
 declaring the `SYCL_EXTERNAL` function in a common header that is included by
 both the importing and the exporting translation unit.  If the declaration (in
-the header) is decorated with `[[sycl::requires()]]`, the shared declaration
+the header) is decorated with `[[sycl::device_has()]]`, the shared declaration
 will ensure that the definition stays in sync with the declaration.
 
 
@@ -492,7 +491,7 @@ For the purposes of this analysis, the set of *Used* aspects is computed by
 taking the union of the aspects listed in the kernel's (or device function's)
 `!intel_used_aspects` and `!intel_declared_aspects` sets.  This is consistent
 with the SYCL specification, which says that a kernel decorated with
-`[[sycl::requires()]]` may only be submitted to a device that provides the
+`[[sycl::device_has()]]` may only be submitted to a device that provides the
 listed aspects, regardless of whether the kernel actually uses those aspects.
 
 We must also split two kernels into different device images if they have
@@ -582,7 +581,7 @@ sizes.
 In AOT mode, for each AOT target specified by the `-fsycl-targets` command
 line option, DPC++ normally invokes the AOT compiler for each device IR module
 resulting from the sycl-post-link tool.  For example, this is the `ocloc`
-command for Intel Gen AOT target and the `opencl-aot` command for the x86 AOT
+command for Intel Graphics AOT target and the `opencl-aot` command for the x86 AOT
 target with SPIR-V as the input, or other specific tools for the PTX target
 with LLVM IR bitcode input.  This causes a problem, though, for IR modules that
 use optional features because these commands could fail if they attempt to
@@ -601,18 +600,14 @@ property set.
 #### Device configuration file
 
 The configuration file uses a simple YAML format where each top-level key is
-a name of a device architecture.  We expect to define a set of device
-architecture names that are used consistently in many places (in this
-configuration file, in the names of device-specific aspects, as parameters for
-the `-fsycl-targets` command line option, etc.)  However, we have not yet
-agreed on these architecture names.  There are sub-keys under each device for
-the supported aspects, sub-group sizes and AOT compiler ID.  For example:
+a name of a device architecture. There are sub-keys under each device for
+the supported aspects and sub-group sizes.  For example:
 
 ```
-gen11_1:
+intel_gpu_11_1:
   aspects: [1, 2, 3]
   sub-group-sizes: [8, 16]
-gen_icl:
+intel_gpu_icl:
   aspects: [2, 3]
   sub-group-sizes: [8, 16]
 x86_64_avx512:
@@ -629,11 +624,126 @@ example, if a new device is released before there is a new DPC++ release.  In
 fact, the DPC++ driver supports a command line option which allows the user
 to select an alternate configuration file.
 
-**TODO**: More information will be inserted here when we merge
-[this separate PR][7] into this design document.
+**TODO**: 
+* Define location of the default device configuration file.
 
-[7]: <https://github.com/gmlueck/llvm/pull/1>
+#### New features in clang compilation driver and tools
 
+NOTE: the term *device binary image* used to refer to a device
+code form consumable by the DPC++ runtime library. Earlier device code forms are
+referred to as *device code module* or *device IR module*. In case of AOT,
+device binary image is a natively compiled binary, and IR module - either a
+SPIR-V or LLVM IR bitcode module.
+
+##### Overview
+
+After the `sycl-post-link` performs necessary aspect usage analysis and splits
+the incoming monolithic device code module into pieces - smaller device code
+modules - it outputs a file table as a result. Each row in the table corresponds
+to an individual output module, and each element of a row is a name of a file
+containing necessary information about the module, such as the code itself, and
+its properties.
+
+At the action graph building stage for each requested AOT compilation target -
+SPIR-V-based (such as Intel Graphics targets) and/or non-SPIR-V-based (such as
+PTX) - the driver adds an `aspect-filter` action which filters out input file
+table rows with device code modules using features unsupported on current
+target. Then the output table goes as input into the AOT stage, and the prior
+filtering guarantees that the AOT compiler will not encounter device code it
+can't compile. In the extreme case when all device code
+modules use unsupported aspects, the input file table will be empty. The picture
+below illustrates the action graph built by the clang driver along with file
+lists and tables generated and consumed by various nodes of the graph. The
+example set of targets used for the illustration is 4 targets
+
+- spir64 (runtime JITted SPIR-V)
+- AOT targets
+    - non-SPIR-V based
+        - ptx64 (PTX)
+    - SPIR-V based
+        - intel_gpu_12 (Intel Graphics)
+        - x86_64_avx512 (AVX512)
+
+![Device SPIRV translation and AOT compilation](images/DeviceLinkAOTAndWrap.svg)
+
+##### Aspect filter tool
+
+This tool transforms an input file table by removing rows with device code files
+that use features unsupported for the target architecture given as tool's
+argument.
+
+*Name*:
+
+- `sycl-aspect-filter`, located next to other tools like `file-table-tform`
+
+*Input*:
+
+- file table, normally coming out of `sycl-post-link` or `file-table-tform`
+  tools
+
+*Command line arguments*:
+
+- `-target=<target>` target device architecture to filter for
+- `-device-config-file=<path>` path to the device configuration file
+
+*Output*:
+
+- the input file table filtered as needed
+
+In more details, the tool performs the following actions:
+
+1) Checks if the input file table contains "Properties" column. If not, copies
+   the input file table to output and exits without error.
+1) Reads in the device configuration file and finds some entry `E` corresponding
+   to the architecture given on the command line. If there is no such entry -
+   reports an error and exits.
+1) For each row in the input file table:
+
+   - loads the properties file from the "Properties" column
+   - checks if there is the `SYCL/device-requirements` property
+   - if no, copies current row to the output file table and goes to the next
+   - if yes, checks if all the requirements listed in the property are supported
+     by the target architecture as specified by entry `E` in the device
+     configuration file
+       - if yes, copies current row to the output file table and goes to the
+         next
+       - otherwise skips this row
+
+##### Configuration file location and driver option
+
+A default device configuration file is present in DPC++ build. Users may override it using the
+`-fsycl-device-config-file=<path>` compiler command line option.
+Exact location of the file and final name of the compiler option is TBD.
+
+##### AOT target identification
+
+There are several user-visible places in the SDK where SYCL device target
+architectures need to be identified:
+
+- `-fsycl-targets` option
+- a device configuration file entry
+- `-target` option of the `sycl-aspec-filter` tool
+- a SYCL aspect enum identifier (we expect to add a new SYCL aspect for each
+  device target architecture)
+
+In all such places architecture naming should be the same. In some cases aliases
+are allowed. Below is a list of target architectures supported by DPC++:
+
+| target/alias(es) | description |
+|-|-|
+| intel_gpu    | Generic Intel graphics architecture |
+| intel_gpu_tgl, intel_gpu_12_0 | Intel Tiger Lake (11th generation Core) integrated graphics architecture |
+| ptx64  | Generic 64-bit PTX target architecture |
+| spir64 | Generic 64-bit SPIR-V target |
+| x86_64 | Generic 64-bit x86 architecture |
+
+TODO: Provide full list of AOT targets supported by the identification
+mechanism.
+
+Example of clang compilation invocation with 2 AOT targets and generic SPIR-V:
+```
+clang++ -fsycl -fsycl-targets=spir64,intel_gpu_12_0,ptx64 ...
+```
 
 ### Changes to the DPC++ runtime
 

@@ -114,15 +114,15 @@ public:
 
   /// Return the hook to parse an operation registered to this dialect, if any.
   /// By default this will lookup for registered operations and return the
-  /// `parse()` method registered on the AbstractOperation. Dialects can
+  /// `parse()` method registered on the RegisteredOperationName. Dialects can
   /// override this behavior and handle unregistered operations as well.
   virtual Optional<ParseOpHook> getParseOperationHook(StringRef opName) const;
 
   /// Print an operation registered to this dialect.
   /// This hook is invoked for registered operation which don't override the
   /// `print()` method to define their own custom assembly.
-  virtual LogicalResult printOperation(Operation *op,
-                                       OpAsmPrinter &printer) const;
+  virtual llvm::unique_function<void(Operation *, OpAsmPrinter &printer)>
+  getOperationPrinter(Operation *op) const;
 
   //===--------------------------------------------------------------------===//
   // Verification Hooks
@@ -194,7 +194,7 @@ protected:
   ///
   template <typename... Args> void addOperations() {
     (void)std::initializer_list<int>{
-        0, (AbstractOperation::insert<Args>(*this), 0)...};
+        0, (RegisteredOperationName::insert<Args>(*this), 0)...};
   }
 
   /// Register a set of type classes with this dialect.
@@ -297,8 +297,7 @@ class DialectRegistry {
 public:
   explicit DialectRegistry();
 
-  template <typename ConcreteDialect>
-  void insert() {
+  template <typename ConcreteDialect> void insert() {
     insert(TypeID::get<ConcreteDialect>(),
            ConcreteDialect::getDialectNamespace(),
            static_cast<DialectAllocatorFunction>(([](MLIRContext *ctx) {
@@ -364,8 +363,7 @@ public:
   /// Add an external op interface model for an op that belongs to a dialect,
   /// both provided as template parameters. The dialect must be present in the
   /// registry.
-  template <typename OpTy, typename ModelTy>
-  void addOpInterface() {
+  template <typename OpTy, typename ModelTy> void addOpInterface() {
     StringRef opName = OpTy::getOperationName();
     StringRef dialectName = opName.split('.').first;
     addObjectInterface(dialectName, TypeID::get<OpTy>(),
@@ -426,8 +424,7 @@ private:
 
 namespace llvm {
 /// Provide isa functionality for Dialects.
-template <typename T>
-struct isa_impl<T, ::mlir::Dialect> {
+template <typename T> struct isa_impl<T, ::mlir::Dialect> {
   static inline bool doit(const ::mlir::Dialect &dialect) {
     return mlir::TypeID::get<T>() == dialect.getTypeID();
   }

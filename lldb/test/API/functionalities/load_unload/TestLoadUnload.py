@@ -93,7 +93,6 @@ class LoadUnloadTestCase(TestBase):
     @expectedFailureAll(oslist=["freebsd", "linux", "netbsd"])
     @skipIfRemote
     @skipIfWindows  # Windows doesn't have dlopen and friends, dynamic libraries work differently
-    @skipIfReproducer # VFS is a snapshot.
     def test_modules_search_paths(self):
         """Test target modules list after loading a different copy of the library libd.dylib, and verifies that it works with 'target modules search-paths add'."""
         if self.platformIsDarwin():
@@ -217,7 +216,6 @@ class LoadUnloadTestCase(TestBase):
         self.setSvr4Support(True)
         self.run_lldb_process_load_and_unload_commands()
 
-    @skipIfReproducer # FIXME: Unexpected packet during (passive) replay
     def run_lldb_process_load_and_unload_commands(self):
         """Test that lldb process load/unload command work correctly."""
         self.copy_shlibs_to_remote()
@@ -318,8 +316,7 @@ class LoadUnloadTestCase(TestBase):
                              'stop reason = breakpoint'])
 
         # The breakpoint should have a hit count of 1.
-        self.expect("breakpoint list -f", BREAKPOINT_HIT_ONCE,
-                    substrs=[' resolved, hit count = 1'])
+        lldbutil.check_breakpoint(self, bpno = 1, expected_hit_count = 1)
 
         # Issue the 'continue' command.  We should stop agaian at a_function.
         # The stop reason of the thread should be breakpoint and at a_function.
@@ -333,8 +330,7 @@ class LoadUnloadTestCase(TestBase):
                              'stop reason = breakpoint'])
 
         # The breakpoint should have a hit count of 2.
-        self.expect("breakpoint list -f", BREAKPOINT_HIT_ONCE,
-                    substrs=[' resolved, hit count = 2'])
+        lldbutil.check_breakpoint(self, bpno = 1, expected_hit_count = 2)
 
     def test_step_over_load(self):
         self.setSvr4Support(False)

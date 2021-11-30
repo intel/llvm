@@ -48,11 +48,11 @@
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "foobarbaz"
-; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
-; CHECK-SPIRV: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
-; CHECK-SPIRV: Decorate {{[0-9]+}} NumbanksINTEL 2
-; CHECK-SPIRV: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "foobarbaz"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "DEFAULT"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "MLAB"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NumbanksINTEL 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} ForcePow2DepthINTEL 0
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"

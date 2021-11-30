@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // constexpr V base() const& requires copy_constructible<V>;
@@ -39,10 +38,10 @@ constexpr bool test() {
   }
 
   {
-    std::ranges::take_view<ContiguousView> tv(ContiguousView{buffer}, 1);
+    std::ranges::take_view<MoveOnlyView> tv(MoveOnlyView{buffer}, 1);
     assert(std::move(tv).base().ptr_ == buffer);
 
-    ASSERT_SAME_TYPE(decltype(std::move(tv).base()), ContiguousView);
+    ASSERT_SAME_TYPE(decltype(std::move(tv).base()), MoveOnlyView);
     static_assert(!hasLValueQualifiedBase(tv));
   }
 

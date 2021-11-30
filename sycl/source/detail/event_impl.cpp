@@ -18,8 +18,9 @@
 #include <chrono>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti_trace_framework.hpp"
+#include "xpti/xpti_trace_framework.hpp"
 #include <atomic>
+#include <detail/xpti_registry.hpp>
 #include <sstream>
 #endif
 
@@ -209,16 +210,27 @@ void event_impl::wait(
 
 void event_impl::wait_and_throw(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) {
-  wait(Self);
-  for (auto &EventImpl :
-       detail::Scheduler::getInstance().getWaitList(std::move(Self))) {
-    Command *Cmd = (Command *)EventImpl->getCommand();
+  Scheduler &Sched = Scheduler::getInstance();
+
+  QueueImplPtr submittedQueue = nullptr;
+  {
+    Scheduler::ReadLockT Lock(Sched.MGraphLock);
+    Command *Cmd = static_cast<Command *>(Self->getCommand());
     if (Cmd)
-      Cmd->getQueue()->throw_asynchronous();
+      submittedQueue = Cmd->getSubmittedQueue();
   }
-  Command *Cmd = (Command *)getCommand();
-  if (Cmd)
-    Cmd->getQueue()->throw_asynchronous();
+  wait(Self);
+
+  {
+    Scheduler::ReadLockT Lock(Sched.MGraphLock);
+    for (auto &EventImpl : getWaitList()) {
+      Command *Cmd = (Command *)EventImpl->getCommand();
+      if (Cmd)
+        Cmd->getSubmittedQueue()->throw_asynchronous();
+    }
+  }
+  if (submittedQueue)
+    submittedQueue->throw_asynchronous();
 }
 
 void event_impl::cleanupCommand(
@@ -317,6 +329,25 @@ pi_native_handle event_impl::getNative() const {
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
+}
+
+std::vector<EventImplPtr> event_impl::getWaitList() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+
+  std::vector<EventImplPtr> Result;
+  Result.reserve(MPreparedDepsEvents.size() + MPreparedHostDepsEvents.size());
+  Result.insert(Result.end(), MPreparedDepsEvents.begin(),
+                MPreparedDepsEvents.end());
+  Result.insert(Result.end(), MPreparedHostDepsEvents.begin(),
+                MPreparedHostDepsEvents.end());
+
+  return Result;
+}
+
+void event_impl::cleanupDependencyEvents() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  MPreparedDepsEvents.clear();
+  MPreparedHostDepsEvents.clear();
 }
 
 } // namespace detail

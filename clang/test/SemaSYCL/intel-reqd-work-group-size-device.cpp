@@ -38,6 +38,8 @@ public:
   [[sycl::reqd_work_group_size(32, -4)]] void operator()() const {}
 };
 
+[[intel::reqd_work_group_size(4, 2, 9)]] void unknown() {} // expected-warning{{unknown attribute 'reqd_work_group_size' ignored}}
+
 class Functor30 {
 public:
   // expected-warning@+1 2{{implicit conversion changes signedness: 'int' to 'unsigned long long'}}

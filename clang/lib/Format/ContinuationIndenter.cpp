@@ -14,10 +14,12 @@
 #include "ContinuationIndenter.h"
 #include "BreakableToken.h"
 #include "FormatInternal.h"
+#include "FormatToken.h"
 #include "WhitespaceManager.h"
 #include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "format-indenter"
@@ -491,6 +493,16 @@ bool ContinuationIndenter::mustBreak(const LineState &State) {
       return true;
   }
 
+  // Break after the closing parenthesis of TypeScript decorators before
+  // functions, getters and setters.
+  static const llvm::StringSet<> BreakBeforeDecoratedTokens = {"get", "set",
+                                                               "function"};
+  if (Style.Language == FormatStyle::LK_JavaScript &&
+      BreakBeforeDecoratedTokens.contains(Current.TokenText) &&
+      Previous.is(tok::r_paren) && Previous.is(TT_JavaAnnotation)) {
+    return true;
+  }
+
   // If the return type spans multiple lines, wrap before the function name.
   if (((Current.is(TT_FunctionDeclarationName) &&
         // Don't break before a C# function when no break after return type
@@ -946,7 +958,7 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
          State.Line->MustBeDeclaration) ||
         (!Style.AllowAllArgumentsOnNextLine &&
          !State.Line->MustBeDeclaration) ||
-        (!Style.AllowAllConstructorInitializersOnNextLine &&
+        (Style.PackConstructorInitializers != FormatStyle::PCIS_NextLine &&
          PreviousIsBreakingCtorInitializerColon) ||
         Previous.is(TT_DictLiteral))
       State.Stack.back().BreakBeforeParameter = true;
@@ -955,7 +967,7 @@ unsigned ContinuationIndenter::addTokenOnNewLine(LineState &State,
     // and we allow all arguments on the next line, we should not break
     // before the next parameter.
     if (PreviousIsBreakingCtorInitializerColon &&
-        Style.AllowAllConstructorInitializersOnNextLine)
+        Style.PackConstructorInitializers == FormatStyle::PCIS_NextLine)
       State.Stack.back().BreakBeforeParameter = false;
   }
 
@@ -1235,10 +1247,10 @@ unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
              ? 0
              : 2);
     State.Stack.back().NestedBlockIndent = State.Stack.back().Indent;
-    if (Style.ConstructorInitializerAllOnOneLineOrOnePerLine) {
+    if (Style.PackConstructorInitializers > FormatStyle::PCIS_BinPack) {
       State.Stack.back().AvoidBinPacking = true;
       State.Stack.back().BreakBeforeParameter =
-          !Style.AllowAllConstructorInitializersOnNextLine;
+          Style.PackConstructorInitializers != FormatStyle::PCIS_NextLine;
     } else {
       State.Stack.back().BreakBeforeParameter = false;
     }
@@ -1248,7 +1260,7 @@ unsigned ContinuationIndenter::moveStateToNextToken(LineState &State,
     State.Stack.back().Indent =
         State.FirstIndent + Style.ConstructorInitializerIndentWidth;
     State.Stack.back().NestedBlockIndent = State.Stack.back().Indent;
-    if (Style.ConstructorInitializerAllOnOneLineOrOnePerLine)
+    if (Style.PackConstructorInitializers > FormatStyle::PCIS_BinPack)
       State.Stack.back().AvoidBinPacking = true;
   }
   if (Current.is(TT_InheritanceColon))
@@ -1595,7 +1607,7 @@ void ContinuationIndenter::moveStatePastScopeCloser(LineState &State) {
   // BreakBeforeParameter is calculated based on an incorrect assumption
   // (it is checked whether the whole expression fits into one line without
   // considering a line break inside a message receiver).
-  // We check whether arguements fit after receiver scope closer (into the same
+  // We check whether arguments fit after receiver scope closer (into the same
   // line).
   if (State.Stack.back().BreakBeforeParameter && Current.MatchingParen &&
       Current.MatchingParen->Previous) {
@@ -1974,7 +1986,9 @@ ContinuationIndenter::createBreakableToken(const FormatToken &Current,
               Current.Previous->isNot(TT_ImplicitStringLiteral))) {
     if (!Style.ReflowComments ||
         CommentPragmasRegex.match(Current.TokenText.substr(2)) ||
-        switchesFormatting(Current))
+        switchesFormatting(Current) ||
+        !(Current.TokenText.startswith("//") ||
+          Current.TokenText.startswith("#")))
       return nullptr;
     return std::make_unique<BreakableLineCommentSection>(
         Current, StartColumn, /*InPPDirective=*/false, Encoding, Style);
@@ -2183,11 +2197,10 @@ ContinuationIndenter::breakProtrudingToken(const FormatToken &Current,
       // When breaking before a tab character, it may be moved by a few columns,
       // but will still be expanded to the next tab stop, so we don't save any
       // columns.
-      if (NewRemainingTokenColumns == RemainingTokenColumns) {
+      if (NewRemainingTokenColumns >= RemainingTokenColumns) {
         // FIXME: Do we need to adjust the penalty?
         break;
       }
-      assert(NewRemainingTokenColumns < RemainingTokenColumns);
 
       LLVM_DEBUG(llvm::dbgs() << "    Breaking at: " << TailOffset + Split.first
                               << ", " << Split.second << "\n");

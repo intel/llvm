@@ -57,6 +57,8 @@ function(llvm_create_cross_target project_name target_name toolchain buildtype)
          "${LLVM_ENABLE_PROJECTS}")
   string(REPLACE ";" "$<SEMICOLON>" llvm_external_projects_arg
          "${LLVM_EXTERNAL_PROJECTS}")
+  string(REPLACE ";" "$<SEMICOLON>" llvm_enable_runtimes_arg
+         "${LLVM_ENABLE_RUNTIMES}")
 
   set(external_project_source_dirs)
   foreach(project ${LLVM_EXTERNAL_PROJECTS})
@@ -77,6 +79,7 @@ function(llvm_create_cross_target project_name target_name toolchain buildtype)
         -DLLVM_TARGET_ARCH="${LLVM_TARGET_ARCH}"
         -DLLVM_ENABLE_PROJECTS="${llvm_enable_projects_arg}"
         -DLLVM_EXTERNAL_PROJECTS="${llvm_external_projects_arg}"
+        -DLLVM_ENABLE_RUNTIMES="${llvm_enable_runtimes_arg}"
         ${external_project_source_dirs}
         -DLLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN="${LLVM_TEMPORARILY_ALLOW_OLD_TOOLCHAIN}"
         ${build_type_flags} ${linker_flag} ${external_clang_dir}
@@ -103,6 +106,7 @@ function(build_native_tool target output_path_var)
   else()
     set(output_path "${${PROJECT_NAME}_NATIVE_BUILD}/bin/${target}")
   endif()
+  set(output_path ${output_path}${LLVM_HOST_EXECUTABLE_SUFFIX})
 
   llvm_ExternalProject_BuildCmd(build_cmd ${target} ${${PROJECT_NAME}_NATIVE_BUILD}
                                 CONFIGURATION Release)

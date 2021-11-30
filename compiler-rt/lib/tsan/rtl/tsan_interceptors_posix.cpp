@@ -90,6 +90,7 @@ DECLARE_REAL(int, pthread_mutexattr_gettype, void *, void *)
 DECLARE_REAL(int, fflush, __sanitizer_FILE *fp)
 DECLARE_REAL_AND_INTERCEPTOR(void *, malloc, uptr size)
 DECLARE_REAL_AND_INTERCEPTOR(void, free, void *ptr)
+extern "C" int pthread_equal(void *t1, void *t2);
 extern "C" void *pthread_self();
 extern "C" void _exit(int status);
 #if !SANITIZER_NETBSD
@@ -153,7 +154,7 @@ const int SIG_SETMASK = 2;
 #endif
 
 #define COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED \
-  (cur_thread_init(), !cur_thread()->is_inited)
+  (!cur_thread_init()->is_inited)
 
 namespace __tsan {
 struct SignalDesc {
@@ -264,25 +265,25 @@ ScopedInterceptor::~ScopedInterceptor() {
   }
 }
 
-void ScopedInterceptor::EnableIgnores() {
-  if (ignoring_) {
-    ThreadIgnoreBegin(thr_, 0);
-    if (flags()->ignore_noninstrumented_modules) thr_->suppress_reports++;
-    if (in_ignored_lib_) {
-      DCHECK(!thr_->in_ignored_lib);
-      thr_->in_ignored_lib = true;
-    }
+NOINLINE
+void ScopedInterceptor::EnableIgnoresImpl() {
+  ThreadIgnoreBegin(thr_, 0);
+  if (flags()->ignore_noninstrumented_modules)
+    thr_->suppress_reports++;
+  if (in_ignored_lib_) {
+    DCHECK(!thr_->in_ignored_lib);
+    thr_->in_ignored_lib = true;
   }
 }
 
-void ScopedInterceptor::DisableIgnores() {
-  if (ignoring_) {
-    ThreadIgnoreEnd(thr_);
-    if (flags()->ignore_noninstrumented_modules) thr_->suppress_reports--;
-    if (in_ignored_lib_) {
-      DCHECK(thr_->in_ignored_lib);
-      thr_->in_ignored_lib = false;
-    }
+NOINLINE
+void ScopedInterceptor::DisableIgnoresImpl() {
+  ThreadIgnoreEnd(thr_);
+  if (flags()->ignore_noninstrumented_modules)
+    thr_->suppress_reports--;
+  if (in_ignored_lib_) {
+    DCHECK(thr_->in_ignored_lib);
+    thr_->in_ignored_lib = false;
   }
 }
 
@@ -531,10 +532,7 @@ static void LongJmp(ThreadState *thr, uptr *env) {
 }
 
 // FIXME: put everything below into a common extern "C" block?
-extern "C" void __tsan_setjmp(uptr sp) {
-  cur_thread_init();
-  SetJmp(cur_thread(), sp);
-}
+extern "C" void __tsan_setjmp(uptr sp) { SetJmp(cur_thread_init(), sp); }
 
 #if SANITIZER_MAC
 TSAN_INTERCEPTOR(int, setjmp, void *env);
@@ -844,6 +842,54 @@ TSAN_INTERCEPTOR(int, posix_memalign, void **memptr, uptr align, uptr sz) {
 }
 #endif
 
+// Both __cxa_guard_acquire and pthread_once 0-initialize
+// the object initially. pthread_once does not have any
+// other ABI requirements. __cxa_guard_acquire assumes
+// that any non-0 value in the first byte means that
+// initialization is completed. Contents of the remaining
+// bytes are up to us.
+constexpr u32 kGuardInit = 0;
+constexpr u32 kGuardDone = 1;
+constexpr u32 kGuardRunning = 1 << 16;
+constexpr u32 kGuardWaiter = 1 << 17;
+
+static int guard_acquire(ThreadState *thr, uptr pc, atomic_uint32_t *g,
+                         bool blocking_hooks = true) {
+  if (blocking_hooks)
+    OnPotentiallyBlockingRegionBegin();
+  auto on_exit = at_scope_exit([blocking_hooks] {
+    if (blocking_hooks)
+      OnPotentiallyBlockingRegionEnd();
+  });
+
+  for (;;) {
+    u32 cmp = atomic_load(g, memory_order_acquire);
+    if (cmp == kGuardInit) {
+      if (atomic_compare_exchange_strong(g, &cmp, kGuardRunning,
+                                         memory_order_relaxed))
+        return 1;
+    } else if (cmp == kGuardDone) {
+      if (!thr->in_ignored_lib)
+        Acquire(thr, pc, (uptr)g);
+      return 0;
+    } else {
+      if ((cmp & kGuardWaiter) ||
+          atomic_compare_exchange_strong(g, &cmp, cmp | kGuardWaiter,
+                                         memory_order_relaxed))
+        FutexWait(g, cmp | kGuardWaiter);
+    }
+  }
+}
+
+static void guard_release(ThreadState *thr, uptr pc, atomic_uint32_t *g,
+                          u32 v) {
+  if (!thr->in_ignored_lib)
+    Release(thr, pc, (uptr)g);
+  u32 old = atomic_exchange(g, v, memory_order_release);
+  if (old & kGuardWaiter)
+    FutexWake(g, 1 << 30);
+}
+
 // __cxa_guard_acquire and friends need to be intercepted in a special way -
 // regular interceptors will break statically-linked libstdc++. Linux
 // interceptors are especially defined as weak functions (so that they don't
@@ -864,31 +910,17 @@ TSAN_INTERCEPTOR(int, posix_memalign, void **memptr, uptr align, uptr sz) {
 // Used in thread-safe function static initialization.
 STDCXX_INTERCEPTOR(int, __cxa_guard_acquire, atomic_uint32_t *g) {
   SCOPED_INTERCEPTOR_RAW(__cxa_guard_acquire, g);
-  OnPotentiallyBlockingRegionBegin();
-  auto on_exit = at_scope_exit(&OnPotentiallyBlockingRegionEnd);
-  for (;;) {
-    u32 cmp = atomic_load(g, memory_order_acquire);
-    if (cmp == 0) {
-      if (atomic_compare_exchange_strong(g, &cmp, 1<<16, memory_order_relaxed))
-        return 1;
-    } else if (cmp == 1) {
-      Acquire(thr, pc, (uptr)g);
-      return 0;
-    } else {
-      internal_sched_yield();
-    }
-  }
+  return guard_acquire(thr, pc, g);
 }
 
 STDCXX_INTERCEPTOR(void, __cxa_guard_release, atomic_uint32_t *g) {
   SCOPED_INTERCEPTOR_RAW(__cxa_guard_release, g);
-  Release(thr, pc, (uptr)g);
-  atomic_store(g, 1, memory_order_release);
+  guard_release(thr, pc, g, kGuardDone);
 }
 
 STDCXX_INTERCEPTOR(void, __cxa_guard_abort, atomic_uint32_t *g) {
   SCOPED_INTERCEPTOR_RAW(__cxa_guard_abort, g);
-  atomic_store(g, 0, memory_order_relaxed);
+  guard_release(thr, pc, g, kGuardInit);
 }
 
 namespace __tsan {
@@ -940,8 +972,7 @@ extern "C" void *__tsan_thread_start_func(void *arg) {
   void* (*callback)(void *arg) = p->callback;
   void *param = p->param;
   {
-    cur_thread_init();
-    ThreadState *thr = cur_thread();
+    ThreadState *thr = cur_thread_init();
     // Thread-local state is not initialized yet.
     ScopedIgnoreInterceptors ignore;
 #if !SANITIZER_MAC && !SANITIZER_NETBSD && !SANITIZER_FREEBSD
@@ -979,9 +1010,11 @@ TSAN_INTERCEPTOR(int, pthread_create,
           "fork is not supported. Dying (set die_after_fork=0 to override)\n");
       Die();
     } else {
-      VPrintf(1, "ThreadSanitizer: starting new threads after multi-threaded "
-          "fork is not supported (pid %d). Continuing because of "
-          "die_after_fork=0, but you are on your own\n", internal_getpid());
+      VPrintf(1,
+              "ThreadSanitizer: starting new threads after multi-threaded "
+              "fork is not supported (pid %lu). Continuing because of "
+              "die_after_fork=0, but you are on your own\n",
+              internal_getpid());
     }
   }
   __sanitizer_pthread_attr_t myattr;
@@ -1480,20 +1513,11 @@ TSAN_INTERCEPTOR(int, pthread_once, void *o, void (*f)()) {
   else
     a = static_cast<atomic_uint32_t*>(o);
 
-  u32 v = atomic_load(a, memory_order_acquire);
-  if (v == 0 && atomic_compare_exchange_strong(a, &v, 1,
-                                               memory_order_relaxed)) {
+  // Mac OS X appears to use pthread_once() where calling BlockingRegion hooks
+  // result in crashes due to too little stack space.
+  if (guard_acquire(thr, pc, a, !SANITIZER_MAC)) {
     (*f)();
-    if (!thr->in_ignored_lib)
-      Release(thr, pc, (uptr)o);
-    atomic_store(a, 2, memory_order_release);
-  } else {
-    while (v != 2) {
-      internal_sched_yield();
-      v = atomic_load(a, memory_order_acquire);
-    }
-    if (!thr->in_ignored_lib)
-      Acquire(thr, pc, (uptr)o);
+    guard_release(thr, pc, a, kGuardDone);
   }
   return 0;
 }
@@ -1927,6 +1951,19 @@ TSAN_INTERCEPTOR(int, pthread_sigmask, int how, const __sanitizer_sigset_t *set,
 
 namespace __tsan {
 
+static void ReportErrnoSpoiling(ThreadState *thr, uptr pc) {
+  VarSizeStackTrace stack;
+  // StackTrace::GetNestInstructionPc(pc) is used because return address is
+  // expected, OutputReport() will undo this.
+  ObtainCurrentStack(thr, StackTrace::GetNextInstructionPc(pc), &stack);
+  ThreadRegistryLock l(&ctx->thread_registry);
+  ScopedReport rep(ReportTypeErrnoInSignal);
+  if (!IsFiredSuppression(ctx, ReportTypeErrnoInSignal, stack)) {
+    rep.AddStack(stack, true);
+    OutputReport(thr, rep);
+  }
+}
+
 static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
                                   int sig, __sanitizer_siginfo *info,
                                   void *uctx) {
@@ -1935,16 +1972,24 @@ static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
     Acquire(thr, 0, (uptr)&sigactions[sig]);
   // Signals are generally asynchronous, so if we receive a signals when
   // ignores are enabled we should disable ignores. This is critical for sync
-  // and interceptors, because otherwise we can miss syncronization and report
+  // and interceptors, because otherwise we can miss synchronization and report
   // false races.
   int ignore_reads_and_writes = thr->ignore_reads_and_writes;
   int ignore_interceptors = thr->ignore_interceptors;
   int ignore_sync = thr->ignore_sync;
+  // For symbolizer we only process SIGSEGVs synchronously
+  // (bug in symbolizer or in tsan). But we want to reset
+  // in_symbolizer to fail gracefully. Symbolizer and user code
+  // use different memory allocators, so if we don't reset
+  // in_symbolizer we can get memory allocated with one being
+  // feed with another, which can cause more crashes.
+  int in_symbolizer = thr->in_symbolizer;
   if (!ctx->after_multithreaded_fork) {
     thr->ignore_reads_and_writes = 0;
     thr->fast_state.ClearIgnoreBit();
     thr->ignore_interceptors = 0;
     thr->ignore_sync = 0;
+    thr->in_symbolizer = 0;
   }
   // Ensure that the handler does not spoil errno.
   const int saved_errno = errno;
@@ -1955,14 +2000,19 @@ static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
   volatile uptr pc = (sigactions[sig].sa_flags & SA_SIGINFO)
                          ? (uptr)sigactions[sig].sigaction
                          : (uptr)sigactions[sig].handler;
-  if (pc != sig_dfl && pc != sig_ign)
+  if (pc != sig_dfl && pc != sig_ign) {
+    // The callback can be either sa_handler or sa_sigaction.
+    // They have different signatures, but we assume that passing
+    // additional arguments to sa_handler works and is harmless.
     ((__sanitizer_sigactionhandler_ptr)pc)(sig, info, uctx);
+  }
   if (!ctx->after_multithreaded_fork) {
     thr->ignore_reads_and_writes = ignore_reads_and_writes;
     if (ignore_reads_and_writes)
       thr->fast_state.SetIgnoreBit();
     thr->ignore_interceptors = ignore_interceptors;
     thr->ignore_sync = ignore_sync;
+    thr->in_symbolizer = in_symbolizer;
   }
   // We do not detect errno spoiling for SIGTERM,
   // because some SIGTERM handlers do spoil errno but reraise SIGTERM,
@@ -1972,18 +2022,8 @@ static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
   // from rtl_generic_sighandler) we have not yet received the reraised
   // signal; and it looks too fragile to intercept all ways to reraise a signal.
   if (ShouldReport(thr, ReportTypeErrnoInSignal) && !sync && sig != SIGTERM &&
-      errno != 99) {
-    VarSizeStackTrace stack;
-    // StackTrace::GetNestInstructionPc(pc) is used because return address is
-    // expected, OutputReport() will undo this.
-    ObtainCurrentStack(thr, StackTrace::GetNextInstructionPc(pc), &stack);
-    ThreadRegistryLock l(&ctx->thread_registry);
-    ScopedReport rep(ReportTypeErrnoInSignal);
-    if (!IsFiredSuppression(ctx, ReportTypeErrnoInSignal, stack)) {
-      rep.AddStack(stack, true);
-      OutputReport(thr, rep);
-    }
-  }
+      errno != 99)
+    ReportErrnoSpoiling(thr, pc);
   errno = saved_errno;
 }
 
@@ -2019,8 +2059,7 @@ static bool is_sync_signal(ThreadSignalContext *sctx, int sig) {
 }
 
 void sighandler(int sig, __sanitizer_siginfo *info, void *ctx) {
-  cur_thread_init();
-  ThreadState *thr = cur_thread();
+  ThreadState *thr = cur_thread_init();
   ThreadSignalContext *sctx = SigCtx(thr);
   if (sig < 0 || sig >= kSigCount) {
     VPrintf(1, "ThreadSanitizer: ignoring signal %d\n", sig);
@@ -2095,11 +2134,11 @@ TSAN_INTERCEPTOR(int, pthread_kill, void *tid, int sig) {
   ThreadSignalContext *sctx = SigCtx(thr);
   CHECK_NE(sctx, 0);
   int prev = sctx->int_signal_send;
-  if (tid == pthread_self()) {
+  bool self = pthread_equal(tid, pthread_self());
+  if (self)
     sctx->int_signal_send = sig;
-  }
   int res = REAL(pthread_kill)(tid, sig);
-  if (tid == pthread_self()) {
+  if (self) {
     CHECK_EQ(sctx->int_signal_send, sig);
     sctx->int_signal_send = prev;
   }
@@ -2152,7 +2191,7 @@ void atfork_child() {
     return;
   ThreadState *thr = cur_thread();
   const uptr pc = StackTrace::GetCurrentPc();
-  ForkChildAfter(thr, pc);
+  ForkChildAfter(thr, pc, true);
   FdOnFork(thr, pc);
 }
 
@@ -2173,6 +2212,37 @@ TSAN_INTERCEPTOR(int, vfork, int fake) {
   return WRAP(fork)(fake);
 }
 
+#if SANITIZER_LINUX
+TSAN_INTERCEPTOR(int, clone, int (*fn)(void *), void *stack, int flags,
+                 void *arg, int *parent_tid, void *tls, pid_t *child_tid) {
+  SCOPED_INTERCEPTOR_RAW(clone, fn, stack, flags, arg, parent_tid, tls,
+                         child_tid);
+  struct Arg {
+    int (*fn)(void *);
+    void *arg;
+  };
+  auto wrapper = +[](void *p) -> int {
+    auto *thr = cur_thread();
+    uptr pc = GET_CURRENT_PC();
+    // Start the background thread for fork, but not for clone.
+    // For fork we did this always and it's known to work (or user code has
+    // adopted). But if we do this for the new clone interceptor some code
+    // (sandbox2) fails. So model we used to do for years and don't start the
+    // background thread after clone.
+    ForkChildAfter(thr, pc, false);
+    FdOnFork(thr, pc);
+    auto *arg = static_cast<Arg *>(p);
+    return arg->fn(arg->arg);
+  };
+  ForkBefore(thr, pc);
+  Arg arg_wrapper = {fn, arg};
+  int pid = REAL(clone)(wrapper, stack, flags, &arg_wrapper, parent_tid, tls,
+                        child_tid);
+  ForkParentAfter(thr, pc);
+  return pid;
+}
+#endif
+
 #if !SANITIZER_MAC && !SANITIZER_ANDROID
 typedef int (*dl_iterate_phdr_cb_t)(__sanitizer_dl_phdr_info *info, SIZE_T size,
                                     void *data);
@@ -2184,7 +2254,7 @@ struct dl_iterate_phdr_data {
 };
 
 static bool IsAppNotRodata(uptr addr) {
-  return IsAppMem(addr) && *(u64*)MemToShadow(addr) != kShadowRodata;
+  return IsAppMem(addr) && *MemToShadow(addr) != kShadowRodata;
 }
 
 static int dl_iterate_phdr_cb(__sanitizer_dl_phdr_info *info, SIZE_T size,
@@ -2323,8 +2393,11 @@ static void HandleRecvmsg(ThreadState *thr, uptr pc,
 #define COMMON_INTERCEPTOR_SET_THREAD_NAME(ctx, name) \
   ThreadSetName(((TsanInterceptorContext *) ctx)->thr, name)
 
-#define COMMON_INTERCEPTOR_SET_PTHREAD_NAME(ctx, thread, name) \
-  __tsan::ctx->thread_registry.SetThreadNameByUserId(thread, name)
+#define COMMON_INTERCEPTOR_SET_PTHREAD_NAME(ctx, thread, name)         \
+  if (pthread_equal(pthread_self(), reinterpret_cast<void *>(thread))) \
+    COMMON_INTERCEPTOR_SET_THREAD_NAME(ctx, name);                     \
+  else                                                                 \
+    __tsan::ctx->thread_registry.SetThreadNameByUserId(thread, name)
 
 #define COMMON_INTERCEPTOR_BLOCK_REAL(name) BLOCK_REAL(name)
 
@@ -2424,9 +2497,11 @@ int sigaction_impl(int sig, const __sanitizer_sigaction *act,
 #endif
     internal_memcpy(&newact, act, sizeof(newact));
     internal_sigfillset(&newact.sa_mask);
-    newact.sa_flags |= SA_SIGINFO;
-    if ((uptr)act->handler != sig_ign && (uptr)act->handler != sig_dfl)
+    if ((act->sa_flags & SA_SIGINFO) ||
+        ((uptr)act->handler != sig_ign && (uptr)act->handler != sig_dfl)) {
+      newact.sa_flags |= SA_SIGINFO;
       newact.sigaction = sighandler;
+    }
     ReleaseStore(thr, pc, (uptr)&sigactions[sig]);
     act = &newact;
   }
@@ -2473,12 +2548,12 @@ static void syscall_access_range(uptr pc, uptr p, uptr s, bool write) {
 static USED void syscall_acquire(uptr pc, uptr addr) {
   TSAN_SYSCALL();
   Acquire(thr, pc, addr);
-  DPrintf("syscall_acquire(%p)\n", addr);
+  DPrintf("syscall_acquire(0x%zx))\n", addr);
 }
 
 static USED void syscall_release(uptr pc, uptr addr) {
   TSAN_SYSCALL();
-  DPrintf("syscall_release(%p)\n", addr);
+  DPrintf("syscall_release(0x%zx)\n", addr);
   Release(thr, pc, addr);
 }
 
@@ -2490,12 +2565,12 @@ static void syscall_fd_close(uptr pc, int fd) {
 static USED void syscall_fd_acquire(uptr pc, int fd) {
   TSAN_SYSCALL();
   FdAcquire(thr, pc, fd);
-  DPrintf("syscall_fd_acquire(%p)\n", fd);
+  DPrintf("syscall_fd_acquire(%d)\n", fd);
 }
 
 static USED void syscall_fd_release(uptr pc, int fd) {
   TSAN_SYSCALL();
-  DPrintf("syscall_fd_release(%p)\n", fd);
+  DPrintf("syscall_fd_release(%d)\n", fd);
   FdRelease(thr, pc, fd);
 }
 
@@ -2505,7 +2580,7 @@ static void syscall_post_fork(uptr pc, int pid) {
   ThreadState *thr = cur_thread();
   if (pid == 0) {
     // child
-    ForkChildAfter(thr, pc);
+    ForkChildAfter(thr, pc, true);
     FdOnFork(thr, pc);
   } else if (pid > 0) {
     // parent
@@ -2802,6 +2877,9 @@ void InitializeInterceptors() {
 
   TSAN_INTERCEPT(fork);
   TSAN_INTERCEPT(vfork);
+#if SANITIZER_LINUX
+  TSAN_INTERCEPT(clone);
+#endif
 #if !SANITIZER_ANDROID
   TSAN_INTERCEPT(dl_iterate_phdr);
 #endif

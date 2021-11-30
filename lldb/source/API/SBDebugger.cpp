@@ -327,12 +327,32 @@ void SBDebugger::SkipAppInitFiles(bool b) {
 void SBDebugger::SetInputFileHandle(FILE *fh, bool transfer_ownership) {
   LLDB_RECORD_METHOD(void, SBDebugger, SetInputFileHandle, (FILE *, bool), fh,
                      transfer_ownership);
-  SetInputFile((FileSP)std::make_shared<NativeFile>(fh, transfer_ownership));
+  if (m_opaque_sp)
+    m_opaque_sp->SetInputFile(
+        (FileSP)std::make_shared<NativeFile>(fh, transfer_ownership));
 }
 
-SBError SBDebugger::SetInputFile(FileSP file_sp) {
-  LLDB_RECORD_METHOD(SBError, SBDebugger, SetInputFile, (FileSP), file_sp);
-  return LLDB_RECORD_RESULT(SetInputFile(SBFile(file_sp)));
+SBError SBDebugger::SetInputString(const char *data) {
+  LLDB_RECORD_METHOD(SBError, SBDebugger, SetInputString, (const char *), data);
+  SBError sb_error;
+  if (data == nullptr) {
+    sb_error.SetErrorString("String data is null");
+    return LLDB_RECORD_RESULT(sb_error);
+  }
+
+  size_t size = strlen(data);
+  if (size == 0) {
+    sb_error.SetErrorString("String data is empty");
+    return LLDB_RECORD_RESULT(sb_error);
+  }
+
+  if (!m_opaque_sp) {
+    sb_error.SetErrorString("invalid debugger");
+    return LLDB_RECORD_RESULT(sb_error);
+  }
+
+  sb_error.SetError(m_opaque_sp->SetInputString(data));
+  return LLDB_RECORD_RESULT(sb_error);
 }
 
 // Shouldn't really be settable after initialization as this could cause lots
@@ -346,34 +366,13 @@ SBError SBDebugger::SetInputFile(SBFile file) {
     error.ref().SetErrorString("invalid debugger");
     return LLDB_RECORD_RESULT(error);
   }
-
-  repro::DataRecorder *recorder = nullptr;
-  if (repro::Generator *g = repro::Reproducer::Instance().GetGenerator())
-    recorder = g->GetOrCreate<repro::CommandProvider>().GetNewRecorder();
-
-  FileSP file_sp = file.m_opaque_sp;
-
-  static std::unique_ptr<repro::MultiLoader<repro::CommandProvider>> loader =
-      repro::MultiLoader<repro::CommandProvider>::Create(
-          repro::Reproducer::Instance().GetLoader());
-  if (loader) {
-    llvm::Optional<std::string> nextfile = loader->GetNextFile();
-    FILE *fh = nextfile ? FileSystem::Instance().Fopen(nextfile->c_str(), "r")
-                        : nullptr;
-    // FIXME Jonas Devlieghere: shouldn't this error be propagated out to the
-    // reproducer somehow if fh is NULL?
-    if (fh) {
-      file_sp = std::make_shared<NativeFile>(fh, true);
-    }
-  }
-
-  if (!file_sp || !file_sp->IsValid()) {
-    error.ref().SetErrorString("invalid file");
-    return LLDB_RECORD_RESULT(error);
-  }
-
-  m_opaque_sp->SetInputFile(file_sp, recorder);
+  error.SetError(m_opaque_sp->SetInputFile(file.m_opaque_sp));
   return LLDB_RECORD_RESULT(error);
+}
+
+SBError SBDebugger::SetInputFile(FileSP file_sp) {
+  LLDB_RECORD_METHOD(SBError, SBDebugger, SetInputFile, (FileSP), file_sp);
+  return LLDB_RECORD_RESULT(SetInputFile(SBFile(file_sp)));
 }
 
 SBError SBDebugger::SetOutputFile(FileSP file_sp) {
@@ -678,6 +677,21 @@ SBDebugger::GetScriptingLanguage(const char *script_language_name) {
     return eScriptLanguageDefault;
   return OptionArgParser::ToScriptLanguage(
       llvm::StringRef(script_language_name), eScriptLanguageDefault, nullptr);
+}
+
+SBStructuredData
+SBDebugger::GetScriptInterpreterInfo(lldb::ScriptLanguage language) {
+  LLDB_RECORD_METHOD(SBStructuredData, SBDebugger, GetScriptInterpreterInfo,
+                     (lldb::ScriptLanguage), language);
+  SBStructuredData data;
+  if (m_opaque_sp) {
+    lldb_private::ScriptInterpreter *interp =
+        m_opaque_sp->GetScriptInterpreter(language);
+    if (interp) {
+      data.m_impl_up->SetObjectSP(interp->GetInterpreterInfo());
+    }
+  }
+  return LLDB_RECORD_RESULT(data);
 }
 
 const char *SBDebugger::GetVersionString() {
@@ -1114,7 +1128,7 @@ uint32_t SBDebugger::GetNumAvailablePlatforms() {
 
   uint32_t idx = 0;
   while (true) {
-    if (!PluginManager::GetPlatformPluginNameAtIndex(idx)) {
+    if (PluginManager::GetPlatformPluginNameAtIndex(idx).empty()) {
       break;
     }
     ++idx;
@@ -1133,23 +1147,19 @@ SBStructuredData SBDebugger::GetAvailablePlatformInfoAtIndex(uint32_t idx) {
 
   if (idx == 0) {
     PlatformSP host_platform_sp(Platform::GetHostPlatform());
-    platform_dict->AddStringItem(
-        name_str, host_platform_sp->GetPluginName().GetStringRef());
+    platform_dict->AddStringItem(name_str, host_platform_sp->GetPluginName());
     platform_dict->AddStringItem(
         desc_str, llvm::StringRef(host_platform_sp->GetDescription()));
   } else if (idx > 0) {
-    const char *plugin_name =
+    llvm::StringRef plugin_name =
         PluginManager::GetPlatformPluginNameAtIndex(idx - 1);
-    if (!plugin_name) {
+    if (plugin_name.empty()) {
       return LLDB_RECORD_RESULT(data);
     }
     platform_dict->AddStringItem(name_str, llvm::StringRef(plugin_name));
 
-    const char *plugin_desc =
+    llvm::StringRef plugin_desc =
         PluginManager::GetPlatformPluginDescriptionAtIndex(idx - 1);
-    if (!plugin_desc) {
-      return LLDB_RECORD_RESULT(data);
-    }
     platform_dict->AddStringItem(desc_str, llvm::StringRef(plugin_desc));
   }
 
@@ -1760,6 +1770,7 @@ template <> void RegisterMethods<SBDebugger>(Registry &R) {
   LLDB_REGISTER_METHOD(bool, SBDebugger, GetAsync, ());
   LLDB_REGISTER_METHOD(void, SBDebugger, SkipLLDBInitFiles, (bool));
   LLDB_REGISTER_METHOD(void, SBDebugger, SkipAppInitFiles, (bool));
+  LLDB_REGISTER_METHOD(SBError, SBDebugger, SetInputString, (const char *));
   LLDB_REGISTER_METHOD(void, SBDebugger, SetInputFileHandle, (FILE *, bool));
   LLDB_REGISTER_METHOD(FILE *, SBDebugger, GetInputFileHandle, ());
   LLDB_REGISTER_METHOD(FILE *, SBDebugger, GetOutputFileHandle, ());
@@ -1787,6 +1798,8 @@ template <> void RegisterMethods<SBDebugger>(Registry &R) {
                               (const char *));
   LLDB_REGISTER_METHOD(lldb::ScriptLanguage, SBDebugger, GetScriptingLanguage,
                        (const char *));
+  LLDB_REGISTER_METHOD(SBStructuredData, SBDebugger, GetScriptInterpreterInfo,
+                       (lldb::ScriptLanguage));
   LLDB_REGISTER_STATIC_METHOD(const char *, SBDebugger, GetVersionString, ());
   LLDB_REGISTER_STATIC_METHOD(const char *, SBDebugger, StateAsCString,
                               (lldb::StateType));

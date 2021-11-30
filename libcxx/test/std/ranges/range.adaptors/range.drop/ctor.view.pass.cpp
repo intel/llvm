@@ -8,7 +8,6 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
 // UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // constexpr drop_view(V base, range_difference_t<V> count);
@@ -19,7 +18,7 @@
 #include "types.h"
 
 constexpr bool test() {
-  std::ranges::drop_view dropView1(ContiguousView(), 4);
+  std::ranges::drop_view dropView1(MoveOnlyView(), 4);
   assert(dropView1.size() == 4);
   assert(dropView1.begin() == globalBuff + 4);
 

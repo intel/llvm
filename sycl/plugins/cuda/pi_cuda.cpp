@@ -111,7 +111,7 @@ pi_result forLatestEvents(const pi_event *event_wait_list,
 ///
 pi_result check_error(CUresult result, const char *function, int line,
                       const char *file) {
-  if (result == CUDA_SUCCESS) {
+  if (result == CUDA_SUCCESS || result == CUDA_ERROR_DEINITIALIZED) {
     return PI_SUCCESS;
   }
 
@@ -137,47 +137,48 @@ pi_result check_error(CUresult result, const char *function, int line,
 /// \cond NODOXY
 #define PI_CHECK_ERROR(result) check_error(result, __func__, __LINE__, __FILE__)
 
-/// RAII type to guarantee recovering original CUDA context
-/// Scoped context is used across all PI CUDA plugin implementation
-/// to activate the PI Context on the current thread, matching the
-/// CUDA driver semantics where the context used for the CUDA Driver
-/// API is the one active on the thread.
-/// The implementation tries to avoid replacing the CUcontext if it cans
+/// ScopedContext is used across all PI CUDA plugin implementation to ensure
+/// that the proper CUDA context is active for the given PI context.
+//
+/// This class will only replace the context if necessary, and will leave the
+/// new context active on the current thread. If there was an active context
+/// already it will simply be replaced.
+//
+/// Previously active contexts are not restored for two reasons:
+/// * Performance: context switches are expensive so leaving the context active
+///   means subsequent SYCL calls with the same context will be cheaper.
+/// * Multi-threading cleanup: contexts are set active per thread and deleting a
+///   context will only deactivate it for the current thread. This means other
+///   threads may end up with deleted active contexts. In particular this can
+///   happen with host_tasks as they run in a thread pool. When the context
+///   associated with these tasks is deleted it will remain active in the
+///   threads of the thread pool. So it would be invalid for any other task
+///   running on these threads to try to restore the deleted context. With the
+///   current implementation this is not an issue because the active deleted
+///   context will just be replaced.
+//
+/// This approach does mean that CUDA interop tasks should NOT expect their
+/// contexts to be restored by SYCL.
 class ScopedContext {
-  pi_context placedContext_;
-  CUcontext original_;
-  bool needToRecover_;
-
 public:
-  ScopedContext(pi_context ctxt) : placedContext_{ctxt}, needToRecover_{false} {
-
-    if (!placedContext_) {
+  ScopedContext(pi_context ctxt) {
+    if (!ctxt) {
       throw PI_INVALID_CONTEXT;
     }
 
-    CUcontext desired = placedContext_->get();
-    PI_CHECK_ERROR(cuCtxGetCurrent(&original_));
-    if (original_ != desired) {
-      // Sets the desired context as the active one for the thread
+    CUcontext desired = ctxt->get();
+    CUcontext original = nullptr;
+
+    PI_CHECK_ERROR(cuCtxGetCurrent(&original));
+
+    // Make sure the desired context is active on the current thread, setting
+    // it if necessary
+    if (original != desired) {
       PI_CHECK_ERROR(cuCtxSetCurrent(desired));
-      if (original_ == nullptr) {
-        // No context is installed on the current thread
-        // This is the most common case. We can activate the context in the
-        // thread and leave it there until all the PI context referring to the
-        // same underlying CUDA context are destroyed. This emulates
-        // the behaviour of the CUDA runtime api, and avoids costly context
-        // switches. No action is required on this side of the if.
-      } else {
-        needToRecover_ = true;
-      }
     }
   }
 
-  ~ScopedContext() {
-    if (needToRecover_) {
-      PI_CHECK_ERROR(cuCtxSetCurrent(original_));
-    }
-  }
+  ~ScopedContext() {}
 };
 
 /// \cond NODOXY
@@ -574,20 +575,8 @@ pi_result _pi_program::build_program(const char *build_options) {
 /// Note: Another alternative is to add kernel names as metadata, like with
 ///       reqd_work_group_size.
 std::string getKernelNames(pi_program program) {
-  std::string source(program->binary_,
-                     program->binary_ + program->binarySizeInBytes_);
-  std::regex entries_pattern(".entry\\s+([^\\([:s:]]*)");
-  std::string names("");
-  std::smatch match;
-  bool first_match = true;
-  while (std::regex_search(source, match, entries_pattern)) {
-    assert(match.size() == 2);
-    names += first_match ? "" : ";";
-    names += match[1]; // Second element is the group.
-    source = match.suffix().str();
-    first_match = false;
-  }
-  return names;
+  cl::sycl::detail::pi::die("getKernelNames not implemented");
+  return {};
 }
 
 /// RAII object that calls the reference count release function on the held PI
@@ -677,18 +666,21 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
 /// Triggers the CUDA Driver initialization (cuInit) the first time, so this
 /// must be the first PI API called.
 ///
+/// However because multiple devices in a context is not currently supported,
+/// place each device in a separate platform.
+///
 pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
                               pi_uint32 *num_platforms) {
 
   try {
     static std::once_flag initFlag;
     static pi_uint32 numPlatforms = 1;
-    static _pi_platform platformId;
+    static std::vector<_pi_platform> platformIds;
 
-    if (num_entries == 0 and platforms != nullptr) {
+    if (num_entries == 0 && platforms != nullptr) {
       return PI_INVALID_VALUE;
     }
-    if (platforms == nullptr and num_platforms == nullptr) {
+    if (platforms == nullptr && num_platforms == nullptr) {
       return PI_INVALID_VALUE;
     }
 
@@ -708,14 +700,18 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
             return;
           }
           try {
-            platformId.devices_.reserve(numDevices);
+            // make one platform per device
+            numPlatforms = numDevices;
+            platformIds.resize(numDevices);
+
             for (int i = 0; i < numDevices; ++i) {
               CUdevice device;
               err = PI_CHECK_ERROR(cuDeviceGet(&device, i));
-              platformId.devices_.emplace_back(
-                  new _pi_device{device, &platformId});
+              platformIds[i].devices_.emplace_back(
+                  new _pi_device{device, &platformIds[i]});
+
               {
-                const auto &dev = platformId.devices_.back().get();
+                const auto &dev = platformIds[i].devices_.back().get();
                 size_t maxWorkGroupSize = 0u;
                 size_t maxThreadsPerBlock[3] = {};
                 pi_result retError = cuda_piDeviceGetInfo(
@@ -736,11 +732,17 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
-            platformId.devices_.clear();
+            for (int i = 0; i < numDevices; ++i) {
+              platformIds[i].devices_.clear();
+            }
+            platformIds.clear();
             err = PI_OUT_OF_HOST_MEMORY;
           } catch (...) {
             // Clear and rethrow to allow retry
-            platformId.devices_.clear();
+            for (int i = 0; i < numDevices; ++i) {
+              platformIds[i].devices_.clear();
+            }
+            platformIds.clear();
             throw;
           }
         },
@@ -751,7 +753,9 @@ pi_result cuda_piPlatformsGet(pi_uint32 num_entries, pi_platform *platforms,
     }
 
     if (platforms != nullptr) {
-      *platforms = &platformId;
+      for (unsigned i = 0; i < std::min(num_entries, numPlatforms); ++i) {
+        platforms[i] = &platformIds[i];
+      }
     }
 
     return err;
@@ -905,11 +909,27 @@ pi_result cuda_piextDeviceSelectBinary(pi_device device,
   return PI_INVALID_BINARY;
 }
 
-pi_result cuda_piextGetDeviceFunctionPointer(pi_device, pi_program,
-                                             const char *, pi_uint64 *) {
-  cl::sycl::detail::pi::die(
-      "cuda_piextGetDeviceFunctionPointer not implemented");
-  return {};
+pi_result cuda_piextGetDeviceFunctionPointer(pi_device device,
+                                             pi_program program,
+                                             const char *func_name,
+                                             pi_uint64 *func_pointer_ret) {
+  // Check if device passed is the same the device bound to the context
+  assert(device == program->get_context()->get_device());
+  assert(func_pointer_ret != nullptr);
+
+  CUfunction func;
+  CUresult ret = cuModuleGetFunction(&func, program->get(), func_name);
+  *func_pointer_ret = reinterpret_cast<pi_uint64>(func);
+  pi_result retError = PI_SUCCESS;
+
+  if (ret != CUDA_SUCCESS && ret != CUDA_ERROR_NOT_FOUND)
+    retError = PI_CHECK_ERROR(ret);
+  if (ret == CUDA_ERROR_NOT_FOUND) {
+    *func_pointer_ret = 0;
+    retError = PI_INVALID_KERNEL_NAME;
+  }
+
+  return retError;
 }
 
 /// \return PI_SUCCESS always since CUDA devices are always root devices.
@@ -971,6 +991,32 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return getInfoArray(max_work_item_dimensions, param_value_size, param_value,
                         param_value_size_ret, return_sizes);
   }
+
+  case PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D: {
+    size_t return_sizes[max_work_item_dimensions];
+    int max_x = 0, max_y = 0, max_z = 0;
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&max_x, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(max_x >= 0);
+
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&max_y, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(max_y >= 0);
+
+    cl::sycl::detail::pi::assertion(
+        cuDeviceGetAttribute(&max_z, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
+                             device->get()) == CUDA_SUCCESS);
+    cl::sycl::detail::pi::assertion(max_z >= 0);
+
+    return_sizes[0] = size_t(max_x);
+    return_sizes[1] = size_t(max_y);
+    return_sizes[2] = size_t(max_z);
+    return getInfoArray(max_work_item_dimensions, param_value_size, param_value,
+                        param_value_size_ret, return_sizes);
+  }
+
   case PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int max_work_group_size = 0;
     cl::sycl::detail::pi::assertion(
@@ -1453,6 +1499,8 @@ pi_result cuda_piDeviceGetInfo(pi_device device, pi_device_info param_name,
   case PI_DEVICE_INFO_EXTENSIONS: {
 
     std::string SupportedExtensions = "cl_khr_fp64 ";
+    SupportedExtensions += PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT;
+    SupportedExtensions += " ";
 
     int major = 0;
     int minor = 0;
@@ -2530,6 +2578,14 @@ pi_result cuda_piKernelGetGroupInfo(pi_kernel kernel, pi_device device,
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      pi_uint64(bytes));
     }
+    case PI_KERNEL_GROUP_INFO_NUM_REGS: {
+      int numRegs = 0;
+      cl::sycl::detail::pi::assertion(
+          cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS,
+                             kernel->get()) == CUDA_SUCCESS);
+      return getInfo(param_value_size, param_value, param_value_size_ret,
+                     pi_uint32(numRegs));
+    }
     default:
       __SYCL_PI_HANDLE_UNKNOWN_PARAM_NAME(param_name);
     }
@@ -2557,69 +2613,64 @@ pi_result cuda_piEnqueueKernelLaunch(
   int threadsPerBlock[3] = {32, 1, 1};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
-  size_t reqdThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
   pi_uint32 local_size = kernel->get_local_size();
-
-  {
-    pi_result retError = cuda_piKernelGetGroupInfo(
-        kernel, command_queue->device_,
-        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-        sizeof(reqdThreadsPerBlock), reqdThreadsPerBlock, nullptr);
-    assert(retError == PI_SUCCESS);
-
-    maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
-    command_queue->device_->get_max_work_item_sizes(sizeof(maxThreadsPerBlock),
-                                                    maxThreadsPerBlock);
-
-    if (providedLocalWorkGroupSize) {
-      auto isValid = [&](int dim) {
-        if (reqdThreadsPerBlock[dim] != 0 &&
-            local_work_size[dim] != reqdThreadsPerBlock[dim])
-          return PI_INVALID_WORK_GROUP_SIZE;
-
-        if (local_work_size[dim] > maxThreadsPerBlock[dim])
-          return PI_INVALID_WORK_ITEM_SIZE;
-        // Checks that local work sizes are a divisor of the global work sizes
-        // which includes that the local work sizes are neither larger than the
-        // global work sizes and not 0.
-        if (0u == local_work_size[dim])
-          return PI_INVALID_WORK_GROUP_SIZE;
-        if (0u != (global_work_size[dim] % local_work_size[dim]))
-          return PI_INVALID_WORK_GROUP_SIZE;
-        threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
-        return PI_SUCCESS;
-      };
-
-      for (size_t dim = 0; dim < work_dim; dim++) {
-        auto err = isValid(dim);
-        if (err != PI_SUCCESS)
-          return err;
-      }
-    } else {
-      guessLocalWorkSize(threadsPerBlock, global_work_size, maxThreadsPerBlock,
-                         kernel, local_size);
-    }
-  }
-
-  if (maxWorkGroupSize <
-      size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
-    return PI_INVALID_WORK_GROUP_SIZE;
-  }
-
-  int blocksPerGrid[3] = {1, 1, 1};
-
-  for (size_t i = 0; i < work_dim; i++) {
-    blocksPerGrid[i] =
-        static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
-        threadsPerBlock[i];
-  }
-
   pi_result retError = PI_SUCCESS;
-  std::unique_ptr<_pi_event> retImplEv{nullptr};
 
   try {
+    // Set the active context here as guessLocalWorkSize needs an active context
     ScopedContext active(command_queue->get_context());
+    {
+      size_t *reqdThreadsPerBlock = kernel->reqdThreadsPerBlock_;
+      maxWorkGroupSize = command_queue->device_->get_max_work_group_size();
+      command_queue->device_->get_max_work_item_sizes(
+          sizeof(maxThreadsPerBlock), maxThreadsPerBlock);
+
+      if (providedLocalWorkGroupSize) {
+        auto isValid = [&](int dim) {
+          if (reqdThreadsPerBlock[dim] != 0 &&
+              local_work_size[dim] != reqdThreadsPerBlock[dim])
+            return PI_INVALID_WORK_GROUP_SIZE;
+
+          if (local_work_size[dim] > maxThreadsPerBlock[dim])
+            return PI_INVALID_WORK_ITEM_SIZE;
+          // Checks that local work sizes are a divisor of the global work sizes
+          // which includes that the local work sizes are neither larger than
+          // the global work sizes and not 0.
+          if (0u == local_work_size[dim])
+            return PI_INVALID_WORK_GROUP_SIZE;
+          if (0u != (global_work_size[dim] % local_work_size[dim]))
+            return PI_INVALID_WORK_GROUP_SIZE;
+          threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
+          return PI_SUCCESS;
+        };
+
+        for (size_t dim = 0; dim < work_dim; dim++) {
+          auto err = isValid(dim);
+          if (err != PI_SUCCESS)
+            return err;
+        }
+      } else {
+        guessLocalWorkSize(threadsPerBlock, global_work_size,
+                           maxThreadsPerBlock, kernel, local_size);
+      }
+    }
+
+    if (maxWorkGroupSize <
+        size_t(threadsPerBlock[0] * threadsPerBlock[1] * threadsPerBlock[2])) {
+      return PI_INVALID_WORK_GROUP_SIZE;
+    }
+
+    int blocksPerGrid[3] = {1, 1, 1};
+
+    for (size_t i = 0; i < work_dim; i++) {
+      blocksPerGrid[i] =
+          static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
+          threadsPerBlock[i];
+    }
+
+    std::unique_ptr<_pi_event> retImplEv{nullptr};
+
     CUstream cuStream = command_queue->get();
     CUfunction cuFunc = kernel->get();
 
@@ -2678,7 +2729,8 @@ pi_result cuda_piEnqueueNativeKernel(pi_queue, void (*)(void *), void *, size_t,
 }
 
 pi_result cuda_piextKernelCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                 bool, pi_kernel *) {
+                                                 pi_program, bool,
+                                                 pi_kernel *) {
   sycl::detail::pi::die("Unsupported operation");
   return PI_SUCCESS;
 }
@@ -3161,7 +3213,7 @@ pi_result cuda_piextProgramGetNativeHandle(pi_program program,
 ///
 /// \return TBD
 pi_result cuda_piextProgramCreateWithNativeHandle(pi_native_handle, pi_context,
-                                                  pi_program *) {
+                                                  bool, pi_program *) {
   cl::sycl::detail::pi::die(
       "Creation of PI program from native handle not implemented");
   return {};
@@ -3654,12 +3706,18 @@ static pi_result commonEnqueueMemBufferCopyRect(
   assert(src_type == CU_MEMORYTYPE_DEVICE || src_type == CU_MEMORYTYPE_HOST);
   assert(dst_type == CU_MEMORYTYPE_DEVICE || dst_type == CU_MEMORYTYPE_HOST);
 
-  src_row_pitch = (!src_row_pitch) ? region->width_bytes : src_row_pitch;
-  src_slice_pitch = (!src_slice_pitch) ? (region->height_scalar * src_row_pitch)
-                                       : src_slice_pitch;
-  dst_row_pitch = (!dst_row_pitch) ? region->width_bytes : dst_row_pitch;
-  dst_slice_pitch = (!dst_slice_pitch) ? (region->height_scalar * dst_row_pitch)
-                                       : dst_slice_pitch;
+  src_row_pitch = (!src_row_pitch) ? region->width_bytes + src_offset->x_bytes
+                                   : src_row_pitch;
+  src_slice_pitch =
+      (!src_slice_pitch)
+          ? ((region->height_scalar + src_offset->y_scalar) * src_row_pitch)
+          : src_slice_pitch;
+  dst_row_pitch = (!dst_row_pitch) ? region->width_bytes + dst_offset->x_bytes
+                                   : dst_row_pitch;
+  dst_slice_pitch =
+      (!dst_slice_pitch)
+          ? ((region->height_scalar + dst_offset->y_scalar) * dst_row_pitch)
+          : dst_slice_pitch;
 
   CUDA_MEMCPY3D params = {};
 
@@ -4500,7 +4558,7 @@ pi_result cuda_piextUSMFree(pi_context context, void *ptr) {
                                          CU_POINTER_ATTRIBUTE_MEMORY_TYPE};
     result = PI_CHECK_ERROR(cuPointerGetAttributes(
         2, attributes, attribute_values, (CUdeviceptr)ptr));
-    assert(type == CU_MEMORYTYPE_DEVICE or type == CU_MEMORYTYPE_HOST);
+    assert(type == CU_MEMORYTYPE_DEVICE || type == CU_MEMORYTYPE_HOST);
     if (is_managed || type == CU_MEMORYTYPE_DEVICE) {
       // Memory allocated with cuMemAlloc and cuMemAllocManaged must be freed
       // with cuMemFree
@@ -4592,15 +4650,23 @@ pi_result cuda_piextUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
                                        pi_uint32 num_events_in_waitlist,
                                        const pi_event *events_waitlist,
                                        pi_event *event) {
+
+// CUDA has an issue with cuMemPrefetchAsync returning cudaErrorInvalidDevice
+// for Windows machines
+// TODO: Remove when fix is found
+#ifdef _MSC_VER
+  cl::sycl::detail::pi::die(
+      "cuda_piextUSMEnqueuePrefetch does not currently work on Windows");
+#endif
+
+  // flags is currently unused so fail if set
+  if (flags != 0)
+    return PI_INVALID_VALUE;
   assert(queue != nullptr);
   assert(ptr != nullptr);
   CUstream cuStream = queue->get();
   pi_result result = PI_SUCCESS;
   std::unique_ptr<_pi_event> event_ptr{nullptr};
-
-  // TODO implement handling the flags once the expected behaviour
-  // of piextUSMEnqueuePrefetch is detailed in the USM extension
-  assert(flags == 0u);
 
   try {
     ScopedContext active(queue->get_context());
@@ -4704,7 +4770,7 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
       }
       result = PI_CHECK_ERROR(cuPointerGetAttribute(
           &value, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, (CUdeviceptr)ptr));
-      assert(value == CU_MEMORYTYPE_DEVICE or value == CU_MEMORYTYPE_HOST);
+      assert(value == CU_MEMORYTYPE_DEVICE || value == CU_MEMORYTYPE_HOST);
       if (value == CU_MEMORYTYPE_DEVICE) {
         // pointer to device memory
         return getInfo(param_value_size, param_value, param_value_size_ret,
@@ -4716,7 +4782,11 @@ pi_result cuda_piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
                        PI_MEM_TYPE_HOST);
       }
       // should never get here
+#ifdef _MSC_VER
+      __assume(0);
+#else
       __builtin_unreachable();
+#endif
       return getInfo(param_value_size, param_value, param_value_size_ret,
                      PI_MEM_TYPE_UNKNOWN);
     }

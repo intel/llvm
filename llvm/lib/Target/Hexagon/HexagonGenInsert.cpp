@@ -597,19 +597,13 @@ void HexagonGenInsert::dump_map() const {
 void HexagonGenInsert::buildOrderingMF(RegisterOrdering &RO) const {
   unsigned Index = 0;
 
-  using mf_iterator = MachineFunction::const_iterator;
-
-  for (mf_iterator A = MFN->begin(), Z = MFN->end(); A != Z; ++A) {
-    const MachineBasicBlock &B = *A;
+  for (const MachineBasicBlock &B : *MFN) {
     if (!CMS->BT.reached(&B))
       continue;
 
-    using mb_iterator = MachineBasicBlock::const_iterator;
-
-    for (mb_iterator I = B.begin(), E = B.end(); I != E; ++I) {
-      const MachineInstr *MI = &*I;
-      for (unsigned i = 0, n = MI->getNumOperands(); i < n; ++i) {
-        const MachineOperand &MO = MI->getOperand(i);
+    for (const MachineInstr &MI : B) {
+      for (unsigned i = 0, n = MI.getNumOperands(); i < n; ++i) {
+        const MachineOperand &MO = MI.getOperand(i);
         if (MO.isReg() && MO.isDef()) {
           Register R = MO.getReg();
           assert(MO.getSubReg() == 0 && "Unexpected subregister in definition");
@@ -765,10 +759,7 @@ unsigned HexagonGenInsert::distance(const MachineBasicBlock *FromB,
 
   unsigned MaxD = 0;
 
-  using pred_iterator = MachineBasicBlock::const_pred_iterator;
-
-  for (pred_iterator I = ToB->pred_begin(), E = ToB->pred_end(); I != E; ++I) {
-    const MachineBasicBlock *PB = *I;
+  for (const MachineBasicBlock *PB : ToB->predecessors()) {
     // Skip back edges. Also, if FromB is a predecessor of ToB, the distance
     // along that path will be 0, and we don't need to do any calculations
     // on it.
@@ -945,12 +936,11 @@ void HexagonGenInsert::collectInBlock(MachineBasicBlock *B,
   // can remove them from the list of available registers once all DT
   // successors have been processed.
   RegisterSet BlockDefs, InsDefs;
-  for (MachineBasicBlock::iterator I = B->begin(), E = B->end(); I != E; ++I) {
-    MachineInstr *MI = &*I;
+  for (MachineInstr &MI : *B) {
     InsDefs.clear();
-    getInstrDefs(MI, InsDefs);
+    getInstrDefs(&MI, InsDefs);
     // Leave those alone. They are more transparent than "insert".
-    bool Skip = MI->isCopy() || MI->isRegSequence();
+    bool Skip = MI.isCopy() || MI.isRegSequence();
 
     if (!Skip) {
       // Visit all defined registers, and attempt to find the corresponding
@@ -1461,8 +1451,7 @@ bool HexagonGenInsert::removeDeadCode(MachineDomTreeNode *N) {
   for (auto I = B->rbegin(), E = B->rend(); I != E; ++I)
     Instrs.push_back(&*I);
 
-  for (auto I = Instrs.begin(), E = Instrs.end(); I != E; ++I) {
-    MachineInstr *MI = *I;
+  for (MachineInstr *MI : Instrs) {
     unsigned Opc = MI->getOpcode();
     // Do not touch lifetime markers. This is why the target-independent DCE
     // cannot be used.
@@ -1504,7 +1493,7 @@ bool HexagonGenInsert::runOnMachineFunction(MachineFunction &MF) {
   bool Timing = OptTiming, TimingDetail = Timing && OptTimingDetail;
   bool Changed = false;
 
-  // Sanity check: one, but not both.
+  // Verify: one, but not both.
   assert(!OptSelectAll0 || !OptSelectHas0);
 
   IFMap.clear();

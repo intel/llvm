@@ -26,7 +26,7 @@ the diagnostic should be propagated to any previously registered handlers. It
 can be interfaced with via an `MLIRContext` instance.
 
 ```c++
-DiagnosticEngine engine = ctx->getDiagEngine();
+DiagnosticEngine& engine = ctx->getDiagEngine();
 
 /// Handle the reported diagnostic.
 // Return success to signal that the diagnostic has either been fully processed,
@@ -301,7 +301,7 @@ func @bad_branch() {
 // Expect an error on an adjacent line.
 func @foo(%a : f32) {
   // expected-error@+1 {{unknown comparison predicate "foo"}}
-  %result = cmpf "foo", %a, %a : f32
+  %result = arith.cmpf "foo", %a, %a : f32
   return
 }
 

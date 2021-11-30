@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fno-sycl-unnamed-lambda -fsycl-int-header=%t.h %s -sycl-std=2020 -fsyntax-only
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fno-sycl-unnamed-lambda -fsycl-int-header=%t.h %s -sycl-std=2020 -fsyntax-only
 // RUN: FileCheck -input-file=%t.h %s --check-prefixes=CHECK,NUL
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown-sycldevice -fsycl-int-header=%t.h %s -sycl-std=2020 -fsyntax-only
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -fsycl-int-header=%t.h %s -sycl-std=2020 -fsyntax-only
 // RUN: FileCheck -input-file=%t.h %s --check-prefixes=CHECK,UL
 
 #include "Inputs/sycl.hpp"

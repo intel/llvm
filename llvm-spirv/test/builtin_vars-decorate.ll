@@ -26,23 +26,23 @@ target triple = "spir-unknown-unknown"
 ; CHECK: {{[0-9]+}} Name [[SI:[0-9]+]] "__spirv_BuiltInSubgroupId"
 ; CHECK: {{[0-9]+}} Name [[SLII:[0-9]+]] "__spirv_BuiltInSubgroupLocalInvocationId"
 
-; CHECK: 4 Decorate [[NW]] BuiltIn 24
-; CHECK: 4 Decorate [[WS]] BuiltIn 25
-; CHECK: 4 Decorate [[WI]] BuiltIn 26
-; CHECK: 4 Decorate [[LLI]] BuiltIn 27
-; CHECK: 4 Decorate [[GII]] BuiltIn 28
-; CHECK: 4 Decorate [[LLII]] BuiltIn 29
-; CHECK: 4 Decorate [[WD]] BuiltIn 30
-; CHECK: 4 Decorate [[GS]] BuiltIn 31
-; CHECK: 4 Decorate [[EWS]] BuiltIn 32
-; CHECK: 4 Decorate [[GO]] BuiltIn 33
-; CHECK: 4 Decorate [[GLI]] BuiltIn 34
-; CHECK: 4 Decorate [[SS]] BuiltIn 36
-; CHECK: 4 Decorate [[SMS]] BuiltIn 37
-; CHECK: 4 Decorate [[NS]] BuiltIn 38
-; CHECK: 4 Decorate [[NES]] BuiltIn 39
-; CHECK: 4 Decorate [[SI]] BuiltIn 40
-; CHECK: 4 Decorate [[SLII]] BuiltIn 41
+; CHECK-DAG: 4 Decorate [[NW]] BuiltIn 24
+; CHECK-DAG: 4 Decorate [[WS]] BuiltIn 25
+; CHECK-DAG: 4 Decorate [[WI]] BuiltIn 26
+; CHECK-DAG: 4 Decorate [[LLI]] BuiltIn 27
+; CHECK-DAG: 4 Decorate [[GII]] BuiltIn 28
+; CHECK-DAG: 4 Decorate [[LLII]] BuiltIn 29
+; CHECK-DAG: 4 Decorate [[WD]] BuiltIn 30
+; CHECK-DAG: 4 Decorate [[GS]] BuiltIn 31
+; CHECK-DAG: 4 Decorate [[EWS]] BuiltIn 32
+; CHECK-DAG: 4 Decorate [[GO]] BuiltIn 33
+; CHECK-DAG: 4 Decorate [[GLI]] BuiltIn 34
+; CHECK-DAG: 4 Decorate [[SS]] BuiltIn 36
+; CHECK-DAG: 4 Decorate [[SMS]] BuiltIn 37
+; CHECK-DAG: 4 Decorate [[NS]] BuiltIn 38
+; CHECK-DAG: 4 Decorate [[NES]] BuiltIn 39
+; CHECK-DAG: 4 Decorate [[SI]] BuiltIn 40
+; CHECK-DAG: 4 Decorate [[SLII]] BuiltIn 41
 @__spirv_BuiltInWorkDim = external addrspace(1) global i32
 @__spirv_BuiltInGlobalSize = external addrspace(1) global <3 x i32>
 @__spirv_BuiltInGlobalInvocationId = external addrspace(1) global <3 x i32>

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -114,9 +115,7 @@ static ParseResult parseExecuteRegionOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, ExecuteRegionOp op) {
-  p << ExecuteRegionOp::getOperationName();
-  if (op.getNumResults() > 0)
-    p << " -> " << op.getResultTypes();
+  p.printOptionalArrowTypeList(op.getResultTypes());
 
   p.printRegion(op.region(),
                 /*printEntryBlockArgs=*/false,
@@ -277,8 +276,8 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
 }
 
 static LogicalResult verify(ForOp op) {
-  if (auto cst = op.step().getDefiningOp<ConstantIndexOp>())
-    if (cst.getValue() <= 0)
+  if (auto cst = op.step().getDefiningOp<arith::ConstantIndexOp>())
+    if (cst.value() <= 0)
       return op.emitOpError("constant step operand must be positive");
 
   // Check that the body defines as single block argument for the induction
@@ -340,8 +339,8 @@ static void printInitializationList(OpAsmPrinter &p,
 }
 
 static void print(OpAsmPrinter &p, ForOp op) {
-  p << op.getOperationName() << " " << op.getInductionVar() << " = "
-    << op.lowerBound() << " to " << op.upperBound() << " step " << op.step();
+  p << " " << op.getInductionVar() << " = " << op.lowerBound() << " to "
+    << op.upperBound() << " step " << op.step();
 
   printInitializationList(p, op.getRegionIterArgs(), op.getIterOperands(),
                           " iter_args");
@@ -709,8 +708,8 @@ struct SimplifyTrivialLoops : public OpRewritePattern<ForOp> {
       return success();
     }
 
-    auto lb = op.lowerBound().getDefiningOp<ConstantOp>();
-    auto ub = op.upperBound().getDefiningOp<ConstantOp>();
+    auto lb = op.lowerBound().getDefiningOp<arith::ConstantOp>();
+    auto ub = op.upperBound().getDefiningOp<arith::ConstantOp>();
     if (!lb || !ub)
       return failure();
 
@@ -722,7 +721,7 @@ struct SimplifyTrivialLoops : public OpRewritePattern<ForOp> {
       return success();
     }
 
-    auto step = op.step().getDefiningOp<ConstantOp>();
+    auto step = op.step().getDefiningOp<arith::ConstantOp>();
     if (!step)
       return failure();
 
@@ -1011,6 +1010,26 @@ void ForOp::getCanonicalizationPatterns(RewritePatternSet &results,
 // IfOp
 //===----------------------------------------------------------------------===//
 
+bool mlir::scf::insideMutuallyExclusiveBranches(Operation *a, Operation *b) {
+  assert(a && "expected non-empty operation");
+  assert(b && "expected non-empty operation");
+
+  IfOp ifOp = a->getParentOfType<IfOp>();
+  while (ifOp) {
+    // Check if b is inside ifOp. (We already know that a is.)
+    if (ifOp->isProperAncestor(b))
+      // b is contained in ifOp. a and b are in mutually exclusive branches if
+      // they are in different blocks of ifOp.
+      return static_cast<bool>(ifOp.thenBlock()->findAncestorOpInBlock(*a)) !=
+             static_cast<bool>(ifOp.thenBlock()->findAncestorOpInBlock(*b));
+    // Check next enclosing IfOp.
+    ifOp = ifOp->getParentOfType<IfOp>();
+  }
+
+  // Could not find a common IfOp among a's and b's ancestors.
+  return false;
+}
+
 void IfOp::build(OpBuilder &builder, OperationState &result, Value cond,
                  bool withElseRegion) {
   build(builder, result, /*resultTypes=*/llvm::None, cond, withElseRegion);
@@ -1100,7 +1119,7 @@ static ParseResult parseIfOp(OpAsmParser &parser, OperationState &result) {
 static void print(OpAsmPrinter &p, IfOp op) {
   bool printBlockTerminators = false;
 
-  p << IfOp::getOperationName() << " " << op.condition();
+  p << " " << op.condition();
   if (!op.results().empty()) {
     p << " -> (" << op.getResultTypes() << ")";
     // Print yield explicitly if the op defines values.
@@ -1218,7 +1237,7 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
 
   LogicalResult matchAndRewrite(IfOp op,
                                 PatternRewriter &rewriter) const override {
-    auto constant = op.condition().getDefiningOp<ConstantOp>();
+    auto constant = op.condition().getDefiningOp<arith::ConstantOp>();
     if (!constant)
       return failure();
 
@@ -1290,7 +1309,7 @@ struct ConditionPropagation : public OpRewritePattern<IfOp> {
                                 PatternRewriter &rewriter) const override {
     // Early exit if the condition is constant since replacing a constant
     // in the body with another constant isn't a simplification.
-    if (op.condition().getDefiningOp<ConstantOp>())
+    if (op.condition().getDefiningOp<arith::ConstantOp>())
       return failure();
 
     bool changed = false;
@@ -1307,7 +1326,7 @@ struct ConditionPropagation : public OpRewritePattern<IfOp> {
         changed = true;
 
         if (!constantTrue)
-          constantTrue = rewriter.create<mlir::ConstantOp>(
+          constantTrue = rewriter.create<arith::ConstantOp>(
               op.getLoc(), i1Ty, rewriter.getIntegerAttr(i1Ty, 1));
 
         rewriter.updateRootInPlace(use.getOwner(),
@@ -1317,7 +1336,7 @@ struct ConditionPropagation : public OpRewritePattern<IfOp> {
         changed = true;
 
         if (!constantFalse)
-          constantFalse = rewriter.create<mlir::ConstantOp>(
+          constantFalse = rewriter.create<arith::ConstantOp>(
               op.getLoc(), i1Ty, rewriter.getIntegerAttr(i1Ty, 0));
 
         rewriter.updateRootInPlace(use.getOwner(),
@@ -1395,14 +1414,14 @@ struct ReplaceIfYieldWithConditionOrValue : public OpRewritePattern<IfOp> {
         continue;
       }
 
-      auto trueYield = trueResult.getDefiningOp<ConstantOp>();
+      auto trueYield = trueResult.getDefiningOp<arith::ConstantOp>();
       if (!trueYield)
         continue;
 
       if (!trueYield.getType().isInteger(1))
         continue;
 
-      auto falseYield = falseResult.getDefiningOp<ConstantOp>();
+      auto falseYield = falseResult.getDefiningOp<arith::ConstantOp>();
       if (!falseYield)
         continue;
 
@@ -1410,9 +1429,9 @@ struct ReplaceIfYieldWithConditionOrValue : public OpRewritePattern<IfOp> {
       bool falseVal = falseYield.getValue().cast<BoolAttr>().getValue();
       if (!trueVal && falseVal) {
         if (!opResult.use_empty()) {
-          Value notCond = rewriter.create<XOrOp>(
+          Value notCond = rewriter.create<arith::XOrIOp>(
               op.getLoc(), op.condition(),
-              rewriter.create<mlir::ConstantOp>(
+              rewriter.create<arith::ConstantOp>(
                   op.getLoc(), i1Ty, rewriter.getIntegerAttr(i1Ty, 1)));
           opResult.replaceAllUsesWith(notCond);
           changed = true;
@@ -1641,8 +1660,8 @@ static LogicalResult verify(ParallelOp op) {
 
   // Check whether all constant step values are positive.
   for (Value stepValue : stepValues)
-    if (auto cst = stepValue.getDefiningOp<ConstantIndexOp>())
-      if (cst.getValue() <= 0)
+    if (auto cst = stepValue.getDefiningOp<arith::ConstantIndexOp>())
+      if (cst.value() <= 0)
         return op.emitOpError("constant step operand must be positive");
 
   // Check that the body defines the same number of block arguments as the
@@ -1763,9 +1782,8 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
 }
 
 static void print(OpAsmPrinter &p, ParallelOp op) {
-  p << op.getOperationName() << " (" << op.getBody()->getArguments() << ") = ("
-    << op.lowerBound() << ") to (" << op.upperBound() << ") step (" << op.step()
-    << ")";
+  p << " (" << op.getBody()->getArguments() << ") = (" << op.lowerBound()
+    << ") to (" << op.upperBound() << ") step (" << op.step() << ")";
   if (!op.initVals().empty())
     p << " init (" << op.initVals() << ")";
   p.printOptionalArrowTypeList(op.getResultTypes());
@@ -1816,17 +1834,17 @@ struct CollapseSingleIterationLoops : public OpRewritePattern<ParallelOp> {
       std::tie(lowerBound, upperBound, step, iv) = dim;
       // Collect the statically known loop bounds.
       auto lowerBoundConstant =
-          dyn_cast_or_null<ConstantIndexOp>(lowerBound.getDefiningOp());
+          dyn_cast_or_null<arith::ConstantIndexOp>(lowerBound.getDefiningOp());
       auto upperBoundConstant =
-          dyn_cast_or_null<ConstantIndexOp>(upperBound.getDefiningOp());
+          dyn_cast_or_null<arith::ConstantIndexOp>(upperBound.getDefiningOp());
       auto stepConstant =
-          dyn_cast_or_null<ConstantIndexOp>(step.getDefiningOp());
+          dyn_cast_or_null<arith::ConstantIndexOp>(step.getDefiningOp());
       // Replace the loop induction variable by the lower bound if the loop
       // performs a single iteration. Otherwise, copy the loop bounds.
       if (lowerBoundConstant && upperBoundConstant && stepConstant &&
-          (upperBoundConstant.getValue() - lowerBoundConstant.getValue()) > 0 &&
-          (upperBoundConstant.getValue() - lowerBoundConstant.getValue()) <=
-              stepConstant.getValue()) {
+          (upperBoundConstant.value() - lowerBoundConstant.value()) > 0 &&
+          (upperBoundConstant.value() - lowerBoundConstant.value()) <=
+              stepConstant.value()) {
         mapping.map(iv, lowerBound);
       } else {
         newLowerBounds.push_back(lowerBound);
@@ -2021,7 +2039,7 @@ static ParseResult parseReduceOp(OpAsmParser &parser, OperationState &result) {
 }
 
 static void print(OpAsmPrinter &p, ReduceOp op) {
-  p << op.getOperationName() << "(" << op.operand() << ") ";
+  p << "(" << op.operand() << ") ";
   p << " : " << op.operand().getType();
   p.printRegion(op.reductionOperator());
 }
@@ -2125,7 +2143,6 @@ static ParseResult parseWhileOp(OpAsmParser &parser, OperationState &result) {
 
 /// Prints a `while` op.
 static void print(OpAsmPrinter &p, scf::WhileOp op) {
-  p << op.getOperationName();
   printInitializationList(p, op.before().front().getArguments(), op.inits(),
                           " ");
   p << " : ";
@@ -2226,7 +2243,7 @@ struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
       if (std::get<0>(yieldedAndBlockArgs) == term.condition()) {
         if (!std::get<1>(yieldedAndBlockArgs).use_empty()) {
           if (!constantTrue)
-            constantTrue = rewriter.create<mlir::ConstantOp>(
+            constantTrue = rewriter.create<arith::ConstantOp>(
                 op.getLoc(), term.condition().getType(),
                 rewriter.getBoolAttr(true));
 
@@ -2238,11 +2255,102 @@ struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
     return success(replaced);
   }
 };
+
+/// Remove WhileOp results that are also unused in 'after' block.
+///
+///  %0:2 = scf.while () : () -> (i32, i64) {
+///    %condition = "test.condition"() : () -> i1
+///    %v1 = "test.get_some_value"() : () -> i32
+///    %v2 = "test.get_some_value"() : () -> i64
+///    scf.condition(%condition) %v1, %v2 : i32, i64
+///  } do {
+///  ^bb0(%arg0: i32, %arg1: i64):
+///    "test.use"(%arg0) : (i32) -> ()
+///    scf.yield
+///  }
+///  return %0#0 : i32
+///
+/// becomes
+///  %0 = scf.while () : () -> (i32) {
+///    %condition = "test.condition"() : () -> i1
+///    %v1 = "test.get_some_value"() : () -> i32
+///    %v2 = "test.get_some_value"() : () -> i64
+///    scf.condition(%condition) %v1 : i32
+///  } do {
+///  ^bb0(%arg0: i32):
+///    "test.use"(%arg0) : (i32) -> ()
+///    scf.yield
+///  }
+///  return %0 : i32
+struct WhileUnusedResult : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    auto term = op.getConditionOp();
+    auto afterArgs = op.getAfterArguments();
+    auto termArgs = term.args();
+
+    // Collect results mapping, new terminator args and new result types.
+    SmallVector<unsigned> newResultsIndices;
+    SmallVector<Type> newResultTypes;
+    SmallVector<Value> newTermArgs;
+    bool needUpdate = false;
+    for (auto it :
+         llvm::enumerate(llvm::zip(op.getResults(), afterArgs, termArgs))) {
+      auto i = static_cast<unsigned>(it.index());
+      Value result = std::get<0>(it.value());
+      Value afterArg = std::get<1>(it.value());
+      Value termArg = std::get<2>(it.value());
+      if (result.use_empty() && afterArg.use_empty()) {
+        needUpdate = true;
+      } else {
+        newResultsIndices.emplace_back(i);
+        newTermArgs.emplace_back(termArg);
+        newResultTypes.emplace_back(result.getType());
+      }
+    }
+
+    if (!needUpdate)
+      return failure();
+
+    {
+      OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPoint(term);
+      rewriter.replaceOpWithNewOp<ConditionOp>(term, term.condition(),
+                                               newTermArgs);
+    }
+
+    auto newWhile =
+        rewriter.create<WhileOp>(op.getLoc(), newResultTypes, op.inits());
+
+    Block &newAfterBlock = *rewriter.createBlock(
+        &newWhile.after(), /*insertPt*/ {}, newResultTypes);
+
+    // Build new results list and new after block args (unused entries will be
+    // null).
+    SmallVector<Value> newResults(op.getNumResults());
+    SmallVector<Value> newAfterBlockArgs(op.getNumResults());
+    for (auto it : llvm::enumerate(newResultsIndices)) {
+      newResults[it.value()] = newWhile.getResult(it.index());
+      newAfterBlockArgs[it.value()] = newAfterBlock.getArgument(it.index());
+    }
+
+    rewriter.inlineRegionBefore(op.before(), newWhile.before(),
+                                newWhile.before().begin());
+
+    Block &afterBlock = op.after().front();
+    rewriter.mergeBlocks(&afterBlock, &newAfterBlock, newAfterBlockArgs);
+
+    rewriter.replaceOp(op, newResults);
+    return success();
+  }
+};
 } // namespace
 
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<WhileConditionTruth>(context);
+  results.insert<WhileConditionTruth, WhileUnusedResult>(context);
 }
 
 //===----------------------------------------------------------------------===//

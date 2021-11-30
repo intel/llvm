@@ -113,7 +113,8 @@ private:
   Expr getPageSize();
 
   Expr readMemoryAssignment(StringRef, StringRef, StringRef);
-  std::pair<uint32_t, uint32_t> readMemoryAttributes();
+  void readMemoryAttributes(uint32_t &flags, uint32_t &invFlags,
+                            uint32_t &negFlags, uint32_t &negInvFlags);
 
   Expr combine(StringRef op, Expr l, Expr r);
   Expr readExpr();
@@ -131,7 +132,7 @@ private:
   std::pair<std::vector<SymbolVersion>, std::vector<SymbolVersion>>
   readSymbols();
 
-  // True if a script being read is in a subdirectory specified by -sysroot.
+  // True if a script being read is in the --sysroot directory.
   bool isUnderSysroot = false;
 
   // A set to detect an INCLUDE() cycle.
@@ -1429,8 +1430,9 @@ Expr ScriptParser::readPrimary() {
     return [=] { return *val; };
 
   // Tok is a symbol name.
-  tok = unquote(tok);
-  if (!isValidSymbolName(tok))
+  if (tok.startswith("\""))
+    tok = unquote(tok);
+  else if (!isValidSymbolName(tok))
     setError("malformed number: " + tok);
   script->referencedSymbols.push_back(tok);
   return [=] { return script->getSymbolValue(tok, location); };
@@ -1496,9 +1498,9 @@ void ScriptParser::readAnonymousDeclaration() {
   std::vector<SymbolVersion> globals;
   std::tie(locals, globals) = readSymbols();
   for (const SymbolVersion &pat : locals)
-    config->versionDefinitions[VER_NDX_LOCAL].patterns.push_back(pat);
+    config->versionDefinitions[VER_NDX_LOCAL].localPatterns.push_back(pat);
   for (const SymbolVersion &pat : globals)
-    config->versionDefinitions[VER_NDX_GLOBAL].patterns.push_back(pat);
+    config->versionDefinitions[VER_NDX_GLOBAL].nonLocalPatterns.push_back(pat);
 
   expect(";");
 }
@@ -1510,13 +1512,12 @@ void ScriptParser::readVersionDeclaration(StringRef verStr) {
   std::vector<SymbolVersion> locals;
   std::vector<SymbolVersion> globals;
   std::tie(locals, globals) = readSymbols();
-  for (const SymbolVersion &pat : locals)
-    config->versionDefinitions[VER_NDX_LOCAL].patterns.push_back(pat);
 
   // Create a new version definition and add that to the global symbols.
   VersionDefinition ver;
   ver.name = verStr;
-  ver.patterns = globals;
+  ver.nonLocalPatterns = std::move(globals);
+  ver.localPatterns = std::move(locals);
   ver.id = config->versionDefinitions.size();
   config->versionDefinitions.push_back(ver);
 
@@ -1614,9 +1615,11 @@ void ScriptParser::readMemory() {
     }
 
     uint32_t flags = 0;
+    uint32_t invFlags = 0;
     uint32_t negFlags = 0;
+    uint32_t negInvFlags = 0;
     if (consume("(")) {
-      std::tie(flags, negFlags) = readMemoryAttributes();
+      readMemoryAttributes(flags, invFlags, negFlags, negInvFlags);
       expect(")");
     }
     expect(":");
@@ -1626,7 +1629,8 @@ void ScriptParser::readMemory() {
     Expr length = readMemoryAssignment("LENGTH", "len", "l");
 
     // Add the memory region to the region map.
-    MemoryRegion *mr = make<MemoryRegion>(tok, origin, length, flags, negFlags);
+    MemoryRegion *mr = make<MemoryRegion>(tok, origin, length, flags, invFlags,
+                                          negFlags, negInvFlags);
     if (!script->memoryRegions.insert({tok, mr}).second)
       setError("region '" + tok + "' already defined");
   }
@@ -1635,30 +1639,34 @@ void ScriptParser::readMemory() {
 // This function parses the attributes used to match against section
 // flags when placing output sections in a memory region. These flags
 // are only used when an explicit memory region name is not used.
-std::pair<uint32_t, uint32_t> ScriptParser::readMemoryAttributes() {
-  uint32_t flags = 0;
-  uint32_t negFlags = 0;
+void ScriptParser::readMemoryAttributes(uint32_t &flags, uint32_t &invFlags,
+                                        uint32_t &negFlags,
+                                        uint32_t &negInvFlags) {
   bool invert = false;
 
   for (char c : next().lower()) {
-    uint32_t flag = 0;
-    if (c == '!')
+    if (c == '!') {
       invert = !invert;
-    else if (c == 'w')
-      flag = SHF_WRITE;
+      std::swap(flags, negFlags);
+      std::swap(invFlags, negInvFlags);
+      continue;
+    }
+    if (c == 'w')
+      flags |= SHF_WRITE;
     else if (c == 'x')
-      flag = SHF_EXECINSTR;
+      flags |= SHF_EXECINSTR;
     else if (c == 'a')
-      flag = SHF_ALLOC;
-    else if (c != 'r')
-      setError("invalid memory region attribute");
-
-    if (invert)
-      negFlags |= flag;
+      flags |= SHF_ALLOC;
+    else if (c == 'r')
+      invFlags |= SHF_WRITE;
     else
-      flags |= flag;
+      setError("invalid memory region attribute");
   }
-  return {flags, negFlags};
+
+  if (invert) {
+    std::swap(flags, negFlags);
+    std::swap(invFlags, negInvFlags);
+  }
 }
 
 void elf::readLinkerScript(MemoryBufferRef mb) {

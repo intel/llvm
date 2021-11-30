@@ -445,3 +445,152 @@ define i32 @and_or_not_or8(i32 %A, i32 %B) {
   %i5 = or i32 %i4, %i2
   ret i32 %i5
 }
+
+; (A | B) | (A ^ B) --> A | B
+
+define i69 @or_or_xor(i69 %A, i69 %B) {
+; CHECK-LABEL: @or_or_xor(
+; CHECK-NEXT:    [[I1:%.*]] = or i69 [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    ret i69 [[I1]]
+;
+  %i1 = or i69 %A, %B
+  %i2 = xor i69 %A, %B
+  %i3 = or i69 %i1, %i2
+  ret i69 %i3
+}
+
+; (B | A) | (A ^ B) --> B | A
+
+define i8 @or_or_xor_inner_or_commuted(i8 %A, i8 %B) {
+; CHECK-LABEL: @or_or_xor_inner_or_commuted(
+; CHECK-NEXT:    [[I1:%.*]] = or i8 [[B:%.*]], [[A:%.*]]
+; CHECK-NEXT:    ret i8 [[I1]]
+;
+  %i1 = or i8 %B, %A
+  %i2 = xor i8 %A, %B
+  %i3 = or i8 %i1, %i2
+  ret i8 %i3
+}
+
+; (A ^ B) | (A | B) --> A | B
+
+define <4 x i4> @or_or_xor_commuted(<4 x i4> %A, <4 x i4> %B) {
+; CHECK-LABEL: @or_or_xor_commuted(
+; CHECK-NEXT:    [[I1:%.*]] = or <4 x i4> [[A:%.*]], [[B:%.*]]
+; CHECK-NEXT:    ret <4 x i4> [[I1]]
+;
+  %i1 = or <4 x i4> %A, %B
+  %i2 = xor <4 x i4> %A, %B
+  %i3 = or <4 x i4> %i2, %i1
+  ret <4 x i4> %i3
+}
+
+; (A ^ B) | (B | A) --> B | A
+
+define i4 @or_or_xor_inner_or_outer_or_commuted(i4 %A, i4 %B) {
+; CHECK-LABEL: @or_or_xor_inner_or_outer_or_commuted(
+; CHECK-NEXT:    [[I1:%.*]] = or i4 [[B:%.*]], [[A:%.*]]
+; CHECK-NEXT:    ret i4 [[I1]]
+;
+  %i1 = or i4 %B, %A
+  %i2 = xor i4 %A, %B
+  %i3 = or i4 %i2, %i1
+  ret i4 %i3
+}
+
+define i32 @shifted_all_ones(i32 %shamt) {
+; CHECK-LABEL: @shifted_all_ones(
+; CHECK-NEXT:    ret i32 -1
+;
+  %r = lshr i32 -1, %shamt
+  %s = sub i32 32, %shamt
+  %l = shl i32 -1, %s
+  %o = or i32 %r, %l
+  ret i32 %o
+}
+
+; Sub from less than bitwidth is ok (overlapping ones).
+
+define i32 @shifted_all_ones_commute(i32 %shamt) {
+; CHECK-LABEL: @shifted_all_ones_commute(
+; CHECK-NEXT:    ret i32 -1
+;
+  %r = lshr i32 -1, %shamt
+  %s = sub i32 31, %shamt
+  %l = shl i32 -1, %s
+  %o = or i32 %l, %r
+  ret i32 %o
+}
+
+define <2 x i9> @shifted_all_ones_sub_on_lshr(<2 x i9> %shamt) {
+; CHECK-LABEL: @shifted_all_ones_sub_on_lshr(
+; CHECK-NEXT:    ret <2 x i9> <i9 -1, i9 -1>
+;
+  %l = shl <2 x i9> <i9 -1, i9 -1>, %shamt
+  %s = sub <2 x i9> <i9 5, i9 5>, %shamt
+  %r = lshr <2 x i9> <i9 -1, i9 -1>, %s
+  %o = or <2 x i9> %l, %r
+  ret <2 x i9> %o
+}
+
+define i8 @shifted_all_ones_sub_on_lshr_commute(i8 %shamt) {
+; CHECK-LABEL: @shifted_all_ones_sub_on_lshr_commute(
+; CHECK-NEXT:    ret i8 -1
+;
+  %l = shl i8 -1, %shamt
+  %s = sub i8 8, %shamt
+  %r = lshr i8 -1, %s
+  %o = or i8 %r, %l
+  ret i8 %o
+}
+
+; negative test - need -1 in general case
+
+define i32 @shifted_not_all_ones(i32 %shamt) {
+; CHECK-LABEL: @shifted_not_all_ones(
+; CHECK-NEXT:    [[R:%.*]] = lshr i32 -2, [[SHAMT:%.*]]
+; CHECK-NEXT:    [[S:%.*]] = sub i32 31, [[SHAMT]]
+; CHECK-NEXT:    [[L:%.*]] = shl i32 -1, [[S]]
+; CHECK-NEXT:    [[O:%.*]] = or i32 [[R]], [[L]]
+; CHECK-NEXT:    ret i32 [[O]]
+;
+  %r = lshr i32 -2, %shamt
+  %s = sub i32 31, %shamt
+  %l = shl i32 -1, %s
+  %o = or i32 %r, %l
+  ret i32 %o
+}
+
+; negative test - opposite shift amount may be too big
+
+define i32 @shifted_all_ones_greater_than_bitwidth(i32 %shamt) {
+; CHECK-LABEL: @shifted_all_ones_greater_than_bitwidth(
+; CHECK-NEXT:    [[R:%.*]] = lshr i32 -1, [[SHAMT:%.*]]
+; CHECK-NEXT:    [[S:%.*]] = sub i32 33, [[SHAMT]]
+; CHECK-NEXT:    [[L:%.*]] = shl i32 -1, [[S]]
+; CHECK-NEXT:    [[O:%.*]] = or i32 [[R]], [[L]]
+; CHECK-NEXT:    ret i32 [[O]]
+;
+  %r = lshr i32 -1, %shamt
+  %s = sub i32 33, %shamt
+  %l = shl i32 -1, %s
+  %o = or i32 %r, %l
+  ret i32 %o
+}
+
+; negative test - shift amount must be derived from same base
+
+define i32 @shifted_all_ones_not_same_amt(i32 %shamt, i32 %other) {
+; CHECK-LABEL: @shifted_all_ones_not_same_amt(
+; CHECK-NEXT:    [[R:%.*]] = lshr i32 -1, [[SHAMT:%.*]]
+; CHECK-NEXT:    [[S:%.*]] = sub i32 32, [[OTHER:%.*]]
+; CHECK-NEXT:    [[L:%.*]] = shl i32 -1, [[S]]
+; CHECK-NEXT:    [[O:%.*]] = or i32 [[R]], [[L]]
+; CHECK-NEXT:    ret i32 [[O]]
+;
+  %r = lshr i32 -1, %shamt
+  %s = sub i32 32, %other
+  %l = shl i32 -1, %s
+  %o = or i32 %r, %l
+  ret i32 %o
+}

@@ -19,6 +19,10 @@
 /* Define to 1 to enable crash memory dumps, and to 0 otherwise. */
 #cmakedefine01 LLVM_ENABLE_CRASH_DUMPS
 
+/* Define to 1 to prefer forward slashes on Windows, and to 0 prefer
+   backslashes. */
+#cmakedefine01 LLVM_WINDOWS_PREFER_FORWARD_SLASH
+
 /* Define to 1 if you have the `backtrace' function. */
 #cmakedefine HAVE_BACKTRACE ${HAVE_BACKTRACE}
 
@@ -63,6 +67,9 @@
 
 /* Define to 1 if we can deregister EH frames on this platform. */
 #cmakedefine HAVE_DEREGISTER_FRAME ${HAVE_DEREGISTER_FRAME}
+
+/* Define if __unw_add_dynamic_fde() is available on this platform. */
+#cmakedefine HAVE_UNW_ADD_DYNAMIC_FDE ${HAVE_UNW_ADD_DYNAMIC_FDE}
 
 /* Define to 1 if you have the <errno.h> header file. */
 #cmakedefine HAVE_ERRNO_H ${HAVE_ERRNO_H}
@@ -349,6 +356,9 @@
 
 /* Define to the default GlobalISel coverage file prefix */
 #cmakedefine LLVM_GISEL_COV_PREFIX "${LLVM_GISEL_COV_PREFIX}"
+
+/* Whether Timers signpost passes in Xcode Instruments */
+#cmakedefine01 LLVM_SUPPORT_XCODE_SIGNPOSTS
 
 #cmakedefine HAVE_PROC_PID_RUSAGE 1
 

@@ -66,32 +66,4 @@ _Z29__spirv_AtomicCompareExchangePU3AS1mN5__spv5Scope4FlagENS1_19MemorySemantics
     enum MemorySemanticsMask neq, ulong val, ulong cmp) {
   return __sync_val_compare_and_swap_8(p, cmp, val);
 }
-
-_CLC_DEF long
-_Z29__spirv_AtomicCompareExchangePU3AS3xN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagES5_xx(
-    volatile local long *p, enum Scope scope, enum MemorySemanticsMask eq,
-    enum MemorySemanticsMask neq, long val, long cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-_CLC_DEF long
-_Z29__spirv_AtomicCompareExchangePU3AS1xN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagES5_xx(
-    volatile global long *p, enum Scope scope, enum MemorySemanticsMask eq,
-    enum MemorySemanticsMask neq, long val, long cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-_CLC_DEF ulong
-_Z29__spirv_AtomicCompareExchangePU3AS3yN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagES5_yy(
-    volatile local ulong *p, enum Scope scope, enum MemorySemanticsMask eq,
-    enum MemorySemanticsMask neq, ulong val, ulong cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
-
-_CLC_DEF ulong
-_Z29__spirv_AtomicCompareExchangePU3AS1yN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagES5_yy(
-    volatile global ulong *p, enum Scope scope, enum MemorySemanticsMask eq,
-    enum MemorySemanticsMask neq, ulong val, ulong cmp) {
-  return __sync_val_compare_and_swap_8(p, cmp, val);
-}
 #endif

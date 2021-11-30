@@ -849,6 +849,7 @@ typedef struct kmp_nested_proc_bind_t {
 } kmp_nested_proc_bind_t;
 
 extern kmp_nested_proc_bind_t __kmp_nested_proc_bind;
+extern kmp_proc_bind_t __kmp_teams_proc_bind;
 
 extern int __kmp_display_affinity;
 extern char *__kmp_affinity_format;
@@ -989,7 +990,7 @@ typedef omp_memspace_handle_t kmp_memspace_t; // placeholder
 typedef struct kmp_allocator_t {
   omp_memspace_handle_t memspace;
   void **memkind; // pointer to memkind
-  int alignment;
+  size_t alignment;
   omp_alloctrait_value_t fb;
   kmp_allocator_t *fb_data;
   kmp_uint64 pool_size;
@@ -1003,13 +1004,25 @@ extern omp_allocator_handle_t __kmpc_init_allocator(int gtid,
 extern void __kmpc_destroy_allocator(int gtid, omp_allocator_handle_t al);
 extern void __kmpc_set_default_allocator(int gtid, omp_allocator_handle_t al);
 extern omp_allocator_handle_t __kmpc_get_default_allocator(int gtid);
+// external interfaces, may be used by compiler
 extern void *__kmpc_alloc(int gtid, size_t sz, omp_allocator_handle_t al);
+extern void *__kmpc_aligned_alloc(int gtid, size_t align, size_t sz,
+                                  omp_allocator_handle_t al);
 extern void *__kmpc_calloc(int gtid, size_t nmemb, size_t sz,
                            omp_allocator_handle_t al);
 extern void *__kmpc_realloc(int gtid, void *ptr, size_t sz,
                             omp_allocator_handle_t al,
                             omp_allocator_handle_t free_al);
 extern void __kmpc_free(int gtid, void *ptr, omp_allocator_handle_t al);
+// internal interfaces, contain real implementation
+extern void *__kmp_alloc(int gtid, size_t align, size_t sz,
+                         omp_allocator_handle_t al);
+extern void *__kmp_calloc(int gtid, size_t align, size_t nmemb, size_t sz,
+                          omp_allocator_handle_t al);
+extern void *__kmp_realloc(int gtid, void *ptr, size_t sz,
+                           omp_allocator_handle_t al,
+                           omp_allocator_handle_t free_al);
+extern void ___kmpc_free(int gtid, void *ptr, omp_allocator_handle_t al);
 
 extern void __kmp_init_memkind();
 extern void __kmp_fini_memkind();
@@ -1068,7 +1081,9 @@ extern void __kmp_init_target_mem();
 #define KMP_MIN_BLOCKTIME (0)
 #define KMP_MAX_BLOCKTIME                                                      \
   (INT_MAX) /* Must be this for "infinite" setting the work */
-#define KMP_DEFAULT_BLOCKTIME (200) /*  __kmp_blocktime is in milliseconds  */
+
+/* __kmp_blocktime is in milliseconds */
+#define KMP_DEFAULT_BLOCKTIME (__kmp_is_hybrid_cpu() ? (0) : (200))
 
 #if KMP_USE_MONITOR
 #define KMP_DEFAULT_MONITOR_STKSIZE ((size_t)(64 * 1024))
@@ -1206,6 +1221,13 @@ typedef struct kmp_cpuid {
   kmp_uint32 edx;
 } kmp_cpuid_t;
 
+typedef struct kmp_cpuinfo_flags_t {
+  unsigned sse2 : 1; // 0 if SSE2 instructions are not supported, 1 otherwise.
+  unsigned rtm : 1; // 0 if RTM instructions are not supported, 1 otherwise.
+  unsigned hybrid : 1;
+  unsigned reserved : 29; // Ensure size of 32 bits
+} kmp_cpuinfo_flags_t;
+
 typedef struct kmp_cpuinfo {
   int initialized; // If 0, other fields are not initialized.
   int signature; // CPUID(1).EAX
@@ -1213,8 +1235,7 @@ typedef struct kmp_cpuinfo {
   int model; // ( CPUID(1).EAX[19:16] << 4 ) + CPUID(1).EAX[7:4] ( ( Extended
   // Model << 4 ) + Model)
   int stepping; // CPUID(1).EAX[3:0] ( Stepping )
-  int sse2; // 0 if SSE2 instructions are not supported, 1 otherwise.
-  int rtm; // 0 if RTM instructions are not supported, 1 otherwise.
+  kmp_cpuinfo_flags_t flags;
   int apic_id;
   int physical_id;
   int logical_id;
@@ -1439,6 +1460,8 @@ __kmp_mm_mwait(unsigned extensions, unsigned hints) {
 /* Support datatypes for the orphaned construct nesting checks.             */
 /* ------------------------------------------------------------------------ */
 
+/* When adding to this enum, add its corresponding string in cons_text_c[]
+ * array in kmp_error.cpp */
 enum cons_type {
   ct_none,
   ct_parallel,
@@ -2253,22 +2276,26 @@ typedef union kmp_depnode kmp_depnode_t;
 typedef struct kmp_depnode_list kmp_depnode_list_t;
 typedef struct kmp_dephash_entry kmp_dephash_entry_t;
 
+// macros for checking dep flag as an integer
 #define KMP_DEP_IN 0x1
 #define KMP_DEP_OUT 0x2
 #define KMP_DEP_INOUT 0x3
 #define KMP_DEP_MTX 0x4
 #define KMP_DEP_SET 0x8
+#define KMP_DEP_ALL 0x80
 // Compiler sends us this info:
 typedef struct kmp_depend_info {
   kmp_intptr_t base_addr;
   size_t len;
   union {
-    kmp_uint8 flag;
-    struct {
+    kmp_uint8 flag; // flag as an unsigned char
+    struct { // flag as a set of 8 bits
       unsigned in : 1;
       unsigned out : 1;
       unsigned mtx : 1;
       unsigned set : 1;
+      unsigned unused : 3;
+      unsigned all : 1;
     } flags;
   };
 } kmp_depend_info_t;
@@ -2314,6 +2341,7 @@ struct kmp_dephash_entry {
 typedef struct kmp_dephash {
   kmp_dephash_entry_t **buckets;
   size_t size;
+  kmp_depnode_t *last_all;
   size_t generation;
   kmp_uint32 nelements;
   kmp_uint32 nconflicts;
@@ -2421,13 +2449,6 @@ struct kmp_taskdata { /* aligned during dynamic allocation       */
   kmp_depnode_t
       *td_depnode; // Pointer to graph node if this task has dependencies
   kmp_task_team_t *td_task_team;
-  // The global thread id of the encountering thread. We need it because when a
-  // regular task depends on a hidden helper task, and the hidden helper task
-  // is finished on a hidden helper thread, it will call __kmp_release_deps to
-  // release all dependences. If now the task is a regular task, we need to pass
-  // the encountering gtid such that the task will be picked up and executed by
-  // its encountering team instead of hidden helper team.
-  kmp_int32 encountering_gtid;
   size_t td_size_alloc; // Size of task structure, including shareds etc.
 #if defined(KMP_GOMP_COMPAT)
   // 4 or 8 byte integers for the loop bounds in GOMP_taskloop
@@ -2966,6 +2987,9 @@ extern int __kmp_storage_map_verbose_specified;
 
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
 extern kmp_cpuinfo_t __kmp_cpuinfo;
+static inline bool __kmp_is_hybrid_cpu() { return __kmp_cpuinfo.flags.hybrid; }
+#else
+static inline bool __kmp_is_hybrid_cpu() { return false; }
 #endif
 
 extern volatile int __kmp_init_serial;
@@ -4135,6 +4159,10 @@ typedef enum kmp_severity_t {
 } kmp_severity_t;
 extern void __kmpc_error(ident_t *loc, int severity, const char *message);
 
+// Support for scope directive
+KMP_EXPORT void __kmpc_scope(ident_t *loc, kmp_int32 gtid, void *reserved);
+KMP_EXPORT void __kmpc_end_scope(ident_t *loc, kmp_int32 gtid, void *reserved);
+
 #ifdef __cplusplus
 }
 #endif
@@ -4245,6 +4273,15 @@ public:
                     __kmp_msg_null);
       }
     }
+  }
+  /// Instead of erroring out, return non-zero when
+  /// unsuccessful fopen() for any reason
+  int try_open(const char *filename, const char *mode) {
+    KMP_ASSERT(!f);
+    f = fopen(filename, mode);
+    if (!f)
+      return errno;
+    return 0;
   }
   /// Set the FILE* object to stdout and output there
   /// No open call should happen before this call.

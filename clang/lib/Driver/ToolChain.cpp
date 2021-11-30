@@ -29,6 +29,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/MC/MCTargetOptions.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Option/OptTable.h"
@@ -38,7 +39,6 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TargetParser.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include <cassert>
@@ -111,14 +111,11 @@ bool ToolChain::useRelaxRelocations() const {
   return ENABLE_X86_RELAX_RELOCATIONS;
 }
 
-bool ToolChain::isNoExecStackDefault() const {
-    return false;
-}
-
-const SanitizerArgs& ToolChain::getSanitizerArgs() const {
-  if (!SanitizerArguments.get())
-    SanitizerArguments.reset(new SanitizerArgs(*this, Args));
-  return *SanitizerArguments.get();
+SanitizerArgs
+ToolChain::getSanitizerArgs(const llvm::opt::ArgList &JobArgs) const {
+  SanitizerArgs SanArgs(*this, JobArgs, !SanitizerArgsChecked);
+  SanitizerArgsChecked = true;
+  return SanArgs;
 }
 
 const XRayArgs& ToolChain::getXRayArgs() const {
@@ -170,10 +167,11 @@ static const DriverSuffix *FindDriverSuffix(StringRef ProgName, size_t &Pos) {
 /// present and lower-casing the string on Windows.
 static std::string normalizeProgramName(llvm::StringRef Argv0) {
   std::string ProgName = std::string(llvm::sys::path::stem(Argv0));
-#ifdef _WIN32
-  // Transform to lowercase for case insensitive file systems.
-  std::transform(ProgName.begin(), ProgName.end(), ProgName.begin(), ::tolower);
-#endif
+  if (is_style_windows(llvm::sys::path::Style::native)) {
+    // Transform to lowercase for case insensitive file systems.
+    std::transform(ProgName.begin(), ProgName.end(), ProgName.begin(),
+                   ::tolower);
+  }
   return ProgName;
 }
 
@@ -652,7 +650,7 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
   // for the linker flavor is brittle. In addition, prepending "ld." or "ld64."
   // to a relative path is surprising. This is more complex due to priorities
   // among -B, COMPILER_PATH and PATH. --ld-path= should be used instead.
-  if (UseLinker.find('/') != StringRef::npos)
+  if (UseLinker.contains('/'))
     getDriver().Diag(diag::warn_drv_fuse_ld_path);
 
   if (llvm::sys::path::is_absolute(UseLinker)) {
@@ -687,6 +685,8 @@ std::string ToolChain::GetLinkerPath(bool *LinkerIsLLD,
 
 std::string ToolChain::GetStaticLibToolPath() const {
   // TODO: Add support for static lib archiving on Windows
+  if (Triple.isOSDarwin())
+    return GetProgramPath("libtool");
   return GetProgramPath("llvm-ar");
 }
 
@@ -1093,7 +1093,7 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
-llvm::SmallVector<std::string, 12>
+llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 ToolChain::getHIPDeviceLibs(const ArgList &DriverArgs) const {
   return {};
 }
@@ -1174,8 +1174,9 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     // at all, target and host share a toolchain.
     if (A->getOption().matches(options::OPT_m_Group)) {
       // AMD GPU is a special case, as -mcpu is required for the device
-      // compilation.
-      if (SameTripleAsHost || getTriple().getArch() == llvm::Triple::amdgcn)
+      // compilation, except for SYCL which uses --offload-arch.
+      if (SameTripleAsHost || (getTriple().getArch() == llvm::Triple::amdgcn &&
+                               DeviceOffloadKind != Action::OFK_SYCL))
         DAL->append(A);
       else
         Modified = true;
@@ -1215,7 +1216,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (A->getValue(0) == getTripleString())
+        if (getDriver().MakeSYCLDeviceTriple(A->getValue(0)) == getTriple())
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;
@@ -1244,12 +1245,19 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
     if (XOffloadTargetNoTriple && XOffloadTargetArg) {
       // TODO: similar behaviors with OpenMP and SYCL offloading, can be
       // improved upon
+      auto SingleTargetTripleCount = [&Args](OptSpecifier Opt) {
+        const Arg *TargetArg = Args.getLastArg(Opt);
+        if (TargetArg && TargetArg->getValues().size() == 1)
+          return true;
+        return false;
+      };
       if (DeviceOffloadKind == Action::OFK_OpenMP &&
-          Args.getAllArgValues(options::OPT_fopenmp_targets_EQ).size() != 1) {
+          !SingleTargetTripleCount(options::OPT_fopenmp_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xopenmp_target_missing_triple);
         continue;
-      } else if (DeviceOffloadKind == Action::OFK_SYCL &&
-          Args.getAllArgValues(options::OPT_fsycl_targets_EQ).size() > 1) {
+      }
+      if (DeviceOffloadKind == Action::OFK_SYCL &&
+          !SingleTargetTripleCount(options::OPT_fsycl_targets_EQ)) {
         getDriver().Diag(diag::err_drv_Xsycl_target_missing_triple)
             << A->getSpelling();
         continue;

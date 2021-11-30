@@ -293,7 +293,7 @@ template <> void SPIRVMap<std::string, Op, SPIRVInstruction>::init() {
   _SPIRV_OP(isgreaterequal, FOrdGreaterThanEqual)
   _SPIRV_OP(isless, FOrdLessThan)
   _SPIRV_OP(islessequal, FOrdLessThanEqual)
-  _SPIRV_OP(islessgreater, LessOrGreater)
+  _SPIRV_OP(islessgreater, FOrdNotEqual)
   _SPIRV_OP(isordered, Ordered)
   _SPIRV_OP(isunordered, Unordered)
   _SPIRV_OP(isfinite, IsFinite)
@@ -662,34 +662,37 @@ size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC) {
   return 1;
 }
 
+// atomic_fetch_[add, min, max] and atomic_fetch_[add, min, max]_explicit
+// functions declared in clang headers should be translated to corresponding
+// FP-typed Atomic Instructions
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
   if (!DemangledName.startswith(kOCLBuiltinName::AtomicPrefix) &&
       !DemangledName.startswith(kOCLBuiltinName::AtomPrefix))
     return false;
 
   return llvm::StringSwitch<bool>(DemangledName)
-      .EndsWith("add", true)
       .EndsWith("sub", true)
+      .EndsWith("atomic_add", true)
+      .EndsWith("atomic_min", true)
+      .EndsWith("atomic_max", true)
+      .EndsWith("atom_add", true)
+      .EndsWith("atom_min", true)
+      .EndsWith("atom_max", true)
       .EndsWith("inc", true)
       .EndsWith("dec", true)
       .EndsWith("cmpxchg", true)
-      .EndsWith("min", true)
-      .EndsWith("max", true)
       .EndsWith("and", true)
       .EndsWith("or", true)
       .EndsWith("xor", true)
-      .EndsWith("add_explicit", true)
       .EndsWith("sub_explicit", true)
       .EndsWith("or_explicit", true)
       .EndsWith("xor_explicit", true)
       .EndsWith("and_explicit", true)
-      .EndsWith("min_explicit", true)
-      .EndsWith("max_explicit", true)
       .Default(false);
 }
 
 BarrierLiterals getBarrierLiterals(CallInst *CI) {
-  auto N = CI->getNumArgOperands();
+  auto N = CI->arg_size();
   assert(N == 1 || N == 2);
 
   StringRef DemangledName;
@@ -765,7 +768,8 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
     return 0;
   assert(NamedMD->getNumOperands() > 0 && "Invalid SPIR");
   if (!AllowMulti && NamedMD->getNumOperands() != 1)
-    report_fatal_error("Multiple OCL version metadata not allowed");
+    report_fatal_error(
+        llvm::Twine("Multiple OCL version metadata not allowed"));
 
   // If the module was linked with another module, there may be multiple
   // operands.
@@ -776,7 +780,7 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
   auto Ver = GetVer(0);
   for (unsigned I = 1, E = NamedMD->getNumOperands(); I != E; ++I)
     if (Ver != GetVer(I))
-      report_fatal_error("OCL version mismatch");
+      report_fatal_error(llvm::Twine("OCL version mismatch"));
 
   return encodeOCLVer(Ver.first, Ver.second, 0);
 }
@@ -1010,20 +1014,9 @@ public:
       FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
       if (InvokeTy->getNumParams() > 1)
         setLocalArgBlock(BlockArgIdx);
-    } else if (NameRef.equals("enqueue_kernel")) {
-      assert(F && "lack of necessary information");
-      setEnumArg(1, SPIR::PRIMITIVE_KERNEL_ENQUEUE_FLAGS_T);
-      addUnsignedArg(3);
-      setArgAttr(4, SPIR::ATTR_CONST);
-      // If there are arguments other then block context then these are pointers
-      // to local memory so this built-in must be mangled accordingly.
-      const size_t BlockArgIdx = 6;
-      FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
-      if (InvokeTy->getNumParams() > 1) {
-        setLocalArgBlock(BlockArgIdx);
-        addUnsignedArg(BlockArgIdx + 1);
-        setVarArg(BlockArgIdx + 2);
-      }
+    } else if (NameRef.startswith("__enqueue_kernel")) {
+      // clang doesn't mangle enqueue_kernel builtins
+      setAsDontMangle();
     } else if (NameRef.startswith("get_") || NameRef.equals("nan") ||
                NameRef.equals("mem_fence") || NameRef.startswith("shuffle")) {
       addUnsignedArg(-1);

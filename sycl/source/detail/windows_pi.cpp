@@ -8,6 +8,7 @@
 
 #include <CL/sycl/detail/defines.hpp>
 
+#include <cassert>
 #include <string>
 #include <windows.h>
 #include <winreg.h>
@@ -26,8 +27,15 @@ void *loadOsLibrary(const std::string &PluginPath) {
   // NOTE: we restore the old mode to not affect user app behavior.
   //
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+  // Exclude current directory from DLL search path
+  if (!SetDllDirectoryA("")) {
+    assert(false && "Failed to update DLL search path");
+  }
   auto Result = (void *)LoadLibraryA(PluginPath.c_str());
   (void)SetErrorMode(SavedMode);
+  if (!SetDllDirectoryA(nullptr)) {
+    assert(false && "Failed to restore DLL search path");
+  }
 
   return Result;
 }

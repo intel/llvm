@@ -1,14 +1,14 @@
 ; This test checks that the Local Accessor to Shared Memory pass runs with the
-; `nvptx64-nvidia-cuda-sycldevice` triple.
-; RUN: llc -mtriple=nvptx64-nvidia-cuda-sycldevice < %s | FileCheck --check-prefix=CHECK-VALID %s
-; RUN: llc -mtriple=nvptx64-nvidia-nvcl-sycldevice < %s | FileCheck --check-prefix=CHECK-INVALID %s
+; `nvptx64-nvidia-cuda` triple.
+; RUN: llc -mtriple=nvptx64-nvidia-cuda < %s | FileCheck --check-prefix=CHECK-VALID %s
+; RUN: llc -mtriple=nvptx64-nvidia-nvcl < %s | FileCheck --check-prefix=CHECK-INVALID %s
 ; CHECK-VALID: .param .u32 _ZTS14example_kernel_param_0
 ; CHECK-INVALID: .param .u64 .ptr .shared .align 4 _ZTS14example_kernel_param_0
 
 ; ModuleID = 'local-accessor-to-shared-memory-valid-triple.ll'
 source_filename = "local-accessor-to-shared-memory-valid-triple.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
-target triple = "nvptx64-nvidia-cuda-sycldevice"
+target triple = "nvptx64-nvidia-cuda"
 
 ; Function Attrs: noinline
 define weak_odr dso_local void @_ZTS14example_kernel(i32 addrspace(3)* %a) {

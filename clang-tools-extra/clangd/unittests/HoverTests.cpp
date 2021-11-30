@@ -12,6 +12,7 @@
 #include "TestIndex.h"
 #include "TestTU.h"
 #include "index/MemIndex.h"
+#include "clang/AST/Attr.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Index/IndexSymbol.h"
 #include "llvm/ADT/None.h"
@@ -460,7 +461,7 @@ class Foo {})cpp";
        [](HoverInfo &HI) {
          HI.Name = "auto";
          HI.Kind = index::SymbolKind::TypeAlias;
-         HI.Definition = "class Foo<int>";
+         HI.Definition = "Foo<int>";
        }},
       // auto on specialized template
       {R"cpp(
@@ -473,7 +474,7 @@ class Foo {})cpp";
        [](HoverInfo &HI) {
          HI.Name = "auto";
          HI.Kind = index::SymbolKind::TypeAlias;
-         HI.Definition = "class Foo<int>";
+         HI.Definition = "Foo<int>";
        }},
 
       // macro
@@ -647,7 +648,7 @@ class Foo {})cpp";
           [](HoverInfo &HI) {
             HI.Name = "auto";
             HI.Kind = index::SymbolKind::TypeAlias;
-            HI.Definition = "class Foo<X>";
+            HI.Definition = "Foo<X>";
           }},
       {// Falls back to primary template, when the type is not instantiated.
        R"cpp(
@@ -898,7 +899,7 @@ class Foo {})cpp";
        [](HoverInfo &HI) {
          HI.Name = "expression";
          HI.Kind = index::SymbolKind::Unknown;
-         HI.Type = "int [10]";
+         HI.Type = "int[10]";
          HI.Value = "{1}";
        }}};
   for (const auto &Case : Cases) {
@@ -935,6 +936,39 @@ class Foo {})cpp";
     EXPECT_EQ(H->AccessSpecifier, Expected.AccessSpecifier);
     EXPECT_EQ(H->CalleeArgInfo, Expected.CalleeArgInfo);
     EXPECT_EQ(H->CallPassType, Expected.CallPassType);
+  }
+}
+
+TEST(Hover, DefinitionLanuage) {
+  struct {
+    const char *const Code;
+    const std::string ClangLanguageFlag;
+    const char *const ExpectedDefinitionLanguage;
+  } Cases[] = {{R"cpp(
+          void [[some^Global]]() {}
+          )cpp",
+                "", "cpp"},
+               {R"cpp(
+          void [[some^Global]]() {}
+          )cpp",
+                "-xobjective-c++", "objective-cpp"},
+               {R"cpp(
+          void [[some^Global]]() {}
+          )cpp",
+                "-xobjective-c", "objective-c"}};
+  for (const auto &Case : Cases) {
+    SCOPED_TRACE(Case.Code);
+
+    Annotations T(Case.Code);
+    TestTU TU = TestTU::withCode(T.code());
+    if (!Case.ClangLanguageFlag.empty())
+      TU.ExtraArgs.push_back(Case.ClangLanguageFlag);
+    auto AST = TU.build();
+
+    auto H = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
+    ASSERT_TRUE(H);
+
+    EXPECT_STREQ(H->DefinitionLanguage, Case.ExpectedDefinitionLanguage);
   }
 }
 
@@ -1990,7 +2024,7 @@ TEST(Hover, All) {
           [](HoverInfo &HI) {
             HI.Name = "auto";
             HI.Kind = index::SymbolKind::TypeAlias;
-            HI.Definition = "int";
+            HI.Definition = "int_type";
           }},
       {
           R"cpp(// auto on alias
@@ -2001,7 +2035,7 @@ TEST(Hover, All) {
           [](HoverInfo &HI) {
             HI.Name = "auto";
             HI.Kind = index::SymbolKind::TypeAlias;
-            HI.Definition = "struct cls";
+            HI.Definition = "cls_type";
             HI.Documentation = "auto on alias";
           }},
       {
@@ -2013,7 +2047,7 @@ TEST(Hover, All) {
           [](HoverInfo &HI) {
             HI.Name = "auto";
             HI.Kind = index::SymbolKind::TypeAlias;
-            HI.Definition = "struct templ<int>";
+            HI.Definition = "templ<int>";
             HI.Documentation = "auto on alias";
           }},
       {
@@ -2376,6 +2410,15 @@ TEST(Hover, All) {
          HI.LocalScope = "-[Foo variadicArgMethod:, ...]::";
          HI.NamespaceScope = "";
          HI.Value = "0";
+       }},
+      {R"cpp(
+         void foo(int * __attribute__(([[non^null]], noescape)) );
+         )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "nonnull";
+         HI.Kind = index::SymbolKind::Unknown; // FIXME: no suitable value
+         HI.Definition = "__attribute__((nonnull))";
+         HI.Documentation = Attr::getDocumentation(attr::NonNull).str();
        }},
   };
 
@@ -2750,6 +2793,15 @@ Passed by const reference as arg_a (converted to int)
 
 // In test::Bar
 int foo = 3)",
+      },
+      {
+          [](HoverInfo &HI) {
+            HI.Name = "stdio.h";
+            HI.Definition = "/usr/include/stdio.h";
+          },
+          R"(stdio.h
+
+/usr/include/stdio.h)",
       }};
 
   for (const auto &C : Cases) {
@@ -2882,6 +2934,49 @@ Value = val
 def)pt";
   EXPECT_EQ(HI.present().asPlainText(), ExpectedPlaintext);
 }
+
+TEST(Hover, SpaceshipTemplateNoCrash) {
+  Annotations T(R"cpp(
+  namespace std {
+  struct strong_ordering {
+    int n;
+    constexpr operator int() const { return n; }
+    static const strong_ordering equal, greater, less;
+  };
+  constexpr strong_ordering strong_ordering::equal = {0};
+  constexpr strong_ordering strong_ordering::greater = {1};
+  constexpr strong_ordering strong_ordering::less = {-1};
+  }
+
+  template <typename T>
+  struct S {
+    // Foo bar baz
+    friend auto operator<=>(S, S) = default;
+  };
+  static_assert(S<void>() =^= S<void>());
+    )cpp");
+
+  TestTU TU = TestTU::withCode(T.code());
+  TU.ExtraArgs.push_back("-std=c++20");
+  auto AST = TU.build();
+  auto HI = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
+  EXPECT_EQ(HI->Documentation, "Foo bar baz");
+}
+
+TEST(Hover, ForwardStructNoCrash) {
+  Annotations T(R"cpp(
+  struct Foo;
+  int bar;
+  auto baz = (Fo^o*)&bar;
+    )cpp");
+
+  TestTU TU = TestTU::withCode(T.code());
+  auto AST = TU.build();
+  auto HI = getHover(AST, T.point(), format::getLLVMStyle(), nullptr);
+  ASSERT_TRUE(HI);
+  EXPECT_EQ(*HI->Value, "&bar");
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang

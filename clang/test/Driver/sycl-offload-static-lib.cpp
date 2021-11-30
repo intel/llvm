@@ -58,7 +58,7 @@
 // FOFFLOAD_STATIC_LIB_SRC: 4: input, "[[INPUTC]]", c++, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 6: compiler, {5}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown-sycldevice)" {6}, c++-cpp-output
+// FOFFLOAD_STATIC_LIB_SRC: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown)" {6}, c++-cpp-output
 // FOFFLOAD_STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
@@ -73,7 +73,7 @@
 // FOFFLOAD_STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown-sycldevice)" {21}, image
+// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown)" {21}, image
 
 /// ###########################################################################
 
@@ -142,7 +142,7 @@
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 9: llvm-spirv, {8}, tempfilelist, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 10: file-table-tform, {7, 9}, tempfiletable, (device-sycl)
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 11: clang-offload-wrapper, {10}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 12: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown-sycldevice)" {11}, image
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 12: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown)" {11}, image
 
 /// ###########################################################################
 
@@ -155,10 +155,10 @@
 // RUN: touch %t.a
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_gen-unknown-unknown %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice %t.a -### 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_x86_64-unknown-unknown %t.a -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefixes=STATIC_ARCHIVE_UNBUNDLE
 // STATIC_ARCHIVE_UNBUNDLE: clang-offload-bundler{{.*}}

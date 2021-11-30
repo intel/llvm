@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <CL/sycl/detail/defines_elementary.hpp>
+
 #include <functional>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -14,9 +17,11 @@ namespace sycl {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
+template <typename T = void> using bit_and = std::bit_and<T>;
 template <typename T = void> using bit_or = std::bit_or<T>;
 template <typename T = void> using bit_xor = std::bit_xor<T>;
-template <typename T = void> using bit_and = std::bit_and<T>;
+template <typename T = void> using logical_and = std::logical_and<T>;
+template <typename T = void> using logical_or = std::logical_or<T>;
 
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {

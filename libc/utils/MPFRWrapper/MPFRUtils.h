@@ -9,7 +9,7 @@
 #ifndef LLVM_LIBC_UTILS_TESTUTILS_MPFRUTILS_H
 #define LLVM_LIBC_UTILS_TESTUTILS_MPFRUTILS_H
 
-#include "utils/CPP/TypeTraits.h"
+#include "src/__support/CPP/TypeTraits.h"
 #include "utils/UnitTest/Test.h"
 
 #include <stdint.h>
@@ -30,6 +30,9 @@ enum class Operation : int {
   Exp2,
   Expm1,
   Floor,
+  Mod2PI,
+  ModPIOver2,
+  ModPIOver4,
   Round,
   Sin,
   Sqrt,

@@ -33,7 +33,7 @@ template <typename T> inline void checkVectorsWithN() {
 }
 
 inline void checkVectors() {
-  checkVectorsWithN<half>();
+  checkVectorsWithN<s::half>();
   checkVectorsWithN<float>();
   checkVectorsWithN<double>();
   checkVectorsWithN<char>();
@@ -90,6 +90,9 @@ template <> inline void checkSizeForFloatingPoint<s::half, sizeof(int16_t)>() {
 }
 
 int main() {
+  // Test for creating constexpr expressions
+  constexpr sycl::specialization_id<sycl::vec<sycl::half, 2>> id(1.0);
+  constexpr sycl::marray<sycl::half, 2> MH(3);
   // Check the size and alignment of the SYCL vectors.
   checkVectors();
 

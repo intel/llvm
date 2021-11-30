@@ -19,6 +19,7 @@ set(LIBCXX_SOURCES
   include/atomic_support.h
   include/config_elast.h
   include/refstring.h
+  legacy_pointer_safety.cpp
   memory.cpp
   mutex.cpp
   mutex_destructor.cpp
@@ -98,6 +99,8 @@ elseif("${CMAKE_SYSTEM_NAME}" STREQUAL "SunOS")
     )
 elseif(ZOS)
   list(APPEND LIBCXX_SOURCES
+    support/ibm/mbsnrtowcs.cpp
+    support/ibm/wcsnrtombs.cpp
     support/ibm/xlocale_zos.cpp
     )
 endif()
@@ -161,7 +164,8 @@ if (APPLE AND LLVM_USE_SANITIZER)
     message(WARNING "LLVM_USE_SANITIZER=${LLVM_USE_SANITIZER} is not supported on OS X")
   endif()
   if (LIBFILE)
-    find_compiler_rt_dir(LIBDIR)
+    find_compiler_rt_library(builtins LIBCXX_BUILTINS_LIBRARY)
+    get_filename_component(LIBDIR "${LIBCXX_BUILTINS_LIBRARY}" DIRECTORY)
     if (NOT IS_DIRECTORY "${LIBDIR}")
       message(FATAL_ERROR "Cannot find compiler-rt directory on OS X required for LLVM_USE_SANITIZER")
     endif()
@@ -193,6 +197,7 @@ split_list(LIBCXX_LINK_FLAGS)
 # Build the shared library.
 if (LIBCXX_ENABLE_SHARED)
   add_library(cxx_shared SHARED ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
+  target_include_directories(cxx_shared PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(cxx_shared PUBLIC cxx-headers
                                    PRIVATE ${LIBCXX_LIBRARIES})
   set_target_properties(cxx_shared
@@ -271,6 +276,7 @@ set(CMAKE_STATIC_LIBRARY_PREFIX "lib")
 # Build the static library.
 if (LIBCXX_ENABLE_STATIC)
   add_library(cxx_static STATIC ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
+  target_include_directories(cxx_static PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(cxx_static PUBLIC cxx-headers
                                    PRIVATE ${LIBCXX_LIBRARIES})
   set_target_properties(cxx_static
@@ -282,6 +288,13 @@ if (LIBCXX_ENABLE_STATIC)
   )
   cxx_add_common_build_flags(cxx_static)
   cxx_set_common_defines(cxx_static)
+
+  if (LIBCXXABI_USE_LLVM_UNWINDER)
+    # If we intend to use the just-built unwinder, add a dependency so that it
+    # gets built, even if we technically aren't going to link it in at this
+    # stage.
+    add_dependencies(cxx_static unwind)
+  endif()
 
   if (LIBCXX_HERMETIC_STATIC_LIBRARY)
     # If the hermetic library doesn't define the operator new/delete functions
@@ -376,21 +389,21 @@ if (LIBCXX_INSTALL_SHARED_LIBRARY)
   install(TARGETS cxx_shared
     ARCHIVE DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
     LIBRARY DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
-    RUNTIME DESTINATION bin COMPONENT cxx)
+    RUNTIME DESTINATION ${LIBCXX_INSTALL_RUNTIME_DIR} COMPONENT cxx)
 endif()
 
 if (LIBCXX_INSTALL_STATIC_LIBRARY)
   install(TARGETS cxx_static
     ARCHIVE DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
     LIBRARY DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
-    RUNTIME DESTINATION bin COMPONENT cxx)
+    RUNTIME DESTINATION ${LIBCXX_INSTALL_RUNTIME_DIR} COMPONENT cxx)
 endif()
 
 if(LIBCXX_INSTALL_EXPERIMENTAL_LIBRARY)
   install(TARGETS cxx_experimental
     LIBRARY DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
     ARCHIVE DESTINATION ${LIBCXX_INSTALL_LIBRARY_DIR} COMPONENT cxx
-    RUNTIME DESTINATION bin COMPONENT cxx)
+    RUNTIME DESTINATION ${LIBCXX_INSTALL_RUNTIME_DIR} COMPONENT cxx)
 endif()
 
 # NOTE: This install command must go after the cxx install command otherwise

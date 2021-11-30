@@ -32,9 +32,9 @@ define <2 x half> @vfmul_vf_v2f16(<2 x half> %va, half %b, <2 x i1> %m, i32 zero
 ; CHECK-LABEL: vfmul_vf_v2f16:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 2, e16, mf4, ta, mu
-; CHECK-NEXT:    vfmv.v.f v25, fa0
+; CHECK-NEXT:    vfmv.v.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e16, mf4, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v25, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v9, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <2 x half> undef, half %b, i32 0
   %vb = shufflevector <2 x half> %elt.head, <2 x half> undef, <2 x i32> zeroinitializer
@@ -54,6 +54,18 @@ define <2 x half> @vfmul_vf_v2f16_unmasked(<2 x half> %va, half %b, i32 zeroext 
   %m = shufflevector <2 x i1> %head, <2 x i1> undef, <2 x i32> zeroinitializer
   %v = call <2 x half> @llvm.vp.fmul.v2f16(<2 x half> %va, <2 x half> %vb, <2 x i1> %m, i32 %evl)
   ret <2 x half> %v
+}
+
+declare <3 x half> @llvm.vp.fmul.v3f16(<3 x half>, <3 x half>, <3 x i1>, i32)
+
+define <3 x half> @vfmul_vv_v3f16(<3 x half> %va, <3 x half> %b, <3 x i1> %m, i32 zeroext %evl) {
+; CHECK-LABEL: vfmul_vv_v3f16:
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    vsetvli zero, a0, e16, mf2, ta, mu
+; CHECK-NEXT:    vfmul.vv v8, v8, v9, v0.t
+; CHECK-NEXT:    ret
+  %v = call <3 x half> @llvm.vp.fmul.v3f16(<3 x half> %va, <3 x half> %b, <3 x i1> %m, i32 %evl)
+  ret <3 x half> %v
 }
 
 declare <4 x half> @llvm.vp.fmul.v4f16(<4 x half>, <4 x half>, <4 x i1>, i32)
@@ -84,9 +96,9 @@ define <4 x half> @vfmul_vf_v4f16(<4 x half> %va, half %b, <4 x i1> %m, i32 zero
 ; CHECK-LABEL: vfmul_vf_v4f16:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 4, e16, mf2, ta, mu
-; CHECK-NEXT:    vfmv.v.f v25, fa0
+; CHECK-NEXT:    vfmv.v.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e16, mf2, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v25, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v9, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <4 x half> undef, half %b, i32 0
   %vb = shufflevector <4 x half> %elt.head, <4 x half> undef, <4 x i32> zeroinitializer
@@ -136,9 +148,9 @@ define <8 x half> @vfmul_vf_v8f16(<8 x half> %va, half %b, <8 x i1> %m, i32 zero
 ; CHECK-LABEL: vfmul_vf_v8f16:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 8, e16, m1, ta, mu
-; CHECK-NEXT:    vfmv.v.f v25, fa0
+; CHECK-NEXT:    vfmv.v.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e16, m1, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v25, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v9, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <8 x half> undef, half %b, i32 0
   %vb = shufflevector <8 x half> %elt.head, <8 x half> undef, <8 x i32> zeroinitializer
@@ -188,9 +200,9 @@ define <16 x half> @vfmul_vf_v16f16(<16 x half> %va, half %b, <16 x i1> %m, i32 
 ; CHECK-LABEL: vfmul_vf_v16f16:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 16, e16, m2, ta, mu
-; CHECK-NEXT:    vfmv.v.f v26, fa0
+; CHECK-NEXT:    vfmv.v.f v10, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e16, m2, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v26, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v10, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <16 x half> undef, half %b, i32 0
   %vb = shufflevector <16 x half> %elt.head, <16 x half> undef, <16 x i32> zeroinitializer
@@ -240,9 +252,9 @@ define <2 x float> @vfmul_vf_v2f32(<2 x float> %va, float %b, <2 x i1> %m, i32 z
 ; CHECK-LABEL: vfmul_vf_v2f32:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 2, e32, mf2, ta, mu
-; CHECK-NEXT:    vfmv.v.f v25, fa0
+; CHECK-NEXT:    vfmv.v.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e32, mf2, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v25, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v9, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <2 x float> undef, float %b, i32 0
   %vb = shufflevector <2 x float> %elt.head, <2 x float> undef, <2 x i32> zeroinitializer
@@ -292,9 +304,9 @@ define <4 x float> @vfmul_vf_v4f32(<4 x float> %va, float %b, <4 x i1> %m, i32 z
 ; CHECK-LABEL: vfmul_vf_v4f32:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 4, e32, m1, ta, mu
-; CHECK-NEXT:    vfmv.v.f v25, fa0
+; CHECK-NEXT:    vfmv.v.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e32, m1, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v25, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v9, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <4 x float> undef, float %b, i32 0
   %vb = shufflevector <4 x float> %elt.head, <4 x float> undef, <4 x i32> zeroinitializer
@@ -344,9 +356,9 @@ define <8 x float> @vfmul_vf_v8f32(<8 x float> %va, float %b, <8 x i1> %m, i32 z
 ; CHECK-LABEL: vfmul_vf_v8f32:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 8, e32, m2, ta, mu
-; CHECK-NEXT:    vfmv.v.f v26, fa0
+; CHECK-NEXT:    vfmv.v.f v10, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e32, m2, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v26, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v10, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <8 x float> undef, float %b, i32 0
   %vb = shufflevector <8 x float> %elt.head, <8 x float> undef, <8 x i32> zeroinitializer
@@ -396,9 +408,9 @@ define <16 x float> @vfmul_vf_v16f32(<16 x float> %va, float %b, <16 x i1> %m, i
 ; CHECK-LABEL: vfmul_vf_v16f32:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 16, e32, m4, ta, mu
-; CHECK-NEXT:    vfmv.v.f v28, fa0
+; CHECK-NEXT:    vfmv.v.f v12, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e32, m4, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v28, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v12, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <16 x float> undef, float %b, i32 0
   %vb = shufflevector <16 x float> %elt.head, <16 x float> undef, <16 x i32> zeroinitializer
@@ -448,9 +460,9 @@ define <2 x double> @vfmul_vf_v2f64(<2 x double> %va, double %b, <2 x i1> %m, i3
 ; CHECK-LABEL: vfmul_vf_v2f64:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 2, e64, m1, ta, mu
-; CHECK-NEXT:    vfmv.v.f v25, fa0
+; CHECK-NEXT:    vfmv.v.f v9, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e64, m1, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v25, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v9, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <2 x double> undef, double %b, i32 0
   %vb = shufflevector <2 x double> %elt.head, <2 x double> undef, <2 x i32> zeroinitializer
@@ -500,9 +512,9 @@ define <4 x double> @vfmul_vf_v4f64(<4 x double> %va, double %b, <4 x i1> %m, i3
 ; CHECK-LABEL: vfmul_vf_v4f64:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 4, e64, m2, ta, mu
-; CHECK-NEXT:    vfmv.v.f v26, fa0
+; CHECK-NEXT:    vfmv.v.f v10, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e64, m2, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v26, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v10, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <4 x double> undef, double %b, i32 0
   %vb = shufflevector <4 x double> %elt.head, <4 x double> undef, <4 x i32> zeroinitializer
@@ -552,9 +564,9 @@ define <8 x double> @vfmul_vf_v8f64(<8 x double> %va, double %b, <8 x i1> %m, i3
 ; CHECK-LABEL: vfmul_vf_v8f64:
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    vsetivli zero, 8, e64, m4, ta, mu
-; CHECK-NEXT:    vfmv.v.f v28, fa0
+; CHECK-NEXT:    vfmv.v.f v12, fa0
 ; CHECK-NEXT:    vsetvli zero, a0, e64, m4, ta, mu
-; CHECK-NEXT:    vfmul.vv v8, v8, v28, v0.t
+; CHECK-NEXT:    vfmul.vv v8, v8, v12, v0.t
 ; CHECK-NEXT:    ret
   %elt.head = insertelement <8 x double> undef, double %b, i32 0
   %vb = shufflevector <8 x double> %elt.head, <8 x double> undef, <8 x i32> zeroinitializer

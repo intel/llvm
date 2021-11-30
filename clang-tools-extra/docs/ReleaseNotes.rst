@@ -67,22 +67,75 @@ The improvements are...
 Improvements to clang-tidy
 --------------------------
 
-The improvements are...
+- Added support for globbing in `NOLINT*` expressions, to simplify suppressing
+  multiple warnings in the same line.
+
+- Added support for `NOLINTBEGIN` ... `NOLINTEND` comments to suppress
+  Clang-Tidy warnings over multiple lines.
 
 New checks
 ^^^^^^^^^^
 
+- New :doc:`abseil-cleanup-ctad
+  <clang-tidy/checks/abseil-cleanup-ctad>` check.
+
+  Suggests switching the initialization pattern of ``absl::Cleanup``
+  instances from the factory function to class template argument
+  deduction (CTAD), in C++17 and higher.
+
+- New :doc:`bugprone-suspicious-memory-comparison
+  <clang-tidy/checks/bugprone-suspicious-memory-comparison>` check.
+
+  Finds potentially incorrect calls to ``memcmp()`` based on properties of the
+  arguments.
+
+- New :doc:`cppcoreguidelines-virtual-class-destructor
+  <clang-tidy/checks/cppcoreguidelines-virtual-class-destructor>` check.
+
+  Finds virtual classes whose destructor is neither public and virtual nor
+  protected and non-virtual.
+
+- New :doc:`misc-misleading-identifier <clang-tidy/checks/misc-misleading-identifier>` check.
+
+  Reports identifier with unicode right-to-left characters.
+
+- New :doc:`readability-container-data-pointer
+  <clang-tidy/checks/readability-container-data-pointer>` check.
+
+  Finds cases where code could use ``data()`` rather than the address of the
+  element at index 0 in a container.
+
+- New :doc:`readability-identifier-length
+  <clang-tidy/checks/readability-identifier-length>` check.
+
+  Reports identifiers whose names are too short. Currently checks local
+  variables and function parameters only.
+
+
 New check aliases
 ^^^^^^^^^^^^^^^^^
+
+- New alias :doc:`cert-err33-c
+  <clang-tidy/checks/cert-err33-c>` to
+  :doc:`bugprone-unused-return-value
+  <clang-tidy/checks/bugprone-unused-return-value>` was added.
+
+- New alias :doc:`cert-exp42-c
+  <clang-tidy/checks/cert-exp42-c>` to
+  :doc:`bugprone-suspicious-memory-comparison
+  <clang-tidy/checks/bugprone-suspicious-memory-comparison>` was added.
+
+- New alias :doc:`cert-flp37-c
+  <clang-tidy/checks/cert-flp37-c>` to
+  :doc:`bugprone-suspicious-memory-comparison
+  <clang-tidy/checks/bugprone-suspicious-memory-comparison>` was added.
 
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Improved :doc:`cppcoreguidelines-init-variables<clang-tidy/checks/cppcoreguidelines-init-variables>` check.
+- Removed default setting `cppcoreguidelines-explicit-virtual-functions.IgnoreDestructors = "true"`,
+  to match the current state of the C++ Core Guidelines.
 
-  Removed generating fixes for enums because the code generated was broken, trying to initialize the enum from an integer.
-
-  The check now also warns for uninitialized scoped enums.
 
 Removed checks
 ^^^^^^^^^^^^^^

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
+#define __SYCL_INTERNAL_API
 
 #include <CL/sycl.hpp>
 #include <CL/sycl/backend/opencl.hpp>
@@ -22,7 +23,8 @@
 
 using namespace cl::sycl;
 
-int TestCounter;
+int TestCounter = 0;
+int DeviceRetainCounter = 0;
 
 static pi_result redefinedContextRetain(pi_context c) {
   ++TestCounter;
@@ -36,6 +38,7 @@ static pi_result redefinedQueueRetain(pi_queue c) {
 
 static pi_result redefinedDeviceRetain(pi_device c) {
   ++TestCounter;
+  ++DeviceRetainCounter;
   return PI_SUCCESS;
 }
 
@@ -61,6 +64,13 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
   return PI_SUCCESS;
 }
 
+static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
+                                           pi_uint32, const pi_event *,
+                                           pi_event *event) {
+  *event = reinterpret_cast<pi_event>(new int{});
+  return PI_SUCCESS;
+}
+
 TEST(GetNative, GetNativeHandle) {
   platform Plt{default_selector()};
   if (Plt.get_backend() != backend::opencl) {
@@ -83,6 +93,8 @@ TEST(GetNative, GetNativeHandle) {
   Mock.redefine<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
   Mock.redefine<detail::PiApiKind::piProgramRetain>(redefinedProgramRetain);
   Mock.redefine<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
+  Mock.redefine<detail::PiApiKind::piextUSMEnqueueMemset>(
+      redefinedUSMEnqueueMemset);
 
   default_selector Selector;
   context Context(Plt);
@@ -102,7 +114,8 @@ TEST(GetNative, GetNativeHandle) {
   get_native<backend::opencl>(Device);
   get_native<backend::opencl>(Event);
 
-  // When creating a context, the piDeviceRetain is called so here is the 6
-  // retain calls
-  ASSERT_EQ(TestCounter, 6) << "Not all the retain methods was called";
+  // Depending on global caches state, piDeviceRetain is called either once or
+  // twice, so there'll be 5 or 6 calls.
+  ASSERT_EQ(TestCounter, 5 + DeviceRetainCounter - 1)
+      << "Not all the retain methods were called";
 }

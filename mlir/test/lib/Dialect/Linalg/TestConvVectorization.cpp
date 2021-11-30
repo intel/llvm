@@ -10,6 +10,7 @@
 #include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/Linalg/Transforms/Hoisting.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
+#include "mlir/Dialect/SCF/Transforms.h"
 #include "mlir/Dialect/Vector/VectorTransforms.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -70,7 +71,7 @@ void TestConvVectorization::runOnOperation() {
 
   RewritePatternSet stage2Patterns =
       linalg::getLinalgTilingCanonicalizationPatterns(context);
-  stage2Patterns.add<linalg::AffineMinSCFCanonicalizationPattern>(context);
+  scf::populateSCFForLoopCanonicalizationPatterns(stage2Patterns);
 
   auto stage3Transforms = [](Operation *op) {
     PassManager pm(op->getContext());
@@ -92,15 +93,15 @@ void TestConvVectorization::runOnOperation() {
   // Post staged patterns transforms
   //===--------------------------------------------------------------------===//
 
-  VectorTransformsOptions vectorTransformsOptions{
-      VectorContractLowering::Dot, VectorTransposeLowering::EltWise};
+  VectorTransformsOptions vectorTransformOptions{
+      VectorContractLowering::Dot, VectorMultiReductionLowering::InnerParallel,
+      VectorTransposeLowering::EltWise};
 
   RewritePatternSet vectorTransferPatterns(context);
-  // Pattern is not applied because rank-reducing vector transfer is not yet
-  // supported as can be seen in splitFullAndPartialTransferPrecondition,
-  // VectorTransforms.cpp
+  // Pattern is not applied: rank-reducing vector transfer is not yet supported
+  // (see: splitFullAndPartialTransferPrecondition in VectorTransforms.cpp).
   vectorTransferPatterns.add<VectorTransferFullPartialRewriter>(
-      context, vectorTransformsOptions);
+      context, vectorTransformOptions);
   (void)applyPatternsAndFoldGreedily(module, std::move(vectorTransferPatterns));
 
   // Programmatic controlled lowering of linalg.copy and linalg.fill.
@@ -111,10 +112,13 @@ void TestConvVectorization::runOnOperation() {
 
   // Programmatic controlled lowering of vector.contract only.
   RewritePatternSet vectorContractLoweringPatterns(context);
+  populateVectorBroadcastLoweringPatterns(vectorContractLoweringPatterns);
   populateVectorContractLoweringPatterns(vectorContractLoweringPatterns,
-                                         vectorTransformsOptions);
+                                         vectorTransformOptions);
+  populateVectorMaskOpLoweringPatterns(vectorContractLoweringPatterns);
+  populateVectorShapeCastLoweringPatterns(vectorContractLoweringPatterns);
   populateVectorTransposeLoweringPatterns(vectorContractLoweringPatterns,
-                                          vectorTransformsOptions);
+                                          vectorTransformOptions);
   (void)applyPatternsAndFoldGreedily(module,
                                      std::move(vectorContractLoweringPatterns));
 

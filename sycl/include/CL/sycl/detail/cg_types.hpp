@@ -169,39 +169,41 @@ constexpr bool isKernelLambdaCallableWithKernelHandlerImpl() {
                                         kernel_handler>();
 }
 
-// Type traits to find out if kernal lambda has kernel_handler argument
-
-template <typename KernelType>
-constexpr bool isKernelLambdaCallableWithKernelHandler() {
-  return check_kernel_lambda_takes_args<KernelType, kernel_handler>();
-}
-
-template <typename KernelType, typename LambdaArgType>
-constexpr bool isKernelLambdaCallableWithKernelHandler() {
-  return isKernelLambdaCallableWithKernelHandlerImpl<KernelType,
-                                                     LambdaArgType>();
-}
+// Type trait to find out if kernal lambda has kernel_handler argument
+template <typename KernelType, typename LambdaArgType = void>
+struct KernelLambdaHasKernelHandlerArgT {
+  constexpr static bool value =
+      isKernelLambdaCallableWithKernelHandlerImpl<KernelType, LambdaArgType>();
+};
 
 // Helpers for running kernel lambda on the host device
 
-template <typename KernelType> void runKernelWithoutArg(KernelType KernelName) {
-  if constexpr (isKernelLambdaCallableWithKernelHandler<KernelType>()) {
-    kernel_handler KH;
-    KernelName(KH);
-  } else {
-    KernelName();
-  }
+template <typename KernelType>
+typename std::enable_if_t<KernelLambdaHasKernelHandlerArgT<KernelType>::value>
+runKernelWithoutArg(KernelType KernelName) {
+  kernel_handler KH;
+  KernelName(KH);
+}
+
+template <typename KernelType>
+typename std::enable_if_t<!KernelLambdaHasKernelHandlerArgT<KernelType>::value>
+runKernelWithoutArg(KernelType KernelName) {
+  KernelName();
 }
 
 template <typename ArgType, typename KernelType>
-constexpr void runKernelWithArg(KernelType KernelName, ArgType Arg) {
-  if constexpr (isKernelLambdaCallableWithKernelHandler<KernelType,
-                                                        ArgType>()) {
-    kernel_handler KH;
-    KernelName(Arg, KH);
-  } else {
-    KernelName(Arg);
-  }
+typename std::enable_if_t<
+    KernelLambdaHasKernelHandlerArgT<KernelType, ArgType>::value>
+runKernelWithArg(KernelType KernelName, ArgType Arg) {
+  kernel_handler KH;
+  KernelName(Arg, KH);
+}
+
+template <typename ArgType, typename KernelType>
+typename std::enable_if_t<
+    !KernelLambdaHasKernelHandlerArgT<KernelType, ArgType>::value>
+runKernelWithArg(KernelType KernelName, ArgType Arg) {
+  KernelName(Arg);
 }
 
 // The pure virtual class aimed to store lambda/functors of any type.

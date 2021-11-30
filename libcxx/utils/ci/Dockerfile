@@ -24,14 +24,20 @@
 # To update the image, rebuild it and push it to ldionne/libcxx-builder (which
 # will obviously only work if you have permission to do so).
 #
-#   $ docker build -t ldionne/libcxx-builder .
+#   $ docker build -t ldionne/libcxx-builder libcxx/utils/ci
 #   $ docker push ldionne/libcxx-builder
 #
 
-FROM ubuntu:bionic
+FROM ubuntu:focal
 
 # Make sure apt-get doesn't try to prompt for stuff like our time zone, etc.
 ENV DEBIAN_FRONTEND=noninteractive
+
+# This dummy command is meant to be edited from time to time, which causes the
+# CI builders to rebuild their copy of the Docker image. This is not a great
+# solution, however without that, the CI builders will keep the same cached
+# Docker image forever.
+RUN echo 2
 
 RUN apt-get update && apt-get install -y bash curl
 
@@ -39,8 +45,17 @@ RUN apt-get update && apt-get install -y bash curl
 RUN apt-get update && apt-get install -y ninja-build python3 python3-sphinx python3-distutils git gdb
 RUN apt-get update && apt-get install -y libc6-dev-i386 # Required to cross-compile to 32 bits
 
+# Locales for gdb and localization tests
+RUN apt-get update && apt-get install -y language-pack-en language-pack-fr \
+                                         language-pack-ru language-pack-zh-hans
+# These two are not enabled by default so generate them
+RUN printf "fr_CA ISO-8859-1\ncs_CZ ISO-8859-2" >> /etc/locale.gen
+RUN mkdir /usr/local/share/i1en/
+RUN printf "fr_CA ISO-8859-1\ncs_CZ ISO-8859-2" >> /usr/local/share/i1en/SUPPORTED
+RUN locale-gen
+
 # Install Clang <latest>, <latest-1> and ToT, which are the ones we support.
-ENV LLVM_LATEST_VERSION=12
+ENV LLVM_LATEST_VERSION=13
 RUN apt-get update && apt-get install -y lsb-release wget software-properties-common
 RUN wget https://apt.llvm.org/llvm.sh -O /tmp/llvm.sh
 RUN bash /tmp/llvm.sh $(($LLVM_LATEST_VERSION - 1)) # previous release
@@ -62,7 +77,7 @@ RUN add-apt-repository ppa:ubuntu-toolchain-r/test
 RUN apt-get update && apt install -y gcc-$GCC_LATEST_VERSION g++-$GCC_LATEST_VERSION
 
 # Install a recent CMake
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.sh -O /tmp/install-cmake.sh
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.21.1/cmake-3.21.1-linux-x86_64.sh -O /tmp/install-cmake.sh
 RUN bash /tmp/install-cmake.sh --prefix=/usr --exclude-subdir --skip-license
 RUN rm /tmp/install-cmake.sh
 
@@ -76,7 +91,7 @@ WORKDIR /home/libcxx-builder
 
 # Install the Buildkite agent and dependencies. This must be done as non-root
 # for the Buildkite agent to be installed in a path where we can find it.
-RUN bash -c "$(curl -sL https://raw.githubusercontent.com/buildkite/agent/master/install.sh)"
+RUN bash -c "$(curl -sL https://raw.githubusercontent.com/buildkite/agent/main/install.sh)"
 ENV PATH="${PATH}:/home/libcxx-builder/.buildkite-agent/bin"
 RUN echo "tags=\"queue=libcxx-builders,arch=$(uname -m),os=linux\"" >> "/home/libcxx-builder/.buildkite-agent/buildkite-agent.cfg"
 

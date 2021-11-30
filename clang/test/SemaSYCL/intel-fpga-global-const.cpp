@@ -57,3 +57,61 @@
 //expected-note@+1{{conflicting attribute is here}}
 [[intel::force_pow2_depth(1)]] extern const int var_force_pow2_depth_2;
 [[intel::fpga_register]] const int var_force_pow2_depth_2 =0;
+
+// Test that checks global constant variable (which allows the redeclaration) since
+// IntelFPGAConstVar is one of the subjects listed for [[intel::numbanks()]] attribute.
+
+// Checking of duplicate argument values.
+//CHECK: VarDecl{{.*}}numbanks
+//CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+//CHECK: IntelFPGANumBanksAttr
+//CHECK-NEXT: ConstantExpr{{.*}}'int'
+//CHECK-NEXT: value: Int 16
+//CHECK-NEXT: IntegerLiteral{{.*}}'int' 16
+//CHECK: IntelFPGANumBanksAttr
+//CHECK-NEXT: ConstantExpr{{.*}}'int'
+//CHECK-NEXT: value: Int 16
+//CHECK-NEXT: IntegerLiteral{{.*}}'int' 16
+[[intel::numbanks(16)]] extern const int var_numbanks;
+[[intel::numbanks(16)]] const int var_numbanks = 0; // OK
+
+// Merging of different arg values.
+//expected-warning@+2{{attribute 'numbanks' is already applied with different arguments}}
+[[intel::numbanks(8)]] extern const int var_numbanks_1;
+[[intel::numbanks(16)]] const int var_numbanks_1 = 0;
+//expected-note@-2{{previous attribute is here}}
+
+// Merging of incompatible attributes.
+//expected-error@+3{{'fpga_register' and 'numbanks' attributes are not compatible}}
+//expected-note@+1{{conflicting attribute is here}}
+[[intel::numbanks(16)]] extern const int var_numbanks_2;
+[[intel::fpga_register]] const int var_numbanks_2 =0;
+
+// Test that checks global constant variable (which allows the redeclaration) since
+// IntelFPGAConstVar is one of the subjects listed for [[intel::bankwidth()]] attribute.
+
+// Checking of duplicate argument values.
+//CHECK: VarDecl{{.*}}bankwidth
+//CHECK: IntelFPGAMemoryAttr{{.*}}Implicit
+//CHECK: IntelFPGABankWidthAttr
+//CHECK-NEXT: ConstantExpr{{.*}}'int'
+//CHECK-NEXT: value: Int 8
+//CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
+//CHECK: IntelFPGABankWidthAttr
+//CHECK-NEXT: ConstantExpr{{.*}}'int'
+//CHECK-NEXT: value: Int 8
+//CHECK-NEXT: IntegerLiteral{{.*}}'int' 8
+[[intel::bankwidth(8)]] extern const int var_bankwidth;
+[[intel::bankwidth(8)]] const int var_bankwidth = 0; // OK
+
+// Merging of different arg values.
+//expected-warning@+2{{attribute 'bankwidth' is already applied with different arguments}}
+[[intel::bankwidth(8)]] extern const int var_bankwidth_1;
+[[intel::bankwidth(16)]] const int var_bankwidth_1 = 0;
+//expected-note@-2{{previous attribute is here}}
+
+// Merging of incompatible attributes.
+//expected-error@+3{{'fpga_register' and 'bankwidth' attributes are not compatible}}
+//expected-note@+1{{conflicting attribute is here}}
+[[intel::bankwidth(8)]] extern const int var_bankwidth_2;
+[[intel::fpga_register]] const int var_bankwidth_2 =0;

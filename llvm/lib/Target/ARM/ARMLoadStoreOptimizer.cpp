@@ -564,7 +564,7 @@ void ARMLoadStoreOpt::UpdateBaseRegUses(MachineBasicBlock &MBB,
   }
 
   // End of block was reached.
-  if (MBB.succ_size() > 0) {
+  if (!MBB.succ_empty()) {
     // FIXME: Because of a bug, live registers are sometimes missing from
     // the successor blocks' live-in sets. This means we can't trust that
     // information and *always* have to reset at the end of a block.
@@ -587,7 +587,7 @@ unsigned ARMLoadStoreOpt::findFreeReg(const TargetRegisterClass &RegClass) {
   }
 
   for (unsigned Reg : RegClassInfo.getOrder(&RegClass))
-    if (!LiveRegs.contains(Reg))
+    if (LiveRegs.available(MF->getRegInfo(), Reg))
       return Reg;
   return 0;
 }
@@ -2119,9 +2119,7 @@ bool ARMLoadStoreOpt::runOnMachineFunction(MachineFunction &Fn) {
   isThumb1 = AFI->isThumbFunction() && !isThumb2;
 
   bool Modified = false;
-  for (MachineFunction::iterator MFI = Fn.begin(), E = Fn.end(); MFI != E;
-       ++MFI) {
-    MachineBasicBlock &MBB = *MFI;
+  for (MachineBasicBlock &MBB : Fn) {
     Modified |= LoadStoreMultipleOpti(MBB);
     if (STI->hasV5TOps())
       Modified |= MergeReturnIntoLDM(MBB);
@@ -2476,8 +2474,7 @@ bool ARMPreAllocLoadStoreOpt::RescheduleOps(MachineBasicBlock *MBB,
           }
         } else {
           for (unsigned i = 0; i != NumMove; ++i) {
-            MachineInstr *Op = Ops.back();
-            Ops.pop_back();
+            MachineInstr *Op = Ops.pop_back_val();
             MBB->splice(InsertPos, MBB, Op);
           }
         }
@@ -2811,6 +2808,7 @@ static MachineInstr *createPostIncLoadStore(MachineInstr *MI, int Offset,
         .addImm(Offset)
         .add(MI->getOperand(3))
         .add(MI->getOperand(4))
+        .add(MI->getOperand(5))
         .cloneMemRefs(*MI);
   case ARMII::AddrModeT2_i8:
     if (MI->mayLoad()) {

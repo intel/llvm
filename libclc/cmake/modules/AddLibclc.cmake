@@ -91,7 +91,7 @@ macro(add_libclc_builtin_set arch_suffix)
     COMMAND prepare_builtins -o
     "${builtins_obj_path}"
     "$<TARGET_PROPERTY:opt.${obj_suffix},TARGET_FILE>"
-    DEPENDS "opt.${obj_suffix}"
+    DEPENDS "${builtins_opt_path}"
             prepare_builtins )
   add_custom_target( "prepare-${obj_suffix}" ALL
     DEPENDS "${builtins_obj_path}" )
@@ -105,6 +105,40 @@ macro(add_libclc_builtin_set arch_suffix)
   install(
     FILES ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
     DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+  
+  # Generate remangled variants if requested
+  if( LIBCLC_GENERATE_REMANGLED_VARIANTS )
+    set(long_widths l32 l64)
+    set(char_signedness signed unsigned)
+    # All permutations of [l32, l64] and [signed, unsigned]
+    foreach(long_width ${long_widths})
+      foreach(signedness ${char_signedness})
+        # Remangle
+        set( builtins_remangle_path
+            "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix}" )
+        add_custom_command( OUTPUT "${builtins_remangle_path}"
+          COMMAND libclc-remangler
+          -o "${builtins_remangle_path}"
+          --long-width=${long_width}
+          --char-signedness=${signedness}
+          "$<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE>"
+          DEPENDS "${builtins_obj_path}" libclc-remangler )
+        add_custom_target( "remangled-${long_width}-${signedness}_char.${obj_suffix}" ALL
+          DEPENDS "${builtins_remangle_path}" )
+        set_target_properties("remangled-${long_width}-${signedness}_char.${obj_suffix}"
+          PROPERTIES TARGET_FILE "${builtins_remangle_path}")
+
+        # Add dependency to top-level pseudo target to ease making other
+        # targets dependent on libclc.
+        add_dependencies(${ARG_PARENT_TARGET} "remangled-${long_width}-${signedness}_char.${obj_suffix}")
+
+        # Keep remangled variants
+        install(
+          FILES ${builtins_remangle_path}
+          DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+      endforeach()
+    endforeach()
+  endif()
 
   # nvptx-- targets don't include workitem builtins
   if( NOT ${t} MATCHES ".*ptx.*--$" )

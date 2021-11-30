@@ -45,6 +45,9 @@ Mangled::ManglingScheme Mangled::GetManglingScheme(llvm::StringRef const name) {
   if (name.startswith("_R"))
     return Mangled::eManglingSchemeRustV0;
 
+  if (name.startswith("_D"))
+    return Mangled::eManglingSchemeD;
+
   if (name.startswith("_Z"))
     return Mangled::eManglingSchemeItanium;
 
@@ -131,9 +134,9 @@ void Mangled::SetValue(ConstString name) {
 static char *GetMSVCDemangledStr(const char *M) {
   char *demangled_cstr = llvm::microsoftDemangle(
       M, nullptr, nullptr, nullptr, nullptr,
-      llvm::MSDemangleFlags(llvm::MSDF_NoAccessSpecifier |
-                            llvm::MSDF_NoCallingConvention |
-                            llvm::MSDF_NoMemberType));
+      llvm::MSDemangleFlags(
+          llvm::MSDF_NoAccessSpecifier | llvm::MSDF_NoCallingConvention |
+          llvm::MSDF_NoMemberType | llvm::MSDF_NoVariableType));
 
   if (Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DEMANGLE)) {
     if (demangled_cstr && demangled_cstr[0])
@@ -180,6 +183,19 @@ static char *GetRustV0DemangledStr(const char *M) {
       LLDB_LOG(log, "demangled rustv0: {0} -> \"{1}\"", M, demangled_cstr);
     else
       LLDB_LOG(log, "demangled rustv0: {0} -> error: failed to demangle", M);
+  }
+
+  return demangled_cstr;
+}
+
+static char *GetDLangDemangledStr(const char *M) {
+  char *demangled_cstr = llvm::dlangDemangle(M);
+
+  if (Log *log = lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_DEMANGLE)) {
+    if (demangled_cstr && demangled_cstr[0])
+      LLDB_LOG(log, "demangled dlang: {0} -> \"{1}\"", M, demangled_cstr);
+    else
+      LLDB_LOG(log, "demangled dlang: {0} -> error: failed to demangle", M);
   }
 
   return demangled_cstr;
@@ -244,7 +260,8 @@ bool Mangled::DemangleWithRichManglingInfo(
   }
 
   case eManglingSchemeRustV0:
-    // Rich demangling scheme is not supported for Rust
+  case eManglingSchemeD:
+    // Rich demangling scheme is not supported
     return false;
   }
   llvm_unreachable("Fully covered switch above!");
@@ -260,7 +277,8 @@ ConstString Mangled::GetDemangledName() const {
   if (m_mangled && m_demangled.IsNull()) {
     // Don't bother running anything that isn't mangled
     const char *mangled_name = m_mangled.GetCString();
-    ManglingScheme mangling_scheme = GetManglingScheme(m_mangled.GetStringRef());
+    ManglingScheme mangling_scheme =
+        GetManglingScheme(m_mangled.GetStringRef());
     if (mangling_scheme != eManglingSchemeNone &&
         !m_mangled.GetMangledCounterpart(m_demangled)) {
       // We didn't already mangle this name, demangle it and if all goes well
@@ -276,6 +294,9 @@ ConstString Mangled::GetDemangledName() const {
       }
       case eManglingSchemeRustV0:
         demangled_name = GetRustV0DemangledStr(mangled_name);
+        break;
+      case eManglingSchemeD:
+        demangled_name = GetDLangDemangledStr(mangled_name);
         break;
       case eManglingSchemeNone:
         llvm_unreachable("eManglingSchemeNone was handled already");
@@ -296,8 +317,7 @@ ConstString Mangled::GetDemangledName() const {
   return m_demangled;
 }
 
-ConstString
-Mangled::GetDisplayDemangledName() const {
+ConstString Mangled::GetDisplayDemangledName() const {
   return GetDemangledName();
 }
 

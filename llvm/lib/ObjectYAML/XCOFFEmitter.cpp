@@ -18,8 +18,9 @@
 #include "llvm/ObjectYAML/ObjectYAML.h"
 #include "llvm/ObjectYAML/yaml2obj.h"
 #include "llvm/Support/EndianStream.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -33,7 +34,7 @@ class XCOFFWriter {
 public:
   XCOFFWriter(XCOFFYAML::Object &Obj, raw_ostream &OS, yaml::ErrorHandler EH)
       : Obj(Obj), W(OS, support::big), ErrHandler(EH),
-        Strings(StringTableBuilder::XCOFF) {
+        StrTblBuilder(StringTableBuilder::XCOFF) {
     Is64Bit = Obj.Header.Magic == (llvm::yaml::Hex16)XCOFF::XCOFF64;
   }
   bool writeXCOFF();
@@ -41,20 +42,24 @@ public:
 private:
   bool nameShouldBeInStringTable(StringRef SymbolName);
   bool initFileHeader(uint64_t CurrentOffset);
+  void initAuxFileHeader();
   bool initSectionHeader(uint64_t &CurrentOffset);
   bool initRelocations(uint64_t &CurrentOffset);
+  bool initStringTable();
   bool assignAddressesAndIndices();
   void writeFileHeader();
+  void writeAuxFileHeader();
   void writeSectionHeader();
   bool writeSectionData();
   bool writeRelocations();
   bool writeSymbols();
+  void writeStringTable();
 
   XCOFFYAML::Object &Obj;
   bool Is64Bit = false;
   support::endian::Writer W;
   yaml::ErrorHandler ErrHandler;
-  StringTableBuilder Strings;
+  StringTableBuilder StrTblBuilder;
   uint64_t StartOffset;
   // Map the section name to its corrresponding section index.
   DenseMap<StringRef, int16_t> SectionIndexMap = {
@@ -62,6 +67,7 @@ private:
       {StringRef("N_ABS"), XCOFF::N_ABS},
       {StringRef("N_UNDEF"), XCOFF::N_UNDEF}};
   XCOFFYAML::FileHeader InitFileHdr = Obj.Header;
+  XCOFFYAML::AuxiliaryHeader InitAuxFileHdr;
   std::vector<XCOFFYAML::Section> InitSections = Obj.Sections;
 };
 
@@ -140,20 +146,79 @@ bool XCOFFWriter::initSectionHeader(uint64_t &CurrentOffset) {
   return initRelocations(CurrentOffset);
 }
 
+bool XCOFFWriter::initStringTable() {
+  if (Obj.StrTbl.RawContent) {
+    size_t RawSize = Obj.StrTbl.RawContent->binary_size();
+    if (Obj.StrTbl.Strings || Obj.StrTbl.Length) {
+      ErrHandler(
+          "can't specify Strings or Length when RawContent is specified");
+      return false;
+    }
+    if (Obj.StrTbl.ContentSize && *Obj.StrTbl.ContentSize < RawSize) {
+      ErrHandler("specified ContentSize (" + Twine(*Obj.StrTbl.ContentSize) +
+                 ") is less than the RawContent data size (" + Twine(RawSize) +
+                 ")");
+      return false;
+    }
+    return true;
+  }
+  if (Obj.StrTbl.ContentSize && *Obj.StrTbl.ContentSize <= 3) {
+    ErrHandler("ContentSize shouldn't be less than 4 without RawContent");
+    return false;
+  }
+
+  // Build the string table.
+  StrTblBuilder.clear();
+
+  if (Obj.StrTbl.Strings) {
+    // All specified strings should be added to the string table.
+    for (StringRef StringEnt : *Obj.StrTbl.Strings)
+      StrTblBuilder.add(StringEnt);
+
+    size_t StrTblIdx = 0;
+    size_t NumOfStrings = Obj.StrTbl.Strings->size();
+    for (XCOFFYAML::Symbol &YamlSym : Obj.Symbols) {
+      if (nameShouldBeInStringTable(YamlSym.SymbolName)) {
+        if (StrTblIdx < NumOfStrings) {
+          // Overwrite the symbol name with the specified string.
+          YamlSym.SymbolName = (*Obj.StrTbl.Strings)[StrTblIdx];
+          ++StrTblIdx;
+        } else
+          // Names that are not overwritten are still stored in the string
+          // table.
+          StrTblBuilder.add(YamlSym.SymbolName);
+      }
+    }
+  } else {
+    for (XCOFFYAML::Symbol &YamlSym : Obj.Symbols) {
+      if (nameShouldBeInStringTable(YamlSym.SymbolName))
+        StrTblBuilder.add(YamlSym.SymbolName);
+    }
+  }
+
+  StrTblBuilder.finalize();
+
+  size_t StrTblSize = StrTblBuilder.getSize();
+  if (Obj.StrTbl.ContentSize && *Obj.StrTbl.ContentSize < StrTblSize) {
+    ErrHandler("specified ContentSize (" + Twine(*Obj.StrTbl.ContentSize) +
+               ") is less than the size of the data that would otherwise be "
+               "written (" +
+               Twine(StrTblSize) + ")");
+    return false;
+  }
+
+  return true;
+}
+
 bool XCOFFWriter::initFileHeader(uint64_t CurrentOffset) {
   // The default format of the object file is XCOFF32.
   InitFileHdr.Magic = XCOFF::XCOFF32;
   InitFileHdr.NumberOfSections = Obj.Sections.size();
   InitFileHdr.NumberOfSymTableEntries = Obj.Symbols.size();
 
-  for (const XCOFFYAML::Symbol &YamlSym : Obj.Symbols) {
+  for (const XCOFFYAML::Symbol &YamlSym : Obj.Symbols)
     // Add the number of auxiliary symbols to the total number.
     InitFileHdr.NumberOfSymTableEntries += YamlSym.NumberOfAuxEntries;
-    if (nameShouldBeInStringTable(YamlSym.SymbolName))
-      Strings.add(YamlSym.SymbolName);
-  }
-  // Finalize the string table.
-  Strings.finalize();
 
   // Calculate SymbolTableOffset for the file header.
   if (InitFileHdr.NumberOfSymTableEntries) {
@@ -170,20 +235,87 @@ bool XCOFFWriter::initFileHeader(uint64_t CurrentOffset) {
   return true;
 }
 
+void XCOFFWriter::initAuxFileHeader() {
+  InitAuxFileHdr = *Obj.AuxHeader;
+  // In general, an object file might contain multiple sections of a given type,
+  // but in a loadable module, there must be exactly one .text, .data, .bss, and
+  // .loader section. A loadable object might also have one .tdata section and
+  // one .tbss section.
+  // Set these section-related values if not set explicitly. We assume that the
+  // input YAML matches the format of the loadable object, but if multiple input
+  // sections still have the same type, the first section with that type
+  // prevails.
+  for (uint16_t I = 0, E = InitSections.size(); I < E; ++I) {
+    switch (InitSections[I].Flags) {
+    case XCOFF::STYP_TEXT:
+      if (!InitAuxFileHdr.TextSize)
+        InitAuxFileHdr.TextSize = InitSections[I].Size;
+      if (!InitAuxFileHdr.TextStartAddr)
+        InitAuxFileHdr.TextStartAddr = InitSections[I].Address;
+      if (!InitAuxFileHdr.SecNumOfText)
+        InitAuxFileHdr.SecNumOfText = I + 1;
+      break;
+    case XCOFF::STYP_DATA:
+      if (!InitAuxFileHdr.InitDataSize)
+        InitAuxFileHdr.InitDataSize = InitSections[I].Size;
+      if (!InitAuxFileHdr.DataStartAddr)
+        InitAuxFileHdr.DataStartAddr = InitSections[I].Address;
+      if (!InitAuxFileHdr.SecNumOfData)
+        InitAuxFileHdr.SecNumOfData = I + 1;
+      break;
+    case XCOFF::STYP_BSS:
+      if (!InitAuxFileHdr.BssDataSize)
+        InitAuxFileHdr.BssDataSize = InitSections[I].Size;
+      if (!InitAuxFileHdr.SecNumOfBSS)
+        InitAuxFileHdr.SecNumOfBSS = I + 1;
+      break;
+    case XCOFF::STYP_TDATA:
+      if (!InitAuxFileHdr.SecNumOfTData)
+        InitAuxFileHdr.SecNumOfTData = I + 1;
+      break;
+    case XCOFF::STYP_TBSS:
+      if (!InitAuxFileHdr.SecNumOfTBSS)
+        InitAuxFileHdr.SecNumOfTBSS = I + 1;
+      break;
+    case XCOFF::STYP_LOADER:
+      if (!InitAuxFileHdr.SecNumOfLoader)
+        InitAuxFileHdr.SecNumOfLoader = I + 1;
+      break;
+    default:
+      break;
+    }
+  }
+}
+
 bool XCOFFWriter::assignAddressesAndIndices() {
-  Strings.clear();
   uint64_t FileHdrSize =
       Is64Bit ? XCOFF::FileHeaderSize64 : XCOFF::FileHeaderSize32;
+  uint64_t AuxFileHdrSize = 0;
+  if (Obj.AuxHeader)
+    AuxFileHdrSize = Obj.Header.AuxHeaderSize
+                         ? Obj.Header.AuxHeaderSize
+                         : (Is64Bit ? XCOFF::AuxFileHeaderSize64
+                                    : XCOFF::AuxFileHeaderSize32);
   uint64_t SecHdrSize =
       Is64Bit ? XCOFF::SectionHeaderSize64 : XCOFF::SectionHeaderSize32;
-  uint64_t CurrentOffset = FileHdrSize /* TODO: + auxiliaryHeaderSize() */ +
-                           InitSections.size() * SecHdrSize;
+  uint64_t CurrentOffset =
+      FileHdrSize + AuxFileHdrSize + InitSections.size() * SecHdrSize;
 
   // Calculate section header info.
   if (!initSectionHeader(CurrentOffset))
     return false;
+  InitFileHdr.AuxHeaderSize = AuxFileHdrSize;
+
   // Calculate file header info.
-  return initFileHeader(CurrentOffset);
+  if (!initFileHeader(CurrentOffset))
+    return false;
+
+  // Initialize the auxiliary file header.
+  if (Obj.AuxHeader)
+    initAuxFileHeader();
+
+  // Initialize the string table.
+  return initStringTable();
 }
 
 void XCOFFWriter::writeFileHeader() {
@@ -195,7 +327,7 @@ void XCOFFWriter::writeFileHeader() {
     W.write<uint64_t>(Obj.Header.SymbolTableOffset
                           ? Obj.Header.SymbolTableOffset
                           : InitFileHdr.SymbolTableOffset);
-    W.write<uint16_t>(Obj.Header.AuxHeaderSize);
+    W.write<uint16_t>(InitFileHdr.AuxHeaderSize);
     W.write<uint16_t>(Obj.Header.Flags);
     W.write<int32_t>(Obj.Header.NumberOfSymTableEntries
                          ? Obj.Header.NumberOfSymTableEntries
@@ -207,8 +339,69 @@ void XCOFFWriter::writeFileHeader() {
     W.write<int32_t>(Obj.Header.NumberOfSymTableEntries
                          ? Obj.Header.NumberOfSymTableEntries
                          : InitFileHdr.NumberOfSymTableEntries);
-    W.write<uint16_t>(Obj.Header.AuxHeaderSize);
+    W.write<uint16_t>(InitFileHdr.AuxHeaderSize);
     W.write<uint16_t>(Obj.Header.Flags);
+  }
+}
+
+void XCOFFWriter::writeAuxFileHeader() {
+  W.write<uint16_t>(InitAuxFileHdr.Magic.getValueOr(yaml::Hex16(1)));
+  W.write<uint16_t>(InitAuxFileHdr.Version.getValueOr(yaml::Hex16(1)));
+  if (Is64Bit) {
+    W.OS.write_zeros(4); // Reserved for debugger.
+    W.write<uint64_t>(InitAuxFileHdr.TextStartAddr.getValueOr(yaml::Hex64(0)));
+    W.write<uint64_t>(InitAuxFileHdr.DataStartAddr.getValueOr(yaml::Hex64(0)));
+    W.write<uint64_t>(InitAuxFileHdr.TOCAnchorAddr.getValueOr(yaml::Hex64(0)));
+  } else {
+    W.write<uint32_t>(InitAuxFileHdr.TextSize.getValueOr(yaml::Hex64(0)));
+    W.write<uint32_t>(InitAuxFileHdr.InitDataSize.getValueOr(yaml::Hex64(0)));
+    W.write<uint32_t>(InitAuxFileHdr.BssDataSize.getValueOr(yaml::Hex64(0)));
+    W.write<uint32_t>(InitAuxFileHdr.EntryPointAddr.getValueOr(yaml::Hex64(0)));
+    W.write<uint32_t>(InitAuxFileHdr.TextStartAddr.getValueOr(yaml::Hex64(0)));
+    W.write<uint32_t>(InitAuxFileHdr.DataStartAddr.getValueOr(yaml::Hex64(0)));
+    W.write<uint32_t>(InitAuxFileHdr.TOCAnchorAddr.getValueOr(yaml::Hex64(0)));
+  }
+  W.write<uint16_t>(InitAuxFileHdr.SecNumOfEntryPoint.getValueOr(0));
+  W.write<uint16_t>(InitAuxFileHdr.SecNumOfText.getValueOr(0));
+  W.write<uint16_t>(InitAuxFileHdr.SecNumOfData.getValueOr(0));
+  W.write<uint16_t>(InitAuxFileHdr.SecNumOfTOC.getValueOr(0));
+  W.write<uint16_t>(InitAuxFileHdr.SecNumOfLoader.getValueOr(0));
+  W.write<uint16_t>(InitAuxFileHdr.SecNumOfBSS.getValueOr(0));
+  W.write<uint16_t>(InitAuxFileHdr.MaxAlignOfText.getValueOr(yaml::Hex16(0)));
+  W.write<uint16_t>(InitAuxFileHdr.MaxAlignOfData.getValueOr(yaml::Hex16(0)));
+  W.write<uint16_t>(InitAuxFileHdr.ModuleType.getValueOr(yaml::Hex16(0)));
+  W.write<uint8_t>(InitAuxFileHdr.CpuFlag.getValueOr(yaml::Hex8(0)));
+  W.write<uint8_t>(0); // Reserved for CPU type.
+  if (Is64Bit) {
+    W.write<uint8_t>(InitAuxFileHdr.TextPageSize.getValueOr(yaml::Hex8(0)));
+    W.write<uint8_t>(InitAuxFileHdr.DataPageSize.getValueOr(yaml::Hex8(0)));
+    W.write<uint8_t>(InitAuxFileHdr.StackPageSize.getValueOr(yaml::Hex8(0)));
+    W.write<uint8_t>(
+        InitAuxFileHdr.FlagAndTDataAlignment.getValueOr(yaml::Hex8(0x80)));
+    W.write<uint64_t>(InitAuxFileHdr.TextSize.getValueOr(yaml::Hex64(0)));
+    W.write<uint64_t>(InitAuxFileHdr.InitDataSize.getValueOr(yaml::Hex64(0)));
+    W.write<uint64_t>(InitAuxFileHdr.BssDataSize.getValueOr(yaml::Hex64(0)));
+    W.write<uint64_t>(InitAuxFileHdr.EntryPointAddr.getValueOr(yaml::Hex64(0)));
+    W.write<uint64_t>(InitAuxFileHdr.MaxStackSize.getValueOr(yaml::Hex64(0)));
+    W.write<uint64_t>(InitAuxFileHdr.MaxDataSize.getValueOr(yaml::Hex64(0)));
+  } else {
+    W.write<uint32_t>(InitAuxFileHdr.MaxStackSize.getValueOr(yaml::Hex64(0)));
+    W.write<uint32_t>(InitAuxFileHdr.MaxDataSize.getValueOr(yaml::Hex64(0)));
+    W.OS.write_zeros(4); // Reserved for debugger.
+    W.write<uint8_t>(InitAuxFileHdr.TextPageSize.getValueOr(yaml::Hex8(0)));
+    W.write<uint8_t>(InitAuxFileHdr.DataPageSize.getValueOr(yaml::Hex8(0)));
+    W.write<uint8_t>(InitAuxFileHdr.StackPageSize.getValueOr(yaml::Hex8(0)));
+    W.write<uint8_t>(
+        InitAuxFileHdr.FlagAndTDataAlignment.getValueOr(yaml::Hex8(0)));
+  }
+  W.write<uint16_t>(InitAuxFileHdr.SecNumOfTData.getValueOr(0));
+  W.write<uint16_t>(InitAuxFileHdr.SecNumOfTBSS.getValueOr(0));
+  if (Is64Bit) {
+    W.write<uint16_t>(InitAuxFileHdr.Flag.getValueOr(yaml::Hex16(XCOFF::SHR_SYMTAB)));
+    if (InitFileHdr.AuxHeaderSize > XCOFF::AuxFileHeaderSize64)
+      W.OS.write_zeros(InitFileHdr.AuxHeaderSize - XCOFF::AuxFileHeaderSize64);
+  } else if (InitFileHdr.AuxHeaderSize > XCOFF::AuxFileHeaderSize32) {
+    W.OS.write_zeros(InitFileHdr.AuxHeaderSize - XCOFF::AuxFileHeaderSize32);
   }
 }
 
@@ -309,20 +502,35 @@ bool XCOFFWriter::writeSymbols() {
   for (const XCOFFYAML::Symbol &YamlSym : Obj.Symbols) {
     if (Is64Bit) {
       W.write<uint64_t>(YamlSym.Value);
-      W.write<uint32_t>(Strings.getOffset(YamlSym.SymbolName));
+      W.write<uint32_t>(StrTblBuilder.getOffset(YamlSym.SymbolName));
     } else {
       if (nameShouldBeInStringTable(YamlSym.SymbolName)) {
         // For XCOFF32: A value of 0 indicates that the symbol name is in the
         // string table.
         W.write<int32_t>(0);
-        W.write<uint32_t>(Strings.getOffset(YamlSym.SymbolName));
+        W.write<uint32_t>(StrTblBuilder.getOffset(YamlSym.SymbolName));
       } else {
         writeName(YamlSym.SymbolName, W);
       }
       W.write<uint32_t>(YamlSym.Value);
     }
-    W.write<int16_t>(
-        YamlSym.SectionName.size() ? SectionIndexMap[YamlSym.SectionName] : 0);
+    if (YamlSym.SectionName) {
+      if (!SectionIndexMap.count(*YamlSym.SectionName)) {
+        ErrHandler("the SectionName " + *YamlSym.SectionName +
+                   " specified in the symbol does not exist");
+        return false;
+      }
+      if (YamlSym.SectionIndex &&
+          SectionIndexMap[*YamlSym.SectionName] != *YamlSym.SectionIndex) {
+        ErrHandler("the SectionName " + *YamlSym.SectionName +
+                   " and the SectionIndex (" + Twine(*YamlSym.SectionIndex) +
+                   ") refer to different sections");
+        return false;
+      }
+      W.write<int16_t>(SectionIndexMap[*YamlSym.SectionName]);
+    } else {
+      W.write<int16_t>(YamlSym.SectionIndex ? *YamlSym.SectionIndex : 0);
+    }
     W.write<uint16_t>(YamlSym.Type);
     W.write<uint8_t>(YamlSym.StorageClass);
     W.write<uint8_t>(YamlSym.NumberOfAuxEntries);
@@ -340,11 +548,55 @@ bool XCOFFWriter::writeSymbols() {
   return true;
 }
 
+void XCOFFWriter::writeStringTable() {
+  if (Obj.StrTbl.RawContent) {
+    Obj.StrTbl.RawContent->writeAsBinary(W.OS);
+    if (Obj.StrTbl.ContentSize) {
+      assert(*Obj.StrTbl.ContentSize >= Obj.StrTbl.RawContent->binary_size() &&
+             "Specified ContentSize is less than the RawContent size.");
+      W.OS.write_zeros(*Obj.StrTbl.ContentSize -
+                       Obj.StrTbl.RawContent->binary_size());
+    }
+    return;
+  }
+
+  size_t StrTblBuilderSize = StrTblBuilder.getSize();
+  // If neither Length nor ContentSize is specified, write the StrTblBuilder
+  // directly, which contains the auto-generated Length value.
+  if (!Obj.StrTbl.Length && !Obj.StrTbl.ContentSize) {
+    if (StrTblBuilderSize <= 4)
+      return;
+    StrTblBuilder.write(W.OS);
+    return;
+  }
+
+  // Serialize the string table's content to a temporary buffer.
+  std::unique_ptr<WritableMemoryBuffer> Buf =
+      WritableMemoryBuffer::getNewMemBuffer(StrTblBuilderSize);
+  uint8_t *Ptr = reinterpret_cast<uint8_t *>(Buf->getBufferStart());
+  StrTblBuilder.write(Ptr);
+  // Replace the first 4 bytes, which contain the auto-generated Length value,
+  // with the specified value.
+  memset(Ptr, 0, 4);
+  support::endian::write32be(Ptr, Obj.StrTbl.Length ? *Obj.StrTbl.Length
+                                                    : *Obj.StrTbl.ContentSize);
+  // Copy the buffer content to the actual output stream.
+  W.OS.write(Buf->getBufferStart(), Buf->getBufferSize());
+  // Add zeros as padding after strings.
+  if (Obj.StrTbl.ContentSize) {
+    assert(*Obj.StrTbl.ContentSize >= StrTblBuilderSize &&
+           "Specified ContentSize is less than the StringTableBuilder size.");
+    W.OS.write_zeros(*Obj.StrTbl.ContentSize - StrTblBuilderSize);
+  }
+}
+
 bool XCOFFWriter::writeXCOFF() {
   if (!assignAddressesAndIndices())
     return false;
   StartOffset = W.OS.tell();
   writeFileHeader();
+  if (Obj.AuxHeader)
+    writeAuxFileHeader();
   if (!Obj.Sections.empty()) {
     writeSectionHeader();
     if (!writeSectionData())
@@ -354,9 +606,7 @@ bool XCOFFWriter::writeXCOFF() {
   }
   if (!Obj.Symbols.empty() && !writeSymbols())
     return false;
-  // Write the string table.
-  if (Strings.getSize() > 4)
-    Strings.write(W.OS);
+  writeStringTable();
   return true;
 }
 
