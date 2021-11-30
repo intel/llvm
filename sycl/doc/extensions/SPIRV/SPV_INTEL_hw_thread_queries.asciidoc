@@ -25,6 +25,7 @@ https://github.com/intel/llvm
 - Mariya Podchishchaeva, Intel +
 - Patrick Steinbrecher, Intel +
 - Ben Ashbaugh, Intel +
+- Mateusz Belicki, Intel +
 
 == Notice
 
@@ -85,7 +86,7 @@ This extension introduces new capabilities:
 {capability_name}
 ----
 
-== New Instructions
+== New BuiltIn Decorations
 
 BuiltIn Decorations added under the *{capability_name}* capability:
 
@@ -129,6 +130,9 @@ See also extension: *{extension_name}*
 
 === Decorations
 
+Modify Section 3.20, Decoration, adding <<Literal>> _BuiltIn parameter_ to +
+ <<Extra Operands>> of *BuiltIn* decoration.
+
 Modify Section 3.21, BuiltIn, adding these rows to the BuiltIn table:
 
 ==== 3.21 BuiltIn
@@ -139,14 +143,15 @@ Modify Section 3.21, BuiltIn, adding these rows to the BuiltIn table:
 2+^| BuiltIn 2+^| Enabling Capabilities
 | {SubDeviceIDINTEL_token} | [[SubDeviceIDINTEL]]*SubDeviceIDINTEL* +
  ID of the sub-device on which the code running in *Kernel* +
-<<Execution Mode>>. See the client API specification for more detail. +
+<<Execution Model,Execution Model>>. The BuiltIn decoration takes additional _Literal_ +
+ *Affinity* parameter, see the client API specification for more detail. +
 2+| *{capability_name}*
 | {HWThreadIDINTEL_token} | [[HWThreadIDINTEL]]*HWThreadIDINTEL* +
  ID of the H/W thread within a sub-device on which the code running in *Kernel* +
-<<Execution Mode>>. See the client API specification for more detail. +
+<<Execution Model,Execution Model>>. See the client API specification for more detail. +
 2+| *{capability_name}*
 | {MaxHWThreadIDPerSubDeviceINTEL_token} | [[MaxHWThreadIDPerSubDeviceINTEL]]*MaxHWThreadIDPerSubDeviceINTEL* +
- Maximum number of H/W thread ID per sub-device in Kernel Execution Mode. See +
+ Maximum number of H/W thread ID per sub-device in *Kernel* <<Execution Model,Execution Model>>. See +
  the client API specification for more detail. +
 2+| *{capability_name}*
 |====
