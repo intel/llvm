@@ -92,14 +92,6 @@ bool preparePiMock(platform &Plt) {
               << std::endl;
     return false;
   }
-  // TODO remove once queue:wait() is lowered to PiQueueFinish with level zero
-  // as well.
-  if (detail::getSyclObjImpl(Plt)->getPlugin().getBackend() ==
-      backend::ext_oneapi_level_zero) {
-    std::cout << "Not run on Level Zero, old behavior is kept there temporarily"
-              << std::endl;
-    return false;
-  }
 
   unittest::PiMock Mock{Plt};
   Mock.redefine<detail::PiApiKind::piQueueCreate>(redefinedQueueCreate);
