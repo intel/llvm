@@ -88,8 +88,8 @@ void foo(float *A, int *B, State *C, State &D) {
   // CHECK-DAG: store i32 addrspace(4)* [[PTR11]], i32 addrspace(4)* addrspace(4)* %y
   y = __builtin_intel_fpga_mem(B, PARAM_1 | PARAM_2, 127, 100);
 
-  constexpr TestVal1 = 7;
-  constexpr TestVal2 = 8;
+  constexpr int TestVal1 = 7;
+  constexpr int TestVal2 = 8;
 
   // CHECK-DAG: [[D1:%[0-9]+]] = load [[STRUCT]] addrspace(4)*, [[STRUCT]] addrspace(4)* addrspace(4)* [[Daddr]]
   // CHECK-DAG: [[PTR12:%[0-9]+]] = call [[STRUCT]] addrspace(4)* @llvm.ptr.annotation{{.*}}[[D1]]{{.*}}[[ANN6]]{{.*}}[[ATT:#[0-9]+]]
