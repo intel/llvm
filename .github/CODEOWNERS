@@ -3,6 +3,9 @@
 # Front-end compiler
 clang/ @intel/dpcpp-cfe-reviewers
 
+# Clang driver
+clang/**/Driver @intel/dpcpp-clang-driver-reviewers
+
 # LLVM-SPIRV translator
 llvm-spirv/ @intel/dpcpp-spirv-reviewers
 
@@ -21,19 +24,12 @@ sycl/ @intel/llvm-reviewers-runtime
 # Documentation
 sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers
 sycl/doc/ @intel/dpcpp-doc-reviewers
+sycl/doc/design/ @intel/dpcpp-specification-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
-sycl/doc/extensions/SPIRV/ @intel/dpcpp-spirv-reviewers
+sycl/doc/extensions/SPIRV/ @intel/dpcpp-spirv-doc-reviewers
 
-# PI API
-sycl/include/CL/sycl/detail/pi.def @intel/dpcpp-pi-reviewers
-sycl/include/CL/sycl/detail/pi.h   @intel/dpcpp-pi-reviewers
-sycl/include/CL/sycl/detail/pi.hpp @intel/dpcpp-pi-reviewers
-sycl/include/CL/sycl/detail/pi* @intel/dpcpp-pi-reviewers
-sycl/plugins/ @intel/dpcpp-pi-reviewers
-sycl/source/detail/pi.cpp @intel/dpcpp-pi-reviewers
-sycl/source/detail/plugin.hpp @intel/dpcpp-pi-reviewers
-sycl/source/detail/posix_pi.cpp @intel/dpcpp-pi-reviewers
-sycl/source/detail/windows_pi.cpp @intel/dpcpp-pi-reviewers
+# Level Zero plugin
+sycl/sycl/plugins/level_zero @intel/dpcpp-l0-pi-reviewers
 
 # ESIMD CPU emulator plug-in
 sycl/plugins/esimd_cpu/ @intel/dpcpp-esimd-reviewers
