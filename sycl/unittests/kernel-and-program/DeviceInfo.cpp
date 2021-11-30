@@ -108,10 +108,10 @@ TEST_F(DeviceInfoTest, BuiltInKernelIDs) {
 
   auto ids = Dev.get_info<info::device::built_in_kernel_ids>();
 
-  EXPECT_EQ(ids.size(), 3u);
-  EXPECT_EQ(ids[0].get_name(), std::string{"Kernel0"});
-  EXPECT_EQ(ids[1].get_name(), std::string{"Kernel1"});
-  EXPECT_EQ(ids[2].get_name(), std::string{"Kernel2"});
+  ASSERT_EQ(ids.size(), 3u);
+  EXPECT_STREQ(ids[0].get_name(), "Kernel0");
+  EXPECT_STREQ(ids[1].get_name(), "Kernel1");
+  EXPECT_STREQ(ids[2].get_name(), "Kernel2");
 
   errc val = errc::success;
   std::string msg;
