@@ -3,6 +3,9 @@
 #define PARAM_1 1U << 7
 #define PARAM_2 1U << 8
 
+// This test checks that using of __builtin_intel_fpga_mem results in correct
+// generation of annotations in LLVM IR.
+
 // CHECK: [[STRUCT:%.*]] = type { i32, float }
 struct State {
   int x;
@@ -14,7 +17,7 @@ struct State {
 // CHECK: [[ANN3:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}{anchor-id:10}{target-anchor:20}{type:30}{cycle:40}
 // CHECK: [[ANN4:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}{anchor-id:11}{target-anchor:12}{type:0}{cycle:0}
 // CHECK: [[ANN5:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:127}{anchor-id:100}{target-anchor:0}{type:0}{cycle:0}
-// CHECK: [[ANN6:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:128}{anchor-id:4}{target-anchor:5}{type:6}{cycle:0}
+// CHECK: [[ANN6:@.str[\.]*[0-9]*]] = {{.*}}{params:384}{cache-size:128}{anchor-id:4}{target-anchor:7}{type:8}{cycle:0}
 
 // CHECK: define {{.*}}spir_func void @{{.*}}(float addrspace(4)* %A, i32 addrspace(4)* %B, [[STRUCT]] addrspace(4)* %C, [[STRUCT]] addrspace(4)*{{.*}}%D)
 void foo(float *A, int *B, State *C, State &D) {
@@ -85,10 +88,13 @@ void foo(float *A, int *B, State *C, State &D) {
   // CHECK-DAG: store i32 addrspace(4)* [[PTR11]], i32 addrspace(4)* addrspace(4)* %y
   y = __builtin_intel_fpga_mem(B, PARAM_1 | PARAM_2, 127, 100);
 
+  constexpr TestVal1 = 7;
+  constexpr TestVal2 = 8;
+
   // CHECK-DAG: [[D1:%[0-9]+]] = load [[STRUCT]] addrspace(4)*, [[STRUCT]] addrspace(4)* addrspace(4)* [[Daddr]]
   // CHECK-DAG: [[PTR12:%[0-9]+]] = call [[STRUCT]] addrspace(4)* @llvm.ptr.annotation{{.*}}[[D1]]{{.*}}[[ANN6]]{{.*}}[[ATT:#[0-9]+]]
   // CHECK-DAG: store [[STRUCT]] addrspace(4)* [[PTR12]], [[STRUCT]] addrspace(4)* addrspace(4)* %z
-  z = __builtin_intel_fpga_mem(&D, PARAM_1 | PARAM_2, 128, 4, 5, 6);
+  z = __builtin_intel_fpga_mem(&D, PARAM_1 | PARAM_2, 128, 4, TestVal1, TestVal2);
 }
 
 // CHECK-DAG: attributes [[ATT]] = { readnone }

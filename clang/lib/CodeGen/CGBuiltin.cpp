@@ -20465,7 +20465,7 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   assert(CacheSize.hasValue() && "Constant arg isn't actually constant?");
   Out << "{cache-size:" << toString(*CacheSize, 10) << "}";
 
-  // There is four optional arguments with following default values:
+  // There are four optional arguments with the following default values:
   // const int32_t AnchorID = -1
   // const int32_t TargetAnchor = 0
   // const int32_t Type = 0

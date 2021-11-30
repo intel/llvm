@@ -4,6 +4,9 @@
 #define PARAM_1 1U << 7
 #define PARAM_2 1U << 8
 
+// This test makes sure that the compiler checks the semantics of
+// __builtin_intel_fpga_mem built-in function arguments correctly.
+
 #ifdef __SYCL_DEVICE_ONLY__
 static_assert(__has_builtin(__builtin_intel_fpga_mem), "");
 struct State {

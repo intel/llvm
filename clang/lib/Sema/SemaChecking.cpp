@@ -4863,7 +4863,7 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
   const unsigned MaxNumArgs = 7;
   unsigned NumArgs = TheCall->getNumArgs();
 
-  // Make sure we have minimum number of provided arguments.
+  // Make sure we have the minimum number of provided arguments.
   if (NumArgs < MinNumArgs)
     return Diag(TheCall->getEndLoc(),
                 diag::err_typecheck_call_too_few_args_at_least)
@@ -4911,7 +4911,7 @@ bool Sema::CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *TheCall) {
     return Diag(TheCall->getArg(2)->getBeginLoc(),
         diag::err_intel_fpga_mem_arg_mismatch) << 1;
 
-  // The last four optional arguments must be signed integers.
+  // The last four optional arguments must be signed constant integers.
   for (unsigned I = MinNumArgs; I != NumArgs; ++I) {
     if (SemaBuiltinConstantArg(TheCall, I, Result))
       return true;
