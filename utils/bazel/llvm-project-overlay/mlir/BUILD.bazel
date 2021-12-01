@@ -1664,6 +1664,7 @@ cc_library(
         ":Analysis",
         ":ArithmeticDialect",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":DialectUtils",
         ":IR",
         ":MemRefDialect",
@@ -2134,6 +2135,7 @@ cc_library(
         ":ArithmeticToSPIRV",
         ":ArmNeon2dToIntr",
         ":AsyncToLLVM",
+        ":BufferizationToMemRef",
         ":ComplexToLLVM",
         ":ComplexToStandard",
         ":ConversionPassIncGen",
@@ -2499,6 +2501,7 @@ cc_library(
     deps = [
         ":ArithmeticDialect",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":IR",
         ":MemRefDialect",
         ":Pass",
@@ -2567,6 +2570,7 @@ cc_library(
         ":ArithmeticDialect",
         ":ArithmeticTransforms",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":IR",
         ":MemRefDialect",  # TODO: Remove dependency on MemRef dialect
         ":Pass",
@@ -4192,6 +4196,7 @@ cc_library(
         ":ArithmeticDialect",
         ":Async",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":IR",
         ":MemRefDialect",
         ":ParallelLoopMapperAttrGen",
@@ -5368,6 +5373,7 @@ cc_library(
         ":AsyncToLLVM",
         ":AsyncTransforms",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":ComplexDialect",
         ":ComplexToLLVM",
         ":ConversionPasses",
@@ -6634,6 +6640,7 @@ cc_library(
         ":ArithmeticDialect",
         ":BufferizableOpInterface",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":ComplexDialect",
         ":ComprehensiveBufferize",
         ":DialectUtils",
@@ -7327,9 +7334,11 @@ cc_library(
         ":ArithmeticDialect",
         ":ArithmeticPassIncGen",
         ":BufferizationDialect",
+        ":BufferizationTransforms",
         ":IR",
         ":MemRefDialect",
         ":Pass",
+        ":StandardOps",
         ":Transforms",
     ],
 )
@@ -7700,19 +7709,81 @@ cc_library(
     hdrs = ["include/mlir/Dialect/Bufferization/IR/Bufferization.h"],
     includes = ["include"],
     deps = [
+        ":AllocationOpInterface",
         ":BufferizationBaseIncGen",
         ":BufferizationOpsIncGen",
         ":ControlFlowInterfaces",
         ":CopyOpInterface",
-        ":AllocationOpInterface",
-        #":DialectUtils",
         ":IR",
         ":InferTypeOpInterface",
+        ":MemRefDialect",
         ":StandardOps",
         ":TensorDialect",
-        ":MemRefDialect",
         ":ViewLikeInterface",
         "//llvm:Support",
+    ],
+)
+
+gentbl_cc_library(
+    name = "BufferizationPassIncGen",
+    strip_include_prefix = "include",
+    tbl_outs = [
+        (
+            [
+                "-gen-pass-decls",
+                "-name=Bufferization",
+            ],
+            "include/mlir/Dialect/Bufferization/Transforms/Passes.h.inc",
+        ),
+    ],
+    tblgen = ":mlir-tblgen",
+    td_file = "include/mlir/Dialect/Bufferization/Transforms/Passes.td",
+    deps = [":PassBaseTdFiles"],
+)
+
+cc_library(
+    name = "BufferizationTransforms",
+    srcs = glob(
+        [
+            "lib/Dialect/Bufferization/Transforms/*.cpp",
+            "lib/Dialect/Bufferization/Transforms/*.h",
+        ],
+    ),
+    hdrs = glob(["include/mlir/Dialect/Bufferization/Transforms/*.h"]),
+    includes = ["include"],
+    deps = [
+        ":AllocationOpInterface",
+        ":Analysis",
+        ":BufferizationDialect",
+        ":BufferizationPassIncGen",
+        ":IR",
+        ":MemRefDialect",
+        ":Pass",
+        ":Transforms",
+        "//llvm:Support",
+    ],
+)
+
+cc_library(
+    name = "BufferizationToMemRef",
+    srcs = [
+        "lib/Conversion/BufferizationToMemRef/BufferizationToMemRef.cpp",
+        "lib/Conversion/PassDetail.h",
+    ],
+    hdrs = [
+        "include/mlir/Conversion/BufferizationToMemRef/BufferizationToMemRef.h",
+    ],
+    includes = ["include"],
+    deps = [
+        ":ArithmeticDialect",
+        ":BufferizationDialect",
+        ":ConversionPassIncGen",
+        ":IR",
+        ":MemRefDialect",
+        ":Pass",
+        ":StandardOps",
+        ":Support",
+        ":Transforms",
     ],
 )
 
