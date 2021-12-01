@@ -123,7 +123,8 @@ void GlobalHandler::registerDefaultContextReleaseHandler() {
 void shutdown() {
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  GlobalHandler::instance().MHostTaskThreadPool.Inst->finishAndWait();
+  if (GlobalHandler::instance().MHostTaskThreadPool.Inst)
+    GlobalHandler::instance().MHostTaskThreadPool.Inst->finishAndWait();
 
   // If default contexts are requested after the first default contexts have
   // been released there may be a new default context. These must be released
