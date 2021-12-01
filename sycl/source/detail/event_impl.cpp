@@ -345,17 +345,35 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
   return Result;
 }
 
-bool event_impl::isFlushed() {
+void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
+  assert(MEvent != nullptr);
   if (MIsFlushed)
-    return true;
-  if (!MEvent)
-    return false;
+    return;
+
+  Command *Cmd = static_cast<Command *>(getCommand());
+  assert(!Cmd || Cmd->getWorkerQueue() != nullptr);
+  QueueImplPtr Queue = Cmd ? Cmd->getWorkerQueue() : MQueue.lock();
+  // If the queue has been released, all of the commands have already been
+  // implicitly flushed by piQueueRelease.
+  if (!Queue) {
+    MIsFlushed = true;
+    return;
+  }
+  if (Queue == UserQueue)
+    return;
+
+  // Check if the task for this event has already been submitted.
   pi_event_status Status = PI_EVENT_QUEUED;
   getPlugin().call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
       nullptr);
-  MIsFlushed = Status != PI_EVENT_QUEUED;
-  return MIsFlushed;
+  if (Status != PI_EVENT_QUEUED) {
+    MIsFlushed = true;
+    return;
+  }
+
+  getPlugin().call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+  MIsFlushed = true;
 }
 
 void event_impl::cleanupDependencyEvents() {

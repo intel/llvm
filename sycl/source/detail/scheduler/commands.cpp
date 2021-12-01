@@ -172,11 +172,7 @@ getPiEvents(const std::vector<EventImplPtr> &EventImpls) {
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
                                 const QueueImplPtr &Queue) {
   for (auto &EventImpl : EventImpls) {
-    QueueImplPtr DependencyQueue = EventImpl->getQueue();
-    if (Queue != DependencyQueue && !EventImpl->isFlushed()) {
-      EventImpl->getPlugin().call<PiApiKind::piQueueFlush>(
-          DependencyQueue->getHandleRef());
-    }
+    EventImpl->flushIfNeeded(Queue);
   }
 }
 
