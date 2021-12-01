@@ -194,6 +194,8 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
           ToEnqueue.push_back(ConnectionCmd);
         Dependency->addUser(Dependant);
         --(Dependency->MLeafCounter);
+        if (Dependency->MLeafCounter == 0 && Dependency->isSuccessfullyEnqueued())
+          cleanupCommand(Dependency);
       };
 
   const ContextImplPtr &InteropCtxPtr = Req->MSYCLMemObj->getInteropContext();
@@ -225,17 +227,25 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
   return MemObject->MRecord.get();
 }
 
-void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
-                                           MemObjRecord *Record,
-                                           access::mode AccessMode) {
+void Scheduler::GraphBuilder::updateLeaves(
+    const std::set<Command *> &Cmds, MemObjRecord *Record,
+    access::mode AccessMode, std::vector<Command *> *CommandsToCleanUp) {
 
   const bool ReadOnlyReq = AccessMode == access::mode::read;
   if (ReadOnlyReq)
     return;
 
   for (Command *Cmd : Cmds) {
+    bool WasLeaf = Cmd->MLeafCounter > 0;
     Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
     Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued()) {
+      if (CommandsToCleanUp) {
+        if (WasLeaf)
+          CommandsToCleanUp->push_back(Cmd);
+      } else
+        cleanupCommand(Cmd);
+    }
   }
 }
 
@@ -963,14 +973,23 @@ Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
   // Node dependencies can be modified further when adding the node to leaves,
   // iterate over their copy.
   // FIXME employ a reference here to eliminate copying of a vector
+  // Updating leaves might also clean up some of the dep commands, so update
+  // their users first.
+  // FIXME there's probably a better way of handling cleanup & leaf/dep update
+  // here considering that some of the updated might be destroyed by cleanup
+  // immediately after.
   std::vector<DepDesc> Deps = NewCmd->MDeps;
+  std::vector<Command *> CommandsToCleanUp;
   for (DepDesc &Dep : Deps) {
     Dep.MDepCommand->addUser(NewCmd.get());
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-    updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode);
+    updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode,
+                 &CommandsToCleanUp);
     addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
   }
+  for (Command *Cmd : CommandsToCleanUp)
+    cleanupCommand(Cmd);
 
   // Register all the events as dependencies
   for (detail::EventImplPtr e : Events) {
@@ -993,9 +1012,13 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
     MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
     --(Cmd->MLeafCounter);
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued())
+      cleanupCommand(Cmd);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     --(Cmd->MLeafCounter);
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued())
+      cleanupCommand(Cmd);
   }
 }
 
@@ -1094,6 +1117,52 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
   }
 
   handleVisitedNodes(MVisitedCmds);
+}
+
+
+void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
+  if (SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
+    return;
+  assert(Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued());
+  // Isolated command nodes are cleaned up by scheduler instead.
+  assert(Cmd->MDeps.size() != 0 || Cmd->MUsers.size() != 0);
+  Command::CommandType CmdT = Cmd->getType();
+  // Allocas have to be kept alive until memory objects are released.
+  if (CmdT == Command::ALLOCA || CmdT == Command::ALLOCA_SUB_BUF)
+    return;
+
+  // FIXME handle host tasks
+  if (CmdT == Command::RUN_CG) {
+    auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
+    if (ExecCGCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask) {
+      return;
+    }
+  }
+  assert(CmdT != Command::ALLOCA && CmdT != Command::ALLOCA_SUB_BUF);
+
+  for (Command *UserCmd : Cmd->MUsers) {
+    for (DepDesc &Dep : UserCmd->MDeps) {
+      // Link the users of the command to the alloca command(s) instead
+      if (Dep.MDepCommand == Cmd) {
+        // ... unless the user is the alloca itself.
+        if (Dep.MAllocaCmd == UserCmd) {
+          Dep.MDepCommand = nullptr;
+        }
+        else {
+          Dep.MDepCommand = Dep.MAllocaCmd;
+          Dep.MDepCommand->MUsers.insert(UserCmd);
+        }
+      }
+    }
+  }
+  // Update dependency users
+  for (DepDesc &Dep : Cmd->MDeps) {
+    Command *DepCmd = Dep.MDepCommand;
+    DepCmd->MUsers.erase(Cmd);
+  }
+  Cmd->getEvent()->setCommand(nullptr);
+  Cmd->getEvent()->cleanupDependencyEvents();
+  delete Cmd;
 }
 
 void Scheduler::GraphBuilder::cleanupFinishedCommands(

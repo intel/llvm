@@ -260,8 +260,9 @@ public:
     // of empty command.
     // Also, it's possible to have record deallocated prior to enqueue process.
     // Thus we employ read-lock of graph.
+    std::vector<Command *> EnqueuedCmds;
+    Scheduler &Sched = Scheduler::getInstance();
     {
-      Scheduler &Sched = Scheduler::getInstance();
       Scheduler::ReadLockT Lock(Sched.MGraphLock);
 
       std::vector<DepDesc> Deps = MThisCmd->MDeps;
@@ -272,8 +273,10 @@ public:
       EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
 
       for (const DepDesc &Dep : Deps)
-        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement);
+        Scheduler::enqueueLeavesOfReqUnlocked(Dep.MDepRequirement,
+                                              EnqueuedCmds);
     }
+    Sched.cleanupCommands(EnqueuedCmds);
   }
 };
 
@@ -614,7 +617,7 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #endif
 }
 
-bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
+bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking, std::vector<Command *> &EnqueuedCommands) {
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
@@ -683,6 +686,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking) {
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
+    if (MLeafCounter == 0 && (!MDeps.empty() || !MUsers.empty()))
+      EnqueuedCommands.push_back(this);
   }
 
   // Emit this correlation signal before the task end

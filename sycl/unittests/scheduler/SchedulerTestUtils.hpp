@@ -10,6 +10,7 @@
 #include <CL/sycl.hpp>
 #include <CL/sycl/detail/cl.h>
 #include <detail/queue_impl.hpp>
+#include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 
@@ -38,9 +39,9 @@ public:
                   cl::sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(Req)} {
     using namespace testing;
-    ON_CALL(*this, enqueue(_, _))
+    ON_CALL(*this, enqueue)
         .WillByDefault(Invoke(this, &MockCommand::enqueueOrigin));
-    EXPECT_CALL(*this, enqueue(_, _)).Times(AnyNumber());
+    EXPECT_CALL(*this, enqueue).Times(AnyNumber());
   }
 
   MockCommand(cl::sycl::detail::QueueImplPtr Queue,
@@ -48,9 +49,9 @@ public:
                   cl::sycl::detail::Command::RUN_CG)
       : Command{Type, Queue}, MRequirement{std::move(getMockRequirement())} {
     using namespace testing;
-    ON_CALL(*this, enqueue(_, _))
+    ON_CALL(*this, enqueue)
         .WillByDefault(Invoke(this, &MockCommand::enqueueOrigin));
-    EXPECT_CALL(*this, enqueue(_, _)).Times(AnyNumber());
+    EXPECT_CALL(*this, enqueue).Times(AnyNumber());
   }
 
   void printDot(std::ostream &) const override {}
@@ -62,11 +63,13 @@ public:
 
   cl_int enqueueImp() override { return MRetVal; }
 
-  MOCK_METHOD2(enqueue, bool(cl::sycl::detail::EnqueueResultT &,
-                             cl::sycl::detail::BlockingT));
+  MOCK_METHOD3(enqueue, bool(cl::sycl::detail::EnqueueResultT &,
+                             cl::sycl::detail::BlockingT,
+                             std::vector<cl::sycl::detail::Command *> &));
   bool enqueueOrigin(cl::sycl::detail::EnqueueResultT &EnqueueResult,
-                     cl::sycl::detail::BlockingT Blocking) {
-    return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking);
+                     cl::sycl::detail::BlockingT Blocking,
+                     std::vector<cl::sycl::detail::Command *> &EnqueuedCmds) {
+    return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking, EnqueuedCmds);
   }
 
   cl_int MRetVal = CL_SUCCESS;
@@ -124,7 +127,8 @@ public:
   static bool enqueueCommand(cl::sycl::detail::Command *Cmd,
                              cl::sycl::detail::EnqueueResultT &EnqueueResult,
                              cl::sycl::detail::BlockingT Blocking) {
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, Blocking);
+    std::vector<cl::sycl::detail::Command *> EnqueuedCmds;
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, EnqueuedCmds, Blocking);
   }
 
   cl::sycl::detail::AllocaCommandBase *

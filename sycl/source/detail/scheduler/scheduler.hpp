@@ -459,7 +459,10 @@ protected:
   /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
   void acquireWriteLock(WriteLockT &Lock);
 
-  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req);
+  void cleanupCommands(std::vector<Command *> &Cmds);
+
+  static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
+                                         std::vector<Command *> &EnqueuedCmds);
 
   /// Graph builder class.
   ///
@@ -505,6 +508,8 @@ protected:
     /// with Event passed and its dependencies.
     void optimize(EventImplPtr Event);
 
+    void cleanupCommand(Command *Cmd);
+
     /// Removes finished non-leaf non-alloca commands from the subgraph
     /// (assuming that all its commands have been waited for).
     void cleanupFinishedCommands(
@@ -547,7 +552,8 @@ protected:
 
     /// Removes commands from leaves.
     void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                      access::mode AccessMode);
+                      access::mode AccessMode,
+                      std::vector<Command *> *CommandsToCleanUp = nullptr);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
@@ -724,7 +730,7 @@ protected:
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
-    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
+    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock, std::vector<Command *> &EnqueueCommands,
                              bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
@@ -735,7 +741,7 @@ protected:
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
-                               BlockingT Blocking = NON_BLOCKING);
+                               std::vector<Command *> &EnqueuedCommands, BlockingT Blocking = NON_BLOCKING);
   };
 
   /// This function waits on all of the graph leaves which somehow use the
@@ -750,6 +756,9 @@ protected:
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
+
+  std::vector<Command *> MDeferredCleanupCommands;
+  std::mutex MDeferredCleanupMutex;
 
   QueueImplPtr DefaultHostQueue;
 
