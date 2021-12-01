@@ -2968,7 +2968,7 @@ C++ Coroutines support builtins
 
 Clang provides experimental builtins to support C++ Coroutines as defined by
 https://wg21.link/P0057. The following four are intended to be used by the
-standard library to implement `std::experimental::coroutine_handle` type.
+standard library to implement the ``std::coroutine_handle`` type.
 
 **Syntax**:
 
@@ -3819,7 +3819,8 @@ Multiple match rules can be specified using the ``any`` match rule, as shown
 in the example above. The ``any`` rule applies attributes to all declarations
 that are matched by at least one of the rules in the ``any``. It doesn't nest
 and can't be used inside the other match rules. Redundant match rules or rules
-that conflict with one another should not be used inside of ``any``.
+that conflict with one another should not be used inside of ``any``. Failing to
+specify a rule within the ``any`` rule results in an error.
 
 Clang supports the following match rules:
 
@@ -4055,9 +4056,56 @@ mark macros as final, meaning they cannot be undef'd or re-defined. For example:
    #undef FINAL_MACRO  // warning: FINAL_MACRO is marked final and should not be undefined
 
 This is useful for enforcing system-provided macros that should not be altered
-in user headers or code. This is controlled by ``-Wpedantic-macros``. Final 
+in user headers or code. This is controlled by ``-Wpedantic-macros``. Final
 macros will always warn on redefinition, including situations with identical
 bodies and in system headers.
+
+Line Control
+============
+
+Clang supports an extension for source line control, which takes the
+form of a preprocessor directive starting with an unsigned integral
+constant. In addition to the standard ``#line`` directive, this form
+allows control of an include stack and header file type, which is used
+in issuing diagnostics. These lines are emitted in preprocessed
+output.
+
+.. code-block:: c
+
+   # <line:number> <filename:string> <header-type:numbers>
+
+The filename is optional, and if unspecified indicates no change in
+source filename. The header-type is an optional, whitespace-delimited,
+sequence of magic numbers as follows.
+
+* ``1:`` Push the current source file name onto the include stack and
+  enter a new file.
+
+* ``2``: Pop the include stack and return to the specified file. If
+  the filename is ``""``, the name popped from the include stack is
+  used. Otherwise there is no requirement that the specified filename
+  matches the current source when originally pushed.
+
+* ``3``: Enter a system-header region. System headers often contain
+  implementation-specific source that would normally emit a diagnostic.
+
+* ``4``: Enter an implicit ``extern "C"`` region. This is not required on
+  modern systems where system headers are C++-aware.
+
+At most a single ``1`` or ``2`` can be present, and values must be in
+ascending order.
+
+Examples are:
+
+.. code-block:: c
+
+   # 57 // Advance (or return) to line 57 of the current source file
+   # 57 "frob" // Set to line 57 of "frob"
+   # 1 "foo.h" 1 // Enter "foo.h" at line 1
+   # 59 "main.c" 2 // Leave current include and return to "main.c"
+   # 1 "/usr/include/stdio.h" 1 3 // Enter a system header
+   # 60 "" 2 // return to "main.c"
+   # 1 "/usr/ancient/header.h" 1 4 // Enter an implicit extern "C" header
 
 Extended Integer Types
 ======================

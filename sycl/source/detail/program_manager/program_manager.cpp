@@ -1313,9 +1313,12 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
   pi_device_binary DevBin =
       const_cast<pi_device_binary>(&BinImage->getRawData());
-  Plugin.call<PiApiKind::piextDeviceSelectBinary>(
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextDeviceSelectBinary>(
       PIDeviceHandle, &DevBin,
       /*num bin images = */ (cl_uint)1, &SuitableImageID);
+  if (Error != PI_SUCCESS && Error != PI_INVALID_BINARY)
+    throw runtime_error("Invalid binary image or device", PI_INVALID_VALUE);
+
   return (0 == SuitableImageID);
 }
 
@@ -1339,6 +1342,19 @@ std::vector<kernel_id> ProgramManager::getAllSYCLKernelIDs() {
     AllKernelIDs.push_back(KernelID.second);
   }
   return AllKernelIDs;
+}
+
+kernel_id ProgramManager::getBuiltInKernelID(const std::string &KernelName) {
+  std::lock_guard<std::mutex> BuiltInKernelIDsGuard(m_BuiltInKernelIDsMutex);
+
+  auto KernelID = m_BuiltInKernelIDs.find(KernelName);
+  if (KernelID == m_BuiltInKernelIDs.end()) {
+    auto Impl = std::make_shared<kernel_id_impl>(KernelName);
+    auto CachedID = createSyclObjFromImpl<kernel_id>(Impl);
+    KernelID = m_BuiltInKernelIDs.insert({KernelName, CachedID}).first;
+  }
+
+  return KernelID->second;
 }
 
 std::vector<device_image_plain>
@@ -1511,6 +1527,17 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
 std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
     const context &Ctx, const std::vector<device> &Devs,
     const std::vector<kernel_id> &KernelIDs, bundle_state TargetState) {
+  {
+    std::lock_guard<std::mutex> BuiltInKernelIDsGuard(m_BuiltInKernelIDsMutex);
+
+    for (const kernel_id &ID : KernelIDs) {
+      if (m_BuiltInKernelIDs.find(ID.get_name()) != m_BuiltInKernelIDs.end())
+        throw sycl::exception(make_error_code(errc::kernel_argument),
+                              "Attempting to use a built-in kernel. They are "
+                              "not fully supported");
+    }
+  }
+
   // Collect device images with compatible state
   std::vector<device_image_plain> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
@@ -1688,7 +1715,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
 
   // TODO: Unify this code with getBuiltPIProgram
-  auto BuildF = [this, &Context, Img, &Devs, &CompileOpts, &LinkOpts,
+  auto BuildF = [this, &Context, &Img, &Devs, &CompileOpts, &LinkOpts,
                  &InputImpl, SpecConsts] {
     applyOptionsFromImage(CompileOpts, LinkOpts, Img);
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);

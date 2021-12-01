@@ -12,8 +12,7 @@
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
 //
-// Do the same run, but now with SIMDization as well.
-// This should not change the outcome.
+// Do the same run, but now with SIMDization as well. This should not change the outcome.
 //
 // RUN: mlir-opt %s \
 // RUN:   --linalg-generalize-named-ops --linalg-fuse-elementwise-ops \
@@ -28,10 +27,9 @@
 // RUN:  -e entry -entry-point-result=void  \
 // RUN:  -shared-libs=%mlir_integration_test_dir/libmlir_c_runner_utils%shlibext | \
 // RUN: FileCheck %s
-//
+
 // Interop between linalg/sparse leaves some issues to be revolved:
 // UNSUPPORTED: asan
-
 
 #SM = #sparse_tensor.encoding<{ dimLevelType = [ "compressed", "compressed" ] }>
 
@@ -158,8 +156,8 @@ module {
     // CHECK-SAME: ( 0, 0, 0, 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0, 0, 0, 0 ),
     // CHECK-SAME: ( 0, 0, 0, 0, 0, 0, 0, 0 ), ( 0, 0, 0, 0, 0, 0, 0, 192 ) )
     //
-    %m0 = memref.buffer_cast %0 : memref<8x8xf64>
-    %m1 = memref.buffer_cast %1 : memref<8x8xf64>
+    %m0 = bufferization.to_memref %0 : memref<8x8xf64>
+    %m1 = bufferization.to_memref %1 : memref<8x8xf64>
     %v0 = vector.transfer_read %m0[%c0, %c0], %d0
         : memref<8x8xf64>, vector<8x8xf64>
     %v1 = vector.transfer_read %m1[%c0, %c0], %d0

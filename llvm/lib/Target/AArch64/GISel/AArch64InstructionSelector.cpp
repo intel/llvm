@@ -2770,6 +2770,14 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
       } else {
         static unsigned Opcodes[] = {AArch64::STLRB, AArch64::STLRH,
                                      AArch64::STLRW, AArch64::STLRX};
+        Register ValReg = LdSt.getReg(0);
+        if (MRI.getType(ValReg).getSizeInBits() == 64 && MemSizeInBits != 64) {
+          // Emit a subreg copy of 32 bits.
+          Register NewVal = MRI.createVirtualRegister(&AArch64::GPR32RegClass);
+          MIB.buildInstr(TargetOpcode::COPY, {NewVal}, {})
+              .addReg(I.getOperand(0).getReg(), 0, AArch64::sub_32);
+          I.getOperand(0).setReg(NewVal);
+        }
         I.setDesc(TII.get(Opcodes[Log2_32(MemSizeInBytes)]));
       }
       constrainSelectedInstRegOperands(I, TII, TRI, RBI);
@@ -2779,7 +2787,7 @@ bool AArch64InstructionSelector::select(MachineInstr &I) {
 #ifndef NDEBUG
     const Register PtrReg = LdSt.getPointerReg();
     const RegisterBank &PtrRB = *RBI.getRegBank(PtrReg, MRI, TRI);
-    // Sanity-check the pointer register.
+    // Check that the pointer register is valid.
     assert(PtrRB.getID() == AArch64::GPRRegBankID &&
            "Load/Store pointer operand isn't a GPR");
     assert(MRI.getType(PtrReg).isPointer() &&
@@ -5427,6 +5435,33 @@ bool AArch64InstructionSelector::selectIntrinsic(MachineInstr &I,
     I.eraseFromParent();
     return true;
   }
+  case Intrinsic::ptrauth_sign: {
+    Register DstReg = I.getOperand(0).getReg();
+    Register ValReg = I.getOperand(2).getReg();
+    uint64_t Key = I.getOperand(3).getImm();
+    Register DiscReg = I.getOperand(4).getReg();
+    auto DiscVal = getIConstantVRegVal(DiscReg, MRI);
+    bool IsDiscZero = DiscVal.hasValue() && DiscVal->isNullValue();
+
+    if (Key > 3)
+      return false;
+
+    unsigned Opcodes[][4] = {
+        {AArch64::PACIA, AArch64::PACIB, AArch64::PACDA, AArch64::PACDB},
+        {AArch64::PACIZA, AArch64::PACIZB, AArch64::PACDZA, AArch64::PACDZB}};
+    unsigned Opcode = Opcodes[IsDiscZero][Key];
+
+    auto PAC = MIB.buildInstr(Opcode, {DstReg}, {ValReg});
+
+    if (!IsDiscZero) {
+      PAC.addUse(DiscReg);
+      RBI.constrainGenericRegister(DiscReg, AArch64::GPR64spRegClass, MRI);
+    }
+
+    RBI.constrainGenericRegister(DstReg, AArch64::GPR64RegClass, MRI);
+    I.eraseFromParent();
+    return true;
+  }
   case Intrinsic::frameaddress:
   case Intrinsic::returnaddress: {
     MachineFunction &MF = *I.getParent()->getParent();
@@ -6417,8 +6452,7 @@ static void fixupPHIOpBanks(MachineInstr &MI, MachineRegisterInfo &MRI,
   MachineIRBuilder MIB(MI);
 
   // Go through each operand and ensure it has the same regbank.
-  for (unsigned OpIdx = 1; OpIdx < MI.getNumOperands(); ++OpIdx) {
-    MachineOperand &MO = MI.getOperand(OpIdx);
+  for (MachineOperand &MO : llvm::drop_begin(MI.operands())) {
     if (!MO.isReg())
       continue;
     Register OpReg = MO.getReg();
@@ -6476,8 +6510,7 @@ void AArch64InstructionSelector::processPHIs(MachineFunction &MF) {
     // %endbb:
     //   %dst:gpr(s16) = G_PHI %in1:gpr(s16), %bb1, %in2_copy:gpr(s16), %bb2
     bool HasGPROp = false, HasFPROp = false;
-    for (unsigned OpIdx = 1; OpIdx < MI->getNumOperands(); ++OpIdx) {
-      const auto &MO = MI->getOperand(OpIdx);
+    for (const MachineOperand &MO : llvm::drop_begin(MI->operands())) {
       if (!MO.isReg())
         continue;
       const LLT &Ty = MRI.getType(MO.getReg());

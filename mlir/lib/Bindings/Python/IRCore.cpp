@@ -93,6 +93,13 @@ Args:
   use_local_Scope: Whether to print in a way that is more optimized for
     multi-threaded access but may not be consistent with how the overall
     module prints.
+  assume_verified: By default, if not printing generic form, the verifier
+    will be run and if it fails, generic form will be printed with a comment
+    about failed verification. While a reasonable default for interactive use,
+    for systematic use, it is often better for the caller to verify explicitly
+    and report failures in a more robust fashion. Set this to True if doing this
+    in order to avoid running a redundant verification. If the IR is actually
+    invalid, behavior is undefined.
 )";
 
 static const char kOperationGetAsmDocstring[] =
@@ -828,14 +835,21 @@ void PyOperation::checkValid() const {
 void PyOperationBase::print(py::object fileObject, bool binary,
                             llvm::Optional<int64_t> largeElementsLimit,
                             bool enableDebugInfo, bool prettyDebugInfo,
-                            bool printGenericOpForm, bool useLocalScope) {
+                            bool printGenericOpForm, bool useLocalScope,
+                            bool assumeVerified) {
   PyOperation &operation = getOperation();
   operation.checkValid();
   if (fileObject.is_none())
     fileObject = py::module::import("sys").attr("stdout");
 
-  if (!printGenericOpForm && !mlirOperationVerify(operation)) {
-    fileObject.attr("write")("// Verification failed, printing generic form\n");
+  if (!assumeVerified && !printGenericOpForm &&
+      !mlirOperationVerify(operation)) {
+    std::string message("// Verification failed, printing generic form\n");
+    if (binary) {
+      fileObject.attr("write")(py::bytes(message));
+    } else {
+      fileObject.attr("write")(py::str(message));
+    }
     printGenericOpForm = true;
   }
 
@@ -857,8 +871,8 @@ void PyOperationBase::print(py::object fileObject, bool binary,
 py::object PyOperationBase::getAsm(bool binary,
                                    llvm::Optional<int64_t> largeElementsLimit,
                                    bool enableDebugInfo, bool prettyDebugInfo,
-                                   bool printGenericOpForm,
-                                   bool useLocalScope) {
+                                   bool printGenericOpForm, bool useLocalScope,
+                                   bool assumeVerified) {
   py::object fileObject;
   if (binary) {
     fileObject = py::module::import("io").attr("BytesIO")();
@@ -870,7 +884,8 @@ py::object PyOperationBase::getAsm(bool binary,
         /*enableDebugInfo=*/enableDebugInfo,
         /*prettyDebugInfo=*/prettyDebugInfo,
         /*printGenericOpForm=*/printGenericOpForm,
-        /*useLocalScope=*/useLocalScope);
+        /*useLocalScope=*/useLocalScope,
+        /*assumeVerified=*/assumeVerified);
 
   return fileObject.attr("getvalue")();
 }
@@ -1153,7 +1168,7 @@ PyOpView::buildGeneric(py::object cls, py::list resultTypeList,
       throw py::value_error((llvm::Twine("Operation \"") + name +
                              "\" requires " +
                              llvm::Twine(resultSegmentSpec.size()) +
-                             "result segments but was provided " +
+                             " result segments but was provided " +
                              llvm::Twine(resultTypeList.size()))
                                 .str());
     }
@@ -1164,7 +1179,7 @@ PyOpView::buildGeneric(py::object cls, py::list resultTypeList,
       if (segmentSpec == 1 || segmentSpec == 0) {
         // Unpack unary element.
         try {
-          auto resultType = py::cast<PyType *>(std::get<0>(it.value()));
+          auto *resultType = py::cast<PyType *>(std::get<0>(it.value()));
           if (resultType) {
             resultTypes.push_back(resultType);
             resultSegmentLengths.push_back(1);
@@ -1530,6 +1545,57 @@ PyValue PyValue::createFromCapsule(pybind11::object capsule) {
   return PyValue(ownerRef, value);
 }
 
+//------------------------------------------------------------------------------
+// PySymbolTable.
+//------------------------------------------------------------------------------
+
+PySymbolTable::PySymbolTable(PyOperationBase &operation)
+    : operation(operation.getOperation().getRef()) {
+  symbolTable = mlirSymbolTableCreate(operation.getOperation().get());
+  if (mlirSymbolTableIsNull(symbolTable)) {
+    throw py::cast_error("Operation is not a Symbol Table.");
+  }
+}
+
+py::object PySymbolTable::dunderGetItem(const std::string &name) {
+  operation->checkValid();
+  MlirOperation symbol = mlirSymbolTableLookup(
+      symbolTable, mlirStringRefCreate(name.data(), name.length()));
+  if (mlirOperationIsNull(symbol))
+    throw py::key_error("Symbol '" + name + "' not in the symbol table.");
+
+  return PyOperation::forOperation(operation->getContext(), symbol,
+                                   operation.getObject())
+      ->createOpView();
+}
+
+void PySymbolTable::erase(PyOperationBase &symbol) {
+  operation->checkValid();
+  symbol.getOperation().checkValid();
+  mlirSymbolTableErase(symbolTable, symbol.getOperation().get());
+  // The operation is also erased, so we must invalidate it. There may be Python
+  // references to this operation so we don't want to delete it from the list of
+  // live operations here.
+  symbol.getOperation().valid = false;
+}
+
+void PySymbolTable::dunderDel(const std::string &name) {
+  py::object operation = dunderGetItem(name);
+  erase(py::cast<PyOperationBase &>(operation));
+}
+
+PyAttribute PySymbolTable::insert(PyOperationBase &symbol) {
+  operation->checkValid();
+  symbol.getOperation().checkValid();
+  MlirAttribute symbolAttr = mlirOperationGetAttributeByName(
+      symbol.getOperation().get(), mlirSymbolTableGetSymbolAttributeName());
+  if (mlirAttributeIsNull(symbolAttr))
+    throw py::value_error("Expected operation to have a symbol name.");
+  return PyAttribute(
+      symbol.getOperation().getContext(),
+      mlirSymbolTableInsert(symbolTable, symbol.getOperation().get()));
+}
+
 namespace {
 /// CRTP base class for Python MLIR values that subclass Value and should be
 /// castable from it. The value hierarchy is one level deep and is not supposed
@@ -1794,7 +1860,8 @@ public:
         mlirOperationGetAttribute(operation->get(), index);
     return PyNamedAttribute(
         namedAttr.attribute,
-        std::string(mlirIdentifierStr(namedAttr.name).data));
+        std::string(mlirIdentifierStr(namedAttr.name).data,
+                    mlirIdentifierStr(namedAttr.name).length));
   }
 
   void dunderSetItem(const std::string &name, PyAttribute attr) {
@@ -2097,12 +2164,9 @@ void mlir::python::populateIRCore(py::module &m) {
           kDumpDocstring)
       .def(
           "__str__",
-          [](PyModule &self) {
-            MlirOperation operation = mlirModuleGetOperation(self.get());
-            PyPrintAccumulator printAccum;
-            mlirOperationPrint(operation, printAccum.getCallback(),
-                               printAccum.getUserData());
-            return printAccum.join();
+          [](py::object self) {
+            // Defer to the operation's __str__.
+            return self.attr("operation").attr("__str__")();
           },
           kOperationStrDunderDocstring);
 
@@ -2120,6 +2184,10 @@ void mlir::python::populateIRCore(py::module &m) {
            })
       .def("__eq__",
            [](PyOperationBase &self, py::object other) { return false; })
+      .def("__hash__",
+           [](PyOperationBase &self) {
+             return static_cast<size_t>(llvm::hash_value(&self.getOperation()));
+           })
       .def_property_readonly("attributes",
                              [](PyOperationBase &self) {
                                return PyOpAttributeMap(
@@ -2178,7 +2246,8 @@ void mlir::python::populateIRCore(py::module &m) {
                                /*enableDebugInfo=*/false,
                                /*prettyDebugInfo=*/false,
                                /*printGenericOpForm=*/false,
-                               /*useLocalScope=*/false);
+                               /*useLocalScope=*/false,
+                               /*assumeVerified=*/false);
           },
           "Returns the assembly form of the operation.")
       .def("print", &PyOperationBase::print,
@@ -2188,7 +2257,8 @@ void mlir::python::populateIRCore(py::module &m) {
            py::arg("enable_debug_info") = false,
            py::arg("pretty_debug_info") = false,
            py::arg("print_generic_op_form") = false,
-           py::arg("use_local_scope") = false, kOperationPrintDocstring)
+           py::arg("use_local_scope") = false,
+           py::arg("assume_verified") = false, kOperationPrintDocstring)
       .def("get_asm", &PyOperationBase::getAsm,
            // Careful: Lots of arguments must match up with get_asm method.
            py::arg("binary") = false,
@@ -2196,7 +2266,8 @@ void mlir::python::populateIRCore(py::module &m) {
            py::arg("enable_debug_info") = false,
            py::arg("pretty_debug_info") = false,
            py::arg("print_generic_op_form") = false,
-           py::arg("use_local_scope") = false, kOperationGetAsmDocstring)
+           py::arg("use_local_scope") = false,
+           py::arg("assume_verified") = false, kOperationGetAsmDocstring)
       .def(
           "verify",
           [](PyOperationBase &self) {
@@ -2507,7 +2578,10 @@ void mlir::python::populateIRCore(py::module &m) {
       .def("__eq__",
            [](PyAttribute &self, PyAttribute &other) { return self == other; })
       .def("__eq__", [](PyAttribute &self, py::object &other) { return false; })
-      .def("__hash__", [](PyAttribute &self) { return (size_t)self.get().ptr; })
+      .def("__hash__",
+           [](PyAttribute &self) {
+             return static_cast<size_t>(llvm::hash_value(self.get().ptr));
+           })
       .def(
           "dump", [](PyAttribute &self) { mlirAttributeDump(self); },
           kDumpDocstring)
@@ -2543,7 +2617,8 @@ void mlir::python::populateIRCore(py::module &m) {
              PyPrintAccumulator printAccum;
              printAccum.parts.append("NamedAttribute(");
              printAccum.parts.append(
-                 mlirIdentifierStr(self.namedAttr.name).data);
+                 py::str(mlirIdentifierStr(self.namedAttr.name).data,
+                         mlirIdentifierStr(self.namedAttr.name).length));
              printAccum.parts.append("=");
              mlirAttributePrint(self.namedAttr.attribute,
                                 printAccum.getCallback(),
@@ -2601,7 +2676,10 @@ void mlir::python::populateIRCore(py::module &m) {
           "Context that owns the Type")
       .def("__eq__", [](PyType &self, PyType &other) { return self == other; })
       .def("__eq__", [](PyType &self, py::object &other) { return false; })
-      .def("__hash__", [](PyType &self) { return (size_t)self.get().ptr; })
+      .def("__hash__",
+           [](PyType &self) {
+             return static_cast<size_t>(llvm::hash_value(self.get().ptr));
+           })
       .def(
           "dump", [](PyType &self) { mlirTypeDump(self); }, kDumpDocstring)
       .def(
@@ -2652,6 +2730,10 @@ void mlir::python::populateIRCore(py::module &m) {
              return self.get().ptr == other.get().ptr;
            })
       .def("__eq__", [](PyValue &self, py::object other) { return false; })
+      .def("__hash__",
+           [](PyValue &self) {
+             return static_cast<size_t>(llvm::hash_value(self.get().ptr));
+           })
       .def(
           "__str__",
           [](PyValue &self) {
@@ -2669,6 +2751,20 @@ void mlir::python::populateIRCore(py::module &m) {
       });
   PyBlockArgument::bind(m);
   PyOpResult::bind(m);
+
+  //----------------------------------------------------------------------------
+  // Mapping of SymbolTable.
+  //----------------------------------------------------------------------------
+  py::class_<PySymbolTable>(m, "SymbolTable", py::module_local())
+      .def(py::init<PyOperationBase &>())
+      .def("__getitem__", &PySymbolTable::dunderGetItem)
+      .def("insert", &PySymbolTable::insert)
+      .def("erase", &PySymbolTable::erase)
+      .def("__delitem__", &PySymbolTable::dunderDel)
+      .def("__contains__", [](PySymbolTable &table, const std::string &name) {
+        return !mlirOperationIsNull(mlirSymbolTableLookup(
+            table, mlirStringRefCreate(name.data(), name.length())));
+      });
 
   // Container bindings.
   PyBlockArgumentList::bind(m);

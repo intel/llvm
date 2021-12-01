@@ -837,21 +837,25 @@ template <class ELFT> static uint32_t readAndFeatures(const InputSection &sec) {
 }
 
 template <class ELFT>
-InputSectionBase *ObjFile<ELFT>::getRelocTarget(const Elf_Shdr &sec) {
-  uint32_t idx = sec.sh_info;
-  if (idx >= this->sections.size())
-    fatal(toString(this) + ": invalid relocated section index: " + Twine(idx));
-  InputSectionBase *target = this->sections[idx];
+InputSectionBase *ObjFile<ELFT>::getRelocTarget(uint32_t idx, StringRef name,
+                                                const Elf_Shdr &sec) {
+  uint32_t info = sec.sh_info;
+  if (info < this->sections.size()) {
+    InputSectionBase *target = this->sections[info];
 
-  // Strictly speaking, a relocation section must be included in the
-  // group of the section it relocates. However, LLVM 3.3 and earlier
-  // would fail to do so, so we gracefully handle that case.
-  if (target == &InputSection::discarded)
-    return nullptr;
+    // Strictly speaking, a relocation section must be included in the
+    // group of the section it relocates. However, LLVM 3.3 and earlier
+    // would fail to do so, so we gracefully handle that case.
+    if (target == &InputSection::discarded)
+      return nullptr;
 
-  if (!target)
-    fatal(toString(this) + ": unsupported relocation reference");
-  return target;
+    if (target != nullptr)
+      return target;
+  }
+
+  error(toString(this) + Twine(": relocation section ") + name + " (index " +
+        Twine(idx) + ") has invalid sh_info (" + Twine(info) + ")");
+  return nullptr;
 }
 
 // Create a regular InputSection class that has the same contents
@@ -939,7 +943,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
     // and the group is discarded, even though it's a violation of the
     // spec. We handle that situation gracefully by discarding dangling
     // relocation sections.
-    InputSectionBase *target = getRelocTarget(sec);
+    InputSectionBase *target = getRelocTarget(idx, name, sec);
     if (!target)
       return nullptr;
 
@@ -962,7 +966,7 @@ InputSectionBase *ObjFile<ELFT>::createInputSection(uint32_t idx,
     // `nullptr` for the normal case. However, if -r or --emit-relocs is
     // specified, we need to copy them to the output. (Some post link analysis
     // tools specify --emit-relocs to obtain the information.)
-    if (!config->relocatable && !config->emitRelocs)
+    if (!config->copyRelocs)
       return nullptr;
     InputSection *relocSec = make<InputSection>(*this, sec, name);
     // If the relocated section is discarded (due to /DISCARD/ or
@@ -1143,15 +1147,15 @@ template <class ELFT> void ObjFile<ELFT>::initializeSymbols() {
     if (sec == &InputSection::discarded) {
       Undefined und{this, name, binding, stOther, type, secIdx};
       Symbol *sym = this->symbols[i];
-      // !ArchiveFile::parsed or LazyObjFile::fetched means that the file
+      // !ArchiveFile::parsed or LazyObjFile::extracted means that the file
       // containing this object has not finished processing, i.e. this symbol is
-      // a result of a lazy symbol fetch. We should demote the lazy symbol to an
-      // Undefined so that any relocations outside of the group to it will
+      // a result of a lazy symbol extract. We should demote the lazy symbol to
+      // an Undefined so that any relocations outside of the group to it will
       // trigger a discarded section error.
       if ((sym->symbolKind == Symbol::LazyArchiveKind &&
            !cast<ArchiveFile>(sym->file)->parsed) ||
           (sym->symbolKind == Symbol::LazyObjectKind &&
-           cast<LazyObjFile>(sym->file)->fetched))
+           cast<LazyObjFile>(sym->file)->extracted))
         sym->replace(und);
       else
         sym->resolve(und);
@@ -1170,7 +1174,7 @@ template <class ELFT> void ObjFile<ELFT>::initializeSymbols() {
   }
 
   // Undefined symbols (excluding those defined relative to non-prevailing
-  // sections) can trigger recursive fetch. Process defined symbols first so
+  // sections) can trigger recursive extract. Process defined symbols first so
   // that the relative order between a defined symbol and an undefined symbol
   // does not change the symbol resolution behavior. In addition, a set of
   // interconnected symbols will all be resolved to the same file, instead of
@@ -1198,7 +1202,7 @@ void ArchiveFile::parse() {
 }
 
 // Returns a buffer pointing to a member file containing a given symbol.
-void ArchiveFile::fetch(const Archive::Symbol &sym) {
+void ArchiveFile::extract(const Archive::Symbol &sym) {
   Archive::Child c =
       CHECK(sym.getMember(), toString(this) +
                                  ": could not get the member for symbol " +
@@ -1287,7 +1291,7 @@ static bool isNonCommonDef(MemoryBufferRef mb, StringRef symName,
   }
 }
 
-bool ArchiveFile::shouldFetchForCommon(const Archive::Symbol &sym) {
+bool ArchiveFile::shouldExtractForCommon(const Archive::Symbol &sym) {
   Archive::Child c =
       CHECK(sym.getMember(), toString(this) +
                                  ": could not get the member for symbol " +
@@ -1775,10 +1779,10 @@ InputFile *elf::createObjectFile(MemoryBufferRef mb, StringRef archiveName,
   }
 }
 
-void LazyObjFile::fetch() {
-  if (fetched)
+void LazyObjFile::extract() {
+  if (extracted)
     return;
-  fetched = true;
+  extracted = true;
 
   InputFile *file = createObjectFile(mb, archiveName, offsetInArchive);
   file->groupId = groupId;
@@ -1831,7 +1835,7 @@ template <class ELFT> void LazyObjFile::parse() {
 
     // Replace existing symbols with LazyObject symbols.
     //
-    // resolve() may trigger this->fetch() if an existing symbol is an
+    // resolve() may trigger this->extract() if an existing symbol is an
     // undefined symbol. If that happens, this LazyObjFile has served
     // its purpose, and we can exit from the loop early.
     for (Symbol *sym : this->symbols) {
@@ -1839,16 +1843,16 @@ template <class ELFT> void LazyObjFile::parse() {
         continue;
       sym->resolve(LazyObject{*this, sym->getName()});
 
-      // If fetched, stop iterating because this->symbols has been transferred
+      // If extracted, stop iterating because this->symbols has been transferred
       // to the instantiated ObjFile.
-      if (fetched)
+      if (extracted)
         return;
     }
     return;
   }
 }
 
-bool LazyObjFile::shouldFetchForCommon(const StringRef &name) {
+bool LazyObjFile::shouldExtractForCommon(const StringRef &name) {
   if (isBitcode(mb))
     return isBitcodeNonCommonDef(mb, name, archiveName);
 

@@ -367,12 +367,10 @@ public:
   /// Gets the native handle of the SYCL platform.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
+  template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const ->
-      typename detail::interop<BackendName, program>::type {
-    return reinterpret_cast<
-        typename detail::interop<BackendName, program>::type>(getNative());
+  backend_return_t<Backend, program> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, program>>(getNative());
   }
 
 private:

@@ -55,6 +55,12 @@ module attributes {gpu.container_module} {
       %offset = arith.constant 3 : i32
       // CHECK: gpu.shuffle %{{.*}}, %{{.*}}, %{{.*}} xor : f32
       %shfl, %pred = gpu.shuffle %arg0, %offset, %width xor : f32
+      // CHECK: gpu.shuffle %{{.*}}, %{{.*}}, %{{.*}} up : f32
+      %shfl1, %pred1 = gpu.shuffle %arg0, %offset, %width up : f32
+      // CHECK: gpu.shuffle %{{.*}}, %{{.*}}, %{{.*}} down : f32
+      %shfl2, %pred2 = gpu.shuffle %arg0, %offset, %width down : f32
+      // CHECK: gpu.shuffle %{{.*}}, %{{.*}}, %{{.*}} idx : f32
+      %shfl3, %pred3 = gpu.shuffle %arg0, %offset, %width idx : f32
 
       "gpu.barrier"() : () -> ()
 
@@ -220,7 +226,10 @@ module attributes {gpu.container_module} {
     %0 = gpu.subgroup_mma_load_matrix %wg[%i, %i] {leadDimension = 32 : index} : memref<32x32xf16, 3> -> !gpu.mma_matrix<16x16xf16, "AOp">
     // CHECK: gpu.subgroup_mma_load_matrix %[[wg]][%[[i]], %[[i]]] {leadDimension = 32 : index} : memref<32x32xf16, 3> -> !gpu.mma_matrix<16x16xf16, "AOp">
     %1 = gpu.subgroup_mma_constant_matrix %cst : !gpu.mma_matrix<16x16xf32, "COp">
-    // CHECK: gpu.subgroup_mma_constant_matrix %[[cst]] : !gpu.mma_matrix<16x16xf32, "COp">
+    // CHECK: gpu.subgroup_mma_elementwise %{{.*}}, %{{.*}} {operation = "ADDF"} : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
+    %2 = gpu.subgroup_mma_elementwise %1, %1 {operation = "ADDF"} : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
+    // CHECK: gpu.subgroup_mma_elementwise %{{.*}}, %{{.*}} {operation = "MAXF"} : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
+    %3 = gpu.subgroup_mma_elementwise %2, %1 {operation = "MAXF"} : (!gpu.mma_matrix<16x16xf32, "COp">, !gpu.mma_matrix<16x16xf32, "COp">) -> !gpu.mma_matrix<16x16xf32, "COp">
     return
   }
 }
