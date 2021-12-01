@@ -4,6 +4,7 @@
 :SubDeviceIDINTEL_token: 6135
 :HWThreadIDINTEL_token: 6136
 :MaxHWThreadIDPerSubDeviceINTEL_token: 6137
+:MaxSubDeviceIDINTEL_token: 6138
 
 {extension_name}
 ================
@@ -128,6 +129,18 @@ See also extension: *{extension_name}*
 |====
 --
 
+=== Sub-device affinity
+
+Add section 3.XX, sub-device affinity.
+
+[options="header"]
+|====
+2+^| Sub-device affinity ^| Enabling capability
+| 0 | *HardwareSubDeviceIDs* | *{capability_name}*
+| 1 | *RuntimeSubDeviceIDs* | *{capability_name}*
+|====
+
+
 === Decorations
 
 Modify Section 3.20, Decoration, adding <<Literal>> _BuiltIn parameter_ to <<Extra Operands>> of *BuiltIn* decoration.
@@ -141,17 +154,22 @@ Modify Section 3.21, BuiltIn, adding these rows to the BuiltIn table:
 |====
 2+^| BuiltIn 2+^| Enabling Capabilities
 | {SubDeviceIDINTEL_token} | [[SubDeviceIDINTEL]]*SubDeviceIDINTEL* +
- ID of the sub-device on which the code running in *Kernel* +
-<<Execution Model,Execution Model>>. The BuiltIn decoration takes additional _Literal_ +
+ ID of the sub-device on which the code is running in *Kernel* +
+<<Execution Model,Execution Model>>. The BuiltIn decoration takes additional _Sub-device affinity_ +
  *Affinity* parameter, see the client API specification for more detail. +
 2+| *{capability_name}*
 | {HWThreadIDINTEL_token} | [[HWThreadIDINTEL]]*HWThreadIDINTEL* +
- ID of the H/W thread within a sub-device on which the code running in *Kernel* +
+ ID of the H/W thread within a sub-device on which the code is running in *Kernel* +
 <<Execution Model,Execution Model>>. See the client API specification for more detail. +
 2+| *{capability_name}*
 | {MaxHWThreadIDPerSubDeviceINTEL_token} | [[MaxHWThreadIDPerSubDeviceINTEL]]*MaxHWThreadIDPerSubDeviceINTEL* +
  Maximum number of H/W thread ID per sub-device in *Kernel* <<Execution Model,Execution Model>>. See +
  the client API specification for more detail. +
+2+| *{capability_name}*
+| {MaxSubDeviceIDINTEL_token} | [[MaxSubDeviceIDINTEL]]*MaxSubDeviceIDINTEL* +
+ Maximum number of sub-device ID in *Kernel* <<Execution Model,Execution Model>>. The BuiltIn +
+ decoration takes additional _Sub-device affinity_ *Affinity* parameter, see the client API +
+ specification for more detail. +
 2+| *{capability_name}*
 |====
 --
@@ -170,5 +188,6 @@ Revision History
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-09-20|Dmitry Sidorov|Initial revision
+|2|2021-12-1|Dmitry Sidorov|Add affinity table and max sub-devices instruction
 |========================================
 
