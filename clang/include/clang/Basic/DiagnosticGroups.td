@@ -1349,3 +1349,6 @@ def PedanticMacros : DiagGroup<"pedantic-macros",
                      BuiltinMacroRedefined,
                      RestrictExpansionMacro,
                      FinalMacro]>;
+
+def BranchProtection : DiagGroup<"branch-protection">;
+
