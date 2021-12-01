@@ -20,7 +20,7 @@
 // CHECK: static constexpr
 // CHECK-NEXT: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-NEXT:   //--- _ZTSZ4mainE8kernel_A
-// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 0 },
+// CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062 },
 // CHECK-NEXT:   { kernel_param_kind_t::kind_accessor, 4062, 12 },
 // CHECK-EMPTY:
 // CHECK-NEXT:   { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },

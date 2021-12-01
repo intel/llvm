@@ -4656,7 +4656,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     for (const auto &P : K.Params) {
       std::string TyStr = paramKind2Str(P.Kind);
       O << "  { kernel_param_kind_t::" << TyStr << ", ";
-      O << P.Info << ", " << P.Offset << " },\n";
+      O << P.Info;
+      if (TyStr.compare("kind_accessor") == 0 && P.Offset == 0)
+        O << ""
+          << " },\n";
+      else
+        O << ", " << P.Offset << " },\n";
     }
     O << "\n";
   }
