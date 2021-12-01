@@ -24,30 +24,46 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
+
+#if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
+#define __CODELOC_FILE_NAME __builtin_FILE()
+#else
+#define __CODELOC_FILE_NAME nullptr
+#endif
+
+#if _MSC_VER > 1929 || __has_builtin(__builtin_FUNCTION)
+#define __CODELOC_FUNCTION __builtin_FUNCTION()
+#else
+#define __CODELOC_FUNCTION nullptr
+#endif
+
+#if _MSC_VER > 1929 || __has_builtin(__builtin_LINE)
+#define __CODELOC_LINE __builtin_LINE()
+#else
+#define __CODELOC_LINE 0
+#endif
+
+#if _MSC_VER > 1929 || __has_builtin(__builtin_LINE)
+#define __CODELOC_COLUMN __builtin_COLUMN()
+#else
+#define __CODELOC_COLUMN 0
+#endif
+
 // Data structure that captures the user code location information using the
 // builtin capabilities of the compiler
 struct code_location {
-#ifdef _MSC_VER
-  // Since MSVC does not support the required builtins, we
-  // implement the version with "unknown"s which is handled
-  // correctly by the instrumentation
-  static constexpr code_location current(const char *fileName = nullptr,
-                                         const char *funcName = nullptr,
-                                         unsigned long lineNo = 0,
-                                         unsigned long columnNo = 0) noexcept {
-    return code_location(fileName, funcName, lineNo, columnNo);
-  }
-#else
-  // FIXME Having a nullptr for fileName here is a short-term solution to
-  // workaround leak of full paths in builds
   static constexpr code_location
-  current(const char *fileName = nullptr,
-          const char *funcName = __builtin_FUNCTION(),
-          unsigned long lineNo = __builtin_LINE(),
-          unsigned long columnNo = 0) noexcept {
+  current(const char *fileName = __CODELOC_FILE_NAME,
+          const char *funcName = __CODELOC_FUNCTION,
+          unsigned long lineNo = __CODELOC_LINE,
+          unsigned long columnNo = __CODELOC_COLUMN) noexcept {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
-#endif
+
+#undef __CODELOC_FILE_NAME
+#undef __CODELOC_FUNCTION
+#undef __CODELOC_LINE
+#undef __CODELOC_COLUMN
 
   constexpr code_location(const char *file, const char *func, int line,
                           int col) noexcept

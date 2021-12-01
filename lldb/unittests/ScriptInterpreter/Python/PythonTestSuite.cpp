@@ -129,7 +129,7 @@ extern "C" bool LLDBSWIGPythonCallThreadPlan(void *implementor,
 
 extern "C" void *LLDBSwigPythonCreateScriptedBreakpointResolver(
     const char *python_class_name, const char *session_dictionary_name,
-    lldb_private::StructuredDataImpl *args, lldb::BreakpointSP &bkpt_sp) {
+    lldb_private::StructuredDataImpl *args, const lldb::BreakpointSP &bkpt_sp) {
   return nullptr;
 }
 
@@ -229,7 +229,8 @@ extern "C" void *LLDBSwigPythonCreateScriptedProcess(
 
 extern "C" void *LLDBSwigPythonCreateScriptedThread(
     const char *python_class_name, const char *session_dictionary_name,
-    const lldb::TargetSP &target_sp, std::string &error_string) {
+    const lldb::ProcessSP &process_sp, StructuredDataImpl *args_impl,
+    std::string &error_string) {
   return nullptr;
 }
 
@@ -247,7 +248,7 @@ LLDBSwigPython_GetRecognizedArguments(void *implementor,
 
 extern "C" bool LLDBSWIGPythonRunScriptKeywordProcess(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::ProcessSP &process, std::string &output) {
+    const lldb::ProcessSP &process, std::string &output) {
   return false;
 }
 
@@ -259,7 +260,7 @@ extern "C" bool LLDBSWIGPythonRunScriptKeywordThread(
 
 extern "C" bool LLDBSWIGPythonRunScriptKeywordTarget(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::TargetSP &target, std::string &output) {
+    const lldb::TargetSP &target, std::string &output) {
   return false;
 }
 
@@ -271,7 +272,7 @@ extern "C" bool LLDBSWIGPythonRunScriptKeywordFrame(
 
 extern "C" bool LLDBSWIGPythonRunScriptKeywordValue(
     const char *python_function_name, const char *session_dictionary_name,
-    lldb::ValueObjectSP &value, std::string &output) {
+    const lldb::ValueObjectSP &value, std::string &output) {
   return false;
 }
 

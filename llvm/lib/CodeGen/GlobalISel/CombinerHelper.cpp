@@ -158,6 +158,15 @@ void CombinerHelper::replaceRegOpWith(MachineRegisterInfo &MRI,
   Observer.changedInstr(*FromRegOp.getParent());
 }
 
+void CombinerHelper::replaceOpcodeWith(MachineInstr &FromMI,
+                                       unsigned ToOpcode) const {
+  Observer.changingInstr(FromMI);
+
+  FromMI.setDesc(Builder.getTII().get(ToOpcode));
+
+  Observer.changedInstr(FromMI);
+}
+
 const RegisterBank *CombinerHelper::getRegBank(Register Reg) const {
   return RBI->getRegBank(Reg, MRI, *TRI);
 }
@@ -3816,8 +3825,7 @@ bool CombinerHelper::matchExtractAllEltsFromBuildVector(
   unsigned NumElts = DstTy.getNumElements();
 
   SmallBitVector ExtractedElts(NumElts);
-  for (auto &II : make_range(MRI.use_instr_nodbg_begin(DstReg),
-                             MRI.use_instr_nodbg_end())) {
+  for (MachineInstr &II : MRI.use_nodbg_instructions(DstReg)) {
     if (II.getOpcode() != TargetOpcode::G_EXTRACT_VECTOR_ELT)
       return false;
     auto Cst = getIConstantVRegVal(II.getOperand(2).getReg(), MRI);

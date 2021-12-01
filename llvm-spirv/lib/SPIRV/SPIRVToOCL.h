@@ -210,6 +210,9 @@ public:
   /// - OCL1.2: barrier
   virtual void visitCallSPIRVControlBarrier(CallInst *CI) = 0;
 
+  /// Transform __spirv_EnqueueKernel to __enqueue_kernel
+  virtual void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) = 0;
+
   /// Conduct generic mutations for all atomic builtins
   virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
 
@@ -298,6 +301,9 @@ public:
   /// the same semantics as OpAtomicCompareExchange.
   Instruction *visitCallSPIRVAtomicCmpExchg(CallInst *CI) override;
 
+  /// Trigger assert, since OpenCL 1.2 doesn't support enqueue_kernel
+  void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) override;
+
   /// Conduct generic mutations for all atomic builtins
   CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;
 
@@ -360,6 +366,9 @@ public:
   /// Transform __spirv_OpAtomicIIncrement / OpAtomicIDecrement to
   /// atomic_fetch_add_explicit / atomic_fetch_sub_explicit
   Instruction *visitCallSPIRVAtomicIncDec(CallInst *CI, Op OC) override;
+
+  /// Transform __spirv_EnqueueKernel to __enqueue_kernel
+  void visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) override;
 
   /// Conduct generic mutations for all atomic builtins
   CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) override;

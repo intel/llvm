@@ -10,9 +10,7 @@
 // XFAIL: netbsd
 
 // XFAIL: LIBCXX-WINDOWS-FIXME
-
-// TODO(mordante): Investigate these localization/format failures since updating the Docker image in CI
-// UNSUPPORTED: stdlib=libc++
+// XFAIL: LIBCXX-AIX-FIXME
 
 // REQUIRES: locale.en_US.UTF-8
 // REQUIRES: locale.fr_FR.UTF-8

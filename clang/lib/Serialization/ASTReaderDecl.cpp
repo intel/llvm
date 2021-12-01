@@ -1250,6 +1250,13 @@ void ASTDeclReader::ReadObjCDefinitionData(
 
 void ASTDeclReader::MergeDefinitionData(ObjCProtocolDecl *D,
          struct ObjCProtocolDecl::DefinitionData &&NewDD) {
+  struct ObjCProtocolDecl::DefinitionData &DD = D->data();
+  if (DD.Definition != NewDD.Definition) {
+    Reader.MergedDeclContexts.insert(
+        std::make_pair(NewDD.Definition, DD.Definition));
+    Reader.mergeDefinitionVisibility(DD.Definition, NewDD.Definition);
+  }
+
   // FIXME: odr checking?
 }
 
@@ -4750,9 +4757,10 @@ void ASTDeclReader::UpdateDecl(Decl *D,
       auto AllocatorKind =
           static_cast<OMPAllocateDeclAttr::AllocatorTypeTy>(Record.readInt());
       Expr *Allocator = Record.readExpr();
+      Expr *Alignment = Record.readExpr();
       SourceRange SR = readSourceRange();
       D->addAttr(OMPAllocateDeclAttr::CreateImplicit(
-          Reader.getContext(), AllocatorKind, Allocator, SR,
+          Reader.getContext(), AllocatorKind, Allocator, Alignment, SR,
           AttributeCommonInfo::AS_Pragma));
       break;
     }

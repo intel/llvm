@@ -8,8 +8,8 @@ struct S {
 // CHECK-LABEL: @_Z3foobR1SS_(
 // CHECK:  entry:
 // CHECK-NEXT:    [[COND_ADDR:%.*]] = alloca i8, align 1
-// CHECK-NEXT:    [[COND_ADDR_ASCAST:%.*]] = addrspacecast i8* [[COND_ADDR]] to i8 addrspace(4)*
 // CHECK-NEXT:    [[LHS_ADDR:%.*]] = alloca [[STRUCT__ZTS1S_S:%.*]] addrspace(4)*, align 8
+// CHECK-NEXT:    [[COND_ADDR_ASCAST:%.*]] = addrspacecast i8* [[COND_ADDR]] to i8 addrspace(4)*
 // CHECK-NEXT:    [[LHS_ADDR_ASCAST:%.*]] = addrspacecast [[STRUCT__ZTS1S_S]] addrspace(4)** [[LHS_ADDR]] to [[STRUCT__ZTS1S_S]] addrspace(4)* addrspace(4)*
 // CHECK-NEXT:    [[FROMBOOL:%.*]] = zext i1 [[COND:%.*]] to i8
 // CHECK-NEXT:    store i8 [[FROMBOOL]], i8 addrspace(4)* [[COND_ADDR_ASCAST]], align 1, [[TBAA12:!tbaa !.*]]
