@@ -324,27 +324,28 @@ template <> class SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE> {
 
 public:
   static int get() {
-    static std::once_flag Flag;
     static const char *ValueStr = BaseT::getRawValue();
-    static int Value = 1;
+    static int Value = [] {
+      int Result = 1;
 
-    std::call_once(Flag, [&] {
       if (ValueStr)
         try {
-          Value = std::stoi(ValueStr);
+          Result = std::stoi(ValueStr);
         } catch (...) {
           throw invalid_parameter_error(
               "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
-              "variable",
+              "variable: value should be a number",
               PI_INVALID_VALUE);
         }
 
-      if (Value < 1)
+      if (Result < 1)
         throw invalid_parameter_error(
             "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
-            "variable",
+            "variable: value should be larger than zero",
             PI_INVALID_VALUE);
-    });
+
+      return Result;
+    }();
 
     return Value;
   }

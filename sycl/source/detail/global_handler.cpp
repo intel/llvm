@@ -95,11 +95,6 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
   static int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
   ThreadPool &TP = getOrCreate(MHostTaskThreadPool, Size);
 
-  {
-    static std::once_flag Flag;
-    std::call_once(Flag, [&] { TP.start(); });
-  }
-
   return TP;
 }
 
