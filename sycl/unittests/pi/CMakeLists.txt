@@ -7,6 +7,7 @@ add_sycl_unittest(PiTests OBJECT
   PiMock.cpp
   PlatformTest.cpp
   pi_arguments_handler.cpp
+  piInteropRetain.cpp
 )
 
 add_dependencies(PiTests sycl)

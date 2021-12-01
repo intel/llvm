@@ -3230,7 +3230,7 @@ public:
     assert(ClassTy && "Type must be a C++ record type");
     if (Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)) {
       const auto *AccTy =
-          dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
+          cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
       assert(AccTy->getTemplateArgs().size() >= 2 &&
              "Incorrect template args for Accessor Type");
       int Dims = static_cast<int>(
