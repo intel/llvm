@@ -688,9 +688,13 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    static_assert((detail::check_fn_signature<detail::remove_reference_t<KernelType>, void()>::value ||
-    detail::check_fn_signature<detail::remove_reference_t<KernelType>, void(kernel_handler)>::value),
-    "sycl::queue.single_task() requires a kernel instead of command group. Use queue.submit() instead");
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -707,9 +711,13 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    static_assert((detail::check_fn_signature <detail::remove_reference_t<KernelType>, void()>::value || 
-    detail::check_fn_signature<detail::remove_reference_t<KernelType>, void(kernel_handler)>::value), 
-    "sycl::queue.single_task() requires a kernel instead of command group. Use queue.submit() instead");
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -728,9 +736,13 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const std::vector<event> &DepEvents,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
-    static_assert((detail::check_fn_signature<detail::remove_reference_t<KernelType>, void()>::value ||
-    detail::check_fn_signature<detail::remove_reference_t<KernelType>, void(kernel_handler)>::value),
-    "sycl::queue.single_task() requires a kernel instead of command group. Use queue.submit() instead");
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
