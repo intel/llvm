@@ -36,7 +36,7 @@ namespace cm_support {
 #include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/atomic_intrin.hpp>
-#include <sycl/ext/intel/experimental/esimd/emu/detail/esimdcpu_device_interface.hpp>
+#include <sycl/ext/intel/experimental/esimd/emu/detail/esimd_emulator_device_interface.hpp>
 
 inline void __esimd_emu_pi_load_check() {
   try {
@@ -68,13 +68,6 @@ public:
     return Acc.getNativeImageObj();
   }
 #else  // __SYCL_DEVICE_ONLY__
-  template <typename AccessorTy>
-  static auto getImageRange(const AccessorTy &Acc) {
-    return Acc.getAccessRange();
-  }
-  static auto getElemSize(const sycl::detail::AccessorBaseHost &Acc) {
-    return Acc.getElemSize();
-  }
   static void *getPtr(const sycl::detail::AccessorBaseHost &Acc) {
     return Acc.getPtr();
   }
@@ -233,7 +226,42 @@ __esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __esimd_emu_pi_load_check();
+
+  __SEIEED::vector_type_t<Ty, N> retv;
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  if (surf_ind == __SEIEE::detail::SLM_BTI) {
+    // O-word/Block load for Shared Local Memory
+    // __SEIEE::detail::SLM_BTI is special binding table index for SLM
+    char *SlmBase = I->__cm_emu_get_slm_ptr();
+    for (int i = 0; i < N; ++i) {
+      Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
+      retv[i] = *SlmAddr;
+      offset += sizeof(Ty);
+    }
+  } else {
+    // O-word/Block load for regular surface indexed by surf_ind
+    char *readBase;
+    uint32_t width;
+    std::mutex *mutexLock;
+
+    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
+                                           &mutexLock);
+
+    std::unique_lock<std::mutex> lock(*mutexLock);
+
+    for (int idx = 0; idx < N; idx++) {
+      if (offset >= width) {
+        retv[idx] = 0;
+      } else {
+        retv[idx] = *((Ty *)(readBase + offset));
+      }
+      offset += (uint32_t)sizeof(Ty);
+    }
+  }
+  return retv;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -246,6 +274,7 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
 #else
 {
   __esimd_emu_pi_load_check();
+  offset <<= 4;
 
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
@@ -253,7 +282,6 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
     // O-word/Block store for Shared Local Memory
     // __SEIEE::detail::SLM_BTI is special binding table index for SLM
     char *SlmBase = I->__cm_emu_get_slm_ptr();
-    offset <<= 4;
     for (int i = 0; i < N; ++i) {
       Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
       *SlmAddr = vals[i];
@@ -261,8 +289,26 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
     }
   } else {
     // O-word/Block store for regular surface indexed by surf_ind
-    // TODO : Enable when called from memory.hpp
-    throw cl::sycl::feature_not_supported();
+    char *writeBase;
+    uint32_t width;
+    std::mutex *mutexLock;
+
+    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
+                                           &mutexLock);
+
+    std::unique_lock<std::mutex> lock(*mutexLock);
+
+    for (int idx = 0; idx < N; idx++) {
+      if (offset < width) {
+        *((Ty *)(writeBase + offset)) = vals[idx];
+      } else {
+        break;
+      }
+      offset += (uint32_t)sizeof(Ty);
+    }
+
+    /// TODO : Optimize
+    I->cm_fence_ptr();
   }
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -466,8 +512,25 @@ __esimd_scatter_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     }
   } else {
     // Scattered-store for regular surface indexed by surf_ind
-    // TODO : Enable
-    throw cl::sycl::feature_not_supported();
+    char *writeBase;
+    uint32_t width;
+    std::mutex *mutexLock;
+
+    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &writeBase, &width,
+                                           &mutexLock);
+    writeBase += global_offset;
+
+    std::unique_lock<std::mutex> lock(*mutexLock);
+
+    for (int idx = 0; idx < N; idx++) {
+      if (pred[idx]) {
+        Ty *addr = reinterpret_cast<Ty *>(elem_offsets[idx] + writeBase);
+        *addr = vals[idx];
+      }
+    }
+
+    /// TODO : Optimize
+    I->cm_fence_ptr();
   }
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -494,7 +557,23 @@ __esimd_svm_atomic1(__SEIEED::vector_type_t<uint64_t, N> addrs,
     ;
 #else
 {
-  throw cl::sycl::feature_not_supported();
+  __SEIEED::vector_type_t<Ty, N> retv;
+
+  for (int i = 0; i < N; i++) {
+    if (pred[i]) {
+      Ty *p = reinterpret_cast<Ty *>(addrs[i]);
+
+      switch (Op) {
+      case __SEIEE::atomic_op::add:
+        retv[i] = atomic_add_fetch<Ty>(p, src0[i]);
+        break;
+      default:
+        throw cl::sycl::feature_not_supported();
+      }
+    }
+  }
+
+  return retv;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -599,8 +678,25 @@ __esimd_gather_scaled(__SEIEED::simd_mask_storage_t<N> pred,
     }
   } else {
     // Scattered-load for regular surface indexed by surf_ind
-    // TODO : Enable
-    throw cl::sycl::feature_not_supported();
+    char *readBase;
+    uint32_t width;
+    std::mutex *mutexLock;
+
+    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
+                                           &mutexLock);
+    readBase += global_offset;
+
+    std::unique_lock<std::mutex> lock(*mutexLock);
+
+    for (int idx = 0; idx < N; idx++) {
+      if (pred[idx]) {
+        Ty *addr = reinterpret_cast<Ty *>(addrs[idx] + readBase);
+        retv[idx] = *addr;
+      }
+    }
+
+    /// TODO : Optimize
+    I->cm_fence_ptr();
   }
 
   return retv;
@@ -651,6 +747,7 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
 #else
 {
   __esimd_emu_pi_load_check();
+  addr <<= 4;
 
   __SEIEED::vector_type_t<Ty, N> retv;
   sycl::detail::ESIMDDeviceInterface *I =
@@ -660,7 +757,6 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
     // O-word/Block load for Shared Local Memory
     // __SEIEE::detail::SLM_BTI is special binding table index for SLM
     char *SlmBase = I->__cm_emu_get_slm_ptr();
-    addr <<= 4;
     for (int i = 0; i < N; ++i) {
       Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
       retv[i] = *SlmAddr;
@@ -668,8 +764,23 @@ __esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
     }
   } else {
     // O-word/Block load for regular surface indexed by surf_ind
-    // TODO : Enable when called from memory.hpp
-    throw cl::sycl::feature_not_supported();
+    char *readBase;
+    uint32_t width;
+    std::mutex *mutexLock;
+
+    I->sycl_get_cm_buffer_params_index_ptr(surf_ind, &readBase, &width,
+                                           &mutexLock);
+
+    std::unique_lock<std::mutex> lock(*mutexLock);
+
+    for (int idx = 0; idx < N; idx++) {
+      if (addr >= width) {
+        retv[idx] = 0;
+      } else {
+        retv[idx] = *((Ty *)(readBase + addr));
+      }
+      addr += (uint32_t)sizeof(Ty);
+    }
   }
   return retv;
 }
@@ -812,9 +923,9 @@ __esimd_dword_atomic0(__SEIEED::simd_mask_storage_t<N> pred,
 #else
 {
   __esimd_emu_pi_load_check();
+  __SEIEED::vector_type_t<Ty, N> retv;
 
   if (surf_ind == __SEIEE::detail::SLM_BTI) {
-    __SEIEED::vector_type_t<Ty, N> retv;
     sycl::detail::ESIMDDeviceInterface *I =
         sycl::detail::getESIMDDeviceInterface();
     char *WriteBase = I->__cm_emu_get_slm_ptr();
@@ -835,6 +946,7 @@ __esimd_dword_atomic0(__SEIEED::simd_mask_storage_t<N> pred,
   } else {
     throw cl::sycl::feature_not_supported();
   }
+  return retv;
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -901,10 +1013,11 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
   uint32_t imgHeight;
   std::mutex *mutexLock;
 
-  auto ImageHandle = __SEIEED::AccessorPrivateProxy::getPtr(handle);
+  assert((handle != __SEIEE::detail::SLM_BTI) &&
+         "__esimd_media_ld not supporting SLM");
 
-  I->sycl_get_cm_image_params_ptr(ImageHandle, &readBase, &imgWidth, &imgHeight,
-                                  &bpp, &mutexLock);
+  I->sycl_get_cm_image_params_index_ptr(handle, &readBase, &imgWidth,
+                                        &imgHeight, &bpp, &mutexLock);
 
   std::unique_lock<std::mutex> lock(*mutexLock);
 
@@ -1032,10 +1145,11 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
   uint32_t imgHeight;
   std::mutex *mutexLock;
 
-  auto ImageHandle = __SEIEED::AccessorPrivateProxy::getPtr(handle);
+  assert((handle != __SEIEE::detail::SLM_BTI) &&
+         "__esimd_media_ld not supporting SLM");
 
-  I->sycl_get_cm_image_params_ptr(ImageHandle, &writeBase, &imgWidth,
-                                  &imgHeight, &bpp, &mutexLock);
+  I->sycl_get_cm_image_params_index_ptr(handle, &writeBase, &imgWidth,
+                                        &imgHeight, &bpp, &mutexLock);
 
   int x_pos_a, y_pos_a, offset;
 
@@ -1105,9 +1219,20 @@ template <typename MemObjTy>
 __ESIMD_INTRIN __SEIEE::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
-#else
+#else  // __SYCL_DEVICE_ONLY__
 {
-  throw cl::sycl::feature_not_supported();
+  __esimd_emu_pi_load_check();
+
+  sycl::detail::ESIMDDeviceInterface *I =
+      sycl::detail::getESIMDDeviceInterface();
+
+  auto ImageHandle = __SEIEED::AccessorPrivateProxy::getPtr(obj);
+
+  unsigned int CmIndex;
+
+  I->sycl_get_cm_surface_index_ptr(ImageHandle, &CmIndex);
+
+  return (__SEIEE::SurfaceIndex)CmIndex;
 }
 #endif // __SYCL_DEVICE_ONLY__
 

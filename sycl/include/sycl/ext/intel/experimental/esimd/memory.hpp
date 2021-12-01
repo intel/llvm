@@ -70,23 +70,19 @@ struct IfNotNone<
 /// \ingroup sycl_esimd
 template <typename AccessorTy>
 __ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc) {
-#ifdef __SYCL_DEVICE_ONLY__
   if constexpr (std::is_same_v<detail::LocalAccessorMarker, AccessorTy>) {
     return detail::SLM_BTI;
   } else {
+#ifdef __SYCL_DEVICE_ONLY__
     const auto mem_obj = detail::AccessorPrivateProxy::getNativeImageObj(acc);
     return __esimd_get_surface_index(mem_obj);
+#else // __SYCL_DEVICE_ONLY__
+    return __esimd_get_surface_index(acc);
+#endif // __SYCL_DEVICE_ONLY__
   }
-#else
-  throw sycl::feature_not_supported();
-#endif
 }
 
-#ifdef __SYCL_DEVICE_ONLY__
 #define __ESIMD_GET_SURF_HANDLE(acc) get_surface_index(acc)
-#else
-#define __ESIMD_GET_SURF_HANDLE(acc) acc
-#endif // __SYCL_DEVICE_ONLY__
 
 // TODO @Pennycook
 // {quote}
@@ -269,21 +265,15 @@ __ESIMD_API simd<T, n> block_load(AccessorTy acc, uint32_t offset, Flags = {}) {
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#else // __SYCL_DEVICE_ONLY__
+  auto surf_ind = __esimd_get_surface_index(acc);
 #endif // __SYCL_DEVICE_ONLY__
 
   if constexpr (Flags::template alignment<simd<T, n>> >=
                 detail::OperandSize::OWORD) {
-#if defined(__SYCL_DEVICE_ONLY__)
     return __esimd_oword_ld<T, n>(surf_ind, offset >> 4);
-#else
-    return __esimd_oword_ld<T, n>(acc, offset >> 4);
-#endif // __SYCL_DEVICE_ONLY__
   } else {
-#if defined(__SYCL_DEVICE_ONLY__)
     return __esimd_oword_ld_unaligned<T, n>(surf_ind, offset);
-#else
-    return __esimd_oword_ld_unaligned<T, n>(acc, offset);
-#endif // __SYCL_DEVICE_ONLY__
   }
 }
 
@@ -325,10 +315,10 @@ __ESIMD_API void block_store(AccessorTy acc, uint32_t offset, simd<T, n> vals) {
 #if defined(__SYCL_DEVICE_ONLY__)
   auto surf_ind = __esimd_get_surface_index(
       detail::AccessorPrivateProxy::getNativeImageObj(acc));
+#else //
+  auto surf_ind = __esimd_get_surface_index(acc);
+#endif
   __esimd_oword_st<T, n>(surf_ind, offset >> 4, vals.data());
-#else
-  __esimd_oword_st<T, n>(acc, offset >> 4, vals.data());
-#endif // __SYCL_DEVICE_ONLY__
 }
 
 // Implementations of accessor-based gather and scatter functions
