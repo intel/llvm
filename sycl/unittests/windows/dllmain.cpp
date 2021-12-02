@@ -37,33 +37,31 @@ pi_result redefinedTearDown(void *PluginParameter) {
 #endif
 
 TEST(Windows, DllMainCall) {
-  {
 #ifdef _WIN32
-    sycl::platform Plt{sycl::default_selector()};
-    if (Plt.is_host()) {
-      printf("Test is not supported on host, skipping\n");
-      return;
-    }
-    sycl::unittest::PiMock Mock{Plt};
-    setupDefaultMockAPIs(Mock);
-    Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
-
-    // Teardown calls are only expected on sycl.dll library unload, not when
-    // process gets terminated.
-    // The first call to DllMain is to simulate library unload. The second one
-    // is to simulate process termination
-    fprintf(stderr, "Call DllMain for the first time\n");
-    DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)NULL);
-
-    int TearDownCallsDone = TearDownCalls.load();
-
-    EXPECT_NE(TearDownCallsDone, 0);
-
-    fprintf(stderr, "Call DllMain for the second time\n");
-    DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)0x01);
-
-    EXPECT_EQ(TearDownCalls.load(), TearDownCallsDone);
-#endif
+  sycl::platform Plt{sycl::default_selector()};
+  if (Plt.is_host()) {
+    printf("Test is not supported on host, skipping\n");
+    return;
   }
+  sycl::unittest::PiMock Mock{Plt};
+  setupDefaultMockAPIs(Mock);
+  Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
+
+  // Teardown calls are only expected on sycl.dll library unload, not when
+  // process gets terminated.
+  // The first call to DllMain is to simulate library unload. The second one
+  // is to simulate process termination
+  fprintf(stderr, "Call DllMain for the first time\n");
+  DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)NULL);
+
+  int TearDownCallsDone = TearDownCalls.load();
+
+  EXPECT_NE(TearDownCallsDone, 0);
+
+  fprintf(stderr, "Call DllMain for the second time\n");
+  DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)0x01);
+
+  EXPECT_EQ(TearDownCalls.load(), TearDownCallsDone);
+#endif
 }
 
