@@ -11,6 +11,7 @@
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/helpers.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
+#include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/event.hpp>
 #include <CL/sycl/handler.hpp>
 #include <CL/sycl/info/info_desc.hpp>
@@ -206,9 +207,17 @@ event handler::finalize() {
     if (MQueue->is_host()) {
       MHostKernel->call(MNDRDesc, NewEvent->getHostProfilingInfo());
     } else {
-      Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                             MKernel, MKernelName, MOSModuleHandle, RawEvents,
-                             NewEvent, nullptr);
+      if (MQueue->getPlugin().getBackend() ==
+          backend::ext_intel_esimd_emulator) {
+        MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
+            nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+            MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
+            &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
+      } else {
+        Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
+                               MKernel, MKernelName, MOSModuleHandle, RawEvents,
+                               NewEvent, nullptr);
+      }
     }
 
     if (CL_SUCCESS != Res)
