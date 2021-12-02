@@ -491,6 +491,13 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
                                                           << "-fsycl-is-host";
 
+  // SYCLEnableIntHeader implies SYCLIsHost. Error if
+  // -fsycl-enable-int-header-diags is passed without -fsycl-is-host.
+  if (LangOpts.SYCLEnableIntHeaderDiags && !LangOpts.SYCLIsHost)
+    Diags.Report(diag::err_opt_not_valid_without_opt)
+        << "-fsycl-enable-int-header-diags"
+        << "-fsycl-is-host";
+
   if (Args.hasArg(OPT_fgnu89_inline) && LangOpts.CPlusPlus)
     Diags.Report(diag::err_drv_argument_not_allowed_with)
         << "-fgnu89-inline" << GetInputKindName(IK);
