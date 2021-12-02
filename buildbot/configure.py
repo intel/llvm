@@ -192,7 +192,6 @@ def main():
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--hip-amd-arch", type=str, help="Sets AMD gpu architecture for llvm lit tests, this is only needed for the HIP backend and AMD platform")
     parser.add_argument("--arm", action='store_true', help="build ARM support rather than x86")
-    parser.add_argument("--enable-esimd-cpu-emulation", action='store_true', help="build with ESIMD_CPU emulation support")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
     parser.add_argument("--no-werror", action='store_true', help="Don't treat warnings as errors")
