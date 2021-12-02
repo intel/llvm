@@ -103,6 +103,14 @@ def err_drv_bad_offload_arch_combo : Error<
   "invalid offload arch combinations: '%0' and '%1' (for a specific processor, "
   "a feature should either exist in all offload archs, or not exist in any "
   "offload archs)">;
+def warn_drv_unsupported_option_for_offload_arch_req_feature : Warning<
+  "ignoring '%0' option as it is not currently supported for "
+  "offload arch '%1'. Use it with an offload arch containing '%2' instead">,
+  InGroup<OptionIgnored>;
+def warn_drv_unsupported_option_for_target : Warning<
+  "ignoring '%0' option as it is not currently supported for target '%1'">,
+  InGroup<OptionIgnored>;
+
 def err_drv_invalid_thread_model_for_target : Error<
   "invalid thread model '%0' in '%1' for this target">;
 def err_drv_invalid_linker_name : Error<
@@ -196,6 +204,12 @@ def err_drv_invalid_mtp : Error<
   "invalid thread pointer reading mode '%0'">;
 def err_drv_missing_arg_mtp : Error<
   "missing argument to '%0'">;
+def warn_drv_missing_plugin_name : Warning<
+  "missing plugin name in %0">,
+  InGroup<InvalidCommandLineArgument>;
+def warn_drv_missing_plugin_arg : Warning<
+  "missing plugin argument for plugin %0 in %1">,
+  InGroup<InvalidCommandLineArgument>;
 def err_drv_invalid_libcxx_deployment : Error<
   "invalid deployment target for -stdlib=libc++ (requires %0 or later)">;
 def err_drv_invalid_argument_to_option : Error<
@@ -381,7 +395,7 @@ def warn_drv_diagnostics_hotness_requires_pgo : Warning<
 def warn_drv_clang_unsupported : Warning<
   "the clang compiler does not support '%0'">;
 def warn_drv_deprecated_arg : Warning<
-  "argument '%0' is deprecated%select{|, use '%2' instead}1">, InGroup<Deprecated>;
+  "argument '%0' is deprecated, use '%1' instead">, InGroup<Deprecated>;
 def warn_drv_assuming_mfloat_abi_is : Warning<
   "unknown platform, assuming -mfloat-abi=%0">;
 def warn_ignoring_ftabstop_value : Warning<
@@ -622,4 +636,7 @@ def err_cc1_round_trip_ok_then_fail : Error<
   "generated arguments parse failed in round-trip">;
 def err_cc1_round_trip_mismatch : Error<
   "generated arguments do not match in round-trip">;
+
+def err_drv_ssp_missing_offset_argument : Error<
+  "'%0' is used without '-mstack-protector-guard-offset', and there is no default">;
 }

@@ -156,6 +156,10 @@ public:
   const TargetRegisterClass *getAGPRClassForBitWidth(unsigned BitWidth) const;
 
   LLVM_READONLY
+  const TargetRegisterClass *
+  getVectorSuperClassForBitWidth(unsigned BitWidth) const;
+
+  LLVM_READONLY
   static const TargetRegisterClass *getSGPRClassForBitWidth(unsigned BitWidth);
 
   /// Return the 'base' register class for this register.
@@ -182,6 +186,11 @@ public:
   /// \returns true if this class contains only AGPR registers
   static bool isAGPRClass(const TargetRegisterClass *RC) {
     return hasAGPRs(RC) && !hasVGPRs(RC);
+  }
+
+  /// \returns true only if this class contains both VGPR and AGPR registers
+  bool isVectorSuperClass(const TargetRegisterClass *RC) const {
+    return hasVGPRs(RC) && hasAGPRs(RC);
   }
 
   /// \returns true if this class contains VGPR registers.
@@ -371,10 +380,11 @@ public:
   // For creating spill instructions during frame lowering, where no scavenger
   // is available, LiveRegs can be used.
   void buildSpillLoadStore(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator MI, unsigned LoadStoreOp,
-                           int Index, Register ValueReg, bool ValueIsKill,
-                           MCRegister ScratchOffsetReg, int64_t InstrOffset,
-                           MachineMemOperand *MMO, RegScavenger *RS,
+                           MachineBasicBlock::iterator MI, const DebugLoc &DL,
+                           unsigned LoadStoreOp, int Index, Register ValueReg,
+                           bool ValueIsKill, MCRegister ScratchOffsetReg,
+                           int64_t InstrOffset, MachineMemOperand *MMO,
+                           RegScavenger *RS,
                            LivePhysRegs *LiveRegs = nullptr) const;
 };
 

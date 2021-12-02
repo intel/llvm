@@ -18,7 +18,7 @@
 ; CHECK-SPIRV: TypeFunction [[#DEST_TY:]] [[#]] [[#]]
 ; CHECK-SPIRV: TypePointer [[#DEST_TY_PTR:]] [[#]] [[#DEST_TY]]
 ; CHECK-SPIRV: TypePointer [[#FOO_TY_PTR:]] [[#]] [[#FOO_TY]]
-; CHECK-SPIRV: ConstFunctionPointerINTEL [[#FOO_TY_PTR]] [[#FOO_PTR:]] [[#FOO:]]
+; CHECK-SPIRV: ConstantFunctionPointerINTEL [[#FOO_TY_PTR]] [[#FOO_PTR:]] [[#FOO:]]
 ; CHECK-SPIRV: Function [[#]] [[#FOO]] [[#]] [[#FOO_TY]]
 
 ; CHECK-SPIRV: Bitcast [[#DEST_TY_PTR]] [[#]] [[#FOO_PTR]]

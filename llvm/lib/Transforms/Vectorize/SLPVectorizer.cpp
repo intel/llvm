@@ -254,12 +254,21 @@ static bool allConstant(ArrayRef<Value *> VL) {
   return all_of(VL, isConstant);
 }
 
-/// \returns True if all of the values in \p VL are identical.
+/// \returns True if all of the values in \p VL are identical or some of them
+/// are UndefValue.
 static bool isSplat(ArrayRef<Value *> VL) {
-  for (unsigned i = 1, e = VL.size(); i < e; ++i)
-    if (VL[i] != VL[0])
+  Value *FirstNonUndef = nullptr;
+  for (Value *V : VL) {
+    if (isa<UndefValue>(V))
+      continue;
+    if (!FirstNonUndef) {
+      FirstNonUndef = V;
+      continue;
+    }
+    if (V != FirstNonUndef)
       return false;
-  return true;
+  }
+  return FirstNonUndef != nullptr;
 }
 
 /// \returns True if \p I is commutative, handles CmpInst and BinaryOperator.
@@ -588,7 +597,6 @@ static void addMask(SmallVectorImpl<int> &Mask, ArrayRef<int> SubMask) {
 /// values 3 and 7 respectively:
 /// before:  6 9 5 4 9 2 1 0
 /// after:   6 3 5 4 7 2 1 0
-/// \returns Fixed ordering.
 static void fixupOrderingIndices(SmallVectorImpl<unsigned> &Order) {
   const unsigned Sz = Order.size();
   SmallBitVector UsedIndices(Sz);
@@ -1599,10 +1607,12 @@ private:
   Value *vectorizeTree(ArrayRef<Value *> VL);
 
   /// \returns the scalarization cost for this type. Scalarization in this
-  /// context means the creation of vectors from a group of scalars.
-  InstructionCost
-  getGatherCost(FixedVectorType *Ty,
-                const DenseSet<unsigned> &ShuffledIndices) const;
+  /// context means the creation of vectors from a group of scalars. If \p
+  /// NeedToShuffle is true, need to add a cost of reshuffling some of the
+  /// vector elements.
+  InstructionCost getGatherCost(FixedVectorType *Ty,
+                                const DenseSet<unsigned> &ShuffledIndices,
+                                bool NeedToShuffle) const;
 
   /// Checks if the gathered \p VL can be represented as shuffle(s) of previous
   /// tree entries.
@@ -1669,6 +1679,37 @@ private:
       }
       return IsSame(Scalars, ReuseShuffleIndices);
     }
+
+    /// \returns true if current entry has same operands as \p TE.
+    bool hasEqualOperands(const TreeEntry &TE) const {
+      if (TE.getNumOperands() != getNumOperands())
+        return false;
+      SmallBitVector Used(getNumOperands());
+      for (unsigned I = 0, E = getNumOperands(); I < E; ++I) {
+        unsigned PrevCount = Used.count();
+        for (unsigned K = 0; K < E; ++K) {
+          if (Used.test(K))
+            continue;
+          if (getOperand(K) == TE.getOperand(I)) {
+            Used.set(K);
+            break;
+          }
+        }
+        // Check if we actually found the matching operand.
+        if (PrevCount == Used.count())
+          return false;
+      }
+      return true;
+    }
+
+    /// \return Final vectorization factor for the node. Defined by the total
+    /// number of vectorized scalars, including those, used several times in the
+    /// entry and counted in the \a ReuseShuffleIndices, if any.
+    unsigned getVectorFactor() const {
+      if (!ReuseShuffleIndices.empty())
+        return ReuseShuffleIndices.size();
+      return Scalars.size();
+    };
 
     /// A vector of scalars.
     ValueList Scalars;
@@ -1750,6 +1791,12 @@ private:
 
     /// \returns the \p OpIdx operand of this TreeEntry.
     ValueList &getOperand(unsigned OpIdx) {
+      assert(OpIdx < Operands.size() && "Off bounds");
+      return Operands[OpIdx];
+    }
+
+    /// \returns the \p OpIdx operand of this TreeEntry.
+    ArrayRef<Value *> getOperand(unsigned OpIdx) const {
       assert(OpIdx < Operands.size() && "Off bounds");
       return Operands[OpIdx];
     }
@@ -2059,7 +2106,7 @@ private:
   SmallPtrSet<const Value *, 32> EphValues;
 
   /// Holds all of the instructions that we gathered.
-  SetVector<Instruction *> GatherSeq;
+  SetVector<Instruction *> GatherShuffleSeq;
 
   /// A list of blocks that we are going to CSE.
   SetVector<BasicBlock *> CSEBlocks;
@@ -2584,10 +2631,8 @@ template <> struct DOTGraphTraits<BoUpSLP *> : public DefaultDOTGraphTraits {
   std::string getNodeLabel(const TreeEntry *Entry, const BoUpSLP *R) {
     std::string Str;
     raw_string_ostream OS(Str);
-    if (isSplat(Entry->Scalars)) {
-      OS << "<splat> " << *Entry->Scalars[0];
-      return Str;
-    }
+    if (isSplat(Entry->Scalars))
+      OS << "<splat> ";
     for (auto V : Entry->Scalars) {
       OS << *V;
       if (llvm::any_of(R->ExternalUses, [&](const BoUpSLP::ExternalUser &EU) {
@@ -3866,15 +3911,40 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
       TreeEntry *TE = newTreeEntry(VL, Bundle /*vectorized*/, S, UserTreeIdx,
                                    ReuseShuffleIndicies);
       LLVM_DEBUG(dbgs() << "SLP: added a vector of GEPs.\n");
-      TE->setOperandsInOrder();
-      for (unsigned i = 0, e = 2; i < e; ++i) {
-        ValueList Operands;
-        // Prepare the operand vector.
-        for (Value *V : VL)
-          Operands.push_back(cast<Instruction>(V)->getOperand(i));
-
-        buildTree_rec(Operands, Depth + 1, {TE, i});
+      SmallVector<ValueList, 2> Operands(2);
+      // Prepare the operand vector for pointer operands.
+      for (Value *V : VL)
+        Operands.front().push_back(
+            cast<GetElementPtrInst>(V)->getPointerOperand());
+      TE->setOperand(0, Operands.front());
+      // Need to cast all indices to the same type before vectorization to
+      // avoid crash.
+      // Required to be able to find correct matches between different gather
+      // nodes and reuse the vectorized values rather than trying to gather them
+      // again.
+      int IndexIdx = 1;
+      Type *VL0Ty = VL0->getOperand(IndexIdx)->getType();
+      Type *Ty = all_of(VL,
+                        [VL0Ty, IndexIdx](Value *V) {
+                          return VL0Ty == cast<GetElementPtrInst>(V)
+                                              ->getOperand(IndexIdx)
+                                              ->getType();
+                        })
+                     ? VL0Ty
+                     : DL->getIndexType(cast<GetElementPtrInst>(VL0)
+                                            ->getPointerOperandType()
+                                            ->getScalarType());
+      // Prepare the operand vector.
+      for (Value *V : VL) {
+        auto *Op = cast<Instruction>(V)->getOperand(IndexIdx);
+        auto *CI = cast<ConstantInt>(Op);
+        Operands.back().push_back(ConstantExpr::getIntegerCast(
+            CI, Ty, CI->getValue().isSignBitSet()));
       }
+      TE->setOperand(IndexIdx, Operands.back());
+
+      for (unsigned I = 0, Ops = Operands.size(); I < Ops; ++I)
+        buildTree_rec(Operands[I], Depth + 1, {TE, I});
       return;
     }
     case Instruction::Store: {
@@ -4025,6 +4095,10 @@ void BoUpSLP::buildTree_rec(ArrayRef<Value *> VL, unsigned Depth,
                                    ReuseShuffleIndicies);
       TE->setOperandsInOrder();
       for (unsigned i = 0, e = CI->arg_size(); i != e; ++i) {
+        // For scalar operands no need to to create an entry since no need to
+        // vectorize it.
+        if (hasVectorInstrinsicScalarOpd(ID, i))
+          continue;
         ValueList Operands;
         // Prepare the operand vector.
         for (Value *V : VL) {
@@ -4329,13 +4403,10 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
   if (MinBWs.count(VL[0]))
     VecTy = FixedVectorType::get(
         IntegerType::get(F->getContext(), MinBWs[VL[0]].first), VL.size());
-  auto *FinalVecTy = VecTy;
+  unsigned EntryVF = E->getVectorFactor();
+  auto *FinalVecTy = FixedVectorType::get(VecTy->getElementType(), EntryVF);
 
-  unsigned ReuseShuffleNumbers = E->ReuseShuffleIndices.size();
   bool NeedToShuffleReuses = !E->ReuseShuffleIndices.empty();
-  if (NeedToShuffleReuses)
-    FinalVecTy =
-        FixedVectorType::get(VecTy->getElementType(), ReuseShuffleNumbers);
   // FIXME: it tries to fix a problem with MSVC buildbots.
   TargetTransformInfo &TTIRef = *TTI;
   auto &&AdjustExtractsCost = [this, &TTIRef, CostKind, VL, VecTy,
@@ -4520,6 +4591,9 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
       }
       if (!VectorizedLoads.empty()) {
         InstructionCost GatherCost = 0;
+        unsigned NumParts = TTI->getNumberOfParts(VecTy);
+        bool NeedInsertSubvectorAnalysis =
+            !NumParts || (VL.size() / VF) > NumParts;
         // Get the cost for gathered loads.
         for (unsigned I = 0, End = VL.size(); I < End; I += VF) {
           if (VectorizedLoads.contains(VL[I]))
@@ -4545,9 +4619,12 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
                       TTI->getGatherScatterOpCost(
                           Instruction::Load, LoadTy, LI->getPointerOperand(),
                           /*VariableMask=*/false, Alignment, CostKind, LI);
-        // Add the cost for the subvectors shuffling.
-        GatherCost += ((VL.size() - VF) / VF) *
-                      TTI->getShuffleCost(TTI::SK_Select, VecTy);
+        if (NeedInsertSubvectorAnalysis) {
+          // Add the cost for the subvectors insert.
+          for (int I = VF, E = VL.size(); I < E; I += VF)
+            GatherCost += TTI->getShuffleCost(TTI::SK_InsertSubvector, VecTy,
+                                              None, I, LoadTy);
+        }
         return ReuseShuffleCost + GatherCost - ScalarsCost;
       }
     }
@@ -4600,7 +4677,7 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
             ++Idx;
           }
         }
-        Idx = ReuseShuffleNumbers;
+        Idx = EntryVF;
         for (Value *V : VL) {
           if (ShuffleOrOp == Instruction::ExtractElement) {
             auto *EE = cast<ExtractElementInst>(V);
@@ -4722,7 +4799,7 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
           TTI->getCastInstrCost(E->getOpcode(), ScalarTy, SrcTy,
                                 TTI::getCastContextHint(VL0), CostKind, VL0);
       if (NeedToShuffleReuses) {
-        CommonCost -= (ReuseShuffleNumbers - VL.size()) * ScalarEltCost;
+        CommonCost -= (EntryVF - VL.size()) * ScalarEltCost;
       }
 
       // Calculate the cost of this instruction.
@@ -4747,7 +4824,7 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
           TTI->getCmpSelInstrCost(E->getOpcode(), ScalarTy, Builder.getInt1Ty(),
                                   CmpInst::BAD_ICMP_PREDICATE, CostKind, VL0);
       if (NeedToShuffleReuses) {
-        CommonCost -= (ReuseShuffleNumbers - VL.size()) * ScalarEltCost;
+        CommonCost -= (EntryVF - VL.size()) * ScalarEltCost;
       }
       auto *MaskTy = FixedVectorType::get(Builder.getInt1Ty(), VL.size());
       InstructionCost ScalarCost = VecTy->getNumElements() * ScalarEltCost;
@@ -4852,7 +4929,7 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
           TTI->getArithmeticInstrCost(E->getOpcode(), ScalarTy, CostKind, Op1VK,
                                       Op2VK, Op1VP, Op2VP, Operands, VL0);
       if (NeedToShuffleReuses) {
-        CommonCost -= (ReuseShuffleNumbers - VL.size()) * ScalarEltCost;
+        CommonCost -= (EntryVF - VL.size()) * ScalarEltCost;
       }
       InstructionCost ScalarCost = VecTy->getNumElements() * ScalarEltCost;
       InstructionCost VecCost =
@@ -4870,7 +4947,7 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
       InstructionCost ScalarEltCost = TTI->getArithmeticInstrCost(
           Instruction::Add, ScalarTy, CostKind, Op1VK, Op2VK);
       if (NeedToShuffleReuses) {
-        CommonCost -= (ReuseShuffleNumbers - VL.size()) * ScalarEltCost;
+        CommonCost -= (EntryVF - VL.size()) * ScalarEltCost;
       }
       InstructionCost ScalarCost = VecTy->getNumElements() * ScalarEltCost;
       InstructionCost VecCost = TTI->getArithmeticInstrCost(
@@ -4884,7 +4961,7 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
       InstructionCost ScalarEltCost = TTI->getMemoryOpCost(
           Instruction::Load, ScalarTy, Alignment, 0, CostKind, VL0);
       if (NeedToShuffleReuses) {
-        CommonCost -= (ReuseShuffleNumbers - VL.size()) * ScalarEltCost;
+        CommonCost -= (EntryVF - VL.size()) * ScalarEltCost;
       }
       InstructionCost ScalarLdCost = VecTy->getNumElements() * ScalarEltCost;
       InstructionCost VecLdCost;
@@ -4927,7 +5004,7 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
       InstructionCost ScalarEltCost =
           TTI->getIntrinsicInstrCost(CostAttrs, CostKind);
       if (NeedToShuffleReuses) {
-        CommonCost -= (ReuseShuffleNumbers - VL.size()) * ScalarEltCost;
+        CommonCost -= (EntryVF - VL.size()) * ScalarEltCost;
       }
       InstructionCost ScalarCallCost = VecTy->getNumElements() * ScalarEltCost;
 
@@ -4967,7 +5044,30 @@ InstructionCost BoUpSLP::getEntryCost(const TreeEntry *E,
       // VecCost is equal to sum of the cost of creating 2 vectors
       // and the cost of creating shuffle.
       InstructionCost VecCost = 0;
-      if (Instruction::isBinaryOp(E->getOpcode())) {
+      // Try to find the previous shuffle node with the same operands and same
+      // main/alternate ops.
+      auto &&TryFindNodeWithEqualOperands = [this, E]() {
+        for (const std::unique_ptr<TreeEntry> &TE : VectorizableTree) {
+          if (TE.get() == E)
+            break;
+          if (TE->isAltShuffle() &&
+              ((TE->getOpcode() == E->getOpcode() &&
+                TE->getAltOpcode() == E->getAltOpcode()) ||
+               (TE->getOpcode() == E->getAltOpcode() &&
+                TE->getAltOpcode() == E->getOpcode())) &&
+              TE->hasEqualOperands(*E))
+            return true;
+        }
+        return false;
+      };
+      if (TryFindNodeWithEqualOperands()) {
+        LLVM_DEBUG({
+          dbgs() << "SLP: diamond match for alternate node found.\n";
+          E->dump();
+        });
+        // No need to add new vector costs here since we're going to reuse
+        // same main/alternate vector ops, just do different shuffling.
+      } else if (Instruction::isBinaryOp(E->getOpcode())) {
         VecCost = TTI->getArithmeticInstrCost(E->getOpcode(), VecTy, CostKind);
         VecCost += TTI->getArithmeticInstrCost(E->getAltOpcode(), VecTy,
                                                CostKind);
@@ -5012,7 +5112,9 @@ bool BoUpSLP::isFullyVectorizableTinyTree(bool ForReduction) const {
            (allConstant(TE->Scalars) || isSplat(TE->Scalars) ||
             TE->Scalars.size() < Limit ||
             (TE->getOpcode() == Instruction::ExtractElement &&
-             isFixedVectorShuffle(TE->Scalars, Mask)));
+             isFixedVectorShuffle(TE->Scalars, Mask)) ||
+            (TE->State == TreeEntry::NeedToGather &&
+             TE->getOpcode() == Instruction::Load && !TE->isAltShuffle()));
   };
 
   // We only handle trees of heights 1 and 2.
@@ -5021,8 +5123,7 @@ bool BoUpSLP::isFullyVectorizableTinyTree(bool ForReduction) const {
        (ForReduction &&
         AreVectorizableGathers(VectorizableTree[0].get(),
                                VectorizableTree[0]->Scalars.size()) &&
-        (VectorizableTree[0]->Scalars.size() > 2 ||
-         VectorizableTree[0]->ReuseShuffleIndices.size() > 2))))
+        VectorizableTree[0]->getVectorFactor() > 2)))
     return true;
 
   if (VectorizableTree.size() != 2)
@@ -5276,7 +5377,7 @@ InstructionCost BoUpSLP::getTreeCost(ArrayRef<Value *> VectorizedVals) {
 
     // If found user is an insertelement, do not calculate extract cost but try
     // to detect it as a final shuffled/identity match.
-    if (EU.User && isa<InsertElementInst>(EU.User)) {
+    if (isa_and_nonnull<InsertElementInst>(EU.User)) {
       if (auto *FTy = dyn_cast<FixedVectorType>(EU.User->getType())) {
         Optional<int> InsertIdx = getInsertIndex(EU.User, 0);
         if (!InsertIdx || *InsertIdx == UndefMaskElem)
@@ -5288,8 +5389,8 @@ InstructionCost BoUpSLP::getTreeCost(ArrayRef<Value *> VectorizedVals) {
             return false;
           auto *IE1 = cast<InsertElementInst>(VU);
           auto *IE2 = cast<InsertElementInst>(V);
-          // Go though of insertelement instructions trying to find either VU as
-          // the original vector for IE2 or V as the original vector for IE1.
+          // Go through of insertelement instructions trying to find either VU
+          // as the original vector for IE2 or V as the original vector for IE1.
           do {
             if (IE1 == VU || IE2 == V)
               return true;
@@ -5485,18 +5586,11 @@ BoUpSLP::isGatherShuffledEntry(const TreeEntry *TE, SmallVectorImpl<int> &Mask,
   } else {
     // Try to find nodes with the same vector factor.
     assert(UsedTEs.size() == 2 && "Expected at max 2 permuted entries.");
-    // FIXME: Shall be replaced by GetVF function once non-power-2 patch is
-    // landed.
-    auto &&GetVF = [](const TreeEntry *TE) {
-      if (!TE->ReuseShuffleIndices.empty())
-        return TE->ReuseShuffleIndices.size();
-      return TE->Scalars.size();
-    };
     DenseMap<int, const TreeEntry *> VFToTE;
     for (const TreeEntry *TE : UsedTEs.front())
-      VFToTE.try_emplace(GetVF(TE), TE);
+      VFToTE.try_emplace(TE->getVectorFactor(), TE);
     for (const TreeEntry *TE : UsedTEs.back()) {
-      auto It = VFToTE.find(GetVF(TE));
+      auto It = VFToTE.find(TE->getVectorFactor());
       if (It != VFToTE.end()) {
         VF = It->first;
         Entries.push_back(It->second);
@@ -5537,7 +5631,8 @@ BoUpSLP::isGatherShuffledEntry(const TreeEntry *TE, SmallVectorImpl<int> &Mask,
 
 InstructionCost
 BoUpSLP::getGatherCost(FixedVectorType *Ty,
-                       const DenseSet<unsigned> &ShuffledIndices) const {
+                       const DenseSet<unsigned> &ShuffledIndices,
+                       bool NeedToShuffle) const {
   unsigned NumElts = Ty->getNumElements();
   APInt DemandedElts = APInt::getZero(NumElts);
   for (unsigned I = 0; I < NumElts; ++I)
@@ -5546,7 +5641,7 @@ BoUpSLP::getGatherCost(FixedVectorType *Ty,
   InstructionCost Cost =
       TTI->getScalarizationOverhead(Ty, DemandedElts, /*Insert*/ true,
                                     /*Extract*/ false);
-  if (!ShuffledIndices.empty())
+  if (NeedToShuffle)
     Cost += TTI->getShuffleCost(TargetTransformInfo::SK_PermuteSingleSrc, Ty);
   return Cost;
 }
@@ -5557,6 +5652,7 @@ InstructionCost BoUpSLP::getGatherCost(ArrayRef<Value *> VL) const {
   if (StoreInst *SI = dyn_cast<StoreInst>(VL[0]))
     ScalarTy = SI->getValueOperand()->getType();
   auto *VecTy = FixedVectorType::get(ScalarTy, VL.size());
+  bool DuplicateNonConst = false;
   // Find the cost of inserting/extracting values from the vector.
   // Check if the same elements are inserted several times and count them as
   // shuffle candidates.
@@ -5565,12 +5661,17 @@ InstructionCost BoUpSLP::getGatherCost(ArrayRef<Value *> VL) const {
   // Iterate in reverse order to consider insert elements with the high cost.
   for (unsigned I = VL.size(); I > 0; --I) {
     unsigned Idx = I - 1;
-    if (isConstant(VL[Idx]))
-      continue;
-    if (!UniqueElements.insert(VL[Idx]).second)
+    // No need to shuffle duplicates for constants.
+    if (isConstant(VL[Idx])) {
       ShuffledElements.insert(Idx);
+      continue;
+    }
+    if (!UniqueElements.insert(VL[Idx]).second) {
+      DuplicateNonConst = true;
+      ShuffledElements.insert(Idx);
+    }
   }
-  return getGatherCost(VecTy, ShuffledElements);
+  return getGatherCost(VecTy, ShuffledElements, DuplicateNonConst);
 }
 
 // Perform operand reordering on the instructions in VL and return the reordered
@@ -5678,7 +5779,7 @@ Value *BoUpSLP::gather(ArrayRef<Value *> VL) {
     auto *InsElt = dyn_cast<InsertElementInst>(Vec);
     if (!InsElt)
       return Vec;
-    GatherSeq.insert(InsElt);
+    GatherShuffleSeq.insert(InsElt);
     CSEBlocks.insert(InsElt->getParent());
     // Add to our 'need-to-extract' list.
     if (TreeEntry *Entry = getTreeEntry(V)) {
@@ -5865,7 +5966,7 @@ Value *BoUpSLP::vectorizeTree(ArrayRef<Value *> VL) {
     ShuffleBuilder.addMask(ReuseShuffleIndicies);
     Vec = ShuffleBuilder.finalize(Vec);
     if (auto *I = dyn_cast<Instruction>(Vec)) {
-      GatherSeq.insert(I);
+      GatherShuffleSeq.insert(I);
       CSEBlocks.insert(I->getParent());
     }
   }
@@ -5881,9 +5982,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
   }
 
   bool NeedToShuffleReuses = !E->ReuseShuffleIndices.empty();
-  unsigned VF = E->Scalars.size();
-  if (NeedToShuffleReuses)
-    VF = E->ReuseShuffleIndices.size();
+  unsigned VF = E->getVectorFactor();
   ShuffleInstructionBuilder ShuffleBuilder(Builder, VF);
   if (E->State == TreeEntry::NeedToGather) {
     if (E->getMainOp())
@@ -5905,7 +6004,7 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       ShuffleBuilder.addMask(E->ReuseShuffleIndices);
       Vec = ShuffleBuilder.finalize(Vec);
       if (auto *I = dyn_cast<Instruction>(Vec)) {
-        GatherSeq.insert(I);
+        GatherShuffleSeq.insert(I);
         CSEBlocks.insert(I->getParent());
       }
     }
@@ -6265,34 +6364,18 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
       return V;
     }
     case Instruction::GetElementPtr: {
+      auto *GEP0 = cast<GetElementPtrInst>(VL0);
       setInsertPointAfterBundle(E);
 
       Value *Op0 = vectorizeTree(E->getOperand(0));
 
-      std::vector<Value *> OpVecs;
-      for (int j = 1, e = cast<GetElementPtrInst>(VL0)->getNumOperands(); j < e;
-           ++j) {
-        ValueList &VL = E->getOperand(j);
-        // Need to cast all elements to the same type before vectorization to
-        // avoid crash.
-        Type *VL0Ty = VL0->getOperand(j)->getType();
-        Type *Ty = llvm::all_of(
-                       VL, [VL0Ty](Value *V) { return VL0Ty == V->getType(); })
-                       ? VL0Ty
-                       : DL->getIndexType(cast<GetElementPtrInst>(VL0)
-                                              ->getPointerOperandType()
-                                              ->getScalarType());
-        for (Value *&V : VL) {
-          auto *CI = cast<ConstantInt>(V);
-          V = ConstantExpr::getIntegerCast(CI, Ty,
-                                           CI->getValue().isSignBitSet());
-        }
-        Value *OpVec = vectorizeTree(VL);
+      SmallVector<Value *> OpVecs;
+      for (int J = 1, N = GEP0->getNumOperands(); J < N; ++J) {
+        Value *OpVec = vectorizeTree(E->getOperand(J));
         OpVecs.push_back(OpVec);
       }
 
-      Value *V = Builder.CreateGEP(
-          cast<GetElementPtrInst>(VL0)->getSourceElementType(), Op0, OpVecs);
+      Value *V = Builder.CreateGEP(GEP0->getSourceElementType(), Op0, OpVecs);
       if (Instruction *I = dyn_cast<Instruction>(V))
         V = propagateMetadata(I, E->Scalars);
 
@@ -6411,6 +6494,14 @@ Value *BoUpSLP::vectorizeTree(TreeEntry *E) {
             static_cast<Instruction::CastOps>(E->getOpcode()), LHS, VecTy);
         V1 = Builder.CreateCast(
             static_cast<Instruction::CastOps>(E->getAltOpcode()), LHS, VecTy);
+      }
+      // Add V0 and V1 to later analysis to try to find and remove matching
+      // instruction, if any.
+      for (Value *V : {V0, V1}) {
+        if (auto *I = dyn_cast<Instruction>(V)) {
+          GatherShuffleSeq.insert(I);
+          CSEBlocks.insert(I->getParent());
+        }
       }
 
       // Create shuffle to take alternate operations from the vector.
@@ -6625,10 +6716,10 @@ BoUpSLP::vectorizeTree(ExtraValueToDebugLocsMap &ExternallyUsedValues) {
 }
 
 void BoUpSLP::optimizeGatherSequence() {
-  LLVM_DEBUG(dbgs() << "SLP: Optimizing " << GatherSeq.size()
+  LLVM_DEBUG(dbgs() << "SLP: Optimizing " << GatherShuffleSeq.size()
                     << " gather sequences instructions.\n");
   // LICM InsertElementInst sequences.
-  for (Instruction *I : GatherSeq) {
+  for (Instruction *I : GatherShuffleSeq) {
     if (isDeleted(I))
       continue;
 
@@ -6645,11 +6736,10 @@ void BoUpSLP::optimizeGatherSequence() {
     // If the vector or the element that we insert into it are
     // instructions that are defined in this basic block then we can't
     // hoist this instruction.
-    auto *Op0 = dyn_cast<Instruction>(I->getOperand(0));
-    auto *Op1 = dyn_cast<Instruction>(I->getOperand(1));
-    if (Op0 && L->contains(Op0))
-      continue;
-    if (Op1 && L->contains(Op1))
+    if (any_of(I->operands(), [L](Value *V) {
+          auto *OpI = dyn_cast<Instruction>(V);
+          return OpI && L->contains(OpI);
+        }))
       continue;
 
     // We can hoist this instruction. Move it to the pre-header.
@@ -6683,33 +6773,33 @@ void BoUpSLP::optimizeGatherSequence() {
            "Worklist not sorted properly!");
     BasicBlock *BB = (*I)->getBlock();
     // For all instructions in blocks containing gather sequences:
-    for (BasicBlock::iterator it = BB->begin(), e = BB->end(); it != e;) {
-      Instruction *In = &*it++;
-      if (isDeleted(In))
+    for (Instruction &In : llvm::make_early_inc_range(*BB)) {
+      if (isDeleted(&In))
         continue;
-      if (!isa<InsertElementInst>(In) && !isa<ExtractElementInst>(In) &&
-          !isa<ShuffleVectorInst>(In))
+      if (!isa<InsertElementInst>(&In) && !isa<ExtractElementInst>(&In) &&
+          !isa<ShuffleVectorInst>(&In) && !GatherShuffleSeq.contains(&In))
         continue;
 
       // Check if we can replace this instruction with any of the
       // visited instructions.
+      bool Replaced = false;
       for (Instruction *v : Visited) {
-        if (In->isIdenticalTo(v) &&
-            DT->dominates(v->getParent(), In->getParent())) {
-          In->replaceAllUsesWith(v);
-          eraseInstruction(In);
-          In = nullptr;
+        if (In.isIdenticalTo(v) &&
+            DT->dominates(v->getParent(), In.getParent())) {
+          In.replaceAllUsesWith(v);
+          eraseInstruction(&In);
+          Replaced = true;
           break;
         }
       }
-      if (In) {
-        assert(!is_contained(Visited, In));
-        Visited.push_back(In);
+      if (!Replaced) {
+        assert(!is_contained(Visited, &In));
+        Visited.push_back(&In);
       }
     }
   }
   CSEBlocks.clear();
-  GatherSeq.clear();
+  GatherShuffleSeq.clear();
 }
 
 // Groups the instructions to a bundle (which is then a single scheduling entity)
@@ -8759,6 +8849,8 @@ private:
     assert(VectorizedValue && "Need to have a vectorized tree node");
     assert(isPowerOf2_32(ReduxWidth) &&
            "We only handle power-of-two reductions for now");
+    assert(RdxKind != RecurKind::FMulAdd &&
+           "A call to the llvm.fmuladd intrinsic is not handled yet");
 
     ++NumVectorInstructions;
     return createSimpleTargetReduction(Builder, TTI, VectorizedValue, RdxKind,

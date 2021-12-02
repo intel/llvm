@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "membermask.h"
+
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 

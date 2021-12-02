@@ -410,8 +410,11 @@ static bool IsSyclMathFunc(unsigned BuiltinID) {
 bool Sema::isKnownGoodSYCLDecl(const Decl *D) {
   if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     const IdentifierInfo *II = FD->getIdentifier();
-    if (FD->getBuiltinID() == Builtin::BIprintf)
-      return true;
+    // Allow to use `::printf` only for CUDA.
+    if (Context.getTargetInfo().getTriple().isNVPTX()) {
+      if (FD->getBuiltinID() == Builtin::BIprintf)
+        return true;
+    }
     const DeclContext *DC = FD->getDeclContext();
     if (II && II->isStr("__spirv_ocl_printf") &&
         !FD->isDefined() &&
@@ -2217,14 +2220,9 @@ public:
     return true;
   }
 
-  // Generate kernel argument to intialize specialization constants. This
-  // argument is only generated when the target has no native support for
-  // specialization constants
+  // Generate kernel argument to initialize specialization constants.
   void handleSyclKernelHandlerType() {
     ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
-
     StringRef Name = "_arg__specialization_constants_buffer";
     addParam(Name, Context.getPointerType(Context.getAddrSpaceQualType(
                        Context.CharTy, LangAS::sycl_global)));
@@ -2467,9 +2465,6 @@ public:
   }
 
   void handleSyclKernelHandlerType() {
-    ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
     addParam(DC.getParamVarDeclsForCurrentField()[0]->getType(),
              "SYCL2020 specialization constant");
   }
@@ -3235,7 +3230,7 @@ public:
     assert(ClassTy && "Type must be a C++ record type");
     if (Util::isSyclType(FieldTy, "accessor", true /*Tmp*/)) {
       const auto *AccTy =
-          dyn_cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
+          cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
       assert(AccTy->getTemplateArgs().size() >= 2 &&
              "Incorrect template args for Accessor Type");
       int Dims = static_cast<int>(
@@ -3318,13 +3313,8 @@ public:
   void handleSyclKernelHandlerType(QualType Ty) {
     // The compiler generated kernel argument used to initialize SYCL 2020
     // specialization constants, `specialization_constants_buffer`, should
-    // have corresponding entry in integration header. This argument is
-    // only generated when target has no native support for specialization
-    // constants.
+    // have corresponding entry in integration header.
     ASTContext &Context = SemaRef.getASTContext();
-    if (isDefaultSPIRArch(Context))
-      return;
-
     // Offset is zero since kernel_handler argument is not part of
     // kernel object (i.e. it is not captured)
     addParam(Context.getPointerType(Context.CharTy),
@@ -3506,9 +3496,26 @@ public:
             IsInvalid = true;
             return;
           }
-          // Check if the declaration is completely defined within a
-          // function or class/struct.
-          if (Tag->isCompleteDefinition()) {
+
+          // Diagnose used types without complete definition i.e.
+          //   int main() {
+          //     class KernelName1;
+          //     parallel_for<class KernelName1>(..);
+          //   }
+          // This case can only be diagnosed during host compilation because the
+          // integration header is required to distinguish between the invalid
+          // code (above) and the following valid code:
+          //   int main() {
+          //     parallel_for<class KernelName2>(..);
+          //   }
+          // The device compiler forward declares both KernelName1 and
+          // KernelName2 in the integration header as ::KernelName1 and
+          // ::KernelName2. The problem with the former case is the additional
+          // declaration 'class KernelName1' in non-global scope. Lookup in this
+          // case will resolve to ::main::KernelName1 (instead of
+          // ::KernelName1). Since this is not visible to runtime code that
+          // submits kernels, this is invalid.
+          if (Tag->isCompleteDefinition() || S.getLangOpts().SYCLIsHost) {
             S.Diag(KernelInvocationFuncLoc,
                    diag::err_sycl_kernel_incorrectly_named)
                 << /* kernel name should be forward declarable at namespace
@@ -3558,14 +3565,20 @@ public:
 
 void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                ArrayRef<const Expr *> Args) {
+  QualType KernelNameType =
+      calculateKernelNameType(getASTContext(), KernelFunc);
+  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
+      *this, Args[0]->getExprLoc(), KernelNameType,
+      IsSYCLUnnamedKernel(*this, KernelFunc));
+  KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
+
   // FIXME: In place until the library works around its 'host' invocation
   // issues.
   if (!LangOpts.SYCLIsDevice)
     return;
+
   const CXXRecordDecl *KernelObj =
       GetSYCLKernelObjectType(KernelFunc)->getAsCXXRecordDecl();
-  QualType KernelNameType =
-      calculateKernelNameType(getASTContext(), KernelFunc);
 
   if (!KernelObj) {
     Diag(Args[0]->getExprLoc(), diag::err_sycl_kernel_not_function_object);
@@ -3606,15 +3619,10 @@ void Sema::CheckSYCLKernelCall(FunctionDecl *KernelFunc, SourceRange CallLoc,
                                             IsSIMDKernel);
 
   KernelObjVisitor Visitor{*this};
-  SYCLKernelNameTypeVisitor KernelNameTypeVisitor(
-      *this, Args[0]->getExprLoc(), KernelNameType,
-      IsSYCLUnnamedKernel(*this, KernelFunc));
 
   DiagnosingSYCLKernel = true;
 
   // Emit diagnostics for SYCL device kernels only
-  if (LangOpts.SYCLIsDevice)
-    KernelNameTypeVisitor.Visit(KernelNameType.getCanonicalType());
   Visitor.VisitRecordBases(KernelObj, FieldChecker, UnionChecker, DecompMarker);
   Visitor.VisitRecordFields(KernelObj, FieldChecker, UnionChecker,
                             DecompMarker);
@@ -5151,7 +5159,9 @@ bool Util::matchContext(const DeclContext *Ctx,
       return false;
     Ctx = Ctx->getParent();
   }
-  return Ctx->isTranslationUnit();
+  return Ctx->isTranslationUnit() ||
+         (Ctx->isExternCXXContext() &&
+          Ctx->getEnclosingNamespaceContext()->isTranslationUnit());
 }
 
 bool Util::matchQualifiedTypeName(QualType Ty,

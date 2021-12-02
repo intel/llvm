@@ -149,6 +149,7 @@ public:
     case DecorationPrefetchINTEL:
       return ExtensionID::SPV_INTEL_fpga_memory_accesses;
     case DecorationReferencedIndirectlyINTEL:
+    case internal::DecorationArgumentAttributeINTEL:
       return ExtensionID::SPV_INTEL_function_pointers;
     case DecorationIOPipeStorageINTEL:
       return ExtensionID::SPV_INTEL_io_pipes;

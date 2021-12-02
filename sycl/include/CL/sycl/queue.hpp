@@ -67,7 +67,7 @@
 
 // Helper macro to identify if fallback assert is needed
 // FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT)
 #define __SYCL_USE_FALLBACK_ASSERT 1
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
@@ -1038,12 +1038,10 @@ public:
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
+  template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const ->
-      typename detail::interop<BackendName, queue>::type {
-    return reinterpret_cast<typename detail::interop<BackendName, queue>::type>(
-        getNative());
+  backend_return_t<Backend, queue> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, queue>>(getNative());
   }
 
 private:
@@ -1189,11 +1187,11 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     auto Acc = Buffer.get_access<access::mode::write>(CGH);
 
     CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
       __devicelib_assert_read(&Acc[0]);
 #else
       (void)Acc;
-#endif // __SYCL_DEVICE_ONLY__
+#endif // defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
     });
   };
   auto CheckerCGF = [&CopierEv, &Buffer](handler &CGH) {
