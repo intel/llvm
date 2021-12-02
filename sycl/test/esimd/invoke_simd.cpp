@@ -1,9 +1,11 @@
+// Check that full compilation works:
 // RUN: %clangxx -fsycl -fno-sycl-device-code-split-esimd %s
+// Now device-compile:
 // RUN: %clangxx -fsycl -fsycl-device-only -S %s -o %t.ll
-// RUN sycl-post-link -lower-esimd -ir-output-only -S %t.ll -o %t.lwr.ll
+// ... then run post-link on the compilation result, checking output IR:
+// RUN: sycl-post-link -lower-esimd -ir-output-only -S %t.ll -o - | FileCheck %s
 
 // Tests invoke_simd support in the compiler/headers
-// TODO add IR check, add DelimitESIMDandSYCLPass tests.
 
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/esimd.hpp>
@@ -29,6 +31,8 @@ simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b, int i) SYCL_E
   esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
   return res;
 }
+
+// CHECK-DAG: define{{.*}} x86_regcallcc <16 x float> @_Z23__regcall3__SIMD_CALLEE[[SUFF:.*]](float addrspace(4)* %{{[a-zA-Z0-9_.]*}}, <16 x float> %{{[a-zA-Z0-9_.]*}}, i32 %{{[a-zA-Z0-9_.]*}}) #[[ATTRS:[0-9]+]] {{.*}}{
 
 float SPMD_CALLEE(float *A, float b, int i) {
   return A[i] + b;
@@ -114,6 +118,7 @@ int main(void) {
 
 #if INVOKE_SIMD != 0
         float res = invoke_simd(sg, SIMD_CALLEE, uniform{ A }, B[wi_id], uniform{ i });
+// CHECK-DAG: %{{[a-zA-Z0-9_.]*}} = {{.*}}call spir_func float @_Z21__builtin_invoke_simd{{.*}}({{.*}}@_Z23__regcall3__SIMD_CALLEE[[SUFF]], float addrspace(4)* %{{[a-zA-Z0-9_.]*}}, float %{{[a-zA-Z0-9_.]*}}, i32 %{{[a-zA-Z0-9_.]*}}) #[[ATTRS1:[0-9]+]]
 #else
         float res = SPMD_CALLEE(A, B[wi_id], wi_id);
 #endif
@@ -146,3 +151,6 @@ int main(void) {
   std::cout << (err_cnt > 0 ? "FAILED\n" : "Passed\n");
   return err_cnt > 0 ? 1 : 0;
 }
+
+// CHECK-DAG: attributes #[[ATTRS]] = { {{.*}}"VCFunction" "VCStackCall"{{.*}} }
+// CHECK-DAG: attributes #[[ATTRS1]] = { {{.*}}convergent{{.*}} }

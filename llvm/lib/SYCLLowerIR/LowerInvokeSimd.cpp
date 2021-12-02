@@ -225,7 +225,8 @@ PreservedAnalyses SYCLLowerInvokeSimdPass::run(Module &M, ModuleAnalysisManager 
     if (!F.isDeclaration() || !F.getName().startswith(INVOKE_SIMD_PREF)) {
       continue;
     }
-    for (User *Usr : F.users()) {
+    SmallVector<User*, 4> Users(F.users().begin(), F.users().end());
+    for (User *Usr : Users) {
       // a call can be the only use of the invoke_simd built-in
       CallInst *CI = cast<CallInst>(Usr);
       Modified |= processInvokeSimdCall(CI);

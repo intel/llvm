@@ -972,6 +972,11 @@ std::unique_ptr<util::SimpleTable> processInputModule(std::unique_ptr<Module> M)
   }
   std::unique_ptr<util::SimpleTable> Table = std::make_unique<util::SimpleTable>(ColumnTitles);
   int ID = 0;
+  // It is better to do invoke_simd provessing before splitting:
+  // - doing it before scoped splitting saves provessing time (the pass is run
+  //   once, even though on larger IR)
+  // - doint it before SYCL/ESIMD splitting is required for correctness
+  Modified |= lowerInvokeSimd(*M);
 
   // TODO parallelize
   for (auto &NameAndGroup : GMap) {
@@ -1017,9 +1022,6 @@ std::unique_ptr<util::SimpleTable> processInputModule(std::unique_ptr<Module> M)
       if ((IrMD.Props.HasEsimd != ESIMDStatus::SYCL_ONLY) && LowerEsimd) {
         assert(IrMD.Props.HasEsimd == ESIMDStatus::ESIMD_ONLY && "NYI");
         Modified |= lowerEsimdConstructs(IrMD);
-      }
-      if (IrMD.Props.HasEsimd != ESIMDStatus::ESIMD_ONLY) {
-        Modified |= lowerInvokeSimd(*IrMD.Impl.M);
       }
     }
     if (!SplitEsimd && (MMs.size() > 1)) {
