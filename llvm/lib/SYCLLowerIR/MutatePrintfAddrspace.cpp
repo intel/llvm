@@ -45,62 +45,52 @@ public:
 private:
   SYCLMutatePrintfAddrspacePass Impl;
 };
-} // namespace
 
-char SYCLMutatePrintfAddrspaceLegacyPass::ID = 0;
-INITIALIZE_PASS(SYCLMutatePrintfAddrspaceLegacyPass,
-                "SYCLMutatePrintfAddrspace",
-                "Move SYCL printf literal arguments to constant address space",
-                false, false)
-
-// Public interface to the SYCLMutatePrintfAddrspacePass.
-ModulePass *llvm::createSYCLMutatePrintfAddrspaceLegacyPass() {
-  return new SYCLMutatePrintfAddrspaceLegacyPass();
-}
-
-static Constant *getCASLiteral(Module &M, IRBuilder<> &Builder, CallInst *CI) {
-  auto *Literal = dyn_cast<Constant>(CI->getArgOperand(0));
-  assert(Literal);
+Constant *getCASLiteral(IRBuilder<> &Builder, CallInst *CI) {
+  auto *Literal = cast<Constant>(CI->getArgOperand(0));
   Type *LiteralType = Literal->getType();
   // Generate/find a correct literal
   auto *CASLiteralType = PointerType::get(LiteralType->getPointerElementType(),
                                           ConstantAddrspaceID);
   StringRef CASLiteralName(Literal->getName().str() + "._AS2");
-  return M.getOrInsertGlobal(CASLiteralName, CASLiteralType, [&] {
-    StringRef LiteralValue;
-    getConstantStringInfo(Literal, LiteralValue);
-    GlobalVariable *GV = Builder.CreateGlobalString(
-        LiteralValue, CASLiteralName, ConstantAddrspaceID, &M);
-    GV->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-    GV->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
-    return GV;
-  });
+  return CI->getModule()->getOrInsertGlobal(
+      CASLiteralName, CASLiteralType, [&] {
+        StringRef LiteralValue;
+        getConstantStringInfo(Literal, LiteralValue);
+        GlobalVariable *GV = Builder.CreateGlobalString(
+            LiteralValue, CASLiteralName, ConstantAddrspaceID, CI->getModule());
+        GV->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+        GV->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
+        return GV;
+      });
 }
 
-static FunctionCallee getCASPrintfFunction(Module &M,
-                                           const Function &GenericASPrintfFunc,
-                                           Type *CASLiteralTy) {
+FunctionCallee getCASPrintfFunction(Function &GenericASPrintfFunc,
+                                    Type *CASLiteralTy) {
   auto *CASPrintfFuncTy = FunctionType::get(GenericASPrintfFunc.getReturnType(),
                                             CASLiteralTy, /*isVarArg=*/true);
   FunctionCallee CASPrintfFunc =
-      M.getOrInsertFunction("_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy,
-                            GenericASPrintfFunc.getAttributes());
+      GenericASPrintfFunc.getParent()->getOrInsertFunction(
+          "_Z18__spirv_ocl_printfPU3AS2Kcz", CASPrintfFuncTy,
+          GenericASPrintfFunc.getAttributes());
   auto *Callee = cast<Function>(CASPrintfFunc.getCallee());
   Callee->setCallingConv(CallingConv::SPIR_FUNC);
   Callee->setDSOLocal(true);
   return CASPrintfFunc;
 }
 
-static void buildCASCall(IRBuilder<> &Builder, FunctionCallee CASPrintfFunc,
-                         Constant *CASLiteral, CallInst *CI) {
+CallInst *buildCASPrintfCall(IRBuilder<> &Builder, FunctionCallee CASPrintfFunc,
+                             Constant *CASLiteral, CallInst *CI) {
   SmallVector<Value *, 4> CallOperands(CI->data_operands_begin(),
                                        CI->data_operands_end());
   CallOperands[0] = CASLiteral;
   Builder.SetInsertPoint(CI);
-  Builder
-      .CreateCall(CASPrintfFunc, CallOperands, CI->getName().str() + "._AS2")
-      ->setTailCall(true);
+  CallInst *CASCall = Builder.CreateCall(CASPrintfFunc, CallOperands,
+                                         CI->getName().str() + "._AS2");
+  CASCall->setTailCall(true);
+  return CASCall;
 }
+} // namespace
 
 PreservedAnalyses
 SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
@@ -108,6 +98,8 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
   SmallVector<Function *, 1> FunctionsToDrop;
 
   for (Function &F : M) {
+    if (!F.isDeclaration())
+      continue;
     if (!F.getName().contains("__spirv_ocl_printf"))
       continue;
     auto *LiteralType = F.getArg(0)->getType();
@@ -121,10 +113,11 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
       if (!isa<CallInst>(U))
         continue;
       auto *CI = cast<CallInst>(U);
-      Constant *CASLiteral = getCASLiteral(M, Builder, CI);
+      Constant *CASLiteral = getCASLiteral(Builder, CI);
       FunctionCallee CASPrintfFunc =
-          getCASPrintfFunction(M, F, CASLiteral->getType());
-      buildCASCall(Builder, CASPrintfFunc, CASLiteral, CI);
+          getCASPrintfFunction(F, CASLiteral->getType());
+      CI->replaceAllUsesWith(
+          buildCASPrintfCall(Builder, CASPrintfFunc, CASLiteral, CI));
       CallInstsToDrop.emplace_back(CI);
       ++ReplacedCallsCount;
     }
@@ -138,4 +131,15 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
     F->eraseFromParent();
   return ReplacedCallsCount ? PreservedAnalyses::all()
                             : PreservedAnalyses::none();
+}
+
+char SYCLMutatePrintfAddrspaceLegacyPass::ID = 0;
+INITIALIZE_PASS(SYCLMutatePrintfAddrspaceLegacyPass,
+                "SYCLMutatePrintfAddrspace",
+                "Move SYCL printf literal arguments to constant address space",
+                false, false)
+
+// Public interface to the SYCLMutatePrintfAddrspacePass.
+ModulePass *llvm::createSYCLMutatePrintfAddrspaceLegacyPass() {
+  return new SYCLMutatePrintfAddrspaceLegacyPass();
 }
