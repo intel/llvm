@@ -1635,7 +1635,9 @@ __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
                                             pi_usm_mem_properties *properties,
                                             size_t size, pi_uint32 alignment);
 
-/// Frees allocated USM memory
+/// Frees allocated USM memory. Does so in a blocking or deferred manner if
+/// that's needed to avoid issues with unfinished kernels with indirect memory
+/// access.
 ///
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
