@@ -324,8 +324,9 @@ template <> class SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE> {
 
 public:
   static int get() {
-    static const char *ValueStr = BaseT::getRawValue();
     static int Value = [] {
+      const char *ValueStr = BaseT::getRawValue();
+
       int Result = 1;
 
       if (ValueStr)

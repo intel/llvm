@@ -92,7 +92,7 @@ std::mutex &GlobalHandler::getHandlerExtendedMembersMutex() {
 }
 
 ThreadPool &GlobalHandler::getHostTaskThreadPool() {
-  static int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
+  int Size = SYCLConfig<SYCL_QUEUE_THREAD_POOL_SIZE>::get();
   ThreadPool &TP = getOrCreate(MHostTaskThreadPool, Size);
 
   return TP;
