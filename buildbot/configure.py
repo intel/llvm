@@ -117,6 +117,8 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR={}".format(xptifw_dir),
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
+        "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
+        "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants)])
         "-DSYCL_BUILD_PI_CUDA={}".format(sycl_build_pi_cuda),
         "-DSYCL_BUILD_PI_HIP={}".format(sycl_build_pi_hip),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
@@ -141,11 +143,6 @@ def do_configure(args):
     elif args.l0_headers or args.l0_loader:
       sys.exit("Please specify both Level Zero headers and loader or don't specify "
                "none of them to let download from github.com")
-
-    if args.cuda or args.hip:
-      cmake_cmd.extend([
-            "-DLIBCLC_TARGETS_TO_BUILD={}".format(libclc_targets_to_build),
-            "-DLIBCLC_GENERATE_REMANGLED_VARIANTS={}".format(libclc_gen_remangled_variants)])
 
     # Add additional CMake options if provided
     if args.cmake_opt:
