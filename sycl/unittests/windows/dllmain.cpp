@@ -22,8 +22,7 @@
 #ifdef _WIN32
 #include <windows.h>
 
-extern "C" BOOL WINAPI DllMain(HINSTANCE hinstDLL,
-                               DWORD fdwReason,
+extern "C" BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason,
                                LPVOID lpReserved);
 
 static std::atomic<int> TearDownCalls{0};
@@ -64,4 +63,3 @@ TEST(Windows, DllMainCall) {
   EXPECT_EQ(TearDownCalls.load(), TearDownCallsDone);
 #endif
 }
-
