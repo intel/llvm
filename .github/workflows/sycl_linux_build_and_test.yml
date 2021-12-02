@@ -137,6 +137,10 @@ jobs:
       if: always()
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
+    - name: check-libclc
+      if: always()
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build --target check-libclc
     - name: Install
       # TODO replace utility installation with a single CMake target
       run: |
