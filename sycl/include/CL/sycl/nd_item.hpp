@@ -171,10 +171,7 @@ public:
 
   nd_item &operator=(nd_item &&rhs) = default;
 
-  bool operator==(const nd_item &rhs) const {
-    return (rhs.localItem == this->localItem) &&
-           (rhs.globalItem == this->globalItem) && (rhs.Group == this->Group);
-  }
+  bool operator==(const nd_item &rhs) const = default;
 
   bool operator!=(const nd_item &rhs) const {
     return !((*this) == rhs);
