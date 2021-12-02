@@ -23,6 +23,7 @@
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/GenXIntrinsics/GenXIntrinsics.h"
+#include "llvm/GenXIntrinsics/GenXMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -1440,7 +1441,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   // 'alwaysinline' attribute.
   if ((F.getCallingConv() != CallingConv::SPIR_KERNEL) &&
       !F.hasFnAttribute(Attribute::NoInline) &&
-      !F.hasFnAttribute(Attribute::AlwaysInline))
+      !F.hasFnAttribute(Attribute::AlwaysInline) &&
+      !F.hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall))
     F.addFnAttr(Attribute::AlwaysInline);
 
   SmallVector<CallInst *, 32> ESIMDIntrCalls;

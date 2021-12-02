@@ -3,7 +3,8 @@
 // Now device-compile:
 // RUN: %clangxx -fsycl -fsycl-device-only -S %s -o %t.ll
 // ... then run post-link on the compilation result, checking output IR:
-// RUN: sycl-post-link -lower-esimd -ir-output-only -S %t.ll -o - | FileCheck %s
+// RUN: sycl-post-link -lower-esimd -ir-output-only -S %t.ll -o %t.1.ll
+// RUN: FileCheck %s -input-file=%t.1.ll
 
 // Tests invoke_simd support in the compiler/headers
 
@@ -27,12 +28,7 @@ esimd::simd<float, VL> ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) S
 }
 
 SYCL_EXTERNAL
-simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
-  esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
-  return res;
-}
-
-// CHECK-DAG: define{{.*}} x86_regcallcc <16 x float> @_Z23__regcall3__SIMD_CALLEE[[SUFF:.*]](float addrspace(4)* %{{[a-zA-Z0-9_.]*}}, <16 x float> %{{[a-zA-Z0-9_.]*}}, i32 %{{[a-zA-Z0-9_.]*}}) #[[ATTRS:[0-9]+]] {{.*}}{
+simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION;
 
 float SPMD_CALLEE(float *A, float b, int i) {
   return A[i] + b;
@@ -118,7 +114,7 @@ int main(void) {
 
 #if INVOKE_SIMD != 0
         float res = invoke_simd(sg, SIMD_CALLEE, uniform{ A }, B[wi_id], uniform{ i });
-// CHECK-DAG: %{{[a-zA-Z0-9_.]*}} = {{.*}}call spir_func float @_Z21__builtin_invoke_simd{{.*}}({{.*}}@_Z23__regcall3__SIMD_CALLEE[[SUFF]], float addrspace(4)* %{{[a-zA-Z0-9_.]*}}, float %{{[a-zA-Z0-9_.]*}}, i32 %{{[a-zA-Z0-9_.]*}}) #[[ATTRS1:[0-9]+]]
+// CHECK: %{{[a-zA-Z0-9_.]*}} = {{.*}}call spir_func float @_Z21__builtin_invoke_simd{{.*}}({{.*}}@_Z23__regcall3__SIMD_CALLEE[[SUFF:.*]], float addrspace(4)* %{{[a-zA-Z0-9_.]*}}, float %{{[a-zA-Z0-9_.]*}}, i32 %{{[a-zA-Z0-9_.]*}}) #[[ATTRS1:[0-9]+]]
 #else
         float res = SPMD_CALLEE(A, B[wi_id], wi_id);
 #endif
@@ -152,5 +148,15 @@ int main(void) {
   return err_cnt > 0 ? 1 : 0;
 }
 
-// CHECK-DAG: attributes #[[ATTRS]] = { {{.*}}"VCFunction" "VCStackCall"{{.*}} }
-// CHECK-DAG: attributes #[[ATTRS1]] = { {{.*}}convergent{{.*}} }
+SYCL_EXTERNAL
+simd<float, VL> __regcall SIMD_CALLEE(float *A, simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
+  esimd::simd<float, VL> res = ESIMD_CALLEE(A, b, i);
+  return res;
+}
+
+// CHECK: ; Function Attrs: convergent norecurse
+// CHECK: define{{.*}} x86_regcallcc <16 x float> @_Z23__regcall3__SIMD_CALLEE[[SUFF]](float addrspace(4)* %{{[a-zA-Z0-9_.]*}}, <16 x float> %{{[a-zA-Z0-9_.]*}}, i32 %{{[a-zA-Z0-9_.]*}}) #[[ATTRS:[0-9]+]] {{.*}}{
+
+
+// CHECK: attributes #[[ATTRS]] = { {{.*}}"VCFunction" "VCStackCall"{{.*}} }
+// CHECK: attributes #[[ATTRS1]] = { convergent }
