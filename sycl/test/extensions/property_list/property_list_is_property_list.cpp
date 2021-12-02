@@ -19,17 +19,16 @@ int main() {
   static_assert(sycl::ext::oneapi::is_property_list_v<P1>);
 
   // Check is_property_list for runtime properties
-  using P2 =
-      sycl::ext::oneapi::property_list_t<sycl::property::buffer::use_host_ptr,
-                                         sycl::property::image::context_bound>;
+  using P2 = sycl::ext::oneapi::property_list_t<sycl::ext::oneapi::foo,
+                                                sycl::ext::oneapi::foz>;
   static_assert(sycl::ext::oneapi::is_property_list<P2>::value);
   static_assert(sycl::ext::oneapi::is_property_list_v<P2>);
 
   // Check is_property_list for a mix properties
   using P3 =
-      sycl::ext::oneapi::property_list_t<sycl::property::buffer::use_host_ptr,
+      sycl::ext::oneapi::property_list_t<sycl::ext::oneapi::foo,
                                          sycl::ext::oneapi::baz::value_t<1>,
-                                         sycl::property::image::context_bound>;
+                                         sycl::ext::oneapi::foz>;
   static_assert(sycl::ext::oneapi::is_property_list<P3>::value);
   static_assert(sycl::ext::oneapi::is_property_list_v<P3>);
 
@@ -43,16 +42,14 @@ int main() {
   // Check is_property_list for runtime properties on object
   sycl::queue Q;
   auto PropertyList2 = sycl::ext::oneapi::property_list(
-      sycl::property::buffer::use_host_ptr{},
-      sycl::property::image::context_bound{Q.get_context()});
+      sycl::ext::oneapi::foo{1}, sycl::ext::oneapi::foz{.123f, false});
   static_assert(
       sycl::ext::oneapi::is_property_list<decltype(PropertyList2)>::value);
   static_assert(sycl::ext::oneapi::is_property_list_v<decltype(PropertyList2)>);
 
   // Check is_property_list for a mix properties on object
   auto PropertyList3 = sycl::ext::oneapi::property_list(
-      sycl::property::buffer::use_host_ptr{}, sycl::ext::oneapi::baz_v<1>,
-      sycl::property::image::context_bound{Q.get_context()});
+      sycl::ext::oneapi::foo{42}, sycl::ext::oneapi::baz_v<1>);
   static_assert(
       sycl::ext::oneapi::is_property_list<decltype(PropertyList3)>::value);
   static_assert(sycl::ext::oneapi::is_property_list_v<decltype(PropertyList3)>);

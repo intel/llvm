@@ -10,6 +10,7 @@
 
 #include <CL/sycl/detail/property_helper.hpp>
 #include <CL/sycl/types.hpp>
+#include <sycl/ext/oneapi/property_list/properties.hpp>
 #include <sycl/ext/oneapi/property_list/property_utils.hpp>
 #include <sycl/ext/oneapi/property_list/property_value.hpp>
 
@@ -64,7 +65,7 @@ template <typename... Ts> struct RuntimePropertyStorage<std::tuple<Ts...>> {
 };
 template <typename T, typename... Ts>
 struct RuntimePropertyStorage<std::tuple<T, Ts...>>
-    : detail::conditional_t<IsRuntimePropertyWithData<T>::value,
+    : detail::conditional_t<IsRuntimeProperty<T>::value,
                             PrependTuple<T, typename RuntimePropertyStorage<
                                                 std::tuple<Ts...>>::type>,
                             RuntimePropertyStorage<std::tuple<Ts...>>> {};
@@ -112,7 +113,7 @@ struct ExtractProperties<std::tuple<PropertyT, PropertiesTs...>> {
 template <typename PropertiesT> class property_list {
   static_assert(detail::IsTuple<PropertiesT>::value,
                 "Properties must be in a tuple.");
-  static_assert(detail::AllProperties<PropertiesT>::value,
+  static_assert(detail::AllPropertyValues<PropertiesT>::value,
                 "Unrecognized property in property list.");
   static_assert(detail::IsSorted<PropertiesT>::value,
                 "Properties in property list are not sorted.");
@@ -126,28 +127,19 @@ public:
             std::tuple<PropertyValueTs...>{props...})) {}
 
   template <typename PropertyT>
-  static constexpr detail::enable_if_t<
-      detail::IntrospectiveIsProperty<PropertyT>::value, bool>
+  static constexpr detail::enable_if_t<detail::IsProperty<PropertyT>::value,
+                                       bool>
   has_property() {
     return detail::ContainsProperty<PropertyT, PropertiesT>::value;
   }
 
   template <typename PropertyT>
-  typename detail::enable_if_t<
-      detail::IsRuntimePropertyWithData<PropertyT>::value, PropertyT>
+  typename detail::enable_if_t<detail::IsRuntimeProperty<PropertyT>::value,
+                               PropertyT>
   get_property() const {
     static_assert(has_property<PropertyT>(),
                   "Property list does not contain the requested property.");
     return std::get<PropertyT>(Storage);
-  }
-
-  template <typename PropertyT>
-  typename detail::enable_if_t<
-      detail::IsRuntimeDatalessProperty<PropertyT>::value, PropertyT>
-  get_property() const {
-    static_assert(has_property<PropertyT>(),
-                  "Property list does not contain the requested property.");
-    return {};
   }
 
   template <typename PropertyT>

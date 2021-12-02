@@ -17,11 +17,11 @@ int main() {
   // CHECK-ERROR-1: Unrecognized property in property list.
 #elif (TEST_CASE == 2)
   auto InvalidPropertyList =
-      sycl::ext::oneapi::property_list(sycl::property::no_init{}, true);
+      sycl::ext::oneapi::property_list(sycl::ext::oneapi::foo{1}, true);
   // CHECK-ERROR-2: Unrecognized property in property list.
 #elif (TEST_CASE == 3)
   auto InvalidPropertyList = sycl::ext::oneapi::property_list(
-      sycl::property::no_init{}, sycl::property::no_init{});
+      sycl::ext::oneapi::foo{0}, sycl::ext::oneapi::foo{1});
   // CHECK-ERROR-3: Duplicate properties in property list.
 #elif (TEST_CASE == 4)
   auto InvalidPropertyList = sycl::ext::oneapi::property_list(

@@ -9,6 +9,7 @@
 #pragma once
 
 #include <CL/sycl/detail/property_helper.hpp>
+#include <sycl/ext/oneapi/property_list/properties.hpp>
 
 #include <tuple>
 
@@ -53,7 +54,7 @@ struct AllUnique<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct AllUnique<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct AllUnique<std::tuple<L, R, Rest...>>
-    : detail::conditional_t<L::PropertyID != R::PropertyID,
+    : detail::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
                             AllUnique<std::tuple<R, Rest...>>,
                             std::false_type> {};
 
@@ -61,50 +62,34 @@ struct AllUnique<std::tuple<L, R, Rest...>>
 // Property identification
 //******************************************************************************
 
-// Checks if a type is a runtime property with data.
-template <typename T> struct IsRuntimePropertyWithData {
+// Checks if a type is a compile-time property values.
+// Note: This is specialized for property_value elsewhere.
+template <typename PropertyT>
+struct IsCompileTimePropertyValue : std::false_type {};
+
+// Checks if a type is either a runtime property or if it is a compile-time
+// property
+template <typename T> struct IsProperty {
   static constexpr bool value =
-      is_property<T>::value && std::is_base_of<PropertyWithDataBase, T>::value;
+      IsRuntimeProperty<T>::value || IsCompileTimeProperty<T>::value;
 };
 
-// Checks if a type is a dataless runtime property.
-template <typename T> struct IsRuntimeDatalessProperty {
+// Checks if a type is a valid property value, i.e either runtime property or
+// property_value with a valid compile-time property
+template <typename T> struct IsPropertyValue {
   static constexpr bool value =
-      is_property<T>::value && std::is_base_of<DataLessPropertyBase, T>::value;
-};
-
-// Checks if a type is a runtime property.
-template <typename T> struct IsRuntimeProperty {
-  static constexpr bool value =
-      is_property<T>::value &&
-      (std::is_base_of<DataLessPropertyBase, T>::value ||
-       std::is_base_of<PropertyWithDataBase, T>::value);
-};
-
-// Checks if a type is either a runtime property (with or without data) or if
-// it is a compile-time property (inside a property_value)
-template <typename T> struct IntrospectiveIsProperty : is_property<T> {};
-template <typename PropertyT, typename... PropertyValueTs>
-struct IntrospectiveIsProperty<property_value<PropertyT, PropertyValueTs...>>
-    : is_property<PropertyT> {};
-
-// Checks that a type is a compile-time property. value is true if either T is
-// a non-runtime property or if it is a property_value containing a non-runtime
-// property.
-template <typename T> struct IsCompileTimeProperty {
-  static constexpr bool value =
-      IntrospectiveIsProperty<T>::value && !IsRuntimeProperty<T>::value;
+      IsRuntimeProperty<T>::value || IsCompileTimePropertyValue<T>::value;
 };
 
 // Checks that all types in a tuple are valid properties.
-template <typename T> struct AllProperties {};
+template <typename T> struct AllPropertyValues {};
 template <typename... Ts>
-struct AllProperties<std::tuple<Ts...>> : std::true_type {};
+struct AllPropertyValues<std::tuple<Ts...>> : std::true_type {};
 template <typename T, typename... Ts>
-struct AllProperties<std::tuple<T, Ts...>>
-    : detail::conditional_t<IntrospectiveIsProperty<T>::value,
-                            AllProperties<std::tuple<Ts...>>, std::false_type> {
-};
+struct AllPropertyValues<std::tuple<T, Ts...>>
+    : detail::conditional_t<IsPropertyValue<T>::value,
+                            AllPropertyValues<std::tuple<Ts...>>,
+                            std::false_type> {};
 
 //******************************************************************************
 // Property type sorting
@@ -143,7 +128,8 @@ template <typename... LTs, typename... RTs>
 struct Merge<std::tuple<LTs...>, std::tuple<RTs...>> {
   using l_head = GetFirstType<LTs...>;
   using r_head = GetFirstType<RTs...>;
-  static constexpr bool left_has_min = l_head::PropertyID < r_head::PropertyID;
+  static constexpr bool left_has_min =
+      PropertyID<l_head>::value < PropertyID<r_head>::value;
   using l_split = HeadSplit<std::tuple<LTs...>, left_has_min>;
   using r_split = HeadSplit<std::tuple<RTs...>, !left_has_min>;
   using min = typename SelectNonVoid<typename l_split::htype,
@@ -209,7 +195,7 @@ template <typename T, typename... Ts> struct MergeAll<std::tuple<T, Ts...>> {
 
 // Performs merge-sort on types with PropertyID.
 template <typename... Ts> struct Sorted {
-  static_assert(detail::AllProperties<std::tuple<Ts...>>::value,
+  static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
                 "Unrecognized property in property list.");
   using split = typename CreateTuplePairs<Ts...>::type;
   using type = typename MergeAll<split>::type;
@@ -222,7 +208,7 @@ struct IsSorted<std::tuple<Ts...>> : std::true_type {};
 template <typename T> struct IsSorted<std::tuple<T>> : std::true_type {};
 template <typename L, typename R, typename... Rest>
 struct IsSorted<std::tuple<L, R, Rest...>>
-    : detail::conditional_t<L::PropertyID <= R::PropertyID,
+    : detail::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
                             IsSorted<std::tuple<R, Rest...>>, std::false_type> {
 };
 

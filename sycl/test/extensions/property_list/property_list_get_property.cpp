@@ -20,16 +20,16 @@ int main() {
 
   // Check runtime and compile-time properties on property-list object
   sycl::queue Q;
+  sycl::ext::oneapi::foo FooProp{3};
   auto PropertyList = sycl::ext::oneapi::property_list(
-      sycl::ext::oneapi::baz_v<1>, sycl::ext::oneapi::bar_v,
-      sycl::property::no_init{},
-      sycl::property::buffer::context_bound{Q.get_context()});
+      sycl::ext::oneapi::baz_v<1>, sycl::ext::oneapi::bar_v, FooProp);
   static_assert(
       decltype(PropertyList)::get_property<sycl::ext::oneapi::baz>() ==
       sycl::ext::oneapi::baz_v<1>);
   static_assert(
       decltype(PropertyList)::get_property<sycl::ext::oneapi::bar>() ==
       sycl::ext::oneapi::bar_v);
-  assert(PropertyList.get_property<sycl::property::buffer::context_bound>()
-             .get_context() == Q.get_context());
+  assert(PropertyList.get_property<sycl::ext::oneapi::foo>() == FooProp);
+  assert(PropertyList.get_property<sycl::ext::oneapi::foo>().value ==
+         FooProp.value);
 }
