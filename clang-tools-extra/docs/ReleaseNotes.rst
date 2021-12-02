@@ -76,6 +76,12 @@ Improvements to clang-tidy
 New checks
 ^^^^^^^^^^
 
+- New :doc:`bugprone-stringview-nullptr
+  <clang-tidy/checks/bugprone-stringview-nullptr>` check.
+
+  Checks for various ways that the ``const CharT*`` constructor of
+  ``std::basic_string_view`` can be passed a null argument.
+
 - New :doc:`abseil-cleanup-ctad
   <clang-tidy/checks/abseil-cleanup-ctad>` check.
 
@@ -139,6 +145,9 @@ Changes in existing checks
 - Updated :doc:`google-readability-casting
   <clang-tidy/checks/google-readability-casting>` to diagnose and fix functional
   casts, to achieve feature parity with the corresponding ``cpplint.py`` check.
+
+- Fixed a false positive in :doc:`fuchsia-trailing-return
+  <clang-tidy/checks/fuchsia-trailing-return>` for C++17 deduction guides.
 
 Removed checks
 ^^^^^^^^^^^^^^
