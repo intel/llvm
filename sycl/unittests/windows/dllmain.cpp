@@ -21,8 +21,6 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#endif
-
 
 extern "C" BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                DWORD fdwReason,
@@ -36,9 +34,11 @@ pi_result redefinedTearDown(void *PluginParameter) {
 
   return PI_SUCCESS;
 }
+#endif
 
 TEST(Windows, DllMainCall) {
   {
+#ifdef _WIN32
     sycl::platform Plt{sycl::default_selector()};
     if (Plt.is_host()) {
       printf("Test is not supported on host, skipping\n");
@@ -48,7 +48,6 @@ TEST(Windows, DllMainCall) {
     setupDefaultMockAPIs(Mock);
     Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
 
-#ifdef _WIN32
     // Teardown calls are only expected on sycl.dll library unload, not when
     // process gets terminated.
     // The first call to DllMain is to simulate library unload. The second one
