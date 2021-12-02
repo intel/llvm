@@ -23,10 +23,18 @@
 #include <windows.h>
 #endif
 
+
+extern "C" BOOL WINAPI DllMain(HINSTANCE hinstDLL,
+                               DWORD fdwReason,
+                               LPVOID lpReserved);
+
 static std::atomic<int> TearDownCalls{0};
 
 pi_result redefinedTearDown(void *PluginParameter) {
+  fprintf(stderr, "intercepted tear down\n");
   ++TearDownCalls;
+
+  return PI_SUCCESS;
 }
 
 TEST(Windows, DllMainCall) {
@@ -36,23 +44,23 @@ TEST(Windows, DllMainCall) {
       printf("Test is not supported on host, skipping\n");
       return;
     }
-
     sycl::unittest::PiMock Mock{Plt};
     setupDefaultMockAPIs(Mock);
-
-    Mock.redefine<PiApiKind::piTearDown>(redefinedTearDown);
+    Mock.redefine<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
 
 #ifdef _WIN32
     // Teardown calls are only expected on sycl.dll library unload, not when
     // process gets terminated.
     // The first call to DllMain is to simulate library unload. The second one
     // is to simulate process termination
+    fprintf(stderr, "Call DllMain for the first time\n");
     DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)NULL);
 
     int TearDownCallsDone = TearDownCalls.load();
 
     EXPECT_NE(TearDownCallsDone, 0);
 
+    fprintf(stderr, "Call DllMain for the second time\n");
     DllMain((HINSTANCE)0, DLL_PROCESS_DETACH, (LPVOID)0x01);
 
     EXPECT_EQ(TearDownCalls.load(), TearDownCallsDone);
