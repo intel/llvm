@@ -173,9 +173,7 @@ public:
 
   bool operator==(const nd_item &rhs) const = default;
 
-  bool operator!=(const nd_item &rhs) const {
-    return !((*this) == rhs);
-  }
+  bool operator!=(const nd_item &rhs) const = default;
 
 protected:
   friend class detail::Builder;
