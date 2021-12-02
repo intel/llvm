@@ -953,8 +953,8 @@ the variable _dest_, the implementation throws an `exception` with the
 `errc::invalid` error code.
 
 If `PropertyListT` contains the `device_image_scope` property and the _dest_
-variable exists in more than one _device image_, the implementation throws an
-`exception` with the `errc::invalid` error code.
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
 a| 
 [source, c++]
 ----
@@ -976,8 +976,8 @@ the variable _src_, the implementation throws an `exception` with the
 `errc::invalid` error code.
 
 If `PropertyListT` contains the `device_image_scope` property and the _src_
-variable exists in more than one _device image_, the implementation throws an
-`exception` with the `errc::invalid` error code.
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
 
 a| 
 [source, c++]
@@ -998,8 +998,8 @@ the variable _dest_, the implementation throws an `exception` with the
 `errc::invalid` error code.
 
 If `PropertyListT` contains the `device_image_scope` property and the _dest_
-variable exists in more than one _device image_, the implementation throws an
-`exception` with the `errc::invalid` error code.
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
 
 a| 
 [source, c++]
@@ -1021,8 +1021,8 @@ the variable _src_, the implementation throws an `exception` with the
 `errc::invalid` error code.
 
 If `PropertyListT` contains the `device_image_scope` property and the _src_
-variable exists in more than one _device image_, the implementation throws an
-`exception` with the `errc::invalid` error code.
+variable exists in more than one _device image_ for this queue's device, the
+implementation throws an `exception` with the `errc::invalid` error code.
 |====
 --
 
@@ -1030,11 +1030,11 @@ variable exists in more than one _device image_, the implementation throws an
 ====
 As specified above, the `copy` and `memcpy` functions throw an exception if the
 global variable has the `device_image_scope` property and exists in more than
-one _device image_.  This condition could occur if the application submits a
-kernel referencing the variable to the same device with different values for a
-specialization variable (when the device supports specialization variables
-natively).  This condition could also occur if the application submits the same
-kernel from more than one kernel bundle.
+one _device image_ for the queue's device.  This condition could occur if the
+application submits a kernel referencing the variable to the same device with
+different values for a specialization constant (when the device supports
+specialization constants natively).  This condition could also occur if the
+application submits the same kernel from more than one kernel bundle.
 ====
 
 
