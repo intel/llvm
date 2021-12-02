@@ -100,7 +100,7 @@ struct foo {
   foo(int v) : value(v) {}
   int value;
 };
- 
+
 // (3.)
 inline bool operator==(const foo &lhs, const foo &rhs) {
   return lhs.value == rhs.value;
@@ -110,12 +110,12 @@ inline bool operator!=(const foo &lhs, const foo &rhs) {
 }
 
 namespace detail {
- 
+
 // (4.)
 template <> struct PropertyToKind<foo> {
   static constexpr PropKind Kind = PropKind::Foo;
 };
- 
+
 // (5.)
 template <> struct IsRuntimeProperty<foo> : std::true_type {};
 } // namespace detail
@@ -127,7 +127,7 @@ template <> struct is_property<ext::oneapi::foo> : std::true_type {};
 // Replace SYCL_OBJ with the SYCL object to support the property.
 template <> struct is_property_of<ext::oneapi::foo, SYCL_OBJ>
   : std::true_type {};
- 
+
 } // namespace sycl
 *******************************************************************************/
 
