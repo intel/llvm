@@ -477,7 +477,7 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   }
 
   if (Event->ZeHostVisibleEventPool) {
-    if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
+    if (NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0)
       die("Invalid host visible event release: host visible event pool doesn't "
           "have unreleased events");
     if (--NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0) {
