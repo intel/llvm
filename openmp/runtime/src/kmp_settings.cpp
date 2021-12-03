@@ -302,8 +302,8 @@ void __kmp_check_stksize(size_t *val) {
   // if system stack size is too big then limit the size for worker threads
   if (*val > KMP_DEFAULT_STKSIZE * 16) // just a heuristics...
     *val = KMP_DEFAULT_STKSIZE * 16;
-  if (*val < KMP_MIN_STKSIZE)
-    *val = KMP_MIN_STKSIZE;
+  if (*val < __kmp_sys_min_stksize)
+    *val = __kmp_sys_min_stksize;
   if (*val > KMP_MAX_STKSIZE)
     *val = KMP_MAX_STKSIZE; // dead code currently, but may work in future
 #if KMP_OS_DARWIN
@@ -1753,17 +1753,9 @@ static void __kmp_stg_parse_barrier_pattern(char const *name, char const *value,
       }
     }
   }
-  if ((dist_req == 0) && (non_dist_req != 0)) {
-    // Something was set to a barrier other than dist; set all others to hyper
-    for (int i = bs_plain_barrier; i < bs_last_barrier; i++) {
-      if (__kmp_barrier_release_pattern[i] == bp_dist_bar)
-        __kmp_barrier_release_pattern[i] = bp_hyper_bar;
-      if (__kmp_barrier_gather_pattern[i] == bp_dist_bar)
-        __kmp_barrier_gather_pattern[i] = bp_hyper_bar;
-    }
-  } else if (non_dist_req != 0) {
-    // some requests for dist, plus requests for others; set all to dist
-    if (non_dist_req > 0 && dist_req > 0 && warn) {
+  if (dist_req != 0) {
+    // set all barriers to dist
+    if ((non_dist_req != 0) && warn) {
       KMP_INFORM(BarrierPatternOverride, name,
                  __kmp_barrier_pattern_name[bp_dist_bar]);
       warn = 0;
@@ -3144,6 +3136,7 @@ static void __kmp_stg_parse_topology_method(char const *name, char const *value,
   }
 #if KMP_GROUP_AFFINITY
   else if (__kmp_str_match("group", 1, value)) {
+    KMP_WARNING(StgDeprecatedValue, name, value, "all");
     __kmp_affinity_top_method = affinity_top_method_group;
   }
 #endif /* KMP_GROUP_AFFINITY */
@@ -3207,6 +3200,47 @@ static void __kmp_stg_print_topology_method(kmp_str_buf_t *buffer,
   }
 } // __kmp_stg_print_topology_method
 
+// KMP_TEAMS_PROC_BIND
+struct kmp_proc_bind_info_t {
+  const char *name;
+  kmp_proc_bind_t proc_bind;
+};
+static kmp_proc_bind_info_t proc_bind_table[] = {
+    {"spread", proc_bind_spread},
+    {"true", proc_bind_spread},
+    {"close", proc_bind_close},
+    // teams-bind = false means "replicate the primary thread's affinity"
+    {"false", proc_bind_primary},
+    {"primary", proc_bind_primary}};
+static void __kmp_stg_parse_teams_proc_bind(char const *name, char const *value,
+                                            void *data) {
+  int valid;
+  const char *end;
+  valid = 0;
+  for (size_t i = 0; i < sizeof(proc_bind_table) / sizeof(proc_bind_table[0]);
+       ++i) {
+    if (__kmp_match_str(proc_bind_table[i].name, value, &end)) {
+      __kmp_teams_proc_bind = proc_bind_table[i].proc_bind;
+      valid = 1;
+      break;
+    }
+  }
+  if (!valid) {
+    KMP_WARNING(StgInvalidValue, name, value);
+  }
+}
+static void __kmp_stg_print_teams_proc_bind(kmp_str_buf_t *buffer,
+                                            char const *name, void *data) {
+  const char *value = KMP_I18N_STR(NotDefined);
+  for (size_t i = 0; i < sizeof(proc_bind_table) / sizeof(proc_bind_table[0]);
+       ++i) {
+    if (__kmp_teams_proc_bind == proc_bind_table[i].proc_bind) {
+      value = proc_bind_table[i].name;
+      break;
+    }
+  }
+  __kmp_stg_print_str(buffer, name, value);
+}
 #endif /* KMP_AFFINITY_SUPPORTED */
 
 // OMP_PROC_BIND / bind-var is functional on all 4.0 builds, including OS X*
@@ -5312,6 +5346,8 @@ static kmp_setting_t __kmp_stg_table[] = {
 #endif /* KMP_GOMP_COMPAT */
     {"OMP_PROC_BIND", __kmp_stg_parse_proc_bind, __kmp_stg_print_proc_bind,
      NULL, 0, 0},
+    {"KMP_TEAMS_PROC_BIND", __kmp_stg_parse_teams_proc_bind,
+     __kmp_stg_print_teams_proc_bind, NULL, 0, 0},
     {"OMP_PLACES", __kmp_stg_parse_places, __kmp_stg_print_places, NULL, 0, 0},
     {"KMP_TOPOLOGY_METHOD", __kmp_stg_parse_topology_method,
      __kmp_stg_print_topology_method, NULL, 0, 0},
@@ -5994,65 +6030,27 @@ void __kmp_env_initialize(char const *string) {
       // Handle the Win 64 group affinity stuff if there are multiple
       // processor groups, or if the user requested it, and OMP 4.0
       // affinity is not in effect.
-      if (((__kmp_num_proc_groups > 1) &&
-           (__kmp_affinity_type == affinity_default) &&
-           (__kmp_nested_proc_bind.bind_types[0] == proc_bind_default)) ||
-          (__kmp_affinity_top_method == affinity_top_method_group)) {
+      if (__kmp_num_proc_groups > 1 &&
+          __kmp_affinity_type == affinity_default &&
+          __kmp_nested_proc_bind.bind_types[0] == proc_bind_default) {
+        // Do not respect the initial processor affinity mask if it is assigned
+        // exactly one Windows Processor Group since this is interpreted as the
+        // default OS assignment. Not respecting the mask allows the runtime to
+        // use all the logical processors in all groups.
         if (__kmp_affinity_respect_mask == affinity_respect_mask_default &&
             exactly_one_group) {
           __kmp_affinity_respect_mask = FALSE;
         }
+        // Use compact affinity with anticipation of pinning to at least the
+        // group granularity since threads can only be bound to one group.
         if (__kmp_affinity_type == affinity_default) {
           __kmp_affinity_type = affinity_compact;
           __kmp_nested_proc_bind.bind_types[0] = proc_bind_intel;
         }
-        if (__kmp_affinity_top_method == affinity_top_method_default) {
-          if (__kmp_affinity_gran == KMP_HW_UNKNOWN) {
-            __kmp_affinity_top_method = affinity_top_method_group;
-            __kmp_affinity_gran = KMP_HW_PROC_GROUP;
-          } else if (__kmp_affinity_gran == KMP_HW_PROC_GROUP) {
-            __kmp_affinity_top_method = affinity_top_method_group;
-          } else {
-            __kmp_affinity_top_method = affinity_top_method_all;
-          }
-        } else if (__kmp_affinity_top_method == affinity_top_method_group) {
-          if (__kmp_affinity_gran == KMP_HW_UNKNOWN) {
-            __kmp_affinity_gran = KMP_HW_PROC_GROUP;
-          } else if ((__kmp_affinity_gran != KMP_HW_PROC_GROUP) &&
-                     (__kmp_affinity_gran != KMP_HW_THREAD)) {
-            const char *str = __kmp_hw_get_keyword(__kmp_affinity_gran);
-            KMP_WARNING(AffGranTopGroup, var, str);
-            __kmp_affinity_gran = KMP_HW_THREAD;
-          }
-        } else {
-          if (__kmp_affinity_gran == KMP_HW_UNKNOWN) {
-            __kmp_affinity_gran = KMP_HW_CORE;
-          } else if (__kmp_affinity_gran == KMP_HW_PROC_GROUP) {
-            const char *str = NULL;
-            switch (__kmp_affinity_type) {
-            case affinity_physical:
-              str = "physical";
-              break;
-            case affinity_logical:
-              str = "logical";
-              break;
-            case affinity_compact:
-              str = "compact";
-              break;
-            case affinity_scatter:
-              str = "scatter";
-              break;
-            case affinity_explicit:
-              str = "explicit";
-              break;
-            // No MIC on windows, so no affinity_balanced case
-            default:
-              KMP_DEBUG_ASSERT(0);
-            }
-            KMP_WARNING(AffGranGroupType, var, str);
-            __kmp_affinity_gran = KMP_HW_CORE;
-          }
-        }
+        if (__kmp_affinity_top_method == affinity_top_method_default)
+          __kmp_affinity_top_method = affinity_top_method_all;
+        if (__kmp_affinity_gran == KMP_HW_UNKNOWN)
+          __kmp_affinity_gran = KMP_HW_PROC_GROUP;
       } else
 
 #endif /* KMP_GROUP_AFFINITY */

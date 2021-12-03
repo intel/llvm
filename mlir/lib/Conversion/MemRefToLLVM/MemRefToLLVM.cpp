@@ -377,7 +377,10 @@ private:
       return idx;
 
     if (auto constantOp = dimOp.index().getDefiningOp<LLVM::ConstantOp>())
-      return constantOp.value().cast<IntegerAttr>().getValue().getSExtValue();
+      return constantOp.getValue()
+          .cast<IntegerAttr>()
+          .getValue()
+          .getSExtValue();
 
     return llvm::None;
   }
@@ -448,7 +451,7 @@ struct GlobalMemrefOpLowering
       // For scalar memrefs, the global variable created is of the element type,
       // so unpack the elements attribute to extract the value.
       if (type.getRank() == 0)
-        initialValue = elementsAttr.getValue({});
+        initialValue = elementsAttr.getSplatValue<Attribute>();
     }
 
     uint64_t alignment = global.alignment().getValueOr(0);
@@ -1142,7 +1145,8 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     MemRefType dstType = reshapeOp.getResultType();
     MemRefType srcType = reshapeOp.getSrcType();
-    if (!srcType.getAffineMaps().empty() || !dstType.getAffineMaps().empty()) {
+    if (!srcType.getLayout().isIdentity() ||
+        !dstType.getLayout().isIdentity()) {
       return rewriter.notifyMatchFailure(reshapeOp,
                                          "only empty layout map is supported");
     }

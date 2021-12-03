@@ -5,26 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: libcpp-has-no-threads
 
 // <atomic>
 
-// template <class Integral>
-//     Integral
-//     atomic_fetch_sub(volatile atomic<Integral>* obj, Integral op);
+// template<class T>
+//     T
+//     atomic_fetch_sub(volatile atomic<T>*, atomic<T>::difference_type) noexcept;
 //
-// template <class Integral>
-//     Integral
-//     atomic_fetch_sub(atomic<Integral>* obj, Integral op);
-//
-// template <class T>
-//     T*
-//     atomic_fetch_sub(volatile atomic<T*>* obj, ptrdiff_t op);
-//
-// template <class T>
-//     T*
-//     atomic_fetch_sub(atomic<T*>* obj, ptrdiff_t op);
+// template<class T>
+//     T
+//     atomic_fetch_sub(atomic<T>*, atomic<T>::difference_type) noexcept;
 
 #include <atomic>
 #include <type_traits>

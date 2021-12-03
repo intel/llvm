@@ -20,49 +20,6 @@
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
-// OperationName
-//===----------------------------------------------------------------------===//
-
-/// Form the OperationName for an op with the specified string.  This either is
-/// a reference to an AbstractOperation if one is known, or a uniqued Identifier
-/// if not.
-OperationName::OperationName(StringRef name, MLIRContext *context) {
-  if (auto *op = AbstractOperation::lookup(name, context))
-    representation = op;
-  else
-    representation = Identifier::get(name, context);
-}
-
-/// Return the name of the dialect this operation is registered to.
-StringRef OperationName::getDialectNamespace() const {
-  if (Dialect *dialect = getDialect())
-    return dialect->getNamespace();
-  return getStringRef().split('.').first;
-}
-
-/// Return the operation name with dialect name stripped, if it has one.
-StringRef OperationName::stripDialect() const {
-  return getStringRef().split('.').second;
-}
-
-/// Return the name of this operation. This always succeeds.
-StringRef OperationName::getStringRef() const {
-  return getIdentifier().strref();
-}
-
-/// Return the name of this operation as an identifier. This always succeeds.
-Identifier OperationName::getIdentifier() const {
-  if (auto *op = representation.dyn_cast<const AbstractOperation *>())
-    return op->name;
-  return representation.get<Identifier>();
-}
-
-OperationName OperationName::getFromOpaquePointer(const void *pointer) {
-  return OperationName(
-      RepresentationUnion::getFromOpaqueValue(const_cast<void *>(pointer)));
-}
-
-//===----------------------------------------------------------------------===//
 // Operation
 //===----------------------------------------------------------------------===//
 
@@ -115,19 +72,15 @@ Operation *Operation::create(Location location, OperationName name,
 
   // If the operation is known to have no operands, don't allocate an operand
   // storage.
-  bool needsOperandStorage = true;
-  if (operands.empty()) {
-    if (const AbstractOperation *abstractOp = name.getAbstractOperation())
-      needsOperandStorage = !abstractOp->hasTrait<OpTrait::ZeroOperands>();
-  }
+  bool needsOperandStorage =
+      operands.empty() ? !name.hasTrait<OpTrait::ZeroOperands>() : true;
 
   // Compute the byte size for the operation and the operand storage. This takes
   // into account the size of the operation, its trailing objects, and its
   // prefixed objects.
   size_t byteSize =
-      totalSizeToAlloc<BlockOperand, Region, detail::OperandStorage>(
-          numSuccessors, numRegions, needsOperandStorage ? 1 : 0) +
-      detail::OperandStorage::additionalAllocSize(numOperands);
+      totalSizeToAlloc<detail::OperandStorage, BlockOperand, Region, OpOperand>(
+          needsOperandStorage ? 1 : 0, numSuccessors, numRegions, numOperands);
   size_t prefixByteSize = llvm::alignTo(
       Operation::prefixAllocSize(numTrailingResults, numInlineResults),
       alignof(Operation));
@@ -156,8 +109,10 @@ Operation *Operation::create(Location location, OperationName name,
     new (&op->getRegion(i)) Region(op);
 
   // Initialize the operands.
-  if (needsOperandStorage)
-    new (&op->getOperandStorage()) detail::OperandStorage(op, operands);
+  if (needsOperandStorage) {
+    new (&op->getOperandStorage()) detail::OperandStorage(
+        op, op->getTrailingObjects<OpOperand>(), operands);
+  }
 
   // Initialize the successors.
   auto blockOperands = op->getBlockOperands();
@@ -180,7 +135,7 @@ Operation::Operation(Location location, OperationName name, unsigned numResults,
         name.getStringRef() +
         " created with unregistered dialect. If this is intended, please call "
         "allowUnregisteredDialects() on the MLIRContext, or use "
-        "-allow-unregistered-dialect with the MLIR opt tool used");
+        "-allow-unregistered-dialect with the MLIR tool used.");
 #endif
 }
 
@@ -276,17 +231,9 @@ void Operation::insertOperands(unsigned index, ValueRange operands) {
 InFlightDiagnostic Operation::emitError(const Twine &message) {
   InFlightDiagnostic diag = mlir::emitError(getLoc(), message);
   if (getContext()->shouldPrintOpOnDiagnostic()) {
-    // Print out the operation explicitly here so that we can print the generic
-    // form.
-    // TODO: It would be nice if we could instead provide the
-    // specific printing flags when adding the operation as an argument to the
-    // diagnostic.
-    std::string printedOp;
-    {
-      llvm::raw_string_ostream os(printedOp);
-      print(os, OpPrintingFlags().printGenericOpForm().useLocalScope());
-    }
-    diag.attachNote(getLoc()) << "see current operation: " << printedOp;
+    diag.attachNote(getLoc())
+        .append("see current operation: ")
+        .appendOp(*this, OpPrintingFlags().printGenericOpForm());
   }
   return diag;
 }
@@ -513,7 +460,7 @@ void Operation::moveAfter(Operation *existingOp) {
 void Operation::moveAfter(Block *block,
                           llvm::iplist<Operation>::iterator iterator) {
   assert(iterator != block->end() && "cannot move after end of block");
-  moveBefore(&*std::next(iterator));
+  moveBefore(block, std::next(iterator));
 }
 
 /// This drops all operand uses from this operation, which is an essential
@@ -550,8 +497,8 @@ LogicalResult Operation::fold(ArrayRef<Attribute> operands,
                               SmallVectorImpl<OpFoldResult> &results) {
   // If we have a registered operation definition matching this one, use it to
   // try to constant fold the operation.
-  auto *abstractOp = getAbstractOperation();
-  if (abstractOp && succeeded(abstractOp->foldHook(this, operands, results)))
+  Optional<RegisteredOperationName> info = getRegisteredInfo();
+  if (info && succeeded(info->foldHook(this, operands, results)))
     return success();
 
   // Otherwise, fall back on the dialect hook to handle it.
@@ -682,9 +629,13 @@ InFlightDiagnostic OpState::emitRemark(const Twine &message) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult OpTrait::impl::foldIdempotent(Operation *op) {
-  auto *argumentOp = op->getOperand(0).getDefiningOp();
-  if (argumentOp && op->getName() == argumentOp->getName()) {
-    // Replace the outer operation output with the inner operation.
+  if (op->getNumOperands() == 1) {
+    auto *argumentOp = op->getOperand(0).getDefiningOp();
+    if (argumentOp && op->getName() == argumentOp->getName()) {
+      // Replace the outer operation output with the inner operation.
+      return op->getOperand(0);
+    }
+  } else if (op->getOperand(0) == op->getOperand(1)) {
     return op->getOperand(0);
   }
 

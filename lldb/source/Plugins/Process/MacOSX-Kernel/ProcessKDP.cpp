@@ -65,7 +65,7 @@ enum {
 class PluginProperties : public Properties {
 public:
   static ConstString GetSettingName() {
-    return ProcessKDP::GetPluginNameStatic();
+    return ConstString(ProcessKDP::GetPluginNameStatic());
   }
 
   PluginProperties() : Properties() {
@@ -91,12 +91,7 @@ static PluginProperties &GetGlobalPluginProperties() {
 
 static const lldb::tid_t g_kernel_tid = 1;
 
-ConstString ProcessKDP::GetPluginNameStatic() {
-  static ConstString g_name("kdp-remote");
-  return g_name;
-}
-
-const char *ProcessKDP::GetPluginDescriptionStatic() {
+llvm::StringRef ProcessKDP::GetPluginDescriptionStatic() {
   return "KDP Remote protocol based debugging plug-in for darwin kernel "
          "debugging.";
 }
@@ -150,8 +145,8 @@ ProcessKDP::ProcessKDP(TargetSP target_sp, ListenerSP listener_sp)
     : Process(target_sp, listener_sp),
       m_comm("lldb.process.kdp-remote.communication"),
       m_async_broadcaster(NULL, "lldb.process.kdp-remote.async-broadcaster"),
-      m_dyld_plugin_name(), m_kernel_load_addr(LLDB_INVALID_ADDRESS),
-      m_command_sp(), m_kernel_thread_wp() {
+      m_kernel_load_addr(LLDB_INVALID_ADDRESS), m_command_sp(),
+      m_kernel_thread_wp() {
   m_async_broadcaster.SetEventName(eBroadcastBitAsyncThreadShouldExit,
                                    "async thread should exit");
   m_async_broadcaster.SetEventName(eBroadcastBitAsyncContinue,
@@ -170,11 +165,6 @@ ProcessKDP::~ProcessKDP() {
   // this class, then Process::~Process() might have problems trying to fully
   // destroy the broadcaster.
   Finalize();
-}
-
-// PluginInterface
-lldb_private::ConstString ProcessKDP::GetPluginName() {
-  return GetPluginNameStatic();
 }
 
 Status ProcessKDP::WillLaunch(Module *module) {
@@ -273,8 +263,7 @@ Status ProcessKDP::DoConnectRemote(llvm::StringRef remote_url) {
             // Select an invalid plugin name for the dynamic loader so one
             // doesn't get used since EFI does its own manual loading via
             // python scripting
-            static ConstString g_none_dynamic_loader("none");
-            m_dyld_plugin_name = g_none_dynamic_loader;
+            m_dyld_plugin_name = "none";
 
             if (kernel_uuid.IsValid()) {
               // If EFI passed in a UUID= try to lookup UUID The slide will not
@@ -403,9 +392,7 @@ addr_t ProcessKDP::GetImageInfoAddress() { return m_kernel_load_addr; }
 
 lldb_private::DynamicLoader *ProcessKDP::GetDynamicLoader() {
   if (m_dyld_up.get() == NULL)
-    m_dyld_up.reset(DynamicLoader::FindPlugin(
-        this,
-        m_dyld_plugin_name.IsEmpty() ? NULL : m_dyld_plugin_name.GetCString()));
+    m_dyld_up.reset(DynamicLoader::FindPlugin(this, m_dyld_plugin_name));
   return m_dyld_up.get();
 }
 

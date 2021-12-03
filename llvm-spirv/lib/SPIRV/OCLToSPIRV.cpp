@@ -834,7 +834,7 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   mutateCallInstSPIRV(
       M, CI,
-      [=](CallInst *CI, std::vector<Value *> &Args) {
+      [=](CallInst *CI, std::vector<Value *> &Args) -> std::string {
         Info.PostProc(Args);
         // Order of args in OCL20:
         // object, 0-2 other args, 1-2 order, scope
@@ -863,7 +863,28 @@ void OCLToSPIRVBase::transAtomicBuiltin(CallInst *CI,
           std::rotate(Args.begin() + 2, Args.begin() + OrderIdx,
                       Args.end() - Offset);
         }
-        return getSPIRVFuncName(OCLSPIRVBuiltinMap::map(Info.UniqName));
+        llvm::Type *AtomicBuiltinsReturnType =
+            CI->getCalledFunction()->getReturnType();
+        auto IsFPType = [](llvm::Type *ReturnType) {
+          return ReturnType->isHalfTy() || ReturnType->isFloatTy() ||
+                 ReturnType->isDoubleTy();
+        };
+        auto SPIRVFunctionName =
+            getSPIRVFuncName(OCLSPIRVBuiltinMap::map(Info.UniqName));
+        if (!IsFPType(AtomicBuiltinsReturnType))
+          return SPIRVFunctionName;
+        // Translate FP-typed atomic builtins. Currently we only need to
+        // translate atomic_fetch_[add, max, min] and atomic_fetch_[add, max,
+        // min]_explicit to related float instructions
+        auto SPIRFunctionNameForFloatAtomics =
+            llvm::StringSwitch<std::string>(SPIRVFunctionName)
+                .Case("__spirv_AtomicIAdd", "__spirv_AtomicFAddEXT")
+                .Case("__spirv_AtomicSMax", "__spirv_AtomicFMaxEXT")
+                .Case("__spirv_AtomicSMin", "__spirv_AtomicFMinEXT")
+                .Default("others");
+        return SPIRFunctionNameForFloatAtomics == "others"
+                   ? SPIRVFunctionName
+                   : SPIRFunctionNameForFloatAtomics;
       },
       &Attrs);
 }

@@ -8,6 +8,7 @@
 
 #include "Preamble.h"
 #include "Compiler.h"
+#include "Config.h"
 #include "Headers.h"
 #include "SourceCode.h"
 #include "support/Logger.h"
@@ -22,6 +23,7 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Frontend/FrontendActions.h"
+#include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
@@ -97,6 +99,7 @@ public:
     CanonIncludes.addSystemHeadersMapping(CI.getLangOpts());
     LangOpts = &CI.getLangOpts();
     SourceMgr = &CI.getSourceManager();
+    Compiler = &CI;
   }
 
   std::unique_ptr<PPCallbacks> createPPCallbacks() override {
@@ -104,7 +107,7 @@ public:
            "SourceMgr and LangOpts must be set at this point");
 
     return std::make_unique<PPChainedCallbacks>(
-        Includes.collect(*SourceMgr),
+        Includes.collect(*Compiler),
         std::make_unique<PPChainedCallbacks>(
             std::make_unique<CollectMainFileMacros>(*SourceMgr, Macros),
             collectPragmaMarksCallback(*SourceMgr, Marks)));
@@ -139,6 +142,7 @@ private:
   std::unique_ptr<CommentHandler> IWYUHandler = nullptr;
   const clang::LangOptions *LangOpts = nullptr;
   const SourceManager *SourceMgr = nullptr;
+  const CompilerInstance *Compiler = nullptr;
 };
 
 // Represents directives other than includes, where basic textual information is
@@ -282,10 +286,9 @@ scanPreamble(llvm::StringRef Contents, const tooling::CompileCommand &Cmd) {
   PreprocessOnlyAction Action;
   if (!Action.BeginSourceFile(*Clang, Clang->getFrontendOpts().Inputs[0]))
     return error("failed BeginSourceFile");
-  const auto &SM = Clang->getSourceManager();
   Preprocessor &PP = Clang->getPreprocessor();
   IncludeStructure Includes;
-  PP.addPPCallbacks(Includes.collect(SM));
+  PP.addPPCallbacks(Includes.collect(*Clang));
   ScannedPreamble SP;
   SP.Bounds = Bounds;
   PP.addPPCallbacks(
@@ -347,20 +350,24 @@ buildPreamble(PathRef FileName, CompilerInvocation CI,
   llvm::IntrusiveRefCntPtr<DiagnosticsEngine> PreambleDiagsEngine =
       CompilerInstance::createDiagnostics(&CI.getDiagnosticOpts(),
                                           &PreambleDiagnostics, false);
-  PreambleDiagnostics.setLevelAdjuster(
-      [&](DiagnosticsEngine::Level DiagLevel, const clang::Diagnostic &Info) {
-        switch (Info.getID()) {
-        case diag::warn_no_newline_eof:
-        case diag::warn_cxx98_compat_no_newline_eof:
-        case diag::ext_no_newline_eof:
-          // If the preamble doesn't span the whole file, drop the no newline at
-          // eof warnings.
-          return Bounds.Size != ContentsBuffer->getBufferSize()
-                     ? DiagnosticsEngine::Level::Ignored
-                     : DiagLevel;
-        }
-        return DiagLevel;
-      });
+  const Config &Cfg = Config::current();
+  PreambleDiagnostics.setLevelAdjuster([&](DiagnosticsEngine::Level DiagLevel,
+                                           const clang::Diagnostic &Info) {
+    if (Cfg.Diagnostics.SuppressAll ||
+        isBuiltinDiagnosticSuppressed(Info.getID(), Cfg.Diagnostics.Suppress))
+      return DiagnosticsEngine::Ignored;
+    switch (Info.getID()) {
+    case diag::warn_no_newline_eof:
+    case diag::warn_cxx98_compat_no_newline_eof:
+    case diag::ext_no_newline_eof:
+      // If the preamble doesn't span the whole file, drop the no newline at
+      // eof warnings.
+      return Bounds.Size != ContentsBuffer->getBufferSize()
+                 ? DiagnosticsEngine::Level::Ignored
+                 : DiagLevel;
+    }
+    return DiagLevel;
+  });
 
   // Skip function bodies when building the preamble to speed up building
   // the preamble and make it smaller.

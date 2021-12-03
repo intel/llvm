@@ -20,6 +20,9 @@ def Arithmetic_Dialect : Dialect {
     ops, bitwise and shift ops, cast ops, and compare ops. Operations in this
     dialect also accept vectors and tensors of integers or floats.
   }];
+
+  let hasConstantMaterializer = 1;
+  let emitAccessorPrefix = kEmitAccessorPrefix_Both;
 }
 
 // The predicate indicates the type of the comparison to perform:

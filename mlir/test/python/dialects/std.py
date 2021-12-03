@@ -1,6 +1,7 @@
 # RUN: %PYTHON %s | FileCheck %s
 
 from mlir.ir import *
+from mlir.dialects import arith
 from mlir.dialects import builtin
 from mlir.dialects import std
 
@@ -14,14 +15,16 @@ def constructAndPrintInModule(f):
     print(module)
   return f
 
+
 # CHECK-LABEL: TEST: testConstantOp
+
 
 @constructAndPrintInModule
 def testConstantOp():
-  c1 = std.ConstantOp(IntegerType.get_signless(32), 42)
-  c2 = std.ConstantOp(IntegerType.get_signless(64), 100)
-  c3 = std.ConstantOp(F32Type.get(), 3.14)
-  c4 = std.ConstantOp(F64Type.get(), 1.23)
+  c1 = arith.ConstantOp(IntegerType.get_signless(32), 42)
+  c2 = arith.ConstantOp(IntegerType.get_signless(64), 100)
+  c3 = arith.ConstantOp(F32Type.get(), 3.14)
+  c4 = arith.ConstantOp(F64Type.get(), 1.23)
   # CHECK: 42
   print(c1.literal_value)
 
@@ -34,18 +37,21 @@ def testConstantOp():
   # CHECK: 1.23
   print(c4.literal_value)
 
-# CHECK: = constant 42 : i32
-# CHECK: = constant 100 : i64
-# CHECK: = constant 3.140000e+00 : f32
-# CHECK: = constant 1.230000e+00 : f64
+
+# CHECK: = arith.constant 42 : i32
+# CHECK: = arith.constant 100 : i64
+# CHECK: = arith.constant 3.140000e+00 : f32
+# CHECK: = arith.constant 1.230000e+00 : f64
+
 
 # CHECK-LABEL: TEST: testVectorConstantOp
 @constructAndPrintInModule
 def testVectorConstantOp():
   int_type = IntegerType.get_signless(32)
   vec_type = VectorType.get([2, 2], int_type)
-  c1 = std.ConstantOp(vec_type,
-                      DenseElementsAttr.get_splat(vec_type, IntegerAttr.get(int_type, 42)))
+  c1 = arith.ConstantOp(
+      vec_type,
+      DenseElementsAttr.get_splat(vec_type, IntegerAttr.get(int_type, 42)))
   try:
     print(c1.literal_value)
   except ValueError as e:
@@ -53,23 +59,30 @@ def testVectorConstantOp():
   else:
     assert False
 
-# CHECK: = constant dense<42> : vector<2x2xi32>
+
+# CHECK: = arith.constant dense<42> : vector<2x2xi32>
+
 
 # CHECK-LABEL: TEST: testConstantIndexOp
 @constructAndPrintInModule
 def testConstantIndexOp():
-  c1 = std.ConstantOp.create_index(10)
+  c1 = arith.ConstantOp.create_index(10)
   # CHECK: 10
   print(c1.literal_value)
 
-# CHECK: = constant 10 : index
+
+# CHECK: = arith.constant 10 : index
+
 
 # CHECK-LABEL: TEST: testFunctionCalls
 @constructAndPrintInModule
 def testFunctionCalls():
   foo = builtin.FuncOp("foo", ([], []))
+  foo.sym_visibility = StringAttr.get("private")
   bar = builtin.FuncOp("bar", ([], [IndexType.get()]))
+  bar.sym_visibility = StringAttr.get("private")
   qux = builtin.FuncOp("qux", ([], [F32Type.get()]))
+  qux.sym_visibility = StringAttr.get("private")
 
   with InsertionPoint(builtin.FuncOp("caller", ([], [])).add_entry_block()):
     std.CallOp(foo, [])
@@ -77,13 +90,13 @@ def testFunctionCalls():
     std.CallOp([F32Type.get()], FlatSymbolRefAttr.get("qux"), [])
     std.ReturnOp([])
 
-# CHECK: func @foo()
-# CHECK: func @bar() -> index
-# CHECK: func @qux() -> f32
+
+# CHECK: func private @foo()
+# CHECK: func private @bar() -> index
+# CHECK: func private @qux() -> f32
 # CHECK: func @caller() {
 # CHECK:   call @foo() : () -> ()
 # CHECK:   %0 = call @bar() : () -> index
 # CHECK:   %1 = call @qux() : () -> f32
 # CHECK:   return
 # CHECK: }
-

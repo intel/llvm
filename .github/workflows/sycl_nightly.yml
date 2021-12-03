@@ -1,0 +1,55 @@
+name: SYCL Nightly Builds
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * *'
+
+jobs:
+  ubuntu2004_build_test:
+    if: github.repository == 'intel/llvm'
+    uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
+    with:
+      build_github_cache: true
+      build_cache_root: ${{ github.workspace }}
+      build_artifact_suffix: default
+  ubuntu2004_docker_build_push:
+    if: github.repository == 'intel/llvm'
+    runs-on: ubuntu-latest
+    needs: ubuntu2004_build_test
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/download-artifact@v2
+      with:
+        name: sycl_nightly_ubuntu2004
+        path: devops/
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build and Push Container (with drivers)
+      uses: docker/build-push-action@v2
+      with:
+        push: true
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2004_intel_drivers
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:latest
+        context: ${{ github.workspace }}/devops
+        file: ${{ github.workspace }}/devops/containers/ubuntu2004_preinstalled.Dockerfile
+    - name: Build and Push Container (no drivers)
+      uses: docker/build-push-action@v2
+      with:
+        push: true
+        build-args: |
+          base_image=ghcr.io/intel/llvm/ubuntu2004_base
+          base_tag=latest
+        tags: |
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers-${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2004_nightly:no-drivers
+        context: ${{ github.workspace }}/devops
+        file: ${{ github.workspace }}/devops/containers/ubuntu2004_preinstalled.Dockerfile

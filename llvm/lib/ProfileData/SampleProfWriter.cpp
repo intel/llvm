@@ -240,7 +240,7 @@ std::error_code SampleProfileWriterExtBinaryBase::writeNameTableSection(
   // so compiler won't strip the suffix during profile matching after
   // seeing the flag in the profile.
   for (const auto &I : NameTable) {
-    if (I.first.find(FunctionSamples::UniqSuffix) != StringRef::npos) {
+    if (I.first.contains(FunctionSamples::UniqSuffix)) {
       addSectionFlag(SecNameTable, SecNameTableFlags::SecFlagUniqSuffix);
       break;
     }
@@ -734,7 +734,8 @@ std::error_code SampleProfileWriterBinary::writeSummary() {
   encodeULEB128(Summary->getMaxFunctionCount(), OS);
   encodeULEB128(Summary->getNumCounts(), OS);
   encodeULEB128(Summary->getNumFunctions(), OS);
-  std::vector<ProfileSummaryEntry> &Entries = Summary->getDetailedSummary();
+  const std::vector<ProfileSummaryEntry> &Entries =
+      Summary->getDetailedSummary();
   encodeULEB128(Entries.size(), OS);
   for (auto Entry : Entries) {
     encodeULEB128(Entry.Cutoff, OS);

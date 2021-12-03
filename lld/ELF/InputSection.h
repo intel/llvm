@@ -33,6 +33,13 @@ class OutputSection;
 
 extern std::vector<Partition> partitions;
 
+// Returned by InputSectionBase::relsOrRelas. At least one member is empty.
+template <class ELFT> struct RelsOrRelas {
+  ArrayRef<typename ELFT::Rel> rels;
+  ArrayRef<typename ELFT::Rela> relas;
+  bool areRelocsRel() const { return rels.size(); }
+};
+
 // This is the base class of all sections that lld handles. Some are sections in
 // input files, some are sections in the produced output file and some exist
 // just as a convenience for implementing special ways of combining some
@@ -71,7 +78,7 @@ public:
   // These corresponds to the fields in Elf_Shdr.
   uint32_t alignment;
   uint64_t flags;
-  uint64_t entsize;
+  uint32_t entsize;
   uint32_t type;
   uint32_t link;
   uint32_t info;
@@ -92,9 +99,9 @@ public:
   void markDead() { partition = 0; }
 
 protected:
-  SectionBase(Kind sectionKind, StringRef name, uint64_t flags,
-              uint64_t entsize, uint64_t alignment, uint32_t type,
-              uint32_t info, uint32_t link)
+  constexpr SectionBase(Kind sectionKind, StringRef name, uint64_t flags,
+                        uint32_t entsize, uint32_t alignment, uint32_t type,
+                        uint32_t info, uint32_t link)
       : name(name), repl(this), sectionKind(sectionKind), bss(false),
         keepUnique(false), partition(0), alignment(alignment), flags(flags),
         entsize(entsize), type(type), link(link), info(info) {}
@@ -114,15 +121,13 @@ public:
 
   static bool classof(const SectionBase *s) { return s->kind() != Output; }
 
-  // Relocations that refer to this section.
-  unsigned numRelocations : 31;
-  unsigned areRelocsRela : 1;
-  const void *firstRelocation = nullptr;
-
   // The file which contains this section. Its dynamic type is always
   // ObjFile<ELFT>, but in order to avoid ELFT, we use InputFile as
   // its static type.
   InputFile *file;
+
+  // Section index of the relocation section if exists.
+  uint32_t relSecIdx = 0;
 
   template <class ELFT> ObjFile<ELFT> *getFile() const {
     return cast_or_null<ObjFile<ELFT>>(file);
@@ -170,19 +175,7 @@ public:
   // used by --gc-sections.
   InputSectionBase *nextInSectionGroup = nullptr;
 
-  template <class ELFT> ArrayRef<typename ELFT::Rel> rels() const {
-    assert(!areRelocsRela);
-    return llvm::makeArrayRef(
-        static_cast<const typename ELFT::Rel *>(firstRelocation),
-        numRelocations);
-  }
-
-  template <class ELFT> ArrayRef<typename ELFT::Rela> relas() const {
-    assert(areRelocsRela);
-    return llvm::makeArrayRef(
-        static_cast<const typename ELFT::Rela *>(firstRelocation),
-        numRelocations);
-  }
+  template <class ELFT> RelsOrRelas<ELFT> relsOrRelas() const;
 
   // InputSections that are dependent on us (reverse dependency for GC)
   llvm::TinyPtrVector<InputSection *> dependentSections;
@@ -359,8 +352,6 @@ public:
   // beginning of the output section.
   template <class ELFT> void writeTo(uint8_t *buf);
 
-  uint64_t getOffset(uint64_t offset) const { return outSecOff + offset; }
-
   OutputSection *getParent() const;
 
   // This variable has two usages. Initially, it represents an index in the
@@ -392,9 +383,9 @@ private:
 };
 
 #ifdef _WIN32
-static_assert(sizeof(InputSection) <= 192, "InputSection is too big");
-#else
 static_assert(sizeof(InputSection) <= 184, "InputSection is too big");
+#else
+static_assert(sizeof(InputSection) <= 176, "InputSection is too big");
 #endif
 
 inline bool isDebugSection(const InputSectionBase &sec) {

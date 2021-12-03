@@ -958,6 +958,9 @@ def err_duplicate_class_virt_specifier : Error<
 def err_duplicate_virt_specifier : Error<
   "class member already marked '%0'">;
 
+def err_virt_specifier_outside_class : Error<
+  "'%0' specifier is not allowed outside a class definition">;
+
 def err_expected_parameter_pack : Error<
   "expected the name of a parameter pack">;
 def err_paren_sizeof_parameter_pack : Error<
@@ -1356,8 +1359,11 @@ def err_omp_mapper_illegal_identifier : Error<
   "illegal OpenMP user-defined mapper identifier">;
 def err_omp_mapper_expected_declarator : Error<
   "expected declarator on 'omp declare mapper' directive">;
+def err_omp_unexpected_append_op : Error<
+  "unexpected operation specified in 'append_args' clause, expected 'interop'">;
 def err_omp_declare_variant_wrong_clause : Error<
-  "expected '%0' clause on 'omp declare variant' directive">;
+  "expected %select{'match'|'match', 'adjust_args', or 'append_args'}0 clause "
+  "on 'omp declare variant' directive">;
 def err_omp_declare_variant_duplicate_nested_trait : Error<
   "nested OpenMP context selector contains duplicated trait '%0'"
   " in selector '%1' and set '%2' with different score">;
@@ -1489,7 +1495,7 @@ def warn_pragma_unroll_cuda_value_in_parens : Warning<
   InGroup<CudaCompat>;
 
 def warn_cuda_attr_lambda_position : Warning<
-  "nvcc does not allow '__%0__' to appear after '()' in lambdas">,
+  "nvcc does not allow '__%0__' to appear after the parameter list in lambdas">,
   InGroup<CudaCompat>;
 def warn_pragma_force_cuda_host_device_bad_arg : Warning<
   "incorrect use of #pragma clang force_cuda_host_device begin|end">,
@@ -1542,6 +1548,9 @@ def note_meant_to_use_typename : Note<
 let CategoryName = "Coroutines Issue" in {
 def err_for_co_await_not_range_for : Error<
   "'co_await' modifier can only be applied to range-based for loop">;
+def warn_deprecated_for_co_await : Warning<
+  "'for co_await' belongs to CoroutineTS instead of C++20, which is deprecated">,
+  InGroup<DeprecatedCoroutine>;
 }
 
 let CategoryName = "Concepts Issue" in {

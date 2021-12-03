@@ -8,7 +8,6 @@
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
-// UNSUPPORTED: clang-11
 // TODO FMT Evaluate gcc-11 status
 // UNSUPPORTED: gcc-11
 // UNSUPPORTED: apple-clang-12
@@ -114,7 +113,9 @@ void test_array() {
 
 int main(int, char**) {
   test_array<char>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test_array<wchar_t>();
+#endif
 
   return 0;
 }

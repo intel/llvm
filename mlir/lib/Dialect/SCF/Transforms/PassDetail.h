@@ -18,6 +18,14 @@ void registerDialect(DialectRegistry &registry);
 
 class AffineDialect;
 
+namespace arith {
+class ArithmeticDialect;
+} // end namespace arith
+
+namespace bufferization {
+class BufferizationDialect;
+} // end namespace bufferization
+
 namespace memref {
 class MemRefDialect;
 } // end namespace memref

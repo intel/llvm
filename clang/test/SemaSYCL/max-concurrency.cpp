@@ -72,7 +72,7 @@ public:
   }
 };
 
-// expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char [16]'}}
+// expected-error@+1 {{integral constant expression must have integral or unscoped enumeration type, not 'const char[16]'}}
 [[intel::max_concurrency("numberofthreads")]] void zoo() {}
 
 template <int NT>

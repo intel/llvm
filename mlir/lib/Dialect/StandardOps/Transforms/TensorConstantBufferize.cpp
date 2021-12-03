@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements bufferization of tensor-valued std.constant ops.
+// This file implements bufferization of tensor-valued arith.constant ops.
 //
 //===----------------------------------------------------------------------===//
 
 #include "PassDetail.h"
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
@@ -21,7 +22,7 @@
 
 using namespace mlir;
 
-memref::GlobalOp GlobalCreator::getGlobalFor(ConstantOp constantOp) {
+memref::GlobalOp GlobalCreator::getGlobalFor(arith::ConstantOp constantOp) {
   auto type = constantOp.getType().cast<RankedTensorType>();
 
   BufferizeTypeConverter typeConverter;
@@ -64,15 +65,17 @@ memref::GlobalOp GlobalCreator::getGlobalFor(ConstantOp constantOp) {
 }
 
 namespace {
-class BufferizeTensorConstantOp : public OpConversionPattern<ConstantOp> {
+class BufferizeTensorConstantOp
+    : public OpConversionPattern<arith::ConstantOp> {
 public:
   BufferizeTensorConstantOp(GlobalCreator &globals,
                             TypeConverter &typeConverter, MLIRContext *context)
-      : OpConversionPattern<ConstantOp>(typeConverter, context, /*benefit=*/1),
+      : OpConversionPattern<arith::ConstantOp>(typeConverter, context,
+                                               /*benefit=*/1),
         globals(globals) {}
 
   LogicalResult
-  matchAndRewrite(ConstantOp op, OpAdaptor adaptor,
+  matchAndRewrite(arith::ConstantOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto type = op.getType().dyn_cast<RankedTensorType>();
     if (!type)
@@ -114,8 +117,9 @@ public:
 
     target.addLegalDialect<memref::MemRefDialect>();
     populateTensorConstantBufferizePatterns(globals, typeConverter, patterns);
-    target.addDynamicallyLegalOp<ConstantOp>(
-        [&](ConstantOp op) { return typeConverter.isLegal(op.getType()); });
+    target.addDynamicallyLegalOp<arith::ConstantOp>([&](arith::ConstantOp op) {
+      return typeConverter.isLegal(op.getType());
+    });
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
   }

@@ -117,7 +117,7 @@ BUILTIN(__builtin_ppc_maddhd, "LLiLLiLLiLLi", "")
 BUILTIN(__builtin_ppc_maddhdu, "ULLiULLiULLiULLi", "")
 BUILTIN(__builtin_ppc_maddld, "LLiLLiLLiLLi", "")
 // Rotate
-BUILTIN(__builtin_ppc_rlwnm, "UiUiIUiIUi", "")
+BUILTIN(__builtin_ppc_rlwnm, "UiUiUiIUi", "")
 BUILTIN(__builtin_ppc_rlwimi, "UiUiUiIUiIUi", "")
 BUILTIN(__builtin_ppc_rldimi, "ULLiULLiULLiIUiIULLi", "")
 // load
@@ -423,6 +423,12 @@ BUILTIN(__builtin_altivec_vctzb, "V16UcV16Uc", "")
 BUILTIN(__builtin_altivec_vctzh, "V8UsV8Us", "")
 BUILTIN(__builtin_altivec_vctzw, "V4UiV4Ui", "")
 BUILTIN(__builtin_altivec_vctzd, "V2ULLiV2ULLi", "")
+
+// P8 BCD builtins.
+BUILTIN(__builtin_ppc_bcdadd, "V16UcV16UcV16UcIi", "")
+BUILTIN(__builtin_ppc_bcdsub, "V16UcV16UcV16UcIi", "")
+BUILTIN(__builtin_ppc_bcdadd_p, "iiV16UcV16Uc", "")
+BUILTIN(__builtin_ppc_bcdsub_p, "iiV16UcV16Uc", "")
 
 BUILTIN(__builtin_altivec_vclzlsbb, "SiV16Uc", "")
 BUILTIN(__builtin_altivec_vctzlsbb, "SiV16Uc", "")
@@ -779,6 +785,10 @@ BUILTIN(__builtin_pextd, "ULLiULLiULLi", "")
 BUILTIN(__builtin_cfuged, "ULLiULLiULLi", "")
 BUILTIN(__builtin_cntlzdm, "ULLiULLiULLi", "")
 BUILTIN(__builtin_cnttzdm, "ULLiULLiULLi", "")
+
+// Double-double (un)pack
+BUILTIN(__builtin_unpack_longdouble, "dLdIi", "")
+BUILTIN(__builtin_pack_longdouble, "Lddd", "")
 
 // Generate random number
 BUILTIN(__builtin_darn, "LLi", "")

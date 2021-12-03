@@ -556,7 +556,8 @@ static Module *getTopImportImplicitModule(ModuleManager &ModuleMgr,
   StringRef ModuleName = TopImport->ModuleName;
   assert(!ModuleName.empty() && "diagnostic options read before module name");
 
-  Module *M = PP.getHeaderSearchInfo().lookupModule(ModuleName);
+  Module *M =
+      PP.getHeaderSearchInfo().lookupModule(ModuleName, TopImport->ImportLoc);
   assert(M && "missing module");
   return M;
 }
@@ -727,8 +728,7 @@ static bool checkPreprocessorOptions(const PreprocessorOptions &PPOpts,
     if (File == ExistingPPOpts.ImplicitPCHInclude)
       continue;
 
-    if (std::find(PPOpts.Includes.begin(), PPOpts.Includes.end(), File)
-          != PPOpts.Includes.end())
+    if (llvm::is_contained(PPOpts.Includes, File))
       continue;
 
     SuggestedPredefines += "#include \"";
@@ -738,9 +738,7 @@ static bool checkPreprocessorOptions(const PreprocessorOptions &PPOpts,
 
   for (unsigned I = 0, N = ExistingPPOpts.MacroIncludes.size(); I != N; ++I) {
     StringRef File = ExistingPPOpts.MacroIncludes[I];
-    if (std::find(PPOpts.MacroIncludes.begin(), PPOpts.MacroIncludes.end(),
-                  File)
-        != PPOpts.MacroIncludes.end())
+    if (llvm::is_contained(PPOpts.MacroIncludes, File))
       continue;
 
     SuggestedPredefines += "#__include_macros \"";
@@ -2923,7 +2921,7 @@ ASTReader::ReadControlBlock(ModuleFile &F,
       // If we've already loaded a module map file covering this module, we may
       // have a better path for it (relative to the current build).
       Module *M = PP.getHeaderSearchInfo().lookupModule(
-          F.ModuleName, /*AllowSearch*/ true,
+          F.ModuleName, SourceLocation(), /*AllowSearch*/ true,
           /*AllowExtraModuleMapSearch*/ true);
       if (M && M->Directory) {
         // If we're implicitly loading a module, the base directory can't
@@ -3909,7 +3907,8 @@ ASTReader::ReadModuleMapFileBlock(RecordData &Record, ModuleFile &F,
   if (F.Kind == MK_ImplicitModule && ModuleMgr.begin()->Kind != MK_MainFile) {
     // An implicitly-loaded module file should have its module listed in some
     // module map file that we've already loaded.
-    Module *M = PP.getHeaderSearchInfo().lookupModule(F.ModuleName);
+    Module *M =
+        PP.getHeaderSearchInfo().lookupModule(F.ModuleName, F.ImportLoc);
     auto &Map = PP.getHeaderSearchInfo().getModuleMap();
     const FileEntry *ModMap = M ? Map.getModuleMapFileForUniquing(M) : nullptr;
     // Don't emit module relocation error if we have -fno-validate-pch
@@ -4724,7 +4723,9 @@ ASTReader::ASTReadResult ASTReader::readUnhashedControlBlockImpl(
 
     // Read and process a record.
     Record.clear();
-    Expected<unsigned> MaybeRecordType = Stream.readRecord(Entry.ID, Record);
+    StringRef Blob;
+    Expected<unsigned> MaybeRecordType =
+        Stream.readRecord(Entry.ID, Record, &Blob);
     if (!MaybeRecordType) {
       // FIXME this drops the error.
       return Failure;
@@ -4755,6 +4756,17 @@ ASTReader::ASTReadResult ASTReader::readUnhashedControlBlockImpl(
       else
         F->PragmaDiagMappings.insert(F->PragmaDiagMappings.end(),
                                      Record.begin(), Record.end());
+      break;
+    case HEADER_SEARCH_ENTRY_USAGE:
+      if (!F)
+        break;
+      unsigned Count = Record[0];
+      const char *Byte = Blob.data();
+      F->SearchPathUsage = llvm::BitVector(Count, 0);
+      for (unsigned I = 0; I < Count; ++Byte)
+        for (unsigned Bit = 0; Bit < 8 && I < Count; ++Bit, ++I)
+          if (*Byte & (1 << Bit))
+            F->SearchPathUsage[I] = 1;
       break;
     }
   }
@@ -7696,24 +7708,17 @@ void ASTReader::StartTranslationUnit(ASTConsumer *Consumer) {
 void ASTReader::PrintStats() {
   std::fprintf(stderr, "*** AST File Statistics:\n");
 
-  unsigned NumTypesLoaded
-    = TypesLoaded.size() - std::count(TypesLoaded.begin(), TypesLoaded.end(),
-                                      QualType());
-  unsigned NumDeclsLoaded
-    = DeclsLoaded.size() - std::count(DeclsLoaded.begin(), DeclsLoaded.end(),
-                                      (Decl *)nullptr);
-  unsigned NumIdentifiersLoaded
-    = IdentifiersLoaded.size() - std::count(IdentifiersLoaded.begin(),
-                                            IdentifiersLoaded.end(),
-                                            (IdentifierInfo *)nullptr);
-  unsigned NumMacrosLoaded
-    = MacrosLoaded.size() - std::count(MacrosLoaded.begin(),
-                                       MacrosLoaded.end(),
-                                       (MacroInfo *)nullptr);
-  unsigned NumSelectorsLoaded
-    = SelectorsLoaded.size() - std::count(SelectorsLoaded.begin(),
-                                          SelectorsLoaded.end(),
-                                          Selector());
+  unsigned NumTypesLoaded =
+      TypesLoaded.size() - llvm::count(TypesLoaded, QualType());
+  unsigned NumDeclsLoaded =
+      DeclsLoaded.size() - llvm::count(DeclsLoaded, (Decl *)nullptr);
+  unsigned NumIdentifiersLoaded =
+      IdentifiersLoaded.size() -
+      llvm::count(IdentifiersLoaded, (IdentifierInfo *)nullptr);
+  unsigned NumMacrosLoaded =
+      MacrosLoaded.size() - llvm::count(MacrosLoaded, (MacroInfo *)nullptr);
+  unsigned NumSelectorsLoaded =
+      SelectorsLoaded.size() - llvm::count(SelectorsLoaded, Selector());
 
   if (unsigned TotalNumSLocEntries = getTotalNumSLocs())
     std::fprintf(stderr, "  %u/%u source location entries read (%f%%)\n",
@@ -8153,13 +8158,16 @@ namespace serialization {
       if (Reader.DeserializationListener)
         Reader.DeserializationListener->SelectorRead(Data.ID, Sel);
 
-      InstanceMethods.append(Data.Instance.begin(), Data.Instance.end());
-      FactoryMethods.append(Data.Factory.begin(), Data.Factory.end());
+      // Append methods in the reverse order, so that later we can process them
+      // in the order they appear in the source code by iterating through
+      // the vector in the reverse order.
+      InstanceMethods.append(Data.Instance.rbegin(), Data.Instance.rend());
+      FactoryMethods.append(Data.Factory.rbegin(), Data.Factory.rend());
       InstanceBits = Data.InstanceBits;
       FactoryBits = Data.FactoryBits;
       InstanceHasMoreThanOneDecl = Data.InstanceHasMoreThanOneDecl;
       FactoryHasMoreThanOneDecl = Data.FactoryHasMoreThanOneDecl;
-      return true;
+      return false;
     }
 
     /// Retrieve the instance methods found by this visitor.
@@ -8188,9 +8196,8 @@ namespace serialization {
 /// Add the given set of methods to the method list.
 static void addMethodsToPool(Sema &S, ArrayRef<ObjCMethodDecl *> Methods,
                              ObjCMethodList &List) {
-  for (unsigned I = 0, N = Methods.size(); I != N; ++I) {
-    S.addMethodToGlobalList(&List, Methods[I]);
-  }
+  for (auto I = Methods.rbegin(), E = Methods.rend(); I != E; ++I)
+    S.addMethodToGlobalList(&List, *I);
 }
 
 void ASTReader::ReadMethodPool(Selector Sel) {
@@ -11971,6 +11978,12 @@ OMPClause *OMPClauseReader::readClause() {
   case llvm::omp::OMPC_filter:
     C = new (Context) OMPFilterClause();
     break;
+  case llvm::omp::OMPC_bind:
+    C = OMPBindClause::CreateEmpty(Context);
+    break;
+  case llvm::omp::OMPC_align:
+    C = new (Context) OMPAlignClause();
+    break;
 #define OMP_CLAUSE_NO_CLASS(Enum, Str)                                         \
   case llvm::omp::Enum:                                                        \
     break;
@@ -12952,6 +12965,17 @@ void OMPClauseReader::VisitOMPOrderClause(OMPOrderClause *C) {
 void OMPClauseReader::VisitOMPFilterClause(OMPFilterClause *C) {
   VisitOMPClauseWithPreInit(C);
   C->setThreadID(Record.readSubExpr());
+  C->setLParenLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPBindClause(OMPBindClause *C) {
+  C->setBindKind(Record.readEnum<OpenMPBindClauseKind>());
+  C->setLParenLoc(Record.readSourceLocation());
+  C->setBindKindLoc(Record.readSourceLocation());
+}
+
+void OMPClauseReader::VisitOMPAlignClause(OMPAlignClause *C) {
+  C->setAlignment(Record.readExpr());
   C->setLParenLoc(Record.readSourceLocation());
 }
 

@@ -596,7 +596,7 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(std::string("-implib:") + ImplibName));
   }
 
-  if (TC.getSanitizerArgs().needsFuzzer()) {
+  if (TC.getSanitizerArgs(Args).needsFuzzer()) {
     if (!Args.hasArg(options::OPT_shared))
       CmdArgs.push_back(
           Args.MakeArgString(std::string("-wholearchive:") +
@@ -607,10 +607,10 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString("-incremental:no"));
   }
 
-  if (TC.getSanitizerArgs().needsAsanRt()) {
+  if (TC.getSanitizerArgs(Args).needsAsanRt()) {
     CmdArgs.push_back(Args.MakeArgString("-debug"));
     CmdArgs.push_back(Args.MakeArgString("-incremental:no"));
-    if (TC.getSanitizerArgs().needsSharedRt() ||
+    if (TC.getSanitizerArgs(Args).needsSharedRt() ||
         Args.hasArg(options::OPT__SLASH_MD, options::OPT__SLASH_MDd)) {
       for (const auto &Lib : {"asan_dynamic", "asan_dynamic_runtime_thunk"})
         CmdArgs.push_back(TC.getCompilerRTArgString(Args, Lib));
@@ -876,15 +876,17 @@ bool MSVCToolChain::IsUnwindTablesDefault(const ArgList &Args) const {
 }
 
 bool MSVCToolChain::isPICDefault() const {
-  return getArch() == llvm::Triple::x86_64;
+  return getArch() == llvm::Triple::x86_64 ||
+         getArch() == llvm::Triple::aarch64;
 }
 
-bool MSVCToolChain::isPIEDefault() const {
+bool MSVCToolChain::isPIEDefault(const llvm::opt::ArgList &Args) const {
   return false;
 }
 
 bool MSVCToolChain::isPICDefaultForced() const {
-  return getArch() == llvm::Triple::x86_64;
+  return getArch() == llvm::Triple::x86_64 ||
+         getArch() == llvm::Triple::aarch64;
 }
 
 void MSVCToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,

@@ -276,6 +276,17 @@ public:
     return failure();
   }
 
+  /// Parse an optional keyword or string and set instance into 'result'.`
+  ParseResult parseOptionalKeywordOrString(std::string *result) override {
+    StringRef keyword;
+    if (succeeded(parseOptionalKeyword(&keyword))) {
+      *result = keyword.str();
+      return success();
+    }
+
+    return parseOptionalString(result);
+  }
+
   /// Parse a floating point value from the stream.
   ParseResult parseFloat(double &result) override {
     bool isNegative = parser.consumeIf(Token::minus);
@@ -332,31 +343,17 @@ public:
     return success(static_cast<bool>(result));
   }
 
-  /// Parse an optional attribute.
-  template <typename AttrT>
-  OptionalParseResult
-  parseOptionalAttributeAndAddToList(AttrT &result, Type type,
-                                     StringRef attrName, NamedAttrList &attrs) {
-    OptionalParseResult parseResult =
-        parser.parseOptionalAttribute(result, type);
-    if (parseResult.hasValue() && succeeded(*parseResult))
-      attrs.push_back(parser.builder.getNamedAttr(attrName, result));
-    return parseResult;
+  OptionalParseResult parseOptionalAttribute(Attribute &result,
+                                             Type type) override {
+    return parser.parseOptionalAttribute(result, type);
   }
-  OptionalParseResult parseOptionalAttribute(Attribute &result, Type type,
-                                             StringRef attrName,
-                                             NamedAttrList &attrs) override {
-    return parseOptionalAttributeAndAddToList(result, type, attrName, attrs);
+  OptionalParseResult parseOptionalAttribute(ArrayAttr &result,
+                                             Type type) override {
+    return parser.parseOptionalAttribute(result, type);
   }
-  OptionalParseResult parseOptionalAttribute(ArrayAttr &result, Type type,
-                                             StringRef attrName,
-                                             NamedAttrList &attrs) override {
-    return parseOptionalAttributeAndAddToList(result, type, attrName, attrs);
-  }
-  OptionalParseResult parseOptionalAttribute(StringAttr &result, Type type,
-                                             StringRef attrName,
-                                             NamedAttrList &attrs) override {
-    return parseOptionalAttributeAndAddToList(result, type, attrName, attrs);
+  OptionalParseResult parseOptionalAttribute(StringAttr &result,
+                                             Type type) override {
+    return parser.parseOptionalAttribute(result, type);
   }
 
   /// Parse a named dictionary into 'result' if it is present.

@@ -2502,32 +2502,19 @@ bool IRTranslator::translateInvoke(const User &U,
   if (!isa<LandingPadInst>(EHPadBB->getFirstNonPHI()))
     return false;
 
-  bool LowerInlineAsm = false;
-  if (I.isInlineAsm()) {
-    const InlineAsm *IA = cast<InlineAsm>(I.getCalledOperand());
-    if (!IA->canThrow()) {
-      // Fast path without emitting EH_LABELs.
-
-      if (!translateInlineAsm(I, MIRBuilder))
-        return false;
-
-      MachineBasicBlock *InvokeMBB = &MIRBuilder.getMBB(),
-                        *ReturnMBB = &getMBB(*ReturnBB);
-
-      // Update successor info.
-      addSuccessorWithProb(InvokeMBB, ReturnMBB, BranchProbability::getOne());
-
-      MIRBuilder.buildBr(*ReturnMBB);
-      return true;
-    } else {
-      LowerInlineAsm = true;
-    }
-  }
+  bool LowerInlineAsm = I.isInlineAsm();
+  bool NeedEHLabel = true;
+  // If it can't throw then use a fast-path without emitting EH labels.
+  if (LowerInlineAsm)
+    NeedEHLabel = (cast<InlineAsm>(I.getCalledOperand()))->canThrow();
 
   // Emit the actual call, bracketed by EH_LABELs so that the MF knows about
   // the region covered by the try.
-  MCSymbol *BeginSymbol = Context.createTempSymbol();
-  MIRBuilder.buildInstr(TargetOpcode::EH_LABEL).addSym(BeginSymbol);
+  MCSymbol *BeginSymbol = nullptr;
+  if (NeedEHLabel) {
+    BeginSymbol = Context.createTempSymbol();
+    MIRBuilder.buildInstr(TargetOpcode::EH_LABEL).addSym(BeginSymbol);
+  }
 
   if (LowerInlineAsm) {
     if (!translateInlineAsm(I, MIRBuilder))
@@ -2535,8 +2522,11 @@ bool IRTranslator::translateInvoke(const User &U,
   } else if (!translateCallBase(I, MIRBuilder))
     return false;
 
-  MCSymbol *EndSymbol = Context.createTempSymbol();
-  MIRBuilder.buildInstr(TargetOpcode::EH_LABEL).addSym(EndSymbol);
+  MCSymbol *EndSymbol = nullptr;
+  if (NeedEHLabel) {
+    EndSymbol = Context.createTempSymbol();
+    MIRBuilder.buildInstr(TargetOpcode::EH_LABEL).addSym(EndSymbol);
+  }
 
   SmallVector<std::pair<MachineBasicBlock *, BranchProbability>, 1> UnwindDests;
   BranchProbabilityInfo *BPI = FuncInfo.BPI;
@@ -2558,7 +2548,12 @@ bool IRTranslator::translateInvoke(const User &U,
   }
   InvokeMBB->normalizeSuccProbs();
 
-  MF->addInvoke(&EHPadMBB, BeginSymbol, EndSymbol);
+  if (NeedEHLabel) {
+    assert(BeginSymbol && "Expected a begin symbol!");
+    assert(EndSymbol && "Expected an end symbol!");
+    MF->addInvoke(&EHPadMBB, BeginSymbol, EndSymbol);
+  }
+
   MIRBuilder.buildBr(ReturnMBB);
   return true;
 }
@@ -3297,7 +3292,7 @@ static bool checkForMustTailInVarArgFn(bool IsVarArg, const BasicBlock &BB) {
 
   // Walk the block backwards, because tail calls usually only appear at the end
   // of a block.
-  return std::any_of(BB.rbegin(), BB.rend(), [](const Instruction &I) {
+  return llvm::any_of(llvm::reverse(BB), [](const Instruction &I) {
     const auto *CI = dyn_cast<CallInst>(&I);
     return CI && CI->isMustTailCall();
   });

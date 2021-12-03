@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/GPU/GPUDialect.h"
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -173,8 +174,8 @@ void GPUDialect::printType(Type type, DialectAsmPrinter &os) const {
 
 LogicalResult GPUDialect::verifyOperationAttribute(Operation *op,
                                                    NamedAttribute attr) {
-  if (!attr.second.isa<UnitAttr>() ||
-      attr.first != getContainerModuleAttrName())
+  if (!attr.getValue().isa<UnitAttr>() ||
+      attr.getName() != getContainerModuleAttrName())
     return success();
 
   auto module = dyn_cast<ModuleOp>(op);
@@ -301,7 +302,7 @@ static LogicalResult verifyShuffleOp(gpu::ShuffleOp shuffleOp) {
 }
 
 static void printShuffleOp(OpAsmPrinter &p, ShuffleOp op) {
-  p << ' ' << op.getOperands() << ' ' << op.mode() << " : "
+  p << ' ' << op.getOperands() << ' ' << stringifyEnum(op.mode()) << " : "
     << op.value().getType();
 }
 
@@ -566,7 +567,8 @@ struct FoldLaunchArguments : public OpRewritePattern<LaunchOp> {
         // Create a zero value the first time.
         OpBuilder::InsertionGuard guard(rewriter);
         rewriter.setInsertionPointToStart(&op.body().front());
-        zero = rewriter.create<ConstantIndexOp>(op.getLoc(), /*value=*/0);
+        zero =
+            rewriter.create<arith::ConstantIndexOp>(op.getLoc(), /*value=*/0);
       }
       id.replaceAllUsesWith(zero);
       simplified = true;
@@ -1045,8 +1047,7 @@ static LogicalResult verify(SubgroupMmaLoadMatrixOp op) {
   auto srcMemrefType = srcType.cast<MemRefType>();
   auto srcMemSpace = srcMemrefType.getMemorySpaceAsInt();
 
-  if (!srcMemrefType.getAffineMaps().empty() &&
-      !srcMemrefType.getAffineMaps().front().isIdentity())
+  if (!srcMemrefType.getLayout().isIdentity())
     return op.emitError("expected identity layout map for source memref");
 
   if (srcMemSpace != kGenericMemorySpace && srcMemSpace != kSharedMemorySpace &&
@@ -1072,9 +1073,7 @@ static LogicalResult verify(SubgroupMmaStoreMatrixOp op) {
   auto srcMatrixType = srcType.cast<gpu::MMAMatrixType>();
   auto dstMemrefType = dstType.cast<MemRefType>();
   auto dstMemSpace = dstMemrefType.getMemorySpaceAsInt();
-
-  if (!dstMemrefType.getAffineMaps().empty() &&
-      !dstMemrefType.getAffineMaps().front().isIdentity())
+  if (!dstMemrefType.getLayout().isIdentity())
     return op.emitError("expected identity layout map for destination memref");
 
   if (dstMemSpace != kGenericMemorySpace && dstMemSpace != kSharedMemorySpace &&
@@ -1159,12 +1158,12 @@ struct SimplifyDimOfAllocOp : public OpRewritePattern<memref::DimOp> {
 
   LogicalResult matchAndRewrite(memref::DimOp dimOp,
                                 PatternRewriter &rewriter) const override {
-    auto index = dimOp.index().getDefiningOp<ConstantIndexOp>();
+    auto index = dimOp.index().getDefiningOp<arith::ConstantIndexOp>();
     if (!index)
       return failure();
 
     auto memrefType = dimOp.source().getType().dyn_cast<MemRefType>();
-    if (!memrefType || !memrefType.isDynamicDim(index.getValue()))
+    if (!memrefType || !memrefType.isDynamicDim(index.value()))
       return failure();
 
     auto alloc = dimOp.source().getDefiningOp<AllocOp>();
@@ -1172,7 +1171,7 @@ struct SimplifyDimOfAllocOp : public OpRewritePattern<memref::DimOp> {
       return failure();
 
     Value substituteOp = *(alloc.dynamicSizes().begin() +
-                           memrefType.getDynamicDimIndex(index.getValue()));
+                           memrefType.getDynamicDimIndex(index.value()));
     rewriter.replaceOp(dimOp, substituteOp);
     return success();
   }
@@ -1186,6 +1185,7 @@ void AllocOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 #include "mlir/Dialect/GPU/GPUOpInterfaces.cpp.inc"
+#include "mlir/Dialect/GPU/GPUOpsEnums.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/GPU/GPUOps.cpp.inc"

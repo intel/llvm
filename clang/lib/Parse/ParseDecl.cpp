@@ -2021,6 +2021,18 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       Actions.CodeCompleteAfterFunctionEquals(D);
       return nullptr;
     }
+    // We're at the point where the parsing of function declarator is finished.
+    //
+    // A common error is that users accidently add a virtual specifier
+    // (e.g. override) in an out-line method definition.
+    // We attempt to recover by stripping all these specifiers coming after
+    // the declarator.
+    while (auto Specifier = isCXX11VirtSpecifier()) {
+      Diag(Tok, diag::err_virt_specifier_outside_class)
+          << VirtSpecifiers::getSpecifierName(Specifier)
+          << FixItHint::CreateRemoval(Tok.getLocation());
+      ConsumeToken();
+    }
     // Look at the next token to make sure that this isn't a function
     // declaration.  We have to check this because __attribute__ might be the
     // start of a function definition in GCC-extended K&R C.
@@ -6967,13 +6979,13 @@ void Parser::ParseParameterDeclarationClause(
       //
       // We care about case 1) where the declarator type should be known, and
       // the identifier should be null.
-      if (!ParmDeclarator.isInvalidType() && !ParmDeclarator.hasName()) {
-        if (Tok.getIdentifierInfo() &&
-            Tok.getIdentifierInfo()->isKeyword(getLangOpts())) {
-          Diag(Tok, diag::err_keyword_as_parameter) << PP.getSpelling(Tok);
-          // Consume the keyword.
-          ConsumeToken();
-        }
+      if (!ParmDeclarator.isInvalidType() && !ParmDeclarator.hasName() &&
+          Tok.isNot(tok::raw_identifier) && !Tok.isAnnotation() &&
+          Tok.getIdentifierInfo() &&
+          Tok.getIdentifierInfo()->isKeyword(getLangOpts())) {
+        Diag(Tok, diag::err_keyword_as_parameter) << PP.getSpelling(Tok);
+        // Consume the keyword.
+        ConsumeToken();
       }
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.

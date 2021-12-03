@@ -253,6 +253,21 @@ test.format_optional_else then
 test.format_optional_else else
 
 //===----------------------------------------------------------------------===//
+// Format a custom attribute
+//===----------------------------------------------------------------------===//
+
+// CHECK: test.format_compound_attr #test.cmpnd_a<1, !test.smpla, [5, 6]>
+test.format_compound_attr #test.cmpnd_a<1, !test.smpla, [5, 6]>
+
+// CHECK:  module attributes {test.nested = #test.cmpnd_nested<nested = #test.cmpnd_a<1, !test.smpla, [5, 6]>>} {
+module attributes {test.nested = #test.cmpnd_nested<nested = #test.cmpnd_a<1, !test.smpla, [5, 6]>>} {
+}
+
+// CHECK: test.format_nested_attr #test.cmpnd_nested<nested = #test.cmpnd_a<1, !test.smpla, [5, 6]>>
+test.format_nested_attr #test.cmpnd_nested<nested = #test.cmpnd_a<1, !test.smpla, [5, 6]>>
+
+
+//===----------------------------------------------------------------------===//
 // Format custom directives
 //===----------------------------------------------------------------------===//
 
@@ -354,3 +369,17 @@ test.format_infer_variadic_type_from_non_variadic %i64, %i64 : i64
 
 // CHECK: test.format_types_match_context %[[I64]] : i64
 %ignored_res6 = test.format_types_match_context %i64 : i64
+
+//===----------------------------------------------------------------------===//
+// InferTypeOpInterface type inference
+//===----------------------------------------------------------------------===//
+
+// CHECK: test.format_infer_type
+%ignored_res7 = test.format_infer_type
+
+//===----------------------------------------------------------------------===//
+// Check DefaultValuedStrAttr
+//===----------------------------------------------------------------------===//
+
+// CHECK: test.has_str_value
+test.has_str_value {}

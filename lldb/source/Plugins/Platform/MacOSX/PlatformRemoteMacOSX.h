@@ -29,15 +29,13 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "remote-macosx"; }
 
-  static const char *GetDescriptionStatic();
+  static llvm::StringRef GetDescriptionStatic();
 
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
-  }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
-  const char *GetDescription() override { return GetDescriptionStatic(); }
+  llvm::StringRef GetDescription() override { return GetDescriptionStatic(); }
 
   lldb_private::Status
   GetFileWithUUID(const lldb_private::FileSpec &platform_file,

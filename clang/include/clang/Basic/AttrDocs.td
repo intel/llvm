@@ -22,7 +22,7 @@
 // Windows (from within the clang\docs directory):
 //   make.bat html
 // Non-Windows (from within the clang\docs directory):
-//   make -f Makefile.sphinx html
+//   sphinx-build -b html _build/html
 
 def GlobalDocumentation {
   code Intro =[{..
@@ -402,6 +402,26 @@ function marked with the ``sycl_kernel`` attribute:
   generate the OpenCL kernel body, and the OpenCL kernel must return ``void``.
 
 The SYCL kernel in the previous code sample meets these expectations.
+  }];
+}
+
+def SYCLSpecialClassDocs : Documentation {
+  let Category = DocCatStmt;
+  let Content = [{
+The ``__attribute__((sycl_special_class))`` attribute is used in SYCL
+headers to indicate that a class or a struct needs additional handling when
+it is passed from host to device. Please note that this is an attribute that is
+used for internal implementation and not intended to be used by external users.
+It is used for ``accessor``, ``sampler`` , or ``stream`` classes.
+The types that own this attribute are excluded from device-copyable and other
+type-legalization steps.
+
+.. code-block:: c++
+
+  class __attribute__((sycl_special_class)) accessor {
+    private:
+      void __init() {}
+  };
   }];
 }
 
@@ -2039,18 +2059,32 @@ preserving struct or union member access debuginfo indices of this
 struct or union, similar to clang ``__builtin_preserve_access_index()``.
   }];
 }
-def BTFTagDocs : Documentation {
+def BTFDeclTagDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
-Clang supports the ``__attribute__((btf_tag("ARGUMENT")))`` attribute for all
-targets. This attribute may be attached to a struct/union, struct/union field,
-function, function parameter or variable declaration. If -g is specified,
-the ``ARGUMENT`` info will be preserved in IR and be emitted to dwarf.
-For BPF targets, the ``ARGUMENT`` info will be emitted to .BTF ELF section too.
+Clang supports the ``__attribute__((btf_decl_tag("ARGUMENT")))`` attribute for
+all targets. This attribute may be attached to a struct/union, struct/union
+field, function, function parameter, variable or typedef declaration. If -g is
+specified, the ``ARGUMENT`` info will be preserved in IR and be emitted to
+dwarf. For BPF targets, the ``ARGUMENT`` info will be emitted to .BTF ELF
+section too.
+  }];
+}
 
-The attribute can also be used as a type qualifier. Right now it is accepted
-and silently ignored in order to permit the linux kernel to build with the
-attribute.
+def BTFTypeTagDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+Clang supports the ``__attribute__((btf_type_tag("ARGUMENT")))`` attribute for
+all targets. It only has effect when ``-g`` is specified on the command line and
+is currently silently ignored when not applied to a pointer type (note: this
+scenario may be diagnosed in the future).
+
+The ``ARGUMENT`` string will be preserved in IR and emitted to DWARF for the
+types used in variable declarations, function declarations, or typedef
+declarations.
+
+For BPF targets, the ``ARGUMENT`` string will also be emitted to .BTF ELF
+section.
   }];
 }
 

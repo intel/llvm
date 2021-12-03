@@ -442,10 +442,16 @@ bool SIMachineFunctionInfo::allocateVGPRSpillToAGPR(MachineFunction &MF,
 }
 
 void SIMachineFunctionInfo::removeDeadFrameIndices(MachineFrameInfo &MFI) {
-  // The FP & BP spills haven't been inserted yet, so keep them around.
-  for (auto &R : SGPRToVGPRSpills) {
-    if (R.first != FramePointerSaveIndex && R.first != BasePointerSaveIndex)
+  // Remove dead frame indices from function frame, however keep FP & BP since
+  // spills for them haven't been inserted yet. And also make sure to remove the
+  // frame indices from `SGPRToVGPRSpills` data structure, otherwise, it could
+  // result in an unexpected side effect and bug, in case of any re-mapping of
+  // freed frame indices by later pass(es) like "stack slot coloring".
+  for (auto &R : make_early_inc_range(SGPRToVGPRSpills)) {
+    if (R.first != FramePointerSaveIndex && R.first != BasePointerSaveIndex) {
       MFI.RemoveStackObject(R.first);
+      SGPRToVGPRSpills.erase(R.first);
+    }
   }
 
   // All other SPGRs must be allocated on the default stack, so reset the stack
@@ -643,5 +649,40 @@ bool SIMachineFunctionInfo::removeVGPRForSGPRSpill(Register ReservedVGPR,
       return true;
     }
   }
+  return false;
+}
+
+bool SIMachineFunctionInfo::usesAGPRs(const MachineFunction &MF) const {
+  if (UsesAGPRs)
+    return *UsesAGPRs;
+
+  if (!AMDGPU::isEntryFunctionCC(MF.getFunction().getCallingConv()) ||
+      MF.getFrameInfo().hasCalls()) {
+    UsesAGPRs = true;
+    return true;
+  }
+
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+
+  for (unsigned I = 0, E = MRI.getNumVirtRegs(); I != E; ++I) {
+    const Register Reg = Register::index2VirtReg(I);
+    const TargetRegisterClass *RC = MRI.getRegClassOrNull(Reg);
+    if (RC && SIRegisterInfo::isAGPRClass(RC)) {
+      UsesAGPRs = true;
+      return true;
+    } else if (!RC && !MRI.use_empty(Reg) && MRI.getType(Reg).isValid()) {
+      // Defer caching UsesAGPRs, function might not yet been regbank selected.
+      return true;
+    }
+  }
+
+  for (MCRegister Reg : AMDGPU::AGPR_32RegClass) {
+    if (MRI.isPhysRegUsed(Reg)) {
+      UsesAGPRs = true;
+      return true;
+    }
+  }
+
+  UsesAGPRs = false;
   return false;
 }

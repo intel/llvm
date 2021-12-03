@@ -52,15 +52,21 @@ struct TestLinalgCodegenStrategy
 
   void runOnFunction() override;
 
-  void runStrategy(LinalgTilingOptions tilingOptions,
+  void runStrategy(LinalgTilingAndFusionOptions tilingAndFusionOptions,
+                   LinalgTilingOptions tilingOptions,
                    LinalgTilingOptions registerTilingOptions,
+                   LinalgPaddingOptions paddingOptions,
                    vector::VectorContractLowering vectorContractLowering,
                    vector::VectorTransferSplit vectorTransferSplit);
 
+  Option<bool> fuse{
+      *this, "fuse",
+      llvm::cl::desc("Fuse the producers after tiling the root op."),
+      llvm::cl::init(false)};
   ListOption<int64_t> tileSizes{*this, "tile-sizes",
                                 llvm::cl::MiscFlags::CommaSeparated,
                                 llvm::cl::desc("Specifies the tile sizes.")};
-  ListOption<unsigned> tileInterchange{
+  ListOption<int64_t> tileInterchange{
       *this, "tile-interchange", llvm::cl::MiscFlags::CommaSeparated,
       llvm::cl::desc("Specifies the tile interchange.")};
 
@@ -86,6 +92,20 @@ struct TestLinalgCodegenStrategy
       *this, "register-promote-full-tile-pad",
       llvm::cl::desc("Pad the small aligned memory buffer to the tile sizes."),
       llvm::cl::init(false)};
+  Option<bool> pad{*this, "pad", llvm::cl::desc("Pad the operands."),
+                   llvm::cl::init(false)};
+  Option<bool> padInputsOnly{
+      *this, "pad-inputs-only",
+      llvm::cl::desc("Only pad input operands when test-pad-pattern"),
+      llvm::cl::init(false)};
+  ListOption<int64_t> packPaddings{
+      *this, "pack-paddings",
+      llvm::cl::desc("Operand packing flags when test-pad-pattern."),
+      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  ListOption<int64_t> hoistPaddings{
+      *this, "hoist-paddings",
+      llvm::cl::desc("Operand hoisting depths when test-pad-pattern."),
+      llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
   Option<bool> generalize{*this, "generalize",
                           llvm::cl::desc("Generalize named operations."),
                           llvm::cl::init(false)};
@@ -114,6 +134,10 @@ struct TestLinalgCodegenStrategy
       *this, "unroll-vector-transfers",
       llvm::cl::desc("Enable full unrolling of vector.transfer operations"),
       llvm::cl::init(false)};
+  Option<bool> runEnablePass{
+      *this, "run-enable-pass",
+      llvm::cl::desc("Run the enable pass between transformations"),
+      llvm::cl::init(true)};
   Option<std::string> anchorOpName{
       *this, "anchor-op",
       llvm::cl::desc(
@@ -133,14 +157,19 @@ struct TestLinalgCodegenStrategy
 };
 
 void TestLinalgCodegenStrategy::runStrategy(
+    LinalgTilingAndFusionOptions tilingAndFusionOptions,
     LinalgTilingOptions tilingOptions,
     LinalgTilingOptions registerTilingOptions,
+    LinalgPaddingOptions paddingOptions,
     vector::VectorContractLowering vectorContractLowering,
     vector::VectorTransferSplit vectorTransferSplit) {
   assert(!anchorOpName.empty());
   CodegenStrategy strategy;
   StringRef genericOpName = GenericOp::getOperationName();
-  strategy.tileIf(!tileSizes.empty(), anchorOpName, tilingOptions)
+  strategy
+      .tileAndFuseIf(fuse && !tileSizes.empty(), anchorOpName,
+                     tilingAndFusionOptions)
+      .tileIf(!fuse && !tileSizes.empty(), anchorOpName, tilingOptions)
       .promoteIf(promote, anchorOpName,
                  LinalgPromotionOptions()
                      .setAlignment(16)
@@ -150,37 +179,86 @@ void TestLinalgCodegenStrategy::runStrategy(
                  LinalgPromotionOptions()
                      .setAlignment(16)
                      .setUseFullTileBuffersByDefault(registerPromoteFullTile))
+      .padIf(pad, anchorOpName, paddingOptions)
       .generalizeIf(generalize, anchorOpName)
       .interchangeIf(!iteratorInterchange.empty(), iteratorInterchange)
       .vectorizeIf(vectorize, generalize ? genericOpName : anchorOpName)
-      .setEnableVectorTransferPartialRewrite(true)
-      .setEnableVectorContractLowering(true)
-      .setEnableVectorToSCFConversion(true)
-      .setVectorTransformsOptions(
-          vector::VectorTransformsOptions()
-              .setVectorTransformsOptions(vectorContractLowering)
-              .setVectorTransferSplit(vectorTransferSplit))
-      .setVectorTransferToSCFOptions(
-          VectorTransferToSCFOptions().setUnroll(unrollVectorTransfers));
-  (void)strategy.transform(getFunction());
+      .vectorLowering(
+          LinalgVectorLoweringOptions()
+              .setVectorTransformsOptions(
+                  vector::VectorTransformsOptions()
+                      .setVectorTransformsOptions(vectorContractLowering)
+                      .setVectorTransferSplit(vectorTransferSplit))
+              .setVectorTransferToSCFOptions(
+                  VectorTransferToSCFOptions().enableFullUnroll(
+                      unrollVectorTransfers))
+              .enableTransferPartialRewrite()
+              .enableContractionLowering()
+              .enableTransferToSCFConversion());
+  // Created a nested OpPassManager and run.
+  FuncOp funcOp = getFunction();
+  OpPassManager dynamicPM("builtin.func");
+  strategy.configurePassPipeline(dynamicPM, funcOp.getContext(), runEnablePass);
+  if (failed(runPipeline(dynamicPM, funcOp)))
+    return signalPassFailure();
 }
 } // end anonymous namespace
+
+// For now, just assume it is the zero of type.
+// In the future, it should be the zero of type + op.
+static Value getNeutralOfLinalgOp(OpBuilder &b, OpOperand &op) {
+  auto t = getElementTypeOrSelf(op.get());
+  return b.create<arith::ConstantOp>(op.getOwner()->getLoc(), t,
+                                     b.getZeroAttr(t));
+}
 
 /// Apply transformations specified as patterns.
 void TestLinalgCodegenStrategy::runOnFunction() {
   if (!anchorFuncOpName.empty() && anchorFuncOpName != getFunction().getName())
     return;
 
+  LinalgTilingAndFusionOptions tilingAndFusionOptions;
+  tilingAndFusionOptions.tileSizes = {tileSizes.begin(), tileSizes.end()};
+  tilingAndFusionOptions.tileInterchange = {tileInterchange.begin(),
+                                            tileInterchange.end()};
+
   LinalgTilingOptions tilingOptions;
   if (!tileSizes.empty())
     tilingOptions = tilingOptions.setTileSizes(tileSizes);
   if (!tileInterchange.empty())
-    tilingOptions = tilingOptions.setInterchange(tileInterchange);
+    tilingOptions = tilingOptions.setInterchange(
+        SmallVector<unsigned>(tileInterchange.begin(), tileInterchange.end()));
 
   LinalgTilingOptions registerTilingOptions;
   if (!registerTileSizes.empty())
     registerTilingOptions =
         registerTilingOptions.setTileSizes(registerTileSizes);
+
+  LinalgPaddingOptions paddingOptions;
+  auto packFunc = [&](OpOperand &opOperand) {
+    return opOperand.getOperandNumber() < packPaddings.size()
+               ? packPaddings[opOperand.getOperandNumber()]
+               : false;
+  };
+  auto hoistingFunc = [&](OpOperand &opOperand) {
+    return opOperand.getOperandNumber() < hoistPaddings.size()
+               ? hoistPaddings[opOperand.getOperandNumber()]
+               : 0;
+  };
+  paddingOptions.setPaddingValueComputationFunction(getNeutralOfLinalgOp);
+  paddingOptions.setPaddingNoFoldComputationFunction(packFunc);
+  paddingOptions.setPaddingHoistComputationFunction(hoistingFunc);
+
+  // Compute input padding values only an return failure for output operands.
+  if (padInputsOnly) {
+    paddingOptions.setPaddingValueComputationFunction(
+        [](OpBuilder &b, OpOperand &op) -> FailureOr<Value> {
+          auto linalgOp = dyn_cast<LinalgOp>(op.getOwner());
+          if (linalgOp && linalgOp.isInputTensor(&op))
+            return getNeutralOfLinalgOp(b, op);
+          return failure();
+        });
+  }
 
   vector::VectorContractLowering vectorContractLowering =
       llvm::StringSwitch<vector::VectorContractLowering>(
@@ -197,8 +275,8 @@ void TestLinalgCodegenStrategy::runOnFunction() {
           .Case("vector-transfers", vector::VectorTransferSplit::VectorTransfer)
           .Default(vector::VectorTransferSplit::None);
 
-  runStrategy(tilingOptions, registerTilingOptions, vectorContractLowering,
-              vectorTransferSplit);
+  runStrategy(tilingAndFusionOptions, tilingOptions, registerTilingOptions,
+              paddingOptions, vectorContractLowering, vectorTransferSplit);
 }
 
 namespace mlir {

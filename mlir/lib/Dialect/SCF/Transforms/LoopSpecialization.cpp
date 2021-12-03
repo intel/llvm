@@ -14,6 +14,7 @@
 #include "PassDetail.h"
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Transforms.h"
@@ -54,10 +55,11 @@ static void specializeParallelLoopForUnrolling(ParallelOp op) {
   BlockAndValueMapping map;
   Value cond;
   for (auto bound : llvm::zip(op.upperBound(), constantIndices)) {
-    Value constant = b.create<ConstantIndexOp>(op.getLoc(), std::get<1>(bound));
-    Value cmp = b.create<CmpIOp>(op.getLoc(), CmpIPredicate::eq,
-                                 std::get<0>(bound), constant);
-    cond = cond ? b.create<AndOp>(op.getLoc(), cond, cmp) : cmp;
+    Value constant =
+        b.create<arith::ConstantIndexOp>(op.getLoc(), std::get<1>(bound));
+    Value cmp = b.create<arith::CmpIOp>(op.getLoc(), arith::CmpIPredicate::eq,
+                                        std::get<0>(bound), constant);
+    cond = cond ? b.create<arith::AndIOp>(op.getLoc(), cond, cmp) : cmp;
     map.map(std::get<0>(bound), constant);
   }
   auto ifOp = b.create<scf::IfOp>(op.getLoc(), cond, /*withElseRegion=*/true);
@@ -85,9 +87,9 @@ static void specializeForLoopForUnrolling(ForOp op) {
 
   OpBuilder b(op);
   BlockAndValueMapping map;
-  Value constant = b.create<ConstantIndexOp>(op.getLoc(), minConstant);
-  Value cond =
-      b.create<CmpIOp>(op.getLoc(), CmpIPredicate::eq, bound, constant);
+  Value constant = b.create<arith::ConstantIndexOp>(op.getLoc(), minConstant);
+  Value cond = b.create<arith::CmpIOp>(op.getLoc(), arith::CmpIPredicate::eq,
+                                       bound, constant);
   map.map(bound, constant);
   auto ifOp = b.create<scf::IfOp>(op.getLoc(), cond, /*withElseRegion=*/true);
   ifOp.getThenBodyBuilder().clone(*op.getOperation(), map);
@@ -172,6 +174,15 @@ static LogicalResult alignAndAddBound(FlatAffineValueConstraints &constraints,
   return constraints.addBound(type, pos, alignedMap);
 }
 
+/// Add `val` to each result of `map`.
+static AffineMap addConstToResults(AffineMap map, int64_t val) {
+  SmallVector<AffineExpr> newResults;
+  for (AffineExpr r : map.getResults())
+    newResults.push_back(r + val);
+  return AffineMap::get(map.getNumDims(), map.getNumSymbols(), newResults,
+                        map.getContext());
+}
+
 /// This function tries to canonicalize min/max operations by proving that their
 /// value is bounded by the same lower and upper bound. In that case, the
 /// operation can be folded away.
@@ -226,18 +237,23 @@ canonicalizeMinMaxOp(RewriterBase &rewriter, Operation *op, AffineMap map,
   // isMin: op <= expr_i, !isMin: op >= expr_i
   auto boundType =
       isMin ? FlatAffineConstraints::UB : FlatAffineConstraints::LB;
-  if (failed(alignAndAddBound(constraints, boundType, dimOp, map, operands)))
+  // Upper bounds are exclusive, so add 1. (`affine.min` ops are inclusive.)
+  AffineMap mapLbUb = isMin ? addConstToResults(map, 1) : map;
+  if (failed(
+          alignAndAddBound(constraints, boundType, dimOp, mapLbUb, operands)))
     return failure();
 
   // Try to compute a lower/upper bound for op, expressed in terms of the other
   // `dims` and extra symbols.
   SmallVector<AffineMap> opLb(1), opUb(1);
   constraints.getSliceBounds(dimOp, 1, rewriter.getContext(), &opLb, &opUb);
-  AffineMap boundMap = isMin ? opUb[0] : opLb[0];
+  AffineMap sliceBound = isMin ? opUb[0] : opLb[0];
   // TODO: `getSliceBounds` may return multiple bounds at the moment. This is
   // a TODO of `getSliceBounds` and not handled here.
-  if (!boundMap || boundMap.getNumResults() != 1)
+  if (!sliceBound || sliceBound.getNumResults() != 1)
     return failure(); // No or multiple bounds found.
+  // Recover the inclusive UB in the case of an `affine.min`.
+  AffineMap boundMap = isMin ? addConstToResults(sliceBound, -1) : sliceBound;
 
   // Add an equality: Set dimOpBound to computed bound.
   // Add back dimension for op. (Was removed by `getSliceBounds`.)

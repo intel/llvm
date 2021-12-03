@@ -17,9 +17,6 @@
 #include <cstddef>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 
-// sRGB Extension Support
-#define SYCL_EXT_ONEAPI_SRGB 1
-
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 

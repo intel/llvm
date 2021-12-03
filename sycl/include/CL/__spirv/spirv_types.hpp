@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines_elementary.hpp>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -117,23 +119,30 @@ struct __spirv_JointMatrixINTEL;
 #ifdef __SYCL_DEVICE_ONLY__
 // OpenCL pipe types
 template <typename dataT>
-using RPipeTy = __attribute__((pipe("read_only"))) const dataT;
+using __ocl_RPipeTy = __attribute__((pipe("read_only"))) const dataT;
 template <typename dataT>
-using WPipeTy = __attribute__((pipe("write_only"))) const dataT;
+using __ocl_WPipeTy = __attribute__((pipe("write_only"))) const dataT;
 
 // OpenCL vector types
 template <typename dataT, int dims>
 using __ocl_vec_t = dataT __attribute__((ext_vector_type(dims)));
 
 // Struct representing layout of pipe storage
+// TODO: rename to __spirv_ConstantPipeStorage
 struct ConstantPipeStorage {
   int32_t _PacketSize;
   int32_t _PacketAlignment;
   int32_t _Capacity;
 };
 
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
 // Arbitrary precision integer type
 template <int Bits> using ap_int = _ExtInt(Bits);
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __SYCL_DEVICE_ONLY__
 
 // This class does not have definition, it is only predeclared here.

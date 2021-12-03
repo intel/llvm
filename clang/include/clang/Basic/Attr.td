@@ -870,6 +870,7 @@ def Availability : InheritableAttr {
 [{static llvm::StringRef getPrettyPlatformName(llvm::StringRef Platform) {
     return llvm::StringSwitch<llvm::StringRef>(Platform)
              .Case("android", "Android")
+             .Case("fuchsia", "Fuchsia")
              .Case("ios", "iOS")
              .Case("macos", "macOS")
              .Case("tvos", "tvOS")
@@ -1230,6 +1231,13 @@ def SYCLKernel : InheritableAttr {
   let Subjects = SubjectList<[FunctionTmpl]>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLKernelDocs];
+}
+
+def SYCLSpecialClass: InheritableAttr {
+  let Spellings = [Clang<"sycl_special_class">];
+  let Subjects = SubjectList<[CXXRecord]>;
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Documentation = [SYCLSpecialClassDocs];
 }
 
 // Marks functions which must not be vectorized via horizontal SIMT widening,
@@ -2435,11 +2443,19 @@ def BPFPreserveAccessIndex : InheritableAttr,
   let LangOpts = [COnly];
 }
 
-def BTFTag : DeclOrTypeAttr {
-  let Spellings = [Clang<"btf_tag">];
-  let Args = [StringArgument<"BTFTag">];
-  let Subjects = SubjectList<[Var, Function, Record, Field], ErrorDiag>;
-  let Documentation = [BTFTagDocs];
+def BTFDeclTag : InheritableAttr {
+  let Spellings = [Clang<"btf_decl_tag">];
+  let Args = [StringArgument<"BTFDeclTag">];
+  let Subjects = SubjectList<[Var, Function, Record, Field, TypedefName],
+                             ErrorDiag>;
+  let Documentation = [BTFDeclTagDocs];
+  let LangOpts = [COnly];
+}
+
+def BTFTypeTag : TypeAttr {
+  let Spellings = [Clang<"btf_type_tag">];
+  let Args = [StringArgument<"BTFTypeTag">];
+  let Documentation = [BTFTypeTagDocs];
   let LangOpts = [COnly];
 }
 
@@ -2901,6 +2917,7 @@ def SwiftAttr : InheritableAttr {
   let Spellings = [GNU<"swift_attr">];
   let Args = [StringArgument<"Attribute">];
   let Documentation = [SwiftAttrDocs];
+  let PragmaAttributeSupport = 1;
 }
 
 def SwiftBridge : InheritableAttr {
@@ -4309,7 +4326,8 @@ def OMPAllocateDecl : InheritableAttr {
                    "OMPCGroupMemAlloc", "OMPPTeamMemAlloc", "OMPThreadMemAlloc",
                    "OMPUserDefinedMemAlloc"
                  ]>,
-    ExprArgument<"Allocator">
+    ExprArgument<"Allocator">,
+    ExprArgument<"Alignment">
   ];
   let Documentation = [Undocumented];
 }
@@ -4324,6 +4342,11 @@ def OMPDeclareVariant : InheritableAttr {
   let Args = [
     ExprArgument<"VariantFuncRef">,
     OMPTraitInfoArgument<"TraitInfos">,
+    VariadicExprArgument<"AdjustArgsNothing">,
+    VariadicExprArgument<"AdjustArgsNeedDevicePtr">,
+    VariadicEnumArgument<"AppendArgs", "InteropType",
+                     ["target", "targetsync", "target,targetsync"],
+                     ["Target", "TargetSync", "Target_TargetSync"]>
   ];
   let AdditionalMembers = [{
     OMPTraitInfo &getTraitInfo() { return *traitInfos; }

@@ -265,7 +265,7 @@ void SymbolTable::loadMinGWSymbols() {
 
     if (config->machine == I386 && config->stdcallFixup) {
       // Check if we can resolve an undefined decorated symbol by finding
-      // the indended target as an undecorated symbol (only with a leading
+      // the intended target as an undecorated symbol (only with a leading
       // underscore).
       StringRef origName = name;
       StringRef baseName = name;
@@ -865,7 +865,7 @@ Symbol *SymbolTable::addUndefined(StringRef name) {
   return addUndefined(name, nullptr, false);
 }
 
-void SymbolTable::addCombinedLTOObjects() {
+void SymbolTable::compileBitcodeFiles() {
   if (ctx.bitcodeFileInstances.empty())
     return;
 

@@ -26,6 +26,7 @@ include "TestInterfaces.td"
 def Test_Dialect : Dialect {
   let name = "test";
   let cppNamespace = "::test";
+  let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
   let hasCanonicalizer = 1;
   let hasConstantMaterializer = 1;
   let hasOperationAttrVerify = 1;
@@ -33,16 +34,12 @@ def Test_Dialect : Dialect {
   let hasRegionResultAttrVerify = 1;
   let hasOperationInterfaceFallback = 1;
   let hasNonDefaultDestructor = 1;
+  let useDefaultAttributePrinterParser = 1;
   let dependentDialects = ["::mlir::DLTIDialect"];
 
   let extraClassDeclaration = [{
     void registerAttributes();
     void registerTypes();
-
-    ::mlir::Attribute parseAttribute(::mlir::DialectAsmParser &parser,
-                                     ::mlir::Type type) const override;
-    void printAttribute(::mlir::Attribute attr,
-                        ::mlir::DialectAsmPrinter &printer) const override;
 
     // Provides a custom printing/parsing for some operations.
     ::llvm::Optional<ParseOpHook>
@@ -57,6 +54,10 @@ def Test_Dialect : Dialect {
 
   }];
 }
+
+// Include the attribute definitions.
+include "TestAttrDefs.td"
+
 
 class TEST_Op<string mnemonic, list<OpTrait> traits = []> :
     Op<Test_Dialect, mnemonic, traits>;
@@ -160,7 +161,7 @@ def MixedNormalVariadicOperandOp : TEST_Op<
 def VariadicWithSameOperandsResult :
       TEST_Op<"variadic_with_same_operand_results",
               [SameOperandsAndResultType]> {
-  let arguments = (ins Variadic<AnySignlessInteger>:$operands);
+  let arguments = (ins Variadic<AnySignlessInteger>);
   let results = (outs AnySignlessInteger:$result);
 }
 
@@ -186,6 +187,10 @@ def MixedNormalVariadicResults : TEST_Op<
 //===----------------------------------------------------------------------===//
 // Test Attributes
 //===----------------------------------------------------------------------===//
+
+def AnyAttrOfOp : TEST_Op<"any_attr_of_i32_str"> {
+  let arguments = (ins AnyAttrOf<[I32Attr, StrAttr]>:$attr);
+}
 
 def NonNegIntAttrOp : TEST_Op<"non_negative_int_attr"> {
   let arguments = (ins
@@ -298,9 +303,9 @@ def RankedIntElementsAttrOp : TEST_Op<"ranked_int_elements_attr"> {
 def DerivedTypeAttrOp : TEST_Op<"derived_type_attr", []> {
   let results = (outs AnyTensor:$output);
   DerivedTypeAttr element_dtype =
-    DerivedTypeAttr<"return getElementTypeOrSelf(output().getType());">;
+    DerivedTypeAttr<"return getElementTypeOrSelf(getOutput().getType());">;
   DerivedAttr size = DerivedAttr<"int",
-    "return output().getType().cast<ShapedType>().getSizeInBits();",
+    "return getOutput().getType().cast<ShapedType>().getSizeInBits();",
     "$_builder.getI32IntegerAttr($_self)">;
 }
 
@@ -367,13 +372,10 @@ def VariadicNoTerminatorOp : TEST_Op<"variadic_no_terminator_op",
 
 def ConversionCallOp : TEST_Op<"conversion_call_op",
     [CallOpInterface]> {
-  let arguments = (ins Variadic<AnyType>:$inputs, SymbolRefAttr:$callee);
+  let arguments = (ins Variadic<AnyType>:$arg_operands, SymbolRefAttr:$callee);
   let results = (outs Variadic<AnyType>);
 
   let extraClassDeclaration = [{
-    /// Get the argument operands to the called function.
-    operand_range getArgOperands() { return inputs(); }
-
     /// Return the callee of this operation.
     ::mlir::CallInterfaceCallable getCallableForCallee() {
       return (*this)->getAttrOfType<::mlir::SymbolRefAttr>("callee");
@@ -387,7 +389,7 @@ def FunctionalRegionOp : TEST_Op<"functional_region_op",
   let results = (outs FunctionType);
 
   let extraClassDeclaration = [{
-    ::mlir::Region *getCallableRegion() { return &body(); }
+    ::mlir::Region *getCallableRegion() { return &getBody(); }
     ::llvm::ArrayRef<::mlir::Type> getCallableResults() {
       return getType().cast<::mlir::FunctionType>().getResults();
     }
@@ -666,7 +668,7 @@ def AttrWithTraitOp : TEST_Op<"attr_with_trait", []> {
   let arguments = (ins AnyAttr:$attr);
 
   let verifier = [{
-    if (this->attr().hasTrait<AttributeTrait::TestAttrTrait>())
+    if (this->getAttr().hasTrait<AttributeTrait::TestAttrTrait>())
       return success();
     return this->emitError("'attr' attribute should have trait 'TestAttrTrait'");
   }];
@@ -957,9 +959,6 @@ def TestOpWithRegionPattern : TEST_Op<"op_with_region_pattern"> {
 def TestOpConstant : TEST_Op<"constant", [ConstantLike, NoSideEffect]> {
   let arguments = (ins AnyAttr:$value);
   let results = (outs AnyType);
-  let extraClassDeclaration = [{
-    ::mlir::Attribute getValue() { return (*this)->getAttr("value"); }
-  }];
 
   let hasFolder = 1;
 }
@@ -985,7 +984,7 @@ def TestOpWithRegionFold : TEST_Op<"op_with_region_fold"> {
 }
 
 def TestOpWithVariadicResultsAndFolder: TEST_Op<"op_with_variadic_results_and_folder"> {
-  let arguments = (ins Variadic<I32>:$operands);
+  let arguments = (ins Variadic<I32>);
   let results = (outs Variadic<I32>);
   let hasFolder = 1;
 }
@@ -999,6 +998,13 @@ def TestIdempotentTraitOp
  : TEST_Op<"op_idempotent_trait",
            [SameOperandsAndResultType, NoSideEffect, Idempotent]> {
   let arguments = (ins I32:$op1);
+  let results = (outs I32);
+}
+
+def TestIdempotentTraitBinaryOp
+    : TEST_Op<"op_idempotent_trait_binary",
+              [SameOperandsAndResultType, NoSideEffect, Idempotent]> {
+  let arguments = (ins I32:$op1, I32:$op2);
   let results = (outs I32);
 }
 
@@ -1330,6 +1336,30 @@ def : Pat<(OneI32ResultOp),
               ConstantAttr<I32Attr, "2">)>;
 
 //===----------------------------------------------------------------------===//
+// Test Patterns (either)
+
+def TestEitherOpA : TEST_Op<"either_op_a"> {
+  let arguments = (ins AnyInteger:$arg0, AnyInteger:$arg1, AnyInteger:$arg2);
+  let results = (outs I32:$output);
+}
+
+def TestEitherOpB : TEST_Op<"either_op_b"> {
+  let arguments = (ins AnyInteger:$arg0);
+  let results = (outs I32:$output);
+}
+
+def : Pat<(TestEitherOpA (either I32:$arg1, I16:$arg2), $_),
+          (TestEitherOpB $arg2)>;
+
+def : Pat<(TestEitherOpA (either (TestEitherOpB I32:$arg1), I16:$arg2), $_),
+          (TestEitherOpB $arg2)>;
+
+def : Pat<(TestEitherOpA (either (TestEitherOpB I32:$arg1),
+                                 (TestEitherOpB I16:$arg2)),
+                          $_),
+          (TestEitherOpB $arg2)>;
+
+//===----------------------------------------------------------------------===//
 // Test Patterns (Location)
 
 // Test that we can specify locations for generated ops.
@@ -1498,14 +1528,31 @@ def TestValidOp : TEST_Op<"valid", [Terminator]>,
 def TestMergeBlocksOp : TEST_Op<"merge_blocks"> {
   let summary = "merge_blocks operation";
   let description = [{
-    Test op with multiple blocks that are merged with Dialect Conversion"
+    Test op with multiple blocks that are merged with Dialect Conversion
   }];
 
   let regions = (region AnyRegion:$body);
   let results = (outs Variadic<AnyType>:$result);
 }
 
+def TestRemappedValueRegionOp : TEST_Op<"remapped_value_region",
+                                        [SingleBlock]> {
+  let summary = "remapped_value_region operation";
+  let description = [{
+    Test op that remaps values that haven't yet been converted in Dialect
+    Conversion.
+  }];
+
+  let regions = (region SizedRegion<1>:$body);
+  let results = (outs Variadic<AnyType>:$result);
+}
+
 def TestSignatureConversionUndoOp : TEST_Op<"signature_conversion_undo"> {
+  let regions = (region AnyRegion);
+}
+
+def TestSignatureConversionNoConverterOp
+  : TEST_Op<"signature_conversion_no_converter"> {
   let regions = (region AnyRegion);
 }
 
@@ -1585,6 +1632,25 @@ def WrappingRegionOp : TEST_Op<"wrapping_region",
   }];
 
   let results = (outs Variadic<AnyType>);
+  let regions = (region SizedRegion<1>:$region);
+  let parser = [{ return ::parse$cppClass(parser, result); }];
+  let printer = [{ return ::print(p, *this); }];
+}
+
+def PrettyPrintedRegionOp : TEST_Op<"pretty_printed_region",
+    [SingleBlockImplicitTerminator<"TestReturnOp">]> {
+  let summary =  "pretty_printed_region operation";
+  let description = [{
+    Test-op can be printed either in a "pretty" or "non-pretty" way based on
+    some criteria. The custom parser parsers both the versions while testing
+    APIs: parseCustomOperationName & parseGenericOperationAfterOpName.
+  }];
+  let arguments = (ins
+    AnyType:$input1,
+    AnyType:$input2
+  );
+
+  let results = (outs AnyType);
   let regions = (region SizedRegion<1>:$region);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   let printer = [{ return ::print(p, *this); }];
@@ -1831,9 +1897,9 @@ def FormatTwoVariadicOperandsNoBuildableTypeOp
 def FormatInferVariadicTypeFromNonVariadic
     : TEST_Op<"format_infer_variadic_type_from_non_variadic",
               [SameOperandsAndResultType]> {
-  let arguments = (ins Variadic<AnyType>:$operands);
+  let arguments = (ins Variadic<AnyType>:$args);
   let results = (outs AnyType:$result);
-  let assemblyFormat = "$operands attr-dict `:` type($result)";
+  let assemblyFormat = "$args attr-dict `:` type($result)";
 }
 
 def FormatOptionalUnitAttr : TEST_Op<"format_optional_unit_attribute"> {
@@ -1855,6 +1921,16 @@ def FormatOptionalEnumAttr : TEST_Op<"format_optional_enum_attr"> {
 def FormatOptionalWithElse : TEST_Op<"format_optional_else"> {
   let arguments = (ins UnitAttr:$isFirstBranchPresent);
   let assemblyFormat = "(`then` $isFirstBranchPresent^):(`else`)? attr-dict";
+}
+
+def FormatCompoundAttr : TEST_Op<"format_compound_attr"> {
+  let arguments = (ins CompoundAttrA:$compound);
+  let assemblyFormat = "$compound attr-dict-with-keyword";
+}
+
+def FormatNestedAttr : TEST_Op<"format_nested_attr"> {
+  let arguments = (ins CompoundAttrNested:$nested);
+  let assemblyFormat = "$nested attr-dict-with-keyword";
 }
 
 //===----------------------------------------------------------------------===//
@@ -1887,10 +1963,10 @@ def FormatCustomDirectiveOperandsAndTypes
 }
 
 def FormatCustomDirectiveRegions : TEST_Op<"format_custom_directive_regions"> {
-  let regions = (region AnyRegion:$region, VariadicRegion<AnyRegion>:$regions);
+  let regions = (region AnyRegion:$region, VariadicRegion<AnyRegion>:$other_regions);
   let assemblyFormat = [{
     custom<CustomDirectiveRegions>(
-      $region, $regions
+      $region, $other_regions
     )
     attr-dict
   }];
@@ -2022,6 +2098,24 @@ def FormatTypesMatchContextOp : TEST_Op<"format_types_match_context", [
 }
 
 //===----------------------------------------------------------------------===//
+// InferTypeOpInterface type inference in assembly format
+
+def FormatInferTypeOp : TEST_Op<"format_infer_type", [InferTypeOpInterface]> {
+  let results = (outs AnyType);
+  let assemblyFormat = "attr-dict";
+
+  let extraClassDeclaration = [{
+    static ::mlir::LogicalResult inferReturnTypes(::mlir::MLIRContext *context,
+          ::llvm::Optional<::mlir::Location> location, ::mlir::ValueRange operands,
+          ::mlir::DictionaryAttr attributes, ::mlir::RegionRange regions,
+          ::llvm::SmallVectorImpl<::mlir::Type> &inferredReturnTypes) {
+      inferredReturnTypes.assign({::mlir::IntegerType::get(context, 16)});
+      return ::mlir::success();
+    }
+   }];
+}
+
+//===----------------------------------------------------------------------===//
 // Test SideEffects
 //===----------------------------------------------------------------------===//
 
@@ -2044,10 +2138,6 @@ def CopyOp : TEST_Op<"copy", [CopyOpInterface]> {
   let assemblyFormat = [{
     `(` $source `,` $target `)` `:` `(` type($source) `,` type($target) `)`
      attr-dict
-  }];
-  let extraClassDeclaration = [{
-    ::mlir::Value getSource() { return source(); }
-    ::mlir::Value getTarget() { return target(); }
   }];
 }
 
@@ -2285,7 +2375,7 @@ def TestLinalgConvOpNotLinalgOp : TEST_Op<"conv_op_not_linalg_op", [
 }
 
 def TestLinalgConvOp :
-  TEST_Op<"linalg_conv_op", [AttrSizedOperandSegments,
+  TEST_Op<"linalg_conv_op", [AttrSizedOperandSegments, SingleBlock,
       LinalgStructuredInterface, LinalgConvolutionOpInterface]> {
 
   let arguments = (ins Variadic<AnyType>:$inputs,
@@ -2322,7 +2412,28 @@ def TestLinalgConvOp :
     std::string getLibraryCallName() {
       return "";
     }
+
+    // To conform with interface requirement on operand naming.
+    mlir::ValueRange inputs() { return getInputs(); }
+    mlir::ValueRange outputs() { return getOutputs(); }
   }];
 }
+
+//===----------------------------------------------------------------------===//
+// Test Ops with Default-Valued String Attributes
+//===----------------------------------------------------------------------===//
+
+def TestDefaultStrAttrNoValueOp : TEST_Op<"no_str_value"> {
+  let arguments = (ins DefaultValuedAttr<StrAttr, "">:$value);
+  let assemblyFormat = "attr-dict";
+}
+
+def TestDefaultStrAttrHasValueOp : TEST_Op<"has_str_value"> {
+  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$value);
+  let assemblyFormat = "attr-dict";
+}
+
+def : Pat<(TestDefaultStrAttrNoValueOp $value),
+          (TestDefaultStrAttrHasValueOp ConstantStrAttr<StrAttr, "foo">)>;
 
 #endif // TEST_OPS

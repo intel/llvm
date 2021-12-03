@@ -333,6 +333,18 @@ def load_glue : PatFrag <(ops node:$ptr), (unindexedload_glue node:$ptr)> {
   let IsNonExtLoad = 1;
 }
 
+def atomic_load_8_glue : PatFrag<(ops node:$ptr),
+  (AMDGPUatomic_ld_glue node:$ptr)> {
+  let IsAtomic = 1;
+  let MemoryVT = i8;
+}
+
+def atomic_load_16_glue : PatFrag<(ops node:$ptr),
+  (AMDGPUatomic_ld_glue node:$ptr)> {
+  let IsAtomic = 1;
+  let MemoryVT = i16;
+}
+
 def atomic_load_32_glue : PatFrag<(ops node:$ptr),
   (AMDGPUatomic_ld_glue node:$ptr)> {
   let IsAtomic = 1;
@@ -423,6 +435,14 @@ def load_align16_local_m0 : PatFrag<(ops node:$ptr),
 } // End IsLoad = 1
 
 let IsAtomic = 1, AddressSpaces = LoadAddress_local.AddrSpaces in {
+def atomic_load_8_local_m0 : PatFrag<(ops node:$ptr),
+                                      (atomic_load_8_glue node:$ptr)> {
+  let MemoryVT = i8;
+}
+def atomic_load_16_local_m0 : PatFrag<(ops node:$ptr),
+                                      (atomic_load_16_glue node:$ptr)> {
+  let MemoryVT = i16;
+}
 def atomic_load_32_local_m0 : PatFrag<(ops node:$ptr),
                                       (atomic_load_32_glue node:$ptr)> {
   let MemoryVT = i32;
@@ -509,6 +529,18 @@ def store_align16_local_m0 : PatFrag <(ops node:$value, node:$ptr),
 
 let AddressSpaces = StoreAddress_local.AddrSpaces in {
 
+def atomic_store_local_8_m0 : PatFrag <
+  (ops node:$value, node:$ptr),
+  (AMDGPUatomic_st_glue node:$value, node:$ptr)> {
+  let IsAtomic = 1;
+  let MemoryVT = i8;
+}
+def atomic_store_local_16_m0 : PatFrag <
+  (ops node:$value, node:$ptr),
+  (AMDGPUatomic_st_glue node:$value, node:$ptr)> {
+  let IsAtomic = 1;
+  let MemoryVT = i16;
+}
 def atomic_store_local_32_m0 : PatFrag <
   (ops node:$value, node:$ptr),
   (AMDGPUatomic_st_glue node:$value, node:$ptr)> {
@@ -2214,7 +2246,7 @@ class VOP_NO_EXT <VOPProfile p> : VOPProfile <p.ArgVT> {
   let HasExtSDWA9 = 0;
 }
 
-class VOP_PAT_GEN <VOPProfile p, int mode=PatGenMode.Pattern> : VOPProfile <p.ArgVT> {
+class VOP_PAT_GEN <VOPProfile p, int mode=PatGenMode.NoPattern> : VOPProfile <p.ArgVT> {
   let NeedPatGen = mode;
 }
 

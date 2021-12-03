@@ -722,8 +722,6 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationStackCallINTEL);
   if (Attrs.hasFnAttr(kVCMetadata::VCFunction))
     BF->addDecorate(DecorationVectorComputeFunctionINTEL);
-  else
-    return;
 
   if (Attrs.hasFnAttr(kVCMetadata::VCSIMTCall)) {
     SPIRVWord SIMTMode = 0;
@@ -1429,7 +1427,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
                             SPIRVEC_FunctionPointers, toString(V)))
       return nullptr;
-    return BM->addConstFunctionPointerINTEL(
+    return BM->addConstantFunctionPointerINTEL(
         transType(F->getType()),
         static_cast<SPIRVFunction *>(transValue(F, nullptr)));
   }
@@ -1539,6 +1537,19 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     spv::BuiltIn Builtin = spv::BuiltInPosition;
     if (!GV->hasName() || !getSPIRVBuiltin(GV->getName().str(), Builtin))
       return BVar;
+    if (static_cast<uint32_t>(Builtin) >= internal::BuiltInSubDeviceIDINTEL &&
+        static_cast<uint32_t>(Builtin) <=
+            internal::BuiltInMaxHWThreadIDPerSubDeviceINTEL) {
+      if (!BM->isAllowedToUseExtension(
+              ExtensionID::SPV_INTEL_hw_thread_queries)) {
+        std::string ErrorStr = "Intel HW thread queries must be enabled by "
+                               "SPV_INTEL_hw_thread_queries extension.\n"
+                               "LLVM value that is being translated:\n";
+        getErrorLog().checkError(false, SPIRVEC_InvalidModule, V, ErrorStr);
+      }
+      BM->addExtension(ExtensionID::SPV_INTEL_hw_thread_queries);
+    }
+
     BVar->setBuiltin(Builtin);
     return BVar;
   }
@@ -1986,6 +1997,20 @@ bool LLVMToSPIRVBase::shouldTryToAddMemAliasingDecoration(Instruction *Inst) {
   return true;
 }
 
+void addFuncPointerCallArgumentAttributes(CallInst *CI,
+                                          SPIRVValue *FuncPtrCall) {
+  for (unsigned ArgNo = 0; ArgNo < CI->arg_size(); ++ArgNo) {
+    for (const auto &I : CI->getAttributes().getParamAttrs(ArgNo)) {
+      spv::FunctionParameterAttribute Attr = spv::FunctionParameterAttributeMax;
+      SPIRSPIRVFuncParamAttrMap::find(I.getKindAsEnum(), &Attr);
+      if (Attr != spv::FunctionParameterAttributeMax)
+        FuncPtrCall->addDecorate(
+            new SPIRVDecorate(spv::internal::DecorationArgumentAttributeINTEL,
+                              FuncPtrCall, ArgNo, Attr));
+    }
+  }
+}
+
 bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
   if (!transAlign(V, BV))
     return false;
@@ -2047,6 +2072,8 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
       auto SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
       BV->addDecorate(DecorationSpecId, SpecId);
     }
+    if (OC == OpFunctionPointerCallINTEL)
+      addFuncPointerCallArgumentAttributes(CI, BV);
   }
 
   return true;
@@ -2733,12 +2760,11 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   switch (II->getIntrinsicID()) {
   case Intrinsic::assume: {
     // llvm.assume translation is currently supported only within
-    // SPV_INTEL_optimization_hints extension, ignore it otherwise, since it's
+    // SPV_KHR_expect_assume extension, ignore it otherwise, since it's
     // an optimization hint
-    if (BM->isAllowedToUseExtension(
-            ExtensionID::SPV_INTEL_optimization_hints)) {
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_expect_assume)) {
       SPIRVValue *Condition = transValue(II->getArgOperand(0), BB);
-      return BM->addAssumeTrueINTELInst(Condition, BB);
+      return BM->addAssumeTrueKHRInst(Condition, BB);
     }
     return nullptr;
   }
@@ -2849,14 +2875,13 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   }
   case Intrinsic::expect: {
     // llvm.expect translation is currently supported only within
-    // SPV_INTEL_optimization_hints extension, replace it with a translated
-    // value of #0 operand otherwise, since it's an optimization hint
+    // SPV_KHR_expect_assume extension, replace it with a translated value of #0
+    // operand otherwise, since it's an optimization hint
     SPIRVValue *Value = transValue(II->getArgOperand(0), BB);
-    if (BM->isAllowedToUseExtension(
-            ExtensionID::SPV_INTEL_optimization_hints)) {
+    if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_expect_assume)) {
       SPIRVType *Ty = transType(II->getType());
       SPIRVValue *ExpectedValue = transValue(II->getArgOperand(1), BB);
-      return BM->addExpectINTELInst(Ty, Value, ExpectedValue, BB);
+      return BM->addExpectKHRInst(Ty, Value, ExpectedValue, BB);
     }
     return Value;
   }
@@ -4172,16 +4197,23 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       OpItr++;
     }
 
-    SPIRVValue *Input =
-        transValue(*OpItr++ /* A - integer input of any width */, BB);
+    // Input - integer input of any width or 'byval' pointer to this integer
+    SPIRVValue *Input = transValue(*OpItr, BB);
+    if (OpItr->getType()->isPointerTy())
+      Input = BM->addLoadInst(Input, {}, BB);
+    OpItr++;
 
     std::vector<SPIRVWord> Literals;
     std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addFixedPointIntelInst(OC, transType(ResTy), Input, Literals,
-                                      BB);
+    auto *APIntInst =
+        BM->addFixedPointIntelInst(OC, transType(ResTy), Input, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   case OpArbitraryFloatCastINTEL:
   case OpArbitraryFloatCastFromIntINTEL:
@@ -4256,15 +4288,23 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       OpItr++;
     }
 
-    SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
+    // Input - integer input of any width or 'byval' pointer to this integer
+    SPIRVValue *Input = transValue(*OpItr, BB);
+    if (OpItr->getType()->isPointerTy())
+      Input = BM->addLoadInst(Input, {}, BB);
+    OpItr++;
 
     std::vector<SPIRVWord> Literals;
     std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA, nullptr,
-                                         Literals, BB);
+    auto *APIntInst = BM->addArbFloatPointIntelInst(OC, transType(ResTy), Input,
+                                                    nullptr, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   case OpArbitraryFloatAddINTEL:
   case OpArbitraryFloatSubINTEL:
@@ -4324,19 +4364,33 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       OpItr++;
     }
 
-    SPIRVValue *InA = transValue(*OpItr++ /* A - input */, BB);
+    // InA - integer input of any width or 'byval' pointer to this integer
+    SPIRVValue *InA = transValue(*OpItr, BB);
+    if (OpItr->getType()->isPointerTy())
+      InA = BM->addLoadInst(InA, {}, BB);
+    OpItr++;
 
     std::vector<SPIRVWord> Literals;
     Literals.push_back(cast<llvm::ConstantInt>(*OpItr++)->getZExtValue());
 
-    SPIRVValue *InB = transValue(*OpItr++ /* B - input */, BB);
+    // InB - integer input of any width or 'byval' pointer to this integer
+    SPIRVValue *InB = transValue(*OpItr, BB);
+    if (OpItr->getType()->isPointerTy()) {
+      std::vector<SPIRVWord> Mem;
+      InB = BM->addLoadInst(InB, Mem, BB);
+    }
+    OpItr++;
 
     std::transform(OpItr, OpEnd, std::back_inserter(Literals), [](auto *O) {
       return cast<llvm::ConstantInt>(O)->getZExtValue();
     });
 
-    return BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA, InB,
-                                         Literals, BB);
+    auto *APIntInst = BM->addArbFloatPointIntelInst(OC, transType(ResTy), InA,
+                                                    InB, Literals, BB);
+    if (!CI->hasStructRetAttr())
+      return APIntInst;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
+                            BB);
   }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {

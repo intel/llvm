@@ -2860,6 +2860,19 @@ TEST_F(FormatTest, MultiLineControlStatements) {
             "  baz();\n"
             "}",
             format("try{foo();}catch(...){baz();}", Style));
+
+  Style.BraceWrapping.AfterFunction = true;
+  Style.BraceWrapping.AfterControlStatement = FormatStyle::BWACS_MultiLine;
+  Style.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_All;
+  Style.ColumnLimit = 80;
+  verifyFormat("void shortfunction() { bar(); }", Style);
+
+  Style.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_None;
+  verifyFormat("void shortfunction()\n"
+               "{\n"
+               "  bar();\n"
+               "}",
+               Style);
 }
 
 TEST_F(FormatTest, BeforeWhile) {
@@ -5394,6 +5407,27 @@ TEST_F(FormatTest, PutEmptyBlocksIntoOneLine) {
   EXPECT_EQ("void f() { }", format("void f() {}", Style));
   Style.AllowShortBlocksOnASingleLine = FormatStyle::SBS_Empty;
   EXPECT_EQ("while (true) { }", format("while (true) {}", Style));
+  Style.BreakBeforeBraces = FormatStyle::BS_Custom;
+  Style.BraceWrapping.BeforeElse = false;
+  Style.BraceWrapping.AfterControlStatement = FormatStyle::BWACS_Always;
+  verifyFormat("if (a)\n"
+               "{\n"
+               "} else if (b)\n"
+               "{\n"
+               "} else\n"
+               "{ }",
+               Style);
+  Style.BraceWrapping.AfterControlStatement = FormatStyle::BWACS_Never;
+  verifyFormat("if (a) {\n"
+               "} else if (b) {\n"
+               "} else {\n"
+               "}",
+               Style);
+  Style.BraceWrapping.BeforeElse = true;
+  verifyFormat("if (a) { }\n"
+               "else if (b) { }\n"
+               "else { }",
+               Style);
 }
 
 TEST_F(FormatTest, FormatBeginBlockEndMacros) {
@@ -9439,6 +9473,13 @@ TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
   verifyFormat("void f() { &(*I).first; }");
 
   verifyIndependentOfContext("f(b * /* confusing comment */ ++c);");
+  verifyFormat("f(* /* confusing comment */ foo);");
+  verifyFormat("void (* /*deleter*/)(const Slice &key, void *value)");
+  verifyFormat("void foo(int * // this is the first paramters\n"
+               "         ,\n"
+               "         int second);");
+  verifyFormat("double term = a * // first\n"
+               "              b;");
   verifyFormat(
       "int *MyValues = {\n"
       "    *A, // Operator detection might be confused by the '{'\n"
@@ -9650,6 +9691,9 @@ TEST_F(FormatTest, UnderstandsUsesOfStarAndAmp) {
   verifyFormat("void f() { a->operator()(a & a); }");
   verifyFormat("void f() { a.operator()(*a & *a); }");
   verifyFormat("void f() { a->operator()(*a * *a); }");
+
+  verifyFormat("int operator()(T (&&)[N]) { return 1; }");
+  verifyFormat("int operator()(T (&)[N]) { return 0; }");
 }
 
 TEST_F(FormatTest, UnderstandsAttributes) {
@@ -14133,6 +14177,173 @@ TEST_F(FormatTest, ConfigurableSpaceBeforeParens) {
   verifyFormat("X A::operator++ (T);", SomeSpace);
   verifyFormat("int x = int (y);", SomeSpace);
   verifyFormat("auto lambda = []() { return 0; };", SomeSpace);
+
+  FormatStyle SpaceControlStatements = getLLVMStyle();
+  SpaceControlStatements.SpaceBeforeParens = FormatStyle::SBPO_Custom;
+  SpaceControlStatements.SpaceBeforeParensOptions.AfterControlStatements = true;
+
+  verifyFormat("while (true)\n"
+               "  continue;",
+               SpaceControlStatements);
+  verifyFormat("if (true)\n"
+               "  f();\n"
+               "else if (true)\n"
+               "  f();",
+               SpaceControlStatements);
+  verifyFormat("for (;;) {\n"
+               "  do_something();\n"
+               "}",
+               SpaceControlStatements);
+  verifyFormat("do {\n"
+               "  do_something();\n"
+               "} while (something());",
+               SpaceControlStatements);
+  verifyFormat("switch (x) {\n"
+               "default:\n"
+               "  break;\n"
+               "}",
+               SpaceControlStatements);
+
+  FormatStyle SpaceFuncDecl = getLLVMStyle();
+  SpaceFuncDecl.SpaceBeforeParens = FormatStyle::SBPO_Custom;
+  SpaceFuncDecl.SpaceBeforeParensOptions.AfterFunctionDeclarationName = true;
+
+  verifyFormat("int f ();", SpaceFuncDecl);
+  verifyFormat("void f(int a, T b) {}", SpaceFuncDecl);
+  verifyFormat("A::A() : a(1) {}", SpaceFuncDecl);
+  verifyFormat("void f () __attribute__((asdf));", SpaceFuncDecl);
+  verifyFormat("#define A(x) x", SpaceFuncDecl);
+  verifyFormat("#define A (x) x", SpaceFuncDecl);
+  verifyFormat("#if defined(x)\n"
+               "#endif",
+               SpaceFuncDecl);
+  verifyFormat("auto i = std::make_unique<int>(5);", SpaceFuncDecl);
+  verifyFormat("size_t x = sizeof(x);", SpaceFuncDecl);
+  verifyFormat("auto f (int x) -> decltype(x);", SpaceFuncDecl);
+  verifyFormat("auto f (int x) -> typeof(x);", SpaceFuncDecl);
+  verifyFormat("auto f (int x) -> _Atomic(x);", SpaceFuncDecl);
+  verifyFormat("auto f (int x) -> __underlying_type(x);", SpaceFuncDecl);
+  verifyFormat("int f (T x) noexcept(x.create());", SpaceFuncDecl);
+  verifyFormat("alignas(128) char a[128];", SpaceFuncDecl);
+  verifyFormat("size_t x = alignof(MyType);", SpaceFuncDecl);
+  verifyFormat("static_assert(sizeof(char) == 1, \"Impossible!\");",
+               SpaceFuncDecl);
+  verifyFormat("int f () throw(Deprecated);", SpaceFuncDecl);
+  verifyFormat("typedef void (*cb)(int);", SpaceFuncDecl);
+  verifyFormat("T A::operator() ();", SpaceFuncDecl);
+  verifyFormat("X A::operator++ (T);", SpaceFuncDecl);
+  verifyFormat("T A::operator()() {}", SpaceFuncDecl);
+  verifyFormat("auto lambda = []() { return 0; };", SpaceFuncDecl);
+  verifyFormat("int x = int(y);", SpaceFuncDecl);
+  verifyFormat("M(std::size_t R, std::size_t C) : C(C), data(R) {}",
+               SpaceFuncDecl);
+
+  FormatStyle SpaceFuncDef = getLLVMStyle();
+  SpaceFuncDef.SpaceBeforeParens = FormatStyle::SBPO_Custom;
+  SpaceFuncDef.SpaceBeforeParensOptions.AfterFunctionDefinitionName = true;
+
+  verifyFormat("int f();", SpaceFuncDef);
+  verifyFormat("void f (int a, T b) {}", SpaceFuncDef);
+  verifyFormat("A::A() : a(1) {}", SpaceFuncDef);
+  verifyFormat("void f() __attribute__((asdf));", SpaceFuncDef);
+  verifyFormat("#define A(x) x", SpaceFuncDef);
+  verifyFormat("#define A (x) x", SpaceFuncDef);
+  verifyFormat("#if defined(x)\n"
+               "#endif",
+               SpaceFuncDef);
+  verifyFormat("auto i = std::make_unique<int>(5);", SpaceFuncDef);
+  verifyFormat("size_t x = sizeof(x);", SpaceFuncDef);
+  verifyFormat("auto f(int x) -> decltype(x);", SpaceFuncDef);
+  verifyFormat("auto f(int x) -> typeof(x);", SpaceFuncDef);
+  verifyFormat("auto f(int x) -> _Atomic(x);", SpaceFuncDef);
+  verifyFormat("auto f(int x) -> __underlying_type(x);", SpaceFuncDef);
+  verifyFormat("int f(T x) noexcept(x.create());", SpaceFuncDef);
+  verifyFormat("alignas(128) char a[128];", SpaceFuncDef);
+  verifyFormat("size_t x = alignof(MyType);", SpaceFuncDef);
+  verifyFormat("static_assert(sizeof(char) == 1, \"Impossible!\");",
+               SpaceFuncDef);
+  verifyFormat("int f() throw(Deprecated);", SpaceFuncDef);
+  verifyFormat("typedef void (*cb)(int);", SpaceFuncDef);
+  verifyFormat("T A::operator()();", SpaceFuncDef);
+  verifyFormat("X A::operator++(T);", SpaceFuncDef);
+  verifyFormat("T A::operator() () {}", SpaceFuncDef);
+  verifyFormat("auto lambda = [] () { return 0; };", SpaceFuncDef);
+  verifyFormat("int x = int(y);", SpaceFuncDef);
+  verifyFormat("M(std::size_t R, std::size_t C) : C(C), data(R) {}",
+               SpaceFuncDef);
+
+  FormatStyle SpaceIfMacros = getLLVMStyle();
+  SpaceIfMacros.IfMacros.clear();
+  SpaceIfMacros.IfMacros.push_back("MYIF");
+  SpaceIfMacros.SpaceBeforeParens = FormatStyle::SBPO_Custom;
+  SpaceIfMacros.SpaceBeforeParensOptions.AfterIfMacros = true;
+  verifyFormat("MYIF (a)\n  return;", SpaceIfMacros);
+  verifyFormat("MYIF (a)\n  return;\nelse MYIF (b)\n  return;", SpaceIfMacros);
+  verifyFormat("MYIF (a)\n  return;\nelse\n  return;", SpaceIfMacros);
+
+  FormatStyle SpaceForeachMacros = getLLVMStyle();
+  SpaceForeachMacros.SpaceBeforeParens = FormatStyle::SBPO_Custom;
+  SpaceForeachMacros.SpaceBeforeParensOptions.AfterForeachMacros = true;
+  verifyFormat("foreach (Item *item, itemlist) {}", SpaceForeachMacros);
+  verifyFormat("Q_FOREACH (Item *item, itemlist) {}", SpaceForeachMacros);
+  verifyFormat("BOOST_FOREACH (Item *item, itemlist) {}", SpaceForeachMacros);
+  verifyFormat("UNKNOWN_FOREACH(Item *item, itemlist) {}", SpaceForeachMacros);
+
+  FormatStyle SomeSpace2 = getLLVMStyle();
+  SomeSpace2.SpaceBeforeParens = FormatStyle::SBPO_Custom;
+  SomeSpace2.SpaceBeforeParensOptions.BeforeNonEmptyParentheses = true;
+  verifyFormat("[]() -> float {}", SomeSpace2);
+  verifyFormat("[] (auto foo) {}", SomeSpace2);
+  verifyFormat("[foo]() -> int {}", SomeSpace2);
+  verifyFormat("int f();", SomeSpace2);
+  verifyFormat("void f (int a, T b) {\n"
+               "  while (true)\n"
+               "    continue;\n"
+               "}",
+               SomeSpace2);
+  verifyFormat("if (true)\n"
+               "  f();\n"
+               "else if (true)\n"
+               "  f();",
+               SomeSpace2);
+  verifyFormat("do {\n"
+               "  do_something();\n"
+               "} while (something());",
+               SomeSpace2);
+  verifyFormat("switch (x) {\n"
+               "default:\n"
+               "  break;\n"
+               "}",
+               SomeSpace2);
+  verifyFormat("A::A() : a (1) {}", SomeSpace2);
+  verifyFormat("void f() __attribute__ ((asdf));", SomeSpace2);
+  verifyFormat("*(&a + 1);\n"
+               "&((&a)[1]);\n"
+               "a[(b + c) * d];\n"
+               "(((a + 1) * 2) + 3) * 4;",
+               SomeSpace2);
+  verifyFormat("#define A(x) x", SomeSpace2);
+  verifyFormat("#define A (x) x", SomeSpace2);
+  verifyFormat("#if defined(x)\n"
+               "#endif",
+               SomeSpace2);
+  verifyFormat("auto i = std::make_unique<int> (5);", SomeSpace2);
+  verifyFormat("size_t x = sizeof (x);", SomeSpace2);
+  verifyFormat("auto f (int x) -> decltype (x);", SomeSpace2);
+  verifyFormat("auto f (int x) -> typeof (x);", SomeSpace2);
+  verifyFormat("auto f (int x) -> _Atomic (x);", SomeSpace2);
+  verifyFormat("auto f (int x) -> __underlying_type (x);", SomeSpace2);
+  verifyFormat("int f (T x) noexcept (x.create());", SomeSpace2);
+  verifyFormat("alignas (128) char a[128];", SomeSpace2);
+  verifyFormat("size_t x = alignof (MyType);", SomeSpace2);
+  verifyFormat("static_assert (sizeof (char) == 1, \"Impossible!\");",
+               SomeSpace2);
+  verifyFormat("int f() throw (Deprecated);", SomeSpace2);
+  verifyFormat("typedef void (*cb) (int);", SomeSpace2);
+  verifyFormat("T A::operator()();", SomeSpace2);
+  verifyFormat("X A::operator++ (T);", SomeSpace2);
+  verifyFormat("int x = int (y);", SomeSpace2);
+  verifyFormat("auto lambda = []() { return 0; };", SomeSpace2);
 }
 
 TEST_F(FormatTest, SpaceAfterLogicalNot) {
@@ -18631,6 +18842,8 @@ TEST_F(FormatTest, ParsesConfiguration) {
               FormatStyle::SBPO_ControlStatementsExceptControlMacros);
   CHECK_PARSE("SpaceBeforeParens: NonEmptyParentheses", SpaceBeforeParens,
               FormatStyle::SBPO_NonEmptyParentheses);
+  CHECK_PARSE("SpaceBeforeParens: Custom", SpaceBeforeParens,
+              FormatStyle::SBPO_Custom);
   // For backward compatibility:
   CHECK_PARSE("SpaceAfterControlStatementKeyword: false", SpaceBeforeParens,
               FormatStyle::SBPO_Never);
@@ -21687,6 +21900,7 @@ TEST_F(FormatTest, OperatorSpacing) {
   verifyFormat("Foo::operator&(void &);", Style);
   verifyFormat("Foo::operator&();", Style);
   verifyFormat("operator&(int (&)(), class Foo);", Style);
+  verifyFormat("operator&&(int (&)(), class Foo);", Style);
 
   verifyFormat("Foo::operator&&();", Style);
   verifyFormat("Foo::operator**();", Style);
@@ -21695,7 +21909,7 @@ TEST_F(FormatTest, OperatorSpacing) {
   verifyFormat("Foo::operator()(void &&);", Style);
   verifyFormat("Foo::operator&&(void &&);", Style);
   verifyFormat("Foo::operator&&();", Style);
-  verifyFormat("operator&&(int(&&)(), class Foo);", Style);
+  verifyFormat("operator&&(int (&&)(), class Foo);", Style);
   verifyFormat("operator const nsTArrayRight<E> &()", Style);
   verifyFormat("[[nodiscard]] operator const nsTArrayRight<E, Allocator> &()",
                Style);
@@ -21746,6 +21960,8 @@ TEST_F(FormatTest, OperatorSpacing) {
   verifyFormat("Foo::operator&(void&);", Style);
   verifyFormat("Foo::operator&();", Style);
   verifyFormat("operator&(int (&)(), class Foo);", Style);
+  verifyFormat("operator&(int (&&)(), class Foo);", Style);
+  verifyFormat("operator&&(int (&&)(), class Foo);", Style);
 
   verifyFormat("Foo::operator&&();", Style);
   verifyFormat("Foo::operator void&&();", Style);
@@ -21756,7 +21972,7 @@ TEST_F(FormatTest, OperatorSpacing) {
   verifyFormat("Foo::operator()(void&&);", Style);
   verifyFormat("Foo::operator&&(void&&);", Style);
   verifyFormat("Foo::operator&&();", Style);
-  verifyFormat("operator&&(int(&&)(), class Foo);", Style);
+  verifyFormat("operator&&(int (&&)(), class Foo);", Style);
   verifyFormat("operator const nsTArrayLeft<E>&()", Style);
   verifyFormat("[[nodiscard]] operator const nsTArrayLeft<E, Allocator>&()",
                Style);
@@ -21797,7 +22013,7 @@ TEST_F(FormatTest, OperatorSpacing) {
   verifyFormat("Foo::operator()(void &&);", Style);
   verifyFormat("Foo::operator&&(void &&);", Style);
   verifyFormat("Foo::operator&&();", Style);
-  verifyFormat("operator&&(int(&&)(), class Foo);", Style);
+  verifyFormat("operator&&(int (&&)(), class Foo);", Style);
 }
 
 TEST_F(FormatTest, OperatorPassedAsAFunctionPtr) {
@@ -22395,6 +22611,95 @@ TEST_F(FormatTest, LimitlessStringsAndComments) {
       "  return String.size() > SmallString.size();\n"
       "}";
   EXPECT_EQ(Code, format(Code, Style));
+}
+
+TEST_F(FormatTest, FormatDecayCopy) {
+  // error cases from unit tests
+  verifyFormat("foo(auto())");
+  verifyFormat("foo(auto{})");
+  verifyFormat("foo(auto({}))");
+  verifyFormat("foo(auto{{}})");
+
+  verifyFormat("foo(auto(1))");
+  verifyFormat("foo(auto{1})");
+  verifyFormat("foo(new auto(1))");
+  verifyFormat("foo(new auto{1})");
+  verifyFormat("decltype(auto(1)) x;");
+  verifyFormat("decltype(auto{1}) x;");
+  verifyFormat("auto(x);");
+  verifyFormat("auto{x};");
+  verifyFormat("new auto{x};");
+  verifyFormat("auto{x} = y;");
+  verifyFormat("auto(x) = y;"); // actually a declaration, but this is clearly
+                                // the user's own fault
+  verifyFormat("integral auto(x) = y;"); // actually a declaration, but this is
+                                         // clearly the user's own fault
+  verifyFormat("auto(*p)() = f;");       // actually a declaration; TODO FIXME
+}
+
+TEST_F(FormatTest, Cpp20ModulesSupport) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AllowShortBlocksOnASingleLine = FormatStyle::SBS_Never;
+  Style.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_None;
+
+  verifyFormat("export import foo;", Style);
+  verifyFormat("export import foo:bar;", Style);
+  verifyFormat("export import foo.bar;", Style);
+  verifyFormat("export import foo.bar:baz;", Style);
+  verifyFormat("export import :bar;", Style);
+  verifyFormat("export module foo:bar;", Style);
+  verifyFormat("export module foo;", Style);
+  verifyFormat("export module foo.bar;", Style);
+  verifyFormat("export module foo.bar:baz;", Style);
+  verifyFormat("export import <string_view>;", Style);
+
+  verifyFormat("export type_name var;", Style);
+  verifyFormat("template <class T> export using A = B<T>;", Style);
+  verifyFormat("export using A = B;", Style);
+  verifyFormat("export int func() {\n"
+               "  foo();\n"
+               "}",
+               Style);
+  verifyFormat("export struct {\n"
+               "  int foo;\n"
+               "};",
+               Style);
+  verifyFormat("export {\n"
+               "  int foo;\n"
+               "};",
+               Style);
+  verifyFormat("export export char const *hello() { return \"hello\"; }");
+
+  verifyFormat("import bar;", Style);
+  verifyFormat("import foo.bar;", Style);
+  verifyFormat("import foo:bar;", Style);
+  verifyFormat("import :bar;", Style);
+  verifyFormat("import <ctime>;", Style);
+  verifyFormat("import \"header\";", Style);
+
+  verifyFormat("module foo;", Style);
+  verifyFormat("module foo:bar;", Style);
+  verifyFormat("module foo.bar;", Style);
+  verifyFormat("module;", Style);
+
+  verifyFormat("export namespace hi {\n"
+               "const char *sayhi();\n"
+               "}",
+               Style);
+
+  verifyFormat("module :private;", Style);
+  verifyFormat("import <foo/bar.h>;", Style);
+  verifyFormat("import foo...bar;", Style);
+  verifyFormat("import ..........;", Style);
+  verifyFormat("module foo:private;", Style);
+  verifyFormat("import a", Style);
+  verifyFormat("module a", Style);
+  verifyFormat("export import a", Style);
+  verifyFormat("export module a", Style);
+
+  verifyFormat("import", Style);
+  verifyFormat("module", Style);
+  verifyFormat("export", Style);
 }
 
 } // namespace

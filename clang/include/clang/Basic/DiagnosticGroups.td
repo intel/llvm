@@ -54,7 +54,11 @@ def CompoundTokenSplit : DiagGroup<"compound-token-split",
                                     CompoundTokenSplitBySpace]>;
 def CoroutineMissingUnhandledException :
   DiagGroup<"coroutine-missing-unhandled-exception">;
-def Coroutine : DiagGroup<"coroutine", [CoroutineMissingUnhandledException]>;
+def DeprecatedExperimentalCoroutine :
+  DiagGroup<"deprecated-experimental-coroutine">;
+def DeprecatedCoroutine :
+  DiagGroup<"deprecated-coroutine", [DeprecatedExperimentalCoroutine]>;
+def Coroutine : DiagGroup<"coroutine", [CoroutineMissingUnhandledException, DeprecatedCoroutine]>;
 def ObjCBoolConstantConversion : DiagGroup<"objc-bool-constant-conversion">;
 def ConstantConversion : DiagGroup<"constant-conversion",
                                    [BitFieldConstantConversion,
@@ -753,6 +757,7 @@ def UnusedLocalTypedef : DiagGroup<"unused-local-typedef">;
 def UnusedPropertyIvar :  DiagGroup<"unused-property-ivar">;
 def UnusedGetterReturnValue : DiagGroup<"unused-getter-return-value">;
 def UsedButMarkedUnused : DiagGroup<"used-but-marked-unused">;
+def UsedSearchPath : DiagGroup<"search-path-usage">;
 def UserDefinedLiterals : DiagGroup<"user-defined-literals">;
 def UserDefinedWarnings : DiagGroup<"user-defined-warnings">;
 def ReorderCtor : DiagGroup<"reorder-ctor">;
@@ -1272,8 +1277,9 @@ def OptionIgnored : DiagGroup<"option-ignored">;
 def UnknownArgument : DiagGroup<"unknown-argument">;
 
 // A warning group for warnings about code that clang accepts when
-// compiling OpenCL C/C++ but which is not compatible with the SPIR spec.
+// compiling OpenCL C/C++ but which is not compatible with the SPIR(-V) spec.
 def SpirCompat : DiagGroup<"spir-compat">;
+def : DiagGroup<"spirv-compat", [SpirCompat]>; // Alias.
 
 // Warning for the GlobalISel options.
 def GlobalISel : DiagGroup<"global-isel">;

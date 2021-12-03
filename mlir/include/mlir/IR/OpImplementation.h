@@ -54,6 +54,10 @@ public:
   /// provide a valid type for the attribute.
   virtual void printAttributeWithoutType(Attribute attr);
 
+  /// Print the given string as a keyword, or a quoted and escaped string if it
+  /// has any special or non-printable characters in it.
+  virtual void printKeywordOrString(StringRef keyword);
+
   /// Print the given string as a symbol reference, i.e. a form representable by
   /// a SymbolRefAttr. A symbol reference is represented as a string prefixed
   /// with '@'. The reference is surrounded with ""'s and escaped if it has any
@@ -178,10 +182,10 @@ operator<<(AsmPrinterT &p, const TypeRange &types) {
   llvm::interleaveComma(types, p);
   return p;
 }
-template <typename AsmPrinterT>
+template <typename AsmPrinterT, typename ElementT>
 inline std::enable_if_t<std::is_base_of<AsmPrinter, AsmPrinterT>::value,
                         AsmPrinterT &>
-operator<<(AsmPrinterT &p, ArrayRef<Type> types) {
+operator<<(AsmPrinterT &p, ArrayRef<ElementT> types) {
   llvm::interleaveComma(types, p);
   return p;
 }
@@ -461,6 +465,17 @@ public:
   parseOptionalKeyword(StringRef *keyword,
                        ArrayRef<StringRef> allowedValues) = 0;
 
+  /// Parse a keyword or a quoted string.
+  ParseResult parseKeywordOrString(std::string *result) {
+    if (failed(parseOptionalKeywordOrString(result)))
+      return emitError(getCurrentLocation())
+             << "expected valid keyword or string";
+    return success();
+  }
+
+  /// Parse an optional keyword or string.
+  virtual ParseResult parseOptionalKeywordOrString(std::string *result) = 0;
+
   /// Parse a `(` token.
   virtual ParseResult parseLParen() = 0;
 
@@ -624,28 +639,6 @@ public:
     return parseAttribute(result, Type(), attrName, attrs);
   }
 
-  /// Parse an optional attribute.
-  virtual OptionalParseResult parseOptionalAttribute(Attribute &result,
-                                                     Type type,
-                                                     StringRef attrName,
-                                                     NamedAttrList &attrs) = 0;
-  template <typename AttrT>
-  OptionalParseResult parseOptionalAttribute(AttrT &result, StringRef attrName,
-                                             NamedAttrList &attrs) {
-    return parseOptionalAttribute(result, Type(), attrName, attrs);
-  }
-
-  /// Specialized variants of `parseOptionalAttribute` that remove potential
-  /// ambiguities in syntax.
-  virtual OptionalParseResult parseOptionalAttribute(ArrayAttr &result,
-                                                     Type type,
-                                                     StringRef attrName,
-                                                     NamedAttrList &attrs) = 0;
-  virtual OptionalParseResult parseOptionalAttribute(StringAttr &result,
-                                                     Type type,
-                                                     StringRef attrName,
-                                                     NamedAttrList &attrs) = 0;
-
   /// Parse an arbitrary attribute of a given type and return it in result. This
   /// also adds the attribute to the specified attribute list with the specified
   /// name.
@@ -666,6 +659,40 @@ public:
 
     attrs.append(attrName, result);
     return success();
+  }
+
+  /// Parse an arbitrary optional attribute of a given type and return it in
+  /// result.
+  virtual OptionalParseResult parseOptionalAttribute(Attribute &result,
+                                                     Type type = {}) = 0;
+
+  /// Parse an optional array attribute and return it in result.
+  virtual OptionalParseResult parseOptionalAttribute(ArrayAttr &result,
+                                                     Type type = {}) = 0;
+
+  /// Parse an optional string attribute and return it in result.
+  virtual OptionalParseResult parseOptionalAttribute(StringAttr &result,
+                                                     Type type = {}) = 0;
+
+  /// Parse an optional attribute of a specific type and add it to the list with
+  /// the specified name.
+  template <typename AttrType>
+  OptionalParseResult parseOptionalAttribute(AttrType &result,
+                                             StringRef attrName,
+                                             NamedAttrList &attrs) {
+    return parseOptionalAttribute(result, Type(), attrName, attrs);
+  }
+
+  /// Parse an optional attribute of a specific type and add it to the list with
+  /// the specified name.
+  template <typename AttrType>
+  OptionalParseResult parseOptionalAttribute(AttrType &result, Type type,
+                                             StringRef attrName,
+                                             NamedAttrList &attrs) {
+    OptionalParseResult parseResult = parseOptionalAttribute(result, type);
+    if (parseResult.hasValue() && succeeded(*parseResult))
+      attrs.append(attrName, result);
+    return parseResult;
   }
 
   /// Parse a named dictionary into 'result' if it is present.
@@ -880,6 +907,10 @@ public:
   virtual Operation *parseGenericOperation(Block *insertBlock,
                                            Block::iterator insertPt) = 0;
 
+  /// Parse the name of an operation, in the custom form. On success, return a
+  /// an object of type 'OperationName'. Otherwise, failure is returned.
+  virtual FailureOr<OperationName> parseCustomOperationName() = 0;
+
   //===--------------------------------------------------------------------===//
   // Operand Parsing
   //===--------------------------------------------------------------------===//
@@ -890,6 +921,20 @@ public:
     StringRef name;       // Value name, e.g. %42 or %abc
     unsigned number;      // Number, e.g. 12 for an operand like %xyz#12
   };
+
+  /// Parse different components, viz., use-info of operand(s), successor(s),
+  /// region(s), attribute(s) and function-type, of the generic form of an
+  /// operation instance and populate the input operation-state 'result' with
+  /// those components. If any of the components is explicitly provided, then
+  /// skip parsing that component.
+  virtual ParseResult parseGenericOperationAfterOpName(
+      OperationState &result,
+      Optional<ArrayRef<OperandType>> parsedOperandType = llvm::None,
+      Optional<ArrayRef<Block *>> parsedSuccessors = llvm::None,
+      Optional<MutableArrayRef<std::unique_ptr<Region>>> parsedRegions =
+          llvm::None,
+      Optional<ArrayRef<NamedAttribute>> parsedAttributes = llvm::None,
+      Optional<FunctionType> parsedFnType = llvm::None) = 0;
 
   /// Parse a single operand.
   virtual ParseResult parseOperand(OperandType &result) = 0;

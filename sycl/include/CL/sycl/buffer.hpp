@@ -44,6 +44,11 @@ template <typename T, int dimensions = 1,
           typename __Enabled = typename detail::enable_if_t<(dimensions > 0) &&
                                                             (dimensions <= 3)>>
 class buffer {
+  // TODO check is_device_copyable<T>::value after converting sycl::vec into a
+  // trivially copyable class.
+  static_assert(!std::is_same<T, std::string>::value,
+                "'std::string' is not a device copyable type");
+
 public:
   using value_type = T;
   using reference = value_type &;

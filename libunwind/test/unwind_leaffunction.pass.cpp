@@ -10,12 +10,6 @@
 // Ensure that leaf function can be unwund.
 // REQUIRES: linux && (target={{aarch64-.+}} || target={{x86_64-.+}})
 
-// TODO: Investigate these failures
-// XFAIL: asan, tsan, ubsan
-
-// TODO: Investigate this failure
-// XFAIL: 32bits-on-64bits
-
 #include <assert.h>
 #include <dlfcn.h>
 #include <signal.h>
@@ -44,10 +38,8 @@ void signal_handler(int signum) {
   _Exit(-1);
 }
 
-int* faultyPointer = NULL;
-
 __attribute__((noinline)) void crashing_leaf_func(void) {
-  *faultyPointer = 0;
+  raise(SIGSEGV);
 }
 
 int main(int, char**) {

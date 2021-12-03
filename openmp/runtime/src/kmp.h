@@ -849,6 +849,7 @@ typedef struct kmp_nested_proc_bind_t {
 } kmp_nested_proc_bind_t;
 
 extern kmp_nested_proc_bind_t __kmp_nested_proc_bind;
+extern kmp_proc_bind_t __kmp_teams_proc_bind;
 
 extern int __kmp_display_affinity;
 extern char *__kmp_affinity_format;
@@ -1080,7 +1081,9 @@ extern void __kmp_init_target_mem();
 #define KMP_MIN_BLOCKTIME (0)
 #define KMP_MAX_BLOCKTIME                                                      \
   (INT_MAX) /* Must be this for "infinite" setting the work */
-#define KMP_DEFAULT_BLOCKTIME (200) /*  __kmp_blocktime is in milliseconds  */
+
+/* __kmp_blocktime is in milliseconds */
+#define KMP_DEFAULT_BLOCKTIME (__kmp_is_hybrid_cpu() ? (0) : (200))
 
 #if KMP_USE_MONITOR
 #define KMP_DEFAULT_MONITOR_STKSIZE ((size_t)(64 * 1024))
@@ -1221,7 +1224,8 @@ typedef struct kmp_cpuid {
 typedef struct kmp_cpuinfo_flags_t {
   unsigned sse2 : 1; // 0 if SSE2 instructions are not supported, 1 otherwise.
   unsigned rtm : 1; // 0 if RTM instructions are not supported, 1 otherwise.
-  unsigned reserved : 30; // Ensure size of 32 bits
+  unsigned hybrid : 1;
+  unsigned reserved : 29; // Ensure size of 32 bits
 } kmp_cpuinfo_flags_t;
 
 typedef struct kmp_cpuinfo {
@@ -2983,6 +2987,9 @@ extern int __kmp_storage_map_verbose_specified;
 
 #if KMP_ARCH_X86 || KMP_ARCH_X86_64
 extern kmp_cpuinfo_t __kmp_cpuinfo;
+static inline bool __kmp_is_hybrid_cpu() { return __kmp_cpuinfo.flags.hybrid; }
+#else
+static inline bool __kmp_is_hybrid_cpu() { return false; }
 #endif
 
 extern volatile int __kmp_init_serial;
@@ -4266,6 +4273,15 @@ public:
                     __kmp_msg_null);
       }
     }
+  }
+  /// Instead of erroring out, return non-zero when
+  /// unsuccessful fopen() for any reason
+  int try_open(const char *filename, const char *mode) {
+    KMP_ASSERT(!f);
+    f = fopen(filename, mode);
+    if (!f)
+      return errno;
+    return 0;
   }
   /// Set the FILE* object to stdout and output there
   /// No open call should happen before this call.

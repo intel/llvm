@@ -16,18 +16,21 @@ target triple = "x86_64-unknown-linux-gnu"
 ; SSE2: LV: Found an estimated cost of 6 for VF 2 For instruction:   store double %v1, double* %out1, align 8
 ; SSE2: LV: Found an estimated cost of 12 for VF 4 For instruction:   store double %v1, double* %out1, align 8
 ; SSE2: LV: Found an estimated cost of 24 for VF 8 For instruction:   store double %v1, double* %out1, align 8
+; SSE2: LV: Found an estimated cost of 48 for VF 16 For instruction:   store double %v1, double* %out1, align 8
 ;
 ; AVX1: LV: Found an estimated cost of 1 for VF 1 For instruction:   store double %v1, double* %out1, align 8
 ; AVX1: LV: Found an estimated cost of 6 for VF 2 For instruction:   store double %v1, double* %out1, align 8
 ; AVX1: LV: Found an estimated cost of 16 for VF 4 For instruction:   store double %v1, double* %out1, align 8
 ; AVX1: LV: Found an estimated cost of 32 for VF 8 For instruction:   store double %v1, double* %out1, align 8
 ; AVX1: LV: Found an estimated cost of 64 for VF 16 For instruction:   store double %v1, double* %out1, align 8
+; AVX1: LV: Found an estimated cost of 128 for VF 32 For instruction:   store double %v1, double* %out1, align 8
 ;
 ; AVX2: LV: Found an estimated cost of 1 for VF 1 For instruction:   store double %v1, double* %out1, align 8
 ; AVX2: LV: Found an estimated cost of 3 for VF 2 For instruction:   store double %v1, double* %out1, align 8
 ; AVX2: LV: Found an estimated cost of 6 for VF 4 For instruction:   store double %v1, double* %out1, align 8
 ; AVX2: LV: Found an estimated cost of 12 for VF 8 For instruction:   store double %v1, double* %out1, align 8
 ; AVX2: LV: Found an estimated cost of 24 for VF 16 For instruction:   store double %v1, double* %out1, align 8
+; AVX2: LV: Found an estimated cost of 48 for VF 32 For instruction:   store double %v1, double* %out1, align 8
 ;
 ; AVX512: LV: Found an estimated cost of 1 for VF 1 For instruction:   store double %v1, double* %out1, align 8
 ; AVX512: LV: Found an estimated cost of 2 for VF 2 For instruction:   store double %v1, double* %out1, align 8
@@ -37,7 +40,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; AVX512: LV: Found an estimated cost of 20 for VF 32 For instruction:   store double %v1, double* %out1, align 8
 ; AVX512: LV: Found an estimated cost of 40 for VF 64 For instruction:   store double %v1, double* %out1, align 8
 ;
-; CHECK-NOT: LV: Found an estimated cost of {{[0-9]+}} for VF {{[0-9]+}} For instruction:   store double %v1, double* %out1, align 2
+; CHECK-NOT: LV: Found an estimated cost of {{[0-9]+}} for VF {{[0-9]+}} For instruction:   store double %v1, double* %out1, align 8
 
 define void @test() {
 entry:

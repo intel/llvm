@@ -486,7 +486,7 @@ bool LoopInvariantCodeMotion::runOnLoop(
 
   // Check that neither this loop nor its parent have had LCSSA broken. LICM is
   // specifically moving instructions across the loop boundary and so it is
-  // especially in need of sanity checking here.
+  // especially in need of basic functional correctness checking here.
   assert(L->isLCSSAForm(*DT) && "Loop not left in LCSSA form after LICM!");
   assert((L->isOutermost() || L->getParentLoop()->isLCSSAForm(*DT)) &&
          "Parent loop not left in LCSSA form after LICM!");
@@ -1578,8 +1578,7 @@ static bool canSplitPredecessors(PHINode *PN, LoopSafetyInfo *SafetyInfo) {
   // predecessor fairly simple.
   if (!SafetyInfo->getBlockColors().empty() && BB->getFirstNonPHI()->isEHPad())
     return false;
-  for (pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E; ++PI) {
-    BasicBlock *BBPred = *PI;
+  for (BasicBlock *BBPred : predecessors(BB)) {
     if (isa<IndirectBrInst>(BBPred->getTerminator()) ||
         isa<CallBrInst>(BBPred->getTerminator()))
       return false;

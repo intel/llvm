@@ -49,10 +49,9 @@ repository is to run:
 
 Sometime you may want to create a draft revision to show the proof of concept
 or for experimental purposes, In that case you can use the `--draft` option. It
-will either create a new draft revisoin or convert the original revision to a
-draft revision depending on your local branch status. The good part is: it will not
-send mail to llvm-commit mailing list, patch reviewers, and all other subscribers,
-buildbot will also run on every patch update:
+will create a new draft revision. The good part is: it will not send mail to
+llvm-commit mailing list, patch reviewers, and all other subscribers, buildbot
+will also run on every patch update:
 
 ::
 
@@ -175,12 +174,12 @@ a change from Phabricator.
 Pre-merge testing
 -----------------
 
-The pre-merge tests are a continuous integration (CI) workflow. The workflow 
-checks the patches uploaded to Phabricator before a user merges them to the main 
-branch - thus the term *pre-merge testing*. 
+The pre-merge tests are a continuous integration (CI) workflow. The workflow
+checks the patches uploaded to Phabricator before a user merges them to the main
+branch - thus the term *pre-merge testing*.
 
 When a user uploads a patch to Phabricator, Phabricator triggers the checks and
-then displays the results. This way bugs in a patch are contained during the 
+then displays the results. This way bugs in a patch are contained during the
 code review stage and do not pollute the main branch.
 
 Our goal with pre-merge testing is to report most true problems while strongly
@@ -188,8 +187,8 @@ minimizing the number of false positive reports.  Our goal is that problems
 reported are always actionable.  If you notice a false positive, please report
 it so that we can identify the cause.
 
-If you notice issues or have an idea on how to improve pre-merge checks, please 
-`create a new issue <https://github.com/google/llvm-premerge-checks/issues/new>`_ 
+If you notice issues or have an idea on how to improve pre-merge checks, please
+`create a new issue <https://github.com/google/llvm-premerge-checks/issues/new>`_
 or give a ❤️ to an existing one.
 
 Requirements
@@ -199,8 +198,8 @@ To get a patch on Phabricator tested, the build server must be able to apply the
 patch to the checked out git repository. Please make sure that either:
 
 * You set a git hash as ``sourceControlBaseRevision`` in Phabricator which is
-  available on the GitHub repository, 
-* **or** you define the dependencies of your patch in Phabricator, 
+  available on the GitHub repository,
+* **or** you define the dependencies of your patch in Phabricator,
 * **or** your patch can be applied to the main branch.
 
 Only then can the build server apply the patch locally and run the builds and
@@ -209,7 +208,7 @@ tests.
 Accessing build results
 ^^^^^^^^^^^^^^^^^^^^^^^
 Phabricator will automatically trigger a build for every new patch you upload or
-modify. Phabricator shows the build results at the top of the entry. Clicking on 
+modify. Phabricator shows the build results at the top of the entry. Clicking on
 the links (in the red box) will show more details:
 
   .. image:: Phabricator_premerge_results.png

@@ -15,6 +15,7 @@
 
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/StorageUniquerSupport.h"
+#include "mlir/IR/Types.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/Twine.h"
 
@@ -118,7 +119,7 @@ class alignas(8) AttributeStorage : public StorageUniquer::BaseStorage {
 
 public:
   /// Get the type of this attribute.
-  Type getType() const;
+  Type getType() const { return type; }
 
   /// Return the abstract descriptor for this attribute.
   const AbstractAttribute &getAbstractAttribute() const {
@@ -131,24 +132,27 @@ protected:
   /// Note: All attributes require a valid type. If no type is provided here,
   ///       the type of the attribute will automatically default to NoneType
   ///       upon initialization in the uniquer.
-  AttributeStorage(Type type);
-  AttributeStorage();
+  AttributeStorage(Type type = nullptr) : type(type) {}
 
   /// Set the type of this attribute.
-  void setType(Type type);
+  void setType(Type newType) { type = newType; }
 
-  // Set the abstract attribute for this storage instance. This is used by the
-  // AttributeUniquer when initializing a newly constructed storage object.
-  void initialize(const AbstractAttribute &abstractAttr) {
+  /// Set the abstract attribute for this storage instance. This is used by the
+  /// AttributeUniquer when initializing a newly constructed storage object.
+  void initializeAbstractAttribute(const AbstractAttribute &abstractAttr) {
     abstractAttribute = &abstractAttr;
   }
 
+  /// Default initialization for attribute storage classes that require no
+  /// additional initialization.
+  void initialize(MLIRContext *context) {}
+
 private:
+  /// The type of the attribute value.
+  Type type;
+
   /// The abstract descriptor for this attribute.
   const AbstractAttribute *abstractAttribute;
-
-  /// The opaque type of the attribute value.
-  const void *type;
 };
 
 /// Default storage type for attributes that require no additional
@@ -179,14 +183,19 @@ public:
 #ifndef NDEBUG
     if (!ctx->getAttributeUniquer().isParametricStorageInitialized(
             T::getTypeID()))
-      llvm::report_fatal_error(llvm::Twine("can't create Attribute '") +
-                               llvm::getTypeName<T>() +
-                               "' because storage uniquer isn't initialized: "
-                               "the dialect was likely not loaded.");
+      llvm::report_fatal_error(
+          llvm::Twine("can't create Attribute '") + llvm::getTypeName<T>() +
+          "' because storage uniquer isn't initialized: the dialect was likely "
+          "not loaded, or the attribute wasn't added with addAttributes<...>() "
+          "in the Dialect::initialize() method.");
 #endif
     return ctx->getAttributeUniquer().get<typename T::ImplType>(
         [ctx](AttributeStorage *storage) {
           initializeAttributeStorage(storage, ctx, T::getTypeID());
+
+          // Execute any additional attribute storage initialization with the
+          // context.
+          static_cast<typename T::ImplType *>(storage)->initialize(ctx);
         },
         T::getTypeID(), std::forward<Args>(args)...);
   }
@@ -198,10 +207,11 @@ public:
 #ifndef NDEBUG
     if (!ctx->getAttributeUniquer().isSingletonStorageInitialized(
             T::getTypeID()))
-      llvm::report_fatal_error(llvm::Twine("can't create Attribute '") +
-                               llvm::getTypeName<T>() +
-                               "' because storage uniquer isn't initialized: "
-                               "the dialect was likely not loaded.");
+      llvm::report_fatal_error(
+          llvm::Twine("can't create Attribute '") + llvm::getTypeName<T>() +
+          "' because storage uniquer isn't initialized: the dialect was likely "
+          "not loaded, or the attribute wasn't added with addAttributes<...>() "
+          "in the Dialect::initialize() method.");
 #endif
     return ctx->getAttributeUniquer().get<typename T::ImplType>(T::getTypeID());
   }

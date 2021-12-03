@@ -18,6 +18,7 @@
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallDescription.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 
@@ -146,7 +147,7 @@ void InvalidPtrChecker::postPreviousReturnInvalidatingCall(
   State = State->BindExpr(CE, LCtx, RetVal);
 
   // Remember to this region.
-  const auto *SymRegOfRetVal = dyn_cast<SymbolicRegion>(RetVal.getAsRegion());
+  const auto *SymRegOfRetVal = cast<SymbolicRegion>(RetVal.getAsRegion());
   const MemRegion *MR =
       const_cast<MemRegion *>(SymRegOfRetVal->getBaseRegion());
   State = State->set<PreviousCallResultMap>(FD, MR);

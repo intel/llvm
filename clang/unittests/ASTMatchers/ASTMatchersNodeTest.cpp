@@ -1049,7 +1049,7 @@ TEST_P(ASTMatchersTest, StmtExpr) {
 TEST_P(ASTMatchersTest, PredefinedExpr) {
   // __func__ expands as StringLiteral("foo")
   EXPECT_TRUE(matches("void foo() { __func__; }",
-                      predefinedExpr(hasType(asString("const char [4]")),
+                      predefinedExpr(hasType(asString("const char[4]")),
                                      has(stringLiteral()))));
 }
 
@@ -1367,7 +1367,7 @@ TEST_P(ASTMatchersTest, ExprWithCleanups_MatchesExprWithCleanups) {
 
 TEST_P(ASTMatchersTest, InitListExpr) {
   EXPECT_TRUE(matches("int a[] = { 1, 2 };",
-                      initListExpr(hasType(asString("int [2]")))));
+                      initListExpr(hasType(asString("int[2]")))));
   EXPECT_TRUE(matches("struct B { int x, y; }; struct B b = { 5, 6 };",
                       initListExpr(hasType(recordDecl(hasName("B"))))));
   EXPECT_TRUE(
@@ -2235,6 +2235,65 @@ TEST_P(ASTMatchersTest,
   EXPECT_TRUE(
       notMatches("struct s {}; s ss;",
                  varDecl(hasName("ss"), hasTypeLoc(elaboratedTypeLoc()))));
+}
+
+TEST_P(ASTMatchersTest, LambdaCaptureTest) {
+  if (!GetParam().isCXX11OrLater()) {
+    return;
+  }
+  EXPECT_TRUE(matches("int main() { int cc; auto f = [cc](){ return cc; }; }",
+                      lambdaExpr(hasAnyCapture(lambdaCapture()))));
+}
+
+TEST_P(ASTMatchersTest, LambdaCaptureTest_BindsToCaptureOfVarDecl) {
+  if (!GetParam().isCXX11OrLater()) {
+    return;
+  }
+  auto matcher = lambdaExpr(
+      hasAnyCapture(lambdaCapture(capturesVar(varDecl(hasName("cc"))))));
+  EXPECT_TRUE(matches("int main() { int cc; auto f = [cc](){ return cc; }; }",
+                      matcher));
+  EXPECT_TRUE(matches("int main() { int cc; auto f = [&cc](){ return cc; }; }",
+                      matcher));
+  EXPECT_TRUE(
+      matches("int main() { int cc; auto f = [=](){ return cc; }; }", matcher));
+  EXPECT_TRUE(
+      matches("int main() { int cc; auto f = [&](){ return cc; }; }", matcher));
+}
+
+TEST_P(ASTMatchersTest, LambdaCaptureTest_BindsToCaptureWithInitializer) {
+  if (!GetParam().isCXX14OrLater()) {
+    return;
+  }
+  auto matcher = lambdaExpr(hasAnyCapture(lambdaCapture(capturesVar(
+      varDecl(hasName("cc"), hasInitializer(integerLiteral(equals(1))))))));
+  EXPECT_TRUE(
+      matches("int main() { auto lambda = [cc = 1] {return cc;}; }", matcher));
+  EXPECT_TRUE(
+      matches("int main() { int cc = 2; auto lambda = [cc = 1] {return cc;}; }",
+              matcher));
+}
+
+TEST_P(ASTMatchersTest, LambdaCaptureTest_DoesNotBindToCaptureOfVarDecl) {
+  if (!GetParam().isCXX11OrLater()) {
+    return;
+  }
+  auto matcher = lambdaExpr(
+      hasAnyCapture(lambdaCapture(capturesVar(varDecl(hasName("cc"))))));
+  EXPECT_FALSE(matches("int main() { auto f = [](){ return 5; }; }", matcher));
+  EXPECT_FALSE(matches("int main() { int xx; auto f = [xx](){ return xx; }; }",
+                       matcher));
+}
+
+TEST_P(ASTMatchersTest,
+       LambdaCaptureTest_DoesNotBindToCaptureWithInitializerAndDifferentName) {
+  if (!GetParam().isCXX14OrLater()) {
+    return;
+  }
+  EXPECT_FALSE(matches(
+      "int main() { auto lambda = [xx = 1] {return xx;}; }",
+      lambdaExpr(hasAnyCapture(lambdaCapture(capturesVar(varDecl(
+          hasName("cc"), hasInitializer(integerLiteral(equals(1))))))))));
 }
 
 TEST(ASTMatchersTestObjC, ObjCMessageExpr) {

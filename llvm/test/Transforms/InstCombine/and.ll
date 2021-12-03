@@ -307,13 +307,10 @@ define i1 @test23_logical(i32 %A) {
   ret i1 %D
 }
 
-; FIXME: Vectors should fold too.
 define <2 x i1> @test23vec(<2 x i32> %A) {
 ; CHECK-LABEL: @test23vec(
-; CHECK-NEXT:    [[B:%.*]] = icmp sgt <2 x i32> [[A:%.*]], <i32 1, i32 1>
-; CHECK-NEXT:    [[C:%.*]] = icmp slt <2 x i32> [[A]], <i32 3, i32 3>
-; CHECK-NEXT:    [[D:%.*]] = and <2 x i1> [[B]], [[C]]
-; CHECK-NEXT:    ret <2 x i1> [[D]]
+; CHECK-NEXT:    [[TMP1:%.*]] = icmp eq <2 x i32> [[A:%.*]], <i32 2, i32 2>
+; CHECK-NEXT:    ret <2 x i1> [[TMP1]]
 ;
   %B = icmp sgt <2 x i32> %A, <i32 1, i32 1>
   %C = icmp sle <2 x i32> %A, <i32 2, i32 2>
@@ -347,9 +344,9 @@ define i1 @test24_logical(i32 %A) {
 
 define i1 @test25(i32 %A) {
 ; CHECK-LABEL: @test25(
-; CHECK-NEXT:    [[A_OFF:%.*]] = add i32 [[A:%.*]], -50
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[A_OFF]], 50
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[A:%.*]], -50
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult i32 [[TMP1]], 50
+; CHECK-NEXT:    ret i1 [[TMP2]]
 ;
   %B = icmp sge i32 %A, 50
   %C = icmp slt i32 %A, 100
@@ -359,9 +356,9 @@ define i1 @test25(i32 %A) {
 
 define i1 @test25_logical(i32 %A) {
 ; CHECK-LABEL: @test25_logical(
-; CHECK-NEXT:    [[A_OFF:%.*]] = add i32 [[A:%.*]], -50
-; CHECK-NEXT:    [[TMP1:%.*]] = icmp ult i32 [[A_OFF]], 50
-; CHECK-NEXT:    ret i1 [[TMP1]]
+; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[A:%.*]], -50
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult i32 [[TMP1]], 50
+; CHECK-NEXT:    ret i1 [[TMP2]]
 ;
   %B = icmp sge i32 %A, 50
   %C = icmp slt i32 %A, 100
@@ -369,13 +366,11 @@ define i1 @test25_logical(i32 %A) {
   ret i1 %D
 }
 
-; FIXME: Vectors should fold too.
 define <2 x i1> @test25vec(<2 x i32> %A) {
 ; CHECK-LABEL: @test25vec(
-; CHECK-NEXT:    [[B:%.*]] = icmp sgt <2 x i32> [[A:%.*]], <i32 49, i32 49>
-; CHECK-NEXT:    [[C:%.*]] = icmp slt <2 x i32> [[A]], <i32 100, i32 100>
-; CHECK-NEXT:    [[D:%.*]] = and <2 x i1> [[B]], [[C]]
-; CHECK-NEXT:    ret <2 x i1> [[D]]
+; CHECK-NEXT:    [[TMP1:%.*]] = add <2 x i32> [[A:%.*]], <i32 -50, i32 -50>
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult <2 x i32> [[TMP1]], <i32 50, i32 50>
+; CHECK-NEXT:    ret <2 x i1> [[TMP2]]
 ;
   %B = icmp sge <2 x i32> %A, <i32 50, i32 50>
   %C = icmp slt <2 x i32> %A, <i32 100, i32 100>
@@ -1403,8 +1398,8 @@ define <2 x i8> @flip_masked_bit_nonuniform(<2 x i8> %A) {
 
 define i8 @ashr_bitwidth_mask(i8 %x, i8 %y) {
 ; CHECK-LABEL: @ashr_bitwidth_mask(
-; CHECK-NEXT:    [[SIGN:%.*]] = ashr i8 [[X:%.*]], 7
-; CHECK-NEXT:    [[NEG_OR_ZERO:%.*]] = and i8 [[SIGN]], [[Y:%.*]]
+; CHECK-NEXT:    [[ISNEG:%.*]] = icmp slt i8 [[X:%.*]], 0
+; CHECK-NEXT:    [[NEG_OR_ZERO:%.*]] = select i1 [[ISNEG]], i8 [[Y:%.*]], i8 0
 ; CHECK-NEXT:    ret i8 [[NEG_OR_ZERO]]
 ;
   %sign = ashr i8 %x, 7
@@ -1415,8 +1410,8 @@ define i8 @ashr_bitwidth_mask(i8 %x, i8 %y) {
 define <2 x i8> @ashr_bitwidth_mask_vec_commute(<2 x i8> %x, <2 x i8> %py) {
 ; CHECK-LABEL: @ashr_bitwidth_mask_vec_commute(
 ; CHECK-NEXT:    [[Y:%.*]] = mul <2 x i8> [[PY:%.*]], <i8 42, i8 2>
-; CHECK-NEXT:    [[SIGN:%.*]] = ashr <2 x i8> [[X:%.*]], <i8 7, i8 7>
-; CHECK-NEXT:    [[NEG_OR_ZERO:%.*]] = and <2 x i8> [[Y]], [[SIGN]]
+; CHECK-NEXT:    [[ISNEG:%.*]] = icmp slt <2 x i8> [[X:%.*]], zeroinitializer
+; CHECK-NEXT:    [[NEG_OR_ZERO:%.*]] = select <2 x i1> [[ISNEG]], <2 x i8> [[Y]], <2 x i8> zeroinitializer
 ; CHECK-NEXT:    ret <2 x i8> [[NEG_OR_ZERO]]
 ;
   %y = mul <2 x i8> %py, <i8 42, i8 2>      ; thwart complexity-based ordering
@@ -1424,6 +1419,8 @@ define <2 x i8> @ashr_bitwidth_mask_vec_commute(<2 x i8> %x, <2 x i8> %py) {
   %neg_or_zero = and <2 x i8> %y, %sign
   ret <2 x i8> %neg_or_zero
 }
+
+; negative test - extra use
 
 define i8 @ashr_bitwidth_mask_use(i8 %x, i8 %y) {
 ; CHECK-LABEL: @ashr_bitwidth_mask_use(
@@ -1438,6 +1435,8 @@ define i8 @ashr_bitwidth_mask_use(i8 %x, i8 %y) {
   ret i8 %r
 }
 
+; negative test - wrong shift amount
+
 define i8 @ashr_not_bitwidth_mask(i8 %x, i8 %y) {
 ; CHECK-LABEL: @ashr_not_bitwidth_mask(
 ; CHECK-NEXT:    [[SIGN:%.*]] = ashr i8 [[X:%.*]], 6
@@ -1448,6 +1447,8 @@ define i8 @ashr_not_bitwidth_mask(i8 %x, i8 %y) {
   %r = and i8 %sign, %y
   ret i8 %r
 }
+
+; negative test - wrong shift opcode
 
 define i8 @lshr_bitwidth_mask(i8 %x, i8 %y) {
 ; CHECK-LABEL: @lshr_bitwidth_mask(

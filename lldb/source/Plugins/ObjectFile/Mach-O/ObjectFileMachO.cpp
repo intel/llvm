@@ -833,15 +833,6 @@ void ObjectFileMachO::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString ObjectFileMachO::GetPluginNameStatic() {
-  static ConstString g_name("mach-o");
-  return g_name;
-}
-
-const char *ObjectFileMachO::GetPluginDescriptionStatic() {
-  return "Mach-o object file reader (32 and 64 bit)";
-}
-
 ObjectFile *ObjectFileMachO::CreateInstance(const lldb::ModuleSP &module_sp,
                                             DataBufferSP &data_sp,
                                             lldb::offset_t data_offset,
@@ -1325,6 +1316,7 @@ Symtab *ObjectFileMachO::GetSymtab() {
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
     if (m_symtab_up == nullptr) {
+      ElapsedTime elapsed(module_sp->GetSymtabParseTime());
       m_symtab_up = std::make_unique<Symtab>(this);
       std::lock_guard<std::recursive_mutex> symtab_guard(
           m_symtab_up->GetMutex());
@@ -6189,11 +6181,6 @@ bool ObjectFileMachO::GetIsDynamicLinkEditor() {
 
 bool ObjectFileMachO::AllowAssemblyEmulationUnwindPlans() {
   return m_allow_assembly_emulation_unwind_plans;
-}
-
-// PluginInterface protocol
-lldb_private::ConstString ObjectFileMachO::GetPluginName() {
-  return GetPluginNameStatic();
 }
 
 Section *ObjectFileMachO::GetMachHeaderSection() {

@@ -277,6 +277,9 @@ MCOperand X86MCInstLower::LowerSymbolOperand(const MachineOperand &MO,
   case X86II::MO_GOTPCREL:
     RefKind = MCSymbolRefExpr::VK_GOTPCREL;
     break;
+  case X86II::MO_GOTPCREL_NORELAX:
+    RefKind = MCSymbolRefExpr::VK_GOTPCREL_NORELAX;
+    break;
   case X86II::MO_GOT:
     RefKind = MCSymbolRefExpr::VK_GOT;
     break;
@@ -421,7 +424,7 @@ static void SimplifyShortMoveForm(X86AsmPrinter &Printer, MCInst &Inst,
 }
 
 static unsigned getRetOpcode(const X86Subtarget &Subtarget) {
-  return Subtarget.is64Bit() ? X86::RETQ : X86::RETL;
+  return Subtarget.is64Bit() ? X86::RET64 : X86::RET32;
 }
 
 Optional<MCOperand>

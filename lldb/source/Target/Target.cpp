@@ -60,6 +60,7 @@
 #include "lldb/Utility/Timer.h"
 
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SetVector.h"
 
 #include <memory>
 #include <mutex>
@@ -95,14 +96,10 @@ Target::Target(Debugger &debugger, const ArchSpec &target_arch,
       m_watchpoint_list(), m_process_sp(), m_search_filter_sp(),
       m_image_search_paths(ImageSearchPathsChanged, this),
       m_source_manager_up(), m_stop_hooks(), m_stop_hook_next_id(0),
-      m_latest_stop_hook_id(0),
-      m_valid(true), m_suppress_stop_hooks(false),
+      m_latest_stop_hook_id(0), m_valid(true), m_suppress_stop_hooks(false),
       m_is_dummy_target(is_dummy_target),
       m_frame_recognizer_manager_up(
-          std::make_unique<StackFrameRecognizerManager>()),
-      m_stats_storage(static_cast<int>(StatisticKind::StatisticMax))
-
-{
+          std::make_unique<StackFrameRecognizerManager>()) {
   SetEventName(eBroadcastBitBreakpointChanged, "breakpoint-changed");
   SetEventName(eBroadcastBitModulesLoaded, "modules-loaded");
   SetEventName(eBroadcastBitModulesUnloaded, "modules-unloaded");
@@ -1400,6 +1397,7 @@ void Target::SetExecutableModule(ModuleSP &executable_sp,
   ClearModules(false);
 
   if (executable_sp) {
+    ElapsedTime elapsed(m_stats.GetCreateTime());
     LLDB_SCOPED_TIMERF("Target::SetExecutableModule (executable = '%s')",
                        executable_sp->GetFileSpec().GetPath().c_str());
 
@@ -1906,6 +1904,68 @@ size_t Target::ReadCStringFromMemory(const Address &addr, char *dst,
   return total_cstr_len;
 }
 
+addr_t Target::GetReasonableReadSize(const Address &addr) {
+  addr_t load_addr = addr.GetLoadAddress(this);
+  if (load_addr != LLDB_INVALID_ADDRESS && m_process_sp) {
+    // Avoid crossing cache line boundaries.
+    addr_t cache_line_size = m_process_sp->GetMemoryCacheLineSize();
+    return cache_line_size - (load_addr % cache_line_size);
+  }
+
+  // The read is going to go to the file cache, so we can just pick a largish
+  // value.
+  return 0x1000;
+}
+
+size_t Target::ReadStringFromMemory(const Address &addr, char *dst,
+                                    size_t max_bytes, Status &error,
+                                    size_t type_width, bool force_live_memory) {
+  if (!dst || !max_bytes || !type_width || max_bytes < type_width)
+    return 0;
+
+  size_t total_bytes_read = 0;
+
+  // Ensure a null terminator independent of the number of bytes that is
+  // read.
+  memset(dst, 0, max_bytes);
+  size_t bytes_left = max_bytes - type_width;
+
+  const char terminator[4] = {'\0', '\0', '\0', '\0'};
+  assert(sizeof(terminator) >= type_width && "Attempting to validate a "
+                                             "string with more than 4 bytes "
+                                             "per character!");
+
+  Address address = addr;
+  char *curr_dst = dst;
+
+  error.Clear();
+  while (bytes_left > 0 && error.Success()) {
+    addr_t bytes_to_read =
+        std::min<addr_t>(bytes_left, GetReasonableReadSize(address));
+    size_t bytes_read =
+        ReadMemory(address, curr_dst, bytes_to_read, error, force_live_memory);
+
+    if (bytes_read == 0)
+      break;
+
+    // Search for a null terminator of correct size and alignment in
+    // bytes_read
+    size_t aligned_start = total_bytes_read - total_bytes_read % type_width;
+    for (size_t i = aligned_start;
+         i + type_width <= total_bytes_read + bytes_read; i += type_width)
+      if (::memcmp(&dst[i], terminator, type_width) == 0) {
+        error.Clear();
+        return i;
+      }
+
+    total_bytes_read += bytes_read;
+    curr_dst += bytes_read;
+    address.Slide(bytes_read);
+    bytes_left -= bytes_read;
+  }
+  return total_bytes_read;
+}
+
 size_t Target::ReadScalarIntegerFromMemory(const Address &addr, uint32_t byte_size,
                                            bool is_signed, Scalar &scalar,
                                            Status &error,
@@ -2231,7 +2291,10 @@ std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
   if (!m_valid)
     return {};
 
-  std::vector<TypeSystem *> scratch_type_systems;
+  // Some TypeSystem instances are associated with several LanguageTypes so
+  // they will show up several times in the loop below. The SetVector filters
+  // out all duplicates as they serve no use for the caller.
+  llvm::SetVector<TypeSystem *> scratch_type_systems;
 
   LanguageSet languages_for_expressions =
       Language::GetLanguagesSupportingTypeSystemsForExpressions();
@@ -2247,10 +2310,10 @@ std::vector<TypeSystem *> Target::GetScratchTypeSystems(bool create_on_demand) {
                      "system available",
                      Language::GetNameForLanguageType(language));
     else
-      scratch_type_systems.emplace_back(&type_system_or_err.get());
+      scratch_type_systems.insert(&type_system_or_err.get());
   }
 
-  return scratch_type_systems;
+  return scratch_type_systems.takeVector();
 }
 
 PersistentExpressionState *
@@ -2386,8 +2449,10 @@ ExpressionResults Target::EvaluateExpression(
 
   ExpressionResults execution_results = eExpressionSetupError;
 
-  if (expr.empty())
+  if (expr.empty()) {
+    m_stats.GetExpressionStats().NotifyFailure();
     return execution_results;
+  }
 
   // We shouldn't run stop hooks in expressions.
   bool old_suppress_value = m_suppress_stop_hooks;
@@ -2432,6 +2497,10 @@ ExpressionResults Target::EvaluateExpression(
                                                  fixed_expression, ctx_obj);
   }
 
+  if (execution_results == eExpressionCompleted)
+    m_stats.GetExpressionStats().NotifySuccess();
+  else
+    m_stats.GetExpressionStats().NotifyFailure();
   return execution_results;
 }
 
@@ -2895,6 +2964,7 @@ bool Target::SetSectionUnloaded(const lldb::SectionSP &section_sp,
 void Target::ClearAllLoadedSections() { m_section_load_history.Clear(); }
 
 Status Target::Launch(ProcessLaunchInfo &launch_info, Stream *stream) {
+  m_stats.SetLaunchOrAttachTime();
   Status error;
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_TARGET));
 
@@ -3098,6 +3168,7 @@ llvm::Expected<TraceSP> Target::GetTraceOrCreate() {
 }
 
 Status Target::Attach(ProcessAttachInfo &attach_info, Stream *stream) {
+  m_stats.SetLaunchOrAttachTime();
   auto state = eStateInvalid;
   auto process_sp = GetProcessSP();
   if (process_sp) {
@@ -4443,3 +4514,6 @@ std::recursive_mutex &Target::GetAPIMutex() {
   else
     return m_mutex;
 }
+
+/// Get metrics associated with this target in JSON format.
+llvm::json::Value Target::ReportStatistics() { return m_stats.ToJSON(*this); }

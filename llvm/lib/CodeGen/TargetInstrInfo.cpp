@@ -366,7 +366,7 @@ bool TargetInstrInfo::hasLoadFromStackSlot(
                                   oe = MI.memoperands_end();
        o != oe; ++o) {
     if ((*o)->isLoad() &&
-        dyn_cast_or_null<FixedStackPseudoSourceValue>((*o)->getPseudoValue()))
+        isa_and_nonnull<FixedStackPseudoSourceValue>((*o)->getPseudoValue()))
       Accesses.push_back(*o);
   }
   return Accesses.size() != StartSize;
@@ -380,7 +380,7 @@ bool TargetInstrInfo::hasStoreToStackSlot(
                                   oe = MI.memoperands_end();
        o != oe; ++o) {
     if ((*o)->isStore() &&
-        dyn_cast_or_null<FixedStackPseudoSourceValue>((*o)->getPseudoValue()))
+        isa_and_nonnull<FixedStackPseudoSourceValue>((*o)->getPseudoValue()))
       Accesses.push_back(*o);
   }
   return Accesses.size() != StartSize;
@@ -957,8 +957,7 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
 
   // If any of the registers accessed are non-constant, conservatively assume
   // the instruction is not rematerializable.
-  for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-    const MachineOperand &MO = MI.getOperand(i);
+  for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg()) continue;
     Register Reg = MO.getReg();
     if (Reg == 0)

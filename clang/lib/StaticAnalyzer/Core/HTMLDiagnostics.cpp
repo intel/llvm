@@ -752,8 +752,7 @@ static void HandlePopUpPieceEndTag(Rewriter &R,
   Out << "</div></td><td>" << Piece.getString() << "</td></tr>";
 
   // If no report made at this range mark the variable and add the end tags.
-  if (std::find(PopUpRanges.begin(), PopUpRanges.end(), Range) ==
-      PopUpRanges.end()) {
+  if (!llvm::is_contained(PopUpRanges, Range)) {
     // Store that we create a report at this range.
     PopUpRanges.push_back(Range);
 
@@ -793,8 +792,8 @@ void HTMLDiagnostics::RewriteFile(Rewriter &R, const PathPieces &path,
 
   // Stores the different ranges where we have reported something.
   std::vector<SourceRange> PopUpRanges;
-  for (auto I = path.rbegin(), E = path.rend(); I != E; ++I) {
-    const auto &Piece = *I->get();
+  for (const PathDiagnosticPieceRef &I : llvm::reverse(path)) {
+    const auto &Piece = *I.get();
 
     if (isa<PathDiagnosticPopUpPiece>(Piece)) {
       ++IndexMap[NumRegularPieces];
@@ -836,8 +835,8 @@ void HTMLDiagnostics::RewriteFile(Rewriter &R, const PathPieces &path,
   // Secondary indexing if we are having multiple pop-ups between two notes.
   // (e.g. [(13) 'a' is 'true'];  [(13.1) 'b' is 'false'];  [(13.2) 'c' is...)
   NumRegularPieces = TotalRegularPieces;
-  for (auto I = path.rbegin(), E = path.rend(); I != E; ++I) {
-    const auto &Piece = *I->get();
+  for (const PathDiagnosticPieceRef &I : llvm::reverse(path)) {
+    const auto &Piece = *I.get();
 
     if (const auto *PopUpP = dyn_cast<PathDiagnosticPopUpPiece>(&Piece)) {
       int PopUpPieceIndex = IndexMap[NumRegularPieces];
@@ -1091,8 +1090,7 @@ void HTMLDiagnostics::HandlePiece(Rewriter &R, FileID BugFileID,
   ArrayRef<SourceRange> Ranges = P.getRanges();
   for (const auto &Range : Ranges) {
     // If we have already highlighted the range as a pop-up there is no work.
-    if (std::find(PopUpRanges.begin(), PopUpRanges.end(), Range) !=
-        PopUpRanges.end())
+    if (llvm::is_contained(PopUpRanges, Range))
       continue;
 
     HighlightRange(R, LPosInfo.first, Range);

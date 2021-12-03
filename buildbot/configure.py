@@ -43,10 +43,17 @@ def do_configure(args):
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'ON'
 
+    build_libclc = False
+
     if args.ci_defaults:
         print("#############################################")
         print("# Default CI configuration will be applied. #")
         print("#############################################")
+
+        # For clang-format and clang-tidy
+        llvm_enable_projects += ";clang-tools-extra"
+        # libclc is required for CI validation
+        build_libclc = True
 
     # replace not append, so ARM ^ X86
     if args.arm:
@@ -56,7 +63,7 @@ def do_configure(args):
         sycl_build_pi_esimd_emulator = 'ON'
 
     if args.cuda or args.hip:
-        llvm_enable_projects += ';libclc'
+        build_libclc = True
 
     if args.cuda:
         llvm_targets_to_build += ';NVPTX'
@@ -97,6 +104,9 @@ def do_configure(args):
 
     if args.use_lld:
       llvm_enable_lld = 'ON'
+
+    if build_libclc:
+        llvm_enable_projects += ';libclc'
 
     install_dir = os.path.join(abs_obj_dir, "install")
 

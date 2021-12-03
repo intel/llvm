@@ -216,21 +216,6 @@ AffineMap AffineMap::getPermutationMap(ArrayRef<unsigned> permutation,
 }
 
 template <typename AffineExprContainer>
-static void getMaxDimAndSymbol(ArrayRef<AffineExprContainer> exprsList,
-                               int64_t &maxDim, int64_t &maxSym) {
-  for (const auto &exprs : exprsList) {
-    for (auto expr : exprs) {
-      expr.walk([&maxDim, &maxSym](AffineExpr e) {
-        if (auto d = e.dyn_cast<AffineDimExpr>())
-          maxDim = std::max(maxDim, static_cast<int64_t>(d.getPosition()));
-        if (auto s = e.dyn_cast<AffineSymbolExpr>())
-          maxSym = std::max(maxSym, static_cast<int64_t>(s.getPosition()));
-      });
-    }
-  }
-}
-
-template <typename AffineExprContainer>
 static SmallVector<AffineMap, 4>
 inferFromExprList(ArrayRef<AffineExprContainer> exprsList) {
   assert(!exprsList.empty());
@@ -495,19 +480,33 @@ SmallVector<int64_t, 4> AffineMap::compose(ArrayRef<int64_t> values) const {
   return res;
 }
 
-bool AffineMap::isProjectedPermutation() const {
+bool AffineMap::isProjectedPermutation(bool allowZeroInResults) const {
   if (getNumSymbols() > 0)
     return false;
+
+  // Having more results than inputs means that results have duplicated dims or
+  // zeros that can't be mapped to input dims.
+  if (getNumResults() > getNumInputs())
+    return false;
+
   SmallVector<bool, 8> seen(getNumInputs(), false);
+  // A projected permutation can have, at most, only one instance of each input
+  // dimension in the result expressions. Zeros are allowed as long as the
+  // number of result expressions is lower or equal than the number of input
+  // expressions.
   for (auto expr : getResults()) {
     if (auto dim = expr.dyn_cast<AffineDimExpr>()) {
       if (seen[dim.getPosition()])
         return false;
       seen[dim.getPosition()] = true;
-      continue;
+    } else {
+      auto constExpr = expr.dyn_cast<AffineConstantExpr>();
+      if (!allowZeroInResults || !constExpr || constExpr.getValue() != 0)
+        return false;
     }
-    return false;
   }
+
+  // Results are either dims or zeros and zeros can be mapped to input dims.
   return true;
 }
 
@@ -696,13 +695,21 @@ AffineMap mlir::inversePermutation(AffineMap map) {
 }
 
 AffineMap mlir::inverseAndBroadcastProjectedPermuation(AffineMap map) {
-  assert(map.isProjectedPermutation());
+  assert(map.isProjectedPermutation(/*allowZeroInResults=*/true));
   MLIRContext *context = map.getContext();
   AffineExpr zero = mlir::getAffineConstantExpr(0, context);
   // Start with all the results as 0.
   SmallVector<AffineExpr, 4> exprs(map.getNumInputs(), zero);
   for (unsigned i : llvm::seq(unsigned(0), map.getNumResults())) {
-    // Reverse each dimension existing in the oringal map result.
+    // Skip zeros from input map. 'exprs' is already initialized to zero.
+    if (auto constExpr = map.getResult(i).dyn_cast<AffineConstantExpr>()) {
+      assert(constExpr.getValue() == 0 &&
+             "Unexpected constant in projected permutation");
+      (void)constExpr;
+      continue;
+    }
+
+    // Reverse each dimension existing in the original map result.
     exprs[map.getDimPosition(i)] = getAffineDimExpr(i, context);
   }
   return AffineMap::get(map.getNumResults(), /*symbolCount=*/0, exprs, context);

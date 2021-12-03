@@ -19,7 +19,6 @@
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 
-#ifndef __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace ext {
@@ -551,4 +550,3 @@ leader(Group g) {
 
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
-#endif // __DISABLE_SYCL_ONEAPI_GROUP_ALGORITHMS__

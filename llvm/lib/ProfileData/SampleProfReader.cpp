@@ -1228,6 +1228,12 @@ static std::string getSecFlagsStr(const SecHdrTableEntry &Entry) {
     if (hasSecFlag(Entry, SecFuncOffsetFlags::SecFlagOrdered))
       Flags.append("ordered,");
     break;
+  case SecFuncMetadata:
+    if (hasSecFlag(Entry, SecFuncMetadataFlags::SecFlagIsProbeBased))
+      Flags.append("probe,");
+    if (hasSecFlag(Entry, SecFuncMetadataFlags::SecFlagHasAttribute))
+      Flags.append("attr,");
+    break;
   default:
     break;
   }
@@ -1703,7 +1709,7 @@ setupMemoryBuffer(const Twine &Filename) {
     return EC;
   auto Buffer = std::move(BufferOrErr.get());
 
-  // Sanity check the file.
+  // Check the file.
   if (uint64_t(Buffer->getBufferSize()) > std::numeric_limits<uint32_t>::max())
     return sampleprof_error::too_large;
 

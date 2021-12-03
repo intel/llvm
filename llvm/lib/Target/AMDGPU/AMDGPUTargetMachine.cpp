@@ -36,8 +36,10 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -306,6 +308,11 @@ static cl::opt<bool> EnablePreRAOptimizations(
     cl::desc("Enable Pre-RA optimizations pass"), cl::init(true),
     cl::Hidden);
 
+static cl::opt<bool> EnablePromoteKernelArguments(
+    "amdgpu-enable-promote-kernel-arguments",
+    cl::desc("Enable promotion of flat kernel pointer arguments to global"),
+    cl::Hidden, cl::init(true));
+
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
   RegisterTargetMachine<R600TargetMachine> X(getTheAMDGPUTarget());
@@ -339,6 +346,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUArgumentUsageInfoPass(*PR);
   initializeAMDGPUAtomicOptimizerPass(*PR);
   initializeAMDGPULowerKernelArgumentsPass(*PR);
+  initializeAMDGPUPromoteKernelArgumentsPass(*PR);
   initializeAMDGPULowerKernelAttributesPass(*PR);
   initializeAMDGPULowerIntrinsicsPass(*PR);
   initializeAMDGPUOpenCLEnqueuedBlockLoweringPass(*PR);
@@ -533,6 +541,8 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
   bool EarlyInline = EarlyInlineAll && EnableOpt && !EnableFunctionCalls;
   bool AMDGPUAA = EnableAMDGPUAliasAnalysis && EnableOpt;
   bool LibCallSimplify = EnableLibCallSimplify && EnableOpt;
+  bool PromoteKernelArguments =
+      EnablePromoteKernelArguments && getOptLevel() > CodeGenOpt::Less;
 
   if (EnableFunctionCalls) {
     delete Builder.Inliner;
@@ -574,7 +584,14 @@ void AMDGPUTargetMachine::adjustPassManager(PassManagerBuilder &Builder) {
 
   Builder.addExtension(
     PassManagerBuilder::EP_CGSCCOptimizerLate,
-    [EnableOpt](const PassManagerBuilder &, legacy::PassManagerBase &PM) {
+    [EnableOpt, PromoteKernelArguments](const PassManagerBuilder &,
+                                        legacy::PassManagerBase &PM) {
+      // Add promote kernel arguments pass to the opt pipeline right before
+      // infer address spaces which is needed to do actual address space
+      // rewriting.
+      if (PromoteKernelArguments)
+        PM.add(createAMDGPUPromoteKernelArgumentsPass());
+
       // Add infer address spaces pass to the opt pipeline after inlining
       // but before SROA to increase SROA opportunities.
       PM.add(createInferAddressSpacesPass());
@@ -651,6 +668,10 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
           PM.addPass(AMDGPUPropagateAttributesEarlyPass(*this));
           return true;
         }
+        if (PassName == "amdgpu-promote-kernel-arguments") {
+          PM.addPass(AMDGPUPromoteKernelArgumentsPass());
+          return true;
+        }
         return false;
       });
 
@@ -702,6 +723,13 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
 
         FunctionPassManager FPM;
 
+        // Add promote kernel arguments pass to the opt pipeline right before
+        // infer address spaces which is needed to do actual address space
+        // rewriting.
+        if (Level.getSpeedupLevel() > OptimizationLevel::O1.getSpeedupLevel() &&
+            EnablePromoteKernelArguments)
+          FPM.addPass(AMDGPUPromoteKernelArgumentsPass());
+
         // Add infer address spaces pass to the opt pipeline after inlining
         // but before SROA to increase SROA opportunities.
         FPM.addPass(InferAddressSpacesPass());
@@ -752,6 +780,33 @@ unsigned AMDGPUTargetMachine::getAssumedAddrSpace(const Value *V) const {
   // host side. As implied by the offload programming model, only global
   // pointers could be referenced on the host side.
   return AMDGPUAS::GLOBAL_ADDRESS;
+}
+
+std::pair<const Value *, unsigned>
+AMDGPUTargetMachine::getPredicatedAddrSpace(const Value *V) const {
+  if (auto *II = dyn_cast<IntrinsicInst>(V)) {
+    switch (II->getIntrinsicID()) {
+    case Intrinsic::amdgcn_is_shared:
+      return std::make_pair(II->getArgOperand(0), AMDGPUAS::LOCAL_ADDRESS);
+    case Intrinsic::amdgcn_is_private:
+      return std::make_pair(II->getArgOperand(0), AMDGPUAS::PRIVATE_ADDRESS);
+    default:
+      break;
+    }
+    return std::make_pair(nullptr, -1);
+  }
+  // Check the global pointer predication based on
+  // (!is_share(p) && !is_private(p)). Note that logic 'and' is commutative and
+  // the order of 'is_shared' and 'is_private' is not significant.
+  Value *Ptr;
+  if (match(
+          const_cast<Value *>(V),
+          m_c_And(m_Not(m_Intrinsic<Intrinsic::amdgcn_is_shared>(m_Value(Ptr))),
+                  m_Not(m_Intrinsic<Intrinsic::amdgcn_is_private>(
+                      m_Deferred(Ptr))))))
+    return std::make_pair(Ptr, AMDGPUAS::GLOBAL_ADDRESS);
+
+  return std::make_pair(nullptr, -1);
 }
 
 //===----------------------------------------------------------------------===//
@@ -825,6 +880,7 @@ public:
   createPostMachineScheduler(MachineSchedContext *C) const override {
     ScheduleDAGMI *DAG = createGenericSchedPostRA(C);
     const GCNSubtarget &ST = C->MF->getSubtarget<GCNSubtarget>();
+    DAG->addMutation(createLoadClusterDAGMutation(DAG->TII, DAG->TRI));
     DAG->addMutation(ST.createFillMFMAShadowMutation(DAG->TII));
     return DAG;
   }
@@ -1171,7 +1227,7 @@ void GCNPassConfig::addFastRegAlloc() {
   // This must be run immediately after phi elimination and before
   // TwoAddressInstructions, otherwise the processing of the tied operand of
   // SI_ELSE will introduce a copy of the tied operand source after the else.
-  insertPass(&PHIEliminationID, &SILowerControlFlowID, false);
+  insertPass(&PHIEliminationID, &SILowerControlFlowID);
 
   insertPass(&TwoAddressInstructionPassID, &SIWholeQuadModeID);
   insertPass(&TwoAddressInstructionPassID, &SIPreAllocateWWMRegsID);
@@ -1201,11 +1257,11 @@ void GCNPassConfig::addOptimizedRegAlloc() {
   // the register in LiveVariables, this would trigger a failure in verifier,
   // we should fix it and enable the verifier.
   if (OptVGPRLiveRange)
-    insertPass(&LiveVariablesID, &SIOptimizeVGPRLiveRangeID, false);
+    insertPass(&LiveVariablesID, &SIOptimizeVGPRLiveRangeID);
   // This must be run immediately after phi elimination and before
   // TwoAddressInstructions, otherwise the processing of the tied operand of
   // SI_ELSE will introduce a copy of the tied operand source after the else.
-  insertPass(&PHIEliminationID, &SILowerControlFlowID, false);
+  insertPass(&PHIEliminationID, &SILowerControlFlowID);
 
   if (EnableDCEInRA)
     insertPass(&DetectDeadLanesID, &DeadMachineInstructionElimID);
@@ -1300,15 +1356,14 @@ void GCNPassConfig::addPostRegAlloc() {
 }
 
 void GCNPassConfig::addPreSched2() {
+  if (TM->getOptLevel() > CodeGenOpt::None)
+    addPass(createSIShrinkInstructionsPass());
   addPass(&SIPostRABundlerID);
 }
 
 void GCNPassConfig::addPreEmitPass() {
   addPass(createSIMemoryLegalizerPass());
   addPass(createSIInsertWaitcntsPass());
-
-  if (TM->getOptLevel() > CodeGenOpt::None)
-    addPass(createSIShrinkInstructionsPass());
 
   addPass(createSIModeRegisterPass());
 

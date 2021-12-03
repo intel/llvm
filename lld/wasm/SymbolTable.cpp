@@ -63,7 +63,7 @@ void SymbolTable::addFile(InputFile *file) {
 // using LLVM functions and replaces bitcode symbols with the results.
 // Because all bitcode files that the program consists of are passed
 // to the compiler at once, it can do whole-program optimization.
-void SymbolTable::addCombinedLTOObject() {
+void SymbolTable::compileBitcodeFiles() {
   // Prevent further LTO objects being included
   BitcodeFile::doneLTO = true;
 
@@ -144,7 +144,7 @@ static bool signatureMatches(FunctionSymbol *existing,
                              const WasmSignature *newSig) {
   const WasmSignature *oldSig = existing->signature;
 
-  // If either function is missing a signature (this happend for bitcode
+  // If either function is missing a signature (this happens for bitcode
   // symbols) then assume they match.  Any mismatch will be reported later
   // when the LTO objects are added.
   if (!newSig || !oldSig)
@@ -622,6 +622,30 @@ Symbol *SymbolTable::addUndefinedTable(StringRef name,
     lazy->fetch();
   else if (s->isDefined())
     checkTableType(s, file, type);
+  return s;
+}
+
+Symbol *SymbolTable::addUndefinedTag(StringRef name,
+                                     Optional<StringRef> importName,
+                                     Optional<StringRef> importModule,
+                                     uint32_t flags, InputFile *file,
+                                     const WasmSignature *sig) {
+  LLVM_DEBUG(dbgs() << "addUndefinedTag: " << name << "\n");
+  assert(flags & WASM_SYMBOL_UNDEFINED);
+
+  Symbol *s;
+  bool wasInserted;
+  std::tie(s, wasInserted) = insert(name, file);
+  if (s->traced)
+    printTraceSymbolUndefined(name, file);
+
+  if (wasInserted)
+    replaceSymbol<UndefinedTag>(s, name, importName, importModule, flags, file,
+                                sig);
+  else if (auto *lazy = dyn_cast<LazySymbol>(s))
+    lazy->fetch();
+  else if (s->isDefined())
+    checkTagType(s, file, sig);
   return s;
 }
 

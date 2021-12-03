@@ -485,8 +485,7 @@ bool Sema::LookupTemplateName(LookupResult &Found,
     // all language modes, and diagnose the empty lookup in ActOnCallExpr if we
     // successfully form a call to an undeclared template-id.
     bool AllFunctions =
-        getLangOpts().CPlusPlus20 &&
-        std::all_of(Found.begin(), Found.end(), [](NamedDecl *ND) {
+        getLangOpts().CPlusPlus20 && llvm::all_of(Found, [](NamedDecl *ND) {
           return isa<FunctionDecl>(ND->getUnderlyingDecl());
         });
     if (AllFunctions || (Found.empty() && !IsDependent)) {
@@ -744,7 +743,7 @@ Sema::ActOnDependentIdExpression(const CXXScopeSpec &SS,
   // Check if the nested name specifier is an enum type.
   bool IsEnum = false;
   if (NestedNameSpecifier *NNS = SS.getScopeRep())
-    IsEnum = dyn_cast_or_null<EnumType>(NNS->getAsType());
+    IsEnum = isa_and_nonnull<EnumType>(NNS->getAsType());
 
   if (!MightBeCxx11UnevalField && !isAddressOfOperand && !IsEnum &&
       isa<CXXMethodDecl>(DC) && cast<CXXMethodDecl>(DC)->isInstance()) {
@@ -1260,15 +1259,15 @@ bool Sema::AttachTypeConstraint(AutoTypeLoc TL, NonTypeTemplateParmDecl *NTTP,
       BuildDeclRefExpr(NTTP, NTTP->getType(), VK_PRValue, NTTP->getLocation());
   if (!Ref)
     return true;
-  ExprResult ImmediatelyDeclaredConstraint =
-      formImmediatelyDeclaredConstraint(
-          *this, TL.getNestedNameSpecifierLoc(), TL.getConceptNameInfo(),
-          TL.getNamedConcept(), TL.getLAngleLoc(), TL.getRAngleLoc(),
-          BuildDecltypeType(Ref, NTTP->getLocation()), NTTP->getLocation(),
-          [&] (TemplateArgumentListInfo &ConstraintArgs) {
-            for (unsigned I = 0, C = TL.getNumArgs(); I != C; ++I)
-              ConstraintArgs.addArgument(TL.getArgLoc(I));
-          }, EllipsisLoc);
+  ExprResult ImmediatelyDeclaredConstraint = formImmediatelyDeclaredConstraint(
+      *this, TL.getNestedNameSpecifierLoc(), TL.getConceptNameInfo(),
+      TL.getNamedConcept(), TL.getLAngleLoc(), TL.getRAngleLoc(),
+      BuildDecltypeType(Ref), NTTP->getLocation(),
+      [&](TemplateArgumentListInfo &ConstraintArgs) {
+        for (unsigned I = 0, C = TL.getNumArgs(); I != C; ++I)
+          ConstraintArgs.addArgument(TL.getArgLoc(I));
+      },
+      EllipsisLoc);
   if (ImmediatelyDeclaredConstraint.isInvalid() ||
      !ImmediatelyDeclaredConstraint.isUsable())
     return true;
@@ -1290,7 +1289,7 @@ QualType Sema::CheckNonTypeTemplateParameterType(TypeSourceInfo *&TSI,
     //    - an identifier associated by name lookup with a non-type
     //      template-parameter declared with a type that contains a
     //      placeholder type (7.1.7.4),
-    TSI = SubstAutoTypeSourceInfo(TSI, Context.DependentTy);
+    TSI = SubstAutoTypeSourceInfoDependent(TSI);
   }
 
   return CheckNonTypeTemplateParameterType(TSI->getType(), Loc);
@@ -10874,7 +10873,7 @@ bool Sema::RebuildTemplateParamsInCurrentInstantiation(
       //    - an identifier associated by name lookup with a non-type
       //      template-parameter declared with a type that contains a
       //      placeholder type (7.1.7.4),
-      NewTSI = SubstAutoTypeSourceInfo(NewTSI, Context.DependentTy);
+      NewTSI = SubstAutoTypeSourceInfoDependent(NewTSI);
     }
 
     if (NewTSI != NTTP->getTypeSourceInfo()) {
@@ -10920,9 +10919,9 @@ Sema::getTemplateArgumentBindingsText(const TemplateParameterList *Params,
     }
 
     Out << " = ";
-    Args[I].print(
-        getPrintingPolicy(), Out,
-        TemplateParameterList::shouldIncludeTypeForArgument(Params, I));
+    Args[I].print(getPrintingPolicy(), Out,
+                  TemplateParameterList::shouldIncludeTypeForArgument(
+                      getPrintingPolicy(), Params, I));
   }
 
   Out << ']';

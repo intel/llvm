@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
@@ -24,7 +25,11 @@ using namespace mlir::tensor;
 Operation *TensorDialect::materializeConstant(OpBuilder &builder,
                                               Attribute value, Type type,
                                               Location loc) {
-  return builder.create<mlir::ConstantOp>(loc, type, value);
+  if (arith::ConstantOp::isBuildableWith(value, type))
+    return builder.create<arith::ConstantOp>(loc, value, type);
+  if (ConstantOp::isBuildableWith(value, type))
+    return builder.create<ConstantOp>(loc, value, type);
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -207,12 +212,12 @@ void CastOp::getCanonicalizationPatterns(RewritePatternSet &results,
 void DimOp::build(OpBuilder &builder, OperationState &result, Value source,
                   int64_t index) {
   auto loc = result.location;
-  Value indexValue = builder.create<ConstantIndexOp>(loc, index);
+  Value indexValue = builder.create<arith::ConstantIndexOp>(loc, index);
   build(builder, result, source, indexValue);
 }
 
 Optional<int64_t> DimOp::getConstantIndex() {
-  if (auto constantOp = index().getDefiningOp<ConstantOp>())
+  if (auto constantOp = index().getDefiningOp<arith::ConstantOp>())
     return constantOp.getValue().cast<IntegerAttr>().getInt();
   return {};
 }
@@ -335,7 +340,7 @@ OpFoldResult ExtractOp::fold(ArrayRef<Attribute> operands) {
   // If this is a splat elements attribute, simply return the value. All of the
   // elements of a splat attribute are the same.
   if (auto splatTensor = tensor.dyn_cast<SplatElementsAttr>())
-    return splatTensor.getSplatValue();
+    return splatTensor.getSplatValue<Attribute>();
 
   // Otherwise, collect the constant indices into the tensor.
   SmallVector<uint64_t, 8> indices;
@@ -348,7 +353,7 @@ OpFoldResult ExtractOp::fold(ArrayRef<Attribute> operands) {
   // If this is an elements attribute, query the value at the given indices.
   auto elementsAttr = tensor.dyn_cast<ElementsAttr>();
   if (elementsAttr && elementsAttr.isValidIndex(indices))
-    return elementsAttr.getValue(indices);
+    return elementsAttr.getValues<Attribute>()[indices];
   return {};
 }
 
@@ -435,7 +440,7 @@ OpFoldResult InsertOp::fold(ArrayRef<Attribute> operands) {
   Attribute dest = operands[1];
   if (scalar && dest)
     if (auto splatDest = dest.dyn_cast<SplatElementsAttr>())
-      if (scalar == splatDest.getSplatValue())
+      if (scalar == splatDest.getSplatValue<Attribute>())
         return dest;
   return {};
 }
@@ -929,7 +934,7 @@ LogicalResult ExtractSliceOp::reifyResultShapes(
     if (droppedDims.count(size.index()))
       continue;
     if (auto attr = size.value().dyn_cast<Attribute>()) {
-      reifiedReturnShapes[0].push_back(builder.create<ConstantIndexOp>(
+      reifiedReturnShapes[0].push_back(builder.create<arith::ConstantIndexOp>(
           loc, attr.cast<IntegerAttr>().getInt()));
       continue;
     }
@@ -1041,11 +1046,49 @@ foldIdentityOffsetSizeAndStrideOpInterface(OffsetSizeAndStrideOpInterface op,
   return success();
 }
 
+/// If we have an ExtractSliceOp consuming an InsertSliceOp with the same slice,
+/// we can return the InsertSliceOp's source directly.
+// TODO: This only checks the immediate producer; extend to go up the
+// insert/extract chain if the slices are disjoint.
+static Value foldExtractAfterInsertSlice(ExtractSliceOp extractOp) {
+  auto insertOp = extractOp.source().getDefiningOp<InsertSliceOp>();
+
+  auto isSame = [](OpFoldResult a, OpFoldResult b) { return a == b; };
+  if (insertOp && insertOp.source().getType() == extractOp.getType() &&
+      insertOp.isSameAs(extractOp, isSame))
+    return insertOp.source();
+
+  return {};
+}
+
 OpFoldResult ExtractSliceOp::fold(ArrayRef<Attribute>) {
   if (getSourceType() == getType() &&
       succeeded(foldIdentityOffsetSizeAndStrideOpInterface(*this, getType())))
     return this->source();
+  if (Value slice = foldExtractAfterInsertSlice(*this))
+    return slice;
   return OpFoldResult();
+}
+
+Value mlir::tensor::createCanonicalRankReducingExtractSliceOp(
+    OpBuilder &b, Location loc, Value tensor, RankedTensorType targetType) {
+  auto rankedTensorType = tensor.getType().cast<RankedTensorType>();
+  unsigned rank = rankedTensorType.getRank();
+  auto shape = rankedTensorType.getShape();
+  SmallVector<OpFoldResult> offsets(rank, b.getIndexAttr(0));
+  SmallVector<OpFoldResult> sizes;
+  for (unsigned i = 0, e = rank; i < e; ++i) {
+    OpFoldResult dim;
+    if (rankedTensorType.isDynamicDim(i))
+      dim = b.createOrFold<tensor::DimOp>(
+          loc, tensor, b.create<arith::ConstantIndexOp>(loc, i));
+    else
+      dim = b.getIndexAttr(shape[i]);
+    sizes.push_back(dim);
+  }
+  SmallVector<OpFoldResult> strides(rank, b.getIndexAttr(1));
+  return b.createOrFold<tensor::ExtractSliceOp>(loc, targetType, tensor,
+                                                offsets, sizes, strides);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1085,11 +1128,41 @@ void InsertSliceOp::build(OpBuilder &b, OperationState &result, Value source,
   build(b, result, source, dest, offsetValues, sizeValues, strideValues);
 }
 
+/// If we have two consecutive InsertSliceOp writing to the same slice, we
+/// can mutate the second InsertSliceOp's destination to the first one's.
+///
+/// Example:
+///
+/// ```mlir
+///   %0 = tensor.insert_slice %slice0 into %input[0, 0] [64, 64] [1, 1]
+///   %1 = tensor.insert_slice %slice1 into %0[0, 0] [64, 64] [1, 1]
+/// ```
+///
+/// folds into:
+///
+/// ```mlir
+///   %1 = tensor.insert_slice %slice1 into %input[0, 0] [64, 64] [1, 1]
+/// ```
+static LogicalResult foldInsertAfterInsertSlice(InsertSliceOp insertOp) {
+  auto prevInsertOp = insertOp.dest().getDefiningOp<InsertSliceOp>();
+
+  auto isSame = [](OpFoldResult a, OpFoldResult b) { return a == b; };
+  if (!prevInsertOp ||
+      prevInsertOp.source().getType() != insertOp.source().getType() ||
+      !prevInsertOp.isSameAs(insertOp, isSame))
+    return failure();
+
+  insertOp.destMutable().assign(prevInsertOp.dest());
+  return success();
+}
+
 OpFoldResult InsertSliceOp::fold(ArrayRef<Attribute>) {
   if (getSourceType().hasStaticShape() && getType().hasStaticShape() &&
       getSourceType() == getType() &&
       succeeded(foldIdentityOffsetSizeAndStrideOpInterface(*this, getType())))
     return this->source();
+  if (succeeded(foldInsertAfterInsertSlice(*this)))
+    return getResult();
   return OpFoldResult();
 }
 
@@ -1227,12 +1300,19 @@ struct InsertSliceOpSourceCastInserter final
               getConstantIntValue(insertSliceOp.getMixedSizes()[i]))
         newSrcShape[i] = *constInt;
     }
+
     RankedTensorType newSrcType =
         RankedTensorType::get(newSrcShape, srcType.getElementType());
-    if (srcType == newSrcType)
+    if (srcType == newSrcType ||
+        !preservesStaticInformation(srcType, newSrcType) ||
+        !tensor::CastOp::areCastCompatible(srcType, newSrcType))
       return failure();
 
-    // srcType and newSrcType are different. Insert a cast.
+    // newSrcType is:
+    //   1) Different from srcType.
+    //   2) "More static" than srcType.
+    //   3) Cast-compatible with srcType.
+    // Insert the cast.
     Value cast = rewriter.create<tensor::CastOp>(
         insertSliceOp.getLoc(), newSrcType, insertSliceOp.source());
     rewriter.replaceOpWithNewOp<InsertSliceOp>(
@@ -1248,6 +1328,29 @@ void InsertSliceOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                 MLIRContext *context) {
   results.add<InsertSliceOpConstantArgumentFolder, InsertSliceOpCastFolder,
               InsertSliceOpSourceCastInserter>(context);
+}
+
+Value mlir::tensor::createCanonicalRankReducingInsertSliceOp(OpBuilder &b,
+                                                             Location loc,
+                                                             Value tensor,
+                                                             Value dest) {
+  auto rankedTensorType = dest.getType().cast<RankedTensorType>();
+  unsigned rank = rankedTensorType.getRank();
+  auto shape = rankedTensorType.getShape();
+  SmallVector<OpFoldResult> offsets(rank, b.getIndexAttr(0));
+  SmallVector<OpFoldResult> sizes;
+  for (unsigned i = 0, e = rank; i < e; ++i) {
+    OpFoldResult dim;
+    if (rankedTensorType.isDynamicDim(i))
+      dim = b.createOrFold<tensor::DimOp>(
+          loc, dest, b.create<arith::ConstantIndexOp>(loc, i));
+    else
+      dim = b.getIndexAttr(shape[i]);
+    sizes.push_back(dim);
+  }
+  SmallVector<OpFoldResult> strides(rank, b.getIndexAttr(1));
+  return b.createOrFold<tensor::InsertSliceOp>(loc, tensor, dest, offsets,
+                                               sizes, strides);
 }
 
 //===----------------------------------------------------------------------===//

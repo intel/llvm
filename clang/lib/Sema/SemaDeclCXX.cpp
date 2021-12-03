@@ -26,6 +26,7 @@
 #include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/AttributeCommonInfo.h"
 #include "clang/Basic/PartialDiagnostic.h"
+#include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/Preprocessor.h"
@@ -435,7 +436,7 @@ void Sema::CheckExtraCXXDefaultArguments(Declarator &D) {
 }
 
 static bool functionDeclHasDefaultArgument(const FunctionDecl *FD) {
-  return std::any_of(FD->param_begin(), FD->param_end(), [](ParmVarDecl *P) {
+  return llvm::any_of(FD->parameters(), [](ParmVarDecl *P) {
     return P->hasDefaultArg() && !P->hasInheritedDefaultArg();
   });
 }
@@ -983,9 +984,9 @@ static std::string printTemplateArgs(const PrintingPolicy &PrintingPolicy,
   for (auto &Arg : Args.arguments()) {
     if (!First)
       OS << ", ";
-    Arg.getArgument().print(
-        PrintingPolicy, OS,
-        TemplateParameterList::shouldIncludeTypeForArgument(Params, I));
+    Arg.getArgument().print(PrintingPolicy, OS,
+                            TemplateParameterList::shouldIncludeTypeForArgument(
+                                PrintingPolicy, Params, I));
     First = false;
     I++;
   }
@@ -1383,9 +1384,8 @@ static bool checkMemberDecomposition(Sema &S, ArrayRef<BindingDecl*> Bindings,
                                                  DecompType.getQualifiers());
 
   auto DiagnoseBadNumberOfBindings = [&]() -> bool {
-    unsigned NumFields =
-        std::count_if(RD->field_begin(), RD->field_end(),
-                      [](FieldDecl *FD) { return !FD->isUnnamedBitfield(); });
+    unsigned NumFields = llvm::count_if(
+        RD->fields(), [](FieldDecl *FD) { return !FD->isUnnamedBitfield(); });
     assert(Bindings.size() != NumFields);
     S.Diag(Src->getLocation(), diag::err_decomp_decl_wrong_number_bindings)
         << DecompType << (unsigned)Bindings.size() << NumFields << NumFields
@@ -2729,6 +2729,8 @@ bool Sema::AttachBaseSpecifiers(CXXRecordDecl *Class,
       KnownBase = Bases[idx];
       Bases[NumGoodBases++] = Bases[idx];
 
+      if (NewBaseType->isDependentType())
+        continue;
       // Note this base's direct & indirect bases, if there could be ambiguity.
       if (Bases.size() > 1)
         NoteIndirectBases(Context, IndirectBaseTypes, NewBaseType);
@@ -3583,9 +3585,8 @@ namespace {
       llvm::SmallVector<unsigned, 4> UsedFieldIndex;
       // Discard the first field since it is the field decl that is being
       // initialized.
-      for (auto I = Fields.rbegin() + 1, E = Fields.rend(); I != E; ++I) {
-        UsedFieldIndex.push_back((*I)->getFieldIndex());
-      }
+      for (const FieldDecl *FD : llvm::drop_begin(llvm::reverse(Fields)))
+        UsedFieldIndex.push_back(FD->getFieldIndex());
 
       for (auto UsedIter = UsedFieldIndex.begin(),
                 UsedEnd = UsedFieldIndex.end(),
@@ -4217,7 +4218,7 @@ Sema::BuildMemInitializer(Decl *ConstructorD,
     if (BaseType.isNull())
       return true;
   } else if (DS.getTypeSpecType() == TST_decltype) {
-    BaseType = BuildDecltypeType(DS.getRepAsExpr(), DS.getTypeSpecTypeLoc());
+    BaseType = BuildDecltypeType(DS.getRepAsExpr());
   } else if (DS.getTypeSpecType() == TST_decltype_auto) {
     Diag(DS.getTypeSpecTypeLoc(), diag::err_decltype_auto_invalid);
     return true;
@@ -5884,6 +5885,7 @@ struct CheckAbstractUsage {
     if (CT != Info.AbstractType) return;
 
     // It matched; do some magic.
+    // FIXME: These should be at most warnings. See P0929R2, CWG1640, CWG1646.
     if (Sel == Sema::AbstractArrayType) {
       Info.S.Diag(Ctx->getLocation(), diag::err_array_of_abstract_type)
         << T << TL.getSourceRange();
@@ -5902,19 +5904,31 @@ void AbstractUsageInfo::CheckType(const NamedDecl *D, TypeLoc TL,
 
 }
 
-/// Check for invalid uses of an abstract type in a method declaration.
+/// Check for invalid uses of an abstract type in a function declaration.
 static void CheckAbstractClassUsage(AbstractUsageInfo &Info,
-                                    CXXMethodDecl *MD) {
+                                    FunctionDecl *FD) {
   // No need to do the check on definitions, which require that
   // the return/param types be complete.
-  if (MD->doesThisDeclarationHaveABody())
+  if (FD->doesThisDeclarationHaveABody())
     return;
 
   // For safety's sake, just ignore it if we don't have type source
   // information.  This should never happen for non-implicit methods,
   // but...
-  if (TypeSourceInfo *TSI = MD->getTypeSourceInfo())
-    Info.CheckType(MD, TSI->getTypeLoc(), Sema::AbstractNone);
+  if (TypeSourceInfo *TSI = FD->getTypeSourceInfo())
+    Info.CheckType(FD, TSI->getTypeLoc(), Sema::AbstractNone);
+}
+
+/// Check for invalid uses of an abstract type in a variable0 declaration.
+static void CheckAbstractClassUsage(AbstractUsageInfo &Info,
+                                    VarDecl *VD) {
+  // No need to do the check on definitions, which require that
+  // the type is complete.
+  if (VD->isThisDeclarationADefinition())
+    return;
+
+  Info.CheckType(VD, VD->getTypeSourceInfo()->getTypeLoc(),
+                 Sema::AbstractVariableType);
 }
 
 /// Check for invalid uses of an abstract type within a class definition.
@@ -5923,29 +5937,32 @@ static void CheckAbstractClassUsage(AbstractUsageInfo &Info,
   for (auto *D : RD->decls()) {
     if (D->isImplicit()) continue;
 
-    // Methods and method templates.
-    if (isa<CXXMethodDecl>(D)) {
-      CheckAbstractClassUsage(Info, cast<CXXMethodDecl>(D));
-    } else if (isa<FunctionTemplateDecl>(D)) {
-      FunctionDecl *FD = cast<FunctionTemplateDecl>(D)->getTemplatedDecl();
-      CheckAbstractClassUsage(Info, cast<CXXMethodDecl>(FD));
+    // Step through friends to the befriended declaration.
+    if (auto *FD = dyn_cast<FriendDecl>(D)) {
+      D = FD->getFriendDecl();
+      if (!D) continue;
+    }
+
+    // Functions and function templates.
+    if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+      CheckAbstractClassUsage(Info, FD);
+    } else if (auto *FTD = dyn_cast<FunctionTemplateDecl>(D)) {
+      CheckAbstractClassUsage(Info, FTD->getTemplatedDecl());
 
     // Fields and static variables.
-    } else if (isa<FieldDecl>(D)) {
-      FieldDecl *FD = cast<FieldDecl>(D);
+    } else if (auto *FD = dyn_cast<FieldDecl>(D)) {
       if (TypeSourceInfo *TSI = FD->getTypeSourceInfo())
         Info.CheckType(FD, TSI->getTypeLoc(), Sema::AbstractFieldType);
-    } else if (isa<VarDecl>(D)) {
-      VarDecl *VD = cast<VarDecl>(D);
-      if (TypeSourceInfo *TSI = VD->getTypeSourceInfo())
-        Info.CheckType(VD, TSI->getTypeLoc(), Sema::AbstractVariableType);
+    } else if (auto *VD = dyn_cast<VarDecl>(D)) {
+      CheckAbstractClassUsage(Info, VD);
+    } else if (auto *VTD = dyn_cast<VarTemplateDecl>(D)) {
+      CheckAbstractClassUsage(Info, VTD->getTemplatedDecl());
 
     // Nested classes and class templates.
-    } else if (isa<CXXRecordDecl>(D)) {
-      CheckAbstractClassUsage(Info, cast<CXXRecordDecl>(D));
-    } else if (isa<ClassTemplateDecl>(D)) {
-      CheckAbstractClassUsage(Info,
-                             cast<ClassTemplateDecl>(D)->getTemplatedDecl());
+    } else if (auto *RD = dyn_cast<CXXRecordDecl>(D)) {
+      CheckAbstractClassUsage(Info, RD);
+    } else if (auto *CTD = dyn_cast<ClassTemplateDecl>(D)) {
+      CheckAbstractClassUsage(Info, CTD->getTemplatedDecl());
     }
   }
 }
@@ -9155,7 +9172,8 @@ bool SpecialMemberDeletionInfo::shouldDeleteForField(FieldDecl *FD) {
       }
 
       // Don't check the implicit member of the anonymous union type.
-      // This is technically non-conformant, but sanity demands it.
+      // This is technically non-conformant but supported, and we have a
+      // diagnostic for this elsewhere.
       return false;
     }
 
@@ -12239,7 +12257,7 @@ NamedDecl *Sema::BuildUsingDeclaration(
   // Unlike most lookups, we don't always want to hide tag
   // declarations: tag names are visible through the using declaration
   // even if hidden by ordinary names, *except* in a dependent context
-  // where it's important for the sanity of two-phase lookup.
+  // where they may be used by two-phase lookup.
   if (!IsInstantiation)
     R.setHideTags(false);
 
@@ -15892,7 +15910,7 @@ checkLiteralOperatorTemplateParameterList(Sema &SemaRef,
     //
     // As a DR resolution, we also allow placeholders for deduced class
     // template specializations.
-    if (SemaRef.getLangOpts().CPlusPlus20 &&
+    if (SemaRef.getLangOpts().CPlusPlus20 && PmDecl &&
         !PmDecl->isTemplateParameterPack() &&
         (PmDecl->getType()->isRecordType() ||
          PmDecl->getType()->getAs<DeducedTemplateSpecializationType>()))
@@ -17631,16 +17649,12 @@ bool Sema::DefineUsedVTables() {
     // no key function or the key function is inlined. Don't warn in C++ ABIs
     // that lack key functions, since the user won't be able to make one.
     if (Context.getTargetInfo().getCXXABI().hasKeyFunctions() &&
-        Class->isExternallyVisible() && ClassTSK != TSK_ImplicitInstantiation) {
+        Class->isExternallyVisible() && ClassTSK != TSK_ImplicitInstantiation &&
+        ClassTSK != TSK_ExplicitInstantiationDefinition) {
       const FunctionDecl *KeyFunctionDef = nullptr;
       if (!KeyFunction || (KeyFunction->hasBody(KeyFunctionDef) &&
-                           KeyFunctionDef->isInlined())) {
-        Diag(Class->getLocation(),
-             ClassTSK == TSK_ExplicitInstantiationDefinition
-                 ? diag::warn_weak_template_vtable
-                 : diag::warn_weak_vtable)
-            << Class;
-      }
+                           KeyFunctionDef->isInlined()))
+        Diag(Class->getLocation(), diag::warn_weak_vtable) << Class;
     }
   }
   VTableUses.clear();

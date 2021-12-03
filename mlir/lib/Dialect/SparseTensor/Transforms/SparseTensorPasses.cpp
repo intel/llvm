@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
@@ -97,11 +98,11 @@ struct SparseTensorConversionPass
     RewritePatternSet patterns(ctx);
     SparseTensorTypeConverter converter;
     ConversionTarget target(*ctx);
-    target.addIllegalOp<NewOp, ConvertOp, ToPointersOp, ToIndicesOp, ToValuesOp,
-                        ToTensorOp>();
-    // All dynamic rules below accept new function, call, return, and dimop
-    // operations as legal output of the rewriting provided that all sparse
-    // tensor types have been fully rewritten.
+    // Everything in the sparse dialect must go!
+    target.addIllegalDialect<SparseTensorDialect>();
+    // All dynamic rules below accept new function, call, return, and tensor
+    // dim and cast operations as legal output of the rewriting provided that
+    // all sparse tensor types have been fully rewritten.
     target.addDynamicallyLegalOp<FuncOp>(
         [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });
     target.addDynamicallyLegalOp<CallOp>([&](CallOp op) {
@@ -112,12 +113,17 @@ struct SparseTensorConversionPass
     target.addDynamicallyLegalOp<tensor::DimOp>([&](tensor::DimOp op) {
       return converter.isLegal(op.getOperandTypes());
     });
+    target.addDynamicallyLegalOp<tensor::CastOp>([&](tensor::CastOp op) {
+      return converter.isLegal(op.getOperand().getType());
+    });
     // The following operations and dialects may be introduced by the
     // rewriting rules, and are therefore marked as legal.
-    target.addLegalOp<ConstantOp, IndexCastOp, tensor::CastOp,
-                      tensor::ExtractOp, CmpFOp, CmpIOp>();
-    target.addLegalDialect<scf::SCFDialect, LLVM::LLVMDialect,
-                           memref::MemRefDialect>();
+    target.addLegalOp<arith::CmpFOp, arith::CmpIOp, arith::ConstantOp,
+                      arith::IndexCastOp, linalg::FillOp, linalg::YieldOp,
+                      tensor::ExtractOp>();
+    target
+        .addLegalDialect<bufferization::BufferizationDialect, LLVM::LLVMDialect,
+                         memref::MemRefDialect, scf::SCFDialect>();
     // Populate with rules and apply rewriting rules.
     populateFuncOpTypeConversionPattern(patterns, converter);
     populateCallOpTypeConversionPattern(patterns, converter);

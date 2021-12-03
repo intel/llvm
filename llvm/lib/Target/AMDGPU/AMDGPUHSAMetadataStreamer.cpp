@@ -113,7 +113,7 @@ MetadataStreamerV2::getAddressSpaceQualifier(
 
 ValueKind MetadataStreamerV2::getValueKind(Type *Ty, StringRef TypeQual,
                                            StringRef BaseTypeName) const {
-  if (TypeQual.find("pipe") != StringRef::npos)
+  if (TypeQual.contains("pipe"))
     return ValueKind::Pipe;
 
   return StringSwitch<ValueKind>(BaseTypeName)
@@ -201,10 +201,11 @@ MetadataStreamerV2::getHSACodeProps(const MachineFunction &MF,
   Align MaxKernArgAlign;
   HSACodeProps.mKernargSegmentSize = STM.getKernArgSegmentSize(F,
                                                                MaxKernArgAlign);
+  HSACodeProps.mKernargSegmentAlign =
+    std::max(MaxKernArgAlign, Align(4)).value();
+
   HSACodeProps.mGroupSegmentFixedSize = ProgramInfo.LDSSize;
   HSACodeProps.mPrivateSegmentFixedSize = ProgramInfo.ScratchSize;
-  HSACodeProps.mKernargSegmentAlign =
-      std::max(MaxKernArgAlign, Align(4)).value();
   HSACodeProps.mWavefrontSize = STM.getWavefrontSize();
   HSACodeProps.mNumSGPRs = ProgramInfo.NumSGPR;
   HSACodeProps.mNumVGPRs = ProgramInfo.NumVGPR;
@@ -533,7 +534,7 @@ MetadataStreamerV3::getAddressSpaceQualifier(unsigned AddressSpace) const {
 
 StringRef MetadataStreamerV3::getValueKind(Type *Ty, StringRef TypeQual,
                                            StringRef BaseTypeName) const {
-  if (TypeQual.find("pipe") != StringRef::npos)
+  if (TypeQual.contains("pipe"))
     return "pipe";
 
   return StringSwitch<StringRef>(BaseTypeName)
@@ -867,6 +868,8 @@ MetadataStreamerV3::getHSAKernelProps(const MachineFunction &MF,
       Kern.getDocument()->getNode(ProgramInfo.LDSSize);
   Kern[".private_segment_fixed_size"] =
       Kern.getDocument()->getNode(ProgramInfo.ScratchSize);
+
+  // FIXME: The metadata treats the minimum as 16?
   Kern[".kernarg_segment_align"] =
       Kern.getDocument()->getNode(std::max(Align(4), MaxKernArgAlign).value());
   Kern[".wavefront_size"] =

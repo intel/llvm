@@ -645,6 +645,7 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
   if (DemandedBits == 0 || DemandedElts == 0)
     return DAG.getUNDEF(Op.getValueType());
 
+  bool IsLE = DAG.getDataLayout().isLittleEndian();
   unsigned NumElts = DemandedElts.getBitWidth();
   unsigned BitWidth = DemandedBits.getBitWidth();
   KnownBits LHSKnown, RHSKnown;
@@ -664,8 +665,7 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
         return DAG.getBitcast(DstVT, V);
 
     // TODO - bigendian once we have test coverage.
-    if (SrcVT.isVector() && (NumDstEltBits % NumSrcEltBits) == 0 &&
-        DAG.getDataLayout().isLittleEndian()) {
+    if (IsLE && SrcVT.isVector() && (NumDstEltBits % NumSrcEltBits) == 0) {
       unsigned Scale = NumDstEltBits / NumSrcEltBits;
       unsigned NumSrcElts = SrcVT.getVectorNumElements();
       APInt DemandedSrcBits = APInt::getZero(NumSrcEltBits);
@@ -687,8 +687,7 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
     }
 
     // TODO - bigendian once we have test coverage.
-    if ((NumSrcEltBits % NumDstEltBits) == 0 &&
-        DAG.getDataLayout().isLittleEndian()) {
+    if (IsLE && (NumSrcEltBits % NumDstEltBits) == 0) {
       unsigned Scale = NumSrcEltBits / NumDstEltBits;
       unsigned NumSrcElts = SrcVT.isVector() ? SrcVT.getVectorNumElements() : 1;
       APInt DemandedSrcBits = APInt::getZero(NumSrcEltBits);
@@ -802,8 +801,8 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
     SDValue Src = Op.getOperand(0);
     EVT SrcVT = Src.getValueType();
     EVT DstVT = Op.getValueType();
-    if (DemandedElts == 1 && DstVT.getSizeInBits() == SrcVT.getSizeInBits() &&
-        DAG.getDataLayout().isLittleEndian() &&
+    if (IsLE && DemandedElts == 1 &&
+        DstVT.getSizeInBits() == SrcVT.getSizeInBits() &&
         DemandedBits.getActiveBits() <= SrcVT.getScalarSizeInBits()) {
       return DAG.getBitcast(DstVT, Src);
     }
@@ -913,6 +912,7 @@ bool TargetLowering::SimplifyDemandedBits(
   if (Op.getValueType().isScalableVector())
     return false;
 
+  bool IsLE = TLO.DAG.getDataLayout().isLittleEndian();
   unsigned NumElts = OriginalDemandedElts.getBitWidth();
   assert((!Op.getValueType().isVector() ||
           NumElts == Op.getValueType().getVectorNumElements()) &&
@@ -1725,10 +1725,39 @@ bool TargetLowering::SimplifyDemandedBits(
   case ISD::ROTR: {
     SDValue Op0 = Op.getOperand(0);
     SDValue Op1 = Op.getOperand(1);
+    bool IsROTL = (Op.getOpcode() == ISD::ROTL);
 
     // If we're rotating an 0/-1 value, then it stays an 0/-1 value.
     if (BitWidth == TLO.DAG.ComputeNumSignBits(Op0, DemandedElts, Depth + 1))
       return TLO.CombineTo(Op, Op0);
+
+    if (ConstantSDNode *SA = isConstOrConstSplat(Op1, DemandedElts)) {
+      unsigned Amt = SA->getAPIntValue().urem(BitWidth);
+      unsigned RevAmt = BitWidth - Amt;
+
+      // rotl: (Op0 << Amt) | (Op0 >> (BW - Amt))
+      // rotr: (Op0 << (BW - Amt)) | (Op0 >> Amt)
+      APInt Demanded0 = DemandedBits.rotr(IsROTL ? Amt : RevAmt);
+      if (SimplifyDemandedBits(Op0, Demanded0, DemandedElts, Known2, TLO,
+                               Depth + 1))
+        return true;
+
+      // rot*(x, 0) --> x
+      if (Amt == 0)
+        return TLO.CombineTo(Op, Op0);
+
+      // See if we don't demand either half of the rotated bits.
+      if ((!TLO.LegalOperations() || isOperationLegal(ISD::SHL, VT)) &&
+          DemandedBits.countTrailingZeros() >= (IsROTL ? Amt : RevAmt)) {
+        Op1 = TLO.DAG.getConstant(IsROTL ? Amt : RevAmt, dl, Op1.getValueType());
+        return TLO.CombineTo(Op, TLO.DAG.getNode(ISD::SHL, dl, VT, Op0, Op1));
+      }
+      if ((!TLO.LegalOperations() || isOperationLegal(ISD::SRL, VT)) &&
+          DemandedBits.countLeadingZeros() >= (IsROTL ? RevAmt : Amt)) {
+        Op1 = TLO.DAG.getConstant(IsROTL ? RevAmt : Amt, dl, Op1.getValueType());
+        return TLO.CombineTo(Op, TLO.DAG.getNode(ISD::SRL, dl, VT, Op0, Op1));
+      }
+    }
 
     // For pow-2 bitwidths we only demand the bottom modulo amt bits.
     if (isPowerOf2_32(BitWidth)) {
@@ -1803,9 +1832,9 @@ bool TargetLowering::SimplifyDemandedBits(
 
     // If we only care about the highest bit, don't bother shifting right.
     if (DemandedBits.isSignMask()) {
-      unsigned NumSignBits =
-          TLO.DAG.ComputeNumSignBits(Op0, DemandedElts, Depth + 1);
-      bool AlreadySignExtended = NumSignBits >= BitWidth - ExVTBits + 1;
+      unsigned MinSignedBits =
+          TLO.DAG.ComputeMinSignedBits(Op0, DemandedElts, Depth + 1);
+      bool AlreadySignExtended = ExVTBits >= MinSignedBits;
       // However if the input is already sign extended we expect the sign
       // extension to be dropped altogether later and do not simplify.
       if (!AlreadySignExtended) {
@@ -1887,9 +1916,8 @@ bool TargetLowering::SimplifyDemandedBits(
     if (DemandedBits.getActiveBits() <= InBits) {
       // If we only need the non-extended bits of the bottom element
       // then we can just bitcast to the result.
-      if (IsVecInReg && DemandedElts == 1 &&
-          VT.getSizeInBits() == SrcVT.getSizeInBits() &&
-          TLO.DAG.getDataLayout().isLittleEndian())
+      if (IsLE && IsVecInReg && DemandedElts == 1 &&
+          VT.getSizeInBits() == SrcVT.getSizeInBits())
         return TLO.CombineTo(Op, TLO.DAG.getBitcast(VT, Src));
 
       unsigned Opc =
@@ -1925,9 +1953,8 @@ bool TargetLowering::SimplifyDemandedBits(
     if (DemandedBits.getActiveBits() <= InBits) {
       // If we only need the non-extended bits of the bottom element
       // then we can just bitcast to the result.
-      if (IsVecInReg && DemandedElts == 1 &&
-          VT.getSizeInBits() == SrcVT.getSizeInBits() &&
-          TLO.DAG.getDataLayout().isLittleEndian())
+      if (IsLE && IsVecInReg && DemandedElts == 1 &&
+          VT.getSizeInBits() == SrcVT.getSizeInBits())
         return TLO.CombineTo(Op, TLO.DAG.getBitcast(VT, Src));
 
       unsigned Opc =
@@ -1976,9 +2003,8 @@ bool TargetLowering::SimplifyDemandedBits(
 
     // If we only need the bottom element then we can just bitcast.
     // TODO: Handle ANY_EXTEND?
-    if (IsVecInReg && DemandedElts == 1 &&
-        VT.getSizeInBits() == SrcVT.getSizeInBits() &&
-        TLO.DAG.getDataLayout().isLittleEndian())
+    if (IsLE && IsVecInReg && DemandedElts == 1 &&
+        VT.getSizeInBits() == SrcVT.getSizeInBits())
       return TLO.CombineTo(Op, TLO.DAG.getBitcast(VT, Src));
 
     APInt InDemandedBits = DemandedBits.trunc(InBits);
@@ -2141,8 +2167,7 @@ bool TargetLowering::SimplifyDemandedBits(
     // Bitcast from a vector using SimplifyDemanded Bits/VectorElts.
     // Demand the elt/bit if any of the original elts/bits are demanded.
     // TODO - bigendian once we have test coverage.
-    if (SrcVT.isVector() && (BitWidth % NumSrcEltBits) == 0 &&
-        TLO.DAG.getDataLayout().isLittleEndian()) {
+    if (IsLE && SrcVT.isVector() && (BitWidth % NumSrcEltBits) == 0) {
       unsigned Scale = BitWidth / NumSrcEltBits;
       unsigned NumSrcElts = SrcVT.getVectorNumElements();
       APInt DemandedSrcBits = APInt::getZero(NumSrcEltBits);
@@ -2167,8 +2192,7 @@ bool TargetLowering::SimplifyDemandedBits(
       if (SimplifyDemandedBits(Src, DemandedSrcBits, DemandedSrcElts,
                                KnownSrcBits, TLO, Depth + 1))
         return true;
-    } else if ((NumSrcEltBits % BitWidth) == 0 &&
-               TLO.DAG.getDataLayout().isLittleEndian()) {
+    } else if (IsLE && (NumSrcEltBits % BitWidth) == 0) {
       unsigned Scale = NumSrcEltBits / BitWidth;
       unsigned NumSrcElts = SrcVT.isVector() ? SrcVT.getVectorNumElements() : 1;
       APInt DemandedSrcBits = APInt::getZero(NumSrcEltBits);
@@ -2409,6 +2433,7 @@ bool TargetLowering::SimplifyDemandedVectorElts(
 
   SDLoc DL(Op);
   unsigned EltSizeInBits = VT.getScalarSizeInBits();
+  bool IsLE = TLO.DAG.getDataLayout().isLittleEndian();
 
   // Helper for demanding the specified elements and all the bits of both binary
   // operands.
@@ -2484,7 +2509,7 @@ bool TargetLowering::SimplifyDemandedVectorElts(
       // Try calling SimplifyDemandedBits, converting demanded elts to the bits
       // of the large element.
       // TODO - bigendian once we have test coverage.
-      if (TLO.DAG.getDataLayout().isLittleEndian()) {
+      if (IsLE) {
         unsigned SrcEltSizeInBits = SrcVT.getScalarSizeInBits();
         APInt SrcDemandedBits = APInt::getZero(SrcEltSizeInBits);
         for (unsigned i = 0; i != NumElts; ++i)
@@ -2797,9 +2822,9 @@ bool TargetLowering::SimplifyDemandedVectorElts(
     KnownZero = SrcZero.zextOrTrunc(NumElts);
     KnownUndef = SrcUndef.zextOrTrunc(NumElts);
 
-    if (Op.getOpcode() == ISD::ANY_EXTEND_VECTOR_INREG &&
+    if (IsLE && Op.getOpcode() == ISD::ANY_EXTEND_VECTOR_INREG &&
         Op.getValueSizeInBits() == Src.getValueSizeInBits() &&
-        DemandedSrcElts == 1 && TLO.DAG.getDataLayout().isLittleEndian()) {
+        DemandedSrcElts == 1) {
       // aext - if we just need the bottom element then we can bitcast.
       return TLO.CombineTo(Op, TLO.DAG.getBitcast(VT, Src));
     }
@@ -2809,15 +2834,44 @@ bool TargetLowering::SimplifyDemandedVectorElts(
       if (DemandedElts.isSubsetOf(KnownUndef))
         return TLO.CombineTo(Op, TLO.DAG.getConstant(0, SDLoc(Op), VT));
       KnownUndef.clearAllBits();
+
+      // zext - if we just need the bottom element then we can mask:
+      // zext(and(x,c)) -> and(x,c') iff the zext is the only user of the and.
+      if (IsLE && DemandedSrcElts == 1 && Src.getOpcode() == ISD::AND &&
+          Op->isOnlyUserOf(Src.getNode()) &&
+          Op.getValueSizeInBits() == Src.getValueSizeInBits()) {
+        SDLoc DL(Op);
+        EVT SrcVT = Src.getValueType();
+        EVT SrcSVT = SrcVT.getScalarType();
+        SmallVector<SDValue> MaskElts;
+        MaskElts.push_back(TLO.DAG.getAllOnesConstant(DL, SrcSVT));
+        MaskElts.append(NumSrcElts - 1, TLO.DAG.getConstant(0, DL, SrcSVT));
+        SDValue Mask = TLO.DAG.getBuildVector(SrcVT, DL, MaskElts);
+        if (SDValue Fold = TLO.DAG.FoldConstantArithmetic(
+                ISD::AND, DL, SrcVT, {Src.getOperand(1), Mask})) {
+          Fold = TLO.DAG.getNode(ISD::AND, DL, SrcVT, Src.getOperand(0), Fold);
+          return TLO.CombineTo(Op, TLO.DAG.getBitcast(VT, Fold));
+        }
+      }
     }
     break;
   }
 
   // TODO: There are more binop opcodes that could be handled here - MIN,
   // MAX, saturated math, etc.
+  case ISD::ADD: {
+    SDValue Op0 = Op.getOperand(0);
+    SDValue Op1 = Op.getOperand(1);
+    if (Op0 == Op1 && Op->isOnlyUserOf(Op0.getNode())) {
+      APInt UndefLHS, ZeroLHS;
+      if (SimplifyDemandedVectorElts(Op0, DemandedElts, UndefLHS, ZeroLHS, TLO,
+                                     Depth + 1, /*AssumeSingleUse*/ true))
+        return true;
+    }
+    LLVM_FALLTHROUGH;
+  }
   case ISD::OR:
   case ISD::XOR:
-  case ISD::ADD:
   case ISD::SUB:
   case ISD::FADD:
   case ISD::FSUB:
@@ -4150,7 +4204,7 @@ SDValue TargetLowering::SimplifySetCC(EVT VT, SDValue N0, SDValue N1,
           N0.getOpcode() == ISD::AND && N0.hasOneUse()) {
         if (auto *AndRHS = dyn_cast<ConstantSDNode>(N0.getOperand(1))) {
           const APInt &AndRHSC = AndRHS->getAPIntValue();
-          if ((-AndRHSC).isPowerOf2() && (AndRHSC & C1) == C1) {
+          if (AndRHSC.isNegatedPowerOf2() && (AndRHSC & C1) == C1) {
             unsigned ShiftBits = AndRHSC.countTrailingZeros();
             if (!TLI.shouldAvoidTransformToShift(ShValTy, ShiftBits)) {
               SDValue Shift =
@@ -5567,7 +5621,7 @@ TargetLowering::prepareUREMEqFold(EVT SETCCVT, SDValue REMNode,
                   .multiplicativeInverse(APInt::getSignedMinValue(W + 1))
                   .trunc(W);
     assert(!P.isZero() && "No multiplicative inverse!"); // unreachable
-    assert((D0 * P).isOne() && "Multiplicative inverse sanity check.");
+    assert((D0 * P).isOne() && "Multiplicative inverse basic check failed.");
 
     // Q = floor((2^W - 1) u/ D)
     // R = ((2^W - 1) u% D)
@@ -5813,7 +5867,7 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
                   .multiplicativeInverse(APInt::getSignedMinValue(W + 1))
                   .trunc(W);
     assert(!P.isZero() && "No multiplicative inverse!"); // unreachable
-    assert((D0 * P).isOne() && "Multiplicative inverse sanity check.");
+    assert((D0 * P).isOne() && "Multiplicative inverse basic check failed.");
 
     // A = floor((2^(W - 1) - 1) / D0) & -2^K
     APInt A = APInt::getSignedMaxValue(W).udiv(D0);
@@ -6980,8 +7034,18 @@ SDValue TargetLowering::expandFMINNUM_FMAXNUM(SDNode *Node,
   return SDValue();
 }
 
-bool TargetLowering::expandCTPOP(SDNode *Node, SDValue &Result,
-                                 SelectionDAG &DAG) const {
+// Only expand vector types if we have the appropriate vector bit operations.
+static bool canExpandVectorCTPOP(const TargetLowering &TLI, EVT VT) {
+  assert(VT.isVector() && "Expected vector type");
+  unsigned Len = VT.getScalarSizeInBits();
+  return TLI.isOperationLegalOrCustom(ISD::ADD, VT) &&
+         TLI.isOperationLegalOrCustom(ISD::SUB, VT) &&
+         TLI.isOperationLegalOrCustom(ISD::SRL, VT) &&
+         (Len == 8 || TLI.isOperationLegalOrCustom(ISD::MUL, VT)) &&
+         TLI.isOperationLegalOrCustomOrPromote(ISD::AND, VT);
+}
+
+SDValue TargetLowering::expandCTPOP(SDNode *Node, SelectionDAG &DAG) const {
   SDLoc dl(Node);
   EVT VT = Node->getValueType(0);
   EVT ShVT = getShiftAmountTy(VT, DAG.getDataLayout());
@@ -6991,15 +7055,11 @@ bool TargetLowering::expandCTPOP(SDNode *Node, SDValue &Result,
 
   // TODO: Add support for irregular type lengths.
   if (!(Len <= 128 && Len % 8 == 0))
-    return false;
+    return SDValue();
 
   // Only expand vector types if we have the appropriate vector bit operations.
-  if (VT.isVector() && (!isOperationLegalOrCustom(ISD::ADD, VT) ||
-                        !isOperationLegalOrCustom(ISD::SUB, VT) ||
-                        !isOperationLegalOrCustom(ISD::SRL, VT) ||
-                        (Len != 8 && !isOperationLegalOrCustom(ISD::MUL, VT)) ||
-                        !isOperationLegalOrCustomOrPromote(ISD::AND, VT)))
-    return false;
+  if (VT.isVector() && !canExpandVectorCTPOP(*this, VT))
+    return SDValue();
 
   // This is the "best" algorithm from
   // http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
@@ -7036,12 +7096,10 @@ bool TargetLowering::expandCTPOP(SDNode *Node, SDValue &Result,
         DAG.getNode(ISD::SRL, dl, VT, DAG.getNode(ISD::MUL, dl, VT, Op, Mask01),
                     DAG.getConstant(Len - 8, dl, ShVT));
 
-  Result = Op;
-  return true;
+  return Op;
 }
 
-bool TargetLowering::expandCTLZ(SDNode *Node, SDValue &Result,
-                                SelectionDAG &DAG) const {
+SDValue TargetLowering::expandCTLZ(SDNode *Node, SelectionDAG &DAG) const {
   SDLoc dl(Node);
   EVT VT = Node->getValueType(0);
   EVT ShVT = getShiftAmountTy(VT, DAG.getDataLayout());
@@ -7050,10 +7108,8 @@ bool TargetLowering::expandCTLZ(SDNode *Node, SDValue &Result,
 
   // If the non-ZERO_UNDEF version is supported we can use that instead.
   if (Node->getOpcode() == ISD::CTLZ_ZERO_UNDEF &&
-      isOperationLegalOrCustom(ISD::CTLZ, VT)) {
-    Result = DAG.getNode(ISD::CTLZ, dl, VT, Op);
-    return true;
-  }
+      isOperationLegalOrCustom(ISD::CTLZ, VT))
+    return DAG.getNode(ISD::CTLZ, dl, VT, Op);
 
   // If the ZERO_UNDEF version is supported use that and handle the zero case.
   if (isOperationLegalOrCustom(ISD::CTLZ_ZERO_UNDEF, VT)) {
@@ -7062,17 +7118,18 @@ bool TargetLowering::expandCTLZ(SDNode *Node, SDValue &Result,
     SDValue CTLZ = DAG.getNode(ISD::CTLZ_ZERO_UNDEF, dl, VT, Op);
     SDValue Zero = DAG.getConstant(0, dl, VT);
     SDValue SrcIsZero = DAG.getSetCC(dl, SetCCVT, Op, Zero, ISD::SETEQ);
-    Result = DAG.getNode(ISD::SELECT, dl, VT, SrcIsZero,
+    return DAG.getSelect(dl, VT, SrcIsZero,
                          DAG.getConstant(NumBitsPerElt, dl, VT), CTLZ);
-    return true;
   }
 
   // Only expand vector types if we have the appropriate vector bit operations.
+  // This includes the operations needed to expand CTPOP if it isn't supported.
   if (VT.isVector() && (!isPowerOf2_32(NumBitsPerElt) ||
-                        !isOperationLegalOrCustom(ISD::CTPOP, VT) ||
+                        (!isOperationLegalOrCustom(ISD::CTPOP, VT) &&
+                         !canExpandVectorCTPOP(*this, VT)) ||
                         !isOperationLegalOrCustom(ISD::SRL, VT) ||
                         !isOperationLegalOrCustomOrPromote(ISD::OR, VT)))
-    return false;
+    return SDValue();
 
   // for now, we do this:
   // x = x | (x >> 1);
@@ -7089,12 +7146,10 @@ bool TargetLowering::expandCTLZ(SDNode *Node, SDValue &Result,
                      DAG.getNode(ISD::SRL, dl, VT, Op, Tmp));
   }
   Op = DAG.getNOT(dl, Op, VT);
-  Result = DAG.getNode(ISD::CTPOP, dl, VT, Op);
-  return true;
+  return DAG.getNode(ISD::CTPOP, dl, VT, Op);
 }
 
-bool TargetLowering::expandCTTZ(SDNode *Node, SDValue &Result,
-                                SelectionDAG &DAG) const {
+SDValue TargetLowering::expandCTTZ(SDNode *Node, SelectionDAG &DAG) const {
   SDLoc dl(Node);
   EVT VT = Node->getValueType(0);
   SDValue Op = Node->getOperand(0);
@@ -7102,10 +7157,8 @@ bool TargetLowering::expandCTTZ(SDNode *Node, SDValue &Result,
 
   // If the non-ZERO_UNDEF version is supported we can use that instead.
   if (Node->getOpcode() == ISD::CTTZ_ZERO_UNDEF &&
-      isOperationLegalOrCustom(ISD::CTTZ, VT)) {
-    Result = DAG.getNode(ISD::CTTZ, dl, VT, Op);
-    return true;
-  }
+      isOperationLegalOrCustom(ISD::CTTZ, VT))
+    return DAG.getNode(ISD::CTTZ, dl, VT, Op);
 
   // If the ZERO_UNDEF version is supported use that and handle the zero case.
   if (isOperationLegalOrCustom(ISD::CTTZ_ZERO_UNDEF, VT)) {
@@ -7114,19 +7167,20 @@ bool TargetLowering::expandCTTZ(SDNode *Node, SDValue &Result,
     SDValue CTTZ = DAG.getNode(ISD::CTTZ_ZERO_UNDEF, dl, VT, Op);
     SDValue Zero = DAG.getConstant(0, dl, VT);
     SDValue SrcIsZero = DAG.getSetCC(dl, SetCCVT, Op, Zero, ISD::SETEQ);
-    Result = DAG.getNode(ISD::SELECT, dl, VT, SrcIsZero,
+    return DAG.getSelect(dl, VT, SrcIsZero,
                          DAG.getConstant(NumBitsPerElt, dl, VT), CTTZ);
-    return true;
   }
 
   // Only expand vector types if we have the appropriate vector bit operations.
+  // This includes the operations needed to expand CTPOP if it isn't supported.
   if (VT.isVector() && (!isPowerOf2_32(NumBitsPerElt) ||
                         (!isOperationLegalOrCustom(ISD::CTPOP, VT) &&
-                         !isOperationLegalOrCustom(ISD::CTLZ, VT)) ||
+                         !isOperationLegalOrCustom(ISD::CTLZ, VT) &&
+                         !canExpandVectorCTPOP(*this, VT)) ||
                         !isOperationLegalOrCustom(ISD::SUB, VT) ||
                         !isOperationLegalOrCustomOrPromote(ISD::AND, VT) ||
                         !isOperationLegalOrCustomOrPromote(ISD::XOR, VT)))
-    return false;
+    return SDValue();
 
   // for now, we use: { return popcount(~x & (x - 1)); }
   // unless the target has ctlz but not ctpop, in which case we use:
@@ -7138,18 +7192,15 @@ bool TargetLowering::expandCTTZ(SDNode *Node, SDValue &Result,
 
   // If ISD::CTLZ is legal and CTPOP isn't, then do that instead.
   if (isOperationLegal(ISD::CTLZ, VT) && !isOperationLegal(ISD::CTPOP, VT)) {
-    Result =
-        DAG.getNode(ISD::SUB, dl, VT, DAG.getConstant(NumBitsPerElt, dl, VT),
-                    DAG.getNode(ISD::CTLZ, dl, VT, Tmp));
-    return true;
+    return DAG.getNode(ISD::SUB, dl, VT, DAG.getConstant(NumBitsPerElt, dl, VT),
+                       DAG.getNode(ISD::CTLZ, dl, VT, Tmp));
   }
 
-  Result = DAG.getNode(ISD::CTPOP, dl, VT, Tmp);
-  return true;
+  return DAG.getNode(ISD::CTPOP, dl, VT, Tmp);
 }
 
-bool TargetLowering::expandABS(SDNode *N, SDValue &Result,
-                               SelectionDAG &DAG, bool IsNegative) const {
+SDValue TargetLowering::expandABS(SDNode *N, SelectionDAG &DAG,
+                                  bool IsNegative) const {
   SDLoc dl(N);
   EVT VT = N->getValueType(0);
   EVT ShVT = getShiftAmountTy(VT, DAG.getDataLayout());
@@ -7159,27 +7210,24 @@ bool TargetLowering::expandABS(SDNode *N, SDValue &Result,
   if (!IsNegative && isOperationLegal(ISD::SUB, VT) &&
       isOperationLegal(ISD::SMAX, VT)) {
     SDValue Zero = DAG.getConstant(0, dl, VT);
-    Result = DAG.getNode(ISD::SMAX, dl, VT, Op,
-                         DAG.getNode(ISD::SUB, dl, VT, Zero, Op));
-    return true;
+    return DAG.getNode(ISD::SMAX, dl, VT, Op,
+                       DAG.getNode(ISD::SUB, dl, VT, Zero, Op));
   }
 
   // abs(x) -> umin(x,sub(0,x))
   if (!IsNegative && isOperationLegal(ISD::SUB, VT) &&
       isOperationLegal(ISD::UMIN, VT)) {
     SDValue Zero = DAG.getConstant(0, dl, VT);
-    Result = DAG.getNode(ISD::UMIN, dl, VT, Op,
-                         DAG.getNode(ISD::SUB, dl, VT, Zero, Op));
-    return true;
+    return DAG.getNode(ISD::UMIN, dl, VT, Op,
+                       DAG.getNode(ISD::SUB, dl, VT, Zero, Op));
   }
 
   // 0 - abs(x) -> smin(x, sub(0,x))
   if (IsNegative && isOperationLegal(ISD::SUB, VT) &&
       isOperationLegal(ISD::SMIN, VT)) {
     SDValue Zero = DAG.getConstant(0, dl, VT);
-    Result = DAG.getNode(ISD::SMIN, dl, VT, Op,
-                         DAG.getNode(ISD::SUB, dl, VT, Zero, Op));
-    return true;
+    return DAG.getNode(ISD::SMIN, dl, VT, Op,
+                       DAG.getNode(ISD::SUB, dl, VT, Zero, Op));
   }
 
   // Only expand vector types if we have the appropriate vector operations.
@@ -7188,20 +7236,19 @@ bool TargetLowering::expandABS(SDNode *N, SDValue &Result,
        (!IsNegative && !isOperationLegalOrCustom(ISD::ADD, VT)) ||
        (IsNegative && !isOperationLegalOrCustom(ISD::SUB, VT)) ||
        !isOperationLegalOrCustomOrPromote(ISD::XOR, VT)))
-    return false;
+    return SDValue();
 
   SDValue Shift =
       DAG.getNode(ISD::SRA, dl, VT, Op,
                   DAG.getConstant(VT.getScalarSizeInBits() - 1, dl, ShVT));
   if (!IsNegative) {
     SDValue Add = DAG.getNode(ISD::ADD, dl, VT, Op, Shift);
-    Result = DAG.getNode(ISD::XOR, dl, VT, Add, Shift);
-  } else {
-    // 0 - abs(x) -> Y = sra (X, size(X)-1); sub (Y, xor (X, Y))
-    SDValue Xor = DAG.getNode(ISD::XOR, dl, VT, Op, Shift);
-    Result = DAG.getNode(ISD::SUB, dl, VT, Shift, Xor);
+    return DAG.getNode(ISD::XOR, dl, VT, Add, Shift);
   }
-  return true;
+
+  // 0 - abs(x) -> Y = sra (X, size(X)-1); sub (Y, xor (X, Y))
+  SDValue Xor = DAG.getNode(ISD::XOR, dl, VT, Op, Shift);
+  return DAG.getNode(ISD::SUB, dl, VT, Shift, Xor);
 }
 
 SDValue TargetLowering::expandBSWAP(SDNode *N, SelectionDAG &DAG) const {
@@ -7810,13 +7857,15 @@ TargetLowering::IncrementMemoryAddress(SDValue Addr, SDValue Mask,
 
 static SDValue clampDynamicVectorIndex(SelectionDAG &DAG, SDValue Idx,
                                        EVT VecVT, const SDLoc &dl,
-                                       unsigned NumSubElts) {
-  if (!VecVT.isScalableVector() && isa<ConstantSDNode>(Idx))
-    return Idx;
+                                       ElementCount SubEC) {
+  assert(!(SubEC.isScalable() && VecVT.isFixedLengthVector()) &&
+         "Cannot index a scalable vector within a fixed-width vector");
 
-  EVT IdxVT = Idx.getValueType();
   unsigned NElts = VecVT.getVectorMinNumElements();
-  if (VecVT.isScalableVector()) {
+  unsigned NumSubElts = SubEC.getKnownMinValue();
+  EVT IdxVT = Idx.getValueType();
+
+  if (VecVT.isScalableVector() && !SubEC.isScalable()) {
     // If this is a constant index and we know the value plus the number of the
     // elements in the subvector minus one is less than the minimum number of
     // elements then it's safe to return Idx.
@@ -7863,16 +7912,16 @@ SDValue TargetLowering::getVectorSubVecPointer(SelectionDAG &DAG,
   unsigned EltSize = EltVT.getFixedSizeInBits() / 8; // FIXME: should be ABI size.
   assert(EltSize * 8 == EltVT.getFixedSizeInBits() &&
          "Converting bits to bytes lost precision");
-
-  // Scalable vectors don't need clamping as these are checked at compile time
-  if (SubVecVT.isFixedLengthVector()) {
-    assert(SubVecVT.getVectorElementType() == EltVT &&
-           "Sub-vector must be a fixed vector with matching element type");
-    Index = clampDynamicVectorIndex(DAG, Index, VecVT, dl,
-                                    SubVecVT.getVectorNumElements());
-  }
+  assert(SubVecVT.getVectorElementType() == EltVT &&
+         "Sub-vector must be a vector with matching element type");
+  Index = clampDynamicVectorIndex(DAG, Index, VecVT, dl,
+                                  SubVecVT.getVectorElementCount());
 
   EVT IdxVT = Index.getValueType();
+  if (SubVecVT.isScalableVector())
+    Index =
+        DAG.getNode(ISD::MUL, dl, IdxVT, Index,
+                    DAG.getVScale(dl, IdxVT, APInt(IdxVT.getSizeInBits(), 1)));
 
   Index = DAG.getNode(ISD::MUL, dl, IdxVT, Index,
                       DAG.getConstant(EltSize, dl, IdxVT));
@@ -7956,10 +8005,8 @@ TargetLowering::getCanonicalIndexType(ISD::MemIndexType IndexType, EVT MemVT,
       (IndexType == ISD::SIGNED_SCALED) || (IndexType == ISD::SIGNED_UNSCALED);
 
   // Scaling is unimportant for bytes, canonicalize to unscaled.
-  if (IsScaledIndex && MemVT.getScalarType() == MVT::i8) {
-    IsScaledIndex = false;
-    IndexType = IsSignedIndex ? ISD::SIGNED_UNSCALED : ISD::UNSIGNED_UNSCALED;
-  }
+  if (IsScaledIndex && MemVT.getScalarType() == MVT::i8)
+    return IsSignedIndex ? ISD::SIGNED_UNSCALED : ISD::UNSIGNED_UNSCALED;
 
   return IndexType;
 }
@@ -8452,8 +8499,8 @@ bool TargetLowering::expandMULO(SDNode *Node, SDValue &Result,
 
   EVT WideVT = EVT::getIntegerVT(*DAG.getContext(), VT.getScalarSizeInBits() * 2);
   if (VT.isVector())
-    WideVT = EVT::getVectorVT(*DAG.getContext(), WideVT,
-                              VT.getVectorNumElements());
+    WideVT =
+        EVT::getVectorVT(*DAG.getContext(), WideVT, VT.getVectorElementCount());
 
   SDValue BottomHalf;
   SDValue TopHalf;

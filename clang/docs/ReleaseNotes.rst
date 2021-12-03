@@ -62,12 +62,14 @@ Non-comprehensive list of changes in this release
 New Compiler Flags
 ------------------
 
-- ...
+- Clang plugin arguments can now be passed through the compiler driver via
+  ``-fplugin-arg-pluginname-arg``, similar to GCC's ``-fplugin-arg``.
 
 Deprecated Compiler Flags
 -------------------------
 
-- ...
+- -Wweak-template-vtables has been deprecated and no longer has any effect. The
+  flag will be removed in the next release.
 
 Modified Compiler Flags
 -----------------------
@@ -82,6 +84,12 @@ Modified Compiler Flags
   - RISC-V SiFive S51 (``sifive-s51``).
   - RISC-V SiFive S54 (``sifive-s54``).
   - RISC-V SiFive S76 (``sifive-s76``).
+
+- Support has been added for the following architectures (``-march`` identifiers in parentheses):
+
+  - Armv9-A (``armv9-a``).
+  - Armv9.1-A (``armv9.1-a``).
+  - Armv9.2-A (``armv9.2-a``).
 
 Removed Compiler Flags
 -------------------------
@@ -104,6 +112,13 @@ Attribute Changes in Clang
   attribute is handled instead, e.g. in ``handleDeclAttribute``.
   (This was changed in order to better support attributes in code completion).
 
+- __has_cpp_attribute, __has_c_attribute, __has_attribute, and __has_declspec
+  will now macro expand their argument. This causes a change in behavior for
+  code using ``__has_cpp_attribute(__clang__::attr)`` (and same for
+  ``__has_c_attribute``) where it would previously expand to ``0`` for all
+  attributes, but will now issue an error due to the expansion of the
+  predefined ``__clang__`` macro.
+
 Windows Support
 ---------------
 
@@ -116,6 +131,9 @@ Windows Support
 C Language Changes in Clang
 ---------------------------
 
+- The value of ``__STDC_VERSION__`` has been bumped to ``202000L`` when passing
+  ``-std=c2x`` so that it can be distinguished from C17 mode. This value is
+  expected to change again when C23 is published.
 - Wide multi-characters literals such as ``L'ab'`` that would previously be interpreted as ``L'b'``
   are now ill-formed in all language modes. The motivation for this change is outlined in
   `P2362 <wg21.link/P2362>`_.
@@ -141,7 +159,7 @@ C++2b Feature Support
 CUDA Language Changes in Clang
 ------------------------------
 
-- Clang now supports CUDA versions up to 11.4.
+- Clang now supports CUDA versions up to 11.5.
 - Default GPU architecture has been changed from sm_20 to sm_35.
 
 Objective-C Language Changes in Clang
@@ -171,6 +189,36 @@ X86 Support in Clang
 
 - Support for ``AVX512-FP16`` instructions has been added.
 
+Arm and AArch64 Support in Clang
+--------------------------------
+
+- Support has been added for the following processors (command-line identifiers in parentheses):
+  - Arm Cortex-A510 (``cortex-a510``)
+  - Arm Cortex-X2 (``cortex-x2``)
+  - Arm Cortex-A710 (``cortex-A710``)
+
+- The -mtune flag is no longer ignored for AArch64. It is now possible to
+  tune code generation for a particular CPU with -mtune without setting any
+  architectural features. For example, compiling with
+  "-mcpu=generic -mtune=cortex-a57" will not enable any Cortex-A57 specific
+  architecture features, but will enable certain optimizations specific to
+  Cortex-A57 CPUs and enable the use of a more accurate scheduling model.
+
+
+Floating Point Support in Clang
+-------------------------------
+- The default setting of FP contraction (FMA) is now -ffp-contract=on (for
+  languages other than CUDA/HIP) even when optimization is off. Previously,
+  the default behavior was equivalent to -ffp-contract=off (-ffp-contract
+  was not set).
+  Related to this, the switch -ffp-model=precise now implies -ffp-contract=on
+  rather than -ffp-contract=fast, and the documentation of these features has
+  been clarified. Previously, the documentation claimed that -ffp-model=precise
+  was the default, but this was incorrect because the precise model implied
+  -ffp-contract=fast, wheras the (now corrected) default behavior is
+  -ffp-contract=on.
+  -ffp-model=precise is now exactly the default mode of the compiler.
+
 Internal API Changes
 --------------------
 
@@ -184,7 +232,18 @@ Build System Changes
 AST Matchers
 ------------
 
-- ...
+- ``TypeLoc`` AST Matchers are now available. These matchers provide helpful
+  utilities for matching ``TypeLoc`` nodes, such as the ``pointerTypeLoc``
+  matcher or the ``hasReturnTypeLoc`` matcher. The addition of these matchers
+  was made possible by changes to the handling of ``TypeLoc`` nodes that
+  allows them to enjoy the same static type checking as other AST node kinds.
+- ``LambdaCapture`` AST Matchers are now available. These matchers allow for
+  the binding of ``LambdaCapture`` nodes. The ``LambdaCapture`` matchers added
+  include the ``lambdaCapture`` node matcher, the ``capturesVar`` traversal
+  matcher, and ``capturesThis`` narrowing matcher.
+- The ``hasAnyCapture`` matcher now only accepts an inner matcher of type
+  ``Matcher<LambdaCapture>``. The matcher originally accepted an inner matcher
+  of type ``Matcher<CXXThisExpr>`` or ``Matcher<VarDecl>``.
 
 clang-format
 ------------
@@ -201,6 +260,12 @@ clang-format
 - Option ``QualifierOrder`` has been added to allow the order
   `const` `volatile` `static` `inline` `constexpr` `restrict`
   to be controlled relative to the `type`.
+
+- Add a ``Custom`` style to ``SpaceBeforeParens``, to better configure the
+  space before parentheses. The custom options can be set using
+  ``SpaceBeforeParensOptions``.
+
+- Improved Cpp20 Modules support.
 
 libclang
 --------

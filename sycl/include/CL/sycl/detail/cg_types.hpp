@@ -246,6 +246,9 @@ template <class KernelType, class KernelArgType, int Dims, typename KernelName>
 class HostKernel : public HostKernelBase {
   using IDBuilder = sycl::detail::Builder;
   KernelType MKernel;
+  // Allowing accessing MKernel from 'ResetHostKernelHelper' method of
+  // 'sycl::handler'
+  friend class sycl::handler;
 
 public:
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}

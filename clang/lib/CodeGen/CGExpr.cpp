@@ -96,7 +96,7 @@ Address CodeGenFunction::CreateTempAlloca(llvm::Type *Ty, CharUnits Align,
     // otherwise alloca is inserted at the current insertion point of the
     // builder.
     if (!ArraySize)
-      Builder.SetInsertPoint(AllocaInsertPt);
+      Builder.SetInsertPoint(getPostAllocaInsertPoint());
     V = getTargetHooks().performAddrSpaceCast(
         *this, V, getASTAllocaAddressSpace(), LangAS::Default,
         Ty->getPointerTo(DestAddrSpace), /*non-null*/ true);
@@ -126,19 +126,6 @@ Address CodeGenFunction::CreateDefaultAlignTempAlloca(llvm::Type *Ty,
   CharUnits Align =
       CharUnits::fromQuantity(CGM.getDataLayout().getPrefTypeAlignment(Ty));
   return CreateTempAlloca(Ty, Align, Name);
-}
-
-void CodeGenFunction::InitTempAlloca(Address Var, llvm::Value *Init) {
-  auto *Alloca = Var.getPointer();
-  assert(isa<llvm::AllocaInst>(Alloca) ||
-         (isa<llvm::AddrSpaceCastInst>(Alloca) &&
-          isa<llvm::AllocaInst>(
-              cast<llvm::AddrSpaceCastInst>(Alloca)->getPointerOperand())));
-
-  auto *Store = new llvm::StoreInst(Init, Alloca, /*volatile*/ false,
-                                    Var.getAlignment().getAsAlign());
-  llvm::BasicBlock *Block = AllocaInsertPt->getParent();
-  Block->getInstList().insertAfter(AllocaInsertPt->getIterator(), Store);
 }
 
 Address CodeGenFunction::CreateIRTemp(QualType Ty, const Twine &Name) {
@@ -582,8 +569,7 @@ EmitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *M) {
   // Perform derived-to-base casts and/or field accesses, to get from the
   // temporary object we created (and, potentially, for which we extended
   // the lifetime) to the subobject we're binding the reference to.
-  for (unsigned I = Adjustments.size(); I != 0; --I) {
-    SubobjectAdjustment &Adjustment = Adjustments[I-1];
+  for (SubobjectAdjustment &Adjustment : llvm::reverse(Adjustments)) {
     switch (Adjustment.Kind) {
     case SubobjectAdjustment::DerivedToBaseAdjustment:
       Object =
@@ -4732,9 +4718,27 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
   case CK_UserDefinedConversion:
   case CK_CPointerToObjCPointerCast:
   case CK_BlockPointerToObjCPointerCast:
-  case CK_NoOp:
   case CK_LValueToRValue:
     return EmitLValue(E->getSubExpr());
+
+  case CK_NoOp: {
+    // CK_NoOp can model a qualification conversion, which can remove an array
+    // bound and change the IR type.
+    // FIXME: Once pointee types are removed from IR, remove this.
+    LValue LV = EmitLValue(E->getSubExpr());
+    if (LV.isSimple()) {
+      Address V = LV.getAddress(*this);
+      if (V.isValid()) {
+        llvm::Type *T =
+            ConvertTypeForMem(E->getType())
+                ->getPointerTo(
+                    cast<llvm::PointerType>(V.getType())->getAddressSpace());
+        if (V.getType() != T)
+          LV.setAddress(Builder.CreateBitCast(V, T));
+      }
+    }
+    return LV;
+  }
 
   case CK_UncheckedDerivedToBase:
   case CK_DerivedToBase: {

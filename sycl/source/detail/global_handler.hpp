@@ -25,6 +25,7 @@ class Sync;
 class plugin;
 class device_filter_list;
 class XPTIRegistry;
+class ThreadPool;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
@@ -67,8 +68,12 @@ public:
   device_filter_list &getDeviceFilterList(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   std::mutex &getHandlerExtendedMembersMutex();
+  ThreadPool &getHostTaskThreadPool();
+
+  static void registerDefaultContextReleaseHandler();
 
 private:
+  friend void releaseDefaultContexts();
   friend void shutdown();
 
   // Constructor and destructor are declared out-of-line to allow incomplete
@@ -98,6 +103,8 @@ private:
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // The mutex for synchronizing accesses to handlers extended members
   InstWithLock<std::mutex> MHandlerExtendedMembersMutex;
+  // Thread pool for host task and event callbacks execution
+  InstWithLock<ThreadPool> MHostTaskThreadPool;
 };
 } // namespace detail
 } // namespace sycl

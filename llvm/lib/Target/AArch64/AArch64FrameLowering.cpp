@@ -1653,7 +1653,8 @@ static void InsertReturnAddressAuth(MachineFunction &MF,
   // The AUTIASP instruction assembles to a hint instruction before v8.3a so
   // this instruction can safely used for any v8a architecture.
   // From v8.3a onwards there are optimised authenticate LR and return
-  // instructions, namely RETA{A,B}, that can be used instead.
+  // instructions, namely RETA{A,B}, that can be used instead. In this case the
+  // DW_CFA_AARCH64_negate_ra_state can't be emitted.
   if (Subtarget.hasPAuth() && MBBI != MBB.end() &&
       MBBI->getOpcode() == AArch64::RET_ReallyLR) {
     BuildMI(MBB, MBBI, DL,
@@ -1665,6 +1666,12 @@ static void InsertReturnAddressAuth(MachineFunction &MF,
         MBB, MBBI, DL,
         TII->get(MFI.shouldSignWithBKey() ? AArch64::AUTIBSP : AArch64::AUTIASP))
         .setMIFlag(MachineInstr::FrameDestroy);
+
+    unsigned CFIIndex =
+        MF.addFrameInst(MCCFIInstruction::createNegateRAState(nullptr));
+    BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+        .addCFIIndex(CFIIndex)
+        .setMIFlags(MachineInstr::FrameDestroy);
   }
 }
 
@@ -2529,9 +2536,7 @@ bool AArch64FrameLowering::spillCalleeSavedRegisters(
     }
     return true;
   }
-  for (auto RPII = RegPairs.rbegin(), RPIE = RegPairs.rend(); RPII != RPIE;
-       ++RPII) {
-    RegPairInfo RPI = *RPII;
+  for (const RegPairInfo &RPI : llvm::reverse(RegPairs)) {
     unsigned Reg1 = RPI.Reg1;
     unsigned Reg2 = RPI.Reg2;
     unsigned StrOpc;
@@ -3532,7 +3537,14 @@ StackOffset AArch64FrameLowering::getFrameIndexReferencePreferSP(
     return StackOffset::getFixed(MFI.getObjectOffset(FI));
   }
 
-  return getFrameIndexReference(MF, FI, FrameReg);
+  // Go to common code if we cannot provide sp + offset.
+  if (MFI.hasVarSizedObjects() ||
+      MF.getInfo<AArch64FunctionInfo>()->getStackSizeSVE() ||
+      MF.getSubtarget().getRegisterInfo()->hasStackRealignment(MF))
+    return getFrameIndexReference(MF, FI, FrameReg);
+
+  FrameReg = AArch64::SP;
+  return getStackOffset(MF, MFI.getObjectOffset(FI));
 }
 
 /// The parent frame offset (aka dispFrame) is only used on X86_64 to retrieve

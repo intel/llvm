@@ -355,13 +355,12 @@ private:
       return false;
 
     std::string CacheSubdir = ModID.substr(PrefixLength);
-#if defined(_WIN32)
-    // Transform "X:\foo" => "/X\foo" for convenience.
-    if (isalpha(CacheSubdir[0]) && CacheSubdir[1] == ':') {
+    // Transform "X:\foo" => "/X\foo" for convenience on Windows.
+    if (is_style_windows(llvm::sys::path::Style::native) &&
+        isalpha(CacheSubdir[0]) && CacheSubdir[1] == ':') {
       CacheSubdir[1] = CacheSubdir[0];
       CacheSubdir[0] = '/';
     }
-#endif
 
     CacheName = CacheDir + CacheSubdir;
     size_t pos = CacheName.rfind('.');
@@ -1151,6 +1150,6 @@ Expected<std::unique_ptr<orc::ExecutorProcessControl>> launchRemote() {
   // Return a SimpleRemoteEPC instance connected to our end of the pipes.
   return orc::SimpleRemoteEPC::Create<orc::FDSimpleRemoteEPCTransport>(
       std::make_unique<llvm::orc::InPlaceTaskDispatcher>(),
-      PipeFD[1][0], PipeFD[0][1]);
+      llvm::orc::SimpleRemoteEPC::Setup(), PipeFD[1][0], PipeFD[0][1]);
 #endif
 }

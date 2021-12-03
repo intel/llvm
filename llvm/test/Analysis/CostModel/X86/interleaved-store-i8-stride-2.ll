@@ -13,15 +13,15 @@ target triple = "x86_64-unknown-linux-gnu"
 ; CHECK: LV: Checking a loop in "test"
 ;
 ; SSE2: LV: Found an estimated cost of 1 for VF 1 For instruction:   store i8 %v1, i8* %out1, align 1
-; SSE2: LV: Found an estimated cost of 14 for VF 2 For instruction:   store i8 %v1, i8* %out1, align 1
-; SSE2: LV: Found an estimated cost of 30 for VF 4 For instruction:   store i8 %v1, i8* %out1, align 1
-; SSE2: LV: Found an estimated cost of 62 for VF 8 For instruction:   store i8 %v1, i8* %out1, align 1
+; SSE2: LV: Found an estimated cost of 2 for VF 2 For instruction:   store i8 %v1, i8* %out1, align 1
+; SSE2: LV: Found an estimated cost of 2 for VF 4 For instruction:   store i8 %v1, i8* %out1, align 1
+; SSE2: LV: Found an estimated cost of 2 for VF 8 For instruction:   store i8 %v1, i8* %out1, align 1
 ; SSE2: LV: Found an estimated cost of 126 for VF 16 For instruction:   store i8 %v1, i8* %out1, align 1
 ;
 ; AVX1: LV: Found an estimated cost of 1 for VF 1 For instruction:   store i8 %v1, i8* %out1, align 1
-; AVX1: LV: Found an estimated cost of 9 for VF 2 For instruction:   store i8 %v1, i8* %out1, align 1
-; AVX1: LV: Found an estimated cost of 17 for VF 4 For instruction:   store i8 %v1, i8* %out1, align 1
-; AVX1: LV: Found an estimated cost of 33 for VF 8 For instruction:   store i8 %v1, i8* %out1, align 1
+; AVX1: LV: Found an estimated cost of 2 for VF 2 For instruction:   store i8 %v1, i8* %out1, align 1
+; AVX1: LV: Found an estimated cost of 2 for VF 4 For instruction:   store i8 %v1, i8* %out1, align 1
+; AVX1: LV: Found an estimated cost of 2 for VF 8 For instruction:   store i8 %v1, i8* %out1, align 1
 ; AVX1: LV: Found an estimated cost of 67 for VF 16 For instruction:   store i8 %v1, i8* %out1, align 1
 ; AVX1: LV: Found an estimated cost of 166 for VF 32 For instruction:   store i8 %v1, i8* %out1, align 1
 
@@ -40,7 +40,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; AVX512: LV: Found an estimated cost of 20 for VF 32 For instruction:   store i8 %v1, i8* %out1, align 1
 ; AVX512: LV: Found an estimated cost of 41 for VF 64 For instruction:   store i8 %v1, i8* %out1, align 1
 ;
-; CHECK-NOT: LV: Found an estimated cost of {{[0-9]+}} for VF {{[0-9]+}} For instruction:   store i16 %v1, i16* %out1, align 2
+; CHECK-NOT: LV: Found an estimated cost of {{[0-9]+}} for VF {{[0-9]+}} For instruction:   store i8 %v1, i8* %out1, align 1
 
 define void @test() {
 entry:

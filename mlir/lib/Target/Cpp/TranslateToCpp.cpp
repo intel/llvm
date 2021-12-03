@@ -220,9 +220,17 @@ static LogicalResult printOperation(CppEmitter &emitter,
 }
 
 static LogicalResult printOperation(CppEmitter &emitter,
+                                    arith::ConstantOp constantOp) {
+  Operation *operation = constantOp.getOperation();
+  Attribute value = constantOp.getValue();
+
+  return printConstantOp(emitter, operation, value);
+}
+
+static LogicalResult printOperation(CppEmitter &emitter,
                                     mlir::ConstantOp constantOp) {
   Operation *operation = constantOp.getOperation();
-  Attribute value = constantOp.value();
+  Attribute value = constantOp.getValue();
 
   return printConstantOp(emitter, operation, value);
 }
@@ -804,7 +812,7 @@ CppEmitter::emitOperandsAndAttributes(Operation &op,
   // Insert comma in between operands and non-filtered attributes if needed.
   if (op.getNumOperands() > 0) {
     for (NamedAttribute attr : op.getAttrs()) {
-      if (!llvm::is_contained(exclude, attr.first.strref())) {
+      if (!llvm::is_contained(exclude, attr.getName().strref())) {
         os << ", ";
         break;
       }
@@ -812,10 +820,10 @@ CppEmitter::emitOperandsAndAttributes(Operation &op,
   }
   // Emit attributes.
   auto emitNamedAttribute = [&](NamedAttribute attr) -> LogicalResult {
-    if (llvm::is_contained(exclude, attr.first.strref()))
+    if (llvm::is_contained(exclude, attr.getName().strref()))
       return success();
-    os << "/* " << attr.first << " */";
-    if (failed(emitAttribute(op.getLoc(), attr.second)))
+    os << "/* " << attr.getName().getValue() << " */";
+    if (failed(emitAttribute(op.getLoc(), attr.getValue())))
       return failure();
     return success();
   };
@@ -898,6 +906,9 @@ LogicalResult CppEmitter::emitOperation(Operation &op, bool trailingSemicolon) {
           // Standard ops.
           .Case<BranchOp, mlir::CallOp, CondBranchOp, mlir::ConstantOp, FuncOp,
                 ModuleOp, ReturnOp>(
+              [&](auto op) { return printOperation(*this, op); })
+          // Arithmetic ops.
+          .Case<arith::ConstantOp>(
               [&](auto op) { return printOperation(*this, op); })
           .Default([&](Operation *) {
             return op.emitOpError("unable to find printer for op");

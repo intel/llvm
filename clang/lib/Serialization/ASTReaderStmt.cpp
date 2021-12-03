@@ -2448,6 +2448,8 @@ void ASTStmtReader::VisitOMPBarrierDirective(OMPBarrierDirective *D) {
 
 void ASTStmtReader::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *D) {
   VisitStmt(D);
+  // The NumClauses field was read in ReadStmtFromStream.
+  Record.skipInts(1);
   VisitOMPExecutableDirective(D);
 }
 
@@ -2662,6 +2664,10 @@ void ASTStmtReader::VisitOMPDispatchDirective(OMPDispatchDirective *D) {
 void ASTStmtReader::VisitOMPMaskedDirective(OMPMaskedDirective *D) {
   VisitStmt(D);
   VisitOMPExecutableDirective(D);
+}
+
+void ASTStmtReader::VisitOMPGenericLoopDirective(OMPGenericLoopDirective *D) {
+  VisitOMPLoopDirective(D);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3345,7 +3351,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case STMT_OMP_TASKWAIT_DIRECTIVE:
-      S = OMPTaskwaitDirective::CreateEmpty(Context, Empty);
+      S = OMPTaskwaitDirective::CreateEmpty(
+          Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
 
     case STMT_OMP_TASKGROUP_DIRECTIVE:
@@ -3613,6 +3620,14 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = OMPMaskedDirective::CreateEmpty(
           Context, Record[ASTStmtReader::NumStmtFields], Empty);
       break;
+
+    case STMT_OMP_GENERIC_LOOP_DIRECTIVE: {
+      unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
+      unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];
+      S = OMPGenericLoopDirective::CreateEmpty(Context, NumClauses,
+                                               CollapsedNum, Empty);
+      break;
+    }
 
     case EXPR_CXX_OPERATOR_CALL:
       S = CXXOperatorCallExpr::CreateEmpty(

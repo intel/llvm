@@ -155,7 +155,7 @@ gentbl_cc_library(
         ),
     ],
     tblgen = "//mlir:mlir-tblgen",
-    td_file = "lib/Dialect/Test/TestAttrDefs.td",
+    td_file = "lib/Dialect/Test/TestOps.td",
     test = True,
     deps = [
         ":TestOpTdFiles",
@@ -203,6 +203,7 @@ cc_library(
         ":TestOpsIncGen",
         ":TestTypeDefsIncGen",
         "//llvm:Support",
+        "//mlir:ArithmeticDialect",
         "//mlir:ControlFlowInterfaces",
         "//mlir:CopyOpInterface",
         "//mlir:DLTIDialect",
@@ -219,6 +220,7 @@ cc_library(
         "//mlir:SideEffects",
         "//mlir:StandardOps",
         "//mlir:StandardOpsTransforms",
+        "//mlir:Support",
         "//mlir:TensorDialect",
         "//mlir:TransformUtils",
         "//mlir:Transforms",
@@ -286,6 +288,7 @@ cc_library(
         "//llvm:Support",
         "//mlir:Affine",
         "//mlir:Analysis",
+        "//mlir:ArithmeticDialect",
         "//mlir:IR",
         "//mlir:MathDialect",
         "//mlir:Pass",
@@ -354,6 +357,7 @@ cc_library(
         "//llvm:NVPTXCodeGen",
         "//llvm:Support",
         "//mlir:Affine",
+        "//mlir:ArithmeticDialect",
         "//mlir:GPUDialect",
         "//mlir:GPUTransforms",
         "//mlir:IR",
@@ -377,6 +381,7 @@ cc_library(
     deps = [
         "//llvm:Support",
         "//mlir:Affine",
+        "//mlir:ArithmeticDialect",
         "//mlir:GPUDialect",
         "//mlir:IR",
         "//mlir:LinalgOps",
@@ -396,11 +401,13 @@ cc_library(
     defines = ["MLIR_CUDA_CONVERSIONS_ENABLED"],
     includes = ["lib/Dialect/Test"],
     deps = [
+        "//mlir:ArithmeticDialect",
         "//mlir:MathDialect",
         "//mlir:MathTransforms",
         "//mlir:Pass",
         "//mlir:TransformUtils",
         "//mlir:VectorOps",
+        "//mlir:X86Vector",
     ],
 )
 
@@ -411,10 +418,13 @@ cc_library(
     includes = ["lib/Dialect/Test"],
     deps = [
         "//llvm:Support",
+        "//mlir:ArithmeticDialect",
         "//mlir:IR",
+        "//mlir:MathDialect",
         "//mlir:Pass",
         "//mlir:SCFDialect",
         "//mlir:SCFTransforms",
+        "//mlir:StandardOps",
         "//mlir:TransformUtils",
     ],
 )
@@ -473,7 +483,9 @@ cc_library(
     deps = [
         "//mlir:Affine",
         "//mlir:Analysis",
+        "//mlir:LLVMDialect",
         "//mlir:LinalgOps",
+        "//mlir:LinalgTransforms",
         "//mlir:MemRefDialect",
         "//mlir:Pass",
         "//mlir:SCFDialect",
@@ -481,6 +493,7 @@ cc_library(
         "//mlir:TransformUtils",
         "//mlir:VectorOps",
         "//mlir:VectorToSCF",
+        "//mlir:X86Vector",
     ],
 )
 

@@ -24,6 +24,15 @@ append_list_if(SANITIZER_LIMIT_FRAME_SIZE -Wframe-larger-than=530
 append_list_if(COMPILER_RT_HAS_WGLOBAL_CONSTRUCTORS_FLAG -Wglobal-constructors
                TSAN_RTL_CFLAGS)
 
+set(TSAN_RTL_DYNAMIC_CFLAGS ${TSAN_RTL_CFLAGS})
+list(REMOVE_ITEM TSAN_RTL_DYNAMIC_CFLAGS -fPIE)
+
+set(TSAN_DYNAMIC_LINK_LIBS ${SANITIZER_CXX_ABI_LIBRARIES} ${SANITIZER_COMMON_LINK_LIBS})
+
+append_list_if(COMPILER_RT_HAS_LIBDL dl TSAN_DYNAMIC_LINK_LIBS)
+append_list_if(COMPILER_RT_HAS_LIBM m TSAN_DYNAMIC_LINK_LIBS)
+append_list_if(COMPILER_RT_HAS_LIBPTHREAD pthread TSAN_DYNAMIC_LINK_LIBS)
+
 set(TSAN_SOURCES
   rtl/tsan_clock.cpp
   rtl/tsan_debugging.cpp
@@ -40,9 +49,9 @@ set(TSAN_SOURCES
   rtl/tsan_md5.cpp
   rtl/tsan_mman.cpp
   rtl/tsan_mutexset.cpp
-  rtl/tsan_preinit.cpp
   rtl/tsan_report.cpp
   rtl/tsan_rtl.cpp
+  rtl/tsan_rtl_access.cpp
   rtl/tsan_rtl_mutex.cpp
   rtl/tsan_rtl_proc.cpp
   rtl/tsan_rtl_report.cpp
@@ -56,6 +65,10 @@ set(TSAN_SOURCES
 
 set(TSAN_CXX_SOURCES
   rtl/tsan_new_delete.cpp
+  )
+
+set(TSAN_PREINIT_SOURCES
+  rtl/tsan_preinit.cpp
   )
 
 if(APPLE)
@@ -106,7 +119,6 @@ set(TSAN_HEADERS
   rtl/tsan_symbolize.h
   rtl/tsan_sync.h
   rtl/tsan_trace.h
-  rtl/tsan_update_shadow_word.inc
   rtl/tsan_vector_clock.h
   )
 
@@ -238,7 +250,7 @@ else()
     add_compiler_rt_runtime(clang_rt.tsan
       STATIC
       ARCHS ${arch}
-      SOURCES ${TSAN_SOURCES} ${TSAN_ASM_SOURCES}
+      SOURCES ${TSAN_SOURCES} ${TSAN_ASM_SOURCES} ${TSAN_PREINIT_SOURCES}
               $<TARGET_OBJECTS:RTInterception.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
@@ -258,6 +270,21 @@ else()
       PARENT_TARGET tsan)
     list(APPEND TSAN_RUNTIME_LIBRARIES clang_rt.tsan-${arch}
                                        clang_rt.tsan_cxx-${arch})
+    add_compiler_rt_runtime(clang_rt.tsan
+      SHARED
+      ARCHS ${arch}
+      SOURCES ${TSAN_SOURCES} ${TSAN_ASM_SOURCES}
+              $<TARGET_OBJECTS:RTInterception.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommonCoverage.${arch}>
+              $<TARGET_OBJECTS:RTSanitizerCommonSymbolizer.${arch}>
+              $<TARGET_OBJECTS:RTUbsan.${arch}>
+      ADDITIONAL_HEADERS ${TSAN_HEADERS}
+      CFLAGS ${TSAN_RTL_DYNAMIC_CFLAGS}
+      LINK_LIBS ${TSAN_DYNAMIC_LINK_LIBS}
+      LINK_FLAGS ${SANITIZER_COMMON_LINK_FLAGS}
+      PARENT_TARGET tsan)
     add_sanitizer_rt_symbols(clang_rt.tsan
       ARCHS ${arch}
       EXTRA rtl/tsan.syms.extra)

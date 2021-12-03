@@ -18,8 +18,8 @@ using namespace llvm;
 using namespace llvm::orc;
 using namespace llvm::orc::shared;
 
-static llvm::orc::shared::detail::CWrapperFunctionResult
-addWrapper(const char *ArgData, size_t ArgSize) {
+static llvm::orc::shared::CWrapperFunctionResult addWrapper(const char *ArgData,
+                                                            size_t ArgSize) {
   return WrapperFunction<int32_t(int32_t, int32_t)>::handle(
              ArgData, ArgSize, [](int32_t X, int32_t Y) { return X + Y; })
       .release();
@@ -30,7 +30,7 @@ static void addAsyncWrapper(unique_function<void(int32_t)> SendResult,
   SendResult(X + Y);
 }
 
-static llvm::orc::shared::detail::CWrapperFunctionResult
+static llvm::orc::shared::CWrapperFunctionResult
 voidWrapper(const char *ArgData, size_t ArgSize) {
   return WrapperFunction<void()>::handle(ArgData, ArgSize, []() {}).release();
 }
@@ -43,6 +43,7 @@ TEST(ExecutionSessionWrapperFunctionCalls, RunWrapperTemplate) {
                         ExecutorAddr::fromPtr(addWrapper), Result, 2, 3),
                     Succeeded());
   EXPECT_EQ(Result, 5);
+  cantFail(ES.endSession());
 }
 
 TEST(ExecutionSessionWrapperFunctionCalls, RunVoidWrapperAsyncTemplate) {
@@ -55,6 +56,7 @@ TEST(ExecutionSessionWrapperFunctionCalls, RunVoidWrapperAsyncTemplate) {
                                  });
   Error Err = RP.get_future().get();
   EXPECT_THAT_ERROR(std::move(Err), Succeeded());
+  cantFail(ES.endSession());
 }
 
 TEST(ExecutionSessionWrapperFunctionCalls, RunNonVoidWrapperAsyncTemplate) {
@@ -71,6 +73,7 @@ TEST(ExecutionSessionWrapperFunctionCalls, RunNonVoidWrapperAsyncTemplate) {
       2, 3);
   Expected<int32_t> Result = RP.get_future().get();
   EXPECT_THAT_EXPECTED(Result, HasValue(5));
+  cantFail(ES.endSession());
 }
 
 TEST(ExecutionSessionWrapperFunctionCalls, RegisterAsyncHandlerAndRun) {

@@ -11,6 +11,7 @@ SRCS="
 	../rtl/tsan_md5.cpp
 	../rtl/tsan_report.cpp
 	../rtl/tsan_rtl.cpp
+	../rtl/tsan_rtl_access.cpp
 	../rtl/tsan_rtl_mutex.cpp
 	../rtl/tsan_rtl_report.cpp
 	../rtl/tsan_rtl_thread.cpp
@@ -18,6 +19,7 @@ SRCS="
 	../rtl/tsan_stack_trace.cpp
 	../rtl/tsan_suppressions.cpp
 	../rtl/tsan_sync.cpp
+	../rtl/tsan_vector_clock.cpp
 	../../sanitizer_common/sanitizer_allocator.cpp
 	../../sanitizer_common/sanitizer_common.cpp
 	../../sanitizer_common/sanitizer_common_libcdep.cpp
@@ -30,6 +32,7 @@ SRCS="
 	../../sanitizer_common/sanitizer_printf.cpp
 	../../sanitizer_common/sanitizer_suppressions.cpp
 	../../sanitizer_common/sanitizer_thread_registry.cpp
+	../../sanitizer_common/sanitizer_stack_store.cpp
 	../../sanitizer_common/sanitizer_stackdepot.cpp
 	../../sanitizer_common/sanitizer_stacktrace.cpp
 	../../sanitizer_common/sanitizer_symbolizer.cpp

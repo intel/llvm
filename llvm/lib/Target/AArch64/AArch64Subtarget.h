@@ -50,6 +50,7 @@ public:
     CortexA35,
     CortexA53,
     CortexA55,
+    CortexA510,
     CortexA57,
     CortexA65,
     CortexA72,
@@ -59,14 +60,17 @@ public:
     CortexA77,
     CortexA78,
     CortexA78C,
+    CortexA710,
     CortexR82,
     CortexX1,
+    CortexX2,
     ExynosM3,
     Falkor,
     Kryo,
     NeoverseE1,
     NeoverseN1,
     NeoverseN2,
+    Neoverse512TVB,
     NeoverseV1,
     Saphira,
     ThunderX2T99,
@@ -82,6 +86,7 @@ protected:
   /// ARMProcFamily - ARM processor family: Cortex-A53, Cortex-A57, and others.
   ARMProcFamilyEnum ARMProcFamily = Others;
 
+  bool HasV8_0aOps = false;
   bool HasV8_1aOps = false;
   bool HasV8_2aOps = false;
   bool HasV8_3aOps = false;
@@ -92,10 +97,11 @@ protected:
   bool HasV9_0aOps = false;
   bool HasV9_1aOps = false;
   bool HasV9_2aOps = false;
-
   bool HasV8_0rOps = false;
-  bool HasCONTEXTIDREL2 = false;
 
+  bool HasCONTEXTIDREL2 = false;
+  bool HasEL2VMSA = false;
+  bool HasEL3 = false;
   bool HasFPARMv8 = false;
   bool HasNEON = false;
   bool HasCrypto = false;
@@ -123,6 +129,7 @@ protected:
   // SVE extensions
   bool HasSVE = false;
   bool UseExperimentalZeroingPseudos = false;
+  bool UseScalarIncVL = false;
 
   // Armv8.2 Crypto extensions
   bool HasSM4 = false;
@@ -194,6 +201,9 @@ protected:
   bool HasSMEF64 = false;
   bool HasSMEI64 = false;
   bool HasStreamingSVE = false;
+
+  // AppleA7 system register.
+  bool HasAppleA7SysReg = false;
 
   // Future architecture extensions.
   bool HasETE = false;
@@ -275,6 +285,7 @@ protected:
 
   unsigned MinSVEVectorSizeInBits;
   unsigned MaxSVEVectorSizeInBits;
+  unsigned VScaleForTuning = 2;
 
   /// TargetTriple - What processor and OS we're targeting.
   Triple TargetTriple;
@@ -296,7 +307,8 @@ private:
   /// passed in feature string so that we can use initializer lists for
   /// subtarget initialization.
   AArch64Subtarget &initializeSubtargetDependencies(StringRef FS,
-                                                    StringRef CPUString);
+                                                    StringRef CPUString,
+                                                    StringRef TuneCPUString);
 
   /// Initialize properties based on the selected processor family.
   void initializeProperties();
@@ -305,8 +317,8 @@ public:
   /// This constructor initializes the data members to match that
   /// of the specified triple.
   AArch64Subtarget(const Triple &TT, const std::string &CPU,
-                   const std::string &FS, const TargetMachine &TM,
-                   bool LittleEndian,
+                   const std::string &TuneCPU, const std::string &FS,
+                   const TargetMachine &TM, bool LittleEndian,
                    unsigned MinSVEVectorSizeInBitsOverride = 0,
                    unsigned MaxSVEVectorSizeInBitsOverride = 0);
 
@@ -342,6 +354,7 @@ public:
     return ARMProcFamily;
   }
 
+  bool hasV8_0aOps() const { return HasV8_0aOps; }
   bool hasV8_1aOps() const { return HasV8_1aOps; }
   bool hasV8_2aOps() const { return HasV8_2aOps; }
   bool hasV8_3aOps() const { return HasV8_3aOps; }
@@ -457,6 +470,8 @@ public:
     return UseExperimentalZeroingPseudos;
   }
 
+  bool useScalarIncVL() const { return UseScalarIncVL; }
+
   /// CPU has TBI (top byte of addresses is ignored during HW address
   /// translation) and OS enables it.
   bool supportsAddressTopByteIgnored() const;
@@ -553,6 +568,8 @@ public:
   bool hasTLB_RMI() const { return HasTLB_RMI; }
   bool hasFlagM() const { return HasFlagM; }
   bool hasRCPC_IMMO() const { return HasRCPC_IMMO; }
+  bool hasEL2VMSA() const { return HasEL2VMSA; }
+  bool hasEL3() const { return HasEL3; }
 
   bool addrSinkUsingGEPs() const override {
     // Keeping GEPs inbounds is important for exploiting AArch64
@@ -647,6 +664,8 @@ public:
   }
 
   bool useSVEForFixedLengthVectors() const;
+
+  unsigned getVScaleForTuning() const { return VScaleForTuning; }
 };
 } // End llvm namespace
 

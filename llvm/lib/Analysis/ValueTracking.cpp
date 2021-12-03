@@ -84,6 +84,17 @@ using namespace llvm::PatternMatch;
 static cl::opt<unsigned> DomConditionsMaxUses("dom-conditions-max-uses",
                                               cl::Hidden, cl::init(20));
 
+// According to the LangRef, branching on a poison condition is absolutely
+// immediate full UB.  However, historically we haven't implemented that
+// consistently as we have an important transformation (non-trivial unswitch)
+// which introduces instances of branch on poison/undef to otherwise well
+// defined programs.  This flag exists to let us test optimization benefit
+// of exploiting the specified behavior (in combination with enabling the
+// unswitch fix.)
+static cl::opt<bool> BranchOnPoisonAsUB("branch-on-poison-as-ub",
+                                        cl::Hidden, cl::init(false));
+
+
 /// Returns the bitwidth of the given scalar or pointer type. For vector types,
 /// returns the element type's bitwidth.
 static unsigned getBitWidth(Type *Ty, const DataLayout &DL) {
@@ -385,6 +396,14 @@ unsigned llvm::ComputeNumSignBits(const Value *V, const DataLayout &DL,
       V, Depth, Query(DL, AC, safeCxtI(V, CxtI), DT, UseInstrInfo));
 }
 
+unsigned llvm::ComputeMinSignedBits(const Value *V, const DataLayout &DL,
+                                    unsigned Depth, AssumptionCache *AC,
+                                    const Instruction *CxtI,
+                                    const DominatorTree *DT) {
+  unsigned SignBits = ComputeNumSignBits(V, DL, Depth, AC, CxtI, DT);
+  return V->getType()->getScalarSizeInBits() - SignBits + 1;
+}
+
 static void computeKnownBitsAddSub(bool Add, const Value *Op0, const Value *Op1,
                                    bool NSW, const APInt &DemandedElts,
                                    KnownBits &KnownOut, KnownBits &Known2,
@@ -494,7 +513,9 @@ static bool isEphemeralValueOf(const Instruction *I, const Value *E) {
       if (V == E)
         return true;
 
-      if (V == I || isSafeToSpeculativelyExecute(V)) {
+      if (V == I || (isa<Instruction>(V) &&
+                     !cast<Instruction>(V)->mayHaveSideEffects() &&
+                     !cast<Instruction>(V)->isTerminator())) {
        EphValues.insert(V);
        if (const User *U = dyn_cast<User>(V))
          append_range(WorkSet, U->operands());
@@ -635,7 +656,7 @@ static void computeKnownBitsFromAssume(const Value *V, KnownBits &Known,
   if (V->getType()->isPointerTy()) {
     if (RetainedKnowledge RK = getKnowledgeValidInContext(
             V, {Attribute::Alignment}, Q.CxtI, Q.DT, Q.AC)) {
-      Known.Zero.setLowBits(Log2_32(RK.ArgValue));
+      Known.Zero.setLowBits(Log2_64(RK.ArgValue));
     }
   }
 
@@ -1506,7 +1527,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
     // taking conservative care to avoid excessive recursion.
     if (Depth < MaxAnalysisRecursionDepth - 1 && !Known.Zero && !Known.One) {
       // Skip if every incoming value references to ourself.
-      if (dyn_cast_or_null<UndefValue>(P->hasConstantValue()))
+      if (isa_and_nonnull<UndefValue>(P->hasConstantValue()))
         break;
 
       Known.Zero.setAllBits();
@@ -4948,15 +4969,14 @@ bool llvm::isOverflowIntrinsicNoWrap(const WithOverflowInst *WO,
   return llvm::any_of(GuardingBranches, AllUsesGuardedByBranch);
 }
 
-static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly) {
-  // See whether I has flags that may create poison
-  if (const auto *OvOp = dyn_cast<OverflowingBinaryOperator>(Op)) {
-    if (OvOp->hasNoSignedWrap() || OvOp->hasNoUnsignedWrap())
-      return true;
-  }
-  if (const auto *ExactOp = dyn_cast<PossiblyExactOperator>(Op))
-    if (ExactOp->isExact())
-      return true;
+static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly,
+                                   bool ConsiderFlags) {
+
+  if (ConsiderFlags && Op->hasPoisonGeneratingFlags())
+    return true;
+
+  // TODO: this should really be under the ConsiderFlags block, but currently
+  // these are not dropped by dropPoisonGeneratingFlags
   if (const auto *FP = dyn_cast<FPMathOperator>(Op)) {
     auto FMF = FP->getFastMathFlags();
     if (FMF.noNaNs() || FMF.noInfs())
@@ -5045,10 +5065,10 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly) {
   case Instruction::ICmp:
   case Instruction::FCmp:
     return false;
-  case Instruction::GetElementPtr: {
-    const auto *GEP = cast<GEPOperator>(Op);
-    return GEP->isInBounds();
-  }
+  case Instruction::GetElementPtr:
+    // inbounds is handled above
+    // TODO: what about inrange on constexpr?
+    return false;
   default: {
     const auto *CE = dyn_cast<ConstantExpr>(Op);
     if (isa<CastInst>(Op) || (CE && CE->isCast()))
@@ -5061,12 +5081,12 @@ static bool canCreateUndefOrPoison(const Operator *Op, bool PoisonOnly) {
   }
 }
 
-bool llvm::canCreateUndefOrPoison(const Operator *Op) {
-  return ::canCreateUndefOrPoison(Op, /*PoisonOnly=*/false);
+bool llvm::canCreateUndefOrPoison(const Operator *Op, bool ConsiderFlags) {
+  return ::canCreateUndefOrPoison(Op, /*PoisonOnly=*/false, ConsiderFlags);
 }
 
-bool llvm::canCreatePoison(const Operator *Op) {
-  return ::canCreateUndefOrPoison(Op, /*PoisonOnly=*/true);
+bool llvm::canCreatePoison(const Operator *Op, bool ConsiderFlags) {
+  return ::canCreateUndefOrPoison(Op, /*PoisonOnly=*/true, ConsiderFlags);
 }
 
 static bool directlyImpliesPoison(const Value *ValAssumedPoison,
@@ -5251,8 +5271,7 @@ static bool isGuaranteedNotToBeUndefOrPoison(const Value *V,
     Dominator = Dominator->getIDom();
   }
 
-  SmallVector<Attribute::AttrKind, 2> AttrKinds{Attribute::NoUndef};
-  if (getKnowledgeValidInContext(V, AttrKinds, CtxI, DT, AC))
+  if (getKnowledgeValidInContext(V, {Attribute::NoUndef}, CtxI, DT, AC))
     return true;
 
   return false;
@@ -5458,7 +5477,16 @@ void llvm::getGuaranteedNonPoisonOps(const Instruction *I,
   case Instruction::SRem:
     Operands.insert(I->getOperand(1));
     break;
-
+  case Instruction::Switch:
+    if (BranchOnPoisonAsUB)
+      Operands.insert(cast<SwitchInst>(I)->getCondition());
+    break;
+  case Instruction::Br: {
+    auto *BR = cast<BranchInst>(I);
+    if (BranchOnPoisonAsUB && BR->isConditional())
+      Operands.insert(BR->getCondition());
+    break;
+  }
   default:
     break;
   }
@@ -7044,6 +7072,23 @@ static void setLimitsForSelectPattern(const SelectInst &SI, APInt &Lower,
   }
 }
 
+static void setLimitForFPToI(const Instruction *I, APInt &Lower, APInt &Upper) {
+  // The maximum representable value of a half is 65504. For floats the maximum
+  // value is 3.4e38 which requires roughly 129 bits.
+  unsigned BitWidth = I->getType()->getScalarSizeInBits();
+  if (!I->getOperand(0)->getType()->getScalarType()->isHalfTy())
+    return;
+  if (isa<FPToSIInst>(I) && BitWidth >= 17) {
+    Lower = APInt(BitWidth, -65504);
+    Upper = APInt(BitWidth, 65505);
+  }
+
+  if (isa<FPToUIInst>(I) && BitWidth >= 16) {
+    // For a fptoui the lower limit is left as 0.
+    Upper = APInt(BitWidth, 65505);
+  }
+}
+
 ConstantRange llvm::computeConstantRange(const Value *V, bool UseInstrInfo,
                                          AssumptionCache *AC,
                                          const Instruction *CtxI,
@@ -7068,6 +7113,8 @@ ConstantRange llvm::computeConstantRange(const Value *V, bool UseInstrInfo,
     setLimitsForIntrinsic(*II, Lower, Upper);
   else if (auto *SI = dyn_cast<SelectInst>(V))
     setLimitsForSelectPattern(*SI, Lower, Upper, IIQ);
+  else if (isa<FPToUIInst>(V) || isa<FPToSIInst>(V))
+    setLimitForFPToI(cast<Instruction>(V), Lower, Upper);
 
   ConstantRange CR = ConstantRange::getNonEmpty(Lower, Upper);
 

@@ -24,6 +24,9 @@ using namespace mlir::linalg;
 static Value sourceMaterializationCallback(OpBuilder &builder, Type type,
                                            ValueRange inputs, Location loc) {
   assert(inputs.size() == 1);
+  if (inputs[0].getType().isa<TensorType>())
+    return nullptr;
+
   // A detensored value is converted back by creating a new tensor from its
   // element(s).
   auto createNewTensorOp = builder.create<tensor::FromElementsOp>(
@@ -221,7 +224,7 @@ struct LinalgDetensorize : public LinalgDetensorizeBase<LinalgDetensorize> {
     ///     ins(%6, %6 : tensor<i32>, tensor<i32>)
     ///     outs(%7 : tensor<i32>) {
     ///     ^bb0(%arg0: i32, %arg1: i32, %arg2: i32):
-    ///       %9 = addi %arg0, %arg1 : i32
+    ///       %9 = arith.addi %arg0, %arg1 : i32
     ///       linalg.yield %9 : i32
     ///   } -> tensor<i32>
     ///   %10 = "some.op"(%9)

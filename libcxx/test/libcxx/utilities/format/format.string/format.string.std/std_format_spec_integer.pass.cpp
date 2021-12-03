@@ -8,11 +8,12 @@
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
 // UNSUPPORTED: libcpp-has-no-incomplete-format
+// XFAIL: LIBCXX-AIX-FIXME
 
 // <format>
 
 // Tests the parsing of the format string as specified in [format.string.std].
-// It validates whether the std-format-spec is valid for a string type.
+// It validates whether the std-format-spec is valid for an integer type.
 
 #include <format>
 #include <cassert>
@@ -323,7 +324,9 @@ constexpr void test() {
 
 constexpr bool test() {
   test<char>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test<wchar_t>();
+#endif
 
   return true;
 }
@@ -333,10 +336,12 @@ int main(int, char**) {
   // Make sure the parsers match the expectations. The layout of the
   // subobjects is chosen to minimize the size required.
   static_assert(sizeof(Parser<char>) == 2 * sizeof(uint32_t));
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   static_assert(
       sizeof(Parser<wchar_t>) ==
       (sizeof(wchar_t) <= 2 ? 2 * sizeof(uint32_t) : 3 * sizeof(uint32_t)));
 #endif
+#endif // _WIN32
 
   test();
   static_assert(test());

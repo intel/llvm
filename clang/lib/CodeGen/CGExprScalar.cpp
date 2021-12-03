@@ -419,6 +419,11 @@ public:
   Value *VisitExpr(Expr *S);
 
   Value *VisitConstantExpr(ConstantExpr *E) {
+    // A constant expression of type 'void' generates no code and produces no
+    // value.
+    if (E->getType()->isVoidType())
+      return nullptr;
+
     if (Value *Result = ConstantEmitter(CGF).tryEmitConstantExpr(E)) {
       if (E->isGLValue())
         return CGF.Builder.CreateLoad(Address(
@@ -2175,9 +2180,21 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   }
   case CK_AtomicToNonAtomic:
   case CK_NonAtomicToAtomic:
-  case CK_NoOp:
   case CK_UserDefinedConversion:
     return Visit(const_cast<Expr*>(E));
+
+  case CK_NoOp: {
+    llvm::Value *V = Visit(const_cast<Expr *>(E));
+    if (V) {
+      // CK_NoOp can model a pointer qualification conversion, which can remove
+      // an array bound and change the IR type.
+      // FIXME: Once pointee types are removed from IR, remove this.
+      llvm::Type *T = ConvertType(DestTy);
+      if (T != V->getType())
+        V = Builder.CreateBitCast(V, T);
+    }
+    return V;
+  }
 
   case CK_BaseToDerived: {
     const CXXRecordDecl *DerivedClassDecl = DestTy->getPointeeCXXRecordDecl();

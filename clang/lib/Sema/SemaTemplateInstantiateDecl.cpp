@@ -437,11 +437,12 @@ static void instantiateOMPDeclareVariantAttr(
     return;
 
   Expr *E = VariantFuncRef.get();
+
   // Check function/variant ref for `omp declare variant` but not for `omp
   // begin declare variant` (which use implicit attributes).
   Optional<std::pair<FunctionDecl *, Expr *>> DeclVarData =
-      S.checkOpenMPDeclareVariantFunction(S.ConvertDeclToDeclGroup(New),
-                                          VariantFuncRef.get(), TI,
+      S.checkOpenMPDeclareVariantFunction(S.ConvertDeclToDeclGroup(New), E, TI,
+                                          Attr.appendArgs_size(),
                                           Attr.getRange());
 
   if (!DeclVarData)
@@ -482,7 +483,28 @@ static void instantiateOMPDeclareVariantAttr(
     }
   }
 
-  S.ActOnOpenMPDeclareVariantDirective(FD, E, TI, Attr.getRange());
+  SmallVector<Expr *, 8> NothingExprs;
+  SmallVector<Expr *, 8> NeedDevicePtrExprs;
+  SmallVector<OMPDeclareVariantAttr::InteropType, 8> AppendArgs;
+
+  for (Expr *E : Attr.adjustArgsNothing()) {
+    ExprResult ER = Subst(E);
+    if (ER.isInvalid())
+      continue;
+    NothingExprs.push_back(ER.get());
+  }
+  for (Expr *E : Attr.adjustArgsNeedDevicePtr()) {
+    ExprResult ER = Subst(E);
+    if (ER.isInvalid())
+      continue;
+    NeedDevicePtrExprs.push_back(ER.get());
+  }
+  for (auto A : Attr.appendArgs())
+    AppendArgs.push_back(A);
+
+  S.ActOnOpenMPDeclareVariantDirective(
+      FD, E, TI, NothingExprs, NeedDevicePtrExprs, AppendArgs, SourceLocation(),
+      SourceLocation(), Attr.getRange());
 }
 
 static void instantiateDependentAMDGPUFlatWorkGroupSizeAttr(
@@ -2115,9 +2137,7 @@ TemplateDeclInstantiator::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
 
 Decl *TemplateDeclInstantiator::VisitCXXRecordDecl(CXXRecordDecl *D) {
   CXXRecordDecl *PrevDecl = nullptr;
-  if (D->isInjectedClassName())
-    PrevDecl = cast<CXXRecordDecl>(Owner);
-  else if (CXXRecordDecl *PatternPrev = getPreviousDeclForInstantiation(D)) {
+  if (CXXRecordDecl *PatternPrev = getPreviousDeclForInstantiation(D)) {
     NamedDecl *Prev = SemaRef.FindInstantiatedDecl(D->getLocation(),
                                                    PatternPrev,
                                                    TemplateArgs);
@@ -2126,6 +2146,7 @@ Decl *TemplateDeclInstantiator::VisitCXXRecordDecl(CXXRecordDecl *D) {
   }
 
   CXXRecordDecl *Record = nullptr;
+  bool IsInjectedClassName = D->isInjectedClassName();
   if (D->isLambda())
     Record = CXXRecordDecl::CreateLambda(
         SemaRef.Context, Owner, D->getLambdaTypeInfo(), D->getLocation(),
@@ -2134,7 +2155,11 @@ Decl *TemplateDeclInstantiator::VisitCXXRecordDecl(CXXRecordDecl *D) {
   else
     Record = CXXRecordDecl::Create(SemaRef.Context, D->getTagKind(), Owner,
                                    D->getBeginLoc(), D->getLocation(),
-                                   D->getIdentifier(), PrevDecl);
+                                   D->getIdentifier(), PrevDecl,
+                                   /*DelayTypeCreation=*/IsInjectedClassName);
+  // Link the type of the injected-class-name to that of the outer class.
+  if (IsInjectedClassName)
+    (void)SemaRef.Context.getTypeDeclType(Record, cast<CXXRecordDecl>(Owner));
 
   // Substitute the nested name specifier, if any.
   if (SubstQualifier(D, Record))
@@ -2149,7 +2174,7 @@ Decl *TemplateDeclInstantiator::VisitCXXRecordDecl(CXXRecordDecl *D) {
   // specifier. Remove once this area of the code gets sorted out.
   if (D->getAccess() != AS_none)
     Record->setAccess(D->getAccess());
-  if (!D->isInjectedClassName())
+  if (!IsInjectedClassName)
     Record->setInstantiationOfMemberClass(D, TSK_ImplicitInstantiation);
 
   // If the original function was part of a friend declaration,
@@ -2201,6 +2226,9 @@ Decl *TemplateDeclInstantiator::VisitCXXRecordDecl(CXXRecordDecl *D) {
   }
 
   SemaRef.DiagnoseUnusedNestedTypedefs(Record);
+
+  if (IsInjectedClassName)
+    assert(Record->isInjectedClassName() && "Broken injected-class-name");
 
   return Record;
 }
@@ -3662,12 +3690,23 @@ Decl *TemplateDeclInstantiator::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
   SmallVector<OMPClause *, 4> Clauses;
   // Copy map clauses from the original mapper.
   for (OMPClause *C : D->clauselists()) {
-    auto *AC = cast<OMPAllocatorClause>(C);
-    ExprResult NewE = SemaRef.SubstExpr(AC->getAllocator(), TemplateArgs);
-    if (!NewE.isUsable())
-      continue;
-    OMPClause *IC = SemaRef.ActOnOpenMPAllocatorClause(
-        NewE.get(), AC->getBeginLoc(), AC->getLParenLoc(), AC->getEndLoc());
+    OMPClause *IC = nullptr;
+    if (auto *AC = dyn_cast<OMPAllocatorClause>(C)) {
+      ExprResult NewE = SemaRef.SubstExpr(AC->getAllocator(), TemplateArgs);
+      if (!NewE.isUsable())
+        continue;
+      IC = SemaRef.ActOnOpenMPAllocatorClause(
+          NewE.get(), AC->getBeginLoc(), AC->getLParenLoc(), AC->getEndLoc());
+    } else if (auto *AC = dyn_cast<OMPAlignClause>(C)) {
+      ExprResult NewE = SemaRef.SubstExpr(AC->getAlignment(), TemplateArgs);
+      if (!NewE.isUsable())
+        continue;
+      IC = SemaRef.ActOnOpenMPAlignClause(NewE.get(), AC->getBeginLoc(),
+                                          AC->getLParenLoc(), AC->getEndLoc());
+      // If align clause value ends up being invalid, this can end up null.
+      if (!IC)
+        continue;
+    }
     Clauses.push_back(IC);
   }
 

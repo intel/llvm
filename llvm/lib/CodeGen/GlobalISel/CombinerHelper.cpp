@@ -158,6 +158,15 @@ void CombinerHelper::replaceRegOpWith(MachineRegisterInfo &MRI,
   Observer.changedInstr(*FromRegOp.getParent());
 }
 
+void CombinerHelper::replaceOpcodeWith(MachineInstr &FromMI,
+                                       unsigned ToOpcode) const {
+  Observer.changingInstr(FromMI);
+
+  FromMI.setDesc(Builder.getTII().get(ToOpcode));
+
+  Observer.changedInstr(FromMI);
+}
+
 const RegisterBank *CombinerHelper::getRegBank(Register Reg) const {
   return RBI->getRegBank(Reg, MRI, *TRI);
 }
@@ -2210,7 +2219,7 @@ bool CombinerHelper::matchCombineTruncOfShl(
            {DstTy, getTargetLowering().getPreferredShiftAmountTy(DstTy)}})) {
     KnownBits Known = KB->getKnownBits(ShiftAmt);
     unsigned Size = DstTy.getSizeInBits();
-    if (Known.getBitWidth() - Known.countMinLeadingZeros() <= Log2_32(Size)) {
+    if (Known.countMaxActiveBits() <= Log2_32(Size)) {
       MatchInfo = std::make_pair(ShiftSrc, ShiftAmt);
       return true;
     }
@@ -2370,7 +2379,8 @@ bool CombinerHelper::matchConstantOp(const MachineOperand &MOP, int64_t C) {
     return false;
   auto *MI = MRI.getVRegDef(MOP.getReg());
   auto MaybeCst = isConstantOrConstantSplatVector(*MI, MRI);
-  return MaybeCst.hasValue() && MaybeCst->getSExtValue() == C;
+  return MaybeCst.hasValue() && MaybeCst->getBitWidth() <= 64 &&
+         MaybeCst->getSExtValue() == C;
 }
 
 bool CombinerHelper::replaceSingleDefInstWithOperand(MachineInstr &MI,
@@ -3722,8 +3732,7 @@ void CombinerHelper::applyExtendThroughPhis(MachineInstr &MI,
   Builder.setInstrAndDebugLoc(MI);
   auto NewPhi = Builder.buildInstrNoInsert(TargetOpcode::G_PHI);
   NewPhi.addDef(DstReg);
-  for (unsigned SrcIdx = 1; SrcIdx < MI.getNumOperands(); ++SrcIdx) {
-    auto &MO = MI.getOperand(SrcIdx);
+  for (const MachineOperand &MO : llvm::drop_begin(MI.operands())) {
     if (!MO.isReg()) {
       NewPhi.addMBB(MO.getMBB());
       continue;
@@ -3815,8 +3824,7 @@ bool CombinerHelper::matchExtractAllEltsFromBuildVector(
   unsigned NumElts = DstTy.getNumElements();
 
   SmallBitVector ExtractedElts(NumElts);
-  for (auto &II : make_range(MRI.use_instr_nodbg_begin(DstReg),
-                             MRI.use_instr_nodbg_end())) {
+  for (MachineInstr &II : MRI.use_nodbg_instructions(DstReg)) {
     if (II.getOpcode() != TargetOpcode::G_EXTRACT_VECTOR_ELT)
       return false;
     auto Cst = getIConstantVRegVal(II.getOperand(2).getReg(), MRI);
@@ -3856,6 +3864,51 @@ void CombinerHelper::applyBuildFnNoErase(
     MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo) {
   Builder.setInstrAndDebugLoc(MI);
   MatchInfo(Builder);
+}
+
+bool CombinerHelper::matchOrShiftToFunnelShift(MachineInstr &MI,
+                                               BuildFnTy &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_OR);
+
+  Register Dst = MI.getOperand(0).getReg();
+  LLT Ty = MRI.getType(Dst);
+  unsigned BitWidth = Ty.getScalarSizeInBits();
+
+  Register ShlSrc, ShlAmt, LShrSrc, LShrAmt;
+  unsigned FshOpc = 0;
+
+  // TODO: Handle vector types.
+  // Match (or (shl x, amt), (lshr y, sub(bw, amt))).
+  if (mi_match(Dst, MRI,
+               // m_GOr() handles the commuted version as well.
+               m_GOr(m_GShl(m_Reg(ShlSrc), m_Reg(ShlAmt)),
+                     m_GLShr(m_Reg(LShrSrc), m_GSub(m_SpecificICst(BitWidth),
+                                                    m_Reg(LShrAmt)))))) {
+    FshOpc = TargetOpcode::G_FSHL;
+
+    // Match (or (shl x, sub(bw, amt)), (lshr y, amt)).
+  } else if (mi_match(
+                 Dst, MRI,
+                 m_GOr(m_GLShr(m_Reg(LShrSrc), m_Reg(LShrAmt)),
+                       m_GShl(m_Reg(ShlSrc), m_GSub(m_SpecificICst(BitWidth),
+                                                    m_Reg(ShlAmt)))))) {
+    FshOpc = TargetOpcode::G_FSHR;
+
+  } else {
+    return false;
+  }
+
+  if (ShlAmt != LShrAmt)
+    return false;
+
+  LLT AmtTy = MRI.getType(ShlAmt);
+  if (!isLegalOrBeforeLegalizer({FshOpc, {Ty, AmtTy}}))
+    return false;
+
+  MatchInfo = [=](MachineIRBuilder &B) {
+    B.buildInstr(FshOpc, {Dst}, {ShlSrc, LShrSrc, ShlAmt});
+  };
+  return true;
 }
 
 /// Match an FSHL or FSHR that can be combined to a ROTR or ROTL rotate.
@@ -4008,6 +4061,36 @@ bool CombinerHelper::matchICmpToLHSKnownBits(
   return true;
 }
 
+// Replace (and (or x, c1), c2) with (and x, c2) iff c1 & c2 == 0
+bool CombinerHelper::matchAndOrDisjointMask(
+    MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo) {
+  assert(MI.getOpcode() == TargetOpcode::G_AND);
+
+  // Ignore vector types to simplify matching the two constants.
+  // TODO: do this for vectors and scalars via a demanded bits analysis.
+  LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+  if (Ty.isVector())
+    return false;
+
+  Register Src;
+  int64_t MaskAnd;
+  int64_t MaskOr;
+  if (!mi_match(MI, MRI,
+                m_GAnd(m_GOr(m_Reg(Src), m_ICst(MaskOr)), m_ICst(MaskAnd))))
+    return false;
+
+  // Check if MaskOr could turn on any bits in Src.
+  if (MaskAnd & MaskOr)
+    return false;
+
+  MatchInfo = [=, &MI](MachineIRBuilder &B) {
+    Observer.changingInstr(MI);
+    MI.getOperand(1).setReg(Src);
+    Observer.changedInstr(MI);
+  };
+  return true;
+}
+
 /// Form a G_SBFX from a G_SEXT_INREG fed by a right shift.
 bool CombinerHelper::matchBitfieldExtractFromSExtInReg(
     MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo) {
@@ -4119,6 +4202,55 @@ bool CombinerHelper::matchBitfieldExtractFromShr(
     auto WidthCst = B.buildConstant(ExtractTy, Width);
     auto PosCst = B.buildConstant(ExtractTy, Pos);
     B.buildInstr(ExtrOpcode, {Dst}, {ShlSrc, PosCst, WidthCst});
+  };
+  return true;
+}
+
+bool CombinerHelper::matchBitfieldExtractFromShrAnd(
+    MachineInstr &MI, std::function<void(MachineIRBuilder &)> &MatchInfo) {
+  const unsigned Opcode = MI.getOpcode();
+  assert(Opcode == TargetOpcode::G_LSHR || Opcode == TargetOpcode::G_ASHR);
+
+  const Register Dst = MI.getOperand(0).getReg();
+  LLT Ty = MRI.getType(Dst);
+  if (!getTargetLowering().isConstantUnsignedBitfieldExtactLegal(
+          TargetOpcode::G_UBFX, Ty, Ty))
+    return false;
+
+  // Try to match shr (and x, c1), c2
+  Register AndSrc;
+  int64_t ShrAmt;
+  int64_t SMask;
+  if (!mi_match(Dst, MRI,
+                m_BinOp(Opcode,
+                        m_OneNonDBGUse(m_GAnd(m_Reg(AndSrc), m_ICst(SMask))),
+                        m_ICst(ShrAmt))))
+    return false;
+
+  const unsigned Size = Ty.getScalarSizeInBits();
+  if (ShrAmt < 0 || ShrAmt >= Size)
+    return false;
+
+  // Check that ubfx can do the extraction, with no holes in the mask.
+  uint64_t UMask = SMask;
+  UMask |= maskTrailingOnes<uint64_t>(ShrAmt);
+  UMask &= maskTrailingOnes<uint64_t>(Size);
+  if (!isMask_64(UMask))
+    return false;
+
+  // Calculate start position and width of the extract.
+  const int64_t Pos = ShrAmt;
+  const int64_t Width = countTrailingOnes(UMask) - ShrAmt;
+
+  // It's preferable to keep the shift, rather than form G_SBFX.
+  // TODO: remove the G_AND via demanded bits analysis.
+  if (Opcode == TargetOpcode::G_ASHR && Width + ShrAmt == Size)
+    return false;
+
+  MatchInfo = [=](MachineIRBuilder &B) {
+    auto WidthCst = B.buildConstant(Ty, Width);
+    auto PosCst = B.buildConstant(Ty, Pos);
+    B.buildInstr(TargetOpcode::G_UBFX, {Dst}, {AndSrc, PosCst, WidthCst});
   };
   return true;
 }

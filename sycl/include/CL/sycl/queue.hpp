@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/sycl/backend_types.hpp>
 #include <CL/sycl/detail/assert_happened.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/service_kernel_names.hpp>
@@ -67,7 +67,7 @@
 
 // Helper macro to identify if fallback assert is needed
 // FIXME remove __NVPTX__ condition once devicelib supports CUDA
-#if !defined(SYCL_DISABLE_FALLBACK_ASSERT) && !defined(__NVPTX__)
+#if !defined(SYCL_DISABLE_FALLBACK_ASSERT)
 #define __SYCL_USE_FALLBACK_ASSERT 1
 #else
 #define __SYCL_USE_FALLBACK_ASSERT 0
@@ -690,8 +690,14 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(_KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
-
     return submit(
         [&](handler &CGH) {
           CGH.template single_task<KernelName, KernelType>(KernelFunc);
@@ -707,6 +713,13 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(event DepEvent,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -725,6 +738,13 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType>
   event single_task(const std::vector<event> &DepEvents,
                     _KERNELFUNCPARAM(KernelFunc) _CODELOCPARAM(&CodeLoc)) {
+    static_assert(
+        (detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void()>::value ||
+         detail::check_fn_signature<detail::remove_reference_t<KernelType>,
+                                    void(kernel_handler)>::value),
+        "sycl::queue.single_task() requires a kernel instead of command group. "
+        "Use queue.submit() instead");
     _CODELOCARG(&CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -1040,11 +1060,10 @@ public:
   /// Gets the native handle of the SYCL queue.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
+  template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> typename interop<BackendName, queue>::type {
-    return reinterpret_cast<typename interop<BackendName, queue>::type>(
-        getNative());
+  backend_return_t<Backend, queue> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, queue>>(getNative());
   }
 
 private:
@@ -1190,11 +1209,11 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     auto Acc = Buffer.get_access<access::mode::write>(CGH);
 
     CGH.single_task<__sycl_service_kernel__::AssertInfoCopier>([Acc] {
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
       __devicelib_assert_read(&Acc[0]);
 #else
       (void)Acc;
-#endif // __SYCL_DEVICE_ONLY__
+#endif // defined(__SYCL_DEVICE_ONLY__) && !defined(__NVPTX__)
     });
   };
   auto CheckerCGF = [&CopierEv, &Buffer](handler &CGH) {
