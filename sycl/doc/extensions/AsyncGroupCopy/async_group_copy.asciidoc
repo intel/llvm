@@ -23,6 +23,7 @@
 Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
 
 IMPORTANT: This specification is a draft.
+IMPORTANT: This specification is experimental.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
@@ -73,7 +74,7 @@ overhead than a simple synchronous implementation in some cases.
 
 `async_group_copy` will asynchronously copy a given number of values of type
 `dataT` from global memory to local memory or from local memory to global
-memory. If an asynchorous copy is not supported then `async_group_copy` will
+memory. If an asynchronous copy is not supported then `async_group_copy` will
 fall back on a synchronous copy. `async_group_copy` is a free function with the
 following properties:
 
@@ -91,11 +92,12 @@ following properties:
 The structs `dest_stride` and `src_stride` have been introduced to reduce errors
 when specifying the stride.
 
-Note that the destination and source arguments have been swapped to be more in
-line with other SYCL copy functions.
+NOTE: The order of the destination and source arguments differs from the SYCL
+1.2.1 `async_work_group_copy` function to be more in line with other copy
+functions in SYCL 2020.
 
 ```c++
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 struct dest_stride {
        std::size_t value;
@@ -116,7 +118,7 @@ device_event async_group_copy(Group group, sycl::decorated_local_ptr<dataT> src,
 
 template <typename Group, typename dataT>
 device_event async_group_copy(Group group, sycl::decorated_global_ptr<dataT> src, sycl::decorated_local_ptr<dataT> dest, size_t count, src_stride srcStride);
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 ```
 
 ## New `wait_for` function
@@ -142,7 +144,7 @@ NOTE: For NVIDIA architectures of sm_80 or higher, the group will be blocked unt
 outstanding async_group_copy requests are completed.
 
 ```c++
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
     template <typename Group, typename eventTN>
     void wait_for(Group group, eventTN... Events) noexcept;
 }  // namespace sycl
