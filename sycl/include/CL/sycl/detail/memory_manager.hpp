@@ -123,25 +123,8 @@ public:
                    QueueImplPtr TgtQueue, unsigned int DimDst,
                    sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
-                   std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent);
-
-  // TODO: Delete this function when ABI breaking changes are allowed.
-  static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
-                   unsigned int DimSrc, sycl::range<3> SrcSize,
-                   sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-                   unsigned int SrcElemSize, void *DstMem,
-                   QueueImplPtr TgtQueue, unsigned int DimDst,
-                   sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
-                   sycl::id<3> DstOffset, unsigned int DstElemSize,
                    std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent);
 
-  static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                   size_t PatternSize, const char *Pattern, unsigned int Dim,
-                   sycl::range<3> Size, sycl::range<3> AccessRange,
-                   sycl::id<3> AccessOffset, unsigned int ElementSize,
-                   std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent);
-
-  // TODO: Delete this function when ABI breaking changes are allowed.
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,

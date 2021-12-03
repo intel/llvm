@@ -276,7 +276,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-             RT::PiEvent *OutEvent) {
+             RT::PiEvent &OutEvent) {
   (void)SrcAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
@@ -299,7 +299,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
       Plugin.call<PiApiKind::piEnqueueMemBufferWrite>(
           Queue, DstMem,
           /*blocking_write=*/CL_FALSE, DstXOffBytes, DstAccessRangeWidthBytes,
-          SrcMem + SrcXOffBytes, DepEvents.size(), DepEvents.data(), OutEvent);
+          SrcMem + SrcXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t BufferRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
       size_t BufferSlicePitch =
@@ -320,7 +320,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
           Queue, DstMem,
           /*blocking_write=*/CL_FALSE, &BufferOffset, &HostOffset, &RectRegion,
           BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
-          SrcMem, DepEvents.size(), DepEvents.data(), OutEvent);
+          SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
   } else {
     size_t InputRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
@@ -337,7 +337,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     Plugin.call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
         /*blocking_write=*/CL_FALSE, &Origin, &Region, InputRowPitch,
-        InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(), OutEvent);
+        InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
@@ -348,7 +348,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize, std::vector<RT::PiEvent> DepEvents,
-             RT::PiEvent *OutEvent) {
+             RT::PiEvent &OutEvent) {
   (void)DstAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
@@ -377,7 +377,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       Plugin.call<PiApiKind::piEnqueueMemBufferRead>(
           Queue, SrcMem,
           /*blocking_read=*/CL_FALSE, SrcXOffBytes, SrcAccessRangeWidthBytes,
-          DstMem + DstXOffBytes, DepEvents.size(), DepEvents.data(), OutEvent);
+          DstMem + DstXOffBytes, DepEvents.size(), DepEvents.data(), &OutEvent);
     } else {
       size_t BufferRowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
       size_t BufferSlicePitch =
@@ -398,7 +398,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
           Queue, SrcMem,
           /*blocking_read=*/CL_FALSE, &BufferOffset, &HostOffset, &RectRegion,
           BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
-          DstMem, DepEvents.size(), DepEvents.data(), OutEvent);
+          DstMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
   } else {
     size_t RowPitch = (1 == DimSrc) ? 0 : SrcSzWidthBytes;
@@ -414,7 +414,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
     Plugin.call<PiApiKind::piEnqueueMemImageRead>(
         Queue, SrcMem, CL_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
-        DepEvents.size(), DepEvents.data(), OutEvent);
+        DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
@@ -424,7 +424,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
              unsigned int SrcElemSize, RT::PiMem DstMem, QueueImplPtr,
              unsigned int DimDst, sycl::range<3> DstSize, sycl::range<3>,
              sycl::id<3> DstOffset, unsigned int DstElemSize,
-             std::vector<RT::PiEvent> DepEvents, RT::PiEvent *OutEvent) {
+             std::vector<RT::PiEvent> DepEvents, RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const RT::PiQueue Queue = SrcQueue->getHandleRef();
@@ -446,7 +446,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       Plugin.call<PiApiKind::piEnqueueMemBufferCopy>(
           Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes,
           SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
-          OutEvent);
+          &OutEvent);
     } else {
       // passing 0 for pitches not allowed. Because clEnqueueCopyBufferRect will
       // calculate both src and dest pitch using region[0], which is not correct
@@ -471,7 +471,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
       Plugin.call<PiApiKind::piEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region, SrcRowPitch,
           SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
-          DepEvents.data(), OutEvent);
+          DepEvents.data(), &OutEvent);
     }
   } else {
     pi_image_offset_struct SrcOrigin{SrcOffset[SrcPos.XTerm],
@@ -486,7 +486,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, RT::PiMem SrcMem, QueueImplPtr SrcQueue,
 
     Plugin.call<PiApiKind::piEnqueueMemImageCopy>(
         Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
-        DepEvents.size(), DepEvents.data(), OutEvent);
+        DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
@@ -497,7 +497,7 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
                     unsigned int DimDst, sycl::range<3> DstSize,
                     sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
                     unsigned int DstElemSize, std::vector<RT::PiEvent>,
-                    RT::PiEvent *) {
+                    RT::PiEvent &) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -527,7 +527,7 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
                          unsigned int DstElemSize,
                          std::vector<RT::PiEvent> DepEvents,
-                         RT::PiEvent *OutEvent) {
+                         RT::PiEvent &OutEvent) {
 
   if (SrcQueue->is_host()) {
     if (TgtQueue->is_host())
@@ -563,7 +563,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          unsigned int Dim, sycl::range<3>, sycl::range<3> Range,
                          sycl::id<3> Offset, unsigned int ElementSize,
                          std::vector<RT::PiEvent> DepEvents,
-                         RT::PiEvent *OutEvent) {
+                         RT::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const detail::plugin &Plugin = Queue->getPlugin();
@@ -572,7 +572,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
       Plugin.call<PiApiKind::piEnqueueMemBufferFill>(
           Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, PatternSize,
           Offset[0] * ElementSize, Range[0] * ElementSize, DepEvents.size(),
-          DepEvents.data(), OutEvent);
+          DepEvents.data(), &OutEvent);
       return;
     }
     throw runtime_error("Not supported configuration of fill requested",
@@ -580,7 +580,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
   } else {
     Plugin.call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<RT::PiMem>(Mem), Pattern, &Offset[0],
-        &Range[0], DepEvents.size(), DepEvents.data(), OutEvent);
+        &Range[0], DepEvents.size(), DepEvents.data(), &OutEvent);
   }
 }
 
@@ -727,34 +727,6 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
     Plugin.call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
                                                      Length, Advice, OutEvent);
   }
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
-                         QueueImplPtr SrcQueue, unsigned int DimSrc,
-                         sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-                         sycl::id<3> SrcOffset, unsigned int SrcElemSize,
-                         void *DstMem, QueueImplPtr TgtQueue,
-                         unsigned int DimDst, sycl::range<3> DstSize,
-                         sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-                         unsigned int DstElemSize,
-                         std::vector<RT::PiEvent> DepEvents,
-                         RT::PiEvent &OutEvent) {
-  copy(SYCLMemObj, SrcMem, SrcQueue, DimSrc, SrcSize, SrcAccessRange, SrcOffset,
-       SrcElemSize, DstMem, TgtQueue, DimDst, DstSize, DstAccessRange,
-       DstOffset, DstElemSize, DepEvents, &OutEvent);
-}
-
-// TODO: Delete this function when ABI breaking changes are allowed.
-void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                         size_t PatternSize, const char *Pattern,
-                         unsigned int Dim, sycl::range<3> Size,
-                         sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
-                         unsigned int ElementSize,
-                         std::vector<RT::PiEvent> DepEvents,
-                         RT::PiEvent &OutEvent) {
-  fill(SYCLMemObj, Mem, Queue, PatternSize, Pattern, Dim, Size, AccessRange,
-       AccessOffset, ElementSize, DepEvents, &OutEvent);
 }
 
 // TODO: Delete this function when ABI breaking changes are allowed.
