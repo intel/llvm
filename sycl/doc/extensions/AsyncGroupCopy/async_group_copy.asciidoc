@@ -23,6 +23,7 @@
 Copyright (c) 2021-2021 Intel Corporation.  All rights reserved.
 
 IMPORTANT: This specification is a draft.
+
 NOTE: The APIs described in this specification are experimental. Future versions of this extension may change these APIs in ways that are incompatible with the versions described here.
 
 NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
