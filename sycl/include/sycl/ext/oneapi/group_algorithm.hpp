@@ -12,6 +12,7 @@
 #include <CL/__spirv/spirv_vars.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/feature_test.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/group_algorithm.hpp>
 #include <CL/sycl/nd_item.hpp>
@@ -65,6 +66,7 @@ using EnableIfIsNonNativeOp = cl::sycl::detail::enable_if_t<
         !cl::sycl::detail::is_native_op<T, BinaryOperation>::value,
     T>;
 
+#if (SYCL_EXT_ONEAPI_ASYNC_GROUP_COPY == 1)
 namespace experimental {
 namespace detail {
 template <typename Group> constexpr auto group_to_scope() {
@@ -190,6 +192,7 @@ void wait_for(Group, eventTN... Events) {
    ...);
 }
 } // namespace experimental
+#endif
 
 template <typename Group>
 __SYCL2020_DEPRECATED(
