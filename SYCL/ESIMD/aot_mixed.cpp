@@ -13,9 +13,9 @@
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // XFAIL: *
 // TODO: remove XFAIL once ocloc support for automatic scalar/vector SPIRV
-// module dispatching is available in public drivers. Also change 'gen9' (safe
-// variant to reliably get unexpected PASS when ocloc is fixed) to '*' (which
-// stresses ocloc).
+// module dispatching is available in public drivers. Also change '-device gen9'
+// (safe variant to reliably get unexpected PASS when ocloc is fixed) to
+// %gpu_aot_target_opts aka '-device *' (which stresses ocloc).
 
 // This test checks ESIMD ahead-of-time compilation scenarios:
 // 1) When the application contains both SYCL and ESIMD kernel, thus requiring

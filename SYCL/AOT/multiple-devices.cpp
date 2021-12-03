@@ -12,7 +12,7 @@
 
 // 1-command compilation case
 // Targeting CPU, GPU, FPGA
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen,spir64_fpga -Xsycl-target-backend=spir64_gen "-device *" %S/Inputs/aot.cpp -o %t_all.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen,spir64_fpga -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %S/Inputs/aot.cpp -o %t_all.out
 // RUN: %HOST_RUN_PLACEHOLDER %t_all.out
 // RUN: %CPU_RUN_PLACEHOLDER %t_all.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_all.out

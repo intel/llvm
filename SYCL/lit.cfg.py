@@ -149,6 +149,11 @@ else:
     config.substitutions.append( ('%debug_option',  '-g' ) )
     config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
 
+if not config.gpu_aot_target_opts:
+    config.gpu_aot_target_opts = '"-device *"'
+
+config.substitutions.append( ('%gpu_aot_target_opts',  config.gpu_aot_target_opts ) )
+
 if not config.sycl_be:
      lit_config.error("SYCL backend is not specified")
 

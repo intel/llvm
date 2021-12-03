@@ -62,20 +62,20 @@ ninja check-sycl-all
 
 These parameters can be used to configure tests:
 
-***CMAKE_CXX_COMPILER*** path DPCPP compiler
+***CMAKE_CXX_COMPILER*** - path to DPCPP compiler
 
-***TEST_SUITE_LLVM_SIZE*** path to llvm-size tool, required for code size
+***TEST_SUITE_LLVM_SIZE*** - path to llvm-size tool, required for code size
 collection
 
-***TEST_SUITE_COLLECT_COMPILE_TIME=OFF*** can be used to turn off compile time
+***TEST_SUITE_COLLECT_COMPILE_TIME=OFF*** - can be used to turn off compile
+time collection
+
+***TEST_SUITE_COLLECT_CODE_SIZE=OFF*** - can be used to turn off code size
 collection
 
-***TEST_SUITE_COLLECT_CODE_SIZE=OFF*** can be used to turn off code size
-collection
+***TEST_SUITE_LIT*** - path to llvm-lit tool
 
-***TEST_SUITE_LIT*** path to llvm-lit tool
-
-***CHECK_SYCL_ALL*** defines selection of multiple SYCL backends with set of
+***CHECK_SYCL_ALL*** - defines selection of multiple SYCL backends with set of
 target devices per each to be tested iteratively. Value is semicolon-separated
 list of configurations. Each configuration includes backend separated
 from comma-separated list of target devices with colon. Example:
@@ -84,36 +84,39 @@ from comma-separated list of target devices with colon. Example:
 -DCHECK_SYCL_ALL="opencl:cpu,host;level_zero:gpu,host;cuda:gpu;hip:gpu"
 ```
 
-***SYCL_BE*** SYCL backend to be used for testing. Supported values are:
+***SYCL_BE*** - SYCL backend to be used for testing. Supported values are:
  - **opencl** - for OpenCL backend;
  - **cuda** - for CUDA backend;
  - **hip** - for HIP backend;
  - **level_zero** - Level Zero backend.
 
-***SYCL_TARGET_DEVICES*** comma separated list of target devices for testing.
+***SYCL_TARGET_DEVICES*** - comma separated list of target devices for testing.
 Default value is cpu,gpu,acc,host. Supported values are:
  - **cpu**  - CPU device available in OpenCL backend only;
  - **gpu**  - GPU device available in OpenCL, Level Zero, CUDA, and HIP backends;
  - **acc**  - FPGA emulator device available in OpenCL backend only;
  - **host** - SYCL Host device available with all backends.
 
-***OpenCL_LIBRARY*** path to OpenCL ICD loader library. OpenCL interoperability
-tests require OpenCL ICD loader to be linked with. For such tests OpenCL ICD
-loader library should be installed in the system or available at the full path
-specified by this variable.
+***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
+interoperability tests require OpenCL ICD loader to be linked with. For such
+tests OpenCL ICD loader library should be installed in the system or available
+at the full path specified by this variable.
 
-***LEVEL_ZERO_INCLUDE*** path to Level Zero headers.
+***LEVEL_ZERO_INCLUDE*** - path to Level Zero headers.
 
-***LEVEL_ZERO_LIBS_DIR*** path to Level Zero libraries.
+***LEVEL_ZERO_LIBS_DIR*** - path to Level Zero libraries.
 
-***HIP_PLATFORM*** platform selection for HIP targeted devices.
+***HIP_PLATFORM*** - platform selection for HIP targeted devices.
 Defaults to AMD if no value is given. Supported values are:
  - **AMD**    - for HIP to target AMD GPUs
  - **NVIDIA** - for HIP to target NVIDIA GPUs
  
- ***AMD_ARCH*** Flag must be set for when using HIP AMD triple.
+ ***AMD_ARCH*** - flag must be set for when using HIP AMD triple.
  For example it may be set to "gfx906".
 
+***GPU_AOT_TARGET_OPTS*** - defines additional options which are passed to AOT
+compilation command line for GPU device. If not specified "-device *" value
+is used.
 
 # Special test categories
 
@@ -154,6 +157,9 @@ configure specific single test execution in the command line:
    host);
  * **sycl_be** - SYCL backend to be used (opencl, level_zero, cuda, hip);
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
+ * **gpu_aot_target_opts** - defines additional options which are passed to AOT
+   compilation command line for GPU device. It can be also set by CMake variable
+   GPU_AOT_TARGET_OPTS. If not specified "-device *" value is used.
  * **gpu-intel-dg1** - tells LIT infra that Intel GPU DG1 is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system. Tests requiring DG1 to run must use proper
