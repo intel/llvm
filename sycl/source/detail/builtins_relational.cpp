@@ -47,11 +47,11 @@ template <typename T> inline T __vFOrdLessThanEqual(T x, T y) {
 
 template <typename T> inline T __sFOrdLessThanEqual(T x, T y) { return x <= y; }
 
-template <typename T> inline T __vLessOrGreater(T x, T y) {
+template <typename T> inline T __vFOrdNotEqual(T x, T y) {
   return -((x < y) || (x > y));
 }
 
-template <typename T> inline T __sLessOrGreater(T x, T y) {
+template <typename T> inline T __sFOrdNotEqual(T x, T y) {
   return ((x < y) || (x > y));
 }
 
@@ -247,21 +247,21 @@ MAKE_1V_2V_FUNC(FOrdLessThanEqual, __vFOrdLessThanEqual, s::cl_long,
 MAKE_1V_2V_FUNC(FOrdLessThanEqual, __vFOrdLessThanEqual, s::cl_short,
                 s::cl_half, s::cl_half)
 
-// (LessOrGreater)        // islessgreater
-__SYCL_EXPORT s::cl_int LessOrGreater(s::cl_float x, s::cl_float y) __NOEXC {
-  return __sLessOrGreater(x, y);
+// (FOrdNotEqual)         // islessgreater
+__SYCL_EXPORT s::cl_int FOrdNotEqual(s::cl_float x, s::cl_float y) __NOEXC {
+  return __sFOrdNotEqual(x, y);
 }
-__SYCL_EXPORT s::cl_int LessOrGreater(s::cl_double x, s::cl_double y) __NOEXC {
-  return __sLessOrGreater(x, y);
+__SYCL_EXPORT s::cl_int FOrdNotEqual(s::cl_double x, s::cl_double y) __NOEXC {
+  return __sFOrdNotEqual(x, y);
 }
-__SYCL_EXPORT s::cl_int LessOrGreater(s::cl_half x, s::cl_half y) __NOEXC {
-  return __sLessOrGreater(x, y);
+__SYCL_EXPORT s::cl_int FOrdNotEqual(s::cl_half x, s::cl_half y) __NOEXC {
+  return __sFOrdNotEqual(x, y);
 }
-MAKE_1V_2V_FUNC(LessOrGreater, __vLessOrGreater, s::cl_int, s::cl_float,
+MAKE_1V_2V_FUNC(FOrdNotEqual, __vFOrdNotEqual, s::cl_int, s::cl_float,
                 s::cl_float)
-MAKE_1V_2V_FUNC(LessOrGreater, __vLessOrGreater, s::cl_long, s::cl_double,
+MAKE_1V_2V_FUNC(FOrdNotEqual, __vFOrdNotEqual, s::cl_long, s::cl_double,
                 s::cl_double)
-MAKE_1V_2V_FUNC(LessOrGreater, __vLessOrGreater, s::cl_short, s::cl_half,
+MAKE_1V_2V_FUNC(FOrdNotEqual, __vFOrdNotEqual, s::cl_short, s::cl_half,
                 s::cl_half)
 
 // (IsFinite)             // isfinite
