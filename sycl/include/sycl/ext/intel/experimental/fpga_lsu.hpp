@@ -65,11 +65,11 @@ public:
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
     int32_t _type;
-    if (_control_type == type::none) {
+    if constexpr (_control_type == type::none) {
       _type = 0;
-    } else if (_control_type == type::exact) {
+    } else if constexpr (_control_type == type::exact) {
       _type = 1;
-    } else if (_control_type == type::max) {
+    } else if constexpr (_control_type == type::max) {
       _type = 2;
     } else { // _control_type == type::min
       _type = 3;
@@ -97,11 +97,11 @@ public:
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
     int32_t _type;
-    if (_control_type == type::none) {
+    if constexpr (_control_type == type::none) {
       _type = 0;
-    } else if (_control_type == type::exact) {
+    } else if constexpr (_control_type == type::exact) {
       _type = 1;
-    } else if (_control_type == type::max) {
+    } else if constexpr (_control_type == type::max) {
       _type = 2;
     } else { // _control_type == type::min
       _type = 3;
@@ -161,6 +161,7 @@ private:
   }
 
 #if defined(__SYCL_DEVICE_ONLY__) && __has_builtin(__builtin_intel_fpga_mem)
+  // FPGA BE will recognize this function and extract its arguments.
   template <typename _T>
   static _T *__latency_control_mem_wrapper(_T *Ptr, int32_t AnchorID,
                                            int32_t TargetAnchor, int32_t Type,

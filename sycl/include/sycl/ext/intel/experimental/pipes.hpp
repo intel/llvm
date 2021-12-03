@@ -36,11 +36,11 @@ public:
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
     int32_t _type;
-    if (_control_type == type::none) {
+    if constexpr (_control_type == type::none) {
       _type = 0;
-    } else if (_control_type == type::exact) {
+    } else if constexpr (_control_type == type::exact) {
       _type = 1;
-    } else if (_control_type == type::max) {
+    } else if constexpr (_control_type == type::max) {
       _type = 2;
     } else { // _control_type == type::min
       _type = 3;
@@ -73,11 +73,11 @@ public:
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
     int32_t _type;
-    if (_control_type == type::none) {
+    if constexpr (_control_type == type::none) {
       _type = 0;
-    } else if (_control_type == type::exact) {
+    } else if constexpr (_control_type == type::exact) {
       _type = 1;
-    } else if (_control_type == type::max) {
+    } else if constexpr (_control_type == type::max) {
       _type = 2;
     } else { // _control_type == type::min
       _type = 3;
@@ -109,11 +109,11 @@ public:
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
     int32_t _type;
-    if (_control_type == type::none) {
+    if constexpr (_control_type == type::none) {
       _type = 0;
-    } else if (_control_type == type::exact) {
+    } else if constexpr (_control_type == type::exact) {
       _type = 1;
-    } else if (_control_type == type::max) {
+    } else if constexpr (_control_type == type::max) {
       _type = 2;
     } else { // _control_type == type::min
       _type = 3;
@@ -144,11 +144,11 @@ public:
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
     int32_t _type;
-    if (_control_type == type::none) {
+    if constexpr (_control_type == type::none) {
       _type = 0;
-    } else if (_control_type == type::exact) {
+    } else if constexpr (_control_type == type::exact) {
       _type = 1;
-    } else if (_control_type == type::max) {
+    } else if constexpr (_control_type == type::max) {
       _type = 2;
     } else { // _control_type == type::min
       _type = 3;
@@ -172,6 +172,7 @@ private:
   static constexpr struct ConstantPipeStorage m_Storage = {m_Size, m_Alignment,
                                                            m_Capacity};
 
+  // FPGA BE will recognize this function and extract its arguments.
   template <typename _T>
   static int32_t
   __latency_control_nb_read_wrapper(__ocl_RPipeTy<_T> Pipe, _T *Data,
@@ -180,6 +181,7 @@ private:
     return __spirv_ReadPipe(Pipe, Data, m_Size, m_Alignment);
   }
 
+  // FPGA BE will recognize this function and extract its arguments.
   template <typename _T>
   static int32_t
   __latency_control_nb_write_wrapper(__ocl_WPipeTy<_T> Pipe, const _T *Data,
@@ -188,6 +190,7 @@ private:
     return __spirv_WritePipe(Pipe, Data, m_Size, m_Alignment);
   }
 
+  // FPGA BE will recognize this function and extract its arguments.
   template <typename _T>
   static void __latency_control_bl_read_wrapper(__ocl_RPipeTy<_T> Pipe,
                                                 _T *Data, int32_t AnchorID,
@@ -196,6 +199,7 @@ private:
     return __spirv_ReadPipeBlockingINTEL(Pipe, Data, m_Size, m_Alignment);
   }
 
+  // FPGA BE will recognize this function and extract its arguments.
   template <typename _T>
   static void
   __latency_control_bl_write_wrapper(__ocl_WPipeTy<_T> Pipe, const _T *Data,
