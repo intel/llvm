@@ -4761,7 +4761,7 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   if (ZeAllHostVisibleEvents) {
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_DEVICE;
+    ZeEventDesc.signal = 0;
   }
 
   ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
