@@ -42,11 +42,10 @@ __clc__get_group_scratch_float() __asm("__clc__get_group_scratch_float");
 __local double *
 __clc__get_group_scratch_double() __asm("__clc__get_group_scratch_double");
 
-_CLC_DEF _CLC_CONVERGENT uint __clc__membermask() {
-  uint FULL_MASK = 0xFFFFFFFF;
-  uint max_size = __spirv_SubgroupMaxSize();
-  uint sg_size = __spirv_SubgroupSize();
-  return FULL_MASK >> (max_size - sg_size);
+_CLC_DEF uint inline __clc__membermask() {
+  // use a full mask as sync operations are required to be convergent and
+  // exited threads can safely be in the mask
+  return 0xFFFFFFFF;
 }
 
 #define __CLC_SUBGROUP_SHUFFLE_I32(TYPE)                                       \
