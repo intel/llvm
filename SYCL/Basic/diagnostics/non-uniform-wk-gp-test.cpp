@@ -1,6 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: opencl
 // REQUIRES: level_zero
 //==------- non-uniform-wk-gp-test.cpp -------==//
 // This is a diagnostic test which verifies that
@@ -33,8 +32,8 @@ int test() {
 
   } catch (sycl::runtime_error &E) {
     if (std::string(E.what()).find(
-            "Specified local size doesn't match the required work-group size "
-            "specified in the program source") != std::string::npos) {
+            "Non-uniform work-groups are not supported by the target device") !=
+        std::string::npos) {
       std::cout << E.what() << std::endl;
       std::cout << "Test passed: caught the expected error." << std::endl;
       return 0;
@@ -50,17 +49,16 @@ int test() {
 }
 
 int main() {
-
-  int pltCount = 0, ret;
+  int pltCount = 0, ret = 0;
   for (const auto &plt : platform::get_platforms()) {
     if (!plt.has(aspect::host)) {
       std::cout << "Platform #" << pltCount++ << ":" << std::endl;
       if (plt.get_backend() == backend::ext_oneapi_level_zero) {
         std::cout << "Backend: Level Zero" << std::endl;
-        ret = test();
+        ret += test();
       }
     }
     std::cout << std::endl;
   }
-  return 0;
+  return pltCount > 0 ? ret : -1;
 }
