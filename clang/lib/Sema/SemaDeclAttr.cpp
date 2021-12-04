@@ -3566,13 +3566,6 @@ static void handleSYCLIntelUseStallEnableClustersAttr(Sema &S, Decl *D,
                  SYCLIntelUseStallEnableClustersAttr(S.Context, A));
 }
 
-// Handles disable_loop_pipelining attribute.
-static void handleSYCLIntelFPGADisableLoopPipeliningAttr(Sema &S, Decl *D,
-                                                         const ParsedAttr &A) {
-  D->addAttr(::new (S.Context)
-                 SYCLIntelFPGADisableLoopPipeliningAttr(S.Context, A));
-}
-
 // Handles initiation_interval attribute.
 void Sema::AddSYCLIntelFPGAInitiationIntervalAttr(Decl *D,
                                                   const AttributeCommonInfo &CI,
@@ -9975,9 +9968,6 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_SYCLIntelLoopFuse:
     handleSYCLIntelLoopFuseAttr(S, D, AL);
-    break;
-  case ParsedAttr::AT_SYCLIntelFPGADisableLoopPipelining:
-    handleSYCLIntelFPGADisableLoopPipeliningAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLIntelFPGAInitiationInterval:
     handleSYCLIntelFPGAInitiationIntervalAttr(S, D, AL);
