@@ -37,7 +37,7 @@ jobs:
           file: ${{ github.workspace }}/devops/containers/ubuntu2004_base.Dockerfile
   build_image_ubuntu2004:
     if: github.repository == 'intel/llvm'
-    name: Build Ubuntu 20.04 Docker image
+    name: Build Ubuntu Docker image
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
