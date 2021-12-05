@@ -25,7 +25,9 @@
 //
 // Produce object file, spirv, device images to combine these differently
 // at link-time, thus testing various AOT-compiled images configurations
-// RUN: %clangxx -fsycl %S/Inputs/aot.cpp -c -o %t.o
+// Disable DAE when performing separate compilation here, as we are not
+// using sycl-post-link to fully enable.
+// RUN: %clangxx -fsycl -fno-sycl-dead-args-optimization %S/Inputs/aot.cpp -c -o %t.o
 // RUN: %clangxx -fsycl -fsycl-link-targets=spir64 %t.o -o %t.spv
 // AOT-compile device binary images
 // Neither of AOT tools can compile several files, hence, here is this
