@@ -11,7 +11,7 @@ jobs:
     uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
     with:
       build_github_cache: true
-      build_cache_root: ${{ github.workspace }}
+      build_cache_root: "/__w/llvm"
       build_artifact_suffix: default
   ubuntu2004_docker_build_push:
     if: github.repository == 'intel/llvm'
