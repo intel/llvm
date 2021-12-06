@@ -2527,6 +2527,9 @@ defm rwpi : BoolFOption<"rwpi",
   NegFlag<SetFalse>>;
 def fplugin_EQ : Joined<["-"], "fplugin=">, Group<f_Group>, Flags<[NoXarchOption]>, MetaVarName<"<dsopath>">,
   HelpText<"Load the named plugin (dynamic shared object)">;
+def fplugin_arg : Joined<["-"], "fplugin-arg-">,
+  MetaVarName<"<name>-<arg>">,
+  HelpText<"Pass <arg> to plugin <name>">;
 def fpass_plugin_EQ : Joined<["-"], "fpass-plugin=">,
   Group<f_Group>, Flags<[CC1Option]>, MetaVarName<"<dsopath>">,
   HelpText<"Load pass plugin from a dynamic shared object file (only with new pass manager).">,
@@ -6057,6 +6060,9 @@ def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
 def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
   HelpText<"Disable parallel for range rounding.">,
   MarshallingInfoFlag<LangOpts<"SYCLDisableRangeRounding">>;
+def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
+  HelpText<"Enable diagnostics that require the SYCL integration header.">,
+  MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 

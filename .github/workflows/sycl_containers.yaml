@@ -4,6 +4,11 @@ on:
   schedule:
     # Every 1st and 15th day of month
     - cron: '0 0 1,15 * *'
+  push:
+    branches:
+      - sycl
+    paths:
+      - 'devops/containers/**'
 
 jobs:
   base_image_ubuntu2004:
@@ -14,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          fetch-depth: 1
+          fetch-depth: 2
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1
         with:
@@ -30,3 +35,53 @@ jobs:
             ghcr.io/${{ github.repository }}/ubuntu2004_base:latest
           context: ${{ github.workspace }}/devops
           file: ${{ github.workspace }}/devops/containers/ubuntu2004_base.Dockerfile
+  build_image_ubuntu2004:
+    if: github.repository == 'intel/llvm'
+    name: Build Ubuntu Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and Push Container
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/ubuntu2004_build:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2004_build:latest
+          context: ${{ github.workspace }}/devops
+          file: ${{ github.workspace }}/devops/containers/ubuntu2004_build.Dockerfile
+  # This job produces a Docker container with the latest versions of Intel
+  # drivers, that can be found on GitHub.
+  drivers_image_ubuntu2004:
+    if: github.repository == 'intel/llvm'
+    name: Intel Drivers Ubuntu 20.04 Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and Push Container
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/ubuntu2004_intel_drivers:latest
+          context: ${{ github.workspace }}/devops
+          file: ${{ github.workspace }}/devops/containers/ubuntu2004_intel_drivers.Dockerfile
