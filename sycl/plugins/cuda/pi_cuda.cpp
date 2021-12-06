@@ -4717,7 +4717,10 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
     case PI_MEM_ADVISE_CUDA_SET_ACCESSED_BY:
     case PI_MEM_ADVISE_CUDA_UNSET_ACCESSED_BY:
       result = PI_CHECK_ERROR(
-          cuMemAdvise((CUdeviceptr)ptr, length, (CUmem_advise)advice,
+          cuMemAdvise((CUdeviceptr)ptr, 
+                      length, 
+                      (CUmem_advise)(
+                        advice - PI_MEM_ADVISE_CUDA_SET_READ_MOSTLY + 1),
                       queue->get_context()->get_device()->get()));
       break;
     case PI_MEM_ADVISE_CUDA_SET_PREFERRED_LOCATION_HOST:
@@ -4726,10 +4729,10 @@ pi_result cuda_piextUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
     case PI_MEM_ADVISE_CUDA_UNSET_ACCESSED_BY_HOST:
       result = PI_CHECK_ERROR(cuMemAdvise(
           (CUdeviceptr)ptr, length,
-          (CUmem_advise)(advice -
+          (CUmem_advise)(advice - PI_MEM_ADVISE_CUDA_SET_READ_MOSTLY + 1 -
                          (PI_MEM_ADVISE_CUDA_SET_PREFERRED_LOCATION_HOST -
                           PI_MEM_ADVISE_CUDA_SET_PREFERRED_LOCATION)),
-          -1));
+          CU_DEVICE_CPU));
       break;
     default:
       cl::sycl::detail::pi::die("Unknown advice");
