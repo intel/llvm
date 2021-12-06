@@ -7405,7 +7405,7 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
       std::pair<StringRef, StringRef> Split = CollidingName.split('.');
       std::string UniqueName = GetUniquePath(
           Split.first, types::getTypeTempSuffix(JA.getType(), IsCLMode()));
-      return C.addResultFile(C.getArgs().MakeArgString(UniqueName), &JA);
+      return C.addTempFile(C.getArgs().MakeArgString(UniqueName));
     }
   }
 
@@ -7537,7 +7537,7 @@ std::string Driver::GetTemporaryPath(StringRef Prefix, StringRef Suffix) const {
 
 std::string Driver::GetUniquePath(StringRef BaseName, StringRef Ext) const {
   SmallString<128> Path;
-  std::error_code EC = llvm::sys::fs::createUniqueFile(
+  std::error_code EC = llvm::sys::fs::getPotentiallyUniqueFileName(
       Twine(BaseName) + Twine("-%%%%%%.") + Ext, Path);
   if (EC) {
     Diag(clang::diag::err_unable_to_make_temp) << EC.message();

@@ -885,7 +885,7 @@ typedef struct CommandListBatchConfig {
   pi_uint32 DynamicSizeStart{4};
 
   // The maximum size for dynamic batch.
-  pi_uint32 DynamicSizeMax{16};
+  pi_uint32 DynamicSizeMax{64};
 
   // The step size for dynamic batch increases.
   pi_uint32 DynamicSizeStep{1};
