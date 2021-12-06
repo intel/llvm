@@ -209,9 +209,11 @@ event handler::finalize() {
     } else {
       if (MQueue->getPlugin().getBackend() ==
           backend::ext_intel_esimd_emulator) {
+        // Dims==0 for 'single_task() - void(void) type'
+        uint32_t Dims = (MArgs.size() > 0) ? MNDRDesc.Dims : 0;
         MQueue->getPlugin().call<detail::PiApiKind::piEnqueueKernelLaunch>(
-            nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-            MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
+            nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()), Dims,
+            &MNDRDesc.GlobalOffset[0], &MNDRDesc.GlobalSize[0],
             &MNDRDesc.LocalSize[0], 0, nullptr, nullptr);
       } else {
         Res = enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,

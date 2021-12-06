@@ -360,6 +360,16 @@ extern "C" {
   }                                                                            \
   return PI_SUCCESS;
 
+#define CASE_PI_UNSUPPORTED(not_supported)                                     \
+  case not_supported:                                                          \
+    if (PrintPiTrace) {                                                        \
+      std::cerr << std::endl                                                   \
+                << "Unsupported PI case : " << #not_supported << " in "        \
+                << __FUNCTION__ << ":" << __LINE__ << "(" << __FILE__ << ")"   \
+                << std::endl;                                                  \
+    }                                                                          \
+    return PI_INVALID_OPERATION;
+
 pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                          pi_uint32 *NumPlatforms) {
 
@@ -528,7 +538,7 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
   case PI_DEVICE_INFO_VERSION:
     // CM_EMU release version from
     // https://github.com/intel/cm-cpu-emulation/releases
-    return ReturnValue("1.0.7-CM_EMU");
+    return ReturnValue("1.0");
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
     return ReturnValue(pi_bool{false});
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
@@ -683,20 +693,27 @@ pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     // TODO : CHECK
     return ReturnValue(pi_uint32{0});
 
-#define UNSUPPORTED_INFO(info)                                                 \
-  case info:                                                                   \
-    std::cerr << std::endl                                                     \
-              << "Unsupported device info = " << #info                         \
-              << " from ESIMD_EMULATOR" << std::endl;                          \
-    DIE_NO_IMPLEMENTATION;                                                     \
-    break;
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IL_VERSION)
 
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_MAX_NUM_SUB_GROUPS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_SUB_GROUP_SIZES_INTEL)
-    UNSUPPORTED_INFO(PI_DEVICE_INFO_IL_VERSION)
+    // Intel-specific extensions
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_PCI_ADDRESS)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SLICES)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_IMAGE_SRGB)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_64)
+    CASE_PI_UNSUPPORTED(PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES)
+    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
+    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
+    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
+    CASE_PI_UNSUPPORTED(PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 
-#undef UNSUPPORTED_INFO
   default:
     DIE_NO_IMPLEMENTATION;
   }
@@ -999,6 +1016,13 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   switch (ImageDesc->image_type) {
   case PI_MEM_TYPE_IMAGE2D:
     break;
+
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE3D)
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE2D_ARRAY)
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE1D)
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE1D_ARRAY)
+    CASE_PI_UNSUPPORTED(PI_MEM_TYPE_IMAGE1D_BUFFER)
+
   default:
     return PI_INVALID_MEM_OBJECT;
   }
@@ -1012,6 +1036,18 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
   case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
     BytesPerPixel = 4;
     break;
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SNORM_INT8)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SNORM_INT16)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNORM_INT16)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT)
+    CASE_PI_UNSUPPORTED(PI_IMAGE_CHANNEL_TYPE_FLOAT)
   default:
     return PI_IMAGE_FORMAT_NOT_SUPPORTED;
   }
@@ -1324,6 +1360,7 @@ pi_result piEnqueueMemBufferReadRect(pi_queue, pi_mem, pi_bool,
 pi_result piEnqueueMemBufferWrite(pi_queue, pi_mem, pi_bool, size_t, size_t,
                                   const void *, pi_uint32, const pi_event *,
                                   pi_event *) {
+  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1338,6 +1375,7 @@ pi_result piEnqueueMemBufferWriteRect(pi_queue, pi_mem, pi_bool,
 pi_result piEnqueueMemBufferCopy(pi_queue, pi_mem, pi_mem, size_t, size_t,
                                  size_t, pi_uint32, const pi_event *,
                                  pi_event *) {
+  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1346,18 +1384,21 @@ pi_result piEnqueueMemBufferCopyRect(pi_queue, pi_mem, pi_mem,
                                      pi_buff_rect_region, size_t, size_t,
                                      size_t, size_t, pi_uint32,
                                      const pi_event *, pi_event *) {
+  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piEnqueueMemBufferFill(pi_queue, pi_mem, const void *, size_t, size_t,
                                  size_t, pi_uint32, const pi_event *,
                                  pi_event *) {
+  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piEnqueueMemBufferMap(pi_queue, pi_mem, pi_bool, pi_map_flags, size_t,
                                 size_t, pi_uint32, const pi_event *, pi_event *,
                                 void **) {
+  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1439,7 +1480,9 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
     return PI_INVALID_KERNEL;
   }
 
-  if ((WorkDim > 3) || (WorkDim == 0)) {
+  // WorkDim == 0 is reserved for 'single_task()' kernel with no
+  // argument
+  if (WorkDim > 3) {
     return PI_INVALID_WORK_GROUP_SIZE;
   }
 
@@ -1461,6 +1504,12 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   }
 
   switch (WorkDim) {
+  case 0:
+    // TODO : intel/llvm_test_suite
+    // single_task() support - void(*)(void)
+    DIE_NO_IMPLEMENTATION;
+    break;
+
   case 1:
     InvokeImpl<1>::invoke(Kernel, GlobalWorkOffset, GlobalWorkSize,
                           LocalWorkSize);
@@ -1576,6 +1625,7 @@ pi_result piextKernelSetArgPointer(pi_kernel, pi_uint32, size_t, const void *) {
 
 pi_result piextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t, pi_uint32,
                                 const pi_event *, pi_event *) {
+  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1586,6 +1636,7 @@ pi_result piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *, const void *, size_t,
 
 pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
                                    pi_mem_advice, pi_event *) {
+  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1623,7 +1674,8 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
                                   pi_usm_migration_flags, pi_uint32,
                                   const pi_event *, pi_event *) {
-  DIE_NO_IMPLEMENTATION;
+  // NOP for prefetch
+  return PI_SUCCESS;
 }
 
 pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {
