@@ -104,6 +104,7 @@ jobs:
         CACHE_SUFFIX: ${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
         CACHE_SIZE: ${{ fromJSON(needs.configure.outputs.params).build_cache_size }}
         ARGS: ${{ fromJSON(needs.configure.outputs.params).build_configure_extra_args }}
+        CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
         mkdir -p $GITHUB_WORKSPACE/build
@@ -112,7 +113,7 @@ jobs:
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults $ARGS --cuda --hip --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
-          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE"
+          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
     - name: Compile
       run: cmake --build $GITHUB_WORKSPACE/build
     # TODO allow to optionally disable in-tree checks
