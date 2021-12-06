@@ -43,18 +43,6 @@ def do_configure(args):
     sycl_enable_xpti_tracing = 'ON'
     xpti_enable_werror = 'ON'
 
-    build_libclc = False
-
-    if args.ci_defaults:
-        print("#############################################")
-        print("# Default CI configuration will be applied. #")
-        print("#############################################")
-
-        # For clang-format and clang-tidy
-        llvm_enable_projects += ";clang-tools-extra"
-        # libclc is required for CI validation
-        build_libclc = True
-
     # replace not append, so ARM ^ X86
     if args.arm:
         llvm_targets_to_build = 'ARM;AArch64'
@@ -63,7 +51,7 @@ def do_configure(args):
         sycl_build_pi_esimd_emulator = 'ON'
 
     if args.cuda or args.hip:
-        build_libclc = True
+        llvm_enable_projects += ';libclc'
 
     if args.cuda:
         llvm_targets_to_build += ';NVPTX'
@@ -103,10 +91,28 @@ def do_configure(args):
         llvm_build_shared_libs = 'ON'
 
     if args.use_lld:
-      llvm_enable_lld = 'ON'
+        llvm_enable_lld = 'ON'
 
-    if build_libclc:
-        llvm_enable_projects += ';libclc'
+    # CI Default conditionally appends to options, keep it at the bottom of
+    # args handling
+    if args.ci_defaults:
+        print("#############################################")
+        print("# Default CI configuration will be applied. #")
+        print("#############################################")
+
+        # For clang-format and clang-tidy
+        llvm_enable_projects += ";clang-tools-extra"
+        # libclc is required for CI validation
+        if 'libclc' not in llvm_enable_projects:
+            llvm_enable_projects += ';libclc'
+        # libclc passes `--nvvm-reflect-enable=false`, build NVPTX to enable it
+        if 'NVPTX' not in llvm_targets_to_build:
+            llvm_targets_to_build += ';NVPTX'
+        # Add both NVIDIA and AMD libclc targets
+        if 'amdgcn--;amdgcn--amdhsa' not in libclc_targets_to_build:
+            libclc_targets_to_build += ';amdgcn--;amdgcn--amdhsa'
+        if 'nvptx64--;nvptx64--nvidiacl' not in libclc_targets_to_build:
+            libclc_targets_to_build += ';nvptx64--;nvptx64--nvidiacl'
 
     install_dir = os.path.join(abs_obj_dir, "install")
 
