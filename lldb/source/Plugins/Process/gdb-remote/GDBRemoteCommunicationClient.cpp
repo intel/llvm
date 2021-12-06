@@ -86,13 +86,6 @@ bool GDBRemoteCommunicationClient::HandshakeWithServer(Status *error_ptr) {
   std::chrono::steady_clock::time_point start_of_handshake =
       std::chrono::steady_clock::now();
   if (SendAck()) {
-    // Wait for any responses that might have been queued up in the remote
-    // GDB server and flush them all
-    StringExtractorGDBRemote response;
-    PacketResult packet_result = PacketResult::Success;
-    while (packet_result == PacketResult::Success)
-      packet_result = ReadPacket(response, milliseconds(10), false);
-
     // The return value from QueryNoAckModeSupported() is true if the packet
     // was sent and _any_ response (including UNIMPLEMENTED) was received), or
     // false if no response was received. This quickly tells us if we have a
@@ -106,17 +99,15 @@ bool GDBRemoteCommunicationClient::HandshakeWithServer(Status *error_ptr) {
           std::chrono::duration<double>(end_of_handshake - start_of_handshake)
               .count();
       if (error_ptr) {
-        if (packet_result == PacketResult::ErrorDisconnected)
+        if (!IsConnected())
           error_ptr->SetErrorString("Connection shut down by remote side "
                                     "while waiting for reply to initial "
                                     "handshake packet");
-        else if (packet_result == PacketResult::ErrorReplyTimeout)
+        else
           error_ptr->SetErrorStringWithFormat(
               "failed to get reply to handshake packet within timeout of "
               "%.1f seconds",
               handshake_timeout);
-        else
-          error_ptr->SetErrorString("failed to get reply to handshake packet");
       }
     }
   } else {
@@ -283,6 +274,7 @@ void GDBRemoteCommunicationClient::ResetDiscoverableSettings(bool did_exec) {
     m_supports_qXfer_features_read = eLazyBoolCalculate;
     m_supports_qXfer_memory_map_read = eLazyBoolCalculate;
     m_supports_augmented_libraries_svr4_read = eLazyBoolCalculate;
+    m_uses_native_signals = eLazyBoolCalculate;
     m_supports_qProcessInfoPID = true;
     m_supports_qfProcessInfo = true;
     m_supports_qUserName = true;
@@ -333,6 +325,7 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
   m_supports_QPassSignals = eLazyBoolNo;
   m_supports_memory_tagging = eLazyBoolNo;
   m_supports_qSaveCore = eLazyBoolNo;
+  m_uses_native_signals = eLazyBoolNo;
 
   m_max_packet_size = UINT64_MAX; // It's supposed to always be there, but if
                                   // not, we assume no limit
@@ -379,6 +372,8 @@ void GDBRemoteCommunicationClient::GetRemoteQSupported() {
         m_supports_memory_tagging = eLazyBoolYes;
       else if (x == "qSaveCore+")
         m_supports_qSaveCore = eLazyBoolYes;
+      else if (x == "native-signals+")
+        m_uses_native_signals = eLazyBoolYes;
       // Look for a list of compressions in the features list e.g.
       // qXfer:features:read+;PacketSize=20000;qEcho+;SupportedCompressions=zlib-
       // deflate,lzma
@@ -1109,9 +1104,8 @@ void GDBRemoteCommunicationClient::MaybeEnableCompression(
 
   if (avail_type != CompressionType::None) {
     StringExtractorGDBRemote response;
-    llvm::Twine packet = "QEnableCompression:type:" + avail_name + ";";
-    if (SendPacketAndWaitForResponse(packet.str(), response) !=
-        PacketResult::Success)
+    std::string packet = "QEnableCompression:type:" + avail_name.str() + ";";
+    if (SendPacketAndWaitForResponse(packet, response) != PacketResult::Success)
       return;
 
     if (response.IsOKResponse()) {
@@ -4220,4 +4214,15 @@ Status GDBRemoteCommunicationClient::ConfigureRemoteStructuredData(
 void GDBRemoteCommunicationClient::OnRunPacketSent(bool first) {
   GDBRemoteClientBase::OnRunPacketSent(first);
   m_curr_tid = LLDB_INVALID_THREAD_ID;
+}
+
+bool GDBRemoteCommunicationClient::UsesNativeSignals() {
+  if (m_uses_native_signals == eLazyBoolCalculate)
+    GetRemoteQSupported();
+  if (m_uses_native_signals == eLazyBoolYes)
+    return true;
+
+  // If the remote didn't indicate native-signal support explicitly,
+  // check whether it is an old version of lldb-server.
+  return GetThreadSuffixSupported();
 }

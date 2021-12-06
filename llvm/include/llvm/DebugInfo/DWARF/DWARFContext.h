@@ -156,6 +156,11 @@ public:
                                    NormalUnits.getNumInfoUnits());
   }
 
+  const DWARFUnitVector &getNormalUnitsVector() {
+    parseNormalUnits();
+    return NormalUnits;
+  }
+
   /// Get units from .debug_types in this context.
   unit_iterator_range types_section_units() {
     parseNormalUnits();
@@ -243,6 +248,7 @@ public:
   }
 
   DWARFCompileUnit *getDWOCompileUnitForHash(uint64_t Hash);
+  DWARFTypeUnit *getTypeUnitForHash(uint16_t Version, uint64_t Hash, bool IsDWO);
 
   /// Return the compile unit that includes an offset (relative to .debug_info).
   DWARFCompileUnit *getCompileUnitForOffset(uint64_t Offset);

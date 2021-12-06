@@ -2024,6 +2024,7 @@ def SYCLIntelFPGADisableLoopPipelining : DeclOrStmtAttr {
   let IsStmtDependent = 1;
   let Documentation = [SYCLIntelFPGADisableLoopPipeliningAttrDocs];
   let SupportsNonconformingLambdaSyntax = 1;
+  let SimpleHandler = 1;
 }
 def : MutualExclusions<[SYCLIntelFPGAInitiationInterval,
                         SYCLIntelFPGADisableLoopPipelining]>;
@@ -2449,6 +2450,13 @@ def BTFDeclTag : InheritableAttr {
   let Subjects = SubjectList<[Var, Function, Record, Field, TypedefName],
                              ErrorDiag>;
   let Documentation = [BTFDeclTagDocs];
+  let LangOpts = [COnly];
+}
+
+def BTFTypeTag : TypeAttr {
+  let Spellings = [Clang<"btf_type_tag">];
+  let Args = [StringArgument<"BTFTypeTag">];
+  let Documentation = [BTFTypeTagDocs];
   let LangOpts = [COnly];
 }
 
@@ -2910,6 +2918,7 @@ def SwiftAttr : InheritableAttr {
   let Spellings = [GNU<"swift_attr">];
   let Args = [StringArgument<"Attribute">];
   let Documentation = [SwiftAttrDocs];
+  let PragmaAttributeSupport = 1;
 }
 
 def SwiftBridge : InheritableAttr {
@@ -4318,7 +4327,8 @@ def OMPAllocateDecl : InheritableAttr {
                    "OMPCGroupMemAlloc", "OMPPTeamMemAlloc", "OMPThreadMemAlloc",
                    "OMPUserDefinedMemAlloc"
                  ]>,
-    ExprArgument<"Allocator">
+    ExprArgument<"Allocator">,
+    ExprArgument<"Alignment">
   ];
   let Documentation = [Undocumented];
 }

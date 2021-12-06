@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <CL/sycl/detail/defines_elementary.hpp>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -133,8 +135,14 @@ struct ConstantPipeStorage {
   int32_t _Capacity;
 };
 
+__SYCL_INLINE_NAMESPACE(cl) {
+namespace sycl {
+namespace detail {
 // Arbitrary precision integer type
 template <int Bits> using ap_int = _ExtInt(Bits);
+} // namespace detail
+} // namespace sycl
+} // __SYCL_INLINE_NAMESPACE(cl)
 #endif // __SYCL_DEVICE_ONLY__
 
 // This class does not have definition, it is only predeclared here.

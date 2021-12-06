@@ -173,8 +173,9 @@ CreateTargetPostRAHazardRecognizer(const InstrItineraryData *II,
   return MHR;
 }
 
-MachineInstr *ARMBaseInstrInfo::convertToThreeAddress(MachineInstr &MI,
-                                                      LiveVariables *LV) const {
+MachineInstr *
+ARMBaseInstrInfo::convertToThreeAddress(MachineInstr &MI, LiveVariables *LV,
+                                        LiveIntervals *LIS) const {
   // FIXME: Thumb2 support.
 
   if (!EnableARM3Addr)
@@ -309,8 +310,7 @@ MachineInstr *ARMBaseInstrInfo::convertToThreeAddress(MachineInstr &MI,
 
   // Transfer LiveVariables states, kill / dead info.
   if (LV) {
-    for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-      MachineOperand &MO = MI.getOperand(i);
+    for (const MachineOperand &MO : MI.operands()) {
       if (MO.isReg() && Register::isVirtualRegister(MO.getReg())) {
         Register Reg = MO.getReg();
 
@@ -633,8 +633,7 @@ bool ARMBaseInstrInfo::ClobbersPredicate(MachineInstr &MI,
                                          std::vector<MachineOperand> &Pred,
                                          bool SkipDead) const {
   bool Found = false;
-  for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-    const MachineOperand &MO = MI.getOperand(i);
+  for (const MachineOperand &MO : MI.operands()) {
     bool ClobbersCPSR = MO.isRegMask() && MO.clobbersPhysReg(ARM::CPSR);
     bool IsCPSR = MO.isReg() && MO.isDef() && MO.getReg() == ARM::CPSR;
     if (ClobbersCPSR || IsCPSR) {
@@ -731,8 +730,7 @@ bool ARMBaseInstrInfo::isPredicable(const MachineInstr &MI) const {
 namespace llvm {
 
 template <> bool IsCPSRDead<MachineInstr>(const MachineInstr *MI) {
-  for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
-    const MachineOperand &MO = MI->getOperand(i);
+  for (const MachineOperand &MO : MI->operands()) {
     if (!MO.isReg() || MO.isUndef() || MO.isUse())
       continue;
     if (MO.getReg() != ARM::CPSR)
@@ -1682,8 +1680,6 @@ void ARMBaseInstrInfo::expandMEMCPY(MachineBasicBlock::iterator MI) const {
 
 bool ARMBaseInstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   if (MI.getOpcode() == TargetOpcode::LOAD_STACK_GUARD) {
-    assert(getSubtarget().getTargetTriple().isOSBinFormatMachO() &&
-           "LOAD_STACK_GUARD currently supported only for MachO.");
     expandLoadStackGuard(MI);
     MI.getParent()->erase(MI);
     return true;
@@ -2313,8 +2309,7 @@ ARMBaseInstrInfo::canFoldIntoMOVCC(Register Reg, const MachineRegisterInfo &MRI,
     return nullptr;
   // Check if MI has any non-dead defs or physreg uses. This also detects
   // predicated instructions which will be reading CPSR.
-  for (unsigned i = 1, e = MI->getNumOperands(); i != e; ++i) {
-    const MachineOperand &MO = MI->getOperand(i);
+  for (const MachineOperand &MO : llvm::drop_begin(MI->operands(), 1)) {
     // Reject frame index operands, PEI can't handle the predicated pseudos.
     if (MO.isFI() || MO.isCPI() || MO.isJTI())
       return nullptr;
@@ -3265,9 +3260,8 @@ bool ARMBaseInstrInfo::optimizeCompareInstr(
   // live-out. If it is live-out, do not optimize.
   if (!isSafe) {
     MachineBasicBlock *MBB = CmpInstr.getParent();
-    for (MachineBasicBlock::succ_iterator SI = MBB->succ_begin(),
-             SE = MBB->succ_end(); SI != SE; ++SI)
-      if ((*SI)->isLiveIn(ARM::CPSR))
+    for (MachineBasicBlock *Succ : MBB->successors())
+      if (Succ->isLiveIn(ARM::CPSR))
         return false;
   }
 
@@ -4859,11 +4853,10 @@ bool ARMBaseInstrInfo::verifyInstruction(const MachineInstr &MI,
   if (MI.getOpcode() == ARM::tPUSH ||
       MI.getOpcode() == ARM::tPOP ||
       MI.getOpcode() == ARM::tPOP_RET) {
-    for (int i = 2, e = MI.getNumOperands(); i < e; ++i) {
-      if (MI.getOperand(i).isImplicit() ||
-          !MI.getOperand(i).isReg())
+    for (const MachineOperand &MO : llvm::drop_begin(MI.operands(), 2)) {
+      if (MO.isImplicit() || !MO.isReg())
         continue;
-      Register Reg = MI.getOperand(i).getReg();
+      Register Reg = MO.getReg();
       if (Reg < ARM::R0 || Reg > ARM::R7) {
         if (!(MI.getOpcode() == ARM::tPUSH && Reg == ARM::LR) &&
             !(MI.getOpcode() == ARM::tPOP_RET && Reg == ARM::PC)) {
@@ -4884,8 +4877,6 @@ bool ARMBaseInstrInfo::verifyInstruction(const MachineInstr &MI,
   return true;
 }
 
-// LoadStackGuard has so far only been implemented for MachO. Different code
-// sequence is needed for other targets.
 void ARMBaseInstrInfo::expandLoadStackGuardBase(MachineBasicBlock::iterator MI,
                                                 unsigned LoadImmOpc,
                                                 unsigned LoadOpc) const {
@@ -4895,27 +4886,70 @@ void ARMBaseInstrInfo::expandLoadStackGuardBase(MachineBasicBlock::iterator MI,
   MachineBasicBlock &MBB = *MI->getParent();
   DebugLoc DL = MI->getDebugLoc();
   Register Reg = MI->getOperand(0).getReg();
-  const GlobalValue *GV =
-      cast<GlobalValue>((*MI->memoperands_begin())->getValue());
   MachineInstrBuilder MIB;
+  unsigned int Offset = 0;
 
-  BuildMI(MBB, MI, DL, get(LoadImmOpc), Reg)
-      .addGlobalAddress(GV, 0, ARMII::MO_NONLAZY);
+  if (LoadImmOpc == ARM::MRC || LoadImmOpc == ARM::t2MRC) {
+    assert(Subtarget.isReadTPHard() &&
+           "TLS stack protector requires hardware TLS register");
 
-  if (Subtarget.isGVIndirectSymbol(GV)) {
-    MIB = BuildMI(MBB, MI, DL, get(LoadOpc), Reg);
-    MIB.addReg(Reg, RegState::Kill).addImm(0);
-    auto Flags = MachineMemOperand::MOLoad |
-                 MachineMemOperand::MODereferenceable |
-                 MachineMemOperand::MOInvariant;
-    MachineMemOperand *MMO = MBB.getParent()->getMachineMemOperand(
-        MachinePointerInfo::getGOT(*MBB.getParent()), Flags, 4, Align(4));
-    MIB.addMemOperand(MMO).add(predOps(ARMCC::AL));
+    BuildMI(MBB, MI, DL, get(LoadImmOpc), Reg)
+        .addImm(15)
+        .addImm(0)
+        .addImm(13)
+        .addImm(0)
+        .addImm(3)
+        .add(predOps(ARMCC::AL));
+
+    Module &M = *MBB.getParent()->getFunction().getParent();
+    Offset = M.getStackProtectorGuardOffset();
+    if (Offset & ~0xfffU) {
+      // The offset won't fit in the LDR's 12-bit immediate field, so emit an
+      // extra ADD to cover the delta. This gives us a guaranteed 8 additional
+      // bits, resulting in a range of 0 to +1 MiB for the guard offset.
+      unsigned AddOpc = (LoadImmOpc == ARM::MRC) ? ARM::ADDri : ARM::t2ADDri;
+      BuildMI(MBB, MI, DL, get(AddOpc), Reg)
+          .addReg(Reg, RegState::Kill)
+          .addImm(Offset & ~0xfffU)
+          .add(predOps(ARMCC::AL))
+          .addReg(0);
+      Offset &= 0xfffU;
+    }
+  } else {
+    const GlobalValue *GV =
+        cast<GlobalValue>((*MI->memoperands_begin())->getValue());
+    bool IsIndirect = Subtarget.isGVIndirectSymbol(GV);
+
+    unsigned TargetFlags = ARMII::MO_NO_FLAG;
+    if (Subtarget.isTargetMachO()) {
+      TargetFlags |= ARMII::MO_NONLAZY;
+    } else if (Subtarget.isTargetCOFF()) {
+      if (GV->hasDLLImportStorageClass())
+        TargetFlags |= ARMII::MO_DLLIMPORT;
+      else if (IsIndirect)
+        TargetFlags |= ARMII::MO_COFFSTUB;
+    } else if (Subtarget.isGVInGOT(GV)) {
+      TargetFlags |= ARMII::MO_GOT;
+    }
+
+    BuildMI(MBB, MI, DL, get(LoadImmOpc), Reg)
+        .addGlobalAddress(GV, 0, TargetFlags);
+
+    if (IsIndirect) {
+      MIB = BuildMI(MBB, MI, DL, get(LoadOpc), Reg);
+      MIB.addReg(Reg, RegState::Kill).addImm(0);
+      auto Flags = MachineMemOperand::MOLoad |
+                   MachineMemOperand::MODereferenceable |
+                   MachineMemOperand::MOInvariant;
+      MachineMemOperand *MMO = MBB.getParent()->getMachineMemOperand(
+          MachinePointerInfo::getGOT(*MBB.getParent()), Flags, 4, Align(4));
+      MIB.addMemOperand(MMO).add(predOps(ARMCC::AL));
+    }
   }
 
   MIB = BuildMI(MBB, MI, DL, get(LoadOpc), Reg);
   MIB.addReg(Reg, RegState::Kill)
-      .addImm(0)
+      .addImm(Offset)
       .cloneMemRefs(*MI)
       .add(predOps(ARMCC::AL));
 }

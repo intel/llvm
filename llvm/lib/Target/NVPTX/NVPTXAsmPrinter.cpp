@@ -417,8 +417,7 @@ bool NVPTXAsmPrinter::isLoopHeaderOfNoUnroll(
   // llvm.loop.unroll.disable is marked on the back edges of a loop. Therefore,
   // we iterate through each back edge of the loop with header MBB, and check
   // whether its metadata contains llvm.loop.unroll.disable.
-  for (auto I = MBB.pred_begin(); I != MBB.pred_end(); ++I) {
-    const MachineBasicBlock *PMBB = *I;
+  for (const MachineBasicBlock *PMBB : MBB.predecessors()) {
     if (LI.getLoopFor(PMBB) != LI.getLoopFor(&MBB)) {
       // Edges from other loops to MBB are not back edges.
       continue;
@@ -888,33 +887,11 @@ bool NVPTXAsmPrinter::doFinalization(Module &M) {
     GlobalsEmitted = true;
   }
 
-  // XXX Temproarily remove global variables so that doFinalization() will not
-  // emit them again (global variables are emitted at beginning).
-
-  Module::GlobalListType &global_list = M.getGlobalList();
-  int i, n = global_list.size();
-  GlobalVariable **gv_array = new GlobalVariable *[n];
-
-  // first, back-up GlobalVariable in gv_array
-  i = 0;
-  for (Module::global_iterator I = global_list.begin(), E = global_list.end();
-       I != E; ++I)
-    gv_array[i++] = &*I;
-
-  // second, empty global_list
-  while (!global_list.empty())
-    global_list.remove(global_list.begin());
-
   // call doFinalization
   bool ret = AsmPrinter::doFinalization(M);
 
-  // now we restore global variables
-  for (i = 0; i < n; i++)
-    global_list.insert(global_list.end(), gv_array[i]);
-
   clearAnnotationCache(&M);
 
-  delete[] gv_array;
   // Close the last emitted section
   if (HasDebugInfo) {
     static_cast<NVPTXTargetStreamer *>(OutStreamer->getTargetStreamer())

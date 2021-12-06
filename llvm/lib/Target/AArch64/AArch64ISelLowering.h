@@ -104,6 +104,8 @@ enum NodeType : unsigned {
   // Unpredicated vector instructions
   BIC,
 
+  SRAD_MERGE_OP1,
+
   // Predicated instructions with the result of inactive lanes provided by the
   // last operand.
   FABS_MERGE_PASSTHRU,
@@ -743,7 +745,9 @@ public:
     if (!VT.isVector())
       return hasAndNotCompare(Y);
 
-    return VT.getSizeInBits() >= 64; // vector 'bic'
+    TypeSize TS = VT.getSizeInBits();
+    // TODO: We should be able to use bic/bif too for SVE.
+    return !TS.isScalable() && TS.getFixedValue() >= 64; // vector 'bic'
   }
 
   bool shouldProduceAndByConstByHoistingConstFromShiftsLHSOfAnd(

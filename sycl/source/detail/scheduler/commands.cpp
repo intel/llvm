@@ -1797,8 +1797,11 @@ static pi_result SetKernelParamsAndLaunch(
       }
       assert(DeviceImageImpl != nullptr);
       RT::PiMem SpecConstsBuffer = DeviceImageImpl->get_spec_const_buffer_ref();
+      // Avoid taking an address of nullptr
+      RT::PiMem *SpecConstsBufferArg =
+          SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
       Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                      &SpecConstsBuffer);
+                                                      SpecConstsBufferArg);
       break;
     }
     case kernel_param_kind_t::kind_invalid:
@@ -2136,7 +2139,8 @@ cl_int ExecCGCommand::enqueueImp() {
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
-    if (MQueue->is_host()) {
+    if (MQueue->is_host() || (MQueue->getPlugin().getBackend() ==
+                              backend::ext_intel_esimd_emulator)) {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -2148,8 +2152,19 @@ cl_int ExecCGCommand::enqueueImp() {
         const detail::plugin &Plugin = EventImpls[0]->getPlugin();
         Plugin.call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
-      ExecKernel->MHostKernel->call(NDRDesc,
-                                    getEvent()->getHostProfilingInfo());
+
+      if (MQueue->is_host()) {
+        ExecKernel->MHostKernel->call(NDRDesc,
+                                      getEvent()->getHostProfilingInfo());
+      } else {
+        assert(MQueue->getPlugin().getBackend() ==
+               backend::ext_intel_esimd_emulator);
+        MQueue->getPlugin().call<PiApiKind::piEnqueueKernelLaunch>(
+            nullptr,
+            reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
+            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+            &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
+      }
 
       return CL_SUCCESS;
     }

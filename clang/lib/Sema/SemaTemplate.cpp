@@ -743,7 +743,7 @@ Sema::ActOnDependentIdExpression(const CXXScopeSpec &SS,
   // Check if the nested name specifier is an enum type.
   bool IsEnum = false;
   if (NestedNameSpecifier *NNS = SS.getScopeRep())
-    IsEnum = dyn_cast_or_null<EnumType>(NNS->getAsType());
+    IsEnum = isa_and_nonnull<EnumType>(NNS->getAsType());
 
   if (!MightBeCxx11UnevalField && !isAddressOfOperand && !IsEnum &&
       isa<CXXMethodDecl>(DC) && cast<CXXMethodDecl>(DC)->isInstance()) {
@@ -1259,15 +1259,15 @@ bool Sema::AttachTypeConstraint(AutoTypeLoc TL, NonTypeTemplateParmDecl *NTTP,
       BuildDeclRefExpr(NTTP, NTTP->getType(), VK_PRValue, NTTP->getLocation());
   if (!Ref)
     return true;
-  ExprResult ImmediatelyDeclaredConstraint =
-      formImmediatelyDeclaredConstraint(
-          *this, TL.getNestedNameSpecifierLoc(), TL.getConceptNameInfo(),
-          TL.getNamedConcept(), TL.getLAngleLoc(), TL.getRAngleLoc(),
-          BuildDecltypeType(Ref, NTTP->getLocation()), NTTP->getLocation(),
-          [&] (TemplateArgumentListInfo &ConstraintArgs) {
-            for (unsigned I = 0, C = TL.getNumArgs(); I != C; ++I)
-              ConstraintArgs.addArgument(TL.getArgLoc(I));
-          }, EllipsisLoc);
+  ExprResult ImmediatelyDeclaredConstraint = formImmediatelyDeclaredConstraint(
+      *this, TL.getNestedNameSpecifierLoc(), TL.getConceptNameInfo(),
+      TL.getNamedConcept(), TL.getLAngleLoc(), TL.getRAngleLoc(),
+      BuildDecltypeType(Ref), NTTP->getLocation(),
+      [&](TemplateArgumentListInfo &ConstraintArgs) {
+        for (unsigned I = 0, C = TL.getNumArgs(); I != C; ++I)
+          ConstraintArgs.addArgument(TL.getArgLoc(I));
+      },
+      EllipsisLoc);
   if (ImmediatelyDeclaredConstraint.isInvalid() ||
      !ImmediatelyDeclaredConstraint.isUsable())
     return true;
@@ -1289,7 +1289,7 @@ QualType Sema::CheckNonTypeTemplateParameterType(TypeSourceInfo *&TSI,
     //    - an identifier associated by name lookup with a non-type
     //      template-parameter declared with a type that contains a
     //      placeholder type (7.1.7.4),
-    TSI = SubstAutoTypeSourceInfo(TSI, Context.DependentTy);
+    TSI = SubstAutoTypeSourceInfoDependent(TSI);
   }
 
   return CheckNonTypeTemplateParameterType(TSI->getType(), Loc);
@@ -7407,7 +7407,9 @@ bool Sema::CheckTemplateTemplateArgument(TemplateTemplateParmDecl *Param,
   // C++1z [temp.arg.template]p3: (DR 150)
   //   A template-argument matches a template template-parameter P when P
   //   is at least as specialized as the template-argument A.
-  // FIXME: RelaxedTemplateTemplateArgs is deprecated, should be always on.
+  // FIXME: We should enable RelaxedTemplateTemplateArgs by default as it is a
+  //  defect report resolution from C++17 and shouldn't be introduced by
+  //  concepts.
   if (getLangOpts().RelaxedTemplateTemplateArgs) {
     // Quick check for the common case:
     //   If P contains a parameter pack, then A [...] matches P if each of A's
@@ -10871,7 +10873,7 @@ bool Sema::RebuildTemplateParamsInCurrentInstantiation(
       //    - an identifier associated by name lookup with a non-type
       //      template-parameter declared with a type that contains a
       //      placeholder type (7.1.7.4),
-      NewTSI = SubstAutoTypeSourceInfo(NewTSI, Context.DependentTy);
+      NewTSI = SubstAutoTypeSourceInfoDependent(NewTSI);
     }
 
     if (NewTSI != NTTP->getTypeSourceInfo()) {
@@ -10917,9 +10919,9 @@ Sema::getTemplateArgumentBindingsText(const TemplateParameterList *Params,
     }
 
     Out << " = ";
-    Args[I].print(
-        getPrintingPolicy(), Out,
-        TemplateParameterList::shouldIncludeTypeForArgument(Params, I));
+    Args[I].print(getPrintingPolicy(), Out,
+                  TemplateParameterList::shouldIncludeTypeForArgument(
+                      getPrintingPolicy(), Params, I));
   }
 
   Out << ']';

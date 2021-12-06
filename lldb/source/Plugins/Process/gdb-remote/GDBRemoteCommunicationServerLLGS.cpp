@@ -286,7 +286,7 @@ Status GDBRemoteCommunicationServerLLGS::LaunchProcess() {
   if (should_forward_stdio) {
     // nullptr means it's not redirected to file or pty (in case of LLGS local)
     // at least one of stdio will be transferred pty<->gdb-remote we need to
-    // give the pty master handle to this object to read and/or write
+    // give the pty primary handle to this object to read and/or write
     LLDB_LOG(log,
              "pid = {0}: setting up stdout/stderr redirection via $O "
              "gdb-remote commands",
@@ -1087,18 +1087,6 @@ void GDBRemoteCommunicationServerLLGS::NewSubprocess(
 
 void GDBRemoteCommunicationServerLLGS::DataAvailableCallback() {
   Log *log(GetLogIfAnyCategoriesSet(GDBR_LOG_COMM));
-
-  if (!m_handshake_completed) {
-    if (!HandshakeWithClient()) {
-      LLDB_LOGF(log,
-                "GDBRemoteCommunicationServerLLGS::%s handshake with "
-                "client failed, exiting",
-                __FUNCTION__);
-      m_mainloop.RequestTermination();
-      return;
-    }
-    m_handshake_completed = true;
-  }
 
   bool interrupt = false;
   bool done = false;

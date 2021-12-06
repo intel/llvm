@@ -24,6 +24,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/global_handler.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -155,9 +156,6 @@ public:
                                            sizeof(Device), &Device, nullptr);
     MDevice =
         DeviceImplPtr(new device_impl(Device, Context->getPlatformImpl()));
-
-    // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin().call<PiApiKind::piQueueRetain>(MQueues[0]);
   }
 
   ~queue_impl() {
@@ -429,16 +427,7 @@ public:
   }
 
   ThreadPool &getThreadPool() {
-    if (!MHostTaskThreadPool)
-      initHostTaskAndEventCallbackThreadPool();
-
-    return *MHostTaskThreadPool;
-  }
-
-  void stopThreadPool() {
-    if (MHostTaskThreadPool) {
-      MHostTaskThreadPool->finishAndWait();
-    }
+    return GlobalHandler::instance().getHostTaskThreadPool();
   }
 
   /// Gets the native handle of the SYCL queue.
@@ -526,8 +515,6 @@ private:
   void instrumentationEpilog(void *TelementryEvent, std::string &Name,
                              int32_t StreamID, uint64_t IId);
 
-  void initHostTaskAndEventCallbackThreadPool();
-
   /// queue_impl.addEvent tracks events with weak pointers
   /// but some events have no other owners. addSharedEvent()
   /// follows events with a shared pointer.
@@ -565,10 +552,6 @@ private:
   const bool MHostQueue = false;
   // Assume OOO support by default.
   bool MSupportOOO = true;
-
-  // Thread pool for host task and event callbacks execution.
-  // The thread pool is instantiated upon the very first call to getThreadPool()
-  std::unique_ptr<ThreadPool> MHostTaskThreadPool;
 
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;

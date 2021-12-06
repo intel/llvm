@@ -555,16 +555,13 @@ void TypePrinting::print(Type *Ty, raw_ostream &OS) {
     FunctionType *FTy = cast<FunctionType>(Ty);
     print(FTy->getReturnType(), OS);
     OS << " (";
-    for (FunctionType::param_iterator I = FTy->param_begin(),
-         E = FTy->param_end(); I != E; ++I) {
-      if (I != FTy->param_begin())
-        OS << ", ";
-      print(*I, OS);
+    ListSeparator LS;
+    for (Type *Ty : FTy->params()) {
+      OS << LS;
+      print(Ty, OS);
     }
-    if (FTy->isVarArg()) {
-      if (FTy->getNumParams()) OS << ", ";
-      OS << "...";
-    }
+    if (FTy->isVarArg())
+      OS << LS << "...";
     OS << ')';
     return;
   }
@@ -634,12 +631,11 @@ void TypePrinting::printStructBody(StructType *STy, raw_ostream &OS) {
   if (STy->getNumElements() == 0) {
     OS << "{}";
   } else {
-    StructType::element_iterator I = STy->element_begin();
     OS << "{ ";
-    print(*I++, OS);
-    for (StructType::element_iterator E = STy->element_end(); I != E; ++I) {
-      OS << ", ";
-      print(*I, OS);
+    ListSeparator LS;
+    for (Type *Ty : STy->elements()) {
+      OS << LS;
+      print(Ty, OS);
     }
 
     OS << " }";
@@ -1313,27 +1309,8 @@ static void WriteAsOperandInternal(raw_ostream &Out, const Metadata *MD,
                                    bool FromValue = false);
 
 static void WriteOptimizationInfo(raw_ostream &Out, const User *U) {
-  if (const FPMathOperator *FPO = dyn_cast<const FPMathOperator>(U)) {
-    // 'Fast' is an abbreviation for all fast-math-flags.
-    if (FPO->isFast())
-      Out << " fast";
-    else {
-      if (FPO->hasAllowReassoc())
-        Out << " reassoc";
-      if (FPO->hasNoNaNs())
-        Out << " nnan";
-      if (FPO->hasNoInfs())
-        Out << " ninf";
-      if (FPO->hasNoSignedZeros())
-        Out << " nsz";
-      if (FPO->hasAllowReciprocal())
-        Out << " arcp";
-      if (FPO->hasAllowContract())
-        Out << " contract";
-      if (FPO->hasApproxFunc())
-        Out << " afn";
-    }
-  }
+  if (const FPMathOperator *FPO = dyn_cast<const FPMathOperator>(U))
+    Out << FPO->getFastMathFlags();
 
   if (const OverflowingBinaryOperator *OBO =
         dyn_cast<OverflowingBinaryOperator>(U)) {
