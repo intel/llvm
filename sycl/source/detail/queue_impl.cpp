@@ -322,30 +322,6 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
-void queue_impl::initHostTaskAndEventCallbackThreadPool() {
-  if (MHostTaskThreadPool)
-    return;
-
-  int Size = 1;
-
-  if (const char *Val = std::getenv("SYCL_QUEUE_THREAD_POOL_SIZE"))
-    try {
-      Size = std::stoi(Val);
-    } catch (...) {
-      throw invalid_parameter_error(
-          "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
-          PI_INVALID_VALUE);
-    }
-
-  if (Size < 1)
-    throw invalid_parameter_error(
-        "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment variable",
-        PI_INVALID_VALUE);
-
-  MHostTaskThreadPool.reset(new ThreadPool(Size));
-  MHostTaskThreadPool->start();
-}
-
 pi_native_handle queue_impl::getNative() const {
   const detail::plugin &Plugin = getPlugin();
   if (Plugin.getBackend() == backend::opencl)
