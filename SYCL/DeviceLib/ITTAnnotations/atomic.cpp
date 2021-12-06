@@ -1,14 +1,11 @@
 // UNSUPPORTED: cuda || hip
 
-// RUN: %clangxx -fsycl -fsycl-instrument-device-code %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-instrument-device-code %s -o %t.out \
+// RUN: -fsycl-targets=%sycl_triple
 // RUN: %HOST_RUN_PLACEHOLDER %t.out
 // RUN: %CPU_RUN_PLACEHOLDER %t.out
 // RUN: %GPU_RUN_PLACEHOLDER %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
-
-// RUN: %clangxx -fsycl -fsycl-instrument-device-code %s -o %t.cpu.out	\
-// RUN: -fsycl-targets=spir64_x86_64-unknown-unknown
-// RUN: %CPU_RUN_PLACEHOLDER %t.cpu.out
 
 #include "CL/sycl.hpp"
 
