@@ -1,7 +1,6 @@
 name: SYCL Nightly Builds
 
 on:
-  pull_request:
   workflow_dispatch:
   schedule:
     - cron: '0 3 * * *'
@@ -34,7 +33,7 @@ jobs:
     - name: Build and Push Container (with drivers)
       uses: docker/build-push-action@v2
       with:
-        push: false
+        push: true
         build-args: |
           base_image=ghcr.io/intel/llvm/ubuntu2004_intel_drivers
           base_tag=latest
@@ -46,7 +45,7 @@ jobs:
     - name: Build and Push Container (no drivers)
       uses: docker/build-push-action@v2
       with:
-        push: false
+        push: true
         build-args: |
           base_image=ghcr.io/intel/llvm/ubuntu2004_base
           base_tag=latest
