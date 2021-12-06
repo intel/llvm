@@ -1441,7 +1441,6 @@
 ?convertChannelType@detail@sycl@cl@@YA?AW4_pi_image_channel_type@@W4image_channel_type@23@@Z
 ?convertChannelType@detail@sycl@cl@@YA?AW4image_channel_type@23@W4_pi_image_channel_type@@@Z
 ?copy@MemoryManager@detail@sycl@cl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@IV?$range@$02@34@3V?$id@$02@34@I12I334IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
-?copy@MemoryManager@detail@sycl@cl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@IV?$range@$02@34@3V?$id@$02@34@I12I334IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@PEAPEAU_pi_event@@@Z
 ?copy_usm@MemoryManager@detail@sycl@cl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KPEAXV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
 ?copy_usm@MemoryManager@detail@sycl@cl@@SAXPEBXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KPEAXV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?copysign@__host_std@cl@@YA?AV?$vec@M$00@sycl@2@V342@0@Z
@@ -1849,7 +1848,6 @@
 ?fdim@__host_std@cl@@YAMMM@Z
 ?fdim@__host_std@cl@@YANNN@Z
 ?fill@MemoryManager@detail@sycl@cl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KPEBDIV?$range@$02@34@5V?$id@$02@34@IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
-?fill@MemoryManager@detail@sycl@cl@@SAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KPEBDIV?$range@$02@34@5V?$id@$02@34@IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@PEAPEAU_pi_event@@@Z
 ?fill_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@AEAPEAU_pi_event@@@Z
 ?fill_usm@MemoryManager@detail@sycl@cl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@sycl@cl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?finalize@handler@sycl@cl@@AEAA?AVevent@23@XZ
