@@ -90,7 +90,7 @@ template <typename T, std::size_t R, std::size_t C,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S> *
-__spirv_JointMatrixFillINTEL(const T &v, __spv::Scope::Flag Sc = S);
+__spirv_CompositeConstruct(const T v);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \

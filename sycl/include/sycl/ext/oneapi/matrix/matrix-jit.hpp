@@ -197,12 +197,9 @@ template <typename Group, typename T, size_t NumRows, size_t NumCols,
 inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
                   joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
-                  const T &v) {
+                  const T v) {
 #ifdef __SYCL_DEVICE_ONLY__
-  res.spvm =
-      __spirv_JointMatrixFillINTEL<T, NumRows, NumCols,
-                                   spv_matrix_layout_traits<Layout>::value>(
-          v, spv_scope_traits<Group>::value);
+  res.spvm = __spirv_CompositeConstruct<T, NumRows, NumCols>(v);
 #else
   (void)res;
   (void)v;
