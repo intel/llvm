@@ -423,100 +423,6 @@ void PadOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
   results.insert<MaterializePadValue>(context);
 }
 
-struct Conv2DFullyConnectedOptimization
-    : public OpRewritePattern<tosa::Conv2DOp> {
-  using OpRewritePattern::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(tosa::Conv2DOp op,
-                                PatternRewriter &rewriter) const override {
-    Value input = op.input();
-    Value weight = op.weight();
-    ShapedType inputType = input.getType().cast<ShapedType>();
-    ShapedType weightType = weight.getType().cast<ShapedType>();
-
-    if (!inputType.hasStaticShape() || !weightType.hasRank()) {
-      return failure();
-    }
-
-    // Stride must be 1 for this optimization.
-    for (Attribute stride : op.stride().getValue()) {
-      if (!stride.cast<IntegerAttr>().getValue().isOne()) {
-        return failure();
-      }
-    }
-
-    // Only works for a 1x1 kernel.
-    ArrayRef<int64_t> weightShape = weightType.getShape();
-    if (weightShape[1] != 1 || weightShape[2] != 1) {
-      return failure();
-    }
-
-    // Reshape input to [N,IH,IW,IC] -> [N * IH * IW, IC].
-    ArrayRef<int64_t> inputShape = inputType.getShape();
-    llvm::SmallVector<int64_t, 2> revisedInputShape{
-        inputShape[0] * inputShape[1] * inputShape[2], inputShape[3]};
-    auto revisedInputShapeType = RankedTensorType::get(
-        revisedInputShape,
-        input.getType().dyn_cast<RankedTensorType>().getElementType());
-    auto reshapedInput = rewriter
-                             .create<tosa::ReshapeOp>(
-                                 op.getLoc(), revisedInputShapeType, input,
-                                 rewriter.getI64ArrayAttr(revisedInputShape))
-                             .getResult();
-
-    // Reshape kernel to [OC,KH,KW,IC] -> [OC, IC].
-    llvm::SmallVector<int64_t, 2> revisedWeightShape{weightShape[0],
-                                                     weightShape[3]};
-    auto revisedWeightShapeType = RankedTensorType::get(
-        revisedWeightShape,
-        weight.getType().dyn_cast<RankedTensorType>().getElementType());
-    auto reshapedWeight = rewriter
-                              .create<tosa::ReshapeOp>(
-                                  op.getLoc(), revisedWeightShapeType, weight,
-                                  rewriter.getI64ArrayAttr(revisedWeightShape))
-                              .getResult();
-
-    // Perform a fully connected network over the reshaped input and weight.
-    llvm::SmallVector<int64_t, 2> fullyConnectedShape{
-        inputShape[0] * inputShape[1] * inputShape[2], inputShape[3]};
-    auto fullyConnectedShapeType = RankedTensorType::get(
-        fullyConnectedShape,
-        weight.getType().dyn_cast<RankedTensorType>().getElementType());
-
-    Value fullyConnectedValue;
-    if (op.quantization_info()) {
-      fullyConnectedValue =
-          rewriter
-              .create<tosa::FullyConnectedOp>(
-                  op.getLoc(), fullyConnectedShapeType, reshapedInput,
-                  reshapedWeight, op.bias(), op.quantization_info().getValue())
-              .getResult();
-    } else {
-      fullyConnectedValue = rewriter
-                                .create<tosa::FullyConnectedOp>(
-                                    op.getLoc(), fullyConnectedShapeType,
-                                    reshapedInput, reshapedWeight, op.bias())
-                                .getResult();
-    }
-
-    // Reshape output to [N, IH, IW, OC].
-    llvm::SmallVector<int64_t, 4> outputShape{inputShape[0], inputShape[1],
-                                              inputShape[2], weightShape[0]};
-    auto outputShapeType = RankedTensorType::get(
-        outputShape,
-        input.getType().dyn_cast<RankedTensorType>().getElementType());
-    rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
-        op, outputShapeType, fullyConnectedValue,
-        rewriter.getI64ArrayAttr(outputShape));
-    return success();
-  }
-};
-
-void Conv2DOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                           MLIRContext *context) {
-  results.insert<Conv2DFullyConnectedOptimization>(context);
-}
-
 //===----------------------------------------------------------------------===//
 // Operator Folders.
 //===----------------------------------------------------------------------===//
@@ -621,8 +527,14 @@ template <typename T> static LogicalResult verifyConvOp(T op) {
   auto weightType = op.weight().getType().template dyn_cast<RankedTensorType>();
 
   // Must be ranked tensor types
-  if (!inputType || !weightType)
+  if (!inputType) {
+    op.emitOpError("expect a ranked tensor for input, got ") << op.input();
     return failure();
+  }
+  if (!weightType) {
+    op.emitOpError("expect a ranked tensor for weight, got ") << op.weight();
+    return failure();
+  }
 
   auto inputEType = inputType.getElementType();
   auto weightEType = weightType.getElementType();
@@ -631,14 +543,21 @@ template <typename T> static LogicalResult verifyConvOp(T op) {
   bool weightIsQuant = !weightEType.template isa<FloatType>();
 
   // Either both must be quantized or both unquantized.
-  if (inputIsQuant != weightIsQuant)
+  if (inputIsQuant != weightIsQuant) {
+    op.emitOpError(
+        "expect both input and weight to be float or not together, got ")
+        << inputEType << " and " << weightEType;
     return failure();
+  }
 
   // Quantized type must have constructed the quantizationattr, and unquantized
   // types should not have a quantizationattr.
   if ((inputIsQuant && !op.quantization_info()) ||
-      (!inputIsQuant && op.quantization_info()))
+      (!inputIsQuant && op.quantization_info())) {
+    op.emitOpError("quantizationattr is required for quantized type, and not "
+                   "allowed for float type");
     return failure();
+  }
 
   return success();
 }

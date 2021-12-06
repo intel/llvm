@@ -24,6 +24,7 @@
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
+#include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
@@ -7502,8 +7503,8 @@ SDValue SITargetLowering::LowerINTRINSIC_W_CHAIN(SDValue Op,
 
     assert(NodePtr.getValueType() == MVT::i32 ||
            NodePtr.getValueType() == MVT::i64);
-    assert(RayDir.getValueType() == MVT::v4f16 ||
-           RayDir.getValueType() == MVT::v4f32);
+    assert(RayDir.getValueType() == MVT::v3f16 ||
+           RayDir.getValueType() == MVT::v3f32);
 
     if (!Subtarget->hasGFX10_AEncoding()) {
       emitRemovedIntrinsicError(DAG, DL, Op.getValueType());
@@ -9837,11 +9838,13 @@ bool SITargetLowering::isCanonicalized(Register Reg, MachineFunction &MF,
   if (Opcode == AMDGPU::G_FCANONICALIZE)
     return true;
 
-  if (Opcode == AMDGPU::G_FCONSTANT) {
-    auto F = MI->getOperand(1).getFPImm()->getValueAPF();
-    if (F.isNaN() && F.isSignaling())
+  Optional<FPValueAndVReg> FCR;
+  // Constant splat (can be padded with undef) or scalar constant.
+  if (mi_match(Reg, MRI, MIPatternMatch::m_GFCstOrSplat(FCR))) {
+    if (FCR->Value.isSignaling())
       return false;
-    return !F.isDenormal() || denormalsEnabledForType(MRI.getType(Reg), MF);
+    return !FCR->Value.isDenormal() ||
+           denormalsEnabledForType(MRI.getType(FCR->VReg), MF);
   }
 
   if (MaxDepth == 0)
@@ -11514,7 +11517,7 @@ void SITargetLowering::AdjustInstrPostInstrSelection(MachineInstr &MI,
     // Prefer VGPRs over AGPRs in mAI instructions where possible.
     // This saves a chain-copy of registers and better ballance register
     // use between vgpr and agpr as agpr tuples tend to be big.
-    if (const MCOperandInfo *OpInfo = MI.getDesc().OpInfo) {
+    if (MI.getDesc().OpInfo) {
       unsigned Opc = MI.getOpcode();
       const SIRegisterInfo *TRI = Subtarget->getRegisterInfo();
       for (auto I : { AMDGPU::getNamedOperandIdx(Opc, AMDGPU::OpName::src0),
@@ -12477,6 +12480,6 @@ SITargetLowering::getTypeLegalizationCost(const DataLayout &DL,
   if (Size <= 256)
     return Cost;
 
-  Cost.first = (Size + 255) / 256;
+  Cost.first += (Size + 255) / 256;
   return Cost;
 }
