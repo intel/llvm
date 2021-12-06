@@ -99,6 +99,17 @@ ABI Changes
 - The C++17 variable templates ``is_error_code_enum_v`` and
   ``is_error_condition_enum_v`` are now of type ``bool`` instead of ``size_t``.
 
+- The C++03 emulation type for ``std::nullptr_t`` has been removed in favor of
+  using ``decltype(nullptr)`` in all standard modes. This is an ABI break for
+  anyone compiling in C++03 mode and who has ``std::nullptr_t`` as part of their
+  ABI. However, previously, these users' ABI would be incompatible with any other
+  binary or static archive compiled with C++11 or later. If you start seeing linker
+  errors involving ``std::nullptr_t`` against previously compiled binaries, this may
+  be the cause. You can define the ``_LIBCPP_ABI_USE_CXX03_NULLPTR_EMULATION`` macro
+  to return to the previous behavior. That macro will be removed in LLVM 15. Please
+  comment `here <https://reviews.llvm.org/D109459>`_ if you are broken by this change
+  and need to define the macro.
+
 Build System Changes
 --------------------
 
@@ -137,3 +148,12 @@ Build System Changes
     .. code-block:: bash
 
         $ cmake -S <monorepo>/runtimes -B build -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" <LIBCXX-OPTIONS> <LIBCXXABI-OPTIONS>
+
+  - Support for building the runtimes using the GCC 32 bit multilib flag (``-m32``) has been removed. Support
+    for this had been flaky for a while, and we didn't know of anyone depending on this. Instead, please perform
+    a normal cross-compilation of the runtimes using the appropriate target, such as passing the following to
+    your bootstrapping build:
+
+    .. code-block:: bash
+
+        -DLLVM_RUNTIME_TARGETS=i386-unknown-linux

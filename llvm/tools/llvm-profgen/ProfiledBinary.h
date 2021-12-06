@@ -76,6 +76,14 @@ struct BinaryFunction {
   StringRef FuncName;
   // End of range is an exclusive bound.
   RangesTy Ranges;
+
+  uint64_t getFuncSize() {
+    uint64_t Sum = 0;
+    for (auto &R : Ranges) {
+      Sum += R.second - R.first;
+    }
+    return Sum;
+  }
 };
 
 // Info about function range. A function can be split into multiple
@@ -236,6 +244,8 @@ class ProfiledBinary {
 
   bool UsePseudoProbes = false;
 
+  bool UseFSDiscriminator = false;
+
   // Whether we need to symbolize all instructions to get function context size.
   bool TrackFuncContextSize = false;
 
@@ -251,6 +261,10 @@ class ProfiledBinary {
   void setPreferredTextSegmentAddresses(const ELFFile<ELFT> &Obj, StringRef FileName);
 
   void decodePseudoProbe(const ELFObjectFileBase *Obj);
+
+  void
+  checkUseFSDiscriminator(const ELFObjectFileBase *Obj,
+                          std::map<SectionRef, SectionSymbolsTy> &AllSymbols);
 
   // Set up disassembler and related components.
   void setUpDisassembler(const ELFObjectFileBase *Obj);
@@ -350,6 +364,7 @@ public:
   size_t getCodeOffsetsSize() const { return CodeAddrOffsets.size(); }
 
   bool usePseudoProbes() const { return UsePseudoProbes; }
+  bool useFSDiscriminator() const { return UseFSDiscriminator; }
   // Get the index in CodeAddrOffsets for the address
   // As we might get an address which is not the code
   // here it would round to the next valid code address by
@@ -406,6 +421,13 @@ public:
     return BinaryFunctions;
   }
 
+  BinaryFunction *getBinaryFunction(StringRef FName) {
+    auto I = BinaryFunctions.find(FName.str());
+    if (I == BinaryFunctions.end())
+      return nullptr;
+    return &I->second;
+  }
+
   uint32_t getFuncSizeForContext(SampleContext &Context) {
     return FuncSizeTracker.getFuncSizeForContext(Context);
   }
@@ -454,7 +476,13 @@ public:
     SmallVector<MCPseduoProbeFrameLocation, 16> ProbeInlineContext;
     ProbeDecoder.getInlineContextForProbe(Probe, ProbeInlineContext,
                                           IncludeLeaf);
-    for (auto &Callsite : ProbeInlineContext) {
+    for (uint32_t I = 0; I < ProbeInlineContext.size(); I++) {
+      auto &Callsite = ProbeInlineContext[I];
+      // Clear the current context for an unknown probe.
+      if (Callsite.second == 0 && I != ProbeInlineContext.size() - 1) {
+        InlineContextStack.clear();
+        continue;
+      }
       InlineContextStack.emplace_back(Callsite.first,
                                       LineLocation(Callsite.second, 0));
     }

@@ -33,24 +33,26 @@ struct StackTraceHeader {
 };
 }  // namespace
 
-StackStore::Id StackStore::Store(const StackTrace &trace) {
+StackStore::Id StackStore::Store(const StackTrace &trace, uptr *pack) {
   if (!trace.size && !trace.tag)
     return 0;
   StackTraceHeader h(trace);
-  uptr idx;
-  uptr *stack_trace = Alloc(h.size + 1, &idx);
+  uptr idx = 0;
+  *pack = 0;
+  uptr *stack_trace = Alloc(h.size + 1, &idx, pack);
   *stack_trace = h.ToUptr();
   internal_memcpy(stack_trace + 1, trace.trace, h.size * sizeof(uptr));
+  *pack += blocks_[GetBlockIdx(idx)].Stored(h.size + 1);
   return OffsetToId(idx);
 }
 
-StackTrace StackStore::Load(Id id) const {
+StackTrace StackStore::Load(Id id) {
   if (!id)
     return {};
   uptr idx = IdToOffset(id);
   uptr block_idx = GetBlockIdx(idx);
   CHECK_LT(block_idx, ARRAY_SIZE(blocks_));
-  const uptr *stack_trace = blocks_[block_idx].Get();
+  const uptr *stack_trace = blocks_[block_idx].GetOrUnpack();
   if (!stack_trace)
     return {};
   stack_trace += GetInBlockIdx(idx);
@@ -59,18 +61,21 @@ StackTrace StackStore::Load(Id id) const {
 }
 
 uptr StackStore::Allocated() const {
-  return RoundUpTo(atomic_load_relaxed(&total_frames_) * sizeof(uptr),
-                   GetPageSizeCached()) +
-         sizeof(*this);
+  uptr next_block = GetBlockIdx(
+      RoundUpTo(atomic_load_relaxed(&total_frames_), kBlockSizeFrames));
+  uptr res = 0;
+  for (uptr i = 0; i < next_block; ++i) res += blocks_[i].Allocated();
+  return res + sizeof(*this);
 }
 
-uptr *StackStore::Alloc(uptr count, uptr *idx) {
+uptr *StackStore::Alloc(uptr count, uptr *idx, uptr *pack) {
   for (;;) {
     // Optimisic lock-free allocation, essentially try to bump the
     // total_frames_.
     uptr start = atomic_fetch_add(&total_frames_, count, memory_order_relaxed);
     uptr block_idx = GetBlockIdx(start);
-    if (LIKELY(block_idx == GetBlockIdx(start + count - 1))) {
+    uptr last_idx = GetBlockIdx(start + count - 1);
+    if (LIKELY(block_idx == last_idx)) {
       // Fits into the a single block.
       CHECK_LT(block_idx, ARRAY_SIZE(blocks_));
       *idx = start;
@@ -78,7 +83,19 @@ uptr *StackStore::Alloc(uptr count, uptr *idx) {
     }
 
     // Retry. We can't use range allocated in two different blocks.
+    CHECK_LE(count, kBlockSizeFrames);
+    uptr in_first = kBlockSizeFrames - GetInBlockIdx(start);
+    // Mark tail/head of these blocks as "stored".to avoid waiting before we can
+    // Pack().
+    *pack += blocks_[block_idx].Stored(in_first);
+    *pack += blocks_[last_idx].Stored(count - in_first);
   }
+}
+
+uptr StackStore::Pack(Compression type) {
+  uptr res = 0;
+  for (BlockInfo &b : blocks_) res += b.Pack(type);
+  return res;
 }
 
 void StackStore::TestOnlyUnmap() {
@@ -111,9 +128,73 @@ uptr *StackStore::BlockInfo::GetOrCreate() {
   return Create();
 }
 
+uptr *StackStore::BlockInfo::GetOrUnpack() {
+  SpinMutexLock l(&mtx_);
+  switch (state) {
+    case State::Storing:
+      state = State::Unpacked;
+      FALLTHROUGH;
+    case State::Unpacked:
+      return Get();
+    case State::Packed:
+      break;
+  }
+
+  uptr *ptr = Get();
+  CHECK_NE(nullptr, ptr);
+  // Fake unpacking.
+  for (uptr i = 0; i < kBlockSizeFrames; ++i) ptr[i] = ~ptr[i];
+  state = State::Unpacked;
+  return Get();
+}
+
+uptr StackStore::BlockInfo::Pack(Compression type) {
+  if (type == Compression::None)
+    return 0;
+
+  SpinMutexLock l(&mtx_);
+  switch (state) {
+    case State::Unpacked:
+    case State::Packed:
+      return 0;
+    case State::Storing:
+      break;
+  }
+
+  uptr *ptr = Get();
+  if (!ptr || !Stored(0))
+    return 0;
+
+  // Fake packing.
+  for (uptr i = 0; i < kBlockSizeFrames; ++i) ptr[i] = ~ptr[i];
+  state = State::Packed;
+  return kBlockSizeBytes - kBlockSizeBytes / 10;
+}
+
+uptr StackStore::BlockInfo::Allocated() const {
+  SpinMutexLock l(&mtx_);
+  switch (state) {
+    case State::Packed:
+      return kBlockSizeBytes / 10;
+    case State::Unpacked:
+    case State::Storing:
+      return kBlockSizeBytes;
+  }
+}
+
 void StackStore::BlockInfo::TestOnlyUnmap() {
   if (uptr *ptr = Get())
     UnmapOrDie(ptr, StackStore::kBlockSizeBytes);
+}
+
+bool StackStore::BlockInfo::Stored(uptr n) {
+  return n + atomic_fetch_add(&stored_, n, memory_order_release) ==
+         kBlockSizeFrames;
+}
+
+bool StackStore::BlockInfo::IsPacked() const {
+  SpinMutexLock l(&mtx_);
+  return state == State::Packed;
 }
 
 }  // namespace __sanitizer
