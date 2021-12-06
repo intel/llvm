@@ -67,6 +67,11 @@ struct ExecuteRegionOpInterface
           "scf.execute_region with tensor result not supported");
     return comprehensive_bufferize::bufferize(&executeRegionOp.region(), state);
   }
+
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationAliasInfo &aliasInfo) const {
+    return BufferRelation::Equivalent;
+  }
 };
 
 struct IfOpInterface
@@ -138,15 +143,27 @@ struct IfOpInterface
       assert(opResult.getType().isa<RankedTensorType>() &&
              "unsupported unranked tensor");
 
-      Value resultBuffer = getResultBuffer(b, opResult, state);
+      Value resultBuffer = state.getResultBuffer(opResult);
       if (!resultBuffer)
         return failure();
 
-      state.aliasInfo.createAliasInfoEntry(resultBuffer);
       state.mapBuffer(opResult, resultBuffer);
     }
 
     return success();
+  }
+
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationAliasInfo &aliasInfo) const {
+    // IfOp results are equivalent to their corresponding yield values if both
+    // yield values are equivalent to each other.
+    auto bufferizableOp = cast<BufferizableOpInterface>(op);
+    SmallVector<OpOperand *> yieldValues =
+        bufferizableOp.getAliasingOpOperand(opResult);
+    assert(yieldValues.size() == 2 && "expected 2 yield values");
+    bool equivalentYields = aliasInfo.areEquivalentBufferizedValues(
+        yieldValues[0]->get(), yieldValues[1]->get());
+    return equivalentYields ? BufferRelation::Equivalent : BufferRelation::None;
   }
 };
 
@@ -167,12 +184,6 @@ struct ForOpInterface
     return true;
   }
 
-  SmallVector<OpOperand *> getAliasingOpOperand(Operation *op,
-                                                OpResult opResult) const {
-    auto forOp = cast<scf::ForOp>(op);
-    return {&forOp.getIterOpOperands()[opResult.getResultNumber()]};
-  }
-
   OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
     auto forOp = cast<scf::ForOp>(op);
     if (!opOperand.get().getType().isa<RankedTensorType>())
@@ -180,11 +191,20 @@ struct ForOpInterface
     return forOp.getResultForOpOperand(opOperand);
   }
 
-  BufferRelation bufferRelation(Operation *op, OpOperand &opOperand) const {
-    return BufferRelation::Equivalent;
+  BufferRelation bufferRelation(Operation *op, OpResult opResult,
+                                const BufferizationAliasInfo &aliasInfo) const {
+    // ForOp results are equivalent to their corresponding init_args if the
+    // corresponding iter_args and yield values are equivalent.
+    auto forOp = cast<scf::ForOp>(op);
+    OpOperand &forOperand = forOp.getOpOperandForResult(opResult);
+    auto bbArg = forOp.getRegionIterArgForOpOperand(forOperand);
+    auto yieldOp = cast<scf::YieldOp>(&forOp.getLoopBody().front().back());
+    bool equivalentYield = aliasInfo.areEquivalentBufferizedValues(
+        bbArg, yieldOp->getOperand(opResult.getResultNumber()));
+    return equivalentYield ? BufferRelation::Equivalent : BufferRelation::None;
   }
 
-  bool isWritable(Operation *op, Value value) const {
+  bool isWritable(Operation *op, Value value, BufferizationState &state) const {
     // Interestingly, scf::ForOp's bbArg can **always** be viewed
     // inplace from the perspective of ops nested under:
     //   1. Either the matching iter operand is not bufferized inplace and an
@@ -210,14 +230,12 @@ struct ForOpInterface
              "unsupported unranked tensor");
 
       // TODO: More general: Matching bbArg does not bufferize to a read.
-      Value resultBuffer = getResultBuffer(b, opResult, state);
+      Value resultBuffer = state.getResultBuffer(opResult);
       if (!resultBuffer)
         return failure();
 
       OpOperand &opOperand = forOp.getOpOperandForResult(opResult);
       BlockArgument bbArg = forOp.getRegionIterArgForOpOperand(opOperand);
-      state.aliasInfo.createAliasInfoEntry(resultBuffer);
-      state.aliasInfo.insertNewBufferEquivalence(bbArg, resultBuffer);
       state.mapBuffer(bbArg, resultBuffer);
       state.mapBuffer(opResult, resultBuffer);
     }
@@ -236,17 +254,6 @@ struct ForOpInterface
       OpOperand &forOperand = forOp.getOpOperandForResult(
           forOp->getResult(operand.getOperandNumber()));
       auto bbArg = forOp.getRegionIterArgForOpOperand(forOperand);
-      Value yieldedBuffer = state.lookupBuffer(operand.get());
-      Value bbArgBuffer = state.lookupBuffer(bbArg);
-      if (!state.aliasInfo.areEquivalentBufferizedValues(yieldedBuffer,
-                                                         bbArgBuffer)) {
-        // TODO: this could get resolved with copies but it can also turn into
-        // swaps so we need to be careful about order of copies.
-        return yieldOp->emitError()
-               << "Yield operand #" << operand.getOperandNumber()
-               << " does not bufferize to an equivalent buffer to the matching"
-               << " enclosing scf::for operand";
-      }
 
       // Buffers are equivalent so the work is already done and we just yield
       // the bbArg so that it later canonicalizes away.
@@ -255,6 +262,41 @@ struct ForOpInterface
     return success();
   }
 };
+
+LogicalResult mlir::linalg::comprehensive_bufferize::scf_ext::
+    AssertDestinationPassingStyle::run(FuncOp funcOp, BufferizationState &state,
+                                       SmallVector<Operation *> &newOps) {
+  LogicalResult status = success();
+  funcOp->walk([&](scf::YieldOp yieldOp) {
+    auto forOp = dyn_cast<scf::ForOp>(yieldOp->getParentOp());
+    if (!forOp)
+      return WalkResult::advance();
+
+    for (OpOperand &operand : yieldOp->getOpOperands()) {
+      auto tensorType = operand.get().getType().dyn_cast<TensorType>();
+      if (!tensorType)
+        continue;
+
+      OpOperand &forOperand = forOp.getOpOperandForResult(
+          forOp->getResult(operand.getOperandNumber()));
+      auto bbArg = forOp.getRegionIterArgForOpOperand(forOperand);
+      if (!state.aliasInfo.areEquivalentBufferizedValues(operand.get(),
+                                                         bbArg)) {
+        // TODO: this could get resolved with copies but it can also turn into
+        // swaps so we need to be careful about order of copies.
+        status =
+            yieldOp->emitError()
+            << "Yield operand #" << operand.getOperandNumber()
+            << " does not bufferize to an equivalent buffer to the matching"
+            << " enclosing scf::for operand";
+        return WalkResult::interrupt();
+      }
+    }
+
+    return WalkResult::advance();
+  });
+  return status;
+}
 
 struct YieldOpInterface
     : public BufferizableOpInterface::ExternalModel<YieldOpInterface,
@@ -269,10 +311,6 @@ struct YieldOpInterface
 
   OpResult getAliasingOpResult(Operation *op, OpOperand &opOperand) const {
     return OpResult();
-  }
-
-  BufferRelation bufferRelation(Operation *op, OpOperand &opOperand) const {
-    return BufferRelation::Equivalent;
   }
 
   LogicalResult bufferize(Operation *op, OpBuilder &b,

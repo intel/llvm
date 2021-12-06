@@ -3702,12 +3702,20 @@ static LogicalResult verify(BitCastOp op) {
   }
 
   DataLayout dataLayout = DataLayout::closest(op);
-  if (dataLayout.getTypeSizeInBits(sourceVectorType.getElementType()) *
-          sourceVectorType.getShape().back() !=
-      dataLayout.getTypeSizeInBits(resultVectorType.getElementType()) *
-          resultVectorType.getShape().back())
+  auto sourceElementBits =
+      dataLayout.getTypeSizeInBits(sourceVectorType.getElementType());
+  auto resultElementBits =
+      dataLayout.getTypeSizeInBits(resultVectorType.getElementType());
+
+  if (sourceVectorType.getRank() == 0) {
+    if (sourceElementBits != resultElementBits)
+      return op.emitOpError("source/result bitwidth of the 0-D vector element "
+                            "types must be equal");
+  } else if (sourceElementBits * sourceVectorType.getShape().back() !=
+             resultElementBits * resultVectorType.getShape().back()) {
     return op.emitOpError(
         "source/result bitwidth of the minor 1-D vectors must be equal");
+  }
 
   return success();
 }
@@ -3916,8 +3924,19 @@ void vector::TransposeOp::getTransp(SmallVectorImpl<int64_t> &results) {
 //===----------------------------------------------------------------------===//
 
 static LogicalResult verify(ConstantMaskOp &op) {
-  // Verify that array attr size matches the rank of the vector result.
   auto resultType = op.getResult().getType().cast<VectorType>();
+  // Check the corner case of 0-D vectors first.
+  if (resultType.getRank() == 0) {
+    if (op.mask_dim_sizes().size() != 1)
+      return op->emitError("array attr must have length 1 for 0-D vectors");
+    auto dim = op.mask_dim_sizes()[0].cast<IntegerAttr>().getInt();
+    if (dim != 0 && dim != 1)
+      return op->emitError(
+          "mask dim size must be either 0 or 1 for 0-D vectors");
+    return success();
+  }
+
+  // Verify that array attr size matches the rank of the vector result.
   if (static_cast<int64_t>(op.mask_dim_sizes().size()) != resultType.getRank())
     return op.emitOpError(
         "must specify array attr of size equal vector result rank");

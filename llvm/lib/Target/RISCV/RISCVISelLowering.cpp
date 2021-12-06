@@ -471,12 +471,13 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
         ISD::VP_XOR,         ISD::VP_ASHR,        ISD::VP_LSHR,
         ISD::VP_SHL,         ISD::VP_REDUCE_ADD,  ISD::VP_REDUCE_AND,
         ISD::VP_REDUCE_OR,   ISD::VP_REDUCE_XOR,  ISD::VP_REDUCE_SMAX,
-        ISD::VP_REDUCE_SMIN, ISD::VP_REDUCE_UMAX, ISD::VP_REDUCE_UMIN};
+        ISD::VP_REDUCE_SMIN, ISD::VP_REDUCE_UMAX, ISD::VP_REDUCE_UMIN,
+        ISD::VP_SELECT};
 
     static const unsigned FloatingPointVPOps[] = {
         ISD::VP_FADD,        ISD::VP_FSUB,        ISD::VP_FMUL,
         ISD::VP_FDIV,        ISD::VP_REDUCE_FADD, ISD::VP_REDUCE_SEQ_FADD,
-        ISD::VP_REDUCE_FMIN, ISD::VP_REDUCE_FMAX};
+        ISD::VP_REDUCE_FMIN, ISD::VP_REDUCE_FMAX, ISD::VP_SELECT};
 
     if (!Subtarget.is64Bit()) {
       // We must custom-lower certain vXi64 operations on RV32 due to the vector
@@ -1959,29 +1960,37 @@ static SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
     int64_t StepNumerator = SimpleVID->StepNumerator;
     unsigned StepDenominator = SimpleVID->StepDenominator;
     int64_t Addend = SimpleVID->Addend;
+
+    assert(StepNumerator != 0 && "Invalid step");
+    bool Negate = false;
+    int64_t SplatStepVal = StepNumerator;
+    unsigned StepOpcode = ISD::MUL;
+    if (StepNumerator != 1) {
+      if (isPowerOf2_64(std::abs(StepNumerator))) {
+        Negate = StepNumerator < 0;
+        StepOpcode = ISD::SHL;
+        SplatStepVal = Log2_64(std::abs(StepNumerator));
+      }
+    }
+
     // Only emit VIDs with suitably-small steps/addends. We use imm5 is a
     // threshold since it's the immediate value many RVV instructions accept.
-    if (isInt<5>(StepNumerator) && isPowerOf2_32(StepDenominator) &&
-        isInt<5>(Addend)) {
+    // There is no vmul.vi instruction so ensure multiply constant can fit in
+    // a single addi instruction.
+    if (((StepOpcode == ISD::MUL && isInt<12>(SplatStepVal)) ||
+         (StepOpcode == ISD::SHL && isUInt<5>(SplatStepVal))) &&
+        isPowerOf2_32(StepDenominator) && isInt<5>(Addend)) {
       SDValue VID = DAG.getNode(RISCVISD::VID_VL, DL, ContainerVT, Mask, VL);
       // Convert right out of the scalable type so we can use standard ISD
       // nodes for the rest of the computation. If we used scalable types with
       // these, we'd lose the fixed-length vector info and generate worse
       // vsetvli code.
       VID = convertFromScalableVector(VT, VID, DAG, Subtarget);
-      assert(StepNumerator != 0 && "Invalid step");
-      bool Negate = false;
-      if (StepNumerator != 1) {
-        int64_t SplatStepVal = StepNumerator;
-        unsigned Opcode = ISD::MUL;
-        if (isPowerOf2_64(std::abs(StepNumerator))) {
-          Negate = StepNumerator < 0;
-          Opcode = ISD::SHL;
-          SplatStepVal = Log2_64(std::abs(StepNumerator));
-        }
+      if ((StepOpcode == ISD::MUL && SplatStepVal != 1) ||
+          (StepOpcode == ISD::SHL && SplatStepVal != 0)) {
         SDValue SplatStep = DAG.getSplatVector(
             VT, DL, DAG.getConstant(SplatStepVal, DL, XLenVT));
-        VID = DAG.getNode(Opcode, DL, VT, VID, SplatStep);
+        VID = DAG.getNode(StepOpcode, DL, VT, VID, SplatStep);
       }
       if (StepDenominator != 1) {
         SDValue SplatStep = DAG.getSplatVector(
@@ -3133,6 +3142,8 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
     return lowerGET_ROUNDING(Op, DAG);
   case ISD::SET_ROUNDING:
     return lowerSET_ROUNDING(Op, DAG);
+  case ISD::VP_SELECT:
+    return lowerVPOp(Op, DAG, RISCVISD::VSELECT_VL);
   case ISD::VP_ADD:
     return lowerVPOp(Op, DAG, RISCVISD::ADD_VL);
   case ISD::VP_SUB:

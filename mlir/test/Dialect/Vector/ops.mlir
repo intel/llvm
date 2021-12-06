@@ -149,16 +149,20 @@ func @vector_transfer_ops_tensor(%arg0: tensor<?x?xf32>,
 }
 
 // CHECK-LABEL: @vector_broadcast
-func @vector_broadcast(%a: f32, %b: vector<16xf32>, %c: vector<1x16xf32>, %d: vector<8x1xf32>) -> vector<8x16xf32> {
+func @vector_broadcast(%a: f32, %b: vector<f32>, %c: vector<16xf32>, %d: vector<1x16xf32>, %e: vector<8x1xf32>) -> vector<8x16xf32> {
+  // CHECK: vector.broadcast %{{.*}} : f32 to vector<f32>
+  %0 = vector.broadcast %a : f32 to vector<f32>
+  // CHECK: vector.broadcast %{{.*}} : vector<f32> to vector<4xf32>
+  %1 = vector.broadcast %b : vector<f32> to vector<4xf32>
   // CHECK: vector.broadcast %{{.*}} : f32 to vector<16xf32>
-  %0 = vector.broadcast %a : f32 to vector<16xf32>
+  %2 = vector.broadcast %a : f32 to vector<16xf32>
   // CHECK-NEXT: vector.broadcast %{{.*}} : vector<16xf32> to vector<8x16xf32>
-  %1 = vector.broadcast %b : vector<16xf32> to vector<8x16xf32>
+  %3 = vector.broadcast %c : vector<16xf32> to vector<8x16xf32>
   // CHECK-NEXT: vector.broadcast %{{.*}} : vector<1x16xf32> to vector<8x16xf32>
-  %2 = vector.broadcast %c : vector<1x16xf32> to vector<8x16xf32>
+  %4 = vector.broadcast %d : vector<1x16xf32> to vector<8x16xf32>
   // CHECK-NEXT: vector.broadcast %{{.*}} : vector<8x1xf32> to vector<8x16xf32>
-  %3 = vector.broadcast %d : vector<8x1xf32> to vector<8x16xf32>
-  return %3 : vector<8x16xf32>
+  %5 = vector.broadcast %e : vector<8x1xf32> to vector<8x16xf32>
+  return %4 : vector<8x16xf32>
 }
 
 // CHECK-LABEL: @shuffle1D
@@ -372,6 +376,15 @@ func @create_vector_mask() {
   return
 }
 
+// CHECK-LABEL: @constant_vector_mask_0d
+func @constant_vector_mask_0d() {
+  // CHECK: vector.constant_mask [0] : vector<i1>
+  %0 = vector.constant_mask [0] : vector<i1>
+  // CHECK: vector.constant_mask [1] : vector<i1>
+  %1 = vector.constant_mask [1] : vector<i1>
+  return
+}
+
 // CHECK-LABEL: @constant_vector_mask
 func @constant_vector_mask() {
   // CHECK: vector.constant_mask [3, 2] : vector<4x3xi1>
@@ -428,8 +441,9 @@ func @shape_cast(%arg0 : vector<5x1x3x2xf32>,
 func @bitcast(%arg0 : vector<5x1x3x2xf32>,
                  %arg1 : vector<8x1xi32>,
                  %arg2 : vector<16x1x8xi8>,
-                 %arg3 : vector<8x2x1xindex>)
-  -> (vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>, vector<16x1x1xindex>, vector<8x2x2xf32>) {
+                 %arg3 : vector<8x2x1xindex>,
+                 %arg4 : vector<f32>)
+  -> (vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>, vector<16x1x1xindex>, vector<8x2x2xf32>, vector<i32>) {
 
   // CHECK: vector.bitcast %{{.*}} : vector<5x1x3x2xf32> to vector<5x1x3x4xf16>
   %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to vector<5x1x3x4xf16>
@@ -455,7 +469,10 @@ func @bitcast(%arg0 : vector<5x1x3x2xf32>,
   // CHECK-NEXT: vector.bitcast %{{.*}} : vector<8x2x1xindex> to vector<8x2x2xf32>
   %7 = vector.bitcast %arg3 : vector<8x2x1xindex> to vector<8x2x2xf32>
 
-  return %0, %1, %2, %3, %4, %5, %6, %7 : vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>, vector<16x1x1xindex>, vector<8x2x2xf32>
+  // CHECK: vector.bitcast %{{.*}} : vector<f32> to vector<i32>
+  %8 = vector.bitcast %arg4 : vector<f32> to vector<i32>
+
+  return %0, %1, %2, %3, %4, %5, %6, %7, %8 : vector<5x1x3x4xf16>, vector<5x1x3x8xi8>, vector<8x4xi8>, vector<8x1xf32>, vector<16x1x2xi32>, vector<16x1x4xi16>, vector<16x1x1xindex>, vector<8x2x2xf32>, vector<i32>
 }
 
 // CHECK-LABEL: @vector_fma

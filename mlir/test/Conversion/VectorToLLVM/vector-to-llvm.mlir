@@ -1,6 +1,20 @@
 // RUN: mlir-opt %s -convert-vector-to-llvm -split-input-file | FileCheck %s
 
 
+func @bitcast_f32_to_i32_vector_0d(%input: vector<f32>) -> vector<i32> {
+  %0 = vector.bitcast %input : vector<f32> to vector<i32>
+  return %0 : vector<i32>
+}
+
+// CHECK-LABEL: @bitcast_f32_to_i32_vector_0d
+// CHECK-SAME:  %[[input:.*]]: vector<f32>
+// CHECK:       %[[vec_f32_1d:.*]] = builtin.unrealized_conversion_cast %[[input]] : vector<f32> to vector<1xf32>
+// CHECK:       %[[vec_i32_1d:.*]] = llvm.bitcast %[[vec_f32_1d]] : vector<1xf32> to vector<1xi32>
+// CHECK:       %[[vec_i32_0d:.*]] = builtin.unrealized_conversion_cast %[[vec_i32_1d]] : vector<1xi32> to vector<i32>
+// CHECK:       return %[[vec_i32_0d]] : vector<i32>
+
+// -----
+
 func @bitcast_f32_to_i32_vector(%input: vector<16xf32>) -> vector<16xi32> {
   %0 = vector.bitcast %input : vector<16xf32> to vector<16xi32>
   return %0 : vector<16xi32>
@@ -1379,6 +1393,26 @@ func @transfer_read_1d_mask(%A : memref<?xf32>, %base : index) -> vector<5xf32> 
   %f = vector.transfer_read %A[%base], %f7, %m : memref<?xf32>, vector<5xf32>
   return %f: vector<5xf32>
 }
+
+// -----
+
+func @genbool_0d_f() -> vector<i1> {
+  %0 = vector.constant_mask [0] : vector<i1>
+  return %0 : vector<i1>
+}
+// CHECK-LABEL: func @genbool_0d_f
+// CHECK: %[[VAL_0:.*]] = arith.constant dense<false> : vector<i1>
+// CHECK: return %[[VAL_0]] : vector<i1>
+
+// -----
+
+func @genbool_0d_t() -> vector<i1> {
+  %0 = vector.constant_mask [1] : vector<i1>
+  return %0 : vector<i1>
+}
+// CHECK-LABEL: func @genbool_0d_t
+// CHECK: %[[VAL_0:.*]] = arith.constant dense<true> : vector<i1>
+// CHECK: return %[[VAL_0]] : vector<i1>
 
 // -----
 

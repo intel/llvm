@@ -16,6 +16,13 @@ func @broadcast_rank_too_high(%arg0: vector<4x4xf32>) {
 
 // -----
 
+func @broadcast_rank_too_high_0d(%arg0: vector<1xf32>) {
+  // expected-error@+1 {{'vector.broadcast' op source rank higher than destination rank}}
+  %1 = vector.broadcast %arg0 : vector<1xf32> to vector<f32>
+}
+
+// -----
+
 func @broadcast_dim1_mismatch(%arg0: vector<7xf32>) {
   // expected-error@+1 {{'vector.broadcast' op dimension mismatch (7 vs. 3)}}
   %1 = vector.broadcast %arg0 : vector<7xf32> to vector<3xf32>
@@ -79,7 +86,7 @@ func @extract_element(%arg0: vector<f32>) {
 }
 
 // -----
- 
+
 func @extract_element(%arg0: vector<4xf32>) {
   %c = arith.constant 3 : i32
   // expected-error@+1 {{expected position for 1-D vector}}
@@ -877,6 +884,20 @@ func @create_mask() {
 
 // -----
 
+func @constant_mask_0d_no_attr() {
+  // expected-error@+1 {{array attr must have length 1 for 0-D vectors}}
+  %0 = vector.constant_mask [] : vector<i1>
+}
+
+// -----
+
+func @constant_mask_0d_bad_attr() {
+  // expected-error@+1 {{mask dim size must be either 0 or 1 for 0-D vectors}}
+  %0 = vector.constant_mask [2] : vector<i1>
+}
+
+// -----
+
 func @constant_mask() {
   // expected-error@+1 {{must specify array attr of size equal vector result rank}}
   %0 = vector.constant_mask [3, 2, 7] : vector<4x3xi1>
@@ -1003,6 +1024,20 @@ func @shape_cast_invalid_rank_expansion(%arg0 : vector<15x2xf32>) {
 func @bitcast_not_vector(%arg0 : vector<5x1x3x2xf32>) {
   // expected-error@+1 {{must be vector of any type values}}
   %0 = vector.bitcast %arg0 : vector<5x1x3x2xf32> to f32
+}
+
+// -----
+
+func @bitcast_rank_mismatch_to_0d(%arg0 : vector<1xf32>) {
+  // expected-error@+1 {{op failed to verify that all of {source, result} have same rank}}
+  %0 = vector.bitcast %arg0 : vector<1xf32> to vector<f32>
+}
+
+// -----
+
+func @bitcast_rank_mismatch_from_0d(%arg0 : vector<f32>) {
+  // expected-error@+1 {{op failed to verify that all of {source, result} have same rank}}
+  %0 = vector.bitcast %arg0 : vector<f32> to vector<1xf32>
 }
 
 // -----

@@ -55,6 +55,29 @@ func @broadcast_0d(%a: f32) {
   return
 }
 
+func @bitcast_0d() {
+  %0 = arith.constant 42 : i32
+  %1 = arith.constant dense<0> : vector<i32>
+  %2 = vector.insertelement %0, %1[] : vector<i32>
+  %3 = vector.bitcast %2 : vector<i32> to vector<f32>
+  %4 = vector.extractelement %3[] : vector<f32>
+  %5 = arith.bitcast %4 : f32 to i32
+  // CHECK: 42
+  vector.print %5: i32
+  return
+}
+
+
+func @constant_mask_0d() {
+  %1 = vector.constant_mask [0] : vector<i1>
+  // CHECK: ( 0 )
+  vector.print %1: vector<i1>
+  %2 = vector.constant_mask [1] : vector<i1>
+  // CHECK: ( 1 )
+  vector.print %2: vector<i1>
+  return
+}
+
 func @entry() {
   %0 = arith.constant 42.0 : f32
   %1 = arith.constant dense<0.0> : vector<f32>
@@ -65,8 +88,13 @@ func @entry() {
   call  @print_vector_0d(%3) : (vector<f32>) -> ()
 
   %4 = arith.constant 42.0 : f32
+
+  // Warning: these must be called in their textual order of definition in the
+  // file to not mess up FileCheck.
   call  @splat_0d(%4) : (f32) -> ()
   call  @broadcast_0d(%4) : (f32) -> ()
+  call  @bitcast_0d() : () -> ()
+  call  @constant_mask_0d() : () -> ()
 
   return
 }
