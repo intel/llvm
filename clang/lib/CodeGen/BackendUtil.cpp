@@ -1038,7 +1038,7 @@ void EmitAssemblyHelper::EmitAssemblyWithLegacyPassManager(
   // Add SPIRITTAnnotations pass to the pass manager if
   // -fsycl-instrument-device-code option was passed. This option can be
   // used only with spir triple.
-  if (CodeGenOpts.SPIRITTAnnotations) {
+  if (LangOpts.SYCLIsDevice && CodeGenOpts.SPIRITTAnnotations) {
     if (!llvm::Triple(TheModule->getTargetTriple()).isSPIR())
       llvm::report_fatal_error(
           "ITT annotations can only by added to a module with spir target");
