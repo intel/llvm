@@ -13,7 +13,7 @@ jobs:
     with:
       build_runs_on: sycl-precommit-linux
       build_github_cache: true
-      build_cache_root: "/__w/llvm"
+      build_cache_root: "/__w/"
       build_artifact_suffix: default
   ubuntu2004_docker_build_push:
     if: github.repository == 'intel/llvm'
