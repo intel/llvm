@@ -35,14 +35,12 @@ public:
     static constexpr int32_t _target_anchor = std::get<0>(_constraint);
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
-    int32_t _type;
-    if constexpr (_control_type == type::none) {
-      _type = 0;
-    } else if constexpr (_control_type == type::exact) {
+    int32_t _type = 0; // Default: _control_type == type::none
+    if constexpr (_control_type == type::exact) {
       _type = 1;
     } else if constexpr (_control_type == type::max) {
       _type = 2;
-    } else { // _control_type == type::min
+    } else if constexpr (_control_type == type::min) {
       _type = 3;
     }
 
@@ -72,14 +70,12 @@ public:
     static constexpr int32_t _target_anchor = std::get<0>(_constraint);
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
-    int32_t _type;
-    if constexpr (_control_type == type::none) {
-      _type = 0;
-    } else if constexpr (_control_type == type::exact) {
+    int32_t _type = 0; // Default: _control_type == type::none
+    if constexpr (_control_type == type::exact) {
       _type = 1;
     } else if constexpr (_control_type == type::max) {
       _type = 2;
-    } else { // _control_type == type::min
+    } else if constexpr (_control_type == type::min) {
       _type = 3;
     }
 
@@ -108,14 +104,12 @@ public:
     static constexpr int32_t _target_anchor = std::get<0>(_constraint);
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
-    int32_t _type;
-    if constexpr (_control_type == type::none) {
-      _type = 0;
-    } else if constexpr (_control_type == type::exact) {
+    int32_t _type = 0; // Default: _control_type == type::none
+    if constexpr (_control_type == type::exact) {
       _type = 1;
     } else if constexpr (_control_type == type::max) {
       _type = 2;
-    } else { // _control_type == type::min
+    } else if constexpr (_control_type == type::min) {
       _type = 3;
     }
 
@@ -143,14 +137,12 @@ public:
     static constexpr int32_t _target_anchor = std::get<0>(_constraint);
     static constexpr type _control_type = std::get<1>(_constraint);
     static constexpr int32_t _cycle = std::get<2>(_constraint);
-    int32_t _type;
-    if constexpr (_control_type == type::none) {
-      _type = 0;
-    } else if constexpr (_control_type == type::exact) {
+    int32_t _type = 0; // Default: _control_type == type::none
+    if constexpr (_control_type == type::exact) {
       _type = 1;
     } else if constexpr (_control_type == type::max) {
       _type = 2;
-    } else { // _control_type == type::min
+    } else if constexpr (_control_type == type::min) {
       _type = 3;
     }
 
@@ -173,6 +165,7 @@ private:
                                                            m_Capacity};
 
   // FPGA BE will recognize this function and extract its arguments.
+  // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
   template <typename _T>
   static int32_t
   __latency_control_nb_read_wrapper(__ocl_RPipeTy<_T> Pipe, _T *Data,
@@ -182,6 +175,7 @@ private:
   }
 
   // FPGA BE will recognize this function and extract its arguments.
+  // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
   template <typename _T>
   static int32_t
   __latency_control_nb_write_wrapper(__ocl_WPipeTy<_T> Pipe, const _T *Data,
@@ -191,6 +185,7 @@ private:
   }
 
   // FPGA BE will recognize this function and extract its arguments.
+  // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
   template <typename _T>
   static void __latency_control_bl_read_wrapper(__ocl_RPipeTy<_T> Pipe,
                                                 _T *Data, int32_t AnchorID,
@@ -200,6 +195,7 @@ private:
   }
 
   // FPGA BE will recognize this function and extract its arguments.
+  // TODO: Pass latency control parameters via the __spirv_* builtin when ready.
   template <typename _T>
   static void
   __latency_control_bl_write_wrapper(__ocl_WPipeTy<_T> Pipe, const _T *Data,
