@@ -127,7 +127,8 @@ jobs:
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults $ARGS --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
-          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE"
+          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
     - name: Compile
       run: cmake --build $GITHUB_WORKSPACE/build
     # TODO allow to optionally disable in-tree checks
@@ -186,14 +187,14 @@ jobs:
       if: always()
       run: rm -rf $GITHUB_WORKSPACE/*
 
-  llvm_test_suite_x64_cpu:
-    name: LLVM Test Suite on x64 CPU
+  llvm_test_suite_l0_gpu:
+    name: L0 GPU Test Suite
     needs: [build, configure]
     if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
     runs-on: ubuntu-latest
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).lts_intel_image }}
-      options: -u 1001
+      options: -u 1001 --device=/dev/dri
     steps:
     - uses: actions/checkout@v2
       with:
@@ -207,4 +208,4 @@ jobs:
         sycl_archive: llvm_sycl.tar.xz
         lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:cpu,host'
+        check_sycl_all: 'level_zero:gpu'
