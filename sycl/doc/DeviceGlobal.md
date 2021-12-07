@@ -145,7 +145,7 @@ class
     Props::meta_value...
     )]]
   [[__sycl_detail__::global_variable_allowed]]
-  [[__sycl_detail__::restrictions(device_global)]]
+  [[__sycl_detail__::device_global]]
 #endif
   device_global<T, property_list<Props...>> {/*...*/};
 ```
@@ -187,20 +187,12 @@ could then remove the support for `sycl_global_var`.
 [3]: <https://github.com/intel/llvm/pull/3767>
 [4]: <https://github.com/intel/llvm/pull/3746>
 
-The last attribute `[[__sycl_detail__::restrictions(device_global)]]` controls
-error reporting for variables declared of this type.  The device global
-extension specification places restrictions on where a `device_global` variable
-can be declared.  Rather than have the front-end recognize the name of the
+The last attribute `[[__sycl_detail__::device_global]]` controls error
+reporting for variables declared of this type.  The device global extension
+specification places restrictions on where a `device_global` variable can be
+declared.  Rather than have the front-end recognize the name of the
 `device_global` type, the front-end uses this attribute to know which
 restrictions to enforce for this type.
-
-**NOTE**: The front-end does currently recognize the `specialization_id` class
-by its name, and it has hard-coded knowledge that variables declared with this
-type have certain restrictions.  If we wanted to avoid having the front-end
-recognize the `specialization_id` class by its name, we could decorate that
-class with `[[__sycl_detail__::restrictions(spec_id)]]`.  Note that we would
-need a different parameter name because the restrictions for
-`specialization_id` are different from those for `device_global`.
 
 #### Declaration of member functions to copy device global variables
 
@@ -221,7 +213,7 @@ There are several changes to the device compiler front-end:
 
 * The front-end checks for restrictions on variable declarations using the
   `device_global` type.  As described above, the front-end uses the
-  `[[__sycl_detail__::restrictions()]]` attribute (rather than the class name)
+  `[[__sycl_detail__::device_global]]` attribute (rather than the class name)
   to know which set of restrictions to check.  The restrictions specific to
   device global variables are documented in the [extension specification][1].
 
