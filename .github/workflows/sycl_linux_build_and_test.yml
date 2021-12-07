@@ -47,7 +47,7 @@ on:
       lts_intel_image:
         type: string
         required: false
-        default: "ghcr.io/testorg-abatashev/llvm/ubuntu2004_intel_drivers:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest"
       lts_intel_enabled:
         type: boolean
         required: false
@@ -81,7 +81,7 @@ jobs:
               \"build_configure_extra_args\":\"\",
               \"build_artifact_suffix\":\"default\",
               \"build_upload_artifact\":\"false\",
-              \"lts_intel_image\":\"ghcr.io/testorg-abatashev/llvm/ubuntu2004_intel_drivers:latest\",
+              \"lts_intel_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
               \"lts_intel_enabled\":\"true\",
               \"lts_intel_runs_on\":\"sycl-precommit-linux\"
             }"
