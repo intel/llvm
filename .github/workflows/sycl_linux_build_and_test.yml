@@ -44,6 +44,18 @@ on:
       build_artifact_suffix:
         type: string
         required: true
+      lts_intel_image:
+        type: string
+        required: false
+        default: "ghcr.io/testorg-abatashev/llvm/ubuntu2004_intel_drivers:latest"
+      lts_intel_enabled:
+        type: boolean
+        required: false
+        default: true
+      lts_intel_runs_on:
+        type: string
+        required: false
+        default: "ubuntu-latest"
 
 jobs:
   configure:
@@ -68,7 +80,10 @@ jobs:
               \"build_cache_size\":\"2G\",
               \"build_configure_extra_args\":\"\",
               \"build_artifact_suffix\":\"default\",
-              \"build_upload_artifact\":\"false\"
+              \"build_upload_artifact\":\"false\",
+              \"lts_intel_image\":\"ghcr.io/testorg-abatashev/llvm/ubuntu2004_intel_drivers:latest\",
+              \"lts_intel_enabled\":\"true\",
+              \"lts_intel_runs_on\":\"sycl-precommit-linux\"
             }"
           fi
           INPUTS="${INPUTS//'%'/'%25'}"
@@ -89,7 +104,7 @@ jobs:
         path: src
     - name: Setup Cache
       uses: actions/cache@v2
-      if: ${{ steps.parameters.build_github_cache }}
+      if: ${{ fromJSON(needs.configure.outputs.params).build_github_cache }}
       id: cache
       with:
         path: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}/build_cache_${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
@@ -153,14 +168,43 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
 
-    - name: Pack
+    - name: Pack toolchain
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
-    - name: Upload artifacts
+    - name: Pack LIT
+      run: tar -cJf lit.tar.xz -C $GITHUB_WORKSPACE/src/llvm/utils/lit .
+    - name: Upload toolchain
       uses: actions/upload-artifact@v1
       with:
         name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         path: llvm_sycl.tar.xz
+    - name: Upload LIT
+      uses: actions/upload-artifact@v1
+      with:
+        name: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        path: lit.tar.xz
     - name: Cleanup
       if: always()
       run: rm -rf $GITHUB_WORKSPACE/*
 
+  llvm_test_suite_x64_cpu:
+    name: LLVM Test Suite on x64 CPU
+    needs: [build, configure]
+    if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ fromJSON(needs.configure.outputs.params).lts_intel_image }}
+      options: -u 1001
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: llvm
+    - uses: ./llvm/devops/actions/llvm_test_suite
+      name: Run LLVM Test Suite
+      with:
+        # TODO allow custom test references
+        test_ref: 'intel'
+        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        sycl_archive: llvm_sycl.tar.xz
+        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        lit_archive: lit.tar.xz
+        check_sycl_all: 'opencl:cpu,host'
