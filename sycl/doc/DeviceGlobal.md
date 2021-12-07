@@ -604,13 +604,12 @@ This must be changed to say something along these lines:
 [8]: <https://spec.oneapi.io/level-zero/latest/core/api.html#zecommandlistappendmemorycopy>
 
 The OpenCL backend has a proposed extension
-[`cl_intel_global_variable_pointers`][9] that can implement these PI
-interfaces.  The plugin first calls `clGetDeviceGlobalVariablePointerINTEL()`
-to get a device pointer for the variable and then calls
-`clEnqueueMemcpyINTEL()` to copy to or from that pointer.  This DPC++ design
+[`cl_intel_global_variable_access`][9] that defines functions
+`clEnqueueReadGlobalVariableINTEL()` and `clEnqueueWriteGlobalVariableINTEL()`
+which can be easily used to implement these PI interfaces.  This DPC++ design
 depends upon implementation of that OpenCL extension.
 
-[9]: <extensions/DeviceGlobal/cl_intel_global_variable_pointers.asciidoc>
+[9]: <extensions/DeviceGlobal/cl_intel_global_variable_access.asciidoc>
 
 The CUDA backend has existing APIs `cudaMemcpyToSymbol()` and
 `cudaMemcpyFromSymbol()` which can be used to implement these PI interfaces.
