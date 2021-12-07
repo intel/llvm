@@ -259,10 +259,9 @@ void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
 
   (void)minGrid; // Not used, avoid warnings
 
-  threadsPerBlock[0] =
-      std::min((maxThreadsPerBlock[0]),
-               std::min((global_work_size[0]),
-                        static_cast<size_t>(recommendedBlockSize)));
+  threadsPerBlock[0] = std::min(
+      maxThreadsPerBlock[0],
+      std::min(global_work_size[0], static_cast<size_t>(recommendedBlockSize)));
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
