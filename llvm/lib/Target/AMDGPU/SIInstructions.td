@@ -827,10 +827,6 @@ def : Pat <
 
 let OtherPredicates = [UnsafeFPMath] in {
 
-//defm : RsqPat<V_RSQ_F32_e32, f32>;
-
-def : RsqPat<V_RSQ_F32_e32, f32>;
-
 // Convert (x - floor(x)) to fract(x)
 def : GCNPat <
   (f32 (fsub (f32 (VOP3Mods f32:$x, i32:$mods)),
@@ -2867,6 +2863,18 @@ def G_AMDGPU_SMED3 : AMDGPUGenericInstruction {
 def G_AMDGPU_UMED3 : AMDGPUGenericInstruction {
   let OutOperandList = (outs type0:$dst);
   let InOperandList = (ins type0:$src0, type0:$src1, type0:$src2);
+  let hasSideEffects = 0;
+}
+
+def G_AMDGPU_FMED3 : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src0, type0:$src1, type0:$src2);
+  let hasSideEffects = 0;
+}
+
+def G_AMDGPU_CLAMP : AMDGPUGenericInstruction {
+  let OutOperandList = (outs type0:$dst);
+  let InOperandList = (ins type0:$src);
   let hasSideEffects = 0;
 }
 

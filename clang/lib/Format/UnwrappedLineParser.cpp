@@ -578,17 +578,14 @@ void UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody) {
           // BlockKind later if we parse a braced list (where all blocks
           // inside are by default braced lists), or when we explicitly detect
           // blocks (for example while parsing lambdas).
-          // FIXME: Some of these do not apply to JS, e.g. "} {" can never be a
-          // braced list in JS.
           ProbablyBracedList =
               (Style.Language == FormatStyle::LK_JavaScript &&
                NextTok->isOneOf(Keywords.kw_of, Keywords.kw_in,
                                 Keywords.kw_as)) ||
               (Style.isCpp() && NextTok->is(tok::l_paren)) ||
               NextTok->isOneOf(tok::comma, tok::period, tok::colon,
-                               tok::r_paren, tok::r_square, tok::l_brace,
-                               tok::ellipsis) ||
-              (NextTok->is(tok::identifier) &&
+                               tok::r_paren, tok::r_square, tok::ellipsis) ||
+              (NextTok->isOneOf(tok::l_brace, tok::identifier) &&
                !PrevTok->isOneOf(tok::semi, tok::r_brace, tok::l_brace)) ||
               (NextTok->is(tok::semi) &&
                (!ExpectClassBody || LBraceStack.size() != 1)) ||
@@ -2399,6 +2396,8 @@ void UnwrappedLineParser::parseForOrWhileLoop() {
   if (Style.Language == FormatStyle::LK_JavaScript &&
       FormatTok->is(Keywords.kw_await))
     nextToken();
+  if (Style.isCpp() && FormatTok->is(tok::kw_co_await))
+    nextToken();
   if (FormatTok->Tok.is(tok::l_paren))
     parseParens();
   if (FormatTok->Tok.is(tok::l_brace)) {
@@ -2854,7 +2853,7 @@ void UnwrappedLineParser::parseRecord(bool ParseAsExpr) {
       //     class Foo implements {bar: number} { }
       nextToken();
       if (FormatTok->is(tok::l_brace)) {
-        tryToParseBracedList();
+        parseBracedList();
         continue;
       }
     }
@@ -3388,6 +3387,20 @@ void UnwrappedLineParser::readToken(int LevelDifference) {
   do {
     FormatTok = Tokens->getNextToken();
     assert(FormatTok);
+    while (FormatTok->getType() == TT_ConflictStart ||
+           FormatTok->getType() == TT_ConflictEnd ||
+           FormatTok->getType() == TT_ConflictAlternative) {
+      if (FormatTok->getType() == TT_ConflictStart) {
+        conditionalCompilationStart(/*Unreachable=*/false);
+      } else if (FormatTok->getType() == TT_ConflictAlternative) {
+        conditionalCompilationAlternative();
+      } else if (FormatTok->getType() == TT_ConflictEnd) {
+        conditionalCompilationEnd();
+      }
+      FormatTok = Tokens->getNextToken();
+      FormatTok->MustBreakBefore = true;
+    }
+
     while (!Line->InPPDirective && FormatTok->Tok.is(tok::hash) &&
            (FormatTok->HasUnescapedNewline || FormatTok->IsFirst)) {
       distributeComments(Comments, FormatTok);
@@ -3408,19 +3421,6 @@ void UnwrappedLineParser::readToken(int LevelDifference) {
         Line->Level += PPBranchLevel;
       flushComments(isOnNewLine(*FormatTok));
       parsePPDirective();
-    }
-    while (FormatTok->getType() == TT_ConflictStart ||
-           FormatTok->getType() == TT_ConflictEnd ||
-           FormatTok->getType() == TT_ConflictAlternative) {
-      if (FormatTok->getType() == TT_ConflictStart) {
-        conditionalCompilationStart(/*Unreachable=*/false);
-      } else if (FormatTok->getType() == TT_ConflictAlternative) {
-        conditionalCompilationAlternative();
-      } else if (FormatTok->getType() == TT_ConflictEnd) {
-        conditionalCompilationEnd();
-      }
-      FormatTok = Tokens->getNextToken();
-      FormatTok->MustBreakBefore = true;
     }
 
     if (!PPStack.empty() && (PPStack.back().Kind == PP_Unreachable) &&

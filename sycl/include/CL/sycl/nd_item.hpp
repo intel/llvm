@@ -163,22 +163,20 @@ public:
     Group.wait_for(events...);
   }
 
-  nd_item<dimensions>(const nd_item<dimensions> &rhs) = default;
+  nd_item(const nd_item &rhs) = default;
 
-  nd_item<dimensions>(nd_item<dimensions> &&rhs) = default;
+  nd_item(nd_item &&rhs) = default;
 
-  nd_item<dimensions> &operator=(const nd_item<dimensions> &rhs) = default;
+  nd_item &operator=(const nd_item &rhs) = default;
 
-  nd_item<dimensions> &operator=(nd_item<dimensions> &&rhs) = default;
+  nd_item &operator=(nd_item &&rhs) = default;
 
-  bool operator==(const nd_item<dimensions> &rhs) const {
+  bool operator==(const nd_item &rhs) const {
     return (rhs.localItem == this->localItem) &&
            (rhs.globalItem == this->globalItem) && (rhs.Group == this->Group);
   }
 
-  bool operator!=(const nd_item<dimensions> &rhs) const {
-    return !((*this) == rhs);
-  }
+  bool operator!=(const nd_item &rhs) const { return !((*this) == rhs); }
 
 protected:
   friend class detail::Builder;

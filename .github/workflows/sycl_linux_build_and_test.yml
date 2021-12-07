@@ -56,7 +56,7 @@ jobs:
         env:
           INPUTS: ${{ toJSON(inputs) }}
         run: |
-          if [[ "$GITHUB_EVENT_NAME" != "workflow_call" ]]; then
+          if [[ "$GITHUB_WORKFLOW" == "Reusable SYCL Linux build and test workflow" ]]; then
             INPUTS="{
               \"cc\":\"gcc\",
               \"cxx\":\"g++\",
