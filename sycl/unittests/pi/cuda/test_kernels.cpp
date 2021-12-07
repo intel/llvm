@@ -236,7 +236,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSimple) {
 
   int number = 10;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
-                kern, 0, sizeof(int), &number)),
+                kern, 0, sizeof(int), &number, 0)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
   ASSERT_EQ(kernArgs.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
@@ -266,7 +266,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
 
   int number = 10;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
-                kern, 0, sizeof(int), &number)),
+                kern, 0, sizeof(int), &number, 0)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
   ASSERT_GT(kernArgs.size(), (size_t)0 + NUM_IMPLICIT_ARGS);
@@ -275,7 +275,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwice) {
 
   int otherNumber = 934;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
-                kern, 0, sizeof(int), &otherNumber)),
+                kern, 0, sizeof(int), &otherNumber, 0)),
             PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
   ASSERT_EQ(kernArgs2.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
@@ -311,7 +311,7 @@ TEST_F(CudaKernelsTest, PIKernelSetMemObj) {
             PI_SUCCESS);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
-                kern, 0, sizeof(pi_mem), &memObj)),
+                kern, 0, sizeof(pi_mem), &memObj, 0)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
   ASSERT_EQ(kernArgs.size(), (size_t)1 + NUM_IMPLICIT_ARGS);
@@ -441,7 +441,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
 
   int number = 10;
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
-                kern, 0, sizeof(int), &number)),
+                kern, 0, sizeof(int), &number, 0)),
             PI_SUCCESS);
   const auto &kernArgs = kern->get_arg_indices();
   ASSERT_GT(kernArgs.size(), (size_t)0 + NUM_IMPLICIT_ARGS);
@@ -449,7 +449,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
   ASSERT_EQ(storedValue, number);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
-                kern, 1, sizeof(int), nullptr)),
+                kern, 1, sizeof(int), nullptr, 0)),
             PI_SUCCESS);
   const auto &kernArgs2 = kern->get_arg_indices();
   ASSERT_EQ(kernArgs2.size(), (size_t)2 + NUM_IMPLICIT_ARGS);
@@ -457,7 +457,7 @@ TEST_F(CudaKernelsTest, PIKernelArgumentSetTwiceOneLocal) {
   ASSERT_EQ(storedValue, 0);
 
   ASSERT_EQ((plugin->call_nocheck<detail::PiApiKind::piKernelSetArg>(
-                kern, 2, sizeof(int), nullptr)),
+                kern, 2, sizeof(int), nullptr, 0)),
             PI_SUCCESS);
   const auto &kernArgs3 = kern->get_arg_indices();
   ASSERT_EQ(kernArgs3.size(), (size_t)3 + NUM_IMPLICIT_ARGS);

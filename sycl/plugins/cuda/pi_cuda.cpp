@@ -2453,7 +2453,8 @@ pi_result cuda_piKernelCreate(pi_program program, const char *kernel_name,
 }
 
 pi_result cuda_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                              size_t arg_size, const void *arg_value) {
+                              size_t arg_size, const void *arg_value,
+                              size_t arg_align) {
 
   assert(kernel != nullptr);
   pi_result retErr = PI_SUCCESS;
@@ -2461,7 +2462,7 @@ pi_result cuda_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
     if (arg_value) {
       kernel->set_kernel_arg(arg_index, arg_size, arg_value);
     } else {
-      kernel->set_kernel_local_arg(arg_index, arg_size);
+      kernel->set_kernel_local_arg(arg_index, arg_size, arg_align);
     }
   } catch (pi_result err) {
     retErr = err;

@@ -232,7 +232,8 @@ redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
 static pi_result redefinedMemRelease(pi_mem mem) { return PI_SUCCESS; }
 
 static pi_result redefinedKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                                       size_t arg_size, const void *arg_value) {
+                                       size_t arg_size, const void *arg_value,
+                                       size_t arg_align) {
   return PI_SUCCESS;
 }
 

@@ -4250,8 +4250,8 @@ pi_result piKernelCreate(pi_program Program, const char *KernelName,
 }
 
 pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex, size_t ArgSize,
-                         const void *ArgValue) {
-
+                         const void *ArgValue, size_t ArgAlign) {
+  (void)ArgAlign;
   // OpenCL: "the arg_value pointer can be NULL or point to a NULL value
   // in which case a NULL value will be used as the value for the argument
   // declared as a pointer to global or constant memory in the kernel"

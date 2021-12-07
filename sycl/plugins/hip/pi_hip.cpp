@@ -2408,7 +2408,9 @@ pi_result hip_piKernelCreate(pi_program program, const char *kernel_name,
 }
 
 pi_result hip_piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                             size_t arg_size, const void *arg_value) {
+                             size_t arg_size, const void *arg_value,
+                             size_t arg_align) {
+  (void)arg_align;
 
   assert(kernel != nullptr);
   pi_result retErr = PI_SUCCESS;

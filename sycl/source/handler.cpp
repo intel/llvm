@@ -447,7 +447,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       for (int I = 0; I < Dims; ++I)
         SizeInBytes *= Size[I];
       MArgs.emplace_back(kernel_param_kind_t::kind_std_layout, nullptr,
-                         SizeInBytes, Index + IndexShift);
+                         SizeInBytes, Index + IndexShift, LAcc->MElemSize);
       if (!IsKernelCreatedFromSource) {
         ++IndexShift;
         const size_t SizeAccField = Dims * sizeof(Size[0]);

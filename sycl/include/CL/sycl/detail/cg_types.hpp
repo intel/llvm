@@ -27,13 +27,15 @@ namespace detail {
 class ArgDesc {
 public:
   ArgDesc(cl::sycl::detail::kernel_param_kind_t Type, void *Ptr, int Size,
-          int Index)
-      : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index) {}
+          int Index, int ElemSize = 0)
+      : MType(Type), MPtr(Ptr), MSize(Size), MIndex(Index),
+        MElemSize(ElemSize) {}
 
   cl::sycl::detail::kernel_param_kind_t MType;
   void *MPtr;
   int MSize;
   int MIndex;
+  int MElemSize;
 };
 
 // The structure represents NDRange - global, local sizes, global offset and

@@ -1262,7 +1262,8 @@ __SYCL_EXPORT pi_result piKernelCreate(pi_program program,
                                        pi_kernel *ret_kernel);
 
 __SYCL_EXPORT pi_result piKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
-                                       size_t arg_size, const void *arg_value);
+                                       size_t arg_size, const void *arg_value,
+                                       size_t arg_align = 0);
 
 __SYCL_EXPORT pi_result piKernelGetInfo(pi_kernel kernel,
                                         pi_kernel_info param_name,

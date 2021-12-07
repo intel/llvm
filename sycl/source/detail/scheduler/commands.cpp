@@ -1762,8 +1762,8 @@ static pi_result SetKernelParamsAndLaunch(
              "which accessors are used");
       RT::PiMem MemArg = (RT::PiMem)getMemAllocationFunc(Req);
       if (Plugin.getBackend() == backend::opencl) {
-        Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex,
-                                               sizeof(RT::PiMem), &MemArg);
+        Plugin.call<PiApiKind::piKernelSetArg>(
+            Kernel, NextTrueIndex, sizeof(RT::PiMem), &MemArg, Arg.MElemSize);
       } else {
         Plugin.call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
                                                         &MemArg);
@@ -1772,7 +1772,7 @@ static pi_result SetKernelParamsAndLaunch(
     }
     case kernel_param_kind_t::kind_std_layout: {
       Plugin.call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
-                                             Arg.MPtr);
+                                             Arg.MPtr, Arg.MElemSize);
       break;
     }
     case kernel_param_kind_t::kind_sampler: {

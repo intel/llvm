@@ -523,6 +523,14 @@ pi_result piextKernelSetArgSampler(pi_kernel kernel, pi_uint32 arg_index,
                      sizeof(cl_sampler), cast<const cl_sampler *>(arg_value)));
 }
 
+pi_result piextKernelSetArg(pi_kernel kernel, pi_uint32 arg_index,
+                            size_t arg_size, const void *arg_value,
+                            size_t arg_align) {
+  (void)arg_align;
+  return cast<pi_result>(clSetKernelArg(
+      cast<cl_kernel>(kernel), cast<cl_uint>(arg_index), arg_size, arg_value));
+}
+
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle nativeHandle,
                                             pi_context, pi_program, bool,
                                             pi_kernel *piKernel) {
@@ -1409,7 +1417,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextProgramCreateWithNativeHandle, piextProgramCreateWithNativeHandle)
   // Kernel
   _PI_CL(piKernelCreate, piKernelCreate)
-  _PI_CL(piKernelSetArg, clSetKernelArg)
+  _PI_CL(piKernelSetArg, piextKernelSetArg)
   _PI_CL(piKernelGetInfo, clGetKernelInfo)
   _PI_CL(piKernelGetGroupInfo, piKernelGetGroupInfo)
   _PI_CL(piKernelGetSubGroupInfo, piKernelGetSubGroupInfo)

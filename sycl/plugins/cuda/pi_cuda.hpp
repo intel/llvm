@@ -636,9 +636,13 @@ struct _pi_kernel {
       offsetPerIndex_[index] = localSize;
     }
 
-    void add_local_arg(size_t index, size_t size) {
+    void add_local_arg(size_t index, size_t size, size_t align) {
       size_t localOffset = this->get_local_size();
-      add_arg(index, sizeof(size_t), (const void *)&(localOffset), size);
+      if (localOffset % align != 0) {
+        localOffset = localOffset + align - (localOffset % align);
+      }
+      add_arg(index, sizeof(size_t), (const void *)&(localOffset),
+              size + (localOffset - this->get_local_size()));
     }
 
     void set_implicit_offset(size_t size, std::uint32_t *implicitOffset) {
@@ -719,8 +723,8 @@ struct _pi_kernel {
     args_.add_arg(index, size, arg);
   }
 
-  void set_kernel_local_arg(int index, size_t size) {
-    args_.add_local_arg(index, size);
+  void set_kernel_local_arg(int index, size_t size, size_t arg_align) {
+    args_.add_local_arg(index, size, arg_align);
   }
 
   void set_implicit_offset_arg(size_t size, std::uint32_t *implicitOffset) {
