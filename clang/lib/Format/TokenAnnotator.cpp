@@ -1004,6 +1004,8 @@ private:
         if (CurrentToken && CurrentToken->is(Keywords.kw_await))
           next();
       }
+      if (Style.isCpp() && CurrentToken && CurrentToken->is(tok::kw_co_await))
+        next();
       Contexts.back().ColonIsForRangeExpr = true;
       next();
       if (!parseParens())
@@ -2032,9 +2034,8 @@ private:
                            tok::comma, tok::semi, tok::kw_return, tok::colon,
                            tok::kw_co_return, tok::kw_co_await,
                            tok::kw_co_yield, tok::equal, tok::kw_delete,
-                           tok::kw_sizeof, tok::kw_throw) ||
-        PrevToken->isOneOf(TT_BinaryOperator, TT_ConditionalExpr,
-                           TT_UnaryOperator, TT_CastRParen))
+                           tok::kw_sizeof, tok::kw_throw, TT_BinaryOperator,
+                           TT_ConditionalExpr, TT_UnaryOperator, TT_CastRParen))
       return TT_UnaryOperator;
 
     if (NextToken->is(tok::l_square) && NextToken->isNot(TT_LambdaLSquare))
@@ -2172,8 +2173,8 @@ public:
 
       int CurrentPrecedence = getCurrentPrecedence();
 
-      if (Current && Current->is(TT_SelectorName) &&
-          Precedence == CurrentPrecedence) {
+      if (Precedence == CurrentPrecedence && Current &&
+          Current->is(TT_SelectorName)) {
         if (LatestOperator)
           addFakeParenthesis(Start, prec::Level(Precedence));
         Start = Current;
@@ -2372,11 +2373,9 @@ static unsigned maxNestingDepth(const AnnotatedLine &Line) {
 }
 
 void TokenAnnotator::annotate(AnnotatedLine &Line) {
-  for (SmallVectorImpl<AnnotatedLine *>::iterator I = Line.Children.begin(),
-                                                  E = Line.Children.end();
-       I != E; ++I) {
-    annotate(**I);
-  }
+  for (auto &Child : Line.Children)
+    annotate(*Child);
+
   AnnotatingParser Parser(Style, Line, Keywords);
   Line.Type = Parser.parseLine();
 
@@ -2952,6 +2951,14 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
   if (Left.is(tok::kw_auto) && Right.isOneOf(tok::l_paren, tok::l_brace))
     return false;
 
+  // operator co_await(x)
+  if (Right.is(tok::l_paren) && Left.is(tok::kw_co_await) && Left.Previous &&
+      Left.Previous->is(tok::kw_operator))
+    return false;
+  // co_await (x), co_yield (x), co_return (x)
+  if (Left.isOneOf(tok::kw_co_await, tok::kw_co_yield, tok::kw_co_return) &&
+      Right.isNot(tok::semi))
+    return true;
   // requires clause Concept1<T> && Concept2<T>
   if (Left.is(TT_ConstraintJunctions) && Right.is(tok::identifier))
     return true;
@@ -3169,9 +3176,13 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
     if (Left.isIf(Line.Type != LT_PreprocessorDirective))
       return Style.SpaceBeforeParensOptions.AfterControlStatements ||
              spaceRequiredBeforeParens(Right);
+
+    // TODO add Operator overloading specific Options to
+    // SpaceBeforeParensOptions
+    if (Right.is(TT_OverloadedOperatorLParen))
+      return spaceRequiredBeforeParens(Right);
     // Function declaration or definition
-    if (Line.MightBeFunctionDecl && (Left.is(TT_FunctionDeclarationName) ||
-                                     Right.is(TT_OverloadedOperatorLParen))) {
+    if (Line.MightBeFunctionDecl && (Left.is(TT_FunctionDeclarationName))) {
       if (Line.mightBeFunctionDefinition())
         return Style.SpaceBeforeParensOptions.AfterFunctionDefinitionName ||
                spaceRequiredBeforeParens(Right);
