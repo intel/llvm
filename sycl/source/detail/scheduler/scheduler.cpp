@@ -116,13 +116,15 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     EnqueueResultT Res;
     bool Enqueued;
 
-    auto CleanUp = [&]() {
+    auto CleanUp = [&](bool ExceptionHappened = false) {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
         if (Type == CG::RunOnHostIntel)
           static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
 
-        NewEvent->setCommand(nullptr);
-        delete NewCmd;
+        if (ExceptionHappened) {
+          NewEvent->setCommand(nullptr);
+          delete NewCmd;
+        }
       }
     };
 
@@ -135,7 +137,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
-        CleanUp();
+        CleanUp(/*ExceptionHappened = */true);
         std::rethrow_exception(std::current_exception());
       }
     }
@@ -150,7 +152,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
-        CleanUp();
+        CleanUp(/*ExceptionHappened = */true);
         std::rethrow_exception(std::current_exception());
       }
 
