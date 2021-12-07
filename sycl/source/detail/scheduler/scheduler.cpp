@@ -137,7 +137,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
-        CleanUp(/*ExceptionHappened = */true);
+        CleanUp(/*ExceptionHappened = */ true);
         std::rethrow_exception(std::current_exception());
       }
     }
@@ -152,7 +152,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       } catch (...) {
         // enqueueCommand() func and if statement above may throw an exception,
         // so destroy required resources to avoid memory leak
-        CleanUp(/*ExceptionHappened = */true);
+        CleanUp(/*ExceptionHappened = */ true);
         std::rethrow_exception(std::current_exception());
       }
 
