@@ -39,13 +39,15 @@ namespace esimd {
 ///
 /// \ingroup sycl_esimd
 template <typename Ty, int N>
-class simd
-    : public detail::simd_obj_impl<
-          Ty, N, simd<Ty, N>, std::enable_if_t<detail::is_vectorizable_v<Ty>>> {
-  using base_type = detail::simd_obj_impl<Ty, N, simd<Ty, N>>;
+class simd : public detail::simd_obj_impl<
+                 detail::element_storage_t<Ty>, N, simd<Ty, N>,
+                 std::enable_if_t<detail::is_valid_simd_elem_type_v<Ty>>> {
+  using base_type =
+      detail::simd_obj_impl<detail::element_storage_t<Ty>, N, simd<Ty, N>>;
 
 public:
   using base_type::base_type;
+  using user_element_type = Ty;
   using element_type = typename base_type::element_type;
   using vector_type = typename base_type::vector_type;
   static constexpr int length = N;
@@ -62,17 +64,18 @@ public:
 
   // Broadcast constructor with conversion.
   template <typename T1,
-            class = std::enable_if_t<detail::is_vectorizable_v<T1>>>
-  simd(T1 Val) : base_type((Ty)Val) {
+            class = std::enable_if_t<detail::is_valid_simd_elem_type_v<T1>>>
+  simd(T1 Val) : base_type(Val) {
     __esimd_dbg_print(simd(T1 Val));
   }
 
-  /// Explicit conversion for simd_obj_impl<T, 1> into T.
+  /// Implicit conversion for simd<T, 1> into T.
   template <class To, class T = simd,
-            class = sycl::detail::enable_if_t<(T::length == 1) &&
-                                              detail::is_vectorizable_v<To>>>
+            class = sycl::detail::enable_if_t<
+                (T::length == 1) && (detail::is_vectorizable_v<To> ||
+                                     detail::is_wrapper_elem_type_v<To>)>>
   operator To() const {
-    __esimd_dbg_print(explicit operator To());
+    __esimd_dbg_print(operator To());
     return (To)base_type::data()[0];
   }
 
@@ -120,7 +123,8 @@ ESIMD_INLINE simd<To, N> convert(const simd<From, N> &val) {
   if constexpr (std::is_same_v<To, From>)
     return val;
   else
-    return __builtin_convertvector(val.data(), detail::vector_type_t<To, N>);
+    return detail::convert_vector<To, From, N>(val.data());
+  ;
 }
 
 #undef __ESIMD_DEF_RELOP

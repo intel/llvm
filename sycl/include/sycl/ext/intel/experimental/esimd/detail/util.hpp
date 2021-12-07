@@ -15,10 +15,6 @@
 
 #include <type_traits>
 
-#define __SEIEED sycl::ext::intel::experimental::esimd::detail
-#define __SEIEE sycl::ext::intel::experimental::esimd
-#define __SEIEEED sycl::ext::intel::experimental::esimd::emu::detail
-
 #ifdef __SYCL_DEVICE_ONLY__
 #define __ESIMD_INTRIN SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
 #else
@@ -91,10 +87,6 @@ template <typename T> struct is_esimd_vector : public std::false_type {};
 
 template <typename T, int N>
 struct is_esimd_vector<simd<T, N>> : public std::true_type {};
-
-template <typename T>
-using is_esimd_scalar =
-    typename std::bool_constant<cl::sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T, int N>
 using is_hw_int_type =

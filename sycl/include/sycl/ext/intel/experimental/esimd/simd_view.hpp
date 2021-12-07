@@ -27,7 +27,7 @@ namespace esimd {
 /// \ingroup sycl_esimd
 template <typename BaseTy,
           typename RegionTy =
-              region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
+              region1d_t<typename BaseTy::user_element_type, BaseTy::length, 1>>
 class simd_view : public detail::simd_view_impl<BaseTy, RegionTy> {
   template <typename, int, class, class> friend class detail::simd_obj_impl;
   template <typename, int> friend class detail::simd_mask_impl;
@@ -58,7 +58,8 @@ public:
   using value_type = get_simd_t<element_type, length>;
 
   /// The underlying builtin value type
-  using vector_type = detail::vector_type_t<element_type, length>;
+  using vector_type =
+      detail::vector_type_t<detail::element_storage_t<element_type>, length>;
 
 protected:
   /// @{
@@ -93,13 +94,15 @@ public:
   }                                                                            \
                                                                                \
   /* simd_view RELOP SCALAR */                                                 \
-  template <typename T1, std::enable_if_t<detail::is_vectorizable_v<T1>>>      \
+  template <typename T1,                                                       \
+            std::enable_if_t<detail::is_valid_simd_elem_type_v<T1>>>           \
   ESIMD_INLINE friend bool operator RELOP(const simd_view &X, T1 Y) {          \
     return (element_type)X RELOP Y;                                            \
   }                                                                            \
                                                                                \
   /* SCALAR RELOP simd_view */                                                 \
-  template <typename T1, std::enable_if_t<detail::is_vectorizable_v<T1>>>      \
+  template <typename T1,                                                       \
+            std::enable_if_t<detail::is_valid_simd_elem_type_v<T1>>>           \
   ESIMD_INLINE friend bool operator RELOP(T1 X, const simd_view &Y) {          \
     return X RELOP(element_type) Y;                                            \
   }
@@ -116,13 +119,15 @@ public:
 ///   bool b = v[0] > v[1] && v[2] < 42;
 ///
 /// \ingroup sycl_esimd
-template <typename BaseTy, typename T>
-class simd_view<BaseTy, region1d_scalar_t<T>>
-    : public detail::simd_view_impl<BaseTy, region1d_scalar_t<T>> {
+template <typename BaseTy>
+class simd_view<BaseTy, region1d_scalar_t<typename BaseTy::user_element_type>>
+    : public detail::simd_view_impl<
+          BaseTy, region1d_scalar_t<typename BaseTy::user_element_type>> {
   template <typename, int, class, class> friend class detail::simd_obj_impl;
   template <typename, typename> friend class detail::simd_view_impl;
 
 public:
+  using T = typename BaseTy::user_element_type;
   using RegionTy = region1d_scalar_t<T>;
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
@@ -147,7 +152,7 @@ public:
 
   operator element_type() const {
     const auto v = BaseClass::read();
-    return v[0];
+    return detail::convert_scalar<element_type>(v[0]);
   }
 
   using BaseClass::operator--;
@@ -170,14 +175,19 @@ public:
 ///   simd<int, 4> v = 1;
 ///   auto v1 = v.select<2, 1>(0);
 ///   auto v2 = v1[0]; // simd_view of a nested region for a single element
-template <typename BaseTy, typename T, typename NestedRegion>
-class simd_view<BaseTy, std::pair<region1d_scalar_t<T>, NestedRegion>>
+template <typename BaseTy, typename NestedRegion>
+class simd_view<BaseTy,
+                std::pair<region1d_scalar_t<typename BaseTy::user_element_type>,
+                          NestedRegion>>
     : public detail::simd_view_impl<
-          BaseTy, std::pair<region1d_scalar_t<T>, NestedRegion>> {
+          BaseTy,
+          std::pair<region1d_scalar_t<typename BaseTy::user_element_type>,
+                    NestedRegion>> {
   template <typename, int> friend class simd;
   template <typename, typename> friend class detail::simd_view_impl;
 
 public:
+  using T = typename BaseTy::user_element_type;
   using RegionTy = std::pair<region1d_scalar_t<T>, NestedRegion>;
   using BaseClass = detail::simd_view_impl<BaseTy, RegionTy>;
   using ShapeTy = typename shape_type<RegionTy>::type;
@@ -196,7 +206,7 @@ public:
 
   operator element_type() const {
     const auto v = BaseClass::read();
-    return v[0];
+    return detail::convert_scalar<element_type>(v[0]);
   }
 
   __ESIMD_DEF_SCALAR_SIMD_VIEW_RELOP(>)

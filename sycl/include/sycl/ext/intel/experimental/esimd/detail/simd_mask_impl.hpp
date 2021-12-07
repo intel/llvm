@@ -35,6 +35,7 @@ class simd_mask_impl
 
 public:
   using element_type = T;
+  using user_element_type = T;
   using vector_type = typename base_type::vector_type;
   static_assert(std::is_same_v<vector_type, simd_mask_storage_t<N>> &&
                 "mask impl type mismatch");
