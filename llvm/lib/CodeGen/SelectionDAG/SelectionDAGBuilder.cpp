@@ -3058,14 +3058,14 @@ void SelectionDAGBuilder::visitLandingPad(const LandingPadInst &LP) {
 void SelectionDAGBuilder::UpdateSplitBlock(MachineBasicBlock *First,
                                            MachineBasicBlock *Last) {
   // Update JTCases.
-  for (unsigned i = 0, e = SL->JTCases.size(); i != e; ++i)
-    if (SL->JTCases[i].first.HeaderBB == First)
-      SL->JTCases[i].first.HeaderBB = Last;
+  for (JumpTableBlock &JTB : SL->JTCases)
+    if (JTB.first.HeaderBB == First)
+      JTB.first.HeaderBB = Last;
 
   // Update BitTestCases.
-  for (unsigned i = 0, e = SL->BitTestCases.size(); i != e; ++i)
-    if (SL->BitTestCases[i].Parent == First)
-      SL->BitTestCases[i].Parent = Last;
+  for (BitTestBlock &BTB : SL->BitTestCases)
+    if (BTB.Parent == First)
+      BTB.Parent = Last;
 }
 
 void SelectionDAGBuilder::visitIndirectBr(const IndirectBrInst &I) {
@@ -7317,32 +7317,26 @@ static unsigned getISDForVPIntrinsic(const VPIntrinsic &VPIntrin) {
 
 void SelectionDAGBuilder::visitVPLoadGather(const VPIntrinsic &VPIntrin, EVT VT,
                                             SmallVector<SDValue, 7> &OpValues,
-                                            bool isGather) {
+                                            bool IsGather) {
   SDLoc DL = getCurSDLoc();
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   Value *PtrOperand = VPIntrin.getArgOperand(0);
-  MaybeAlign Alignment = DAG.getEVTAlign(VT);
+  MaybeAlign Alignment = VPIntrin.getPointerAlignment();
+  if (!Alignment)
+    Alignment = DAG.getEVTAlign(VT);
   AAMDNodes AAInfo = VPIntrin.getAAMetadata();
   const MDNode *Ranges = VPIntrin.getMetadata(LLVMContext::MD_range);
   SDValue LD;
   bool AddToChain = true;
-  if (!isGather) {
+  if (!IsGather) {
     // Do not serialize variable-length loads of constant memory with
     // anything.
-    MemoryLocation ML;
-    if (VT.isScalableVector())
-      ML = MemoryLocation::getAfter(PtrOperand);
-    else
-      ML = MemoryLocation(
-          PtrOperand,
-          LocationSize::precise(
-              DAG.getDataLayout().getTypeStoreSize(VPIntrin.getType())),
-          AAInfo);
+    MemoryLocation ML = MemoryLocation::getAfter(PtrOperand, AAInfo);
     AddToChain = !AA || !AA->pointsToConstantMemory(ML);
     SDValue InChain = AddToChain ? DAG.getRoot() : DAG.getEntryNode();
     MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
         MachinePointerInfo(PtrOperand), MachineMemOperand::MOLoad,
-        VT.getStoreSize().getKnownMinSize(), *Alignment, AAInfo, Ranges);
+        MemoryLocation::UnknownSize, *Alignment, AAInfo, Ranges);
     LD = DAG.getLoadVP(VT, DL, InChain, OpValues[0], OpValues[1], OpValues[2],
                        MMO, false /*IsExpanding */);
   } else {
@@ -7380,18 +7374,20 @@ void SelectionDAGBuilder::visitVPLoadGather(const VPIntrinsic &VPIntrin, EVT VT,
 
 void SelectionDAGBuilder::visitVPStoreScatter(const VPIntrinsic &VPIntrin,
                                               SmallVector<SDValue, 7> &OpValues,
-                                              bool isScatter) {
+                                              bool IsScatter) {
   SDLoc DL = getCurSDLoc();
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   Value *PtrOperand = VPIntrin.getArgOperand(1);
   EVT VT = OpValues[0].getValueType();
-  MaybeAlign Alignment = DAG.getEVTAlign(VT);
+  MaybeAlign Alignment = VPIntrin.getPointerAlignment();
+  if (!Alignment)
+    Alignment = DAG.getEVTAlign(VT);
   AAMDNodes AAInfo = VPIntrin.getAAMetadata();
   SDValue ST;
-  if (!isScatter) {
+  if (!IsScatter) {
     MachineMemOperand *MMO = DAG.getMachineFunction().getMachineMemOperand(
         MachinePointerInfo(PtrOperand), MachineMemOperand::MOStore,
-        VT.getStoreSize().getKnownMinSize(), *Alignment, AAInfo);
+        MemoryLocation::UnknownSize, *Alignment, AAInfo);
     ST =
         DAG.getStoreVP(getMemoryRoot(), DL, OpValues[0], OpValues[1],
                        OpValues[2], OpValues[3], MMO, false /* IsTruncating */);
@@ -9646,8 +9642,8 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
   // We push in swifterror return as the last element of CLI.Ins.
   ArgListTy &Args = CLI.getArgs();
   if (supportSwiftError()) {
-    for (unsigned i = 0, e = Args.size(); i != e; ++i) {
-      if (Args[i].IsSwiftError) {
+    for (const ArgListEntry &Arg : Args) {
+      if (Arg.IsSwiftError) {
         ISD::InputArg MyFlags;
         MyFlags.VT = getPointerTy(DL);
         MyFlags.ArgVT = EVT(getPointerTy(DL));

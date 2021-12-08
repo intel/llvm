@@ -79,7 +79,7 @@ static void CompressStackStore() {
   if (!diff)
     return;
   u64 finish = MonotonicNanoTime();
-  uptr total_before = stackStore.Allocated() + diff;
+  uptr total_before = theDepot.GetStats().allocated + diff;
   VPrintf(1, "%s: StackDepot released %zu KiB out of %zu KiB in %llu ms\n",
           SanitizerToolName, diff >> 10, total_before >> 10,
           (finish - start) / 1000000);
@@ -113,9 +113,11 @@ StackTrace StackDepotGet(u32 id) {
 
 void StackDepotLockAll() {
   theDepot.LockAll();
+  stackStore.LockAll();
 }
 
 void StackDepotUnlockAll() {
+  stackStore.UnlockAll();
   theDepot.UnlockAll();
 }
 
