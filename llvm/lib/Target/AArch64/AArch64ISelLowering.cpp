@@ -929,6 +929,8 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
   setTargetDAGCombine(ISD::VECREDUCE_ADD);
   setTargetDAGCombine(ISD::STEP_VECTOR);
 
+  setTargetDAGCombine(ISD::FP_EXTEND);
+
   setTargetDAGCombine(ISD::GlobalAddress);
 
   // In case of strict alignment, avoid an excessive number of byte wide stores.
@@ -1322,6 +1324,7 @@ AArch64TargetLowering::AArch64TargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::MGATHER, VT, Custom);
       setOperationAction(ISD::MSCATTER, VT, Custom);
       setOperationAction(ISD::MLOAD, VT, Custom);
+      setOperationAction(ISD::INSERT_SUBVECTOR, VT, Custom);
     }
 
     setOperationAction(ISD::SPLAT_VECTOR, MVT::nxv8bf16, Custom);
@@ -1503,6 +1506,24 @@ void AArch64TargetLowering::addTypeForNEON(MVT VT) {
   }
 }
 
+bool AArch64TargetLowering::shouldExpandGetActiveLaneMask(EVT ResVT,
+                                                          EVT OpVT) const {
+  // Only SVE has a 1:1 mapping from intrinsic -> instruction (whilelo).
+  if (!Subtarget->hasSVE())
+    return true;
+
+  // We can only support legal predicate result types.
+  if (ResVT != MVT::nxv2i1 && ResVT != MVT::nxv4i1 && ResVT != MVT::nxv8i1 &&
+      ResVT != MVT::nxv16i1)
+    return true;
+
+  // The whilelo instruction only works with i32 or i64 scalar inputs.
+  if (OpVT != MVT::i32 && OpVT != MVT::i64)
+    return true;
+
+  return false;
+}
+
 void AArch64TargetLowering::addTypeForFixedLengthSVE(MVT VT) {
   assert(VT.isFixedLengthVector() && "Expected fixed length vector type!");
 
@@ -1527,7 +1548,7 @@ void AArch64TargetLowering::addTypeForFixedLengthSVE(MVT VT) {
     setCondCodeAction(ISD::SETUNE, VT, Expand);
   }
 
-  // Mark integer truncating stores as having custom lowering
+  // Mark integer truncating stores/extending loads as having custom lowering
   if (VT.isInteger()) {
     MVT InnerVT = VT.changeVectorElementType(MVT::i8);
     while (InnerVT != VT) {
@@ -1536,6 +1557,18 @@ void AArch64TargetLowering::addTypeForFixedLengthSVE(MVT VT) {
       setLoadExtAction(ISD::SEXTLOAD, VT, InnerVT, Custom);
       InnerVT = InnerVT.changeVectorElementType(
           MVT::getIntegerVT(2 * InnerVT.getScalarSizeInBits()));
+    }
+  }
+
+  // Mark floating-point truncating stores/extending loads as having custom
+  // lowering
+  if (VT.isFloatingPoint()) {
+    MVT InnerVT = VT.changeVectorElementType(MVT::f16);
+    while (InnerVT != VT) {
+      setTruncStoreAction(VT, InnerVT, Custom);
+      setLoadExtAction(ISD::EXTLOAD, VT, InnerVT, Custom);
+      InnerVT = InnerVT.changeVectorElementType(
+          MVT::getFloatingPointVT(2 * InnerVT.getScalarSizeInBits()));
     }
   }
 
@@ -4289,6 +4322,12 @@ SDValue AArch64TargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                           : AArch64ISD::SDOT;
     return DAG.getNode(Opcode, dl, Op.getValueType(), Op.getOperand(1),
                        Op.getOperand(2), Op.getOperand(3));
+  }
+  case Intrinsic::get_active_lane_mask: {
+    SDValue ID =
+        DAG.getTargetConstant(Intrinsic::aarch64_sve_whilelo, dl, MVT::i64);
+    return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, dl, Op.getValueType(), ID,
+                       Op.getOperand(1), Op.getOperand(2));
   }
   }
 }
@@ -14073,6 +14112,9 @@ static SDValue performConcatVectorsCombine(SDNode *N,
   SDValue N0 = N->getOperand(0), N1 = N->getOperand(1);
   unsigned N0Opc = N0->getOpcode(), N1Opc = N1->getOpcode();
 
+  if (VT.isScalableVector())
+    return SDValue();
+
   // Optimize concat_vectors of truncated vectors, where the intermediate
   // type is illegal, to avoid said illegality,  e.g.,
   //   (v4i16 (concat_vectors (v2i16 (truncate (v2i64))),
@@ -15928,6 +15970,22 @@ static SDValue performSTORECombine(SDNode *N,
                                    TargetLowering::DAGCombinerInfo &DCI,
                                    SelectionDAG &DAG,
                                    const AArch64Subtarget *Subtarget) {
+  StoreSDNode *ST = cast<StoreSDNode>(N);
+  SDValue Chain = ST->getChain();
+  SDValue Value = ST->getValue();
+  SDValue Ptr = ST->getBasePtr();
+
+  // If this is an FP_ROUND followed by a store, fold this into a truncating
+  // store. We can do this even if this is already a truncstore.
+  // We purposefully don't care about legality of the nodes here as we know
+  // they can be split down into something legal.
+  if (DCI.isBeforeLegalizeOps() && Value.getOpcode() == ISD::FP_ROUND &&
+      Value.getNode()->hasOneUse() && ST->isUnindexed() &&
+      Subtarget->useSVEForFixedLengthVectors() &&
+      Value.getValueType().isFixedLengthVector())
+    return DAG.getTruncStore(Chain, SDLoc(N), Value.getOperand(0), Ptr,
+                             ST->getMemoryVT(), ST->getMemOperand());
+
   if (SDValue Split = splitStores(N, DCI, DAG, Subtarget))
     return Split;
 
@@ -17270,6 +17328,37 @@ SDValue performSVESpliceCombine(SDNode *N, SelectionDAG &DAG) {
   return DAG.getBitcast(Ty, Trunc);
 }
 
+SDValue performFPExtendCombine(SDNode *N, SelectionDAG &DAG,
+                               TargetLowering::DAGCombinerInfo &DCI,
+                               const AArch64Subtarget *Subtarget) {
+  SDValue N0 = N->getOperand(0);
+  EVT VT = N->getValueType(0);
+
+  // If this is fp_round(fpextend), don't fold it, allow ourselves to be folded.
+  if (N->hasOneUse() && N->use_begin()->getOpcode() == ISD::FP_ROUND)
+    return SDValue();
+
+  // fold (fpext (load x)) -> (fpext (fptrunc (extload x)))
+  // We purposefully don't care about legality of the nodes here as we know
+  // they can be split down into something legal.
+  if (DCI.isBeforeLegalizeOps() && ISD::isNormalLoad(N0.getNode()) &&
+      N0.hasOneUse() && Subtarget->useSVEForFixedLengthVectors() &&
+      VT.isFixedLengthVector()) {
+    LoadSDNode *LN0 = cast<LoadSDNode>(N0);
+    SDValue ExtLoad = DAG.getExtLoad(ISD::EXTLOAD, SDLoc(N), VT,
+                                     LN0->getChain(), LN0->getBasePtr(),
+                                     N0.getValueType(), LN0->getMemOperand());
+    DCI.CombineTo(N, ExtLoad);
+    DCI.CombineTo(N0.getNode(),
+                  DAG.getNode(ISD::FP_ROUND, SDLoc(N0), N0.getValueType(),
+                              ExtLoad, DAG.getIntPtrConstant(1, SDLoc(N0))),
+                  ExtLoad.getValue(1));
+    return SDValue(N, 0); // Return N so it doesn't get rechecked!
+  }
+
+  return SDValue();
+}
+
 SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
                                                  DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
@@ -17326,6 +17415,8 @@ SDValue AArch64TargetLowering::PerformDAGCombine(SDNode *N,
     return performSTORECombine(N, DCI, DAG, Subtarget);
   case ISD::VECTOR_SPLICE:
     return performSVESpliceCombine(N, DAG);
+  case ISD::FP_EXTEND:
+    return performFPExtendCombine(N, DAG, DCI, Subtarget);
   case AArch64ISD::BRCOND:
     return performBRCONDCombine(N, DCI, DAG);
   case AArch64ISD::TBNZ:
@@ -18457,6 +18548,15 @@ bool AArch64TargetLowering::preferIncOfAddToSubOfNot(EVT VT) const {
   return VT.isScalarInteger();
 }
 
+bool AArch64TargetLowering::shouldConvertFpToSat(unsigned Op, EVT FPVT,
+                                                 EVT VT) const {
+  // v8f16 without fp16 need to be extended to v8f32, which is more difficult to
+  // legalize.
+  if (FPVT == MVT::v8f16 && !Subtarget->hasFullFP16())
+    return false;
+  return TargetLowering::shouldConvertFpToSat(Op, FPVT, VT);
+}
+
 bool AArch64TargetLowering::enableAggressiveFMAFusion(EVT VT) const {
   return Subtarget->hasAggressiveFMA() && VT.isFloatingPoint();
 }
@@ -18634,12 +18734,29 @@ SDValue AArch64TargetLowering::LowerFixedLengthVectorLoadToSVE(
   SDLoc DL(Op);
   EVT VT = Op.getValueType();
   EVT ContainerVT = getContainerForFixedLengthVector(DAG, VT);
+  EVT LoadVT = ContainerVT;
+  EVT MemVT = Load->getMemoryVT();
+
+  auto Pg = getPredicateForFixedLengthVector(DAG, DL, VT);
+
+  if (VT.isFloatingPoint() && Load->getExtensionType() == ISD::EXTLOAD) {
+    LoadVT = ContainerVT.changeTypeToInteger();
+    MemVT = MemVT.changeTypeToInteger();
+  }
 
   auto NewLoad = DAG.getMaskedLoad(
-      ContainerVT, DL, Load->getChain(), Load->getBasePtr(), Load->getOffset(),
-      getPredicateForFixedLengthVector(DAG, DL, VT), DAG.getUNDEF(ContainerVT),
-      Load->getMemoryVT(), Load->getMemOperand(), Load->getAddressingMode(),
-      Load->getExtensionType());
+      LoadVT, DL, Load->getChain(), Load->getBasePtr(), Load->getOffset(), Pg,
+      DAG.getUNDEF(LoadVT), MemVT, Load->getMemOperand(),
+      Load->getAddressingMode(), Load->getExtensionType());
+
+  if (VT.isFloatingPoint() && Load->getExtensionType() == ISD::EXTLOAD) {
+    EVT ExtendVT = ContainerVT.changeVectorElementType(
+        Load->getMemoryVT().getVectorElementType());
+
+    NewLoad = getSVESafeBitCast(ExtendVT, NewLoad, DAG);
+    NewLoad = DAG.getNode(AArch64ISD::FP_EXTEND_MERGE_PASSTHRU, DL, ContainerVT,
+                          Pg, NewLoad, DAG.getUNDEF(ContainerVT));
+  }
 
   auto Result = convertFromScalableVector(DAG, VT, NewLoad);
   SDValue MergedValues[2] = {Result, Load->getChain()};
@@ -18714,13 +18831,26 @@ SDValue AArch64TargetLowering::LowerFixedLengthVectorStoreToSVE(
   SDLoc DL(Op);
   EVT VT = Store->getValue().getValueType();
   EVT ContainerVT = getContainerForFixedLengthVector(DAG, VT);
+  EVT MemVT = Store->getMemoryVT();
 
+  auto Pg = getPredicateForFixedLengthVector(DAG, DL, VT);
   auto NewValue = convertToScalableVector(DAG, ContainerVT, Store->getValue());
-  return DAG.getMaskedStore(
-      Store->getChain(), DL, NewValue, Store->getBasePtr(), Store->getOffset(),
-      getPredicateForFixedLengthVector(DAG, DL, VT), Store->getMemoryVT(),
-      Store->getMemOperand(), Store->getAddressingMode(),
-      Store->isTruncatingStore());
+
+  if (VT.isFloatingPoint() && Store->isTruncatingStore()) {
+    EVT TruncVT = ContainerVT.changeVectorElementType(
+        Store->getMemoryVT().getVectorElementType());
+    MemVT = MemVT.changeTypeToInteger();
+    NewValue = DAG.getNode(AArch64ISD::FP_ROUND_MERGE_PASSTHRU, DL, TruncVT, Pg,
+                           NewValue, DAG.getTargetConstant(0, DL, MVT::i64),
+                           DAG.getUNDEF(TruncVT));
+    NewValue =
+        getSVESafeBitCast(ContainerVT.changeTypeToInteger(), NewValue, DAG);
+  }
+
+  return DAG.getMaskedStore(Store->getChain(), DL, NewValue,
+                            Store->getBasePtr(), Store->getOffset(), Pg, MemVT,
+                            Store->getMemOperand(), Store->getAddressingMode(),
+                            Store->isTruncatingStore());
 }
 
 SDValue AArch64TargetLowering::LowerFixedLengthVectorMStoreToSVE(

@@ -4,15 +4,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 USER root
 
-RUN apt update && apt install -yqq \
-      build-essential \
-      cmake \
-      ninja-build \
-      ccache \
-      git \
-      python3 \
-      python3-distutils \
-      python-is-python3
+# Install SYCL prerequisites
+COPY scripts/install_build_tools.sh /install.sh
+RUN /install.sh
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
