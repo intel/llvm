@@ -67,6 +67,9 @@ runs:
     run: |
       export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH:/runtimes/oclcpu/x64
       export PATH=$PWD/toolchain/bin/:$PATH
+      if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
+        source /runtimes/oneapi-tbb/env/vars.sh;
+      fi
       sycl-ls
       cd build
       ninja check-sycl-all
