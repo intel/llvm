@@ -44,7 +44,7 @@
 //
 #include "CL/cl.h"
 #define _PI_H_VERSION_MAJOR 5
-#define _PI_H_VERSION_MINOR 7
+#define _PI_H_VERSION_MINOR 8
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
