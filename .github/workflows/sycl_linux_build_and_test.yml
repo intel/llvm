@@ -190,7 +190,8 @@ jobs:
   llvm_test_suite_l0_gpu:
     name: L0 GPU Test Suite
     needs: [build, configure]
-    if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
+    # if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
+    if: false
     runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).lts_intel_image }}
@@ -234,7 +235,8 @@ jobs:
   llvm_test_suite_ocl_gpu:
     name: OCL Intel GPU Test Suite
     needs: [build, configure]
-    if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
+    # if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
+    if: false
     runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).lts_intel_image }}

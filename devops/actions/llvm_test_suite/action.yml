@@ -67,6 +67,14 @@ runs:
     run: |
       export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH:/runtimes/oclcpu/x64
       export PATH=$PWD/toolchain/bin/:$PATH
-      ls -la $PWD/toolchain/lib/
+      sycl-ls
       cd build
       ninja check-sycl-all
+  - name: Cleanup
+    shell: bash
+    if: always()
+    run: |
+      rm -rf toolchain
+      rm -rf lit
+      rm -rf build
+      rm -rf llvm_test_suite
