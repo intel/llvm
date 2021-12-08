@@ -88,10 +88,13 @@ class
 } // namespace sycl::ext::oneapi
 ```
 
-The initial entries in the C++ attribute's parameter list are the names of the
-properties, and these are followed by the values of the properties.  To
-illustrate using the same example as before, the result of the parameter pack
-expansion would look like this:
+The `[[__sycl_detail__::add_ir_global_variable_attributes()]]` attribute has an
+even number of parameters.  The first half of the parameters are the names of
+the properties, and the second half of the parameters are the values for those
+properties.  Each property has exactly one value, so the property at parameter
+position 0 corresponds to the value at position _N / 2_, etc.  To illustrate
+using the same example as before, the result of the parameter pack expansion
+would look like this:
 
 ```
 namespace sycl::ext::oneapi {
@@ -101,7 +104,7 @@ template </* ... */> class
   [[__sycl_detail__::add_ir_global_variable_attributes(
     "sycl-device-image-scope",  // Name of first property
     "sycl-host-access",         // Name of second property
-    "",                         // First property has no parameter
+    nullptr,                    // First property has no parameter
     "read"                      // Value of second property
     )]]
 #endif
@@ -128,10 +131,10 @@ type as described above, it also adds one IR attribute to the global variable
 for each property using
 [`GlobalVariable::addAttribute(StringRef, StringRef)`][4].  If the property
 value is not already a string, it converts it to a string as described in
-[Property representation in C++ attributes][5].
+[IR representation as IR attributes][5].
 
 [4]: <https://llvm.org/doxygen/classllvm_1_1GlobalVariable.html#a6cee3c634aa5de8c51e6eaa4e41898bc>
-[5]: <#property-representation-in-C-attributes>
+[5]: <#ir-representation-as-ir-attributes>
 
 Note that the front-end does not need to understand any of the properties in
 order to do this translation.
@@ -219,7 +222,7 @@ template </* ... */> class
   [[__sycl_detail__::add_ir_kernel_parameter_attributes(
     "sycl-no-alias",  // Name of first property
     "sycl-foo",       // Name of second property
-    "",               // First property has no parameter
+    nullptr,          // First property has no parameter
     32                // Value of second property
     )]]
 #endif
@@ -423,10 +426,10 @@ class annotated_ptr<T, property_list<Props...>> {
   T *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_member_annotation(
-    "foo",    // Name of first property
-    "bar",    // Name of second property
-    "",       // First property has no parameter
-    32        // Value of second property
+    "sycl-foo",   // Name of first property
+    "sycl-bar",   // Name of second property
+    nullptr,      // First property has no parameter
+    32            // Value of second property
     )]]
 #endif
   ;
@@ -440,27 +443,41 @@ class annotated_ptr<T, property_list<Props...>> {
 When the device compiler generates code to reference the decorated member
 variable, it emits a call to the LLVM intrinsic function
 [`@llvm.ptr.annotation`][10] that annotates the pointer to that member
-variables, similar to the way the existing clang `__attribute__((annotate()))`
+variables, similar to the way the existing `[[clang::annotate()]]` attribute
 works.  Illustrating this with some simplified LLVM IR that matches the example
 code above:
 
 [10]: <https://llvm.org/docs/LangRef.html#llvm-ptr-annotation-intrinsic>
 
 ```
-@.str = private unnamed_addr constant [27 x i8] c"sycl-properties:foo,bar=32\00",
-  section "llvm.metadata"
+@.str = private unnamed_addr constant [16 x i8] c"sycl-properties\00",
+   section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [9 x i8] c"file.cpp\00",
-  section "llvm.metadata"
+   section "llvm.metadata"
+@.str.2 = private unnamed_addr constant [9 x i8] c"sycl-foo\00", align 1
+@.str.3 = private unnamed_addr constant [9 x i8] c"sycl-bar\00", align 1
+
+@.args = private unnamed_addr constant { [9 x i8]*, i8*, [9 x i8]*, i32 }
+   {
+     [9 x i8]* @.str.2,   ; Name of first property "sycl-foo"
+     i8* null,            ; Null indicates this property has no value
+     [9 x i8]* @.str.3,   ; Name of second property "sycl-bar"
+     i32 32               ; Value of second property
+   },
+   section "llvm.metadata"
 
 define void @foo(i32* %ptr) {
   %aptr = alloca %class.annotated_ptr
   %ptr = getelementptr inbounds %class.annotated_ptr, %class.annotated_ptr* %aptr,
     i32 0, i32 0
   %1 = bitcast i32** %ptr to i8*
-  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* %1,
-    i8* getelementptr inbounds ([27 x i8], [27 x i8]* @.str, i32 0, i32 0),
-    i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i32 0, i32 0),
-    i32 3, i8* null)
+
+  %2 = call i8* @llvm.ptr.annotation.p0i8(i8* nonnull %0,
+    i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str, i64 0, i64 0),
+    i8* getelementptr inbounds ([9 x i8], [9 x i8]* @.str.1, i64 0, i64 0),
+    i32 3,
+    i8* bitcast ({ [9 x i8]*, i8*, [9 x i8]*, i32 }* @.args to i8*))
+
   %3 = bitcast i8* %2 to i32**
   store i32* %ptr, i32** %3
   ret void
@@ -468,20 +485,21 @@ define void @foo(i32* %ptr) {
 ```
 
 The front-end encodes the properties from the C++ attribute
-`[[__sycl_detail__::add_ir_member_annotation()]]` into the annotation string
-(`@.str` in the example above) using the following algorithm:
+`[[__sycl_detail__::add_ir_member_annotation()]]` into the
+`@llvm.ptr.annotation` call as follows:
 
-* The property value is converted to a string as specified in
-  [Property representation in C++ attributes][5].
-* Construct a property definition string for each property:
-  - If the property value is the empty string, the property definition is just
-    the name of the property.
-  - Otherwise, the property definition string is formed by concatenating the
-    property name with the equal sign (`=`) and the property value.
-* The annotation string is formed by concatenating all property definition
-  strings, separated by a comma (`,`).
-* The annotation string is pre-pended with `"sycl-properties:"` and NULL
-  terminated.
+* The first parameter to `@llvm.ptr.annotation` is the pointer to annotate (as
+  with any call to this intrinsic).
+* The second parameter is the literal string `"sycl-properties"`.
+* The third parameter is the name of the source file (as with any call to this
+  intrinsic).
+* The fourth parameter is the line number (as with any call to this intrinsic).
+* The fifth parameter is a metadata tuple with information about all of the
+  properties.  The first element of the tuple is a string literal with the name
+  of the first property.  The second element is the value of the first
+  property.  The third element is a string literal with the name of the second
+  property, etc.  Since each property has exactly one value, this tuple has an
+  even number of elements.
 
 **NOTE**: Calls to the `@llvm.ptr.annotation` intrinsic function are known to
 disable many clang optimizations.  As a result, properties added to a
@@ -490,7 +508,7 @@ optimized.  This puts more pressure on the SPIR-V consumer (e.g. JIT compiler)
 to perform these optimizations.
 
 
-## Property representation in C++ attributes
+## Property representation in C++ attributes and in IR
 
 As noted above, there are several C++ attributes that convey property names and
 values to the front-end:
@@ -502,11 +520,12 @@ values to the front-end:
 
 All of these attributes take a parameter list with the same format.  There are
 always an even number of parameters, where the first half are the property
-names and the second half are the property values.  The property name is always
-a string literal or a `constexpr char *` expression.  By convention, property
-names that correspond to LLVM IR attributes normally start with the prefix
-`"sycl-"` in order to avoid collision with non-SYCL IR attributes, but this is
-not a strict requirement.
+names and the second half are the property values.  (This assumes that the
+initial optional parameter is not passed.  See below for a description of this
+optional parameter.) The property name is always a string literal or a
+`constexpr char *` expression.  By convention, property names normally start
+with the prefix `"sycl-"` in order to avoid collision with non-SYCL IR
+attributes, but this is not a strict requirement.
 
 The property value can be a literal or `constexpr` expression of the following
 types:
@@ -517,15 +536,29 @@ types:
 * A boolean type.
 * A character type.
 * An enumeration type.
+* `nullptr_t` (reserved for the case when a property has no value).
 
 All properties require a value when represented in the C++ attribute.  If the
-SYCL property has no value the header passes the empty string (`""`).
+SYCL property has no value the header passes `nullptr`.
 
-The front-end converts each value to a string before representing it in LLVM
-IR.  Integer and floating point values are converted with the same format as
-`std::to_string()` would produce.  Boolean values are converted to either
-`"true"` or `"false"`.  Enumeration values are first converted to an integer
-and then converted to a string with the same format as `std::to_string()`.
+### IR representation as IR attributes
+
+Properties that are implemented using the following C++ attributes are
+represented in LLVM IR as IR attributes:
+
+* `[[__sycl_detail__::add_ir_global_variable_attributes()]]`
+* `[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`
+* `[[__sycl_detail__::add_ir_function_attributes()]]`
+
+When the front-end consumes these C++ attributes and produces IR, each property
+name becomes an IR attribute name and each property value becomes the
+attribute's value.  Because the attribute values must be strings, the front-end
+converts each property value to a string.  Integer and floating point values
+are converted with the same format as `std::to_string()` would produce.
+Boolean values are converted to either `"true"` or `"false"`.  Enumeration
+values are first converted to an integer and then converted to a string with
+the same format as `std::to_string()`.  The `nullptr` value is converted to an
+empty string (`""`).
 
 **TODO**: Should we allow property values that are type names?  If so, I
 suppose they would be converted to a string representation of the mangled name?
@@ -538,6 +571,94 @@ we do not allow non-fundamental types, how do we represent properties like
 `work_group_size`, whose value is a 3-tuple of integers?  Maybe we could just
 allow `std::tuple`, where the type of each element is one of the fundamental
 types listed above.
+
+### IR representation via `@llvm.ptr.annotation`
+
+Properties that are implemented using
+`[[__sycl_detail__::add_ir_member_annotation()]]`, are represented in LLVM IR
+as the fifth metadata parameter to the `@llvm.ptr.annotation` intrinsic
+function.  This parameter is a tuple of metadata values with the following
+sequence:
+
+* Name of the first property
+* Value of the first property
+* Name of the second property
+* Value of the second property
+* Etc.
+
+Since metadata types are not limited to strings, there is no need to convert
+the property values to strings.
+
+
+## Filtering properties
+
+It is sometimes necessary to filter out certain properties so that only a
+subset of the properties in a list are represented in IR.  There are two
+scenarios when this is useful.
+
+In some cases, a property is used only in the header file itself, and there is
+no need to represent that property in LLVM IR.  In order to avoid cluttering
+the IR with unneeded information, these properties can be "filtered out", so
+that the front-end does not generate an IR representation.
+
+Another case is when a class wants to represent some properties one way in the
+IR while representing other properties in another way.  For example, a future
+version of `accessor` might pass some properties to
+`[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]` while passing other
+properties to `[[__sycl_detail__::add_ir_member_annotation()]]`.  Again, the
+header wants some way to "filter" the properties, such that some properties are
+interpreted as "kernel parameter attributes" while other are interpreted as
+"member annotations".
+
+To handle these cases, each of the following C++ attributes takes an optional
+first parameter that is a brace-enclosed list of property names:
+
+* `[[__sycl_detail__::add_ir_global_variable_attributes()]]`
+* `[[__sycl_detail__::add_ir_kernel_parameter_attributes()]]`
+* `[[__sycl_detail__::add_ir_function_attributes()]]`
+* `[[__sycl_detail__::add_ir_member_annotation()]]`
+
+The front-end treats this list as a "pass list", ignoring any property whose
+name is not in the list.  To illustrate, consider the following example where
+`accessor` treats some properties as "kernel parameter attributes" and others
+as "member annotations":
+
+```
+template <typename dataT,
+          int dimensions,
+          access::mode accessmode,
+          access::target accessTarget,
+          access::placeholder isPlaceholder,
+          typename ...Props>
+class
+#ifdef __SYCL_DEVICE_ONLY__
+  [[__sycl_detail__::add_ir_kernel_parameter_attributes(
+
+    // The properties in this list are "kernel parameter attributes".
+    {"sycl-no-alias", "sycl-foo"},
+
+    Props::meta_name..., Props::meta_value...
+    )]]
+#endif
+  accessor<dataT,
+           dimensions,
+           accessmode,
+           accessTarget,
+           isPlaceholder,
+           property_list<Props...>> {
+    T *ptr
+#ifdef __SYCL_DEVICE_ONLY__
+    [[__sycl_detail__::add_ir_member_annotation(
+
+      // The properties in this list are "member annotations".
+      {"sycl-bar"},
+
+      Props::meta_name..., Props::meta_value...
+      )]]
+#endif
+    ;
+  }
+```
 
 
 ## Representing properties in SPIR-V
@@ -638,7 +759,8 @@ of the global variable's decorations.  To illustrate:
 
 As we noted earlier, a property on a structure member variable is represented
 in LLVM IR as a call to the intrinsic function `@llvm.ptr.annotation`, where
-the annotation string starts with the prefix `"sycl-properties:"`.  In order to
+the annotation string is `"sycl-properties"` and the properties are represented
+as metadata in the fifth parameter to `@llvm.ptr.annotation`.  In order to
 understand how these SYCL properties are translated into SPIR-V, it's useful to
 review how a normal (i.e. non-SYCL) call to `@llvm.ptr.annotation` is
 translated.
