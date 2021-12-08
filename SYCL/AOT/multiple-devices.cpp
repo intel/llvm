@@ -6,74 +6,54 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: opencl-aot, ocloc, aoc, cpu, gpu, accelerator, llvm-link, llvm-spirv
+// REQUIRES: opencl-aot, ocloc, aoc, cpu, gpu, accelerator
 // UNSUPPORTED: cuda
 // CUDA is not compatible with SPIR.
 
-// 1-command compilation case
-// Targeting CPU, GPU, FPGA
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen,spir64_fpga -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %S/Inputs/aot.cpp -o %t_all.out
-// RUN: %HOST_RUN_PLACEHOLDER %t_all.out
-// RUN: %CPU_RUN_PLACEHOLDER %t_all.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_all.out
-// RUN: %ACC_RUN_PLACEHOLDER %t_all.out
+// Produce a fat object for all targets (generic SPIR-V, CPU, GPU, FPGA)
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen,spir64_fpga %S/Inputs/aot.cpp -c -o %t.o
 
-// FIXME: Change the behavior when proper automation for assert support is
-// introduced. For the time being, AOT flow can't detect if specific extension
-// is available for this or that device. The automation to be introduced is to
-// query native binary generator on specific features.
-//
-// Produce object file, spirv, device images to combine these differently
-// at link-time, thus testing various AOT-compiled images configurations
-// Disable DAE when performing separate compilation here, as we are not
-// using sycl-post-link to fully enable.
-// RUN: %clangxx -fsycl -fno-sycl-dead-args-optimization %S/Inputs/aot.cpp -c -o %t.o
-// RUN: %clangxx -fsycl -fsycl-link-targets=spir64 %t.o -o %t.spv
-// AOT-compile device binary images
-// Neither of AOT tools can compile several files, hence, here is this
-// workaround
-// RUN: %llvm_spirv -r %sycl_libs_dir/libsycl-fallback-cassert.spv -o=%T/fallback-cassert.bc
-// RUN: %llvm_spirv -r %t.spv -o=%t.bc
-// RUN: %llvm_link %t.bc %T/fallback-cassert.bc -o=%t2.bc
-// RUN: %llvm_spirv %t2.bc -o=%t.spv
-// RUN: opencl-aot %t.spv -o=%t_cpu.ir --device=cpu
-// RUN: ocloc -file %t.spv -spirv_input -output %t_gen.out -output_no_suffix -device cfl
-// RUN: aoc %t.spv -o %t_fpga.aocx -sycl -dep-files=%t.d
+// CPU, GPU, FPGA
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen,spir64_fpga -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %t.o -o %t_all_aot.out
+// RUN: %HOST_RUN_PLACEHOLDER %t_all_aot.out
+// RUN: %CPU_RUN_PLACEHOLDER %t_all_aot.out
+// RUN: %GPU_RUN_PLACEHOLDER %t_all_aot.out
+// RUN: %ACC_RUN_PLACEHOLDER %t_all_aot.out
 
 // CPU, GPU
-// RUN: %clangxx -fsycl -fsycl-add-targets=spir64_x86_64:%t_cpu.ir,spir64_gen:%t_gen.out %t.o -o %t_cpu_gpu.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %t.o -o %t_cpu_gpu.out
 // RUN: %HOST_RUN_PLACEHOLDER %t_cpu_gpu.out
 // RUN: %CPU_RUN_PLACEHOLDER %t_cpu_gpu.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_cpu_gpu.out
 
 // CPU, FPGA
-// RUN: %clangxx -fsycl -fsycl-add-targets=spir64_x86_64:%t_cpu.ir,spir64_fpga:%t_fpga.aocx %t.o -o %t_cpu_fpga.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_fpga %t.o -o %t_cpu_fpga.out
 // RUN: %HOST_RUN_PLACEHOLDER %t_cpu_fpga.out
 // RUN: %CPU_RUN_PLACEHOLDER %t_cpu_fpga.out
 // RUN: %ACC_RUN_PLACEHOLDER %t_cpu_fpga.out
 
 // GPU, FPGA
-// RUN: %clangxx -fsycl -fsycl-add-targets=spir64_gen:%t_gen.out,spir64_fpga:%t_fpga.aocx %t.o -o %t_gpu_fpga.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen,spir64_fpga -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %t.o -o %t_gpu_fpga.out
 // RUN: %HOST_RUN_PLACEHOLDER %t_gpu_fpga.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_gpu_fpga.out
 // RUN: %ACC_RUN_PLACEHOLDER %t_gpu_fpga.out
 
 // No AOT-compiled image for CPU
-// RUN: %clangxx -fsycl -fsycl-add-targets=spir64:%t.spv,spir64_gen:%t_gen.out,spir64_fpga:%t_fpga.aocx %t.o -o %t_spv_gpu_fpga.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen,spir64_fpga -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %t.o -o %t_spv_gpu_fpga.out
 // RUN: %CPU_RUN_PLACEHOLDER %t_spv_gpu_fpga.out
 // Check that execution on AOT-compatible devices is unaffected
 // RUN: %GPU_RUN_PLACEHOLDER %t_spv_gpu_fpga.out
 // RUN: %ACC_RUN_PLACEHOLDER %t_spv_gpu_fpga.out
 
 // No AOT-compiled image for GPU
-// RUN: %clangxx -fsycl -fsycl-add-targets=spir64:%t.spv,spir64_x86_64:%t_cpu.ir,spir64_fpga:%t_fpga.aocx %t.o -o %t_spv_cpu_fpga.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_fpga %t.o -o %t_spv_cpu_fpga.out
 // RUN: %GPU_RUN_PLACEHOLDER %t_spv_cpu_fpga.out
 // Check that execution on AOT-compatible devices is unaffected
 // RUN: %CPU_RUN_PLACEHOLDER %t_spv_cpu_fpga.out
 // RUN: %ACC_RUN_PLACEHOLDER %t_spv_cpu_fpga.out
 
 // No AOT-compiled image for FPGA
-// RUN: %clangxx -fsycl -fsycl-add-targets=spir64:%t.spv,spir64_x86_64:%t_cpu.ir,spir64_gen:%t_gen.out %t.o -o %t_spv_cpu_gpu.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %t.o -o %t_spv_cpu_gpu.out
 // RUN: %ACC_RUN_PLACEHOLDER %t_spv_cpu_gpu.out
 // Check that execution on AOT-compatible devices is unaffected
 // RUN: %CPU_RUN_PLACEHOLDER %t_spv_cpu_gpu.out
