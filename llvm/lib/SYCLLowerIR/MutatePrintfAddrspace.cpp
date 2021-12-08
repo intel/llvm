@@ -100,7 +100,7 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
-    if (!F.getName().contains("__spirv_ocl_printf"))
+    if (!F.getName().startswith("_Z18__spirv_ocl_printf"))
       continue;
 
     auto *LiteralType = F.getArg(0)->getType();
