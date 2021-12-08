@@ -46,10 +46,9 @@ private:
   SYCLMutatePrintfAddrspacePass Impl;
 };
 
-Constant *getCASLiteral(CallInst *CI, PointerType *CASLiteralType) {
-  auto *Literal = cast<Constant>(CI->getArgOperand(0));
+Constant *getCASLiteral(Module *M, GlobalVariable *Literal,
+                        PointerType *CASLiteralType) {
   StringRef CASLiteralName(Literal->getName().str() + "._AS2");
-  Module *M = CI->getModule();
   IRBuilder<> Builder(M->getContext());
   Constant *Res = M->getOrInsertGlobal(CASLiteralName, CASLiteralType, [&] {
     StringRef LiteralValue;
@@ -79,7 +78,7 @@ FunctionCallee getCASPrintfFunction(Function &GenericASPrintfFunc,
   return CASPrintfFunc;
 }
 
-CallInst *buildCASPrintfCall(FunctionCallee CASPrintfFunc, Constant *CASLiteral,
+CallInst *buildCASPrintfCall(FunctionCallee CASPrintfFunc, Value *CASLiteral,
                              CallInst *CI) {
   SmallVector<Value *, 4> CallOperands(CI->data_operands_begin(),
                                        CI->data_operands_end());
@@ -116,8 +115,28 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
       if (!isa<CallInst>(U))
         continue;
       auto *CI = cast<CallInst>(U);
-      Constant *CASLiteral = getCASLiteral(CI, CASLiteralType);
-      CI->replaceAllUsesWith(buildCASPrintfCall(CASPrintfFunc, CASLiteral, CI));
+      Value *Stripped = CI->getArgOperand(0)->stripPointerCastsAndAliases();
+      Value *CASPrintfOperand = nullptr;
+      if (auto *Arg = dyn_cast<Argument>(Stripped)) {
+        Function *WrapperFunc = Arg->getParent();
+        Arg->mutateType(CASLiteralType);
+        CASPrintfOperand = Arg;
+        for (User *WrapperU : WrapperFunc->users()) {
+          auto *WrapperCI = cast<CallInst>(WrapperU);
+          // We're only expecting 1 level of wrappers, so cast unconditionally
+          Value *StrippedArg =
+              WrapperCI->getArgOperand(0)->stripPointerCastsAndAliases();
+          auto *Literal = cast<GlobalVariable>(StrippedArg);
+          Constant *CASLiteral = getCASLiteral(&M, Literal, CASLiteralType);
+          WrapperCI->setArgOperand(0, CASLiteral);
+        }
+      } else if (auto *Literal = dyn_cast<GlobalVariable>(Stripped)) {
+        CASPrintfOperand = getCASLiteral(&M, Literal, CASLiteralType);
+      } else
+        llvm_unreachable(
+            "Unexpected literal operand type for device-side printf");
+      CI->replaceAllUsesWith(
+          buildCASPrintfCall(CASPrintfFunc, CASPrintfOperand, CI));
       CallInstsToDrop.emplace_back(CI);
       ++ReplacedCallsCount;
     }
