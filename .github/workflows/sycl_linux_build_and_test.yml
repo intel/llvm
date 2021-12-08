@@ -55,7 +55,7 @@ on:
       lts_intel_runs_on:
         type: string
         required: false
-        default: "ubuntu-latest"
+        default: "sycl-precommit-linux"
 
 jobs:
   configure:
@@ -191,7 +191,7 @@ jobs:
     name: L0 GPU Test Suite
     needs: [build, configure]
     if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).lts_intel_image }}
       options: -u 1001 --device=/dev/dri
