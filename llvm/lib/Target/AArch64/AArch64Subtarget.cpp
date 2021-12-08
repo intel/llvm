@@ -82,10 +82,6 @@ void AArch64Subtarget::initializeProperties() {
   case CortexA55:
     PrefFunctionLogAlignment = 4;
     break;
-  case CortexA510:
-    PrefFunctionLogAlignment = 4;
-    VScaleForTuning = 1;
-    break;
   case CortexA57:
     MaxInterleaveFactor = 4;
     PrefFunctionLogAlignment = 4;
@@ -103,6 +99,12 @@ void AArch64Subtarget::initializeProperties() {
   case CortexR82:
   case CortexX1:
     PrefFunctionLogAlignment = 4;
+    break;
+  case CortexA510:
+  case CortexA710:
+  case CortexX2:
+    PrefFunctionLogAlignment = 4;
+    VScaleForTuning = 1;
     break;
   case A64FX:
     CacheLineSize = 256;

@@ -1631,7 +1631,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     Expr *E = DS.getRepAsExpr();
     assert(E && "Didn't get an expression for typeof?");
     // TypeQuals handled by caller.
-    Result = S.BuildTypeofExprType(E, DS.getTypeSpecTypeLoc());
+    Result = S.BuildTypeofExprType(E);
     if (Result.isNull()) {
       Result = Context.IntTy;
       declarator.setInvalidType(true);
@@ -1642,7 +1642,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     Expr *E = DS.getRepAsExpr();
     assert(E && "Didn't get an expression for decltype?");
     // TypeQuals handled by caller.
-    Result = S.BuildDecltypeType(E, DS.getTypeSpecTypeLoc());
+    Result = S.BuildDecltypeType(E);
     if (Result.isNull()) {
       Result = Context.IntTy;
       declarator.setInvalidType(true);
@@ -5450,7 +5450,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         // Avoid emitting extra errors if we already errored on the scope.
         D.setInvalidType(true);
       } else if (S.isDependentScopeSpecifier(SS) ||
-                 dyn_cast_or_null<CXXRecordDecl>(S.computeDeclContext(SS))) {
+                 isa_and_nonnull<CXXRecordDecl>(S.computeDeclContext(SS))) {
         NestedNameSpecifier *NNS = SS.getScopeRep();
         NestedNameSpecifier *NNSPrefix = NNS->getPrefix();
         switch (NNS->getKind()) {
@@ -5922,6 +5922,9 @@ namespace {
     void VisitQualifiedTypeLoc(QualifiedTypeLoc TL) {
       Visit(TL.getUnqualifiedLoc());
     }
+    // Allow to fill pointee's type locations, e.g.,
+    //   int __attr * __attr * __attr *p;
+    void VisitPointerTypeLoc(PointerTypeLoc TL) { Visit(TL.getNextTypeLoc()); }
     void VisitTypedefTypeLoc(TypedefTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
     }
@@ -6520,6 +6523,34 @@ QualType Sema::BuildAddressSpaceAttr(QualType &T, Expr *AddrSpace,
   if (!BuildAddressSpaceIndex(*this, ASIdx, AddrSpace, AttrLoc))
     return QualType();
   return BuildAddressSpaceAttr(T, ASIdx, AddrSpace, AttrLoc);
+}
+
+static void HandleBTFTypeTagAttribute(QualType &Type, const ParsedAttr &Attr,
+                                      TypeProcessingState &State) {
+  Sema &S = State.getSema();
+
+  // Check the number of attribute arguments.
+  if (Attr.getNumArgs() != 1) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_wrong_number_arguments)
+        << Attr << 1;
+    Attr.setInvalid();
+    return;
+  }
+
+  // Ensure the argument is a string.
+  auto *StrLiteral = dyn_cast<StringLiteral>(Attr.getArgAsExpr(0));
+  if (!StrLiteral) {
+    S.Diag(Attr.getLoc(), diag::err_attribute_argument_type)
+        << Attr << AANT_ArgumentString;
+    Attr.setInvalid();
+    return;
+  }
+
+  ASTContext &Ctx = S.Context;
+  StringRef BTFTypeTag = StrLiteral->getString();
+  Type = State.getAttributedType(
+      ::new (Ctx) BTFTypeTagAttr(Ctx, Attr, BTFTypeTag), Type, Type);
+  return;
 }
 
 /// HandleAddressSpaceTypeAttribute - Process an address_space attribute on the
@@ -8214,6 +8245,11 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
     case ParsedAttr::IgnoredAttribute:
       break;
 
+    case ParsedAttr::AT_BTFTypeTag:
+      HandleBTFTypeTagAttribute(type, attr, state);
+      attr.setUsedAsTypeAttr();
+      break;
+
     case ParsedAttr::AT_MayAlias:
       // FIXME: This attribute needs to actually be handled, but if we ignore
       // it it breaks large amounts of Linux software.
@@ -8978,7 +9014,7 @@ QualType Sema::getElaboratedType(ElaboratedTypeKeyword Keyword,
   return Context.getElaboratedType(Keyword, NNS, T, OwnedTagDecl);
 }
 
-QualType Sema::BuildTypeofExprType(Expr *E, SourceLocation Loc) {
+QualType Sema::BuildTypeofExprType(Expr *E) {
   assert(!E->hasPlaceholderType() && "unexpected placeholder");
 
   if (!getLangOpts().CPlusPlus && E->refersToBitField())
@@ -8995,9 +9031,9 @@ QualType Sema::BuildTypeofExprType(Expr *E, SourceLocation Loc) {
 /// getDecltypeForExpr - Given an expr, will return the decltype for
 /// that expression, according to the rules in C++11
 /// [dcl.type.simple]p4 and C++11 [expr.lambda.prim]p18.
-static QualType getDecltypeForExpr(Sema &S, Expr *E) {
+QualType Sema::getDecltypeForExpr(Expr *E) {
   if (E->isTypeDependent())
-    return S.Context.DependentTy;
+    return Context.DependentTy;
 
   Expr *IDExpr = E;
   if (auto *ImplCastExpr = dyn_cast<ImplicitCastExpr>(E))
@@ -9014,7 +9050,7 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
   // parameter object. This rule makes no difference before C++20 so we apply
   // it unconditionally.
   if (const auto *SNTTPE = dyn_cast<SubstNonTypeTemplateParmExpr>(IDExpr))
-    return SNTTPE->getParameterType(S.Context);
+    return SNTTPE->getParameterType(Context);
 
   //     - if e is an unparenthesized id-expression or an unparenthesized class
   //       member access (5.2.5), decltype(e) is the type of the entity named
@@ -9022,22 +9058,21 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
   //       functions, the program is ill-formed;
   //
   // We apply the same rules for Objective-C ivar and property references.
-  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(IDExpr)) {
+  if (const auto *DRE = dyn_cast<DeclRefExpr>(IDExpr)) {
     const ValueDecl *VD = DRE->getDecl();
-    if (auto *TPO = dyn_cast<TemplateParamObjectDecl>(VD))
-      return TPO->getType().getUnqualifiedType();
-    return VD->getType();
-  } else if (const MemberExpr *ME = dyn_cast<MemberExpr>(IDExpr)) {
-    if (const ValueDecl *VD = ME->getMemberDecl())
+    QualType T = VD->getType();
+    return isa<TemplateParamObjectDecl>(VD) ? T.getUnqualifiedType() : T;
+  }
+  if (const auto *ME = dyn_cast<MemberExpr>(IDExpr)) {
+    if (const auto *VD = ME->getMemberDecl())
       if (isa<FieldDecl>(VD) || isa<VarDecl>(VD))
         return VD->getType();
-  } else if (const ObjCIvarRefExpr *IR = dyn_cast<ObjCIvarRefExpr>(IDExpr)) {
+  } else if (const auto *IR = dyn_cast<ObjCIvarRefExpr>(IDExpr)) {
     return IR->getDecl()->getType();
-  } else if (const ObjCPropertyRefExpr *PR =
-                 dyn_cast<ObjCPropertyRefExpr>(IDExpr)) {
+  } else if (const auto *PR = dyn_cast<ObjCPropertyRefExpr>(IDExpr)) {
     if (PR->isExplicitProperty())
       return PR->getExplicitProperty()->getType();
-  } else if (auto *PE = dyn_cast<PredefinedExpr>(IDExpr)) {
+  } else if (const auto *PE = dyn_cast<PredefinedExpr>(IDExpr)) {
     return PE->getType();
   }
 
@@ -9048,24 +9083,20 @@ static QualType getDecltypeForExpr(Sema &S, Expr *E) {
   //   access to a corresponding data member of the closure type that
   //   would have been declared if x were an odr-use of the denoted
   //   entity.
-  using namespace sema;
-  if (S.getCurLambda()) {
-    if (isa<ParenExpr>(IDExpr)) {
-      if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(IDExpr->IgnoreParens())) {
-        if (VarDecl *Var = dyn_cast<VarDecl>(DRE->getDecl())) {
-          QualType T = S.getCapturedDeclRefType(Var, DRE->getLocation());
-          if (!T.isNull())
-            return S.Context.getLValueReferenceType(T);
-        }
+  if (getCurLambda() && isa<ParenExpr>(IDExpr)) {
+    if (auto *DRE = dyn_cast<DeclRefExpr>(IDExpr->IgnoreParens())) {
+      if (auto *Var = dyn_cast<VarDecl>(DRE->getDecl())) {
+        QualType T = getCapturedDeclRefType(Var, DRE->getLocation());
+        if (!T.isNull())
+          return Context.getLValueReferenceType(T);
       }
     }
   }
 
-  return S.Context.getReferenceQualifiedType(E);
+  return Context.getReferenceQualifiedType(E);
 }
 
-QualType Sema::BuildDecltypeType(Expr *E, SourceLocation Loc,
-                                 bool AsUnevaluated) {
+QualType Sema::BuildDecltypeType(Expr *E, bool AsUnevaluated) {
   assert(!E->hasPlaceholderType() && "unexpected placeholder");
 
   if (AsUnevaluated && CodeSynthesisContexts.empty() &&
@@ -9076,8 +9107,7 @@ QualType Sema::BuildDecltypeType(Expr *E, SourceLocation Loc,
     // used to build SFINAE gadgets.
     Diag(E->getExprLoc(), diag::warn_side_effects_unevaluated_context);
   }
-
-  return Context.getDecltypeType(E, getDecltypeForExpr(*this, E));
+  return Context.getDecltypeType(E, getDecltypeForExpr(E));
 }
 
 QualType Sema::BuildUnaryTransformType(QualType BaseType,

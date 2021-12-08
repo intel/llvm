@@ -329,7 +329,7 @@ void ConcatOutputSection::finalize() {
           thunkName, /*file=*/nullptr, thunkInfo.isec, /*value=*/0,
           /*size=*/thunkSize, /*isWeakDef=*/false, /*isPrivateExtern=*/true,
           /*isThumb=*/false, /*isReferencedDynamically=*/false,
-          /*noDeadStrip=*/false);
+          /*noDeadStrip=*/false, /*isWeakDefCanBeHidden=*/false);
       thunkInfo.sym->used = true;
       target->populateThunk(thunkInfo.isec, funcSym);
       finalizeOne(thunkInfo.isec);
@@ -353,7 +353,7 @@ void ConcatOutputSection::writeTo(uint8_t *buf) const {
   size_t i = 0, ie = inputs.size();
   size_t t = 0, te = thunks.size();
   while (i < ie || t < te) {
-    while (i < ie && (t == te || inputs[i]->getSize() == 0 ||
+    while (i < ie && (t == te || inputs[i]->empty() ||
                       inputs[i]->outSecOff < thunks[t]->outSecOff)) {
       inputs[i]->writeTo(buf + inputs[i]->outSecOff);
       ++i;

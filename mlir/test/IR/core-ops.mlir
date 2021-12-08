@@ -440,18 +440,18 @@ func @test_splat_op(%s : f32) {
 }
 
 // CHECK-LABEL: func @tensor_load_store
-func @tensor_load_store(%0 : memref<4x4xi32>) {
-  // CHECK: %[[TENSOR:.*]] = memref.tensor_load %[[MEMREF:.*]] : memref<4x4xi32>
-  %1 = memref.tensor_load %0 : memref<4x4xi32>
+func @tensor_load_store(%0 : memref<4x4xi32>, %1 : tensor<4x4xi32>) {
+  // CHECK-SAME: (%[[MEMREF:.*]]: memref<4x4xi32>,
+  // CHECK-SAME:  %[[TENSOR:.*]]: tensor<4x4xi32>)
   // CHECK: memref.tensor_store %[[TENSOR]], %[[MEMREF]] : memref<4x4xi32>
   memref.tensor_store %1, %0 : memref<4x4xi32>
   return
 }
 
 // CHECK-LABEL: func @unranked_tensor_load_store
-func @unranked_tensor_load_store(%0 : memref<*xi32>) {
-  // CHECK: %[[TENSOR:.*]] = memref.tensor_load %[[MEMREF:.*]] : memref<*xi32>
-  %1 = memref.tensor_load %0 : memref<*xi32>
+func @unranked_tensor_load_store(%0 : memref<*xi32>, %1 : tensor<*xi32>) {
+  // CHECK-SAME: (%[[MEMREF:.*]]: memref<*xi32>,
+  // CHECK-SAME:  %[[TENSOR:.*]]: tensor<*xi32>)
   // CHECK: memref.tensor_store %[[TENSOR]], %[[MEMREF]] : memref<*xi32>
   memref.tensor_store %1, %0 : memref<*xi32>
   return
@@ -484,55 +484,5 @@ func @generic_atomic_rmw(%I: memref<1x2xf32>, %i : index, %j : index) {
 func @assume_alignment(%0: memref<4x4xf16>) {
   // CHECK: memref.assume_alignment %[[MEMREF]], 16 : memref<4x4xf16>
   memref.assume_alignment %0, 16 : memref<4x4xf16>
-  return
-}
-
-// CHECK-LABEL: func @slice({{.*}}) {
-func @slice(%t: tensor<8x16x4xf32>, %idx : index) {
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-
-  // CHECK: tensor.extract_slice
-  // CHECK-SAME: tensor<8x16x4xf32> to tensor<?x?x?xf32>
-  %1 = tensor.extract_slice %t[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
-    : tensor<8x16x4xf32> to tensor<?x?x?xf32>
-
-  // CHECK: tensor.extract_slice
-  // CHECK-SAME: tensor<8x16x4xf32> to tensor<4x4x4xf32>
-  %2 = tensor.extract_slice %t[0, 2, 0][4, 4, 4][1, 1, 1]
-    : tensor<8x16x4xf32> to tensor<4x4x4xf32>
-
-  // CHECK: tensor.extract_slice
-  // CHECK-SAME: tensor<8x16x4xf32> to tensor<4x4xf32>
-  %3 = tensor.extract_slice %t[0, 2, 0][4, 1, 4][1, 1, 1]
-    : tensor<8x16x4xf32> to tensor<4x4xf32>
-
-  return
-}
-
-// CHECK-LABEL: func @insert_slice({{.*}}) {
-func @insert_slice(
-    %t: tensor<8x16x4xf32>,
-    %t2: tensor<16x32x8xf32>,
-    %t3: tensor<4x4xf32>,
-    %idx : index) {
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-
-  // CHECK: tensor.insert_slice
-  // CHECK-SAME: tensor<8x16x4xf32> into tensor<16x32x8xf32>
-  %1 = tensor.insert_slice %t into %t2[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
-    : tensor<8x16x4xf32> into tensor<16x32x8xf32>
-
-  // CHECK: tensor.insert_slice
-  // CHECK-SAME: tensor<8x16x4xf32> into tensor<16x32x8xf32>
-  %2 = tensor.insert_slice %t into %t2[%c0, %idx, %c0][%idx, 4, %idx][%c1, 1, %c1]
-    : tensor<8x16x4xf32> into tensor<16x32x8xf32>
-
-  // CHECK: tensor.insert_slice
-  // CHECK-SAME: tensor<4x4xf32> into tensor<8x16x4xf32>
-  %3 = tensor.insert_slice %t3 into %t[0, 2, 0][4, 1, 4][1, 1, 1]
-    : tensor<4x4xf32> into tensor<8x16x4xf32>
-
   return
 }

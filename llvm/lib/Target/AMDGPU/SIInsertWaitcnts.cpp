@@ -73,7 +73,7 @@ public:
 
 // Class of object that encapsulates latest instruction counter score
 // associated with the operand.  Used for determining whether
-// s_waitcnt instruction needs to be emited.
+// s_waitcnt instruction needs to be emitted.
 
 #define CNT_MASK(t) (1u << (t))
 
@@ -150,6 +150,8 @@ enum VmemType {
   VMEM_NOSAMPLER,
   // MIMG instructions with a sampler.
   VMEM_SAMPLER,
+  // BVH instructions
+  VMEM_BVH
 };
 
 VmemType getVmemType(const MachineInstr &Inst) {
@@ -157,9 +159,10 @@ VmemType getVmemType(const MachineInstr &Inst) {
   if (!SIInstrInfo::isMIMG(Inst))
     return VMEM_NOSAMPLER;
   const AMDGPU::MIMGInfo *Info = AMDGPU::getMIMGInfo(Inst.getOpcode());
-  return AMDGPU::getMIMGBaseOpcodeInfo(Info->BaseOpcode)->Sampler
-             ? VMEM_SAMPLER
-             : VMEM_NOSAMPLER;
+  const AMDGPU::MIMGBaseOpcodeInfo *BaseInfo =
+      AMDGPU::getMIMGBaseOpcodeInfo(Info->BaseOpcode);
+  return BaseInfo->BVH ? VMEM_BVH
+                       : BaseInfo->Sampler ? VMEM_SAMPLER : VMEM_NOSAMPLER;
 }
 
 void addWait(AMDGPU::Waitcnt &Wait, InstCounterType T, unsigned Count) {
@@ -963,6 +966,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(
   //   with knowledge of the called routines.
   if (MI.getOpcode() == AMDGPU::SI_RETURN_TO_EPILOG ||
       MI.getOpcode() == AMDGPU::S_SETPC_B64_return ||
+      MI.getOpcode() == AMDGPU::S_SETPC_B64_return_gfx ||
       (MI.isReturn() && MI.isCall() && !callWaitsOnFunctionEntry(MI))) {
     Wait = Wait.combined(AMDGPU::Waitcnt::allZero(ST->hasVscnt()));
   }
@@ -1686,17 +1690,13 @@ bool SIInsertWaitcnts::runOnMachineFunction(MachineFunction &MF) {
 
   bool HaveScalarStores = false;
 
-  for (MachineFunction::iterator BI = MF.begin(), BE = MF.end(); BI != BE;
-       ++BI) {
-    MachineBasicBlock &MBB = *BI;
-
-    for (MachineBasicBlock::iterator I = MBB.begin(), E = MBB.end(); I != E;
-         ++I) {
-      if (!HaveScalarStores && TII->isScalarStore(*I))
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineInstr &MI : MBB) {
+      if (!HaveScalarStores && TII->isScalarStore(MI))
         HaveScalarStores = true;
 
-      if (I->getOpcode() == AMDGPU::S_ENDPGM ||
-          I->getOpcode() == AMDGPU::SI_RETURN_TO_EPILOG)
+      if (MI.getOpcode() == AMDGPU::S_ENDPGM ||
+          MI.getOpcode() == AMDGPU::SI_RETURN_TO_EPILOG)
         EndPgmBlocks.push_back(&MBB);
     }
   }

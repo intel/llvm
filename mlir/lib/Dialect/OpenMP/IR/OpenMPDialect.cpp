@@ -152,9 +152,6 @@ static ParseResult parseAllocateAndAllocator(
 static void printAllocateAndAllocator(OpAsmPrinter &p,
                                       OperandRange varsAllocate,
                                       OperandRange varsAllocator) {
-  if (varsAllocate.empty())
-    return;
-
   p << "allocate(";
   for (unsigned i = 0; i < varsAllocate.size(); ++i) {
     std::string separator = i == varsAllocate.size() - 1 ? ") " : ", ";
@@ -182,7 +179,9 @@ static void printParallelOp(OpAsmPrinter &p, ParallelOp op) {
   printDataVars(p, op.firstprivate_vars(), "firstprivate");
   printDataVars(p, op.shared_vars(), "shared");
   printDataVars(p, op.copyin_vars(), "copyin");
-  printAllocateAndAllocator(p, op.allocate_vars(), op.allocators_vars());
+
+  if (!op.allocate_vars().empty())
+    printAllocateAndAllocator(p, op.allocate_vars(), op.allocators_vars());
 
   if (auto def = op.default_val())
     p << "default(" << def->drop_front(3) << ") ";
@@ -231,7 +230,7 @@ parseLinearClause(OpAsmParser &parser,
 static void printLinearClause(OpAsmPrinter &p, OperandRange linearVars,
                               OperandRange linearStepVars) {
   size_t linearVarsSize = linearVars.size();
-  p << "(";
+  p << "linear(";
   for (unsigned i = 0; i < linearVarsSize; ++i) {
     std::string separator = i == linearVarsSize - 1 ? ") " : ", ";
     p << linearVars[i];
@@ -245,12 +244,51 @@ static void printLinearClause(OpAsmPrinter &p, OperandRange linearVars,
 // Parser and printer for Schedule Clause
 //===----------------------------------------------------------------------===//
 
+static ParseResult
+verifyScheduleModifiers(OpAsmParser &parser,
+                        SmallVectorImpl<SmallString<12>> &modifiers) {
+  if (modifiers.size() > 2)
+    return parser.emitError(parser.getNameLoc()) << " unexpected modifier(s)";
+  for (auto mod : modifiers) {
+    // Translate the string. If it has no value, then it was not a valid
+    // modifier!
+    auto symbol = symbolizeScheduleModifier(mod);
+    if (!symbol.hasValue())
+      return parser.emitError(parser.getNameLoc())
+             << " unknown modifier type: " << mod;
+  }
+
+  // If we have one modifier that is "simd", then stick a "none" modiifer in
+  // index 0.
+  if (modifiers.size() == 1) {
+    if (symbolizeScheduleModifier(modifiers[0]) ==
+        mlir::omp::ScheduleModifier::simd) {
+      modifiers.push_back(modifiers[0]);
+      modifiers[0] =
+          stringifyScheduleModifier(mlir::omp::ScheduleModifier::none);
+    }
+  } else if (modifiers.size() == 2) {
+    // If there are two modifier:
+    // First modifier should not be simd, second one should be simd
+    if (symbolizeScheduleModifier(modifiers[0]) ==
+            mlir::omp::ScheduleModifier::simd ||
+        symbolizeScheduleModifier(modifiers[1]) !=
+            mlir::omp::ScheduleModifier::simd)
+      return parser.emitError(parser.getNameLoc())
+             << " incorrect modifier order";
+  }
+  return success();
+}
+
 /// schedule ::= `schedule` `(` sched-list `)`
-/// sched-list ::= sched-val | sched-val sched-list
+/// sched-list ::= sched-val | sched-val sched-list |
+///                sched-val `,` sched-modifier
 /// sched-val ::= sched-with-chunk | sched-wo-chunk
 /// sched-with-chunk ::= sched-with-chunk-types (`=` ssa-id-and-type)?
 /// sched-with-chunk-types ::= `static` | `dynamic` | `guided`
 /// sched-wo-chunk ::=  `auto` | `runtime`
+/// sched-modifier ::=  sched-mod-val | sched-mod-val `,` sched-mod-val
+/// sched-mod-val ::=  `monotonic` | `nonmonotonic` | `simd` | `none`
 static ParseResult
 parseScheduleClause(OpAsmParser &parser, SmallString<8> &schedule,
                     SmallVectorImpl<SmallString<12>> &modifiers,
@@ -278,7 +316,7 @@ parseScheduleClause(OpAsmParser &parser, SmallString<8> &schedule,
   }
 
   // If there is a comma, we have one or more modifiers..
-  if (succeeded(parser.parseOptionalComma())) {
+  while (succeeded(parser.parseOptionalComma())) {
     StringRef mod;
     if (parser.parseKeyword(&mod))
       return failure();
@@ -288,19 +326,24 @@ parseScheduleClause(OpAsmParser &parser, SmallString<8> &schedule,
   if (parser.parseRParen())
     return failure();
 
+  if (verifyScheduleModifiers(parser, modifiers))
+    return failure();
+
   return success();
 }
 
 /// Print schedule clause
 static void printScheduleClause(OpAsmPrinter &p, StringRef &sched,
-                                llvm::Optional<StringRef> modifier,
+                                llvm::Optional<StringRef> modifier, bool simd,
                                 Value scheduleChunkVar) {
   std::string schedLower = sched.lower();
-  p << "(" << schedLower;
+  p << "schedule(" << schedLower;
   if (scheduleChunkVar)
     p << " = " << scheduleChunkVar;
-  if (modifier && modifier.getValue() != "none")
+  if (modifier && modifier.hasValue())
     p << ", " << modifier;
+  if (simd)
+    p << ", simd";
   p << ") ";
 }
 
@@ -333,6 +376,7 @@ parseReductionVarList(OpAsmParser &parser,
 static void printReductionVarList(OpAsmPrinter &p,
                                   Optional<ArrayAttr> reductions,
                                   OperandRange reduction_vars) {
+  p << "reduction(";
   for (unsigned i = 0, e = reductions->size(); i < e; ++i) {
     if (i != 0)
       p << ", ";
@@ -822,6 +866,13 @@ static ParseResult parseClauses(OpAsmParser &parser, OperationState &result,
     if (modifiers.size() > 0) {
       auto mod = parser.getBuilder().getStringAttr(modifiers[0]);
       result.addAttribute("schedule_modifier", mod);
+      // Only SIMD attribute is allowed here!
+      if (modifiers.size() > 1) {
+        assert(symbolizeScheduleModifier(modifiers[1]) ==
+               mlir::omp::ScheduleModifier::simd);
+        auto attr = UnitAttr::get(parser.getBuilder().getContext());
+        result.addAttribute("simd_modifier", attr);
+      }
     }
     if (scheduleChunkSize) {
       auto chunkSizeType = parser.getBuilder().getI32Type();
@@ -862,6 +913,83 @@ static ParseResult parseParallelOp(OpAsmParser &parser,
   if (parser.parseRegion(*body, regionArgs, regionArgTypes))
     return failure();
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Parser, printer and verifier for SectionsOp
+//===----------------------------------------------------------------------===//
+
+/// Parses an OpenMP Sections operation
+///
+/// sections ::= `omp.sections` clause-list
+/// clause-list ::= clause clause-list | empty
+/// clause ::= private | firstprivate | lastprivate | reduction | allocate |
+///            nowait
+static ParseResult parseSectionsOp(OpAsmParser &parser,
+                                   OperationState &result) {
+
+  SmallVector<ClauseType> clauses = {privateClause,     firstprivateClause,
+                                     lastprivateClause, reductionClause,
+                                     allocateClause,    nowaitClause};
+
+  SmallVector<int> segments;
+
+  if (failed(parseClauses(parser, result, clauses, segments)))
+    return failure();
+
+  result.addAttribute("operand_segment_sizes",
+                      parser.getBuilder().getI32VectorAttr(segments));
+
+  // Now parse the body.
+  Region *body = result.addRegion();
+  if (parser.parseRegion(*body))
+    return failure();
+  return success();
+}
+
+static void printSectionsOp(OpAsmPrinter &p, SectionsOp op) {
+  p << " ";
+  printDataVars(p, op.private_vars(), "private");
+  printDataVars(p, op.firstprivate_vars(), "firstprivate");
+  printDataVars(p, op.lastprivate_vars(), "lastprivate");
+
+  if (!op.reduction_vars().empty())
+    printReductionVarList(p, op.reductions(), op.reduction_vars());
+
+  if (!op.allocate_vars().empty())
+    printAllocateAndAllocator(p, op.allocate_vars(), op.allocators_vars());
+
+  if (op.nowait())
+    p << "nowait ";
+
+  p.printRegion(op.region());
+}
+
+static LogicalResult verifySectionsOp(SectionsOp op) {
+
+  // A list item may not appear in more than one clause on the same directive,
+  // except that it may be specified in both firstprivate and lastprivate
+  // clauses.
+  for (auto var : op.private_vars()) {
+    if (llvm::is_contained(op.firstprivate_vars(), var))
+      return op.emitOpError()
+             << "operand used in both private and firstprivate clauses";
+    if (llvm::is_contained(op.lastprivate_vars(), var))
+      return op.emitOpError()
+             << "operand used in both private and lastprivate clauses";
+  }
+
+  if (op.allocate_vars().size() != op.allocators_vars().size())
+    return op.emitError(
+        "expected equal sizes for allocate and allocator variables");
+
+  for (auto &inst : *op.region().begin()) {
+    if (!(isa<SectionOp>(inst) || isa<TerminatorOp>(inst)))
+      op.emitOpError()
+          << "expected omp.section op or terminator op inside region";
+  }
+
+  return verifyReductionVarList(op, op.reductions(), op.reduction_vars());
 }
 
 /// Parses an OpenMP Workshare Loop operation
@@ -944,16 +1072,12 @@ static void printWsLoopOp(OpAsmPrinter &p, WsLoopOp op) {
   printDataVars(p, op.firstprivate_vars(), "firstprivate");
   printDataVars(p, op.lastprivate_vars(), "lastprivate");
 
-  if (op.linear_vars().size()) {
-    p << "linear";
+  if (op.linear_vars().size())
     printLinearClause(p, op.linear_vars(), op.linear_step_vars());
-  }
 
-  if (auto sched = op.schedule_val()) {
-    p << "schedule";
+  if (auto sched = op.schedule_val())
     printScheduleClause(p, sched.getValue(), op.schedule_modifier(),
-                        op.schedule_chunk_var());
-  }
+                        op.simd_modifier(), op.schedule_chunk_var());
 
   if (auto collapse = op.collapse_val())
     p << "collapse(" << collapse << ") ";
@@ -967,10 +1091,8 @@ static void printWsLoopOp(OpAsmPrinter &p, WsLoopOp op) {
   if (auto order = op.order_val())
     p << "order(" << order << ") ";
 
-  if (!op.reduction_vars().empty()) {
-    p << "reduction(";
+  if (!op.reduction_vars().empty())
     printReductionVarList(p, op.reductions(), op.reduction_vars());
-  }
 
   p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
 }

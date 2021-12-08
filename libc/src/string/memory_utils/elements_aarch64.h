@@ -9,7 +9,9 @@
 #ifndef LLVM_LIBC_SRC_STRING_MEMORY_UTILS_ELEMENTS_AARCH64_H
 #define LLVM_LIBC_SRC_STRING_MEMORY_UTILS_ELEMENTS_AARCH64_H
 
-#if defined(__arm__) || defined(__aarch64__)
+#include "src/__support/architectures.h"
+
+#if defined(LLVM_LIBC_ARCH_AARCH64)
 
 #include <src/string/memory_utils/elements.h>
 #include <stddef.h> // size_t
@@ -108,13 +110,15 @@ struct N32 {
 };
 
 using _32 = N32;
+using _64 = Repeated<_32, 2>;
 #else
 using _32 = __llvm_libc::scalar::_32;
+using _64 = __llvm_libc::scalar::_64;
 #endif // __ARM_NEON
 
 } // namespace aarch64
 } // namespace __llvm_libc
 
-#endif // defined(__arm__) || defined(__aarch64__)
+#endif // defined(LLVM_LIBC_ARCH_AARCH64)
 
 #endif // LLVM_LIBC_SRC_STRING_MEMORY_UTILS_ELEMENTS_AARCH64_H

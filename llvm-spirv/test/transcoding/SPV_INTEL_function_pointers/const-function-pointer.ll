@@ -14,8 +14,8 @@
 ; CHECK-SPIRV-DAG: Constant [[Int32]] [[XArg:[0-9]+]] 32
 ; CHECK-SPIRV-DAG: Constant [[Int32]] [[YArg:[0-9]+]] 2
 
-; CHECK-SPIRV: ConstFunctionPointerINTEL {{[0-9]+}} [[F1:[0-9]+]] [[F1Name]]
-; CHECK-SPIRV: ConstFunctionPointerINTEL {{[0-9]+}} [[F2:[0-9]+]] [[F2Name]]
+; CHECK-SPIRV: ConstantFunctionPointerINTEL {{[0-9]+}} [[F1:[0-9]+]] [[F1Name]]
+; CHECK-SPIRV: ConstantFunctionPointerINTEL {{[0-9]+}} [[F2:[0-9]+]] [[F2Name]]
 ; CHECK-SPIRV: ConstantComposite {{[0-9]+}} [[ConstComp:[0-9]+]] [[F1]] [[F2]]
 ; CHECK-SPIRV: Variable {{[0-9]+}} [[Var:[0-9]+]] {{[0-9]+}} [[ConstComp]]
 

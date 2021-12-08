@@ -83,7 +83,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   }
   // This test only contains device image for SPIR-V capable devices.
   if (Plt.get_backend() != sycl::backend::opencl &&
-      Plt.get_backend() != sycl::backend::level_zero) {
+      Plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
     std::cout << "Only OpenCL and Level Zero are supported for this test\n";
     return;
   }

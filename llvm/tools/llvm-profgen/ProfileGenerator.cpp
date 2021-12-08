@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "ProfileGenerator.h"
+#include "ErrorHandling.h"
 #include "ProfiledBinary.h"
 #include "llvm/ProfileData/ProfileCommon.h"
+#include <float.h>
 #include <unordered_set>
 
 cl::opt<std::string> OutputFilename("output", cl::value_desc("output"),
@@ -35,6 +37,11 @@ cl::opt<bool> UseMD5(
 static cl::opt<bool> PopulateProfileSymbolList(
     "populate-profile-symbol-list", cl::init(false), cl::Hidden,
     cl::desc("Populate profile symbol list (only meaningful for -extbinary)"));
+
+static cl::opt<bool> FillZeroForAllFuncs(
+    "fill-zero-for-all-funcs", cl::init(false), cl::Hidden,
+    cl::desc("Attribute all functions' range with zero count "
+             "even it's not hit by any samples."));
 
 static cl::opt<int32_t, true> RecursionCompression(
     "compress-recursion",
@@ -65,7 +72,16 @@ static cl::opt<int, true> CSProfMaxContextDepth(
              "depth limit."),
     cl::location(llvm::sampleprof::CSProfileGenerator::MaxContextDepth));
 
-extern cl::opt<int> ProfileSummaryCutoffCold;
+static cl::opt<double> HotFunctionDensityThreshold(
+    "hot-function-density-threshold", llvm::cl::init(1000),
+    llvm::cl::desc(
+        "specify density threshold for hot functions (default: 1000)"),
+    llvm::cl::Optional);
+static cl::opt<bool> ShowDensity("show-density", llvm::cl::init(false),
+                                 llvm::cl::desc("show profile density details"),
+                                 llvm::cl::Optional);
+
+extern cl::opt<int> ProfileSummaryCutoffHot;
 
 using namespace llvm;
 using namespace sampleprof;
@@ -78,16 +94,22 @@ int32_t CSProfileGenerator::MaxCompressionSize = -1;
 
 int CSProfileGenerator::MaxContextDepth = -1;
 
+bool ProfileGeneratorBase::UseFSDiscriminator = false;
+
 std::unique_ptr<ProfileGeneratorBase>
 ProfileGeneratorBase::create(ProfiledBinary *Binary,
                              const ContextSampleCounterMap &SampleCounters,
                              bool ProfileIsCS) {
   std::unique_ptr<ProfileGeneratorBase> Generator;
   if (ProfileIsCS) {
+    if (Binary->useFSDiscriminator())
+      exitWithError("FS discriminator is not supported in CS profile.");
     Generator.reset(new CSProfileGenerator(Binary, SampleCounters));
   } else {
     Generator.reset(new ProfileGenerator(Binary, SampleCounters));
   }
+  ProfileGeneratorBase::UseFSDiscriminator = Binary->useFSDiscriminator();
+  FunctionSamples::ProfileIsFS = Binary->useFSDiscriminator();
 
   return Generator;
 }
@@ -120,6 +142,51 @@ void ProfileGeneratorBase::write() {
   }
 
   write(std::move(WriterOrErr.get()), ProfileMap);
+}
+
+void ProfileGeneratorBase::showDensitySuggestion(double Density) {
+  if (Density == 0.0)
+    WithColor::warning() << "The --profile-summary-cutoff-hot option may be "
+                            "set too low. Please check your command.\n";
+  else if (Density < HotFunctionDensityThreshold)
+    WithColor::warning()
+        << "AutoFDO is estimated to optimize better with "
+        << format("%.1f", HotFunctionDensityThreshold / Density)
+        << "x more samples. Please consider increasing sampling rate or "
+           "profiling for longer duration to get more samples.\n";
+
+  if (ShowDensity)
+    outs() << "Minimum profile density for hot functions with top "
+           << format("%.2f",
+                     static_cast<double>(ProfileSummaryCutoffHot.getValue()) /
+                         10000)
+           << "% total samples: " << format("%.1f", Density) << "\n";
+}
+
+double ProfileGeneratorBase::calculateDensity(const SampleProfileMap &Profiles,
+                                              uint64_t HotCntThreshold) {
+  double Density = DBL_MAX;
+  std::vector<const FunctionSamples *> HotFuncs;
+  for (auto &I : Profiles) {
+    auto &FuncSamples = I.second;
+    if (FuncSamples.getTotalSamples() < HotCntThreshold)
+      continue;
+    HotFuncs.emplace_back(&FuncSamples);
+  }
+
+  for (auto *FuncSamples : HotFuncs) {
+    auto *Func = Binary->getBinaryFunction(FuncSamples->getName());
+    if (!Func)
+      continue;
+    uint64_t FuncSize = Func->getFuncSize();
+    if (FuncSize == 0)
+      continue;
+    Density =
+        std::min(Density, static_cast<double>(FuncSamples->getTotalSamples()) /
+                              FuncSize);
+  }
+
+  return Density == DBL_MAX ? 0.0 : Density;
 }
 
 void ProfileGeneratorBase::findDisjointRanges(RangeSample &DisjointRanges,
@@ -306,6 +373,12 @@ void ProfileGenerator::generateProfile() {
   } else {
     generateLineNumBasedProfile();
   }
+  postProcessProfiles();
+}
+
+void ProfileGenerator::postProcessProfiles() {
+  computeSummaryAndThreshold();
+  calculateAndShowDensity(ProfileMap);
 }
 
 void ProfileGenerator::generateLineNumBasedProfile() {
@@ -347,14 +420,22 @@ FunctionSamples &ProfileGenerator::getLeafFrameProfile(
 RangeSample
 ProfileGenerator::preprocessRangeCounter(const RangeSample &RangeCounter) {
   RangeSample Ranges(RangeCounter.begin(), RangeCounter.end());
-  // For each range, we search for all ranges of the function it belongs to and
-  // initialize it with zero count, so it remains zero if doesn't hit any
-  // samples. This is to be consistent with compiler that interpret zero count
-  // as unexecuted(cold).
-  for (auto I : RangeCounter) {
-    uint64_t StartOffset = I.first.first;
-    for (const auto &Range : Binary->getRangesForOffset(StartOffset))
-      Ranges[{Range.first, Range.second - 1}] += 0;
+  if (FillZeroForAllFuncs) {
+    for (auto &FuncI : Binary->getAllBinaryFunctions()) {
+      for (auto &R : FuncI.second.Ranges) {
+        Ranges[{R.first, R.second - 1}] += 0;
+      }
+    }
+  } else {
+    // For each range, we search for all ranges of the function it belongs to
+    // and initialize it with zero count, so it remains zero if doesn't hit any
+    // samples. This is to be consistent with compiler that interpret zero count
+    // as unexecuted(cold).
+    for (auto I : RangeCounter) {
+      uint64_t StartOffset = I.first.first;
+      for (const auto &Range : Binary->getRangesForOffset(StartOffset))
+        Ranges[{Range.first, Range.second - 1}] += 0;
+    }
   }
   RangeSample DisjointRanges;
   findDisjointRanges(DisjointRanges, Ranges);
@@ -372,7 +453,10 @@ void ProfileGenerator::populateBodySamplesForAllFunctions(
     // Disjoint ranges may have range in the middle of two instr,
     // e.g. If Instr1 at Addr1, and Instr2 at Addr2, disjoint range
     // can be Addr1+1 to Addr2-1. We should ignore such range.
-    while (IP.Address <= RangeEnd) {
+    if (IP.Address > RangeEnd)
+      continue;
+
+    do {
       uint64_t Offset = Binary->virtualAddrToOffset(IP.Address);
       const SampleContextFrameVector &FrameVec =
           Binary->getFrameLocationStack(Offset);
@@ -381,9 +465,7 @@ void ProfileGenerator::populateBodySamplesForAllFunctions(
         updateBodySamplesforFunctionProfile(FunctionProfile, FrameVec.back(),
                                             Count);
       }
-      // Move to next IP within the range.
-      IP.advance();
-    }
+    } while (IP.advance() && IP.Address <= RangeEnd);
   }
 }
 
@@ -424,6 +506,12 @@ void ProfileGenerator::populateBoundarySamplesForAllFunctions(
     FunctionSamples &CalleeProfile = getTopLevelFunctionProfile(CalleeName);
     CalleeProfile.addHeadSamples(Count);
   }
+}
+
+void ProfileGeneratorBase::calculateAndShowDensity(
+    const SampleProfileMap &Profiles) {
+  double Density = calculateDensity(Profiles, HotCountThreshold);
+  showDensitySuggestion(Density);
 }
 
 FunctionSamples &CSProfileGenerator::getFunctionProfileForContext(
@@ -525,17 +613,17 @@ void CSProfileGenerator::populateBodySamplesForFunction(
     // Disjoint ranges may have range in the middle of two instr,
     // e.g. If Instr1 at Addr1, and Instr2 at Addr2, disjoint range
     // can be Addr1+1 to Addr2-1. We should ignore such range.
-    while (IP.Address <= RangeEnd) {
+    if (IP.Address > RangeEnd)
+      continue;
+
+    do {
       uint64_t Offset = Binary->virtualAddrToOffset(IP.Address);
       auto LeafLoc = Binary->getInlineLeafFrameLoc(Offset);
       if (LeafLoc.hasValue()) {
         // Recording body sample for this specific context
         updateBodySamplesforFunctionProfile(FunctionProfile, *LeafLoc, Count);
       }
-
-      // Move to next IP within the range
-      IP.advance();
-    }
+    } while (IP.advance() && IP.Address <= RangeEnd);
   }
 }
 
@@ -643,16 +731,24 @@ void CSProfileGenerator::postProcessProfiles() {
       CSProfMergeColdContext = false;
   }
 
-  // Trim and merge cold context profile using cold threshold above. 
+  // Trim and merge cold context profile using cold threshold above.
   if (CSProfTrimColdContext || CSProfMergeColdContext) {
     SampleContextTrimmer(ProfileMap)
         .trimAndMergeColdContextProfiles(
             HotCountThreshold, CSProfTrimColdContext, CSProfMergeColdContext,
             CSProfMaxColdContextDepth, EnableCSPreInliner);
   }
+
+  // Merge function samples of CS profile to calculate profile density.
+  sampleprof::SampleProfileMap ContextLessProfiles;
+  for (const auto &I : ProfileMap) {
+    ContextLessProfiles[I.second.getName()].merge(I.second);
+  }
+
+  calculateAndShowDensity(ContextLessProfiles);
 }
 
-void CSProfileGenerator::computeSummaryAndThreshold() {
+void ProfileGeneratorBase::computeSummaryAndThreshold() {
   SampleProfileSummaryBuilder Builder(ProfileSummaryBuilder::DefaultCutoffs);
   auto Summary = Builder.computeSummaryForProfiles(ProfileMap);
   HotCountThreshold = ProfileSummaryBuilder::getHotCountThreshold(
@@ -701,14 +797,13 @@ void CSProfileGenerator::extractProbesFromRange(const RangeSample &RangeCounter,
       continue;
 
     InstructionPointer IP(Binary, RangeBegin, true);
-
     // Disjoint ranges may have range in the middle of two instr,
     // e.g. If Instr1 at Addr1, and Instr2 at Addr2, disjoint range
     // can be Addr1+1 to Addr2-1. We should ignore such range.
     if (IP.Address > RangeEnd)
       continue;
 
-    while (IP.Address <= RangeEnd) {
+    do {
       const AddressProbesMap &Address2ProbesMap =
           Binary->getAddress2ProbesMap();
       auto It = Address2ProbesMap.find(IP.Address);
@@ -719,9 +814,7 @@ void CSProfileGenerator::extractProbesFromRange(const RangeSample &RangeCounter,
           ProbeCounter[&Probe] += Count;
         }
       }
-
-      IP.advance();
-    }
+    } while (IP.advance() && IP.Address <= RangeEnd);
   }
 }
 
@@ -749,12 +842,12 @@ void CSProfileGenerator::populateBodySamplesWithProbes(
       FunctionProfile.addHeadSamples(Count);
       // Look up for the caller's function profile
       const auto *InlinerDesc = Binary->getInlinerDescForProbe(Probe);
-      if (InlinerDesc != nullptr) {
+      SampleContextFrames CalleeContextId =
+          FunctionProfile.getContext().getContextFrames();
+      if (InlinerDesc != nullptr && CalleeContextId.size() > 1) {
         // Since the context id will be compressed, we have to use callee's
         // context id to infer caller's context id to ensure they share the
         // same context prefix.
-        SampleContextFrames CalleeContextId =
-            FunctionProfile.getContext().getContextFrames();
         SampleContextFrameVector CallerContextId;
         SampleContextFrame &&CallerLeafFrameLoc =
             getCallerContext(CalleeContextId, CallerContextId);

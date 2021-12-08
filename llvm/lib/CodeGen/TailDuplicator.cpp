@@ -213,29 +213,30 @@ bool TailDuplicator::tailDuplicateAndUpdate(
         SSAUpdate.AddAvailableValue(SrcBB, SrcReg);
       }
 
+      SmallVector<MachineOperand *> DebugUses;
       // Rewrite uses that are outside of the original def's block.
       MachineRegisterInfo::use_iterator UI = MRI->use_begin(VReg);
-      // Only remove instructions after loop, as DBG_VALUE_LISTs with multiple
-      // uses of VReg may invalidate the use iterator when erased.
-      SmallPtrSet<MachineInstr *, 4> InstrsToRemove;
       while (UI != MRI->use_end()) {
         MachineOperand &UseMO = *UI;
         MachineInstr *UseMI = UseMO.getParent();
         ++UI;
+        // Rewrite debug uses last so that they can take advantage of any
+        // register mappings introduced by other users in its BB, since we
+        // cannot create new register definitions specifically for the debug
+        // instruction (as debug instructions should not affect CodeGen).
         if (UseMI->isDebugValue()) {
-          // SSAUpdate can replace the use with an undef. That creates
-          // a debug instruction that is a kill.
-          // FIXME: Should it SSAUpdate job to delete debug instructions
-          // instead of replacing the use with undef?
-          InstrsToRemove.insert(UseMI);
+          DebugUses.push_back(&UseMO);
           continue;
         }
         if (UseMI->getParent() == DefBB && !UseMI->isPHI())
           continue;
         SSAUpdate.RewriteUse(UseMO);
       }
-      for (auto *MI : InstrsToRemove)
-        MI->eraseFromParent();
+      for (auto *UseMO : DebugUses) {
+        MachineInstr *UseMI = UseMO->getParent();
+        UseMO->setReg(
+            SSAUpdate.GetValueInMiddleOfBlock(UseMI->getParent(), true));
+      }
     }
 
     SSAUpdateVRs.clear();
@@ -872,18 +873,15 @@ bool TailDuplicator::tailDuplicate(bool IsSimple, MachineBasicBlock *TailBB,
     // Clone the contents of TailBB into PredBB.
     DenseMap<Register, RegSubRegPair> LocalVRMap;
     SmallVector<std::pair<Register, RegSubRegPair>, 4> CopyInfos;
-    for (MachineBasicBlock::iterator I = TailBB->begin(), E = TailBB->end();
-         I != E; /* empty */) {
-      MachineInstr *MI = &*I;
-      ++I;
-      if (MI->isPHI()) {
+    for (MachineInstr &MI : llvm::make_early_inc_range(*TailBB)) {
+      if (MI.isPHI()) {
         // Replace the uses of the def of the PHI with the register coming
         // from PredBB.
-        processPHI(MI, TailBB, PredBB, LocalVRMap, CopyInfos, UsedByPhi, true);
+        processPHI(&MI, TailBB, PredBB, LocalVRMap, CopyInfos, UsedByPhi, true);
       } else {
         // Replace def of virtual registers with new registers, and update
         // uses with PHI source register or the new registers.
-        duplicateInstruction(MI, TailBB, PredBB, LocalVRMap, UsedByPhi);
+        duplicateInstruction(&MI, TailBB, PredBB, LocalVRMap, UsedByPhi);
       }
     }
     appendCopies(PredBB, CopyInfos, Copies);

@@ -248,10 +248,8 @@ static bool lldb_skip_name(llvm::StringRef mangled,
 
   // No filters for this scheme yet. Include all names in indexing.
   case Mangled::eManglingSchemeMSVC:
-    return false;
-
-  // No filters for this scheme yet. Include all names in indexing.
   case Mangled::eManglingSchemeRustV0:
+  case Mangled::eManglingSchemeD:
     return false;
 
   // Don't try and demangle things we can't categorize.
@@ -999,10 +997,15 @@ void Symtab::InitAddressIndexes() {
   }
 }
 
-void Symtab::CalculateSymbolSizes() {
+void Symtab::Finalize() {
   std::lock_guard<std::recursive_mutex> guard(m_mutex);
-  // Size computation happens inside InitAddressIndexes.
+  // Calculate the size of symbols inside InitAddressIndexes.
   InitAddressIndexes();
+  // Shrink to fit the symbols so we don't waste memory
+  if (m_symbols.capacity() > m_symbols.size()) {
+    collection new_symbols(m_symbols.begin(), m_symbols.end());
+    m_symbols.swap(new_symbols);
+  }
 }
 
 Symbol *Symtab::FindSymbolAtFileAddress(addr_t file_addr) {
@@ -1100,6 +1103,7 @@ void Symtab::FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
           case eSymbolTypeCode:
           case eSymbolTypeResolver:
           case eSymbolTypeReExported:
+          case eSymbolTypeAbsolute:
             symbol_indexes.push_back(temp_symbol_indexes[i]);
             break;
           default:

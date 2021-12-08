@@ -244,8 +244,12 @@ SPIRVInstruction *createInstFromSpecConstantOp(SPIRVSpecConstantOp *Inst) {
   assert(isSpecConstantOpAllowedOp(OC) &&
          "Op code not allowed for OpSpecConstantOp");
   Ops.erase(Ops.begin(), Ops.begin() + 1);
-  return SPIRVInstTemplateBase::create(OC, Inst->getType(), Inst->getId(), Ops,
-                                       nullptr, Inst->getModule());
+  auto *BM = Inst->getModule();
+  auto *RetInst = SPIRVInstTemplateBase::create(
+      OC, Inst->getType(), Inst->getId(), Ops, nullptr, BM);
+  // Instruction that creates from OpSpecConstantOp has the same Id
+  BM->insertEntryNoId(RetInst);
+  return RetInst;
 }
 
 } // namespace SPIRV

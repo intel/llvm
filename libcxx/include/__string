@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===-------------------------- __string ----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -41,9 +41,6 @@ _LIBCPP_PUSH_MACROS
 
 
 _LIBCPP_BEGIN_NAMESPACE_STD
-
-// The the extern template ABI lists are kept outside of <string> to improve the
-// readability of that header.
 
 // The extern template ABI lists are kept outside of <string> to improve the
 // readability of that header. We maintain 2 ABI lists:

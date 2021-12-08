@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <string>
 #include <unordered_set>
 
@@ -31,6 +32,12 @@ inline constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
 
 class XPTIRegistry {
 public:
+  void initializeFrameworkOnce() {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    std::call_once(MInitialized, [] { xptiFrameworkInitialize(); });
+#endif
+  }
+
   /// Notifies XPTI subscribers about new stream.
   ///
   /// \param StreamName is a name of newly initialized stream.
@@ -50,11 +57,13 @@ public:
     for (const auto &StreamName : MActiveStreams) {
       xptiFinalize(StreamName.c_str());
     }
+    xptiFrameworkFinalize();
 #endif // XPTI_ENABLE_INSTRUMENTATION
   }
 
 private:
   std::unordered_set<std::string> MActiveStreams;
+  std::once_flag MInitialized;
 };
 } // namespace detail
 } // namespace sycl

@@ -66,10 +66,10 @@ using namespace lld;
 using namespace lld::elf;
 
 static Optional<std::string> getLinkerScriptLocation(const Symbol &sym) {
-  for (BaseCommand *base : script->sectionCommands)
-    if (auto *cmd = dyn_cast<SymbolAssignment>(base))
-      if (cmd->sym == &sym)
-        return cmd->location;
+  for (SectionCommand *cmd : script->sectionCommands)
+    if (auto *assign = dyn_cast<SymbolAssignment>(cmd))
+      if (assign->sym == &sym)
+        return assign->location;
   return None;
 }
 
@@ -212,69 +212,6 @@ static bool isRelExpr(RelExpr expr) {
                R_RISCV_PC_INDIRECT, R_PPC64_RELAX_GOT_PC>(expr);
 }
 
-// Returns true if a given relocation can be computed at link-time.
-//
-// For instance, we know the offset from a relocation to its target at
-// link-time if the relocation is PC-relative and refers a
-// non-interposable function in the same executable. This function
-// will return true for such relocation.
-//
-// If this function returns false, that means we need to emit a
-// dynamic relocation so that the relocation will be fixed at load-time.
-static bool isStaticLinkTimeConstant(RelExpr e, RelType type, const Symbol &sym,
-                                     InputSectionBase &s, uint64_t relOff) {
-  // These expressions always compute a constant
-  if (oneof<R_DTPREL, R_GOTPLT, R_GOT_OFF, R_MIPS_GOT_LOCAL_PAGE, R_MIPS_GOTREL,
-            R_MIPS_GOT_OFF, R_MIPS_GOT_OFF32, R_MIPS_GOT_GP_PC,
-            R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTONLY_PC, R_GOTPLTONLY_PC,
-            R_PLT_PC, R_PLT_GOTPLT, R_PPC32_PLTREL, R_PPC64_CALL_PLT,
-            R_PPC64_RELAX_TOC, R_RISCV_ADD, R_AARCH64_GOT_PAGE>(e))
-    return true;
-
-  // These never do, except if the entire file is position dependent or if
-  // only the low bits are used.
-  if (e == R_GOT || e == R_PLT)
-    return target->usesOnlyLowPageBits(type) || !config->isPic;
-
-  if (sym.isPreemptible)
-    return false;
-  if (!config->isPic)
-    return true;
-
-  // The size of a non preemptible symbol is a constant.
-  if (e == R_SIZE)
-    return true;
-
-  // For the target and the relocation, we want to know if they are
-  // absolute or relative.
-  bool absVal = isAbsoluteValue(sym);
-  bool relE = isRelExpr(e);
-  if (absVal && !relE)
-    return true;
-  if (!absVal && relE)
-    return true;
-  if (!absVal && !relE)
-    return target->usesOnlyLowPageBits(type);
-
-  assert(absVal && relE);
-
-  // Allow R_PLT_PC (optimized to R_PC here) to a hidden undefined weak symbol
-  // in PIC mode. This is a little strange, but it allows us to link function
-  // calls to such symbols (e.g. glibc/stdlib/exit.c:__run_exit_handlers).
-  // Normally such a call will be guarded with a comparison, which will load a
-  // zero from the GOT.
-  if (sym.isUndefWeak())
-    return true;
-
-  // We set the final symbols values for linker script defined symbols later.
-  // They always can be computed as a link time constant.
-  if (sym.scriptDefined)
-      return true;
-
-  error("relocation " + toString(type) + " cannot refer to absolute symbol: " +
-        toString(sym) + getLocation(s, sym, relOff));
-  return true;
-}
 
 static RelExpr toPlt(RelExpr expr) {
   switch (expr) {
@@ -429,10 +366,10 @@ template <class ELFT> static void addCopyRelSymbol(SharedSymbol &ss) {
 
   // At this point, sectionBases has been migrated to sections. Append sec to
   // sections.
-  if (osec->sectionCommands.empty() ||
-      !isa<InputSectionDescription>(osec->sectionCommands.back()))
-    osec->sectionCommands.push_back(make<InputSectionDescription>(""));
-  auto *isd = cast<InputSectionDescription>(osec->sectionCommands.back());
+  if (osec->commands.empty() ||
+      !isa<InputSectionDescription>(osec->commands.back()))
+    osec->commands.push_back(make<InputSectionDescription>(""));
+  auto *isd = cast<InputSectionDescription>(osec->commands.back());
   isd->sections.push_back(sec);
   osec->commitSection(sec);
 
@@ -743,6 +680,12 @@ static void reportUndefinedSymbol(const UndefinedDiag &undef,
     msg +=
         "\n>>> the vtable symbol may be undefined because the class is missing "
         "its key function (see https://lld.llvm.org/missingkeyfunction)";
+  if (config->gcSections && config->zStartStopGC &&
+      sym.getName().startswith("__start_")) {
+    msg += "\n>>> the encapsulation symbol needs to be retained under "
+           "--gc-sections properly; consider -z nostart-stop-gc "
+           "(see https://lld.llvm.org/ELF/start-stop-gc)";
+  }
 
   if (undef.isWarning)
     warn(msg);
@@ -949,6 +892,71 @@ static bool canDefineSymbolInExecutable(Symbol &sym) {
   // of the function. Similar logic for objects.
   return ((sym.isFunc() && config->ignoreFunctionAddressEquality) ||
           (sym.isObject() && config->ignoreDataAddressEquality));
+}
+
+// Returns true if a given relocation can be computed at link-time.
+// This only handles relocation types expected in processRelocAux.
+//
+// For instance, we know the offset from a relocation to its target at
+// link-time if the relocation is PC-relative and refers a
+// non-interposable function in the same executable. This function
+// will return true for such relocation.
+//
+// If this function returns false, that means we need to emit a
+// dynamic relocation so that the relocation will be fixed at load-time.
+static bool isStaticLinkTimeConstant(RelExpr e, RelType type, const Symbol &sym,
+                                     InputSectionBase &s, uint64_t relOff) {
+  // These expressions always compute a constant
+  if (oneof<R_GOTPLT, R_GOT_OFF, R_MIPS_GOT_LOCAL_PAGE, R_MIPS_GOTREL,
+            R_MIPS_GOT_OFF, R_MIPS_GOT_OFF32, R_MIPS_GOT_GP_PC,
+            R_AARCH64_GOT_PAGE_PC, R_GOT_PC, R_GOTONLY_PC, R_GOTPLTONLY_PC,
+            R_PLT_PC, R_PLT_GOTPLT, R_PPC32_PLTREL, R_PPC64_CALL_PLT,
+            R_PPC64_RELAX_TOC, R_RISCV_ADD, R_AARCH64_GOT_PAGE>(e))
+    return true;
+
+  // These never do, except if the entire file is position dependent or if
+  // only the low bits are used.
+  if (e == R_GOT || e == R_PLT)
+    return target->usesOnlyLowPageBits(type) || !config->isPic;
+
+  if (sym.isPreemptible)
+    return false;
+  if (!config->isPic)
+    return true;
+
+  // The size of a non preemptible symbol is a constant.
+  if (e == R_SIZE)
+    return true;
+
+  // For the target and the relocation, we want to know if they are
+  // absolute or relative.
+  bool absVal = isAbsoluteValue(sym);
+  bool relE = isRelExpr(e);
+  if (absVal && !relE)
+    return true;
+  if (!absVal && relE)
+    return true;
+  if (!absVal && !relE)
+    return target->usesOnlyLowPageBits(type);
+
+  assert(absVal && relE);
+
+  // Allow R_PLT_PC (optimized to R_PC here) to a hidden undefined weak symbol
+  // in PIC mode. This is a little strange, but it allows us to link function
+  // calls to such symbols (e.g. glibc/stdlib/exit.c:__run_exit_handlers).
+  // Normally such a call will be guarded with a comparison, which will load a
+  // zero from the GOT.
+  if (sym.isUndefWeak())
+    return true;
+
+  // We set the final symbols values for linker script defined symbols later.
+  // They always can be computed as a link time constant.
+  if (sym.scriptDefined)
+      return true;
+
+  error("relocation " + toString(type) + " cannot refer to absolute symbol: " +
+        toString(sym) + getLocation(s, sym, relOff));
+  return true;
 }
 
 // The reason we have to do this early scan is as follows
@@ -1197,9 +1205,10 @@ handleTlsRelocation(RelType type, Symbol &sym, InputSectionBase &c,
   }
 
   // Local-Dynamic relocs can be relaxed to Local-Exec.
-  if (expr == R_DTPREL && toExecRelax) {
-    c.relocations.push_back({target->adjustTlsExpr(type, R_RELAX_TLS_LD_TO_LE),
-                             type, offset, addend, &sym});
+  if (expr == R_DTPREL) {
+    if (toExecRelax)
+      expr = target->adjustTlsExpr(type, R_RELAX_TLS_LD_TO_LE);
+    c.relocations.push_back({expr, type, offset, addend, &sym});
     return 1;
   }
 
@@ -1330,7 +1339,7 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
     // have got-based small code model relocs. The .toc sections get placed
     // after the end of the linker allocated .got section and we do sort those
     // so sections addressed with small code model relocations come first.
-    if (isPPC64SmallCodeModelTocReloc(type))
+    if (type == R_PPC64_TOC16 || type == R_PPC64_TOC16_DS)
       sec.file->ppc64SmallCodeModelTocRelocs = true;
 
     // Record the TOC entry (.toc + addend) as not relaxable. See the comment in
@@ -1353,6 +1362,33 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
       if (i->getType(/*isMips64EL=*/false) == R_PPC64_REL24_NOTOC)
         ++offset;
     }
+  }
+
+  // If the relocation does not emit a GOT or GOTPLT entry but its computation
+  // uses their addresses, we need GOT or GOTPLT to be created.
+  //
+  // The 5 types that relative GOTPLT are all x86 and x86-64 specific.
+  if (oneof<R_GOTPLTONLY_PC, R_GOTPLTREL, R_GOTPLT, R_PLT_GOTPLT,
+            R_TLSDESC_GOTPLT, R_TLSGD_GOTPLT>(expr)) {
+    in.gotPlt->hasGotPltOffRel = true;
+  } else if (oneof<R_GOTONLY_PC, R_GOTREL, R_PPC32_PLTREL, R_PPC64_TOCBASE,
+                   R_PPC64_RELAX_TOC>(expr)) {
+    in.got->hasGotOffRel = true;
+  }
+
+  // Process TLS relocations, including relaxing TLS relocations. Note that
+  // R_TPREL and R_TPREL_NEG relocations are resolved in processRelocAux.
+  if (expr == R_TPREL || expr == R_TPREL_NEG) {
+    if (config->shared) {
+      errorOrWarn("relocation " + toString(type) + " against " + toString(sym) +
+                  " cannot be used with -shared" +
+                  getLocation(sec, sym, offset));
+      return;
+    }
+  } else if (unsigned processed = handleTlsRelocation<ELFT>(
+                 type, sym, sec, offset, addend, expr)) {
+    i += (processed - 1);
+    return;
   }
 
   // Relax relocations.
@@ -1379,33 +1415,6 @@ static void scanReloc(InputSectionBase &sec, OffsetGetter &getOffset, RelTy *&i,
     } else if (!isAbsoluteValue(sym)) {
       expr = target->adjustGotPcExpr(type, addend, relocatedAddr);
     }
-  }
-
-  // If the relocation does not emit a GOT or GOTPLT entry but its computation
-  // uses their addresses, we need GOT or GOTPLT to be created.
-  //
-  // The 5 types that relative GOTPLT are all x86 and x86-64 specific.
-  if (oneof<R_GOTPLTONLY_PC, R_GOTPLTREL, R_GOTPLT, R_PLT_GOTPLT,
-            R_TLSDESC_GOTPLT, R_TLSGD_GOTPLT>(expr)) {
-    in.gotPlt->hasGotPltOffRel = true;
-  } else if (oneof<R_GOTONLY_PC, R_GOTREL, R_PPC64_TOCBASE, R_PPC64_RELAX_TOC>(
-                 expr)) {
-    in.got->hasGotOffRel = true;
-  }
-
-  // Process TLS relocations, including relaxing TLS relocations. Note that
-  // R_TPREL and R_TPREL_NEG relocations are resolved in processRelocAux.
-  if (expr == R_TPREL || expr == R_TPREL_NEG) {
-    if (config->shared) {
-      errorOrWarn("relocation " + toString(type) + " against " + toString(sym) +
-                  " cannot be used with -shared" +
-                  getLocation(sec, sym, offset));
-      return;
-    }
-  } else if (unsigned processed = handleTlsRelocation<ELFT>(
-                 type, sym, sec, offset, addend, expr)) {
-    i += (processed - 1);
-    return;
   }
 
   // We were asked not to generate PLT entries for ifuncs. Instead, pass the
@@ -1637,7 +1646,7 @@ static void forEachInputSectionDescription(
   for (OutputSection *os : outputSections) {
     if (!(os->flags & SHF_ALLOC) || !(os->flags & SHF_EXECINSTR))
       continue;
-    for (BaseCommand *bc : os->sectionCommands)
+    for (SectionCommand *bc : os->commands)
       if (auto *isd = dyn_cast<InputSectionDescription>(bc))
         fn(os, isd);
   }
@@ -1814,7 +1823,7 @@ ThunkSection *ThunkCreator::getISThunkSec(InputSection *isec) {
   // Find InputSectionRange within Target Output Section (TOS) that the
   // InputSection (IS) that we need to precede is in.
   OutputSection *tos = isec->getParent();
-  for (BaseCommand *bc : tos->sectionCommands) {
+  for (SectionCommand *bc : tos->commands) {
     auto *isd = dyn_cast<InputSectionDescription>(bc);
     if (!isd || isd->sections.empty())
       continue;

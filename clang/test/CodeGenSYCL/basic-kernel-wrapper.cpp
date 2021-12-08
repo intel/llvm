@@ -28,13 +28,13 @@ int main() {
 // CHECK: [[MEM_ARG]].addr = alloca i32 addrspace(1)*
 // Check lambda object alloca
 // CHECK: [[ANONALLOCA:%[0-9]+]] = alloca %class.anon
-// CHECK: [[ANON:%[0-9]+]] = addrspacecast %class.anon* [[ANONALLOCA]] to %class.anon addrspace(4)*
 // Check allocas for ranges
 // CHECK: [[ARANGEA:%agg.tmp.*]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[ARANGET:%agg.tmp.*]] = addrspacecast %"struct.cl::sycl::range"* [[ARANGEA]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[MRANGEA:%agg.tmp.*]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[MRANGET:%agg.tmp.*]] = addrspacecast %"struct.cl::sycl::range"* [[MRANGEA]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[OIDA:%agg.tmp.*]] = alloca %"struct.cl::sycl::id"
+// CHECK: [[ANON:%[0-9]+]] = addrspacecast %class.anon* [[ANONALLOCA]] to %class.anon addrspace(4)*
+// CHECK: [[ARANGET:%agg.tmp.*]] = addrspacecast %"struct.cl::sycl::range"* [[ARANGEA]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[MRANGET:%agg.tmp.*]] = addrspacecast %"struct.cl::sycl::range"* [[MRANGEA]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[OIDT:%agg.tmp.*]] = addrspacecast %"struct.cl::sycl::id"* [[OIDA]] to %"struct.cl::sycl::id" addrspace(4)*
 //
 // Check store of kernel pointer argument to alloca

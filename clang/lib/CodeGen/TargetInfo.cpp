@@ -5083,13 +5083,16 @@ CharUnits PPC64_SVR4_ABIInfo::getParamTypeAlignment(QualType Ty) const {
   if (const ComplexType *CTy = Ty->getAs<ComplexType>())
     Ty = CTy->getElementType();
 
+  auto FloatUsesVector = [this](QualType Ty){
+    return Ty->isRealFloatingType() && &getContext().getFloatTypeSemantics(
+                                           Ty) == &llvm::APFloat::IEEEquad();
+  };
+
   // Only vector types of size 16 bytes need alignment (larger types are
   // passed via reference, smaller types are not aligned).
   if (Ty->isVectorType()) {
     return CharUnits::fromQuantity(getContext().getTypeSize(Ty) == 128 ? 16 : 8);
-  } else if (Ty->isRealFloatingType() &&
-             &getContext().getFloatTypeSemantics(Ty) ==
-                 &llvm::APFloat::IEEEquad()) {
+  } else if (FloatUsesVector(Ty)) {
     // According to ABI document section 'Optional Save Areas': If extended
     // precision floating-point values in IEEE BINARY 128 QUADRUPLE PRECISION
     // format are supported, map them to a single quadword, quadword aligned.
@@ -5116,7 +5119,9 @@ CharUnits PPC64_SVR4_ABIInfo::getParamTypeAlignment(QualType Ty) const {
 
   // With special case aggregates, only vector base types need alignment.
   if (AlignAsType) {
-    return CharUnits::fromQuantity(AlignAsType->isVectorType() ? 16 : 8);
+    bool UsesVector = AlignAsType->isVectorType() ||
+                      FloatUsesVector(QualType(AlignAsType, 0));
+    return CharUnits::fromQuantity(UsesVector ? 16 : 8);
   }
 
   // Otherwise, we only need alignment for any aggregate type that
@@ -6364,6 +6369,26 @@ public:
     const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
     if (!FD)
       return;
+    auto *Fn = cast<llvm::Function>(GV);
+
+    if (const auto *TA = FD->getAttr<TargetAttr>()) {
+      ParsedTargetAttr Attr = TA->parse();
+      if (!Attr.BranchProtection.empty()) {
+        TargetInfo::BranchProtectionInfo BPI;
+        StringRef DiagMsg;
+        (void)CGM.getTarget().validateBranchProtection(Attr.BranchProtection,
+                                                       BPI, DiagMsg);
+
+        static const char *SignReturnAddrStr[] = {"none", "non-leaf", "all"};
+        assert(static_cast<unsigned>(BPI.SignReturnAddr) <= 2 &&
+               "Unexpected SignReturnAddressScopeKind");
+        Fn->addFnAttr("sign-return-address",
+                      SignReturnAddrStr[static_cast<int>(BPI.SignReturnAddr)]);
+
+        Fn->addFnAttr("branch-target-enforcement",
+                      BPI.BranchTargetEnforcement ? "true" : "false");
+      }
+    }
 
     const ARMInterruptAttr *Attr = FD->getAttr<ARMInterruptAttr>();
     if (!Attr)
@@ -6378,8 +6403,6 @@ public:
     case ARMInterruptAttr::ABORT:   Kind = "ABORT"; break;
     case ARMInterruptAttr::UNDEF:   Kind = "UNDEF"; break;
     }
-
-    llvm::Function *Fn = cast<llvm::Function>(GV);
 
     Fn->addFnAttr("interrupt", Kind);
 
@@ -9144,6 +9167,10 @@ class AMDGPUTargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   AMDGPUTargetCodeGenInfo(CodeGenTypes &CGT)
       : TargetCodeGenInfo(std::make_unique<AMDGPUABIInfo>(CGT)) {}
+
+  void setFunctionDeclAttributes(const FunctionDecl *FD, llvm::Function *F,
+                                 CodeGenModule &CGM) const;
+
   void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
                            CodeGen::CodeGenModule &M) const override;
   unsigned getOpenCLKernelCallingConv() const override;
@@ -9183,36 +9210,13 @@ static bool requiresAMDGPUProtectedVisibility(const Decl *D,
            cast<VarDecl>(D)->getType()->isCUDADeviceBuiltinTextureType()));
 }
 
-void AMDGPUTargetCodeGenInfo::setTargetAttributes(
-    const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
-  if (requiresAMDGPUProtectedVisibility(D, GV)) {
-    GV->setVisibility(llvm::GlobalValue::ProtectedVisibility);
-    GV->setDSOLocal(true);
-  }
-
-  if (GV->isDeclaration())
-    return;
-  const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
-  if (!FD)
-    return;
-
-  llvm::Function *F = cast<llvm::Function>(GV);
-
-  const auto *ReqdWGS = M.getLangOpts().OpenCL ?
-    FD->getAttr<ReqdWorkGroupSizeAttr>() : nullptr;
-
-
-  const bool IsOpenCLKernel = M.getLangOpts().OpenCL &&
-                              FD->hasAttr<OpenCLKernelAttr>();
-  const bool IsHIPKernel = M.getLangOpts().HIP &&
-                           FD->hasAttr<CUDAGlobalAttr>();
-  if ((IsOpenCLKernel || IsHIPKernel) &&
-      (M.getTriple().getOS() == llvm::Triple::AMDHSA))
-    F->addFnAttr("amdgpu-implicitarg-num-bytes", "56");
-
-  if (IsHIPKernel)
-    F->addFnAttr("uniform-work-group-size", "true");
-
+void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
+    const FunctionDecl *FD, llvm::Function *F, CodeGenModule &M) const {
+  const auto *ReqdWGS =
+      M.getLangOpts().OpenCL ? FD->getAttr<ReqdWorkGroupSizeAttr>() : nullptr;
+  const bool IsOpenCLKernel =
+      M.getLangOpts().OpenCL && FD->hasAttr<OpenCLKernelAttr>();
+  const bool IsHIPKernel = M.getLangOpts().HIP && FD->hasAttr<CUDAGlobalAttr>();
 
   const auto *FlatWGS = FD->getAttr<AMDGPUFlatWorkGroupSizeAttr>();
   if (ReqdWGS || FlatWGS) {
@@ -9285,6 +9289,38 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
     if (NumVGPR != 0)
       F->addFnAttr("amdgpu-num-vgpr", llvm::utostr(NumVGPR));
   }
+}
+
+void AMDGPUTargetCodeGenInfo::setTargetAttributes(
+    const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
+  if (requiresAMDGPUProtectedVisibility(D, GV)) {
+    GV->setVisibility(llvm::GlobalValue::ProtectedVisibility);
+    GV->setDSOLocal(true);
+  }
+
+  if (GV->isDeclaration())
+    return;
+
+  llvm::Function *F = dyn_cast<llvm::Function>(GV);
+  if (!F)
+    return;
+
+  const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
+  if (FD)
+    setFunctionDeclAttributes(FD, F, M);
+
+  const bool IsOpenCLKernel =
+      M.getLangOpts().OpenCL && FD && FD->hasAttr<OpenCLKernelAttr>();
+  const bool IsHIPKernel =
+      M.getLangOpts().HIP && FD && FD->hasAttr<CUDAGlobalAttr>();
+
+  const bool IsOpenMP = M.getLangOpts().OpenMP && !FD;
+  if ((IsOpenCLKernel || IsHIPKernel || IsOpenMP) &&
+      (M.getTriple().getOS() == llvm::Triple::AMDHSA))
+    F->addFnAttr("amdgpu-implicitarg-num-bytes", "56");
+
+  if (IsHIPKernel)
+    F->addFnAttr("uniform-work-group-size", "true");
 
   if (M.getContext().getTargetInfo().allowAMDGPUUnsafeFPAtomics())
     F->addFnAttr("amdgpu-unsafe-fp-atomics", "true");
@@ -9345,17 +9381,25 @@ AMDGPUTargetCodeGenInfo::getLLVMSyncScopeID(const LangOptions &LangOpts,
                                             llvm::LLVMContext &Ctx) const {
   std::string Name;
   switch (Scope) {
+  case SyncScope::HIPSingleThread:
+    Name = "singlethread";
+    break;
+  case SyncScope::HIPWavefront:
+  case SyncScope::OpenCLSubGroup:
+    Name = "wavefront";
+    break;
+  case SyncScope::HIPWorkgroup:
   case SyncScope::OpenCLWorkGroup:
     Name = "workgroup";
     break;
+  case SyncScope::HIPAgent:
   case SyncScope::OpenCLDevice:
     Name = "agent";
     break;
+  case SyncScope::HIPSystem:
   case SyncScope::OpenCLAllSVMDevices:
     Name = "";
     break;
-  case SyncScope::OpenCLSubGroup:
-    Name = "wavefront";
   }
 
   if (Ordering != llvm::AtomicOrdering::SequentiallyConsistent) {
@@ -10175,14 +10219,16 @@ void XCoreTargetCodeGenInfo::emitTargetMetadata(
     }
   }
 }
+
 //===----------------------------------------------------------------------===//
-// SPIR ABI Implementation
+// Base ABI and target codegen info implementation common between SPIR and
+// SPIR-V.
 //===----------------------------------------------------------------------===//
 
 namespace {
-class SPIRABIInfo : public DefaultABIInfo {
+class CommonSPIRABIInfo : public DefaultABIInfo {
 public:
-  SPIRABIInfo(CodeGenTypes &CGT) : DefaultABIInfo(CGT) { setCCs(); }
+  CommonSPIRABIInfo(CodeGenTypes &CGT) : DefaultABIInfo(CGT) { setCCs(); }
 
   ABIArgInfo classifyKernelArgumentType(QualType Ty) const;
 
@@ -10192,7 +10238,7 @@ private:
   void setCCs();
 };
 
-ABIArgInfo SPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
+ABIArgInfo CommonSPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
   Ty = useFirstFieldIfTransparentUnion(Ty);
 
   if (getContext().getLangOpts().SYCLIsDevice && isAggregateTypeForABI(Ty)) {
@@ -10203,7 +10249,7 @@ ABIArgInfo SPIRABIInfo::classifyKernelArgumentType(QualType Ty) const {
   return DefaultABIInfo::classifyArgumentType(Ty);
 }
 
-void SPIRABIInfo::computeInfo(CGFunctionInfo &FI) const {
+void CommonSPIRABIInfo::computeInfo(CGFunctionInfo &FI) const {
   llvm::CallingConv::ID CC = FI.getCallingConvention();
 
   if (!getCXXABI().classifyReturnType(FI))
@@ -10220,22 +10266,23 @@ void SPIRABIInfo::computeInfo(CGFunctionInfo &FI) const {
 
 } // end anonymous namespace
 namespace {
-class SPIRTargetCodeGenInfo : public TargetCodeGenInfo {
+class CommonSPIRTargetCodeGenInfo : public TargetCodeGenInfo {
 public:
-  SPIRTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
-      : TargetCodeGenInfo(std::make_unique<SPIRABIInfo>(CGT)) {}
-  unsigned getOpenCLKernelCallingConv() const override;
+  CommonSPIRTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
+      : TargetCodeGenInfo(std::make_unique<CommonSPIRABIInfo>(CGT)) {}
 
   LangAS getASTAllocaAddressSpace() const override {
     return getLangASFromTargetAS(
         getABIInfo().getDataLayout().getAllocaAddrSpace());
   }
 
+  unsigned getOpenCLKernelCallingConv() const override;
+
   bool shouldEmitStaticExternCAliases() const override;
 };
 
 } // End anonymous namespace.
-void SPIRABIInfo::setCCs() {
+void CommonSPIRABIInfo::setCCs() {
   assert(getRuntimeCC() == llvm::CallingConv::C);
   RuntimeCC = llvm::CallingConv::SPIR_FUNC;
 }
@@ -10243,17 +10290,17 @@ void SPIRABIInfo::setCCs() {
 namespace clang {
 namespace CodeGen {
 void computeSPIRKernelABIInfo(CodeGenModule &CGM, CGFunctionInfo &FI) {
-  SPIRABIInfo SPIRABI(CGM.getTypes());
+  CommonSPIRABIInfo SPIRABI(CGM.getTypes());
   SPIRABI.computeInfo(FI);
 }
 }
 }
 
-unsigned SPIRTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
+unsigned CommonSPIRTargetCodeGenInfo::getOpenCLKernelCallingConv() const {
   return llvm::CallingConv::SPIR_KERNEL;
 }
 
-bool SPIRTargetCodeGenInfo::shouldEmitStaticExternCAliases() const {
+bool CommonSPIRTargetCodeGenInfo::shouldEmitStaticExternCAliases() const {
   return false;
 }
 
@@ -11322,7 +11369,9 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
     return SetCGInfo(new ARCTargetCodeGenInfo(Types));
   case llvm::Triple::spir:
   case llvm::Triple::spir64:
-    return SetCGInfo(new SPIRTargetCodeGenInfo(Types));
+  case llvm::Triple::spirv32:
+  case llvm::Triple::spirv64:
+    return SetCGInfo(new CommonSPIRTargetCodeGenInfo(Types));
   case llvm::Triple::ve:
     return SetCGInfo(new VETargetCodeGenInfo(Types));
   }

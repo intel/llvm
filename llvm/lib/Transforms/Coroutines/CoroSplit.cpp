@@ -520,8 +520,8 @@ void CoroCloner::replaceRetconOrAsyncSuspendUses() {
   }
 
   // Try to peephole extracts of an aggregate return.
-  for (auto UI = NewS->use_begin(), UE = NewS->use_end(); UI != UE; ) {
-    auto EVI = dyn_cast<ExtractValueInst>((UI++)->getUser());
+  for (Use &U : llvm::make_early_inc_range(NewS->uses())) {
+    auto *EVI = dyn_cast<ExtractValueInst>(U.getUser());
     if (!EVI || EVI->getNumIndices() != 1)
       continue;
 
@@ -669,7 +669,7 @@ void CoroCloner::salvageDebugInfo() {
   for (DbgVariableIntrinsic *DVI : Worklist) {
     if (IsUnreachableBlock(DVI->getParent()))
       DVI->eraseFromParent();
-    else if (dyn_cast_or_null<AllocaInst>(DVI->getVariableLocationOp(0))) {
+    else if (isa_and_nonnull<AllocaInst>(DVI->getVariableLocationOp(0))) {
       // Count all non-debuginfo uses in reachable blocks.
       unsigned Uses = 0;
       for (auto *User : DVI->getVariableLocationOp(0)->users())
@@ -1974,9 +1974,9 @@ static void replacePrepare(CallInst *Prepare, LazyCallGraph &CG,
   //    %2 = bitcast %1 to [[TYPE]]
   // ==>
   //    %2 = @some_function
-  for (auto UI = Prepare->use_begin(), UE = Prepare->use_end(); UI != UE;) {
+  for (Use &U : llvm::make_early_inc_range(Prepare->uses())) {
     // Look for bitcasts back to the original function type.
-    auto *Cast = dyn_cast<BitCastInst>((UI++)->getUser());
+    auto *Cast = dyn_cast<BitCastInst>(U.getUser());
     if (!Cast || Cast->getType() != Fn->getType())
       continue;
 
@@ -2016,10 +2016,9 @@ static void replacePrepare(CallInst *Prepare, CallGraph &CG) {
   //    %2 = bitcast %1 to [[TYPE]]
   // ==>
   //    %2 = @some_function
-  for (auto UI = Prepare->use_begin(), UE = Prepare->use_end();
-         UI != UE; ) {
+  for (Use &U : llvm::make_early_inc_range(Prepare->uses())) {
     // Look for bitcasts back to the original function type.
-    auto *Cast = dyn_cast<BitCastInst>((UI++)->getUser());
+    auto *Cast = dyn_cast<BitCastInst>(U.getUser());
     if (!Cast || Cast->getType() != Fn->getType()) continue;
 
     // Check whether the replacement will introduce new direct calls.
@@ -2056,9 +2055,9 @@ static void replacePrepare(CallInst *Prepare, CallGraph &CG) {
 static bool replaceAllPrepares(Function *PrepareFn, LazyCallGraph &CG,
                                LazyCallGraph::SCC &C) {
   bool Changed = false;
-  for (auto PI = PrepareFn->use_begin(), PE = PrepareFn->use_end(); PI != PE;) {
+  for (Use &P : llvm::make_early_inc_range(PrepareFn->uses())) {
     // Intrinsics can only be used in calls.
-    auto *Prepare = cast<CallInst>((PI++)->getUser());
+    auto *Prepare = cast<CallInst>(P.getUser());
     replacePrepare(Prepare, CG, C);
     Changed = true;
   }
@@ -2074,10 +2073,9 @@ static bool replaceAllPrepares(Function *PrepareFn, LazyCallGraph &CG,
 /// switch coroutines, which are lowered in multiple stages).
 static bool replaceAllPrepares(Function *PrepareFn, CallGraph &CG) {
   bool Changed = false;
-  for (auto PI = PrepareFn->use_begin(), PE = PrepareFn->use_end();
-         PI != PE; ) {
+  for (Use &P : llvm::make_early_inc_range(PrepareFn->uses())) {
     // Intrinsics can only be used in calls.
-    auto *Prepare = cast<CallInst>((PI++)->getUser());
+    auto *Prepare = cast<CallInst>(P.getUser());
     replacePrepare(Prepare, CG);
     Changed = true;
   }
