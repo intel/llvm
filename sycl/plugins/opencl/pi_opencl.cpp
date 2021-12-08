@@ -127,82 +127,6 @@ static pi_result getExtFuncFromContext(pi_context context, T *fptr) {
   return cast<pi_result>(ret_err);
 }
 
-// We need to use clMemBlockingFreeINTEL here, however, due to a bug in OpenCL
-// CPU runtime this call fails with CL_INVALID_EVENT on CPU devices in certain
-// cases. As a temporary workaround, this function replicates caching of
-// extension function pointers in getExtFuncFromContext, while choosing
-// clMemBlockingFreeINTEL for GPU and clMemFreeINTEL for other device types.
-// TODO remove this workaround and switch to using getExtFuncFromContext
-// instead when the new OpenCL CPU runtime version is uplifted in CI.
-static pi_result getUSMFreeFunc(pi_context context,
-                                clMemBlockingFreeINTEL_fn *fptr) {
-  static_assert(
-      std::is_same<clMemBlockingFreeINTEL_fn, clMemFreeINTEL_fn>::value);
-  thread_local static std::map<pi_context, clMemBlockingFreeINTEL_fn> FuncPtrs;
-
-  // if cached, return cached FuncPtr
-  if (auto F = FuncPtrs[context]) {
-    // if cached that extension is not available return nullptr and
-    // PI_INVALID_VALUE
-    *fptr = F;
-    return F ? PI_SUCCESS : PI_INVALID_VALUE;
-  }
-
-  cl_uint deviceCount;
-  cl_int ret_err =
-      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
-                       sizeof(cl_uint), &deviceCount, nullptr);
-
-  if (ret_err != CL_SUCCESS || deviceCount < 1) {
-    return PI_INVALID_CONTEXT;
-  }
-
-  std::vector<cl_device_id> devicesInCtx(deviceCount);
-  ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
-                             deviceCount * sizeof(cl_device_id),
-                             devicesInCtx.data(), nullptr);
-
-  if (ret_err != CL_SUCCESS) {
-    return PI_INVALID_CONTEXT;
-  }
-
-  bool useBlockingFree = true;
-  for (const cl_device_id &dev : devicesInCtx) {
-    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
-    ret_err = clGetDeviceInfo(dev, CL_DEVICE_TYPE, sizeof(cl_device_type),
-                              &devType, nullptr);
-    if (ret_err != CL_SUCCESS) {
-      return PI_INVALID_DEVICE;
-    }
-    useBlockingFree &= devType == CL_DEVICE_TYPE_GPU;
-  }
-  const char *FuncName =
-      useBlockingFree ? clMemBlockingFreeName : clMemFreeName;
-
-  cl_platform_id curPlatform;
-  ret_err = clGetDeviceInfo(devicesInCtx[0], CL_DEVICE_PLATFORM,
-                            sizeof(cl_platform_id), &curPlatform, nullptr);
-
-  if (ret_err != CL_SUCCESS) {
-    return PI_INVALID_CONTEXT;
-  }
-
-  clMemBlockingFreeINTEL_fn FuncPtr =
-      (clMemBlockingFreeINTEL_fn)clGetExtensionFunctionAddressForPlatform(
-          curPlatform, FuncName);
-
-  if (!FuncPtr) {
-    // Cache that the extension is not available
-    FuncPtrs[context] = nullptr;
-    return PI_INVALID_VALUE;
-  }
-
-  *fptr = FuncPtr;
-  FuncPtrs[context] = FuncPtr;
-
-  return cast<pi_result>(ret_err);
-}
-
 /// Enables indirect access of pointers in kernels.
 /// Necessary to avoid telling CL about every pointer that might be used.
 ///
@@ -1048,8 +972,53 @@ pi_result piextUSMFree(pi_context context, void *ptr) {
   // Use a blocking free to avoid issues with indirect access from kernels that
   // might be still running.
   clMemBlockingFreeINTEL_fn FuncPtr = nullptr;
+
+  // We need to use clMemBlockingFreeINTEL here, however, due to a bug in OpenCL
+  // CPU runtime this call fails with CL_INVALID_EVENT on CPU devices in certain
+  // cases. As a temporary workaround, this function replicates caching of
+  // extension function pointers in getExtFuncFromContext, while choosing
+  // clMemBlockingFreeINTEL for GPU and clMemFreeINTEL for other device types.
+  // TODO remove this workaround when the new OpenCL CPU runtime version is
+  // uplifted in CI.
+  static_assert(
+      std::is_same<clMemBlockingFreeINTEL_fn, clMemFreeINTEL_fn>::value);
+  cl_uint deviceCount;
+  cl_int ret_err =
+      clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_NUM_DEVICES,
+                       sizeof(cl_uint), &deviceCount, nullptr);
+
+  if (ret_err != CL_SUCCESS || deviceCount < 1) {
+    return PI_INVALID_CONTEXT;
+  }
+
+  std::vector<cl_device_id> devicesInCtx(deviceCount);
+  ret_err = clGetContextInfo(cast<cl_context>(context), CL_CONTEXT_DEVICES,
+                             deviceCount * sizeof(cl_device_id),
+                             devicesInCtx.data(), nullptr);
+
+  if (ret_err != CL_SUCCESS) {
+    return PI_INVALID_CONTEXT;
+  }
+
+  bool useBlockingFree = true;
+  for (const cl_device_id &dev : devicesInCtx) {
+    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
+    ret_err = clGetDeviceInfo(dev, CL_DEVICE_TYPE, sizeof(cl_device_type),
+                              &devType, nullptr);
+    if (ret_err != CL_SUCCESS) {
+      return PI_INVALID_DEVICE;
+    }
+    useBlockingFree &= devType == CL_DEVICE_TYPE_GPU;
+  }
+
   pi_result RetVal = PI_INVALID_OPERATION;
-  RetVal = getUSMFreeFunc(context, &FuncPtr);
+  if (useBlockingFree)
+    RetVal =
+        getExtFuncFromContext<clMemBlockingFreeName, clMemBlockingFreeINTEL_fn>(
+            context, &FuncPtr);
+  else
+    RetVal = getExtFuncFromContext<clMemFreeName, clMemFreeINTEL_fn>(context,
+                                                                     &FuncPtr);
 
   if (FuncPtr) {
     RetVal = cast<pi_result>(FuncPtr(cast<cl_context>(context), ptr));
