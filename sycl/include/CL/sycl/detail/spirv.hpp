@@ -133,21 +133,22 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
   using GroupIdT = typename GroupId<Group>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
+  using WidenedT = conditional_t<
+      std::is_same<OCLT, cl_char>() || std::is_same<OCLT, cl_short>(), cl_int,
+      conditional_t<
+          std::is_same<OCLT, cl_uchar>() || std::is_same<OCLT, cl_ushort>(),
+          cl_uint,
+          conditional_t<std::is_same<OCLT, _Float16>::value, cl_float, OCLT>>>;
   using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  OCLT OCLX = detail::convertDataToType<T, OCLT>(x);
+  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
   OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
   return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
 }
 template <typename Group, typename T, typename IdT>
 EnableIfBitcastBroadcast<T, IdT> GroupBroadcast(T x, IdT local_id) {
-  using GroupIdT = typename GroupId<Group>::type;
-  GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
   auto BroadcastX = bit_cast<BroadcastT>(x);
-  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
-  BroadcastT Result =
-      __spirv_GroupBroadcast(group_scope<Group>::value, BroadcastX, OCLId);
+  BroadcastT Result = GroupBroadcast<Group>(BroadcastX, local_id);
   return bit_cast<T>(Result);
 }
 template <typename Group, typename T, typename IdT>
@@ -173,31 +174,26 @@ EnableIfNativeBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
   }
   using IdT = vec<size_t, Dimensions>;
   using OCLT = detail::ConvertToOpenCLType_t<T>;
+  using WidenedT = conditional_t<
+      std::is_same<OCLT, cl_char>() || std::is_same<OCLT, cl_short>(), cl_int,
+      conditional_t<
+          std::is_same<OCLT, cl_uchar>() || std::is_same<OCLT, cl_ushort>(),
+          cl_uint,
+          conditional_t<std::is_same<OCLT, _Float16>::value, cl_float, OCLT>>>;
   using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
   IdT VecId;
   for (int i = 0; i < Dimensions; ++i) {
     VecId[i] = local_id[Dimensions - i - 1];
   }
-  OCLT OCLX = detail::convertDataToType<T, OCLT>(x);
+  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
   OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
   return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
 }
 template <typename Group, typename T, int Dimensions>
 EnableIfBitcastBroadcast<T> GroupBroadcast(T x, id<Dimensions> local_id) {
-  if (Dimensions == 1) {
-    return GroupBroadcast<Group>(x, local_id[0]);
-  }
-  using IdT = vec<size_t, Dimensions>;
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
-  IdT VecId;
-  for (int i = 0; i < Dimensions; ++i) {
-    VecId[i] = local_id[Dimensions - i - 1];
-  }
   auto BroadcastX = bit_cast<BroadcastT>(x);
-  OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
-  BroadcastT Result =
-      __spirv_GroupBroadcast(group_scope<Group>::value, BroadcastX, OCLId);
+  BroadcastT Result = GroupBroadcast<Group>(BroadcastX, local_id);
   return bit_cast<T>(Result);
 }
 template <typename Group, typename T, int Dimensions>

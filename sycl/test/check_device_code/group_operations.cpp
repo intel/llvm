@@ -26,7 +26,10 @@ template <typename T, typename G> void binary_operations(G g) {
 
 template <typename T, typename G> void signed_unsigned(G g) {
   binary_operations<T>(g);
+  group_broadcast(g, T{});
+
   binary_operations<detail::make_unsigned_t<T>>(g);
+  group_broadcast(g, detail::make_unsigned_t<T>{});
 }
 
 template <typename G> void test(G g) {
@@ -63,6 +66,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastji{{m|y}}(i32 2, i32 %[[#]], i64 %[[#]])
 
 // uint8_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjjj(i32 2, i32 0, i32 %[[#]])
@@ -86,6 +90,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjj{{m|y}}(i32 2, i32 %[[#]], i64 %[[#]])
 
 // int16_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjji(i32 2, i32 0, i32 %[[#]])
@@ -109,6 +114,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastji{{m|y}}(i32 2, i32 %[[#]], i64 %[[#]])
 
 // uint16_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjjj(i32 2, i32 0, i32 %[[#]])
@@ -132,6 +138,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjj{{m|y}}(i32 2, i32 %[[#]], i64 %[[#]])
 
 // int32_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjji(i32 2, i32 0, i32 %[[#]])
@@ -155,6 +162,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 2, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastji{{m|y}}(i32 2, i32 %[[#]], i64 %[[#]])
 
 // uint32_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjjj(i32 2, i32 0, i32 %[[#]])
@@ -178,6 +186,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 2, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjj{{m|y}}(i32 2, i32 %[[#]], i64 %[[#]])
 
 // int64_t (Linux: long, Windows: long long)
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjj{{l|x}}(i32 2, i32 0, i64 %[[#]])
@@ -201,6 +210,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{l|x}}(i32 2, i32 0, i64 %[[#]])
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{l|x}}(i32 2, i32 1, i64 %[[#]])
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{l|x}}(i32 2, i32 2, i64 %[[#]])
+// CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupBroadcastj{{l|x}}{{m|y}}(i32 2, i64 %[[#]], i64 %[[#]])
 
 // uint64_t (Linux: unsigned long, Windows: unsigned long long)
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjj{{m|y}}(i32 2, i32 0, i64 %[[#]])
@@ -224,6 +234,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{m|y}}(i32 2, i32 0, i64 %[[#]])
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{m|y}}(i32 2, i32 1, i64 %[[#]])
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{m|y}}(i32 2, i32 2, i64 %[[#]])
+// CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupBroadcastj{{m|y}}{{m|y}}(i32 2, i64 %[[#]], i64 %[[#]])
 
 // half
 // CHECK: %{{.*}} = call spir_func half @_Z[[#]]__spirv_GroupFMaxjjDF16_(i32 2, i32 0, half %[[#]])
@@ -238,6 +249,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func half @_Z[[#]]__spirv_GroupFAddjjDF16_(i32 2, i32 0, half %[[#]])
 // CHECK: %{{.*}} = call spir_func half @_Z[[#]]__spirv_GroupFAddjjDF16_(i32 2, i32 1, half %[[#]])
 // CHECK: %{{.*}} = call spir_func half @_Z[[#]]__spirv_GroupFAddjjDF16_(i32 2, i32 2, half %[[#]])
+// CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupBroadcastjf{{m|y}}(i32 2, float %[[#]], i64 %[[#]])
 
 // float
 // CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupFMaxjjf(i32 2, i32 0, float %[[#]])
@@ -252,6 +264,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupFAddjjf(i32 2, i32 0, float %[[#]])
 // CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupFAddjjf(i32 2, i32 1, float %[[#]])
 // CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupFAddjjf(i32 2, i32 2, float %[[#]])
+// CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupBroadcastjf{{m|y}}(i32 2, float %[[#]], i64 %[[#]])
 
 // double
 // CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupFMaxjjd(i32 2, i32 0, double %[[#]])
@@ -266,6 +279,7 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupFAddjjd(i32 2, i32 0, double %[[#]])
 // CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupFAddjjd(i32 2, i32 1, double %[[#]])
 // CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupFAddjjd(i32 2, i32 2, double %[[#]])
+// CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupBroadcastjd{{m|y}}(i32 2, double %[[#]], i64 %[[#]])
 
 SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 
@@ -291,6 +305,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjij(i32 3, i32 %[[#]], i32 %[[#]])
 
 // uint8_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjjj(i32 3, i32 0, i32 %[[#]])
@@ -314,6 +329,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjjj(i32 3, i32 %[[#]], i32 %[[#]])
 
 // int16_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjji(i32 3, i32 0, i32 %[[#]])
@@ -337,6 +353,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjij(i32 3, i32 %[[#]], i32 %[[#]])
 
 // uint16_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjjj(i32 3, i32 0, i32 %[[#]])
@@ -360,6 +377,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjjj(i32 3, i32 %[[#]], i32 %[[#]])
 
 // int32_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjji(i32 3, i32 0, i32 %[[#]])
@@ -383,6 +401,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjji(i32 3, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjij(i32 3, i32 %[[#]], i32 %[[#]])
 
 // uint32_t
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjjj(i32 3, i32 0, i32 %[[#]])
@@ -406,6 +425,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 0, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 1, i32 %[[#]])
 // CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupIAddjjj(i32 3, i32 2, i32 %[[#]])
+// CHECK: %{{.*}} = call spir_func i32 @_Z[[#]]__spirv_GroupBroadcastjjj(i32 3, i32 %[[#]], i32 %[[#]])
 
 // int64_t (Linux: long, Windows: long long)
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjj{{l|x}}(i32 3, i32 0, i64 %[[#]])
@@ -429,6 +449,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{l|x}}(i32 3, i32 0, i64 %[[#]])
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{l|x}}(i32 3, i32 1, i64 %[[#]])
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{l|x}}(i32 3, i32 2, i64 %[[#]])
+// CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupBroadcastj{{l|x}}j(i32 3, i64 %[[#]], i32 %[[#]])
 
 // uint64_t (Linux: unsigned long, Windows: unsigned long long)
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupNonUniformBitwiseAndjj{{m|y}}(i32 3, i32 0, i64 %[[#]])
@@ -452,6 +473,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{m|y}}(i32 3, i32 0, i64 %[[#]])
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{m|y}}(i32 3, i32 1, i64 %[[#]])
 // CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupIAddjj{{m|y}}(i32 3, i32 2, i64 %[[#]])
+// CHECK: %{{.*}} = call spir_func i64 @_Z[[#]]__spirv_GroupBroadcastj{{m|y}}j(i32 3, i64 %[[#]], i32 %[[#]])
 
 // half
 // CHECK: %{{.*}} = call spir_func half @_Z[[#]]__spirv_GroupFMaxjjDF16_(i32 3, i32 0, half %[[#]])
@@ -466,6 +488,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func half @_Z[[#]]__spirv_GroupFAddjjDF16_(i32 3, i32 0, half %[[#]])
 // CHECK: %{{.*}} = call spir_func half @_Z[[#]]__spirv_GroupFAddjjDF16_(i32 3, i32 1, half %[[#]])
 // CHECK: %{{.*}} = call spir_func half @_Z[[#]]__spirv_GroupFAddjjDF16_(i32 3, i32 2, half %[[#]])
+// CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupBroadcastjfj(i32 3, float %[[#]], i32 %[[#]])
 
 // float
 // CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupFMaxjjf(i32 3, i32 0, float %[[#]])
@@ -480,6 +503,7 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupFAddjjf(i32 3, i32 0, float %[[#]])
 // CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupFAddjjf(i32 3, i32 1, float %[[#]])
 // CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupFAddjjf(i32 3, i32 2, float %[[#]])
+// CHECK: %{{.*}} = call spir_func float @_Z[[#]]__spirv_GroupBroadcastjfj(i32 3, float %[[#]], i32 %[[#]])
 
 // double
 // CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupFMaxjjd(i32 3, i32 0, double %[[#]])
@@ -494,3 +518,4 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupFAddjjd(i32 3, i32 0, double %[[#]])
 // CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupFAddjjd(i32 3, i32 1, double %[[#]])
 // CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupFAddjjd(i32 3, i32 2, double %[[#]])
+// CHECK: %{{.*}} = call spir_func double @_Z[[#]]__spirv_GroupBroadcastjdj(i32 3, double %[[#]], i32 %[[#]])
