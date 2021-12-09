@@ -1279,7 +1279,8 @@ pi_result _pi_queue::getOrCreateCopyCommandQueue(
 
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
 
-  // Ze copy command queue is not avialable at 'Index'. So we create it.
+  // Ze copy command queue is not available at 'Index'. So we create it below.
+  
   if (Index == 0) {
     // Create queue to main copy engine
     zePrint("NOTE: Main Copy Engine ZeCommandQueueDesc.ordinal = %d, "
@@ -2865,14 +2866,17 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
 
-  // Create 'placeholder queue' to main copy engine
+  // Create a placeholder in ZeCopyCommandQueues for a queue that will be used
+  // to submit commands to main copy engine. This queue is initially NULL and
+  // will be replaced by the Ze Command Queue which gets created just before its
+  // first use.
   ze_command_queue_handle_t ZeMainCopyCommandQueue = nullptr;
   if (Device->hasMainCopyEngine()) {
     ZeCopyCommandQueues.push_back(ZeMainCopyCommandQueue);
   }
 
   // Create additional 'placeholder queues' to link copy engines and push them
-  // into ZeCopyCommandQueues vector.
+  // into ZeCopyCommandQueues.
   if (Device->hasLinkCopyEngine()) {
     auto ZeNumLinkCopyQueues = Device->ZeLinkCopyQueueGroupProperties.numQueues;
     for (uint32_t i = 0; i < ZeNumLinkCopyQueues; ++i) {
