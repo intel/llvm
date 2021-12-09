@@ -66,9 +66,9 @@ private:
   Module *M;
   PointerType *CASLiteralType;
   size_t ReplacedCallsCount = 0;
-  // If the variadic version gets picked during FE compilation, we'll only have
-  // 1 function to replace. However, unique declarations are emitted for each of
-  // the non-variadic (variadic template) calls.
+  /// If the variadic version gets picked during FE compilation, we'll only have
+  /// 1 function to replace. However, unique declarations are emitted for each
+  /// of the non-variadic (variadic template) calls.
   SmallVector<Function *, 8> FunctionsToDrop;
 
   Function *getCASPrintfFunction(Function *GenericASPrintfFunc);
