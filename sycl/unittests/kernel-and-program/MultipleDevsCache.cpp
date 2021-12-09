@@ -143,9 +143,6 @@ public:
 protected:
   void SetUp() override {
     if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-      std::clog << "This test is only supported on OpenCL devices\n";
-      std::clog << "Current platform is "
-                << Plt.get_info<info::platform::name>();
       return;
     }
 
@@ -173,7 +170,7 @@ protected:
 
 // Test that program is retained for each device
 TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
-  if (Plt.is_host()) {
+  if (Plt.is_host()|| Plt.get_backend() != backend::opencl) {
     return;
   }
 
@@ -202,8 +199,7 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
 
 // Test that each kernel released only 1 time in ~KernelProgramCache()
 TEST_F(MultipleDeviceCacheTest, KernelRelease) {
-  platform Plt{default_selector()};
-  if (Plt.is_host()) {
+  if (Plt.is_host()|| Plt.get_backend() != backend::opencl) {
     return;
   }
   EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
