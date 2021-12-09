@@ -350,9 +350,7 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
   if (MIsFlushed)
     return;
 
-  Command *Cmd = static_cast<Command *>(getCommand());
-  assert(!Cmd || Cmd->getWorkerQueue() != nullptr);
-  QueueImplPtr Queue = Cmd ? Cmd->getWorkerQueue() : MQueue.lock();
+  QueueImplPtr Queue = MQueue.lock();
   // If the queue has been released, all of the commands have already been
   // implicitly flushed by piQueueRelease.
   if (!Queue) {
@@ -367,12 +365,9 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
   getPlugin().call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
       nullptr);
-  if (Status != PI_EVENT_QUEUED) {
-    MIsFlushed = true;
-    return;
+  if (Status == PI_EVENT_QUEUED) {
+    getPlugin().call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
   }
-
-  getPlugin().call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
   MIsFlushed = true;
 }
 
