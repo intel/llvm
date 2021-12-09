@@ -1,0 +1,146 @@
+= SYCL_EXT_ONEAPI_BARRIER
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Introduction
+IMPORTANT: This specification is a draft.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+This document describes an extension which adds `barrier` which acts similarly
+to https://en.cppreference.com/w/cpp/thread/barrier[`std::barrier`].
+
+NOTE: Available from compute capability 7.
+NOTE: CUDA can hardware accelerate from compute capability 8.
+
+== Notice
+
+Copyright (c) 2021 Intel Corporation.  All rights reserved.
+
+== Status
+
+Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
+
+== Version
+
+Revision: 1
+
+== Contact
+Finlay Marno, Codeplay (finlay 'dot' marno 'at' codeplay 'dot' com)
+
+== Dependencies
+
+This extension is written against the SYCL 2020 specification, Revision 4.
+
+== Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_ASYNC_BARRIER` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version.  Base features are supported.
+|===
+
+==== Sample Header
+
+[source, c++]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+
+class arrival_token;
+
+template <sycl::memory_scope scope, typename CompletionFunction>
+class barrier {
+    public:
+        // PTX expects an unsigned 32 bit int https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-init
+        // the valid range of count is [1,2^20 -1] - https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier-contents
+        // TODO should this have a completion function??
+        // expected to sync after this so all threads see the initialized barrier (maybe the sync should be part of the constructor)
+        // only one thread needs to initialize, so only the thread with leader set to true will. It is likely fine if multiple threads initialize as long as they all use the same value.
+        asynchronous_barrier(std::ptrdiff_t count, bool leader);
+        ~asynchronous_barrier();
+
+        // barriers cannot be moved or copied
+        asynchronous_barrier(const asynchronous_barrier& other) = delete;
+        asynchronous_barrier(asynchronous_barrier&& other) noexcept = delete;
+        asynchronous_barrier& operator=(const asynchronous_barrier& other) = delete;
+        asynchronous_barrier& operator=(asynchronous_barrier&& other) noexcept = delete;
+
+        arrival_token arrive();
+        void wait(arrival_token&& arrival) const;
+        // equivalent to wait(arrive());
+        void arrive_and_wait();
+        // arrive and also drop the expected count by one
+        void arrive_and_drop();
+
+
+        // returns the maximum value of expected count that is supported by the implementation.
+        static constexpr std::uint32_t max() noexcept();
+};
+
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+== Issues
+
+None.
+
+//. asd
+//+
+//--
+//*RESOLUTION*: Not resolved.
+//--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2021-08-11|John Pennycook|*Initial public working draft*
+|========================================
+
+== Resources
+* https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#aw-barrier
+* https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#parallel-synchronization-and-communication-instructions-mbarrier
+* https://nvidia.github.io/libcudacxx/extended_api/synchronization_primitives/barrier.html
+
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************
