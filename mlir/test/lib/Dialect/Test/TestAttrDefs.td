@@ -43,6 +43,11 @@ def CompoundAttrA : Test_Attr<"CompoundA"> {
       >: $arrayOfInts
   );
 }
+def CompoundAttrNested : Test_Attr<"CompoundAttrNested"> {
+  let mnemonic = "cmpnd_nested";
+  let parameters = (ins CompoundAttrA : $nested );
+  let assemblyFormat = "`<` `nested` `=` $nested `>`";
+}
 
 // An attribute testing AttributeSelfTypeParameter.
 def AttrWithSelfTypeParam : Test_Attr<"AttrWithSelfTypeParam"> {
@@ -114,6 +119,54 @@ def TestSubElementsAccessAttr : Test_Attr<"TestSubElementsAccess", [
     "::mlir::Attribute":$second,
     "::mlir::Attribute":$third
   );
+}
+
+def TestParamOne : AttrParameter<"int64_t", ""> {}
+
+def TestParamTwo : AttrParameter<"std::string", "", "llvm::StringRef"> {
+  let printer = "$_printer << '\"' << $_self << '\"'";
+}
+
+def TestParamFour : ArrayRefParameter<"int", ""> {
+  let cppStorageType = "llvm::SmallVector<int>";
+  let parser = "::parseIntArray($_parser)";
+  let printer = "::printIntArray($_printer, $_self)";
+}
+
+def TestAttrWithFormat : Test_Attr<"TestAttrWithFormat"> {
+  let parameters = (
+    ins
+    TestParamOne:$one,
+    TestParamTwo:$two,
+    "::mlir::IntegerAttr":$three,
+    TestParamFour:$four
+  );
+
+  let mnemonic = "attr_with_format";
+  let assemblyFormat = "`<` $one `:` struct($two, $four) `:` $three `>`";
+  let genVerifyDecl = 1;
+}
+
+def TestAttrUgly : Test_Attr<"TestAttrUgly"> {
+  let parameters = (ins "::mlir::Attribute":$attr);
+
+  let mnemonic = "attr_ugly";
+  let assemblyFormat = "`begin` $attr `end`";
+}
+
+def TestAttrParams: Test_Attr<"TestAttrParams"> {
+  let parameters = (ins "int":$v0, "int":$v1);
+
+  let mnemonic = "attr_params";
+  let assemblyFormat = "`<` params `>`";
+}
+
+// Test types can be parsed/printed.
+def TestAttrWithTypeParam : Test_Attr<"TestAttrWithTypeParam"> {
+  let parameters = (ins "::mlir::IntegerType":$int_type,
+                        "::mlir::Type":$any_type);
+  let mnemonic = "attr_with_type";
+  let assemblyFormat = "`<` $int_type `,` $any_type `>`";
 }
 
 #endif // TEST_ATTRDEFS

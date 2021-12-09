@@ -283,36 +283,36 @@ public:
   Value applyfn__max(Value lhs, Value rhs) {
     OpBuilder builder = getBuilder();
     if (isFloatingPoint(lhs))
-      return builder.create<MaxFOp>(lhs.getLoc(), lhs, rhs);
+      return builder.create<arith::MaxFOp>(lhs.getLoc(), lhs, rhs);
     if (isInteger(lhs))
-      return builder.create<MaxSIOp>(lhs.getLoc(), lhs, rhs);
+      return builder.create<arith::MaxSIOp>(lhs.getLoc(), lhs, rhs);
     llvm_unreachable("unsupported non numeric type");
   }
 
   Value applyfn__max_unsigned(Value lhs, Value rhs) {
     OpBuilder builder = getBuilder();
     if (isFloatingPoint(lhs))
-      return builder.create<MaxFOp>(lhs.getLoc(), lhs, rhs);
+      return builder.create<arith::MaxFOp>(lhs.getLoc(), lhs, rhs);
     if (isInteger(lhs))
-      return builder.create<MaxUIOp>(lhs.getLoc(), lhs, rhs);
+      return builder.create<arith::MaxUIOp>(lhs.getLoc(), lhs, rhs);
     llvm_unreachable("unsupported non numeric type");
   }
 
   Value applyfn__min(Value lhs, Value rhs) {
     OpBuilder builder = getBuilder();
     if (isFloatingPoint(lhs))
-      return builder.create<MinFOp>(lhs.getLoc(), lhs, rhs);
+      return builder.create<arith::MinFOp>(lhs.getLoc(), lhs, rhs);
     if (isInteger(lhs))
-      return builder.create<MinSIOp>(lhs.getLoc(), lhs, rhs);
+      return builder.create<arith::MinSIOp>(lhs.getLoc(), lhs, rhs);
     llvm_unreachable("unsupported non numeric type");
   }
 
   Value applyfn__min_unsigned(Value lhs, Value rhs) {
     OpBuilder builder = getBuilder();
     if (isFloatingPoint(lhs))
-      return builder.create<MinFOp>(lhs.getLoc(), lhs, rhs);
+      return builder.create<arith::MinFOp>(lhs.getLoc(), lhs, rhs);
     if (isInteger(lhs))
-      return builder.create<MinUIOp>(lhs.getLoc(), lhs, rhs);
+      return builder.create<arith::MinUIOp>(lhs.getLoc(), lhs, rhs);
     llvm_unreachable("unsupported non numeric type");
   }
 
@@ -583,7 +583,7 @@ static void print(OpAsmPrinter &p, GenericOp op) {
   genericAttrNamesSet.insert(genericAttrNames.begin(), genericAttrNames.end());
   SmallVector<NamedAttribute, 8> genericAttrs;
   for (auto attr : op->getAttrs())
-    if (genericAttrNamesSet.count(attr.first.strref()) > 0)
+    if (genericAttrNamesSet.count(attr.getName().strref()) > 0)
       genericAttrs.push_back(attr);
   if (!genericAttrs.empty()) {
     auto genericDictAttr = DictionaryAttr::get(op.getContext(), genericAttrs);
@@ -598,7 +598,7 @@ static void print(OpAsmPrinter &p, GenericOp op) {
 
   bool hasExtraAttrs = false;
   for (NamedAttribute n : op->getAttrs()) {
-    if ((hasExtraAttrs = !genericAttrNamesSet.contains(n.first.strref())))
+    if ((hasExtraAttrs = !genericAttrNamesSet.contains(n.getName().strref())))
       break;
   }
   if (hasExtraAttrs) {
@@ -753,8 +753,8 @@ struct DeduplicateGenericOpInputs : public OpRewritePattern<GenericOp> {
     // Copy over unknown attributes. They might be load bearing for some flow.
     ArrayRef<StringRef> odsAttrs = genericOp.getAttributeNames();
     for (NamedAttribute kv : genericOp->getAttrs()) {
-      if (!llvm::is_contained(odsAttrs, kv.first.c_str())) {
-        newOp->setAttr(kv.first, kv.second);
+      if (!llvm::is_contained(odsAttrs, kv.getName().getValue())) {
+        newOp->setAttr(kv.getName(), kv.getValue());
       }
     }
 
@@ -835,16 +835,14 @@ void GenericOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 // InitTensorOp
 //===----------------------------------------------------------------------===//
+
 void InitTensorOp::build(OpBuilder &b, OperationState &result,
                          ArrayRef<OpFoldResult> sizes, Type elementType,
                          ArrayRef<NamedAttribute> attrs) {
-  unsigned rank = sizes.size();
   SmallVector<Value, 4> dynamicSizes;
   SmallVector<int64_t, 4> staticSizes;
-  for (unsigned i = 0; i < rank; ++i) {
-    dispatchIndexOpFoldResult(sizes[i], dynamicSizes, staticSizes,
-                              ShapedType::kDynamicSize);
-  }
+  dispatchIndexOpFoldResults(sizes, dynamicSizes, staticSizes,
+                             ShapedType::kDynamicSize);
   auto resultType = RankedTensorType ::get(staticSizes, elementType);
   build(b, result, resultType, dynamicSizes, b.getI64ArrayAttr(staticSizes));
   result.addAttributes(attrs);
@@ -1127,19 +1125,16 @@ void PadTensorOp::build(OpBuilder &b, OperationState &result, Type resultType,
                         ArrayRef<NamedAttribute> attrs) {
   assert(resultType.isa<RankedTensorType>());
   auto sourceType = source.getType().cast<RankedTensorType>();
-  unsigned rank = sourceType.getRank();
   SmallVector<Value, 4> dynamicLow, dynamicHigh;
   SmallVector<int64_t, 4> staticLow, staticHigh;
-  for (unsigned i = 0; i < rank; ++i) {
-    // staticLow and staticHigh have full information of the padding config.
-    // This will grow staticLow and staticHigh with 1 value. If the config is
-    // dynamic (ie not a constant), dynamicLow and dynamicHigh will grow with 1
-    // value as well.
-    dispatchIndexOpFoldResult(low[i], dynamicLow, staticLow,
-                              ShapedType::kDynamicSize);
-    dispatchIndexOpFoldResult(high[i], dynamicHigh, staticHigh,
-                              ShapedType::kDynamicSize);
-  }
+  // staticLow and staticHigh have full information of the padding config.
+  // This will grow staticLow and staticHigh with 1 value. If the config is
+  // dynamic (ie not a constant), dynamicLow and dynamicHigh will grow with 1
+  // value as well.
+  dispatchIndexOpFoldResults(low, dynamicLow, staticLow,
+                             ShapedType::kDynamicSize);
+  dispatchIndexOpFoldResults(high, dynamicHigh, staticHigh,
+                             ShapedType::kDynamicSize);
   if (!resultType) {
     resultType =
         PadTensorOp::inferResultType(sourceType, staticLow, staticHigh);
@@ -1171,22 +1166,21 @@ PadTensorOp PadTensorOp::createPadScalarOp(Type type, Value source, Value pad,
 
 PadTensorOp PadTensorOp::createPadHighOp(Type type, Value source, Value pad,
                                          bool nofold, Location loc,
-                                         OpBuilder &builder) {
+                                         OpBuilder &b) {
   SmallVector<OpFoldResult, 4> low, high;
   auto rankedTensorType = type.cast<RankedTensorType>();
   assert(rankedTensorType.hasStaticShape());
-  int rank = rankedTensorType.getRank();
-  for (int i = 0; i < rank; ++i) {
-    auto dimOp = builder.createOrFold<tensor::DimOp>(loc, source, i);
-    auto resultDimSize = builder.createOrFold<arith::ConstantIndexOp>(
-        loc, rankedTensorType.getDimSize(i));
-    auto highValue =
-        builder.createOrFold<arith::SubIOp>(loc, resultDimSize, dimOp);
-    high.push_back(highValue);
-    low.push_back(builder.createOrFold<arith::ConstantIndexOp>(loc, 0));
+  for (auto en : enumerate(rankedTensorType.getShape())) {
+    AffineExpr d0;
+    bindDims(b.getContext(), d0);
+    auto dimOp = b.createOrFold<tensor::DimOp>(loc, source, en.index());
+    Value paddingWidth =
+        makeComposedAffineApply(b, loc, en.value() - d0, {dimOp});
+    high.push_back(paddingWidth);
+    low.push_back(b.createOrFold<arith::ConstantIndexOp>(loc, 0));
   }
   return PadTensorOp::createPadScalarOp(type, source, pad, low, high, nofold,
-                                        loc, builder);
+                                        loc, b);
 }
 
 LogicalResult PadTensorOp::reifyResultShapes(
@@ -3038,16 +3032,16 @@ LogicalResult matchAndReplaceDepthwiseConv(Operation *operation, Value input,
       loc, newInitTy, init, collapsedInitDims);
 
   Value newConv;
-  if (isa<DepthwiseConv2DNhwcOp>(operation)) {
+  if (isa<DepthwiseConv2DNhwcHwcmOp>(operation)) {
     newConv = rewriter
-                  .create<DepthwiseConv2DNhwOp>(
+                  .create<DepthwiseConv2DNhwcHwcOp>(
                       loc, newInitTy, ValueRange{input, collapsedKernel},
                       ValueRange{collapsedInit}, stride, dilation)
                   .getResult(0);
-  } else if (isa<DepthwiseConv2DNhwcQOp>(operation)) {
+  } else if (isa<DepthwiseConv2DNhwcHwcmQOp>(operation)) {
     newConv =
         rewriter
-            .create<DepthwiseConv2DNhwQOp>(
+            .create<DepthwiseConv2DNhwcHwcQOp>(
                 loc, newInitTy, ValueRange{input, collapsedKernel, iZp, kZp},
                 ValueRange{collapsedInit}, stride, dilation)
             .getResult(0);
@@ -3063,10 +3057,10 @@ LogicalResult matchAndReplaceDepthwiseConv(Operation *operation, Value input,
 }
 
 struct SimplifyDepthwiseConvOp
-    : public OpRewritePattern<DepthwiseConv2DNhwcOp> {
-  using OpRewritePattern<DepthwiseConv2DNhwcOp>::OpRewritePattern;
+    : public OpRewritePattern<DepthwiseConv2DNhwcHwcmOp> {
+  using OpRewritePattern<DepthwiseConv2DNhwcHwcmOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(DepthwiseConv2DNhwcOp op,
+  LogicalResult matchAndRewrite(DepthwiseConv2DNhwcHwcmOp op,
                                 PatternRewriter &rewriter) const override {
     Operation *operation = op.getOperation();
     Value input = op.getInputOperand(0)->get();
@@ -3083,10 +3077,10 @@ struct SimplifyDepthwiseConvOp
 };
 
 struct SimplifyDepthwiseConvQOp
-    : public OpRewritePattern<DepthwiseConv2DNhwcQOp> {
-  using OpRewritePattern<DepthwiseConv2DNhwcQOp>::OpRewritePattern;
+    : public OpRewritePattern<DepthwiseConv2DNhwcHwcmQOp> {
+  using OpRewritePattern<DepthwiseConv2DNhwcHwcmQOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(DepthwiseConv2DNhwcQOp op,
+  LogicalResult matchAndRewrite(DepthwiseConv2DNhwcHwcmQOp op,
                                 PatternRewriter &rewriter) const override {
     Operation *operation = op.getOperation();
     Value input = op.getInputOperand(0)->get();

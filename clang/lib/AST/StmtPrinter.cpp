@@ -1697,7 +1697,8 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
   PrintExpr(Node->getPtr());
   if (Node->getOp() != AtomicExpr::AO__c11_atomic_load &&
       Node->getOp() != AtomicExpr::AO__atomic_load_n &&
-      Node->getOp() != AtomicExpr::AO__opencl_atomic_load) {
+      Node->getOp() != AtomicExpr::AO__opencl_atomic_load &&
+      Node->getOp() != AtomicExpr::AO__hip_atomic_load) {
     OS << ", ";
     PrintExpr(Node->getVal1());
   }
@@ -2627,6 +2628,14 @@ void Stmt::printPretty(raw_ostream &Out, PrinterHelper *Helper,
                        StringRef NL, const ASTContext *Context) const {
   StmtPrinter P(Out, Helper, Policy, Indentation, NL, Context);
   P.Visit(const_cast<Stmt *>(this));
+}
+
+void Stmt::printPrettyControlled(raw_ostream &Out, PrinterHelper *Helper,
+                                 const PrintingPolicy &Policy,
+                                 unsigned Indentation, StringRef NL,
+                                 const ASTContext *Context) const {
+  StmtPrinter P(Out, Helper, Policy, Indentation, NL, Context);
+  P.PrintControlledStmt(const_cast<Stmt *>(this));
 }
 
 void Stmt::printJson(raw_ostream &Out, PrinterHelper *Helper,

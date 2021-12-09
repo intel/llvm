@@ -157,11 +157,22 @@ public:
   bool containsPoint(ArrayRef<int64_t> point) const;
 
   /// Find pairs of inequalities identified by their position indices, using
-  /// which an explicit representation for each local variable can be computed
-  /// The pairs are stored as indices of upperbound, lowerbound
-  /// inequalities. If no such pair can be found, it is stored as llvm::None.
-  void getLocalReprLbUbPairs(
+  /// which an explicit representation for each local variable can be computed.
+  /// The pairs are stored as indices of upperbound, lowerbound inequalities. If
+  /// no such pair can be found, it is stored as llvm::None.
+  ///
+  /// The dividends of the explicit representations are stored in `dividends`
+  /// and the denominators in `denominators`. If no explicit representation
+  /// could be found for the `i^th` local identifier, `denominators[i]` is set
+  /// to 0.
+  void getLocalReprs(
+      std::vector<SmallVector<int64_t, 8>> &dividends,
+      SmallVector<unsigned, 4> &denominators,
       std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> &repr) const;
+  void getLocalReprs(
+      std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> &repr) const;
+  void getLocalReprs(std::vector<SmallVector<int64_t, 8>> &dividends,
+                     SmallVector<unsigned, 4> &denominators) const;
 
   // Clones this object.
   std::unique_ptr<FlatAffineConstraints> clone() const;
@@ -430,10 +441,16 @@ public:
   /// variables.
   void convertDimToLocal(unsigned dimStart, unsigned dimLimit);
 
-  /// Merge local ids of `this` and `other`. This is done by appending local ids
-  /// of `other` to `this` and inserting local ids of `this` to `other` at start
-  /// of its local ids. Number of dimension and symbol ids should match in
-  /// `this` and `other`.
+  /// Adds additional local ids to the sets such that they both have the union
+  /// of the local ids in each set, without changing the set of points that
+  /// lie in `this` and `other`. The ordering of the local ids in the
+  /// sets may also be changed. After merging, if the `i^th` local variable in
+  /// one set has a known division representation, then the `i^th` local
+  /// variable in the other set either has the same division representation or
+  /// no known division representation.
+  ///
+  /// The number of dimensions and symbol ids in `this` and `other` should
+  /// match.
   void mergeLocalIds(FlatAffineConstraints &other);
 
   /// Removes all equalities and inequalities.
@@ -808,8 +825,8 @@ public:
   /// constraint systems are updated so that they have the union of all
   /// identifiers, with `this`'s original identifiers appearing first followed
   /// by any of `other`'s identifiers that didn't appear in `this`. Local
-  /// identifiers of each system are by design separate/local and are placed
-  /// one after other (`this`'s followed by `other`'s).
+  /// identifiers in `other` that have the same division representation as local
+  /// identifiers in `this` are merged into one.
   //  E.g.: Input: `this`  has (%i, %j) [%M, %N]
   //               `other` has (%k, %j) [%P, %N, %M]
   //        Output: both `this`, `other` have (%i, %j, %k) [%M, %N, %P]

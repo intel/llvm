@@ -62,7 +62,7 @@ protected:
   }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     PlatformTestImpl, PlatformTest,
     testing::ValuesIn(pi::initializeAndRemoveInvalid()),
     [](const testing::TestParamInfo<PlatformTest::ParamType> &info) {

@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===--------------------------- thread -----------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -86,6 +86,7 @@ void sleep_for(const chrono::duration<Rep, Period>& rel_time);
 #include <__debug>
 #include <__functional_base>
 #include <__mutex_base>
+#include <__thread/poll_with_backoff.h>
 #include <__threading_support>
 #include <__utility/decay_copy.h>
 #include <__utility/forward.h>
@@ -402,7 +403,7 @@ sleep_until(const chrono::time_point<chrono::steady_clock, _Duration>& __t)
 inline _LIBCPP_INLINE_VISIBILITY
 void yield() _NOEXCEPT {__libcpp_thread_yield();}
 
-}  // this_thread
+} // namespace this_thread
 
 _LIBCPP_END_NAMESPACE_STD
 

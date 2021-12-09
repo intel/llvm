@@ -102,19 +102,18 @@ class ChunkHeader {
 
  public:
   uptr UsedSize() const {
-    uptr R = user_requested_size_lo;
-    if (sizeof(uptr) > sizeof(user_requested_size_lo))
-      R += (uptr)user_requested_size_hi << (8 * sizeof(user_requested_size_lo));
-    return R;
+    static_assert(sizeof(user_requested_size_lo) == 4,
+                  "Expression below requires this");
+    return FIRST_32_SECOND_64(0, ((uptr)user_requested_size_hi << 32)) +
+           user_requested_size_lo;
   }
 
   void SetUsedSize(uptr size) {
     user_requested_size_lo = size;
-    if (sizeof(uptr) > sizeof(user_requested_size_lo)) {
-      size >>= (8 * sizeof(user_requested_size_lo));
-      user_requested_size_hi = size;
-      CHECK_EQ(user_requested_size_hi, size);
-    }
+    static_assert(sizeof(user_requested_size_lo) == 4,
+                  "Expression below requires this");
+    user_requested_size_hi = FIRST_32_SECOND_64(0, size >> 32);
+    CHECK_EQ(UsedSize(), size);
   }
 
   void SetAllocContext(u32 tid, u32 stack) {
@@ -306,7 +305,6 @@ struct Allocator {
   QuarantineCache fallback_quarantine_cache;
 
   uptr max_user_defined_malloc_size;
-  atomic_uint8_t rss_limit_exceeded;
 
   // ------------------- Options --------------------------
   atomic_uint16_t min_redzone;
@@ -344,14 +342,6 @@ struct Allocator {
                                        ? common_flags()->max_allocation_size_mb
                                              << 20
                                        : kMaxAllowedMallocSize;
-  }
-
-  bool RssLimitExceeded() {
-    return atomic_load(&rss_limit_exceeded, memory_order_relaxed);
-  }
-
-  void SetRssLimitExceeded(bool limit_exceeded) {
-    atomic_store(&rss_limit_exceeded, limit_exceeded, memory_order_relaxed);
   }
 
   void RePoisonChunk(uptr chunk) {
@@ -485,7 +475,7 @@ struct Allocator {
                  AllocType alloc_type, bool can_fill) {
     if (UNLIKELY(!asan_inited))
       AsanInitFromRtl();
-    if (RssLimitExceeded()) {
+    if (UNLIKELY(IsRssLimitExceeded())) {
       if (AllocatorMayReturnNull())
         return nullptr;
       ReportRssLimitExceeded(stack);
@@ -522,7 +512,7 @@ struct Allocator {
         size > max_user_defined_malloc_size) {
       if (AllocatorMayReturnNull()) {
         Report("WARNING: AddressSanitizer failed to allocate 0x%zx bytes\n",
-               (void*)size);
+               size);
         return nullptr;
       }
       uptr malloc_limit =
@@ -1070,10 +1060,6 @@ void asan_mz_force_lock() NO_THREAD_SAFETY_ANALYSIS { instance.ForceLock(); }
 
 void asan_mz_force_unlock() NO_THREAD_SAFETY_ANALYSIS {
   instance.ForceUnlock();
-}
-
-void AsanSoftRssLimitExceededCallback(bool limit_exceeded) {
-  instance.SetRssLimitExceeded(limit_exceeded);
 }
 
 }  // namespace __asan

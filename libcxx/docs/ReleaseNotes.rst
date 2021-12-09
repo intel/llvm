@@ -51,6 +51,14 @@ New Features
   added. This is useful for building libc++ in an embedded setting, and it adds itself to the various
   freestanding-friendly options provided by libc++.
 
+- ``_LIBCPP_DEBUG`` equals to ``1`` enables the randomization of unspecified
+  behavior of standard algorithms (e.g. equal elements in ``std::sort`` or
+  randomization of both sides of partition for ``std::nth_element``)
+
+- Floating-point support for ``std::to_chars`` support has been added.
+  Thanks to Stephan T. Lavavej and Microsoft for providing their implemention
+  to libc++.
+
 API Changes
 -----------
 
@@ -78,11 +86,33 @@ API Changes
   exceeds the maximum supported size, as required by the C++ standard.
   Previously the type ``std::length_error`` was used.
 
+- Removed the nonstandard methods ``std::chrono::file_clock::to_time_t`` and
+  ``std::chrono::file_clock::from_time_t``; neither libstdc++ nor MSVC STL
+  had such methods. Instead, in C++20, you can use ``std::chrono::file_clock::from_sys``
+  and ``std::chrono::file_clock::to_sys``, which are specified in the Standard.
+  If you are not using C++20, you should move to it.
+
+- The declarations of functions ``declare_reachable``, ``undeclare_reachable``, ``declare_no_pointers``,
+  ``undeclare_no_pointers``, and ``get_pointer_safety`` have been removed not only from C++2b but
+  from all modes. Their symbols are still provided by the dynamic library for the benefit of
+  existing compiled code. All of these functions have always behaved as no-ops.
+
 ABI Changes
 -----------
 
 - The C++17 variable templates ``is_error_code_enum_v`` and
   ``is_error_condition_enum_v`` are now of type ``bool`` instead of ``size_t``.
+
+- The C++03 emulation type for ``std::nullptr_t`` has been removed in favor of
+  using ``decltype(nullptr)`` in all standard modes. This is an ABI break for
+  anyone compiling in C++03 mode and who has ``std::nullptr_t`` as part of their
+  ABI. However, previously, these users' ABI would be incompatible with any other
+  binary or static archive compiled with C++11 or later. If you start seeing linker
+  errors involving ``std::nullptr_t`` against previously compiled binaries, this may
+  be the cause. You can define the ``_LIBCPP_ABI_USE_CXX03_NULLPTR_EMULATION`` macro
+  to return to the previous behavior. That macro will be removed in LLVM 15. Please
+  comment `here <https://reviews.llvm.org/D109459>`_ if you are broken by this change
+  and need to define the macro.
 
 Build System Changes
 --------------------
@@ -122,3 +152,12 @@ Build System Changes
     .. code-block:: bash
 
         $ cmake -S <monorepo>/runtimes -B build -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" <LIBCXX-OPTIONS> <LIBCXXABI-OPTIONS>
+
+  - Support for building the runtimes using the GCC 32 bit multilib flag (``-m32``) has been removed. Support
+    for this had been flaky for a while, and we didn't know of anyone depending on this. Instead, please perform
+    a normal cross-compilation of the runtimes using the appropriate target, such as passing the following to
+    your bootstrapping build:
+
+    .. code-block:: bash
+
+        -DLLVM_RUNTIME_TARGETS=i386-unknown-linux

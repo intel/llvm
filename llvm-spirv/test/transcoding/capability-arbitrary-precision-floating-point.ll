@@ -1583,7 +1583,7 @@ define linkonce_odr dso_local spir_func void @_Z15ap_float_sincosILi8ELi18ELi10E
 ; CHECK-SPIRV: 6 Load [[Ty_34]] [[SinCos_AId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 9 ArbitraryFloatSinCosINTEL [[Ty_66]] [[SinCos_ResultId:[0-9]+]] [[SinCos_AId]] 18 20 0 2 1
 ; CHECK-SPIRV: 3 Store [[#]] [[SinCos_ResultId]]
-; CHECK-LLVM: call i66 @intel_arbitrary_float_sincos.i66.i34(i34 %[[#]], i32 18, i32 20, i32 0, i32 2, i32 1)
+; CHECK-LLVM: call void @intel_arbitrary_float_sincos.i66.i34(i66 addrspace(4)* sret(i66) %[[#]], i34 %[[#]], i32 18, i32 20, i32 0, i32 2, i32 1)
   %8 = load i66, i66 addrspace(4)* %4, align 8
   store i66 %8, i66 addrspace(4)* %4, align 8
   %9 = bitcast i34* %1 to i8*
@@ -1612,7 +1612,7 @@ define linkonce_odr dso_local spir_func void @_Z14ap_float_atan2ILi7ELi16ELi7ELi
 ; CHECK-SPIRV-NEXT: 6 Load [[Ty_25]] [[ATan2_BId:[0-9]+]]
 ; CHECK-SPIRV-NEXT: 11 ArbitraryFloatATan2INTEL [[Ty_66]] [[ATan2_ResultId:[0-9]+]] [[ATan2_AId]] 16 [[ATan2_BId]] 17 18 0 2 1
 ; CHECK-SPIRV: 3 Store [[#]] [[ATan2_ResultId]]
-; CHECK-LLVM: call i66 @intel_arbitrary_float_atan2.i66.i24.i25(i24 %[[#]], i32 16, i25 %[[#]], i32 17, i32 18, i32 0, i32 2, i32 1)
+; CHECK-LLVM: call void @intel_arbitrary_float_atan2.i66.i24.i25(i66 addrspace(4)* sret(i66) %[[#]], i24 %[[#]], i32 16, i25 %[[#]], i32 17, i32 18, i32 0, i32 2, i32 1)
   %10 = load i66, i66 addrspace(4)* %4, align 8
   store i66 %10, i66 addrspace(4)* %4, align 8
   %11 = bitcast i66* %3 to i8*

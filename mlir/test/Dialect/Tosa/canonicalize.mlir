@@ -9,6 +9,28 @@ func @argmax_nofold(%arg0: tensor<?x1xf32>) -> tensor<?x1xf32> {
 
 // -----
 
+// CHECK-LABEL: @add_zero_different_shape
+func @add_zero_different_shape(%arg0: tensor<2x3xi32>) -> tensor<4x2x3xi32> {
+  // CHECK: tosa.add
+  %zeros = "tosa.const"() {value = dense<0> : tensor<4x2x3xi32>} : () -> tensor<4x2x3xi32>
+  %1 = "tosa.add"(%arg0, %zeros) : (tensor<2x3xi32>, tensor<4x2x3xi32>) -> tensor<4x2x3xi32>
+  return %1 : tensor<4x2x3xi32>
+}
+
+
+// -----
+
+// CHECK-LABEL: @add_zero_int
+func @add_zero_int(%arg0: tensor<2x3xi32>) -> tensor<2x3xi32> {
+  // CHECK: return %arg0
+  // CHECK-NOT: tosa.add
+  %zeros = "tosa.const"() {value = dense<0> : tensor<2x3xi32>} : () -> tensor<2x3xi32>
+  %1 = "tosa.add"(%arg0, %zeros) : (tensor<2x3xi32>, tensor<2x3xi32>) -> tensor<2x3xi32>
+  return %1 : tensor<2x3xi32>
+}
+
+// -----
+
 // CHECK-LABEL: @cast_fold
 func @cast_fold(%arg0: tensor<?x1xf32>) -> tensor<?x1xf32> {
   // CHECK: return %arg0
@@ -42,6 +64,81 @@ func @concat_fold_cast(%arg0: tensor<?x1xf32>) -> tensor<?x?xf32> {
   // CHECK: return %[[VAR0]]
   %0 = "tosa.concat"(%arg0) {axis = 0 : i64}: (tensor<?x1xf32>) -> tensor<?x?xf32>
   return %0 : tensor<?x?xf32>
+}
+
+// ----
+
+// CHECK-LABEL: @pad_noop
+func @pad_noop(%arg0: tensor<?x?xf32>) -> tensor<?x?xf32> {
+  // CHECK: return %arg0
+  %0 = "tosa.const"() { value = dense<0> : tensor<2x2xi32>} : () -> tensor<2x2xi32> 
+  %1 = "tosa.pad"(%arg0, %0) : (tensor<?x?xf32>, tensor<2x2xi32>) -> tensor<?x?xf32>
+  return %1 : tensor<?x?xf32>
+}
+
+// ----
+
+// CHECK-LABEL: @pad_determine_val_i32
+func @pad_determine_val_i32(%arg0: tensor<?x?xi32>, %arg1 : tensor<2x2xi32>) -> tensor<?x?xi32> {
+  // CHECK: %[[ZERO:.+]] = "tosa.const"() {value = dense<0> : tensor<i32>}
+  // CHECK: "tosa.pad"(%arg0, %arg1, %[[ZERO]])
+  %0 = "tosa.const"() { value = dense<[[1, 0], [0, 1]]> : tensor<2x2xi32>} : () -> tensor<2x2xi32> 
+  %1 = "tosa.pad"(%arg0, %arg1) : (tensor<?x?xi32>, tensor<2x2xi32>) -> tensor<?x?xi32>
+  return %1 : tensor<?x?xi32>
+}
+
+// ----
+
+// CHECK-LABEL: @pad_determine_val_f32
+func @pad_determine_val_f32(%arg0: tensor<?x?xf32>, %arg1 : tensor<2x2xi32>) -> tensor<?x?xf32> {
+  // CHECK: %[[ZERO:.+]] = "tosa.const"() {value = dense<0.000000e+00> : tensor<f32>}
+  // CHECK: "tosa.pad"(%arg0, %arg1, %[[ZERO]])
+  %0 = "tosa.const"() { value = dense<[[1, 0], [0, 1]]> : tensor<2x2xi32>} : () -> tensor<2x2xi32> 
+  %1 = "tosa.pad"(%arg0, %arg1) : (tensor<?x?xf32>, tensor<2x2xi32>) -> tensor<?x?xf32>
+  return %1 : tensor<?x?xf32>
+}
+
+// ----
+
+// CHECK-LABEL: @pad_determine_val_quant
+func @pad_determine_val_quant(%arg0: tensor<?x?xi32>, %arg1 : tensor<2x2xi32>) -> tensor<?x?xi32> {
+  // CHECK: %[[ZERO:.+]] = "tosa.const"() {value = dense<42> : tensor<i32>}
+  // CHECK: "tosa.pad"(%arg0, %arg1, %[[ZERO]])
+  %0 = "tosa.const"() { value = dense<[[1, 0], [0, 1]]> : tensor<2x2xi32>} : () -> tensor<2x2xi32> 
+  %1 = "tosa.pad"(%arg0, %arg1) { quantization_info = {input_zp = 42:i32} } : (tensor<?x?xi32>, tensor<2x2xi32>) -> tensor<?x?xi32>
+  return %1 : tensor<?x?xi32>
+}
+
+// -----
+
+// CHECK-LABEL: @mul_one_different_shape
+func @mul_one_different_shape(%arg0: tensor<2x3xf32>) -> tensor<4x2x3xf32> {
+  // CHECK: tosa.mul
+  %ones = "tosa.const"() {value = dense<1.0> : tensor<4x2x3xf32>} : () -> tensor<4x2x3xf32>
+  %1 = "tosa.mul"(%arg0, %ones) {shift = 0 : i32} : (tensor<2x3xf32>, tensor<4x2x3xf32>) -> tensor<4x2x3xf32>
+  return %1 : tensor<4x2x3xf32>
+}
+
+// -----
+
+// CHECK-LABEL: @mul_one_float
+func @mul_one_float(%arg0: tensor<2x3xf32>) -> tensor<2x3xf32> {
+  // CHECK: return %arg0
+  // CHECK-NOT: tosa.mul
+  %ones = "tosa.const"() {value = dense<1.0> : tensor<2x3xf32>} : () -> tensor<2x3xf32>
+  %1 = "tosa.mul"(%arg0, %ones) {shift = 0 : i32} : (tensor<2x3xf32>, tensor<2x3xf32>) -> tensor<2x3xf32>
+  return %1 : tensor<2x3xf32>
+}
+
+// -----
+
+// CHECK-LABEL: @mul_one_int
+func @mul_one_int(%arg0: tensor<2x3xi32>) -> tensor<2x3xi32> {
+  // CHECK: return %arg0
+  // CHECK-NOT: tosa.mul
+  %ones = "tosa.const"() {value = dense<1> : tensor<2x3xi32>} : () -> tensor<2x3xi32>
+  %1 = "tosa.mul"(%arg0, %ones) {shift = 0 : i32} : (tensor<2x3xi32>, tensor<2x3xi32>) -> tensor<2x3xi32>
+  return %1 : tensor<2x3xi32>
 }
 
 // -----

@@ -40,22 +40,25 @@ int main() {
 
 // CHECK lambda object alloca
 // CHECK: [[LOCAL_OBJECTA:%0]] = alloca %class.anon, align 4
-// CHECK: [[LOCAL_OBJECT:%.*]] = addrspacecast %class.anon* [[LOCAL_OBJECTA]] to %class.anon addrspace(4)*
 
 // CHECK allocas for ranges
 // CHECK: [[ACC_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[ACC_RANGE1AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[ACC_RANGE1A]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[MEM_RANGE1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[MEM_RANGE1AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[MEM_RANGE1A]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[OFFSET1A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::id"
-// CHECK: [[OFFSET1AS:%.*]] = addrspacecast %"struct.cl::sycl::id"* [[OFFSET1A]] to %"struct.cl::sycl::id" addrspace(4)*
 // CHECK: [[ACC_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[ACC_RANGE2AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[ACC_RANGE2A]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[MEM_RANGE2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::range"
-// CHECK: [[MEM_RANGE2AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[MEM_RANGE2A]] to %"struct.cl::sycl::range" addrspace(4)*
 // CHECK: [[OFFSET2A:%[a-zA-Z0-9_.]+]] = alloca %"struct.cl::sycl::id"
-// CHECK: [[OFFSET2AS:%.*]] = addrspacecast %"struct.cl::sycl::id"* [[OFFSET2A]] to %"struct.cl::sycl::id" addrspace(4)*
 
+// CHECK lambda object addrspacecast
+// CHECK: [[LOCAL_OBJECT:%.*]] = addrspacecast %class.anon* [[LOCAL_OBJECTA]] to %class.anon addrspace(4)*
+
+// CHECK addrspacecasts for ranges
+// CHECK: [[ACC_RANGE1AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[ACC_RANGE1A]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[MEM_RANGE1AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[MEM_RANGE1A]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[OFFSET1AS:%.*]] = addrspacecast %"struct.cl::sycl::id"* [[OFFSET1A]] to %"struct.cl::sycl::id" addrspace(4)*
+// CHECK: [[ACC_RANGE2AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[ACC_RANGE2A]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[MEM_RANGE2AS:%.*]] = addrspacecast %"struct.cl::sycl::range"* [[MEM_RANGE2A]] to %"struct.cl::sycl::range" addrspace(4)*
+// CHECK: [[OFFSET2AS:%.*]] = addrspacecast %"struct.cl::sycl::id"* [[OFFSET2A]] to %"struct.cl::sycl::id" addrspace(4)*
 // CHECK accessor array default inits
 // CHECK: [[ACCESSOR_ARRAY1:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.anon, %class.anon addrspace(4)* [[LOCAL_OBJECT]], i32 0, i32 0
 // CHECK: [[BEGIN:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x [[ACCESSOR:.*]]], [2 x [[ACCESSOR]]] addrspace(4)* [[ACCESSOR_ARRAY1]], i64 0, i64 0

@@ -976,19 +976,6 @@ Value *SPIRVToLLVM::transValue(SPIRVValue *BV, Function *F, BasicBlock *BB,
   return V;
 }
 
-Value *SPIRVToLLVM::transDeviceEvent(SPIRVValue *BV, Function *F,
-                                     BasicBlock *BB) {
-  auto Val = transValue(BV, F, BB, false);
-  auto Ty = dyn_cast<PointerType>(Val->getType());
-  assert(Ty && "Invalid Device Event");
-  if (Ty->getAddressSpace() == SPIRAS_Generic)
-    return Val;
-
-  IRBuilder<> Builder(BB);
-  auto EventTy = PointerType::get(Ty->getElementType(), SPIRAS_Generic);
-  return Builder.CreateAddrSpaceCast(Val, EventTy);
-}
-
 Value *SPIRVToLLVM::transConvertInst(SPIRVValue *BV, Function *F,
                                      BasicBlock *BB) {
   SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
@@ -1295,6 +1282,26 @@ void SPIRVToLLVM::addMemAliasMetadata(Instruction *I, SPIRVId AliasListId,
   I->setMetadata(AliasMDKind, MDAliasListMap[AliasListId]);
 }
 
+void transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI) {
+  std::vector<SPIRVDecorate const *> ArgumentAttributes =
+      BV->getDecorations(internal::DecorationArgumentAttributeINTEL);
+
+  for (const auto *Dec : ArgumentAttributes) {
+    std::vector<SPIRVWord> Literals = Dec->getVecLiteral();
+    SPIRVWord ArgNo = Literals[0];
+    SPIRVWord SpirvAttr = Literals[1];
+    Attribute::AttrKind LlvmAttrKind = SPIRSPIRVFuncParamAttrMap::rmap(
+        static_cast<SPIRVFuncParamAttrKind>(SpirvAttr));
+    auto LlvmAttr =
+        Attribute::isTypeAttrKind(LlvmAttrKind)
+            ? Attribute::get(CI->getContext(), LlvmAttrKind,
+                             cast<PointerType>(CI->getOperand(ArgNo)->getType())
+                                 ->getElementType())
+            : Attribute::get(CI->getContext(), LlvmAttrKind);
+    CI->addParamAttr(ArgNo, LlvmAttr);
+  }
+}
+
 /// For instructions, this function assumes they are created in order
 /// and appended to the given basic block. An instruction may use a
 /// instruction from another BB which has not been translated. Such
@@ -1453,7 +1460,10 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
   case OpConstantSampler: {
     auto BCS = static_cast<SPIRVConstantSampler *>(BV);
-    return mapValue(BV, oclTransConstantSampler(BCS, BB));
+    // Intentially do not map this value. We want to generate constant
+    // sampler initializer every time constant sampler is used, otherwise
+    // initializer may not dominate all its uses.
+    return oclTransConstantSampler(BCS, BB);
   }
 
   case OpConstantPipeStorage: {
@@ -1467,9 +1477,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, transValue(BI, nullptr, nullptr, false));
   }
 
-  case OpConstFunctionPointerINTEL: {
-    SPIRVConstFunctionPointerINTEL *BC =
-        static_cast<SPIRVConstFunctionPointerINTEL *>(BV);
+  case OpConstantFunctionPointerINTEL: {
+    SPIRVConstantFunctionPointerINTEL *BC =
+        static_cast<SPIRVConstantFunctionPointerINTEL *>(BV);
     SPIRVFunction *F = BC->getFunction();
     BV->setName(F->getName());
     return mapValue(BV, transFunction(F));
@@ -2232,6 +2242,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto Call = CallInst::Create(
         cast<FunctionType>(V->getType()->getPointerElementType()), V,
         transValue(BC->getArgumentValues(), F, BB), BC->getName(), BB);
+    transFunctionPointerCallArgumentAttributes(BV, Call);
     // Assuming we are calling a regular device function
     Call->setCallingConv(CallingConv::SPIR_FUNC);
     // Don't set attributes, because at translation time we don't know which
@@ -2356,9 +2367,6 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpSignBitSet:
     return mapValue(
         BV, transOCLRelational(static_cast<SPIRVInstruction *>(BV), BB));
-  case OpEnqueueKernel:
-    return mapValue(
-        BV, transEnqueueKernelBI(static_cast<SPIRVInstruction *>(BV), BB));
   case OpGetKernelWorkGroupSize:
   case OpGetKernelPreferredWorkGroupSizeMultiple:
     return mapValue(
@@ -2528,12 +2536,14 @@ static std::string getFuncAPIntSuffix(const Type *RetTy, const Type *In1Ty,
   return Suffix.str();
 }
 
-CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
-                                           BasicBlock *BB) {
+Value *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI, BasicBlock *BB) {
   // LLVM fixed point functions return value:
   // iN (arbitrary precision integer of N bits length)
   // Arguments:
   // A(iN), S(i1), I(i32), rI(i32), Quantization(i32), Overflow(i32)
+  // If return value wider than 64 bit:
+  // iN addrspace(4)* sret(iN), A(iN), S(i1), I(i32), rI(i32),
+  // Quantization(i32), Overflow(i32)
 
   // SPIR-V fixed point instruction contains:
   // <id>ResTy Res<id> In<id> Literal S Literal I Literal rI Literal Q Literal O
@@ -2546,9 +2556,29 @@ CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
   IntegerType *Int32Ty = IntegerType::get(*Context, 32);
   IntegerType *Int1Ty = IntegerType::get(*Context, 1);
 
-  SmallVector<Type *, 7> ArgTys = {InTy,    Int1Ty,  Int32Ty,
-                                   Int32Ty, Int32Ty, Int32Ty};
-  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
+  SmallVector<Type *, 8> ArgTys;
+  std::vector<Value *> Args;
+  Args.reserve(8);
+  if (RetTy->getIntegerBitWidth() > 64) {
+    llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+    Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+    Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
+    ArgTys.emplace_back(RetPtrTy);
+    Args.emplace_back(RetValPtr);
+  }
+
+  ArgTys.insert(ArgTys.end(),
+                {InTy, Int1Ty, Int32Ty, Int32Ty, Int32Ty, Int32Ty});
+
+  auto Words = Inst->getOpWords();
+  Args.emplace_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
+  Args.emplace_back(ConstantInt::get(Int1Ty, Words[1]));
+  for (int I = 2; I <= 5; I++)
+    Args.emplace_back(ConstantInt::get(Int32Ty, Words[I]));
+
+  Type *FuncRetTy =
+      (RetTy->getIntegerBitWidth() <= 64) ? RetTy : Type::getVoidTy(*Context);
+  FunctionType *FT = FunctionType::get(FuncRetTy, ArgTys, false);
 
   Op OpCode = Inst->getOpCode();
   std::string FuncName =
@@ -2556,29 +2586,25 @@ CallInst *SPIRVToLLVM::transFixedPointInst(SPIRVInstruction *BI,
 
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
-  auto *Fn = cast<Function>(FCallee.getCallee());
-  Fn->setCallingConv(CallingConv::SPIR_FUNC);
+  auto *Func = cast<Function>(FCallee.getCallee());
+  Func->setCallingConv(CallingConv::SPIR_FUNC);
   if (isFuncNoUnwind())
-    Fn->addFnAttr(Attribute::NoUnwind);
+    Func->addFnAttr(Attribute::NoUnwind);
 
-  // Words contain:
-  // In<id> Literal S Literal I Literal rI Literal Q Literal O
-  auto Words = Inst->getOpWords();
-  std::vector<Value *> Args = {
-      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-      ConstantInt::get(Int1Ty, Words[1]) /* S - indicator of signedness */,
-      ConstantInt::get(Int32Ty,
-                       Words[2]) /* I - fixed-point location of the input */,
-      ConstantInt::get(Int32Ty,
-                       Words[3]) /* rI - fixed-point location of the result*/,
-      ConstantInt::get(Int32Ty, Words[4]) /* Quantization mode */,
-      ConstantInt::get(Int32Ty, Words[5]) /* Overflow mode */};
+  if (RetTy->getIntegerBitWidth() <= 64)
+    return CallInst::Create(FCallee, Args, "", BB);
 
-  return CallInst::Create(FCallee, Args, "", BB);
+  Func->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+  CallInst *APIntInst = CallInst::Create(FCallee, Args, "", BB);
+  APIntInst->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+
+  return static_cast<Value *>(new LoadInst(RetTy, Args[0], "", false, BB));
 }
 
-CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
-                                         bool IsBinaryInst) {
+Value *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
+                                      bool IsBinaryInst) {
   // Format of instructions Add, Sub, Mul, Div, Hypot, ATan2, Pow, PowR:
   //   LLVM arbitrary floating point functions return value:
   //       iN (arbitrary precision integer of N bits length)
@@ -2651,10 +2677,22 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   const std::vector<SPIRVWord> Words = Inst->getOpWords();
   auto WordsItr = Words.begin() + 1; /* Skip word for A input id */
 
-  SmallVector<Type *, 8> ArgTys = {ATy, Int32Ty};
-  std::vector<Value *> Args = {
-      transValue(Inst->getOperand(0), BB->getParent(), BB) /* A - input */,
-      ConstantInt::get(Int32Ty, *WordsItr++) /* MA/Mout - width of mantissa */};
+  SmallVector<Type *, 8> ArgTys;
+  std::vector<Value *> Args;
+
+  if (RetTy->getIntegerBitWidth() > 64) {
+    llvm::PointerType *RetPtrTy = llvm::PointerType::get(RetTy, SPIRAS_Generic);
+    ArgTys.push_back(RetPtrTy);
+    Value *Alloca = new AllocaInst(RetTy, SPIRAS_Private, "", BB);
+    Value *RetValPtr = new AddrSpaceCastInst(Alloca, RetPtrTy, "", BB);
+    Args.push_back(RetValPtr);
+  }
+
+  ArgTys.insert(ArgTys.end(), {ATy, Int32Ty});
+  // A - input
+  Args.emplace_back(transValue(Inst->getOperand(0), BB->getParent(), BB));
+  // MA/Mout - width of mantissa
+  Args.emplace_back(ConstantInt::get(Int32Ty, *WordsItr++));
 
   Op OC = Inst->getOpCode();
   if (OC == OpArbitraryFloatCastFromIntINTEL ||
@@ -2678,9 +2716,12 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
                    return ConstantInt::get(Int32Ty, Word);
                  });
 
-  FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
   std::string FuncName =
       SPIRVArbFloatIntelMap::rmap(OC) + getFuncAPIntSuffix(RetTy, ATy, BTy);
+
+  Type *FuncRetTy =
+      (RetTy->getIntegerBitWidth() <= 64) ? RetTy : Type::getVoidTy(*Context);
+  FunctionType *FT = FunctionType::get(FuncRetTy, ArgTys, false);
   FunctionCallee FCallee = M->getOrInsertFunction(FuncName, FT);
 
   auto *Func = cast<Function>(FCallee.getCallee());
@@ -2688,7 +2729,16 @@ CallInst *SPIRVToLLVM::transArbFloatInst(SPIRVInstruction *BI, BasicBlock *BB,
   if (isFuncNoUnwind())
     Func->addFnAttr(Attribute::NoUnwind);
 
-  return CallInst::Create(Func, Args, "", BB);
+  if (RetTy->getIntegerBitWidth() <= 64)
+    return CallInst::Create(Func, Args, "", BB);
+
+  Func->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+  CallInst *APFloatInst = CallInst::Create(FCallee, Args, "", BB);
+  APFloatInst->addParamAttr(
+      0, Attribute::get(*Context, Attribute::AttrKind::StructRet, RetTy));
+
+  return static_cast<Value *>(new LoadInst(RetTy, Args[0], "", false, BB));
 }
 
 template <class SourceTy, class FuncTy>
@@ -2864,100 +2914,6 @@ Value *SPIRVToLLVM::transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB) {
                                                        Int8PtrTyGen, "", BB);
 }
 
-Instruction *SPIRVToLLVM::transEnqueueKernelBI(SPIRVInstruction *BI,
-                                               BasicBlock *BB) {
-  Type *Int32Ty = Type::getInt32Ty(*Context);
-  Type *Int64Ty = Type::getInt64Ty(*Context);
-  Type *IntTy =
-      M->getDataLayout().getPointerSizeInBits(0) == 32 ? Int32Ty : Int64Ty;
-
-  // Find or create enqueue kernel BI declaration
-  auto Ops = BI->getOperands();
-  bool HasVaargs = Ops.size() > 10;
-  bool HasEvents = true;
-  SPIRVValue *EventRet = Ops[5];
-  if (EventRet->getOpCode() == OpConstantNull) {
-    SPIRVValue *NumEvents = Ops[3];
-    if (NumEvents->getOpCode() == OpConstant) {
-      SPIRVConstant *NE = static_cast<SPIRVConstant *>(NumEvents);
-      HasEvents = NE->getZExtIntValue() != 0;
-    } else if (NumEvents->getOpCode() == OpConstantNull)
-      HasEvents = false;
-  }
-
-  std::string FName = "";
-  if (!HasVaargs && !HasEvents)
-    FName = "__enqueue_kernel_basic";
-  else if (!HasVaargs && HasEvents)
-    FName = "__enqueue_kernel_basic_events";
-  else if (HasVaargs && !HasEvents)
-    FName = "__enqueue_kernel_varargs";
-  else
-    FName = "__enqueue_kernel_events_varargs";
-
-  Function *F = M->getFunction(FName);
-  if (!F) {
-    SmallVector<Type *, 8> Tys = {
-        transType(Ops[0]->getType()), // queue
-        Int32Ty,                      // flags
-        transType(Ops[2]->getType()), // ndrange
-    };
-    if (HasEvents) {
-      Type *EventTy = PointerType::get(
-          getSPIRVOpaquePtrType(M, OpTypeDeviceEvent), SPIRAS_Generic);
-
-      Tys.push_back(Int32Ty);
-      Tys.push_back(EventTy);
-      Tys.push_back(EventTy);
-    }
-
-    Tys.push_back(Type::getInt8PtrTy(*Context, SPIRAS_Generic));
-    Tys.push_back(Type::getInt8PtrTy(*Context, SPIRAS_Generic));
-
-    if (HasVaargs) {
-      // Number of block invoke arguments (local arguments)
-      Tys.push_back(Int32Ty);
-      // Array of sizes of block invoke arguments
-      Tys.push_back(PointerType::get(IntTy, SPIRAS_Private));
-    }
-
-    FunctionType *FT = FunctionType::get(Int32Ty, Tys, false);
-    F = Function::Create(FT, GlobalValue::ExternalLinkage, FName, M);
-    if (isFuncNoUnwind())
-      F->addFnAttr(Attribute::NoUnwind);
-  }
-
-  // Create call to enqueue kernel BI
-  SmallVector<Value *, 8> Args = {
-      transValue(Ops[0], F, BB, false), // queue
-      transValue(Ops[1], F, BB, false), // flags
-      transValue(Ops[2], F, BB, false), // ndrange
-  };
-
-  if (HasEvents) {
-    Args.push_back(transValue(Ops[3], F, BB, false)); // events number
-    Args.push_back(transDeviceEvent(Ops[4], F, BB));  // event_wait_list
-    Args.push_back(transDeviceEvent(Ops[5], F, BB));  // event_ret
-  }
-
-  Args.push_back(transBlockInvoke(Ops[6], BB));     // block_invoke
-  Args.push_back(transValue(Ops[7], F, BB, false)); // block_literal
-
-  if (HasVaargs) {
-    // Number of local arguments
-    Args.push_back(ConstantInt::get(Int32Ty, Ops.size() - 10));
-    // GEP to array of sizes of local arguments
-    if (Ops[10]->getOpCode() == OpPtrAccessChain)
-      Args.push_back(transValue(Ops[10], F, BB, false));
-    else
-      llvm_unreachable("Not implemented");
-  }
-  auto Call = CallInst::Create(F, Args, "", BB);
-  setName(Call, BI);
-  setAttrByCalledFunc(Call);
-  return Call;
-}
-
 Instruction *SPIRVToLLVM::transWGSizeQueryBI(SPIRVInstruction *BI,
                                              BasicBlock *BB) {
   std::string FName =
@@ -3024,23 +2980,18 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
   transOCLBuiltinFromInstPreproc(BI, RetTy, Ops);
   std::vector<Type *> ArgTys =
       transTypeVector(SPIRVInstruction::getOperandTypes(Ops));
-  bool HasFuncPtrArg = false;
   for (auto &I : ArgTys) {
     if (isa<FunctionType>(I)) {
       I = PointerType::get(I, SPIRAS_Private);
-      HasFuncPtrArg = true;
     }
   }
-  if (!HasFuncPtrArg) {
-    if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR)
-      mangleOpenClBuiltin(FuncName, ArgTys, MangledName);
-    else
-      MangledName =
-          getSPIRVFriendlyIRFunctionName(FuncName, BI->getOpCode(), ArgTys);
 
-  } else {
-    MangledName = decorateSPIRVFunction(FuncName);
-  }
+  if (BM->getDesiredBIsRepresentation() != BIsRepresentation::SPIRVFriendlyIR)
+    mangleOpenClBuiltin(FuncName, ArgTys, MangledName);
+  else
+    MangledName =
+        getSPIRVFriendlyIRFunctionName(FuncName, BI->getOpCode(), ArgTys);
+
   Function *Func = M->getFunction(MangledName);
   FunctionType *FT = FunctionType::get(RetTy, ArgTys, false);
   // ToDo: Some intermediate functions have duplicate names with
@@ -3049,7 +3000,7 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
   // names. However it is better to have a way to differentiate
   // between intermidiate functions and final functions and make
   // sure final functions have unique names.
-  SPIRVDBG(if (!HasFuncPtrArg && Func && Func->getFunctionType() != FT) {
+  SPIRVDBG(if (Func && Func->getFunctionType() != FT) {
     dbgs() << "Warning: Function name conflict:\n"
            << *Func << '\n'
            << " => " << *FT << '\n';
@@ -3924,10 +3875,8 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
   if (BF->hasDecorate(DecorationStackCallINTEL))
     F->addFnAttr(kVCMetadata::VCStackCall);
 
-  bool IsVectorCompute = BF->hasDecorate(DecorationVectorComputeFunctionINTEL);
-  if (!IsVectorCompute)
-    return true;
-  F->addFnAttr(kVCMetadata::VCFunction);
+  if (BF->hasDecorate(DecorationVectorComputeFunctionINTEL))
+    F->addFnAttr(kVCMetadata::VCFunction);
 
   SPIRVWord SIMTMode = 0;
   if (BF->hasDecorate(DecorationSIMTCallINTEL, 0, &SIMTMode))

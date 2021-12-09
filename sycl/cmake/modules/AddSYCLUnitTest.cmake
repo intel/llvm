@@ -4,7 +4,8 @@
 # Produces a binary names `basename(test_dirname)`.
 macro(add_sycl_unittest test_dirname link_variant)
   # Enable exception handling for these unit tests
-  set(LLVM_REQUIRES_EH 1)
+  set(LLVM_REQUIRES_EH ON)
+  set(LLVM_REQUIRES_RTTI ON)
 
   string(TOLOWER "${CMAKE_BUILD_TYPE}" build_type_lower)
   if (MSVC AND build_type_lower MATCHES "debug")
