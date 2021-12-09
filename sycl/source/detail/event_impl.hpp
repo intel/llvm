@@ -44,7 +44,7 @@ public:
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
   event_impl(RT::PiEvent Event, const context &SyclContext);
-  event_impl(QueueImplPtr Queue);
+  event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
   ///

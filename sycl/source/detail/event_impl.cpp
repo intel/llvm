@@ -121,7 +121,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
-event_impl::event_impl(QueueImplPtr Queue) : MQueue{Queue} {
+event_impl::event_impl(const QueueImplPtr &Queue) : MQueue{Queue} {
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
