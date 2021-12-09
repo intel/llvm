@@ -46,6 +46,17 @@ private:
   SYCLMutatePrintfAddrspacePass Impl;
 };
 
+Value *stripToMemorySource(Value *V) {
+  Value *MemoryAccess = V;
+  if (auto *LI = dyn_cast<LoadInst>(MemoryAccess)) {
+    Value *LoadSource = LI->getPointerOperand();
+    auto *Store = cast<StoreInst>(*llvm::find_if(
+        LoadSource->users(), [](User *U) { return isa<StoreInst>(U); }));
+    MemoryAccess = Store->getValueOperand();
+  }
+  return MemoryAccess->stripPointerCastsAndAliases();
+}
+
 Constant *getCASLiteral(Module *M, GlobalVariable *Literal,
                         PointerType *CASLiteralType) {
   StringRef CASLiteralName(Literal->getName().str() + "._AS2");
@@ -115,7 +126,7 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
       if (!isa<CallInst>(U))
         continue;
       auto *CI = cast<CallInst>(U);
-      Value *Stripped = CI->getArgOperand(0)->stripPointerCastsAndAliases();
+      Value *Stripped = stripToMemorySource(CI->getArgOperand(0));
       Value *CASPrintfOperand = nullptr;
       if (auto *Arg = dyn_cast<Argument>(Stripped)) {
         Function *WrapperFunc = Arg->getParent();
@@ -123,9 +134,8 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
         CASPrintfOperand = Arg;
         for (User *WrapperU : WrapperFunc->users()) {
           auto *WrapperCI = cast<CallInst>(WrapperU);
+          Value *StrippedArg = stripToMemorySource(WrapperCI->getArgOperand(0));
           // We're only expecting 1 level of wrappers, so cast unconditionally
-          Value *StrippedArg =
-              WrapperCI->getArgOperand(0)->stripPointerCastsAndAliases();
           auto *Literal = cast<GlobalVariable>(StrippedArg);
           Constant *CASLiteral = getCASLiteral(&M, Literal, CASLiteralType);
           WrapperCI->setArgOperand(0, CASLiteral);
