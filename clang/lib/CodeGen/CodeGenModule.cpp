@@ -1699,6 +1699,10 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
   // MDNode for the intel_buffer_location attribute.
   SmallVector<llvm::Metadata *, 8> argSYCLBufferLocationAttr;
 
+  // MDNode for listing SYCL kernel pointer arguments originating from
+  // accessors
+  SmallVector<llvm::Metadata *, 8> argSYCLKernelRuntimeAligned;
+
   // MDNode for listing ESIMD kernel pointer arguments originating from
   // accessors
   SmallVector<llvm::Metadata *, 8> argESIMDAccPtrs;
@@ -1750,6 +1754,12 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
             llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
                 ArgInfoAddressSpace(pointeeTy.getAddressSpace()))));
 
+        // Get address qualifier of SYCL kernel pointer parameter from
+        // accessors.
+        argSYCLKernelRuntimeAligned.push_back(
+            llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
+                ArgInfoAddressSpace(pointeeTy.getAddressSpace()))));
+
         // Get argument type name.
         std::string typeName = getTypeSpelling(pointeeTy) + "*";
         std::string baseTypeName =
@@ -1773,6 +1783,9 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
           AddrSpc = ArgInfoAddressSpace(LangAS::opencl_global);
 
         addressQuals.push_back(
+            llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(AddrSpc)));
+
+        argSYCLKernelRuntimeAligned.push_back(
             llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(AddrSpc)));
 
         // Get argument type name.
@@ -1813,10 +1826,16 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
 
   bool IsEsimdFunction = FD && FD->hasAttr<SYCLSimdAttr>();
 
-  if (LangOpts.SYCLIsDevice && !IsEsimdFunction)
+  if (LangOpts.SYCLIsDevice && !IsEsimdFunction) {
     Fn->setMetadata("kernel_arg_buffer_location",
                     llvm::MDNode::get(VMContext, argSYCLBufferLocationAttr));
-  else {
+
+    // The value of any "kernel_arg_runtime_aligned" metadata element is 1 for
+    // any kernel arguments that corresponds to the base pointer of an accessor
+    // and 0 otherwise.
+    Fn->setMetadata("kernel_arg_runtime_aligned",
+                    llvm::MDNode::get(VMContext, argSYCLKernelRuntimeAligned));
+  } else {
     Fn->setMetadata("kernel_arg_addr_space",
                     llvm::MDNode::get(VMContext, addressQuals));
     Fn->setMetadata("kernel_arg_access_qual",
