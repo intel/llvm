@@ -203,8 +203,9 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   } catch (...) {
     NewCmd->getQueue()->reportAsyncException(std::current_exception());
   }
+  EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(EnqueuedCmds);
-  return NewCmd->getEvent();
+  return NewEvent;
 }
 
 Scheduler &Scheduler::getInstance() {
@@ -317,8 +318,9 @@ EventImplPtr Scheduler::addHostAccessor(Requirement *Req) {
       throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
   }
 
+  EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(EnqueuedCmds);
-  return NewCmd->getEvent();
+  return NewEvent;
 }
 
 void Scheduler::releaseHostAccessor(Requirement *Req) {
