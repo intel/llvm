@@ -72,6 +72,7 @@ private:
   SmallVector<Function *, 8> FunctionsToDrop;
 
   Function *getCASPrintfFunction(Function *GenericASPrintfFunc);
+  Constant *getCASLiteral(GlobalVariable *GenericASLiteral);
   CallReplacer prepareCASArgForCall(CallInst *CI);
 };
 } // namespace
@@ -155,6 +156,28 @@ AddrspaceReplacer::getCASPrintfFunction(Function *GenericASPrintfFunc) {
   return Callee;
 }
 
+/// Generate the constant addrspace version of the generic addrspace-residing
+/// global string. If one exists already, get it from the module.
+Constant *AddrspaceReplacer::getCASLiteral(GlobalVariable *GenericASLiteral) {
+  // Appending the stable suffix ensures that only one CAS copy is made for each
+  // string. In case of the matching name, llvm::Module APIs will ensure that
+  // the existing global is returned.
+  StringRef CASLiteralName(GenericASLiteral->getName().str() + "._AS2");
+  IRBuilder<> Builder(M->getContext());
+  Constant *Res = M->getOrInsertGlobal(CASLiteralName, CASLiteralType, [&] {
+    StringRef LiteralValue;
+    getConstantStringInfo(GenericASLiteral, LiteralValue);
+    GlobalVariable *GV = Builder.CreateGlobalString(
+        LiteralValue, CASLiteralName, ConstantAddrspaceID, M);
+    GV->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+    GV->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
+    return GV;
+  });
+  // TODO: Create the literal in another way to ensure correct type instead
+  Res->mutateType(CASLiteralType);
+  return Res;
+}
+
 /// The function's effect is similar to V->stripPointerCastsAndAliases(), but
 /// also strips load/store aliases.
 Value *stripToMemorySource(Value *V) {
@@ -174,22 +197,6 @@ Value *stripToMemorySource(Value *V) {
 /// paired with its future constant addrspace string argument (or with the
 /// wrapper function argument that accepts the global).
 CallReplacer AddrspaceReplacer::prepareCASArgForCall(CallInst *CI) {
-  auto getCASLiteral = [&](GlobalVariable *Literal) -> Constant * {
-    StringRef CASLiteralName(Literal->getName().str() + "._AS2");
-    IRBuilder<> Builder(M->getContext());
-    Constant *Res = M->getOrInsertGlobal(CASLiteralName, CASLiteralType, [&] {
-      StringRef LiteralValue;
-      getConstantStringInfo(Literal, LiteralValue);
-      GlobalVariable *GV = Builder.CreateGlobalString(
-          LiteralValue, CASLiteralName, ConstantAddrspaceID, M);
-      GV->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-      GV->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
-      return GV;
-    });
-    // TODO: Create the literal in another way to ensure correct type instead
-    Res->mutateType(CASLiteralType);
-    return Res;
-  };
   Value *Stripped = stripToMemorySource(CI->getArgOperand(0));
   Value *CASPrintfOperand = nullptr;
   if (auto *Arg = dyn_cast<Argument>(Stripped)) {
