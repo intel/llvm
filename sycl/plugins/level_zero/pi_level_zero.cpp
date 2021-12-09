@@ -479,7 +479,7 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   }
 
   if (Event->ZeHostVisibleEventPool) {
-    if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
+    if (NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0)
       die("Invalid host visible event release: host visible event pool doesn't "
           "have unreleased events");
     if (--NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0) {
@@ -4763,7 +4763,7 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   if (ZeAllHostVisibleEvents) {
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_DEVICE;
+    ZeEventDesc.signal = 0;
   }
 
   ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
