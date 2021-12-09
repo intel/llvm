@@ -1277,44 +1277,27 @@ pi_result _pi_queue::getOrCreateCopyCommandQueue(
     return PI_SUCCESS;
   }
 
-  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-
   // Ze copy command queue is not available at 'Index'. So we create it below.
-  
-  if (Index == 0) {
-    // Create queue to main copy engine
-    zePrint("NOTE: Main Copy Engine ZeCommandQueueDesc.ordinal = %d, "
-            "ZeCommandQueueDesc.index = %d\n",
-            Device->ZeMainCopyQueueGroupIndex, 0);
-    ZeCommandQueueDesc.ordinal = Device->ZeMainCopyQueueGroupIndex;
-    ZeCommandQueueDesc.index = 0;
-    ZE_CALL(zeCommandQueueCreate,
-            (Context->ZeContext, Device->ZeDevice,
-             &ZeCommandQueueDesc, // TODO: translate properties
-             &ZeCopyCommandQueue));
-    // Main Copy Command Queue is pushed at start of ZeCopyCommandQueues
-    // vector.
-    ZeCopyCommandQueues[0] = ZeCopyCommandQueue;
-    return PI_SUCCESS;
-  } else {
-    // Create a queue to one of link copy engines and copy them into
-    // ZeCopyCommandQueues vector.
-
-    // Index within Link Copy Engines
-    int LinkIndex = Index - Device->hasMainCopyEngine();
-    zePrint("NOTE: Link Copy Engine ZeCommandQueueDesc.ordinal = %d, "
-            "ZeCommandQueueDesc.index = %d\n",
-            Device->ZeLinkCopyQueueGroupIndex, LinkIndex);
-    ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex;
-    ZeCommandQueueDesc.index = LinkIndex;
-    ZE_CALL(zeCommandQueueCreate,
-            (Context->ZeContext, Device->ZeDevice,
-             &ZeCommandQueueDesc, // TODO: translate properties
-             &ZeCopyCommandQueue));
-    ZeCopyCommandQueues[Index] = ZeCopyCommandQueue;
-    return PI_SUCCESS;
-  }
-  return PI_INVALID_QUEUE;
+  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
+  ZeCommandQueueDesc.ordinal =
+      (Index == 0) ? Device->ZeMainCopyQueueGroupIndex
+                   : Device->ZeLinkCopyQueueGroupIndex;
+  // There are two copy queues: main copy queues and link copy queues.
+  // ZeCommandQueueDesc.index is the index into the list of main (or link)
+  // copy queues.
+  // (Index == 0) means we are using the main copy queue.
+  // Otherwise, we use one of the link copy queues.
+  ZeCommandQueueDesc.index =
+      (Index == 0) ? 0 : Index - Device->hasMainCopyEngine();
+  zePrint("NOTE: Copy Engine ZeCommandQueueDesc.ordinal = %d, "
+          "ZeCommandQueueDesc.index = %d\n",
+          ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index);
+  ZE_CALL(zeCommandQueueCreate,
+          (Context->ZeContext, Device->ZeDevice,
+          &ZeCommandQueueDesc, // TODO: translate properties
+          &ZeCopyCommandQueue));
+  ZeCopyCommandQueues[Index] = ZeCopyCommandQueue;
+  return PI_SUCCESS;
 }
 
 // This function will return one of possibly multiple available copy queues.
