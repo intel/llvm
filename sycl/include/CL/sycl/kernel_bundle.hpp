@@ -312,7 +312,7 @@ public:
 
   template <backend Backend>
   __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
-  auto get_native() const -> backend_return_t<Backend, kernel_bundle<State>> {
+  backend_return_t<Backend, kernel_bundle<State>> get_native() const {
     return getNative<Backend>();
   }
 

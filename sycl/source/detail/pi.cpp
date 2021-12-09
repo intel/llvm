@@ -285,11 +285,14 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
                              backend::ext_oneapi_level_zero);
     PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
     PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
+                             backend::ext_intel_esimd_emulator);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
     bool CudaFound = false;
+    bool EsimdCpuFound = false;
     bool HIPFound = false;
     for (const device_filter &Filter : Filters) {
       backend Backend = Filter.Backend;
@@ -309,6 +312,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
         PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
                                  backend::ext_oneapi_cuda);
         CudaFound = true;
+      }
+      if (!EsimdCpuFound && (Backend == backend::ext_intel_esimd_emulator ||
+                             Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
+                                 backend::ext_intel_esimd_emulator);
+        EsimdCpuFound = true;
       }
       if (!HIPFound &&
           (Backend == backend::ext_oneapi_hip || Backend == backend::all)) {
@@ -337,14 +346,15 @@ int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 // call is done to get all Interface API mapping. The plugin interface also
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
-bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
+bool bindPlugin(void *Library,
+                const std::shared_ptr<PiPlugin> &PluginInformation) {
 
   decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
       &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
-  int Err = PluginInitializeFunction(PluginInformation);
+  int Err = PluginInitializeFunction(PluginInformation.get());
 
   // TODO: Compare Supported versions and check for backward compatibility.
   // Make sure err is PI_SUCCESS.
@@ -378,11 +388,11 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  PiPlugin PluginInformation{
-      _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
-  PluginInformation.PiFunctionTable = {};
-
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
+    std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
+        PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
+                 /*Targets=*/nullptr, /*FunctionPointers=*/{}});
+
     void *Library = loadPlugin(PluginNames[I].first);
 
     if (!Library) {
@@ -395,7 +405,7 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       continue;
     }
 
-    if (!bindPlugin(Library, &PluginInformation)) {
+    if (!bindPlugin(Library, PluginInformation)) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
                   << "Failed to bind PI APIs to the plugin: "
@@ -429,6 +439,12 @@ static void initializePlugins(std::vector<plugin> &Plugins) {
       // Use the LEVEL_ZERO plugin as the GlobalPlugin
       GlobalPlugin = std::make_shared<plugin>(
           PluginInformation, backend::ext_oneapi_level_zero, Library);
+    } else if (InteropBE == backend::ext_intel_esimd_emulator &&
+               PluginNames[I].first.find("esimd_emulator") !=
+                   std::string::npos) {
+      // Use the ESIMD_EMULATOR plugin as the GlobalPlugin
+      GlobalPlugin = std::make_shared<plugin>(
+          PluginInformation, backend::ext_intel_esimd_emulator, Library);
     }
     Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));

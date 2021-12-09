@@ -1313,9 +1313,12 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   pi_uint32 SuitableImageID = std::numeric_limits<pi_uint32>::max();
   pi_device_binary DevBin =
       const_cast<pi_device_binary>(&BinImage->getRawData());
-  Plugin.call<PiApiKind::piextDeviceSelectBinary>(
+  RT::PiResult Error = Plugin.call_nocheck<PiApiKind::piextDeviceSelectBinary>(
       PIDeviceHandle, &DevBin,
       /*num bin images = */ (cl_uint)1, &SuitableImageID);
+  if (Error != PI_SUCCESS && Error != PI_INVALID_BINARY)
+    throw runtime_error("Invalid binary image or device", PI_INVALID_VALUE);
+
   return (0 == SuitableImageID);
 }
 

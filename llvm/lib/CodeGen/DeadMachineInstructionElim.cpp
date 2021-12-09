@@ -76,8 +76,7 @@ bool DeadMachineInstructionElim::isDead(const MachineInstr *MI) const {
     return false;
 
   // Examine each operand.
-  for (unsigned i = 0, e = MI->getNumOperands(); i != e; ++i) {
-    const MachineOperand &MO = MI->getOperand(i);
+  for (const MachineOperand &MO : MI->operands()) {
     if (MO.isReg() && MO.isDef()) {
       Register Reg = MO.getReg();
       if (Register::isPhysicalRegister(Reg)) {
@@ -143,17 +142,16 @@ bool DeadMachineInstructionElim::eliminateDeadMI(MachineFunction &MF) {
       if (isDead(&MI)) {
         LLVM_DEBUG(dbgs() << "DeadMachineInstructionElim: DELETING: " << MI);
         // It is possible that some DBG_VALUE instructions refer to this
-        // instruction.  They get marked as undef and will be deleted
-        // in the live debug variable analysis.
-        MI.eraseFromParentAndMarkDBGValuesForRemoval();
+        // instruction. They will be deleted in the live debug variable
+        // analysis.
+        MI.eraseFromParent();
         AnyChanges = true;
         ++NumDeletes;
         continue;
       }
 
       // Record the physreg defs.
-      for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-        const MachineOperand &MO = MI.getOperand(i);
+      for (const MachineOperand &MO : MI.operands()) {
         if (MO.isReg() && MO.isDef()) {
           Register Reg = MO.getReg();
           if (Register::isPhysicalRegister(Reg)) {
@@ -171,8 +169,7 @@ bool DeadMachineInstructionElim::eliminateDeadMI(MachineFunction &MF) {
       }
       // Record the physreg uses, after the defs, in case a physreg is
       // both defined and used in the same instruction.
-      for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-        const MachineOperand &MO = MI.getOperand(i);
+      for (const MachineOperand &MO : MI.operands()) {
         if (MO.isReg() && MO.isUse()) {
           Register Reg = MO.getReg();
           if (Register::isPhysicalRegister(Reg)) {

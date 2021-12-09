@@ -23,6 +23,7 @@ struct StackDepotNode {
   using hash_type = u64;
   hash_type stack_hash;
   u32 link;
+  StackStore::Id store_id;
 
   static const u32 kTabSizeLog = SANITIZER_ANDROID ? 16 : 20;
 
@@ -53,11 +54,6 @@ static StackStore stackStore;
 typedef StackDepotBase<StackDepotNode, 1, StackDepotNode::kTabSizeLog>
     StackDepot;
 static StackDepot theDepot;
-// Keep rarely accessed stack traces out of frequently access nodes to improve
-// caching efficiency.
-static TwoLevelMap<StackStore::Id, StackDepot::kNodesSize1,
-                   StackDepot::kNodesSize2>
-    storeIds;
 // Keep mutable data out of frequently access nodes to improve caching
 // efficiency.
 static TwoLevelMap<atomic_uint32_t, StackDepot::kNodesSize1,
@@ -73,17 +69,31 @@ void StackDepotHandle::inc_use_count_unsafe() {
 }
 
 uptr StackDepotNode::allocated() {
-  return stackStore.Allocated() + storeIds.MemoryUsage() +
-         useCounts.MemoryUsage();
+  return stackStore.Allocated() + useCounts.MemoryUsage();
+}
+
+static void CompressStackStore() {
+  u64 start = MonotonicNanoTime();
+  uptr diff = stackStore.Pack(static_cast<StackStore::Compression>(
+      common_flags()->compress_stack_depot));
+  if (!diff)
+    return;
+  u64 finish = MonotonicNanoTime();
+  uptr total_before = stackStore.Allocated() + diff;
+  VPrintf(1, "%s: StackDepot released %zu KiB out of %zu KiB in %llu ms\n",
+          SanitizerToolName, diff >> 10, total_before >> 10,
+          (finish - start) / 1000000);
 }
 
 void StackDepotNode::store(u32 id, const args_type &args, hash_type hash) {
   stack_hash = hash;
-  storeIds[id] = stackStore.Store(args);
+  uptr pack = 0;
+  store_id = stackStore.Store(args, &pack);
+  if (pack && common_flags()->compress_stack_depot)
+    CompressStackStore();
 }
 
 StackDepotNode::args_type StackDepotNode::load(u32 id) const {
-  StackStore::Id store_id = storeIds[id];
   if (!store_id)
     return {};
   return stackStore.Load(store_id);
@@ -121,7 +131,6 @@ StackDepotHandle StackDepotNode::get_handle(u32 id) {
 
 void StackDepotTestOnlyUnmap() {
   theDepot.TestOnlyUnmap();
-  storeIds.TestOnlyUnmap();
   stackStore.TestOnlyUnmap();
 }
 

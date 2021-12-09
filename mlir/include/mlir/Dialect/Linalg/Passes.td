@@ -41,6 +41,9 @@ def LinalgComprehensiveModuleBufferize :
     Option<"allowReturnMemref", "allow-return-memref", "bool",
             /*default=*/"false",
            "Allows the return of memrefs (for testing purposes only)">,
+    Option<"allowUnknownOps", "allow-unknown-ops", "bool",
+           /*default=*/"false",
+           "Allows unknown (not bufferizable) ops in the input IR.">,
     Option<"useAlloca", "use-alloca", "bool",
            /*default=*/"false",
            "Use stack allocations for memrefs (for testing purposes only)">,
@@ -147,8 +150,9 @@ def LinalgBufferize : Pass<"linalg-bufferize", "FuncOp"> {
   let summary = "Bufferize the linalg dialect";
   let constructor = "mlir::createLinalgBufferizePass()";
   let dependentDialects = [
-    "linalg::LinalgDialect",
     "AffineDialect",
+    "bufferization::BufferizationDialect",
+    "linalg::LinalgDialect",
     "memref::MemRefDialect",
   ];
 }
@@ -285,8 +289,7 @@ def LinalgStrategyGeneralizePass
   ];
 }
 
-// TODO: atm this is applied to all supported ops. If/when we need finer control
-// this should be exposed with an opName + filter and a proper pattern.
+// TODO: if/when we need finer control add an anchorOp option.
 def LinalgStrategyDecomposePass
     : FunctionPass<"linalg-strategy-decompose-pass"> {
   let summary = "Configurable pass to apply pattern-based generalization.";
