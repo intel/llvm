@@ -473,7 +473,10 @@ pi_result enqueueEventWait(pi_queue queue, pi_event event) {
   // for native events, the cuStreamWaitEvent call is used.
   // This makes all future work submitted to stream wait for all
   // work captured in event.
-  return PI_CHECK_ERROR(cuStreamWaitEvent(queue->get(), event->get(), 0));
+  if (queue->get() != event->get_queue()->get()) {
+    return PI_CHECK_ERROR(cuStreamWaitEvent(queue->get(), event->get(), 0));
+  }
+  return PI_SUCCESS;
 }
 
 _pi_program::_pi_program(pi_context ctxt)
