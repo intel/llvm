@@ -1197,8 +1197,11 @@ pi_result _pi_queue::executeCommandList(pi_command_list_ptr_t CommandList,
     zePrint("Command list to be executed on copy engine\n");
   // If available, get the copy command queue assosciated with
   // ZeCommandList
-  auto ZeCopyCommandQueue =
-      (Index == -1) ? nullptr : ZeCopyCommandQueues[Index];
+  ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
+  if (Index != -1) {
+    if (auto Res = getOrCreateCopyCommandQueue(Index, ZeCopyCommandQueue))
+      return Res;
+  }
   auto &ZeCommandQueue =
       (UseCopyEngine) ? ZeCopyCommandQueue : ZeComputeCommandQueue;
   // Scope of the lock must be till the end of the function, otherwise new mem
@@ -1260,6 +1263,59 @@ bool _pi_queue::isBatchingAllowed() {
   return (this->QueueBatchSize > 0 && ((ZeSerialize & ZeSerializeBlock) == 0));
 }
 
+pi_result _pi_queue::getOrCreateCopyCommandQueue(
+    int Index, ze_command_queue_handle_t &ZeCopyCommandQueue) {
+  ZeCopyCommandQueue = nullptr;
+
+  // Make sure 'Index' is within limits
+  PI_ASSERT((Index >= 0) && (Index < (int)(ZeCopyCommandQueues.size())),
+            PI_INVALID_VALUE);
+
+  // Return the Ze copy command queue, if already available
+  if (ZeCopyCommandQueues[Index]) {
+    ZeCopyCommandQueue = ZeCopyCommandQueues[Index];
+    return PI_SUCCESS;
+  }
+
+  ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
+
+  // Ze copy command queue is not avialable at 'Index'. So we create it.
+  if (Index == 0) {
+    // Create queue to main copy engine
+    zePrint("NOTE: Main Copy Engine ZeCommandQueueDesc.ordinal = %d, "
+            "ZeCommandQueueDesc.index = %d\n",
+            Device->ZeMainCopyQueueGroupIndex, 0);
+    ZeCommandQueueDesc.ordinal = Device->ZeMainCopyQueueGroupIndex;
+    ZeCommandQueueDesc.index = 0;
+    ZE_CALL(zeCommandQueueCreate,
+            (Context->ZeContext, Device->ZeDevice,
+             &ZeCommandQueueDesc, // TODO: translate properties
+             &ZeCopyCommandQueue));
+    // Main Copy Command Queue is pushed at start of ZeCopyCommandQueues
+    // vector.
+    ZeCopyCommandQueues[0] = ZeCopyCommandQueue;
+    return PI_SUCCESS;
+  } else {
+    // Create a queue to one of link copy engines and copy them into
+    // ZeCopyCommandQueues vector.
+
+    // Index within Link Copy Engines
+    int LinkIndex = Index - Device->hasMainCopyEngine();
+    zePrint("NOTE: Link Copy Engine ZeCommandQueueDesc.ordinal = %d, "
+            "ZeCommandQueueDesc.index = %d\n",
+            Device->ZeLinkCopyQueueGroupIndex, LinkIndex);
+    ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex;
+    ZeCommandQueueDesc.index = LinkIndex;
+    ZE_CALL(zeCommandQueueCreate,
+            (Context->ZeContext, Device->ZeDevice,
+             &ZeCommandQueueDesc, // TODO: translate properties
+             &ZeCopyCommandQueue));
+    ZeCopyCommandQueues[Index] = ZeCopyCommandQueue;
+    return PI_SUCCESS;
+  }
+  return PI_INVALID_QUEUE;
+}
+
 // This function will return one of possibly multiple available copy queues.
 // Currently, a round robin strategy is used.
 // This function also sends back the value of CopyQueueIndex and
@@ -1291,7 +1347,10 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
     if (CopyQueueGroupIndex)
       *CopyQueueGroupIndex = Device->ZeMainCopyQueueGroupIndex;
     zePrint("Note: CopyQueueIndex = %d\n", *CopyQueueIndex);
-    return ZeCopyCommandQueues[0];
+    ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
+    if (getOrCreateCopyCommandQueue(0, ZeCopyCommandQueue))
+      return nullptr;
+    return ZeCopyCommandQueue;
   }
 
   // Round robin logic is used here to access copy command queues.
@@ -1317,7 +1376,10 @@ _pi_queue::getZeCopyCommandQueue(int *CopyQueueIndex,
         ((*CopyQueueIndex == 0) && Device->hasMainCopyEngine())
             ? Device->ZeMainCopyQueueGroupIndex
             : Device->ZeLinkCopyQueueGroupIndex;
-  return ZeCopyCommandQueues[*CopyQueueIndex];
+  ze_command_queue_handle_t ZeCopyCommandQueue = nullptr;
+  if (getOrCreateCopyCommandQueue(*CopyQueueIndex, ZeCopyCommandQueue))
+    return nullptr;
+  return ZeCopyCommandQueue;
 }
 
 pi_result _pi_queue::executeOpenCommandList() {
@@ -2803,39 +2865,18 @@ pi_result piQueueCreate(pi_context Context, pi_device Device,
 
   std::vector<ze_command_queue_handle_t> ZeCopyCommandQueues;
 
-  // Create queue to main copy engine
+  // Create 'placeholder queue' to main copy engine
   ze_command_queue_handle_t ZeMainCopyCommandQueue = nullptr;
   if (Device->hasMainCopyEngine()) {
-    zePrint("NOTE: Main Copy Engine ZeCommandQueueDesc.ordinal = %d, "
-            "ZeCommandQueueDesc.index = %d\n",
-            Device->ZeMainCopyQueueGroupIndex, 0);
-    ZeCommandQueueDesc.ordinal = Device->ZeMainCopyQueueGroupIndex;
-    ZeCommandQueueDesc.index = 0;
-    ZE_CALL(zeCommandQueueCreate,
-            (Context->ZeContext, ZeDevice,
-             &ZeCommandQueueDesc, // TODO: translate properties
-             &ZeMainCopyCommandQueue));
-    // Main Copy Command Queue is pushed at start of ZeCopyCommandQueues
-    // vector.
     ZeCopyCommandQueues.push_back(ZeMainCopyCommandQueue);
   }
-  PI_ASSERT(Queue, PI_INVALID_QUEUE);
 
-  // Create additional queues to link copy engines and push them into
-  // ZeCopyCommandQueues vector.
+  // Create additional 'placeholder queues' to link copy engines and push them
+  // into ZeCopyCommandQueues vector.
   if (Device->hasLinkCopyEngine()) {
     auto ZeNumLinkCopyQueues = Device->ZeLinkCopyQueueGroupProperties.numQueues;
     for (uint32_t i = 0; i < ZeNumLinkCopyQueues; ++i) {
-      zePrint("NOTE: Link Copy Engine ZeCommandQueueDesc.ordinal = %d, "
-              "ZeCommandQueueDesc.index = %d\n",
-              Device->ZeLinkCopyQueueGroupIndex, i);
       ze_command_queue_handle_t ZeLinkCopyCommandQueue = nullptr;
-      ZeCommandQueueDesc.ordinal = Device->ZeLinkCopyQueueGroupIndex;
-      ZeCommandQueueDesc.index = i;
-      ZE_CALL(zeCommandQueueCreate,
-              (Context->ZeContext, ZeDevice,
-               &ZeCommandQueueDesc, // TODO: translate properties
-               &ZeLinkCopyCommandQueue));
       ZeCopyCommandQueues.push_back(ZeLinkCopyCommandQueue);
     }
   }
@@ -2917,7 +2958,8 @@ pi_result piQueueRelease(pi_queue Queue) {
       // Make sure all commands get executed.
       ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
       for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-        ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+        if (Queue->ZeCopyCommandQueues[i])
+          ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
       }
 
       // Destroy all the fences created associated with this queue.
@@ -2958,7 +3000,8 @@ static pi_result QueueRelease(pi_queue Queue, pi_queue LockedQueue) {
       if (Queue->OwnZeCommandQueue) {
         ZE_CALL(zeCommandQueueDestroy, (Queue->ZeComputeCommandQueue));
         for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-          ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueues[i]));
+          if (Queue->ZeCopyCommandQueues[i])
+            ZE_CALL(zeCommandQueueDestroy, (Queue->ZeCopyCommandQueues[i]));
         }
       }
 
@@ -2991,7 +3034,8 @@ pi_result piQueueFinish(pi_queue Queue) {
 
   ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
   for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-    ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+    if (Queue->ZeCopyCommandQueues[i])
+      ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
   }
 
   return PI_SUCCESS;
@@ -5387,7 +5431,8 @@ pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
 
   ZE_CALL(zeHostSynchronize, (Queue->ZeComputeCommandQueue));
   for (uint32_t i = 0; i < Queue->ZeCopyCommandQueues.size(); ++i) {
-    ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
+    if (Queue->ZeCopyCommandQueues[i])
+      ZE_CALL(zeHostSynchronize, (Queue->ZeCopyCommandQueues[i]));
   }
 
   Queue->LastCommandEvent = *Event;
