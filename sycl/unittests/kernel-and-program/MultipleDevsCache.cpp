@@ -170,7 +170,7 @@ protected:
 
 // Test that program is retained for each device
 TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
-  if (Plt.is_host()|| Plt.get_backend() != backend::opencl) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
 
@@ -199,7 +199,7 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
 
 // Test that each kernel released only 1 time in ~KernelProgramCache()
 TEST_F(MultipleDeviceCacheTest, KernelRelease) {
-  if (Plt.is_host()|| Plt.get_backend() != backend::opencl) {
+  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
   EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
