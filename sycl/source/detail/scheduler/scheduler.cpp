@@ -116,7 +116,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     EnqueueResultT Res;
     bool Enqueued;
 
-    auto CleanUp = [&](bool ExceptionHappened = false) {
+    auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0 &&
                      NewCmd->getPreparedHostDepsEvents().size() == 0)) {
         if (Type == CG::RunOnHostIntel)
