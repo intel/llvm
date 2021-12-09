@@ -28,7 +28,7 @@ set(compile_opts
   )
 
 if (WIN32)
-  set(compile_opts "-D_ALLOW_RUNTIME_LIBRARY_MISMATCH ${compile_opts}")
+  list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
 endif()
 
 set(devicelib-obj-file ${obj_binary_dir}/libsycl-crt.${lib-suffix})
