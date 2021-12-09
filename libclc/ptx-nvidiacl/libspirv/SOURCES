@@ -94,6 +94,7 @@ atomic/atomic_dec.cl
 atomic/atomic_inc.cl
 atomic/atomic_max.cl
 atomic/atomic_min.cl
+atomic/atomic_sub.cl
 atomic/atomic_xchg.cl
 atomic/atomic_or.cl
 atomic/atomic_xor.cl
