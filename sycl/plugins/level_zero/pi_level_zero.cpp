@@ -1279,9 +1279,8 @@ pi_result _pi_queue::getOrCreateCopyCommandQueue(
 
   // Ze copy command queue is not available at 'Index'. So we create it below.
   ZeStruct<ze_command_queue_desc_t> ZeCommandQueueDesc;
-  ZeCommandQueueDesc.ordinal =
-      (Index == 0) ? Device->ZeMainCopyQueueGroupIndex
-                   : Device->ZeLinkCopyQueueGroupIndex;
+  ZeCommandQueueDesc.ordinal = (Index == 0) ? Device->ZeMainCopyQueueGroupIndex
+                                            : Device->ZeLinkCopyQueueGroupIndex;
   // There are two copy queues: main copy queues and link copy queues.
   // ZeCommandQueueDesc.index is the index into the list of main (or link)
   // copy queues.
@@ -1294,8 +1293,8 @@ pi_result _pi_queue::getOrCreateCopyCommandQueue(
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index);
   ZE_CALL(zeCommandQueueCreate,
           (Context->ZeContext, Device->ZeDevice,
-          &ZeCommandQueueDesc, // TODO: translate properties
-          &ZeCopyCommandQueue));
+           &ZeCommandQueueDesc, // TODO: translate properties
+           &ZeCopyCommandQueue));
   ZeCopyCommandQueues[Index] = ZeCopyCommandQueue;
   return PI_SUCCESS;
 }
