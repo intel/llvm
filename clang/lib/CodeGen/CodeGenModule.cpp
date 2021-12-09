@@ -1757,7 +1757,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
         // Get address qualifier of SYCL kernel pointer parameter from
         // accessors.
         argSYCLKernelRuntimeAligned.push_back(
-            llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(
+            llvm::ConstantAsMetadata::get(CGF->Builder.getInt1(
                 ArgInfoAddressSpace(pointeeTy.getAddressSpace()))));
 
         // Get argument type name.
@@ -1786,7 +1786,7 @@ void CodeGenModule::GenOpenCLArgMetadata(llvm::Function *Fn,
             llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(AddrSpc)));
 
         argSYCLKernelRuntimeAligned.push_back(
-            llvm::ConstantAsMetadata::get(CGF->Builder.getInt32(AddrSpc)));
+            llvm::ConstantAsMetadata::get(CGF->Builder.getInt1(AddrSpc)));
 
         // Get argument type name.
         ty = isPipe ? ty->castAs<PipeType>()->getElementType() : ty;
