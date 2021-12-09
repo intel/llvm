@@ -650,7 +650,8 @@ struct _pi_kernel {
       size_t alignedLocalOffset =
           localOffset + alignment - (localOffset % alignment);
 
-      add_arg(index, sizeof(size_t), (const void *)&(alignedLocalOffset), size);
+      add_arg(index, sizeof(size_t), (const void *)&(alignedLocalOffset),
+              size + (alignedLocalOffset - localOffset));
     }
 
     void set_implicit_offset(size_t size, std::uint32_t *implicitOffset) {
