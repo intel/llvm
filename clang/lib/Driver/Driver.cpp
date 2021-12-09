@@ -4227,8 +4227,7 @@ class OffloadingActionBuilder final {
                 types::TY_Tempfiletable);
             PostLinkAction->setRTSetsSpecConstants(!isAOT);
             auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
-                PostLinkAction, types::TY_Tempfilelist,
-                types::TY_Tempfilelist);
+                PostLinkAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
             // single column w/o title fits TY_Tempfilelist format
             ExtractIRFilesAction->addExtractColumnTform(
                 FileTableTformJobAction::COL_CODE, false /*drop titles*/);
