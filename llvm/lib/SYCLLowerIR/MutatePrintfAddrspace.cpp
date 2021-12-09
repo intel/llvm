@@ -89,24 +89,28 @@ FunctionCallee getCASPrintfFunction(Function &GenericASPrintfFunc,
   return CASPrintfFunc;
 }
 
-CallInst *buildCASPrintfCall(FunctionCallee CASPrintfFunc, Value *CASLiteral,
-                             CallInst *CI) {
-  SmallVector<Value *, 4> CallOperands(CI->data_operands_begin(),
-                                       CI->data_operands_end());
-  CallOperands[0] = CASLiteral;
-  auto *CASCall =
-      CallInst::Create(CASPrintfFunc, CallOperands,
-                       CI->getName().str() + "._AS2", /*InsertBefore=*/CI);
-  CASCall->setTailCall(CI->isTailCall());
-  return CASCall;
-}
+struct CallReplacer {
+  CallReplacer(CallInst *CI, Value *CASArg) : CI(CI), CASArg(CASArg) {}
+
+  void replaceWithFunction(FunctionCallee FC) {
+    CI->setArgOperand(0, CASArg);
+    CI->setCalledFunction(FC.getFunctionType(), FC.getCallee());
+  }
+
+private:
+  CallInst *CI;
+  Value *CASArg;
+};
 } // namespace
 
 PreservedAnalyses
 SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
   size_t ReplacedCallsCount = 0;
-  SmallVector<Function *, 1> FunctionsToDrop;
 
+  // If the variadic version gets picked during FE compilation, we'll only have
+  // 1 function to replace. However, unique declarations are emitted for each of
+  // the non-variadic (variadic template) calls.
+  SmallVector<Function *, 8> FunctionsToDrop;
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
@@ -120,8 +124,8 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
     auto *CASLiteralType = PointerType::get(
         LiteralType->getPointerElementType(), ConstantAddrspaceID);
     FunctionCallee CASPrintfFunc = getCASPrintfFunction(F, CASLiteralType);
+    SmallVector<CallReplacer, 16> CallsToReplace;
 
-    SmallVector<CallInst *, 8> CallInstsToDrop;
     for (User *U : F.users()) {
       if (!isa<CallInst>(U))
         continue;
@@ -145,13 +149,13 @@ SYCLMutatePrintfAddrspacePass::run(Module &M, ModuleAnalysisManager &MAM) {
       } else
         llvm_unreachable(
             "Unexpected literal operand type for device-side printf");
-      CI->replaceAllUsesWith(
-          buildCASPrintfCall(CASPrintfFunc, CASPrintfOperand, CI));
-      CallInstsToDrop.emplace_back(CI);
+      CallsToReplace.emplace_back(CI, CASPrintfOperand);
+    }
+
+    for (CallReplacer &CR : CallsToReplace) {
+      CR.replaceWithFunction(CASPrintfFunc);
       ++ReplacedCallsCount;
     }
-    for (CallInst *CI : CallInstsToDrop)
-      CI->eraseFromParent();
     if (F.hasNUses(0))
       FunctionsToDrop.emplace_back(&F);
   }
