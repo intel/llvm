@@ -245,7 +245,7 @@ int getAttribute(pi_device device, CUdevice_attribute attribute) {
 // Determine local work sizes that result in uniform work groups.
 // The default threadsPerBlock only require handling the first work_dim
 // dimension.
-void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
+void guessLocalWorkSize(size_t *threadsPerBlock, const size_t *global_work_size,
                         const size_t maxThreadsPerBlock[3], pi_kernel kernel,
                         pi_uint32 local_size) {
   assert(threadsPerBlock != nullptr);
@@ -259,10 +259,9 @@ void guessLocalWorkSize(int *threadsPerBlock, const size_t *global_work_size,
 
   (void)minGrid; // Not used, avoid warnings
 
-  threadsPerBlock[0] =
-      std::min(static_cast<int>(maxThreadsPerBlock[0]),
-               std::min(static_cast<int>(global_work_size[0]),
-                        static_cast<int>(recommendedBlockSize)));
+  threadsPerBlock[0] = std::min(
+      maxThreadsPerBlock[0],
+      std::min(global_work_size[0], static_cast<size_t>(recommendedBlockSize)));
 
   // Find a local work group size that is a divisor of the global
   // work group size to produce uniform work groups.
@@ -2613,7 +2612,7 @@ pi_result cuda_piEnqueueKernelLaunch(
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
-  int threadsPerBlock[3] = {32, 1, 1};
+  size_t threadsPerBlock[3] = {32u, 1u, 1u};
   size_t maxWorkGroupSize = 0u;
   size_t maxThreadsPerBlock[3] = {};
   bool providedLocalWorkGroupSize = (local_work_size != nullptr);
@@ -2644,7 +2643,7 @@ pi_result cuda_piEnqueueKernelLaunch(
             return PI_INVALID_WORK_GROUP_SIZE;
           if (0u != (global_work_size[dim] % local_work_size[dim]))
             return PI_INVALID_WORK_GROUP_SIZE;
-          threadsPerBlock[dim] = static_cast<int>(local_work_size[dim]);
+          threadsPerBlock[dim] = local_work_size[dim];
           return PI_SUCCESS;
         };
 
@@ -2664,12 +2663,11 @@ pi_result cuda_piEnqueueKernelLaunch(
       return PI_INVALID_WORK_GROUP_SIZE;
     }
 
-    int blocksPerGrid[3] = {1, 1, 1};
+    size_t blocksPerGrid[3] = {1u, 1u, 1u};
 
     for (size_t i = 0; i < work_dim; i++) {
       blocksPerGrid[i] =
-          static_cast<int>(global_work_size[i] + threadsPerBlock[i] - 1) /
-          threadsPerBlock[i];
+          (global_work_size[i] + threadsPerBlock[i] - 1) / threadsPerBlock[i];
     }
 
     std::unique_ptr<_pi_event> retImplEv{nullptr};
