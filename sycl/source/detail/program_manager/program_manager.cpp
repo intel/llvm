@@ -1820,7 +1820,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
         std::make_pair(std::make_pair(std::move(SpecConsts), (size_t)ImgPtr),
                        std::make_pair(PiDeviceAdd, CompileOpts + LinkOpts)),
         AcquireF, GetF, CacheOtherDevices);
-  // getOrBuild is not supposed to return nullptr
+    // getOrBuild is not supposed to return nullptr
     assert(BuildResult != nullptr && "Invalid build result");
   }
 
