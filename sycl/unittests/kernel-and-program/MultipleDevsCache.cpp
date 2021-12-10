@@ -9,7 +9,9 @@
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
 #include "HelperKernelInfo.hpp"
+#include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
+#include "detail/kernel_program_cache.hpp"
 #include <CL/sycl.hpp>
 #include <helpers/CommonRedefinitions.hpp>
 #include <helpers/PiImage.hpp>
@@ -168,39 +170,41 @@ protected:
   platform Plt;
 };
 
-// Test that program is retained for each device
+// Test that program is retained for each device and each kernel is released
+// once
 TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
   if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
     return;
   }
+  {
+    std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
+    sycl::context Context(Devices);
+    sycl::queue Queue(Context, Devices[0]);
+    assert(Devices.size() == 2);
 
-  std::vector<sycl::device> Devices = Plt.get_devices(info::device_type::gpu);
-  sycl::context Context(Devices);
-  sycl::queue Queue(Context, Devices[0]);
-  assert(Devices.size() == 2);
+    auto Bundle = cl::sycl::get_kernel_bundle<sycl::bundle_state::input>(
+        Queue.get_context());
 
-  auto Bundle = cl::sycl::get_kernel_bundle<sycl::bundle_state::input>(
-      Queue.get_context());
+    Queue.submit([&](cl::sycl::handler &cgh) {
+      cgh.parallel_for<MultTestKernel>(cl::sycl::nd_range<1>(10, 10),
+                                       MultTestKernel{});
+    });
 
-  Queue.submit([&](cl::sycl::handler &cgh) {
-    cgh.parallel_for<MultTestKernel>(cl::sycl::nd_range<1>(10, 10),
-                                     MultTestKernel{});
-  });
+    auto BundleObject = cl::sycl::build(Bundle, Bundle.get_devices());
+    auto KernelID = cl::sycl::get_kernel_id<MultTestKernel>();
+    auto Kernel = BundleObject.get_kernel(KernelID);
+    auto BundleImpl = getSyclObjImpl(Bundle);
+    int NumRetains = BundleImpl->size() * 2;
 
-  auto BundleObject = cl::sycl::build(Bundle, Bundle.get_devices());
-  auto KernelID = cl::sycl::get_kernel_id<MultTestKernel>();
-  auto Kernel = BundleObject.get_kernel(KernelID);
-  auto BundleImpl = getSyclObjImpl(Bundle);
-  int NumRetains = BundleImpl->size() * 2;
+    EXPECT_EQ(RetainCounter, NumRetains)
+        << "Expect " << NumRetains << " piProgramRetain calls";
 
-  EXPECT_EQ(RetainCounter, NumRetains)
-      << "Expect " << NumRetains << " piProgramRetain calls";
-}
+    auto CtxImpl = detail::getSyclObjImpl(Context);
+    detail::KernelProgramCache::KernelCacheT &KernelCache =
+        CtxImpl->getKernelProgramCache().acquireKernelsPerProgramCache().get();
 
-// Test that each kernel released only 1 time in ~KernelProgramCache()
-TEST_F(MultipleDeviceCacheTest, KernelRelease) {
-  if (Plt.is_host() || Plt.get_backend() != backend::opencl) {
-    return;
+    EXPECT_EQ(KernelCache.size(), (size_t)2) << "Expect 2 kernels in cache";
   }
+  // Cache is cleared here, check kernel release
   EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
 }
