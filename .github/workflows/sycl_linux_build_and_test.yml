@@ -154,8 +154,10 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
 
     - name: Pack
+      if: false
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
     - name: Upload artifacts
+      if: false
       uses: actions/upload-artifact@v1
       with:
         name: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
