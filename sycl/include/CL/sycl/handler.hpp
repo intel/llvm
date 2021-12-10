@@ -935,10 +935,17 @@ private:
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
-    using TransformedArgType =
-        typename std::conditional<std::is_integral<LambdaArgType>::value &&
-                                      Dims == 1,
-                                  item<Dims>, LambdaArgType>::type;
+    // If type is convertible to sycl::item/sycl::nd_item, convert it to
+    // sycl::item/sycl::nd_item
+    using TransformedArgType = typename std::conditional<
+        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+        typename std::conditional<
+            std::is_convertible<nd_item<Dims>, LambdaArgType>::value,
+            nd_item<Dims>,
+            typename std::conditional<
+                std::is_convertible<item<Dims>, LambdaArgType>::value,
+                item<Dims>, LambdaArgType>::type>::type>::type;
+
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
@@ -1560,12 +1567,20 @@ public:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+    // If type is convertible to sycl::item/sycl::nd_item, convert it to
+    // sycl::item/sycl::nd_item
+    using TransformedArgType = typename std::conditional<
+        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
+        typename std::conditional<
+            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
+            LambdaArgType>::type>::type;
     (void)ExecutionRange;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
+        std::move(KernelFunc));
     setType(detail::CG::Kernel);
 #endif
   }
