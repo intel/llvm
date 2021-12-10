@@ -116,11 +116,11 @@ static pi_result redefinedQueueRelease(pi_queue command_queue) {
   return PI_SUCCESS;
 }
 
-static int ProgramNum = 12345;
+static size_t ProgramNum = 12345;
 static pi_result redefinedProgramCreate(pi_context context, const void *il,
                                         size_t length,
                                         pi_program *res_program) {
-  int CurrentProgram = ProgramNum;
+  size_t CurrentProgram = ProgramNum;
   *res_program = reinterpret_cast<pi_program>(CurrentProgram);
   ++ProgramNum;
   return PI_SUCCESS;
