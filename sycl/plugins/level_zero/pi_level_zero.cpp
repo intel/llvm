@@ -1283,11 +1283,11 @@ pi_result _pi_queue::getOrCreateCopyCommandQueue(
                                             : Device->ZeLinkCopyQueueGroupIndex;
   // There are two copy queues: main copy queues and link copy queues.
   // ZeCommandQueueDesc.index is the index into the list of main (or link)
-  // copy queues.
-  // (Index == 0) means we are using the main copy queue.
-  // Otherwise, we use one of the link copy queues.
-  ZeCommandQueueDesc.index =
-      (Index == 0) ? 0 : Index - Device->hasMainCopyEngine();
+  // copy queues. (Index == 0) means we are using the main copy queue and
+  // ZeCommandQueueDesc.index is set to 0. Otherwise, we use one of the link
+  // copy queues and ZeCommandQueueDesc.index is set to (Index - 1) as Index
+  // for link copy engines in the overall list starts from 1.
+  ZeCommandQueueDesc.index = (Index == 0) ? 0 : Index - 1;
   zePrint("NOTE: Copy Engine ZeCommandQueueDesc.ordinal = %d, "
           "ZeCommandQueueDesc.index = %d\n",
           ZeCommandQueueDesc.ordinal, ZeCommandQueueDesc.index);
