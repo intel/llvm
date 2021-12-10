@@ -110,7 +110,6 @@ SYCL_EXTERNAL void test_group(group<> g) { test(g); }
 // CHECK: call spir_func double @_Z[[#]]__spirv_GroupBroadcastjd{{m|y}}(i32 2, double 1.000000e+00, i64 1)
 // CHECK: call spir_func double @_Z[[#]]__spirv_GroupBroadcastjd{{m|y}}(i32 2, double 1.000000e+00, i64 2)
 
-
 //
 // Binary operations
 //
@@ -401,7 +400,6 @@ SYCL_EXTERNAL void test_sub_group(sub_group g) { test(g); }
 // CHECK: call spir_func double @_Z[[#]]__spirv_GroupBroadcastjdj(i32 3, double 1.000000e+00, i32 0)
 // CHECK: call spir_func double @_Z[[#]]__spirv_GroupBroadcastjdj(i32 3, double 1.000000e+00, i32 1)
 // CHECK: call spir_func double @_Z[[#]]__spirv_GroupBroadcastjdj(i32 3, double 1.000000e+00, i32 2)
-
 
 //
 // Binary operations
