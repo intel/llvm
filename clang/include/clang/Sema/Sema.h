@@ -2481,6 +2481,12 @@ private:
     return ModuleScopes.empty() ? nullptr : ModuleScopes.back().Module;
   }
 
+  /// Helper function to judge if we are in module purview.
+  /// Return false if we are not in a module.
+  bool isCurrentModulePurview() const {
+    return getCurrentModule() ? getCurrentModule()->isModulePurview() : false;
+  }
+
   /// Enter the scope of the global module.
   Module *PushGlobalModuleFragment(SourceLocation BeginLoc, bool IsImplicit);
   /// Leave the scope of the global module.
@@ -13146,7 +13152,7 @@ private:
   bool CheckPPCMMAType(QualType Type, SourceLocation TypeLoc);
 
   bool SemaBuiltinElementwiseMath(CallExpr *TheCall);
-  bool SemaBuiltinElementwiseMathOneArg(CallExpr *TheCall);
+  bool PrepareBuiltinElementwiseMathOneArgCall(CallExpr *TheCall);
   bool SemaBuiltinReduceMath(CallExpr *TheCall);
 
   // Matrix builtin handling.

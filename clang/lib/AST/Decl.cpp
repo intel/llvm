@@ -1590,7 +1590,7 @@ std::string NamedDecl::getQualifiedNameAsString(bool WithGlobalNsPrefix) const {
   llvm::raw_string_ostream OS(QualName);
   printQualifiedName(OS, getASTContext().getPrintingPolicy(),
                      WithGlobalNsPrefix);
-  return OS.str();
+  return QualName;
 }
 
 void NamedDecl::printQualifiedName(raw_ostream &OS) const {
