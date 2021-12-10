@@ -716,7 +716,7 @@ void handler::depends_on(event Event) {
   auto EventImpl = detail::getSyclObjImpl(Event);
   if (EventImpl->isDiscarded()) {
     throw sycl::exception(make_error_code(errc::invalid),
-                          "Queue operation cannot depend on invalid event.");
+                          "Queue operation cannot depend on discarded event.");
   }
   MEvents.push_back(EventImpl);
 }
@@ -725,8 +725,9 @@ void handler::depends_on(const std::vector<event> &Events) {
   for (const event &Event : Events) {
     auto EventImpl = detail::getSyclObjImpl(Event);
     if (EventImpl->isDiscarded()) {
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Queue operation cannot depend on invalid event.");
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Queue operation cannot depend on discarded event.");
     }
     MEvents.push_back(EventImpl);
   }

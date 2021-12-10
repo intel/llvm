@@ -51,7 +51,7 @@ prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
   return detail::createSyclObjFromImpl<event>(EventImpl);
 }
 
-static event createInvalidEvent() {
+static event createDiscardedEvent() {
   EventImplPtr EventImpl =
       std::make_shared<event_impl>(event_impl::HES_Discarded);
   return createSyclObjFromImpl<event>(EventImpl);
@@ -63,14 +63,14 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   if (MHasDiscardEventsSupport) {
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createInvalidEvent();
+    return createDiscardedEvent();
   }
   RT::PiEvent NativeEvent{};
   MemoryManager::fill_usm(Ptr, Self, Count, Value,
                           getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
   if (MContext->is_host())
-    return MDiscardEvents ? createInvalidEvent() : event();
+    return MDiscardEvents ? createDiscardedEvent() : event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
@@ -79,7 +79,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   if (!MSupportOOO ||
       getPlugin().getBackend() == backend::ext_oneapi_level_zero)
     addSharedEvent(ResEvent);
-  return MDiscardEvents ? createInvalidEvent() : ResEvent;
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
@@ -88,14 +88,14 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createInvalidEvent();
+    return createDiscardedEvent();
   }
   RT::PiEvent NativeEvent{};
   MemoryManager::copy_usm(Src, Self, Count, Dest,
                           getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
   if (MContext->is_host())
-    return MDiscardEvents ? createInvalidEvent() : event();
+    return MDiscardEvents ? createDiscardedEvent() : event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
@@ -104,7 +104,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   if (!MSupportOOO ||
       getPlugin().getBackend() == backend::ext_oneapi_level_zero)
     addSharedEvent(ResEvent);
-  return MDiscardEvents ? createInvalidEvent() : ResEvent;
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
@@ -114,14 +114,14 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   if (MHasDiscardEventsSupport) {
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createInvalidEvent();
+    return createDiscardedEvent();
   }
   RT::PiEvent NativeEvent{};
   MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent);
 
   if (MContext->is_host())
-    return MDiscardEvents ? createInvalidEvent() : event();
+    return MDiscardEvents ? createDiscardedEvent() : event();
 
   event ResEvent = prepareUSMEvent(Self, NativeEvent);
   // Track only if we won't be able to handle it with piQueueFinish.
@@ -130,7 +130,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
   if (!MSupportOOO ||
       getPlugin().getBackend() == backend::ext_oneapi_level_zero)
     addSharedEvent(ResEvent);
-  return MDiscardEvents ? createInvalidEvent() : ResEvent;
+  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
 void queue_impl::addEvent(const event &Event) {

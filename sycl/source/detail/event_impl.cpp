@@ -59,7 +59,7 @@ void event_impl::waitInternal() const {
   if (MState == HES_Discarded)
     throw sycl::exception(
         make_error_code(errc::invalid),
-        "waitInternal method cannot be used for an invalid event.");
+        "waitInternal method cannot be used for an discarded event.");
 
   while (MState != HES_Complete)
     ;
@@ -194,7 +194,7 @@ void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
-                          "wait method cannot be used for an invalid event.");
+                          "wait method cannot be used for an discarded event.");
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
@@ -347,7 +347,7 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
   if (MState == HES_Discarded)
     throw sycl::exception(
         make_error_code(errc::invalid),
-        "get_wait_list() cannot be used for an invalid event.");
+        "get_wait_list() cannot be used for an discarded event.");
 
   std::lock_guard<std::mutex> Lock(MMutex);
 

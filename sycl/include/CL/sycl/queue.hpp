@@ -1084,7 +1084,7 @@ private:
                     const detail::code_location &CodeLoc);
 
   /// Checks if the event needs to be discarded and if so, discards it and
-  /// returns an invalid event. Otherwise, it returns input event.
+  /// returns an discarded event. Otherwise, it returns input event.
   event discard_or_return(const event &Event);
 
   // Function to postprocess submitted command
