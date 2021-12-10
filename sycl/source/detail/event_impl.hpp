@@ -32,7 +32,11 @@ using EventImplPtr = std::shared_ptr<cl::sycl::detail::event_impl>;
 
 class event_impl {
 public:
-  enum HostEventState : int { HES_NotComplete = 0, HES_Complete, HES_Invalid };
+  enum HostEventState : int {
+    HES_NotComplete = 0,
+    HES_Complete,
+    HES_Discarded
+  };
 
   /// Constructs a ready SYCL event.
   ///
@@ -186,6 +190,11 @@ public:
 
   /// Cleans dependencies of this event_impl
   void cleanupDependencyEvents();
+
+  /// Checks if this event is discarded by SYCL implementation.
+  ///
+  /// \return true if this event is discarded.
+  bool isDiscarded() const { return MState == HES_Discarded; }
 
 private:
   // When instrumentation is enabled emits trace event for event wait begin and

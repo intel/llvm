@@ -145,7 +145,8 @@ public:
                        void *DstMem, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent *OutEvent);
 
-  // TODO: Delete this function when ABI breaking changes are allowed.
+  __SYCL_DEPRECATED("copy_usm() accepting PiEvent& is deprecated, use "
+                    "copy_usm() accepting PiEvent* instead")
   static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
                        void *DstMem, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent &OutEvent);
@@ -154,7 +155,8 @@ public:
                        int Pattern, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent *OutEvent);
 
-  // TODO: Delete this function when ABI breaking changes are allowed.
+  __SYCL_DEPRECATED("fill_usm() accepting PiEvent& is deprecated, use "
+                    "fill_usm() accepting PiEvent* instead")
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern, std::vector<RT::PiEvent> DepEvents,
                        RT::PiEvent &OutEvent);
@@ -163,7 +165,8 @@ public:
                            std::vector<RT::PiEvent> DepEvents,
                            RT::PiEvent *OutEvent);
 
-  // TODO: Delete this function when ABI breaking changes are allowed.
+  __SYCL_DEPRECATED("prefetch_usm() accepting PiEvent& is deprecated, use "
+                    "prefetch_usm() accepting PiEvent* instead")
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<RT::PiEvent> DepEvents,
                            RT::PiEvent &OutEvent);
@@ -173,7 +176,8 @@ public:
                          std::vector<RT::PiEvent> DepEvents,
                          RT::PiEvent *OutEvent);
 
-  // TODO: Delete this function when ABI breaking changes are allowed.
+  __SYCL_DEPRECATED("advise_usm() accepting PiEvent& is deprecated, use "
+                    "advise_usm() accepting PiEvent* instead")
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
                          pi_mem_advice Advice,
                          std::vector<RT::PiEvent> DepEvents,

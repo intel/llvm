@@ -53,7 +53,7 @@ prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
 
 static event createInvalidEvent() {
   EventImplPtr EventImpl =
-      std::make_shared<event_impl>(event_impl::HES_Invalid);
+      std::make_shared<event_impl>(event_impl::HES_Discarded);
   return createSyclObjFromImpl<event>(EventImpl);
 }
 

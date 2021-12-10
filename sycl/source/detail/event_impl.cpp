@@ -56,7 +56,7 @@ void event_impl::waitInternal() const {
     return;
   }
 
-  if (MState == HES_Invalid)
+  if (MState == HES_Discarded)
     throw sycl::exception(
         make_error_code(errc::invalid),
         "waitInternal method cannot be used for an invalid event.");
@@ -192,7 +192,7 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 
 void event_impl::wait(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
-  if (MState == HES_Invalid)
+  if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for an invalid event.");
 
@@ -312,7 +312,7 @@ template <> cl_uint event_impl::get_info<info::event::reference_count>() const {
 template <>
 info::event_command_status
 event_impl::get_info<info::event::command_execution_status>() const {
-  if (MState == HES_Invalid)
+  if (MState == HES_Discarded)
     return info::event_command_status::ext_oneapi_unknown;
 
   if (!MHostEvent && MEvent) {
@@ -344,7 +344,7 @@ pi_native_handle event_impl::getNative() const {
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
-  if (MState == HES_Invalid)
+  if (MState == HES_Discarded)
     throw sycl::exception(
         make_error_code(errc::invalid),
         "get_wait_list() cannot be used for an invalid event.");

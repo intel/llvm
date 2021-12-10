@@ -712,5 +712,25 @@ void handler::use_kernel_bundle(
   setHandlerKernelBundle(detail::getSyclObjImpl(ExecBundle));
 }
 
+void handler::depends_on(event Event) {
+  auto EventImpl = detail::getSyclObjImpl(Event);
+  if (EventImpl->isDiscarded()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Queue operation cannot depend on invalid event.");
+  }
+  MEvents.push_back(EventImpl);
+}
+
+void handler::depends_on(const std::vector<event> &Events) {
+  for (const event &Event : Events) {
+    auto EventImpl = detail::getSyclObjImpl(Event);
+    if (EventImpl->isDiscarded()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Queue operation cannot depend on invalid event.");
+    }
+    MEvents.push_back(EventImpl);
+  }
+}
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)
