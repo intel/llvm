@@ -128,7 +128,9 @@ static pi_result mapError(ze_result_t ZeResult) {
       {ZE_RESULT_ERROR_OVERLAPPING_REGIONS, PI_INVALID_OPERATION},
       {ZE_RESULT_ERROR_INVALID_GROUP_SIZE_DIMENSION,
        PI_INVALID_WORK_GROUP_SIZE},
-      {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE, PI_BUILD_PROGRAM_FAILURE}};
+      {ZE_RESULT_ERROR_MODULE_BUILD_FAILURE, PI_BUILD_PROGRAM_FAILURE},
+      {ZE_RESULT_ERROR_OUT_OF_DEVICE_MEMORY, PI_OUT_OF_RESOURCES},
+      {ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY, PI_OUT_OF_HOST_MEMORY}};
 
   auto It = ErrorMapping.find(ZeResult);
   if (It == ErrorMapping.end()) {
@@ -477,7 +479,7 @@ pi_result _pi_context::decrementUnreleasedEventsInPool(pi_event Event) {
   }
 
   if (Event->ZeHostVisibleEventPool) {
-    if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)
+    if (NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0)
       die("Invalid host visible event release: host visible event pool doesn't "
           "have unreleased events");
     if (--NumEventsUnreleasedInEventPool[Event->ZeHostVisibleEventPool] == 0) {
@@ -4765,7 +4767,7 @@ pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   if (ZeAllHostVisibleEvents) {
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
-    ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_DEVICE;
+    ZeEventDesc.signal = 0;
   }
 
   ZE_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
