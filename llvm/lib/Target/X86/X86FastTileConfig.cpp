@@ -10,7 +10,7 @@
 /// AMX register need to be configured before use. Before FastRegAllocation pass
 /// the ldtilecfg instruction is inserted, however at that time we don't
 /// know the shape of each physical tile registers, because the register
-/// allocation is not done yet. This pass runs after egister allocation
+/// allocation is not done yet. This pass runs after register allocation
 /// pass. It collects the shape information of each physical tile register
 /// and store the shape in the stack slot that is allocated for load config
 /// to tile config register.
@@ -44,6 +44,7 @@ class X86FastTileConfig : public MachineFunctionPass {
   const TargetRegisterInfo *TRI = nullptr;
   const TargetInstrInfo *TII = nullptr;
   MachineRegisterInfo *MRI = nullptr;
+  X86MachineFunctionInfo *X86FI = nullptr;
 
   MachineInstr *getTileConfigPoint();
   void tileConfig();
@@ -122,7 +123,8 @@ static inline void adjustColCfg(unsigned TIdx, MachineInstr *MI) {
 }
 
 bool X86FastTileConfig::isTileLoad(MachineInstr &MI) {
-  return MI.getOpcode() == X86::PTILELOADDV;
+  return MI.getOpcode() == X86::PTILELOADDV ||
+         MI.getOpcode() == X86::PTILELOADDT1V;
 }
 bool X86FastTileConfig::isTileStore(MachineInstr &MI) {
   return MI.getOpcode() == X86::PTILESTOREDV;
@@ -288,6 +290,8 @@ bool X86FastTileConfig::fastTileConfig() {
     if (!CFGs.empty())
       Changed = true;
   }
+  if (Changed)
+    X86FI->setHasVirtualTileReg(true);
   return Changed;
 }
 
@@ -297,6 +301,7 @@ bool X86FastTileConfig::runOnMachineFunction(MachineFunction &MFunc) {
   ST = &MFunc.getSubtarget<X86Subtarget>();
   TRI = ST->getRegisterInfo();
   TII = MFunc.getSubtarget().getInstrInfo();
+  X86FI = MFunc.getInfo<X86MachineFunctionInfo>();
 
   return fastTileConfig();
 }

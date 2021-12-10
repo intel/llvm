@@ -36,6 +36,7 @@
 #include "polly/ScopDetection.h"
 #include "polly/ScopInfo.h"
 #include "polly/Simplify.h"
+#include "polly/Support/DumpFunctionPass.h"
 #include "polly/Support/DumpModulePass.h"
 #include "llvm/Analysis/CFGPrinter.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -263,7 +264,6 @@ void initializePollyPasses(PassRegistry &Registry) {
   initializeScopInlinerPass(Registry);
   initializeScopInfoRegionPassPass(Registry);
   initializeScopInfoWrapperPassPass(Registry);
-  initializeRewriteByrefParamsWrapperPassPass(Registry);
   initializeCodegenCleanupPass(Registry);
   initializeFlattenSchedulePass(Registry);
   initializeForwardOpTreeWrapperPassPass(Registry);
@@ -474,7 +474,7 @@ registerPollyScalarOptimizerLatePasses(const llvm::PassManagerBuilder &Builder,
 ///                     the analysis passes are added, skipping Polly itself.
 ///                     The IR may still be modified.
 static void buildCommonPollyPipeline(FunctionPassManager &PM,
-                                     PassBuilder::OptimizationLevel Level,
+                                     OptimizationLevel Level,
                                      bool EnableForOpt) {
   PassBuilder PB;
   ScopPassManager SPM;
@@ -574,7 +574,7 @@ static void buildCommonPollyPipeline(FunctionPassManager &PM,
 }
 
 static void buildEarlyPollyPipeline(ModulePassManager &MPM,
-                                    PassBuilder::OptimizationLevel Level) {
+                                    OptimizationLevel Level) {
   bool EnableForOpt =
       shouldEnablePollyForOptimization() && Level.isOptimizingForSpeed();
   if (!shouldEnablePollyForDiagnostic() && !EnableForOpt)
@@ -603,26 +603,26 @@ static void buildEarlyPollyPipeline(ModulePassManager &MPM,
 }
 
 static void buildLatePollyPipeline(FunctionPassManager &PM,
-                                   PassBuilder::OptimizationLevel Level) {
+                                   OptimizationLevel Level) {
   bool EnableForOpt =
       shouldEnablePollyForOptimization() && Level.isOptimizingForSpeed();
   if (!shouldEnablePollyForDiagnostic() && !EnableForOpt)
     return;
 
   if (DumpBefore)
-    report_fatal_error("Option -polly-dump-before not supported with NPM",
-                       false);
+    PM.addPass(DumpFunctionPass("-before"));
   if (!DumpBeforeFile.empty())
-    report_fatal_error("Option -polly-dump-before-file not supported with NPM",
+    report_fatal_error("Option -polly-dump-before-file at -polly-position=late "
+                       "not supported with NPM",
                        false);
 
   buildCommonPollyPipeline(PM, Level, EnableForOpt);
 
   if (DumpAfter)
-    report_fatal_error("Option -polly-dump-after not supported with NPM",
-                       false);
+    PM.addPass(DumpFunctionPass("-after"));
   if (!DumpAfterFile.empty())
-    report_fatal_error("Option -polly-dump-after-file not supported with NPM",
+    report_fatal_error("Option -polly-dump-after-file at -polly-position=late "
+                       "not supported with NPM",
                        false);
 }
 

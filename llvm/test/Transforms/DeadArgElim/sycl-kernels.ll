@@ -5,7 +5,7 @@
 ; This test checks eliminating dead arguments
 ; from SPIR kernel functions in SYCL environment.
 
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64"
 
 define weak_odr spir_kernel void @SpirKernel1(float %arg1, float %arg2) {
 ; CHECK-LABEL: define {{[^@]+}}@SpirKernel1
@@ -14,7 +14,7 @@ define weak_odr spir_kernel void @SpirKernel1(float %arg1, float %arg2) {
 ; CHECK-NEXT:    ret void
 ;
 ; CHECK-SYCL-LABEL: define {{[^@]+}}@SpirKernel1
-; CHECK-SYCL-SAME: (float [[ARG1:%.*]]) !spir_kernel_omit_args ![[KERN_ARGS1:[0-9]]]
+; CHECK-SYCL-SAME: (float [[ARG1:%.*]]) !sycl_kernel_omit_args ![[KERN_ARGS1:[0-9]]]
 ; CHECK-SYCL-NEXT:    call void @foo(float [[ARG1]])
 ; CHECK-SYCL-NEXT:    ret void
 
@@ -29,7 +29,7 @@ define weak_odr spir_kernel void @SpirKernel2(float %arg1, float %arg2) {
 ; CHECK-NEXT:    ret void
 ;
 ; CHECK-SYCL-LABEL: define {{[^@]+}}@SpirKernel2
-; CHECK-SYCL-SAME: (float [[ARG2:%.*]]) !spir_kernel_omit_args ![[KERN_ARGS2:[0-9]]]
+; CHECK-SYCL-SAME: (float [[ARG2:%.*]]) !sycl_kernel_omit_args ![[KERN_ARGS2:[0-9]]]
 ; CHECK-SYCL-NEXT:    call void @foo(float [[ARG2]])
 ; CHECK-SYCL-NEXT:    ret void
 

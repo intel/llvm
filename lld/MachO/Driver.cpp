@@ -8,8 +8,10 @@
 
 #include "Driver.h"
 #include "Config.h"
+#include "ICF.h"
 #include "InputFiles.h"
 #include "LTO.h"
+#include "MarkLive.h"
 #include "ObjC.h"
 #include "OutputSection.h"
 #include "OutputSegment.h"
@@ -17,6 +19,7 @@
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
+#include "UnwindInfoSection.h"
 #include "Writer.h"
 
 #include "lld/Common/Args.h"
@@ -77,19 +80,39 @@ static HeaderFileType getOutputType(const InputArgList &args) {
   }
 }
 
+static DenseMap<CachedHashStringRef, StringRef> resolvedLibraries;
 static Optional<StringRef> findLibrary(StringRef name) {
-  if (config->searchDylibsFirst) {
-    if (Optional<StringRef> path = findPathCombination(
-            "lib" + name, config->librarySearchPaths, {".tbd", ".dylib"}))
-      return path;
+  CachedHashStringRef key(name);
+  auto entry = resolvedLibraries.find(key);
+  if (entry != resolvedLibraries.end())
+    return entry->second;
+
+  auto doFind = [&] {
+    if (config->searchDylibsFirst) {
+      if (Optional<StringRef> path = findPathCombination(
+              "lib" + name, config->librarySearchPaths, {".tbd", ".dylib"}))
+        return path;
+      return findPathCombination("lib" + name, config->librarySearchPaths,
+                                 {".a"});
+    }
     return findPathCombination("lib" + name, config->librarySearchPaths,
-                               {".a"});
-  }
-  return findPathCombination("lib" + name, config->librarySearchPaths,
-                             {".tbd", ".dylib", ".a"});
+                               {".tbd", ".dylib", ".a"});
+  };
+
+  Optional<StringRef> path = doFind();
+  if (path)
+    resolvedLibraries[key] = *path;
+
+  return path;
 }
 
-static Optional<std::string> findFramework(StringRef name) {
+static DenseMap<CachedHashStringRef, StringRef> resolvedFrameworks;
+static Optional<StringRef> findFramework(StringRef name) {
+  CachedHashStringRef key(name);
+  auto entry = resolvedFrameworks.find(key);
+  if (entry != resolvedFrameworks.end())
+    return entry->second;
+
   SmallString<260> symlink;
   StringRef suffix;
   std::tie(name, suffix) = name.split(",");
@@ -105,13 +128,13 @@ static Optional<std::string> findFramework(StringRef name) {
         // only append suffix if realpath() succeeds
         Twine suffixed = location + suffix;
         if (fs::exists(suffixed))
-          return suffixed.str();
+          return resolvedFrameworks[key] = saver.save(suffixed.str());
       }
       // Suffix lookup failed, fall through to the no-suffix case.
     }
 
-    if (Optional<std::string> path = resolveDylibPath(symlink))
-      return path;
+    if (Optional<StringRef> path = resolveDylibPath(symlink.str()))
+      return resolvedFrameworks[key] = *path;
   }
   return {};
 }
@@ -171,7 +194,7 @@ static std::vector<StringRef> getSystemLibraryRoots(InputArgList &args) {
   for (const Arg *arg : args.filtered(OPT_syslibroot))
     roots.push_back(arg->getValue());
   // NOTE: the final `-syslibroot` being `/` will ignore all roots
-  if (roots.size() && roots.back() == "/")
+  if (!roots.empty() && roots.back() == "/")
     roots.clear();
   // NOTE: roots can never be empty - add an empty root to simplify the library
   // and framework search path computation.
@@ -192,50 +215,41 @@ getFrameworkSearchPaths(InputArgList &args,
                         {"/Library/Frameworks", "/System/Library/Frameworks"});
 }
 
-namespace {
-struct ArchiveMember {
-  MemoryBufferRef mbref;
-  uint32_t modTime;
-};
-} // namespace
-
-// Returns slices of MB by parsing MB as an archive file.
-// Each slice consists of a member file in the archive.
-static std::vector<ArchiveMember> getArchiveMembers(MemoryBufferRef mb) {
-  std::unique_ptr<Archive> file =
-      CHECK(Archive::create(mb),
-            mb.getBufferIdentifier() + ": failed to parse archive");
-  Archive *archive = file.get();
-  make<std::unique_ptr<Archive>>(std::move(file)); // take ownership
-
-  std::vector<ArchiveMember> v;
-  Error err = Error::success();
-
-  // Thin archives refer to .o files, so --reproduce needs the .o files too.
-  bool addToTar = archive->isThin() && tar;
-
-  for (const Archive::Child &c : archive->children(err)) {
-    MemoryBufferRef mbref =
-        CHECK(c.getMemoryBufferRef(),
-              mb.getBufferIdentifier() +
-                  ": could not get the buffer for a child of the archive");
-    if (addToTar)
-      tar->append(relativeToRoot(check(c.getFullName())), mbref.getBuffer());
-    uint32_t modTime = toTimeT(
-        CHECK(c.getLastModified(), mb.getBufferIdentifier() +
-                                       ": could not get the modification "
-                                       "time for a child of the archive"));
-    v.push_back({mbref, modTime});
+static llvm::CachePruningPolicy getLTOCachePolicy(InputArgList &args) {
+  SmallString<128> ltoPolicy;
+  auto add = [&ltoPolicy](Twine val) {
+    if (!ltoPolicy.empty())
+      ltoPolicy += ":";
+    val.toVector(ltoPolicy);
+  };
+  for (const Arg *arg :
+       args.filtered(OPT_thinlto_cache_policy, OPT_prune_interval_lto,
+                     OPT_prune_after_lto, OPT_max_relative_cache_size_lto)) {
+    switch (arg->getOption().getID()) {
+    case OPT_thinlto_cache_policy:
+      add(arg->getValue());
+      break;
+    case OPT_prune_interval_lto:
+      if (!strcmp("-1", arg->getValue()))
+        add("prune_interval=87600h"); // 10 years
+      else
+        add(Twine("prune_interval=") + arg->getValue() + "s");
+      break;
+    case OPT_prune_after_lto:
+      add(Twine("prune_after=") + arg->getValue() + "s");
+      break;
+    case OPT_max_relative_cache_size_lto:
+      add(Twine("cache_size=") + arg->getValue() + "%");
+      break;
+    }
   }
-  if (err)
-    fatal(mb.getBufferIdentifier() +
-          ": Archive::children failed: " + toString(std::move(err)));
-
-  return v;
+  return CHECK(parseCachePruningPolicy(ltoPolicy), "invalid LTO cache policy");
 }
 
-static InputFile *addFile(StringRef path, bool forceLoadArchive,
-                          bool isBundleLoader = false) {
+static DenseMap<StringRef, ArchiveFile *> loadedArchives;
+
+static InputFile *addFile(StringRef path, ForceLoad forceLoadArchive,
+                          bool isExplicit = true, bool isBundleLoader = false) {
   Optional<MemoryBufferRef> buffer = readFile(path);
   if (!buffer)
     return nullptr;
@@ -245,46 +259,63 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
   file_magic magic = identify_magic(mbref.getBuffer());
   switch (magic) {
   case file_magic::archive: {
-    std::unique_ptr<object::Archive> file = CHECK(
+    // Avoid loading archives twice. If the archives are being force-loaded,
+    // loading them twice would create duplicate symbol errors. In the
+    // non-force-loading case, this is just a minor performance optimization.
+    // We don't take a reference to cachedFile here because the
+    // loadArchiveMember() call below may recursively call addFile() and
+    // invalidate this reference.
+    if (ArchiveFile *cachedFile = loadedArchives[path])
+      return cachedFile;
+
+    std::unique_ptr<object::Archive> archive = CHECK(
         object::Archive::create(mbref), path + ": failed to parse archive");
 
-    if (!file->isEmpty() && !file->hasSymbolTable())
+    if (!archive->isEmpty() && !archive->hasSymbolTable())
       error(path + ": archive has no index; run ranlib to add one");
 
-    if (config->allLoad || forceLoadArchive) {
+    auto *file = make<ArchiveFile>(std::move(archive));
+    if ((forceLoadArchive == ForceLoad::Default && config->allLoad) ||
+        forceLoadArchive == ForceLoad::Yes) {
       if (Optional<MemoryBufferRef> buffer = readFile(path)) {
-        for (const ArchiveMember &member : getArchiveMembers(*buffer)) {
-          if (Optional<InputFile *> file = loadArchiveMember(
-                  member.mbref, member.modTime, path, /*objCOnly=*/false)) {
-            inputFiles.insert(*file);
-            printArchiveMemberLoad(
-                (forceLoadArchive ? "-force_load" : "-all_load"),
-                inputFiles.back());
-          }
+        Error e = Error::success();
+        for (const object::Archive::Child &c : file->getArchive().children(e)) {
+          StringRef reason =
+              forceLoadArchive == ForceLoad::Yes ? "-force_load" : "-all_load";
+          if (Error e = file->fetch(c, reason))
+            error(toString(file) + ": " + reason +
+                  " failed to load archive member: " + toString(std::move(e)));
         }
+        if (e)
+          error(toString(file) +
+                ": Archive::children failed: " + toString(std::move(e)));
       }
-    } else if (config->forceLoadObjC) {
-      for (const object::Archive::Symbol &sym : file->symbols())
+    } else if (forceLoadArchive == ForceLoad::Default &&
+               config->forceLoadObjC) {
+      for (const object::Archive::Symbol &sym : file->getArchive().symbols())
         if (sym.getName().startswith(objc::klass))
-          symtab->addUndefined(sym.getName(), /*file=*/nullptr,
-                               /*isWeakRef=*/false);
+          file->fetch(sym);
 
       // TODO: no need to look for ObjC sections for a given archive member if
-      // we already found that it contains an ObjC symbol. We should also
-      // consider creating a LazyObjFile class in order to avoid double-loading
-      // these files here and below (as part of the ArchiveFile).
+      // we already found that it contains an ObjC symbol.
       if (Optional<MemoryBufferRef> buffer = readFile(path)) {
-        for (const ArchiveMember &member : getArchiveMembers(*buffer)) {
-          if (Optional<InputFile *> file = loadArchiveMember(
-                  member.mbref, member.modTime, path, /*objCOnly=*/true)) {
-            inputFiles.insert(*file);
-            printArchiveMemberLoad("-ObjC", inputFiles.back());
-          }
+        Error e = Error::success();
+        for (const object::Archive::Child &c : file->getArchive().children(e)) {
+          Expected<MemoryBufferRef> mb = c.getMemoryBufferRef();
+          if (!mb || !hasObjCSection(*mb))
+            continue;
+          if (Error e = file->fetch(c, "-ObjC"))
+            error(toString(file) + ": -ObjC failed to load archive member: " +
+                  toString(std::move(e)));
         }
+        if (e)
+          error(toString(file) +
+                ": Archive::children failed: " + toString(std::move(e)));
       }
     }
 
-    newFile = make<ArchiveFile>(std::move(file));
+    file->addLazySymbols();
+    newFile = loadedArchives[path] = file;
     break;
   }
   case file_magic::macho_object:
@@ -293,11 +324,14 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
   case file_magic::macho_dynamically_linked_shared_lib:
   case file_magic::macho_dynamically_linked_shared_lib_stub:
   case file_magic::tapi_file:
-    if (Optional<DylibFile *> dylibFile = loadDylib(mbref))
-      newFile = *dylibFile;
+    if (DylibFile *dylibFile = loadDylib(mbref)) {
+      if (isExplicit)
+        dylibFile->explicitlyLinked = true;
+      newFile = dylibFile;
+    }
     break;
   case file_magic::bitcode:
-    newFile = make<BitcodeFile>(mbref);
+    newFile = make<BitcodeFile>(mbref, "", 0);
     break;
   case file_magic::macho_executable:
   case file_magic::macho_bundle:
@@ -305,14 +339,13 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
     // as a bundle loader.
     if (!isBundleLoader)
       error(path + ": unhandled file type");
-    if (Optional<DylibFile *> dylibFile =
-            loadDylib(mbref, nullptr, isBundleLoader))
-      newFile = *dylibFile;
+    if (DylibFile *dylibFile = loadDylib(mbref, nullptr, isBundleLoader))
+      newFile = dylibFile;
     break;
   default:
     error(path + ": unhandled file type");
   }
-  if (newFile) {
+  if (newFile && !isa<DylibFile>(newFile)) {
     // printArchiveMemberLoad() prints both .a and .o names, so no need to
     // print the .a name here.
     if (config->printEachFile && magic != file_magic::archive)
@@ -322,30 +355,51 @@ static InputFile *addFile(StringRef path, bool forceLoadArchive,
   return newFile;
 }
 
-static void addLibrary(StringRef name, bool isWeak) {
+static void addLibrary(StringRef name, bool isNeeded, bool isWeak,
+                       bool isReexport, bool isExplicit,
+                       ForceLoad forceLoadArchive) {
   if (Optional<StringRef> path = findLibrary(name)) {
-    auto *dylibFile = dyn_cast_or_null<DylibFile>(addFile(*path, false));
-    if (isWeak && dylibFile)
-      dylibFile->forceWeakImport = true;
+    if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
+            addFile(*path, forceLoadArchive, isExplicit))) {
+      if (isNeeded)
+        dylibFile->forceNeeded = true;
+      if (isWeak)
+        dylibFile->forceWeakImport = true;
+      if (isReexport) {
+        config->hasReexports = true;
+        dylibFile->reexport = true;
+      }
+    }
     return;
   }
   error("library not found for -l" + name);
 }
 
-static void addFramework(StringRef name, bool isWeak) {
-  if (Optional<std::string> path = findFramework(name)) {
-    auto *dylibFile = dyn_cast_or_null<DylibFile>(addFile(*path, false));
-    if (isWeak && dylibFile)
-      dylibFile->forceWeakImport = true;
+static void addFramework(StringRef name, bool isNeeded, bool isWeak,
+                         bool isReexport, bool isExplicit,
+                         ForceLoad forceLoadArchive) {
+  if (Optional<StringRef> path = findFramework(name)) {
+    if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
+            addFile(*path, forceLoadArchive, isExplicit))) {
+      if (isNeeded)
+        dylibFile->forceNeeded = true;
+      if (isWeak)
+        dylibFile->forceWeakImport = true;
+      if (isReexport) {
+        config->hasReexports = true;
+        dylibFile->reexport = true;
+      }
+    }
     return;
   }
   error("framework not found for -framework " + name);
 }
 
 // Parses LC_LINKER_OPTION contents, which can add additional command line
-// flags.
+// flags. This directly parses the flags instead of using the standard argument
+// parser to improve performance.
 void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
-  SmallVector<const char *, 4> argv;
+  SmallVector<StringRef, 4> argv;
   size_t offset = 0;
   for (unsigned i = 0; i < argc && offset < data.size(); ++i) {
     argv.push_back(data.data() + offset);
@@ -354,25 +408,20 @@ void macho::parseLCLinkerOption(InputFile *f, unsigned argc, StringRef data) {
   if (argv.size() != argc || offset > data.size())
     fatal(toString(f) + ": invalid LC_LINKER_OPTION");
 
-  MachOOptTable table;
-  unsigned missingIndex, missingCount;
-  InputArgList args = table.ParseArgs(argv, missingIndex, missingCount);
-  if (missingCount)
-    fatal(Twine(args.getArgString(missingIndex)) + ": missing argument");
-  for (const Arg *arg : args.filtered(OPT_UNKNOWN))
-    error("unknown argument: " + arg->getAsString(args));
-
-  for (const Arg *arg : args) {
-    switch (arg->getOption().getID()) {
-    case OPT_l:
-      addLibrary(arg->getValue(), false);
-      break;
-    case OPT_framework:
-      addFramework(arg->getValue(), false);
-      break;
-    default:
-      error(arg->getSpelling() + " is not allowed in LC_LINKER_OPTION");
-    }
+  unsigned i = 0;
+  StringRef arg = argv[i];
+  if (arg.consume_front("-l")) {
+    ForceLoad forceLoadArchive =
+        config->forceLoadSwift && arg.startswith("swift") ? ForceLoad::Yes
+                                                          : ForceLoad::No;
+    addLibrary(arg, /*isNeeded=*/false, /*isWeak=*/false,
+               /*isReexport=*/false, /*isExplicit=*/false, forceLoadArchive);
+  } else if (arg == "-framework") {
+    StringRef name = argv[++i];
+    addFramework(name, /*isNeeded=*/false, /*isWeak=*/false,
+                 /*isReexport=*/false, /*isExplicit=*/false, ForceLoad::No);
+  } else {
+    error(arg + " is not allowed in LC_LINKER_OPTION");
   }
 }
 
@@ -382,7 +431,7 @@ static void addFileList(StringRef path) {
     return;
   MemoryBufferRef mbref = *buffer;
   for (StringRef path : args::getLines(mbref))
-    addFile(rerootPath(path), false);
+    addFile(rerootPath(path), ForceLoad::Default);
 }
 
 // An order file has one entry per line, in the following format:
@@ -484,6 +533,14 @@ static void initLLVM() {
 }
 
 static void compileBitcodeFiles() {
+  // FIXME: Remove this once LTO.cpp honors config->exportDynamic.
+  if (config->exportDynamic)
+    for (InputFile *file : inputFiles)
+      if (isa<BitcodeFile>(file)) {
+        warn("the effect of -export_dynamic on LTO is not yet implemented");
+        break;
+      }
+
   TimeTraceScope timeScope("LTO");
   auto *lto = make<BitcodeCompiler>();
   for (InputFile *file : inputFiles)
@@ -500,29 +557,34 @@ static void compileBitcodeFiles() {
 // any CommonSymbols.
 static void replaceCommonSymbols() {
   TimeTraceScope timeScope("Replace common symbols");
+  ConcatOutputSection *osec = nullptr;
   for (Symbol *sym : symtab->getSymbols()) {
     auto *common = dyn_cast<CommonSymbol>(sym);
     if (common == nullptr)
       continue;
 
-    auto *isec = make<InputSection>();
-    isec->file = common->getFile();
-    isec->name = section_names::common;
-    isec->segname = segment_names::data;
-    isec->align = common->align;
     // Casting to size_t will truncate large values on 32-bit architectures,
     // but it's not really worth supporting the linking of 64-bit programs on
     // 32-bit archs.
-    isec->data = {nullptr, static_cast<size_t>(common->size)};
-    isec->flags = S_ZEROFILL;
+    ArrayRef<uint8_t> data = {nullptr, static_cast<size_t>(common->size)};
+    auto *isec = make<ConcatInputSection>(
+        segment_names::data, section_names::common, common->getFile(), data,
+        common->align, S_ZEROFILL);
+    if (!osec)
+      osec = ConcatOutputSection::getOrCreateForInput(isec);
+    isec->parent = osec;
     inputSections.push_back(isec);
 
-    replaceSymbol<Defined>(sym, sym->getName(), isec->file, isec, /*value=*/0,
+    // FIXME: CommonSymbol should store isReferencedDynamically, noDeadStrip
+    // and pass them on here.
+    replaceSymbol<Defined>(sym, sym->getName(), isec->getFile(), isec,
+                           /*value=*/0,
                            /*size=*/0,
                            /*isWeakDef=*/false,
                            /*isExternal=*/true, common->privateExtern,
                            /*isThumb=*/false,
-                           /*isReferencedDynamically=*/false);
+                           /*isReferencedDynamically=*/false,
+                           /*noDeadStrip=*/false);
   }
 }
 
@@ -608,10 +670,12 @@ static PlatformKind parsePlatformVersion(const ArgList &args) {
 // Has the side-effect of setting Config::target.
 static TargetInfo *createTargetInfo(InputArgList &args) {
   StringRef archName = args.getLastArgValue(OPT_arch);
-  if (archName.empty())
-    fatal("must specify -arch");
-  PlatformKind platform = parsePlatformVersion(args);
+  if (archName.empty()) {
+    error("must specify -arch");
+    return nullptr;
+  }
 
+  PlatformKind platform = parsePlatformVersion(args);
   config->platformInfo.target =
       MachO::Target(getArchitectureFromName(archName), platform);
 
@@ -629,7 +693,8 @@ static TargetInfo *createTargetInfo(InputArgList &args) {
   case CPU_TYPE_ARM:
     return createARMTargetInfo(cpuSubtype);
   default:
-    fatal("missing or unsupported -arch " + archName);
+    error("missing or unsupported -arch " + archName);
+    return nullptr;
   }
 }
 
@@ -659,6 +724,24 @@ getUndefinedSymbolTreatment(const ArgList &args) {
   return treatment;
 }
 
+static ICFLevel getICFLevel(const ArgList &args) {
+  StringRef icfLevelStr = args.getLastArgValue(OPT_icf_eq);
+  auto icfLevel = StringSwitch<ICFLevel>(icfLevelStr)
+                      .Cases("none", "", ICFLevel::none)
+                      .Case("safe", ICFLevel::safe)
+                      .Case("all", ICFLevel::all)
+                      .Default(ICFLevel::unknown);
+  if (icfLevel == ICFLevel::unknown) {
+    warn(Twine("unknown --icf=OPTION `") + icfLevelStr +
+         "', defaulting to `none'");
+    icfLevel = ICFLevel::none;
+  } else if (icfLevel == ICFLevel::safe) {
+    warn(Twine("`--icf=safe' is not yet implemented, reverting to `none'"));
+    icfLevel = ICFLevel::none;
+  }
+  return icfLevel;
+}
+
 static void warnIfDeprecatedOption(const Option &opt) {
   if (!opt.getGroup().isValid())
     return;
@@ -685,6 +768,8 @@ static void warnIfUnimplementedOption(const Option &opt) {
     break;
   case OPT_grp_ignored:
     warn("Option `" + opt.getPrefixedName() + "' is ignored.");
+    break;
+  case OPT_grp_ignored_silently:
     break;
   default:
     warn("Option `" + opt.getPrefixedName() +
@@ -776,7 +861,33 @@ static std::vector<SectionAlign> parseSectAlign(const opt::InputArgList &args) {
   return sectAligns;
 }
 
+PlatformKind macho::removeSimulator(PlatformKind platform) {
+  switch (platform) {
+  case PlatformKind::iOSSimulator:
+    return PlatformKind::iOS;
+  case PlatformKind::tvOSSimulator:
+    return PlatformKind::tvOS;
+  case PlatformKind::watchOSSimulator:
+    return PlatformKind::watchOS;
+  default:
+    return platform;
+  }
+}
+
 static bool dataConstDefault(const InputArgList &args) {
+  static const std::vector<std::pair<PlatformKind, VersionTuple>> minVersion = {
+      {PlatformKind::macOS, VersionTuple(10, 15)},
+      {PlatformKind::iOS, VersionTuple(13, 0)},
+      {PlatformKind::tvOS, VersionTuple(13, 0)},
+      {PlatformKind::watchOS, VersionTuple(6, 0)},
+      {PlatformKind::bridgeOS, VersionTuple(4, 0)}};
+  PlatformKind platform = removeSimulator(config->platformInfo.target.Platform);
+  auto it = llvm::find_if(minVersion,
+                          [&](const auto &p) { return p.first == platform; });
+  if (it != minVersion.end())
+    if (config->platformInfo.minimum < it->second)
+      return false;
+
   switch (config->outputType) {
   case MH_EXECUTE:
     return !args.hasArg(OPT_no_pie);
@@ -815,7 +926,7 @@ bool SymbolPatterns::matchLiteral(StringRef symbolName) const {
 }
 
 bool SymbolPatterns::matchGlob(StringRef symbolName) const {
-  for (const llvm::GlobPattern &glob : globs)
+  for (const GlobPattern &glob : globs)
     if (glob.match(symbolName))
       return true;
   return false;
@@ -847,7 +958,7 @@ static void handleSymbolPatterns(InputArgList &args,
   }
 }
 
-void createFiles(const InputArgList &args) {
+static void createFiles(const InputArgList &args) {
   TimeTraceScope timeScope("Load input files");
   // This loop should be reserved for options whose exact ordering matters.
   // Other options should be handled via filtered() and/or getLastArg().
@@ -858,26 +969,47 @@ void createFiles(const InputArgList &args) {
 
     switch (opt.getID()) {
     case OPT_INPUT:
-      addFile(rerootPath(arg->getValue()), false);
+      addFile(rerootPath(arg->getValue()), ForceLoad::Default);
+      break;
+    case OPT_needed_library:
+      if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
+              addFile(rerootPath(arg->getValue()), ForceLoad::Default)))
+        dylibFile->forceNeeded = true;
+      break;
+    case OPT_reexport_library:
+      if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
+              addFile(rerootPath(arg->getValue()), ForceLoad::Default))) {
+        config->hasReexports = true;
+        dylibFile->reexport = true;
+      }
       break;
     case OPT_weak_library:
       if (auto *dylibFile = dyn_cast_or_null<DylibFile>(
-              addFile(rerootPath(arg->getValue()), false)))
+              addFile(rerootPath(arg->getValue()), ForceLoad::Default)))
         dylibFile->forceWeakImport = true;
       break;
     case OPT_filelist:
       addFileList(arg->getValue());
       break;
     case OPT_force_load:
-      addFile(rerootPath(arg->getValue()), true);
+      addFile(rerootPath(arg->getValue()), ForceLoad::Yes);
       break;
     case OPT_l:
+    case OPT_needed_l:
+    case OPT_reexport_l:
     case OPT_weak_l:
-      addLibrary(arg->getValue(), opt.getID() == OPT_weak_l);
+      addLibrary(arg->getValue(), opt.getID() == OPT_needed_l,
+                 opt.getID() == OPT_weak_l, opt.getID() == OPT_reexport_l,
+                 /*isExplicit=*/true, ForceLoad::Default);
       break;
     case OPT_framework:
+    case OPT_needed_framework:
+    case OPT_reexport_framework:
     case OPT_weak_framework:
-      addFramework(arg->getValue(), opt.getID() == OPT_weak_framework);
+      addFramework(arg->getValue(), opt.getID() == OPT_needed_framework,
+                   opt.getID() == OPT_weak_framework,
+                   opt.getID() == OPT_reexport_framework, /*isExplicit=*/true,
+                   ForceLoad::Default);
       break;
     default:
       break;
@@ -885,12 +1017,99 @@ void createFiles(const InputArgList &args) {
   }
 }
 
+static void gatherInputSections() {
+  TimeTraceScope timeScope("Gathering input sections");
+  int inputOrder = 0;
+  for (const InputFile *file : inputFiles) {
+    for (const Section &section : file->sections) {
+      const Subsections &subsections = section.subsections;
+      if (subsections.empty())
+        continue;
+      if (subsections[0].isec->getName() == section_names::compactUnwind)
+        // Compact unwind entries require special handling elsewhere.
+        continue;
+      ConcatOutputSection *osec = nullptr;
+      for (const Subsection &subsection : subsections) {
+        if (auto *isec = dyn_cast<ConcatInputSection>(subsection.isec)) {
+          if (isec->isCoalescedWeak())
+            continue;
+          isec->outSecOff = inputOrder++;
+          if (!osec)
+            osec = ConcatOutputSection::getOrCreateForInput(isec);
+          isec->parent = osec;
+          inputSections.push_back(isec);
+        } else if (auto *isec =
+                       dyn_cast<CStringInputSection>(subsection.isec)) {
+          if (in.cStringSection->inputOrder == UnspecifiedInputOrder)
+            in.cStringSection->inputOrder = inputOrder++;
+          in.cStringSection->addInput(isec);
+        } else if (auto *isec =
+                       dyn_cast<WordLiteralInputSection>(subsection.isec)) {
+          if (in.wordLiteralSection->inputOrder == UnspecifiedInputOrder)
+            in.wordLiteralSection->inputOrder = inputOrder++;
+          in.wordLiteralSection->addInput(isec);
+        } else {
+          llvm_unreachable("unexpected input section kind");
+        }
+      }
+    }
+  }
+  assert(inputOrder <= UnspecifiedInputOrder);
+}
+
+static void foldIdenticalLiterals() {
+  // We always create a cStringSection, regardless of whether dedupLiterals is
+  // true. If it isn't, we simply create a non-deduplicating CStringSection.
+  // Either way, we must unconditionally finalize it here.
+  in.cStringSection->finalizeContents();
+  if (in.wordLiteralSection)
+    in.wordLiteralSection->finalizeContents();
+}
+
+static void referenceStubBinder() {
+  bool needsStubHelper = config->outputType == MH_DYLIB ||
+                         config->outputType == MH_EXECUTE ||
+                         config->outputType == MH_BUNDLE;
+  if (!needsStubHelper || !symtab->find("dyld_stub_binder"))
+    return;
+
+  // dyld_stub_binder is used by dyld to resolve lazy bindings. This code here
+  // adds a opportunistic reference to dyld_stub_binder if it happens to exist.
+  // dyld_stub_binder is in libSystem.dylib, which is usually linked in. This
+  // isn't needed for correctness, but the presence of that symbol suppresses
+  // "no symbols" diagnostics from `nm`.
+  // StubHelperSection::setup() adds a reference and errors out if
+  // dyld_stub_binder doesn't exist in case it is actually needed.
+  symtab->addUndefined("dyld_stub_binder", /*file=*/nullptr, /*isWeak=*/false);
+}
+
 bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
                  raw_ostream &stdoutOS, raw_ostream &stderrOS) {
   lld::stdoutOS = &stdoutOS;
   lld::stderrOS = &stderrOS;
 
-  errorHandler().cleanupCallback = []() { freeArena(); };
+  errorHandler().cleanupCallback = []() {
+    freeArena();
+
+    resolvedFrameworks.clear();
+    resolvedLibraries.clear();
+    cachedReads.clear();
+    concatOutputSections.clear();
+    inputFiles.clear();
+    inputSections.clear();
+    loadedArchives.clear();
+    syntheticSections.clear();
+    thunkMap.clear();
+
+    firstTLVDataSection = nullptr;
+    tar = nullptr;
+    memset(&in, 0, sizeof(in));
+
+    resetLoadedDylibs();
+    resetOutputSegments();
+    resetWriter();
+    InputFile::resetIdCount();
+  };
 
   errorHandler().logName = args::getFilenameWithoutExe(argsArr[0]);
   stderrOS.enable_colors(stderrOS.has_colors());
@@ -922,6 +1141,36 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   target = createTargetInfo(args);
   depTracker =
       make<DependencyTracker>(args.getLastArgValue(OPT_dependency_info));
+  if (errorCount())
+    return false;
+
+  config->osoPrefix = args.getLastArgValue(OPT_oso_prefix);
+  if (!config->osoPrefix.empty()) {
+    // Expand special characters, such as ".", "..", or  "~", if present.
+    // Note: LD64 only expands "." and not other special characters.
+    // That seems silly to imitate so we will not try to follow it, but rather
+    // just use real_path() to do it.
+
+    // The max path length is 4096, in theory. However that seems quite long
+    // and seems unlikely that any one would want to strip everything from the
+    // path. Hence we've picked a reasonably large number here.
+    SmallString<1024> expanded;
+    if (!fs::real_path(config->osoPrefix, expanded,
+                       /*expand_tilde=*/true)) {
+      // Note: LD64 expands "." to be `<current_dir>/`
+      // (ie., it has a slash suffix) whereas real_path() doesn't.
+      // So we have to append '/' to be consistent.
+      StringRef sep = sys::path::get_separator();
+      // real_path removes trailing slashes as part of the normalization, but
+      // these are meaningful for our text based stripping
+      if (config->osoPrefix.equals(".") || config->osoPrefix.endswith(sep))
+        expanded += sep;
+      config->osoPrefix = saver.save(expanded.str());
+    }
+  }
+
+  // Must be set before any InputSections and Symbols are created.
+  config->deadStrip = args.hasArg(OPT_dead_strip);
 
   config->systemLibraryRoots = getSystemLibraryRoots(args);
   if (const char *path = getReproduceOption(args)) {
@@ -958,33 +1207,68 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   }
 
   for (const Arg *arg : args.filtered(OPT_U))
-    symtab->addDynamicLookup(arg->getValue());
+    config->explicitDynamicLookups.insert(arg->getValue());
 
   config->mapFile = args.getLastArgValue(OPT_map);
+  config->optimize = args::getInteger(args, OPT_O, 1);
   config->outputFile = args.getLastArgValue(OPT_o, "a.out");
+  config->finalOutput =
+      args.getLastArgValue(OPT_final_output, config->outputFile);
   config->astPaths = args.getAllArgValues(OPT_add_ast_path);
   config->headerPad = args::getHex(args, OPT_headerpad, /*Default=*/32);
   config->headerPadMaxInstallNames =
       args.hasArg(OPT_headerpad_max_install_names);
+  config->printDylibSearch =
+      args.hasArg(OPT_print_dylib_search) || getenv("RC_TRACE_DYLIB_SEARCHING");
   config->printEachFile = args.hasArg(OPT_t);
   config->printWhyLoad = args.hasArg(OPT_why_load);
+  config->omitDebugInfo = args.hasArg(OPT_S);
   config->outputType = getOutputType(args);
+  config->errorForArchMismatch = args.hasArg(OPT_arch_errors_fatal);
   if (const Arg *arg = args.getLastArg(OPT_bundle_loader)) {
     if (config->outputType != MH_BUNDLE)
       error("-bundle_loader can only be used with MachO bundle output");
-    addFile(arg->getValue(), false, true);
+    addFile(arg->getValue(), ForceLoad::Default, /*isExplicit=*/false,
+            /*isBundleLoader=*/true);
+  }
+  if (const Arg *arg = args.getLastArg(OPT_umbrella)) {
+    if (config->outputType != MH_DYLIB)
+      warn("-umbrella used, but not creating dylib");
+    config->umbrella = arg->getValue();
   }
   config->ltoObjPath = args.getLastArgValue(OPT_object_path_lto);
   config->ltoNewPassManager =
       args.hasFlag(OPT_no_lto_legacy_pass_manager, OPT_lto_legacy_pass_manager,
                    LLVM_ENABLE_NEW_PASS_MANAGER);
+  config->ltoo = args::getInteger(args, OPT_lto_O, 2);
+  if (config->ltoo > 3)
+    error("--lto-O: invalid optimization level: " + Twine(config->ltoo));
+  config->thinLTOCacheDir = args.getLastArgValue(OPT_cache_path_lto);
+  config->thinLTOCachePolicy = getLTOCachePolicy(args);
   config->runtimePaths = args::getStrings(args, OPT_rpath);
   config->allLoad = args.hasArg(OPT_all_load);
+  config->archMultiple = args.hasArg(OPT_arch_multiple);
+  config->applicationExtension = args.hasFlag(
+      OPT_application_extension, OPT_no_application_extension, false);
+  config->exportDynamic = args.hasArg(OPT_export_dynamic);
   config->forceLoadObjC = args.hasArg(OPT_ObjC);
+  config->forceLoadSwift = args.hasArg(OPT_force_load_swift_libs);
+  config->deadStripDylibs = args.hasArg(OPT_dead_strip_dylibs);
   config->demangle = args.hasArg(OPT_demangle);
   config->implicitDylibs = !args.hasArg(OPT_no_implicit_dylibs);
-  config->emitFunctionStarts = !args.hasArg(OPT_no_function_starts);
+  config->emitFunctionStarts =
+      args.hasFlag(OPT_function_starts, OPT_no_function_starts, true);
   config->emitBitcodeBundle = args.hasArg(OPT_bitcode_bundle);
+  config->emitDataInCodeInfo =
+      args.hasFlag(OPT_data_in_code_info, OPT_no_data_in_code_info, true);
+  config->icfLevel = getICFLevel(args);
+  config->dedupLiterals = args.hasArg(OPT_deduplicate_literals) ||
+                          config->icfLevel != ICFLevel::none;
+  config->warnDylibInstallName = args.hasFlag(
+      OPT_warn_dylib_install_name, OPT_no_warn_dylib_install_name, false);
+
+  // FIXME: Add a commandline flag for this too.
+  config->zeroModTime = getenv("ZERO_AR_DATE");
 
   std::array<PlatformKind, 3> encryptablePlatforms{
       PlatformKind::iOS, PlatformKind::watchOS, PlatformKind::tvOS};
@@ -998,12 +1282,14 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
 #endif
 
   if (const Arg *arg = args.getLastArg(OPT_install_name)) {
-    if (config->outputType != MH_DYLIB)
-      warn(arg->getAsString(args) + ": ignored, only has effect with -dylib");
+    if (config->warnDylibInstallName && config->outputType != MH_DYLIB)
+      warn(
+          arg->getAsString(args) +
+          ": ignored, only has effect with -dylib [--warn-dylib-install-name]");
     else
       config->installName = arg->getValue();
   } else if (config->outputType == MH_DYLIB) {
-    config->installName = config->outputFile;
+    config->installName = config->finalOutput;
   }
 
   if (args.hasArg(OPT_mark_dead_strippable_dylib)) {
@@ -1103,15 +1389,17 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
           config->platform() == PlatformKind::macOS);
 
   if (args.hasArg(OPT_v)) {
-    message(getLLDVersion());
+    message(getLLDVersion(), lld::errs());
     message(StringRef("Library search paths:") +
-            (config->librarySearchPaths.empty()
-                 ? ""
-                 : "\n\t" + join(config->librarySearchPaths, "\n\t")));
+                (config->librarySearchPaths.empty()
+                     ? ""
+                     : "\n\t" + join(config->librarySearchPaths, "\n\t")),
+            lld::errs());
     message(StringRef("Framework search paths:") +
-            (config->frameworkSearchPaths.empty()
-                 ? ""
-                 : "\n\t" + join(config->frameworkSearchPaths, "\n\t")));
+                (config->frameworkSearchPaths.empty()
+                     ? ""
+                     : "\n\t" + join(config->frameworkSearchPaths, "\n\t")),
+            lld::errs());
   }
 
   config->progName = argsArr[0];
@@ -1156,6 +1444,8 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
         reexportHandler(arg, extensions);
     }
 
+    cl::ResetAllOptionOccurrences();
+
     // Parse LTO options.
     if (const Arg *arg = args.getLastArg(OPT_mcpu))
       parseClangOption(saver.save("-mcpu=" + StringRef(arg->getValue())),
@@ -1171,24 +1461,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     if (!orderFile.empty())
       parseOrderFile(orderFile);
 
-    if (config->entry)
-      if (auto *undefined = dyn_cast<Undefined>(config->entry))
-        treatUndefinedSymbol(*undefined, "the entry point");
-
-    // FIXME: This prints symbols that are undefined both in input files and
-    // via -u flag twice.
-    for (const Symbol *sym : config->explicitUndefineds) {
-      if (const auto *undefined = dyn_cast<Undefined>(sym))
-        treatUndefinedSymbol(*undefined, "-u");
-    }
-    // Literal exported-symbol names must be defined, but glob
-    // patterns need not match.
-    for (const CachedHashStringRef &cachedName :
-         config->exportedSymbols.literals) {
-      if (const Symbol *sym = symtab->find(cachedName))
-        if (const auto *undefined = dyn_cast<Undefined>(sym))
-          treatUndefinedSymbol(*undefined, "-exported_symbol(s_list)");
-    }
+    referenceStubBinder();
 
     // FIXME: should terminate the link early based on errors encountered so
     // far?
@@ -1197,24 +1470,33 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
     createSyntheticSymbols();
 
     if (!config->exportedSymbols.empty()) {
-      for (Symbol *sym : symtab->getSymbols()) {
+      parallelForEach(symtab->getSymbols(), [](Symbol *sym) {
         if (auto *defined = dyn_cast<Defined>(sym)) {
           StringRef symbolName = defined->getName();
           if (config->exportedSymbols.match(symbolName)) {
             if (defined->privateExtern) {
-              error("cannot export hidden symbol " + symbolName +
-                    "\n>>> defined in " + toString(defined->getFile()));
+              if (defined->weakDefCanBeHidden) {
+                // weak_def_can_be_hidden symbols behave similarly to
+                // private_extern symbols in most cases, except for when
+                // it is explicitly exported.
+                // The former can be exported but the latter cannot.
+                defined->privateExtern = false;
+              } else {
+                warn("cannot export hidden symbol " + symbolName +
+                     "\n>>> defined in " + toString(defined->getFile()));
+              }
             }
           } else {
             defined->privateExtern = true;
           }
         }
-      }
+      });
     } else if (!config->unexportedSymbols.empty()) {
-      for (Symbol *sym : symtab->getSymbols())
+      parallelForEach(symtab->getSymbols(), [](Symbol *sym) {
         if (auto *defined = dyn_cast<Defined>(sym))
           if (config->unexportedSymbols.match(defined->getName()))
             defined->privateExtern = true;
+      });
     }
 
     for (const Arg *arg : args.filtered(OPT_sectcreate)) {
@@ -1226,15 +1508,16 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
         inputFiles.insert(make<OpaqueFile>(*buffer, segName, sectName));
     }
 
-    {
-      TimeTraceScope timeScope("Gathering input sections");
-      // Gather all InputSections into one vector.
-      for (const InputFile *file : inputFiles) {
-        for (const SubsectionMap &map : file->subsections)
-          for (const SubsectionEntry &subsectionEntry : map)
-            inputSections.push_back(subsectionEntry.isec);
-      }
-    }
+    gatherInputSections();
+
+    if (config->deadStrip)
+      markLive();
+
+    // ICF assumes that all literals have been folded already, so we must run
+    // foldIdenticalLiterals before foldIdenticalSections.
+    foldIdenticalLiterals();
+    if (config->icfLevel != ICFLevel::none)
+      foldIdenticalSections();
 
     // Write to an output file.
     if (target->wordSize == 8)
@@ -1246,12 +1529,9 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   }
 
   if (config->timeTraceEnabled) {
-    if (auto E = timeTraceProfilerWrite(
-            args.getLastArgValue(OPT_time_trace_file_eq).str(),
-            config->outputFile)) {
-      handleAllErrors(std::move(E),
-                      [&](const StringError &SE) { error(SE.getMessage()); });
-    }
+    checkError(timeTraceProfilerWrite(
+        args.getLastArgValue(OPT_time_trace_file_eq).str(),
+        config->outputFile));
 
     timeTraceProfilerCleanup();
   }
@@ -1259,5 +1539,7 @@ bool macho::link(ArrayRef<const char *> argsArr, bool canExitEarly,
   if (canExitEarly)
     exitLld(errorCount() ? 1 : 0);
 
-  return !errorCount();
+  bool ret = errorCount() == 0;
+  errorHandler().reset();
+  return ret;
 }

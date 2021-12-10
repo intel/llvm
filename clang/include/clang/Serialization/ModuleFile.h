@@ -20,6 +20,7 @@
 #include "clang/Serialization/ASTBitCodes.h"
 #include "clang/Serialization/ContinuousRangeMap.h"
 #include "clang/Serialization/ModuleFileExtension.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SetVector.h"
@@ -173,6 +174,9 @@ public:
   /// unique module files based on AST contents.
   ASTFileSignature ASTBlockHash;
 
+  /// The bit vector denoting usage of each header search entry (true = used).
+  llvm::BitVector SearchPathUsage;
+
   /// Whether this module has been directly imported by the
   /// user.
   bool DirectlyImported = false;
@@ -260,7 +264,7 @@ public:
   int SLocEntryBaseID = 0;
 
   /// The base offset in the source manager's view of this module.
-  unsigned SLocEntryBaseOffset = 0;
+  SourceLocation::UIntTy SLocEntryBaseOffset = 0;
 
   /// Base file offset for the offsets in SLocEntryOffsets. Real file offset
   /// for the entry is SLocEntryOffsetsBase + SLocEntryOffsets[i].
@@ -274,7 +278,8 @@ public:
   SmallVector<uint64_t, 4> PreloadSLocEntries;
 
   /// Remapping table for source locations in this module.
-  ContinuousRangeMap<uint32_t, int, 2> SLocRemap;
+  ContinuousRangeMap<SourceLocation::UIntTy, SourceLocation::IntTy, 2>
+      SLocRemap;
 
   // === Identifiers ===
 

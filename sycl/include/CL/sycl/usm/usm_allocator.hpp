@@ -23,7 +23,8 @@ namespace sycl {
 // Forward declarations.
 __SYCL_EXPORT void *aligned_alloc(size_t alignment, size_t size,
                                   const device &dev, const context &ctxt,
-                                  usm::alloc kind);
+                                  usm::alloc kind,
+                                  const property_list &propList);
 __SYCL_EXPORT void free(void *ptr, const context &ctxt);
 
 template <typename T, usm::alloc AllocKind, size_t Alignment = alignof(T)>
@@ -44,26 +45,31 @@ public:
       "usm_allocator does not support AllocKind == usm::alloc::device");
 
   usm_allocator() noexcept = delete;
-  usm_allocator(const context &Ctxt, const device &Dev) noexcept
-      : MContext(Ctxt), MDevice(Dev) {}
-  usm_allocator(const queue &Q) noexcept
-      : MContext(Q.get_context()), MDevice(Q.get_device()) {}
+  usm_allocator(const context &Ctxt, const device &Dev,
+                const property_list &PropList = {}) noexcept
+      : MContext(Ctxt), MDevice(Dev), MPropList(PropList) {}
+  usm_allocator(const queue &Q, const property_list &PropList = {}) noexcept
+      : MContext(Q.get_context()), MDevice(Q.get_device()),
+        MPropList(PropList) {}
   usm_allocator(const usm_allocator &) noexcept = default;
   usm_allocator(usm_allocator &&) noexcept = default;
   usm_allocator &operator=(const usm_allocator &Other) {
     MContext = Other.MContext;
     MDevice = Other.MDevice;
+    MPropList = Other.MPropList;
     return *this;
   }
   usm_allocator &operator=(usm_allocator &&Other) {
     MContext = std::move(Other.MContext);
     MDevice = std::move(Other.MDevice);
+    MPropList = std::move(Other.MPropList);
     return *this;
   }
 
   template <class U>
   usm_allocator(const usm_allocator<U, AllocKind, Alignment> &Other) noexcept
-      : MContext(Other.MContext), MDevice(Other.MDevice) {}
+      : MContext(Other.MContext), MDevice(Other.MDevice),
+        MPropList(Other.MPropList) {}
 
   /// Allocates memory.
   ///
@@ -72,7 +78,7 @@ public:
 
     auto Result = reinterpret_cast<T *>(
         aligned_alloc(getAlignment(), NumberOfElements * sizeof(value_type),
-                      MDevice, MContext, AllocKind));
+                      MDevice, MContext, AllocKind, MPropList));
     if (!Result) {
       throw memory_allocation_error();
     }
@@ -111,6 +117,7 @@ private:
 
   context MContext;
   device MDevice;
+  property_list MPropList;
 };
 
 } // namespace sycl

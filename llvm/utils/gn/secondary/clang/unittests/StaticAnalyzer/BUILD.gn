@@ -7,17 +7,23 @@ unittest("StaticAnalysisTests") {
     "//clang/lib/Basic",
     "//clang/lib/StaticAnalyzer/Core",
     "//clang/lib/StaticAnalyzer/Frontend",
+    "//clang/lib/Testing",
     "//clang/lib/Tooling",
     "//llvm/lib/Support",
   ]
   sources = [
     "AnalyzerOptionsTest.cpp",
+    "BugReportInterestingnessTest.cpp",
     "CallDescriptionTest.cpp",
     "CallEventTest.cpp",
+    "ConflictingEvalCallsTest.cpp",
     "FalsePositiveRefutationBRVisitorTest.cpp",
+    "NoStateChangeFuncVisitorTest.cpp",
     "ParamRegionTest.cpp",
     "RangeSetTest.cpp",
     "RegisterCustomCheckersTest.cpp",
+    "SValTest.cpp",
+    "StoreTest.cpp",
     "SymbolReaperTest.cpp",
     "TestReturnValueUnderConstruction.cpp",
   ]

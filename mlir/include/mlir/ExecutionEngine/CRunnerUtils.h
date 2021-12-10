@@ -27,7 +27,8 @@
 #endif // mlir_c_runner_utils_EXPORTS
 #endif // MLIR_CRUNNERUTILS_EXPORT
 #else  // _WIN32
-#define MLIR_CRUNNERUTILS_EXPORT
+// Non-windows: use visibility attributes.
+#define MLIR_CRUNNERUTILS_EXPORT __attribute__((visibility("default")))
 #define MLIR_CRUNNERUTILS_DEFINE_FUNCTIONS
 #endif // _WIN32
 
@@ -329,6 +330,13 @@ public:
   const int64_t *sizes;
   const int64_t *strides;
 };
+
+//===----------------------------------------------------------------------===//
+// Small runtime support library for memref.copy lowering during codegen.
+//===----------------------------------------------------------------------===//
+extern "C" MLIR_CRUNNERUTILS_EXPORT void
+memrefCopy(int64_t elemSize, UnrankedMemRefType<char> *src,
+           UnrankedMemRefType<char> *dst);
 
 //===----------------------------------------------------------------------===//
 // Small runtime support library for vector.print lowering during codegen.

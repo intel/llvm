@@ -21,11 +21,15 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
   if (NOT DEFINED SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE)
     set(SYCL_EP_LEVEL_ZERO_LOADER_SKIP_AUTO_UPDATE ${SYCL_EXTERNAL_PROJECTS_SKIP_AUTO_UPDATE})
   endif()
+  if (WIN32)
+    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.2.3)
+  else()
+    set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.4.1)
+  endif()
 
   #TODO: Replace ExternalProject with FetchContent for better maintainance and
   #      cmake files simplification
   include(ExternalProject)
-  set(LEVEL_ZERO_LOADER_SOURCE_VERSION v1.2.3)
   ExternalProject_Add(level-zero-loader
     GIT_REPOSITORY    https://github.com/oneapi-src/level-zero.git
     GIT_TAG           ${LEVEL_ZERO_LOADER_SOURCE_VERSION}
@@ -110,6 +114,8 @@ if (MSVC)
   # by defining __SYCL_BUILD_SYCL_DLL, we can use __declspec(dllexport)
   # which are individually tagged for all pi* symbols in pi.h
   target_compile_definitions(pi_level_zero PRIVATE __SYCL_BUILD_SYCL_DLL)
+  # Install stripped PDB
+  add_stripped_pdb(pi_level_zero)
 else()
   # we set the visibility of all symbols 'hidden' by default.
   # In pi.h file, we set exported symbols with visibility==default individually

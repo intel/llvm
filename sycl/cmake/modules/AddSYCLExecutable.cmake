@@ -35,10 +35,8 @@ macro(add_sycl_executable ARG_TARGET_NAME)
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMAND_EXPAND_LISTS)
   add_dependencies(${ARG_TARGET_NAME}_exec sycl-toolchain)
-  foreach(_lib in ${ARG_LIBRARIES})
-    if (TARGET _lib)
-      add_dependencies(${ARG_TARGET_NAME}_exec _lib)
-    endif()
+  foreach(_lib ${ARG_LIBRARIES})
+    add_dependencies(${ARG_TARGET_NAME}_exec _lib)
   endforeach()
 
   foreach(_dep ${ARG_DEPENDANTS})

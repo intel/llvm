@@ -138,11 +138,9 @@ public:
   void Finalize() override;
 
   // PluginInterface functions
-  ConstString GetPluginName() override;
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
-  uint32_t GetPluginVersion() override;
-
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "clang"; }
 
   static lldb::TypeSystemSP CreateInstance(lldb::LanguageType language,
                                            Module *module, Target *target);
@@ -328,6 +326,8 @@ public:
         (!packed_args || !packed_args->packed_args);
     }
 
+    bool hasParameterPack() const { return static_cast<bool>(packed_args); }
+
     llvm::SmallVector<const char *, 2> names;
     llvm::SmallVector<clang::TemplateArgument, 2> args;
     
@@ -343,11 +343,10 @@ public:
       clang::FunctionDecl *func_decl, clang::FunctionTemplateDecl *Template,
       const TemplateParameterInfos &infos);
 
-  clang::ClassTemplateDecl *
-  CreateClassTemplateDecl(clang::DeclContext *decl_ctx,
-                          OptionalClangModuleID owning_module,
-                          lldb::AccessType access_type, const char *class_name,
-                          int kind, const TemplateParameterInfos &infos);
+  clang::ClassTemplateDecl *CreateClassTemplateDecl(
+      clang::DeclContext *decl_ctx, OptionalClangModuleID owning_module,
+      lldb::AccessType access_type, llvm::StringRef class_name, int kind,
+      const TemplateParameterInfos &infos);
 
   clang::TemplateTemplateParmDecl *
   CreateTemplateTemplateParmDecl(const char *template_name);
@@ -378,13 +377,6 @@ public:
                                bool isForwardDecl, bool isInternal,
                                ClangASTMetadata *metadata = nullptr);
 
-  bool SetTagTypeKind(clang::QualType type, int kind) const;
-
-  bool SetDefaultAccessForRecordFields(clang::RecordDecl *record_decl,
-                                       int default_accessibility,
-                                       int *assigned_accessibilities,
-                                       size_t num_assigned_accessibilities);
-
   // Returns a mask containing bits from the TypeSystemClang::eTypeXXX
   // enumerations
 
@@ -405,14 +397,7 @@ public:
   CompilerType CreateFunctionType(const CompilerType &result_type,
                                   const CompilerType *args, unsigned num_args,
                                   bool is_variadic, unsigned type_quals,
-                                  clang::CallingConv cc);
-
-  CompilerType CreateFunctionType(const CompilerType &result_type,
-                                  const CompilerType *args, unsigned num_args,
-                                  bool is_variadic, unsigned type_quals) {
-    return CreateFunctionType(result_type, args, num_args, is_variadic,
-                              type_quals, clang::CC_C);
-  }
+                                  clang::CallingConv cc = clang::CC_C);
 
   clang::ParmVarDecl *
   CreateParameterDeclaration(clang::DeclContext *decl_ctx,
@@ -421,7 +406,7 @@ public:
                              int storage, bool add_decl = false);
 
   void SetFunctionParameters(clang::FunctionDecl *function_decl,
-                             clang::ParmVarDecl **params, unsigned num_params);
+                             llvm::ArrayRef<clang::ParmVarDecl *> params);
 
   CompilerType CreateBlockPointerType(const CompilerType &function_type);
 
@@ -431,7 +416,7 @@ public:
                                size_t element_count, bool is_vector);
 
   // Enumeration Types
-  CompilerType CreateEnumerationType(const char *name,
+  CompilerType CreateEnumerationType(llvm::StringRef name,
                                      clang::DeclContext *decl_ctx,
                                      OptionalClangModuleID owning_module,
                                      const Declaration &decl,
@@ -950,7 +935,8 @@ public:
   LLVM_DUMP_METHOD void dump(lldb::opaque_compiler_type_t type) const override;
 #endif
 
-  void Dump(Stream &s);
+  /// \see lldb_private::TypeSystem::Dump
+  void Dump(llvm::raw_ostream &output) override;
 
   /// Dump clang AST types from the symbol file.
   ///
@@ -1173,6 +1159,9 @@ public:
                                        const clang::LangOptions &lang_opts) {
     return GetForTarget(target, InferIsolatedASTKindFromLangOpts(lang_opts));
   }
+
+  /// \see lldb_private::TypeSystem::Dump
+  void Dump(llvm::raw_ostream &output) override;
 
   UserExpression *
   GetUserExpression(llvm::StringRef expr, llvm::StringRef prefix,

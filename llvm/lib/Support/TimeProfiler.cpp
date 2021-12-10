@@ -30,7 +30,7 @@ using namespace llvm;
 
 static std::mutex Mu;
 // List of all instances
-static std::vector<TimeTraceProfiler *>
+static ManagedStatic<std::vector<TimeTraceProfiler *>>
     ThreadTimeTraceProfilerInstances; // GUARDED_BY(Mu)
 // Per Thread instance
 static LLVM_THREAD_LOCAL TimeTraceProfiler *TimeTraceProfilerInstance = nullptr;
@@ -110,9 +110,8 @@ struct llvm::TimeTraceProfiler {
     // templates from within, we only want to add the topmost one. "topmost"
     // happens to be the ones that don't have any currently open entries above
     // itself.
-    if (std::find_if(++Stack.rbegin(), Stack.rend(), [&](const Entry &Val) {
-          return Val.Name == E.Name;
-        }) == Stack.rend()) {
+    if (llvm::none_of(llvm::drop_begin(llvm::reverse(Stack)),
+                      [&](const Entry &Val) { return Val.Name == E.Name; })) {
       auto &CountAndTotal = CountAndTotalPerName[E.Name];
       CountAndTotal.first++;
       CountAndTotal.second += Duration;
@@ -128,7 +127,7 @@ struct llvm::TimeTraceProfiler {
     std::lock_guard<std::mutex> Lock(Mu);
     assert(Stack.empty() &&
            "All profiler sections should be ended when calling write");
-    assert(llvm::all_of(ThreadTimeTraceProfilerInstances,
+    assert(llvm::all_of(*ThreadTimeTraceProfilerInstances,
                         [](const auto &TTP) { return TTP->Stack.empty(); }) &&
            "All profiler sections should be ended when calling write");
 
@@ -156,7 +155,7 @@ struct llvm::TimeTraceProfiler {
     };
     for (const Entry &E : Entries)
       writeEvent(E, this->Tid);
-    for (const TimeTraceProfiler *TTP : ThreadTimeTraceProfilerInstances)
+    for (const TimeTraceProfiler *TTP : *ThreadTimeTraceProfilerInstances)
       for (const Entry &E : TTP->Entries)
         writeEvent(E, TTP->Tid);
 
@@ -164,7 +163,7 @@ struct llvm::TimeTraceProfiler {
     // longest one.
     // Find highest used thread id.
     uint64_t MaxTid = this->Tid;
-    for (const TimeTraceProfiler *TTP : ThreadTimeTraceProfilerInstances)
+    for (const TimeTraceProfiler *TTP : *ThreadTimeTraceProfilerInstances)
       MaxTid = std::max(MaxTid, TTP->Tid);
 
     // Combine all CountAndTotalPerName from threads into one.
@@ -178,7 +177,7 @@ struct llvm::TimeTraceProfiler {
     };
     for (const auto &Stat : CountAndTotalPerName)
       combineStat(Stat);
-    for (const TimeTraceProfiler *TTP : ThreadTimeTraceProfilerInstances)
+    for (const TimeTraceProfiler *TTP : *ThreadTimeTraceProfilerInstances)
       for (const auto &Stat : TTP->CountAndTotalPerName)
         combineStat(Stat);
 
@@ -229,7 +228,7 @@ struct llvm::TimeTraceProfiler {
 
     writeMetadataEvent("process_name", Tid, ProcName);
     writeMetadataEvent("thread_name", Tid, ThreadName);
-    for (const TimeTraceProfiler *TTP : ThreadTimeTraceProfilerInstances)
+    for (const TimeTraceProfiler *TTP : *ThreadTimeTraceProfilerInstances)
       writeMetadataEvent("thread_name", TTP->Tid, TTP->ThreadName);
 
     J.arrayEnd();
@@ -272,17 +271,18 @@ void llvm::timeTraceProfilerInitialize(unsigned TimeTraceGranularity,
 // Called from main thread.
 void llvm::timeTraceProfilerCleanup() {
   delete TimeTraceProfilerInstance;
+  TimeTraceProfilerInstance = nullptr;
   std::lock_guard<std::mutex> Lock(Mu);
-  for (auto TTP : ThreadTimeTraceProfilerInstances)
+  for (auto *TTP : *ThreadTimeTraceProfilerInstances)
     delete TTP;
-  ThreadTimeTraceProfilerInstances.clear();
+  ThreadTimeTraceProfilerInstances->clear();
 }
 
 // Finish TimeTraceProfilerInstance on a worker thread.
 // This doesn't remove the instance, just moves the pointer to global vector.
 void llvm::timeTraceProfilerFinishThread() {
   std::lock_guard<std::mutex> Lock(Mu);
-  ThreadTimeTraceProfilerInstances.push_back(TimeTraceProfilerInstance);
+  ThreadTimeTraceProfilerInstances->push_back(TimeTraceProfilerInstance);
   TimeTraceProfilerInstance = nullptr;
 }
 

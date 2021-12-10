@@ -26,7 +26,7 @@ static inline int xdigit_to_sint(char ch) {
 }
 
 // StringExtractor constructor
-StringExtractor::StringExtractor() : m_packet(), m_index(0) {}
+StringExtractor::StringExtractor() : m_packet() {}
 
 StringExtractor::StringExtractor(llvm::StringRef packet_str)
     : m_packet(), m_index(0) {
@@ -40,7 +40,7 @@ StringExtractor::StringExtractor(const char *packet_cstr)
 }
 
 // Destructor
-StringExtractor::~StringExtractor() {}
+StringExtractor::~StringExtractor() = default;
 
 char StringExtractor::GetChar(char fail_value) {
   if (m_index < m_packet.size()) {

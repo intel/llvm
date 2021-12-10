@@ -61,6 +61,7 @@ void EmitClangAttrTextNodeDump(llvm::RecordKeeper &Records,
                                llvm::raw_ostream &OS);
 void EmitClangAttrNodeTraverse(llvm::RecordKeeper &Records,
                                llvm::raw_ostream &OS);
+void EmitClangAttrDocTable(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangDiagsDefs(llvm::RecordKeeper &Records, llvm::raw_ostream &OS,
                         const std::string &Component);
@@ -122,6 +123,8 @@ void EmitClangOptDocs(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangOpenCLBuiltins(llvm::RecordKeeper &Records,
                              llvm::raw_ostream &OS);
+void EmitClangOpenCLBuiltinTests(llvm::RecordKeeper &Records,
+                                 llvm::raw_ostream &OS);
 void EmitClangSPIRVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangDataCollectors(llvm::RecordKeeper &Records,

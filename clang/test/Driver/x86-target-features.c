@@ -2,6 +2,7 @@
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-x87 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-X87 %s
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -m80387 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=X87 %s
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-80387 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-X87 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-fp-ret-in-387 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-X87 %s
 // X87: "-target-feature" "+x87"
 // NO-X87: "-target-feature" "-x87"
 
@@ -293,3 +294,13 @@
 // RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-avxvnni %s -### -o %t.o 2>&1 | FileCheck --check-prefix=NO-AVX-VNNI %s
 // AVX-VNNI: "-target-feature" "+avxvnni"
 // NO-AVX-VNNI: "-target-feature" "-avxvnni"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mavx512fp16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=AVX512FP16 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-avx512fp16 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-AVX512FP16 %s
+// AVX512FP16: "-target-feature" "+avx512fp16"
+// NO-AVX512FP16: "-target-feature" "-avx512fp16"
+
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mcrc32 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=CRC32 %s
+// RUN: %clang -target i386-unknown-linux-gnu -march=i386 -mno-crc32 %s -### -o %t.o 2>&1 | FileCheck -check-prefix=NO-CRC32 %s
+// CRC32: "-target-feature" "+crc32"
+// NO-CRC32: "-target-feature" "-crc32"

@@ -13,19 +13,19 @@
 #ifndef LLVM_EXECUTIONENGINE_JITLINK_JITLINK_H
 #define LLVM_EXECUTIONENGINE_JITLINK_JITLINK_H
 
-#include "JITLinkMemoryManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/ExecutionEngine/JITLink/JITLinkMemoryManager.h"
+#include "llvm/ExecutionEngine/JITLink/MemoryFlags.h"
 #include "llvm/ExecutionEngine/JITSymbol.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/Support/Memory.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <map>
@@ -154,7 +154,7 @@ private:
   /// Create a zero-fill defined addressable.
   Block(Section &Parent, JITTargetAddress Size, JITTargetAddress Address,
         uint64_t Alignment, uint64_t AlignmentOffset)
-      : Addressable(Address, true), Parent(Parent), Size(Size) {
+      : Addressable(Address, true), Parent(&Parent), Size(Size) {
     assert(isPowerOf2_64(Alignment) && "Alignment must be power of 2");
     assert(AlignmentOffset < Alignment &&
            "Alignment offset cannot exceed alignment");
@@ -170,7 +170,7 @@ private:
   /// mutations are required.
   Block(Section &Parent, ArrayRef<char> Content, JITTargetAddress Address,
         uint64_t Alignment, uint64_t AlignmentOffset)
-      : Addressable(Address, true), Parent(Parent), Data(Content.data()),
+      : Addressable(Address, true), Parent(&Parent), Data(Content.data()),
         Size(Content.size()) {
     assert(isPowerOf2_64(Alignment) && "Alignment must be power of 2");
     assert(AlignmentOffset < Alignment &&
@@ -189,7 +189,7 @@ private:
   /// allocator.
   Block(Section &Parent, MutableArrayRef<char> Content,
         JITTargetAddress Address, uint64_t Alignment, uint64_t AlignmentOffset)
-      : Addressable(Address, true), Parent(Parent), Data(Content.data()),
+      : Addressable(Address, true), Parent(&Parent), Data(Content.data()),
         Size(Content.size()) {
     assert(isPowerOf2_64(Alignment) && "Alignment must be power of 2");
     assert(AlignmentOffset < Alignment &&
@@ -212,7 +212,7 @@ public:
   Block &operator=(Block &&) = delete;
 
   /// Return the parent section for this block.
-  Section &getSection() const { return Parent; }
+  Section &getSection() const { return *Parent; }
 
   /// Returns true if this is a zero-fill block.
   ///
@@ -225,7 +225,7 @@ public:
 
   /// Get the content for this block. Block must not be a zero-fill block.
   ArrayRef<char> getContent() const {
-    assert(Data && "Section does not contain content");
+    assert(Data && "Block does not contain content");
     return ArrayRef<char>(Data, Size);
   }
 
@@ -233,6 +233,7 @@ public:
   /// Caller is responsible for ensuring the underlying bytes are not
   /// deallocated while pointed to by this block.
   void setContent(ArrayRef<char> Content) {
+    assert(Content.data() && "Setting null content");
     Data = Content.data();
     Size = Content.size();
     ContentMutable = false;
@@ -251,6 +252,7 @@ public:
   /// to call this on a block with immutable content -- consider using
   /// getMutableContent instead.
   MutableArrayRef<char> getAlreadyMutableContent() {
+    assert(Data && "Block does not contain content");
     assert(ContentMutable && "Content is not mutable");
     return MutableArrayRef<char>(const_cast<char *>(Data), Size);
   }
@@ -260,6 +262,7 @@ public:
   /// The caller is responsible for ensuring that the memory pointed to by
   /// MutableContent is not deallocated while pointed to by this block.
   void setMutableContent(MutableArrayRef<char> MutableContent) {
+    assert(MutableContent.data() && "Setting null content");
     Data = MutableContent.data();
     Size = MutableContent.size();
     ContentMutable = true;
@@ -295,6 +298,7 @@ public:
   /// Add an edge to this block.
   void addEdge(Edge::Kind K, Edge::OffsetT Offset, Symbol &Target,
                Edge::AddendT Addend) {
+    assert(!isZeroFill() && "Adding edge to zero-fill block?");
     Edges.push_back(Edge(K, Offset, Target, Addend));
   }
 
@@ -331,11 +335,19 @@ public:
 private:
   static constexpr uint64_t MaxAlignmentOffset = (1ULL << 56) - 1;
 
-  Section &Parent;
+  void setSection(Section &Parent) { this->Parent = &Parent; }
+
+  Section *Parent;
   const char *Data = nullptr;
   size_t Size = 0;
   std::vector<Edge> Edges;
 };
+
+// Align a JITTargetAddress to conform with block alignment requirements.
+inline JITTargetAddress alignToBlock(JITTargetAddress Addr, Block &B) {
+  uint64_t Delta = (B.getAlignmentOffset() - Addr) % B.getAlignment();
+  return Addr + Delta;
+}
 
 /// Describes symbol linkage. This can be used to make resolve definition
 /// clashes.
@@ -638,8 +650,7 @@ class Section {
   friend class LinkGraph;
 
 private:
-  Section(StringRef Name, sys::Memory::ProtectionFlags Prot,
-          SectionOrdinal SecOrdinal)
+  Section(StringRef Name, MemProt Prot, SectionOrdinal SecOrdinal)
       : Name(Name), Prot(Prot), SecOrdinal(SecOrdinal) {}
 
   using SymbolSet = DenseSet<Symbol *>;
@@ -664,12 +675,16 @@ public:
   StringRef getName() const { return Name; }
 
   /// Returns the protection flags for this section.
-  sys::Memory::ProtectionFlags getProtectionFlags() const { return Prot; }
+  MemProt getMemProt() const { return Prot; }
 
   /// Set the protection flags for this section.
-  void setProtectionFlags(sys::Memory::ProtectionFlags Prot) {
-    this->Prot = Prot;
-  }
+  void setMemProt(MemProt Prot) { this->Prot = Prot; }
+
+  /// Get the deallocation policy for this section.
+  MemDeallocPolicy getMemDeallocPolicy() const { return MDP; }
+
+  /// Set the deallocation policy for this section.
+  void setMemDeallocPolicy(MemDeallocPolicy MDP) { this->MDP = MDP; }
 
   /// Returns the ordinal for this section.
   SectionOrdinal getOrdinal() const { return SecOrdinal; }
@@ -684,6 +699,9 @@ public:
     return make_range(Blocks.begin(), Blocks.end());
   }
 
+  /// Returns the number of blocks in this section.
+  BlockSet::size_type blocks_size() const { return Blocks.size(); }
+
   /// Returns an iterator over the symbols defined in this section.
   iterator_range<symbol_iterator> symbols() {
     return make_range(Symbols.begin(), Symbols.end());
@@ -695,7 +713,7 @@ public:
   }
 
   /// Return the number of symbols in this section.
-  SymbolSet::size_type symbols_size() { return Symbols.size(); }
+  SymbolSet::size_type symbols_size() const { return Symbols.size(); }
 
 private:
   void addSymbol(Symbol &Sym) {
@@ -718,8 +736,20 @@ private:
     Blocks.erase(&B);
   }
 
+  void transferContentTo(Section &DstSection) {
+    if (&DstSection == this)
+      return;
+    for (auto *S : Symbols)
+      DstSection.addSymbol(*S);
+    for (auto *B : Blocks)
+      DstSection.addBlock(*B);
+    Symbols.clear();
+    Blocks.clear();
+  }
+
   StringRef Name;
-  sys::Memory::ProtectionFlags Prot;
+  MemProt Prot;
+  MemDeallocPolicy MDP = MemDeallocPolicy::Standard;
   SectionOrdinal SecOrdinal = 0;
   BlockSet Blocks;
   SymbolSet Symbols;
@@ -901,6 +931,11 @@ public:
       : Name(std::move(Name)), TT(TT), PointerSize(PointerSize),
         Endianness(Endianness), GetEdgeKindName(std::move(GetEdgeKindName)) {}
 
+  LinkGraph(const LinkGraph &) = delete;
+  LinkGraph &operator=(const LinkGraph &) = delete;
+  LinkGraph(LinkGraph &&) = delete;
+  LinkGraph &operator=(LinkGraph &&) = delete;
+
   /// Returns the name of this graph (usually the name of the original
   /// underlying MemoryBuffer).
   const std::string &getName() const { return Name; }
@@ -915,6 +950,12 @@ public:
   support::endianness getEndianness() const { return Endianness; }
 
   const char *getEdgeKindName(Edge::Kind K) const { return GetEdgeKindName(K); }
+
+  /// Allocate a mutable buffer of the given size using the LinkGraph's
+  /// allocator.
+  MutableArrayRef<char> allocateBuffer(size_t Size) {
+    return {Allocator.Allocate<char>(Size), Size};
+  }
 
   /// Allocate a copy of the given string using the LinkGraph's allocator.
   /// This can be useful when renaming symbols or adding new content to the
@@ -941,7 +982,7 @@ public:
   }
 
   /// Create a section with the given name, protection flags, and alignment.
-  Section &createSection(StringRef Name, sys::Memory::ProtectionFlags Prot) {
+  Section &createSection(StringRef Name, MemProt Prot) {
     assert(llvm::find_if(Sections,
                          [&](std::unique_ptr<Section> &Sec) {
                            return Sec->getName() == Name;
@@ -991,12 +1032,21 @@ public:
   ///
   /// Notes:
   ///
-  /// 1. The newly introduced block will have a new ordinal which will be
+  /// 1. splitBlock must be used with care. Splitting a block may cause
+  ///    incoming edges to become invalid if the edge target subexpression
+  ///    points outside the bounds of the newly split target block (E.g. an
+  ///    edge 'S + 10 : Pointer64' where S points to a newly split block
+  ///    whose size is less than 10). No attempt is made to detect invalidation
+  ///    of incoming edges, as in general this requires context that the
+  ///    LinkGraph does not have. Clients are responsible for ensuring that
+  ///    splitBlock is not used in a way that invalidates edges.
+  ///
+  /// 2. The newly introduced block will have a new ordinal which will be
   ///    higher than any other ordinals in the section. Clients are responsible
   ///    for re-assigning block ordinals to restore a compatible order if
   ///    needed.
   ///
-  /// 2. The cache is not automatically updated if new symbols are introduced
+  /// 3. The cache is not automatically updated if new symbols are introduced
   ///    between calls to splitBlock. Any newly introduced symbols may be
   ///    added to the cache manually (descending offset order must be
   ///    preserved), or the cache can be set to None and rebuilt by
@@ -1070,10 +1120,10 @@ public:
   Symbol &addDefinedSymbol(Block &Content, JITTargetAddress Offset,
                            StringRef Name, JITTargetAddress Size, Linkage L,
                            Scope S, bool IsCallable, bool IsLive) {
-    assert(llvm::count_if(defined_symbols(),
-                          [&](const Symbol *Sym) {
-                            return Sym->getName() == Name;
-                          }) == 0 &&
+    assert((S == Scope::Local || llvm::count_if(defined_symbols(),
+                                                [&](const Symbol *Sym) {
+                                                  return Sym->getName() == Name;
+                                                }) == 0) &&
            "Duplicate defined symbol");
     auto &Sym =
         Symbol::constructNamedDef(Allocator.Allocate<Symbol>(), Content, Offset,
@@ -1086,6 +1136,8 @@ public:
     return make_range(section_iterator(Sections.begin()),
                       section_iterator(Sections.end()));
   }
+
+  SectionList::size_type sections_size() const { return Sections.size(); }
 
   /// Returns the section with the given name if it exists, otherwise returns
   /// null.
@@ -1205,6 +1257,7 @@ public:
   void transferDefinedSymbol(Symbol &Sym, Block &DestBlock,
                              JITTargetAddress NewOffset,
                              Optional<JITTargetAddress> ExplicitNewSize) {
+    auto &OldSection = Sym.getBlock().getSection();
     Sym.setBlock(DestBlock);
     Sym.setOffset(NewOffset);
     if (ExplicitNewSize)
@@ -1214,6 +1267,49 @@ public:
       if (Sym.getSize() > RemainingBlockSize)
         Sym.setSize(RemainingBlockSize);
     }
+    if (&DestBlock.getSection() != &OldSection) {
+      OldSection.removeSymbol(Sym);
+      DestBlock.getSection().addSymbol(Sym);
+    }
+  }
+
+  /// Transfers the given Block and all Symbols pointing to it to the given
+  /// Section.
+  ///
+  /// No attempt is made to check compatibility of the source and destination
+  /// sections. Blocks may be moved between sections with incompatible
+  /// permissions (e.g. from data to text). The client is responsible for
+  /// ensuring that this is safe.
+  void transferBlock(Block &B, Section &NewSection) {
+    auto &OldSection = B.getSection();
+    if (&OldSection == &NewSection)
+      return;
+    SmallVector<Symbol *> AttachedSymbols;
+    for (auto *S : OldSection.symbols())
+      if (&S->getBlock() == &B)
+        AttachedSymbols.push_back(S);
+    for (auto *S : AttachedSymbols) {
+      OldSection.removeSymbol(*S);
+      NewSection.addSymbol(*S);
+    }
+    OldSection.removeBlock(B);
+    NewSection.addBlock(B);
+  }
+
+  /// Move all blocks and symbols from the source section to the destination
+  /// section.
+  ///
+  /// If PreserveSrcSection is true (or SrcSection and DstSection are the same)
+  /// then SrcSection is preserved, otherwise it is removed (the default).
+  void mergeSections(Section &DstSection, Section &SrcSection,
+                     bool PreserveSrcSection = false) {
+    if (&DstSection == &SrcSection)
+      return;
+    for (auto *B : SrcSection.blocks())
+      B->setSection(DstSection);
+    SrcSection.transferContentTo(DstSection);
+    if (!PreserveSrcSection)
+      removeSection(SrcSection);
   }
 
   /// Removes an external symbol. Also removes the underlying Addressable.
@@ -1254,7 +1350,8 @@ public:
     destroySymbol(Sym);
   }
 
-  /// Remove a block.
+  /// Remove a block. The block reference is defunct after calling this
+  /// function and should no longer be used.
   void removeBlock(Block &B) {
     assert(llvm::none_of(B.getSection().symbols(),
                          [&](const Symbol *Sym) {
@@ -1264,6 +1361,23 @@ public:
     B.getSection().removeBlock(B);
     destroyBlock(B);
   }
+
+  /// Remove a section. The section reference is defunct after calling this
+  /// function and should no longer be used.
+  void removeSection(Section &Sec) {
+    auto I = llvm::find_if(Sections, [&Sec](const std::unique_ptr<Section> &S) {
+      return S.get() == &Sec;
+    });
+    assert(I != Sections.end() && "Section does not appear in this graph");
+    Sections.erase(I);
+  }
+
+  /// Accessor for the AllocActions object for this graph. This can be used to
+  /// register allocation action calls prior to finalization.
+  ///
+  /// Accessing this object after finalization will result in undefined
+  /// behavior.
+  JITLinkMemoryManager::AllocActions &allocActions() { return AAs; }
 
   /// Dump the graph.
   void dump(raw_ostream &OS);
@@ -1281,6 +1395,7 @@ private:
   SectionList Sections;
   ExternalSymbolSet ExternalSymbols;
   ExternalSymbolSet AbsoluteSymbols;
+  JITLinkMemoryManager::AllocActions AAs;
 };
 
 inline MutableArrayRef<char> Block::getMutableContent(LinkGraph &G) {
@@ -1570,8 +1685,7 @@ public:
   /// finalized (i.e. emitted to memory and memory permissions set). If all of
   /// this objects dependencies have also been finalized then the code is ready
   /// to run.
-  virtual void
-  notifyFinalized(std::unique_ptr<JITLinkMemoryManager::Allocation> A) = 0;
+  virtual void notifyFinalized(JITLinkMemoryManager::FinalizedAlloc Alloc) = 0;
 
   /// Called by JITLink prior to linking to determine whether default passes for
   /// the target should be added. The default implementation returns true.
@@ -1602,6 +1716,36 @@ Error markAllSymbolsLive(LinkGraph &G);
 /// Create an out of range error for the given edge in the given block.
 Error makeTargetOutOfRangeError(const LinkGraph &G, const Block &B,
                                 const Edge &E);
+
+/// Base case for edge-visitors where the visitor-list is empty.
+inline void visitEdge(LinkGraph &G, Block *B, Edge &E) {}
+
+/// Applies the first visitor in the list to the given edge. If the visitor's
+/// visitEdge method returns true then we return immediately, otherwise we
+/// apply the next visitor.
+template <typename VisitorT, typename... VisitorTs>
+void visitEdge(LinkGraph &G, Block *B, Edge &E, VisitorT &&V,
+               VisitorTs &&...Vs) {
+  if (!V.visitEdge(G, B, E))
+    visitEdge(G, B, E, std::forward<VisitorTs>(Vs)...);
+}
+
+/// For each edge in the given graph, apply a list of visitors to the edge,
+/// stopping when the first visitor's visitEdge method returns true.
+///
+/// Only visits edges that were in the graph at call time: if any visitor
+/// adds new edges those will not be visited. Visitors are not allowed to
+/// remove edges (though they can change their kind, target, and addend).
+template <typename... VisitorTs>
+void visitExistingEdges(LinkGraph &G, VisitorTs &&...Vs) {
+  // We may add new blocks during this process, but we don't want to iterate
+  // over them, so build a worklist.
+  std::vector<Block *> Worklist(G.blocks().begin(), G.blocks().end());
+
+  for (auto *B : Worklist)
+    for (auto &E : B->edges())
+      visitEdge(G, B, E, std::forward<VisitorTs>(Vs)...);
+}
 
 /// Create a LinkGraph from the given object buffer.
 ///

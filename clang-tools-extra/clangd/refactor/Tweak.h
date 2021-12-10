@@ -16,8 +16,8 @@
 //     It is performed when the user actually chooses the action.
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_REFACTOR_ACTIONS_TWEAK_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_REFACTOR_ACTIONS_TWEAK_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_REFACTOR_TWEAK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_REFACTOR_TWEAK_H
 
 #include "ParsedAST.h"
 #include "Protocol.h"
@@ -78,6 +78,9 @@ public:
     /// A message to be displayed to the user.
     llvm::Optional<std::string> ShowMessage;
     FileEdits ApplyEdits;
+    /// Whether the edits should be formatted before presenting to the client.
+    /// Note that it applies to all files.
+    bool FormatEdits = true;
 
     static Effect showMessage(StringRef S) {
       Effect E;

@@ -18,12 +18,14 @@
 
 namespace scudo {
 
-#if defined(__aarch64__) || defined(SCUDO_FUZZ)
+#if (__clang_major__ >= 12 && defined(__aarch64__)) || defined(SCUDO_FUZZ)
 
 // We assume that Top-Byte Ignore is enabled if the architecture supports memory
 // tagging. Not all operating systems enable TBI, so we only claim architectural
 // support for memory tagging if the operating system enables TBI.
-#if SCUDO_LINUX && !defined(SCUDO_DISABLE_TBI)
+// HWASan uses the top byte for its own purpose and Scudo should not touch it.
+#if SCUDO_LINUX && !defined(SCUDO_DISABLE_TBI) &&                              \
+    !__has_feature(hwaddress_sanitizer)
 inline constexpr bool archSupportsMemoryTagging() { return true; }
 #else
 inline constexpr bool archSupportsMemoryTagging() { return false; }
@@ -55,7 +57,7 @@ inline uint8_t extractTag(uptr Ptr) {
 
 #endif
 
-#if defined(__aarch64__)
+#if __clang_major__ >= 12 && defined(__aarch64__)
 
 #if SCUDO_LINUX
 
@@ -67,46 +69,55 @@ inline bool systemSupportsMemoryTagging() {
 }
 
 inline bool systemDetectsMemoryTagFaultsTestOnly() {
+#ifndef PR_SET_TAGGED_ADDR_CTRL
+#define PR_SET_TAGGED_ADDR_CTRL 54
+#endif
 #ifndef PR_GET_TAGGED_ADDR_CTRL
 #define PR_GET_TAGGED_ADDR_CTRL 56
+#endif
+#ifndef PR_TAGGED_ADDR_ENABLE
+#define PR_TAGGED_ADDR_ENABLE (1UL << 0)
 #endif
 #ifndef PR_MTE_TCF_SHIFT
 #define PR_MTE_TCF_SHIFT 1
 #endif
+#ifndef PR_MTE_TAG_SHIFT
+#define PR_MTE_TAG_SHIFT 3
+#endif
 #ifndef PR_MTE_TCF_NONE
 #define PR_MTE_TCF_NONE (0UL << PR_MTE_TCF_SHIFT)
+#endif
+#ifndef PR_MTE_TCF_SYNC
+#define PR_MTE_TCF_SYNC (1UL << PR_MTE_TCF_SHIFT)
 #endif
 #ifndef PR_MTE_TCF_MASK
 #define PR_MTE_TCF_MASK (3UL << PR_MTE_TCF_SHIFT)
 #endif
-  return (static_cast<unsigned long>(
-              prctl(PR_GET_TAGGED_ADDR_CTRL, 0, 0, 0, 0)) &
-          PR_MTE_TCF_MASK) != PR_MTE_TCF_NONE;
+  int res = prctl(PR_GET_TAGGED_ADDR_CTRL, 0, 0, 0, 0);
+  if (res == -1)
+    return false;
+  return (static_cast<unsigned long>(res) & PR_MTE_TCF_MASK) != PR_MTE_TCF_NONE;
+}
+
+inline void enableSystemMemoryTaggingTestOnly() {
+  prctl(PR_SET_TAGGED_ADDR_CTRL,
+        PR_TAGGED_ADDR_ENABLE | PR_MTE_TCF_SYNC | (0xfffe << PR_MTE_TAG_SHIFT),
+        0, 0, 0);
 }
 
 #else // !SCUDO_LINUX
 
 inline bool systemSupportsMemoryTagging() { return false; }
 
-inline bool systemDetectsMemoryTagFaultsTestOnly() { return false; }
+inline bool systemDetectsMemoryTagFaultsTestOnly() {
+  UNREACHABLE("memory tagging not supported");
+}
+
+inline void enableSystemMemoryTaggingTestOnly() {
+  UNREACHABLE("memory tagging not supported");
+}
 
 #endif // SCUDO_LINUX
-
-inline void disableMemoryTagChecksTestOnly() {
-  __asm__ __volatile__(
-      R"(
-      .arch_extension memtag
-      msr tco, #1
-      )");
-}
-
-inline void enableMemoryTagChecksTestOnly() {
-  __asm__ __volatile__(
-      R"(
-      .arch_extension memtag
-      msr tco, #0
-      )");
-}
 
 class ScopedDisableMemoryTagChecks {
   uptr PrevTCO;
@@ -134,6 +145,7 @@ public:
 };
 
 inline uptr selectRandomTag(uptr Ptr, uptr ExcludeMask) {
+  ExcludeMask |= 1; // Always exclude Tag 0.
   uptr TaggedPtr;
   __asm__ __volatile__(
       R"(
@@ -147,6 +159,7 @@ inline uptr selectRandomTag(uptr Ptr, uptr ExcludeMask) {
 
 inline uptr addFixedTag(uptr Ptr, uptr Tag) {
   DCHECK_LT(Tag, 16);
+  DCHECK_EQ(untagPointer(Ptr), Ptr);
   return Ptr | (Tag << 56);
 }
 
@@ -250,11 +263,7 @@ inline bool systemDetectsMemoryTagFaultsTestOnly() {
   UNREACHABLE("memory tagging not supported");
 }
 
-inline void disableMemoryTagChecksTestOnly() {
-  UNREACHABLE("memory tagging not supported");
-}
-
-inline void enableMemoryTagChecksTestOnly() {
+inline void enableSystemMemoryTaggingTestOnly() {
   UNREACHABLE("memory tagging not supported");
 }
 
@@ -313,7 +322,8 @@ inline void *addFixedTag(void *Ptr, uptr Tag) {
 
 template <typename Config>
 inline constexpr bool allocatorSupportsMemoryTagging() {
-  return archSupportsMemoryTagging() && Config::MaySupportMemoryTagging;
+  return archSupportsMemoryTagging() && Config::MaySupportMemoryTagging &&
+         (1 << SCUDO_MIN_ALIGNMENT_LOG) >= archMemoryTagGranuleSize();
 }
 
 } // namespace scudo

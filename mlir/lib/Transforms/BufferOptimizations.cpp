@@ -64,8 +64,7 @@ leavesAllocationScope(Region *parentRegion,
       // If there is at least one alias that leaves the parent region, we know
       // that this alias escapes the whole region and hence the associated
       // allocation leaves allocation scope.
-      if (use->hasTrait<OpTrait::ReturnLike>() &&
-          use->getParentRegion() == parentRegion)
+      if (isRegionReturnLike(use) && use->getParentRegion() == parentRegion)
         return true;
     }
   }
@@ -194,7 +193,12 @@ private:
             dominators.properlyDominates(upperBound, currentBlock))) {
       // Try to find an immediate dominator and check whether the parent block
       // is above the immediate dominator (if any).
-      DominanceInfoNode *idom = dominators.getNode(currentBlock)->getIDom();
+      DominanceInfoNode *idom = nullptr;
+
+      // DominanceInfo doesn't support getNode queries for single-block regions.
+      if (!currentBlock->isEntryBlock())
+        idom = dominators.getNode(currentBlock)->getIDom();
+
       if (idom && dominators.properlyDominates(parentBlock, idom->getBlock())) {
         // If the current immediate dominator is below the placement block, move
         // to the immediate dominator block.

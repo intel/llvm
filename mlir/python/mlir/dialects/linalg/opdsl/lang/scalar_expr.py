@@ -22,7 +22,6 @@ __all__ = [
     "ScalarAssign",
     "ScalarApplyFn",
     "ScalarArg",
-    "ScalarCapture",
     "ScalarConst",
     "ScalarIndex",
     "ScalarExpression",
@@ -57,19 +56,6 @@ class ScalarArg:
     return f"(ScalarArg({self.arg})"
 
 
-class ScalarCapture:
-  """A type of ScalarExpression that references a named capture."""
-
-  def __init__(self, capture: str):
-    self.capture = capture
-
-  def expr(self) -> "ScalarExpression":
-    return ScalarExpression(scalar_capture=self)
-
-  def __repr__(self):
-    return f"(ScalarCapture({self.capture})"
-
-
 class ScalarConst:
   """A type of ScalarExpression representing a constant."""
 
@@ -99,15 +85,17 @@ class ScalarIndex:
 class ScalarSymbolicCast:
   """A type of ScalarExpression that symbolically casts an operand to a TypeVar."""
 
-  def __init__(self, to_type: TypeVar, operand: "ScalarExpression"):
+  def __init__(self, to_type: TypeVar, operand: "ScalarExpression",
+               is_unsigned_cast: bool):
     self.to_type = to_type
     self.operand = operand
+    self.is_unsigned_cast = is_unsigned_cast
 
   def expr(self) -> "ScalarExpression":
     return ScalarExpression(symbolic_cast=self)
 
   def __repr__(self):
-    return f"ScalarSymbolicCast({self.to_type}, {self.operand})"
+    return f"ScalarSymbolicCast({self.to_type}, {self.operand}, {self.is_unsigned_cast})"
 
 
 class ScalarExpression(YAMLObject):
@@ -116,7 +104,6 @@ class ScalarExpression(YAMLObject):
   Can be one of:
     - ScalarApplyFn
     - ScalarArg
-    - ScalarCapture
     - ScalarConst
     - ScalarIndex
     - ScalarSymbolicCast
@@ -126,18 +113,15 @@ class ScalarExpression(YAMLObject):
   def __init__(self,
                scalar_apply: Optional[ScalarApplyFn] = None,
                scalar_arg: Optional[ScalarArg] = None,
-               scalar_capture: Optional[ScalarCapture] = None,
                scalar_const: Optional[ScalarConst] = None,
                scalar_index: Optional[ScalarIndex] = None,
                symbolic_cast: Optional[ScalarSymbolicCast] = None):
-    if (bool(scalar_apply) + bool(scalar_arg) + bool(scalar_capture) +
-        bool(scalar_const) + bool(scalar_index) + bool(symbolic_cast)) != 1:
-      raise ValueError(
-          "One of 'scalar_apply', 'scalar_arg', 'scalar_capture', 'scalar_const', "
-          "'scalar_index', 'symbolic_cast' must be specified")
+    if (bool(scalar_apply) + bool(scalar_arg) + bool(scalar_const) +
+        bool(scalar_index) + bool(symbolic_cast)) != 1:
+      raise ValueError("One of 'scalar_apply', 'scalar_arg', 'scalar_const', "
+                       "'scalar_index', 'symbolic_cast' must be specified")
     self.scalar_apply = scalar_apply
     self.scalar_arg = scalar_arg
-    self.scalar_capture = scalar_capture
     self.scalar_const = scalar_const
     self.scalar_index = scalar_index
     self.symbolic_cast = symbolic_cast
@@ -151,8 +135,6 @@ class ScalarExpression(YAMLObject):
           ))
     elif self.scalar_arg:
       return dict(scalar_arg=self.scalar_arg.arg)
-    elif self.scalar_capture:
-      return dict(scalar_capture=self.scalar_capture.capture)
     elif self.scalar_const:
       return dict(scalar_const=self.scalar_const.value)
     elif self.scalar_index:
@@ -164,7 +146,8 @@ class ScalarExpression(YAMLObject):
       return dict(
           symbolic_cast=dict(
               type_var=self.symbolic_cast.to_type.name,
-              operands=[self.symbolic_cast.operand]))
+              operands=[self.symbolic_cast.operand],
+              is_unsigned_cast=self.symbolic_cast.is_unsigned_cast))
     else:
       raise ValueError(f"Unexpected ScalarExpression type: {self}")
 

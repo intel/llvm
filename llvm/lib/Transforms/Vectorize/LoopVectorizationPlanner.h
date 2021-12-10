@@ -176,17 +176,17 @@ public:
 /// VectorizerParams::VectorizationFactor and VectorizationCostTy.
 /// We need to streamline them.
 
-/// Information about vectorization costs
+/// Information about vectorization costs.
 struct VectorizationFactor {
-  // Vector width with best cost
+  /// Vector width with best cost.
   ElementCount Width;
-  // Cost of the loop with that width
+  /// Cost of the loop with that width.
   InstructionCost Cost;
 
   VectorizationFactor(ElementCount Width, InstructionCost Cost)
       : Width(Width), Cost(Cost) {}
 
-  // Width 1 means no vectorization, cost 0 means uncomputed cost.
+  /// Width 1 means no vectorization, cost 0 means uncomputed cost.
   static VectorizationFactor Disabled() {
     return {ElementCount::getFixed(1), 0};
   }
@@ -268,12 +268,6 @@ class LoopVectorizationPlanner {
   /// A builder used to construct the current plan.
   VPBuilder Builder;
 
-  /// The best number of elements of the vector types used in the
-  /// transformed loop. BestVF = None means that vectorization is
-  /// disabled.
-  Optional<ElementCount> BestVF = None;
-  unsigned BestUF = 0;
-
 public:
   LoopVectorizationPlanner(Loop *L, LoopInfo *LI, const TargetLibraryInfo *TLI,
                            const TargetTransformInfo *TTI,
@@ -295,12 +289,13 @@ public:
   /// VF and its cost.
   VectorizationFactor planInVPlanNativePath(ElementCount UserVF);
 
-  /// Finalize the best decision and dispose of all other VPlans.
-  void setBestPlan(ElementCount VF, unsigned UF);
+  /// Return the best VPlan for \p VF.
+  VPlan &getBestPlanFor(ElementCount VF) const;
 
   /// Generate the IR code for the body of the vectorized loop according to the
-  /// best selected VPlan.
-  void executePlan(InnerLoopVectorizer &LB, DominatorTree *DT);
+  /// best selected \p VF, \p UF and VPlan \p BestPlan.
+  void executePlan(ElementCount VF, unsigned UF, VPlan &BestPlan,
+                   InnerLoopVectorizer &LB, DominatorTree *DT);
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   void printPlans(raw_ostream &O);
@@ -308,12 +303,9 @@ public:
 
   /// Look through the existing plans and return true if we have one with all
   /// the vectorization factors in question.
-  bool hasPlanWithVFs(const ArrayRef<ElementCount> VFs) const {
-    return any_of(VPlans, [&](const VPlanPtr &Plan) {
-      return all_of(VFs, [&](const ElementCount &VF) {
-        return Plan->hasVF(VF);
-      });
-    });
+  bool hasPlanWithVF(ElementCount VF) const {
+    return any_of(VPlans,
+                  [&](const VPlanPtr &Plan) { return Plan->hasVF(VF); });
   }
 
   /// Test a \p Predicate on a \p Range of VF's. Return the value of applying
@@ -344,19 +336,21 @@ private:
   /// Legal. This method is only used for the legacy inner loop vectorizer.
   VPlanPtr buildVPlanWithVPRecipes(
       VFRange &Range, SmallPtrSetImpl<Instruction *> &DeadInstructions,
-      const DenseMap<Instruction *, Instruction *> &SinkAfter);
+      const MapVector<Instruction *, Instruction *> &SinkAfter);
 
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
   /// according to the information gathered by Legal when it checked if it is
   /// legal to vectorize the loop. This method creates VPlans using VPRecipes.
   void buildVPlansWithVPRecipes(ElementCount MinVF, ElementCount MaxVF);
 
-  /// Adjust the recipes for any inloop reductions. The chain of instructions
-  /// leading from the loop exit instr to the phi need to be converted to
-  /// reductions, with one operand being vector and the other being the scalar
-  /// reduction chain.
-  void adjustRecipesForInLoopReductions(VPlanPtr &Plan,
-                                        VPRecipeBuilder &RecipeBuilder);
+  // Adjust the recipes for reductions. For in-loop reductions the chain of
+  // instructions leading from the loop exit instr to the phi need to be
+  // converted to reductions, with one operand being vector and the other being
+  // the scalar reduction chain. For other reductions, a select is introduced
+  // between the phi and live-out recipes when folding the tail.
+  void adjustRecipesForReductions(VPBasicBlock *LatchVPBB, VPlanPtr &Plan,
+                                  VPRecipeBuilder &RecipeBuilder,
+                                  ElementCount MinVF);
 };
 
 } // namespace llvm

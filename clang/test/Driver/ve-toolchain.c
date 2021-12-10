@@ -1,5 +1,6 @@
 /// Check the behavior of toolchain for NEC Aurora VE
 /// REQUIRES: ve-registered-target
+/// UNSUPPORTED: system-windows
 
 ///-----------------------------------------------------------------------------
 /// Checking dwarf-version
@@ -59,9 +60,11 @@
 ///-----------------------------------------------------------------------------
 /// Checking -fintegrated-as
 
-// RUN: %clang -### -target ve -x assembler %s 2>&1 | \
+// RUN: %clang -### -target ve \
+// RUN:    -x assembler -fuse-ld=ld %s 2>&1 | \
 // RUN:    FileCheck -check-prefix=AS %s
-// RUN: %clang -### -target ve -fno-integrated-as -x assembler %s 2>&1 | \
+// RUN: %clang -### -target ve \
+// RUN:    -fno-integrated-as -fuse-ld=ld -x assembler %s 2>&1 | \
 // RUN:    FileCheck -check-prefix=NAS %s
 
 // AS: clang{{.*}} "-cc1as"
@@ -80,6 +83,7 @@
 // RUN: %clang -### -target ve-unknown-linux-gnu \
 // RUN:     --sysroot %S/Inputs/basic_ve_tree \
 // RUN:     -resource-dir=%S/Inputs/basic_ve_tree/resource_dir \
+// RUN:     -fuse-ld=ld \
 // RUN:     %s 2>&1 | FileCheck -check-prefix=DEF %s
 
 // DEF:      clang{{.*}}" "-cc1"

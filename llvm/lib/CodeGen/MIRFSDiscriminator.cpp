@@ -19,9 +19,12 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/SampleProfileLoaderBaseUtil.h"
 #include <unordered_map>
 
 using namespace llvm;
+using namespace sampleprof;
+using namespace sampleprofutil;
 
 #define DEBUG_TYPE "mirfs-discriminators"
 
@@ -33,9 +36,8 @@ INITIALIZE_PASS(MIRAddFSDiscriminators, DEBUG_TYPE,
 
 char &llvm::MIRAddFSDiscriminatorsID = MIRAddFSDiscriminators::ID;
 
-FunctionPass *llvm::createMIRAddFSDiscriminatorsPass(unsigned LowBit,
-                                                     unsigned HighBit) {
-  return new MIRAddFSDiscriminators(LowBit, HighBit);
+FunctionPass *llvm::createMIRAddFSDiscriminatorsPass(FSDiscriminatorPass P) {
+  return new MIRAddFSDiscriminators(P);
 }
 
 // Compute a hash value using debug line number, and the line numbers from the
@@ -127,16 +129,7 @@ bool MIRAddFSDiscriminators::runOnMachineFunction(MachineFunction &MF) {
   }
 
   if (Changed) {
-    Module *M = MF.getFunction().getParent();
-    const char *FSDiscriminatorVar = "__llvm_fs_discriminator__";
-    if (!M->getGlobalVariable(FSDiscriminatorVar)) {
-      auto &Context = M->getContext();
-      // Create a global variable to flag that FSDiscriminators are used.
-      new GlobalVariable(*M, Type::getInt1Ty(Context), true,
-                         GlobalValue::WeakAnyLinkage,
-                         ConstantInt::getTrue(Context), FSDiscriminatorVar);
-    }
-
+    createFSDiscriminatorVariable(MF.getFunction().getParent());
     LLVM_DEBUG(dbgs() << "Num of FS Discriminators: " << NumNewD << "\n");
   }
 

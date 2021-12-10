@@ -34,6 +34,7 @@ public:
   RelExpr getRelExpr(RelType type, const Symbol &s,
                      const uint8_t *loc) const override;
   RelType getDynRel(RelType type) const override;
+  int64_t getImplicitAddend(const uint8_t *buf, RelType type) const override;
   void writeGotPlt(uint8_t *buf, const Symbol &s) const override;
   void writePltHeader(uint8_t *buf) const override;
   void writePlt(uint8_t *buf, const Symbol &sym,
@@ -61,7 +62,6 @@ AArch64::AArch64() {
   relativeRel = R_AARCH64_RELATIVE;
   iRelativeRel = R_AARCH64_IRELATIVE;
   gotRel = R_AARCH64_GLOB_DAT;
-  noneRel = R_AARCH64_NONE;
   pltRel = R_AARCH64_JUMP_SLOT;
   symbolicRel = R_AARCH64_ABS64;
   tlsDescRel = R_AARCH64_TLSDESC;
@@ -70,7 +70,6 @@ AArch64::AArch64() {
   pltEntrySize = 16;
   ipltEntrySize = 16;
   defaultMaxPageSize = 65536;
-  gotBaseSymInGotPlt = false;
 
   // Align to the 2 MiB page size (known as a superpage or huge page).
   // FreeBSD automatically promotes 2 MiB-aligned allocations.
@@ -192,6 +191,17 @@ RelType AArch64::getDynRel(RelType type) const {
   if (type == R_AARCH64_ABS64)
     return type;
   return R_AARCH64_NONE;
+}
+
+int64_t AArch64::getImplicitAddend(const uint8_t *buf, RelType type) const {
+  switch (type) {
+  case R_AARCH64_TLSDESC:
+    return read64(buf + 8);
+  default:
+    internalLinkerError(getErrorLocation(buf),
+                        "cannot read addend for relocation " + toString(type));
+    return 0;
+  }
 }
 
 void AArch64::writeGotPlt(uint8_t *buf, const Symbol &) const {
@@ -467,6 +477,10 @@ void AArch64::relocate(uint8_t *loc, const Relocation &rel,
   case R_AARCH64_TLSDESC_ADD_LO12:
     or32AArch64Imm(loc, val);
     break;
+  case R_AARCH64_TLSDESC:
+    // For R_AARCH64_TLSDESC the addend is stored in the second 64-bit word.
+    write64(loc + 8, val);
+    break;
   default:
     llvm_unreachable("unknown relocation");
   }
@@ -598,8 +612,7 @@ public:
                 uint64_t pltEntryAddr) const override;
 
 private:
-  bool btiHeader; // bti instruction needed in PLT Header
-  bool btiEntry;  // bti instruction needed in PLT Entry
+  bool btiHeader; // bti instruction needed in PLT Header and Entry
   bool pacEntry;  // autia1716 instruction needed in PLT Entry
 };
 } // namespace
@@ -610,15 +623,14 @@ AArch64BtiPac::AArch64BtiPac() {
   // address of the PLT entry can be taken by the program, which permits an
   // indirect jump to the PLT entry. This can happen when the address
   // of the PLT entry for a function is canonicalised due to the address of
-  // the function in an executable being taken by a shared library.
-  // FIXME: There is a potential optimization to omit the BTI if we detect
-  // that the address of the PLT entry isn't taken.
+  // the function in an executable being taken by a shared library, or
+  // non-preemptible ifunc referenced by non-GOT-generating, non-PLT-generating
+  // relocations.
   // The PAC PLT entries require dynamic loader support and this isn't known
   // from properties in the objects, so we use the command line flag.
-  btiEntry = btiHeader && !config->shared;
   pacEntry = config->zPacPlt;
 
-  if (btiEntry || pacEntry) {
+  if (btiHeader || pacEntry) {
     pltEntrySize = 24;
     ipltEntrySize = 24;
   }
@@ -678,7 +690,12 @@ void AArch64BtiPac::writePlt(uint8_t *buf, const Symbol &sym,
   };
   const uint8_t nopData[] = { 0x1f, 0x20, 0x03, 0xd5 }; // nop
 
-  if (btiEntry) {
+  // needsPltAddr indicates a non-ifunc canonical PLT entry whose address may
+  // escape to shared objects. isInIplt indicates a non-preemptible ifunc. Its
+  // address may escape if referenced by a direct relocation. The condition is
+  // conservative.
+  bool hasBti = btiHeader && (sym.needsPltAddr || sym.isInIplt);
+  if (hasBti) {
     memcpy(buf, btiData, sizeof(btiData));
     buf += sizeof(btiData);
     pltEntryAddr += sizeof(btiData);
@@ -695,7 +712,7 @@ void AArch64BtiPac::writePlt(uint8_t *buf, const Symbol &sym,
     memcpy(buf + sizeof(addrInst), pacBr, sizeof(pacBr));
   else
     memcpy(buf + sizeof(addrInst), stdBr, sizeof(stdBr));
-  if (!btiEntry)
+  if (!hasBti)
     // We didn't add the BTI c instruction so round out size with NOP.
     memcpy(buf + sizeof(addrInst) + sizeof(stdBr), nopData, sizeof(nopData));
 }

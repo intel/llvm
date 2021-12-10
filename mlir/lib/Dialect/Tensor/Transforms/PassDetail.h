@@ -13,6 +13,14 @@
 
 namespace mlir {
 
+namespace bufferization {
+class BufferizationDialect;
+} // end namespace bufferization
+
+namespace memref {
+class MemRefDialect;
+} // end namespace memref
+
 namespace scf {
 class SCFDialect;
 } // end namespace scf

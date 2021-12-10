@@ -1,11 +1,13 @@
 #ifndef SPIRV_DEBUG_H
 #define SPIRV_DEBUG_H
 #include "SPIRVUtil.h"
+#include "spirv/unified1/spirv.hpp"
 #include "llvm/BinaryFormat/Dwarf.h"
 
 namespace SPIRVDebug {
 
 const unsigned int DebugInfoVersion = 0x00010000;
+static const std::string ProducerPrefix = {"Debug info producer: "};
 static const std::string ChecksumKindPrefx = {"//__CSK_"};
 
 // clang-format off
@@ -47,7 +49,8 @@ enum Instruction {
   MacroUndef                    = 33,
   ImportedEntity                = 34,
   Source                        = 35,
-  InstCount                     = 36
+  ModuleINTEL                   = 36,
+  InstCount                     = 37
 };
 
 enum Flag {
@@ -261,7 +264,8 @@ enum ExpressionOpCode {
   RegvalType        = 161,
   DerefType         = 162,
   XderefType        = 163,
-  Reinterpret       = 164
+  Reinterpret       = 164,
+  LLVMArg           = 165,
 };
 
 enum ImportedEntityTag {
@@ -753,6 +757,7 @@ static std::map<ExpressionOpCode, unsigned> OpCountMap {
   // { DerefType,          3 },
   // { XderefType,         3 },
   // { Reinterpret,        2 },
+  { LLVMArg,            2 },
 };
 }
 
@@ -769,10 +774,62 @@ enum {
 };
 }
 
+namespace ModuleINTEL {
+enum {
+  NameIdx         = 0,
+  SourceIdx       = 1,
+  LineIdx         = 2,
+  ParentIdx       = 3,
+  ConfigMacrosIdx = 4,
+  IncludePathIdx  = 5,
+  ApiNotesIdx     = 6,
+  IsDeclIdx       = 7,
+  OperandCount    = 8
+};
+}
+
 } // namespace Operand
 } // namespace SPIRVDebug
 
 using namespace llvm;
+
+inline spv::SourceLanguage convertDWARFSourceLangToSPIRV(dwarf::SourceLanguage DwarfLang) {
+  switch (DwarfLang) {
+  // When updating this function, make sure to also
+  // update convertSPIRVSourceLangToDWARF()
+
+  // LLVM does not yet define DW_LANG_C_plus_plus_17
+  // case dwarf::SourceLanguage::DW_LANG_C_plus_plus_17:
+  case dwarf::SourceLanguage::DW_LANG_C_plus_plus_14:
+  case dwarf::SourceLanguage::DW_LANG_C_plus_plus:
+    return spv::SourceLanguage::SourceLanguageCPP_for_OpenCL;
+  case dwarf::SourceLanguage::DW_LANG_C99:
+  case dwarf::SourceLanguage::DW_LANG_OpenCL:
+    return spv::SourceLanguage::SourceLanguageOpenCL_C;
+  default:
+    return spv::SourceLanguage::SourceLanguageUnknown;
+  }
+}
+
+inline dwarf::SourceLanguage convertSPIRVSourceLangToDWARF(unsigned SourceLang) {
+  switch (SourceLang) {
+  // When updating this function, make sure to also
+  // update convertDWARFSourceLangToSPIRV()
+  case spv::SourceLanguage::SourceLanguageOpenCL_CPP:
+    return dwarf::SourceLanguage::DW_LANG_C_plus_plus_14;
+  case spv::SourceLanguage::SourceLanguageCPP_for_OpenCL:
+    // LLVM does not yet define DW_LANG_C_plus_plus_17
+    // SourceLang = dwarf::SourceLanguage::DW_LANG_C_plus_plus_17;
+    return dwarf::SourceLanguage::DW_LANG_C_plus_plus_14;
+  case spv::SourceLanguage::SourceLanguageOpenCL_C:
+  case spv::SourceLanguage::SourceLanguageESSL:
+  case spv::SourceLanguage::SourceLanguageGLSL:
+  case spv::SourceLanguage::SourceLanguageHLSL:
+  case spv::SourceLanguage::SourceLanguageUnknown:
+  default:
+    return dwarf::DW_LANG_OpenCL;
+  }
+}
 
 namespace SPIRV {
 typedef SPIRVMap<dwarf::TypeKind, SPIRVDebug::EncodingTag> DbgEncodingMap;
@@ -947,6 +1004,7 @@ inline void DbgExpressionOpCodeMap::init() {
   add(dwarf::DW_OP_xderef_size,         SPIRVDebug::XderefSize );
   add(dwarf::DW_OP_nop,                 SPIRVDebug::Nop);
   add(dwarf::DW_OP_push_object_address, SPIRVDebug::PushObjectAddress );
+  add(dwarf::DW_OP_LLVM_arg,            SPIRVDebug::LLVMArg);
 }
 
 typedef SPIRVMap<dwarf::Tag, SPIRVDebug::ImportedEntityTag>

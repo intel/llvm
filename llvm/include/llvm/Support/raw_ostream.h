@@ -22,6 +22,9 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#if __cplusplus > 201402L
+#include <string_view>
+#endif
 #include <system_error>
 #include <type_traits>
 
@@ -233,6 +236,12 @@ public:
     return write(Str.data(), Str.length());
   }
 
+#if __cplusplus > 201402L
+  raw_ostream &operator<<(const std::string_view &Str) {
+    return write(Str.data(), Str.length());
+  }
+#endif
+
   raw_ostream &operator<<(const SmallVectorImpl<char> &Str) {
     return write(Str.data(), Str.size());
   }
@@ -320,6 +329,8 @@ public:
   // Enable or disable colors. Once enable_colors(false) is called,
   // changeColor() has no effect until enable_colors(true) is called.
   virtual void enable_colors(bool enable) { ColorEnabled = enable; }
+
+  bool colors_enabled() const { return ColorEnabled; }
 
   /// Tie this stream to the specified stream. Replaces any existing tied-to
   /// stream. Specifying a nullptr unties the stream.
@@ -710,7 +721,11 @@ class buffer_unique_ostream : public raw_svector_ostream {
 
 public:
   buffer_unique_ostream(std::unique_ptr<raw_ostream> OS)
-      : raw_svector_ostream(Buffer), OS(std::move(OS)) {}
+      : raw_svector_ostream(Buffer), OS(std::move(OS)) {
+    // Turn off buffering on OS, which we now own, to avoid allocating a buffer
+    // when the destructor writes only to be immediately flushed again.
+    this->OS->SetUnbuffered();
+  }
   ~buffer_unique_ostream() override { *OS << str(); }
 };
 

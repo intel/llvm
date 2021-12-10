@@ -44,6 +44,10 @@ automodapi_toctreedirnm = 'python_api'
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.todo', 'sphinx.ext.mathjax', 'sphinx.ext.intersphinx']
 
+autodoc_default_options = {
+    'special-members': '__int__, __len__, __hex__, __oct__, __iter__',
+}
+
 # Unless we only generate the basic manpage we need the plugin for generating
 # the Python API documentation.
 if not building_man_page:
@@ -56,21 +60,6 @@ templates_path = ['_templates']
 source_suffix = {
     '.rst': 'restructuredtext',
 }
-
-try:
-  import recommonmark
-except ImportError:
-  # manpages do not use any .md sources
-  if not building_man_page:
-    raise
-else:
-  import sphinx
-  if sphinx.version_info >= (3, 0):
-    # This requires 0.5 or later.
-    extensions.append('recommonmark')
-  else:
-    source_parsers = {'.md': 'recommonmark.parser.CommonMarkParser'}
-  source_suffix['.md'] = 'markdown'
 
 # The encoding of source files.
 #source_encoding = 'utf-8-sig'
@@ -280,20 +269,6 @@ man_pages = [('man/lldb', 'lldb', u'LLDB Documentation', [u'LLVM project'], 1),
 
 # If true, show URL addresses after external links.
 #man_show_urls = False
-
-def process_md(name):
-    file_subpath = os.path.join(command_guide_subpath, name)
-    with open(os.path.join(command_guide_path, name)) as f:
-        title = f.readline().rstrip('\n')
-
-        m = re.match(r'^# (\S+) - (.+)$', title)
-        if m is None:
-            print("error: invalid title in %r "
-                  "(expected '# <name> - <description>')" % file_subpath,
-                  file=sys.stderr)
-        else:
-            man_pages.append((file_subpath.replace('.md',''), m.group(1),
-                              m.group(2), man_page_authors, 1))
 
 # -- Options for Texinfo output ------------------------------------------------
 

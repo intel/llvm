@@ -182,7 +182,7 @@ OPTIONS
 
   Print just the file's name without any directories, instead of the
   absolute path.
-  
+
 .. _llvm-symbolizer-opt-C:
 
 .. option:: --demangle, -C
@@ -241,7 +241,7 @@ OPTIONS
   Specify the preferred output style. Defaults to ``LLVM``. When the output
   style is set to ``GNU``, the tool follows the style of GNU's **addr2line**.
   The differences from the ``LLVM`` style are:
-  
+
   * Does not print the column of a source code location.
 
   * Does not add an empty line after the report for an address.
@@ -359,7 +359,7 @@ OPTIONS
 
   .. code-block:: console
 
-    $ llvm-symbolizer --obj=test.elf 0x400490 --print-source-context-lines=2
+    $ llvm-symbolizer --obj=test.elf 0x400490 --print-source-context-lines=3
     baz()
     /tmp/test.cpp:11:0
     10  :   volatile int k = 42;
@@ -381,16 +381,18 @@ OPTIONS
     $ llvm-symbolizer --obj=inlined.elf --verbose 0x4004be
     baz()
       Filename: /tmp/test.cpp
+      Function start filename: /tmp/test.cpp
       Function start line: 9
-      Function start address: 0x4004b0
+      Function start address: 0x4004b6
       Line: 11
       Column: 18
     main
       Filename: /tmp/test.cpp
+      Function start filename: /tmp/test.cpp
       Function start line: 14
       Function start address: 0x4004b0
       Line: 15
-      Column: 0
+      Column: 18
 
 .. option:: --version, -v
 

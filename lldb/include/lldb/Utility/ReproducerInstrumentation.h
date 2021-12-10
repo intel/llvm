@@ -469,7 +469,7 @@ template <> struct DeserializationHelper<> {
 
 /// The replayer interface.
 struct Replayer {
-  virtual ~Replayer() {}
+  virtual ~Replayer() = default;
   virtual void operator()(Deserializer &deserializer) const = 0;
 };
 
@@ -714,8 +714,7 @@ protected:
   friend llvm::optional_detail::OptionalStorage<InstrumentationData, true>;
   friend llvm::Optional<InstrumentationData>;
 
-  InstrumentationData()
-      : m_serializer(nullptr), m_deserializer(nullptr), m_registry(nullptr) {}
+  InstrumentationData() = default;
   InstrumentationData(Serializer &serializer, Registry &registry)
       : m_serializer(&serializer), m_deserializer(nullptr),
         m_registry(&registry) {}
@@ -726,9 +725,9 @@ protected:
 private:
   static llvm::Optional<InstrumentationData> &InstanceImpl();
 
-  Serializer *m_serializer;
-  Deserializer *m_deserializer;
-  Registry *m_registry;
+  Serializer *m_serializer = nullptr;
+  Deserializer *m_deserializer = nullptr;
+  Registry *m_registry = nullptr;
 };
 
 struct EmptyArg {};
@@ -869,17 +868,14 @@ public:
 
   /// Mark the current thread as a private thread and pretend that everything
   /// on this thread is behind happening behind the API boundary.
-  static void PrivateThread() { g_global_boundary = true; }
+  static void PrivateThread();
 
 private:
   static unsigned GetNextSequenceNumber() { return g_sequence++; }
   unsigned GetSequenceNumber() const;
 
   template <typename T> friend struct replay;
-  void UpdateBoundary() {
-    if (m_local_boundary)
-      g_global_boundary = false;
-  }
+  void UpdateBoundary();
 
 #ifdef LLDB_REPRO_INSTR_TRACE
   void Log(unsigned id) {
@@ -888,23 +884,20 @@ private:
   }
 #endif
 
-  Serializer *m_serializer;
+  Serializer *m_serializer = nullptr;
 
   /// Pretty function for logging.
   llvm::StringRef m_pretty_func;
   std::string m_pretty_args;
 
   /// Whether this function call was the one crossing the API boundary.
-  bool m_local_boundary;
+  bool m_local_boundary = false;
 
   /// Whether the return value was recorded explicitly.
-  bool m_result_recorded;
+  bool m_result_recorded = true;
 
   /// The sequence number for this pair of function and result.
   unsigned m_sequence;
-
-  /// Whether we're currently across the API boundary.
-  static thread_local bool g_global_boundary;
 
   /// Global mutex to protect concurrent access.
   static std::mutex g_mutex;

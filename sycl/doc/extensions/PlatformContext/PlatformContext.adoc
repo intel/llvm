@@ -1,0 +1,34 @@
+= SYCL(TM) Proposals: Platform Default Contexts
+James Brodman <james.brodman@intel.com>
+v0.1
+:source-highlighter: pygments
+:icons: font
+:y: icon:check[role="green"]
+:n: icon:times[role="red"]
+
+== Platform Default Contexts
+
+This extension adds the notion of a default SYCL context per SYCL platform. The default context for each platform contains all devices in the platform.
+
+The platform class gains one new method:
+
+[cols="^60a,40"]
+|===
+| Member Function | Description
+
+|
+[source,c++]
+----
+context ext_oneapi_get_default_context()
+----
+
+| Returns the current default context for this `platform`
+
+|===
+
+This extension also modifies the behavior of `queue` constructors. Queues will no longer create a new `context` upon construction. Instead, they will use the default context from the device's platform.
+
+== Feature Test Macro
+
+This extension defines the macro `SYCL_EXT_ONEAPI_DEFAULT_CONTEXT` to `1` to indicate that it is enabled.
+

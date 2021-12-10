@@ -21,6 +21,7 @@ def Vector_Dialect : Dialect {
   let name = "vector";
   let cppNamespace = "::mlir::vector";
   let hasConstantMaterializer = 1;
+  let dependentDialects = ["arith::ArithmeticDialect"];
 }
 
 // Base class for Vector dialect ops.
@@ -38,20 +39,25 @@ class Vector_Op<string mnemonic, list<OpTrait> traits = []> :
 }
 
 // The "kind" of combining function for contractions and reductions.
-def COMBINING_KIND_ADD : BitEnumAttrCase<"ADD", 0x1,  "add">;
-def COMBINING_KIND_MUL : BitEnumAttrCase<"MUL", 0x2,  "mul">;
-def COMBINING_KIND_MIN : BitEnumAttrCase<"MIN", 0x4,  "min">;
-def COMBINING_KIND_MAX : BitEnumAttrCase<"MAX", 0x8,  "max">;
-def COMBINING_KIND_AND : BitEnumAttrCase<"AND", 0x10, "and">;
-def COMBINING_KIND_OR  : BitEnumAttrCase<"OR",  0x20, "or">;
-def COMBINING_KIND_XOR : BitEnumAttrCase<"XOR", 0x40, "xor">;
+def COMBINING_KIND_ADD : BitEnumAttrCase<"ADD", 0x1, "add">;
+def COMBINING_KIND_MUL : BitEnumAttrCase<"MUL", 0x2, "mul">;
+def COMBINING_KIND_MINUI : BitEnumAttrCase<"MINUI", 0x4, "minui">;
+def COMBINING_KIND_MINSI : BitEnumAttrCase<"MINSI", 0x8, "minsi">;
+def COMBINING_KIND_MINF : BitEnumAttrCase<"MINF", 0x10, "minf">;
+def COMBINING_KIND_MAXUI : BitEnumAttrCase<"MAXUI", 0x20, "maxui">;
+def COMBINING_KIND_MAXSI : BitEnumAttrCase<"MAXSI", 0x40, "maxsi">;
+def COMBINING_KIND_MAXF : BitEnumAttrCase<"MAXF", 0x80, "maxf">;
+def COMBINING_KIND_AND : BitEnumAttrCase<"AND", 0x100, "and">;
+def COMBINING_KIND_OR  : BitEnumAttrCase<"OR", 0x200, "or">;
+def COMBINING_KIND_XOR : BitEnumAttrCase<"XOR", 0x400, "xor">;
 
 def CombiningKind : BitEnumAttr<
     "CombiningKind",
     "Kind of combining function for contractions and reductions",
-    [COMBINING_KIND_ADD, COMBINING_KIND_MUL, COMBINING_KIND_MIN,
-     COMBINING_KIND_MAX, COMBINING_KIND_AND, COMBINING_KIND_OR,
-     COMBINING_KIND_XOR]> {
+    [COMBINING_KIND_ADD, COMBINING_KIND_MUL, COMBINING_KIND_MINUI,
+     COMBINING_KIND_MINSI, COMBINING_KIND_MINF, COMBINING_KIND_MAXUI,
+     COMBINING_KIND_MAXSI, COMBINING_KIND_MAXF, COMBINING_KIND_AND,
+     COMBINING_KIND_OR, COMBINING_KIND_XOR]> {
   let cppNamespace = "::mlir::vector";
   let genSpecializedAttr = 0;
 }
@@ -296,14 +302,17 @@ def Vector_MultiDimReductionOp :
     Results<(outs AnyType:$dest)> {
   let summary = "Multi-dimensional reduction operation";
   let description = [{
-    Reduces an n-D vector into an (n-k)-D vector using the given operation
-    (add/mul/min/max for int/fp and and/or/xor for int only).
+    Reduces an n-D vector into an (n-k)-D vector (or a scalar when k == n)
+    using the given operation (add/mul/min/max for int/fp and and/or/xor for
+    int only).
 
     Example:
 
     ```mlir
     %1 = vector.multi_reduction "add", %0 [1, 3] :
       vector<4x8x16x32xf32> into vector<4x16xf32>
+    %2 = vector.multi_reduction "add", %1 [0, 1] :
+      vector<4x16xf32> into f32
     ```
   }];
   let builders = [
@@ -317,8 +326,14 @@ def Vector_MultiDimReductionOp :
     VectorType getSourceVectorType() {
       return source().getType().cast<VectorType>();
     }
-    VectorType getDestVectorType() {
-      return dest().getType().cast<VectorType>();
+    Type getDestType() {
+      return dest().getType();
+    }
+
+    bool isReducedDim(int64_t d) {
+      assert(d >= 0 && d < static_cast<int64_t>(getReductionMask().size()) &&
+        "d overflows the number of dims");
+      return getReductionMask()[d];
     }
 
     SmallVector<bool> getReductionMask() {
@@ -336,18 +351,28 @@ def Vector_MultiDimReductionOp :
     }
 
     static SmallVector<int64_t> inferDestShape(
-      ArrayRef<int64_t> shape, ArrayRef<bool> reducedDimsMask) {
-      assert(shape.size() == reducedDimsMask.size() && 
-             "shape and maks of different sizes");
+      ArrayRef<int64_t> sourceShape, ArrayRef<bool> reducedDimsMask) {
+      assert(sourceShape.size() == reducedDimsMask.size() &&
+             "sourceShape and maks of different sizes");
       SmallVector<int64_t> res;
-      for (auto it : llvm::zip(reducedDimsMask, shape))
+      for (auto it : llvm::zip(reducedDimsMask, sourceShape))
         if (!std::get<0>(it))
           res.push_back(std::get<1>(it));
       return res;
     }
+
+    static Type inferDestType(
+      ArrayRef<int64_t> sourceShape, ArrayRef<bool> reducedDimsMask, Type elementType) {
+      auto targetShape = inferDestShape(sourceShape, reducedDimsMask);
+      // TODO: update to also allow 0-d vectors when available.
+      if (targetShape.empty())
+        return elementType;
+      return VectorType::get(targetShape, elementType);
+    }
   }];
   let assemblyFormat =
     "$kind `,` $source attr-dict $reduction_dims `:` type($source) `to` type($dest)";
+  let hasFolder = 1;
 }
 
 def Vector_BroadcastOp :
@@ -355,7 +380,7 @@ def Vector_BroadcastOp :
      PredOpTrait<"source operand and result have same element type",
                  TCresVTEtIsSameAsOpBase<0, 0>>]>,
     Arguments<(ins AnyType:$source)>,
-    Results<(outs AnyVector:$vector)> {
+    Results<(outs AnyVectorOfAnyRank:$vector)> {
   let summary = "broadcast operation";
   let description = [{
     Broadcasts the scalar or k-D vector value in the source operand
@@ -381,7 +406,7 @@ def Vector_BroadcastOp :
     Example:
 
     ```mlir
-    %0 = constant 0.0 : f32
+    %0 = arith.constant 0.0 : f32
     %1 = vector.broadcast %0 : f32 to vector<16xf32>
     %2 = vector.broadcast %1 : vector<16xf32> to vector<4x16xf32>
     ```
@@ -457,30 +482,39 @@ def Vector_ExtractElementOp :
      TypesMatchWith<"result type matches element type of vector operand",
                     "vector", "result",
                     "$_self.cast<ShapedType>().getElementType()">]>,
-    Arguments<(ins AnyVector:$vector, AnySignlessInteger:$position)>,
+    Arguments<(ins AnyVectorOfAnyRank:$vector,
+                   Optional<AnySignlessIntegerOrIndex>:$position)>,
     Results<(outs AnyType:$result)> {
   let summary = "extractelement operation";
   let description = [{
-    Takes an 1-D vector and a dynamic index position and extracts the
-    scalar at that position. Note that this instruction resembles
-    vector.extract, but is restricted to 1-D vectors and relaxed
-    to dynamic indices. It is meant to be closer to LLVM's version:
+    Takes a 0-D or 1-D vector and a optional dynamic index position and
+    extracts the scalar at that position.
+
+    Note that this instruction resembles vector.extract, but is restricted to
+    0-D and 1-D vectors and relaxed to dynamic indices.
+    If the vector is 0-D, the position must be llvm::None.
+
+
+    It is meant to be closer to LLVM's version:
     https://llvm.org/docs/LangRef.html#extractelement-instruction
 
     Example:
 
     ```mlir
-    %c = constant 15 : i32
+    %c = arith.constant 15 : i32
     %1 = vector.extractelement %0[%c : i32]: vector<16xf32>
+    %2 = vector.extractelement %z[]: vector<f32>
     ```
   }];
   let assemblyFormat = [{
-    $vector `[` $position `:` type($position) `]` attr-dict `:` type($vector)
+    $vector `[` ($position^ `:` type($position))? `]` attr-dict `:` type($vector)
   }];
 
   let builders = [
-    OpBuilder<(ins "Value":$source, "int64_t":$position)>,
-    OpBuilder<(ins "Value":$source, "Value":$position)>
+    // 0-D builder.
+    OpBuilder<(ins "Value":$source)>,
+    // 1-D + position builder.
+    OpBuilder<(ins "Value":$source, "Value":$position)>,
   ];
   let extraClassDeclaration = [{
     VectorType getVectorType() {
@@ -523,63 +557,6 @@ def Vector_ExtractOp :
   let hasFolder = 1;
 }
 
-def Vector_ExtractSlicesOp :
-  Vector_Op<"extract_slices", [NoSideEffect]>,
-    Arguments<(ins AnyVector:$vector, I64ArrayAttr:$sizes,
-                   I64ArrayAttr:$strides)>,
-    Results<(outs TupleOf<[AnyVector]>)> {
-  let summary = "vector extract slices operation";
-  let description = [{
-    Takes an N-d vector and returns a tuple of vector slices of 'vector',
-    based on 'sizes' and 'strides' parameters.
-
-    The arguments 'sizes' and 'strides' represent a specification for
-    generating the unrolling of 'vector' shape, which has all slices of shape
-    'sizes' except for slices at dimension boundaries when 'vector' dimension
-    sizes are not a multiple of 'sizes'.
-
-    Each slice is returned at the tuple element index corresponding to the
-    linear index of the slice w.r.t the unrolling scheme represented by 'sizes'.
-    Currently, only unit strides are supported.
-
-    Example:
-
-    ```mlir
-    %0 = vector.transfer_read ...: vector<4x2xf32>
-
-    %1 = vector.extract_slices %0, [2, 2], [1, 1]
-      : vector<4x2xf32> into tuple<vector<2x2xf32>, vector<2x2xf32>>
-
-    // Example with partial slices at dimension boundaries.
-    %2 = vector.transfer_read ...: vector<4x3xf32>
-
-    %3 = vector.extract_slices %2, [2, 2], [1, 1]
-      : vector<4x3xf32> into tuple<vector<2x2xf32>, vector<2x1xf32>,
-                                   vector<2x2xf32>, vector<2x1xf32>>
-    ```
-  }];
-  let builders = [
-    OpBuilder<(ins "TupleType":$tupleType, "Value":$vector,
-      "ArrayRef<int64_t>":$sizes, "ArrayRef<int64_t>":$strides)>
-  ];
-  let extraClassDeclaration = [{
-    VectorType getSourceVectorType() {
-      return vector().getType().cast<VectorType>();
-    }
-    TupleType getResultTupleType() {
-      return getResult().getType().cast<TupleType>();
-    }
-    void getSizes(SmallVectorImpl<int64_t> &results);
-    void getStrides(SmallVectorImpl<int64_t> &results);
-    static StringRef getSizesAttrName() { return "sizes"; }
-    static StringRef getStridesAttrName() { return "strides"; }
-  }];
-  let assemblyFormat = [{
-    $vector `,` $sizes `,` $strides attr-dict `:` type($vector) `into`
-    type(results)
-  }];
-}
-
 def Vector_ExtractMapOp :
   Vector_Op<"extract_map", [NoSideEffect]>,
     Arguments<(ins AnyVector:$vector, Variadic<Index>:$ids)>,
@@ -612,7 +589,7 @@ def Vector_ExtractMapOp :
     %idx0 = ... : index
     // dynamic computation producing the value 1 of index type
     %idx1 = ... : index
-    %0 = constant dense<0, 1, 2, 3>: vector<4xi32>
+    %0 = arith.constant dense<0, 1, 2, 3>: vector<4xi32>
     // extracts values [0, 1]
     %1 = vector.extract_map %0[%idx0] : vector<4xi32> to vector<2xi32>
     // extracts values [1, 2]
@@ -652,7 +629,7 @@ def Vector_FMAOp :
   Op<Vector_Dialect, "fma", [
        NoSideEffect, AllTypesMatch<["lhs", "rhs", "acc", "result"]>,
        DeclareOpInterfaceMethods<VectorUnrollOpInterface, ["getShapeForUnroll"]>
-     ]>,
+     ] # ElementwiseMappable.traits>,
     Arguments<(ins AnyVector:$lhs, AnyVector:$rhs, AnyVector:$acc)>,
     Results<(outs AnyVector:$result)> {
   let summary = "vector fused multiply-add";
@@ -689,33 +666,38 @@ def Vector_InsertElementOp :
                     "result", "source",
                     "$_self.cast<ShapedType>().getElementType()">,
      AllTypesMatch<["dest", "result"]>]>,
-     Arguments<(ins AnyType:$source, AnyVector:$dest,
-                    AnySignlessInteger:$position)>,
-     Results<(outs AnyVector:$result)> {
+     Arguments<(ins AnyType:$source, AnyVectorOfAnyRank:$dest,
+                    Optional<AnySignlessIntegerOrIndex>:$position)>,
+     Results<(outs AnyVectorOfAnyRank:$result)> {
   let summary = "insertelement operation";
   let description = [{
-    Takes a scalar source, an 1-D destination vector and a dynamic index
-    position and inserts the source into the destination at the proper
-    position.  Note that this instruction resembles vector.insert, but
-    is restricted to 1-D vectors and relaxed to dynamic indices. It is
-    meant to be closer to LLVM's version:
+    Takes a scalar source, a 0-D or 1-D destination vector and a dynamic index
+    position and inserts the source into the destination at the proper position.
+
+    Note that this instruction resembles vector.insert, but is restricted to 0-D
+    and 1-D vectors and relaxed to dynamic indices.
+
+    It is meant to be closer to LLVM's version:
     https://llvm.org/docs/LangRef.html#insertelement-instruction
 
     Example:
 
     ```mlir
-    %c = constant 15 : i32
-    %f = constant 0.0f : f32
+    %c = arith.constant 15 : i32
+    %f = arith.constant 0.0f : f32
     %1 = vector.insertelement %f, %0[%c : i32]: vector<16xf32>
+    %2 = vector.insertelement %f, %z[]: vector<f32>
     ```
   }];
   let assemblyFormat = [{
-    $source `,` $dest `[` $position `:` type($position) `]` attr-dict `:`
+    $source `,` $dest `[` ($position^ `:` type($position))? `]`  attr-dict `:`
     type($result)
   }];
 
   let builders = [
-    OpBuilder<(ins "Value":$source, "Value":$dest, "int64_t":$position)>,
+    // 0-D builder.
+    OpBuilder<(ins "Value":$source, "Value":$dest)>,
+    // 1-D + position builder.
     OpBuilder<(ins "Value":$source, "Value":$dest, "Value":$position)>
   ];
   let extraClassDeclaration = [{
@@ -769,63 +751,6 @@ def Vector_InsertOp :
   let hasFolder = 1;
 }
 
-def Vector_InsertSlicesOp :
-  Vector_Op<"insert_slices", [NoSideEffect]>,
-    Arguments<(ins TupleOf<[AnyVector]>:$vectors, I64ArrayAttr:$sizes,
-                   I64ArrayAttr:$strides)>,
-    Results<(outs AnyVector)> {
-  let summary = "vector insert slices operation";
-  let description = [{
-    Takes a tuple of vector slices and inserts them into the vector result
-    according to the 'sizes' and 'strides' parameters.
-
-    The arguments 'sizes' and 'strides' represent a specification for
-    generating the unrolling of 'vector' shape, which has all slices of shape
-    'sizes' except for slices at dimension boundaries when 'vector' dimension
-    sizes are not a multiple of 'sizes'.
-
-    Each slice in 'vectors' is at the tuple element index corresponding to the
-    linear index of the slice w.r.t the unrolling scheme represented by 'sizes'.
-    Currently, only unit strides are supported.
-
-    Example:
-
-    ```mlir
-    %0 = vector.extract_slices %0, [2, 2], [1, 1]
-      : vector<4x2xf32> into tuple<vector<2x2xf32>, vector<2x2xf32>>
-
-    %1 = vector.insert_slices %0, [2, 2], [1, 1]
-      : tuple<vector<2x2xf32>, vector<2x2xf32>> into vector<4x2xf32>
-
-    // Example with partial slices at dimension boundaries.
-    %3 = vector.extract_slices %2, [2, 2], [1, 1]
-      : vector<4x3xf32> into tuple<vector<2x2xf32>, vector<2x1xf32>,
-                                   vector<2x2xf32>, vector<2x1xf32>>
-
-    %4 = vector.insert_slices %3, [2, 2], [1, 1]
-      : tuple<vector<2x2xf32>, vector<2x1xf32>,
-              vector<2x2xf32>, vector<2x1xf32>> into vector<4x3xf32>
-    ```
-  }];
-
-  let extraClassDeclaration = [{
-    TupleType getSourceTupleType() {
-      return vectors().getType().cast<TupleType>();
-    }
-    VectorType getResultVectorType() {
-      return getResult().getType().cast<VectorType>();
-    }
-    void getSizes(SmallVectorImpl<int64_t> &results);
-    void getStrides(SmallVectorImpl<int64_t> &results);
-    static StringRef getSizesAttrName() { return "sizes"; }
-    static StringRef getStridesAttrName() { return "strides"; }
-  }];
-  let assemblyFormat = [{
-    $vectors `,` $sizes `,` $strides attr-dict `:` type($vectors) `into`
-    type(results)
-  }];
-}
-
 def Vector_InsertMapOp :
   Vector_Op<"insert_map", [NoSideEffect, AllTypesMatch<["dest", "result"]>]>,
     Arguments<(ins AnyVector:$vector, AnyVector:$dest, Variadic<Index>:$ids)>,
@@ -857,7 +782,7 @@ def Vector_InsertMapOp :
     %idx0 = ... : index
     // dynamic computation producing the value 1 of index type
     %idx1 = ... : index /
-    %0 = constant dense<0, 1, 2, 3>: vector<4xi32>
+    %0 = arith.constant dense<0, 1, 2, 3>: vector<4xi32>
     // extracts values [0, 1]
     %1 = vector.extract_map %0[%idx0] : vector<4xi32> to vector<2xi32>
     // extracts values [1, 2]
@@ -941,6 +866,8 @@ def Vector_InsertStridedSliceOp :
       return dest().getType().cast<VectorType>();
     }
   }];
+
+  let hasFolder = 1;
 }
 
 def Vector_OuterProductOp :
@@ -1206,26 +1133,28 @@ def Vector_TransferReadOp :
       DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
       AttrSizedOperandSegments
     ]>,
-    Arguments<(ins AnyShaped:$source, Variadic<Index>:$indices,
-               AffineMapAttr:$permutation_map, AnyType:$padding,
-               Optional<VectorOf<[I1]>>:$mask,
-               OptionalAttr<BoolArrayAttr>:$in_bounds)>,
-    Results<(outs AnyVector:$vector)> {
+    Arguments<(ins AnyShaped:$source,
+                   Variadic<Index>:$indices,
+                   AffineMapAttr:$permutation_map,
+                   AnyType:$padding,
+                   Optional<VectorOf<[I1]>>:$mask,
+                   OptionalAttr<BoolArrayAttr>:$in_bounds)>,
+    Results<(outs AnyVectorOfAnyRank:$vector)> {
 
   let summary = "Reads a supervector from memory into an SSA vector value.";
 
   let description = [{
     The `vector.transfer_read` op performs a read from a slice within a
     [MemRef](../LangRef.md#memref-type) or a Ranked
-    [Tensor](../LangRef.md#tensor-type) supplied as its first operand into a
-    [vector](../LangRef.md#vector-type) of the same base elemental type.
+    [Tensor](../LangRef.md#tensor-type) supplied as its first operand
+    into a [vector](../LangRef.md#vector-type) of the same base elemental type.
 
     A memref/tensor operand with vector element type, must have its vector
     element type match a suffix (shape and element type) of the vector (e.g.
     memref<3x2x6x4x3xf32>, vector<1x1x4x3xf32>).
 
     The slice is further defined by a full-rank index within the MemRef/Tensor,
-    supplied as the operands `2 .. 1 + rank(memref/tensor)`.
+    supplied as the operands `[1 .. 1 + rank(memref/tensor))`.
 
     The permutation_map [attribute](../LangRef.md#attributes) is an
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
@@ -1293,7 +1222,7 @@ def Vector_TransferReadOp :
             memref<?x?x?x?xf32>
           store %tmp[%i, %j, %k] : vector<3x4x5xf32>
     }}}
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     %vec = load %view_in_tmp[%c0] : vector<3x4x5xf32>
     ```
 
@@ -1314,7 +1243,7 @@ def Vector_TransferReadOp :
           memref<?x?x?x?xf32>
         store %tmp[%i, 0, %k] : vector<3x4x5xf32>
     }}
-    %c0 = constant 0 : index
+    %c0 = arith.constant 0 : index
     %tmpvec = load %view_in_tmp[%c0] : vector<3x4x5xf32>
     %vec = broadcast %tmpvec, 1 : vector<3x4x5xf32>
     ```
@@ -1336,7 +1265,7 @@ def Vector_TransferReadOp :
     ```mlir
     // Read the slice `%A[%i0, %i1:%i1+256, %i2:%i2+32]` into vector<32x256xf32>
     // and pad with %f0 to handle the boundary case:
-    %f0 = constant 0.0f : f32
+    %f0 = arith.constant 0.0f : f32
     for %i0 = 0 to %0 {
       affine.for %i1 = 0 to %1 step 256 {
         affine.for %i2 = 0 to %2 step 32 {
@@ -1365,32 +1294,41 @@ def Vector_TransferReadOp :
     %4 = vector.transfer_read %arg1[%c3, %c3], %vf0
       {permutation_map = (d0, d1)->(d0, d1)}
         : tensor<?x?xvector<4x3xf32>>, vector<1x1x4x3xf32>
+
+    // Special encoding for 0-d transfer with 0-d tensor/memref, vector shape
+    // {1} and permutation_map () -> (0).
+    %0 = vector.transfer_read %arg0[], %f0 {permutation_map = affine_map<()->(0)>} :
+      tensor<f32>, vector<1xf32>
     ```
   }];
 
   let builders = [
-    // Builder that sets padding to zero.
-    OpBuilder<(ins "VectorType":$vector, "Value":$source,
-      "ValueRange":$indices, "AffineMap":$permutationMap,
-      CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    // Builder that sets padding to 'getMinorIdentityMap'.
-    OpBuilder<(ins "VectorType":$vector, "Value":$source,
-      "ValueRange":$indices, "Value":$padding,
-      CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    // Builder that sets permutation map (resp. padding) to
-    // 'getMinorIdentityMap' (resp. zero).
-    OpBuilder<(ins "VectorType":$vector, "Value":$source,
-      "ValueRange":$indices, CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    // Builder that does not set mask.
-    OpBuilder<(ins "Type":$vector, "Value":$source,
-      "ValueRange":$indices, "AffineMapAttr":$permutationMap, "Value":$padding,
-      "ArrayAttr":$inBounds)>,
-    // Builder that does not set mask.
-    OpBuilder<(ins "Type":$vector, "Value":$source,
-      "ValueRange":$indices, "AffineMap":$permutationMap, "Value":$padding,
-      "ArrayAttr":$inBounds)>
+    /// 1. Builder that sets padding to zero and an empty mask (variant with attrs).
+    OpBuilder<(ins "VectorType":$vectorType,
+                   "Value":$source,
+                   "ValueRange":$indices,
+                   "AffineMapAttr":$permutationMapAttr,
+                   "ArrayAttr":$inBoundsAttr)>,
+    /// 2. Builder that sets padding to zero and an empty mask (variant without attrs).
+    OpBuilder<(ins "VectorType":$vectorType,
+                   "Value":$source,
+                   "ValueRange":$indices,
+                   "AffineMap":$permutationMap,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
+    /// 3. Builder that sets permutation map to 'getMinorIdentityMap'.
+    OpBuilder<(ins "VectorType":$vectorType,
+                   "Value":$source,
+                   "ValueRange":$indices,
+                   "Value":$padding,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
+    /// 4. Builder that sets padding to zero and permutation map to
+    /// 'getMinorIdentityMap'.
+    OpBuilder<(ins "VectorType":$vectorType,
+                   "Value":$source,
+                   "ValueRange":$indices,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
   ];
-
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 }
 
@@ -1401,11 +1339,12 @@ def Vector_TransferWriteOp :
       DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
       AttrSizedOperandSegments
   ]>,
-    Arguments<(ins AnyVector:$vector, AnyShaped:$source,
-               Variadic<Index>:$indices,
-               AffineMapAttr:$permutation_map,
-               Optional<VectorOf<[I1]>>:$mask,
-               OptionalAttr<BoolArrayAttr>:$in_bounds)>,
+    Arguments<(ins AnyVectorOfAnyRank:$vector,
+                   AnyShaped:$source,
+                   Variadic<Index>:$indices,
+                   AffineMapAttr:$permutation_map,
+                   Optional<VectorOf<[I1]>>:$mask,
+                   OptionalAttr<BoolArrayAttr>:$in_bounds)>,
     Results<(outs Optional<AnyRankedTensor>:$result)> {
 
   let summary = "The vector.transfer_write op writes a supervector to memory.";
@@ -1423,7 +1362,7 @@ def Vector_TransferWriteOp :
     new tensor of the same type.
 
     The slice is further defined by a full-rank index within the MemRef/Tensor,
-    supplied as the operands `3 .. 2 + rank(memref/tensor)`.
+    supplied as the operands `[2 .. 2 + rank(memref/tensor))`.
 
     The permutation_map [attribute](../LangRef.md#attributes) is an
     [affine-map](Affine.md#affine-maps) which specifies the transposition on the
@@ -1491,23 +1430,41 @@ def Vector_TransferWriteOp :
     %5 = vector.transfer_write %4, %arg1[%c3, %c3]
       {permutation_map = (d0, d1)->(d0, d1)}
         : vector<1x1x4x3xf32>, tensor<?x?xvector<4x3xf32>>
+
+    // Special encoding for 0-d transfer with 0-d tensor/memref, vector shape
+    // {1} and permutation_map () -> (0).
+    %1 = vector.transfer_write %0, %arg0[] {permutation_map = affine_map<()->(0)>} :
+      vector<1xf32>, tensor<f32>
     ```
   }];
 
   let builders = [
-    // Builder that sets permutation map to 'getMinorIdentityMap'.
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      CArg<"ArrayRef<bool>", "{}">:$inBounds)>,
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMap":$permutationMap)>,
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMapAttr":$permutationMap, "ArrayAttr":$inBounds)>,
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMap":$permutationMap, "Value":$mask, "ArrayAttr":$inBounds)>,
-    OpBuilder<(ins "Value":$vector, "Value":$source, "ValueRange":$indices,
-      "AffineMap":$permutationMap, "ArrayAttr":$inBounds)>,
+    /// 1. Builder with type inference.
+    OpBuilder<(ins "Value":$vector,
+                   "Value":$dest,
+                   "ValueRange":$indices,
+                   "AffineMapAttr":$permutationMapAttr,
+                   "Value":$mask,
+                   "ArrayAttr":$inBoundsAttr)>,
+    /// 2. Builder with type inference that sets an empty mask (variant with attrs).
+    OpBuilder<(ins "Value":$vector,
+                   "Value":$dest,
+                   "ValueRange":$indices,
+                   "AffineMapAttr":$permutationMapAttr,
+                   "ArrayAttr":$inBoundsAttr)>,
+    /// 3. Builder with type inference that sets an empty mask (variant without attrs).
+    OpBuilder<(ins "Value":$vector,
+                   "Value":$dest,
+                   "ValueRange":$indices,
+                   "AffineMap":$permutationMap,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
+    /// 4. Builder with type inference that sets an empty mask and sets permutation
+    /// map to 'getMinorIdentityMap'.
+    OpBuilder<(ins "Value":$vector,
+                   "Value":$dest,
+                   "ValueRange":$indices,
+                   CArg<"Optional<ArrayRef<bool>>", "::llvm::None">:$inBounds)>,
   ];
-
   let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
@@ -1523,9 +1480,9 @@ def Vector_LoadOp : Vector_Op<"load"> {
     based on the element type of the memref. The shape of the result vector
     type determines the shape of the slice read from the start memory address.
     The elements along each dimension of the slice are strided by the memref
-    strides. Only memref with default strides are allowed. These constraints
-    guarantee that elements read along the first dimension of the slice are
-    contiguous in memory.
+    strides. Only unit strides are allowed along the most minor memref
+    dimension. These constraints guarantee that elements read along the first
+    dimension of the slice are contiguous in memory.
 
     The memref element type can be a scalar or a vector type. If the memref
     element type is a scalar, it should match the element type of the result
@@ -1584,6 +1541,8 @@ def Vector_LoadOp : Vector_Op<"load"> {
     }
   }];
 
+  let hasFolder = 1;
+
   let assemblyFormat =
       "$base `[` $indices `]` attr-dict `:` type($base) `,` type($result)";
 }
@@ -1598,9 +1557,9 @@ def Vector_StoreOp : Vector_Op<"store"> {
     memref dimension based on the element type of the memref. The shape of the
     vector value to store determines the shape of the slice written from the
     start memory address. The elements along each dimension of the slice are
-    strided by the memref strides. Only memref with default strides are allowed.
-    These constraints guarantee that elements written along the first dimension
-    of the slice are contiguous in memory.
+    strided by the memref strides. Only unit strides are allowed along the most
+    minor memref dimension. These constraints guarantee that elements written
+    along the first dimension of the slice are contiguous in memory.
 
     The memref element type can be a scalar or a vector type. If the memref
     element type is a scalar, it should match the element type of the value
@@ -1657,6 +1616,8 @@ def Vector_StoreOp : Vector_Op<"store"> {
       return valueToStore().getType().cast<VectorType>();
     }
   }];
+
+  let hasFolder = 1;
 
   let assemblyFormat = "$valueToStore `,` $base `[` $indices `]` attr-dict "
                        "`:` type($base) `,` type($valueToStore)";
@@ -1715,6 +1676,7 @@ def Vector_MaskedLoadOp :
   let assemblyFormat = "$base `[` $indices `]` `,` $mask `,` $pass_thru attr-dict `:` "
     "type($base) `,` type($mask) `,` type($pass_thru) `into` type($result)";
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Vector_MaskedStoreOp :
@@ -1767,6 +1729,7 @@ def Vector_MaskedStoreOp :
       "$base `[` $indices `]` `,` $mask `,` $valueToStore "
       "attr-dict `:` type($base) `,` type($mask) `,` type($valueToStore)";
   let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Vector_GatherOp :
@@ -2011,8 +1974,8 @@ def Vector_CompressStoreOp :
 
 def Vector_ShapeCastOp :
   Vector_Op<"shape_cast", [NoSideEffect]>,
-    Arguments<(ins AnyTypeOf<[AnyVector, TupleOf<[AnyVector]>]>:$source)>,
-    Results<(outs AnyTypeOf<[AnyVector, TupleOf<[AnyVector]>]>:$result)> {
+    Arguments<(ins AnyVector:$source)>,
+    Results<(outs AnyVector:$result)> {
   let summary = "shape_cast casts between vector shapes";
   let description = [{
     The shape_cast operation casts between an n-D source vector shape and
@@ -2027,9 +1990,6 @@ def Vector_ShapeCastOp :
     sequence of result dims (or a single result dim), in result dimension list
     order (i.e. 0 <= j < k). The product of all source dimension sizes and all
     result dimension sizes must match.
-
-    If the source/result types are a tuple of vectors, the casting operation
-    described above is applied to each source/result tuple element pair.
 
     It is currently assumed that this operation does not require moving data,
     and that it will be folded away before lowering vector operations.
@@ -2048,10 +2008,6 @@ def Vector_ShapeCastOp :
     // Example casting to a higher vector rank.
     %3 = vector.shape_cast %2 : vector<10x12x8xf32> to vector<5x2x3x4x8xf32>
 
-    // Example casting a tuple of vectors of same rank, where tuple elements
-    // may have different shapes.
-    %5 = vector.shape_cast %4 : tuple<vector<3x4x2xf32>, vector<3x3x2xf32>> to
-                                tuple<vector<12x2xf32>, vector<9x2xf32>>
     ```
   }];
   let extraClassDeclaration = [{
@@ -2069,13 +2025,14 @@ def Vector_ShapeCastOp :
 
 def Vector_BitCastOp :
   Vector_Op<"bitcast", [NoSideEffect, AllRanksMatch<["source", "result"]>]>,
-    Arguments<(ins AnyVector:$source)>,
-    Results<(outs AnyVector:$result)>{
+    Arguments<(ins AnyVectorOfAnyRank:$source)>,
+    Results<(outs AnyVectorOfAnyRank:$result)>{
   let summary = "bitcast casts between vectors";
   let description = [{
     The bitcast operation casts between vectors of the same rank, the minor 1-D
     vector size is casted to a vector with a different element type but same
-    bitwidth.
+    bitwidth. In case of 0-D vectors, the bitwidth of element types must be
+    equal.
 
     Example:
 
@@ -2088,6 +2045,9 @@ def Vector_BitCastOp :
 
     // Example casting to an element type of the same size.
     %5 = vector.bitcast %4 : vector<5x1x4x3xf32> to vector<5x1x4x3xi32>
+
+    // Example casting of 0-D vectors.
+    %7 = vector.bitcast %6 : vector<f32> to vector<i32>
     ```
   }];
   let extraClassDeclaration = [{
@@ -2222,39 +2182,6 @@ def Vector_CreateMaskOp :
   let assemblyFormat = "$operands attr-dict `:` type(results)";
 }
 
-def Vector_TupleOp :
-  Vector_Op<"tuple", [NoSideEffect]>,
-    Arguments<(ins Variadic<AnyVector>:$vectors)>,
-    Results<(outs TupleOf<[AnyVector]>)> {
-  let summary = "make tuple of vectors operation";
-  let description = [{
-    Returns a tuple of its operands 'vectors'.
-
-    Note that this operation is used during the vector op unrolling
-    transformation and should be removed before lowering to lower-level
-    dialects.
-
-
-    Example:
-
-    ```mlir
-    %0 = vector.transfer_read ... : vector<2x2xf32>
-    %1 = vector.transfer_read ... : vector<2x1xf32>
-    %2 = vector.transfer_read ... : vector<2x2xf32>
-    %3 = vector.transfer_read ... : vector<2x1xf32>
-
-    %4 = vector.tuple %0, %1, %2, %3
-      : vector<2x2xf32>, vector<2x1xf32>, vector<2x2xf32>, vector<2x1xf32>
-    ```
-  }];
-
-  let extraClassDeclaration = [{
-    TupleType getResultTupleType() {
-      return getResult().getType().cast<TupleType>();
-    }
-  }];
-}
-
 def Vector_TransposeOp :
   Vector_Op<"transpose", [NoSideEffect,
     PredOpTrait<"operand and result have same element type",
@@ -2305,43 +2232,6 @@ def Vector_TransposeOp :
   let hasFolder = 1;
 }
 
-def Vector_TupleGetOp :
-  Vector_Op<"tuple_get", [NoSideEffect]>,
-    Arguments<(ins TupleOf<[AnyVector]>:$vectors, APIntAttr:$index)>,
-    Results<(outs AnyVector)> {
-  let summary = "vector tuple get operation";
-  let description = [{
-    Returns the tuple element of 'vectors' at 'index'.
-
-    Note that this operation is used during the vector op unrolling
-    transformation and should be removed before lowering to lower-level
-    dialects.
-
-    Example:
-
-    ```mlir
-    %4 = vector.tuple %0, %1, %2, %3
-      : vector<2x2xf32>, vector<2x1xf32>, vector<2x2xf32>, vector<2x1xf32>>
-
-    %5 = vector.tuple_get %4, 1
-      : tuple<vector<2x2xf32>, vector<2x1xf32>,
-              vector<2x2xf32>, vector<2x1xf32>>
-    ```
-  }];
-
-  let extraClassDeclaration = [{
-    VectorType getResultVectorType() {
-      return getResult().getType().cast<VectorType>();
-    }
-    int64_t getIndex() {
-      auto index = (*this)->getAttrOfType<IntegerAttr>("index");
-      return index.getValue().getSExtValue();
-    }
-    static StringRef getIndexAttrName() { return "index"; }
-  }];
-  let hasFolder = 1;
-}
-
 def Vector_PrintOp :
   Vector_Op<"print", []>, Arguments<(ins AnyType:$source)> {
   let summary = "print operation (for testing and debugging)";
@@ -2352,7 +2242,7 @@ def Vector_PrintOp :
     Example:
 
     ```mlir
-    %0 = constant 0.0 : f32
+    %0 = arith.constant 0.0 : f32
     %1 = vector.broadcast %0 : f32 to vector<4xf32>
     vector.print %1 : vector<4xf32>
 

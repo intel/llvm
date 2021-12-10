@@ -64,6 +64,8 @@ Defined *ElfSym::riscvGlobalPointer;
 Defined *ElfSym::tlsModuleBase;
 DenseMap<const Symbol *, std::pair<const InputFile *, const InputFile *>>
     elf::backwardReferences;
+SmallVector<std::tuple<std::string, const InputFile *, const Symbol &>, 0>
+    elf::whyExtract;
 
 static uint64_t getSymVA(const Symbol &sym, int64_t &addend) {
   switch (sym.kind()) {
@@ -208,6 +210,9 @@ OutputSection *Symbol::getOutputSection() const {
 // If a symbol name contains '@', the characters after that is
 // a symbol version name. This function parses that.
 void Symbol::parseSymbolVersion() {
+  // Return if localized by a local: pattern in a version script.
+  if (versionId == VER_NDX_LOCAL)
+    return;
   StringRef s = getName();
   size_t pos = s.find('@');
   if (pos == 0 || pos == StringRef::npos)
@@ -251,18 +256,11 @@ void Symbol::parseSymbolVersion() {
           verstr);
 }
 
-void Symbol::fetch() const {
-  if (auto *sym = dyn_cast<LazyArchive>(this)) {
-    cast<ArchiveFile>(sym->file)->fetch(sym->sym);
-    return;
-  }
-
-  if (auto *sym = dyn_cast<LazyObject>(this)) {
-    dyn_cast<LazyObjFile>(sym->file)->fetch();
-    return;
-  }
-
-  llvm_unreachable("Symbol::fetch() is called on a non-lazy symbol");
+void Symbol::extract() const {
+  if (auto *sym = dyn_cast<LazyArchive>(this))
+    cast<ArchiveFile>(sym->file)->extract(sym->sym);
+  else
+    cast<LazyObjFile>(this->file)->extract();
 }
 
 MemoryBufferRef LazyArchive::getMemberBuffer() {
@@ -318,6 +316,11 @@ void elf::printTraceSymbol(const Symbol *sym) {
   message(toString(sym->file) + s + sym->getName());
 }
 
+static void recordWhyExtract(const InputFile *reference,
+                             const InputFile &extracted, const Symbol &sym) {
+  whyExtract.emplace_back(toString(reference), &extracted, sym);
+}
+
 void elf::maybeWarnUnorderableSymbol(const Symbol *sym) {
   if (!config->warnSymbolOrdering)
     return;
@@ -368,8 +371,12 @@ bool elf::computeIsPreemptible(const Symbol &sym) {
 
   // If -Bsymbolic or --dynamic-list is specified, or -Bsymbolic-functions is
   // specified and the symbol is STT_FUNC, the symbol is preemptible iff it is
-  // in the dynamic list.
-  if (config->symbolic || (config->bsymbolicFunctions && sym.isFunc()))
+  // in the dynamic list. -Bsymbolic-non-weak-functions is a non-weak subset of
+  // -Bsymbolic-functions.
+  if (config->symbolic ||
+      (config->bsymbolic == BsymbolicKind::Functions && sym.isFunc()) ||
+      (config->bsymbolic == BsymbolicKind::NonWeakFunctions && sym.isFunc() &&
+       sym.binding != STB_WEAK))
     return sym.inDynamicList;
   return true;
 }
@@ -464,8 +471,8 @@ void Symbol::resolveUndefined(const Undefined &other) {
     printTraceSymbol(&other);
 
   if (isLazy()) {
-    // An undefined weak will not fetch archive members. See comment on Lazy in
-    // Symbols.h for the details.
+    // An undefined weak will not extract archive members. See comment on Lazy
+    // in Symbols.h for the details.
     if (other.binding == STB_WEAK) {
       binding = STB_WEAK;
       type = other.type;
@@ -475,9 +482,9 @@ void Symbol::resolveUndefined(const Undefined &other) {
     // Do extra check for --warn-backrefs.
     //
     // --warn-backrefs is an option to prevent an undefined reference from
-    // fetching an archive member written earlier in the command line. It can be
-    // used to keep compatibility with GNU linkers to some degree.
-    // I'll explain the feature and why you may find it useful in this comment.
+    // extracting an archive member written earlier in the command line. It can
+    // be used to keep compatibility with GNU linkers to some degree. I'll
+    // explain the feature and why you may find it useful in this comment.
     //
     // lld's symbol resolution semantics is more relaxed than traditional Unix
     // linkers. For example,
@@ -524,7 +531,10 @@ void Symbol::resolveUndefined(const Undefined &other) {
     // group assignment rule simulates the traditional linker's semantics.
     bool backref = config->warnBackrefs && other.file &&
                    file->groupId < other.file->groupId;
-    fetch();
+    extract();
+
+    if (!config->whyExtract.empty())
+      recordWhyExtract(other.file, *file, *this);
 
     // We don't report backward references to weak symbols as they can be
     // overridden later.
@@ -695,23 +705,23 @@ template <class LazyT>
 static void replaceCommon(Symbol &oldSym, const LazyT &newSym) {
   backwardReferences.erase(&oldSym);
   oldSym.replace(newSym);
-  newSym.fetch();
+  newSym.extract();
 }
 
 template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
   // For common objects, we want to look for global or weak definitions that
-  // should be fetched as the canonical definition instead.
+  // should be extracted as the canonical definition instead.
   if (isCommon() && elf::config->fortranCommon) {
     if (auto *laSym = dyn_cast<LazyArchive>(&other)) {
       ArchiveFile *archive = cast<ArchiveFile>(laSym->file);
       const Archive::Symbol &archiveSym = laSym->sym;
-      if (archive->shouldFetchForCommon(archiveSym)) {
+      if (archive->shouldExtractForCommon(archiveSym)) {
         replaceCommon(*this, other);
         return;
       }
     } else if (auto *loSym = dyn_cast<LazyObject>(&other)) {
       LazyObjFile *obj = cast<LazyObjFile>(loSym->file);
-      if (obj->shouldFetchForCommon(loSym->getName())) {
+      if (obj->shouldExtractForCommon(loSym->getName())) {
         replaceCommon(*this, other);
         return;
       }
@@ -725,7 +735,7 @@ template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
     return;
   }
 
-  // An undefined weak will not fetch archive members. See comment on Lazy in
+  // An undefined weak will not extract archive members. See comment on Lazy in
   // Symbols.h for the details.
   if (isWeak()) {
     uint8_t ty = type;
@@ -735,7 +745,10 @@ template <class LazyT> void Symbol::resolveLazy(const LazyT &other) {
     return;
   }
 
-  other.fetch();
+  const InputFile *oldFile = file;
+  other.extract();
+  if (!config->whyExtract.empty())
+    recordWhyExtract(oldFile, *file, *this);
 }
 
 void Symbol::resolveShared(const SharedSymbol &other) {

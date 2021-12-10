@@ -73,7 +73,7 @@ protected:
   DwarfUnit(dwarf::Tag, const DICompileUnit *Node, AsmPrinter *A, DwarfDebug *DW,
             DwarfFile *DWU);
 
-  bool applySubprogramDefinitionAttributes(const DISubprogram *SP, DIE &SPDie);
+  bool applySubprogramDefinitionAttributes(const DISubprogram *SP, DIE &SPDie, bool Minimal);
 
   bool isShareableAcrossCUs(const DINode *D) const;
 
@@ -247,7 +247,7 @@ public:
   DIE *getOrCreateTypeDIE(const MDNode *TyNode);
 
   /// Get context owner's DIE.
-  DIE *getOrCreateContextDIE(const DIScope *Context);
+  virtual DIE *getOrCreateContextDIE(const DIScope *Context);
 
   /// Construct DIEs for types that contain vtables.
   void constructContainingTypeDIEs();
@@ -293,6 +293,9 @@ public:
   /// Add a Dwarf section label attribute data and value.
   void addSectionLabel(DIE &Die, dwarf::Attribute Attribute,
                        const MCSymbol *Label, const MCSymbol *Sec);
+
+  /// Add DW_TAG_LLVM_annotation.
+  void addAnnotation(DIE &Buffer, DINodeArray Annotations);
 
   /// Get context owner's DIE.
   DIE *createTypeDIE(const DICompositeType *Ty);

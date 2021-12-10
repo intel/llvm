@@ -38,15 +38,16 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Function.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetParser.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/Transforms/CFGuard.h"
+#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Scalar.h"
 #include <cassert>
 #include <memory>
@@ -91,6 +92,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeARMTarget() {
   initializeARMLoadStoreOptPass(Registry);
   initializeARMPreAllocLoadStoreOptPass(Registry);
   initializeARMParallelDSPPass(Registry);
+  initializeARMBranchTargetsPass(Registry);
   initializeARMConstantIslandsPass(Registry);
   initializeARMExecutionDomainFixPass(Registry);
   initializeARMExpandPseudoPass(Registry);
@@ -462,6 +464,14 @@ bool ARMPassConfig::addPreISel() {
   if (TM->getOptLevel() != CodeGenOpt::None) {
     addPass(createHardwareLoopsPass());
     addPass(createMVETailPredicationPass());
+    // FIXME: IR passes can delete address-taken basic blocks, deleting
+    // corresponding blockaddresses. ARMConstantPoolConstant holds references to
+    // address-taken basic blocks which can be invalidated if the function
+    // containing the blockaddress has already been codegen'd and the basic
+    // block is removed. Work around this by forcing all IR passes to run before
+    // any ISel takes place. We should have a more principled way of handling
+    // this. See D99707 for more details.
+    addPass(createBarrierNoopPass());
   }
 
   return false;
@@ -532,7 +542,6 @@ void ARMPassConfig::addPreSched2() {
       return !MF.getSubtarget<ARMSubtarget>().isThumb1Only();
     }));
   }
-  addPass(createMVEVPTBlockPass());
   addPass(createThumb2ITBlockPass());
 
   // Add both scheduling passes to give the subtarget an opportunity to pick
@@ -542,6 +551,7 @@ void ARMPassConfig::addPreSched2() {
     addPass(&PostRASchedulerID);
   }
 
+  addPass(createMVEVPTBlockPass());
   addPass(createARMIndirectThunks());
   addPass(createARMSLSHardeningPass());
 }
@@ -562,6 +572,7 @@ void ARMPassConfig::addPreEmitPass() {
 }
 
 void ARMPassConfig::addPreEmitPass2() {
+  addPass(createARMBranchTargetsPass());
   addPass(createARMConstantIslandPass());
   addPass(createARMLowOverheadLoopsPass());
 

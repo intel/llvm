@@ -17,7 +17,7 @@ int main() {
   queue Queue(AsyncHandler);
 
   // Size of index space for kernel.
-  range<1> NumOfWorkItems{Buffer.get_count()};
+  range<1> NumOfWorkItems{Buffer.size()};
 
   // Submit command group(work) to queue.
   Queue.submit([&](handler &cgh) {
@@ -37,7 +37,7 @@ int main() {
 
   // Check the results.
   bool MismatchFound = false;
-  for (size_t I = 0; I < Buffer.get_count(); ++I) {
+  for (size_t I = 0; I < Buffer.size(); ++I) {
     if (HostAccessor[I] != I) {
       std::cout << "The result is incorrect for element: " << I
                 << " , expected: " << I << " , got: " << HostAccessor[I]

@@ -1,0 +1,39 @@
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+
+; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
+; CHECK-ERROR-NEXT: ConvertBF16ToFINTEL
+; CHECK-ERROR-NEXT: Input type must have the same number of components as result type
+
+119734787 65536 393230 14 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Int16
+2 Capability Bfloat16ConversionINTEL
+9 Extension "SPV_INTEL_bfloat16_conversion"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2
+3 Source 4 100000
+4 Name 4 "_Z1f"
+
+6 Decorate 4 LinkageAttributes "_Z1f" Export
+4 Decorate 9 Alignment 4
+4 TypeInt 6 16 0
+2 TypeVoid 2
+3 TypeFunction 3 2
+4 TypeVector 7 6 4
+4 TypePointer 8 7 7
+3 TypeFloat 11 32
+4 TypeVector 12 11 3
+
+
+
+5 Function 2 4 0 3
+
+2 Label 5
+4 Variable 8 9 7
+6 Load 7 10 9 2 4
+4 ConvertBF16ToFINTEL 12 13 10
+1 Return
+
+1 FunctionEnd

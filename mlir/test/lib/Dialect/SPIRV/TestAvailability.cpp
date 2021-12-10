@@ -23,6 +23,10 @@ namespace {
 struct PrintOpAvailability
     : public PassWrapper<PrintOpAvailability, FunctionPass> {
   void runOnFunction() override;
+  StringRef getArgument() const final { return "test-spirv-op-availability"; }
+  StringRef getDescription() const final {
+    return "Test SPIR-V op availability";
+  }
 };
 } // end anonymous namespace
 
@@ -39,13 +43,23 @@ void PrintOpAvailability::runOnFunction() {
     auto opName = op->getName();
     auto &os = llvm::outs();
 
-    if (auto minVersion = dyn_cast<spirv::QueryMinVersionInterface>(op))
-      os << opName << " min version: "
-         << spirv::stringifyVersion(minVersion.getMinVersion()) << "\n";
+    if (auto minVersionIfx = dyn_cast<spirv::QueryMinVersionInterface>(op)) {
+      Optional<spirv::Version> minVersion = minVersionIfx.getMinVersion();
+      os << opName << " min version: ";
+      if (minVersion)
+        os << spirv::stringifyVersion(*minVersion) << "\n";
+      else
+        os << "None\n";
+    }
 
-    if (auto maxVersion = dyn_cast<spirv::QueryMaxVersionInterface>(op))
-      os << opName << " max version: "
-         << spirv::stringifyVersion(maxVersion.getMaxVersion()) << "\n";
+    if (auto maxVersionIfx = dyn_cast<spirv::QueryMaxVersionInterface>(op)) {
+      Optional<spirv::Version> maxVersion = maxVersionIfx.getMaxVersion();
+      os << opName << " max version: ";
+      if (maxVersion)
+        os << spirv::stringifyVersion(*maxVersion) << "\n";
+      else
+        os << "None\n";
+    }
 
     if (auto extension = dyn_cast<spirv::QueryExtensionInterface>(op)) {
       os << opName << " extensions: [";
@@ -77,9 +91,8 @@ void PrintOpAvailability::runOnFunction() {
 }
 
 namespace mlir {
-void registerPrintOpAvailabilityPass() {
-  PassRegistration<PrintOpAvailability> printOpAvailabilityPass(
-      "test-spirv-op-availability", "Test SPIR-V op availability");
+void registerPrintSpirvAvailabilityPass() {
+  PassRegistration<PrintOpAvailability>();
 }
 } // namespace mlir
 
@@ -91,6 +104,10 @@ namespace {
 /// A pass for testing SPIR-V op availability.
 struct ConvertToTargetEnv
     : public PassWrapper<ConvertToTargetEnv, FunctionPass> {
+  StringRef getArgument() const override { return "test-spirv-target-env"; }
+  StringRef getDescription() const override {
+    return "Test SPIR-V target environment";
+  }
   void runOnFunction() override;
 };
 
@@ -225,7 +242,6 @@ ConvertToSubgroupBallot::matchAndRewrite(Operation *op,
 
 namespace mlir {
 void registerConvertToTargetEnvPass() {
-  PassRegistration<ConvertToTargetEnv> convertToTargetEnvPass(
-      "test-spirv-target-env", "Test SPIR-V target environment");
+  PassRegistration<ConvertToTargetEnv>();
 }
 } // namespace mlir

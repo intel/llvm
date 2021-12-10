@@ -9,14 +9,14 @@ add_mlir_dialect_library(MLIRStandard
   MLIRStandardOpsIncGen
 
   LINK_LIBS PUBLIC
+  MLIRArithmetic
   MLIRCallInterfaces
   MLIRCastInterfaces
   MLIRControlFlowInterfaces
+  MLIRInferTypeOpInterface
   MLIRIR
   MLIRSideEffectInterfaces
-  MLIRTensor
   MLIRVectorInterfaces
-  MLIRViewLikeInterface
   )
 
 add_subdirectory(Transforms)

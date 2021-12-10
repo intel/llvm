@@ -23,6 +23,14 @@ public:
       : pi::DeviceBinaryImage(), ModuleHandle(ModuleHandle) {}
   RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
       : pi::DeviceBinaryImage(Bin), ModuleHandle(ModuleHandle) {}
+  // Explicitly delete copy constructor/operator= to avoid unintentional copies
+  RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
+  RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
+  // Explicitly retain move constructors to facilitate potential moves across
+  // collections
+  RTDeviceBinaryImage(RTDeviceBinaryImage &&) = default;
+  RTDeviceBinaryImage &operator=(RTDeviceBinaryImage &&) = default;
+
   OSModuleHandle getOSModuleHandle() const { return ModuleHandle; }
 
   ~RTDeviceBinaryImage() override {}

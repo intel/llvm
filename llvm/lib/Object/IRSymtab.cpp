@@ -41,10 +41,15 @@
 using namespace llvm;
 using namespace irsymtab;
 
-static const char *LibcallRoutineNames[] = {
+static const char *PreservedSymbols[] = {
 #define HANDLE_LIBCALL(code, name) name,
 #include "llvm/IR/RuntimeLibcalls.def"
 #undef HANDLE_LIBCALL
+    // There are global variables, so put it here instead of in
+    // RuntimeLibcalls.def.
+    // TODO: Are there similar such variables?
+    "__ssp_canary_word",
+    "__stack_chk_guard",
 };
 
 namespace {
@@ -199,6 +204,7 @@ Expected<int> Builder::getComdatIndex(const Comdat *C, const Module *M) {
 
     storage::Comdat Comdat;
     setStr(Comdat.Name, Saver.save(Name));
+    Comdat.SelectionKind = C->getSelectionKind();
     Comdats.push_back(Comdat);
   }
 
@@ -230,7 +236,7 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
     raw_svector_ostream OS(Name);
     Msymtab.printSymbolName(OS, Msym);
   }
-  setStr(Sym.Name, Saver.save(StringRef(Name)));
+  setStr(Sym.Name, Saver.save(Name.str()));
 
   auto Flags = Msymtab.getSymbolFlags(Msym);
   if (Flags & object::BasicSymbolRef::SF_Undefined)
@@ -260,9 +266,9 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
 
   setStr(Sym.IRName, GV->getName());
 
-  bool IsBuiltinFunc = llvm::is_contained(LibcallRoutineNames, GV->getName());
+  bool IsPreservedSymbol = llvm::is_contained(PreservedSymbols, GV->getName());
 
-  if (Used.count(GV) || IsBuiltinFunc)
+  if (Used.count(GV) || IsPreservedSymbol)
     Sym.Flags |= 1 << storage::Symbol::FB_used;
   if (GV->isThreadLocal())
     Sym.Flags |= 1 << storage::Symbol::FB_tls;
@@ -277,16 +283,20 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
     if (!GVar)
       return make_error<StringError>("Only variables can have common linkage!",
                                      inconvertibleErrorCode());
-    Uncommon().CommonSize = GV->getParent()->getDataLayout().getTypeAllocSize(
-        GV->getType()->getElementType());
+    Uncommon().CommonSize =
+        GV->getParent()->getDataLayout().getTypeAllocSize(GV->getValueType());
     Uncommon().CommonAlign = GVar->getAlignment();
   }
 
-  const GlobalObject *Base = GV->getBaseObject();
-  if (!Base)
-    return make_error<StringError>("Unable to determine comdat of alias!",
-                                   inconvertibleErrorCode());
-  if (const Comdat *C = Base->getComdat()) {
+  const GlobalObject *GO = GV->getAliaseeObject();
+  if (!GO) {
+    if (isa<GlobalIFunc>(GV))
+      GO = cast<GlobalIFunc>(GV)->getResolverFunction();
+    if (!GO)
+      return make_error<StringError>("Unable to determine comdat of alias!",
+                                     inconvertibleErrorCode());
+  }
+  if (const Comdat *C = GO->getComdat()) {
     Expected<int> ComdatIndexOrErr = getComdatIndex(C, GV->getParent());
     if (!ComdatIndexOrErr)
       return ComdatIndexOrErr.takeError();
@@ -311,8 +321,8 @@ Error Builder::addSymbol(const ModuleSymbolTable &Msymtab,
     }
   }
 
-  if (!Base->getSection().empty())
-    setStr(Uncommon().SectionName, Saver.save(Base->getSection()));
+  if (!GO->getSection().empty())
+    setStr(Uncommon().SectionName, Saver.save(GO->getSection()));
 
   return Error::success();
 }

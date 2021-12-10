@@ -11,9 +11,9 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "gtest/gtest.h"
@@ -573,9 +573,11 @@ TEST_F(AArch64SelectionDAGTest, getTypeConversion_WidenScalableEVT) {
   EXPECT_EQ(getTypeToTransformTo(FromVT), ToVT);
 }
 
-TEST_F(AArch64SelectionDAGTest, getTypeConversion_NoScalarizeEVT_nxv1f128) {
-  EVT FromVT = EVT::getVectorVT(Context, MVT::f128, 1, true);
-  EXPECT_DEATH(getTypeAction(FromVT), "Cannot legalize this vector");
+TEST_F(AArch64SelectionDAGTest,
+       getTypeConversion_ScalarizeScalableEVT_nxv1f128) {
+  EVT VT = EVT::getVectorVT(Context, MVT::f128, ElementCount::getScalable(1));
+  EXPECT_EQ(getTypeAction(VT), TargetLoweringBase::TypeScalarizeScalableVector);
+  EXPECT_EQ(getTypeToTransformTo(VT), MVT::f128);
 }
 
 TEST_F(AArch64SelectionDAGTest, TestFold_STEP_VECTOR) {

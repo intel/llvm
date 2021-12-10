@@ -10,38 +10,81 @@
 #define MATH_OPS
 
 include "mlir/Dialect/Math/IR/MathBase.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/VectorInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-class MathOp<string mnemonic, list<OpTrait> traits = []>
-    : Op<Math_Dialect, mnemonic, traits # [NoSideEffect]>;
+// Base class for math dialect ops. Ops in this dialect have no side effects and
+// can be applied element-wise to vectors and tensors.
+class Math_Op<string mnemonic, list<OpTrait> traits = []> :
+    Op<Math_Dialect, mnemonic, traits # [NoSideEffect,
+    DeclareOpInterfaceMethods<VectorUnrollOpInterface>] #
+    ElementwiseMappable.traits>;
 
-class FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
-    MathOp<mnemonic, traits #
-    [DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
-    SameOperandsAndResultType] # ElementwiseMappable.traits> {
+// Base class for unary math operations on floating point types. Require a
+// operand and result of the same type. This type can be a floating point type,
+// or vector or tensor thereof.
+class Math_FloatUnaryOp<string mnemonic, list<OpTrait> traits = []> :
+    Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
   let arguments = (ins FloatLike:$operand);
-
   let results = (outs FloatLike:$result);
 
   let assemblyFormat = "$operand attr-dict `:` type($result)";
 }
 
-class FloatBinaryOp<string mnemonic, list<OpTrait> traits = []> :
-    MathOp<mnemonic, traits # [
-    DeclareOpInterfaceMethods<VectorUnrollOpInterface>,
-    SameOperandsAndResultType] # ElementwiseMappable.traits> {
+// Base class for binary math operations on floating point types. Require two
+// operands and one result of the same type. This type can be a floating point
+// type, or a vector or tensor thereof.
+class Math_FloatBinaryOp<string mnemonic, list<OpTrait> traits = []> :
+    Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
   let arguments = (ins FloatLike:$lhs, FloatLike:$rhs);
   let results = (outs FloatLike:$result);
 
   let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($result)";
 }
 
+// Base class for floating point ternary operations. Require three operands and
+// one result of the same type. This type can be a floating point type, or a
+// vector or tensor thereof.
+class Math_FloatTernaryOp<string mnemonic, list<OpTrait> traits = []> :
+    Math_Op<mnemonic, traits # [SameOperandsAndResultType]> {
+  let arguments = (ins FloatLike:$a, FloatLike:$b, FloatLike:$c);
+  let results = (outs FloatLike:$result);
+
+  let assemblyFormat = "$a `,` $b `,` $c attr-dict `:` type($result)";
+}
+
+//===----------------------------------------------------------------------===//
+// AbsOp
+//===----------------------------------------------------------------------===//
+
+def Math_AbsOp : Math_FloatUnaryOp<"abs"> {
+  let summary = "floating point absolute-value operation";
+  let description = [{
+    The `abs` operation computes the absolute value. It takes one operand and
+    returns one result of the same type. This type may be a float scalar type,
+    a vector whose element type is float, or a tensor of floats.
+
+    Example:
+
+    ```mlir
+    // Scalar absolute value.
+    %a = math.abs %b : f64
+
+    // SIMD vector element-wise absolute value.
+    %f = math.abs %g : vector<4xf32>
+
+    // Tensor element-wise absolute value.
+    %x = math.abs %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // AtanOp
 //===----------------------------------------------------------------------===//
 
-def AtanOp : FloatUnaryOp<"atan">{
+def Math_AtanOp : Math_FloatUnaryOp<"atan">{
   let summary = "arcus tangent of the given value";
   let description = [{
     Syntax:
@@ -74,7 +117,7 @@ def AtanOp : FloatUnaryOp<"atan">{
 // Atan2Op
 //===----------------------------------------------------------------------===//
 
-def Atan2Op : FloatBinaryOp<"atan2">{
+def Math_Atan2Op : Math_FloatBinaryOp<"atan2">{
   let summary = "2-argument arcus tangent of the given values";
   let description = [{
     Syntax:
@@ -111,10 +154,77 @@ def Atan2Op : FloatBinaryOp<"atan2">{
 }
 
 //===----------------------------------------------------------------------===//
+// CeilOp
+//===----------------------------------------------------------------------===//
+
+def Math_CeilOp : Math_FloatUnaryOp<"ceil"> {
+  let summary = "ceiling of the specified value";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `math.ceil` ssa-use `:` type
+    ```
+
+    The `ceil` operation computes the ceiling of a given value. It takes one
+    operand and returns one result of the same type. This type may be a float
+    scalar type, a vector whose element type is float, or a tensor of floats.
+    It has no standard attributes.
+
+    Example:
+
+    ```mlir
+    // Scalar ceiling value.
+    %a = math.ceil %b : f64
+
+    // SIMD vector element-wise ceiling value.
+    %f = math.ceil %g : vector<4xf32>
+
+    // Tensor element-wise ceiling value.
+    %x = math.ceil %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// CopySignOp
+//===----------------------------------------------------------------------===//
+
+def Math_CopySignOp : Math_FloatBinaryOp<"copysign"> {
+  let summary = "A copysign operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `math.copysign` ssa-use `,` ssa-use `:` type
+    ```
+
+    The `copysign` returns a value with the magnitude of the first operand and
+    the sign of the second operand. It takes two operands and returns one
+    result of the same type. This type may be a float scalar type, a vector
+    whose element type is float, or a tensor of floats. It has no standard
+    attributes.
+
+    Example:
+
+    ```mlir
+    // Scalar copysign value.
+    %a = math.copysign %b, %c : f64
+
+    // SIMD vector element-wise copysign value.
+    %f = math.copysign %g, %h : vector<4xf32>
+
+    // Tensor element-wise copysign value.
+    %x = math.copysign %y, %z : tensor<4x?xf8>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // CosOp
 //===----------------------------------------------------------------------===//
 
-def CosOp : FloatUnaryOp<"cos"> {
+def Math_CosOp : Math_FloatUnaryOp<"cos"> {
   let summary = "cosine of the specified value";
   let description = [{
     Syntax:
@@ -147,7 +257,7 @@ def CosOp : FloatUnaryOp<"cos"> {
 // SinOp
 //===----------------------------------------------------------------------===//
 
-def SinOp : FloatUnaryOp<"sin"> {
+def Math_SinOp : Math_FloatUnaryOp<"sin"> {
   let summary = "sine of the specified value";
   let description = [{
     Syntax:
@@ -176,12 +286,45 @@ def SinOp : FloatUnaryOp<"sin"> {
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// ErfOp
+//===----------------------------------------------------------------------===//
+
+def Math_ErfOp : Math_FloatUnaryOp<"erf"> {
+  let summary = "error function of the specified value";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `math.erf` ssa-use `:` type
+    ```
+
+    The `erf` operation computes the error function. It takes one operand
+    and returns one result of the same type. This type may be a float scalar
+    type, a vector whose element type is float, or a tensor of floats. It has
+    no standard attributes.
+
+    Example:
+
+    ```mlir
+    // Scalar error function value.
+    %a = math.erf %b : f64
+
+    // SIMD vector element-wise error function value.
+    %f = math.erf %g : vector<4xf32>
+
+    // Tensor element-wise error function value.
+    %x = math.erf %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
 
 //===----------------------------------------------------------------------===//
 // ExpOp
 //===----------------------------------------------------------------------===//
 
-def ExpOp : FloatUnaryOp<"exp"> {
+def Math_ExpOp : Math_FloatUnaryOp<"exp"> {
   let summary = "base-e exponential of the specified value";
   let description = [{
     Syntax:
@@ -213,7 +356,7 @@ def ExpOp : FloatUnaryOp<"exp"> {
 // Exp2Op
 //===----------------------------------------------------------------------===//
 
-def Exp2Op : FloatUnaryOp<"exp2"> {
+def Math_Exp2Op : Math_FloatUnaryOp<"exp2"> {
   let summary = "base-2 exponential of the specified value";
 
   let description = [{
@@ -246,7 +389,7 @@ def Exp2Op : FloatUnaryOp<"exp2"> {
 // ExpM1Op
 //===----------------------------------------------------------------------===//
 
-def ExpM1Op : FloatUnaryOp<"expm1"> {
+def Math_ExpM1Op : Math_FloatUnaryOp<"expm1"> {
   let summary = "base-e exponential of the specified value minus 1";
   let description = [{
     Syntax:
@@ -277,10 +420,81 @@ def ExpM1Op : FloatUnaryOp<"expm1"> {
 }
 
 //===----------------------------------------------------------------------===//
+// FloorOp
+//===----------------------------------------------------------------------===//
+
+def Math_FloorOp : Math_FloatUnaryOp<"floor"> {
+  let summary = "floor of the specified value";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `math.floor` ssa-use `:` type
+    ```
+
+    The `floor` operation computes the floor of a given value. It takes one
+    operand and returns one result of the same type. This type may be a float
+    scalar type, a vector whose element type is float, or a tensor of floats.
+    It has no standard attributes.
+
+    Example:
+
+    ```mlir
+    // Scalar floor value.
+    %a = math.floor %b : f64
+
+    // SIMD vector element-wise floor value.
+    %f = math.floor %g : vector<4xf32>
+
+    // Tensor element-wise floor value.
+    %x = math.floor %y : tensor<4x?xf8>
+    ```
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// FmaOp
+//===----------------------------------------------------------------------===//
+
+def Math_FmaOp : Math_FloatTernaryOp<"fma"> {
+  let summary = "floating point fused multipy-add operation";
+  let description = [{
+    Syntax:
+
+    ```
+    operation ::= ssa-id `=` `math.fma` ssa-use `,` ssa-use `,` ssa-use `:` type
+    ```
+
+    The `fma` operation takes three operands and returns one result, each of
+    these is required to be the same type. This type may be a floating point
+    scalar type, a vector whose element type is a floating point type, or a
+    floating point tensor.
+
+    Example:
+
+    ```mlir
+    // Scalar fused multiply-add: d = a*b + c
+    %d = math.fma %a, %b, %c : f64
+
+    // SIMD vector fused multiply-add, e.g. for Intel SSE.
+    %i = math.fma %f, %g, %h : vector<4xf32>
+
+    // Tensor fused multiply-add.
+    %w = math.fma %x, %y, %z : tensor<4x?xbf16>
+    ```
+
+    The semantics of the operation correspond to those of the `llvm.fma`
+    [intrinsic](https://llvm.org/docs/LangRef.html#llvm-fma-intrinsic). In the
+    particular case of lowering to LLVM, this is guaranteed to lower
+    to the `llvm.fma.*` intrinsic.
+  }];
+}
+
+//===----------------------------------------------------------------------===//
 // LogOp
 //===----------------------------------------------------------------------===//
 
-def LogOp : FloatUnaryOp<"log"> {
+def Math_LogOp : Math_FloatUnaryOp<"log"> {
   let summary = "base-e logarithm of the specified value";
 
   let description = [{
@@ -299,7 +513,7 @@ def LogOp : FloatUnaryOp<"log"> {
 // Log10Op
 //===----------------------------------------------------------------------===//
 
-def Log10Op : FloatUnaryOp<"log10"> {
+def Math_Log10Op : Math_FloatUnaryOp<"log10"> {
   let summary = "base-10 logarithm of the specified value";
 
   let description = [{
@@ -318,7 +532,7 @@ def Log10Op : FloatUnaryOp<"log10"> {
 // Log1pOp
 //===----------------------------------------------------------------------===//
 
-def Log1pOp : FloatUnaryOp<"log1p"> {
+def Math_Log1pOp : Math_FloatUnaryOp<"log1p"> {
   let summary = "Computes the natural logarithm of one plus the given value";
 
   let description = [{
@@ -339,7 +553,7 @@ def Log1pOp : FloatUnaryOp<"log1p"> {
 // Log2Op
 //===----------------------------------------------------------------------===//
 
-def Log2Op : FloatUnaryOp<"log2"> {
+def Math_Log2Op : Math_FloatUnaryOp<"log2"> {
   let summary = "base-2 logarithm of the specified value";
 
   let description = [{
@@ -358,7 +572,7 @@ def Log2Op : FloatUnaryOp<"log2"> {
 // PowFOp
 //===----------------------------------------------------------------------===//
 
-def PowFOp : FloatBinaryOp<"powf"> {
+def Math_PowFOp : Math_FloatBinaryOp<"powf"> {
   let summary = "floating point raised to the power of operation";
   let description = [{
     Syntax:
@@ -391,7 +605,7 @@ def PowFOp : FloatBinaryOp<"powf"> {
 // RsqrtOp
 //===----------------------------------------------------------------------===//
 
-def RsqrtOp : FloatUnaryOp<"rsqrt"> {
+def Math_RsqrtOp : Math_FloatUnaryOp<"rsqrt"> {
   let summary = "reciprocal of sqrt (1 / sqrt of the specified value)";
   let description = [{
     The `rsqrt` operation computes the reciprocal of the square root. It takes
@@ -405,7 +619,7 @@ def RsqrtOp : FloatUnaryOp<"rsqrt"> {
 // SqrtOp
 //===----------------------------------------------------------------------===//
 
-def SqrtOp : FloatUnaryOp<"sqrt"> {
+def Math_SqrtOp : Math_FloatUnaryOp<"sqrt"> {
   let summary = "sqrt of the specified value";
   let description = [{
     The `sqrt` operation computes the square root. It takes one operand and
@@ -430,7 +644,7 @@ def SqrtOp : FloatUnaryOp<"sqrt"> {
 // TanhOp
 //===----------------------------------------------------------------------===//
 
-def TanhOp : FloatUnaryOp<"tanh"> {
+def Math_TanhOp : Math_FloatUnaryOp<"tanh"> {
   let summary = "hyperbolic tangent of the specified value";
   let description = [{
     Syntax:

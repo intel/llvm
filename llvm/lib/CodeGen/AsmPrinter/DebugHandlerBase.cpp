@@ -174,21 +174,26 @@ uint64_t DebugHandlerBase::getBaseTypeSize(const DIType *Ty) {
 }
 
 bool DebugHandlerBase::isUnsignedDIType(const DIType *Ty) {
-  // SROA may generate dbg value intrinsics to assign an unsigned value to a
-  // Fortran CHARACTER(1) type variables. Make them as unsigned.
   if (isa<DIStringType>(Ty)) {
-    assert((Ty->getSizeInBits()) == 8 && "Not a valid unsigned type!");
+    // Some transformations (e.g. instcombine) may decide to turn a Fortran
+    // character object into an integer, and later ones (e.g. SROA) may
+    // further inject a constant integer in a llvm.dbg.value call to track
+    // the object's value. Here we trust the transformations are doing the
+    // right thing, and treat the constant as unsigned to preserve that value
+    // (i.e. avoid sign extension).
     return true;
   }
-  if (auto *CTy = dyn_cast<DICompositeType>(Ty)) {
-    // FIXME: Enums without a fixed underlying type have unknown signedness
-    // here, leading to incorrectly emitted constants.
-    if (CTy->getTag() == dwarf::DW_TAG_enumeration_type)
-      return false;
 
-    // (Pieces of) aggregate types that get hacked apart by SROA may be
-    // represented by a constant. Encode them as unsigned bytes.
-    return true;
+  if (auto *CTy = dyn_cast<DICompositeType>(Ty)) {
+    if (CTy->getTag() == dwarf::DW_TAG_enumeration_type) {
+      if (!(Ty = CTy->getBaseType()))
+        // FIXME: Enums without a fixed underlying type have unknown signedness
+        // here, leading to incorrectly emitted constants.
+        return false;
+    } else
+      // (Pieces of) aggregate types that get hacked apart by SROA may be
+      // represented by a constant. Encode them as unsigned bytes.
+      return true;
   }
 
   if (auto *DTy = dyn_cast<DIDerivedType>(Ty)) {
@@ -290,16 +295,10 @@ void DebugHandlerBase::beginFunction(const MachineFunction *MF) {
     // doing that violates the ranges that are calculated in the history map.
     // However, we currently do not emit debug values for constant arguments
     // directly at the start of the function, so this code is still useful.
-    // FIXME: If the first mention of an argument is in a unique section basic
-    // block, we cannot always assign the CurrentFnBeginLabel as it lies in a
-    // different section.  Temporarily, we disable generating loc list
-    // information or DW_AT_const_value when the block is in a different
-    // section.
     const DILocalVariable *DIVar =
         Entries.front().getInstr()->getDebugVariable();
     if (DIVar->isParameter() &&
-        getDISubprogram(DIVar->getScope())->describes(&MF->getFunction()) &&
-        Entries.front().getInstr()->getParent()->sameSection(&MF->front())) {
+        getDISubprogram(DIVar->getScope())->describes(&MF->getFunction())) {
       if (!IsDescribedByReg(Entries.front().getInstr()))
         LabelsBeforeInsn[Entries.front().getInstr()] = Asm->getFunctionBegin();
       if (Entries.front().getInstr()->getDebugExpression()->isFragment()) {
@@ -385,22 +384,25 @@ void DebugHandlerBase::endInstruction() {
 
   DenseMap<const MachineInstr *, MCSymbol *>::iterator I =
       LabelsAfterInsn.find(CurMI);
-  CurMI = nullptr;
 
-  // No label needed.
-  if (I == LabelsAfterInsn.end())
+  // No label needed or label already assigned.
+  if (I == LabelsAfterInsn.end() || I->second) {
+    CurMI = nullptr;
     return;
+  }
 
-  // Label already assigned.
-  if (I->second)
-    return;
-
-  // We need a label after this instruction.
-  if (!PrevLabel) {
+  // We need a label after this instruction.  With basic block sections, just
+  // use the end symbol of the section if this is the last instruction of the
+  // section.  This reduces the need for an additional label and also helps
+  // merging ranges.
+  if (CurMI->getParent()->isEndSection() && CurMI->getNextNode() == nullptr) {
+    PrevLabel = CurMI->getParent()->getEndSymbol();
+  } else if (!PrevLabel) {
     PrevLabel = MMI->getContext().createTempSymbol();
     Asm->OutStreamer->emitLabel(PrevLabel);
   }
   I->second = PrevLabel;
+  CurMI = nullptr;
 }
 
 void DebugHandlerBase::endFunction(const MachineFunction *MF) {

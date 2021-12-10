@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
 #include "mlir/Conversion/LinalgToLLVM/LinalgToLLVM.h"
+#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
+#include "mlir/Conversion/ReconcileUnrealizedCasts/ReconcileUnrealizedCasts.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
@@ -39,7 +42,10 @@ static struct LLVMInitializer {
 /// dialects lowering to LLVM Dialect.
 static LogicalResult lowerToLLVMDialect(ModuleOp module) {
   PassManager pm(module.getContext());
+  pm.addPass(mlir::createMemRefToLLVMPass());
+  pm.addNestedPass<FuncOp>(mlir::arith::createConvertArithmeticToLLVMPass());
   pm.addPass(mlir::createLowerToLLVMPass());
+  pm.addPass(mlir::createReconcileUnrealizedCastsPass());
   return pm.run(module);
 }
 
@@ -49,7 +55,7 @@ static LogicalResult lowerToLLVMDialect(ModuleOp module) {
 TEST(MLIRExecutionEngine, AddInteger) {
   std::string moduleStr = R"mlir(
   func @foo(%arg0 : i32) -> i32 attributes { llvm.emit_c_interface } {
-    %res = std.addi %arg0, %arg0 : i32
+    %res = arith.addi %arg0, %arg0 : i32
     return %res : i32
   }
   )mlir";
@@ -74,7 +80,7 @@ TEST(MLIRExecutionEngine, AddInteger) {
 TEST(MLIRExecutionEngine, SubtractFloat) {
   std::string moduleStr = R"mlir(
   func @foo(%arg0 : f32, %arg1 : f32) -> f32 attributes { llvm.emit_c_interface } {
-    %res = std.subf %arg0, %arg1 : f32
+    %res = arith.subf %arg0, %arg1 : f32
     return %res : f32
   }
   )mlir";
@@ -103,7 +109,7 @@ TEST(NativeMemRefJit, ZeroRankMemref) {
   A[{}] = 0;
   std::string moduleStr = R"mlir(
   func @zero_ranked(%arg0 : memref<f32>) attributes { llvm.emit_c_interface } {
-    %cst42 = constant 42.0 : f32
+    %cst42 = arith.constant 42.0 : f32
     memref.store %cst42, %arg0[] : memref<f32>
     return
   }
@@ -137,8 +143,8 @@ TEST(NativeMemRefJit, RankOneMemref) {
 
   std::string moduleStr = R"mlir(
   func @one_ranked(%arg0 : memref<?xf32>) attributes { llvm.emit_c_interface } {
-    %cst42 = constant 42.0 : f32
-    %cst5 = constant 5 : index
+    %cst42 = arith.constant 42.0 : f32
+    %cst5 = arith.constant 5 : index
     memref.store %cst42, %arg0[%cst5] : memref<?xf32>
     return
   }
@@ -189,9 +195,9 @@ TEST(NativeMemRefJit, BasicMemref) {
   }
   std::string moduleStr = R"mlir(
   func @rank2_memref(%arg0 : memref<?x?xf32>, %arg1 : memref<?x?xf32>) attributes { llvm.emit_c_interface } {
-    %x = constant 2 : index
-    %y = constant 1 : index
-    %cst42 = constant 42.0 : f32
+    %x = arith.constant 2 : index
+    %y = arith.constant 1 : index
+    %cst42 = arith.constant 42.0 : f32
     memref.store %cst42, %arg0[%y, %x] : memref<?x?xf32>
     memref.store %cst42, %arg1[%x, %y] : memref<?x?xf32>
     return

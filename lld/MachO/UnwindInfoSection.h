@@ -11,33 +11,32 @@
 
 #include "ConcatOutputSection.h"
 #include "SyntheticSections.h"
+#include "llvm/ADT/MapVector.h"
 
 #include "mach-o/compact_unwind_encoding.h"
-#include "llvm/ADT/DenseMap.h"
-
-#include <vector>
 
 namespace lld {
 namespace macho {
 
 class UnwindInfoSection : public SyntheticSection {
 public:
-  bool isNeeded() const override { return compactUnwindSection != nullptr; }
+  // If all functions are free of unwind info, we can omit the unwind info
+  // section entirely.
+  bool isNeeded() const override { return !allEntriesAreOmitted; }
   uint64_t getSize() const override { return unwindInfoSize; }
-  virtual void prepareRelocations(InputSection *) = 0;
-
-  void setCompactUnwindSection(ConcatOutputSection *cuSection) {
-    compactUnwindSection = cuSection;
-  }
+  void addSymbol(const Defined *);
+  void prepareRelocations();
 
 protected:
-  UnwindInfoSection()
-      : SyntheticSection(segment_names::text, section_names::unwindInfo) {
-    align = 4;
-  }
+  UnwindInfoSection();
+  virtual void prepareRelocations(ConcatInputSection *) = 0;
 
-  ConcatOutputSection *compactUnwindSection = nullptr;
+  llvm::MapVector<std::pair<const InputSection *, uint64_t /*Defined::value*/>,
+                  const Defined *>
+      symbols;
+  std::vector<decltype(symbols)::value_type> symbolsVec;
   uint64_t unwindInfoSize = 0;
+  bool allEntriesAreOmitted = true;
 };
 
 UnwindInfoSection *makeUnwindInfoSection();

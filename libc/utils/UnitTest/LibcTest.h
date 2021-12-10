@@ -9,10 +9,12 @@
 #ifndef LLVM_LIBC_UTILS_UNITTEST_LIBCTEST_H
 #define LLVM_LIBC_UTILS_UNITTEST_LIBCTEST_H
 
-// This file can only include headers from utils/CPP/ or utils/testutils. No
-// other headers should be included.
+// This file can only include headers from src/__support/CPP/ or
+// utils/testutils. No other headers should be included.
 
-#include "utils/CPP/TypeTraits.h"
+#include "PlatformDefs.h"
+
+#include "src/__support/CPP/TypeTraits.h"
 #include "utils/testutils/ExecuteFunction.h"
 #include "utils/testutils/StreamWrapper.h"
 
@@ -68,7 +70,7 @@ public:
   virtual void SetUp() {}
   virtual void TearDown() {}
 
-  static int runTests();
+  static int runTests(const char *);
 
 protected:
   static void addTest(Test *T);
@@ -360,6 +362,8 @@ template <typename... Types> using TypeList = internal::TypeList<Types...>;
   if (!EXPECT_FALSE(VAL))                                                      \
   return
 
+#ifdef ENABLE_SUBPROCESS_TESTS
+
 #define EXPECT_EXITS(FUNC, EXIT)                                               \
   this->testProcessExits(__llvm_libc::testing::Test::createCallable(FUNC),     \
                          EXIT, #FUNC, #EXIT, __FILE__, __LINE__)
@@ -375,6 +379,8 @@ template <typename... Types> using TypeList = internal::TypeList<Types...>;
 #define ASSERT_DEATH(FUNC, EXIT)                                               \
   if (!EXPECT_DEATH(FUNC, EXIT))                                               \
   return
+
+#endif // ENABLE_SUBPROCESS_TESTS
 
 #define __CAT1(a, b) a##b
 #define __CAT(a, b) __CAT1(a, b)

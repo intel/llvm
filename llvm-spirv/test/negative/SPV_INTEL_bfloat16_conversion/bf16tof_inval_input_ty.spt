@@ -1,0 +1,39 @@
+; RUN: not llvm-spirv %s -to-binary -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+
+; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
+; CHECK-ERROR-NEXT: ConvertBF16ToFINTEL
+; CHECK-ERROR-NEXT: Input value must be a scalar or vector of integer 16-bit type
+
+119734787 65536 393230 14 0
+2 Capability Addresses
+2 Capability Linkage
+2 Capability Kernel
+2 Capability Int64
+2 Capability Bfloat16ConversionINTEL
+9 Extension "SPV_INTEL_bfloat16_conversion"
+5 ExtInstImport 1 "OpenCL.std"
+3 MemoryModel 2 2
+3 Source 4 100000
+4 Name 4 "_Z1f"
+
+6 Decorate 4 LinkageAttributes "_Z1f" Export
+4 Decorate 11 Alignment 4
+4 TypeInt 6 64 0
+5 Constant 6 7 32 0
+2 TypeVoid 2
+3 TypeFunction 3 2
+2 TypeBool 8
+4 TypeArray 9 8 7
+4 TypePointer 10 7 9
+3 TypeFloat 12 32
+
+
+
+5 Function 2 4 0 3
+
+2 Label 5
+4 Variable 10 11 7
+4 ConvertBF16ToFINTEL 12 13 11
+1 Return
+
+1 FunctionEnd

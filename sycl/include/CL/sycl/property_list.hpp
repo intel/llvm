@@ -10,12 +10,15 @@
 
 #include <CL/sycl/detail/common.hpp>
 #include <CL/sycl/detail/property_list_base.hpp>
+#include <CL/sycl/properties/property_traits.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 template <typename... PropsT> class accessor_property_list;
 }
+} // namespace ext
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///
@@ -26,10 +29,8 @@ class property_list : protected detail::PropertyListBase {
   template <typename... Tail> struct AllProperties : std::true_type {};
   template <typename T, typename... Tail>
   struct AllProperties<T, Tail...>
-      : detail::conditional_t<
-            std::is_base_of<detail::DataLessPropertyBase, T>::value ||
-                std::is_base_of<detail::PropertyWithDataBase, T>::value,
-            AllProperties<Tail...>, std::false_type> {};
+      : detail::conditional_t<is_property<T>::value, AllProperties<Tail...>,
+                              std::false_type> {};
 
 public:
   template <typename... PropsT, typename = typename detail::enable_if_t<
@@ -50,10 +51,11 @@ public:
     return has_property_helper<PropT>();
   }
 
-  template <typename... T> operator ONEAPI::accessor_property_list<T...>();
+  template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
 private:
-  template <typename... PropsT> friend class ONEAPI::accessor_property_list;
+  template <typename... PropsT>
+  friend class ext::oneapi::accessor_property_list;
 };
 
 } // namespace sycl

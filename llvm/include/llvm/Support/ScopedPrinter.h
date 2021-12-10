@@ -32,8 +32,9 @@ template <typename T> struct EnumEntry {
   // "Advanced Micro Devices X86-64" on GNU style
   StringRef AltName;
   T Value;
-  EnumEntry(StringRef N, StringRef A, T V) : Name(N), AltName(A), Value(V) {}
-  EnumEntry(StringRef N, T V) : Name(N), AltName(N), Value(V) {}
+  constexpr EnumEntry(StringRef N, StringRef A, T V)
+      : Name(N), AltName(A), Value(V) {}
+  constexpr EnumEntry(StringRef N, T V) : Name(N), AltName(N), Value(V) {}
 };
 
 struct HexNumber {
@@ -64,6 +65,14 @@ template <class T> std::string to_string(const T &Value) {
   llvm::raw_string_ostream stream(number);
   stream << Value;
   return stream.str();
+}
+
+template <typename T, typename TEnum>
+std::string enumToString(T Value, ArrayRef<EnumEntry<TEnum>> EnumValues) {
+  for (const EnumEntry<TEnum> &EnumItem : EnumValues)
+    if (EnumItem.Value == Value)
+      return std::string(EnumItem.AltName);
+  return to_hexString(Value, false);
 }
 
 class ScopedPrinter {

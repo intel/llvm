@@ -5,25 +5,34 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "42"
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "bar"
-; CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "{FOO}"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 1 UserSemantic "128"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 2 UserSemantic "qux"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 UserSemantic "{baz}"
+; Check that even when FPGA memory extensions are enabled - yet we have
+; UserSemantic decoration be generated
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "42"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "bar"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "{FOO}"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} UserSemantic "my_custom_annotations: 30, 60"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 1 UserSemantic "128"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 2 UserSemantic "qux"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 UserSemantic "{baz}"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 3 UserSemantic "my_custom_annotations: 20, 60, 80"
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
 
 %class.anon = type { i8 }
-%struct.bar = type { i32, i8, float }
+%struct.bar = type { i32, i8, float, i8 }
 
-; CHECK-LLVM:  [[STR:@[0-9_.]+]] = {{.*}}42
-; CHECK-LLVM: [[STR2:@[0-9_.]+]] = {{.*}}{FOO}
-; CHECK-LLVM: [[STR3:@[0-9_.]+]] = {{.*}}bar
-; CHECK-LLVM: [[STR4:@[0-9_.]+]] = {{.*}}{baz}
-; CHECK-LLVM: [[STR5:@[0-9_.]+]] = {{.*}}128
-; CHECK-LLVM: [[STR6:@[0-9_.]+]] = {{.*}}qux
+; CHECK-LLVM-DAG:  [[STR:@[0-9_.]+]] = {{.*}}42
+; CHECK-LLVM-DAG: [[STR2:@[0-9_.]+]] = {{.*}}{FOO}
+; CHECK-LLVM-DAG: [[STR3:@[0-9_.]+]] = {{.*}}bar
+; CHECK-LLVM-DAG: [[STR4:@[0-9_.]+]] = {{.*}}{baz}
+; CHECK-LLVM-DAG: [[STR5:@[0-9_.]+]] = {{.*}}128
+; CHECK-LLVM-DAG: [[STR6:@[0-9_.]+]] = {{.*}}qux
+; CHECK-LLVM-DAG: [[STR7:@[0-9_.]+]] = {{.*}}my_custom_annotations: 30, 60
+; CHECK-LLVM-DAG: [[STR8:@[0-9_.]+]] = {{.*}}my_custom_annotations: 20, 60, 80
 @.str = private unnamed_addr constant [3 x i8] c"42\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [23 x i8] c"annotate_attribute.cpp\00", section "llvm.metadata"
 @.str.2 = private unnamed_addr constant [6 x i8] c"{FOO}\00", section "llvm.metadata"
@@ -31,6 +40,10 @@ target triple = "spir64-unknown-linux"
 @.str.4 = private unnamed_addr constant [6 x i8] c"{baz}\00", section "llvm.metadata"
 @.str.5 = private unnamed_addr constant [4 x i8] c"128\00", section "llvm.metadata"
 @.str.6 = private unnamed_addr constant [4 x i8] c"qux\00", section "llvm.metadata"
+@.str.7 = private unnamed_addr constant [22 x i8] c"my_custom_annotations\00", section "llvm.metadata"
+@.args.0 = private unnamed_addr constant { i32, i32 } { i32 30, i32 60 }, section "llvm.metadata"
+@.args.1 = private unnamed_addr constant { i32, i32, i32 } { i32 20, i32 60, i32 80 }, section "llvm.metadata"
+
 
 ; Function Attrs: nounwind
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -67,20 +80,25 @@ entry:
   %var_one = alloca i32, align 4
   %var_two = alloca i32, align 4
   %var_three = alloca i8, align 1
+  %var_four = alloca i8, align 1
   %0 = bitcast i32* %var_one to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
   %var_one1 = bitcast i32* %var_one to i8*
-  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR1:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([3 x i8], [3 x i8]* [[STR]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{.*}}, i8* getelementptr inbounds ([3 x i8], [3 x i8]* [[STR]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
   call void @llvm.var.annotation(i8* %var_one1, i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 2, i8* undef)
   %1 = bitcast i32* %var_two to i8*
   call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #4
   %var_two2 = bitcast i32* %var_two to i8*
-  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR2:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([6 x i8], [6 x i8]* [[STR2]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{.*}}, i8* getelementptr inbounds ([6 x i8], [6 x i8]* [[STR2]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
   call void @llvm.var.annotation(i8* %var_two2, i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* undef)
   call void @llvm.lifetime.start.p0i8(i64 1, i8* %var_three) #4
-  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %[[VAR3:[a-zA-Z0-9_]+]], i8* getelementptr inbounds ([4 x i8], [4 x i8]* [[STR3]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{.*}}, i8* getelementptr inbounds ([4 x i8], [4 x i8]* [[STR3]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
   call void @llvm.var.annotation(i8* %var_three, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 4, i8* undef)
   call void @llvm.lifetime.end.p0i8(i64 1, i8* %var_three) #4
+  call void @llvm.lifetime.start.p0i8(i64 1, i8* %var_four) #4
+  ; CHECK-LLVM: call void @llvm.var.annotation(i8* %{{.*}}, i8* getelementptr inbounds ([30 x i8], [30 x i8]* [[STR7]], i32 0, i32 0), i8* undef, i32 undef, i8* undef)
+  call void @llvm.var.annotation(i8* %var_four, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 4, i8* bitcast ({ i32, i32 }* @.args.0 to i8*))
+  call void @llvm.lifetime.end.p0i8(i64 1, i8* %var_four) #4
   %2 = bitcast i32* %var_two to i8*
   call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #4
   %3 = bitcast i32* %var_one to i8*
@@ -115,8 +133,13 @@ entry:
   %4 = call i8* @llvm.ptr.annotation.p0i8(i8* %3, i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str.6, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* undef)
   %5 = bitcast i8* %4 to float*
   store float 0.000000e+00, float* %5, align 4, !tbaa !14
-  %6 = bitcast %struct.bar* %s1 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 12, i8* %6) #4
+  ; CHECK-LLVM: %[[FIELD4:.*]] = getelementptr inbounds %struct.bar, %struct.bar* %{{[a-zA-Z0-9]+}}, i32 0, i32 3
+  ; CHECK-LLVM: call i8* @llvm.ptr.annotation.p0i8{{.*}}%[[FIELD4]]{{.*}}[[STR8]]
+  %f4 = getelementptr inbounds %struct.bar, %struct.bar* %s1, i32 0, i32 3
+  %6 = call i8* @llvm.ptr.annotation.p0i8(i8* %f4, i8* getelementptr inbounds ([22 x i8], [22 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str.1, i32 0, i32 0), i32 9, i8* bitcast ({ i32, i32, i32 }* @.args.1 to i8*))
+  store i8 0, i8* %6, align 4, !tbaa !13
+  %7 = bitcast %struct.bar* %s1 to i8*
+  call void @llvm.lifetime.end.p0i8(i64 12, i8* %7) #4
   ret void
 }
 

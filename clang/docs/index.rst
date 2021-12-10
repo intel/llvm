@@ -64,6 +64,7 @@ Using Clang as a Library
    RAVFrontendAction
    LibASTMatchersTutorial
    LibASTMatchers
+   ClangTransformerTutorial
    LibASTImporter
    HowToSetupToolingForLLVM
    JSONCompilationDatabase
@@ -80,6 +81,7 @@ Using Clang Tools
    ClangFormat
    ClangFormatStyleOptions
    ClangFormattedStatus
+   ClangNvlinkWrapper
    ClangOffloadBundler
 
 Design Documents

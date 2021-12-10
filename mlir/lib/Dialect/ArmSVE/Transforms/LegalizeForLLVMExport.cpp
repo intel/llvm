@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
+#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/ArmSVE/ArmSVEDialect.h"
 #include "mlir/Dialect/ArmSVE/Transforms.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -45,12 +46,13 @@ class ForwardOperands : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(OpTy op, ArrayRef<Value> operands,
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    if (ValueRange(operands).getTypes() == op->getOperands().getTypes())
+    if (adaptor.getOperands().getTypes() == op->getOperands().getTypes())
       return rewriter.notifyMatchFailure(op, "operand types already match");
 
-    rewriter.updateRootInPlace(op, [&]() { op->setOperands(operands); });
+    rewriter.updateRootInPlace(
+        op, [&]() { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };
@@ -60,9 +62,10 @@ public:
   using OpConversionPattern<ReturnOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(ReturnOp op, ArrayRef<Value> operands,
+  matchAndRewrite(ReturnOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
-    rewriter.updateRootInPlace(op, [&]() { op->setOperands(operands); });
+    rewriter.updateRootInPlace(
+        op, [&]() { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };
@@ -111,6 +114,76 @@ using ScalableMaskedDivFOpLowering =
     OneToOneConvertToLLVMPattern<ScalableMaskedDivFOp,
                                  ScalableMaskedDivFIntrOp>;
 
+// Load operation is lowered to code that obtains a pointer to the indexed
+// element and loads from it.
+struct ScalableLoadOpLowering : public ConvertOpToLLVMPattern<ScalableLoadOp> {
+  using ConvertOpToLLVMPattern<ScalableLoadOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ScalableLoadOp loadOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto type = loadOp.getMemRefType();
+    if (!isConvertibleAndHasIdentityMaps(type))
+      return failure();
+
+    LLVMTypeConverter converter(loadOp.getContext());
+
+    auto resultType = loadOp.result().getType();
+    LLVM::LLVMPointerType llvmDataTypePtr;
+    if (resultType.isa<VectorType>()) {
+      llvmDataTypePtr =
+          LLVM::LLVMPointerType::get(resultType.cast<VectorType>());
+    } else if (resultType.isa<ScalableVectorType>()) {
+      llvmDataTypePtr = LLVM::LLVMPointerType::get(
+          convertScalableVectorTypeToLLVM(resultType.cast<ScalableVectorType>(),
+                                          converter)
+              .getValue());
+    }
+    Value dataPtr = getStridedElementPtr(loadOp.getLoc(), type, adaptor.base(),
+                                         adaptor.index(), rewriter);
+    Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
+        loadOp.getLoc(), llvmDataTypePtr, dataPtr);
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(loadOp, bitCastedPtr);
+    return success();
+  }
+};
+
+// Store operation is lowered to code that obtains a pointer to the indexed
+// element, and stores the given value to it.
+struct ScalableStoreOpLowering
+    : public ConvertOpToLLVMPattern<ScalableStoreOp> {
+  using ConvertOpToLLVMPattern<ScalableStoreOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ScalableStoreOp storeOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto type = storeOp.getMemRefType();
+    if (!isConvertibleAndHasIdentityMaps(type))
+      return failure();
+
+    LLVMTypeConverter converter(storeOp.getContext());
+
+    auto resultType = storeOp.value().getType();
+    LLVM::LLVMPointerType llvmDataTypePtr;
+    if (resultType.isa<VectorType>()) {
+      llvmDataTypePtr =
+          LLVM::LLVMPointerType::get(resultType.cast<VectorType>());
+    } else if (resultType.isa<ScalableVectorType>()) {
+      llvmDataTypePtr = LLVM::LLVMPointerType::get(
+          convertScalableVectorTypeToLLVM(resultType.cast<ScalableVectorType>(),
+                                          converter)
+              .getValue());
+    }
+    Value dataPtr = getStridedElementPtr(storeOp.getLoc(), type, adaptor.base(),
+                                         adaptor.index(), rewriter);
+    Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
+        storeOp.getLoc(), llvmDataTypePtr, dataPtr);
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(storeOp, adaptor.value(),
+                                               bitCastedPtr);
+    return success();
+  }
+};
+
 static void
 populateBasicSVEArithmeticExportPatterns(LLVMTypeConverter &converter,
                                          OwningRewritePatternList &patterns) {
@@ -140,6 +213,24 @@ configureBasicSVEArithmeticLegalizations(LLVMConversionTarget &target) {
                       ScalableSDivIOp,
                       ScalableUDivIOp,
                       ScalableDivFOp>();
+  // clang-format on
+}
+
+static void
+populateSVEMaskGenerationExportPatterns(LLVMTypeConverter &converter,
+                                        OwningRewritePatternList &patterns) {
+  // clang-format off
+  patterns.add<OneToOneConvertToLLVMPattern<ScalableCmpFOp, LLVM::FCmpOp>,
+               OneToOneConvertToLLVMPattern<ScalableCmpIOp, LLVM::ICmpOp>
+              >(converter);
+  // clang-format on
+}
+
+static void
+configureSVEMaskGenerationLegalizations(LLVMConversionTarget &target) {
+  // clang-format off
+  target.addIllegalOp<ScalableCmpFOp,
+                      ScalableCmpIOp>();
   // clang-format on
 }
 
@@ -173,8 +264,11 @@ void mlir::populateArmSVELegalizeForLLVMExportPatterns(
                ScalableMaskedSDivIOpLowering,
                ScalableMaskedUDivIOpLowering,
                ScalableMaskedDivFOpLowering>(converter);
+  patterns.add<ScalableLoadOpLowering,
+               ScalableStoreOpLowering>(converter);
   // clang-format on
   populateBasicSVEArithmeticExportPatterns(converter, patterns);
+  populateSVEMaskGenerationExportPatterns(converter, patterns);
 }
 
 void mlir::configureArmSVELegalizeForExportTarget(
@@ -207,7 +301,9 @@ void mlir::configureArmSVELegalizeForExportTarget(
                       ScalableMaskedMulFOp,
                       ScalableMaskedSDivIOp,
                       ScalableMaskedUDivIOp,
-                      ScalableMaskedDivFOp>();
+                      ScalableMaskedDivFOp,
+                      ScalableLoadOp,
+                      ScalableStoreOp>();
   // clang-format on
   auto hasScalableVectorType = [](TypeRange types) {
     for (Type type : types)
@@ -225,4 +321,5 @@ void mlir::configureArmSVELegalizeForExportTarget(
                !hasScalableVectorType(op->getResultTypes());
       });
   configureBasicSVEArithmeticLegalizations(target);
+  configureSVEMaskGenerationLegalizations(target);
 }

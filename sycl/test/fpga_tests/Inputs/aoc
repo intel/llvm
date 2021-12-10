@@ -1,0 +1,22 @@
+#!/bin/sh
+## Simple aoc replacement script that returns '42' that is used to test
+## special return code processing for FPGA AOT.
+
+while [[ $# -gt 0 ]] ; do
+  opt="$1"
+  case $opt in
+    -o)
+      shift
+      OUTFILE=$1
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [ "$OUTFILE" != "" ] ; then
+  echo "dummy file contents" > $OUTFILE
+fi
+
+exit 42

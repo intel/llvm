@@ -5,6 +5,49 @@ Using the New Pass Manager
 .. contents::
     :local:
 
+Overview
+========
+
+For an overview of the new pass manager, see the `blog post
+<https://blog.llvm.org/posts/2021-03-26-the-new-pass-manager/>`_.
+
+Just Tell Me How To Run The Default Optimization Pipeline With The New Pass Manager
+===================================================================================
+
+.. code-block:: c++
+
+  // Create the analysis managers.
+  LoopAnalysisManager LAM;
+  FunctionAnalysisManager FAM;
+  CGSCCAnalysisManager CGAM;
+  ModuleAnalysisManager MAM;
+
+  // Create the new pass manager builder.
+  // Take a look at the PassBuilder constructor parameters for more
+  // customization, e.g. specifying a TargetMachine or various debugging
+  // options.
+  PassBuilder PB;
+
+  // Make sure to use the default alias analysis pipeline, otherwise we'll end
+  // up only using a subset of the available analyses.
+  FAM.registerPass([&] { return PB.buildDefaultAAPipeline(); });
+
+  // Register all the basic analyses with the managers.
+  PB.registerModuleAnalyses(MAM);
+  PB.registerCGSCCAnalyses(CGAM);
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerLoopAnalyses(LAM);
+  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+  // Create the pass manager.
+  // This one corresponds to a typical -O2 optimization pipeline.
+  ModulePassManager MPM = PB.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
+
+  // Optimize the IR!
+  MPM.run(MyModule, MAM);
+
+The C API also supports most of this, see ``llvm-c/Transforms/PassBuilder.h``.
+
 Adding Passes to a Pass Manager
 ===============================
 
@@ -20,7 +63,7 @@ can only contain function passes:
   // InstSimplifyPass is a function pass
   FPM.addPass(InstSimplifyPass());
 
-If you want add a loop pass that runs on all loops in a function to a
+If you want to add a loop pass that runs on all loops in a function to a
 ``FunctionPassManager``, the loop pass must be wrapped in a function pass
 adaptor that goes through all the loops in the function and runs the loop
 pass on each one.
@@ -244,7 +287,7 @@ proper analyses invalidated.
   PreservedAnalyses PA;
   PA.preserveSet<CFGAnalyses>();
   return PA;
-  
+
 The pass manager will call the analysis manager's ``invalidate()`` method
 with the pass's returned ``PreservedAnalyses``. This can be also done
 manually within the pass:
@@ -350,6 +393,89 @@ invalidated so this is not so much of a concern. See
 ``OuterAnalysisManagerProxy::Result::registerOuterAnalysisInvalidation()``
 for more details.
 
+Invoking ``opt``
+================
+
+To use the legacy pass manager:
+
+.. code-block:: shell
+
+  $ opt -enable-new-pm=0 -pass1 -pass2 /tmp/a.ll -S
+
+This will be removed once the legacy pass manager is deprecated and removed for
+the optimization pipeline.
+
+To use the new PM:
+
+.. code-block:: shell
+
+  $ opt -passes='pass1,pass2' /tmp/a.ll -S
+
+The new PM typically requires explicit pass nesting. For example, to run a
+function pass, then a module pass, we need to wrap the function pass in a module
+adaptor:
+
+.. code-block:: shell
+
+  $ opt -passes='function(no-op-function),no-op-module' /tmp/a.ll -S
+
+A more complete example, and ``-debug-pass-manager`` to show the execution
+order:
+
+.. code-block:: shell
+
+  $ opt -passes='no-op-module,cgscc(no-op-cgscc,function(no-op-function,loop(no-op-loop))),function(no-op-function,loop(no-op-loop))' /tmp/a.ll -S -debug-pass-manager
+
+Improper nesting can lead to error messages such as
+
+.. code-block:: shell
+
+  $ opt -passes='no-op-function,no-op-module' /tmp/a.ll -S
+  opt: unknown function pass 'no-op-module'
+
+The nesting is: module (-> cgscc) -> function -> loop, where the CGSCC nesting is optional.
+
+There are a couple of special cases for easier typing:
+
+* If the first pass is not a module pass, a pass manager of the first pass is
+  implicitly created
+
+  * For example, the following are equivalent
+
+.. code-block:: shell
+
+  $ opt -passes='no-op-function,no-op-function' /tmp/a.ll -S
+  $ opt -passes='function(no-op-function,no-op-function)' /tmp/a.ll -S
+
+* If there is an adaptor for a pass that lets it fit in the previous pass
+  manager, that is implicitly created
+
+  * For example, the following are equivalent
+
+.. code-block:: shell
+
+  $ opt -passes='no-op-function,no-op-loop' /tmp/a.ll -S
+  $ opt -passes='no-op-function,loop(no-op-loop)' /tmp/a.ll -S
+
+For a list of available passes and analyses, including the IR unit (module,
+CGSCC, function, loop) they operate on, run
+
+.. code-block:: shell
+
+  $ opt --print-passes
+
+or take a look at ``PassRegistry.def``.
+
+To make sure an analysis named ``foo`` is available before a pass, add
+``require<foo>`` to the pass pipeline. This adds a pass that simply requests
+that the analysis is run. This pass is also subject to proper nesting.  For
+example, to make sure some function analysis is already computed for all
+functions before a module pass:
+
+.. code-block:: shell
+
+  $ opt -passes='function(require<my-function-analysis>),my-module-pass' /tmp/a.ll -S
+
 Status of the New and Legacy Pass Managers
 ==========================================
 
@@ -360,7 +486,7 @@ with the legacy PM.
 
 For the optimization pipeline, the new PM is the default PM. The legacy PM is
 available for the optimization pipeline either by setting the CMake flag
-``-DENABLE_EXPERIMENTAL_NEW_PASS_MANAGER=OFF`` when building LLVM, or by
+``-DLLVM_ENABLE_NEW_PASS_MANAGER=OFF`` when building LLVM, or by
 various compiler/linker flags, e.g. ``-flegacy-pass-manager`` for ``clang``.
 
 There will be efforts to deprecate and remove the legacy PM for the

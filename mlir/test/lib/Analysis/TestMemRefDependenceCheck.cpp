@@ -28,6 +28,10 @@ namespace {
 /// Checks dependences between all pairs of memref accesses in a Function.
 struct TestMemRefDependenceCheck
     : public PassWrapper<TestMemRefDependenceCheck, FunctionPass> {
+  StringRef getArgument() const final { return "test-memref-dependence-check"; }
+  StringRef getDescription() const final {
+    return "Checks dependences between all pairs of memref accesses.";
+  }
   SmallVector<Operation *, 4> loadsAndStores;
   void runOnFunction() override;
 };
@@ -77,7 +81,7 @@ static void checkDependences(ArrayRef<Operation *> loadsAndStores) {
       unsigned numCommonLoops =
           getNumCommonSurroundingLoops(*srcOpInst, *dstOpInst);
       for (unsigned d = 1; d <= numCommonLoops + 1; ++d) {
-        FlatAffineConstraints dependenceConstraints;
+        FlatAffineValueConstraints dependenceConstraints;
         SmallVector<DependenceComponent, 2> dependenceComponents;
         DependenceResult result = checkMemrefAccessDependence(
             srcAccess, dstAccess, d, &dependenceConstraints,
@@ -112,9 +116,7 @@ void TestMemRefDependenceCheck::runOnFunction() {
 namespace mlir {
 namespace test {
 void registerTestMemRefDependenceCheck() {
-  PassRegistration<TestMemRefDependenceCheck> pass(
-      "test-memref-dependence-check",
-      "Checks dependences between all pairs of memref accesses.");
+  PassRegistration<TestMemRefDependenceCheck>();
 }
 } // namespace test
 } // namespace mlir

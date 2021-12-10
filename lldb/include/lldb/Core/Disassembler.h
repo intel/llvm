@@ -150,6 +150,10 @@ public:
 
   virtual bool HasDelaySlot();
 
+  virtual bool IsLoad() = 0;
+
+  virtual bool IsAuthenticated() = 0;
+
   bool CanSetBreakpoint ();
 
   virtual size_t Decode(const Disassembler &disassembler,
@@ -336,6 +340,10 @@ public:
 
   bool HasDelaySlot() override;
 
+  bool IsLoad() override;
+
+  bool IsAuthenticated() override;
+
   void CalculateMnemonicOperandsAndComment(
       const ExecutionContext *exe_ctx) override {
     // TODO: fill this in and put opcode name into Instruction::m_opcode_name,
@@ -454,10 +462,10 @@ protected:
 
   struct SourceLine {
     FileSpec file;
-    uint32_t line;
-    uint32_t column;
+    uint32_t line = LLDB_INVALID_LINE_NUMBER;
+    uint32_t column = 0;
 
-    SourceLine() : file(), line(LLDB_INVALID_LINE_NUMBER), column(0) {}
+    SourceLine() : file() {}
 
     bool operator==(const SourceLine &rhs) const {
       return file == rhs.file && line == rhs.line && rhs.column == column;
@@ -476,14 +484,12 @@ protected:
     // index of the "current" source line, if we want to highlight that when
     // displaying the source lines.  (as opposed to the surrounding source
     // lines provided to give context)
-    size_t current_source_line;
+    size_t current_source_line = -1;
 
     // Whether to print a blank line at the end of the source lines.
-    bool print_source_context_end_eol;
+    bool print_source_context_end_eol = true;
 
-    SourceLinesToDisplay()
-        : lines(), current_source_line(-1), print_source_context_end_eol(true) {
-    }
+    SourceLinesToDisplay() : lines() {}
   };
 
   // Get the function's declaration line number, hopefully a line number

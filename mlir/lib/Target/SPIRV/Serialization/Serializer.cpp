@@ -99,7 +99,7 @@ LogicalResult Serializer::serialize() {
 
   // Iterate over the module body to serialize it. Assumptions are that there is
   // only one basic block in the moduleOp
-  for (auto &op : module.getBlock()) {
+  for (auto &op : *module.getBody()) {
     if (failed(processOperation(&op))) {
       return failure();
     }
@@ -205,7 +205,7 @@ void Serializer::processMemoryModel() {
 
 LogicalResult Serializer::processDecoration(Location loc, uint32_t resultID,
                                             NamedAttribute attr) {
-  auto attrName = attr.first.strref();
+  auto attrName = attr.getName().strref();
   auto decorationName = llvm::convertToCamelFromSnakeCase(attrName, true);
   auto decoration = spirv::symbolizeDecoration(decorationName);
   if (!decoration) {
@@ -219,13 +219,13 @@ LogicalResult Serializer::processDecoration(Location loc, uint32_t resultID,
   case spirv::Decoration::Binding:
   case spirv::Decoration::DescriptorSet:
   case spirv::Decoration::Location:
-    if (auto intAttr = attr.second.dyn_cast<IntegerAttr>()) {
+    if (auto intAttr = attr.getValue().dyn_cast<IntegerAttr>()) {
       args.push_back(intAttr.getValue().getZExtValue());
       break;
     }
     return emitError(loc, "expected integer attribute for ") << attrName;
   case spirv::Decoration::BuiltIn:
-    if (auto strAttr = attr.second.dyn_cast<StringAttr>()) {
+    if (auto strAttr = attr.getValue().dyn_cast<StringAttr>()) {
       auto enumVal = spirv::symbolizeBuiltIn(strAttr.getValue());
       if (enumVal) {
         args.push_back(static_cast<uint32_t>(enumVal.getValue()));
@@ -241,8 +241,9 @@ LogicalResult Serializer::processDecoration(Location loc, uint32_t resultID,
   case spirv::Decoration::NonWritable:
   case spirv::Decoration::NoPerspective:
   case spirv::Decoration::Restrict:
+  case spirv::Decoration::RelaxedPrecision:
     // For unit attributes, the args list has no values so we do nothing
-    if (auto unitAttr = attr.second.dyn_cast<UnitAttr>())
+    if (auto unitAttr = attr.getValue().dyn_cast<UnitAttr>())
       break;
     return emitError(loc, "expected unit attribute for ") << attrName;
   default:
@@ -705,11 +706,12 @@ Serializer::prepareDenseElementsConstant(Location loc, Type constType,
   if (shapedType.getRank() == dim) {
     if (auto attr = valueAttr.dyn_cast<DenseIntElementsAttr>()) {
       return attr.getType().getElementType().isInteger(1)
-                 ? prepareConstantBool(loc, attr.getValue<BoolAttr>(index))
-                 : prepareConstantInt(loc, attr.getValue<IntegerAttr>(index));
+                 ? prepareConstantBool(loc, attr.getValues<BoolAttr>()[index])
+                 : prepareConstantInt(loc,
+                                      attr.getValues<IntegerAttr>()[index]);
     }
     if (auto attr = valueAttr.dyn_cast<DenseFPElementsAttr>()) {
-      return prepareConstantFp(loc, attr.getValue<FloatAttr>(index));
+      return prepareConstantFp(loc, attr.getValues<FloatAttr>()[index]);
     }
     return 0;
   }
@@ -805,11 +807,15 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
   auto opcode =
       isSpec ? spirv::Opcode::OpSpecConstant : spirv::Opcode::OpConstant;
 
-  // According to SPIR-V spec, "When the type's bit width is less than 32-bits,
-  // the literal's value appears in the low-order bits of the word, and the
-  // high-order bits must be 0 for a floating-point type, or 0 for an integer
-  // type with Signedness of 0, or sign extended when Signedness is 1."
-  if (bitwidth == 32 || bitwidth == 16) {
+  switch (bitwidth) {
+    // According to SPIR-V spec, "When the type's bit width is less than
+    // 32-bits, the literal's value appears in the low-order bits of the word,
+    // and the high-order bits must be 0 for a floating-point type, or 0 for an
+    // integer type with Signedness of 0, or sign extended when Signedness
+    // is 1."
+  case 32:
+  case 16:
+  case 8: {
     uint32_t word = 0;
     if (isSigned) {
       word = static_cast<int32_t>(value.getSExtValue());
@@ -818,10 +824,10 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
     }
     (void)encodeInstructionInto(typesGlobalValues, opcode,
                                 {typeID, resultID, word});
-  }
-  // According to SPIR-V spec: "When the type's bit width is larger than one
-  // word, the literal’s low-order words appear first."
-  else if (bitwidth == 64) {
+  } break;
+    // According to SPIR-V spec: "When the type's bit width is larger than one
+    // word, the literal’s low-order words appear first."
+  case 64: {
     struct DoubleWord {
       uint32_t word1;
       uint32_t word2;
@@ -833,7 +839,8 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
     }
     (void)encodeInstructionInto(typesGlobalValues, opcode,
                                 {typeID, resultID, words.word1, words.word2});
-  } else {
+  } break;
+  default: {
     std::string valueStr;
     llvm::raw_string_ostream rss(valueStr);
     value.print(rss, /*isSigned=*/false);
@@ -841,6 +848,7 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
     emitError(loc, "cannot serialize ")
         << bitwidth << "-bit integer literal: " << rss.str();
     return 0;
+  }
   }
 
   if (!isSpec) {
@@ -1090,7 +1098,6 @@ LogicalResult Serializer::processOperation(Operation *opInst) {
         return processGlobalVariableOp(op);
       })
       .Case([&](spirv::LoopOp op) { return processLoopOp(op); })
-      .Case([&](spirv::ModuleEndOp) { return success(); })
       .Case([&](spirv::ReferenceOfOp op) { return processReferenceOfOp(op); })
       .Case([&](spirv::SelectionOp op) { return processSelectionOp(op); })
       .Case([&](spirv::SpecConstantOp op) { return processSpecConstantOp(op); })

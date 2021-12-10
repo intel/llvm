@@ -8,27 +8,27 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
-// UNSUPPORTED: gcc-10
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
-// template<range _Rp>
+// template<class R>
 // concept bidirectional_range;
 
 #include <ranges>
 
 #include "test_range.h"
 
-namespace stdr = std::ranges;
+
 
 template <template <class...> class I>
 constexpr bool check_bidirectional_range() {
-  constexpr bool result = stdr::bidirectional_range<test_range<I> >;
-  static_assert(stdr::bidirectional_range<test_range<I> const> == result);
-  static_assert(stdr::bidirectional_range<test_non_const_common_range<I> > == result);
-  static_assert(stdr::bidirectional_range<test_non_const_range<I> > == result);
-  static_assert(stdr::bidirectional_range<test_common_range<I> > == result);
-  static_assert(stdr::bidirectional_range<test_common_range<I> const> == result);
-  static_assert(!stdr::bidirectional_range<test_non_const_common_range<I> const>);
-  static_assert(!stdr::bidirectional_range<test_non_const_range<I> const>);
+  constexpr bool result = std::ranges::bidirectional_range<test_range<I> >;
+  static_assert(std::ranges::bidirectional_range<test_range<I> const> == result);
+  static_assert(std::ranges::bidirectional_range<test_non_const_common_range<I> > == result);
+  static_assert(std::ranges::bidirectional_range<test_non_const_range<I> > == result);
+  static_assert(std::ranges::bidirectional_range<test_common_range<I> > == result);
+  static_assert(std::ranges::bidirectional_range<test_common_range<I> const> == result);
+  static_assert(!std::ranges::bidirectional_range<test_non_const_common_range<I> const>);
+  static_assert(!std::ranges::bidirectional_range<test_non_const_range<I> const>);
   return result;
 }
 

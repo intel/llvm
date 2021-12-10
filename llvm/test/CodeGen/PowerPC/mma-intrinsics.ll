@@ -409,29 +409,29 @@ define void @testcse4(<512 x i1>* %res, i32 %lim, <16 x i8>* %vc) {
 ; CHECK-NEXT:    xvf32gerpp acc2, vs0, vs1
 ; CHECK-NEXT:    lxv vs0, 32(r7)
 ; CHECK-NEXT:    lxv vs1, 48(r7)
-; CHECK-NEXT:    xxmfacc acc2
 ; CHECK-NEXT:    xvf32gerpn acc1, vs0, vs1
 ; CHECK-NEXT:    lxv vs12, 64(r7)
 ; CHECK-NEXT:    lxv vs13, 80(r7)
-; CHECK-NEXT:    rldic r7, r4, 6, 26
 ; CHECK-NEXT:    xxsetaccz acc0
+; CHECK-NEXT:    rldic r7, r4, 6, 26
 ; CHECK-NEXT:    addi r4, r4, 3
-; CHECK-NEXT:    xxmfacc acc1
+; CHECK-NEXT:    add r8, r3, r7
+; CHECK-NEXT:    xxmfacc acc2
 ; CHECK-NEXT:    xvf32gernp acc0, vs12, vs13
 ; CHECK-NEXT:    stxvx vs11, r3, r7
-; CHECK-NEXT:    add r7, r3, r7
+; CHECK-NEXT:    stxv vs8, 48(r8)
+; CHECK-NEXT:    xxmfacc acc1
+; CHECK-NEXT:    stxv vs9, 32(r8)
+; CHECK-NEXT:    stxv vs10, 16(r8)
+; CHECK-NEXT:    stxv vs4, 112(r8)
+; CHECK-NEXT:    stxv vs5, 96(r8)
 ; CHECK-NEXT:    xxmfacc acc0
-; CHECK-NEXT:    stxv vs8, 48(r7)
-; CHECK-NEXT:    stxv vs9, 32(r7)
-; CHECK-NEXT:    stxv vs10, 16(r7)
-; CHECK-NEXT:    stxv vs4, 112(r7)
-; CHECK-NEXT:    stxv vs5, 96(r7)
-; CHECK-NEXT:    stxv vs6, 80(r7)
-; CHECK-NEXT:    stxv vs7, 64(r7)
-; CHECK-NEXT:    stxv vs0, 176(r7)
-; CHECK-NEXT:    stxv vs1, 160(r7)
-; CHECK-NEXT:    stxv vs2, 144(r7)
-; CHECK-NEXT:    stxv vs3, 128(r7)
+; CHECK-NEXT:    stxv vs6, 80(r8)
+; CHECK-NEXT:    stxv vs7, 64(r8)
+; CHECK-NEXT:    stxv vs0, 176(r8)
+; CHECK-NEXT:    stxv vs1, 160(r8)
+; CHECK-NEXT:    stxv vs2, 144(r8)
+; CHECK-NEXT:    stxv vs3, 128(r8)
 ; CHECK-NEXT:    bdnz .LBB9_2
 ; CHECK-NEXT:  # %bb.3: # %for.cond.cleanup
 ; CHECK-NEXT:    blr
@@ -458,29 +458,29 @@ define void @testcse4(<512 x i1>* %res, i32 %lim, <16 x i8>* %vc) {
 ; CHECK-BE-NEXT:    xvf32gerpp acc2, vs0, vs1
 ; CHECK-BE-NEXT:    lxv vs0, 32(r7)
 ; CHECK-BE-NEXT:    lxv vs1, 48(r7)
-; CHECK-BE-NEXT:    xxmfacc acc2
 ; CHECK-BE-NEXT:    xvf32gerpn acc1, vs0, vs1
 ; CHECK-BE-NEXT:    lxv vs12, 64(r7)
 ; CHECK-BE-NEXT:    lxv vs13, 80(r7)
-; CHECK-BE-NEXT:    rldic r7, r4, 6, 26
 ; CHECK-BE-NEXT:    xxsetaccz acc0
+; CHECK-BE-NEXT:    rldic r7, r4, 6, 26
 ; CHECK-BE-NEXT:    addi r4, r4, 3
-; CHECK-BE-NEXT:    xxmfacc acc1
+; CHECK-BE-NEXT:    add r8, r3, r7
+; CHECK-BE-NEXT:    xxmfacc acc2
 ; CHECK-BE-NEXT:    xvf32gernp acc0, vs12, vs13
 ; CHECK-BE-NEXT:    stxvx vs8, r3, r7
-; CHECK-BE-NEXT:    add r7, r3, r7
+; CHECK-BE-NEXT:    stxv vs9, 16(r8)
+; CHECK-BE-NEXT:    xxmfacc acc1
+; CHECK-BE-NEXT:    stxv vs11, 48(r8)
+; CHECK-BE-NEXT:    stxv vs10, 32(r8)
+; CHECK-BE-NEXT:    stxv vs5, 80(r8)
+; CHECK-BE-NEXT:    stxv vs4, 64(r8)
 ; CHECK-BE-NEXT:    xxmfacc acc0
-; CHECK-BE-NEXT:    stxv vs9, 16(r7)
-; CHECK-BE-NEXT:    stxv vs11, 48(r7)
-; CHECK-BE-NEXT:    stxv vs10, 32(r7)
-; CHECK-BE-NEXT:    stxv vs5, 80(r7)
-; CHECK-BE-NEXT:    stxv vs4, 64(r7)
-; CHECK-BE-NEXT:    stxv vs7, 112(r7)
-; CHECK-BE-NEXT:    stxv vs6, 96(r7)
-; CHECK-BE-NEXT:    stxv vs1, 144(r7)
-; CHECK-BE-NEXT:    stxv vs0, 128(r7)
-; CHECK-BE-NEXT:    stxv vs3, 176(r7)
-; CHECK-BE-NEXT:    stxv vs2, 160(r7)
+; CHECK-BE-NEXT:    stxv vs7, 112(r8)
+; CHECK-BE-NEXT:    stxv vs6, 96(r8)
+; CHECK-BE-NEXT:    stxv vs1, 144(r8)
+; CHECK-BE-NEXT:    stxv vs0, 128(r8)
+; CHECK-BE-NEXT:    stxv vs3, 176(r8)
+; CHECK-BE-NEXT:    stxv vs2, 160(r8)
 ; CHECK-BE-NEXT:    bdnz .LBB9_2
 ; CHECK-BE-NEXT:  # %bb.3: # %for.cond.cleanup
 ; CHECK-BE-NEXT:    blr
@@ -558,16 +558,12 @@ define void @testRedundantPrimeUnprime(<512 x i1>* %dst, <16 x i8> %vc) nounwind
 ; CHECK-NEXT:    stxv vs2, 16(r3)
 ; CHECK-NEXT:    stxv vs3, 0(r3)
 ; CHECK-NEXT:    xvf32gerpp acc1, v2, v2
-; CHECK-NEXT:    li r3, 64
 ; CHECK-NEXT:    xxmfacc acc1
-; CHECK-NEXT:    stxvp vsp4, r1(r3)
-; CHECK-NEXT:    li r3, 32
-; CHECK-NEXT:    stxvp vsp6, r1(r3)
+; CHECK-NEXT:    stxvp vsp4, 64(r1)
+; CHECK-NEXT:    stxvp vsp6, 32(r1)
 ; CHECK-NEXT:    bl testRedundantPrimeUnprimeF@notoc
-; CHECK-NEXT:    li r3, 64
-; CHECK-NEXT:    lxvp vsp0, r1(r3)
-; CHECK-NEXT:    li r3, 32
-; CHECK-NEXT:    lxvp vsp2, r1(r3)
+; CHECK-NEXT:    lxvp vsp0, 64(r1)
+; CHECK-NEXT:    lxvp vsp2, 32(r1)
 ; CHECK-NEXT:    stxv vs0, 112(r30)
 ; CHECK-NEXT:    stxv vs1, 96(r30)
 ; CHECK-NEXT:    stxv vs2, 80(r30)
@@ -593,17 +589,13 @@ define void @testRedundantPrimeUnprime(<512 x i1>* %dst, <16 x i8> %vc) nounwind
 ; CHECK-BE-NEXT:    stxv vs3, 48(r3)
 ; CHECK-BE-NEXT:    stxv vs2, 32(r3)
 ; CHECK-BE-NEXT:    xvf32gerpp acc1, v2, v2
-; CHECK-BE-NEXT:    li r3, 112
 ; CHECK-BE-NEXT:    xxmfacc acc1
-; CHECK-BE-NEXT:    stxvp vsp4, r1(r3)
-; CHECK-BE-NEXT:    li r3, 144
-; CHECK-BE-NEXT:    stxvp vsp6, r1(r3)
+; CHECK-BE-NEXT:    stxvp vsp4, 112(r1)
+; CHECK-BE-NEXT:    stxvp vsp6, 144(r1)
 ; CHECK-BE-NEXT:    bl testRedundantPrimeUnprimeF
 ; CHECK-BE-NEXT:    nop
-; CHECK-BE-NEXT:    li r3, 112
-; CHECK-BE-NEXT:    lxvp vsp0, r1(r3)
-; CHECK-BE-NEXT:    li r3, 144
-; CHECK-BE-NEXT:    lxvp vsp2, r1(r3)
+; CHECK-BE-NEXT:    lxvp vsp0, 112(r1)
+; CHECK-BE-NEXT:    lxvp vsp2, 144(r1)
 ; CHECK-BE-NEXT:    stxv vs3, 112(r30)
 ; CHECK-BE-NEXT:    stxv vs2, 96(r30)
 ; CHECK-BE-NEXT:    stxv vs1, 80(r30)
@@ -634,10 +626,9 @@ define void @test_ldst_1(i8* nocapture readonly %vqp, <256 x i1>* %vpp, <16 x i8
 ; CHECK-NEXT:    lxv vs0, 48(r3)
 ; CHECK-NEXT:    lxv vs3, 0(r3)
 ; CHECK-NEXT:    lxv vs2, 16(r3)
-; CHECK-NEXT:    li r3, 8
-; CHECK-NEXT:    lxvpx vsp4, r4, r3
+; CHECK-NEXT:    plxvp vsp36, 8(r4), 0
 ; CHECK-NEXT:    xxmtacc acc0
-; CHECK-NEXT:    pmxvf64gernn acc0, vsp4, v2, 0, 0
+; CHECK-NEXT:    pmxvf64gernn acc0, vsp36, v2, 0, 0
 ; CHECK-NEXT:    xxmfacc acc0
 ; CHECK-NEXT:    stxv vs0, 48(r7)
 ; CHECK-NEXT:    stxv vs1, 32(r7)
@@ -651,10 +642,9 @@ define void @test_ldst_1(i8* nocapture readonly %vqp, <256 x i1>* %vpp, <16 x i8
 ; CHECK-BE-NEXT:    lxv vs0, 0(r3)
 ; CHECK-BE-NEXT:    lxv vs3, 48(r3)
 ; CHECK-BE-NEXT:    lxv vs2, 32(r3)
-; CHECK-BE-NEXT:    li r3, 8
-; CHECK-BE-NEXT:    lxvpx vsp4, r4, r3
+; CHECK-BE-NEXT:    plxvp vsp36, 8(r4), 0
 ; CHECK-BE-NEXT:    xxmtacc acc0
-; CHECK-BE-NEXT:    pmxvf64gernn acc0, vsp4, v2, 0, 0
+; CHECK-BE-NEXT:    pmxvf64gernn acc0, vsp36, v2, 0, 0
 ; CHECK-BE-NEXT:    xxmfacc acc0
 ; CHECK-BE-NEXT:    stxv vs1, 16(r7)
 ; CHECK-BE-NEXT:    stxv vs0, 0(r7)
@@ -681,9 +671,9 @@ define void @test_ldst_2(i8* nocapture readonly %vqp, <256 x i1>* %vpp, <16 x i8
 ; CHECK-NEXT:    lxv vs0, 48(r3)
 ; CHECK-NEXT:    lxv vs3, 0(r3)
 ; CHECK-NEXT:    lxv vs2, 16(r3)
-; CHECK-NEXT:    lxvp vsp4, 0(r4)
 ; CHECK-NEXT:    xxmtacc acc0
-; CHECK-NEXT:    xvf64gernp acc0, vsp4, v2
+; CHECK-NEXT:    lxvp vsp36, 0(r4)
+; CHECK-NEXT:    xvf64gernp acc0, vsp36, v2
 ; CHECK-NEXT:    xxmfacc acc0
 ; CHECK-NEXT:    stxv vs0, 48(r7)
 ; CHECK-NEXT:    stxv vs1, 32(r7)
@@ -697,9 +687,9 @@ define void @test_ldst_2(i8* nocapture readonly %vqp, <256 x i1>* %vpp, <16 x i8
 ; CHECK-BE-NEXT:    lxv vs0, 0(r3)
 ; CHECK-BE-NEXT:    lxv vs3, 48(r3)
 ; CHECK-BE-NEXT:    lxv vs2, 32(r3)
-; CHECK-BE-NEXT:    lxvp vsp4, 0(r4)
 ; CHECK-BE-NEXT:    xxmtacc acc0
-; CHECK-BE-NEXT:    xvf64gernp acc0, vsp4, v2
+; CHECK-BE-NEXT:    lxvp vsp36, 0(r4)
+; CHECK-BE-NEXT:    xvf64gernp acc0, vsp36, v2
 ; CHECK-BE-NEXT:    xxmfacc acc0
 ; CHECK-BE-NEXT:    stxv vs1, 16(r7)
 ; CHECK-BE-NEXT:    stxv vs0, 0(r7)
@@ -725,9 +715,9 @@ define void @test_ldst_3(i8* nocapture readonly %vqp, i64 %offs, <256 x i1>* %vp
 ; CHECK-NEXT:    lxv vs0, 48(r3)
 ; CHECK-NEXT:    lxv vs3, 0(r3)
 ; CHECK-NEXT:    lxv vs2, 16(r3)
-; CHECK-NEXT:    lxvp vsp4, 0(r5)
 ; CHECK-NEXT:    xxmtacc acc0
-; CHECK-NEXT:    xvf64gernp acc0, vsp4, v2
+; CHECK-NEXT:    lxvp vsp36, 0(r5)
+; CHECK-NEXT:    xvf64gernp acc0, vsp36, v2
 ; CHECK-NEXT:    xxmfacc acc0
 ; CHECK-NEXT:    stxv vs0, 48(r9)
 ; CHECK-NEXT:    stxv vs1, 32(r9)
@@ -741,9 +731,9 @@ define void @test_ldst_3(i8* nocapture readonly %vqp, i64 %offs, <256 x i1>* %vp
 ; CHECK-BE-NEXT:    lxv vs0, 0(r3)
 ; CHECK-BE-NEXT:    lxv vs3, 48(r3)
 ; CHECK-BE-NEXT:    lxv vs2, 32(r3)
-; CHECK-BE-NEXT:    lxvp vsp4, 0(r5)
 ; CHECK-BE-NEXT:    xxmtacc acc0
-; CHECK-BE-NEXT:    xvf64gernp acc0, vsp4, v2
+; CHECK-BE-NEXT:    lxvp vsp36, 0(r5)
+; CHECK-BE-NEXT:    xvf64gernp acc0, vsp36, v2
 ; CHECK-BE-NEXT:    xxmfacc acc0
 ; CHECK-BE-NEXT:    stxv vs1, 16(r9)
 ; CHECK-BE-NEXT:    stxv vs0, 0(r9)

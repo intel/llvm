@@ -165,7 +165,7 @@ define i64 @not_bswap() {
 ;
 ; CHECK64-LABEL: not_bswap:
 ; CHECK64:       # %bb.0:
-; CHECK64-NEXT:    movzwl {{.*}}(%rip), %eax
+; CHECK64-NEXT:    movzwl var16(%rip), %eax
 ; CHECK64-NEXT:    movq %rax, %rcx
 ; CHECK64-NEXT:    shrq $8, %rcx
 ; CHECK64-NEXT:    shlq $8, %rax
@@ -196,7 +196,7 @@ define i64 @not_useful_bswap() {
 ;
 ; CHECK64-LABEL: not_useful_bswap:
 ; CHECK64:       # %bb.0:
-; CHECK64-NEXT:    movzbl {{.*}}(%rip), %eax
+; CHECK64-NEXT:    movzbl var8(%rip), %eax
 ; CHECK64-NEXT:    shlq $8, %rax
 ; CHECK64-NEXT:    retq
   %init = load i8, i8* @var8
@@ -224,7 +224,7 @@ define i64 @finally_useful_bswap() {
 ;
 ; CHECK64-LABEL: finally_useful_bswap:
 ; CHECK64:       # %bb.0:
-; CHECK64-NEXT:    movzwl {{.*}}(%rip), %eax
+; CHECK64-NEXT:    movzwl var16(%rip), %eax
 ; CHECK64-NEXT:    bswapq %rax
 ; CHECK64-NEXT:    shrq $48, %rax
 ; CHECK64-NEXT:    retq
@@ -277,14 +277,10 @@ define i528 @large_promotion(i528 %A) nounwind {
 ; CHECK-NEXT:    bswapl %ebp
 ; CHECK-NEXT:    shrdl $16, %ebp, %ebx
 ; CHECK-NEXT:    movl %ebx, {{[-0-9]+}}(%e{{[sb]}}p) # 4-byte Spill
-; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; CHECK-NEXT:    bswapl %ecx
-; CHECK-NEXT:    shrdl $16, %ecx, %ebp
-; CHECK-NEXT:    movl %ebp, {{[-0-9]+}}(%e{{[sb]}}p) # 4-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; CHECK-NEXT:    bswapl %eax
-; CHECK-NEXT:    shrdl $16, %eax, %ecx
-; CHECK-NEXT:    movl %ecx, {{[-0-9]+}}(%e{{[sb]}}p) # 4-byte Spill
+; CHECK-NEXT:    shrdl $16, %eax, %ebp
+; CHECK-NEXT:    movl %ebp, {{[-0-9]+}}(%e{{[sb]}}p) # 4-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; CHECK-NEXT:    bswapl %ecx
 ; CHECK-NEXT:    shrdl $16, %ecx, %eax
@@ -293,10 +289,14 @@ define i528 @large_promotion(i528 %A) nounwind {
 ; CHECK-NEXT:    bswapl %eax
 ; CHECK-NEXT:    shrdl $16, %eax, %ecx
 ; CHECK-NEXT:    movl %ecx, {{[-0-9]+}}(%e{{[sb]}}p) # 4-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ecx
+; CHECK-NEXT:    bswapl %ecx
+; CHECK-NEXT:    shrdl $16, %ecx, %eax
+; CHECK-NEXT:    movl %eax, {{[-0-9]+}}(%e{{[sb]}}p) # 4-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ebp
 ; CHECK-NEXT:    bswapl %ebp
-; CHECK-NEXT:    shrdl $16, %ebp, %eax
-; CHECK-NEXT:    movl %eax, (%esp) # 4-byte Spill
+; CHECK-NEXT:    shrdl $16, %ebp, %ecx
+; CHECK-NEXT:    movl %ecx, (%esp) # 4-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%esp), %ebx
 ; CHECK-NEXT:    bswapl %ebx
 ; CHECK-NEXT:    shrdl $16, %ebx, %ebp

@@ -1,10 +1,16 @@
 add_mlir_unittest(MLIRIRTests
   AttributeTest.cpp
   DialectTest.cpp
-  MemRefTypeTest.cpp
+  InterfaceAttachmentTest.cpp
   OperationSupportTest.cpp
   ShapedTypeTest.cpp
+  SubElementInterfaceTest.cpp
+
+  DEPENDS
+  MLIRTestInterfaceIncGen
 )
+target_include_directories(MLIRIRTests PRIVATE "${MLIR_BINARY_DIR}/test/lib/Dialect/Test")
 target_link_libraries(MLIRIRTests
   PRIVATE
-  MLIRIR)
+  MLIRIR
+  MLIRTestDialect)

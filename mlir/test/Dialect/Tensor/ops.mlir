@@ -22,18 +22,31 @@ func @extract(%arg0: tensor<?x?x?xf32>, %arg1: index) {
   return
 }
 
+// CHECK-LABEL:   func @insert(
+// CHECK-SAME:                  %[[SCALAR:.*]]: f32
+// CHECK-SAME:                  %[[INDEX:.*]]: index
+// CHECK-SAME:                  %[[DEST1:.*]]: tensor<?x?x?xf32>
+// CHECK-SAME:                  %[[DEST2:.*]]: tensor<*xf32>
+func @insert(%arg0: f32, %arg1: index, %arg2: tensor<?x?x?xf32>, %arg3: tensor<*xf32>) {
+  // CHECK: tensor.insert %[[SCALAR]] into %[[DEST1]][%[[INDEX]], %[[INDEX]], %[[INDEX]]] : tensor<?x?x?xf32>
+  %0 = tensor.insert %arg0 into %arg2[%arg1, %arg1, %arg1] : tensor<?x?x?xf32>
+  // CHECK: tensor.insert %[[SCALAR]] into %[[DEST2]][%[[INDEX]], %[[INDEX]], %[[INDEX]]] : tensor<*xf32>
+  %1 = tensor.insert %arg0 into %arg3[%arg1, %arg1, %arg1] : tensor<*xf32>
+  return
+}
+
 // CHECK-LABEL: func @tensor.from_elements() {
 func @tensor.from_elements() {
-  %c0 = "std.constant"() {value = 0: index} : () -> index
+  %c0 = "arith.constant"() {value = 0: index} : () -> index
   // CHECK: %0 = tensor.from_elements %c0 : tensor<1xindex>
   %0 = tensor.from_elements %c0 : tensor<1xindex>
 
-  %c1 = "std.constant"() {value = 1: index} : () -> index
+  %c1 = "arith.constant"() {value = 1: index} : () -> index
   // CHECK: %1 = tensor.from_elements %c0, %c1 : tensor<2xindex>
   %1 = tensor.from_elements %c0, %c1 : tensor<2xindex>
 
-  %c0_f32 = "std.constant"() {value = 0.0: f32} : () -> f32
-  // CHECK: [[C0_F32:%.*]] = constant
+  %c0_f32 = "arith.constant"() {value = 0.0: f32} : () -> f32
+  // CHECK: [[C0_F32:%.*]] = arith.constant
   // CHECK: %2 = tensor.from_elements [[C0_F32]] : tensor<1xf32>
   %2 = tensor.from_elements %c0_f32 : tensor<1xf32>
 
@@ -48,7 +61,7 @@ func @tensor.generate(%m : index, %n : index)
     -> tensor<?x3x?xf32> {
   %tnsr = tensor.generate %m, %n {
     ^bb0(%i : index, %j : index, %k : index):
-      %elem = constant 8.0 : f32
+      %elem = arith.constant 8.0 : f32
       tensor.yield %elem : f32
   } : tensor<?x3x?xf32>
   return %tnsr : tensor<?x3x?xf32>
@@ -64,4 +77,61 @@ func @tensor_reshape(%unranked: tensor<*xf32>, %shape1: tensor<1xi32>,
   %new_unranked = tensor.reshape %dyn_mat(%shape3)
                : (tensor<?x?xf32>, tensor<?xi32>) -> tensor<*xf32>
   return %new_unranked : tensor<*xf32>
+}
+
+// CHECK-LABEL: func @slice({{.*}}) {
+func @slice(%t: tensor<8x16x4xf32>, %idx : index) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+
+  // CHECK: tensor.extract_slice
+  // CHECK-SAME: tensor<8x16x4xf32> to tensor<?x?x?xf32>
+  %1 = tensor.extract_slice %t[%c0, %c0, %c0][%idx, %idx, %idx][%c1, %c1, %c1]
+    : tensor<8x16x4xf32> to tensor<?x?x?xf32>
+
+  // CHECK: tensor.extract_slice
+  // CHECK-SAME: tensor<8x16x4xf32> to tensor<4x4x4xf32>
+  %2 = tensor.extract_slice %t[0, 2, 0][4, 4, 4][1, 1, 1]
+    : tensor<8x16x4xf32> to tensor<4x4x4xf32>
+
+  // CHECK: tensor.extract_slice
+  // CHECK-SAME: tensor<8x16x4xf32> to tensor<4x4xf32>
+  %3 = tensor.extract_slice %t[0, 2, 0][4, 1, 4][1, 1, 1]
+    : tensor<8x16x4xf32> to tensor<4x4xf32>
+
+  return
+}
+
+// CHECK-LABEL: func @insert_slice({{.*}}) {
+func @insert_slice(
+    %t: tensor<8x16x4xf32>,
+    %td: tensor<8x?x4xf32>,
+    %t2: tensor<16x32x8xf32>,
+    %t3: tensor<4x4xf32>,
+    %idx : index,
+    %sz : index) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+
+  // CHECK: tensor.insert_slice
+  // CHECK-SAME: tensor<8x16x4xf32> into tensor<16x32x8xf32>
+  %1 = tensor.insert_slice %t into %t2[%c0, %c0, %c0][8, 16, 4][%c1, %c1, %c1]
+    : tensor<8x16x4xf32> into tensor<16x32x8xf32>
+
+  // CHECK: tensor.insert_slice
+  // CHECK-SAME: tensor<8x16x4xf32> into tensor<16x32x8xf32>
+  %2 = tensor.insert_slice %t into %t2[%c0, %idx, %c0][8, 16, 4][%c1, 1, %c1]
+    : tensor<8x16x4xf32> into tensor<16x32x8xf32>
+
+  // CHECK: tensor.insert_slice
+  // CHECK-SAME: tensor<4x4xf32> into tensor<8x16x4xf32>
+  %3 = tensor.insert_slice %t3 into %t[0, 2, 0][4, 1, 4][1, 1, 1]
+    : tensor<4x4xf32> into tensor<8x16x4xf32>
+
+  // CHECK: tensor.insert_slice
+  // CHECK-SAME: tensor<8x?x4xf32> into tensor<8x16x4xf32>
+  %4 = tensor.insert_slice %td into %t[0, %idx, 0][8, %sz, 4][1, 1, 1]
+    : tensor<8x?x4xf32> into tensor<8x16x4xf32>
+
+  return
 }

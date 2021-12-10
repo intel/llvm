@@ -42,7 +42,7 @@ void foo() {
   int *bp = __builtin_intel_fpga_reg(ap);
   int intArr[10] = {0};
   int *k = __builtin_intel_fpga_reg(intArr);
-  // expected-error@-1{{illegal argument of type 'int [10]'  to __builtin_intel_fpga_reg}}
+  // expected-error@-1{{illegal argument of type 'int[10]'  to __builtin_intel_fpga_reg}}
 
   void (*fp1)();
   void (*fp2)() = __builtin_intel_fpga_reg(fp1);

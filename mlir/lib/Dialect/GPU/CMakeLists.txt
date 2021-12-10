@@ -8,16 +8,39 @@ endif()
 
 if (MLIR_ENABLE_ROCM_CONVERSIONS)
   set(AMDGPU_LIBS
+    IRReader
+    linker
     MCParser
     AMDGPUAsmParser
     AMDGPUCodeGen
     AMDGPUDesc
     AMDGPUInfo
+    target
   )
 endif()
 
-add_mlir_dialect_library(MLIRGPU
+add_mlir_dialect_library(MLIRGPUOps
   IR/GPUDialect.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/GPU
+
+  DEPENDS
+  MLIRGPUOpsIncGen
+  MLIRGPUOpsEnumsGen
+  MLIRGPUOpInterfacesIncGen
+
+  LINK_LIBS PUBLIC
+  MLIRArithmetic
+  MLIRDLTI
+  MLIRIR
+  MLIRMemRef
+  MLIRSideEffectInterfaces
+  MLIRSupport
+  MLIRLLVMIR
+  )
+
+add_mlir_dialect_library(MLIRGPUTransforms
   Transforms/AllReduceLowering.cpp
   Transforms/AsyncRegionRewriter.cpp
   Transforms/KernelOutlining.cpp
@@ -37,23 +60,21 @@ add_mlir_dialect_library(MLIRGPU
   ${AMDGPU_LIBS}
 
   DEPENDS
-  MLIRGPUOpsIncGen
-  MLIRGPUOpInterfacesIncGen
   MLIRGPUPassIncGen
   MLIRParallelLoopMapperAttrGen
   MLIRParallelLoopMapperEnumsGen
 
   LINK_LIBS PUBLIC
+  MLIRArithmetic
   MLIRAsync
   MLIRDataLayoutInterfaces
-  MLIRDLTI
+  MLIRGPUOps
   MLIRIR
-  MLIRMemRef
   MLIRLLVMIR
   MLIRLLVMToLLVMIRTranslation
-  MLIRSCF
+  MLIRMemRef
   MLIRPass
-  MLIRSideEffectInterfaces
+  MLIRSCF
   MLIRStandard
   MLIRSupport
   MLIRTransformUtils
@@ -77,20 +98,20 @@ if(MLIR_ENABLE_CUDA_RUNNER)
   endif()
 
   # Enable gpu-to-cubin pass.
-  target_compile_definitions(obj.MLIRGPU
+  target_compile_definitions(obj.MLIRGPUTransforms
     PRIVATE
     MLIR_GPU_TO_CUBIN_PASS_ENABLE=1
   )
 
   # Add CUDA headers includes and the libcuda.so library.
-  target_include_directories(obj.MLIRGPU
+  target_include_directories(obj.MLIRGPUTransforms
     PRIVATE
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
   )
 
   find_library(CUDA_DRIVER_LIBRARY cuda)
 
-  target_link_libraries(MLIRGPU
+  target_link_libraries(MLIRGPUTransforms
     PRIVATE
     MLIRNVVMToLLVMIRTranslation
     ${CUDA_DRIVER_LIBRARY}
@@ -109,40 +130,22 @@ if(MLIR_ENABLE_ROCM_RUNNER)
     message(SEND_ERROR "lld is not enabled. Please revise LLVM_ENABLE_PROJECTS")
   endif()
 
-  # Configure ROCm support.
-  if (NOT DEFINED ROCM_PATH)
-    if (NOT DEFINED ENV{ROCM_PATH})
-      set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to which ROCm has been installed")
-    else()
-      set(ROCM_PATH $ENV{ROCM_PATH} CACHE PATH "Path to which ROCm has been installed")
-    endif()
-    set(HIP_PATH "${ROCM_PATH}/hip" CACHE PATH " Path to which HIP has been installed")
-  endif()
-  set(CMAKE_MODULE_PATH "${HIP_PATH}/cmake" ${CMAKE_MODULE_PATH})
-  find_package(HIP)
-  if (NOT HIP_FOUND)
-    message(SEND_ERROR "Building mlir with ROCm support requires a working ROCm and HIP install")
-  else()
-    message(STATUS "ROCm HIP version: ${HIP_VERSION}")
-  endif()
-
-  target_compile_definitions(obj.MLIRGPU
+  set(DEFAULT_ROCM_PATH "/opt/rocm" CACHE PATH "Fallback path to search for ROCm installs")
+  target_compile_definitions(obj.MLIRGPUTransforms
     PRIVATE
-    __HIP_PLATFORM_HCC__
-    __ROCM_PATH__="${ROCM_PATH}"
+    __DEFAULT_ROCM_PATH__="${DEFAULT_ROCM_PATH}"
     MLIR_GPU_TO_HSACO_PASS_ENABLE=1
   )
 
-  target_include_directories(obj.MLIRGPU
+  target_include_directories(obj.MLIRGPUTransforms
     PRIVATE
     ${MLIR_SOURCE_DIR}/../lld/include
-    ${HIP_PATH}/include
-    ${ROCM_PATH}/include
   )
 
-  target_link_libraries(MLIRGPU
+  target_link_libraries(MLIRGPUOps
     PRIVATE
     lldELF
+    MLIRExecutionEngine
     MLIRROCDLToLLVMIRTranslation
   )
 

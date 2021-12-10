@@ -282,7 +282,7 @@ struct convert_data_type_impl<T, B, enable_if_t<is_sgentype<T>::value, T>> {
 
 template <typename T, typename B>
 struct convert_data_type_impl<T, B, enable_if_t<is_vgentype<T>::value, T>> {
-  vec<B, T::get_count()> operator()(T t) { return t.template convert<B>(); }
+  vec<B, T::size()> operator()(T t) { return t.template convert<B>(); }
 };
 
 template <typename T, typename B>
@@ -413,7 +413,7 @@ struct select_cl_vector_or_scalar<
       vec<conditional_t<std::is_same<typename T::element_type, half>::value,
                         typename T::element_type,
                         select_cl_scalar_t<typename T::element_type>>,
-          T::get_count()>;
+          T::size()>;
 };
 
 template <typename T>
@@ -429,13 +429,23 @@ struct select_cl_vector_or_scalar<
 template <typename T, typename Enable = void>
 struct select_cl_mptr_or_vector_or_scalar;
 
+// this struct helps to use std::uint8_t instead of std::byte,
+// which is not supported on device
+template <typename T> struct TypeHelper { using RetType = T; };
+
+#if __cplusplus >= 201703L && (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+template <> struct TypeHelper<std::byte> { using RetType = std::uint8_t; };
+#endif
+
+template <typename T> using type_helper = typename TypeHelper<T>::RetType;
+
 template <typename T>
 struct select_cl_mptr_or_vector_or_scalar<
     T, typename detail::enable_if_t<is_genptr<T>::value &&
                                     !std::is_pointer<T>::value>> {
-  using type = multi_ptr<
-      typename select_cl_vector_or_scalar<typename T::element_type>::type,
-      T::address_space>;
+  using type = multi_ptr<typename select_cl_vector_or_scalar<
+                             type_helper<typename T::element_type>>::type,
+                         T::address_space>;
 };
 
 template <typename T>
@@ -504,7 +514,7 @@ template <typename T, typename Enable = void> struct TryToGetNumElements;
 template <typename T>
 struct TryToGetNumElements<
     T, typename detail::enable_if_t<TryToGetVectorT<T>::value>> {
-  static constexpr int value = T::get_count();
+  static constexpr int value = T::size();
 };
 template <typename T>
 struct TryToGetNumElements<
@@ -547,7 +557,7 @@ template <typename T, typename Enable = void> struct RelConverter;
 template <typename T>
 struct RelConverter<
     T, typename detail::enable_if_t<TryToGetElementType<T>::value>> {
-  static const int N = T::get_count();
+  static const int N = T::size();
 #ifdef __SYCL_DEVICE_ONLY__
   using bool_t = typename Boolean<N>::vector_t;
   using ret_t = common_rel_ret_t<T>;

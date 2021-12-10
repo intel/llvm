@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-unknown-unknown -ast-dump %s | FileCheck %s --check-prefix=NONATIVESUPPORT
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -ast-dump %s | FileCheck %s --check-prefix=NATIVESUPPORT
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -ast-dump %s | FileCheck %s --check-prefix=NATIVESUPPORT
 
 // This test checks that the compiler handles kernel_handler type (for
 // SYCL 2020 specialization constants) correctly.
@@ -107,8 +107,9 @@ int main() {
 // Test AST for default SPIR architecture
 
 // Check test_kernel_handler parameters
-// NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int)'
+// NATIVESUPPORT: FunctionDecl {{.*}}test_kernel_handler{{.*}} 'void (int, __global char *)'
 // NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used _arg_ 'int'
+// NATIVESUPPORT-NEXT: ParmVarDecl {{.*}} used  _arg__specialization_constants_buffer '__global char *'
 
 // Check declaration and initialization of kernel object local clone
 // NATIVESUPPORT-NEXT: CompoundStmt

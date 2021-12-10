@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "memtag.h"
 #include "tests/scudo_unit_test.h"
 
 #include "allocator_config.h"
@@ -102,6 +103,8 @@ template <class TypeParam> struct ScudoCombinedTest : public Test {
   std::unique_ptr<AllocatorT> Allocator;
 };
 
+template <typename T> using ScudoCombinedDeathTest = ScudoCombinedTest<T>;
+
 #if SCUDO_FUCHSIA
 #define SCUDO_TYPED_TEST_ALL_TYPES(FIXTURE, NAME)                              \
   SCUDO_TYPED_TEST_TYPE(FIXTURE, NAME, AndroidSvelteConfig)                    \
@@ -165,7 +168,7 @@ void ScudoCombinedTest<Config>::BasicTest(scudo::uptr SizeLog) {
 }
 
 #define SCUDO_MAKE_BASIC_TEST(SizeLog)                                         \
-  SCUDO_TYPED_TEST(ScudoCombinedTest, BasicCombined##SizeLog) {                \
+  SCUDO_TYPED_TEST(ScudoCombinedDeathTest, BasicCombined##SizeLog) {           \
     this->BasicTest(SizeLog);                                                  \
   }
 
@@ -313,7 +316,7 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, ReallocateLargeDecreasing) {
   Allocator->deallocate(P, Origin);
 }
 
-SCUDO_TYPED_TEST(ScudoCombinedTest, ReallocateSame) {
+SCUDO_TYPED_TEST(ScudoCombinedDeathTest, ReallocateSame) {
   auto *Allocator = this->Allocator.get();
 
   // Check that reallocating a chunk to a slightly smaller or larger size
@@ -364,7 +367,7 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, IterateOverChunks) {
   }
 }
 
-SCUDO_TYPED_TEST(ScudoCombinedTest, UseAfterFree) {
+SCUDO_TYPED_TEST(ScudoCombinedDeathTest, UseAfterFree) {
   auto *Allocator = this->Allocator.get();
 
   // Check that use-after-free is detected.
@@ -391,14 +394,14 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, UseAfterFree) {
   }
 }
 
-SCUDO_TYPED_TEST(ScudoCombinedTest, DisableMemoryTagging) {
+SCUDO_TYPED_TEST(ScudoCombinedDeathTest, DisableMemoryTagging) {
   auto *Allocator = this->Allocator.get();
 
   if (Allocator->useMemoryTaggingTestOnly()) {
     // Check that disabling memory tagging works correctly.
     void *P = Allocator->allocate(2048, Origin);
     EXPECT_DEATH(reinterpret_cast<char *>(P)[2048] = 0xaa, "");
-    scudo::disableMemoryTagChecksTestOnly();
+    scudo::ScopedDisableMemoryTagChecks NoTagChecks;
     Allocator->disableMemoryTagging();
     reinterpret_cast<char *>(P)[2048] = 0xaa;
     Allocator->deallocate(P, Origin);
@@ -409,10 +412,6 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, DisableMemoryTagging) {
     Allocator->deallocate(P, Origin);
 
     Allocator->releaseToOS();
-
-    // Disabling memory tag checks may interfere with subsequent tests.
-    // Re-enable them now.
-    scudo::enableMemoryTagChecksTestOnly();
   }
 }
 
@@ -493,7 +492,7 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, ThreadedCombined) {
 
 // Test that multiple instantiations of the allocator have not messed up the
 // process's signal handlers (GWP-ASan used to do this).
-TEST(ScudoCombinedTest, SKIP_ON_FUCHSIA(testSEGV)) {
+TEST(ScudoCombinedDeathTest, SKIP_ON_FUCHSIA(testSEGV)) {
   const scudo::uptr Size = 4 * scudo::getPageSizeCached();
   scudo::MapPlatformData Data = {};
   void *P = scudo::map(nullptr, Size, "testSEGV", MAP_NOACCESS, &Data);
@@ -524,12 +523,14 @@ struct DeathConfig {
   static const scudo::s32 PrimaryMaxReleaseToOsIntervalMs = INT32_MAX;
   typedef scudo::uptr PrimaryCompactPtrT;
   static const scudo::uptr PrimaryCompactPtrScale = 0;
+  static const bool PrimaryEnableRandomOffset = true;
+  static const scudo::uptr PrimaryMapSizeIncrement = 1UL << 18;
 
   typedef scudo::MapAllocatorNoCache SecondaryCache;
   template <class A> using TSDRegistryT = scudo::TSDRegistrySharedT<A, 1U, 1U>;
 };
 
-TEST(ScudoCombinedTest, DeathCombined) {
+TEST(ScudoCombinedDeathTest, DeathCombined) {
   using AllocatorT = TestAllocator<DeathConfig>;
   auto Allocator = std::unique_ptr<AllocatorT>(new AllocatorT());
 
@@ -560,15 +561,6 @@ TEST(ScudoCombinedTest, DeathCombined) {
   EXPECT_DEATH(Allocator->deallocate(P, Origin, Size), "");
   EXPECT_DEATH(Allocator->reallocate(P, Size * 2U), "");
   EXPECT_DEATH(Allocator->getUsableSize(P), "");
-}
-
-// Ensure that releaseToOS can be called prior to any other allocator
-// operation without issue.
-TEST(ScudoCombinedTest, ReleaseToOS) {
-  using AllocatorT = TestAllocator<DeathConfig>;
-  auto Allocator = std::unique_ptr<AllocatorT>(new AllocatorT());
-
-  Allocator->releaseToOS();
 }
 
 // Verify that when a region gets full, the allocator will still manage to
@@ -603,10 +595,15 @@ TEST(ScudoCombinedTest, FullRegion) {
   EXPECT_EQ(FailedAllocationsCount, 0U);
 }
 
-TEST(ScudoCombinedTest, OddEven) {
-  using AllocatorT = TestAllocator<scudo::AndroidConfig>;
-  using SizeClassMap = AllocatorT::PrimaryT::SizeClassMap;
-  auto Allocator = std::unique_ptr<AllocatorT>(new AllocatorT());
+// Ensure that releaseToOS can be called prior to any other allocator
+// operation without issue.
+SCUDO_TYPED_TEST(ScudoCombinedTest, ReleaseToOS) {
+  auto *Allocator = this->Allocator.get();
+  Allocator->releaseToOS();
+}
+
+SCUDO_TYPED_TEST(ScudoCombinedTest, OddEven) {
+  auto *Allocator = this->Allocator.get();
 
   if (!Allocator->useMemoryTaggingTestOnly())
     return;
@@ -617,6 +614,7 @@ TEST(ScudoCombinedTest, OddEven) {
     EXPECT_NE(Tag1 % 2, Tag2 % 2);
   };
 
+  using SizeClassMap = typename TypeParam::Primary::SizeClassMap;
   for (scudo::uptr ClassId = 1U; ClassId <= SizeClassMap::LargestClassId;
        ClassId++) {
     const scudo::uptr Size = SizeClassMap::getSizeByClassId(ClassId);
@@ -642,10 +640,8 @@ TEST(ScudoCombinedTest, OddEven) {
   }
 }
 
-TEST(ScudoCombinedTest, DisableMemInit) {
-  using AllocatorT = TestAllocator<scudo::AndroidConfig>;
-  using SizeClassMap = AllocatorT::PrimaryT::SizeClassMap;
-  auto Allocator = std::unique_ptr<AllocatorT>(new AllocatorT());
+SCUDO_TYPED_TEST(ScudoCombinedTest, DisableMemInit) {
+  auto *Allocator = this->Allocator.get();
 
   std::vector<void *> Ptrs(65536, nullptr);
 
@@ -657,6 +653,7 @@ TEST(ScudoCombinedTest, DisableMemInit) {
   // expected. This is tricky to ensure when MTE is enabled, so this test tries
   // to exercise the relevant code on our MTE path.
   for (scudo::uptr ClassId = 1U; ClassId <= 8; ClassId++) {
+    using SizeClassMap = typename TypeParam::Primary::SizeClassMap;
     const scudo::uptr Size =
         SizeClassMap::getSizeByClassId(ClassId) - scudo::Chunk::getHeaderSize();
     if (Size < 8)
@@ -681,4 +678,24 @@ TEST(ScudoCombinedTest, DisableMemInit) {
   }
 
   Allocator->setOption(scudo::Option::ThreadDisableMemInit, 0);
+}
+
+SCUDO_TYPED_TEST(ScudoCombinedTest, ReallocateInPlaceStress) {
+  auto *Allocator = this->Allocator.get();
+
+  // Regression test: make realloc-in-place happen at the very right end of a
+  // mapped region.
+  constexpr int nPtrs = 10000;
+  for (int i = 1; i < 32; ++i) {
+    scudo::uptr Size = 16 * i - 1;
+    std::vector<void *> Ptrs;
+    for (int i = 0; i < nPtrs; ++i) {
+      void *P = Allocator->allocate(Size, Origin);
+      P = Allocator->reallocate(P, Size + 1);
+      Ptrs.push_back(P);
+    }
+
+    for (int i = 0; i < nPtrs; ++i)
+      Allocator->deallocate(Ptrs[i], Origin);
+  }
 }

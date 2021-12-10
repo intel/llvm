@@ -14,55 +14,10 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Interfaces/FoldInterfaces.h"
+#include "llvm/ADT/StringExtras.h"
 #include <numeric>
 
 using namespace mlir;
-
-OpAsmParser::~OpAsmParser() {}
-
-//===----------------------------------------------------------------------===//
-// OperationName
-//===----------------------------------------------------------------------===//
-
-/// Form the OperationName for an op with the specified string.  This either is
-/// a reference to an AbstractOperation if one is known, or a uniqued Identifier
-/// if not.
-OperationName::OperationName(StringRef name, MLIRContext *context) {
-  if (auto *op = AbstractOperation::lookup(name, context))
-    representation = op;
-  else
-    representation = Identifier::get(name, context);
-}
-
-/// Return the name of the dialect this operation is registered to.
-StringRef OperationName::getDialectNamespace() const {
-  if (Dialect *dialect = getDialect())
-    return dialect->getNamespace();
-  return representation.get<Identifier>().strref().split('.').first;
-}
-
-/// Return the operation name with dialect name stripped, if it has one.
-StringRef OperationName::stripDialect() const {
-  auto splitName = getStringRef().split(".");
-  return splitName.second.empty() ? splitName.first : splitName.second;
-}
-
-/// Return the name of this operation. This always succeeds.
-StringRef OperationName::getStringRef() const {
-  return getIdentifier().strref();
-}
-
-/// Return the name of this operation as an identifier. This always succeeds.
-Identifier OperationName::getIdentifier() const {
-  if (auto *op = representation.dyn_cast<const AbstractOperation *>())
-    return op->name;
-  return representation.get<Identifier>();
-}
-
-OperationName OperationName::getFromOpaquePointer(const void *pointer) {
-  return OperationName(
-      RepresentationUnion::getFromOpaqueValue(const_cast<void *>(pointer)));
-}
 
 //===----------------------------------------------------------------------===//
 // Operation
@@ -117,19 +72,15 @@ Operation *Operation::create(Location location, OperationName name,
 
   // If the operation is known to have no operands, don't allocate an operand
   // storage.
-  bool needsOperandStorage = true;
-  if (operands.empty()) {
-    if (const AbstractOperation *abstractOp = name.getAbstractOperation())
-      needsOperandStorage = !abstractOp->hasTrait<OpTrait::ZeroOperands>();
-  }
+  bool needsOperandStorage =
+      operands.empty() ? !name.hasTrait<OpTrait::ZeroOperands>() : true;
 
   // Compute the byte size for the operation and the operand storage. This takes
   // into account the size of the operation, its trailing objects, and its
   // prefixed objects.
   size_t byteSize =
-      totalSizeToAlloc<BlockOperand, Region, detail::OperandStorage>(
-          numSuccessors, numRegions, needsOperandStorage ? 1 : 0) +
-      detail::OperandStorage::additionalAllocSize(numOperands);
+      totalSizeToAlloc<detail::OperandStorage, BlockOperand, Region, OpOperand>(
+          needsOperandStorage ? 1 : 0, numSuccessors, numRegions, numOperands);
   size_t prefixByteSize = llvm::alignTo(
       Operation::prefixAllocSize(numTrailingResults, numInlineResults),
       alignof(Operation));
@@ -158,8 +109,10 @@ Operation *Operation::create(Location location, OperationName name,
     new (&op->getRegion(i)) Region(op);
 
   // Initialize the operands.
-  if (needsOperandStorage)
-    new (&op->getOperandStorage()) detail::OperandStorage(op, operands);
+  if (needsOperandStorage) {
+    new (&op->getOperandStorage()) detail::OperandStorage(
+        op, op->getTrailingObjects<OpOperand>(), operands);
+  }
 
   // Initialize the successors.
   auto blockOperands = op->getBlockOperands();
@@ -176,6 +129,14 @@ Operation::Operation(Location location, OperationName name, unsigned numResults,
       numRegions(numRegions), hasOperandStorage(hasOperandStorage), name(name),
       attrs(attributes) {
   assert(attributes && "unexpected null attribute dictionary");
+#ifndef NDEBUG
+  if (!getDialect() && !getContext()->allowsUnregisteredDialects())
+    llvm::report_fatal_error(
+        name.getStringRef() +
+        " created with unregistered dialect. If this is intended, please call "
+        "allowUnregisteredDialects() on the MLIRContext, or use "
+        "-allow-unregistered-dialect with the MLIR tool used.");
+#endif
 }
 
 // Operations are deleted through the destroy() member because they are
@@ -214,21 +175,6 @@ void Operation::destroy() {
                  llvm::alignTo(prefixAllocSize(), alignof(Operation));
   this->~Operation();
   free(rawMem);
-}
-
-/// Return the context this operation is associated with.
-MLIRContext *Operation::getContext() { return location->getContext(); }
-
-/// Return the dialect this operation is associated with, or nullptr if the
-/// associated dialect is not registered.
-Dialect *Operation::getDialect() { return getName().getDialect(); }
-
-Region *Operation::getParentRegion() {
-  return block ? block->getParent() : nullptr;
-}
-
-Operation *Operation::getParentOp() {
-  return block ? block->getParentOp() : nullptr;
 }
 
 /// Return true if this operation is a proper ancestor of the `other`
@@ -285,17 +231,9 @@ void Operation::insertOperands(unsigned index, ValueRange operands) {
 InFlightDiagnostic Operation::emitError(const Twine &message) {
   InFlightDiagnostic diag = mlir::emitError(getLoc(), message);
   if (getContext()->shouldPrintOpOnDiagnostic()) {
-    // Print out the operation explicitly here so that we can print the generic
-    // form.
-    // TODO: It would be nice if we could instead provide the
-    // specific printing flags when adding the operation as an argument to the
-    // diagnostic.
-    std::string printedOp;
-    {
-      llvm::raw_string_ostream os(printedOp);
-      print(os, OpPrintingFlags().printGenericOpForm().useLocalScope());
-    }
-    diag.attachNote(getLoc()) << "see current operation: " << printedOp;
+    diag.attachNote(getLoc())
+        .append("see current operation: ")
+        .appendOp(*this, OpPrintingFlags().printGenericOpForm());
   }
   return diag;
 }
@@ -522,7 +460,7 @@ void Operation::moveAfter(Operation *existingOp) {
 void Operation::moveAfter(Block *block,
                           llvm::iplist<Operation>::iterator iterator) {
   assert(iterator != block->end() && "cannot move after end of block");
-  moveBefore(&*std::next(iterator));
+  moveBefore(block, std::next(iterator));
 }
 
 /// This drops all operand uses from this operation, which is an essential
@@ -559,8 +497,8 @@ LogicalResult Operation::fold(ArrayRef<Attribute> operands,
                               SmallVectorImpl<OpFoldResult> &results) {
   // If we have a registered operation definition matching this one, use it to
   // try to constant fold the operation.
-  auto *abstractOp = getAbstractOperation();
-  if (abstractOp && succeeded(abstractOp->foldHook(this, operands, results)))
+  Optional<RegisteredOperationName> info = getRegisteredInfo();
+  if (info && succeeded(info->foldHook(this, operands, results)))
     return success();
 
   // Otherwise, fall back on the dialect hook to handle it.
@@ -649,6 +587,18 @@ ParseResult OpState::parse(OpAsmParser &parser, OperationState &result) {
 
 // The fallback for the printer is to print in the generic assembly form.
 void OpState::print(Operation *op, OpAsmPrinter &p) { p.printGenericOp(op); }
+// The fallback for the printer is to print in the generic assembly form.
+void OpState::printOpName(Operation *op, OpAsmPrinter &p,
+                          StringRef defaultDialect) {
+  StringRef name = op->getName().getStringRef();
+  if (name.startswith((defaultDialect + ".").str()))
+    name = name.drop_front(defaultDialect.size() + 1);
+  // TODO: remove this special case (and update test/IR/parser.mlir)
+  else if ((defaultDialect.empty() || defaultDialect == "builtin") &&
+           name.startswith("std."))
+    name = name.drop_front(4);
+  p.getStream() << name;
+}
 
 /// Emit an error about fatal conditions with this operation, reporting up to
 /// any diagnostic handlers that may be listening.
@@ -679,9 +629,13 @@ InFlightDiagnostic OpState::emitRemark(const Twine &message) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult OpTrait::impl::foldIdempotent(Operation *op) {
-  auto *argumentOp = op->getOperand(0).getDefiningOp();
-  if (argumentOp && op->getName() == argumentOp->getName()) {
-    // Replace the outer operation output with the inner operation.
+  if (op->getNumOperands() == 1) {
+    auto *argumentOp = op->getOperand(0).getDefiningOp();
+    if (argumentOp && op->getName() == argumentOp->getName()) {
+      // Replace the outer operation output with the inner operation.
+      return op->getOperand(0);
+    }
+  } else if (op->getOperand(0) == op->getOperand(1)) {
     return op->getOperand(0);
   }
 
@@ -723,7 +677,8 @@ LogicalResult OpTrait::impl::verifyAtLeastNOperands(Operation *op,
                                                     unsigned numOperands) {
   if (op->getNumOperands() < numOperands)
     return op->emitOpError()
-           << "expected " << numOperands << " or more operands";
+           << "expected " << numOperands << " or more operands, but found "
+           << op->getNumOperands();
   return success();
 }
 
@@ -1004,19 +959,22 @@ OpTrait::impl::verifyResultsAreSignlessIntegerLike(Operation *op) {
   return success();
 }
 
-static LogicalResult verifyValueSizeAttr(Operation *op, StringRef attrName,
-                                         bool isOperand) {
+LogicalResult OpTrait::impl::verifyValueSizeAttr(Operation *op,
+                                                 StringRef attrName,
+                                                 StringRef valueGroupName,
+                                                 size_t expectedCount) {
   auto sizeAttr = op->getAttrOfType<DenseIntElementsAttr>(attrName);
   if (!sizeAttr)
-    return op->emitOpError("requires 1D vector attribute '") << attrName << "'";
-
-  auto sizeAttrType = sizeAttr.getType().dyn_cast<VectorType>();
-  if (!sizeAttrType || sizeAttrType.getRank() != 1 ||
-      !sizeAttrType.getElementType().isInteger(32))
-    return op->emitOpError("requires 1D vector of i32 attribute '")
+    return op->emitOpError("requires 1D i32 elements attribute '")
            << attrName << "'";
 
-  if (llvm::any_of(sizeAttr.getIntValues(), [](const APInt &element) {
+  auto sizeAttrType = sizeAttr.getType();
+  if (sizeAttrType.getRank() != 1 ||
+      !sizeAttrType.getElementType().isInteger(32))
+    return op->emitOpError("requires 1D i32 elements attribute '")
+           << attrName << "'";
+
+  if (llvm::any_of(sizeAttr.getValues<APInt>(), [](const APInt &element) {
         return !element.isNonNegative();
       }))
     return op->emitOpError("'")
@@ -1026,25 +984,22 @@ static LogicalResult verifyValueSizeAttr(Operation *op, StringRef attrName,
       sizeAttr.begin(), sizeAttr.end(), 0,
       [](unsigned all, APInt one) { return all + one.getZExtValue(); });
 
-  if (isOperand && totalCount != op->getNumOperands())
-    return op->emitOpError("operand count (")
-           << op->getNumOperands() << ") does not match with the total size ("
-           << totalCount << ") specified in attribute '" << attrName << "'";
-  else if (!isOperand && totalCount != op->getNumResults())
-    return op->emitOpError("result count (")
-           << op->getNumResults() << ") does not match with the total size ("
-           << totalCount << ") specified in attribute '" << attrName << "'";
+  if (totalCount != expectedCount)
+    return op->emitOpError()
+           << valueGroupName << " count (" << expectedCount
+           << ") does not match with the total size (" << totalCount
+           << ") specified in attribute '" << attrName << "'";
   return success();
 }
 
 LogicalResult OpTrait::impl::verifyOperandSizeAttr(Operation *op,
                                                    StringRef attrName) {
-  return verifyValueSizeAttr(op, attrName, /*isOperand=*/true);
+  return verifyValueSizeAttr(op, attrName, "operand", op->getNumOperands());
 }
 
 LogicalResult OpTrait::impl::verifyResultSizeAttr(Operation *op,
                                                   StringRef attrName) {
-  return verifyValueSizeAttr(op, attrName, /*isOperand=*/false);
+  return verifyValueSizeAttr(op, attrName, "result", op->getNumResults());
 }
 
 LogicalResult OpTrait::impl::verifyNoRegionArguments(Operation *op) {
@@ -1104,6 +1059,54 @@ LogicalResult OpTrait::impl::verifyElementwise(Operation *op) {
   return success();
 }
 
+/// Check for any values used by operations regions attached to the
+/// specified "IsIsolatedFromAbove" operation defined outside of it.
+LogicalResult OpTrait::impl::verifyIsIsolatedFromAbove(Operation *isolatedOp) {
+  assert(isolatedOp->hasTrait<OpTrait::IsIsolatedFromAbove>() &&
+         "Intended to check IsolatedFromAbove ops");
+
+  // List of regions to analyze.  Each region is processed independently, with
+  // respect to the common `limit` region, so we can look at them in any order.
+  // Therefore, use a simple vector and push/pop back the current region.
+  SmallVector<Region *, 8> pendingRegions;
+  for (auto &region : isolatedOp->getRegions()) {
+    pendingRegions.push_back(&region);
+
+    // Traverse all operations in the region.
+    while (!pendingRegions.empty()) {
+      for (Operation &op : pendingRegions.pop_back_val()->getOps()) {
+        for (Value operand : op.getOperands()) {
+          // operand should be non-null here if the IR is well-formed. But
+          // we don't assert here as this function is called from the verifier
+          // and so could be called on invalid IR.
+          if (!operand)
+            return op.emitOpError("operation's operand is null");
+
+          // Check that any value that is used by an operation is defined in the
+          // same region as either an operation result.
+          auto *operandRegion = operand.getParentRegion();
+          if (!region.isAncestor(operandRegion)) {
+            return op.emitOpError("using value defined outside the region")
+                       .attachNote(isolatedOp->getLoc())
+                   << "required by region isolation constraints";
+          }
+        }
+
+        // Schedule any regions in the operation for further checking.  Don't
+        // recurse into other IsolatedFromAbove ops, because they will check
+        // themselves.
+        if (op.getNumRegions() &&
+            !op.hasTrait<OpTrait::IsIsolatedFromAbove>()) {
+          for (Region &subRegion : op.getRegions())
+            pendingRegions.push_back(&subRegion);
+        }
+      }
+    }
+  }
+
+  return success();
+}
+
 bool OpTrait::hasElementwiseMappableTraits(Operation *op) {
   return op->hasTrait<Elementwise>() && op->hasTrait<Scalarizable>() &&
          op->hasTrait<Vectorizable>() && op->hasTrait<Tensorizable>();
@@ -1127,6 +1130,24 @@ ParseResult impl::parseOneResultSameOperandTypeOp(OpAsmParser &parser,
                                                   OperationState &result) {
   SmallVector<OpAsmParser::OperandType, 2> ops;
   Type type;
+  // If the operand list is in-between parentheses, then we have a generic form.
+  // (see the fallback in `printOneResultOp`).
+  llvm::SMLoc loc = parser.getCurrentLocation();
+  if (!parser.parseOptionalLParen()) {
+    if (parser.parseOperandList(ops) || parser.parseRParen() ||
+        parser.parseOptionalAttrDict(result.attributes) ||
+        parser.parseColon() || parser.parseType(type))
+      return failure();
+    auto fnType = type.dyn_cast<FunctionType>();
+    if (!fnType) {
+      parser.emitError(loc, "expected function type");
+      return failure();
+    }
+    if (parser.resolveOperands(ops, fnType.getInputs(), loc, result.operands))
+      return failure();
+    result.addTypes(fnType.getResults());
+    return success();
+  }
   return failure(parser.parseOperandList(ops) ||
                  parser.parseOptionalAttrDict(result.attributes) ||
                  parser.parseColonType(type) ||
@@ -1142,11 +1163,11 @@ void impl::printOneResultOp(Operation *op, OpAsmPrinter &p) {
   auto resultType = op->getResult(0).getType();
   if (llvm::any_of(op->getOperandTypes(),
                    [&](Type type) { return type != resultType; })) {
-    p.printGenericOp(op);
+    p.printGenericOp(op, /*printOpName=*/false);
     return;
   }
 
-  p << op->getName() << ' ';
+  p << ' ';
   p.printOperands(op->getOperands());
   p.printOptionalAttrDict(op->getAttrs());
   // Now we can output only one type for all operands and the result.
@@ -1217,7 +1238,7 @@ ParseResult impl::parseCastOp(OpAsmParser &parser, OperationState &result) {
 }
 
 void impl::printCastOp(Operation *op, OpAsmPrinter &p) {
-  p << op->getName() << ' ' << op->getOperand(0);
+  p << ' ' << op->getOperand(0);
   p.printOptionalAttrDict(op->getAttrs());
   p << " : " << op->getOperand(0).getType() << " to "
     << op->getResult(0).getType();
@@ -1273,39 +1294,4 @@ void impl::ensureRegionTerminator(
     function_ref<Operation *(OpBuilder &, Location)> buildTerminatorOp) {
   OpBuilder opBuilder(builder.getContext());
   ensureRegionTerminator(region, opBuilder, loc, buildTerminatorOp);
-}
-
-//===----------------------------------------------------------------------===//
-// UseIterator
-//===----------------------------------------------------------------------===//
-
-Operation::UseIterator::UseIterator(Operation *op, bool end)
-    : op(op), res(end ? op->result_end() : op->result_begin()) {
-  // Only initialize current use if there are results/can be uses.
-  if (op->getNumResults())
-    skipOverResultsWithNoUsers();
-}
-
-Operation::UseIterator &Operation::UseIterator::operator++() {
-  // We increment over uses, if we reach the last use then move to next
-  // result.
-  if (use != (*res).use_end())
-    ++use;
-  if (use == (*res).use_end()) {
-    ++res;
-    skipOverResultsWithNoUsers();
-  }
-  return *this;
-}
-
-void Operation::UseIterator::skipOverResultsWithNoUsers() {
-  while (res != op->result_end() && (*res).use_empty())
-    ++res;
-
-  // If we are at the last result, then set use to first use of
-  // first result (sentinel value used for end).
-  if (res == op->result_end())
-    use = {};
-  else
-    use = (*res).use_begin();
 }

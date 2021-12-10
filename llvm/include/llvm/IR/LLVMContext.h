@@ -290,7 +290,7 @@ public:
   /// be prepared to drop the erroneous construct on the floor and "not crash".
   /// The generated code need not be correct.  The error message will be
   /// implicitly prefixed with "error: " and should not end with a ".".
-  void emitError(unsigned LocCookie, const Twine &ErrorStr);
+  void emitError(uint64_t LocCookie, const Twine &ErrorStr);
   void emitError(const Instruction *I, const Twine &ErrorStr);
   void emitError(const Twine &ErrorStr);
 
@@ -304,6 +304,13 @@ public:
   /// The lifetime of the object must be guaranteed to extend as long as the
   /// LLVMContext is used by compilation.
   void setOptPassGate(OptPassGate&);
+
+  /// Enable opaque pointers. Can only be called before creating the first
+  /// pointer type.
+  void enableOpaquePointers() const;
+
+  /// Whether typed pointers are supported. If false, all pointers are opaque.
+  bool supportsTypedPointers() const;
 
 private:
   // Module needs access to the add/removeModule methods.

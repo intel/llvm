@@ -1764,10 +1764,10 @@ define <16 x i32> @test_masked_v16i32(i8 * %addr, <16 x i32> %old, <16 x i32> %m
 ; SSE2-NEXT:    pcmpeqd %xmm8, %xmm7
 ; SSE2-NEXT:    pcmpeqd %xmm8, %xmm6
 ; SSE2-NEXT:    pcmpeqd %xmm8, %xmm5
-; SSE2-NEXT:    pcmpeqd %xmm8, %xmm4
-; SSE2-NEXT:    pand %xmm4, %xmm0
-; SSE2-NEXT:    pandn (%rdi), %xmm4
-; SSE2-NEXT:    por %xmm4, %xmm0
+; SSE2-NEXT:    pcmpeqd %xmm4, %xmm8
+; SSE2-NEXT:    pand %xmm8, %xmm0
+; SSE2-NEXT:    pandn (%rdi), %xmm8
+; SSE2-NEXT:    por %xmm8, %xmm0
 ; SSE2-NEXT:    pand %xmm5, %xmm1
 ; SSE2-NEXT:    pandn 16(%rdi), %xmm5
 ; SSE2-NEXT:    por %xmm5, %xmm1
@@ -1857,7 +1857,7 @@ define i32 @PR39256(float* %ptr) {
 ; SSE-LABEL: PR39256:
 ; SSE:       # %bb.0: # %entry
 ; SSE-NEXT:    movss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; SSE-NEXT:    ucomiss {{.*}}(%rip), %xmm0
+; SSE-NEXT:    ucomiss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; SSE-NEXT:    setb (%rax)
 ; SSE-NEXT:    movl $-2147483648, %eax # imm = 0x80000000
 ; SSE-NEXT:    retq
@@ -1865,7 +1865,7 @@ define i32 @PR39256(float* %ptr) {
 ; AVX-LABEL: PR39256:
 ; AVX:       # %bb.0: # %entry
 ; AVX-NEXT:    vmovss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; AVX-NEXT:    vucomiss {{.*}}(%rip), %xmm0
+; AVX-NEXT:    vucomiss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; AVX-NEXT:    setb (%rax)
 ; AVX-NEXT:    movl $-2147483648, %eax # imm = 0x80000000
 ; AVX-NEXT:    retq
@@ -1873,7 +1873,7 @@ define i32 @PR39256(float* %ptr) {
 ; AVX512-LABEL: PR39256:
 ; AVX512:       # %bb.0: # %entry
 ; AVX512-NEXT:    vmovss {{.*#+}} xmm0 = mem[0],zero,zero,zero
-; AVX512-NEXT:    vucomiss {{.*}}(%rip), %xmm0
+; AVX512-NEXT:    vucomiss {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; AVX512-NEXT:    setb (%rax)
 ; AVX512-NEXT:    movl $-2147483648, %eax # imm = 0x80000000
 ; AVX512-NEXT:    retq

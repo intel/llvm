@@ -33,6 +33,7 @@
 
 namespace clang {
 
+class AnalyzerOptions;
 class BlockDecl;
 class CXXBoolLiteralExpr;
 class CXXMethodDecl;
@@ -66,6 +67,8 @@ protected:
 
   ProgramStateManager &StateMgr;
 
+  const AnalyzerOptions &AnOpts;
+
   /// The scalar type to use for array indices.
   const QualType ArrayIndexTy;
 
@@ -96,11 +99,7 @@ protected:
 
 public:
   SValBuilder(llvm::BumpPtrAllocator &alloc, ASTContext &context,
-              ProgramStateManager &stateMgr)
-      : Context(context), BasicVals(context, alloc),
-        SymMgr(context, BasicVals, alloc), MemMgr(context, alloc),
-        StateMgr(stateMgr), ArrayIndexTy(context.LongLongTy),
-        ArrayIndexWidth(context.getTypeSize(ArrayIndexTy)) {}
+              ProgramStateManager &stateMgr);
 
   virtual ~SValBuilder() = default;
 
@@ -188,6 +187,8 @@ public:
   MemRegionManager &getRegionManager() { return MemMgr; }
   const MemRegionManager &getRegionManager() const { return MemMgr; }
 
+  const AnalyzerOptions &getAnalyzerOptions() const { return AnOpts; }
+
   // Forwarding methods to SymbolManager.
 
   const SymbolConjured* conjureSymbol(const Stmt *stmt,
@@ -237,6 +238,14 @@ public:
   DefinedOrUnknownSVal getConjuredHeapSymbolVal(const Expr *E,
                                                 const LocationContext *LCtx,
                                                 unsigned Count);
+
+  /// Conjure a symbol representing heap allocated memory region.
+  ///
+  /// Note, now, the expression *doesn't* need to represent a location.
+  /// But the type need to!
+  DefinedOrUnknownSVal getConjuredHeapSymbolVal(const Expr *E,
+                                                const LocationContext *LCtx,
+                                                QualType type, unsigned Count);
 
   DefinedOrUnknownSVal getDerivedRegionValueSymbolVal(
       SymbolRef parentSymbol, const TypedValueRegion *region);
@@ -379,6 +388,10 @@ public:
   Loc makeLoc(const llvm::APSInt& integer) {
     return loc::ConcreteInt(BasicVals.getValue(integer));
   }
+
+  /// Return MemRegionVal on success cast, otherwise return None.
+  Optional<loc::MemRegionVal> getCastedMemRegionVal(const MemRegion *region,
+                                                    QualType type);
 
   /// Make an SVal that represents the given symbol. This follows the convention
   /// of representing Loc-type symbols (symbolic pointers and references)

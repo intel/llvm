@@ -31,7 +31,8 @@ enum LineType {
   LT_ObjCProperty, // An @property line.
   LT_Other,
   LT_PreprocessorDirective,
-  LT_VirtualFunctionDecl
+  LT_VirtualFunctionDecl,
+  LT_ArrayOfStructInitializer,
 };
 
 class AnnotatedLine {
@@ -52,9 +53,7 @@ public:
     // left them in a different state.
     First->Previous = nullptr;
     FormatToken *Current = First;
-    for (std::list<UnwrappedLineNode>::const_iterator I = ++Line.Tokens.begin(),
-                                                      E = Line.Tokens.end();
-         I != E; ++I) {
+    for (auto I = ++Line.Tokens.begin(), E = Line.Tokens.end(); I != E; ++I) {
       const UnwrappedLineNode &Node = *I;
       Current->Next = I->Tok;
       I->Tok->Previous = Current;
@@ -188,6 +187,17 @@ private:
   void printDebugInfo(const AnnotatedLine &Line);
 
   void calculateUnbreakableTailLengths(AnnotatedLine &Line);
+
+  void calculateArrayInitializerColumnList(AnnotatedLine &Line);
+
+  FormatToken *calculateInitializerColumnList(AnnotatedLine &Line,
+                                              FormatToken *CurrentToken,
+                                              unsigned Depth);
+  FormatStyle::PointerAlignmentStyle
+  getTokenReferenceAlignment(const FormatToken &PointerOrReference);
+
+  FormatStyle::PointerAlignmentStyle
+  getTokenPointerOrReferenceAlignment(const FormatToken &PointerOrReference);
 
   const FormatStyle &Style;
 

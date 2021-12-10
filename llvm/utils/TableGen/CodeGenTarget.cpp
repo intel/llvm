@@ -77,6 +77,7 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::ppcf128:  return "MVT::ppcf128";
   case MVT::x86mmx:   return "MVT::x86mmx";
   case MVT::x86amx:   return "MVT::x86amx";
+  case MVT::i64x8:    return "MVT::i64x8";
   case MVT::Glue:     return "MVT::Glue";
   case MVT::isVoid:   return "MVT::isVoid";
   case MVT::v1i1:     return "MVT::v1i1";
@@ -99,6 +100,8 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::v64i8:    return "MVT::v64i8";
   case MVT::v128i8:   return "MVT::v128i8";
   case MVT::v256i8:   return "MVT::v256i8";
+  case MVT::v512i8:   return "MVT::v512i8";
+  case MVT::v1024i8:  return "MVT::v1024i8";
   case MVT::v1i16:    return "MVT::v1i16";
   case MVT::v2i16:    return "MVT::v2i16";
   case MVT::v3i16:    return "MVT::v3i16";
@@ -108,11 +111,15 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::v32i16:   return "MVT::v32i16";
   case MVT::v64i16:   return "MVT::v64i16";
   case MVT::v128i16:  return "MVT::v128i16";
+  case MVT::v256i16:  return "MVT::v256i16";
+  case MVT::v512i16:  return "MVT::v512i16";
   case MVT::v1i32:    return "MVT::v1i32";
   case MVT::v2i32:    return "MVT::v2i32";
   case MVT::v3i32:    return "MVT::v3i32";
   case MVT::v4i32:    return "MVT::v4i32";
   case MVT::v5i32:    return "MVT::v5i32";
+  case MVT::v6i32:    return "MVT::v6i32";
+  case MVT::v7i32:    return "MVT::v7i32";
   case MVT::v8i32:    return "MVT::v8i32";
   case MVT::v16i32:   return "MVT::v16i32";
   case MVT::v32i32:   return "MVT::v32i32";
@@ -124,6 +131,7 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::v2048i32: return "MVT::v2048i32";
   case MVT::v1i64:    return "MVT::v1i64";
   case MVT::v2i64:    return "MVT::v2i64";
+  case MVT::v3i64:    return "MVT::v3i64";
   case MVT::v4i64:    return "MVT::v4i64";
   case MVT::v8i64:    return "MVT::v8i64";
   case MVT::v16i64:   return "MVT::v16i64";
@@ -132,6 +140,7 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::v128i64:  return "MVT::v128i64";
   case MVT::v256i64:  return "MVT::v256i64";
   case MVT::v1i128:   return "MVT::v1i128";
+  case MVT::v1f16:    return "MVT::v1f16";
   case MVT::v2f16:    return "MVT::v2f16";
   case MVT::v3f16:    return "MVT::v3f16";
   case MVT::v4f16:    return "MVT::v4f16";
@@ -140,6 +149,8 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::v32f16:   return "MVT::v32f16";
   case MVT::v64f16:   return "MVT::v64f16";
   case MVT::v128f16:  return "MVT::v128f16";
+  case MVT::v256f16:  return "MVT::v256f16";
+  case MVT::v512f16:  return "MVT::v512f16";
   case MVT::v2bf16:   return "MVT::v2bf16";
   case MVT::v3bf16:   return "MVT::v3bf16";
   case MVT::v4bf16:   return "MVT::v4bf16";
@@ -153,6 +164,8 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::v3f32:    return "MVT::v3f32";
   case MVT::v4f32:    return "MVT::v4f32";
   case MVT::v5f32:    return "MVT::v5f32";
+  case MVT::v6f32:    return "MVT::v6f32";
+  case MVT::v7f32:    return "MVT::v7f32";
   case MVT::v8f32:    return "MVT::v8f32";
   case MVT::v16f32:   return "MVT::v16f32";
   case MVT::v32f32:   return "MVT::v32f32";
@@ -164,6 +177,7 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::v2048f32: return "MVT::v2048f32";
   case MVT::v1f64:    return "MVT::v1f64";
   case MVT::v2f64:    return "MVT::v2f64";
+  case MVT::v3f64:    return "MVT::v3f64";
   case MVT::v4f64:    return "MVT::v4f64";
   case MVT::v8f64:    return "MVT::v8f64";
   case MVT::v16f64:   return "MVT::v16f64";
@@ -209,6 +223,7 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::nxv8f16:  return "MVT::nxv8f16";
   case MVT::nxv16f16: return "MVT::nxv16f16";
   case MVT::nxv32f16: return "MVT::nxv32f16";
+  case MVT::nxv1bf16:  return "MVT::nxv1bf16";
   case MVT::nxv2bf16:  return "MVT::nxv2bf16";
   case MVT::nxv4bf16:  return "MVT::nxv4bf16";
   case MVT::nxv8bf16:  return "MVT::nxv8bf16";
@@ -561,7 +576,7 @@ bool CodeGenTarget::guessInstructionProperties() const {
 // ComplexPattern implementation
 //
 ComplexPattern::ComplexPattern(Record *R) {
-  Ty          = ::getValueType(R->getValueAsDef("Ty"));
+  Ty          = R->getValueAsDef("Ty");
   NumOperands = R->getValueAsInt("NumOperands");
   SelectFunc = std::string(R->getValueAsString("SelectFunc"));
   RootNodes   = R->getValueAsListOfDefs("RootNodes");
@@ -661,12 +676,11 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R,
   isSpeculatable = false;
   hasSideEffects = false;
 
-  if (DefName.size() <= 4 ||
-      std::string(DefName.begin(), DefName.begin() + 4) != "int_")
+  if (DefName.size() <= 4 || DefName.substr(0, 4) != "int_")
     PrintFatalError(DefLoc,
                     "Intrinsic '" + DefName + "' does not start with 'int_'!");
 
-  EnumName = std::string(DefName.begin()+4, DefName.end());
+  EnumName = DefName.substr(4);
 
   if (R->getValue("GCCBuiltinName"))  // Ignore a missing GCCBuiltinName field.
     GCCBuiltinName = std::string(R->getValueAsString("GCCBuiltinName"));
@@ -684,8 +698,7 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R,
       Name += (EnumName[i] == '_') ? '.' : EnumName[i];
   } else {
     // Verify it starts with "llvm.".
-    if (Name.size() <= 5 ||
-        std::string(Name.begin(), Name.begin() + 5) != "llvm.")
+    if (Name.size() <= 5 || Name.substr(0, 5) != "llvm.")
       PrintFatalError(DefLoc, "Intrinsic '" + DefName +
                                   "'s name does not start with 'llvm.'!");
   }
@@ -694,8 +707,7 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R,
   // "llvm.<targetprefix>.".
   if (!TargetPrefix.empty()) {
     if (Name.size() < 6+TargetPrefix.size() ||
-        std::string(Name.begin() + 5, Name.begin() + 6 + TargetPrefix.size())
-        != (TargetPrefix + "."))
+        Name.substr(5, 1 + TargetPrefix.size()) != (TargetPrefix + "."))
       PrintFatalError(DefLoc, "Intrinsic '" + DefName +
                                   "' does not start with 'llvm." +
                                   TargetPrefix + ".'!");

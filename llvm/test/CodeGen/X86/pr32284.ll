@@ -37,7 +37,7 @@ define void @foo() {
 ;
 ; X64-LABEL: foo:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    movzbl {{.*}}(%rip), %eax
+; X64-NEXT:    movzbl c(%rip), %eax
 ; X64-NEXT:    xorl %ecx, %ecx
 ; X64-NEXT:    testl %eax, %eax
 ; X64-NEXT:    setne -{{[0-9]+}}(%rsp)
@@ -157,7 +157,7 @@ define void @f1() {
 ;
 ; X64-LABEL: f1:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    movslq {{.*}}(%rip), %rax
+; X64-NEXT:    movslq var_5(%rip), %rax
 ; X64-NEXT:    movabsq $-8381627093, %rcx # imm = 0xFFFFFFFE0C6A852B
 ; X64-NEXT:    cmpq %rcx, %rax
 ; X64-NEXT:    setne -{{[0-9]+}}(%rsp)
@@ -171,8 +171,8 @@ define void @f1() {
 ; X64-NEXT:    xorl %esi, %esi
 ; X64-NEXT:    cmpq %rax, %rdx
 ; X64-NEXT:    setg %sil
-; X64-NEXT:    movq %rsi, {{.*}}(%rip)
-; X64-NEXT:    movq %rcx, {{.*}}(%rip)
+; X64-NEXT:    movq %rsi, var_57(%rip)
+; X64-NEXT:    movq %rcx, _ZN8struct_210member_2_0E(%rip)
 ; X64-NEXT:    retq
 ;
 ; X86-O0-LABEL: f1:
@@ -213,41 +213,46 @@ define void @f1() {
 ;
 ; X86-LABEL: f1:
 ; X86:       # %bb.0: # %entry
-; X86-NEXT:    pushl %esi
+; X86-NEXT:    pushl %ebx
 ; X86-NEXT:    .cfi_def_cfa_offset 8
+; X86-NEXT:    pushl %esi
+; X86-NEXT:    .cfi_def_cfa_offset 12
 ; X86-NEXT:    subl $1, %esp
-; X86-NEXT:    .cfi_def_cfa_offset 9
-; X86-NEXT:    .cfi_offset %esi, -8
-; X86-NEXT:    movl var_5, %edx
-; X86-NEXT:    movl %edx, %eax
-; X86-NEXT:    xorl $208307499, %eax # imm = 0xC6A852B
-; X86-NEXT:    movl %edx, %esi
-; X86-NEXT:    sarl $31, %esi
-; X86-NEXT:    movl %esi, %ecx
-; X86-NEXT:    xorl $-2, %ecx
-; X86-NEXT:    orl %eax, %ecx
+; X86-NEXT:    .cfi_def_cfa_offset 13
+; X86-NEXT:    .cfi_offset %esi, -12
+; X86-NEXT:    .cfi_offset %ebx, -8
+; X86-NEXT:    movl var_5, %eax
+; X86-NEXT:    movl %eax, %edx
+; X86-NEXT:    xorl $208307499, %edx # imm = 0xC6A852B
+; X86-NEXT:    movl %eax, %ecx
+; X86-NEXT:    sarl $31, %ecx
+; X86-NEXT:    movl %ecx, %esi
+; X86-NEXT:    xorl $-2, %esi
+; X86-NEXT:    orl %edx, %esi
 ; X86-NEXT:    setne (%esp)
-; X86-NEXT:    movl %edx, %ecx
-; X86-NEXT:    andl %esi, %ecx
-; X86-NEXT:    xorl %eax, %eax
-; X86-NEXT:    cmpl $-1, %ecx
-; X86-NEXT:    sete %al
-; X86-NEXT:    xorl %ecx, %ecx
-; X86-NEXT:    cmpl $-1, %edx
-; X86-NEXT:    sete %cl
-; X86-NEXT:    addl $7093, %edx # imm = 0x1BB5
-; X86-NEXT:    adcl $0, %esi
-; X86-NEXT:    cmpl %ecx, %edx
-; X86-NEXT:    sbbl $0, %esi
-; X86-NEXT:    setl %cl
-; X86-NEXT:    movzbl %cl, %ecx
-; X86-NEXT:    movl %ecx, var_57
+; X86-NEXT:    movl %eax, %esi
+; X86-NEXT:    andl %ecx, %esi
+; X86-NEXT:    xorl %edx, %edx
+; X86-NEXT:    cmpl $-1, %esi
+; X86-NEXT:    sete %dl
+; X86-NEXT:    xorl %ebx, %ebx
+; X86-NEXT:    cmpl $-1, %eax
+; X86-NEXT:    sete %bl
+; X86-NEXT:    addl $7093, %eax # imm = 0x1BB5
+; X86-NEXT:    adcl $0, %ecx
+; X86-NEXT:    cmpl %ebx, %eax
+; X86-NEXT:    sbbl $0, %ecx
+; X86-NEXT:    setl %al
+; X86-NEXT:    movzbl %al, %eax
+; X86-NEXT:    movl %eax, var_57
 ; X86-NEXT:    movl $0, var_57+4
-; X86-NEXT:    movl %eax, _ZN8struct_210member_2_0E
+; X86-NEXT:    movl %edx, _ZN8struct_210member_2_0E
 ; X86-NEXT:    movl $0, _ZN8struct_210member_2_0E+4
 ; X86-NEXT:    addl $1, %esp
-; X86-NEXT:    .cfi_def_cfa_offset 8
+; X86-NEXT:    .cfi_def_cfa_offset 12
 ; X86-NEXT:    popl %esi
+; X86-NEXT:    .cfi_def_cfa_offset 8
+; X86-NEXT:    popl %ebx
 ; X86-NEXT:    .cfi_def_cfa_offset 4
 ; X86-NEXT:    retl
 entry:
@@ -312,7 +317,7 @@ define void @f2() {
 ;
 ; X64-LABEL: f2:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    movzbl {{.*}}(%rip), %eax
+; X64-NEXT:    movzbl var_7(%rip), %eax
 ; X64-NEXT:    xorl %ecx, %ecx
 ; X64-NEXT:    testl %eax, %eax
 ; X64-NEXT:    sete %cl
@@ -444,17 +449,17 @@ define void @f3() #0 {
 ;
 ; X64-LABEL: f3:
 ; X64:       # %bb.0: # %entry
-; X64-NEXT:    movl {{.*}}(%rip), %eax
+; X64-NEXT:    movl var_13(%rip), %eax
 ; X64-NEXT:    xorl %ecx, %ecx
 ; X64-NEXT:    testl %eax, %eax
 ; X64-NEXT:    notl %eax
 ; X64-NEXT:    sete %cl
-; X64-NEXT:    movl {{.*}}(%rip), %edx
+; X64-NEXT:    movl var_16(%rip), %edx
 ; X64-NEXT:    xorl %eax, %edx
 ; X64-NEXT:    andl %edx, %ecx
 ; X64-NEXT:    orl %eax, %ecx
 ; X64-NEXT:    movq %rcx, -{{[0-9]+}}(%rsp)
-; X64-NEXT:    movl %eax, {{.*}}(%rip)
+; X64-NEXT:    movl %eax, var_46(%rip)
 ; X64-NEXT:    retq
 ;
 ; X86-O0-LABEL: f3:

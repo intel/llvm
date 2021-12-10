@@ -355,7 +355,7 @@ static clang::CallingConv TranslateCallingConvention(PDB_CallingConv pdb_cc) {
 
 PDBASTParser::PDBASTParser(lldb_private::TypeSystemClang &ast) : m_ast(ast) {}
 
-PDBASTParser::~PDBASTParser() {}
+PDBASTParser::~PDBASTParser() = default;
 
 // DebugInfoASTParser interface
 
@@ -497,7 +497,7 @@ lldb::TypeSP PDBASTParser::CreateLLDBTypeFromPDBType(const PDBSymbol &type) {
       // Class). Set it false for now.
       bool isScoped = false;
 
-      ast_enum = m_ast.CreateEnumerationType(name.c_str(), decl_context,
+      ast_enum = m_ast.CreateEnumerationType(name, decl_context,
                                              OptionalClangModuleID(), decl,
                                              builtin_type, isScoped);
 
@@ -970,7 +970,7 @@ PDBASTParser::GetDeclForSymbol(const llvm::pdb::PDBSymbol &symbol) {
       }
     }
     if (params.size())
-      m_ast.SetFunctionParameters(decl, params.data(), params.size());
+      m_ast.SetFunctionParameters(decl, params);
 
     m_uid_to_decl[sym_id] = decl;
 

@@ -7,6 +7,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
@@ -24,6 +25,8 @@
 // using wformat_parse_context = basic_format_parse_context<wchar_t>;
 
 #include <format>
+
+#include <string_view>
 #include <type_traits>
 
 #include "test_macros.h"
@@ -44,7 +47,9 @@ constexpr void test() {
 
 constexpr void test() {
   test<char>();
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
   test<wchar_t>();
+#endif
 #ifndef _LIBCPP_HAS_NO_CHAR8_T
   test<char8_t>();
 #endif
@@ -56,8 +61,10 @@ constexpr void test() {
 
 static_assert(std::is_same_v<std::format_parse_context,
                              std::basic_format_parse_context<char> >);
+#ifndef TEST_HAS_NO_WIDE_CHARACTERS
 static_assert(std::is_same_v<std::wformat_parse_context,
                              std::basic_format_parse_context<wchar_t> >);
+#endif
 
 // Required for MSVC internal test runner compatibility.
 int main(int, char**) { return 0; }

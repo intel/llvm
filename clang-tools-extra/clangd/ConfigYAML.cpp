@@ -118,6 +118,9 @@ private:
       if (auto Values = scalarValues(N))
         F.Suppress = std::move(*Values);
     });
+    Dict.handle("UnusedIncludes", [&](Node &N) {
+      F.UnusedIncludes = scalarValue(N, "UnusedIncludes");
+    });
     Dict.handle("ClangTidy", [&](Node &N) { parse(F.ClangTidy, N); });
     Dict.parse(N);
   }
@@ -169,7 +172,7 @@ private:
 
   void parse(Fragment::IndexBlock::ExternalBlock &F,
              Located<std::string> ExternalVal) {
-    if (!llvm::StringRef(*ExternalVal).equals_lower("none")) {
+    if (!llvm::StringRef(*ExternalVal).equals_insensitive("none")) {
       error("Only scalar value supported for External is 'None'",
             ExternalVal.Range);
       return;

@@ -66,10 +66,10 @@ static void applyStackPassedSmallTypeDAGHack(EVT OrigVT, MVT &ValVT,
 }
 
 // Account for i1/i8/i16 stack passed value hack
-static uint64_t getStackValueStoreSizeHack(const CCValAssign &VA) {
+static LLT getStackValueStoreTypeHack(const CCValAssign &VA) {
   const MVT ValVT = VA.getValVT();
-  return (ValVT == MVT::i8 || ValVT == MVT::i16) ? ValVT.getStoreSize()
-                                                 : VA.getLocVT().getStoreSize();
+  return (ValVT == MVT::i8 || ValVT == MVT::i16) ? LLT(ValVT)
+                                                 : LLT(VA.getLocVT());
 }
 
 namespace {
@@ -146,43 +146,52 @@ struct IncomingArgHandler : public CallLowering::IncomingValueHandler {
     return AddrReg.getReg(0);
   }
 
-  uint64_t getStackValueStoreSize(const DataLayout &,
-                                  const CCValAssign &VA) const override {
-    return getStackValueStoreSizeHack(VA);
+  LLT getStackValueStoreType(const DataLayout &DL, const CCValAssign &VA,
+                             ISD::ArgFlagsTy Flags) const override {
+    // For pointers, we just need to fixup the integer types reported in the
+    // CCValAssign.
+    if (Flags.isPointer())
+      return CallLowering::ValueHandler::getStackValueStoreType(DL, VA, Flags);
+    return getStackValueStoreTypeHack(VA);
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     markPhysRegUsed(PhysReg);
     IncomingValueHandler::assignValueToReg(ValVReg, PhysReg, VA);
   }
 
-  void assignValueToAddress(Register ValVReg, Register Addr, uint64_t MemSize,
+  void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
 
-    // The reported memory location may be wider than the value.
-    const LLT RealRegTy = MRI.getType(ValVReg);
     LLT ValTy(VA.getValVT());
     LLT LocTy(VA.getLocVT());
 
     // Fixup the types for the DAG compatibility hack.
     if (VA.getValVT() == MVT::i8 || VA.getValVT() == MVT::i16)
       std::swap(ValTy, LocTy);
-
-    MemSize = LocTy.getSizeInBytes();
+    else {
+      // The calling code knows if this is a pointer or not, we're only touching
+      // the LocTy for the i8/i16 hack.
+      assert(LocTy.getSizeInBits() == MemTy.getSizeInBits());
+      LocTy = MemTy;
+    }
 
     auto MMO = MF.getMachineMemOperand(
-        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant,
-        MemSize, inferAlignFromPtrInfo(MF, MPO));
+        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, LocTy,
+        inferAlignFromPtrInfo(MF, MPO));
 
-    if (RealRegTy.getSizeInBits() == ValTy.getSizeInBits()) {
-      // No extension information, or no extension necessary. Load into the
-      // incoming parameter type directly.
+    switch (VA.getLocInfo()) {
+    case CCValAssign::LocInfo::ZExt:
+      MIRBuilder.buildLoadInstr(TargetOpcode::G_ZEXTLOAD, ValVReg, Addr, *MMO);
+      return;
+    case CCValAssign::LocInfo::SExt:
+      MIRBuilder.buildLoadInstr(TargetOpcode::G_SEXTLOAD, ValVReg, Addr, *MMO);
+      return;
+    default:
       MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
-    } else {
-      auto Tmp = MIRBuilder.buildLoad(LocTy, Addr, *MMO);
-      MIRBuilder.buildTrunc(ValVReg, Tmp);
+      return;
     }
   }
 
@@ -264,30 +273,32 @@ struct OutgoingArgHandler : public CallLowering::OutgoingValueHandler {
   /// we invert the interpretation of ValVT and LocVT in certain cases. This is
   /// for compatability with the DAG call lowering implementation, which we're
   /// currently building on top of.
-  uint64_t getStackValueStoreSize(const DataLayout &,
-                                  const CCValAssign &VA) const override {
-    return getStackValueStoreSizeHack(VA);
+  LLT getStackValueStoreType(const DataLayout &DL, const CCValAssign &VA,
+                             ISD::ArgFlagsTy Flags) const override {
+    if (Flags.isPointer())
+      return CallLowering::ValueHandler::getStackValueStoreType(DL, VA, Flags);
+    return getStackValueStoreTypeHack(VA);
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     MIB.addUse(PhysReg, RegState::Implicit);
     Register ExtReg = extendRegister(ValVReg, VA);
     MIRBuilder.buildCopy(PhysReg, ExtReg);
   }
 
-  void assignValueToAddress(Register ValVReg, Register Addr, uint64_t Size,
+  void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
-    auto MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore, Size,
+    auto MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore, MemTy,
                                        inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildStore(ValVReg, Addr, *MMO);
   }
 
   void assignValueToAddress(const CallLowering::ArgInfo &Arg, unsigned RegIndex,
-                            Register Addr, uint64_t MemSize,
-                            MachinePointerInfo &MPO, CCValAssign &VA) override {
-    unsigned MaxSize = MemSize * 8;
+                            Register Addr, LLT MemTy, MachinePointerInfo &MPO,
+                            CCValAssign &VA) override {
+    unsigned MaxSize = MemTy.getSizeInBytes() * 8;
     // For varargs, we always want to extend them to 8 bytes, in which case
     // we disable setting a max.
     if (!Arg.IsFixed)
@@ -300,20 +311,16 @@ struct OutgoingArgHandler : public CallLowering::OutgoingValueHandler {
 
       if (VA.getValVT() == MVT::i8 || VA.getValVT() == MVT::i16) {
         std::swap(ValVT, LocVT);
-        MemSize = VA.getValVT().getStoreSize();
+        MemTy = LLT(VA.getValVT());
       }
 
       ValVReg = extendRegister(ValVReg, VA, MaxSize);
-      const LLT RegTy = MRI.getType(ValVReg);
-
-      if (RegTy.getSizeInBits() < LocVT.getSizeInBits())
-        ValVReg = MIRBuilder.buildTrunc(RegTy, ValVReg).getReg(0);
     } else {
       // The store does not cover the full allocated stack slot.
-      MemSize = VA.getValVT().getStoreSize();
+      MemTy = LLT(VA.getValVT());
     }
 
-    assignValueToAddress(ValVReg, Addr, MemSize, MPO, VA);
+    assignValueToAddress(ValVReg, Addr, MemTy, MPO, VA);
   }
 
   MachineInstrBuilder MIB;
@@ -366,29 +373,23 @@ bool AArch64CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
     CallingConv::ID CC = F.getCallingConv();
 
     for (unsigned i = 0; i < SplitEVTs.size(); ++i) {
-      if (TLI.getNumRegistersForCallingConv(Ctx, CC, SplitEVTs[i]) > 1) {
-        LLVM_DEBUG(dbgs() << "Can't handle extended arg types which need split");
-        return false;
-      }
-
       Register CurVReg = VRegs[i];
-      ArgInfo CurArgInfo = ArgInfo{CurVReg, SplitEVTs[i].getTypeForEVT(Ctx)};
+      ArgInfo CurArgInfo = ArgInfo{CurVReg, SplitEVTs[i].getTypeForEVT(Ctx), 0};
       setArgFlags(CurArgInfo, AttributeList::ReturnIndex, DL, F);
 
       // i1 is a special case because SDAG i1 true is naturally zero extended
       // when widened using ANYEXT. We need to do it explicitly here.
       if (MRI.getType(CurVReg).getSizeInBits() == 1) {
         CurVReg = MIRBuilder.buildZExt(LLT::scalar(8), CurVReg).getReg(0);
-      } else {
+      } else if (TLI.getNumRegistersForCallingConv(Ctx, CC, SplitEVTs[i]) ==
+                 1) {
         // Some types will need extending as specified by the CC.
         MVT NewVT = TLI.getRegisterTypeForCallingConv(Ctx, CC, SplitEVTs[i]);
         if (EVT(NewVT) != SplitEVTs[i]) {
           unsigned ExtendOp = TargetOpcode::G_ANYEXT;
-          if (F.getAttributes().hasAttribute(AttributeList::ReturnIndex,
-                                             Attribute::SExt))
+          if (F.getAttributes().hasRetAttr(Attribute::SExt))
             ExtendOp = TargetOpcode::G_SEXT;
-          else if (F.getAttributes().hasAttribute(AttributeList::ReturnIndex,
-                                                  Attribute::ZExt))
+          else if (F.getAttributes().hasRetAttr(Attribute::ZExt))
             ExtendOp = TargetOpcode::G_ZEXT;
 
           LLT NewLLT(NewVT);
@@ -530,13 +531,30 @@ bool AArch64CallLowering::lowerFormalArguments(
   auto &DL = F.getParent()->getDataLayout();
 
   SmallVector<ArgInfo, 8> SplitArgs;
+  SmallVector<std::pair<Register, Register>> BoolArgs;
   unsigned i = 0;
   for (auto &Arg : F.args()) {
     if (DL.getTypeStoreSize(Arg.getType()).isZero())
       continue;
 
-    ArgInfo OrigArg{VRegs[i], Arg};
+    ArgInfo OrigArg{VRegs[i], Arg, i};
     setArgFlags(OrigArg, i + AttributeList::FirstArgIndex, DL, F);
+
+    // i1 arguments are zero-extended to i8 by the caller. Emit a
+    // hint to reflect this.
+    if (OrigArg.Ty->isIntegerTy(1)) {
+      assert(OrigArg.Regs.size() == 1 &&
+             MRI.getType(OrigArg.Regs[0]).getSizeInBits() == 1 &&
+             "Unexpected registers used for i1 arg");
+
+      if (!OrigArg.Flags[0].isZExt()) {
+        // Lower i1 argument as i8, and insert AssertZExt + Trunc later.
+        Register OrigReg = OrigArg.Regs[0];
+        Register WideReg = MRI.createGenericVirtualRegister(LLT::scalar(8));
+        OrigArg.Regs[0] = WideReg;
+        BoolArgs.push_back({OrigReg, WideReg});
+      }
+    }
 
     if (Arg.hasAttribute(Attribute::SwiftAsync))
       MF.getInfo<AArch64FunctionInfo>()->setHasSwiftAsyncContext(true);
@@ -557,6 +575,18 @@ bool AArch64CallLowering::lowerFormalArguments(
   if (!determineAndHandleAssignments(Handler, Assigner, SplitArgs, MIRBuilder,
                                      F.getCallingConv(), F.isVarArg()))
     return false;
+
+  if (!BoolArgs.empty()) {
+    for (auto &KV : BoolArgs) {
+      Register OrigReg = KV.first;
+      Register WideReg = KV.second;
+      LLT WideTy = MRI.getType(WideReg);
+      assert(MRI.getType(OrigReg).getScalarSizeInBits() == 1 &&
+             "Unexpected bit size of a bool arg");
+      MIRBuilder.buildTrunc(
+          OrigReg, MIRBuilder.buildAssertZExt(WideTy, WideReg, 1).getReg(0));
+    }
+  }
 
   AArch64FunctionInfo *FuncInfo = MF.getInfo<AArch64FunctionInfo>();
   uint64_t StackOffset = Assigner.StackOffset;
@@ -1050,8 +1080,19 @@ bool AArch64CallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
   for (auto &OrigArg : Info.OrigArgs) {
     splitToValueTypes(OrigArg, OutArgs, DL, Info.CallConv);
     // AAPCS requires that we zero-extend i1 to 8 bits by the caller.
-    if (OrigArg.Ty->isIntegerTy(1))
-      OutArgs.back().Flags[0].setZExt();
+    if (OrigArg.Ty->isIntegerTy(1)) {
+      ArgInfo &OutArg = OutArgs.back();
+      assert(OutArg.Regs.size() == 1 &&
+             MRI.getType(OutArg.Regs[0]).getSizeInBits() == 1 &&
+             "Unexpected registers used for i1 arg");
+
+      // We cannot use a ZExt ArgInfo flag here, because it will
+      // zero-extend the argument to i32 instead of just i8.
+      OutArg.Regs[0] =
+          MIRBuilder.buildZExt(LLT::scalar(8), OutArg.Regs[0]).getReg(0);
+      LLVMContext &Ctx = MF.getFunction().getContext();
+      OutArg.Ty = Type::getInt8Ty(Ctx);
+    }
   }
 
   SmallVector<ArgInfo, 8> InArgs;

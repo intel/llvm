@@ -26,6 +26,79 @@ using namespace mlir::async;
 
 #define DEBUG_TYPE "async-runtime-ref-counting"
 
+//===----------------------------------------------------------------------===//
+// Utility functions shared by reference counting passes.
+//===----------------------------------------------------------------------===//
+
+// Drop the reference count immediately if the value has no uses.
+static LogicalResult dropRefIfNoUses(Value value, unsigned count = 1) {
+  if (!value.getUses().empty())
+    return failure();
+
+  OpBuilder b(value.getContext());
+
+  // Set insertion point after the operation producing a value, or at the
+  // beginning of the block if the value defined by the block argument.
+  if (Operation *op = value.getDefiningOp())
+    b.setInsertionPointAfter(op);
+  else
+    b.setInsertionPointToStart(value.getParentBlock());
+
+  b.create<RuntimeDropRefOp>(value.getLoc(), value, b.getI64IntegerAttr(1));
+  return success();
+}
+
+// Calls `addRefCounting` for every reference counted value defined by the
+// operation `op` (block arguments and values defined in nested regions).
+static LogicalResult walkReferenceCountedValues(
+    Operation *op, llvm::function_ref<LogicalResult(Value)> addRefCounting) {
+  // Check that we do not have high level async operations in the IR because
+  // otherwise reference counting will produce incorrect results after high
+  // level async operations will be lowered to `async.runtime`
+  WalkResult checkNoAsyncWalk = op->walk([&](Operation *op) -> WalkResult {
+    if (!isa<ExecuteOp, AwaitOp, AwaitAllOp, YieldOp>(op))
+      return WalkResult::advance();
+
+    return op->emitError()
+           << "async operations must be lowered to async runtime operations";
+  });
+
+  if (checkNoAsyncWalk.wasInterrupted())
+    return failure();
+
+  // Add reference counting to block arguments.
+  WalkResult blockWalk = op->walk([&](Block *block) -> WalkResult {
+    for (BlockArgument arg : block->getArguments())
+      if (isRefCounted(arg.getType()))
+        if (failed(addRefCounting(arg)))
+          return WalkResult::interrupt();
+
+    return WalkResult::advance();
+  });
+
+  if (blockWalk.wasInterrupted())
+    return failure();
+
+  // Add reference counting to operation results.
+  WalkResult opWalk = op->walk([&](Operation *op) -> WalkResult {
+    for (unsigned i = 0; i < op->getNumResults(); ++i)
+      if (isRefCounted(op->getResultTypes()[i]))
+        if (failed(addRefCounting(op->getResult(i))))
+          return WalkResult::interrupt();
+
+    return WalkResult::advance();
+  });
+
+  if (opWalk.wasInterrupted())
+    return failure();
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Automatic reference counting based on the liveness analysis.
+//===----------------------------------------------------------------------===//
+
 namespace {
 
 class AsyncRuntimeRefCountingPass
@@ -88,8 +161,9 @@ private:
   /// has a `+1` reference count.
   LogicalResult addAddRefBeforeFunctionCall(Value value);
 
-  /// (#3) Verifies that if a block has a value in the `liveOut` set, then the
-  /// value is in `liveIn` set in all successors.
+  /// (#3) Adds the `drop_ref` operation to account for successor blocks with
+  /// divergent `liveIn` property: `value` is not in the `liveIn` set of all
+  /// successor blocks.
   ///
   /// Example:
   ///
@@ -98,12 +172,29 @@ private:
   ///     cond_br %cond, ^bb1, ^bb2
   ///   ^bb1:
   ///     async.runtime.await %token
-  ///     return
+  ///     async.runtime.drop_ref %token
+  ///     br ^bb2
   ///   ^bb2:
   ///     return
   ///
-  /// This CFG will be rejected because ^bb2 does not have `value` in the
-  /// `liveIn` set, and it will leak a reference counted object.
+  /// In this example ^bb2 does not have `value` in the `liveIn` set, so we have
+  /// to branch into a special "reference counting block" from the ^entry that
+  /// will have a `drop_ref` operation, and then branch into the ^bb2.
+  ///
+  /// After transformation:
+  ///
+  ///   ^entry:
+  ///     %token = async.runtime.create : !async.token
+  ///     cond_br %cond, ^bb1, ^reference_counting
+  ///   ^bb1:
+  ///     async.runtime.await %token
+  ///     async.runtime.drop_ref %token
+  ///     br ^bb2
+  ///   ^reference_counting:
+  ///     async.runtime.drop_ref %token
+  ///     br ^bb2
+  ///   ^bb2:
+  ///     return
   ///
   /// An exception to this rule are blocks with `async.coro.suspend` terminator,
   /// because in Async to LLVM lowering it is guaranteed that the control flow
@@ -126,7 +217,7 @@ private:
   /// Although cleanup and suspend blocks do not have the `value` in the
   /// `liveIn` set, it is guaranteed that execution will eventually continue in
   /// the resume block (we never explicitly destroy coroutines).
-  LogicalResult verifySuccessors(Value value);
+  LogicalResult addDropRefInDivergentLivenessSuccessor(Value value);
 };
 
 } // namespace
@@ -213,7 +304,7 @@ LogicalResult AsyncRuntimeRefCountingPass::addDropRefAfterLastUse(Value value) {
 
     // Add a drop_ref immediately after the last user.
     builder.setInsertionPointAfter(lastUser);
-    builder.create<RuntimeDropRefOp>(loc, value, builder.getI32IntegerAttr(1));
+    builder.create<RuntimeDropRefOp>(loc, value, builder.getI64IntegerAttr(1));
   }
 
   return success();
@@ -231,17 +322,22 @@ AsyncRuntimeRefCountingPass::addAddRefBeforeFunctionCall(Value value) {
     // Add a reference before the function call to pass the value at `+1`
     // reference to the function entry block.
     builder.setInsertionPoint(user);
-    builder.create<RuntimeAddRefOp>(loc, value, builder.getI32IntegerAttr(1));
+    builder.create<RuntimeAddRefOp>(loc, value, builder.getI64IntegerAttr(1));
   }
 
   return success();
 }
 
-LogicalResult AsyncRuntimeRefCountingPass::verifySuccessors(Value value) {
+LogicalResult
+AsyncRuntimeRefCountingPass::addDropRefInDivergentLivenessSuccessor(
+    Value value) {
+  using BlockSet = llvm::SmallPtrSet<Block *, 4>;
+
   OpBuilder builder(value.getContext());
 
-  // Blocks with successfors with different `liveIn` properties of the `value`.
-  llvm::SmallSet<Block *, 4> divergentLivenessBlocks;
+  // If a block has successors with different `liveIn` property of the `value`,
+  // record block successors that do not thave the `value` in the `liveIn` set.
+  llvm::SmallDenseMap<Block *, BlockSet> divergentLivenessBlocks;
 
   // Use liveness analysis to find the placement of `drop_ref`operation.
   auto &liveness = getAnalysis<Liveness>();
@@ -255,17 +351,16 @@ LogicalResult AsyncRuntimeRefCountingPass::verifySuccessors(Value value) {
     const LivenessBlockInfo *blockLiveness = liveness.getLiveness(&block);
 
     // Skip the block if value is not in the `liveOut` set.
-    if (!blockLiveness->isLiveOut(value))
+    if (!blockLiveness || !blockLiveness->isLiveOut(value))
       continue;
 
-    // Sucessors with value in `liveIn` set and not value in `liveIn` set.
-    llvm::SmallSet<Block *, 4> liveInSuccessors;
-    llvm::SmallSet<Block *, 4> noLiveInSuccessors;
+    BlockSet liveInSuccessors;   // `value` is in `liveIn` set
+    BlockSet noLiveInSuccessors; // `value` is not in the `liveIn` set
 
     // Collect successors that do not have `value` in the `liveIn` set.
     for (Block *successor : block.getSuccessors()) {
       const LivenessBlockInfo *succLiveness = liveness.getLiveness(successor);
-      if (succLiveness->isLiveIn(value))
+      if (succLiveness && succLiveness->isLiveIn(value))
         liveInSuccessors.insert(successor);
       else
         noLiveInSuccessors.insert(successor);
@@ -273,18 +368,60 @@ LogicalResult AsyncRuntimeRefCountingPass::verifySuccessors(Value value) {
 
     // Block has successors with different `liveIn` property of the `value`.
     if (!liveInSuccessors.empty() && !noLiveInSuccessors.empty())
-      divergentLivenessBlocks.insert(&block);
+      divergentLivenessBlocks.try_emplace(&block, noLiveInSuccessors);
   }
 
-  // Verify that divergent `liveIn` property only present in blocks with
-  // async.coro.suspend terminator.
-  for (Block *block : divergentLivenessBlocks) {
+  // Try to insert `dropRef` operations to handle blocks with divergent liveness
+  // in successors blocks.
+  for (auto kv : divergentLivenessBlocks) {
+    Block *block = kv.getFirst();
+    BlockSet &successors = kv.getSecond();
+
+    // Coroutine suspension is a special case terminator for wich we do not
+    // need to create additional reference counting (see details above).
     Operation *terminator = block->getTerminator();
     if (isa<CoroSuspendOp>(terminator))
       continue;
 
-    return terminator->emitOpError("successor have different `liveIn` property "
-                                   "of the reference counted value: ");
+    // We only support successor blocks with empty block argument list.
+    auto hasArgs = [](Block *block) { return !block->getArguments().empty(); };
+    if (llvm::any_of(successors, hasArgs))
+      return terminator->emitOpError()
+             << "successor have different `liveIn` property of the reference "
+                "counted value";
+
+    // Make sure that `dropRef` operation is called when branched into the
+    // successor block without `value` in the `liveIn` set.
+    for (Block *successor : successors) {
+      // If successor has a unique predecessor, it is safe to create `dropRef`
+      // operations directly in the successor block.
+      //
+      // Otherwise we need to create a special block for reference counting
+      // operations, and branch from it to the original successor block.
+      Block *refCountingBlock = nullptr;
+
+      if (successor->getUniquePredecessor() == block) {
+        refCountingBlock = successor;
+      } else {
+        refCountingBlock = &successor->getParent()->emplaceBlock();
+        refCountingBlock->moveBefore(successor);
+        OpBuilder builder = OpBuilder::atBlockEnd(refCountingBlock);
+        builder.create<BranchOp>(value.getLoc(), successor);
+      }
+
+      OpBuilder builder = OpBuilder::atBlockBegin(refCountingBlock);
+      builder.create<RuntimeDropRefOp>(value.getLoc(), value,
+                                       builder.getI64IntegerAttr(1));
+
+      // No need to update the terminator operation.
+      if (successor == refCountingBlock)
+        continue;
+
+      // Update terminator `successor` block to `refCountingBlock`.
+      for (auto pair : llvm::enumerate(terminator->getSuccessors()))
+        if (pair.value() == successor)
+          terminator->setSuccessor(refCountingBlock, pair.index());
+    }
   }
 
   return success();
@@ -292,21 +429,9 @@ LogicalResult AsyncRuntimeRefCountingPass::verifySuccessors(Value value) {
 
 LogicalResult
 AsyncRuntimeRefCountingPass::addAutomaticRefCounting(Value value) {
-  OpBuilder builder(value.getContext());
-  Location loc = value.getLoc();
-
-  // Set inserton point after the operation producing a value, or at the
-  // beginning of the block if the value defined by the block argument.
-  if (Operation *op = value.getDefiningOp())
-    builder.setInsertionPointAfter(op);
-  else
-    builder.setInsertionPointToStart(value.getParentBlock());
-
-  // Drop the reference count immediately if the value has no uses.
-  if (value.getUses().empty()) {
-    builder.create<RuntimeDropRefOp>(loc, value, builder.getI32IntegerAttr(1));
+  // Short-circuit reference counting for values without uses.
+  if (succeeded(dropRefIfNoUses(value)))
     return success();
-  }
 
   // Add `drop_ref` operations based on the liveness analysis.
   if (failed(addDropRefAfterLastUse(value)))
@@ -316,61 +441,118 @@ AsyncRuntimeRefCountingPass::addAutomaticRefCounting(Value value) {
   if (failed(addAddRefBeforeFunctionCall(value)))
     return failure();
 
-  // Verify that the `value` is in `liveIn` set of all successors.
-  if (failed(verifySuccessors(value)))
+  // Add `drop_ref` operations to successors with divergent `value` liveness.
+  if (failed(addDropRefInDivergentLivenessSuccessor(value)))
     return failure();
 
   return success();
 }
 
 void AsyncRuntimeRefCountingPass::runOnOperation() {
-  Operation *op = getOperation();
-
-  // Check that we do not have high level async operations in the IR because
-  // otherwise automatic reference counting will produce incorrect results after
-  // execute operations will be lowered to `async.runtime`
-  WalkResult executeOpWalk = op->walk([&](Operation *op) -> WalkResult {
-    if (!isa<ExecuteOp, AwaitOp, AwaitAllOp, YieldOp>(op))
-      return WalkResult::advance();
-
-    return op->emitError()
-           << "async operations must be lowered to async runtime operations";
-  });
-
-  if (executeOpWalk.wasInterrupted()) {
-    signalPassFailure();
-    return;
-  }
-
-  // Add reference counting to block arguments.
-  WalkResult blockWalk = op->walk([&](Block *block) -> WalkResult {
-    for (BlockArgument arg : block->getArguments())
-      if (isRefCounted(arg.getType()))
-        if (failed(addAutomaticRefCounting(arg)))
-          return WalkResult::interrupt();
-
-    return WalkResult::advance();
-  });
-
-  if (blockWalk.wasInterrupted()) {
-    signalPassFailure();
-    return;
-  }
-
-  // Add reference counting to operation results.
-  WalkResult opWalk = op->walk([&](Operation *op) -> WalkResult {
-    for (unsigned i = 0; i < op->getNumResults(); ++i)
-      if (isRefCounted(op->getResultTypes()[i]))
-        if (failed(addAutomaticRefCounting(op->getResult(i))))
-          return WalkResult::interrupt();
-
-    return WalkResult::advance();
-  });
-
-  if (opWalk.wasInterrupted())
+  auto functor = [&](Value value) { return addAutomaticRefCounting(value); };
+  if (failed(walkReferenceCountedValues(getOperation(), functor)))
     signalPassFailure();
 }
 
+//===----------------------------------------------------------------------===//
+// Reference counting based on the user defined policy.
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+class AsyncRuntimePolicyBasedRefCountingPass
+    : public AsyncRuntimePolicyBasedRefCountingBase<
+          AsyncRuntimePolicyBasedRefCountingPass> {
+public:
+  AsyncRuntimePolicyBasedRefCountingPass() { initializeDefaultPolicy(); }
+
+  void runOnOperation() override;
+
+private:
+  // Adds a reference counting operations for all uses of the `value` according
+  // to the reference counting policy.
+  LogicalResult addRefCounting(Value value);
+
+  void initializeDefaultPolicy();
+
+  llvm::SmallVector<std::function<FailureOr<int>(OpOperand &)>> policy;
+};
+
+} // namespace
+
+LogicalResult
+AsyncRuntimePolicyBasedRefCountingPass::addRefCounting(Value value) {
+  // Short-circuit reference counting for values without uses.
+  if (succeeded(dropRefIfNoUses(value)))
+    return success();
+
+  OpBuilder b(value.getContext());
+
+  // Consult the user defined policy for every value use.
+  for (OpOperand &operand : value.getUses()) {
+    Location loc = operand.getOwner()->getLoc();
+
+    for (auto &func : policy) {
+      FailureOr<int> refCount = func(operand);
+      if (failed(refCount))
+        return failure();
+
+      int cnt = refCount.getValue();
+
+      // Create `add_ref` operation before the operand owner.
+      if (cnt > 0) {
+        b.setInsertionPoint(operand.getOwner());
+        b.create<RuntimeAddRefOp>(loc, value, b.getI64IntegerAttr(cnt));
+      }
+
+      // Create `drop_ref` operation after the operand owner.
+      if (cnt < 0) {
+        b.setInsertionPointAfter(operand.getOwner());
+        b.create<RuntimeDropRefOp>(loc, value, b.getI64IntegerAttr(-cnt));
+      }
+    }
+  }
+
+  return success();
+}
+
+void AsyncRuntimePolicyBasedRefCountingPass::initializeDefaultPolicy() {
+  policy.push_back([](OpOperand &operand) -> FailureOr<int> {
+    Operation *op = operand.getOwner();
+    Type type = operand.get().getType();
+
+    bool isToken = type.isa<TokenType>();
+    bool isGroup = type.isa<GroupType>();
+    bool isValue = type.isa<ValueType>();
+
+    // Drop reference after async token or group error check (coro await).
+    if (auto await = dyn_cast<RuntimeIsErrorOp>(op))
+      return (isToken || isGroup) ? -1 : 0;
+
+    // Drop reference after async value load.
+    if (auto load = dyn_cast<RuntimeLoadOp>(op))
+      return isValue ? -1 : 0;
+
+    // Drop reference after async token added to the group.
+    if (auto add = dyn_cast<RuntimeAddToGroupOp>(op))
+      return isToken ? -1 : 0;
+
+    return 0;
+  });
+}
+
+void AsyncRuntimePolicyBasedRefCountingPass::runOnOperation() {
+  auto functor = [&](Value value) { return addRefCounting(value); };
+  if (failed(walkReferenceCountedValues(getOperation(), functor)))
+    signalPassFailure();
+}
+
+//----------------------------------------------------------------------------//
+
 std::unique_ptr<Pass> mlir::createAsyncRuntimeRefCountingPass() {
   return std::make_unique<AsyncRuntimeRefCountingPass>();
+}
+
+std::unique_ptr<Pass> mlir::createAsyncRuntimePolicyBasedRefCountingPass() {
+  return std::make_unique<AsyncRuntimePolicyBasedRefCountingPass>();
 }

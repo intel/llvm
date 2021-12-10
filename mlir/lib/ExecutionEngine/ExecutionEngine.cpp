@@ -27,10 +27,10 @@
 #include "llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/MC/SubtargetFeature.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Host.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/ToolOutputFile.h"
 
 #define DEBUG_TYPE "execution-engine"
@@ -179,7 +179,8 @@ static void packFunctionArguments(Module *module) {
     for (auto &indexedArg : llvm::enumerate(func.args())) {
       llvm::Value *argIndex = llvm::Constant::getIntegerValue(
           builder.getInt64Ty(), APInt(64, indexedArg.index()));
-      llvm::Value *argPtrPtr = builder.CreateGEP(argList, argIndex);
+      llvm::Value *argPtrPtr = builder.CreateGEP(
+          builder.getInt8PtrTy(), argList, argIndex);
       llvm::Value *argPtr = builder.CreateLoad(builder.getInt8PtrTy(),
                                                argPtrPtr);
       llvm::Type *argTy = indexedArg.value().getType();
@@ -195,7 +196,8 @@ static void packFunctionArguments(Module *module) {
     if (!result->getType()->isVoidTy()) {
       llvm::Value *retIndex = llvm::Constant::getIntegerValue(
           builder.getInt64Ty(), APInt(64, llvm::size(func.args())));
-      llvm::Value *retPtrPtr = builder.CreateGEP(argList, retIndex);
+      llvm::Value *retPtrPtr =
+          builder.CreateGEP(builder.getInt8PtrTy(), argList, retIndex);
       llvm::Value *retPtr = builder.CreateLoad(builder.getInt8PtrTy(),
                                                retPtrPtr);
       retPtr = builder.CreateBitCast(retPtr, result->getType()->getPointerTo());
@@ -326,8 +328,16 @@ Expected<std::unique_ptr<ExecutionEngine>> ExecutionEngine::create(
   return std::move(engine);
 }
 
-Expected<void (*)(void **)> ExecutionEngine::lookup(StringRef name) const {
-  auto expectedSymbol = jit->lookup(makePackedFunctionName(name));
+Expected<void (*)(void **)>
+ExecutionEngine::lookupPacked(StringRef name) const {
+  auto result = lookup(makePackedFunctionName(name));
+  if (!result)
+    return result.takeError();
+  return reinterpret_cast<void (*)(void **)>(result.get());
+}
+
+Expected<void *> ExecutionEngine::lookup(StringRef name) const {
+  auto expectedSymbol = jit->lookup(name);
 
   // JIT lookup may return an Error referring to strings stored internally by
   // the JIT. If the Error outlives the ExecutionEngine, it would want have a
@@ -344,7 +354,7 @@ Expected<void (*)(void **)> ExecutionEngine::lookup(StringRef name) const {
   }
 
   auto rawFPtr = expectedSymbol->getAddress();
-  auto fptr = reinterpret_cast<void (*)(void **)>(rawFPtr);
+  auto fptr = reinterpret_cast<void *>(rawFPtr);
   if (!fptr)
     return make_string_error("looked up function is null");
   return fptr;
@@ -352,7 +362,7 @@ Expected<void (*)(void **)> ExecutionEngine::lookup(StringRef name) const {
 
 Error ExecutionEngine::invokePacked(StringRef name,
                                     MutableArrayRef<void *> args) {
-  auto expectedFPtr = lookup(name);
+  auto expectedFPtr = lookupPacked(name);
   if (!expectedFPtr)
     return expectedFPtr.takeError();
   auto fptr = *expectedFPtr;

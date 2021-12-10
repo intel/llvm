@@ -152,6 +152,31 @@ llvm::Optional<RelationKind> indexableRelation(const index::SymbolRelation &R) {
   return None;
 }
 
+// Given a ref contained in enclosing decl `Enclosing`, return
+// the decl that should be used as that ref's Ref::Container. This is
+// usually `Enclosing` itself, but in cases where `Enclosing` is not
+// indexed, we walk further up because Ref::Container should always be
+// an indexed symbol.
+// Note: we don't use DeclContext as the container as in some cases
+// it's useful to use a Decl which is not a DeclContext. For example,
+// for a ref occurring in the initializer of a namespace-scope variable,
+// it's useful to use that variable as the container, as otherwise the
+// next enclosing DeclContext would be a NamespaceDecl or TranslationUnitDecl,
+// which are both not indexed and less granular than we'd like for use cases
+// like call hierarchy.
+const Decl *getRefContainer(const Decl *Enclosing,
+                            const SymbolCollector::Options &Opts) {
+  while (Enclosing) {
+    const auto *ND = dyn_cast<NamedDecl>(Enclosing);
+    if (ND && SymbolCollector::shouldCollectSymbol(*ND, ND->getASTContext(),
+                                                   Opts, true)) {
+      break;
+    }
+    Enclosing = dyn_cast_or_null<Decl>(Enclosing->getDeclContext());
+  }
+  return Enclosing;
+}
+
 } // namespace
 
 // Encapsulates decisions about how to record header paths in the index,
@@ -241,7 +266,8 @@ private:
         return toURI(Canonical);
       }
     }
-    if (!isSelfContainedHeader(FID, FE)) {
+    if (!isSelfContainedHeader(FE, FID, PP->getSourceManager(),
+                               PP->getHeaderSearchInfo())) {
       // A .inc or .def file is often included into a real header to define
       // symbols (e.g. LLVM tablegen files).
       if (Filename.endswith(".inc") || Filename.endswith(".def"))
@@ -252,53 +278,6 @@ private:
     }
     // Standard case: just insert the file itself.
     return toURI(FE);
-  }
-
-  bool isSelfContainedHeader(FileID FID, const FileEntry *FE) {
-    // FIXME: Should files that have been #import'd be considered
-    // self-contained? That's really a property of the includer,
-    // not of the file.
-    if (!PP->getHeaderSearchInfo().isFileMultipleIncludeGuarded(FE) &&
-        !PP->getHeaderSearchInfo().hasFileBeenImported(FE))
-      return false;
-    // This pattern indicates that a header can't be used without
-    // particular preprocessor state, usually set up by another header.
-    if (isDontIncludeMeHeader(SM.getBufferData(FID)))
-      return false;
-    return true;
-  }
-
-  // Is Line an #if or #ifdef directive?
-  static bool isIf(llvm::StringRef Line) {
-    Line = Line.ltrim();
-    if (!Line.consume_front("#"))
-      return false;
-    Line = Line.ltrim();
-    return Line.startswith("if");
-  }
-
-  // Is Line an #error directive mentioning includes?
-  static bool isErrorAboutInclude(llvm::StringRef Line) {
-    Line = Line.ltrim();
-    if (!Line.consume_front("#"))
-      return false;
-    Line = Line.ltrim();
-    if (!Line.startswith("error"))
-      return false;
-    return Line.contains_lower("includ"); // Matches "include" or "including".
-  }
-
-  // Heuristically headers that only want to be included via an umbrella.
-  static bool isDontIncludeMeHeader(llvm::StringRef Content) {
-    llvm::StringRef Line;
-    // Only sniff up to 100 lines or 10KB.
-    Content = Content.take_front(100 * 100);
-    for (unsigned I = 0; I < 100 && !Content.empty(); ++I) {
-      std::tie(Line, Content) = Content.split('\n');
-      if (isIf(Line) && isErrorAboutInclude(Content.split('\n').first))
-        return true;
-    }
-    return false;
   }
 };
 
@@ -477,8 +456,8 @@ bool SymbolCollector::handleDeclOccurrence(
       !isa<NamespaceDecl>(ND) &&
       (Opts.RefsInHeaders ||
        SM.getFileID(SM.getFileLoc(Loc)) == SM.getMainFileID()))
-    DeclRefs[ND].push_back(
-        SymbolRef{SM.getFileLoc(Loc), Roles, ASTNode.Parent});
+    DeclRefs[ND].push_back(SymbolRef{SM.getFileLoc(Loc), Roles,
+                                     getRefContainer(ASTNode.Parent, Opts)});
   // Don't continue indexing if this is a mere reference.
   if (IsOnlyRef)
     return true;
@@ -538,6 +517,12 @@ void SymbolCollector::handleMacros(const MainFileMacros &MacroRefsToIndex) {
         S.SymInfo.Lang = index::SymbolLanguage::C;
         S.Origin = Opts.Origin;
         S.CanonicalDeclaration = R.Location;
+        // Make the macro visible for code completion if main file is an
+        // include-able header.
+        if (!HeaderFileURIs->getIncludeHeader(SM.getMainFileID()).empty()) {
+          S.Flags |= Symbol::IndexedForCodeCompletion;
+          S.Flags |= Symbol::VisibleOutsideFile;
+        }
         Symbols.insert(S);
       }
     }

@@ -29,6 +29,10 @@ namespace {
 
 struct TestAffineDataCopy
     : public PassWrapper<TestAffineDataCopy, FunctionPass> {
+  StringRef getArgument() const final { return PASS_NAME; }
+  StringRef getDescription() const final {
+    return "Tests affine data copy utility functions.";
+  }
   TestAffineDataCopy() = default;
   TestAffineDataCopy(const TestAffineDataCopy &pass){};
 
@@ -122,13 +126,12 @@ void TestAffineDataCopy::runOnFunction() {
       assert(isa<AffineStoreOp>(op) && "expected affine store op");
       AffineStoreOp::getCanonicalizationPatterns(patterns, &getContext());
     }
-    (void)applyOpPatternsAndFold(op, std::move(patterns));
   }
+  (void)applyOpPatternsAndFold(copyOps, std::move(patterns), /*strict=*/true);
 }
 
 namespace mlir {
 void registerTestAffineDataCopyPass() {
-  PassRegistration<TestAffineDataCopy>(
-      PASS_NAME, "Tests affine data copy utility functions.");
+  PassRegistration<TestAffineDataCopy>();
 }
 } // namespace mlir

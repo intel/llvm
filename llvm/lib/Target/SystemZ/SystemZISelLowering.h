@@ -117,23 +117,14 @@ enum NodeType : unsigned {
   // MachineMemOperands rather than one.
   MVC,
 
-  // Like MVC, but implemented as a loop that handles X*256 bytes
-  // followed by straight-line code to handle the rest (if any).
-  // The value of X is passed as an additional operand.
-  MVC_LOOP,
-
-  // Similar to MVC and MVC_LOOP, but for logic operations (AND, OR, XOR).
+  // Similar to MVC, but for logic operations (AND, OR, XOR).
   NC,
-  NC_LOOP,
   OC,
-  OC_LOOP,
   XC,
-  XC_LOOP,
 
   // Use CLC to compare two blocks of memory, with the same comments
-  // as for MVC and MVC_LOOP.
+  // as for MVC.
   CLC,
-  CLC_LOOP,
 
   // Use an MVST-based sequence to implement stpcpy().
   STPCPY,
@@ -433,6 +424,17 @@ public:
   }
   bool isCheapToSpeculateCtlz() const override { return true; }
   bool preferZeroCompareBranch() const override { return true; }
+  bool hasBitPreservingFPLogic(EVT VT) const override {
+    EVT ScVT = VT.getScalarType();
+    return ScVT == MVT::f32 || ScVT == MVT::f64 || ScVT == MVT::f128;
+  }
+  bool isMaskAndCmp0FoldingBeneficial(const Instruction &AndI) const override {
+    ConstantInt* Mask = dyn_cast<ConstantInt>(AndI.getOperand(1));
+    return Mask && Mask->getValue().isIntN(16);
+  }
+  bool convertSetCCLogicToBitwiseLogic(EVT VT) const override {
+    return VT.isScalarInteger();
+  }
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &,
                          EVT) const override;
   bool isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
@@ -569,7 +571,7 @@ public:
                                            unsigned Depth) const override;
 
   ISD::NodeType getExtendForAtomicOps() const override {
-    return ISD::ZERO_EXTEND;
+    return ISD::ANY_EXTEND;
   }
   ISD::NodeType getExtendForAtomicCmpSwapArg() const override {
     return ISD::ZERO_EXTEND;

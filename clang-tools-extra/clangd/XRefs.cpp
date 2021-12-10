@@ -80,6 +80,9 @@ const NamedDecl *getDefinition(const NamedDecl *D) {
     return VD->getDefinition();
   if (const auto *FD = dyn_cast<FunctionDecl>(D))
     return FD->getDefinition();
+  if (const auto *CTD = dyn_cast<ClassTemplateDecl>(D))
+    if (const auto *RD = CTD->getTemplatedDecl())
+      return RD->getDefinition();
   // Objective-C classes can have three types of declarations:
   //
   // - forward declaration: @class MyClass;
@@ -183,6 +186,12 @@ getDeclAtPositionWithRelations(ParsedAST &AST, SourceLocation Pos,
     if (const SelectionTree::Node *N = ST.commonAncestor()) {
       if (NodeKind)
         *NodeKind = N->ASTNode.getNodeKind();
+      // Attributes don't target decls, look at the
+      // thing it's attached to.
+      // We still report the original NodeKind!
+      // This makes the `override` hack work.
+      if (N->ASTNode.get<Attr>() && N->Parent)
+        N = N->Parent;
       llvm::copy_if(allTargetDecls(N->ASTNode, AST.getHeuristicResolver()),
                     std::back_inserter(Result),
                     [&](auto &Entry) { return !(Entry.second & ~Relations); });
@@ -343,7 +352,7 @@ std::vector<LocatedSymbol> findImplementors(llvm::DenseSet<SymbolID> IDs,
 std::vector<LocatedSymbol>
 locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
                   ParsedAST &AST, llvm::StringRef MainFilePath,
-                  const SymbolIndex *Index, ASTNodeKind *NodeKind) {
+                  const SymbolIndex *Index, ASTNodeKind &NodeKind) {
   const SourceManager &SM = AST.getSourceManager();
   // Results follow the order of Symbols.Decls.
   std::vector<LocatedSymbol> Result;
@@ -376,7 +385,7 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
   DeclRelationSet Relations =
       DeclRelation::TemplatePattern | DeclRelation::Alias;
   auto Candidates =
-      getDeclAtPositionWithRelations(AST, CurLoc, Relations, NodeKind);
+      getDeclAtPositionWithRelations(AST, CurLoc, Relations, &NodeKind);
   llvm::DenseSet<SymbolID> VirtualMethods;
   for (const auto &E : Candidates) {
     const NamedDecl *D = E.first;
@@ -392,13 +401,8 @@ locateASTReferent(SourceLocation CurLoc, const syntax::Token *TouchedIdentifier,
         }
       }
       // Special case: void foo() ^override: jump to the overridden method.
-      const InheritableAttr *Attr = D->getAttr<OverrideAttr>();
-      if (!Attr)
-        Attr = D->getAttr<FinalAttr>();
-      if (Attr && TouchedIdentifier &&
-          SM.getSpellingLoc(Attr->getLocation()) ==
-              TouchedIdentifier->location()) {
-        LocateASTReferentMetric.record(1, "method-to-base");
+    if (NodeKind.isSame(ASTNodeKind::getFromNodeKind<OverrideAttr>()) ||
+        NodeKind.isSame(ASTNodeKind::getFromNodeKind<FinalAttr>())) {
         // We may be overridding multiple methods - offer them all.
         for (const NamedDecl *ND : CMD->overridden_methods())
           AddResultDecl(ND);
@@ -800,7 +804,7 @@ std::vector<LocatedSymbol> locateSymbolAt(ParsedAST &AST, Position Pos,
 
   ASTNodeKind NodeKind;
   auto ASTResults = locateASTReferent(*CurLoc, TouchedIdentifier, AST,
-                                      *MainFilePath, Index, &NodeKind);
+                                      *MainFilePath, Index, NodeKind);
   if (!ASTResults.empty())
     return ASTResults;
 
@@ -816,17 +820,15 @@ std::vector<LocatedSymbol> locateSymbolAt(ParsedAST &AST, Position Pos,
             Word->Text);
         return {*std::move(Macro)};
       }
-      ASTResults =
-          locateASTReferent(NearbyIdent->location(), NearbyIdent, AST,
-                            *MainFilePath, Index, /*NodeKind=*/nullptr);
+      ASTResults = locateASTReferent(NearbyIdent->location(), NearbyIdent, AST,
+                                     *MainFilePath, Index, NodeKind);
       if (!ASTResults.empty()) {
         log("Found definition heuristically using nearby identifier {0}",
             NearbyIdent->text(SM));
         return ASTResults;
-      } else {
-        vlog("No definition found using nearby identifier {0} at {1}",
-             Word->Text, Word->Location.printToString(SM));
       }
+      vlog("No definition found using nearby identifier {0} at {1}", Word->Text,
+           Word->Location.printToString(SM));
     }
     // No nearby word, or it didn't refer to anything either. Try the index.
     auto TextualResults =
@@ -1391,13 +1393,11 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
         // Special case: For virtual methods, report decl/def of overrides and
         // references to all overridden methods in complete type hierarchy.
         if (const auto *CMD = llvm::dyn_cast<CXXMethodDecl>(ND)) {
-          if (CMD->isVirtual())
-            if (IdentifierAtCursor && SM.getSpellingLoc(CMD->getLocation()) ==
-                                          IdentifierAtCursor->location()) {
-              if (auto ID = getSymbolID(CMD))
-                OverriddenBy.Subjects.insert(ID);
-              getOverriddenMethods(CMD, OverriddenMethods);
-            }
+          if (CMD->isVirtual()) {
+            if (auto ID = getSymbolID(CMD))
+              OverriddenBy.Subjects.insert(ID);
+            getOverriddenMethods(CMD, OverriddenMethods);
+          }
         }
       }
     }
@@ -1431,17 +1431,20 @@ ReferencesResult findReferences(ParsedAST &AST, Position Pos, uint32_t Limit,
         !OverriddenBy.Subjects.empty())
       Index->relations(
           OverriddenBy, [&](const SymbolID &Subject, const Symbol &Object) {
-            if (auto LSPLoc =
-                    toLSPLocation(Object.CanonicalDeclaration, *MainFilePath)) {
+            const auto LSPLocDecl =
+                toLSPLocation(Object.CanonicalDeclaration, *MainFilePath);
+            const auto LSPLocDef =
+                toLSPLocation(Object.Definition, *MainFilePath);
+            if (LSPLocDecl && LSPLocDecl != LSPLocDef) {
               ReferencesResult::Reference Result;
-              Result.Loc = std::move(*LSPLoc);
+              Result.Loc = std::move(*LSPLocDecl);
               Result.Attributes =
                   ReferencesResult::Declaration | ReferencesResult::Override;
               Results.References.push_back(std::move(Result));
             }
-            if (auto LSPLoc = toLSPLocation(Object.Definition, *MainFilePath)) {
+            if (LSPLocDef) {
               ReferencesResult::Reference Result;
-              Result.Loc = std::move(*LSPLoc);
+              Result.Loc = std::move(*LSPLocDef);
               Result.Attributes = ReferencesResult::Declaration |
                                   ReferencesResult::Definition |
                                   ReferencesResult::Override;
@@ -1903,7 +1906,9 @@ prepareCallHierarchy(ParsedAST &AST, Position Pos, PathRef TUPath) {
     return Result;
   }
   for (const NamedDecl *Decl : getDeclAtPosition(AST, *Loc, {})) {
-    if (!Decl->isFunctionOrFunctionTemplate())
+    if (!(isa<DeclContext>(Decl) &&
+          cast<DeclContext>(Decl)->isFunctionOrMethod()) &&
+        Decl->getKind() != Decl::Kind::FunctionTemplate)
       continue;
     if (auto CHI = declToCallHierarchyItem(*Decl))
       Result.emplace_back(std::move(*CHI));

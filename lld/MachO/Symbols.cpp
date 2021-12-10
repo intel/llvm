@@ -14,6 +14,19 @@ using namespace llvm;
 using namespace lld;
 using namespace lld::macho;
 
+static_assert(sizeof(void *) != 8 || sizeof(Symbol) == 48,
+              "Try to minimize Symbol's size; we create many instances");
+
+// The Microsoft ABI doesn't support using parent class tail padding for child
+// members, hence the _MSC_VER check.
+#if !defined(_MSC_VER)
+static_assert(sizeof(void *) != 8 || sizeof(Defined) == 80,
+              "Try to minimize Defined's size; we create many instances");
+#endif
+
+static_assert(sizeof(SymbolUnion) == sizeof(Defined),
+              "Defined should be the largest Symbol kind");
+
 // Returns a symbol for an error message.
 static std::string demangle(StringRef symName) {
   if (config->demangle)
@@ -31,7 +44,39 @@ uint64_t Symbol::getStubVA() const { return in.stubs->getVA(stubsIndex); }
 uint64_t Symbol::getGotVA() const { return in.got->getVA(gotIndex); }
 uint64_t Symbol::getTlvVA() const { return in.tlvPointers->getVA(gotIndex); }
 
+Defined::Defined(StringRefZ name, InputFile *file, InputSection *isec,
+                 uint64_t value, uint64_t size, bool isWeakDef, bool isExternal,
+                 bool isPrivateExtern, bool isThumb,
+                 bool isReferencedDynamically, bool noDeadStrip,
+                 bool canOverrideWeakDef, bool isWeakDefCanBeHidden)
+    : Symbol(DefinedKind, name, file), overridesWeakDef(canOverrideWeakDef),
+      privateExtern(isPrivateExtern), includeInSymtab(true), thumb(isThumb),
+      referencedDynamically(isReferencedDynamically), noDeadStrip(noDeadStrip),
+      weakDefCanBeHidden(isWeakDefCanBeHidden), weakDef(isWeakDef),
+      external(isExternal), isec(isec), value(value), size(size) {
+  if (isec) {
+    isec->symbols.push_back(this);
+    // Maintain sorted order.
+    for (auto it = isec->symbols.rbegin(), rend = isec->symbols.rend();
+         it != rend; ++it) {
+      auto next = std::next(it);
+      if (next == rend)
+        break;
+      if ((*it)->value < (*next)->value)
+        std::swap(*next, *it);
+      else
+        break;
+    }
+  }
+}
+
+bool Defined::isTlv() const {
+  return !isAbsolute() && isThreadLocalVariables(isec->getFlags());
+}
+
 uint64_t Defined::getVA() const {
+  assert(isLive() && "this should only be called for live symbols");
+
   if (isAbsolute())
     return value;
 
@@ -46,16 +91,14 @@ uint64_t Defined::getVA() const {
     // expedient to return a contrived out-of-range address.
     return TargetInfo::outOfRangeVA;
   }
-  return isec->getVA() + value;
+  return isec->getVA(value);
 }
 
-uint64_t Defined::getFileOffset() const {
-  if (isAbsolute()) {
-    error("absolute symbol " + toString(*this) +
-          " does not have a file offset");
-    return 0;
-  }
-  return isec->getFileOffset() + value;
+void Defined::canonicalize() {
+  if (unwindEntry)
+    unwindEntry = unwindEntry->canonical();
+  if (isec)
+    isec = isec->canonical();
 }
 
 uint64_t DylibSymbol::getVA() const {

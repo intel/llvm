@@ -22,7 +22,7 @@
 // Windows (from within the clang\docs directory):
 //   make.bat html
 // Non-Windows (from within the clang\docs directory):
-//   make -f Makefile.sphinx html
+//   sphinx-build -b html _build/html
 
 def GlobalDocumentation {
   code Intro =[{..
@@ -405,6 +405,26 @@ The SYCL kernel in the previous code sample meets these expectations.
   }];
 }
 
+def SYCLSpecialClassDocs : Documentation {
+  let Category = DocCatStmt;
+  let Content = [{
+The ``__attribute__((sycl_special_class))`` attribute is used in SYCL
+headers to indicate that a class or a struct needs additional handling when
+it is passed from host to device. Please note that this is an attribute that is
+used for internal implementation and not intended to be used by external users.
+It is used for ``accessor``, ``sampler`` , or ``stream`` classes.
+The types that own this attribute are excluded from device-copyable and other
+type-legalization steps.
+
+.. code-block:: c++
+
+  class __attribute__((sycl_special_class)) accessor {
+    private:
+      void __init() {}
+  };
+  }];
+}
+
 def SYCLSimdDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -415,6 +435,10 @@ def SYCLSimdDocs : Documentation {
     The compiler may decide to compile such functions using different optimization
     and code generation pipeline. Also, this attribute is used to distinguish
     ESIMD private globals from regular SYCL global variables.
+
+    In SYCL 1.2.1 mode, the ``intel::sycl_explicit_simd`` attribute is propagated
+    from the function it is applied to onto the kernel which calls the function.
+    In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
@@ -2035,6 +2059,34 @@ preserving struct or union member access debuginfo indices of this
 struct or union, similar to clang ``__builtin_preserve_access_index()``.
   }];
 }
+def BTFDeclTagDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the ``__attribute__((btf_decl_tag("ARGUMENT")))`` attribute for
+all targets. This attribute may be attached to a struct/union, struct/union
+field, function, function parameter, variable or typedef declaration. If -g is
+specified, the ``ARGUMENT`` info will be preserved in IR and be emitted to
+dwarf. For BPF targets, the ``ARGUMENT`` info will be emitted to .BTF ELF
+section too.
+  }];
+}
+
+def BTFTypeTagDocs : Documentation {
+  let Category = DocCatType;
+  let Content = [{
+Clang supports the ``__attribute__((btf_type_tag("ARGUMENT")))`` attribute for
+all targets. It only has effect when ``-g`` is specified on the command line and
+is currently silently ignored when not applied to a pointer type (note: this
+scenario may be diagnosed in the future).
+
+The ``ARGUMENT`` string will be preserved in IR and emitted to DWARF for the
+types used in variable declarations, function declarations, or typedef
+declarations.
+
+For BPF targets, the ``ARGUMENT`` string will also be emitted to .BTF ELF
+section.
+  }];
+}
 
 def MipsInterruptDocs : Documentation {
   let Category = DocCatFunction;
@@ -2443,8 +2495,9 @@ lambda capture, or function object member, of the callable to which the
 attribute was applied. This effect is equivalent to annotating restrict on
 **all** kernel pointer arguments in an OpenCL or SPIR-V kernel.
 
-If ``intel::kernel_args_restrict`` is applied to a function called from a device
-kernel, the attribute is not ignored and it is propagated to the kernel.
+In SYCL 1.2.1 mode, the ``intel::kernel_args_restrict`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 The attribute forms an unchecked assertion, in that implementations
 do not need to check/confirm the pre-condition in any way. If a user applies
@@ -2482,8 +2535,10 @@ def SYCLIntelNumSimdWorkItemsAttrDocs : Documentation {
   let Content = [{
 Applies to a device function/lambda function. Indicates the number of work
 items that should be processed in parallel. Valid values are positive integers.
-If ``intel::num_simd_work_items`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+In SYCL 1.2.1 mode, the ``intel::num_simd_work_items`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -2526,14 +2581,14 @@ of the kernel the attribute is applied to.
   // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(7, 4, 64)]]
+    [[sycl::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
   // Note, '8' is evenly divisible by '8'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[sycl::reqd_work_group_size(1, 1, 8)]]
     [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
@@ -2581,18 +2636,31 @@ def SYCLIntelUseStallEnableClustersAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::use_stall_enable_clusters";
   let Content = [{
-When applied to a lambda or function call operator (of a function object)
-on device, this requests, to the extent possible, that statically-scheduled
-clusters handle stalls using a stall-enable signal to freeze computation
-within the cluster. This attribute is ignored on the host.
+The ``intel::use_stall_enable_clusters`` attribute requires SYCL.
+When applied to a lambda function, function definition, or function call
+operator (of a function object) on device, this requests, to the
+extent possible, that statically-scheduled clusters handle stalls using a
+stall-enable signal to freeze computation within the cluster. This attribute
+is ignored on the host.
+
+The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an
+effect when applied to a function, and no effect otherwise.
 
 If ``intel::use_stall_enable_clusters`` is applied to a function called from a device
 kernel, the attribute is ignored and it is not propagated to the kernel.
 
-The ``intel::use_stall_enable_clusters`` attribute takes no argument and has an effect
-when applied to a function, and no effect otherwise.
-
 .. code-block:: c++
+
+  class Foo {
+  public:
+    [[intel::use_stall_enable_clusters]] void operator()() const {}
+  };
+
+  [[intel::use_stall_enable_clusters]] void test() {}
+
+  struct FuncObj {
+    [[intel::use_stall_enable_clusters]] void operator()() const {}
+  };
 
   class Functor
   {
@@ -2600,6 +2668,16 @@ when applied to a function, and no effect otherwise.
       {
           /* kernel code */
       }
+  }
+
+The ``intel::use_stall_enable_clusters`` attribute supports a nonconforming
+behavior when applied to a lambda in the type position.
+
+.. code-block:: c++
+
+  void test1() {
+    auto lambda = []() [[intel::use_stall_enable_clusters]]{};
+    lambda();
   }
 
   kernel<class kernel_name>(
@@ -2633,6 +2711,11 @@ allows the Y and Z arguments to be optional. If not provided by the user, the
 value of Y and Z defaults to 1. See section 5.8.1 Kernel Attributes for more
 details.
 
+In SYCL 1.2.1 mode, the ``cl::reqd_work_group_size`` and
+``sycl::reqd_work_group_size`` attributes are propagated from the function they
+are applied to onto the kernel which calls the function. In SYCL 2020 mode, the
+attributes are not propagated to the kernel.
+
 .. code-block:: c++
 
   [[sycl::reqd_work_group_size(4, 4, 4)]] void foo() {}
@@ -2654,10 +2737,6 @@ details.
 The ``[[cl::reqd_work_group_size(X, Y, Z)]]`` and
 ``__attribute__((reqd_work_group_size(X, Y, Z)))`` spellings are both
 deprecated in SYCL 2020.
-
-As an Intel extension, the ``[[intel::reqd_work_group_size(X, Y, Z)]]``
-spelling is supported with the same semantics as the
-``[[sycl::reqd_work_group_size(X, Y, Z)]]`` spelling.
 
 In OpenCL C, this attribute is available with the GNU spelling
 (``__attribute__((reqd_work_group_size(X, Y, Z)))``), see section
@@ -2714,14 +2793,14 @@ in the ``reqd_work_group_size`` attribute.
   // argument to the attribute is the one which increments fastest.
   struct func {
     [[intel::num_simd_work_items(4)]]
-    [[intel::reqd_work_group_size(7, 4, 64)]]
+    [[sycl::reqd_work_group_size(7, 4, 64)]]
     void operator()() const {}
   };
 
   // Note, '8' is evenly divisible by '8'; in SYCL, the last
   // argument to the attribute is the one which increments fastest.
   struct bar {
-    [[intel::reqd_work_group_size(1, 1, 8)]]
+    [[sycl::reqd_work_group_size(1, 1, 8)]]
     [[intel::num_simd_work_items(8)]]
     void operator()() const {}
   };
@@ -2773,8 +2852,10 @@ Applies to a device function/lambda function. Indicates the maximum dimensions
 of a work group. Values must be positive integers. This is similar to
 reqd_work_group_size, but allows work groups that are smaller or equal to the
 specified sizes.
-If ``intel::max_work_group_size`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+In SYCL 1.2.1 mode, the ``intel::max_work_group_size`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -2805,8 +2886,10 @@ Applies to a device function/lambda function or function call operator (of a
 function object). Indicates the largest valid global work dimension that will be
 accepted when running the kernel on a device. Valid values are integers in a
 range of [0, 3].
-If ``intel::max_global_work_dim`` is applied to a function called from a
-device kernel, the attribute is not ignored and it is propagated to the kernel.
+
+In SYCL 1.2.1 mode, the ``intel::max_global_work_dim`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -2863,6 +2946,10 @@ device operation, guiding the FPGA backend to insert the appropriate number of
 registers to break-up the combinational logic circuit, and thereby controlling
 the length of the longest combinational path.
 
+In SYCL 1.2.1 mode, the ``intel::scheduler_target_fmax_mhz`` attribute is
+propagated from the function it is applied to onto the kernel which calls the
+function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
+
 .. code-block:: c++
 
   [[intel::scheduler_target_fmax_mhz(4)]] void foo() {}
@@ -2892,6 +2979,10 @@ Applies to a device function/lambda function or function call operator (of a
 function object). If 1, compiler doesn't use the global work offset values for
 the device function. Valid values are 0 and 1. If used without argument, value
 of 1 is set implicitly.
+
+In SYCL 1.2.1 mode, the ``intel::no_global_work_offset`` attribute is
+propagated from the function it is applied to onto the kernel which calls the
+function. In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 .. code-block:: c++
 
@@ -3377,6 +3468,40 @@ Additionally, a function may not become multiversioned after its first use.
 }];
 }
 
+def TargetClonesDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Clang supports the ``target_clones("OPTIONS")`` attribute. This attribute may be
+attached to a function declaration and causes function multiversioning, where
+multiple versions of the function will be emitted with different code
+generation options.  Additionally, these versions will be resolved at runtime
+based on the priority of their attribute options. All ``target_clone`` functions
+are considered multiversioned functions.
+
+All multiversioned functions must contain a ``default`` (fallback)
+implementation, otherwise usages of the function are considered invalid.
+Additionally, a function may not become multiversioned after its first use.
+
+The options to ``target_clones`` can either be a target-specific architecture
+(specified as ``arch=CPU``), or one of a list of subtarget features.
+
+Example "subtarget features" from the x86 backend include: "mmx", "sse", "sse4.2",
+"avx", "xop" and largely correspond to the machine specific options handled by
+the front end.
+
+The versions can either be listed as a comma-separated sequence of string
+literals or as a single string literal containing a comma-separated list of
+versions.  For compatibility with GCC, the two formats can be mixed.  For
+example, the following will emit 4 versions of the function:
+
+  .. code-block:: c++
+
+    __attribute__((target_clones("arch=atom,avx2","arch=ivybridge","default")))
+    void foo() {}
+
+}];
+}
+
 def MinVectorWidthDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -3731,6 +3856,17 @@ This attribute accepts a single parameter that must be one of the following:
   }];
 }
 
+def NoProfileInstrumentFunctionDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Use the ``no_profile_instrument_function`` attribute on a function declaration
+to denote that the compiler should not instrument the function with
+profile-related instrumentation, such as via the
+``-fprofile-generate`` / ``-fprofile-instr-generate`` /
+``-fcs-profile-generate`` / ``-fprofile-arcs`` flags.
+}];
+}
+
 def NoSanitizeDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{
@@ -3750,6 +3886,18 @@ SanitizerCoverage should not be applied to the function.
 
 See :ref:`Controlling Code Generation <controlling-code-generation>` for a
 full list of supported sanitizer flags.
+  }];
+}
+
+def DisableSanitizerInstrumentationDocs : Documentation {
+  let Category = DocCatFunction;
+  let Content = [{
+Use the ``disable_sanitizer_instrumentation`` attribute on a function,
+Objective-C method, or global variable, to specify that no sanitizer
+instrumentation should be applied.
+
+This is not the same as ``__attribute__((no_sanitize(...)))``, which depending
+on the tool may still insert instrumentation to prevent false positive reports.
   }];
 }
 
@@ -4543,6 +4691,7 @@ used to specify full unrolling or partial unrolling by a specified amount.
 
 def IntelReqdSubGroupSizeDocs : Documentation {
   let Category = DocCatStmt;
+  let Heading = "intel_reqd_sub_group_size";
   let Content = [{
 This attribute can be used in both OpenCL and SYCL.
 
@@ -4563,10 +4712,14 @@ to a sub-group size supported by the device, or device compilation will fail.
 
 The ``[[intel::sub_group_size(n)]]`` attribute has the same effect as the other
 attribute spellings, except that it follows the SYCL 2020 Attribute Rules. See
- the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
+the ``[[intel::named_sub_group_size(NAME)]]`` documentation for clarification.
 
 This attribute is mutually exclusive with ``[[intel::named_sub_group_size(NAME)]]``
 and ``[[intel::sycl_explicit_simd]]``.
+
+In SYCL 1.2.1 mode, the ``intel::reqd_sub_group_size`` attribute is propagated
+from the function it is applied to onto the kernel which calls the function.
+In SYCL 2020 mode, the attribute is not propagated to the kernel.
 
 In addition to device functions, the required sub-group size attribute may also
 be specified in the definition of a named functor object and lambda functions,
@@ -5775,7 +5928,8 @@ def SwiftContextDocs : Documentation {
   let Category = DocCatVariable;
   let Content = [{
 The ``swift_context`` attribute marks a parameter of a ``swiftcall``
-function as having the special context-parameter ABI treatment.
+or ``swiftasynccall`` function as having the special context-parameter
+ABI treatment.
 
 This treatment generally passes the context value in a special register
 which is normally callee-preserved.
@@ -5783,6 +5937,47 @@ which is normally callee-preserved.
 A ``swift_context`` parameter must either be the last parameter or must be
 followed by a ``swift_error_result`` parameter (which itself must always be
 the last parameter).
+
+A context parameter must have pointer or reference type.
+  }];
+}
+
+def SwiftAsyncCallDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``swiftasynccall`` attribute indicates that a function is
+compatible with the low-level conventions of Swift async functions,
+provided it declares the right formal arguments.
+
+In most respects, this is similar to the ``swiftcall`` attribute, except for
+the following:
+
+- A parameter may be marked ``swift_async_context``, ``swift_context``
+  or ``swift_indirect_result`` (with the same restrictions on parameter
+  ordering as ``swiftcall``) but the parameter attribute
+  ``swift_error_result`` is not permitted.
+
+- A ``swiftasynccall`` function must have return type ``void``.
+
+- Within a ``swiftasynccall`` function, a call to a ``swiftasynccall``
+  function that is the immediate operand of a ``return`` statement is
+  guaranteed to be performed as a tail call. This syntax is allowed even
+  in C as an extension (a call to a void-returning function cannot be a
+  return operand in standard C). If something in the calling function would
+  semantically be performed after a guaranteed tail call, such as the
+  non-trivial destruction of a local variable or temporary,
+  then the program is ill-formed.
+  }];
+}
+
+def SwiftAsyncContextDocs : Documentation {
+  let Category = DocCatVariable;
+  let Content = [{
+The ``swift_async_context`` attribute marks a parameter of a ``swiftasynccall``
+function as having the special asynchronous context-parameter ABI treatment.
+
+If the function is not ``swiftasynccall``, this attribute only generates
+extended frame information.
 
 A context parameter must have pointer or reference type.
   }];
@@ -5827,7 +6022,8 @@ def SwiftIndirectResultDocs : Documentation {
   let Category = DocCatVariable;
   let Content = [{
 The ``swift_indirect_result`` attribute marks a parameter of a ``swiftcall``
-function as having the special indirect-result ABI treatment.
+or ``swiftasynccall`` function as having the special indirect-result ABI
+treatment.
 
 This treatment gives the parameter the target's normal indirect-result
 ABI treatment, which may involve passing it differently from an ordinary
@@ -7021,6 +7217,31 @@ once.
   }];
 }
 
+def UsingIfExistsDocs : Documentation {
+  let Category = DocCatDecl;
+  let Content = [{
+The ``using_if_exists`` attribute applies to a using-declaration. It allows
+programmers to import a declaration that potentially does not exist, instead
+deferring any errors to the point of use. For instance:
+
+.. code-block:: c++
+
+  namespace empty_namespace {};
+  __attribute__((using_if_exists))
+  using empty_namespace::does_not_exist; // no error!
+
+  does_not_exist x; // error: use of unresolved 'using_if_exists'
+
+The C++ spelling of the attribte (`[[clang::using_if_exists]]`) is also
+supported as a clang extension, since ISO C++ doesn't support attributes in this
+position. If the entity referred to by the using-declaration is found by name
+lookup, the attribute has no effect. This attribute is useful for libraries
+(primarily, libc++) that wish to redeclare a set of declarations in another
+namespace, when the availability of those declarations is difficult or
+impossible to detect at compile time with the preprocessor.
+  }];
+}
+
 def HandleDocs : DocumentationCategory<"Handle Attributes"> {
   let Content = [{
 Handles are a way to identify resources like files, sockets, and processes.
@@ -7039,19 +7260,21 @@ def AcquireHandleDocs : Documentation {
 If this annotation is on a function or a function type it is assumed to return
 a new handle. In case this annotation is on an output parameter,
 the function is assumed to fill the corresponding argument with a new
-handle.
+handle. The attribute requires a string literal argument which used to
+identify the handle with later uses of ``use_handle`` or
+``release_handle``.
 
 .. code-block:: c++
 
   // Output arguments from Zircon.
   zx_status_t zx_socket_create(uint32_t options,
-                               zx_handle_t __attribute__((acquire_handle)) * out0,
-                               zx_handle_t* out1 [[clang::acquire_handle]]);
+                               zx_handle_t __attribute__((acquire_handle("zircon"))) * out0,
+                               zx_handle_t* out1 [[clang::acquire_handle("zircon")]]);
 
 
   // Returned handle.
-  [[clang::acquire_handle]] int open(const char *path, int oflag, ... );
-  int open(const char *path, int oflag, ... ) __attribute__((acquire_handle));
+  [[clang::acquire_handle("tag")]] int open(const char *path, int oflag, ... );
+  int open(const char *path, int oflag, ... ) __attribute__((acquire_handle("tag")));
   }];
 }
 
@@ -7059,12 +7282,13 @@ def UseHandleDocs : Documentation {
   let Category = HandleDocs;
   let Content = [{
 A function taking a handle by value might close the handle. If a function
-parameter is annotated with ``use_handle`` it is assumed to not to change
+parameter is annotated with ``use_handle(tag)`` it is assumed to not to change
 the state of the handle. It is also assumed to require an open handle to work with.
+The attribute requires a string literal argument to identify the handle being used.
 
 .. code-block:: c++
 
-  zx_status_t zx_port_wait(zx_handle_t handle [[clang::use_handle]],
+  zx_status_t zx_port_wait(zx_handle_t handle [[clang::use_handle("zircon")]],
                            zx_time_t deadline,
                            zx_port_packet_t* packet);
   }];
@@ -7073,12 +7297,13 @@ the state of the handle. It is also assumed to require an open handle to work wi
 def ReleaseHandleDocs : Documentation {
   let Category = HandleDocs;
   let Content = [{
-If a function parameter is annotated with ``release_handle`` it is assumed to
-close the handle. It is also assumed to require an open handle to work with.
+If a function parameter is annotated with ``release_handle(tag)`` it is assumed to
+close the handle. It is also assumed to require an open handle to work with. The
+attribute requires a string literal argument to identify the handle being released.
 
 .. code-block:: c++
 
-  zx_status_t zx_handle_close(zx_handle_t handle [[clang::release_handle]]);
+  zx_status_t zx_handle_close(zx_handle_t handle [[clang::release_handle("tag")]]);
   }];
 }
 
@@ -7223,5 +7448,31 @@ def EnforceTCBLeafDocs : Documentation {
   continue to check the functions called from within the leaf function.
 
   - ``enforce_tcb_leaf(Name)`` indicates that this function is a part of the TCB named ``Name``
+  }];
+}
+
+def ErrorAttrDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "error, warning";
+  let Content = [{
+The ``error`` and ``warning`` function attributes can be used to specify a
+custom diagnostic to be emitted when a call to such a function is not
+eliminated via optimizations. This can be used to create compile time
+assertions that depend on optimizations, while providing diagnostics
+pointing to precise locations of the call site in the source.
+
+.. code-block:: c++
+
+  __attribute__((warning("oh no"))) void dontcall();
+  void foo() {
+    if (someCompileTimeAssertionThatsTrue)
+      dontcall(); // Warning
+
+    dontcall(); // Warning
+
+    if (someCompileTimeAssertionThatsFalse)
+      dontcall(); // No Warning
+    sizeof(dontcall()); // No Warning
+  }
   }];
 }

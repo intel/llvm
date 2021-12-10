@@ -21,7 +21,7 @@ an application instrumented with XPTI, the following steps must be performed.
 3. Set the environment variable that points to the subscriber, which in this
   case is `libsyclpi_collector.[so,dll,dylib]`.
 
-     `XPTI_SUBSCRIBERS=/path/to/libsyclpi_collector.[so,dll,dylib]`
+     `XPTI_SUBSCRIBERS=/path/to/libxpti_syclpi_collector.[so,dll,dylib]`
 
 For more detail on the framework, the tests that are provided and their usage,
 please consult the [XPTI Framework library documentation](doc/XPTI_Framework.md).

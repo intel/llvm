@@ -16,6 +16,7 @@
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -23,6 +24,9 @@
 #include "mlir/Support/MathExtras.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+#define DEBUG_TYPE "transforms-utils"
+
 using namespace mlir;
 
 // Perform the replacement in `op`.
@@ -86,7 +90,7 @@ LogicalResult mlir::replaceAllMemRefUsesWith(Value oldMemRef, Value newMemRef,
   // Perform index rewrites for the dereferencing op and then replace the op
   NamedAttribute oldMapAttrPair =
       affMapAccInterface.getAffineMapAttrForMemRef(oldMemRef);
-  AffineMap oldMap = oldMapAttrPair.second.cast<AffineMapAttr>().getValue();
+  AffineMap oldMap = oldMapAttrPair.getValue().cast<AffineMapAttr>().getValue();
   unsigned oldMapNumInputs = oldMap.getNumInputs();
   SmallVector<Value, 4> oldMapOperands(
       op->operand_begin() + memRefOperandPos + 1,
@@ -190,8 +194,8 @@ LogicalResult mlir::replaceAllMemRefUsesWith(Value oldMemRef, Value newMemRef,
   // Add attribute for 'newMap', other Attributes do not change.
   auto newMapAttr = AffineMapAttr::get(newMap);
   for (auto namedAttr : op->getAttrs()) {
-    if (namedAttr.first == oldMapAttrPair.first)
-      state.attributes.push_back({namedAttr.first, newMapAttr});
+    if (namedAttr.getName() == oldMapAttrPair.getName())
+      state.attributes.push_back({namedAttr.getName(), newMapAttr});
     else
       state.attributes.push_back(namedAttr);
   }
@@ -207,8 +211,8 @@ LogicalResult mlir::replaceAllMemRefUsesWith(Value oldMemRef, Value newMemRef,
 LogicalResult mlir::replaceAllMemRefUsesWith(
     Value oldMemRef, Value newMemRef, ArrayRef<Value> extraIndices,
     AffineMap indexRemap, ArrayRef<Value> extraOperands,
-    ArrayRef<Value> symbolOperands, Operation *domInstFilter,
-    Operation *postDomInstFilter, bool allowNonDereferencingOps,
+    ArrayRef<Value> symbolOperands, Operation *domOpFilter,
+    Operation *postDomOpFilter, bool allowNonDereferencingOps,
     bool replaceInDeallocOp) {
   unsigned newMemRefRank = newMemRef.getType().cast<MemRefType>().getRank();
   (void)newMemRefRank; // unused in opt mode
@@ -230,25 +234,25 @@ LogicalResult mlir::replaceAllMemRefUsesWith(
 
   std::unique_ptr<DominanceInfo> domInfo;
   std::unique_ptr<PostDominanceInfo> postDomInfo;
-  if (domInstFilter)
-    domInfo = std::make_unique<DominanceInfo>(
-        domInstFilter->getParentOfType<FuncOp>());
+  if (domOpFilter)
+    domInfo =
+        std::make_unique<DominanceInfo>(domOpFilter->getParentOfType<FuncOp>());
 
-  if (postDomInstFilter)
+  if (postDomOpFilter)
     postDomInfo = std::make_unique<PostDominanceInfo>(
-        postDomInstFilter->getParentOfType<FuncOp>());
+        postDomOpFilter->getParentOfType<FuncOp>());
 
   // Walk all uses of old memref; collect ops to perform replacement. We use a
   // DenseSet since an operation could potentially have multiple uses of a
   // memref (although rare), and the replacement later is going to erase ops.
   DenseSet<Operation *> opsToReplace;
   for (auto *op : oldMemRef.getUsers()) {
-    // Skip this use if it's not dominated by domInstFilter.
-    if (domInstFilter && !domInfo->dominates(domInstFilter, op))
+    // Skip this use if it's not dominated by domOpFilter.
+    if (domOpFilter && !domInfo->dominates(domOpFilter, op))
       continue;
 
-    // Skip this use if it's not post-dominated by postDomInstFilter.
-    if (postDomInstFilter && !postDomInfo->postDominates(postDomInstFilter, op))
+    // Skip this use if it's not post-dominated by postDomOpFilter.
+    if (postDomOpFilter && !postDomInfo->postDominates(postDomOpFilter, op))
       continue;
 
     // Skip dealloc's - no replacement is necessary, and a memref replacement
@@ -260,13 +264,20 @@ LogicalResult mlir::replaceAllMemRefUsesWith(
     // for the memref to be used in a non-dereferencing way outside of the
     // region where this replacement is happening.
     if (!isa<AffineMapAccessInterface>(*op)) {
-      if (!allowNonDereferencingOps)
+      if (!allowNonDereferencingOps) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "Memref replacement failed: non-deferencing memref op: \n"
+                   << *op << '\n');
         return failure();
-      // Currently we support the following non-dereferencing ops to be a
-      // candidate for replacement: Dealloc, CallOp and ReturnOp.
-      // TODO: Add support for other kinds of ops.
-      if (!op->hasTrait<OpTrait::MemRefsNormalizable>())
+      }
+      // Non-dereferencing ops with the MemRefsNormalizable trait are
+      // supported for replacement.
+      if (!op->hasTrait<OpTrait::MemRefsNormalizable>()) {
+        LLVM_DEBUG(llvm::dbgs() << "Memref replacement failed: use without a "
+                                   "memrefs normalizable trait: \n"
+                                << *op << '\n');
         return failure();
+      }
     }
 
     // We'll first collect and then replace --- since replacement erases the op
@@ -567,7 +578,7 @@ static AffineExpr createDimSizeExprForTiledLayout(AffineExpr oldMapOutput,
 /// 4. Create AffineApplyOp to apply the new maps. The output of AffineApplyOp
 /// is used in dynamicSizes of new AllocOp.
 ///   %0 = dim %arg0, %c1 : memref<4x?xf32>
-///   %c4 = constant 4 : index
+///   %c4 = arith.constant 4 : index
 ///   %1 = affine.apply #map1(%c4, %0)
 ///   %2 = affine.apply #map2(%c4, %0)
 static void createNewDynamicSizes(MemRefType oldMemRefType,
@@ -588,7 +599,7 @@ static void createNewDynamicSizes(MemRefType oldMemRefType,
       Attribute constantAttr =
           b.getIntegerAttr(b.getIndexType(), oldMemRefShape[d]);
       inAffineApply.emplace_back(
-          b.create<ConstantOp>(allocOp->getLoc(), constantAttr));
+          b.create<arith::ConstantOp>(allocOp->getLoc(), constantAttr));
     }
   }
 
@@ -636,7 +647,7 @@ LogicalResult mlir::normalizeMemRef(memref::AllocOp *allocOp) {
   Value oldMemRef = allocOp->getResult();
 
   SmallVector<Value, 4> symbolOperands(allocOp->symbolOperands());
-  AffineMap layoutMap = memrefType.getAffineMaps().front();
+  AffineMap layoutMap = memrefType.getLayout().getAffineMap();
   memref::AllocOp newAlloc;
   // Check if `layoutMap` is a tiled layout. Only single layout map is
   // supported for normalizing dynamic memrefs.
@@ -661,9 +672,9 @@ LogicalResult mlir::normalizeMemRef(memref::AllocOp *allocOp) {
                                       /*indexRemap=*/layoutMap,
                                       /*extraOperands=*/{},
                                       /*symbolOperands=*/symbolOperands,
-                                      /*domInstFilter=*/nullptr,
-                                      /*postDomInstFilter=*/nullptr,
-                                      /*allowDereferencingOps=*/true))) {
+                                      /*domOpFilter=*/nullptr,
+                                      /*postDomOpFilter=*/nullptr,
+                                      /*allowNonDereferencingOps=*/true))) {
     // If it failed (due to escapes for example), bail out.
     newAlloc.erase();
     return failure();
@@ -684,13 +695,12 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
   if (rank == 0)
     return memrefType;
 
-  ArrayRef<AffineMap> layoutMaps = memrefType.getAffineMaps();
-  if (layoutMaps.empty() ||
-      layoutMaps.front() == b.getMultiDimIdentityMap(rank)) {
+  if (memrefType.getLayout().isIdentity()) {
     // Either no maps is associated with this memref or this memref has
     // a trivial (identity) map.
     return memrefType;
   }
+  AffineMap layoutMap = memrefType.getLayout().getAffineMap();
 
   // We don't do any checks for one-to-one'ness; we assume that it is
   // one-to-one.
@@ -699,7 +709,7 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
   // for now.
   // TODO: Normalize the other types of dynamic memrefs.
   SmallVector<std::tuple<AffineExpr, unsigned, unsigned>> tileSizePos;
-  (void)getTileSizePos(layoutMaps.front(), tileSizePos);
+  (void)getTileSizePos(layoutMap, tileSizePos);
   if (memrefType.getNumDynamicDims() > 0 && tileSizePos.empty())
     return memrefType;
 
@@ -712,15 +722,14 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
   for (unsigned d = 0; d < rank; ++d) {
     // Use constraint system only in static dimensions.
     if (shape[d] > 0) {
-      fac.addConstantLowerBound(d, 0);
-      fac.addConstantUpperBound(d, shape[d] - 1);
+      fac.addBound(FlatAffineConstraints::LB, d, 0);
+      fac.addBound(FlatAffineConstraints::UB, d, shape[d] - 1);
     } else {
       memrefTypeDynDims.emplace_back(d);
     }
   }
   // We compose this map with the original index (logical) space to derive
   // the upper bounds for the new index space.
-  AffineMap layoutMap = layoutMaps.front();
   unsigned newRank = layoutMap.getNumResults();
   if (failed(fac.composeMatchingMap(layoutMap)))
     return memrefType;
@@ -736,7 +745,7 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
       newShape[d] = -1;
     } else {
       // The lower bound for the shape is always zero.
-      auto ubConst = fac.getConstantUpperBound(d);
+      auto ubConst = fac.getConstantBound(FlatAffineConstraints::UB, d);
       // For a static memref and an affine map with no symbols, this is
       // always bounded.
       assert(ubConst.hasValue() && "should always have an upper bound");
@@ -752,7 +761,7 @@ MemRefType mlir::normalizeMemRefType(MemRefType memrefType, OpBuilder b,
   MemRefType newMemRefType =
       MemRefType::Builder(memrefType)
           .setShape(newShape)
-          .setAffineMaps(b.getMultiDimIdentityMap(newRank));
+          .setLayout(AffineMapAttr::get(b.getMultiDimIdentityMap(newRank)));
 
   return newMemRefType;
 }

@@ -10,6 +10,7 @@
 
 #include <CL/sycl/context.hpp>
 #include <CL/sycl/detail/property_helper.hpp>
+#include <CL/sycl/properties/property_traits.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -20,12 +21,12 @@ class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
 
 class use_mutex : public detail::PropertyWithData<detail::ImageUseMutex> {
 public:
-  use_mutex(sycl::mutex_class &MutexRef) : MMutex(MutexRef) {}
+  use_mutex(std::mutex &MutexRef) : MMutex(MutexRef) {}
 
-  sycl::mutex_class *get_mutex_ptr() const { return &MMutex; }
+  std::mutex *get_mutex_ptr() const { return &MMutex; }
 
 private:
-  sycl::mutex_class &MMutex;
+  std::mutex &MMutex;
 };
 
 class context_bound
@@ -40,5 +41,26 @@ private:
 };
 } // namespace image
 } // namespace property
+
+// Forward declaration
+template <int Dimensions, typename AllocatorT> class image;
+
+// Image property trait specializations
+template <>
+struct is_property<property::image::use_host_ptr> : std::true_type {};
+template <> struct is_property<property::image::use_mutex> : std::true_type {};
+template <>
+struct is_property<property::image::context_bound> : std::true_type {};
+
+template <int Dimensions, typename AllocatorT>
+struct is_property_of<property::image::use_host_ptr,
+                      image<Dimensions, AllocatorT>> : std::true_type {};
+template <int Dimensions, typename AllocatorT>
+struct is_property_of<property::image::use_mutex, image<Dimensions, AllocatorT>>
+    : std::true_type {};
+template <int Dimensions, typename AllocatorT>
+struct is_property_of<property::image::context_bound,
+                      image<Dimensions, AllocatorT>> : std::true_type {};
+
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

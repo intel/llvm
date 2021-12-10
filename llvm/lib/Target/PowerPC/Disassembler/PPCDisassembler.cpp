@@ -12,8 +12,8 @@
 #include "llvm/MC/MCFixedLenDisassembler.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCSubtargetInfo.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Endian.h"
-#include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
 
@@ -157,6 +157,12 @@ static DecodeStatus DecodeGPRC_NOR0RegisterClass(MCInst &Inst, uint64_t RegNo,
 static DecodeStatus DecodeG8RCRegisterClass(MCInst &Inst, uint64_t RegNo,
                                             uint64_t Address,
                                             const void *Decoder) {
+  return decodeRegisterClass(Inst, RegNo, XRegs);
+}
+
+static DecodeStatus DecodeG8pRCRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                             uint64_t Address,
+                                             const void *Decoder) {
   return decodeRegisterClass(Inst, RegNo, XRegs);
 }
 

@@ -71,6 +71,7 @@ public:
 /// format. Provides an iterator over NamedInstrProfRecords.
 class InstrProfReader {
   instrprof_error LastError = instrprof_error::success;
+  std::string LastErrorMsg;
 
 public:
   InstrProfReader() = default;
@@ -81,6 +82,9 @@ public:
 
   /// Read a single record.
   virtual Error readNextRecord(NamedInstrProfRecord &Record) = 0;
+
+  /// Print binary ids on stream OS.
+  virtual Error printBinaryIds(raw_ostream &OS) { return success(); };
 
   /// Iterator over profile data.
   InstrProfIterator begin() { return InstrProfIterator(this); }
@@ -111,14 +115,21 @@ protected:
   std::unique_ptr<InstrProfSymtab> Symtab;
 
   /// Set the current error and return same.
-  Error error(instrprof_error Err) {
+  Error error(instrprof_error Err, const std::string &ErrMsg = "") {
     LastError = Err;
+    LastErrorMsg = ErrMsg;
     if (Err == instrprof_error::success)
       return Error::success();
-    return make_error<InstrProfError>(Err);
+    return make_error<InstrProfError>(Err, ErrMsg);
   }
 
-  Error error(Error &&E) { return error(InstrProfError::take(std::move(E))); }
+  Error error(Error &&E) {
+    handleAllErrors(std::move(E), [&](const InstrProfError &IPE) {
+      LastError = IPE.get();
+      LastErrorMsg = IPE.getMessage();
+    });
+    return make_error<InstrProfError>(LastError, LastErrorMsg);
+  }
 
   /// Clear the current error and return a successful one.
   Error success() { return error(instrprof_error::success); }
@@ -133,7 +144,7 @@ public:
   /// Get the current error.
   Error getError() {
     if (hasError())
-      return make_error<InstrProfError>(LastError);
+      return make_error<InstrProfError>(LastError, LastErrorMsg);
     return Error::success();
   }
 
@@ -194,7 +205,7 @@ public:
 
 /// Reader for the raw instrprof binary format from runtime.
 ///
-/// This format is a raw memory dump of the instrumentation-baed profiling data
+/// This format is a raw memory dump of the instrumentation-based profiling data
 /// from the runtime.  It has no index.
 ///
 /// Templated on the unsigned type whose size matches pointers on the platform
@@ -222,6 +233,9 @@ private:
   uint32_t ValueKindLast;
   uint32_t CurValueDataSize;
 
+  uint64_t BinaryIdsSize;
+  const uint8_t *BinaryIdsStart;
+
 public:
   RawInstrProfReader(std::unique_ptr<MemoryBuffer> DataBuffer)
       : DataBuffer(std::move(DataBuffer)) {}
@@ -231,6 +245,7 @@ public:
   static bool hasFormat(const MemoryBuffer &DataBuffer);
   Error readHeader() override;
   Error readNextRecord(NamedInstrProfRecord &Record) override;
+  Error printBinaryIds(raw_ostream &OS) override;
 
   bool isIRLevelProfile() const override {
     return (Version & VARIANT_MASK_IR_PROF) != 0;

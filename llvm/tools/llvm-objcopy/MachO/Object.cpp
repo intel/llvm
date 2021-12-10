@@ -10,9 +10,8 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include <unordered_set>
 
-namespace llvm {
-namespace objcopy {
-namespace macho {
+using namespace llvm;
+using namespace llvm::objcopy::macho;
 
 const SymbolEntry *SymbolTable::getSymbolByIndex(uint32_t Index) const {
   assert(Index < Symbols.size() && "invalid symbol index");
@@ -30,10 +29,24 @@ void SymbolTable::removeSymbols(
 }
 
 void Object::updateLoadCommandIndexes() {
+  static constexpr char TextSegmentName[] = "__TEXT";
   // Update indices of special load commands
   for (size_t Index = 0, Size = LoadCommands.size(); Index < Size; ++Index) {
     LoadCommand &LC = LoadCommands[Index];
     switch (LC.MachOLoadCommand.load_command_data.cmd) {
+    case MachO::LC_CODE_SIGNATURE:
+      CodeSignatureCommandIndex = Index;
+      break;
+    case MachO::LC_SEGMENT:
+      if (StringRef(LC.MachOLoadCommand.segment_command_data.segname) ==
+          TextSegmentName)
+        TextSegmentCommandIndex = Index;
+      break;
+    case MachO::LC_SEGMENT_64:
+      if (StringRef(LC.MachOLoadCommand.segment_command_64_data.segname) ==
+          TextSegmentName)
+        TextSegmentCommandIndex = Index;
+      break;
     case MachO::LC_SYMTAB:
       SymTabCommandIndex = Index;
       break;
@@ -47,8 +60,17 @@ void Object::updateLoadCommandIndexes() {
     case MachO::LC_DATA_IN_CODE:
       DataInCodeCommandIndex = Index;
       break;
+    case MachO::LC_LINKER_OPTIMIZATION_HINT:
+      LinkerOptimizationHintCommandIndex = Index;
+      break;
     case MachO::LC_FUNCTION_STARTS:
       FunctionStartsCommandIndex = Index;
+      break;
+    case MachO::LC_DYLD_CHAINED_FIXUPS:
+      ChainedFixupsCommandIndex = Index;
+      break;
+    case MachO::LC_DYLD_EXPORTS_TRIE:
+      ExportsTrieCommandIndex = Index;
       break;
     }
   }
@@ -190,7 +212,3 @@ Optional<uint64_t> LoadCommand::getSegmentVMAddr() const {
     return None;
   }
 }
-
-} // end namespace macho
-} // end namespace objcopy
-} // end namespace llvm

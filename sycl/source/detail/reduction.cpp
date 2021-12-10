@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl/ONEAPI/reduction.hpp>
 #include <detail/queue_impl.hpp>
+#include <sycl/ext/oneapi/reduction.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
-namespace ONEAPI {
+namespace ext {
+namespace oneapi {
 namespace detail {
 
 // TODO: The algorithm of choosing the work-group size is definitely
@@ -48,8 +49,23 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
   return WGSize;
 }
 
+// Returns the estimated number of physical threads on the device associated
+// with the given queue.
+__SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
+    std::shared_ptr<sycl::detail::queue_impl> Queue) {
+  device Dev = Queue->get_device();
+  uint32_t NumThreads = Dev.get_info<info::device::max_compute_units>();
+  // TODO: The heuristics here require additional tuning for various devices
+  // and vendors. For now this code assumes that execution units have about
+  // 8 working threads, which gives good results on some known/supported
+  // GPU devices.
+  if (Dev.is_gpu())
+    NumThreads *= 8;
+  return NumThreads;
+}
+
 __SYCL_EXPORT size_t
-reduGetMaxWGSize(shared_ptr_class<sycl::detail::queue_impl> Queue,
+reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
                  size_t LocalMemBytesPerWorkItem) {
   device Dev = Queue->get_device();
   size_t MaxWGSize = Dev.get_info<info::device::max_work_group_size>();
@@ -95,6 +111,25 @@ reduGetMaxWGSize(shared_ptr_class<sycl::detail::queue_impl> Queue,
 }
 
 } // namespace detail
+} // namespace oneapi
+} // namespace ext
+
+namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
+  using namespace ext::oneapi;
+  namespace detail {
+  __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
+                                         size_t &NWorkGroups) {
+    return ext::oneapi::detail::reduComputeWGSize(NWorkItems, MaxWGSize,
+                                                  NWorkGroups);
+  }
+
+  __SYCL_EXPORT size_t
+  reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
+                   size_t LocalMemBytesPerWorkItem) {
+    return ext::oneapi::detail::reduGetMaxWGSize(Queue,
+                                                 LocalMemBytesPerWorkItem);
+  }
+  } // namespace detail
 } // namespace ONEAPI
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

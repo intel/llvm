@@ -162,6 +162,10 @@ public:
   /// when the caller knows it is safe to do so.
   unsigned getDimPosition(unsigned idx) const;
 
+  /// Extracts the permuted position where given input index resides.
+  /// Fails when called on a non-permutation.
+  unsigned getPermutedPosition(unsigned input) const;
+
   /// Return true if any affine expression involves AffineDimExpr `position`.
   bool isFunctionOfDim(unsigned position) const {
     return llvm::any_of(getResults(), [&](AffineExpr e) {
@@ -197,29 +201,38 @@ public:
                     unsigned numResultDims, unsigned numResultSyms) const;
 
   /// Sparse replace method. Apply AffineExpr::replace(`map`) to each of the
+  /// results and return a new AffineMap with the new results and with inferred
+  /// number of dims and symbols.
+  AffineMap replace(const DenseMap<AffineExpr, AffineExpr> &map) const;
+
+  /// Sparse replace method. Apply AffineExpr::replace(`map`) to each of the
   /// results and return a new AffineMap with the new results and with the
   /// specified number of dims and symbols.
   AffineMap replace(const DenseMap<AffineExpr, AffineExpr> &map,
                     unsigned numResultDims, unsigned numResultSyms) const;
 
-  /// Replace dims[0 .. numDims - 1] by dims[shift .. shift + numDims - 1].
-  AffineMap shiftDims(unsigned shift) const {
-    return AffineMap::get(
-        getNumDims() + shift, getNumSymbols(),
-        llvm::to_vector<4>(llvm::map_range(
-            getResults(),
-            [&](AffineExpr e) { return e.shiftDims(getNumDims(), shift); })),
-        getContext());
+  /// Replace dims[offset ... numDims)
+  /// by dims[offset + shift ... shift + numDims).
+  AffineMap shiftDims(unsigned shift, unsigned offset = 0) const {
+    assert(offset <= getNumDims());
+    return AffineMap::get(getNumDims() + shift, getNumSymbols(),
+                          llvm::to_vector<4>(llvm::map_range(
+                              getResults(),
+                              [&](AffineExpr e) {
+                                return e.shiftDims(getNumDims(), shift, offset);
+                              })),
+                          getContext());
   }
 
-  /// Replace symbols[0 .. numSymbols - 1] by
-  ///         symbols[shift .. shift + numSymbols - 1].
-  AffineMap shiftSymbols(unsigned shift) const {
+  /// Replace symbols[offset ... numSymbols)
+  /// by symbols[offset + shift ... shift + numSymbols).
+  AffineMap shiftSymbols(unsigned shift, unsigned offset = 0) const {
     return AffineMap::get(getNumDims(), getNumSymbols() + shift,
                           llvm::to_vector<4>(llvm::map_range(
                               getResults(),
                               [&](AffineExpr e) {
-                                return e.shiftSymbols(getNumSymbols(), shift);
+                                return e.shiftSymbols(getNumSymbols(), shift,
+                                                      offset);
                               })),
                           getContext());
   }
@@ -260,8 +273,11 @@ public:
   SmallVector<int64_t, 4> compose(ArrayRef<int64_t> values) const;
 
   /// Returns true if the AffineMap represents a subset (i.e. a projection) of a
-  /// symbol-less permutation map.
-  bool isProjectedPermutation() const;
+  /// symbol-less permutation map. `allowZeroInResults` allows projected
+  /// permutation maps with constant zero result expressions.
+  /// TODO: Remove `allowZeroInResults` when constant zero result expressions
+  /// are broadly supported.
+  bool isProjectedPermutation(bool allowZeroInResults = false) const;
 
   /// Returns true if the AffineMap represents a symbol-less permutation map.
   bool isPermutation() const;
@@ -451,6 +467,17 @@ AffineMap inversePermutation(AffineMap map);
 /// ```mlir
 ///    affine_map<(d0) -> (0, 0, d0, 0)>
 /// ```
+/// Example 4:
+///
+/// ```mlir
+///    affine_map<(d0, d1, d2) -> (d0, 0)>
+/// ```
+///
+/// returns:
+///
+/// ```mlir
+///    affine_map<(d0, d1) -> (d0, 0, 0)>
+/// ```
 AffineMap inverseAndBroadcastProjectedPermuation(AffineMap map);
 
 /// Concatenates a list of `maps` into a single AffineMap, stepping over
@@ -497,6 +524,44 @@ AffineMap concatAffineMaps(ArrayRef<AffineMap> maps);
 AffineMap
 getProjectedMap(AffineMap map,
                 const llvm::SmallDenseSet<unsigned> &projectedDimensions);
+
+/// Apply a permutation from `map` to `source` and return the result.
+template <typename T>
+SmallVector<T> applyPermutationMap(AffineMap map, llvm::ArrayRef<T> source) {
+  assert(map.isProjectedPermutation());
+  assert(map.getNumInputs() == source.size());
+  SmallVector<T> result;
+  result.reserve(map.getNumResults());
+  for (AffineExpr expr : map.getResults()) {
+    if (auto dimExpr = expr.dyn_cast<AffineDimExpr>()) {
+      result.push_back(source[dimExpr.getPosition()]);
+    } else if (auto constExpr = expr.dyn_cast<AffineConstantExpr>()) {
+      assert(constExpr.getValue() == 0 &&
+             "Unexpected constant in projected permutation map");
+      result.push_back(0);
+    } else {
+      llvm_unreachable("Unexpected result in projected permutation map");
+    }
+  }
+  return result;
+}
+
+/// Calculates maxmimum dimension and symbol positions from the expressions
+/// in `exprsLists` and stores them in `maxDim` and `maxSym` respectively.
+template <typename AffineExprContainer>
+static void getMaxDimAndSymbol(ArrayRef<AffineExprContainer> exprsList,
+                               int64_t &maxDim, int64_t &maxSym) {
+  for (const auto &exprs : exprsList) {
+    for (auto expr : exprs) {
+      expr.walk([&maxDim, &maxSym](AffineExpr e) {
+        if (auto d = e.dyn_cast<AffineDimExpr>())
+          maxDim = std::max(maxDim, static_cast<int64_t>(d.getPosition()));
+        if (auto s = e.dyn_cast<AffineSymbolExpr>())
+          maxSym = std::max(maxSym, static_cast<int64_t>(s.getPosition()));
+      });
+    }
+  }
+}
 
 inline raw_ostream &operator<<(raw_ostream &os, AffineMap map) {
   map.print(os);

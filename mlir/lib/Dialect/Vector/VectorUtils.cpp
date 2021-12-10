@@ -13,7 +13,10 @@
 #include "mlir/Dialect/Vector/VectorUtils.h"
 #include "mlir/Analysis/LoopAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Vector/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
@@ -27,30 +30,23 @@
 
 using namespace mlir;
 
+/// Helper function that creates a memref::DimOp or tensor::DimOp depending on
+/// the type of `source`.
+Value mlir::vector::createOrFoldDimOp(OpBuilder &b, Location loc, Value source,
+                                      int64_t dim) {
+  if (source.getType().isa<UnrankedMemRefType, MemRefType>())
+    return b.createOrFold<memref::DimOp>(loc, source, dim);
+  if (source.getType().isa<UnrankedTensorType, RankedTensorType>())
+    return b.createOrFold<tensor::DimOp>(loc, source, dim);
+  llvm_unreachable("Expected MemRefType or TensorType");
+}
+
 /// Return the number of elements of basis, `0` if empty.
 int64_t mlir::computeMaxLinearIndex(ArrayRef<int64_t> basis) {
   if (basis.empty())
     return 0;
   return std::accumulate(basis.begin(), basis.end(), 1,
                          std::multiplies<int64_t>());
-}
-
-/// Given a shape with sizes greater than 0 along all dimensions,
-/// return the distance, in number of elements, between a slice in a dimension
-/// and the next slice in the same dimension.
-///   e.g. shape[3, 4, 5] -> linearization_basis[20, 5, 1]
-SmallVector<int64_t, 8> mlir::computeStrides(ArrayRef<int64_t> shape) {
-  if (shape.empty())
-    return {};
-  SmallVector<int64_t, 8> tmp;
-  tmp.reserve(shape.size());
-  int64_t running = 1;
-  for (auto size : llvm::reverse(shape)) {
-    assert(size > 0 && "size must be nonnegative");
-    tmp.push_back(running);
-    running *= size;
-  }
-  return SmallVector<int64_t, 8>(tmp.rbegin(), tmp.rend());
 }
 
 SmallVector<int64_t, 4> mlir::computeStrides(ArrayRef<int64_t> shape,
@@ -94,16 +90,6 @@ SmallVector<int64_t, 4> mlir::computeElementOffsetsFromVectorSliceOffsets(
   for (auto it : llvm::zip(vectorOffsets, sizes))
     result.push_back(std::get<0>(it) * std::get<1>(it));
   return result;
-}
-
-SmallVector<int64_t, 4>
-mlir::computeSliceSizes(ArrayRef<int64_t> shape, ArrayRef<int64_t> sizes,
-                        ArrayRef<int64_t> elementOffsets) {
-  int64_t rank = shape.size();
-  SmallVector<int64_t, 4> sliceSizes(rank);
-  for (unsigned r = 0; r < rank; ++r)
-    sliceSizes[r] = std::min(sizes[r], shape[r] - elementOffsets[r]);
-  return sliceSizes;
 }
 
 Optional<SmallVector<int64_t, 4>> mlir::shapeRatio(ArrayRef<int64_t> superShape,
@@ -254,6 +240,13 @@ AffineMap mlir::getTransferMinorIdentityMap(ShapedType shapedType,
       shapedType.getElementType().dyn_cast<VectorType>();
   if (elementVectorType)
     elementVectorRank += elementVectorType.getRank();
+  // 0-d transfers are to/from tensor<t>/memref<t> and vector<1xt>.
+  // TODO: replace once we have 0-d vectors.
+  if (shapedType.getRank() == 0 &&
+      vectorType.getShape() == ArrayRef<int64_t>{1})
+    return AffineMap::get(
+        /*numDims=*/0, /*numSymbols=*/0,
+        getAffineConstantExpr(0, shapedType.getContext()));
   return AffineMap::getMinorIdentityMap(
       shapedType.getRank(), vectorType.getRank() - elementVectorRank,
       shapedType.getContext());
@@ -323,8 +316,8 @@ bool mlir::isDisjointTransferIndices(VectorTransferOpInterface transferA,
     return false;
   unsigned rankOffset = transferA.getLeadingShapedRank();
   for (unsigned i = 0, e = transferA.indices().size(); i < e; i++) {
-    auto indexA = transferA.indices()[i].getDefiningOp<ConstantOp>();
-    auto indexB = transferB.indices()[i].getDefiningOp<ConstantOp>();
+    auto indexA = transferA.indices()[i].getDefiningOp<arith::ConstantOp>();
+    auto indexB = transferB.indices()[i].getDefiningOp<arith::ConstantOp>();
     // If any of the indices are dynamic we cannot prove anything.
     if (!indexA || !indexB)
       continue;
@@ -369,4 +362,17 @@ bool mlir::checkSameValueWAW(vector::TransferWriteOp write,
          priorWrite.mask() == write.mask() &&
          priorWrite.getVectorType() == write.getVectorType() &&
          priorWrite.permutation_map() == write.permutation_map();
+}
+
+SmallVector<int64_t, 4> mlir::getI64SubArray(ArrayAttr arrayAttr,
+                                             unsigned dropFront,
+                                             unsigned dropBack) {
+  assert(arrayAttr.size() > dropFront + dropBack && "Out of bounds");
+  auto range = arrayAttr.getAsRange<IntegerAttr>();
+  SmallVector<int64_t, 4> res;
+  res.reserve(arrayAttr.size() - dropFront - dropBack);
+  for (auto it = range.begin() + dropFront, eit = range.end() - dropBack;
+       it != eit; ++it)
+    res.push_back((*it).getValue().getSExtValue());
+  return res;
 }

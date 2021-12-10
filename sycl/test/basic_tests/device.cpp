@@ -10,7 +10,7 @@
 
 using namespace cl::sycl;
 
-string_class get_type(const device &dev) {
+std::string get_type(const device &dev) {
   if (dev.is_host()) {
     return "host";
   } else if (dev.is_gpu()) {
@@ -63,44 +63,38 @@ int main() {
   {
     std::cout << "move constructor" << std::endl;
     device Device(deviceA);
-    size_t hash = hash_class<device>()(Device);
+    size_t hash = std::hash<device>()(Device);
     device MovedDevice(std::move(Device));
-    assert(hash == hash_class<device>()(MovedDevice));
+    assert(hash == std::hash<device>()(MovedDevice));
     assert(deviceA.is_host() == MovedDevice.is_host());
-    if (!deviceA.is_host()) {
-      assert(MovedDevice.get() != nullptr);
-    }
   }
   {
     std::cout << "move assignment operator" << std::endl;
     device Device(deviceA);
-    size_t hash = hash_class<device>()(Device);
+    size_t hash = std::hash<device>()(Device);
     device WillMovedDevice(deviceB);
     WillMovedDevice = std::move(Device);
-    assert(hash == hash_class<device>()(WillMovedDevice));
+    assert(hash == std::hash<device>()(WillMovedDevice));
     assert(deviceA.is_host() == WillMovedDevice.is_host());
-    if (!deviceA.is_host()) {
-      assert(WillMovedDevice.get() != nullptr);
-    }
   }
   {
     std::cout << "copy constructor" << std::endl;
     device Device(deviceA);
-    size_t hash = hash_class<device>()(Device);
+    size_t hash = std::hash<device>()(Device);
     device DeviceCopy(Device);
-    assert(hash == hash_class<device>()(Device));
-    assert(hash == hash_class<device>()(DeviceCopy));
+    assert(hash == std::hash<device>()(Device));
+    assert(hash == std::hash<device>()(DeviceCopy));
     assert(Device == DeviceCopy);
     assert(Device.is_host() == DeviceCopy.is_host());
   }
   {
     std::cout << "copy assignment operator" << std::endl;
     device Device(deviceA);
-    size_t hash = hash_class<device>()(Device);
+    size_t hash = std::hash<device>()(Device);
     device WillDeviceCopy(deviceB);
     WillDeviceCopy = Device;
-    assert(hash == hash_class<device>()(Device));
-    assert(hash == hash_class<device>()(WillDeviceCopy));
+    assert(hash == std::hash<device>()(Device));
+    assert(hash == std::hash<device>()(WillDeviceCopy));
     assert(Device == WillDeviceCopy);
     assert(Device.is_host() == WillDeviceCopy.is_host());
   }

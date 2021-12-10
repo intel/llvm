@@ -16,7 +16,7 @@ jobs:
     - name: Install deps
       run: |
         sudo apt-get install -y doxygen graphviz ssh ninja-build
-        sudo pip3 install 'sphinx==3.0.0' 'recommonmark==0.6.0' 'sphinx_markdown_tables==0.0.12'
+        sudo pip3 install 'sphinx==4.1.2' 'myst-parser==0.15.1'
     - name: Build Docs
       run: |
         mkdir -p $GITHUB_WORKSPACE/build
@@ -24,7 +24,9 @@ jobs:
         python $GITHUB_WORKSPACE/repo/buildbot/configure.py -w $GITHUB_WORKSPACE \
         -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release --docs
         cmake --build . --target doxygen-sycl
+        cmake --build . --target doxygen-clang
         cmake --build . --target docs-sycl-html
+        cmake --build . --target docs-clang-html
     - name: Deploy
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
@@ -39,8 +41,9 @@ jobs:
         git rm -rf .
         touch .nojekyll
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
-        mkdir doxygen
-        yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html/* doxygen/
+        mv $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html doxygen/
+        mv $GITHUB_WORKSPACE/build/tools/clang/docs/html clang/
+        mv $GITHUB_WORKSPACE/build/tools/clang/docs/doxygen/html clang_doxygen/
         git config --global user.name "iclsrc"
         git config --global user.email "ia.compiler.tools.git@intel.com"
         git add .

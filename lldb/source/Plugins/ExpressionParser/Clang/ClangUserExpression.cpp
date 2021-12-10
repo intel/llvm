@@ -6,12 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "lldb/Host/Config.h"
-
 #include <cstdio>
-#if HAVE_SYS_TYPES_H
 #include <sys/types.h>
-#endif
 
 #include <cstdlib>
 #include <map>
@@ -90,7 +86,7 @@ ClangUserExpression::ClangUserExpression(
   }
 }
 
-ClangUserExpression::~ClangUserExpression() {}
+ClangUserExpression::~ClangUserExpression() = default;
 
 void ClangUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
@@ -155,35 +151,32 @@ void ClangUserExpression::ScanContext(ExecutionContext &exe_ctx, Status &err) {
     m_needs_object_ptr = true;
   } else if (clang::CXXMethodDecl *method_decl =
           TypeSystemClang::DeclContextGetAsCXXMethodDecl(decl_context)) {
-    if (m_allow_cxx) {
-      if (method_decl->isInstance()) {
-        if (m_enforce_valid_object) {
-          lldb::VariableListSP variable_list_sp(
-              function_block->GetBlockVariableList(true));
+    if (m_allow_cxx && method_decl->isInstance()) {
+      if (m_enforce_valid_object) {
+        lldb::VariableListSP variable_list_sp(
+            function_block->GetBlockVariableList(true));
 
-          const char *thisErrorString =
-              "Stopped in a C++ method, but 'this' "
-              "isn't available; pretending we are in a "
-              "generic context";
+        const char *thisErrorString = "Stopped in a C++ method, but 'this' "
+                                      "isn't available; pretending we are in a "
+                                      "generic context";
 
-          if (!variable_list_sp) {
-            err.SetErrorString(thisErrorString);
-            return;
-          }
-
-          lldb::VariableSP this_var_sp(
-              variable_list_sp->FindVariable(ConstString("this")));
-
-          if (!this_var_sp || !this_var_sp->IsInScope(frame) ||
-              !this_var_sp->LocationIsValidForFrame(frame)) {
-            err.SetErrorString(thisErrorString);
-            return;
-          }
+        if (!variable_list_sp) {
+          err.SetErrorString(thisErrorString);
+          return;
         }
-        m_needs_object_ptr = true;
+
+        lldb::VariableSP this_var_sp(
+            variable_list_sp->FindVariable(ConstString("this")));
+
+        if (!this_var_sp || !this_var_sp->IsInScope(frame) ||
+            !this_var_sp->LocationIsValidForFrame(frame)) {
+          err.SetErrorString(thisErrorString);
+          return;
+        }
       }
+
       m_in_cplusplus_method = true;
-      m_in_static_method = !method_decl->isInstance();
+      m_needs_object_ptr = true;
     }
   } else if (clang::ObjCMethodDecl *method_decl =
                  TypeSystemClang::DeclContextGetAsObjCMethodDecl(
@@ -405,11 +398,9 @@ ClangExpressionSourceCode::WrapKind ClangUserExpression::GetWrapKind() const {
   assert(m_options.GetExecutionPolicy() != eExecutionPolicyTopLevel &&
          "Top level expressions aren't wrapped.");
   using Kind = ClangExpressionSourceCode::WrapKind;
-  if (m_in_cplusplus_method) {
-    if (m_in_static_method)
-      return Kind::CppStaticMemberFunction;
+  if (m_in_cplusplus_method)
     return Kind::CppMemberFunction;
-  } else if (m_in_objectivec_method) {
+  else if (m_in_objectivec_method) {
     if (m_in_static_method)
       return Kind::ObjCStaticMethod;
     return Kind::ObjCInstanceMethod;
@@ -525,7 +516,7 @@ CppModuleConfiguration GetModuleConfig(lldb::LanguageType language,
   // Try to create a configuration from the files. If there is no valid
   // configuration possible with the files, this just returns an invalid
   // configuration.
-  return CppModuleConfiguration(files);
+  return CppModuleConfiguration(files, target->GetArchitecture().GetTriple());
 }
 
 bool ClangUserExpression::PrepareForParsing(
@@ -694,15 +685,22 @@ bool ClangUserExpression::Parse(DiagnosticManager &diagnostic_manager,
     SetupCppModuleImports(exe_ctx);
     // If we did load any modules, then retry parsing.
     if (!m_imported_cpp_modules.empty()) {
+      // Create a dedicated diagnostic manager for the second parse attempt.
+      // These diagnostics are only returned to the caller if using the fallback
+      // actually succeeded in getting the expression to parse. This prevents
+      // that module-specific issues regress diagnostic quality with the
+      // fallback mode.
+      DiagnosticManager retry_manager;
       // The module imports are injected into the source code wrapper,
       // so recreate those.
-      CreateSourceCode(diagnostic_manager, exe_ctx, m_imported_cpp_modules,
+      CreateSourceCode(retry_manager, exe_ctx, m_imported_cpp_modules,
                        /*for_completion*/ false);
-      // Clear the error diagnostics from the previous parse attempt.
-      diagnostic_manager.Clear();
-      parse_success = TryParse(diagnostic_manager, exe_scope, exe_ctx,
+      parse_success = TryParse(retry_manager, exe_scope, exe_ctx,
                                execution_policy, keep_result_in_memory,
                                generate_debug_info);
+      // Return the parse diagnostics if we were successful.
+      if (parse_success)
+        diagnostic_manager = std::move(retry_manager);
     }
   }
   if (!parse_success)
@@ -912,8 +910,8 @@ bool ClangUserExpression::AddArguments(ExecutionContext &exe_ctx,
 
     if (!object_ptr_error.Success()) {
       exe_ctx.GetTargetRef().GetDebugger().GetAsyncOutputStream()->Printf(
-          "warning: `%s' is not accessible (substituting 0)\n",
-          object_name.AsCString());
+          "warning: `%s' is not accessible (substituting 0). %s\n",
+          object_name.AsCString(), object_ptr_error.AsCString());
       object_ptr = 0;
     }
 

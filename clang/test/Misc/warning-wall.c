@@ -3,6 +3,8 @@ RUN: FileCheck --input-file=%t %s
 
      CHECK:-Wall
 CHECK-NEXT:  -Wmost
+CHECK-NEXT:    -Wbool-operation
+CHECK-NEXT:    -Wbitwise-instead-of-logical
 CHECK-NEXT:    -Wchar-subscripts
 CHECK-NEXT:    -Wcomment
 CHECK-NEXT:    -Wdelete-non-virtual-dtor
@@ -73,6 +75,7 @@ CHECK-NEXT:        -Wunevaluated-expression
 CHECK-NEXT:          -Wpotentially-evaluated-expression
 CHECK-NEXT:      -Wunused-variable
 CHECK-NEXT:        -Wunused-const-variable
+CHECK-NEXT:      -Wunused-but-set-variable
 CHECK-NEXT:      -Wunused-property-ivar
 CHECK-NEXT:    -Wvolatile-register-var
 CHECK-NEXT:    -Wobjc-missing-super-calls

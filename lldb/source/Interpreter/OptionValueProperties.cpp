@@ -48,7 +48,8 @@ void OptionValueProperties::AppendProperty(ConstString name,
                                            ConstString desc,
                                            bool is_global,
                                            const OptionValueSP &value_sp) {
-  Property property(name, desc, is_global, value_sp);
+  Property property(name.GetStringRef(), desc.GetStringRef(), is_global,
+                    value_sp);
   m_name_to_index.Append(name, m_properties.size());
   m_properties.push_back(property);
   value_sp->SetParent(shared_from_this());
@@ -630,11 +631,11 @@ void OptionValueProperties::Apropos(
       } else {
         bool match = false;
         llvm::StringRef name = property->GetName();
-        if (name.contains_lower(keyword))
+        if (name.contains_insensitive(keyword))
           match = true;
         else {
           llvm::StringRef desc = property->GetDescription();
-          if (desc.contains_lower(keyword))
+          if (desc.contains_insensitive(keyword))
             match = true;
         }
         if (match) {

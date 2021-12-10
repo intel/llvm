@@ -8,6 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <ranges>
 
@@ -46,7 +47,7 @@ static_assert(std::ranges::range<NotDefaultInit>);
 static_assert(std::movable<NotDefaultInit>);
 static_assert(!std::default_initializable<NotDefaultInit>);
 static_assert(std::ranges::enable_view<NotDefaultInit>);
-static_assert(!std::ranges::view<NotDefaultInit>);
+static_assert(std::ranges::view<NotDefaultInit>);
 
 // The type would be a view, but it doesn't enable it with enable_view
 struct NotExplicitlyEnabled {

@@ -15,6 +15,8 @@
 
 // To get the test dialect def.
 include "TestOps.td"
+include "TestAttrDefs.td"
+include "mlir/IR/BuiltinTypes.td"
 include "mlir/Interfaces/DataLayoutInterfaces.td"
 
 // All of the types will extend this class.
@@ -55,12 +57,12 @@ def IntegerType : Test_Type<"TestInteger"> {
     ins
     "unsigned":$width,
     // SignednessSemantics is defined below.
-    "::mlir::test::TestIntegerType::SignednessSemantics":$signedness
+    "::test::TestIntegerType::SignednessSemantics":$signedness
   );
 
   // We define the printer inline.
   let printer = [{
-    $_printer << "int<";
+    $_printer << "<";
     printSignedness($_printer, getImpl()->signedness);
     $_printer << ", " << getImpl()->width << ">";
   }];
@@ -83,7 +85,7 @@ def IntegerType : Test_Type<"TestInteger"> {
     int width;
     if ($_parser.parseInteger(width)) return Type();
     if ($_parser.parseGreater()) return Type();
-    Location loc = $_parser.getEncodedSourceLoc($_parser.getNameLoc());
+    ::mlir::Location loc = $_parser.getEncodedSourceLoc($_parser.getNameLoc());
     return getChecked(loc, loc.getContext(), width, signedness);
   }];
 
@@ -113,14 +115,14 @@ class FieldInfo_Type<string name> : Test_Type<name> {
     // An ArrayRef of something which requires allocation in the storage
     // constructor.
     ArrayRefOfSelfAllocationParameter<
-      "::mlir::test::FieldInfo", // FieldInfo is defined/declared in TestTypes.h.
+      "::test::FieldInfo", // FieldInfo is defined/declared in TestTypes.h.
       "Models struct fields">: $fields
   );
 
   // Prints the type in this format:
   //   struct<[{field1Name, field1Type}, {field2Name, field2Type}]
   let printer = [{
-    $_printer << "struct" << "<";
+    $_printer << "<";
     for (size_t i=0, e = getImpl()->fields.size(); i < e; i++) {
       const auto& field = getImpl()->fields[i];
       $_printer << "{" << field.name << "," << field.type << "}";
@@ -135,7 +137,7 @@ class FieldInfo_Type<string name> : Test_Type<name> {
     llvm::SmallVector<FieldInfo, 4> parameters;
     if ($_parser.parseLess()) return Type();
     while (mlir::succeeded($_parser.parseOptionalLBrace())) {
-      StringRef name;
+      llvm::StringRef name;
       if ($_parser.parseKeyword(&name)) return Type();
       if ($_parser.parseComma()) return Type();
       Type type;
@@ -165,15 +167,67 @@ def TestTypeWithLayoutType : Test_Type<"TestTypeWithLayout", [
   let mnemonic = "test_type_with_layout";
   let parameters = (ins "unsigned":$key);
   let extraClassDeclaration = [{
-    LogicalResult verifyEntries(DataLayoutEntryListRef params,
-                                Location loc) const;
+    ::mlir::LogicalResult verifyEntries(::mlir::DataLayoutEntryListRef params,
+                                ::mlir::Location loc) const;
 
   private:
-    unsigned extractKind(DataLayoutEntryListRef params,
-                         StringRef expectedKind) const;
+    unsigned extractKind(::mlir::DataLayoutEntryListRef params,
+                         ::llvm::StringRef expectedKind) const;
 
   public:
   }];
+}
+
+def TestMemRefElementType : Test_Type<"TestMemRefElementType",
+                                      [MemRefElementTypeInterface]> {
+  let mnemonic = "memref_element";
+}
+
+def TestTypeTrait : NativeTypeTrait<"TestTypeTrait">;
+
+// The definition of a singleton type that has a trait.
+def TestTypeWithTrait : Test_Type<"TestTypeWithTrait", [TestTypeTrait]> {
+  let mnemonic = "test_type_with_trait";
+}
+
+// Type with assembly format.
+def TestTypeWithFormat : Test_Type<"TestTypeWithFormat"> {
+  let parameters = (
+    ins
+    TestParamOne:$one,
+    TestParamTwo:$two,
+    "::mlir::Attribute":$three
+  );
+
+  let mnemonic = "type_with_format";
+  let assemblyFormat = "`<` $one `,` struct($three, $two) `>`";
+}
+
+// Test dispatch to parseField
+def TestTypeNoParser : Test_Type<"TestTypeNoParser"> {
+  let parameters = (
+    ins
+    "uint32_t":$one,
+    ArrayRefParameter<"int64_t">:$two,
+    StringRefParameter<>:$three,
+    "::test::CustomParam":$four
+  );
+
+  let mnemonic = "no_parser";
+  let assemblyFormat = "`<` $one `,` `[` $two `]` `,` $three `,` $four `>`";
+}
+
+def TestTypeStructCaptureAll : Test_Type<"TestStructTypeCaptureAll"> {
+  let parameters = (
+    ins
+    "int":$v0,
+    "int":$v1,
+    "int":$v2,
+    "int":$v3
+  );
+
+  let mnemonic = "struct_capture_all";
+  let assemblyFormat = "`<` struct(params) `>`";
 }
 
 #endif // TEST_TYPEDEFS

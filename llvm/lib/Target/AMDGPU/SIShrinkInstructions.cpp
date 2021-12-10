@@ -188,7 +188,7 @@ static void shrinkScalarCompare(const SIInstrInfo *TII, MachineInstr &MI) {
     return;
 
   // eq/ne is special because the imm16 can be treated as signed or unsigned,
-  // and initially selectd to the unsigned versions.
+  // and initially selected to the unsigned versions.
   if (SOPKOpc == AMDGPU::S_CMPK_EQ_U32 || SOPKOpc == AMDGPU::S_CMPK_LG_U32) {
     bool HasUImm;
     if (isKImmOrKUImmOperand(TII, Src1, HasUImm)) {
@@ -232,9 +232,14 @@ void SIShrinkInstructions::shrinkMIMG(MachineInstr &MI) {
     RC = &AMDGPU::VReg_96RegClass;
   } else if (Info->VAddrDwords == 4) {
     RC = &AMDGPU::VReg_128RegClass;
-  } else if (Info->VAddrDwords <= 8) {
+  } else if (Info->VAddrDwords == 5) {
+    RC = &AMDGPU::VReg_160RegClass;
+  } else if (Info->VAddrDwords == 6) {
+    RC = &AMDGPU::VReg_192RegClass;
+  } else if (Info->VAddrDwords == 7) {
+    RC = &AMDGPU::VReg_224RegClass;
+  } else if (Info->VAddrDwords == 8) {
     RC = &AMDGPU::VReg_256RegClass;
-    NewAddrDwords = 8;
   } else {
     RC = &AMDGPU::VReg_512RegClass;
     NewAddrDwords = 16;
@@ -804,6 +809,10 @@ bool SIShrinkInstructions::runOnMachineFunction(MachineFunction &MF) {
 
       // Copy extra operands not present in the instruction definition.
       copyExtraImplicitOps(*Inst32, MF, MI);
+
+      // Copy deadness from the old explicit vcc def to the new implicit def.
+      if (SDst && SDst->isDead())
+        Inst32->findRegisterDefOperand(VCCReg)->setIsDead();
 
       MI.eraseFromParent();
       foldImmediates(*Inst32, TII, MRI);

@@ -21,8 +21,8 @@ namespace detail {
 // OpenCL kernel information methods
 template <typename T, info::kernel Param> struct get_kernel_info {};
 
-template <info::kernel Param> struct get_kernel_info<string_class, Param> {
-  static string_class get(RT::PiKernel Kernel, const plugin &Plugin) {
+template <info::kernel Param> struct get_kernel_info<std::string, Param> {
+  static std::string get(RT::PiKernel Kernel, const plugin &Plugin) {
     size_t ResultSize;
 
     // TODO catch an exception and put it to list of asynchronous exceptions
@@ -31,11 +31,11 @@ template <info::kernel Param> struct get_kernel_info<string_class, Param> {
     if (ResultSize == 0) {
       return "";
     }
-    vector_class<char> Result(ResultSize);
+    std::vector<char> Result(ResultSize);
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piKernelGetInfo>(Kernel, pi_kernel_info(Param),
                                             ResultSize, Result.data(), nullptr);
-    return string_class(Result.data());
+    return std::string(Result.data());
   }
 };
 
@@ -70,6 +70,9 @@ struct IsWorkGroupInfo<
     : std::true_type {};
 template <>
 struct IsWorkGroupInfo<info::kernel_device_specific::private_mem_size>
+    : std::true_type {};
+template <>
+struct IsWorkGroupInfo<info::kernel_device_specific::ext_codeplay_num_regs>
     : std::true_type {};
 
 template <typename T, info::kernel_device_specific Param>
@@ -140,6 +143,13 @@ inline size_t get_kernel_device_specific_info_host<
 template <>
 inline cl_ulong get_kernel_device_specific_info_host<
     info::kernel_device_specific::private_mem_size>(const cl::sycl::device &) {
+  return 0;
+}
+
+template <>
+inline uint32_t get_kernel_device_specific_info_host<
+    info::kernel_device_specific::ext_codeplay_num_regs>(
+    const cl::sycl::device &) {
   return 0;
 }
 

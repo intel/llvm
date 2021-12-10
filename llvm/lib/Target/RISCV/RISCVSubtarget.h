@@ -39,7 +39,6 @@ class RISCVSubtarget : public RISCVGenSubtargetInfo {
   bool HasStdExtF = false;
   bool HasStdExtD = false;
   bool HasStdExtC = false;
-  bool HasStdExtB = false;
   bool HasStdExtZba = false;
   bool HasStdExtZbb = false;
   bool HasStdExtZbc = false;
@@ -50,10 +49,10 @@ class RISCVSubtarget : public RISCVGenSubtargetInfo {
   bool HasStdExtZbr = false;
   bool HasStdExtZbs = false;
   bool HasStdExtZbt = false;
-  bool HasStdExtZbproposedc = false;
   bool HasStdExtV = false;
   bool HasStdExtZvlsseg = false;
   bool HasStdExtZvamo = false;
+  bool HasStdExtZfhmin = false;
   bool HasStdExtZfh = false;
   bool HasRV64 = false;
   bool IsRV32E = false;
@@ -62,6 +61,7 @@ class RISCVSubtarget : public RISCVGenSubtargetInfo {
   bool EnableSaveRestore = false;
   unsigned XLen = 32;
   MVT XLenVT = MVT::i32;
+  uint8_t MaxInterleaveFactor = 2;
   RISCVABI::ABI TargetABI = RISCVABI::ABI_Unknown;
   BitVector UserReservedRegister;
   RISCVFrameLowering FrameLowering;
@@ -106,7 +106,6 @@ public:
   bool hasStdExtF() const { return HasStdExtF; }
   bool hasStdExtD() const { return HasStdExtD; }
   bool hasStdExtC() const { return HasStdExtC; }
-  bool hasStdExtB() const { return HasStdExtB; }
   bool hasStdExtZba() const { return HasStdExtZba; }
   bool hasStdExtZbb() const { return HasStdExtZbb; }
   bool hasStdExtZbc() const { return HasStdExtZbc; }
@@ -117,10 +116,10 @@ public:
   bool hasStdExtZbr() const { return HasStdExtZbr; }
   bool hasStdExtZbs() const { return HasStdExtZbs; }
   bool hasStdExtZbt() const { return HasStdExtZbt; }
-  bool hasStdExtZbproposedc() const { return HasStdExtZbproposedc; }
   bool hasStdExtV() const { return HasStdExtV; }
   bool hasStdExtZvlsseg() const { return HasStdExtZvlsseg; }
   bool hasStdExtZvamo() const { return HasStdExtZvamo; }
+  bool hasStdExtZfhmin() const { return HasStdExtZfhmin; }
   bool hasStdExtZfh() const { return HasStdExtZfh; }
   bool is64Bit() const { return HasRV64; }
   bool isRV32E() const { return IsRV32E; }
@@ -133,6 +132,18 @@ public:
   bool isRegisterReservedByUser(Register i) const {
     assert(i < RISCV::NUM_TARGET_REGS && "Register out of range");
     return UserReservedRegister[i];
+  }
+
+  // Vector codegen related methods.
+  bool hasVInstructions() const { return HasStdExtV; }
+  bool hasVInstructionsI64() const { return HasStdExtV; }
+  bool hasVInstructionsF16() const { return HasStdExtV && hasStdExtZfh(); }
+  bool hasVInstructionsF32() const { return HasStdExtV && hasStdExtF(); }
+  bool hasVInstructionsF64() const { return HasStdExtV && hasStdExtD(); }
+  // F16 and F64 both require F32.
+  bool hasVInstructionsAnyF() const { return hasVInstructionsF32(); }
+  unsigned getMaxInterleaveFactor() const {
+    return hasVInstructions() ? MaxInterleaveFactor : 1;
   }
 
 protected:
@@ -154,6 +165,7 @@ public:
   unsigned getMaxRVVVectorSizeInBits() const;
   unsigned getMinRVVVectorSizeInBits() const;
   unsigned getMaxLMULForFixedLengthVectors() const;
+  unsigned getMaxELENForFixedLengthVectors() const;
   bool useRVVForFixedLengthVectors() const;
 };
 } // End llvm namespace

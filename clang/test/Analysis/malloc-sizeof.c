@@ -26,6 +26,8 @@ void foo(unsigned int unsignedInt, unsigned int readSize) {
   struct A *ap5 = calloc(4, sizeof(struct B)); // expected-warning {{Result of 'calloc' is converted to a pointer of type 'struct A', which is incompatible with sizeof operand type 'struct B'}}
   struct A *ap6 = realloc(ap5, sizeof(struct A));
   struct A *ap7 = realloc(ap5, sizeof(struct B)); // expected-warning {{Result of 'realloc' is converted to a pointer of type 'struct A', which is incompatible with sizeof operand type 'struct B'}}
+
+  void **vpp1 = (void **)malloc(sizeof(struct A*)); // no warning
 }
 
 // Don't warn when the types differ only by constness.
@@ -47,6 +49,6 @@ int *mallocArraySize() {
 
 int *mallocWrongArraySize() {
   static const double sTable[10];
-  int *table = malloc(sizeof sTable); // expected-warning {{Result of 'malloc' is converted to a pointer of type 'int', which is incompatible with sizeof operand type 'const double [10]'}}
+  int *table = malloc(sizeof sTable); // expected-warning {{Result of 'malloc' is converted to a pointer of type 'int', which is incompatible with sizeof operand type 'const double[10]'}}
   return table;
 }

@@ -58,10 +58,13 @@ Value::Value(Type *ty, unsigned scid)
   // FIXME: Why isn't this in the subclass gunk??
   // Note, we cannot call isa<CallInst> before the CallInst has been
   // constructed.
-  if (SubclassID == Instruction::Call || SubclassID == Instruction::Invoke ||
-      SubclassID == Instruction::CallBr)
+  unsigned OpCode = 0;
+  if (SubclassID >= InstructionVal)
+    OpCode = SubclassID - InstructionVal;
+  if (OpCode == Instruction::Call || OpCode == Instruction::Invoke ||
+      OpCode == Instruction::CallBr)
     assert((VTy->isFirstClassType() || VTy->isVoidTy() || VTy->isStructTy()) &&
-           "invalid CallInst type!");
+           "invalid CallBase type!");
   else if (SubclassID != BasicBlockVal &&
            (/*SubclassID < ConstantFirstVal ||*/ SubclassID > ConstantLastVal))
     assert((VTy->isFirstClassType() || VTy->isVoidTy()) &&
@@ -168,6 +171,18 @@ Use *Value::getSingleUndroppableUse() {
       if (Result)
         return nullptr;
       Result = &U;
+    }
+  }
+  return Result;
+}
+
+User *Value::getUniqueUndroppableUser() {
+  User *Result = nullptr;
+  for (auto *U : users()) {
+    if (!U->isDroppable()) {
+      if (Result && Result != U)
+        return nullptr;
+      Result = U;
     }
   }
   return Result;
@@ -528,20 +543,28 @@ void Value::replaceUsesWithIf(Value *New,
   assert(New->getType() == getType() &&
          "replaceUses of value with new value of different type!");
 
-  for (use_iterator UI = use_begin(), E = use_end(); UI != E;) {
-    Use &U = *UI;
-    ++UI;
+  SmallVector<TrackingVH<Constant>, 8> Consts;
+  SmallPtrSet<Constant *, 8> Visited;
+
+  for (Use &U : llvm::make_early_inc_range(uses())) {
     if (!ShouldReplace(U))
       continue;
     // Must handle Constants specially, we cannot call replaceUsesOfWith on a
     // constant because they are uniqued.
     if (auto *C = dyn_cast<Constant>(U.getUser())) {
       if (!isa<GlobalValue>(C)) {
-        C->handleOperandChange(this, New);
+        if (Visited.insert(C).second)
+          Consts.push_back(TrackingVH<Constant>(C));
         continue;
       }
     }
     U.set(New);
+  }
+
+  while (!Consts.empty()) {
+    // FIXME: handleOperandChange() updates all the uses in a given Constant,
+    //        not just the one passed to ShouldReplace
+    Consts.pop_back_val()->handleOperandChange(this, New);
   }
 }
 
@@ -681,6 +704,7 @@ const Value *Value::stripPointerCastsForAliasAnalysis() const {
 
 const Value *Value::stripAndAccumulateConstantOffsets(
     const DataLayout &DL, APInt &Offset, bool AllowNonInbounds,
+    bool AllowInvariantGroup,
     function_ref<bool(Value &, APInt &)> ExternalAnalysis) const {
   if (!getType()->isPtrOrPtrVectorTy())
     return this;
@@ -740,6 +764,8 @@ const Value *Value::stripAndAccumulateConstantOffsets(
     } else if (const auto *Call = dyn_cast<CallBase>(V)) {
         if (const Value *RV = Call->getReturnedArgOperand())
           V = RV;
+        if (AllowInvariantGroup && Call->isLaunderOrStripInvariantGroup())
+          V = Call->getArgOperand(0);
     }
     assert(V->getType()->isPtrOrPtrVectorTy() && "Unexpected operand type!");
   } while (Visited.insert(V).second);
@@ -839,10 +865,9 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       CanBeNull = true;
     }
   } else if (const auto *Call = dyn_cast<CallBase>(this)) {
-    DerefBytes = Call->getDereferenceableBytes(AttributeList::ReturnIndex);
+    DerefBytes = Call->getRetDereferenceableBytes();
     if (DerefBytes == 0) {
-      DerefBytes =
-          Call->getDereferenceableOrNullBytes(AttributeList::ReturnIndex);
+      DerefBytes = Call->getRetDereferenceableOrNullBytes();
       CanBeNull = true;
     }
   } else if (const LoadInst *LI = dyn_cast<LoadInst>(this)) {
@@ -884,6 +909,7 @@ uint64_t Value::getPointerDereferenceableBytes(const DataLayout &DL,
       // CanBeNull flag.
       DerefBytes = DL.getTypeStoreSize(GV->getValueType()).getFixedSize();
       CanBeNull = false;
+      CanBeFreed = false;
     }
   }
   return DerefBytes;
@@ -1000,8 +1026,7 @@ bool Value::isTransitiveUsedByMetadataOnly() const {
   llvm::SmallPtrSet<const User *, 32> Visited;
   WorkList.insert(WorkList.begin(), user_begin(), user_end());
   while (!WorkList.empty()) {
-    const User *U = WorkList.back();
-    WorkList.pop_back();
+    const User *U = WorkList.pop_back_val();
     Visited.insert(U);
     // If it is transitively used by a global value or a non-constant value,
     // it's obviously not only used by metadata.

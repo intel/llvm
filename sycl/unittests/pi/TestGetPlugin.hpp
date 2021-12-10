@@ -8,9 +8,11 @@
 #include <algorithm>
 #include <detail/plugin.hpp>
 #include <functional>
+#include <optional>
 
 namespace pi {
-inline cl::sycl::detail::plugin initializeAndGet(cl::sycl::backend backend) {
+inline std::optional<cl::sycl::detail::plugin>
+initializeAndGet(cl::sycl::backend backend) {
   auto plugins = cl::sycl::detail::pi::initialize();
   auto it = std::find_if(plugins.begin(), plugins.end(),
                          [=](cl::sycl::detail::plugin p) -> bool {
@@ -19,9 +21,10 @@ inline cl::sycl::detail::plugin initializeAndGet(cl::sycl::backend backend) {
   if (it == plugins.end()) {
     std::string msg = GetBackendString(backend);
     msg += " PI plugin not found!";
-    throw std::runtime_error(msg);
+    std::cerr << "Warning: " << msg << " Tests using it will be skipped.\n";
+    return std::nullopt;
   }
-  return *it;
+  return std::optional<cl::sycl::detail::plugin>(*it);
 }
 
 inline std::vector<cl::sycl::detail::plugin> initializeAndRemoveInvalid() {

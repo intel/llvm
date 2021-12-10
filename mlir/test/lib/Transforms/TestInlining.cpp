@@ -22,10 +22,15 @@
 #include "llvm/ADT/StringSet.h"
 
 using namespace mlir;
-using namespace mlir::test;
+using namespace test;
 
 namespace {
 struct Inliner : public PassWrapper<Inliner, FunctionPass> {
+  StringRef getArgument() const final { return "test-inline"; }
+  StringRef getDescription() const final {
+    return "Test inlining region calls";
+  }
+
   void runOnFunction() override {
     auto function = getFunction();
 
@@ -46,7 +51,7 @@ struct Inliner : public PassWrapper<Inliner, FunctionPass> {
       // Inline the functional region operation, but only clone the internal
       // region if there is more than one use.
       if (failed(inlineRegion(
-              interface, &callee.body(), caller, caller.getArgOperands(),
+              interface, &callee.getBody(), caller, caller.getArgOperands(),
               caller.getResults(), caller.getLoc(),
               /*shouldCloneInlinedRegion=*/!callee.getResult().hasOneUse())))
         continue;
@@ -63,8 +68,6 @@ struct Inliner : public PassWrapper<Inliner, FunctionPass> {
 
 namespace mlir {
 namespace test {
-void registerInliner() {
-  PassRegistration<Inliner>("test-inline", "Test inlining region calls");
-}
+void registerInliner() { PassRegistration<Inliner>(); }
 } // namespace test
 } // namespace mlir

@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "src/__support/FPUtil/FPBits.h"
 #include "src/math/sin.h"
-#include "utils/FPUtil/TestHelpers.h"
 #include "utils/MPFRWrapper/MPFRUtils.h"
+#include "utils/UnitTest/FPMatcher.h"
 #include "utils/UnitTest/Test.h"
 
 #include <math.h>

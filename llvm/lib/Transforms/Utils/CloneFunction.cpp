@@ -44,7 +44,6 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
                                   const Twine &NameSuffix, Function *F,
                                   ClonedCodeInfo *CodeInfo,
                                   DebugInfoFinder *DIFinder) {
-  DenseMap<const MDNode *, MDNode *> Cache;
   BasicBlock *NewBB = BasicBlock::Create(BB->getContext(), "", F);
   if (BB->hasName())
     NewBB->setName(BB->getName() + NameSuffix);
@@ -63,7 +62,7 @@ BasicBlock *llvm::CloneBasicBlock(const BasicBlock *BB, ValueToValueMapTy &VMap,
     NewBB->getInstList().push_back(NewInst);
     VMap[&I] = NewInst; // Add instruction map to value.
 
-    hasCalls |= (isa<CallInst>(I) && !isa<DbgInfoIntrinsic>(I));
+    hasCalls |= (isa<CallInst>(I) && !I.isDebugOrPseudoInst());
     if (const AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
       if (!AI->isStaticAlloca()) {
         hasDynamicAllocas = true;
@@ -117,13 +116,13 @@ void llvm::CloneFunctionInto(Function *NewFunc, const Function *OldFunc,
   for (const Argument &OldArg : OldFunc->args()) {
     if (Argument *NewArg = dyn_cast<Argument>(VMap[&OldArg])) {
       NewArgAttrs[NewArg->getArgNo()] =
-          OldAttrs.getParamAttributes(OldArg.getArgNo());
+          OldAttrs.getParamAttrs(OldArg.getArgNo());
     }
   }
 
   NewFunc->setAttributes(
-      AttributeList::get(NewFunc->getContext(), OldAttrs.getFnAttributes(),
-                         OldAttrs.getRetAttributes(), NewArgAttrs));
+      AttributeList::get(NewFunc->getContext(), OldAttrs.getFnAttrs(),
+                         OldAttrs.getRetAttrs(), NewArgAttrs));
 
   // Everything else beyond this point deals with function instructions,
   // so if we are dealing with a function declaration, we're done.
@@ -411,12 +410,14 @@ void PruningFunctionCloner::CloneBlock(
       NewInst->setName(II->getName() + NameSuffix);
     VMap[&*II] = NewInst; // Add instruction map to value.
     NewBB->getInstList().push_back(NewInst);
-    hasCalls |= (isa<CallInst>(II) && !isa<DbgInfoIntrinsic>(II));
+    hasCalls |= (isa<CallInst>(II) && !II->isDebugOrPseudoInst());
 
-    if (CodeInfo)
+    if (CodeInfo) {
+      CodeInfo->OrigVMap[&*II] = NewInst;
       if (auto *CB = dyn_cast<CallBase>(&*II))
         if (CB->hasOperandBundles())
           CodeInfo->OperandBundleCallSites.push_back(NewInst);
+    }
 
     if (const AllocaInst *AI = dyn_cast<AllocaInst>(II)) {
       if (isa<ConstantInt>(AI->getArraySize()))
@@ -470,10 +471,12 @@ void PruningFunctionCloner::CloneBlock(
     NewBB->getInstList().push_back(NewInst);
     VMap[OldTI] = NewInst; // Add instruction map to value.
 
-    if (CodeInfo)
+    if (CodeInfo) {
+      CodeInfo->OrigVMap[OldTI] = NewInst;
       if (auto *CB = dyn_cast<CallBase>(OldTI))
         if (CB->hasOperandBundles())
           CodeInfo->OperandBundleCallSites.push_back(NewInst);
+    }
 
     // Recursively clone any reachable successor blocks.
     append_range(ToClone, successors(BB->getTerminator()));
@@ -775,7 +778,7 @@ void llvm::CloneAndPruneIntoFromInst(Function *NewFunc, const Function *OldFunc,
 void llvm::CloneAndPruneFunctionInto(
     Function *NewFunc, const Function *OldFunc, ValueToValueMapTy &VMap,
     bool ModuleLevelChanges, SmallVectorImpl<ReturnInst *> &Returns,
-    const char *NameSuffix, ClonedCodeInfo *CodeInfo, Instruction *TheCall) {
+    const char *NameSuffix, ClonedCodeInfo *CodeInfo) {
   CloneAndPruneIntoFromInst(NewFunc, OldFunc, &OldFunc->front().front(), VMap,
                             ModuleLevelChanges, Returns, NameSuffix, CodeInfo);
 }

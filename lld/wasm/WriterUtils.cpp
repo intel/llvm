@@ -58,12 +58,6 @@ std::string toString(const WasmGlobalType &type) {
          toString(static_cast<ValType>(type.Type));
 }
 
-std::string toString(const WasmEventType &type) {
-  if (type.Attribute == WASM_EVENT_ATTRIBUTE_EXCEPTION)
-    return "exception";
-  return "unknown";
-}
-
 static std::string toString(const llvm::wasm::WasmLimits &limits) {
   std::string ret;
   ret += "flags=0x" + std::to_string(limits.Flags);
@@ -80,9 +74,11 @@ std::string toString(const WasmTableType &type) {
 }
 
 namespace wasm {
+#ifdef LLVM_DEBUG
 void debugWrite(uint64_t offset, const Twine &msg) {
   LLVM_DEBUG(dbgs() << format("  | %08lld: ", offset) << msg << "\n");
 }
+#endif
 
 void writeUleb128(raw_ostream &os, uint64_t number, const Twine &msg) {
   debugWrite(os.tell(), msg + "[" + utohexstr(number) + "]");
@@ -202,15 +198,6 @@ void writeGlobalType(raw_ostream &os, const WasmGlobalType &type) {
   writeU8(os, type.Mutable, "global mutable");
 }
 
-void writeEventType(raw_ostream &os, const WasmEventType &type) {
-  writeUleb128(os, type.Attribute, "event attribute");
-  writeUleb128(os, type.SigIndex, "sig index");
-}
-
-void writeEvent(raw_ostream &os, const WasmEvent &event) {
-  writeEventType(os, event.Type);
-}
-
 void writeTableType(raw_ostream &os, const WasmTableType &type) {
   writeValueType(os, ValType(type.ElemType), "table type");
   writeLimits(os, type.Limits);
@@ -227,8 +214,9 @@ void writeImport(raw_ostream &os, const WasmImport &import) {
   case WASM_EXTERNAL_GLOBAL:
     writeGlobalType(os, import.Global);
     break;
-  case WASM_EXTERNAL_EVENT:
-    writeEventType(os, import.Event);
+  case WASM_EXTERNAL_TAG:
+    writeUleb128(os, 0, "tag attribute"); // Reserved "attribute" field
+    writeUleb128(os, import.SigIndex, "import sig index");
     break;
   case WASM_EXTERNAL_MEMORY:
     writeLimits(os, import.Memory);
@@ -251,8 +239,8 @@ void writeExport(raw_ostream &os, const WasmExport &export_) {
   case WASM_EXTERNAL_GLOBAL:
     writeUleb128(os, export_.Index, "global index");
     break;
-  case WASM_EXTERNAL_EVENT:
-    writeUleb128(os, export_.Index, "event index");
+  case WASM_EXTERNAL_TAG:
+    writeUleb128(os, export_.Index, "tag index");
     break;
   case WASM_EXTERNAL_MEMORY:
     writeUleb128(os, export_.Index, "memory index");

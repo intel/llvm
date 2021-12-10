@@ -210,8 +210,8 @@ namespace {
 // /path/to/foo.dSYM/Contents/Resources/DWARF/foo.
 // For Path="/path/to/bar.dSYM" and Basename="foo" assume that debug info is in
 // /path/to/bar.dSYM/Contents/Resources/DWARF/foo.
-std::string getDarwinDWARFResourceForPath(
-    const std::string &Path, const std::string &Basename) {
+std::string getDarwinDWARFResourceForPath(const std::string &Path,
+                                          const std::string &Basename) {
   SmallString<16> ResourceName = StringRef(Path);
   if (sys::path::extension(Path) != ".dSYM") {
     ResourceName += ".dSYM";
@@ -280,10 +280,7 @@ bool getGNUDebuglinkContents(const ObjectFile *Obj, std::string &DebugName,
     return false;
   for (const SectionRef &Section : Obj->sections()) {
     StringRef Name;
-    if (Expected<StringRef> NameOrErr = Section.getName())
-      Name = *NameOrErr;
-    else
-      consumeError(NameOrErr.takeError());
+    consumeError(Section.getName().moveInto(Name));
 
     Name = Name.substr(Name.find_first_not_of("._"));
     if (Name == "gnu_debuglink") {
@@ -330,7 +327,8 @@ Optional<ArrayRef<uint8_t>> getBuildID(const ELFFile<ELFT> &Obj) {
       continue;
     Error Err = Error::success();
     for (auto N : Obj.notes(P, Err))
-      if (N.getType() == ELF::NT_GNU_BUILD_ID && N.getName() == ELF::ELF_NOTE_GNU)
+      if (N.getType() == ELF::NT_GNU_BUILD_ID &&
+          N.getName() == ELF::ELF_NOTE_GNU)
         return N.getDesc();
     consumeError(std::move(Err));
   }
@@ -353,8 +351,7 @@ Optional<ArrayRef<uint8_t>> getBuildID(const ELFObjectFileBase *Obj) {
 }
 
 bool findDebugBinary(const std::vector<std::string> &DebugFileDirectory,
-                     const ArrayRef<uint8_t> BuildID,
-                     std::string &Result) {
+                     const ArrayRef<uint8_t> BuildID, std::string &Result) {
   auto getDebugPath = [&](StringRef Directory) {
     SmallString<128> Path{Directory};
     sys::path::append(Path, ".build-id",
@@ -366,11 +363,11 @@ bool findDebugBinary(const std::vector<std::string> &DebugFileDirectory,
   if (DebugFileDirectory.empty()) {
     SmallString<128> Path = getDebugPath(
 #if defined(__NetBSD__)
-      // Try /usr/libdata/debug/.build-id/../...
-      "/usr/libdata/debug"
+        // Try /usr/libdata/debug/.build-id/../...
+        "/usr/libdata/debug"
 #else
-      // Try /usr/lib/debug/.build-id/../...
-      "/usr/lib/debug"
+        // Try /usr/lib/debug/.build-id/../...
+        "/usr/lib/debug"
 #endif
     );
     if (llvm::sys::fs::exists(Path)) {
@@ -393,7 +390,8 @@ bool findDebugBinary(const std::vector<std::string> &DebugFileDirectory,
 } // end anonymous namespace
 
 ObjectFile *LLVMSymbolizer::lookUpDsymFile(const std::string &ExePath,
-    const MachOObjectFile *MachExeObj, const std::string &ArchName) {
+                                           const MachOObjectFile *MachExeObj,
+                                           const std::string &ArchName) {
   // On Darwin we may find DWARF in separate object file in
   // resource directory.
   std::vector<std::string> DsymPaths;
@@ -599,7 +597,9 @@ LLVMSymbolizer::getOrCreateModuleInfo(const std::string &ModuleName) {
     }
   }
   if (!Context)
-    Context = DWARFContext::create(*Objects.second, nullptr, Opts.DWPName);
+    Context = DWARFContext::create(
+        *Objects.second, DWARFContext::ProcessDebugRelocations::Process,
+        nullptr, Opts.DWPName);
   return createModuleInfo(Objects.first, std::move(Context), ModuleName);
 }
 
@@ -649,17 +649,9 @@ StringRef demanglePE32ExternCFunc(StringRef SymbolName) {
 std::string
 LLVMSymbolizer::DemangleName(const std::string &Name,
                              const SymbolizableModule *DbiModuleDescriptor) {
-  // We can spoil names of symbols with C linkage, so use an heuristic
-  // approach to check if the name should be demangled.
-  if (Name.substr(0, 2) == "_Z") {
-    int status = 0;
-    char *DemangledName = itaniumDemangle(Name.c_str(), nullptr, nullptr, &status);
-    if (status != 0)
-      return Name;
-    std::string Result = DemangledName;
-    free(DemangledName);
+  std::string Result;
+  if (nonMicrosoftDemangle(Name.c_str(), Result))
     return Result;
-  }
 
   if (!Name.empty() && Name.front() == '?') {
     // Only do MSVC C++ demangling on symbols starting with '?'.
@@ -670,7 +662,7 @@ LLVMSymbolizer::DemangleName(const std::string &Name,
                         MSDF_NoMemberType | MSDF_NoReturnType));
     if (status != 0)
       return Name;
-    std::string Result = DemangledName;
+    Result = DemangledName;
     free(DemangledName);
     return Result;
   }

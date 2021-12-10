@@ -72,8 +72,8 @@ enum OperandType {
   OPERAND_SIGNATURE,
   /// type signature immediate for call_indirect.
   OPERAND_TYPEINDEX,
-  /// Event index.
-  OPERAND_EVENT,
+  /// Tag index.
+  OPERAND_TAG,
   /// A list of branch targets for br_list.
   OPERAND_BRLIST,
   /// 32-bit unsigned table number.
@@ -94,6 +94,9 @@ enum TOF {
   // runtime.  This adds a level of indirection similar to the GOT on native
   // platforms.
   MO_GOT,
+
+  // Same as MO_GOT but the address stored in the global is a TLS address.
+  MO_GOT_TLS,
 
   // On a symbol operand this indicates that the immediate is the symbol
   // address relative the __memory_base wasm global.

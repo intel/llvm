@@ -68,6 +68,19 @@ inline ArrayRef<NamedAttribute> getResultAttrs(Operation *op, unsigned index) {
   return resultDict ? resultDict.getValue() : llvm::None;
 }
 
+/// Insert the specified arguments and update the function type attribute.
+void insertFunctionArguments(Operation *op, ArrayRef<unsigned> argIndices,
+                             TypeRange argTypes,
+                             ArrayRef<DictionaryAttr> argAttrs,
+                             ArrayRef<Optional<Location>> argLocs,
+                             unsigned originalNumArgs, Type newType);
+
+/// Insert the specified results and update the function type attribute.
+void insertFunctionResults(Operation *op, ArrayRef<unsigned> resultIndices,
+                           TypeRange resultTypes,
+                           ArrayRef<DictionaryAttr> resultAttrs,
+                           unsigned originalNumResults, Type newType);
+
 /// Erase the specified arguments and update the function type attribute.
 void eraseFunctionArguments(Operation *op, ArrayRef<unsigned> argIndices,
                             unsigned originalNumArgs, Type newType);
@@ -208,6 +221,22 @@ public:
     return function_like_impl::getFunctionType(this->getOperation());
   }
 
+  /// Return the type of this function with the specified arguments and results
+  /// inserted. This is used to update the function's signature in the
+  /// `insertArguments` and `insertResults` methods. The arrays must be sorted
+  /// by increasing index.
+  ///
+  /// Note that the concrete class must define a method with the same name to
+  /// hide this one if the concrete class does not use FunctionType for the
+  /// function type under the hood.
+  FunctionType getTypeWithArgsAndResults(ArrayRef<unsigned> argIndices,
+                                         TypeRange argTypes,
+                                         ArrayRef<unsigned> resultIndices,
+                                         TypeRange resultTypes) {
+    return getType().getWithArgsAndResults(argIndices, argTypes, resultIndices,
+                                           resultTypes);
+  }
+
   /// Return the type of this function without the specified arguments and
   /// results. This is used to update the function's signature in the
   /// `eraseArguments` and `eraseResults` methods. The arrays of indices are
@@ -267,6 +296,48 @@ public:
     return getBody().getArgumentTypes();
   }
 
+  /// Insert a single argument of type `argType` with attributes `argAttrs` and
+  /// location `argLoc` at `argIndex`.
+  void insertArgument(unsigned argIndex, Type argType, DictionaryAttr argAttrs,
+                      Optional<Location> argLoc = {}) {
+    insertArguments({argIndex}, {argType}, {argAttrs}, {argLoc});
+  }
+
+  /// Inserts arguments with the listed types, attributes, and locations at the
+  /// listed indices. `argIndices` must be sorted. Arguments are inserted in the
+  /// order they are listed, such that arguments with identical index will
+  /// appear in the same order that they were listed here.
+  void insertArguments(ArrayRef<unsigned> argIndices, TypeRange argTypes,
+                       ArrayRef<DictionaryAttr> argAttrs,
+                       ArrayRef<Optional<Location>> argLocs) {
+    unsigned originalNumArgs = getNumArguments();
+    Type newType = getTypeWithArgsAndResults(
+        argIndices, argTypes, /*resultIndices=*/{}, /*resultTypes=*/{});
+    function_like_impl::insertFunctionArguments(
+        this->getOperation(), argIndices, argTypes, argAttrs, argLocs,
+        originalNumArgs, newType);
+  }
+
+  /// Insert a single result of type `resultType` at `resultIndex`.
+  void insertResult(unsigned resultIndex, Type resultType,
+                    DictionaryAttr resultAttrs) {
+    insertResults({resultIndex}, {resultType}, {resultAttrs});
+  }
+
+  /// Inserts results with the listed types at the listed indices.
+  /// `resultIndices` must be sorted. Results are inserted in the order they are
+  /// listed, such that results with identical index will appear in the same
+  /// order that they were listed here.
+  void insertResults(ArrayRef<unsigned> resultIndices, TypeRange resultTypes,
+                     ArrayRef<DictionaryAttr> resultAttrs) {
+    unsigned originalNumResults = getNumResults();
+    Type newType = getTypeWithArgsAndResults(/*argIndices=*/{}, /*argTypes=*/{},
+                                             resultIndices, resultTypes);
+    function_like_impl::insertFunctionResults(
+        this->getOperation(), resultIndices, resultTypes, resultAttrs,
+        originalNumResults, newType);
+  }
+
   /// Erase a single argument at `argIndex`.
   void eraseArgument(unsigned argIndex) { eraseArguments({argIndex}); }
 
@@ -319,13 +390,14 @@ public:
       auto argAttrRange = argAttrs.template getAsRange<DictionaryAttr>();
       result.append(argAttrRange.begin(), argAttrRange.end());
     } else {
-      result.resize(getNumArguments());
+      result.append(getNumArguments(),
+                    DictionaryAttr::get(this->getOperation()->getContext()));
     }
   }
 
   /// Return the specified attribute, if present, for the argument at 'index',
   /// null otherwise.
-  Attribute getArgAttr(unsigned index, Identifier name) {
+  Attribute getArgAttr(unsigned index, StringAttr name) {
     auto argDict = getArgAttrDict(index);
     return argDict ? argDict.get(name) : nullptr;
   }
@@ -335,7 +407,7 @@ public:
   }
 
   template <typename AttrClass>
-  AttrClass getArgAttrOfType(unsigned index, Identifier name) {
+  AttrClass getArgAttrOfType(unsigned index, StringAttr name) {
     return getArgAttr(index, name).template dyn_cast_or_null<AttrClass>();
   }
   template <typename AttrClass>
@@ -365,16 +437,20 @@ public:
 
   /// If the an attribute exists with the specified name, change it to the new
   /// value. Otherwise, add a new attribute with the specified name/value.
-  void setArgAttr(unsigned index, Identifier name, Attribute value);
+  void setArgAttr(unsigned index, StringAttr name, Attribute value);
   void setArgAttr(unsigned index, StringRef name, Attribute value) {
-    setArgAttr(index, Identifier::get(name, this->getOperation()->getContext()),
+    setArgAttr(index, StringAttr::get(this->getOperation()->getContext(), name),
                value);
   }
 
   /// Remove the attribute 'name' from the argument at 'index'. Return the
   /// attribute that was erased, or nullptr if there was no attribute with such
   /// name.
-  Attribute removeArgAttr(unsigned index, Identifier name);
+  Attribute removeArgAttr(unsigned index, StringAttr name);
+  Attribute removeArgAttr(unsigned index, StringRef name) {
+    return removeArgAttr(
+        index, StringAttr::get(this->getOperation()->getContext(), name));
+  }
 
   //===--------------------------------------------------------------------===//
   // Result Attributes
@@ -404,13 +480,14 @@ public:
       auto argAttrRange = argAttrs.template getAsRange<DictionaryAttr>();
       result.append(argAttrRange.begin(), argAttrRange.end());
     } else {
-      result.resize(getNumResults());
+      result.append(getNumResults(),
+                    DictionaryAttr::get(this->getOperation()->getContext()));
     }
   }
 
   /// Return the specified attribute, if present, for the result at 'index',
   /// null otherwise.
-  Attribute getResultAttr(unsigned index, Identifier name) {
+  Attribute getResultAttr(unsigned index, StringAttr name) {
     auto argDict = getResultAttrDict(index);
     return argDict ? argDict.get(name) : nullptr;
   }
@@ -420,7 +497,7 @@ public:
   }
 
   template <typename AttrClass>
-  AttrClass getResultAttrOfType(unsigned index, Identifier name) {
+  AttrClass getResultAttrOfType(unsigned index, StringAttr name) {
     return getResultAttr(index, name).template dyn_cast_or_null<AttrClass>();
   }
   template <typename AttrClass>
@@ -450,17 +527,17 @@ public:
 
   /// If the an attribute exists with the specified name, change it to the new
   /// value. Otherwise, add a new attribute with the specified name/value.
-  void setResultAttr(unsigned index, Identifier name, Attribute value);
+  void setResultAttr(unsigned index, StringAttr name, Attribute value);
   void setResultAttr(unsigned index, StringRef name, Attribute value) {
     setResultAttr(index,
-                  Identifier::get(name, this->getOperation()->getContext()),
+                  StringAttr::get(this->getOperation()->getContext(), name),
                   value);
   }
 
   /// Remove the attribute 'name' from the result at 'index'. Return the
   /// attribute that was erased, or nullptr if there was no attribute with such
   /// name.
-  Attribute removeResultAttr(unsigned index, Identifier name);
+  Attribute removeResultAttr(unsigned index, StringAttr name);
 
 protected:
   /// Returns the dictionary attribute corresponding to the argument at 'index'.
@@ -522,7 +599,8 @@ LogicalResult FunctionLike<ConcreteType>::verifyTrait(Operation *op) {
              << allArgAttrs.size() << ", but expected " << numArgs;
     }
     for (unsigned i = 0; i != numArgs; ++i) {
-      DictionaryAttr argAttrs = allArgAttrs[i].dyn_cast<DictionaryAttr>();
+      DictionaryAttr argAttrs =
+          allArgAttrs[i].dyn_cast_or_null<DictionaryAttr>();
       if (!argAttrs) {
         return funcOp.emitOpError() << "expects argument attribute dictionary "
                                        "to be a DictionaryAttr, but got `"
@@ -533,10 +611,10 @@ LogicalResult FunctionLike<ConcreteType>::verifyTrait(Operation *op) {
       // that they contain a dialect prefix in their name.  Call the dialect, if
       // registered, to verify the attributes themselves.
       for (auto attr : argAttrs) {
-        if (!attr.first.strref().contains('.'))
+        if (!attr.getName().strref().contains('.'))
           return funcOp.emitOpError(
               "arguments may only have dialect attributes");
-        if (Dialect *dialect = attr.first.getDialect()) {
+        if (Dialect *dialect = attr.getNameDialect()) {
           if (failed(dialect->verifyRegionArgAttribute(op, /*regionIndex=*/0,
                                                        /*argIndex=*/i, attr)))
             return failure();
@@ -555,7 +633,8 @@ LogicalResult FunctionLike<ConcreteType>::verifyTrait(Operation *op) {
              << allResultAttrs.size() << ", but expected " << numResults;
     }
     for (unsigned i = 0; i != numResults; ++i) {
-      DictionaryAttr resultAttrs = allResultAttrs[i].dyn_cast<DictionaryAttr>();
+      DictionaryAttr resultAttrs =
+          allResultAttrs[i].dyn_cast_or_null<DictionaryAttr>();
       if (!resultAttrs) {
         return funcOp.emitOpError() << "expects result attribute dictionary "
                                        "to be a DictionaryAttr, but got `"
@@ -566,9 +645,9 @@ LogicalResult FunctionLike<ConcreteType>::verifyTrait(Operation *op) {
       // that they contain a dialect prefix in their name.  Call the dialect, if
       // registered, to verify the attributes themselves.
       for (auto attr : resultAttrs) {
-        if (!attr.first.strref().contains('.'))
+        if (!attr.getName().strref().contains('.'))
           return funcOp.emitOpError("results may only have dialect attributes");
-        if (Dialect *dialect = attr.first.getDialect()) {
+        if (Dialect *dialect = attr.getNameDialect()) {
           if (failed(dialect->verifyRegionResultAttribute(op, /*regionIndex=*/0,
                                                           /*resultIndex=*/i,
                                                           attr)))
@@ -641,7 +720,7 @@ void FunctionLike<ConcreteType>::setArgAttrs(unsigned index,
 /// If the an attribute exists with the specified name, change it to the new
 /// value. Otherwise, add a new attribute with the specified name/value.
 template <typename ConcreteType>
-void FunctionLike<ConcreteType>::setArgAttr(unsigned index, Identifier name,
+void FunctionLike<ConcreteType>::setArgAttr(unsigned index, StringAttr name,
                                             Attribute value) {
   NamedAttrList attributes(getArgAttrDict(index));
   Attribute oldValue = attributes.set(name, value);
@@ -654,7 +733,7 @@ void FunctionLike<ConcreteType>::setArgAttr(unsigned index, Identifier name,
 /// Remove the attribute 'name' from the argument at 'index'.
 template <typename ConcreteType>
 Attribute FunctionLike<ConcreteType>::removeArgAttr(unsigned index,
-                                                    Identifier name) {
+                                                    StringAttr name) {
   // Build an attribute list and remove the attribute at 'name'.
   NamedAttrList attributes(getArgAttrDict(index));
   Attribute removedAttr = attributes.erase(name);
@@ -693,7 +772,7 @@ void FunctionLike<ConcreteType>::setResultAttrs(unsigned index,
 /// If the an attribute exists with the specified name, change it to the new
 /// value. Otherwise, add a new attribute with the specified name/value.
 template <typename ConcreteType>
-void FunctionLike<ConcreteType>::setResultAttr(unsigned index, Identifier name,
+void FunctionLike<ConcreteType>::setResultAttr(unsigned index, StringAttr name,
                                                Attribute value) {
   NamedAttrList attributes(getResultAttrDict(index));
   Attribute oldAttr = attributes.set(name, value);
@@ -706,7 +785,7 @@ void FunctionLike<ConcreteType>::setResultAttr(unsigned index, Identifier name,
 /// Remove the attribute 'name' from the result at 'index'.
 template <typename ConcreteType>
 Attribute FunctionLike<ConcreteType>::removeResultAttr(unsigned index,
-                                                       Identifier name) {
+                                                       StringAttr name) {
   // Build an attribute list and remove the attribute at 'name'.
   NamedAttrList attributes(getResultAttrDict(index));
   Attribute removedAttr = attributes.erase(name);

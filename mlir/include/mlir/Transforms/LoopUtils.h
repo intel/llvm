@@ -40,9 +40,14 @@ LogicalResult loopUnrollFull(AffineForOp forOp);
 
 /// Unrolls this for operation by the specified unroll factor. Returns failure
 /// if the loop cannot be unrolled either due to restrictions or due to invalid
-/// unroll factors. Requires positive loop bounds and step.
-LogicalResult loopUnrollByFactor(AffineForOp forOp, uint64_t unrollFactor);
-LogicalResult loopUnrollByFactor(scf::ForOp forOp, uint64_t unrollFactor);
+/// unroll factors. Requires positive loop bounds and step. If specified,
+/// annotates the Ops in each unrolled iteration by applying `annotateFn`.
+LogicalResult loopUnrollByFactor(
+    AffineForOp forOp, uint64_t unrollFactor,
+    function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn = nullptr);
+LogicalResult loopUnrollByFactor(
+    scf::ForOp forOp, uint64_t unrollFactor,
+    function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn = nullptr);
 
 /// Unrolls this loop by the specified unroll factor or its trip count,
 /// whichever is lower.
@@ -61,8 +66,10 @@ void getPerfectlyNestedLoops(SmallVectorImpl<AffineForOp> &nestedLoops,
 void getPerfectlyNestedLoops(SmallVectorImpl<scf::ForOp> &nestedLoops,
                              scf::ForOp root);
 
-/// Unrolls and jams this loop by the specified factor. Returns success if the
-/// loop is successfully unroll-jammed.
+/// Unrolls and jams this loop by the specified factor. `forOp` can be a loop
+/// with iteration arguments performing supported reductions and its inner loops
+/// can have iteration arguments. Returns success if the loop is successfully
+/// unroll-jammed.
 LogicalResult loopUnrollJamByFactor(AffineForOp forOp,
                                     uint64_t unrollJamFactor);
 
@@ -238,6 +245,14 @@ TileLoops extractFixedOuterLoops(scf::ForOp rootFOrOp, ArrayRef<int64_t> sizes);
 /// independent of any loop induction variable involved in the nest.
 void coalesceLoops(MutableArrayRef<scf::ForOp> loops);
 
+/// Replace a perfect nest of "for" loops with a single linearized loop. Assumes
+/// `loops` contains a list of perfectly nested loops outermost to innermost
+/// that are normalized (step one and lower bound of zero) and with bounds and
+/// steps independent of any loop induction variable involved in the nest.
+/// Coalescing affine.for loops is not always possible, i.e., the result may not
+/// be representable using affine.for.
+LogicalResult coalesceLoops(MutableArrayRef<AffineForOp> loops);
+
 /// Take the ParallelLoop and for each set of dimension indices, combine them
 /// into a single dimension. combinedDimensions must contain each index into
 /// loops exactly once.
@@ -278,7 +293,7 @@ void collapseParallelLoops(scf::ParallelOp loops,
 void mapLoopToProcessorIds(scf::ForOp forOp, ArrayRef<Value> processorId,
                            ArrayRef<Value> numProcessors);
 
-/// Gathers all AffineForOps in 'func' grouped by loop depth.
+/// Gathers all AffineForOps in 'builtin.func' grouped by loop depth.
 void gatherLoops(FuncOp func,
                  std::vector<SmallVector<AffineForOp, 2>> &depthToLoops);
 

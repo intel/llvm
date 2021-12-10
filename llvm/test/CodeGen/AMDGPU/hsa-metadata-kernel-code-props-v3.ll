@@ -1,7 +1,7 @@
-; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 --amdhsa-code-object-version=3 -enable-misched=0 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes - | FileCheck --check-prefixes=CHECK,GFX700,WAVE64 %s
-; RUN: llc -mattr=-xnack -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=3 -mcpu=gfx803 -enable-misched=0 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes - | FileCheck --check-prefixes=CHECK,GFX803,WAVE64 %s
-; RUN: llc -mattr=-xnack -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=3 -mcpu=gfx900 -enable-misched=0 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes - | FileCheck --check-prefixes=CHECK,GFX900,WAVE64 %s
-; RUN: llc -mattr=-xnack -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=3 -mcpu=gfx1010 -enable-misched=0 -filetype=obj -o - < %s | llvm-readobj -elf-output-style=GNU -notes - | FileCheck --check-prefixes=CHECK,GFX1010,WAVE32 %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx700 --amdhsa-code-object-version=3 -enable-misched=0 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefixes=CHECK,GFX700,WAVE64 %s
+; RUN: llc -mattr=-xnack -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=3 -mcpu=gfx803 -enable-misched=0 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefixes=CHECK,GFX803,WAVE64 %s
+; RUN: llc -mattr=-xnack -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=3 -mcpu=gfx900 -enable-misched=0 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefixes=CHECK,GFX900,WAVE64 %s
+; RUN: llc -mattr=-xnack -mtriple=amdgcn-amd-amdhsa --amdhsa-code-object-version=3 -mcpu=gfx1010 -enable-misched=0 -filetype=obj -o - < %s | llvm-readelf --notes - | FileCheck --check-prefixes=CHECK,GFX1010,WAVE32 %s
 
 @var = addrspace(1) global float 0.0
 
@@ -15,7 +15,7 @@
 ; CHECK:     .max_flat_workgroup_size: 1024
 ; CHECK:     .name:           test
 ; CHECK:     .private_segment_fixed_size: 0
-; CHECK:     .sgpr_count:     8
+; CHECK:     .sgpr_count:     6
 ; CHECK:     .symbol:         test.kd
 ; CHECK:     .vgpr_count:     {{3|6}}
 ; WAVE64:    .wavefront_size: 64

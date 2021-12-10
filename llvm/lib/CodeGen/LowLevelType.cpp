@@ -20,11 +20,11 @@ using namespace llvm;
 
 LLT llvm::getLLTForType(Type &Ty, const DataLayout &DL) {
   if (auto VTy = dyn_cast<VectorType>(&Ty)) {
-    auto NumElements = cast<FixedVectorType>(VTy)->getNumElements();
+    auto EC = VTy->getElementCount();
     LLT ScalarTy = getLLTForType(*VTy->getElementType(), DL);
-    if (NumElements == 1)
+    if (EC.isScalar())
       return ScalarTy;
-    return LLT::vector(NumElements, ScalarTy);
+    return LLT::vector(EC, ScalarTy);
   }
 
   if (auto PTy = dyn_cast<PointerType>(&Ty)) {
@@ -52,12 +52,22 @@ MVT llvm::getMVTForLLT(LLT Ty) {
       Ty.getNumElements());
 }
 
+EVT llvm::getApproximateEVTForLLT(LLT Ty, const DataLayout &DL,
+                                  LLVMContext &Ctx) {
+  if (Ty.isVector()) {
+    EVT EltVT = getApproximateEVTForLLT(Ty.getElementType(), DL, Ctx);
+    return EVT::getVectorVT(Ctx, EltVT, Ty.getElementCount());
+  }
+
+  return EVT::getIntegerVT(Ctx, Ty.getSizeInBits());
+}
+
 LLT llvm::getLLTForMVT(MVT Ty) {
   if (!Ty.isVector())
     return LLT::scalar(Ty.getSizeInBits());
 
-  return LLT::vector(Ty.getVectorNumElements(),
-                     Ty.getVectorElementType().getSizeInBits());
+  return LLT::scalarOrVector(Ty.getVectorElementCount(),
+                             Ty.getVectorElementType().getSizeInBits());
 }
 
 const llvm::fltSemantics &llvm::getFltSemanticForLLT(LLT Ty) {

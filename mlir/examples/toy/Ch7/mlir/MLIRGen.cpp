@@ -113,7 +113,7 @@ private:
 
   /// Helper conversion for a Toy AST location to an MLIR location.
   mlir::Location loc(Location loc) {
-    return mlir::FileLineColLoc::get(builder.getIdentifier(*loc.file), loc.line,
+    return mlir::FileLineColLoc::get(builder.getStringAttr(*loc.file), loc.line,
                                      loc.col);
   }
 
@@ -522,7 +522,7 @@ private:
     mlir::FuncOp calledFunc = calledFuncIt->second;
     return builder.create<GenericCallOp>(
         location, calledFunc.getType().getResult(0),
-        builder.getSymbolRefAttr(callee), operands);
+        mlir::SymbolRefAttr::get(builder.getContext(), callee), operands);
   }
 
   /// Emit a print expression. It emits specific operations for two builtins:

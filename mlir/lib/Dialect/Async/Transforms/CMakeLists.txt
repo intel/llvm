@@ -3,6 +3,7 @@ add_mlir_dialect_library(MLIRAsyncTransforms
   AsyncRuntimeRefCounting.cpp
   AsyncRuntimeRefCountingOpt.cpp
   AsyncToAsyncRuntime.cpp
+  PassDetail.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Async
@@ -11,10 +12,13 @@ add_mlir_dialect_library(MLIRAsyncTransforms
   MLIRAsyncPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRIR
+  MLIRArithmetic
   MLIRAsync
-  MLIRSCF
+  MLIRIR
   MLIRPass
+  MLIRSCF
+  MLIRSCFToStandard
+  MLIRStandard
   MLIRTransforms
   MLIRTransformUtils
 )

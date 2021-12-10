@@ -19,15 +19,16 @@
 #include "lldb/Utility/FileSpec.h"
 #include "lldb/Utility/UUID.h"
 #include "lldb/lldb-private.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Support/VersionTuple.h"
 
 namespace lldb_private {
 
 class ObjectFileJITDelegate {
 public:
-  ObjectFileJITDelegate() {}
+  ObjectFileJITDelegate() = default;
 
-  virtual ~ObjectFileJITDelegate() {}
+  virtual ~ObjectFileJITDelegate() = default;
 
   virtual lldb::ByteOrder GetByteOrder() const = 0;
 
@@ -322,12 +323,26 @@ public:
   /// Gets the symbol table for the currently selected architecture (and
   /// object for archives).
   ///
-  /// Symbol table parsing can be deferred by ObjectFile instances until this
-  /// accessor is called the first time.
+  /// This function will manage when ParseSymtab(...) is called to actually do
+  /// the symbol table parsing in each plug-in. This function will take care of
+  /// taking all the necessary locks and finalizing the symbol table when the
+  /// symbol table does get parsed.
   ///
   /// \return
   ///     The symbol table for this object file.
-  virtual Symtab *GetSymtab() = 0;
+  Symtab *GetSymtab();
+
+  /// Parse the symbol table into the provides symbol table object.
+  ///
+  /// Symbol table parsing will be done once when this function is called by
+  /// each object file plugin. All of the necessary locks will already be
+  /// acquired before this function is called and the symbol table object to
+  /// populate is supplied as an argument and doesn't need to be created by
+  /// each plug-in.
+  ///
+  /// \param
+  ///     The symbol table to populate.
+  virtual void ParseSymtab(Symtab &symtab) = 0;
 
   /// Perform relocations on the section if necessary.
   ///
@@ -494,6 +509,16 @@ public:
   virtual std::string GetIdentifierString () {
       return std::string();
   }
+
+  /// Some object files may have the number of bits used for addressing
+  /// embedded in them, e.g. a Mach-O core file using an LC_NOTE.  These
+  /// object files can return the address mask that should be used in
+  /// the Process.
+  /// \return
+  ///     The mask will have bits set which aren't used for addressing --
+  ///     typically, the high bits.
+  ///     Zero is returned when no address bits mask is available.
+  virtual lldb::addr_t GetAddressMask() { return 0; }
 
   /// When the ObjectFile is a core file, lldb needs to locate the "binary" in
   /// the core file.  lldb can iterate over the pages looking for a valid
@@ -666,6 +691,22 @@ public:
   /// Creates a plugin-specific call frame info
   virtual std::unique_ptr<CallFrameInfo> CreateCallFrameInfo();
 
+  /// Load binaries listed in a corefile
+  ///
+  /// A corefile may have metadata listing binaries that can be loaded,
+  /// and the offsets at which they were loaded.  This method will try
+  /// to add them to the Target.  If any binaries were loaded,
+  ///
+  /// \param[in] process
+  ///     Process where to load binaries.
+  ///
+  /// \return
+  ///     Returns true if any binaries were loaded.
+
+  virtual bool LoadCoreFileImages(lldb_private::Process &process) {
+    return false;
+  }
+
 protected:
   // Member variables.
   FileSpec m_file;
@@ -682,7 +723,12 @@ protected:
   const lldb::addr_t m_memory_addr;
   std::unique_ptr<lldb_private::SectionList> m_sections_up;
   std::unique_ptr<lldb_private::Symtab> m_symtab_up;
-  uint32_t m_synthetic_symbol_idx;
+  /// We need a llvm::once_flag that we can use to avoid locking the module
+  /// lock and deadlocking LLDB. See comments in ObjectFile::GetSymtab() for
+  /// the full details. We also need to be able to clear the symbol table, so we
+  /// need to use a std::unique_ptr to a llvm::once_flag so if we clear the
+  /// symbol table, we can have a new once flag to use when it is created again.
+  std::unique_ptr<llvm::once_flag> m_symtab_once_up;
 
   /// Sets the architecture for a module.  At present the architecture can
   /// only be set if it is invalid.  It is not allowed to switch from one
@@ -695,8 +741,6 @@ protected:
   ///     Returns \b true if the architecture was changed, \b
   ///     false otherwise.
   bool SetModulesArchitecture(const ArchSpec &new_arch);
-
-  ConstString GetNextSyntheticSymbolName();
 
   static lldb::DataBufferSP MapFileData(const FileSpec &file, uint64_t Size,
                                         uint64_t Offset);

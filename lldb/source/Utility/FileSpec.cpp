@@ -43,9 +43,7 @@ static constexpr FileSpec::Style GetNativeStyle() {
 }
 
 bool PathStyleIsPosix(FileSpec::Style style) {
-  return (style == FileSpec::Style::posix ||
-          (style == FileSpec::Style::native &&
-           GetNativeStyle() == FileSpec::Style::posix));
+  return llvm::sys::path::is_style_posix(style);
 }
 
 const char *GetPathSeparators(FileSpec::Style style) {
@@ -499,9 +497,9 @@ void FileSpec::MakeAbsolute(const FileSpec &dir) {
 void llvm::format_provider<FileSpec>::format(const FileSpec &F,
                                              raw_ostream &Stream,
                                              StringRef Style) {
-  assert(
-      (Style.empty() || Style.equals_lower("F") || Style.equals_lower("D")) &&
-      "Invalid FileSpec style!");
+  assert((Style.empty() || Style.equals_insensitive("F") ||
+          Style.equals_insensitive("D")) &&
+         "Invalid FileSpec style!");
 
   StringRef dir = F.GetDirectory().GetStringRef();
   StringRef file = F.GetFilename().GetStringRef();
@@ -511,7 +509,7 @@ void llvm::format_provider<FileSpec>::format(const FileSpec &F,
     return;
   }
 
-  if (Style.equals_lower("F")) {
+  if (Style.equals_insensitive("F")) {
     Stream << (file.empty() ? "(empty)" : file);
     return;
   }
@@ -527,7 +525,7 @@ void llvm::format_provider<FileSpec>::format(const FileSpec &F,
     Stream << GetPreferredPathSeparator(F.GetPathStyle());
   }
 
-  if (Style.equals_lower("D")) {
+  if (Style.equals_insensitive("D")) {
     // We only want to print the directory, so now just exit.
     if (dir.empty())
       Stream << "(empty)";

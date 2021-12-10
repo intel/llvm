@@ -1,5 +1,7 @@
+// RUN: %clang_cc1 -fsycl-is-device -fno-sycl-unnamed-lambda -internal-isystem %S/Inputs -fsycl-int-header=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s --check-prefixes=CHECK,NUL
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsycl-int-header=%t.h %s
-// RUN: FileCheck -input-file=%t.h %s
+// RUN: FileCheck -input-file=%t.h %s --check-prefixes=CHECK,UL
 
 // This test checks that
 // 1) New isESIMD() member is generated into the integration header
@@ -17,7 +19,7 @@ void testA() {
     h.single_task<class KernelA>([=]() __attribute__((sycl_explicit_simd)){});
   });
 }
-// CHECK-LABEL: template <> struct KernelInfo<class KernelA> {
+// CHECK-LABEL: template <> struct KernelInfo<KernelA> {
 // CHECK:   static constexpr bool isESIMD() { return 1; }
 
 // --  ESIMD Functor object kernel.
@@ -32,7 +34,8 @@ void testB() {
     h.single_task(KernelFunctor{});
   });
 }
-// CHECK-LABEL: template <> struct KernelInfo<::KernelFunctor> {
+// NUL-LABEL: template <> struct KernelInfo<::KernelFunctor> {
+// UL-LABEL: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', '1', '3', 'K', 'e', 'r', 'n', 'e', 'l', 'F', 'u', 'n', 'c', 't', 'o', 'r'> {
 // CHECK:   static constexpr bool isESIMD() { return 1; }
 
 // -- Non-ESIMD Lambda kernel.
@@ -43,7 +46,7 @@ void testNA() {
     h.single_task<class KernelNA>([=]() {});
   });
 }
-// CHECK-LABEL: template <> struct KernelInfo<class KernelNA> {
+// CHECK-LABEL: template <> struct KernelInfo<KernelNA> {
 // CHECK:   static constexpr bool isESIMD() { return 0; }
 
 // --  Non-ESIMD Functor object kernel.
@@ -58,5 +61,6 @@ void testNB() {
     h.single_task(KernelNonESIMDFunctor{});
   });
 }
-// CHECK-LABEL: template <> struct KernelInfo<::KernelNonESIMDFunctor> {
+// NUL-LABEL: template <> struct KernelInfo<::KernelNonESIMDFunctor> {
+// UL-LABEL: template <> struct KernelInfoData<'_', 'Z', 'T', 'S', '2', '1', 'K', 'e', 'r', 'n', 'e', 'l', 'N', 'o', 'n', 'E', 'S', 'I', 'M', 'D', 'F', 'u', 'n', 'c', 't', 'o', 'r'> {
 // CHECK:   static constexpr bool isESIMD() { return 0; }

@@ -94,12 +94,6 @@ CMake docs or execute ``cmake --help-variable VARIABLE_NAME``.
 libunwind specific options
 --------------------------
 
-.. option:: LIBUNWIND_BUILD_32_BITS:BOOL
-
-  **Default**: Same as LLVM_BUILD_32_BITS
-
-  Toggle whether libunwind should be built with -m32.
-
 .. option:: LIBUNWIND_ENABLE_ASSERTIONS:BOOL
 
   **Default**: ``ON``
@@ -159,3 +153,10 @@ libunwind specific options
 .. option:: LIBUNWIND_SYSROOT
 
   Sysroot for cross compiling
+
+.. option:: LIBUNWIND_INSTALL_LIBRARY_DIR:PATH
+
+  **Default**: ``lib${LIBUNWIND_LIBDIR_SUFFIX}``
+
+  Path where built libunwind libraries should be installed. If a relative path,
+  relative to ``CMAKE_INSTALL_PREFIX``.

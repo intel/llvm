@@ -755,12 +755,10 @@ enum FileAccess : unsigned {
 
 enum OpenFlags : unsigned {
   OF_None = 0,
-  F_None = 0, // For compatibility
 
   /// The file should be opened in text mode on platforms like z/OS that make
   /// this distinction.
   OF_Text = 1,
-  F_Text = 1, // For compatibility
 
   /// The file should use a carriage linefeed '\r\n'. This flag should only be
   /// used with OF_Text. Only makes a difference on Windows.
@@ -773,9 +771,9 @@ enum OpenFlags : unsigned {
 
   /// The file should be opened in append mode.
   OF_Append = 4,
-  F_Append = 4, // For compatibility
 
-  /// Delete the file on close. Only makes a difference on windows.
+  /// The returned handle can be used for deleting the file. Only makes a
+  /// difference on windows.
   OF_Delete = 8,
 
   /// When a child process is launched, this file should remain open in the
@@ -857,7 +855,8 @@ public:
   /// This creates a temporary file with createUniqueFile and schedules it for
   /// deletion with sys::RemoveFileOnSignal.
   static Expected<TempFile> create(const Twine &Model,
-                                   unsigned Mode = all_read | all_write);
+                                   unsigned Mode = all_read | all_write,
+                                   OpenFlags ExtraFlags = OF_None);
   TempFile(TempFile &&Other);
   TempFile &operator=(TempFile &&Other);
 
@@ -866,6 +865,11 @@ public:
 
   // The open file descriptor.
   int FD = -1;
+
+#ifdef _WIN32
+  // Whether we need to manually remove the file on close.
+  bool RemoveOnClose = false;
+#endif
 
   // Keep this with the given name.
   Error keep(const Twine &Name);

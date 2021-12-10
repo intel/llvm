@@ -4,6 +4,7 @@ target datalayout = "e-p:64:64:64-p1:16:16:16-i1:8:8-i8:8:8-i16:16:16-i32:32:32-
 
 declare void @llvm.memcpy.p0i8.p0i8.i32(i8* nocapture, i8* nocapture, i32, i1) nounwind
 declare void @llvm.memset.p0i8.i32(i8* nocapture, i8, i32, i1) nounwind
+declare void @llvm.memset.p0i8.i64(i8* nocapture, i8, i64, i1) nounwind
 
 ; This tests that allocas are not split into slices that are not byte width multiple
 define void @no_split_on_non_byte_width(i32) {
@@ -15,18 +16,11 @@ define void @no_split_on_non_byte_width(i32) {
 ; CHECK-NEXT:    [[ARG_SROA_3_0_EXTRACT_TRUNC:%.*]] = trunc i32 [[ARG_SROA_3_0_EXTRACT_SHIFT]] to i24
 ; CHECK-NEXT:    br label [[LOAD_I32:%.*]]
 ; CHECK:       load_i32:
-; CHECK-NEXT:    [[ARG_SROA_0_0_ARG_SROA_0_0_R0:%.*]] = load i8, i8* [[ARG_SROA_0]], align 8
-; CHECK-NEXT:    [[ARG_SROA_3_0_INSERT_EXT:%.*]] = zext i24 [[ARG_SROA_3_0_EXTRACT_TRUNC]] to i32
-; CHECK-NEXT:    [[ARG_SROA_3_0_INSERT_SHIFT:%.*]] = shl i32 [[ARG_SROA_3_0_INSERT_EXT]], 8
-; CHECK-NEXT:    [[ARG_SROA_3_0_INSERT_MASK:%.*]] = and i32 undef, 255
-; CHECK-NEXT:    [[ARG_SROA_3_0_INSERT_INSERT:%.*]] = or i32 [[ARG_SROA_3_0_INSERT_MASK]], [[ARG_SROA_3_0_INSERT_SHIFT]]
-; CHECK-NEXT:    [[ARG_SROA_0_0_INSERT_EXT:%.*]] = zext i8 [[ARG_SROA_0_0_ARG_SROA_0_0_R0]] to i32
-; CHECK-NEXT:    [[ARG_SROA_0_0_INSERT_MASK:%.*]] = and i32 [[ARG_SROA_3_0_INSERT_INSERT]], -256
-; CHECK-NEXT:    [[ARG_SROA_0_0_INSERT_INSERT:%.*]] = or i32 [[ARG_SROA_0_0_INSERT_MASK]], [[ARG_SROA_0_0_INSERT_EXT]]
+; CHECK-NEXT:    [[ARG_SROA_0_0_ARG_SROA_0_0_R01:%.*]] = load i8, i8* [[ARG_SROA_0]], align 8
 ; CHECK-NEXT:    br label [[LOAD_I1:%.*]]
 ; CHECK:       load_i1:
-; CHECK-NEXT:    [[ARG_SROA_0_0_P1_SROA_CAST2:%.*]] = bitcast i8* [[ARG_SROA_0]] to i1*
-; CHECK-NEXT:    [[ARG_SROA_0_0_ARG_SROA_0_0_T1:%.*]] = load i1, i1* [[ARG_SROA_0_0_P1_SROA_CAST2]], align 8
+; CHECK-NEXT:    [[ARG_SROA_0_0_P1_SROA_CAST4:%.*]] = bitcast i8* [[ARG_SROA_0]] to i1*
+; CHECK-NEXT:    [[ARG_SROA_0_0_ARG_SROA_0_0_T1:%.*]] = load i1, i1* [[ARG_SROA_0_0_P1_SROA_CAST4]], align 8
 ; CHECK-NEXT:    ret void
 ;
   %arg = alloca i32 , align 8
@@ -116,6 +110,7 @@ define i32 @memcpy_vec3float_widening(%S.vec3float* %x) {
 ; CHECK-NEXT:    store <3 x float> [[TMP1_SROA_0_0_VEC_EXTRACT]], <3 x float>* [[TMP1_SROA_0_0_TMP1_SROA_0_0__SROA_CAST2_SROA_CAST]], align 4
 ; CHECK-NEXT:    [[RESULT:%.*]] = call i32 @memcpy_vec3float_helper(%S.vec3float* [[TMP2]])
 ; CHECK-NEXT:    ret i32 [[RESULT]]
+;
 entry:
   ; Create a temporary variable %tmp1 and copy %x[0] into it
   %tmp1 = alloca %S.vec3float, align 4
@@ -136,4 +131,30 @@ entry:
 
   %result = call i32 @memcpy_vec3float_helper(%S.vec3float* %tmp2)
   ret i32 %result
+}
+
+; Don't crash on length that is constant expression.
+
+define void @PR50888() {
+; CHECK-LABEL: @PR50888(
+; CHECK-NEXT:    [[ARRAY:%.*]] = alloca i8, align 1
+; CHECK-NEXT:    call void @llvm.memset.p0i8.i64(i8* align 1 [[ARRAY]], i8 0, i64 ptrtoint (void ()* @PR50888 to i64), i1 false)
+; CHECK-NEXT:    ret void
+;
+  %array = alloca i8
+  call void @llvm.memset.p0i8.i64(i8* align 16 %array, i8 0, i64 ptrtoint (void ()* @PR50888 to i64), i1 false)
+  ret void
+}
+
+; Don't crash on out-of-bounds length.
+
+define void @PR50910() {
+; CHECK-LABEL: @PR50910(
+; CHECK-NEXT:    [[T1:%.*]] = alloca i8, i64 1, align 8
+; CHECK-NEXT:    call void @llvm.memset.p0i8.i64(i8* align 8 [[T1]], i8 0, i64 1, i1 false)
+; CHECK-NEXT:    ret void
+;
+  %t1 = alloca i8, i64 1, align 8
+  call void @llvm.memset.p0i8.i64(i8* align 8 %t1, i8 0, i64 4294967296, i1 false)
+  ret void
 }

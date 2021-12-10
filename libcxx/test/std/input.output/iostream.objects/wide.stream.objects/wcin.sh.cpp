@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: libcpp-has-no-stdin
-
 // <iostream>
 
 // istream wcin;
+
+// XFAIL: libcpp-has-no-wide-characters
 
 // FILE_DEPENDENCIES: ../send-stdin.sh
 // RUN: %{build}

@@ -25,7 +25,7 @@ Block::Block(lldb::user_id_t uid)
       m_inlineInfoSP(), m_variable_list_sp(), m_parsed_block_info(false),
       m_parsed_block_variables(false), m_parsed_child_blocks(false) {}
 
-Block::~Block() {}
+Block::~Block() = default;
 
 void Block::GetDescription(Stream *s, Function *function,
                            lldb::DescriptionLevel level, Target *target) const {
@@ -120,6 +120,16 @@ Block *Block::FindBlockByID(user_id_t block_id) {
       break;
   }
   return matching_block;
+}
+
+Block *Block::FindInnermostBlockByOffset(const lldb::addr_t offset) {
+  if (!Contains(offset))
+    return nullptr;
+  for (const BlockSP &block_sp : m_children) {
+    if (Block *block = block_sp->FindInnermostBlockByOffset(offset))
+      return block;
+  }
+  return this;
 }
 
 void Block::CalculateSymbolContext(SymbolContext *sc) {

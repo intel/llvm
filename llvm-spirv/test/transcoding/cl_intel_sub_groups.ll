@@ -38,6 +38,9 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_subgroups
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPIRV
+; RUN: llvm-spirv %t.rev.bc -o - -spirv-text --spirv-ext=+SPV_INTEL_subgroups | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; CHECK-SPIRV: Capability SubgroupShuffleINTEL
 ; CHECK-SPIRV: Capability SubgroupBufferBlockIOINTEL
@@ -106,7 +109,28 @@ define spir_kernel void @test(<2 x float> %x, i32 %c, %opencl.image2d_ro_t addrs
 ; CHECK-LLVM-NEXT:    [[CALL11:%.*]] = call spir_func <2 x i64> @_Z30intel_sub_group_block_read_ul2PU3AS1Km(i64 addrspace(1)* [[LP:%.*]])
 ; CHECK-LLVM-NEXT:    call spir_func void @_Z31intel_sub_group_block_write_ul2PU3AS1mDv2_m(i64 addrspace(1)* [[LP]], <2 x i64> [[CALL11]])
 ; CHECK-LLVM-NEXT:    ret void
-;
+
+; CHECK-LLVM-SPIRV: call spir_func <2 x float> @_Z28__spirv_SubgroupShuffleINTELDv2_fj
+; CHECK-LLVM-SPIRV: call spir_func <2 x float> @_Z32__spirv_SubgroupShuffleDownINTELDv2_fS_j
+; CHECK-LLVM-SPIRV: call spir_func <2 x float> @_Z30__spirv_SubgroupShuffleUpINTELDv2_fS_j
+; CHECK-LLVM-SPIRV: call spir_func <2 x float> @_Z31__spirv_SubgroupShuffleXorINTELDv2_fj
+; CHECK-LLVM-SPIRV: call spir_func <2 x i32> @_Z42__spirv_SubgroupImageBlockReadINTEL_Ruint2PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_i(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)*
+; CHECK-LLVM-SPIRV: call spir_func void @_Z36__spirv_SubgroupImageBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv2_j(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)*
+; CHECK-LLVM-SPIRV: call spir_func <2 x i32> @_Z37__spirv_SubgroupBlockReadINTEL_Ruint2PU3AS1Kj
+; CHECK-LLVM-SPIRV: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1jDv2_j
+; CHECK-LLVM-SPIRV: call spir_func <2 x i16> @_Z44__spirv_SubgroupImageBlockReadINTEL_Rushort2PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_i(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)*
+; CHECK-LLVM-SPIRV: call spir_func void @_Z36__spirv_SubgroupImageBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv2_t(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)*
+; CHECK-LLVM-SPIRV: call spir_func <2 x i16> @_Z39__spirv_SubgroupBlockReadINTEL_Rushort2PU3AS1Kt
+; CHECK-LLVM-SPIRV: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1tDv2_t
+; CHECK-LLVM-SPIRV: call spir_func <2 x i8> @_Z43__spirv_SubgroupImageBlockReadINTEL_Ruchar2PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_i(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)*
+; CHECK-LLVM-SPIRV: call spir_func void @_Z36__spirv_SubgroupImageBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv2_h(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)*
+; CHECK-LLVM-SPIRV: call spir_func <2 x i8> @_Z38__spirv_SubgroupBlockReadINTEL_Ruchar2PU3AS1Kh
+; CHECK-LLVM-SPIRV: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1hDv2_h
+; CHECK-LLVM-SPIRV: call spir_func <2 x i64> @_Z43__spirv_SubgroupImageBlockReadINTEL_Rulong2PU3AS133__spirv_Image__void_1_0_0_0_0_0_0Dv2_i(%spirv.Image._void_1_0_0_0_0_0_0 addrspace(1)*
+; CHECK-LLVM-SPIRV: call spir_func void @_Z36__spirv_SubgroupImageBlockWriteINTELPU3AS133__spirv_Image__void_1_0_0_0_0_0_1Dv2_iDv2_m(%spirv.Image._void_1_0_0_0_0_0_1 addrspace(1)*
+; CHECK-LLVM-SPIRV: call spir_func <2 x i64> @_Z38__spirv_SubgroupBlockReadINTEL_Rulong2PU3AS1Km
+; CHECK-LLVM-SPIRV: call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELPU3AS1mDv2_m
+
 entry:
   %call = tail call spir_func <2 x float> @_Z23intel_sub_group_shuffleDv2_fj(<2 x float> %x, i32 %c) #2
   %call1 = tail call spir_func <2 x float> @_Z28intel_sub_group_shuffle_downDv2_fS_j(<2 x float> %x, <2 x float> %x, i32 %c) #2

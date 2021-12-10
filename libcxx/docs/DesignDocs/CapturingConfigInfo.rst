@@ -65,16 +65,12 @@ configuration all together. An example "__config" header generated when
   #ifndef _LIBCPP_CONFIG_SITE
   #define _LIBCPP_CONFIG_SITE
 
-  /* #undef _LIBCPP_HAS_NO_GLOBAL_FILESYSTEM_NAMESPACE */
-  /* #undef _LIBCPP_HAS_NO_STDIN */
-  /* #undef _LIBCPP_HAS_NO_STDOUT */
   #define _LIBCPP_HAS_NO_THREADS
   /* #undef _LIBCPP_HAS_NO_MONOTONIC_CLOCK */
-  /* #undef _LIBCPP_HAS_NO_THREAD_UNSAFE_C_FUNCTIONS */
 
   #endif
   // -*- C++ -*-
-  //===--------------------------- __config ---------------------------------===//
+  //===----------------------------------------------------------------------===//
   //
   // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
   // See https://llvm.org/LICENSE.txt for license information.

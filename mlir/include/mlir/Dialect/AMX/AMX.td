@@ -8,7 +8,7 @@
 //
 // This file defines the basic operations for the AMX dialect.
 //
-// The Intel Advanced Matrix Extensions (AMX) provides a tile matrix
+// The Intel Advanced Matrix Extensions (AMX) provide a tile matrix
 // multiply unit (TMUL), a tile control register (TILECFG), and eight
 // tile registers TMM0 through TMM7 (TILEDATA).
 //
@@ -38,6 +38,23 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def AMX_Dialect : Dialect {
   let name = "amx";
   let cppNamespace = "::mlir::amx";
+  let description = [{
+    The Intel Advanced Matrix Extensions (AMX) provide a tile matrix
+    multiply unit (TMUL), a tile control register (TILECFG), and eight
+    tile registers TMM0 through TMM7 (TILEDATA).
+
+    This `AMX` dialect provides a bridge between MLIR concepts such as
+    vectors and memrefs and the lower level LLVM IR support of AMX.
+    The dialect is split into user-facing AMX ops (AMX_Op) and
+    backend-facing intrinsic ops (AMX_IntrOp).
+
+    Note that since configuration changes (implicit at dialect level) are
+    costly, it is highly recommended to use the AMX dialect on same-shaped
+    vectors, at least within a single method.
+
+    For details, see the Intel documentation:
+    https://software.intel.com/content/www/us/en/develop/articles/intel-sdm.html
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -203,7 +220,7 @@ def TileMulIOp : AMX_Op<"tile_muli", [NoSideEffect, AllTypesMatch<["acc", "res"]
     Example:
 
     ```mlir
-      %0 = amx.tile_muli %a zext, %b zext, %c 
+      %0 = amx.tile_muli %a zext, %b zext, %c
         : vector<16x64xi8>, vector<16x64xi8>, vector<16x16xi32>
     ```
   }];
@@ -239,7 +256,7 @@ def TileMulIOp : AMX_Op<"tile_muli", [NoSideEffect, AllTypesMatch<["acc", "res"]
 //
 
 def LLVM_x86_amx_tilezero : AMX_IntrOp<"tilezero", 1>,
-  Arguments<(ins LLVM_AnyInteger, LLVM_AnyInteger)>;
+  Arguments<(ins AnyInteger, AnyInteger)>;
 
 //
 // Tile memory operations. Parameters define the tile size,
@@ -248,12 +265,12 @@ def LLVM_x86_amx_tilezero : AMX_IntrOp<"tilezero", 1>,
 //
 
 def LLVM_x86_amx_tileloadd64 : AMX_IntrOp<"tileloadd64", 1>,
-  Arguments<(ins LLVM_AnyInteger,
-                 LLVM_AnyInteger, LLVM_AnyPointer, LLVM_AnyInteger)>;
+  Arguments<(ins AnyInteger,
+                 AnyInteger, LLVM_AnyPointer, AnyInteger)>;
 
 def LLVM_x86_amx_tilestored64 : AMX_IntrOp<"tilestored64", 0>,
-  Arguments<(ins LLVM_AnyInteger,
-                 LLVM_AnyInteger, LLVM_AnyPointer, LLVM_AnyInteger, LLVM_Type)>;
+  Arguments<(ins AnyInteger,
+                 AnyInteger, LLVM_AnyPointer, AnyInteger, LLVM_Type)>;
 
 //
 // Tile multiplication operations (series of dot products). Parameters
@@ -263,32 +280,32 @@ def LLVM_x86_amx_tilestored64 : AMX_IntrOp<"tilestored64", 0>,
 
 // Dot product of bf16 tiles into f32 tile.
 def LLVM_x86_amx_tdpbf16ps : AMX_IntrOp<"tdpbf16ps", 1>,
-  Arguments<(ins LLVM_AnyInteger,
-                 LLVM_AnyInteger,
-		 LLVM_AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
+  Arguments<(ins AnyInteger,
+                 AnyInteger,
+		 AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
 
 // Dot product of i8 tiles into i32 tile (with sign/sign extension).
 def LLVM_x86_amx_tdpbssd : AMX_IntrOp<"tdpbssd", 1>,
-  Arguments<(ins LLVM_AnyInteger,
-                 LLVM_AnyInteger,
-		 LLVM_AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
+  Arguments<(ins AnyInteger,
+                 AnyInteger,
+		 AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
 
 // Dot product of i8 tiles into i32 tile (with sign/zero extension).
 def LLVM_x86_amx_tdpbsud : AMX_IntrOp<"tdpbsud", 1>,
-  Arguments<(ins LLVM_AnyInteger,
-                 LLVM_AnyInteger,
-		 LLVM_AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
+  Arguments<(ins AnyInteger,
+                 AnyInteger,
+		 AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
 
 // Dot product of i8 tiles into i32 tile (with zero/sign extension).
 def LLVM_x86_amx_tdpbusd : AMX_IntrOp<"tdpbusd", 1>,
-  Arguments<(ins LLVM_AnyInteger,
-                 LLVM_AnyInteger,
-		 LLVM_AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
+  Arguments<(ins AnyInteger,
+                 AnyInteger,
+		 AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
 
 // Dot product of i8 tiles into i32 tile (with zero/zero extension).
 def LLVM_x86_amx_tdpbuud : AMX_IntrOp<"tdpbuud", 1>,
-  Arguments<(ins LLVM_AnyInteger,
-                 LLVM_AnyInteger,
-		 LLVM_AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
+  Arguments<(ins AnyInteger,
+                 AnyInteger,
+		 AnyInteger, LLVM_Type, LLVM_Type, LLVM_Type)>;
 
 #endif // AMX

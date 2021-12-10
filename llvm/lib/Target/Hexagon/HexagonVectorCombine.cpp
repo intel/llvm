@@ -82,6 +82,7 @@ public:
 
   int getSizeOf(const Value *Val) const;
   int getSizeOf(const Type *Ty) const;
+  int getAllocSizeOf(const Type *Ty) const;
   int getTypeAlignment(Type *Ty) const;
 
   VectorType *getByteVectorTy(int ScLen) const;
@@ -440,16 +441,21 @@ auto AlignVectors::createAdjustedPointer(IRBuilder<> &Builder, Value *Ptr,
     -> Value * {
   // The adjustment is in bytes, but if it's a multiple of the type size,
   // we don't need to do pointer casts.
-  Type *ElemTy = cast<PointerType>(Ptr->getType())->getElementType();
-  int ElemSize = HVC.getSizeOf(ElemTy);
-  if (Adjust % ElemSize == 0) {
-    Value *Tmp0 = Builder.CreateGEP(Ptr, HVC.getConstInt(Adjust / ElemSize));
-    return Builder.CreatePointerCast(Tmp0, ValTy->getPointerTo());
+  auto *PtrTy = cast<PointerType>(Ptr->getType());
+  if (!PtrTy->isOpaque()) {
+    Type *ElemTy = PtrTy->getElementType();
+    int ElemSize = HVC.getAllocSizeOf(ElemTy);
+    if (Adjust % ElemSize == 0 && Adjust != 0) {
+      Value *Tmp0 =
+          Builder.CreateGEP(ElemTy, Ptr, HVC.getConstInt(Adjust / ElemSize));
+      return Builder.CreatePointerCast(Tmp0, ValTy->getPointerTo());
+    }
   }
 
   PointerType *CharPtrTy = Type::getInt8PtrTy(HVC.F.getContext());
   Value *Tmp0 = Builder.CreatePointerCast(Ptr, CharPtrTy);
-  Value *Tmp1 = Builder.CreateGEP(Tmp0, HVC.getConstInt(Adjust));
+  Value *Tmp1 = Builder.CreateGEP(Type::getInt8Ty(HVC.F.getContext()), Tmp0,
+                                  HVC.getConstInt(Adjust));
   return Builder.CreatePointerCast(Tmp1, ValTy->getPointerTo());
 }
 
@@ -470,7 +476,7 @@ auto AlignVectors::createAlignedLoad(IRBuilder<> &Builder, Type *ValTy,
     return PassThru;
   if (Mask == ConstantInt::getTrue(Mask->getType()))
     return Builder.CreateAlignedLoad(ValTy, Ptr, Align(Alignment));
-  return Builder.CreateMaskedLoad(Ptr, Align(Alignment), Mask, PassThru);
+  return Builder.CreateMaskedLoad(ValTy, Ptr, Align(Alignment), Mask, PassThru);
 }
 
 auto AlignVectors::createAlignedStore(IRBuilder<> &Builder, Value *Val,
@@ -743,7 +749,6 @@ auto AlignVectors::realignGroup(const MoveGroup &Move) const -> bool {
                                       WithMaxAlign.ValTy, Adjust);
     int Diff = Start - (OffAtMax + Adjust);
     AlignVal = HVC.getConstInt(Diff);
-    // Sanity.
     assert(Diff >= 0);
     assert(static_cast<decltype(MinNeeded.value())>(Diff) < MinNeeded.value());
   } else {
@@ -972,6 +977,10 @@ auto HexagonVectorCombine::getSizeOf(const Value *Val) const -> int {
 
 auto HexagonVectorCombine::getSizeOf(const Type *Ty) const -> int {
   return DL.getTypeStoreSize(const_cast<Type *>(Ty)).getFixedValue();
+}
+
+auto HexagonVectorCombine::getAllocSizeOf(const Type *Ty) const -> int {
+  return DL.getTypeAllocSize(const_cast<Type *>(Ty)).getFixedValue();
 }
 
 auto HexagonVectorCombine::getTypeAlignment(Type *Ty) const -> int {
@@ -1321,8 +1330,7 @@ auto HexagonVectorCombine::calculatePointerDifference(Value *Ptr0,
     return None;
 
   Builder B(Gep0->getParent());
-  Value *BasePtr = Gep0->getPointerOperand();
-  int Scale = DL.getTypeStoreSize(BasePtr->getType()->getPointerElementType());
+  int Scale = getAllocSizeOf(Gep0->getSourceElementType());
 
   // FIXME: for now only check GEPs with a single index.
   if (Gep0->getNumOperands() != 2 || Gep1->getNumOperands() != 2)
@@ -1339,7 +1347,7 @@ auto HexagonVectorCombine::calculatePointerDifference(Value *Ptr0,
   KnownBits Known0 = computeKnownBits(Idx0, DL, 0, &AC, Gep0, &DT);
   KnownBits Known1 = computeKnownBits(Idx1, DL, 0, &AC, Gep1, &DT);
   APInt Unknown = ~(Known0.Zero | Known0.One) | ~(Known1.Zero | Known1.One);
-  if (Unknown.isAllOnesValue())
+  if (Unknown.isAllOnes())
     return None;
 
   Value *MaskU = ConstantInt::get(Idx0->getType(), Unknown);

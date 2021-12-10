@@ -15,8 +15,11 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/TypeUtilities.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
 
 using namespace mlir;
+
+#include "mlir/Dialect/X86Vector/X86VectorDialect.cpp.inc"
 
 void x86vector::X86VectorDialect::initialize() {
   addOperations<

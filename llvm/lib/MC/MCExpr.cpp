@@ -230,6 +230,7 @@ StringRef MCSymbolRefExpr::getVariantKindName(VariantKind Kind) {
   case VK_GOTREL: return "GOTREL";
   case VK_PCREL: return "PCREL";
   case VK_GOTPCREL: return "GOTPCREL";
+  case VK_GOTPCREL_NORELAX: return "GOTPCREL_NORELAX";
   case VK_GOTTPOFF: return "GOTTPOFF";
   case VK_INDNTPOFF: return "INDNTPOFF";
   case VK_NTPOFF: return "NTPOFF";
@@ -358,6 +359,7 @@ StringRef MCSymbolRefExpr::getVariantKindName(VariantKind Kind) {
   case VK_WASM_MBREL: return "MBREL";
   case VK_WASM_TLSREL: return "TLSREL";
   case VK_WASM_TBREL: return "TBREL";
+  case VK_WASM_GOT_TLS: return "GOT@TLS";
   case VK_AMDGPU_GOTPCREL32_LO: return "gotpcrel32@lo";
   case VK_AMDGPU_GOTPCREL32_HI: return "gotpcrel32@hi";
   case VK_AMDGPU_REL32_LO: return "rel32@lo";
@@ -393,6 +395,7 @@ MCSymbolRefExpr::getVariantKindForName(StringRef Name) {
     .Case("gotrel", VK_GOTREL)
     .Case("pcrel", VK_PCREL)
     .Case("gotpcrel", VK_GOTPCREL)
+    .Case("gotpcrel_norelax", VK_GOTPCREL_NORELAX)
     .Case("gottpoff", VK_GOTTPOFF)
     .Case("indntpoff", VK_INDNTPOFF)
     .Case("ntpoff", VK_NTPOFF)
@@ -499,6 +502,7 @@ MCSymbolRefExpr::getVariantKindForName(StringRef Name) {
     .Case("tbrel", VK_WASM_TBREL)
     .Case("mbrel", VK_WASM_MBREL)
     .Case("tlsrel", VK_WASM_TLSREL)
+    .Case("got@tls", VK_WASM_GOT_TLS)
     .Case("gotpcrel32@lo", VK_AMDGPU_GOTPCREL32_LO)
     .Case("gotpcrel32@hi", VK_AMDGPU_GOTPCREL32_HI)
     .Case("rel32@lo", VK_AMDGPU_REL32_LO)
@@ -671,24 +675,6 @@ static void AttemptToFoldSymbolOffsetDifference(
   }
 }
 
-static bool canFold(const MCAssembler *Asm, const MCSymbolRefExpr *A,
-                    const MCSymbolRefExpr *B, bool InSet) {
-  if (InSet)
-    return true;
-
-  if (!Asm->getBackend().requiresDiffExpressionRelocations())
-    return true;
-
-  const MCSymbol &CheckSym = A ? A->getSymbol() : B->getSymbol();
-  if (!CheckSym.isInSection())
-    return true;
-
-  if (!CheckSym.getSection().hasInstructions())
-    return true;
-
-  return false;
-}
-
 /// Evaluate the result of an add between (conceptually) two MCValues.
 ///
 /// This routine conceptually attempts to construct an MCValue:
@@ -725,11 +711,8 @@ EvaluateSymbolicAdd(const MCAssembler *Asm, const MCAsmLayout *Layout,
   assert((!Layout || Asm) &&
          "Must have an assembler object if layout is given!");
 
-  // If we have a layout, we can fold resolved differences. Do not do this if
-  // the backend requires this to be emitted as individual relocations, unless
-  // the InSet flag is set to get the current difference anyway (used for
-  // example to calculate symbol sizes).
-  if (Asm && canFold(Asm, LHS_A, LHS_B, InSet)) {
+  // If we have a layout, we can fold resolved differences.
+  if (Asm) {
     // First, fold out any differences which are fully resolved. By
     // reassociating terms in
     //   Result = (LHS_A - LHS_B + LHS_Cst) + (RHS_A - RHS_B + RHS_Cst).

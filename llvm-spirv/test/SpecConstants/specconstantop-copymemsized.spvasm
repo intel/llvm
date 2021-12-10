@@ -1,0 +1,42 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis %t.bc -o - | FileCheck %s
+
+; Verify that an OpCopyMemorySized with a nested OpSpecConstantOp size is supported.
+
+; CHECK: @src = common addrspace(1) global [8 x i32] zeroinitializer, align 4
+; CHECK: @dst = common addrspace(1) global [8 x i32] zeroinitializer, align 4
+; CHECK: call void @llvm.memcpy.p1i8.p1i8.i32({{.*}}, i32 8, i1 false)
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %15 "foo"
+               OpName %src "src"
+               OpName %dst "dst"
+               OpName %entry "entry"
+               OpDecorate %src LinkageAttributes "src" Export
+               OpDecorate %dst LinkageAttributes "dst" Export
+               OpDecorate %src Alignment 4
+               OpDecorate %dst Alignment 4
+       %void = OpTypeVoid
+         %14 = OpTypeFunction %void
+       %uint = OpTypeInt 32 0
+     %uint_2 = OpConstant %uint 2
+     %uint_4 = OpSpecConstantOp %uint IMul %uint_2 %uint_2
+     %uint_8 = OpSpecConstantOp %uint IAdd %uint_4 %uint_4
+        %arr = OpTypeArray %uint %uint_8
+        %ptr = OpTypePointer CrossWorkgroup %arr
+
+        %src = OpVariable %ptr CrossWorkgroup
+        %dst = OpVariable %ptr CrossWorkgroup
+
+         %15 = OpFunction %void Pure %14
+      %entry = OpLabel
+               OpCopyMemorySized %dst %src %uint_8 Aligned 4
+               OpReturn
+               OpFunctionEnd

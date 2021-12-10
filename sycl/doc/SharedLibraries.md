@@ -6,33 +6,37 @@ feature.
 **NOTE**: This is not a final version. The document is still in progress.
 
 ## Background
+
 Sometimes users want to link device code dynamically at run time. One possible
 use case for such linkage - providing device functions via shared libraries.
 The example below shows how device function `LibDeviceFunc` can be dynamically
 linked to a SYCL app:
-```
+
+```C++
 // app.cpp
 SYCL_EXTERNAL int LibDeviceFunc(int i);
-class KernelName;
+
 /* ... */
-Q.submit([&](cl::sycl::handler &CGH) {
-CGH.parallel_for<KernelName>(/* ... */ [=](sycl::item i) {
-  out[i] = LibDeviceFunc(i);
+Q.submit([&](sycl::handler &CGH) {
+CGH.parallel_for(/* ... */ [=](sycl::item i) {
+  out[i] = LibDeviceFunc(i.get_id(0));
 }); /* ... */
-std::cout << out[i] << “ “;
+std::cout << out[i] << " ";
 
 // lib.cpp
-int SYCL_EXTERNAL LibDeviceFunc(int i) {
+SYCL_EXTERNAL int LibDeviceFunc(int i) {
   return i * 2;
 }
+```
 
-// Commands
+```bash
+; Commands
 clang++ -fsycl lib.cpp -shared -o helpers.so
 clang++ -fsycl app.cpp -lhelpers -o a.out
 ./a.out
-Output: 0 2 4 6…
-
+Output: 0 2 4 6 ...
 ```
+
 The first invocation of `clang++` driver will create a "fat" shared library
 which contains both host code and device code. The second invocation of
 `clang++` driver will create a "fat" application binary that also contains
@@ -43,22 +47,24 @@ described in this document.
 
 It is possible to manually create `sycl::program` in both app and shared
 library, then use `link` SYCL API to get a single program and launch kernels
-using it. But it is not user-friendly and it is very different from regular
-C/C++ workflow.
+using it. But this approach is a noticeable deviations from regular C/C++
+workflow and requires some amount of source code boilerplate.
 
 Another possible scenario - use functions defined in a pre-compiled device image
 provided by the user. Example:
-```
+
+```C++
 // a.cpp
 SYCL_EXTERNAL void LibDeviceFunc();
 ...
-Q.submit([&](cl::sycl::handler &CGH) {
-CGH.parallel_for([]() { LibDeviceFunc(); });
+Q.submit([&](sycl::handler &CGH) {
+  CGH.parallel_for([]() { LibDeviceFunc(); });
 });
 
 // b.cpp
 /*no SYCL_EXTERNAL*/ void LibDeviceFunc() { ... }
 ```
+
 We have a `SYCL_EXTERNAL` function `LibDeviceFunc` called from a kernel, but the
 application defined only host version of this function. Then user adds device
 image with definition of `LibDeviceFunc` to the fat object via special compiler
@@ -68,14 +74,14 @@ The main purpose of this feature is to provide a user-friendly mechanism which
 allows to link device code dynamically at runtime, such as in the scenarios
 above.
 
-## Requirements:
-User's device code that consists of some device API (`SYCL_EXTERNAL` functions),
-is compiled into some form and it is not linked statically with device code of
-application. It can be a shared library with embedded device image or a
-separate device image supplied with properties attached. This code is linked
-dynamically at run time with device image of a user's application in order to
-resolve dependencies.
-For this combination the following statements must be true:
+## Requirements
+
+User's device code can be compiled into some form and not linked statically with
+device code of application. It can be embedded as a device image into a shared
+library or supplied as a separate device image with attached properties. This
+code is linked dynamically at run time with device image of a user's application
+in order to resolve dependencies. The requirements listed below must be
+satisfied to enable such use case.
 
 The presented dynamic device code linkage mechanism must:
 
@@ -89,7 +95,8 @@ The presented dynamic device code linkage mechanism must:
   - Load device binary image into memory via dlopen-like API
     - This is a TODO item, since SYCL standard doesn't define such API yet.
     Example how such API may look like:
-    ```
+
+    ```C++
     // suppose, mylib.spv defines SYCL_EXTERNAL function foo, then this call:
     device_image img = device_dlopen("mylib.spv");
     // will make foo available for dynamic symbol resolution. If any subsequent
@@ -97,6 +104,7 @@ The presented dynamic device code linkage mechanism must:
     // foo, it can now be resolved following the resolution mechanism described
     // in this doc, and JIT compilation will succeed.
     ```
+
 - Allow different format for device code - e.g. it can be SPIR-V or native
   device binary
 - Provide automatic runtime resolution of `SYCL_EXTERNAL` function references
@@ -108,6 +116,7 @@ The presented dynamic device code linkage mechanism must:
   as close as possible to host shared libraries.
 
 ## Design
+
 The overall idea:
 
 - Each device image is supplied with a list of imported and exported symbol
@@ -139,8 +148,9 @@ For this purpose DPC++ front-end generates `module-id` attribute on each
 
 ### sycl-post-link changes
 
-To support dynamic linking of device code , `sycl-post-link` performs 2 main
-tasks:
+In order to support dynamic linking of device code, `sycl-post-link` performs
+2 main tasks:
+
 - Supplies device images containing exports with an information about exported
   symbols
 - Supplies device images with an information about imported symbols
@@ -150,7 +160,8 @@ points during device code split.
 If device code split is enabled `SYCL_EXTERNAL` functions defined in shared
 libraries and used within it can be duplicated.
 Example:
-```
+
+```C++
 // Shared library
 
 // A.cpp
@@ -159,13 +170,13 @@ SYCL_EXTERNAL int LibDeviceFunc(int i) {
 }
 
 // B.cpp
-class LibKernel;
 /* ... */
-Q.submit([&](cl::sycl::handler &CGH) {
-CGH.parallel_for<LibKernel>(/* ... */ [=](sycl::item i) {
-  out[i] = LibDeviceFunc(i);
+Q.submit([&](sycl::handler &CGH) {
+CGH.parallel_for(/* ... */ [=](sycl::item i) {
+  out[i] = LibDeviceFunc(i.get_id(0));
 } /* ... */
 ```
+
 If user requested per-source device code split, then for this shared library
 `sycl-post-link` will create two device images and both of them will define
 `LibDeviceFunc` function. However `LibDeviceFunc` won't be exported from device
@@ -174,6 +185,7 @@ device image that corresponds to source file where `LibDeviceFunc` was defined,
 i.e. `A.cpp`.
 
 Such duplication is needed for two reasons:
+
 - We aim to make device images with kernels self-contained so no JIT linker
   invocations would be needed if we have definitions of all called functions.
 - We could export `SYCL_EXTERNAL` functions from device images with kernels,
@@ -199,6 +211,7 @@ functions with `sycl-module-id` attribute and external linkage.
 In order to collect information about imported symbols `sycl-post-link` looks
 through LLVM IR and for each declared but not defined symbol records its
 name, except the following cases:
+
 - Declarations with `__` prefix in demangled name are not recorded as imported
   functions
   - Declarations with `__spirv_*` prefix should not be recorded as dependencies
@@ -216,17 +229,19 @@ All collected information is attached to a device image via properties
 mechanism.
 
 Each device image is supplied with an array of property sets:
-```
+
+```C++
 struct pi_device_binary_struct {
 ...
   // Array of property sets
   pi_device_binary_property_set PropertySetsBegin;
   pi_device_binary_property_set PropertySetsEnd;
 };
+```
 
-```
 Each property set is represented by the following struct:
-```
+
+```C++
 // Named array of properties.
 struct _pi_device_binary_property_set_struct {
   char *Name;                                // the name
@@ -234,9 +249,11 @@ struct _pi_device_binary_property_set_struct {
   pi_device_binary_property PropertiesEnd;   // array end
 };
 ```
+
 It contains name of property set and array of properties. Each property is
 represented by the following struct:
-```
+
+```C++
 struct _pi_device_binary_property_struct {
   char *Name;       // null-terminated property name
   void *ValAddr;    // address of property value
@@ -274,10 +291,10 @@ returned by `piDeviceGetInfo` call with query `PI_DEVICE_INFO_EXTENSIONS`.
 Mapping of extension strings and formats that can be linked:
 | Device image format | Extension string | Meaning |
 |---------------------|------------------|---------|
-| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 | "pi_ext_spirv64_linking" | Linking of SPIR-V 64-bit programs is supported|
-| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 | "pi_ext_spirv64_x86_64_linking" | Linking of 64-bit programs that were AOT compiled for CPU device is supported|
-| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN | "pi_ext_spirv64_gen_linking" | Linking of 64-bit programs that were AOT compiled for GPU device is supported|
-| __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA | "pi_ext_spirv64_fpga_linking" | Linking of 64-bit programs that were AOT compiled for FPGA device is supported|
+| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64` | "pi_ext_spirv64_linking" | Linking of SPIR-V 64-bit programs is supported|
+| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64` | "pi_ext_spirv64_x86_64_linking" | Linking of 64-bit programs that were AOT compiled for CPU device is supported|
+| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN` | "pi_ext_spirv64_gen_linking" | Linking of 64-bit programs that were AOT compiled for GPU device is supported|
+| `__SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA` | "pi_ext_spirv64_fpga_linking" | Linking of 64-bit programs that were AOT compiled for FPGA device is supported|
 
 To link several device images together `piProgramLink` API will be used.
 Depending on concrete plugin implementation and set of device image formats that
@@ -300,7 +317,7 @@ device images in different formats as inputs (including SPIR-V and native code).
   - AOT compilers must allow to compile SPIR-V modules with unresolved symbols
   and produce device code in format that can be linked in run time and allows
   to reduce JIT overhead
-  - OpenCL program binary type CL_PROGRAM_BINARY_TYPE_[COMPILED_OBJECT/LIBRARY]
+  - OpenCL program binary type `CL_PROGRAM_BINARY_TYPE_[COMPILED_OBJECT/LIBRARY]`
   should have native code format or any other format that can be emitted by AOT
   compiler and allows to reduce JIT overhead
 
@@ -329,14 +346,15 @@ The following assumption is made: each device image represents some combination
 of defined symbols (kernels or `SYCL_EXTERNAL` functions) and different
 device images either contain exactly the same symbols or not overlapping list
 of defined symbols. If this assumption is not correct, there can be two cases:
-  - Same symbols have the same definitions. In this case it doesn't matter which
-    device image is taken to use duplicated symbol
-  - Same symbols have different definitions. In this case ODR violation takes
-    place, such situation leads to undefined behaviour. For more details refer
-    to [ODR violations](#ODR-violations) section.
-    - The situation when two device images of different formats define the same
-      symbols with two different definitions is not considered as ODR violation.
-      In this case the suitable device image will be picked.
+
+- Same symbols have the same definitions. In this case it doesn't matter which
+  device image is taken to use duplicated symbol
+- Same symbols have different definitions. In this case ODR violation takes
+  place, such situation leads to undefined behaviour. For more details refer
+  to [ODR violations](#ODR-violations) section.
+  - The situation when two device images of different formats define the same
+    symbols with two different definitions is not considered as ODR violation.
+    In this case the suitable device image will be picked.
 
 So, it is valid to pick the met first device image which defines required symbol
 during search.
@@ -351,25 +369,26 @@ dynamically linked programs with slight changes.
 The existing mechanism of caching can be re-used in presence of dynamic
 linking. Example of code when caching mechanism is successfully re-used for
 dynamically linked code:
-```
+
+```C++
 // Application
 SYCL_EXTERNAL void LibFunc();
 
-Q.submit([&](cl::sycl::handler &CGH) {
-CGH.parallel_for<InternalKernel>( ... )
+Q.submit([&](sycl::handler &CGH) {
+  CGH.parallel_for<InternalKernel>( ... )
 }); // 1. Program is compiled, linked and saved in cache
     // 2. Prepared program is used to enqueue kernel
 
-Q.submit([&](cl::sycl::handler &CGH) {
-handler.parallel_for([] { LibFunc(); }); // Prepared program is used to enqueue kernel
+Q.submit([&](sycl::handler &CGH) {
+  handler.parallel_for([] { LibFunc(); }); // Prepared program is used to enqueue kernel
 });
 
 // Library
 SYCL_EXTERNAL void LibFunc() {
 // ...
 }
-
 ```
+
 In current cache structure the programs map's key consists of four components:
 kernel set id, specialization constants values, the device this program is built
 for, build options id. In this example Id of kernel set where application's
@@ -377,14 +396,15 @@ kernels can be used to access program cache. However when shared library
 defines kernels and these kernels are run by the application unchanged cache
 structure may lead to double compilation of the same code. Example of code
 that leads to double compilation of library code:
-```
+
+```C++
 // Application
 SYCL_EXTERNAL void LibFunc();
 
-Q.submit([&](cl::sycl::handler &CGH) {
-  handler.parallel_for([] { LibFunc(); });  // Device code for library is compiled
-                                            // and linked together with device
-                                            // code for application, i.e.
+Q.submit([&](sycl::handler &CGH) {
+  handler.parallel_for([] { LibFunc(); });  // Device code for library is
+                                            // compiled and linked together with
+                                            // device code for application, i.e.
                                             // LibFunc1 and ExternalKernel exist
                                             // in prepared state
 });
@@ -402,33 +422,37 @@ EnqueueLibraryKernel(queue) {
   queue.submit(parallel_for<ExternalKernel>(...));
 }
 ```
+
 Such case can be optimized by bringing nesting into cache keys structure.
 Kernel set id can be found for each kernel using its name and OS module it is
 coming from. In presence of dynamic linking resulting program can be combined
 out of device images which come from different OS modules. So, it should be
 possible to find needed program by kernel name and any OS module that was
 involved in this program. The new mapping structure is:
+
 ```
 {kernel name} =>
   {OSModuleHandle, spec const, opts, dev} => program
 ```
+
 I.e. each kernel name is mapped to a set of tuples that consists of OS module,
 spec constant values, JIT compiler options and device. Then concrete tuple is
-mapped to a program object. Several tuples can be mapped to a same program
-object, they are created during process of compilation and symbols resolution
-for concrete device image. When some program is made through linking of several
-programs created from device images that come from different OS modules,
-for each OS module in cache will be created a tuple with corresponding OS module
-id.
+mapped to a program object. Several tuples can be mapped to the same program
+object. These tuples are created during process of compilation and symbols
+resolution for concrete device image.
+When some program is a result of linking several programs from device images
+with different OS modules, a tuple is created for each OS module ID.
+These tuples are used as nested cache entries after kernel name.
 Example of modified cache structure when dynamic linking is involved:
-```
+
+```C++
 // Application
 // OSModule = 1
 
 SYCL_EXTERNAL void LibFunc();
 queue.submit(parallel_for<InternalKernel>( ... ));
 
-Q.submit([&](cl::sycl::handler &CGH) {
+Q.submit([&](sycl::handler &CGH) {
   CGH.parallel_for([] { LibFunc(); });
 });
 
@@ -442,7 +466,9 @@ SYCL_EXTERNAL LibFunc();
 EnqueueLibraryKernel(queue) {
   queue.submit(parallel_for<ExternalKernel>(...));
 }
+```
 
+```
 Program cache will have the following structure:
  "InternalKernel" =>
    {1, ...} => program 1
@@ -450,16 +476,18 @@ Program cache will have the following structure:
    {1, ...} => program 1
    {2, ...} => program 1
 ```
+
 However the library code will be compiled twice if kernel from the library
 was enqueued before kernels from the application, i.e. in such case:
-```
+
+```C++
 // Application
 SYCL_EXTERNAL void LibFunc();
 
 EnqueueLibraryKernel(Q); // First, library code is compiled alone since it
                          // doesn't have any dependencies
 // ...
-Q.submit([&](cl::sycl::handler &CGH) {
+Q.submit([&](sycl::handler &CGH) {
   handler.parallel_for([] { LibFunc(); });  // Second, library code is compiled
                                             // and linked together with code of
                                             // the application
@@ -477,6 +505,11 @@ In case when "main" image have imports information, device image hash should be
 created from all device images that are necessary to build it, i.e. hash out
 of "main" device image and set of images that define all
 symbols imported by "main" device image.
+The hash string is a result of appending device images. To make order of device
+images defined and persistent across runs of the same application, device images
+are sorted before they are used to create hash string.
+A string made out of names of defined symbols defined by a device image is used
+to compare device images during sorting process.
 
 ## Corner cases and limitations
 
@@ -493,7 +526,6 @@ C++ standard defines One Definition Rule as:
   The definition can appear explicitly in the program, it can be found in the
   standard or a user-defined library, or (when appropriate) it is implicitly
   defined.
-
 
 Here is an example:
 
@@ -571,3 +603,8 @@ One more possible mitigation would be to record name of the library from which
 each symbol should be imported, but it still won't resolve all potential
 issues with run-time library loading, because user can load the library with the
 same name as one of the explicitly linked libraries.
+
+## Related links
+
+1. Test plan for this feature
+https://github.com/intel/llvm-test-suite/blob/intel/SYCL/TestPlans/DynamicLinkingTestPlan.md

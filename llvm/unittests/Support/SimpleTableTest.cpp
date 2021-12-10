@@ -46,6 +46,8 @@ TEST(SimpleTable, Operations) {
   auto ReplaceCodeWith = "a_0.spv\n"
                          "a_1.spv\n";
 
+  auto ReplaceSinglePropertyWith = "a_2.props";
+
   auto MemBuf = MemoryBuffer::getMemBuffer(Content);
   auto MemBufRepl = MemoryBuffer::getMemBuffer(ReplaceCodeWith);
   // Create tables from the strings above
@@ -59,6 +61,11 @@ TEST(SimpleTable, Operations) {
   // -- Replace
   if (Error Err = Table->get()->replaceColumn("Code", *TableRepl->get(), ""))
     FAIL() << "SimpleTable::replaceColumn failed: " << Err << "\n";
+
+  // -- Update cell
+  if (Error Err = Table->get()->updateCellValue("Properties", 1,
+                                                ReplaceSinglePropertyWith))
+    FAIL() << "SimpleTable::updateCellValue failed: " << Err << "\n";
 
   // -- Add
   SmallVector<StringRef, 2> NewCol = {"a_0.mnf", "a_1.mnf"};
@@ -78,7 +85,7 @@ TEST(SimpleTable, Operations) {
   }
   auto Expected = "[Code|Properties|Manifest]\n"
                   "a_0.spv|a_0.props|a_0.mnf\n"
-                  "a_1.spv|a_1.props|a_1.mnf\n";
+                  "a_1.spv|a_2.props|a_1.mnf\n";
   ASSERT_EQ(Result, Expected);
 }
 

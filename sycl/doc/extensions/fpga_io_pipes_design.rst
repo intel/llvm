@@ -78,4 +78,4 @@ When specific io_pipe_def.h is included in a user's code and 'name' is mapped to
 the pipe name defined in this header (for example 'ethernet_pipe_id' structure
 defined above) 'name::id' returns the actual I/O pipe ID (compile-time known
 integer constant) that is passed as the attribute's argument and used to
-indentify the I/O pipe in some backend.
+identify the I/O pipe in some backend.

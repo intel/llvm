@@ -2,6 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -10,17 +11,17 @@
 ; CHECK-LLVM: call spir_func i32 @_Z5isinfDh(
 ; CHECK-LLVM: call spir_func i32 @_Z8isnormalDh(
 ; CHECK-LLVM: call spir_func i32 @_Z7signbitDh(
-; CHECK-LLVM: call spir_func i32 @_Z13islessgreaterDhDh(
-; CHECK-LLVM: call spir_func i32 @_Z9isorderedDhDh(
-; CHECK-LLVM: call spir_func i32 @_Z11isunorderedDhDh(
+; CHECK-LLVM: fcmp one half
+; CHECK-LLVM: fcmp ord half
+; CHECK-LLVM: fcmp uno half
 
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z8isfiniteDv2_Dh(
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z5isnanDv2_Dh(
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z5isinfDv2_Dh(
 ; CHECK-LLVM: call spir_func <2 x i16> @_Z8isnormalDv2_Dh(
-; CHECK-LLVM: call spir_func <2 x i16> @_Z13islessgreaterDv2_DhS_(
-; CHECK-LLVM: call spir_func <2 x i16> @_Z9isorderedDv2_DhS_(
-; CHECK-LLVM: call spir_func <2 x i16> @_Z11isunorderedDv2_DhS_(
+; CHECK-LLVM: fcmp one <2 x half>
+; CHECK-LLVM: fcmp ord <2 x half>
+; CHECK-LLVM: fcmp uno <2 x half>
 
 ; CHECK-SPIRV: 2 TypeBool [[BoolTypeID:[0-9]+]]
 ; CHECK-SPIRV: 4 TypeVector [[BoolVectorTypeID:[0-9]+]] [[BoolTypeID]] 2
@@ -30,7 +31,7 @@
 ; CHECK-SPIRV: 4 IsInf [[BoolTypeID]]
 ; CHECK-SPIRV: 4 IsNormal [[BoolTypeID]]
 ; CHECK-SPIRV: 4 SignBitSet [[BoolTypeID]]
-; CHECK-SPIRV: 5 LessOrGreater [[BoolTypeID]]
+; CHECK-SPIRV: 5 FOrdNotEqual [[BoolTypeID]]
 ; CHECK-SPIRV: 5 Ordered [[BoolTypeID]]
 ; CHECK-SPIRV: 5 Unordered [[BoolTypeID]]
 
@@ -38,7 +39,7 @@
 ; CHECK-SPIRV: 4 IsNan [[BoolVectorTypeID]]
 ; CHECK-SPIRV: 4 IsInf [[BoolVectorTypeID]]
 ; CHECK-SPIRV: 4 IsNormal [[BoolVectorTypeID]]
-; CHECK-SPIRV: 5 LessOrGreater [[BoolVectorTypeID]]
+; CHECK-SPIRV: 5 FOrdNotEqual [[BoolVectorTypeID]]
 ; CHECK-SPIRV: 5 Ordered [[BoolVectorTypeID]]
 ; CHECK-SPIRV: 5 Unordered [[BoolVectorTypeID]]
 

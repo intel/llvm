@@ -14,6 +14,12 @@ include(CheckSymbolExists)
 include(CMakeDependentOption)
 include(LLVMProcessSources)
 
+if(CMAKE_LINKER MATCHES ".*lld" OR (LLVM_USE_LINKER STREQUAL "lld" OR LLVM_ENABLE_LLD))
+  set(LINKER_IS_LLD TRUE)
+else()
+  set(LINKER_IS_LLD FALSE)
+endif()
+
 if(CMAKE_LINKER MATCHES "lld-link" OR (MSVC AND (LLVM_USE_LINKER STREQUAL "lld" OR LLVM_ENABLE_LLD)))
   set(LINKER_IS_LLD_LINK TRUE)
 else()
@@ -161,9 +167,6 @@ else()
 endif()
 
 if(APPLE)
-  if(LLVM_ENABLE_LLD AND LLVM_ENABLE_LTO)
-    message(FATAL_ERROR "lld does not support LTO on Darwin")
-  endif()
   # Darwin-specific linker flags for loadable modules.
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-flat_namespace -Wl,-undefined -Wl,suppress")
 endif()
@@ -305,6 +308,19 @@ if( LLVM_ENABLE_PIC )
     # On Windows all code is PIC. MinGW warns if -fPIC is used.
   else()
     add_flag_or_print_warning("-fPIC" FPIC)
+    # Enable interprocedural optimizations for non-inline functions which would
+    # otherwise be disabled due to GCC -fPIC's default.
+    # Note: GCC<10.3 has a bug on SystemZ.
+    #
+    # Note: Clang allows IPO for -fPIC so this optimization is less effective.
+    # Older Clang may support -fno-semantic-interposition but it used local
+    # aliases to optimize global variables, which is incompatible with copy
+    # relocations due to -fno-pic.
+    if ((CMAKE_COMPILER_IS_GNUCXX AND
+         NOT (LLVM_NATIVE_ARCH STREQUAL "SystemZ" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.3))
+       OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION GREATER_EQUAL 13))
+      add_flag_if_supported("-fno-semantic-interposition" FNO_SEMANTIC_INTERPOSITION)
+    endif()
   endif()
   # GCC for MIPS can miscompile LLVM due to PR37701.
   if(CMAKE_COMPILER_IS_GNUCXX AND LLVM_NATIVE_ARCH STREQUAL "Mips" AND
@@ -322,9 +338,9 @@ if( LLVM_ENABLE_PIC )
   endif()
 endif()
 
-if(NOT WIN32 AND NOT CYGWIN AND NOT (${CMAKE_SYSTEM_NAME} MATCHES "AIX" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"))
+if(NOT WIN32 AND NOT CYGWIN AND NOT (${CMAKE_SYSTEM_NAME} MATCHES "AIX"))
   # MinGW warns if -fvisibility-inlines-hidden is used.
-  # GCC on AIX warns if -fvisibility-inlines-hidden is used.
+  # GCC on AIX warns if -fvisibility-inlines-hidden is used and Clang on AIX doesn't currently support visibility.
   check_cxx_compiler_flag("-fvisibility-inlines-hidden" SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG)
   append_if(SUPPORTS_FVISIBILITY_INLINES_HIDDEN_FLAG "-fvisibility-inlines-hidden" CMAKE_CXX_FLAGS)
 endif()
@@ -439,9 +455,6 @@ if( MSVC )
     -D_UNICODE
   )
 
-  # Allow setting clang-cl's /winsysroot flag.
-  set(LLVM_WINSYSROOT "" CACHE STRING
-    "If set, argument to clang-cl's /winsysroot")
   if (LLVM_WINSYSROOT)
     if (NOT CLANG_CL)
       message(ERROR "LLVM_WINSYSROOT requires clang-cl")
@@ -474,6 +487,23 @@ if( MSVC )
           CMAKE_SHARED_LINKER_FLAGS)
   endif()
 
+  # Get all linker flags in upper case form so we can search them.
+  set(all_linker_flags_uppercase
+    "${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS}")
+  string(TOUPPER "${all_linker_flags_uppercase}" all_linker_flags_uppercase)
+
+  if (CLANG_CL AND LINKER_IS_LLD)
+    # If we are using clang-cl with lld-link and /debug is present in any of the
+    # linker flag variables, pass -gcodeview-ghash to the compiler to speed up
+    # linking. This flag is orthogonal from /Zi, /Z7, and other flags that
+    # enable debug info emission, and only has an effect if those are also in
+    # use.
+    string(FIND "${all_linker_flags_uppercase}" "/DEBUG" linker_flag_idx)
+    if (${linker_flag_idx} GREATER -1)
+      add_flag_if_supported("-gcodeview-ghash" GCODEVIEW_GHASH)
+    endif()
+  endif()
+
   # Disable string literal const->non-const type conversion.
   # "When specified, the compiler requires strict const-qualification
   # conformance for pointers initialized by using string literals."
@@ -499,13 +529,7 @@ if( MSVC )
     if (SUPPORTS_BREPRO)
       # Check if /INCREMENTAL is passed to the linker and complain that it
       # won't work with /Brepro.
-      string(TOUPPER "${CMAKE_EXE_LINKER_FLAGS}" upper_exe_flags)
-      string(TOUPPER "${CMAKE_MODULE_LINKER_FLAGS}" upper_module_flags)
-      string(TOUPPER "${CMAKE_SHARED_LINKER_FLAGS}" upper_shared_flags)
-
-      string(FIND "${upper_exe_flags} ${upper_module_flags} ${upper_shared_flags}"
-        "/INCREMENTAL" linker_flag_idx)
-
+      string(FIND "${all_linker_flags_uppercase}" "/INCREMENTAL" linker_flag_idx)
       if (${linker_flag_idx} GREATER -1)
         message(WARNING "/Brepro not compatible with /INCREMENTAL linking - builds will be non-deterministic")
       else()
@@ -706,28 +730,19 @@ if (LLVM_ENABLE_WARNINGS AND (LLVM_COMPILER_IS_GCC_COMPATIBLE OR CLANG_CL))
   check_cxx_compiler_flag("-Wnoexcept-type" CXX_SUPPORTS_NOEXCEPT_TYPE_FLAG)
   append_if(CXX_SUPPORTS_NOEXCEPT_TYPE_FLAG "-Wno-noexcept-type" CMAKE_CXX_FLAGS)
 
-  # Check if -Wnon-virtual-dtor warns even though the class is marked final.
-  # If it does, don't add it. So it won't be added on clang 3.4 and older.
-  # This also catches cases when -Wnon-virtual-dtor isn't supported by
-  # the compiler at all.  This flag is not activated for gcc since it will
-  # incorrectly identify a protected non-virtual base when there is a friend
-  # declaration. Don't activate this in general on Windows as this warning has
-  # too many false positives on COM-style classes, which are destroyed with
-  # Release() (PR32286).
-  if (NOT CMAKE_COMPILER_IS_GNUCXX AND NOT WIN32)
-    set(OLD_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -std=c++11 -Werror=non-virtual-dtor")
-    CHECK_CXX_SOURCE_COMPILES("class base {public: virtual void anchor();protected: ~base();};
-                               class derived final : public base { public: ~derived();};
-                               int main() { return 0; }"
-                              CXX_WONT_WARN_ON_FINAL_NONVIRTUALDTOR)
-    set(CMAKE_REQUIRED_FLAGS ${OLD_CMAKE_REQUIRED_FLAGS})
-    append_if(CXX_WONT_WARN_ON_FINAL_NONVIRTUALDTOR
-              "-Wnon-virtual-dtor" CMAKE_CXX_FLAGS)
-  endif()
+  # Check if -Wnon-virtual-dtor warns for a class marked final, when it has a
+  # friend declaration. If it does, don't add -Wnon-virtual-dtor. The case is
+  # considered unhelpful (https://gcc.gnu.org/PR102168).
+  set(OLD_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -Werror=non-virtual-dtor")
+  CHECK_CXX_SOURCE_COMPILES("class f {};
+                             class base {friend f; public: virtual void anchor();protected: ~base();};
+                             int main() { return 0; }"
+                            CXX_WONT_WARN_ON_FINAL_NONVIRTUALDTOR)
+  set(CMAKE_REQUIRED_FLAGS ${OLD_CMAKE_REQUIRED_FLAGS})
+  append_if(CXX_WONT_WARN_ON_FINAL_NONVIRTUALDTOR "-Wnon-virtual-dtor" CMAKE_CXX_FLAGS)
 
-  # Enable -Wdelete-non-virtual-dtor if available.
-  add_flag_if_supported("-Wdelete-non-virtual-dtor" DELETE_NON_VIRTUAL_DTOR_FLAG)
+  append("-Wdelete-non-virtual-dtor" CMAKE_CXX_FLAGS)
 
   # Enable -Wsuggest-override if it's available, and only if it doesn't
   # suggest adding 'override' to functions that are already marked 'final'
@@ -855,9 +870,11 @@ if(LLVM_USE_SANITIZER)
     append("-fsanitize=fuzzer-no-link" CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
   endif()
   if (LLVM_USE_SANITIZER MATCHES ".*Undefined.*")
-    set(BLACKLIST_FILE "${CMAKE_SOURCE_DIR}/utils/sanitizers/ubsan_blacklist.txt")
-    if (EXISTS "${BLACKLIST_FILE}")
-      append("-fsanitize-blacklist=${BLACKLIST_FILE}"
+    set(IGNORELIST_FILE "${CMAKE_SOURCE_DIR}/utils/sanitizers/ubsan_ignorelist.txt")
+    if (EXISTS "${IGNORELIST_FILE}")
+      # Use this option name version since -fsanitize-ignorelist is only
+      # accepted with clang 13.0 or newer.
+      append("-fsanitize-blacklist=${IGNORELIST_FILE}"
              CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
     endif()
   endif()
@@ -871,6 +888,10 @@ if (LLVM_USE_SPLIT_DWARF AND
   if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
       CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_options(-gsplit-dwarf)
+  include(LLVMCheckLinkerFlag)
+  llvm_check_linker_flag(CXX "-Wl,--gdb-index" LINKER_SUPPORTS_GDB_INDEX)
+  append_if(LINKER_SUPPORTS_GDB_INDEX "-Wl,--gdb-index"
+    CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
   endif()
 endif()
 

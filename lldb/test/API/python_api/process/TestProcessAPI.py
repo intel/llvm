@@ -23,7 +23,6 @@ class ProcessAPITestCase(TestBase):
             "main.cpp",
             "// Set break point at this line and check variable 'my_char'.")
 
-    @skipIfReproducer # SBProcess::ReadMemory is not instrumented.
     def test_read_memory(self):
         """Test Python SBProcess.ReadMemory() API."""
         self.build()
@@ -121,7 +120,6 @@ class ProcessAPITestCase(TestBase):
             self.fail(
                 "Result from SBProcess.ReadUnsignedFromMemory() does not match our expected output")
 
-    @skipIfReproducer # SBProcess::WriteMemory is not instrumented.
     def test_write_memory(self):
         """Test Python SBProcess.WriteMemory() API."""
         self.build()
@@ -180,7 +178,6 @@ class ProcessAPITestCase(TestBase):
             exe=False,
             startstr=b'a')
 
-    @skipIfReproducer # SBProcess::WriteMemory is not instrumented.
     def test_access_my_int(self):
         """Test access 'my_int' using Python SBProcess.GetByteOrder() and other APIs."""
         self.build()
@@ -356,6 +353,8 @@ class ProcessAPITestCase(TestBase):
         self.assertNotEqual(
             process_info.GetProcessID(), lldb.LLDB_INVALID_PROCESS_ID,
             "Process ID is valid")
+        triple = process_info.GetTriple()
+        self.assertIsNotNone(triple, "Process has a triple")
 
         # Additional process info varies by platform, so just check that
         # whatever info was retrieved is consistent and nothing blows up.
@@ -396,3 +395,58 @@ class ProcessAPITestCase(TestBase):
                 "Process effective group ID is invalid")
 
         process_info.GetParentProcessID()
+
+    def test_allocate_deallocate_memory(self):
+        """Test Python SBProcess.AllocateMemory() and SBProcess.DeallocateMemory() APIs."""
+        self.build()
+        (target, process, main_thread, main_breakpoint) = lldbutil.run_to_source_breakpoint(
+            self, "// Set break point at this line", lldb.SBFileSpec("main.cpp"))
+
+        # Allocate a block of memory in the target process
+        error = lldb.SBError()
+        addr = process.AllocateMemory(16384, lldb.ePermissionsReadable, error)
+        if not error.Success() or addr == lldb.LLDB_INVALID_ADDRESS:
+            self.fail("SBProcess.AllocateMemory() failed")
+
+        # Now use WriteMemory() API to write 'a' into the allocated
+        # memory. Note that the debugger can do this even though the
+        # block is not set writable.
+        result = process.WriteMemory(addr, 'a', error)
+        if not error.Success() or result != 1:
+            self.fail("SBProcess.WriteMemory() failed")
+
+        # Read from the memory location.  This time it should be 'a'.
+        # Due to the typemap magic (see lldb.swig), we pass in 1 to ReadMemory and
+        # expect to get a Python string as the result object!
+        content = process.ReadMemory(addr, 1, error)
+        if not error.Success():
+            self.fail("SBProcess.ReadMemory() failed")
+        if self.TraceOn():
+            print("memory content:", content)
+
+        self.expect(
+            content,
+            "Result from SBProcess.ReadMemory() matches our expected output: 'a'",
+            exe=False,
+            startstr=b'a')
+
+        # Verify that the process itself can read the allocated memory
+        frame = main_thread.GetFrameAtIndex(0)
+        val = frame.EvaluateExpression(
+            "test_read(reinterpret_cast<char *>({:#x}))".format(addr))
+        self.expect(val.GetValue(),
+                    "Result of test_read() matches expected output 'a'",
+                    exe=False,
+                    startstr="'a'")
+
+        # Verify that the process cannot write into the block
+        val = frame.EvaluateExpression(
+            "test_write(reinterpret_cast<char *>({:#x}), 'b')".format(addr))
+        if val.GetError().Success():
+            self.fail(
+                "test_write() to allocated memory without write permission unexpectedly succeeded")
+
+        # Deallocate the memory
+        error = process.DeallocateMemory(addr)
+        if not error.Success():
+            self.fail("SBProcess.DeallocateMemory() failed")

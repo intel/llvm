@@ -86,11 +86,6 @@ void ObjectFileWasm::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-ConstString ObjectFileWasm::GetPluginNameStatic() {
-  static ConstString g_name("wasm");
-  return g_name;
-}
-
 ObjectFile *
 ObjectFileWasm::CreateInstance(const ModuleSP &module_sp, DataBufferSP &data_sp,
                                offset_t data_offset, const FileSpec *file,
@@ -196,7 +191,7 @@ bool ObjectFileWasm::DecodeNextSection(lldb::offset_t *offset_ptr) {
     m_sect_infos.push_back(section_info{*offset_ptr + c.tell(), section_length,
                                         section_id, *sect_name});
     *offset_ptr += (c.tell() + section_length);
-  } else if (section_id <= llvm::wasm::WASM_SEC_EVENT) {
+  } else if (section_id <= llvm::wasm::WASM_SEC_TAG) {
     m_sect_infos.push_back(section_info{*offset_ptr + c.tell(),
                                         static_cast<uint32_t>(payload_len),
                                         section_id, ConstString()});
@@ -251,7 +246,7 @@ bool ObjectFileWasm::ParseHeader() {
   return true;
 }
 
-Symtab *ObjectFileWasm::GetSymtab() { return nullptr; }
+void ObjectFileWasm::ParseSymtab(Symtab &symtab) {}
 
 static SectionType GetSectionTypeFromName(llvm::StringRef Name) {
   if (Name.consume_front(".debug_") || Name.consume_front(".zdebug_")) {

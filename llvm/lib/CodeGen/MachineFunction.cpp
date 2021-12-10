@@ -89,6 +89,7 @@ static cl::opt<unsigned> AlignAllFunctions(
 static const char *getPropertyName(MachineFunctionProperties::Property Prop) {
   using P = MachineFunctionProperties::Property;
 
+  // clang-format off
   switch(Prop) {
   case P::FailedISel: return "FailedISel";
   case P::IsSSA: return "IsSSA";
@@ -99,7 +100,10 @@ static const char *getPropertyName(MachineFunctionProperties::Property Prop) {
   case P::Selected: return "Selected";
   case P::TracksLiveness: return "TracksLiveness";
   case P::TiedOpsRewritten: return "TiedOpsRewritten";
+  case P::FailsVerification: return "FailsVerification";
+  case P::TracksDebugUserValues: return "TracksDebugUserValues";
   }
+  // clang-format on
   llvm_unreachable("Invalid machine function property");
 }
 
@@ -129,8 +133,8 @@ void ilist_alloc_traits<MachineBasicBlock>::deleteNode(MachineBasicBlock *MBB) {
 
 static inline unsigned getFnStackAlignment(const TargetSubtargetInfo *STI,
                                            const Function &F) {
-  if (F.hasFnAttribute(Attribute::StackAlignment))
-    return F.getFnStackAlignment();
+  if (auto MA = F.getFnStackAlign())
+    return MA->value();
   return STI->getFrameLowering()->getStackAlign().value();
 }
 
@@ -438,15 +442,34 @@ MachineMemOperand *MachineFunction::getMachineMemOperand(
 }
 
 MachineMemOperand *MachineFunction::getMachineMemOperand(
-    const MachineMemOperand *MMO, MachinePointerInfo &PtrInfo, uint64_t Size) {
-  return new (Allocator) MachineMemOperand(
-      PtrInfo, MMO->getFlags(), Size, MMO->getBaseAlign(), AAMDNodes(), nullptr,
-      MMO->getSyncScopeID(), MMO->getOrdering(), MMO->getFailureOrdering());
+    MachinePointerInfo PtrInfo, MachineMemOperand::Flags f, LLT MemTy,
+    Align base_alignment, const AAMDNodes &AAInfo, const MDNode *Ranges,
+    SyncScope::ID SSID, AtomicOrdering Ordering,
+    AtomicOrdering FailureOrdering) {
+  return new (Allocator)
+      MachineMemOperand(PtrInfo, f, MemTy, base_alignment, AAInfo, Ranges, SSID,
+                        Ordering, FailureOrdering);
+}
+
+MachineMemOperand *MachineFunction::getMachineMemOperand(
+    const MachineMemOperand *MMO, const MachinePointerInfo &PtrInfo, uint64_t Size) {
+  return new (Allocator)
+      MachineMemOperand(PtrInfo, MMO->getFlags(), Size, MMO->getBaseAlign(),
+                        AAMDNodes(), nullptr, MMO->getSyncScopeID(),
+                        MMO->getSuccessOrdering(), MMO->getFailureOrdering());
+}
+
+MachineMemOperand *MachineFunction::getMachineMemOperand(
+    const MachineMemOperand *MMO, const MachinePointerInfo &PtrInfo, LLT Ty) {
+  return new (Allocator)
+      MachineMemOperand(PtrInfo, MMO->getFlags(), Ty, MMO->getBaseAlign(),
+                        AAMDNodes(), nullptr, MMO->getSyncScopeID(),
+                        MMO->getSuccessOrdering(), MMO->getFailureOrdering());
 }
 
 MachineMemOperand *
 MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
-                                      int64_t Offset, uint64_t Size) {
+                                      int64_t Offset, LLT Ty) {
   const MachinePointerInfo &PtrInfo = MMO->getPointerInfo();
 
   // If there is no pointer value, the offset isn't tracked so we need to adjust
@@ -457,10 +480,10 @@ MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
 
   // Do not preserve ranges, since we don't necessarily know what the high bits
   // are anymore.
-  return new (Allocator)
-      MachineMemOperand(PtrInfo.getWithOffset(Offset), MMO->getFlags(), Size,
-                        Alignment, MMO->getAAInfo(), nullptr, MMO->getSyncScopeID(),
-                        MMO->getOrdering(), MMO->getFailureOrdering());
+  return new (Allocator) MachineMemOperand(
+      PtrInfo.getWithOffset(Offset), MMO->getFlags(), Ty, Alignment,
+      MMO->getAAInfo(), nullptr, MMO->getSyncScopeID(),
+      MMO->getSuccessOrdering(), MMO->getFailureOrdering());
 }
 
 MachineMemOperand *
@@ -472,7 +495,7 @@ MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
 
   return new (Allocator) MachineMemOperand(
       MPI, MMO->getFlags(), MMO->getSize(), MMO->getBaseAlign(), AAInfo,
-      MMO->getRanges(), MMO->getSyncScopeID(), MMO->getOrdering(),
+      MMO->getRanges(), MMO->getSyncScopeID(), MMO->getSuccessOrdering(),
       MMO->getFailureOrdering());
 }
 
@@ -482,7 +505,7 @@ MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
   return new (Allocator) MachineMemOperand(
       MMO->getPointerInfo(), Flags, MMO->getSize(), MMO->getBaseAlign(),
       MMO->getAAInfo(), MMO->getRanges(), MMO->getSyncScopeID(),
-      MMO->getOrdering(), MMO->getFailureOrdering());
+      MMO->getSuccessOrdering(), MMO->getFailureOrdering());
 }
 
 MachineInstr::ExtraInfo *MachineFunction::createMIExtraInfo(
@@ -726,9 +749,8 @@ MCSymbol *MachineFunction::addLandingPad(MachineBasicBlock *LandingPad) {
         // Add filters in a list.
         auto *CVal = cast<Constant>(Val);
         SmallVector<const GlobalValue *, 4> FilterList;
-        for (User::op_iterator II = CVal->op_begin(), IE = CVal->op_end();
-             II != IE; ++II)
-          FilterList.push_back(cast<GlobalValue>((*II)->stripPointerCasts()));
+        for (const Use &U : CVal->operands())
+          FilterList.push_back(cast<GlobalValue>(U->stripPointerCasts()));
 
         addFilterTypeInfo(LandingPad, FilterList);
       }
@@ -950,10 +972,14 @@ void MachineFunction::setDebugInstrNumberingCount(unsigned Num) {
 }
 
 void MachineFunction::makeDebugValueSubstitution(DebugInstrOperandPair A,
-                                                 DebugInstrOperandPair B) {
-  auto Result = DebugValueSubstitutions.insert(std::make_pair(A, B));
-  (void)Result;
-  assert(Result.second && "Substitution for an already substituted value?");
+                                                 DebugInstrOperandPair B,
+                                                 unsigned Subreg) {
+  // Catch any accidental self-loops.
+  assert(A.first != B.first);
+  // Don't allow any substitutions _from_ the memory operand number.
+  assert(A.second != DebugOperandMemNumber);
+
+  DebugValueSubstitutions.push_back({A, B, Subreg});
 }
 
 void MachineFunction::substituteDebugValuesForInst(const MachineInstr &Old,
@@ -970,7 +996,7 @@ void MachineFunction::substituteDebugValuesForInst(const MachineInstr &Old,
   // MIR output.
   // Examine all the operands, or the first N specified by the caller.
   MaxOperand = std::min(MaxOperand, Old.getNumOperands());
-  for (unsigned int I = 0; I < Old.getNumOperands(); ++I) {
+  for (unsigned int I = 0; I < MaxOperand; ++I) {
     const auto &OldMO = Old.getOperand(I);
     auto &NewMO = New.getOperand(I);
     (void)NewMO;
@@ -984,6 +1010,243 @@ void MachineFunction::substituteDebugValuesForInst(const MachineInstr &Old,
                                std::make_pair(NewInstrNum, I));
   }
 }
+
+auto MachineFunction::salvageCopySSA(MachineInstr &MI)
+    -> DebugInstrOperandPair {
+  MachineRegisterInfo &MRI = getRegInfo();
+  const TargetRegisterInfo &TRI = *MRI.getTargetRegisterInfo();
+  const TargetInstrInfo &TII = *getSubtarget().getInstrInfo();
+
+  // Chase the value read by a copy-like instruction back to the instruction
+  // that ultimately _defines_ that value. This may pass:
+  //  * Through multiple intermediate copies, including subregister moves /
+  //    copies,
+  //  * Copies from physical registers that must then be traced back to the
+  //    defining instruction,
+  //  * Or, physical registers may be live-in to (only) the entry block, which
+  //    requires a DBG_PHI to be created.
+  // We can pursue this problem in that order: trace back through copies,
+  // optionally through a physical register, to a defining instruction. We
+  // should never move from physreg to vreg. As we're still in SSA form, no need
+  // to worry about partial definitions of registers.
+
+  // Helper lambda to interpret a copy-like instruction. Takes instruction,
+  // returns the register read and any subregister identifying which part is
+  // read.
+  auto GetRegAndSubreg =
+      [&](const MachineInstr &Cpy) -> std::pair<Register, unsigned> {
+    Register NewReg, OldReg;
+    unsigned SubReg;
+    if (Cpy.isCopy()) {
+      OldReg = Cpy.getOperand(0).getReg();
+      NewReg = Cpy.getOperand(1).getReg();
+      SubReg = Cpy.getOperand(1).getSubReg();
+    } else if (Cpy.isSubregToReg()) {
+      OldReg = Cpy.getOperand(0).getReg();
+      NewReg = Cpy.getOperand(2).getReg();
+      SubReg = Cpy.getOperand(3).getImm();
+    } else {
+      auto CopyDetails = *TII.isCopyInstr(Cpy);
+      const MachineOperand &Src = *CopyDetails.Source;
+      const MachineOperand &Dest = *CopyDetails.Destination;
+      OldReg = Dest.getReg();
+      NewReg = Src.getReg();
+      SubReg = Src.getSubReg();
+    }
+
+    return {NewReg, SubReg};
+  };
+
+  // First seek either the defining instruction, or a copy from a physreg.
+  // During search, the current state is the current copy instruction, and which
+  // register we've read. Accumulate qualifying subregisters into SubregsSeen;
+  // deal with those later.
+  auto State = GetRegAndSubreg(MI);
+  auto CurInst = MI.getIterator();
+  SmallVector<unsigned, 4> SubregsSeen;
+  while (true) {
+    // If we've found a copy from a physreg, first portion of search is over.
+    if (!State.first.isVirtual())
+      break;
+
+    // Record any subregister qualifier.
+    if (State.second)
+      SubregsSeen.push_back(State.second);
+
+    assert(MRI.hasOneDef(State.first));
+    MachineInstr &Inst = *MRI.def_begin(State.first)->getParent();
+    CurInst = Inst.getIterator();
+
+    // Any non-copy instruction is the defining instruction we're seeking.
+    if (!Inst.isCopyLike() && !TII.isCopyInstr(Inst))
+      break;
+    State = GetRegAndSubreg(Inst);
+  };
+
+  // Helper lambda to apply additional subregister substitutions to a known
+  // instruction/operand pair. Adds new (fake) substitutions so that we can
+  // record the subregister. FIXME: this isn't very space efficient if multiple
+  // values are tracked back through the same copies; cache something later.
+  auto ApplySubregisters =
+      [&](DebugInstrOperandPair P) -> DebugInstrOperandPair {
+    for (unsigned Subreg : reverse(SubregsSeen)) {
+      // Fetch a new instruction number, not attached to an actual instruction.
+      unsigned NewInstrNumber = getNewDebugInstrNum();
+      // Add a substitution from the "new" number to the known one, with a
+      // qualifying subreg.
+      makeDebugValueSubstitution({NewInstrNumber, 0}, P, Subreg);
+      // Return the new number; to find the underlying value, consumers need to
+      // deal with the qualifying subreg.
+      P = {NewInstrNumber, 0};
+    }
+    return P;
+  };
+
+  // If we managed to find the defining instruction after COPYs, return an
+  // instruction / operand pair after adding subregister qualifiers.
+  if (State.first.isVirtual()) {
+    // Virtual register def -- we can just look up where this happens.
+    MachineInstr *Inst = MRI.def_begin(State.first)->getParent();
+    for (auto &MO : Inst->operands()) {
+      if (!MO.isReg() || !MO.isDef() || MO.getReg() != State.first)
+        continue;
+      return ApplySubregisters(
+          {Inst->getDebugInstrNum(), Inst->getOperandNo(&MO)});
+    }
+
+    llvm_unreachable("Vreg def with no corresponding operand?");
+  }
+
+  // Our search ended in a copy from a physreg: walk back up the function
+  // looking for whatever defines the physreg.
+  assert(CurInst->isCopyLike() || TII.isCopyInstr(*CurInst));
+  State = GetRegAndSubreg(*CurInst);
+  Register RegToSeek = State.first;
+
+  auto RMII = CurInst->getReverseIterator();
+  auto PrevInstrs = make_range(RMII, CurInst->getParent()->instr_rend());
+  for (auto &ToExamine : PrevInstrs) {
+    for (auto &MO : ToExamine.operands()) {
+      // Test for operand that defines something aliasing RegToSeek.
+      if (!MO.isReg() || !MO.isDef() ||
+          !TRI.regsOverlap(RegToSeek, MO.getReg()))
+        continue;
+
+      return ApplySubregisters(
+          {ToExamine.getDebugInstrNum(), ToExamine.getOperandNo(&MO)});
+    }
+  }
+
+  MachineBasicBlock &InsertBB = *CurInst->getParent();
+
+  // We reached the start of the block before finding a defining instruction.
+  // It could be from a constant register, otherwise it must be an argument.
+  if (TRI.isConstantPhysReg(State.first)) {
+    // We can produce a DBG_PHI that identifies the constant physreg. Doesn't
+    // matter where we put it, as it's constant valued.
+    assert(CurInst->isCopy());
+  } else if (State.first == TRI.getFrameRegister(*this)) {
+    // LLVM IR is allowed to read the framepointer by calling a
+    // llvm.frameaddress.* intrinsic. We can support this by emitting a
+    // DBG_PHI $fp. This isn't ideal, because it extends the behaviours /
+    // position that DBG_PHIs appear at, limiting what can be done later.
+    // TODO: see if there's a better way of expressing these variable
+    // locations.
+    ;
+  } else {
+    // Assert that this is the entry block, or an EH pad. If it isn't, then
+    // there is some code construct we don't recognise that deals with physregs
+    // across blocks.
+    assert(!State.first.isVirtual());
+    assert(&*InsertBB.getParent()->begin() == &InsertBB || InsertBB.isEHPad());
+  }
+
+  // Create DBG_PHI for specified physreg.
+  auto Builder = BuildMI(InsertBB, InsertBB.getFirstNonPHI(), DebugLoc(),
+                         TII.get(TargetOpcode::DBG_PHI));
+  Builder.addReg(State.first);
+  unsigned NewNum = getNewDebugInstrNum();
+  Builder.addImm(NewNum);
+  return ApplySubregisters({NewNum, 0u});
+}
+
+void MachineFunction::finalizeDebugInstrRefs() {
+  auto *TII = getSubtarget().getInstrInfo();
+
+  auto MakeUndefDbgValue = [&](MachineInstr &MI) {
+    const MCInstrDesc &RefII = TII->get(TargetOpcode::DBG_VALUE);
+    MI.setDesc(RefII);
+    MI.getOperand(0).setReg(0);
+    MI.getOperand(1).ChangeToRegister(0, false);
+  };
+
+  if (!useDebugInstrRef())
+    return;
+
+  for (auto &MBB : *this) {
+    for (auto &MI : MBB) {
+      if (!MI.isDebugRef() || !MI.getOperand(0).isReg())
+        continue;
+
+      Register Reg = MI.getOperand(0).getReg();
+
+      // Some vregs can be deleted as redundant in the meantime. Mark those
+      // as DBG_VALUE $noreg. Additionally, some normal instructions are
+      // quickly deleted, leaving dangling references to vregs with no def.
+      if (Reg == 0 || !RegInfo->hasOneDef(Reg)) {
+        MakeUndefDbgValue(MI);
+        continue;
+      }
+
+      assert(Reg.isVirtual());
+      MachineInstr &DefMI = *RegInfo->def_instr_begin(Reg);
+
+      // If we've found a copy-like instruction, follow it back to the
+      // instruction that defines the source value, see salvageCopySSA docs
+      // for why this is important.
+      if (DefMI.isCopyLike() || TII->isCopyInstr(DefMI)) {
+        auto Result = salvageCopySSA(DefMI);
+        MI.getOperand(0).ChangeToImmediate(Result.first);
+        MI.getOperand(1).setImm(Result.second);
+      } else {
+        // Otherwise, identify the operand number that the VReg refers to.
+        unsigned OperandIdx = 0;
+        for (const auto &MO : DefMI.operands()) {
+          if (MO.isReg() && MO.isDef() && MO.getReg() == Reg)
+            break;
+          ++OperandIdx;
+        }
+        assert(OperandIdx < DefMI.getNumOperands());
+
+        // Morph this instr ref to point at the given instruction and operand.
+        unsigned ID = DefMI.getDebugInstrNum();
+        MI.getOperand(0).ChangeToImmediate(ID);
+        MI.getOperand(1).setImm(OperandIdx);
+      }
+    }
+  }
+}
+
+bool MachineFunction::useDebugInstrRef() const {
+  // Disable instr-ref at -O0: it's very slow (in compile time). We can still
+  // have optimized code inlined into this unoptimized code, however with
+  // fewer and less aggressive optimizations happening, coverage and accuracy
+  // should not suffer.
+  if (getTarget().getOptLevel() == CodeGenOpt::None)
+    return false;
+
+  // Don't use instr-ref if this function is marked optnone.
+  if (F.hasFnAttribute(Attribute::OptimizeNone))
+    return false;
+
+  if (getTarget().Options.ValueTrackingVariableLocations)
+    return true;
+
+  return false;
+}
+
+// Use one million as a high / reserved number.
+const unsigned MachineFunction::DebugOperandMemNumber = 1000000;
 
 /// \}
 
@@ -1068,9 +1331,9 @@ bool MachineJumpTableInfo::ReplaceMBBInJumpTable(unsigned Idx,
   assert(Old != New && "Not making a change?");
   bool MadeChange = false;
   MachineJumpTableEntry &JTE = JumpTables[Idx];
-  for (size_t j = 0, e = JTE.MBBs.size(); j != e; ++j)
-    if (JTE.MBBs[j] == Old) {
-      JTE.MBBs[j] = New;
+  for (MachineBasicBlock *&MBB : JTE.MBBs)
+    if (MBB == Old) {
+      MBB = New;
       MadeChange = true;
     }
   return MadeChange;
@@ -1083,8 +1346,8 @@ void MachineJumpTableInfo::print(raw_ostream &OS) const {
 
   for (unsigned i = 0, e = JumpTables.size(); i != e; ++i) {
     OS << printJumpTableEntryReference(i) << ':';
-    for (unsigned j = 0, f = JumpTables[i].MBBs.size(); j != f; ++j)
-      OS << ' ' << printMBBReference(*JumpTables[i].MBBs[j]);
+    for (const MachineBasicBlock *MBB : JumpTables[i].MBBs)
+      OS << ' ' << printMBBReference(*MBB);
     if (i != e)
       OS << '\n';
   }
@@ -1144,10 +1407,10 @@ MachineConstantPool::~MachineConstantPool() {
   // A constant may be a member of both Constants and MachineCPVsSharingEntries,
   // so keep track of which we've deleted to avoid double deletions.
   DenseSet<MachineConstantPoolValue*> Deleted;
-  for (unsigned i = 0, e = Constants.size(); i != e; ++i)
-    if (Constants[i].isMachineConstantPoolEntry()) {
-      Deleted.insert(Constants[i].Val.MachineCPVal);
-      delete Constants[i].Val.MachineCPVal;
+  for (const MachineConstantPoolEntry &C : Constants)
+    if (C.isMachineConstantPoolEntry()) {
+      Deleted.insert(C.Val.MachineCPVal);
+      delete C.Val.MachineCPVal;
     }
   for (MachineConstantPoolValue *CPV : MachineCPVsSharingEntries) {
     if (Deleted.count(CPV) == 0)

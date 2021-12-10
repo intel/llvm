@@ -10,11 +10,7 @@
 
 // class set
 
-// explicit set(const value_compare& comp) const;
-// value_compare and key_compare are the same type for set/multiset
-
-// key_compare    key_comp() const;
-// value_compare value_comp() const;
+// explicit set(const key_compare& comp) const;
 
 #include <set>
 #include <cassert>
@@ -24,7 +20,7 @@
 
 int main(int, char**)
 {
-    typedef test_compare<std::less<int> > C;
+    typedef test_less<int> C;
     const std::set<int, C> m(C(3));
     assert(m.empty());
     assert(m.begin() == m.end());

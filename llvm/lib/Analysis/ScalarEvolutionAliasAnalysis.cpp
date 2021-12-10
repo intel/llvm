@@ -23,6 +23,15 @@
 #include "llvm/InitializePasses.h"
 using namespace llvm;
 
+static bool canComputePointerDiff(ScalarEvolution &SE,
+                                  const SCEV *A, const SCEV *B) {
+  if (SE.getEffectiveSCEVType(A->getType()) !=
+      SE.getEffectiveSCEVType(B->getType()))
+    return false;
+
+  return SE.instructionCouldExistWitthOperands(A, B);
+}
+
 AliasResult SCEVAAResult::alias(const MemoryLocation &LocA,
                                 const MemoryLocation &LocB, AAQueryInfo &AAQI) {
   // If either of the memory references is empty, it doesn't matter what the
@@ -41,8 +50,7 @@ AliasResult SCEVAAResult::alias(const MemoryLocation &LocA,
 
   // If something is known about the difference between the two addresses,
   // see if it's enough to prove a NoAlias.
-  if (SE.getEffectiveSCEVType(AS->getType()) ==
-      SE.getEffectiveSCEVType(BS->getType())) {
+  if (canComputePointerDiff(SE, AS, BS)) {
     unsigned BitWidth = SE.getTypeSizeInBits(AS->getType());
     APInt ASizeInt(BitWidth, LocA.Size.hasValue()
                                  ? LocA.Size.getValue()
@@ -57,7 +65,8 @@ AliasResult SCEVAAResult::alias(const MemoryLocation &LocA,
     // Test whether the difference is known to be great enough that memory of
     // the given sizes don't overlap. This assumes that ASizeInt and BSizeInt
     // are non-zero, which is special-cased above.
-    if (ASizeInt.ule(SE.getUnsignedRange(BA).getUnsignedMin()) &&
+    if (!isa<SCEVCouldNotCompute>(BA) &&
+        ASizeInt.ule(SE.getUnsignedRange(BA).getUnsignedMin()) &&
         (-BSizeInt).uge(SE.getUnsignedRange(BA).getUnsignedMax()))
       return AliasResult::NoAlias;
 
@@ -71,7 +80,8 @@ AliasResult SCEVAAResult::alias(const MemoryLocation &LocA,
     // Test whether the difference is known to be great enough that memory of
     // the given sizes don't overlap. This assumes that ASizeInt and BSizeInt
     // are non-zero, which is special-cased above.
-    if (BSizeInt.ule(SE.getUnsignedRange(AB).getUnsignedMin()) &&
+    if (!isa<SCEVCouldNotCompute>(AB) &&
+        BSizeInt.ule(SE.getUnsignedRange(AB).getUnsignedMin()) &&
         (-ASizeInt).uge(SE.getUnsignedRange(AB).getUnsignedMax()))
       return AliasResult::NoAlias;
   }

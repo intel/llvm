@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown-sycldevice -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -12,17 +12,17 @@ public:
 
 class Functor1 {
 public:
-  [[intel::reqd_sub_group_size(2), intel::reqd_work_group_size(64, 32, 32)]] void operator()() const {}
+  [[intel::reqd_sub_group_size(2), sycl::reqd_work_group_size(64, 32, 32)]] void operator()() const {}
 };
 
 template <int SIZE, int SIZE1, int SIZE2>
 class Functor2 {
 public:
-  [[intel::reqd_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() const {}
+  [[sycl::reqd_work_group_size(SIZE, SIZE1, SIZE2)]] void operator()() const {}
 };
 
 template <int N, int N1, int N2>
-[[intel::reqd_work_group_size(N, N1, N2)]] void func() {}
+[[sycl::reqd_work_group_size(N, N1, N2)]] void func() {}
 
 int main() {
   q.submit([&](handler &h) {

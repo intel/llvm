@@ -86,10 +86,10 @@ ProcessSP ProcessWindows::CreateInstance(lldb::TargetSP target_sp,
 
 static bool ShouldUseLLDBServer() {
   llvm::StringRef use_lldb_server = ::getenv("LLDB_USE_LLDB_SERVER");
-  return use_lldb_server.equals_lower("on") ||
-         use_lldb_server.equals_lower("yes") ||
-         use_lldb_server.equals_lower("1") ||
-         use_lldb_server.equals_lower("true");
+  return use_lldb_server.equals_insensitive("on") ||
+         use_lldb_server.equals_insensitive("yes") ||
+         use_lldb_server.equals_insensitive("1") ||
+         use_lldb_server.equals_insensitive("true");
 }
 
 void ProcessWindows::Initialize() {
@@ -106,12 +106,7 @@ void ProcessWindows::Initialize() {
 
 void ProcessWindows::Terminate() {}
 
-lldb_private::ConstString ProcessWindows::GetPluginNameStatic() {
-  static ConstString g_name("windows");
-  return g_name;
-}
-
-const char *ProcessWindows::GetPluginDescriptionStatic() {
+llvm::StringRef ProcessWindows::GetPluginDescriptionStatic() {
   return "Process plugin for Windows";
 }
 
@@ -141,14 +136,6 @@ size_t ProcessWindows::PutSTDIN(const char *buf, size_t buf_size,
   error.SetErrorString("PutSTDIN unsupported on Windows");
   return 0;
 }
-
-// ProcessInterface protocol.
-
-lldb_private::ConstString ProcessWindows::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t ProcessWindows::GetPluginVersion() { return 1; }
 
 Status ProcessWindows::EnableBreakpointSite(BreakpointSite *bp_site) {
   if (bp_site->HardwareRequired())
@@ -394,7 +381,7 @@ void ProcessWindows::RefreshStateAfterStop() {
     RegisterContextSP register_context = stop_thread->GetRegisterContext();
     const uint64_t pc = register_context->GetPC();
     BreakpointSiteSP site(GetBreakpointSiteList().FindByAddress(pc));
-    if (site && site->ValidForThisThread(stop_thread.get())) {
+    if (site && site->ValidForThisThread(*stop_thread)) {
       LLDB_LOG(log,
                "Single-stepped onto a breakpoint in process {0} at "
                "address {1:x} with breakpoint site {2}",
@@ -438,8 +425,29 @@ void ProcessWindows::RefreshStateAfterStop() {
   case EXCEPTION_BREAKPOINT: {
     RegisterContextSP register_context = stop_thread->GetRegisterContext();
 
-    // The current EIP is AFTER the BP opcode, which is one byte.
-    uint64_t pc = register_context->GetPC() - 1;
+    int breakpoint_size = 1;
+    switch (GetTarget().GetArchitecture().GetMachine()) {
+    case llvm::Triple::aarch64:
+      breakpoint_size = 4;
+      break;
+
+    case llvm::Triple::arm:
+    case llvm::Triple::thumb:
+      breakpoint_size = 2;
+      break;
+
+    case llvm::Triple::x86:
+    case llvm::Triple::x86_64:
+      breakpoint_size = 1;
+      break;
+
+    default:
+      LLDB_LOG(log, "Unknown breakpoint size for architecture");
+      break;
+    }
+
+    // The current PC is AFTER the BP opcode, on all architectures.
+    uint64_t pc = register_context->GetPC() - breakpoint_size;
 
     BreakpointSiteSP site(GetBreakpointSiteList().FindByAddress(pc));
     if (site) {
@@ -449,7 +457,7 @@ void ProcessWindows::RefreshStateAfterStop() {
                m_session_data->m_debugger->GetProcess().GetProcessId(), pc,
                site->GetID());
 
-      if (site->ValidForThisThread(stop_thread.get())) {
+      if (site->ValidForThisThread(*stop_thread)) {
         LLDB_LOG(log,
                  "Breakpoint site {0} is valid for this thread ({1:x}), "
                  "creating stop info.",
@@ -611,7 +619,7 @@ lldb::addr_t ProcessWindows::GetImageInfoAddress() {
 DynamicLoaderWindowsDYLD *ProcessWindows::GetDynamicLoader() {
   if (m_dyld_up.get() == NULL)
     m_dyld_up.reset(DynamicLoader::FindPlugin(
-        this, DynamicLoaderWindowsDYLD::GetPluginNameStatic().GetCString()));
+        this, DynamicLoaderWindowsDYLD::GetPluginNameStatic()));
   return static_cast<DynamicLoaderWindowsDYLD *>(m_dyld_up.get());
 }
 

@@ -1,4 +1,4 @@
-//===-- runtime/tools.cpp ---------------------------------------*- C++ -*-===//
+//===-- runtime/tools.cpp -------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,6 +10,7 @@
 #include "terminator.h"
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 
 namespace Fortran::runtime {
@@ -71,9 +72,11 @@ int IdentifyValue(
 void ToFortranDefaultCharacter(
     char *to, std::size_t toLength, const char *from) {
   std::size_t len{std::strlen(from)};
-  std::memcpy(to, from, std::max(toLength, len));
   if (len < toLength) {
+    std::memcpy(to, from, len);
     std::memset(to + len, ' ', toLength - len);
+  } else {
+    std::memcpy(to, from, toLength);
   }
 }
 

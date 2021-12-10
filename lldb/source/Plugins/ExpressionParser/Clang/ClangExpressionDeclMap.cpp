@@ -59,9 +59,7 @@ using namespace lldb;
 using namespace lldb_private;
 using namespace clang;
 
-namespace {
-const char *g_lldb_local_vars_namespace_cstr = "$__lldb_local_vars";
-} // anonymous namespace
+static const char *g_lldb_local_vars_namespace_cstr = "$__lldb_local_vars";
 
 ClangExpressionDeclMap::ClangExpressionDeclMap(
     bool keep_result_in_memory,
@@ -810,7 +808,7 @@ void ClangExpressionDeclMap::LookUpLldbClass(NameSearchContext &context) {
     LLDB_LOG(log, "  CEDM::FEVD Adding type for $__lldb_class: {1}",
              class_qual_type.getAsString());
 
-    AddContextClassType(context, class_user_type, method_decl);
+    AddContextClassType(context, class_user_type);
 
     if (method_decl->isInstance()) {
       // self is a pointer to the object
@@ -1220,22 +1218,25 @@ void ClangExpressionDeclMap::LookupFunction(
     }
   }
 
-  const bool include_inlines = false;
   SymbolContextList sc_list;
   if (namespace_decl && module_sp) {
-    const bool include_symbols = false;
+    ModuleFunctionSearchOptions function_options;
+    function_options.include_inlines = false;
+    function_options.include_symbols = false;
 
     module_sp->FindFunctions(name, namespace_decl, eFunctionNameTypeBase,
-                             include_symbols, include_inlines, sc_list);
+                             function_options, sc_list);
   } else if (target && !namespace_decl) {
-    const bool include_symbols = true;
+    ModuleFunctionSearchOptions function_options;
+    function_options.include_inlines = false;
+    function_options.include_symbols = true;
 
     // TODO Fix FindFunctions so that it doesn't return
     //   instance methods for eFunctionNameTypeBase.
 
     target->GetImages().FindFunctions(
-        name, eFunctionNameTypeFull | eFunctionNameTypeBase, include_symbols,
-        include_inlines, sc_list);
+        name, eFunctionNameTypeFull | eFunctionNameTypeBase, function_options,
+        sc_list);
   }
 
   // If we found more than one function, see if we can use the frame's decl
@@ -1890,9 +1891,8 @@ void ClangExpressionDeclMap::AddOneFunction(NameSearchContext &context,
   }
 }
 
-void ClangExpressionDeclMap::AddContextClassType(
-    NameSearchContext &context, const TypeFromUser &ut,
-    CXXMethodDecl *context_method) {
+void ClangExpressionDeclMap::AddContextClassType(NameSearchContext &context,
+                                                 const TypeFromUser &ut) {
   CompilerType copied_clang_type = GuardedCopyType(ut);
 
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
@@ -1914,12 +1914,7 @@ void ClangExpressionDeclMap::AddContextClassType(
         void_clang_type, &void_ptr_clang_type, 1, false, 0);
 
     const bool is_virtual = false;
-    // If we evaluate an expression inside a static method, we also need to
-    // make our lldb_expr method static so that Clang denies access to
-    // non-static members.
-    // If we don't have a context_method we are evaluating within a context
-    // object and we can allow access to non-static members.
-    const bool is_static = context_method ? context_method->isStatic() : false;
+    const bool is_static = false;
     const bool is_inline = false;
     const bool is_explicit = false;
     const bool is_attr_used = true;

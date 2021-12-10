@@ -134,9 +134,8 @@ void ilist_callback_traits<MachineBasicBlock>::addNodeToList(
 
   // Make sure the instructions have their operands in the reginfo lists.
   MachineRegisterInfo &RegInfo = MF.getRegInfo();
-  for (MachineBasicBlock::instr_iterator
-         I = N->instr_begin(), E = N->instr_end(); I != E; ++I)
-    I->AddRegOperandsToUseLists(RegInfo);
+  for (MachineInstr &MI : N->instrs())
+    MI.AddRegOperandsToUseLists(RegInfo);
 }
 
 void ilist_callback_traits<MachineBasicBlock>::removeNodeFromList(
@@ -281,8 +280,8 @@ MachineBasicBlock::getLastNonDebugInstr(bool SkipPseudoOp) {
 }
 
 bool MachineBasicBlock::hasEHPadSuccessor() const {
-  for (const_succ_iterator I = succ_begin(), E = succ_end(); I != E; ++I)
-    if ((*I)->isEHPad())
+  for (const MachineBasicBlock *Succ : successors())
+    if (Succ->isEHPad())
       return true;
   return false;
 }
@@ -515,6 +514,11 @@ void MachineBasicBlock::printName(raw_ostream &os, unsigned printNameFlags,
     if (isEHPad()) {
       os << (hasAttributes ? ", " : " (");
       os << "landing-pad";
+      hasAttributes = true;
+    }
+    if (isInlineAsmBrIndirectTarget()) {
+      os << (hasAttributes ? ", " : " (");
+      os << "inlineasm-br-indirect-target";
       hasAttributes = true;
     }
     if (isEHFuncletEntry()) {
@@ -901,32 +905,6 @@ MachineBasicBlock::transferSuccessorsAndUpdatePHIs(MachineBasicBlock *FromMBB) {
   normalizeSuccProbs();
 }
 
-/// A block emptied (i.e., with all instructions moved out of it) won't be
-/// sampled at run time. In such cases, AutoFDO will be informed of zero samples
-/// collected for the block. This is not accurate and could lead to misleading
-/// weights assigned for the block. A way to mitigate that is to treat such
-/// block as having unknown counts in the AutoFDO profile loader and allow the
-/// counts inference tool a chance to calculate a relatively reasonable weight
-/// for it. This can be done by moving all pseudo probes in the emptied block
-/// i.e, /c this, to before /c ToMBB and tag them dangling. Note that this is
-/// not needed for dead blocks which really have a zero weight. It's per
-/// transforms to decide whether to call this function or not.
-void MachineBasicBlock::moveAndDanglePseudoProbes(MachineBasicBlock *ToMBB) {
-  SmallVector<MachineInstr *, 4> ToBeMoved;
-  for (MachineInstr &MI : instrs()) {
-    if (MI.isPseudoProbe()) {
-      MI.addPseudoProbeAttribute(PseudoProbeAttributes::Dangling);
-      ToBeMoved.push_back(&MI);
-    }
-  }
-
-  MachineBasicBlock::iterator I = ToMBB->getFirstTerminator();
-  for (MachineInstr *MI : ToBeMoved) {
-    MI->removeFromParent();
-    ToMBB->insert(I, MI);
-  }
-}
-
 bool MachineBasicBlock::isPredecessor(const MachineBasicBlock *MBB) const {
   return is_contained(predecessors(), MBB);
 }
@@ -1063,17 +1041,16 @@ MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(
     for (instr_iterator I = getFirstInstrTerminator(), E = instr_end();
          I != E; ++I) {
       MachineInstr *MI = &*I;
-      for (MachineInstr::mop_iterator OI = MI->operands_begin(),
-           OE = MI->operands_end(); OI != OE; ++OI) {
-        if (!OI->isReg() || OI->getReg() == 0 ||
-            !OI->isUse() || !OI->isKill() || OI->isUndef())
+      for (MachineOperand &MO : MI->operands()) {
+        if (!MO.isReg() || MO.getReg() == 0 || !MO.isUse() || !MO.isKill() ||
+            MO.isUndef())
           continue;
-        Register Reg = OI->getReg();
+        Register Reg = MO.getReg();
         if (Register::isPhysicalRegister(Reg) ||
             LV->getVarInfo(Reg).removeKill(*MI)) {
           KilledRegs.push_back(Reg);
-          LLVM_DEBUG(dbgs() << "Removing terminator kill: " << *MI);
-          OI->setIsKill(false);
+          LLVM_DEBUG(dbgs() << "Removing terminator kill: " << MI);
+          MO.setIsKill(false);
         }
       }
     }
@@ -1084,12 +1061,11 @@ MachineBasicBlock *MachineBasicBlock::SplitCriticalEdge(
          I != E; ++I) {
       MachineInstr *MI = &*I;
 
-      for (MachineInstr::mop_iterator OI = MI->operands_begin(),
-           OE = MI->operands_end(); OI != OE; ++OI) {
-        if (!OI->isReg() || OI->getReg() == 0)
+      for (const MachineOperand &MO : MI->operands()) {
+        if (!MO.isReg() || MO.getReg() == 0)
           continue;
 
-        Register Reg = OI->getReg();
+        Register Reg = MO.getReg();
         if (!is_contained(UsedRegs, Reg))
           UsedRegs.push_back(Reg);
       }

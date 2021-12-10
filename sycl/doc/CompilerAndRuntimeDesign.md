@@ -312,18 +312,20 @@ option mechanism, similar to OpenMP.
 For example, to support offload to Gen9/vISA3.3, the following options would be
 used:
 
-`-fsycl -fsycl-targets=spir64_gen-unknown-unknown-sycldevice -Xsycl-target-backend "-device skl"`
+`-fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device skl"`
 
 The driver passes the `-device skl` parameter directly to the Gen device backend
 compiler `ocloc` without parsing it.
 
-**TBD:** Having multiple code forms for the same target in the fat binary might
-mean invoking device compiler multiple times. Multiple invocations are not
-needed if these forms can be dumped at various compilation stages by the single
-device compilation, like SPIR-V → visa → ISA. But if e.g. `gen9:visa3.2` and
-`gen9:visa3.3` are needed at the same time, then some mechanism is needed.
-Should it be a dedicated target triple for each needed visa version or Gen
-generation?
+`ocloc` is also capable of offline compilation for several ISA
+versions/Gen architectures. For example, to make the device binary
+compatible with all Intel Gen9 GPU platforms, one could use:
+
+`-fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend "-device gen9"`
+
+For more details on supported platforms and argument syntax, refer to
+the GPU offline compiler manual by detecting your local `ocloc`
+installation and running `ocloc compile --help`.
 
 #### Separate Compilation and Linking
 
@@ -460,9 +462,15 @@ factors. Each edge is also annotated with the input/output file type.
 The diagram does not show the `llvm-foreach` tool invocations for clarity.
 This tool invokes given command line over each file in a file list. In this
 diagram the tool is applied to `llvm-spirv` and AOT backend whenever the
-input/output type is `TY_tempfilelist`. The second invocation of the
-`file-table-tform` takes two inputs - the file table and a file list coming
-either from `llvm-spirv` or from the AOT backend.
+input/output type is `TY_tempfilelist` and the target is not PTX.
+Following this, `file-table-tform` takes two inputs - the file table and a file
+list coming either from `llvm-spirv` or from the AOT backend.
+Targeting PTX currently only accepts a single input file for processing, so
+`file-table-tform` is used to extract the code file from the file table, which
+is then processed by the
+["PTX target processing" step](#device-code-post-link-step-for-CUDA).
+The resulting device binary is inserted back into the file table in place of the
+extracted code file using `file-table-tform`.
 
 ##### Device code splitting
 
@@ -524,38 +532,58 @@ See [corresponding documentation](SpecializationConstants.md)
 
 #### CUDA support
 
-The driver supports compilation to NVPTX when the
-`nvptx64-nvidia-cuda-sycldevice` is passed to `-fsycl-targets`.
+The driver supports compilation to NVPTX when the `nvptx64-nvidia-cuda` is
+passed to `-fsycl-targets`.
 
 Unlike other AOT targets, the bitcode module linked from intermediate compiled
 objects never goes through SPIR-V. Instead it is passed directly in bitcode form
 down to the NVPTX Back End. All produced bitcode depends on two libraries,
-`libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc`
-(built by the libclc project).
+`libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc` variants
+(built by the libclc project). `libspirv-nvptx64--nvidiacl.bc` is not used directly. 
+Instead it is used to generate remangled variants 
+`remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` and
+`remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` to handle primitive type
+differences between Linux and Windows.
 
 ##### Device code post-link step for CUDA
 
 During the "PTX target processing" in the device linking step [Device
 code post-link step](#device-code-post-link-step), the llvm bitcode
-objects for the CUDA target are linked together alongside
-`libspirv-nvptx64--nvidiacl.bc` and `libdevice.bc`, compiled to PTX
-using the NVPTX backend and assembled into a cubin using the `ptxas`
-tool (part of the CUDA SDK). The PTX file and cubin are assembled
-together using `fatbinary` to produce a CUDA fatbin. The CUDA fatbin
-is then passed to the offload wrapper tool.
+objects for the CUDA target are linked together during the common
+`llvm-link` step and then split using the `sycl-post-link` tool.
+For each temporary bitcode file, clang is invoked for the temporary file to link
+`libspirv-nvptx64--nvidiacl.bc` and `libdevice.bc` and compile the resulting
+module to PTX using the NVPTX backend. The resulting PTX file is assembled
+into a cubin using the `ptxas` tool (part of the CUDA SDK). The PTX file and
+cubin are assembled together using `fatbinary` to produce a CUDA fatbin.
+The produced CUDA fatbins then replace the llvm bitcode files in the file table generated
+by `sycl-post-link`. The resulting table is passed to the offload wrapper tool.
 
 ![NVPTX AOT build](images/DevicePTXProcessing.svg)
 
 ##### Checking if the compiler is targeting NVPTX
 
 When the SYCL compiler is in device mode and targeting the NVPTX backend,
-compiler defines the macro `__SYCL_NVPTX__`.
-This macro can safely be used to enable NVPTX specific code path in SYCL
-kernels.
+the compiler defines `__SYCL_DEVICE_ONLY__` and `__NVPTX__` macros. This
+macro combination can safely be used to enable NVPTX specific code
+path in SYCL kernels.
 
-*Note: this macro is defined only during the device compilation phase.*
+*Note: these macros are defined only during the device compilation phase.*
 
 ##### NVPTX Builtins
+
+Builtins are implemented in OpenCL C within libclc. OpenCL C treats `long` 
+types as 64 bit and has no `long long` types while Windows DPC++ treats `long`
+types like 32-bit integers and `long long` types like 64-bit integers. 
+Differences between the primitive types can cause applications to use 
+incompatible libclc built-ins. A remangler creates multiple libspriv files 
+with different remangled function names to support both Windows and Linux. 
+When building a SYCL application targeting the CUDA backend the driver 
+will link the device code with 
+`remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
+Windows or it will link the device code with
+`remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
+Linux.
 
 When the SYCL compiler is in device mode and targeting the NVPTX backend, the
 compiler exposes NVPTX builtins supported by clang.
@@ -567,7 +595,7 @@ Example:
 
 ```cpp
 double my_min(double x, double y) {
-#ifdef __SYCL_NVPTX__
+#if defined(__NVPTX__) && defined(__SYCL_DEVICE_ONLY__)
   // Only available if in device mode and
   // while compiling for the NVPTX target.
   return __nvvm_fmin_d(x, y);
@@ -683,7 +711,7 @@ entry:
 }
 ```
 
-Is transformed into this in the `sycldevice` environment:
+Is transformed into this:
 
 ```LLVM
 define weak_odr dso_local i64 @other_function(i32* %0) {
@@ -904,8 +932,8 @@ space attributes in SYCL mode:
 | Address space attribute | SYCL address_space enumeration |
 |-------------------------|--------------------------------|
 | `__attribute__((opencl_global))` | global_space, constant_space |
-| `__attribute__((opencl_global_host))` | global_host_space |
-| `__attribute__((opencl_global_device))` | global_device_space |
+| `__attribute__((opencl_global_host))` | ext_intel_global_host_space |
+| `__attribute__((opencl_global_device))` | ext_intel_global_device_space |
 | `__attribute__((opencl_local))` | local_space |
 | `__attribute__((opencl_private))` | private_space |
 | `__attribute__((opencl_constant))` | N/A

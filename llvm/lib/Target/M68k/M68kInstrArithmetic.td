@@ -88,15 +88,16 @@ let Defs = [CCR] in {
 let Constraints = "$src = $dst" in {
 
 // $reg, $ccr <- $reg op $reg
-class MxBiArOp_RFRR_xEA<string MN, SDNode NODE, MxType TYPE, bits<4> CMD, MxBead REG>
-    : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.ROp:$opd),
-           MN#"."#TYPE.Prefix#"\t$opd, $dst",
-           [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.VT:$opd))],
-           MxArithEncoding<MxBead4Bits<CMD>,
-                           !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#TYPE.RLet#"EA"),
-                           REG,
-                           !cast<MxEncEA>("MxEncEA"#TYPE.RLet#"_2"),
-                           MxExtEmpty>>;
+class MxBiArOp_RFRR_xEA<string MN, SDNode NODE, MxType DST_TYPE, MxType SRC_TYPE,
+                        bits<4> CMD, MxBead REG>
+    : MxInst<(outs DST_TYPE.ROp:$dst), (ins DST_TYPE.ROp:$src, SRC_TYPE.ROp:$opd),
+             MN#"."#DST_TYPE.Prefix#"\t$opd, $dst",
+             [(set DST_TYPE.VT:$dst, CCR, (NODE DST_TYPE.VT:$src, SRC_TYPE.VT:$opd))],
+             MxArithEncoding<MxBead4Bits<CMD>,
+                             !cast<MxEncOpMode>("MxOpMode"#DST_TYPE.Size#DST_TYPE.RLet#"EA"),
+                             REG,
+                             !cast<MxEncEA>("MxEncEA"#SRC_TYPE.RLet#"_2"),
+                             MxExtEmpty>>;
 
 /// This Op is similar to the one above except it uses reversed opmode, some
 /// commands(e.g. eor) do not support dEA or rEA modes and require EAd for
@@ -106,42 +107,42 @@ class MxBiArOp_RFRR_xEA<string MN, SDNode NODE, MxType TYPE, bits<4> CMD, MxBead
 /// mess.
 class MxBiArOp_RFRR_EAd<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.ROp:$opd),
-           MN#"."#TYPE.Prefix#"\t$opd, $dst",
-           [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.VT:$opd))],
-           MxArithEncoding<MxBead4Bits<CMD>,
-                           !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#"EAd"),
-                           MxBeadDReg<2>, MxEncEAd_0, MxExtEmpty>>;
+             MN#"."#TYPE.Prefix#"\t$opd, $dst",
+             [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.VT:$opd))],
+             MxArithEncoding<MxBead4Bits<CMD>,
+                             !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#"EAd"),
+                             MxBeadDReg<2>, MxEncEAd_0, MxExtEmpty>>;
 
 // $reg <- $reg op $imm
 class MxBiArOp_RFRI_xEA<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.IOp:$opd),
-              MN#"."#TYPE.Prefix#"\t$opd, $dst",
-              [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.IPat:$opd))],
-              MxArithEncoding<MxBead4Bits<CMD>,
-                              !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#TYPE.RLet#"EA"),
-                              MxBeadDReg<0>, MxEncEAi,
-                              !cast<MxEncExt>("MxExtI"#TYPE.Size#"_2")>>;
+             MN#"."#TYPE.Prefix#"\t$opd, $dst",
+             [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.IPat:$opd))],
+             MxArithEncoding<MxBead4Bits<CMD>,
+                             !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#TYPE.RLet#"EA"),
+                             MxBeadDReg<0>, MxEncEAi,
+                             !cast<MxEncExt>("MxExtI"#TYPE.Size#"_2")>>;
 
 // Again, there are two ways to write an immediate to Dn register either dEA
 // opmode or using *I encoding, and again some instrucitons also support address
 // registers some do not.
 class MxBiArOp_RFRI<string MN, SDNode NODE, MxType TYPE, bits<4> CMD>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, TYPE.IOp:$opd),
-              MN#"i."#TYPE.Prefix#"\t$opd, $dst",
-              [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.IPat:$opd))],
-              MxArithImmEncoding<MxBead4Bits<CMD>, !cast<MxEncSize>("MxEncSize"#TYPE.Size),
-                   !cast<MxEncEA>("MxEncEA"#TYPE.RLet#"_0"), MxExtEmpty,
-                   !cast<MxEncExt>("MxExtI"#TYPE.Size#"_2")>>;
+             MN#"i."#TYPE.Prefix#"\t$opd, $dst",
+             [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, TYPE.IPat:$opd))],
+             MxArithImmEncoding<MxBead4Bits<CMD>, !cast<MxEncSize>("MxEncSize"#TYPE.Size),
+                                !cast<MxEncEA>("MxEncEA"#TYPE.RLet#"_0"), MxExtEmpty,
+                                !cast<MxEncExt>("MxExtI"#TYPE.Size#"_2")>>;
 
 let mayLoad = 1 in
 class MxBiArOp_RFRM<string MN, SDNode NODE, MxType TYPE, MxOperand OPD, ComplexPattern PAT,
                     bits<4> CMD, MxEncEA EA, MxEncExt EXT>
     : MxInst<(outs TYPE.ROp:$dst), (ins TYPE.ROp:$src, OPD:$opd),
-           MN#"."#TYPE.Prefix#"\t$opd, $dst",
-           [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, (TYPE.Load PAT:$opd)))],
-           MxArithEncoding<MxBead4Bits<CMD>,
-                           !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#TYPE.RLet#"EA"),
-                           MxBeadDReg<0>, EA, EXT>>;
+             MN#"."#TYPE.Prefix#"\t$opd, $dst",
+             [(set TYPE.VT:$dst, CCR, (NODE TYPE.VT:$src, (TYPE.Load PAT:$opd)))],
+             MxArithEncoding<MxBead4Bits<CMD>,
+                             !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#TYPE.RLet#"EA"),
+                             MxBeadDReg<0>, EA, EXT>>;
 
 } // Constraints
 
@@ -153,22 +154,22 @@ class MxBiArOp_FMR<string MN, SDNode NODE, MxType TYPE,
                    MxOperand MEMOpd, ComplexPattern MEMPat,
                    bits<4> CMD, MxEncEA EA, MxEncExt EXT>
     : MxInst<(outs), (ins MEMOpd:$dst, TYPE.ROp:$opd),
-        MN#"."#TYPE.Prefix#"\t$opd, $dst",
-        [],
-        MxArithEncoding<MxBead4Bits<CMD>,
-                        !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#"EA"#TYPE.RLet),
-                        MxBeadDReg<1>, EA, EXT>>;
+             MN#"."#TYPE.Prefix#"\t$opd, $dst",
+             [],
+             MxArithEncoding<MxBead4Bits<CMD>,
+                             !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#"EA"#TYPE.RLet),
+                             MxBeadDReg<1>, EA, EXT>>;
 
 class MxBiArOp_FMI<string MN, SDNode NODE, MxType TYPE,
                    MxOperand MEMOpd, ComplexPattern MEMPat,
                    bits<4> CMD, MxEncEA MEMEA, MxEncExt MEMExt>
     : MxInst<(outs), (ins MEMOpd:$dst, TYPE.IOp:$opd),
-        MN#"."#TYPE.Prefix#"\t$opd, $dst",
-        [],
-        MxArithImmEncoding<MxBead4Bits<CMD>,
-                            !cast<MxEncSize>("MxEncSize"#TYPE.Size),
-                            MEMEA, MEMExt,
-                            !cast<MxEncExt>("MxExtI"#TYPE.Size#"_1")>>;
+             MN#"."#TYPE.Prefix#"\t$opd, $dst",
+             [],
+             MxArithImmEncoding<MxBead4Bits<CMD>,
+                                !cast<MxEncSize>("MxEncSize"#TYPE.Size),
+                                MEMEA, MEMExt,
+                                !cast<MxEncExt>("MxExtI"#TYPE.Size#"_1")>>;
 } // mayLoad, mayStore
 } // Defs = [CCR]
 
@@ -260,11 +261,19 @@ multiclass MxBiArOp_DF<string MN, SDNode NODE, bit isComm,
   def NAME#"32ji" : MxBiArOp_FMI<MN, NODE, MxType32, MxType32.JOp, MxType32.JPat,
                                  CMDI, MxEncEAj_0, MxExtEmpty>;
 
+  def NAME#"16dr" : MxBiArOp_RFRR_xEA<MN, NODE, MxType16d, MxType16r,
+                                      CMD, MxBeadDReg<0>>;
+  def NAME#"32dr" : MxBiArOp_RFRR_xEA<MN, NODE, MxType32d, MxType32r,
+                                      CMD, MxBeadDReg<0>>;
+
   let isCommutable = isComm in {
 
-    def NAME#"8dd"  : MxBiArOp_RFRR_xEA<MN, NODE, MxType8d,  CMD, MxBeadDReg<0>>;
-    def NAME#"16dd" : MxBiArOp_RFRR_xEA<MN, NODE, MxType16d, CMD, MxBeadDReg<0>>;
-    def NAME#"32dd" : MxBiArOp_RFRR_xEA<MN, NODE, MxType32d, CMD, MxBeadDReg<0>>;
+    def NAME#"8dd"  : MxBiArOp_RFRR_xEA<MN, NODE, MxType8d, MxType8d,
+                                        CMD, MxBeadDReg<0>>;
+    def NAME#"16dd" : MxBiArOp_RFRR_xEA<MN, NODE, MxType16d, MxType16d,
+                                        CMD, MxBeadDReg<0>>;
+    def NAME#"32dd" : MxBiArOp_RFRR_xEA<MN, NODE, MxType32d, MxType32d,
+                                        CMD, MxBeadDReg<0>>;
 
   } // isComm
 
@@ -278,29 +287,29 @@ let Pattern = [(null_frag)] in
 multiclass MxBiArOp_AF<string MN, SDNode NODE, bit isComm,
                        bits<4> CMD, bits<4> CMDI> {
 
-  def NAME#"32rk" : MxBiArOp_RFRM<MN, NODE, MxType32r, MxType32.KOp, MxType32.KPat,
+  def NAME#"32ak" : MxBiArOp_RFRM<MN, NODE, MxType32a, MxType32.KOp, MxType32.KPat,
                                   CMD, MxEncEAk, MxExtBrief_2>;
-  def NAME#"32rq" : MxBiArOp_RFRM<MN, NODE, MxType32r, MxType32.QOp, MxType32.QPat,
+  def NAME#"32aq" : MxBiArOp_RFRM<MN, NODE, MxType32a, MxType32.QOp, MxType32.QPat,
                                   CMD, MxEncEAq, MxExtI16_2>;
-  def NAME#"32rf" : MxBiArOp_RFRM<MN, NODE, MxType32r, MxType32.FOp, MxType32.FPat,
+  def NAME#"32af" : MxBiArOp_RFRM<MN, NODE, MxType32a, MxType32.FOp, MxType32.FPat,
                                   CMD, MxEncEAf_2, MxExtBrief_2>;
-  def NAME#"32rp" : MxBiArOp_RFRM<MN, NODE, MxType32r, MxType32.POp, MxType32.PPat,
+  def NAME#"32ap" : MxBiArOp_RFRM<MN, NODE, MxType32a, MxType32.POp, MxType32.PPat,
                                   CMD, MxEncEAp_2, MxExtI16_2>;
-  def NAME#"32rj" : MxBiArOp_RFRM<MN, NODE, MxType32r, MxType32.JOp, MxType32.JPat,
+  def NAME#"32aj" : MxBiArOp_RFRM<MN, NODE, MxType32a, MxType32.JOp, MxType32.JPat,
                                   CMD, MxEncEAj_2, MxExtEmpty>;
-  def NAME#"32ri" : MxBiArOp_RFRI_xEA<MN, NODE, MxType32r, CMD>;
+  def NAME#"32ai" : MxBiArOp_RFRI_xEA<MN, NODE, MxType32a, CMD>;
 
-  let isCommutable = isComm in
-  def NAME#"32rr" : MxBiArOp_RFRR_xEA<MN, NODE, MxType32r, CMD, MxBeadReg<0>>;
+  def NAME#"32ar" : MxBiArOp_RFRR_xEA<MN, NODE, MxType32a, MxType32r,
+                                      CMD, MxBeadReg<0>>;
 
 } // MxBiArOp_AF
 
 // NOTE These naturally produce CCR
 
-defm ADD : MxBiArOp_DF<"add", MxAdd, 1, 0xD, 0x6>;
-defm ADD : MxBiArOp_AF<"add", MxAdd, 1, 0xD, 0x6>;
-defm SUB : MxBiArOp_DF<"sub", MxSub, 0, 0x9, 0x4>;
-defm SUB : MxBiArOp_AF<"sub", MxSub, 0, 0x9, 0x4>;
+defm ADD : MxBiArOp_DF<"add",  MxAdd, 1, 0xD, 0x6>;
+defm ADD : MxBiArOp_AF<"adda", MxAdd, 1, 0xD, 0x6>;
+defm SUB : MxBiArOp_DF<"sub",  MxSub, 0, 0x9, 0x4>;
+defm SUB : MxBiArOp_AF<"suba", MxSub, 0, 0x9, 0x4>;
 
 
 let Uses = [CCR], Defs = [CCR] in {
@@ -366,13 +375,16 @@ defm XOR : MxBiArOp_DF_EAd<"eor", MxXor, 0xB, 0xA>;
 //===----------------------------------------------------------------------===//
 
 let Defs = [CCR] in {
-class MxCmp_RR<MxType TYPE>
-    : MxInst<(outs), (ins TYPE.ROp:$lhs, TYPE.ROp:$rhs),
-             "cmp."#TYPE.Prefix#"\t$lhs, $rhs",
-             [(set CCR, (MxCmp TYPE.VT:$lhs, TYPE.VT:$rhs))],
+class MxCmp_RR<MxType LHS_TYPE, MxType RHS_TYPE = LHS_TYPE,
+               MxBead REG = MxBeadDReg<1>>
+    : MxInst<(outs), (ins LHS_TYPE.ROp:$lhs, RHS_TYPE.ROp:$rhs),
+             "cmp."#RHS_TYPE.Prefix#"\t$lhs, $rhs",
+             [(set CCR, (MxCmp LHS_TYPE.VT:$lhs, RHS_TYPE.VT:$rhs))],
              MxArithEncoding<MxBead4Bits<0xB>,
-                             !cast<MxEncOpMode>("MxOpMode"#TYPE.Size#"dEA"),
-                             MxBeadDReg<1>, MxEncEAd_0, MxExtEmpty>>;
+                             !cast<MxEncOpMode>("MxOpMode"#RHS_TYPE.Size#RHS_TYPE.RLet#"EA"),
+                             REG,
+                             !cast<MxEncEA>("MxEncEA"#LHS_TYPE.RLet#"_0"),
+                             MxExtEmpty>>;
 
 class MxCmp_RI<MxType TYPE>
     : MxInst<(outs), (ins TYPE.IOp:$imm, TYPE.ROp:$reg),
@@ -444,10 +456,15 @@ multiclass MMxCmp_MI<MxType TYPE> {
 }
 
 foreach S = [8, 16, 32] in {
-  def CMP#S#dd : MxCmp_RR<!cast<MxType>("MxType"#S#"d")>;
   def CMP#S#di : MxCmp_RI<!cast<MxType>("MxType"#S#"d")>;
   def CMP#S#bi : MxCmp_BI<!cast<MxType>("MxType"#S#"d")>;
 } // foreach
+
+def CMP8dd : MxCmp_RR<MxType8d>;
+foreach S = [16, 32] in {
+  def CMP#S#dr : MxCmp_RR<!cast<MxType>("MxType"#S#"r"),
+                          !cast<MxType>("MxType"#S#"d")>;
+}
 
 // cmp mem, Dn
 defm CMP8d  : MMxCmp_RM<MxType8d>;
@@ -481,8 +498,8 @@ let Defs = [CCR] in
 let Constraints = "$src = $dst" in
 class MxExt<MxType TO, MxType FROM>
     : MxInst<(outs TO.ROp:$dst), (ins TO.ROp:$src),
-              "ext."#TO.Prefix#"\t$src", [],
-              MxExtEncoding<!cast<MxBead3Bits>("MxExtOpmode_"#TO.Prefix#FROM.Prefix)>>;
+             "ext."#TO.Prefix#"\t$src", [],
+             MxExtEncoding<!cast<MxBead3Bits>("MxExtOpmode_"#TO.Prefix#FROM.Prefix)>>;
 
 def EXT16 : MxExt<MxType16d, MxType8d>;
 def EXT32 : MxExt<MxType32d, MxType16d>;
@@ -737,9 +754,9 @@ foreach N = ["add", "addc"] in {
   def : Pat<(!cast<SDNode>(N) i8 :$src, i8 :$opd),
             (ADD8dd  MxDRD8 :$src, MxDRD8 :$opd)>;
   def : Pat<(!cast<SDNode>(N) i16:$src, i16:$opd),
-            (ADD16dd MxDRD16:$src, MxDRD16:$opd)>;
+            (ADD16dr MxXRD16:$src, MxDRD16:$opd)>;
   def : Pat<(!cast<SDNode>(N) i32:$src, i32:$opd),
-            (ADD32rr MxXRD32:$src, MxXRD32:$opd)>;
+            (ADD32dr MxXRD32:$src, MxDRD32:$opd)>;
 
   // add (An), reg
   def : Pat<(!cast<SDNode>(N) MxType8.VT:$src, (Mxloadi8 MxType8.JPat:$opd)),
@@ -747,7 +764,7 @@ foreach N = ["add", "addc"] in {
   def : Pat<(!cast<SDNode>(N) MxType16.VT:$src, (Mxloadi16 MxType16.JPat:$opd)),
             (ADD16dj MxDRD16:$src, MxType16.JOp:$opd)>;
   def : Pat<(!cast<SDNode>(N) MxType32.VT:$src, (Mxloadi32 MxType32.JPat:$opd)),
-            (ADD32rj MxXRD32:$src, MxType32.JOp:$opd)>;
+            (ADD32dj MxDRD32:$src, MxType32.JOp:$opd)>;
 
   // add (i,An), reg
   def : Pat<(!cast<SDNode>(N) MxType8.VT:$src, (Mxloadi8 MxType8.PPat:$opd)),
@@ -755,7 +772,7 @@ foreach N = ["add", "addc"] in {
   def : Pat<(!cast<SDNode>(N) MxType16.VT:$src, (Mxloadi16 MxType16.PPat:$opd)),
             (ADD16dp MxDRD16:$src, MxType16.POp:$opd)>;
   def : Pat<(!cast<SDNode>(N) MxType32.VT:$src, (Mxloadi32 MxType32.PPat:$opd)),
-            (ADD32rp MxXRD32:$src, MxType32.POp:$opd)>;
+            (ADD32dp MxDRD32:$src, MxType32.POp:$opd)>;
 
   // add (i,An,Xn), reg
   def : Pat<(!cast<SDNode>(N) MxType8.VT:$src, (Mxloadi8 MxType8.FPat:$opd)),
@@ -763,7 +780,7 @@ foreach N = ["add", "addc"] in {
   def : Pat<(!cast<SDNode>(N) MxType16.VT:$src, (Mxloadi16 MxType16.FPat:$opd)),
             (ADD16df MxDRD16:$src, MxType16.FOp:$opd)>;
   def : Pat<(!cast<SDNode>(N) MxType32.VT:$src, (Mxloadi32 MxType32.FPat:$opd)),
-            (ADD32rf MxXRD32:$src, MxType32.FOp:$opd)>;
+            (ADD32df MxDRD32:$src, MxType32.FOp:$opd)>;
 
   // add reg, imm
   def : Pat<(!cast<SDNode>(N) i8: $src, MximmSExt8:$opd),
@@ -776,18 +793,18 @@ foreach N = ["add", "addc"] in {
   // we make sure it will be selected over LEAp
   let AddedComplexity = 15 in {
   def : Pat<(!cast<SDNode>(N) i32:$src, MximmSExt32:$opd),
-            (ADD32ri MxXRD32:$src, imm:$opd)>;
+            (ADD32di MxDRD32:$src, imm:$opd)>;
   } // AddedComplexity = 15
 
   // add imm, (An)
   def : Pat<(store (!cast<SDNode>(N) (load MxType8.JPat:$dst), MxType8.IPat:$opd),
-                    MxType8.JPat:$dst),
+                   MxType8.JPat:$dst),
             (ADD8ji MxType8.JOp:$dst, imm:$opd)>;
   def : Pat<(store (!cast<SDNode>(N) (load MxType16.JPat:$dst), MxType16.IPat:$opd),
-                    MxType16.JPat:$dst),
+                   MxType16.JPat:$dst),
             (ADD16ji MxType16.JOp:$dst, imm:$opd)>;
   def : Pat<(store (!cast<SDNode>(N) (load MxType32.JPat:$dst), MxType32.IPat:$opd),
-                    MxType32.JPat:$dst),
+                   MxType32.JPat:$dst),
             (ADD32ji MxType32.JOp:$dst, imm:$opd)>;
 
 } // foreach add, addc
@@ -806,7 +823,7 @@ foreach N = ["sub", "subc"] in {
   def : Pat<(!cast<SDNode>(N) i16:$src, i16:$opd),
             (SUB16dd MxDRD16:$src, MxDRD16:$opd)>;
   def : Pat<(!cast<SDNode>(N) i32:$src, i32:$opd),
-            (SUB32rr MxXRD32:$src, MxXRD32:$opd)>;
+            (SUB32dd MxDRD32:$src, MxDRD32:$opd)>;
 
 
   // sub (An), reg
@@ -815,7 +832,7 @@ foreach N = ["sub", "subc"] in {
   def : Pat<(!cast<SDNode>(N) MxType16.VT:$src, (Mxloadi16 MxType16.JPat:$opd)),
             (SUB16dj MxDRD16:$src, MxType16.JOp:$opd)>;
   def : Pat<(!cast<SDNode>(N) MxType32.VT:$src, (Mxloadi32 MxType32.JPat:$opd)),
-            (SUB32rj MxXRD32:$src, MxType32.JOp:$opd)>;
+            (SUB32dj MxDRD32:$src, MxType32.JOp:$opd)>;
 
   // sub (i,An), reg
   def : Pat<(!cast<SDNode>(N) MxType8.VT:$src, (Mxloadi8 MxType8.PPat:$opd)),
@@ -823,7 +840,7 @@ foreach N = ["sub", "subc"] in {
   def : Pat<(!cast<SDNode>(N) MxType16.VT:$src, (Mxloadi16 MxType16.PPat:$opd)),
             (SUB16dp MxDRD16:$src, MxType16.POp:$opd)>;
   def : Pat<(!cast<SDNode>(N) MxType32.VT:$src, (Mxloadi32 MxType32.PPat:$opd)),
-            (SUB32rp MxXRD32:$src, MxType32.POp:$opd)>;
+            (SUB32dp MxDRD32:$src, MxType32.POp:$opd)>;
 
   // sub (i,An,Xn), reg
   def : Pat<(!cast<SDNode>(N) MxType8.VT:$src, (Mxloadi8 MxType8.FPat:$opd)),
@@ -831,7 +848,7 @@ foreach N = ["sub", "subc"] in {
   def : Pat<(!cast<SDNode>(N) MxType16.VT:$src, (Mxloadi16 MxType16.FPat:$opd)),
             (SUB16df MxDRD16:$src, MxType16.FOp:$opd)>;
   def : Pat<(!cast<SDNode>(N) MxType32.VT:$src, (Mxloadi32 MxType32.FPat:$opd)),
-            (SUB32rf MxXRD32:$src, MxType32.FOp:$opd)>;
+            (SUB32df MxDRD32:$src, MxType32.FOp:$opd)>;
 
   // sub reg, imm
   def : Pat<(!cast<SDNode>(N) i8 :$src, MximmSExt8 :$opd),
@@ -839,7 +856,7 @@ foreach N = ["sub", "subc"] in {
   def : Pat<(!cast<SDNode>(N) i16:$src, MximmSExt16:$opd),
             (SUB16di MxDRD16:$src, imm:$opd)>;
   def : Pat<(!cast<SDNode>(N) i32:$src, MximmSExt32:$opd),
-            (SUB32ri MxXRD32:$src, imm:$opd)>;
+            (SUB32di MxDRD32:$src, imm:$opd)>;
 
   // sub imm, (An)
   def : Pat<(store (!cast<SDNode>(N) (load MxType8.JPat:$dst), MxType8.IPat:$opd),
@@ -858,35 +875,23 @@ def : Pat<(sube i8 :$src, i8 :$opd), (SUBX8dd  MxDRD8 :$src, MxDRD8 :$opd)>;
 def : Pat<(sube i16:$src, i16:$opd), (SUBX16dd MxDRD16:$src, MxDRD16:$opd)>;
 def : Pat<(sube i32:$src, i32:$opd), (SUBX32dd MxDRD32:$src, MxDRD32:$opd)>;
 
+multiclass BitwisePat<string INST, SDNode OP> {
+  // op reg, reg
+  def : Pat<(OP i8 :$src, i8 :$opd),
+            (!cast<MxInst>(INST#"8dd")  MxDRD8 :$src, MxDRD8 :$opd)>;
+  def : Pat<(OP i16:$src, i16:$opd),
+            (!cast<MxInst>(INST#"16dd") MxDRD16:$src, MxDRD16:$opd)>;
+  def : Pat<(OP i32:$src, i32:$opd),
+            (!cast<MxInst>(INST#"32dd") MxDRD32:$src, MxDRD32:$opd)>;
+  // op reg, imm
+  def : Pat<(OP i8: $src, MximmSExt8 :$opd),
+            (!cast<MxInst>(INST#"8di")  MxDRD8 :$src, imm:$opd)>;
+  def : Pat<(OP i16:$src, MximmSExt16:$opd),
+            (!cast<MxInst>(INST#"16di") MxDRD16:$src, imm:$opd)>;
+  def : Pat<(OP i32:$src, MximmSExt32:$opd),
+            (!cast<MxInst>(INST#"32di") MxDRD32:$src, imm:$opd)>;
+}
 
-// and reg, reg
-def : Pat<(and i8 :$src, i8 :$opd), (AND8dd  MxDRD8 :$src, MxDRD8 :$opd)>;
-def : Pat<(and i16:$src, i16:$opd), (AND16dd MxDRD16:$src, MxDRD16:$opd)>;
-def : Pat<(and i32:$src, i32:$opd), (AND32dd MxDRD32:$src, MxDRD32:$opd)>;
-
-// and reg, imm
-def : Pat<(and i8: $src, MximmSExt8 :$opd), (AND8di  MxDRD8 :$src, imm:$opd)>;
-def : Pat<(and i16:$src, MximmSExt16:$opd), (AND16di MxDRD16:$src, imm:$opd)>;
-def : Pat<(and i32:$src, MximmSExt32:$opd), (AND32di MxDRD32:$src, imm:$opd)>;
-
-
-// xor reg,reg
-def : Pat<(xor i8 :$src, i8 :$opd), (XOR8dd  MxDRD8 :$src, MxDRD8 :$opd)>;
-def : Pat<(xor i16:$src, i16:$opd), (XOR16dd MxDRD16:$src, MxDRD16:$opd)>;
-def : Pat<(xor i32:$src, i32:$opd), (XOR32dd MxDRD32:$src, MxDRD32:$opd)>;
-
-// xor reg, imm
-def : Pat<(xor i8: $src, MximmSExt8 :$opd), (XOR8di  MxDRD8 :$src, imm:$opd)>;
-def : Pat<(xor i16:$src, MximmSExt16:$opd), (XOR16di MxDRD16:$src, imm:$opd)>;
-def : Pat<(xor i32:$src, MximmSExt32:$opd), (XOR32di MxDRD32:$src, imm:$opd)>;
-
-
-// or reg, reg
-def : Pat<(or i8 :$src, i8 :$opd), (OR8dd  MxDRD8 :$src, MxDRD8 :$opd)>;
-def : Pat<(or i16:$src, i16:$opd), (OR16dd MxDRD16:$src, MxDRD16:$opd)>;
-def : Pat<(or i32:$src, i32:$opd), (OR32dd MxDRD32:$src, MxDRD32:$opd)>;
-
-// or reg, imm
-def : Pat<(or i8: $src, MximmSExt8 :$opd), (OR8di  MxDRD8 :$src, imm:$opd)>;
-def : Pat<(or i16:$src, MximmSExt16:$opd), (OR16di MxDRD16:$src, imm:$opd)>;
-def : Pat<(or i32:$src, MximmSExt32:$opd), (OR32di MxDRD32:$src, imm:$opd)>;
+defm : BitwisePat<"AND", and>;
+defm : BitwisePat<"OR",  or>;
+defm : BitwisePat<"XOR", xor>;

@@ -17,9 +17,10 @@
 #include "../PassDetail.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/Vector/VectorOps.h"
-#include "mlir/Dialect/Vector/VectorUtils.h"
+#include "mlir/Dialect/Vector/VectorTransforms.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Pass/Pass.h"
@@ -51,6 +52,8 @@ struct VectorToSCFPattern : public OpRewritePattern<OpTy> {
 /// A return value of None indicates a broadcast.
 template <typename OpTy>
 static Optional<int64_t> unpackedDim(OpTy xferOp) {
+  // TODO: support 0-d corner case.
+  assert(xferOp.getTransferRank() > 0 && "unexpected 0-d transfer");
   auto map = xferOp.permutation_map();
   if (auto expr = map.getResult(0).template dyn_cast<AffineDimExpr>()) {
     return expr.getPosition();
@@ -65,6 +68,8 @@ static Optional<int64_t> unpackedDim(OpTy xferOp) {
 /// omitted.
 template <typename OpTy>
 static AffineMap unpackedPermutationMap(OpBuilder &b, OpTy xferOp) {
+  // TODO: support 0-d corner case.
+  assert(xferOp.getTransferRank() > 0 && "unexpected 0-d transfer");
   auto map = xferOp.permutation_map();
   return AffineMap::get(map.getNumDims(), 0, map.getResults().drop_front(),
                         b.getContext());
@@ -99,6 +104,7 @@ static void getXferIndices(OpBuilder &b, OpTy xferOp, Value iv,
 static void maybeYieldValue(OpBuilder &b, Location loc, bool hasRetVal,
                             Value value) {
   if (hasRetVal) {
+    assert(value && "Expected non-empty value");
     b.create<scf::YieldOp>(loc, value);
   } else {
     b.create<scf::YieldOp>(loc);
@@ -121,9 +127,7 @@ static Value generateMaskCheck(OpBuilder &b, OpTy xferOp, Value iv) {
     return Value();
 
   Location loc = xferOp.getLoc();
-  Value ivI32 =
-      b.create<IndexCastOp>(loc, IntegerType::get(b.getContext(), 32), iv);
-  return b.create<vector::ExtractElementOp>(loc, xferOp.mask(), ivI32);
+  return b.create<vector::ExtractElementOp>(loc, xferOp.mask(), iv);
 }
 
 /// Helper function TransferOpConversion and TransferOp1dConversion.
@@ -164,18 +168,19 @@ static Value generateInBoundsCheck(
   Location loc = xferOp.getLoc();
   ImplicitLocOpBuilder lb(xferOp.getLoc(), b);
   if (!xferOp.isDimInBounds(0) && !isBroadcast) {
-    Value memrefDim = lb.create<memref::DimOp>(xferOp.source(), *dim);
+    Value memrefDim = vector::createOrFoldDimOp(b, loc, xferOp.source(), *dim);
     AffineExpr d0, d1;
     bindDims(xferOp.getContext(), d0, d1);
     Value base = xferOp.indices()[dim.getValue()];
     Value memrefIdx = makeComposedAffineApply(b, loc, d0 + d1, {base, iv});
-    cond = lb.create<CmpIOp>(CmpIPredicate::sgt, memrefDim, memrefIdx);
+    cond = lb.create<arith::CmpIOp>(arith::CmpIPredicate::sgt, memrefDim,
+                                    memrefIdx);
   }
 
   // Condition check 2: Masked in?
   if (auto maskCond = generateMaskCheck(b, xferOp, iv)) {
     if (cond)
-      cond = lb.create<AndOp>(cond, maskCond);
+      cond = lb.create<arith::AndIOp>(cond, maskCond);
     else
       cond = maskCond;
   }
@@ -240,6 +245,19 @@ static void maybeApplyPassLabel(OpBuilder &b, OpTy newXferOp,
                                 unsigned targetRank) {
   if (newXferOp.getVectorType().getRank() > targetRank)
     newXferOp->setAttr(kPassLabel, b.getUnitAttr());
+}
+
+/// Return true if this transfer op operates on a source tensor.
+template <typename OpTy>
+static bool isTensorOp(OpTy xferOp) {
+  if (xferOp.getShapedType().template isa<RankedTensorType>()) {
+    if (xferOp.getOperationName().equals(TransferWriteOp::getOperationName())) {
+      // TransferWriteOps on tensors have a result.
+      assert(xferOp->getNumResults() > 0);
+    }
+    return true;
+  }
+  return false;
 }
 
 namespace lowering_n_d {
@@ -365,8 +383,8 @@ struct Strategy<TransferReadOp> {
   /// Note: The `mask` operand is set in TransferOpConversion.
   static TransferReadOp rewriteOp(OpBuilder &b,
                                   VectorTransferToSCFOptions options,
-                                  TransferReadOp xferOp, Value buffer,
-                                  Value iv) {
+                                  TransferReadOp xferOp, Value buffer, Value iv,
+                                  ValueRange /*loopState*/) {
     SmallVector<Value, 8> storeIndices;
     getBufferIndices(xferOp, storeIndices);
     storeIndices.push_back(iv);
@@ -391,8 +409,9 @@ struct Strategy<TransferReadOp> {
 
   /// Handle out-of-bounds accesses on the to-be-unpacked dimension: Write
   /// padding value to the temporary buffer.
-  static void handleOutOfBoundsDim(OpBuilder &b, TransferReadOp xferOp,
-                                   Value buffer, Value iv) {
+  static Value handleOutOfBoundsDim(OpBuilder &b, TransferReadOp xferOp,
+                                    Value buffer, Value iv,
+                                    ValueRange /*loopState*/) {
     SmallVector<Value, 8> storeIndices;
     getBufferIndices(xferOp, storeIndices);
     storeIndices.push_back(iv);
@@ -402,13 +421,19 @@ struct Strategy<TransferReadOp> {
     auto vecType = bufferType.getElementType().dyn_cast<VectorType>();
     auto vec = b.create<SplatOp>(loc, vecType, xferOp.padding());
     b.create<memref::StoreOp>(loc, vec, buffer, storeIndices);
+
+    return Value();
   }
 
   /// Cleanup after rewriting the op.
-  static void cleanup(PatternRewriter &rewriter, TransferReadOp xferOp) {
+  static void cleanup(PatternRewriter &rewriter, TransferReadOp xferOp,
+                      scf::ForOp /*forOp*/) {
     rewriter.eraseOp(getStoreOp(xferOp));
     rewriter.eraseOp(xferOp);
   }
+
+  /// Return the initial loop state for the generated scf.for loop.
+  static Value initialLoopState(TransferReadOp xferOp) { return Value(); }
 };
 
 /// Codegen strategy for vector TransferWriteOp.
@@ -447,7 +472,7 @@ struct Strategy<TransferWriteOp> {
   static TransferWriteOp rewriteOp(OpBuilder &b,
                                    VectorTransferToSCFOptions options,
                                    TransferWriteOp xferOp, Value buffer,
-                                   Value iv) {
+                                   Value iv, ValueRange loopState) {
     SmallVector<Value, 8> loadIndices;
     getBufferIndices(xferOp, loadIndices);
     loadIndices.push_back(iv);
@@ -458,8 +483,10 @@ struct Strategy<TransferWriteOp> {
     Location loc = xferOp.getLoc();
     auto vec = b.create<memref::LoadOp>(loc, buffer, loadIndices);
     auto inBoundsAttr = dropFirstElem(b, xferOp.in_boundsAttr());
+    auto source = loopState.empty() ? xferOp.source() : loopState[0];
+    Type type = isTensorOp(xferOp) ? xferOp.getShapedType() : Type();
     auto newXferOp = b.create<vector::TransferWriteOp>(
-        loc, Type(), vec, xferOp.source(), xferIndices,
+        loc, type, vec, source, xferIndices,
         AffineMapAttr::get(unpackedPermutationMap(b, xferOp)), Value(),
         inBoundsAttr);
 
@@ -469,12 +496,26 @@ struct Strategy<TransferWriteOp> {
   }
 
   /// Handle out-of-bounds accesses on the to-be-unpacked dimension.
-  static void handleOutOfBoundsDim(OpBuilder &b, TransferWriteOp xferOp,
-                                   Value buffer, Value iv) {}
+  static Value handleOutOfBoundsDim(OpBuilder &b, TransferWriteOp xferOp,
+                                    Value buffer, Value iv,
+                                    ValueRange loopState) {
+    return isTensorOp(xferOp) ? loopState[0] : Value();
+  }
 
   /// Cleanup after rewriting the op.
-  static void cleanup(PatternRewriter &rewriter, TransferWriteOp xferOp) {
-    rewriter.eraseOp(xferOp);
+  static void cleanup(PatternRewriter &rewriter, TransferWriteOp xferOp,
+                      scf::ForOp forOp) {
+    if (isTensorOp(xferOp)) {
+      assert(forOp->getNumResults() == 1 && "Expected one for loop result");
+      rewriter.replaceOp(xferOp, forOp->getResult(0));
+    } else {
+      rewriter.eraseOp(xferOp);
+    }
+  }
+
+  /// Return the initial loop state for the generated scf.for loop.
+  static Value initialLoopState(TransferWriteOp xferOp) {
+    return isTensorOp(xferOp) ? xferOp.source() : Value();
   }
 };
 
@@ -485,7 +526,7 @@ LogicalResult checkPrepareXferOp(OpTy xferOp,
     return failure();
   if (xferOp.getVectorType().getRank() <= options.targetRank)
     return failure();
-  if (xferOp.getShapedType().template isa<RankedTensorType>())
+  if (isTensorOp(xferOp) && !options.lowerTensors)
     return failure();
   // Transfer ops that modify the element type are not supported atm.
   if (xferOp.getVectorType().getElementType() !=
@@ -610,9 +651,27 @@ struct PrepareTransferWriteConversion
 ///    corresponding Strategy<OpTy>. If the to-be-unpacked dimension can be
 ///    out-of-bounds, generate an if-check and handle both cases separately.
 /// 3. Clean up according to the corresponding Strategy<OpTy>.
+///
+/// Note: If the transfer op is a TransferWriteOp and operates on a tensor
+/// source (as opposed to a memref source), then each iteration of the generated
+/// scf.for loop yields the new tensor value. E.g.:
+/// ```
+/// %result = scf.for i = 0 to 5 {
+///   %0 = memref.load %buffer[i] : memref<5xvector<4x3xf32>>
+///   %1 = vector.transfer_write %0, %source[...]
+///       : vector<4x3xf32>, tensor<5x4x3xf32>
+///   scf.yield %1 : tensor<5x4x3xf32>
+/// }
+/// ```
 template <typename OpTy>
 struct TransferOpConversion : public VectorToSCFPattern<OpTy> {
   using VectorToSCFPattern<OpTy>::VectorToSCFPattern;
+
+  void initialize() {
+    // This pattern recursively unpacks one dimension at a time. The recursion
+    // bounded as the rank is strictly decreasing.
+    this->setHasBoundedRewriteRecursion();
+  }
 
   LogicalResult matchAndRewrite(OpTy xferOp,
                                 PatternRewriter &rewriter) const override {
@@ -648,22 +707,28 @@ struct TransferOpConversion : public VectorToSCFPattern<OpTy> {
     }
 
     // Loop bounds and step.
-    auto lb = locB.create<ConstantIndexOp>(0);
-    auto ub = locB.create<ConstantIndexOp>(
+    auto lb = locB.create<arith::ConstantIndexOp>(0);
+    auto ub = locB.create<arith::ConstantIndexOp>(
         castedDataType.getDimSize(castedDataType.getRank() - 1));
-    auto step = locB.create<ConstantIndexOp>(1);
+    auto step = locB.create<arith::ConstantIndexOp>(1);
+    // TransferWriteOps that operate on tensors return the modified tensor and
+    // require a loop state.
+    auto loopState = Strategy<OpTy>::initialLoopState(xferOp);
 
     // Generate for loop.
-    locB.create<scf::ForOp>(
-        lb, ub, step, ValueRange(),
-        [&](OpBuilder &b, Location loc, Value iv, ValueRange /*loopState*/) {
-          generateInBoundsCheck(
+    auto result = locB.create<scf::ForOp>(
+        lb, ub, step, loopState ? ValueRange(loopState) : ValueRange(),
+        [&](OpBuilder &b, Location loc, Value iv, ValueRange loopState) {
+          Type stateType = loopState.empty() ? Type() : loopState[0].getType();
+
+          auto result = generateInBoundsCheck(
               b, xferOp, iv, unpackedDim(xferOp),
+              stateType ? TypeRange(stateType) : TypeRange(),
               /*inBoundsCase=*/
               [&](OpBuilder &b, Location loc) {
                 // Create new transfer op.
                 OpTy newXfer = Strategy<OpTy>::rewriteOp(
-                    b, this->options, xferOp, castedDataBuffer, iv);
+                    b, this->options, xferOp, castedDataBuffer, iv, loopState);
 
                 // If old transfer op has a mask: Set mask on new transfer op.
                 // Special case: If the mask of the old transfer op is 1D and
@@ -687,16 +752,19 @@ struct TransferOpConversion : public VectorToSCFPattern<OpTy> {
                   rewriter.updateRootInPlace(
                       newXfer, [&]() { newXfer.maskMutable().assign(mask); });
                 }
+
+                return loopState.empty() ? Value() : newXfer->getResult(0);
               },
               /*outOfBoundsCase=*/
               [&](OpBuilder &b, Location /*loc*/) {
-                Strategy<OpTy>::handleOutOfBoundsDim(b, xferOp,
-                                                     castedDataBuffer, iv);
+                return Strategy<OpTy>::handleOutOfBoundsDim(
+                    b, xferOp, castedDataBuffer, iv, loopState);
               });
-          b.create<scf::YieldOp>(loc);
+
+          maybeYieldValue(b, loc, !loopState.empty(), result);
         });
 
-    Strategy<OpTy>::cleanup(rewriter, xferOp);
+    Strategy<OpTy>::cleanup(rewriter, xferOp, result);
     return success();
   }
 };
@@ -768,6 +836,12 @@ struct UnrollTransferReadConversion
     : public VectorToSCFPattern<TransferReadOp> {
   using VectorToSCFPattern<TransferReadOp>::VectorToSCFPattern;
 
+  void initialize() {
+    // This pattern recursively unpacks one dimension at a time. The recursion
+    // bounded as the rank is strictly decreasing.
+    setHasBoundedRewriteRecursion();
+  }
+
   /// Return the vector into which the newly created TransferReadOp results
   /// are inserted.
   Value getResultVector(TransferReadOp xferOp,
@@ -808,7 +882,7 @@ struct UnrollTransferReadConversion
                                 PatternRewriter &rewriter) const override {
     if (xferOp.getVectorType().getRank() <= options.targetRank)
       return failure();
-    if (xferOp.getShapedType().template isa<RankedTensorType>())
+    if (isTensorOp(xferOp) && !options.lowerTensors)
       return failure();
     // Transfer ops that modify the element type are not supported atm.
     if (xferOp.getVectorType().getElementType() !=
@@ -826,7 +900,7 @@ struct UnrollTransferReadConversion
     // Generate fully unrolled loop of transfer ops.
     Location loc = xferOp.getLoc();
     for (int64_t i = 0; i < dimSize; ++i) {
-      Value iv = rewriter.create<ConstantIndexOp>(loc, i);
+      Value iv = rewriter.create<arith::ConstantIndexOp>(loc, i);
 
       vec = generateInBoundsCheck(
           rewriter, xferOp, iv, unpackedDim(xferOp), TypeRange(vecType),
@@ -899,6 +973,12 @@ struct UnrollTransferWriteConversion
     : public VectorToSCFPattern<TransferWriteOp> {
   using VectorToSCFPattern<TransferWriteOp>::VectorToSCFPattern;
 
+  void initialize() {
+    // This pattern recursively unpacks one dimension at a time. The recursion
+    // bounded as the rank is strictly decreasing.
+    setHasBoundedRewriteRecursion();
+  }
+
   /// Return the vector from which newly generated ExtracOps will extract.
   Value getDataVector(TransferWriteOp xferOp) const {
     if (auto extractOp = getExtractOp(xferOp))
@@ -930,7 +1010,7 @@ struct UnrollTransferWriteConversion
                                 PatternRewriter &rewriter) const override {
     if (xferOp.getVectorType().getRank() <= options.targetRank)
       return failure();
-    if (xferOp.getShapedType().template isa<RankedTensorType>())
+    if (isTensorOp(xferOp) && !options.lowerTensors)
       return failure();
     // Transfer ops that modify the element type are not supported atm.
     if (xferOp.getVectorType().getElementType() !=
@@ -940,15 +1020,19 @@ struct UnrollTransferWriteConversion
     auto vec = getDataVector(xferOp);
     auto xferVecType = xferOp.getVectorType();
     int64_t dimSize = xferVecType.getShape()[0];
+    auto source = xferOp.source(); // memref or tensor to be written to.
+    auto sourceType = isTensorOp(xferOp) ? xferOp.getShapedType() : Type();
 
     // Generate fully unrolled loop of transfer ops.
     Location loc = xferOp.getLoc();
     for (int64_t i = 0; i < dimSize; ++i) {
-      Value iv = rewriter.create<ConstantIndexOp>(loc, i);
+      Value iv = rewriter.create<arith::ConstantIndexOp>(loc, i);
 
-      generateInBoundsCheck(
+      auto updatedSource = generateInBoundsCheck(
           rewriter, xferOp, iv, unpackedDim(xferOp),
-          /*inBoundsCase=*/[&](OpBuilder &b, Location loc) {
+          isTensorOp(xferOp) ? TypeRange(sourceType) : TypeRange(),
+          /*inBoundsCase=*/
+          [&](OpBuilder &b, Location loc) {
             // Indices for the new transfer op.
             SmallVector<Value, 8> xferIndices;
             getXferIndices(b, xferOp, iv, xferIndices);
@@ -961,17 +1045,29 @@ struct UnrollTransferWriteConversion
             auto extracted =
                 b.create<vector::ExtractOp>(loc, vec, extractionIndices);
             auto inBoundsAttr = dropFirstElem(b, xferOp.in_boundsAttr());
-
             auto newXferOp = b.create<vector::TransferWriteOp>(
-                loc, Type(), extracted, xferOp.source(), xferIndices,
+                loc, sourceType, extracted, source, xferIndices,
                 AffineMapAttr::get(unpackedPermutationMap(b, xferOp)), Value(),
                 inBoundsAttr);
 
             maybeAssignMask(b, xferOp, newXferOp, i);
+
+            return isTensorOp(xferOp) ? newXferOp->getResult(0) : Value();
+          },
+          /*outOfBoundsCase=*/
+          [&](OpBuilder &b, Location loc) {
+            return isTensorOp(xferOp) ? source : Value();
           });
+
+      if (isTensorOp(xferOp))
+        source = updatedSource;
     }
 
-    rewriter.eraseOp(xferOp);
+    if (isTensorOp(xferOp))
+      rewriter.replaceOp(xferOp, source);
+    else
+      rewriter.eraseOp(xferOp);
+
     return success();
   }
 };
@@ -989,6 +1085,7 @@ get1dMemrefIndices(OpBuilder &b, OpTy xferOp, Value iv,
                    SmallVector<Value, 8> &memrefIndices) {
   auto indices = xferOp.indices();
   auto map = xferOp.permutation_map();
+  assert(xferOp.getTransferRank() > 0 && "unexpected 0-d transfer");
 
   memrefIndices.append(indices.begin(), indices.end());
   assert(map.getNumResults() == 1 &&
@@ -1021,8 +1118,6 @@ struct Strategy1d<TransferReadOp> {
                                   ValueRange loopState) {
     SmallVector<Value, 8> indices;
     auto dim = get1dMemrefIndices(b, xferOp, iv, indices);
-    Value ivI32 =
-        b.create<IndexCastOp>(loc, IntegerType::get(b.getContext(), 32), iv);
     auto vec = loopState[0];
 
     // In case of out-of-bounds access, leave `vec` as is (was initialized with
@@ -1032,7 +1127,7 @@ struct Strategy1d<TransferReadOp> {
         /*inBoundsCase=*/
         [&](OpBuilder &b, Location loc) {
           Value val = b.create<memref::LoadOp>(loc, xferOp.source(), indices);
-          return b.create<vector::InsertElementOp>(loc, val, vec, ivI32);
+          return b.create<vector::InsertElementOp>(loc, val, vec, iv);
         },
         /*outOfBoundsCase=*/
         [&](OpBuilder & /*b*/, Location loc) { return vec; });
@@ -1054,15 +1149,13 @@ struct Strategy1d<TransferWriteOp> {
                                   ValueRange /*loopState*/) {
     SmallVector<Value, 8> indices;
     auto dim = get1dMemrefIndices(b, xferOp, iv, indices);
-    Value ivI32 =
-        b.create<IndexCastOp>(loc, IntegerType::get(b.getContext(), 32), iv);
 
     // Nothing to do in case of out-of-bounds access.
     generateInBoundsCheck(
         b, xferOp, iv, dim,
         /*inBoundsCase=*/[&](OpBuilder &b, Location loc) {
           auto val =
-              b.create<vector::ExtractElementOp>(loc, xferOp.vector(), ivI32);
+              b.create<vector::ExtractElementOp>(loc, xferOp.vector(), iv);
           b.create<memref::StoreOp>(loc, val, xferOp.source(), indices);
         });
     b.create<scf::YieldOp>(loc);
@@ -1118,6 +1211,9 @@ struct TransferOp1dConversion : public VectorToSCFPattern<OpTy> {
 
   LogicalResult matchAndRewrite(OpTy xferOp,
                                 PatternRewriter &rewriter) const override {
+    // TODO: support 0-d corner case.
+    if (xferOp.getTransferRank() == 0)
+      return failure();
     auto map = xferOp.permutation_map();
     auto memRefType = xferOp.getShapedType().template dyn_cast<MemRefType>();
 
@@ -1131,9 +1227,10 @@ struct TransferOp1dConversion : public VectorToSCFPattern<OpTy> {
     // Loop bounds, step, state...
     Location loc = xferOp.getLoc();
     auto vecType = xferOp.getVectorType();
-    auto lb = rewriter.create<ConstantIndexOp>(loc, 0);
-    auto ub = rewriter.create<ConstantIndexOp>(loc, vecType.getDimSize(0));
-    auto step = rewriter.create<ConstantIndexOp>(loc, 1);
+    auto lb = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    auto ub =
+        rewriter.create<arith::ConstantIndexOp>(loc, vecType.getDimSize(0));
+    auto step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     auto loopState = Strategy1d<OpTy>::initialLoopState(rewriter, xferOp);
 
     // Generate for loop.
@@ -1184,6 +1281,7 @@ struct ConvertVectorToSCFPass
     this->fullUnroll = options.unroll;
     this->targetRank = options.targetRank;
     this->lowerPermutationMaps = options.lowerPermutationMaps;
+    this->lowerTensors = options.lowerTensors;
   }
 
   void runOnFunction() override {
@@ -1191,6 +1289,7 @@ struct ConvertVectorToSCFPass
     options.unroll = fullUnroll;
     options.targetRank = targetRank;
     options.lowerPermutationMaps = lowerPermutationMaps;
+    options.lowerTensors = lowerTensors;
 
     // Lower permutation maps first.
     if (lowerPermutationMaps) {

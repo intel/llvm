@@ -14,8 +14,8 @@
 //
 //===---------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TESTTU_H
-#define LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TESTTU_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_TESTTU_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_TESTTU_H
 
 #include "../TidyProvider.h"
 #include "Compiler.h"
@@ -25,7 +25,6 @@
 #include "index/Index.h"
 #include "support/Path.h"
 #include "llvm/ADT/StringMap.h"
-#include "gtest/gtest.h"
 #include <memory>
 #include <string>
 #include <utility>
@@ -105,4 +104,4 @@ const NamedDecl &findUnqualifiedDecl(ParsedAST &AST, llvm::StringRef Name);
 } // namespace clangd
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_UNITTESTS_CLANGD_TESTTU_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANGD_UNITTESTS_TESTTU_H

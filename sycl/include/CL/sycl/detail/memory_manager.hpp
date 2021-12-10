@@ -151,6 +151,11 @@ public:
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<RT::PiEvent> DepEvents,
                            RT::PiEvent &OutEvent);
+
+  static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
+                         pi_mem_advice Advice,
+                         std::vector<RT::PiEvent> DepEvents,
+                         RT::PiEvent &OutEvent);
 };
 } // namespace detail
 } // namespace sycl

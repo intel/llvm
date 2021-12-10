@@ -17,9 +17,11 @@
 #include <CL/sycl/detail/device_filter.hpp>
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
+#include <CL/sycl/version.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <bitset>
 #include <cstdarg>
@@ -33,8 +35,12 @@
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting
 // traces using the trace framework
-#include "xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.h"
 #endif
+
+#define STR(x) #x
+#define SYCL_VERSION_STR                                                       \
+  "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -46,16 +52,33 @@ namespace detail {
 xpti_td *GSYCLGraphEvent = nullptr;
 /// Event to be used by PI layer related activities
 xpti_td *GPICallEvent = nullptr;
+/// Event to be used by PI layer calls with arguments
+xpti_td *GPIArgCallEvent = nullptr;
 /// Constants being used as placeholder until one is able to reliably get the
 /// version of the SYCL runtime
-constexpr uint32_t GMajVer = 1;
-constexpr uint32_t GMinVer = 0;
-constexpr const char *GVerStr = "sycl 1.0";
+constexpr uint32_t GMajVer = __LIBSYCL_MAJOR_VERSION;
+constexpr uint32_t GMinVer = __LIBSYCL_MINOR_VERSION;
+constexpr const char *GVerStr = SYCL_VERSION_STR;
 #endif // XPTI_ENABLE_INSTRUMENTATION
+
+template <cl::sycl::backend BE>
+void *getPluginOpaqueData(void *OpaqueDataParam) {
+  void *ReturnOpaqueData = nullptr;
+  const cl::sycl::detail::plugin &Plugin =
+      cl::sycl::detail::pi::getPlugin<BE>();
+
+  Plugin.call<cl::sycl::detail::PiApiKind::piextPluginGetOpaqueData>(
+      OpaqueDataParam, &ReturnOpaqueData);
+
+  return ReturnOpaqueData;
+}
+
+template __SYCL_EXPORT void *
+getPluginOpaqueData<cl::sycl::backend::ext_intel_esimd_emulator>(void *);
 
 namespace pi {
 
-static void initializePlugins(vector_class<plugin> *Plugins);
+static void initializePlugins(std::vector<plugin> &Plugins);
 
 bool XPTIInitDone = false;
 
@@ -120,14 +143,51 @@ void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #endif // XPTI_ENABLE_INSTRUMENTATION
 }
 
+uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FuncName,
+                                        unsigned char *ArgsData,
+                                        pi_plugin Plugin) {
+  uint64_t CorrelationID = 0;
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
+    CorrelationID = xptiGetUniqueId();
+
+    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, nullptr,
+                                       &Plugin};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_begin,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+  return CorrelationID;
+}
+
+void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
+                                  const char *FuncName, unsigned char *ArgsData,
+                                  pi_result Result, pi_plugin Plugin) {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    uint8_t StreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
+
+    xpti::function_with_args_t Payload{FuncID, FuncName, ArgsData, &Result,
+                                       &Plugin};
+
+    xptiNotifySubscribers(
+        StreamID, (uint16_t)xpti::trace_point_type_t::function_with_args_end,
+        GPIArgCallEvent, nullptr, CorrelationID, &Payload);
+  }
+#endif
+}
+
 void contextSetExtendedDeleter(const cl::sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
   auto contextHandle = reinterpret_cast<pi_context>(impl->getHandleRef());
   auto plugin = impl->getPlugin();
-  plugin.call_nocheck<PiApiKind::piextContextSetExtendedDeleter>(
-      contextHandle, func, user_data);
+  plugin.call<PiApiKind::piextContextSetExtendedDeleter>(contextHandle, func,
+                                                         user_data);
 }
 
 std::string platformInfoToString(pi_platform_info info) {
@@ -210,7 +270,9 @@ std::string memFlagsToString(pi_mem_flags Flags) {
 std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
-bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
+std::vector<std::pair<std::string, backend>> findPlugins() {
+  std::vector<std::pair<std::string, backend>> PluginNames;
+
   // TODO: Based on final design discussions, change the location where the
   // plugin must be searched; how to identify the plugins etc. Currently the
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
@@ -220,13 +282,18 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
   if (!FilterList) {
     PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
     PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                             backend::level_zero);
-    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+                             backend::ext_oneapi_level_zero);
+    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
+    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
+                             backend::ext_intel_esimd_emulator);
   } else {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
     bool CudaFound = false;
+    bool EsimdCpuFound = false;
+    bool HIPFound = false;
     for (const device_filter &Filter : Filters) {
       backend Backend = Filter.Backend;
       if (!OpenCLFound &&
@@ -234,19 +301,33 @@ bool findPlugins(vector_class<std::pair<std::string, backend>> &PluginNames) {
         PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
         OpenCLFound = true;
       }
-      if (!LevelZeroFound &&
-          (Backend == backend::level_zero || Backend == backend::all)) {
+      if (!LevelZeroFound && (Backend == backend::ext_oneapi_level_zero ||
+                              Backend == backend::all)) {
         PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                                 backend::level_zero);
+                                 backend::ext_oneapi_level_zero);
         LevelZeroFound = true;
       }
-      if (!CudaFound && (Backend == backend::cuda || Backend == backend::all)) {
-        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::cuda);
+      if (!CudaFound &&
+          (Backend == backend::ext_oneapi_cuda || Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
+                                 backend::ext_oneapi_cuda);
         CudaFound = true;
+      }
+      if (!EsimdCpuFound && (Backend == backend::ext_intel_esimd_emulator ||
+                             Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
+                                 backend::ext_intel_esimd_emulator);
+        EsimdCpuFound = true;
+      }
+      if (!HIPFound &&
+          (Backend == backend::ext_oneapi_hip || Backend == backend::all)) {
+        PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME,
+                                 backend::ext_oneapi_hip);
+        HIPFound = true;
       }
     }
   }
-  return true;
+  return PluginNames;
 }
 
 // Load the Plugin by calling the OS dependent library loading call.
@@ -265,14 +346,15 @@ int unloadPlugin(void *Library) { return unloadOsLibrary(Library); }
 // call is done to get all Interface API mapping. The plugin interface also
 // needs to setup infrastructure to route PI_CALLs to the appropriate plugins.
 // Currently, we bind to a singe plugin.
-bool bindPlugin(void *Library, PiPlugin *PluginInformation) {
+bool bindPlugin(void *Library,
+                const std::shared_ptr<PiPlugin> &PluginInformation) {
 
   decltype(::piPluginInit) *PluginInitializeFunction = (decltype(
       &::piPluginInit))(getOsLibraryFuncAddress(Library, "piPluginInit"));
   if (PluginInitializeFunction == nullptr)
     return false;
 
-  int Err = PluginInitializeFunction(PluginInformation);
+  int Err = PluginInitializeFunction(PluginInformation.get());
 
   // TODO: Compare Supported versions and check for backward compatibility.
   // Make sure err is PI_SUCCESS.
@@ -289,29 +371,28 @@ bool trace(TraceLevel Level) {
 }
 
 // Initializes all available Plugins.
-const vector_class<plugin> &initialize() {
+std::vector<plugin> &initialize() {
   static std::once_flag PluginsInitDone;
-
-  std::call_once(PluginsInitDone, []() {
-    initializePlugins(&GlobalHandler::instance().getPlugins());
+  // std::call_once is blocking all other threads if a thread is already
+  // creating a vector of plugins. So, no additional lock is needed.
+  std::call_once(PluginsInitDone, [&]() {
+    initializePlugins(GlobalHandler::instance().getPlugins());
   });
-
   return GlobalHandler::instance().getPlugins();
 }
 
-static void initializePlugins(vector_class<plugin> *Plugins) {
-  vector_class<std::pair<std::string, backend>> PluginNames;
-  findPlugins(PluginNames);
+static void initializePlugins(std::vector<plugin> &Plugins) {
+  std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
-  PiPlugin PluginInformation{
-      _PI_H_VERSION_STRING, _PI_H_VERSION_STRING, nullptr, {}};
-  PluginInformation.PiFunctionTable = {};
-
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
+    std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
+        PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
+                 /*Targets=*/nullptr, /*FunctionPointers=*/{}});
+
     void *Library = loadPlugin(PluginNames[I].first);
 
     if (!Library) {
@@ -324,7 +405,7 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
       continue;
     }
 
-    if (!bindPlugin(Library, &PluginInformation)) {
+    if (!bindPlugin(Library, PluginInformation)) {
       if (trace(PI_TRACE_ALL)) {
         std::cerr << "SYCL_PI_TRACE[all]: "
                   << "Failed to bind PI APIs to the plugin: "
@@ -343,18 +424,29 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
       // Use the OpenCL plugin as the GlobalPlugin
       GlobalPlugin =
           std::make_shared<plugin>(PluginInformation, backend::opencl, Library);
-    } else if (InteropBE == backend::cuda &&
+    } else if (InteropBE == backend::ext_oneapi_cuda &&
                PluginNames[I].first.find("cuda") != std::string::npos) {
       // Use the CUDA plugin as the GlobalPlugin
-      GlobalPlugin =
-          std::make_shared<plugin>(PluginInformation, backend::cuda, Library);
-    } else if (InteropBE == backend::level_zero &&
+      GlobalPlugin = std::make_shared<plugin>(
+          PluginInformation, backend::ext_oneapi_cuda, Library);
+    } else if (InteropBE == backend::ext_oneapi_hip &&
+               PluginNames[I].first.find("hip") != std::string::npos) {
+      // Use the HIP plugin as the GlobalPlugin
+      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
+                                              backend::ext_oneapi_hip, Library);
+    } else if (InteropBE == backend::ext_oneapi_level_zero &&
                PluginNames[I].first.find("level_zero") != std::string::npos) {
       // Use the LEVEL_ZERO plugin as the GlobalPlugin
-      GlobalPlugin = std::make_shared<plugin>(PluginInformation,
-                                              backend::level_zero, Library);
+      GlobalPlugin = std::make_shared<plugin>(
+          PluginInformation, backend::ext_oneapi_level_zero, Library);
+    } else if (InteropBE == backend::ext_intel_esimd_emulator &&
+               PluginNames[I].first.find("esimd_emulator") !=
+                   std::string::npos) {
+      // Use the ESIMD_EMULATOR plugin as the GlobalPlugin
+      GlobalPlugin = std::make_shared<plugin>(
+          PluginInformation, backend::ext_intel_esimd_emulator, Library);
     }
-    Plugins->emplace_back(
+    Plugins.emplace_back(
         plugin(PluginInformation, PluginNames[I].second, Library));
     if (trace(TraceLevel::PI_TRACE_BASIC))
       std::cerr << "SYCL_PI_TRACE[basic]: "
@@ -363,6 +455,8 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  GlobalHandler::instance().getXPTIRegistry().initializeFrameworkOnce();
+
   if (!(xptiTraceEnabled() && !XPTIInitDone))
     return;
   // Not sure this is the best place to initialize the framework; SYCL runtime
@@ -378,12 +472,8 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
   uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   //  Let all tool plugins know that a stream by the name of 'sycl' has been
   //  initialized and will be generating the trace stream.
-  //
-  //                                           +--- Minor version #
-  //            Major version # ------+        |   Version string
-  //                                  |        |       |
-  //                                  v        v       v
-  xptiInitialize(SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   // Create a tracepoint to indicate the graph creation
   xpti::payload_t GraphPayload("application_graph");
   uint64_t GraphInstanceNo;
@@ -398,12 +488,22 @@ static void initializePlugins(vector_class<plugin> *Plugins) {
   }
 
   // Let subscribers know a new stream is being initialized
-  xptiInitialize(SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PICALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   xpti::payload_t PIPayload("Plugin Interface Layer");
   uint64_t PiInstanceNo;
   GPICallEvent =
       xptiMakeEvent("PI Layer", &PIPayload, xpti::trace_algorithm_event,
                     xpti_at::active, &PiInstanceNo);
+
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PIDEBUGCALL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  xpti::payload_t PIArgPayload(
+      "Plugin Interface Layer (with function arguments)");
+  uint64_t PiArgInstanceNo;
+  GPIArgCallEvent = xptiMakeEvent("PI Layer with arguments", &PIArgPayload,
+                                  xpti::trace_algorithm_event, xpti_at::active,
+                                  &PiArgInstanceNo);
 #endif
 }
 
@@ -413,7 +513,7 @@ template <backend BE> const plugin &getPlugin() {
   if (Plugin)
     return *Plugin;
 
-  const vector_class<plugin> &Plugins = pi::initialize();
+  const std::vector<plugin> &Plugins = pi::initialize();
   for (const auto &P : Plugins)
     if (P.getBackend() == BE) {
       Plugin = &P;
@@ -424,8 +524,11 @@ template <backend BE> const plugin &getPlugin() {
                       PI_INVALID_OPERATION);
 }
 
-template const plugin &getPlugin<backend::opencl>();
-template const plugin &getPlugin<backend::level_zero>();
+template __SYCL_EXPORT const plugin &getPlugin<backend::opencl>();
+template __SYCL_EXPORT const plugin &
+getPlugin<backend::ext_oneapi_level_zero>();
+template __SYCL_EXPORT const plugin &
+getPlugin<backend::ext_intel_esimd_emulator>();
 
 // Report error and no return (keeps compiler from printing warnings).
 // TODO: Probably change that to throw a catchable exception,
@@ -467,7 +570,7 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
     std::ios_base::fmtflags FlagsBackup = Out.flags();
     Out << std::hex;
     for (const auto &Byte : BA) {
-      Out << "0x" << Byte << " ";
+      Out << "0x" << static_cast<unsigned>(Byte) << " ";
     }
     Out.flags(FlagsBackup);
     break;
@@ -617,6 +720,7 @@ void DeviceBinaryImage::init(pi_device_binary Bin) {
   SpecConstIDMap.init(Bin, __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP);
   DeviceLibReqMask.init(Bin, __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK);
   KernelParamOptInfo.init(Bin, __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
+  ProgramMetadata.init(Bin, __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA);
 }
 
 } // namespace pi

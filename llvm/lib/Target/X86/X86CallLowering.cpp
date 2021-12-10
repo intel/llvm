@@ -105,19 +105,18 @@ struct X86OutgoingValueHandler : public CallLowering::OutgoingValueHandler {
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     MIB.addUse(PhysReg, RegState::Implicit);
     Register ExtReg = extendRegister(ValVReg, VA);
     MIRBuilder.buildCopy(PhysReg, ExtReg);
   }
 
-  void assignValueToAddress(Register ValVReg, Register Addr, uint64_t Size,
+  void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
     Register ExtReg = extendRegister(ValVReg, VA);
 
-    auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore,
-                                        VA.getLocVT().getStoreSize(),
+    auto *MMO = MF.getMachineMemOperand(MPO, MachineMemOperand::MOStore, MemTy,
                                         inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildStore(ExtReg, Addr, *MMO);
   }
@@ -143,7 +142,7 @@ bool X86CallLowering::lowerReturn(MachineIRBuilder &MIRBuilder,
     MachineRegisterInfo &MRI = MF.getRegInfo();
     const DataLayout &DL = MF.getDataLayout();
 
-    ArgInfo OrigRetInfo(VRegs, Val->getType());
+    ArgInfo OrigRetInfo(VRegs, Val->getType(), 0);
     setArgFlags(OrigRetInfo, AttributeList::ReturnIndex, DL, F);
 
     SmallVector<ArgInfo, 4> SplitRetInfos;
@@ -186,17 +185,17 @@ struct X86IncomingValueHandler : public CallLowering::IncomingValueHandler {
         .getReg(0);
   }
 
-  void assignValueToAddress(Register ValVReg, Register Addr, uint64_t Size,
+  void assignValueToAddress(Register ValVReg, Register Addr, LLT MemTy,
                             MachinePointerInfo &MPO, CCValAssign &VA) override {
     MachineFunction &MF = MIRBuilder.getMF();
     auto *MMO = MF.getMachineMemOperand(
-        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, Size,
+        MPO, MachineMemOperand::MOLoad | MachineMemOperand::MOInvariant, MemTy,
         inferAlignFromPtrInfo(MF, MPO));
     MIRBuilder.buildLoad(ValVReg, Addr, *MMO);
   }
 
   void assignValueToReg(Register ValVReg, Register PhysReg,
-                        CCValAssign &VA) override {
+                        CCValAssign VA) override {
     markPhysRegUsed(PhysReg);
     IncomingValueHandler::assignValueToReg(ValVReg, PhysReg, VA);
   }
@@ -262,7 +261,7 @@ bool X86CallLowering::lowerFormalArguments(MachineIRBuilder &MIRBuilder,
         Arg.hasAttribute(Attribute::Nest) || VRegs[Idx].size() > 1)
       return false;
 
-    ArgInfo OrigArg(VRegs[Idx], Arg.getType());
+    ArgInfo OrigArg(VRegs[Idx], Arg.getType(), Idx);
     setArgFlags(OrigArg, Idx + AttributeList::FirstArgIndex, DL, F);
     splitToValueTypes(OrigArg, SplitArgs, DL, F.getCallingConv());
     Idx++;

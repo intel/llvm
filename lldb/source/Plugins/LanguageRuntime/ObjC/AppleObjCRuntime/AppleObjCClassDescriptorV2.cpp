@@ -9,6 +9,7 @@
 #include "AppleObjCClassDescriptorV2.h"
 
 #include "lldb/Expression/FunctionCaller.h"
+#include "lldb/Target/ABI.h"
 #include "lldb/Utility/Log.h"
 
 using namespace lldb;
@@ -73,6 +74,10 @@ bool ClassDescriptorV2::objc_class_t::Read(Process *process,
   m_flags = (uint8_t)(data_NEVER_USE & (lldb::addr_t)3);
   m_data_ptr = data_NEVER_USE & GetClassDataMask(process);
 
+  if (ABISP abi_sp = process->GetABI()) {
+    m_isa = abi_sp->FixCodeAddress(m_isa);
+    m_superclass = abi_sp->FixCodeAddress(m_superclass);
+  }
   return true;
 }
 
@@ -105,6 +110,8 @@ bool ClassDescriptorV2::class_rw_t::Read(Process *process, lldb::addr_t addr) {
   m_flags = extractor.GetU32_unchecked(&cursor);
   m_version = extractor.GetU32_unchecked(&cursor);
   m_ro_ptr = extractor.GetAddress_unchecked(&cursor);
+  if (ABISP abi_sp = process->GetABI())
+    m_ro_ptr = abi_sp->FixCodeAddress(m_ro_ptr);
   m_method_list_ptr = extractor.GetAddress_unchecked(&cursor);
   m_properties_ptr = extractor.GetAddress_unchecked(&cursor);
   m_firstSubclass = extractor.GetAddress_unchecked(&cursor);
@@ -120,6 +127,8 @@ bool ClassDescriptorV2::class_rw_t::Read(Process *process, lldb::addr_t addr) {
                             process->GetByteOrder(),
                             process->GetAddressByteSize());
     m_ro_ptr = extractor.GetAddress_unchecked(&cursor);
+    if (ABISP abi_sp = process->GetABI())
+      m_ro_ptr = abi_sp->FixCodeAddress(m_ro_ptr);
   }
 
   return true;
@@ -231,6 +240,8 @@ bool ClassDescriptorV2::method_list_t::Read(Process *process,
   DataBufferHeap buffer(size, '\0');
   Status error;
 
+  if (ABISP abi_sp = process->GetABI())
+    addr = abi_sp->FixCodeAddress(addr);
   process->ReadMemory(addr, buffer.GetBytes(), size, error);
   if (error.Fail()) {
     return false;
@@ -252,6 +263,7 @@ bool ClassDescriptorV2::method_list_t::Read(Process *process,
 }
 
 bool ClassDescriptorV2::method_t::Read(Process *process, lldb::addr_t addr,
+                                       lldb::addr_t relative_selector_base_addr,
                                        bool is_small, bool has_direct_sel) {
   size_t ptr_size = process->GetAddressByteSize();
   size_t size = GetSize(process, is_small);
@@ -281,6 +293,8 @@ bool ClassDescriptorV2::method_t::Read(Process *process, lldb::addr_t addr,
                                                           0, error);
       if (!error.Success())
         return false;
+    } else if (relative_selector_base_addr != LLDB_INVALID_ADDRESS) {
+      m_name_ptr = relative_selector_base_addr + nameref_offset;
     }
     m_types_ptr = addr + 4 + types_offset;
     m_imp_ptr = addr + 8 + imp_offset;
@@ -389,14 +403,14 @@ bool ClassDescriptorV2::Describe(
     if (base_method_list->m_entsize != method_t::GetSize(process, is_small))
       return false;
 
-    std::unique_ptr<method_t> method;
-    method = std::make_unique<method_t>();
-
+    std::unique_ptr<method_t> method = std::make_unique<method_t>();
+    lldb::addr_t relative_selector_base_addr =
+        m_runtime.GetRelativeSelectorBaseAddr();
     for (uint32_t i = 0, e = base_method_list->m_count; i < e; ++i) {
       method->Read(process,
                    base_method_list->m_first_ptr +
                        (i * base_method_list->m_entsize),
-                   is_small, has_direct_selector);
+                   relative_selector_base_addr, is_small, has_direct_selector);
 
       if (instance_method_func(method->m_name.c_str(), method->m_types.c_str()))
         break;
@@ -514,8 +528,7 @@ uint64_t ClassDescriptorV2::GetInstanceSize() {
   return 0;
 }
 
-ClassDescriptorV2::iVarsStorage::iVarsStorage()
-    : m_filled(false), m_ivars(), m_mutex() {}
+ClassDescriptorV2::iVarsStorage::iVarsStorage() : m_ivars(), m_mutex() {}
 
 size_t ClassDescriptorV2::iVarsStorage::size() { return m_ivars.size(); }
 

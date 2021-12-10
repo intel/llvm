@@ -39,15 +39,13 @@ PlatformRemoteDarwinDevice::SDKDirectoryInfo::SDKDirectoryInfo(
 PlatformRemoteDarwinDevice::PlatformRemoteDarwinDevice()
     : PlatformDarwin(false), // This is a remote platform
       m_sdk_directory_infos(), m_device_support_directory(),
-      m_device_support_directory_for_os_version(), m_build_update(),
-      m_last_module_sdk_idx(UINT32_MAX),
-      m_connected_module_sdk_idx(UINT32_MAX) {}
+      m_device_support_directory_for_os_version(), m_build_update() {}
 
 /// Destructor.
 ///
 /// The destructor is virtual since this class is designed to be
 /// inherited from by the plug-in instance.
-PlatformRemoteDarwinDevice::~PlatformRemoteDarwinDevice() {}
+PlatformRemoteDarwinDevice::~PlatformRemoteDarwinDevice() = default;
 
 void PlatformRemoteDarwinDevice::GetStatus(Stream &strm) {
   Platform::GetStatus(strm);
@@ -113,10 +111,10 @@ Status PlatformRemoteDarwinDevice::ResolveExecutable(
 
     if (error.Fail() || !exe_module_sp) {
       if (FileSystem::Instance().Readable(resolved_module_spec.GetFileSpec())) {
-        error.SetErrorStringWithFormat(
-            "'%s' doesn't contain any '%s' platform architectures: %s",
-            resolved_module_spec.GetFileSpec().GetPath().c_str(),
-            GetPluginName().GetCString(), arch_names.GetData());
+        error.SetErrorStringWithFormatv(
+            "'{0}' doesn't contain any '{1}' platform architectures: {2}",
+            resolved_module_spec.GetFileSpec(), GetPluginName(),
+            arch_names.GetData());
       } else {
         error.SetErrorStringWithFormat(
             "'%s' is not readable",
@@ -488,9 +486,9 @@ Status PlatformRemoteDarwinDevice::GetSymbolFile(const FileSpec &platform_file,
     if (FileSystem::Instance().Exists(local_file))
       return error;
 
-    error.SetErrorStringWithFormat(
-        "unable to locate a platform file for '%s' in platform '%s'",
-        platform_file_path, GetPluginName().GetCString());
+    error.SetErrorStringWithFormatv(
+        "unable to locate a platform file for '{0}' in platform '{1}'",
+        platform_file_path, GetPluginName());
   } else {
     error.SetErrorString("invalid platform file argument");
   }
@@ -632,13 +630,12 @@ Status PlatformRemoteDarwinDevice::GetSharedModule(
 uint32_t PlatformRemoteDarwinDevice::GetConnectedSDKIndex() {
   if (IsConnected()) {
     if (m_connected_module_sdk_idx == UINT32_MAX) {
-      std::string build;
-      if (GetRemoteOSBuildString(build)) {
+      if (llvm::Optional<std::string> build = GetRemoteOSBuildString()) {
         const uint32_t num_sdk_infos = m_sdk_directory_infos.size();
         for (uint32_t i = 0; i < num_sdk_infos; ++i) {
           const SDKDirectoryInfo &sdk_dir_info = m_sdk_directory_infos[i];
           if (strstr(sdk_dir_info.directory.GetFilename().AsCString(""),
-                     build.c_str())) {
+                     build->c_str())) {
             m_connected_module_sdk_idx = i;
           }
         }

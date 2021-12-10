@@ -33,7 +33,7 @@ public:
   using OpConversionPattern<SourceOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
+  matchAndRewrite(SourceOp op, typename SourceOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -45,7 +45,7 @@ public:
   using OpConversionPattern<SourceOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(SourceOp op, ArrayRef<Value> operands,
+  matchAndRewrite(SourceOp op, typename SourceOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -58,7 +58,7 @@ public:
   using OpConversionPattern<gpu::BlockDimOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(gpu::BlockDimOp op, ArrayRef<Value> operands,
+  matchAndRewrite(gpu::BlockDimOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -68,7 +68,7 @@ public:
   using OpConversionPattern<gpu::GPUFuncOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(gpu::GPUFuncOp funcOp, ArrayRef<Value> operands,
+  matchAndRewrite(gpu::GPUFuncOp funcOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 
 private:
@@ -81,8 +81,21 @@ public:
   using OpConversionPattern<gpu::GPUModuleOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(gpu::GPUModuleOp moduleOp, ArrayRef<Value> operands,
+  matchAndRewrite(gpu::GPUModuleOp moduleOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
+};
+
+class GPUModuleEndConversion final
+    : public OpConversionPattern<gpu::ModuleEndOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(gpu::ModuleEndOp endOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.eraseOp(endOp);
+    return success();
+  }
 };
 
 /// Pattern to convert a gpu.return into a SPIR-V return.
@@ -92,7 +105,7 @@ public:
   using OpConversionPattern<gpu::ReturnOp>::OpConversionPattern;
 
   LogicalResult
-  matchAndRewrite(gpu::ReturnOp returnOp, ArrayRef<Value> operands,
+  matchAndRewrite(gpu::ReturnOp returnOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 };
 
@@ -116,16 +129,20 @@ static Optional<int32_t> getLaunchConfigIndex(Operation *op) {
 
 template <typename SourceOp, spirv::BuiltIn builtin>
 LogicalResult LaunchConfigConversion<SourceOp, builtin>::matchAndRewrite(
-    SourceOp op, ArrayRef<Value> operands,
+    SourceOp op, typename SourceOp::Adaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto index = getLaunchConfigIndex(op);
   if (!index)
     return failure();
 
+  auto *typeConverter = this->template getTypeConverter<SPIRVTypeConverter>();
+  auto indexType = typeConverter->getIndexType();
+
   // SPIR-V invocation builtin variables are a vector of type <3xi32>
-  auto spirvBuiltin = spirv::getBuiltinVariableValue(op, builtin, rewriter);
+  auto spirvBuiltin =
+      spirv::getBuiltinVariableValue(op, builtin, indexType, rewriter);
   rewriter.replaceOpWithNewOp<spirv::CompositeExtractOp>(
-      op, rewriter.getIntegerType(32), spirvBuiltin,
+      op, indexType, spirvBuiltin,
       rewriter.getI32ArrayAttr({index.getValue()}));
   return success();
 }
@@ -133,22 +150,26 @@ LogicalResult LaunchConfigConversion<SourceOp, builtin>::matchAndRewrite(
 template <typename SourceOp, spirv::BuiltIn builtin>
 LogicalResult
 SingleDimLaunchConfigConversion<SourceOp, builtin>::matchAndRewrite(
-    SourceOp op, ArrayRef<Value> operands,
+    SourceOp op, typename SourceOp::Adaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto spirvBuiltin = spirv::getBuiltinVariableValue(op, builtin, rewriter);
+  auto *typeConverter = this->template getTypeConverter<SPIRVTypeConverter>();
+  auto indexType = typeConverter->getIndexType();
+
+  auto spirvBuiltin =
+      spirv::getBuiltinVariableValue(op, builtin, indexType, rewriter);
   rewriter.replaceOp(op, spirvBuiltin);
   return success();
 }
 
 LogicalResult WorkGroupSizeConversion::matchAndRewrite(
-    gpu::BlockDimOp op, ArrayRef<Value> operands,
+    gpu::BlockDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto index = getLaunchConfigIndex(op);
   if (!index)
     return failure();
 
   auto workGroupSizeAttr = spirv::lookupLocalWorkGroupSize(op);
-  auto val = workGroupSizeAttr.getValue<int32_t>(index.getValue());
+  auto val = workGroupSizeAttr.getValues<int32_t>()[index.getValue()];
   auto convertedType =
       getTypeConverter()->convertType(op.getResult().getType());
   if (!convertedType)
@@ -195,10 +216,10 @@ lowerAsEntryFunction(gpu::GPUFuncOp funcOp, TypeConverter &typeConverter,
       rewriter.getFunctionType(signatureConverter.getConvertedTypes(),
                                llvm::None));
   for (const auto &namedAttr : funcOp->getAttrs()) {
-    if (namedAttr.first == function_like_impl::getTypeAttrName() ||
-        namedAttr.first == SymbolTable::getSymbolAttrName())
+    if (namedAttr.getName() == function_like_impl::getTypeAttrName() ||
+        namedAttr.getName() == SymbolTable::getSymbolAttrName())
       continue;
-    newFuncOp->setAttr(namedAttr.first, namedAttr.second);
+    newFuncOp->setAttr(namedAttr.getName(), namedAttr.getValue());
   }
 
   rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
@@ -243,7 +264,7 @@ getDefaultABIAttrs(MLIRContext *context, gpu::GPUFuncOp funcOp,
 }
 
 LogicalResult GPUFuncOpConversion::matchAndRewrite(
-    gpu::GPUFuncOp funcOp, ArrayRef<Value> operands,
+    gpu::GPUFuncOp funcOp, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   if (!gpu::GPUDialect::isKernel(funcOp))
     return failure();
@@ -275,8 +296,8 @@ LogicalResult GPUFuncOpConversion::matchAndRewrite(
       funcOp, *getTypeConverter(), rewriter, entryPointAttr, argABI);
   if (!newFuncOp)
     return failure();
-  newFuncOp->removeAttr(Identifier::get(
-      gpu::GPUDialect::getKernelFuncAttrName(), rewriter.getContext()));
+  newFuncOp->removeAttr(
+      rewriter.getStringAttr(gpu::GPUDialect::getKernelFuncAttrName()));
   return success();
 }
 
@@ -285,7 +306,7 @@ LogicalResult GPUFuncOpConversion::matchAndRewrite(
 //===----------------------------------------------------------------------===//
 
 LogicalResult GPUModuleConversion::matchAndRewrite(
-    gpu::GPUModuleOp moduleOp, ArrayRef<Value> operands,
+    gpu::GPUModuleOp moduleOp, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   spirv::TargetEnvAttr targetEnv = spirv::lookupTargetEnvOrDefault(moduleOp);
   spirv::AddressingModel addressingModel = spirv::getAddressingModel(targetEnv);
@@ -297,16 +318,14 @@ LogicalResult GPUModuleConversion::matchAndRewrite(
   // Add a keyword to the module name to avoid symbolic conflict.
   std::string spvModuleName = (kSPIRVModule + moduleOp.getName()).str();
   auto spvModule = rewriter.create<spirv::ModuleOp>(
-      moduleOp.getLoc(), addressingModel, memoryModel.getValue(),
+      moduleOp.getLoc(), addressingModel, memoryModel.getValue(), llvm::None,
       StringRef(spvModuleName));
 
   // Move the region from the module op into the SPIR-V module.
-  Region &spvModuleRegion = spvModule.body();
+  Region &spvModuleRegion = spvModule.getRegion();
   rewriter.inlineRegionBefore(moduleOp.body(), spvModuleRegion,
                               spvModuleRegion.begin());
-  // The spv.module build method adds a block with a terminator. Remove that
-  // block. The terminator of the module op in the remaining block will be
-  // legalized later.
+  // The spv.module build method adds a block. Remove that.
   rewriter.eraseBlock(&spvModuleRegion.back());
   rewriter.eraseOp(moduleOp);
   return success();
@@ -317,9 +336,9 @@ LogicalResult GPUModuleConversion::matchAndRewrite(
 //===----------------------------------------------------------------------===//
 
 LogicalResult GPUReturnOpConversion::matchAndRewrite(
-    gpu::ReturnOp returnOp, ArrayRef<Value> operands,
+    gpu::ReturnOp returnOp, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  if (!operands.empty())
+  if (!adaptor.getOperands().empty())
     return failure();
 
   rewriter.replaceOpWithNewOp<spirv::ReturnOp>(returnOp);
@@ -330,15 +349,11 @@ LogicalResult GPUReturnOpConversion::matchAndRewrite(
 // GPU To SPIRV Patterns.
 //===----------------------------------------------------------------------===//
 
-namespace {
-#include "GPUToSPIRV.cpp.inc"
-}
-
 void mlir::populateGPUToSPIRVPatterns(SPIRVTypeConverter &typeConverter,
                                       RewritePatternSet &patterns) {
-  populateWithGenerated(patterns);
   patterns.add<
-      GPUFuncOpConversion, GPUModuleConversion, GPUReturnOpConversion,
+      GPUFuncOpConversion, GPUModuleConversion, GPUModuleEndConversion,
+      GPUReturnOpConversion,
       LaunchConfigConversion<gpu::BlockIdOp, spirv::BuiltIn::WorkgroupId>,
       LaunchConfigConversion<gpu::GridDimOp, spirv::BuiltIn::NumWorkgroups>,
       LaunchConfigConversion<gpu::ThreadIdOp,

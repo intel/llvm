@@ -19,6 +19,7 @@
 #include "support/Markup.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
@@ -28,6 +29,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/PrettyPrinter.h"
+#include "clang/AST/RecordLayout.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/SourceLocation.h"
@@ -72,7 +74,7 @@ std::string getLocalScope(const Decl *D) {
   // - Classes, categories, and protocols: "MyClass(Category)"
   if (const ObjCMethodDecl *MD = dyn_cast<ObjCMethodDecl>(DC))
     return printObjCMethod(*MD);
-  else if (const ObjCContainerDecl *CD = dyn_cast<ObjCContainerDecl>(DC))
+  if (const ObjCContainerDecl *CD = dyn_cast<ObjCContainerDecl>(DC))
     return printObjCContainer(*CD);
 
   auto GetName = [](const TypeDecl *D) {
@@ -127,6 +129,13 @@ std::string printDefinition(const Decl *D, const PrintingPolicy &PP) {
   D->print(OS, PP);
   OS.flush();
   return Definition;
+}
+
+const char *getMarkdownLanguage(const ASTContext &Ctx) {
+  const auto &LangOpts = Ctx.getLangOpts();
+  if (LangOpts.ObjC && LangOpts.CPlusPlus)
+    return "objective-cpp";
+  return LangOpts.ObjC ? "objective-c" : "cpp";
 }
 
 std::string printType(QualType QT, const PrintingPolicy &PP) {
@@ -253,24 +262,30 @@ const FunctionDecl *getUnderlyingFunction(const Decl *D) {
 // Returns the decl that should be used for querying comments, either from index
 // or AST.
 const NamedDecl *getDeclForComment(const NamedDecl *D) {
+  const NamedDecl *DeclForComment = D;
   if (const auto *TSD = llvm::dyn_cast<ClassTemplateSpecializationDecl>(D)) {
     // Template may not be instantiated e.g. if the type didn't need to be
     // complete; fallback to primary template.
     if (TSD->getTemplateSpecializationKind() == TSK_Undeclared)
-      return TSD->getSpecializedTemplate();
-    if (const auto *TIP = TSD->getTemplateInstantiationPattern())
-      return TIP;
-  }
-  if (const auto *TSD = llvm::dyn_cast<VarTemplateSpecializationDecl>(D)) {
+      DeclForComment = TSD->getSpecializedTemplate();
+    else if (const auto *TIP = TSD->getTemplateInstantiationPattern())
+      DeclForComment = TIP;
+  } else if (const auto *TSD =
+                 llvm::dyn_cast<VarTemplateSpecializationDecl>(D)) {
     if (TSD->getTemplateSpecializationKind() == TSK_Undeclared)
-      return TSD->getSpecializedTemplate();
-    if (const auto *TIP = TSD->getTemplateInstantiationPattern())
-      return TIP;
-  }
-  if (const auto *FD = D->getAsFunction())
+      DeclForComment = TSD->getSpecializedTemplate();
+    else if (const auto *TIP = TSD->getTemplateInstantiationPattern())
+      DeclForComment = TIP;
+  } else if (const auto *FD = D->getAsFunction())
     if (const auto *TIP = FD->getTemplateInstantiationPattern())
-      return TIP;
-  return D;
+      DeclForComment = TIP;
+  // Ensure that getDeclForComment(getDeclForComment(X)) = getDeclForComment(X).
+  // This is usually not needed, but in strange cases of comparision operators
+  // being instantiated from spasceship operater, which itself is a template
+  // instantiation the recursrive call is necessary.
+  if (D != DeclForComment)
+    DeclForComment = getDeclForComment(DeclForComment);
+  return DeclForComment;
 }
 
 // Look up information about D from the index, and add it to Hover.
@@ -587,7 +602,7 @@ HoverInfo getHoverContents(const NamedDecl *D, const PrintingPolicy &PP,
   } else if (const auto *ECD = dyn_cast<EnumConstantDecl>(D)) {
     // Dependent enums (e.g. nested in template classes) don't have values yet.
     if (!ECD->getType()->isDependentType())
-      HI.Value = ECD->getInitVal().toString(10);
+      HI.Value = toString(ECD->getInitVal(), 10);
   }
 
   HI.Definition = printDefinition(D, PP);
@@ -719,6 +734,20 @@ llvm::Optional<HoverInfo> getHoverContents(const Expr *E, ParsedAST &AST,
   return llvm::None;
 }
 
+// Generates hover info for attributes.
+llvm::Optional<HoverInfo> getHoverContents(const Attr *A, ParsedAST &AST) {
+  HoverInfo HI;
+  HI.Name = A->getSpelling();
+  if (A->hasScope())
+    HI.LocalScope = A->getScopeName()->getName().str();
+  {
+    llvm::raw_string_ostream OS(HI.Definition);
+    A->printPretty(OS, AST.getASTContext().getPrintingPolicy());
+  }
+  HI.Documentation = Attr::getDocumentation(A->getKind()).str();
+  return HI;
+}
+
 bool isParagraphBreak(llvm::StringRef Rest) {
   return Rest.ltrim(" \t").startswith("\n");
 }
@@ -770,10 +799,30 @@ void addLayoutInfo(const NamedDecl &ND, HoverInfo &HI) {
     const auto *Record = FD->getParent();
     if (Record)
       Record = Record->getDefinition();
-    if (Record && !Record->isInvalidDecl() && !Record->isDependentType()) {
-      HI.Offset = Ctx.getFieldOffset(FD) / 8;
-      if (auto Size = Ctx.getTypeSizeInCharsIfKnown(FD->getType()))
-        HI.Size = Size->getQuantity();
+    if (Record && !Record->isInvalidDecl() && !Record->isDependentType() &&
+        !FD->isBitField()) {
+      const ASTRecordLayout &Layout = Ctx.getASTRecordLayout(Record);
+      HI.Offset = Layout.getFieldOffset(FD->getFieldIndex()) / 8;
+      if (auto Size = Ctx.getTypeSizeInCharsIfKnown(FD->getType())) {
+        HI.Size = FD->isZeroSize(Ctx) ? 0 : Size->getQuantity();
+        unsigned EndOfField = *HI.Offset + *HI.Size;
+
+        // Calculate padding following the field.
+        if (!Record->isUnion() &&
+            FD->getFieldIndex() + 1 < Layout.getFieldCount()) {
+          // Measure padding up to the next class field.
+          unsigned NextOffset =
+              Layout.getFieldOffset(FD->getFieldIndex() + 1) / 8;
+          if (NextOffset >= EndOfField) // next field could be a bitfield!
+            HI.Padding = NextOffset - EndOfField;
+        } else {
+          // Measure padding up to the end of the object.
+          HI.Padding = Layout.getSize().getQuantity() - EndOfField;
+        }
+      }
+      // Offset in a union is always zero, so not really useful to report.
+      if (Record->isUnion())
+        HI.Offset.reset();
     }
     return;
   }
@@ -884,6 +933,22 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
   if (TokensTouchingCursor.empty())
     return llvm::None;
 
+  // Show full header file path if cursor is on include directive.
+  if (const auto MainFilePath =
+          getCanonicalPath(SM.getFileEntryForID(SM.getMainFileID()), SM)) {
+    for (const auto &Inc : AST.getIncludeStructure().MainFileIncludes) {
+      if (Inc.Resolved.empty() || Inc.HashLine != Pos.line)
+        continue;
+      HoverInfo HI;
+      HI.Name = std::string(llvm::sys::path::filename(Inc.Resolved));
+      // FIXME: We don't have a fitting value for Kind.
+      HI.Definition =
+          URIForFile::canonicalize(Inc.Resolved, *MainFilePath).file().str();
+      HI.DefinitionLanguage = "";
+      return HI;
+    }
+  }
+
   // To be used as a backup for highlighting the selected token, we use back as
   // it aligns better with biases elsewhere (editors tend to send the position
   // for the left of the hovered token).
@@ -939,6 +1004,8 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
         maybeAddCalleeArgInfo(N, *HI, PP);
       } else if (const Expr *E = N->ASTNode.get<Expr>()) {
         HI = getHoverContents(E, AST, PP, Index);
+      } else if (const Attr *A = N->ASTNode.get<Attr>()) {
+        HI = getHoverContents(A, AST);
       }
       // FIXME: support hovers for other nodes?
       //  - built-in types
@@ -953,6 +1020,7 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
   if (auto Formatted =
           tooling::applyAllReplacements(HI->Definition, Replacements))
     HI->Definition = *Formatted;
+  HI->DefinitionLanguage = getMarkdownLanguage(AST.getASTContext());
   HI->SymRange = halfOpenToRange(SM, HighlightRange);
 
   return HI;
@@ -960,6 +1028,7 @@ llvm::Optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
 
 markup::Document HoverInfo::present() const {
   markup::Document Output;
+
   // Header contains a text of the form:
   // variable `var`
   //
@@ -989,19 +1058,23 @@ markup::Document HoverInfo::present() const {
     // - `bool param1`
     // - `int param2 = 5`
     Output.addParagraph().appendText("→ ").appendCode(*ReturnType);
-    if (Parameters && !Parameters->empty()) {
-      Output.addParagraph().appendText("Parameters: ");
-      markup::BulletList &L = Output.addBulletList();
-      for (const auto &Param : *Parameters) {
-        std::string Buffer;
-        llvm::raw_string_ostream OS(Buffer);
-        OS << Param;
-        L.addItem().addParagraph().appendCode(std::move(OS.str()));
-      }
-    }
-  } else if (Type) {
-    Output.addParagraph().appendText("Type: ").appendCode(*Type);
   }
+
+  if (Parameters && !Parameters->empty()) {
+    Output.addParagraph().appendText("Parameters: ");
+    markup::BulletList &L = Output.addBulletList();
+    for (const auto &Param : *Parameters) {
+      std::string Buffer;
+      llvm::raw_string_ostream OS(Buffer);
+      OS << Param;
+      L.addItem().addParagraph().appendCode(std::move(OS.str()));
+    }
+  }
+
+  // Don't print Type after Parameters or ReturnType as this will just duplicate
+  // the information
+  if (Type && !ReturnType && !Parameters)
+    Output.addParagraph().appendText("Type: ").appendCode(*Type);
 
   if (Value) {
     markup::Paragraph &P = Output.addParagraph();
@@ -1013,9 +1086,12 @@ markup::Document HoverInfo::present() const {
     Output.addParagraph().appendText(
         llvm::formatv("Offset: {0} byte{1}", *Offset, *Offset == 1 ? "" : "s")
             .str());
-  if (Size)
-    Output.addParagraph().appendText(
+  if (Size) {
+    auto &P = Output.addParagraph().appendText(
         llvm::formatv("Size: {0} byte{1}", *Size, *Size == 1 ? "" : "s").str());
+    if (Padding && *Padding != 0)
+      P.appendText(llvm::formatv(" (+{0} padding)", *Padding).str());
+  }
 
   if (CalleeArgInfo) {
     assert(CallPassType);
@@ -1057,7 +1133,8 @@ markup::Document HoverInfo::present() const {
                                            : Definition;
     // Note that we don't print anything for global namespace, to not annoy
     // non-c++ projects or projects that are not making use of namespaces.
-    Output.addCodeBlock(ScopeComment + DefinitionWithAccess);
+    Output.addCodeBlock(ScopeComment + DefinitionWithAccess,
+                        DefinitionLanguage);
   }
 
   return Output;

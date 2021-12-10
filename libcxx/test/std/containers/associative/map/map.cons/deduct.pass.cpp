@@ -8,7 +8,6 @@
 
 // <map>
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: libcpp-no-deduction-guides
 
 // template<class InputIterator,
 //          class Compare = less<iter-value-type<InputIterator>>,
@@ -33,6 +32,7 @@
 #include <map>
 #include <type_traits>
 
+#include "deduction_guides_sfinae_checks.h"
 #include "test_allocator.h"
 
 using P = std::pair<int, long>;
@@ -132,6 +132,27 @@ int main(int, char**)
     assert(std::equal(m.begin(), m.end(), std::begin(expected_m), std::end(expected_m)));
     assert(m.get_allocator().get_id() == 45);
     }
+
+    {
+    // Examples from LWG3025
+    std::map m{std::pair{1, 1}, {2, 2}, {3, 3}};
+    ASSERT_SAME_TYPE(decltype(m), std::map<int, int>);
+
+    std::map m2{m.begin(), m.end()};
+    ASSERT_SAME_TYPE(decltype(m2), std::map<int, int>);
+    }
+
+    {
+    // Examples from LWG3531
+    std::map m1{{std::pair{1, 2}, {3, 4}}, std::less<int>()};
+    ASSERT_SAME_TYPE(decltype(m1), std::map<int, int>);
+
+    using value_type = std::pair<const int, int>;
+    std::map m2{{value_type{1, 2}, {3, 4}}, std::less<int>()};
+    ASSERT_SAME_TYPE(decltype(m2), std::map<int, int>);
+    }
+
+    AssociativeContainerDeductionGuidesSfinaeAway<std::map, std::map<int, long>>();
 
     return 0;
 }

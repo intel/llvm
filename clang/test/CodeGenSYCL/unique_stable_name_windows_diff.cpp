@@ -1,10 +1,14 @@
-// RUN: %clang_cc1 -triple spir64-unknown-unknown-sycldevice -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
-// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
-
+// RUN: %clang_cc1 -triple spir64-unknown-unknown -aux-triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc -fsycl-is-device -disable-llvm-passes -fsycl-is-device -emit-llvm %s -o - | FileCheck %s --check-prefixes=WIN,CHECK
 
 template<typename KN, typename Func>
 __attribute__((sycl_kernel)) void kernel(Func F){
   F();
+}
+
+template<typename Func>
+void kernel_wrapper(Func F) {
+  kernel<Func>(F);
 }
 
 template<typename KN, typename Func>
@@ -12,9 +16,19 @@ __attribute__((sycl_kernel)) void kernel2(Func F){
   F(1);
 }
 
+template<typename Func>
+void kernel2_wrapper(Func F) {
+  kernel2<Func>(F);
+}
+
 template<typename KN, typename Func>
 __attribute__((sycl_kernel)) void kernel3(Func F){
   F(1.1);
+}
+
+template<typename Func>
+void kernel3_wrapper(Func F) {
+  kernel3<Func>(F);
 }
 
 int main() {
@@ -25,13 +39,13 @@ int main() {
   auto lambda2 = [](int){};
   auto lambda3 = [](double){};
 
-  kernel<class K1>(lambda1);
-  kernel2<class K2>(lambda2);
-  kernel3<class K3>(lambda3);
+  kernel_wrapper(lambda1);
+  kernel2_wrapper(lambda2);
+  kernel3_wrapper(lambda3);
 
   // Ensure the kernels are named the same between the device and host
   // invocations.
-  kernel<class USN_Instances>([](){
+  kernel_wrapper([](){
   (void)__builtin_sycl_unique_stable_name(decltype(lambda1));
   (void)__builtin_sycl_unique_stable_name(decltype(lambda2));
   (void)__builtin_sycl_unique_stable_name(decltype(lambda3));
@@ -40,7 +54,14 @@ int main() {
   // Make sure the following 3 are the same between the host and device compile.
   // Note that these are NOT the same value as eachother, they differ by the
   // signature.
-  // CHECK: private unnamed_addr constant [22 x i8] c"_ZTSZ4mainEUlvE10000_\00"
-  // CHECK: private unnamed_addr constant [22 x i8] c"_ZTSZ4mainEUliE10000_\00"
-  // CHECK: private unnamed_addr constant [22 x i8] c"_ZTSZ4mainEUldE10000_\00"
+  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUlvE_\00"
+  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUliE_\00"
+  // CHECK: private unnamed_addr constant [17 x i8] c"_ZTSZ4mainEUldE_\00"
+
+  // On Windows, ensure that we haven't broken the 'lambda numbering' for thex
+  // lambda itself.
+  // WIN: define internal void @"??R<lambda_1
+  // WIN: define internal void @"??R<lambda_2
+  // WIN: define internal void @"??R<lambda_3
+  // WIN: define internal void @"??R<lambda_4
 }

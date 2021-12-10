@@ -17,7 +17,7 @@
 ; NOLOOP: ds_gws_barrier v0 gds{{$}}
 
 ; LOOP: s_mov_b32 m0, 0{{$}}
-; LOOP: [[LOOP:BB[0-9]+_[0-9]+]]:
+; LOOP: [[LOOP:.LBB[0-9]+_[0-9]+]]:
 ; LOOP-NEXT: s_setreg_imm32_b32 hwreg(HW_REG_TRAPSTS, 8, 1), 0
 ; LOOP-NEXT: ds_gws_barrier v0 gds
 ; LOOP-NEXT: s_waitcnt vmcnt(0) expcnt(0) lgkmcnt(0)
@@ -27,7 +27,7 @@
 
 ; MIR-LABEL: name: gws_barrier_offset0{{$}}
 ; MIR: BUNDLE implicit{{( killed)?( renamable)?}} $vgpr0, implicit $m0, implicit $exec {
-; MIR-NEXT: DS_GWS_BARRIER renamable $vgpr0, 0, implicit $m0, implicit $exec :: (load 4 from custom "GWSResource")
+; MIR-NEXT: DS_GWS_BARRIER renamable $vgpr0, 0, implicit $m0, implicit $exec :: (load (s32) from custom "GWSResource")
 ; MIR-NEXT: S_WAITCNT 0
 ; MIR-NEXT: }
 define amdgpu_kernel void @gws_barrier_offset0(i32 %val) #0 {

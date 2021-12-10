@@ -15,9 +15,12 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 
+#ifdef __SYCL_INTERNAL_API
 class program;
+#endif
 class device;
 class platform;
+class kernel_id;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
@@ -25,11 +28,13 @@ namespace info {
 // Information descriptors
 // A.1 Platform information descriptors
 enum class platform {
-  profile     = PI_PLATFORM_INFO_PROFILE,
-  version     = PI_PLATFORM_INFO_VERSION,
-  name        = PI_PLATFORM_INFO_NAME,
-  vendor      = PI_PLATFORM_INFO_VENDOR,
-  extensions  = PI_PLATFORM_INFO_EXTENSIONS,
+  profile = PI_PLATFORM_INFO_PROFILE,
+  version = PI_PLATFORM_INFO_VERSION,
+  name = PI_PLATFORM_INFO_NAME,
+  vendor = PI_PLATFORM_INFO_VENDOR,
+  extensions __SYCL2020_DEPRECATED(
+      "platform::extensions is deprecated, use device::get_info() with"
+      " info::device::aspects instead.") = PI_PLATFORM_INFO_EXTENSIONS,
 };
 
 // A.2 Context information desctiptors
@@ -37,6 +42,8 @@ enum class context : cl_context_info {
   reference_count = CL_CONTEXT_REFERENCE_COUNT,
   platform = CL_CONTEXT_PLATFORM,
   devices = CL_CONTEXT_DEVICES,
+  atomic_memory_order_capabilities =
+      PI_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
 };
 
 // A.3 Device information descriptors
@@ -87,8 +94,11 @@ enum class device : cl_device_info {
   global_mem_cache_line_size = CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE,
   global_mem_cache_size = CL_DEVICE_GLOBAL_MEM_CACHE_SIZE,
   global_mem_size = CL_DEVICE_GLOBAL_MEM_SIZE,
-  max_constant_buffer_size = CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
-  max_constant_args = CL_DEVICE_MAX_CONSTANT_ARGS,
+  max_constant_buffer_size __SYCL2020_DEPRECATED(
+      "max_constant_buffer_size is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,
+  max_constant_args __SYCL2020_DEPRECATED("max_constant_args is deprecated") =
+      CL_DEVICE_MAX_CONSTANT_ARGS,
   local_mem_type = CL_DEVICE_LOCAL_MEM_TYPE,
   local_mem_size = CL_DEVICE_LOCAL_MEM_SIZE,
   error_correction_support = CL_DEVICE_ERROR_CORRECTION_SUPPORT,
@@ -100,7 +110,8 @@ enum class device : cl_device_info {
   is_linker_available = CL_DEVICE_LINKER_AVAILABLE,
   execution_capabilities = CL_DEVICE_EXECUTION_CAPABILITIES,
   queue_profiling = CL_DEVICE_QUEUE_PROPERTIES,
-  built_in_kernels = CL_DEVICE_BUILT_IN_KERNELS,
+  built_in_kernels __SYCL2020_DEPRECATED("use built_in_kernel_ids instead") =
+      CL_DEVICE_BUILT_IN_KERNELS,
   platform = CL_DEVICE_PLATFORM,
   name = CL_DEVICE_NAME,
   vendor = CL_DEVICE_VENDOR,
@@ -108,7 +119,9 @@ enum class device : cl_device_info {
   profile = CL_DEVICE_PROFILE,
   version = CL_DEVICE_VERSION,
   opencl_c_version = CL_DEVICE_OPENCL_C_VERSION,
-  extensions = CL_DEVICE_EXTENSIONS,
+  extensions __SYCL2020_DEPRECATED(
+      "device::extensions is deprecated, use info::device::aspects"
+      " instead.") = CL_DEVICE_EXTENSIONS,
   printf_buffer_size = CL_DEVICE_PRINTF_BUFFER_SIZE,
   preferred_interop_user_sync = CL_DEVICE_PREFERRED_INTEROP_USER_SYNC,
   parent_device = CL_DEVICE_PARENT_DEVICE,
@@ -125,12 +138,15 @@ enum class device : cl_device_info {
   sub_group_sizes = CL_DEVICE_SUB_GROUP_SIZES_INTEL,
   partition_type_property,
   kernel_kernel_pipe_support,
+  built_in_kernel_ids,
   // USM
   usm_device_allocations = PI_USM_DEVICE_SUPPORT,
   usm_host_allocations = PI_USM_HOST_SUPPORT,
   usm_shared_allocations = PI_USM_SINGLE_SHARED_SUPPORT,
   usm_restricted_shared_allocations = PI_USM_CROSS_SHARED_SUPPORT,
-  usm_system_allocator = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocations = PI_USM_SYSTEM_SHARED_SUPPORT,
+  usm_system_allocator __SYCL2020_DEPRECATED(
+      "use usm_system_allocations instead") = usm_system_allocations,
 
   // intel extensions
   ext_intel_pci_address = PI_DEVICE_INFO_PCI_ADDRESS,
@@ -141,7 +157,17 @@ enum class device : cl_device_info {
   ext_intel_gpu_eu_count_per_subslice =
       PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
   ext_intel_max_mem_bandwidth = PI_DEVICE_INFO_MAX_MEM_BANDWIDTH,
-  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL
+  ext_intel_mem_channel = PI_MEM_PROPERTIES_CHANNEL,
+  ext_oneapi_srgb = PI_DEVICE_INFO_IMAGE_SRGB,
+  ext_intel_device_info_uuid = PI_DEVICE_INFO_UUID,
+  atomic64 = PI_DEVICE_INFO_ATOMIC_64,
+  atomic_memory_order_capabilities =
+      PI_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+  ext_oneapi_max_global_work_groups =
+      PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS,
+  ext_oneapi_max_work_groups_1d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D,
+  ext_oneapi_max_work_groups_2d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D,
+  ext_oneapi_max_work_groups_3d = PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D
 };
 
 enum class device_type : pi_uint64 {
@@ -204,12 +230,16 @@ enum class kernel : cl_kernel_info {
   function_name = CL_KERNEL_FUNCTION_NAME,
   num_args = CL_KERNEL_NUM_ARGS,
   context = CL_KERNEL_CONTEXT,
+#ifdef __SYCL_INTERNAL_API
   program = CL_KERNEL_PROGRAM,
+#endif
   reference_count = CL_KERNEL_REFERENCE_COUNT,
   attributes = CL_KERNEL_ATTRIBUTES
 };
 
-enum class kernel_work_group : cl_kernel_work_group_info {
+enum class __SYCL2020_DEPRECATED(
+    "kernel_work_group enumeration is deprecated, use SYCL 2020 requests"
+    " instead") kernel_work_group : cl_kernel_work_group_info {
   global_work_size = CL_KERNEL_GLOBAL_WORK_SIZE,
   work_group_size = CL_KERNEL_WORK_GROUP_SIZE,
   compile_work_group_size = CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
@@ -232,6 +262,7 @@ enum class kernel_device_specific : cl_kernel_work_group_info {
   preferred_work_group_size_multiple =
       CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
   private_mem_size = CL_KERNEL_PRIVATE_MEM_SIZE,
+  ext_codeplay_num_regs = PI_KERNEL_GROUP_INFO_NUM_REGS,
   max_sub_group_size = CL_KERNEL_MAX_SUB_GROUP_SIZE_FOR_NDRANGE,
   max_num_sub_groups = CL_KERNEL_MAX_NUM_SUB_GROUPS,
   compile_num_sub_groups = CL_KERNEL_COMPILE_NUM_SUB_GROUPS,
@@ -239,11 +270,13 @@ enum class kernel_device_specific : cl_kernel_work_group_info {
 };
 
 // A.6 Program information desctiptors
+#ifdef __SYCL_INTERNAL_API
 enum class program : cl_program_info {
   context = CL_PROGRAM_CONTEXT,
   devices = CL_PROGRAM_DEVICES,
   reference_count = CL_PROGRAM_REFERENCE_COUNT
 };
+#endif
 
 // A.7 Event information desctiptors
 enum class event : cl_event_info {
@@ -297,7 +330,9 @@ template <typename T, T param> struct compatibility_param_traits {};
 
 #include <CL/sycl/info/platform_traits.def>
 
+#ifdef __SYCL_INTERNAL_API
 #include <CL/sycl/info/program_traits.def>
+#endif
 
 #include <CL/sycl/info/queue_traits.def>
 

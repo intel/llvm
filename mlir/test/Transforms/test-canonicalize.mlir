@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -pass-pipeline='func(canonicalize)' | FileCheck %s
+// RUN: mlir-opt %s -pass-pipeline='builtin.func(canonicalize)' | FileCheck %s
 
 // CHECK-LABEL: func @remove_op_with_inner_ops_pattern
 func @remove_op_with_inner_ops_pattern() {
@@ -39,10 +39,10 @@ func @remove_op_with_variadic_results_and_folder(%arg0 : i32, %arg1 : i32) -> (i
 // CHECK-LABEL: func @test_commutative_multi
 // CHECK-SAME: (%[[ARG_0:[a-z0-9]*]]: i32, %[[ARG_1:[a-z0-9]*]]: i32)
 func @test_commutative_multi(%arg0: i32, %arg1: i32) -> (i32, i32) {
-  // CHECK-DAG: %[[C42:.*]] = constant 42 : i32
-  %c42_i32 = constant 42 : i32
-  // CHECK-DAG: %[[C43:.*]] = constant 43 : i32
-  %c43_i32 = constant 43 : i32
+  // CHECK-DAG: %[[C42:.*]] = arith.constant 42 : i32
+  %c42_i32 = arith.constant 42 : i32
+  // CHECK-DAG: %[[C43:.*]] = arith.constant 43 : i32
+  %c43_i32 = arith.constant 43 : i32
   // CHECK-NEXT: %[[O0:.*]] = "test.op_commutative"(%[[ARG_0]], %[[ARG_1]], %[[C42]], %[[C43]]) : (i32, i32, i32, i32) -> i32
   %y = "test.op_commutative"(%c42_i32, %arg0, %arg1, %c43_i32) : (i32, i32, i32, i32) -> i32
 
@@ -55,13 +55,13 @@ func @test_commutative_multi(%arg0: i32, %arg1: i32) -> (i32, i32) {
 
 // CHECK-LABEL: func @test_commutative_multi_cst
 func @test_commutative_multi_cst(%arg0: i32, %arg1: i32) -> (i32, i32) {
-  // CHECK-NEXT: %c42_i32 = constant 42 : i32
-  %c42_i32 = constant 42 : i32
-  %c42_i32_2 = constant 42 : i32
+  // CHECK-NEXT: %c42_i32 = arith.constant 42 : i32
+  %c42_i32 = arith.constant 42 : i32
+  %c42_i32_2 = arith.constant 42 : i32
   // CHECK-NEXT: %[[O0:.*]] = "test.op_commutative"(%arg0, %arg1, %c42_i32, %c42_i32) : (i32, i32, i32, i32) -> i32
   %y = "test.op_commutative"(%c42_i32, %arg0, %arg1, %c42_i32_2) : (i32, i32, i32, i32) -> i32
 
-  %c42_i32_3 = constant 42 : i32
+  %c42_i32_3 = arith.constant 42 : i32
 
   // CHECK-NEXT: %[[O1:.*]] = "test.op_commutative"(%arg0, %arg1, %c42_i32, %c42_i32) : (i32, i32, i32, i32) -> i32
   %z = "test.op_commutative"(%arg0, %c42_i32_3, %c42_i32_2, %arg1): (i32, i32, i32, i32) -> i32
@@ -72,7 +72,7 @@ func @test_commutative_multi_cst(%arg0: i32, %arg1: i32) -> (i32, i32) {
 // CHECK-LABEL: func @typemismatch
 
 func @typemismatch() -> i32 {
-  %c42 = constant 42.0 : f32
+  %c42 = arith.constant 42.0 : f32
 
   // The "passthrough_fold" folder will naively return its operand, but we don't
   // want to fold here because of the type mismatch.
@@ -82,34 +82,10 @@ func @typemismatch() -> i32 {
   return %0 : i32
 }
 
-// CHECK-LABEL: func @result_shape_per_dim
-// CHECK-SAME: (%[[ARG_0:[a-z0-9]*]]: tensor<2x3x?xf32>, %[[ARG_1:[a-z0-9]*]]: tensor<?x5xf32>)
-func @result_shape_per_dim(%arg0 : tensor<2x3x?xf32>, %arg1 : tensor<?x5xf32>)
-    -> (index, index, index, index, index) {
-  // CHECK-DAG: %[[C0:.+]] = constant 0 : index
-  // CHECK-DAG: %[[C2:.+]] = constant 2 : index
-  // CHECK-DAG: %[[C3:.+]] = constant 3 : index
-  // CHECK-DAG: %[[C5:.+]] = constant 5 : index
-  %c0 = constant 0 : index
-  %c1 = constant 1 : index
-  %c2 = constant 2 : index
-  %0:2 = "test.op_with_result_shape_per_dim_interface"(%arg0, %arg1)
-      : (tensor<2x3x?xf32>, tensor<?x5xf32>) -> (tensor<?x5xf32>, tensor<2x3x?xf32>)
-  %1 = memref.dim %0#0, %c0 : tensor<?x5xf32>
-  %2 = memref.dim %0#0, %c1 : tensor<?x5xf32>
-  %3 = memref.dim %0#1, %c0 : tensor<2x3x?xf32>
-  %4 = memref.dim %0#1, %c1 : tensor<2x3x?xf32>
-  %5 = memref.dim %0#1, %c2 : tensor<2x3x?xf32>
-  // CHECK-DAG: %[[D0:.+]] = memref.dim %[[ARG_1]], %[[C0]]
-  // CHECK-DAG: %[[D1:.+]] = memref.dim %[[ARG_0]], %[[C2]]
-  // CHECK: return %[[D0]], %[[C5]], %[[C2]], %[[C3]], %[[D1]]
-  return %1, %2, %3, %4, %5 : index, index, index, index, index
-}
-
 // CHECK-LABEL: test_dialect_canonicalizer
 func @test_dialect_canonicalizer() -> (i32) {
   %0 = "test.dialect_canonicalizable"() : () -> (i32)
-  // CHECK: %[[CST:.*]] = constant 42 : i32
+  // CHECK: %[[CST:.*]] = arith.constant 42 : i32
   // CHECK: return %[[CST]]
   return %0 : i32
 }

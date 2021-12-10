@@ -4,7 +4,6 @@
 
 ; FIXME: Later we can use this to instrument linkonce odr string literals.
 
-; RUN: opt < %s -asan -asan-module -enable-new-pm=0 -asan-globals-live-support=1 -S | FileCheck %s
 ; RUN: opt < %s -passes='asan-pipeline' -asan-globals-live-support=1 -S | FileCheck %s
 
 target datalayout = "e-m:w-i64:64-f80:128-n8:16:32:64-S128"
@@ -12,8 +11,8 @@ target triple = "x86_64-pc-windows-msvc19.0.24215"
 
 $mystr = comdat any
 
-; CHECK: $dead_global = comdat noduplicates
-; CHECK: $private_str = comdat noduplicates
+; CHECK: $dead_global = comdat nodeduplicate
+; CHECK: $private_str = comdat nodeduplicate
 
 ; CHECK: @dead_global = global { i32, [28 x i8] } { i32 42, [28 x i8] zeroinitializer }, comdat, align 32
 ; CHECK: @private_str = internal constant { [8 x i8], [24 x i8] } { [8 x i8] c"private\00", [24 x i8] zeroinitializer }, comdat, align 32

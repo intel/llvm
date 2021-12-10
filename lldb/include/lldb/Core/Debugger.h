@@ -176,7 +176,13 @@ public:
 
   repro::DataRecorder *GetInputRecorder();
 
-  void SetInputFile(lldb::FileSP file, repro::DataRecorder *recorder = nullptr);
+  Status SetInputString(const char *data);
+
+  // This method will setup data recorder if reproducer enabled.
+  // On reply mode this method should take instructions from reproducer file.
+  Status SetInputFile(lldb::FileSP file);
+
+  void SetInputFile(lldb::FileSP file, repro::DataRecorder *recorder);
 
   void SetOutputFile(lldb::FileSP file);
 
@@ -419,7 +425,7 @@ protected:
   /// \param [in] debugger_id
   ///   If this optional parameter has a value, it indicates the unique
   ///   debugger identifier that this progress should be delivered to. If this
-  ///   optional parameter does not have a value, the the progress will be
+  ///   optional parameter does not have a value, the progress will be
   ///   delivered to all debuggers.
   static void ReportProgress(uint64_t progress_id, const std::string &message,
                              uint64_t completed, uint64_t total,

@@ -33,7 +33,6 @@ using namespace lld;
 using namespace lld::elf;
 
 uint8_t *Out::bufferStart;
-uint8_t Out::first;
 PhdrEntry *Out::tlsPhdr;
 OutputSection *Out::elfHeader;
 OutputSection *Out::programHeaders;
@@ -69,7 +68,7 @@ void OutputSection::writeHeaderTo(typename ELFT::Shdr *shdr) {
 }
 
 OutputSection::OutputSection(StringRef name, uint32_t type, uint64_t flags)
-    : BaseCommand(OutputSectionKind),
+    : SectionCommand(OutputSectionKind),
       SectionBase(Output, name, flags, /*Entsize*/ 0, /*Alignment*/ 1, type,
                   /*Info*/ 0, /*Link*/ 0) {}
 
@@ -100,10 +99,9 @@ static bool canMergeToProgbits(unsigned type) {
 void OutputSection::recordSection(InputSectionBase *isec) {
   partition = isec->partition;
   isec->parent = this;
-  if (sectionCommands.empty() ||
-      !isa<InputSectionDescription>(sectionCommands.back()))
-    sectionCommands.push_back(make<InputSectionDescription>(""));
-  auto *isd = cast<InputSectionDescription>(sectionCommands.back());
+  if (commands.empty() || !isa<InputSectionDescription>(commands.back()))
+    commands.push_back(make<InputSectionDescription>(""));
+  auto *isd = cast<InputSectionDescription>(commands.back());
   isd->sectionBases.push_back(isec);
 }
 
@@ -166,15 +164,15 @@ void OutputSection::commitSection(InputSection *isec) {
 // to compute an output offset for each piece of each input section.
 void OutputSection::finalizeInputSections() {
   std::vector<MergeSyntheticSection *> mergeSections;
-  for (BaseCommand *base : sectionCommands) {
-    auto *cmd = dyn_cast<InputSectionDescription>(base);
-    if (!cmd)
+  for (SectionCommand *cmd : commands) {
+    auto *isd = dyn_cast<InputSectionDescription>(cmd);
+    if (!isd)
       continue;
-    cmd->sections.reserve(cmd->sectionBases.size());
-    for (InputSectionBase *s : cmd->sectionBases) {
+    isd->sections.reserve(isd->sectionBases.size());
+    for (InputSectionBase *s : isd->sectionBases) {
       MergeInputSection *ms = dyn_cast<MergeInputSection>(s);
       if (!ms) {
-        cmd->sections.push_back(cast<InputSection>(s));
+        isd->sections.push_back(cast<InputSection>(s));
         continue;
       }
 
@@ -203,17 +201,17 @@ void OutputSection::finalizeInputSections() {
         mergeSections.push_back(syn);
         i = std::prev(mergeSections.end());
         syn->entsize = ms->entsize;
-        cmd->sections.push_back(syn);
+        isd->sections.push_back(syn);
       }
       (*i)->addSection(ms);
     }
 
     // sectionBases should not be used from this point onwards. Clear it to
     // catch misuses.
-    cmd->sectionBases.clear();
+    isd->sectionBases.clear();
 
     // Some input sections may be removed from the list after ICF.
-    for (InputSection *s : cmd->sections)
+    for (InputSection *s : isd->sections)
       commitSection(s);
   }
   for (auto *ms : mergeSections)
@@ -237,13 +235,13 @@ uint64_t elf::getHeaderSize() {
   return Out::elfHeader->size + Out::programHeaders->size;
 }
 
-bool OutputSection::classof(const BaseCommand *c) {
+bool OutputSection::classof(const SectionCommand *c) {
   return c->kind == OutputSectionKind;
 }
 
 void OutputSection::sort(llvm::function_ref<int(InputSectionBase *s)> order) {
   assert(isLive());
-  for (BaseCommand *b : sectionCommands)
+  for (SectionCommand *b : commands)
     if (auto *isd = dyn_cast<InputSectionDescription>(b))
       sortByOrder(isd->sections, order);
 }
@@ -328,7 +326,7 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
   if (type == SHT_NOBITS)
     return;
 
-  // If -compress-debug-section is specified and if this is a debug section,
+  // If --compress-debug-section is specified and if this is a debug section,
   // we've already compressed section contents. If that's the case,
   // just write it down.
   if (!compressedData.empty()) {
@@ -367,8 +365,8 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *buf) {
 
   // Linker scripts may have BYTE()-family commands with which you
   // can write arbitrary bytes to the output. Process them if any.
-  for (BaseCommand *base : sectionCommands)
-    if (auto *data = dyn_cast<ByteCommand>(base))
+  for (SectionCommand *cmd : commands)
+    if (auto *data = dyn_cast<ByteCommand>(cmd))
       writeInt(buf + data->offset, data->expression().getValue(), data->size);
 }
 
@@ -485,8 +483,8 @@ static bool compCtors(const InputSection *a, const InputSection *b) {
 // Unfortunately, the rules are different from the one for .{init,fini}_array.
 // Read the comment above.
 void OutputSection::sortCtorsDtors() {
-  assert(sectionCommands.size() == 1);
-  auto *isd = cast<InputSectionDescription>(sectionCommands[0]);
+  assert(commands.size() == 1);
+  auto *isd = cast<InputSectionDescription>(commands[0]);
   llvm::stable_sort(isd->sections, compCtors);
 }
 
@@ -505,8 +503,8 @@ int elf::getPriority(StringRef s) {
 }
 
 InputSection *elf::getFirstInputSection(const OutputSection *os) {
-  for (BaseCommand *base : os->sectionCommands)
-    if (auto *isd = dyn_cast<InputSectionDescription>(base))
+  for (SectionCommand *cmd : os->commands)
+    if (auto *isd = dyn_cast<InputSectionDescription>(cmd))
       if (!isd->sections.empty())
         return isd->sections[0];
   return nullptr;
@@ -514,8 +512,8 @@ InputSection *elf::getFirstInputSection(const OutputSection *os) {
 
 std::vector<InputSection *> elf::getInputSections(const OutputSection *os) {
   std::vector<InputSection *> ret;
-  for (BaseCommand *base : os->sectionCommands)
-    if (auto *isd = dyn_cast<InputSectionDescription>(base))
+  for (SectionCommand *cmd : os->commands)
+    if (auto *isd = dyn_cast<InputSectionDescription>(cmd))
       ret.insert(ret.end(), isd->sections.begin(), isd->sections.end());
   return ret;
 }
@@ -537,6 +535,41 @@ std::array<uint8_t, 4> OutputSection::getFiller() {
   if (flags & SHF_EXECINSTR)
     return target->trapInstr;
   return {0, 0, 0, 0};
+}
+
+void OutputSection::checkDynRelAddends(const uint8_t *bufStart) {
+  assert(config->writeAddends && config->checkDynamicRelocs);
+  assert(type == SHT_REL || type == SHT_RELA);
+  std::vector<InputSection *> sections = getInputSections(this);
+  parallelForEachN(0, sections.size(), [&](size_t i) {
+    // When linking with -r or --emit-relocs we might also call this function
+    // for input .rel[a].<sec> sections which we simply pass through to the
+    // output. We skip over those and only look at the synthetic relocation
+    // sections created during linking.
+    const auto *sec = dyn_cast<RelocationBaseSection>(sections[i]);
+    if (!sec)
+      return;
+    for (const DynamicReloc &rel : sec->relocs) {
+      int64_t addend = rel.computeAddend();
+      const OutputSection *relOsec = rel.inputSec->getOutputSection();
+      assert(relOsec != nullptr && "missing output section for relocation");
+      const uint8_t *relocTarget =
+          bufStart + relOsec->offset + rel.inputSec->getOffset(rel.offsetInSec);
+      // For SHT_NOBITS the written addend is always zero.
+      int64_t writtenAddend =
+          relOsec->type == SHT_NOBITS
+              ? 0
+              : target->getImplicitAddend(relocTarget, rel.type);
+      if (addend != writtenAddend)
+        internalLinkerError(
+            getErrorLocation(relocTarget),
+            "wrote incorrect addend value 0x" + utohexstr(writtenAddend) +
+                " instead of 0x" + utohexstr(addend) +
+                " for dynamic relocation " + toString(rel.type) +
+                " at offset 0x" + utohexstr(rel.getOffset()) +
+                (rel.sym ? " against symbol " + toString(*rel.sym) : ""));
+    }
+  });
 }
 
 template void OutputSection::writeHeaderTo<ELF32LE>(ELF32LE::Shdr *Shdr);

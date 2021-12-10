@@ -130,11 +130,14 @@ macro(set_output_name output name arch)
       else()
         set(triple "${TARGET_TRIPLE}")
       endif()
-      # When using arch-suffixed runtime library names, clang only looks for
-      # libraries named "arm" or "armhf", see getArchNameForCompilerRTLib in
-      # clang. Therefore, try to inspect both the arch name and the triple
-      # if it seems like we're building an armhf target.
-      if ("${arch}" MATCHES "hf$" OR "${triple}" MATCHES "hf$")
+      # Except for baremetal, when using arch-suffixed runtime library names,
+      # clang only looks for libraries named "arm" or "armhf", see
+      # getArchNameForCompilerRTLib in clang. Therefore, try to inspect both
+      # the arch name and the triple if it seems like we're building an armhf
+      # target.
+      if (COMPILER_RT_BAREMETAL_BUILD)
+        set(${output} "${name}-${arch}${COMPILER_RT_OS_SUFFIX}")
+      elseif ("${arch}" MATCHES "hf$" OR "${triple}" MATCHES "hf$")
         set(${output} "${name}-armhf${COMPILER_RT_OS_SUFFIX}")
       else()
         set(${output} "${name}-arm${COMPILER_RT_OS_SUFFIX}")
@@ -148,7 +151,7 @@ endmacro()
 # Adds static or shared runtime for a list of architectures and operating
 # systems and puts it in the proper directory in the build and install trees.
 # add_compiler_rt_runtime(<name>
-#                         {OBJECT|STATIC|SHARED}
+#                         {OBJECT|STATIC|SHARED|MODULE}
 #                         ARCHS <architectures>
 #                         OS <os list>
 #                         SOURCES <source files>
@@ -161,8 +164,9 @@ endmacro()
 #                         PARENT_TARGET <convenience parent target>
 #                         ADDITIONAL_HEADERS <header files>)
 function(add_compiler_rt_runtime name type)
-  if(NOT type MATCHES "^(OBJECT|STATIC|SHARED)$")
-    message(FATAL_ERROR "type argument must be OBJECT, STATIC or SHARED")
+  if(NOT type MATCHES "^(OBJECT|STATIC|SHARED|MODULE)$")
+    message(FATAL_ERROR
+            "type argument must be OBJECT, STATIC, SHARED or MODULE")
     return()
   endif()
   cmake_parse_arguments(LIB
@@ -187,8 +191,11 @@ function(add_compiler_rt_runtime name type)
     endif()
     if(LLVM_BUILD_INSTRUMENTED MATCHES IR AND COMPILER_RT_HAS_FNO_PROFILE_GENERATE_FLAG)
       list(APPEND NO_PGO_FLAGS "-fno-profile-generate")
-    elseif(LLVM_BUILD_INSTRUMENTED AND COMPILER_RT_HAS_FNO_PROFILE_INSTR_GENERATE_FLAG)
+    elseif((LLVM_BUILD_INSTRUMENTED OR LLVM_BUILD_INSTRUMENTED_COVERAGE) AND COMPILER_RT_HAS_FNO_PROFILE_INSTR_GENERATE_FLAG)
       list(APPEND NO_PGO_FLAGS "-fno-profile-instr-generate")
+      if(LLVM_BUILD_INSTRUMENTED_COVERAGE AND COMPILER_RT_HAS_FNO_COVERAGE_MAPPING_FLAG)
+        list(APPEND NO_PGO_FLAGS "-fno-coverage-mapping")
+      endif()
     endif()
   endif()
 
@@ -253,7 +260,7 @@ function(add_compiler_rt_runtime name type)
       if(COMPILER_RT_USE_BUILTINS_LIBRARY AND NOT type STREQUAL "OBJECT" AND
          NOT name STREQUAL "clang_rt.builtins")
         get_compiler_rt_target(${arch} target)
-        find_compiler_rt_library(builtins ${target} builtins_${libname})
+        find_compiler_rt_library(builtins builtins_${libname} TARGET ${target})
         if(builtins_${libname} STREQUAL "NOTFOUND")
           message(FATAL_ERROR "Cannot find builtins library for the target architecture")
         endif()
@@ -370,7 +377,7 @@ function(add_compiler_rt_runtime name type)
         add_custom_command(TARGET ${libname}
           POST_BUILD  
           COMMAND codesign --sign - $<TARGET_FILE:${libname}>
-          WORKING_DIRECTORY ${COMPILER_RT_LIBRARY_OUTPUT_DIR}
+          WORKING_DIRECTORY ${COMPILER_RT_OUTPUT_LIBRARY_DIR}
         )
       endif()
     endif()
@@ -489,7 +496,7 @@ function(add_compiler_rt_test test_suite test_name arch)
   endif()
   add_custom_command(
     OUTPUT "${output_bin}"
-    COMMAND ${COMPILER_RT_TEST_COMPILER} ${TEST_OBJECTS} -o "${output_bin}"
+    COMMAND ${COMPILER_RT_TEST_CXX_COMPILER} ${TEST_OBJECTS} -o "${output_bin}"
             ${TEST_LINK_FLAGS}
     DEPENDS ${TEST_DEPS}
     )
@@ -510,7 +517,7 @@ macro(add_compiler_rt_resource_file target_name file_name component)
   add_custom_target(${target_name} DEPENDS ${dst_file})
   # Install in Clang resource directory.
   install(FILES ${file_name}
-    DESTINATION ${COMPILER_RT_INSTALL_PATH}/share
+    DESTINATION ${COMPILER_RT_INSTALL_DATA_DIR}
     COMPONENT ${component})
   add_dependencies(${component} ${target_name})
 
@@ -527,7 +534,7 @@ macro(add_compiler_rt_script name)
   add_custom_target(${name} DEPENDS ${dst})
   install(FILES ${dst}
     PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-    DESTINATION ${COMPILER_RT_INSTALL_PATH}/bin)
+    DESTINATION ${COMPILER_RT_INSTALL_BINARY_DIR})
 endmacro(add_compiler_rt_script src name)
 
 # Builds custom version of libc++ and installs it in <prefix>.
@@ -597,6 +604,7 @@ macro(add_custom_libcxx name prefix)
     CMAKE_OBJCOPY
     CMAKE_OBJDUMP
     CMAKE_STRIP
+    CMAKE_READELF
     CMAKE_SYSROOT
     LIBCXX_HAS_MUSL_LIBC
     PYTHON_EXECUTABLE

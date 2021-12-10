@@ -218,6 +218,22 @@ public:
   int Rank() const;
   bool IsElemental() const { return proc_.IsElemental(); }
   bool hasAlternateReturns() const { return hasAlternateReturns_; }
+
+  Expr<SomeType> *UnwrapArgExpr(int n) {
+    if (static_cast<std::size_t>(n) < arguments_.size() && arguments_[n]) {
+      return arguments_[n]->UnwrapExpr();
+    } else {
+      return nullptr;
+    }
+  }
+  const Expr<SomeType> *UnwrapArgExpr(int n) const {
+    if (static_cast<std::size_t>(n) < arguments_.size() && arguments_[n]) {
+      return arguments_[n]->UnwrapExpr();
+    } else {
+      return nullptr;
+    }
+  }
+
   bool operator==(const ProcedureRef &) const;
   llvm::raw_ostream &AsFortran(llvm::raw_ostream &) const;
 
@@ -236,9 +252,6 @@ public:
       : ProcedureRef{std::move(p), std::move(a)} {}
 
   std::optional<DynamicType> GetType() const { return proc_.GetType(); }
-  std::optional<Constant<Result>> Fold(FoldingContext &); // for intrinsics
 };
-
-FOR_EACH_SPECIFIC_TYPE(extern template class FunctionRef, )
 } // namespace Fortran::evaluate
 #endif // FORTRAN_EVALUATE_CALL_H_

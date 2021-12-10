@@ -6,14 +6,14 @@
 ; RUN: FileCheck %s -input-file=%t.files.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --match-full-lines --check-prefixes CHECK-PROP
 
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
-define weak_odr spir_kernel void @SpirKernel1(float %arg1) !spir_kernel_omit_args !0 {
+define weak_odr spir_kernel void @SpirKernel1(float %arg1) !sycl_kernel_omit_args !0 {
   call void @foo(float %arg1)
   ret void
 }
 
-define weak_odr spir_kernel void @SpirKernel2(i8 %arg1, i8 %arg2, i8 %arg3) !spir_kernel_omit_args !1 {
+define weak_odr spir_kernel void @SpirKernel2(i8 %arg1, i8 %arg2, i8 %arg3) !sycl_kernel_omit_args !1 {
   call void @bar(i8 %arg1)
   call void @bar(i8 %arg2)
   call void @bar(i8 %arg3)

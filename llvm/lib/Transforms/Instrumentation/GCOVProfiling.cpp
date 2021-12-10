@@ -86,7 +86,7 @@ GCOVOptions GCOVOptions::getDefault() {
   Options.Atomic = AtomicCounter;
 
   if (DefaultGCOVVersion.size() != 4) {
-    llvm::report_fatal_error(std::string("Invalid -default-gcov-version: ") +
+    llvm::report_fatal_error(Twine("Invalid -default-gcov-version: ") +
                              DefaultGCOVVersion);
   }
   memcpy(Options.Version, DefaultGCOVVersion.c_str(), 4);
@@ -849,6 +849,8 @@ bool GCOVProfiler::emitProfileNotes(
         continue;
       // TODO: Functions using scope-based EH are currently not supported.
       if (isUsingScopeBasedEH(F)) continue;
+      if (F.hasFnAttribute(llvm::Attribute::NoProfile))
+        continue;
 
       // Add the function line number to the lines of the entry block
       // to have a counter for the function definition.
@@ -1371,12 +1373,16 @@ Function *GCOVProfiler::insertReset(
 
   BasicBlock *Entry = BasicBlock::Create(*Ctx, "entry", ResetF);
   IRBuilder<> Builder(Entry);
+  LLVMContext &C = Entry->getContext();
 
   // Zero out the counters.
   for (const auto &I : CountersBySP) {
     GlobalVariable *GV = I.first;
-    Constant *Null = Constant::getNullValue(GV->getValueType());
-    Builder.CreateStore(Null, GV);
+    auto *GVTy = cast<ArrayType>(GV->getValueType());
+    Builder.CreateMemSet(GV, Constant::getNullValue(Type::getInt8Ty(C)),
+                         GVTy->getNumElements() *
+                             GVTy->getElementType()->getScalarSizeInBits() / 8,
+                         GV->getAlign());
   }
 
   Type *RetTy = ResetF->getReturnType();

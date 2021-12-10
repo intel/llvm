@@ -31,7 +31,7 @@ class InputChunk;
 class InputFunction;
 class InputSegment;
 class InputGlobal;
-class InputEvent;
+class InputTag;
 class InputTable;
 class InputSection;
 
@@ -116,8 +116,6 @@ public:
   // Returns the underlying wasm file.
   const WasmObjectFile *getWasmObj() const { return wasmObj.get(); }
 
-  void dumpInfo() const;
-
   uint32_t calcNewIndex(const WasmRelocation &reloc) const;
   uint64_t calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
                         const InputChunk *chunk) const;
@@ -139,7 +137,7 @@ public:
   std::vector<InputChunk *> segments;
   std::vector<InputFunction *> functions;
   std::vector<InputGlobal *> globals;
-  std::vector<InputEvent *> events;
+  std::vector<InputTag *> tags;
   std::vector<InputTable *> tables;
   std::vector<InputChunk *> customSections;
   llvm::DenseMap<uint32_t, InputChunk *> customSectionsByIndex;
@@ -149,14 +147,14 @@ public:
   DataSymbol *getDataSymbol(uint32_t index) const;
   GlobalSymbol *getGlobalSymbol(uint32_t index) const;
   SectionSymbol *getSectionSymbol(uint32_t index) const;
-  EventSymbol *getEventSymbol(uint32_t index) const;
+  TagSymbol *getTagSymbol(uint32_t index) const;
   TableSymbol *getTableSymbol(uint32_t index) const;
 
 private:
   Symbol *createDefined(const WasmSymbol &sym);
   Symbol *createUndefined(const WasmSymbol &sym, bool isCalledDirectly);
 
-  bool isExcludedByComdat(InputChunk *chunk) const;
+  bool isExcludedByComdat(const InputChunk *chunk) const;
   void addLegacyIndirectFunctionTableIfNeeded(uint32_t tableSymbolCount);
 
   std::unique_ptr<WasmObjectFile> wasmObj;
@@ -172,14 +170,8 @@ public:
 // .bc file
 class BitcodeFile : public InputFile {
 public:
-  explicit BitcodeFile(MemoryBufferRef m, StringRef archiveName)
-      : InputFile(BitcodeKind, m) {
-    this->archiveName = std::string(archiveName);
-
-    // If this isn't part of an archive, it's eagerly linked, so mark it live.
-    if (archiveName.empty())
-      markLive();
-  }
+  BitcodeFile(MemoryBufferRef m, StringRef archiveName,
+              uint64_t offsetInArchive);
   static bool classof(const InputFile *f) { return f->kind() == BitcodeKind; }
 
   void parse();
@@ -196,7 +188,8 @@ inline bool isBitcode(MemoryBufferRef mb) {
 
 // Will report a fatal() error if the input buffer is not a valid bitcode
 // or wasm object file.
-InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName = "");
+InputFile *createObjectFile(MemoryBufferRef mb, StringRef archiveName = "",
+                            uint64_t offsetInArchive = 0);
 
 // Opens a given file.
 llvm::Optional<MemoryBufferRef> readFile(StringRef path);

@@ -21,10 +21,10 @@
 #ifndef FORTRAN_RUNTIME_REDUCTION_TEMPLATES_H_
 #define FORTRAN_RUNTIME_REDUCTION_TEMPLATES_H_
 
-#include "cpp-type.h"
-#include "descriptor.h"
 #include "terminator.h"
 #include "tools.h"
+#include "flang/Runtime/cpp-type.h"
+#include "flang/Runtime/descriptor.h"
 
 namespace Fortran::runtime {
 
@@ -197,7 +197,7 @@ inline void PartialReduction(Descriptor &result, const Descriptor &x, int dim,
       result, x, dim, terminator, intrinsic, TypeCode{CAT, KIND});
   SubscriptValue at[maxRank];
   result.GetLowerBounds(at);
-  INTERNAL_CHECK(at[0] == 1);
+  INTERNAL_CHECK(result.rank() == 0 || at[0] == 1);
   using CppType = CppTypeFor<CAT, KIND>;
   if (mask) {
     CheckConformability(x, *mask, terminator, intrinsic, "ARRAY", "MASK");

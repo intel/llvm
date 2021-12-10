@@ -323,10 +323,10 @@ public:
                              EVT NewVT) const override;
 
   // Handling of atomic RMW instructions.
-  Value *emitLoadLinked(IRBuilder<> &Builder, Value *Addr,
-      AtomicOrdering Ord) const override;
-  Value *emitStoreConditional(IRBuilder<> &Builder, Value *Val,
-      Value *Addr, AtomicOrdering Ord) const override;
+  Value *emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy, Value *Addr,
+                        AtomicOrdering Ord) const override;
+  Value *emitStoreConditional(IRBuilderBase &Builder, Value *Val, Value *Addr,
+                              AtomicOrdering Ord) const override;
   AtomicExpansionKind shouldExpandAtomicLoadInIR(LoadInst *LI) const override;
   bool shouldExpandAtomicStoreInIR(StoreInst *SI) const override;
   AtomicExpansionKind
@@ -341,8 +341,9 @@ private:
   void initializeHVXLowering();
   unsigned getPreferredHvxVectorAction(MVT VecTy) const;
 
-  void validateConstPtrAlignment(SDValue Ptr, const SDLoc &dl,
-                                 unsigned NeedAlign) const;
+  bool validateConstPtrAlignment(SDValue Ptr, Align NeedAlign, const SDLoc &dl,
+                                 SelectionDAG &DAG) const;
+  SDValue replaceMemWithUndef(SDValue Op, SelectionDAG &DAG) const;
 
   std::pair<SDValue,int> getBaseAndOffset(SDValue Addr) const;
 

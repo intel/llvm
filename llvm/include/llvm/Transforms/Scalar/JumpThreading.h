@@ -44,6 +44,7 @@ class PHINode;
 class SelectInst;
 class SwitchInst;
 class TargetLibraryInfo;
+class TargetTransformInfo;
 class Value;
 
 /// A private "module" namespace for types and utilities used by
@@ -78,6 +79,7 @@ enum ConstantPreference { WantInteger, WantBlockAddress };
 /// revectored to the false side of the second if.
 class JumpThreadingPass : public PassInfoMixin<JumpThreadingPass> {
   TargetLibraryInfo *TLI;
+  TargetTransformInfo *TTI;
   LazyValueInfo *LVI;
   AAResults *AA;
   DomTreeUpdater *DTU;
@@ -85,7 +87,7 @@ class JumpThreadingPass : public PassInfoMixin<JumpThreadingPass> {
   std::unique_ptr<BranchProbabilityInfo> BPI;
   bool HasProfileData = false;
   bool HasGuards = false;
-#ifdef NDEBUG
+#ifndef LLVM_ENABLE_ABI_BREAKING_CHECKS
   SmallPtrSet<const BasicBlock *, 16> LoopHeaders;
 #else
   SmallSet<AssertingVH<const BasicBlock>, 16> LoopHeaders;
@@ -99,9 +101,9 @@ public:
   JumpThreadingPass(bool InsertFreezeWhenUnfoldingSelect = false, int T = -1);
 
   // Glue for old PM.
-  bool runImpl(Function &F, TargetLibraryInfo *TLI, LazyValueInfo *LVI,
-               AAResults *AA, DomTreeUpdater *DTU, bool HasProfileData,
-               std::unique_ptr<BlockFrequencyInfo> BFI,
+  bool runImpl(Function &F, TargetLibraryInfo *TLI, TargetTransformInfo *TTI,
+               LazyValueInfo *LVI, AAResults *AA, DomTreeUpdater *DTU,
+               bool HasProfileData, std::unique_ptr<BlockFrequencyInfo> BFI,
                std::unique_ptr<BranchProbabilityInfo> BPI);
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);

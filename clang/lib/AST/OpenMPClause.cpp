@@ -160,6 +160,8 @@ const OMPClauseWithPreInit *OMPClauseWithPreInit::get(const OMPClause *C) {
   case OMPC_exclusive:
   case OMPC_uses_allocators:
   case OMPC_affinity:
+  case OMPC_when:
+  case OMPC_bind:
     break;
   default:
     break;
@@ -257,6 +259,8 @@ const OMPClauseWithPostUpdate *OMPClauseWithPostUpdate::get(const OMPClause *C) 
   case OMPC_exclusive:
   case OMPC_uses_allocators:
   case OMPC_affinity:
+  case OMPC_when:
+  case OMPC_bind:
     break;
   default:
     break;
@@ -625,6 +629,13 @@ OMPAlignedClause *OMPAlignedClause::CreateEmpty(const ASTContext &C,
   return new (Mem) OMPAlignedClause(NumVars);
 }
 
+OMPAlignClause *OMPAlignClause::Create(const ASTContext &C, Expr *A,
+                                       SourceLocation StartLoc,
+                                       SourceLocation LParenLoc,
+                                       SourceLocation EndLoc) {
+  return new (C) OMPAlignClause(A, StartLoc, LParenLoc, EndLoc);
+}
+
 void OMPCopyinClause::setSourceExprs(ArrayRef<Expr *> SrcExprs) {
   assert(SrcExprs.size() == varlist_size() && "Number of source expressions is "
                                               "not the same as the "
@@ -940,6 +951,36 @@ OMPSizesClause *OMPSizesClause::CreateEmpty(const ASTContext &C,
                                             unsigned NumSizes) {
   void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(NumSizes));
   return new (Mem) OMPSizesClause(NumSizes);
+}
+
+OMPFullClause *OMPFullClause::Create(const ASTContext &C,
+                                     SourceLocation StartLoc,
+                                     SourceLocation EndLoc) {
+  OMPFullClause *Clause = CreateEmpty(C);
+  Clause->setLocStart(StartLoc);
+  Clause->setLocEnd(EndLoc);
+  return Clause;
+}
+
+OMPFullClause *OMPFullClause::CreateEmpty(const ASTContext &C) {
+  return new (C) OMPFullClause();
+}
+
+OMPPartialClause *OMPPartialClause::Create(const ASTContext &C,
+                                           SourceLocation StartLoc,
+                                           SourceLocation LParenLoc,
+                                           SourceLocation EndLoc,
+                                           Expr *Factor) {
+  OMPPartialClause *Clause = CreateEmpty(C);
+  Clause->setLocStart(StartLoc);
+  Clause->setLParenLoc(LParenLoc);
+  Clause->setLocEnd(EndLoc);
+  Clause->setFactor(Factor);
+  return Clause;
+}
+
+OMPPartialClause *OMPPartialClause::CreateEmpty(const ASTContext &C) {
+  return new (C) OMPPartialClause();
 }
 
 OMPAllocateClause *
@@ -1554,6 +1595,16 @@ OMPInitClause *OMPInitClause::CreateEmpty(const ASTContext &C, unsigned N) {
   return new (Mem) OMPInitClause(N);
 }
 
+OMPBindClause *
+OMPBindClause::Create(const ASTContext &C, OpenMPBindClauseKind K,
+                      SourceLocation KLoc, SourceLocation StartLoc,
+                      SourceLocation LParenLoc, SourceLocation EndLoc) {
+  return new (C) OMPBindClause(K, KLoc, StartLoc, LParenLoc, EndLoc);
+}
+
+OMPBindClause *OMPBindClause::CreateEmpty(const ASTContext &C) {
+  return new (C) OMPBindClause();
+}
 //===----------------------------------------------------------------------===//
 //  OpenMP clauses printing methods
 //===----------------------------------------------------------------------===//
@@ -1575,6 +1626,12 @@ void OMPClausePrinter::VisitOMPFinalClause(OMPFinalClause *Node) {
 void OMPClausePrinter::VisitOMPNumThreadsClause(OMPNumThreadsClause *Node) {
   OS << "num_threads(";
   Node->getNumThreads()->printPretty(OS, nullptr, Policy, 0);
+  OS << ")";
+}
+
+void OMPClausePrinter::VisitOMPAlignClause(OMPAlignClause *Node) {
+  OS << "align(";
+  Node->getAlignment()->printPretty(OS, nullptr, Policy, 0);
   OS << ")";
 }
 
@@ -1600,6 +1657,18 @@ void OMPClausePrinter::VisitOMPSizesClause(OMPSizesClause *Node) {
     First = false;
   }
   OS << ")";
+}
+
+void OMPClausePrinter::VisitOMPFullClause(OMPFullClause *Node) { OS << "full"; }
+
+void OMPClausePrinter::VisitOMPPartialClause(OMPPartialClause *Node) {
+  OS << "partial";
+
+  if (Expr *Factor = Node->getFactor()) {
+    OS << '(';
+    Factor->printPretty(OS, nullptr, Policy, 0);
+    OS << ')';
+  }
 }
 
 void OMPClausePrinter::VisitOMPAllocatorClause(OMPAllocatorClause *Node) {
@@ -2253,6 +2322,12 @@ void OMPClausePrinter::VisitOMPFilterClause(OMPFilterClause *Node) {
   OS << ")";
 }
 
+void OMPClausePrinter::VisitOMPBindClause(OMPBindClause *Node) {
+  OS << "bind("
+     << getOpenMPSimpleClauseTypeName(OMPC_bind, unsigned(Node->getBindKind()))
+     << ")";
+}
+
 void OMPTraitInfo::getAsVariantMatchInfo(ASTContext &ASTCtx,
                                          VariantMatchInfo &VMI) const {
   for (const OMPTraitSet &Set : Sets) {
@@ -2269,9 +2344,8 @@ void OMPTraitInfo::getAsVariantMatchInfo(ASTContext &ASTCtx,
 
         if (Optional<APSInt> CondVal =
                 Selector.ScoreOrCondition->getIntegerConstantExpr(ASTCtx))
-          VMI.addTrait(CondVal->isNullValue()
-                           ? TraitProperty::user_condition_false
-                           : TraitProperty::user_condition_true,
+          VMI.addTrait(CondVal->isZero() ? TraitProperty::user_condition_false
+                                         : TraitProperty::user_condition_true,
                        "<condition>");
         else
           VMI.addTrait(TraitProperty::user_condition_false, "<condition>");
@@ -2300,8 +2374,6 @@ void OMPTraitInfo::getAsVariantMatchInfo(ASTContext &ASTCtx,
                  getOpenMPContextTraitPropertyForSelector(
                      Selector.Kind) &&
              "Ill-formed construct selector!");
-
-      VMI.ConstructTraits.push_back(Selector.Properties.front().Kind);
     }
   }
 }
@@ -2432,7 +2504,8 @@ llvm::raw_ostream &clang::operator<<(llvm::raw_ostream &OS,
 
 TargetOMPContext::TargetOMPContext(
     ASTContext &ASTCtx, std::function<void(StringRef)> &&DiagUnknownTrait,
-    const FunctionDecl *CurrentFunctionDecl)
+    const FunctionDecl *CurrentFunctionDecl,
+    ArrayRef<llvm::omp::TraitProperty> ConstructTraits)
     : OMPContext(ASTCtx.getLangOpts().OpenMPIsDevice,
                  ASTCtx.getTargetInfo().getTriple()),
       FeatureValidityCheck([&](StringRef FeatureName) {
@@ -2440,6 +2513,9 @@ TargetOMPContext::TargetOMPContext(
       }),
       DiagUnknownTrait(std::move(DiagUnknownTrait)) {
   ASTCtx.getFunctionFeatureMap(FeatureMap, CurrentFunctionDecl);
+
+  for (llvm::omp::TraitProperty Property : ConstructTraits)
+    addTrait(Property);
 }
 
 bool TargetOMPContext::matchesISATrait(StringRef RawString) const {

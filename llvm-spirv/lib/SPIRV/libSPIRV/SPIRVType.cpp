@@ -53,9 +53,10 @@ SPIRVType *SPIRVType::getArrayElementType() const {
 
 uint64_t SPIRVType::getArrayLength() const {
   assert(OpCode == OpTypeArray && "Not array type");
-  return static_cast<const SPIRVTypeArray *>(this)
-      ->getLength()
-      ->getZExtIntValue();
+  const SPIRVTypeArray *AsArray = static_cast<const SPIRVTypeArray *>(this);
+  assert(AsArray->getLength()->getOpCode() == OpConstant &&
+         "getArrayLength can only be called with constant array lengths");
+  return AsArray->getLength()->getZExtIntValue();
 }
 
 SPIRVWord SPIRVType::getBitWidth() const {
@@ -246,8 +247,7 @@ SPIRVTypeArray::SPIRVTypeArray(SPIRVModule *M, SPIRVId TheId,
 void SPIRVTypeArray::validate() const {
   SPIRVEntry::validate();
   ElemType->validate();
-  assert(getValue(Length)->getType()->isTypeInt() &&
-         get<SPIRVConstant>(Length)->getZExtIntValue() > 0);
+  assert(getValue(Length)->getType()->isTypeInt());
 }
 
 SPIRVConstant *SPIRVTypeArray::getLength() const {
@@ -265,4 +265,18 @@ void SPIRVTypeForwardPointer::decode(std::istream &I) {
   SPIRVId PointerId;
   Decoder >> PointerId >> SC;
 }
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL(
+    SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType, SPIRVValue *Rows,
+    SPIRVValue *Columns, SPIRVValue *Layout, SPIRVValue *Scope)
+    : SPIRVType(M, FixedWC, OC, TheId), CompType(CompType), Rows(Rows),
+      Columns(Columns), Layout(Layout), Scope(Scope) {}
+
+SPIRVTypeJointMatrixINTEL::SPIRVTypeJointMatrixINTEL()
+    : SPIRVType(OC), CompType(nullptr), Rows(nullptr), Columns(nullptr),
+      Layout(nullptr), Scope(nullptr) {}
+
+_SPIRV_IMP_ENCDEC6(SPIRVTypeJointMatrixINTEL, Id, CompType, Rows, Columns,
+                   Layout, Scope)
+
 } // namespace SPIRV

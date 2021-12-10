@@ -14,6 +14,7 @@
 
 #include "lld/Common/LLVM.h"
 #include "lld/Common/Memory.h"
+#include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/BinaryFormat/MachO.h"
@@ -22,7 +23,6 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/TextAPI/TextAPIReader.h"
 
-#include <map>
 #include <vector>
 
 namespace llvm {
@@ -39,8 +39,9 @@ namespace lld {
 namespace macho {
 
 struct PlatformInfo;
-class InputSection;
+class ConcatInputSection;
 class Symbol;
+class Defined;
 struct Reloc;
 enum class RefState : uint8_t;
 
@@ -51,11 +52,18 @@ extern std::unique_ptr<llvm::TarWriter> tar;
 // If .subsections_via_symbols is set, each InputSection will be split along
 // symbol boundaries. The field offset represents the offset of the subsection
 // from the start of the original pre-split InputSection.
-struct SubsectionEntry {
-  uint64_t offset;
-  InputSection *isec;
+struct Subsection {
+  uint64_t offset = 0;
+  InputSection *isec = nullptr;
 };
-using SubsectionMap = std::vector<SubsectionEntry>;
+
+using Subsections = std::vector<Subsection>;
+
+struct Section {
+  uint64_t address = 0;
+  Subsections subsections;
+  Section(uint64_t addr) : address(addr){};
+};
 
 class InputFile {
 public:
@@ -70,11 +78,12 @@ public:
   virtual ~InputFile() = default;
   Kind kind() const { return fileKind; }
   StringRef getName() const { return name; }
+  static void resetIdCount() { idCount = 0; }
 
   MemoryBufferRef mb;
 
   std::vector<Symbol *> symbols;
-  std::vector<SubsectionMap> subsections;
+  std::vector<Section> sections;
   // Provides an easy way to sort InputFiles deterministically.
   const int id;
 
@@ -96,39 +105,44 @@ private:
 };
 
 // .o file
-class ObjFile : public InputFile {
+class ObjFile final : public InputFile {
 public:
   ObjFile(MemoryBufferRef mb, uint32_t modTime, StringRef archiveName);
   static bool classof(const InputFile *f) { return f->kind() == ObjKind; }
 
   llvm::DWARFUnit *compileUnit = nullptr;
   const uint32_t modTime;
-  std::vector<InputSection *> debugSections;
+  std::vector<ConcatInputSection *> debugSections;
+  ArrayRef<llvm::MachO::data_in_code_entry> dataInCodeEntries;
 
 private:
+  Section *compactUnwindSection = nullptr;
+
   template <class LP> void parse();
-  template <class Section> void parseSections(ArrayRef<Section>);
+  template <class SectionHeader> void parseSections(ArrayRef<SectionHeader>);
   template <class LP>
   void parseSymbols(ArrayRef<typename LP::section> sectionHeaders,
                     ArrayRef<typename LP::nlist> nList, const char *strtab,
                     bool subsectionsViaSymbols);
   template <class NList>
   Symbol *parseNonSectionSymbol(const NList &sym, StringRef name);
-  template <class Section>
-  void parseRelocations(ArrayRef<Section> sectionHeaders, const Section &,
-                        SubsectionMap &);
+  template <class SectionHeader>
+  void parseRelocations(ArrayRef<SectionHeader> sectionHeaders,
+                        const SectionHeader &, Subsections &);
   void parseDebugInfo();
+  void parseDataInCode();
+  void registerCompactUnwind();
 };
 
 // command-line -sectcreate file
-class OpaqueFile : public InputFile {
+class OpaqueFile final : public InputFile {
 public:
   OpaqueFile(MemoryBufferRef mb, StringRef segName, StringRef sectName);
   static bool classof(const InputFile *f) { return f->kind() == OpaqueKind; }
 };
 
-// .dylib file
-class DylibFile : public InputFile {
+// .dylib or .tbd file
+class DylibFile final : public InputFile {
 public:
   // Mach-O dylibs can re-export other dylibs as sub-libraries, meaning that the
   // symbols in those sub-libraries will be available under the umbrella
@@ -139,34 +153,57 @@ public:
   // (through an -lfoo flag), then `umbrella` should be a nullptr.
   explicit DylibFile(MemoryBufferRef mb, DylibFile *umbrella,
                      bool isBundleLoader = false);
-
   explicit DylibFile(const llvm::MachO::InterfaceFile &interface,
                      DylibFile *umbrella = nullptr,
                      bool isBundleLoader = false);
 
+  void parseLoadCommands(MemoryBufferRef mb);
+  void parseReexports(const llvm::MachO::InterfaceFile &interface);
+
   static bool classof(const InputFile *f) { return f->kind() == DylibKind; }
 
-  StringRef dylibName;
+  StringRef installName;
+  DylibFile *exportingFile = nullptr;
+  DylibFile *umbrella;
+  SmallVector<StringRef, 2> rpaths;
   uint32_t compatibilityVersion = 0;
   uint32_t currentVersion = 0;
   int64_t ordinal = 0; // Ordinal numbering starts from 1, so 0 is a sentinel
   RefState refState;
   bool reexport = false;
+  bool forceNeeded = false;
   bool forceWeakImport = false;
+  bool deadStrippable = false;
+  bool explicitlyLinked = false;
+
+  unsigned numReferencedSymbols = 0;
+
+  bool isReferenced() const { return numReferencedSymbols > 0; }
 
   // An executable can be used as a bundle loader that will load the output
   // file being linked, and that contains symbols referenced, but not
   // implemented in the bundle. When used like this, it is very similar
   // to a Dylib, so we re-used the same class to represent it.
   bool isBundleLoader;
+
+private:
+  bool handleLDSymbol(StringRef originalName);
+  void handleLDPreviousSymbol(StringRef name, StringRef originalName);
+  void handleLDInstallNameSymbol(StringRef name, StringRef originalName);
+  void checkAppExtensionSafety(bool dylibIsAppExtensionSafe) const;
 };
 
 // .a file
-class ArchiveFile : public InputFile {
+class ArchiveFile final : public InputFile {
 public:
   explicit ArchiveFile(std::unique_ptr<llvm::object::Archive> &&file);
+  void addLazySymbols();
+  void fetch(const llvm::object::Archive::Symbol &);
+  // LLD normally doesn't use Error for error-handling, but the underlying
+  // Archive library does, so this is the cleanest way to wrap it.
+  Error fetch(const llvm::object::Archive::Child &, StringRef reason);
+  const llvm::object::Archive &getArchive() const { return *file; };
   static bool classof(const InputFile *f) { return f->kind() == ArchiveKind; }
-  void fetch(const llvm::object::Archive::Symbol &sym);
 
 private:
   std::unique_ptr<llvm::object::Archive> file;
@@ -175,15 +212,17 @@ private:
   llvm::DenseSet<uint64_t> seen;
 };
 
-class BitcodeFile : public InputFile {
+class BitcodeFile final : public InputFile {
 public:
-  explicit BitcodeFile(MemoryBufferRef mb);
+  explicit BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
+                       uint64_t offsetInArchive);
   static bool classof(const InputFile *f) { return f->kind() == BitcodeKind; }
 
   std::unique_ptr<llvm::lto::InputFile> obj;
 };
 
 extern llvm::SetVector<InputFile *> inputFiles;
+extern llvm::DenseMap<llvm::CachedHashStringRef, MemoryBufferRef> cachedReads;
 
 llvm::Optional<MemoryBufferRef> readFile(StringRef path);
 

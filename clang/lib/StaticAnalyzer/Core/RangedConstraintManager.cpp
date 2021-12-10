@@ -23,12 +23,14 @@ RangedConstraintManager::~RangedConstraintManager() {}
 ProgramStateRef RangedConstraintManager::assumeSym(ProgramStateRef State,
                                                    SymbolRef Sym,
                                                    bool Assumption) {
+  Sym = simplify(State, Sym);
+
   // Handle SymbolData.
-  if (isa<SymbolData>(Sym)) {
+  if (isa<SymbolData>(Sym))
     return assumeSymUnsupported(State, Sym, Assumption);
 
-    // Handle symbolic expression.
-  } else if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(Sym)) {
+  // Handle symbolic expression.
+  if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(Sym)) {
     // We can only simplify expressions whose RHS is an integer.
 
     BinaryOperator::Opcode op = SIE->getOpcode();
@@ -39,7 +41,12 @@ ProgramStateRef RangedConstraintManager::assumeSym(ProgramStateRef State,
       return assumeSymRel(State, SIE->getLHS(), op, SIE->getRHS());
     }
 
-  } else if (const SymSymExpr *SSE = dyn_cast<SymSymExpr>(Sym)) {
+    // Handle adjustment with non-comparison ops.
+    const llvm::APSInt &Zero = getBasicVals().getValue(0, SIE->getType());
+    return assumeSymRel(State, SIE, (Assumption ? BO_NE : BO_EQ), Zero);
+  }
+
+  if (const auto *SSE = dyn_cast<SymSymExpr>(Sym)) {
     BinaryOperator::Opcode Op = SSE->getOpcode();
     assert(BinaryOperator::isComparisonOp(Op));
 
@@ -93,6 +100,9 @@ ProgramStateRef RangedConstraintManager::assumeSym(ProgramStateRef State,
 ProgramStateRef RangedConstraintManager::assumeSymInclusiveRange(
     ProgramStateRef State, SymbolRef Sym, const llvm::APSInt &From,
     const llvm::APSInt &To, bool InRange) {
+
+  Sym = simplify(State, Sym);
+
   // Get the type used for calculating wraparound.
   BasicValueFactory &BVF = getBasicVals();
   APSIntType WraparoundType = BVF.getAPSIntType(Sym->getType());
@@ -121,6 +131,8 @@ ProgramStateRef RangedConstraintManager::assumeSymInclusiveRange(
 ProgramStateRef
 RangedConstraintManager::assumeSymUnsupported(ProgramStateRef State,
                                               SymbolRef Sym, bool Assumption) {
+  Sym = simplify(State, Sym);
+
   BasicValueFactory &BVF = getBasicVals();
   QualType T = Sym->getType();
 
@@ -217,6 +229,18 @@ void RangedConstraintManager::computeAdjustment(SymbolRef &Sym,
         Adjustment = -Adjustment;
     }
   }
+}
+
+SVal simplifyToSVal(ProgramStateRef State, SymbolRef Sym) {
+  SValBuilder &SVB = State->getStateManager().getSValBuilder();
+  return SVB.simplifySVal(State, SVB.makeSymbolVal(Sym));
+}
+
+SymbolRef simplify(ProgramStateRef State, SymbolRef Sym) {
+  SVal SimplifiedVal = simplifyToSVal(State, Sym);
+  if (SymbolRef SimplifiedSym = SimplifiedVal.getAsSymbol())
+    return SimplifiedSym;
+  return Sym;
 }
 
 } // end of namespace ento

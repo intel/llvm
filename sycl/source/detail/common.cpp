@@ -216,14 +216,15 @@ const char *stringifyErrorCode(cl_int error) {
         case CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR:
           return "CL_DX9_MEDIA_SURFACE_NOT_ACQUIRED_KHR";
           */
+    case PI_FUNCTION_ADDRESS_IS_NOT_AVAILABLE:
+      return "Function exists but address is not available";
     default:
       return "Unknown OpenCL error code";
   }
 }
 
-vector_class<string_class> split_string(const string_class &str,
-                                        char delimeter) {
-  vector_class<string_class> result;
+std::vector<std::string> split_string(const std::string &str, char delimeter) {
+  std::vector<std::string> result;
   size_t beg = 0;
   size_t length = 0;
   for (const auto &x : str) {

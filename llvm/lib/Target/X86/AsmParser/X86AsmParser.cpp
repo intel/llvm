@@ -31,10 +31,10 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <memory>
@@ -1758,8 +1758,8 @@ bool X86AsmParser::CreateMemForMSInlineAsm(
   // It is widely common for MS InlineAsm to use a global variable and one/two
   // registers in a mmory expression, and though unaccessible via rip/eip.
   if (IsGlobalLV && (BaseReg || IndexReg)) {
-    Operands.push_back(
-        X86Operand::CreateMem(getPointerWidth(), Disp, Start, End));
+    Operands.push_back(X86Operand::CreateMem(getPointerWidth(), Disp, Start,
+                                             End, Size, Identifier, Decl));
     return false;
   }
   // Otherwise, we set the base register to a non-zero value
@@ -1784,21 +1784,21 @@ bool X86AsmParser::ParseIntelNamedOperator(StringRef Name,
   if (Name.compare(Name.lower()) && Name.compare(Name.upper()) &&
       !getParser().isParsingMasm())
     return false;
-  if (Name.equals_lower("not")) {
+  if (Name.equals_insensitive("not")) {
     SM.onNot();
-  } else if (Name.equals_lower("or")) {
+  } else if (Name.equals_insensitive("or")) {
     SM.onOr();
-  } else if (Name.equals_lower("shl")) {
+  } else if (Name.equals_insensitive("shl")) {
     SM.onLShift();
-  } else if (Name.equals_lower("shr")) {
+  } else if (Name.equals_insensitive("shr")) {
     SM.onRShift();
-  } else if (Name.equals_lower("xor")) {
+  } else if (Name.equals_insensitive("xor")) {
     SM.onXor();
-  } else if (Name.equals_lower("and")) {
+  } else if (Name.equals_insensitive("and")) {
     SM.onAnd();
-  } else if (Name.equals_lower("mod")) {
+  } else if (Name.equals_insensitive("mod")) {
     SM.onMod();
-  } else if (Name.equals_lower("offset")) {
+  } else if (Name.equals_insensitive("offset")) {
     SMLoc OffsetLoc = getTok().getLoc();
     const MCExpr *Val = nullptr;
     StringRef ID;
@@ -1814,24 +1814,24 @@ bool X86AsmParser::ParseIntelNamedOperator(StringRef Name,
   } else {
     return false;
   }
-  if (!Name.equals_lower("offset"))
+  if (!Name.equals_insensitive("offset"))
     End = consumeToken();
   return true;
 }
 bool X86AsmParser::ParseMasmNamedOperator(StringRef Name,
                                           IntelExprStateMachine &SM,
                                           bool &ParseError, SMLoc &End) {
-  if (Name.equals_lower("eq")) {
+  if (Name.equals_insensitive("eq")) {
     SM.onEq();
-  } else if (Name.equals_lower("ne")) {
+  } else if (Name.equals_insensitive("ne")) {
     SM.onNE();
-  } else if (Name.equals_lower("lt")) {
+  } else if (Name.equals_insensitive("lt")) {
     SM.onLT();
-  } else if (Name.equals_lower("le")) {
+  } else if (Name.equals_insensitive("le")) {
     SM.onLE();
-  } else if (Name.equals_lower("gt")) {
+  } else if (Name.equals_insensitive("gt")) {
     SM.onGT();
-  } else if (Name.equals_lower("ge")) {
+  } else if (Name.equals_insensitive("ge")) {
     SM.onGE();
   } else {
     return false;
@@ -1933,7 +1933,7 @@ bool X86AsmParser::ParseIntelExpression(IntelExprStateMachine &SM, SMLoc &End) {
       if (Parser.isParsingMasm()) {
         const AsmToken &NextTok = getLexer().peekTok();
         if (NextTok.is(AsmToken::Identifier) &&
-            NextTok.getIdentifier().equals_lower("ptr")) {
+            NextTok.getIdentifier().equals_insensitive("ptr")) {
           AsmTypeInfo Info;
           if (Parser.lookUpType(Identifier, Info))
             return Error(Tok.getLoc(), "unknown type");
@@ -2551,6 +2551,8 @@ bool X86AsmParser::ParseIntelOperand(OperandVector &Operands) {
   StringRef ErrMsg;
   unsigned BaseReg = SM.getBaseReg();
   unsigned IndexReg = SM.getIndexReg();
+  if (IndexReg && BaseReg == X86::RIP)
+    BaseReg = 0;
   unsigned Scale = SM.getScale();
   if (!PtrInOperand)
     Size = SM.getElementSize() << 3;
@@ -2594,9 +2596,9 @@ bool X86AsmParser::ParseIntelOperand(OperandVector &Operands) {
                                    End, Size, SM.getSymName(),
                                    SM.getIdentifierInfo(), Operands);
 
-  // When parsing x64 MS-style assembly, all memory operands default to
-  // RIP-relative when interpreted as non-absolute references.
-  if (Parser.isParsingMasm() && is64BitMode()) {
+  // When parsing x64 MS-style assembly, all non-absolute references to a named
+  // variable default to RIP-relative.
+  if (Parser.isParsingMasm() && is64BitMode() && SM.getElementSize() > 0) {
     Operands.push_back(X86Operand::CreateMem(getPointerWidth(), RegNo, Disp,
                                              BaseReg, IndexReg, Scale, Start,
                                              End, Size,
@@ -2655,7 +2657,7 @@ bool X86AsmParser::ParseATTOperand(OperandVector &Operands) {
         Expr = nullptr;
         Reg = RE->getRegNo();
 
-        // Sanity check register.
+        // Check the register.
         if (Reg == X86::EIZ || Reg == X86::RIZ)
           return Error(
               Loc, "%eiz and %riz can only be used as index registers",
@@ -2753,6 +2755,7 @@ bool X86AsmParser::HandleAVX512Operand(OperandVector &Operands) {
               .Case("1to4", "{1to4}")
               .Case("1to8", "{1to8}")
               .Case("1to16", "{1to16}")
+              .Case("1to32", "{1to32}")
               .Default(nullptr);
       if (!BroadcastPrimitive)
         return TokError("Invalid memory broadcast primitive.");
@@ -2914,7 +2917,7 @@ bool X86AsmParser::ParseMemOperand(unsigned SegReg, const MCExpr *Disp,
         check(!isa<X86MCExpr>(E), BaseLoc, "expected register here"))
       return true;
 
-    // Sanity check register.
+    // Check the register.
     BaseReg = cast<X86MCExpr>(E)->getRegNo();
     if (BaseReg == X86::EIZ || BaseReg == X86::RIZ)
       return Error(BaseLoc, "eiz and riz can only be used as index registers",
@@ -3068,13 +3071,13 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
     }
     // Parse MASM style pseudo prefixes.
     if (isParsingMSInlineAsm()) {
-      if (Name.equals_lower("vex"))
+      if (Name.equals_insensitive("vex"))
         ForcedVEXEncoding = VEXEncoding_VEX;
-      else if (Name.equals_lower("vex2"))
+      else if (Name.equals_insensitive("vex2"))
         ForcedVEXEncoding = VEXEncoding_VEX2;
-      else if (Name.equals_lower("vex3"))
+      else if (Name.equals_insensitive("vex3"))
         ForcedVEXEncoding = VEXEncoding_VEX3;
-      else if (Name.equals_lower("evex"))
+      else if (Name.equals_insensitive("evex"))
         ForcedVEXEncoding = VEXEncoding_EVEX;
 
       if (ForcedVEXEncoding != VEXEncoding_Default) {
@@ -3101,11 +3104,12 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
   // Hack to skip "short" following Jcc.
   if (isParsingIntelSyntax() &&
       (PatchedName == "jmp" || PatchedName == "jc" || PatchedName == "jnc" ||
-       PatchedName == "jcxz" || PatchedName == "jexcz" ||
+       PatchedName == "jcxz" || PatchedName == "jecxz" ||
        (PatchedName.startswith("j") &&
         ParseConditionCode(PatchedName.substr(1)) != X86::COND_INVALID))) {
     StringRef NextTok = Parser.getTok().getString();
-    if (NextTok == "short") {
+    if (Parser.isParsingMasm() ? NextTok.equals_insensitive("short")
+                               : NextTok == "short") {
       SMLoc NameEndLoc =
           NameLoc.getFromPointer(NameLoc.getPointer() + Name.size());
       // Eat the short keyword.
@@ -3125,9 +3129,10 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
 
   unsigned ComparisonPredicate = ~0U;
 
-  // FIXME: Hack to recognize cmp<comparison code>{ss,sd,ps,pd}.
+  // FIXME: Hack to recognize cmp<comparison code>{sh,ss,sd,ph,ps,pd}.
   if ((PatchedName.startswith("cmp") || PatchedName.startswith("vcmp")) &&
       (PatchedName.endswith("ss") || PatchedName.endswith("sd") ||
+       PatchedName.endswith("sh") || PatchedName.endswith("ph") ||
        PatchedName.endswith("ps") || PatchedName.endswith("pd"))) {
     bool IsVCMP = PatchedName[0] == 'v';
     unsigned CCIdx = IsVCMP ? 4 : 3;
@@ -3181,7 +3186,8 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
       .Case("gt_oq",    0x1E)
       .Case("true_us",  0x1F)
       .Default(~0U);
-    if (CC != ~0U && (IsVCMP || CC < 8)) {
+    if (CC != ~0U && (IsVCMP || CC < 8) &&
+        (IsVCMP || PatchedName.back() != 'h')) {
       if (PatchedName.endswith("ss"))
         PatchedName = IsVCMP ? "vcmpss" : "cmpss";
       else if (PatchedName.endswith("sd"))
@@ -3190,6 +3196,10 @@ bool X86AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
         PatchedName = IsVCMP ? "vcmpps" : "cmpps";
       else if (PatchedName.endswith("pd"))
         PatchedName = IsVCMP ? "vcmppd" : "cmppd";
+      else if (PatchedName.endswith("sh"))
+        PatchedName = "vcmpsh";
+      else if (PatchedName.endswith("ph"))
+        PatchedName = "vcmpph";
       else
         llvm_unreachable("Unexpected suffix!");
 
@@ -3858,6 +3868,176 @@ bool X86AsmParser::validateInstruction(MCInst &Inst, const OperandVector &Ops) {
     }
     break;
   }
+  case X86::VFCMADDCPHZ128m:
+  case X86::VFCMADDCPHZ256m:
+  case X86::VFCMADDCPHZm:
+  case X86::VFCMADDCPHZ128mb:
+  case X86::VFCMADDCPHZ256mb:
+  case X86::VFCMADDCPHZmb:
+  case X86::VFCMADDCPHZ128mbk:
+  case X86::VFCMADDCPHZ256mbk:
+  case X86::VFCMADDCPHZmbk:
+  case X86::VFCMADDCPHZ128mbkz:
+  case X86::VFCMADDCPHZ256mbkz:
+  case X86::VFCMADDCPHZmbkz:
+  case X86::VFCMADDCPHZ128mk:
+  case X86::VFCMADDCPHZ256mk:
+  case X86::VFCMADDCPHZmk:
+  case X86::VFCMADDCPHZ128mkz:
+  case X86::VFCMADDCPHZ256mkz:
+  case X86::VFCMADDCPHZmkz:
+  case X86::VFCMADDCPHZ128r:
+  case X86::VFCMADDCPHZ256r:
+  case X86::VFCMADDCPHZr:
+  case X86::VFCMADDCPHZ128rk:
+  case X86::VFCMADDCPHZ256rk:
+  case X86::VFCMADDCPHZrk:
+  case X86::VFCMADDCPHZ128rkz:
+  case X86::VFCMADDCPHZ256rkz:
+  case X86::VFCMADDCPHZrkz:
+  case X86::VFCMADDCPHZrb:
+  case X86::VFCMADDCPHZrbk:
+  case X86::VFCMADDCPHZrbkz:
+  case X86::VFCMADDCSHZm:
+  case X86::VFCMADDCSHZmk:
+  case X86::VFCMADDCSHZmkz:
+  case X86::VFCMADDCSHZr:
+  case X86::VFCMADDCSHZrb:
+  case X86::VFCMADDCSHZrbk:
+  case X86::VFCMADDCSHZrbkz:
+  case X86::VFCMADDCSHZrk:
+  case X86::VFCMADDCSHZrkz:
+  case X86::VFMADDCPHZ128m:
+  case X86::VFMADDCPHZ256m:
+  case X86::VFMADDCPHZm:
+  case X86::VFMADDCPHZ128mb:
+  case X86::VFMADDCPHZ256mb:
+  case X86::VFMADDCPHZmb:
+  case X86::VFMADDCPHZ128mbk:
+  case X86::VFMADDCPHZ256mbk:
+  case X86::VFMADDCPHZmbk:
+  case X86::VFMADDCPHZ128mbkz:
+  case X86::VFMADDCPHZ256mbkz:
+  case X86::VFMADDCPHZmbkz:
+  case X86::VFMADDCPHZ128mk:
+  case X86::VFMADDCPHZ256mk:
+  case X86::VFMADDCPHZmk:
+  case X86::VFMADDCPHZ128mkz:
+  case X86::VFMADDCPHZ256mkz:
+  case X86::VFMADDCPHZmkz:
+  case X86::VFMADDCPHZ128r:
+  case X86::VFMADDCPHZ256r:
+  case X86::VFMADDCPHZr:
+  case X86::VFMADDCPHZ128rk:
+  case X86::VFMADDCPHZ256rk:
+  case X86::VFMADDCPHZrk:
+  case X86::VFMADDCPHZ128rkz:
+  case X86::VFMADDCPHZ256rkz:
+  case X86::VFMADDCPHZrkz:
+  case X86::VFMADDCPHZrb:
+  case X86::VFMADDCPHZrbk:
+  case X86::VFMADDCPHZrbkz:
+  case X86::VFMADDCSHZm:
+  case X86::VFMADDCSHZmk:
+  case X86::VFMADDCSHZmkz:
+  case X86::VFMADDCSHZr:
+  case X86::VFMADDCSHZrb:
+  case X86::VFMADDCSHZrbk:
+  case X86::VFMADDCSHZrbkz:
+  case X86::VFMADDCSHZrk:
+  case X86::VFMADDCSHZrkz: {
+    unsigned Dest = Inst.getOperand(0).getReg();
+    for (unsigned i = 2; i < Inst.getNumOperands(); i++)
+      if (Inst.getOperand(i).isReg() && Dest == Inst.getOperand(i).getReg())
+        return Warning(Ops[0]->getStartLoc(), "Destination register should be "
+                                              "distinct from source registers");
+    break;
+  }
+  case X86::VFCMULCPHZ128rm:
+  case X86::VFCMULCPHZ256rm:
+  case X86::VFCMULCPHZrm:
+  case X86::VFCMULCPHZ128rmb:
+  case X86::VFCMULCPHZ256rmb:
+  case X86::VFCMULCPHZrmb:
+  case X86::VFCMULCPHZ128rmbk:
+  case X86::VFCMULCPHZ256rmbk:
+  case X86::VFCMULCPHZrmbk:
+  case X86::VFCMULCPHZ128rmbkz:
+  case X86::VFCMULCPHZ256rmbkz:
+  case X86::VFCMULCPHZrmbkz:
+  case X86::VFCMULCPHZ128rmk:
+  case X86::VFCMULCPHZ256rmk:
+  case X86::VFCMULCPHZrmk:
+  case X86::VFCMULCPHZ128rmkz:
+  case X86::VFCMULCPHZ256rmkz:
+  case X86::VFCMULCPHZrmkz:
+  case X86::VFCMULCPHZ128rr:
+  case X86::VFCMULCPHZ256rr:
+  case X86::VFCMULCPHZrr:
+  case X86::VFCMULCPHZ128rrk:
+  case X86::VFCMULCPHZ256rrk:
+  case X86::VFCMULCPHZrrk:
+  case X86::VFCMULCPHZ128rrkz:
+  case X86::VFCMULCPHZ256rrkz:
+  case X86::VFCMULCPHZrrkz:
+  case X86::VFCMULCPHZrrb:
+  case X86::VFCMULCPHZrrbk:
+  case X86::VFCMULCPHZrrbkz:
+  case X86::VFCMULCSHZrm:
+  case X86::VFCMULCSHZrmk:
+  case X86::VFCMULCSHZrmkz:
+  case X86::VFCMULCSHZrr:
+  case X86::VFCMULCSHZrrb:
+  case X86::VFCMULCSHZrrbk:
+  case X86::VFCMULCSHZrrbkz:
+  case X86::VFCMULCSHZrrk:
+  case X86::VFCMULCSHZrrkz:
+  case X86::VFMULCPHZ128rm:
+  case X86::VFMULCPHZ256rm:
+  case X86::VFMULCPHZrm:
+  case X86::VFMULCPHZ128rmb:
+  case X86::VFMULCPHZ256rmb:
+  case X86::VFMULCPHZrmb:
+  case X86::VFMULCPHZ128rmbk:
+  case X86::VFMULCPHZ256rmbk:
+  case X86::VFMULCPHZrmbk:
+  case X86::VFMULCPHZ128rmbkz:
+  case X86::VFMULCPHZ256rmbkz:
+  case X86::VFMULCPHZrmbkz:
+  case X86::VFMULCPHZ128rmk:
+  case X86::VFMULCPHZ256rmk:
+  case X86::VFMULCPHZrmk:
+  case X86::VFMULCPHZ128rmkz:
+  case X86::VFMULCPHZ256rmkz:
+  case X86::VFMULCPHZrmkz:
+  case X86::VFMULCPHZ128rr:
+  case X86::VFMULCPHZ256rr:
+  case X86::VFMULCPHZrr:
+  case X86::VFMULCPHZ128rrk:
+  case X86::VFMULCPHZ256rrk:
+  case X86::VFMULCPHZrrk:
+  case X86::VFMULCPHZ128rrkz:
+  case X86::VFMULCPHZ256rrkz:
+  case X86::VFMULCPHZrrkz:
+  case X86::VFMULCPHZrrb:
+  case X86::VFMULCPHZrrbk:
+  case X86::VFMULCPHZrrbkz:
+  case X86::VFMULCSHZrm:
+  case X86::VFMULCSHZrmk:
+  case X86::VFMULCSHZrmkz:
+  case X86::VFMULCSHZrr:
+  case X86::VFMULCSHZrrb:
+  case X86::VFMULCSHZrrbk:
+  case X86::VFMULCSHZrrbkz:
+  case X86::VFMULCSHZrrk:
+  case X86::VFMULCSHZrrkz: {
+    unsigned Dest = Inst.getOperand(0).getReg();
+    for (unsigned i = 1; i < Inst.getNumOperands(); i++)
+      if (Inst.getOperand(i).isReg() && Dest == Inst.getOperand(i).getReg())
+        return Warning(Ops[0]->getStartLoc(), "Destination register should be "
+                                              "distinct from source registers");
+    break;
+  }
   }
 
   const MCInstrDesc &MCID = MII.get(Inst.getOpcode());
@@ -3915,12 +4095,12 @@ void X86AsmParser::applyLVICFIMitigation(MCInst &Inst, MCStreamer &Out) {
   // be found here:
   // https://software.intel.com/security-software-guidance/insights/deep-dive-load-value-injection#specialinstructions
   switch (Inst.getOpcode()) {
-  case X86::RETW:
-  case X86::RETL:
-  case X86::RETQ:
-  case X86::RETIL:
-  case X86::RETIQ:
-  case X86::RETIW: {
+  case X86::RET16:
+  case X86::RET32:
+  case X86::RET64:
+  case X86::RETI16:
+  case X86::RETI32:
+  case X86::RETI64: {
     MCInst ShlInst, FenceInst;
     bool Parse32 = is32BitMode() || Code16GCC;
     unsigned Basereg =
@@ -4091,24 +4271,6 @@ unsigned X86AsmParser::checkTargetMatchPredicate(MCInst &Inst) {
        ForcedVEXEncoding != VEXEncoding_VEX2 &&
        ForcedVEXEncoding != VEXEncoding_VEX3))
     return Match_Unsupported;
-
-  // These instructions match ambiguously with their VEX encoded counterparts
-  // and appear first in the matching table. Reject them unless we're forcing
-  // EVEX encoding.
-  // FIXME: We really need a way to break the ambiguity.
-  switch (Opc) {
-  case X86::VCVTSD2SIZrm_Int:
-  case X86::VCVTSD2SI64Zrm_Int:
-  case X86::VCVTSS2SIZrm_Int:
-  case X86::VCVTSS2SI64Zrm_Int:
-  case X86::VCVTTSD2SIZrm:   case X86::VCVTTSD2SIZrm_Int:
-  case X86::VCVTTSD2SI64Zrm: case X86::VCVTTSD2SI64Zrm_Int:
-  case X86::VCVTTSS2SIZrm:   case X86::VCVTTSS2SIZrm_Int:
-  case X86::VCVTTSS2SI64Zrm: case X86::VCVTTSS2SI64Zrm_Int:
-    if (ForcedVEXEncoding != VEXEncoding_EVEX)
-      return Match_Unsupported;
-    break;
-  }
 
   return Match_Success;
 }
@@ -4648,19 +4810,19 @@ bool X86AsmParser::ParseDirective(AsmToken DirectiveID) {
   else if (IDVal == ".cv_fpo_endproc")
     return parseDirectiveFPOEndProc(DirectiveID.getLoc());
   else if (IDVal == ".seh_pushreg" ||
-           (Parser.isParsingMasm() && IDVal.equals_lower(".pushreg")))
+           (Parser.isParsingMasm() && IDVal.equals_insensitive(".pushreg")))
     return parseDirectiveSEHPushReg(DirectiveID.getLoc());
   else if (IDVal == ".seh_setframe" ||
-           (Parser.isParsingMasm() && IDVal.equals_lower(".setframe")))
+           (Parser.isParsingMasm() && IDVal.equals_insensitive(".setframe")))
     return parseDirectiveSEHSetFrame(DirectiveID.getLoc());
   else if (IDVal == ".seh_savereg" ||
-           (Parser.isParsingMasm() && IDVal.equals_lower(".savereg")))
+           (Parser.isParsingMasm() && IDVal.equals_insensitive(".savereg")))
     return parseDirectiveSEHSaveReg(DirectiveID.getLoc());
   else if (IDVal == ".seh_savexmm" ||
-           (Parser.isParsingMasm() && IDVal.equals_lower(".savexmm128")))
+           (Parser.isParsingMasm() && IDVal.equals_insensitive(".savexmm128")))
     return parseDirectiveSEHSaveXMM(DirectiveID.getLoc());
   else if (IDVal == ".seh_pushframe" ||
-           (Parser.isParsingMasm() && IDVal.equals_lower(".pushframe")))
+           (Parser.isParsingMasm() && IDVal.equals_insensitive(".pushframe")))
     return parseDirectiveSEHPushFrame(DirectiveID.getLoc());
 
   return true;
@@ -4677,7 +4839,7 @@ bool X86AsmParser::parseDirectiveArch() {
 bool X86AsmParser::parseDirectiveNops(SMLoc L) {
   int64_t NumBytes = 0, Control = 0;
   SMLoc NumBytesLoc, ControlLoc;
-  const MCSubtargetInfo STI = getSTI();
+  const MCSubtargetInfo& STI = getSTI();
   NumBytesLoc = getTok().getLoc();
   if (getParser().checkForValidSection() ||
       getParser().parseAbsoluteExpression(NumBytes))
@@ -4703,7 +4865,7 @@ bool X86AsmParser::parseDirectiveNops(SMLoc L) {
   }
 
   /// Emit nops
-  getParser().getStreamer().emitNops(NumBytes, Control, L);
+  getParser().getStreamer().emitNops(NumBytes, Control, L, STI);
 
   return false;
 }
@@ -4716,11 +4878,11 @@ bool X86AsmParser::parseDirectiveEven(SMLoc L) {
 
   const MCSection *Section = getStreamer().getCurrentSectionOnly();
   if (!Section) {
-    getStreamer().InitSections(false);
+    getStreamer().initSections(false, getSTI());
     Section = getStreamer().getCurrentSectionOnly();
   }
   if (Section->UseCodeAlign())
-    getStreamer().emitCodeAlignment(2, 0);
+    getStreamer().emitCodeAlignment(2, &getSTI(), 0);
   else
     getStreamer().emitValueToAlignment(2, 0, 1, 0);
   return false;
@@ -4776,31 +4938,27 @@ bool X86AsmParser::parseDirectiveFPOProc(SMLoc L) {
     return true;
   if (!isUIntN(32, ParamsSize))
     return Parser.TokError("parameters size out of range");
-  if (Parser.parseEOL("unexpected tokens"))
-    return addErrorSuffix(" in '.cv_fpo_proc' directive");
+  if (parseEOL())
+    return true;
   MCSymbol *ProcSym = getContext().getOrCreateSymbol(ProcName);
   return getTargetStreamer().emitFPOProc(ProcSym, ParamsSize, L);
 }
 
 // .cv_fpo_setframe ebp
 bool X86AsmParser::parseDirectiveFPOSetFrame(SMLoc L) {
-  MCAsmParser &Parser = getParser();
   unsigned Reg;
   SMLoc DummyLoc;
-  if (ParseRegister(Reg, DummyLoc, DummyLoc) ||
-      Parser.parseEOL("unexpected tokens"))
-    return addErrorSuffix(" in '.cv_fpo_setframe' directive");
+  if (ParseRegister(Reg, DummyLoc, DummyLoc) || parseEOL())
+    return true;
   return getTargetStreamer().emitFPOSetFrame(Reg, L);
 }
 
 // .cv_fpo_pushreg ebx
 bool X86AsmParser::parseDirectiveFPOPushReg(SMLoc L) {
-  MCAsmParser &Parser = getParser();
   unsigned Reg;
   SMLoc DummyLoc;
-  if (ParseRegister(Reg, DummyLoc, DummyLoc) ||
-      Parser.parseEOL("unexpected tokens"))
-    return addErrorSuffix(" in '.cv_fpo_pushreg' directive");
+  if (ParseRegister(Reg, DummyLoc, DummyLoc) || parseEOL())
+    return true;
   return getTargetStreamer().emitFPOPushReg(Reg, L);
 }
 
@@ -4808,9 +4966,8 @@ bool X86AsmParser::parseDirectiveFPOPushReg(SMLoc L) {
 bool X86AsmParser::parseDirectiveFPOStackAlloc(SMLoc L) {
   MCAsmParser &Parser = getParser();
   int64_t Offset;
-  if (Parser.parseIntToken(Offset, "expected offset") ||
-      Parser.parseEOL("unexpected tokens"))
-    return addErrorSuffix(" in '.cv_fpo_stackalloc' directive");
+  if (Parser.parseIntToken(Offset, "expected offset") || parseEOL())
+    return true;
   return getTargetStreamer().emitFPOStackAlloc(Offset, L);
 }
 
@@ -4818,25 +4975,24 @@ bool X86AsmParser::parseDirectiveFPOStackAlloc(SMLoc L) {
 bool X86AsmParser::parseDirectiveFPOStackAlign(SMLoc L) {
   MCAsmParser &Parser = getParser();
   int64_t Offset;
-  if (Parser.parseIntToken(Offset, "expected offset") ||
-      Parser.parseEOL("unexpected tokens"))
-    return addErrorSuffix(" in '.cv_fpo_stackalign' directive");
+  if (Parser.parseIntToken(Offset, "expected offset") || parseEOL())
+    return true;
   return getTargetStreamer().emitFPOStackAlign(Offset, L);
 }
 
 // .cv_fpo_endprologue
 bool X86AsmParser::parseDirectiveFPOEndPrologue(SMLoc L) {
   MCAsmParser &Parser = getParser();
-  if (Parser.parseEOL("unexpected tokens"))
-    return addErrorSuffix(" in '.cv_fpo_endprologue' directive");
+  if (Parser.parseEOL())
+    return true;
   return getTargetStreamer().emitFPOEndPrologue(L);
 }
 
 // .cv_fpo_endproc
 bool X86AsmParser::parseDirectiveFPOEndProc(SMLoc L) {
   MCAsmParser &Parser = getParser();
-  if (Parser.parseEOL("unexpected tokens"))
-    return addErrorSuffix(" in '.cv_fpo_endproc' directive");
+  if (Parser.parseEOL())
+    return true;
   return getTargetStreamer().emitFPOEndProc(L);
 }
 

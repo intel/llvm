@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "mcasmparser"
-
 #include "HexagonTargetStreamer.h"
 #include "MCTargetDesc/HexagonMCChecker.h"
 #include "MCTargetDesc/HexagonMCELFStreamer.h"
@@ -39,6 +37,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCValue.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -47,7 +46,6 @@
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -57,6 +55,8 @@
 #include <memory>
 #include <string>
 #include <utility>
+
+#define DEBUG_TYPE "mcasmparser"
 
 using namespace llvm;
 
@@ -141,12 +141,6 @@ class HexagonAsmParser : public MCTargetAsmParser {
   int processInstruction(MCInst &Inst, OperandVector const &Operands,
                          SMLoc IDLoc);
 
-  // Check if we have an assembler and, if so, set the ELF e_header flags.
-  void chksetELFHeaderEFlags(unsigned flags) {
-    if (getAssembler())
-      getAssembler()->setELFHeaderEFlags(flags);
-  }
-
   unsigned matchRegister(StringRef Name);
 
 /// @name Auto-generated Match Functions
@@ -209,10 +203,6 @@ struct HexagonOperand : public MCParsedAsmOperand {
 
   struct ImmTy {
     const MCExpr *Val;
-  };
-
-  struct InstTy {
-    OperandVector *SubInsts;
   };
 
   union {
@@ -510,19 +500,19 @@ bool HexagonAsmParser::matchBundleOptions() {
         "supported with this architecture";
     StringRef Option = Parser.getTok().getString();
     auto IDLoc = Parser.getTok().getLoc();
-    if (Option.compare_lower("endloop01") == 0) {
+    if (Option.compare_insensitive("endloop01") == 0) {
       HexagonMCInstrInfo::setInnerLoop(MCB);
       HexagonMCInstrInfo::setOuterLoop(MCB);
-    } else if (Option.compare_lower("endloop0") == 0) {
+    } else if (Option.compare_insensitive("endloop0") == 0) {
       HexagonMCInstrInfo::setInnerLoop(MCB);
-    } else if (Option.compare_lower("endloop1") == 0) {
+    } else if (Option.compare_insensitive("endloop1") == 0) {
       HexagonMCInstrInfo::setOuterLoop(MCB);
-    } else if (Option.compare_lower("mem_noshuf") == 0) {
+    } else if (Option.compare_insensitive("mem_noshuf") == 0) {
       if (getSTI().getFeatureBits()[Hexagon::FeatureMemNoShuf])
         HexagonMCInstrInfo::setMemReorderDisabled(MCB);
       else
         return getParser().Error(IDLoc, MemNoShuffMsg);
-    } else if (Option.compare_lower("mem_no_order") == 0) {
+    } else if (Option.compare_insensitive("mem_no_order") == 0) {
       // Nothing.
     } else
       return getParser().Error(IDLoc, llvm::Twine("'") + Option +
@@ -838,7 +828,8 @@ static bool previousEqual(OperandVector &Operands, size_t Index,
   MCParsedAsmOperand &Operand = *Operands[Operands.size() - Index - 1];
   if (!Operand.isToken())
     return false;
-  return static_cast<HexagonOperand &>(Operand).getToken().equals_lower(String);
+  return static_cast<HexagonOperand &>(Operand).getToken().equals_insensitive(
+      String);
 }
 
 static bool previousIsLoop(OperandVector &Operands, size_t Index) {
@@ -892,7 +883,7 @@ bool HexagonAsmParser::parseOperand(OperandVector &Operands) {
               HexagonOperand::CreateReg(getContext(), Register, Begin, End));
           const AsmToken &MaybeDotNew = Lexer.getTok();
           if (MaybeDotNew.is(AsmToken::TokenKind::Identifier) &&
-              MaybeDotNew.getString().equals_lower(".new"))
+              MaybeDotNew.getString().equals_insensitive(".new"))
             splitIdentifier(Operands);
           Operands.push_back(
               HexagonOperand::CreateToken(getContext(), RParen, Begin));
@@ -910,7 +901,7 @@ bool HexagonAsmParser::parseOperand(OperandVector &Operands) {
               HexagonOperand::CreateReg(getContext(), Register, Begin, End));
           const AsmToken &MaybeDotNew = Lexer.getTok();
           if (MaybeDotNew.is(AsmToken::TokenKind::Identifier) &&
-              MaybeDotNew.getString().equals_lower(".new"))
+              MaybeDotNew.getString().equals_insensitive(".new"))
             splitIdentifier(Operands);
           Operands.push_back(
               HexagonOperand::CreateToken(getContext(), RParen, Begin));
@@ -1497,7 +1488,7 @@ int HexagonAsmParser::processInstruction(MCInst &Inst,
 
       MES->SwitchSection(mySection);
       unsigned byteSize = is32bit ? 4 : 8;
-      getStreamer().emitCodeAlignment(byteSize, byteSize);
+      getStreamer().emitCodeAlignment(byteSize, &getSTI(), byteSize);
 
       MCSymbol *Sym;
 

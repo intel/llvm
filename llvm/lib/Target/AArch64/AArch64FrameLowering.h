@@ -67,8 +67,6 @@ public:
   bool hasFP(const MachineFunction &MF) const override;
   bool hasReservedCallFrame(const MachineFunction &MF) const override;
 
-  bool hasSwiftExtendedFrame(const MachineFunction &MF) const;
-
   bool assignCalleeSavedSpillSlots(MachineFunction &MF,
                                    const TargetRegisterInfo *TRI,
                                    std::vector<CalleeSavedInfo> &CSI,
@@ -87,7 +85,7 @@ public:
   TargetStackID::Value getStackIDForScalableVectors() const override;
 
   void processFunctionBeforeFrameFinalized(MachineFunction &MF,
-                                             RegScavenger *RS) const override;
+                                           RegScavenger *RS) const override;
 
   void
   processFunctionBeforeFrameIndicesReplaced(MachineFunction &MF,

@@ -33,15 +33,6 @@ void ObjectContainerUniversalMachO::Terminate() {
   PluginManager::UnregisterPlugin(CreateInstance);
 }
 
-lldb_private::ConstString ObjectContainerUniversalMachO::GetPluginNameStatic() {
-  static ConstString g_name("mach-o");
-  return g_name;
-}
-
-const char *ObjectContainerUniversalMachO::GetPluginDescriptionStatic() {
-  return "Universal mach-o object container reader.";
-}
-
 ObjectContainer *ObjectContainerUniversalMachO::CreateInstance(
     const lldb::ModuleSP &module_sp, DataBufferSP &data_sp,
     lldb::offset_t data_offset, const FileSpec *file,
@@ -79,7 +70,7 @@ ObjectContainerUniversalMachO::ObjectContainerUniversalMachO(
   memset(&m_header, 0, sizeof(m_header));
 }
 
-ObjectContainerUniversalMachO::~ObjectContainerUniversalMachO() {}
+ObjectContainerUniversalMachO::~ObjectContainerUniversalMachO() = default;
 
 bool ObjectContainerUniversalMachO::ParseHeader() {
   bool success = ParseHeader(m_data, m_header, m_fat_archs);
@@ -204,13 +195,6 @@ ObjectContainerUniversalMachO::GetObjectFile(const FileSpec *file) {
   }
   return ObjectFileSP();
 }
-
-// PluginInterface protocol
-lldb_private::ConstString ObjectContainerUniversalMachO::GetPluginName() {
-  return GetPluginNameStatic();
-}
-
-uint32_t ObjectContainerUniversalMachO::GetPluginVersion() { return 1; }
 
 size_t ObjectContainerUniversalMachO::GetModuleSpecifications(
     const lldb_private::FileSpec &file, lldb::DataBufferSP &data_sp,

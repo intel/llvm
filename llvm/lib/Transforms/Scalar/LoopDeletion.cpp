@@ -16,12 +16,15 @@
 #include "llvm/Transforms/Scalar/LoopDeletion.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/IR/Dominators.h"
+
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/Scalar.h"
@@ -33,6 +36,13 @@ using namespace llvm;
 #define DEBUG_TYPE "loop-delete"
 
 STATISTIC(NumDeleted, "Number of loops deleted");
+STATISTIC(NumBackedgesBroken,
+          "Number of loops for which we managed to break the backedge");
+
+static cl::opt<bool> EnableSymbolicExecution(
+    "loop-deletion-enable-symbolic-execution", cl::Hidden, cl::init(true),
+    cl::desc("Break backedge through symbolic execution of 1st iteration "
+             "attempting to prove that the backedge is never taken"));
 
 enum class LoopDeletionResult {
   Unmodified,
@@ -55,7 +65,7 @@ static LoopDeletionResult merge(LoopDeletionResult A, LoopDeletionResult B) {
 static bool isLoopDead(Loop *L, ScalarEvolution &SE,
                        SmallVectorImpl<BasicBlock *> &ExitingBlocks,
                        BasicBlock *ExitBlock, bool &Changed,
-                       BasicBlock *Preheader) {
+                       BasicBlock *Preheader, LoopInfo &LI) {
   // Make sure that all PHI entries coming from the loop are loop invariant.
   // Because the code is in LCSSA form, any values used outside of the loop
   // must pass through a PHI in the exit block, meaning that this check is
@@ -101,6 +111,36 @@ static bool isLoopDead(Loop *L, ScalarEvolution &SE,
           return I.mayHaveSideEffects() && !I.isDroppable();
         }))
       return false;
+
+  // The loop or any of its sub-loops looping infinitely is legal. The loop can
+  // only be considered dead if either
+  // a. the function is mustprogress.
+  // b. all (sub-)loops are mustprogress or have a known trip-count.
+  if (L->getHeader()->getParent()->mustProgress())
+    return true;
+
+  LoopBlocksRPO RPOT(L);
+  RPOT.perform(&LI);
+  // If the loop contains an irreducible cycle, it may loop infinitely.
+  if (containsIrreducibleCFG<const BasicBlock *>(RPOT, LI))
+    return false;
+
+  SmallVector<Loop *, 8> WorkList;
+  WorkList.push_back(L);
+  while (!WorkList.empty()) {
+    Loop *Current = WorkList.pop_back_val();
+    if (hasMustProgress(Current))
+      continue;
+
+    const SCEV *S = SE.getConstantMaxBackedgeTakenCount(Current);
+    if (isa<SCEVCouldNotCompute>(S)) {
+      LLVM_DEBUG(
+          dbgs() << "Could not compute SCEV MaxBackedgeTakenCount and was "
+                    "not required to make progress.\n");
+      return false;
+    }
+    WorkList.append(Current->begin(), Current->end());
+  }
   return true;
 }
 
@@ -136,107 +176,68 @@ static bool isLoopNeverExecuted(Loop *L) {
   return true;
 }
 
-BasicBlock *
-getSolePredecessorOnFirstIteration(BasicBlock *BB, Loop *L,
-                                   const DenseSet<BasicBlockEdge> &LiveEdges) {
-  if (BB == L->getHeader())
-    return L->getLoopPredecessor();
-  BasicBlock *OnlyPred = nullptr;
-  for (auto *Pred : predecessors(BB))
-    if (OnlyPred != Pred && LiveEdges.count({ Pred, BB })) {
-      // 2 live preds.
-      if (OnlyPred)
-        return nullptr;
-      OnlyPred = Pred;
-    }
-
-  assert(OnlyPred && "No live predecessors?");
-  return OnlyPred;
-}
-
-// Forward declaration.
-static const SCEV *
-getSCEVOnFirstIteration(Value *V, Loop *L, DominatorTree &DT,
-                        ScalarEvolution &SE,
-                        DenseMap<Value *, const SCEV *> &FirstIterSCEV,
-                        const DenseSet<BasicBlockEdge> &LiveEdges);
-
-static const SCEV *
-getPHISCEVOnFirstIteration(PHINode *PN, Loop *L, DominatorTree &DT,
-                           ScalarEvolution &SE,
-                           DenseMap<Value *, const SCEV *> &FirstIterSCEV,
-                           const DenseSet<BasicBlockEdge> &LiveEdges) {
-  auto *BB = PN->getParent();
-  if (!L->contains(PN))
-    return SE.getSCEV(PN);
-  // If this block has only one live pred, map its phis onto their SCEVs.
-  // Check if there is only one predecessor on 1st iteration. Note that because
-  // we iterate in RPOT, we have already visited all its (non-latch)
-  // predecessors.
-  auto *OnlyPred = getSolePredecessorOnFirstIteration(BB, L, LiveEdges);
-  if (!OnlyPred)
-    return SE.getSCEV(PN);
-  auto *Incoming = PN->getIncomingValueForBlock(OnlyPred);
-  if (DT.dominates(Incoming, BB->getTerminator()))
-    return getSCEVOnFirstIteration(Incoming, L, DT, SE, FirstIterSCEV,
-                                   LiveEdges);
-  return SE.getSCEV(PN);
-}
-
-static const SCEV *
-getSCEVOnFirstIteration(Value *V, Loop *L, DominatorTree &DT,
-                        ScalarEvolution &SE,
-                        DenseMap<Value *, const SCEV *> &FirstIterSCEV,
-                        const DenseSet<BasicBlockEdge> &LiveEdges) {
-  // Fist, check in cache.
-  auto Existing = FirstIterSCEV.find(V);
-  if (Existing != FirstIterSCEV.end())
+static Value *
+getValueOnFirstIteration(Value *V, DenseMap<Value *, Value *> &FirstIterValue,
+                         const SimplifyQuery &SQ) {
+  // Quick hack: do not flood cache with non-instruction values.
+  if (!isa<Instruction>(V))
+    return V;
+  // Do we already know cached result?
+  auto Existing = FirstIterValue.find(V);
+  if (Existing != FirstIterValue.end())
     return Existing->second;
-
-  const SCEV *S = nullptr;
-  // TODO: Once ScalarEvolution supports getValueOnNthIteration for anything
-  // else but AddRecs, it's a good use case for it. So far, just consider some
-  // simple cases, like arithmetic operations.
-  Value *LHS, *RHS;
-  using namespace PatternMatch;
-  if (auto *PN = dyn_cast<PHINode>(V)) {
-    S = getPHISCEVOnFirstIteration(PN, L, DT, SE, FirstIterSCEV, LiveEdges);
-  } else if (match(V, m_Add(m_Value(LHS), m_Value(RHS)))) {
-    const SCEV *LHSS =
-        getSCEVOnFirstIteration(LHS, L, DT, SE, FirstIterSCEV, LiveEdges);
-    const SCEV *RHSS =
-        getSCEVOnFirstIteration(RHS, L, DT, SE, FirstIterSCEV, LiveEdges);
-    S = SE.getAddExpr(LHSS, RHSS);
-  } else if (match(V, m_Sub(m_Value(LHS), m_Value(RHS)))) {
-    const SCEV *LHSS =
-        getSCEVOnFirstIteration(LHS, L, DT, SE, FirstIterSCEV, LiveEdges);
-    const SCEV *RHSS =
-        getSCEVOnFirstIteration(RHS, L, DT, SE, FirstIterSCEV, LiveEdges);
-    S = SE.getMinusSCEV(LHSS, RHSS);
-  } else if (match(V, m_Mul(m_Value(LHS), m_Value(RHS)))) {
-    const SCEV *LHSS =
-        getSCEVOnFirstIteration(LHS, L, DT, SE, FirstIterSCEV, LiveEdges);
-    const SCEV *RHSS =
-        getSCEVOnFirstIteration(RHS, L, DT, SE, FirstIterSCEV, LiveEdges);
-    S = SE.getMulExpr(LHSS, RHSS);
-  } else
-    S = SE.getSCEV(V);
-  assert(S && "Case not handled?");
-  FirstIterSCEV[V] = S;
-  return S;
+  Value *FirstIterV = nullptr;
+  if (auto *BO = dyn_cast<BinaryOperator>(V)) {
+    Value *LHS =
+        getValueOnFirstIteration(BO->getOperand(0), FirstIterValue, SQ);
+    Value *RHS =
+        getValueOnFirstIteration(BO->getOperand(1), FirstIterValue, SQ);
+    FirstIterV = SimplifyBinOp(BO->getOpcode(), LHS, RHS, SQ);
+  } else if (auto *Cmp = dyn_cast<ICmpInst>(V)) {
+    Value *LHS =
+        getValueOnFirstIteration(Cmp->getOperand(0), FirstIterValue, SQ);
+    Value *RHS =
+        getValueOnFirstIteration(Cmp->getOperand(1), FirstIterValue, SQ);
+    FirstIterV = SimplifyICmpInst(Cmp->getPredicate(), LHS, RHS, SQ);
+  } else if (auto *Select = dyn_cast<SelectInst>(V)) {
+    Value *Cond =
+        getValueOnFirstIteration(Select->getCondition(), FirstIterValue, SQ);
+    if (auto *C = dyn_cast<ConstantInt>(Cond)) {
+      auto *Selected = C->isAllOnesValue() ? Select->getTrueValue()
+                                           : Select->getFalseValue();
+      FirstIterV = getValueOnFirstIteration(Selected, FirstIterValue, SQ);
+    }
+  }
+  if (!FirstIterV)
+    FirstIterV = V;
+  FirstIterValue[V] = FirstIterV;
+  return FirstIterV;
 }
 
 // Try to prove that one of conditions that dominates the latch must exit on 1st
 // iteration.
 static bool canProveExitOnFirstIteration(Loop *L, DominatorTree &DT,
-                                         ScalarEvolution &SE, LoopInfo &LI) {
+                                         LoopInfo &LI) {
+  // Disabled by option.
+  if (!EnableSymbolicExecution)
+    return false;
+
+  BasicBlock *Predecessor = L->getLoopPredecessor();
   BasicBlock *Latch = L->getLoopLatch();
 
-  if (!Latch)
+  if (!Predecessor || !Latch)
     return false;
 
   LoopBlocksRPO RPOT(L);
   RPOT.perform(&LI);
+
+  // For the optimization to be correct, we need RPOT to have a property that
+  // each block is processed after all its predecessors, which may only be
+  // violated for headers of the current loop and all nested loops. Irreducible
+  // CFG provides multiple ways to break this assumption, so we do not want to
+  // deal with it.
+  if (containsIrreducibleCFG<const BasicBlock *>(RPOT, LI))
+    return false;
 
   BasicBlock *Header = L->getHeader();
   // Blocks that are reachable on the 1st iteration.
@@ -245,8 +246,13 @@ static bool canProveExitOnFirstIteration(Loop *L, DominatorTree &DT,
   DenseSet<BasicBlockEdge> LiveEdges;
   LiveBlocks.insert(Header);
 
+  SmallPtrSet<BasicBlock *, 4> Visited;
   auto MarkLiveEdge = [&](BasicBlock *From, BasicBlock *To) {
     assert(LiveBlocks.count(From) && "Must be live!");
+    assert((LI.isLoopHeader(To) || !Visited.count(To)) &&
+           "Only canonical backedges are allowed. Irreducible CFG?");
+    assert((LiveBlocks.count(To) || !Visited.count(To)) &&
+           "We already discarded this block as dead!");
     LiveBlocks.insert(To);
     LiveEdges.insert({ From, To });
   };
@@ -256,8 +262,35 @@ static bool canProveExitOnFirstIteration(Loop *L, DominatorTree &DT,
       MarkLiveEdge(BB, Succ);
   };
 
-  DenseMap<Value *, const SCEV *> FirstIterSCEV;
-  SmallPtrSet<BasicBlock *, 4> Visited;
+  // Check if there is only one value coming from all live predecessor blocks.
+  // Note that because we iterate in RPOT, we have already visited all its
+  // (non-latch) predecessors.
+  auto GetSoleInputOnFirstIteration = [&](PHINode & PN)->Value * {
+    BasicBlock *BB = PN.getParent();
+    bool HasLivePreds = false;
+    (void)HasLivePreds;
+    if (BB == Header)
+      return PN.getIncomingValueForBlock(Predecessor);
+    Value *OnlyInput = nullptr;
+    for (auto *Pred : predecessors(BB))
+      if (LiveEdges.count({ Pred, BB })) {
+        HasLivePreds = true;
+        Value *Incoming = PN.getIncomingValueForBlock(Pred);
+        // Skip undefs. If they are present, we can assume they are equal to
+        // the non-undef input.
+        if (isa<UndefValue>(Incoming))
+          continue;
+        // Two inputs.
+        if (OnlyInput && OnlyInput != Incoming)
+          return nullptr;
+        OnlyInput = Incoming;
+      }
+
+    assert(HasLivePreds && "No live predecessors?");
+    // If all incoming live value were undefs, return undef.
+    return OnlyInput ? OnlyInput : UndefValue::get(PN.getType());
+  };
+  DenseMap<Value *, Value *> FirstIterValue;
 
   // Use the following algorithm to prove we never take the latch on the 1st
   // iteration:
@@ -269,6 +302,8 @@ static bool canProveExitOnFirstIteration(Loop *L, DominatorTree &DT,
   //     iteration, mark this successor live.
   // 3b. If we cannot prove it, conservatively assume that all successors are
   //     live.
+  auto &DL = Header->getModule()->getDataLayout();
+  const SimplifyQuery SQ(DL);
   for (auto *BB : RPOT) {
     Visited.insert(BB);
 
@@ -282,48 +317,78 @@ static bool canProveExitOnFirstIteration(Loop *L, DominatorTree &DT,
       continue;
     }
 
-    // If RPOT exists, we should never visit a block before all of its
-    // predecessors are visited. The only situation when this can be broken is
-    // irreducible CFG. Do not deal with such cases.
-    if (BB != Header)
-      for (auto *Pred : predecessors(BB))
-        if (!Visited.count(Pred))
-          return false;
+    // If Phi has only one input from all live input blocks, use it.
+    for (auto &PN : BB->phis()) {
+      if (!PN.getType()->isIntegerTy())
+        continue;
+      auto *Incoming = GetSoleInputOnFirstIteration(PN);
+      if (Incoming && DT.dominates(Incoming, BB->getTerminator())) {
+        Value *FirstIterV =
+            getValueOnFirstIteration(Incoming, FirstIterValue, SQ);
+        FirstIterValue[&PN] = FirstIterV;
+      }
+    }
 
     using namespace PatternMatch;
-    ICmpInst::Predicate Pred;
-    Value *LHS, *RHS;
+    Value *Cond;
     BasicBlock *IfTrue, *IfFalse;
     auto *Term = BB->getTerminator();
-    // TODO: Handle switches.
-    if (!match(Term, m_Br(m_ICmp(Pred, m_Value(LHS), m_Value(RHS)),
-                          m_BasicBlock(IfTrue), m_BasicBlock(IfFalse)))) {
+    if (match(Term, m_Br(m_Value(Cond),
+                         m_BasicBlock(IfTrue), m_BasicBlock(IfFalse)))) {
+      auto *ICmp = dyn_cast<ICmpInst>(Cond);
+      if (!ICmp || !ICmp->getType()->isIntegerTy()) {
+        MarkAllSuccessorsLive(BB);
+        continue;
+      }
+
+      // Can we prove constant true or false for this condition?
+      auto *KnownCondition = getValueOnFirstIteration(ICmp, FirstIterValue, SQ);
+      if (KnownCondition == ICmp) {
+        // Failed to simplify.
+        MarkAllSuccessorsLive(BB);
+        continue;
+      }
+      if (isa<UndefValue>(KnownCondition)) {
+        // TODO: According to langref, branching by undef is undefined behavior.
+        // It means that, theoretically, we should be able to just continue
+        // without marking any successors as live. However, we are not certain
+        // how correct our compiler is at handling such cases. So we are being
+        // very conservative here.
+        //
+        // If there is a non-loop successor, always assume this branch leaves the
+        // loop. Otherwise, arbitrarily take IfTrue.
+        //
+        // Once we are certain that branching by undef is handled correctly by
+        // other transforms, we should not mark any successors live here.
+        if (L->contains(IfTrue) && L->contains(IfFalse))
+          MarkLiveEdge(BB, IfTrue);
+        continue;
+      }
+      auto *ConstCondition = dyn_cast<ConstantInt>(KnownCondition);
+      if (!ConstCondition) {
+        // Non-constant condition, cannot analyze any further.
+        MarkAllSuccessorsLive(BB);
+        continue;
+      }
+      if (ConstCondition->isAllOnesValue())
+        MarkLiveEdge(BB, IfTrue);
+      else
+        MarkLiveEdge(BB, IfFalse);
+    } else if (SwitchInst *SI = dyn_cast<SwitchInst>(Term)) {
+      auto *SwitchValue = SI->getCondition();
+      auto *SwitchValueOnFirstIter =
+          getValueOnFirstIteration(SwitchValue, FirstIterValue, SQ);
+      auto *ConstSwitchValue = dyn_cast<ConstantInt>(SwitchValueOnFirstIter);
+      if (!ConstSwitchValue) {
+        MarkAllSuccessorsLive(BB);
+        continue;
+      }
+      auto CaseIterator = SI->findCaseValue(ConstSwitchValue);
+      MarkLiveEdge(BB, CaseIterator->getCaseSuccessor());
+    } else {
       MarkAllSuccessorsLive(BB);
       continue;
     }
-
-    if (!SE.isSCEVable(LHS->getType())) {
-      MarkAllSuccessorsLive(BB);
-      continue;
-    }
-
-    // Can we prove constant true or false for this condition?
-    const SCEV *LHSS =
-        getSCEVOnFirstIteration(LHS, L, DT, SE, FirstIterSCEV, LiveEdges);
-    const SCEV *RHSS =
-        getSCEVOnFirstIteration(RHS, L, DT, SE, FirstIterSCEV, LiveEdges);
-    // Only query for liveness of in-loop edge if another successor is also
-    // in-loop.
-    // TODO: isKnownPredicateAt is more powerful, but it's too compile time
-    // consuming. So we avoid using it here.
-    if (L->contains(IfFalse) && SE.isKnownPredicate(Pred, LHSS, RHSS))
-      MarkLiveEdge(BB, IfTrue);
-    else if (L->contains(IfTrue) &&
-             SE.isKnownPredicate(ICmpInst::getInversePredicate(Pred), LHSS,
-                                 RHSS))
-      MarkLiveEdge(BB, IfFalse);
-    else
-      MarkAllSuccessorsLive(BB);
   }
 
   // We can break the latch if it wasn't live.
@@ -342,14 +407,25 @@ breakBackedgeIfNotTaken(Loop *L, DominatorTree &DT, ScalarEvolution &SE,
   if (!L->getLoopLatch())
     return LoopDeletionResult::Unmodified;
 
-  auto *BTC = SE.getBackedgeTakenCount(L);
-  if (!isa<SCEVCouldNotCompute>(BTC) && SE.isKnownNonZero(BTC))
-    return LoopDeletionResult::Unmodified;
-  if (!BTC->isZero() && !canProveExitOnFirstIteration(L, DT, SE, LI))
-    return LoopDeletionResult::Unmodified;
+  auto *BTC = SE.getSymbolicMaxBackedgeTakenCount(L);
+  if (BTC->isZero()) {
+    // SCEV knows this backedge isn't taken!
+    breakLoopBackedge(L, DT, SE, LI, MSSA);
+    ++NumBackedgesBroken;
+    return LoopDeletionResult::Deleted;
+  }
 
-  breakLoopBackedge(L, DT, SE, LI, MSSA);
-  return LoopDeletionResult::Deleted;
+  // If SCEV leaves open the possibility of a zero trip count, see if
+  // symbolically evaluating the first iteration lets us prove the backedge
+  // unreachable.
+  if (isa<SCEVCouldNotCompute>(BTC) || !SE.isKnownNonZero(BTC))
+    if (canProveExitOnFirstIteration(L, DT, LI)) {
+      breakLoopBackedge(L, DT, SE, LI, MSSA);
+      ++NumBackedgesBroken;
+      return LoopDeletionResult::Deleted;
+    }
+
+  return LoopDeletionResult::Unmodified;
 }
 
 /// Remove a loop if it is dead.
@@ -421,19 +497,8 @@ static LoopDeletionResult deleteLoopIfDead(Loop *L, DominatorTree &DT,
   }
   // Finally, we have to check that the loop really is dead.
   bool Changed = false;
-  if (!isLoopDead(L, SE, ExitingBlocks, ExitBlock, Changed, Preheader)) {
+  if (!isLoopDead(L, SE, ExitingBlocks, ExitBlock, Changed, Preheader, LI)) {
     LLVM_DEBUG(dbgs() << "Loop is not invariant, cannot delete.\n");
-    return Changed ? LoopDeletionResult::Modified
-                   : LoopDeletionResult::Unmodified;
-  }
-
-  // Don't remove loops for which we can't solve the trip count unless the loop
-  // was required to make progress but has been determined to be dead.
-  const SCEV *S = SE.getConstantMaxBackedgeTakenCount(L);
-  if (isa<SCEVCouldNotCompute>(S) &&
-      !L->getHeader()->getParent()->mustProgress() && !hasMustProgress(L)) {
-    LLVM_DEBUG(dbgs() << "Could not compute SCEV MaxBackedgeTakenCount and was "
-                         "not required to make progress.\n");
     return Changed ? LoopDeletionResult::Modified
                    : LoopDeletionResult::Unmodified;
   }

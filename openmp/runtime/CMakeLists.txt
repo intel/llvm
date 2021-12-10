@@ -34,6 +34,7 @@ if(${OPENMP_STANDALONE_BUILD})
   # Should assertions be enabled?  They are on by default.
   set(LIBOMP_ENABLE_ASSERTIONS TRUE CACHE BOOL
     "enable assertions?")
+  string(TOUPPER "${CMAKE_BUILD_TYPE}" uppercase_CMAKE_BUILD_TYPE)
 else() # Part of LLVM build
   # Determine the native architecture from LLVM.
   string(TOLOWER "${LLVM_TARGET_ARCH}" LIBOMP_NATIVE_ARCH)
@@ -189,14 +190,13 @@ set(RELEASE_BUILD FALSE)
 set(DEBUG_BUILD FALSE)
 set(RELWITHDEBINFO_BUILD FALSE)
 set(MINSIZEREL_BUILD FALSE)
-string(TOLOWER "${CMAKE_BUILD_TYPE}" libomp_build_type_lowercase)
-if("${libomp_build_type_lowercase}" STREQUAL "release")
+if("${uppercase_CMAKE_BUILD_TYPE}" STREQUAL "RELEASE")
   set(RELEASE_BUILD TRUE)
-elseif("${libomp_build_type_lowercase}" STREQUAL "debug")
+elseif("${uppercase_CMAKE_BUILD_TYPE}" STREQUAL "DEBUG")
   set(DEBUG_BUILD TRUE)
-elseif("${libomp_build_type_lowercase}" STREQUAL "relwithdebinfo")
+elseif("${uppercase_CMAKE_BUILD_TYPE}" STREQUAL "RELWITHDEBINFO")
   set(RELWITHDEBINFO_BUILD TRUE)
-elseif("${libomp_build_type_lowercase}" STREQUAL "minsizerel")
+elseif("${uppercase_CMAKE_BUILD_TYPE}" STREQUAL "MINSIZEREL")
   set(MINSIZEREL_BUILD TRUE)
 endif()
 
@@ -322,11 +322,19 @@ if(LIBOMP_OMPT_SUPPORT AND (NOT LIBOMP_HAVE_OMPT_SUPPORT))
   libomp_error_say("OpenMP Tools Interface requested but not available in this implementation")
 endif()
 
-# TSAN-support
-set(LIBOMP_TSAN_SUPPORT FALSE CACHE BOOL
-  "TSAN-support?")
-if(LIBOMP_TSAN_SUPPORT AND (NOT LIBOMP_HAVE_TSAN_SUPPORT))
-  libomp_error_say("TSAN functionality requested but not available")
+# OMPD-support
+# Enable if OMPT SUPPORT is ON
+set(OMPD_DEFAULT FALSE)
+if (LIBOMP_HAVE_OMPT_SUPPORT AND ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux"))
+  set(OMPD_DEFAULT TRUE)
+endif()
+
+set(LIBOMP_OMPD_SUPPORT ${OMPD_DEFAULT} CACHE BOOL
+  "OMPD-support?")
+
+if(LIBOMP_OMPD_SUPPORT AND ((NOT LIBOMP_OMPT_SUPPORT) OR (NOT "${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")))
+  libomp_warning_say("OpenMP Debug Interface(OMPD) requested but not available in this implementation")
+  set(LIBOMP_OMPD_SUPPORT FALSE)
 endif()
 
 # Error check hwloc support after config-ix has run
@@ -347,6 +355,11 @@ if(${STUBS_LIBRARY})
   set(LIBOMP_DEFAULT_LIB_NAME ${LIBOMP_DEFAULT_LIB_NAME}stubs)
 endif()
 set(LIBOMP_LIB_NAME ${LIBOMP_DEFAULT_LIB_NAME} CACHE STRING "Base OMP library name")
+if (OPENMP_MSVC_NAME_SCHEME)
+  # MSVC_TOOLS_VERSION corresponds to the version of the VC++ toolset.
+  set(MSVC_TOOLS_VERSION 140)
+  set(LIBOMP_LIB_NAME ${LIBOMP_LIB_NAME}${MSVC_TOOLS_VERSION}.${LIBOMP_ARCH})
+endif()
 
 if(${LIBOMP_ENABLE_SHARED})
   set(LIBOMP_LIBRARY_SUFFIX ${CMAKE_SHARED_LIBRARY_SUFFIX})
@@ -389,9 +402,9 @@ if(${OPENMP_STANDALONE_BUILD})
   if(${LIBOMP_OMPT_SUPPORT})
     libomp_say("Use OMPT-optional  -- ${LIBOMP_OMPT_OPTIONAL}")
   endif()
+  libomp_say("Use OMPD-support     -- ${LIBOMP_OMPD_SUPPORT}")
   libomp_say("Use Adaptive locks   -- ${LIBOMP_USE_ADAPTIVE_LOCKS}")
   libomp_say("Use quad precision   -- ${LIBOMP_USE_QUAD_PRECISION}")
-  libomp_say("Use TSAN-support     -- ${LIBOMP_TSAN_SUPPORT}")
   libomp_say("Use Hwloc library    -- ${LIBOMP_USE_HWLOC}")
 endif()
 
@@ -401,3 +414,6 @@ add_subdirectory(test)
 # make these variables available for tools:
 set(LIBOMP_LIBRARY_DIR ${LIBOMP_LIBRARY_DIR} PARENT_SCOPE)
 set(LIBOMP_INCLUDE_DIR ${LIBOMP_INCLUDE_DIR} PARENT_SCOPE)
+# make these variables available for tools/libompd:
+set(LIBOMP_SRC_DIR ${LIBOMP_SRC_DIR} PARENT_SCOPE)
+set(LIBOMP_OMPD_SUPPORT ${LIBOMP_OMPD_SUPPORT} PARENT_SCOPE)

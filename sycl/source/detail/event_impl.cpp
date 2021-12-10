@@ -18,8 +18,9 @@
 #include <chrono>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti_trace_framework.hpp"
+#include "xpti/xpti_trace_framework.hpp"
 #include <atomic>
+#include <detail/xpti_registry.hpp>
 #include <sstream>
 #endif
 
@@ -135,7 +136,7 @@ event_impl::event_impl(QueueImplPtr Queue) {
   MState.store(HES_Complete);
 }
 
-void *event_impl::instrumentationProlog(string_class &Name, int32_t StreamID,
+void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -171,7 +172,7 @@ void *event_impl::instrumentationProlog(string_class &Name, int32_t StreamID,
 }
 
 void event_impl::instrumentationEpilog(void *TelemetryEvent,
-                                       const string_class &Name,
+                                       const std::string &Name,
                                        int32_t StreamID, uint64_t IId) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   if (!(xptiTraceEnabled() && TelemetryEvent))
@@ -200,8 +201,7 @@ void event_impl::wait(
     waitInternal();
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self);
-  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
-    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
+  cleanupCommand(std::move(Self));
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -210,16 +210,33 @@ void event_impl::wait(
 
 void event_impl::wait_and_throw(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) {
-  wait(Self);
-  for (auto &EventImpl :
-       detail::Scheduler::getInstance().getWaitList(std::move(Self))) {
-    Command *Cmd = (Command *)EventImpl->getCommand();
+  Scheduler &Sched = Scheduler::getInstance();
+
+  QueueImplPtr submittedQueue = nullptr;
+  {
+    Scheduler::ReadLockT Lock(Sched.MGraphLock);
+    Command *Cmd = static_cast<Command *>(Self->getCommand());
     if (Cmd)
-      Cmd->getQueue()->throw_asynchronous();
+      submittedQueue = Cmd->getSubmittedQueue();
   }
-  Command *Cmd = (Command *)getCommand();
-  if (Cmd)
-    Cmd->getQueue()->throw_asynchronous();
+  wait(Self);
+
+  {
+    Scheduler::ReadLockT Lock(Sched.MGraphLock);
+    for (auto &EventImpl : getWaitList()) {
+      Command *Cmd = (Command *)EventImpl->getCommand();
+      if (Cmd)
+        Cmd->getSubmittedQueue()->throw_asynchronous();
+    }
+  }
+  if (submittedQueue)
+    submittedQueue->throw_asynchronous();
+}
+
+void event_impl::cleanupCommand(
+    std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
+    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
 
 template <>
@@ -290,7 +307,9 @@ event_impl::get_info<info::event::command_execution_status>() const {
     return get_event_info<info::event::command_execution_status>::get(
         this->getHandleRef(), this->getPlugin());
   }
-  return info::event_command_status::complete;
+  return MHostEvent && MState.load() != HES_Complete
+             ? sycl::info::event_command_status::submitted
+             : info::event_command_status::complete;
 }
 
 static uint64_t getTimestamp() {
@@ -310,6 +329,25 @@ pi_native_handle event_impl::getNative() const {
   pi_native_handle Handle;
   Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
+}
+
+std::vector<EventImplPtr> event_impl::getWaitList() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+
+  std::vector<EventImplPtr> Result;
+  Result.reserve(MPreparedDepsEvents.size() + MPreparedHostDepsEvents.size());
+  Result.insert(Result.end(), MPreparedDepsEvents.begin(),
+                MPreparedDepsEvents.end());
+  Result.insert(Result.end(), MPreparedHostDepsEvents.begin(),
+                MPreparedHostDepsEvents.end());
+
+  return Result;
+}
+
+void event_impl::cleanupDependencyEvents() {
+  std::lock_guard<std::mutex> Lock(MMutex);
+  MPreparedDepsEvents.clear();
+  MPreparedHostDepsEvents.clear();
 }
 
 } // namespace detail

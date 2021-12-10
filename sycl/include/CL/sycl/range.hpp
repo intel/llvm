@@ -47,14 +47,6 @@ public:
         size_t dim2)
       : base(dim0, dim1, dim2) {}
 
-  explicit operator id<dimensions>() const {
-    id<dimensions> result;
-    for (int i = 0; i < dimensions; ++i) {
-      result[i] = this->get(i);
-    }
-    return result;
-  }
-
   size_t size() const {
     size_t size = 1;
     for (int i = 0; i < dimensions; ++i) {
@@ -70,19 +62,26 @@ public:
   range() = delete;
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
-#define __SYCL_GEN_OPT(op)                                                     \
-  range<dimensions> operator op(const range<dimensions> &rhs) const {          \
-    range<dimensions> result(*this);                                           \
+#define __SYCL_GEN_OPT_BASE(op)                                                \
+  friend range<dimensions> operator op(const range<dimensions> &lhs,           \
+                                       const range<dimensions> &rhs) {         \
+    range<dimensions> result(lhs);                                             \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      result.common_array[i] = this->common_array[i] op rhs.common_array[i];   \
+      result.common_array[i] = lhs.common_array[i] op rhs.common_array[i];     \
     }                                                                          \
     return result;                                                             \
-  }                                                                            \
+  }
+
+#ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
+  // Enable operators with integral types only
+#define __SYCL_GEN_OPT(op)                                                     \
+  __SYCL_GEN_OPT_BASE(op)                                                      \
   template <typename T>                                                        \
-  IntegralType<T, range<dimensions>> operator op(const T &rhs) const {         \
-    range<dimensions> result(*this);                                           \
+  friend IntegralType<T, range<dimensions>> operator op(                       \
+      const range<dimensions> &lhs, const T &rhs) {                            \
+    range<dimensions> result(lhs);                                             \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      result.common_array[i] = this->common_array[i] op rhs;                   \
+      result.common_array[i] = lhs.common_array[i] op rhs;                     \
     }                                                                          \
     return result;                                                             \
   }                                                                            \
@@ -95,6 +94,26 @@ public:
     }                                                                          \
     return result;                                                             \
   }
+#else
+#define __SYCL_GEN_OPT(op)                                                     \
+  __SYCL_GEN_OPT_BASE(op)                                                      \
+  friend range<dimensions> operator op(const range<dimensions> &lhs,           \
+                                       const size_t &rhs) {                    \
+    range<dimensions> result(lhs);                                             \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      result.common_array[i] = lhs.common_array[i] op rhs;                     \
+    }                                                                          \
+    return result;                                                             \
+  }                                                                            \
+  friend range<dimensions> operator op(const size_t &lhs,                      \
+                                       const range<dimensions> &rhs) {         \
+    range<dimensions> result(rhs);                                             \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      result.common_array[i] = lhs op rhs.common_array[i];                     \
+    }                                                                          \
+    return result;                                                             \
+  }
+#endif // __SYCL_DISABLE_ID_TO_INT_CONV__
 
   __SYCL_GEN_OPT(+)
   __SYCL_GEN_OPT(-)
@@ -114,20 +133,23 @@ public:
   __SYCL_GEN_OPT(>=)
 
 #undef __SYCL_GEN_OPT
+#undef __SYCL_GEN_OPT_BASE
 
 // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
 #define __SYCL_GEN_OPT(op)                                                     \
-  range<dimensions> &operator op(const range<dimensions> &rhs) {               \
+  friend range<dimensions> &operator op(range<dimensions> &lhs,                \
+                                        const range<dimensions> &rhs) {        \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      this->common_array[i] op rhs[i];                                         \
+      lhs.common_array[i] op rhs[i];                                           \
     }                                                                          \
-    return *this;                                                              \
+    return lhs;                                                                \
   }                                                                            \
-  range<dimensions> &operator op(const size_t &rhs) {                          \
+  friend range<dimensions> &operator op(range<dimensions> &lhs,                \
+                                        const size_t &rhs) {                   \
     for (int i = 0; i < dimensions; ++i) {                                     \
-      this->common_array[i] op rhs;                                            \
+      lhs.common_array[i] op rhs;                                              \
     }                                                                          \
-    return *this;                                                              \
+    return lhs;                                                                \
   }
 
   __SYCL_GEN_OPT(+=)
@@ -140,6 +162,50 @@ public:
   __SYCL_GEN_OPT(&=)
   __SYCL_GEN_OPT(|=)
   __SYCL_GEN_OPT(^=)
+
+#undef __SYCL_GEN_OPT
+
+// OP is unary +, -
+#define __SYCL_GEN_OPT(op)                                                     \
+  friend range<dimensions> operator op(const range<dimensions> &rhs) {         \
+    range<dimensions> result(rhs);                                             \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      result.common_array[i] = (op rhs.common_array[i]);                       \
+    }                                                                          \
+    return result;                                                             \
+  }
+
+  __SYCL_GEN_OPT(+)
+  __SYCL_GEN_OPT(-)
+
+#undef __SYCL_GEN_OPT
+
+// OP is prefix ++, --
+#define __SYCL_GEN_OPT(op)                                                     \
+  friend range<dimensions> &operator op(range<dimensions> &rhs) {              \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      op rhs.common_array[i];                                                  \
+    }                                                                          \
+    return rhs;                                                                \
+  }
+
+  __SYCL_GEN_OPT(++)
+  __SYCL_GEN_OPT(--)
+
+#undef __SYCL_GEN_OPT
+
+// OP is postfix ++, --
+#define __SYCL_GEN_OPT(op)                                                     \
+  friend range<dimensions> operator op(range<dimensions> &lhs, int) {          \
+    range<dimensions> old_lhs(lhs);                                            \
+    for (int i = 0; i < dimensions; ++i) {                                     \
+      op lhs.common_array[i];                                                  \
+    }                                                                          \
+    return old_lhs;                                                            \
+  }
+
+  __SYCL_GEN_OPT(++)
+  __SYCL_GEN_OPT(--)
 
 #undef __SYCL_GEN_OPT
 

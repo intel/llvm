@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// UNSUPPORTED: libcpp-has-no-threads
 
 // <atomic>
 
@@ -63,10 +61,6 @@ int main(int, char**)
     {
         volatile std::atomic<bool> obj(true);
         assert(obj == true);
-        std::atomic_init(&obj, false);
-        assert(obj == false);
-        std::atomic_init(&obj, true);
-        assert(obj == true);
         bool b0 = obj.is_lock_free();
         (void)b0; // to placate scan-build
         obj.store(false);
@@ -118,10 +112,6 @@ int main(int, char**)
     {
         std::atomic<bool> obj(true);
         assert(obj == true);
-        std::atomic_init(&obj, false);
-        assert(obj == false);
-        std::atomic_init(&obj, true);
-        assert(obj == true);
         bool b0 = obj.is_lock_free();
         (void)b0; // to placate scan-build
         obj.store(false);
@@ -172,10 +162,6 @@ int main(int, char**)
     }
     {
         std::atomic_bool obj(true);
-        assert(obj == true);
-        std::atomic_init(&obj, false);
-        assert(obj == false);
-        std::atomic_init(&obj, true);
         assert(obj == true);
         bool b0 = obj.is_lock_free();
         (void)b0; // to placate scan-build

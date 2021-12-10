@@ -51,7 +51,15 @@ bool SPIRVToOCL20Legacy::runOnModule(Module &Module) {
 bool SPIRVToOCL20Base::runSPIRVToOCL(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
+
+  // Lower builtin variables to builtin calls first.
+  lowerBuiltinVariablesToCalls(M);
+  translateOpaqueTypes();
+
   visit(*M);
+
+  postProcessBuiltinsReturningStruct(M);
+  postProcessBuiltinsWithArrayArguments(M);
 
   eraseUselessFunctions(&Module);
 
@@ -89,8 +97,6 @@ void SPIRVToOCL20Base::visitCallSPIRVMemoryBarrier(CallInst *CI) {
 
 void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
-  Attrs = Attrs.addAttribute(CI->getContext(), AttributeList::FunctionIndex,
-                             Attribute::Convergent);
   mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
@@ -113,11 +119,29 @@ void SPIRVToOCL20Base::visitCallSPIRVControlBarrier(CallInst *CI) {
       &Attrs);
 }
 
+std::string SPIRVToOCL20Base::mapFPAtomicName(Op OC) {
+  assert(isFPAtomicOpCode(OC) && "Not intended to handle other opcodes than "
+                                 "AtomicF{Add/Min/Max}EXT!");
+  switch (OC) {
+  case OpAtomicFAddEXT:
+    return "atomic_fetch_add_explicit";
+  case OpAtomicFMinEXT:
+    return "atomic_fetch_min_explicit";
+  case OpAtomicFMaxEXT:
+    return "atomic_fetch_max_explicit";
+  default:
+    llvm_unreachable("Unsupported opcode!");
+  }
+}
+
 Instruction *SPIRVToOCL20Base::mutateAtomicName(CallInst *CI, Op OC) {
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   return mutateCallInstOCL(
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args) {
+        // Map fp atomic instructions to regular OpenCL built-ins.
+        if (isFPAtomicOpCode(OC))
+          return mapFPAtomicName(OC);
         return OCLSPIRVBuiltinMap::rmap(OC);
       },
       &Attrs);
@@ -135,7 +159,7 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicBuiltin(CallInst *CI,
     break;
   case OpAtomicCompareExchange:
   case OpAtomicCompareExchangeWeak:
-    NewCI = visitCallSPIRVAtomicCmpExchg(CIG, OC);
+    NewCI = visitCallSPIRVAtomicCmpExchg(CIG);
     break;
   default:
     NewCI = mutateAtomicName(CIG, OC);
@@ -185,7 +209,12 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
           }
         }
         auto Ptr = findFirstPtr(Args);
-        auto Name = OCLSPIRVBuiltinMap::rmap(OC);
+        std::string Name;
+        // Map fp atomic instructions to regular OpenCL built-ins.
+        if (isFPAtomicOpCode(OC))
+          Name = mapFPAtomicName(OC);
+        else
+          Name = OCLSPIRVBuiltinMap::rmap(OC);
         auto NumOrder = getSPIRVAtomicBuiltinNumMemoryOrderArgs(OC);
         auto ScopeIdx = Ptr + 1;
         auto OrderIdx = Ptr + 2;
@@ -203,8 +232,7 @@ CallInst *SPIRVToOCL20Base::mutateCommonAtomicArguments(CallInst *CI, Op OC) {
       &Attrs);
 }
 
-Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
-                                                            Op OC) {
+Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
   AttributeList Attrs = CI->getCalledFunction()->getAttributes();
   Instruction *PInsertBefore = CI;
@@ -213,7 +241,7 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
       M, CI,
       [=](CallInst *, std::vector<Value *> &Args, Type *&RetTy) {
         // OpAtomicCompareExchange[Weak] semantics is different from
-        // atomic_compare_exchange_[strong|weak] semantics as well as
+        // atomic_compare_exchange_strong semantics as well as
         // arguments order.
         // OCL built-ins returns boolean value and stores a new/original
         // value by pointer passed as 2nd argument (aka expected) while SPIR-V
@@ -234,7 +262,9 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
         std::swap(Args[3], Args[4]);
         std::swap(Args[2], Args[3]);
         RetTy = Type::getInt1Ty(*Ctx);
-        return OCLSPIRVBuiltinMap::rmap(OC);
+        // OpAtomicCompareExchangeWeak is not "weak" at all, but instead has
+        // the same semantics as OpAtomicCompareExchange.
+        return "atomic_compare_exchange_strong_explicit";
       },
       [=](CallInst *CI) -> Instruction * {
         // OCL built-ins atomic_compare_exchange_[strong|weak] return boolean
@@ -245,6 +275,79 @@ Instruction *SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI,
         return new LoadInst(
             CI->getArgOperand(1)->getType()->getPointerElementType(),
             CI->getArgOperand(1), "original", PInsertBefore);
+      },
+      &Attrs);
+}
+
+void SPIRVToOCL20Base::visitCallSPIRVEnqueueKernel(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  AttributeList Attrs = CI->getCalledFunction()->getAttributes();
+  Instruction *PInsertBefore = CI;
+
+  mutateCallInstOCL(
+      M, CI,
+      [=](CallInst *, std::vector<Value *> &Args) {
+        bool HasVaargs = Args.size() > 10;
+        bool HasEvents = true;
+        Value *EventRet = Args[5];
+        if (isa<ConstantPointerNull>(EventRet)) {
+          Value *NumEvents = Args[3];
+          if (isa<ConstantInt>(NumEvents)) {
+            ConstantInt *NE = cast<ConstantInt>(NumEvents);
+            HasEvents = NE->getZExtValue() != 0;
+          }
+        }
+
+        Value *Invoke = Args[6];
+        auto *Int8PtrTyGen = Type::getInt8PtrTy(*Ctx, SPIRAS_Generic);
+        Args[6] = CastInst::CreatePointerBitCastOrAddrSpaceCast(
+            Invoke, Int8PtrTyGen, "", PInsertBefore);
+
+        // Don't remove arguments immediately, just mark them as removed with
+        // nullptr, and remove them at the end of processing. It allows for
+        // easier understanding of which argument is going to be removed.
+        auto MarkAsRemoved = [&Args](size_t Start, size_t End) {
+          assert(Start <= End);
+          for (size_t I = Start; I < End; I++)
+            Args[I] = nullptr;
+        };
+
+        if (!HasEvents) {
+          // Mark arguments at indices 3 (Num Events), 4 (Wait Events), 5 (Ret
+          // Event) as removed.
+          MarkAsRemoved(3, 6);
+        }
+
+        if (!HasVaargs) {
+          // Mark arguments at indices 8 (Param Size), 9 (Param Align) as
+          // removed.
+          MarkAsRemoved(8, 10);
+        } else {
+          // GEP to array of sizes of local arguments
+          Value *GEP = Args[10];
+          size_t NumLocalArgs = Args.size() - 10;
+
+          // Mark all SPIRV-specific arguments as removed
+          MarkAsRemoved(8, Args.size());
+
+          Type *Int32Ty = Type::getInt32Ty(*Ctx);
+          Args[8] = ConstantInt::get(Int32Ty, NumLocalArgs);
+          Args[9] = GEP;
+        }
+
+        Args.erase(std::remove(Args.begin(), Args.end(), nullptr), Args.end());
+
+        std::string FName = "";
+        if (!HasVaargs && !HasEvents)
+          FName = "__enqueue_kernel_basic";
+        else if (!HasVaargs && HasEvents)
+          FName = "__enqueue_kernel_basic_events";
+        else if (HasVaargs && !HasEvents)
+          FName = "__enqueue_kernel_varargs";
+        else
+          FName = "__enqueue_kernel_events_varargs";
+
+        return FName;
       },
       &Attrs);
 }

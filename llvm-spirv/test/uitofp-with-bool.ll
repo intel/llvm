@@ -61,20 +61,14 @@
 ; SPV-DAG: TypeVector [[vec_32:[0-9]+]] [[int_32]] 2
 ; SPV-DAG: TypeVector [[vec_64:[0-9]+]] [[int_64]] 2
 ; SPV-DAG: TypeVector [[vec_float:[0-9]+]] [[float]] 2
-; SPV-DAG: ConstantTrue [[bool]] [[true:[0-9]+]]
-; SPV-DAG: ConstantFalse [[bool]] [[false:[0-9]+]]
 ; SPV-DAG: ConstantNull [[vec_8]] [[zeros_8:[0-9]+]]
 ; SPV-DAG: ConstantComposite [[vec_8]] [[mones_8:[0-9]+]] [[mone_8]] [[mone_8]]
-; SPV-DAG: ConstantComposite [[vec_1]] [[true_false:[0-9]+]] [[true]] [[false]]
 ; SPV-DAG: ConstantNull [[vec_16]] [[zeros_16:[0-9]+]]
 ; SPV-DAG: ConstantComposite [[vec_16]] [[mones_16:[0-9]+]] [[mone_16]] [[mone_16]]
-; SPV-DAG: ConstantNull [[vec_1]] [[zeros_1:[0-9]+]]
 ; SPV-DAG: ConstantNull [[vec_32]] [[zeros_32:[0-9]+]]
 ; SPV-DAG: ConstantComposite [[vec_32]] [[mones_32:[0-9]+]] [[mone_32]] [[mone_32]]
-; SPV-DAG: ConstantComposite [[vec_1]] [[false_true:[0-9]+]] [[false]] [[true]]
 ; SPV-DAG: ConstantNull [[vec_64]] [[zeros_64:[0-9]+]]
 ; SPV-DAG: ConstantComposite [[vec_64]] [[mones_64:[0-9]+]] [[mone_64]] [[mone_64]]
-; SPV-DAG: ConstantComposite [[vec_1]] [[ones_1:[0-9]+]] [[true]] [[true]]
 ; SPV-DAG: ConstantComposite [[vec_8]] [[ones_8:[0-9]+]] [[one_8]] [[one_8]]
 ; SPV-DAG: ConstantComposite [[vec_16]] [[ones_16:[0-9]+]] [[one_16]] [[one_16]]
 ; SPV-DAG: ConstantComposite [[vec_32]] [[ones_32:[0-9]+]] [[one_32]] [[one_32]]
@@ -87,9 +81,11 @@ target triple = "spir64"
 ; SPV-DAG: Function
 ; SPV-DAG: FunctionParameter {{[0-9]+}} [[A:[0-9]+]]
 ; SPV-DAG: FunctionParameter {{[0-9]+}} [[B:[0-9]+]]
+; SPV-DAG: FunctionParameter {{[0-9]+}} [[i1s:[0-9]+]]
+; SPV-DAG: FunctionParameter {{[0-9]+}} [[i1v:[0-9]+]]
 
 ; Function Attrs: nofree norecurse nounwind writeonly
-define dso_local spir_kernel void @K(float addrspace(1)* nocapture %A, i32 %B) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define dso_local spir_kernel void @K(float addrspace(1)* nocapture %A, i32 %B, i1 %i1s, <2 x i1> %i1v) local_unnamed_addr #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
 
 
@@ -105,74 +101,74 @@ entry:
 ; LLVM-DAG: store float %conv, float addrspace(1)* %A, align 4
   store float %conv, float addrspace(1)* %A, align 4;
 
-; SPV-DAG: Select [[int_8]] [[s1]] [[true]] [[mone_8]] [[zero_8]]
-; LLVM-DAG: %s1 = select i1 true, i8 -1, i8 0
-  %s1 = sext i1 1 to i8
-; SPV-DAG: Select [[int_16]] [[s2]] [[false]] [[mone_16]] [[zero_16]]
-; LLVM-DAG: %s2 = select i1 false, i16 -1, i16 0
-  %s2 = sext i1 0 to i16
-; SPV-DAG: Select [[int_32]] [[s3]] [[true]] [[mone_32]] [[zero_32]]
-; LLVM-DAG: %s3 = select i1 true, i32 -1, i32 0
-  %s3 = sext i1 1 to i32
-; SPV-DAG: Select [[int_64]] [[s4]] [[true]] [[mone_64]] [[zero_64]]
-; LLVM-DAG: %s4 = select i1 true, i64 -1, i64 0
-  %s4 = sext i1 1 to i64
-; SPV-DAG: Select [[vec_8]] [[s5]] [[true_false]] [[mones_8]] [[zeros_8]]
-; LLVM-DAG: %s5 = select <2 x i1> <i1 true, i1 false>, <2 x i8> <i8 -1, i8 -1>, <2 x i8> zeroinitializer
-  %s5 = sext <2 x i1> <i1 1, i1 0> to <2 x i8>
-; SPV-DAG: Select [[vec_16]] [[s6]] [[zeros_1]] [[mones_16]] [[zeros_16]]
-; LLVM-DAG: %s6 = select <2 x i1> zeroinitializer, <2 x i16> <i16 -1, i16 -1>, <2 x i16> zeroinitializer
-  %s6 = sext <2 x i1> <i1 0, i1 0> to <2 x i16>
-; SPV-DAG: Select [[vec_32]] [[s7]] [[false_true]] [[mones_32]] [[zeros_32]]
-; LLVM-DAG: %s7 = select <2 x i1> <i1 false, i1 true>, <2 x i32> <i32 -1, i32 -1>, <2 x i32> zeroinitializer
-  %s7 = sext <2 x i1> <i1 0, i1 1> to <2 x i32>
-; SPV-DAG: Select [[vec_64]] [[s8]] [[ones_1]] [[mones_64]] [[zeros_64]]
-; LLVM-DAG: %s8 = select <2 x i1> <i1 true, i1 true>, <2 x i64> <i64 -1, i64 -1>, <2 x i64> zeroinitializer
-  %s8 = sext <2 x i1> <i1 1, i1 1> to <2 x i64>
-; SPV-DAG: Select [[int_8]] [[z1]] [[true]] [[one_8]] [[zero_8]]
-; LLVM-DAG: %z1 = select i1 true, i8 1, i8 0
-  %z1 = zext i1 1 to i8
-; SPV-DAG: Select [[int_16]] [[z2]] [[false]] [[one_16]] [[zero_16]]
-; LLVM-DAG: %z2 = select i1 false, i16 1, i16 0
-  %z2 = zext i1 0 to i16
-; SPV-DAG: Select [[int_32]] [[z3]] [[true]] [[one_32]] [[zero_32]]
-; LLVM-DAG: %z3 = select i1 true, i32 1, i32 0
-  %z3 = zext i1 1 to i32
-; SPV-DAG: Select [[int_64]] [[z4]] [[true]] [[one_64]] [[zero_64]]
-; LLVM-DAG: %z4 = select i1 true, i64 1, i64 0
-  %z4 = zext i1 1 to i64
-; SPV-DAG: Select [[vec_8]] [[z5]] [[true_false]] [[ones_8]] [[zeros_8]]
-; LLVM-DAG: %z5 = select <2 x i1> <i1 true, i1 false>, <2 x i8> <i8 1, i8 1>, <2 x i8> zeroinitializer
-  %z5 = zext <2 x i1> <i1 1, i1 0> to <2 x i8>
-; SPV-DAG: Select [[vec_16]] [[z6]] [[zeros_1]] [[ones_16]] [[zeros_16]]
-; LLVM-DAG: %z6 = select <2 x i1> zeroinitializer, <2 x i16> <i16 1, i16 1>, <2 x i16> zeroinitializer
-  %z6 = zext <2 x i1> <i1 0, i1 0> to <2 x i16>
-; SPV-DAG: Select [[vec_32]] [[z7]] [[false_true]] [[ones_32]] [[zeros_32]]
-; LLVM-DAG: %z7 = select <2 x i1> <i1 false, i1 true>, <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer
-  %z7 = zext <2 x i1> <i1 0, i1 1> to <2 x i32>
-; SPV-DAG: Select [[vec_64]] [[z8]] [[ones_1]] [[ones_64]] [[zeros_64]]
-; LLVM-DAG: %z8 = select <2 x i1> <i1 true, i1 true>, <2 x i64> <i64 1, i64 1>, <2 x i64> zeroinitializer
-  %z8 = zext <2 x i1> <i1 1, i1 1> to <2 x i64>
-; SPV-DAG: Select [[int_32]] [[ufp1_res:[0-9]+]] [[true]] [[one_32]] [[zero_32]]
+; SPV-DAG: Select [[int_8]] [[s1]] [[i1s]] [[mone_8]] [[zero_8]]
+; LLVM-DAG: %s1 = select i1 %i1s, i8 -1, i8 0
+  %s1 = sext i1 %i1s to i8
+; SPV-DAG: Select [[int_16]] [[s2]] [[i1s]] [[mone_16]] [[zero_16]]
+; LLVM-DAG: %s2 = select i1 %i1s, i16 -1, i16 0
+  %s2 = sext i1 %i1s to i16
+; SPV-DAG: Select [[int_32]] [[s3]] [[i1s]] [[mone_32]] [[zero_32]]
+; LLVM-DAG: %s3 = select i1 %i1s, i32 -1, i32 0
+  %s3 = sext i1 %i1s to i32
+; SPV-DAG: Select [[int_64]] [[s4]] [[i1s]] [[mone_64]] [[zero_64]]
+; LLVM-DAG: %s4 = select i1 %i1s, i64 -1, i64 0
+  %s4 = sext i1 %i1s to i64
+; SPV-DAG: Select [[vec_8]] [[s5]] [[i1v]] [[mones_8]] [[zeros_8]]
+; LLVM-DAG: %s5 = select <2 x i1> %i1v, <2 x i8> <i8 -1, i8 -1>, <2 x i8> zeroinitializer
+  %s5 = sext <2 x i1> %i1v to <2 x i8>
+; SPV-DAG: Select [[vec_16]] [[s6]] [[i1v]] [[mones_16]] [[zeros_16]]
+; LLVM-DAG: %s6 = select <2 x i1> %i1v, <2 x i16> <i16 -1, i16 -1>, <2 x i16> zeroinitializer
+  %s6 = sext <2 x i1> %i1v to <2 x i16>
+; SPV-DAG: Select [[vec_32]] [[s7]] [[i1v]] [[mones_32]] [[zeros_32]]
+; LLVM-DAG: %s7 = select <2 x i1> %i1v, <2 x i32> <i32 -1, i32 -1>, <2 x i32> zeroinitializer
+  %s7 = sext <2 x i1> %i1v to <2 x i32>
+; SPV-DAG: Select [[vec_64]] [[s8]] [[i1v]] [[mones_64]] [[zeros_64]]
+; LLVM-DAG: %s8 = select <2 x i1> %i1v, <2 x i64> <i64 -1, i64 -1>, <2 x i64> zeroinitializer
+  %s8 = sext <2 x i1> %i1v to <2 x i64>
+; SPV-DAG: Select [[int_8]] [[z1]] [[i1s]] [[one_8]] [[zero_8]]
+; LLVM-DAG: %z1 = select i1 %i1s, i8 1, i8 0
+  %z1 = zext i1 %i1s to i8
+; SPV-DAG: Select [[int_16]] [[z2]] [[i1s]] [[one_16]] [[zero_16]]
+; LLVM-DAG: %z2 = select i1 %i1s, i16 1, i16 0
+  %z2 = zext i1 %i1s to i16
+; SPV-DAG: Select [[int_32]] [[z3]] [[i1s]] [[one_32]] [[zero_32]]
+; LLVM-DAG: %z3 = select i1 %i1s, i32 1, i32 0
+  %z3 = zext i1 %i1s to i32
+; SPV-DAG: Select [[int_64]] [[z4]] [[i1s]] [[one_64]] [[zero_64]]
+; LLVM-DAG: %z4 = select i1 %i1s, i64 1, i64 0
+  %z4 = zext i1 %i1s to i64
+; SPV-DAG: Select [[vec_8]] [[z5]] [[i1v]] [[ones_8]] [[zeros_8]]
+; LLVM-DAG: %z5 = select <2 x i1> %i1v, <2 x i8> <i8 1, i8 1>, <2 x i8> zeroinitializer
+  %z5 = zext <2 x i1> %i1v to <2 x i8>
+; SPV-DAG: Select [[vec_16]] [[z6]] [[i1v]] [[ones_16]] [[zeros_16]]
+; LLVM-DAG: %z6 = select <2 x i1> %i1v, <2 x i16> <i16 1, i16 1>, <2 x i16> zeroinitializer
+  %z6 = zext <2 x i1> %i1v to <2 x i16>
+; SPV-DAG: Select [[vec_32]] [[z7]] [[i1v]] [[ones_32]] [[zeros_32]]
+; LLVM-DAG: %z7 = select <2 x i1> %i1v, <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer
+  %z7 = zext <2 x i1> %i1v to <2 x i32>
+; SPV-DAG: Select [[vec_64]] [[z8]] [[i1v]] [[ones_64]] [[zeros_64]]
+; LLVM-DAG: %z8 = select <2 x i1> %i1v, <2 x i64> <i64 1, i64 1>, <2 x i64> zeroinitializer
+  %z8 = zext <2 x i1> %i1v to <2 x i64>
+; SPV-DAG: Select [[int_32]] [[ufp1_res:[0-9]+]] [[i1s]] [[one_32]] [[zero_32]]
 ; SPV-DAG: ConvertUToF [[float]] [[ufp1]] [[ufp1_res]]
-; LLVM-DAG: %[[ufp1_res_llvm:[0-9]+]] = select i1 true, i32 1, i32 0
+; LLVM-DAG: %[[ufp1_res_llvm:[0-9]+]] = select i1 %i1s, i32 1, i32 0
 ; LLVM-DAG: %ufp1 = uitofp i32 %[[ufp1_res_llvm]] to float
-  %ufp1 = uitofp i1 1 to float
-; SPV-DAG: Select [[vec_32]] [[ufp2_res:[0-9]+]] [[true_false]] [[ones_32]] [[zeros_32]]
+  %ufp1 = uitofp i1 %i1s to float
+; SPV-DAG: Select [[vec_32]] [[ufp2_res:[0-9]+]] [[i1v]] [[ones_32]] [[zeros_32]]
 ; SPV-DAG: ConvertUToF [[vec_float]] [[ufp2]] [[ufp2_res]]
-; LLVM-DAG: %[[ufp2_res_llvm:[0-9]+]] = select <2 x i1> <i1 true, i1 false>, <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer
+; LLVM-DAG: %[[ufp2_res_llvm:[0-9]+]] = select <2 x i1> %i1v, <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer
 ; LLVM-DAG: %ufp2 = uitofp <2 x i32> %[[ufp2_res_llvm]] to <2 x float>
-  %ufp2 = uitofp <2 x i1> <i1 1, i1 0> to <2 x float>
-; SPV-DAG: Select [[int_32]] [[sfp1_res:[0-9]+]] [[true]] [[one_32]] [[zero_32]]
+  %ufp2 = uitofp <2 x i1> %i1v to <2 x float>
+; SPV-DAG: Select [[int_32]] [[sfp1_res:[0-9]+]] [[i1s]] [[one_32]] [[zero_32]]
 ; SPV-DAG: ConvertSToF [[float]] [[sfp1]] [[sfp1_res]]
-; LLVM-DAG: %[[sfp1_res_llvm:[0-9]+]] = select i1 true, i32 1, i32 0
+; LLVM-DAG: %[[sfp1_res_llvm:[0-9]+]] = select i1 %i1s, i32 1, i32 0
 ; LLVM-DAG: %sfp1 = sitofp i32 %[[sfp1_res_llvm:[0-9]+]] to float
-  %sfp1 = sitofp i1 1 to float
-; SPV-DAG: Select [[vec_32]] [[sfp2_res:[0-9]+]] [[true_false]] [[ones_32]] [[zeros_32]]
+  %sfp1 = sitofp i1 %i1s to float
+; SPV-DAG: Select [[vec_32]] [[sfp2_res:[0-9]+]] [[i1v]] [[ones_32]] [[zeros_32]]
 ; SPV-DAG: ConvertSToF [[vec_float]] [[sfp2]] [[sfp2_res]]
-; LLVM-DAG: %[[sfp2_res_llvm:[0-9]+]] = select <2 x i1> <i1 true, i1 false>, <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer
+; LLVM-DAG: %[[sfp2_res_llvm:[0-9]+]] = select <2 x i1> %i1v, <2 x i32> <i32 1, i32 1>, <2 x i32> zeroinitializer
 ; LLVM-DAG: %sfp2 = sitofp <2 x i32> %[[sfp2_res_llvm]] to <2 x float>
-  %sfp2 = sitofp <2 x i1> <i1 1, i1 0> to <2 x float>
+  %sfp2 = sitofp <2 x i1> %i1v to <2 x float>
   ret void
 }
 

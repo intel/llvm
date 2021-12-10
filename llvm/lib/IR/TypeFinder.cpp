@@ -14,6 +14,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
@@ -105,11 +106,9 @@ void TypeFinder::incorporateType(Type *Ty) {
         StructTypes.push_back(STy);
 
     // Add all unvisited subtypes to worklist for processing
-    for (Type::subtype_reverse_iterator I = Ty->subtype_rbegin(),
-                                        E = Ty->subtype_rend();
-         I != E; ++I)
-      if (VisitedTypes.insert(*I).second)
-        TypeWorklist.push_back(*I);
+    for (Type *SubTy : llvm::reverse(Ty->subtypes()))
+      if (VisitedTypes.insert(SubTy).second)
+        TypeWorklist.push_back(SubTy);
   } while (!TypeWorklist.empty());
 }
 
@@ -151,6 +150,14 @@ void TypeFinder::incorporateMDNode(const MDNode *V) {
   // Already visited?
   if (!VisitedMetadata.insert(V).second)
     return;
+
+  // The arguments in DIArgList are not exposed as operands, so handle such
+  // nodes specifically here.
+  if (const auto *AL = dyn_cast<DIArgList>(V)) {
+    for (auto *Arg : AL->getArgs())
+      incorporateValue(Arg->getValue());
+    return;
+  }
 
   // Look in operands for types.
   for (Metadata *Op : V->operands()) {

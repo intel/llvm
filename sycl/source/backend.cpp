@@ -33,8 +33,8 @@ static const plugin &getPlugin(backend Backend) {
   switch (Backend) {
   case backend::opencl:
     return pi::getPlugin<backend::opencl>();
-  case backend::level_zero:
-    return pi::getPlugin<backend::level_zero>();
+  case backend::ext_oneapi_level_zero:
+    return pi::getPlugin<backend::ext_oneapi_level_zero>();
   default:
     throw sycl::runtime_error{"Unsupported backend", PI_INVALID_OPERATION};
   }
@@ -80,12 +80,18 @@ __SYCL_EXPORT context make_context(pi_native_handle NativeHandle,
 __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
                                const context &Context,
                                const async_handler &Handler, backend Backend) {
+  return make_queue(NativeHandle, Context, false, Handler, Backend);
+}
+
+__SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
+                               const context &Context, bool KeepOwnership,
+                               const async_handler &Handler, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(Context);
   // Create PI queue first.
   pi::PiQueue PiQueue = nullptr;
   Plugin.call<PiApiKind::piextQueueCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiQueue);
+      NativeHandle, ContextImpl->getHandleRef(), &PiQueue, !KeepOwnership);
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<queue>(
       std::make_shared<queue_impl>(PiQueue, ContextImpl, Handler));
@@ -93,11 +99,18 @@ __SYCL_EXPORT queue make_queue(pi_native_handle NativeHandle,
 
 __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
                                const context &Context, backend Backend) {
+  return make_event(NativeHandle, Context, false, Backend);
+}
+
+__SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
+                               const context &Context, bool KeepOwnership,
+                               backend Backend) {
   const auto &Plugin = getPlugin(Backend);
+  const auto &ContextImpl = getSyclObjImpl(Context);
 
   pi::PiEvent PiEvent = nullptr;
-  Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(NativeHandle,
-                                                           &PiEvent);
+  Plugin.call<PiApiKind::piextEventCreateWithNativeHandle>(
+      NativeHandle, ContextImpl->getHandleRef(), !KeepOwnership, &PiEvent);
 
   return detail::createSyclObjFromImpl<event>(
       std::make_shared<event_impl>(PiEvent, Context));
@@ -105,13 +118,13 @@ __SYCL_EXPORT event make_event(pi_native_handle NativeHandle,
 
 std::shared_ptr<detail::kernel_bundle_impl>
 make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
-                   bundle_state State, backend Backend) {
+                   bool KeepOwnership, bundle_state State, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
 
   pi::PiProgram PiProgram = nullptr;
   Plugin.call<PiApiKind::piextProgramCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), &PiProgram);
+      NativeHandle, ContextImpl->getHandleRef(), KeepOwnership, &PiProgram);
 
   std::vector<pi::PiDevice> ProgramDevices;
   size_t NumDevices = 0;
@@ -181,22 +194,64 @@ make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
 
   return std::make_shared<kernel_bundle_impl>(TargetContext, Devices, DevImg);
 }
-kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
+
+// TODO: Unused. Remove when allowed.
+std::shared_ptr<detail::kernel_bundle_impl>
+make_kernel_bundle(pi_native_handle NativeHandle, const context &TargetContext,
+                   bundle_state State, backend Backend) {
+  return make_kernel_bundle(NativeHandle, TargetContext, false, State, Backend);
+}
+
+kernel make_kernel(const context &TargetContext,
+                   const kernel_bundle<bundle_state::executable> &KernelBundle,
+                   pi_native_handle NativeHandle, bool KeepOwnership,
                    backend Backend) {
   const auto &Plugin = getPlugin(Backend);
   const auto &ContextImpl = getSyclObjImpl(TargetContext);
+  const auto KernelBundleImpl = getSyclObjImpl(KernelBundle);
+
+  // For Level-Zero expect exactly one device image in the bundle. This is
+  // natural for interop kernel to get created out of a single native
+  // program/module. This way we don't need to search the exact device image for
+  // the kernel, which may not be trivial.
+  //
+  // Other backends don't need PI program.
+  //
+  pi::PiProgram PiProgram = nullptr;
+  if (Backend == backend::ext_oneapi_level_zero) {
+    if (KernelBundleImpl->size() != 1)
+      throw sycl::runtime_error{
+          "make_kernel: kernel_bundle must have single program image",
+          PI_INVALID_PROGRAM};
+
+    const device_image<bundle_state::executable> &DeviceImage =
+        *KernelBundle.begin();
+    const auto &DeviceImageImpl = getSyclObjImpl(DeviceImage);
+    PiProgram = DeviceImageImpl->get_program_ref();
+  }
+
   // Create PI kernel first.
   pi::PiKernel PiKernel = nullptr;
   Plugin.call<PiApiKind::piextKernelCreateWithNativeHandle>(
-      NativeHandle, ContextImpl->getHandleRef(), false, &PiKernel);
+      NativeHandle, ContextImpl->getHandleRef(), PiProgram, KeepOwnership,
+      &PiKernel);
 
   if (Backend == backend::opencl)
     Plugin.call<PiApiKind::piKernelRetain>(PiKernel);
 
   // Construct the SYCL queue from PI queue.
   return detail::createSyclObjFromImpl<kernel>(
-      std::make_shared<kernel_impl>(PiKernel, ContextImpl));
+      std::make_shared<kernel_impl>(PiKernel, ContextImpl, KernelBundleImpl));
 }
+
+kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
+                   backend Backend) {
+  return make_kernel(TargetContext,
+                     get_kernel_bundle<bundle_state::executable>(
+                         TargetContext, std::vector<kernel_id>{}),
+                     NativeHandle, false, Backend);
+}
+
 } // namespace detail
 } // namespace sycl
 } // __SYCL_INLINE_NAMESPACE(cl)

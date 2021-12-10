@@ -54,9 +54,8 @@ TEST(DWARFDie, manualExtractDump) {
   uint64_t NextCUOffset = CU->getNextUnitOffset();
   DWARFDebugInfoEntry DieInfo;
   DWARFDataExtractor DebugInfoData = CU->getDebugInfoExtractor();
-  uint32_t Depth = 0;
-  ASSERT_TRUE(
-      DieInfo.extractFast(*CU, &DIEOffset, DebugInfoData, NextCUOffset, Depth));
+  ASSERT_TRUE(DieInfo.extractFast(*CU, &DIEOffset, DebugInfoData, NextCUOffset,
+                                  UINT32_MAX));
   DWARFDie Die(CU, &DieInfo);
   ASSERT_TRUE(Die.isValid());
   ASSERT_TRUE(Die.hasChildren());
@@ -72,7 +71,7 @@ TEST(DWARFDie, manualExtractDump) {
       "0x0000000b: DW_TAG_compile_unit",
       "              DW_AT_name	(\"/tmp/main.c\")",
       "              DW_AT_language	(DW_LANG_C)"};
-  StringRef(Output).split(Strings, '\n', -1, false);
+  Output.str().split(Strings, '\n', -1, false);
   ASSERT_EQ(Strings.size(), NumOfLines);
   for (size_t I = 0; I < NumOfLines; ++I)
     EXPECT_EQ(ValidStrings[I], Strings[I]);

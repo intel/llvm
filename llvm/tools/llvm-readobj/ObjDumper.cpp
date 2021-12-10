@@ -52,6 +52,39 @@ static void printAsPrintable(raw_ostream &W, const uint8_t *Start, size_t Len) {
     W << (isPrint(Start[i]) ? static_cast<char>(Start[i]) : '.');
 }
 
+void ObjDumper::printAsStringList(StringRef StringContent,
+                                  size_t StringDataOffset) {
+  size_t StrSize = StringContent.size();
+  if (StrSize == 0)
+    return;
+  if (StrSize < StringDataOffset) {
+    reportUniqueWarning("offset (0x" + Twine::utohexstr(StringDataOffset) +
+                        ") is past the end of the contents (size 0x" +
+                        Twine::utohexstr(StrSize) + ")");
+    return;
+  }
+
+  const uint8_t *StrContent = StringContent.bytes_begin();
+  // Some formats contain additional metadata at the start which should not be
+  // interpreted as strings. Skip these bytes, but account for them in the
+  // string offsets.
+  const uint8_t *CurrentWord = StrContent + StringDataOffset;
+  const uint8_t *StrEnd = StringContent.bytes_end();
+
+  while (CurrentWord <= StrEnd) {
+    size_t WordSize = strnlen(reinterpret_cast<const char *>(CurrentWord),
+                              StrEnd - CurrentWord);
+    if (!WordSize) {
+      CurrentWord++;
+      continue;
+    }
+    W.startLine() << format("[%6tx] ", CurrentWord - StrContent);
+    printAsPrintable(W.startLine(), CurrentWord, WordSize);
+    W.startLine() << '\n';
+    CurrentWord += WordSize + 1;
+  }
+}
+
 static std::vector<object::SectionRef>
 getSectionRefsByNameOrIndex(const object::ObjectFile &Obj,
                             ArrayRef<std::string> Sections) {
@@ -109,23 +142,7 @@ void ObjDumper::printSectionsAsString(const object::ObjectFile &Obj,
 
     StringRef SectionContent =
         unwrapOrError(Obj.getFileName(), Section.getContents());
-
-    const uint8_t *SecContent = SectionContent.bytes_begin();
-    const uint8_t *CurrentWord = SecContent;
-    const uint8_t *SecEnd = SectionContent.bytes_end();
-
-    while (CurrentWord <= SecEnd) {
-      size_t WordSize = strnlen(reinterpret_cast<const char *>(CurrentWord),
-                                SecEnd - CurrentWord);
-      if (!WordSize) {
-        CurrentWord++;
-        continue;
-      }
-      W.startLine() << format("[%6tx] ", CurrentWord - SecContent);
-      printAsPrintable(W.startLine(), CurrentWord, WordSize);
-      W.startLine() << '\n';
-      CurrentWord += WordSize + 1;
-    }
+    printAsStringList(SectionContent);
   }
 }
 

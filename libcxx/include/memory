@@ -1,5 +1,5 @@
 // -*- C++ -*-
-//===-------------------------- memory ------------------------------------===//
+//===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -99,7 +99,7 @@ struct allocator_traits
 };
 
 template <>
-class allocator<void> // deprecated in C++17, removed in C++20
+class allocator<void> // removed in C++20
 {
 public:
     typedef void*                                 pointer;
@@ -153,14 +153,17 @@ template <class T, class U>
 bool operator!=(const allocator<T>&, const allocator<U>&) noexcept; // constexpr in C++20
 
 template <class OutputIterator, class T>
-class raw_storage_iterator
-    : public iterator<output_iterator_tag,
-                      T,                               // purposefully not C++03
-                      ptrdiff_t,                       // purposefully not C++03
-                      T*,                              // purposefully not C++03
-                      raw_storage_iterator&>           // purposefully not C++03
+class raw_storage_iterator // deprecated in C++17, removed in C++20
+    : public iterator<output_iterator_tag, void, void, void, void> // until C++17
 {
 public:
+    typedef output_iterator_tag iterator_category;
+    typedef void                value_type;
+    typedef void                difference_type; // until C++20
+    typedef ptrdiff_t           difference_type; // since C++20
+    typedef void                pointer;
+    typedef void                reference;
+
     explicit raw_storage_iterator(OutputIterator x);
     raw_storage_iterator& operator*();
     raw_storage_iterator& operator=(const T& element);
@@ -402,7 +405,8 @@ template<class T>
 class shared_ptr
 {
 public:
-    typedef T element_type;
+    typedef T element_type; // until C++17
+    typedef remove_extent_t<T> element_type; // since C++17
     typedef weak_ptr<T> weak_type; // C++17
 
     // constructors:
@@ -522,7 +526,8 @@ template<class T>
 class weak_ptr
 {
 public:
-    typedef T element_type;
+    typedef T element_type; // until C++17
+    typedef remove_extent_t<T> element_type; // since C++17
 
     // constructors
     constexpr weak_ptr() noexcept;
@@ -650,14 +655,6 @@ template <class T> struct hash<shared_ptr<T> >;
 template <class T, class Alloc>
   inline constexpr bool uses_allocator_v = uses_allocator<T, Alloc>::value;
 
-// Pointer safety
-enum class pointer_safety { relaxed, preferred, strict }; // since C++11
-void declare_reachable(void *p);                          // since C++11
-template <class T> T *undeclare_reachable(T *p);          // since C++11
-void declare_no_pointers(char *p, size_t n);              // since C++11
-void undeclare_no_pointers(char *p, size_t n);            // since C++11
-pointer_safety get_pointer_safety() noexcept;             // since C++11
-
 void* align(size_t alignment, size_t size, void*& ptr, size_t& space);
 
 }  // std
@@ -665,32 +662,34 @@ void* align(size_t alignment, size_t size, void*& ptr, size_t& space);
 */
 
 #include <__config>
-#include <type_traits>
-#include <typeinfo>
-#include <compare>
-#include <cstddef>
-#include <cstdint>
-#include <new>
-#include <utility>
-#include <iterator>
 #include <__functional_base>
-#include <iosfwd>
-#include <tuple>
-#include <stdexcept>
-#include <cstring>
 #include <__memory/addressof.h>
 #include <__memory/allocation_guard.h>
 #include <__memory/allocator.h>
+#include <__memory/allocator_arg_t.h>
 #include <__memory/allocator_traits.h>
 #include <__memory/compressed_pair.h>
+#include <__memory/concepts.h>
 #include <__memory/construct_at.h>
-#include <__memory/pointer_safety.h>
 #include <__memory/pointer_traits.h>
 #include <__memory/raw_storage_iterator.h>
 #include <__memory/shared_ptr.h>
 #include <__memory/temporary_buffer.h>
 #include <__memory/uninitialized_algorithms.h>
 #include <__memory/unique_ptr.h>
+#include <__memory/uses_allocator.h>
+#include <compare>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <iosfwd>
+#include <iterator>
+#include <new>
+#include <stdexcept>
+#include <tuple>
+#include <type_traits>
+#include <typeinfo>
+#include <utility>
 #include <version>
 
 #if _LIBCPP_STD_VER <= 14 || defined(_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR)
@@ -700,10 +699,6 @@ void* align(size_t alignment, size_t size, void*& ptr, size_t& space);
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -791,7 +786,7 @@ void __construct_backward_with_exception_guarantees(_Alloc&, _Tp* __begin1, _Tp*
     ptrdiff_t _Np = __end1 - __begin1;
     __end2 -= _Np;
     if (_Np > 0)
-        _VSTD::memcpy(__end2, __begin1, _Np * sizeof(_Tp));
+        _VSTD::memcpy(static_cast<void*>(__end2), static_cast<void const*>(__begin1), _Np * sizeof(_Tp));
 }
 
 struct __destruct_n
@@ -954,8 +949,6 @@ struct __builtin_new_allocator {
 
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #if defined(_LIBCPP_HAS_PARALLEL_ALGORITHMS) && _LIBCPP_STD_VER >= 17
 #   include <__pstl_memory>

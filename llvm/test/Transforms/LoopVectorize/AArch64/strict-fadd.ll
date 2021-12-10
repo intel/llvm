@@ -1,6 +1,8 @@
-; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -enable-strict-reductions=false -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-NOT-VECTORIZED
-; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -enable-strict-reductions=false -hints-allow-reordering=true  -S 2>%t | FileCheck %s --check-prefix=CHECK-UNORDERED
-; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -enable-strict-reductions=true  -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-ORDERED
+; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=false -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-NOT-VECTORIZED
+; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=false -hints-allow-reordering=true  -S 2>%t | FileCheck %s --check-prefix=CHECK-UNORDERED
+; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=true  -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-ORDERED
+; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -force-ordered-reductions=true  -hints-allow-reordering=true  -S 2>%t | FileCheck %s --check-prefix=CHECK-UNORDERED
+; RUN: opt < %s -loop-vectorize -mtriple aarch64-unknown-linux-gnu -hints-allow-reordering=false -S 2>%t | FileCheck %s --check-prefix=CHECK-ORDERED
 
 define float @fadd_strict(float* noalias nocapture readonly %a, i64 %n) {
 ; CHECK-ORDERED-LABEL: @fadd_strict
@@ -39,6 +41,52 @@ for.body:
   %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
   %0 = load float, float* %arrayidx, align 4
   %add = fadd float %0, %sum.07
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !0
+
+for.end:
+  ret float %add
+}
+
+; Same as above but where fadd has a fast-math flag.
+define float @fadd_strict_fmf(float* noalias nocapture readonly %a, i64 %n) {
+; CHECK-ORDERED-LABEL: @fadd_strict_fmf
+; CHECK-ORDERED: vector.body:
+; CHECK-ORDERED: [[VEC_PHI:%.*]] = phi float [ 0.000000e+00, %vector.ph ], [ [[RDX:%.*]], %vector.body ]
+; CHECK-ORDERED: [[LOAD_VEC:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[RDX]] = call nnan float @llvm.vector.reduce.fadd.v8f32(float [[VEC_PHI]], <8 x float> [[LOAD_VEC]])
+; CHECK-ORDERED: for.end:
+; CHECK-ORDERED: [[RES:%.*]] = phi float [ [[SCALAR:%.*]], %for.body ], [ [[RDX]], %middle.block ]
+; CHECK-ORDERED: ret float [[RES]]
+
+; CHECK-UNORDERED-LABEL: @fadd_strict_fmf
+; CHECK-UNORDERED: vector.body:
+; CHECK-UNORDERED: [[VEC_PHI:%.*]] = phi <8 x float> [ <float 0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %vector.ph ], [ [[FADD_VEC:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[LOAD_VEC:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[FADD_VEC]] = fadd nnan <8 x float> [[LOAD_VEC]], [[VEC_PHI]]
+; CHECK-UNORDERED-NOT: @llvm.vector.reduce.fadd 
+; CHECK-UNORDERED: middle.block:
+; CHECK-UNORDERED: [[RDX:%.*]] = call nnan float @llvm.vector.reduce.fadd.v8f32(float -0.000000e+00, <8 x float> [[FADD_VEC]])
+; CHECK-UNORDERED: for.body:
+; CHECK-UNORDERED: [[LOAD:%.*]] = load float, float*
+; CHECK-UNORDERED: [[FADD:%.*]] = fadd nnan float [[LOAD]], {{.*}}
+; CHECK-UNORDERED: for.end:
+; CHECK-UNORDERED: [[RES:%.*]] = phi float [ [[FADD]], %for.body ], [ [[RDX]], %middle.block ]
+; CHECK-UNORDERED: ret float [[RES]]
+
+; CHECK-NOT-VECTORIZED-LABEL: @fadd_strict_fmf
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %add, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %add = fadd nnan float %0, %sum.07
   %iv.next = add nuw nsw i64 %iv, 1
   %exitcond.not = icmp eq i64 %iv.next, %n
   br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !0
@@ -551,10 +599,10 @@ for.end:                                         ; preds = %for.body
 ;  return sum;
 ;}
 ;
-; Note: These tests do not use metadata hints, and as such we should not expect the CHECK-UNORDERED case to vectorize, even
-; with the -hints-allow-reordering flag set to true.
 
 ; Strict reduction could be performed in-loop, but ordered FP induction variables are not supported
+; Note: This test does not use metadata hints, and as such we should not expect the CHECK-UNORDERED case to vectorize, even
+; with the -hints-allow-reordering flag set to true.
 define float @induction_and_reduction(float* nocapture readonly %values, float %init, float* noalias nocapture %A, i64 %N) {
 ; CHECK-ORDERED-LABEL: @induction_and_reduction
 ; CHECK-ORDERED-NOT: vector.body
@@ -594,25 +642,41 @@ define float @fast_induction_and_reduction(float* nocapture readonly %values, fl
 ; CHECK-ORDERED: vector.body
 ; CHECK-ORDERED: %[[RDX_PHI:.*]] = phi float [ 0.000000e+00, %vector.ph ], [ %[[FADD2:.*]], %vector.body ]
 ; CHECK-ORDERED: %[[IND_PHI:.*]] = phi <4 x float> [ %[[INDUCTION]], %vector.ph ], [ %[[VEC_IND_NEXT:.*]], %vector.body ]
-; CHECK-ORDERED: %[[STEP_ADD:.*]] = fadd fast <4 x float> %[[IND_PHI]], <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
 ; CHECK-ORDERED: %[[LOAD1:.*]] = load <4 x float>, <4 x float>*
-; CHECK-ORDERED: %[[LOAD2:.*]] = load <4 x float>, <4 x float>*
 ; CHECK-ORDERED: %[[FADD1:.*]] = call float @llvm.vector.reduce.fadd.v4f32(float %[[RDX_PHI]], <4 x float> %[[LOAD1]])
-; CHECK-ORDERED: %[[FADD2]] = call float @llvm.vector.reduce.fadd.v4f32(float %[[FADD1]], <4 x float> %[[LOAD2]])
-; CHECK-ORDERED: %[[VEC_IND_NEXT]] = fadd fast <4 x float> %[[STEP_ADD]], <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+; CHECK-ORDERED: %[[VEC_IND_NEXT]] = fadd fast <4 x float> %[[IND_PHI]], <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
 ; CHECK-ORDERED: for.body
-; CHECK-ORDERED: %[[RDX_SUM_PHI:.*]] = phi float [ {{.*}}, %scalar.ph ], [ %[[FADD3:.*]], %for.body ]
+; CHECK-ORDERED: %[[RDX_SUM_PHI:.*]] = phi float [ {{.*}}, %scalar.ph ], [ %[[FADD2:.*]], %for.body ]
 ; CHECK-ORDERED: %[[IND_SUM_PHI:.*]] = phi fast float [ {{.*}}, %scalar.ph ], [ %[[ADD_IND:.*]], %for.body ]
 ; CHECK-ORDERED: store float %[[IND_SUM_PHI]], float*
 ; CHECK-ORDERED: %[[ADD_IND]] = fadd fast float %[[IND_SUM_PHI]], 2.000000e+00
-; CHECK-ORDERED: %[[LOAD3:.*]] = load float, float*
-; CHECK-ORDERED: %[[FADD3]] = fadd float %[[RDX_SUM_PHI]], %[[LOAD3]]
+; CHECK-ORDERED: %[[LOAD2:.*]] = load float, float*
+; CHECK-ORDERED: %[[FADD2]] = fadd float %[[RDX_SUM_PHI]], %[[LOAD2]]
 ; CHECK-ORDERED: for.end
-; CHECK-ORDERED: %[[RES_PHI:.*]] = phi float [ %[[FADD3]], %for.body ], [ %[[FADD2]], %middle.block ]
+; CHECK-ORDERED: %[[RES_PHI:.*]] = phi float [ %[[FADD2]], %for.body ], [ %[[FADD1]], %middle.block ]
 ; CHECK-ORDERED: ret float %[[RES_PHI]]
 
 ; CHECK-UNORDERED-LABEL: @fast_induction_and_reduction
-; CHECK-UNORDERED-NOT: vector.body
+; CHECK-UNORDERED: vector.ph
+; CHECK-UNORDERED: %[[INDUCTION:.*]] = fadd fast <4 x float> {{.*}}, <float 0.000000e+00, float 2.000000e+00, float 4.000000e+00, float 6.000000e+00>
+; CHECK-UNORDERED: vector.body
+; CHECK-UNORDERED: %[[RDX_PHI:.*]] = phi <4 x float> [ <float 0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %vector.ph ], [ %[[VEC_FADD:.*]], %vector.body ]
+; CHECK-UNORDERED: %[[IND_PHI:.*]] = phi <4 x float> [ %[[INDUCTION]], %vector.ph ], [ %[[VEC_IND_NEXT:.*]], %vector.body ]
+; CHECK-UNORDERED: %[[LOAD1:.*]] = load <4 x float>, <4 x float>*
+; CHECK-UNORDERED: %[[VEC_FADD]] = fadd <4 x float> %[[RDX_PHI]], %[[LOAD1]]
+; CHECK-UNORDERED: %[[VEC_IND_NEXT]] = fadd fast <4 x float> %[[IND_PHI]], <float 8.000000e+00, float 8.000000e+00, float 8.000000e+00, float 8.000000e+00>
+; CHECK-UNORDERED: middle.block:
+; CHECK-UNORDERED: %[[VEC_RDX:.*]] = call float @llvm.vector.reduce.fadd.v4f32(float -0.000000e+00, <4 x float> %[[VEC_FADD]])
+; CHECK-UNORDERED: for.body:
+; CHECK-UNORDERED: %[[RDX_SUM_PHI:.*]] = phi float [ {{.*}}, %scalar.ph ], [ %[[FADD:.*]], %for.body ]
+; CHECK-UNORDERED: %[[IND_SUM_PHI:.*]] = phi fast float [ {{.*}}, %scalar.ph ], [ %[[ADD_IND:.*]], %for.body ]
+; CHECK-UNORDERED: store float %[[IND_SUM_PHI]], float*
+; CHECK-UNORDERED: %[[ADD_IND]] = fadd fast float %[[IND_SUM_PHI]], 2.000000e+00
+; CHECK-UNORDERED: %[[LOAD2:.*]] = load float, float*
+; CHECK-UNORDERED: %[[FADD]] = fadd float %[[RDX_SUM_PHI]], %[[LOAD2]]
+; CHECK-UNORDERED: for.end
+; CHECK-UNORDERED: %[[RES_PHI:.*]] = phi float [ %[[FADD]], %for.body ], [ %[[VEC_RDX]], %middle.block ]
+; CHECK-UNORDERED: ret float %[[RES_PHI]]
 
 ; CHECK-NOT-VECTORIZED-LABEL: @fast_induction_and_reduction
 ; CHECK-NOT-VECTORIZED-NOT: vector.body
@@ -632,13 +696,15 @@ for.body:
   %add3 = fadd float %sum.015, %0
   %iv.next = add nuw nsw i64 %iv, 1
   %exitcond.not = icmp eq i64 %iv.next, %N
-  br i1 %exitcond.not, label %for.end, label %for.body
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !2
 
 for.end:
   ret float %add3
 }
 
 ; The FP induction is fast, but here we can't vectorize as only one of the reductions is an FAdd that can be performed in-loop
+; Note: This test does not use metadata hints, and as such we should not expect the CHECK-UNORDERED case to vectorize, even
+; with the -hints-allow-reordering flag set to true.
 define float @fast_induction_unordered_reduction(float* nocapture readonly %values, float %init, float* noalias nocapture %A, float* noalias nocapture %B, i64 %N) {
 
 ; CHECK-ORDERED-LABEL: @fast_induction_unordered_reduction
@@ -674,14 +740,586 @@ for.end:
   ret float %add6
 }
 
-!0 = distinct !{!0, !4, !7, !9}
-!1 = distinct !{!1, !4, !8, !9}
-!2 = distinct !{!2, !5, !7, !9}
-!3 = distinct !{!3, !6, !7, !9, !10}
-!4 = !{!"llvm.loop.vectorize.width", i32 8}
-!5 = !{!"llvm.loop.vectorize.width", i32 4}
-!6 = !{!"llvm.loop.vectorize.width", i32 2}
-!7 = !{!"llvm.loop.interleave.count", i32 1}
-!8 = !{!"llvm.loop.interleave.count", i32 4}
-!9 = !{!"llvm.loop.vectorize.enable", i1 true}
-!10 = !{!"llvm.loop.vectorize.predicate.enable", i1 true}
+; Test reductions for a VF of 1 and a UF > 1.
+define float @fadd_scalar_vf(float* noalias nocapture readonly %a, i64 %n) {
+; CHECK-ORDERED-LABEL: @fadd_scalar_vf
+; CHECK-ORDERED: vector.body
+; CHECK-ORDERED: %[[VEC_PHI:.*]] = phi float [ 0.000000e+00, {{.*}} ], [ %[[FADD4:.*]], %vector.body ]
+; CHECK-ORDERED: %[[LOAD1:.*]] = load float, float*
+; CHECK-ORDERED: %[[LOAD2:.*]] = load float, float*
+; CHECK-ORDERED: %[[LOAD3:.*]] = load float, float*
+; CHECK-ORDERED: %[[LOAD4:.*]] = load float, float*
+; CHECK-ORDERED: %[[FADD1:.*]] = fadd float %[[VEC_PHI]], %[[LOAD1]]
+; CHECK-ORDERED: %[[FADD2:.*]] = fadd float %[[FADD1]], %[[LOAD2]]
+; CHECK-ORDERED: %[[FADD3:.*]] = fadd float %[[FADD2]], %[[LOAD3]]
+; CHECK-ORDERED: %[[FADD4]] = fadd float %[[FADD3]], %[[LOAD4]]
+; CHECK-ORDERED-NOT: call float @llvm.vector.reduce.fadd
+; CHECK-ORDERED: scalar.ph
+; CHECK-ORDERED: %[[MERGE_RDX:.*]] = phi float [ 0.000000e+00, %entry ], [ %[[FADD4]], %middle.block ]
+; CHECK-ORDERED: for.body
+; CHECK-ORDERED: %[[SUM_PHI:.*]] = phi float [ %[[MERGE_RDX]], %scalar.ph ], [ %[[FADD5:.*]], %for.body ]
+; CHECK-ORDERED: %[[LOAD5:.*]] = load float, float*
+; CHECK-ORDERED: %[[FADD5]] = fadd float %[[LOAD5]], %[[SUM_PHI]]
+; CHECK-ORDERED: for.end
+; CHECK-ORDERED: %[[RES_PHI:.*]] = phi float [ %[[FADD5]], %for.body ], [ %[[FADD4]], %middle.block ]
+; CHECK-ORDERED: ret float %[[RES_PHI]]
+
+; CHECK-UNORDERED-LABEL: @fadd_scalar_vf
+; CHECK-UNORDERED: vector.body
+; CHECK-UNORDERED: %[[VEC_PHI1:.*]] = phi float [ 0.000000e+00, %vector.ph ], [ %[[FADD1:.*]], %vector.body ]
+; CHECK-UNORDERED: %[[VEC_PHI2:.*]] = phi float [ -0.000000e+00, %vector.ph ], [ %[[FADD2:.*]], %vector.body ]
+; CHECK-UNORDERED: %[[VEC_PHI3:.*]] = phi float [ -0.000000e+00, %vector.ph ], [ %[[FADD3:.*]], %vector.body ]
+; CHECK-UNORDERED: %[[VEC_PHI4:.*]] = phi float [ -0.000000e+00, %vector.ph ], [ %[[FADD4:.*]], %vector.body ]
+; CHECK-UNORDERED: %[[LOAD1:.*]] = load float, float*
+; CHECK-UNORDERED: %[[LOAD2:.*]] = load float, float*
+; CHECK-UNORDERED: %[[LOAD3:.*]] = load float, float*
+; CHECK-UNORDERED: %[[LOAD4:.*]] = load float, float*
+; CHECK-UNORDERED: %[[FADD1]] = fadd float %[[LOAD1]], %[[VEC_PHI1]]
+; CHECK-UNORDERED: %[[FADD2]] = fadd float %[[LOAD2]], %[[VEC_PHI2]]
+; CHECK-UNORDERED: %[[FADD3]] = fadd float %[[LOAD3]], %[[VEC_PHI3]]
+; CHECK-UNORDERED: %[[FADD4]] = fadd float %[[LOAD4]], %[[VEC_PHI4]]
+; CHECK-UNORDERED-NOT: call float @llvm.vector.reduce.fadd
+; CHECK-UNORDERED: middle.block
+; CHECK-UNORDERED: %[[BIN_RDX1:.*]] = fadd float %[[FADD2]], %[[FADD1]]
+; CHECK-UNORDERED: %[[BIN_RDX2:.*]] = fadd float %[[FADD3]], %[[BIN_RDX1]]
+; CHECK-UNORDERED: %[[BIN_RDX3:.*]] = fadd float %[[FADD4]], %[[BIN_RDX2]]
+; CHECK-UNORDERED: scalar.ph
+; CHECK-UNORDERED: %[[MERGE_RDX:.*]] = phi float [ 0.000000e+00, %entry ], [ %[[BIN_RDX3]], %middle.block ]
+; CHECK-UNORDERED: for.body
+; CHECK-UNORDERED: %[[SUM_PHI:.*]] = phi float [ %[[MERGE_RDX]], %scalar.ph ], [ %[[FADD5:.*]], %for.body ]
+; CHECK-UNORDERED: %[[LOAD5:.*]] = load float, float*
+; CHECK-UNORDERED: %[[FADD5]] = fadd float %[[LOAD5]], %[[SUM_PHI]]
+; CHECK-UNORDERED: for.end
+; CHECK-UNORDERED: %[[RES_PHI:.*]] = phi float [ %[[FADD5]], %for.body ], [ %[[BIN_RDX3]], %middle.block ]
+; CHECK-UNORDERED: ret float %[[RES_PHI]]
+
+; CHECK-NOT-VECTORIZED-LABEL: @fadd_scalar_vf
+; CHECK-NOT-VECTORIZED-NOT: @vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %add, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %add = fadd float %0, %sum.07
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !4
+
+for.end:
+  ret float %add
+}
+
+; Same as above but where fadd has a fast-math flag.
+define float @fadd_scalar_vf_fmf(float* noalias nocapture readonly %a, i64 %n) {
+; CHECK-ORDERED-LABEL: @fadd_scalar_vf_fmf
+; CHECK-ORDERED: vector.body:
+; CHECK-ORDERED: [[VEC_PHI:%.*]] = phi float [ 0.000000e+00, %vector.ph ], [ [[FADD4:%.*]], %vector.body ]
+; CHECK-ORDERED: [[LOAD1:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD2:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD3:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD4:%.*]] = load float, float*
+; CHECK-ORDERED: [[FADD1:%.*]] = fadd nnan float [[VEC_PHI]], [[LOAD1]]
+; CHECK-ORDERED: [[FADD2:%.*]] = fadd nnan float [[FADD1]], [[LOAD2]]
+; CHECK-ORDERED: [[FADD3:%.*]] = fadd nnan float [[FADD2]], [[LOAD3]]
+; CHECK-ORDERED: [[FADD4]] = fadd nnan float [[FADD3]], [[LOAD4]]
+; CHECK-ORDERED-NOT: @llvm.vector.reduce.fadd
+; CHECK-ORDERED: scalar.ph:
+; CHECK-ORDERED: [[MERGE_RDX:%.*]] = phi float [ 0.000000e+00, %entry ], [ [[FADD4]], %middle.block ]
+; CHECK-ORDERED: for.body:
+; CHECK-ORDERED: [[SUM_07:%.*]] = phi float [ [[MERGE_RDX]], %scalar.ph ], [ [[FADD5:%.*]], %for.body ]
+; CHECK-ORDERED: [[LOAD5:%.*]] = load float, float*
+; CHECK-ORDERED: [[FADD5]] = fadd nnan float [[LOAD5]], [[SUM_07]]
+; CHECK-ORDERED: for.end:
+; CHECK-ORDERED: [[RES:%.*]] = phi float [ [[FADD5]], %for.body ], [ [[FADD4]], %middle.block ]
+; CHECK-ORDERED: ret float [[RES]]
+
+; CHECK-UNORDERED-LABEL: @fadd_scalar_vf_fmf
+; CHECK-UNORDERED: vector.body:
+; CHECK-UNORDERED: [[VEC_PHI1:%.*]] = phi float [ 0.000000e+00, %vector.ph ], [ [[FADD1:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[VEC_PHI2:%.*]] = phi float [ -0.000000e+00, %vector.ph ], [ [[FADD2:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[VEC_PHI3:%.*]] = phi float [ -0.000000e+00, %vector.ph ], [ [[FADD3:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[VEC_PHI4:%.*]] = phi float [ -0.000000e+00, %vector.ph ], [ [[FADD4:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[LOAD1:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD2:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD3:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD4:%.*]] = load float, float*
+; CHECK-UNORDERED: [[FADD1]] = fadd nnan float [[LOAD1]], [[VEC_PHI1]]
+; CHECK-UNORDERED: [[FADD2]] = fadd nnan float [[LOAD2]], [[VEC_PHI2]]
+; CHECK-UNORDERED: [[FADD3]] = fadd nnan float [[LOAD3]], [[VEC_PHI3]]
+; CHECK-UNORDERED: [[FADD4]] = fadd nnan float [[LOAD4]], [[VEC_PHI4]]
+; CHECK-UNORDERED-NOT: @llvm.vector.reduce.fadd
+; CHECK-UNORDERED: middle.block:
+; CHECK-UNORDERED: [[BIN_RDX1:%.*]] = fadd nnan float [[FADD2]], [[FADD1]]
+; CHECK-UNORDERED: [[BIN_RDX2:%.*]] = fadd nnan float [[FADD3]], [[BIN_RDX1]]
+; CHECK-UNORDERED: [[BIN_RDX3:%.*]] = fadd nnan float [[FADD4]], [[BIN_RDX2]]
+; CHECK-UNORDERED: scalar.ph:
+; CHECK-UNORDERED: [[MERGE_RDX:%.*]] = phi float [ 0.000000e+00, %entry ], [ [[BIN_RDX3]], %middle.block ]
+; CHECK-UNORDERED: for.body:
+; CHECK-UNORDERED: [[SUM_07:%.*]] = phi float [ [[MERGE_RDX]], %scalar.ph ], [ [[FADD5:%.*]], %for.body ]
+; CHECK-UNORDERED: [[LOAD5:%.*]] = load float, float*
+; CHECK-UNORDERED: [[FADD5]] = fadd nnan float [[LOAD5]], [[SUM_07]]
+; CHECK-UORDERED: for.end
+; CHECK-UNORDERED: [[RES:%.*]] = phi float [ [[FADD5]], %for.body ], [ [[BIN_RDX3]], %middle.block ]
+; CHECK-UNORDERED: ret float [[RES]]
+
+; CHECK-NOT-VECTORIZED-LABEL: @fadd_scalar_vf_fmf
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %add, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %add = fadd nnan float %0, %sum.07
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !4
+
+for.end:
+  ret float %add
+}
+
+; Test case where the reduction step is a first-order recurrence.
+define double @reduction_increment_by_first_order_recurrence() {
+; CHECK-ORDERED-LABEL: @reduction_increment_by_first_order_recurrence(
+; CHECK-ORDERED:  vector.body:
+; CHECK-ORDERED:    [[RED:%.*]] = phi double [ 0.000000e+00, %vector.ph ], [ [[RED_NEXT:%.*]], %vector.body ]
+; CHECK-ORDERED:    [[VECTOR_RECUR:%.*]] = phi <4 x double> [ <double poison, double poison, double poison, double 0.000000e+00>, %vector.ph ], [ [[FOR_NEXT:%.*]], %vector.body ]
+; CHECK-ORDERED:    [[FOR_NEXT]] = sitofp <4 x i32> %vec.ind to <4 x double>
+; CHECK-ORDERED:    [[TMP1:%.*]] = shufflevector <4 x double> [[VECTOR_RECUR]], <4 x double> [[FOR_NEXT]], <4 x i32> <i32 3, i32 4, i32 5, i32 6>
+; CHECK-ORDERED:    [[RED_NEXT]] = call double @llvm.vector.reduce.fadd.v4f64(double [[RED]], <4 x double> [[TMP1]])
+; CHECK-ORDERED:  scalar.ph:
+; CHECK-ORDERED:    = phi double [ 0.000000e+00, %entry ], [ [[RED_NEXT]], %middle.block ]
+;
+; CHECK-UNORDERED-LABEL: @reduction_increment_by_first_order_recurrence(
+; CHECK-UNORDERED:  vector.body:
+; CHECK-UNORDERED:    [[RED:%.*]] = phi <4 x double> [ <double 0.000000e+00, double -0.000000e+00, double -0.000000e+00, double -0.000000e+00>, %vector.ph ], [ [[RED_NEXT:%.*]], %vector.body ]
+; CHECK-UNORDERED:    [[VECTOR_RECUR:%.*]] = phi <4 x double> [ <double poison, double poison, double poison, double 0.000000e+00>, %vector.ph ], [ [[FOR_NEXT:%.*]], %vector.body ]
+; CHECK-UNORDERED:    [[FOR_NEXT]] = sitofp <4 x i32> %vec.ind to <4 x double>
+; CHECK-UNORDERED:    [[TMP1:%.*]] = shufflevector <4 x double> [[VECTOR_RECUR]], <4 x double> [[FOR_NEXT]], <4 x i32> <i32 3, i32 4, i32 5, i32 6>
+; CHECK-UNORDERED:    [[RED_NEXT]] = fadd <4 x double> [[TMP1]], [[RED]]
+; CHECK-UNORDERED:  middle.block:
+; CHECK-UNORDERED:    [[RDX:%.*]] = call double @llvm.vector.reduce.fadd.v4f64(double -0.000000e+00, <4 x double> [[RED_NEXT]])
+; CHECK-UNORDERED:  scalar.ph:
+; CHECK-UNORDERED:    [[BC_MERGE_RDX:%.*]] = phi double [ 0.000000e+00, %entry ], [ [[RDX]], %middle.block ]
+;
+; CHECK-NOT-VECTORIZED-LABEL: @reduction_increment_by_first_order_recurrence(
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+;
+entry:
+  br label %loop
+
+loop:
+  %red = phi double [ 0.0, %entry ], [ %red.next, %loop ]
+  %for = phi double [ 0.0, %entry ], [ %for.next, %loop ]
+  %iv = phi i32 [ 0, %entry ], [ %iv.next, %loop ]
+  %red.next = fadd double %for, %red
+  %for.next = sitofp i32 %iv to double
+  %iv.next = add nsw i32 %iv, 1
+  %ec = icmp eq i32 %iv.next, 0
+  br i1 %ec, label %exit, label %loop, !llvm.loop !13
+
+exit:
+  %res = phi double [ %red.next, %loop ]
+  ret double %res
+}
+
+; We should not mark the fadd as an ordered reduction here as there are
+; more than 2 uses of the instruction
+define float @fadd_multiple_use(i64 %n) {
+; CHECK-ORDERED-LABEL: @fadd_multiple_use
+; CHECK-ORDERED-LABEL-NOT: vector.body
+
+; CHECK-UNORDERED-LABEL: @fadd_multiple_use
+; CHECK-UNORDERED-LABEL-NOT: vector.body
+
+; CHECK-NOT-VECTORIZED-LABEL: @fadd_multiple_use
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next2, %bb2 ]
+  %red = phi float [ 0.0, %entry ], [ %fadd, %bb2 ]
+  %phi1 = phi i64 [ 0, %entry ], [ %iv.next, %bb2 ]
+  %fadd = fadd float %red, 1.000000e+00
+  %iv.next = add nsw i64 %phi1, 1
+  %cmp = icmp ult i64 %iv, %n
+  br i1 %cmp, label %bb2, label %bb1
+
+bb1:
+  %phi2 = phi float [ %fadd, %for.body ]
+  ret float %phi2
+
+bb2:
+  %iv.next2 = add nuw nsw i64 %iv, 1
+  br i1 false, label %for.end, label %for.body
+
+for.end:
+  %phi3 = phi float [ %fadd, %bb2 ]
+  ret float %phi3
+}
+
+; Test case where the loop has a call to the llvm.fmuladd intrinsic.
+define float @fmuladd_strict(float* %a, float* %b, i64 %n) {
+; CHECK-ORDERED-LABEL: @fmuladd_strict
+; CHECK-ORDERED: vector.body:
+; CHECK-ORDERED: [[VEC_PHI:%.*]] = phi float [ 0.000000e+00, %vector.ph ], [ [[RDX3:%.*]], %vector.body ]
+; CHECK-ORDERED: [[WIDE_LOAD:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[WIDE_LOAD1:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[WIDE_LOAD2:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[WIDE_LOAD3:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[WIDE_LOAD4:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[WIDE_LOAD5:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[WIDE_LOAD6:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[WIDE_LOAD7:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-ORDERED: [[FMUL:%.*]] = fmul <8 x float> [[WIDE_LOAD]], [[WIDE_LOAD4]]
+; CHECK-ORDERED: [[FMUL1:%.*]] = fmul <8 x float> [[WIDE_LOAD1]], [[WIDE_LOAD5]]
+; CHECK-ORDERED: [[FMUL2:%.*]] = fmul <8 x float> [[WIDE_LOAD2]], [[WIDE_LOAD6]]
+; CHECK-ORDERED: [[FMUL3:%.*]] = fmul <8 x float> [[WIDE_LOAD3]], [[WIDE_LOAD7]]
+; CHECK-ORDERED: [[RDX:%.*]] = call float @llvm.vector.reduce.fadd.v8f32(float [[VEC_PHI]], <8 x float> [[FMUL]])
+; CHECK-ORDERED: [[RDX1:%.*]] = call float @llvm.vector.reduce.fadd.v8f32(float [[RDX]], <8 x float> [[FMUL1]])
+; CHECK-ORDERED: [[RDX2:%.*]] = call float @llvm.vector.reduce.fadd.v8f32(float [[RDX1]], <8 x float> [[FMUL2]])
+; CHECK-ORDERED: [[RDX3]] = call float @llvm.vector.reduce.fadd.v8f32(float [[RDX2]], <8 x float> [[FMUL3]])
+; CHECK-ORDERED: for.body:
+; CHECK-ORDERED: [[SUM_07:%.*]] = phi float [ {{.*}}, %scalar.ph ], [ [[MULADD:%.*]], %for.body ]
+; CHECK-ORDERED: [[LOAD:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD1:%.*]] = load float, float*
+; CHECK-ORDERED: [[MULADD]] = tail call float @llvm.fmuladd.f32(float [[LOAD]], float [[LOAD1]], float [[SUM_07]])
+; CHECK-ORDERED: for.end
+; CHECK-ORDERED: [[RES:%.*]] = phi float [ [[MULADD]], %for.body ], [ [[RDX3]], %middle.block ]
+
+; CHECK-UNORDERED-LABEL: @fmuladd_strict
+; CHECK-UNORDERED: vector.body:
+; CHECK-UNORDERED: [[VEC_PHI:%.*]] = phi <8 x float> [ <float 0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %vector.ph ], [ [[FMULADD:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[WIDE_LOAD:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[WIDE_LOAD1:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[WIDE_LOAD2:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[WIDE_LOAD3:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[WIDE_LOAD4:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[FMULADD]] = call <8 x float> @llvm.fmuladd.v8f32(<8 x float> [[WIDE_LOAD]], <8 x float> [[WIDE_LOAD4]], <8 x float> [[VEC_PHI]])
+; CHECK-UNORDERED-NOT: llvm.vector.reduce.fadd
+; CHECK-UNORDERED: middle.block:
+; CHECK-UNORDERED: [[BIN_RDX1:%.*]] = fadd <8 x float>
+; CHECK-UNORDERED: [[BIN_RDX2:%.*]] = fadd <8 x float>
+; CHECK-UNORDERED: [[BIN_RDX3:%.*]] = fadd <8 x float>
+; CHECK-UNORDERED: [[RDX:%.*]] = call float @llvm.vector.reduce.fadd.v8f32(float -0.000000e+00, <8 x float> [[BIN_RDX3]])
+; CHECK-UNORDERED: for.body:
+; CHECK-UNORDERED: [[SUM_07:%.*]] = phi float [ {{.*}}, %scalar.ph ], [  [[MULADD:%.*]], %for.body ]
+; CHECK-UNORDERED: [[LOAD:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD2:%.*]] = load float, float*
+; CHECK-UNORDERED: [[MULADD]] = tail call float @llvm.fmuladd.f32(float [[LOAD]], float [[LOAD2]], float [[SUM_07]])
+; CHECK-UNORDERED: for.end:
+; CHECK-UNORDERED: [[RES:%.*]] = phi float [ [[MULADD]], %for.body ], [ [[RDX]], %middle.block ]
+; CHECK-UNORDERED: ret float [[RES]]
+
+; CHECK-NOT-VECTORIZED-LABEL: @fmuladd_strict
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %muladd, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %arrayidx2 = getelementptr inbounds float, float* %b, i64 %iv
+  %1 = load float, float* %arrayidx2, align 4
+  %muladd = tail call float @llvm.fmuladd.f32(float %0, float %1, float %sum.07)
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !1
+
+for.end:
+  ret float %muladd
+}
+
+; Test reductions for a VF of 1 and a UF > 1 where the loop has a call to the llvm.fmuladd intrinsic.
+define float @fmuladd_scalar_vf(float* %a, float* %b, i64 %n) {
+; CHECK-ORDERED-LABEL: @fmuladd_scalar_vf
+; CHECK-ORDERED: vector.body:
+; CHECK-ORDERED: [[VEC_PHI:%.*]] = phi float [ 0.000000e+00, %vector.ph ], [ [[FADD3:%.*]], %vector.body ]
+; CHECK-ORDERED: [[LOAD:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD1:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD2:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD3:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD4:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD5:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD6:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD7:%.*]] = load float, float*
+; CHECK-ORDERED: [[FMUL:%.*]] = fmul float [[LOAD]], [[LOAD4]]
+; CHECK-ORDERED: [[FMUL1:%.*]] = fmul float [[LOAD1]], [[LOAD5]]
+; CHECK-ORDERED: [[FMUL2:%.*]] = fmul float [[LOAD2]], [[LOAD6]]
+; CHECK-ORDERED: [[FMUL3:%.*]] = fmul float [[LOAD3]], [[LOAD7]]
+; CHECK-ORDERED: [[FADD:%.*]] = fadd float [[VEC_PHI]], [[FMUL]]
+; CHECK-ORDERED: [[FADD1:%.*]] = fadd float [[FADD]], [[FMUL1]]
+; CHECK-ORDERED: [[FADD2:%.*]] = fadd float [[FADD1]], [[FMUL2]]
+; CHECK-ORDERED: [[FADD3]] = fadd float [[FADD2]], [[FMUL3]]
+; CHECK-ORDERED-NOT: llvm.vector.reduce.fadd
+; CHECK-ORDERED: scalar.ph
+; CHECK-ORDERED: [[MERGE_RDX:%.*]] = phi float [ 0.000000e+00, %entry ], [ [[FADD3]], %middle.block ]
+; CHECK-ORDERED: for.body
+; CHECK-ORDERED: [[SUM_07:%.*]] = phi float [ [[MERGE_RDX]], %scalar.ph ], [ [[MULADD:%.*]], %for.body ]
+; CHECK-ORDERED: [[LOAD8:%.*]] = load float, float*
+; CHECK-ORDERED: [[LOAD9:%.*]] = load float, float*
+; CHECK-ORDERED: [[MULADD]] = tail call float @llvm.fmuladd.f32(float [[LOAD8]], float [[LOAD9]], float [[SUM_07]])
+; CHECK-ORDERED: for.end
+; CHECK-ORDERED: [[RES:%.*]] = phi float [ [[MULADD]], %for.body ], [ [[FADD3]], %middle.block ]
+; CHECK-ORDERED: ret float [[RES]]
+
+; CHECK-UNORDERED-LABEL: @fmuladd_scalar_vf
+; CHECK-UNORDERED: vector.body:
+; CHECK-UNORDERED: [[VEC_PHI:%.*]] = phi float [ 0.000000e+00, %vector.ph ], [ [[FMULADD:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[VEC_PHI1:%.*]] = phi float [ -0.000000e+00, %vector.ph ], [ [[FMULADD1:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[VEC_PHI2:%.*]] = phi float [ -0.000000e+00, %vector.ph ], [ [[FMULADD2:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[VEC_PHI3:%.*]] = phi float [ -0.000000e+00, %vector.ph ], [ [[FMULADD3:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[LOAD:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD1:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD2:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD3:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD4:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD5:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD6:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD7:%.*]] = load float, float*
+; CHECK-UNORDERED: [[FMULADD]] = call float @llvm.fmuladd.f32(float [[LOAD]], float [[LOAD4]], float [[VEC_PHI]])
+; CHECK-UNORDERED: [[FMULADD1]] = call float @llvm.fmuladd.f32(float [[LOAD1]], float [[LOAD5]], float [[VEC_PHI1]])
+; CHECK-UNORDERED: [[FMULADD2]] = call float @llvm.fmuladd.f32(float [[LOAD2]], float [[LOAD6]], float [[VEC_PHI2]])
+; CHECK-UNORDERED: [[FMULADD3]] = call float @llvm.fmuladd.f32(float [[LOAD3]], float [[LOAD7]], float [[VEC_PHI3]])
+; CHECK-UNORDERED-NOT: llvm.vector.reduce.fadd
+; CHECK-UNORDERED: middle.block:
+; CHECK-UNORDERED: [[BIN_RDX:%.*]] = fadd float [[FMULADD1]], [[FMULADD]]
+; CHECK-UNORDERED: [[BIN_RDX1:%.*]] = fadd float [[FMULADD2]], [[BIN_RDX]]
+; CHECK-UNORDERED: [[BIN_RDX2:%.*]] = fadd float [[FMULADD3]], [[BIN_RDX1]]
+; CHECK-UNORDERED: scalar.ph:
+; CHECK-UNORDERED: [[MERGE_RDX:%.*]] = phi float [ 0.000000e+00, %entry ], [ [[BIN_RDX2]], %middle.block ]
+; CHECK-UNORDERED: for.body:
+; CHECK-UNORDERED: [[SUM_07:%.*]] = phi float [ [[MERGE_RDX]], %scalar.ph ], [ [[MULADD:%.*]], %for.body ]
+; CHECK-UNORDERED: [[LOAD8:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD9:%.*]] = load float, float*
+; CHECK-UNORDERED: [[MULADD]] = tail call float @llvm.fmuladd.f32(float [[LOAD8]], float [[LOAD9]], float [[SUM_07]])
+; CHECK-UNORDERED: for.end:
+; CHECK-UNORDERED: [[RES:%.*]] = phi float [ [[MULADD]], %for.body ], [ [[BIN_RDX2]], %middle.block ]
+; CHECK-UNORDERED: ret float [[RES]]
+
+; CHECK-NOT-VECTORIZED-LABEL: @fmuladd_scalar_vf
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %muladd, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %arrayidx2 = getelementptr inbounds float, float* %b, i64 %iv
+  %1 = load float, float* %arrayidx2, align 4
+  %muladd = tail call float @llvm.fmuladd.f32(float %0, float %1, float %sum.07)
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !4
+
+for.end:
+  ret float %muladd
+}
+
+; Test case where the reduction phi is one of the mul operands of the fmuladd.
+define float @fmuladd_phi_is_mul_operand(float* %a, float* %b, i64 %n) {
+; CHECK-ORDERED-LABEL: @fmuladd_phi_is_mul_operand
+; CHECK-ORDERED-NOT: vector.body
+
+; CHECK-UNORDERED-LABEL: @fmuladd_phi_is_mul_operand
+; CHECK-UNORDERED-NOT: vector.body
+
+; CHECK-NOT-VECTORIZED-LABEL: @fmuladd_phi_is_mul_operand
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %muladd, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %arrayidx2 = getelementptr inbounds float, float* %b, i64 %iv
+  %1 = load float, float* %arrayidx2, align 4
+  %muladd = tail call float @llvm.fmuladd.f32(float %sum.07, float %0, float %1)
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !1
+
+for.end:
+  ret float %muladd
+}
+
+; Test case where the reduction phi is two operands of the fmuladd.
+define float @fmuladd_phi_is_two_operands(float* %a, i64 %n) {
+; CHECK-ORDERED-LABEL: @fmuladd_phi_is_two_operands
+; CHECK-ORDERED-NOT: vector.body
+
+; CHECK-UNORDERED-LABEL: @fmuladd_phi_is_two_operands
+; CHECK-UNORDERED-NOT: vector.body
+
+; CHECK-NOT-VECTORIZED-LABEL: @fmuladd_phi_is_two_operands
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %muladd, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %muladd = tail call float @llvm.fmuladd.f32(float %sum.07, float %0, float %sum.07)
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !1
+
+for.end:
+  ret float %muladd
+}
+
+; Test case with multiple calls to llvm.fmuladd, which is not safe to reorder
+; so is only vectorized in the unordered (fast) case.
+define float @fmuladd_multiple(float* %a, float* %b, i64 %n) {
+; CHECK-ORDERED-LABEL: @fmuladd_multiple
+; CHECK-ORDERED-NOT: vector.body:
+
+; CHECK-UNORDERED-LABEL: @fmuladd_multiple
+; CHECK-UNORDERED: vector.body:
+; CHECK-UNORDERED: [[VEC_PHI:%.*]] = phi <8 x float> [ <float 0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00, float -0.000000e+00>, %vector.ph ], [ [[FMULADD2:%.*]], %vector.body ]
+; CHECK-UNORDERED: [[WIDE_LOAD:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[WIDE_LOAD1:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[WIDE_LOAD2:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[WIDE_LOAD3:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[WIDE_LOAD4:%.*]] = load <8 x float>, <8 x float>*
+; CHECK-UNORDERED: [[FMULADD:%.*]] = call <8 x float> @llvm.fmuladd.v8f32(<8 x float> [[WIDE_LOAD]], <8 x float> [[WIDE_LOAD4]], <8 x float> [[VEC_PHI]])
+; CHECK-UNORDERED: [[FMULADD2]] = call <8 x float> @llvm.fmuladd.v8f32(<8 x float> [[WIDE_LOAD]], <8 x float> [[WIDE_LOAD4]], <8 x float> [[FMULADD]])
+; CHECK-UNORDERED-NOT: llvm.vector.reduce.fadd
+; CHECK-UNORDERED: middle.block:
+; CHECK-UNORDERED: [[BIN_RDX1:%.*]] = fadd <8 x float>
+; CHECK-UNORDERED: [[BIN_RDX2:%.*]] = fadd <8 x float>
+; CHECK-UNORDERED: [[BIN_RDX3:%.*]] = fadd <8 x float>
+; CHECK-UNORDERED: [[RDX:%.*]] = call float @llvm.vector.reduce.fadd.v8f32(float -0.000000e+00, <8 x float> [[BIN_RDX3]])
+; CHECK-UNORDERED: for.body:
+; CHECK-UNORDERED: [[SUM_07:%.*]] = phi float [ {{.*}}, %scalar.ph ], [ [[MULADD2:%.*]], %for.body ]
+; CHECK-UNORDERED: [[LOAD:%.*]] = load float, float*
+; CHECK-UNORDERED: [[LOAD2:%.*]] = load float, float*
+; CHECK-UNORDERED: [[MULADD:%.*]] = tail call float @llvm.fmuladd.f32(float [[LOAD]], float [[LOAD2]], float [[SUM_07]])
+; CHECK-UNORDERED: [[MULADD2]] = tail call float @llvm.fmuladd.f32(float [[LOAD]], float [[LOAD2]], float [[MULADD]])
+; CHECK-UNORDERED: for.end:
+; CHECK-UNORDERED: [[RES:%.*]] = phi float [ [[MULADD2]], %for.body ], [ [[RDX]], %middle.block ]
+; CHECK-UNORDERED: ret float [[RES]]
+
+; CHECK-NOT-VECTORIZED-LABEL: @fmuladd_multiple
+; CHECK-NOT-VECTORIZED-NOT: vector.body:
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %muladd2, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %arrayidx2 = getelementptr inbounds float, float* %b, i64 %iv
+  %1 = load float, float* %arrayidx2, align 4
+  %muladd = tail call float @llvm.fmuladd.f32(float %0, float %1, float %sum.07)
+  %muladd2 = tail call float @llvm.fmuladd.f32(float %0, float %1, float %muladd)
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !1
+
+for.end:
+  ret float %muladd2
+}
+
+; Same as above but the first fmuladd is one of the mul operands of the second fmuladd.
+define float @multiple_fmuladds_mul_operand(float* %a, float* %b, i64 %n) {
+; CHECK-ORDERED-LABEL: @multiple_fmuladds_mul_operand
+; CHECK-ORDERED-NOT: vector.body
+
+; CHECK-UNORDERED-LABEL: @multiple_fmuladds_mul_operand
+; CHECK-UNORDERED-NOT: vector.body
+
+; CHECK-NOT-VECTORIZED-LABEL: @multiple_fmuladds_mul_operand
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %muladd2, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %arrayidx2 = getelementptr inbounds float, float* %b, i64 %iv
+  %1 = load float, float* %arrayidx2, align 4
+  %muladd = tail call float @llvm.fmuladd.f32(float %0, float %1, float %sum.07)
+  %muladd2 = tail call float @llvm.fmuladd.f32(float %0, float %muladd, float %1)
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !1
+
+for.end:
+  ret float %muladd2
+}
+
+; Same as above but the first fmuladd is two of the operands of the second fmuladd.
+define float @multiple_fmuladds_two_operands(float* %a, float* %b, i64 %n) {
+; CHECK-ORDERED-LABEL: @multiple_fmuladds_two_operands
+; CHECK-ORDERED-NOT: vector.body
+
+; CHECK-UNORDERED-LABEL: @multiple_fmuladds_two_operands
+; CHECK-UNORDERED-NOT: vector.body
+
+; CHECK-NOT-VECTORIZED-LABEL: @multiple_fmuladds_two_operands
+; CHECK-NOT-VECTORIZED-NOT: vector.body
+
+entry:
+  br label %for.body
+
+for.body:
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %sum.07 = phi float [ 0.000000e+00, %entry ], [ %muladd2, %for.body ]
+  %arrayidx = getelementptr inbounds float, float* %a, i64 %iv
+  %0 = load float, float* %arrayidx, align 4
+  %arrayidx2 = getelementptr inbounds float, float* %b, i64 %iv
+  %1 = load float, float* %arrayidx2, align 4
+  %muladd = tail call float @llvm.fmuladd.f32(float %0, float %1, float %sum.07)
+  %muladd2 = tail call float @llvm.fmuladd.f32(float %0, float %muladd, float %muladd)
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exitcond.not = icmp eq i64 %iv.next, %n
+  br i1 %exitcond.not, label %for.end, label %for.body, !llvm.loop !1
+
+for.end:
+  ret float %muladd2
+}
+
+declare float @llvm.fmuladd.f32(float, float, float)
+
+!0 = distinct !{!0, !5, !9, !11}
+!1 = distinct !{!1, !5, !10, !11}
+!2 = distinct !{!2, !6, !9, !11}
+!3 = distinct !{!3, !7, !9, !11, !12}
+!4 = distinct !{!4, !8, !10, !11}
+!5 = !{!"llvm.loop.vectorize.width", i32 8}
+!6 = !{!"llvm.loop.vectorize.width", i32 4}
+!7 = !{!"llvm.loop.vectorize.width", i32 2}
+!8 = !{!"llvm.loop.vectorize.width", i32 1}
+!9 = !{!"llvm.loop.interleave.count", i32 1}
+!10 = !{!"llvm.loop.interleave.count", i32 4}
+!11 = !{!"llvm.loop.vectorize.enable", i1 true}
+!12 = !{!"llvm.loop.vectorize.predicate.enable", i1 true}
+!13 = distinct !{!13, !6, !9, !11}

@@ -5,6 +5,11 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
+; XFAIL: *
+; The language ID is not preserved when translating from .ll to .spv
+; and back to .ll. This causes the LLVM IR verifier to fail as there
+; are different rules for valid DISubRange depending on language ID.
+
 ; CHECK-LLVM: !DISubrange(lowerBound: 1)
 
 source_filename = "llvm-link"

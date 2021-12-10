@@ -16,7 +16,6 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemAlloc.h"
 #include "llvm/Support/type_traits.h"
 #include <algorithm>
@@ -24,6 +23,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
@@ -1239,13 +1239,22 @@ inline size_t capacity_in_bytes(const SmallVector<T, N> &X) {
   return X.capacity_in_bytes();
 }
 
+template <typename RangeType>
+using ValueTypeFromRangeType =
+    typename std::remove_const<typename std::remove_reference<
+        decltype(*std::begin(std::declval<RangeType &>()))>::type>::type;
+
 /// Given a range of type R, iterate the entire range and return a
 /// SmallVector with elements of the vector.  This is useful, for example,
 /// when you want to iterate a range and then sort the results.
 template <unsigned Size, typename R>
-SmallVector<typename std::remove_const<typename std::remove_reference<
-                decltype(*std::begin(std::declval<R &>()))>::type>::type,
-            Size>
+SmallVector<ValueTypeFromRangeType<R>, Size> to_vector(R &&Range) {
+  return {std::begin(Range), std::end(Range)};
+}
+template <typename R>
+SmallVector<ValueTypeFromRangeType<R>,
+            CalculateSmallVectorDefaultInlinedElements<
+                ValueTypeFromRangeType<R>>::value>
 to_vector(R &&Range) {
   return {std::begin(Range), std::end(Range)};
 }

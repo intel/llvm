@@ -119,7 +119,7 @@ void OCLTypeToSPIRVBase::addWork(Function *F) {
 
 /// Find index of \param V as argument of function call \param CI.
 static unsigned getArgIndex(CallInst *CI, Value *V) {
-  for (unsigned AI = 0, AE = CI->getNumArgOperands(); AI != AE; ++AI) {
+  for (unsigned AI = 0, AE = CI->arg_size(); AI != AE; ++AI) {
     if (CI->getArgOperand(AI) == V)
       return AI;
   }

@@ -21,6 +21,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
+#include "clang/Lex/HeaderSearch.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/StringRef.h"
@@ -128,6 +129,9 @@ llvm::StringRef toSourceCode(const SourceManager &SM, SourceRange R);
 // Converts a half-open clang source range to an LSP range.
 // Note that clang also uses closed source ranges, which this can't handle!
 Range halfOpenToRange(const SourceManager &SM, CharSourceRange R);
+
+// Expand range `A` to also contain `B`.
+void unionRanges(Range &A, Range B);
 
 // Converts an offset to a clang line/column (1-based, columns are bytes).
 // The offset must be in range [0, Code.size()].
@@ -320,6 +324,11 @@ bool isHeaderFile(llvm::StringRef FileName,
 
 /// Returns true if the given location is in a generated protobuf file.
 bool isProtoFile(SourceLocation Loc, const SourceManager &SourceMgr);
+
+/// This scans source code, and should not be called when using a preamble.
+/// Prefer to access the cache in IncludeStructure::isSelfContained if you can.
+bool isSelfContainedHeader(const FileEntry *FE, FileID ID,
+                           const SourceManager &SM, HeaderSearch &HeaderInfo);
 
 } // namespace clangd
 } // namespace clang

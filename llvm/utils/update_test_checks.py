@@ -113,7 +113,8 @@ def main():
     builder = common.FunctionTestBuilder(
       run_list=prefix_list,
       flags=ti.args,
-      scrubber_args=[])
+      scrubber_args=[],
+      path=ti.path)
 
     for prefixes, opt_args, preprocess_cmd in prefix_list:
       common.debug('Extracted opt cmd: ' + opt_basename + ' ' + opt_args)
@@ -123,7 +124,7 @@ def main():
                                            ti.path, preprocess_cmd=preprocess_cmd,
                                            verbose=ti.args.verbose)
       builder.process_run_line(common.OPT_FUNCTION_RE, common.scrub_body,
-              raw_tool_output, prefixes)
+              raw_tool_output, prefixes, False)
 
     func_dict = builder.finish_and_get_func_dict()
     is_in_function = False

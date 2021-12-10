@@ -220,8 +220,7 @@ bool LazyCallGraph::invalidate(Module &, const PreservedAnalyses &PA,
   // Check whether the analysis, all analyses on functions, or the function's
   // CFG have been preserved.
   auto PAC = PA.getChecker<llvm::LazyCallGraphAnalysis>();
-  return !(PAC.preserved() || PAC.preservedSet<AllAnalysesOn<Module>>() ||
-           PAC.preservedSet<CFGAnalyses>());
+  return !(PAC.preserved() || PAC.preservedSet<AllAnalysesOn<Module>>());
 }
 
 LazyCallGraph &LazyCallGraph::operator=(LazyCallGraph &&G) {
@@ -241,7 +240,7 @@ LLVM_DUMP_METHOD void LazyCallGraph::SCC::dump() const {
 }
 #endif
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(EXPENSIVE_CHECKS)
 void LazyCallGraph::SCC::verify() {
   assert(OuterRefSCC && "Can't have a null RefSCC!");
   assert(!Nodes.empty() && "Can't have an empty SCC!");
@@ -333,7 +332,7 @@ LLVM_DUMP_METHOD void LazyCallGraph::RefSCC::dump() const {
 }
 #endif
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) || defined(EXPENSIVE_CHECKS)
 void LazyCallGraph::RefSCC::verify() {
   assert(G && "Can't have a null graph!");
   assert(!SCCs.empty() && "Can't have an empty SCC!");
@@ -1960,6 +1959,29 @@ void LazyCallGraph::buildRefSCCs() {
         NewRC->verify();
 #endif
       });
+}
+
+void LazyCallGraph::visitReferences(SmallVectorImpl<Constant *> &Worklist,
+                                    SmallPtrSetImpl<Constant *> &Visited,
+                                    function_ref<void(Function &)> Callback) {
+  while (!Worklist.empty()) {
+    Constant *C = Worklist.pop_back_val();
+
+    if (Function *F = dyn_cast<Function>(C)) {
+      if (!F->isDeclaration())
+        Callback(*F);
+      continue;
+    }
+
+    // blockaddresses are weird and don't participate in the call graph anyway,
+    // skip them.
+    if (isa<BlockAddress>(C))
+      continue;
+
+    for (Value *Op : C->operand_values())
+      if (Visited.insert(cast<Constant>(Op)).second)
+        Worklist.push_back(cast<Constant>(Op));
+  }
 }
 
 AnalysisKey LazyCallGraphAnalysis::Key;

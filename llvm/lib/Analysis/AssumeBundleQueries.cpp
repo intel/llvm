@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "assume-queries"
-
 #include "llvm/Analysis/AssumeBundleQueries.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -17,6 +15,8 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/DebugCounter.h"
+
+#define DEBUG_TYPE "assume-queries"
 
 using namespace llvm;
 using namespace llvm::PatternMatch;
@@ -44,7 +44,7 @@ bool llvm::hasAttributeInAssume(AssumeInst &Assume, Value *IsOn,
                                 StringRef AttrName, uint64_t *ArgVal) {
   assert(Attribute::isExistingAttribute(AttrName) &&
          "this attribute doesn't exist");
-  assert((ArgVal == nullptr || Attribute::doesAttrKindHaveArgument(
+  assert((ArgVal == nullptr || Attribute::isIntAttrKind(
                                    Attribute::getAttrKindFromName(AttrName))) &&
          "requested value for an attribute that has no argument");
   if (Assume.bundle_op_infos().empty())
@@ -84,7 +84,7 @@ void llvm::fillMapFromAssume(AssumeInst &Assume, RetainedKnowledgeMap &Result) {
         getValueFromBundleOpInfo(Assume, Bundles, ABA_Argument));
     if (!CI)
       continue;
-    unsigned Val = CI->getZExtValue();
+    uint64_t Val = CI->getZExtValue();
     auto Lookup = Result.find(Key);
     if (Lookup == Result.end() || !Lookup->second.count(&Assume)) {
       Result[Key][&Assume] = {Val, Val};
@@ -102,7 +102,7 @@ llvm::getKnowledgeFromBundle(AssumeInst &Assume,
   Result.AttrKind = Attribute::getAttrKindFromName(BOI.Tag->getKey());
   if (bundleHasArgument(BOI, ABA_WasOn))
     Result.WasOn = getValueFromBundleOpInfo(Assume, BOI, ABA_WasOn);
-  auto GetArgOr1 = [&](unsigned Idx) -> unsigned {
+  auto GetArgOr1 = [&](unsigned Idx) -> uint64_t {
     if (auto *ConstInt = dyn_cast<ConstantInt>(
             getValueFromBundleOpInfo(Assume, BOI, ABA_Argument + Idx)))
       return ConstInt->getZExtValue();
@@ -130,10 +130,10 @@ bool llvm::isAssumeWithEmptyBundle(AssumeInst &Assume) {
 }
 
 static CallInst::BundleOpInfo *getBundleFromUse(const Use *U) {
-  auto *Intr = dyn_cast<IntrinsicInst>(U->getUser());
   if (!match(U->getUser(),
              m_Intrinsic<Intrinsic::assume>(m_Unless(m_Specific(U->get())))))
     return nullptr;
+  auto *Intr = cast<IntrinsicInst>(U->getUser());
   return &Intr->getBundleOpInfoForOperand(U->getOperandNo());
 }
 

@@ -30,8 +30,7 @@ class ForwardDeclarationTestCase(TestBase):
                              'stop reason = breakpoint'])
 
         # The breakpoint should have a hit count of 1.
-        self.expect("breakpoint list -f", BREAKPOINT_HIT_ONCE,
-                    substrs=[' resolved, hit count = 1'])
+        lldbutil.check_breakpoint(self, bpno = 1, expected_hit_count = 1)
 
         # This should display correctly.
         # Note that the member fields of a = 1 and b = 2 is by design.
@@ -58,7 +57,7 @@ class ForwardDeclarationTestCase(TestBase):
     @no_debug_info_test
     @skipIfDarwin
     @skipIf(compiler=no_match("clang"))
-    @skipIf(compiler_version=["<", "7.0"])
+    @skipIf(compiler_version=["<", "8.0"])
     @expectedFailureAll(oslist=["windows"])
     def test_debug_names(self):
         """Test that we are able to find complete types when using DWARF v5

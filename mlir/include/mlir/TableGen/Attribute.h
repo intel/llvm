@@ -32,7 +32,7 @@ class Type;
 // in TableGen.
 class AttrConstraint : public Constraint {
 public:
-  explicit AttrConstraint(const llvm::Record *record);
+  using Constraint::Constraint;
 
   static bool classof(const Constraint *c) { return c->getKind() == CK_Attr; }
 
@@ -50,7 +50,7 @@ public:
   explicit Attribute(const llvm::DefInit *init);
 
   // Returns the storage type if set. Returns the default storage type
-  // ("Attribute") otherwise.
+  // ("::mlir::Attribute") otherwise.
   StringRef getStorageType() const;
 
   // Returns the return type for this attribute.

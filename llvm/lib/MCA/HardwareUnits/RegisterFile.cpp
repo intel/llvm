@@ -30,6 +30,8 @@ WriteRef::WriteRef(unsigned SourceIndex, WriteState *WS)
 
 void WriteRef::commit() {
   assert(Write && Write->isExecuted() && "Cannot commit before write back!");
+  RegisterID = Write->getRegisterID();
+  WriteResID = Write->getWriteResourceID();
   Write = nullptr;
 }
 
@@ -107,7 +109,12 @@ void RegisterFile::onInstructionExecuted(Instruction *IS) {
       return;
 
     MCPhysReg RegID = WS.getRegisterID();
-    assert(RegID != 0 && "A write of an invalid register?");
+
+    // This allows InstrPostProcess to remove register Defs
+    // by setting their RegisterID to 0.
+    if (!RegID)
+      continue;
+
     assert(WS.getCyclesLeft() != UNKNOWN_CYCLES &&
            "The number of cycles should be known at this point!");
     assert(WS.getCyclesLeft() <= 0 && "Invalid cycles left for this write!");
@@ -222,11 +229,15 @@ void RegisterFile::addRegisterWrite(WriteRef Write,
                                     MutableArrayRef<unsigned> UsedPhysRegs) {
   WriteState &WS = *Write.getWriteState();
   MCPhysReg RegID = WS.getRegisterID();
-  assert(RegID && "Adding an invalid register definition?");
+
+  // This allows InstrPostProcess to remove register Defs
+  // by setting their RegisterID to 0.
+  if (!RegID)
+    return;
 
   LLVM_DEBUG({
-    dbgs() << "RegisterFile: addRegisterWrite [ " << Write.getSourceIndex()
-           << ", " << MRI.getName(RegID) << "]\n";
+    dbgs() << "[PRF] addRegisterWrite [ " << Write.getSourceIndex() << ", "
+           << MRI.getName(RegID) << "]\n";
   });
 
   // If RenameAs is equal to RegID, then RegID is subject to register renaming
@@ -277,6 +288,19 @@ void RegisterFile::addRegisterWrite(WriteRef Write,
   // If this move has been eliminated, then method tryEliminateMoveOrSwap should
   // have already updated all the register mappings.
   if (!IsEliminated) {
+    // Check if this is one of multiple writes performed by this
+    // instruction to register RegID.
+    const WriteRef &OtherWrite = RegisterMappings[RegID].first;
+    const WriteState *OtherWS = OtherWrite.getWriteState();
+    if (OtherWS && OtherWrite.getSourceIndex() == Write.getSourceIndex()) {
+      if (OtherWS->getLatency() > WS.getLatency()) {
+        // Conservatively keep the slowest write on RegID.
+        if (ShouldAllocatePhysRegs)
+          allocatePhysRegs(RegisterMappings[RegID].second, UsedPhysRegs);
+        return;
+      }
+    }
+
     // Update the mapping for register RegID including its sub-registers.
     RegisterMappings[RegID].first = Write;
     RegisterMappings[RegID].second.AliasRegID = 0U;
@@ -314,7 +338,11 @@ void RegisterFile::removeRegisterWrite(
 
   MCPhysReg RegID = WS.getRegisterID();
 
-  assert(RegID != 0 && "Invalidating an already invalid register?");
+  // This allows InstrPostProcess to remove register Defs
+  // by setting their RegisterID to 0.
+  if (!RegID)
+    return;
+
   assert(WS.getCyclesLeft() != UNKNOWN_CYCLES &&
          "Invalidating a write of unknown cycles!");
   assert(WS.getCyclesLeft() <= 0 && "Invalid cycles left for this write!");
@@ -480,7 +508,7 @@ void RegisterFile::collectWrites(
   const MCSchedClassDesc *SC = SM.getSchedClassDesc(RD.SchedClassID);
   MCPhysReg RegID = RS.getRegisterID();
   assert(RegID && RegID < RegisterMappings.size());
-  LLVM_DEBUG(dbgs() << "RegisterFile: collecting writes for register "
+  LLVM_DEBUG(dbgs() << "[PRF] collecting writes for register "
                     << MRI.getName(RegID) << '\n');
 
   // Check if this is an alias.
@@ -534,6 +562,57 @@ void RegisterFile::collectWrites(
              << WR.getSourceIndex() << ")\n";
     }
   });
+}
+
+RegisterFile::RAWHazard
+RegisterFile::checkRAWHazards(const MCSubtargetInfo &STI,
+                              const ReadState &RS) const {
+  RAWHazard Hazard;
+  SmallVector<WriteRef, 4> Writes;
+  SmallVector<WriteRef, 4> CommittedWrites;
+
+  const MCSchedModel &SM = STI.getSchedModel();
+  const ReadDescriptor &RD = RS.getDescriptor();
+  const MCSchedClassDesc *SC = SM.getSchedClassDesc(RD.SchedClassID);
+
+  collectWrites(STI, RS, Writes, CommittedWrites);
+  for (const WriteRef &WR : Writes) {
+    const WriteState *WS = WR.getWriteState();
+    unsigned WriteResID = WS->getWriteResourceID();
+    int ReadAdvance = STI.getReadAdvanceCycles(SC, RD.UseIndex, WriteResID);
+
+    if (WS->getCyclesLeft() == UNKNOWN_CYCLES) {
+      if (Hazard.isValid())
+        continue;
+
+      Hazard.RegisterID = WR.getRegisterID();
+      Hazard.CyclesLeft = UNKNOWN_CYCLES;
+      continue;
+    }
+
+    int CyclesLeft = WS->getCyclesLeft() - ReadAdvance;
+    if (CyclesLeft > 0) {
+      if (Hazard.CyclesLeft < CyclesLeft) {
+        Hazard.RegisterID = WR.getRegisterID();
+        Hazard.CyclesLeft = CyclesLeft;
+      }
+    }
+  }
+  Writes.clear();
+
+  for (const WriteRef &WR : CommittedWrites) {
+    unsigned WriteResID = WR.getWriteResourceID();
+    int NegReadAdvance = -STI.getReadAdvanceCycles(SC, RD.UseIndex, WriteResID);
+    int Elapsed = static_cast<int>(getElapsedCyclesFromWriteBack(WR));
+    int CyclesLeft = NegReadAdvance - Elapsed;
+    assert(CyclesLeft > 0 && "Write should not be in the CommottedWrites set!");
+    if (Hazard.CyclesLeft < CyclesLeft) {
+      Hazard.RegisterID = WR.getRegisterID();
+      Hazard.CyclesLeft = CyclesLeft;
+    }
+  }
+
+  return Hazard;
 }
 
 void RegisterFile::addRegisterRead(ReadState &RS,
@@ -608,7 +687,8 @@ unsigned RegisterFile::isAvailable(ArrayRef<MCPhysReg> Regs) const {
       // microarchitectural registers in register file #0 was changed by the
       // users via flag -reg-file-size. Alternatively, the scheduling model
       // specified a too small number of registers for this register file.
-      LLVM_DEBUG(dbgs() << "Not enough registers in the register file.\n");
+      LLVM_DEBUG(
+          dbgs() << "[PRF] Not enough registers in the register file.\n");
 
       // FIXME: Normalize the instruction register count to match the
       // NumPhysRegs value.  This is a highly unusual case, and is not expected

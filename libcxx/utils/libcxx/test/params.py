@@ -8,6 +8,7 @@
 
 from libcxx.test.dsl import *
 from libcxx.test.features import _isMSVC
+import re
 
 _warningFlags = [
   '-Werror',
@@ -53,20 +54,13 @@ def getStdFlag(cfg, std):
   return None
 
 DEFAULT_PARAMETERS = [
-  # Core parameters of the test suite
-  Parameter(name='target_triple', type=str, default=getHostTriple,
+  Parameter(name='target_triple', type=str,
             help="The target triple to compile the test suite for. This must be "
                  "compatible with the target that the tests will be run on.",
             actions=lambda triple: filter(None, [
-              AddFeature(triple),
+              AddFeature('target={}'.format(triple)),
               AddFlagIfSupported('--target={}'.format(triple)),
-              AddFeature('linux-gnu') if re.match(r'^.*-linux-gnu', triple) else None,
-              AddFeature('x86_64-linux') if re.match(r'^x86_64.*-linux', triple) else None,
-              AddFeature('x86_64-apple') if re.match(r'^x86_64.*-apple', triple) else None,
-              AddFeature('target-x86') if re.match(r'^i.86.*', triple) else None,
-              AddFeature('target-x86_64') if re.match(r'^x86_64.*', triple) else None,
-              AddFeature('target-aarch64') if re.match(r'^aarch64.*', triple) else None,
-              AddFeature('target-arm') if re.match(r'^arm.*', triple) else None,
+              AddSubstitution('%{triple}', triple)
             ])),
 
   Parameter(name='std', choices=_allStandards, type=str,
@@ -76,6 +70,14 @@ DEFAULT_PARAMETERS = [
               AddFeature(std),
               AddCompileFlag(lambda cfg: getStdFlag(cfg, std)),
             ]),
+
+  Parameter(name='enable_modules', choices=[True, False], type=bool, default=False,
+            help="Whether to build the test suite with Clang modules enabled.",
+            actions=lambda modules: [
+              AddFeature('modules-build'),
+              AddCompileFlag('-fmodules'),
+              AddCompileFlag('-Xclang -fmodules-local-submodule-visibility'),
+            ] if modules else []),
 
   Parameter(name='enable_exceptions', choices=[True, False], type=bool, default=True,
             help="Whether to enable exceptions when compiling the test suite.",
@@ -91,11 +93,27 @@ DEFAULT_PARAMETERS = [
               AddCompileFlag('-fno-rtti')
             ]),
 
-  Parameter(name='stdlib', choices=['libc++', 'libstdc++', 'msvc'], type=str, default='libc++',
-            help="The C++ Standard Library implementation being tested.",
-            actions=lambda stdlib: [
-              AddFeature(stdlib)
-            ]),
+  Parameter(name='stdlib', choices=['llvm-libc++', 'apple-libc++', 'libstdc++', 'msvc'], type=str, default='llvm-libc++',
+            help="""The C++ Standard Library implementation being tested.
+
+                 Note that this parameter can also be used to encode different 'flavors' of the same
+                 standard library, such as libc++ as shipped by a different vendor, if it has different
+                 properties worth testing.
+
+                 The Standard libraries currently supported are:
+                 - llvm-libc++: The 'upstream' libc++ as shipped with LLVM.
+                 - apple-libc++: libc++ as shipped by Apple. This is basically like the LLVM one, but
+                                 there are a few differences like installation paths and the use of
+                                 universal dylibs.
+                 - libstdc++: The GNU C++ library typically shipped with GCC.
+                 - msvc: The Microsoft implementation of the C++ Standard Library.
+                """,
+            actions=lambda stdlib: filter(None, [
+              AddFeature('stdlib={}'.format(stdlib)),
+              # Also add an umbrella feature 'stdlib=libc++' for all flavors of libc++, to simplify
+              # the test suite.
+              AddFeature('stdlib=libc++') if re.match('.+-libc\+\+', stdlib) else None
+            ])),
 
   Parameter(name='enable_warnings', choices=[True, False], type=bool, default=True,
             help="Whether to enable warnings when compiling the test suite.",
@@ -105,10 +123,11 @@ DEFAULT_PARAMETERS = [
 
   Parameter(name='debug_level', choices=['', '0', '1'], type=str, default='',
             help="The debugging level to enable in the test suite.",
-            actions=lambda debugLevel: [] if debugLevel == '' else [
+            actions=lambda debugLevel: [] if debugLevel == '' else filter(None, [
               AddFeature('debug_level={}'.format(debugLevel)),
-              AddCompileFlag('-D_LIBCPP_DEBUG={}'.format(debugLevel))
-            ]),
+              AddCompileFlag('-D_LIBCPP_DEBUG={}'.format(debugLevel)),
+              AddFeature('LIBCXX-DEBUG-FIXME') if debugLevel == '1' else None
+            ])),
 
   Parameter(name='use_sanitizer', choices=['', 'Address', 'Undefined', 'Memory', 'MemoryWithOrigins', 'Thread', 'DataFlow', 'Leaks'], type=str, default='',
             help="An optional sanitizer to enable when building and running the test suite.",
@@ -134,8 +153,7 @@ DEFAULT_PARAMETERS = [
               AddFeature('sanitizer-new-delete') if sanitizer in ['Address', 'Memory', 'MemoryWithOrigins', 'Thread'] else None,
             ])),
 
-  # Parameters to enable or disable parts of the test suite
-  Parameter(name='enable_experimental', choices=[True, False], type=bool, default=False,
+  Parameter(name='enable_experimental', choices=[True, False], type=bool, default=True,
             help="Whether to enable tests for experimental C++ libraries (typically Library Fundamentals TSes).",
             actions=lambda experimental: [] if not experimental else [
               AddFeature('c++experimental'),
@@ -158,6 +176,12 @@ DEFAULT_PARAMETERS = [
             actions=lambda enabled: [] if enabled else [
               AddFeature('libcxx-no-debug-mode')
             ]),
+
+  Parameter(name='additional_features', type=list, default=[],
+            help="A comma-delimited list of additional features that will be enabled when running the tests. "
+                 "This should be used sparingly since specifying ad-hoc features manually is error-prone and "
+                 "brittle in the long run as changes are made to the test suite.",
+            actions=lambda features: [AddFeature(f) for f in features]),
 ]
 
 DEFAULT_PARAMETERS += [

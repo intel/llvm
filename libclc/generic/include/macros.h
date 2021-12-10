@@ -14,4 +14,10 @@
 
 #define NULL ((void*)0)
 
+#define __kernel_exec(X, typen) __kernel \
+                                __attribute__((work_group_size_hint(X, 1, 1))) \
+                                __attribute__((vec_type_hint(typen)))
+
+#define kernel_exec(X, typen) __kernel_exec(X, typen)
+
 #endif // CLC_MACROS

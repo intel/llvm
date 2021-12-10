@@ -1,6 +1,10 @@
 add_mlir_dialect_library(MLIRVector
+  VectorDropLeadUnitDim.cpp
+  VectorInsertExtractStridedSliceRewritePatterns.cpp
+  VectorMultiDimReductionTransforms.cpp
   VectorOps.cpp
   VectorTransferOpTransforms.cpp
+  VectorTransferPermutationMapRewritePatterns.cpp
   VectorTransforms.cpp
   VectorUtils.cpp
 
@@ -12,6 +16,7 @@ add_mlir_dialect_library(MLIRVector
   MLIRVectorOpsEnumsIncGen
 
   LINK_LIBS PUBLIC
+  MLIRArithmetic
   MLIRDialectUtils
   MLIRIR
   MLIRStandard

@@ -8,7 +8,8 @@
 #ifndef MLIR_CONVERSION_GPUTONVVM_GPUTONVVMPASS_H_
 #define MLIR_CONVERSION_GPUTONVVM_GPUTONVVMPASS_H_
 
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include <memory>
 
 namespace mlir {
@@ -22,7 +23,10 @@ class OperationPass;
 
 namespace gpu {
 class GPUModuleOp;
+class MMAMatrixType;
 }
+
+LLVM::LLVMStructType convertMMAToLLVMType(gpu::MMAMatrixType type);
 
 /// Configure target to convert from the GPU dialect to NVVM.
 void configureGpuToNVVMConversionLegality(ConversionTarget &target);

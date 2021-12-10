@@ -16,6 +16,9 @@
 using namespace lldb_private;
 using namespace lldb_private::repro;
 
+// Whether we're currently across the API boundary.
+static thread_local bool g_global_boundary = false;
+
 void *IndexToObject::GetObjectForIndexImpl(unsigned idx) {
   return m_mapping.lookup(idx);
 }
@@ -193,8 +196,8 @@ unsigned ObjectToIndex::GetIndexForObjectImpl(const void *object) {
 }
 
 Recorder::Recorder()
-    : m_serializer(nullptr), m_pretty_func(), m_pretty_args(),
-      m_local_boundary(false), m_result_recorded(true),
+    : m_pretty_func(), m_pretty_args(),
+
       m_sequence(std::numeric_limits<unsigned>::max()) {
   if (!g_global_boundary) {
     g_global_boundary = true;
@@ -227,6 +230,13 @@ unsigned Recorder::GetSequenceNumber() const {
   return m_sequence;
 }
 
+void Recorder::PrivateThread() { g_global_boundary = true; }
+
+void Recorder::UpdateBoundary() {
+  if (m_local_boundary)
+    g_global_boundary = false;
+}
+
 void InstrumentationData::Initialize(Serializer &serializer,
                                      Registry &registry) {
   InstanceImpl().emplace(serializer, registry);
@@ -248,6 +258,5 @@ llvm::Optional<InstrumentationData> &InstrumentationData::InstanceImpl() {
   return g_instrumentation_data;
 }
 
-thread_local bool lldb_private::repro::Recorder::g_global_boundary = false;
 std::atomic<unsigned> lldb_private::repro::Recorder::g_sequence;
 std::mutex lldb_private::repro::Recorder::g_mutex;

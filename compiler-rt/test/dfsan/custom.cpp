@@ -1,14 +1,14 @@
 // RUN: %clang_dfsan %s -o %t && DFSAN_OPTIONS="strict_data_dependencies=0" %run %t
-// RUN: %clang_dfsan -mllvm -dfsan-args-abi %s -o %t && DFSAN_OPTIONS="strict_data_dependencies=0" %run %t
-// RUN: %clang_dfsan -DFAST_16_LABELS -mllvm -dfsan-fast-16-labels %s -o %t && DFSAN_OPTIONS="strict_data_dependencies=0" %run %t
+// RUN: %clang_dfsan %s -o %t && DFSAN_OPTIONS="strict_data_dependencies=0" %run %t
 // RUN: %clang_dfsan -DSTRICT_DATA_DEPENDENCIES %s -o %t && %run %t
-// RUN: %clang_dfsan -DSTRICT_DATA_DEPENDENCIES -mllvm -dfsan-args-abi %s -o %t && %run %t
-// RUN: %clang_dfsan -DFAST_16_LABELS -DORIGIN_TRACKING -mllvm -dfsan-fast-16-labels -mllvm -dfsan-track-origins=1 -mllvm -dfsan-combine-pointer-labels-on-load=false -DSTRICT_DATA_DEPENDENCIES %s -o %t && %run %t
-// RUN: %clang_dfsan -DFAST_16_LABELS -DORIGIN_TRACKING -mllvm -dfsan-fast-16-labels -mllvm -dfsan-track-origins=1 -mllvm -dfsan-combine-pointer-labels-on-load=false %s -o %t && DFSAN_OPTIONS="strict_data_dependencies=0" %run %t
+// RUN: %clang_dfsan -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -mllvm -dfsan-combine-pointer-labels-on-load=false -DSTRICT_DATA_DEPENDENCIES %s -o %t && %run %t
+// RUN: %clang_dfsan -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -mllvm -dfsan-combine-pointer-labels-on-load=false %s -o %t && DFSAN_OPTIONS="strict_data_dependencies=0" %run %t
 //
 // Tests custom implementations of various glibc functions.
 //
 // REQUIRES: x86_64-target-arch
+
+#pragma clang diagnostic ignored "-Wformat-extra-args"
 
 #include <sanitizer/dfsan_interface.h>
 
@@ -157,6 +157,10 @@ dfsan_label i_j_label = 0;
     ASSERT_ORIGIN(val[i], val##_o[i]);
 #else
 #define ASSERT_SAVED_N_ORIGINS(val, n)
+#endif
+
+#if !defined(__GLIBC_PREREQ)
+#  define __GLIBC_PREREQ(a, b) 0
 #endif
 
 void test_stat() {
@@ -325,13 +329,16 @@ void test_strcmp() {
 void test_strcat() {
   char src[] = "world";
   int volatile x = 0; // buffer to ensure src and dst do not share origins
+  (void)x;
   char dst[] = "hello \0    ";
   int volatile y = 0; // buffer to ensure dst and p do not share origins
+  (void)y;
   char *p = dst;
   dfsan_set_label(k_label, &p, sizeof(p));
   dfsan_set_label(i_label, src, sizeof(src));
   dfsan_set_label(j_label, dst, sizeof(dst));
   dfsan_origin dst_o = dfsan_get_origin((long)dst[0]);
+  (void)dst_o;
   char *ret = strcat(p, src);
   ASSERT_LABEL(ret, k_label);
   ASSERT_EQ_ORIGIN(ret, p);
@@ -603,20 +610,6 @@ void test_strchr() {
 #endif
 }
 
-void test_calloc() {
-  // With any luck this sequence of calls will cause calloc to return the same
-  // pointer both times.  This is probably the best we can do to test this
-  // function.
-  char *crv = (char *) calloc(4096, 1);
-  ASSERT_ZERO_LABEL(crv[0]);
-  dfsan_set_label(i_label, crv, 100);
-  free(crv);
-
-  crv = (char *) calloc(4096, 1);
-  ASSERT_ZERO_LABEL(crv[0]);
-  free(crv);
-}
-
 void test_recvmmsg() {
   int sockfds[2];
   int ret = socketpair(AF_UNIX, SOCK_DGRAM, 0, sockfds);
@@ -656,6 +649,10 @@ void test_recvmmsg() {
 
   dfsan_origin msg_len0_o = dfsan_get_origin((long)(rmmsg[0].msg_len));
   dfsan_origin msg_len1_o = dfsan_get_origin((long)(rmmsg[1].msg_len));
+#ifndef ORIGIN_TRACKING
+  (void)msg_len0_o;
+  (void)msg_len1_o;
+#endif
 
   // Receive messages and check labels.
   int received_msgs = recvmmsg(sockfds[1], rmmsg, 2, 0, &timeout);
@@ -772,6 +769,9 @@ void test_clock_gettime() {
   struct timespec tp;
   dfsan_set_label(j_label, ((char *)&tp) + 3, 1);
   dfsan_origin origin = dfsan_get_origin((long)(((char *)&tp)[3]));
+#ifndef ORIGIN_TRACKING
+  (void)origin;
+#endif
   int t = clock_gettime(CLOCK_REALTIME, &tp);
   assert(t == 0);
   ASSERT_ZERO_LABEL(t);
@@ -803,6 +803,9 @@ void test_ctime_r() {
   t = 0;
   dfsan_set_label(j_label, &buf, sizeof(&buf));
   dfsan_origin buf_ptr_o = dfsan_get_origin((long)buf);
+#ifndef ORIGIN_TRACKING
+  (void)buf_ptr_o;
+#endif
   ret = ctime_r(&t, buf);
   ASSERT_LABEL(ret, j_label);
   ASSERT_ORIGIN(ret, buf_ptr_o);
@@ -858,6 +861,11 @@ void test_dfsan_set_write_callback() {
   dfsan_origin fd_o = dfsan_get_origin((long)fd);
   dfsan_origin buf3_o = dfsan_get_origin((long)(buf[3]));
   dfsan_origin buf_len_o = dfsan_get_origin((long)buf_len);
+#ifndef ORIGIN_TRACKING
+  (void)fd_o;
+  (void)buf3_o;
+  (void)buf_len_o;
+#endif
 
   res = write(fd, buf, buf_len);
   assert(write_callback_count == 2);
@@ -936,6 +944,21 @@ void test_get_current_dir_name() {
   assert(ret[0] == '/');
   ASSERT_READ_ZERO_LABEL(ret, strlen(ret) + 1);
   ASSERT_ZERO_LABEL(ret);
+}
+
+void test_getentropy() {
+  char buf[64];
+  dfsan_set_label(i_label, buf + 2, 2);
+  DEFINE_AND_SAVE_ORIGINS(buf)
+#if __GLIBC_PREREQ(2, 25)
+  // glibc >= 2.25 has getentropy()
+  int ret = getentropy(buf, sizeof(buf));
+  ASSERT_ZERO_LABEL(ret);
+  if (ret == 0) {
+    ASSERT_READ_ZERO_LABEL(buf + 2, 2);
+    ASSERT_SAVED_ORIGINS(buf)
+  }
+#endif
 }
 
 void test_gethostname() {
@@ -1162,6 +1185,12 @@ void test_localtime_r() {
   struct tm *pt1 = &t1;
   dfsan_set_label(j_label, &pt1, sizeof(pt1));
   dfsan_origin pt1_o = dfsan_get_origin((long)pt1);
+
+#ifndef ORIGIN_TRACKING
+  (void)t0_o;
+  (void)pt1_o;
+#endif
+
   struct tm *ret = localtime_r(&t0, pt1);
   assert(ret == &t1);
   assert(t1.tm_min == 56);
@@ -1423,6 +1452,10 @@ void test__dl_get_tls_static_info() {
   dfsan_set_label(i_label, &alignp, sizeof(alignp));
   dfsan_origin sizep_o = dfsan_get_origin(sizep);
   dfsan_origin alignp_o = dfsan_get_origin(alignp);
+#ifndef ORIGIN_TRACKING
+  (void)sizep_o;
+  (void)alignp_o;
+#endif
   _dl_get_tls_static_info(&sizep, &alignp);
   ASSERT_ZERO_LABEL(sizep);
   ASSERT_ZERO_LABEL(alignp);
@@ -1793,6 +1826,9 @@ void test_sprintf_chunk(const char* expected, const char* format, T arg) {
   // Labelled arg.
   dfsan_set_label(i_label, &arg, sizeof(arg));
   dfsan_origin a_o = dfsan_get_origin((long)(arg));
+#ifndef ORIGIN_TRACKING
+  (void)a_o;
+#endif
   assert(sprintf(buf, padded_format,  arg) == strlen(padded_expected));
   assert(strcmp(buf, padded_expected) == 0);
   ASSERT_READ_LABEL(buf, 4, 0);
@@ -1826,6 +1862,11 @@ void test_sprintf() {
   dfsan_origin m_o = dfsan_get_origin((long)m);
   dfsan_set_label(j_label, &d, sizeof(d));
   dfsan_origin d_o = dfsan_get_origin((long)d);
+#ifndef ORIGIN_TRACKING
+  (void)s_o;
+  (void)m_o;
+  (void)d_o;
+#endif
   int n;
   int r = sprintf(buf, "hello %s, %-d/%d/%d %f %% %n%d", s, 2014, m, d,
                   12345.6781234, &n, 1000);
@@ -1894,6 +1935,11 @@ void test_snprintf() {
   dfsan_origin y_o = dfsan_get_origin((long)y);
   dfsan_set_label(j_label, &m, sizeof(m));
   dfsan_origin m_o = dfsan_get_origin((long)m);
+#ifndef ORIGIN_TRACKING
+  (void)s_o;
+  (void)y_o;
+  (void)m_o;
+#endif
   int r = snprintf(buf, 19, "hello %s, %-d/   %d/%d %f", s, y, m, d,
                    12345.6781234);
   // The return value is the number of bytes that would have been written to
@@ -1915,19 +1961,11 @@ void test_snprintf() {
 void test_fork() {}
 
 int main(void) {
-#ifdef FAST_16_LABELS
   i_label = 1;
   j_label = 2;
   k_label = 4;
   m_label = 8;
   n_label = 16;
-#else
-  i_label = dfsan_create_label("i", 0);
-  j_label = dfsan_create_label("j", 0);
-  k_label = dfsan_create_label("k", 0);
-  m_label = dfsan_create_label("m", 0);
-  n_label = dfsan_create_label("n", 0);
-#endif
   i_j_label = dfsan_union(i_label, j_label);
   assert(i_j_label != i_label);
   assert(i_j_label != j_label);
@@ -1935,7 +1973,6 @@ int main(void) {
 
   test__dl_get_tls_static_info();
   test_bcmp();
-  test_calloc();
   test_clock_gettime();
   test_ctime_r();
   test_dfsan_set_write_callback();
@@ -1947,6 +1984,7 @@ int main(void) {
   test_fstat();
   test_get_current_dir_name();
   test_getcwd();
+  test_getentropy();
   test_gethostname();
   test_getpeername();
   test_getpwuid_r();

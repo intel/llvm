@@ -5,7 +5,8 @@
 ; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx,fast-hops   | FileCheck %s --check-prefixes=AVX,AVX-FAST,AVX1-FAST
 ; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx2            | FileCheck %s --check-prefixes=AVX,AVX-SLOW,AVX2-SLOW
 ; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx2,fast-hops  | FileCheck %s --check-prefixes=AVX,AVX-FAST,AVX2-FAST
-; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx2,fast-variable-shuffle | FileCheck %s --check-prefixes=AVX,AVX2-SHUF
+; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx2,+fast-variable-crosslane-shuffle,+fast-variable-perlane-shuffle | FileCheck %s --check-prefixes=AVX,AVX2-SHUF
+; RUN: llc < %s -mtriple=x86_64-unknown -mattr=+avx2,+fast-variable-perlane-shuffle | FileCheck %s --check-prefixes=AVX,AVX2-SHUF
 
 define <8 x i16> @phaddw1(<8 x i16> %x, <8 x i16> %y) {
 ; SSSE3-LABEL: phaddw1:
@@ -564,8 +565,7 @@ define <8 x i16> @phaddw_single_source4(<8 x i16> %x) {
 ; SSSE3-SLOW:       # %bb.0:
 ; SSSE3-SLOW-NEXT:    movdqa %xmm0, %xmm1
 ; SSSE3-SLOW-NEXT:    pslld $16, %xmm1
-; SSSE3-SLOW-NEXT:    paddw %xmm0, %xmm1
-; SSSE3-SLOW-NEXT:    movdqa %xmm1, %xmm0
+; SSSE3-SLOW-NEXT:    paddw %xmm1, %xmm0
 ; SSSE3-SLOW-NEXT:    retq
 ;
 ; SSSE3-FAST-LABEL: phaddw_single_source4:

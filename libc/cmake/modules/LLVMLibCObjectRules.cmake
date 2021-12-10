@@ -1,7 +1,11 @@
 set(OBJECT_LIBRARY_TARGET_TYPE "OBJECT_LIBRARY")
 
 function(_get_common_compile_options output_var)
-  set(${output_var} -fpie ${LLVM_CXX_STD_default} -ffreestanding ${LIBC_COMPILE_OPTIONS_DEFAULT} ${ARGN} PARENT_SCOPE)
+  set(compile_options ${LLVM_CXX_STD_default} ${LIBC_COMPILE_OPTIONS_DEFAULT} ${ARGN})
+  if(NOT ${LIBC_TARGET_OS} STREQUAL "windows")
+    set(compile_options ${compile_options} -fpie -ffreestanding)
+  endif()
+  set(${output_var} ${compile_options} PARENT_SCOPE)
 endfunction()
 
 # Rule which is essentially a wrapper over add_library to compile a set of
@@ -253,6 +257,36 @@ function(add_entrypoint_object target_name)
   endif()
 
 endfunction(add_entrypoint_object)
+
+set(ENTRYPOINT_EXT_TARGET_TYPE "ENTRYPOINT_EXT")
+
+# A rule for external entrypoint targets.
+# Usage:
+#     add_entrypoint_external(
+#       <target_name>
+#       DEPENDS <list of dependencies>
+#     )
+function(add_entrypoint_external target_name)
+  cmake_parse_arguments(
+    "ADD_ENTRYPOINT_EXT"
+    "" # No optional arguments
+    "" # No single value arguments
+    "DEPENDS"  # Multi value arguments
+    ${ARGN}
+  )
+  get_fq_target_name(${target_name} fq_target_name)
+  set(entrypoint_name ${target_name})
+
+  add_custom_target(${fq_target_name})
+  set_target_properties(
+    ${fq_target_name}
+    PROPERTIES
+      "ENTRYPOINT_NAME" ${entrypoint_name}
+      "TARGET_TYPE" ${ENTRYPOINT_EXT_TARGET_TYPE}
+      "DEPS" "${ADD_ENTRYPOINT_EXT_DEPENDS}"
+  )
+
+endfunction(add_entrypoint_external)
 
 # Rule build a redirector object file.
 function(add_redirector_object target_name)

@@ -55,29 +55,14 @@
 
 using namespace lldb_private;
 
-bool HostInfoMacOSX::GetOSBuildString(std::string &s) {
+llvm::Optional<std::string> HostInfoMacOSX::GetOSBuildString() {
   int mib[2] = {CTL_KERN, KERN_OSVERSION};
   char cstr[PATH_MAX];
   size_t cstr_len = sizeof(cstr);
-  if (::sysctl(mib, 2, cstr, &cstr_len, NULL, 0) == 0) {
-    s.assign(cstr, cstr_len);
-    return true;
-  }
+  if (::sysctl(mib, 2, cstr, &cstr_len, NULL, 0) == 0)
+    return std::string(cstr, cstr_len - 1);
 
-  s.clear();
-  return false;
-}
-
-bool HostInfoMacOSX::GetOSKernelDescription(std::string &s) {
-  int mib[2] = {CTL_KERN, KERN_VERSION};
-  char cstr[PATH_MAX];
-  size_t cstr_len = sizeof(cstr);
-  if (::sysctl(mib, 2, cstr, &cstr_len, NULL, 0) == 0) {
-    s.assign(cstr, cstr_len);
-    return true;
-  }
-  s.clear();
-  return false;
+  return llvm::None;
 }
 
 static void ParseOSVersion(llvm::VersionTuple &version, NSString *Key) {
@@ -383,17 +368,22 @@ static std::string GetXcodeSDK(XcodeSDK sdk) {
 
   auto xcrun = [](const std::string &sdk,
                   llvm::StringRef developer_dir = "") -> std::string {
-    std::string xcrun_cmd = "xcrun --show-sdk-path --sdk " + sdk;
-    if (!developer_dir.empty())
-      xcrun_cmd = "/usr/bin/env DEVELOPER_DIR=\"" + developer_dir.str() +
-                  "\" " + xcrun_cmd;
+    Args args;
+    if (!developer_dir.empty()) {
+      args.AppendArgument("/usr/bin/env");
+      args.AppendArgument("DEVELOPER_DIR=" + developer_dir.str());
+    }
+    args.AppendArgument("/usr/bin/xcrun");
+    args.AppendArgument("--show-sdk-path");
+    args.AppendArgument("--sdk");
+    args.AppendArgument(sdk);
 
     int status = 0;
     int signo = 0;
     std::string output_str;
     lldb_private::Status error =
-        Host::RunShellCommand(xcrun_cmd, FileSpec(), &status, &signo,
-                              &output_str, std::chrono::seconds(15));
+        Host::RunShellCommand(args, FileSpec(), &status, &signo, &output_str,
+                              std::chrono::seconds(15));
 
     // Check that xcrun return something useful.
     if (status != 0 || output_str.empty())
@@ -513,10 +503,10 @@ extern "C" bool _dyld_get_shared_cache_uuid(uuid_t uuid);
 namespace {
 class SharedCacheInfo {
 public:
-  const UUID &GetUUID() const { return m_uuid; };
+  const UUID &GetUUID() const { return m_uuid; }
   const llvm::StringMap<SharedCacheImageInfo> &GetImages() const {
     return m_images;
-  };
+  }
 
   SharedCacheInfo();
 

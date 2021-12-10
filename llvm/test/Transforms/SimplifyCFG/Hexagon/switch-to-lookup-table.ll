@@ -15,9 +15,10 @@ define i32 @foo(i32 %x) #0 section ".tcm_text" {
 ; ENABLE:       switch.lookup:
 ; ENABLE-NEXT:    [[SWITCH_GEP:%.*]] = getelementptr inbounds [6 x i32], [6 x i32]* @switch.table.foo, i32 0, i32 [[X]]
 ; ENABLE-NEXT:    [[SWITCH_LOAD:%.*]] = load i32, i32* [[SWITCH_GEP]], align 4
-; ENABLE-NEXT:    ret i32 [[SWITCH_LOAD]]
+; ENABLE-NEXT:    br label [[RETURN]]
 ; ENABLE:       return:
-; ENABLE-NEXT:    ret i32 19
+; ENABLE-NEXT:    [[RETVAL_0:%.*]] = phi i32 [ [[SWITCH_LOAD]], [[SWITCH_LOOKUP]] ], [ 19, [[ENTRY:%.*]] ]
+; ENABLE-NEXT:    ret i32 [[RETVAL_0]]
 ;
 ; DISABLE-LABEL: @foo(
 ; DISABLE-NEXT:  entry:

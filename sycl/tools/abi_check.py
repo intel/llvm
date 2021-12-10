@@ -29,20 +29,29 @@ def match_symbol(sym_binding, sym_type, sym_section):
 
 
 def parse_readobj_output(output):
-  if os.name == 'nt':
-    return re.findall(r"(?<=Symbol: )[\w\_\?\@\$]+", output.decode().strip())
-  else:
-    symbols = re.findall(r"Symbol \{[\n\s\w:\.\-\(\)]*\}",
-                         output.decode().strip())
-    parsed_symbols = []
-    for sym in symbols:
+  symbol_key = r"Export" if os.name == 'nt' else r"Symbol"
+  symbols = re.findall(symbol_key + r" \{[^\}]*\}",
+                        output.decode().strip())
+  parsed_symbols = []
+  for sym in symbols:
+    # Name section on Linux has the following structure:
+    # SYMBOL_NAME (ID)\n
+    # regex takes SYMBOL_NAME before the space.
+    # Name section on Windows has the following structure
+    # SYMBOL_NAME\n
+    # and has special characters in comparison with symbols
+    # on Linux
+    name = re.search(r"(?<=Name:\s)[^ \n]+", sym)
+    if os.name == 'nt':
+      # no additional info about the symbols on Windows in comparison with symbols on Linux below
+      parsed_symbols.append(name.group())
+    else:
       sym_binding = re.search(r"(?<=Binding:\s)[\w]+", sym)
       sym_type = re.search(r"(?<=Type:\s)[\w]+", sym)
       sym_section = re.search(r"(?<=Section:\s)[\.\w]+", sym)
-      name = re.search(r"(?<=Name:\s)[\w]+", sym)
       if match_symbol(sym_binding, sym_type, sym_section):
         parsed_symbols.append(name.group())
-    return parsed_symbols
+  return parsed_symbols
 
 
 def dump_symbols(target_path, output):
@@ -53,14 +62,20 @@ def dump_symbols(target_path, output):
     out.write("\n################################################################################")
     out.write("\n\n# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir python")
     out.write(" %sycl_tools_src_dir/abi_check.py --mode check_symbols")
-    out.write(" --reference %s %sycl_libs_dir/")
+    if os.name == 'nt':
+      out.write(" --reference %s %llvm_build_bin_dir/")
+    else:
+      out.write(" --reference %s %sycl_libs_dir/")
     out.write(os.path.basename(target_path))
-    # TODO properly put OS name once Windows is supported
-    out.write("\n# REQUIRES: linux")
+    if os.name == 'nt':
+      out.write("\n# REQUIRES: windows")
+    else:
+      out.write("\n# REQUIRES: linux")
     out.write("\n# UNSUPPORTED: libcxx")
     out.write("\n\n")
+    readobj_opts = "--coff-exports" if os.name == 'nt' else "--syms"
     readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
-                                           "-t", target_path])
+                                           readobj_opts, target_path])
     symbols = parse_readobj_output(readobj_out)
     symbols.sort()
     out.write("\n".join(symbols))
@@ -83,8 +98,9 @@ def check_symbols(ref_path, target_path):
       if not line.startswith('#') and line.strip():
         ref_symbols.append(line.strip())
 
+    readobj_opts = "--coff-exports" if os.name == 'nt' else "--syms"
     readobj_out = subprocess.check_output([get_llvm_bin_path()+"llvm-readobj",
-                                           "-t", target_path])
+                                           readobj_opts, target_path])
     symbols = parse_readobj_output(readobj_out)
 
     missing_symbols, new_symbols = compare_results(ref_symbols, symbols)
@@ -121,8 +137,14 @@ def main():
   args = parser.parse_args()
 
   if args.mode == 'check_symbols':
+    if args.reference is None:
+      print("Please specify --reference option. Quiting.")
+      sys.exit(-2)
     check_symbols(args.reference, args.target_library)
   elif args.mode == 'dump_symbols':
+    if args.output is None:
+      print("Please specify --output option. Quiting.")
+      sys.exit(-2)
     dump_symbols(args.target_library, args.output)
 
 

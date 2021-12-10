@@ -182,27 +182,9 @@ NativeRegisterContextLinux_arm::WriteRegister(const RegisterInfo *reg_info,
     uint32_t fpr_offset = CalculateFprOffset(reg_info);
     assert(fpr_offset < sizeof m_fpr);
     uint8_t *dst = (uint8_t *)&m_fpr + fpr_offset;
-    switch (reg_info->byte_size) {
-    case 2:
-      *(uint16_t *)dst = reg_value.GetAsUInt16();
-      break;
-    case 4:
-      *(uint32_t *)dst = reg_value.GetAsUInt32();
-      break;
-    case 8:
-      *(uint64_t *)dst = reg_value.GetAsUInt64();
-      break;
-    default:
-      assert(false && "Unhandled data size.");
-      return Status("unhandled register data size %" PRIu32,
-                    reg_info->byte_size);
-    }
+    ::memcpy(dst, reg_value.GetBytes(), reg_info->byte_size);
 
-    Status error = WriteFPR();
-    if (error.Fail())
-      return error;
-
-    return Status();
+    return WriteFPR();
   }
 
   return Status("failed - register wasn't recognized to be a GPR or an FPR, "
@@ -236,14 +218,14 @@ Status NativeRegisterContextLinux_arm::WriteAllRegisterValues(
 
   if (!data_sp) {
     error.SetErrorStringWithFormat(
-        "NativeRegisterContextLinux_x86_64::%s invalid data_sp provided",
+        "NativeRegisterContextLinux_arm::%s invalid data_sp provided",
         __FUNCTION__);
     return error;
   }
 
   if (data_sp->GetByteSize() != REG_CONTEXT_SIZE) {
     error.SetErrorStringWithFormat(
-        "NativeRegisterContextLinux_x86_64::%s data_sp contained mismatched "
+        "NativeRegisterContextLinux_arm::%s data_sp contained mismatched "
         "data size, expected %" PRIu64 ", actual %" PRIu64,
         __FUNCTION__, (uint64_t)REG_CONTEXT_SIZE, data_sp->GetByteSize());
     return error;
@@ -251,7 +233,7 @@ Status NativeRegisterContextLinux_arm::WriteAllRegisterValues(
 
   uint8_t *src = data_sp->GetBytes();
   if (src == nullptr) {
-    error.SetErrorStringWithFormat("NativeRegisterContextLinux_x86_64::%s "
+    error.SetErrorStringWithFormat("NativeRegisterContextLinux_arm::%s "
                                    "DataBuffer::GetBytes() returned a null "
                                    "pointer",
                                    __FUNCTION__);
@@ -401,7 +383,7 @@ Status NativeRegisterContextLinux_arm::GetHardwareBreakHitIndex(
     uint32_t &bp_index, lldb::addr_t trap_addr) {
   Log *log(ProcessPOSIXLog::GetLogIfAllCategoriesSet(POSIX_LOG_BREAKPOINTS));
 
-  LLDB_LOGF(log, "NativeRegisterContextLinux_arm64::%s()", __FUNCTION__);
+  LLDB_LOGF(log, "NativeRegisterContextLinux_arm::%s()", __FUNCTION__);
 
   lldb::addr_t break_addr;
 

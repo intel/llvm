@@ -38,12 +38,16 @@ class EmitObjAction : public FrontendAction {
   void ExecuteAction() override;
 };
 
+class InitOnlyAction : public FrontendAction {
+  void ExecuteAction() override;
+};
+
 //===----------------------------------------------------------------------===//
 // Prescan Actions
 //===----------------------------------------------------------------------===//
 class PrescanAction : public FrontendAction {
   void ExecuteAction() override = 0;
-  bool BeginSourceFileAction(CompilerInstance &ci) override;
+  bool BeginSourceFileAction() override;
 };
 
 class PrintPreprocessedAction : public PrescanAction {
@@ -67,7 +71,7 @@ class DebugMeasureParseTreeAction : public PrescanAction {
 //===----------------------------------------------------------------------===//
 class PrescanAndParseAction : public FrontendAction {
   void ExecuteAction() override = 0;
-  bool BeginSourceFileAction(CompilerInstance &ci) override;
+  bool BeginSourceFileAction() override;
 };
 
 class DebugUnparseNoSemaAction : public PrescanAndParseAction {
@@ -80,20 +84,14 @@ class DebugDumpParseTreeNoSemaAction : public PrescanAndParseAction {
 
 //===----------------------------------------------------------------------===//
 // PrescanAndSema Actions
+//
+// These actions will parse the input, run the semantic checks and execute
+// their actions provided that no parsing or semantic errors were found.
 //===----------------------------------------------------------------------===//
 class PrescanAndSemaAction : public FrontendAction {
-  std::unique_ptr<Fortran::semantics::Semantics> semantics_;
 
   void ExecuteAction() override = 0;
-  bool BeginSourceFileAction(CompilerInstance &ci) override;
-
-public:
-  Fortran::semantics::Semantics &semantics() { return *semantics_; }
-  const Fortran::semantics::Semantics &semantics() const { return *semantics_; }
-
-  void setSemantics(std::unique_ptr<Fortran::semantics::Semantics> semantics) {
-    semantics_ = std::move(semantics);
-  }
+  bool BeginSourceFileAction() override;
 };
 
 class DebugUnparseWithSymbolsAction : public PrescanAndSemaAction {
@@ -125,6 +123,26 @@ class GetSymbolsSourcesAction : public PrescanAndSemaAction {
 };
 
 class ParseSyntaxOnlyAction : public PrescanAndSemaAction {
+  void ExecuteAction() override;
+};
+
+class PluginParseTreeAction : public PrescanAndSemaAction {
+  void ExecuteAction() override = 0;
+};
+
+//===----------------------------------------------------------------------===//
+// PrescanAndSemaDebug Actions
+//
+// These actions will parse the input, run the semantic checks and execute
+// their actions regardless of whether any semantic errors are found.
+//===----------------------------------------------------------------------===//
+class PrescanAndSemaDebugAction : public FrontendAction {
+
+  void ExecuteAction() override = 0;
+  bool BeginSourceFileAction() override;
+};
+
+class DebugDumpAllAction : public PrescanAndSemaDebugAction {
   void ExecuteAction() override;
 };
 

@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -9,9 +8,6 @@
 
 // Ensure that none of the standard C++ headers implicitly include cassert or
 // assert.h (because assert() is implemented as a macro).
-
-// GCC 5 has incomplete support for C++17, so some headers fail when included.
-// UNSUPPORTED: gcc-5 && c++17
 
 // Prevent <ext/hash_map> from generating deprecated warnings for this test.
 #if defined(__DEPRECATED)
@@ -31,9 +27,7 @@
 #include <algorithm>
 #include <any>
 #include <array>
-#ifndef _LIBCPP_HAS_NO_THREADS
-#    include <atomic>
-#endif
+#include <atomic>
 #ifndef _LIBCPP_HAS_NO_THREADS
 #    include <barrier>
 #endif
@@ -61,6 +55,9 @@
 #include <complex.h>
 #include <concepts>
 #include <condition_variable>
+#ifndef _LIBCPP_HAS_NO_CXX20_COROUTINES
+#    include <coroutine>
+#endif
 #include <csetjmp>
 #include <csignal>
 #include <cstdarg>
@@ -73,8 +70,12 @@
 #include <ctgmath>
 #include <ctime>
 #include <ctype.h>
-#include <cwchar>
-#include <cwctype>
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#    include <cwchar>
+#endif
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#    include <cwctype>
+#endif
 #include <deque>
 #include <errno.h>
 #include <exception>
@@ -84,7 +85,9 @@
 #    include <filesystem>
 #endif
 #include <float.h>
-#include <format>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_FORMAT
+#    include <format>
+#endif
 #include <forward_list>
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #    include <fstream>
@@ -136,7 +139,9 @@
 #endif
 #include <queue>
 #include <random>
-#include <ranges>
+#ifndef _LIBCPP_HAS_NO_INCOMPLETE_RANGES
+#    include <ranges>
+#endif
 #include <ratio>
 #ifndef _LIBCPP_HAS_NO_LOCALIZATION
 #    include <regex>
@@ -186,13 +191,17 @@
 #include <variant>
 #include <vector>
 #include <version>
-#include <wchar.h>
-#include <wctype.h>
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#    include <wchar.h>
+#endif
+#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#    include <wctype.h>
+#endif
 
 // experimental headers
 #if __cplusplus >= 201103L
 #    include <experimental/algorithm>
-#    if defined(__cpp_coroutines)
+#    ifndef _LIBCPP_HAS_NO_EXPERIMENTAL_COROUTINES
 #        include <experimental/coroutine>
 #    endif
 #    include <experimental/deque>

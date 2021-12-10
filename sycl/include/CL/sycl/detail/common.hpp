@@ -10,14 +10,12 @@
 
 #include <CL/sycl/detail/cl.h>
 #include <CL/sycl/detail/defines.hpp>
+#include <CL/sycl/detail/defines_elementary.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/stl_type_traits.hpp>
 
 #include <cstdint>
 #include <string>
-
-#define __SYCL_STRINGIFY_LINE_HELP(s) #s
-#define __SYCL_STRINGIFY_LINE(s) __SYCL_STRINGIFY_LINE_HELP(s)
 
 // Default signature enables the passing of user code location information to
 // public methods as a default argument. If the end-user wants to disable the
@@ -26,33 +24,46 @@
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 namespace detail {
-// We define a sycl stream name and this will be used by the instrumentation
-// framework
-constexpr const char *SYCL_STREAM_NAME = "sycl";
-// Stream name being used for traces generated from the SYCL plugin layer
-constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
+
+#if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
+#define __CODELOC_FILE_NAME __builtin_FILE()
+#else
+#define __CODELOC_FILE_NAME nullptr
+#endif
+
+#if _MSC_VER > 1929 || __has_builtin(__builtin_FUNCTION)
+#define __CODELOC_FUNCTION __builtin_FUNCTION()
+#else
+#define __CODELOC_FUNCTION nullptr
+#endif
+
+#if _MSC_VER > 1929 || __has_builtin(__builtin_LINE)
+#define __CODELOC_LINE __builtin_LINE()
+#else
+#define __CODELOC_LINE 0
+#endif
+
+#if _MSC_VER > 1929 || __has_builtin(__builtin_COLUMN)
+#define __CODELOC_COLUMN __builtin_COLUMN()
+#else
+#define __CODELOC_COLUMN 0
+#endif
+
 // Data structure that captures the user code location information using the
 // builtin capabilities of the compiler
 struct code_location {
-#ifdef _MSC_VER
-  // Since MSVC does not support the required builtins, we
-  // implement the version with "unknown"s which is handled
-  // correctly by the instrumentation
-  static constexpr code_location current(const char *fileName = nullptr,
-                                         const char *funcName = nullptr,
-                                         unsigned long lineNo = 0,
-                                         unsigned long columnNo = 0) noexcept {
-    return code_location(fileName, funcName, lineNo, columnNo);
-  }
-#else
   static constexpr code_location
-  current(const char *fileName = __builtin_FILE(),
-          const char *funcName = __builtin_FUNCTION(),
-          unsigned long lineNo = __builtin_LINE(),
-          unsigned long columnNo = 0) noexcept {
+  current(const char *fileName = __CODELOC_FILE_NAME,
+          const char *funcName = __CODELOC_FUNCTION,
+          unsigned long lineNo = __CODELOC_LINE,
+          unsigned long columnNo = __CODELOC_COLUMN) noexcept {
     return code_location(fileName, funcName, lineNo, columnNo);
   }
-#endif
+
+#undef __CODELOC_FILE_NAME
+#undef __CODELOC_FUNCTION
+#undef __CODELOC_LINE
+#undef __CODELOC_COLUMN
 
   constexpr code_location(const char *file, const char *func, int line,
                           int col) noexcept
@@ -101,8 +112,8 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_OCL_ERROR_REPORT                                                \
   "Native API failed. " /*__FILE__*/                                           \
   /* TODO: replace __FILE__ to report only relative path*/                     \
-  /* ":" __SYCL_STRINGIFY_LINE(__LINE__) ": " */                               \
-                               "Native API returns: "
+  /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
+                          "Native API returns: "
 
 #ifndef __SYCL_SUPPRESS_OCL_ERROR_REPORT
 #include <iostream>
@@ -119,7 +130,7 @@ static inline std::string codeToString(cl_int code) {
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <CL/sycl/exception.hpp>
-
+// SYCL 1.2.1 exceptions
 #define __SYCL_REPORT_OCL_ERR_TO_EXC(expr, exc)                                \
   {                                                                            \
     auto code = expr;                                                          \
@@ -137,16 +148,35 @@ static inline std::string codeToString(cl_int code) {
 #define __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(code)                                \
   __SYCL_REPORT_OCL_ERR_TO_STREAM(code)
 #endif
+// SYCL 2020 exceptions
+#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
+  {                                                                            \
+    auto code = expr;                                                          \
+    if (code != CL_SUCCESS) {                                                  \
+      throw sycl::exception(sycl::make_error_code(errc),                       \
+                            __SYCL_OCL_ERROR_REPORT +                          \
+                                cl::sycl::detail::codeToString(code));         \
+    }                                                                          \
+  }
+#define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
+  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(code, errc)
 
 #ifdef __SYCL_SUPPRESS_OCL_ERROR_REPORT
+// SYCL 1.2.1 exceptions
 #define __SYCL_CHECK_OCL_CODE(X) (void)(X)
 #define __SYCL_CHECK_OCL_CODE_THROW(X, EXC) (void)(X)
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
+// SYCL 2020 exceptions
+#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC) (void)(X)
 #else
+// SYCL 1.2.1 exceptions
 #define __SYCL_CHECK_OCL_CODE(X) __SYCL_REPORT_OCL_ERR_TO_EXC_BASE(X)
 #define __SYCL_CHECK_OCL_CODE_THROW(X, EXC)                                    \
   __SYCL_REPORT_OCL_ERR_TO_EXC_THROW(X, EXC)
 #define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_OCL_ERR_TO_STREAM(X)
+// SYCL 2020 exceptions
+#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
+  __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
 #endif
 
 __SYCL_INLINE_NAMESPACE(cl) {

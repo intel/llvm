@@ -75,7 +75,8 @@ public:
   // a function, that is necessary for a convenient function pointers handling.
   // By default transValue uses 'Decl' mode, which means every function
   // we meet during the translation should result in its declaration generated.
-  // In 'Pointer' mode we generate OpConstFunctionPointerINTEL constant instead.
+  // In 'Pointer' mode we generate OpConstantFunctionPointerINTEL constant
+  // instead.
   enum class FuncTransMode { Decl, Pointer };
 
   SPIRVType *transType(Type *T);
@@ -94,6 +95,7 @@ public:
   bool transSourceLanguage();
   bool transExtension();
   bool transBuiltinSet();
+  bool transWorkItemBuiltinCallsToVariables();
   bool isKnownIntrinsic(Intrinsic::ID Id);
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
@@ -102,7 +104,8 @@ public:
   SPIRVValue *transAsmINTEL(InlineAsm *Asm);
   SPIRVValue *transAsmCallINTEL(CallInst *Call, SPIRVBasicBlock *BB);
   bool transDecoration(Value *V, SPIRVValue *BV);
-  void transMemAliasingINTELDecorations(Value *V, SPIRVValue *BV);
+  bool shouldTryToAddMemAliasingDecoration(Instruction *V);
+  void transMemAliasingINTELDecorations(Instruction *V, SPIRVValue *BV);
   SPIRVWord transFunctionControlMask(Function *);
   SPIRVFunction *transFunctionDecl(Function *F);
   void transVectorComputeMetadata(Function *F);

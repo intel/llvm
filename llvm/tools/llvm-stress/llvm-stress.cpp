@@ -52,16 +52,20 @@
 
 namespace llvm {
 
-static cl::opt<unsigned> SeedCL("seed",
-  cl::desc("Seed used for randomness"), cl::init(0));
+static cl::OptionCategory StressCategory("Stress Options");
 
-static cl::opt<unsigned> SizeCL("size",
-  cl::desc("The estimated size of the generated function (# of instrs)"),
-  cl::init(100));
+static cl::opt<unsigned> SeedCL("seed", cl::desc("Seed used for randomness"),
+                                cl::init(0), cl::cat(StressCategory));
 
-static cl::opt<std::string>
-OutputFilename("o", cl::desc("Override output filename"),
-               cl::value_desc("filename"));
+static cl::opt<unsigned> SizeCL(
+    "size",
+    cl::desc("The estimated size of the generated function (# of instrs)"),
+    cl::init(100), cl::cat(StressCategory));
+
+static cl::opt<std::string> OutputFilename("o",
+                                           cl::desc("Override output filename"),
+                                           cl::value_desc("filename"),
+                                           cl::cat(StressCategory));
 
 static LLVMContext Context;
 
@@ -448,10 +452,10 @@ struct ConstModifier: public Modifier {
       switch (getRandom() % 7) {
       case 0:
         return PT->push_back(ConstantInt::get(
-            Ty, APInt::getAllOnesValue(Ty->getPrimitiveSizeInBits())));
+            Ty, APInt::getAllOnes(Ty->getPrimitiveSizeInBits())));
       case 1:
-        return PT->push_back(ConstantInt::get(
-            Ty, APInt::getNullValue(Ty->getPrimitiveSizeInBits())));
+        return PT->push_back(
+            ConstantInt::get(Ty, APInt::getZero(Ty->getPrimitiveSizeInBits())));
       case 2:
       case 3:
       case 4:
@@ -632,7 +636,7 @@ struct SelectModifier: public Modifier {
 
     // If the value type is a vector, and we allow vector select, then in 50%
     // of the cases generate a vector select.
-    if (isa<FixedVectorType>(Val0->getType()) && (getRandom() % 1)) {
+    if (isa<FixedVectorType>(Val0->getType()) && (getRandom() & 1)) {
       unsigned NumElem =
           cast<FixedVectorType>(Val0->getType())->getNumElements();
       CondTy = FixedVectorType::get(CondTy, NumElem);
@@ -738,6 +742,7 @@ int main(int argc, char **argv) {
   using namespace llvm;
 
   InitLLVM X(argc, argv);
+  cl::HideUnrelatedOptions({&StressCategory, &getColorCategory()});
   cl::ParseCommandLineOptions(argc, argv, "llvm codegen stress-tester\n");
 
   auto M = std::make_unique<Module>("/tmp/autogen.bc", Context);

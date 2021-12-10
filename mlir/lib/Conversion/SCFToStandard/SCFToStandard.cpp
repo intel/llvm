@@ -13,6 +13,7 @@
 
 #include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "../PassDetail.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -194,6 +195,13 @@ struct IfLowering : public OpRewritePattern<IfOp> {
                                 PatternRewriter &rewriter) const override;
 };
 
+struct ExecuteRegionLowering : public OpRewritePattern<ExecuteRegionOp> {
+  using OpRewritePattern<ExecuteRegionOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ExecuteRegionOp op,
+                                PatternRewriter &rewriter) const override;
+};
+
 struct ParallelLowering : public OpRewritePattern<mlir::scf::ParallelOp> {
   using OpRewritePattern<mlir::scf::ParallelOp>::OpRewritePattern;
 
@@ -307,7 +315,7 @@ LogicalResult ForLowering::matchAndRewrite(ForOp forOp,
   Operation *terminator = lastBodyBlock->getTerminator();
   rewriter.setInsertionPointToEnd(lastBodyBlock);
   auto step = forOp.step();
-  auto stepped = rewriter.create<AddIOp>(loc, iv, step).getResult();
+  auto stepped = rewriter.create<arith::AddIOp>(loc, iv, step).getResult();
   if (!stepped)
     return failure();
 
@@ -334,8 +342,8 @@ LogicalResult ForLowering::matchAndRewrite(ForOp forOp,
 
   // With the body block done, we can fill in the condition block.
   rewriter.setInsertionPointToEnd(conditionBlock);
-  auto comparison =
-      rewriter.create<CmpIOp>(loc, CmpIPredicate::slt, iv, upperBound);
+  auto comparison = rewriter.create<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::slt, iv, upperBound);
 
   rewriter.create<CondBranchOp>(loc, comparison, firstBodyBlock,
                                 ArrayRef<Value>(), endBlock, ArrayRef<Value>());
@@ -397,6 +405,38 @@ LogicalResult IfLowering::matchAndRewrite(IfOp ifOp,
 
   // Ok, we're done!
   rewriter.replaceOp(ifOp, continueBlock->getArguments());
+  return success();
+}
+
+LogicalResult
+ExecuteRegionLowering::matchAndRewrite(ExecuteRegionOp op,
+                                       PatternRewriter &rewriter) const {
+  auto loc = op.getLoc();
+
+  auto *condBlock = rewriter.getInsertionBlock();
+  auto opPosition = rewriter.getInsertionPoint();
+  auto *remainingOpsBlock = rewriter.splitBlock(condBlock, opPosition);
+
+  auto &region = op.region();
+  rewriter.setInsertionPointToEnd(condBlock);
+  rewriter.create<BranchOp>(loc, &region.front());
+
+  for (Block &block : region) {
+    if (auto terminator = dyn_cast<scf::YieldOp>(block.getTerminator())) {
+      ValueRange terminatorOperands = terminator->getOperands();
+      rewriter.setInsertionPointToEnd(&block);
+      rewriter.create<BranchOp>(loc, remainingOpsBlock, terminatorOperands);
+      rewriter.eraseOp(terminator);
+    }
+  }
+
+  rewriter.inlineRegionBefore(region, remainingOpsBlock);
+
+  SmallVector<Value> vals;
+  for (auto arg : remainingOpsBlock->addArguments(op->getResultTypes())) {
+    vals.push_back(arg);
+  }
+  rewriter.replaceOp(op, vals);
   return success();
 }
 
@@ -569,8 +609,8 @@ DoWhileLowering::matchAndRewrite(WhileOp whileOp,
 }
 
 void mlir::populateLoopToStdConversionPatterns(RewritePatternSet &patterns) {
-  patterns.add<ForLowering, IfLowering, ParallelLowering, WhileLowering>(
-      patterns.getContext());
+  patterns.add<ForLowering, IfLowering, ParallelLowering, WhileLowering,
+               ExecuteRegionLowering>(patterns.getContext());
   patterns.add<DoWhileLowering>(patterns.getContext(), /*benefit=*/2);
 }
 
@@ -580,7 +620,8 @@ void SCFToStandardPass::runOnOperation() {
   // Configure conversion to lower out scf.for, scf.if, scf.parallel and
   // scf.while. Anything else is fine.
   ConversionTarget target(getContext());
-  target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp>();
+  target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
+                      scf::ExecuteRegionOp>();
   target.markUnknownOpDynamicallyLegal([](Operation *) { return true; });
   if (failed(
           applyPartialConversion(getOperation(), target, std::move(patterns))))

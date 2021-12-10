@@ -45,6 +45,9 @@ conversion modes that may be selected from:
         operations.
     -   An analysis conversion can be applied via `applyAnalysisConversion`.
 
+In all cases, the framework walks the operations in preorder, examining an op
+before the ops in any regions it has.
+
 ## Conversion Target
 
 The conversion target is a formal definition of what is considered to be legal
@@ -63,10 +66,7 @@ legality actions below:
 
     -   This action signals that only some instances of a given operation are
         legal. This allows for defining fine-tune constraints, e.g. saying that
-        `addi` is only legal when operating on 32-bit integers.
-    -   If a specific handler is not provided when setting the action, the
-        target must override the `isDynamicallyLegal` hook provided by
-        `ConversionTarget`.
+        `arith.addi` is only legal when operating on 32-bit integers.
 
 *   Illegal
 
@@ -86,18 +86,15 @@ struct MyTarget : public ConversionTarget {
     /// Mark all operations within the LLVM dialect are legal.
     addLegalDialect<LLVMDialect>();
 
-    /// Mark `std.constant` op is always legal on this target.
-    addLegalOp<ConstantOp>();
+    /// Mark `arith.constant` op is always legal on this target.
+    addLegalOp<arith::ConstantOp>();
 
     //--------------------------------------------------------------------------
     // Marking an operation as dynamically legal.
 
     /// Mark all operations within Affine dialect have dynamic legality
     /// constraints.
-    addDynamicallyLegalDialect<AffineDialect>();
-
-    /// Mark `std.return` as dynamically legal.
-    addDynamicallyLegalOp<ReturnOp>();
+    addDynamicallyLegalDialect<AffineDialect>([](Operation *op) { ... });
 
     /// Mark `std.return` as dynamically legal, but provide a specific legality
     /// callback.
@@ -105,7 +102,6 @@ struct MyTarget : public ConversionTarget {
 
     /// Treat unknown operations, i.e. those without a legalization action
     /// directly set, as dynamically legal.
-    markUnknownOpDynamicallyLegal();
     markUnknownOpDynamicallyLegal([](Operation *op) { ... });
 
     //--------------------------------------------------------------------------
@@ -311,6 +307,14 @@ class TypeConverter {
   ///       existing value are expected to be removed during conversion. If
   ///       `llvm::None` is returned, the converter is allowed to try another
   ///       conversion function to perform the conversion.
+  ///   * Optional<LogicalResult>(T, SmallVectorImpl<Type> &, ArrayRef<Type>)
+  ///     - This form represents a 1-N type conversion supporting recursive
+  ///       types. The first two arguments and the return value are the same as
+  ///       for the regular 1-N form. The third argument is contains is the
+  ///       "call stack" of the recursive conversion: it contains the list of
+  ///       types currently being converted, with the current type being the
+  ///       last one. If it is present more than once in the list, the
+  ///       conversion concerns a recursive type.
   /// Note: When attempting to convert a type, e.g. via 'convertType', the
   ///       mostly recently added conversions will be invoked first.
   template <typename FnT,

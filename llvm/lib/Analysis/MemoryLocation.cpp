@@ -35,54 +35,44 @@ void LocationSize::print(raw_ostream &OS) const {
 }
 
 MemoryLocation MemoryLocation::get(const LoadInst *LI) {
-  AAMDNodes AATags;
-  LI->getAAMetadata(AATags);
   const auto &DL = LI->getModule()->getDataLayout();
 
   return MemoryLocation(
       LI->getPointerOperand(),
-      LocationSize::precise(DL.getTypeStoreSize(LI->getType())), AATags);
+      LocationSize::precise(DL.getTypeStoreSize(LI->getType())),
+      LI->getAAMetadata());
 }
 
 MemoryLocation MemoryLocation::get(const StoreInst *SI) {
-  AAMDNodes AATags;
-  SI->getAAMetadata(AATags);
   const auto &DL = SI->getModule()->getDataLayout();
 
   return MemoryLocation(SI->getPointerOperand(),
                         LocationSize::precise(DL.getTypeStoreSize(
                             SI->getValueOperand()->getType())),
-                        AATags);
+                        SI->getAAMetadata());
 }
 
 MemoryLocation MemoryLocation::get(const VAArgInst *VI) {
-  AAMDNodes AATags;
-  VI->getAAMetadata(AATags);
-
   return MemoryLocation(VI->getPointerOperand(),
-                        LocationSize::afterPointer(), AATags);
+                        LocationSize::afterPointer(), VI->getAAMetadata());
 }
 
 MemoryLocation MemoryLocation::get(const AtomicCmpXchgInst *CXI) {
-  AAMDNodes AATags;
-  CXI->getAAMetadata(AATags);
   const auto &DL = CXI->getModule()->getDataLayout();
 
   return MemoryLocation(CXI->getPointerOperand(),
                         LocationSize::precise(DL.getTypeStoreSize(
                             CXI->getCompareOperand()->getType())),
-                        AATags);
+                        CXI->getAAMetadata());
 }
 
 MemoryLocation MemoryLocation::get(const AtomicRMWInst *RMWI) {
-  AAMDNodes AATags;
-  RMWI->getAAMetadata(AATags);
   const auto &DL = RMWI->getModule()->getDataLayout();
 
   return MemoryLocation(RMWI->getPointerOperand(),
                         LocationSize::precise(DL.getTypeStoreSize(
                             RMWI->getValOperand()->getType())),
-                        AATags);
+                        RMWI->getAAMetadata());
 }
 
 Optional<MemoryLocation> MemoryLocation::getOrNone(const Instruction *Inst) {
@@ -111,16 +101,8 @@ MemoryLocation MemoryLocation::getForSource(const AtomicMemTransferInst *MTI) {
 }
 
 MemoryLocation MemoryLocation::getForSource(const AnyMemTransferInst *MTI) {
-  auto Size = LocationSize::afterPointer();
-  if (ConstantInt *C = dyn_cast<ConstantInt>(MTI->getLength()))
-    Size = LocationSize::precise(C->getValue().getZExtValue());
-
-  // memcpy/memmove can have AA tags. For memcpy, they apply
-  // to both the source and the destination.
-  AAMDNodes AATags;
-  MTI->getAAMetadata(AATags);
-
-  return MemoryLocation(MTI->getRawSource(), Size, AATags);
+  assert(MTI->getRawSource() == MTI->getArgOperand(1));
+  return getForArgument(MTI, 1, nullptr);
 }
 
 MemoryLocation MemoryLocation::getForDest(const MemIntrinsic *MI) {
@@ -132,23 +114,46 @@ MemoryLocation MemoryLocation::getForDest(const AtomicMemIntrinsic *MI) {
 }
 
 MemoryLocation MemoryLocation::getForDest(const AnyMemIntrinsic *MI) {
-  auto Size = LocationSize::afterPointer();
-  if (ConstantInt *C = dyn_cast<ConstantInt>(MI->getLength()))
-    Size = LocationSize::precise(C->getValue().getZExtValue());
+  assert(MI->getRawDest() == MI->getArgOperand(0));
+  return getForArgument(MI, 0, nullptr);
+}
 
-  // memcpy/memmove can have AA tags. For memcpy, they apply
-  // to both the source and the destination.
-  AAMDNodes AATags;
-  MI->getAAMetadata(AATags);
+Optional<MemoryLocation>
+MemoryLocation::getForDest(const CallBase *CB, const TargetLibraryInfo &TLI) {
+  if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(CB)) {
+    if (auto *MemInst = dyn_cast<AnyMemIntrinsic>(CB))
+      return getForDest(MemInst);
 
-  return MemoryLocation(MI->getRawDest(), Size, AATags);
+    switch (II->getIntrinsicID()) {
+    default:
+      return None;
+    case Intrinsic::init_trampoline:
+      return MemoryLocation::getForArgument(CB, 0, TLI);
+    case Intrinsic::masked_store:
+      return MemoryLocation::getForArgument(CB, 1, TLI);
+    }
+  }
+
+  LibFunc LF;
+  if (TLI.getLibFunc(*CB, LF) && TLI.has(LF)) {
+    switch (LF) {
+    case LibFunc_strncpy:
+    case LibFunc_strcpy:
+    case LibFunc_strcat:
+    case LibFunc_strncat:
+      return getForArgument(CB, 0, &TLI);
+    default:
+      break;
+    }
+  }
+
+  return None;
 }
 
 MemoryLocation MemoryLocation::getForArgument(const CallBase *Call,
                                               unsigned ArgIdx,
                                               const TargetLibraryInfo *TLI) {
-  AAMDNodes AATags;
-  Call->getAAMetadata(AATags);
+  AAMDNodes AATags = Call->getAAMetadata();
   const Value *Arg = Call->getArgOperand(ArgIdx);
 
   // We may be able to produce an exact size for known intrinsics.
@@ -162,6 +167,9 @@ MemoryLocation MemoryLocation::getForArgument(const CallBase *Call,
     case Intrinsic::memcpy:
     case Intrinsic::memcpy_inline:
     case Intrinsic::memmove:
+    case Intrinsic::memcpy_element_unordered_atomic:
+    case Intrinsic::memmove_element_unordered_atomic:
+    case Intrinsic::memset_element_unordered_atomic:
       assert((ArgIdx == 0 || ArgIdx == 1) &&
              "Invalid argument index for memory intrinsic");
       if (ConstantInt *LenCI = dyn_cast<ConstantInt>(II->getArgOperand(2)))
@@ -221,6 +229,10 @@ MemoryLocation MemoryLocation::getForArgument(const CallBase *Call,
                                 II->getArgOperand(1)->getType())),
                             AATags);
     }
+
+    assert(
+        !isa<AnyMemTransferInst>(II) &&
+        "all memory transfer intrinsics should be handled by the switch above");
   }
 
   // We can bound the aliasing properties of memset_pattern16 just as we can
@@ -230,6 +242,34 @@ MemoryLocation MemoryLocation::getForArgument(const CallBase *Call,
   LibFunc F;
   if (TLI && TLI->getLibFunc(*Call, F) && TLI->has(F)) {
     switch (F) {
+    case LibFunc_strcpy:
+    case LibFunc_strcat:
+    case LibFunc_strncat:
+      assert((ArgIdx == 0 || ArgIdx == 1) && "Invalid argument index for str function");
+      return MemoryLocation::getAfter(Arg, AATags);
+
+    case LibFunc_memset_chk: {
+      assert(ArgIdx == 0 && "Invalid argument index for memset_chk");
+      LocationSize Size = LocationSize::afterPointer();
+      if (const auto *Len = dyn_cast<ConstantInt>(Call->getArgOperand(2))) {
+        // memset_chk writes at most Len bytes. It may write less, if Len
+        // exceeds the specified max size and aborts.
+        Size = LocationSize::upperBound(Len->getZExtValue());
+      }
+      return MemoryLocation(Arg, Size, AATags);
+    }
+    case LibFunc_strncpy: {
+      assert((ArgIdx == 0 || ArgIdx == 1) &&
+             "Invalid argument index for strncpy");
+      LocationSize Size = LocationSize::afterPointer();
+      if (const auto *Len = dyn_cast<ConstantInt>(Call->getArgOperand(2))) {
+        // strncpy is guaranteed to write Len bytes, but only reads up to Len
+        // bytes.
+        Size = ArgIdx == 0 ? LocationSize::precise(Len->getZExtValue())
+                           : LocationSize::upperBound(Len->getZExtValue());
+      }
+      return MemoryLocation(Arg, Size, AATags);
+    }
     case LibFunc_memset_pattern16:
       assert((ArgIdx == 0 || ArgIdx == 1) &&
              "Invalid argument index for memset_pattern16");

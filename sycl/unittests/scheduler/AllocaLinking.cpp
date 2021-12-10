@@ -68,11 +68,13 @@ TEST_F(SchedulerTest, AllocaLinking) {
     buffer<int, 1> Buf(range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 
     EXPECT_FALSE(HostAllocaCmd->MLinkedAllocaCmd);
     EXPECT_FALSE(NonHostAllocaCmd->MLinkedAllocaCmd);
@@ -83,11 +85,13 @@ TEST_F(SchedulerTest, AllocaLinking) {
         range<1>(1), {ext::oneapi::property::buffer::use_pinned_host_memory()});
     detail::Requirement Req = getMockRequirement(Buf);
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 
     EXPECT_EQ(HostAllocaCmd->MLinkedAllocaCmd, NonHostAllocaCmd);
     EXPECT_EQ(NonHostAllocaCmd->MLinkedAllocaCmd, HostAllocaCmd);
@@ -98,11 +102,13 @@ TEST_F(SchedulerTest, AllocaLinking) {
     buffer<int, 1> Buf(range<1>(1));
     detail::Requirement Req = getMockRequirement(Buf);
 
-    detail::MemObjRecord *Record = MS.getOrInsertMemObjRecord(QImpl, &Req);
+    std::vector<detail::Command *> AuxCmds;
+    detail::MemObjRecord *Record =
+        MS.getOrInsertMemObjRecord(QImpl, &Req, AuxCmds);
     detail::AllocaCommandBase *NonHostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, QImpl);
+        MS.getOrCreateAllocaForReq(Record, &Req, QImpl, AuxCmds);
     detail::AllocaCommandBase *HostAllocaCmd =
-        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue);
+        MS.getOrCreateAllocaForReq(Record, &Req, DefaultHostQueue, AuxCmds);
 
     EXPECT_EQ(HostAllocaCmd->MLinkedAllocaCmd, NonHostAllocaCmd);
     EXPECT_EQ(NonHostAllocaCmd->MLinkedAllocaCmd, HostAllocaCmd);

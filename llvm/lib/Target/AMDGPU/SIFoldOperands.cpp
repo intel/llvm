@@ -91,6 +91,7 @@ public:
                    SmallVectorImpl<MachineInstr *> &CopiesToReplace) const;
 
   bool tryFoldCndMask(MachineInstr &MI) const;
+  bool tryFoldZeroHighBits(MachineInstr &MI) const;
   void foldInstOperand(MachineInstr &MI, MachineOperand &OpToFold) const;
 
   const MachineOperand *isClamp(const MachineInstr &MI) const;
@@ -227,7 +228,7 @@ static bool updateOperand(FoldCandidate &Fold,
       MachineOperand &Mod = MI->getOperand(ModIdx);
       unsigned Val = Mod.getImm();
       if (!(Val & SISrcMods::OP_SEL_0) && (Val & SISrcMods::OP_SEL_1)) {
-        // Only apply the following transformation if that operand requries
+        // Only apply the following transformation if that operand requires
         // a packed immediate.
         switch (TII.get(Opcode).OpInfo[OpNo].OperandType) {
         case AMDGPU::OPERAND_REG_IMM_V2FP16:
@@ -451,7 +452,7 @@ static bool tryAddToFoldList(SmallVectorImpl<FoldCandidate> &FoldList,
     const SIRegisterInfo &SRI = TII->getRegisterInfo();
 
     // Fine if the operand can be encoded as an inline constant
-    if (OpToFold->isImm()) {
+    if (TII->isLiteralConstantLike(*OpToFold, OpInfo)) {
       if (!SRI.opCanUseInlineConstant(OpInfo.OperandType) ||
           !TII->isInlineConstant(*OpToFold, OpInfo)) {
         // Otherwise check for another constant
@@ -645,7 +646,7 @@ void SIFoldOperands::foldOperand(
     return;
 
   if (frameIndexMayFold(TII, *UseMI, UseOpIdx, OpToFold)) {
-    // Sanity check that this is a stack access.
+    // Verify that this is a stack access.
     // FIXME: Should probably use stack pseudos before frame lowering.
 
     if (TII->isMUBUF(*UseMI)) {
@@ -687,7 +688,7 @@ void SIFoldOperands::foldOperand(
 
     // Don't fold into a copy to a physical register with the same class. Doing
     // so would interfere with the register coalescer's logic which would avoid
-    // redundant initalizations.
+    // redundant initializations.
     if (DestReg.isPhysical() && SrcRC->contains(DestReg))
       return;
 
@@ -901,7 +902,7 @@ void SIFoldOperands::foldOperand(
     tryAddToFoldList(FoldList, UseMI, UseOpIdx, &OpToFold, TII);
 
     // FIXME: We could try to change the instruction from 64-bit to 32-bit
-    // to enable more folding opportunites.  The shrink operands pass
+    // to enable more folding opportunities.  The shrink operands pass
     // already does this.
     return;
   }
@@ -1188,6 +1189,27 @@ bool SIFoldOperands::tryFoldCndMask(MachineInstr &MI) const {
   return true;
 }
 
+bool SIFoldOperands::tryFoldZeroHighBits(MachineInstr &MI) const {
+  if (MI.getOpcode() != AMDGPU::V_AND_B32_e64 &&
+      MI.getOpcode() != AMDGPU::V_AND_B32_e32)
+    return false;
+
+  MachineOperand *Src0 = getImmOrMaterializedImm(*MRI, MI.getOperand(1));
+  if (!Src0->isImm() || Src0->getImm() != 0xffff)
+    return false;
+
+  Register Src1 = MI.getOperand(2).getReg();
+  MachineInstr *SrcDef = MRI->getVRegDef(Src1);
+  if (ST->zeroesHigh16BitsOfDest(SrcDef->getOpcode())) {
+    Register Dst = MI.getOperand(0).getReg();
+    MRI->replaceRegWith(Dst, SrcDef->getOperand(0).getReg());
+    MI.eraseFromParent();
+    return true;
+  }
+
+  return false;
+}
+
 void SIFoldOperands::foldInstOperand(MachineInstr &MI,
                                      MachineOperand &OpToFold) const {
   // We need mutate the operands of new mov instructions to add implicit
@@ -1366,6 +1388,13 @@ bool SIFoldOperands::tryFoldClamp(MachineInstr &MI) {
   DefClamp->setImm(1);
   MRI->replaceRegWith(MI.getOperand(0).getReg(), Def->getOperand(0).getReg());
   MI.eraseFromParent();
+
+  // Use of output modifiers forces VOP3 encoding for a VOP2 mac/fmac
+  // instruction, so we might as well convert it to the more flexible VOP3-only
+  // mad/fma form.
+  if (TII->convertToThreeAddress(*Def, nullptr, nullptr))
+    Def->eraseFromParent();
+
   return true;
 }
 
@@ -1504,6 +1533,13 @@ bool SIFoldOperands::tryFoldOMod(MachineInstr &MI) {
   DefOMod->setImm(OMod);
   MRI->replaceRegWith(MI.getOperand(0).getReg(), Def->getOperand(0).getReg());
   MI.eraseFromParent();
+
+  // Use of output modifiers forces VOP3 encoding for a VOP2 mac/fmac
+  // instruction, so we might as well convert it to the more flexible VOP3-only
+  // mad/fma form.
+  if (TII->convertToThreeAddress(*Def, nullptr, nullptr))
+    Def->eraseFromParent();
+
   return true;
 }
 
@@ -1550,17 +1586,9 @@ bool SIFoldOperands::tryFoldRegSequence(MachineInstr &MI) {
 
   unsigned OpIdx = Op - &UseMI->getOperand(0);
   const MCInstrDesc &InstDesc = UseMI->getDesc();
-  const MCOperandInfo &OpInfo = InstDesc.OpInfo[OpIdx];
-  switch (OpInfo.RegClass) {
-  case AMDGPU::AV_32RegClassID:  LLVM_FALLTHROUGH;
-  case AMDGPU::AV_64RegClassID:  LLVM_FALLTHROUGH;
-  case AMDGPU::AV_96RegClassID:  LLVM_FALLTHROUGH;
-  case AMDGPU::AV_128RegClassID: LLVM_FALLTHROUGH;
-  case AMDGPU::AV_160RegClassID:
-    break;
-  default:
+  if (!TRI->isVectorSuperClass(
+          TRI->getRegClass(InstDesc.OpInfo[OpIdx].RegClass)))
     return false;
-  }
 
   const auto *NewDstRC = TRI->getEquivalentAGPRClass(MRI->getRegClass(Reg));
   auto Dst = MRI->createVirtualRegister(NewDstRC);
@@ -1592,7 +1620,7 @@ bool SIFoldOperands::tryFoldRegSequence(MachineInstr &MI) {
   // Erase the REG_SEQUENCE eagerly, unless we followed a chain of COPY users,
   // in which case we can erase them all later in runOnMachineFunction.
   if (MRI->use_nodbg_empty(MI.getOperand(0).getReg()))
-    MI.eraseFromParentAndMarkDBGValuesForRemoval();
+    MI.eraseFromParent();
   return true;
 }
 
@@ -1721,6 +1749,9 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
     for (auto &MI : make_early_inc_range(*MBB)) {
       tryFoldCndMask(MI);
 
+      if (tryFoldZeroHighBits(MI))
+        continue;
+
       if (MI.isRegSequence() && tryFoldRegSequence(MI))
         continue;
 
@@ -1790,7 +1821,7 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
       while (MRI->use_nodbg_empty(InstToErase->getOperand(0).getReg())) {
         auto &SrcOp = InstToErase->getOperand(1);
         auto SrcReg = SrcOp.isReg() ? SrcOp.getReg() : Register();
-        InstToErase->eraseFromParentAndMarkDBGValuesForRemoval();
+        InstToErase->eraseFromParent();
         InstToErase = nullptr;
         if (!SrcReg || SrcReg.isPhysical())
           break;
@@ -1800,7 +1831,7 @@ bool SIFoldOperands::runOnMachineFunction(MachineFunction &MF) {
       }
       if (InstToErase && InstToErase->isRegSequence() &&
           MRI->use_nodbg_empty(InstToErase->getOperand(0).getReg()))
-        InstToErase->eraseFromParentAndMarkDBGValuesForRemoval();
+        InstToErase->eraseFromParent();
     }
   }
   return true;

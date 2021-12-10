@@ -18,7 +18,7 @@ namespace object {
 static int64_t getELFAddend(RelocationRef R) {
   Expected<int64_t> AddendOrErr = ELFRelocationRef(R).getAddend();
   handleAllErrors(AddendOrErr.takeError(), [](const ErrorInfoBase &EI) {
-    report_fatal_error(EI.message());
+    report_fatal_error(Twine(EI.message()));
   });
   return *AddendOrErr;
 }
@@ -89,8 +89,8 @@ static uint64_t resolveAArch64(uint64_t Type, uint64_t Offset, uint64_t S,
 
 static bool supportsBPF(uint64_t Type) {
   switch (Type) {
-  case ELF::R_BPF_64_32:
-  case ELF::R_BPF_64_64:
+  case ELF::R_BPF_64_ABS32:
+  case ELF::R_BPF_64_ABS64:
     return true;
   default:
     return false;
@@ -100,9 +100,9 @@ static bool supportsBPF(uint64_t Type) {
 static uint64_t resolveBPF(uint64_t Type, uint64_t Offset, uint64_t S,
                            uint64_t LocData, int64_t /*Addend*/) {
   switch (Type) {
-  case ELF::R_BPF_64_32:
+  case ELF::R_BPF_64_ABS32:
     return (S + LocData) & 0xFFFFFFFF;
-  case ELF::R_BPF_64_64:
+  case ELF::R_BPF_64_ABS64:
     return S + LocData;
   default:
     llvm_unreachable("Invalid relocation type");
@@ -312,12 +312,17 @@ static bool supportsARM(uint64_t Type) {
 }
 
 static uint64_t resolveARM(uint64_t Type, uint64_t Offset, uint64_t S,
-                           uint64_t LocData, int64_t /*Addend*/) {
+                           uint64_t LocData, int64_t Addend) {
+  // Support both RELA and REL relocations. The caller is responsible
+  // for supplying the correct values for LocData and Addend, i.e.
+  // Addend == 0 for REL and LocData == 0 for RELA.
+  assert((LocData == 0 || Addend == 0) &&
+         "one of LocData and Addend must be 0");
   switch (Type) {
   case ELF::R_ARM_ABS32:
-    return (S + LocData) & 0xFFFFFFFF;
+    return (S + LocData + Addend) & 0xFFFFFFFF;
   case ELF::R_ARM_REL32:
-    return (S + LocData - Offset) & 0xFFFFFFFF;
+    return (S + LocData + Addend - Offset) & 0xFFFFFFFF;
   }
   llvm_unreachable("Invalid relocation type");
 }
@@ -572,7 +577,7 @@ static bool supportsWasm32(uint64_t Type) {
   case wasm::R_WASM_GLOBAL_INDEX_LEB:
   case wasm::R_WASM_FUNCTION_OFFSET_I32:
   case wasm::R_WASM_SECTION_OFFSET_I32:
-  case wasm::R_WASM_EVENT_INDEX_LEB:
+  case wasm::R_WASM_TAG_INDEX_LEB:
   case wasm::R_WASM_GLOBAL_INDEX_I32:
   case wasm::R_WASM_TABLE_NUMBER_LEB:
   case wasm::R_WASM_MEMORY_ADDR_LOCREL_I32:
@@ -609,7 +614,7 @@ static uint64_t resolveWasm32(uint64_t Type, uint64_t Offset, uint64_t S,
   case wasm::R_WASM_GLOBAL_INDEX_LEB:
   case wasm::R_WASM_FUNCTION_OFFSET_I32:
   case wasm::R_WASM_SECTION_OFFSET_I32:
-  case wasm::R_WASM_EVENT_INDEX_LEB:
+  case wasm::R_WASM_TAG_INDEX_LEB:
   case wasm::R_WASM_GLOBAL_INDEX_I32:
   case wasm::R_WASM_TABLE_NUMBER_LEB:
   case wasm::R_WASM_MEMORY_ADDR_LOCREL_I32:
@@ -744,8 +749,13 @@ uint64_t resolveRelocation(RelocationResolver Resolver, const RelocationRef &R,
         return Elf64BEObj->getRelSection(R.getRawDataRefImpl())->sh_type;
       };
 
-      if (GetRelSectionType() == ELF::SHT_RELA)
+      if (GetRelSectionType() == ELF::SHT_RELA) {
         Addend = getELFAddend(R);
+        // RISCV relocations use both LocData and Addend.
+        if (Obj->getArch() != Triple::riscv32 &&
+            Obj->getArch() != Triple::riscv64)
+          LocData = 0;
+      }
     }
 
     return Resolver(R.getType(), R.getOffset(), S, LocData, Addend);

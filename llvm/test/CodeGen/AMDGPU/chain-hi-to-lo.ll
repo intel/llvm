@@ -357,8 +357,6 @@ bb:
 define amdgpu_kernel void @vload2_private(i16 addrspace(1)* nocapture readonly %in, <2 x i16> addrspace(1)* nocapture %out) #0 {
 ; GFX900-LABEL: vload2_private:
 ; GFX900:       ; %bb.0: ; %entry
-; GFX900-NEXT:    s_add_u32 flat_scratch_lo, s6, s9
-; GFX900-NEXT:    s_addc_u32 flat_scratch_hi, s7, 0
 ; GFX900-NEXT:    s_load_dwordx4 s[4:7], s[4:5], 0x0
 ; GFX900-NEXT:    v_mov_b32_e32 v2, 0
 ; GFX900-NEXT:    s_add_u32 s0, s0, s9
@@ -376,14 +374,14 @@ define amdgpu_kernel void @vload2_private(i16 addrspace(1)* nocapture readonly %
 ; GFX900-NEXT:    s_waitcnt vmcnt(0)
 ; GFX900-NEXT:    buffer_store_short v0, off, s[0:3], 0 offset:8
 ; GFX900-NEXT:    s_waitcnt vmcnt(0)
-; GFX900-NEXT:    buffer_load_ushort v0, off, s[0:3], 0 offset:4
-; GFX900-NEXT:    buffer_load_ushort v3, off, s[0:3], 0 offset:6
+; GFX900-NEXT:    buffer_load_ushort v0, off, s[0:3], 0 offset:6
+; GFX900-NEXT:    buffer_load_ushort v3, off, s[0:3], 0 offset:4
 ; GFX900-NEXT:    s_waitcnt vmcnt(1)
-; GFX900-NEXT:    v_and_b32_e32 v0, 0xffff, v0
-; GFX900-NEXT:    s_waitcnt vmcnt(0)
-; GFX900-NEXT:    v_mov_b32_e32 v1, v3
+; GFX900-NEXT:    v_mov_b32_e32 v1, v0
 ; GFX900-NEXT:    buffer_load_short_d16_hi v1, off, s[0:3], 0 offset:8
-; GFX900-NEXT:    v_lshl_or_b32 v0, v3, 16, v0
+; GFX900-NEXT:    s_waitcnt vmcnt(1)
+; GFX900-NEXT:    v_and_b32_e32 v3, 0xffff, v3
+; GFX900-NEXT:    v_lshl_or_b32 v0, v0, 16, v3
 ; GFX900-NEXT:    s_waitcnt vmcnt(0)
 ; GFX900-NEXT:    global_store_dwordx2 v2, v[0:1], s[6:7]
 ; GFX900-NEXT:    s_endpgm
@@ -420,10 +418,6 @@ define amdgpu_kernel void @vload2_private(i16 addrspace(1)* nocapture readonly %
 ;
 ; GFX10_DEFAULT-LABEL: vload2_private:
 ; GFX10_DEFAULT:       ; %bb.0: ; %entry
-; GFX10_DEFAULT-NEXT:    s_add_u32 s6, s6, s9
-; GFX10_DEFAULT-NEXT:    s_addc_u32 s7, s7, 0
-; GFX10_DEFAULT-NEXT:    s_setreg_b32 hwreg(HW_REG_FLAT_SCR_LO), s6
-; GFX10_DEFAULT-NEXT:    s_setreg_b32 hwreg(HW_REG_FLAT_SCR_HI), s7
 ; GFX10_DEFAULT-NEXT:    s_load_dwordx4 s[4:7], s[4:5], 0x0
 ; GFX10_DEFAULT-NEXT:    v_mov_b32_e32 v2, 0
 ; GFX10_DEFAULT-NEXT:    s_add_u32 s0, s0, s9

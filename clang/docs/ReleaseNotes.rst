@@ -1,5 +1,5 @@
 ========================================
-Clang 13.0.0 (In-Progress) Release Notes
+Clang 14.0.0 (In-Progress) Release Notes
 ========================================
 
 .. contents::
@@ -10,7 +10,7 @@ Written by the `LLVM Team <https://llvm.org/>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming Clang 13 release.
+   These are in-progress notes for the upcoming Clang 14 release.
    Release notes for previous releases can be found on
    `the Download Page <https://releases.llvm.org/download.html>`_.
 
@@ -18,7 +18,7 @@ Introduction
 ============
 
 This document contains the release notes for the Clang C/C++/Objective-C
-frontend, part of the LLVM Compiler Infrastructure, release 13.0.0. Here we
+frontend, part of the LLVM Compiler Infrastructure, release 14.0.0. Here we
 describe the status of Clang in some detail, including major
 improvements from the previous release and new feature work. For the
 general LLVM release notes, see `the LLVM
@@ -35,7 +35,7 @@ main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <https://llvm.org/releases/>`_.
 
-What's New in Clang 13.0.0?
+What's New in Clang 14.0.0?
 ===========================
 
 Some of the major new features and improvements to Clang are listed
@@ -46,60 +46,55 @@ sections with improvements to Clang's support for those languages.
 Major New Features
 ------------------
 
-- Guaranteed tail calls are now supported with statement attributes
-  ``[[clang::musttail]]`` in C++ and ``__attribute__((musttail))`` in C. The
-  attribute is applied to a return statement (not a function declaration),
-  and an error is emitted if a tail call cannot be guaranteed, for example if
-  the function signatures of caller and callee are not compatible. Guaranteed
-  tail calls enable a class of algorithms that would otherwise use an
-  arbitrary amount of stack space.
+-  ...
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- ...
+- -Wbitwise-instead-of-logical (part of -Wbool-operation) warns about use of bitwise operators with boolean operands which have side effects.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
 
-- ...
+- Maximum _ExtInt size was decreased from 16,777,215 bits to 8,388,608 bits.
+  Motivation for this was discussed in PR51829.
 
 New Compiler Flags
 ------------------
 
-- ``-Wreserved-identifier`` emits warning when user code uses reserved
-  identifiers.
-
-- ``-fstack-usage`` generates an extra .su file per input source file. The .su
-  file contains frame size information for each function defined in the source
-  file.
+- Clang plugin arguments can now be passed through the compiler driver via
+  ``-fplugin-arg-pluginname-arg``, similar to GCC's ``-fplugin-arg``.
 
 Deprecated Compiler Flags
 -------------------------
 
-- ...
+- -Wweak-template-vtables has been deprecated and no longer has any effect. The
+  flag will be removed in the next release.
 
 Modified Compiler Flags
 -----------------------
 
-- -Wshadow now also checks for shadowed structured bindings
-- ``-B <prefix>`` (when ``<prefix>`` is a directory) was overloaded to additionally
-  detect GCC installations under ``<prefix>`` (``lib{,32,64}/gcc{,-cross}/$triple``).
-  This behavior was incompatible with GCC, caused interop issues with
-  ``--gcc-toolchain``, and was thus dropped. Specify ``--gcc-toolchain=<dir>``
-  instead. ``-B``'s other GCC-compatible semantics are preserved:
-  ``$prefix/$triple-$file`` and ``$prefix$file`` are searched for executables,
-  libraries, includes, and data files used by the compiler.
+- Support has been added for the following processors (``-mcpu`` identifiers in parentheses):
+
+  - RISC-V SiFive E20 (``sifive-e20``).
+  - RISC-V SiFive E21 (``sifive-e21``).
+  - RISC-V SiFive E24 (``sifive-e24``).
+  - RISC-V SiFive E34 (``sifive-e34``).
+  - RISC-V SiFive S21 (``sifive-s21``).
+  - RISC-V SiFive S51 (``sifive-s51``).
+  - RISC-V SiFive S54 (``sifive-s54``).
+  - RISC-V SiFive S76 (``sifive-s76``).
+
+- Support has been added for the following architectures (``-march`` identifiers in parentheses):
+
+  - Armv9-A (``armv9-a``).
+  - Armv9.1-A (``armv9.1-a``).
+  - Armv9.2-A (``armv9.2-a``).
 
 Removed Compiler Flags
 -------------------------
 
-- The clang-cl ``/fallback`` flag, which made clang-cl invoke Microsoft Visual
-  C++ on files it couldn't compile itself, has been removed.
-
-- ``-Wreturn-std-move-in-c++11``, which checked whether an entity is affected by
-  `CWG1579 <https://wg21.link/CWG1579>`_ to become implicitly movable, has been
-  removed.
+- ...
 
 New Pragmas in Clang
 --------------------
@@ -109,21 +104,45 @@ New Pragmas in Clang
 Attribute Changes in Clang
 --------------------------
 
-- ...
+- Attributes loaded as clang plugins which are sensitive to LangOpts must
+  now override ``acceptsLangOpts`` instead of ``diagLangOpts``.
+  Returning false will produce a generic "attribute ignored" diagnostic, as
+  with clang's built-in attributes.
+  If plugins want to provide richer diagnostics, they can do so when the
+  attribute is handled instead, e.g. in ``handleDeclAttribute``.
+  (This was changed in order to better support attributes in code completion).
+
+- __has_cpp_attribute, __has_c_attribute, __has_attribute, and __has_declspec
+  will now macro expand their argument. This causes a change in behavior for
+  code using ``__has_cpp_attribute(__clang__::attr)`` (and same for
+  ``__has_c_attribute``) where it would previously expand to ``0`` for all
+  attributes, but will now issue an error due to the expansion of the
+  predefined ``__clang__`` macro.
 
 Windows Support
 ---------------
 
+- An MSVC compatibility workaround for C++ operator names was removed. As a
+  result, the ``<query.h>`` Windows SDK header may not compile out of the box.
+  Users should use a recent SDK and pass ``-DQUERY_H_RESTRICTION_PERMISSIVE``
+  or pass ``/permissive`` to disable C++ operator names altogether. See
+  `PR42427 <https://llvm.org/pr42427>` for more info.
+
 C Language Changes in Clang
 ---------------------------
 
-- ...
+- The value of ``__STDC_VERSION__`` has been bumped to ``202000L`` when passing
+  ``-std=c2x`` so that it can be distinguished from C17 mode. This value is
+  expected to change again when C23 is published.
+- Wide multi-characters literals such as ``L'ab'`` that would previously be interpreted as ``L'b'``
+  are now ill-formed in all language modes. The motivation for this change is outlined in
+  `P2362 <wg21.link/P2362>`_.
+- Support for ``__attribute__((error("")))`` and
+  ``__attribute__((warning("")))`` function attributes have been added.
+- The maximum allowed alignment has been increased from 2^29 to 2^32.
 
 C++ Language Changes in Clang
 -----------------------------
-
-- The oldest supported GNU libstdc++ is now 4.8.3 (released 2014-05-22).
-  Clang workarounds for bugs in earlier versions have been removed.
 
 - ...
 
@@ -133,7 +152,15 @@ C++20 Feature Support
 
 C++2b Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
-...
+- Implemented `P1938R3: if consteval <https://wg21.link/P1938R3>`_.
+- Implemented `P2360R0: Extend init-statement to allow alias-declaration <https://wg21.link/P2360R0>`_.
+
+
+CUDA Language Changes in Clang
+------------------------------
+
+- Clang now supports CUDA versions up to 11.5.
+- Default GPU architecture has been changed from sm_20 to sm_35.
 
 Objective-C Language Changes in Clang
 -------------------------------------
@@ -149,7 +176,8 @@ ABI Changes in Clang
 OpenMP Support in Clang
 -----------------------
 
-- ...
+- ``clang-nvlink-wrapper`` tool introduced to support linking of cubin files archived in an archive. See :doc:`ClangNvlinkWrapper`.
+
 
 CUDA Support in Clang
 ---------------------
@@ -159,97 +187,85 @@ CUDA Support in Clang
 X86 Support in Clang
 --------------------
 
-- ...
+- Support for ``AVX512-FP16`` instructions has been added.
+
+Arm and AArch64 Support in Clang
+--------------------------------
+
+- Support has been added for the following processors (command-line identifiers in parentheses):
+  - Arm Cortex-A510 (``cortex-a510``)
+  - Arm Cortex-X2 (``cortex-x2``)
+  - Arm Cortex-A710 (``cortex-A710``)
+
+- The -mtune flag is no longer ignored for AArch64. It is now possible to
+  tune code generation for a particular CPU with -mtune without setting any
+  architectural features. For example, compiling with
+  "-mcpu=generic -mtune=cortex-a57" will not enable any Cortex-A57 specific
+  architecture features, but will enable certain optimizations specific to
+  Cortex-A57 CPUs and enable the use of a more accurate scheduling model.
+
+
+Floating Point Support in Clang
+-------------------------------
+- The default setting of FP contraction (FMA) is now -ffp-contract=on (for
+  languages other than CUDA/HIP) even when optimization is off. Previously,
+  the default behavior was equivalent to -ffp-contract=off (-ffp-contract
+  was not set).
+  Related to this, the switch -ffp-model=precise now implies -ffp-contract=on
+  rather than -ffp-contract=fast, and the documentation of these features has
+  been clarified. Previously, the documentation claimed that -ffp-model=precise
+  was the default, but this was incorrect because the precise model implied
+  -ffp-contract=fast, wheras the (now corrected) default behavior is
+  -ffp-contract=on.
+  -ffp-model=precise is now exactly the default mode of the compiler.
 
 Internal API Changes
 --------------------
-
-These are major API changes that have happened since the 12.0.0 release of
-Clang. If upgrading an external codebase that uses Clang as a library,
-this section should help get you past the largest hurdles of upgrading.
 
 - ...
 
 Build System Changes
 --------------------
 
-These are major changes to the build system that have happened since the 12.0.0
-release of Clang. Users of the build system should adjust accordingly.
-
-- The option ``LIBCLANG_INCLUDE_CLANG_TOOLS_EXTRA`` no longer exists. There were
-  two releases with that flag forced off, and no uses were added that forced it
-  on. The recommended replacement is clangd.
-
 - ...
 
 AST Matchers
 ------------
 
-- ...
+- ``TypeLoc`` AST Matchers are now available. These matchers provide helpful
+  utilities for matching ``TypeLoc`` nodes, such as the ``pointerTypeLoc``
+  matcher or the ``hasReturnTypeLoc`` matcher. The addition of these matchers
+  was made possible by changes to the handling of ``TypeLoc`` nodes that
+  allows them to enjoy the same static type checking as other AST node kinds.
+- ``LambdaCapture`` AST Matchers are now available. These matchers allow for
+  the binding of ``LambdaCapture`` nodes. The ``LambdaCapture`` matchers added
+  include the ``lambdaCapture`` node matcher, the ``capturesVar`` traversal
+  matcher, and ``capturesThis`` narrowing matcher.
+- The ``hasAnyCapture`` matcher now only accepts an inner matcher of type
+  ``Matcher<LambdaCapture>``. The matcher originally accepted an inner matcher
+  of type ``Matcher<CXXThisExpr>`` or ``Matcher<VarDecl>``.
 
 clang-format
 ------------
 
-- Option ``SpacesInLineCommentPrefix`` has been added to control the
-  number of spaces in a line comments prefix.
+- Option ``AllowShortEnumsOnASingleLine: false`` has been improved, it now
+  correctly places the opening brace according to ``BraceWrapping.AfterEnum``.
 
-- Option ``SortIncludes`` has been updated from a ``bool`` to an
-  ``enum`` with backwards compatibility. In addition to the previous
-  ``true``/``false`` states (now ``CaseSensitive``/``Never``), a third
-  state has been added (``CaseInsensitive``) which causes an alphabetical sort
-  with case used as a tie-breaker.
+- Option ``QualifierAligment`` has been added in order to auto-arrange the
+  positioning of specifiers/qualifiers
+  `const` `volatile` `static` `inline` `constexpr` `restrict`
+  in variable and parameter declarations to be either ``Right`` aligned
+  or ``Left`` aligned or ``Custom`` using ``QualifierOrder``.
 
-  .. code-block:: c++
+- Option ``QualifierOrder`` has been added to allow the order
+  `const` `volatile` `static` `inline` `constexpr` `restrict`
+  to be controlled relative to the `type`.
 
-    // Never (previously false)
-    #include "B/A.h"
-    #include "A/B.h"
-    #include "a/b.h"
-    #include "A/b.h"
-    #include "B/a.h"
+- Add a ``Custom`` style to ``SpaceBeforeParens``, to better configure the
+  space before parentheses. The custom options can be set using
+  ``SpaceBeforeParensOptions``.
 
-    // CaseSensitive (previously true)
-    #include "A/B.h"
-    #include "A/b.h"
-    #include "B/A.h"
-    #include "B/a.h"
-    #include "a/b.h"
-
-    // CaseInsensitive
-    #include "A/B.h"
-    #include "A/b.h"
-    #include "a/b.h"
-    #include "B/A.h"
-    #include "B/a.h"
-
-- ``BasedOnStyle: InheritParentConfig`` allows to use the ``.clang-format`` of
-  the parent directories to overwrite only parts of it.
-
-- Option ``IndentAccessModifiers`` has been added to be able to give access
-  modifiers their own indentation level inside records.
-
-- Option ``ShortNamespaceLines`` has been added to give better control
-  over ``FixNamespaceComments`` when determining a namespace length.
-
-- Support for Whitesmiths has been improved, with fixes for ``namespace`` blocks
-  and ``case`` blocks and labels.
-
-- Option ``EmptyLineAfterAccessModifier`` has been added to remove, force or keep
-  new lines after access modifiers.
-
-- Checks for newlines in option ``EmptyLineBeforeAccessModifier`` are now based
-  on the formatted new lines and not on the new lines in the file. (Fixes
-  https://llvm.org/PR41870.)
-
-- Option ``SpacesInAngles`` has been improved, it now accepts ``Leave`` value
-  that allows to keep spaces where they are already present.
-
-- Option ``AllowShortIfStatementsOnASingleLine`` has been improved, it now
-  accepts ``AllIfsAndElse`` value that allows to put "else if" and "else" short
-  statements on a single line. (Fixes https://llvm.org/PR50019.)
-
-- ``git-clang-format`` no longer formats changes to symbolic links. (Fixes
-  https://llvm.org/PR46992.)
+- Improved C++20 Modules and Coroutines support.
 
 libclang
 --------

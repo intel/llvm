@@ -29,3 +29,17 @@ int a = cl::sycl::intel::fpga_reg(a[k]) + b[k];
 
 ...
 ```
+
+## Feature Test Macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros". Therefore, an implementation
+supporting this extension must predefine the macro `SYCL_EXT_INTEL_FPGA_REG`
+to one of the values defined in the table below. Applications can test for the
+existence of this macro to determine if the implementation supports this
+feature, or applications can test the macro’s value to determine which of the
+extension’s APIs the implementation supports.
+
+|Value |Description|
+|:---- |:---------:|
+|1     |Initial extension version. Base features are supported.|

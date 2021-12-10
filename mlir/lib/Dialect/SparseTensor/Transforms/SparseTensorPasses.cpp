@@ -1,4 +1,4 @@
-//===- SparsificationPass.cpp - Pass for autogen spares tensor code -------===//
+//===- SparseTensorPasses.cpp - Pass for autogen sparse tensor code -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/Transforms/Transforms.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
@@ -32,18 +33,8 @@ namespace {
 struct SparsificationPass : public SparsificationBase<SparsificationPass> {
 
   SparsificationPass() = default;
-  SparsificationPass(const SparsificationPass &pass) {}
-
-  Option<int32_t> parallelization{
-      *this, "parallelization-strategy",
-      llvm::cl::desc("Set the parallelization strategy"), llvm::cl::init(0)};
-
-  Option<int32_t> vectorization{
-      *this, "vectorization-strategy",
-      llvm::cl::desc("Set the vectorization strategy"), llvm::cl::init(0)};
-
-  Option<int32_t> vectorLength{
-      *this, "vl", llvm::cl::desc("Set the vector length"), llvm::cl::init(1)};
+  SparsificationPass(const SparsificationPass &pass)
+      : SparsificationBase<SparsificationPass>() {}
 
   /// Returns parallelization strategy given on command line.
   SparseParallelizationStrategy parallelOption() {
@@ -78,7 +69,7 @@ struct SparsificationPass : public SparsificationBase<SparsificationPass> {
     RewritePatternSet patterns(ctx);
     // Translate strategy flags to strategy options.
     SparsificationOptions options(parallelOption(), vectorOption(),
-                                  vectorLength);
+                                  vectorLength, enableSIMDIndex32);
     // Apply rewriting.
     populateSparsificationPatterns(patterns, options);
     vector::populateVectorToVectorCanonicalizationPatterns(patterns);
@@ -107,7 +98,11 @@ struct SparseTensorConversionPass
     RewritePatternSet patterns(ctx);
     SparseTensorTypeConverter converter;
     ConversionTarget target(*ctx);
-    target.addIllegalOp<NewOp, ToPointersOp, ToIndicesOp, ToValuesOp>();
+    // Everything in the sparse dialect must go!
+    target.addIllegalDialect<SparseTensorDialect>();
+    // All dynamic rules below accept new function, call, return, and tensor
+    // dim and cast operations as legal output of the rewriting provided that
+    // all sparse tensor types have been fully rewritten.
     target.addDynamicallyLegalOp<FuncOp>(
         [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });
     target.addDynamicallyLegalOp<CallOp>([&](CallOp op) {
@@ -115,8 +110,21 @@ struct SparseTensorConversionPass
     });
     target.addDynamicallyLegalOp<ReturnOp>(
         [&](ReturnOp op) { return converter.isLegal(op.getOperandTypes()); });
-    target.addLegalOp<ConstantOp>();
-    target.addLegalOp<tensor::CastOp>();
+    target.addDynamicallyLegalOp<tensor::DimOp>([&](tensor::DimOp op) {
+      return converter.isLegal(op.getOperandTypes());
+    });
+    target.addDynamicallyLegalOp<tensor::CastOp>([&](tensor::CastOp op) {
+      return converter.isLegal(op.getOperand().getType());
+    });
+    // The following operations and dialects may be introduced by the
+    // rewriting rules, and are therefore marked as legal.
+    target.addLegalOp<arith::CmpFOp, arith::CmpIOp, arith::ConstantOp,
+                      arith::IndexCastOp, linalg::FillOp, linalg::YieldOp,
+                      tensor::ExtractOp>();
+    target
+        .addLegalDialect<bufferization::BufferizationDialect, LLVM::LLVMDialect,
+                         memref::MemRefDialect, scf::SCFDialect>();
+    // Populate with rules and apply rewriting rules.
     populateFuncOpTypeConversionPattern(patterns, converter);
     populateCallOpTypeConversionPattern(patterns, converter);
     populateSparseTensorConversionPatterns(converter, patterns);

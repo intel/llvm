@@ -22,7 +22,7 @@ public:
   static void Initialize();
   static void Terminate();
 
-  static ConstString GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() { return "pdb"; }
   static const char *GetPluginDescriptionStatic() {
     return "PDB object file reader.";
   }
@@ -48,9 +48,7 @@ public:
                                         ModuleSpecList &specs);
 
   // PluginInterface protocol
-  ConstString GetPluginName() override { return GetPluginNameStatic(); }
-
-  uint32_t GetPluginVersion() override { return 1; }
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   // LLVM RTTI support
   static char ID;
@@ -70,7 +68,7 @@ public:
 
   bool IsExecutable() const override { return false; }
 
-  Symtab *GetSymtab() override { return nullptr; }
+  void ParseSymtab(lldb_private::Symtab &symtab) override {}
 
   bool IsStripped() override { return false; }
 

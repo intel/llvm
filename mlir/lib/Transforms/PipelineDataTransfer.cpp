@@ -74,9 +74,7 @@ static bool doubleBuffer(Value oldMemRef, AffineForOp forOp) {
     SmallVector<int64_t, 4> newShape(1 + oldMemRefType.getRank());
     newShape[0] = 2;
     std::copy(oldShape.begin(), oldShape.end(), newShape.begin() + 1);
-    return MemRefType::Builder(oldMemRefType)
-        .setShape(newShape)
-        .setAffineMaps({});
+    return MemRefType::Builder(oldMemRefType).setShape(newShape).setLayout({});
   };
 
   auto oldMemRefType = oldMemRef.getType().cast<MemRefType>();
@@ -85,8 +83,12 @@ static bool doubleBuffer(Value oldMemRef, AffineForOp forOp) {
   // The double buffer is allocated right before 'forOp'.
   OpBuilder bOuter(forOp);
   // Put together alloc operands for any dynamic dimensions of the memref.
-
-  auto allocOperands = getDynOperands(forOp.getLoc(), oldMemRef, bOuter);
+  SmallVector<Value, 4> allocOperands;
+  for (auto dim : llvm::enumerate(oldMemRefType.getShape())) {
+    if (dim.value() == ShapedType::kDynamicSize)
+      allocOperands.push_back(bOuter.createOrFold<memref::DimOp>(
+          forOp.getLoc(), oldMemRef, dim.index()));
+  }
 
   // Create and place the alloc right before the 'affine.for' operation.
   Value newMemRef = bOuter.create<memref::AllocOp>(

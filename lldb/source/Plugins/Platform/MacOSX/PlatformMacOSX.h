@@ -23,16 +23,14 @@ public:
 
   static void Terminate();
 
-  static lldb_private::ConstString GetPluginNameStatic();
-
-  static const char *GetDescriptionStatic();
-
-  // lldb_private::PluginInterface functions
-  lldb_private::ConstString GetPluginName() override {
-    return GetPluginNameStatic();
+  static llvm::StringRef GetPluginNameStatic() {
+    return Platform::GetHostPlatformName();
   }
 
-  uint32_t GetPluginVersion() override { return 1; }
+  static llvm::StringRef GetDescriptionStatic();
+
+  // lldb_private::PluginInterface functions
+  llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }
 
   lldb_private::Status
   GetSharedModule(const lldb_private::ModuleSpec &module_spec,
@@ -41,7 +39,7 @@ public:
                   llvm::SmallVectorImpl<lldb::ModuleSP> *old_modules,
                   bool *did_create_ptr) override;
 
-  const char *GetDescription() override { return GetDescriptionStatic(); }
+  llvm::StringRef GetDescription() override { return GetDescriptionStatic(); }
 
   lldb_private::Status
   GetFile(const lldb_private::FileSpec &source,

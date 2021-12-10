@@ -14,7 +14,6 @@
 #ifndef LLVM_IR_TYPE_H
 #define LLVM_IR_TYPE_H
 
-#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/CBindingWrapping.h"
@@ -28,8 +27,8 @@
 
 namespace llvm {
 
-template<class GraphType> struct GraphTraits;
 class IntegerType;
+struct fltSemantics;
 class LLVMContext;
 class PointerType;
 class raw_ostream;
@@ -167,18 +166,7 @@ public:
            getTypeID() == PPC_FP128TyID;
   }
 
-  const fltSemantics &getFltSemantics() const {
-    switch (getTypeID()) {
-    case HalfTyID: return APFloat::IEEEhalf();
-    case BFloatTyID: return APFloat::BFloat();
-    case FloatTyID: return APFloat::IEEEsingle();
-    case DoubleTyID: return APFloat::IEEEdouble();
-    case X86_FP80TyID: return APFloat::x87DoubleExtended();
-    case FP128TyID: return APFloat::IEEEquad();
-    case PPC_FP128TyID: return APFloat::PPCDoubleDouble();
-    default: llvm_unreachable("Invalid floating type");
-    }
-  }
+  const fltSemantics &getFltSemantics() const;
 
   /// Return true if this is X86 MMX.
   bool isX86_MMXTy() const { return getTypeID() == X86_MMXTyID; }
@@ -227,6 +215,9 @@ public:
 
   /// True if this is an instance of PointerType.
   bool isPointerTy() const { return getTypeID() == PointerTyID; }
+
+  /// True if this is an instance of an opaque PointerType.
+  bool isOpaquePointerTy() const;
 
   /// Return true if this is a pointer type or a vector of pointer types.
   bool isPtrOrPtrVectorTy() const { return getScalarType()->isPointerTy(); }
@@ -310,7 +301,7 @@ public:
 
   /// Return whether the type is IEEE compatible, as defined by the eponymous
   /// method in APFloat.
-  bool isIEEE() const { return APFloat::getZero(getFltSemantics()).isIEEE(); }
+  bool isIEEE() const;
 
   /// If this is a vector type, return the element type, otherwise return
   /// 'this'.
@@ -377,6 +368,8 @@ public:
 
   Type *getPointerElementType() const {
     assert(getTypeID() == PointerTyID);
+    assert(NumContainedTys &&
+           "Attempting to get element type of opaque pointer");
     return ContainedTys[0];
   }
 
@@ -441,26 +434,7 @@ public:
     }
     llvm_unreachable("Unsupported type in Type::getScalarTy");
   }
-  static Type *getFloatingPointTy(LLVMContext &C, const fltSemantics &S) {
-    Type *Ty;
-    if (&S == &APFloat::IEEEhalf())
-      Ty = Type::getHalfTy(C);
-    else if (&S == &APFloat::BFloat())
-      Ty = Type::getBFloatTy(C);
-    else if (&S == &APFloat::IEEEsingle())
-      Ty = Type::getFloatTy(C);
-    else if (&S == &APFloat::IEEEdouble())
-      Ty = Type::getDoubleTy(C);
-    else if (&S == &APFloat::x87DoubleExtended())
-      Ty = Type::getX86_FP80Ty(C);
-    else if (&S == &APFloat::IEEEquad())
-      Ty = Type::getFP128Ty(C);
-    else {
-      assert(&S == &APFloat::PPCDoubleDouble() && "Unknown FP format");
-      Ty = Type::getPPC_FP128Ty(C);
-    }
-    return Ty;
-  }
+  static Type *getFloatingPointTy(LLVMContext &C, const fltSemantics &S);
 
   //===--------------------------------------------------------------------===//
   // Convenience methods for getting pointer types with one of the above builtin
@@ -484,6 +458,7 @@ public:
 
   /// Return a pointer to the current type. This is equivalent to
   /// PointerType::get(Foo, AddrSpace).
+  /// TODO: Remove this after opaque pointer transition is complete.
   PointerType *getPointerTo(unsigned AddrSpace = 0) const;
 
 private:

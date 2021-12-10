@@ -71,6 +71,18 @@ class PythonDictionary;
 class PythonInteger;
 class PythonException;
 
+class GIL {
+public:
+  GIL() {
+    m_state = PyGILState_Ensure();
+    assert(!PyErr_Occurred());
+  }
+  ~GIL() { PyGILState_Release(m_state); }
+
+protected:
+  PyGILState_STATE m_state;
+};
+
 class StructuredPythonObject : public StructuredData::Generic {
 public:
   StructuredPythonObject() : StructuredData::Generic() {}
@@ -229,7 +241,7 @@ struct PythonFormat<
 
 class PythonObject {
 public:
-  PythonObject() : m_py_obj(nullptr) {}
+  PythonObject() = default;
 
   PythonObject(PyRefType type, PyObject *py_obj) {
     m_py_obj = py_obj;
@@ -378,7 +390,7 @@ public:
   }
 
 protected:
-  PyObject *m_py_obj;
+  PyObject *m_py_obj = nullptr;
 };
 
 
@@ -421,7 +433,7 @@ public:
       Py_DECREF(py_obj);
   }
 
-  TypedPythonObject() {}
+  TypedPythonObject() = default;
 };
 
 class PythonBytes : public TypedPythonObject<PythonBytes> {

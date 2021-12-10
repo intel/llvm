@@ -125,9 +125,11 @@ Function *llvm::createSanitizerCtor(Module &M, StringRef CtorName) {
   Function *Ctor = Function::createWithDefaultAttr(
       FunctionType::get(Type::getVoidTy(M.getContext()), false),
       GlobalValue::InternalLinkage, 0, CtorName, &M);
-  Ctor->addAttribute(AttributeList::FunctionIndex, Attribute::NoUnwind);
+  Ctor->addFnAttr(Attribute::NoUnwind);
   BasicBlock *CtorBB = BasicBlock::Create(M.getContext(), "", Ctor);
   ReturnInst::Create(M.getContext(), CtorBB);
+  // Ensure Ctor cannot be discarded, even if in a comdat.
+  appendToUsed(M, {Ctor});
   return Ctor;
 }
 
@@ -163,7 +165,7 @@ llvm::getOrCreateSanitizerCtorAndInitFunctions(
   if (Function *Ctor = M.getFunction(CtorName))
     // FIXME: Sink this logic into the module, similar to the handling of
     // globals. This will make moving to a concurrent model much easier.
-    if (Ctor->arg_size() == 0 ||
+    if (Ctor->arg_empty() ||
         Ctor->getReturnType() == Type::getVoidTy(M.getContext()))
       return {Ctor, declareSanitizerInitFunction(M, InitName, InitArgTypes)};
 
@@ -173,28 +175,6 @@ llvm::getOrCreateSanitizerCtorAndInitFunctions(
       M, CtorName, InitName, InitArgTypes, InitArgs, VersionCheckName);
   FunctionsCreatedCallback(Ctor, InitFunction);
   return std::make_pair(Ctor, InitFunction);
-}
-
-Function *llvm::getOrCreateInitFunction(Module &M, StringRef Name) {
-  assert(!Name.empty() && "Expected init function name");
-  if (Function *F = M.getFunction(Name)) {
-    if (F->arg_size() != 0 ||
-        F->getReturnType() != Type::getVoidTy(M.getContext())) {
-      std::string Err;
-      raw_string_ostream Stream(Err);
-      Stream << "Sanitizer interface function defined with wrong type: " << *F;
-      report_fatal_error(Err);
-    }
-    return F;
-  }
-  Function *F =
-      cast<Function>(M.getOrInsertFunction(Name, AttributeList(),
-                                           Type::getVoidTy(M.getContext()))
-                         .getCallee());
-
-  appendToGlobalCtors(M, F, 0);
-
-  return F;
 }
 
 void llvm::filterDeadComdatFunctions(
@@ -317,7 +297,6 @@ void VFABI::setVectorVariantNames(
            "vector function declaration is missing.");
   }
 #endif
-  CI->addAttribute(
-      AttributeList::FunctionIndex,
+  CI->addFnAttr(
       Attribute::get(M->getContext(), MappingsAttrName, Buffer.str()));
 }

@@ -133,6 +133,21 @@ struct S { // expected-note {{candidate}}
 template <typename T> S(T t) -> S<void *>;
 
 void baz() {
-  bar(S(123)); // expected-error {{no matching conversion}}
+  bar(S(123)); // expected-error {{no matching conversion for functional-style cast from 'int' to 'S<void *>'}}
 }
 } // namespace test11
+
+namespace test12 {
+// Verify we do not crash.
+int fun(int *foo = no_such_function()); // expected-error {{undeclared identifier}}
+void crash1() { fun(); }
+void crash2() { constexpr int s = fun(); }
+} // namespace test12
+
+namespace test13 {
+enum Circular {             // expected-note {{not complete until the closing '}'}}
+  Circular_A = Circular(1), // expected-error {{'test13::Circular' is an incomplete type}}
+};
+// Enumerators can be evaluated (they evaluate as zero, but we don't care).
+static_assert(Circular_A == 0 && Circular_A != 0, ""); // expected-error {{static_assert failed}}
+}

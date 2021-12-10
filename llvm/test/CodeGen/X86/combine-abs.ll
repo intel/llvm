@@ -41,7 +41,7 @@ define i32 @combine_i32_abs_abs(i32 %a) {
 ; CHECK:       # %bb.0:
 ; CHECK-NEXT:    movl %edi, %eax
 ; CHECK-NEXT:    negl %eax
-; CHECK-NEXT:    cmovll %edi, %eax
+; CHECK-NEXT:    cmovsl %edi, %eax
 ; CHECK-NEXT:    retq
   %n1 = sub i32 zeroinitializer, %a
   %b1 = icmp slt i32 %a, zeroinitializer
@@ -163,12 +163,12 @@ define <4 x i64> @combine_v4i64_abs_abs(<4 x i64> %a) {
 define <16 x i8> @combine_v16i8_abs_constant(<16 x i8> %a) {
 ; SSE-LABEL: combine_v16i8_abs_constant:
 ; SSE:       # %bb.0:
-; SSE-NEXT:    andps {{.*}}(%rip), %xmm0
+; SSE-NEXT:    andps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0
 ; SSE-NEXT:    retq
 ;
 ; AVX-LABEL: combine_v16i8_abs_constant:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vandps {{.*}}(%rip), %xmm0, %xmm0
+; AVX-NEXT:    vandps {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; AVX-NEXT:    retq
   %1 = insertelement <16 x i8> undef, i8 15, i32 0
   %2 = shufflevector <16 x i8> %1, <16 x i8> undef, <16 x i32> zeroinitializer

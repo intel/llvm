@@ -90,6 +90,7 @@ def : WriteRes<WriteLDHi, [CortexA55UnitLd]> { let Latency = 5; }
 def : WriteRes<WriteVLD, [CortexA55UnitLd]> { let Latency = 6;
                                            let ResourceCycles = [3]; }
 def CortexA55WriteVLD1 : SchedWriteRes<[CortexA55UnitLd]> { let Latency = 4; }
+def CortexA55WriteVLD1SI : SchedWriteRes<[CortexA55UnitLd]> { let Latency = 4; let SingleIssue = 1; }
 def CortexA55WriteVLD2 : SchedWriteRes<[CortexA55UnitLd]> { let Latency = 5;
                                                   let ResourceCycles = [2]; }
 def CortexA55WriteVLD3 : SchedWriteRes<[CortexA55UnitLd]> { let Latency = 6;
@@ -105,13 +106,19 @@ def CortexA55WriteVLD7 : SchedWriteRes<[CortexA55UnitLd]> { let Latency = 10;
 def CortexA55WriteVLD8 : SchedWriteRes<[CortexA55UnitLd]> { let Latency = 11;
                                                   let ResourceCycles = [8]; }
 
+def CortexA55WriteLDP1 : SchedWriteRes<[]> { let Latency = 4; }
+def CortexA55WriteLDP2 : SchedWriteRes<[CortexA55UnitLd]> { let Latency = 5; }
+def CortexA55WriteLDP4 : SchedWriteRes<[CortexA55UnitLd, CortexA55UnitLd, CortexA55UnitLd, CortexA55UnitLd, CortexA55UnitLd]> { let Latency = 6; }
+
 // Pre/Post Indexing - Performed as part of address generation
 def : WriteRes<WriteAdr, []> { let Latency = 0; }
 
 // Store
-def : WriteRes<WriteST, [CortexA55UnitSt]> { let Latency = 4; }
-def : WriteRes<WriteSTP, [CortexA55UnitSt]> { let Latency = 4; }
-def : WriteRes<WriteSTIdx, [CortexA55UnitSt]> { let Latency = 4; }
+let RetireOOO = 1 in {
+def : WriteRes<WriteST, [CortexA55UnitSt]> { let Latency = 1; }
+def : WriteRes<WriteSTP, [CortexA55UnitSt]> { let Latency = 1; }
+def : WriteRes<WriteSTIdx, [CortexA55UnitSt]> { let Latency = 1; }
+}
 def : WriteRes<WriteSTX, [CortexA55UnitSt]> { let Latency = 4; }
 
 // Vector Store - Similar to vector loads, can take 1-3 cycles to issue.
@@ -142,9 +149,11 @@ def : WriteRes<WriteFCmp, [CortexA55UnitFPALU]> { let Latency = 3; }
 def : WriteRes<WriteFCvt, [CortexA55UnitFPALU]> { let Latency = 4; }
 def : WriteRes<WriteFCopy, [CortexA55UnitFPALU]> { let Latency = 3; }
 def : WriteRes<WriteFImm, [CortexA55UnitFPALU]> { let Latency = 3; }
-def : WriteRes<WriteV, [CortexA55UnitFPALU]> { let Latency = 4; }
+def : WriteRes<WriteVd, [CortexA55UnitFPALU]> { let Latency = 4; }
+def : WriteRes<WriteVq, [CortexA55UnitFPALU,CortexA55UnitFPALU]> { let Latency = 4; let BeginGroup = 1; }
 
 // FP ALU specific new schedwrite definitions
+def CortexA55WriteFPALU_F2 : SchedWriteRes<[CortexA55UnitFPALU]> { let Latency = 2;}
 def CortexA55WriteFPALU_F3 : SchedWriteRes<[CortexA55UnitFPALU]> { let Latency = 3;}
 def CortexA55WriteFPALU_F4 : SchedWriteRes<[CortexA55UnitFPALU]> { let Latency = 4;}
 def CortexA55WriteFPALU_F5 : SchedWriteRes<[CortexA55UnitFPALU]> { let Latency = 5;}
@@ -175,6 +184,7 @@ def CortexA55WriteFSqrtDP : SchedWriteRes<[CortexA55UnitFPDIV]> { let Latency = 
 def : ReadAdvance<ReadVLD, 0>;
 def : ReadAdvance<ReadExtrHi, 1>;
 def : ReadAdvance<ReadAdrBase, 1>;
+def : ReadAdvance<ReadST, 1>;
 
 // ALU - ALU input operands are generally needed in EX1. An operand produced in
 //       in say EX2 can be forwarded for consumption to ALU in EX1, thereby
@@ -225,7 +235,10 @@ def : ReadAdvance<ReadID, 1, [WriteImm,WriteI,
 //---
 // Miscellaneous
 //---
-def : InstRW<[CortexA55WriteVLD2,CortexA55WriteVLD1], (instregex "LDP.*")>;
+def : InstRW<[CortexA55WriteVLD1SI,CortexA55WriteLDP1], (instregex "LDPS?W")>;
+def : InstRW<[CortexA55WriteVLD1,CortexA55WriteLDP1], (instregex "LDPS[^W]")>;
+def : InstRW<[CortexA55WriteVLD1,CortexA55WriteLDP2], (instregex "LDP(X|D)")>;
+def : InstRW<[CortexA55WriteVLD1,CortexA55WriteLDP4], (instregex "LDPQ")>;
 def : InstRW<[WriteI], (instrs COPY)>;
 //---
 // Vector Loads - 64-bit per cycle
@@ -320,6 +333,8 @@ def : InstRW<[CortexA55WriteVST4, WriteAdr], (instregex "ST4Fourv(8b|4h|2s|1d|16
 //---
 // Floating Point Conversions, MAC, DIV, SQRT
 //---
+def : InstRW<[CortexA55WriteFPALU_F2], (instregex "^DUP(v2i64|v4i32|v8i16|v16i8)")>;
+def : InstRW<[CortexA55WriteFPALU_F2], (instregex "^XTN")>;
 def : InstRW<[CortexA55WriteFPALU_F3], (instregex "^FCVT[ALMNPZ][SU](S|U)?(W|X)")>;
 def : InstRW<[CortexA55WriteFPALU_F4], (instregex "^FCVT(X)?[ALMNPXZ](S|U|N)?v")>;
 

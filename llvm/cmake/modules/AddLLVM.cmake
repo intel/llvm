@@ -166,34 +166,47 @@ function(add_llvm_symbol_exports target_name export_file)
   set(LLVM_COMMON_DEPENDS ${LLVM_COMMON_DEPENDS} PARENT_SCOPE)
 endfunction(add_llvm_symbol_exports)
 
-if (NOT DEFINED LLVM_LINKER_DETECTED)
+if (NOT DEFINED LLVM_LINKER_DETECTED AND NOT WIN32)
+  # Detect what linker we have here.
   if(APPLE)
-    execute_process(
-      COMMAND "${CMAKE_LINKER}" -v
-      ERROR_VARIABLE stderr
-      )
+    # Linkers with ld64-compatible flags.
+    set(version_flag "-Wl,-v")
+  else()
+    # Linkers with BFD ld-compatible flags.
+    set(version_flag "-Wl,--version")
+  endif()
+
+  if(LLVM_USE_LINKER)
+    set(command ${CMAKE_C_COMPILER} -fuse-ld=${LLVM_USE_LINKER} ${version_flag})
+  else()
+    separate_arguments(flags UNIX_COMMAND "${CMAKE_EXE_LINKER_FLAGS}")
+    set(command ${CMAKE_C_COMPILER} ${flags} ${version_flag})
+  endif()
+  execute_process(
+    COMMAND ${command}
+    OUTPUT_VARIABLE stdout
+    ERROR_VARIABLE stderr
+    )
+
+  if(APPLE)
     if("${stderr}" MATCHES "PROJECT:ld64")
       set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
       set(LLVM_LINKER_IS_LD64 YES CACHE INTERNAL "")
       message(STATUS "Linker detection: ld64")
+    elseif("${stderr}" MATCHES "^LLD" OR
+           "${stdout}" MATCHES "^LLD")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      set(LLVM_LINKER_IS_LLD YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: lld")
     else()
       set(LLVM_LINKER_DETECTED NO CACHE INTERNAL "")
       message(STATUS "Linker detection: unknown")
     endif()
-  elseif(NOT WIN32)
-    # Detect what linker we have here
-    if( LLVM_USE_LINKER )
-      set(command ${CMAKE_C_COMPILER} -fuse-ld=${LLVM_USE_LINKER} -Wl,--version)
-    else()
-      separate_arguments(flags UNIX_COMMAND "${CMAKE_EXE_LINKER_FLAGS}")
-      set(command ${CMAKE_C_COMPILER} ${flags} -Wl,--version)
-    endif()
-    execute_process(
-      COMMAND ${command}
-      OUTPUT_VARIABLE stdout
-      ERROR_VARIABLE stderr
-      )
-    if("${stdout}" MATCHES "GNU gold")
+  else()
+    if("${stdout}" MATCHES "^mold")
+      set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
+      message(STATUS "Linker detection: mold")
+    elseif("${stdout}" MATCHES "GNU gold")
       set(LLVM_LINKER_DETECTED YES CACHE INTERNAL "")
       set(LLVM_LINKER_IS_GOLD YES CACHE INTERNAL "")
       message(STATUS "Linker detection: GNU Gold")
@@ -225,12 +238,15 @@ function(add_link_opts target_name)
       # We may consider avoiding LTO altogether by using -fembed-bitcode
       # and teaching the linker to select machine code from .o files, see
       # https://lists.llvm.org/pipermail/llvm-dev/2021-April/149843.html
-      if((UNIX OR MINGW) AND LLVM_USE_LINKER STREQUAL "lld")
+      if((UNIX OR MINGW) AND LINKER_IS_LLD)
         set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                       LINK_FLAGS " -Wl,--lto-O0")
       elseif(LINKER_IS_LLD_LINK)
         set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                       LINK_FLAGS " /opt:lldlto=0")
+      elseif(APPLE AND NOT uppercase_LLVM_ENABLE_LTO STREQUAL "THIN")
+        set_property(TARGET ${target_name} APPEND_STRING PROPERTY
+                      LINK_FLAGS " -Wl,-mllvm,-O0")
       endif()
     endif()
   endif()
@@ -260,7 +276,7 @@ function(add_link_opts target_name)
           set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                        LINK_FLAGS " -Wl,-z,discard-unused=sections")
         endif()
-      elseif(NOT MSVC AND NOT CMAKE_SYSTEM_NAME MATCHES "OpenBSD|AIX|OS390")
+      elseif(NOT MSVC AND NOT CMAKE_SYSTEM_NAME MATCHES "AIX|OS390")
         # TODO Revisit this later on z/OS.
         set_property(TARGET ${target_name} APPEND_STRING PROPERTY
                      LINK_FLAGS " -Wl,--gc-sections")
@@ -483,6 +499,9 @@ function(llvm_add_library name)
     # Do add_dependencies(obj) later due to CMake issue 14747.
     list(APPEND objlibs ${obj_name})
 
+    # Bring in the target include directories from our original target.
+    target_include_directories(${obj_name} PRIVATE $<TARGET_PROPERTY:${name},INCLUDE_DIRECTORIES>)
+
     set_target_properties(${obj_name} PROPERTIES FOLDER "Object Libraries")
     if(ARG_DEPENDS)
       add_dependencies(${obj_name} ${ARG_DEPENDS})
@@ -522,6 +541,11 @@ function(llvm_add_library name)
       LINK_LIBS ${ARG_LINK_LIBS}
       LINK_COMPONENTS ${ARG_LINK_COMPONENTS}
       )
+
+    # Bring in the target link info from our original target.
+    target_link_directories(${name_static} PRIVATE $<TARGET_PROPERTY:${name},LINK_DIRECTORIES>)
+    target_link_libraries(${name_static} PRIVATE $<TARGET_PROPERTY:${name},LINK_LIBRARIES>)
+
     # FIXME: Add name_static to anywhere in TARGET ${name}'s PROPERTY.
     set(ARG_STATIC)
   endif()
@@ -603,7 +627,7 @@ function(llvm_add_library name)
     endif()
   endif()
 
-  if(ARG_SHARED AND UNIX)
+  if(ARG_SHARED)
     if(NOT APPLE AND ARG_SONAME)
       get_target_property(output_name ${name} OUTPUT_NAME)
       if(${output_name} STREQUAL "output_name-NOTFOUND")
@@ -612,10 +636,12 @@ function(llvm_add_library name)
       set(library_name ${output_name}-${LLVM_VERSION_MAJOR}${LLVM_VERSION_SUFFIX})
       set(api_name ${output_name}-${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}${LLVM_VERSION_SUFFIX})
       set_target_properties(${name} PROPERTIES OUTPUT_NAME ${library_name})
-      llvm_install_library_symlink(${api_name} ${library_name} SHARED
-        COMPONENT ${name})
-      llvm_install_library_symlink(${output_name} ${library_name} SHARED
-        COMPONENT ${name})
+      if(UNIX)
+        llvm_install_library_symlink(${api_name} ${library_name} SHARED
+          COMPONENT ${name})
+        llvm_install_library_symlink(${output_name} ${library_name} SHARED
+          COMPONENT ${name})
+      endif()
     endif()
   endif()
 
@@ -648,10 +674,9 @@ function(llvm_add_library name)
     # property has been set to an empty value.
     set_property(TARGET ${name} PROPERTY LLVM_LINK_COMPONENTS ${ARG_LINK_COMPONENTS} ${LLVM_LINK_COMPONENTS})
 
-    # These two properties are internal properties only used to make sure the
+    # This property is an internal property only used to make sure the
     # link step applied in LLVMBuildResolveComponentsLink uses the same
-    # properties as the target_link_libraries call below.
-    set_property(TARGET ${name} PROPERTY LLVM_LINK_LIBS ${ARG_LINK_LIBS})
+    # property as the target_link_libraries call below.
     set_property(TARGET ${name} PROPERTY LLVM_LIBTYPE ${libtype})
   endif()
 
@@ -1149,7 +1174,7 @@ function(export_executable_symbols target)
       set(mangling itanium)
     endif()
     add_custom_command(OUTPUT ${exported_symbol_file}
-                       COMMAND "${Python3_EXECUTABLE}" ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py --mangling=${mangling} ${static_libs} -o ${exported_symbol_file}
+                       COMMAND "${Python3_EXECUTABLE}" ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py ${LLVM_EXTRACT_SYMBOLS_FLAGS} --mangling=${mangling} ${static_libs} -o ${exported_symbol_file}
                        WORKING_DIRECTORY ${LLVM_LIBRARY_OUTPUT_INTDIR}
                        DEPENDS ${LLVM_MAIN_SRC_DIR}/utils/extract_symbols.py ${static_libs}
                        VERBATIM
@@ -1192,10 +1217,12 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     llvm-cxxfilt
     llvm-ranlib
     llvm-lib
+    llvm-ml
     llvm-nm
     llvm-objcopy
     llvm-objdump
     llvm-rc
+    llvm-readobj
     llvm-size
     llvm-strings
     llvm-strip
@@ -1210,6 +1237,7 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
     nm
     objcopy
     objdump
+    readelf
     size
     strings
     strip
@@ -1451,19 +1479,24 @@ function(add_unittest test_suite test_name)
     list(APPEND LLVM_COMPILE_FLAGS "-Wno-gnu-zero-variadic-macro-arguments")
   endif()
 
-  set(LLVM_REQUIRES_RTTI OFF)
+  if (NOT DEFINED LLVM_REQUIRES_RTTI)
+    set(LLVM_REQUIRES_RTTI OFF)
+  endif()
 
   list(APPEND LLVM_LINK_COMPONENTS Support) # gtest needs it for raw_ostream
   add_llvm_executable(${test_name} IGNORE_EXTERNALIZE_DEBUGINFO NO_INSTALL_RPATH ${ARGN})
 
   # The runtime benefits of LTO don't outweight the compile time costs for tests.
   if(LLVM_ENABLE_LTO)
-    if((UNIX OR MINGW) AND LLVM_USE_LINKER STREQUAL "lld")
+    if((UNIX OR MINGW) AND LINKER_IS_LLD)
       set_property(TARGET ${test_name} APPEND_STRING PROPERTY
                     LINK_FLAGS " -Wl,--lto-O0")
     elseif(LINKER_IS_LLD_LINK)
       set_property(TARGET ${test_name} APPEND_STRING PROPERTY
                     LINK_FLAGS " /opt:lldlto=0")
+    elseif(APPLE AND NOT uppercase_LLVM_ENABLE_LTO STREQUAL "THIN")
+      set_property(TARGET ${target_name} APPEND_STRING PROPERTY
+                    LINK_FLAGS " -Wl,-mllvm,-O0")
     endif()
   endif()
 
@@ -1566,9 +1599,10 @@ endfunction()
 # use it and can't be in a lit module. Use with make_paths_relative().
 string(CONCAT LLVM_LIT_PATH_FUNCTION
   "# Allow generated file to be relocatable.\n"
+  "from pathlib import Path\n"
   "def path(p):\n"
   "    if not p: return ''\n"
-  "    return os.path.join(os.path.dirname(os.path.abspath(__file__)), p)\n"
+  "    return str((Path(__file__).parent / p).resolve())\n"
   )
 
 # This function provides an automatic way to 'configure'-like generate a file
@@ -1619,7 +1653,7 @@ function(configure_lit_site_cfg site_in site_out)
     set(ENABLE_SHARED "0")
   endif()
 
-  if(LLVM_ENABLE_ASSERTIONS AND NOT MSVC_IDE)
+  if(LLVM_ENABLE_ASSERTIONS)
     set(ENABLE_ASSERTIONS "1")
   else()
     set(ENABLE_ASSERTIONS "0")
@@ -2000,7 +2034,7 @@ function(llvm_externalize_debuginfo name)
       if(NOT CMAKE_STRIP)
         set(CMAKE_STRIP xcrun strip)
       endif()
-      set(strip_command COMMAND ${CMAKE_STRIP} -Sxl $<TARGET_FILE:${name}>)
+      set(strip_command COMMAND ${CMAKE_STRIP} -S -x $<TARGET_FILE:${name}>)
     else()
       set(strip_command COMMAND ${CMAKE_STRIP} -g -x $<TARGET_FILE:${name}>)
     endif()

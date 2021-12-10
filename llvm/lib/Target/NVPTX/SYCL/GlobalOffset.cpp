@@ -118,7 +118,7 @@ public:
         Builder.CreateMemSet(ImplicitOffset, Builder.getInt8(0), AllocByteSize,
                              ImplicitOffset->getAlign());
     MemsetCall->addParamAttr(0, Attribute::NonNull);
-    MemsetCall->addDereferenceableAttr(1, AllocByteSize);
+    MemsetCall->addDereferenceableParamAttr(0, AllocByteSize);
     ProcessedFunctions[Func] = Builder.CreateConstInBoundsGEP2_32(
         ImplicitOffsetType, ImplicitOffset, 0, 0);
   }
@@ -240,7 +240,7 @@ public:
                                 FuncEnd = Func->arg_end();
          FuncArg != FuncEnd; ++FuncArg, ++i) {
       Arguments.push_back(FuncArg->getType());
-      ArgumentAttributes.push_back(FuncAttrs.getParamAttributes(i));
+      ArgumentAttributes.push_back(FuncAttrs.getParamAttrs(i));
     }
 
     // Add the offset argument. Must be the same type as returned by
@@ -251,8 +251,8 @@ public:
 
     // Build the new function.
     AttributeList NAttrs =
-        AttributeList::get(Func->getContext(), FuncAttrs.getFnAttributes(),
-                           FuncAttrs.getRetAttributes(), ArgumentAttributes);
+        AttributeList::get(Func->getContext(), FuncAttrs.getFnAttrs(),
+                           FuncAttrs.getRetAttrs(), ArgumentAttributes);
     assert(!FuncTy->isVarArg() && "Variadic arguments prohibited in SYCL");
     FunctionType *NewFuncTy = FunctionType::get(FuncTy->getReturnType(),
                                                 Arguments, FuncTy->isVarArg());

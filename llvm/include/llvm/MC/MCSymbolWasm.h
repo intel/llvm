@@ -27,7 +27,6 @@ class MCSymbolWasm : public MCSymbol {
   wasm::WasmSignature *Signature = nullptr;
   Optional<wasm::WasmGlobalType> GlobalType;
   Optional<wasm::WasmTableType> TableType;
-  Optional<wasm::WasmEventType> EventType;
 
   /// An expression describing how to calculate the size of a symbol. If a
   /// symbol has no size this field will be NULL.
@@ -47,7 +46,7 @@ public:
   bool isGlobal() const { return Type == wasm::WASM_SYMBOL_TYPE_GLOBAL; }
   bool isTable() const { return Type == wasm::WASM_SYMBOL_TYPE_TABLE; }
   bool isSection() const { return Type == wasm::WASM_SYMBOL_TYPE_SECTION; }
-  bool isEvent() const { return Type == wasm::WASM_SYMBOL_TYPE_EVENT; }
+  bool isTag() const { return Type == wasm::WASM_SYMBOL_TYPE_TAG; }
 
   Optional<wasm::WasmSymbolType> getType() const { return Type; }
 
@@ -65,6 +64,11 @@ public:
   }
   void setNoStrip() const {
     modifyFlags(wasm::WASM_SYMBOL_NO_STRIP, wasm::WASM_SYMBOL_NO_STRIP);
+  }
+
+  bool isTLS() const { return getFlags() & wasm::WASM_SYMBOL_TLS; }
+  void setTLS() const {
+    modifyFlags(wasm::WASM_SYMBOL_TLS, wasm::WASM_SYMBOL_TLS);
   }
 
   bool isWeak() const { return IsWeak; }
@@ -142,12 +146,6 @@ public:
     wasm::WasmLimits Limits = {wasm::WASM_LIMITS_FLAG_NONE, 0, 0};
     setTableType({uint8_t(VT), Limits});
   }
-
-  const wasm::WasmEventType &getEventType() const {
-    assert(EventType.hasValue());
-    return EventType.getValue();
-  }
-  void setEventType(wasm::WasmEventType ET) { EventType = ET; }
 };
 
 } // end namespace llvm

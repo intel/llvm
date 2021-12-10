@@ -20,7 +20,7 @@ def err_fe_pch_malformed_block : Error<
 def err_fe_ast_file_modified : Error<
     "file '%0' has been modified since the "
     "%select{precompiled header|module file|AST file}1 '%2' was built"
-    ": %select{size|mtime|content}3 changed">,
+    ": %select{size|mtime|content}3 changed%select{| (was %5, now %6)}4">,
     DefaultFatal;
 def err_fe_pch_file_overridden : Error<
     "file '%0' from the precompiled header has been overridden">;
@@ -69,6 +69,9 @@ def err_module_file_not_module : Error<
   "AST file '%0' was not built as a module">, DefaultFatal;
 def err_module_file_missing_top_level_submodule : Error<
   "module file '%0' is missing its top-level submodule">, DefaultFatal;
+def note_module_file_conflict : Note<
+  "this is generally caused by modules with the same name found in multiple "
+  "paths">;
 
 def remark_module_import : Remark<
   "importing module '%0'%select{| into '%3'}2 from '%1'">,

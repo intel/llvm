@@ -8,6 +8,7 @@
 
 #include "check-io.h"
 #include "flang/Common/format.h"
+#include "flang/Evaluate/tools.h"
 #include "flang/Parser/tools.h"
 #include "flang/Semantics/expression.h"
 #include "flang/Semantics/tools.h"
@@ -550,6 +551,10 @@ void IoChecker::Enter(const parser::OutputItem &item) {
   flags_.set(Flag::DataList);
   if (const auto *x{std::get_if<parser::Expr>(&item.u)}) {
     if (const auto *expr{GetExpr(*x)}) {
+      if (evaluate::IsBOZLiteral(*expr)) {
+        context_.Say(parser::FindSourceLocation(*x), // C7109
+            "Output item must not be a BOZ literal constant"_err_en_US);
+      }
       const Symbol *last{GetLastSymbol(*expr)};
       if (last && IsProcedurePointer(*last)) {
         context_.Say(parser::FindSourceLocation(*x),
@@ -953,8 +958,12 @@ void IoChecker::CheckForDefinableVariable(
 
 void IoChecker::CheckForPureSubprogram() const { // C1597
   CHECK(context_.location());
-  if (FindPureProcedureContaining(context_.FindScope(*context_.location()))) {
-    context_.Say("External I/O is not allowed in a pure subprogram"_err_en_US);
+  if (const Scope *
+      scope{context_.globalScope().FindScope(*context_.location())}) {
+    if (FindPureProcedureContaining(*scope)) {
+      context_.Say(
+          "External I/O is not allowed in a pure subprogram"_err_en_US);
+    }
   }
 }
 

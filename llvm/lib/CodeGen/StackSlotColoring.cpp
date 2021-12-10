@@ -76,7 +76,7 @@ namespace {
     // OrigAlignments - Alignments of stack objects before coloring.
     SmallVector<Align, 16> OrigAlignments;
 
-    // OrigSizes - Sizess of stack objects before coloring.
+    // OrigSizes - Sizes of stack objects before coloring.
     SmallVector<unsigned, 16> OrigSizes;
 
     // AllColors - If index is set, it's a spill slot, i.e. color.
@@ -159,8 +159,7 @@ void StackSlotColoring::ScanForSpillSlotRefs(MachineFunction &MF) {
   // FIXME: Need the equivalent of MachineRegisterInfo for frameindex operands.
   for (MachineBasicBlock &MBB : MF) {
     for (MachineInstr &MI : MBB) {
-      for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-        MachineOperand &MO = MI.getOperand(i);
+      for (const MachineOperand &MO : MI.operands()) {
         if (!MO.isFI())
           continue;
         int FI = MO.getIndex();
@@ -169,7 +168,7 @@ void StackSlotColoring::ScanForSpillSlotRefs(MachineFunction &MF) {
         if (!LS->hasInterval(FI))
           continue;
         LiveInterval &li = LS->getInterval(FI);
-        if (!MI.isDebugValue())
+        if (!MI.isDebugInstr())
           li.incrementWeight(
               LiveIntervals::getSpillWeight(false, true, MBFI, MI));
       }
@@ -394,8 +393,7 @@ void StackSlotColoring::RewriteInstruction(MachineInstr &MI,
                                            SmallVectorImpl<int> &SlotMapping,
                                            MachineFunction &MF) {
   // Update the operands.
-  for (unsigned i = 0, ee = MI.getNumOperands(); i != ee; ++i) {
-    MachineOperand &MO = MI.getOperand(i);
+  for (MachineOperand &MO : MI.operands()) {
     if (!MO.isFI())
       continue;
     int OldFI = MO.getIndex();

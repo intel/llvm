@@ -1,4 +1,5 @@
 // RUN: %clang_cc1 -fsyntax-only -verify -triple x86_64-linux %s -Wno-tautological-pointer-compare -Wno-pointer-to-int-cast
+// RUN: %clang_cc1 -fsyntax-only -verify -triple powerpc64-ibm-aix-xcoff %s -Wno-tautological-pointer-compare -Wno-pointer-to-int-cast
 
 #define EVAL_EXPR(testno, expr) enum { test##testno = (expr) }; struct check_positive##testno { int a[test##testno]; };
 int x;
@@ -74,7 +75,7 @@ const _Bool constbool = 0;
 EVAL_EXPR(35, constbool)
 EVAL_EXPR(36, constbool)
 
-EVAL_EXPR(37, (1,2.0) == 2.0 ? 1 : -1)
+EVAL_EXPR(37, ((void)1,2.0) == 2.0 ? 1 : -1)
 EVAL_EXPR(38, __builtin_expect(1,1) == 1 ? 1 : -1)
 
 // PR7884
@@ -140,10 +141,10 @@ EVAL_EXPR(52, &pr24622 == (void *)&PR24622); // expected-error {{not an integer 
 
 // We evaluate these by providing 2s' complement semantics in constant
 // expressions, like we do for integers.
-void *PR28739a = (__int128)(unsigned long)-1 + &PR28739a;
-void *PR28739b = &PR28739b + (__int128)(unsigned long)-1;
-__int128 PR28739c = (&PR28739c + (__int128)(unsigned long)-1) - &PR28739c;
-void *PR28739d = &(&PR28739d)[(__int128)(unsigned long)-1];
+void *PR28739a = (__int128)(unsigned long)-1 + &PR28739a;                  // expected-warning {{the pointer incremented by 18446744073709551615 refers past the last possible element for an array in 64-bit address space containing 64-bit (8-byte) elements (max possible 2305843009213693952 elements)}}
+void *PR28739b = &PR28739b + (__int128)(unsigned long)-1;                  // expected-warning {{refers past the last possible element}}
+__int128 PR28739c = (&PR28739c + (__int128)(unsigned long)-1) - &PR28739c; // expected-warning {{refers past the last possible element}}
+void *PR28739d = &(&PR28739d)[(__int128)(unsigned long)-1];                // expected-warning {{refers past the last possible element}}
 
 struct PR35214_X {
   int k;

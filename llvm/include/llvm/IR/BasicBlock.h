@@ -167,8 +167,8 @@ public:
   /// Returns a pointer to the first instruction in this block that is not a
   /// PHINode or a debug intrinsic, or any pseudo operation if \c SkipPseudoOp
   /// is true.
-  const Instruction *getFirstNonPHIOrDbg(bool SkipPseudoOp = false) const;
-  Instruction *getFirstNonPHIOrDbg(bool SkipPseudoOp = false) {
+  const Instruction *getFirstNonPHIOrDbg(bool SkipPseudoOp = true) const;
+  Instruction *getFirstNonPHIOrDbg(bool SkipPseudoOp = true) {
     return const_cast<Instruction *>(
         static_cast<const BasicBlock *>(this)->getFirstNonPHIOrDbg(
             SkipPseudoOp));
@@ -178,8 +178,8 @@ public:
   /// PHINode, a debug intrinsic, or a lifetime intrinsic, or any pseudo
   /// operation if \c SkipPseudoOp is true.
   const Instruction *
-  getFirstNonPHIOrDbgOrLifetime(bool SkipPseudoOp = false) const;
-  Instruction *getFirstNonPHIOrDbgOrLifetime(bool SkipPseudoOp = false) {
+  getFirstNonPHIOrDbgOrLifetime(bool SkipPseudoOp = true) const;
+  Instruction *getFirstNonPHIOrDbgOrLifetime(bool SkipPseudoOp = true) {
     return const_cast<Instruction *>(
         static_cast<const BasicBlock *>(this)->getFirstNonPHIOrDbgOrLifetime(
             SkipPseudoOp));
@@ -200,14 +200,14 @@ public:
   /// SkipPseudoOp is true.
   iterator_range<filter_iterator<BasicBlock::const_iterator,
                                  std::function<bool(const Instruction &)>>>
-  instructionsWithoutDebug(bool SkipPseudoOp = false) const;
+  instructionsWithoutDebug(bool SkipPseudoOp = true) const;
 
   /// Return an iterator range over the instructions in the block, skipping any
   /// debug instructions. Skip and any pseudo operations as well if \c
   /// SkipPseudoOp is true.
   iterator_range<
       filter_iterator<BasicBlock::iterator, std::function<bool(Instruction &)>>>
-  instructionsWithoutDebug(bool SkipPseudoOp = false);
+  instructionsWithoutDebug(bool SkipPseudoOp = true);
 
   /// Return the size of the basic block ignoring debug instructions
   filter_iterator<BasicBlock::const_iterator,
@@ -513,7 +513,7 @@ public:
   void validateInstrOrdering() const;
 
 private:
-#if defined(_AIX) && (!defined(__GNUC__) || defined(__ibmxl__))
+#if defined(_AIX) && (!defined(__GNUC__) || defined(__clang__))
 // Except for GCC; by default, AIX compilers store bit-fields in 4-byte words
 // and give the `pack` pragma push semantics.
 #define BEGIN_TWO_BYTE_PACK() _Pragma("pack(2)")

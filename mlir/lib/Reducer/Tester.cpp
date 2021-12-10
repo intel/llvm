@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Reducer/Tester.h"
-
+#include "mlir/IR/Verifier.h"
 #include "llvm/Support/ToolOutputFile.h"
 
 using namespace mlir;
@@ -25,6 +25,12 @@ Tester::Tester(StringRef scriptName, ArrayRef<std::string> scriptArgs)
 
 std::pair<Tester::Interestingness, size_t>
 Tester::isInteresting(ModuleOp module) const {
+  // The reduced module should always be vaild, or we may end up retaining the
+  // error message by an invalid case. Besides, an invalid module may not be
+  // able to print properly.
+  if (failed(verify(module)))
+    return std::make_pair(Interestingness::False, /*size=*/0);
+
   SmallString<128> filepath;
   int fd;
 
@@ -33,14 +39,16 @@ Tester::isInteresting(ModuleOp module) const {
       llvm::sys::fs::createTemporaryFile("mlir-reduce", "mlir", fd, filepath);
 
   if (ec)
-    llvm::report_fatal_error("Error making unique filename: " + ec.message());
+    llvm::report_fatal_error(llvm::Twine("Error making unique filename: ") +
+                             ec.message());
 
   llvm::ToolOutputFile out(filepath, fd);
   module.print(out.os());
   out.os().close();
 
   if (out.os().has_error())
-    llvm::report_fatal_error("Error emitting the IR to file '" + filepath);
+    llvm::report_fatal_error(llvm::Twine("Error emitting the IR to file '") +
+                             filepath);
 
   size_t size = out.os().tell();
   return std::make_pair(isInteresting(filepath), size);
@@ -50,7 +58,6 @@ Tester::isInteresting(ModuleOp module) const {
 /// true if the interesting behavior is present in the test case or false
 /// otherwise.
 Tester::Interestingness Tester::isInteresting(StringRef testCase) const {
-
   std::vector<StringRef> testerArgs;
   testerArgs.push_back(testCase);
 
@@ -65,8 +72,8 @@ Tester::Interestingness Tester::isInteresting(StringRef testCase) const {
       /*SecondsToWait=*/0, /*MemoryLimit=*/0, &errMsg);
 
   if (result < 0)
-    llvm::report_fatal_error("Error running interestingness test: " + errMsg,
-                             false);
+    llvm::report_fatal_error(
+        llvm::Twine("Error running interestingness test: ") + errMsg, false);
 
   if (!result)
     return Interestingness::False;

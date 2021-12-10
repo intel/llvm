@@ -21,6 +21,8 @@ if (current_os == "mac") {
 }
 
 unwind_sources = [
+  "../include/unwind_arm_ehabi.h",
+  "../include/unwind_itanium.h",
   "AddressSpace.hpp",
   "CompactUnwinder.hpp",
   "DwarfInstructions.hpp",
@@ -37,6 +39,7 @@ unwind_sources = [
   "UnwindRegistersRestore.S",
   "UnwindRegistersSave.S",
   "assembly.h",
+  "cet_unwind.h",
   "config.h",
   "dwarf2.h",
   "libunwind.cpp",
@@ -84,8 +87,8 @@ if (libunwind_enable_shared) {
     }
     if (current_os == "mac") {
       ldflags += [
-        "-compatibility_version 1",
-        "-install_name /usr/lib/libunwind.1.dylib",
+        "-Wl,-compatibility_version,1",
+        "-Wl,-install_name,/usr/lib/libunwind.1.dylib",
       ]
     }
     sources = unwind_sources

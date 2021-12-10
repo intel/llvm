@@ -32,7 +32,7 @@ using namespace lldb_private;
 struct PlatformConnectOptions {
   PlatformConnectOptions(const char *url = nullptr)
       : m_url(), m_rsync_options(), m_rsync_remote_path_prefix(),
-        m_rsync_enabled(false), m_rsync_omit_hostname_from_remote_path(false),
+
         m_local_cache_directory() {
     if (url && url[0])
       m_url = url;
@@ -43,8 +43,8 @@ struct PlatformConnectOptions {
   std::string m_url;
   std::string m_rsync_options;
   std::string m_rsync_remote_path_prefix;
-  bool m_rsync_enabled;
-  bool m_rsync_omit_hostname_from_remote_path;
+  bool m_rsync_enabled = false;
+  bool m_rsync_omit_hostname_from_remote_path = false;
   ConstString m_local_cache_directory;
 };
 
@@ -61,7 +61,7 @@ struct PlatformShellCommand {
   }
 
   PlatformShellCommand(llvm::StringRef shell_command = llvm::StringRef())
-      : m_shell(), m_command(), m_working_dir(), m_status(0), m_signo(0) {
+      : m_shell(), m_command(), m_working_dir() {
     if (!shell_command.empty())
       m_command = shell_command.str();
   }
@@ -72,8 +72,8 @@ struct PlatformShellCommand {
   std::string m_command;
   std::string m_working_dir;
   std::string m_output;
-  int m_status;
-  int m_signo;
+  int m_status = 0;
+  int m_signo = 0;
   Timeout<std::ratio<1>> m_timeout = llvm::None;
 };
 // SBPlatformConnectOptions
@@ -458,13 +458,11 @@ const char *SBPlatform::GetOSBuild() {
 
   PlatformSP platform_sp(GetSP());
   if (platform_sp) {
-    std::string s;
-    if (platform_sp->GetOSBuildString(s)) {
-      if (!s.empty()) {
-        // Const-ify the string so we don't need to worry about the lifetime of
-        // the string
-        return ConstString(s.c_str()).GetCString();
-      }
+    std::string s = platform_sp->GetOSBuildString().getValueOr("");
+    if (!s.empty()) {
+      // Const-ify the string so we don't need to worry about the lifetime of
+      // the string
+      return ConstString(s).GetCString();
     }
   }
   return nullptr;
@@ -475,13 +473,11 @@ const char *SBPlatform::GetOSDescription() {
 
   PlatformSP platform_sp(GetSP());
   if (platform_sp) {
-    std::string s;
-    if (platform_sp->GetOSKernelDescription(s)) {
-      if (!s.empty()) {
-        // Const-ify the string so we don't need to worry about the lifetime of
-        // the string
-        return ConstString(s.c_str()).GetCString();
-      }
+    std::string s = platform_sp->GetOSKernelDescription().getValueOr("");
+    if (!s.empty()) {
+      // Const-ify the string so we don't need to worry about the lifetime of
+      // the string
+      return ConstString(s.c_str()).GetCString();
     }
   }
   return nullptr;

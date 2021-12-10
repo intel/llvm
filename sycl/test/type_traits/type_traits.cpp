@@ -133,21 +133,21 @@ int main() {
   test_is_integral<s::int2>();
   test_is_integral<float, false>();
   test_is_integral<s::float2, false>();
-  test_is_integral<half, false>();
+  test_is_integral<s::half, false>();
   test_is_integral<s::half2, false>();
 
   test_is_floating_point<int, false>();
   test_is_floating_point<s::int2, false>();
   test_is_floating_point<float>();
   test_is_floating_point<s::float2>();
-  test_is_floating_point<half>();
+  test_is_floating_point<s::half>();
   test_is_floating_point<s::half2>();
 
   test_is_arithmetic<int>();
   test_is_arithmetic<s::int2>();
   test_is_arithmetic<float>();
   test_is_arithmetic<s::float2>();
-  test_is_arithmetic<half>();
+  test_is_arithmetic<s::half>();
   test_is_arithmetic<s::half2>();
 
   test_make_type_t<int, d::gtl::scalar_unsigned_int_list, unsigned int>();
@@ -155,7 +155,7 @@ int main() {
   test_make_type_t<s::cl_int3, d::gtl::scalar_unsigned_int_list, s::cl_uint3>();
   test_make_type_t<s::cl_int3, d::gtl::scalar_float_list, s::cl_float3>();
 
-  test_make_larger_t<half, float>();
+  test_make_larger_t<s::half, float>();
   test_make_larger_t<s::half3, s::float3>();
   test_make_larger_t<float, double>();
   test_make_larger_t<s::float3, s::double3>();

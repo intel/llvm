@@ -1,5 +1,4 @@
-; RUN: opt < %s -dfsan -dfsan-track-origins=1 -dfsan-fast-8-labels=true  -S | FileCheck %s
-; RUN: opt < %s -dfsan -dfsan-track-origins=1 -dfsan-fast-16-labels=true -S | FileCheck %s
+; RUN: opt < %s -dfsan -dfsan-track-origins=1  -S | FileCheck %s
 ;
 ; %15 and %17 have the same key in shadow cache. They should not reuse the same
 ; shadow because their blocks do not dominate each other. Origin tracking
@@ -13,7 +12,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; CHECK: @__dfsan_shadow_width_bytes = weak_odr constant i32 [[#SBYTES:]]
 
 define void @cached_shadows(double %0) {
-  ; CHECK: @"dfs$cached_shadows"
+  ; CHECK: @cached_shadows.dfsan
   ; CHECK:  [[AO:%.*]] = load i32, i32* getelementptr inbounds ([200 x i32], [200 x i32]* @__dfsan_arg_origin_tls, i64 0, i64 0), align 4
   ; CHECK:  [[AS:%.*]] = load i[[#SBITS]], i[[#SBITS]]* bitcast ([[TLS_ARR]]* @__dfsan_arg_tls to i[[#SBITS]]*), align [[ALIGN:2]]
   ; CHECK: [[L1:[0-9]+]]:

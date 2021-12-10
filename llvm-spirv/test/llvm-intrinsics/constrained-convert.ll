@@ -10,14 +10,14 @@
 ; CHECK: Name [[fe:[0-9]+]] "conv4"
 ; CHECK: Name [[ft:[0-9]+]] "conv5"
 
-; CHECK: Decorate [[sf]] FPRoundingMode 0
-; CHECK: Decorate [[uf]] FPRoundingMode 1
+; CHECK-DAG: Decorate [[sf]] FPRoundingMode 0
+; CHECK-DAG: Decorate [[uf]] FPRoundingMode 1
+; CHECK-DAG: Decorate [[ft]] FPRoundingMode 2
 
 ; CHECK-NOT: Decorate [[fs]] FPRoundingMode
 ; CHECK-NOT: Decorate [[fu]] FPRoundingMode
 ; CHECK-NOT: Decorate [[fe]] FPRoundingMode
 
-; CHECK: Decorate [[ft]] FPRoundingMode 2
 
 ;CHECK: ConvertSToF {{[0-9]+}} [[sf]]
 ;CHECK: ConvertUToF {{[0-9]+}} [[uf]]
@@ -27,7 +27,7 @@
 ;CHECK: FConvert {{[0-9]+}} [[ft]]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-linux-sycldevice"
+target triple = "spir64-unknown-linux"
 
 ; Function Attrs: norecurse nounwind strictfp
 define dso_local spir_kernel void @test(float %a, i32 %in, i32 %ui) local_unnamed_addr #0 !kernel_arg_addr_space !5 !kernel_arg_access_qual !6 !kernel_arg_type !7 !kernel_arg_base_type !7 !kernel_arg_type_qual !8 !kernel_arg_buffer_location !9 {

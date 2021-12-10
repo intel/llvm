@@ -422,6 +422,22 @@ getIntelProcessorTypeAndSubtype(unsigned Family, unsigned Model,
       *Subtype = INTEL_COREI7_ICELAKE_CLIENT;
       break;
 
+    // Tigerlake:
+    case 0x8c:
+    case 0x8d:
+      CPU = "tigerlake";
+      *Type = INTEL_COREI7;
+      *Subtype = INTEL_COREI7_TIGERLAKE;
+      break;
+
+    // Alderlake:
+    case 0x97:
+    case 0x9a:
+      CPU = "alderlake";
+      *Type = INTEL_COREI7;
+      *Subtype = INTEL_COREI7_ALDERLAKE;
+      break;
+
     // Icelake Xeon:
     case 0x6a:
     case 0x6c:
@@ -783,8 +799,14 @@ _Bool __aarch64_have_lse_atomics
 #define HWCAP_ATOMICS (1 << 8)
 #endif
 static void CONSTRUCTOR_ATTRIBUTE init_have_lse_atomics(void) {
+#if defined(__FreeBSD__)
+  unsigned long hwcap;
+  int result = elf_aux_info(AT_HWCAP, &hwcap, sizeof hwcap);
+  __aarch64_have_lse_atomics = result == 0 && (hwcap & HWCAP_ATOMICS) != 0;
+#else
   unsigned long hwcap = getauxval(AT_HWCAP);
   __aarch64_have_lse_atomics = (hwcap & HWCAP_ATOMICS) != 0;
+#endif
 }
 #endif // defined(__has_include)
 #endif // __has_include(<sys/auxv.h>)

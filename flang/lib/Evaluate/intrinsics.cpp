@@ -16,6 +16,8 @@
 #include "flang/Evaluate/shape.h"
 #include "flang/Evaluate/tools.h"
 #include "flang/Evaluate/type.h"
+#include "flang/Semantics/scope.h"
+#include "flang/Semantics/tools.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <map>
@@ -104,7 +106,7 @@ static constexpr TypePattern DefaultChar{CharType, KindCode::defaultCharKind};
 static constexpr TypePattern DefaultLogical{
     LogicalType, KindCode::defaultLogicalKind};
 static constexpr TypePattern BOZ{IntType, KindCode::typeless};
-static constexpr TypePattern TEAM_TYPE{IntType, KindCode::teamType};
+static constexpr TypePattern TeamType{DerivedType, KindCode::teamType};
 static constexpr TypePattern DoublePrecision{
     RealType, KindCode::doublePrecision};
 static constexpr TypePattern DoublePrecisionComplex{
@@ -176,6 +178,7 @@ ENUM_CLASS(Rank,
     shape, // INTEGER vector of known length and no negative element
     matrix,
     array, // not scalar, rank is known and greater than zero
+    coarray, // rank is known and can be scalar; has nonzero corank
     known, // rank is known and can be scalar
     anyOrAssumedRank, // rank can be unknown; assumed-type TYPE(*) allowed
     conformable, // scalar, or array of same rank & shape as "array" argument
@@ -187,7 +190,9 @@ ENUM_CLASS(Rank,
     shaped, // rank is length of SHAPE vector
 )
 
-ENUM_CLASS(Optionality, required, optional, missing,
+ENUM_CLASS(Optionality, required,
+    optional, // unless DIM= for SIZE(assumedSize)
+    missing, // for DIM= cases like FINDLOC
     defaultsToSameKind, // for MatchingDefaultKIND
     defaultsToDefaultForResult, // for DefaultingKIND
     defaultsToSizeKind, // for SizeDefaultKIND
@@ -233,6 +238,8 @@ static constexpr IntrinsicDummyArgument MissingDIM{"dim",
     common::Intent::In};
 static constexpr IntrinsicDummyArgument OptionalMASK{"mask", AnyLogical,
     Rank::conformable, Optionality::optional, common::Intent::In};
+static constexpr IntrinsicDummyArgument OptionalTEAM{
+    "team", TeamType, Rank::scalar, Optionality::optional, common::Intent::In};
 
 struct IntrinsicInterface {
   static constexpr int maxArguments{7}; // if not a MAX/MIN(...)
@@ -243,7 +250,7 @@ struct IntrinsicInterface {
   IntrinsicClass intrinsicClass{IntrinsicClass::elementalFunction};
   std::optional<SpecificCall> Match(const CallCharacteristics &,
       const common::IntrinsicTypeDefaultKinds &, ActualArguments &,
-      FoldingContext &context) const;
+      FoldingContext &context, const semantics::Scope *builtins) const;
   int CountArguments() const;
   llvm::raw_ostream &Dump(llvm::raw_ostream &) const;
 };
@@ -274,7 +281,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"acosh", {{"x", SameFloating}}, SameFloating},
     {"adjustl", {{"string", SameChar}}, SameChar},
     {"adjustr", {{"string", SameChar}}, SameChar},
-    {"aimag", {{"x", SameComplex}}, SameReal},
+    {"aimag", {{"z", SameComplex}}, SameReal},
     {"aint", {{"a", SameReal}, MatchingDefaultKIND}, KINDReal},
     {"all", {{"mask", SameLogical, Rank::array}, OptionalDIM}, SameLogical,
         Rank::dimReduced, IntrinsicClass::transformationalFunction},
@@ -385,15 +392,17 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"eoshift",
         {{"array", SameIntrinsic, Rank::array},
             {"shift", AnyInt, Rank::dimRemovedOrScalar},
-            {"boundary", SameIntrinsic, Rank::dimReduced,
+            {"boundary", SameIntrinsic, Rank::dimRemovedOrScalar,
                 Optionality::optional},
             OptionalDIM},
         SameIntrinsic, Rank::conformable,
         IntrinsicClass::transformationalFunction},
     {"eoshift",
         {{"array", SameDerivedType, Rank::array},
-            {"shift", AnyInt, Rank::dimReduced},
-            {"boundary", SameDerivedType, Rank::dimReduced}, OptionalDIM},
+            {"shift", AnyInt, Rank::dimRemovedOrScalar},
+            // BOUNDARY= is not optional for derived types
+            {"boundary", SameDerivedType, Rank::dimRemovedOrScalar},
+            OptionalDIM},
         SameDerivedType, Rank::conformable,
         IntrinsicClass::transformationalFunction},
     {"epsilon", {{"x", SameReal, Rank::anyOrAssumedRank}}, SameReal,
@@ -446,6 +455,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"floor", {{"a", AnyReal}, DefaultingKIND}, KINDInt},
     {"fraction", {{"x", SameReal}}, SameReal},
     {"gamma", {{"x", SameReal}}, SameReal},
+    {"get_team", {{"level", DefaultInt, Rank::scalar, Optionality::optional}},
+        TeamType, Rank::scalar, IntrinsicClass::transformationalFunction},
     {"huge", {{"x", SameIntOrReal, Rank::anyOrAssumedRank}}, SameIntOrReal,
         Rank::scalar, IntrinsicClass::inquiryFunction},
     {"hypot", {{"x", OperandReal}, {"y", OperandReal}}, OperandReal},
@@ -470,10 +481,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"ichar", {{"c", AnyChar}, DefaultingKIND}, KINDInt},
     {"ieor", {{"i", SameInt}, {"j", SameInt, Rank::elementalOrBOZ}}, SameInt},
     {"ieor", {{"i", BOZ}, {"j", SameInt}}, SameInt},
-    {"image_status",
-        {{"image", SameInt},
-            {"team", TEAM_TYPE, Rank::scalar, Optionality::optional}},
-        DefaultInt},
+    {"image_status", {{"image", SameInt}, OptionalTEAM}, DefaultInt},
     {"index",
         {{"string", SameChar}, {"substring", SameChar},
             {"back", AnyLogical, Rank::scalar, Optionality::optional},
@@ -682,7 +690,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
         {{"a", ExtensibleDerived, Rank::anyOrAssumedRank},
             {"b", ExtensibleDerived, Rank::anyOrAssumedRank}},
         DefaultLogical, Rank::scalar, IntrinsicClass::inquiryFunction},
-    {"scale", {{"x", SameReal}, {"i", AnyInt}}, SameReal},
+    {"scale", {{"x", SameReal}, {"i", AnyInt}}, SameReal}, // == IEEE_SCALB()
     {"scan",
         {{"string", SameChar}, {"set", SameChar},
             {"back", AnyLogical, Rank::elemental, Optionality::optional},
@@ -718,7 +726,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"sind", {{"x", SameFloating}}, SameFloating},
     {"sinh", {{"x", SameFloating}}, SameFloating},
     {"size",
-        {{"array", AnyData, Rank::anyOrAssumedRank}, OptionalDIM,
+        {{"array", AnyData, Rank::anyOrAssumedRank},
+            OptionalDIM, // unless array is assumed-size
             SizeDefaultKIND},
         KINDInt, Rank::scalar, IntrinsicClass::inquiryFunction},
     {"sizeof", {{"a", AnyData, Rank::anyOrAssumedRank}}, SubscriptInt,
@@ -739,6 +748,15 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"tan", {{"x", SameFloating}}, SameFloating},
     {"tand", {{"x", SameFloating}}, SameFloating},
     {"tanh", {{"x", SameFloating}}, SameFloating},
+    {"team_number", {OptionalTEAM}, DefaultInt, Rank::scalar,
+        IntrinsicClass::transformationalFunction},
+    {"this_image",
+        {{"coarray", AnyData, Rank::coarray}, RequiredDIM, OptionalTEAM},
+        DefaultInt, Rank::scalar, IntrinsicClass::transformationalFunction},
+    {"this_image", {{"coarray", AnyData, Rank::coarray}, OptionalTEAM},
+        DefaultInt, Rank::scalar, IntrinsicClass::transformationalFunction},
+    {"this_image", {OptionalTEAM}, DefaultInt, Rank::scalar,
+        IntrinsicClass::transformationalFunction},
     {"tiny", {{"x", SameReal, Rank::anyOrAssumedRank}}, SameReal, Rank::scalar,
         IntrinsicClass::inquiryFunction},
     {"trailz", {{"i", AnyInt}}, DefaultInt},
@@ -773,6 +791,9 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
             DefaultingKIND},
         KINDInt},
     {"__builtin_ieee_is_nan", {{"a", AnyFloating}}, DefaultLogical},
+    {"__builtin_ieee_next_after", {{"x", SameReal}, {"y", AnyReal}}, SameReal},
+    {"__builtin_ieee_next_down", {{"x", SameReal}}, SameReal},
+    {"__builtin_ieee_next_up", {{"x", SameReal}}, SameReal},
     {"__builtin_ieee_selected_real_kind", // alias for selected_real_kind
         {{"p", AnyInt, Rank::scalar},
             {"r", AnyInt, Rank::scalar, Optionality::optional},
@@ -811,13 +832,12 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
 };
 
 // TODO: Coarray intrinsic functions
-//   LCOBOUND, UCOBOUND, FAILED_IMAGES, GET_TEAM, IMAGE_INDEX,
-//   STOPPED_IMAGES, TEAM_NUMBER, THIS_IMAGE,
-//   COSHAPE
+//   LCOBOUND, UCOBOUND, FAILED_IMAGES, IMAGE_INDEX,
+//   STOPPED_IMAGES, COSHAPE
 // TODO: Non-standard intrinsic functions
 //  AND, OR, XOR, LSHIFT, RSHIFT, SHIFT, ZEXT, IZEXT,
 //  COMPL, EQV, NEQV, INT8, JINT, JNINT, KNINT,
-//  QCMPLX, DFLOAT, QEXT, QFLOAT, QREAL, DNUM,
+//  QCMPLX, QEXT, QFLOAT, QREAL, DNUM,
 //  INUM, JNUM, KNUM, QNUM, RNUM, RAN, RANF, ILEN,
 //  MCLOCK, SECNDS, COTAN, IBCHNG, ISHA, ISHC, ISHL, IXOR
 //  IARG, IARGC, NARGS, NUMARG, BADDRESS, IADDR, CACHESIZE,
@@ -924,17 +944,16 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
              {"y", AnyIntOrReal, Rank::elementalOrBOZ, Optionality::optional}},
          DoublePrecisionComplex},
         "cmplx", true},
-    {{"dreal", {{"a", AnyComplex}}, DoublePrecision}, "real", true},
-    {{"dconjg", {{"a", DoublePrecisionComplex}}, DoublePrecisionComplex},
-        "conjg"},
+    {{"dconjg", {{"a", AnyComplex}}, DoublePrecisionComplex}, "conjg"},
     {{"dcos", {{"x", DoublePrecision}}, DoublePrecision}, "cos"},
     {{"dcosh", {{"x", DoublePrecision}}, DoublePrecision}, "cosh"},
     {{"ddim", {{"x", DoublePrecision}, {"y", DoublePrecision}},
          DoublePrecision},
         "dim"},
-    {{"dimag", {{"a", DoublePrecisionComplex}}, DoublePrecision}, "aimag"},
     {{"dexp", {{"x", DoublePrecision}}, DoublePrecision}, "exp"},
+    {{"dfloat", {{"i", AnyInt}}, DoublePrecision}, "real", true},
     {{"dim", {{"x", DefaultReal}, {"y", DefaultReal}}, DefaultReal}},
+    {{"dimag", {{"a", AnyComplex}}, DoublePrecision}, "aimag"},
     {{"dint", {{"a", DoublePrecision}}, DoublePrecision}, "aint"},
     {{"dlog", {{"x", DoublePrecision}}, DoublePrecision}, "log"},
     {{"dlog10", {{"x", DoublePrecision}}, DoublePrecision}, "log10"},
@@ -953,6 +972,7 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
         "mod"},
     {{"dnint", {{"a", DoublePrecision}}, DoublePrecision}, "anint"},
     {{"dprod", {{"x", DefaultReal}, {"y", DefaultReal}}, DoublePrecision}},
+    {{"dreal", {{"a", AnyComplex}}, DoublePrecision}, "real", true},
     {{"dsign", {{"a", DoublePrecision}, {"b", DoublePrecision}},
          DoublePrecision},
         "sign"},
@@ -974,13 +994,17 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
     {{"len", {{"string", DefaultChar, Rank::anyOrAssumedRank}}, DefaultInt,
         Rank::scalar}},
     {{"lge", {{"string_a", DefaultChar}, {"string_b", DefaultChar}},
-        DefaultLogical}},
+         DefaultLogical},
+        "lge", true},
     {{"lgt", {{"string_a", DefaultChar}, {"string_b", DefaultChar}},
-        DefaultLogical}},
+         DefaultLogical},
+        "lgt", true},
     {{"lle", {{"string_a", DefaultChar}, {"string_b", DefaultChar}},
-        DefaultLogical}},
+         DefaultLogical},
+        "lle", true},
     {{"llt", {{"string_a", DefaultChar}, {"string_b", DefaultChar}},
-        DefaultLogical}},
+         DefaultLogical},
+        "llt", true},
     {{"log", {{"x", DefaultReal}}, DefaultReal}},
     {{"log10", {{"x", DefaultReal}}, DefaultReal}},
     {{"max0",
@@ -1015,6 +1039,7 @@ static const SpecificIntrinsicInterface specificIntrinsicFunction[]{
 };
 
 static const IntrinsicInterface intrinsicSubroutine[]{
+    {"abort", {}, {}, Rank::elemental, IntrinsicClass::impureSubroutine},
     {"cpu_time",
         {{"time", AnyReal, Rank::scalar, Optionality::required,
             common::Intent::Out}},
@@ -1039,6 +1064,8 @@ static const IntrinsicInterface intrinsicSubroutine[]{
             {"cmdmsg", DefaultChar, Rank::scalar, Optionality::optional,
                 common::Intent::InOut}},
         {}, Rank::elemental, IntrinsicClass::impureSubroutine},
+    {"exit", {{"status", DefaultInt, Rank::scalar, Optionality::optional}}, {},
+        Rank::elemental, IntrinsicClass::impureSubroutine},
     {"get_command",
         {{"command", DefaultChar, Rank::scalar, Optionality::optional,
              common::Intent::Out},
@@ -1102,9 +1129,7 @@ static const IntrinsicInterface intrinsicSubroutine[]{
             {"put", DefaultInt, Rank::vector, Optionality::optional},
             {"get", DefaultInt, Rank::vector, Optionality::optional,
                 common::Intent::Out}},
-        {}, Rank::elemental,
-        IntrinsicClass::impureSubroutine}, // TODO: at most one argument can be
-                                           // present
+        {}, Rank::elemental, IntrinsicClass::impureSubroutine},
     {"system_clock",
         {{"count", AnyInt, Rank::scalar, Optionality::optional,
              common::Intent::Out},
@@ -1119,12 +1144,64 @@ static const IntrinsicInterface intrinsicSubroutine[]{
 // TODO: Atomic intrinsic subroutines: ATOMIC_ADD &al.
 // TODO: Collective intrinsic subroutines: CO_BROADCAST &al.
 
+// Finds a built-in derived type and returns it as a DynamicType.
+static DynamicType GetBuiltinDerivedType(
+    const semantics::Scope *builtinsScope, const char *which) {
+  if (!builtinsScope) {
+    common::die("INTERNAL: The __fortran_builtins module was not found, and "
+                "the type '%s' was required",
+        which);
+  }
+  auto iter{
+      builtinsScope->find(semantics::SourceName{which, std::strlen(which)})};
+  if (iter == builtinsScope->cend()) {
+    common::die(
+        "INTERNAL: The __fortran_builtins module does not define the type '%s'",
+        which);
+  }
+  const semantics::Symbol &symbol{*iter->second};
+  const semantics::Scope &scope{DEREF(symbol.scope())};
+  const semantics::DerivedTypeSpec &derived{DEREF(scope.derivedTypeSpec())};
+  return DynamicType{derived};
+}
+
+// Ensure that the keywords of arguments to MAX/MIN and their variants
+// are of the form A123 with no duplicates.
+static bool CheckMaxMinArgument(std::optional<parser::CharBlock> keyword,
+    std::set<parser::CharBlock> &set, const char *intrinsicName,
+    parser::ContextualMessages &messages) {
+  if (keyword) {
+    std::size_t j{1};
+    for (; j < keyword->size(); ++j) {
+      char ch{(*keyword)[j]};
+      if (ch < '0' || ch > '9') {
+        break;
+      }
+    }
+    if (keyword->size() < 2 || (*keyword)[0] != 'a' || j < keyword->size()) {
+      messages.Say(*keyword,
+          "Argument keyword '%s=' is not known in call to '%s'"_err_en_US,
+          *keyword, intrinsicName);
+      return false;
+    }
+    auto [_, wasInserted]{set.insert(*keyword)};
+    if (!wasInserted) {
+      messages.Say(*keyword,
+          "Argument keyword '%s=' was repeated in call to '%s'"_err_en_US,
+          *keyword, intrinsicName);
+      return false;
+    }
+  }
+  return true;
+}
+
 // Intrinsic interface matching against the arguments of a particular
 // procedure reference.
 std::optional<SpecificCall> IntrinsicInterface::Match(
     const CallCharacteristics &call,
     const common::IntrinsicTypeDefaultKinds &defaults,
-    ActualArguments &arguments, FoldingContext &context) const {
+    ActualArguments &arguments, FoldingContext &context,
+    const semantics::Scope *builtinsScope) const {
   auto &messages{context.messages()};
   // Attempt to construct a 1-1 correspondence between the dummy arguments in
   // a particular intrinsic procedure's generic interface and the actual
@@ -1135,28 +1212,32 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   }
   // MAX and MIN (and others that map to them) allow their last argument to
   // be repeated indefinitely.  The actualForDummy vector is sized
-  // and null-initialized to the non-repeated dummy argument count,
-  // but additional actual argument pointers can be pushed on it
-  // when this flag is set.
-  bool repeatLastDummy{dummyArgPatterns > 0 &&
+  // and null-initialized to the non-repeated dummy argument count
+  // for other instrinsics.
+  bool isMaxMin{dummyArgPatterns > 0 &&
       dummy[dummyArgPatterns - 1].optionality == Optionality::repeats};
-  std::size_t nonRepeatedDummies{
-      repeatLastDummy ? dummyArgPatterns - 1 : dummyArgPatterns};
-  std::vector<ActualArgument *> actualForDummy(nonRepeatedDummies, nullptr);
+  std::vector<ActualArgument *> actualForDummy(
+      isMaxMin ? 0 : dummyArgPatterns, nullptr);
   int missingActualArguments{0};
+  std::set<parser::CharBlock> maxMinKeywords;
   for (std::optional<ActualArgument> &arg : arguments) {
     if (!arg) {
       ++missingActualArguments;
-    } else {
-      if (arg->isAlternateReturn()) {
-        messages.Say(
-            "alternate return specifier not acceptable on call to intrinsic '%s'"_err_en_US,
-            name);
+    } else if (arg->isAlternateReturn()) {
+      messages.Say(
+          "alternate return specifier not acceptable on call to intrinsic '%s'"_err_en_US,
+          name);
+      return std::nullopt;
+    } else if (isMaxMin) {
+      if (CheckMaxMinArgument(arg->keyword(), maxMinKeywords, name, messages)) {
+        actualForDummy.push_back(&*arg);
+      } else {
         return std::nullopt;
       }
+    } else {
       bool found{false};
       int slot{missingActualArguments};
-      for (std::size_t j{0}; j < nonRepeatedDummies && !found; ++j) {
+      for (std::size_t j{0}; j < dummyArgPatterns && !found; ++j) {
         if (dummy[j].optionality == Optionality::missing) {
           continue;
         }
@@ -1185,19 +1266,14 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         }
       }
       if (!found) {
-        if (repeatLastDummy && !arg->keyword()) {
-          // MAX/MIN argument after the 2nd
-          actualForDummy.push_back(&*arg);
+        if (arg->keyword()) {
+          messages.Say(*arg->keyword(),
+              "unknown keyword argument to intrinsic '%s'"_err_en_US, name);
         } else {
-          if (arg->keyword()) {
-            messages.Say(*arg->keyword(),
-                "unknown keyword argument to intrinsic '%s'"_err_en_US, name);
-          } else {
-            messages.Say(
-                "too many actual arguments for intrinsic '%s'"_err_en_US, name);
-          }
-          return std::nullopt;
+          messages.Say(
+              "too many actual arguments for intrinsic '%s'"_err_en_US, name);
         }
+        return std::nullopt;
       }
     }
   }
@@ -1249,7 +1325,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     if (!type) {
       CHECK(arg->Rank() == 0);
       const Expr<SomeType> &expr{DEREF(arg->UnwrapExpr())};
-      if (std::holds_alternative<BOZLiteralConstant>(expr.u)) {
+      if (IsBOZLiteral(expr)) {
         if (d.typePattern.kindCode == KindCode::typeless ||
             d.rank == Rank::elementalOrBOZ) {
           continue;
@@ -1283,8 +1359,12 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     switch (d.typePattern.kindCode) {
     case KindCode::none:
     case KindCode::typeless:
-    case KindCode::teamType: // TODO: TEAM_TYPE
       argOk = false;
+      break;
+    case KindCode::teamType:
+      argOk = !type->IsUnlimitedPolymorphic() &&
+          type->category() == TypeCategory::Derived &&
+          semantics::IsTeamType(&type->GetDerivedTypeSpec());
       break;
     case KindCode::defaultIntegerKind:
       argOk = type->kind() == defaults.GetDefaultKind(TypeCategory::Integer);
@@ -1357,13 +1437,15 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
 
   // Check the ranks of the arguments against the intrinsic's interface.
   const ActualArgument *arrayArg{nullptr};
+  const char *arrayArgName{nullptr};
   const ActualArgument *knownArg{nullptr};
   std::optional<int> shapeArgSize;
   int elementalRank{0};
   for (std::size_t j{0}; j < dummies; ++j) {
     const IntrinsicDummyArgument &d{dummy[std::min(j, dummyArgPatterns - 1)]};
     if (const ActualArgument * arg{actualForDummy[j]}) {
-      if (IsAssumedRank(*arg) && d.rank != Rank::anyOrAssumedRank) {
+      bool isAssumedRank{IsAssumedRank(*arg)};
+      if (isAssumedRank && d.rank != Rank::anyOrAssumedRank) {
         messages.Say("Assumed-rank array cannot be forwarded to "
                      "'%s=' argument"_err_en_US,
             d.keyword);
@@ -1413,8 +1495,18 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         argOk = rank > 0;
         if (!arrayArg) {
           arrayArg = arg;
+          arrayArgName = d.keyword;
         } else {
           argOk &= rank == arrayArg->Rank();
+        }
+        break;
+      case Rank::coarray:
+        argOk = IsCoarray(*arg);
+        if (!argOk) {
+          messages.Say(
+              "'coarray=' argument must have corank > 0 for intrinsic '%s'"_err_en_US,
+              name);
+          return std::nullopt;
         }
         break;
       case Rank::known:
@@ -1424,11 +1516,49 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         argOk = rank == knownArg->Rank();
         break;
       case Rank::anyOrAssumedRank:
+        if (!hasDimArg && rank > 0 && !isAssumedRank &&
+            (std::strcmp(name, "shape") == 0 ||
+                std::strcmp(name, "size") == 0 ||
+                std::strcmp(name, "ubound") == 0)) {
+          // Check for an assumed-size array argument.
+          // These are disallowed for SHAPE, and require DIM= for
+          // SIZE and UBOUND.
+          // (A previous error message for UBOUND will take precedence
+          // over this one, as this error is caught by the second entry
+          // for UBOUND.)
+          if (std::optional<Shape> shape{GetShape(context, *arg)}) {
+            if (!shape->empty() && !shape->back().has_value()) {
+              if (strcmp(name, "shape") == 0) {
+                messages.Say(
+                    "The '%s=' argument to the intrinsic function '%s' may not be assumed-size"_err_en_US,
+                    d.keyword, name);
+              } else {
+                messages.Say(
+                    "A dim= argument is required for '%s' when the array is assumed-size"_err_en_US,
+                    name);
+              }
+              return std::nullopt;
+            }
+          }
+        }
         argOk = true;
         break;
-      case Rank::conformable:
+      case Rank::conformable: // arg must be conformable with previous arrayArg
         CHECK(arrayArg);
-        argOk = rank == 0 || rank == arrayArg->Rank();
+        CHECK(arrayArgName);
+        if (const std::optional<Shape> &arrayArgShape{
+                GetShape(context, *arrayArg)}) {
+          if (std::optional<Shape> argShape{GetShape(context, *arg)}) {
+            std::string arrayArgMsg{"'"};
+            arrayArgMsg = arrayArgMsg + arrayArgName + "='" + " argument";
+            std::string argMsg{"'"};
+            argMsg = argMsg + d.keyword + "='" + " argument";
+            CheckConformance(context.messages(), *arrayArgShape, *argShape,
+                CheckConformanceFlags::RightScalarExpandable,
+                arrayArgMsg.c_str(), argMsg.c_str());
+          }
+        }
+        argOk = true; // Avoid an additional error message
         break;
       case Rank::dimReduced:
       case Rank::dimRemovedOrScalar:
@@ -1481,12 +1611,6 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       CHECK(FloatingType.test(*category));
       resultType = DynamicType{*category, defaults.doublePrecisionKind()};
       break;
-    case KindCode::defaultCharKind:
-      CHECK(result.categorySet == CharType);
-      CHECK(*category == TypeCategory::Character);
-      resultType = DynamicType{TypeCategory::Character,
-          defaults.GetDefaultKind(TypeCategory::Character)};
-      break;
     case KindCode::defaultLogicalKind:
       CHECK(result.categorySet == LogicalType);
       CHECK(*category == TypeCategory::Logical);
@@ -1516,7 +1640,11 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
           CHECK(expr->Rank() == 0);
           if (auto code{ToInt64(*expr)}) {
             if (IsValidKindOfIntrinsicType(*category, *code)) {
-              resultType = DynamicType{*category, static_cast<int>(*code)};
+              if (*category == TypeCategory::Character) { // ACHAR & CHAR
+                resultType = DynamicType{static_cast<int>(*code), 1};
+              } else {
+                resultType = DynamicType{*category, static_cast<int>(*code)};
+              }
               break;
             }
           }
@@ -1535,7 +1663,12 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       } else {
         CHECK(kindDummyArg->optionality ==
             Optionality::defaultsToDefaultForResult);
-        resultType = DynamicType{*category, defaults.GetDefaultKind(*category)};
+        int kind{defaults.GetDefaultKind(*category)};
+        if (*category == TypeCategory::Character) { // ACHAR & CHAR
+          resultType = DynamicType{kind, 1};
+        } else {
+          resultType = DynamicType{*category, kind};
+        }
       }
       break;
     case KindCode::likeMultiply:
@@ -1557,8 +1690,14 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       resultType =
           DynamicType{TypeCategory::Integer, defaults.sizeIntegerKind()};
       break;
-    case KindCode::typeless:
     case KindCode::teamType:
+      CHECK(result.categorySet == DerivedType);
+      CHECK(*category == TypeCategory::Derived);
+      resultType = DynamicType{
+          GetBuiltinDerivedType(builtinsScope, "__builtin_team_type")};
+      break;
+    case KindCode::defaultCharKind:
+    case KindCode::typeless:
     case KindCode::any:
     case KindCode::kindArg:
     case KindCode::dimArg:
@@ -1614,6 +1753,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
   case Rank::elementalOrBOZ:
   case Rank::shape:
   case Rank::array:
+  case Rank::coarray:
   case Rank::known:
   case Rank::anyOrAssumedRank:
   case Rank::reduceOperation:
@@ -1639,8 +1779,12 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     const IntrinsicDummyArgument &d{dummy[std::min(j, dummyArgPatterns - 1)]};
     if (const auto &arg{rearranged[j]}) {
       if (const Expr<SomeType> *expr{arg->UnwrapExpr()}) {
+        std::string kw{d.keyword};
+        if (isMaxMin) {
+          kw = "a"s + std::to_string(j + 1);
+        }
         auto dc{characteristics::DummyArgument::FromActual(
-            std::string{d.keyword}, *expr, context)};
+            std::move(kw), *expr, context)};
         if (!dc) {
           common::die("INTERNAL: could not characterize intrinsic function "
                       "actual argument '%s'",
@@ -1663,10 +1807,20 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         dummyArgs.emplace_back(dummyArgs[sameDummyArg.value()]);
       } else {
         auto category{d.typePattern.categorySet.LeastElement().value()};
-        characteristics::TypeAndShape typeAndShape{
-            DynamicType{category, defaults.GetDefaultKind(category)}};
-        dummyArgs.emplace_back(std::string{d.keyword},
-            characteristics::DummyDataObject{std::move(typeAndShape)});
+        if (category == TypeCategory::Derived) {
+          // TODO: any other built-in derived types used as optional intrinsic
+          // dummies?
+          CHECK(d.typePattern.kindCode == KindCode::teamType);
+          characteristics::TypeAndShape typeAndShape{
+              GetBuiltinDerivedType(builtinsScope, "__builtin_team_type")};
+          dummyArgs.emplace_back(std::string{d.keyword},
+              characteristics::DummyDataObject{std::move(typeAndShape)});
+        } else {
+          characteristics::TypeAndShape typeAndShape{
+              DynamicType{category, defaults.GetDefaultKind(category)}};
+          dummyArgs.emplace_back(std::string{d.keyword},
+              characteristics::DummyDataObject{std::move(typeAndShape)});
+        }
       }
       dummyArgs.back().SetOptional();
     }
@@ -1707,6 +1861,10 @@ public:
     }
   }
 
+  void SupplyBuiltins(const semantics::Scope &builtins) {
+    builtinsScope_ = &builtins;
+  }
+
   bool IsIntrinsic(const std::string &) const;
   bool IsIntrinsicFunction(const std::string &) const;
   bool IsIntrinsicSubroutine(const std::string &) const;
@@ -1714,8 +1872,8 @@ public:
   IntrinsicClass GetIntrinsicClass(const std::string &) const;
   std::string GetGenericIntrinsicName(const std::string &) const;
 
-  std::optional<SpecificCall> Probe(const CallCharacteristics &,
-      ActualArguments &, FoldingContext &, const IntrinsicProcTable &) const;
+  std::optional<SpecificCall> Probe(
+      const CallCharacteristics &, ActualArguments &, FoldingContext &) const;
 
   std::optional<SpecificIntrinsicFunctionInterface> IsSpecificIntrinsicFunction(
       const std::string &) const;
@@ -1732,6 +1890,7 @@ private:
   std::multimap<std::string, const IntrinsicInterface *> genericFuncs_;
   std::multimap<std::string, const SpecificIntrinsicInterface *> specificFuncs_;
   std::multimap<std::string, const IntrinsicInterface *> subroutines_;
+  const semantics::Scope *builtinsScope_{nullptr};
 };
 
 bool IntrinsicProcTable::Implementation::IsIntrinsicFunction(
@@ -1861,8 +2020,9 @@ SpecificCall IntrinsicProcTable::Implementation::HandleNull(
           // MOLD= procedure pointer
           const Symbol *last{GetLastSymbol(*mold)};
           CHECK(last);
-          auto procPointer{
-              characteristics::Procedure::Characterize(*last, context)};
+          auto procPointer{IsProcedure(*last)
+                  ? characteristics::Procedure::Characterize(*last, context)
+                  : std::nullopt};
           // procPointer is null if there was an error with the analysis
           // associated with the procedure pointer
           if (procPointer) {
@@ -1998,12 +2158,9 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                                 "POINTER"_err_en_US),
               *pointerSymbol);
         } else {
-          const auto pointerProc{characteristics::Procedure::Characterize(
-              *pointerSymbol, context)};
           if (const auto &targetArg{call.arguments[1]}) {
             if (const auto *targetExpr{targetArg->UnwrapExpr()}) {
-              std::optional<characteristics::Procedure> targetProc{
-                  std::nullopt};
+              std::optional<characteristics::Procedure> pointerProc, targetProc;
               const Symbol *targetSymbol{GetLastSymbol(*targetExpr)};
               bool isCall{false};
               std::string targetName;
@@ -2016,13 +2173,18 @@ static bool CheckAssociated(SpecificCall &call, FoldingContext &context) {
                   targetName = targetProcRef->proc().GetName() + "()";
                   isCall = true;
                 }
-              } else if (targetSymbol && !targetProc) {
+              } else if (targetSymbol) {
                 // proc that's not a call
-                targetProc = characteristics::Procedure::Characterize(
-                    *targetSymbol, context);
+                if (IsProcedure(*targetSymbol)) {
+                  targetProc = characteristics::Procedure::Characterize(
+                      *targetSymbol, context);
+                }
                 targetName = targetSymbol->name().ToString();
               }
-
+              if (IsProcedure(*pointerSymbol)) {
+                pointerProc = characteristics::Procedure::Characterize(
+                    *pointerSymbol, context);
+              }
               if (pointerProc) {
                 if (targetProc) {
                   // procedure pointer and procedure target
@@ -2160,25 +2322,28 @@ static DynamicType GetReturnType(const SpecificIntrinsicInterface &interface,
 // match for a given procedure reference.
 std::optional<SpecificCall> IntrinsicProcTable::Implementation::Probe(
     const CallCharacteristics &call, ActualArguments &arguments,
-    FoldingContext &context, const IntrinsicProcTable &intrinsics) const {
+    FoldingContext &context) const {
 
   // All special cases handled here before the table probes below must
-  // also be recognized as special names in IsIntrinsic().
+  // also be recognized as special names in IsIntrinsicSubroutine().
   if (call.isSubroutineCall) {
     if (call.name == "__builtin_c_f_pointer") {
       return HandleC_F_Pointer(arguments, context);
+    } else if (call.name == "random_seed") {
+      if (arguments.size() != 0 && arguments.size() != 1) {
+        context.messages().Say(
+            "RANDOM_SEED must have either 1 or no arguments"_err_en_US);
+      }
     }
-  } else {
-    if (call.name == "null") {
-      return HandleNull(arguments, context);
-    }
+  } else if (call.name == "null") {
+    return HandleNull(arguments, context);
   }
 
   if (call.isSubroutineCall) {
     auto subrRange{subroutines_.equal_range(call.name)};
     for (auto iter{subrRange.first}; iter != subrRange.second; ++iter) {
-      if (auto specificCall{
-              iter->second->Match(call, defaults_, arguments, context)}) {
+      if (auto specificCall{iter->second->Match(
+              call, defaults_, arguments, context, builtinsScope_)}) {
         return specificCall;
       }
     }
@@ -2199,8 +2364,8 @@ std::optional<SpecificCall> IntrinsicProcTable::Implementation::Probe(
   auto matchOrBufferMessages{
       [&](const IntrinsicInterface &intrinsic,
           parser::Messages &buffer) -> std::optional<SpecificCall> {
-        if (auto specificCall{
-                intrinsic.Match(call, defaults_, arguments, localContext)}) {
+        if (auto specificCall{intrinsic.Match(
+                call, defaults_, arguments, localContext, builtinsScope_)}) {
           if (finalBuffer) {
             finalBuffer->Annex(std::move(localBuffer));
           }
@@ -2329,7 +2494,11 @@ DynamicType IntrinsicProcTable::Implementation::GetSpecificType(
   const CategorySet &set{pattern.categorySet};
   CHECK(set.count() == 1);
   TypeCategory category{set.LeastElement().value()};
-  return DynamicType{category, defaults_.GetDefaultKind(category)};
+  if (pattern.kindCode == KindCode::doublePrecision) {
+    return DynamicType{category, defaults_.doublePrecisionKind()};
+  } else {
+    return DynamicType{category, defaults_.GetDefaultKind(category)};
+  }
 }
 
 IntrinsicProcTable::~IntrinsicProcTable() = default;
@@ -2341,35 +2510,40 @@ IntrinsicProcTable IntrinsicProcTable::Configure(
   return result;
 }
 
+void IntrinsicProcTable::SupplyBuiltins(
+    const semantics::Scope &builtins) const {
+  DEREF(impl_.get()).SupplyBuiltins(builtins);
+}
+
 bool IntrinsicProcTable::IsIntrinsic(const std::string &name) const {
-  return DEREF(impl_).IsIntrinsic(name);
+  return DEREF(impl_.get()).IsIntrinsic(name);
 }
 bool IntrinsicProcTable::IsIntrinsicFunction(const std::string &name) const {
-  return DEREF(impl_).IsIntrinsicFunction(name);
+  return DEREF(impl_.get()).IsIntrinsicFunction(name);
 }
 bool IntrinsicProcTable::IsIntrinsicSubroutine(const std::string &name) const {
-  return DEREF(impl_).IsIntrinsicSubroutine(name);
+  return DEREF(impl_.get()).IsIntrinsicSubroutine(name);
 }
 
 IntrinsicClass IntrinsicProcTable::GetIntrinsicClass(
     const std::string &name) const {
-  return DEREF(impl_).GetIntrinsicClass(name);
+  return DEREF(impl_.get()).GetIntrinsicClass(name);
 }
 
 std::string IntrinsicProcTable::GetGenericIntrinsicName(
     const std::string &name) const {
-  return DEREF(impl_).GetGenericIntrinsicName(name);
+  return DEREF(impl_.get()).GetGenericIntrinsicName(name);
 }
 
 std::optional<SpecificCall> IntrinsicProcTable::Probe(
     const CallCharacteristics &call, ActualArguments &arguments,
     FoldingContext &context) const {
-  return DEREF(impl_).Probe(call, arguments, context, *this);
+  return DEREF(impl_.get()).Probe(call, arguments, context);
 }
 
 std::optional<SpecificIntrinsicFunctionInterface>
 IntrinsicProcTable::IsSpecificIntrinsicFunction(const std::string &name) const {
-  return DEREF(impl_).IsSpecificIntrinsicFunction(name);
+  return DEREF(impl_.get()).IsSpecificIntrinsicFunction(name);
 }
 
 llvm::raw_ostream &TypePattern::Dump(llvm::raw_ostream &o) const {
@@ -2435,7 +2609,7 @@ llvm::raw_ostream &IntrinsicProcTable::Implementation::Dump(
 }
 
 llvm::raw_ostream &IntrinsicProcTable::Dump(llvm::raw_ostream &o) const {
-  return impl_->Dump(o);
+  return DEREF(impl_.get()).Dump(o);
 }
 
 // In general C846 prohibits allocatable coarrays to be passed to INTENT(OUT)

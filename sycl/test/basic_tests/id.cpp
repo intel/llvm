@@ -439,4 +439,37 @@ int main() {
 
 #undef numValue
 #endif // __SYCL_DISABLE_ID_TO_INT_CONV__
+
+  {
+    cl::sycl::id<1> one_dim_id(64);
+    cl::sycl::id<1> one_dim_id_neg(-64);
+    cl::sycl::id<1> one_dim_id_copy(64);
+    cl::sycl::id<2> two_dim_id(64, 1);
+    cl::sycl::id<2> two_dim_id_neg(-64, -1);
+    cl::sycl::id<2> two_dim_id_copy(64, 1);
+    cl::sycl::id<3> three_dim_id(64, 1, 2);
+    cl::sycl::id<3> three_dim_id_neg(-64, -1, -2);
+    cl::sycl::id<3> three_dim_id_copy(64, 1, 2);
+
+    assert((+one_dim_id) == one_dim_id);
+    assert(-one_dim_id == one_dim_id_neg);
+    assert((+two_dim_id) == two_dim_id);
+    assert(-two_dim_id == two_dim_id_neg);
+    assert((+three_dim_id) == three_dim_id);
+    assert(-three_dim_id == three_dim_id_neg);
+
+    assert((++one_dim_id) == (one_dim_id_copy + 1));
+    assert((--one_dim_id) == (one_dim_id_copy));
+    assert((++two_dim_id) == (two_dim_id_copy + 1));
+    assert((--two_dim_id) == (two_dim_id_copy));
+    assert((++three_dim_id) == (three_dim_id_copy + 1));
+    assert((--three_dim_id) == (three_dim_id_copy));
+
+    assert((one_dim_id++) == (one_dim_id_copy));
+    assert((one_dim_id--) == (one_dim_id_copy + 1));
+    assert((two_dim_id++) == (two_dim_id_copy));
+    assert((two_dim_id--) == (two_dim_id_copy + 1));
+    assert((three_dim_id++) == (three_dim_id_copy));
+    assert((three_dim_id--) == (three_dim_id_copy + 1));
+  }
 }

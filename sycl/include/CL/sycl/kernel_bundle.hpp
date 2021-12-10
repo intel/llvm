@@ -15,17 +15,19 @@
 #include <CL/sycl/detail/pi.hpp>
 #include <CL/sycl/device.hpp>
 #include <CL/sycl/kernel.hpp>
+#include <CL/sycl/kernel_bundle_enums.hpp>
 
 #include <cassert>
 #include <memory>
+#include <set>
 #include <vector>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
 // Forward declaration
 template <backend Backend> class backend_traits;
-
-enum class bundle_state : char { input = 0, object = 1, executable = 2 };
+template <backend Backend, class SyclT>
+auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 
 namespace detail {
 class kernel_id_impl;
@@ -58,8 +60,6 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
-  template <typename KernelName> friend kernel_id get_kernel_id();
 };
 
 namespace detail {
@@ -179,8 +179,8 @@ protected:
   void set_specialization_constant_impl(const char *SpecName, void *Value,
                                         size_t Size) noexcept;
 
-  void get_specialization_constant_impl(const char *SpecName, void *Value) const
-      noexcept;
+  void get_specialization_constant_impl(const char *SpecName,
+                                        void *Value) const noexcept;
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
@@ -311,22 +311,9 @@ public:
   }
 
   template <backend Backend>
-  std::vector<typename backend_traits<Backend>::template return_type<
-      kernel_bundle<State>>>
-  get_native() {
-    std::vector<typename backend_traits<Backend>::template return_type<
-        kernel_bundle<State>>>
-        ReturnValue;
-    ReturnValue.reserve(std::distance(begin(), end()));
-
-    for (const device_image<State> &DevImg : *this) {
-      ReturnValue.push_back(
-          detail::pi::cast<typename backend_traits<
-              Backend>::template return_type<kernel_bundle<State>>>(
-              DevImg.getNative()));
-    }
-
-    return ReturnValue;
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  backend_return_t<Backend, kernel_bundle<State>> get_native() const {
+    return getNative<Backend>();
   }
 
 private:
@@ -338,20 +325,45 @@ private:
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
+
+  template <backend Backend, class SyclT>
+  friend auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
+
+  template <backend Backend>
+  backend_return_t<Backend, kernel_bundle<State>> getNative() const {
+    // NOTE: implementation assumes that the return type is a
+    // derivative of std::vector.
+    backend_return_t<Backend, kernel_bundle<State>> ReturnValue;
+    ReturnValue.reserve(std::distance(begin(), end()));
+
+    for (const device_image<State> &DevImg : *this) {
+      ReturnValue.push_back(
+          detail::pi::cast<typename decltype(ReturnValue)::value_type>(
+              DevImg.getNative()));
+    }
+
+    return ReturnValue;
+  }
 };
 
 /////////////////////////
 // get_kernel_id API
 /////////////////////////
 
+namespace detail {
+// Internal non-template versions of get_kernel_id API which is used by public
+// onces
+__SYCL_EXPORT kernel_id get_kernel_id_impl(std::string KernelName);
+} // namespace detail
+
 /// \returns the kernel_id associated with the KernelName
 template <typename KernelName> kernel_id get_kernel_id() {
   using KI = sycl::detail::KernelInfo<KernelName>;
-  return sycl::kernel_id(KI::getName());
+  return detail::get_kernel_id_impl(KI::getName());
 }
 
 /// \returns a vector with all kernel_id's defined in the application
-std::vector<kernel_id> get_kernel_ids();
+__SYCL_EXPORT std::vector<kernel_id> get_kernel_ids();
 
 /////////////////////////
 // get_kernel_bundle API
@@ -364,6 +376,21 @@ namespace detail {
 __SYCL_EXPORT detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
                        bundle_state State);
+
+inline auto getDeviceComparisonLambda() {
+  return [](device a, device b) { return a.getNative() != b.getNative(); };
+}
+
+inline const std::vector<device>
+removeDuplicateDevices(const std::vector<device> &Devs) {
+  auto compareDevices = getDeviceComparisonLambda();
+  std::set<device, decltype(compareDevices)> UniqueDeviceSet(
+      Devs.begin(), Devs.end(), compareDevices);
+  std::vector<device> UniqueDevices(UniqueDeviceSet.begin(),
+                                    UniqueDeviceSet.end());
+  return UniqueDevices;
+}
+
 } // namespace detail
 
 /// A kernel bundle in state State which contains all of the kernels in the
@@ -373,8 +400,10 @@ get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
 template <bundle_state State>
 kernel_bundle<State> get_kernel_bundle(const context &Ctx,
                                        const std::vector<device> &Devs) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::get_kernel_bundle_impl(Ctx, Devs, State);
+      detail::get_kernel_bundle_impl(Ctx, UniqueDevices, State);
 
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
@@ -406,8 +435,10 @@ template <bundle_state State>
 kernel_bundle<State>
 get_kernel_bundle(const context &Ctx, const std::vector<device> &Devs,
                   const std::vector<kernel_id> &KernelIDs) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::get_kernel_bundle_impl(Ctx, Devs, KernelIDs, State);
+      detail::get_kernel_bundle_impl(Ctx, UniqueDevices, KernelIDs, State);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(Impl);
 }
 
@@ -448,14 +479,16 @@ template <bundle_state State, typename SelectorT>
 kernel_bundle<State> get_kernel_bundle(const context &Ctx,
                                        const std::vector<device> &Devs,
                                        SelectorT Selector) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::DevImgSelectorImpl SelectorWrapper =
       [Selector](const detail::DeviceImageImplPtr &DevImg) {
         return Selector(
             detail::createSyclObjFromImpl<sycl::device_image<State>>(DevImg));
       };
 
-  detail::KernelBundleImplPtr Impl =
-      detail::get_kernel_bundle_impl(Ctx, Devs, State, SelectorWrapper);
+  detail::KernelBundleImplPtr Impl = detail::get_kernel_bundle_impl(
+      Ctx, UniqueDevices, State, SelectorWrapper);
 
   return detail::createSyclObjFromImpl<sycl::kernel_bundle<State>>(Impl);
 }
@@ -578,8 +611,10 @@ compile_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 inline kernel_bundle<bundle_state::object>
 compile(const kernel_bundle<bundle_state::input> &InputBundle,
         const std::vector<device> &Devs, const property_list &PropList = {}) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::compile_impl(InputBundle, Devs, PropList);
+      detail::compile_impl(InputBundle, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
       kernel_bundle<sycl::bundle_state::object>>(Impl);
 }
@@ -601,7 +636,7 @@ __SYCL_EXPORT std::vector<sycl::device> find_device_intersection(
 __SYCL_EXPORT std::shared_ptr<detail::kernel_bundle_impl>
 link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
           const std::vector<device> &Devs, const property_list &PropList);
-}
+} // namespace detail
 
 /// \returns a new kernel_bundle which contains the device images from the
 /// ObjectBundles that are translated into one or more new device images of
@@ -611,8 +646,10 @@ link_impl(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
 inline kernel_bundle<bundle_state::executable>
 link(const std::vector<kernel_bundle<bundle_state::object>> &ObjectBundles,
      const std::vector<device> &Devs, const property_list &PropList = {}) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::link_impl(ObjectBundles, Devs, PropList);
+      detail::link_impl(ObjectBundles, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
       kernel_bundle<sycl::bundle_state::executable>>(Impl);
 }
@@ -656,8 +693,10 @@ build_impl(const kernel_bundle<bundle_state::input> &InputBundle,
 inline kernel_bundle<bundle_state::executable>
 build(const kernel_bundle<bundle_state::input> &InputBundle,
       const std::vector<device> &Devs, const property_list &PropList = {}) {
+  std::vector<device> UniqueDevices = detail::removeDuplicateDevices(Devs);
+
   detail::KernelBundleImplPtr Impl =
-      detail::build_impl(InputBundle, Devs, PropList);
+      detail::build_impl(InputBundle, UniqueDevices, PropList);
   return detail::createSyclObjFromImpl<
       kernel_bundle<sycl::bundle_state::executable>>(Impl);
 }
@@ -674,7 +713,7 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 namespace std {
 template <> struct hash<cl::sycl::kernel_id> {
   size_t operator()(const cl::sycl::kernel_id &KernelID) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::kernel_id_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::kernel_id_impl>>()(
         cl::sycl::detail::getSyclObjImpl(KernelID));
   }
 };
@@ -682,8 +721,7 @@ template <> struct hash<cl::sycl::kernel_id> {
 template <cl::sycl::bundle_state State>
 struct hash<cl::sycl::device_image<State>> {
   size_t operator()(const cl::sycl::device_image<State> &DeviceImage) const {
-    return hash<
-        cl::sycl::shared_ptr_class<cl::sycl::detail::device_image_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::device_image_impl>>()(
         cl::sycl::detail::getSyclObjImpl(DeviceImage));
   }
 };
@@ -691,8 +729,7 @@ struct hash<cl::sycl::device_image<State>> {
 template <cl::sycl::bundle_state State>
 struct hash<cl::sycl::kernel_bundle<State>> {
   size_t operator()(const cl::sycl::kernel_bundle<State> &KernelBundle) const {
-    return hash<
-        cl::sycl::shared_ptr_class<cl::sycl::detail::kernel_bundle_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::kernel_bundle_impl>>()(
         cl::sycl::detail::getSyclObjImpl(KernelBundle));
   }
 };

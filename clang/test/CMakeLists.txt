@@ -33,9 +33,11 @@ configure_lit_site_cfg(
   "LLVM_LIBS_DIR"
   "SHLIBDIR"
   "LLVM_LIT_TOOLS_DIR"
+  "LLVM_EXTERNAL_LIT"
   "CLANG_BINARY_DIR"
   "CLANG_SOURCE_DIR"
   "CLANG_TOOLS_DIR"
+  "CMAKE_LIBRARY_OUTPUT_DIRECTORY"
   )
 
 configure_lit_site_cfg(
@@ -96,7 +98,7 @@ if (CLANG_BUILD_EXAMPLES)
     Attribute
     AnnotateFunctions
     CallSuperAttr
-    clang-interpreter
+    PluginsOrder
     PrintFunctionNames
     )
 endif ()
@@ -109,7 +111,9 @@ if( NOT CLANG_BUILT_STANDALONE )
   list(APPEND CLANG_TEST_DEPS
     llvm-config
     FileCheck count not
+    append-file
     llc
+    llvm-ar
     llvm-as
     llvm-ar
     llvm-bcanalyzer

@@ -6,16 +6,20 @@
 
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
-declare spir_func <16 x float> @_Z18__esimd_block_readIfLi16EPU3AS1fEN2cl4sycl5INTEL3gpu11vector_typeIT_XT0_EE4typeET1_j(float addrspace(1)*, i32)
+declare spir_func <16 x float> @_Z26__esimd_oword_ld_unalignedIfLi16EjLi0EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeET1_j(i32, i32)
+declare spir_func i32 @_Z25__esimd_get_surface_indexIPU3AS1fEjT_(float addrspace(1)*)
 
-define spir_func void @func1(float addrspace(1)* %arg1, i32 %arg2 ){
+
+define spir_func void @func1(float addrspace(1)* %arg1, i32 %arg2){
 ; CHECK-LABEL: @func1(
-; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint float addrspace(1)* [[ARG1:%.*]] to i32, !dbg [[DBG11:![0-9]+]]
-; CHECK-NEXT:    [[CALL1_I_I_ESIMD:%.*]] = call <16 x float> @llvm.genx.oword.ld.unaligned.v16f32(i32 0, i32 [[TMP1]], i32 [[ARG2:%.*]]), !dbg [[DBG11]]
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata <16 x float> [[CALL1_I_I_ESIMD]], metadata [[META9:![0-9]+]], metadata !DIExpression()), !dbg [[DBG11]]
-; CHECK-NEXT:    ret void, !dbg [[DBG12:![0-9]+]]
-;
-  %call1.i.i = tail call spir_func <16 x float> @_Z18__esimd_block_readIfLi16EPU3AS1fEN2cl4sycl5INTEL3gpu11vector_typeIT_XT0_EE4typeET1_j(float addrspace(1)* %arg1, i32 %arg2)
+; CHECK-NEXT:    [[TMP1:%.*]] = ptrtoint float addrspace(1)* [[ARG1:%.*]] to i32, !dbg [[DBG1:![0-9]+]]
+; CHECK-NEXT:    call void @llvm.dbg.value(metadata i32 [[TMP1]], metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg [[DBG1]]
+; CHECK-NEXT:    [[CALL1_I_I_ESIMD:%.*]] = call <16 x float> @llvm.genx.oword.ld.unaligned.v16f32(i32 0, i32 [[TMP1]], i32 [[ARG2:%.*]]), !dbg [[DBG2:![0-9]+]]
+; CHECK-NEXT:    call void @llvm.dbg.value(metadata <16 x float> [[CALL1_I_I_ESIMD]], metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg [[DBG2]]
+; CHECK-NEXT:    ret void, !dbg !{{[0-9]+}}
+
+  %sfi = call spir_func i32 @_Z25__esimd_get_surface_indexIPU3AS1fEjT_(float addrspace(1)* %arg1)
+  %res = call spir_func <16 x float> @_Z26__esimd_oword_ld_unalignedIfLi16EjLi0EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeET1_j(i32 %sfi, i32 %arg2)
   ret void
 }
 

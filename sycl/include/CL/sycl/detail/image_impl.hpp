@@ -102,7 +102,7 @@ private:
 public:
   image_impl(image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
-             unique_ptr_class<SYCLMemObjAllocator> Allocator,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : image_impl((void *)nullptr, Order, Type, ImageRange,
                    std::move(Allocator), PropList) {}
@@ -111,14 +111,14 @@ public:
   image_impl(image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
              const EnableIfPitchT<B> &Pitch,
-             unique_ptr_class<SYCLMemObjAllocator> Allocator,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : image_impl((void *)nullptr, Order, Type, ImageRange, Pitch,
                    std::move(Allocator), PropList) {}
 
   image_impl(void *HData, image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
-             unique_ptr_class<SYCLMemObjAllocator> Allocator,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
@@ -130,7 +130,7 @@ public:
 
   image_impl(const void *HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
-             unique_ptr_class<SYCLMemObjAllocator> Allocator,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
@@ -144,7 +144,7 @@ public:
   image_impl(void *HData, image_channel_order Order, image_channel_type Type,
              const range<Dimensions> &ImageRange,
              const EnableIfPitchT<B> &Pitch,
-             unique_ptr_class<SYCLMemObjAllocator> Allocator,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
@@ -154,9 +154,9 @@ public:
     BaseT::handleHostData(HData, detail::getNextPowerOfTwo(MElementSize));
   }
 
-  image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
+  image_impl(std::shared_ptr<void> &HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
-             unique_ptr_class<SYCLMemObjAllocator> Allocator,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
@@ -168,10 +168,10 @@ public:
 
   /* Available only when: Dimensions > 1 */
   template <bool B = (Dimensions > 1)>
-  image_impl(shared_ptr_class<void> &HData, image_channel_order Order,
+  image_impl(std::shared_ptr<void> &HData, image_channel_order Order,
              image_channel_type Type, const range<Dimensions> &ImageRange,
              const EnableIfPitchT<B> &Pitch,
-             unique_ptr_class<SYCLMemObjAllocator> Allocator,
+             std::unique_ptr<SYCLMemObjAllocator> Allocator,
              const property_list &PropList = {})
       : BaseT(PropList, std::move(Allocator)), MRange(ImageRange),
         MOrder(Order), MType(Type),
@@ -182,7 +182,7 @@ public:
   }
 
   image_impl(cl_mem MemObject, const context &SyclContext, event AvailableEvent,
-             unique_ptr_class<SYCLMemObjAllocator> Allocator);
+             std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   // Return a range object representing the size of the image in terms of the
   // number of elements in each dimension as passed to the constructor
@@ -205,12 +205,13 @@ public:
   }
 
   // Returns the total number of elements in the image
-  size_t get_count() const { return MRange.size(); }
+  size_t get_count() const { return size(); }
+  size_t size() const noexcept { return MRange.size(); }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, RT::PiEvent &OutEventToWait) override;
 
-  MemObjType getType() const override { return MemObjType::IMAGE; }
+  MemObjType getType() const override { return MemObjType::Image; }
 
   // This utility api is currently used by accessor to get the element size of
   // the image. Element size is dependent on num of channels and channel type.
@@ -233,7 +234,7 @@ public:
   }
 
 private:
-  vector_class<device> getDevices(const ContextImplPtr Context);
+  std::vector<device> getDevices(const ContextImplPtr Context);
 
   RT::PiMemObjectType getImageType() {
     if (Dimensions == 1)

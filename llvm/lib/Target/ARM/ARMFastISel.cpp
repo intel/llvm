@@ -1849,6 +1849,7 @@ CCAssignFn *ARMFastISel::CCAssignFnForCall(CallingConv::ID CC,
     }
   case CallingConv::ARM_AAPCS_VFP:
   case CallingConv::Swift:
+  case CallingConv::SwiftTail:
     if (!isVarArg)
       return (Return ? RetCC_ARM_AAPCS_VFP: CC_ARM_AAPCS_VFP);
     // Fall through to soft float variant, variadic functions don't
@@ -2180,10 +2181,11 @@ unsigned ARMFastISel::getLibcallReg(const Twine &Name) {
   EVT LCREVT = TLI.getValueType(DL, GVTy);
   if (!LCREVT.isSimple()) return 0;
 
-  GlobalValue *GV = new GlobalVariable(M, Type::getInt32Ty(*Context), false,
-                                       GlobalValue::ExternalLinkage, nullptr,
-                                       Name);
-  assert(GV->getType() == GVTy && "We miscomputed the type for the global!");
+  GlobalValue *GV = M.getNamedGlobal(Name.str());
+  if (!GV)
+    GV = new GlobalVariable(M, Type::getInt32Ty(*Context), false,
+                            GlobalValue::ExternalLinkage, nullptr, Name);
+
   return ARMMaterializeGV(GV, LCREVT.getSimpleVT());
 }
 
@@ -3014,6 +3016,7 @@ bool ARMFastISel::fastLowerArguments() {
   case CallingConv::ARM_AAPCS:
   case CallingConv::ARM_APCS:
   case CallingConv::Swift:
+  case CallingConv::SwiftTail:
     break;
   }
 

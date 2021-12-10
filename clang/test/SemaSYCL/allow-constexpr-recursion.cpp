@@ -8,7 +8,7 @@ sycl::queue q;
 
 constexpr int constexpr_recurse1(int n);
 
-// expected-note@+1 3{{function implemented using recursion declared here}}
+// expected-note@+1 5{{function implemented using recursion declared here}}
 constexpr int constexpr_recurse(int n) {
   if (n)
     return constexpr_recurse1(n - 1);
@@ -18,6 +18,10 @@ constexpr int constexpr_recurse(int n) {
 constexpr int constexpr_recurse1(int n) {
   // expected-error@+1{{SYCL kernel cannot call a recursive function}}
   return constexpr_recurse(n) + 1;
+}
+
+constexpr int test_constexpr_context(int n) {
+  return n;
 }
 
 template <int I>
@@ -34,7 +38,7 @@ struct ConditionallyExplicitCtor {
   explicit(constexpr_recurse(5) == 103) ConditionallyExplicitCtor(int i) {}
 };
 
-void conditionally_noexcept() noexcept(constexpr_recurse(5)) {}
+void conditionally_noexcept() noexcept(static_cast<bool>(constexpr_recurse(5))) {}
 
 template <int I>
 void ConstexprIf1() {
@@ -55,15 +59,13 @@ void ConstexprIf2() {
 // they should not diagnose.
 void constexpr_recurse_test() {
   constexpr int i = constexpr_recurse(1);
+  constexpr int j = test_constexpr_context(constexpr_recurse(1));
   bar<constexpr_recurse(2)>();
   bar2<1, 2, constexpr_recurse(2)>();
   static_assert(constexpr_recurse(2) == 105, "");
 
-  int j;
   switch (105) {
   case constexpr_recurse(2):
-    // expected-error@+1{{SYCL kernel cannot call a recursive function}}
-    j = constexpr_recurse(5);
     break;
   }
 
@@ -78,14 +80,40 @@ void constexpr_recurse_test() {
 
   ConditionallyExplicitCtor c(1);
 
-  ConstexprIf1<0>(); // Should not cause a diagnostic.
-  // expected-error@+1{{SYCL kernel cannot call a recursive function}}
-  ConstexprIf2<1>();
+  ConstexprIf1<0>();
+
+  int k;
+  if constexpr (false)
+    k = constexpr_recurse(1);
+  else
+    constexpr int l = test_constexpr_context(constexpr_recurse(1));
 }
 
 void constexpr_recurse_test_err() {
   // expected-error@+1{{SYCL kernel cannot call a recursive function}}
   int i = constexpr_recurse(1);
+
+  // expected-error@+1{{SYCL kernel cannot call a recursive function}}
+  ConstexprIf2<1>();
+
+  int j, k;
+  if constexpr (true)
+    // expected-error@+1{{SYCL kernel cannot call a recursive function}}
+    j = constexpr_recurse(1);
+
+  if constexpr (false)
+    j = constexpr_recurse(1); // Should not diagnose in discarded branch
+  else
+    // expected-error@+1{{SYCL kernel cannot call a recursive function}}
+    k = constexpr_recurse(1);
+
+  switch (105) {
+  case constexpr_recurse(2):
+    constexpr int l = test_constexpr_context(constexpr_recurse(1));
+    // expected-error@+1{{SYCL kernel cannot call a recursive function}}
+    j = constexpr_recurse(5);
+    break;
+  }
 }
 
 int main() {

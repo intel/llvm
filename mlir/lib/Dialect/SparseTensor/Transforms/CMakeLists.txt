@@ -10,6 +10,8 @@ add_mlir_dialect_library(MLIRSparseTensorTransforms
   MLIRSparseTensorPassIncGen
 
   LINK_LIBS PUBLIC
+  MLIRArithmetic
+  MLIRBufferizableOpInterface
   MLIRIR
   MLIRLLVMIR
   MLIRLinalg
@@ -19,6 +21,7 @@ add_mlir_dialect_library(MLIRSparseTensorTransforms
   MLIRSCF
   MLIRStandard
   MLIRSparseTensor
+  MLIRSparseTensorUtils
   MLIRTensor
   MLIRTransforms
   MLIRVector

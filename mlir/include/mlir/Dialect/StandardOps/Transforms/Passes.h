@@ -15,15 +15,19 @@
 #define MLIR_DIALECT_STANDARD_TRANSFORMS_PASSES_H_
 
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/Bufferize.h"
 
 namespace mlir {
+namespace bufferization {
+class BufferizeTypeConverter;
+} // end namespace bufferization
 
+class GlobalCreator;
 class RewritePatternSet;
 using OwningRewritePatternList = RewritePatternSet;
 
-void populateStdBufferizePatterns(BufferizeTypeConverter &typeConverter,
-                                  RewritePatternSet &patterns);
+void populateStdBufferizePatterns(
+    bufferization::BufferizeTypeConverter &typeConverter,
+    RewritePatternSet &patterns);
 
 /// Creates an instance of std bufferization pass.
 std::unique_ptr<Pass> createStdBufferizePass();
@@ -31,12 +35,19 @@ std::unique_ptr<Pass> createStdBufferizePass();
 /// Creates an instance of func bufferization pass.
 std::unique_ptr<Pass> createFuncBufferizePass();
 
+/// Add patterns to bufferize tensor constants into global memrefs to the given
+/// pattern list.
+void populateTensorConstantBufferizePatterns(
+    GlobalCreator &globalCreator,
+    bufferization::BufferizeTypeConverter &typeConverter,
+    RewritePatternSet &patterns);
+
 /// Creates an instance of tensor constant bufferization pass.
-std::unique_ptr<Pass> createTensorConstantBufferizePass();
+std::unique_ptr<Pass> createTensorConstantBufferizePass(unsigned alignment = 0);
 
 /// Creates an instance of the StdExpand pass that legalizes Std
 /// dialect ops to be convertible to LLVM. For example,
-/// `std.ceildivi_signed` gets transformed to a number of std operations,
+/// `std.arith.ceildivsi` gets transformed to a number of std operations,
 /// which can be lowered to LLVM; `memref.reshape` gets converted to
 /// `memref_reinterpret_cast`.
 std::unique_ptr<Pass> createStdExpandOpsPass();

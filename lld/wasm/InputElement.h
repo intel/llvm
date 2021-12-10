@@ -18,7 +18,7 @@
 namespace lld {
 namespace wasm {
 
-// Represents a single element (Global, Event, Table, etc) within an input
+// Represents a single element (Global, Tag, Table, etc) within an input
 // file.
 class InputElement {
 protected:
@@ -71,17 +71,12 @@ private:
   WasmInitExpr initExpr;
 };
 
-class InputEvent : public InputElement {
+class InputTag : public InputElement {
 public:
-  InputEvent(const WasmSignature &s, const WasmEvent &e, ObjFile *f)
-      : InputElement(e.SymbolName, f), signature(s), type(e.Type) {}
-
-  const WasmEventType &getType() const { return type; }
+  InputTag(const WasmSignature &s, const WasmTag &t, ObjFile *f)
+      : InputElement(t.SymbolName, f), signature(s) {}
 
   const WasmSignature &signature;
-
-private:
-  WasmEventType type;
 };
 
 class InputTable : public InputElement {

@@ -71,10 +71,10 @@ protected:
 // Create the custom "dylink" section containing information for the dynamic
 // linker.
 // See
-// https://github.com/WebAssembly/tool-conventions/blob/master/DynamicLinking.md
+// https://github.com/WebAssembly/tool-conventions/blob/main/DynamicLinking.md
 class DylinkSection : public SyntheticSection {
 public:
-  DylinkSection() : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "dylink") {}
+  DylinkSection() : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "dylink.0") {}
   bool isNeeded() const override { return config->isPic; }
   void writeBody() override;
 
@@ -96,6 +96,70 @@ protected:
   llvm::DenseMap<WasmSignature, int32_t> typeIndices;
 };
 
+/**
+ * A key for some kind of imported entity of type `T`.
+ *
+ * Used when de-duplicating imports.
+ */
+template <typename T> struct ImportKey {
+public:
+  enum class State { Plain, Empty, Tombstone };
+
+public:
+  T type;
+  llvm::Optional<StringRef> importModule;
+  llvm::Optional<StringRef> importName;
+  State state;
+
+public:
+  ImportKey(T type) : type(type), state(State::Plain) {}
+  ImportKey(T type, State state) : type(type), state(state) {}
+  ImportKey(T type, llvm::Optional<StringRef> importModule,
+            llvm::Optional<StringRef> importName)
+      : type(type), importModule(importModule), importName(importName),
+        state(State::Plain) {}
+};
+
+template <typename T>
+inline bool operator==(const ImportKey<T> &lhs, const ImportKey<T> &rhs) {
+  return lhs.state == rhs.state && lhs.importModule == rhs.importModule &&
+         lhs.importName == rhs.importName && lhs.type == rhs.type;
+}
+
+} // namespace wasm
+} // namespace lld
+
+// `ImportKey<T>` can be used as a key in a `DenseMap` if `T` can be used as a
+// key in a `DenseMap`.
+namespace llvm {
+template <typename T> struct DenseMapInfo<lld::wasm::ImportKey<T>> {
+  static lld::wasm::ImportKey<T> getEmptyKey() {
+    typename lld::wasm::ImportKey<T> key(llvm::DenseMapInfo<T>::getEmptyKey());
+    key.state = lld::wasm::ImportKey<T>::State::Empty;
+    return key;
+  }
+  static lld::wasm::ImportKey<T> getTombstoneKey() {
+    typename lld::wasm::ImportKey<T> key(llvm::DenseMapInfo<T>::getEmptyKey());
+    key.state = lld::wasm::ImportKey<T>::State::Tombstone;
+    return key;
+  }
+  static unsigned getHashValue(const lld::wasm::ImportKey<T> &key) {
+    uintptr_t hash = hash_value(key.importModule);
+    hash = hash_combine(hash, key.importName);
+    hash = hash_combine(hash, llvm::DenseMapInfo<T>::getHashValue(key.type));
+    hash = hash_combine(hash, key.state);
+    return hash;
+  }
+  static bool isEqual(const lld::wasm::ImportKey<T> &lhs,
+                      const lld::wasm::ImportKey<T> &rhs) {
+    return lhs == rhs;
+  }
+};
+} // end namespace llvm
+
+namespace lld {
+namespace wasm {
+
 class ImportSection : public SyntheticSection {
 public:
   ImportSection() : SyntheticSection(llvm::wasm::WASM_SEC_IMPORT) {}
@@ -113,9 +177,9 @@ public:
     assert(isSealed);
     return numImportedFunctions;
   }
-  uint32_t getNumImportedEvents() const {
+  uint32_t getNumImportedTags() const {
     assert(isSealed);
-    return numImportedEvents;
+    return numImportedTags;
   }
   uint32_t getNumImportedTables() const {
     assert(isSealed);
@@ -129,8 +193,12 @@ protected:
   bool isSealed = false;
   unsigned numImportedGlobals = 0;
   unsigned numImportedFunctions = 0;
-  unsigned numImportedEvents = 0;
+  unsigned numImportedTags = 0;
   unsigned numImportedTables = 0;
+  llvm::DenseMap<ImportKey<WasmGlobalType>, uint32_t> importedGlobals;
+  llvm::DenseMap<ImportKey<WasmSignature>, uint32_t> importedFunctions;
+  llvm::DenseMap<ImportKey<WasmTableType>, uint32_t> importedTables;
+  llvm::DenseMap<ImportKey<WasmSignature>, uint32_t> importedTags;
 };
 
 class FunctionSection : public SyntheticSection {
@@ -169,24 +237,23 @@ public:
   uint64_t maxMemoryPages = 0;
 };
 
-// The event section contains a list of declared wasm events associated with the
-// module. Currently the only supported event kind is exceptions. A single event
-// entry represents a single event with an event tag. All C++ exceptions are
-// represented by a single event. An event entry in this section contains
-// information on what kind of event it is (e.g. exception) and the type of
-// values contained in a single event object. (In wasm, an event can contain
-// multiple values of primitive types. But for C++ exceptions, we just throw a
-// pointer which is an i32 value (for wasm32 architecture), so the signature of
-// C++ exception is (i32)->(void), because all event types are assumed to have
-// void return type to share WasmSignature with functions.)
-class EventSection : public SyntheticSection {
+// The tag section contains a list of declared wasm tags associated with the
+// module. Currently the only supported tag kind is exceptions. All C++
+// exceptions are represented by a single tag. A tag entry in this section
+// contains information on what kind of tag it is (e.g. exception) and the type
+// of values associated with the tag. (In Wasm, a tag can contain multiple
+// values of primitive types. But for C++ exceptions, we just throw a pointer
+// which is an i32 value (for wasm32 architecture), so the signature of C++
+// exception is (i32)->(void), because all exception tag types are assumed to
+// have void return type to share WasmSignature with functions.)
+class TagSection : public SyntheticSection {
 public:
-  EventSection() : SyntheticSection(llvm::wasm::WASM_SEC_EVENT) {}
+  TagSection() : SyntheticSection(llvm::wasm::WASM_SEC_TAG) {}
   void writeBody() override;
-  bool isNeeded() const override { return inputEvents.size() > 0; }
-  void addEvent(InputEvent *event);
+  bool isNeeded() const override { return inputTags.size() > 0; }
+  void addTag(InputTag *tag);
 
-  std::vector<InputEvent *> inputEvents;
+  std::vector<InputTag *> inputTags;
 };
 
 class GlobalSection : public SyntheticSection {
@@ -220,10 +287,19 @@ public:
   // specific relocation types combined with linker relaxation which could
   // transform a `global.get` to an `i32.const`.
   void addInternalGOTEntry(Symbol *sym);
-  bool needsRelocations() { return internalGotSymbols.size(); }
-  void generateRelocationCode(raw_ostream &os) const;
+  bool needsRelocations() {
+    return llvm::find_if(internalGotSymbols, [=](Symbol *sym) {
+             return !sym->isTLS();
+           }) != internalGotSymbols.end();
+  }
+  bool needsTLSRelocations() {
+    return llvm::find_if(internalGotSymbols, [=](Symbol *sym) {
+             return sym->isTLS();
+           }) != internalGotSymbols.end();
+  }
+  void generateRelocationCode(raw_ostream &os, bool TLS) const;
 
-  std::vector<const DefinedData *> dataAddressGlobals;
+  std::vector<DefinedData *> dataAddressGlobals;
   std::vector<InputGlobal *> inputGlobals;
   std::vector<Symbol *> internalGotSymbols;
 
@@ -298,9 +374,7 @@ public:
   NameSection(ArrayRef<OutputSegment *> segments)
       : SyntheticSection(llvm::wasm::WASM_SEC_CUSTOM, "name"),
         segments(segments) {}
-  bool isNeeded() const override {
-    return !config->stripDebug && !config->stripAll && numNames() > 0;
-  }
+  bool isNeeded() const override { return !config->stripAll && numNames() > 0; }
   void writeBody() override;
   unsigned numNames() const { return numNamedGlobals() + numNamedFunctions(); }
   unsigned numNamedGlobals() const;
@@ -363,7 +437,7 @@ struct OutStruct {
   TableSection *tableSec;
   MemorySection *memorySec;
   GlobalSection *globalSec;
-  EventSection *eventSec;
+  TagSection *tagSec;
   ExportSection *exportSec;
   StartSection *startSec;
   ElemSection *elemSec;

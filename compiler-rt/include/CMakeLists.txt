@@ -23,6 +23,7 @@ endif(COMPILER_RT_BUILD_SANITIZERS)
 if (COMPILER_RT_BUILD_MEMPROF)
   set(MEMPROF_HEADERS
     sanitizer/memprof_interface.h
+    profile/MemProfData.inc
     )
 endif(COMPILER_RT_BUILD_MEMPROF)
 
@@ -69,22 +70,22 @@ set_target_properties(compiler-rt-headers PROPERTIES FOLDER "Compiler-RT Misc")
 install(FILES ${SANITIZER_HEADERS}
   COMPONENT compiler-rt-headers
   PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
-  DESTINATION ${COMPILER_RT_INSTALL_PATH}/include/sanitizer)
+  DESTINATION ${COMPILER_RT_INSTALL_INCLUDE_DIR}/sanitizer)
 # Install fuzzer headers.
 install(FILES ${FUZZER_HEADERS}
   COMPONENT compiler-rt-headers
   PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
-  DESTINATION ${COMPILER_RT_INSTALL_PATH}/include/fuzzer)
+  DESTINATION ${COMPILER_RT_INSTALL_INCLUDE_DIR}/fuzzer)
 # Install xray headers.
 install(FILES ${XRAY_HEADERS}
   COMPONENT compiler-rt-headers
   PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
-  DESTINATION ${COMPILER_RT_INSTALL_PATH}/include/xray)
+  DESTINATION ${COMPILER_RT_INSTALL_INCLUDE_DIR}/xray)
 # Install profile headers.
 install(FILES ${PROFILE_HEADERS}
   COMPONENT compiler-rt-headers
   PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
-  DESTINATION ${COMPILER_RT_INSTALL_PATH}/include/profile)
+  DESTINATION ${COMPILER_RT_INSTALL_INCLUDE_DIR}/profile)
 
 if (NOT CMAKE_CONFIGURATION_TYPES) # don't add this for IDEs.
   add_custom_target(install-compiler-rt-headers

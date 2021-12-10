@@ -8,7 +8,6 @@
 
 // <unordered_map>
 // UNSUPPORTED: c++03, c++11, c++14
-// UNSUPPORTED: libcpp-no-deduction-guides
 
 // template<class InputIterator,
 //          class Hash = hash<iter-key-type<InputIterator>>,
@@ -62,6 +61,7 @@
 #include <type_traits>
 #include <unordered_map>
 
+#include "deduction_guides_sfinae_checks.h"
 #include "test_allocator.h"
 
 using P = std::pair<int, long>;
@@ -199,6 +199,27 @@ int main(int, char**)
     assert(std::is_permutation(m.begin(), m.end(), std::begin(expected_m), std::end(expected_m)));
     assert(m.get_allocator().get_id() == 48);
     }
+
+    {
+    // Examples from LWG3025
+    std::unordered_map m{std::pair{1, 1}, {2, 2}, {3, 3}};
+    ASSERT_SAME_TYPE(decltype(m), std::unordered_map<int, int>);
+
+    std::unordered_map m2{m.begin(), m.end()};
+    ASSERT_SAME_TYPE(decltype(m2), std::unordered_map<int, int>);
+    }
+
+    {
+    // Examples from LWG3531
+    std::unordered_map m1{{std::pair{1, 2}, {3, 4}}, 0};
+    ASSERT_SAME_TYPE(decltype(m1), std::unordered_map<int, int>);
+
+    using value_type = std::pair<const int, int>;
+    std::unordered_map m2{{value_type{1, 2}, {3, 4}}, 0};
+    ASSERT_SAME_TYPE(decltype(m2), std::unordered_map<int, int>);
+    }
+
+    UnorderedContainerDeductionGuidesSfinaeAway<std::unordered_map, std::unordered_map<int, long>>();
 
     return 0;
 }

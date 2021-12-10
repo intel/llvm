@@ -97,7 +97,7 @@
 
 ; GCN: ; %Flow5
 ; GCN-NEXT: s_or_b64            exec, exec,
-; GCN-NEXT; s_and_saveexec_b64  {{s\[[0-9]+:[0-9]+\]}}, [[EXIT0]]
+; GCN-NEXT: s_and_saveexec_b64  {{s\[[0-9]+:[0-9]+\]}}, [[EXIT0]]
 
 ; GCN: ; %exit0
 ; GCN:      buffer_store_dword
@@ -362,7 +362,7 @@ exit1:                                     ; preds = %LeafBlock, %LeafBlock1
 
 ; GCN-LABEL: {{^}}uniform_branch_to_multi_divergent_region_exit_ret_ret_return_value:
 ; GCN: s_cmp_gt_i32 s0, 1
-; GCN: s_cbranch_scc0 [[FLOW:BB[0-9]+_[0-9]+]]
+; GCN: s_cbranch_scc0 [[FLOW:.LBB[0-9]+_[0-9]+]]
 
 ; GCN: v_cmp_ne_u32_e32 vcc, 7, v0
 
@@ -373,7 +373,7 @@ exit1:                                     ; preds = %LeafBlock, %LeafBlock1
 ; GCN-NOT: s_and_b64 exec, exec
 ; GCN: v_mov_b32_e32 v0, 1.0
 
-; GCN: {{^BB[0-9]+_[0-9]+}}: ; %UnifiedReturnBlock
+; GCN: {{^.LBB[0-9]+_[0-9]+}}: ; %UnifiedReturnBlock
 ; GCN-NEXT: s_or_b64 exec, exec
 ; GCN-NEXT: s_waitcnt vmcnt(0) lgkmcnt(0)
 ; GCN-NEXT: ; return
@@ -724,24 +724,16 @@ bb5:                                              ; preds = %bb3
 
 ; IR-LABEL: @uniformly_reached_export
 ; IR-NEXT: .entry:
-; IR: br i1 [[CND:%.*]], label %[[EXP:.*]], label %[[FLOW:.*]]
-
-; IR: [[FLOW]]:
-; IR-NEXT: phi
-; IR-NEXT: br i1 [[CND2:%.*]], label %[[LOOP:.*]], label %UnifiedReturnBlock
+; IR: br i1 [[CND:%.*]], label %[[LOOP:.*]], label %[[EXP:.*]]
 
 ; IR: [[LOOP]]:
-; IR-NEXT: br i1 false, label %[[FLOW1:.*]], label %[[LOOP]]
+; IR-NEXT: br i1 false, label %DummyReturnBlock, label %[[LOOP]]
 
 ; IR: [[EXP]]:
-; IR-NEXT: call void @llvm.amdgcn.exp.compr.v2f16(i32 immarg 0, i32 immarg 15, <2 x half> <half 0xH3C00, half 0xH0000>, <2 x half> <half 0xH0000, half 0xH3C00>, i1 immarg false, i1 immarg true)
-; IR-NEXT: br label %[[FLOW]]
+; IR-NEXT: call void @llvm.amdgcn.exp.compr.v2f16(i32 immarg 0, i32 immarg 15, <2 x half> <half 0xH3C00, half 0xH0000>, <2 x half> <half 0xH0000, half 0xH3C00>, i1 immarg true, i1 immarg true)
+; IR-NEXT: ret void
 
-; IR: [[FLOW1]]:
-; IR-NEXT: br label %UnifiedReturnBlock
-
-; IR: UnifiedReturnBlock:
-; IR-NEXT: call void @llvm.amdgcn.exp.f32(i32 9, i32 0, float undef, float undef, float undef, float undef, i1 true, i1 true)
+; IR: DummyReturnBlock:
 ; IR-NEXT: ret void
 
 define amdgpu_ps void @uniformly_reached_export(float inreg %tmp25) {

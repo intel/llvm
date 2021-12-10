@@ -1,4 +1,4 @@
-; RUN: opt < %s -tailcallelim -verify-dom-info -S | FileCheck %s
+; RUN: opt < %s -passes=tailcallelim -verify-dom-info -S | FileCheck %s
 
 declare void @noarg()
 declare void @use(i32*)
@@ -215,11 +215,11 @@ entry:
 define void @test13() {
 ; CHECK-LABEL: @test13
 ; CHECK: tail call void @bar(%struct.foo* byval(%struct.foo) %f)
-; CHECK: tail call void @bar(%struct.foo* null)
+; CHECK: tail call void @bar(%struct.foo* byval(%struct.foo) null)
 entry:
   %f = alloca %struct.foo
   call void @bar(%struct.foo* byval(%struct.foo) %f)
-  call void @bar(%struct.foo* null)
+  call void @bar(%struct.foo* byval(%struct.foo) null)
   ret void
 }
 

@@ -196,26 +196,26 @@
 
 ; CHECK-SPIRV: Capability FPGAMemoryAttributesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_fpga_memory_attributes"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 RegisterINTEL
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "DEFAULT"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "MLAB"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 2
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 4
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 8
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 BankwidthINTEL 4
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 BankwidthINTEL 8
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MaxPrivateCopiesINTEL 2
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MaxPrivateCopiesINTEL 4
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 SinglepumpINTEL
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 DoublepumpINTEL
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MaxReplicatesINTEL 2
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MaxReplicatesINTEL 4
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 SimpleDualPortINTEL
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 MergeINTEL "foobar" "width"
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 BankBitsINTEL 2 3
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 BankBitsINTEL 42 41 40
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 ForcePow2DepthINTEL 0
-; CHECK-SPIRV: MemberDecorate {{[0-9]+}} 0 ForcePow2DepthINTEL 1
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 RegisterINTEL
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "DEFAULT"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "MLAB"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 2
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 4
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 8
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 BankwidthINTEL 4
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 BankwidthINTEL 8
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MaxPrivateCopiesINTEL 2
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MaxPrivateCopiesINTEL 4
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 SinglepumpINTEL
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 DoublepumpINTEL
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MaxReplicatesINTEL 2
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MaxReplicatesINTEL 4
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 SimpleDualPortINTEL
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MergeINTEL "foobar" "width"
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 BankBitsINTEL 2 3
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 BankBitsINTEL 42 41 40
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 ForcePow2DepthINTEL 0
+; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 ForcePow2DepthINTEL 1
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"

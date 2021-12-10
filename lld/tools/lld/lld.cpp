@@ -39,6 +39,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/PluginLoader.h"
+#include "llvm/Support/Process.h"
 #include <cstdlib>
 
 using namespace lld;
@@ -47,14 +48,13 @@ using namespace llvm::sys;
 
 enum Flavor {
   Invalid,
-  Gnu,       // -flavor gnu
-  WinLink,   // -flavor link
-  Darwin,    // -flavor darwin
-  DarwinOld, // -flavor darwinold
-  Wasm,      // -flavor wasm
+  Gnu,     // -flavor gnu
+  WinLink, // -flavor link
+  Darwin,  // -flavor darwin
+  Wasm,    // -flavor wasm
 };
 
-LLVM_ATTRIBUTE_NORETURN static void die(const Twine &s) {
+[[noreturn]] static void die(const Twine &s) {
   llvm::errs() << s << "\n";
   exit(1);
 }
@@ -64,9 +64,7 @@ static Flavor getFlavor(StringRef s) {
       .CasesLower("ld", "ld.lld", "gnu", Gnu)
       .CasesLower("wasm", "ld-wasm", Wasm)
       .CaseLower("link", WinLink)
-      .CasesLower("ld64", "ld64.lld", "darwin", "darwinnew",
-                  "ld64.lld.darwinnew", Darwin)
-      .CasesLower("darwinold", "ld64.lld.darwinold", DarwinOld)
+      .CasesLower("ld64", "ld64.lld", "darwin", Darwin)
       .Default(Invalid);
 }
 
@@ -131,7 +129,7 @@ static Flavor parseFlavor(std::vector<const char *> &v) {
 
   // Deduct the flavor from argv[0].
   StringRef arg0 = path::filename(v[0]);
-  if (arg0.endswith_lower(".exe"))
+  if (arg0.endswith_insensitive(".exe"))
     arg0 = arg0.drop_back(4);
   return parseProgname(arg0);
 }
@@ -150,8 +148,6 @@ static int lldMain(int argc, const char **argv, llvm::raw_ostream &stdoutOS,
     return !coff::link(args, exitEarly, stdoutOS, stderrOS);
   case Darwin:
     return !macho::link(args, exitEarly, stdoutOS, stderrOS);
-  case DarwinOld:
-    return !mach_o::link(args, exitEarly, stdoutOS, stderrOS);
   case Wasm:
     return !lld::wasm::link(args, exitEarly, stdoutOS, stderrOS);
   default:
@@ -199,6 +195,7 @@ static unsigned inTestVerbosity() {
 
 int main(int argc, const char **argv) {
   InitLLVM x(argc, argv);
+  sys::Process::UseANSIEscapeCodes(true);
 
   // Not running in lit tests, just take the shortest codepath with global
   // exception handling and no memory cleanup on exit.

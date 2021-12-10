@@ -8,7 +8,7 @@ set(LLVM_BUILD_BINARY_DIRS "${LLVM_BINARY_DIR}/bin/")
 set(LLVM_BUILD_LIBRARY_DIRS "${LLVM_BINARY_DIR}/lib/")
 
 set(RT_TEST_ARGS ${RT_TEST_ARGS} "-v")
-set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INSTALL_PREFIX}/bin -D SYCL_LIBS_DIR=${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX} -D SYCL_INCLUDE=${SYCL_INCLUDE_DEPLOY_DIR}")
+set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INSTALL_PREFIX}/bin -D SYCL_LIBS_DIR=${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX} -D SYCL_INCLUDE=${CMAKE_INSTALL_PREFIX}/${SYCL_INCLUDE_DIR}")
 
 find_package(Threads REQUIRED)
 set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
@@ -54,7 +54,7 @@ set_target_properties(check-sycl-deploy PROPERTIES FOLDER "SYCL tests")
 add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown-sycldevice"
+  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown"
   DEPENDS ${SYCL_TEST_DEPS}
   EXCLUDE_FROM_CHECK_ALL
   )
@@ -67,7 +67,7 @@ if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
     ${CMAKE_CURRENT_BINARY_DIR}
     ARGS ${RT_TEST_ARGS}
-    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda-sycldevice;SYCL_PLUGIN=cuda"
+    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=cuda"
     DEPENDS ${SYCL_TEST_DEPS}
     EXCLUDE_FROM_CHECK_ALL
   )
@@ -75,6 +75,33 @@ if(SYCL_BUILD_PI_CUDA)
   add_custom_target(check-sycl-cuda)
   add_dependencies(check-sycl-cuda check-sycl-ptx)
   add_dependencies(check-sycl check-sycl-cuda)
-
 endif()
-add_subdirectory(on-device)
+
+if(SYCL_BUILD_PI_HIP)
+  add_custom_target(check-sycl-hip)
+  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
+    add_lit_testsuite(check-sycl-hip-ptx "Running device-agnostic SYCL regression tests for HIP NVidia PTX"
+      ${CMAKE_CURRENT_BINARY_DIR}
+      ARGS ${RT_TEST_ARGS}
+      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=hip"
+      DEPENDS ${SYCL_TEST_DEPS}
+      EXCLUDE_FROM_CHECK_ALL
+    )
+
+    add_dependencies(check-sycl-hip check-sycl-hip-ptx)
+  elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+    add_lit_testsuite(check-sycl-hip-gcn "Running device-agnostic SYCL regression tests for HIP AMDGCN"
+      ${CMAKE_CURRENT_BINARY_DIR}
+      ARGS ${RT_TEST_ARGS}
+      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa;SYCL_PLUGIN=hip"
+      DEPENDS ${SYCL_TEST_DEPS}
+      EXCLUDE_FROM_CHECK_ALL
+    )
+
+    add_dependencies(check-sycl-hip check-sycl-hip-gcn)
+  else()
+    message(FATAL_ERROR "SYCL_BUILD_PI_HIP_PLATFORM must be set to either 'AMD' or 'NVIDIA' (set to: '${SYCL_BUILD_PI_HIP_PLATFORM}')")
+  endif()
+
+  add_dependencies(check-sycl check-sycl-hip)
+endif()

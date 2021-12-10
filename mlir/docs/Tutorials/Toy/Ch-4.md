@@ -95,6 +95,22 @@ struct ToyInlinerInterface : public DialectInlinerInterface {
 };
 ```
 
+Besides, the inliner will only discard private-visible unused function
+definitions. We also have to set the visibility of functions (except the
+main function) in the MLIR generator.
+
+```c++
+/// Emit a new function and add it to the MLIR module.
+mlir::FuncOp mlirGen(FunctionAST &funcAST) {
+  ...
+  // If this function isn't main, then set the visibility to private.
+  if (funcAST.getProto()->getName() != "main")
+    function.setPrivate();
+
+  return function;
+}
+```
+
 We then register our dialect interface directly on the Toy dialect, similarly to
 how we did for operations.
 
@@ -172,7 +188,7 @@ func @main() {
 }
 ```
 
-We have two calls to multiple_transpose that we would like to inline into main,
+We have two calls to multiply_transpose that we would like to inline into main,
 but if we look at the output nothing has changed. We are missing one last subtle
 piece: there is a hidden type conversion on the edge of the call. If we look at
 the above, the operands to the generic_call are of type `tensor<2x3xf64>`, while

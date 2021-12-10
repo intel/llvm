@@ -53,15 +53,10 @@ static QualType lookupPromiseType(Sema &S, const FunctionDecl *FD,
                                   SourceLocation KwLoc) {
   const FunctionProtoType *FnType = FD->getType()->castAs<FunctionProtoType>();
   const SourceLocation FuncLoc = FD->getLocation();
-  // FIXME: Cache std::coroutine_traits once we've found it.
-  NamespaceDecl *StdExp = S.lookupStdExperimentalNamespace();
-  if (!StdExp) {
-    S.Diag(KwLoc, diag::err_implied_coroutine_type_not_found)
-        << "std::experimental::coroutine_traits";
-    return QualType();
-  }
 
-  ClassTemplateDecl *CoroTraits = S.lookupCoroutineTraits(KwLoc, FuncLoc);
+  NamespaceDecl *CoroNamespace = nullptr;
+  ClassTemplateDecl *CoroTraits =
+      S.lookupCoroutineTraits(KwLoc, FuncLoc, CoroNamespace);
   if (!CoroTraits) {
     return QualType();
   }
@@ -122,7 +117,7 @@ static QualType lookupPromiseType(Sema &S, const FunctionDecl *FD,
   QualType PromiseType = S.Context.getTypeDeclType(Promise);
 
   auto buildElaboratedType = [&]() {
-    auto *NNS = NestedNameSpecifier::Create(S.Context, nullptr, StdExp);
+    auto *NNS = NestedNameSpecifier::Create(S.Context, nullptr, CoroNamespace);
     NNS = NestedNameSpecifier::Create(S.Context, NNS, false,
                                       CoroTrait.getTypePtr());
     return S.Context.getElaboratedType(ETK_None, NNS, PromiseType);
@@ -141,20 +136,20 @@ static QualType lookupPromiseType(Sema &S, const FunctionDecl *FD,
   return PromiseType;
 }
 
-/// Look up the std::experimental::coroutine_handle<PromiseType>.
+/// Look up the std::coroutine_handle<PromiseType>.
 static QualType lookupCoroutineHandleType(Sema &S, QualType PromiseType,
                                           SourceLocation Loc) {
   if (PromiseType.isNull())
     return QualType();
 
-  NamespaceDecl *StdExp = S.lookupStdExperimentalNamespace();
-  assert(StdExp && "Should already be diagnosed");
+  NamespaceDecl *CoroNamespace = S.getCachedCoroNamespace();
+  assert(CoroNamespace && "Should already be diagnosed");
 
   LookupResult Result(S, &S.PP.getIdentifierTable().get("coroutine_handle"),
                       Loc, Sema::LookupOrdinaryName);
-  if (!S.LookupQualifiedName(Result, StdExp)) {
+  if (!S.LookupQualifiedName(Result, CoroNamespace)) {
     S.Diag(Loc, diag::err_implied_coroutine_type_not_found)
-        << "std::experimental::coroutine_handle";
+        << "std::coroutine_handle";
     return QualType();
   }
 
@@ -291,26 +286,6 @@ static ExprResult buildOperatorCoawaitCall(Sema &SemaRef, Scope *S,
                                   cast<UnresolvedLookupExpr>(R.get()));
 }
 
-static Expr *buildBuiltinCall(Sema &S, SourceLocation Loc, Builtin::ID Id,
-                              MultiExprArg CallArgs) {
-  StringRef Name = S.Context.BuiltinInfo.getName(Id);
-  LookupResult R(S, &S.Context.Idents.get(Name), Loc, Sema::LookupOrdinaryName);
-  S.LookupName(R, S.TUScope, /*AllowBuiltinCreation=*/true);
-
-  auto *BuiltInDecl = R.getAsSingle<FunctionDecl>();
-  assert(BuiltInDecl && "failed to find builtin declaration");
-
-  ExprResult DeclRef =
-      S.BuildDeclRefExpr(BuiltInDecl, BuiltInDecl->getType(), VK_LValue, Loc);
-  assert(DeclRef.isUsable() && "Builtin reference cannot fail");
-
-  ExprResult Call =
-      S.BuildCallExpr(/*Scope=*/nullptr, DeclRef.get(), Loc, CallArgs, Loc);
-
-  assert(!Call.isInvalid() && "Call to builtin cannot fail!");
-  return Call.get();
-}
-
 static ExprResult buildCoroutineHandle(Sema &S, QualType PromiseType,
                                        SourceLocation Loc) {
   QualType CoroHandleType = lookupCoroutineHandleType(S, PromiseType, Loc);
@@ -327,7 +302,7 @@ static ExprResult buildCoroutineHandle(Sema &S, QualType PromiseType,
   }
 
   Expr *FramePtr =
-      buildBuiltinCall(S, Loc, Builtin::BI__builtin_coro_frame, {});
+      S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_frame, {});
 
   CXXScopeSpec SS;
   ExprResult FromAddr =
@@ -404,8 +379,8 @@ static Expr *maybeTailCall(Sema &S, QualType RetType, Expr *E,
   // the resume call and return instruction, which would interfere with the
   // musttail call contract.
   JustAddress = S.MaybeCreateExprWithCleanups(JustAddress);
-  return buildBuiltinCall(S, Loc, Builtin::BI__builtin_coro_resume,
-                          JustAddress);
+  return S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_resume,
+                                JustAddress);
 }
 
 /// Build calls to await_ready, await_suspend, and await_resume for a co_await
@@ -897,7 +872,7 @@ ExprResult Sema::BuildResolvedCoawaitExpr(SourceLocation Loc, Expr *E,
 
   // If the expression is a temporary, materialize it as an lvalue so that we
   // can use it multiple times.
-  if (E->getValueKind() == VK_RValue)
+  if (E->isPRValue())
     E = CreateMaterializeTemporaryExpr(E->getType(), E, true);
 
   // The location of the `co_await` token cannot be used when constructing
@@ -957,7 +932,7 @@ ExprResult Sema::BuildCoyieldExpr(SourceLocation Loc, Expr *E) {
 
   // If the expression is a temporary, materialize it as an lvalue so that we
   // can use it multiple times.
-  if (E->getValueKind() == VK_RValue)
+  if (E->isPRValue())
     E = CreateMaterializeTemporaryExpr(E->getType(), E, true);
 
   // Build the await_ready, await_suspend, await_resume calls.
@@ -994,26 +969,10 @@ StmtResult Sema::BuildCoreturnStmt(SourceLocation Loc, Expr *E,
     E = R.get();
   }
 
-  // Move the return value if we can
-  if (E) {
-    const VarDecl *NRVOCandidate = this->getCopyElisionCandidate(
-        E->getType(), E, CES_ImplicitlyMovableCXX20);
-    if (NRVOCandidate) {
-      InitializedEntity Entity =
-          InitializedEntity::InitializeResult(Loc, E->getType(), NRVOCandidate);
-      ExprResult MoveResult = this->PerformMoveOrCopyInitialization(
-          Entity, NRVOCandidate, E->getType(), E);
-      if (MoveResult.get())
-        E = MoveResult.get();
-    }
-  }
-
-  // FIXME: If the operand is a reference to a variable that's about to go out
-  // of scope, we should treat the operand as an xvalue for this overload
-  // resolution.
   VarDecl *Promise = FSI->CoroutinePromise;
   ExprResult PC;
   if (E && (isa<InitListExpr>(E) || !E->getType()->isVoidType())) {
+    getNamedReturnInfo(E, SimplerImplicitMoveMode::ForceOn);
     PC = buildPromiseCall(*this, Promise, Loc, "return_value", E);
   } else {
     E = MakeFullDiscardedValueExpr(E).get();
@@ -1036,7 +995,7 @@ static Expr *buildStdNoThrowDeclRef(Sema &S, SourceLocation Loc) {
   LookupResult Result(S, &S.PP.getIdentifierTable().get("nothrow"), Loc,
                       Sema::LookupOrdinaryName);
   if (!S.LookupQualifiedName(Result, Std)) {
-    // FIXME: <experimental/coroutine> should have been included already.
+    // FIXME: <coroutine> should have been included already.
     // If we require it to include <new> then this diagnostic is no longer
     // needed.
     S.Diag(Loc, diag::err_implicit_coroutine_std_nothrow_type_not_found);
@@ -1373,10 +1332,10 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
     return false;
 
   Expr *FramePtr =
-      buildBuiltinCall(S, Loc, Builtin::BI__builtin_coro_frame, {});
+      S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_frame, {});
 
   Expr *FrameSize =
-      buildBuiltinCall(S, Loc, Builtin::BI__builtin_coro_size, {});
+      S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_size, {});
 
   // Make new call.
 
@@ -1405,7 +1364,7 @@ bool CoroutineStmtBuilder::makeNewAndDeleteExpr() {
     return false;
 
   Expr *CoroFree =
-      buildBuiltinCall(S, Loc, Builtin::BI__builtin_coro_free, {FramePtr});
+      S.BuildBuiltinCallExpr(Loc, Builtin::BI__builtin_coro_free, {FramePtr});
 
   SmallVector<Expr *, 2> DeleteArgs{CoroFree};
 
@@ -1569,8 +1528,8 @@ bool CoroutineStmtBuilder::makeGroDeclAndReturnStmt() {
   if (GroType->isVoidType()) {
     // Trigger a nice error message.
     InitializedEntity Entity =
-        InitializedEntity::InitializeResult(Loc, FnRetType, false);
-    S.PerformMoveOrCopyInitialization(Entity, nullptr, FnRetType, ReturnValue);
+        InitializedEntity::InitializeResult(Loc, FnRetType);
+    S.PerformCopyInitialization(Entity, SourceLocation(), ReturnValue);
     noteMemberDeclaredHere(S, ReturnValue, Fn);
     return false;
   }
@@ -1586,8 +1545,8 @@ bool CoroutineStmtBuilder::makeGroDeclAndReturnStmt() {
     return false;
 
   InitializedEntity Entity = InitializedEntity::InitializeVariable(GroDecl);
-  ExprResult Res = S.PerformMoveOrCopyInitialization(Entity, nullptr, GroType,
-                                                     this->ReturnValue);
+  ExprResult Res =
+      S.PerformCopyInitialization(Entity, SourceLocation(), ReturnValue);
   if (Res.isInvalid())
     return false;
 
@@ -1699,25 +1658,47 @@ StmtResult Sema::BuildCoroutineBodyStmt(CoroutineBodyStmt::CtorArgs Args) {
 }
 
 ClassTemplateDecl *Sema::lookupCoroutineTraits(SourceLocation KwLoc,
-                                               SourceLocation FuncLoc) {
+                                               SourceLocation FuncLoc,
+                                               NamespaceDecl *&Namespace) {
   if (!StdCoroutineTraitsCache) {
-    if (auto StdExp = lookupStdExperimentalNamespace()) {
-      LookupResult Result(*this,
-                          &PP.getIdentifierTable().get("coroutine_traits"),
-                          FuncLoc, LookupOrdinaryName);
-      if (!LookupQualifiedName(Result, StdExp)) {
+    NamespaceDecl *CoroNamespace = getStdNamespace();
+    LookupResult Result(*this, &PP.getIdentifierTable().get("coroutine_traits"),
+                        FuncLoc, LookupOrdinaryName);
+
+    if (!CoroNamespace || !LookupQualifiedName(Result, CoroNamespace)) {
+      /// Look up in namespace std::experimental, for compatibility.
+      /// TODO: Remove this extra lookup when <experimental/coroutine> is
+      /// removed.
+      CoroNamespace = lookupStdExperimentalNamespace();
+      if (!CoroNamespace || !LookupQualifiedName(Result, CoroNamespace)) {
         Diag(KwLoc, diag::err_implied_coroutine_type_not_found)
-            << "std::experimental::coroutine_traits";
+            << "std::coroutine_traits";
         return nullptr;
       }
-      if (!(StdCoroutineTraitsCache =
-                Result.getAsSingle<ClassTemplateDecl>())) {
-        Result.suppressDiagnostics();
-        NamedDecl *Found = *Result.begin();
-        Diag(Found->getLocation(), diag::err_malformed_std_coroutine_traits);
+      Diag(KwLoc, diag::warn_deprecated_coroutine_namespace)
+          << "coroutine_traits";
+    } else {
+      /// When we found coroutine_traits in std namespace. Make sure there is no
+      /// misleading definition in std::experimental namespace.
+      NamespaceDecl *ExpNamespace = lookupStdExperimentalNamespace();
+      LookupResult ExpResult(*this,
+                             &PP.getIdentifierTable().get("coroutine_traits"),
+                             FuncLoc, LookupOrdinaryName);
+      if (ExpNamespace && LookupQualifiedName(ExpResult, ExpNamespace)) {
+        Diag(KwLoc,
+             diag::err_mixed_use_std_and_experimental_namespace_for_coroutine);
         return nullptr;
       }
     }
+
+    if (!(StdCoroutineTraitsCache = Result.getAsSingle<ClassTemplateDecl>())) {
+      Result.suppressDiagnostics();
+      NamedDecl *Found = *Result.begin();
+      Diag(Found->getLocation(), diag::err_malformed_std_coroutine_traits);
+      return nullptr;
+    }
+    CoroTraitsNamespaceCache = CoroNamespace;
   }
+  Namespace = CoroTraitsNamespaceCache;
   return StdCoroutineTraitsCache;
 }

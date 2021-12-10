@@ -29,7 +29,8 @@ class Async_Op<string mnemonic, list<OpTrait> traits = []> :
 def Async_ExecuteOp :
   Async_Op<"execute", [SingleBlockImplicitTerminator<"YieldOp">,
                        DeclareOpInterfaceMethods<RegionBranchOpInterface,
-                                                 ["getNumRegionInvocations"]>,
+                                                 ["getSuccessorEntryOperands",
+                                                  "getNumRegionInvocations"]>,
                        AttrSizedOperandSegments]> {
   let summary = "Asynchronous execute operation";
   let description = [{
@@ -99,7 +100,9 @@ def Async_ExecuteOp :
 }
 
 def Async_YieldOp :
-    Async_Op<"yield", [HasParent<"ExecuteOp">, NoSideEffect, Terminator]> {
+    Async_Op<"yield", [
+      HasParent<"ExecuteOp">, NoSideEffect, Terminator,
+      DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>]> {
   let summary = "terminator for Async execute operation";
   let description = [{
     The `async.yield` is a special terminator operation for the block inside
@@ -160,20 +163,26 @@ def Async_CreateGroupOp : Async_Op<"create_group", [NoSideEffect]> {
   let summary = "creates an empty async group";
   let description = [{
     The `async.create_group` allocates an empty async group. Async tokens or
-    values can be added to this group later.
+    values can be added to this group later. The size of the group must be
+    specified at construction time, and `await_all` operation will first
+    wait until the number of added tokens or values reaches the group size.
 
     Example:
 
     ```mlir
-    %0 = async.create_group
+    %size = ... : index
+    %group = async.create_group %size : !async.group
     ...
-    async.await_all %0
+    async.await_all %group
     ```
   }];
 
+  let arguments = (ins Index:$size);
   let results = (outs Async_GroupType:$result);
 
-  let assemblyFormat = "attr-dict";
+  let hasCanonicalizeMethod = 1;
+
+  let assemblyFormat = "$size `:` type($result) attr-dict";
 }
 
 def Async_AddToGroupOp : Async_Op<"add_to_group", []> {
@@ -186,7 +195,7 @@ def Async_AddToGroupOp : Async_Op<"add_to_group", []> {
     Example:
 
     ```mlir
-    %0 = async.create_group
+    %0 = async.create_group %size : !async.group
     %1 = ... : !async.token
     %2 = async.add_to_group %1, %0 : !async.token
     ```
@@ -209,7 +218,7 @@ def Async_AwaitAllOp : Async_Op<"await_all", []> {
     Example:
 
     ```mlir
-    %0 = async.create_group
+    %0 = async.create_group %size : !async.group
 
     %1 = ... : !async.token
     %2 = async.add_to_group %1, %0 : !async.token
@@ -331,19 +340,30 @@ def Async_CoroSuspendOp : Async_Op<"coro.suspend", [Terminator]> {
 // Runtime API defined in the `ExecutionEngine/AsyncRuntime.h`.
 
 def Async_RuntimeCreateOp : Async_Op<"runtime.create"> {
-  let summary = "creates an async runtime value (token, value or group)";
+  let summary = "creates an async runtime token or value";
   let description = [{
-    The `async.runtime.create` operation creates an async dialect value
-    (token, value or group). Tokens and values are created in non-ready state.
-    Groups are created in empty state.
+    The `async.runtime.create` operation creates an async dialect token or
+    value. Tokens and values are created in the non-ready state.
   }];
 
-  let results = (outs Async_AnyAsyncType:$result);
+  let results = (outs Async_AnyValueOrTokenType:$result);
   let assemblyFormat = "attr-dict `:` type($result)";
 }
 
+def Async_RuntimeCreateGroupOp : Async_Op<"runtime.create_group"> {
+  let summary = "creates an async runtime group";
+  let description = [{
+    The `async.runtime.create_group` operation creates an async dialect group
+    of the given size. Group created in the empty state.
+  }];
+
+  let arguments = (ins Index:$size);
+  let results = (outs Async_GroupType:$result);
+  let assemblyFormat = "$size `:` type($result) attr-dict ";
+}
+
 def Async_RuntimeSetAvailableOp : Async_Op<"runtime.set_available"> {
-  let summary = "switches token or value available state";
+  let summary = "switches token or value to available state";
   let description = [{
     The `async.runtime.set_available` operation switches async token or value
     state to available.
@@ -353,11 +373,37 @@ def Async_RuntimeSetAvailableOp : Async_Op<"runtime.set_available"> {
   let assemblyFormat = "$operand attr-dict `:` type($operand)";
 }
 
+def Async_RuntimeSetErrorOp : Async_Op<"runtime.set_error"> {
+  let summary = "switches token or value to error state";
+  let description = [{
+    The `async.runtime.set_error` operation switches async token or value
+    state to error.
+  }];
+
+  let arguments = (ins Async_AnyValueOrTokenType:$operand);
+  let assemblyFormat = "$operand attr-dict `:` type($operand)";
+}
+
+def Async_RuntimeIsErrorOp : Async_Op<"runtime.is_error"> {
+  let summary = "returns true if token, value or group is in error state";
+  let description = [{
+    The `async.runtime.is_error` operation returns true if the token, value or
+    group (any of the async runtime values) is in the error state. It is the
+    caller responsibility to check error state after the call to `await` or
+    resuming after `await_and_resume`.
+  }];
+
+  let arguments = (ins Async_AnyAsyncType:$operand);
+  let results = (outs I1:$is_error);
+
+  let assemblyFormat = "$operand attr-dict `:` type($operand)";
+}
+
 def Async_RuntimeAwaitOp : Async_Op<"runtime.await"> {
   let summary = "blocks the caller thread until the operand becomes available";
   let description = [{
     The `async.runtime.await` operation blocks the caller thread until the
-    operand becomes available.
+    operand becomes available or error.
   }];
 
   let arguments = (ins Async_AnyAsyncType:$operand);
@@ -379,8 +425,8 @@ def Async_RuntimeAwaitAndResumeOp : Async_Op<"runtime.await_and_resume"> {
   let summary = "awaits the async operand and resumes the coroutine";
   let description = [{
     The `async.runtime.await_and_resume` operation awaits for the operand to
-    become available and resumes the coroutine on a thread managed by the
-    runtime.
+    become available or error and resumes the coroutine on a thread managed by
+    the runtime.
   }];
 
   let arguments = (ins Async_AnyAsyncType:$operand,
@@ -462,7 +508,7 @@ def Async_RuntimeAddRefOp : Async_Op<"runtime.add_ref"> {
   }];
 
   let arguments = (ins Async_AnyAsyncType:$operand,
-                       Confined<I32Attr, [IntPositive]>:$count);
+                       Confined<I64Attr, [IntPositive]>:$count);
 
   let assemblyFormat = [{
     $operand attr-dict `:` type($operand)
@@ -477,7 +523,7 @@ def Async_RuntimeDropRefOp : Async_Op<"runtime.drop_ref"> {
   }];
 
   let arguments = (ins Async_AnyAsyncType:$operand,
-                       Confined<I32Attr, [IntPositive]>:$count);
+                       Confined<I64Attr, [IntPositive]>:$count);
 
   let assemblyFormat = [{
     $operand attr-dict `:` type($operand)

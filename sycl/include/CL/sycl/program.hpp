@@ -8,8 +8,10 @@
 
 #pragma once
 
-#include <CL/sycl/ONEAPI/experimental/spec_constant.hpp>
+#ifdef __SYCL_INTERNAL_API
+
 #include <CL/sycl/context.hpp>
+#include <CL/sycl/detail/backend_traits.hpp>
 #include <CL/sycl/detail/export.hpp>
 #include <CL/sycl/detail/kernel_desc.hpp>
 #include <CL/sycl/detail/os_util.hpp>
@@ -17,6 +19,7 @@
 #include <CL/sycl/kernel.hpp>
 #include <CL/sycl/property_list.hpp>
 #include <CL/sycl/stl.hpp>
+#include <sycl/ext/oneapi/experimental/spec_constant.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -60,7 +63,7 @@ public:
   /// \param Context is an instance of SYCL context.
   /// \param DeviceList is a list of SYCL devices.
   /// \param PropList is an instance of property_list.
-  program(const context &Context, vector_class<device> DeviceList,
+  program(const context &Context, std::vector<device> DeviceList,
           const property_list &PropList = {});
 
   /// Constructs an instance of SYCL program by linking together each SYCL
@@ -75,8 +78,7 @@ public:
   ///
   /// \param ProgramList is a list of SYCL program instances.
   /// \param PropList is an instance of property_list.
-  program(vector_class<program> ProgramList,
-          const property_list &PropList = {});
+  program(std::vector<program> ProgramList, const property_list &PropList = {});
 
   /// Constructs an instance of SYCL program by linking together each SYCL
   /// program instance in ProgramList.
@@ -91,7 +93,7 @@ public:
   /// \param ProgramList is a list of SYCL program instances.
   /// \param LinkOptions is a string containing valid OpenCL link options.
   /// \param PropList is an instance of property_list.
-  program(vector_class<program> ProgramList, string_class LinkOptions,
+  program(std::vector<program> ProgramList, std::string LinkOptions,
           const property_list &PropList = {});
 
   /// Constructs a SYCL program instance from an OpenCL cl_program.
@@ -157,7 +159,7 @@ public:
   ///
   /// \param CompileOptions is a string of valid OpenCL compile options.
   template <typename KernelT>
-  void compile_with_kernel_type(string_class CompileOptions = "") {
+  void compile_with_kernel_type(std::string CompileOptions = "") {
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
         detail::KernelInfo<KernelT>::getName());
     compile_with_kernel_name(detail::KernelInfo<KernelT>::getName(),
@@ -177,8 +179,8 @@ public:
   ///
   /// \param KernelSource is a string containing OpenCL C kernel source code.
   /// \param CompileOptions is a string containing OpenCL compile options.
-  void compile_with_source(string_class KernelSource,
-                           string_class CompileOptions = "");
+  void compile_with_source(std::string KernelSource,
+                           std::string CompileOptions = "");
 
   /// Builds the SYCL kernel function into encapsulated raw program.
   ///
@@ -194,7 +196,7 @@ public:
   ///
   /// \param BuildOptions is a string containing OpenCL compile options.
   template <typename KernelT>
-  void build_with_kernel_type(string_class BuildOptions = "") {
+  void build_with_kernel_type(std::string BuildOptions = "") {
     detail::OSModuleHandle M = detail::OSUtil::getOSModuleHandle(
         detail::KernelInfo<KernelT>::getName());
     build_with_kernel_name(detail::KernelInfo<KernelT>::getName(), BuildOptions,
@@ -214,8 +216,8 @@ public:
   ///
   /// \param KernelSource is a string containing OpenCL C kernel source code.
   /// \param BuildOptions is a string containing OpenCL build options.
-  void build_with_source(string_class KernelSource,
-                         string_class BuildOptions = "");
+  void build_with_source(std::string KernelSource,
+                         std::string BuildOptions = "");
 
   /// Links encapsulated raw program.
   ///
@@ -228,7 +230,7 @@ public:
   /// feature_not_supported exception is thrown.
   ///
   /// \param LinkOptions is a string containing OpenCL link options.
-  void link(string_class LinkOptions = "");
+  void link(std::string LinkOptions = "");
 
   /// Checks if kernel is available for this program.
   ///
@@ -250,7 +252,7 @@ public:
   /// \param KernelName is a string containing kernel name.
   /// \return true if the SYCL kernel is available and the program is not a
   /// SYCL host program.
-  bool has_kernel(string_class KernelName) const;
+  bool has_kernel(std::string KernelName) const;
 
   /// Returns a SYCL kernel for the SYCL kernel function defined by KernelType.
   ///
@@ -270,7 +272,7 @@ public:
   /// kernel is not available.
   ///
   /// \param KernelName is a string containing SYCL kernel name.
-  kernel get_kernel(string_class KernelName) const;
+  kernel get_kernel(std::string KernelName) const;
 
   /// Queries this SYCL program for information.
   ///
@@ -287,13 +289,13 @@ public:
   ///
   /// \return a vector of vectors representing the compiled binaries for each
   /// associated SYCL device.
-  vector_class<vector_class<char>> get_binaries() const;
+  std::vector<std::vector<char>> get_binaries() const;
 
   /// \return the SYCL context that this program was constructed with.
   context get_context() const;
 
   /// \return a vector of devices that are associated with this program.
-  vector_class<device> get_devices() const;
+  std::vector<device> get_devices() const;
 
   /// Returns compile options that were provided when the encapsulated program
   /// was explicitly compiled.
@@ -305,7 +307,7 @@ public:
   /// in the explicit compile are returned.
   ///
   /// \return a string of valid OpenCL compile options.
-  string_class get_compile_options() const;
+  std::string get_compile_options() const;
 
   /// Returns compile options that were provided to the most recent invocation
   /// of link member function.
@@ -321,7 +323,7 @@ public:
   /// are returned.
   ///
   /// \return a string of valid OpenCL compile options.
-  string_class get_link_options() const;
+  std::string get_link_options() const;
 
   /// Returns the compile, link, or build options, from whichever of those
   /// operations was performed most recently on the encapsulated cl_program.
@@ -331,7 +333,7 @@ public:
   /// then an empty string is returned.
   ///
   /// \return a string of valid OpenCL build options.
-  string_class get_build_options() const;
+  std::string get_build_options() const;
 
   /// \return the current state of this SYCL program.
   program_state get_state() const;
@@ -342,7 +344,7 @@ public:
   /// \return a specialization constant instance corresponding to given type ID
   ///         passed as a template parameter
   template <typename ID, typename T>
-  ONEAPI::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
+  ext::oneapi::experimental::spec_constant<T, ID> set_spec_constant(T Cst) {
     constexpr const char *Name = detail::SpecConstantInfo<ID>::getName();
     static_assert(std::is_arithmetic<T>::value ||
                       (std::is_class<T>::value && std::is_pod<T>::value),
@@ -350,10 +352,10 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     (void)Cst;
     (void)Name;
-    return ONEAPI::experimental::spec_constant<T, ID>();
+    return ext::oneapi::experimental::spec_constant<T, ID>();
 #else
     set_spec_constant_impl(Name, &Cst, sizeof(T));
-    return ONEAPI::experimental::spec_constant<T, ID>(Cst);
+    return ext::oneapi::experimental::spec_constant<T, ID>(Cst);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -365,15 +367,15 @@ public:
   /// Gets the native handle of the SYCL platform.
   ///
   /// \return a native handle, the type of which defined by the backend.
-  template <backend BackendName>
-  auto get_native() const -> typename interop<BackendName, program>::type {
-    return reinterpret_cast<typename interop<BackendName, program>::type>(
-        getNative());
+  template <backend Backend>
+  __SYCL_DEPRECATED("Use SYCL 2020 sycl::get_native free function")
+  backend_return_t<Backend, program> get_native() const {
+    return reinterpret_cast<backend_return_t<Backend, program>>(getNative());
   }
 
 private:
   pi_native_handle getNative() const;
-  program(shared_ptr_class<detail::program_impl> impl);
+  program(std::shared_ptr<detail::program_impl> impl);
 
   /// Template-free version of get_kernel.
   ///
@@ -381,7 +383,7 @@ private:
   /// \param IsCreatedFromSource is a flag indicating whether this program was
   /// created from OpenCL C source code string.
   /// \return a valid instance of SYCL kernel.
-  kernel get_kernel(string_class KernelName, bool IsCreatedFromSource) const;
+  kernel get_kernel(std::string KernelName, bool IsCreatedFromSource) const;
 
   /// Template-free version of has_kernel.
   ///
@@ -389,15 +391,15 @@ private:
   /// \param IsCreatedFromSource is a flag indicating whether this program was
   /// created from OpenCL C source code string.
   /// \return true if kernel with KernelName is available.
-  bool has_kernel(string_class KernelName, bool IsCreatedFromSource) const;
+  bool has_kernel(std::string KernelName, bool IsCreatedFromSource) const;
 
   /// Template-free version of compile_with_kernel_type.
   ///
   /// \param KernelName is a stringified kernel name.
   /// \param CompileOptions is a string of valid OpenCL compile options.
   /// \param M is a valid OS handle to the user executable or library.
-  void compile_with_kernel_name(string_class KernelName,
-                                string_class CompileOptions,
+  void compile_with_kernel_name(std::string KernelName,
+                                std::string CompileOptions,
                                 detail::OSModuleHandle M);
 
   /// Template-free version of build_with_kernel_type.
@@ -405,13 +407,12 @@ private:
   /// \param KernelName is a stringified kernel name.
   /// \param CompileOptions is a string of valid OpenCL compile options.
   /// \param M is a valid OS handle to the user executable or library.
-  void build_with_kernel_name(string_class KernelName,
-                              string_class buildOptions,
+  void build_with_kernel_name(std::string KernelName, std::string buildOptions,
                               detail::OSModuleHandle M);
 
   void set_spec_constant_impl(const char *Name, void *Data, size_t Size);
 
-  shared_ptr_class<detail::program_impl> impl;
+  std::shared_ptr<detail::program_impl> impl;
 
   template <class Obj>
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
@@ -424,8 +425,10 @@ private:
 namespace std {
 template <> struct hash<cl::sycl::program> {
   size_t operator()(const cl::sycl::program &prg) const {
-    return hash<cl::sycl::shared_ptr_class<cl::sycl::detail::program_impl>>()(
+    return hash<std::shared_ptr<cl::sycl::detail::program_impl>>()(
         cl::sycl::detail::getSyclObjImpl(prg));
   }
 };
 } // namespace std
+
+#endif

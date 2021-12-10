@@ -10,6 +10,7 @@
 #define LLVM_CLANG_DRIVER_JOB_H
 
 #include "clang/Basic/LLVM.h"
+#include "clang/Driver/InputInfo.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
@@ -106,6 +107,7 @@ struct ResponseFileSupport {
 class Command {
 public:
   using ErrorCodeDiagMapTy = llvm::DenseMap<int, std::string>;
+  using ErrorCodeExitMapTy = llvm::DenseMap<int, bool>;
 
 private:
   /// Source - The action which caused the creation of this job.
@@ -132,12 +134,17 @@ private:
   ///    "invalid input" error can be ruled out
   ErrorCodeDiagMapTy ErrorCodeDiagMap;
 
+  /// Similar to the container for the diagnostic messages, this container
+  /// is used to signify if the toolchain should error and exit right away
+  /// or if we should continue compilation.
+  ErrorCodeExitMapTy ErrorCodeExitMap;
+
   /// The list of program arguments (not including the implicit first
   /// argument, which will be the executable).
   llvm::opt::ArgStringList Arguments;
 
-  /// The list of program arguments which are inputs.
-  llvm::opt::ArgStringList InputFilenames;
+  /// The list of program inputs.
+  std::vector<InputInfo> InputInfoList;
 
   /// The list of program arguments which are outputs. May be empty.
   std::vector<std::string> OutputFilenames;
@@ -198,10 +205,18 @@ public:
   /// returned by the command
   void addDiagForErrorCode(int ErrorCode, StringRef CustomDiag);
 
+  /// Store if the compilation should exit upon a particular error code
+  /// returned by the command
+  void addExitForErrorCode(int ErrorCode, bool Exit);
+
   /// Get the custom driver diagnostic message for a particular error code
   /// if such was stored. Returns an empty string if no diagnostic message
   /// was found for the given error code.
   StringRef getDiagForErrorCode(int ErrorCode) const;
+
+  /// Will the tool exit when a particular error code is encountered. Returns
+  /// true if not set (always exit)
+  bool getWillExitForErrorCode(int ErrorCode) const;
 
   /// getSource - Return the Action which caused the creation of this job.
   const Action &getSource() const { return Source; }
@@ -233,9 +248,7 @@ public:
 
   const llvm::opt::ArgStringList &getArguments() const { return Arguments; }
 
-  const llvm::opt::ArgStringList &getInputFilenames() const {
-    return InputFilenames;
-  }
+  const std::vector<InputInfo> &getInputInfos() const { return InputInfoList; }
 
   const std::vector<std::string> &getOutputFilenames() const {
     return OutputFilenames;
@@ -305,6 +318,8 @@ public:
   /// Clear the job list.
   void clear();
 
+  /// Return a mutable list of Jobs for llvm-foreach wrapping.
+  list_type &getJobsForOverride() { return Jobs; }
   const list_type &getJobs() const { return Jobs; }
 
   bool empty() const { return Jobs.empty(); }

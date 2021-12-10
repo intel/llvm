@@ -36,6 +36,7 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/CrossTU/CrossTranslationUnit.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallDescription.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/DynamicType.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/DynamicTypeInfo.h"
@@ -47,6 +48,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/Store.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/ImmutableList.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PointerIntPair.h"
@@ -72,26 +74,7 @@ QualType CallEvent::getResultType() const {
   const Expr *E = getOriginExpr();
   if (!E)
     return Ctx.VoidTy;
-  assert(E);
-
-  QualType ResultTy = E->getType();
-
-  // A function that returns a reference to 'int' will have a result type
-  // of simply 'int'. Check the origin expr's value kind to recover the
-  // proper type.
-  switch (E->getValueKind()) {
-  case VK_LValue:
-    ResultTy = Ctx.getLValueReferenceType(ResultTy);
-    break;
-  case VK_XValue:
-    ResultTy = Ctx.getRValueReferenceType(ResultTy);
-    break;
-  case VK_RValue:
-    // No adjustment is necessary.
-    break;
-  }
-
-  return ResultTy;
+  return Ctx.getReferenceQualifiedType(E);
 }
 
 static bool isCallback(QualType T) {
@@ -320,64 +303,6 @@ ProgramPoint CallEvent::getProgramPoint(bool IsPreVisit,
   return PostImplicitCall(D, Loc, getLocationContext(), Tag);
 }
 
-bool CallEvent::isCalled(const CallDescription &CD) const {
-  // FIXME: Add ObjC Message support.
-  if (getKind() == CE_ObjCMessage)
-    return false;
-
-  const IdentifierInfo *II = getCalleeIdentifier();
-  if (!II)
-    return false;
-  const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(getDecl());
-  if (!FD)
-    return false;
-
-  if (CD.Flags & CDF_MaybeBuiltin) {
-    return CheckerContext::isCLibraryFunction(FD, CD.getFunctionName()) &&
-           (!CD.RequiredArgs || CD.RequiredArgs <= getNumArgs()) &&
-           (!CD.RequiredParams || CD.RequiredParams <= parameters().size());
-  }
-
-  if (!CD.IsLookupDone) {
-    CD.IsLookupDone = true;
-    CD.II = &getState()->getStateManager().getContext().Idents.get(
-        CD.getFunctionName());
-  }
-
-  if (II != CD.II)
-    return false;
-
-  // If CallDescription provides prefix names, use them to improve matching
-  // accuracy.
-  if (CD.QualifiedName.size() > 1 && FD) {
-    const DeclContext *Ctx = FD->getDeclContext();
-    // See if we'll be able to match them all.
-    size_t NumUnmatched = CD.QualifiedName.size() - 1;
-    for (; Ctx && isa<NamedDecl>(Ctx); Ctx = Ctx->getParent()) {
-      if (NumUnmatched == 0)
-        break;
-
-      if (const auto *ND = dyn_cast<NamespaceDecl>(Ctx)) {
-        if (ND->getName() == CD.QualifiedName[NumUnmatched - 1])
-          --NumUnmatched;
-        continue;
-      }
-
-      if (const auto *RD = dyn_cast<RecordDecl>(Ctx)) {
-        if (RD->getName() == CD.QualifiedName[NumUnmatched - 1])
-          --NumUnmatched;
-        continue;
-      }
-    }
-
-    if (NumUnmatched > 0)
-      return false;
-  }
-
-  return (!CD.RequiredArgs || CD.RequiredArgs == getNumArgs()) &&
-         (!CD.RequiredParams || CD.RequiredParams == parameters().size());
-}
-
 SVal CallEvent::getArgSVal(unsigned Index) const {
   const Expr *ArgE = getArgExpr(Index);
   if (!ArgE)
@@ -405,7 +330,6 @@ void CallEvent::dump(raw_ostream &Out) const {
   ASTContext &Ctx = getState()->getStateManager().getContext();
   if (const Expr *E = getOriginExpr()) {
     E->printPretty(Out, nullptr, Ctx.getPrintingPolicy());
-    Out << "\n";
     return;
   }
 
@@ -419,9 +343,7 @@ void CallEvent::dump(raw_ostream &Out) const {
 }
 
 bool CallEvent::isCallStmt(const Stmt *S) {
-  return isa<CallExpr>(S) || isa<ObjCMessageExpr>(S)
-                          || isa<CXXConstructExpr>(S)
-                          || isa<CXXNewExpr>(S);
+  return isa<CallExpr, ObjCMessageExpr, CXXConstructExpr, CXXNewExpr>(S);
 }
 
 QualType CallEvent::getDeclaredResultType(const Decl *D) {
@@ -466,6 +388,42 @@ bool CallEvent::isVariadic(const Decl *D) {
   llvm_unreachable("unknown callable kind");
 }
 
+static bool isTransparentUnion(QualType T) {
+  const RecordType *UT = T->getAsUnionType();
+  return UT && UT->getDecl()->hasAttr<TransparentUnionAttr>();
+}
+
+// In some cases, symbolic cases should be transformed before we associate
+// them with parameters.  This function incapsulates such cases.
+static SVal processArgument(SVal Value, const Expr *ArgumentExpr,
+                            const ParmVarDecl *Parameter, SValBuilder &SVB) {
+  QualType ParamType = Parameter->getType();
+  QualType ArgumentType = ArgumentExpr->getType();
+
+  // Transparent unions allow users to easily convert values of union field
+  // types into union-typed objects.
+  //
+  // Also, more importantly, they allow users to define functions with different
+  // different parameter types, substituting types matching transparent union
+  // field types with the union type itself.
+  //
+  // Here, we check specifically for latter cases and prevent binding
+  // field-typed values to union-typed regions.
+  if (isTransparentUnion(ParamType) &&
+      // Let's check that we indeed trying to bind different types.
+      !isTransparentUnion(ArgumentType)) {
+    BasicValueFactory &BVF = SVB.getBasicValueFactory();
+
+    llvm::ImmutableList<SVal> CompoundSVals = BVF.getEmptySValList();
+    CompoundSVals = BVF.prependSVal(Value, CompoundSVals);
+
+    // Wrap it with compound value.
+    return SVB.makeCompoundVal(ParamType, CompoundSVals);
+  }
+
+  return Value;
+}
+
 static void addParameterValuesToBindings(const StackFrameContext *CalleeCtx,
                                          CallEvent::BindingsTy &Bindings,
                                          SValBuilder &SVB,
@@ -490,10 +448,12 @@ static void addParameterValuesToBindings(const StackFrameContext *CalleeCtx,
     // determined in compile-time but not represented as arg-expressions,
     // which makes getArgSVal() fail and return UnknownVal.
     SVal ArgVal = Call.getArgSVal(Idx);
+    const Expr *ArgExpr = Call.getArgExpr(Idx);
     if (!ArgVal.isUnknown()) {
       Loc ParamLoc = SVB.makeLoc(
           MRMgr.getParamVarRegion(Call.getOriginExpr(), Idx, CalleeCtx));
-      Bindings.push_back(std::make_pair(ParamLoc, ArgVal));
+      Bindings.push_back(
+          std::make_pair(ParamLoc, processArgument(ArgVal, ArgExpr, *I, SVB)));
     }
   }
 
@@ -637,7 +597,7 @@ bool AnyFunctionCall::argumentsMayEscape() const {
 
   // - NSXXInsertXX, for example NSMapInsertIfAbsent, since they can
   //   be deallocated by NSMapRemove.
-  if (FName.startswith("NS") && (FName.find("Insert") != StringRef::npos))
+  if (FName.startswith("NS") && FName.contains("Insert"))
     return true;
 
   // - Many CF containers allow objects to escape through custom
@@ -1019,12 +979,12 @@ const PseudoObjectExpr *ObjCMethodCall::getContainingPseudoObjectExpr() const {
 
 static const Expr *
 getSyntacticFromForPseudoObjectExpr(const PseudoObjectExpr *POE) {
-  const Expr *Syntactic = POE->getSyntacticForm();
+  const Expr *Syntactic = POE->getSyntacticForm()->IgnoreParens();
 
   // This handles the funny case of assigning to the result of a getter.
   // This can happen if the getter returns a non-const reference.
   if (const auto *BO = dyn_cast<BinaryOperator>(Syntactic))
-    Syntactic = BO->getLHS();
+    Syntactic = BO->getLHS()->IgnoreParens();
 
   return Syntactic;
 }

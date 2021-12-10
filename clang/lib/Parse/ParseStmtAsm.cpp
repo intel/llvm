@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Parse/Parser.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
@@ -28,8 +28,8 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 using namespace clang;
 
@@ -633,9 +633,9 @@ StmtResult Parser::ParseMicrosoftAsmStatement(SourceLocation AsmLoc) {
   SmallVector<std::pair<void *, bool>, 4> OpExprs;
   SmallVector<std::string, 4> Constraints;
   SmallVector<std::string, 4> Clobbers;
-  if (Parser->parseMSInlineAsm(AsmLoc.getPtrEncoding(), AsmStringIR, NumOutputs,
-                               NumInputs, OpExprs, Constraints, Clobbers,
-                               MII.get(), IP.get(), Callback))
+  if (Parser->parseMSInlineAsm(AsmStringIR, NumOutputs, NumInputs, OpExprs,
+                               Constraints, Clobbers, MII.get(), IP.get(),
+                               Callback))
     return StmtError();
 
   // Filter out "fpsw" and "mxcsr". They aren't valid GCC asm clobber

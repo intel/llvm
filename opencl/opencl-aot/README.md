@@ -16,7 +16,7 @@ To use `opencl-aot` tool, you must have:
 
 `opencl-aot` tool is integrated with Clang. To use ahead-of-time compilation for
 SYCL application for Intel(R) processor device, run Clang with
-`-fsycl-targets=spir64_x86_64-unknown-unknown-sycldevice` option.
+`-fsycl-targets=spir64_x86_64` option.
 
 To enable optimizations for target CPU architecture, add
 `-Xsycl-target-backend "-march=<arch>"` option, where `<arch>` could be

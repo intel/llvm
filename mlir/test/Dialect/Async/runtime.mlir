@@ -18,9 +18,11 @@ func @create_value() -> !async.value<f32> {
 
 // CHECK-LABEL: @create_group
 func @create_group() -> !async.group {
-  // CHECK: %0 = async.runtime.create : !async.group
-  %0 = async.runtime.create : !async.group
-  // CHECK: return %0 : !async.group
+  // CHECK: %[[C:.*]] = arith.constant 10 : index
+  %c = arith.constant 10 : index
+  // CHECK: %[[V:.*]] = async.runtime.create_group %[[C]] : !async.group
+  %0 = async.runtime.create_group %c : !async.group
+  // CHECK: return %[[V]] : !async.group
   return %0 : !async.group
 }
 
@@ -36,6 +38,41 @@ func @set_value_available(%arg0: !async.value<f32>) {
   // CHECK: async.runtime.set_available %arg0 : !async.value<f32>
   async.runtime.set_available %arg0 : !async.value<f32>
   return
+}
+
+// CHECK-LABEL: @set_token_error
+func @set_token_error(%arg0: !async.token) {
+  // CHECK: async.runtime.set_error %arg0 : !async.token
+  async.runtime.set_error %arg0 : !async.token
+  return
+}
+
+// CHECK-LABEL: @set_value_error
+func @set_value_error(%arg0: !async.value<f32>) {
+  // CHECK: async.runtime.set_error %arg0 : !async.value<f32>
+  async.runtime.set_error %arg0 : !async.value<f32>
+  return
+}
+
+// CHECK-LABEL: @is_token_error
+func @is_token_error(%arg0: !async.token) -> i1 {
+  // CHECK: %[[ERR:.*]] = async.runtime.is_error %arg0 : !async.token
+  %0 = async.runtime.is_error %arg0 : !async.token
+  return %0 : i1
+}
+
+// CHECK-LABEL: @is_value_error
+func @is_value_error(%arg0: !async.value<f32>) -> i1 {
+  // CHECK: %[[ERR:.*]] = async.runtime.is_error %arg0 : !async.value<f32>
+  %0 = async.runtime.is_error %arg0 : !async.value<f32>
+  return %0 : i1
+}
+
+// CHECK-LABEL: @is_group_error
+func @is_group_error(%arg0: !async.group) -> i1 {
+  // CHECK: %[[ERR:.*]] = async.runtime.is_error %arg0 : !async.group
+  %0 = async.runtime.is_error %arg0 : !async.group
+  return %0 : i1
 }
 
 // CHECK-LABEL: @await_token
@@ -117,14 +154,14 @@ func @add_to_group(%arg0: !async.token, %arg1: !async.value<f32>,
 
 // CHECK-LABEL: @add_ref
 func @add_ref(%arg0: !async.token) {
-  // CHECK: async.runtime.add_ref %arg0 {count = 1 : i32}
-  async.runtime.add_ref %arg0 {count = 1 : i32} : !async.token
+  // CHECK: async.runtime.add_ref %arg0 {count = 1 : i64}
+  async.runtime.add_ref %arg0 {count = 1 : i64} : !async.token
   return
 }
 
 // CHECK-LABEL: @drop_ref
 func @drop_ref(%arg0: !async.token) {
-  // CHECK: async.runtime.drop_ref %arg0 {count = 1 : i32}
-  async.runtime.drop_ref %arg0 {count = 1 : i32} : !async.token
+  // CHECK: async.runtime.drop_ref %arg0 {count = 1 : i64}
+  async.runtime.drop_ref %arg0 {count = 1 : i64} : !async.token
   return
 }

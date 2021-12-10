@@ -12,12 +12,12 @@
 #include "lldb/Target/MemoryRegionInfo.h"
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/StructuredData.h"
-#include "lldb/Utility/TraceOptions.h"
 #include "lldb/lldb-enumerations.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock.h"
 #include <future>
+#include <limits>
 
 using namespace lldb_private::process_gdb_remote;
 using namespace lldb_private;
@@ -385,8 +385,9 @@ TEST_F(GDBRemoteCommunicationClientTest, SendTraceSupportedPacket) {
   TraceSupportedResponse trace_type;
   std::string error_message;
   auto callback = [&] {
+    std::chrono::seconds timeout(10);
     if (llvm::Expected<TraceSupportedResponse> trace_type_or_err =
-            client.SendTraceSupported()) {
+            client.SendTraceSupported(timeout)) {
       trace_type = *trace_type_or_err;
       error_message = "";
       return true;
@@ -465,4 +466,128 @@ TEST_F(GDBRemoteCommunicationClientTest, GetQOffsets) {
   EXPECT_EQ(llvm::None, GetQOffsets("TEXTSEG=1234"));
   EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=0x1234"));
   EXPECT_EQ(llvm::None, GetQOffsets("TextSeg=12345678123456789"));
+}
+
+static void
+check_qmemtags(TestClient &client, MockServer &server, size_t read_len,
+               int32_t type, const char *packet, llvm::StringRef response,
+               llvm::Optional<std::vector<uint8_t>> expected_tag_data) {
+  const auto &ReadMemoryTags = [&]() {
+    std::future<DataBufferSP> result = std::async(std::launch::async, [&] {
+      return client.ReadMemoryTags(0xDEF0, read_len, type);
+    });
+
+    HandlePacket(server, packet, response);
+    return result.get();
+  };
+
+  auto result = ReadMemoryTags();
+  if (expected_tag_data) {
+    ASSERT_TRUE(result);
+    llvm::ArrayRef<uint8_t> expected(*expected_tag_data);
+    llvm::ArrayRef<uint8_t> got = result->GetData();
+    ASSERT_THAT(expected, testing::ContainerEq(got));
+  } else {
+    ASSERT_FALSE(result);
+  }
+}
+
+TEST_F(GDBRemoteCommunicationClientTest, ReadMemoryTags) {
+  // Zero length reads are valid
+  check_qmemtags(client, server, 0, 1, "qMemTags:def0,0:1", "m",
+                 std::vector<uint8_t>{});
+
+  // Type can be negative. Put into the packet as the raw bytes
+  // (as opposed to a literal -1)
+  check_qmemtags(client, server, 0, -1, "qMemTags:def0,0:ffffffff", "m",
+                 std::vector<uint8_t>{});
+  check_qmemtags(client, server, 0, std::numeric_limits<int32_t>::min(),
+                 "qMemTags:def0,0:80000000", "m", std::vector<uint8_t>{});
+  check_qmemtags(client, server, 0, std::numeric_limits<int32_t>::max(),
+                 "qMemTags:def0,0:7fffffff", "m", std::vector<uint8_t>{});
+
+  // The client layer does not check the length of the received data.
+  // All we need is the "m" and for the decode to use all of the chars
+  check_qmemtags(client, server, 32, 2, "qMemTags:def0,20:2", "m09",
+                 std::vector<uint8_t>{0x9});
+
+  // Zero length response is fine as long as the "m" is present
+  check_qmemtags(client, server, 0, 0x34, "qMemTags:def0,0:34", "m",
+                 std::vector<uint8_t>{});
+
+  // Normal responses
+  check_qmemtags(client, server, 16, 1, "qMemTags:def0,10:1", "m66",
+                 std::vector<uint8_t>{0x66});
+  check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "m0102",
+                 std::vector<uint8_t>{0x1, 0x2});
+
+  // Empty response is an error
+  check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "", llvm::None);
+  // Usual error response
+  check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "E01",
+                 llvm::None);
+  // Leading m missing
+  check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "01", llvm::None);
+  // Anything other than m is an error
+  check_qmemtags(client, server, 17, 1, "qMemTags:def0,11:1", "z01",
+                 llvm::None);
+  // Decoding tag data doesn't use all the chars in the packet
+  check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "m09zz",
+                 llvm::None);
+  // Data that is not hex bytes
+  check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "mhello",
+                 llvm::None);
+  // Data is not a complete hex char
+  check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "m9", llvm::None);
+  // Data has a trailing hex char
+  check_qmemtags(client, server, 32, 1, "qMemTags:def0,20:1", "m01020",
+                 llvm::None);
+}
+
+static void check_Qmemtags(TestClient &client, MockServer &server,
+                           lldb::addr_t addr, size_t len, int32_t type,
+                           const std::vector<uint8_t> &tags, const char *packet,
+                           llvm::StringRef response, bool should_succeed) {
+  const auto &WriteMemoryTags = [&]() {
+    std::future<Status> result = std::async(std::launch::async, [&] {
+      return client.WriteMemoryTags(addr, len, type, tags);
+    });
+
+    HandlePacket(server, packet, response);
+    return result.get();
+  };
+
+  auto result = WriteMemoryTags();
+  if (should_succeed)
+    ASSERT_TRUE(result.Success());
+  else
+    ASSERT_TRUE(result.Fail());
+}
+
+TEST_F(GDBRemoteCommunicationClientTest, WriteMemoryTags) {
+  check_Qmemtags(client, server, 0xABCD, 0x20, 1,
+                 std::vector<uint8_t>{0x12, 0x34}, "QMemTags:abcd,20:1:1234",
+                 "OK", true);
+
+  // The GDB layer doesn't care that the number of tags !=
+  // the length of the write.
+  check_Qmemtags(client, server, 0x4321, 0x20, 9, std::vector<uint8_t>{},
+                 "QMemTags:4321,20:9:", "OK", true);
+
+  check_Qmemtags(client, server, 0x8877, 0x123, 0x34,
+                 std::vector<uint8_t>{0x55, 0x66, 0x77},
+                 "QMemTags:8877,123:34:556677", "E01", false);
+
+  // Type is a signed integer but is packed as its raw bytes,
+  // instead of having a +/-.
+  check_Qmemtags(client, server, 0x456789, 0, -1, std::vector<uint8_t>{0x99},
+                 "QMemTags:456789,0:ffffffff:99", "E03", false);
+  check_Qmemtags(client, server, 0x456789, 0,
+                 std::numeric_limits<int32_t>::max(),
+                 std::vector<uint8_t>{0x99}, "QMemTags:456789,0:7fffffff:99",
+                 "E03", false);
+  check_Qmemtags(client, server, 0x456789, 0,
+                 std::numeric_limits<int32_t>::min(),
+                 std::vector<uint8_t>{0x99}, "QMemTags:456789,0:80000000:99",
+                 "E03", false);
 }

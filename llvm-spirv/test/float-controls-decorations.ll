@@ -23,24 +23,24 @@ entry:
 ; CHECK-LLVM: "VCFloatControl"="48"
 ; CHECK-SPIRV: 3 Name [[#FOO_ID:]] "foo"
 ; CHECK-SPIRV: 3 Name [[#BAR_ID:]] "bar"
-; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 16 0
-; CHECK-SPIRV-NEXT: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 16 1
-; CHECK-SPIRV-NEXT: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 32 0
-; CHECK-SPIRV-NEXT: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 32 1
-; CHECK-SPIRV-NEXT: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 64 0
-; CHECK-SPIRV-NEXT: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 64 1
-; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 16 1
-; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 16 1
-; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 32 1
-; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 32 1
-; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 64 1
-; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 64 1
-; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 16 0
-; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 16 0
-; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 32 0
-; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 32 0
-; CHECK-SPIRV: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 64 0
-; CHECK-SPIRV: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 64 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 16 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 16 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 32 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 32 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionRoundingModeINTEL 64 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionRoundingModeINTEL 64 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 16 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 16 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 32 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 32 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionDenormModeINTEL 64 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionDenormModeINTEL 64 1
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 16 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 16 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 32 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 32 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#FOO_ID]] FunctionFloatingPointModeINTEL 64 0
+; CHECK-SPIRV-DAG: 5 Decorate [[#BAR_ID]] FunctionFloatingPointModeINTEL 64 0
 
 attributes #0 = { "VCFloatControl"="0" "VCFunction"  }
 attributes #1 = { "VCFloatControl"="48" "VCFunction" }

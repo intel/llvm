@@ -668,3 +668,196 @@ define <2 x i1> @eq_mul_constants_with_tz_splat(<2 x i32> %x, <2 x i32> %y) {
   %C = icmp eq <2 x i32> %A, %B
   ret <2 x i1> %C
 }
+
+@g = extern_weak global i32
+
+define i1 @oss_fuzz_39934(i32 %arg) {
+; CHECK-LABEL: @oss_fuzz_39934(
+; CHECK-NEXT:    [[B13:%.*]] = mul nsw i32 [[ARG:%.*]], -65536
+; CHECK-NEXT:    [[C10:%.*]] = icmp ne i32 [[B13]], mul (i32 or (i32 zext (i1 icmp eq (i32* @g, i32* null) to i32), i32 65537), i32 -65536)
+; CHECK-NEXT:    ret i1 [[C10]]
+;
+  %B13 = mul nsw i32 %arg, -65536
+  %C10 = icmp ne i32 mul (i32 or (i32 zext (i1 icmp eq (i32* @g, i32* null) to i32), i32 65537), i32 -65536), %B13
+  ret i1 %C10
+}
+
+define i1 @mul_of_bool(i32 %x, i8 %y) {
+; CHECK-LABEL: @mul_of_bool(
+; CHECK-NEXT:    [[B:%.*]] = and i32 [[X:%.*]], 1
+; CHECK-NEXT:    [[Z:%.*]] = zext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[B]], [[Z]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i32 [[M]], 255
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %b = and i32 %x, 1
+  %z = zext i8 %y to i32
+  %m = mul i32 %b, %z
+  %r = icmp ugt i32 %m, 255
+  ret i1 %r
+}
+
+define i1 @mul_of_bool_commute(i32 %x, i32 %y) {
+; CHECK-LABEL: @mul_of_bool_commute(
+; CHECK-NEXT:    [[X1:%.*]] = and i32 [[X:%.*]], 1
+; CHECK-NEXT:    [[Y8:%.*]] = and i32 [[Y:%.*]], 255
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[Y8]], [[X1]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i32 [[M]], 255
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %x1 = and i32 %x, 1
+  %y8 = and i32 %y, 255
+  %m = mul i32 %y8, %x1
+  %r = icmp ugt i32 %m, 255
+  ret i1 %r
+}
+
+define i1 @mul_of_bools(i32 %x, i32 %y) {
+; CHECK-LABEL: @mul_of_bools(
+; CHECK-NEXT:    [[X1:%.*]] = and i32 [[X:%.*]], 1
+; CHECK-NEXT:    [[Y1:%.*]] = and i32 [[Y:%.*]], 1
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[X1]], [[Y1]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ult i32 [[M]], 2
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %x1 = and i32 %x, 1
+  %y1 = and i32 %y, 1
+  %m = mul i32 %x1, %y1
+  %r = icmp ult i32 %m, 2
+  ret i1 %r
+}
+
+define i1 @not_mul_of_bool(i32 %x, i8 %y) {
+; CHECK-LABEL: @not_mul_of_bool(
+; CHECK-NEXT:    [[Q:%.*]] = and i32 [[X:%.*]], 3
+; CHECK-NEXT:    [[Z:%.*]] = zext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[Q]], [[Z]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i32 [[M]], 255
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %q = and i32 %x, 3
+  %z = zext i8 %y to i32
+  %m = mul i32 %q, %z
+  %r = icmp ugt i32 %m, 255
+  ret i1 %r
+}
+
+define i1 @not_mul_of_bool_commute(i32 %x, i32 %y) {
+; CHECK-LABEL: @not_mul_of_bool_commute(
+; CHECK-NEXT:    [[X30:%.*]] = lshr i32 [[X:%.*]], 30
+; CHECK-NEXT:    [[Y8:%.*]] = and i32 [[Y:%.*]], 255
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[Y8]], [[X30]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i32 [[M]], 255
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %x30 = lshr i32 %x, 30
+  %y8 = and i32 %y, 255
+  %m = mul i32 %y8, %x30
+  %r = icmp ugt i32 %m, 255
+  ret i1 %r
+}
+
+define i1 @mul_of_bool_no_lz_other_op(i32 %x, i8 %y) {
+; CHECK-LABEL: @mul_of_bool_no_lz_other_op(
+; CHECK-NEXT:    [[B:%.*]] = and i32 [[X:%.*]], 1
+; CHECK-NEXT:    [[S:%.*]] = sext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[B]], [[S]]
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt i32 [[M]], 127
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %b = and i32 %x, 1
+  %s = sext i8 %y to i32
+  %m = mul nuw nsw i32 %b, %s
+  %r = icmp sgt i32 %m, 127
+  ret i1 %r
+}
+
+define i1 @mul_of_pow2(i32 %x, i8 %y) {
+; CHECK-LABEL: @mul_of_pow2(
+; CHECK-NEXT:    [[B:%.*]] = and i32 [[X:%.*]], 2
+; CHECK-NEXT:    [[Z:%.*]] = zext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[B]], [[Z]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i32 [[M]], 510
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %b = and i32 %x, 2
+  %z = zext i8 %y to i32
+  %m = mul i32 %b, %z
+  %r = icmp ugt i32 %m, 510
+  ret i1 %r
+}
+
+define i1 @mul_of_pow2_commute(i32 %x, i32 %y) {
+; CHECK-LABEL: @mul_of_pow2_commute(
+; CHECK-NEXT:    [[X4:%.*]] = and i32 [[X:%.*]], 4
+; CHECK-NEXT:    [[Y8:%.*]] = and i32 [[Y:%.*]], 255
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[Y8]], [[X4]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i32 [[M]], 1020
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %x4 = and i32 %x, 4
+  %y8 = and i32 %y, 255
+  %m = mul i32 %y8, %x4
+  %r = icmp ugt i32 %m, 1020
+  ret i1 %r
+}
+
+define i32 @mul_of_pow2s(i32 %x, i32 %y) {
+; CHECK-LABEL: @mul_of_pow2s(
+; CHECK-NEXT:    [[X8:%.*]] = and i32 [[X:%.*]], 8
+; CHECK-NEXT:    [[Y16:%.*]] = and i32 [[Y:%.*]], 16
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[X8]], [[Y16]]
+; CHECK-NEXT:    [[BIT7:%.*]] = or i32 [[M]], 128
+; CHECK-NEXT:    ret i32 [[BIT7]]
+;
+  %x8 = and i32 %x, 8
+  %y16 = and i32 %y, 16
+  %m = mul i32 %x8, %y16
+  %bit7 = or i32 %m, 128
+  ret i32 %bit7
+}
+
+define i1 @not_mul_of_pow2(i32 %x, i8 %y) {
+; CHECK-LABEL: @not_mul_of_pow2(
+; CHECK-NEXT:    [[Q:%.*]] = and i32 [[X:%.*]], 6
+; CHECK-NEXT:    [[Z:%.*]] = zext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[Q]], [[Z]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i32 [[M]], 1530
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %q = and i32 %x, 6
+  %z = zext i8 %y to i32
+  %m = mul i32 %q, %z
+  %r = icmp ugt i32 %m, 1530
+  ret i1 %r
+}
+
+define i1 @not_mul_of_pow2_commute(i32 %x, i32 %y) {
+; CHECK-LABEL: @not_mul_of_pow2_commute(
+; CHECK-NEXT:    [[X30:%.*]] = and i32 [[X:%.*]], 12
+; CHECK-NEXT:    [[Y8:%.*]] = and i32 [[Y:%.*]], 255
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[Y8]], [[X30]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ugt i32 [[M]], 3060
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %x30 = and i32 %x, 12
+  %y8 = and i32 %y, 255
+  %m = mul i32 %y8, %x30
+  %r = icmp ugt i32 %m, 3060
+  ret i1 %r
+}
+
+define i1 @mul_of_pow2_no_lz_other_op(i32 %x, i8 %y) {
+; CHECK-LABEL: @mul_of_pow2_no_lz_other_op(
+; CHECK-NEXT:    [[B:%.*]] = and i32 [[X:%.*]], 2
+; CHECK-NEXT:    [[S:%.*]] = sext i8 [[Y:%.*]] to i32
+; CHECK-NEXT:    [[M:%.*]] = mul nuw nsw i32 [[B]], [[S]]
+; CHECK-NEXT:    [[R:%.*]] = icmp sgt i32 [[M]], 254
+; CHECK-NEXT:    ret i1 [[R]]
+;
+  %b = and i32 %x, 2
+  %s = sext i8 %y to i32
+  %m = mul nuw nsw i32 %b, %s
+  %r = icmp sgt i32 %m, 254
+  ret i1 %r
+}

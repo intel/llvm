@@ -1,6 +1,6 @@
 ; RUN: opt -loop-vectorize -scalable-vectorization=on -dce -instcombine -mtriple aarch64-linux-gnu -mattr=+sve -S %s -o - | FileCheck %s
 
-define void @cond_inv_load_i32i32i16(i32* noalias nocapture %a, i32* noalias nocapture readonly %cond, i16* noalias nocapture readonly %inv, i64 %n) {
+define void @cond_inv_load_i32i32i16(i32* noalias nocapture %a, i32* noalias nocapture readonly %cond, i16* noalias nocapture readonly %inv, i64 %n) #0 {
 ; CHECK-LABEL: @cond_inv_load_i32i32i16
 ; CHECK:     vector.ph:
 ; CHECK:       %[[INVINS:.*]] = insertelement <vscale x 4 x i16*> poison, i16* %inv, i32 0
@@ -39,7 +39,7 @@ exit:                        ; preds = %for.inc
   ret void
 }
 
-define void @cond_inv_load_f64f64f64(double* noalias nocapture %a, double* noalias nocapture readonly %cond, double* noalias nocapture readonly %inv, i64 %n) {
+define void @cond_inv_load_f64f64f64(double* noalias nocapture %a, double* noalias nocapture readonly %cond, double* noalias nocapture readonly %inv, i64 %n) #0 {
 ; CHECK-LABEL: @cond_inv_load_f64f64f64
 ; CHECK:     vector.ph:
 ; CHECK:       %[[INVINS:.*]] = insertelement <vscale x 4 x double*> poison, double* %inv, i32 0
@@ -76,14 +76,14 @@ exit:                        ; preds = %for.inc
   ret void
 }
 
-define void @invariant_load_cond(i32* noalias nocapture %a, i32* nocapture readonly %b, i32* nocapture readonly %cond, i64 %n) {
+define void @invariant_load_cond(i32* noalias nocapture %a, i32* nocapture readonly %b, i32* nocapture readonly %cond, i64 %n) #0 {
 ; CHECK-LABEL: @invariant_load_cond
 ; CHECK: vector.body
 ; CHECK: %[[GEP:.*]] = getelementptr inbounds i32, i32* %b, i64 42
 ; CHECK-NEXT: %[[SPLATINS:.*]] = insertelement <vscale x 4 x i32*> poison, i32* %[[GEP]], i32 0
 ; CHECK-NEXT: %[[SPLAT:.*]] = shufflevector <vscale x 4 x i32*> %[[SPLATINS]], <vscale x 4 x i32*> poison, <vscale x 4 x i32> zeroinitializer
 ; CHECK: %[[LOAD:.*]] = load <vscale x 4 x i32>, <vscale x 4 x i32>*
-; CHECK-NEXT: %[[ICMP:.*]] = icmp ne <vscale x 4 x i32> %[[LOAD]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 0, i32 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer)
+; CHECK-NEXT: %[[ICMP:.*]] = icmp ne <vscale x 4 x i32> %[[LOAD]], zeroinitializer
 ; CHECK: %[[MASKED_LOAD:.*]] = call <vscale x 4 x i32> @llvm.masked.load.nxv4i32.p0nxv4i32(<vscale x 4 x i32>* %[[BITCAST:.*]], i32 4, <vscale x 4 x i1> %[[ICMP]], <vscale x 4 x i32> poison)
 ; CHECK-NEXT: %[[MASKED_GATHER:.*]] = call <vscale x 4 x i32> @llvm.masked.gather.nxv4i32.nxv4p0i32(<vscale x 4 x i32*> %[[SPLAT]], i32 4, <vscale x 4 x i1> %[[ICMP]], <vscale x 4 x i32> undef)
 ; CHECK-NEXT: %[[ADD:.*]] = add nsw <vscale x 4 x i32> %[[MASKED_GATHER]], %[[MASKED_LOAD]]
@@ -117,6 +117,7 @@ for.end:
   ret void
 }
 
+attributes #0 = { vscale_range(0, 16) }
 !0 = distinct !{!0, !1, !2, !3, !4, !5}
 !1 = !{!"llvm.loop.mustprogress"}
 !2 = !{!"llvm.loop.vectorize.width", i32 4}

@@ -130,16 +130,15 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
       WrapperObserver.addObserver(CSEInfo);
     RAIIDelegateInstaller DelInstall(MF, &WrapperObserver);
     for (MachineBasicBlock *MBB : post_order(&MF)) {
-      for (auto MII = MBB->rbegin(), MIE = MBB->rend(); MII != MIE;) {
-        MachineInstr *CurMI = &*MII;
-        ++MII;
+      for (MachineInstr &CurMI :
+           llvm::make_early_inc_range(llvm::reverse(*MBB))) {
         // Erase dead insts before even adding to the list.
-        if (isTriviallyDead(*CurMI, *MRI)) {
-          LLVM_DEBUG(dbgs() << *CurMI << "Is dead; erasing.\n");
-          CurMI->eraseFromParentAndMarkDBGValuesForRemoval();
+        if (isTriviallyDead(CurMI, *MRI)) {
+          LLVM_DEBUG(dbgs() << CurMI << "Is dead; erasing.\n");
+          CurMI.eraseFromParent();
           continue;
         }
-        WorkList.deferred_insert(CurMI);
+        WorkList.deferred_insert(&CurMI);
       }
     }
     WorkList.finalize();
@@ -153,8 +152,14 @@ bool Combiner::combineMachineInstrs(MachineFunction &MF,
     MFChanged |= Changed;
   } while (Changed);
 
-  assert(!CSEInfo || (!errorToBool(CSEInfo->verify()) &&
-                         "CSEInfo is not consistent. Likely missing calls to "
-                         "observer on mutations"));
+#ifndef NDEBUG
+  if (CSEInfo) {
+    if (auto E = CSEInfo->verify()) {
+      errs() << E << '\n';
+      assert(false && "CSEInfo is not consistent. Likely missing calls to "
+                      "observer on mutations.");
+    }
+  }
+#endif
   return MFChanged;
 }

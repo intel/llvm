@@ -21,10 +21,10 @@ TYPE __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_##MEM_ORDER(volatile AS c
       _Z18__spirv_AtomicLoadPU3##AS_MANGLED##K##TYPE_MANGLED##N5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE( \
           volatile AS const TYPE *p, enum Scope scope,                                                            \
           enum MemorySemanticsMask semantics) {                                                                   \
-    if (semantics == Acquire) {                                                                                   \
+    if (semantics & Acquire) {                                                                                    \
       return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_acquire(p);                                        \
     }                                                                                                             \
-    if (semantics == SequentiallyConsistent) {                                                                    \
+    if (semantics & SequentiallyConsistent) {                                                                     \
       return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_seq_cst(p);                                        \
     }                                                                                                             \
     return __clc__atomic_##PREFIX##load_##AS##_##BYTE_SIZE##_unordered(p);                                        \
@@ -40,8 +40,6 @@ IMPL_AS(unsigned int, j, u, 4)
 #ifdef cl_khr_int64_base_atomics
 IMPL_AS(long, l, , 8)
 IMPL_AS(unsigned long, m, u, 8)
-IMPL_AS(long, x, , 8)
-IMPL_AS(unsigned long, y, u, 8)
 #endif
 
 #undef FDECL

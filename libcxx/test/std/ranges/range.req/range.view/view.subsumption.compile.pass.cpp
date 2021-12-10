@@ -8,6 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: libcpp-no-concepts
+// UNSUPPORTED: libcpp-has-no-incomplete-ranges
 
 // <ranges>
 
@@ -40,14 +41,6 @@ namespace subsume_movable {
   template <std::ranges::view>
   constexpr bool test() { return true; }
   template <std::movable>
-  constexpr bool test() { return false; }
-  static_assert(test<View>());
-}
-
-namespace subsume_default_initializable {
-  template <std::ranges::view>
-  constexpr bool test() { return true; }
-  template <std::default_initializable>
   constexpr bool test() { return false; }
   static_assert(test<View>());
 }

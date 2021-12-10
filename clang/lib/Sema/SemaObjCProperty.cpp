@@ -1458,7 +1458,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       MarkDeclRefReferenced(SelfExpr);
       Expr *LoadSelfExpr = ImplicitCastExpr::Create(
           Context, SelfDecl->getType(), CK_LValueToRValue, SelfExpr, nullptr,
-          VK_RValue, FPOptionsOverride());
+          VK_PRValue, FPOptionsOverride());
       Expr *IvarRefExpr =
         new (Context) ObjCIvarRefExpr(Ivar,
                                       Ivar->getUsageType(SelfDecl->getType()),
@@ -1467,8 +1467,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
                                       LoadSelfExpr, true, true);
       ExprResult Res = PerformCopyInitialization(
           InitializedEntity::InitializeResult(PropertyDiagLoc,
-                                              getterMethod->getReturnType(),
-                                              /*NRVO=*/false),
+                                              getterMethod->getReturnType()),
           PropertyDiagLoc, IvarRefExpr);
       if (!Res.isInvalid()) {
         Expr *ResExpr = Res.getAs<Expr>();
@@ -1521,7 +1520,7 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
       MarkDeclRefReferenced(SelfExpr);
       Expr *LoadSelfExpr = ImplicitCastExpr::Create(
           Context, SelfDecl->getType(), CK_LValueToRValue, SelfExpr, nullptr,
-          VK_RValue, FPOptionsOverride());
+          VK_PRValue, FPOptionsOverride());
       Expr *lhs =
         new (Context) ObjCIvarRefExpr(Ivar,
                                       Ivar->getUsageType(SelfDecl->getType()),

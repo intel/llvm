@@ -1,4 +1,4 @@
-//===-- runtime/namelist.cpp ------------------------------------*- C++ -*-===//
+//===-- runtime/namelist.cpp ----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,12 +8,17 @@
 
 #include "namelist.h"
 #include "descriptor-io.h"
-#include "io-api.h"
 #include "io-stmt.h"
+#include "flang/Runtime/io-api.h"
+#include <algorithm>
 #include <cstring>
 #include <limits>
 
 namespace Fortran::runtime::io {
+
+// Max size of a group, symbol or component identifier that can appear in
+// NAMELIST input, plus a byte for NUL termination.
+static constexpr std::size_t nameBufferSize{201};
 
 bool IONAME(OutputNamelist)(Cookie cookie, const NamelistGroup &group) {
   IoStatementState &io{*cookie};
@@ -56,22 +61,29 @@ bool IONAME(OutputNamelist)(Cookie cookie, const NamelistGroup &group) {
   return EmitWithAdvance('/');
 }
 
+static constexpr bool IsLegalIdStart(char32_t ch) {
+  return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch == '_' ||
+      ch == '@' || ch == '$';
+}
+
+static constexpr bool IsLegalIdChar(char32_t ch) {
+  return IsLegalIdStart(ch) || (ch >= '0' && ch <= '9');
+}
+
+static constexpr char NormalizeIdChar(char32_t ch) {
+  return static_cast<char>(ch >= 'A' && ch <= 'Z' ? ch - 'A' + 'a' : ch);
+}
+
 static bool GetLowerCaseName(
     IoStatementState &io, char buffer[], std::size_t maxLength) {
-  if (auto ch{io.GetCurrentChar()}) {
-    static const auto IsLegalIdStart{[](char32_t ch) -> bool {
-      return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
-          ch == '_' || ch == '@' || ch == '$';
-    }};
+  if (auto ch{io.GetNextNonBlank()}) {
     if (IsLegalIdStart(*ch)) {
       std::size_t j{0};
       do {
-        buffer[j] =
-            static_cast<char>(*ch >= 'A' && *ch <= 'Z' ? *ch - 'A' + 'a' : *ch);
+        buffer[j] = NormalizeIdChar(*ch);
         io.HandleRelativePosition(1);
         ch = io.GetCurrentChar();
-      } while (++j < maxLength && ch &&
-          (IsLegalIdStart(*ch) || (*ch >= '0' && *ch <= '9')));
+      } while (++j < maxLength && ch && IsLegalIdChar(*ch));
       buffer[j++] = '\0';
       if (j <= maxLength) {
         return true;
@@ -118,11 +130,11 @@ static bool HandleSubscripts(IoStatementState &io, Descriptor &desc,
     const Descriptor &source, const char *name) {
   IoErrorHandler &handler{io.GetIoErrorHandler()};
   io.HandleRelativePosition(1); // skip '('
-  // Allow for blanks in subscripts; it's nonstandard, but not ambiguous
-  // within the parentheses
+  // Allow for blanks in subscripts; they're nonstandard, but not
+  // ambiguous within the parentheses.
   SubscriptValue lower[maxRank], upper[maxRank], stride[maxRank];
   int j{0};
-  std::size_t elemLen{source.ElementBytes()};
+  std::size_t contiguousStride{source.ElementBytes()};
   bool ok{true};
   std::optional<char32_t> ch{io.GetNextNonBlank()};
   for (; ch && *ch != ')'; ++j) {
@@ -131,7 +143,9 @@ static bool HandleSubscripts(IoStatementState &io, Descriptor &desc,
       const Dimension &dim{source.GetDimension(j)};
       dimLower = dim.LowerBound();
       dimUpper = dim.UpperBound();
-      dimStride = elemLen ? dim.ByteStride() / elemLen : 1;
+      dimStride =
+          dim.ByteStride() / std::max<SubscriptValue>(contiguousStride, 1);
+      contiguousStride *= dim.Extent();
     } else if (ok) {
       handler.SignalError(
           "Too many subscripts for rank-%d NAMELIST group item '%s'",
@@ -211,13 +225,52 @@ static bool HandleSubscripts(IoStatementState &io, Descriptor &desc,
   return false;
 }
 
+static bool HandleComponent(IoStatementState &io, Descriptor &desc,
+    const Descriptor &source, const char *name) {
+  IoErrorHandler &handler{io.GetIoErrorHandler()};
+  io.HandleRelativePosition(1); // skip '%'
+  char compName[nameBufferSize];
+  if (GetLowerCaseName(io, compName, sizeof compName)) {
+    const DescriptorAddendum *addendum{source.Addendum()};
+    if (const typeInfo::DerivedType *
+        type{addendum ? addendum->derivedType() : nullptr}) {
+      if (const typeInfo::Component *
+          comp{type->FindDataComponent(compName, std::strlen(compName))}) {
+        comp->CreatePointerDescriptor(desc, source, handler);
+        return true;
+      } else {
+        handler.SignalError(
+            "NAMELIST component reference '%%%s' of input group item %s is not "
+            "a component of its derived type",
+            compName, name);
+      }
+    } else if (source.type().IsDerived()) {
+      handler.Crash("Derived type object '%s' in NAMELIST is missing its "
+                    "derived type information!",
+          name);
+    } else {
+      handler.SignalError("NAMELIST component reference '%%%s' of input group "
+                          "item %s for non-derived type",
+          compName, name);
+    }
+  } else {
+    handler.SignalError("NAMELIST component reference of input group item %s "
+                        "has no name after '%'",
+        name);
+  }
+  return false;
+}
+
 bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
   IoStatementState &io{*cookie};
   io.CheckFormattedStmtType<Direction::Input>("InputNamelist");
   ConnectionState &connection{io.GetConnectionState()};
   connection.modes.inNamelist = true;
   IoErrorHandler &handler{io.GetIoErrorHandler()};
+  auto *listInput{io.get_if<ListDirectedStatementState<Direction::Input>>()};
+  RUNTIME_CHECK(handler, listInput != nullptr);
   // Check the group header
+  io.BeginReadingRecord();
   std::optional<char32_t> next{io.GetNextNonBlank()};
   if (!next || *next != '&') {
     handler.SignalError(
@@ -225,7 +278,7 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
     return false;
   }
   io.HandleRelativePosition(1);
-  char name[101];
+  char name[nameBufferSize];
   if (!GetLowerCaseName(io, name, sizeof name)) {
     handler.SignalError("NAMELIST input group has no name");
     return false;
@@ -268,15 +321,19 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
     next = io.GetCurrentChar();
     if (next && (*next == '(' || *next == '%')) {
       do {
+        Descriptor &mutableDescriptor{staticDesc[whichStaticDesc].descriptor()};
+        whichStaticDesc ^= 1;
         if (*next == '(') {
-          Descriptor &mutableDescriptor{
-              staticDesc[whichStaticDesc].descriptor()};
-          whichStaticDesc ^= 1;
-          HandleSubscripts(io, mutableDescriptor, *useDescriptor, name);
-          useDescriptor = &mutableDescriptor;
+          if (!(HandleSubscripts(
+                  io, mutableDescriptor, *useDescriptor, name))) {
+            return false;
+          }
         } else {
-          handler.Crash("unimplemented: component references in NAMELIST");
+          if (!HandleComponent(io, mutableDescriptor, *useDescriptor, name)) {
+            return false;
+          }
         }
+        useDescriptor = &mutableDescriptor;
         next = io.GetCurrentChar();
       } while (next && (*next == '(' || *next == '%'));
     }
@@ -288,7 +345,8 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
       return false;
     }
     io.HandleRelativePosition(1);
-    // Read the values into the descriptor
+    // Read the values into the descriptor.  An array can be short.
+    listInput->ResetForNextNamelistItem();
     if (!descr::DescriptorIO<Direction::Input>(io, *useDescriptor)) {
       return false;
     }
@@ -304,6 +362,27 @@ bool IONAME(InputNamelist)(Cookie cookie, const NamelistGroup &group) {
   }
   io.HandleRelativePosition(1);
   return true;
+}
+
+bool IsNamelistName(IoStatementState &io) {
+  if (io.get_if<ListDirectedStatementState<Direction::Input>>()) {
+    ConnectionState &connection{io.GetConnectionState()};
+    if (connection.modes.inNamelist) {
+      SavedPosition savedPosition{io};
+      if (auto ch{io.GetNextNonBlank()}) {
+        if (IsLegalIdStart(*ch)) {
+          do {
+            io.HandleRelativePosition(1);
+            ch = io.GetCurrentChar();
+          } while (ch && IsLegalIdChar(*ch));
+          ch = io.GetNextNonBlank();
+          // TODO: how to deal with NaN(...) ambiguity?
+          return ch && (*ch == '=' || *ch == '(' || *ch == '%');
+        }
+      }
+    }
+  }
+  return false;
 }
 
 } // namespace Fortran::runtime::io

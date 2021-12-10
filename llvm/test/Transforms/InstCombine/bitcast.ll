@@ -465,6 +465,14 @@ define i32 @All111(i32 %in) {
   ret i32 %out
 }
 
+define <vscale x 1 x i32> @ScalableAll111(<vscale x 1 x i32> %in) {
+; CHECK-LABEL: @ScalableAll111(
+; CHECK-NEXT:    ret <vscale x 1 x i32> [[IN:%.*]]
+;
+  %out = and <vscale x 1 x i32> %in, bitcast (<vscale x 2 x i16> shufflevector (<vscale x 2 x i16> insertelement (<vscale x 2 x i16> undef, i16 -1, i32 0), <vscale x 2 x i16> undef, <vscale x 2 x i32> zeroinitializer) to <vscale x 1 x i32>)
+  ret <vscale x 1 x i32> %out
+}
+
 define <2 x i16> @BitcastInsert(i32 %a) {
 ; CHECK-LABEL: @BitcastInsert(
 ; CHECK-NEXT:    [[R:%.*]] = bitcast i32 [[A:%.*]] to <2 x i16>
@@ -570,4 +578,16 @@ define i8* @bitcast_from_single_element_pointer_vector_to_pointer(<1 x i8*> %ptr
 ;
   %ptr = bitcast <1 x i8*> %ptrvec to i8*
   ret i8* %ptr
+}
+
+declare void @f1()
+declare void @f2()
+define i8* @select_bitcast_unsized_pointer(i1 %c) {
+; CHECK-LABEL: @select_bitcast_unsized_pointer(
+; CHECK-NEXT:    [[B:%.*]] = select i1 [[C:%.*]], i8* bitcast (void ()* @f1 to i8*), i8* bitcast (void ()* @f2 to i8*)
+; CHECK-NEXT:    ret i8* [[B]]
+;
+  %s = select i1 %c, void ()* @f1, void ()* @f2
+  %b = bitcast void ()* %s to i8*
+  ret i8* %b
 }

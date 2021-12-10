@@ -1,5 +1,4 @@
 // RUN: %clang_dfsan %s -o %t && %run %t
-// RUN: %clang_dfsan -mllvm -dfsan-args-abi %s -o %t && %run %t
 //
 // REQUIRES: x86_64-target-arch
 
@@ -10,7 +9,7 @@
 
 int main(void) {
   int i = 1;
-  dfsan_label i_label = dfsan_create_label("i", 0);
+  dfsan_label i_label = 1;
   dfsan_set_label(i_label, &i, sizeof(i));
 
   dfsan_label new_label = dfsan_get_label(i);
@@ -19,7 +18,7 @@ int main(void) {
   dfsan_label read_label = dfsan_read_label(&i, sizeof(i));
   assert(i_label == read_label);
 
-  dfsan_label j_label = dfsan_create_label("j", 0);
+  dfsan_label j_label = 2;
   dfsan_add_label(j_label, &i, sizeof(i));
 
   read_label = dfsan_read_label(&i, sizeof(i));

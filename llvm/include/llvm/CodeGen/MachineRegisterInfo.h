@@ -821,7 +821,7 @@ public:
   /// deleted during LiveDebugVariables analysis.
   void markUsesInDebugValueAsUndef(Register Reg) const;
 
-  /// updateDbgUsersToReg - Update a collection of DBG_VALUE instructions
+  /// updateDbgUsersToReg - Update a collection of debug instructions
   /// to refer to the designated register.
   void updateDbgUsersToReg(MCRegister OldReg, MCRegister NewReg,
                            ArrayRef<MachineInstr *> Users) const {
@@ -829,21 +829,34 @@ public:
     for (MCRegUnitIterator RUI(OldReg, getTargetRegisterInfo()); RUI.isValid();
          ++RUI)
       OldRegUnits.insert(*RUI);
-    for (MachineInstr *MI : Users) {
-      assert(MI->isDebugValue());
-      for (auto &Op : MI->debug_operands()) {
-        if (Op.isReg()) {
-          for (MCRegUnitIterator RUI(OldReg, getTargetRegisterInfo());
-               RUI.isValid(); ++RUI) {
-            if (OldRegUnits.contains(*RUI)) {
-              Op.setReg(NewReg);
-              break;
-            }
+
+    // If this operand is a register, check whether it overlaps with OldReg.
+    // If it does, replace with NewReg.
+    auto UpdateOp = [this, &NewReg, &OldReg, &OldRegUnits](MachineOperand &Op) {
+      if (Op.isReg()) {
+        for (MCRegUnitIterator RUI(OldReg, getTargetRegisterInfo());
+             RUI.isValid(); ++RUI) {
+          if (OldRegUnits.contains(*RUI)) {
+            Op.setReg(NewReg);
+            break;
           }
         }
       }
-      assert(MI->hasDebugOperandForReg(NewReg) &&
-             "Expected debug value to have some overlap with OldReg");
+    };
+
+    // Iterate through (possibly several) operands to DBG_VALUEs and update
+    // each. For DBG_PHIs, only one operand will be present.
+    for (MachineInstr *MI : Users) {
+      if (MI->isDebugValue()) {
+        for (auto &Op : MI->debug_operands())
+          UpdateOp(Op);
+        assert(MI->hasDebugOperandForReg(NewReg) &&
+               "Expected debug value to have some overlap with OldReg");
+      } else if (MI->isDebugPHI()) {
+        UpdateOp(MI->getOperand(0));
+      } else {
+        llvm_unreachable("Non-DBG_VALUE, Non-DBG_PHI debug instr updated");
+      }
     }
   }
 
@@ -857,9 +870,9 @@ public:
 
   /// Return true if the specified register is modified or read in this
   /// function. This checks that no machine operands exist for the register or
-  /// any of its aliases. The register is also considered used when it is set
-  /// in the UsedPhysRegMask.
-  bool isPhysRegUsed(MCRegister PhysReg) const;
+  /// any of its aliases. If SkipRegMaskTest is false, the register is
+  /// considered used when it is set in the UsedPhysRegMask.
+  bool isPhysRegUsed(MCRegister PhysReg, bool SkipRegMaskTest = false) const;
 
   /// addPhysRegsUsedFromRegMask - Mark any registers not in RegMask as used.
   /// This corresponds to the bit mask attached to register mask operands.
@@ -964,7 +977,7 @@ public:
   MCRegister getLiveInPhysReg(Register VReg) const;
 
   /// getLiveInVirtReg - If PReg is a live-in physical register, return the
-  /// corresponding live-in physical register.
+  /// corresponding live-in virtual register.
   Register getLiveInVirtReg(MCRegister PReg) const;
 
   /// EmitLiveInCopies - Emit copies to initialize livein virtual registers

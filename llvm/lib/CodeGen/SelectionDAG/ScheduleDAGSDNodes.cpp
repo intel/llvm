@@ -384,13 +384,12 @@ void ScheduleDAGSDNodes::BuildSchedUnits() {
 
       // There are either zero or one users of the Glue result.
       bool HasGlueUse = false;
-      for (SDNode::use_iterator UI = N->use_begin(), E = N->use_end();
-           UI != E; ++UI)
-        if (GlueVal.isOperandOf(*UI)) {
+      for (SDNode *U : N->uses())
+        if (GlueVal.isOperandOf(U)) {
           HasGlueUse = true;
           assert(N->getNodeId() == -1 && "Node already inserted!");
           N->setNodeId(NodeSUnit->NodeNum);
-          N = *UI;
+          N = U;
           if (N->isMachineOpcode() && TII->get(N->getMachineOpcode()).isCall())
             NodeSUnit->isCall = true;
           break;
@@ -707,8 +706,8 @@ void ScheduleDAGSDNodes::dump() const {
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 void ScheduleDAGSDNodes::dumpSchedule() const {
-  for (unsigned i = 0, e = Sequence.size(); i != e; i++) {
-    if (SUnit *SU = Sequence[i])
+  for (const SUnit *SU : Sequence) {
+    if (SU)
       dumpNode(*SU);
     else
       dbgs() << "**** NOOP ****\n";
@@ -742,7 +741,7 @@ ProcessSDDbgValues(SDNode *N, SelectionDAG *DAG, InstrEmitter &Emitter,
   /// Returns true if \p DV has any VReg operand locations which don't exist in
   /// VRBaseMap.
   auto HasUnknownVReg = [&VRBaseMap](SDDbgValue *DV) {
-    for (SDDbgOperand L : DV->getLocationOps()) {
+    for (const SDDbgOperand &L : DV->getLocationOps()) {
       if (L.getKind() == SDDbgOperand::SDNODE &&
           VRBaseMap.count({L.getSDNode(), L.getResNo()}) == 0)
         return true;

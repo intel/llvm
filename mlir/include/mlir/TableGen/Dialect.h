@@ -1,3 +1,4 @@
+//===- Dialect.h - Dialect class --------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -54,8 +55,12 @@ public:
   /// Returns true if this dialect has a canonicalizer.
   bool hasCanonicalizer() const;
 
-  // Returns true if this dialect has a constant materializer.
+  /// Returns true if this dialect has a constant materializer.
   bool hasConstantMaterializer() const;
+
+  /// Returns true if the destructor definition is provided explicitly or
+  /// false if a default should be generated.
+  bool hasNonDefaultDestructor() const;
 
   /// Returns true if this dialect has an operation attribute verifier.
   bool hasOperationAttrVerify() const;
@@ -69,6 +74,14 @@ public:
   /// Returns true if this dialect has fallback interfaces for its operations.
   bool hasOperationInterfaceFallback() const;
 
+  /// Returns true if this dialect should generate the default dispatch for
+  /// attribute printing/parsing.
+  bool useDefaultAttributePrinterParser() const;
+
+  /// Returns true if this dialect should generate the default dispatch for
+  /// type printing/parsing.
+  bool useDefaultTypePrinterParser() const;
+
   // Returns whether two dialects are equal by checking the equality of the
   // underlying record.
   bool operator==(const Dialect &other) const;
@@ -80,6 +93,10 @@ public:
 
   // Returns whether the dialect is defined.
   explicit operator bool() const { return def != nullptr; }
+
+  // Returns how the accessors should be prefixed in dialect.
+  enum class EmitPrefix { Raw = 0, Prefixed = 1, Both = 2 };
+  EmitPrefix getEmitAccessorPrefix() const;
 
 private:
   const llvm::Record *def;

@@ -41,7 +41,7 @@ namespace serialization {
 /// Version 4 of AST files also requires that the version control branch and
 /// revision match exactly, since there is no backward compatibility of
 /// AST files at this time.
-const unsigned VERSION_MAJOR = 13;
+const unsigned VERSION_MAJOR = 15;
 
 /// AST file minor version number supported by this version of
 /// Clang.
@@ -176,10 +176,10 @@ const unsigned int NUM_PREDEF_SUBMODULE_IDS = 1;
 /// Source range/offset of a preprocessed entity.
 struct PPEntityOffset {
   /// Raw source location of beginning of range.
-  unsigned Begin;
+  SourceLocation::UIntTy Begin;
 
   /// Raw source location of end of range.
-  unsigned End;
+  SourceLocation::UIntTy End;
 
   /// Offset in the AST file relative to ModuleFile::MacroOffsetsBase.
   uint32_t BitOffset;
@@ -200,9 +200,9 @@ struct PPEntityOffset {
 /// Source range of a skipped preprocessor region
 struct PPSkippedRange {
   /// Raw source location of beginning of range.
-  unsigned Begin;
+  SourceLocation::UIntTy Begin;
   /// Raw source location of end of range.
-  unsigned End;
+  SourceLocation::UIntTy End;
 
   PPSkippedRange(SourceRange R)
       : Begin(R.getBegin().getRawEncoding()), End(R.getEnd().getRawEncoding()) {
@@ -240,7 +240,7 @@ struct UnderalignedInt64 {
 /// Source location and bit offset of a declaration.
 struct DeclOffset {
   /// Raw source location.
-  unsigned Loc = 0;
+  SourceLocation::UIntTy Loc = 0;
 
   /// Offset relative to the start of the DECLTYPES_BLOCK block. Keep
   /// structure alignment 32-bit and avoid padding gap because undefined
@@ -402,6 +402,9 @@ enum UnhashedControlBlockRecordTypes {
 
   /// Record code for \#pragma diagnostic mappings.
   DIAG_PRAGMA_MAPPINGS,
+
+  /// Record code for the indices of used header search entries.
+  HEADER_SEARCH_ENTRY_USAGE,
 };
 
 /// Record code for extension blocks.
@@ -1064,6 +1067,9 @@ enum PredefinedTypeIDs {
   /// \brief The '__bf16' type
   PREDEF_TYPE_BFLOAT16_ID = 73,
 
+  /// \brief The '__ibm128' type
+  PREDEF_TYPE_IBM128_ID = 74,
+
 /// OpenCL image types with auto numeration
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
   PREDEF_TYPE_##Id##_ID,
@@ -1344,6 +1350,9 @@ enum DeclCode {
   /// A UsingDecl record.
   DECL_USING,
 
+  /// A UsingEnumDecl record.
+  DECL_USING_ENUM,
+
   /// A UsingPackDecl record.
   DECL_USING_PACK,
 
@@ -1430,6 +1439,9 @@ enum DeclCode {
 
   /// \brief A ConceptDecl record.
   DECL_CONCEPT,
+
+  /// An UnresolvedUsingIfExistsDecl record.
+  DECL_UNRESOLVED_USING_IF_EXISTS,
 
   /// \brief A StaticAssertDecl record.
   DECL_STATIC_ASSERT,
@@ -1889,10 +1901,12 @@ enum StmtCode {
   STMT_SEH_TRY,                     // SEHTryStmt
 
   // OpenMP directives
+  STMT_OMP_META_DIRECTIVE,
   STMT_OMP_CANONICAL_LOOP,
   STMT_OMP_PARALLEL_DIRECTIVE,
   STMT_OMP_SIMD_DIRECTIVE,
   STMT_OMP_TILE_DIRECTIVE,
+  STMT_OMP_UNROLL_DIRECTIVE,
   STMT_OMP_FOR_DIRECTIVE,
   STMT_OMP_FOR_SIMD_DIRECTIVE,
   STMT_OMP_SECTIONS_DIRECTIVE,
@@ -1948,6 +1962,7 @@ enum StmtCode {
   STMT_OMP_INTEROP_DIRECTIVE,
   STMT_OMP_DISPATCH_DIRECTIVE,
   STMT_OMP_MASKED_DIRECTIVE,
+  STMT_OMP_GENERIC_LOOP_DIRECTIVE,
   EXPR_OMP_ARRAY_SECTION,
   EXPR_OMP_ARRAY_SHAPING,
   EXPR_OMP_ITERATOR,
@@ -1966,8 +1981,14 @@ enum StmtCode {
   // FixedPointLiteral
   EXPR_FIXEDPOINT_LITERAL,
 
-  // SYCLUniqueStableNameExpr
+  // SYCL
+  EXPR_SYCL_BUILTIN_NUM_FIELDS,
+  EXPR_SYCL_BUILTIN_FIELD_TYPE,
+  EXPR_SYCL_BUILTIN_NUM_BASES,
+  EXPR_SYCL_BUILTIN_BASE_TYPE,
   EXPR_SYCL_UNIQUE_STABLE_NAME,
+  // SYCLUniqueStableIdExpr
+  EXPR_SYCL_UNIQUE_STABLE_ID,
 };
 
 /// The kinds of designators that can occur in a

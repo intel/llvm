@@ -255,7 +255,7 @@ template <> struct ScalarTraits<exegesis::RegisterValue> {
                      raw_ostream &Out) {
     YamlContext &Context = getTypedContext(Ctx);
     Out << Context.getRegName(RV.Register) << "=0x"
-        << RV.Value.toString(kRadix, kSigned);
+        << toString(RV.Value, kRadix, kSigned);
   }
 
   static StringRef input(StringRef String, void *Ctx,
@@ -422,6 +422,12 @@ void PerInstructionStats::push(const BenchmarkMeasure &BM) {
   MaxValue = std::max(MaxValue, BM.PerInstructionValue);
   MinValue = std::min(MinValue, BM.PerInstructionValue);
 }
+
+bool operator==(const BenchmarkMeasure &A, const BenchmarkMeasure &B) {
+  return std::tie(A.Key, A.PerInstructionValue, A.PerSnippetValue) ==
+         std::tie(B.Key, B.PerInstructionValue, B.PerSnippetValue);
+}
+
 
 } // namespace exegesis
 } // namespace llvm

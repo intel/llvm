@@ -20,8 +20,8 @@ namespace detail {
 // The platform information methods
 template <typename T, info::platform param> struct get_platform_info {};
 
-template <info::platform param> struct get_platform_info<string_class, param> {
-  static string_class get(RT::PiPlatform plt, const plugin &Plugin) {
+template <info::platform param> struct get_platform_info<std::string, param> {
+  static std::string get(RT::PiPlatform plt, const plugin &Plugin) {
     size_t resultSize;
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piPlatformGetInfo>(
@@ -29,7 +29,7 @@ template <info::platform param> struct get_platform_info<string_class, param> {
     if (resultSize == 0) {
       return "";
     }
-    unique_ptr_class<char[]> result(new char[resultSize]);
+    std::unique_ptr<char[]> result(new char[resultSize]);
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin.call<PiApiKind::piPlatformGetInfo>(
         plt, pi::cast<pi_platform_info>(param), resultSize, result.get(),
@@ -39,13 +39,12 @@ template <info::platform param> struct get_platform_info<string_class, param> {
 };
 
 template <>
-struct get_platform_info<vector_class<string_class>,
-                         info::platform::extensions> {
-  static vector_class<string_class> get(RT::PiPlatform plt,
-                                        const plugin &Plugin) {
-    string_class result =
-        get_platform_info<string_class, info::platform::extensions>::get(
-            plt, Plugin);
+struct get_platform_info<std::vector<std::string>, info::platform::extensions> {
+  static std::vector<std::string> get(RT::PiPlatform plt,
+                                      const plugin &Plugin) {
+    std::string result =
+        get_platform_info<std::string, info::platform::extensions>::get(plt,
+                                                                        Plugin);
     return split_string(result, ' ');
   }
 };
@@ -56,26 +55,26 @@ inline typename info::param_traits<info::platform, param>::return_type
 get_platform_info_host() = delete;
 
 template <>
-inline string_class get_platform_info_host<info::platform::profile>() {
+inline std::string get_platform_info_host<info::platform::profile>() {
   return "FULL PROFILE";
 }
 
 template <>
-inline string_class get_platform_info_host<info::platform::version>() {
+inline std::string get_platform_info_host<info::platform::version>() {
   return "1.2";
 }
 
-template <> inline string_class get_platform_info_host<info::platform::name>() {
+template <> inline std::string get_platform_info_host<info::platform::name>() {
   return "SYCL host platform";
 }
 
 template <>
-inline string_class get_platform_info_host<info::platform::vendor>() {
+inline std::string get_platform_info_host<info::platform::vendor>() {
   return "";
 }
 
 template <>
-inline vector_class<string_class>
+inline std::vector<std::string>
 get_platform_info_host<info::platform::extensions>() {
   // TODO update when appropriate
   return {};

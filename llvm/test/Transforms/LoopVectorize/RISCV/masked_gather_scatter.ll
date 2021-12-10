@@ -34,8 +34,7 @@ define void @foo4(double* nocapture %A, double* nocapture readonly %B, i32* noca
 ; RV32-NEXT:    [[BOUND110:%.*]] = icmp ult i8* [[B6]], [[SCEVGEP2]]
 ; RV32-NEXT:    [[FOUND_CONFLICT11:%.*]] = and i1 [[BOUND09]], [[BOUND110]]
 ; RV32-NEXT:    [[CONFLICT_RDX:%.*]] = or i1 [[FOUND_CONFLICT]], [[FOUND_CONFLICT11]]
-; RV32-NEXT:    [[MEMCHECK_CONFLICT:%.*]] = and i1 [[CONFLICT_RDX]], true
-; RV32-NEXT:    br i1 [[MEMCHECK_CONFLICT]], label [[SCALAR_PH]], label [[VECTOR_PH:%.*]]
+; RV32-NEXT:    br i1 [[CONFLICT_RDX]], label [[SCALAR_PH]], label [[VECTOR_PH:%.*]]
 ; RV32:       vector.ph:
 ; RV32-NEXT:    br label [[VECTOR_BODY:%.*]]
 ; RV32:       vector.body:
@@ -51,7 +50,7 @@ define void @foo4(double* nocapture %A, double* nocapture readonly %B, i32* noca
 ; RV32-NEXT:    [[TMP5:%.*]] = fadd <4 x double> [[WIDE_MASKED_GATHER12]], [[TMP4]]
 ; RV32-NEXT:    [[TMP6:%.*]] = getelementptr inbounds double, double* [[A]], <4 x i64> [[VEC_IND]]
 ; RV32-NEXT:    call void @llvm.masked.scatter.v4f64.v4p0f64(<4 x double> [[TMP5]], <4 x double*> [[TMP6]], i32 8, <4 x i1> [[TMP1]]), !alias.scope !5, !noalias !7
-; RV32-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 4
+; RV32-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; RV32-NEXT:    [[VEC_IND_NEXT]] = add <4 x i64> [[VEC_IND]], <i64 64, i64 64, i64 64, i64 64>
 ; RV32-NEXT:    [[TMP7:%.*]] = icmp eq i64 [[INDEX_NEXT]], 624
 ; RV32-NEXT:    br i1 [[TMP7]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP8:![0-9]+]]
@@ -103,8 +102,7 @@ define void @foo4(double* nocapture %A, double* nocapture readonly %B, i32* noca
 ; RV64-NEXT:    [[BOUND110:%.*]] = icmp ult i8* [[B6]], [[SCEVGEP2]]
 ; RV64-NEXT:    [[FOUND_CONFLICT11:%.*]] = and i1 [[BOUND09]], [[BOUND110]]
 ; RV64-NEXT:    [[CONFLICT_RDX:%.*]] = or i1 [[FOUND_CONFLICT]], [[FOUND_CONFLICT11]]
-; RV64-NEXT:    [[MEMCHECK_CONFLICT:%.*]] = and i1 [[CONFLICT_RDX]], true
-; RV64-NEXT:    br i1 [[MEMCHECK_CONFLICT]], label [[SCALAR_PH]], label [[VECTOR_PH:%.*]]
+; RV64-NEXT:    br i1 [[CONFLICT_RDX]], label [[SCALAR_PH]], label [[VECTOR_PH:%.*]]
 ; RV64:       vector.ph:
 ; RV64-NEXT:    br label [[VECTOR_BODY:%.*]]
 ; RV64:       vector.body:
@@ -120,7 +118,7 @@ define void @foo4(double* nocapture %A, double* nocapture readonly %B, i32* noca
 ; RV64-NEXT:    [[TMP5:%.*]] = fadd <4 x double> [[WIDE_MASKED_GATHER12]], [[TMP4]]
 ; RV64-NEXT:    [[TMP6:%.*]] = getelementptr inbounds double, double* [[A]], <4 x i64> [[VEC_IND]]
 ; RV64-NEXT:    call void @llvm.masked.scatter.v4f64.v4p0f64(<4 x double> [[TMP5]], <4 x double*> [[TMP6]], i32 8, <4 x i1> [[TMP1]]), !alias.scope !5, !noalias !7
-; RV64-NEXT:    [[INDEX_NEXT]] = add i64 [[INDEX]], 4
+; RV64-NEXT:    [[INDEX_NEXT]] = add nuw i64 [[INDEX]], 4
 ; RV64-NEXT:    [[VEC_IND_NEXT]] = add <4 x i64> [[VEC_IND]], <i64 64, i64 64, i64 64, i64 64>
 ; RV64-NEXT:    [[TMP7:%.*]] = icmp eq i64 [[INDEX_NEXT]], 624
 ; RV64-NEXT:    br i1 [[TMP7]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP8:![0-9]+]]

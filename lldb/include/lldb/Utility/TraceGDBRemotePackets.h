@@ -41,10 +41,13 @@ llvm::json::Value toJSON(const TraceSupportedResponse &packet);
 struct TraceStartRequest {
   /// Tracing technology name, e.g. intel-pt, arm-coresight.
   std::string type;
+
   /// If \a llvm::None, then this starts tracing the whole process. Otherwise,
   /// only tracing for the specified threads is enabled.
   llvm::Optional<std::vector<int64_t>> tids;
 
+  /// \return
+  ///     \b true if \a tids is \a None, i.e. whole process tracing.
   bool IsProcessTracing() const;
 };
 
@@ -57,7 +60,7 @@ llvm::json::Value toJSON(const TraceStartRequest &packet);
 /// jLLDBTraceStop gdb-remote packet
 /// \{
 struct TraceStopRequest {
-  TraceStopRequest() {}
+  TraceStopRequest() = default;
 
   TraceStopRequest(llvm::StringRef type, const std::vector<lldb::tid_t> &tids);
 

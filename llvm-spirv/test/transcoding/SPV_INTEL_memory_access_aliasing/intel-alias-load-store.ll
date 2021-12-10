@@ -22,6 +22,7 @@
 ;; with:
 ;; clang++ -fsycl -fsycl-is-device %s -o -
 ;; using https://github.com/intel/llvm.git bb5a2fece7c3315d7c72d8495c34a8a6eabc92d8
+;; with an exception of !16 noalias medata - it doesn't make any sence.
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_memory_access_aliasing -o %t.spv
@@ -39,11 +40,14 @@
 ; CHECK-SPIRV: AliasDomainDeclINTEL [[DOMAIN1:[0-9]+]]
 ; CHECK-SPIRV: AliasScopeDeclINTEL [[SCOPE1:[0-9]+]] [[DOMAIN1]]
 ; CHECK-SPIRV: AliasScopeListDeclINTEL [[LIST1:[0-9]+]] [[SCOPE1]]
+; CHECK-SPIRV: AliasDomainDeclINTEL [[DOMAIN3:[0-9]+]]
+; CHECK-SPIRV: AliasScopeDeclINTEL [[SCOPE3:[0-9]+]] [[DOMAIN3]]
+; CHECK-SPIRV: AliasScopeListDeclINTEL [[LIST3:[0-9]+]] [[SCOPE3]]
 ; CHECK-SPIRV: AliasDomainDeclINTEL [[DOMAIN2:[0-9]+]]
 ; CHECK-SPIRV: AliasScopeDeclINTEL [[SCOPE2:[0-9]+]] [[DOMAIN2]]
 ; CHECK-SPIRV: AliasScopeListDeclINTEL [[LIST2:[0-9]+]] [[SCOPE2]]
 ; CHECK-SPIRV: Load {{.*}} 65538 {{.*}} [[LIST1]]
-; CHECK-SPIRV: Load {{.*}} 65538 {{.*}} [[LIST1]]
+; CHECK-SPIRV: Load {{.*}} 196610 {{.*}} [[LIST1]] [[LIST3]]
 ; CHECK-SPIRV: Store {{.*}} 131074 {{.*}} [[LIST1]]
 ; CHECK-SPIRV: Load {{.*}} 65538 {{.*}} [[LIST2]]
 ; CHECK-SPIRV: Load {{.*}} 65538 {{.*}} [[LIST2]]
@@ -64,7 +68,7 @@
 ; ModuleID = 'optimized_intel_restrict.bc'
 source_filename = "intel_restrict.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown-sycldevice"
+target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nofree norecurse nounwind willreturn mustprogress
 define dso_local spir_kernel void @_ZTSZ4mainE15kernel_restrict(i32 addrspace(1)* noalias %_arg_, i32 addrspace(1)* noalias %_arg_1, i32 addrspace(1)* noalias %_arg_3) local_unnamed_addr #0 !kernel_arg_buffer_location !4 {
@@ -73,9 +77,9 @@ entry:
   %1 = addrspacecast i32 addrspace(1)* %_arg_1 to i32 addrspace(4)*
   %2 = addrspacecast i32 addrspace(1)* %_arg_3 to i32 addrspace(4)*
 ; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD1:[0-9]+]]
-; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD1]]
+; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD1]]{{.*}}!noalias ![[LISTMD2:[0-9]+]]
   %3 = load i32, i32 addrspace(4)* %0, align 4, !tbaa !5, !alias.scope !9
-  %4 = load i32, i32 addrspace(4)* %1, align 4, !tbaa !5, !alias.scope !9
+  %4 = load i32, i32 addrspace(4)* %1, align 4, !tbaa !5, !alias.scope !9, !noalias !16
   %add.i = add nsw i32 %4, %3
 ; CHECK-LLVM: store i32 {{.*}} !noalias ![[LISTMD1]]
   store i32 %add.i, i32 addrspace(4)* %2, align 4, !tbaa !5, !noalias !9
@@ -88,13 +92,13 @@ entry:
   %0 = addrspacecast i32 addrspace(1)* %_arg_ to i32 addrspace(4)*
   %1 = addrspacecast i32 addrspace(1)* %_arg_1 to i32 addrspace(4)*
   %2 = addrspacecast i32 addrspace(1)* %_arg_3 to i32 addrspace(4)*
-; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD2:[0-9]+]]
-; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD2]]
+; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD3:[0-9]+]]
+; CHECK-LLVM: load i32, i32 addrspace(4)* {{.*}} !alias.scope ![[LISTMD3]]
   %3 = load i32, i32 addrspace(4)* %0, align 4, !tbaa !5, !alias.scope !13
   %4 = load i32, i32 addrspace(4)* %1, align 4, !tbaa !5, !alias.scope !13
   %add.i = add i32 %3, %_arg_5
   %add3.i = add i32 %add.i, %4
-; CHECK-LLVM: store i32 {{.*}} !noalias ![[LISTMD2]]
+; CHECK-LLVM: store i32 {{.*}} !noalias ![[LISTMD3]]
   store i32 %add3.i, i32 addrspace(4)* %2, align 4, !tbaa !5, !noalias !13
   ret void
 }
@@ -115,16 +119,23 @@ attributes #0 = { nofree norecurse nounwind willreturn mustprogress "disable-tai
 !6 = !{!"int", !7, i64 0}
 !7 = !{!"omnipotent char", !8, i64 0}
 !8 = !{!"Simple C++ TBAA"}
-; CHECK-LLVM: ![[LISTMD1]] = !{![[SCOPEMD1:[0-9]+]]}
-; CHECK-LLVM: ![[SCOPEMD1]] = distinct !{![[SCOPEMD1]], ![[DOMAINMD1:[0-9]+]]}
-; CHECK-LLVM: ![[DOMAINMD1]] = distinct !{![[DOMAINMD1]]}
 !9 = !{!10}
 !10 = distinct !{!10, !11, !"_ZZ4mainENK3$_0clEv: %this"}
 !11 = distinct !{!11, !"_ZZ4mainENK3$_0clEv"}
 !12 = !{i32 -1, i32 -1, i32 -1, i32 -1}
-; CHECK-LLVM: ![[LISTMD2]] = !{![[SCOPEMD2:[0-9]+]]}
-; CHECK-LLVM: ![[SCOPEMD2]] = distinct !{![[SCOPEMD2]], ![[DOMAINMD2:[0-9]+]]}
-; CHECK-LLVM: ![[DOMAINMD2]] = distinct !{![[DOMAINMD2]]}
 !13 = !{!14}
 !14 = distinct !{!14, !15, !"_ZZ4mainENK3$_2clEv: %this"}
 !15 = distinct !{!15, !"_ZZ4mainENK3$_2clEv"}
+!16 = !{!17}
+!17 = distinct !{!17, !18, !"_ZZ4mainENK3$_0clEv: %this"}
+!18 = distinct !{!18, !"_ZZ4mainENK3$_0clEv"}
+
+; CHECK-LLVM: ![[LISTMD1]] = !{![[SCOPEMD1:[0-9]+]]}
+; CHECK-LLVM: ![[SCOPEMD1]] = distinct !{![[SCOPEMD1]], ![[DOMAINMD1:[0-9]+]]}
+; CHECK-LLVM: ![[DOMAINMD1]] = distinct !{![[DOMAINMD1]]}
+; CHECK-LLVM: ![[LISTMD2]] = !{![[SCOPEMD2:[0-9]+]]}
+; CHECK-LLVM: ![[SCOPEMD2]] = distinct !{![[SCOPEMD2]], ![[DOMAINMD2:[0-9]+]]}
+; CHECK-LLVM: ![[DOMAINMD2]] = distinct !{![[DOMAINMD2]]}
+; CHECK-LLVM: ![[LISTMD3]] = !{![[SCOPEMD3:[0-9]+]]}
+; CHECK-LLVM: ![[SCOPEMD3]] = distinct !{![[SCOPEMD3]], ![[DOMAINMD3:[0-9]+]]}
+; CHECK-LLVM: ![[DOMAINMD3]] = distinct !{![[DOMAINMD3]]}

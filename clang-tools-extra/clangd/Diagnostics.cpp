@@ -26,6 +26,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Capacity.h"
@@ -35,6 +36,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cstddef>
+#include <vector>
 
 namespace clang {
 namespace clangd {
@@ -76,10 +78,10 @@ bool mentionsMainFile(const Diag &D) {
   return false;
 }
 
-bool isExcluded(const Diag &D) {
+bool isExcluded(unsigned DiagID) {
   // clang will always fail parsing MS ASM, we don't link in desc + asm parser.
-  if (D.ID == clang::diag::err_msasm_unable_to_create_target ||
-      D.ID == clang::diag::err_msasm_unsupported_arch)
+  if (DiagID == clang::diag::err_msasm_unable_to_create_target ||
+      DiagID == clang::diag::err_msasm_unsupported_arch)
     return true;
   return false;
 }
@@ -324,6 +326,60 @@ std::string noteMessage(const Diag &Main, const DiagBase &Note,
   OS.flush();
   return capitalize(std::move(Result));
 }
+
+void setTags(clangd::Diag &D) {
+  static const auto *DeprecatedDiags = new llvm::DenseSet<unsigned>{
+      diag::warn_access_decl_deprecated,
+      diag::warn_atl_uuid_deprecated,
+      diag::warn_deprecated,
+      diag::warn_deprecated_altivec_src_compat,
+      diag::warn_deprecated_comma_subscript,
+      diag::warn_deprecated_compound_assign_volatile,
+      diag::warn_deprecated_copy,
+      diag::warn_deprecated_copy_with_dtor,
+      diag::warn_deprecated_copy_with_user_provided_copy,
+      diag::warn_deprecated_copy_with_user_provided_dtor,
+      diag::warn_deprecated_def,
+      diag::warn_deprecated_increment_decrement_volatile,
+      diag::warn_deprecated_message,
+      diag::warn_deprecated_redundant_constexpr_static_def,
+      diag::warn_deprecated_register,
+      diag::warn_deprecated_simple_assign_volatile,
+      diag::warn_deprecated_string_literal_conversion,
+      diag::warn_deprecated_this_capture,
+      diag::warn_deprecated_volatile_param,
+      diag::warn_deprecated_volatile_return,
+      diag::warn_deprecated_volatile_structured_binding,
+      diag::warn_opencl_attr_deprecated_ignored,
+      diag::warn_property_method_deprecated,
+      diag::warn_vector_mode_deprecated,
+  };
+  static const auto *UnusedDiags = new llvm::DenseSet<unsigned>{
+      diag::warn_opencl_attr_deprecated_ignored,
+      diag::warn_pragma_attribute_unused,
+      diag::warn_unused_but_set_parameter,
+      diag::warn_unused_but_set_variable,
+      diag::warn_unused_comparison,
+      diag::warn_unused_const_variable,
+      diag::warn_unused_exception_param,
+      diag::warn_unused_function,
+      diag::warn_unused_label,
+      diag::warn_unused_lambda_capture,
+      diag::warn_unused_local_typedef,
+      diag::warn_unused_member_function,
+      diag::warn_unused_parameter,
+      diag::warn_unused_private_field,
+      diag::warn_unused_property_backing_ivar,
+      diag::warn_unused_template,
+      diag::warn_unused_variable,
+  };
+  if (DeprecatedDiags->contains(D.ID)) {
+    D.Tags.push_back(DiagnosticTag::Deprecated);
+  } else if (UnusedDiags->contains(D.ID)) {
+    D.Tags.push_back(DiagnosticTag::Unnecessary);
+  }
+  // FIXME: Set tags for tidy-based diagnostics too.
+}
 } // namespace
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const DiagBase &D) {
@@ -372,8 +428,7 @@ CodeAction toCodeAction(const Fix &F, const URIForFile &File) {
   Action.title = F.Message;
   Action.kind = std::string(CodeAction::QUICKFIX_KIND);
   Action.edit.emplace();
-  Action.edit->changes.emplace();
-  (*Action.edit->changes)[File.uri()] = {F.Edits.begin(), F.Edits.end()};
+  Action.edit->changes[File.uri()] = {F.Edits.begin(), F.Edits.end()};
   return Action;
 }
 
@@ -430,6 +485,9 @@ void toLSPDiags(
   case Diag::ClangTidy:
     Main.source = "clang-tidy";
     break;
+  case Diag::Clangd:
+    Main.source = "clangd";
+    break;
   case Diag::ClangdConfig:
     Main.source = "clangd-config";
     break;
@@ -462,6 +520,7 @@ void toLSPDiags(
       Main.relatedInformation->push_back(std::move(RelInfo));
     }
   }
+  Main.tags = D.Tags;
   OutFn(std::move(Main), D.Fixes);
 
   // If we didn't emit the notes as relatedLocations, emit separate diagnostics
@@ -505,6 +564,7 @@ std::vector<Diag> StoreDiags::take(const clang::tidy::ClangTidyContext *Tidy) {
 
   // Fill in name/source now that we have all the context needed to map them.
   for (auto &Diag : Output) {
+    setTags(Diag);
     if (const char *ClangDiag = getDiagnosticCode(Diag.ID)) {
       // Warnings controlled by -Wfoo are better recognized by that name.
       StringRef Warning = DiagnosticIDs::getWarningOptionForDiag(Diag.ID);
@@ -546,7 +606,7 @@ std::vector<Diag> StoreDiags::take(const clang::tidy::ClangTidyContext *Tidy) {
   // duplicated messages due to various reasons (e.g. the check doesn't handle
   // template instantiations well; clang-tidy alias checks).
   std::set<std::pair<Range, std::string>> SeenDiags;
-  llvm::erase_if(Output, [&](const Diag& D) {
+  llvm::erase_if(Output, [&](const Diag &D) {
     return !SeenDiags.emplace(D.Range, D.Message).second;
   });
   return std::move(Output);
@@ -727,43 +787,41 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
     // Handle the new main diagnostic.
     flushLastDiag();
 
-    if (Adjuster) {
-      DiagLevel = Adjuster(DiagLevel, Info);
-      if (DiagLevel == DiagnosticsEngine::Ignored) {
-        LastPrimaryDiagnosticWasSuppressed = true;
-        return;
-      }
-    }
-    LastPrimaryDiagnosticWasSuppressed = false;
-
     LastDiag = Diag();
+    // FIXME: Merge with feature modules.
+    if (Adjuster)
+      DiagLevel = Adjuster(DiagLevel, Info);
+
     FillDiagBase(*LastDiag);
+    if (isExcluded(LastDiag->ID))
+      LastDiag->Severity = DiagnosticsEngine::Ignored;
+    if (DiagCB)
+      DiagCB(Info, *LastDiag);
+    // Don't bother filling in the rest if diag is going to be dropped.
+    if (LastDiag->Severity == DiagnosticsEngine::Ignored)
+      return;
+
     LastDiagLoc.emplace(Info.getLocation(), Info.getSourceManager());
     LastDiagOriginallyError = OriginallyError;
-
     if (!Info.getFixItHints().empty())
       AddFix(true /* try to invent a message instead of repeating the diag */);
     if (Fixer) {
-      auto ExtraFixes = Fixer(DiagLevel, Info);
+      auto ExtraFixes = Fixer(LastDiag->Severity, Info);
       LastDiag->Fixes.insert(LastDiag->Fixes.end(), ExtraFixes.begin(),
                              ExtraFixes.end());
     }
-    if (DiagCB)
-      DiagCB(Info, *LastDiag);
   } else {
     // Handle a note to an existing diagnostic.
-
-    // If a diagnostic was suppressed due to the suppression filter,
-    // also suppress notes associated with it.
-    if (LastPrimaryDiagnosticWasSuppressed) {
-      return;
-    }
-
     if (!LastDiag) {
       assert(false && "Adding a note without main diagnostic");
       IgnoreDiagnostics::log(DiagLevel, Info);
       return;
     }
+
+    // If a diagnostic was suppressed due to the suppression filter,
+    // also suppress notes associated with it.
+    if (LastDiag->Severity == DiagnosticsEngine::Ignored)
+      return;
 
     if (!Info.getFixItHints().empty()) {
       // A clang note with fix-it is not a separate diagnostic in clangd. We
@@ -789,7 +847,7 @@ void StoreDiags::flushLastDiag() {
     LastDiag.reset();
   });
 
-  if (isExcluded(*LastDiag))
+  if (LastDiag->Severity == DiagnosticsEngine::Ignored)
     return;
   // Move errors that occur from headers into main file.
   if (!LastDiag->InsideMainFile && LastDiagLoc && LastDiagOriginallyError) {

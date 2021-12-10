@@ -57,11 +57,17 @@ class SM_Real <SM_Pseudo ps>
   Instruction Opcode = !cast<Instruction>(NAME);
 
   // copy relevant pseudo op flags
+  let LGKM_CNT             = ps.LGKM_CNT;
+  let SMRD                 = ps.SMRD;
+  let mayStore             = ps.mayStore;
+  let mayLoad              = ps.mayLoad;
+  let hasSideEffects       = ps.hasSideEffects;
+  let UseNamedOperandTable = ps.UseNamedOperandTable;
+  let SchedRW              = ps.SchedRW;
   let SubtargetPredicate   = ps.SubtargetPredicate;
   let AsmMatchConverter    = ps.AsmMatchConverter;
-  let UseNamedOperandTable = ps.UseNamedOperandTable;
-  let SMRD                 = ps.SMRD;
-  let SchedRW              = ps.SchedRW;
+  let IsAtomicRet          = ps.IsAtomicRet;
+  let IsAtomicNoRet        = ps.IsAtomicNoRet;
 
   let TSFlags = ps.TSFlags;
 
@@ -700,12 +706,6 @@ class SMRD_Real_Load_IMM_ci <bits<5> op, SM_Load_Pseudo ps> :
   let DecoderNamespace = "GFX7";
   let InOperandList = (ins ps.BaseClass:$sbase, smrd_literal_offset:$offset, CPol:$cpol);
 
-  let LGKM_CNT = ps.LGKM_CNT;
-  let mayLoad = ps.mayLoad;
-  let mayStore = ps.mayStore;
-  let hasSideEffects = ps.hasSideEffects;
-  let SchedRW = ps.SchedRW;
-
   let Inst{7-0}   = 0xff;
   let Inst{8}     = 0;
   let Inst{14-9}  = sbase{6-1};
@@ -765,11 +765,11 @@ def smrd_load : PatFrag <(ops node:$ptr), (load node:$ptr), [{ return isUniformL
   }];
 }
 
-def SMRDImm         : ComplexPattern<i64, 2, "SelectSMRDImm">;
-def SMRDImm32       : ComplexPattern<i64, 2, "SelectSMRDImm32">;
-def SMRDSgpr        : ComplexPattern<i64, 2, "SelectSMRDSgpr">;
-def SMRDBufferImm   : ComplexPattern<i32, 1, "SelectSMRDBufferImm">;
-def SMRDBufferImm32 : ComplexPattern<i32, 1, "SelectSMRDBufferImm32">;
+def SMRDImm         : ComplexPattern<iPTR, 2, "SelectSMRDImm">;
+def SMRDImm32       : ComplexPattern<iPTR, 2, "SelectSMRDImm32">;
+def SMRDSgpr        : ComplexPattern<iPTR, 2, "SelectSMRDSgpr">;
+def SMRDBufferImm   : ComplexPattern<iPTR, 1, "SelectSMRDBufferImm">;
+def SMRDBufferImm32 : ComplexPattern<iPTR, 1, "SelectSMRDBufferImm32">;
 
 multiclass SMRD_Pattern <string Instr, ValueType vt> {
 

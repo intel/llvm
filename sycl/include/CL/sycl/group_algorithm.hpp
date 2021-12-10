@@ -1,4 +1,4 @@
-//==----------- group_algorithm.hpp ------------------------------------==//
+//==------------------------ group_algorithm.hpp ---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,13 +10,15 @@
 #include <CL/__spirv/spirv_ops.hpp>
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_vars.hpp>
-#include <CL/sycl/ONEAPI/functional.hpp>
 #include <CL/sycl/detail/spirv.hpp>
 #include <CL/sycl/detail/type_traits.hpp>
+#include <CL/sycl/functional.hpp>
 #include <CL/sycl/group.hpp>
 #include <CL/sycl/known_identity.hpp>
 #include <CL/sycl/nd_item.hpp>
 #include <CL/sycl/sub_group.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/ext/oneapi/group_sort.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
 namespace sycl {
@@ -54,7 +56,8 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t get_local_linear_range<ONEAPI::sub_group>(ONEAPI::sub_group g) {
+inline size_t
+get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -76,17 +79,17 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline ONEAPI::sub_group::linear_id_type
-get_local_linear_id<ONEAPI::sub_group>(ONEAPI::sub_group g) {
+inline ext::oneapi::sub_group::linear_id_type
+get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
   return g.get_local_id()[0];
 }
 
 // ---- is_native_op
 template <typename T>
 using native_op_list =
-    type_list<ONEAPI::plus<T>, ONEAPI::bit_or<T>, ONEAPI::bit_xor<T>,
-              ONEAPI::bit_and<T>, ONEAPI::maximum<T>, ONEAPI::minimum<T>,
-              ONEAPI::multiplies<T>>;
+    type_list<sycl::plus<T>, sycl::bit_or<T>, sycl::bit_xor<T>,
+              sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
+              sycl::multiplies<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
@@ -383,9 +386,12 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 }
 
 // ---- shift_group_left
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     detail::is_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -399,9 +405,12 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 }
 
 // ---- shift_group_right
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     detail::is_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -415,9 +424,12 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 }
 
 // ---- permute_group_by_xor
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     detail::is_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -431,9 +443,12 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 }
 
 // ---- select_from_group
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(std::is_same<std::decay_t<Group>, sub_group>::value &&
-                     detail::is_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 select_from_group(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -447,9 +462,12 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
 }
 
 // ---- group_broadcast
+// TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
+// copyable.
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -464,7 +482,8 @@ group_broadcast(Group, T x, typename Group::id_type local_id) {
 
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -482,7 +501,8 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
 
 template <typename Group, typename T>
 detail::enable_if_t<(is_group_v<std::decay_t<Group>> &&
-                     detail::is_scalar_arithmetic<T>::value),
+                     (std::is_trivially_copyable<T>::value ||
+                      detail::is_vec<T>::value)),
                     T>
 group_broadcast(Group g, T x) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -619,14 +639,15 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
     return ((v + divisor - 1) / divisor) * divisor;
   };
-  typename InPtr::element_type x;
-  typename OutPtr::element_type carry = init;
+  typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
+      x;
+  typename detail::remove_pointer<OutPtr>::type carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
     if (i < N) {
       x = first[i];
     }
-    typename OutPtr::element_type out =
+    typename detail::remove_pointer<OutPtr>::type out =
         exclusive_scan_over_group(g, x, carry, binary_op);
     if (i < N) {
       result[i] = out;
@@ -659,13 +680,15 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)),
-                   typename OutPtr::element_type>::value ||
-          (std::is_same<typename OutPtr::element_type, half>::value &&
+                   typename detail::remove_pointer<OutPtr>::type>::value ||
+          (std::is_same<typename detail::remove_pointer<OutPtr>::type,
+                        half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   return joint_exclusive_scan(
       g, first, last, result,
-      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>,
+      sycl::known_identity_v<BinaryOperation,
+                             typename detail::remove_pointer<OutPtr>::type>,
       binary_op);
 }
 
@@ -786,14 +809,15 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      const ptrdiff_t &divisor) -> ptrdiff_t {
     return ((v + divisor - 1) / divisor) * divisor;
   };
-  typename InPtr::element_type x;
-  typename OutPtr::element_type carry = init;
+  typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
+      x;
+  typename detail::remove_pointer<OutPtr>::type carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
     if (i < N) {
       x = first[i];
     }
-    typename OutPtr::element_type out =
+    typename detail::remove_pointer<OutPtr>::type out =
         inclusive_scan_over_group(g, x, binary_op, carry);
     if (i < N) {
       result[i] = out;
@@ -825,13 +849,46 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   // FIXME: Do not special-case for half precision
   static_assert(
       std::is_same<decltype(binary_op(*first, *first)),
-                   typename OutPtr::element_type>::value ||
-          (std::is_same<typename OutPtr::element_type, half>::value &&
+                   typename detail::remove_pointer<OutPtr>::type>::value ||
+          (std::is_same<typename detail::remove_pointer<OutPtr>::type,
+                        half>::value &&
            std::is_same<decltype(binary_op(*first, *first)), float>::value),
       "Result type of binary_op must match scan accumulation type.");
   return joint_inclusive_scan(
       g, first, last, result, binary_op,
-      sycl::known_identity_v<BinaryOperation, typename OutPtr::element_type>);
+      sycl::known_identity_v<BinaryOperation,
+                             typename detail::remove_pointer<OutPtr>::type>);
+}
+
+namespace detail {
+template <typename G> struct group_barrier_scope {};
+template <> struct group_barrier_scope<sycl::sub_group> {
+  constexpr static auto Scope = __spv::Scope::Subgroup;
+};
+template <int D> struct group_barrier_scope<sycl::group<D>> {
+  constexpr static auto Scope = __spv::Scope::Workgroup;
+};
+} // namespace detail
+
+template <typename Group>
+typename std::enable_if<is_group_v<Group>>::type
+group_barrier(Group, memory_scope FenceScope = Group::fence_scope) {
+  (void)FenceScope;
+#ifdef __SYCL_DEVICE_ONLY__
+  // Per SYCL spec, group_barrier must perform both control barrier and memory
+  // fence operations. All work-items execute a release fence prior to
+  // barrier and acquire fence afterwards. The rest of semantics flags specify
+  // which type of memory this behavior is applied to.
+  __spirv_ControlBarrier(detail::group_barrier_scope<Group>::Scope,
+                         sycl::detail::spirv::getScope(FenceScope),
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::SubgroupMemory |
+                             __spv::MemorySemanticsMask::WorkgroupMemory |
+                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
+#else
+  throw sycl::runtime_error("Barriers are not supported on host device",
+                            PI_INVALID_DEVICE);
+#endif
 }
 
 } // namespace sycl

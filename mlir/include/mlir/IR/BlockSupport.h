@@ -22,6 +22,23 @@ namespace mlir {
 class Block;
 
 //===----------------------------------------------------------------------===//
+// BlockOperand
+//===----------------------------------------------------------------------===//
+
+/// A block operand represents an operand that holds a reference to a Block,
+/// e.g. for terminator operations.
+class BlockOperand : public IROperand<BlockOperand, Block *> {
+public:
+  using IROperand<BlockOperand, Block *>::IROperand;
+
+  /// Provide the use list that is attached to the given block.
+  static IRObjectWithUseList<BlockOperand> *getUseList(Block *value);
+
+  /// Return which operand this is in the BlockOperand list of the Operation.
+  unsigned getOperandNumber();
+};
+
+//===----------------------------------------------------------------------===//
 // Predecessors
 //===----------------------------------------------------------------------===//
 
@@ -35,7 +52,6 @@ class PredecessorIterator final
   static Block *unwrap(BlockOperand &value);
 
 public:
-  using reference = Block *;
 
   /// Initializes the operand type iterator to the specified operand iterator.
   PredecessorIterator(ValueUseIterator<BlockOperand> it)
@@ -134,7 +150,7 @@ public:
                                                                 &filter) {}
 
   /// Allow implicit conversion to the underlying iterator.
-  operator IteratorT() const { return this->wrapped(); }
+  operator const IteratorT &() const { return this->wrapped(); }
 };
 
 /// This class provides iteration over the held operations of a block for a
@@ -146,7 +162,6 @@ class op_iterator
   static OpT unwrap(Operation &op) { return cast<OpT>(op); }
 
 public:
-  using reference = OpT;
 
   /// Initializes the iterator to the specified filter iterator.
   op_iterator(op_filter_iterator<OpT, IteratorT> it)
@@ -154,7 +169,7 @@ public:
                               OpT (*)(Operation &)>(it, &unwrap) {}
 
   /// Allow implicit conversion to the underlying block iterator.
-  operator IteratorT() const { return this->wrapped(); }
+  operator const IteratorT &() const { return this->wrapped(); }
 };
 } // end namespace detail
 } // end namespace mlir

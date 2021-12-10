@@ -1,4 +1,4 @@
-! RUN: %S/test_errors.sh %s %t %flang_fc1
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Forward references to derived types (error cases)
 ! C732 A parent-type-name shall be the name of a previously defined
 ! extensible type (7.5.7).
@@ -90,3 +90,10 @@ subroutine s9
     integer, kind :: n = 3
   end type
 end subroutine s9
+
+subroutine s10
+  type t
+    !ERROR: The derived type 'undef' has not been defined
+    type(undef), pointer :: y
+  end type
+end subroutine s10

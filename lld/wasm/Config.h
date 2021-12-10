@@ -18,10 +18,7 @@ namespace lld {
 namespace wasm {
 
 // For --unresolved-symbols.
-// The `ImportFuncs` mode is an additional mode that corresponds to the
-// --allow-undefined flag which turns undefined functions in imports
-// as opposed ed to Ignore or Warn which turn them into unreachables.
-enum class UnresolvedPolicy { ReportError, Warn, Ignore, ImportFuncs };
+enum class UnresolvedPolicy { ReportError, Warn, Ignore };
 
 // This struct contains the global configuration for the linker.
 // Most fields are direct mapping from the command line options
@@ -43,6 +40,7 @@ struct Configuration {
   bool importMemory;
   bool sharedMemory;
   bool importTable;
+  bool importUndefined;
   llvm::Optional<bool> is64;
   bool mergeDataSegments;
   bool pie;
@@ -79,7 +77,7 @@ struct Configuration {
   llvm::Optional<std::vector<std::string>> features;
 
   // The following config options do not directly correspond to any
-  // particualr command line options.
+  // particular command line options.
 
   // True if we are creating position-independent code.
   bool isPic;
@@ -93,6 +91,10 @@ struct Configuration {
   // for shared libraries (since they always added to a dynamic offset at
   // runtime).
   uint32_t tableBase = 0;
+
+  // Will be set to true if bss data segments should be emitted. In most cases
+  // this is not necessary.
+  bool emitBssSegments = false;
 };
 
 // The only instance of Configuration struct.

@@ -79,10 +79,32 @@ static bool DecodeAArch64Features(const Driver &D, StringRef text,
     else
       return false;
 
-    // +sve implies +f32mm if the base architecture is v8.6A or v8.7A
-    // it isn't the case in general that sve implies both f64mm and f32mm
+    if (Feature == "sve2")
+      Features.push_back("+sve");
+    else if (Feature == "sve2-bitperm" || Feature == "sve2-sha3" ||
+             Feature == "sve2-aes" || Feature == "sve2-sm4") {
+      Features.push_back("+sve");
+      Features.push_back("+sve2");
+    } else if (Feature == "nosve") {
+      Features.push_back("-sve2");
+      Features.push_back("-sve2-bitperm");
+      Features.push_back("-sve2-sha3");
+      Features.push_back("-sve2-aes");
+      Features.push_back("-sve2-sm4");
+    } else if (Feature == "nosve2") {
+      Features.push_back("-sve2-bitperm");
+      Features.push_back("-sve2-sha3");
+      Features.push_back("-sve2-aes");
+      Features.push_back("-sve2-sm4");
+    }
+
+    // +sve implies +f32mm if the base architecture is v8.6A, v8.7A, v9.1A or
+    // v9.2A. It isn't the case in general that sve implies both f64mm and f32mm
     if ((ArchKind == llvm::AArch64::ArchKind::ARMV8_6A ||
-         ArchKind == llvm::AArch64::ArchKind::ARMV8_7A) && Feature == "sve")
+         ArchKind == llvm::AArch64::ArchKind::ARMV8_7A ||
+         ArchKind == llvm::AArch64::ArchKind::ARMV9_1A ||
+         ArchKind == llvm::AArch64::ArchKind::ARMV9_2A) &&
+        Feature == "sve")
       Features.push_back("+f32mm");
   }
   return true;
@@ -127,8 +149,20 @@ getAArch64ArchFeaturesFromMarch(const Driver &D, StringRef March,
 
   llvm::AArch64::ArchKind ArchKind = llvm::AArch64::parseArch(Split.first);
   if (ArchKind == llvm::AArch64::ArchKind::INVALID ||
-      !llvm::AArch64::getArchFeatures(ArchKind, Features) ||
-      (Split.second.size() &&
+      !llvm::AArch64::getArchFeatures(ArchKind, Features))
+    return false;
+
+  // Enable SVE2 by default on Armv9-A.
+  // It can still be disabled if +nosve2 is present.
+  // We must do this early so that DecodeAArch64Features has the correct state
+  if ((ArchKind == llvm::AArch64::ArchKind::ARMV9A ||
+       ArchKind == llvm::AArch64::ArchKind::ARMV9_1A ||
+       ArchKind == llvm::AArch64::ArchKind::ARMV9_2A)) {
+    Features.push_back("+sve");
+    Features.push_back("+sve2");
+  }
+
+  if ((Split.second.size() &&
        !DecodeAArch64Features(D, Split.second, Features, ArchKind)))
     return false;
 
@@ -185,18 +219,34 @@ getAArch64MicroArchFeaturesFromMcpu(const Driver &D, StringRef Mcpu,
 void aarch64::getAArch64TargetFeatures(const Driver &D,
                                        const llvm::Triple &Triple,
                                        const ArgList &Args,
-                                       std::vector<StringRef> &Features) {
+                                       std::vector<StringRef> &Features,
+                                       bool ForAS) {
   Arg *A;
   bool success = true;
   // Enable NEON by default.
   Features.push_back("+neon");
-  if ((A = Args.getLastArg(options::OPT_march_EQ)))
+  llvm::StringRef WaMArch;
+  if (ForAS)
+    for (const auto *A :
+         Args.filtered(options::OPT_Wa_COMMA, options::OPT_Xassembler))
+      for (StringRef Value : A->getValues())
+        if (Value.startswith("-march="))
+          WaMArch = Value.substr(7);
+  // Call getAArch64ArchFeaturesFromMarch only if "-Wa,-march=" or
+  // "-Xassembler -march" is detected. Otherwise it may return false
+  // and causes Clang to error out.
+  if (!WaMArch.empty())
+    success = getAArch64ArchFeaturesFromMarch(D, WaMArch, Args, Features);
+  else if ((A = Args.getLastArg(options::OPT_march_EQ)))
     success = getAArch64ArchFeaturesFromMarch(D, A->getValue(), Args, Features);
   else if ((A = Args.getLastArg(options::OPT_mcpu_EQ)))
     success = getAArch64ArchFeaturesFromMcpu(D, A->getValue(), Args, Features);
   else if (Args.hasArg(options::OPT_arch) || isCPUDeterminedByTriple(Triple))
     success = getAArch64ArchFeaturesFromMcpu(
         D, getAArch64TargetCPU(Args, Triple, A), Args, Features);
+  else
+    // Default to 'A' profile if the architecture is not specified.
+    success = getAArch64ArchFeaturesFromMarch(D, "armv8-a", Args, Features);
 
   if (success && (A = Args.getLastArg(clang::driver::options::OPT_mtune_EQ)))
     success =
@@ -209,8 +259,15 @@ void aarch64::getAArch64TargetFeatures(const Driver &D,
     success = getAArch64MicroArchFeaturesFromMcpu(
         D, getAArch64TargetCPU(Args, Triple, A), Args, Features);
 
-  if (!success)
-    D.Diag(diag::err_drv_clang_unsupported) << A->getAsString(Args);
+  if (!success) {
+    auto Diag = D.Diag(diag::err_drv_clang_unsupported);
+    // If "-Wa,-march=" is used, 'WaMArch' will contain the argument's value,
+    // while 'A' is uninitialized. Only dereference 'A' in the other case.
+    if (!WaMArch.empty())
+      Diag << "-march=" + WaMArch.str();
+    else
+      Diag << A->getAsString(Args);
+  }
 
   if (Args.getLastArg(options::OPT_mgeneral_regs_only)) {
     Features.push_back("-fp-armv8");
@@ -332,7 +389,10 @@ fp16_fml_fallthrough:
       NoCrypto = true;
   }
 
-  if (std::find(ItBegin, ItEnd, "+v8.4a") != ItEnd) {
+  if (std::find(ItBegin, ItEnd, "+v8.4a") != ItEnd ||
+      std::find(ItBegin, ItEnd, "+v9a") != ItEnd ||
+      std::find(ItBegin, ItEnd, "+v9.1a") != ItEnd ||
+      std::find(ItBegin, ItEnd, "+v9.2a") != ItEnd) {
     if (HasCrypto && !NoCrypto) {
       // Check if we have NOT disabled an algorithm with something like:
       //   +crypto, -algorithm
@@ -391,9 +451,11 @@ fp16_fml_fallthrough:
     }
   }
 
-  auto V8_6Pos = llvm::find(Features, "+v8.6a");
-  if (V8_6Pos != std::end(Features))
-    V8_6Pos = Features.insert(std::next(V8_6Pos), {"+i8mm", "+bf16"});
+  const char *Archs[] = {"+v8.6a", "+v8.7a", "+v9.1a", "+v9.2a"};
+  auto Pos = std::find_first_of(Features.begin(), Features.end(),
+                                std::begin(Archs), std::end(Archs));
+  if (Pos != std::end(Features))
+    Pos = Features.insert(std::next(Pos), {"+i8mm", "+bf16"});
 
   if (Arg *A = Args.getLastArg(options::OPT_mno_unaligned_access,
                                options::OPT_munaligned_access)) {

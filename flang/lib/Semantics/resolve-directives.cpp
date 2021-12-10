@@ -152,6 +152,9 @@ public:
 
   void Post(const parser::AccDefaultClause &);
 
+  bool Pre(const parser::AccClause::Attach &);
+  bool Pre(const parser::AccClause::Detach &);
+
   bool Pre(const parser::AccClause::Copy &x) {
     ResolveAccObjectList(x.v, Symbol::Flag::AccCopyIn);
     ResolveAccObjectList(x.v, Symbol::Flag::AccCopyOut);
@@ -222,6 +225,8 @@ private:
       const parser::Name &, const Symbol &, Symbol::Flag);
   void AllowOnlyArrayAndSubArray(const parser::AccObjectList &objectList);
   void DoNotAllowAssumedSizedArray(const parser::AccObjectList &objectList);
+  void EnsureAllocatableOrPointer(
+      const llvm::acc::Clause clause, const parser::AccObjectList &objectList);
 };
 
 // Data-sharing and Data-mapping attributes for data-refs in OpenMP construct
@@ -288,10 +293,15 @@ public:
 
   bool Pre(const parser::OpenMPBlockConstruct &);
   void Post(const parser::OpenMPBlockConstruct &);
+  bool Pre(const parser::OmpCriticalDirective &x);
+  bool Pre(const parser::OmpEndCriticalDirective &x);
 
   void Post(const parser::OmpBeginBlockDirective &) {
     GetContext().withinConstruct = true;
   }
+
+  bool Pre(const parser::OpenMPSimpleStandaloneConstruct &);
+  void Post(const parser::OpenMPSimpleStandaloneConstruct &) { PopContext(); }
 
   bool Pre(const parser::OpenMPLoopConstruct &);
   void Post(const parser::OpenMPLoopConstruct &) { PopContext(); }
@@ -402,6 +412,25 @@ public:
     ResolveOmpNameList(alignedNameList, Symbol::Flag::OmpAligned);
     return false;
   }
+
+  bool Pre(const parser::OmpClause::Nontemporal &x) {
+    const auto &nontemporalNameList{x.v};
+    ResolveOmpNameList(nontemporalNameList, Symbol::Flag::OmpNontemporal);
+    return false;
+  }
+
+  bool Pre(const parser::OmpDependClause &x) {
+    if (const auto *dependSink{
+            std::get_if<parser::OmpDependClause::Sink>(&x.u)}) {
+      const auto &dependSinkVec{dependSink->v};
+      for (const auto &dependSinkElement : dependSinkVec) {
+        const auto &name{std::get<parser::Name>(dependSinkElement.t)};
+        ResolveName(&name);
+      }
+    }
+    return false;
+  }
+
   void Post(const parser::Name &);
 
   // Keep track of labels in the statements that causes jumps to target labels
@@ -449,7 +478,7 @@ private:
   static constexpr Symbol::Flags ompFlagsRequireNewSymbol{
       Symbol::Flag::OmpPrivate, Symbol::Flag::OmpLinear,
       Symbol::Flag::OmpFirstPrivate, Symbol::Flag::OmpLastPrivate,
-      Symbol::Flag::OmpReduction};
+      Symbol::Flag::OmpReduction, Symbol::Flag::OmpCriticalLock};
 
   static constexpr Symbol::Flags ompFlagsRequireMark{
       Symbol::Flag::OmpThreadprivate};
@@ -689,20 +718,22 @@ Symbol *AccAttributeVisitor::ResolveName(const parser::Name &name) {
 bool AccAttributeVisitor::Pre(const parser::OpenACCRoutineConstruct &x) {
   const auto &optName{std::get<std::optional<parser::Name>>(x.t)};
   if (optName) {
-    if (!ResolveName(*optName))
+    if (!ResolveName(*optName)) {
       context_.Say((*optName).source,
           "No function or subroutine declared for '%s'"_err_en_US,
           (*optName).source);
+    }
   }
   return true;
 }
 
 bool AccAttributeVisitor::Pre(const parser::AccBindClause &x) {
   if (const auto *name{std::get_if<parser::Name>(&x.u)}) {
-    if (!ResolveName(*name))
+    if (!ResolveName(*name)) {
       context_.Say(name->source,
           "No function or subroutine declared for '%s'"_err_en_US,
           name->source);
+    }
   }
   return true;
 }
@@ -745,13 +776,14 @@ void AccAttributeVisitor::AllowOnlyArrayAndSubArray(
     std::visit(
         common::visitors{
             [&](const parser::Designator &designator) {
-              if (!IsLastNameArray(designator))
+              if (!IsLastNameArray(designator)) {
                 context_.Say(designator.source,
                     "Only array element or subarray are allowed in %s directive"_err_en_US,
                     parser::ToUpperCaseLetters(
                         llvm::acc::getOpenACCDirectiveName(
                             GetContext().directive)
                             .str()));
+              }
             },
             [&](const auto &name) {
               context_.Say(name.source,
@@ -772,7 +804,7 @@ void AccAttributeVisitor::DoNotAllowAssumedSizedArray(
         common::visitors{
             [&](const parser::Designator &designator) {
               const auto &name{GetLastName(designator)};
-              if (name.symbol && semantics::IsAssumedSizeArray(*name.symbol))
+              if (name.symbol && semantics::IsAssumedSizeArray(*name.symbol)) {
                 context_.Say(designator.source,
                     "Assumed-size dummy arrays may not appear on the %s "
                     "directive"_err_en_US,
@@ -780,6 +812,7 @@ void AccAttributeVisitor::DoNotAllowAssumedSizedArray(
                         llvm::acc::getOpenACCDirectiveName(
                             GetContext().directive)
                             .str()));
+              }
             },
             [&](const auto &name) {
 
@@ -847,6 +880,46 @@ void AccAttributeVisitor::PrivatizeAssociatedLoopIndex(
     loop = it != block.end() ? GetDoConstructIf(*it) : nullptr;
   }
   CHECK(level == 0);
+}
+
+void AccAttributeVisitor::EnsureAllocatableOrPointer(
+    const llvm::acc::Clause clause, const parser::AccObjectList &objectList) {
+  for (const auto &accObject : objectList.v) {
+    std::visit(
+        common::visitors{
+            [&](const parser::Designator &designator) {
+              const auto &lastName{GetLastName(designator)};
+              if (!IsAllocatableOrPointer(*lastName.symbol)) {
+                context_.Say(designator.source,
+                    "Argument `%s` on the %s clause must be a variable or "
+                    "array with the POINTER or ALLOCATABLE attribute"_err_en_US,
+                    lastName.symbol->name(),
+                    parser::ToUpperCaseLetters(
+                        llvm::acc::getOpenACCClauseName(clause).str()));
+              }
+            },
+            [&](const auto &name) {
+              context_.Say(name.source,
+                  "Argument on the %s clause must be a variable or "
+                  "array with the POINTER or ALLOCATABLE attribute"_err_en_US,
+                  parser::ToUpperCaseLetters(
+                      llvm::acc::getOpenACCClauseName(clause).str()));
+            },
+        },
+        accObject.u);
+  }
+}
+
+bool AccAttributeVisitor::Pre(const parser::AccClause::Attach &x) {
+  // Restriction - line 1708-1709
+  EnsureAllocatableOrPointer(llvm::acc::Clause::ACCC_attach, x.v);
+  return true;
+}
+
+bool AccAttributeVisitor::Pre(const parser::AccClause::Detach &x) {
+  // Restriction - line 1715-1717
+  EnsureAllocatableOrPointer(llvm::acc::Clause::ACCC_detach, x.v);
+  return true;
 }
 
 void AccAttributeVisitor::Post(const parser::AccDefaultClause &x) {
@@ -1020,12 +1093,12 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPBlockConstruct &x) {
   case llvm::omp::Directive::OMPD_target:
   case llvm::omp::Directive::OMPD_target_data:
   case llvm::omp::Directive::OMPD_task:
+  case llvm::omp::Directive::OMPD_taskgroup:
   case llvm::omp::Directive::OMPD_teams:
   case llvm::omp::Directive::OMPD_workshare:
   case llvm::omp::Directive::OMPD_parallel_workshare:
   case llvm::omp::Directive::OMPD_target_teams:
   case llvm::omp::Directive::OMPD_target_parallel:
-  case llvm::omp::Directive::OMPD_taskgroup:
     PushContext(beginDir.source, beginDir.v);
     break;
   default:
@@ -1074,6 +1147,27 @@ void OmpAttributeVisitor::Post(const parser::OpenMPBlockConstruct &x) {
     break;
   }
   PopContext();
+}
+
+bool OmpAttributeVisitor::Pre(
+    const parser::OpenMPSimpleStandaloneConstruct &x) {
+  const auto &standaloneDir{
+      std::get<parser::OmpSimpleStandaloneDirective>(x.t)};
+  switch (standaloneDir.v) {
+  case llvm::omp::Directive::OMPD_barrier:
+  case llvm::omp::Directive::OMPD_ordered:
+  case llvm::omp::Directive::OMPD_target_enter_data:
+  case llvm::omp::Directive::OMPD_target_exit_data:
+  case llvm::omp::Directive::OMPD_target_update:
+  case llvm::omp::Directive::OMPD_taskwait:
+  case llvm::omp::Directive::OMPD_taskyield:
+    PushContext(standaloneDir.source, standaloneDir.v);
+    break;
+  default:
+    break;
+  }
+  ClearDataSharingAttributeObjects();
+  return true;
 }
 
 bool OmpAttributeVisitor::Pre(const parser::OpenMPLoopConstruct &x) {
@@ -1282,6 +1376,22 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPSectionsConstruct &x) {
   return true;
 }
 
+bool OmpAttributeVisitor::Pre(const parser::OmpCriticalDirective &x) {
+  const auto &name{std::get<std::optional<parser::Name>>(x.t)};
+  if (name) {
+    ResolveOmpName(*name, Symbol::Flag::OmpCriticalLock);
+  }
+  return true;
+}
+
+bool OmpAttributeVisitor::Pre(const parser::OmpEndCriticalDirective &x) {
+  const auto &name{std::get<std::optional<parser::Name>>(x.t)};
+  if (name) {
+    ResolveOmpName(*name, Symbol::Flag::OmpCriticalLock);
+  }
+  return true;
+}
+
 bool OmpAttributeVisitor::Pre(const parser::OpenMPCriticalConstruct &x) {
   const auto &criticalDir{std::get<parser::OmpCriticalDirective>(x.t)};
   PushContext(criticalDir.source, llvm::omp::Directive::OMPD_critical);
@@ -1298,15 +1408,16 @@ bool OmpAttributeVisitor::Pre(const parser::OpenMPThreadprivate &x) {
 bool OmpAttributeVisitor::Pre(const parser::OpenMPDeclarativeAllocate &x) {
   PushContext(x.source, llvm::omp::Directive::OMPD_allocate);
   const auto &list{std::get<parser::OmpObjectList>(x.t)};
-  ResolveOmpObjectList(list, Symbol::Flag::OmpAllocateDirective);
+  ResolveOmpObjectList(list, Symbol::Flag::OmpDeclarativeAllocateDirective);
   return false;
 }
 
 bool OmpAttributeVisitor::Pre(const parser::OpenMPExecutableAllocate &x) {
   PushContext(x.source, llvm::omp::Directive::OMPD_allocate);
   const auto &list{std::get<std::optional<parser::OmpObjectList>>(x.t)};
-  if (list)
-    ResolveOmpObjectList(*list, Symbol::Flag::OmpAllocateDirective);
+  if (list) {
+    ResolveOmpObjectList(*list, Symbol::Flag::OmpExecutableAllocateDirective);
+  }
   return true;
 }
 
@@ -1332,8 +1443,9 @@ void OmpAttributeVisitor::Post(const parser::OmpDefaultClause &x) {
 bool OmpAttributeVisitor::IsNestedInDirective(llvm::omp::Directive directive) {
   if (dirContext_.size() >= 1) {
     for (std::size_t i = dirContext_.size() - 1; i > 0; --i) {
-      if (dirContext_[i - 1].directive == directive)
+      if (dirContext_[i - 1].directive == directive) {
         return true;
+      }
     }
   }
   return false;
@@ -1345,17 +1457,19 @@ void OmpAttributeVisitor::Post(const parser::OpenMPExecutableAllocate &x) {
   // parser::Unwrap instead of the following loop
   const auto &clauseList{std::get<parser::OmpClauseList>(x.t)};
   for (const auto &clause : clauseList.v) {
-    if (std::get_if<parser::OmpClause::Allocator>(&clause.u))
+    if (std::get_if<parser::OmpClause::Allocator>(&clause.u)) {
       hasAllocator = true;
+    }
   }
 
-  if (IsNestedInDirective(llvm::omp::Directive::OMPD_target) && !hasAllocator)
+  if (IsNestedInDirective(llvm::omp::Directive::OMPD_target) && !hasAllocator) {
     // TODO: expand this check to exclude the case when a requires
     //       directive with the dynamic_allocators clause is present
     //       in the same compilation unit (OMP5.0 2.11.3).
     context_.Say(x.source,
         "ALLOCATE directives that appear in a TARGET region "
         "must specify an allocator clause"_err_en_US);
+  }
   PopContext();
 }
 
@@ -1401,6 +1515,13 @@ void OmpAttributeVisitor::ResolveOmpName(
         AddToContextObjectWithDSA(*resolvedSymbol, ompFlag);
       }
     }
+  } else if (ompFlagsRequireNewSymbol.test(ompFlag)) {
+    const auto pair{GetContext().scope.try_emplace(
+        name.source, Attrs{}, ObjectEntityDetails{})};
+    CHECK(pair.second);
+    name.symbol = &pair.first->second.get();
+  } else {
+    DIE("OpenMP Name resolution failed");
   }
 }
 
@@ -1482,7 +1603,16 @@ void OmpAttributeVisitor::ResolveOmpObject(
                     AddAllocateName(name);
                   }
                 }
-                if (ompFlag == Symbol::Flag::OmpAllocateDirective &&
+                if (ompFlag == Symbol::Flag::OmpDeclarativeAllocateDirective &&
+                    IsAllocatable(*symbol)) {
+                  context_.Say(designator.source,
+                      "List items specified in the ALLOCATE directive must not "
+                      "have the ALLOCATABLE attribute unless the directive is "
+                      "associated with an ALLOCATE statement"_err_en_US);
+                }
+                if ((ompFlag == Symbol::Flag::OmpDeclarativeAllocateDirective ||
+                        ompFlag ==
+                            Symbol::Flag::OmpExecutableAllocateDirective) &&
                     ResolveOmpObjectScope(name) == nullptr) {
                   context_.Say(designator.source, // 2.15.3
                       "List items must be declared in the same scoping unit "
@@ -1622,16 +1752,18 @@ void ResolveOmpParts(
 void OmpAttributeVisitor::CheckDataCopyingClause(
     const parser::Name &name, const Symbol &symbol, Symbol::Flag ompFlag) {
   const auto *checkSymbol{&symbol};
-  if (const auto *details{symbol.detailsIf<HostAssocDetails>()})
+  if (const auto *details{symbol.detailsIf<HostAssocDetails>()}) {
     checkSymbol = &details->symbol();
+  }
 
   if (ompFlag == Symbol::Flag::OmpCopyIn) {
     // List of items/objects that can appear in a 'copyin' clause must be
     // 'threadprivate'
-    if (!checkSymbol->test(Symbol::Flag::OmpThreadprivate))
+    if (!checkSymbol->test(Symbol::Flag::OmpThreadprivate)) {
       context_.Say(name.source,
           "Non-THREADPRIVATE object '%s' in COPYIN clause"_err_en_US,
           checkSymbol->name());
+    }
   } else if (ompFlag == Symbol::Flag::OmpCopyPrivate &&
       GetContext().directive == llvm::omp::Directive::OMPD_single) {
     // A list item that appears in a 'copyprivate' clause may not appear on a
@@ -1662,10 +1794,11 @@ void OmpAttributeVisitor::CheckPrivateDSAObject(
     const parser::Name &name, const Symbol &symbol, Symbol::Flag ompFlag) {
   const auto &ultimateSymbol{symbol.GetUltimate()};
   llvm::StringRef clauseName{"PRIVATE"};
-  if (ompFlag == Symbol::Flag::OmpFirstPrivate)
+  if (ompFlag == Symbol::Flag::OmpFirstPrivate) {
     clauseName = "FIRSTPRIVATE";
-  else if (ompFlag == Symbol::Flag::OmpLastPrivate)
+  } else if (ompFlag == Symbol::Flag::OmpLastPrivate) {
     clauseName = "LASTPRIVATE";
+  }
 
   if (ultimateSymbol.test(Symbol::Flag::InNamelist)) {
     context_.Say(name.source,

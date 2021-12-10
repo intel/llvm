@@ -1,4 +1,4 @@
-//===-- runtime/io-api.cpp --------------------------------------*- C++ -*-===//
+//===-- runtime/io-api.cpp ------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -8,18 +8,18 @@
 
 // Implements the I/O statement API
 
-#include "io-api.h"
+#include "flang/Runtime/io-api.h"
 #include "descriptor-io.h"
-#include "descriptor.h"
 #include "edit-input.h"
 #include "edit-output.h"
 #include "environment.h"
 #include "format.h"
 #include "io-stmt.h"
-#include "memory.h"
 #include "terminator.h"
 #include "tools.h"
 #include "unit.h"
+#include "flang/Runtime/descriptor.h"
+#include "flang/Runtime/memory.h"
 #include <cstdlib>
 #include <memory>
 
@@ -156,22 +156,29 @@ Cookie BeginExternalListIO(const char *what, int unitNumber,
   }
   ExternalFileUnit &unit{ExternalFileUnit::LookUpOrCreateAnonymous(
       unitNumber, DIR, false /*!unformatted*/, terminator)};
-  if (unit.access == Access::Direct) {
-    terminator.Crash("%s attempted on direct access file", what);
-    return nullptr;
+  if (ChildIo * child{unit.GetChildIo()}) {
+    return child->CheckFormattingAndDirection(terminator, what, false, DIR)
+        ? &child->BeginIoStatement<ChildListIoStatementState<DIR>>(
+              *child, sourceFile, sourceLine)
+        : nullptr;
+  } else {
+    if (unit.access == Access::Direct) {
+      terminator.Crash("%s attempted on direct access file", what);
+      return nullptr;
+    }
+    if (!unit.isUnformatted.has_value()) {
+      unit.isUnformatted = false;
+    }
+    if (*unit.isUnformatted) {
+      terminator.Crash("%s attempted on unformatted file", what);
+      return nullptr;
+    }
+    IoErrorHandler handler{terminator};
+    unit.SetDirection(DIR, handler);
+    IoStatementState &io{unit.BeginIoStatement<STATE<DIR>>(
+        std::forward<A>(xs)..., unit, sourceFile, sourceLine)};
+    return &io;
   }
-  if (!unit.isUnformatted.has_value()) {
-    unit.isUnformatted = false;
-  }
-  if (*unit.isUnformatted) {
-    terminator.Crash("%s attempted on unformatted file", what);
-    return nullptr;
-  }
-  IoErrorHandler handler{terminator};
-  unit.SetDirection(DIR, handler);
-  IoStatementState &io{unit.BeginIoStatement<STATE<DIR>>(
-      std::forward<A>(xs)..., unit, sourceFile, sourceLine)};
-  return &io;
 }
 
 Cookie IONAME(BeginExternalListOutput)(
@@ -195,19 +202,29 @@ Cookie BeginExternalFormattedIO(const char *format, std::size_t formatLength,
   }
   ExternalFileUnit &unit{ExternalFileUnit::LookUpOrCreateAnonymous(
       unitNumber, DIR, false /*!unformatted*/, terminator)};
-  if (!unit.isUnformatted.has_value()) {
-    unit.isUnformatted = false;
+  if (ChildIo * child{unit.GetChildIo()}) {
+    return child->CheckFormattingAndDirection(terminator,
+               DIR == Direction::Output ? "formatted output"
+                                        : "formatted input",
+               false, DIR)
+        ? &child->BeginIoStatement<ChildFormattedIoStatementState<DIR>>(
+              *child, sourceFile, sourceLine)
+        : nullptr;
+  } else {
+    if (!unit.isUnformatted.has_value()) {
+      unit.isUnformatted = false;
+    }
+    if (*unit.isUnformatted) {
+      terminator.Crash("Formatted I/O attempted on unformatted file");
+      return nullptr;
+    }
+    IoErrorHandler handler{terminator};
+    unit.SetDirection(DIR, handler);
+    IoStatementState &io{
+        unit.BeginIoStatement<ExternalFormattedIoStatementState<DIR>>(
+            unit, format, formatLength, sourceFile, sourceLine)};
+    return &io;
   }
-  if (*unit.isUnformatted) {
-    terminator.Crash("Formatted I/O attempted on unformatted file");
-    return nullptr;
-  }
-  IoErrorHandler handler{terminator};
-  unit.SetDirection(DIR, handler);
-  IoStatementState &io{
-      unit.BeginIoStatement<ExternalFormattedIoStatementState<DIR>>(
-          unit, format, formatLength, sourceFile, sourceLine)};
-  return &io;
 }
 
 Cookie IONAME(BeginExternalFormattedOutput)(const char *format,
@@ -230,25 +247,36 @@ Cookie BeginUnformattedIO(
   Terminator terminator{sourceFile, sourceLine};
   ExternalFileUnit &unit{ExternalFileUnit::LookUpOrCreateAnonymous(
       unitNumber, DIR, true /*unformatted*/, terminator)};
-  if (!unit.isUnformatted.has_value()) {
-    unit.isUnformatted = true;
-  }
-  if (!*unit.isUnformatted) {
-    terminator.Crash("Unformatted I/O attempted on formatted file");
-  }
-  IoStatementState &io{unit.BeginIoStatement<UnformattedIoStatementState<DIR>>(
-      unit, sourceFile, sourceLine)};
-  IoErrorHandler handler{terminator};
-  unit.SetDirection(DIR, handler);
-  if constexpr (DIR == Direction::Output) {
-    if (unit.access == Access::Sequential && !unit.isFixedRecordLength) {
-      // Create space for (sub)record header to be completed by
-      // UnformattedIoStatementState<Direction::Output>::EndIoStatement()
-      unit.recordLength.reset(); // in case of prior BACKSPACE
-      io.Emit("\0\0\0\0", 4); // placeholder for record length header
+  if (ChildIo * child{unit.GetChildIo()}) {
+    return child->CheckFormattingAndDirection(terminator,
+               DIR == Direction::Output ? "unformatted output"
+                                        : "unformatted input",
+               true, DIR)
+        ? &child->BeginIoStatement<ChildUnformattedIoStatementState<DIR>>(
+              *child, sourceFile, sourceLine)
+        : nullptr;
+  } else {
+    if (!unit.isUnformatted.has_value()) {
+      unit.isUnformatted = true;
     }
+    if (!*unit.isUnformatted) {
+      terminator.Crash("Unformatted I/O attempted on formatted file");
+    }
+    IoStatementState &io{
+        unit.BeginIoStatement<ExternalUnformattedIoStatementState<DIR>>(
+            unit, sourceFile, sourceLine)};
+    IoErrorHandler handler{terminator};
+    unit.SetDirection(DIR, handler);
+    if constexpr (DIR == Direction::Output) {
+      if (unit.access == Access::Sequential) {
+        // Create space for (sub)record header to be completed by
+        // ExternalFileUnit::AdvanceRecord()
+        unit.recordLength.reset(); // in case of prior BACKSPACE
+        io.Emit("\0\0\0\0", 4); // placeholder for record length header
+      }
+    }
+    return &io;
   }
-  return &io;
 }
 
 Cookie IONAME(BeginUnformattedOutput)(
@@ -276,9 +304,7 @@ Cookie IONAME(BeginOpenUnit)( // OPEN(without NEWUNIT=)
 Cookie IONAME(BeginOpenNewUnit)( // OPEN(NEWUNIT=j)
     const char *sourceFile, int sourceLine) {
   Terminator terminator{sourceFile, sourceLine};
-  bool ignored{false};
-  ExternalFileUnit &unit{ExternalFileUnit::LookUpOrCreate(
-      ExternalFileUnit::NewUnit(terminator), terminator, ignored)};
+  ExternalFileUnit &unit{ExternalFileUnit::NewUnit(terminator)};
   return &unit.BeginIoStatement<OpenStatementState>(
       unit, false /*was an existing file*/, sourceFile, sourceLine);
 }
@@ -411,12 +437,13 @@ static bool YesOrNo(const char *keyword, std::size_t length, const char *what,
 bool IONAME(SetAdvance)(
     Cookie cookie, const char *keyword, std::size_t length) {
   IoStatementState &io{*cookie};
-  ConnectionState &connection{io.GetConnectionState()};
-  connection.nonAdvancing =
-      !YesOrNo(keyword, length, "ADVANCE", io.GetIoErrorHandler());
-  if (connection.nonAdvancing && connection.access == Access::Direct) {
+  bool nonAdvancing{
+      !YesOrNo(keyword, length, "ADVANCE", io.GetIoErrorHandler())};
+  if (nonAdvancing && io.GetConnectionState().access == Access::Direct) {
     io.GetIoErrorHandler().SignalError(
         "Non-advancing I/O attempted on direct access file");
+  } else {
+    io.mutableModes().nonAdvancing = nonAdvancing;
   }
   return true;
 }
@@ -516,7 +543,7 @@ bool IONAME(SetRec)(Cookie cookie, std::int64_t rec) {
         "REC= may not appear unless ACCESS='DIRECT'");
     return false;
   }
-  if (!connection.isFixedRecordLength || !connection.recordLength) {
+  if (!connection.openRecl) {
     io.GetIoErrorHandler().SignalError("RECL= was not specified");
     return false;
   }
@@ -527,7 +554,7 @@ bool IONAME(SetRec)(Cookie cookie, std::int64_t rec) {
   }
   connection.currentRecordNumber = rec;
   if (auto *unit{io.GetExternalFileUnit()}) {
-    unit->SetPosition((rec - 1) * *connection.recordLength);
+    unit->SetPosition((rec - 1) * *connection.openRecl);
   }
   return true;
 }
@@ -800,12 +827,11 @@ bool IONAME(SetRecl)(Cookie cookie, std::size_t n) {
   if (n <= 0) {
     io.GetIoErrorHandler().SignalError("RECL= must be greater than zero");
   }
-  if (open->wasExtant() && open->unit().isFixedRecordLength &&
-      open->unit().recordLength.value_or(n) != static_cast<std::int64_t>(n)) {
+  if (open->wasExtant() &&
+      open->unit().openRecl.value_or(n) != static_cast<std::int64_t>(n)) {
     open->SignalError("RECL= may not be changed for an open unit");
   }
-  open->unit().isFixedRecordLength = true;
-  open->unit().recordLength = n;
+  open->unit().openRecl = n;
   return true;
 }
 
@@ -895,8 +921,11 @@ bool IONAME(InputDescriptor)(Cookie cookie, const Descriptor &descriptor) {
 bool IONAME(OutputUnformattedBlock)(Cookie cookie, const char *x,
     std::size_t length, std::size_t elementBytes) {
   IoStatementState &io{*cookie};
-  if (auto *unf{io.get_if<UnformattedIoStatementState<Direction::Output>>()}) {
+  if (auto *unf{io.get_if<
+          ExternalUnformattedIoStatementState<Direction::Output>>()}) {
     return unf->Emit(x, length, elementBytes);
+  } else if (auto *inq{io.get_if<InquireIOLengthState>()}) {
+    return inq->Emit(x, length, elementBytes);
   }
   io.GetIoErrorHandler().Crash("OutputUnformattedBlock() called for an I/O "
                                "statement that is not unformatted output");
@@ -910,7 +939,8 @@ bool IONAME(InputUnformattedBlock)(
   if (io.GetIoErrorHandler().InError()) {
     return false;
   }
-  if (auto *unf{io.get_if<UnformattedIoStatementState<Direction::Input>>()}) {
+  if (auto *unf{
+          io.get_if<ExternalUnformattedIoStatementState<Direction::Input>>()}) {
     return unf->Receive(x, length, elementBytes);
   }
   io.GetIoErrorHandler().Crash("InputUnformattedBlock() called for an I/O "
@@ -918,14 +948,52 @@ bool IONAME(InputUnformattedBlock)(
   return false;
 }
 
+bool IONAME(OutputInteger8)(Cookie cookie, std::int8_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger8");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 1, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
+bool IONAME(OutputInteger16)(Cookie cookie, std::int16_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger16");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 2, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
+bool IONAME(OutputInteger32)(Cookie cookie, std::int32_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger32");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 4, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+
 bool IONAME(OutputInteger64)(Cookie cookie, std::int64_t n) {
   cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger64");
   StaticDescriptor staticDescriptor;
   Descriptor &descriptor{staticDescriptor.descriptor()};
   descriptor.Establish(
-      TypeCategory::Integer, sizeof n, reinterpret_cast<void *>(&n), 0);
+      TypeCategory::Integer, 8, reinterpret_cast<void *>(&n), 0);
   return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
 }
+
+#ifdef __SIZEOF_INT128__
+bool IONAME(OutputInteger128)(Cookie cookie, common::int128_t n) {
+  cookie->CheckFormattedStmtType<Direction::Output>("OutputInteger128");
+  StaticDescriptor staticDescriptor;
+  Descriptor &descriptor{staticDescriptor.descriptor()};
+  descriptor.Establish(
+      TypeCategory::Integer, 16, reinterpret_cast<void *>(&n), 0);
+  return descr::DescriptorIO<Direction::Output>(*cookie, descriptor);
+}
+#endif
 
 bool IONAME(InputInteger)(Cookie cookie, std::int64_t &n, int kind) {
   cookie->CheckFormattedStmtType<Direction::Input>("InputInteger");
@@ -1049,6 +1117,27 @@ bool IONAME(InputLogical)(Cookie cookie, bool &truth) {
   descriptor.Establish(
       TypeCategory::Logical, sizeof truth, reinterpret_cast<void *>(&truth), 0);
   return descr::DescriptorIO<Direction::Input>(*cookie, descriptor);
+}
+
+std::size_t IONAME(GetSize)(Cookie cookie) {
+  IoStatementState &io{*cookie};
+  if (const auto *formatted{
+          io.get_if<FormattedIoStatementState<Direction::Input>>()}) {
+    return formatted->GetEditDescriptorChars();
+  }
+  io.GetIoErrorHandler().Crash(
+      "GetIoSize() called for an I/O statement that is not a formatted READ()");
+  return 0;
+}
+
+std::size_t IONAME(GetIoLength)(Cookie cookie) {
+  IoStatementState &io{*cookie};
+  if (const auto *inq{io.get_if<InquireIOLengthState>()}) {
+    return inq->bytes();
+  }
+  io.GetIoErrorHandler().Crash("GetIoLength() called for an I/O statement that "
+                               "is not INQUIRE(IOLENGTH=)");
+  return 0;
 }
 
 void IONAME(GetIoMsg)(Cookie cookie, char *msg, std::size_t length) {

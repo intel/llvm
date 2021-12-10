@@ -9,6 +9,7 @@ add_llvm_library(LLVMSPIRVLib
   OCLTypeToSPIRV.cpp
   OCLUtil.cpp
   VectorComputeUtil.cpp
+  SPIRVLowerBitCastToNonStandardType.cpp
   SPIRVLowerBool.cpp
   SPIRVLowerConstExpr.cpp
   SPIRVLowerMemmove.cpp
@@ -39,6 +40,7 @@ add_llvm_library(LLVMSPIRVLib
     Analysis
     BitWriter
     Core
+    Demangle
     IRReader
     Linker
     Support
@@ -51,6 +53,10 @@ target_include_directories(LLVMSPIRVLib
   PRIVATE
     ${LLVM_INCLUDE_DIRS}
     ${LLVM_SPIRV_INCLUDE_DIRS}
+    # TODO: Consider using SPIRV-Headers' as a header-only INTERFACE
+    # instead. Right now this runs into exporting issues with
+    # the LLVM in-tree builds.
+    ${LLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/libSPIRV
     ${CMAKE_CURRENT_SOURCE_DIR}/Mangler

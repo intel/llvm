@@ -587,7 +587,7 @@ static void dumpDot(const Function &F, const Twine &Suff) {
   std::error_code EC;
   auto FName =
       ("PFWG_Kernel_" + Suff + "_" + Twine(F.getValueID()) + ".dot").str();
-  raw_fd_ostream File(FName, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FName, EC, sys::fs::OF_Text);
 
   if (!EC)
     WriteGraph(File, (const Function *)&F, false);
@@ -599,7 +599,7 @@ static void dumpIR(const Function &F, const Twine &Suff) {
   std::error_code EC;
   auto FName =
       ("PFWG_Kernel_" + Suff + "_" + Twine(F.getValueID()) + ".ll").str();
-  raw_fd_ostream File(FName, EC, sys::fs::F_Text);
+  raw_fd_ostream File(FName, EC, sys::fs::OF_Text);
 
   if (!EC)
     F.print(File, 0, 1, 1);
@@ -622,8 +622,10 @@ using CaptureDesc = std::pair<AllocaInst *, GetElementPtrInst *>;
 //
 static void fixupPrivateMemoryPFWILambdaCaptures(CallInst *PFWICall) {
   // Lambda object is always the last argument to the PFWI lambda function:
-  auto NArgs = PFWICall->getNumArgOperands();
-  assert(PFWICall->getNumArgOperands() > 1 && "invalid PFWI call");
+  auto NArgs = PFWICall->arg_size();
+  if (PFWICall->arg_size() == 1)
+    return;
+
   Value *LambdaObj =
       PFWICall->getArgOperand(NArgs - 1 /*lambda object parameter*/);
   // First go through all stores through the LambdaObj pointer - those are
@@ -912,7 +914,7 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Return a value equals to 0 if and only if the local linear id is 0.
 Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX()) {
+  if (TT.isNVPTX() || TT.isAMDGCN()) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 
@@ -978,8 +980,7 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
   Type *RetTy = Type::getVoidTy(Ctx);
 
   AttributeList Attr;
-  Attr = Attr.addAttribute(Ctx, AttributeList::FunctionIndex,
-                           Attribute::Convergent);
+  Attr = Attr.addFnAttribute(Ctx, Attribute::Convergent);
   FunctionCallee FC =
       M.getOrInsertFunction(Name, Attr, RetTy, ScopeTy, ScopeTy, SemanticsTy);
   assert(FC.getCallee() && "spirv intrinsic creation failed");
@@ -992,7 +993,6 @@ Instruction *spirv::genWGBarrier(Instruction &Before, const Triple &TT) {
       ScopeTy, asUInt(spirv::MemorySemantics::SequentiallyConsistent) |
                    asUInt(spirv::MemorySemantics::WorkgroupMemory));
   auto BarrierCall = Bld.CreateCall(FC, {ArgExec, ArgMem, ArgSema});
-  BarrierCall->addAttribute(llvm::AttributeList::FunctionIndex,
-                            llvm::Attribute::Convergent);
+  BarrierCall->addFnAttr(llvm::Attribute::Convergent);
   return BarrierCall;
 }

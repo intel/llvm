@@ -12,6 +12,7 @@
 
 #include <__config>
 #include <__iterator/iterator_traits.h>
+#include <__utility/forward.h>
 #include <concepts> // __class_or_enum
 #include <type_traits>
 #include <utility>
@@ -19,9 +20,6 @@
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #pragma GCC system_header
 #endif
-
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -45,7 +43,7 @@ struct __fn {
   // well-formed expression when treated as an unevaluated operand, [...]
   template<class _Ip>
     requires __class_or_enum<remove_cvref_t<_Ip>> && __unqualified_iter_move<_Ip>
-  [[nodiscard]] constexpr decltype(auto) operator()(_Ip&& __i) const
+  [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr decltype(auto) operator()(_Ip&& __i) const
     noexcept(noexcept(iter_move(_VSTD::forward<_Ip>(__i))))
   {
     return iter_move(_VSTD::forward<_Ip>(__i));
@@ -58,7 +56,7 @@ struct __fn {
   template<class _Ip>
     requires (!(__class_or_enum<remove_cvref_t<_Ip>> && __unqualified_iter_move<_Ip>)) &&
     requires(_Ip&& __i) { *_VSTD::forward<_Ip>(__i); }
-  [[nodiscard]] constexpr decltype(auto) operator()(_Ip&& __i) const
+  [[nodiscard]] _LIBCPP_HIDE_FROM_ABI constexpr decltype(auto) operator()(_Ip&& __i) const
     noexcept(noexcept(*_VSTD::forward<_Ip>(__i)))
   {
     if constexpr (is_lvalue_reference_v<decltype(*_VSTD::forward<_Ip>(__i))>) {
@@ -84,7 +82,5 @@ using iter_rvalue_reference_t = decltype(ranges::iter_move(declval<_Tp&>()));
 #endif // !_LIBCPP_HAS_NO_RANGES
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ITERATOR_ITER_MOVE_H

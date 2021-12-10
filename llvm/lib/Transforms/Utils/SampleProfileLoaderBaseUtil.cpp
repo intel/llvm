@@ -34,6 +34,10 @@ cl::opt<bool> NoWarnSampleUnused(
     cl::desc("Use this option to turn off/on warnings about function with "
              "samples but without debug information to use those samples. "));
 
+cl::opt<bool> SampleProfileUseProfi(
+    "sample-profile-use-profi", cl::init(false), cl::Hidden, cl::ZeroOrMore,
+    cl::desc("Use profi to infer block and edge counts."));
+
 namespace sampleprofutil {
 
 /// Return true if the given callsite is hot wrt to hot cutoff threshold.
@@ -157,6 +161,20 @@ unsigned SampleCoverageTracker::computeCoverage(unsigned Used,
   assert(Used <= Total &&
          "number of used records cannot exceed the total number of records");
   return Total > 0 ? Used * 100 / Total : 100;
+}
+
+/// Create a global variable to flag FSDiscriminators are used.
+void createFSDiscriminatorVariable(Module *M) {
+  const char *FSDiscriminatorVar = "__llvm_fs_discriminator__";
+  if (M->getGlobalVariable(FSDiscriminatorVar))
+    return;
+
+  auto &Context = M->getContext();
+  // Place this variable to llvm.used so it won't be GC'ed.
+  appendToUsed(*M, {new GlobalVariable(*M, Type::getInt1Ty(Context), true,
+                                       GlobalValue::WeakODRLinkage,
+                                       ConstantInt::getTrue(Context),
+                                       FSDiscriminatorVar)});
 }
 
 } // end of namespace sampleprofutil
