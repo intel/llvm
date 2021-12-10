@@ -15,6 +15,7 @@
 
 // To get the test dialect def.
 include "TestOps.td"
+include "TestAttrDefs.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/Interfaces/DataLayoutInterfaces.td"
 
@@ -61,7 +62,7 @@ def IntegerType : Test_Type<"TestInteger"> {
 
   // We define the printer inline.
   let printer = [{
-    $_printer << "int<";
+    $_printer << "<";
     printSignedness($_printer, getImpl()->signedness);
     $_printer << ", " << getImpl()->width << ">";
   }];
@@ -121,7 +122,7 @@ class FieldInfo_Type<string name> : Test_Type<name> {
   // Prints the type in this format:
   //   struct<[{field1Name, field1Type}, {field2Name, field2Type}]
   let printer = [{
-    $_printer << "struct" << "<";
+    $_printer << "<";
     for (size_t i=0, e = getImpl()->fields.size(); i < e; i++) {
       const auto& field = getImpl()->fields[i];
       $_printer << "{" << field.name << "," << field.type << "}";
@@ -187,6 +188,46 @@ def TestTypeTrait : NativeTypeTrait<"TestTypeTrait">;
 // The definition of a singleton type that has a trait.
 def TestTypeWithTrait : Test_Type<"TestTypeWithTrait", [TestTypeTrait]> {
   let mnemonic = "test_type_with_trait";
+}
+
+// Type with assembly format.
+def TestTypeWithFormat : Test_Type<"TestTypeWithFormat"> {
+  let parameters = (
+    ins
+    TestParamOne:$one,
+    TestParamTwo:$two,
+    "::mlir::Attribute":$three
+  );
+
+  let mnemonic = "type_with_format";
+  let assemblyFormat = "`<` $one `,` struct($three, $two) `>`";
+}
+
+// Test dispatch to parseField
+def TestTypeNoParser : Test_Type<"TestTypeNoParser"> {
+  let parameters = (
+    ins
+    "uint32_t":$one,
+    ArrayRefParameter<"int64_t">:$two,
+    StringRefParameter<>:$three,
+    "::test::CustomParam":$four
+  );
+
+  let mnemonic = "no_parser";
+  let assemblyFormat = "`<` $one `,` `[` $two `]` `,` $three `,` $four `>`";
+}
+
+def TestTypeStructCaptureAll : Test_Type<"TestStructTypeCaptureAll"> {
+  let parameters = (
+    ins
+    "int":$v0,
+    "int":$v1,
+    "int":$v2,
+    "int":$v3
+  );
+
+  let mnemonic = "struct_capture_all";
+  let assemblyFormat = "`<` struct(params) `>`";
 }
 
 #endif // TEST_TYPEDEFS

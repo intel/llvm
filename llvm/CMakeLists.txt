@@ -330,6 +330,7 @@ set(LLVM_ALL_TARGETS
   RISCV
   Sparc
   SystemZ
+  VE
   WebAssembly
   X86
   XCore
@@ -361,6 +362,14 @@ endif()
 
 option(LLVM_ENABLE_CRASH_DUMPS "Turn on memory dumps on crashes. Currently only implemented on Windows." OFF)
 
+set(WINDOWS_PREFER_FORWARD_SLASH_DEFAULT OFF)
+if (MINGW)
+  # Cygwin doesn't identify itself as Windows, and thus gets path::Style::posix
+  # as native path style, regardless of what this is set to.
+  set(WINDOWS_PREFER_FORWARD_SLASH_DEFAULT ON)
+endif()
+option(LLVM_WINDOWS_PREFER_FORWARD_SLASH "Prefer path names with forward slashes on Windows." ${WINDOWS_PREFER_FORWARD_SLASH_DEFAULT})
+
 option(LLVM_ENABLE_FFI "Use libffi to call external functions from the interpreter" OFF)
 set(FFI_LIBRARY_DIR "" CACHE PATH "Additional directory, where CMake should search for libffi.so")
 set(FFI_INCLUDE_DIR "" CACHE PATH "Additional directory, where CMake should search for ffi.h or ffi/ffi.h")
@@ -384,6 +393,8 @@ else()
 endif()
 
 set(LLVM_ENABLE_ZLIB "ON" CACHE STRING "Use zlib for compression/decompression if available. Can be ON, OFF, or FORCE_ON")
+
+set(LLVM_ENABLE_CURL "ON" CACHE STRING "Use libcurl for the HTTP client if available. Can be ON, OFF, or FORCE_ON")
 
 set(LLVM_Z3_INSTALL_DIR "" CACHE STRING "Install directory of the Z3 solver.")
 
@@ -640,6 +651,11 @@ if(CMAKE_CROSSCOMPILING OR (LLVM_OPTIMIZED_TABLEGEN AND (LLVM_ENABLE_ASSERTIONS 
   set(LLVM_USE_HOST_TOOLS ON)
 endif()
 
+option(LLVM_OMIT_DAGISEL_COMMENTS "Do not add comments to DAG ISel" ON)
+if (CMAKE_BUILD_TYPE AND uppercase_CMAKE_BUILD_TYPE MATCHES "^(RELWITHDEBINFO|DEBUG)$")
+  set(LLVM_OMIT_DAGISEL_COMMENTS OFF)
+endif()
+
 if (MSVC_IDE)
   option(LLVM_ADD_NATIVE_VISUALIZERS_TO_SOLUTION "Configure project to use Visual Studio native visualizers" TRUE)
 endif()
@@ -806,7 +822,7 @@ if(LLVM_INCLUDE_TESTS)
 endif()
 
 # For up-to-date instructions for installing the Tensorflow dependency, refer to
-# the bot setup script: https://github.com/google/ml-compiler-opt/blob/master/buildbot/buildbot_init.sh
+# the bot setup script: https://github.com/google/ml-compiler-opt/blob/main/buildbot/buildbot_init.sh
 # In this case, the latest C API library is available for download from
 # https://www.tensorflow.org/install/lang_c.
 # We will expose the conditional compilation variable,
@@ -840,7 +856,7 @@ if (TENSORFLOW_C_LIB_PATH)
 endif()
 
 # For up-to-date instructions for installing the Tensorflow dependency, refer to
-# the bot setup script: https://github.com/google/ml-compiler-opt/blob/master/buildbot/buildbot_init.sh
+# the bot setup script: https://github.com/google/ml-compiler-opt/blob/main/buildbot/buildbot_init.sh
 # Specifically, assuming python3 is installed:
 # python3 -m pip install --upgrade pip && python3 -m pip install --user tf_nightly==2.3.0.dev20200528
 # Then set TENSORFLOW_AOT_PATH to the package install - usually it's ~/.local/lib/python3.7/site-packages/tensorflow
@@ -977,6 +993,11 @@ endif( ${CMAKE_SYSTEM_NAME} MATCHES SunOS )
 # Make sure we don't get -rdynamic in every binary. For those that need it,
 # use export_executable_symbols(target).
 set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
+
+set(LLVM_EXTRACT_SYMBOLS_FLAGS ""
+  CACHE STRING "Additional options to pass to llvm/utils/extract_symbols.py.
+  These cannot override the options set by cmake, but can add extra options
+  such as --tools.")
 
 include(AddLLVM)
 include(TableGen)

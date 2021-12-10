@@ -74,7 +74,7 @@ std::string getLocalScope(const Decl *D) {
   // - Classes, categories, and protocols: "MyClass(Category)"
   if (const ObjCMethodDecl *MD = dyn_cast<ObjCMethodDecl>(DC))
     return printObjCMethod(*MD);
-  else if (const ObjCContainerDecl *CD = dyn_cast<ObjCContainerDecl>(DC))
+  if (const ObjCContainerDecl *CD = dyn_cast<ObjCContainerDecl>(DC))
     return printObjCContainer(*CD);
 
   auto GetName = [](const TypeDecl *D) {
@@ -1058,19 +1058,23 @@ markup::Document HoverInfo::present() const {
     // - `bool param1`
     // - `int param2 = 5`
     Output.addParagraph().appendText("→ ").appendCode(*ReturnType);
-    if (Parameters && !Parameters->empty()) {
-      Output.addParagraph().appendText("Parameters: ");
-      markup::BulletList &L = Output.addBulletList();
-      for (const auto &Param : *Parameters) {
-        std::string Buffer;
-        llvm::raw_string_ostream OS(Buffer);
-        OS << Param;
-        L.addItem().addParagraph().appendCode(std::move(OS.str()));
-      }
-    }
-  } else if (Type) {
-    Output.addParagraph().appendText("Type: ").appendCode(*Type);
   }
+
+  if (Parameters && !Parameters->empty()) {
+    Output.addParagraph().appendText("Parameters: ");
+    markup::BulletList &L = Output.addBulletList();
+    for (const auto &Param : *Parameters) {
+      std::string Buffer;
+      llvm::raw_string_ostream OS(Buffer);
+      OS << Param;
+      L.addItem().addParagraph().appendCode(std::move(OS.str()));
+    }
+  }
+
+  // Don't print Type after Parameters or ReturnType as this will just duplicate
+  // the information
+  if (Type && !ReturnType && !Parameters)
+    Output.addParagraph().appendText("Type: ").appendCode(*Type);
 
   if (Value) {
     markup::Paragraph &P = Output.addParagraph();

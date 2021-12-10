@@ -682,26 +682,6 @@ void MachineInstr::eraseFromParent() {
   getParent()->erase(this);
 }
 
-void MachineInstr::eraseFromParentAndMarkDBGValuesForRemoval() {
-  assert(getParent() && "Not embedded in a basic block!");
-  MachineBasicBlock *MBB = getParent();
-  MachineFunction *MF = MBB->getParent();
-  assert(MF && "Not embedded in a function!");
-
-  MachineInstr *MI = (MachineInstr *)this;
-  MachineRegisterInfo &MRI = MF->getRegInfo();
-
-  for (const MachineOperand &MO : MI->operands()) {
-    if (!MO.isReg() || !MO.isDef())
-      continue;
-    Register Reg = MO.getReg();
-    if (!Reg.isVirtual())
-      continue;
-    MRI.markUsesInDebugValueAsUndef(Reg);
-  }
-  MI->eraseFromParent();
-}
-
 void MachineInstr::eraseFromBundle() {
   assert(getParent() && "Not embedded in a basic block!");
   getParent()->erase_instr(this);
@@ -1490,12 +1470,10 @@ bool MachineInstr::allDefsAreDead() const {
 /// instruction to this instruction.
 void MachineInstr::copyImplicitOps(MachineFunction &MF,
                                    const MachineInstr &MI) {
-  for (unsigned i = MI.getDesc().getNumOperands(), e = MI.getNumOperands();
-       i != e; ++i) {
-    const MachineOperand &MO = MI.getOperand(i);
+  for (const MachineOperand &MO :
+       llvm::drop_begin(MI.operands(), MI.getDesc().getNumOperands()))
     if ((MO.isReg() && MO.isImplicit()) || MO.isRegMask())
       addOperand(MF, MO);
-  }
 }
 
 bool MachineInstr::hasComplexRegisterTies() const {

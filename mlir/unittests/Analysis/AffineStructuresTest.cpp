@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Analysis/AffineStructures.h"
+#include "./AffineStructuresParser.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
 
@@ -98,11 +99,24 @@ static void checkPermutationsSample(bool hasSample, unsigned nDim,
   } while (std::next_permutation(perm.begin(), perm.end()));
 }
 
+/// Parses a FlatAffineConstraints from a StringRef. It is expected that the
+/// string represents a valid IntegerSet, otherwise it will violate a gtest
+/// assertion.
+static FlatAffineConstraints parseFAC(StringRef str, MLIRContext *context) {
+  FailureOr<FlatAffineConstraints> fac = parseIntegerSetToFAC(str, context);
+
+  EXPECT_TRUE(succeeded(fac));
+
+  return *fac;
+}
+
 TEST(FlatAffineConstraintsTest, FindSampleTest) {
   // Bounded sets with only inequalities.
 
+  MLIRContext context;
+
   // 0 <= 7x <= 5
-  checkSample(true, makeFACFromConstraints(1, {{7, 0}, {-7, 5}}, {}));
+  checkSample(true, parseFAC("(x) : (7 * x >= 0, -7 * x + 5 >= 0)", &context));
 
   // 1 <= 5x and 5x <= 4 (no solution).
   checkSample(false, makeFACFromConstraints(1, {{5, -1}, {-5, 4}}, {}));
@@ -648,7 +662,7 @@ static void checkDivisionRepresentation(
 
   std::vector<llvm::Optional<std::pair<unsigned, unsigned>>> res(
       fac.getNumLocalIds(), llvm::None);
-  fac.getLocalReprLbUbPairs(res);
+  fac.getLocalReprs(res);
 
   // Check if all expected divisions are computed.
   for (unsigned i = 0, e = fac.getNumLocalIds(); i < e; ++i)
@@ -793,6 +807,129 @@ TEST(FlatAffineConstraintsTest, simplifyLocalsTest) {
   fac3.addEquality({2, 1, 0});
 
   EXPECT_TRUE(fac3.isEmpty());
+}
+
+TEST(FlatAffineConstraintsTest, mergeDivisionsSimple) {
+  {
+    // (x) : (exists z, y  = [x / 2] : x = 3y and x + z + 1 >= 0).
+    FlatAffineConstraints fac1(1, 0, 1);
+    fac1.addLocalFloorDiv({1, 0, 0}, 2); // y = [x / 2].
+    fac1.addEquality({1, 0, -3, 0});     // x = 3y.
+    fac1.addInequality({1, 1, 0, 1});    // x + z + 1 >= 0.
+
+    // (x) : (exists y = [x / 2], z : x = 5y).
+    FlatAffineConstraints fac2(1);
+    fac2.addLocalFloorDiv({1, 0}, 2); // y = [x / 2].
+    fac2.addEquality({1, -5, 0});     // x = 5y.
+    fac2.appendLocalId();             // Add local id z.
+
+    fac1.mergeLocalIds(fac2);
+
+    // Local space should be same.
+    EXPECT_EQ(fac1.getNumLocalIds(), fac2.getNumLocalIds());
+
+    // 1 division should be matched + 2 unmatched local ids.
+    EXPECT_EQ(fac1.getNumLocalIds(), 3u);
+    EXPECT_EQ(fac2.getNumLocalIds(), 3u);
+  }
+
+  {
+    // (x) : (exists z = [x / 5], y = [x / 2] : x = 3y).
+    FlatAffineConstraints fac1(1);
+    fac1.addLocalFloorDiv({1, 0}, 5);    // z = [x / 5].
+    fac1.addLocalFloorDiv({1, 0, 0}, 2); // y = [x / 2].
+    fac1.addEquality({1, 0, -3, 0});     // x = 3y.
+
+    // (x) : (exists y = [x / 2], z = [x / 5]: x = 5z).
+    FlatAffineConstraints fac2(1);
+    fac2.addLocalFloorDiv({1, 0}, 2);    // y = [x / 2].
+    fac2.addLocalFloorDiv({1, 0, 0}, 5); // z = [x / 5].
+    fac2.addEquality({1, 0, -5, 0});     // x = 5z.
+
+    fac1.mergeLocalIds(fac2);
+
+    // Local space should be same.
+    EXPECT_EQ(fac1.getNumLocalIds(), fac2.getNumLocalIds());
+
+    // 2 divisions should be matched.
+    EXPECT_EQ(fac1.getNumLocalIds(), 2u);
+    EXPECT_EQ(fac2.getNumLocalIds(), 2u);
+  }
+}
+
+TEST(FlatAffineConstraintsTest, mergeDivisionsNestedDivsions) {
+  {
+    // (x) : (exists y = [x / 2], z = [x + y / 3]: y + z >= x).
+    FlatAffineConstraints fac1(1);
+    fac1.addLocalFloorDiv({1, 0}, 2);    // y = [x / 2].
+    fac1.addLocalFloorDiv({1, 1, 0}, 3); // z = [x + y / 3].
+    fac1.addInequality({-1, 1, 1, 0});   // y + z >= x.
+
+    // (x) : (exists y = [x / 2], z = [x + y / 3]: y + z <= x).
+    FlatAffineConstraints fac2(1);
+    fac2.addLocalFloorDiv({1, 0}, 2);    // y = [x / 2].
+    fac2.addLocalFloorDiv({1, 1, 0}, 3); // z = [x + y / 3].
+    fac2.addInequality({1, -1, -1, 0});  // y + z <= x.
+
+    fac1.mergeLocalIds(fac2);
+
+    // Local space should be same.
+    EXPECT_EQ(fac1.getNumLocalIds(), fac2.getNumLocalIds());
+
+    // 2 divisions should be matched.
+    EXPECT_EQ(fac1.getNumLocalIds(), 2u);
+    EXPECT_EQ(fac2.getNumLocalIds(), 2u);
+  }
+
+  {
+    // (x) : (exists y = [x / 2], z = [x + y / 3], w = [z + 1 / 5]: y + z >= x).
+    FlatAffineConstraints fac1(1);
+    fac1.addLocalFloorDiv({1, 0}, 2);       // y = [x / 2].
+    fac1.addLocalFloorDiv({1, 1, 0}, 3);    // z = [x + y / 3].
+    fac1.addLocalFloorDiv({0, 0, 1, 1}, 5); // w = [z + 1 / 5].
+    fac1.addInequality({-1, 1, 1, 0, 0});   // y + z >= x.
+
+    // (x) : (exists y = [x / 2], z = [x + y / 3], w = [z + 1 / 5]: y + z <= x).
+    FlatAffineConstraints fac2(1);
+    fac2.addLocalFloorDiv({1, 0}, 2);       // y = [x / 2].
+    fac2.addLocalFloorDiv({1, 1, 0}, 3);    // z = [x + y / 3].
+    fac2.addLocalFloorDiv({0, 0, 1, 1}, 5); // w = [z + 1 / 5].
+    fac2.addInequality({1, -1, -1, 0, 0});  // y + z <= x.
+
+    fac1.mergeLocalIds(fac2);
+
+    // Local space should be same.
+    EXPECT_EQ(fac1.getNumLocalIds(), fac2.getNumLocalIds());
+
+    // 3 divisions should be matched.
+    EXPECT_EQ(fac1.getNumLocalIds(), 3u);
+    EXPECT_EQ(fac2.getNumLocalIds(), 3u);
+  }
+}
+
+TEST(FlatAffineConstraintsTest, mergeDivisionsConstants) {
+  {
+    // (x) : (exists y = [x + 1 / 3], z = [x + 2 / 3]: y + z >= x).
+    FlatAffineConstraints fac1(1);
+    fac1.addLocalFloorDiv({1, 1}, 2);    // y = [x + 1 / 2].
+    fac1.addLocalFloorDiv({1, 0, 2}, 3); // z = [x + 2 / 3].
+    fac1.addInequality({-1, 1, 1, 0});   // y + z >= x.
+
+    // (x) : (exists y = [x + 1 / 3], z = [x + 2 / 3]: y + z <= x).
+    FlatAffineConstraints fac2(1);
+    fac2.addLocalFloorDiv({1, 1}, 2);    // y = [x + 1 / 2].
+    fac2.addLocalFloorDiv({1, 0, 2}, 3); // z = [x + 2 / 3].
+    fac2.addInequality({1, -1, -1, 0});  // y + z <= x.
+
+    fac1.mergeLocalIds(fac2);
+
+    // Local space should be same.
+    EXPECT_EQ(fac1.getNumLocalIds(), fac2.getNumLocalIds());
+
+    // 2 divisions should be matched.
+    EXPECT_EQ(fac1.getNumLocalIds(), 2u);
+    EXPECT_EQ(fac2.getNumLocalIds(), 2u);
+  }
 }
 
 } // namespace mlir

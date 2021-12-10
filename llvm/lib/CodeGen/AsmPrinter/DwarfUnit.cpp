@@ -672,7 +672,7 @@ std::string DwarfUnit::getParentContextString(const DIScope *Context) const {
 
   // Reverse iterate over our list to go from the outermost construct to the
   // innermost.
-  for (const DIScope *Ctx : make_range(Parents.rbegin(), Parents.rend())) {
+  for (const DIScope *Ctx : llvm::reverse(Parents)) {
     StringRef Name = Ctx->getName();
     if (Name.empty() && isa<DINamespace>(Ctx))
       Name = "(anonymous namespace)";
@@ -1200,7 +1200,7 @@ bool DwarfUnit::applySubprogramDefinitionAttributes(const DISubprogram *SP,
          "decl has a linkage name and it is different");
   if (DeclLinkageName.empty() &&
       // Always emit it for abstract subprograms.
-      (DD->useAllLinkageNames() || DU->getAbstractSPDies().lookup(SP)))
+      (DD->useAllLinkageNames() || DU->getAbstractScopeDIEs().lookup(SP)))
     addLinkageName(SPDie, LinkageName);
 
   if (!DeclDie)

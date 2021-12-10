@@ -646,6 +646,8 @@ BUILTIN(__builtin_call_with_static_chain, "v.", "nt")
 BUILTIN(__builtin_elementwise_abs, "v.", "nct")
 BUILTIN(__builtin_elementwise_max, "v.", "nct")
 BUILTIN(__builtin_elementwise_min, "v.", "nct")
+BUILTIN(__builtin_reduce_max, "v.", "nct")
+BUILTIN(__builtin_reduce_min, "v.", "nct")
 
 BUILTIN(__builtin_matrix_transpose, "v.", "nFt")
 BUILTIN(__builtin_matrix_column_major_load, "v.", "nFt")
@@ -851,6 +853,19 @@ ATOMIC_BUILTIN(__opencl_atomic_fetch_max, "v.", "t")
 // GCC does not support these, they are a Clang extension.
 ATOMIC_BUILTIN(__atomic_fetch_min, "v.", "t")
 ATOMIC_BUILTIN(__atomic_fetch_max, "v.", "t")
+
+// HIP atomic builtins.
+ATOMIC_BUILTIN(__hip_atomic_load, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_store, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_compare_exchange_weak, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_compare_exchange_strong, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_exchange, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_fetch_add, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_fetch_and, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_fetch_or, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_fetch_xor, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_fetch_min, "v.", "t")
+ATOMIC_BUILTIN(__hip_atomic_fetch_max, "v.", "t")
 
 #undef ATOMIC_BUILTIN
 

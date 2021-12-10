@@ -203,8 +203,8 @@ void SystemZInstrInfo::expandZExtPseudo(MachineInstr &MI, unsigned LowOpcode,
                Size, MI.getOperand(1).isKill(), MI.getOperand(1).isUndef());
 
   // Keep the remaining operands as-is.
-  for (unsigned I = 2; I < MI.getNumOperands(); ++I)
-    MIB.add(MI.getOperand(I));
+  for (const MachineOperand &MO : llvm::drop_begin(MI.operands(), 2))
+    MIB.add(MO);
 
   MI.eraseFromParent();
 }
@@ -943,8 +943,9 @@ static void transferMIFlag(MachineInstr *OldMI, MachineInstr *NewMI,
     NewMI->setFlag(Flag);
 }
 
-MachineInstr *SystemZInstrInfo::convertToThreeAddress(MachineInstr &MI,
-                                                      LiveVariables *LV) const {
+MachineInstr *
+SystemZInstrInfo::convertToThreeAddress(MachineInstr &MI, LiveVariables *LV,
+                                        LiveIntervals *LIS) const {
   MachineBasicBlock *MBB = MI.getParent();
 
   // Try to convert an AND into an RISBG-type instruction.
@@ -985,6 +986,8 @@ MachineInstr *SystemZInstrInfo::convertToThreeAddress(MachineInstr &MI,
             LV->replaceKillInstruction(Op.getReg(), MI, *MIB);
         }
       }
+      if (LIS)
+        LIS->ReplaceMachineInstrInMaps(MI, *MIB);
       transferDeadCC(&MI, MIB);
       return MIB;
     }

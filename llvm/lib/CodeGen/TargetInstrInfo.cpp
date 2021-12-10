@@ -366,7 +366,7 @@ bool TargetInstrInfo::hasLoadFromStackSlot(
                                   oe = MI.memoperands_end();
        o != oe; ++o) {
     if ((*o)->isLoad() &&
-        dyn_cast_or_null<FixedStackPseudoSourceValue>((*o)->getPseudoValue()))
+        isa_and_nonnull<FixedStackPseudoSourceValue>((*o)->getPseudoValue()))
       Accesses.push_back(*o);
   }
   return Accesses.size() != StartSize;
@@ -380,7 +380,7 @@ bool TargetInstrInfo::hasStoreToStackSlot(
                                   oe = MI.memoperands_end();
        o != oe; ++o) {
     if ((*o)->isStore() &&
-        dyn_cast_or_null<FixedStackPseudoSourceValue>((*o)->getPseudoValue()))
+        isa_and_nonnull<FixedStackPseudoSourceValue>((*o)->getPseudoValue()))
       Accesses.push_back(*o);
   }
   return Accesses.size() != StartSize;
@@ -957,8 +957,7 @@ bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
 
   // If any of the registers accessed are non-constant, conservatively assume
   // the instruction is not rematerializable.
-  for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
-    const MachineOperand &MO = MI.getOperand(i);
+  for (const MachineOperand &MO : MI.operands()) {
     if (!MO.isReg()) continue;
     Register Reg = MO.getReg();
     if (Reg == 0)
@@ -1401,3 +1400,21 @@ std::string TargetInstrInfo::createMIROperandComment(
 }
 
 TargetInstrInfo::PipelinerLoopInfo::~PipelinerLoopInfo() {}
+
+void TargetInstrInfo::mergeOutliningCandidateAttributes(
+    Function &F, std::vector<outliner::Candidate> &Candidates) const {
+  // Include target features from an arbitrary candidate for the outlined
+  // function. This makes sure the outlined function knows what kinds of
+  // instructions are going into it. This is fine, since all parent functions
+  // must necessarily support the instructions that are in the outlined region.
+  outliner::Candidate &FirstCand = Candidates.front();
+  const Function &ParentFn = FirstCand.getMF()->getFunction();
+  if (ParentFn.hasFnAttribute("target-features"))
+    F.addFnAttr(ParentFn.getFnAttribute("target-features"));
+
+  // Set nounwind, so we don't generate eh_frame.
+  if (llvm::all_of(Candidates, [](const outliner::Candidate &C) {
+        return C.getMF()->getFunction().hasFnAttribute(Attribute::NoUnwind);
+      }))
+    F.addFnAttr(Attribute::NoUnwind);
+}

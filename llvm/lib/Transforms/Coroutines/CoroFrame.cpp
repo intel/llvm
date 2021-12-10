@@ -2245,12 +2245,7 @@ static Value *emitSetAndGetSwiftErrorValueAround(Instruction *Call,
 /// intrinsics and attempting to MemToReg the alloca away.
 static void eliminateSwiftErrorAlloca(Function &F, AllocaInst *Alloca,
                                       coro::Shape &Shape) {
-  for (auto UI = Alloca->use_begin(), UE = Alloca->use_end(); UI != UE; ) {
-    // We're likely changing the use list, so use a mutation-safe
-    // iteration pattern.
-    auto &Use = *UI;
-    ++UI;
-
+  for (Use &Use : llvm::make_early_inc_range(Alloca->uses())) {
     // swifterror values can only be used in very specific ways.
     // We take advantage of that here.
     auto User = Use.getUser();
@@ -2577,9 +2572,13 @@ void coro::salvageDebugInfo(
   DVI->setExpression(Expr);
   /// It makes no sense to move the dbg.value intrinsic.
   if (!isa<DbgValueInst>(DVI)) {
-    if (auto *InsertPt = dyn_cast<Instruction>(Storage))
+    if (auto *II = dyn_cast<InvokeInst>(Storage))
+      DVI->moveBefore(II->getNormalDest()->getFirstNonPHI());
+    else if (auto *InsertPt = dyn_cast<Instruction>(Storage)) {
+      assert(!InsertPt->isTerminator() &&
+             "Unimaged terminator that could return a storage.");
       DVI->moveAfter(InsertPt);
-    else if (isa<Argument>(Storage))
+    } else if (isa<Argument>(Storage))
       DVI->moveAfter(F->getEntryBlock().getFirstNonPHI());
   }
 }

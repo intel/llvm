@@ -46,17 +46,7 @@ endif()
 if (LIBCXX_STANDALONE_BUILD)
   find_package(Python3 COMPONENTS Interpreter)
   if(NOT Python3_Interpreter_FOUND)
-    message(WARNING "Python3 not found, using python2 as a fallback")
-    find_package(Python2 COMPONENTS Interpreter REQUIRED)
-    if(Python2_VERSION VERSION_LESS 2.7)
-      message(SEND_ERROR "Python 2.7 or newer is required")
-    endif()
-
-    # Treat python2 as python3
-    add_executable(Python3::Interpreter IMPORTED)
-    set_target_properties(Python3::Interpreter PROPERTIES
-      IMPORTED_LOCATION ${Python2_EXECUTABLE})
-    set(Python3_EXECUTABLE ${Python2_EXECUTABLE})
+    message(SEND_ERROR "Python3 not found. Python3 is required")
   endif()
 endif()
 
@@ -271,7 +261,10 @@ option(LIBCXX_ENABLE_NEW_DELETE_DEFINITIONS
 option(LIBCXXABI_USE_LLVM_UNWINDER "Build and use the LLVM unwinder." OFF)
 
 # Target options --------------------------------------------------------------
-option(LIBCXX_BUILD_32_BITS "Build 32 bit libc++." ${LLVM_BUILD_32_BITS})
+option(LIBCXX_BUILD_32_BITS "Build 32 bit multilib libc++. This option is not supported anymore when building the runtimes. Please specify a full triple instead." ${LLVM_BUILD_32_BITS})
+if (LIBCXX_BUILD_32_BITS)
+  message(FATAL_ERROR "LIBCXX_BUILD_32_BITS is not supported anymore when building the runtimes, please specify a full triple instead.")
+endif()
 
 if(CMAKE_CXX_COMPILER_TARGET)
   set(LIBCXX_DEFAULT_TARGET_TRIPLE "${CMAKE_CXX_COMPILER_TARGET}")
@@ -383,16 +376,6 @@ if (LLVM_USE_SANITIZER AND LIBCXX_GENERATE_COVERAGE)
   message(FATAL_ERROR "LLVM_USE_SANITIZER cannot be used with LIBCXX_GENERATE_COVERAGE")
 endif()
 
-# Set LIBCXX_BUILD_32_BITS to (LIBCXX_BUILD_32_BITS OR LLVM_BUILD_32_BITS)
-# and check that we can build with 32 bits if requested.
-if (CMAKE_SIZEOF_VOID_P EQUAL 8 AND NOT WIN32)
-  if (LIBCXX_BUILD_32_BITS AND NOT LLVM_BUILD_32_BITS) # Don't duplicate the output from LLVM
-    message(STATUS "Building 32 bits executables and libraries.")
-  endif()
-elseif(LIBCXX_BUILD_32_BITS)
-  message(FATAL_ERROR "LIBCXX_BUILD_32_BITS=ON is not supported on this platform.")
-endif()
-
 # Warn users that LIBCXX_ENABLE_STATIC_ABI_LIBRARY is an experimental option.
 if (LIBCXX_ENABLE_STATIC_ABI_LIBRARY)
   message(WARNING "LIBCXX_ENABLE_STATIC_ABI_LIBRARY is an experimental option")
@@ -491,7 +474,6 @@ include(HandleLibcxxFlags)
 # These flags get added to CMAKE_CXX_FLAGS and CMAKE_C_FLAGS so that
 # 'config-ix' use them during feature checks. It also adds them to both
 # 'LIBCXX_COMPILE_FLAGS' and 'LIBCXX_LINK_FLAGS'
-add_target_flags_if(LIBCXX_BUILD_32_BITS "-m32")
 if(LIBCXX_TARGET_TRIPLE)
   add_target_flags_if_supported("--target=${LIBCXX_TARGET_TRIPLE}")
 endif()
@@ -614,7 +596,8 @@ function(cxx_add_warning_flags target)
   endif()
   target_add_compile_flags_if_supported(${target} PRIVATE -Wextra -W -Wwrite-strings
                                                           -Wno-unused-parameter -Wno-long-long
-                                                          -Werror=return-type -Wextra-semi -Wundef)
+                                                          -Werror=return-type -Wextra-semi -Wundef
+                                                          -Wformat-nonliteral)
   if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     target_add_compile_flags_if_supported(${target} PRIVATE
       -Wno-user-defined-literals

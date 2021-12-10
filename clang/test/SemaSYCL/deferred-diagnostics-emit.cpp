@@ -44,14 +44,14 @@ typedef const __uint128_t megeType;
 typedef const __float128 trickyFloatType;
 typedef const __int128 tricky128Type;
 
-//templated type (late)
-// expected-note@+6 {{'bar<const unsigned __int128>' defined here}}
-// expected-note@+5 {{'bar<const __int128>' defined here}}
-// expected-note@+4 2{{'bar<__int128>' defined here}}
-// expected-note@+3 {{'bar<const __float128>' defined here}}
-// expected-note@+2 {{'bar<__float128>' defined here}}
+// templated type (late)
+//  expected-note@+6 2{{'bar<const unsigned __int128>' defined here}}
+//  expected-note@+5 2{{'bar<const __int128>' defined here}}
+//  expected-note@+4 4{{'bar<__int128>' defined here}}
+//  expected-note@+3 2{{'bar<const __float128>' defined here}}
+//  expected-note@+2 2{{'bar<__float128>' defined here}}
 template <typename T>
-T bar() { return T(); };
+T bar() { return T(); }; //#TemplatedType
 
 //false positive. early incorrectly catches
 template <typename t>
@@ -86,9 +86,13 @@ void setup_sycl_operation(const T VA[]) {
       // expected-error@+2 {{'malFloat' requires 128 bit size '__float128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__float128' is not supported on this target}}
       auto whatFloat = malFloat;
+      // expected-error@#TemplatedType {{'bar<__float128>' requires 128 bit size '__float128' type support, but target 'spir64' does not support it}}
+      // expected-note@+3 {{called by 'operator()'}}
       // expected-error@+2 {{'bar<__float128>' requires 128 bit size '__float128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__float128' is not supported on this target}}
       auto malAutoTemp5 = bar<__float128>();
+      // expected-error@#TemplatedType {{'bar<const __float128>' requires 128 bit size 'const __float128' type support, but target 'spir64' does not support it}}
+      // expected-note@+3 {{called by 'operator()'}}
       // expected-error@+2 {{'bar<const __float128>' requires 128 bit size 'const __float128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__float128' is not supported on this target}}
       auto malAutoTemp6 = bar<trickyFloatType>();
@@ -109,9 +113,13 @@ void setup_sycl_operation(const T VA[]) {
       // expected-error@+2 {{'malIntent' requires 128 bit size '__int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__int128' is not supported on this target}}
       auto whatInt128 = malIntent;
+      // expected-error@#TemplatedType {{'bar<__int128>' requires 128 bit size '__int128' type support, but target 'spir64' does not support it}}
+      // expected-note@+3 {{called by 'operator()'}}
       // expected-error@+2 {{'bar<__int128>' requires 128 bit size '__int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__int128' is not supported on this target}}
       auto malAutoTemp = bar<__int128>();
+      // expected-error@#TemplatedType {{'bar<const __int128>' requires 128 bit size 'const __int128' type support, but target 'spir64' does not support it}}
+      // expected-note@+3 {{called by 'operator()'}}
       // expected-error@+2 {{'bar<const __int128>' requires 128 bit size 'const __int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__int128' is not supported on this target}}
       auto malAutoTemp2 = bar<tricky128Type>();
@@ -130,9 +138,13 @@ void setup_sycl_operation(const T VA[]) {
       // expected-error@+2 {{'malUInt128' requires 128 bit size '__uint128_t' (aka 'unsigned __int128') type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
       auto whatUInt = malUInt128;
+      // expected-error@#TemplatedType {{'bar<__int128>' requires 128 bit size '__int128' type support, but target 'spir64' does not support it}}
+      // expected-note@+3 {{called by 'operator()'}}
       // expected-error@+2 {{'bar<__int128>' requires 128 bit size '__int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'__int128' is not supported on this target}}
       auto malAutoTemp3 = bar<__int128_t>();
+      // expected-error@#TemplatedType {{'bar<const unsigned __int128>' requires 128 bit size 'const unsigned __int128' type support, but target 'spir64' does not support it}}
+      // expected-note@+3 {{called by 'operator()'}}
       // expected-error@+2 {{'bar<const unsigned __int128>' requires 128 bit size 'const unsigned __int128' type support, but target 'spir64' does not support it}}
       // expected-error@+1 {{'unsigned __int128' is not supported on this target}}
       auto malAutoTemp4 = bar<megeType>();
@@ -156,7 +168,7 @@ int main(int argc, char **argv) {
 
   // --- direct lambda testing ---
   deviceQueue.submit([&](sycl::handler &h) {
-    // expected-note@#KernelSingleTaskKernelFuncCall 2 {{called by 'kernel_single_task<AName, (lambda}}
+    // expected-note@#KernelSingleTaskKernelFuncCall 8 {{called by 'kernel_single_task<AName, (lambda}}
     h.single_task<class AName>([]() {
       // expected-error@+1 {{zero-length arrays are not permitted in C++}}
       int BadArray[0];

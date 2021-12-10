@@ -722,8 +722,6 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
     BF->addDecorate(DecorationStackCallINTEL);
   if (Attrs.hasFnAttr(kVCMetadata::VCFunction))
     BF->addDecorate(DecorationVectorComputeFunctionINTEL);
-  else
-    return;
 
   if (Attrs.hasFnAttr(kVCMetadata::VCSIMTCall)) {
     SPIRVWord SIMTMode = 0;
@@ -1429,7 +1427,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     if (!BM->checkExtension(ExtensionID::SPV_INTEL_function_pointers,
                             SPIRVEC_FunctionPointers, toString(V)))
       return nullptr;
-    return BM->addConstFunctionPointerINTEL(
+    return BM->addConstantFunctionPointerINTEL(
         transType(F->getType()),
         static_cast<SPIRVFunction *>(transValue(F, nullptr)));
   }
@@ -1999,6 +1997,20 @@ bool LLVMToSPIRVBase::shouldTryToAddMemAliasingDecoration(Instruction *Inst) {
   return true;
 }
 
+void addFuncPointerCallArgumentAttributes(CallInst *CI,
+                                          SPIRVValue *FuncPtrCall) {
+  for (unsigned ArgNo = 0; ArgNo < CI->arg_size(); ++ArgNo) {
+    for (const auto &I : CI->getAttributes().getParamAttrs(ArgNo)) {
+      spv::FunctionParameterAttribute Attr = spv::FunctionParameterAttributeMax;
+      SPIRSPIRVFuncParamAttrMap::find(I.getKindAsEnum(), &Attr);
+      if (Attr != spv::FunctionParameterAttributeMax)
+        FuncPtrCall->addDecorate(
+            new SPIRVDecorate(spv::internal::DecorationArgumentAttributeINTEL,
+                              FuncPtrCall, ArgNo, Attr));
+    }
+  }
+}
+
 bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
   if (!transAlign(V, BV))
     return false;
@@ -2060,6 +2072,8 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
       auto SpecId = cast<ConstantInt>(CI->getArgOperand(0))->getZExtValue();
       BV->addDecorate(DecorationSpecId, SpecId);
     }
+    if (OC == OpFunctionPointerCallINTEL)
+      addFuncPointerCallArgumentAttributes(CI, BV);
   }
 
   return true;

@@ -1218,8 +1218,7 @@ public:
   void ConstructAttributeList(StringRef Name, const CGFunctionInfo &Info,
                               CGCalleeInfo CalleeInfo,
                               llvm::AttributeList &Attrs, unsigned &CallingConv,
-                              bool AttrOnCallSite, bool IsThunk,
-                              const Decl *Caller = nullptr);
+                              bool AttrOnCallSite, bool IsThunk);
 
   /// Adds attributes to F according to our CodeGenOptions and LangOptions, as
   /// though we had emitted it ourselves.  We remove any attributes on F that
@@ -1519,6 +1518,7 @@ private:
   void EmitAliasDefinition(GlobalDecl GD);
   void emitIFuncDefinition(GlobalDecl GD);
   void emitCPUDispatchDefinition(GlobalDecl GD);
+  void EmitTargetClonesResolver(GlobalDecl GD);
   void EmitObjCPropertyImplementations(const ObjCImplementationDecl *D);
   void EmitObjCIvarInitializations(ObjCImplementationDecl *D);
 

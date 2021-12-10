@@ -100,24 +100,6 @@ LLDB_PLUGIN_DEFINE(SymbolFileDWARF)
 
 char SymbolFileDWARF::ID;
 
-// static inline bool
-// child_requires_parent_class_union_or_struct_to_be_completed (dw_tag_t tag)
-//{
-//    switch (tag)
-//    {
-//    default:
-//        break;
-//    case DW_TAG_subprogram:
-//    case DW_TAG_inlined_subroutine:
-//    case DW_TAG_class_type:
-//    case DW_TAG_structure_type:
-//    case DW_TAG_union_type:
-//        return true;
-//    }
-//    return false;
-//}
-//
-
 namespace {
 
 #define LLDB_PROPERTIES_symbolfiledwarf
@@ -2085,6 +2067,13 @@ uint32_t SymbolFileDWARF::ResolveSymbolContext(
 }
 
 void SymbolFileDWARF::PreloadSymbols() {
+  // Get the symbol table for the symbol file prior to taking the module lock
+  // so that it is available without needing to take the module lock. The DWARF
+  // indexing might end up needing to relocate items when DWARF sections are
+  // loaded as they might end up getting the section contents which can call
+  // ObjectFileELF::RelocateSection() which in turn will ask for the symbol
+  // table and can cause deadlocks.
+  GetSymtab();
   std::lock_guard<std::recursive_mutex> guard(GetModuleMutex());
   m_index->Preload();
 }
@@ -2603,7 +2592,7 @@ TypeSP SymbolFileDWARF::GetTypeForDIE(const DWARFDIE &die,
 
       type_sp = ParseType(sc, die, nullptr);
     } else if (type_ptr != DIE_IS_BEING_PARSED) {
-      // Grab the existing type from the master types lists
+      // Get the original shared pointer for this type
       type_sp = type_ptr->shared_from_this();
     }
   }
@@ -3289,15 +3278,14 @@ VariableSP SymbolFileDWARF::ParseVariableDIE(const SymbolContext &sc,
   }
 
   const DWARFDIE parent_context_die = GetDeclContextDIEContainingDIE(die);
-  const dw_tag_t parent_tag = die.GetParent().Tag();
+  const DWARFDIE sc_parent_die = GetParentSymbolContextDIE(die);
+  const dw_tag_t parent_tag = sc_parent_die.Tag();
   bool is_static_member = (parent_tag == DW_TAG_compile_unit ||
                            parent_tag == DW_TAG_partial_unit) &&
                           (parent_context_die.Tag() == DW_TAG_class_type ||
                            parent_context_die.Tag() == DW_TAG_structure_type);
 
   ValueType scope = eValueTypeInvalid;
-
-  const DWARFDIE sc_parent_die = GetParentSymbolContextDIE(die);
   SymbolContextScope *symbol_context_scope = nullptr;
 
   bool has_explicit_mangled = mangled != nullptr;

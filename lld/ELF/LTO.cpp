@@ -279,7 +279,7 @@ void BitcodeCompiler::add(BitcodeFile &f) {
 // distributed build system that depends on that behavior.
 static void thinLTOCreateEmptyIndexFiles() {
   for (LazyObjFile *f : lazyObjFiles) {
-    if (f->fetched || !isBitcode(f->mb))
+    if (f->extracted || !isBitcode(f->mb))
       continue;
     std::string path = replaceThinLTOSuffix(getThinLTOOutputFile(f->getName()));
     std::unique_ptr<raw_fd_ostream> os = openFile(path + ".thinlto.bc");
@@ -304,7 +304,7 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
   // The --thinlto-cache-dir option specifies the path to a directory in which
   // to cache native object files for ThinLTO incremental builds. If a path was
   // specified, configure LTO to use it as the cache directory.
-  NativeObjectCache cache;
+  FileCache cache;
   if (!config->thinLTOCacheDir.empty())
     cache =
         check(localCache("ThinLTO", "Thin", config->thinLTOCacheDir,
@@ -315,7 +315,7 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
   if (!bitcodeFiles.empty())
     checkError(ltoObj->run(
         [&](size_t task) {
-          return std::make_unique<NativeObjectStream>(
+          return std::make_unique<CachedFileStream>(
               std::make_unique<raw_svector_ostream>(buf[task]));
         },
         cache));

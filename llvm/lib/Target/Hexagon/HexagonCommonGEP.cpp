@@ -386,9 +386,8 @@ void HexagonCommonGEP::processGepInst(GetElementPtrInst *GepI,
   // dereferences the pointer operand.
   GepNode *PN = N;
   Type *PtrTy = GepI->getSourceElementType();
-  for (User::op_iterator OI = GepI->idx_begin()+1, OE = GepI->idx_end();
-       OI != OE; ++OI) {
-    Value *Op = *OI;
+  for (Use &U : llvm::drop_begin(GepI->indices())) {
+    Value *Op = U;
     GepNode *Nx = new (*Mem) GepNode;
     Nx->Parent = PN;  // Link Nx to the previous node.
     Nx->Flags |= GepNode::Internal | InBounds;
@@ -477,10 +476,10 @@ namespace {
 } // end anonymous namespace
 
 static const NodeSet *node_class(GepNode *N, NodeSymRel &Rel) {
-    for (NodeSymRel::iterator I = Rel.begin(), E = Rel.end(); I != E; ++I)
-      if (I->count(N))
-        return &*I;
-    return nullptr;
+  for (const NodeSet &S : Rel)
+    if (S.count(N))
+      return &S;
+  return nullptr;
 }
 
   // Create an ordered pair of GepNode pointers. The pair will be used in
@@ -590,9 +589,8 @@ void HexagonCommonGEP::common() {
       dbgs() << "{ " << I->first << ", " << I->second << " }\n";
 
     dbgs() << "Gep equivalence classes:\n";
-    for (NodeSymRel::iterator I = EqRel.begin(), E = EqRel.end(); I != E; ++I) {
+    for (const NodeSet &S : EqRel) {
       dbgs() << '{';
-      const NodeSet &S = *I;
       for (NodeSet::const_iterator J = S.begin(), F = S.end(); J != F; ++J) {
         if (J != S.begin())
           dbgs() << ',';
@@ -605,8 +603,7 @@ void HexagonCommonGEP::common() {
   // Create a projection from a NodeSet to the minimal element in it.
   using ProjMap = std::map<const NodeSet *, GepNode *>;
   ProjMap PM;
-  for (NodeSymRel::iterator I = EqRel.begin(), E = EqRel.end(); I != E; ++I) {
-    const NodeSet &S = *I;
+  for (const NodeSet &S : EqRel) {
     GepNode *Min = *std::min_element(S.begin(), S.end(), NodeOrder);
     std::pair<ProjMap::iterator,bool> Ins = PM.insert(std::make_pair(&S, Min));
     (void)Ins;
@@ -1281,8 +1278,8 @@ bool HexagonCommonGEP::runOnFunction(Function &F) {
     return false;
 
   // For now bail out on C++ exception handling.
-  for (Function::iterator A = F.begin(), Z = F.end(); A != Z; ++A)
-    for (BasicBlock::iterator I = A->begin(), E = A->end(); I != E; ++I)
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB)
       if (isa<InvokeInst>(I) || isa<LandingPadInst>(I))
         return false;
 

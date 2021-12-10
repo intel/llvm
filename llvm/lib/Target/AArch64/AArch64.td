@@ -680,6 +680,12 @@ def TuneA78C : SubtargetFeature<"a78c", "ARMProcFamily",
                                 FeatureFuseAES,
                                 FeaturePostRAScheduler]>;
 
+def TuneA710    : SubtargetFeature<"a710", "ARMProcFamily", "CortexA710",
+                                   "Cortex-A710 ARM processors", [
+                                   FeatureFuseAES,
+                                   FeaturePostRAScheduler,
+                                   FeatureCmpBccFusion]>;
+
 def TuneR82 : SubtargetFeature<"cortex-r82", "ARMProcFamily",
                                "CortexR82",
                                "Cortex-R82 ARM processors", [
@@ -690,6 +696,12 @@ def TuneX1 : SubtargetFeature<"cortex-x1", "ARMProcFamily", "CortexX1",
                                   FeatureCmpBccFusion,
                                   FeatureFuseAES,
                                   FeaturePostRAScheduler]>;
+
+def TuneX2 : SubtargetFeature<"cortex-x2", "ARMProcFamily", "CortexX2",
+                                  "Cortex-X2 ARM processors", [
+                                  FeatureFuseAES,
+                                  FeaturePostRAScheduler,
+                                  FeatureCmpBccFusion]>;
 
 def TuneA64FX : SubtargetFeature<"a64fx", "ARMProcFamily", "A64FX",
                                  "Fujitsu A64FX processors", [
@@ -937,10 +949,17 @@ def ProcessorFeatures {
                                  FeatureFlagM, FeatureFP16FML, FeaturePAuth,
                                  FeaturePerfMon, FeatureRCPC, FeatureSPE,
                                  FeatureSSBS];
+  list<SubtargetFeature> A710 = [HasV9_0aOps, FeatureNEON, FeaturePerfMon,
+                                 FeatureETE, FeatureMTE, FeatureFP16FML,
+                                 FeatureSVE2BitPerm, FeatureBF16, FeatureMatMulInt8];
   list<SubtargetFeature> R82  = [HasV8_0rOps];
   list<SubtargetFeature> X1   = [HasV8_2aOps, FeatureCrypto, FeatureFPARMv8,
                                  FeatureNEON, FeatureRCPC, FeaturePerfMon,
                                  FeatureSPE, FeatureFullFP16, FeatureDotProd];
+  list<SubtargetFeature> X2   = [HasV9_0aOps, FeatureNEON, FeaturePerfMon,
+                                 FeatureMatMulInt8, FeatureBF16, FeatureAM,
+                                 FeatureMTE, FeatureETE, FeatureSVE2BitPerm,
+                                 FeatureFP16FML];
   list<SubtargetFeature> A64FX    = [HasV8_2aOps, FeatureFPARMv8, FeatureNEON,
                                      FeatureSHA2, FeaturePerfMon, FeatureFullFP16,
                                      FeatureSVE, FeatureComplxNum];
@@ -1045,10 +1064,14 @@ def : ProcessorModel<"cortex-a78", CortexA57Model, ProcessorFeatures.A78,
                      [TuneA78]>;
 def : ProcessorModel<"cortex-a78c", CortexA57Model, ProcessorFeatures.A78C,
                      [TuneA78C]>;
+def : ProcessorModel<"cortex-a710", CortexA57Model, ProcessorFeatures.A710,
+                     [TuneA710]>;
 def : ProcessorModel<"cortex-r82", CortexA55Model, ProcessorFeatures.R82,
                      [TuneR82]>;
 def : ProcessorModel<"cortex-x1", CortexA57Model, ProcessorFeatures.X1,
                      [TuneX1]>;
+def : ProcessorModel<"cortex-x2", CortexA57Model, ProcessorFeatures.X2,
+                     [TuneX2]>;
 def : ProcessorModel<"neoverse-e1", CortexA53Model,
                      ProcessorFeatures.NeoverseE1, [TuneNeoverseE1]>;
 def : ProcessorModel<"neoverse-n1", CortexA57Model,

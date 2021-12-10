@@ -396,6 +396,14 @@ unsigned llvm::ComputeNumSignBits(const Value *V, const DataLayout &DL,
       V, Depth, Query(DL, AC, safeCxtI(V, CxtI), DT, UseInstrInfo));
 }
 
+unsigned llvm::ComputeMinSignedBits(const Value *V, const DataLayout &DL,
+                                    unsigned Depth, AssumptionCache *AC,
+                                    const Instruction *CxtI,
+                                    const DominatorTree *DT) {
+  unsigned SignBits = ComputeNumSignBits(V, DL, Depth, AC, CxtI, DT);
+  return V->getType()->getScalarSizeInBits() - SignBits + 1;
+}
+
 static void computeKnownBitsAddSub(bool Add, const Value *Op0, const Value *Op1,
                                    bool NSW, const APInt &DemandedElts,
                                    KnownBits &KnownOut, KnownBits &Known2,
@@ -1519,7 +1527,7 @@ static void computeKnownBitsFromOperator(const Operator *I,
     // taking conservative care to avoid excessive recursion.
     if (Depth < MaxAnalysisRecursionDepth - 1 && !Known.Zero && !Known.One) {
       // Skip if every incoming value references to ourself.
-      if (dyn_cast_or_null<UndefValue>(P->hasConstantValue()))
+      if (isa_and_nonnull<UndefValue>(P->hasConstantValue()))
         break;
 
       Known.Zero.setAllBits();

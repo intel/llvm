@@ -866,6 +866,10 @@ def warn_fortify_source_format_overflow : Warning<
   " but format string expands to at least %2">,
   InGroup<FortifySource>;
 
+def warn_fortify_scanf_overflow : Warning<
+  "'%0' may overflow; destination buffer in argument %1 has size "
+  "%2, but the corresponding specifier may require size %3">,
+  InGroup<FortifySource>;
 
 /// main()
 // static main() is not an error in C, just in C++.
@@ -3014,9 +3018,13 @@ def err_attribute_requires_opencl_version : Error<
   "attribute %0 is supported in the OpenCL version %1%select{| onwards}2">;
 def err_invalid_branch_protection_spec : Error<
   "invalid or misplaced branch protection specification '%0'">;
+def warn_unsupported_branch_protection_spec : Warning<
+  "unsupported branch protection specification '%0'">, InGroup<BranchProtection>;
+
 def warn_unsupported_target_attribute
     : Warning<"%select{unsupported|duplicate|unknown}0%select{| architecture|"
-              " tune CPU}1 '%2' in the 'target' attribute string; 'target' "
+              " tune CPU}1 '%2' in the '%select{target|target_clones}3' "
+              "attribute string; '%select{target|target_clones}3' "
               "attribute ignored">,
       InGroup<IgnoredAttributes>;
 def err_attribute_unsupported
@@ -3316,7 +3324,8 @@ def warn_assume_aligned_too_great
       InGroup<DiagGroup<"builtin-assume-aligned-alignment">>;
 def warn_not_xl_compatible
     : Warning<"requesting an alignment of 16 bytes or greater for struct"
-              " members is not binary compatible with AIX XL 16.1 and older">,
+              " members is not binary compatible with IBM XL C/C++ for AIX"
+              " 16.1.0 and older">,
       InGroup<AIXCompat>;
 def warn_redeclaration_without_attribute_prev_attribute_ignored : Warning<
   "%q0 redeclared without %1 attribute: previous %1 ignored">,
@@ -9852,6 +9861,8 @@ def err_ppc_builtin_only_on_arch : Error<
   "this builtin is only valid on POWER%0 or later CPUs">;
 def err_ppc_builtin_requires_vsx : Error<
   "this builtin requires VSX to be enabled">;
+def err_ppc_builtin_requires_abi : Error<
+  "this builtin requires ABI -mabi=%0">;
 def err_ppc_invalid_use_mma_type : Error<
   "invalid use of PPC MMA type">;
 def err_ppc_invalid_test_data_class_type : Error<
@@ -9907,6 +9918,8 @@ def warn_duplicate_attribute_exact : Warning<
 def warn_duplicate_attribute : Warning<
   "attribute %0 is already applied with different arguments">,
   InGroup<IgnoredAttributes>;
+def err_disallowed_duplicate_attribute : Error<
+  "attribute %0 cannot appear more than once on a declaration">;
 
 def warn_sync_fetch_and_nand_semantics_change : Warning<
   "the semantics of this intrinsic changed with GCC "
@@ -10644,6 +10657,8 @@ def err_omp_depend_sink_unexpected_expr : Error<
   "unexpected expression: number of expressions is larger than the number of associated loops">;
 def err_omp_depend_sink_expected_plus_minus : Error<
   "expected '+' or '-' operation">;
+def err_omp_taskwait_depend_mutexinoutset_not_allowed : Error<
+  "'mutexinoutset' modifier not allowed in 'depend' clause on 'taskwait' directive">;
 def err_omp_depend_sink_source_not_allowed : Error<
   "'depend(%select{source|sink:vec}0)' clause%select{|s}0 cannot be mixed with 'depend(%select{sink:vec|source}0)' clause%select{s|}0">;
 def err_omp_depend_zero_length_array_section_not_allowed : Error<
@@ -10766,8 +10781,8 @@ def err_omp_invariant_or_linear_dependency : Error<
 def err_omp_wrong_dependency_iterator_type : Error<
   "expected an integer or a pointer type of the outer loop counter '%0' for non-rectangular nests">;
 def err_target_unsupported_type
-    : Error<"%0 requires %select{|%2 bit size}1 %3 type support, but target "
-            "'%4' does not support it">;
+    : Error<"%0 requires %select{|%2 bit size}1 %3 %select{|return }4type support,"
+            " but target '%5' does not support it">;
 def err_omp_lambda_capture_in_declare_target_not_to : Error<
   "variable captured in declare target region must appear in a to clause">;
 def err_omp_device_type_mismatch : Error<
@@ -11053,19 +11068,29 @@ def err_coroutine_invalid_func_context : Error<
   "|a function with a deduced return type|a varargs function"
   "|a consteval function}0">;
 def err_implied_coroutine_type_not_found : Error<
-  "%0 type was not found; include <experimental/coroutine> before defining "
-  "a coroutine">;
+  "%0 type was not found; include <coroutine> before defining "
+  "a coroutine; include <experimental/coroutine> if your version "
+  "of libcxx is less than 14.0">;
+def warn_deprecated_coroutine_namespace : Warning<
+  "Please move from std::experimental::%0 to std::%0. "
+  "Support for std::experimental::%0 will be removed in LLVM 15.">,
+  InGroup<DeprecatedExperimentalCoroutine>;
+def err_mixed_use_std_and_experimental_namespace_for_coroutine : Error <
+  "Found mixed use of std namespace and std::experimental namespace for "
+  "coroutine, which is disallowed. The coroutine components in "
+  "std::experimental namespace is deprecated. Please use coroutine components "
+  "under std namespace.">;
 def err_implicit_coroutine_std_nothrow_type_not_found : Error<
   "std::nothrow was not found; include <new> before defining a coroutine which "
   "uses get_return_object_on_allocation_failure()">;
 def err_malformed_std_nothrow : Error<
   "std::nothrow must be a valid variable declaration">;
 def err_malformed_std_coroutine_handle : Error<
-  "std::experimental::coroutine_handle must be a class template">;
+  "std::coroutine_handle isn't a class template">;
 def err_coroutine_handle_missing_member : Error<
-  "std::experimental::coroutine_handle missing a member named '%0'">;
+  "std::coroutine_handle must have a member named '%0'">;
 def err_malformed_std_coroutine_traits : Error<
-  "'std::experimental::coroutine_traits' must be a class template">;
+  "std::coroutine_traits isn't a class template">;
 def err_implied_std_coroutine_traits_promise_type_not_found : Error<
   "this function cannot be a coroutine: %q0 has no member named 'promise_type'">;
 def err_implied_std_coroutine_traits_promise_type_not_class : Error<
@@ -11287,9 +11312,11 @@ def err_multiversion_duplicate : Error<
   "multiversioned function redeclarations require identical target attributes">;
 def err_multiversion_noproto : Error<
   "multiversioned function must have a prototype">;
-def err_multiversion_disallowed_other_attr : Error<
-  "attribute '%select{target|cpu_specific|cpu_dispatch}0' multiversioning cannot be combined"
-  " with attribute %1">;
+def err_multiversion_disallowed_other_attr
+    : Error<"attribute "
+            "'%select{|target|cpu_specific|cpu_dispatch|target_clones}0' "
+            "multiversioning cannot be combined"
+            " with attribute %1">;
 def err_multiversion_mismatched_attrs
     : Error<"attributes on multiversioned functions must all match, attribute "
             "%0 %select{is missing|has different arguments}1">;
@@ -11297,11 +11324,14 @@ def err_multiversion_diff : Error<
   "multiversioned function declaration has a different %select{calling convention"
   "|return type|constexpr specification|inline specification|linkage|"
   "language linkage}0">;
-def err_multiversion_doesnt_support : Error<
-  "attribute '%select{target|cpu_specific|cpu_dispatch}0' multiversioned functions do not "
-  "yet support %select{function templates|virtual functions|"
-  "deduced return types|constructors|destructors|deleted functions|"
-  "defaulted functions|constexpr functions|consteval function}1">;
+def err_multiversion_doesnt_support
+    : Error<"attribute "
+            "'%select{|target|cpu_specific|cpu_dispatch|target_clones}0' "
+            "multiversioned functions do not "
+            "yet support %select{function templates|virtual functions|"
+            "deduced return types|constructors|destructors|deleted functions|"
+            "defaulted functions|constexpr functions|consteval "
+            "function|lambdas}1">;
 def err_multiversion_not_allowed_on_main : Error<
   "'main' cannot be a multiversioned function">;
 def err_multiversion_not_supported : Error<
@@ -11318,6 +11348,19 @@ def warn_multiversion_duplicate_entries : Warning<
 def warn_dispatch_body_ignored : Warning<
   "body of cpu_dispatch function will be ignored">,
   InGroup<FunctionMultiVersioning>;
+def err_target_clone_must_have_default
+    : Error<"'target_clones' multiversioning requires a default target">;
+def err_target_clone_doesnt_match
+    : Error<"'target_clones' attribute does not match previous declaration">;
+def warn_target_clone_mixed_values
+    : ExtWarn<
+          "mixing 'target_clones' specifier mechanisms is permitted for GCC "
+          "compatibility; use a comma separated sequence of string literals, "
+          "or a string literal containing a comma-separated list of versions">,
+      InGroup<TargetClonesMixedSpecifiers>;
+def warn_target_clone_duplicate_options
+    : Warning<"version list contains duplicate entries">,
+      InGroup<FunctionMultiVersioning>;
 
 // three-way comparison operator diagnostics
 def err_implied_comparison_category_type_not_found : Error<
@@ -11365,7 +11408,7 @@ def err_builtin_invalid_arg_type: Error <
   "%ordinal0 argument must be a "
   "%select{vector, integer or floating point type|matrix|"
    "pointer to a valid matrix element type|"
-   "signed integer or floating point type}1 (was %2)">;
+   "signed integer or floating point type|vector type}1 (was %2)">;
 
 def err_builtin_matrix_disabled: Error<
   "matrix types extension is disabled. Pass -fenable-matrix to enable it">;

@@ -194,7 +194,6 @@
 // RUN:   | FileCheck -DARCH=spir64_fpga -check-prefixes=CHK-UNUSED-ARG-WARNING,CHK-TARGET %s
 // CHK-UNUSED-ARG-WARNING-NOT: clang{{.*}} warning: argument unused during compilation: '-Xsycl-target-frontend={{.*}} -DFOO'
 // CHK-TARGET: clang{{.*}} "-cc1" "-triple" "[[ARCH]]-unknown-unknown"{{.*}} "-D" "FOO"
-// CHK-TARGET: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-[[ARCH]]-unknown-unknown"
 
 /// ###########################################################################
 
@@ -412,7 +411,7 @@
 // RUN:   touch %t.o
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS-UB %s
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %t.o 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS-UB %s
 // CHK-LINK-TARGETS-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-TARGETS-UB: 1: clang-offload-unbundler, {0}, object
@@ -428,7 +427,7 @@
 // RUN:   touch %t-c.o
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %t-a.o %t-b.o %t-c.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS-UB2 %s
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %t-a.o %t-b.o %t-c.o 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windws-msvc -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %t-a.o %t-b.o %t-c.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS-UB2 %s
 // CHK-LINK-TARGETS-UB2: 0: input, "[[INPUT:.+\a.o]]", object
 // CHK-LINK-TARGETS-UB2: 1: clang-offload-unbundler, {0}, object
@@ -445,7 +444,7 @@
 /// Check -fsycl-link-targets=<triple> behaviors from source
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS %s -DSUBARCH=
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -o %t.out -fsycl-link-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS %s -DSUBARCH=
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link-targets=spir64_gen-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-TARGETS %s -DSUBARCH=_gen
@@ -466,7 +465,7 @@
 // RUN:   touch %t.o
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %t.o 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK-UB %s
 // CHK-LINK-UB: 0: input, "[[INPUT:.+\.o]]", object
 // CHK-LINK-UB: 1: clang-offload-unbundler, {0}, object
@@ -481,7 +480,7 @@
 /// Check -fsycl-link behaviors from source
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
-// RUN:   %clang_cl -### -ccc-print-phases -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %s 2>&1 \
+// RUN:   %clang_cl -### -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl -o %t.out -fsycl-link -fno-sycl-device-lib=all %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-LINK %s
 // CHK-LINK: 0: input, "[[INPUT:.+\.c]]", c++, (device-sycl)
 // CHK-LINK: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
@@ -1139,6 +1138,17 @@
 
 /// Using -fsyntax-only with -fsycl should not emit IR
 // RUN:   %clang -### -fsycl -fsyntax-only %s 2>&1 \
-// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY,CHK-NO-EMIT-IR %s
-// CHK-FSYNTAX-ONLY: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsyntax-only"
-// CHK-NO-EMIT-IR-NOT: "-emit-llvm-bc"
+// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
+// RUN:   %clang -### -fsycl -fsycl-device-only -fsyntax-only %s 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-FSYNTAX-ONLY %s
+// CHK-FSYNTAX-ONLY-NOT: "-emit-llvm-bc"
+// CHK-FSYNTAX-ONLY: "-fsyntax-only"
+
+/// ###########################################################################
+/// Verify that -save-temps puts header/footer in a correct place
+// RUN: %clang -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-DIR
+// CHECK-SAVE-TEMPS-DIR: clang{{.*}} "-fsycl-int-header=sycl-offload-header-{{[a-z0-9]*}}.h"{{.*}}"-fsycl-int-footer=sycl-offload-footer-{{[a-z0-9]*}}.h"
+
+/// Verify that -save-temps=obj respects the -o dir
+// RUN: %clang -fsycl -fno-sycl-device-lib=all -fsycl-targets=spir64-unknown-unknown -target x86_64-unknown-linux-gnu -save-temps=obj -o %S %s -### 2>&1 | FileCheck %s -check-prefixes=CHECK-SAVE-TEMPS-OBJ-DIR
+// CHECK-SAVE-TEMPS-OBJ-DIR: clang{{.*}}-fsycl-int-header={{.*[/\\]+clang[/\\]+test[/\\]+sycl-offload-header-[a-z0-9]*}}.h{{.*}}-fsycl-int-footer={{.*[/\\]+clang[/\\]+test[/\\]+sycl-offload-footer-[a-z0-9]*}}.h

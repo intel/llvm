@@ -541,12 +541,32 @@ func @test_reshape_downrank(%arg0: tensor<2x3xf32>) -> tensor<6xf32> {
 
 // -----
 
+// CHECK-LABEL: @test_reshape_downrank_dyn
+func @test_reshape_downrank_dyn(%arg0: tensor<2x?xf32>) -> tensor<?xf32> {
+  // CHECK: [[RESHAPE:%.+]] = linalg.tensor_collapse_shape %arg0 {{\[}}[0, 1]]
+  %0 = "tosa.reshape"(%arg0) {new_shape = [-1]} : (tensor<2x?xf32>) -> tensor<?xf32>
+  // CHECK: return [[RESHAPE]]
+  return %0 : tensor<?xf32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_reshape_uprank
 func @test_reshape_uprank(%arg0: tensor<6xf32>) -> tensor<2x3xf32> {
   // CHECK: [[RESHAPE:%.+]] = linalg.tensor_expand_shape %arg0 {{\[}}[0, 1]]
   %0 = "tosa.reshape"(%arg0) {new_shape = [2, 3]} : (tensor<6xf32>) -> tensor<2x3xf32>
   // CHECK: return [[RESHAPE]]
   return %0 : tensor<2x3xf32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_reshape_uprank_dyn
+func @test_reshape_uprank_dyn(%arg0: tensor<?xf32>) -> tensor<2x?xf32> {
+  // CHECK: [[RESHAPE:%.+]] = linalg.tensor_expand_shape %arg0 {{\[}}[0, 1]]
+  %0 = "tosa.reshape"(%arg0) {new_shape = [2, -1]} : (tensor<?xf32>) -> tensor<2x?xf32>
+  // CHECK: return [[RESHAPE]]
+  return %0 : tensor<2x?xf32>
 }
 
 // -----
@@ -563,11 +583,33 @@ func @test_reshape_samerank(%arg0: tensor<3x2xf32>) -> tensor<2x3xf32> {
 
 // -----
 
+// CHECK-LABEL: @test_reshape_samerank_dyn
+func @test_reshape_samerank_dyn(%arg0: tensor<?x2xf32>) -> tensor<2x?xf32> {
+  // CHECK-SAME: (%[[ARG0:.*]]: tensor<?x2xf32>)
+  // CHECK-NEXT: %[[RESHAPE1:.*]] = linalg.tensor_collapse_shape %[[ARG0]] {{\[}}[0, 1]]
+  // CHECK-NEXT: %[[RESHAPE2:.*]] = linalg.tensor_expand_shape %[[RESHAPE1]] {{\[}}[0, 1]]
+  %0 = "tosa.reshape"(%arg0) {new_shape = [2, -1]} : (tensor<?x2xf32>) -> tensor<2x?xf32>
+  // CHECK-NEXT: return %[[RESHAPE2]]
+  return %0 : tensor<2x?xf32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_reshape_downrank_6D
 func @test_reshape_downrank_6D(%arg0: tensor<1x2x3x5x7x11xf32>) -> tensor<6x5x77xf32> {
   // CHECK: linalg.tensor_collapse_shape %arg0 {{\[}}[0, 1, 2], [3], [4, 5]]
   %0 = "tosa.reshape"(%arg0) {new_shape = [6, 5, 77]} : (tensor<1x2x3x5x7x11xf32>) -> tensor<6x5x77xf32>
   return %0 : tensor<6x5x77xf32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_reshape_downrank_6D_dyn
+func @test_reshape_downrank_6D_dyn(%arg0: tensor<1x2x?x5x7x11xf32>) -> tensor<?x5x77xf32> {
+  // CHECK: linalg.tensor_collapse_shape %arg0 {{\[}}[0, 1, 2, 3, 4, 5]]
+  // CHECK: linalg.tensor_expand_shape %0 {{\[}}[0, 1, 2]]
+  %0 = "tosa.reshape"(%arg0) {new_shape = [-1, 5, 77]} : (tensor<1x2x?x5x7x11xf32>) -> tensor<?x5x77xf32>
+  return %0 : tensor<?x5x77xf32>
 }
 
 // -----
@@ -778,38 +820,24 @@ func @concat(%arg0: tensor<5x1xf32>, %arg1: tensor<6x1xf32>) -> () {
   // CHECK: [[STRIDE:%.+]]   = arith.constant 1
   // CHECK: [[OFFSET:%.+]] = arith.constant 0 : index
   // CHECK: [[IDX0:%.+]] = arith.constant 0 : index
-  // CHECK: [[ARG0_DIM0:%.+]] = tensor.dim %arg0, [[IDX0]]
   // CHECK: [[IDX1:%.+]] = arith.constant 1 : index
-  // CHECK: [[ARG0_DIM1:%.+]] = tensor.dim %arg0, [[IDX1]]
-  // CHECK: [[ARG1_AXIS:%.+]] = tensor.dim %arg1, [[AXIS]]
-  // CHECK: [[RESULT_AXIS:%.+]] = arith.addi [[ARG0_DIM0]], [[ARG1_AXIS]]
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [11, 1]
   // CHECK: [[CST:%.+]] = arith.constant 0.0
   // CHECK: [[FILL:%.+]] = linalg.fill([[CST]], [[INIT]])
-  // CHECK: [[ARG0_DIM0:%.+]] = tensor.dim %arg0, [[AXIS]]
-  // CHECK: [[INSERT0:%.+]] = tensor.insert_slice %arg0 into [[FILL]]{{\[}}[[OFFSET]], [[OFFSET]]] {{\[}}[[ARG0_DIM0]], [[ARG0_DIM1]]] {{\[}}[[STRIDE]], [[STRIDE]]]
-  // CHECK: [[NEW_OFFSET:%.+]] = arith.addi [[OFFSET]], [[ARG0_DIM0]]
-  // CHECK: [[ARG1_DIM0:%.+]] = tensor.dim %arg1, [[AXIS]]
-  // CHECK: [[INSERT1:%.+]] = tensor.insert_slice %arg1 into [[INSERT0]]{{\[}}[[NEW_OFFSET]], [[OFFSET]]] {{\[}}[[ARG1_DIM0]], [[ARG0_DIM1]]] {{\[}}[[STRIDE]], [[STRIDE]]]
+  // CHECK: [[INSERT0:%.+]] = tensor.insert_slice %arg0 into [[FILL]][0, 0] [5, 1] [1, 1]
+  // CHECK: [[INSERT1:%.+]] = tensor.insert_slice %arg1 into [[INSERT0]][5, 0] [6, 1] [1, 1]
   %0 = "tosa.concat"(%arg0, %arg1) { axis = 0 : i64} : (tensor<5x1xf32>, tensor<6x1xf32>)  -> (tensor<11x1xf32>)
 
   // CHECK: [[AXIS:%.+]] = arith.constant 1
   // CHECK: [[STRIDE:%.+]]   = arith.constant 1
   // CHECK: [[OFFSET:%.+]] = arith.constant 0 : index
   // CHECK: [[IDX0:%.+]] = arith.constant 0 : index
-  // CHECK: [[ARG0_DIM0:%.+]] = tensor.dim %arg0, [[IDX0]]
   // CHECK: [[IDX1:%.+]] = arith.constant 1 : index
-  // CHECK: [[ARG0_DIM1:%.+]] = tensor.dim %arg0, [[IDX1]]
-  // CHECK: [[ARG1_AXIS:%.+]] = tensor.dim %arg0, [[AXIS]]
-  // CHECK: [[RESULT_AXIS:%.+]] = arith.addi [[ARG0_DIM1]], [[ARG1_AXIS]]
   // CHECK: [[INIT:%.+]] = linalg.init_tensor [5, 2]
   // CHECK: [[CST:%.+]] = arith.constant 0.0
   // CHECK: [[FILL:%.+]] = linalg.fill([[CST]], [[INIT]])
-  // CHECK: [[ARG0_DIM1:%.+]] = tensor.dim %arg0, [[AXIS]]
-  // CHECK: [[INSERT0:%.+]] = tensor.insert_slice %arg0 into [[FILL]]{{\[}}[[OFFSET]], [[OFFSET]]] {{\[}}[[ARG0_DIM0]], [[ARG0_DIM1]]] {{\[}}[[STRIDE]], [[STRIDE]]]
-  // CHECK: [[NEW_OFFSET:%.+]] = arith.addi [[OFFSET]], [[ARG0_DIM1]]
-  // CHECK: [[ARG1_DIM1:%.+]] = tensor.dim %arg0, [[AXIS]]
-  // CHECK: [[INSERT1:%.+]] = tensor.insert_slice %arg0 into [[INSERT0]]{{\[}}[[OFFSET]], [[NEW_OFFSET]]] {{\[}}[[ARG0_DIM0]], [[ARG1_DIM1]]] {{\[}}[[STRIDE]], [[STRIDE]]]
+  // CHECK: [[INSERT0:%.+]] = tensor.insert_slice %arg0 into [[FILL]][0, 0] [5, 1] [1, 1]
+  // CHECK: [[INSERT1:%.+]] = tensor.insert_slice %arg0 into [[INSERT0]][0, 1] [5, 1] [1, 1]
   %1 = "tosa.concat"(%arg0, %arg0) { axis = 1 : i64} : (tensor<5x1xf32>, tensor<5x1xf32>)  -> (tensor<5x2xf32>)
   return
 }
@@ -1187,11 +1215,11 @@ func @fully_connected_dyn(%arg0: tensor<?x3xf32>, %arg1: tensor<6x3xf32>, %arg2:
 func @pad_float(%arg0 : tensor<1x2xf32>) -> (tensor<4x9xf32>) {
   %0 = arith.constant dense<[[1, 2], [3, 4]]> : tensor<2x2xi32>
   // TODO: Output contains multiple "arith.constant 1 : index".
-  // CHECK: [[INDEX1:%.+]] = arith.constant 1 : index
-  // CHECK: [[INDEX2:%.+]] = arith.constant 2 : index
-  // CHECK: [[INDEX3:%.+]] = arith.constant 3 : index
-  // CHECK: [[INDEX4:%.+]] = arith.constant 4 : index
-  // CHECK: [[CST:%.+]] = arith.constant 0.000000e+00 : f32
+  // CHECK-DAG: [[INDEX1:%.+]] = arith.constant 1 : index
+  // CHECK-DAG: [[INDEX2:%.+]] = arith.constant 2 : index
+  // CHECK-DAG: [[INDEX3:%.+]] = arith.constant 3 : index
+  // CHECK-DAG: [[INDEX4:%.+]] = arith.constant 4 : index
+  // CHECK-DAG: [[CST:%.+]] = arith.constant 0.000000e+00 : f32
   // CHECK: linalg.pad_tensor %arg0 low{{\[}}%{{.*}}, [[INDEX3]]] high{{\[}}[[INDEX2]], [[INDEX4]]]  {
   // CHECK: ^bb0(%arg1: index, %arg2: index):  // no predecessors
   // CHECK:   linalg.yield [[CST]]
@@ -1216,6 +1244,25 @@ func @pad_quant(%arg0 : tensor<1x2xi32>) -> (tensor<4x9xi32>) {
   // CHECK:   linalg.yield [[CST]]
   %1 = "tosa.pad"(%arg0, %0) { quantization_info = { input_zp = 42 : i32}} : (tensor<1x2xi32>, tensor<2x2xi32>)  -> (tensor<4x9xi32>)
   return %1 : tensor<4x9xi32>
+}
+
+// -----
+
+func @pad_float_explicit(%arg0 : tensor<1x2xf32>) -> (tensor<4x9xf32>) {
+  %0 = arith.constant dense<[[1, 2], [3, 4]]> : tensor<2x2xi32>
+  // TODO: Output contains multiple "arith.constant 1 : index".
+  // CHECK-DAG: [[INDEX1:%.+]] = arith.constant 1 : index
+  // CHECK-DAG: [[INDEX2:%.+]] = arith.constant 2 : index
+  // CHECK-DAG: [[INDEX3:%.+]] = arith.constant 3 : index
+  // CHECK-DAG: [[INDEX4:%.+]] = arith.constant 4 : index
+  // CHECK-DAG: [[CST:%.+]] = arith.constant 4.200000e+01 : f32
+  // CHECK: linalg.pad_tensor %arg0 low{{\[}}%{{.*}}, [[INDEX3]]] high{{\[}}[[INDEX2]], [[INDEX4]]]  {
+  // CHECK: ^bb0(%arg1: index, %arg2: index):  // no predecessors
+  // CHECK:   linalg.yield [[CST]]
+  // CHECK: } : tensor<1x2xf32> to tensor<4x9xf32>
+  %1 = arith.constant dense<42.0> : tensor<f32>
+  %2 = "tosa.pad"(%arg0, %0, %1)  : (tensor<1x2xf32>, tensor<2x2xi32>, tensor<f32>)  -> (tensor<4x9xf32>)
+  return %2 : tensor<4x9xf32>
 }
 
 // -----
@@ -1573,7 +1620,7 @@ func @depthwise_conv(%arg0 : tensor<1x7x5x3xf32>, %arg1 : tensor<3x1x3x11xf32>, 
   // CHECK: [[CST0:%.+]] = arith.constant 0
   // CHECK: [[FILL:%.+]] = linalg.fill([[CST0]], [[INIT]])
   // CHECK: [[OUT:%.+]] = linalg.init_tensor [1, 5, 5, 33]
-  // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv2D_nhwc {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins(%arg0, %arg1 : tensor<1x7x5x3xf32>, tensor<3x1x3x11xf32>) outs([[FILL]] : tensor<1x5x5x3x11xf32>)
+  // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv_2d_nhwc_hwcm {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins(%arg0, %arg1 : tensor<1x7x5x3xf32>, tensor<3x1x3x11xf32>) outs([[FILL]] : tensor<1x5x5x3x11xf32>)
   // CHECK: [[COLLAPSED:%.+]] = linalg.tensor_collapse_shape [[DEPTH]] {{\[}}[0], [1], [2], [3, 4]]
   // CHECK: [[BIAS:%.+]] = linalg.generic {indexing_maps = [#[[$MAP0]], #[[$MAP1]], #[[$MAP1]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%arg2, [[COLLAPSED]] : tensor<33xf32>, tensor<1x5x5x33xf32>) outs([[OUT]] : tensor<1x5x5x33xf32>) {
   // CHECK: ^bb0(%arg3: f32, %arg4: f32, %arg5: f32):  // no predecessors
@@ -1595,7 +1642,7 @@ func @depthwise_conv_strides(%arg0 : tensor<1x11x9x3xf32>, %arg1 : tensor<3x1x3x
   // CHECK: [[CST0:%.+]] = arith.constant 0
   // CHECK: [[FILL:%.+]] = linalg.fill([[CST0]], [[INIT]])
   // CHECK: [[OUT:%.+]] = linalg.init_tensor [1, 5, 5, 33]
-  // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv2D_nhwc {dilations = dense<1> : tensor<2xi64>, strides = dense<2> : tensor<2xi64>} ins(%arg0, %arg1 : tensor<1x11x9x3xf32>, tensor<3x1x3x11xf32>) outs([[FILL]] : tensor<1x5x5x3x11xf32>)
+  // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv_2d_nhwc_hwcm {dilations = dense<1> : tensor<2xi64>, strides = dense<2> : tensor<2xi64>} ins(%arg0, %arg1 : tensor<1x11x9x3xf32>, tensor<3x1x3x11xf32>) outs([[FILL]] : tensor<1x5x5x3x11xf32>)
   // CHECK: [[COLLAPSED:%.+]] = linalg.tensor_collapse_shape [[DEPTH]] {{\[}}[0], [1], [2], [3, 4]]
   // CHECK: [[BIAS:%.+]] = linalg.generic {indexing_maps = [#[[$MAP0]], #[[$MAP1]], #[[$MAP1]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%arg2, [[COLLAPSED]] : tensor<33xf32>, tensor<1x5x5x33xf32>) outs([[OUT]] : tensor<1x5x5x33xf32>) {
   // CHECK: ^bb0(%arg3: f32, %arg4: f32, %arg5: f32):  // no predecessors
@@ -1623,7 +1670,7 @@ func @depthwise_conv_quant(%arg0 : tensor<1x12x12x4xi8>, %arg1 : tensor<3x3x4x12
   // CHECK: [[OUT:%.+]] = linalg.init_tensor [1, 12, 12, 512]
   // CHECK: [[C128:%.+]] = arith.constant -128
   // CHECK: [[C42:%.+]] = arith.constant 42
-  // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv2D_nhwc_q {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins([[PAD]], %arg1, [[C128]], [[C42]] : tensor<1x14x14x4xi8>, tensor<3x3x4x128xi8>, i32, i32) outs([[FILL]] : tensor<1x12x12x4x128xi32>)
+  // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv_2d_nhwc_hwcm_q {dilations = dense<1> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins([[PAD]], %arg1, [[C128]], [[C42]] : tensor<1x14x14x4xi8>, tensor<3x3x4x128xi8>, i32, i32) outs([[FILL]] : tensor<1x12x12x4x128xi32>)
   // CHECK: [[COLLAPSED:%.+]] = linalg.tensor_collapse_shape [[DEPTH]] {{\[}}[0], [1], [2], [3, 4]]
   // CHECK: [[BIAS:%.+]] = linalg.generic {indexing_maps = [#[[$MAP0]], #[[$MAP1]], #[[$MAP1]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%arg2, [[COLLAPSED]] : tensor<512xi32>, tensor<1x12x12x512xi32>) outs([[OUT]] : tensor<1x12x12x512xi32>) {
   // CHECK: ^bb0(%arg3: i32, %arg4: i32, %arg5: i32):  // no predecessors
@@ -1647,7 +1694,7 @@ func @depthwise_conv_quant_dilations(%arg0 : tensor<1x14x14x4xi8>, %arg1 : tenso
   // CHECK: [[OUT:%.+]] = linalg.init_tensor [1, 10, 10, 512]
   // CHECK: [[C128:%.+]] = arith.constant -128
   // CHECK: [[C42:%.+]] = arith.constant 42
-  // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv2D_nhwc_q {dilations = dense<2> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins(%arg0, %arg1, [[C128]], [[C42]] : tensor<1x14x14x4xi8>, tensor<3x3x4x128xi8>, i32, i32) outs([[FILL]] : tensor<1x10x10x4x128xi32>)
+  // CHECK: [[DEPTH:%.+]] = linalg.depthwise_conv_2d_nhwc_hwcm_q {dilations = dense<2> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins(%arg0, %arg1, [[C128]], [[C42]] : tensor<1x14x14x4xi8>, tensor<3x3x4x128xi8>, i32, i32) outs([[FILL]] : tensor<1x10x10x4x128xi32>)
   // CHECK: [[COLLAPSED:%.+]] = linalg.tensor_collapse_shape [[DEPTH]] {{\[}}[0], [1], [2], [3, 4]]
   // CHECK: [[BIAS:%.+]] = linalg.generic {indexing_maps = [#[[$MAP0]], #[[$MAP1]], #[[$MAP1]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%arg2, [[COLLAPSED]] : tensor<512xi32>, tensor<1x10x10x512xi32>) outs([[OUT]] : tensor<1x10x10x512xi32>) {
   // CHECK: ^bb0(%arg3: i32, %arg4: i32, %arg5: i32):  // no predecessors
@@ -1657,27 +1704,6 @@ func @depthwise_conv_quant_dilations(%arg0 : tensor<1x14x14x4xi8>, %arg1 : tenso
   %0 = "tosa.depthwise_conv2d"(%arg0, %arg1, %arg2) {pad = [0, 0, 0, 0], quantization_info = {input_zp = -128 : i32, weight_zp = 42 : i32}, stride = [1, 1], dilation = [2, 2] } : (tensor<1x14x14x4xi8>, tensor<3x3x4x128xi8>, tensor<512xi32>)  -> tensor<1x10x10x512xi32>
   return
 }
-
-// -----
-
-// CHECK-LABEL: @transpose_conv
-func @transpose_conv(%arg0 : tensor<1x12x12x2xf32>, %arg1 : tensor<4x3x3x2xf32>, %arg2 : tensor<4xf32>) -> () {
-  // CHECK: linalg.pad_tensor %arg0 low[0, 2, 2, 0] high[0, 2, 2, 0]
-  // CHECK: linalg.conv_2d_nhwc_hwcf
-  %0 = "tosa.transpose_conv2d"(%arg0, %arg1, %arg2) {dilation = [1, 1], out_pad = [0, 0], out_shape = [1, 14, 14, 4], stride = [1, 1]} : (tensor<1x12x12x2xf32>, tensor<4x3x3x2xf32>, tensor<4xf32>) -> tensor<1x14x14x4xf32>
-  return
-}
-
-// -----
-
-// CHECK-LABEL: @transpose_conv_dilated
-func @transpose_conv_dilated(%arg0 : tensor<1x12x12x2xf32>, %arg1 : tensor<4x3x3x2xf32>, %arg2 : tensor<4xf32>) -> () {
-  // CHECK: [[PAD:%.+]] = linalg.pad_tensor %arg0 low[0, 4, 4, 0] high[0, 4, 4, 0]
-  // CHECK: linalg.conv_2d_nhwc_hwcf {dilations = dense<2> : tensor<2xi64>, strides = dense<1> : tensor<2xi64>} ins([[PAD]], {{%.+}} : tensor<1x20x20x2xf32>, tensor<3x3x2x4xf32>)
-  %0 = "tosa.transpose_conv2d"(%arg0, %arg1, %arg2) {dilation = [2, 2], out_pad = [0, 0], out_shape = [1, 16, 16, 4], stride = [1, 1]} : (tensor<1x12x12x2xf32>, tensor<4x3x3x2xf32>, tensor<4xf32>) -> tensor<1x16x16x4xf32>
-  return
-}
-
 
 // -----
 
