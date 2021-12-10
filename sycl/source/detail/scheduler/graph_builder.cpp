@@ -1125,6 +1125,15 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
         MCmdsToVisit.push(Dep.MDepCommand);
     }
 
+    // If the command has failed to enqueue it must be removed from its leaves.
+    if (Cmd->isEnqueueFailed()) {
+      for (const DepDesc &Dep : Cmd->MDeps) {
+        const Requirement *Req = Dep.MDepRequirement;
+        MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
+        updateLeaves({Cmd}, Record, Req->MAccessMode);
+      }
+    }
+
     // Do not clean up the node if it is a leaf for any memory object
     if (Cmd->MLeafCounter > 0)
       continue;

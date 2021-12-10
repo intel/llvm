@@ -108,7 +108,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     NewEvent = NewCmd->getEvent();
   }
 
-  {
+  try {
     ReadLockT Lock(MGraphLock);
 
     Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
@@ -128,31 +128,17 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
 
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
-      try {
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw runtime_error("Auxiliary enqueue process failed.",
-                              PI_INVALID_OPERATION);
-      } catch (...) {
-        // enqueueCommand() func and if statement above may throw an exception,
-        // so destroy required resources to avoid memory leak
-        CleanUp();
-        std::rethrow_exception(std::current_exception());
-      }
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Auxiliary enqueue process failed.",
+                            PI_INVALID_OPERATION);
     }
 
     if (NewCmd) {
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
-      try {
-        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
-        if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
-          throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
-      } catch (...) {
-        // enqueueCommand() func and if statement above may throw an exception,
-        // so destroy required resources to avoid memory leak
-        CleanUp();
-        std::rethrow_exception(std::current_exception());
-      }
+      bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 
       // If there are no memory dependencies decouple and free the command.
       // Though, dismiss ownership of native kernel command group as it's
@@ -160,6 +146,11 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // at native kernel execution finish.
       CleanUp();
     }
+  } catch (...) {
+    // If enqueuing has failed we need to clean up the command to remove it
+    // from the graph so it does not cause issues for other related commands.
+    cleanupFinishedCommands(NewEvent);
+    std::rethrow_exception(std::current_exception());
   }
 
   for (auto StreamImplPtr : Streams) {
