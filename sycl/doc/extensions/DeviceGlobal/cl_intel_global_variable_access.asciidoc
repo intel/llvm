@@ -93,8 +93,8 @@ New return values from *clGetEventInfo* when _param_name_ is
 `CL_EVENT_COMMAND_TYPE`:
 
 ```
-#define CL_COMMAND_READ_GLOBAL_VARIABLE_INTEL   /*TODO*/
-#define CL_COMMAND_WRITE_GLOBAL_VARIABLE_INTEL  /*TODO*/
+#define CL_COMMAND_READ_GLOBAL_VARIABLE_INTEL   0x418E
+#define CL_COMMAND_WRITE_GLOBAL_VARIABLE_INTEL  0x418F
 ```
 
 == New OpenCL C Functions
