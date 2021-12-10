@@ -119,6 +119,10 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     auto CleanUp = [&]() {
       if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0 &&
                      NewCmd->getPreparedHostDepsEvents().size() == 0)) {
+        // Calling assert to prevent cleaning up of the command which enqueue
+        // status is not successfull
+        assert(NewCmd->isSuccessfullyEnqueued());
+
         if (Type == CG::RunOnHostIntel)
           static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
 
