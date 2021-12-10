@@ -198,8 +198,8 @@ endif()
 
 # pkg-config file
 configure_file( libclc.pc.in libclc.pc @ONLY )
-install( FILES ${CMAKE_CURRENT_BINARY_DIR}/libclc.pc DESTINATION ${CMAKE_INSTALL_DATADIR}/pkgconfig )
-install( DIRECTORY generic/include/clc DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} )
+install( FILES ${CMAKE_CURRENT_BINARY_DIR}/libclc.pc DESTINATION "${CMAKE_INSTALL_DATADIR}/pkgconfig" )
+install( DIRECTORY generic/include/clc DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" )
 
 if( ENABLE_RUNTIME_SUBNORMAL )
 	add_library( subnormal_use_default STATIC
@@ -207,7 +207,7 @@ if( ENABLE_RUNTIME_SUBNORMAL )
 	add_library( subnormal_disable STATIC
 		generic/libspirv/subnormal_disable.ll )
 	install( TARGETS subnormal_use_default subnormal_disable ARCHIVE
-		DESTINATION ${CMAKE_INSTALL_DATADIR}/clc )
+		DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
 endif()
 
 find_package( Python3 REQUIRED COMPONENTS Interpreter )
@@ -387,6 +387,80 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 			ALIASES ${${d}_aliases}
 			GENERATE_TARGET "generate_convert_clc.cl"
 			PARENT_TARGET libclc-builtins)
+
+		add_library( builtins.link.${arch_suffix} STATIC ${rel_files} )
+		# Make sure we depend on the pseudo target to prevent
+		# multiple invocations
+		add_dependencies( builtins.link.${arch_suffix}
+			generate_convert.cl )
+		# CMake will turn this include into absolute path
+		target_include_directories( builtins.link.${arch_suffix} PRIVATE
+			"generic/include" )
+		target_compile_definitions( builtins.link.${arch_suffix} PRIVATE
+			"__CLC_INTERNAL" )
+		string( TOUPPER "-DCLC_${ARCH}" CLC_TARGET_DEFINE )
+		target_compile_definitions( builtins.link.${arch_suffix} PRIVATE
+			${CLC_TARGET_DEFINE} )
+		target_compile_options( builtins.link.${arch_suffix} PRIVATE  -target
+			${t} ${mcpu} -fno-builtin -nostdlib ${build_flags} )
+		set_target_properties( builtins.link.${arch_suffix} PROPERTIES
+			LINKER_LANGUAGE CLC )
+
+		set( obj_suffix ${arch_suffix}.bc )
+
+		# Add opt target
+		add_custom_command( OUTPUT "builtins.opt.${obj_suffix}"
+				    COMMAND ${LLVM_OPT} ${opt_flags} -o
+				    "builtins.opt.${obj_suffix}"
+				    "builtins.link.${obj_suffix}"
+				    DEPENDS "builtins.link.${arch_suffix}" )
+		add_custom_target( "opt.${obj_suffix}" ALL
+		                   DEPENDS "builtins.opt.${obj_suffix}" )
+
+		if( ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
+			set( spv_suffix ${arch_suffix}.spv )
+			add_custom_command( OUTPUT "${spv_suffix}"
+					    COMMAND ${LLVM_SPIRV} ${spvflags}
+					    -o "${spv_suffix}"
+					    "builtins.link.${obj_suffix}"
+					    DEPENDS "builtins.link.${arch_suffix}" )
+			add_custom_target( "prepare-${spv_suffix}" ALL
+			                   DEPENDS "${spv_suffix}" )
+			install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${spv_suffix}
+				 DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+		else()
+
+			# Add prepare target
+			add_custom_command( OUTPUT "${obj_suffix}"
+				            COMMAND prepare_builtins -o
+					    "${obj_suffix}"
+					    "builtins.opt.${obj_suffix}"
+					    DEPENDS "opt.${obj_suffix}"
+					            "builtins.opt.${obj_suffix}"
+					            prepare_builtins )
+			add_custom_target( "prepare-${obj_suffix}" ALL
+					   DEPENDS "${obj_suffix}" )
+
+			# nvptx-- targets don't include workitem builtins
+			if( NOT ${t} MATCHES ".*ptx.*--$" )
+				add_test( NAME external-calls-${obj_suffix}
+					  COMMAND ./check_external_calls.sh ${CMAKE_CURRENT_BINARY_DIR}/${obj_suffix}
+					  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR} )
+				set_tests_properties( external-calls-${obj_suffix}
+					PROPERTIES ENVIRONMENT "LLVM_CONFIG=${LLVM_CONFIG}" )
+			endif()
+
+			install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${obj_suffix} DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+			foreach( a ${${d}_aliases} )
+				set( alias_suffix "${a}-${t}.bc" )
+				add_custom_target( ${alias_suffix} ALL
+						   COMMAND ${CMAKE_COMMAND} -E
+						   create_symlink ${obj_suffix}
+						   ${alias_suffix}
+				                   DEPENDS "prepare-${obj_suffix}" )
+				install( FILES ${CMAKE_CURRENT_BINARY_DIR}/${alias_suffix} DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+			endforeach( a )
+		endif()
 	endforeach( d )
 endforeach( t )
 
