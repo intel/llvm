@@ -4109,12 +4109,10 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
   if (BF->hasDecorate(internal::DecorationPipelineEnableINTEL)) {
     auto Literals =
         BF->getDecorationLiterals(internal::DecorationPipelineEnableINTEL);
-    if (!Literals[0]) {
-      std::vector<Metadata *> MetadataVec;
-      MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, 1)));
-      F->setMetadata(kSPIR2MD::DisableLoopPipelining,
-                     MDNode::get(*Context, MetadataVec));
-    }
+    std::vector<Metadata *> MetadataVec;
+    MetadataVec.push_back(ConstantAsMetadata::get(getInt32(M, !Literals[0])));
+    F->setMetadata(kSPIR2MD::DisableLoopPipelining,
+                   MDNode::get(*Context, MetadataVec));
   }
   return true;
 }
