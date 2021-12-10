@@ -49,7 +49,7 @@ product, please let us know!
 == Version
 
 Built On: {docdate} +
-Revision: A
+Revision: 0.9.0
 
 == Dependencies
 
@@ -89,13 +89,21 @@ cl_int clEnqueueWriteGlobalVariableINTEL(
 
 == New API Enums
 
-None.
+New return values from *clGetEventInfo* when _param_name_ is
+`CL_EVENT_COMMAND_TYPE`:
+
+```
+#define CL_COMMAND_READ_GLOBAL_VARIABLE_INTEL   /*TODO*/
+#define CL_COMMAND_WRITE_GLOBAL_VARIABLE_INTEL  /*TODO*/
+```
 
 == New OpenCL C Functions
 
 None.
 
 == Modifications to the OpenCL API Specification
+
+=== New Section "Global Variable Access"
 
 Add a new subsection under Section 5, *The OpenCL Runtime* named
 *Global Variable Access* with the following content:
@@ -108,6 +116,7 @@ cl_int clEnqueueReadGlobalVariableINTEL(
     cl_command_queue command_queue,
     cl_program program,
     const char* name,
+    cl_bool blocking_read,
     size_t size,
     size_t offset,
     void* ptr,
@@ -119,6 +128,7 @@ cl_int clEnqueueWriteGlobalVariableINTEL(
     cl_command_queue command_queue,
     cl_program program,
     const char* name,
+    cl_bool blocking_write,
     size_t size,
     size_t offset,
     const void* ptr,
@@ -152,6 +162,9 @@ cl_int clEnqueueWriteGlobalVariableINTEL(
 ** If _program_ was created in any other way, the interpretation of
    _name_ is implementation-defined.
 
+* _blocking_read_ and _blocking_write_ indicate if the read and write
+  operations are _blocking_ or _non-blocking_ (see below).
+
 * _size_ tells the number of bytes to read or write.
 
 * _offset_ tells the offset (number of bytes) from the start of the global
@@ -184,13 +197,30 @@ device has a distinct instance of any global variables contained by that
 program object.  These functions read or write the variable instance that
 resides on the target device of the _command_queue_.
 
-These functions are non-blocking, so they may return even before data is read
-or written to the global variable.  The _event_ argument returns an event
-object which the application can use to query the execution status of the
-command.  The application must not use the content of the _ptr_ buffer until
-the command has completed, and the value read by
-*clEnqueueReadGlobalVariableINTEL* is not available in the buffer referenced by
-_ptr_ until after the command has completed.
+If _blocking_read_ is `CL_TRUE` i.e. the read command is blocking,
+*clEnqueueReadGlobalVariableINTEL* does not return until data is read from the
+global variable and copied into memory pointed to by _ptr_.
+
+If _blocking_read_ is `CL_FALSE` i.e. the read command is non-blocking,
+*clEnqueueReadGlobalVariableINTEL* queues a non-blocking read command and
+returns.  The contents of the buffer that _ptr_ points to cannot be used until
+the read command has completed.  The _event_ argument returns an event object
+which can be used to query the execution status of the read command.  When the
+read command has completed, the contents of the buffer that _ptr_ points to can
+be used by the application.
+
+If _blocking_write_ is `CL_TRUE`, the write command is blocking and does not
+return until the command is complete, including transfer of the data.  The
+memory pointed to by _ptr_ can be reused by the application after the
+*clEnqueueWriteGlobalVariableINTEL* call returns.
+
+If _blocking_write_ is `CL_FALSE`, the OpenCL implementation will use _ptr_ to
+perform a non-blocking write.  As the write is non-blocking the implementation
+can return immediately.  The memory pointed to by _ptr_ cannot be reused by the
+application after the call returns.  The _event_ argument returns an event
+object which can be used to query the execution status of the write command.
+When the write command has completed, the memory pointed to by _ptr_ can then
+be reused by the application.
 
 *clEnqueueReadGlobalVariableINTEL* and *clEnqueueWriteGlobalVariableINTEL*
 return `CL_SUCCESS` if the function is executed successfully.  Otherwise, they
@@ -221,6 +251,10 @@ return one of the following errors:
   _num_events_in_wait_list_ is 0, or if event objects in _event_wait_list_ are
   not valid events.
 
+* `CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST` if the read and write
+  operations are blocking and the execution status of any of the events in
+  _event_wait_list_ is a negative integer value.
+
 * `CL_INVALID_OPERATION` if *clEnqueueReadGlobalVariableINTEL* is called for a
   global variable that is not readable from the host.  This is the case when
   _program_ is created from a SPIR-V module that declares the
@@ -238,6 +272,23 @@ return one of the following errors:
 
 * `CL_OUT_OF_HOST_MEMORY` if there is a failure to allocate resources required
   by the OpenCL implementation on the host.
+
+=== Section 5.11: Event Objects
+
+Add two new rows to Table 37, *List of supported event command types*:
+
+[cols="1,1", options="header"]
+|===
+|Events Created By
+|Event Command Type
+
+|*clEnqueueReadGlobalVariableINTEL*
+|`CL_COMMAND_READ_GLOBAL_VARIABLE_INTEL`
+
+|*clEnqueueWriteGlobalVariableINTEL*
+|`CL_COMMAND_WRITE_GLOBAL_VARIABLE_INTEL`
+|===
+
 
 == Issues
 
@@ -261,5 +312,5 @@ return one of the following errors:
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
-|A|2021-12-07|Greg Lueck|*Initial revision*
+|0.9.0|2021-12-10|Greg Lueck|*Initial revision*
 |========================================
