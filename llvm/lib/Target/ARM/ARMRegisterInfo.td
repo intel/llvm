@@ -277,6 +277,16 @@ def GPRwithAPSR : RegisterClass<"ARM", [i32], 32, (add (sub GPR, PC), APSR_NZCV)
   let DiagnosticString = "operand must be a register in range [r0, r14] or apsr_nzcv";
 }
 
+// GPRs without the SP register. Used for BXAUT and AUTG
+def GPRnosp : RegisterClass<"ARM", [i32], 32, (add (sequence "R%u", 0, 12), LR, PC)> {
+  let AltOrders = [(add LR, GPRnosp), (trunc GPRnosp, 8),
+                   (add (trunc GPRnosp, 8), R12, LR, (shl GPRnosp, 8))];
+  let AltOrderSelect = [{
+      return MF.getSubtarget<ARMSubtarget>().getGPRAllocationOrder(MF);
+  }];
+  let DiagnosticString = "operand must be a register in range [r0, r12] or LR or PC";
+}
+
 // GPRs without the PC and SP registers but with APSR. Used by CLRM instruction.
 def GPRwithAPSRnosp : RegisterClass<"ARM", [i32], 32, (add (sequence "R%u", 0, 12), LR, APSR)> {
   let isAllocatable = 0;
@@ -385,7 +395,7 @@ def CCR : RegisterClass<"ARM", [i32], 32, (add CPSR)> {
 }
 
 // MVE Condition code register.
-def VCCR : RegisterClass<"ARM", [i32, v16i1, v8i1, v4i1], 32, (add VPR)> {
+def VCCR : RegisterClass<"ARM", [i32, v16i1, v8i1, v4i1, v2i1], 32, (add VPR)> {
 //  let CopyCost = -1;  // Don't allow copying of status registers.
 }
 

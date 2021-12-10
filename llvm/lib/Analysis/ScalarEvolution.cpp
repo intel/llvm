@@ -4095,14 +4095,13 @@ void ScalarEvolution::eraseValueFromMap(Value *V) {
 }
 
 void ScalarEvolution::insertValueToMap(Value *V, const SCEV *S) {
+  // A recursive query may have already computed the SCEV. It should be
+  // equivalent, but may not necessarily be exactly the same, e.g. due to lazily
+  // inferred nowrap flags.
   auto It = ValueExprMap.find_as(V);
   if (It == ValueExprMap.end()) {
     ValueExprMap.insert({SCEVCallbackVH(V, this), S});
     ExprValueMap[S].insert({V, nullptr});
-  } else {
-    // A recursive query may have already computed the SCEV. It should have
-    // arrived at the same value.
-    assert(It->second == S);
   }
 }
 
@@ -7604,10 +7603,12 @@ void ScalarEvolution::forgetAllLoops() {
   // result.
   BackedgeTakenCounts.clear();
   PredicatedBackedgeTakenCounts.clear();
+  BECountUsers.clear();
   LoopPropertiesCache.clear();
   ConstantEvolutionLoopExitValue.clear();
   ValueExprMap.clear();
   ValuesAtScopes.clear();
+  ValuesAtScopesUsers.clear();
   LoopDispositions.clear();
   BlockDispositions.clear();
   UnsignedRanges.clear();
@@ -7629,8 +7630,8 @@ void ScalarEvolution::forgetLoop(const Loop *L) {
     auto *CurrL = LoopWorklist.pop_back_val();
 
     // Drop any stored trip count value.
-    BackedgeTakenCounts.erase(CurrL);
-    PredicatedBackedgeTakenCounts.erase(CurrL);
+    forgetBackedgeTakenCounts(CurrL, /* Predicated */ false);
+    forgetBackedgeTakenCounts(CurrL, /* Predicated */ true);
 
     // Drop information about predicated SCEV rewrites for this loop.
     for (auto I = PredicatedSCEVRewrites.begin();
@@ -7804,10 +7805,6 @@ bool ScalarEvolution::BackedgeTakenInfo::isConstantMaxOrZero(
   return MaxOrZero && !any_of(ExitNotTaken, PredicateNotAlwaysTrue);
 }
 
-bool ScalarEvolution::BackedgeTakenInfo::hasOperand(const SCEV *S) const {
-  return Operands.contains(S);
-}
-
 ScalarEvolution::ExitLimit::ExitLimit(const SCEV *E)
     : ExitLimit(E, E, false, None) {
 }
@@ -7848,19 +7845,6 @@ ScalarEvolution::ExitLimit::ExitLimit(const SCEV *E, const SCEV *M,
     : ExitLimit(E, M, MaxOrZero, None) {
 }
 
-class SCEVRecordOperands {
-  SmallPtrSetImpl<const SCEV *> &Operands;
-
-public:
-  SCEVRecordOperands(SmallPtrSetImpl<const SCEV *> &Operands)
-    : Operands(Operands) {}
-  bool follow(const SCEV *S) {
-    Operands.insert(S);
-    return true;
-  }
-  bool isDone() { return false; }
-};
-
 /// Allocate memory for BackedgeTakenInfo and copy the not-taken count of each
 /// computable exit into a persistent ExitNotTakenInfo array.
 ScalarEvolution::BackedgeTakenInfo::BackedgeTakenInfo(
@@ -7889,14 +7873,6 @@ ScalarEvolution::BackedgeTakenInfo::BackedgeTakenInfo(
   assert((isa<SCEVCouldNotCompute>(ConstantMax) ||
           isa<SCEVConstant>(ConstantMax)) &&
          "No point in having a non-constant max backedge taken count!");
-
-  SCEVRecordOperands RecordOperands(Operands);
-  SCEVTraversal<SCEVRecordOperands> ST(RecordOperands);
-  if (!isa<SCEVCouldNotCompute>(ConstantMax))
-    ST.visitAll(ConstantMax);
-  for (auto &ENT : ExitNotTaken)
-    if (!isa<SCEVCouldNotCompute>(ENT.ExactNotTaken))
-      ST.visitAll(ENT.ExactNotTaken);
 }
 
 /// Compute the number of times the backedge of the specified loop will execute.
@@ -7978,6 +7954,13 @@ ScalarEvolution::computeBackedgeTakenCount(const Loop *L,
   // The loop backedge will be taken the maximum or zero times if there's
   // a single exit that must be taken the maximum or zero times.
   bool MaxOrZero = (MustExitMaxOrZero && ExitingBlocks.size() == 1);
+
+  // Remember which SCEVs are used in exit limits for invalidation purposes.
+  // We only care about non-constant SCEVs here, so we can ignore EL.MaxNotTaken
+  // and MaxBECount, which must be SCEVConstant.
+  for (const auto &Pair : ExitCounts)
+    if (!isa<SCEVConstant>(Pair.second.ExactNotTaken))
+      BECountUsers[Pair.second.ExactNotTaken].insert({L, AllowPredicates});
   return BackedgeTakenInfo(std::move(ExitCounts), CouldComputeBECount,
                            MaxBECount, MaxOrZero);
 }
@@ -8846,6 +8829,8 @@ const SCEV *ScalarEvolution::getSCEVAtScope(const SCEV *V, const Loop *L) {
   for (auto &LS : reverse(ValuesAtScopes[V]))
     if (LS.first == L) {
       LS.second = C;
+      if (!isa<SCEVConstant>(C))
+        ValuesAtScopesUsers[C].push_back({L, V});
       break;
     }
   return C;
@@ -12463,9 +12448,11 @@ ScalarEvolution::ScalarEvolution(ScalarEvolution &&Arg)
       BackedgeTakenCounts(std::move(Arg.BackedgeTakenCounts)),
       PredicatedBackedgeTakenCounts(
           std::move(Arg.PredicatedBackedgeTakenCounts)),
+      BECountUsers(std::move(Arg.BECountUsers)),
       ConstantEvolutionLoopExitValue(
           std::move(Arg.ConstantEvolutionLoopExitValue)),
       ValuesAtScopes(std::move(Arg.ValuesAtScopes)),
+      ValuesAtScopesUsers(std::move(Arg.ValuesAtScopesUsers)),
       LoopDispositions(std::move(Arg.LoopDispositions)),
       LoopPropertiesCache(std::move(Arg.LoopPropertiesCache)),
       BlockDispositions(std::move(Arg.BlockDispositions)),
@@ -12878,6 +12865,23 @@ bool ScalarEvolution::hasOperand(const SCEV *S, const SCEV *Op) const {
   return SCEVExprContains(S, [&](const SCEV *Expr) { return Expr == Op; });
 }
 
+void ScalarEvolution::forgetBackedgeTakenCounts(const Loop *L,
+                                                bool Predicated) {
+  auto &BECounts =
+      Predicated ? PredicatedBackedgeTakenCounts : BackedgeTakenCounts;
+  auto It = BECounts.find(L);
+  if (It != BECounts.end()) {
+    for (const ExitNotTakenInfo &ENT : It->second.ExitNotTaken) {
+      if (!isa<SCEVConstant>(ENT.ExactNotTaken)) {
+        auto UserIt = BECountUsers.find(ENT.ExactNotTaken);
+        assert(UserIt != BECountUsers.end());
+        UserIt->second.erase({L, Predicated});
+      }
+    }
+    BECounts.erase(It);
+  }
+}
+
 void ScalarEvolution::forgetMemoizedResults(ArrayRef<const SCEV *> SCEVs) {
   SmallPtrSet<const SCEV *, 8> ToForget(SCEVs.begin(), SCEVs.end());
   SmallVector<const SCEV *, 8> Worklist(ToForget.begin(), ToForget.end());
@@ -12902,25 +12906,9 @@ void ScalarEvolution::forgetMemoizedResults(ArrayRef<const SCEV *> SCEVs) {
     else
       ++I;
   }
-
-  auto RemoveSCEVFromBackedgeMap = [&ToForget](
-      DenseMap<const Loop *, BackedgeTakenInfo> &Map) {
-        for (auto I = Map.begin(), E = Map.end(); I != E;) {
-          BackedgeTakenInfo &BEInfo = I->second;
-          if (any_of(ToForget,
-                     [&BEInfo](const SCEV *S) { return BEInfo.hasOperand(S); }))
-            Map.erase(I++);
-          else
-            ++I;
-        }
-  };
-
-  RemoveSCEVFromBackedgeMap(BackedgeTakenCounts);
-  RemoveSCEVFromBackedgeMap(PredicatedBackedgeTakenCounts);
 }
 
 void ScalarEvolution::forgetMemoizedResultsImpl(const SCEV *S) {
-  ValuesAtScopes.erase(S);
   LoopDispositions.erase(S);
   BlockDispositions.erase(S);
   UnsignedRanges.erase(S);
@@ -12938,6 +12926,31 @@ void ScalarEvolution::forgetMemoizedResultsImpl(const SCEV *S) {
       }
     }
     ExprValueMap.erase(ExprIt);
+  }
+
+  auto ScopeIt = ValuesAtScopes.find(S);
+  if (ScopeIt != ValuesAtScopes.end()) {
+    for (const auto &Pair : ScopeIt->second)
+      if (!isa_and_nonnull<SCEVConstant>(Pair.second))
+        erase_value(ValuesAtScopesUsers[Pair.second],
+                    std::make_pair(Pair.first, S));
+    ValuesAtScopes.erase(ScopeIt);
+  }
+
+  auto ScopeUserIt = ValuesAtScopesUsers.find(S);
+  if (ScopeUserIt != ValuesAtScopesUsers.end()) {
+    for (const auto &Pair : ScopeUserIt->second)
+      erase_value(ValuesAtScopes[Pair.second], std::make_pair(Pair.first, S));
+    ValuesAtScopesUsers.erase(ScopeUserIt);
+  }
+
+  auto BEUsersIt = BECountUsers.find(S);
+  if (BEUsersIt != BECountUsers.end()) {
+    // Work on a copy, as forgetBackedgeTakenCounts() will modify the original.
+    auto Copy = BEUsersIt->second;
+    for (const auto &Pair : Copy)
+      forgetBackedgeTakenCounts(Pair.getPointer(), Pair.getInt());
+    BECountUsers.erase(BEUsersIt);
   }
 }
 
@@ -13079,7 +13092,7 @@ void ScalarEvolution::verify() const {
     }
   }
 
-  // Verify intergity of SCEV users.
+  // Verify integrity of SCEV users.
   for (const auto &S : UniqueSCEVs) {
     SmallVector<const SCEV *, 4> Ops;
     collectUniqueOps(&S, Ops);
@@ -13095,6 +13108,61 @@ void ScalarEvolution::verify() const {
       std::abort();
     }
   }
+
+  // Verify integrity of ValuesAtScopes users.
+  for (const auto &ValueAndVec : ValuesAtScopes) {
+    const SCEV *Value = ValueAndVec.first;
+    for (const auto &LoopAndValueAtScope : ValueAndVec.second) {
+      const Loop *L = LoopAndValueAtScope.first;
+      const SCEV *ValueAtScope = LoopAndValueAtScope.second;
+      if (!isa<SCEVConstant>(ValueAtScope)) {
+        auto It = ValuesAtScopesUsers.find(ValueAtScope);
+        if (It != ValuesAtScopesUsers.end() &&
+            is_contained(It->second, std::make_pair(L, Value)))
+          continue;
+        dbgs() << "Value: " << *Value << ", Loop: " << *L << ", ValueAtScope: "
+               << *ValueAtScope << " missing in ValuesAtScopesUsers\n";
+        std::abort();
+      }
+    }
+  }
+
+  for (const auto &ValueAtScopeAndVec : ValuesAtScopesUsers) {
+    const SCEV *ValueAtScope = ValueAtScopeAndVec.first;
+    for (const auto &LoopAndValue : ValueAtScopeAndVec.second) {
+      const Loop *L = LoopAndValue.first;
+      const SCEV *Value = LoopAndValue.second;
+      assert(!isa<SCEVConstant>(Value));
+      auto It = ValuesAtScopes.find(Value);
+      if (It != ValuesAtScopes.end() &&
+          is_contained(It->second, std::make_pair(L, ValueAtScope)))
+        continue;
+      dbgs() << "Value: " << *Value << ", Loop: " << *L << ", ValueAtScope: "
+             << *ValueAtScope << " missing in ValuesAtScopes\n";
+      std::abort();
+    }
+  }
+
+  // Verify integrity of BECountUsers.
+  auto VerifyBECountUsers = [&](bool Predicated) {
+    auto &BECounts =
+        Predicated ? PredicatedBackedgeTakenCounts : BackedgeTakenCounts;
+    for (const auto &LoopAndBEInfo : BECounts) {
+      for (const ExitNotTakenInfo &ENT : LoopAndBEInfo.second.ExitNotTaken) {
+        if (!isa<SCEVConstant>(ENT.ExactNotTaken)) {
+          auto UserIt = BECountUsers.find(ENT.ExactNotTaken);
+          if (UserIt != BECountUsers.end() &&
+              UserIt->second.contains({ LoopAndBEInfo.first, Predicated }))
+            continue;
+          dbgs() << "Value " << *ENT.ExactNotTaken << " for loop "
+                 << *LoopAndBEInfo.first << " missing from BECountUsers\n";
+          std::abort();
+        }
+      }
+    }
+  };
+  VerifyBECountUsers(/* Predicated */ false);
+  VerifyBECountUsers(/* Predicated */ true);
 }
 
 bool ScalarEvolution::invalidate(
