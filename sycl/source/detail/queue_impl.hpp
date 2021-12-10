@@ -568,7 +568,11 @@ public:
   const bool MDiscardEvents;
 
 private:
-  // The presence of support for DiscardEvents from the queue
+  // This flag says if we can discard events based on a queue "setup" which will
+  // be common for all operations submitted to the queue. This is a must
+  // condition for discarding, but even if it's true, in some cases, we won't be
+  // able to discard events, because the final decision is made right before the
+  // operation itself.
   const bool MHasDiscardEventsSupport;
 };
 
