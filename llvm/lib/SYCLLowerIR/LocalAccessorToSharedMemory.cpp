@@ -14,8 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "LocalAccessorToSharedMemory.h"
-#include "../MCTargetDesc/NVPTXBaseInfo.h"
+#include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
@@ -27,79 +26,90 @@ using namespace llvm;
 
 namespace llvm {
 void initializeLocalAccessorToSharedMemoryPass(PassRegistry &);
-}
+} // namespace llvm
 
 namespace {
 
 class LocalAccessorToSharedMemory : public ModulePass {
+private:
+  enum class ArchType { Cuda, AMDHSA, Unsupported };
+
+  struct KernelPayload {
+    KernelPayload(Function *Kernel, MDNode *MD = nullptr)
+        : Kernel(Kernel), MD(MD){};
+    Function *Kernel;
+    MDNode *MD;
+  };
+
+  unsigned SharedASValue = 0;
+
 public:
   static char ID;
   LocalAccessorToSharedMemory() : ModulePass(ID) {}
 
   bool runOnModule(Module &M) override {
+    auto AT = StringSwitch<ArchType>(M.getTargetTriple().c_str())
+                  .Case("nvptx64-nvidia-cuda", ArchType::Cuda)
+                  .Case("nvptx-nvidia-cuda", ArchType::Cuda)
+                  .Case("amdgcn-amd-amdhsa", ArchType::AMDHSA)
+                  .Default(ArchType::Unsupported);
+
     // Invariant: This pass is only intended to operate on SYCL kernels being
-    // compiled to the `nvptx{,64}-nvidia-cuda` triple.
-    // TODO: make sure that non-SYCL kernels are not impacted.
+    // compiled to either `nvptx{,64}-nvidia-cuda`, or `amdgcn-amd-amdhsa`
+    // triples.
+    assert(AT != ArchType::Unsupported && "Only AMGHSA or CUDA supported.");
     if (skipModule(M))
       return false;
 
-    // Keep track of whether the module was changed.
-    auto Changed = false;
-
-    // Access `nvvm.annotations` to determine which functions are kernel entry
-    // points.
-    auto NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
-    if (!NvvmMetadata)
-      return false;
-
-    for (auto MetadataNode : NvvmMetadata->operands()) {
-      if (MetadataNode->getNumOperands() != 3)
-        continue;
-
-      // NVPTX identifies kernel entry points using metadata nodes of the form:
-      //   !X = !{<function>, !"kernel", i32 1}
-      const MDOperand &TypeOperand = MetadataNode->getOperand(1);
-      auto Type = dyn_cast<MDString>(TypeOperand);
-      if (!Type)
-        continue;
-      // Only process kernel entry points.
-      if (Type->getString() != "kernel")
-        continue;
-
-      // Get a pointer to the entry point function from the metadata.
-      const MDOperand &FuncOperand = MetadataNode->getOperand(0);
-      if (!FuncOperand)
-        continue;
-      auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
-      if (!FuncConstant)
-        continue;
-      auto Func = dyn_cast<Function>(FuncConstant->getValue());
-      if (!Func)
-        continue;
-
-      // Process the function and if changed, update the metadata.
-      auto NewFunc = this->ProcessFunction(M, Func);
-      if (NewFunc) {
-        Changed = true;
-        MetadataNode->replaceOperandWith(
-            0, llvm::ConstantAsMetadata::get(NewFunc));
-      }
+    switch (AT) {
+    case ArchType::Cuda:
+      // ADDRESS_SPACE_SHARED = 3,
+      SharedASValue = 3;
+      break;
+    case ArchType::AMDHSA:
+      // LOCAL_ADDRESS = 3,
+      SharedASValue = 3;
+      break;
+    default:
+      SharedASValue = 0;
+      break;
     }
 
-    return Changed;
+    SmallVector<KernelPayload> Kernels;
+    SmallVector<std::pair<Function *, KernelPayload>> NewToOldKernels;
+    populateKernels(M, Kernels, AT);
+    if (Kernels.empty())
+      return false;
+
+    // Process the function and if changed, update the metadata.
+    for (auto K : Kernels) {
+      auto *NewKernel = processKernel(M, K.Kernel);
+      if (NewKernel)
+        NewToOldKernels.push_back(std::make_pair(NewKernel, K));
+    }
+
+    if (NewToOldKernels.empty())
+      return false;
+
+    postProcessKernels(NewToOldKernels, AT);
+
+    return true;
   }
 
-  Function *ProcessFunction(Module &M, Function *F) {
+  virtual llvm::StringRef getPassName() const override {
+    return "SYCL Local Accessor to Shared Memory";
+  }
+
+private:
+  Function *processKernel(Module &M, Function *F) {
     // Check if this function is eligible by having an argument that uses shared
     // memory.
     auto UsesLocalMemory = false;
     for (Function::arg_iterator FA = F->arg_begin(), FE = F->arg_end();
          FA != FE; ++FA) {
-      if (FA->getType()->isPointerTy()) {
-        UsesLocalMemory =
-            FA->getType()->getPointerAddressSpace() == ADDRESS_SPACE_SHARED;
-      }
-      if (UsesLocalMemory) {
+      if (FA->getType()->isPointerTy() &&
+          FA->getType()->getPointerAddressSpace() == SharedASValue) {
+        UsesLocalMemory = true;
         break;
       }
     }
@@ -111,9 +121,9 @@ public:
     // Create a global symbol to CUDA shared memory.
     auto SharedMemGlobalName = F->getName().str();
     SharedMemGlobalName.append("_shared_mem");
-    auto SharedMemGlobalType =
+    auto *SharedMemGlobalType =
         ArrayType::get(Type::getInt8Ty(M.getContext()), 0);
-    auto SharedMemGlobal = new GlobalVariable(
+    auto *SharedMemGlobal = new GlobalVariable(
         /* Module= */ M,
         /* Type= */ &*SharedMemGlobalType,
         /* IsConstant= */ false,
@@ -122,7 +132,7 @@ public:
         /* Name= */ Twine{SharedMemGlobalName},
         /* InsertBefore= */ nullptr,
         /* ThreadLocalMode= */ GlobalValue::NotThreadLocal,
-        /* AddressSpace= */ ADDRESS_SPACE_SHARED,
+        /* AddressSpace= */ SharedASValue,
         /* IsExternallyInitialized= */ false);
     SharedMemGlobal->setAlignment(Align(4));
 
@@ -139,7 +149,7 @@ public:
     for (Function::arg_iterator FA = F->arg_begin(), FE = F->arg_end();
          FA != FE; ++FA, ++i) {
       if (FA->getType()->isPointerTy() &&
-          FA->getType()->getPointerAddressSpace() == ADDRESS_SPACE_SHARED) {
+          FA->getType()->getPointerAddressSpace() == SharedASValue) {
         // Replace pointers to shared memory with i32 offsets.
         Arguments.push_back(Type::getInt32Ty(M.getContext()));
         ArgumentAttributes.push_back(
@@ -178,8 +188,8 @@ public:
       if (ArgumentReplaced[i]) {
         // If this argument was replaced, then create a `getelementptr`
         // instruction that uses it to recreate the pointer that was replaced.
-        auto InsertBefore = &NF->getEntryBlock().front();
-        auto PtrInst = GetElementPtrInst::CreateInBounds(
+        auto *InsertBefore = &NF->getEntryBlock().front();
+        auto *PtrInst = GetElementPtrInst::CreateInBounds(
             /* PointeeType= */ SharedMemGlobalType,
             /* Ptr= */ SharedMemGlobal,
             /* IdxList= */
@@ -191,7 +201,7 @@ public:
         // Then create a bitcast to make sure the new pointer is the same type
         // as the old one. This will only ever be a `i8 addrspace(3)*` to `i32
         // addrspace(3)*` type of cast.
-        auto CastInst = new BitCastInst(PtrInst, FA->getType());
+        auto *CastInst = new BitCastInst(PtrInst, FA->getType());
         CastInst->insertAfter(PtrInst);
         NewValueForUse = CastInst;
       }
@@ -217,11 +227,85 @@ public:
     return NF;
   }
 
-  virtual llvm::StringRef getPassName() const {
-    return "localaccessortosharedmemory";
+  void populateCudaKernels(Module &M, SmallVector<KernelPayload> &Kernels) {
+    // Access `nvvm.annotations` to determine which functions are kernel entry
+    // points.
+    auto *NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
+    if (!NvvmMetadata)
+      return;
+
+    for (auto *MetadataNode : NvvmMetadata->operands()) {
+      if (MetadataNode->getNumOperands() != 3)
+        continue;
+
+      // NVPTX identifies kernel entry points using metadata nodes of the form:
+      //   !X = !{<function>, !"kernel", i32 1}
+      const MDOperand &TypeOperand = MetadataNode->getOperand(1);
+      auto *Type = dyn_cast<MDString>(TypeOperand);
+      if (!Type)
+        continue;
+      // Only process kernel entry points.
+      if (Type->getString() != "kernel")
+        continue;
+
+      // Get a pointer to the entry point function from the metadata.
+      const MDOperand &FuncOperand = MetadataNode->getOperand(0);
+      if (!FuncOperand)
+        continue;
+      auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
+      if (!FuncConstant)
+        continue;
+      auto *Func = dyn_cast<Function>(FuncConstant->getValue());
+      if (!Func)
+        continue;
+
+      Kernels.push_back(KernelPayload(Func, MetadataNode));
+    }
+  }
+
+  void populateAMDKernels(Module &M, SmallVector<KernelPayload> &Kernels) {
+    for (auto &F : M) {
+      if (F.getCallingConv() == CallingConv::AMDGPU_KERNEL)
+        Kernels.push_back(KernelPayload(&F));
+    }
+  }
+
+  void populateKernels(Module &M, SmallVector<KernelPayload> &Kernels,
+                       ArchType AT) {
+    switch (AT) {
+    case ArchType::Cuda:
+      return populateCudaKernels(M, Kernels);
+    case ArchType::AMDHSA:
+      return populateAMDKernels(M, Kernels);
+    default:
+      llvm_unreachable("Unsupported arch type.");
+    }
+  }
+
+  void postProcessCudaKernels(
+      SmallVector<std::pair<Function *, KernelPayload>> &NewToOldKernels) {
+    for (auto &Pair : NewToOldKernels) {
+      std::get<1>(Pair).MD->replaceOperandWith(
+          0, llvm::ConstantAsMetadata::get(std::get<0>(Pair)));
+    }
+  }
+
+  void postProcessAMDKernels(
+      SmallVector<std::pair<Function *, KernelPayload>> &NewToOldKernels) {}
+
+  void postProcessKernels(
+      SmallVector<std::pair<Function *, KernelPayload>> &NewToOldKernels,
+      ArchType AT) {
+    switch (AT) {
+    case ArchType::Cuda:
+      return postProcessCudaKernels(NewToOldKernels);
+    case ArchType::AMDHSA:
+      return postProcessAMDKernels(NewToOldKernels);
+    default:
+      llvm_unreachable("Unsupported arch type.");
+    }
   }
 };
-
 } // end anonymous namespace
 
 char LocalAccessorToSharedMemory::ID = 0;

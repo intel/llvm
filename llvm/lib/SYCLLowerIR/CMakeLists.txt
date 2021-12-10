@@ -56,6 +56,8 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMDVerifier.cpp
   MutatePrintfAddrspace.cpp
 
+  LocalAccessorToSharedMemory.cpp
+
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
   ${LLVM_MAIN_SRC_DIR}/projects/vc-intrinsics/GenXIntrinsics/include

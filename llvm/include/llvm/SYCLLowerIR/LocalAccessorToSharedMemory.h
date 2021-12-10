@@ -8,9 +8,9 @@
 //
 // This pass operates on SYCL kernels being compiled to CUDA. It modifies
 // kernel entry points which take pointers to shared memory and modifies them
-// to take offsets into shared memory (represented by a symbol in the shared address
-// space). The SYCL runtime is expected to provide offsets rather than pointers
-// to these functions.
+// to take offsets into shared memory (represented by a symbol in the shared
+// address space). The SYCL runtime is expected to provide offsets rather than
+// pointers to these functions.
 //
 //===----------------------------------------------------------------------===//
 
