@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/ext/intel/experimental/esimd/detail/intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/types.hpp>
 
 __SYCL_INLINE_NAMESPACE(cl) {
@@ -303,8 +304,12 @@ public:
   Derived &operator=(const value_type &Val) { return write(Val); }
 
   /// Move assignment operator.
-  Derived &operator=(Derived &&Other) { return write(Other.read()); }
+  Derived &operator=(Derived &&Other) {
+    __esimd_move_test_proxy(Other);
+    return write(Other.read());
+  }
   simd_view_impl &operator=(simd_view_impl &&Other) {
+    __esimd_move_test_proxy(Other);
     return write(Other.read());
   }
 
@@ -492,9 +497,16 @@ public:
     return read().all();
   }
 
+public:
+  // Getter for the test proxy member, if enabled
+  __ESIMD_DECLARE_TEST_PROXY_ACCESS
+
 protected:
   // The reference to the base object, which must be a simd object
   BaseTy &M_base;
+
+  // The test proxy if enabled
+  __ESIMD_DECLARE_TEST_PROXY
 
   // The region applied on the base object. Its type could be
   // - region1d_t
