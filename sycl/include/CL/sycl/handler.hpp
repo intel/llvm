@@ -917,6 +917,14 @@ private:
            AccessMode == access::mode::discard_read_write;
   }
 
+  template <int Dims, typename LambdaArgType> struct TransformUserItemType {
+    using type = typename std::conditional<
+        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
+        typename std::conditional<
+            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
+            LambdaArgType>::type>::type;
+  };
+
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -935,16 +943,11 @@ private:
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
-    // If type is convertible to sycl::item/sycl::nd_item, convert it to
-    // sycl::item/sycl::nd_item
+    // If user type is convertible from sycl::item/sycl::nd_item, use
+    // sycl::item/sycl::nd_item to transport item information
     using TransformedArgType = typename std::conditional<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
-        typename std::conditional<
-            std::is_convertible<nd_item<Dims>, LambdaArgType>::value,
-            nd_item<Dims>,
-            typename std::conditional<
-                std::is_convertible<item<Dims>, LambdaArgType>::value,
-                item<Dims>, LambdaArgType>::type>::type>::type;
+        typename TransformUserItemType<Dims, LambdaArgType>::type>::type;
 
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1567,13 +1570,10 @@ public:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-    // If type is convertible to sycl::item/sycl::nd_item, convert it to
-    // sycl::item/sycl::nd_item
-    using TransformedArgType = typename std::conditional<
-        std::is_convertible<nd_item<Dims>, LambdaArgType>::value, nd_item<Dims>,
-        typename std::conditional<
-            std::is_convertible<item<Dims>, LambdaArgType>::value, item<Dims>,
-            LambdaArgType>::type>::type;
+    // If user type is convertible from sycl::item/sycl::nd_item, use
+    // sycl::item/sycl::nd_item to transport item information
+    using TransformedArgType =
+        typename TransformUserItemType<Dims, LambdaArgType>::type;
     (void)ExecutionRange;
     kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
