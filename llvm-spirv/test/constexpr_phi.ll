@@ -7,19 +7,22 @@
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: Name [[#F:]] "_Z3runiiPi"
+
+; 117 is OpConvertPtrToU opcode
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#SpecConst0:]] 117 [[#F1Ptr:]]
+; CHECK-SPIRV: SpecConstantOp [[#]] [[#SpecConst1:]] 117 [[#F2Ptr:]]
+; CHECK-SPIRV: ConstantComposite [[#]] [[#Compos0:]] [[#SpecConst0]] [[#SpecConst0]]
+; CHECK-SPIRV: ConstantComposite [[#]] [[#Compos1:]] [[#SpecConst0]] [[#SpecConst1]]
+
 ; CHECK-SPIRV: Function [[#]] [[#F]] [[#]] [[#]]
 ; CHECK-SPIRV: Label [[#L1:]]
-; CHECK-SPIRV: CompositeInsert [[#]] [[#Ins1:]] [[#]] [[#]] 0
-; CHECK-SPIRV: CompositeInsert [[#]] [[#Ins2:]] [[#]] [[#Ins1]] 1 
 ; CHECK-SPIRV: BranchConditional [[#]] [[#L2:]] [[#L3:]]
 ; CHECK-SPIRV: Label [[#L2]]
-; CHECK-SPIRV: CompositeInsert [[#]] [[#Ins3:]] [[#]] [[#]] 0
-; CHECK-SPIRV: CompositeInsert [[#]] [[#Ins4:]] [[#]] [[#Ins3]] 1
 ; CHECK-SPIRV: Branch [[#L3]]
 ; CHECK-SPIRV: Label [[#L3]]
 ; CHECK-NEXT-SPIRV: Phi [[#]] [[#]]
-  ; CHECK-SAME-SPIRV: [[#Ins2]] [[#L1]]
-  ; CHECK-SAME-SPIRV: [[#Ins4]] [[#L2]]
+  ; CHECK-SAME-SPIRV: [[#Compos0]] [[#L1]]
+  ; CHECK-SAME-SPIRV: [[#Compos1]] [[#L2]]
 
 ; CHECK-LLVM: br label %[[#L:]]
 ; CHECK-LLVM: [[#L]]:

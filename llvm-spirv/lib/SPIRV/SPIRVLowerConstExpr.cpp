@@ -167,53 +167,16 @@ void SPIRVLowerConstExprBase::visit(Module *M) {
       };
 
       WorkList.pop_front();
-      auto LowerConstantVec = [&II, &LowerOp, &WorkList,
-                               &M](ConstantVector *Vec,
-                                   unsigned NumOfOp) -> Value * {
-        if (std::all_of(Vec->op_begin(), Vec->op_end(), [](Value *V) {
-              return isa<ConstantExpr>(V) || isa<Function>(V);
-            })) {
-          // Expand a vector of constexprs and construct it back with
-          // series of insertelement instructions
-          std::list<Value *> OpList;
-          std::transform(Vec->op_begin(), Vec->op_end(),
-                         std::back_inserter(OpList),
-                         [LowerOp](Value *V) { return LowerOp(V); });
-          Value *Repl = nullptr;
-          unsigned Idx = 0;
-          auto *PhiII = dyn_cast<PHINode>(II);
-          auto *InsPoint =
-              PhiII ? &PhiII->getIncomingBlock(NumOfOp)->back() : II;
-          std::list<Instruction *> ReplList;
-          for (auto V : OpList) {
-            if (auto *Inst = dyn_cast<Instruction>(V))
-              ReplList.push_back(Inst);
-            Repl = InsertElementInst::Create(
-                (Repl ? Repl : UndefValue::get(Vec->getType())), V,
-                ConstantInt::get(Type::getInt32Ty(M->getContext()), Idx++), "",
-                InsPoint);
-          }
-          WorkList.splice(WorkList.begin(), ReplList);
-          return Repl;
-        }
-        return nullptr;
-      };
 
       for (unsigned OI = 0, OE = II->getNumOperands(); OI != OE; ++OI) {
         auto *Op = II->getOperand(OI);
-        if (auto *Vec = dyn_cast<ConstantVector>(Op)) {
-          Value *ReplInst = LowerConstantVec(Vec, OI);
-          if (ReplInst)
-            II->replaceUsesOfWith(Op, ReplInst);
-        } else if (auto CE = dyn_cast<ConstantExpr>(Op)) {
+        if (auto *CE = dyn_cast<ConstantExpr>(Op)) {
           WorkList.push_front(cast<Instruction>(LowerOp(CE)));
         } else if (auto MDAsVal = dyn_cast<MetadataAsValue>(Op)) {
           Metadata *MD = MDAsVal->getMetadata();
           if (auto ConstMD = dyn_cast<ConstantAsMetadata>(MD)) {
             Constant *C = ConstMD->getValue();
             Value *ReplInst = nullptr;
-            if (auto *Vec = dyn_cast<ConstantVector>(C))
-              ReplInst = LowerConstantVec(Vec, OI);
             if (auto *CE = dyn_cast<ConstantExpr>(C))
               ReplInst = LowerOp(CE);
             if (ReplInst) {
