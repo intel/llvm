@@ -2,9 +2,7 @@
 :capability_name: HWThreadQueryINTEL
 :capability_token: 6134
 :SubDeviceIDINTEL_token: 6135
-:HWThreadIDINTEL_token: 6136
-:MaxHWThreadIDPerSubDeviceINTEL_token: 6137
-:MaxSubDeviceIDINTEL_token: 6138
+:GlobalHWThreadIDINTEL_token: 6136
 
 {extension_name}
 ================
@@ -63,8 +61,7 @@ This extension requires SPIR-V 1.0.
 
 == Overview
 
-The extension adds BuiltIn Decorations to query maximum number of H/W thread IDs per sub-device, sub-device ID and H/W thread ID within the sub-device. These instructions combined can be used to
-calculate unique H/W thread ID which is executing the code.
+The extension adds BuiltIn Decorations to query sub-device ID created from the root device and global H/W thread ID within the root device.
 
 
 == Extension Name
@@ -94,8 +91,7 @@ BuiltIn Decorations added under the *{capability_name}* capability:
 ----
 
 SubDeviceIDINTEL
-HWThreadIDINTEL
-MaxHWThreadIDPerSubDeviceINTEL
+GlobalHWThreadIDINTEL
 
 ----
 
@@ -107,8 +103,7 @@ MaxHWThreadIDPerSubDeviceINTEL
 |====
 |*{capability_name}* | {capability_token}
 |*SubDeviceIDINTEL*  | {SubDeviceIDINTEL_token}
-|*HWThreadIDINTEL*  | {HWThreadIDINTEL_token}
-|*MaxHWThreadIDPerSubDeviceINTEL*  | {MaxHWThreadIDPerSubDeviceINTEL_token}
+|*GlobalHWThreadIDINTEL*  | {GlobalHWThreadIDINTEL_token}
 |====
 
 == Modifications to the SPIR-V Specification, Version 1.5
@@ -129,21 +124,8 @@ See also extension: *{extension_name}*
 |====
 --
 
-=== Sub-device affinity
-
-Add section 3.XX, sub-device affinity.
-
-[options="header"]
-|====
-2+^| Sub-device affinity ^| Enabling capability
-| 0 | *HardwareSubDeviceIDs* | *{capability_name}*
-| 1 | *RuntimeSubDeviceIDs* | *{capability_name}*
-|====
-
 
 === Decorations
-
-Modify Section 3.20, Decoration, adding <<Literal>> _BuiltIn parameter_ to <<Extra Operands>> of *BuiltIn* decoration.
 
 Modify Section 3.21, BuiltIn, adding these rows to the BuiltIn table:
 
@@ -154,22 +136,10 @@ Modify Section 3.21, BuiltIn, adding these rows to the BuiltIn table:
 |====
 2+^| BuiltIn 2+^| Enabling Capabilities
 | {SubDeviceIDINTEL_token} | [[SubDeviceIDINTEL]]*SubDeviceIDINTEL* +
- ID of the sub-device on which the code is running in *Kernel* +
-<<Execution Model,Execution Model>>. The BuiltIn decoration takes additional _Sub-device affinity_ +
- *Affinity* parameter, see the client API specification for more detail. +
+ Sub-device ID on which the code is running within the root device, +
 2+| *{capability_name}*
-| {HWThreadIDINTEL_token} | [[HWThreadIDINTEL]]*HWThreadIDINTEL* +
- ID of the H/W thread within a sub-device on which the code is running in *Kernel* +
-<<Execution Model,Execution Model>>. See the client API specification for more detail. +
-2+| *{capability_name}*
-| {MaxHWThreadIDPerSubDeviceINTEL_token} | [[MaxHWThreadIDPerSubDeviceINTEL]]*MaxHWThreadIDPerSubDeviceINTEL* +
- Maximum number of H/W thread ID per sub-device in *Kernel* <<Execution Model,Execution Model>>. See +
- the client API specification for more detail. +
-2+| *{capability_name}*
-| {MaxSubDeviceIDINTEL_token} | [[MaxSubDeviceIDINTEL]]*MaxSubDeviceIDINTEL* +
- Maximum number of sub-device ID in *Kernel* <<Execution Model,Execution Model>>. The BuiltIn +
- decoration takes additional _Sub-device affinity_ *Affinity* parameter, see the client API +
- specification for more detail. +
+| {GlobalHWThreadIDINTEL_token} | [[GlobalHWThreadIDINTEL]]*GlobalHWThreadIDINTEL* +
+ Global ID of the H/W thread within the root device on which the code is running. +
 2+| *{capability_name}*
 |====
 --
@@ -188,6 +158,5 @@ Revision History
 |========================================
 |Rev|Date|Author|Changes
 |1|2021-09-20|Dmitry Sidorov|Initial revision
-|2|2021-12-1|Dmitry Sidorov|Add affinity table and max sub-devices instruction
+|2|2021-12-1|Dmitry Sidorov|Replace local id with global id
 |========================================
-
