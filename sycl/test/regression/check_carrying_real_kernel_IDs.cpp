@@ -13,7 +13,7 @@ int main() {
   const char KernelCode[] = "__kernel void foo() { }\n";
   const size_t KernelCodeSize = sizeof(KernelCode);
   const char *CLCode[1] = {KernelCode};
-  
+
   auto Context = Queue.get_info<info::queue::context>();
   auto Device = Queue.get_info<info::queue::device>();
   cl_context CLContext = get_native<backend::opencl>(Context);
