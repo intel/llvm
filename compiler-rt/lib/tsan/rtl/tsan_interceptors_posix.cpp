@@ -1981,7 +1981,6 @@ static void ReportErrnoSpoiling(ThreadState *thr, uptr pc) {
 static void CallUserSignalHandler(ThreadState *thr, bool sync, bool acquire,
                                   int sig, __sanitizer_siginfo *info,
                                   void *uctx) {
-  CHECK(thr->slot);
   __sanitizer_sigaction *sigactions = interceptor_ctx()->sigactions;
   if (acquire)
     Acquire(thr, 0, (uptr)&sigactions[sig]);
@@ -2269,7 +2268,7 @@ struct dl_iterate_phdr_data {
 };
 
 static bool IsAppNotRodata(uptr addr) {
-  return IsAppMem(addr) && *MemToShadow(addr) != Shadow::kRodata;
+  return IsAppMem(addr) && *MemToShadow(addr) != kShadowRodata;
 }
 
 static int dl_iterate_phdr_cb(__sanitizer_dl_phdr_info *info, SIZE_T size,
@@ -2377,6 +2376,15 @@ static void HandleRecvmsg(ThreadState *thr, uptr pc,
     int fd = fileno_unlocked(file);              \
     if (fd >= 0) FdClose(thr, pc, fd);           \
   }
+
+#define COMMON_INTERCEPTOR_DLOPEN(filename, flag) \
+  ({                                              \
+    CheckNoDeepBind(filename, flag);              \
+    ThreadIgnoreBegin(thr, 0);                    \
+    void *res = REAL(dlopen)(filename, flag);     \
+    ThreadIgnoreEnd(thr);                         \
+    res;                                          \
+  })
 
 #define COMMON_INTERCEPTOR_LIBRARY_LOADED(filename, handle) \
   libignore()->OnLibraryLoaded(filename)

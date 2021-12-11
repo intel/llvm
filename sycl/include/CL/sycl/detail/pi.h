@@ -109,6 +109,7 @@ typedef enum {
   PI_INVALID_WORK_DIMENSION = CL_INVALID_WORK_DIMENSION,
   PI_INVALID_KERNEL_ARGS = CL_INVALID_KERNEL_ARGS,
   PI_INVALID_IMAGE_SIZE = CL_INVALID_IMAGE_SIZE,
+  PI_INVALID_ARG_VALUE = CL_INVALID_ARG_VALUE,
   PI_INVALID_IMAGE_FORMAT_DESCRIPTOR = CL_INVALID_IMAGE_FORMAT_DESCRIPTOR,
   PI_IMAGE_FORMAT_NOT_SUPPORTED = CL_IMAGE_FORMAT_NOT_SUPPORTED,
   PI_MEM_OBJECT_ALLOCATION_FAILURE = CL_MEM_OBJECT_ALLOCATION_FAILURE,
@@ -1635,7 +1636,9 @@ __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **result_ptr,
                                             pi_usm_mem_properties *properties,
                                             size_t size, pi_uint32 alignment);
 
-/// Frees allocated USM memory
+/// Indicates that the allocated USM memory is no longer needed on the runtime
+/// side. The actual freeing of the memory may be done in a blocking or deferred
+/// manner, e.g. to avoid issues with indirect memory access from kernels.
 ///
 /// \param context is the pi_context of the allocation
 /// \param ptr is the memory to be freed
