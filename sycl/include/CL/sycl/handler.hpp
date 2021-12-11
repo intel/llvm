@@ -578,12 +578,15 @@ private:
   template <class KernelType, class NormalizedKernelType, int Dims,
             typename KernelName>
   KernelType *ResetHostKernelHelper(const KernelType &KernelFunc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
     auto HostKernelPtr =
         new detail::HostKernel<decltype(NormalizedKernelFunc),
-                               sycl::nd_item<Dims>, Dims, KernelName>(
+                               sycl::nd_item<Dims>, Dims, StoreLocation>(
             NormalizedKernelFunc);
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
@@ -674,8 +677,12 @@ private:
                               std::is_same<ArgT, sycl::group<Dims>>::value,
                           KernelType *>::type
   ResetHostKernel(const KernelType &KernelFunc) {
+    using KI = detail::KernelInfo<KernelName>;
+    constexpr bool StoreLocation = KI::callsAnyThisFreeFunction();
+
     MHostKernel.reset(
-        new detail::HostKernel<KernelType, ArgT, Dims, KernelName>(KernelFunc));
+        new detail::HostKernel<KernelType, ArgT, Dims, StoreLocation>(
+            KernelFunc));
     return (KernelType *)(MHostKernel->getPtr());
   }
 
@@ -1481,7 +1488,7 @@ public:
 
     MArgs = std::move(MAssociatedAccesors);
     MHostKernel.reset(
-        new detail::HostKernel<FuncT, void, 1, void>(std::move(Func)));
+        new detail::HostKernel<FuncT, void, 1, false>(std::move(Func)));
     setType(detail::CG::RunOnHostIntel);
   }
 
