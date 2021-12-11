@@ -111,7 +111,8 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults $ARGS --cuda --hip --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
+          --ci-defaults $ARGS --cuda --hip --hip-amd-arch="gfx906" \
+          --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
           --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
