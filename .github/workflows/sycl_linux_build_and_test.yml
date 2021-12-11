@@ -114,6 +114,7 @@ jobs:
           --ci-defaults $ARGS --cuda --hip --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
           --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt="-DSYCL_CUDA_PI_TESTS=OFF"
     - name: Compile
       run: cmake --build $GITHUB_WORKSPACE/build
     # TODO allow to optionally disable in-tree checks
