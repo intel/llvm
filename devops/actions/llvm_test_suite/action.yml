@@ -64,6 +64,7 @@ runs:
     shell: bash
     run: |
       mkdir build
+      export PATH=$PWD/toolchain/bin/:$PATH
       cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py"
   - name: Run testing
     shell: bash
