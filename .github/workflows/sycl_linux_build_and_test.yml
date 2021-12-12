@@ -209,6 +209,29 @@ jobs:
         sycl_archive: llvm_sycl.tar.xz
         lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         lit_archive: lit.tar.xz
-        check_sycl_all: 'level_zero:gpu'
+        check_sycl_all: 'level_zero:gpu,host'
         results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
 
+  llvm_test_suite_ocl_x64:
+    name: OCL x64 Test Suite
+    needs: [build, configure]
+    if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
+    runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
+    container:
+      image: ${{ fromJSON(needs.configure.outputs.params).lts_intel_image }}
+      options: -u 1001 --device=/dev/dri
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: llvm
+    - uses: ./llvm/devops/actions/llvm_test_suite
+      name: Run LLVM Test Suite
+      with:
+        # TODO allow custom test references
+        test_ref: 'intel'
+        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        sycl_archive: llvm_sycl.tar.xz
+        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        lit_archive: lit.tar.xz
+        check_sycl_all: 'opencl:cpu,host'
+        results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
