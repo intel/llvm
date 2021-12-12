@@ -4,14 +4,14 @@
 
 ## Test JSON with pretty-print off.
 # RUN: llvm-readobj --elf-output-style=JSON %t.pretty | \
-# RUN:   FileCheck %s -DFILE="%t.pretty" --check-prefix=NO-PRETTY \
+# RUN:   FileCheck %s --check-prefix=NO-PRETTY \
 # RUN:     --strict-whitespace --implicit-check-not={{.}}
 
 #      NO-PRETTY:[
 # NO-PRETTY-SAME:{
-# NO-PRETTY-SAME:"[[FILE]]":{
+# NO-PRETTY-SAME:"{{.*}}.pretty":{
 # NO-PRETTY-SAME:"FileSummary":{
-# NO-PRETTY-SAME:"File":"[[FILE]]",
+# NO-PRETTY-SAME:"File":"{{.*}}.pretty",
 # NO-PRETTY-SAME:"Format":"elf64-x86-64",
 # NO-PRETTY-SAME:"Arch":"x86_64",
 # NO-PRETTY-SAME:"AddressSize":"64bit",
@@ -23,14 +23,14 @@
 
 ## Test JSON with pretty-print on.
 # RUN: llvm-readobj --elf-output-style=JSON --pretty-print %t.pretty | \
-# RUN:   FileCheck %s -DFILE="%t.pretty" --check-prefix=PRETTY \
+# RUN:   FileCheck %s --check-prefix=PRETTY \
 # RUN:     --match-full-lines --strict-whitespace --implicit-check-not={{.}}
 
 #      PRETTY:[
 # PRETTY-NEXT:  {
-# PRETTY-NEXT:    "[[FILE]]": {
+# PRETTY-NEXT:    "{{.*}}.pretty": {
 # PRETTY-NEXT:      "FileSummary": {
-# PRETTY-NEXT:        "File": "[[FILE]]",
+# PRETTY-NEXT:        "File": "{{.*}}.pretty",
 # PRETTY-NEXT:        "Format": "elf64-x86-64",
 # PRETTY-NEXT:        "Arch": "x86_64",
 # PRETTY-NEXT:        "AddressSize": "64bit",
