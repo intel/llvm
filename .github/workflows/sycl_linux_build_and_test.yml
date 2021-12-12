@@ -89,7 +89,7 @@ jobs:
         path: src
     - name: Setup Cache
       uses: actions/cache@v2
-      if: ${{ steps.parameters.build_github_cache }}
+      if: ${{ fromJSON(needs.configure.outputs.params).build_github_cache }}
       id: cache
       with:
         path: ${{ fromJSON(needs.configure.outputs.params).build_cache_root }}/build_cache_${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
