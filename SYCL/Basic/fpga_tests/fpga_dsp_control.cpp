@@ -1,3 +1,4 @@
+// REQUIRES: accelerator, aoc
 // RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
 // RUN: %ACC_RUN_PLACEHOLDER %t.out
 //==---------- fpga_dsp_control.cpp - SYCL FPGA DSP control test -----------==//
