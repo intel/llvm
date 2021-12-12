@@ -54,34 +54,30 @@ runs:
       mkdir lit
       ls -la
       tar -xf ${{ inputs.lit_archive }} -C lit
-  - name: Debug
-    shell: bash
-    run: |
-      ls -la
-      ls -la lit
-      ls -la toolchain
   - name: Configure
     shell: bash
     run: |
+      echo "::group::CMake configuration"
       mkdir build
       export PATH=$PWD/toolchain/bin/:$PATH
       cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py"
+      echo "::endgroup::"
   - name: Run testing
     shell: bash
     run: |
       echo "::group::Prepare"
-      export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH:/runtimes/oclcpu/x64
+      export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH:/runtimes/oclcpu/x64:/runtimes/fpgaemu/x64/
       export PATH=$PWD/toolchain/bin/:$PATH
       export LIT_OPTS="-v --no-progress-bar --show-unsupported --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       fi
+      echo "::endgroup::"
+      echo "::group::sycl-ls"
       sycl-ls
+      echo "::endgroup::"
       cd build
-      echo "::endgroup::"
-      echo "::group::LLVM Test Suite Logs"
       ninja check-sycl-all
-      echo "::endgroup::"
   - name: Upload test results
     uses: actions/upload-artifact@v1
     if: always()
