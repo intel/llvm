@@ -168,6 +168,7 @@ jobs:
         cmake --build $GITHUB_WORKSPACE/build --target utils/llvm-lit/install
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-format
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-tidy
+        cmake --build $GITHUB_WORKSPACE/build --target install-llvm-size
 
     - name: Pack toolchain
       run: tar -cJf llvm_sycl.tar.xz -C $GITHUB_WORKSPACE/build/install .
@@ -190,29 +191,6 @@ jobs:
   llvm_test_suite_l0_gpu:
     name: L0 GPU Test Suite
     needs: [build, configure]
-    # if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
-    if: false
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).lts_intel_image }}
-      options: -u 1001 --device=/dev/dri
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'level_zero:gpu'
-  llvm_test_suite_ocl_cpu:
-    name: x64 CPU OCL Test Suite
-    needs: [build, configure]
     if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
     runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
     container:
@@ -231,27 +209,6 @@ jobs:
         sycl_archive: llvm_sycl.tar.xz
         lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
         lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:cpu,host'
-  llvm_test_suite_ocl_gpu:
-    name: OCL Intel GPU Test Suite
-    needs: [build, configure]
-    # if: ${{ fromJSON(needs.configure.outputs.params).lts_intel_enabled }}
-    if: false
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
-    container:
-      image: ${{ fromJSON(needs.configure.outputs.params).lts_intel_image }}
-      options: -u 1001 --device=/dev/dri
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        path: llvm
-    - uses: ./llvm/devops/actions/llvm_test_suite
-      name: Run LLVM Test Suite
-      with:
-        # TODO allow custom test references
-        test_ref: 'intel'
-        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        sycl_archive: llvm_sycl.tar.xz
-        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        lit_archive: lit.tar.xz
-        check_sycl_all: 'opencl:gpu,host'
+        check_sycl_all: 'level_zero:gpu'
+        lit_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+
