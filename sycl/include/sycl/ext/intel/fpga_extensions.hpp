@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include <sycl/ext/intel/experimental/fpga_lsu.hpp>
+#include <sycl/ext/intel/experimental/pipes.hpp>
 #include <sycl/ext/intel/fpga_device_selector.hpp>
 #include <sycl/ext/intel/fpga_dsp_control.hpp>
 #include <sycl/ext/intel/fpga_loop_fuse.hpp>
