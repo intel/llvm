@@ -55,7 +55,7 @@ on:
       gen9_runs_on:
         type: string
         required: false
-        default: "sycl-precommit-linux"
+        default: "gen9"
 
 jobs:
   configure:
@@ -72,7 +72,7 @@ jobs:
             INPUTS="{
               \"cc\":\"gcc\",
               \"cxx\":\"g++\",
-              \"build_runs_on\":\"sycl-precommit-linux\",
+              \"build_runs_on\":\"build\",
               \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_base:latest\",
               \"build_github_cache\":\"false\",
               \"build_cache_root\":\"/__w/\",
@@ -211,7 +211,7 @@ jobs:
         lit_archive: lit.tar.xz
         check_sycl_all: 'level_zero:gpu,host'
         results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DGPU_AOT_TARGET_OPTS="-device gen9"'
+        cmake_args: '-DGPU_AOT_TARGET_OPTS="\"-device gen9\""'
 
   llvm_test_suite_ocl_x64:
     name: OCL x64 Test Suite
