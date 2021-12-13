@@ -162,7 +162,7 @@ Constant *AddrspaceReplacer::getCASLiteral(GlobalVariable *GenericASLiteral) {
   // Appending the stable suffix ensures that only one CAS copy is made for each
   // string. In case of the matching name, llvm::Module APIs will ensure that
   // the existing global is returned.
-  StringRef CASLiteralName(GenericASLiteral->getName().str() + "._AS2");
+  std::string CASLiteralName = GenericASLiteral->getName().str() + "._AS2";
   IRBuilder<> Builder(M->getContext());
   Constant *Res = M->getOrInsertGlobal(CASLiteralName, CASLiteralType, [&] {
     StringRef LiteralValue;
