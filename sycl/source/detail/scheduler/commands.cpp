@@ -686,8 +686,11 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking, std::ve
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
-    if (MLeafCounter == 0 && (!MDeps.empty() || !MUsers.empty()))
+    if (MLeafCounter == 0 && (!MDeps.empty() || !MUsers.empty())) {
+      assert(!MPostEnqueueCleanup);
+      MPostEnqueueCleanup = true;
       EnqueuedCommands.push_back(this);
+    }
   }
 
   // Emit this correlation signal before the task end

@@ -424,6 +424,8 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
 }
 
 void Scheduler::cleanupCommands(std::vector<Command *> &Cmds) {
+  if (Cmds.empty())
+    return;
   WriteLockT Lock(MGraphLock, std::try_to_lock);
   // In order to avoid deadlocks related to block commands, defer cleanup if the
   // lock wasn't acquired.
@@ -439,6 +441,7 @@ void Scheduler::cleanupCommands(std::vector<Command *> &Cmds) {
     for (Command *Cmd : DeferredCleanupCommands) {
       MGraphBuilder.cleanupCommand(Cmd);
     }
+
   } else {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
     MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),

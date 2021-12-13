@@ -297,6 +297,10 @@ public:
   // By default the flag is set to true due to most of host operations are
   // synchronous. The only asynchronous operation currently is host-task.
   bool MShouldCompleteEventIfPossible = true;
+
+  /// Indicates that the node will be freed by cleanup after enqueue. Such nodes
+  /// should be ignored by other cleanup mechanisms.
+  bool MPostEnqueueCleanup = false;
 };
 
 /// The empty command does nothing during enqueue. The task can be used to

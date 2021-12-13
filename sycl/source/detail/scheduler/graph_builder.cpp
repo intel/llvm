@@ -1111,8 +1111,11 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
     // If all dependencies have been removed this way, mark the command for
     // deletion
     if (Cmd->MDeps.empty()) {
-      Cmd->MMarks.MToBeDeleted = true;
       Cmd->MUsers.clear();
+      // Do not delete the node if it's scheduled for post-enqueue cleanup to
+      // avoid double free.
+      if (!Cmd->MPostEnqueueCleanup)
+        Cmd->MMarks.MToBeDeleted = true;
     }
   }
 
@@ -1124,21 +1127,18 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
   if (SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
     return;
   assert(Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued());
-  // Isolated command nodes are cleaned up by scheduler instead.
-  assert(Cmd->MDeps.size() != 0 || Cmd->MUsers.size() != 0);
   Command::CommandType CmdT = Cmd->getType();
   // Allocas have to be kept alive until memory objects are released.
   if (CmdT == Command::ALLOCA || CmdT == Command::ALLOCA_SUB_BUF)
     return;
 
-  // FIXME handle host tasks
+  // TODO enable cleaning up host tasks after enqueue.
   if (CmdT == Command::RUN_CG) {
     auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
     if (ExecCGCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask) {
       return;
     }
   }
-  assert(CmdT != Command::ALLOCA && CmdT != Command::ALLOCA_SUB_BUF);
 
   for (Command *UserCmd : Cmd->MUsers) {
     for (DepDesc &Dep : UserCmd->MDeps) {
@@ -1217,7 +1217,10 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
       DepCmd->MUsers.erase(Cmd);
     }
 
-    Cmd->MMarks.MToBeDeleted = true;
+    // Do not delete the node if it's scheduled for post-enqueue cleanup to
+    // avoid double free.
+    if (!Cmd->MPostEnqueueCleanup)
+      Cmd->MMarks.MToBeDeleted = true;
   }
   handleVisitedNodes(MVisitedCmds);
 }
