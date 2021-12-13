@@ -235,6 +235,8 @@ void event_impl::wait_and_throw(
 
 void event_impl::cleanupCommand(
     std::shared_ptr<cl::sycl::detail::event_impl> Self) const {
+  if (MCommand && !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
+    detail::Scheduler::getInstance().cleanupFinishedCommands(std::move(Self));
 }
 
 template <>

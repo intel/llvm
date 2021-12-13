@@ -691,7 +691,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking, std::ve
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
-    if (MLeafCounter == 0 && supportsPostEnqueueCleanup()) {
+    if (MLeafCounter == 0 && supportsPostEnqueueCleanup() && !SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
       assert(!MPostEnqueueCleanup);
       MPostEnqueueCleanup = true;
       EnqueuedCommands.push_back(this);

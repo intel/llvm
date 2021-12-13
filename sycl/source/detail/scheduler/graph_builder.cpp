@@ -1124,7 +1124,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
 
 
 void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
-  if (SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get())
+  if (SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get())
     return;
   assert(Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued());
   Command::CommandType CmdT = Cmd->getType();
