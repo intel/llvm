@@ -216,9 +216,9 @@ CallReplacer AddrspaceReplacer::prepareCASArgForCall(CallInst *CI) {
       // pointing at the same constant AS string.
       WrapperCI->setArgOperand(0, CASLiteral);
     }
-  } else if (auto *Literal = dyn_cast<GlobalVariable>(Stripped)) {
+  } else if (auto *Literal = dyn_cast<GlobalVariable>(Stripped))
     CASPrintfOperand = getCASLiteral(Literal);
-  } else
+  else
     llvm_unreachable("Unexpected literal operand type for device-side printf");
   return {CI, CASPrintfOperand};
 }
