@@ -81,7 +81,7 @@ jobs:
               \"build_configure_extra_args\":\"\",
               \"build_artifact_suffix\":\"default\",
               \"build_upload_artifact\":\"false\",
-              \"lts_intel_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
+              \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
               \"lts_config\":\"l0_gen9;ocl_x64\",
               \"gen9_runs_on\":\"sycl-precommit-linux\"
             }"
