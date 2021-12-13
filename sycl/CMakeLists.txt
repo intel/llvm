@@ -9,6 +9,7 @@ option(SYCL_ENABLE_WERROR "Treat all warnings as errors in SYCL project" OFF)
 option(SYCL_DISABLE_STL_ASSERTIONS "Disable assertions in STL containers" OFF)
 option(SYCL_ADD_DEV_VERSION_POSTFIX "Adds -V postfix to version string" ON)
 
+add_definitions(-g -O0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(SYCLUtils)
