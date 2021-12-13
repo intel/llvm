@@ -52,7 +52,7 @@ on:
         type: string
         required: false
         default: ""
-      lts_intel_runs_on:
+      gen9_runs_on:
         type: string
         required: false
         default: "sycl-precommit-linux"
@@ -82,8 +82,8 @@ jobs:
               \"build_artifact_suffix\":\"default\",
               \"build_upload_artifact\":\"false\",
               \"lts_intel_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
-              \"lts_intel_enabled\":\"true\",
-              \"lts_intel_runs_on\":\"sycl-precommit-linux\"
+              \"lts_config\":\"l0_gen9;ocl_x64\",
+              \"gen9_runs_on\":\"sycl-precommit-linux\"
             }"
           fi
           INPUTS="${INPUTS//'%'/'%25'}"
@@ -191,8 +191,8 @@ jobs:
   llvm_test_suite_l0_gen9:
     name: L0 GEN9 Test Suite
     needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, "l0_gen9") }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
+    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'l0_gen9') }}
+    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001 --device=/dev/dri
@@ -216,8 +216,8 @@ jobs:
   llvm_test_suite_ocl_x64:
     name: OCL x64 Test Suite
     needs: [build, configure]
-    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, "ocl_x64") }}
-    runs-on: ${{ fromJSON(needs.configure.outputs.params).lts_intel_runs_on }}
+    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'ocl_x64') }}
+    runs-on: ${{ fromJSON(needs.configure.outputs.params).gen9_runs_on }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).intel_drivers_image }}
       options: -u 1001
