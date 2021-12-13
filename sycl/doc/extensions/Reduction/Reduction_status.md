@@ -8,7 +8,7 @@
 
 There are 2 specifications of the reduction feature and both are still actual:
 
-* `sycl::ext::oneapi::reduction` is described in [this document](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Reduction/Reduction.md). This extension was created as part of a pathfinding/prototyping work before it was added to SYCL 2020 standard.
+* `sycl::ext::oneapi::reduction` is described in [this document](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/Reduction/Reduction.md). This extension is deprecated, and was created as part of a pathfinding/prototyping work before it was added to SYCL 2020 standard.
 
 * `sycl::reduction` is described in [SYCL 2020 standard](https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reduction).
 
@@ -22,11 +22,11 @@ There are non-critical differences in API to create the reduction object. `sycl:
 
 ## Reduction inside 1 work-group - the main building block for reduction
 
-The reduction algorithm for 1 basic block depends currently on combination/availability of 2 features:
+The reduction algorithm for 1 work-group depends currently on combination/availability of 2 features:
 - `fast atomics` (i.e. operations available on the target device), such as fetch_add(), fetch_min(), etc.
 - `fast reduce` operation for work-group, i.e. `reduce_over_group()`
 
-So, if the reduction operation/type has both `fast atomics` and `fast reduce`, then the reduction on work-group with 1 reduction variable is implemented using does the following: the elements inside the work-group are reduced using `ext::oneapi::reduce` and the final result is atomically added to the final/global reduction variable.
+So, if the reduction operation/type has both `fast atomics` and `fast reduce`, then the reduction on work-group with 1 reduction variable does the following: the elements inside the work-group are reduced using `ext::oneapi::reduce` and the final result is atomically added to the final/global reduction variable.
 
 ```c++
     // Call user's lambda function or functor. Reducer.MValue gets initialized there.
@@ -42,7 +42,7 @@ So, if the reduction operation/type has both `fast atomics` and `fast reduce`, t
 ```
 
 The most general case is when the `fast atomics` and `fast reduce` are not available.
-It computes the partial sum using tree-reduction loop and stores the partial sum for the work-group to a global array of partial sums, which later must be also reduced (by using additional(s) kernel(s)). This general case algorithm also requires allocation of a local memory for the tree-reduction loop:
+It computes the partial sum using tree-reduction loop and stores the partial sum for the work-group to a global array of partial sums, which later must be also reduced (by using additional kernel(s)). This general case algorithm also requires allocation of a local memory for the tree-reduction loop:
 ```c++
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer(ReduIdentity, BOp);
@@ -169,7 +169,7 @@ Currently only kernels accepting `id` are supported.
 ### 3) Support `parallel_for` accepting `range` and 2 or more reduction variables.
 Currently `parallel_for()` accepting `range` may handle only 1 reduction variable. It does not support 2 or more. 
 
-The temporary work-around for that is to use some container multiple reduction variables, i.e. std::pair, std::struct or a custom struct/class containing 2 or more reduction variables, and also define a custom operator that would be passed to `reduction` constructor.
+The temporary work-around for that is to use some container multiple reduction variables, i.e. std::pair, std::tuple or a custom struct/class containing 2 or more reduction variables, and also define a custom operator that would be passed to `reduction` constructor.
 Another work-around is to provide `nd_range`.
 
 ---
