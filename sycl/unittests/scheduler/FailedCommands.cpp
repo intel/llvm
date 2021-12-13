@@ -99,7 +99,7 @@ size_t MemBufRefCount = 0u;
 
 pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t, void *,
                                    pi_mem *ret_mem, const pi_mem_properties *) {
-  *ret_mem = (pi_mem)0x1;
+  *ret_mem = reinterpret_cast<pi_mem>(0x1);
   ++MemBufRefCount;
   return PI_SUCCESS;
 }
@@ -107,7 +107,7 @@ pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t, void *,
 pi_result redefinedMemBufferPartition(pi_mem, pi_mem_flags,
                                       pi_buffer_create_type, void *,
                                       pi_mem *ret_mem) {
-  *ret_mem = (pi_mem)0x1;
+  *ret_mem = reinterpret_cast<pi_mem>(0x1);
   ++MemBufRefCount;
   return PI_SUCCESS;
 }
@@ -127,6 +127,11 @@ TEST_F(SchedulerTest, FailedCommandAccessorCleanup) {
   platform Plt{default_selector()};
   if (Plt.is_host()) {
     std::cout << "Not run due to host-only environment\n";
+    return;
+  }
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda &&
+      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cout << "CUDA and HIP backends do not currently support this test\n";
     return;
   }
 
@@ -156,7 +161,8 @@ TEST_F(SchedulerTest, FailedCommandAccessorCleanup) {
         CGH.single_task<TestKernel>([=] {});
       });
       FAIL() << "No exception was thrown.";
-    } catch (sycl::runtime_error &e) { }
+    } catch (...) {
+    }
   }
 
   ASSERT_EQ(MemBufRefCount, 0u) << "Memory leak detected.";
@@ -167,6 +173,11 @@ TEST_F(SchedulerTest, FailedCommandStreamCleanup) {
   platform Plt{default_selector()};
   if (Plt.is_host()) {
     std::cout << "Not run due to host-only environment\n";
+    return;
+  }
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda &&
+      Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
+    std::cout << "CUDA and HIP backends do not currently support this test\n";
     return;
   }
 
@@ -193,11 +204,11 @@ TEST_F(SchedulerTest, FailedCommandStreamCleanup) {
       Q.submit([&](sycl::handler &CGH) {
         sycl::stream KernelStream(108 * 64 + 128, 64, CGH);
         CGH.use_kernel_bundle(ExecBundle);
-        //CGH.set_args(KernelStream);
         CGH.single_task<TestKernel>([=] {});
       });
       FAIL() << "No exception was thrown.";
-    } catch (sycl::runtime_error &e) { }
+    } catch (...) {
+    }
     Q.wait();
   }
 
