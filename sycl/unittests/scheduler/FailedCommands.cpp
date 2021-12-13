@@ -129,7 +129,7 @@ TEST_F(SchedulerTest, FailedCommandAccessorCleanup) {
     std::cout << "Not run due to host-only environment\n";
     return;
   }
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda &&
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
       Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "CUDA and HIP backends do not currently support this test\n";
     return;
@@ -175,7 +175,7 @@ TEST_F(SchedulerTest, FailedCommandStreamCleanup) {
     std::cout << "Not run due to host-only environment\n";
     return;
   }
-  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda &&
+  if (Plt.get_backend() == sycl::backend::ext_oneapi_cuda ||
       Plt.get_backend() == sycl::backend::ext_oneapi_hip) {
     std::cout << "CUDA and HIP backends do not currently support this test\n";
     return;
