@@ -7,16 +7,13 @@ on:
 
 jobs:
   lint:
-    # TODO use nightly builds of SYCL to get clang-format
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/intel/llvm/sycl_ubuntu2004_nightly:no-drivers
     steps:
-    - name: Get clang-format first
-      run: sudo apt-get install -yqq clang-format
-
     - uses: actions/checkout@v2
       with:
         fetch-depth: 2
-
     - name: Run clang-format
       uses: ./devops/actions/clang-format
 
