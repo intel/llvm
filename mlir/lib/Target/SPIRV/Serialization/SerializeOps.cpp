@@ -369,8 +369,16 @@ LogicalResult Serializer::processSelectionOp(spirv::SelectionOp selectionOp) {
 
   auto *headerBlock = selectionOp.getHeaderBlock();
   auto *mergeBlock = selectionOp.getMergeBlock();
+  auto headerID = getBlockID(headerBlock);
   auto mergeID = getBlockID(mergeBlock);
   auto loc = selectionOp.getLoc();
+
+  // This SelectionOp is in some MLIR block with preceding and following ops. In
+  // the binary format, it should reside in separate SPIR-V blocks from its
+  // preceding and following ops. So we need to emit unconditional branches to
+  // jump to this SelectionOp's SPIR-V blocks and jumping back to the normal
+  // flow afterwards.
+  encodeInstructionInto(functionBody, spirv::Opcode::OpBranch, {headerID});
 
   // Emit the selection header block, which dominates all other blocks, first.
   // We need to emit an OpSelectionMerge instruction before the selection header
@@ -384,13 +392,8 @@ LogicalResult Serializer::processSelectionOp(spirv::SelectionOp selectionOp) {
         {mergeID, static_cast<uint32_t>(selectionOp.selection_control())});
     return success();
   };
-  // For structured selection, we cannot have blocks in the selection construct
-  // branching to the selection header block. Entering the selection (and
-  // reaching the selection header) must be from the block containing the
-  // spv.mlir.selection op. If there are ops ahead of the spv.mlir.selection op
-  // in the block, we can "merge" them into the selection header. So here we
-  // don't need to emit a separate block; just continue with the existing block.
-  if (failed(processBlock(headerBlock, /*omitLabel=*/true, emitSelectionMerge)))
+  if (failed(
+          processBlock(headerBlock, /*omitLabel=*/false, emitSelectionMerge)))
     return failure();
 
   // Process all blocks with a depth-first visitor starting from the header
@@ -406,6 +409,9 @@ LogicalResult Serializer::processSelectionOp(spirv::SelectionOp selectionOp) {
   // instruction to start a new SPIR-V block for ops following this SelectionOp.
   // The block should use the <id> for the merge block.
   encodeInstructionInto(functionBody, spirv::Opcode::OpLabel, {mergeID});
+  LLVM_DEBUG(llvm::dbgs() << "done merge ");
+  LLVM_DEBUG(printBlock(mergeBlock, llvm::dbgs()));
+  LLVM_DEBUG(llvm::dbgs() << "\n");
   return success();
 }
 
@@ -414,10 +420,9 @@ LogicalResult Serializer::processLoopOp(spirv::LoopOp loopOp) {
   // properly. We don't need to assign for the entry block, which is just for
   // satisfying MLIR region's structural requirement.
   auto &body = loopOp.body();
-  for (Block &block :
-       llvm::make_range(std::next(body.begin(), 1), body.end())) {
+  for (Block &block : llvm::make_range(std::next(body.begin(), 1), body.end()))
     getOrCreateBlockID(&block);
-  }
+
   auto *headerBlock = loopOp.getHeaderBlock();
   auto *continueBlock = loopOp.getContinueBlock();
   auto *mergeBlock = loopOp.getMergeBlock();
@@ -469,6 +474,9 @@ LogicalResult Serializer::processLoopOp(spirv::LoopOp loopOp) {
   // start a new SPIR-V block for ops following this LoopOp. The block should
   // use the <id> for the merge block.
   encodeInstructionInto(functionBody, spirv::Opcode::OpLabel, {mergeID});
+  LLVM_DEBUG(llvm::dbgs() << "done merge ");
+  LLVM_DEBUG(printBlock(mergeBlock, llvm::dbgs()));
+  LLVM_DEBUG(llvm::dbgs() << "\n");
   return success();
 }
 
