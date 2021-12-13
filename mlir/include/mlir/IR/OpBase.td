@@ -1597,6 +1597,8 @@ def StrArrayAttr : TypedArrayAttrBase<StrAttr, "string array attribute"> {
 def TypeArrayAttr : TypedArrayAttrBase<TypeAttr, "type array attribute"> {
   let constBuilderCall = "$_builder.getTypeArrayAttr($0)";
 }
+def IndexListArrayAttr :
+  TypedArrayAttrBase<I64ArrayAttr, "Array of 64-bit integer array attributes">;
 
 // Attribute information for an Attribute field within a StructAttr.
 class StructFieldAttr<string thisName, Attr thisType> {
@@ -2984,6 +2986,9 @@ class TypeDef<Dialect dialect, string name, list<Trait> traits = [],
               string baseCppClass = "::mlir::Type">
     : DialectType<dialect, CPred<"">, /*descr*/"", name # "Type">,
       AttrOrTypeDef<"Type", name, traits, baseCppClass> {
+  // Make it possible to use such type as parameters for other types.
+  string cppType = dialect.cppNamespace # "::" # cppClassName;
+
   // A constant builder provided when the type has no parameters.
   let builderCall = !if(!empty(parameters),
                            "$_builder.getType<" # dialect.cppNamespace #
