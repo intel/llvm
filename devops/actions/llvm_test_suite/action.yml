@@ -25,6 +25,9 @@ inputs:
   check_sycl_all:
     description: 'List of targets to include in testing'
     required: true
+  cmake_args:
+    description: 'Extra arguments to cmake command'
+    required: false
 
 runs:
   using: "composite"
@@ -60,7 +63,7 @@ runs:
       echo "::group::CMake configuration"
       mkdir build
       export PATH=$PWD/toolchain/bin/:$PATH
-      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py"
+      cmake -GNinja -B./build -S./llvm_test_suite -DTEST_SUITE_SUBDIRS=SYCL -DCHECK_SYCL_ALL="${{ inputs.check_sycl_all }}" -DCMAKE_CXX_COMPILER="$PWD/toolchain/bin/clang++" -DTEST_SUITE_LIT="$PWD/lit/lit.py" ${{ inputs.cmake_args }}
       echo "::endgroup::"
   - name: Run testing
     shell: bash
@@ -74,7 +77,7 @@ runs:
       fi
       echo "::endgroup::"
       echo "::group::sycl-ls"
-      sycl-ls
+      sycl-ls --verbose
       echo "::endgroup::"
       cd build
       ninja check-sycl-all
