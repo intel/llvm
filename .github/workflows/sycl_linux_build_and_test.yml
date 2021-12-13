@@ -211,7 +211,7 @@ jobs:
         lit_archive: lit.tar.xz
         check_sycl_all: 'level_zero:gpu,host'
         results_name_suffix: l0_gpu_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
-        cmake_args: '-DGPU_AOT_TARGET_OPTS="\"-device gen9\""'
+        cmake_args: '-DGPU_AOT_TARGET_OPTS="\\\"-device gen9\\\""'
 
   llvm_test_suite_ocl_x64:
     name: OCL x64 Test Suite
