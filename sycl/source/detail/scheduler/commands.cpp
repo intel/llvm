@@ -565,6 +565,11 @@ const QueueImplPtr &Command::getWorkerQueue() const { return MQueue; }
 
 bool Command::producesPiEvent() const { return true; }
 
+bool Command::supportsPostEnqueueCleanup() const {
+  // Isolated commands are cleaned up separately
+  return !MUsers.empty() || !MDeps.empty();
+}
+
 Command *Command::addDep(DepDesc NewDep) {
   Command *ConnectionCmd = nullptr;
 
@@ -686,7 +691,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking, std::ve
     // Consider the command is successfully enqueued if return code is
     // CL_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
-    if (MLeafCounter == 0 && (!MDeps.empty() || !MUsers.empty())) {
+    if (MLeafCounter == 0 && supportsPostEnqueueCleanup()) {
       assert(!MPostEnqueueCleanup);
       MPostEnqueueCleanup = true;
       EnqueuedCommands.push_back(this);
@@ -782,6 +787,8 @@ void AllocaCommandBase::emitInstrumentationData() {
 }
 
 bool AllocaCommandBase::producesPiEvent() const { return false; }
+
+bool AllocaCommandBase::supportsPostEnqueueCleanup() const { return false; }
 
 AllocaCommand::AllocaCommand(QueueImplPtr Queue, Requirement Req,
                              bool InitFromUserData,
@@ -1048,6 +1055,8 @@ void ReleaseCommand::printDot(std::ostream &Stream) const {
 }
 
 bool ReleaseCommand::producesPiEvent() const { return false; }
+
+bool ReleaseCommand::supportsPostEnqueueCleanup() const { return false; }
 
 MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
                            void **DstPtr, QueueImplPtr Queue,
@@ -2331,6 +2340,11 @@ cl_int ExecCGCommand::enqueueImp() {
 
 bool ExecCGCommand::producesPiEvent() const {
   return MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask;
+}
+
+bool ExecCGCommand::supportsPostEnqueueCleanup() const {
+  // TODO enable cleaning up host task commands and kernels with streams after enqueue
+  return Command::supportsPostEnqueueCleanup() && (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask) && (MCommandGroup->getType() != CG::CGTYPE::Kernel || !(static_cast<CGExecKernel *>(MCommandGroup.get()))->hasStreams());
 }
 
 } // namespace detail

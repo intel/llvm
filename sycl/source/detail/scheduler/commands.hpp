@@ -194,6 +194,9 @@ public:
   /// Returns true iff the command produces a PI event on non-host devices.
   virtual bool producesPiEvent() const;
 
+  /// Returns true iff this command can be freed by post enqueue cleanup.
+  virtual bool supportsPostEnqueueCleanup() const;
+
 protected:
   QueueImplPtr MQueue;
   QueueImplPtr MSubmittedQueue;
@@ -336,6 +339,7 @@ public:
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() override;
   bool producesPiEvent() const final;
+  bool supportsPostEnqueueCleanup() const final;
 
 private:
   cl_int enqueueImp() final;
@@ -361,6 +365,8 @@ public:
   void emitInstrumentationData() override;
 
   bool producesPiEvent() const final;
+
+  bool supportsPostEnqueueCleanup() const final;
 
   void *MMemAllocation = nullptr;
 
@@ -545,6 +551,7 @@ public:
 
   bool producesPiEvent() const final;
 
+  bool supportsPostEnqueueCleanup() const final;
 private:
   cl_int enqueueImp() final;
 

@@ -194,7 +194,7 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
           ToEnqueue.push_back(ConnectionCmd);
         Dependency->addUser(Dependant);
         --(Dependency->MLeafCounter);
-        if (Dependency->MLeafCounter == 0 && Dependency->isSuccessfullyEnqueued())
+        if (Dependency->MLeafCounter == 0 && Dependency->isSuccessfullyEnqueued() && Dependency->supportsPostEnqueueCleanup())
           cleanupCommand(Dependency);
       };
 
@@ -239,7 +239,7 @@ void Scheduler::GraphBuilder::updateLeaves(
     bool WasLeaf = Cmd->MLeafCounter > 0;
     Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
     Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued()) {
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() && Cmd->supportsPostEnqueueCleanup()) {
       if (CommandsToCleanUp) {
         if (WasLeaf)
           CommandsToCleanUp->push_back(Cmd);
@@ -1012,12 +1012,12 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
     MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued())
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() && Cmd->supportsPostEnqueueCleanup())
       cleanupCommand(Cmd);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued())
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() && Cmd->supportsPostEnqueueCleanup())
       cleanupCommand(Cmd);
   }
 }
@@ -1128,9 +1128,19 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
     return;
   assert(Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued());
   Command::CommandType CmdT = Cmd->getType();
-  // Allocas have to be kept alive until memory objects are released.
-  if (CmdT == Command::ALLOCA || CmdT == Command::ALLOCA_SUB_BUF)
-    return;
+  
+  assert(CmdT != Command::ALLOCA && CmdT != Command::ALLOCA_SUB_BUF);
+  assert(CmdT != Command::RELEASE);
+  assert(CmdT != Command::RUN_CG || (static_cast<ExecCGCommand *>(Cmd))->getCG().getType() != CG::CGTYPE::CodeplayHostTask);
+#ifndef NDEBUG
+  if (CmdT == Command::RUN_CG) {
+    auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
+    if (ExecCGCmd->getCG().getType() == CG::CGTYPE::Kernel) {
+      auto *ExecKernelCG = static_cast<CGExecKernel *>(&ExecCGCmd->getCG());
+      assert(!ExecKernelCG->hasStreams());
+    }
+  }
+#endif
 
   // TODO enable cleaning up host tasks after enqueue.
   if (CmdT == Command::RUN_CG) {
