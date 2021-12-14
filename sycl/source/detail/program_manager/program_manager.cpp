@@ -937,12 +937,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   bool LinkDeviceLibs = (DeviceLibReqMask != 0);
 
-  // TODO: Currently, online linking isn't implemented yet on Level Zero.
-  // To enable device libraries and unify the behaviors on all backends,
-  // online linking is disabled temporarily, all fallback device libraries
-  // will be linked offline. When Level Zero supports online linking, we need
-  // to remove the line of code below and switch back to online linking.
-  LinkDeviceLibs = false;
+  LinkDeviceLibs = true;
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
