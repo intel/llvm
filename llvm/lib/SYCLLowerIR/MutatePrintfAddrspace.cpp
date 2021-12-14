@@ -73,7 +73,6 @@ private:
 
   Function *getCASPrintfFunction(Function *GenericASPrintfFunc);
   Constant *getCASLiteral(GlobalVariable *GenericASLiteral);
-  CallReplacer prepareCASArgForCall(CallInst *CI);
 };
 } // namespace
 
@@ -127,19 +126,64 @@ private:
   Value *CASArg;
 };
 
+/// The function's effect is similar to V->stripPointerCastsAndAliases(), but
+/// also strips load/store aliases.
+Value *stripToMemorySource(Value *V) {
+  Value *MemoryAccess = V;
+  if (auto *LI = dyn_cast<LoadInst>(MemoryAccess)) {
+    Value *LoadSource = LI->getPointerOperand();
+    auto *Store = cast<StoreInst>(*llvm::find_if(
+        LoadSource->users(), [](User *U) { return isa<StoreInst>(U); }));
+    MemoryAccess = Store->getValueOperand();
+  }
+  return MemoryAccess->stripPointerCastsAndAliases();
+}
+
 void AddrspaceReplacer::runOnFunctionDeclaration(Function *F) {
   auto *LiteralType = F->getArg(0)->getType();
   if (LiteralType->getPointerAddressSpace() == ConstantAddrspaceID)
     // No need to replace the literal type and its printf users
     return;
-  Function *CASPrintfFunc = getCASPrintfFunction(F);
   SmallVector<CallReplacer, 16> CallsToReplace;
   for (User *U : F->users()) {
     if (!isa<CallInst>(U))
       continue;
     auto *CI = cast<CallInst>(U);
-    CallsToReplace.emplace_back(prepareCASArgForCall(CI));
+
+    /// This key algorithm reaches the global string used as an argument to a
+    /// __spirv_ocl_printf call. It then generates a constant AS copy of that
+    /// global (or gets an existing one). For the return value, the call
+    /// instruction is paired with its future constant addrspace string
+    /// argument.
+    Value *Stripped = stripToMemorySource(CI->getArgOperand(0));
+    if (auto *Literal = dyn_cast<GlobalVariable>(Stripped))
+      CallsToReplace.emplace_back(CI, getCASLiteral(Literal));
+    else if (auto *Arg = dyn_cast<Argument>(Stripped)) {
+      // The global literal is passed to __spirv_ocl_printf via a wrapper
+      // function argument. We'll update the wrapper calls to use the builtin
+      // function directly instead.
+      Function *WrapperFunc = Arg->getParent();
+      for (User *WrapperU : WrapperFunc->users()) {
+        auto *WrapperCI = cast<CallInst>(WrapperU);
+        Value *StrippedArg = stripToMemorySource(WrapperCI->getArgOperand(0));
+        // We're only expecting 1 level of wrappers, so cast unconditionally
+        auto *Literal = cast<GlobalVariable>(StrippedArg);
+        CallsToReplace.emplace_back(WrapperCI, getCASLiteral(Literal));
+      }
+      // We're certain that the wrapper won't have any uses, since we've just
+      // marked all its calls for replacement with __spirv_ocl_printf.
+      FunctionsToDrop.emplace_back(WrapperFunc);
+      // Similar certainty for the generic AS version of __spirv_ocl_printf
+      // itself - we've determined it only gets called inside the
+      // soon-to-be-removed wrapper.
+      assert(F->hasOneUse() && "Unexpected __spirv_ocl_printf call outside of "
+                               "SYCL wrapper function");
+      FunctionsToDrop.emplace_back(F);
+    } else
+      llvm_unreachable(
+          "Unexpected literal operand type for device-side printf");
   }
+  Function *CASPrintfFunc = getCASPrintfFunction(F);
   for (CallReplacer &CR : CallsToReplace) {
     CR.replaceWithFunction(CASPrintfFunc);
     ++ReplacedCallsCount;
@@ -184,50 +228,5 @@ Constant *AddrspaceReplacer::getCASLiteral(GlobalVariable *GenericASLiteral) {
   Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
   Res->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
   return Res;
-}
-
-/// The function's effect is similar to V->stripPointerCastsAndAliases(), but
-/// also strips load/store aliases.
-Value *stripToMemorySource(Value *V) {
-  Value *MemoryAccess = V;
-  if (auto *LI = dyn_cast<LoadInst>(MemoryAccess)) {
-    Value *LoadSource = LI->getPointerOperand();
-    auto *Store = cast<StoreInst>(*llvm::find_if(
-        LoadSource->users(), [](User *U) { return isa<StoreInst>(U); }));
-    MemoryAccess = Store->getValueOperand();
-  }
-  return MemoryAccess->stripPointerCastsAndAliases();
-}
-
-/// This key function reaches the global string used as an argument to a
-/// __spirv_ocl_printf call. It then generates a constant AS copy of that global
-/// (or gets an existing one). For the return value, the call instruction is
-/// paired with its future constant addrspace string argument (or with the
-/// wrapper function argument that accepts the global).
-CallReplacer AddrspaceReplacer::prepareCASArgForCall(CallInst *CI) {
-  Value *Stripped = stripToMemorySource(CI->getArgOperand(0));
-  Value *CASPrintfOperand = nullptr;
-  if (auto *Arg = dyn_cast<Argument>(Stripped)) {
-    Function *WrapperFunc = Arg->getParent();
-    Arg->mutateType(CASLiteralType);
-    // The global literal is passed to __spirv_ocl_printf via a wrapper function
-    // argument. Keep the __spirv_ocl_printf call operand pointing at that
-    // argument.
-    CASPrintfOperand = Arg;
-    for (User *WrapperU : WrapperFunc->users()) {
-      auto *WrapperCI = cast<CallInst>(WrapperU);
-      Value *StrippedArg = stripToMemorySource(WrapperCI->getArgOperand(0));
-      // We're only expecting 1 level of wrappers, so cast unconditionally
-      auto *Literal = cast<GlobalVariable>(StrippedArg);
-      Constant *CASLiteral = getCASLiteral(Literal);
-      // Replace the wrapper call's argument - __spirv_ocl_printf will end up
-      // pointing at the same constant AS string.
-      WrapperCI->setArgOperand(0, CASLiteral);
-    }
-  } else if (auto *Literal = dyn_cast<GlobalVariable>(Stripped))
-    CASPrintfOperand = getCASLiteral(Literal);
-  else
-    llvm_unreachable("Unexpected literal operand type for device-side printf");
-  return {CI, CASPrintfOperand};
 }
 } // namespace
