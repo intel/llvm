@@ -1360,7 +1360,6 @@ pi_result piEnqueueMemBufferReadRect(pi_queue, pi_mem, pi_bool,
 pi_result piEnqueueMemBufferWrite(pi_queue, pi_mem, pi_bool, size_t, size_t,
                                   const void *, pi_uint32, const pi_event *,
                                   pi_event *) {
-  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1375,7 +1374,6 @@ pi_result piEnqueueMemBufferWriteRect(pi_queue, pi_mem, pi_bool,
 pi_result piEnqueueMemBufferCopy(pi_queue, pi_mem, pi_mem, size_t, size_t,
                                  size_t, pi_uint32, const pi_event *,
                                  pi_event *) {
-  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1384,21 +1382,18 @@ pi_result piEnqueueMemBufferCopyRect(pi_queue, pi_mem, pi_mem,
                                      pi_buff_rect_region, size_t, size_t,
                                      size_t, size_t, pi_uint32,
                                      const pi_event *, pi_event *) {
-  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piEnqueueMemBufferFill(pi_queue, pi_mem, const void *, size_t, size_t,
                                  size_t, pi_uint32, const pi_event *,
                                  pi_event *) {
-  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piEnqueueMemBufferMap(pi_queue, pi_mem, pi_bool, pi_map_flags, size_t,
                                 size_t, pi_uint32, const pi_event *, pi_event *,
                                 void **) {
-  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1625,7 +1620,6 @@ pi_result piextKernelSetArgPointer(pi_kernel, pi_uint32, size_t, const void *) {
 
 pi_result piextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t, pi_uint32,
                                 const pi_event *, pi_event *) {
-  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1636,7 +1630,6 @@ pi_result piextUSMEnqueueMemcpy(pi_queue, pi_bool, void *, const void *, size_t,
 
 pi_result piextUSMEnqueueMemAdvise(pi_queue, const void *, size_t,
                                    pi_mem_advice, pi_event *) {
-  // TODO : intel/llvm_test_suite
   DIE_NO_IMPLEMENTATION;
 }
 
@@ -1674,8 +1667,7 @@ pi_result piextDeviceSelectBinary(pi_device, pi_device_binary *,
 pi_result piextUSMEnqueuePrefetch(pi_queue, const void *, size_t,
                                   pi_usm_migration_flags, pi_uint32,
                                   const pi_event *, pi_event *) {
-  // NOP for prefetch
-  return PI_SUCCESS;
+  DIE_NO_IMPLEMENTATION;
 }
 
 pi_result piextPluginGetOpaqueData(void *, void **OpaqueDataReturn) {

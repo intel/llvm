@@ -138,7 +138,7 @@ install(TARGETS pi_esimd_emulator
 
 # Copy CM Header files to $(INSTALL)/include/sycl/CL/
 install(DIRECTORY    ${CMAKE_CURRENT_BINARY_DIR}/cm-emu_install/include/libcm/cm/
-        DESTINATION  ${SYCL_INCLUDE_DIR}/CL
+        DESTINATION  ${SYCL_INCLUDE_DIR}/sycl/CL
         COMPONENT    libcmrt-headers
         FILES_MATCHING PATTERN "*.h"
 )
