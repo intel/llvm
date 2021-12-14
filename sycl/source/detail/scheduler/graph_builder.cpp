@@ -1227,10 +1227,14 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
       DepCmd->MUsers.erase(Cmd);
     }
 
-    // Do not delete the node if it's scheduled for post-enqueue cleanup to
-    // avoid double free.
-    if (!Cmd->MPostEnqueueCleanup)
+    // Isolate the node instead of deleting it if it's scheduled for
+    // post-enqueue cleanup to avoid double free.
+    if (Cmd->MPostEnqueueCleanup) {
+      Cmd->MDeps.clear();
+      Cmd->MUsers.clear();
+    } else {
       Cmd->MMarks.MToBeDeleted = true;
+    }
   }
   handleVisitedNodes(MVisitedCmds);
 }
