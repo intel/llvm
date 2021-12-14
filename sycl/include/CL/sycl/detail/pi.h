@@ -40,11 +40,12 @@
 // changes the API version from 3.5 to 4.6.
 // 5.7 Added new context and ownership arguments to
 //   piextEventCreateWithNativeHandle
-// 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle.
+// 6.8 Added new ownership argument to piextProgramCreateWithNativeHandle. Added
+// piQueueFlush function.
 //
 #include "CL/cl.h"
-#define _PI_H_VERSION_MAJOR 5
-#define _PI_H_VERSION_MINOR 7
+#define _PI_H_VERSION_MAJOR 6
+#define _PI_H_VERSION_MINOR 8
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1082,6 +1083,8 @@ __SYCL_EXPORT pi_result piQueueRetain(pi_queue command_queue);
 __SYCL_EXPORT pi_result piQueueRelease(pi_queue command_queue);
 
 __SYCL_EXPORT pi_result piQueueFinish(pi_queue command_queue);
+
+__SYCL_EXPORT pi_result piQueueFlush(pi_queue command_queue);
 
 /// Gets the native handle of a PI queue object.
 ///

@@ -93,11 +93,12 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MState = HES_NotComplete;
 }
 
-event_impl::event_impl() : MState(HES_Complete) {}
+event_impl::event_impl() : MIsFlushed(true), MState(HES_Complete) {}
 
 event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
-      MOpenCLInterop(true), MHostEvent(false), MState(HES_Complete) {
+      MOpenCLInterop(true), MHostEvent(false), MIsFlushed(true),
+      MState(HES_Complete) {
 
   if (MContext->is_host()) {
     throw cl::sycl::invalid_parameter_error(
@@ -120,7 +121,7 @@ event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
   getPlugin().call<PiApiKind::piEventRetain>(MEvent);
 }
 
-event_impl::event_impl(QueueImplPtr Queue) {
+event_impl::event_impl(const QueueImplPtr &Queue) : MQueue{Queue} {
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
 
@@ -342,6 +343,32 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
                 MPreparedHostDepsEvents.end());
 
   return Result;
+}
+
+void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
+  assert(MEvent != nullptr);
+  if (MIsFlushed)
+    return;
+
+  QueueImplPtr Queue = MQueue.lock();
+  // If the queue has been released, all of the commands have already been
+  // implicitly flushed by piQueueRelease.
+  if (!Queue) {
+    MIsFlushed = true;
+    return;
+  }
+  if (Queue == UserQueue)
+    return;
+
+  // Check if the task for this event has already been submitted.
+  pi_event_status Status = PI_EVENT_QUEUED;
+  getPlugin().call<PiApiKind::piEventGetInfo>(
+      MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
+      nullptr);
+  if (Status == PI_EVENT_QUEUED) {
+    getPlugin().call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+  }
+  MIsFlushed = true;
 }
 
 void event_impl::cleanupDependencyEvents() {
