@@ -30,11 +30,18 @@ inline constexpr const char *SYCL_PICALL_STREAM_NAME = "sycl.pi";
 // contains information about function arguments.
 inline constexpr const char *SYCL_PIDEBUGCALL_STREAM_NAME = "sycl.pi.debug";
 
+// Stream name being used to notify about buffer objects.
+inline constexpr const char *SYCL_BUFFER_STREAM_NAME =
+    "sycl.experimental.buffer";
+
 class XPTIRegistry {
 public:
   void initializeFrameworkOnce() {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    std::call_once(MInitialized, [] { xptiFrameworkInitialize(); });
+    std::call_once(MInitialized, [this] {
+      xptiFrameworkInitialize();
+      this->initializeStream(SYCL_BUFFER_STREAM_NAME, 0, 1, "0.1");
+    });
 #endif
   }
 

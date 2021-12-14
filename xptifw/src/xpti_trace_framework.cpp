@@ -942,6 +942,14 @@ public:
       if (!(UserData &&
             (TraceType == (uint16_t)trace_point_type_t::function_begin ||
              TraceType == (uint16_t)trace_point_type_t::function_end ||
+             // TODO: rework once the PR below is submitted
+             //       intel-restricted/applications.compilers.llvm-project#1441
+             TraceType ==
+                 (uint16_t)trace_point_type_t::offload_alloc_construct ||
+             TraceType ==
+                 (uint16_t)trace_point_type_t::offload_alloc_associate ||
+             TraceType ==
+                 (uint16_t)trace_point_type_t::offload_alloc_destruct ||
              TraceType ==
                  (uint16_t)trace_point_type_t::function_with_args_begin ||
              TraceType ==
