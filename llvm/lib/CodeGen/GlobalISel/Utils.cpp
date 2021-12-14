@@ -1030,16 +1030,22 @@ Optional<ValueAndVReg> getAnyConstantSplat(Register VReg,
   return SplatValAndReg;
 }
 
-bool isBuildVectorConstantSplat(const MachineInstr &MI,
-                                const MachineRegisterInfo &MRI,
-                                int64_t SplatValue, bool AllowUndef) {
-  if (auto SplatValAndReg =
-          getAnyConstantSplat(MI.getOperand(0).getReg(), MRI, AllowUndef))
+} // end anonymous namespace
+
+bool llvm::isBuildVectorConstantSplat(const Register Reg,
+                                      const MachineRegisterInfo &MRI,
+                                      int64_t SplatValue, bool AllowUndef) {
+  if (auto SplatValAndReg = getAnyConstantSplat(Reg, MRI, AllowUndef))
     return mi_match(SplatValAndReg->VReg, MRI, m_SpecificICst(SplatValue));
   return false;
 }
 
-} // end anonymous namespace
+bool llvm::isBuildVectorConstantSplat(const MachineInstr &MI,
+                                      const MachineRegisterInfo &MRI,
+                                      int64_t SplatValue, bool AllowUndef) {
+  return isBuildVectorConstantSplat(MI.getOperand(0).getReg(), MRI, SplatValue,
+                                    AllowUndef);
+}
 
 Optional<int64_t>
 llvm::getBuildVectorConstantSplat(const MachineInstr &MI,
@@ -1178,25 +1184,6 @@ bool llvm::shouldOptForSize(const MachineBasicBlock &MBB,
          llvm::shouldOptimizeForSize(MBB.getBasicBlock(), PSI, BFI);
 }
 
-/// These artifacts generally don't have any debug users because they don't
-/// directly originate from IR instructions, but instead usually from
-/// legalization. Avoiding checking for debug users improves compile time.
-/// Note that truncates or extends aren't included because they have IR
-/// counterparts which can have debug users after translation.
-static bool shouldSkipDbgValueFor(MachineInstr &MI) {
-  switch (MI.getOpcode()) {
-  case TargetOpcode::G_UNMERGE_VALUES:
-  case TargetOpcode::G_MERGE_VALUES:
-  case TargetOpcode::G_CONCAT_VECTORS:
-  case TargetOpcode::G_BUILD_VECTOR:
-  case TargetOpcode::G_EXTRACT:
-  case TargetOpcode::G_INSERT:
-    return true;
-  default:
-    return false;
-  }
-}
-
 void llvm::saveUsesAndErase(MachineInstr &MI, MachineRegisterInfo &MRI,
                             LostDebugLocObserver *LocObserver,
                             SmallInstListTy &DeadInstChain) {
@@ -1206,10 +1193,7 @@ void llvm::saveUsesAndErase(MachineInstr &MI, MachineRegisterInfo &MRI,
   }
   LLVM_DEBUG(dbgs() << MI << "Is dead; erasing.\n");
   DeadInstChain.remove(&MI);
-  if (shouldSkipDbgValueFor(MI))
-    MI.eraseFromParent();
-  else
-    MI.eraseFromParentAndMarkDBGValuesForRemoval();
+  MI.eraseFromParent();
   if (LocObserver)
     LocObserver->checkpoint(false);
 }
