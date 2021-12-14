@@ -171,7 +171,8 @@ static bool runNVVMReflect(Function &F, unsigned SmVersion) {
     } else if (ReflectArg == "__CUDA_ARCH") {
       ReflectVal = SmVersion * 10;
     } else if (ReflectArg == "__CUDA_PREC_SQRT") {
-      // Try to pull __CUDA_PREC_SQRT from the nvvm-reflect-prec-sqrt module flag.
+      // Try to pull __CUDA_PREC_SQRT from the nvvm-reflect-prec-sqrt module
+      // flag.
       if (auto *Flag = mdconst::extract_or_null<ConstantInt>(
               F.getParent()->getModuleFlag("nvvm-reflect-prec-sqrt")))
         ReflectVal = Flag->getSExtValue();
