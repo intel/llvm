@@ -18,10 +18,6 @@ on:
         type: string
         required: false
         default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
-      build_enabled:
-        type: boolean
-        required: false
-        default: true
       build_runs_on:
         type: string
         required: false
@@ -86,7 +82,6 @@ jobs:
               \"cxx\":\"g++\",
               \"build_runs_on\":\"build\",
               \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
-              \"build_enabled\":\"true\",
               \"build_github_cache\":\"false\",
               \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
@@ -110,7 +105,6 @@ jobs:
     name: Build SYCL toolchain
     needs: configure
     runs-on: ${{ fromJSON(needs.configure.outputs.params).build_runs_on }}
-    if: ${{ fromJSON(needs.configure.outputs.params).build_enabled }}
     container:
       image: ${{ fromJSON(needs.configure.outputs.params).build_image }}
       options: -u 1001:1001
