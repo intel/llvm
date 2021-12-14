@@ -98,6 +98,10 @@ static pi_result redefinedDeviceGetInfo(pi_device device,
     auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
     *Result = PI_DEVICE_TYPE_GPU;
   }
+  if (param_name == PI_DEVICE_INFO_COMPILER_AVAILABLE) {
+		auto *Result = reinterpret_cast<pi_bool *>(param_value);
+		*Result = true;
+	}
   return PI_SUCCESS;
 }
 
