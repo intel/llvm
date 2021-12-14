@@ -114,13 +114,14 @@ inline pi_result redefinedEventsWaitCommon(pi_uint32 num_events,
   return PI_SUCCESS;
 }
 
-inline pi_result redefinedEventGetInfoCommon(pi_event Event,
-                                             pi_event_info ParamName,
-                                             size_t ParamValueSize,
-                                             void *ParamValue,
-                                             size_t *ParamValueSizeRet) {
-  if (ParamName == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
-    *static_cast<pi_event_status *>(ParamValue) = PI_EVENT_COMPLETE;
+inline pi_result redefinedEventGetInfoCommon(pi_event event,
+                                             pi_event_info param_name,
+                                             size_t param_value_size,
+                                             void *param_value,
+                                             size_t *param_value_size_ret) {
+  if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    auto *status = reinterpret_cast<pi_event_status *>(param_value);
+    *status = PI_EVENT_SUBMITTED;
   }
   return PI_SUCCESS;
 }

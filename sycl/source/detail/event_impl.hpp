@@ -50,7 +50,7 @@ public:
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
   event_impl(RT::PiEvent Event, const context &SyclContext);
-  event_impl(QueueImplPtr Queue);
+  event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
   ///
@@ -188,6 +188,11 @@ public:
   /// @return a vector of "immediate" dependencies for this event_impl.
   std::vector<EventImplPtr> getWaitList();
 
+  /// Performs a flush on the queue associated with this event if the user queue
+  /// is different and the task associated with this event hasn't been submitted
+  /// to the device yet.
+  void flushIfNeeded(const QueueImplPtr &UserQueue);
+
   /// Cleans dependencies of this event_impl
   void cleanupDependencyEvents();
 
@@ -211,10 +216,15 @@ private:
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
+  std::weak_ptr<queue_impl> MQueue;
 
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
+
+  /// Indicates that the task associated with this event has been submitted by
+  /// the queue to the device.
+  std::atomic<bool> MIsFlushed = false;
 
   // State of host event. Employed only for host events and event with no
   // backend's representation (e.g. alloca). Used values are listed in
