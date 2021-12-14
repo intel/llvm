@@ -60,6 +60,14 @@ on:
         type: string
         required: false
         default: "gen9"
+      amdgpu_image:
+        type: string
+        required: false
+        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
+      amdgpu_runs_on:
+        type: string
+        required: false
+        default: "amdgpu"
 
 jobs:
   configure:
@@ -87,8 +95,10 @@ jobs:
               \"build_artifact_suffix\":\"default\",
               \"build_upload_artifact\":\"false\",
               \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
-              \"lts_config\":\"l0_gen9;ocl_x64\",
-              \"gen9_runs_on\":\"sycl-precommit-linux\"
+              \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
+              \"lts_config\":\"hip_amdgpu\",
+              \"gen9_runs_on\":\"gen9\"
+              \"amdgpu_runs_on\":\"amdgpu\"
             }"
           fi
           INPUTS="${INPUTS//'%'/'%25'}"
@@ -247,3 +257,28 @@ jobs:
         lit_archive: lit.tar.xz
         check_sycl_all: 'opencl:cpu,host'
         results_name_suffix: ocl_x64_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+
+  llvm_test_suite_hip_amdgpu:
+    name: HIP AMD GPU Test Suite
+    needs: [build, configure]
+    if: ${{ contains(fromJSON(needs.configure.outputs.params).lts_config, 'hip_amdgpu') }}
+    runs-on: ${{ fromJSON(needs.configure.outputs.params).amdgpu_runs_on }}
+    container:
+      image: ${{ fromJSON(needs.configure.outputs.params).amdgpu_image }}
+      options: -u 1001 --device=/dev/dri --device=/dev/kfd
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: llvm
+    - uses: ./llvm/devops/actions/llvm_test_suite
+      name: Run LLVM Test Suite
+      with:
+        # TODO allow custom test references
+        test_ref: 'intel'
+        sycl_artifact: sycl_linux_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        sycl_archive: llvm_sycl.tar.xz
+        lit_artifact: sycl_lit_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        lit_archive: lit.tar.xz
+        check_sycl_all: 'hip:gpu,host'
+        results_name_suffix: ocl_x64_${{ fromJSON(needs.configure.outputs.params).build_artifact_suffix }}
+        cmake_args: '-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"'
