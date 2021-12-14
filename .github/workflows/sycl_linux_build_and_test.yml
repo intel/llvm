@@ -92,7 +92,7 @@ jobs:
               \"intel_drivers_image\":\"ghcr.io/intel/llvm/ubuntu2004_intel_drivers:latest\",
               \"amdgpu_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
               \"lts_config\":\"hip_amdgpu\",
-              \"gen9_runs_on\":\"gen9\"
+              \"gen9_runs_on\":\"gen9\",
               \"amdgpu_runs_on\":\"amdgpu\"
             }"
           fi
