@@ -151,6 +151,21 @@ template <> struct word_type<int> { using type = short; };
 template <> struct word_type<uchar> { using type = ushort; };
 template <> struct word_type<uint> { using type = ushort; };
 
+// Utility for compile time loop unrolling.
+template <unsigned N> class ForHelper {
+  template <unsigned I, typename Action> static inline void repeat(Action A) {
+    if constexpr (I < N)
+      A(I);
+    if constexpr (I + 1 < N)
+      repeat<I + 1, Action>(A);
+  }
+
+public:
+  template <typename Action> static inline void unroll(Action A) {
+    ForHelper::template repeat<0, Action>(A);
+  }
+};
+
 } // namespace detail
 
 } // namespace esimd
