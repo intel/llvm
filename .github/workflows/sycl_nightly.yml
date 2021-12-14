@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 3 * * *'
+  pull_request:
+    paths:
+      - 'devops/containers/ubuntu2004_preinstalled.Dockerfile'
+      - '.github/workflows/sycl_nightly.yml'
 
 jobs:
   ubuntu2004_build_test:
