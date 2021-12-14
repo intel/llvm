@@ -17,7 +17,7 @@ on:
       build_image:
         type: string
         required: false
-        default: "ghcr.io/intel/llvm/ubuntu2004_base:latest"
+        default: "ghcr.io/intel/llvm/ubuntu2004_build:latest"
       build_runs_on:
         type: string
         required: false
@@ -61,7 +61,7 @@ jobs:
               \"cc\":\"gcc\",
               \"cxx\":\"g++\",
               \"build_runs_on\":\"sycl-precommit-linux\",
-              \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_base:latest\",
+              \"build_image\":\"ghcr.io/intel/llvm/ubuntu2004_build:latest\",
               \"build_github_cache\":\"false\",
               \"build_cache_root\":\"/__w/\",
               \"build_cache_suffix\":\"default\",
@@ -104,15 +104,18 @@ jobs:
         CACHE_SUFFIX: ${{ fromJSON(needs.configure.outputs.params).build_cache_suffix }}
         CACHE_SIZE: ${{ fromJSON(needs.configure.outputs.params).build_cache_size }}
         ARGS: ${{ fromJSON(needs.configure.outputs.params).build_configure_extra_args }}
+        CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
         mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
-          --ci-defaults $ARGS --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
+          --ci-defaults $ARGS --cuda --hip --hip-amd-arch="gfx906" \
+          --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
           --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
-          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE"
+          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
       run: cmake --build $GITHUB_WORKSPACE/build
     # TODO allow to optionally disable in-tree checks
@@ -128,6 +131,8 @@ jobs:
     - name: check-sycl
       if: always()
       run: |
+        # TODO consider moving this to Dockerfile
+        export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
       if: always()
