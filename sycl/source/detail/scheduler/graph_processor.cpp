@@ -21,9 +21,9 @@ static Command *getCommand(const EventImplPtr &Event) {
   return (Command *)Event->getCommand();
 }
 
-void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
-                                             ReadLockT &GraphReadLock,
-                                             std::vector<Command *> &EnqueuedCmds, bool LockTheLock) {
+void Scheduler::GraphProcessor::waitForEvent(
+    EventImplPtr Event, ReadLockT &GraphReadLock,
+    std::vector<Command *> &EnqueuedCmds, bool LockTheLock) {
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates cl::sycl::event explicitly or the
   // event has been waited on by another thread
@@ -45,9 +45,9 @@ void Scheduler::GraphProcessor::waitForEvent(EventImplPtr Event,
     GraphReadLock.lock();
 }
 
-bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
-                                               EnqueueResultT &EnqueueResult,
-                                               std::vector<Command *> &EnqueuedCommands, BlockingT Blocking) {
+bool Scheduler::GraphProcessor::enqueueCommand(
+    Command *Cmd, EnqueueResultT &EnqueueResult,
+    std::vector<Command *> &EnqueuedCommands, BlockingT Blocking) {
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
@@ -60,7 +60,8 @@ bool Scheduler::GraphProcessor::enqueueCommand(Command *Cmd,
   // Recursively enqueue all the dependencies first and
   // exit immediately if any of the commands cannot be enqueued.
   for (DepDesc &Dep : Cmd->MDeps) {
-    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, EnqueuedCommands, Blocking))
+    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, EnqueuedCommands,
+                        Blocking))
       return false;
   }
 

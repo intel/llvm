@@ -69,7 +69,8 @@ public:
   bool enqueueOrigin(cl::sycl::detail::EnqueueResultT &EnqueueResult,
                      cl::sycl::detail::BlockingT Blocking,
                      std::vector<cl::sycl::detail::Command *> &EnqueuedCmds) {
-    return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking, EnqueuedCmds);
+    return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking,
+                                              EnqueuedCmds);
   }
 
   cl_int MRetVal = CL_SUCCESS;
@@ -128,7 +129,8 @@ public:
                              cl::sycl::detail::EnqueueResultT &EnqueueResult,
                              cl::sycl::detail::BlockingT Blocking) {
     std::vector<cl::sycl::detail::Command *> EnqueuedCmds;
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, EnqueuedCmds, Blocking);
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, EnqueuedCmds,
+                                          Blocking);
   }
 
   cl::sycl::detail::AllocaCommandBase *

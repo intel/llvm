@@ -622,7 +622,8 @@ void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
 #endif
 }
 
-bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking, std::vector<Command *> &EnqueuedCommands) {
+bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+                      std::vector<Command *> &EnqueuedCommands) {
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
@@ -2344,8 +2345,12 @@ bool ExecCGCommand::producesPiEvent() const {
 }
 
 bool ExecCGCommand::supportsPostEnqueueCleanup() const {
-  // TODO enable cleaning up host task commands and kernels with streams after enqueue
-  return Command::supportsPostEnqueueCleanup() && (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask) && (MCommandGroup->getType() != CG::CGTYPE::Kernel || !(static_cast<CGExecKernel *>(MCommandGroup.get()))->hasStreams());
+  // TODO enable cleaning up host task commands and kernels with streams after
+  // enqueue
+  return Command::supportsPostEnqueueCleanup() &&
+         (MCommandGroup->getType() != CG::CGTYPE::CodeplayHostTask) &&
+         (MCommandGroup->getType() != CG::CGTYPE::Kernel ||
+          !(static_cast<CGExecKernel *>(MCommandGroup.get()))->hasStreams());
 }
 
 } // namespace detail

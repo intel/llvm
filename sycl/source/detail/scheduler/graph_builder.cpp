@@ -194,7 +194,9 @@ MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
           ToEnqueue.push_back(ConnectionCmd);
         Dependency->addUser(Dependant);
         --(Dependency->MLeafCounter);
-        if (Dependency->MLeafCounter == 0 && Dependency->isSuccessfullyEnqueued() && Dependency->supportsPostEnqueueCleanup())
+        if (Dependency->MLeafCounter == 0 &&
+            Dependency->isSuccessfullyEnqueued() &&
+            Dependency->supportsPostEnqueueCleanup())
           cleanupCommand(Dependency);
       };
 
@@ -239,7 +241,8 @@ void Scheduler::GraphBuilder::updateLeaves(
     bool WasLeaf = Cmd->MLeafCounter > 0;
     Cmd->MLeafCounter -= Record->MReadLeaves.remove(Cmd);
     Cmd->MLeafCounter -= Record->MWriteLeaves.remove(Cmd);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() && Cmd->supportsPostEnqueueCleanup()) {
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
+        Cmd->supportsPostEnqueueCleanup()) {
       if (CommandsToCleanUp) {
         if (WasLeaf)
           CommandsToCleanUp->push_back(Cmd);
@@ -1012,12 +1015,14 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
     MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() && Cmd->supportsPostEnqueueCleanup())
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
+        Cmd->supportsPostEnqueueCleanup())
       cleanupCommand(Cmd);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
     --(Cmd->MLeafCounter);
-    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() && Cmd->supportsPostEnqueueCleanup())
+    if (Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued() &&
+        Cmd->supportsPostEnqueueCleanup())
       cleanupCommand(Cmd);
   }
 }
@@ -1122,16 +1127,17 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(
   handleVisitedNodes(MVisitedCmds);
 }
 
-
 void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
   if (SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get())
     return;
   assert(Cmd->MLeafCounter == 0 && Cmd->isSuccessfullyEnqueued());
   Command::CommandType CmdT = Cmd->getType();
-  
+
   assert(CmdT != Command::ALLOCA && CmdT != Command::ALLOCA_SUB_BUF);
   assert(CmdT != Command::RELEASE);
-  assert(CmdT != Command::RUN_CG || (static_cast<ExecCGCommand *>(Cmd))->getCG().getType() != CG::CGTYPE::CodeplayHostTask);
+  assert(CmdT != Command::RUN_CG ||
+         (static_cast<ExecCGCommand *>(Cmd))->getCG().getType() !=
+             CG::CGTYPE::CodeplayHostTask);
 #ifndef NDEBUG
   if (CmdT == Command::RUN_CG) {
     auto *ExecCGCmd = static_cast<ExecCGCommand *>(Cmd);
@@ -1157,8 +1163,7 @@ void Scheduler::GraphBuilder::cleanupCommand(Command *Cmd) {
         // ... unless the user is the alloca itself.
         if (Dep.MAllocaCmd == UserCmd) {
           Dep.MDepCommand = nullptr;
-        }
-        else {
+        } else {
           Dep.MDepCommand = Dep.MAllocaCmd;
           Dep.MDepCommand->MUsers.insert(UserCmd);
         }

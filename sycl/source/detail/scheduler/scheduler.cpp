@@ -57,7 +57,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
     Command *ReleaseCmd = AllocaCmd->getReleaseCmd();
     EnqueueResultT Res;
-    bool Enqueued = GraphProcessor::enqueueCommand(ReleaseCmd, Res, EnqueuedCmds);
+    bool Enqueued =
+        GraphProcessor::enqueueCommand(ReleaseCmd, Res, EnqueuedCmds);
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -65,7 +66,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     // reported as edges
     ReleaseCmd->resolveReleaseDependencies(DepCommands);
 #endif
-    GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock, EnqueuedCmds);
+    GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
+                                 EnqueuedCmds);
   }
 }
 
@@ -146,7 +148,8 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // TODO: Check if lazy mode.
       EnqueueResultT Res;
       try {
-        bool Enqueued = GraphProcessor::enqueueCommand(NewCmd, Res, EnqueuedCmds);
+        bool Enqueued =
+            GraphProcessor::enqueueCommand(NewCmd, Res, EnqueuedCmds);
         if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
           throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
       } catch (...) {
@@ -217,7 +220,8 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   std::vector<Command *> EnqueuedCmds;
-  GraphProcessor::waitForEvent(std::move(Event), Lock, EnqueuedCmds, /*LockTheLock=*/false);
+  GraphProcessor::waitForEvent(std::move(Event), Lock, EnqueuedCmds,
+                               /*LockTheLock=*/false);
   cleanupCommands(EnqueuedCmds);
 }
 
@@ -342,7 +346,7 @@ void Scheduler::releaseHostAccessor(Requirement *Req) {
 // static
 void Scheduler::enqueueLeavesOfReqUnlocked(
     const Requirement *const Req, std::vector<Command *> &EnqueuedCmds) {
-  //FIXME handle this as well
+  // FIXME handle this as well
   MemObjRecord *Record = Req->MSYCLMemObj->MRecord.get();
   auto EnqueueLeaves = [&EnqueuedCmds](LeavesCollection &Leaves) {
     for (Command *Cmd : Leaves) {

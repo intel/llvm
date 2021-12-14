@@ -730,7 +730,8 @@ protected:
     ///
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state if and only if LockTheLock is true.
-    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock, std::vector<Command *> &EnqueueCommands,
+    static void waitForEvent(EventImplPtr Event, ReadLockT &GraphReadLock,
+                             std::vector<Command *> &EnqueueCommands,
                              bool LockTheLock = true);
 
     /// Enqueues the command and all its dependencies.
@@ -741,7 +742,8 @@ protected:
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
-                               std::vector<Command *> &EnqueuedCommands, BlockingT Blocking = NON_BLOCKING);
+                               std::vector<Command *> &EnqueuedCommands,
+                               BlockingT Blocking = NON_BLOCKING);
   };
 
   /// This function waits on all of the graph leaves which somehow use the

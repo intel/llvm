@@ -124,7 +124,8 @@ public:
   /// \param Blocking if this argument is true, function will wait for the
   ///        command to be unblocked before calling enqueueImp.
   /// \return true if the command is enqueued.
-  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking, std::vector<Command *> &EnqueuedCommands);
+  virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
+                       std::vector<Command *> &EnqueuedCommands);
 
   bool isFinished();
 
@@ -552,6 +553,7 @@ public:
   bool producesPiEvent() const final;
 
   bool supportsPostEnqueueCleanup() const final;
+
 private:
   cl_int enqueueImp() final;
 
