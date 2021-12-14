@@ -63,7 +63,7 @@
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_NOARG %s
 // HOST_COMPILER_NOARG: missing argument to '-fsycl-host-compiler='
 
-///Unexpected warning when using g++ host compiler
+/// Warning should not be emitted when using -fsycl-host-compiler when linking
 // RUN: touch %t.o
 // RUN: %clangxx -fsycl -fsycl-host-compiler=g++ %t.o -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=WARNING_HOST_COMPILER %s
