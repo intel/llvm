@@ -109,8 +109,17 @@ namespace {
 struct CallReplacer {
   CallReplacer(CallInst *CI, Value *CASArg) : CI(CI), CASArg(CASArg) {}
   void replaceWithFunction(Function *CASPrintf) {
-    CI->setArgOperand(0, CASArg);
     CI->setCalledFunction(CASPrintf);
+    Value *ArgToSet = CASArg;
+    if (auto *Const = dyn_cast<Constant>(CASArg)) {
+      // In case there's a misalignment between the updated function type and
+      // the constant literal type, create a constant pointer cast so as to
+      // duck module verifier complaints.
+      Type *ParamType = CASPrintf->getFunctionType()->getParamType(0);
+      if (Const->getType() != ParamType)
+        ArgToSet = ConstantExpr::getPointerCast(Const, ParamType);
+    }
+    CI->setArgOperand(0, ArgToSet);
   }
 
 private:
