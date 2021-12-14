@@ -1218,7 +1218,7 @@ void Scheduler::GraphBuilder::cleanupFailedCommand(
       addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
 
       // Replace failed command as a user.
-      if(Dep.MDepCommand->MUsers.erase(Cmd))
+      if (Dep.MDepCommand->MUsers.erase(Cmd))
         Dep.MDepCommand->MUsers.insert(EmptyCmd);
     }
 
