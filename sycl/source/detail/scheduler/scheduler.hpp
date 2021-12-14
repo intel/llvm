@@ -459,7 +459,7 @@ protected:
   /// \param Lock is an instance of WriteLockT, created with \c std::defer_lock
   void acquireWriteLock(WriteLockT &Lock);
 
-  void cleanupCommands(std::vector<Command *> &Cmds);
+  void cleanupCommands(const std::vector<Command *> &Cmds);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
                                          std::vector<Command *> &EnqueuedCmds);

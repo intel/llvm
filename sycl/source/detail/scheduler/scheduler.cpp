@@ -400,6 +400,10 @@ Scheduler::~Scheduler() {
           "not all resources were released. Please be sure that all kernels "
           "have synchronization points.\n\n");
   }
+  // There might be some commands scheduled for post enqueue cleanup that
+  // haven't been freed because of the graph mutex being locked at the time,
+  // clean them up now.
+  cleanupCommands({});
 }
 
 void Scheduler::acquireWriteLock(WriteLockT &Lock) {
@@ -427,7 +431,7 @@ MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
   return Req->MSYCLMemObj->MRecord.get();
 }
 
-void Scheduler::cleanupCommands(std::vector<Command *> &Cmds) {
+void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
   if (Cmds.empty())
     return;
   WriteLockT Lock(MGraphLock, std::try_to_lock);
