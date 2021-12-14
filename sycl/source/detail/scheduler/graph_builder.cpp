@@ -1125,15 +1125,6 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
         MCmdsToVisit.push(Dep.MDepCommand);
     }
 
-    // If the command has failed to enqueue it must be removed from its leaves.
-    if (Cmd->isEnqueueFailed()) {
-      for (const DepDesc &Dep : Cmd->MDeps) {
-        const Requirement *Req = Dep.MDepRequirement;
-        MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
-        updateLeaves({Cmd}, Record, Req->MAccessMode);
-      }
-    }
-
     // Do not clean up the node if it is a leaf for any memory object
     if (Cmd->MLeafCounter > 0)
       continue;
@@ -1155,6 +1146,80 @@ void Scheduler::GraphBuilder::cleanupFinishedCommands(
     for (DepDesc &Dep : Cmd->MDeps) {
       Command *DepCmd = Dep.MDepCommand;
       DepCmd->MUsers.erase(Cmd);
+    }
+
+    Cmd->MMarks.MToBeDeleted = true;
+  }
+  handleVisitedNodes(MVisitedCmds);
+}
+
+void Scheduler::GraphBuilder::cleanupFailedCommand(
+    Command *FailedCmd,
+    std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>>
+        &StreamsToDeallocate) {
+  assert(MCmdsToVisit.empty());
+  MCmdsToVisit.push(FailedCmd);
+  MVisitedCmds.clear();
+
+  // Traverse the graph using BFS
+  while (!MCmdsToVisit.empty()) {
+    Command *Cmd = MCmdsToVisit.front();
+    MCmdsToVisit.pop();
+
+    if (!markNodeAsVisited(Cmd, MVisitedCmds))
+      continue;
+
+    // Skip replacing empty commands similar to the one we will create
+    if (Cmd->getType() == Command::EMPTY_TASK &&
+        Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueReady) {
+      for (Command *UserCmd : Cmd->MUsers)
+        MCmdsToVisit.push(UserCmd);
+      continue;
+    }
+
+    // Collect stream objects for a visited command.
+    if (Cmd->getType() == Command::CommandType::RUN_CG) {
+      auto ExecCmd = static_cast<ExecCGCommand *>(Cmd);
+      std::vector<std::shared_ptr<stream_impl>> Streams = ExecCmd->getStreams();
+      ExecCmd->clearStreams();
+      StreamsToDeallocate.insert(StreamsToDeallocate.end(), Streams.begin(),
+                                 Streams.end());
+    }
+
+    // Create empty command that is "ready" for enqueuing.
+    EmptyCommand *EmptyCmd = new EmptyCommand(Cmd->getQueue());
+    if (!EmptyCmd)
+      throw runtime_error("Out of host memory", PI_OUT_OF_HOST_MEMORY);
+    EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueReady;
+
+    // Mark new empty command as visited to avoid replacing it later.
+    markNodeAsVisited(EmptyCmd, MVisitedCmds);
+
+    for (Command *UserCmd : Cmd->MUsers) {
+      // User dependencies cannot be satisfied as dependency failed. These are
+      // also considered as failed.
+      MCmdsToVisit.push(UserCmd);
+
+      // Replace failed command in users with new empty command.
+      for (DepDesc &Dep : UserCmd->MDeps) {
+        if (Dep.MDepCommand == Cmd) {
+          Dep.MDepCommand = EmptyCmd;
+          EmptyCmd->MUsers.insert(UserCmd);
+        }
+      }
+    }
+
+    for (DepDesc &Dep : Cmd->MDeps) {
+      // Replace failed command in dependency records.
+      const Requirement *Req = Dep.MDepRequirement;
+      MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
+      updateLeaves({Cmd}, Record, Req->MAccessMode);
+      std::vector<Command *> ToEnqueue;
+      addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
+
+      // Replace failed command as a user.
+      if(Dep.MDepCommand->MUsers.erase(Cmd))
+        Dep.MDepCommand->MUsers.insert(EmptyCmd);
     }
 
     Cmd->MMarks.MToBeDeleted = true;

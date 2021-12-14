@@ -511,6 +511,11 @@ protected:
         Command *FinishedCmd,
         std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
 
+    /// Removes failed command from the subgraph
+    void cleanupFailedCommand(
+        Command *FailedCmd,
+        std::vector<std::shared_ptr<cl::sycl::detail::stream_impl>> &);
+
     /// Reschedules the command passed using Queue provided.
     ///
     /// This can lead to rescheduling of all dependent commands. This can be

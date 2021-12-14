@@ -68,6 +68,16 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
 }
 
+static void deallocateStreams(
+    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
+  // Deallocate buffers for stream objects of the finished commands. Iterate in
+  // reverse order because it is the order of commands execution.
+  for (auto StreamImplPtr = StreamsToDeallocate.rbegin();
+       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
+    detail::Scheduler::getInstance().deallocateStreamBuffers(
+        StreamImplPtr->get());
+}
+
 EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
                               QueueImplPtr Queue) {
   EventImplPtr NewEvent = nullptr;
@@ -116,16 +126,6 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     EnqueueResultT Res;
     bool Enqueued;
 
-    auto CleanUp = [&]() {
-      if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
-        if (Type == CG::RunOnHostIntel)
-          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
-
-        NewEvent->setCommand(nullptr);
-        delete NewCmd;
-      }
-    };
-
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Res);
       if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
@@ -144,12 +144,22 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       // Though, dismiss ownership of native kernel command group as it's
       // resources may be in use by backend and synchronization point here is
       // at native kernel execution finish.
-      CleanUp();
+      if (NewCmd && (NewCmd->MDeps.size() == 0 && NewCmd->MUsers.size() == 0)) {
+        if (Type == CG::RunOnHostIntel)
+          static_cast<ExecCGCommand *>(NewCmd)->releaseCG();
+
+        NewEvent->setCommand(nullptr);
+        delete NewCmd;
+      }
     }
   } catch (...) {
-    // If enqueuing has failed we need to clean up the command to remove it
-    // from the graph so it does not cause issues for other related commands.
-    cleanupFinishedCommands(NewEvent);
+    std::vector<StreamImplPtr> StreamsToDeallocate;
+    Command *NewCmd = static_cast<Command *>(NewEvent->getCommand());
+    if (NewCmd) {
+      WriteLockT Lock(MGraphLock, std::defer_lock);
+      MGraphBuilder.cleanupFailedCommand(NewCmd, StreamsToDeallocate);
+    }
+    deallocateStreams(StreamsToDeallocate);
     std::rethrow_exception(std::current_exception());
   }
 
@@ -202,16 +212,6 @@ void Scheduler::waitForEvent(EventImplPtr Event) {
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   GraphProcessor::waitForEvent(std::move(Event), Lock, /*LockTheLock=*/false);
-}
-
-static void deallocateStreams(
-    std::vector<std::shared_ptr<stream_impl>> &StreamsToDeallocate) {
-  // Deallocate buffers for stream objects of the finished commands. Iterate in
-  // reverse order because it is the order of commands execution.
-  for (auto StreamImplPtr = StreamsToDeallocate.rbegin();
-       StreamImplPtr != StreamsToDeallocate.rend(); ++StreamImplPtr)
-    detail::Scheduler::getInstance().deallocateStreamBuffers(
-        StreamImplPtr->get());
 }
 
 void Scheduler::cleanupFinishedCommands(EventImplPtr FinishedEvent) {
