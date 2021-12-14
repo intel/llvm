@@ -11,7 +11,7 @@ jobs:
     with:
       build_cache_root: "/__w/llvm"
       build_github_cache: true
-      build_artifact_suffix: default
+      build_artifact_suffix: build
   linux_no_assert:
     name: Linux (no assert)
     uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
