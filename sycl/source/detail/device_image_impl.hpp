@@ -185,6 +185,9 @@ public:
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const detail::plugin &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      // Uses PI_MEM_FLAGS_HOST_PTR_COPY since post-enqueue cleanup might
+      // destroy MSpecConstsBuffer.
+      // TODO consider changing the lifetime of device_image_impl instead
       Plugin.call<PiApiKind::piMemBufferCreate>(
           detail::getSyclObjImpl(MContext)->getHandleRef(),
           PI_MEM_FLAGS_ACCESS_RW | PI_MEM_FLAGS_HOST_PTR_COPY,

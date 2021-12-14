@@ -462,7 +462,7 @@ protected:
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
   static void enqueueLeavesOfReqUnlocked(const Requirement *const Req,
-                                         std::vector<Command *> &EnqueuedCmds);
+                                         std::vector<Command *> &CmdsToCleanUp);
 
   /// Graph builder class.
   ///
@@ -742,7 +742,7 @@ protected:
     /// The function may unlock and lock GraphReadLock as needed. Upon return
     /// the lock is left in locked state.
     static bool enqueueCommand(Command *Cmd, EnqueueResultT &EnqueueResult,
-                               std::vector<Command *> &EnqueuedCommands,
+                               std::vector<Command *> &CmdsToCleanUp,
                                BlockingT Blocking = NON_BLOCKING);
   };
 

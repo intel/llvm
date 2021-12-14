@@ -68,9 +68,9 @@ public:
                              std::vector<cl::sycl::detail::Command *> &));
   bool enqueueOrigin(cl::sycl::detail::EnqueueResultT &EnqueueResult,
                      cl::sycl::detail::BlockingT Blocking,
-                     std::vector<cl::sycl::detail::Command *> &EnqueuedCmds) {
+                     std::vector<cl::sycl::detail::Command *> &CmdsToCleanUp) {
     return cl::sycl::detail::Command::enqueue(EnqueueResult, Blocking,
-                                              EnqueuedCmds);
+                                              CmdsToCleanUp);
   }
 
   cl_int MRetVal = CL_SUCCESS;
@@ -128,8 +128,8 @@ public:
   static bool enqueueCommand(cl::sycl::detail::Command *Cmd,
                              cl::sycl::detail::EnqueueResultT &EnqueueResult,
                              cl::sycl::detail::BlockingT Blocking) {
-    std::vector<cl::sycl::detail::Command *> EnqueuedCmds;
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, EnqueuedCmds,
+    std::vector<cl::sycl::detail::Command *> CmdsToCleanUp;
+    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult, CmdsToCleanUp,
                                           Blocking);
   }
 

@@ -125,7 +125,7 @@ public:
   ///        command to be unblocked before calling enqueueImp.
   /// \return true if the command is enqueued.
   virtual bool enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
-                       std::vector<Command *> &EnqueuedCommands);
+                       std::vector<Command *> &CmdsToCleanUp);
 
   bool isFinished();
 

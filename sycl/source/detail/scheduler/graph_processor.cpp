@@ -23,7 +23,7 @@ static Command *getCommand(const EventImplPtr &Event) {
 
 void Scheduler::GraphProcessor::waitForEvent(
     EventImplPtr Event, ReadLockT &GraphReadLock,
-    std::vector<Command *> &EnqueuedCmds, bool LockTheLock) {
+    std::vector<Command *> &CmdsToCleanUp, bool LockTheLock) {
   Command *Cmd = getCommand(Event);
   // Command can be nullptr if user creates cl::sycl::event explicitly or the
   // event has been waited on by another thread
@@ -31,7 +31,7 @@ void Scheduler::GraphProcessor::waitForEvent(
     return;
 
   EnqueueResultT Res;
-  bool Enqueued = enqueueCommand(Cmd, Res, EnqueuedCmds, BLOCKING);
+  bool Enqueued = enqueueCommand(Cmd, Res, CmdsToCleanUp, BLOCKING);
   if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
     // TODO: Reschedule commands.
     throw runtime_error("Enqueue process failed.", PI_INVALID_OPERATION);
@@ -47,7 +47,7 @@ void Scheduler::GraphProcessor::waitForEvent(
 
 bool Scheduler::GraphProcessor::enqueueCommand(
     Command *Cmd, EnqueueResultT &EnqueueResult,
-    std::vector<Command *> &EnqueuedCommands, BlockingT Blocking) {
+    std::vector<Command *> &CmdsToCleanUp, BlockingT Blocking) {
   if (!Cmd || Cmd->isSuccessfullyEnqueued())
     return true;
 
@@ -60,7 +60,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // Recursively enqueue all the dependencies first and
   // exit immediately if any of the commands cannot be enqueued.
   for (DepDesc &Dep : Cmd->MDeps) {
-    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, EnqueuedCommands,
+    if (!enqueueCommand(Dep.MDepCommand, EnqueueResult, CmdsToCleanUp,
                         Blocking))
       return false;
   }
@@ -77,7 +77,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // implemented.
   for (const EventImplPtr &Event : Cmd->getPreparedHostDepsEvents()) {
     if (Command *DepCmd = static_cast<Command *>(Event->getCommand()))
-      if (!enqueueCommand(DepCmd, EnqueueResult, EnqueuedCommands, Blocking))
+      if (!enqueueCommand(DepCmd, EnqueueResult, CmdsToCleanUp, Blocking))
         return false;
   }
 
@@ -94,7 +94,7 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   // on completion of C and starts cleanup process. This thread is still in the
   // middle of enqueue of B. The other thread modifies dependency list of A by
   // removing C out of it. Iterators become invalid.
-  return Cmd->enqueue(EnqueueResult, Blocking, EnqueuedCommands);
+  return Cmd->enqueue(EnqueueResult, Blocking, CmdsToCleanUp);
 }
 
 } // namespace detail
