@@ -164,17 +164,16 @@ Constant *AddrspaceReplacer::getCASLiteral(GlobalVariable *GenericASLiteral) {
   // the existing global is returned.
   std::string CASLiteralName = GenericASLiteral->getName().str() + "._AS2";
   IRBuilder<> Builder(M->getContext());
-  Constant *Res = M->getOrInsertGlobal(CASLiteralName, CASLiteralType, [&] {
-    StringRef LiteralValue;
-    getConstantStringInfo(GenericASLiteral, LiteralValue);
-    GlobalVariable *GV = Builder.CreateGlobalString(
-        LiteralValue, CASLiteralName, ConstantAddrspaceID, M);
-    GV->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-    GV->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
-    return GV;
-  });
-  // TODO: Create the literal in another way to ensure correct type instead
-  Res->mutateType(CASLiteralType);
+  if (GlobalVariable *ExistingGlobal =
+          M->getGlobalVariable(CASLiteralName, /*AllowInternal=*/true))
+    return ExistingGlobal;
+
+  StringRef LiteralValue;
+  getConstantStringInfo(GenericASLiteral, LiteralValue);
+  GlobalVariable *Res = Builder.CreateGlobalString(LiteralValue, CASLiteralName,
+                                                   ConstantAddrspaceID, M);
+  Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
+  Res->setUnnamedAddr(GlobalValue::UnnamedAddr::None);
   return Res;
 }
 
