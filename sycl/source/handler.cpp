@@ -414,9 +414,20 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
         static_cast<detail::AccessorBaseHost *>(&S->GlobalFlushBuf);
     detail::AccessorImplPtr GFlushImpl = detail::getSyclObjImpl(*GFlushBase);
     detail::Requirement *GFlushReq = GFlushImpl.get();
+
+    size_t GlobalSize = MNDRDesc.GlobalSize.size();
+    // If work group size wasn't set explicitly then it must be recieved
+    // from kernel attribute or set to default values.
+    // For now we can't get this attribute here.
+    // So we just suppose that WG size is always default for stream.
+    // TODO adjust MNDRDesc when device image contains kernel's attribute
+    if (GlobalSize == 0) {
+      // Suppose that work group size is 1 for every dimension
+      GlobalSize = MNDRDesc.NumWorkGroups.size();
+    }
     addArgsForGlobalAccessor(GFlushReq, Index, IndexShift, Size,
-                             IsKernelCreatedFromSource,
-                             MNDRDesc.GlobalSize.size(), MArgs, IsESIMD);
+                             IsKernelCreatedFromSource, GlobalSize, MArgs,
+                             IsESIMD);
     ++IndexShift;
     MArgs.emplace_back(kernel_param_kind_t::kind_std_layout,
                        &S->FlushBufferSize, sizeof(S->FlushBufferSize),
