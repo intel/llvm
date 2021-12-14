@@ -10,7 +10,7 @@ jobs:
     if: github.repository == 'intel/llvm'
     uses: intel/llvm/.github/workflows/sycl_linux_build_and_test.yml@sycl
     with:
-      build_runs_on: sycl-precommit-linux
+      build_runs_on: build
       build_github_cache: true
       build_cache_root: "/__w/"
       build_artifact_suffix: default
