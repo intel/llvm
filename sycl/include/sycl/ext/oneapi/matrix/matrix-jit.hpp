@@ -198,6 +198,7 @@ inline __SYCL_ALWAYS_INLINE void
 joint_matrix_fill(Group sg,
                   joint_matrix<T, NumRows, NumCols, Layout, Group> &res,
                   const T v) {
+  (void)sg;
 #ifdef __SYCL_DEVICE_ONLY__
   res.spvm = __spirv_CompositeConstruct<T, NumRows, NumCols>(v);
 #else
