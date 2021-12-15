@@ -189,7 +189,7 @@ struct trickyStruct {
 
 // function return type and argument both unsupported
 // expected-note@+1 2{{'commitInfraction' defined here}}
-__int128 commitInfraction(__int128 a) {
+[[intel::device_indirectly_callable]] __int128 commitInfraction(__int128 a) {
   return 0;
 }
 
@@ -403,8 +403,7 @@ int moar_globals = 5;
 template<const auto &T>
 int uses_global(){}
 
-
-int addInt(int n, int m) {
+[[intel::device_indirectly_callable]] int addInt(int n, int m) {
   return n + m;
 }
 

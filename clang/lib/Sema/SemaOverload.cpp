@@ -1807,10 +1807,27 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
     // Function-to-pointer conversion (C++ 4.3).
     SCS.First = ICK_Function_To_Pointer;
 
-    if (auto *DRE = dyn_cast<DeclRefExpr>(From->IgnoreParenCasts()))
-      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+    if (auto *DRE = dyn_cast<DeclRefExpr>(From->IgnoreParenCasts())) {
+      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
         if (!S.checkAddressOfFunctionIsAvailable(FD))
           return false;
+
+        // Some parts of clang are not designed for deferred diagnostics.
+        // One of the examples - initialization. When a new initialization is
+        // performed - it may end up here checking validity of a conversion.
+        // If false is returned from here, initialization sequence is marked as
+        // invalid, then checkAddressOfFunctionIsAvailable is called again
+        // to understand the reason of invaid initialization and and the end
+        // it is called with `Complain` parameter to emit diagnostics.
+        // We cannot mark an initialization permanently invalid for SYCL device,
+        // because we may not know yet where the device code is.
+        // So, just call `checkAddressOfFunctionIsAvailable` again but with
+        // `Complain` parameter to issue a deferred diagnostic.
+        if (S.getLangOpts().SYCLIsDevice)
+          S.checkAddressOfFunctionIsAvailable(FD, /*Complain=*/true,
+                                              DRE->getExprLoc());
+      }
+    }
 
     // An lvalue of function type T can be converted to an rvalue of
     // type "pointer to T." The result is a pointer to the
@@ -10243,6 +10260,14 @@ static bool checkAddressOfFunctionIsAvailable(Sema &S, const FunctionDecl *FD,
                                               bool Complain,
                                               bool InOverloadResolution,
                                               SourceLocation Loc) {
+  if (Complain && S.getLangOpts().SYCLIsDevice &&
+      S.getLangOpts().SYCLAllowFuncPtr) {
+    if (!FD->hasAttr<SYCLDeviceIndirectlyCallableAttr>()) {
+      S.SYCLDiagIfDeviceCode(Loc,
+                             diag::err_sycl_taking_address_of_wrong_function);
+    }
+  }
+
   if (!isFunctionAlwaysEnabled(S.Context, FD)) {
     if (Complain) {
       if (InOverloadResolution)
