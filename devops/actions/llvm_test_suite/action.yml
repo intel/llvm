@@ -68,16 +68,17 @@ runs:
   - name: Run testing
     shell: bash
     run: |
-      echo "::group::Prepare"
       export LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH:/runtimes/oclcpu/x64:/runtimes/fpgaemu/x64/
       export PATH=$PWD/toolchain/bin/:$PATH
       export LIT_OPTS="-v --no-progress-bar --show-unsupported --time-tests -o $PWD/build/results_${{ inputs.results_name_suffix }}.json"
       if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
         source /runtimes/oneapi-tbb/env/vars.sh;
       fi
-      echo "::endgroup::"
-      echo "::group::sycl-ls"
+      echo "::group::sycl-ls --verbose"
       sycl-ls --verbose
+      echo "::endgroup::"
+      echo "::group::SYCL_PI_TRACE=-1 sycl-ls"
+      SYCL_PI_TRACE=-1 sycl-ls
       echo "::endgroup::"
       cd build
       ninja check-sycl-all
