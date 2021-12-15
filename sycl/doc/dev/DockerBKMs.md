@@ -39,20 +39,20 @@ argument.
 ## Running Docker container interactively
 
 The main application of Docker is containerizing services. But it also allows
-you to run containers interactively, so that you can use it as you would use a
+you to run containers interactively, so that you can use them as you would use a
 terminal or SSH session. The following command allows you to do that:
 
 ```
 docker run --name <friendly_name> -it <image_name>[:<tag>] /bin/bash
 ```
 
-This command will download an image, if it does not exist locally. If you've
+This command will download an image if it does not exist locally. If you've
 downloaded an image previously, and you want to update it, use
 `docker pull <image_name>` command.
 
 ## Passthrough an Intel GPU to container
 
-Add `--device=/dev/dri` argument to `run` command to passthrough you Intel GPU.
+Add `--device=/dev/dri` argument to `run` command to passthrough Intel GPU.
 Make sure you're a member of `video` group to be able to access GPU.
 
 ## Passthrough a directory to container
