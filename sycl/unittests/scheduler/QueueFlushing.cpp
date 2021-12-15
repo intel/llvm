@@ -196,7 +196,8 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                                       /*Events*/ {})};
     detail::ExecCGCommand ExecCGCmd{std::move(CG), QueueImplA};
     MockReq.MDims = 1;
-    (void)ExecCGCmd.addDep(detail::DepDesc(&AllocaCmd, &MockReq, &AllocaCmd), ToCleanUp);
+    (void)ExecCGCmd.addDep(detail::DepDesc(&AllocaCmd, &MockReq, &AllocaCmd),
+                           ToCleanUp);
     testCommandEnqueue(&ExecCGCmd, QueueImplB, MockReq);
   }
 
