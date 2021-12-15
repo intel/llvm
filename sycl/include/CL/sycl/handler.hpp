@@ -472,12 +472,9 @@ private:
   /// Saves buffers created by handling reduction feature in handler.
   /// They are then forwarded to command group and destroyed only after
   /// the command group finishes the work on device/host.
-  /// The 'MSharedPtrStorage' suits that need.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
-  void addReduction(const std::shared_ptr<const void> &ReduObj) {
-    MSharedPtrStorage.push_back(ReduObj);
-  }
+  void addReduction(const std::shared_ptr<const void> &ReduObj);
 
   ~handler() = default;
 
@@ -1267,6 +1264,7 @@ private:
   }
 
   std::shared_ptr<detail::handler_impl> getHandlerImpl() const;
+  std::shared_ptr<detail::handler_impl> evictHandlerImpl() const;
 
   void setStateExplicitKernelBundle();
   void setStateSpecConstSet();
