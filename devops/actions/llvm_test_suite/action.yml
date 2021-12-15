@@ -47,6 +47,7 @@ runs:
     run: |
       mkdir toolchain
       tar -xf ${{ inputs.sycl_archive }} -C toolchain
+      rm -f ${{ inputs.sycl_archive }}
   - name: Download LIT
     uses: actions/download-artifact@v2
     with:
@@ -57,6 +58,7 @@ runs:
       mkdir lit
       ls -la
       tar -xf ${{ inputs.lit_archive }} -C lit
+      rm -f ${{ inputs.lit_archive }}
   - name: Configure
     shell: bash
     run: |
